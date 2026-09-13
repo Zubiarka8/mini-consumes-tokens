@@ -1,0 +1,127 @@
+name: Release
+
+# Triggered by pushing a `v*` tag (e.g. `v0.1.0`). Builds ccm-cli and
+# ccm-mcp-server for 5 OS/arch combos and attaches them to a GitHub Release.
+# This workflow does NOT publish to crates.io — that stays a manual step
+# (see RELEASING.md) since it needs a CRATES_IO_TOKEN this repo does not
+# have wired in as a secret yet, and publishing is deliberately not
+# automated on every tag push.
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  RUST_TOOLCHAIN: "1.96.0"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          # Cross-compiled from an ubuntu-latest (x86_64) runner via a
+          # system cross-linker — no `cross`/Docker needed since git2
+          # (default-features = false) and rusqlite's bundled sqlite are
+          # both plain C compiled through the `cc` crate, which a
+          # cross-gcc handles the same as a native one.
+          - name: linux-arm64
+            os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+          - name: macos-x86_64
+            os: macos-13
+            target: x86_64-apple-darwin
+          - name: macos-arm64
+            os: macos-latest
+            target: aarch64-apple-darwin
+          - name: windows-x86_64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@1.96.0
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Install aarch64 cross-linker (linux-arm64 only)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build ccm-cli and ccm-mcp-server
+        shell: bash
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+          CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
+        run: cargo build --release --target ${{ matrix.target }} -p ccm-cli -p ccm-mcp-server
+
+      - name: Package archive (unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          pkg="codebase-context-mcp-${{ github.ref_name }}-${{ matrix.name }}"
+          dist="dist/$pkg"
+          mkdir -p "$dist"
+          cp "target/${{ matrix.target }}/release/ccm-cli" "$dist/"
+          cp "target/${{ matrix.target }}/release/ccm-mcp-server" "$dist/"
+          cp README.md LICENSE CHANGELOG.md "$dist/"
+          tar -C dist -czf "dist/$pkg.tar.gz" "$pkg"
+          rm -rf "$dist"
+
+      - name: Package archive (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $pkg = "codebase-context-mcp-${{ github.ref_name }}-${{ matrix.name }}"
+          $dist = "dist/$pkg"
+          New-Item -ItemType Directory -Force -Path $dist | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/ccm-cli.exe" "$dist/"
+          Copy-Item "target/${{ matrix.target }}/release/ccm-mcp-server.exe" "$dist/"
+          Copy-Item README.md,LICENSE,CHANGELOG.md "$dist/"
+          Compress-Archive -Path "$dist/*" -DestinationPath "dist/$pkg.zip"
+          Remove-Item -Recurse -Force "$dist"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: dist/*
+
+  release:
+    name: create GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten artifacts into one release/ dir
+        run: |
+          mkdir -p release
+          find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec cp {} release/ \;
+          ls -la release
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          body: |
+            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
+
+            Prebuilt binaries below (ccm-cli + ccm-mcp-server) for Linux (x86_64/arm64), macOS (Intel/Apple Silicon), and Windows (x86_64). Crates.io publishing status is tracked separately in RELEASING.md — it is not automated by this workflow.
