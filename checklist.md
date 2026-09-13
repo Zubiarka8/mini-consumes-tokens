@@ -17,6 +17,7 @@ Resultado: **0** ocurrencias (2026-09-13).
 
 - [x] Decisión: fuzzing excluido de CI en Windows por problema de ASan en PATH — resuelto: fuzzing corre solo en Linux/macOS, build+test normal sí corre en Windows sin excepción. Detalle técnico completo (por qué falla tanto con el sanitizer `address` por defecto como con `--sanitizer none`) documentado como comentario largo en `.github/workflows/ci.yml` junto al job `fuzz-smoke`, no solo aquí — la razón real vive en el archivo que la aplica. Revisar en el futuro solo si aparece una alternativa de fuzzing nativa de Windows más simple que configurar el `PATH` de ASan manualmente. Confirmado de nuevo esta sesión (2026-09-13): build del fuzz harness de `ccm-lang-js-ts` compila en Windows sin problema, pero `cargo fuzz run` sigue fallando con el mismo `STATUS_DLL_NOT_FOUND` ya documentado — no es una regresión, es el mismo límite conocido reproducido en un sexto crate.
 - [x] Decisión: alcance de "web" confirmado — incluye HTML/CSS estructural, requiere extensión del modelo de core, planificado para prompt 7 (no bloquea JS/TS lógico, que se implementa ya).
+- [x] **Project license (2026-09-13).** The original code and documentation use Apache-2.0. The root `Cargo.toml` sets `license = "Apache-2.0"`, and the README links to `LICENSE`.
 
 ## Cobertura de lenguajes
 
