@@ -3,6 +3,11 @@
 //! — including the overloaded-method case explicitly required for C# (two
 //! `AddItem` overloads must stay distinct symbols).
 
+// Test code: an unwrap()/expect() here means a broken test precondition, and
+// panicking is the correct behavior — this is not production code parsing
+// untrusted repo content (see crates/ccm-lang-csharp/src/ for that policy).
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use std::path::Path;
 use std::sync::Arc;
 

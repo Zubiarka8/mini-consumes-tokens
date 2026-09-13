@@ -58,6 +58,12 @@ impl LanguageParser for JsTsParser {
         };
 
         let mut parser = Parser::new();
+        #[allow(clippy::expect_used)]
+        // SAFETY: `language` is chosen above among statically linked
+        // JS/TS/TSX grammars compiled into this binary; `set_language` only
+        // fails on an ABI mismatch between a grammar and this `tree-sitter`
+        // version, which Cargo.lock pins at build time — it never depends on
+        // the content of an indexed repo.
         parser
             .set_language(&language)
             .expect("tree-sitter-javascript/typescript grammars are statically valid");

@@ -3,6 +3,11 @@
 //! it calls (`logger.go`), an interface it does NOT declare implementing —
 //! Go has no such keyword (`shape.go`) — and a caller (`runner.go`).
 
+// Test code: an unwrap()/expect() here means a broken test precondition, and
+// panicking is the correct behavior — this is not production code parsing
+// untrusted repo content (see crates/ccm-lang-go/src/ for that policy).
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use std::path::Path;
 use std::sync::Arc;
 

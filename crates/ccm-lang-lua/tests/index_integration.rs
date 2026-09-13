@@ -6,6 +6,11 @@
 //! `ccm-core`/`ccm-index`, the plugin architecture holds for a language it
 //! was never designed against specifically.
 
+// Test code: an unwrap()/expect() here means a broken test precondition, and
+// panicking is the correct behavior — this is not production code parsing
+// untrusted repo content (see crates/ccm-lang-lua/src/ for that policy).
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use std::path::Path;
 use std::sync::Arc;
 

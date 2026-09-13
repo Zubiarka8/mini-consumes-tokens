@@ -2,6 +2,11 @@
 //! `LanguageParser` (no tree-sitter grammar), so architecture bugs in
 //! `ccm-index` are caught before layering a real grammar crate on top.
 
+// Test code: an unwrap()/expect() here means a broken test precondition, and
+// panicking is the correct behavior — this is not production code parsing
+// untrusted repo content (see crates/ccm-index/src/ for that policy).
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use std::fs;
 use std::sync::Arc;
 

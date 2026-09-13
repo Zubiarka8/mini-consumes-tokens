@@ -3,6 +3,11 @@
 //! polyglot (Rust + Python) fixture, so a regression here is caught without
 //! standing up a full MCP client.
 
+// Test code: an unwrap()/expect() here means a broken test precondition, and
+// panicking is the correct behavior — this is not production code parsing
+// untrusted repo content (see crates/ccm-mcp-server/src/ for that policy).
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use std::fs;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};

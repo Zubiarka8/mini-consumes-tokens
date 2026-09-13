@@ -30,6 +30,12 @@ impl LanguageParser for LuaParser {
 
     fn parse(&self, file: &SourceFile) -> Result<ParsedFile, ParseError> {
         let mut parser = Parser::new();
+        #[allow(clippy::expect_used)]
+        // SAFETY: `tree_sitter_lua::LANGUAGE` is a statically linked grammar
+        // compiled into this binary; `set_language` only fails on an ABI
+        // mismatch between the grammar and this `tree-sitter` version, which
+        // Cargo.lock pins at build time — it never depends on the content of
+        // an indexed repo.
         parser
             .set_language(&tree_sitter_lua::LANGUAGE.into())
             .expect("tree-sitter-lua grammar is statically valid");

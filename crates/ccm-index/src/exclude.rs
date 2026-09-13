@@ -42,6 +42,11 @@ impl ExcludeSet {
     pub fn new(extra_patterns: &[String]) -> Self {
         let mut builder = GlobSetBuilder::new();
         for pattern in DEFAULT_EXCLUDE_PATTERNS {
+            #[allow(clippy::expect_used)]
+            // SAFETY: `pattern` is one of the hardcoded literals in
+            // `DEFAULT_EXCLUDE_PATTERNS` above, not user input — a malformed
+            // literal would be a compile-time-caught bug in this file, never
+            // a runtime failure driven by an indexed repo.
             builder.add(Glob::new(pattern).expect("built-in exclude pattern is valid"));
         }
         for pattern in extra_patterns {
@@ -49,9 +54,12 @@ impl ExcludeSet {
                 builder.add(glob);
             }
         }
-        Self {
-            set: builder.build().expect("exclude glob set builds"),
-        }
+        #[allow(clippy::expect_used)]
+        // SAFETY: every glob added above came from a literal pattern or was
+        // already filtered through `if let Ok(glob)`, so building the set can
+        // never fail here.
+        let set = builder.build().expect("exclude glob set builds");
+        Self { set }
     }
 
     /// `relative_path` uses forward slashes, matching [`ccm_core::SourceFile::relative_path`].

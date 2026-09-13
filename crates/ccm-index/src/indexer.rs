@@ -100,7 +100,7 @@ pub fn reindex(index: &mut Index, registry: &LanguageRegistry, force: bool) -> R
         seen_paths.push(relative_path.clone());
 
         let extension = relative_path.rsplit('.').next().unwrap_or_default();
-        if registry.for_extension(extension).is_none() {
+        let Some(parser) = registry.for_extension(extension) else {
             if let Some((_, language)) = KNOWN_PENDING_LANGUAGES
                 .iter()
                 .find(|(ext, _)| *ext == extension)
@@ -118,7 +118,7 @@ pub fn reindex(index: &mut Index, registry: &LanguageRegistry, force: bool) -> R
                 });
             }
             continue;
-        }
+        };
 
         let bytes = match std::fs::read(&canonical) {
             Ok(b) => b,
@@ -155,10 +155,7 @@ pub fn reindex(index: &mut Index, registry: &LanguageRegistry, force: bool) -> R
 
         match registry.parse(&source) {
             Ok(parsed) => {
-                let language = registry
-                    .for_extension(extension)
-                    .expect("checked above")
-                    .language_id();
+                let language = parser.language_id();
                 let symbols_written = write_parsed_file(
                     index,
                     &relative_path,

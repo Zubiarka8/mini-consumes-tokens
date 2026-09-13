@@ -1,3 +1,8 @@
+// Test code: an unwrap()/expect() here means a broken test precondition, and
+// panicking is the correct behavior — this is not production code parsing
+// untrusted repo content (see crates/ccm-lang-go/src/ for that policy).
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use ccm_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
 use ccm_lang_go::GoParser;
 

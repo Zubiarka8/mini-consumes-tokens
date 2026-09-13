@@ -4,6 +4,11 @@
 //! `ExcludeSet` had no test coverage at all before this. Extended while
 //! wiring up Go for its Viper-style config-secret conventions.
 
+// Test code: an unwrap()/expect() here means a broken test precondition, and
+// panicking is the correct behavior — this is not production code parsing
+// untrusted repo content (see crates/ccm-index/src/ for that policy).
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use ccm_index::ExcludeSet;
 
 #[test]

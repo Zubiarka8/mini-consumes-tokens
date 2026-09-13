@@ -11,6 +11,12 @@
 //!
 //! Usage: cargo run -p ccm-cli --example token_benchmark
 
+// Example code: an unwrap()/expect() here means a broken precondition of
+// this benchmark script, and panicking is the correct behavior — this is not
+// production code parsing untrusted repo content (see crates/ccm-cli/src/
+// for that policy).
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;

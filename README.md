@@ -55,6 +55,12 @@ crates/
   ccm-index         SQLite schema/migrations, reindex orchestration, queries — knows no language's grammar
   ccm-lang-rust      LanguageParser impl for Rust (tree-sitter-rust)
   ccm-lang-python    LanguageParser impl for Python (tree-sitter-python)
+  ccm-lang-java      LanguageParser impl for Java (tree-sitter-java)
+  ccm-lang-csharp    LanguageParser impl for C# (tree-sitter-c-sharp)
+  ccm-lang-js-ts     LanguageParser impl for JavaScript/TypeScript/TSX (tree-sitter-javascript, tree-sitter-typescript)
+  ccm-lang-cpp       LanguageParser impl for C++ (tree-sitter-cpp)
+  ccm-lang-go        LanguageParser impl for Go (tree-sitter-go)
+  ccm-lang-lua       LanguageParser impl for Lua — plugin-architecture acceptance test, not registered in production
   ccm-mcp-server     MCP tools over stdio (rmcp) — find_symbol/find_references/find_calls/find_callers/impact_analysis/reindex/get_indexing_status
   ccm-cli            init/reindex/status subcommands for manual or scripted use
 ```
@@ -65,7 +71,7 @@ crates/
 cargo test --workspace
 ```
 
-19 tests as of this scaffold: `ccm-index` (reindex/query pipeline, incremental skip, deletion, syntax-error/unsupported-language reporting), `ccm-lang-rust` and `ccm-lang-python` (idiomatic-syntax extraction: generics, traits/impls, decorators, imports), `ccm-mcp-server` (all 7 tools, in-process against a polyglot fixture).
+91 tests across the workspace: `ccm-index` (reindex/query pipeline, incremental skip, deletion, syntax-error/unsupported-language reporting, secret-pattern exclusion), each of the 8 language crates (idiomatic-syntax extraction at the parser level — generics, traits/impls, decorators, imports, overloads, interfaces — with an added end-to-end `ccm-index` integration fixture for every crate except `ccm-lang-rust`/`ccm-lang-python`, covering language-specific cases like Go's implicit interfaces or C++'s header/source declaration correlation), and `ccm-mcp-server` (all 7 tools, in-process against a polyglot fixture).
 
 ## Benchmark of tokens saved
 

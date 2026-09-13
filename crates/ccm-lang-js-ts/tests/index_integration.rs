@@ -6,6 +6,11 @@
 //! (`App.tsx`) — exercising find_symbol/find_references/find_calls/
 //! find_callers across all four.
 
+// Test code: an unwrap()/expect() here means a broken test precondition, and
+// panicking is the correct behavior — this is not production code parsing
+// untrusted repo content (see crates/ccm-lang-js-ts/src/ for that policy).
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use std::path::Path;
 use std::sync::Arc;
 
