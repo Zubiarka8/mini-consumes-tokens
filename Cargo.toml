@@ -7,6 +7,7 @@ members = [
     "crates/ccm-lang-python",
     "crates/ccm-mcp-server",
     "crates/ccm-cli",
+    "crates/ccm-lang-lua",
 ]
 
 [workspace.package]
