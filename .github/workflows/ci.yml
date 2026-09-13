@@ -1,0 +1,137 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+env:
+  # Pinned to an exact stable release, never `stable` floating — a CI run
+  # from six months ago and one from today must build with the same
+  # compiler. Bump deliberately, in its own commit, when there's a reason to.
+  RUST_TOOLCHAIN: "1.96.0"
+
+jobs:
+  build-test:
+    name: build + test + clippy (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@1.96.0
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Windows note (see CONTRIBUTING.md "Windows build prerequisites"):
+      # git2 (default-features = false, so no openssl/libssh2 system deps)
+      # and every tree-sitter grammar are plain C compiled via the `cc`
+      # crate — on windows-latest that resolves to the MSVC toolset the
+      # runner ships preinstalled. No extra system dependency to install
+      # here; this step exists only to fail loudly and early if that ever
+      # stops being true, instead of failing obscurely at the test step.
+      - name: "Build workspace (all targets: lib, bins, examples, tests)"
+        run: cargo build --workspace --all-targets
+
+      # Runs the tree-sitter parsing + SQLite query integration tests for
+      # all 5 language crates (Rust, Python, Lua, Java, C#) on every OS —
+      # first time this project confirms Windows behaves the same as
+      # Linux/macOS here, not just "probably fine because it built".
+      - name: Test workspace
+        run: cargo test --workspace
+
+      # Blocks *future* clippy regressions in new PRs. Does not mean the
+      # existing codebase was combed for lints beyond the default set —
+      # see checklist.md's "housekeeping" note for the unwrap()/expect()
+      # count found while wiring this up.
+      - name: Clippy (deny warnings)
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+  cargo-audit:
+    name: cargo-audit (dependency vulnerabilities)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.96.0
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
+      # Pass 1: full report, every severity, informational only. Low/medium
+      # findings must stay visible in CI output even though they don't fail
+      # the job — this step's exit code is deliberately ignored.
+      - name: Full vulnerability report (all severities, non-blocking)
+        run: cargo audit || true
+
+      # Pass 2: the actual gate. `severity_threshold` in [advisories]
+      # EXCLUDES vulnerabilities below the threshold from consideration
+      # entirely (verified against cargo-audit's own source/config docs,
+      # not guessed) — so after filtering to "high", cargo-audit's default
+      # behavior (fail if any vulnerability remains) is exactly the
+      # high/critical-only gate this job wants. Advisories with no explicit
+      # CVSS score (informational-only) are NOT filtered by this and will
+      # still fail this step — a deliberate fail-safe for unscored issues,
+      # not an oversight.
+      - name: Fail only on high/critical severity
+        run: |
+          mkdir -p .cargo
+          cat > .cargo/audit.toml <<'EOF'
+          [advisories]
+          severity_threshold = "high"
+          EOF
+          cargo audit
+
+  fuzz-smoke:
+    name: fuzz smoke test (${{ matrix.crate }}, ${{ matrix.os }})
+    # Linux/macOS only — deliberately, not an oversight. cargo-fuzz's
+    # default AddressSanitizer needs a runtime DLL
+    # (clang_rt.asan_dynamic-x86_64.dll, shipped with MSVC's own C++ tools,
+    # not with rustup) that isn't on PATH by default on Windows runners;
+    # without it the built fuzz binary fails at launch with
+    # STATUS_DLL_NOT_FOUND. Disabling the sanitizer instead
+    # (--sanitizer none) fails to *link*, not run: MSVC's link.exe doesn't
+    # resolve the __start___sancov_cntrs/__stop___sancov_cntrs
+    # section-boundary symbols the sancov coverage instrumentation needs —
+    # GNU ld/lld synthesize these automatically, link.exe does not. Both
+    # failure modes were hit and confirmed locally on Windows before this
+    # decision was made (see checklist.md). Decision: fuzzing runs only on
+    # Linux/macOS in CI. The build-test job above still runs the full
+    # workspace build and test suite on Windows without exception — this
+    # exclusion is for fuzzing only. Revisit if a Windows-native fuzzing
+    # path appears that doesn't need manually resolving the ASan DLL path.
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        crate:
+          - ccm-lang-rust
+          - ccm-lang-python
+          - ccm-lang-lua
+          - ccm-lang-java
+          - ccm-lang-csharp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates/${{ matrix.crate }}/fuzz -> target
+
+      # Not in taiki-e/install-action's tool list, so built from source —
+      # a few seconds on Linux/macOS, not worth pre-building separately.
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked
+
+      # Smoke test only: confirms the harness builds and runs clean against
+      # its (unseeded, in CI) corpus, not a real fuzzing campaign — no
+      # crash is expected or being searched for here.
+      - name: Short fuzz campaign (no crash expected)
+        working-directory: crates/${{ matrix.crate }}
+        run: |
+          target_name=$(cargo fuzz list)
+          cargo fuzz run "$target_name" -- -max_total_time=30
