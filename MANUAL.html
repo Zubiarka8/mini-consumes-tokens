@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>codebase-context-mcp — Reference Manual</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    color-scheme: light;
+    --bg:#F3F5F7;
+    --surface:#FFFFFF;
+    --surface-2:#ECEFF3;
+    --border:#D9DFE5;
+    --ink:#1A2129;
+    --ink-dim:#5B6672;
+    --accent:#3652CC;
+    --accent-strong:#28399E;
+    --accent-soft:#E7EBFC;
+    --warn-ink:#8A4B0B;
+    --warn-bg:#FBEEDC;
+    --warn-border:#E7C08E;
+    --code-bg:#12151B;
+    --code-ink:#DCE3EA;
+    --code-dim:#8792A0;
+    --code-accent:#8FA6FF;
+    --code-border:#262C36;
+    --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      color-scheme: dark;
+      --bg:#141920;
+      --surface:#1B222B;
+      --surface-2:#222A34;
+      --border:#303947;
+      --ink:#E7EBEF;
+      --ink-dim:#9AA6B2;
+      --accent:#8DA0FF;
+      --accent-strong:#B7C4FF;
+      --accent-soft:#232C49;
+      --warn-ink:#F2B569;
+      --warn-bg:#3A2B15;
+      --warn-border:#5C4520;
+    }
+  }
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --bg:#141920;
+    --surface:#1B222B;
+    --surface-2:#222A34;
+    --border:#303947;
+    --ink:#E7EBEF;
+    --ink-dim:#9AA6B2;
+    --accent:#8DA0FF;
+    --accent-strong:#B7C4FF;
+    --accent-soft:#232C49;
+    --warn-ink:#F2B569;
+    --warn-bg:#3A2B15;
+    --warn-border:#5C4520;
+  }
+
+  *{box-sizing:border-box;}
+  @media (prefers-reduced-motion: reduce){
+    html{scroll-behavior:auto !important;}
+    *{animation-duration:0.001ms !important; transition-duration:0.001ms !important;}
+  }
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--font-sans);
+    font-size:16px;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3{text-wrap:balance; font-family:var(--font-sans); font-weight:700; letter-spacing:-0.01em;}
+  a{color:var(--accent);}
+  a:focus-visible, button:focus-visible, input:focus-visible{
+    outline:2px solid var(--accent);
+    outline-offset:2px;
+  }
+  code, kbd{font-family:var(--font-mono); font-size:0.92em;}
+  p, li{max-width:66ch;}
+  table p, table li{max-width:none;}
+
+  /* ---------- shell layout ---------- */
+  .shell{
+    display:flex;
+    align-items:flex-start;
+    max-width:1240px;
+    margin:0 auto;
+  }
+  .sidebar{
+    position:sticky;
+    top:0;
+    align-self:flex-start;
+    height:100vh;
+    width:280px;
+    flex:0 0 280px;
+    border-right:1px solid var(--border);
+    background:var(--surface);
+    padding:20px 16px;
+    overflow-y:auto;
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+  }
+  .brand{
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+    padding:0 4px;
+  }
+  .brand .mark{
+    font-family:var(--font-mono);
+    font-size:0.72rem;
+    font-weight:600;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--accent);
+  }
+  .brand .name{
+    font-size:1.05rem;
+    font-weight:700;
+  }
+  .navsearch{
+    position:relative;
+  }
+  .navsearch input{
+    width:100%;
+    font-family:var(--font-mono);
+    font-size:0.85rem;
+    padding:8px 10px 8px 28px;
+    border-radius:6px;
+    border:1px solid var(--border);
+    background:var(--surface-2);
+    color:var(--ink);
+  }
+  .navsearch input::placeholder{color:var(--ink-dim);}
+  .navsearch svg{
+    position:absolute;
+    left:8px;
+    top:50%;
+    transform:translateY(-50%);
+    width:14px;
+    height:14px;
+    stroke:var(--ink-dim);
+  }
+  nav.toc{display:flex; flex-direction:column;}
+  nav.toc ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column;}
+  nav.toc li a{
+    display:flex;
+    gap:8px;
+    align-items:baseline;
+    padding:6px 8px;
+    border-radius:6px;
+    text-decoration:none;
+    color:var(--ink-dim);
+    font-size:0.88rem;
+    line-height:1.35;
+  }
+  nav.toc li a .num{
+    font-family:var(--font-mono);
+    font-size:0.72rem;
+    color:var(--ink-dim);
+    flex:0 0 auto;
+  }
+  nav.toc li a:hover{background:var(--surface-2); color:var(--ink);}
+  nav.toc li a.active{background:var(--accent-soft); color:var(--accent-strong); font-weight:600;}
+  nav.toc li a.active .num{color:var(--accent-strong);}
+  nav.toc li a[hidden]{display:none;}
+
+  .navtoggle{
+    display:none;
+    position:fixed;
+    z-index:30;
+    top:12px;
+    left:12px;
+    align-items:center;
+    gap:8px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    color:var(--ink);
+    font-family:var(--font-mono);
+    font-size:0.8rem;
+    padding:8px 12px;
+    border-radius:8px;
+    box-shadow:0 2px 8px rgba(0,0,0,0.12);
+  }
+  .backdrop{
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(10,14,20,0.45);
+    z-index:19;
+  }
+
+  main{
+    flex:1 1 auto;
+    min-width:0;
+    padding:56px clamp(20px, 5vw, 72px) 96px;
+  }
+  .hero{
+    display:flex;
+    flex-direction:column;
+    gap:18px;
+    padding-bottom:36px;
+    border-bottom:1px solid var(--border);
+    margin-bottom:44px;
+  }
+  .hero .eyebrow{
+    font-family:var(--font-mono);
+    font-size:0.78rem;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--accent);
+  }
+  .hero h1{
+    font-size:clamp(1.9rem, 3.4vw, 2.7rem);
+    margin:0;
+    max-width:22ch;
+  }
+  .hero p.lede{
+    font-size:1.05rem;
+    color:var(--ink-dim);
+    max-width:62ch;
+    margin:0;
+  }
+  .pillrow{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .pill{
+    font-family:var(--font-mono);
+    font-size:0.78rem;
+    padding:5px 10px;
+    border-radius:999px;
+    border:1px solid var(--border);
+    background:var(--surface);
+    color:var(--ink-dim);
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+  }
+  .pill .dot{width:6px; height:6px; border-radius:50%; background:var(--accent);}
+
+  .statgrid{
+    display:grid;
+    grid-template-columns:repeat(4, minmax(0,1fr));
+    gap:1px;
+    background:var(--border);
+    border:1px solid var(--border);
+    border-radius:10px;
+    overflow:hidden;
+  }
+  .statgrid div{
+    background:var(--surface);
+    padding:14px 16px;
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+  }
+  .statgrid .v{
+    font-family:var(--font-mono);
+    font-size:1.3rem;
+    font-weight:600;
+    font-variant-numeric:tabular-nums;
+  }
+  .statgrid .k{font-size:0.76rem; color:var(--ink-dim);}
+  @media (max-width:640px){ .statgrid{grid-template-columns:repeat(2, minmax(0,1fr));} }
+
+  .section{
+    padding:40px 0;
+    border-bottom:1px solid var(--border);
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+    scroll-margin-top:24px;
+  }
+  .section:last-of-type{border-bottom:none;}
+  .section .eyebrow{
+    font-family:var(--font-mono);
+    font-size:0.78rem;
+    color:var(--accent);
+    letter-spacing:0.04em;
+  }
+  .section h2{font-size:1.5rem; margin:0;}
+  .section h3{font-size:1.08rem; margin:8px 0 0;}
+  .section > p, .section > ul, .section > ol{color:var(--ink); margin:0;}
+  .section ul, .section ol{padding-left:1.3em; display:flex; flex-direction:column; gap:6px;}
+  .subblock{display:flex; flex-direction:column; gap:10px; padding-top:6px;}
+
+  .quote{
+    border-left:3px solid var(--accent);
+    background:var(--accent-soft);
+    padding:12px 16px;
+    border-radius:0 8px 8px 0;
+    font-size:0.92rem;
+    color:var(--ink);
+  }
+  .quote em{font-style:normal; color:var(--ink-dim);}
+
+  .callout{
+    display:flex;
+    gap:12px;
+    padding:14px 16px;
+    border-radius:10px;
+    border:1px solid var(--warn-border);
+    background:var(--warn-bg);
+    color:var(--warn-ink);
+    font-size:0.92rem;
+  }
+  .callout svg{flex:0 0 auto; margin-top:2px; width:18px; height:18px;}
+  .callout strong{color:inherit;}
+
+  .figure{
+    border:1px solid var(--code-border);
+    border-radius:10px;
+    overflow:hidden;
+    background:var(--code-bg);
+  }
+  .figure .figcap{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:8px 12px;
+    border-bottom:1px solid var(--code-border);
+    background:#0E1116;
+  }
+  .figure .figcap .tag{
+    font-family:var(--font-mono);
+    font-size:0.72rem;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    color:var(--code-dim);
+  }
+  .copybtn{
+    font-family:var(--font-mono);
+    font-size:0.72rem;
+    color:var(--code-dim);
+    background:transparent;
+    border:1px solid var(--code-border);
+    border-radius:6px;
+    padding:3px 8px;
+    cursor:pointer;
+  }
+  .copybtn:hover{color:var(--code-ink); border-color:var(--code-dim);}
+  .figure pre{
+    margin:0;
+    padding:14px 16px;
+    overflow-x:auto;
+  }
+  .figure code{
+    font-family:var(--font-mono);
+    font-size:0.86rem;
+    color:var(--code-ink);
+    line-height:1.55;
+    white-space:pre;
+  }
+  .figure .prompt{color:var(--code-accent);}
+  .figure .cmt{color:var(--code-dim);}
+  .figure .kw{color:var(--code-accent);}
+
+  .tablewrap{overflow-x:auto; border:1px solid var(--border); border-radius:10px;}
+  table{border-collapse:collapse; width:100%; min-width:480px; font-size:0.9rem; background:var(--surface);}
+  th, td{padding:9px 14px; border-bottom:1px solid var(--border); text-align:left; vertical-align:top;}
+  thead th{background:var(--surface-2); font-family:var(--font-mono); font-size:0.76rem; text-transform:uppercase; letter-spacing:0.04em; color:var(--ink-dim);}
+  tbody tr:last-child td{border-bottom:none;}
+  td code{background:var(--surface-2); padding:1px 5px; border-radius:4px;}
+
+  footer{
+    padding:32px clamp(20px,5vw,72px) 60px;
+    color:var(--ink-dim);
+    font-size:0.85rem;
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px 18px;
+  }
+  footer a{color:var(--ink-dim); text-decoration:underline;}
+
+  @media (max-width: 900px){
+    .navtoggle{display:inline-flex;}
+    .sidebar{
+      position:fixed;
+      z-index:20;
+      inset:0 auto 0 0;
+      transform:translateX(-100%);
+      transition:transform 0.22s ease;
+      box-shadow:0 0 30px rgba(0,0,0,0.25);
+    }
+    .sidebar.is-open{transform:translateX(0);}
+    .backdrop.is-open{display:block;}
+    main{padding-top:76px;}
+  }
+</style>
+</head>
+<body>
+
+<button class="navtoggle" id="navToggle" aria-expanded="false" aria-controls="sidebar">
+  <span aria-hidden="true">☰</span> Contents
+</button>
+<div class="backdrop" id="backdrop"></div>
+
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <span class="mark">Reference manual</span>
+      <span class="name">codebase-context-mcp</span>
+    </div>
+    <div class="navsearch">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="navFilter" placeholder="Filter sections…" autocomplete="off">
+    </div>
+    <nav class="toc" aria-label="Table of contents">
+      <ul id="tocList">
+        <li><a href="#overview"><span class="num">01</span>Overview</a></li>
+        <li><a href="#architecture"><span class="num">02</span>Architecture</a></li>
+        <li><a href="#installation"><span class="num">03</span>Installation</a></li>
+        <li><a href="#cli"><span class="num">04</span>The CLI</a></li>
+        <li><a href="#registering"><span class="num">05</span>Registering the MCP server</a></li>
+        <li><a href="#tools"><span class="num">06</span>MCP tools reference</a></li>
+        <li><a href="#indexing"><span class="num">07</span>How indexing works</a></li>
+        <li><a href="#schema"><span class="num">08</span>Database schema</a></li>
+        <li><a href="#exclusion"><span class="num">09</span>File exclusion rules</a></li>
+        <li><a href="#managing"><span class="num">10</span>Managing the index</a></li>
+        <li><a href="#querying"><span class="num">11</span>Querying directly</a></li>
+        <li><a href="#limitations"><span class="num">12</span>Limitations</a></li>
+        <li><a href="#troubleshooting"><span class="num">13</span>Troubleshooting</a></li>
+        <li><a href="#security"><span class="num">14</span>Security model</a></li>
+        <li><a href="#uninstalling"><span class="num">15</span>Uninstalling</a></li>
+        <li><a href="#extending"><span class="num">16</span>Adding a language</a></li>
+        <li><a href="#cheatsheet"><span class="num">17</span>Cheat sheet</a></li>
+      </ul>
+    </nav>
+  </aside>
+
+  <main>
+    <div class="hero">
+      <span class="eyebrow">Field reference · v0.1.0 workspace</span>
+      <h1>codebase-context-mcp</h1>
+      <p class="lede">Every command, every MCP tool's exact SQL, the full database schema, and the indexing algorithm — confirmed against the source, not assumed. For a shorter operational summary see <code>README.md</code>; contribution workflow lives in <code>CONTRIBUTING.md</code>.</p>
+      <div class="pillrow">
+        <span class="pill"><span class="dot"></span>Rust workspace</span>
+        <span class="pill"><span class="dot"></span>tree-sitter AST parsing</span>
+        <span class="pill"><span class="dot"></span>SQLite + FTS5</span>
+        <span class="pill"><span class="dot"></span>MCP over stdio</span>
+        <span class="pill"><span class="dot"></span>7 languages implemented</span>
+      </div>
+      <div class="statgrid">
+        <div><span class="v">86</span><span class="k">files indexed (self-hosted run)</span></div>
+        <div><span class="v">575</span><span class="k">symbols written</span></div>
+        <div><span class="v">396&nbsp;KiB</span><span class="k">index.sqlite3 size</span></div>
+        <div><span class="v">7</span><span class="k">MCP tools exposed</span></div>
+      </div>
+    </div>
+
+    <section class="section" id="overview">
+      <span class="eyebrow">§01</span>
+      <h2>Overview — what it is and why it exists</h2>
+      <p><code>codebase-context-mcp</code> parses a source repository with <a href="https://tree-sitter.github.io/tree-sitter/" target="_blank" rel="noopener">tree-sitter</a> into an AST-derived <strong>symbol graph</strong> — functions, methods, classes, structs, traits, and the relations between them (calls, imports, extends, implements, references) — stored in a single SQLite file. It exposes that graph two ways:</p>
+      <ul>
+        <li><strong>ccm-cli</strong> — a standalone binary for manual or scripted indexing (CI, pre-commit hooks, coverage checks).</li>
+        <li><strong>ccm-mcp-server</strong> — an <a href="https://modelcontextprotocol.io/" target="_blank" rel="noopener">MCP</a> server over stdio giving Claude Code (or any MCP client) tools to query that graph directly.</li>
+      </ul>
+      <p><strong>The problem it solves:</strong> without it, an agent answering "what calls this function?" has to <code>Grep</code>/<code>Read</code> across the repo, paying token cost proportional to file size and false-positive matches. With the index, that question is one exact SQL lookup returning a handful of <code>file:line</code> locations.</p>
+      <p><strong>What it deliberately does not do:</strong> it never executes, evaluates, or type-checks indexed code — parsing is 100% static. It also does not do semantic/type-resolved analysis: relations match by symbol <strong>name</strong>, not resolved type or import graph (§12).</p>
+    </section>
+
+    <section class="section" id="architecture">
+      <span class="eyebrow">§02</span>
+      <h2>Architecture</h2>
+      <div class="figure">
+        <div class="figcap"><span class="tag">workspace layout</span></div>
+        <pre><code>crates/
+  ccm-core          LanguageParser trait, SymbolRecord/SymbolRelation model, LanguageRegistry.
+                     Knows nothing about tree-sitter, SQLite, or MCP.
+  ccm-index         SQLite schema/migrations, the reindex algorithm, all queries.
+                     Knows nothing about any language's grammar.
+  ccm-lang-rust      LanguageParser impl — tree-sitter-rust
+  ccm-lang-python    LanguageParser impl — tree-sitter-python
+  ccm-lang-java      LanguageParser impl — tree-sitter-java
+  ccm-lang-csharp    LanguageParser impl — tree-sitter-c-sharp
+  ccm-lang-js-ts     LanguageParser impl — tree-sitter-javascript + tree-sitter-typescript (incl. TSX)
+  ccm-lang-cpp       LanguageParser impl — tree-sitter-cpp
+  ccm-lang-go        LanguageParser impl — tree-sitter-go
+  ccm-lang-lua       LanguageParser impl — tree-sitter-lua (acceptance test;
+                     NOT registered in either binary's build_registry — see §12)
+  ccm-mcp-server     rmcp server: registry.rs, server.rs (7 tools), format.rs, main.rs
+  ccm-cli            init/reindex/status subcommands</code></pre>
+      </div>
+      <p>The plugin contract (<code>ccm_core::LanguageParser</code>, <code>crates/ccm-core/src/lib.rs</code>):</p>
+      <div class="figure">
+        <div class="figcap"><span class="tag">rust</span><button class="copybtn" data-copy>Copy</button></div>
+        <pre><code id="c-trait">pub trait LanguageParser: Send + Sync {
+    fn language_id(&amp;self) -&gt; &amp;'static str;               // e.g. "rust" — stored in files.language
+    fn file_extensions(&amp;self) -&gt; &amp;'static [&amp;'static str]; // e.g. ["rs"], without the leading dot
+    fn parse(&amp;self, file: &amp;SourceFile) -&gt; Result&lt;ParsedFile, ParseError&gt;;
+}</code></pre>
+      </div>
+      <p><code>parse()</code> must never execute or evaluate the source — a pure AST walk — and must return <code>ParseError::Syntax</code> rather than panic on malformed input, since it runs over arbitrary, untrusted code. Adding a language is exactly: a new crate implementing this trait, plus one <code>registry.register(...)</code> line in each binary — no changes to <code>ccm-core</code>, <code>ccm-index</code>, or the MCP tool surface (§16).</p>
+    </section>
+
+    <section class="section" id="installation">
+      <span class="eyebrow">§03</span>
+      <h2>Installation</h2>
+      <div class="figure">
+        <div class="figcap"><span class="tag">shell</span><button class="copybtn" data-copy>Copy</button></div>
+        <pre><code id="c-install"><span class="cmt"># Option A — from source, inside this repo (identical on Linux/macOS/Windows)</span>
+<span class="prompt">$</span> cargo install --path crates/ccm-cli
+<span class="prompt">$</span> cargo install --path crates/ccm-mcp-server
+
+<span class="cmt"># Option B — from crates.io, once published (see RELEASING.md)</span>
+<span class="prompt">$</span> cargo install ccm-cli
+<span class="prompt">$</span> cargo install ccm-mcp-server</code></pre>
+      </div>
+      <p><strong>Option C — prebuilt binaries</strong> (no Rust toolchain required): download the archive for your OS/arch (Linux x86_64/arm64, macOS Intel/Apple Silicon, Windows x86_64) from the GitHub Releases page and put <code>ccm-cli</code>/<code>ccm-mcp-server</code> on your <code>PATH</code>.</p>
+      <div class="figure">
+        <div class="figcap"><span class="tag">shell — verify</span></div>
+        <pre><code><span class="prompt">$</span> ccm-cli --help
+<span class="prompt">$</span> ccm-mcp-server --help</code></pre>
+      </div>
+      <p><code>cargo install</code> puts both binaries in <code>~/.cargo/bin</code> (or <code>%USERPROFILE%\.cargo\bin</code> on Windows) — make sure that directory is on <code>PATH</code>.</p>
+    </section>
+
+    <section class="section" id="cli">
+      <span class="eyebrow">§04</span>
+      <h2>The CLI — <code>ccm-cli</code></h2>
+      <div class="figure">
+        <div class="figcap"><span class="tag">grammar</span></div>
+        <pre><code>ccm [--root &lt;PATH&gt;] &lt;COMMAND&gt;
+
+Global option:
+  --root &lt;PATH&gt;    Project root to operate on. Defaults to the current working directory.
+
+Commands:
+  init                    Build the index for the first time. Identical to `reindex` without
+                           --force — kept as a separate, discoverable first command.
+  reindex [--force]       Re-scan the project and update the index.
+                             --force: re-parse every supported file even if its content hash
+                             is unchanged since last run (default: incremental).
+  status                  Report index health: coverage per language, last-indexed timestamp,
+                           unsupported languages seen, files that failed to parse. Read-only.</code></pre>
+      </div>
+      <p>The index file path is always <code>&lt;root&gt;/.claude-index/index.sqlite3</code> — hardcoded, not configurable via flag or environment variable.</p>
+      <div class="subblock">
+        <h3><code>init</code> / <code>reindex</code> output</h3>
+        <div class="figure">
+          <pre><code>Reindex complete: 86 parsed, 0 unchanged, 0 removed, 575 symbols written.</code></pre>
+        </div>
+        <p>If any files hit an issue, a second block follows:</p>
+        <div class="figure">
+          <pre><code>2 issue(s):
+  path/to/file.kt [UnsupportedLanguage]: kotlin
+  path/to/broken.py [SyntaxError]: line 42: unexpected token</code></pre>
+        </div>
+      </div>
+      <div class="subblock">
+        <h3><code>status</code> output</h3>
+        <div class="figure">
+          <pre><code>86 files indexed, 575 symbols total.
+Last indexed at unix timestamp 1789329357.
+Coverage by language:
+  cpp: 5 files, 17 symbols
+  csharp: 6 files, 28 symbols
+  go: 7 files, 26 symbols
+  java: 6 files, 22 symbols
+  javascript_typescript: 6 files, 19 symbols
+  python: 4 files, 14 symbols
+  rust: 52 files, 449 symbols
+Languages seen but not yet supported: kotlin     <span class="cmt">← only if non-empty</span>
+3 file(s) failed to parse:                       <span class="cmt">← only if non-empty</span>
+  path/to/broken.py: line 42: unexpected token</code></pre>
+        </div>
+        <p>If never indexed: <code>Never indexed yet.</code> instead of the timestamp line. If zero languages: <code>No languages indexed yet.</code></p>
+      </div>
+      <p>Exit code is non-zero on any I/O, database, migration, or git-hashing error (§13) — but a per-file parse failure is <em>not</em> fatal; it's recorded as an issue and the run continues.</p>
+    </section>
+
+    <section class="section" id="registering">
+      <span class="eyebrow">§05</span>
+      <h2>Registering the MCP server with Claude Code</h2>
+      <div class="figure">
+        <div class="figcap"><span class="tag">shell</span><button class="copybtn" data-copy>Copy</button></div>
+        <pre><code id="c-register"><span class="prompt">$</span> claude mcp add codebase-context-mcp --scope project -- ccm-mcp-server --root "&lt;absolute-path-to-repo&gt;"</code></pre>
+      </div>
+      <div class="callout">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+        <div><strong>The help text undersells it.</strong> <code>ccm-mcp-server --help</code> lists only 4 tools (<code>find_symbol</code>, <code>find_references</code>, <code>find_calls</code>, <code>find_callers</code>); the server actually registers 7. <code>impact_analysis</code>, <code>reindex</code>, and <code>get_indexing_status</code> were added after that help string was last updated — see §06.</div>
+      </div>
+      <h3>Scope choices</h3>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Scope</th><th>Stored in</th><th>Use when</th></tr></thead>
+          <tbody>
+            <tr><td><code>--scope local</code></td><td>this machine's local Claude Code config only</td><td>personal testing</td></tr>
+            <tr><td><code>--scope project</code></td><td><code>.mcp.json</code> at repo root — committable</td><td>the whole team should be wired up the same way</td></tr>
+            <tr><td><code>--scope user</code></td><td>your global Claude Code config</td><td>you want it in every project automatically</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Resulting <code>.mcp.json</code> (project scope):</p>
+      <div class="figure">
+        <div class="figcap"><span class="tag">json</span></div>
+        <pre><code>{
+  "mcpServers": {
+    "codebase-context-mcp": {
+      "type": "stdio",
+      "command": "ccm-mcp-server",
+      "args": ["--root", "Z:\\Proyectos\\build-main"],
+      "env": {}
+    }
+  }
+}</code></pre>
+      </div>
+      <p>Decide whether to commit this file: convenient for teammates (auto-wired on <code>git pull</code>), but the absolute <code>--root</code> path is machine-specific, especially on Windows — either use a path valid for every checkout location, or gitignore it and have each person register their own.</p>
+      <h3>Startup indexing behavior</h3>
+      <p>At launch, <code>ccm-mcp-server</code> opens (or creates) the index and runs an <strong>incremental</strong> reindex automatically — equivalent to <code>ccm-cli reindex</code> without <code>--force</code>. The first registration on a fresh checkout parses the whole repo (seconds to tens of seconds depending on size); later restarts only re-parse changed files.</p>
+      <div class="callout">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+        <div><strong>The approval / restart gotcha.</strong> A server added via <code>claude mcp add</code> while a session is already running does <em>not</em> hot-load into it. <code>claude mcp list</code> shows <code>⏸ Pending approval (run "claude" to approve)</code> and none of its tools are callable until you exit and restart <code>claude</code> in that project, approving the new server when prompted.</div>
+      </div>
+    </section>
+
+    <section class="section" id="tools">
+      <span class="eyebrow">§06</span>
+      <h2>MCP tools — full reference</h2>
+      <p>Every description below is the <strong>exact text</strong> the model sees (from <code>crates/ccm-mcp-server/src/server.rs</code>) — it drives which tool Claude picks, so it's worth reading verbatim if a query isn't resolving how you expect. All name parameters require an <strong>exact match</strong> (trimmed, case-sensitive, no fuzzy/regex) on <code>symbols.name</code> or <code>relations.to_name</code>/<code>from_symbol.name</code>; an empty name returns an <code>invalid_params</code> error before any query runs.</p>
+
+      <div class="subblock">
+        <h3><code>find_symbol</code> — atomic</h3>
+        <p class="quote">"ATOMIC lookup. Find the definition location(s) of a symbol by exact name, across every indexed language in this repository (including polyglot projects). Use this instead of grepping files to answer 'where is X defined'. Do NOT use this to find who calls or references a symbol — use find_callers (direct callers only) or find_references (every reference) instead."</p>
+        <p><strong>Param:</strong> <code>name: string</code></p>
+        <div class="figure">
+          <div class="figcap"><span class="tag">sql</span></div>
+          <pre><code>SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent
+FROM symbols s JOIN files f ON f.id = s.file_id
+WHERE s.name = ?1
+ORDER BY f.relative_path, s.line</code></pre>
+        </div>
+        <div class="figure">
+          <div class="figcap"><span class="tag">output</span></div>
+          <pre><code>2 definition(s) of `LanguageParser`:
+crates/ccm-core/src/lib.rs:39:1 [rust] trait LanguageParser
+...</code></pre>
+        </div>
+        <p>Empty result: <code>No symbol named \`X\` found in the index.</code> Can return <strong>multiple</strong> hits — e.g. every language's own <code>parse</code> method, since names aren't namespaced across files.</p>
+      </div>
+
+      <div class="subblock">
+        <h3><code>find_references</code> — atomic</h3>
+        <p class="quote">"ATOMIC lookup. Find every place a symbol is referenced: calls, imports, extends/implements, and plain references — the broadest reference search. Do NOT use this when you only want the functions that directly call a function — use find_callers instead. Do NOT use this to find a symbol's own definition — use find_symbol."</p>
+        <p><strong>Param:</strong> <code>symbol: string</code> — matches <code>relations.to_name = ?1</code> across every relation kind, unfiltered.</p>
+        <p><strong>Output:</strong> <code>N reference(s):</code> then <code>path:line:col [language] fromSymbol --kind--&gt; toName</code> per hit.</p>
+      </div>
+
+      <div class="subblock">
+        <h3><code>find_calls</code> — atomic</h3>
+        <p class="quote">"ATOMIC lookup. Find the functions/methods called by the given function — its callees. Answers 'what does this function call'. Do NOT use this to find who calls the function — that's the inverse question, answered by find_callers."</p>
+        <p><strong>Param:</strong> <code>function: string</code> — <code>WHERE caller.name = ?1 AND r.kind = 'calls'</code>.</p>
+      </div>
+
+      <div class="subblock">
+        <h3><code>find_callers</code> — atomic</h3>
+        <p class="quote">"ATOMIC lookup. Find the functions/methods that call the given function — its callers. Answers 'who calls this function'; the inverse of find_calls. ... If you're about to change or remove this function and want its full blast radius (callers + references + likely tests) in one call, use impact_analysis instead of calling this separately."</p>
+        <p><strong>Param:</strong> <code>function: string</code> — <code>WHERE r.to_name = ?1 AND r.kind = 'calls'</code>, the exact inverse of <code>find_calls</code>.</p>
+      </div>
+
+      <div class="subblock">
+        <h3><code>impact_analysis</code> — composite</h3>
+        <p class="quote">"COMPOSITE (internally combines find_callers + find_references + a test-name heuristic — you do not need to call those separately). Reports everything a change to `symbol` could break... Use this before editing or removing a symbol to gauge blast radius in one call."</p>
+        <p><strong>Param:</strong> <code>symbol: string</code>. Runs <code>find_callers</code> + <code>find_references</code> under the same lock, then computes <code>affected_tests</code> by filtering both for names matching <code>looks_like_test_name</code> (case-insensitive <code>starts_with("test")</code>/<code>"test_"</code>), deduped by name.</p>
+        <div class="figure">
+          <div class="figcap"><span class="tag">output shape</span></div>
+          <pre><code>Impact analysis for `Symbol`:
+  N direct caller(s)
+  M reference(s) total (calls/imports/extends/implements/plain)
+  K likely affected test(s)
+
+Likely affected tests:
+  path:line:col [language] testFnName
+  ...
+
+Direct callers:
+  path:line:col [language] callerName
+  ...
+
+All references:
+  path:line:col [language] fromSymbol --kind--&gt; symbol
+  ...</code></pre>
+        </div>
+        <p>If both sets are empty: <code>Nothing else in the index references this symbol.</code></p>
+      </div>
+
+      <div class="subblock">
+        <h3><code>reindex</code> — index administration, not search</h3>
+        <p class="quote">"INDEX ADMINISTRATION, not a search tool — returns a reindex summary, not symbol data... It already runs automatically at server startup, so call this manually only if you suspect the index is stale."</p>
+        <p><strong>Param:</strong> <code>force: bool</code> (default <code>false</code>). Same algorithm as <code>ccm-cli reindex</code> (§07), same report shape.</p>
+      </div>
+
+      <div class="subblock">
+        <h3><code>get_indexing_status</code> — index administration, not search</h3>
+        <p class="quote">"INDEX ADMINISTRATION, not a search tool. Reports index health... Do NOT use this to search for a symbol — it returns no symbol data, only index diagnostics; use find_symbol instead."</p>
+        <p><strong>No params.</strong> Same content and shape as <code>ccm-cli status</code> (§04).</p>
+      </div>
+
+      <div class="quote"><em>Server self-description (sent verbatim in the MCP <code>initialize</code> response — this is what nudges Claude toward these tools over Read/Grep/Glob):</em><br><br>"Indexes this repository's source code ... into a symbol graph. Prefer these tools over reading whole files with grep or a file reader when you need to locate a definition or understand call relationships — it costs far fewer tokens. Search tools ... are atomic lookups, each answering one specific question ... impact_analysis is composite ... reindex and get_indexing_status are index maintenance, not search — they never return symbol data. The index refreshes automatically at startup; call reindex manually only if you suspect it's stale."</div>
+    </section>
+
+    <section class="section" id="indexing">
+      <span class="eyebrow">§07</span>
+      <h2>How indexing actually works</h2>
+      <p>Step by step, from <code>crates/ccm-index/src/indexer.rs::reindex</code>:</p>
+      <ol>
+        <li><strong>Walk</strong> the project root with <code>walkdir::WalkDir</code>, skipping directories.</li>
+        <li><strong>Symlink/escape guard:</strong> each entry is <code>canonicalize()</code>d; failure (broken symlink, race) or a canonical path outside the root — both skipped silently. A symlink can never make the indexer read outside the project root.</li>
+        <li><strong>Path normalization:</strong> the relative path is rebuilt with forward slashes on every OS, so the index is portable between a Windows checkout and a Linux CI runner.</li>
+        <li><strong>Exclusion check</strong> (§09) — excluded paths are skipped but kept in <code>seen_paths</code>, so a previously-indexed row is cleaned up if exclude patterns later change.</li>
+        <li><strong>Extension lookup</strong> via <code>registry.for_extension(ext)</code>. No parser registered? If the extension is in <code>KNOWN_PENDING_LANGUAGES</code> (<code>kt</code>/<code>kts</code>→kotlin, <code>swift</code>, <code>php</code>, <code>rb</code>→ruby), it's recorded as an <code>unsupported_language</code> issue. Any <em>other</em> unrecognized extension (docs, images, lockfiles, <code>.lua</code>) is skipped with <strong>zero</strong> record — this is why a repo with <code>.lua</code> files wouldn't show "lua" as unsupported even though <code>ccm-lang-lua</code> isn't wired in.</li>
+        <li><strong>Read + hash:</strong> I/O error → skip. Content hash is a <strong>git blob SHA-1</strong> via <code>git2::Oid::hash_object(ObjectType::Blob, &amp;bytes)</code> — works outside an actual git repo; it's just git's hashing algorithm reused for change detection.</li>
+        <li><strong>Incremental skip:</strong> if the stored hash for this path matches and <code>--force</code>/<code>force:true</code> wasn't passed, count as <code>files_unchanged</code> and skip entirely — no re-parse, no writes.</li>
+        <li><strong>UTF-8 check:</strong> invalid UTF-8 (binary file sharing a supported extension) is skipped silently, not recorded as a syntax error.</li>
+        <li><strong>Parse</strong> via the matching <code>LanguageParser</code>. Success → written in one transaction (below). <code>ParseError::Syntax</code> → recorded as a <code>syntax_error</code> issue with line/message; the file's previous data (if any) is left untouched until it parses successfully again.</li>
+        <li><strong>Per-file write transaction</strong> (<code>write_parsed_file</code>): upsert the <code>files</code> row; delete existing <code>symbols</code> for that <code>file_id</code> (cascades to <code>relations</code>) and any stale <code>index_issues</code> row; insert every symbol, building a local-id→row-id map; insert every relation, with <code>to_symbol_id</code> resolved <strong>best-effort by name only</strong> (first match, arbitrary on ambiguity — and <em>not</em> what powers any lookup query, which all match on text columns directly); commit.</li>
+        <li><strong>Deletion sweep</strong> after the whole walk: any <code>files</code> row not in <code>seen_paths</code> this run is deleted (cascades), plus orphaned <code>index_issues</code> rows — this is how a deleted or moved file disappears from the index.</li>
+        <li><strong>Timestamp:</strong> <code>index_meta.last_indexed_at</code> upserted with the current Unix time.</li>
+      </ol>
+      <p><strong>Concurrency:</strong> the MCP server wraps the whole <code>Index</code> in a <code>tokio::sync::Mutex</code> — one query or reindex at a time, no concurrent access from overlapping tool calls.</p>
+    </section>
+
+    <section class="section" id="schema">
+      <span class="eyebrow">§08</span>
+      <h2>Database schema — full reference</h2>
+      <p>File: <code>&lt;root&gt;/.claude-index/index.sqlite3</code>. Applied via a single <code>rusqlite_migration</code> migration (from <code>crates/ccm-index/src/schema.rs</code>):</p>
+      <div class="figure">
+        <div class="figcap"><span class="tag">sql — full ddl</span><button class="copybtn" data-copy>Copy</button></div>
+        <pre><code id="c-schema">CREATE TABLE files (
+    id              INTEGER PRIMARY KEY,
+    relative_path   TEXT NOT NULL UNIQUE,
+    language        TEXT NOT NULL,      -- "rust", "python", "javascript_typescript", ...
+    content_hash    TEXT NOT NULL,      -- git blob SHA-1 of the file's bytes
+    last_indexed_at INTEGER NOT NULL    -- unix seconds
+);
+CREATE INDEX idx_files_language ON files(language);
+
+CREATE TABLE symbols (
+    id       INTEGER PRIMARY KEY,
+    file_id  INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+    name     TEXT NOT NULL,
+    kind     TEXT NOT NULL,   -- function|method|class|struct|interface|enum|trait|type_alias|module|variable|constant|field
+    parent   TEXT,            -- enclosing symbol's name, if any; NULL for top-level
+    line     INTEGER NOT NULL,
+    column   INTEGER NOT NULL,
+    byte_len INTEGER NOT NULL
+);
+CREATE INDEX idx_symbols_name ON symbols(name);
+CREATE INDEX idx_symbols_file ON symbols(file_id);
+
+CREATE TABLE relations (
+    id             INTEGER PRIMARY KEY,
+    from_symbol_id INTEGER NOT NULL REFERENCES symbols(id) ON DELETE CASCADE,
+    kind           TEXT NOT NULL,   -- calls|imports|extends|implements|references
+    to_name        TEXT NOT NULL,   -- target name as written in source (may not resolve to a row)
+    to_symbol_id   INTEGER REFERENCES symbols(id) ON DELETE SET NULL,  -- best-effort, unused by queries
+    line           INTEGER NOT NULL,
+    column         INTEGER NOT NULL,
+    byte_len       INTEGER NOT NULL
+);
+CREATE INDEX idx_relations_from ON relations(from_symbol_id);
+CREATE INDEX idx_relations_to_name ON relations(to_name);
+CREATE INDEX idx_relations_kind ON relations(kind);
+
+-- Full-text search over symbol names. Not exposed by any CLI/MCP tool today
+-- (find_symbol uses exact `=` match) — query it directly for fuzzy lookups, see §11.
+CREATE VIRTUAL TABLE symbols_fts USING fts5(name, content='symbols', content_rowid='id');
+-- + triggers symbols_ai/ad/au keep it in sync on insert/delete/update.
+
+-- Files skipped during indexing (distinct from files indexed successfully).
+CREATE TABLE index_issues (
+    id            INTEGER PRIMARY KEY,
+    relative_path TEXT NOT NULL,
+    issue_kind    TEXT NOT NULL,   -- 'unsupported_language' | 'syntax_error'
+    detail        TEXT NOT NULL,   -- language name, or "line N: message"
+    detected_at   INTEGER NOT NULL,
+    UNIQUE(relative_path, issue_kind)
+);
+
+CREATE TABLE index_meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL   -- currently only 'last_indexed_at'
+);</code></pre>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Column</th><th>Values you'll see</th></tr></thead>
+          <tbody>
+            <tr><td><code>symbols.kind</code></td><td><code>function</code>, <code>method</code>, <code>class</code>, <code>struct</code>, <code>interface</code>, <code>enum</code>, <code>trait</code>, <code>type_alias</code>, <code>module</code>, <code>variable</code>, <code>constant</code>, <code>field</code></td></tr>
+            <tr><td><code>relations.kind</code></td><td><code>calls</code>, <code>imports</code>, <code>extends</code>, <code>implements</code>, <code>references</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p><strong>Design note baked into the schema:</strong> one shared table per concept across <em>all</em> languages — no per-language tables. <code>symbols</code>/<code>relations</code> carry a <code>language</code> column via their <code>files</code> join instead, which is why adding a language plugin never requires a migration.</p>
+    </section>
+
+    <section class="section" id="exclusion">
+      <span class="eyebrow">§09</span>
+      <h2>File exclusion rules</h2>
+      <p>Hardcoded in <code>crates/ccm-index/src/exclude.rs</code> as <code>DEFAULT_EXCLUDE_PATTERNS</code>, matched with <code>globset</code> against the forward-slash relative path:</p>
+      <div class="figure">
+        <pre><code>**/.env             **/.env.*           **/*.pem            **/*.key
+**/secrets/**       **/secret/**        **/credentials.json **/.aws/**
+**/node_modules/**                                          <span class="cmt">(Node/JS)</span>
+**/appsettings.*.json  **/*.pfx  **/*.snk                    <span class="cmt">(.NET)</span>
+**/gradle.properties                                         <span class="cmt">(Java/Gradle/Maven)</span>
+**/*.env.local  **/config/secrets.yaml                        <span class="cmt">(Go / Viper-style config)</span>
+**/.git/**  **/target/**  **/.claude-index/**                 <span class="cmt">(VCS / build output / the index itself)</span></code></pre>
+      </div>
+      <p>These exist so a fresh install <strong>never</strong> accidentally indexes a secret — opt-out is the design, not opt-in. <code>ExcludeSet::new(extra_patterns)</code> accepts a list to <em>widen</em> (never narrow) this set at the API level, but <strong>neither <code>ccm-cli</code> nor <code>ccm-mcp-server</code> currently exposes a flag or config file</strong> to supply <code>extra_patterns</code> — both call <code>ExcludeSet::default()</code> unconditionally. If you need to exclude something project-specific today, your only lever is renaming/moving the file to match an existing pattern, or contributing a config surface.</p>
+    </section>
+
+    <section class="section" id="managing">
+      <span class="eyebrow">§10</span>
+      <h2>Managing the index day to day</h2>
+      <p><strong>When to just let it run:</strong> the MCP server reindexes incrementally at every startup — for normal day-to-day editing, you don't need to do anything.</p>
+      <p><strong>When to run <code>reindex</code> manually:</strong></p>
+      <ul>
+        <li>After a <code>git pull</code>/branch switch that changed many files while the MCP server stayed running (it only reindexes at startup, not via a file-watcher).</li>
+        <li>After moving/renaming a lot of files.</li>
+        <li>If <code>status</code>/<code>get_indexing_status</code> shows stale-looking counts.</li>
+      </ul>
+      <p><strong>When to use <code>--force</code>/<code>force: true</code>:</strong> only if you suspect internal inconsistency (manual <code>.sqlite3</code> edits, or a version upgrade that changed hashing/parsing behavior) — normal edits are always picked up incrementally, since comparison is content-hash based, not mtime-based (touching a file without changing its bytes does <em>not</em> trigger a re-parse).</p>
+      <div class="figure">
+        <div class="figcap"><span class="tag">shell — rebuild from scratch</span><button class="copybtn" data-copy>Copy</button></div>
+        <pre><code id="c-rebuild"><span class="prompt">$</span> rm -rf .claude-index
+<span class="prompt">$</span> ccm-cli --root . init</code></pre>
+      </div>
+      <p>Safe at any time — the index is a pure derived artifact; deleting it loses nothing reconstructible from source.</p>
+      <p><strong>Committing to git:</strong> never. <code>.claude-index/</code> should be gitignored. It's large relative to source (this repo's own index is ~396&nbsp;KiB for 86 files/575 symbols), regenerates deterministically, and is meaningless to diff.</p>
+    </section>
+
+    <section class="section" id="querying">
+      <span class="eyebrow">§11</span>
+      <h2>Querying the database directly</h2>
+      <p>No <code>sqlite3</code> CLI needed — Python's standard library works everywhere:</p>
+      <div class="figure">
+        <div class="figcap"><span class="tag">python</span><button class="copybtn" data-copy>Copy</button></div>
+        <pre><code id="c-pyquery"><span class="prompt">$</span> python3 -c "
+import sqlite3
+conn = sqlite3.connect('.claude-index/index.sqlite3')
+cur = conn.cursor()
+cur.execute(\"SELECT name, kind, file_id FROM symbols WHERE name = 'YourSymbol'\")
+print(cur.fetchall())
+"</code></pre>
+      </div>
+      <p>Useful ad hoc queries:</p>
+      <div class="figure">
+        <div class="figcap"><span class="tag">sql — cookbook</span><button class="copybtn" data-copy>Copy</button></div>
+        <pre><code id="c-cookbook"><span class="cmt">-- Everything indexed for one file</span>
+SELECT s.name, s.kind, s.line FROM symbols s
+JOIN files f ON f.id = s.file_id
+WHERE f.relative_path = 'crates/ccm-core/src/lib.rs' ORDER BY s.line;
+
+<span class="cmt">-- Every relation kind used in the repo (sanity check)</span>
+SELECT DISTINCT kind FROM relations;
+
+<span class="cmt">-- Fuzzy/substring symbol search (no CLI/MCP tool exposes this — direct FTS5 query)</span>
+SELECT s.name, s.kind FROM symbols_fts
+JOIN symbols s ON s.id = symbols_fts.rowid
+WHERE symbols_fts MATCH 'Pars*';
+
+<span class="cmt">-- Every file that failed to parse or is in an unsupported language</span>
+SELECT * FROM index_issues;
+
+<span class="cmt">-- Coverage per language, same numbers `status` reports</span>
+SELECT f.language, COUNT(DISTINCT f.id), COUNT(s.id)
+FROM files f LEFT JOIN symbols s ON s.file_id = f.id
+GROUP BY f.language;</code></pre>
+      </div>
+      <p>If the <code>sqlite3</code> CLI <em>is</em> available on your system, the same queries work with <code>sqlite3 .claude-index/index.sqlite3 "SELECT ..."</code>.</p>
+    </section>
+
+    <section class="section" id="limitations">
+      <span class="eyebrow">§12</span>
+      <h2>Known limitations and deliberate simplifications</h2>
+      <ul>
+        <li><strong>Name-based relations, not type-resolved.</strong> <code>find_calls</code>/<code>find_callers</code>/<code>find_references</code> match on plain text. Two unrelated functions named <code>parse</code> in different files/languages are indistinguishable by name alone — a query for "callers of <code>parse</code>" returns <em>every</em> caller of <em>any</em> <code>parse</code>, disambiguated only by reading <code>relative_path</code>/<code>language</code> in the result. Architecture, not a bug — real overload/import resolution per language is a much larger scope.</li>
+        <li><strong><code>to_symbol_id</code> is best-effort and unused by queries.</strong> Populated via <code>SELECT id FROM symbols WHERE name = ?1 LIMIT 1</code> (first match, arbitrary on ambiguity) but no shipped query joins on it.</li>
+        <li><strong>Test detection is a naming heuristic, not framework-aware.</strong> <code>impact_analysis</code>'s "likely affected tests" is <code>name.to_lowercase().starts_with("test")</code> — no recognition of <code>#[test]</code>, pytest fixtures, JUnit annotations, etc.</li>
+        <li><strong>Lua is implemented but not wired in.</strong> <code>ccm-lang-lua</code> is a full, tested <code>LanguageParser</code> kept as an acceptance test proving the plugin architecture — but it's <strong>not</strong> in either binary's <code>build_registry()</code>. <code>.lua</code> files are silently skipped, not even reported as "unsupported" (since <code>lua</code> isn't in <code>KNOWN_PENDING_LANGUAGES</code>).</li>
+        <li><strong><code>KNOWN_PENDING_LANGUAGES</code> is a short, hardcoded list</strong> (kotlin, swift, php, ruby) — any other genuinely unsupported language's files are skipped with zero visibility in <code>status</code>.</li>
+        <li><strong>Exclude patterns aren't user-configurable</strong> from either binary today (§09), despite the underlying API supporting it.</li>
+        <li><strong>No file-watching.</strong> The index only updates on an explicit <code>reindex</code> or MCP server startup.</li>
+        <li><strong>Binary files sharing a supported extension are silently skipped</strong>, not reported as a parse failure — they fail the UTF-8 check before parsing is attempted.</li>
+        <li><strong>One index per <code>--root</code>, single-process, single in-flight operation.</strong> The MCP server serializes all tool calls behind one <code>tokio::Mutex&lt;Index&gt;</code> — fine for interactive use, not built for high-concurrency multi-client access.</li>
+      </ul>
+    </section>
+
+    <section class="section" id="troubleshooting">
+      <span class="eyebrow">§13</span>
+      <h2>Troubleshooting</h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Symptom</th><th>Root cause</th><th>Fix</th></tr></thead>
+          <tbody>
+            <tr><td><code>claude mcp list</code> shows <code>⏸ Pending approval</code></td><td>Server registered while a session was already running</td><td>Exit and restart <code>claude</code>; approve when prompted</td></tr>
+            <tr><td>Query results look stale after <code>git pull</code></td><td>Server only reindexes at its own startup, not on file changes</td><td>Ask Claude to call <code>reindex</code> (<code>force: true</code>), or run <code>ccm-cli --root . reindex</code></td></tr>
+            <tr><td>A caller/callee result looks unrelated</td><td>Name-based matching (§12) — another same-named symbol matched</td><td>Check <code>relative_path</code>/<code>language</code> in each result to disambiguate</td></tr>
+            <tr><td>Language shown as "seen but not yet supported"</td><td>Extension is in <code>KNOWN_PENDING_LANGUAGES</code> with no parser registered</td><td>Expected; not implemented yet</td></tr>
+            <tr><td>A language's files are just missing, no issue reported</td><td>Extension isn't in <code>KNOWN_PENDING_LANGUAGES</code> either (e.g. <code>.lua</code>) — silently skipped</td><td>Check <code>build_registry()</code> in both binaries to see what's wired in</td></tr>
+            <tr><td><code>.env</code>/secret-looking files never show results</td><td>Excluded by design (§09)</td><td>Expected; don't rely on this index for secrets discovery</td></tr>
+            <tr><td>Exits with <code>database error: ...</code></td><td>Corrupted/locked <code>.sqlite3</code> (killed mid-write, disk full)</td><td><code>rm -rf .claude-index &amp;&amp; ccm-cli --root . init</code></td></tr>
+            <tr><td>Exits with <code>invalid path: X escapes the project root</code></td><td>A symlink inside the repo resolves outside <code>--root</code></td><td>Expected safety rejection (§07 step 2) — fix/remove the symlink</td></tr>
+            <tr><td><code>reindex</code> reports 0 parsed but files changed</td><td>Content hash unchanged (e.g. only mtime/permissions touched, or reverted to identical bytes)</td><td>Expected; comparison is content-based on purpose</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section" id="security">
+      <span class="eyebrow">§14</span>
+      <h2>Security model</h2>
+      <ul>
+        <li><strong>Static parsing only.</strong> <code>LanguageParser::parse()</code> never executes or evaluates file contents — every parser is a pure tree-sitter AST walk. Indexing an untrusted repository runs none of its code.</li>
+        <li><strong>All SQL is parameterized.</strong> Every query binds symbol names via <code>?1</code>-style placeholders — never string-interpolated (confirmed in <code>crates/ccm-index/src/queries.rs</code>, called out explicitly in source comments) — no SQL injection surface from name lookups.</li>
+        <li><strong>Symlink escape prevention.</strong> Every walked entry is canonicalized and rejected if it resolves outside the project root (§07) — a malicious symlink can't make the indexer touch files elsewhere.</li>
+        <li><strong>Secret-pattern exclusion by default, opt-out not opt-in</strong> (§09) — a fresh install never indexes <code>.env</code>, <code>*.pem</code>, <code>*.key</code>, cloud credential directories, etc.</li>
+        <li><strong>No network calls, zero telemetry</strong> — indexing and querying are entirely local/offline.</li>
+      </ul>
+    </section>
+
+    <section class="section" id="uninstalling">
+      <span class="eyebrow">§15</span>
+      <h2>Uninstalling / removing</h2>
+      <div class="figure">
+        <div class="figcap"><span class="tag">shell</span><button class="copybtn" data-copy>Copy</button></div>
+        <pre><code id="c-uninstall"><span class="cmt"># Unregister from Claude Code</span>
+<span class="prompt">$</span> claude mcp remove codebase-context-mcp --scope project   <span class="cmt"># match the --scope used to add it</span>
+
+<span class="cmt"># Remove the binaries</span>
+<span class="prompt">$</span> cargo uninstall ccm-cli
+<span class="prompt">$</span> cargo uninstall ccm-mcp-server
+
+<span class="cmt"># Delete a given repo's index (safe any time, see §10)</span>
+<span class="prompt">$</span> rm -rf .claude-index
+
+<span class="cmt"># If you committed .mcp.json, remove or edit it too</span></code></pre>
+      </div>
+    </section>
+
+    <section class="section" id="extending">
+      <span class="eyebrow">§16</span>
+      <h2>Extending it: adding a language</h2>
+      <ol>
+        <li>New crate, e.g. <code>crates/ccm-lang-&lt;lang&gt;</code>, depending on <code>ccm-core</code> and the relevant <code>tree-sitter-&lt;lang&gt;</code> grammar crate.</li>
+        <li>Implement <code>ccm_core::LanguageParser</code> (§02): <code>language_id()</code>, <code>file_extensions()</code>, <code>parse()</code> — walk the AST and emit <code>SymbolRecord</code>s and <code>SymbolRelation</code>s. Use <code>ccm-lang-rust/src/lib.rs</code> or <code>ccm-lang-python/src/lib.rs</code> as the reference pattern.</li>
+        <li>Register it in <strong>both</strong> places — <code>ccm-mcp-server/src/registry.rs</code> and <code>ccm-cli/src/main.rs::build_registry</code> — one <code>registry.register(Arc::new(YourLangParser))</code> line each. Nothing else in <code>ccm-core</code>/<code>ccm-index</code>/<code>ccm-mcp-server</code> changes.</li>
+        <li>Add idiomatic-syntax fixtures in <code>crates/ccm-lang-&lt;lang&gt;/tests/parse.rs</code> (generics, decorators, whatever that language's equivalents are).</li>
+        <li>Update the language coverage table in <code>README.md</code> and <code>checklist.md</code>.</li>
+        <li>Run the token-savings benchmark for the new language once it exists (currently unimplemented workspace-wide, tracked in <code>checklist.md</code>).</li>
+      </ol>
+    </section>
+
+    <section class="section" id="cheatsheet">
+      <span class="eyebrow">§17</span>
+      <h2>Quick command cheat sheet</h2>
+      <div class="figure">
+        <div class="figcap"><span class="tag">shell</span><button class="copybtn" data-copy>Copy</button></div>
+        <pre><code id="c-cheatsheet"><span class="cmt"># Install</span>
+<span class="prompt">$</span> cargo install --path crates/ccm-cli
+<span class="prompt">$</span> cargo install --path crates/ccm-mcp-server
+
+<span class="cmt"># Index / inspect</span>
+<span class="prompt">$</span> ccm-cli --root . init
+<span class="prompt">$</span> ccm-cli --root . reindex
+<span class="prompt">$</span> ccm-cli --root . reindex --force
+<span class="prompt">$</span> ccm-cli --root . status
+
+<span class="cmt"># Register with Claude Code</span>
+<span class="prompt">$</span> claude mcp add codebase-context-mcp --scope project -- ccm-mcp-server --root "&lt;abs-path&gt;"
+<span class="prompt">$</span> claude mcp list
+<span class="prompt">$</span> claude mcp remove codebase-context-mcp --scope project
+
+<span class="cmt"># Rebuild the index from scratch</span>
+<span class="prompt">$</span> rm -rf .claude-index &amp;&amp; ccm-cli --root . init
+
+<span class="cmt"># Inspect the database without the sqlite3 CLI</span>
+<span class="prompt">$</span> python3 -c "import sqlite3; c=sqlite3.connect('.claude-index/index.sqlite3'); print(c.execute('SELECT COUNT(*) FROM symbols').fetchone())"
+
+<span class="cmt"># Run the test suite (95 tests across the workspace)</span>
+<span class="prompt">$</span> cargo test --workspace</code></pre>
+      </div>
+    </section>
+  </main>
+</div>
+
+<footer>
+  <span>codebase-context-mcp — Reference Manual</span>
+  <span>·</span>
+  <span>See also: <a href="README.md">README.md</a>, <a href="CONTRIBUTING.md">CONTRIBUTING.md</a>, <a href="RELEASING.md">RELEASING.md</a></span>
+</footer>
+
+<script>
+(function(){
+  var sidebar = document.getElementById('sidebar');
+  var toggle = document.getElementById('navToggle');
+  var backdrop = document.getElementById('backdrop');
+
+  function closeNav(){
+    sidebar.classList.remove('is-open');
+    backdrop.classList.remove('is-open');
+    toggle.setAttribute('aria-expanded', 'false');
+  }
+  function openNav(){
+    sidebar.classList.add('is-open');
+    backdrop.classList.add('is-open');
+    toggle.setAttribute('aria-expanded', 'true');
+  }
+  toggle.addEventListener('click', function(){
+    sidebar.classList.contains('is-open') ? closeNav() : openNav();
+  });
+  backdrop.addEventListener('click', closeNav);
+  document.querySelectorAll('nav.toc a').forEach(function(a){
+    a.addEventListener('click', function(){ if (window.innerWidth <= 900) closeNav(); });
+  });
+
+  var filter = document.getElementById('navFilter');
+  filter.addEventListener('input', function(){
+    var q = filter.value.trim().toLowerCase();
+    document.querySelectorAll('#tocList li').forEach(function(li){
+      var text = li.textContent.toLowerCase();
+      li.style.display = (!q || text.indexOf(q) !== -1) ? '' : 'none';
+    });
+  });
+
+  var links = Array.prototype.slice.call(document.querySelectorAll('nav.toc a'));
+  var sections = links.map(function(a){ return document.querySelector(a.getAttribute('href')); }).filter(Boolean);
+  if ('IntersectionObserver' in window && sections.length){
+    var byId = {};
+    links.forEach(function(a){ byId[a.getAttribute('href').slice(1)] = a; });
+    var observer = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        var link = byId[entry.target.id];
+        if (!link) return;
+        if (entry.isIntersecting){
+          links.forEach(function(l){ l.classList.remove('active'); });
+          link.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-15% 0px -70% 0px', threshold: 0 });
+    sections.forEach(function(s){ observer.observe(s); });
+  }
+
+  document.querySelectorAll('.copybtn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var pre = btn.closest('.figure').querySelector('pre code');
+      if (!pre) return;
+      var text = pre.textContent;
+      var done = function(){
+        var original = btn.textContent;
+        btn.textContent = 'Copied';
+        setTimeout(function(){ btn.textContent = original; }, 1400);
+      };
+      try{
+        navigator.clipboard.writeText(text).then(done).catch(fallback);
+      }catch(e){ fallback(); }
+      function fallback(){
+        try{
+          var ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          done();
+        }catch(e2){ /* clipboard unavailable — no-op */ }
+      }
+    });
+  });
+})();
+</script>
+</body>
+</html>
