@@ -152,16 +152,19 @@ fn syntax_errors_are_reported_without_crashing_the_run() {
 
 #[test]
 fn unregistered_extension_is_reported_as_unsupported_language() {
+    // "rb" — still genuinely pending (no `ccm-lang-ruby` crate exists yet),
+    // unlike "java"/"cs"/"go" which this test used before those languages
+    // got real crates; `KNOWN_PENDING_LANGUAGES` no longer lists any of them.
     let dir = tempdir();
-    fs::write(dir.join("Main.java"), "class Main {}\n").unwrap();
+    fs::write(dir.join("main.rb"), "puts 'hi'\n").unwrap();
 
     let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
     let report = index.reindex(&registry(), false).unwrap();
     assert_eq!(report.issues.len(), 1);
-    assert_eq!(report.issues[0].detail, "java");
+    assert_eq!(report.issues[0].detail, "ruby");
 
     let status = index.status().unwrap();
-    assert_eq!(status.unsupported_languages, vec!["java".to_string()]);
+    assert_eq!(status.unsupported_languages, vec!["ruby".to_string()]);
 }
 
 /// A fresh temp directory, canonicalized so it matches what `Index::open_in_memory`

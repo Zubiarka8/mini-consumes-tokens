@@ -10,6 +10,9 @@ members = [
     "crates/ccm-lang-lua",
     "crates/ccm-lang-java",
     "crates/ccm-lang-csharp",
+    "crates/ccm-lang-js-ts",
+    "crates/ccm-lang-cpp",
+    "crates/ccm-lang-go",
 ]
 
 [workspace.package]
@@ -25,5 +28,8 @@ ccm-lang-rust = { path = "crates/ccm-lang-rust" }
 ccm-lang-python = { path = "crates/ccm-lang-python" }
 ccm-lang-java = { path = "crates/ccm-lang-java" }
 ccm-lang-csharp = { path = "crates/ccm-lang-csharp" }
+ccm-lang-js-ts = { path = "crates/ccm-lang-js-ts" }
+ccm-lang-cpp = { path = "crates/ccm-lang-cpp" }
+ccm-lang-go = { path = "crates/ccm-lang-go" }
 thiserror = "2"
 tree-sitter = "0.25"

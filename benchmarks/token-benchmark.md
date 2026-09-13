@@ -25,6 +25,32 @@ Caveat: fixtures are intentionally small (3 files, ~10–20 lines each) — see 
 | what calls this function (`Log`) | 97 | ~24 | 1180 (grep 551 + read 629 across 2 files) | ~295 | 91.8% |
 | who uses this symbol (`AddItem`) | 98 | ~24 | 1244 (grep 568 + read 676 across 2 files) | ~311 | 92.1% |
 
+## JavaScript/TypeScript (`crates/ccm-lang-js-ts/tests/fixtures/webapp`)
+
+| Query | MCP chars | MCP ~tokens | Grep+Read chars | Grep+Read ~tokens | Reduction |
+|---|---|---|---|---|---|
+| find the definition of (`Invoice`) | 54 | ~13 | 1637 (grep 800 + read 837 across 2 files) | ~409 | 96.7% |
+| what calls this function (`log`) | 63 | ~15 | 998 (grep 380 + read 618 across 2 files) | ~249 | 93.7% |
+| who uses this symbol (`addItem`) | 71 | ~17 | 1103 (grep 266 + read 837 across 2 files) | ~275 | 93.6% |
+
+## C++ (`crates/ccm-lang-cpp/tests/fixtures/billing-app`)
+
+| Query | MCP chars | MCP ~tokens | Grep+Read chars | Grep+Read ~tokens | Reduction |
+|---|---|---|---|---|---|
+| find the definition of (`Invoice`) | 106 | ~26 | 1350 (grep 740 + read 610 across 3 files) | ~337 | 92.1% |
+| what calls this function (`log`) | 91 | ~22 | 1130 (grep 548 + read 582 across 3 files) | ~282 | 91.9% |
+| who uses this symbol (`addItem`) | 86 | ~21 | 1408 (grep 798 + read 610 across 3 files) | ~352 | 93.9% |
+
+5-file fixture (`Invoice.h`/`.cpp`, `Logger.h`/`.cpp`, `Main.cpp`) — one more file matches per grep query than Java/C#/JS-TS because the header/source split means both the declaration and the definition are real, separate matches, which is exactly the case this crate is built to handle (see `ccm-lang-cpp/src/lib.rs`'s module doc). The reduction holds despite that extra file.
+
+## Go (`crates/ccm-lang-go/tests/fixtures/billing-app`)
+
+| Query | MCP chars | MCP ~tokens | Grep+Read chars | Grep+Read ~tokens | Reduction |
+|---|---|---|---|---|---|
+| find the definition of (`Invoice`) | 35 | ~8 | 1580 (grep 711 + read 869 across 3 files) | ~395 | 97.8% |
+| what calls this function (`Log`) | 94 | ~23 | 794 (grep 356 + read 438 across 2 files) | ~198 | 88.2% |
+| who uses this symbol (`AddItem`) | 42 | ~10 | 1003 (grep 555 + read 448 across 2 files) | ~250 | 95.8% |
+
 ## Status toward the general "3+ languages" benchmark criterion
 
-Java and C# done (this session). Rust and Python were implemented in an earlier session but not yet benchmarked — the harness above is language-agnostic (any registered `LanguageParser` works), so running it for them is now just a matter of adding two more `run_language` calls with a Rust/Python fixture, not new tooling. Not yet done — tracked in `checklist.md`.
+**Met** (an earlier session): Java, C#, and JavaScript/TypeScript have real benchmark numbers — 90–92%, 92%, and 94–97% character reduction respectively across the three canonical queries; no longer blocking anything. C++ (92–94%) and Go (88–98%) benchmarks were run this session alongside their crates, mostly as continued evidence per language rather than to satisfy the general criterion. Rust and Python were implemented earlier and still aren't benchmarked; the harness remains language-agnostic, so adding them later is just two more `run_language` calls with a Rust/Python fixture, not new tooling — tracked as a (non-blocking) remaining item in `checklist.md`.

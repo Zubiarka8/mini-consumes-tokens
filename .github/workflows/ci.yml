@@ -39,9 +39,9 @@ jobs:
         run: cargo build --workspace --all-targets
 
       # Runs the tree-sitter parsing + SQLite query integration tests for
-      # all 5 language crates (Rust, Python, Lua, Java, C#) on every OS —
-      # first time this project confirms Windows behaves the same as
-      # Linux/macOS here, not just "probably fine because it built".
+      # all 8 language crates (Rust, Python, Lua, Java, C#, JS/TS, C++, Go)
+      # on every OS — first time this project confirms Windows behaves the
+      # same as Linux/macOS here, not just "probably fine because it built".
       - name: Test workspace
         run: cargo test --workspace
 
@@ -115,6 +115,9 @@ jobs:
           - ccm-lang-lua
           - ccm-lang-java
           - ccm-lang-csharp
+          - ccm-lang-js-ts
+          - ccm-lang-cpp
+          - ccm-lang-go
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly

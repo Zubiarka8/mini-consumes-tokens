@@ -6,7 +6,7 @@ Languages are **plugins**, not a hardcoded list: a `LanguageParser` trait in `cc
 
 ## Status
 
-Early scaffold. Two languages implemented end-to-end (Rust, Python); the plugin architecture is designed to take five more (JS/TS, Java, C#, C++, Go) plus a Lua acceptance-test crate without touching `ccm-core` or `ccm-mcp-server`. See [`checklist.md`](checklist.md) for the current state of every deliverable.
+7 languages implemented end-to-end (Rust, Python, JS/TS, Java, C#, C++, Go), plus a Lua acceptance-test crate validating the plugin architecture without touching `ccm-core` or `ccm-mcp-server`. See [`checklist.md`](checklist.md) for the current state of every deliverable.
 
 ## Stack
 
@@ -38,11 +38,12 @@ ccm-cli --root . reindex --force
 |---|---|---|
 | Rust | Implemented | `crates/ccm-lang-rust` |
 | Python | Implemented | `crates/ccm-lang-python` |
-| JavaScript / TypeScript | Not started | `crates/ccm-lang-js-ts` (planned) |
-| Java | Not started | `crates/ccm-lang-java` (planned) |
-| C# | Not started | `crates/ccm-lang-csharp` (planned) |
-| C++ | Not started | `crates/ccm-lang-cpp` (planned) |
-| Go | Not started | `crates/ccm-lang-go` (planned) |
+| JavaScript / TypeScript | Implemented | `crates/ccm-lang-js-ts` |
+| Java | Implemented | `crates/ccm-lang-java` |
+| C# | Implemented | `crates/ccm-lang-csharp` |
+| C++ | Implemented | `crates/ccm-lang-cpp` |
+| Go | Implemented | `crates/ccm-lang-go` |
+| Lua | Implemented (plugin-architecture acceptance test, not wired into production) | `crates/ccm-lang-lua` |
 
 `get_indexing_status` reports, per repo, which of these it saw files for but has no parser registered yet — so a polyglot repo with an unsupported language degrades gracefully (that language's files are just skipped and reported) rather than failing the whole index.
 

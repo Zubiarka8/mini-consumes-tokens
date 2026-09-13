@@ -15,17 +15,8 @@ use crate::{Index, Result};
 /// non-source files — docs, images, lockfiles — which are ignored without
 /// comment).
 const KNOWN_PENDING_LANGUAGES: &[(&str, &str)] = &[
-    ("java", "java"),
     ("kt", "kotlin"),
     ("kts", "kotlin"),
-    ("cs", "csharp"),
-    ("cpp", "cpp"),
-    ("cc", "cpp"),
-    ("cxx", "cpp"),
-    ("hpp", "cpp"),
-    ("hh", "cpp"),
-    ("h", "cpp"),
-    ("go", "go"),
     ("swift", "swift"),
     ("php", "php"),
     ("rb", "ruby"),

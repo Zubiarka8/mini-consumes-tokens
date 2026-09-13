@@ -9,8 +9,11 @@ repository.workspace = true
 anyhow = "1.0.104"
 ccm-core.workspace = true
 ccm-index.workspace = true
+ccm-lang-cpp.workspace = true
 ccm-lang-csharp.workspace = true
+ccm-lang-go.workspace = true
 ccm-lang-java.workspace = true
+ccm-lang-js-ts.workspace = true
 ccm-lang-python.workspace = true
 ccm-lang-rust.workspace = true
 clap = { version = "4.6.6", features = ["derive"] }

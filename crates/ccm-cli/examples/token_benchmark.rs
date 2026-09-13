@@ -155,4 +155,49 @@ fn main() {
             Query { label: "who uses this symbol", kind: QueryKind::References, term: "AddItem" },
         ],
     );
+
+    let js_ts_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../ccm-lang-js-ts/tests/fixtures/webapp");
+    let mut js_ts_registry = LanguageRegistry::new();
+    js_ts_registry.register(Arc::new(ccm_lang_js_ts::JsTsParser));
+    run_language(
+        "JavaScript/TypeScript (webapp fixture)",
+        &js_ts_root,
+        js_ts_registry,
+        &[
+            Query { label: "find the definition of", kind: QueryKind::Symbol, term: "Invoice" },
+            Query { label: "what calls this function", kind: QueryKind::Callers, term: "log" },
+            Query { label: "who uses this symbol", kind: QueryKind::References, term: "addItem" },
+        ],
+    );
+
+    let cpp_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../ccm-lang-cpp/tests/fixtures/billing-app");
+    let mut cpp_registry = LanguageRegistry::new();
+    cpp_registry.register(Arc::new(ccm_lang_cpp::CppParser));
+    run_language(
+        "C++ (billing-app fixture)",
+        &cpp_root,
+        cpp_registry,
+        &[
+            Query { label: "find the definition of", kind: QueryKind::Symbol, term: "Invoice" },
+            Query { label: "what calls this function", kind: QueryKind::Callers, term: "log" },
+            Query { label: "who uses this symbol", kind: QueryKind::References, term: "addItem" },
+        ],
+    );
+
+    let go_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../ccm-lang-go/tests/fixtures/billing-app");
+    let mut go_registry = LanguageRegistry::new();
+    go_registry.register(Arc::new(ccm_lang_go::GoParser));
+    run_language(
+        "Go (billing-app fixture)",
+        &go_root,
+        go_registry,
+        &[
+            Query { label: "find the definition of", kind: QueryKind::Symbol, term: "Invoice" },
+            Query { label: "what calls this function", kind: QueryKind::Callers, term: "Log" },
+            Query { label: "who uses this symbol", kind: QueryKind::References, term: "AddItem" },
+        ],
+    );
 }

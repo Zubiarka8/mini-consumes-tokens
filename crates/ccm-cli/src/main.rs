@@ -42,6 +42,9 @@ fn build_registry() -> LanguageRegistry {
     registry.register(Arc::new(ccm_lang_python::PythonParser));
     registry.register(Arc::new(ccm_lang_java::JavaParser));
     registry.register(Arc::new(ccm_lang_csharp::CSharpParser));
+    registry.register(Arc::new(ccm_lang_js_ts::JsTsParser));
+    registry.register(Arc::new(ccm_lang_cpp::CppParser));
+    registry.register(Arc::new(ccm_lang_go::GoParser));
     registry
 }
 

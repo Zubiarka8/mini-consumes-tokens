@@ -22,6 +22,9 @@ const DEFAULT_EXCLUDE_PATTERNS: &[&str] = &[
     "**/*.snk",
     // Java / Gradle / Maven
     "**/gradle.properties",
+    // Go (Viper and similar config libraries)
+    "**/*.env.local",
+    "**/config/secrets.yaml",
     // general VCS / build output
     "**/.git/**",
     "**/target/**",
