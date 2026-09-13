@@ -71,7 +71,7 @@ crates/
 cargo test --workspace
 ```
 
-91 tests across the workspace: `ccm-index` (reindex/query pipeline, incremental skip, deletion, syntax-error/unsupported-language reporting, secret-pattern exclusion), each of the 8 language crates (idiomatic-syntax extraction at the parser level — generics, traits/impls, decorators, imports, overloads, interfaces — with an added end-to-end `ccm-index` integration fixture for every crate except `ccm-lang-rust`/`ccm-lang-python`, covering language-specific cases like Go's implicit interfaces or C++'s header/source declaration correlation), and `ccm-mcp-server` (all 7 tools, in-process against a polyglot fixture).
+95 tests across the workspace: `ccm-index` (reindex/query pipeline, incremental skip, deletion, syntax-error/unsupported-language reporting, secret-pattern exclusion), each of the 8 language crates (idiomatic-syntax extraction at the parser level — generics, traits/impls, decorators, imports, overloads, interfaces — with an added end-to-end `ccm-index` integration fixture for every crate except `ccm-lang-rust`/`ccm-lang-python`, covering language-specific cases like Go's implicit interfaces or C++'s header/source declaration correlation), and `ccm-mcp-server` (all 7 tools against a versioned Rust+Python fixture, plus a dedicated 3-language Go+TypeScript+Python fixture confirming the index doesn't bleed symbols across languages).
 
 ## Benchmark of tokens saved
 

@@ -1,16 +1,14 @@
 //! In-process test of the tool layer (bypassing the stdio/JSON-RPC
 //! transport): calls the generated tool methods directly against a small
-//! polyglot (Rust + Python) fixture, so a regression here is caught without
-//! standing up a full MCP client.
+//! polyglot (Rust + Python) fixture versioned at `tests/fixtures/compute-app/`,
+//! so a regression here is caught without standing up a full MCP client.
 
 // Test code: an unwrap()/expect() here means a broken test precondition, and
 // panicking is the correct behavior — this is not production code parsing
 // untrusted repo content (see crates/ccm-mcp-server/src/ for that policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::fs;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::path::Path;
 
 use ccm_index::{ExcludeSet, Index};
 use ccm_mcp_server::server::{
@@ -19,18 +17,8 @@ use ccm_mcp_server::server::{
 };
 use rmcp::handler::server::wrapper::Parameters;
 
-fn tempdir() -> std::path::PathBuf {
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos() as u64;
-    let dir = std::env::temp_dir().join(format!(
-        "ccm-mcp-server-test-{}",
-        nanos.wrapping_add(COUNTER.fetch_add(1, Ordering::Relaxed))
-    ));
-    fs::create_dir_all(&dir).unwrap();
-    dir
+fn fixture_root() -> std::path::PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/compute-app")
 }
 
 fn content_of(result: &rmcp::model::CallToolResult) -> String {
@@ -43,21 +31,8 @@ fn content_of(result: &rmcp::model::CallToolResult) -> String {
 }
 
 async fn build_server() -> CcmServer {
-    let dir = tempdir();
-    fs::create_dir_all(dir.join("src")).unwrap();
-    fs::write(
-        dir.join("src/lib.rs"),
-        "pub fn compute() -> i32 { helper() }\nfn helper() -> i32 { 1 }\n",
-    )
-    .unwrap();
-    fs::write(
-        dir.join("test_compute.py"),
-        "from src_bindings import compute\n\ndef test_compute():\n    assert compute() == 1\n",
-    )
-    .unwrap();
-
     let registry = ccm_mcp_server::registry::build_registry();
-    let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
+    let mut index = Index::open_in_memory(&fixture_root(), ExcludeSet::default()).unwrap();
     index.reindex(&registry, false).unwrap();
     CcmServer::new(index, registry)
 }
