@@ -1,0 +1,11 @@
+[package]
+name = "ccm-lang-python"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+ccm-core.workspace = true
+tree-sitter.workspace = true
+tree-sitter-python = "0.25.0"

@@ -1,0 +1,108 @@
+//! SQLite-backed storage and query layer for the symbol graph. Same schema
+//! for every language (a `language` column on `files`, not per-language
+//! tables) — this crate knows about SQLite and git, never about any specific
+//! language's grammar.
+
+mod error;
+mod exclude;
+mod indexer;
+mod queries;
+mod schema;
+
+pub use error::{IndexError, Result};
+pub use exclude::ExcludeSet;
+pub use indexer::{IndexStatus, LanguageCoverage, ReindexReport, UnsupportedFile};
+pub use queries::{RelationHit, SymbolHit};
+
+use std::path::{Path, PathBuf};
+
+use ccm_core::LanguageRegistry;
+use rusqlite::Connection;
+
+/// One open connection to a project's `.claude-index/index.sqlite3`.
+pub struct Index {
+    conn: Connection,
+    /// Canonicalized project root — every relative path stored in the
+    /// database is validated against this to reject path traversal.
+    root: PathBuf,
+    exclude: ExcludeSet,
+}
+
+impl Index {
+    /// Opens (creating if needed) the index database at `db_path` for the
+    /// project rooted at `root`, applying pending migrations.
+    pub fn open(root: &Path, db_path: &Path, exclude: ExcludeSet) -> Result<Self> {
+        let root = root.canonicalize().map_err(|source| IndexError::Io {
+            path: root.display().to_string(),
+            source,
+        })?;
+        if let Some(parent) = db_path.parent() {
+            std::fs::create_dir_all(parent).map_err(|source| IndexError::Io {
+                path: parent.display().to_string(),
+                source,
+            })?;
+        }
+        let mut conn = Connection::open(db_path)?;
+        conn.pragma_update(None, "journal_mode", "WAL")?;
+        conn.pragma_update(None, "foreign_keys", "ON")?;
+        schema::migrations().to_latest(&mut conn)?;
+        Ok(Self {
+            conn,
+            root,
+            exclude,
+        })
+    }
+
+    /// Opens an in-memory index, used by tests.
+    #[doc(hidden)]
+    pub fn open_in_memory(root: &Path, exclude: ExcludeSet) -> Result<Self> {
+        let root = root.canonicalize().map_err(|source| IndexError::Io {
+            path: root.display().to_string(),
+            source,
+        })?;
+        let mut conn = Connection::open_in_memory()?;
+        conn.pragma_update(None, "foreign_keys", "ON")?;
+        schema::migrations().to_latest(&mut conn)?;
+        Ok(Self {
+            conn,
+            root,
+            exclude,
+        })
+    }
+
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
+    /// Walks the project, parsing every file whose content changed since the
+    /// last run (or every supported file, if `force`), via the parser the
+    /// `registry` resolves for each extension. Never touches a file outside
+    /// [`Index::root`], and never follows a symlink that would escape it.
+    pub fn reindex(&mut self, registry: &LanguageRegistry, force: bool) -> Result<ReindexReport> {
+        indexer::reindex(self, registry, force)
+    }
+
+    pub fn status(&self) -> Result<IndexStatus> {
+        indexer::status(self)
+    }
+
+    pub fn find_symbol(&self, name: &str) -> Result<Vec<SymbolHit>> {
+        queries::find_symbol(&self.conn, name)
+    }
+
+    /// Every place `symbol` is referenced: calls, imports, extends/implements,
+    /// and plain references — a superset of [`Index::find_calls`].
+    pub fn find_references(&self, symbol: &str) -> Result<Vec<RelationHit>> {
+        queries::find_references(&self.conn, symbol)
+    }
+
+    /// Calls made *by* `function` (its callees).
+    pub fn find_calls(&self, function: &str) -> Result<Vec<RelationHit>> {
+        queries::find_calls(&self.conn, function)
+    }
+
+    /// Calls made *of* `function` (its callers) — the inverse of [`Index::find_calls`].
+    pub fn find_callers(&self, function: &str) -> Result<Vec<RelationHit>> {
+        queries::find_callers(&self.conn, function)
+    }
+}

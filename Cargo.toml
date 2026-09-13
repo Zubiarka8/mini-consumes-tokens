@@ -1,0 +1,24 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/ccm-core",
+    "crates/ccm-index",
+    "crates/ccm-lang-rust",
+    "crates/ccm-lang-python",
+    "crates/ccm-mcp-server",
+    "crates/ccm-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/zubiarka8/codebase-context-mcp"
+
+[workspace.dependencies]
+ccm-core = { path = "crates/ccm-core" }
+ccm-index = { path = "crates/ccm-index" }
+ccm-lang-rust = { path = "crates/ccm-lang-rust" }
+ccm-lang-python = { path = "crates/ccm-lang-python" }
+thiserror = "2"
+tree-sitter = "0.25"

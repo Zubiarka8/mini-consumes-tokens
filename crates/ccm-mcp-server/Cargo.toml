@@ -1,0 +1,21 @@
+[package]
+name = "ccm-mcp-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow = "1.0.104"
+ccm-core.workspace = true
+ccm-index.workspace = true
+ccm-lang-python.workspace = true
+ccm-lang-rust.workspace = true
+clap = { version = "4.6.6", features = ["derive"] }
+rmcp = { version = "3.3.0", features = ["server", "macros", "transport-io"] }
+schemars = "1.2.2"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "sync"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
