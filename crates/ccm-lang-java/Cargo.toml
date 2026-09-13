@@ -1,0 +1,14 @@
+[package]
+name = "ccm-lang-java"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+ccm-core.workspace = true
+tree-sitter.workspace = true
+tree-sitter-java = "0.23.5"
+
+[dev-dependencies]
+ccm-index.workspace = true

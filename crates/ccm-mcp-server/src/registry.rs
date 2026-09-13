@@ -10,5 +10,7 @@ pub fn build_registry() -> LanguageRegistry {
     let mut registry = LanguageRegistry::new();
     registry.register(Arc::new(ccm_lang_rust::RustParser));
     registry.register(Arc::new(ccm_lang_python::PythonParser));
+    registry.register(Arc::new(ccm_lang_java::JavaParser));
+    registry.register(Arc::new(ccm_lang_csharp::CSharpParser));
     registry
 }

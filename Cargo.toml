@@ -8,6 +8,8 @@ members = [
     "crates/ccm-mcp-server",
     "crates/ccm-cli",
     "crates/ccm-lang-lua",
+    "crates/ccm-lang-java",
+    "crates/ccm-lang-csharp",
 ]
 
 [workspace.package]
@@ -21,5 +23,7 @@ ccm-core = { path = "crates/ccm-core" }
 ccm-index = { path = "crates/ccm-index" }
 ccm-lang-rust = { path = "crates/ccm-lang-rust" }
 ccm-lang-python = { path = "crates/ccm-lang-python" }
+ccm-lang-java = { path = "crates/ccm-lang-java" }
+ccm-lang-csharp = { path = "crates/ccm-lang-csharp" }
 thiserror = "2"
 tree-sitter = "0.25"
