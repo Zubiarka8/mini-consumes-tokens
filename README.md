@@ -16,15 +16,23 @@ No network calls by default — zero telemetry. Source code is parsed statically
 
 ## Installation
 
-Requires a Rust toolchain ([rustup.rs](https://rustup.rs)). Works identically on Linux, macOS, and Windows.
+**Prebuilt binaries** (no Rust toolchain needed): download the archive for your OS/arch (Linux x86_64/arm64, macOS Intel/Apple Silicon, Windows x86_64) from the [GitHub Releases page](https://github.com/zubiarka8/codebase-context-mcp/releases) and put `ccm-cli`/`ccm-mcp-server` on your `PATH`.
+
+**From crates.io** (once published — see `RELEASING.md`; requires a Rust toolchain, [rustup.rs](https://rustup.rs)):
 
 ```sh
-# From source, anywhere:
+cargo install ccm-cli
+cargo install ccm-mcp-server
+```
+
+**From source**, anywhere (works identically on Linux, macOS, and Windows):
+
+```sh
 cargo install --path crates/ccm-cli
 cargo install --path crates/ccm-mcp-server
 ```
 
-As a Claude Code plugin: point the plugin's MCP server entry at the built `ccm-mcp-server` binary; it indexes `--root <project>` (defaults to the current directory) automatically at startup.
+As a Claude Code plugin: point the plugin's MCP server entry at the released `ccm-mcp-server` binary (prebuilt or `cargo install`d — not an unversioned source checkout); it indexes `--root <project>` (defaults to the current directory) automatically at startup.
 
 ```sh
 ccm-cli --root . init      # first index

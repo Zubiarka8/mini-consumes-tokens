@@ -22,14 +22,17 @@ license = "Apache-2.0"
 repository = "https://github.com/zubiarka8/codebase-context-mcp"
 
 [workspace.dependencies]
-ccm-core = { path = "crates/ccm-core" }
-ccm-index = { path = "crates/ccm-index" }
-ccm-lang-rust = { path = "crates/ccm-lang-rust" }
-ccm-lang-python = { path = "crates/ccm-lang-python" }
-ccm-lang-java = { path = "crates/ccm-lang-java" }
-ccm-lang-csharp = { path = "crates/ccm-lang-csharp" }
-ccm-lang-js-ts = { path = "crates/ccm-lang-js-ts" }
-ccm-lang-cpp = { path = "crates/ccm-lang-cpp" }
-ccm-lang-go = { path = "crates/ccm-lang-go" }
+# `version` alongside `path` is required for `cargo publish`: crates.io
+# resolves published dependents by version, path is only used for local
+# workspace builds and is stripped from the packaged Cargo.toml.
+ccm-core = { path = "crates/ccm-core", version = "0.1.0" }
+ccm-index = { path = "crates/ccm-index", version = "0.1.0" }
+ccm-lang-rust = { path = "crates/ccm-lang-rust", version = "0.1.0" }
+ccm-lang-python = { path = "crates/ccm-lang-python", version = "0.1.0" }
+ccm-lang-java = { path = "crates/ccm-lang-java", version = "0.1.0" }
+ccm-lang-csharp = { path = "crates/ccm-lang-csharp", version = "0.1.0" }
+ccm-lang-js-ts = { path = "crates/ccm-lang-js-ts", version = "0.1.0" }
+ccm-lang-cpp = { path = "crates/ccm-lang-cpp", version = "0.1.0" }
+ccm-lang-go = { path = "crates/ccm-lang-go", version = "0.1.0" }
 thiserror = "2"
 tree-sitter = "0.25"

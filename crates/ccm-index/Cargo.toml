@@ -1,9 +1,12 @@
 [package]
 name = "ccm-index"
+description = "SQLite-backed symbol/relation index engine for codebase-context-mcp, with git-blob-hash incremental reindexing and default secret-path exclusion."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+keywords = ["mcp", "sqlite", "code-index", "tree-sitter"]
+categories = ["development-tools", "database"]
 
 [dependencies]
 ccm-core.workspace = true

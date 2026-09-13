@@ -1,9 +1,12 @@
 [package]
 name = "ccm-lang-cpp"
+description = "C++ language plugin (tree-sitter-cpp) for codebase-context-mcp's LanguageParser trait, correlating header declarations with out-of-line definitions."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+keywords = ["mcp", "tree-sitter", "cpp", "code-index"]
+categories = ["development-tools", "parser-implementations"]
 
 [dependencies]
 ccm-core.workspace = true

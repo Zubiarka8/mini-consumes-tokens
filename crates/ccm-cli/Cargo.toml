@@ -1,9 +1,12 @@
 [package]
 name = "ccm-cli"
+description = "CLI for codebase-context-mcp: init/reindex/status subcommands over the local tree-sitter-backed symbol index."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+keywords = ["mcp", "cli", "code-index", "tree-sitter"]
+categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
 anyhow = "1.0.104"
