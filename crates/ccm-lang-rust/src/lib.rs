@@ -229,8 +229,8 @@ impl<'a> Walker<'a> {
             }
             "call_expression" => {
                 if let Some(function) = node.child_by_field_name("function") {
-                    if let Some(name) = call_target_name(function, self.source) {
-                        self.push_relation(owner, RelationKind::Calls, name, location(node));
+                    if let Some((name, name_node)) = call_target(function, self.source) {
+                        self.push_relation(owner, RelationKind::Calls, name, location(name_node));
                     }
                     self.visit(function, owner, impl_type);
                 }
@@ -258,18 +258,23 @@ impl<'a> Walker<'a> {
     }
 }
 
-fn call_target_name(node: Node, source: &str) -> Option<String> {
+/// The callee's name *and* the specific node it came from — never the whole
+/// `call_expression`, whose start position is shared by every call in a
+/// chain (`a.f(x).f(y)`'s outer and inner `call_expression` both start at
+/// `a`), which would otherwise make two same-named chained calls collide
+/// into one indistinguishable relation row.
+fn call_target<'a>(node: Node<'a>, source: &str) -> Option<(String, Node<'a>)> {
     match node.kind() {
-        "identifier" => Some(text(node, source).to_string()),
-        "field_expression" => node
-            .child_by_field_name("field")
-            .map(|n| text(n, source).to_string()),
-        "scoped_identifier" => node
-            .child_by_field_name("name")
-            .map(|n| text(n, source).to_string()),
-        "generic_function" => node
-            .child_by_field_name("function")
-            .and_then(|n| call_target_name(n, source)),
+        "identifier" => Some((text(node, source).to_string(), node)),
+        "field_expression" => {
+            node.child_by_field_name("field").map(|n| (text(n, source).to_string(), n))
+        }
+        "scoped_identifier" => {
+            node.child_by_field_name("name").map(|n| (text(n, source).to_string(), n))
+        }
+        "generic_function" => {
+            node.child_by_field_name("function").and_then(|n| call_target(n, source))
+        }
         _ => None,
     }
 }

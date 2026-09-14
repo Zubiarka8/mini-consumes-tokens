@@ -13,6 +13,10 @@ members = [
     "crates/ccm-lang-js-ts",
     "crates/ccm-lang-cpp",
     "crates/ccm-lang-go",
+    "crates/ccm-lang-html",
+    "crates/ccm-lang-css",
+    "crates/ccm-lang-xml",
+    "crates/ccm-lang-xaml",
 ]
 
 [workspace.package]
@@ -34,5 +38,9 @@ ccm-lang-csharp = { path = "crates/ccm-lang-csharp", version = "0.1.0" }
 ccm-lang-js-ts = { path = "crates/ccm-lang-js-ts", version = "0.1.0" }
 ccm-lang-cpp = { path = "crates/ccm-lang-cpp", version = "0.1.0" }
 ccm-lang-go = { path = "crates/ccm-lang-go", version = "0.1.0" }
+ccm-lang-html = { path = "crates/ccm-lang-html", version = "0.1.0" }
+ccm-lang-css = { path = "crates/ccm-lang-css", version = "0.1.0" }
+ccm-lang-xml = { path = "crates/ccm-lang-xml", version = "0.1.0" }
+ccm-lang-xaml = { path = "crates/ccm-lang-xaml", version = "0.1.0" }
 thiserror = "2"
 tree-sitter = "0.25"

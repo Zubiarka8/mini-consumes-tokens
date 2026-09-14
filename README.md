@@ -6,7 +6,7 @@ Languages are **plugins**, not a hardcoded list: a `LanguageParser` trait in `cc
 
 ## Status
 
-7 languages implemented end-to-end (Rust, Python, JS/TS, Java, C#, C++, Go), plus a Lua acceptance-test crate validating the plugin architecture without touching `ccm-core` or `ccm-mcp-server`. See [`checklist.md`](checklist.md) for the current state of every deliverable.
+11 languages implemented end-to-end (Rust, Python, JS/TS, Java, C#, C++, Go, HTML, CSS, XML, XAML), plus a Lua acceptance-test crate validating the plugin architecture without touching `ccm-core` or `ccm-mcp-server`. Two pairs cross-reference each other in the same index: HTML/CSS (an element's `id`/`class` attributes resolve to the matching CSS rule, `<link>`/`<script src>` resolve as `Imports`) and XAML/C# (an event-handler attribute like `Click="SaveBtn_Click"` resolves to the matching method in the paired code-behind file). Plain XML is deliberately structural-only — see the coverage table below. See [`checklist.md`](checklist.md) for the current state of every deliverable.
 
 ## Stack
 
@@ -51,6 +51,10 @@ ccm-cli --root . reindex --force
 | C# | Implemented | `crates/ccm-lang-csharp` |
 | C++ | Implemented | `crates/ccm-lang-cpp` |
 | Go | Implemented | `crates/ccm-lang-go` |
+| HTML | Implemented | `crates/ccm-lang-html` |
+| CSS | Implemented | `crates/ccm-lang-css` |
+| XML | Implemented (structural only — no dialect-generic cross-referencing) | `crates/ccm-lang-xml` |
+| XAML | Implemented | `crates/ccm-lang-xaml` |
 | Lua | Implemented (plugin-architecture acceptance test, not wired into production) | `crates/ccm-lang-lua` |
 
 `get_indexing_status` reports, per repo, which of these it saw files for but has no parser registered yet — so a polyglot repo with an unsupported language degrades gracefully (that language's files are just skipped and reported) rather than failing the whole index.
@@ -68,6 +72,10 @@ crates/
   ccm-lang-js-ts     LanguageParser impl for JavaScript/TypeScript/TSX (tree-sitter-javascript, tree-sitter-typescript)
   ccm-lang-cpp       LanguageParser impl for C++ (tree-sitter-cpp)
   ccm-lang-go        LanguageParser impl for Go (tree-sitter-go)
+  ccm-lang-html      LanguageParser impl for HTML (tree-sitter-html) — id'd elements + id/class References, link/script Imports
+  ccm-lang-css       LanguageParser impl for CSS (tree-sitter-css) — simple-selector Rules + @import
+  ccm-lang-xml       LanguageParser impl for generic XML (tree-sitter-xml) — id/name/Name Elements, structural only
+  ccm-lang-xaml      LanguageParser impl for XAML (tree-sitter-xml) — x:Name/Name Elements + event-attribute References into C# code-behind
   ccm-lang-lua       LanguageParser impl for Lua — plugin-architecture acceptance test, not registered in production
   ccm-mcp-server     MCP tools over stdio (rmcp) — find_symbol/find_references/find_calls/find_callers/impact_analysis/reindex/get_indexing_status
   ccm-cli            init/reindex/status subcommands for manual or scripted use
@@ -79,7 +87,7 @@ crates/
 cargo test --workspace
 ```
 
-95 tests across the workspace: `ccm-index` (reindex/query pipeline, incremental skip, deletion, syntax-error/unsupported-language reporting, secret-pattern exclusion), each of the 8 language crates (idiomatic-syntax extraction at the parser level — generics, traits/impls, decorators, imports, overloads, interfaces — with an added end-to-end `ccm-index` integration fixture for every crate except `ccm-lang-rust`/`ccm-lang-python`, covering language-specific cases like Go's implicit interfaces or C++'s header/source declaration correlation), and `ccm-mcp-server` (all 7 tools against a versioned Rust+Python fixture, plus a dedicated 3-language Go+TypeScript+Python fixture confirming the index doesn't bleed symbols across languages).
+152 tests across the workspace: `ccm-index` (reindex/query pipeline, incremental skip, deletion, syntax-error/unsupported-language reporting, secret-pattern exclusion), each of the 12 language crates (idiomatic-syntax extraction at the parser level — generics, traits/impls, decorators, imports, overloads, interfaces — with an added end-to-end `ccm-index` integration fixture for every crate except `ccm-lang-rust`/`ccm-lang-python`, covering language-specific cases like Go's implicit interfaces, C++'s header/source declaration correlation, HTML/CSS cross-referencing each other by id/class, or a XAML event-handler attribute resolving to a method in its paired C# code-behind file — each through a real multi-file, multi-language fixture, not just both parsers running side by side), and `ccm-mcp-server` (all 7 tools against a versioned Rust+Python fixture, plus a dedicated 3-language Go+TypeScript+Python fixture confirming the index doesn't bleed symbols across languages).
 
 ## Benchmark of tokens saved
 

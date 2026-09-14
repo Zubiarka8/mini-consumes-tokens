@@ -329,12 +329,17 @@ impl<'a> Walker<'a> {
                                     self.push_relation(owner, RelationKind::Imports, module, location(node));
                                 }
                             } else {
-                                self.push_relation(owner, RelationKind::Calls, name.to_string(), location(node));
+                                self.push_relation(owner, RelationKind::Calls, name.to_string(), location(function));
                             }
                         }
                         "member_expression" => {
                             if let Some(property) = function.child_by_field_name("property") {
-                                self.push_relation(owner, RelationKind::Calls, text(property, self.source).to_string(), location(node));
+                                // location(property), not location(node): a
+                                // chained call (`a.f(x).f(y)`) has its outer
+                                // and inner call_expression both start at `a`,
+                                // which would make two same-named chained
+                                // calls collide into one indistinguishable row.
+                                self.push_relation(owner, RelationKind::Calls, text(property, self.source).to_string(), location(property));
                             }
                         }
                         _ => {}
@@ -348,7 +353,7 @@ impl<'a> Walker<'a> {
             "new_expression" => {
                 if let Some(constructor) = node.child_by_field_name("constructor") {
                     if let Some(name_node) = rightmost_name(constructor) {
-                        self.push_relation(owner, RelationKind::Calls, text(name_node, self.source).to_string(), location(node));
+                        self.push_relation(owner, RelationKind::Calls, text(name_node, self.source).to_string(), location(name_node));
                     }
                     self.visit(constructor, owner, type_name);
                 }

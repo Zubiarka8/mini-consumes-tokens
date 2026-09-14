@@ -256,7 +256,12 @@ impl<'a> Walker<'a> {
             "invocation_expression" => {
                 if let Some(function) = node.child_by_field_name("function") {
                     if let Some(name_node) = callee_identifier(function) {
-                        self.push_relation(owner, RelationKind::Calls, text(name_node, self.source).to_string(), location(node));
+                        // location(name_node), not location(node): a chained
+                        // call (`a.F(x).F(y)`) has its outer and inner
+                        // invocation_expression both start at `a`, which would
+                        // make two same-named chained calls collide into one
+                        // indistinguishable row.
+                        self.push_relation(owner, RelationKind::Calls, text(name_node, self.source).to_string(), location(name_node));
                     }
                     self.visit(function, owner, type_name);
                 }

@@ -177,13 +177,18 @@ impl<'a> Walker<'a> {
             "assignment_statement" => self.visit_assignment(node, owner),
             "function_call" => {
                 if let Some(callee) = node.child_by_field_name("name") {
-                    let (name, _, _) = target_name(callee, self.source);
+                    let (name, name_node) = call_target_name(callee, self.source);
                     if name == "require" {
                         if let Some(module) = require_argument(node, self.source) {
                             self.push_relation(owner, RelationKind::Imports, module, location(node));
                         }
                     } else if !name.is_empty() {
-                        self.push_relation(owner, RelationKind::Calls, name, location(node));
+                        // location(name_node), not location(node): a chained
+                        // call (`a:f(x):f(y)`) has its outer and inner
+                        // function_call both start at `a`, which would make
+                        // two same-named chained calls collide into one
+                        // indistinguishable row.
+                        self.push_relation(owner, RelationKind::Calls, name, location(name_node));
                     }
                 }
                 if let Some(arguments) = node.child_by_field_name("arguments") {
@@ -294,6 +299,24 @@ fn target_name(node: Node, source: &str) -> (String, Option<String>, bool) {
             (method_name, table_name, true)
         }
         _ => (text(node, source).to_string(), None, false),
+    }
+}
+
+/// The callee's own name node for a `function_call` — never the whole
+/// callee expression, whose start position is shared with any nested call
+/// it's chained from. See [`target_name`] for the general table/method-name
+/// shape; this only needs the specific leaf node the name text came from.
+fn call_target_name<'a>(node: Node<'a>, source: &str) -> (String, Node<'a>) {
+    match node.kind() {
+        "dot_index_expression" => match node.child_by_field_name("field") {
+            Some(field) => (text(field, source).to_string(), field),
+            None => (text(node, source).to_string(), node),
+        },
+        "method_index_expression" => match node.child_by_field_name("method") {
+            Some(method) => (text(method, source).to_string(), method),
+            None => (text(node, source).to_string(), node),
+        },
+        _ => (text(node, source).to_string(), node),
     }
 }
 

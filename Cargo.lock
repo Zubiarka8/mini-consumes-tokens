@@ -137,11 +137,15 @@ dependencies = [
  "ccm-index",
  "ccm-lang-cpp",
  "ccm-lang-csharp",
+ "ccm-lang-css",
  "ccm-lang-go",
+ "ccm-lang-html",
  "ccm-lang-java",
  "ccm-lang-js-ts",
  "ccm-lang-python",
  "ccm-lang-rust",
+ "ccm-lang-xaml",
+ "ccm-lang-xml",
  "clap",
  "walkdir",
 ]
@@ -187,6 +191,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ccm-lang-css"
+version = "0.1.0"
+dependencies = [
+ "ccm-core",
+ "ccm-index",
+ "tree-sitter",
+ "tree-sitter-css",
+]
+
+[[package]]
 name = "ccm-lang-go"
 version = "0.1.0"
 dependencies = [
@@ -194,6 +208,17 @@ dependencies = [
  "ccm-index",
  "tree-sitter",
  "tree-sitter-go",
+]
+
+[[package]]
+name = "ccm-lang-html"
+version = "0.1.0"
+dependencies = [
+ "ccm-core",
+ "ccm-index",
+ "ccm-lang-css",
+ "tree-sitter",
+ "tree-sitter-html",
 ]
 
 [[package]]
@@ -246,6 +271,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "ccm-lang-xaml"
+version = "0.1.0"
+dependencies = [
+ "ccm-core",
+ "ccm-index",
+ "ccm-lang-csharp",
+ "tree-sitter",
+ "tree-sitter-xml",
+]
+
+[[package]]
+name = "ccm-lang-xml"
+version = "0.1.0"
+dependencies = [
+ "ccm-core",
+ "ccm-index",
+ "tree-sitter",
+ "tree-sitter-xml",
+]
+
+[[package]]
 name = "ccm-mcp-server"
 version = "0.1.0"
 dependencies = [
@@ -254,11 +300,15 @@ dependencies = [
  "ccm-index",
  "ccm-lang-cpp",
  "ccm-lang-csharp",
+ "ccm-lang-css",
  "ccm-lang-go",
+ "ccm-lang-html",
  "ccm-lang-java",
  "ccm-lang-js-ts",
  "ccm-lang-python",
  "ccm-lang-rust",
+ "ccm-lang-xaml",
+ "ccm-lang-xml",
  "clap",
  "rmcp",
  "schemars",
@@ -1231,10 +1281,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "tree-sitter-css"
+version = "0.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a5cbc5e18f29a2c6d6435891f42569525cf95435a3e01c2f1947abcde178686f"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
 name = "tree-sitter-go"
 version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8560a4d2f835cc0d4d2c2e03cbd0dde2f6114b43bc491164238d333e28b16ea"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-html"
+version = "0.23.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "261b708e5d92061ede329babaaa427b819329a9d427a1d710abb0f67bbef63ee"
 dependencies = [
  "cc",
  "tree-sitter-language",
@@ -1301,6 +1371,16 @@ name = "tree-sitter-typescript"
 version = "0.23.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c5f76ed8d947a75cc446d5fccd8b602ebf0cde64ccf2ffa434d873d7a575eff"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-xml"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e670041f591d994f54d597ddcd8f4ebc930e282c4c76a42268743b71f0c8b6b3"
 dependencies = [
  "cc",
  "tree-sitter-language",

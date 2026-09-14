@@ -222,7 +222,11 @@ impl<'a> Walker<'a> {
             }
             "method_invocation" => {
                 if let Some(name_node) = node.child_by_field_name("name") {
-                    self.push_relation(owner, RelationKind::Calls, text(name_node, self.source).to_string(), location(node));
+                    // location(name_node), not location(node): a chained call
+                    // (`a.f(x).f(y)`) has its outer and inner method_invocation
+                    // both start at `a`, which would make two same-named
+                    // chained calls collide into one indistinguishable row.
+                    self.push_relation(owner, RelationKind::Calls, text(name_node, self.source).to_string(), location(name_node));
                 }
                 if let Some(object) = node.child_by_field_name("object") {
                     self.visit(object, owner, type_name);

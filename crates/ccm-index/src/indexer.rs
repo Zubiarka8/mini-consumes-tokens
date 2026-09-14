@@ -431,6 +431,8 @@ fn symbol_kind_str(kind: ccm_core::SymbolKind) -> &'static str {
         Variable => "variable",
         Constant => "constant",
         Field => "field",
+        Element => "element",
+        Rule => "rule",
     }
 }
 

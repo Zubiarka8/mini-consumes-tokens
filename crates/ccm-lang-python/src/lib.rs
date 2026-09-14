@@ -231,8 +231,8 @@ impl<'a> Walker<'a> {
             }
             "call" => {
                 if let Some(function) = node.child_by_field_name("function") {
-                    if let Some(name) = expr_name(function, self.source) {
-                        self.push_relation(owner, RelationKind::Calls, name, location(node));
+                    if let Some((name, name_node)) = expr_name_node(function, self.source) {
+                        self.push_relation(owner, RelationKind::Calls, name, location(name_node));
                     }
                     self.visit(function, owner, class_name);
                 }
@@ -263,6 +263,24 @@ fn expr_name(node: Node, source: &str) -> Option<String> {
         "call" => node
             .child_by_field_name("function")
             .and_then(|n| expr_name(n, source)),
+        _ => None,
+    }
+}
+
+/// Same as [`expr_name`], but also returns the specific node the name came
+/// from — never the enclosing `call`, whose start position is shared by
+/// every call in a chain (`a.f(x).f(y)`'s outer and inner `call` both start
+/// at `a`), which would otherwise make two same-named chained calls collide
+/// into one indistinguishable relation row.
+fn expr_name_node<'a>(node: Node<'a>, source: &str) -> Option<(String, Node<'a>)> {
+    match node.kind() {
+        "identifier" => Some((text(node, source).to_string(), node)),
+        "attribute" => node
+            .child_by_field_name("attribute")
+            .map(|n| (text(n, source).to_string(), n)),
+        "call" => node
+            .child_by_field_name("function")
+            .and_then(|n| expr_name_node(n, source)),
         _ => None,
     }
 }

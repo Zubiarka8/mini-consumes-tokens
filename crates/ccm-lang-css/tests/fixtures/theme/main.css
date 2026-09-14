@@ -1,0 +1,16 @@
+@import "extra.css";
+
+#header {
+  color: navy;
+}
+
+.nav,
+.sidebar {
+  display: flex;
+}
+
+@media (min-width: 600px) {
+  .nav {
+    flex-direction: row;
+  }
+}

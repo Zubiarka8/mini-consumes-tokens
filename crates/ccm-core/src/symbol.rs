@@ -25,6 +25,15 @@ pub enum SymbolKind {
     Variable,
     Constant,
     Field,
+    /// An HTML element with an `id` attribute — the only elements given a
+    /// stable, searchable name (an element with only a `class` has no single
+    /// unique name to index it under).
+    Element,
+    /// A CSS rule with a single simple selector (`.foo` or `#foo`, named
+    /// exactly as written so it matches an HTML `Element`'s outgoing
+    /// `References`). Compound/combinator selectors are not indexed — see
+    /// `ccm-lang-css`.
+    Rule,
 }
 
 /// Within-file identifier used to link [`SymbolRelation`]s to the

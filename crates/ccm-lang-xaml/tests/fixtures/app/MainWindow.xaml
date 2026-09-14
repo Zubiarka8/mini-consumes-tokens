@@ -1,0 +1,3 @@
+<Window x:Name="MainWindow" Loaded="Window_Loaded">
+  <Button x:Name="SaveBtn" Click="SaveBtn_Click" Content="Save" />
+</Window>
