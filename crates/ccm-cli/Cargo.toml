@@ -20,6 +20,7 @@ ccm-lang-go.workspace = true
 ccm-lang-html.workspace = true
 ccm-lang-java.workspace = true
 ccm-lang-js-ts.workspace = true
+ccm-lang-md.workspace = true
 ccm-lang-php.workspace = true
 ccm-lang-powershell.workspace = true
 ccm-lang-python.workspace = true

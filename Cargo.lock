@@ -143,6 +143,7 @@ dependencies = [
  "ccm-lang-html",
  "ccm-lang-java",
  "ccm-lang-js-ts",
+ "ccm-lang-md",
  "ccm-lang-php",
  "ccm-lang-powershell",
  "ccm-lang-python",
@@ -269,6 +270,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ccm-lang-md"
+version = "0.1.0"
+dependencies = [
+ "ccm-core",
+ "ccm-index",
+ "tree-sitter",
+ "tree-sitter-md",
+]
+
+[[package]]
 name = "ccm-lang-php"
 version = "0.1.0"
 dependencies = [
@@ -342,6 +353,7 @@ dependencies = [
  "ccm-lang-html",
  "ccm-lang-java",
  "ccm-lang-js-ts",
+ "ccm-lang-md",
  "ccm-lang-php",
  "ccm-lang-powershell",
  "ccm-lang-python",
@@ -1438,6 +1450,16 @@ name = "tree-sitter-lua"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8daaf5f4235188a58603c39760d5fa5d4b920d36a299c934adddae757f32a10c"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-md"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2efd398be546456c814598ee56c0f51769a77241511b4a58077815d120afa882"
 dependencies = [
  "cc",
  "tree-sitter-language",
