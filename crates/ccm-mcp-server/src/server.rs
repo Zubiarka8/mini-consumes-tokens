@@ -13,34 +13,63 @@ use tokio::sync::Mutex;
 
 use crate::format;
 
+/// Applied to any of the 5 result-returning tools below when their `limit`
+/// argument is omitted. 50 is a compromise: generous enough that the common
+/// case (a handful to a few dozen hits) never gets truncated, but small
+/// enough that a symbol with hundreds of hits in a large repo can't blow up
+/// a single response to a size that rivals the `grep` output this project
+/// exists to replace.
+const DEFAULT_RESULT_LIMIT: usize = 50;
+
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct FindSymbolArgs {
     /// Exact symbol name to look up (e.g. a function, class, struct or method name).
     pub name: String,
+    /// Maximum number of definitions to return. Defaults to 50 when omitted;
+    /// raise it if you expect more hits and want them all in one call.
+    #[serde(default)]
+    pub limit: Option<usize>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct FindReferencesArgs {
     /// Exact name of the symbol to find every reference to.
     pub symbol: String,
+    /// Maximum number of references to return. Defaults to 50 when omitted;
+    /// raise it if you expect more hits and want them all in one call.
+    #[serde(default)]
+    pub limit: Option<usize>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct FindCallsArgs {
     /// Exact name of the function/method whose callees you want.
     pub function: String,
+    /// Maximum number of calls to return. Defaults to 50 when omitted;
+    /// raise it if you expect more hits and want them all in one call.
+    #[serde(default)]
+    pub limit: Option<usize>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct FindCallersArgs {
     /// Exact name of the function/method whose callers you want.
     pub function: String,
+    /// Maximum number of callers to return. Defaults to 50 when omitted;
+    /// raise it if you expect more hits and want them all in one call.
+    #[serde(default)]
+    pub limit: Option<usize>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct ImpactAnalysisArgs {
     /// Exact name of the symbol you're considering changing or removing.
     pub symbol: String,
+    /// Maximum number of entries to return per section (callers/references/
+    /// affected tests are each capped independently). Defaults to 50 when
+    /// omitted.
+    #[serde(default)]
+    pub limit: Option<usize>,
 }
 
 #[derive(Debug, Default, serde::Deserialize, schemars::JsonSchema)]
@@ -91,13 +120,13 @@ impl CcmServer {
     )]
     pub async fn find_symbol(
         &self,
-        Parameters(FindSymbolArgs { name }): Parameters<FindSymbolArgs>,
+        Parameters(FindSymbolArgs { name, limit }): Parameters<FindSymbolArgs>,
     ) -> Result<CallToolResult, McpError> {
         let name = validate_name(&name)?;
         let index = self.index.lock().await;
         let hits = index.find_symbol(name).map_err(index_error)?;
         Ok(CallToolResult::success(vec![ContentBlock::text(
-            format::symbol_hits(name, &hits),
+            format::symbol_hits(name, &hits, limit.unwrap_or(DEFAULT_RESULT_LIMIT)),
         )]))
     }
 
@@ -106,13 +135,18 @@ impl CcmServer {
     )]
     pub async fn find_references(
         &self,
-        Parameters(FindReferencesArgs { symbol }): Parameters<FindReferencesArgs>,
+        Parameters(FindReferencesArgs { symbol, limit }): Parameters<FindReferencesArgs>,
     ) -> Result<CallToolResult, McpError> {
         let symbol = validate_name(&symbol)?;
         let index = self.index.lock().await;
         let hits = index.find_references(symbol).map_err(index_error)?;
         Ok(CallToolResult::success(vec![ContentBlock::text(
-            format::relation_hits(symbol, "reference(s)", &hits),
+            format::relation_hits(
+                symbol,
+                "reference(s)",
+                &hits,
+                limit.unwrap_or(DEFAULT_RESULT_LIMIT),
+            ),
         )]))
     }
 
@@ -121,13 +155,18 @@ impl CcmServer {
     )]
     pub async fn find_calls(
         &self,
-        Parameters(FindCallsArgs { function }): Parameters<FindCallsArgs>,
+        Parameters(FindCallsArgs { function, limit }): Parameters<FindCallsArgs>,
     ) -> Result<CallToolResult, McpError> {
         let function = validate_name(&function)?;
         let index = self.index.lock().await;
         let hits = index.find_calls(function).map_err(index_error)?;
         Ok(CallToolResult::success(vec![ContentBlock::text(
-            format::relation_hits(function, "call(s) made by this function", &hits),
+            format::relation_hits(
+                function,
+                "call(s) made by this function",
+                &hits,
+                limit.unwrap_or(DEFAULT_RESULT_LIMIT),
+            ),
         )]))
     }
 
@@ -136,13 +175,18 @@ impl CcmServer {
     )]
     pub async fn find_callers(
         &self,
-        Parameters(FindCallersArgs { function }): Parameters<FindCallersArgs>,
+        Parameters(FindCallersArgs { function, limit }): Parameters<FindCallersArgs>,
     ) -> Result<CallToolResult, McpError> {
         let function = validate_name(&function)?;
         let index = self.index.lock().await;
         let hits = index.find_callers(function).map_err(index_error)?;
         Ok(CallToolResult::success(vec![ContentBlock::text(
-            format::relation_hits(function, "caller(s) of this function", &hits),
+            format::relation_hits(
+                function,
+                "caller(s) of this function",
+                &hits,
+                limit.unwrap_or(DEFAULT_RESULT_LIMIT),
+            ),
         )]))
     }
 
@@ -151,7 +195,7 @@ impl CcmServer {
     )]
     pub async fn impact_analysis(
         &self,
-        Parameters(ImpactAnalysisArgs { symbol }): Parameters<ImpactAnalysisArgs>,
+        Parameters(ImpactAnalysisArgs { symbol, limit }): Parameters<ImpactAnalysisArgs>,
     ) -> Result<CallToolResult, McpError> {
         let symbol = validate_name(&symbol)?;
         let (callers, references) = {
@@ -171,7 +215,13 @@ impl CcmServer {
             .filter(|hit| seen_test_names.insert(hit.from_symbol.as_str()))
             .collect();
         Ok(CallToolResult::success(vec![ContentBlock::text(
-            format::impact_analysis(symbol, &callers, &references, &affected_tests),
+            format::impact_analysis(
+                symbol,
+                &callers,
+                &references,
+                &affected_tests,
+                limit.unwrap_or(DEFAULT_RESULT_LIMIT),
+            ),
         )]))
     }
 
@@ -190,7 +240,7 @@ impl CcmServer {
     }
 
     #[tool(
-        description = "INDEX ADMINISTRATION, not a search tool. Reports index health: files/symbols indexed per language, when it was last indexed, languages seen in the repo with no parser plugin yet, and files that failed to parse. Do NOT use this to search for a symbol — it returns no symbol data, only index diagnostics; use find_symbol instead."
+        description = "INDEX ADMINISTRATION, not a search tool. Reports index health: files/symbols indexed per language, when it was last indexed, languages seen in the repo with no parser plugin yet, files that failed to parse, and declared dependencies detected from manifest files (Cargo.toml, package.json, requirements.txt, go.mod). Do NOT use this to search for a symbol — it returns no symbol data, only index diagnostics; use find_symbol instead."
     )]
     pub async fn get_indexing_status(&self) -> Result<CallToolResult, McpError> {
         let index = self.index.lock().await;

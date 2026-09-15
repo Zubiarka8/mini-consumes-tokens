@@ -7,6 +7,7 @@ use git2::{ObjectType, Oid};
 use rusqlite::{params, OptionalExtension};
 use walkdir::WalkDir;
 
+use crate::manifests;
 use crate::{Index, Result};
 
 /// Extensions of languages this project targets eventually but has no
@@ -18,7 +19,6 @@ const KNOWN_PENDING_LANGUAGES: &[(&str, &str)] = &[
     ("kt", "kotlin"),
     ("kts", "kotlin"),
     ("swift", "swift"),
-    ("php", "php"),
     ("rb", "ruby"),
 ];
 
@@ -54,6 +54,23 @@ pub struct LanguageCoverage {
     pub symbol_count: usize,
 }
 
+#[derive(Debug, Clone)]
+pub struct DependencyInfo {
+    pub name: String,
+    /// Absent for a path/git dependency, or one whose real version lives in
+    /// a workspace root manifest (`{ workspace = true }`).
+    pub version: Option<String>,
+}
+
+/// The dependencies declared by one manifest file (`Cargo.toml`,
+/// `package.json`, `requirements.txt`, `go.mod`).
+#[derive(Debug, Clone)]
+pub struct ManifestDependencies {
+    pub manifest_path: String,
+    pub language: String,
+    pub dependencies: Vec<DependencyInfo>,
+}
+
 #[derive(Debug)]
 pub struct IndexStatus {
     pub languages: Vec<LanguageCoverage>,
@@ -63,6 +80,7 @@ pub struct IndexStatus {
     /// Target languages seen in the repo with no plugin registered yet.
     pub unsupported_languages: Vec<String>,
     pub syntax_errors: Vec<UnsupportedFile>,
+    pub dependencies: Vec<ManifestDependencies>,
 }
 
 pub fn reindex(index: &mut Index, registry: &LanguageRegistry, force: bool) -> Result<ReindexReport> {
@@ -70,6 +88,7 @@ pub fn reindex(index: &mut Index, registry: &LanguageRegistry, force: bool) -> R
     let root = index.root.clone();
 
     let mut seen_paths = Vec::new();
+    let mut seen_manifest_paths = Vec::new();
 
     for entry in WalkDir::new(&root).into_iter().filter_map(|e| e.ok()) {
         if entry.file_type().is_dir() {
@@ -94,6 +113,25 @@ pub fn reindex(index: &mut Index, registry: &LanguageRegistry, force: bool) -> R
         if index.exclude.is_excluded(&relative_path) {
             continue;
         }
+
+        // Manifest files (Cargo.toml, package.json, ...) are matched by
+        // file name, not extension, and never go through a `LanguageParser`
+        // — they aren't source code to symbol-index, just a declared
+        // dependency list. Always re-parsed on every reindex (not
+        // hash-skipped like source files below): manifests are few and
+        // small, not worth a second incremental-skip mechanism for.
+        let file_name = canonical.file_name().and_then(|n| n.to_str()).unwrap_or_default();
+        if let Some(language) = manifests::manifest_language(file_name) {
+            seen_manifest_paths.push(relative_path.clone());
+            if let Ok(bytes) = std::fs::read(&canonical) {
+                if let Ok(contents) = String::from_utf8(bytes) {
+                    let deps = manifests::parse_manifest(file_name, &contents);
+                    write_manifest_dependencies(index, &relative_path, language, &deps)?;
+                }
+            }
+            continue;
+        }
+
         // Tracked for cleanup below regardless of whether we can index this
         // file, so a stale `files`/`index_issues` row is removed once the
         // file is deleted or excluded, not just once it's re-parsed.
@@ -188,9 +226,54 @@ pub fn reindex(index: &mut Index, registry: &LanguageRegistry, force: bool) -> R
     }
 
     report.files_removed = remove_missing_files(index, &seen_paths)?;
+    remove_missing_manifests(index, &seen_manifest_paths)?;
     touch_last_indexed_at(index)?;
 
     Ok(report)
+}
+
+fn write_manifest_dependencies(
+    index: &mut Index,
+    manifest_path: &str,
+    language: &str,
+    deps: &[manifests::ManifestDependency],
+) -> Result<()> {
+    let tx = index.conn.transaction()?;
+    tx.execute(
+        "DELETE FROM dependencies WHERE manifest_path = ?1",
+        params![manifest_path],
+    )?;
+    for dep in deps {
+        tx.execute(
+            "INSERT INTO dependencies (manifest_path, language, name, version) VALUES (?1, ?2, ?3, ?4)",
+            params![manifest_path, language, dep.name, dep.version],
+        )?;
+    }
+    tx.commit()?;
+    Ok(())
+}
+
+fn remove_missing_manifests(index: &mut Index, seen_manifest_paths: &[String]) -> Result<()> {
+    let tx = index.conn.transaction()?;
+    let seen: std::collections::HashSet<&str> =
+        seen_manifest_paths.iter().map(String::as_str).collect();
+
+    let mut stmt = tx.prepare("SELECT DISTINCT manifest_path FROM dependencies")?;
+    let stored: Vec<String> = stmt
+        .query_map([], |row| row.get(0))?
+        .collect::<rusqlite::Result<_>>()?;
+    drop(stmt);
+    for path in &stored {
+        if !seen.contains(path.as_str()) {
+            tx.execute(
+                "DELETE FROM dependencies WHERE manifest_path = ?1",
+                params![path],
+            )?;
+        }
+    }
+
+    tx.commit()?;
+    Ok(())
 }
 
 fn write_parsed_file(
@@ -406,6 +489,31 @@ pub fn status(index: &Index) -> Result<IndexStatus> {
         })?
         .collect::<rusqlite::Result<_>>()?;
 
+    let mut stmt = index.conn.prepare(
+        "SELECT manifest_path, language, name, version FROM dependencies
+         ORDER BY manifest_path, name",
+    )?;
+    let dependency_rows: Vec<(String, String, String, Option<String>)> = stmt
+        .query_map([], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    drop(stmt);
+
+    let mut dependencies: Vec<ManifestDependencies> = Vec::new();
+    for (manifest_path, language, name, version) in dependency_rows {
+        match dependencies.last_mut() {
+            Some(last) if last.manifest_path == manifest_path => {
+                last.dependencies.push(DependencyInfo { name, version });
+            }
+            _ => dependencies.push(ManifestDependencies {
+                manifest_path,
+                language,
+                dependencies: vec![DependencyInfo { name, version }],
+            }),
+        }
+    }
+
     Ok(IndexStatus {
         languages,
         total_files: total_files as usize,
@@ -413,6 +521,7 @@ pub fn status(index: &Index) -> Result<IndexStatus> {
         last_indexed_at: last_indexed_at.and_then(|v| v.parse().ok()),
         unsupported_languages,
         syntax_errors,
+        dependencies,
     })
 }
 

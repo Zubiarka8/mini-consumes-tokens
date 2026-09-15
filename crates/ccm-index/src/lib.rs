@@ -6,12 +6,16 @@
 mod error;
 mod exclude;
 mod indexer;
+mod manifests;
 mod queries;
 mod schema;
 
 pub use error::{IndexError, Result};
 pub use exclude::ExcludeSet;
-pub use indexer::{IndexStatus, LanguageCoverage, ReindexReport, UnsupportedFile};
+pub use indexer::{
+    DependencyInfo, IndexStatus, LanguageCoverage, ManifestDependencies, ReindexReport,
+    UnsupportedFile,
+};
 pub use queries::{RelationHit, SymbolHit};
 
 use std::path::{Path, PathBuf};

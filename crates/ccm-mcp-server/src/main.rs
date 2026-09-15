@@ -4,7 +4,7 @@ use ccm_mcp_server::{registry, server};
 use clap::Parser;
 use rmcp::{ServiceExt, transport::stdio};
 
-/// codebase-context-mcp: MCP server exposing an AST-derived symbol graph of
+/// mini-consumes-tokens: MCP server exposing an AST-derived symbol graph of
 /// this repository (find_symbol, find_references, find_calls, find_callers).
 #[derive(Parser, Debug)]
 struct Args {

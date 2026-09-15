@@ -16,6 +16,8 @@ const DEFAULT_EXCLUDE_PATTERNS: &[&str] = &[
     "**/.aws/**",
     // Node / JS
     "**/node_modules/**",
+    // PHP (Composer)
+    "**/vendor/**",
     // .NET
     "**/appsettings.*.json",
     "**/*.pfx",

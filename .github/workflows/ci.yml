@@ -126,6 +126,9 @@ jobs:
           - ccm-lang-js-ts
           - ccm-lang-cpp
           - ccm-lang-go
+          - ccm-lang-bash
+          - ccm-lang-powershell
+          - ccm-lang-php
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly

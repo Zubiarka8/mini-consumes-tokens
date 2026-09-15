@@ -74,7 +74,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          pkg="codebase-context-mcp-${{ github.ref_name }}-${{ matrix.name }}"
+          pkg="mini-consumes-tokens-${{ github.ref_name }}-${{ matrix.name }}"
           dist="dist/$pkg"
           mkdir -p "$dist"
           cp "target/${{ matrix.target }}/release/ccm-cli" "$dist/"
@@ -87,7 +87,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $pkg = "codebase-context-mcp-${{ github.ref_name }}-${{ matrix.name }}"
+          $pkg = "mini-consumes-tokens-${{ github.ref_name }}-${{ matrix.name }}"
           $dist = "dist/$pkg"
           New-Item -ItemType Directory -Force -Path $dist | Out-Null
           Copy-Item "target/${{ matrix.target }}/release/ccm-cli.exe" "$dist/"

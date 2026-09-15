@@ -1,6 +1,6 @@
 [package]
 name = "ccm-lang-xaml"
-description = "XAML language plugin (tree-sitter-xml) for codebase-context-mcp's LanguageParser trait, with References into C# code-behind."
+description = "XAML language plugin (tree-sitter-xml) for mini-consumes-tokens's LanguageParser trait, with References into C# code-behind."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

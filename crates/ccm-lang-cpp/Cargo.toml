@@ -1,6 +1,6 @@
 [package]
 name = "ccm-lang-cpp"
-description = "C++ language plugin (tree-sitter-cpp) for codebase-context-mcp's LanguageParser trait, correlating header declarations with out-of-line definitions."
+description = "C++ language plugin (tree-sitter-cpp) for mini-consumes-tokens's LanguageParser trait, correlating header declarations with out-of-line definitions."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

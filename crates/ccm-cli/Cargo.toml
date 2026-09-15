@@ -1,6 +1,6 @@
 [package]
 name = "ccm-cli"
-description = "CLI for codebase-context-mcp: init/reindex/status subcommands over the local tree-sitter-backed symbol index."
+description = "CLI for mini-consumes-tokens: init/reindex/status subcommands over the local tree-sitter-backed symbol index."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -12,6 +12,7 @@ categories = ["command-line-utilities", "development-tools"]
 anyhow = "1.0.104"
 ccm-core.workspace = true
 ccm-index.workspace = true
+ccm-lang-bash.workspace = true
 ccm-lang-cpp.workspace = true
 ccm-lang-csharp.workspace = true
 ccm-lang-css.workspace = true
@@ -19,6 +20,8 @@ ccm-lang-go.workspace = true
 ccm-lang-html.workspace = true
 ccm-lang-java.workspace = true
 ccm-lang-js-ts.workspace = true
+ccm-lang-php.workspace = true
+ccm-lang-powershell.workspace = true
 ccm-lang-python.workspace = true
 ccm-lang-rust.workspace = true
 ccm-lang-xaml.workspace = true

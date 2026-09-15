@@ -42,6 +42,14 @@ fn generic_and_java_ecosystem_patterns_still_work() {
 }
 
 #[test]
+fn php_composer_vendor_directory_is_excluded() {
+    let set = ExcludeSet::default();
+    assert!(set.is_excluded("vendor/autoload.php"));
+    assert!(set.is_excluded("vendor/monolog/monolog/src/Logger.php"));
+    assert!(!set.is_excluded("src/Invoice.php"));
+}
+
+#[test]
 fn go_viper_style_secret_patterns_are_excluded() {
     let set = ExcludeSet::default();
     // `.env.local` (the dotfile) already matches the generic `**/.env.*`

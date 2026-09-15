@@ -5,12 +5,31 @@
 
 use ccm_index::{IndexStatus, ReindexReport, RelationHit, SymbolHit};
 
-pub fn symbol_hits(name: &str, hits: &[SymbolHit]) -> String {
+/// One-line note appended after a count header when a result list got cut
+/// down to `shown` of `total` entries — empty string when nothing was
+/// truncated, so callers can unconditionally append it.
+fn truncation_note(total: usize, shown: usize) -> String {
+    if shown < total {
+        format!(
+            " (showing {shown}, {} omitted — pass a higher `limit` to see the rest)",
+            total - shown
+        )
+    } else {
+        String::new()
+    }
+}
+
+pub fn symbol_hits(name: &str, hits: &[SymbolHit], limit: usize) -> String {
     if hits.is_empty() {
         return format!("No symbol named `{name}` found in the index.");
     }
-    let mut out = format!("{} definition(s) of `{name}`:\n", hits.len());
-    for hit in hits {
+    let total = hits.len();
+    let shown = &hits[..total.min(limit)];
+    let mut out = format!(
+        "{total} definition(s) of `{name}`{}:\n",
+        truncation_note(total, shown.len())
+    );
+    for hit in shown {
         let parent = hit
             .parent
             .as_deref()
@@ -24,12 +43,18 @@ pub fn symbol_hits(name: &str, hits: &[SymbolHit]) -> String {
     out
 }
 
-pub fn relation_hits(subject: &str, verb_label: &str, hits: &[RelationHit]) -> String {
+pub fn relation_hits(subject: &str, verb_label: &str, hits: &[RelationHit], limit: usize) -> String {
     if hits.is_empty() {
         return format!("No {verb_label} found for `{subject}`.");
     }
-    let mut out = format!("{} {}:\n", hits.len(), verb_label);
-    for hit in hits {
+    let total = hits.len();
+    let shown = &hits[..total.min(limit)];
+    let mut out = format!(
+        "{total} {}{}:\n",
+        verb_label,
+        truncation_note(total, shown.len())
+    );
+    for hit in shown {
         out.push_str(&format!(
             "{}:{}:{} [{}] {} --{}--> {}\n",
             hit.relative_path, hit.line, hit.column, hit.language, hit.from_symbol, hit.kind, hit.to_name
@@ -43,6 +68,7 @@ pub fn impact_analysis(
     callers: &[RelationHit],
     references: &[RelationHit],
     affected_tests: &[&RelationHit],
+    limit: usize,
 ) -> String {
     let mut out = format!("Impact analysis for `{symbol}`:\n");
     out.push_str(&format!("  {} direct caller(s)\n", callers.len()));
@@ -55,9 +81,16 @@ pub fn impact_analysis(
         affected_tests.len()
     ));
 
+    // Each section below is truncated independently against the same
+    // `limit` — a symbol with hundreds of callers but few tests shouldn't
+    // have its test list truncated just because the caller list is huge.
     if !affected_tests.is_empty() {
-        out.push_str("\nLikely affected tests:\n");
-        for hit in affected_tests {
+        let shown = &affected_tests[..affected_tests.len().min(limit)];
+        out.push_str(&format!(
+            "\nLikely affected tests{}:\n",
+            truncation_note(affected_tests.len(), shown.len())
+        ));
+        for hit in shown {
             out.push_str(&format!(
                 "  {}:{}:{} [{}] {}\n",
                 hit.relative_path, hit.line, hit.column, hit.language, hit.from_symbol
@@ -66,8 +99,12 @@ pub fn impact_analysis(
     }
 
     if !callers.is_empty() {
-        out.push_str("\nDirect callers:\n");
-        for hit in callers {
+        let shown = &callers[..callers.len().min(limit)];
+        out.push_str(&format!(
+            "\nDirect callers{}:\n",
+            truncation_note(callers.len(), shown.len())
+        ));
+        for hit in shown {
             out.push_str(&format!(
                 "  {}:{}:{} [{}] {}\n",
                 hit.relative_path, hit.line, hit.column, hit.language, hit.from_symbol
@@ -76,8 +113,12 @@ pub fn impact_analysis(
     }
 
     if !references.is_empty() {
-        out.push_str("\nAll references:\n");
-        for hit in references {
+        let shown = &references[..references.len().min(limit)];
+        out.push_str(&format!(
+            "\nAll references{}:\n",
+            truncation_note(references.len(), shown.len())
+        ));
+        for hit in shown {
             out.push_str(&format!(
                 "  {}:{}:{} [{}] {} --{}--> {}\n",
                 hit.relative_path, hit.line, hit.column, hit.language, hit.from_symbol, hit.kind, hit.to_name
@@ -148,6 +189,23 @@ pub fn index_status(status: &IndexStatus) -> String {
         out.push_str(&format!("{} file(s) failed to parse:\n", status.syntax_errors.len()));
         for err in &status.syntax_errors {
             out.push_str(&format!("  {}: {}\n", err.relative_path, err.detail));
+        }
+    }
+    if !status.dependencies.is_empty() {
+        out.push_str("Dependencies detected:\n");
+        for manifest in &status.dependencies {
+            out.push_str(&format!(
+                "  {} ({}, {} dep(s)):\n",
+                manifest.manifest_path,
+                manifest.language,
+                manifest.dependencies.len()
+            ));
+            for dep in &manifest.dependencies {
+                match &dep.version {
+                    Some(version) => out.push_str(&format!("    {} {}\n", dep.name, version)),
+                    None => out.push_str(&format!("    {}\n", dep.name)),
+                }
+            }
         }
     }
     out

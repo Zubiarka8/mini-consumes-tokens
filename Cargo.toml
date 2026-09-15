@@ -17,13 +17,16 @@ members = [
     "crates/ccm-lang-css",
     "crates/ccm-lang-xml",
     "crates/ccm-lang-xaml",
+    "crates/ccm-lang-bash",
+    "crates/ccm-lang-powershell",
+    "crates/ccm-lang-php",
 ]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
-repository = "https://github.com/zubiarka8/codebase-context-mcp"
+repository = "https://github.com/zubiarka8/mini-consumes-tokens"
 
 [workspace.dependencies]
 # `version` alongside `path` is required for `cargo publish`: crates.io
@@ -42,5 +45,8 @@ ccm-lang-html = { path = "crates/ccm-lang-html", version = "0.1.0" }
 ccm-lang-css = { path = "crates/ccm-lang-css", version = "0.1.0" }
 ccm-lang-xml = { path = "crates/ccm-lang-xml", version = "0.1.0" }
 ccm-lang-xaml = { path = "crates/ccm-lang-xaml", version = "0.1.0" }
+ccm-lang-bash = { path = "crates/ccm-lang-bash", version = "0.1.0" }
+ccm-lang-powershell = { path = "crates/ccm-lang-powershell", version = "0.1.0" }
+ccm-lang-php = { path = "crates/ccm-lang-php", version = "0.1.0" }
 thiserror = "2"
 tree-sitter = "0.25"

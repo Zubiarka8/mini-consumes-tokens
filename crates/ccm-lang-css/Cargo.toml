@@ -1,6 +1,6 @@
 [package]
 name = "ccm-lang-css"
-description = "CSS language plugin (tree-sitter-css) for codebase-context-mcp's LanguageParser trait."
+description = "CSS language plugin (tree-sitter-css) for mini-consumes-tokens's LanguageParser trait."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

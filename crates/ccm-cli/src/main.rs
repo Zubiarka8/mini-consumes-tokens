@@ -5,7 +5,7 @@ use ccm_core::LanguageRegistry;
 use ccm_index::{ExcludeSet, Index};
 use clap::{Parser, Subcommand};
 
-/// codebase-context-mcp: index a repository and inspect the index from the
+/// mini-consumes-tokens: index a repository and inspect the index from the
 /// command line. The MCP server (`ccm-mcp-server`) does the same indexing
 /// automatically at startup — this CLI is for manual/scripted use (CI, a
 /// pre-commit hook, or just checking coverage before wiring up the plugin).
@@ -49,6 +49,9 @@ fn build_registry() -> LanguageRegistry {
     registry.register(Arc::new(ccm_lang_css::CssParser));
     registry.register(Arc::new(ccm_lang_xml::XmlParser));
     registry.register(Arc::new(ccm_lang_xaml::XamlParser));
+    registry.register(Arc::new(ccm_lang_bash::BashParser));
+    registry.register(Arc::new(ccm_lang_powershell::PowerShellParser));
+    registry.register(Arc::new(ccm_lang_php::PhpParser));
     registry
 }
 
@@ -109,6 +112,23 @@ fn print_status(status: ccm_index::IndexStatus) {
         println!("{} file(s) failed to parse:", status.syntax_errors.len());
         for err in &status.syntax_errors {
             println!("  {}: {}", err.relative_path, err.detail);
+        }
+    }
+    if !status.dependencies.is_empty() {
+        println!("Dependencies detected:");
+        for manifest in &status.dependencies {
+            println!(
+                "  {} ({}, {} dep(s)):",
+                manifest.manifest_path,
+                manifest.language,
+                manifest.dependencies.len()
+            );
+            for dep in &manifest.dependencies {
+                match &dep.version {
+                    Some(version) => println!("    {} {}", dep.name, version),
+                    None => println!("    {}", dep.name),
+                }
+            }
         }
     }
 }

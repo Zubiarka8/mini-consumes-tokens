@@ -1,6 +1,6 @@
 [package]
 name = "ccm-lang-csharp"
-description = "C# language plugin (tree-sitter-c-sharp) for codebase-context-mcp's LanguageParser trait."
+description = "C# language plugin (tree-sitter-c-sharp) for mini-consumes-tokens's LanguageParser trait."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

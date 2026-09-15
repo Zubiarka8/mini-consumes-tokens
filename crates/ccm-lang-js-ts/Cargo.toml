@@ -1,6 +1,6 @@
 [package]
 name = "ccm-lang-js-ts"
-description = "JavaScript/TypeScript language plugin (tree-sitter) for codebase-context-mcp's LanguageParser trait, covering ES modules, CommonJS, and JSX/TSX."
+description = "JavaScript/TypeScript language plugin (tree-sitter) for mini-consumes-tokens's LanguageParser trait, covering ES modules, CommonJS, and JSX/TSX."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

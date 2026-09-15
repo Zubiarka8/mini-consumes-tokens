@@ -19,5 +19,8 @@ pub fn build_registry() -> LanguageRegistry {
     registry.register(Arc::new(ccm_lang_css::CssParser));
     registry.register(Arc::new(ccm_lang_xml::XmlParser));
     registry.register(Arc::new(ccm_lang_xaml::XamlParser));
+    registry.register(Arc::new(ccm_lang_bash::BashParser));
+    registry.register(Arc::new(ccm_lang_powershell::PowerShellParser));
+    registry.register(Arc::new(ccm_lang_php::PhpParser));
     registry
 }
