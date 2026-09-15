@@ -1,4 +1,4 @@
-# codebase-context-mcp
+# mini-consumes-tokens
 
 An MCP server and installable Claude Code plugin that indexes a code repository — in any supported language, identically on any OS — using AST parsing (tree-sitter) into a symbol graph stored in SQLite. It exposes that index as MCP tools (`find_symbol`, `find_references`, `find_calls`, `find_callers`, `impact_analysis`, `reindex`, `get_indexing_status`) so Claude Code can get precise project context from the index instead of reading whole files with `Read`/`Grep`/`Glob` — cutting token spend without losing context quality.
 
@@ -6,7 +6,9 @@ Languages are **plugins**, not a hardcoded list: a `LanguageParser` trait in `cc
 
 ## Status
 
-11 languages implemented end-to-end (Rust, Python, JS/TS, Java, C#, C++, Go, HTML, CSS, XML, XAML), plus a Lua acceptance-test crate validating the plugin architecture without touching `ccm-core` or `ccm-mcp-server`. Two pairs cross-reference each other in the same index: HTML/CSS (an element's `id`/`class` attributes resolve to the matching CSS rule, `<link>`/`<script src>` resolve as `Imports`) and XAML/C# (an event-handler attribute like `Click="SaveBtn_Click"` resolves to the matching method in the paired code-behind file). Plain XML is deliberately structural-only — see the coverage table below. See [`checklist.md`](checklist.md) for the current state of every deliverable.
+14 languages implemented end-to-end (Rust, Python, JS/TS, Java, C#, C++, Go, HTML, CSS, XML, XAML, Bash, PowerShell, PHP), plus a Lua acceptance-test crate validating the plugin architecture without touching `ccm-core` or `ccm-mcp-server`. Two pairs cross-reference each other in the same index: HTML/CSS (an element's `id`/`class` attributes resolve to the matching CSS rule, `<link>`/`<script src>` resolve as `Imports`) and XAML/C# (an event-handler attribute like `Click="SaveBtn_Click"` resolves to the matching method in the paired code-behind file). Plain XML is deliberately structural-only — see the coverage table below. See [`checklist.md`](checklist.md) for the current state of every deliverable.
+
+Beyond symbols, `get_indexing_status` also reports the project's declared dependencies: `Cargo.toml`, `package.json`, `requirements.txt`, and `go.mod` are detected by file name (not routed through a `LanguageParser` — they aren't source code) and their direct dependencies recorded per manifest.
 
 ## Stack
 
@@ -16,7 +18,7 @@ No network calls by default — zero telemetry. Source code is parsed statically
 
 ## Installation
 
-**Prebuilt binaries** (no Rust toolchain needed): download the archive for your OS/arch (Linux x86_64/arm64, macOS Intel/Apple Silicon, Windows x86_64) from the [GitHub Releases page](https://github.com/zubiarka8/codebase-context-mcp/releases) and put `ccm-cli`/`ccm-mcp-server` on your `PATH`.
+**Prebuilt binaries** (no Rust toolchain needed): download the archive for your OS/arch (Linux x86_64/arm64, macOS Intel/Apple Silicon, Windows x86_64) from the [GitHub Releases page](https://github.com/zubiarka8/mini-consumes-tokens/releases) and put `ccm-cli`/`ccm-mcp-server` on your `PATH`.
 
 **From crates.io** (once published — see `RELEASING.md`; requires a Rust toolchain, [rustup.rs](https://rustup.rs)):
 
@@ -55,6 +57,9 @@ ccm-cli --root . reindex --force
 | CSS | Implemented | `crates/ccm-lang-css` |
 | XML | Implemented (structural only — no dialect-generic cross-referencing) | `crates/ccm-lang-xml` |
 | XAML | Implemented | `crates/ccm-lang-xaml` |
+| Bash / POSIX shell | Implemented | `crates/ccm-lang-bash` |
+| PowerShell | Implemented (functions/variables/calls/imports only — no classes) | `crates/ccm-lang-powershell` |
+| PHP | Implemented | `crates/ccm-lang-php` |
 | Lua | Implemented (plugin-architecture acceptance test, not wired into production) | `crates/ccm-lang-lua` |
 
 `get_indexing_status` reports, per repo, which of these it saw files for but has no parser registered yet — so a polyglot repo with an unsupported language degrades gracefully (that language's files are just skipped and reported) rather than failing the whole index.
@@ -76,6 +81,9 @@ crates/
   ccm-lang-css       LanguageParser impl for CSS (tree-sitter-css) — simple-selector Rules + @import
   ccm-lang-xml       LanguageParser impl for generic XML (tree-sitter-xml) — id/name/Name Elements, structural only
   ccm-lang-xaml      LanguageParser impl for XAML (tree-sitter-xml) — x:Name/Name Elements + event-attribute References into C# code-behind
+  ccm-lang-bash      LanguageParser impl for Bash/POSIX shell (tree-sitter-bash) — functions, top-level variables, calls, source/. Imports
+  ccm-lang-powershell LanguageParser impl for PowerShell (tree-sitter-powershell) — functions, top-level variables, calls, dot-source/Import-Module Imports
+  ccm-lang-php       LanguageParser impl for PHP (tree-sitter-php) — classes/interfaces/traits/enums, methods/fields (incl. constructor property promotion), extends/implements, trait-use, calls, require/use Imports
   ccm-lang-lua       LanguageParser impl for Lua — plugin-architecture acceptance test, not registered in production
   ccm-mcp-server     MCP tools over stdio (rmcp) — find_symbol/find_references/find_calls/find_callers/impact_analysis/reindex/get_indexing_status
   ccm-cli            init/reindex/status subcommands for manual or scripted use
@@ -87,11 +95,13 @@ crates/
 cargo test --workspace
 ```
 
-152 tests across the workspace: `ccm-index` (reindex/query pipeline, incremental skip, deletion, syntax-error/unsupported-language reporting, secret-pattern exclusion), each of the 12 language crates (idiomatic-syntax extraction at the parser level — generics, traits/impls, decorators, imports, overloads, interfaces — with an added end-to-end `ccm-index` integration fixture for every crate except `ccm-lang-rust`/`ccm-lang-python`, covering language-specific cases like Go's implicit interfaces, C++'s header/source declaration correlation, HTML/CSS cross-referencing each other by id/class, or a XAML event-handler attribute resolving to a method in its paired C# code-behind file — each through a real multi-file, multi-language fixture, not just both parsers running side by side), and `ccm-mcp-server` (all 7 tools against a versioned Rust+Python fixture, plus a dedicated 3-language Go+TypeScript+Python fixture confirming the index doesn't bleed symbols across languages).
+204 tests across the workspace: `ccm-index` (reindex/query pipeline, incremental skip, deletion, syntax-error/unsupported-language reporting, secret-pattern exclusion, manifest dependency detection), each of the 14 production language crates (idiomatic-syntax extraction at the parser level — generics, traits/impls, decorators, imports, overloads, interfaces — with an added end-to-end `ccm-index` integration fixture for every crate except `ccm-lang-rust`/`ccm-lang-python`, covering language-specific cases like Go's implicit interfaces, C++'s header/source declaration correlation, HTML/CSS cross-referencing each other by id/class, a XAML event-handler attribute resolving to a method in its paired C# code-behind file, or PHP's `self::`/`parent::`/`static::` scoped calls, constructor property promotion, and trait composition — each through a real multi-file, multi-language fixture, not just both parsers running side by side), and `ccm-mcp-server` (all 7 tools against a versioned Rust+Python fixture, plus a dedicated 3-language Go+TypeScript+Python fixture confirming the index doesn't bleed symbols across languages).
 
 ## Benchmark of tokens saved
 
-Planned, not yet implemented — see `checklist.md`. Will compare token cost of answering "find the definition of X" / "what calls this" / "who uses this symbol" via the MCP tools versus via `Read`/`Grep`/`Glob`, across at least 3 supported languages.
+Measured (see `benchmarks/token-benchmark.md` for full methodology and per-query tables): three canonical queries — "find the definition of X" (`find_symbol`), "what calls this function" (`find_callers`), "who uses this symbol" (`find_references`) — compared as MCP tool-call output (characters returned) versus a realistic `Grep`+`Read` baseline (grep the term across the fixture, then read every matched file in full).
+
+All 15 language crates (the 14 production languages plus Lua, kept as the plugin-architecture validation case) now have real measured numbers on small fixture repos. Most results cluster in the high-80s to high-90s percent character reduction, topping out at 97.8% (Go). Two honest caveats, not smoothed over: `find_symbol` on a tiny XML fixture measured 72.0%, the lowest of any query benchmarked; and `find_callers` on CSS/HTML/XAML, plus both relation queries on XML, come out structurally close to 100% because those parsers never emit the relation being queried (declarative/markup languages have no `Calls` relation, and `ccm-lang-xml` emits no relations at all by design, see `MANUAL.md` §12) — real numbers, but not genuine navigation wins. See `benchmarks/token-benchmark.md` for the full per-language, per-query table before citing a specific figure.
 
 ## How to add a new language
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>codebase-context-mcp — Reference Manual</title>
+<title>mini-consumes-tokens — Reference Manual</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -174,6 +174,7 @@
   nav.toc li a.active{background:var(--accent-soft); color:var(--accent-strong); font-weight:600;}
   nav.toc li a.active .num{color:var(--accent-strong);}
   nav.toc li a[hidden]{display:none;}
+  nav.toc li a.sub{padding-left:30px; font-size:0.8rem;}
 
   .navtoggle{
     display:none;
@@ -411,7 +412,7 @@
   <aside class="sidebar" id="sidebar">
     <div class="brand">
       <span class="mark">Reference manual</span>
-      <span class="name">codebase-context-mcp</span>
+      <span class="name">mini-consumes-tokens</span>
     </div>
     <div class="navsearch">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -424,6 +425,13 @@
         <li><a href="#installation"><span class="num">03</span>Installation</a></li>
         <li><a href="#cli"><span class="num">04</span>The CLI</a></li>
         <li><a href="#registering"><span class="num">05</span>Registering the MCP server</a></li>
+        <li><a class="sub" href="#reg-claude-code"><span class="num">5.1</span>Claude Code</a></li>
+        <li><a class="sub" href="#reg-vscode-copilot"><span class="num">5.2</span>VS Code + GitHub Copilot</a></li>
+        <li><a class="sub" href="#reg-cursor"><span class="num">5.3</span>Cursor</a></li>
+        <li><a class="sub" href="#reg-gemini-cli"><span class="num">5.4</span>Gemini CLI</a></li>
+        <li><a class="sub" href="#reg-codex-cli"><span class="num">5.5</span>Codex CLI (OpenAI)</a></li>
+        <li><a class="sub" href="#reg-antigravity"><span class="num">5.6</span>Antigravity (Google)</a></li>
+        <li><a class="sub" href="#reg-other-clients"><span class="num">5.7</span>Any other MCP client</a></li>
         <li><a href="#tools"><span class="num">06</span>MCP tools reference</a></li>
         <li><a href="#indexing"><span class="num">07</span>How indexing works</a></li>
         <li><a href="#schema"><span class="num">08</span>Database schema</a></li>
@@ -443,7 +451,7 @@
   <main>
     <div class="hero">
       <span class="eyebrow">Field reference · v0.1.0 workspace</span>
-      <h1>codebase-context-mcp</h1>
+      <h1>mini-consumes-tokens</h1>
       <p class="lede">Every command, every MCP tool's exact SQL, the full database schema, and the indexing algorithm — confirmed against the source, not assumed. For a shorter operational summary see <code>README.md</code>; contribution workflow lives in <code>CONTRIBUTING.md</code>.</p>
       <div class="pillrow">
         <span class="pill"><span class="dot"></span>Rust workspace</span>
@@ -463,7 +471,7 @@
     <section class="section" id="overview">
       <span class="eyebrow">§01</span>
       <h2>Overview — what it is and why it exists</h2>
-      <p><code>codebase-context-mcp</code> parses a source repository with <a href="https://tree-sitter.github.io/tree-sitter/" target="_blank" rel="noopener">tree-sitter</a> into an AST-derived <strong>symbol graph</strong> — functions, methods, classes, structs, traits, and the relations between them (calls, imports, extends, implements, references) — stored in a single SQLite file. It exposes that graph two ways:</p>
+      <p><code>mini-consumes-tokens</code> parses a source repository with <a href="https://tree-sitter.github.io/tree-sitter/" target="_blank" rel="noopener">tree-sitter</a> into an AST-derived <strong>symbol graph</strong> — functions, methods, classes, structs, traits, and the relations between them (calls, imports, extends, implements, references) — stored in a single SQLite file. It exposes that graph two ways:</p>
       <ul>
         <li><strong>ccm-cli</strong> — a standalone binary for manual or scripted indexing (CI, pre-commit hooks, coverage checks).</li>
         <li><strong>ccm-mcp-server</strong> — an <a href="https://modelcontextprotocol.io/" target="_blank" rel="noopener">MCP</a> server over stdio giving Claude Code (or any MCP client) tools to query that graph directly.</li>
@@ -496,6 +504,13 @@
                      no relations — no dialect-generic convention to link to)
   ccm-lang-xaml      LanguageParser impl — tree-sitter-xml, x:Name/Name Elements + event-attribute
                      References into the paired C# code-behind file
+  ccm-lang-bash      LanguageParser impl — tree-sitter-bash (functions, top-level variables, calls,
+                     source/. Imports)
+  ccm-lang-powershell LanguageParser impl — tree-sitter-powershell (functions, top-level variables,
+                     calls, dot-source/Import-Module Imports; no classes — see §12)
+  ccm-lang-php       LanguageParser impl — tree-sitter-php (classes/interfaces/traits/enums, methods/
+                     fields incl. constructor property promotion, extends/implements, trait-use
+                     Implements, self/parent/static/Class calls, require/use Imports — see §12)
   ccm-lang-lua       LanguageParser impl — tree-sitter-lua (acceptance test;
                      NOT registered in either binary's build_registry — see §12)
   ccm-mcp-server     rmcp server: registry.rs, server.rs (7 tools), format.rs, main.rs
@@ -586,7 +601,12 @@ Coverage by language:
   xml: 1 files, 6 symbols
 Languages seen but not yet supported: kotlin     <span class="cmt">← only if non-empty</span>
 3 file(s) failed to parse:                       <span class="cmt">← only if non-empty</span>
-  path/to/broken.py: line 42: unexpected token</code></pre>
+  path/to/broken.py: line 42: unexpected token
+Dependencies detected:                           <span class="cmt">← only if a manifest was found; one block per manifest</span>
+  Cargo.toml (rust, 3 dep(s)):
+    thiserror 2
+    tree-sitter 0.25
+    ccm-core                                     <span class="cmt">← no version: workspace/path dependency</span></code></pre>
         </div>
         <p>If never indexed: <code>Never indexed yet.</code> instead of the timestamp line. If zero languages: <code>No languages indexed yet.</code></p>
       </div>
@@ -597,10 +617,10 @@ Languages seen but not yet supported: kotlin     <span class="cmt">← only if n
       <span class="eyebrow">§05</span>
       <h2>Registering the MCP server</h2>
       <p><code>ccm-mcp-server</code> is a plain MCP server over stdio — nothing about it is Claude Code-specific. Every client below launches the same binary the same way (<code>command</code> = <code>ccm-mcp-server</code>, <code>args</code> = <code>["--root", "&lt;absolute-path-to-repo&gt;"]</code>); what differs is the config file's location and root key. Formats below were checked against each project's own docs as of September&nbsp;2026 — MCP config schemas are still evolving across clients, so if a client rejects the file, check its current docs before assuming this manual is wrong.</p>
-      <h3>5.1 Claude Code</h3>
+      <h3 id="reg-claude-code">5.1 Claude Code</h3>
       <div class="figure">
         <div class="figcap"><span class="tag">shell</span><button class="copybtn" data-copy>Copy</button></div>
-        <pre><code id="c-register"><span class="prompt">$</span> claude mcp add codebase-context-mcp --scope project -- ccm-mcp-server --root "&lt;absolute-path-to-repo&gt;"</code></pre>
+        <pre><code id="c-register"><span class="prompt">$</span> claude mcp add mini-consumes-tokens --scope project -- ccm-mcp-server --root "&lt;absolute-path-to-repo&gt;"</code></pre>
       </div>
       <div class="callout">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
@@ -622,10 +642,10 @@ Languages seen but not yet supported: kotlin     <span class="cmt">← only if n
         <div class="figcap"><span class="tag">json</span></div>
         <pre><code>{
   "mcpServers": {
-    "codebase-context-mcp": {
+    "mini-consumes-tokens": {
       "type": "stdio",
       "command": "ccm-mcp-server",
-      "args": ["--root", "Z:\\Proyectos\\build-main"],
+      "args": ["--root", "&lt;absolute-path-to-repo&gt;"],
       "env": {}
     }
   }
@@ -639,14 +659,14 @@ Languages seen but not yet supported: kotlin     <span class="cmt">← only if n
         <div><strong>The approval / restart gotcha.</strong> A server added via <code>claude mcp add</code> while a session is already running does <em>not</em> hot-load into it. <code>claude mcp list</code> shows <code>⏸ Pending approval (run "claude" to approve)</code> and none of its tools are callable until you exit and restart <code>claude</code> in that project, approving the new server when prompted.</div>
       </div>
 
-      <h3>5.2 VS Code + GitHub Copilot</h3>
+      <h3 id="reg-vscode-copilot">5.2 VS Code + GitHub Copilot</h3>
       <p>Two separate config surfaces exist here — they are <strong>not</strong> interchangeable, and mixing them up is the most common reason "it doesn't show up":</p>
       <p><strong>VS Code itself</strong> (Copilot Chat agent mode, or any other extension consuming VS Code's own MCP support) reads <code>.vscode/mcp.json</code> (workspace) or a user-profile <code>mcp.json</code> (global). Root key is <code>"servers"</code> — not <code>mcpServers</code> — and every entry requires an explicit <code>"type"</code>:</p>
       <div class="figure">
         <div class="figcap"><span class="tag">json</span></div>
         <pre><code>{
   "servers": {
-    "codebase-context-mcp": {
+    "mini-consumes-tokens": {
       "type": "stdio",
       "command": "ccm-mcp-server",
       "args": ["--root", "${workspaceFolder}"]
@@ -660,7 +680,7 @@ Languages seen but not yet supported: kotlin     <span class="cmt">← only if n
         <div class="figcap"><span class="tag">json</span></div>
         <pre><code>{
   "mcpServers": {
-    "codebase-context-mcp": {
+    "mini-consumes-tokens": {
       "type": "local",
       "command": "ccm-mcp-server",
       "args": ["--root", "&lt;absolute-path-to-repo&gt;"],
@@ -674,13 +694,13 @@ Languages seen but not yet supported: kotlin     <span class="cmt">← only if n
         <div>As of 2026 the Copilot CLI no longer reads <code>.vscode/mcp.json</code> for its own sessions (an earlier compatibility path was removed). If <code>copilot</code> can't see a server that VS Code itself sees fine, this is why — each surface needs its own file.</div>
       </div>
 
-      <h3>5.3 Cursor</h3>
+      <h3 id="reg-cursor">5.3 Cursor</h3>
       <p><code>.cursor/mcp.json</code> (project) or <code>~/.cursor/mcp.json</code> (global). Same shape as Claude Desktop's config — root key <code>"mcpServers"</code>, no <code>"type"</code> field needed (Cursor infers stdio vs. remote from whether the entry has <code>command</code> or <code>url</code>):</p>
       <div class="figure">
         <div class="figcap"><span class="tag">json</span></div>
         <pre><code>{
   "mcpServers": {
-    "codebase-context-mcp": {
+    "mini-consumes-tokens": {
       "command": "ccm-mcp-server",
       "args": ["--root", "&lt;absolute-path-to-repo&gt;"]
     }
@@ -688,13 +708,13 @@ Languages seen but not yet supported: kotlin     <span class="cmt">← only if n
 }</code></pre>
       </div>
 
-      <h3>5.4 Gemini CLI</h3>
+      <h3 id="reg-gemini-cli">5.4 Gemini CLI</h3>
       <p><code>~/.gemini/settings.json</code> (user) or <code>.gemini/settings.json</code> (project), root key <code>"mcpServers"</code>:</p>
       <div class="figure">
         <div class="figcap"><span class="tag">json</span></div>
         <pre><code>{
   "mcpServers": {
-    "codebase-context-mcp": {
+    "mini-consumes-tokens": {
       "command": "ccm-mcp-server",
       "args": ["--root", "&lt;absolute-path-to-repo&gt;"]
     }
@@ -703,23 +723,23 @@ Languages seen but not yet supported: kotlin     <span class="cmt">← only if n
       </div>
       <p>If you register many MCP servers and want to scope which ones a given project actually loads, the same <code>settings.json</code> supports a top-level <code>mcp.allowed</code>/<code>mcp.excluded</code> allow/deny list by server name.</p>
 
-      <h3>5.5 Codex CLI (OpenAI)</h3>
+      <h3 id="reg-codex-cli">5.5 Codex CLI (OpenAI)</h3>
       <p><code>~/.codex/config.toml</code> (user) or a project-scoped <code>.codex/config.toml</code> for trusted projects — <strong>TOML, not JSON</strong>, one table per server under the snake_case key <code>mcp_servers</code>:</p>
       <div class="figure">
         <div class="figcap"><span class="tag">toml</span></div>
-        <pre><code>[mcp_servers.codebase-context-mcp]
+        <pre><code>[mcp_servers.mini-consumes-tokens]
 command = "ccm-mcp-server"
 args = ["--root", "&lt;absolute-path-to-repo&gt;"]</code></pre>
       </div>
       <p>The transport is inferred from which key is present (<code>command</code> → stdio, <code>url</code> → HTTP) — don't mix both in the same table. The Codex IDE extension reads the same <code>config.toml</code>, so one entry covers both.</p>
 
-      <h3>5.6 Antigravity (Google)</h3>
+      <h3 id="reg-antigravity">5.6 Antigravity (Google)</h3>
       <p>Antigravity's IDE and CLI share one config at <code>~/.gemini/config/mcp_config.json</code>, root key <code>"mcpServers"</code>, same stdio shape as Gemini CLI and Cursor:</p>
       <div class="figure">
         <div class="figcap"><span class="tag">json</span></div>
         <pre><code>{
   "mcpServers": {
-    "codebase-context-mcp": {
+    "mini-consumes-tokens": {
       "command": "ccm-mcp-server",
       "args": ["--root", "&lt;absolute-path-to-repo&gt;"]
     }
@@ -728,7 +748,7 @@ args = ["--root", "&lt;absolute-path-to-repo&gt;"]</code></pre>
       </div>
       <p>From inside the IDE you can reach this without hand-editing the file: agent panel menu → <strong>MCP Servers</strong> → <strong>Manage MCP Servers</strong> → <strong>View raw config</strong> opens the same JSON for editing.</p>
 
-      <h3>5.7 Any other MCP client</h3>
+      <h3 id="reg-other-clients">5.7 Any other MCP client</h3>
       <p>The pattern generalizes: point <code>command</code> at <code>ccm-mcp-server</code> (full path if it isn't on the client's <code>PATH</code>) and pass <code>--root &lt;absolute-path-to-repo&gt;</code> via <code>args</code>. Two gotchas apply regardless of client:</p>
       <ol>
         <li><strong><code>--root</code> must be absolute.</strong> A relative path resolves against whatever working directory the client happens to spawn the process from — often not the repo root, and not consistent across clients.</li>
@@ -830,7 +850,7 @@ All references:
         <li><strong>Symlink/escape guard:</strong> each entry is <code>canonicalize()</code>d; failure (broken symlink, race) or a canonical path outside the root — both skipped silently. A symlink can never make the indexer read outside the project root.</li>
         <li><strong>Path normalization:</strong> the relative path is rebuilt with forward slashes on every OS, so the index is portable between a Windows checkout and a Linux CI runner.</li>
         <li><strong>Exclusion check</strong> (§09) — excluded paths are skipped but kept in <code>seen_paths</code>, so a previously-indexed row is cleaned up if exclude patterns later change.</li>
-        <li><strong>Extension lookup</strong> via <code>registry.for_extension(ext)</code>. No parser registered? If the extension is in <code>KNOWN_PENDING_LANGUAGES</code> (<code>kt</code>/<code>kts</code>→kotlin, <code>swift</code>, <code>php</code>, <code>rb</code>→ruby), it's recorded as an <code>unsupported_language</code> issue. Any <em>other</em> unrecognized extension (docs, images, lockfiles, <code>.lua</code>) is skipped with <strong>zero</strong> record — this is why a repo with <code>.lua</code> files wouldn't show "lua" as unsupported even though <code>ccm-lang-lua</code> isn't wired in.</li>
+        <li><strong>Extension lookup</strong> via <code>registry.for_extension(ext)</code>. No parser registered? If the extension is in <code>KNOWN_PENDING_LANGUAGES</code> (<code>kt</code>/<code>kts</code>→kotlin, <code>swift</code>, <code>rb</code>→ruby), it's recorded as an <code>unsupported_language</code> issue. Any <em>other</em> unrecognized extension (docs, images, lockfiles, <code>.lua</code>) is skipped with <strong>zero</strong> record — this is why a repo with <code>.lua</code> files wouldn't show "lua" as unsupported even though <code>ccm-lang-lua</code> isn't wired in.</li>
         <li><strong>Read + hash:</strong> I/O error → skip. Content hash is a <strong>git blob SHA-1</strong> via <code>git2::Oid::hash_object(ObjectType::Blob, &amp;bytes)</code> — works outside an actual git repo; it's just git's hashing algorithm reused for change detection.</li>
         <li><strong>Incremental skip:</strong> if the stored hash for this path matches and <code>--force</code>/<code>force:true</code> wasn't passed, count as <code>files_unchanged</code> and skip entirely — no re-parse, no writes.</li>
         <li><strong>UTF-8 check:</strong> invalid UTF-8 (binary file sharing a supported extension) is skipped silently, not recorded as a syntax error.</li>
@@ -902,7 +922,23 @@ CREATE TABLE index_issues (
 CREATE TABLE index_meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL   -- currently only 'last_indexed_at'
-);</code></pre>
+);
+
+-- Declared dependencies from a manifest file, matched by file NAME (not
+-- extension, not through any LanguageParser — a manifest isn't source code
+-- to symbol-index). Populated by ccm-index/src/manifests.rs. A second
+-- migration, added after the table above, so an existing index gets this
+-- table added instead of needing a fresh one.
+CREATE TABLE dependencies (
+    id            INTEGER PRIMARY KEY,
+    manifest_path TEXT NOT NULL,
+    language      TEXT NOT NULL,   -- ecosystem the manifest belongs to
+    name          TEXT NOT NULL,
+    version       TEXT,            -- absent for path/git deps, or `{ workspace = true }` entries
+    UNIQUE(manifest_path, name)
+);
+CREATE INDEX idx_dependencies_manifest ON dependencies(manifest_path);
+CREATE INDEX idx_dependencies_name ON dependencies(name);</code></pre>
       </div>
       <div class="tablewrap">
         <table>
@@ -914,6 +950,7 @@ CREATE TABLE index_meta (
         </table>
       </div>
       <p><strong>Design note baked into the schema:</strong> one shared table per concept across <em>all</em> languages — no per-language tables. <code>symbols</code>/<code>relations</code> carry a <code>language</code> column via their <code>files</code> join instead, which is why adding a language plugin never requires a <em>schema</em> migration, even HTML/CSS/XML/XAML: <code>element</code>/<code>rule</code> needed two new <code>SymbolKind</code> variants in <code>ccm-core</code> (nothing else fit an HTML element or a CSS selector), but since <code>kind</code> is a plain string column, the table itself didn't change.</p>
+      <p><strong>Dependency manifests recognized today:</strong> <code>Cargo.toml</code> (<code>[dependencies]</code>/<code>[dev-dependencies]</code>/<code>[build-dependencies]</code>, plus <code>[workspace.dependencies]</code> on a workspace root), <code>package.json</code> (<code>dependencies</code>/<code>devDependencies</code>/<code>peerDependencies</code>/<code>optionalDependencies</code>), <code>requirements.txt</code> (one requirement per line, version kept as the constraint text written — <code>"&gt;=2.0,&lt;3.0"</code>, not resolved to one version), <code>go.mod</code> (<code>require</code> block and single-line forms; <code>go.sum</code> not read — direct dependencies only). Unlike source files, a manifest is <strong>re-parsed on every reindex</strong>, not skipped when unchanged — they're few and small, not worth a second incremental-skip mechanism. Exposed via <code>get_indexing_status</code>'s "Dependencies detected" section (§06), not a separate MCP tool — deliberate, to stay within the 6–8 tool budget.</p>
     </section>
 
     <section class="section" id="exclusion">
@@ -1004,7 +1041,11 @@ GROUP BY f.language;</code></pre>
         <li><strong>CSS only indexes simple selectors.</strong> <code>.foo</code>/<code>#foo</code> alone become <code>Rule</code> symbols; compound selectors (<code>div.foo</code>) and combinators (<code>.a .b</code>, <code>#id &gt; .c</code>) are skipped — matching which elements they actually reach needs a DOM, not an AST.</li>
         <li><strong>Plain XML never emits relations.</strong> <code>ccm-lang-xml</code> indexes <code>id</code>/<code>name</code>/<code>Name</code>-attributed elements (case-exact, in that priority) as <code>Element</code> symbols for structure only — there's no dialect-generic convention to cross-reference (a Maven POM and an Android layout mean completely different things by their attributes).</li>
         <li><strong>XAML's event-handler cross-referencing is a bounded allowlist, not a heuristic.</strong> <code>EVENT_ATTRIBUTE_NAMES</code> in <code>ccm-lang-xaml</code> lists ~40 common WPF/UWP/WinUI/MAUI/Avalonia event names (<code>Click</code>, <code>Loaded</code>, <code>SelectionChanged</code>, ...) — an attribute outside that list, even if it wires up a real code-behind handler, won't produce a <code>References</code> relation.</li>
-        <li><strong><code>KNOWN_PENDING_LANGUAGES</code> is a short, hardcoded list</strong> (kotlin, swift, php, ruby) — any other genuinely unsupported language's files are skipped with zero visibility in <code>status</code>.</li>
+        <li><strong><code>ccm-lang-powershell</code> doesn't index classes.</strong> <code>class Foo { ... }</code> and its methods are invisible to the index — only <code>function</code>-style definitions are, since the scope this plugin was built for is systems-scripting <code>.ps1</code>/<code>.psm1</code> files, where classes are rare.</li>
+        <li><strong><code>ccm-lang-bash</code>/<code>ccm-lang-powershell</code> only index top-level variables</strong>, and every command/cmdlet invocation is recorded as an unresolved <code>Calls</code> relation regardless of whether it turns out to be a local function or an external program — same "resolved downstream, matched by name" precedent as every other language here.</li>
+        <li><strong><code>ccm-lang-php</code> reuses <code>SymbolKind::Trait</code> for PHP's <code>trait</code> keyword</strong>, the same tag <code>ccm-lang-rust</code> uses for Rust traits — the two are semantically different (a PHP trait is a code-inclusion mixin, not an interface-like contract), sharing only the tag name, not the meaning.</li>
+        <li><strong><code>ccm-lang-php</code> records <code>use TraitName;</code> (trait composition) as a <code>RelationKind::Implements</code> relation</strong> on the enclosing class/enum — the closest existing relation kind, though not a perfect fit. <code>ccm-core</code> has no dedicated "uses/composes" relation kind today.</li>
+        <li><strong><code>KNOWN_PENDING_LANGUAGES</code> is a short, hardcoded list</strong> (kotlin, swift, ruby) — any other genuinely unsupported language's files are skipped with zero visibility in <code>status</code>.</li>
         <li><strong>Exclude patterns aren't user-configurable</strong> from either binary today (§09), despite the underlying API supporting it.</li>
         <li><strong>No file-watching.</strong> The index only updates on an explicit <code>reindex</code> or MCP server startup.</li>
         <li><strong>Binary files sharing a supported extension are silently skipped</strong>, not reported as a parse failure — they fail the UTF-8 check before parsing is attempted.</li>
@@ -1051,7 +1092,7 @@ GROUP BY f.language;</code></pre>
       <div class="figure">
         <div class="figcap"><span class="tag">shell</span><button class="copybtn" data-copy>Copy</button></div>
         <pre><code id="c-uninstall"><span class="cmt"># Unregister from Claude Code</span>
-<span class="prompt">$</span> claude mcp remove codebase-context-mcp --scope project   <span class="cmt"># match the --scope used to add it</span>
+<span class="prompt">$</span> claude mcp remove mini-consumes-tokens --scope project   <span class="cmt"># match the --scope used to add it</span>
 
 <span class="cmt"># Remove the binaries</span>
 <span class="prompt">$</span> cargo uninstall ccm-cli
@@ -1093,9 +1134,9 @@ GROUP BY f.language;</code></pre>
 <span class="prompt">$</span> ccm-cli --root . status
 
 <span class="cmt"># Register with Claude Code</span>
-<span class="prompt">$</span> claude mcp add codebase-context-mcp --scope project -- ccm-mcp-server --root "&lt;abs-path&gt;"
+<span class="prompt">$</span> claude mcp add mini-consumes-tokens --scope project -- ccm-mcp-server --root "&lt;abs-path&gt;"
 <span class="prompt">$</span> claude mcp list
-<span class="prompt">$</span> claude mcp remove codebase-context-mcp --scope project
+<span class="prompt">$</span> claude mcp remove mini-consumes-tokens --scope project
 
 <span class="cmt"># Rebuild the index from scratch</span>
 <span class="prompt">$</span> rm -rf .claude-index &amp;&amp; ccm-cli --root . init
@@ -1111,7 +1152,7 @@ GROUP BY f.language;</code></pre>
 </div>
 
 <footer>
-  <span>codebase-context-mcp — Reference Manual</span>
+  <span>mini-consumes-tokens — Reference Manual</span>
   <span>·</span>
   <span>See also: <a href="README.md">README.md</a>, <a href="CONTRIBUTING.md">CONTRIBUTING.md</a>, <a href="RELEASING.md">RELEASING.md</a></span>
 </footer>

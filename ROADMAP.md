@@ -1,4 +1,4 @@
-# ROADMAP — codebase-context-mcp (post-0.1.0)
+# ROADMAP — mini-consumes-tokens (post-0.1.0)
 
 Documento de análisis y planificación, no de implementación. No se ha escrito
 código de producto para generar esto — es una lectura completa de
@@ -57,6 +57,14 @@ antemano.
 
 ### 2. Patrones de exclusión de secretos — Ruby/PHP/Swift
 
+- **Corrección esta sesión**: PHP ya tiene crate propio (`ccm-lang-php`,
+  ver candidato #5), pero eso no cambia nada aquí — los dos patrones de
+  PHP de abajo (`wp-config.php`/`config/database.php`) siguen **sin
+  implementar**, tal como ya decía esta entrada. Lo que sí estaba mal era
+  `checklist.md`, que en algún punto afirmó no haber identificado ninguna
+  convención de secretos para PHP — contradecía directamente lo que ya
+  decía este párrafo; corregido en `checklist.md`, ver Decisión abierta #2
+  ahí.
 - **Qué es**: agregar a `ccm-index/src/exclude.rs` los patrones de
   convención de secretos específicos de Ruby (`config/master.key`,
   `config/credentials.yml.enc`), PHP (`.env` ya cubierto genéricamente, pero
@@ -67,7 +75,9 @@ antemano.
   paths no depende de tener un `LanguageParser` registrado, ya que
   `ccm-index` ni siquiera necesita parsear el archivo para excluirlo por
   patrón de ruta. Es decir: **este candidato no depende de tener primero un
-  crate de Ruby/PHP/Swift** (candidato #5) — son ortogonales.
+  crate de Ruby/PHP/Swift** (candidato #5) — son ortogonales. (El caso de
+  PHP ya lo demuestra en la práctica: el crate existe desde esta sesión y
+  los dos patrones de secretos de PHP siguen sin agregarse.)
 - **Esfuerzo estimado**: **Pequeño**. Mismo patrón que la resolución de Go
   esta sesión: añadir constantes a `DEFAULT_EXCLUDE_PATTERNS` + tests en
   `ccm-index/tests/exclude.rs`. Sub-sesión de menos de una sesión completa.
@@ -134,19 +144,29 @@ antemano.
   resuelta: alcance de 'web'" en `checklist.md`) y el JS/TS lógico ya
   funciona sin esto.
 
-### 5. Lenguajes adicionales (Kotlin, Swift, Ruby, PHP)
+### 5. Lenguajes adicionales (Kotlin, Swift, Ruby)
 
-- **Qué es**: nuevos crates `ccm-lang-<kotlin|swift|ruby|php>` siguiendo el
-  patrón ya probado 8 veces (`LanguageParser` + registro en
+- **PHP implementado — sacado de esta lista** (corregido al auditar
+  `checklist.md`: esta sección seguía nombrando PHP como candidato
+  pendiente, y la nota de abajo seguía diciendo "estos 4 ya están en
+  `KNOWN_PENDING_LANGUAGES`" cuando la entrada `("php", "php")` de esa
+  constante ya se había eliminado al implementar `ccm-lang-php` —
+  desincronización real entre este documento y el estado del código, nunca
+  cruzada hasta ahora). Ver fila de PHP en la tabla de cobertura de
+  `checklist.md`. El candidato #2 (secretos `wp-config.php`/
+  `config/database.php`) sigue abierto de forma independiente — no
+  dependía de que el crate existiera primero.
+- **Qué es**: nuevos crates `ccm-lang-<kotlin|swift|ruby>` siguiendo el
+  patrón ya probado 11 veces (`LanguageParser` + registro en
   `ccm-mcp-server`/`ccm-cli` + fixtures + fuzzing + benchmark).
-- **Por qué importa**: estos 4 ya están en `KNOWN_PENDING_LANGUAGES`
-  (`ccm-index/src/indexer.rs:17-23`) — el propio código ya anticipa que un
+- **Por qué importa**: estos 3 siguen en `KNOWN_PENDING_LANGUAGES`
+  (`ccm-index/src/indexer.rs`) — el propio código ya anticipa que un
   repo con estos lenguajes hoy se reporta como "lenguaje pendiente" en
   `get_indexing_status` en vez de fallar silenciosamente. Kotlin (Android +
   backend JVM en alza) y Swift (iOS) son los candidatos de mayor demanda
-  real por volumen de proyectos; Ruby/PHP siguen teniendo bases de código
-  grandes en producción (Rails, Laravel/WordPress) que se beneficiarían
-  igual que Java/C# se beneficiaron.
+  real por volumen de proyectos; Ruby sigue teniendo bases de código
+  grandes en producción (Rails) que se beneficiarían igual que Java/C# se
+  beneficiaron.
 - **Esfuerzo estimado**: **Mediano cada uno** — es la unidad de referencia
   literal del proyecto ("similar a agregar un lenguaje nuevo"). Ninguno
   tiene una complejidad estructural conocida comparable a la de C++
@@ -155,7 +175,7 @@ antemano.
 - **Riesgo/dependencias**: bajo, arquitectónicamente — el mismo argumento
   que ya se demostró con Lua: el trait `LanguageParser` generaliza sin tocar
   `core`/`index`. La única dependencia real es el candidato #2 (secretos)
-  si se quiere resolver *antes* de indexar Ruby/PHP en un repo con
+  si se quiere resolver *antes* de indexar Ruby en un repo con
   credenciales sin excluir — no es un bloqueo duro, es un orden recomendado.
 - **Bloqueante**: No.
 
@@ -268,7 +288,7 @@ antemano.
 - **Por qué importa esta investigación (no la mejora en sí todavía)**: la
   lectura del código actual ya deja ver **tres sospechas concretas, no
   confirmadas**, que justifican medir antes de optimizar a ciegas:
-  1. `reindex()` (`ccm-index/src/indexer.rs:74-188`) hace `WalkDir` sobre
+  1. `reindex()` (`ccm-index/src/indexer.rs:86-233`) hace `WalkDir` sobre
      **todo** el árbol en cada corrida, y para cada archivo no excluido
      **lee el archivo completo a memoria** (`std::fs::read`) solo para
      calcular el hash de contenido y decidir si cambió — incluso archivos
@@ -281,7 +301,7 @@ antemano.
      inicial escala linealmente con el número de archivos sin aprovechar
      múltiples cores.
   3. La resolución de cada `SymbolRelation` a un símbolo existente
-     (`write_parsed_file`, `ccm-index/src/indexer.rs:258-264`) hace **una
+     (`write_parsed_file`, `ccm-index/src/indexer.rs:341-347`) hace **una
      query SQL por relación** (`SELECT id FROM symbols WHERE name = ?1
      LIMIT 1`), dentro de la misma transacción — con índice sobre `name`
      esto es barato por query individual, pero con decenas de miles de
