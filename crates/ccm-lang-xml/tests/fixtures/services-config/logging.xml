@@ -1,0 +1,6 @@
+<configuration>
+  <logger id="app-logger">
+    <sink name="console" />
+    <sink name="file" />
+  </logger>
+</configuration>

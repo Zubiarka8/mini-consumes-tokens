@@ -1,0 +1,6 @@
+<configuration>
+  <server id="worker">
+    <queue Name="jobs" />
+    <queue Name="emails" />
+  </server>
+</configuration>

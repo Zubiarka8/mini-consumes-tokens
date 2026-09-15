@@ -1,6 +1,6 @@
 [package]
 name = "ccm-lang-lua"
-description = "Lua language plugin (tree-sitter-lua) for codebase-context-mcp's LanguageParser trait. Built as an architecture-validation exercise (Lua is outside the project's original 7-language scope) and not wired into the production ccm-cli/ccm-mcp-server registries, but a working standalone plugin."
+description = "Lua language plugin (tree-sitter-lua) for mini-consumes-tokens's LanguageParser trait. Built as an architecture-validation exercise (Lua is outside the project's original 7-language scope) and not wired into the production ccm-cli/ccm-mcp-server registries, but a working standalone plugin."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -15,3 +15,4 @@ tree-sitter-lua = "0.5.0"
 
 [dev-dependencies]
 ccm-index.workspace = true
+walkdir = "2.5.0"

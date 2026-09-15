@@ -206,4 +206,159 @@ fn main() {
             Query { label: "who uses this symbol", kind: QueryKind::References, term: "AddItem" },
         ],
     );
+
+    let rust_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../ccm-lang-rust/tests/fixtures/billing-app");
+    let mut rust_registry = LanguageRegistry::new();
+    rust_registry.register(Arc::new(ccm_lang_rust::RustParser));
+    run_language(
+        "Rust (billing-app fixture)",
+        &rust_root,
+        rust_registry,
+        &[
+            Query { label: "find the definition of", kind: QueryKind::Symbol, term: "Invoice" },
+            Query { label: "what calls this function", kind: QueryKind::Callers, term: "log" },
+            Query { label: "who uses this symbol", kind: QueryKind::References, term: "add_item" },
+        ],
+    );
+
+    let python_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../ccm-lang-python/tests/fixtures/billing-app");
+    let mut python_registry = LanguageRegistry::new();
+    python_registry.register(Arc::new(ccm_lang_python::PythonParser));
+    run_language(
+        "Python (billing-app fixture)",
+        &python_root,
+        python_registry,
+        &[
+            Query { label: "find the definition of", kind: QueryKind::Symbol, term: "Invoice" },
+            Query { label: "what calls this function", kind: QueryKind::Callers, term: "log" },
+            Query { label: "who uses this symbol", kind: QueryKind::References, term: "add_item" },
+        ],
+    );
+
+    let html_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../ccm-lang-html/tests/fixtures/site");
+    let mut html_registry = LanguageRegistry::new();
+    html_registry.register(Arc::new(ccm_lang_html::HtmlParser));
+    html_registry.register(Arc::new(ccm_lang_css::CssParser));
+    run_language(
+        "HTML (site fixture)",
+        &html_root,
+        html_registry,
+        &[
+            Query { label: "find the definition of", kind: QueryKind::Symbol, term: "header" },
+            // HTML never emits a `calls` relation (see ccm-lang-html/src/lib.rs) —
+            // this query is structurally always empty for this language; kept
+            // for methodology consistency, see benchmarks/token-benchmark.md.
+            Query { label: "what calls this function", kind: QueryKind::Callers, term: "nav" },
+            Query { label: "who uses this symbol", kind: QueryKind::References, term: "style.css" },
+        ],
+    );
+
+    let css_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../ccm-lang-css/tests/fixtures/theme");
+    let mut css_registry = LanguageRegistry::new();
+    css_registry.register(Arc::new(ccm_lang_css::CssParser));
+    run_language(
+        "CSS (theme fixture)",
+        &css_root,
+        css_registry,
+        &[
+            Query { label: "find the definition of", kind: QueryKind::Symbol, term: "#header" },
+            // CSS never emits a `calls` relation (see ccm-lang-css/src/lib.rs) —
+            // this query is structurally always empty for this language; kept
+            // for methodology consistency, see benchmarks/token-benchmark.md.
+            Query { label: "what calls this function", kind: QueryKind::Callers, term: ".sidebar" },
+            Query { label: "who uses this symbol", kind: QueryKind::References, term: "extra.css" },
+        ],
+    );
+
+    let xml_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../ccm-lang-xml/tests/fixtures/services-config");
+    let mut xml_registry = LanguageRegistry::new();
+    xml_registry.register(Arc::new(ccm_lang_xml::XmlParser));
+    run_language(
+        "XML (services-config fixture)",
+        &xml_root,
+        xml_registry,
+        &[
+            Query { label: "find the definition of", kind: QueryKind::Symbol, term: "worker" },
+            // ccm-lang-xml deliberately emits NO relations at all (structural-only
+            // by design, see its module doc) — both queries below are always
+            // empty for this language, regardless of fixture. See
+            // benchmarks/token-benchmark.md for why this is a real, expected
+            // (not fixable) result rather than a fixture problem.
+            Query { label: "what calls this function", kind: QueryKind::Callers, term: "jobs" },
+            Query { label: "who uses this symbol", kind: QueryKind::References, term: "api" },
+        ],
+    );
+
+    let xaml_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../ccm-lang-xaml/tests/fixtures/app");
+    let mut xaml_registry = LanguageRegistry::new();
+    xaml_registry.register(Arc::new(ccm_lang_xaml::XamlParser));
+    xaml_registry.register(Arc::new(ccm_lang_csharp::CSharpParser));
+    run_language(
+        "XAML (app fixture)",
+        &xaml_root,
+        xaml_registry,
+        &[
+            Query { label: "find the definition of", kind: QueryKind::Symbol, term: "SaveBtn" },
+            // XAML never emits a `calls` relation (see ccm-lang-xaml/src/lib.rs) —
+            // this query is structurally always empty for this language; kept
+            // for methodology consistency, see benchmarks/token-benchmark.md.
+            Query { label: "what calls this function", kind: QueryKind::Callers, term: "Click" },
+            Query {
+                label: "who uses this symbol",
+                kind: QueryKind::References,
+                term: "SaveBtn_Click",
+            },
+        ],
+    );
+
+    let bash_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../ccm-lang-bash/tests/fixtures/deploy-scripts");
+    let mut bash_registry = LanguageRegistry::new();
+    bash_registry.register(Arc::new(ccm_lang_bash::BashParser));
+    run_language(
+        "Bash (deploy-scripts fixture)",
+        &bash_root,
+        bash_registry,
+        &[
+            Query { label: "find the definition of", kind: QueryKind::Symbol, term: "deploy" },
+            Query { label: "what calls this function", kind: QueryKind::Callers, term: "log" },
+            Query { label: "who uses this symbol", kind: QueryKind::References, term: "build" },
+        ],
+    );
+
+    let powershell_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../ccm-lang-powershell/tests/fixtures/deploy-scripts");
+    let mut powershell_registry = LanguageRegistry::new();
+    powershell_registry.register(Arc::new(ccm_lang_powershell::PowerShellParser));
+    run_language(
+        "PowerShell (deploy-scripts fixture)",
+        &powershell_root,
+        powershell_registry,
+        &[
+            Query { label: "find the definition of", kind: QueryKind::Symbol, term: "Invoke-Build" },
+            Query { label: "what calls this function", kind: QueryKind::Callers, term: "Write-Log" },
+            Query {
+                label: "who uses this symbol",
+                kind: QueryKind::References,
+                term: "Invoke-Deploy",
+            },
+        ],
+    );
+
+    let php_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../ccm-lang-php/tests/fixtures/billing-app");
+    let mut php_registry = LanguageRegistry::new();
+    php_registry.register(Arc::new(ccm_lang_php::PhpParser));
+    run_language(
+        "PHP (billing-app fixture)",
+        &php_root,
+        php_registry,
+        &[
+            Query { label: "find the definition of", kind: QueryKind::Symbol, term: "Invoice" },
+            Query { label: "what calls this function", kind: QueryKind::Callers, term: "pay" },
+            Query { label: "who uses this symbol", kind: QueryKind::References, term: "Payable" },
+        ],
+    );
 }

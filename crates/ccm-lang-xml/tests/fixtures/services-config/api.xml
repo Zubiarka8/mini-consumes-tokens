@@ -1,0 +1,6 @@
+<configuration>
+  <server id="api">
+    <endpoint name="health" />
+    <endpoint name="metrics" />
+  </server>
+</configuration>
