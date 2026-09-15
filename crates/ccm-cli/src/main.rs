@@ -52,6 +52,7 @@ fn build_registry() -> LanguageRegistry {
     registry.register(Arc::new(ccm_lang_bash::BashParser));
     registry.register(Arc::new(ccm_lang_powershell::PowerShellParser));
     registry.register(Arc::new(ccm_lang_php::PhpParser));
+    registry.register(Arc::new(ccm_lang_md::MarkdownParser));
     registry
 }
 
