@@ -8,7 +8,7 @@
 .env
 .env.*
 
-# Local-only: MANUAL.md is the editable source for MANUAL.html (the
+# Local-only: MANUAL.md is the editable source for manual/index.html (the
 # published reference), kept out of git to avoid two copies drifting.
 MANUAL.md
 # Local-only: records this machine's absolute --root path, not portable
