@@ -151,6 +151,7 @@ dependencies = [
  "ccm-lang-xaml",
  "ccm-lang-xml",
  "clap",
+ "serde_json",
  "walkdir",
 ]
 
