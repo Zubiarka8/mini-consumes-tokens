@@ -10,7 +10,7 @@ An MCP server (`ccm-mcp-server`) and CLI (`ccm-cli`) that index a code repositor
 
 ```sh
 cargo build --workspace --all-targets                              # build everything
-cargo test --workspace                                              # run all 218+ tests
+cargo test --workspace                                              # run all 222+ tests
 cargo test -p ccm-lang-go                                            # run one crate's tests
 cargo test -p ccm-lang-go idiomatic_syntax                           # run one test by name
 cargo clippy --workspace --all-targets --all-features -- -D warnings # lint (CI-gating, zero warnings)
@@ -18,6 +18,7 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings # lint (CI-
 cargo run -p ccm-cli -- --root . init                                # first index of a project
 cargo run -p ccm-cli -- --root . status                              # coverage / health report
 cargo run -p ccm-cli -- --root . reindex --force
+cargo run -p ccm-cli -- --root . mcp-register [--name N]             # write/merge .mcp.json for this project
 cargo run -p ccm-mcp-server -- --root <project>                      # run the MCP server over stdio
 ```
 
@@ -37,7 +38,7 @@ ccm-index    SQLite schema/migrations (single schema for every language — a `l
 ccm-lang-*   One crate per language, each a LanguageParser impl over its tree-sitter grammar
 ccm-mcp-server  MCP tools over stdio (rmcp): find_symbol/find_references/find_calls/
                 find_callers/impact_analysis/reindex/get_indexing_status
-ccm-cli      init/reindex/status subcommands for manual/scripted use
+ccm-cli      init/reindex/status/mcp-register subcommands for manual/scripted use
 ```
 
 **Adding a language touches exactly these places** (see `CONTRIBUTING.md` for the full checklist including fuzz harnesses):

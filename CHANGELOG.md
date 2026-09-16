@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `ccm-cli mcp-register [--name N]`: writes (or merges into) `.mcp.json` at
+  the project root with the correct `ccm-mcp-server` entry, as an alternative
+  to `claude mcp add` or hand-editing the JSON. Preserves any other server
+  already configured in the file, and strips Windows' `\\?\` verbatim-path
+  prefix from the written `--root` so the value stays a normal path.
+
 ## [0.1.0] - 2026-09-13
 
 First release. Development happened in the order below — later languages
