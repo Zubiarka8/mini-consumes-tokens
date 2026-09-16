@@ -93,6 +93,24 @@ fn module_pseudo_symbol_owns_file_level_relations() {
 }
 
 #[test]
+fn element_end_line_spans_a_multiline_start_tag() {
+    // An Element symbol is located at its `start_tag` node, not the whole
+    // `element` (which would include children and the closing tag) — so a
+    // single-line tag's `end_line` equals `line` (see the sibling
+    // `id_and_class_attributes_produce_references_to_matching_css_selectors`
+    // test for that case); a tag whose own attributes span multiple lines is
+    // what exercises a real `end_line > line` here.
+    let parsed = parse("<div\n    id=\"outer\"\n    class=\"nav\">\n</div>\n");
+    let outer = parsed
+        .symbols
+        .iter()
+        .find(|s| s.name == "outer")
+        .expect("outer element should be indexed");
+    assert_eq!(outer.location.line, 1);
+    assert_eq!(outer.location.end_line, Some(3));
+}
+
+#[test]
 fn syntax_error_is_reported_not_panicked() {
     let result = HtmlParser.parse(&SourceFile {
         relative_path: "broken.html".to_string(),

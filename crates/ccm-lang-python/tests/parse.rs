@@ -99,6 +99,18 @@ fn extracts_import_and_from_import() {
 }
 
 #[test]
+fn function_end_line_spans_the_whole_multiline_body() {
+    let parsed = parse("def multiline():\n    x = 1\n    y = 2\n    return x + y\n");
+    let sym = parsed
+        .symbols
+        .iter()
+        .find(|s| s.name == "multiline")
+        .expect("multiline function should be indexed");
+    assert_eq!(sym.location.line, 1);
+    assert_eq!(sym.location.end_line, Some(4));
+}
+
+#[test]
 fn syntax_error_is_reported_not_panicked() {
     let result = PythonParser.parse(&SourceFile {
         relative_path: "pkg/broken.py".to_string(),

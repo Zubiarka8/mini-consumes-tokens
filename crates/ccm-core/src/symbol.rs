@@ -7,6 +7,13 @@ pub struct Location {
     pub column: u32,
     /// Byte length of the token, for callers that want the exact span.
     pub byte_len: u32,
+    /// 1-based line number of the end of this symbol's node (e.g. the closing
+    /// brace of a function/class body), when the `LanguageParser` populated
+    /// it. `None` for relation sites (calls/references never carry one — only
+    /// definitions do) and for any symbol from a parser not yet updated to
+    /// populate it; nullable end-to-end (Rust field and SQL column alike) so
+    /// existing parsers/indexes don't need a simultaneous flag day.
+    pub end_line: Option<u32>,
 }
 
 /// Kind of a definable symbol. Deliberately a small, language-agnostic set —

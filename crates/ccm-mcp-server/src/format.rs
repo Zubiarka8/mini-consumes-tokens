@@ -3,7 +3,7 @@
 //! reading context, so tool output stays as terse as it can while remaining
 //! unambiguous.
 
-use ccm_index::{IndexStatus, ReindexReport, RelationHit, SymbolHit};
+use ccm_index::{IndexStatus, ReindexReport, RelationHit, SymbolHit, SymbolListEntry};
 
 /// One-line note appended after a count header when a result list got cut
 /// down to `shown` of `total` entries — empty string when nothing was
@@ -39,6 +39,78 @@ pub fn symbol_hits(name: &str, hits: &[SymbolHit], limit: usize) -> String {
             "{}:{}:{} [{}] {} {}{}\n",
             hit.relative_path, hit.line, hit.column, hit.language, hit.kind, hit.name, parent
         ));
+    }
+    out
+}
+
+/// Kind strings in the order they're grouped/displayed by [`list_symbols`],
+/// paired with the plural heading printed above each non-empty group —
+/// mirrors the declaration order of `ccm_core::SymbolKind` so output is
+/// stable regardless of SQL row order within a kind.
+const KIND_HEADINGS: &[(&str, &str)] = &[
+    ("function", "Functions"),
+    ("method", "Methods"),
+    ("class", "Classes"),
+    ("struct", "Structs"),
+    ("interface", "Interfaces"),
+    ("enum", "Enums"),
+    ("trait", "Traits"),
+    ("type_alias", "Type Aliases"),
+    ("module", "Modules"),
+    ("variable", "Variables"),
+    ("constant", "Constants"),
+    ("field", "Fields"),
+    ("element", "Elements"),
+    ("rule", "Rules"),
+];
+
+fn kind_heading(kind: &str) -> String {
+    KIND_HEADINGS
+        .iter()
+        .find(|(k, _)| *k == kind)
+        .map(|(_, heading)| heading.to_string())
+        .unwrap_or_else(|| format!("{kind}s"))
+}
+
+fn line_range(line: u32, end_line: Option<u32>) -> String {
+    match end_line {
+        Some(end) if end > line => format!("L{line}-L{end}"),
+        _ => format!("L{line}"),
+    }
+}
+
+/// Renders `list_symbols`' result grouped by kind, in [`KIND_HEADINGS`]
+/// order. When `path` names a single file, entries omit the (redundant)
+/// file path per line; a directory/crate listing spans multiple files, so
+/// each line carries its own `relative_path` to disambiguate.
+pub fn list_symbols(path: &str, is_file: bool, hits: &[SymbolListEntry], limit: usize) -> String {
+    if hits.is_empty() {
+        return format!("No symbols found under `{path}`.");
+    }
+    let total = hits.len();
+    let shown = &hits[..total.min(limit)];
+    let mut out = format!(
+        "{total} symbol(s) under `{path}`{}:\n",
+        truncation_note(total, shown.len())
+    );
+    for &(kind, _) in KIND_HEADINGS {
+        let group: Vec<&SymbolListEntry> = shown.iter().filter(|h| h.kind == kind).collect();
+        if group.is_empty() {
+            continue;
+        }
+        out.push_str(&format!("{}:\n", kind_heading(kind)));
+        let name_width = group.iter().map(|h| h.name.chars().count()).max().unwrap_or(0);
+        for hit in &group {
+            let range = line_range(hit.line, hit.end_line);
+            if is_file {
+                out.push_str(&format!("  {:<name_width$}  {range}\n", hit.name));
+            } else {
+                out.push_str(&format!(
+                    "  {:<name_width$}  {}  {range}\n",
+                    hit.name, hit.relative_path
+                ));
+            }
+        }
     }
     out
 }

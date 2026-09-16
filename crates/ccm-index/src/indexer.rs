@@ -315,8 +315,8 @@ fn write_parsed_file(
     let mut id_map: HashMap<u32, i64> = HashMap::with_capacity(parsed.symbols.len());
     for symbol in &parsed.symbols {
         tx.execute(
-            "INSERT INTO symbols (file_id, name, kind, parent, line, column, byte_len)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT INTO symbols (file_id, name, kind, parent, line, column, byte_len, end_line)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             params![
                 file_id,
                 symbol.name,
@@ -325,6 +325,7 @@ fn write_parsed_file(
                 symbol.location.line,
                 symbol.location.column,
                 symbol.location.byte_len,
+                symbol.location.end_line,
             ],
         )?;
         id_map.insert(symbol.id, tx.last_insert_rowid());

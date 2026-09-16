@@ -16,7 +16,7 @@ pub use indexer::{
     DependencyInfo, IndexStatus, LanguageCoverage, ManifestDependencies, ReindexReport,
     UnsupportedFile,
 };
-pub use queries::{RelationHit, SymbolHit};
+pub use queries::{RelationHit, SymbolHit, SymbolListEntry};
 
 use std::path::{Path, PathBuf};
 
@@ -108,5 +108,18 @@ impl Index {
     /// Calls made *of* `function` (its callers) — the inverse of [`Index::find_calls`].
     pub fn find_callers(&self, function: &str) -> Result<Vec<RelationHit>> {
         queries::find_callers(&self.conn, function)
+    }
+
+    /// Lists symbol definitions under `path` (a single file or a
+    /// directory/crate prefix), optionally filtered by `kind` and/or
+    /// `language`. See [`queries::list_symbols`] for the exact matching
+    /// rules.
+    pub fn list_symbols(
+        &self,
+        path: &str,
+        kind: Option<&str>,
+        language: Option<&str>,
+    ) -> Result<Vec<SymbolListEntry>> {
+        queries::list_symbols(&self.conn, path, kind, language)
     }
 }

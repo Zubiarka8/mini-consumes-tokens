@@ -22,6 +22,29 @@ use crate::format;
 const DEFAULT_RESULT_LIMIT: usize = 50;
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct ListSymbolsArgs {
+    /// A single file's path (e.g. `crates/ccm-lang-html/src/lib.rs`), or a
+    /// directory/crate prefix with no file extension (e.g.
+    /// `crates/ccm-lang-html/src`) to list every symbol under it. Relative to
+    /// the project root, forward slashes on any OS.
+    pub path: String,
+    /// Exact symbol kind to keep (e.g. `function`, `method`, `class`,
+    /// `struct`, `interface`, `enum`, `trait`, `type_alias`, `module`,
+    /// `variable`, `constant`, `field`). Omit to include every kind.
+    #[serde(default)]
+    pub kind: Option<String>,
+    /// Exact language id to keep (e.g. `rust`, `python`, `go`). Omit to
+    /// include every language — only useful when `path` is a directory that
+    /// mixes languages.
+    #[serde(default)]
+    pub language: Option<String>,
+    /// Maximum number of symbols to return. Defaults to 50 when omitted;
+    /// raise it if you expect more hits and want them all in one call.
+    #[serde(default)]
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct FindSymbolArgs {
     /// Exact symbol name to look up (e.g. a function, class, struct or method name).
     pub name: String,
@@ -113,6 +136,35 @@ impl CcmServer {
             registry,
             tool_router: Self::tool_router(),
         }
+    }
+
+    #[tool(
+        description = "DISCOVERY, not a precise lookup — use this FIRST when you don't know a symbol's exact name yet. Lists symbol definitions (name, kind, line range) found under `path`: a single file (exact path) or a directory/crate (a path with no file extension, matched as a prefix), optionally narrowed to one symbol `kind` and/or one `language`. Answers \"what functions/structs/classes does this file or crate have\" without already knowing a name. Do NOT use this to locate one already-known symbol precisely, or to jump straight to its definition — use find_symbol for that; list_symbols is the discovery step that feeds find_symbol/find_references/find_calls/find_callers/impact_analysis, not a replacement for them."
+    )]
+    pub async fn list_symbols(
+        &self,
+        Parameters(ListSymbolsArgs {
+            path,
+            kind,
+            language,
+            limit,
+        }): Parameters<ListSymbolsArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let path = validate_name(&path)?;
+        // Same file-vs-directory heuristic the query layer uses, computed
+        // here too so the formatter knows whether to print each entry's
+        // `relative_path` (needed once a directory/crate spans several
+        // files) or omit it (redundant for a single-file listing).
+        let is_file = path.rsplit('/').next().unwrap_or(path).contains('.');
+        let kind = kind.as_deref().map(str::trim).filter(|k| !k.is_empty());
+        let language = language.as_deref().map(str::trim).filter(|l| !l.is_empty());
+        let index = self.index.lock().await;
+        let hits = index
+            .list_symbols(path, kind, language)
+            .map_err(index_error)?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(
+            format::list_symbols(path, is_file, &hits, limit.unwrap_or(DEFAULT_RESULT_LIMIT)),
+        )]))
     }
 
     #[tool(
@@ -263,14 +315,16 @@ impl ServerHandler for CcmServer {
             "Indexes this repository's source code (any of the supported languages, including \
              polyglot repos) into a symbol graph. Prefer these tools over reading whole files \
              with grep or a file reader when you need to locate a definition or understand call \
-             relationships — it costs far fewer tokens. Search tools (find_symbol, find_calls, \
-             find_callers, find_references) are atomic lookups, each answering one specific \
-             question — see each tool's description for which one to use and which NOT to. \
-             impact_analysis is composite: it combines find_callers + find_references + a test \
-             heuristic internally, for when you need the full blast radius of a change in one \
-             call. reindex and get_indexing_status are index maintenance, not search — they \
-             never return symbol data. The index refreshes automatically at startup; call \
-             reindex manually only if you suspect it's stale."
+             relationships — it costs far fewer tokens. list_symbols is the discovery tool: use \
+             it first when you don't know a symbol's exact name, to list what a file or \
+             directory/crate contains. Search tools (find_symbol, find_calls, find_callers, \
+             find_references) are atomic lookups, each answering one specific question — see \
+             each tool's description for which one to use and which NOT to. impact_analysis is \
+             composite: it combines find_callers + find_references + a test heuristic \
+             internally, for when you need the full blast radius of a change in one call. \
+             reindex and get_indexing_status are index maintenance, not search — they never \
+             return symbol data. The index refreshes automatically at startup; call reindex \
+             manually only if you suspect it's stale."
                 .to_string(),
         )
     }

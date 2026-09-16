@@ -13,7 +13,7 @@ use std::path::Path;
 use ccm_index::{ExcludeSet, Index};
 use ccm_mcp_server::server::{
     CcmServer, FindCallersArgs, FindCallsArgs, FindReferencesArgs, FindSymbolArgs,
-    ImpactAnalysisArgs,
+    ImpactAnalysisArgs, ListSymbolsArgs,
 };
 use rmcp::handler::server::wrapper::Parameters;
 
@@ -26,6 +26,14 @@ fn fixture_root() -> std::path::PathBuf {
 /// result truncation actually triggers and is reported.
 fn many_callers_fixture_root() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/many-callers")
+}
+
+/// `tests/fixtures/polyglot-app/`: a Go backend, a TypeScript frontend and a
+/// Python deploy script (see `tests/polyglot_fixture.rs`) — used here for
+/// `list_symbols`' directory/crate, kind- and language-filter cases, which
+/// need more than one file/language to be meaningful.
+fn polyglot_fixture_root() -> std::path::PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/polyglot-app")
 }
 
 fn content_of(result: &rmcp::model::CallToolResult) -> String {
@@ -46,6 +54,135 @@ async fn build_server_at(root: &std::path::Path) -> CcmServer {
     let mut index = Index::open_in_memory(root, ExcludeSet::default()).unwrap();
     index.reindex(&registry, false).unwrap();
     CcmServer::new(index, registry)
+}
+
+#[tokio::test]
+async fn list_symbols_on_a_single_file_lists_its_functions_with_line_ranges() {
+    let server = build_server().await;
+    let text = content_of(
+        &server
+            .list_symbols(Parameters(ListSymbolsArgs {
+                path: "src/lib.rs".to_string(),
+                kind: None,
+                language: None,
+                limit: None,
+            }))
+            .await
+            .unwrap(),
+    );
+    assert!(text.contains("Functions:"), "got: {text}");
+    assert!(text.contains("compute") && text.contains("L1-L3"), "got: {text}");
+    assert!(text.contains("helper") && text.contains("L4-L6"), "got: {text}");
+    // Single-file listing: the path appears once, in the header, not
+    // repeated per entry.
+    assert_eq!(
+        text.matches("src/lib.rs").count(),
+        1,
+        "path should appear once, in the header: {text}"
+    );
+}
+
+#[tokio::test]
+async fn list_symbols_on_a_directory_spans_every_file_under_it_with_paths_shown() {
+    let server = build_server_at(&polyglot_fixture_root()).await;
+    let text = content_of(
+        &server
+            .list_symbols(Parameters(ListSymbolsArgs {
+                path: "backend".to_string(),
+                kind: None,
+                language: None,
+                limit: None,
+            }))
+            .await
+            .unwrap(),
+    );
+    assert!(text.contains("Invoice") && text.contains("backend/invoice.go"), "got: {text}");
+    assert!(text.contains("Log") && text.contains("backend/logger.go"), "got: {text}");
+    assert!(
+        text.contains("HandleCreateInvoice") && text.contains("backend/server.go"),
+        "got: {text}"
+    );
+    // Frontend/scripts symbols must not leak into a backend-scoped listing.
+    assert!(!text.contains("createInvoice"), "got: {text}");
+    assert!(!text.contains("deploy"), "got: {text}");
+}
+
+#[tokio::test]
+async fn list_symbols_kind_filter_narrows_to_that_kind_only() {
+    let server = build_server_at(&polyglot_fixture_root()).await;
+    let text = content_of(
+        &server
+            .list_symbols(Parameters(ListSymbolsArgs {
+                path: "backend".to_string(),
+                kind: Some("struct".to_string()),
+                language: None,
+                limit: None,
+            }))
+            .await
+            .unwrap(),
+    );
+    assert!(text.contains("Structs:"), "got: {text}");
+    assert!(text.contains("Invoice"), "got: {text}");
+    assert!(!text.contains("Functions:"), "got: {text}");
+    assert!(!text.contains("HandleCreateInvoice"), "got: {text}");
+}
+
+#[tokio::test]
+async fn list_symbols_language_filter_excludes_other_languages() {
+    let server = build_server_at(&polyglot_fixture_root()).await;
+    let text = content_of(
+        &server
+            .list_symbols(Parameters(ListSymbolsArgs {
+                path: "scripts".to_string(),
+                kind: None,
+                language: Some("python".to_string()),
+                limit: None,
+            }))
+            .await
+            .unwrap(),
+    );
+    assert!(text.contains("deploy"), "got: {text}");
+    assert!(
+        text.contains("scripts/deploy.py") || text.contains("scripts/notify.py"),
+        "got: {text}"
+    );
+}
+
+#[tokio::test]
+async fn list_symbols_combines_kind_and_language_filters_with_and() {
+    let server = build_server_at(&polyglot_fixture_root()).await;
+    let text = content_of(
+        &server
+            .list_symbols(Parameters(ListSymbolsArgs {
+                path: "backend".to_string(),
+                kind: Some("function".to_string()),
+                language: Some("go".to_string()),
+                limit: None,
+            }))
+            .await
+            .unwrap(),
+    );
+    assert!(text.contains("Log"), "got: {text}");
+    assert!(text.contains("HandleCreateInvoice"), "got: {text}");
+    // AddItem is a Method, not a Function — must be excluded by the kind filter.
+    assert!(!text.contains("AddItem"), "got: {text}");
+}
+
+#[tokio::test]
+async fn list_symbols_with_no_matches_says_so() {
+    let server = build_server_at(&polyglot_fixture_root()).await;
+    let text = content_of(
+        &server
+            .list_symbols(Parameters(ListSymbolsArgs {
+                path: "nonexistent_dir".to_string(),
+                kind: None,
+                language: None,
+                limit: None,
+            }))
+            .await
+            .unwrap(),
+    );
+    assert!(text.contains("No symbols found"), "got: {text}");
 }
 
 #[tokio::test]

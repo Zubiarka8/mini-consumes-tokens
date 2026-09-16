@@ -4,7 +4,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-An MCP server (`ccm-mcp-server`) and CLI (`ccm-cli`) that index a code repository — any supported language, identically on any OS — via tree-sitter AST parsing into a symbol graph stored in SQLite. It exposes the index as MCP tools (`find_symbol`, `find_references`, `find_calls`, `find_callers`, `impact_analysis`, `reindex`, `get_indexing_status`) so an agent can get precise project context instead of reading whole files with `Read`/`Grep`/`Glob`.
+An MCP server (`ccm-mcp-server`) and CLI (`ccm-cli`) that index a code repository — any supported language, identically on any OS — via tree-sitter AST parsing into a symbol graph stored in SQLite. It exposes the index as MCP tools (`list_symbols`, `find_symbol`, `find_references`, `find_calls`, `find_callers`, `impact_analysis`, `reindex`, `get_indexing_status`) so an agent can get precise project context instead of reading whole files with `Read`/`Grep`/`Glob`.
+
+## Dogfooding: how Claude must explore this repo's own source
+
+This project's entire point is that an agent queries a symbol graph instead of grepping/reading whole files. Claude Code must dogfood that here — using `Read`/`Grep`/`cat`-style whole-file exploration to answer symbol questions about this repo's own source undercuts the thing being built.
+
+**Scope of this rule**: it governs *exploration/lookup* questions — "what's defined in X", "where is Y", "who calls Z", "what does Z call", "what would break if I change Z", "what symbols/functions does file/crate X have". It does **not** apply to reading a file as a precondition for editing it (`Edit` requires a prior `Read`) or to general code-modification work — `Read`/`Grep`/`Edit` remain normal there.
+
+For exploration/lookup questions, the **only** permitted tools are this project's own software: the `ccm-mcp-server` MCP tools (`list_symbols`, `find_symbol`, `find_references`, `find_calls`, `find_callers`, `impact_analysis`, `reindex`, `get_indexing_status`) and `ccm-cli` (`crates/ccm-cli`) subcommands. Nothing else — no `Grep`, `Read`, `Bash cat|ls|grep`, `python`, or any other method outside `crates/`:
+- **What symbols does a file/crate have, without knowing a name yet?** → `list_symbols` (discovery step — takes a file path or a directory/crate prefix, optional `kind`/`language` filters)
+- **Where is X defined?** → `find_symbol`
+- **Who calls X directly?** → `find_callers`
+- **What does X call?** → `find_calls`
+- **Every reference to X** (calls, imports, extends/implements) → `find_references`
+- **Full blast radius before changing/removing X** → `impact_analysis`
+- **Is the index stale / healthy?** → `get_indexing_status`, and `reindex` only if it looks stale
+
+**`.claude-index/index.sqlite3` may only be touched through this project's own software** — the MCP tools listed above, or `ccm-cli` subcommands. Never open it with an external tool: no `sqlite3` CLI, no `python3`/`sqlite3` module, no DB browser, nothing outside `crates/`. If it isn't a tool this codebase ships, it doesn't get to touch the index — full stop.
+
+**Former gap, now closed**: prior to `list_symbols` (added 2026-09-16), none of the MCP tools could answer "what symbols exist in file/crate Y" without an exact name. `list_symbols` covers that now — a file path is matched exactly, a directory/crate path (no file extension) is matched as a prefix, and `kind`/`language` narrow the result. If a *future* question still falls outside every tool's coverage, say so explicitly and ask the user whether to allow `Read`/`Grep` for that specific instance, rather than falling back automatically or treating one approval as a standing exception.
+
+**When Read/Grep are still correct** (unrelated to the gap above): the index only captures symbols and relations, not comment/doc-string prose — checking whether a doc-comment's *wording* still matches something requires `Grep`/`Read`. `Glob` for listing/finding files by pattern is fine (it's not a symbol lookup).
+
+**If the MCP tools are absent from the deferred-tools list** (not even shown as "failed to connect" — just missing): that means the session started before `.mcp.json` was written/updated, or before `ccm-mcp-server` was built. Tell the user to restart Claude Code / reconnect MCP rather than treating direct sqlite queries as the steady-state solution — sqlite-direct is a same-session fallback only, and even then only through this project's own tooling per the rule above.
 
 ## Commands
 
