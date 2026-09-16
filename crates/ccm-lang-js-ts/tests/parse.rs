@@ -119,6 +119,21 @@ fn tsx_component_logic_is_indexed_without_structuring_jsx() {
 }
 
 #[test]
+fn function_end_line_spans_the_whole_multiline_body() {
+    let parsed = parse(
+        "multi.js",
+        "function helper(a, b) {\n    const sum = a + b;\n    return sum;\n}\n",
+    );
+    let sym = parsed
+        .symbols
+        .iter()
+        .find(|s| s.name == "helper")
+        .expect("helper function should be indexed");
+    assert_eq!(sym.location.line, 1);
+    assert_eq!(sym.location.end_line, Some(4));
+}
+
+#[test]
 fn syntax_error_is_reported_not_panicked() {
     let result = JsTsParser.parse(&SourceFile {
         relative_path: "Broken.ts".to_string(),

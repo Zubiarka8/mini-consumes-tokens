@@ -53,6 +53,7 @@ impl ccm_core::LanguageParser for FakeParser {
                     line: line_no as u32 + 1,
                     column: 1,
                     byte_len: line.len() as u32,
+                    end_line: Some(line_no as u32 + 1),
                 },
                 parent: None,
             });
@@ -66,6 +67,7 @@ impl ccm_core::LanguageParser for FakeParser {
                             line: line_no as u32 + 1,
                             column: 1,
                             byte_len: line.len() as u32,
+                            end_line: None,
                         },
                     });
                 }

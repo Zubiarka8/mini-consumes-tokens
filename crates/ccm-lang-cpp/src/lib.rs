@@ -94,10 +94,12 @@ fn first_error(node: Node) -> Option<Node> {
 
 fn location(node: Node) -> Location {
     let start = node.start_position();
+    let end = node.end_position();
     Location {
         line: start.row as u32 + 1,
         column: start.column as u32 + 1,
         byte_len: (node.end_byte() - node.start_byte()) as u32,
+        end_line: Some(end.row as u32 + 1),
     }
 }
 

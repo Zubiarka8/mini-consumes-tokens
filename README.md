@@ -1,6 +1,6 @@
 # mini-consumes-tokens
 
-An MCP server and installable Claude Code plugin that indexes a code repository — in any supported language, identically on any OS — using AST parsing (tree-sitter) into a symbol graph stored in SQLite. It exposes that index as MCP tools (`find_symbol`, `find_references`, `find_calls`, `find_callers`, `impact_analysis`, `reindex`, `get_indexing_status`) so Claude Code can get precise project context from the index instead of reading whole files with `Read`/`Grep`/`Glob` — cutting token spend without losing context quality.
+An MCP server and installable Claude Code plugin that indexes a code repository — in any supported language, identically on any OS — using AST parsing (tree-sitter) into a symbol graph stored in SQLite. It exposes that index as MCP tools (`list_symbols`, `find_symbol`, `find_references`, `find_calls`, `find_callers`, `impact_analysis`, `reindex`, `get_indexing_status`) so Claude Code can get precise project context from the index instead of reading whole files with `Read`/`Grep`/`Glob` — cutting token spend without losing context quality.
 
 Languages are **plugins**, not a hardcoded list: a `LanguageParser` trait in `ccm-core` is the entire integration surface. Adding a language means implementing that trait in a new crate and registering it — no changes to the indexing engine or the MCP server.
 
@@ -87,7 +87,7 @@ crates/
   ccm-lang-php       LanguageParser impl for PHP (tree-sitter-php) — classes/interfaces/traits/enums, methods/fields (incl. constructor property promotion), extends/implements, trait-use, calls, require/use Imports
   ccm-lang-md        LanguageParser impl for Markdown (tree-sitter-md) — ATX headings as nested Element symbols via the grammar's own section nesting, Phase 1, no relations yet
   ccm-lang-lua       LanguageParser impl for Lua — plugin-architecture acceptance test, not registered in production
-  ccm-mcp-server     MCP tools over stdio (rmcp) — find_symbol/find_references/find_calls/find_callers/impact_analysis/reindex/get_indexing_status
+  ccm-mcp-server     MCP tools over stdio (rmcp) — list_symbols/find_symbol/find_references/find_calls/find_callers/impact_analysis/reindex/get_indexing_status
   ccm-cli            init/reindex/status subcommands for manual or scripted use
 ```
 

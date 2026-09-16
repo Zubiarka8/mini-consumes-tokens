@@ -107,6 +107,21 @@ fn extracts_use_imports() {
 }
 
 #[test]
+fn function_end_line_spans_the_whole_multiline_body() {
+    let parsed = parse(
+        "fn multiline() -> i32 {\n    let x = 1;\n    let y = 2;\n    x + y\n}\n",
+    );
+    let sym = parsed
+        .symbols
+        .iter()
+        .find(|s| s.name == "multiline")
+        .expect("multiline function should be indexed");
+    // Line 1: `fn multiline() -> i32 {`, line 5: the closing `}`.
+    assert_eq!(sym.location.line, 1);
+    assert_eq!(sym.location.end_line, Some(5));
+}
+
+#[test]
 fn syntax_error_is_reported_not_panicked() {
     let result = RustParser.parse(&SourceFile {
         relative_path: "src/broken.rs".to_string(),

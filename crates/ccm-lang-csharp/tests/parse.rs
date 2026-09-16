@@ -99,6 +99,22 @@ fn extracts_struct_and_using_directives() {
 }
 
 #[test]
+fn method_end_line_is_its_closing_brace_not_the_class() {
+    let parsed = parse(
+        "class Foo {\n    public int Add(int a, int b) {\n        return a + b;\n    }\n}\n",
+    );
+    let add = parsed
+        .symbols
+        .iter()
+        .find(|s| s.name == "Add")
+        .expect("Add method should be indexed");
+    // Line 2: `public int Add(...) {`, line 4: the method's own closing `}`
+    // (not line 5, the enclosing class's closing brace).
+    assert_eq!(add.location.line, 2);
+    assert_eq!(add.location.end_line, Some(4));
+}
+
+#[test]
 fn syntax_error_is_reported_not_panicked() {
     let result = CSharpParser.parse(&SourceFile {
         relative_path: "Broken.cs".to_string(),

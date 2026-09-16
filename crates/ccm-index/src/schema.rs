@@ -99,5 +99,14 @@ pub fn migrations() -> Migrations<'static> {
             CREATE INDEX idx_dependencies_name ON dependencies(name);
             "#,
         ),
+        // Added for `list_symbols`: the 1-based end line of a symbol's node
+        // (e.g. the closing brace of a function/class body), when the
+        // `LanguageParser` that produced it populates `Location::end_line`.
+        // Nullable, and added via ALTER TABLE rather than folded into the
+        // schema above, so an existing `.claude-index/index.sqlite3` just
+        // gets the column added (as NULL for every already-indexed row)
+        // instead of needing a fresh index — those rows read back as `None`
+        // until the next reindex repopulates them from a parser that sets it.
+        M::up("ALTER TABLE symbols ADD COLUMN end_line INTEGER;"),
     ])
 }
