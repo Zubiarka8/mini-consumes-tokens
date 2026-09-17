@@ -22,3 +22,4 @@ MANUAL.md
 # already-ignored fuzz/target/, this guards future root-level artifacts)
 *.pdb
 *.exe
+.obsidian/
