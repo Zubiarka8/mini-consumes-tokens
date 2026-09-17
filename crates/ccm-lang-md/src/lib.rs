@@ -15,8 +15,8 @@
 //! symbol for the file: a heading-less document must produce zero symbols.
 
 use ccm_core::{
-    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, SourceFile, SymbolId, SymbolKind,
-    SymbolRecord,
+    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
+    SymbolKind, SymbolRecord, SymbolRelation,
 };
 use tree_sitter::{Node, Parser};
 
@@ -105,6 +105,31 @@ fn heading_text<'a>(heading: Node, source: &'a str) -> &'a str {
         .unwrap_or_default()
 }
 
+/// Extracts `[[WikiLink]]` targets from raw text. A `|alias` display
+/// suffix is stripped (the alias is presentation, not the reference
+/// identity); a `#Heading` anchor is kept verbatim as part of the target
+/// (anchor-aware resolution is deferred, see the module doc comment). Not
+/// grammar-aware — this scans raw node text directly, since
+/// `tree-sitter-md`'s inline grammar has no concept of this
+/// Obsidian-specific syntax.
+fn scan_wikilinks(text: &str) -> Vec<String> {
+    let mut targets = Vec::new();
+    let mut i = 0;
+    while let Some(start) = text[i..].find("[[") {
+        let open = i + start + 2;
+        let Some(rel_end) = text[open..].find("]]") else {
+            break;
+        };
+        let close = open + rel_end;
+        let target = text[open..close].split('|').next().unwrap_or("").trim();
+        if !target.is_empty() {
+            targets.push(target.to_string());
+        }
+        i = close + 2;
+    }
+    targets
+}
+
 fn find_child<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
     let mut cursor = node.walk();
     let found = node
@@ -116,6 +141,7 @@ fn find_child<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
 struct Walker<'a> {
     source: &'a str,
     symbols: Vec<SymbolRecord>,
+    relations: Vec<SymbolRelation>,
     next_id: SymbolId,
 }
 
@@ -124,6 +150,7 @@ impl<'a> Walker<'a> {
         Self {
             source,
             symbols: Vec::new(),
+            relations: Vec::new(),
             next_id: 0,
         }
     }
@@ -145,6 +172,21 @@ impl<'a> Walker<'a> {
             parent,
         });
         id
+    }
+
+    /// Scans `text` for `[[WikiLink]]` targets and records each as a
+    /// `References` relation from `from`. `loc` is the whole containing
+    /// heading/paragraph block's location — relations are block-granular,
+    /// not exact-span (see the module doc comment).
+    fn push_relations_from_text(&mut self, from: SymbolId, text: &str, loc: Location) {
+        for to_name in scan_wikilinks(text) {
+            self.relations.push(SymbolRelation {
+                from,
+                kind: RelationKind::References,
+                to_name,
+                location: loc,
+            });
+        }
     }
 
     fn visit_children(
@@ -184,16 +226,21 @@ impl<'a> Walker<'a> {
             "section" => match find_child(node, "atx_heading") {
                 Some(heading) => {
                     let name = heading_text(heading, self.source).to_string();
-                    let id = self.push_symbol(
-                        name.clone(),
-                        SymbolKind::Element,
-                        location(heading),
-                        parent_name,
-                    );
+                    let heading_loc = location(heading);
+                    let id =
+                        self.push_symbol(name.clone(), SymbolKind::Element, heading_loc, parent_name);
+                    self.push_relations_from_text(id, &name, heading_loc);
                     self.visit_children(node, Some(name), Some(id), depth + 1);
                 }
                 None => self.visit_children(node, parent_name, parent_id, depth + 1),
             },
+            "paragraph" => {
+                if let Some(id) = parent_id {
+                    let text = node.utf8_text(self.source.as_bytes()).unwrap_or_default();
+                    self.push_relations_from_text(id, text, location(node));
+                }
+                self.visit_children(node, parent_name, parent_id, depth + 1);
+            }
             _ => self.visit_children(node, parent_name, parent_id, depth + 1),
         }
     }
@@ -201,7 +248,7 @@ impl<'a> Walker<'a> {
     fn finish(self) -> ParsedFile {
         ParsedFile {
             symbols: self.symbols,
-            relations: Vec::new(),
+            relations: self.relations,
         }
     }
 }
