@@ -51,6 +51,7 @@ ccm-cli --root . reindex --force
 | JavaScript / TypeScript | Implemented | `crates/ccm-lang-js-ts` |
 | Java | Implemented | `crates/ccm-lang-java` |
 | C# | Implemented | `crates/ccm-lang-csharp` |
+| Kotlin | Implemented | `crates/ccm-lang-kotlin` |
 | C++ | Implemented | `crates/ccm-lang-cpp` |
 | Go | Implemented | `crates/ccm-lang-go` |
 | HTML | Implemented | `crates/ccm-lang-html` |
@@ -75,6 +76,7 @@ crates/
   ccm-lang-python    LanguageParser impl for Python (tree-sitter-python)
   ccm-lang-java      LanguageParser impl for Java (tree-sitter-java)
   ccm-lang-csharp    LanguageParser impl for C# (tree-sitter-c-sharp)
+  ccm-lang-kotlin    LanguageParser impl for Kotlin (tree-sitter-kotlin-ng) — class/interface (grammar shares one node kind, distinguished by the anonymous `interface` token), object as singleton Class, extension functions attached to their receiver type, primary-constructor val/var property promotion, Extends/Implements distinguished by constructor-call vs. bare type in the supertype list
   ccm-lang-js-ts     LanguageParser impl for JavaScript/TypeScript/TSX (tree-sitter-javascript, tree-sitter-typescript)
   ccm-lang-cpp       LanguageParser impl for C++ (tree-sitter-cpp)
   ccm-lang-go        LanguageParser impl for Go (tree-sitter-go)
