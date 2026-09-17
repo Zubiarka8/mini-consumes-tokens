@@ -1,0 +1,4 @@
+# install.sh is fetched raw and piped straight into bash (curl | bash) — it
+# must always have LF line endings regardless of the committer's OS/git
+# config, or the shebang and script body break.
+install.sh text eol=lf

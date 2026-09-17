@@ -5,17 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Added
-
-- `ccm-cli mcp-register [--name N]`: writes (or merges into) `.mcp.json` at
-  the project root with the correct `ccm-mcp-server` entry, as an alternative
-  to `claude mcp add` or hand-editing the JSON. Preserves any other server
-  already configured in the file, and strips Windows' `\\?\` verbatim-path
-  prefix from the written `--root` so the value stays a normal path.
-
-## [0.1.0] - 2026-09-13
+## [0.1.0] - 2026-09-17
 
 First release. Development happened in the order below — later languages
 genuinely arrived after earlier ones, this is not a flattened summary.
@@ -103,6 +93,29 @@ genuinely arrived after earlier ones, this is not a flattened summary.
   Read/Grep/Glob baseline: 88–98% character reduction across three
   canonical queries, run per-language as each one landed (Java, C#,
   JavaScript/TypeScript, C++, Go).
+- `ccm-cli mcp-register [--name N]`: writes (or merges into) `.mcp.json` at
+  the project root with the correct `ccm-mcp-server` entry, as an alternative
+  to `claude mcp add` or hand-editing the JSON. Preserves any other server
+  already configured in the file, and strips Windows' `\\?\` verbatim-path
+  prefix from the written `--root` so the value stays a normal path.
+- `list_symbols(path, kind?, language?, limit?)` MCP tool: lists symbol
+  definitions under a file (exact match) or directory/crate (prefix match),
+  closing the gap where every other tool required an exact symbol name up
+  front. `end_line` tracking added to every `SymbolRecord` across all 16
+  language crates, so `list_symbols` (and any future consumer) can report
+  real `L<start>-L<end>` ranges, not just a start line.
+- Kotlin language support (`ccm-lang-kotlin`, via `tree-sitter-kotlin-ng`):
+  classes/interfaces (the grammar shares one node kind for both, told apart
+  by an anonymous `interface` token), `object` declarations indexed as
+  singleton classes, extension functions attached to their receiver type,
+  primary-constructor `val`/`var` property promotion, and `Extends`/
+  `Implements` distinguished by constructor-call vs. bare type in the
+  supertype list — no positional heuristic needed, unlike C#.
+- Prebuilt-binary installers: `install.sh` (Linux/macOS,
+  `curl -sSL .../install.sh | bash`) and `install.ps1` (Windows,
+  `irm .../install.ps1 | iex`), both downloading the latest GitHub Release
+  archive for the detected OS/arch and installing `ccm-cli`/`ccm-mcp-server`
+  into a user-writable directory.
 
 ### Known limitations (not blocking this release; tracked for 0.2.0+)
 
