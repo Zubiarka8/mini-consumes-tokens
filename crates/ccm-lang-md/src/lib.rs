@@ -62,7 +62,7 @@ impl LanguageParser for MarkdownParser {
         }
 
         let mut walker = Walker::new(&file.contents);
-        walker.visit_children(root, None, 0);
+        walker.visit_children(root, None, None, 0);
         Ok(walker.finish())
     }
 }
@@ -147,10 +147,16 @@ impl<'a> Walker<'a> {
         id
     }
 
-    fn visit_children(&mut self, node: Node, parent_name: Option<String>, depth: u32) {
+    fn visit_children(
+        &mut self,
+        node: Node,
+        parent_name: Option<String>,
+        parent_id: Option<SymbolId>,
+        depth: u32,
+    ) {
         let mut cursor = node.walk();
         for child in node.named_children(&mut cursor) {
-            self.visit(child, parent_name.clone(), depth + 1);
+            self.visit(child, parent_name.clone(), parent_id, depth + 1);
         }
     }
 
@@ -164,7 +170,13 @@ impl<'a> Walker<'a> {
     /// first heading in a file (or a heading-less file entirely) is still
     /// wrapped in a `section`, just one with no `atx_heading` child. That
     /// case recurses with the parent unchanged and emits no symbol.
-    fn visit(&mut self, node: Node, parent_name: Option<String>, depth: u32) {
+    fn visit(
+        &mut self,
+        node: Node,
+        parent_name: Option<String>,
+        parent_id: Option<SymbolId>,
+        depth: u32,
+    ) {
         if depth >= MAX_TRAVERSAL_DEPTH {
             return;
         }
@@ -172,17 +184,17 @@ impl<'a> Walker<'a> {
             "section" => match find_child(node, "atx_heading") {
                 Some(heading) => {
                     let name = heading_text(heading, self.source).to_string();
-                    self.push_symbol(
+                    let id = self.push_symbol(
                         name.clone(),
                         SymbolKind::Element,
                         location(heading),
                         parent_name,
                     );
-                    self.visit_children(node, Some(name), depth + 1);
+                    self.visit_children(node, Some(name), Some(id), depth + 1);
                 }
-                None => self.visit_children(node, parent_name, depth + 1),
+                None => self.visit_children(node, parent_name, parent_id, depth + 1),
             },
-            _ => self.visit_children(node, parent_name, depth + 1),
+            _ => self.visit_children(node, parent_name, parent_id, depth + 1),
         }
     }
 
