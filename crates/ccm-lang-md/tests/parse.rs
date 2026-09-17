@@ -172,3 +172,38 @@ fn wikilink_inside_the_heading_text_itself_emits_a_relation() {
         .unwrap();
     assert_eq!(rel.from, heading.id);
 }
+
+#[test]
+fn hashtag_in_a_paragraph_emits_a_tag_prefixed_relation() {
+    let parsed = parse("# A\n\nThis note is about #productivity today.\n");
+    let a = parsed.symbols.iter().find(|s| s.name == "A").unwrap();
+    let rel = parsed
+        .relations
+        .iter()
+        .find(|r| r.to_name == "tag:productivity")
+        .unwrap();
+    assert_eq!(rel.kind, RelationKind::References);
+    assert_eq!(rel.from, a.id);
+}
+
+#[test]
+fn a_url_fragment_is_not_mistaken_for_a_tag() {
+    let parsed = parse("# A\n\nSee http://example.com/page#section for more.\n");
+    assert!(!parsed.relations.iter().any(|r| r.to_name == "tag:section"));
+}
+
+#[test]
+fn hashtag_inside_the_heading_text_itself_emits_a_relation() {
+    let parsed = parse("# Ideas #brainstorm\n");
+    let heading = parsed
+        .symbols
+        .iter()
+        .find(|s| s.name == "Ideas #brainstorm")
+        .unwrap();
+    let rel = parsed
+        .relations
+        .iter()
+        .find(|r| r.to_name == "tag:brainstorm")
+        .unwrap();
+    assert_eq!(rel.from, heading.id);
+}

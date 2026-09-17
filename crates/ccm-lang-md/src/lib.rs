@@ -130,6 +130,39 @@ fn scan_wikilinks(text: &str) -> Vec<String> {
     targets
 }
 
+/// Extracts `#tag` occurrences from raw text, each returned as its bare
+/// name (the `tag:` prefix is applied by the caller). A `#` only starts a
+/// tag when preceded by start-of-text or whitespace — this is what keeps a
+/// URL fragment like `.../page#section` from being mistaken for a tag (the
+/// character before its `#` is `/`, never whitespace). A tag-shaped token
+/// inside inline code (`` `#notatag` ``) is still matched — excluding code
+/// spans needs an inline-grammar reparse, deferred (see the module doc
+/// comment).
+fn scan_tags(text: &str) -> Vec<String> {
+    let chars: Vec<char> = text.chars().collect();
+    let mut tags = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        let at_boundary = i == 0 || chars[i - 1].is_whitespace();
+        if chars[i] == '#' && at_boundary {
+            let start = i + 1;
+            let mut end = start;
+            while end < chars.len()
+                && (chars[end].is_alphanumeric() || matches!(chars[end], '_' | '/' | '-'))
+            {
+                end += 1;
+            }
+            if end > start {
+                tags.push(chars[start..end].iter().collect());
+                i = end;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    tags
+}
+
 fn find_child<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
     let mut cursor = node.walk();
     let found = node
@@ -184,6 +217,14 @@ impl<'a> Walker<'a> {
                 from,
                 kind: RelationKind::References,
                 to_name,
+                location: loc,
+            });
+        }
+        for tag in scan_tags(text) {
+            self.relations.push(SymbolRelation {
+                from,
+                kind: RelationKind::References,
+                to_name: format!("tag:{tag}"),
                 location: loc,
             });
         }
