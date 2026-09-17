@@ -3,7 +3,7 @@
 // untrusted repo content (see crates/ccm-lang-md/src/ for that policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use ccm_core::{LanguageParser, SourceFile, SymbolKind};
+use ccm_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
 use ccm_lang_md::MarkdownParser;
 
 fn parse(src: &str) -> ccm_core::ParsedFile {
@@ -119,4 +119,56 @@ fn full_abcdef_hierarchy_matches_the_spec_example() {
 fn no_relations_are_ever_emitted_in_phase_1() {
     let parsed = parse("# A\n\nSome text with a [link](other.md) in it.\n\n## B\n");
     assert!(parsed.relations.is_empty(), "{:?}", parsed.relations);
+}
+
+#[test]
+fn wikilink_in_a_paragraph_emits_a_references_relation() {
+    let parsed = parse("# A\n\nSee [[Other Note]] for details.\n");
+    let a = parsed.symbols.iter().find(|s| s.name == "A").unwrap();
+    let rel = parsed
+        .relations
+        .iter()
+        .find(|r| r.to_name == "Other Note")
+        .unwrap();
+    assert_eq!(rel.kind, RelationKind::References);
+    assert_eq!(rel.from, a.id);
+}
+
+#[test]
+fn wikilink_alias_is_stripped_from_the_target() {
+    let parsed = parse("# A\n\nSee [[Other Note|click here]] for details.\n");
+    assert!(parsed.relations.iter().any(|r| r.to_name == "Other Note"));
+    assert!(
+        !parsed
+            .relations
+            .iter()
+            .any(|r| r.to_name.contains("click here"))
+    );
+}
+
+#[test]
+fn wikilink_anchor_is_indexed_verbatim_not_split() {
+    let parsed = parse("# A\n\nSee [[Other Note#Some Heading]] for details.\n");
+    assert!(
+        parsed
+            .relations
+            .iter()
+            .any(|r| r.to_name == "Other Note#Some Heading")
+    );
+}
+
+#[test]
+fn wikilink_inside_the_heading_text_itself_emits_a_relation() {
+    let parsed = parse("# See [[Other Note]]\n");
+    let heading = parsed
+        .symbols
+        .iter()
+        .find(|s| s.name == "See [[Other Note]]")
+        .unwrap();
+    let rel = parsed
+        .relations
+        .iter()
+        .find(|r| r.to_name == "Other Note")
+        .unwrap();
+    assert_eq!(rel.from, heading.id);
 }
