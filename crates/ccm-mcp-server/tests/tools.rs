@@ -13,7 +13,7 @@ use std::path::Path;
 use ccm_index::{ExcludeSet, Index};
 use ccm_mcp_server::server::{
     CcmServer, FindCallersArgs, FindCallsArgs, FindReferencesArgs, FindSymbolArgs,
-    ImpactAnalysisArgs, ListSymbolsArgs,
+    GetFileSkeletonArgs, ImpactAnalysisArgs, ListSymbolsArgs,
 };
 use rmcp::handler::server::wrapper::Parameters;
 
@@ -208,6 +208,8 @@ async fn find_calls_and_find_callers_agree() {
             .find_calls(Parameters(FindCallsArgs {
                 function: "compute".to_string(),
                 limit: None,
+                depth: None,
+                offset: None,
             }))
             .await
             .unwrap(),
@@ -219,6 +221,8 @@ async fn find_calls_and_find_callers_agree() {
             .find_callers(Parameters(FindCallersArgs {
                 function: "helper".to_string(),
                 limit: None,
+                depth: None,
+                offset: None,
             }))
             .await
             .unwrap(),
@@ -234,6 +238,8 @@ async fn find_references_includes_the_python_import() {
             .find_references(Parameters(FindReferencesArgs {
                 symbol: "compute".to_string(),
                 limit: None,
+                depth: None,
+                offset: None,
             }))
             .await
             .unwrap(),
@@ -249,6 +255,8 @@ async fn impact_analysis_flags_the_test() {
             .impact_analysis(Parameters(ImpactAnalysisArgs {
                 symbol: "compute".to_string(),
                 limit: None,
+                depth: None,
+                offset: None,
             }))
             .await
             .unwrap(),
@@ -277,6 +285,8 @@ async fn find_callers_truncates_to_the_default_limit_and_says_so() {
             .find_callers(Parameters(FindCallersArgs {
                 function: "target".to_string(),
                 limit: None,
+                depth: None,
+                offset: None,
             }))
             .await
             .unwrap(),
@@ -300,6 +310,8 @@ async fn find_callers_with_explicit_higher_limit_is_not_truncated() {
             .find_callers(Parameters(FindCallersArgs {
                 function: "target".to_string(),
                 limit: Some(100),
+                depth: None,
+                offset: None,
             }))
             .await
             .unwrap(),
@@ -318,6 +330,8 @@ async fn impact_analysis_truncates_the_caller_and_reference_sections() {
             .impact_analysis(Parameters(ImpactAnalysisArgs {
                 symbol: "target".to_string(),
                 limit: None,
+                depth: None,
+                offset: None,
             }))
             .await
             .unwrap(),
@@ -331,4 +345,127 @@ async fn impact_analysis_truncates_the_caller_and_reference_sections() {
         text.contains("All references (showing 50, 20 omitted — pass a higher `limit` to see the rest):"),
         "got: {text}"
     );
+}
+
+#[tokio::test]
+async fn find_calls_default_depth_is_direct_hits_only() {
+    let server = build_server_at(&polyglot_fixture_root()).await;
+    // Go: HandleCreateInvoice -> AddItem -> Log — omitting `depth` must stay
+    // single-hop, so the second-hop callee must not appear.
+    let text = content_of(
+        &server
+            .find_calls(Parameters(FindCallsArgs {
+                function: "HandleCreateInvoice".to_string(),
+                limit: None,
+                depth: None,
+                offset: None,
+            }))
+            .await
+            .unwrap(),
+    );
+    assert!(text.contains("AddItem"), "got: {text}");
+    assert!(!text.contains("Log"), "second hop leaked into depth-1 output: {text}");
+    assert!(!text.contains("[depth"), "direct hits must not carry a depth tag: {text}");
+}
+
+#[tokio::test]
+async fn find_calls_with_depth_2_also_returns_the_second_hop() {
+    let server = build_server_at(&polyglot_fixture_root()).await;
+    let text = content_of(
+        &server
+            .find_calls(Parameters(FindCallsArgs {
+                function: "HandleCreateInvoice".to_string(),
+                limit: None,
+                depth: Some(2),
+                offset: None,
+            }))
+            .await
+            .unwrap(),
+    );
+    assert!(text.contains("AddItem"), "got: {text}");
+    assert!(text.contains("--calls--> Log"), "got: {text}");
+    assert!(text.contains("[depth 2]"), "second hop should be tagged: {text}");
+}
+
+#[tokio::test]
+async fn find_callers_offset_pages_past_the_default_limit() {
+    let server = build_server_at(&many_callers_fixture_root()).await;
+    let text = content_of(
+        &server
+            .find_callers(Parameters(FindCallersArgs {
+                function: "target".to_string(),
+                limit: Some(10),
+                depth: None,
+                offset: Some(60),
+            }))
+            .await
+            .unwrap(),
+    );
+    // 70 total callers; offset 60 + limit 10 lands exactly on the last page.
+    assert!(text.starts_with("70 caller(s) of this function"), "got: {text}");
+    assert!(
+        text.contains("(showing 10 starting at offset 60, 0 more available — pass `limit`/`offset` to see the rest)"),
+        "got: {text}"
+    );
+    let caller_line_count = text.lines().filter(|l| l.contains("caller_")).count();
+    assert_eq!(caller_line_count, 10, "got: {text}");
+}
+
+#[tokio::test]
+async fn get_file_skeleton_collapses_rust_function_bodies() {
+    let server = build_server().await;
+    let text = content_of(
+        &server
+            .get_file_skeleton(Parameters(GetFileSkeletonArgs {
+                path: "src/lib.rs".to_string(),
+            }))
+            .await
+            .unwrap(),
+    );
+    assert!(text.contains("pub fn compute() -> i32 {"), "got: {text}");
+    assert!(text.contains("fn helper() -> i32 {"), "got: {text}");
+    assert!(!text.contains("helper()\n"), "compute's body call must be collapsed: {text}");
+    assert!(!text.contains("    1\n"), "helper's body must be collapsed: {text}");
+    // The synthetic whole-file `module` entry must not leak through as a
+    // bogus extra skeleton block.
+    assert!(!text.contains("Modules:"), "got: {text}");
+    assert_eq!(text.matches("// ...").count(), 2, "one collapsed body per function: {text}");
+}
+
+#[tokio::test]
+async fn get_file_skeleton_falls_back_to_declaration_only_for_python() {
+    let server = build_server().await;
+    let text = content_of(
+        &server
+            .get_file_skeleton(Parameters(GetFileSkeletonArgs {
+                path: "test_compute.py".to_string(),
+            }))
+            .await
+            .unwrap(),
+    );
+    assert!(text.contains("def test_compute():"), "got: {text}");
+    assert!(text.contains("# ..."), "got: {text}");
+    assert!(!text.contains("assert compute"), "body must not leak through: {text}");
+}
+
+#[tokio::test]
+async fn get_file_skeleton_rejects_a_directory_path() {
+    let server = build_server().await;
+    let result = server
+        .get_file_skeleton(Parameters(GetFileSkeletonArgs {
+            path: "src".to_string(),
+        }))
+        .await;
+    assert!(result.is_err(), "a directory/crate prefix must be rejected, not silently accepted");
+}
+
+#[tokio::test]
+async fn get_file_skeleton_on_a_missing_file_is_a_clear_error_not_a_panic() {
+    let server = build_server().await;
+    let result = server
+        .get_file_skeleton(Parameters(GetFileSkeletonArgs {
+            path: "src/does_not_exist.rs".to_string(),
+        }))
+        .await;
+    assert!(result.is_err());
 }

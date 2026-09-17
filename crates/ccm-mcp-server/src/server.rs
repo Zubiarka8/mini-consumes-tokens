@@ -62,6 +62,16 @@ pub struct FindReferencesArgs {
     /// raise it if you expect more hits and want them all in one call.
     #[serde(default)]
     pub limit: Option<usize>,
+    /// How many relation-graph hops to walk beyond the direct/first hop. 1
+    /// (default) is the original single-hop behavior — direct referrers
+    /// only. Raising it also includes referrers-of-referrers, each tagged
+    /// with its hop number. Clamped to `ccm_core::MAX_QUERY_DEPTH`.
+    #[serde(default)]
+    pub depth: Option<u32>,
+    /// Number of leading results to skip before applying `limit`, for
+    /// paging through result sets larger than one `limit` page. Defaults to 0.
+    #[serde(default)]
+    pub offset: Option<usize>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -72,6 +82,16 @@ pub struct FindCallsArgs {
     /// raise it if you expect more hits and want them all in one call.
     #[serde(default)]
     pub limit: Option<usize>,
+    /// How many call-graph hops to walk forward beyond the direct/first
+    /// hop. 1 (default) is the original single-hop behavior — direct
+    /// callees only. Raising it also includes callees-of-callees, each
+    /// tagged with its hop number. Clamped to `ccm_core::MAX_QUERY_DEPTH`.
+    #[serde(default)]
+    pub depth: Option<u32>,
+    /// Number of leading results to skip before applying `limit`, for
+    /// paging through result sets larger than one `limit` page. Defaults to 0.
+    #[serde(default)]
+    pub offset: Option<usize>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -82,6 +102,16 @@ pub struct FindCallersArgs {
     /// raise it if you expect more hits and want them all in one call.
     #[serde(default)]
     pub limit: Option<usize>,
+    /// How many call-graph hops to walk backward beyond the direct/first
+    /// hop. 1 (default) is the original single-hop behavior — direct
+    /// callers only. Raising it also includes callers-of-callers, each
+    /// tagged with its hop number. Clamped to `ccm_core::MAX_QUERY_DEPTH`.
+    #[serde(default)]
+    pub depth: Option<u32>,
+    /// Number of leading results to skip before applying `limit`, for
+    /// paging through result sets larger than one `limit` page. Defaults to 0.
+    #[serde(default)]
+    pub offset: Option<usize>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -93,6 +123,15 @@ pub struct ImpactAnalysisArgs {
     /// omitted.
     #[serde(default)]
     pub limit: Option<usize>,
+    /// How many relation-graph hops to walk beyond the direct/first hop,
+    /// applied to both the caller and reference sections. 1 (default) is
+    /// the original single-hop behavior. Clamped to `ccm_core::MAX_QUERY_DEPTH`.
+    #[serde(default)]
+    pub depth: Option<u32>,
+    /// Number of leading results to skip before applying `limit`, applied
+    /// independently to each section. Defaults to 0.
+    #[serde(default)]
+    pub offset: Option<usize>,
 }
 
 #[derive(Debug, Default, serde::Deserialize, schemars::JsonSchema)]
@@ -101,6 +140,15 @@ pub struct ReindexArgs {
     /// changed since the last run. Defaults to false (incremental).
     #[serde(default)]
     pub force: bool,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct GetFileSkeletonArgs {
+    /// A single file's path (e.g. `crates/ccm-lang-html/src/lib.rs`),
+    /// relative to the project root, forward slashes on any OS. Must be a
+    /// file, not a directory/crate prefix — use list_symbols first if you
+    /// don't already know which file you need.
+    pub path: String,
 }
 
 #[derive(Clone)]
@@ -126,6 +174,31 @@ fn validate_name(raw: &str) -> Result<&str, McpError> {
 
 fn index_error(err: ccm_index::IndexError) -> McpError {
     McpError::internal_error(err.to_string(), None)
+}
+
+/// Reads `relative_path`'s contents off disk, for tools (currently only
+/// `get_file_skeleton`) that need the file's actual source text rather than
+/// just its indexed symbol metadata. Rejects anything that canonicalizes
+/// outside the project root — the same traversal guard `Index`'s own
+/// reindex walk uses — so a path like `../../etc/passwd` is refused rather
+/// than read.
+fn read_source_file(index: &Index, relative_path: &str) -> Result<String, McpError> {
+    let candidate = index.root().join(relative_path);
+    let canonical = candidate.canonicalize().map_err(|_| {
+        McpError::invalid_params(
+            format!("`{relative_path}` was not found under the indexed project root"),
+            None,
+        )
+    })?;
+    if !canonical.starts_with(index.root()) {
+        return Err(McpError::invalid_params(
+            format!("`{relative_path}` resolves outside the indexed project root"),
+            None,
+        ));
+    }
+    std::fs::read_to_string(&canonical).map_err(|source| {
+        McpError::internal_error(format!("failed to read `{relative_path}`: {source}"), None)
+    })
 }
 
 #[tool_router]
@@ -187,18 +260,22 @@ impl CcmServer {
     )]
     pub async fn find_references(
         &self,
-        Parameters(FindReferencesArgs { symbol, limit }): Parameters<FindReferencesArgs>,
+        Parameters(FindReferencesArgs {
+            symbol,
+            limit,
+            depth,
+            offset,
+        }): Parameters<FindReferencesArgs>,
     ) -> Result<CallToolResult, McpError> {
         let symbol = validate_name(&symbol)?;
+        let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
+        let offset = offset.unwrap_or(0);
         let index = self.index.lock().await;
-        let hits = index.find_references(symbol).map_err(index_error)?;
+        let hits = index
+            .find_references_bfs(symbol, depth.unwrap_or(1), limit, offset)
+            .map_err(index_error)?;
         Ok(CallToolResult::success(vec![ContentBlock::text(
-            format::relation_hits(
-                symbol,
-                "reference(s)",
-                &hits,
-                limit.unwrap_or(DEFAULT_RESULT_LIMIT),
-            ),
+            format::relation_hits(symbol, "reference(s)", &hits, offset, limit),
         )]))
     }
 
@@ -207,18 +284,22 @@ impl CcmServer {
     )]
     pub async fn find_calls(
         &self,
-        Parameters(FindCallsArgs { function, limit }): Parameters<FindCallsArgs>,
+        Parameters(FindCallsArgs {
+            function,
+            limit,
+            depth,
+            offset,
+        }): Parameters<FindCallsArgs>,
     ) -> Result<CallToolResult, McpError> {
         let function = validate_name(&function)?;
+        let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
+        let offset = offset.unwrap_or(0);
         let index = self.index.lock().await;
-        let hits = index.find_calls(function).map_err(index_error)?;
+        let hits = index
+            .find_calls_bfs(function, depth.unwrap_or(1), limit, offset)
+            .map_err(index_error)?;
         Ok(CallToolResult::success(vec![ContentBlock::text(
-            format::relation_hits(
-                function,
-                "call(s) made by this function",
-                &hits,
-                limit.unwrap_or(DEFAULT_RESULT_LIMIT),
-            ),
+            format::relation_hits(function, "call(s) made by this function", &hits, offset, limit),
         )]))
     }
 
@@ -227,18 +308,22 @@ impl CcmServer {
     )]
     pub async fn find_callers(
         &self,
-        Parameters(FindCallersArgs { function, limit }): Parameters<FindCallersArgs>,
+        Parameters(FindCallersArgs {
+            function,
+            limit,
+            depth,
+            offset,
+        }): Parameters<FindCallersArgs>,
     ) -> Result<CallToolResult, McpError> {
         let function = validate_name(&function)?;
+        let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
+        let offset = offset.unwrap_or(0);
         let index = self.index.lock().await;
-        let hits = index.find_callers(function).map_err(index_error)?;
+        let hits = index
+            .find_callers_bfs(function, depth.unwrap_or(1), limit, offset)
+            .map_err(index_error)?;
         Ok(CallToolResult::success(vec![ContentBlock::text(
-            format::relation_hits(
-                function,
-                "caller(s) of this function",
-                &hits,
-                limit.unwrap_or(DEFAULT_RESULT_LIMIT),
-            ),
+            format::relation_hits(function, "caller(s) of this function", &hits, offset, limit),
         )]))
     }
 
@@ -247,13 +332,25 @@ impl CcmServer {
     )]
     pub async fn impact_analysis(
         &self,
-        Parameters(ImpactAnalysisArgs { symbol, limit }): Parameters<ImpactAnalysisArgs>,
+        Parameters(ImpactAnalysisArgs {
+            symbol,
+            limit,
+            depth,
+            offset,
+        }): Parameters<ImpactAnalysisArgs>,
     ) -> Result<CallToolResult, McpError> {
         let symbol = validate_name(&symbol)?;
+        let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
+        let offset = offset.unwrap_or(0);
+        let depth = depth.unwrap_or(1);
         let (callers, references) = {
             let index = self.index.lock().await;
-            let callers = index.find_callers(symbol).map_err(index_error)?;
-            let references = index.find_references(symbol).map_err(index_error)?;
+            let callers = index
+                .find_callers_bfs(symbol, depth, limit, offset)
+                .map_err(index_error)?;
+            let references = index
+                .find_references_bfs(symbol, depth, limit, offset)
+                .map_err(index_error)?;
             (callers, references)
         };
         // A test caller shows up in both `callers` and `references` (the
@@ -267,13 +364,7 @@ impl CcmServer {
             .filter(|hit| seen_test_names.insert(hit.from_symbol.as_str()))
             .collect();
         Ok(CallToolResult::success(vec![ContentBlock::text(
-            format::impact_analysis(
-                symbol,
-                &callers,
-                &references,
-                &affected_tests,
-                limit.unwrap_or(DEFAULT_RESULT_LIMIT),
-            ),
+            format::impact_analysis(symbol, &callers, &references, &affected_tests, offset, limit),
         )]))
     }
 
@@ -301,6 +392,40 @@ impl CcmServer {
             format::index_status(&status),
         )]))
     }
+
+    #[tool(
+        description = "TOKEN-SAVING module overview. Returns a file's top-level declarations (functions, classes, structs, interfaces, types) with bodies collapsed to `// ...` — up to ~90% fewer tokens than reading the whole file when you just need its shape. Brace-delimited languages (Rust, Go, Java, C++, C#, PHP, JS/TS, Kotlin) get precise body elision; other languages (e.g. Python, Lua, Bash, PowerShell) get a best-effort declaration-line-only rendering. Nested members (e.g. methods inside a class) are NOT shown individually — a class/struct/interface collapses to one block regardless of what's inside it. Do NOT use this for a directory/crate — it takes a single file path; use list_symbols for that. Do NOT use this when you need a symbol's actual implementation, not just its shape — use find_symbol to locate it, then read the file directly."
+    )]
+    pub async fn get_file_skeleton(
+        &self,
+        Parameters(GetFileSkeletonArgs { path }): Parameters<GetFileSkeletonArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let path = validate_name(&path)?;
+        let is_file = path.rsplit('/').next().unwrap_or(path).contains('.');
+        if !is_file {
+            return Err(McpError::invalid_params(
+                "get_file_skeleton takes a single file path, not a directory/crate prefix — use list_symbols first if you don't know which file you need",
+                None,
+            ));
+        }
+        let index = self.index.lock().await;
+        let source = read_source_file(&index, path)?;
+        let entries: Vec<_> = index
+            .list_symbols(path, None, None)
+            .map_err(index_error)?
+            .into_iter()
+            // `parent.is_none()` alone isn't "top-level declaration" — every
+            // file also gets a synthetic whole-file `module` entry spanning
+            // its entire line range with no parent of its own. Rendering
+            // that would collapse the file into one bogus self-referential
+            // block; the user asked for classes/structs/interfaces/
+            // functions/types, not the module wrapper.
+            .filter(|entry| entry.parent.is_none() && entry.kind != "module")
+            .collect();
+        Ok(CallToolResult::success(vec![ContentBlock::text(
+            format::file_skeleton(path, &entries, &source),
+        )]))
+    }
 }
 
 #[tool_handler]
@@ -322,9 +447,14 @@ impl ServerHandler for CcmServer {
              each tool's description for which one to use and which NOT to. impact_analysis is \
              composite: it combines find_callers + find_references + a test heuristic \
              internally, for when you need the full blast radius of a change in one call. \
-             reindex and get_indexing_status are index maintenance, not search — they never \
-             return symbol data. The index refreshes automatically at startup; call reindex \
-             manually only if you suspect it's stale."
+             find_references/find_calls/find_callers/impact_analysis also accept an optional \
+             `depth` to walk multiple relation-graph hops (1, the default, is today's direct-hit \
+             behavior) and `offset` to page past `limit`. get_file_skeleton returns a file's \
+             top-level declarations with bodies collapsed to `// ...` — reach for it instead of \
+             reading a whole file when you only need its shape. reindex and get_indexing_status \
+             are index maintenance, not search — they never return symbol data. The index \
+             refreshes automatically at startup; call reindex manually only if you suspect it's \
+             stale."
                 .to_string(),
         )
     }
