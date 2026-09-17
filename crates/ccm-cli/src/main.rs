@@ -217,6 +217,11 @@ fn print_status(status: ccm_index::IndexStatus) {
 
 #[cfg(test)]
 mod tests {
+    // Test code: an unwrap()/expect() here means a broken test precondition,
+    // and panicking is the correct behavior — this module only touches
+    // temp-dir fixtures this test creates itself, never repo-input content.
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
     use super::*;
     use std::fs;
 

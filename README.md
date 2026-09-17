@@ -6,7 +6,7 @@ Languages are **plugins**, not a hardcoded list: a `LanguageParser` trait in `cc
 
 ## Status
 
-15 languages implemented end-to-end (Rust, Python, JS/TS, Java, C#, C++, Go, HTML, CSS, XML, XAML, Bash, PowerShell, PHP, Markdown), plus a Lua acceptance-test crate validating the plugin architecture without touching `ccm-core` or `ccm-mcp-server`. Two pairs cross-reference each other in the same index: HTML/CSS (an element's `id`/`class` attributes resolve to the matching CSS rule, `<link>`/`<script src>` resolve as `Imports`) and XAML/C# (an event-handler attribute like `Click="SaveBtn_Click"` resolves to the matching method in the paired code-behind file). Plain XML is deliberately structural-only, and Markdown (Phase 1) is headings-only with no relations yet — see the coverage table below. See [`checklist.md`](checklist.md) for the current state of every deliverable.
+16 languages implemented end-to-end (Rust, Python, JS/TS, Java, C#, Kotlin, C++, Go, HTML, CSS, XML, XAML, Bash, PowerShell, PHP, Markdown), plus a Lua acceptance-test crate validating the plugin architecture without touching `ccm-core` or `ccm-mcp-server`. Two pairs cross-reference each other in the same index: HTML/CSS (an element's `id`/`class` attributes resolve to the matching CSS rule, `<link>`/`<script src>` resolve as `Imports`) and XAML/C# (an event-handler attribute like `Click="SaveBtn_Click"` resolves to the matching method in the paired code-behind file). Plain XML is deliberately structural-only, and Markdown (Phase 1) is headings-only with no relations yet — see the coverage table below. See [`checklist.md`](checklist.md) for the current state of every deliverable.
 
 Beyond symbols, `get_indexing_status` also reports the project's declared dependencies: `Cargo.toml`, `package.json`, `requirements.txt`, and `go.mod` are detected by file name (not routed through a `LanguageParser` — they aren't source code) and their direct dependencies recorded per manifest.
 
@@ -18,7 +18,21 @@ No network calls by default — zero telemetry. Source code is parsed statically
 
 ## Installation
 
-**Prebuilt binaries** (no Rust toolchain needed): download the archive for your OS/arch (Linux x86_64/arm64, macOS Intel/Apple Silicon, Windows x86_64) from the [GitHub Releases page](https://github.com/zubiarka8/mini-consumes-tokens/releases) and put `ccm-cli`/`ccm-mcp-server` on your `PATH`.
+**Quick install** (Linux/macOS x86_64/arm64 — downloads the latest release, no Rust toolchain needed):
+
+```sh
+curl -sSL https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.sh | bash
+```
+
+**Windows** (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.ps1 | iex
+```
+
+Both scripts install into a user-writable directory (`~/.local/bin` on Linux/macOS, `%LOCALAPPDATA%\ccm\bin` on Windows — overridable via `INSTALL_DIR`/`$env:CCM_INSTALL_DIR`) and print a PATH warning if that directory isn't already on it. Review [`install.sh`](install.sh)/[`install.ps1`](install.ps1) before piping them to your shell, as with any curl-to-shell installer.
+
+**Manually** (same prebuilt archives, no script): download the one for your OS/arch (Linux x86_64/arm64, macOS Intel/Apple Silicon, Windows x86_64) from the [GitHub Releases page](https://github.com/zubiarka8/mini-consumes-tokens/releases) and put `ccm-cli`/`ccm-mcp-server` on your `PATH` yourself.
 
 **From crates.io** (once published — see `RELEASING.md`; requires a Rust toolchain, [rustup.rs](https://rustup.rs)):
 
