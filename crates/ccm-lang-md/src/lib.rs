@@ -24,7 +24,7 @@
 //! like any other paragraph; excluding them deliberately would require
 //! detecting the containing block type, deferred to a future phase. Table
 //! cells are a distinct block-grammar node with no `paragraph` child and are
-//! never visited. Code spans are not a separate node at all in this crate's
+//! never scanned. Code spans are not a separate node at all in this crate's
 //! block-only grammar (the inline grammar that defines `code_span` is never
 //! parsed) — inline-code text is embedded directly in the surrounding
 //! paragraph, so a tag or link inside backticks is scanned like ordinary text
@@ -162,6 +162,17 @@ fn scan_wikilinks(text: &str) -> Vec<String> {
 /// inside inline code (`` `#notatag` ``) is still matched — excluding code
 /// spans needs an inline-grammar reparse, deferred (see the module doc
 /// comment).
+///
+/// Deviates from the spec's literal `[A-Za-z0-9_/-]+` character class in two
+/// ways: a candidate that is entirely ASCII digits (`#123`) is rejected —
+/// real-world Markdown uses bare-numeric `#123`-style tokens for issue/PR
+/// references, not PKM tags, so indexing them would be noise (a token with
+/// at least one non-digit character, like `#v2` or `#2fa`, still matches).
+/// The character class itself uses `char::is_alphanumeric`, which is
+/// Unicode-broad (it already matches non-ASCII letters/digits like `é` or
+/// `日本語`) rather than the spec's nominal ASCII-only class — kept
+/// deliberately, since it matches real Obsidian tagging behavior more
+/// closely than a strict ASCII class would.
 fn scan_tags(text: &str) -> Vec<String> {
     let chars: Vec<char> = text.chars().collect();
     let mut tags = Vec::new();
@@ -177,7 +188,10 @@ fn scan_tags(text: &str) -> Vec<String> {
                 end += 1;
             }
             if end > start {
-                tags.push(chars[start..end].iter().collect());
+                let candidate = &chars[start..end];
+                if !candidate.iter().all(|c| c.is_ascii_digit()) {
+                    tags.push(candidate.iter().collect());
+                }
                 i = end;
                 continue;
             }

@@ -217,3 +217,30 @@ fn a_wikilink_before_any_heading_is_not_indexed() {
     let parsed = parse("See [[Orphan Note]] before any heading.\n\n# A\n");
     assert!(parsed.relations.is_empty(), "{:?}", parsed.relations);
 }
+
+#[test]
+fn an_all_digit_hashtag_is_not_indexed_as_a_tag() {
+    let parsed = parse("# A\n\nFixes #123 and #v2 today.\n");
+    assert!(!parsed.relations.iter().any(|r| r.to_name == "tag:123"));
+    assert!(parsed.relations.iter().any(|r| r.to_name == "tag:v2"));
+}
+
+#[test]
+fn a_wikilink_in_a_list_item_is_scanned_like_any_paragraph() {
+    let parsed = parse("# A\n\n- See [[Other Note]] and #tagged\n");
+    assert!(parsed.relations.iter().any(|r| r.to_name == "Other Note"));
+    assert!(parsed.relations.iter().any(|r| r.to_name == "tag:tagged"));
+}
+
+#[test]
+fn a_wikilink_in_a_blockquote_is_scanned_like_any_paragraph() {
+    let parsed = parse("# A\n\n> See [[Other Note]] and #tagged\n");
+    assert!(parsed.relations.iter().any(|r| r.to_name == "Other Note"));
+    assert!(parsed.relations.iter().any(|r| r.to_name == "tag:tagged"));
+}
+
+#[test]
+fn a_wikilink_in_a_table_cell_is_not_scanned() {
+    let parsed = parse("# A\n\n| h |\n| - |\n| [[Cell]] |\n");
+    assert!(parsed.relations.is_empty(), "{:?}", parsed.relations);
+}
