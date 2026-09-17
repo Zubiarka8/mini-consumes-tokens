@@ -110,15 +110,19 @@ fn full_abcdef_hierarchy_matches_the_spec_example() {
 
     assert!(
         parsed.relations.is_empty(),
-        "Phase 1 emits no relations: {:?}",
+        "no [[WikiLinks]] or #tags appear in this input: {:?}",
         parsed.relations
     );
 }
 
 #[test]
-fn no_relations_are_ever_emitted_in_phase_1() {
+fn a_standard_markdown_link_is_not_mistaken_for_a_wikilink() {
     let parsed = parse("# A\n\nSome text with a [link](other.md) in it.\n\n## B\n");
-    assert!(parsed.relations.is_empty(), "{:?}", parsed.relations);
+    assert!(
+        parsed.relations.is_empty(),
+        "single-bracket links are not [[WikiLinks]]: {:?}",
+        parsed.relations
+    );
 }
 
 #[test]
@@ -206,4 +210,10 @@ fn hashtag_inside_the_heading_text_itself_emits_a_relation() {
         .find(|r| r.to_name == "tag:brainstorm")
         .unwrap();
     assert_eq!(rel.from, heading.id);
+}
+
+#[test]
+fn a_wikilink_before_any_heading_is_not_indexed() {
+    let parsed = parse("See [[Orphan Note]] before any heading.\n\n# A\n");
+    assert!(parsed.relations.is_empty(), "{:?}", parsed.relations);
 }
