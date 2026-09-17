@@ -1,15 +1,39 @@
-//! `LanguageParser` implementation for Markdown headings, via `tree-sitter-md`.
+//! `LanguageParser` implementation for Markdown, via `tree-sitter-md`.
 //!
-//! Phase 1 scope only: ATX headings (`#`..`######`) become `Element` symbols,
-//! nested by the block grammar's own `section` structure — no manual
-//! level-counting stack is needed, `tree-sitter-md` already wraps each
-//! heading and its lower-level content in a `section` node nested by level
-//! (verified against a real parse before writing this walker: `# A / ## B /
-//! ## C / ### D / # E / ## F` nests D under C's section, not B's, and E
-//! starts a sibling section of A's, not a child of it). No relations are
-//! emitted yet — internal links, `RelationKind::Imports`, anchors, setext
-//! headings, lists, tables, and code blocks are all deliberately out of
-//! scope for this phase.
+//! Phase 1: ATX headings (`#`..`######`) become `Element` symbols, nested by
+//! the block grammar's own `section` structure — no manual level-counting
+//! stack is needed, `tree-sitter-md` already wraps each heading and its
+//! lower-level content in a `section` node nested by level (verified against
+//! a real parse before writing this walker: `# A / ## B / ## C / ### D / # E
+//! / ## F` nests D under C's section, not B's, and E starts a sibling
+//! section of A's, not a child of it).
+//!
+//! Phase 2: `[[WikiLink]]` and `#tag` occurrences in a heading's own text or
+//! in a `paragraph` block are indexed as `RelationKind::References`
+//! relations from the enclosing heading symbol (a `#tag` target is
+//! `tag:<name>`, since `ccm-core::SymbolRecord` has no attribute field — see
+//! `docs/superpowers/specs/2026-09-17-obsidian-docs-vault-and-md-parser-design.md`).
+//! A `|alias` suffix on a WikiLink is stripped; a `#Heading` anchor is kept
+//! verbatim as part of the target. A link/tag with no enclosing heading (text
+//! before the first heading, or in a heading-less file) is silently skipped.
+//! Scanning is hand-rolled text scanning, not a second parse with the inline
+//! grammar — `tree-sitter-md`'s inline grammar is CommonMark and has no
+//! concept of this Obsidian-specific syntax. Links/tags inside list items and
+//! blockquotes are not specially handled — `tree-sitter-md` wraps their text
+//! in the same `paragraph` node kind as top-level text, so they are scanned
+//! like any other paragraph; excluding them deliberately would require
+//! detecting the containing block type, deferred to a future phase. Table
+//! cells are a distinct block-grammar node with no `paragraph` child and are
+//! never visited. Code spans are not a separate node at all in this crate's
+//! block-only grammar (the inline grammar that defines `code_span` is never
+//! parsed) — inline-code text is embedded directly in the surrounding
+//! paragraph, so a tag or link inside backticks is scanned like ordinary text
+//! (see `scan_tags`'s doc comment). Anchor-aware target resolution and
+//! exact-span relation locations (a relation's `Location` is its whole
+//! containing block, not the bracket span) are out of scope. Standard Markdown
+//! links (`[text](url)`) are not `[[WikiLinks]]` and are never indexed. Setext
+//! headings, lists, tables, and code blocks remain out of scope for symbol
+//! extraction, same as Phase 1.
 //!
 //! Unlike `ccm-lang-xml`, this crate does not emit a synthetic root `Module`
 //! symbol for the file: a heading-less document must produce zero symbols.
