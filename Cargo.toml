@@ -21,6 +21,7 @@ members = [
     "crates/ccm-lang-powershell",
     "crates/ccm-lang-php",
     "crates/ccm-lang-md",
+    "crates/ccm-lang-kotlin",
 ]
 
 [workspace.package]
@@ -50,5 +51,6 @@ ccm-lang-bash = { path = "crates/ccm-lang-bash", version = "0.1.0" }
 ccm-lang-powershell = { path = "crates/ccm-lang-powershell", version = "0.1.0" }
 ccm-lang-php = { path = "crates/ccm-lang-php", version = "0.1.0" }
 ccm-lang-md = { path = "crates/ccm-lang-md", version = "0.1.0" }
+ccm-lang-kotlin = { path = "crates/ccm-lang-kotlin", version = "0.1.0" }
 thiserror = "2"
 tree-sitter = "0.25"
