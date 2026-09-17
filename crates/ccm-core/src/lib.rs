@@ -26,6 +26,14 @@ pub use symbol::{
 /// bounded regardless of input.
 pub const MAX_TRAVERSAL_DEPTH: u32 = 256;
 
+/// Hard ceiling on how many hops a graph-traversal MCP query (`find_calls`,
+/// `find_callers`, `find_references`, `impact_analysis`) is allowed to walk,
+/// regardless of the caller-supplied `depth` parameter. Without this, a
+/// pathological or malicious `depth` value could make the BFS fan out across
+/// the entire relation graph. 32 comfortably covers any real blast-radius
+/// investigation while keeping worst-case query cost bounded.
+pub const MAX_QUERY_DEPTH: u32 = 32;
+
 /// A single source file to be parsed, relative to the project root.
 #[derive(Debug, Clone)]
 pub struct SourceFile {

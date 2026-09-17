@@ -43,6 +43,11 @@ pub struct RelationHit {
     pub relative_path: String,
     pub line: u32,
     pub column: u32,
+    /// How many relation-graph hops this hit is from the originally queried
+    /// symbol. Every hit produced by a single-hop query in this module is a
+    /// direct relation, so `1`; a multi-hop traversal (see `crate::traversal`)
+    /// overwrites this with the hop number at which it found the hit.
+    pub depth: u32,
 }
 
 /// All symbol names are search parameters bound via placeholders (`?1`), never
@@ -183,6 +188,7 @@ fn query_relations(conn: &Connection, sql: &str, param: &str) -> Result<Vec<Rela
                 relative_path: row.get(4)?,
                 line: row.get(5)?,
                 column: row.get(6)?,
+                depth: 1,
             })
         })?
         .collect::<rusqlite::Result<_>>()?;
