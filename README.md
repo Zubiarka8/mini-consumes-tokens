@@ -1,12 +1,14 @@
 # mini-consumes-tokens
 
-An MCP server and installable Claude Code plugin that indexes a code repository — in any supported language, identically on any OS — using AST parsing (tree-sitter) into a symbol graph stored in SQLite. It exposes that index as MCP tools (`list_symbols`, `find_symbol`, `find_references`, `find_calls`, `find_callers`, `impact_analysis`, `reindex`, `get_indexing_status`) so Claude Code can get precise project context from the index instead of reading whole files with `Read`/`Grep`/`Glob` — cutting token spend without losing context quality.
+[MCP](https://modelcontextprotocol.io) (Model Context Protocol) is the open standard AI coding agents use to call tools against your project instead of guessing from raw text. This repo is an MCP server — and installable Claude Code plugin — that indexes a code repository, in any supported language, identically on any OS, using AST parsing (tree-sitter) into a symbol graph stored in SQLite.
+
+It exposes that index as MCP tools (`list_symbols`, `find_symbol`, `find_references`, `find_calls`, `find_callers`, `impact_analysis`, `reindex`, `get_indexing_status`, `get_file_skeleton`) so an agent can get precise project context from the index — "where is X defined", "what calls Y", "what would break if I change Z" — instead of reading whole files with `Read`/`Grep`/`Glob`. A grep-and-read pass over matching files costs far more tokens than one indexed lookup; see [Benchmark of tokens saved](#benchmark-of-tokens-saved) below for measured numbers.
 
 Languages are **plugins**, not a hardcoded list: a `LanguageParser` trait in `ccm-core` is the entire integration surface. Adding a language means implementing that trait in a new crate and registering it — no changes to the indexing engine or the MCP server.
 
 ## Status
 
-16 languages implemented end-to-end (Rust, Python, JS/TS, Java, C#, Kotlin, C++, Go, HTML, CSS, XML, XAML, Bash, PowerShell, PHP, Markdown), plus a Lua acceptance-test crate validating the plugin architecture without touching `ccm-core` or `ccm-mcp-server`. Two pairs cross-reference each other in the same index: HTML/CSS (an element's `id`/`class` attributes resolve to the matching CSS rule, `<link>`/`<script src>` resolve as `Imports`) and XAML/C# (an event-handler attribute like `Click="SaveBtn_Click"` resolves to the matching method in the paired code-behind file). Plain XML is deliberately structural-only, and Markdown (Phase 1) is headings-only with no relations yet — see the coverage table below. See [`checklist.md`](checklist.md) for the current state of every deliverable.
+16 languages implemented end-to-end (Rust, Python, JS/TS, Java, C#, Kotlin, C++, Go, HTML, CSS, XML, XAML, Bash, PowerShell, PHP, Markdown), plus a Lua acceptance-test crate validating the plugin architecture without touching `ccm-core` or `ccm-mcp-server`. Two pairs cross-reference each other in the same index: HTML/CSS (an element's `id`/`class` attributes resolve to the matching CSS rule, `<link>`/`<script src>` resolve as `Imports`) and XAML/C# (an event-handler attribute like `Click="SaveBtn_Click"` resolves to the matching method in the paired code-behind file). Plain XML is deliberately structural-only, and Markdown (Phase 1) is headings-only with no relations yet — see the coverage table below. See [`internal/checklist.md`](internal/checklist.md) for the current state of every deliverable.
 
 Beyond symbols, `get_indexing_status` also reports the project's declared dependencies: `Cargo.toml`, `package.json`, `requirements.txt`, and `go.mod` are detected by file name (not routed through a `LanguageParser` — they aren't source code) and their direct dependencies recorded per manifest.
 
@@ -56,6 +58,42 @@ ccm-cli --root . status    # coverage / health report
 ccm-cli --root . reindex --force
 ```
 
+## MCP tools
+
+| Tool | Type | Purpose |
+|---|---|---|
+| `list_symbols` | discovery | List symbols (name, kind, line range) under a file or directory/crate prefix — the first move when you don't know a symbol's exact name yet |
+| `find_symbol` | atomic | Find the definition location(s) of a symbol by exact name |
+| `find_references` | atomic | Find every reference to a symbol: calls, imports, extends/implements, plain references |
+| `find_calls` | atomic | Find what a function calls — its callees |
+| `find_callers` | atomic | Find what calls a function — its callers |
+| `impact_analysis` | composite | Full blast radius of a change: callers + references + likely affected tests, in one call |
+| `get_file_skeleton` | discovery | A file's top-level declarations with bodies collapsed to `// ...` — up to ~90% fewer tokens than reading the whole file when you just need its shape |
+| `reindex` | maintenance | Force a re-scan of the project (auto-runs incrementally at server startup) |
+| `get_indexing_status` | maintenance | Index health: files/symbols per language, unsupported languages seen, parse failures, detected manifest dependencies |
+
+`find_references`, `find_calls`, `find_callers` and `impact_analysis` also accept optional `depth` (walk multiple relation-graph hops — 1, the default, is the original single-hop behavior), `limit`, and `offset` (page past `limit`) parameters.
+
+See `MANUAL.md` §6 (or [`manual/index.html`](manual/index.html#tools)) for each tool's exact parameters and the verbatim description text sent to the model.
+
+## Editor / client compatibility
+
+`ccm-mcp-server` is a plain MCP server over stdio — nothing about it is Claude Code-specific. Every client below launches the same binary the same way (`command = ccm-mcp-server`, `args = ["--root", "<absolute-path-to-repo>"]`); what differs is the config file's location and root key.
+
+| Client | Config location | Notes |
+|---|---|---|
+| Claude Code | `.mcp.json` (project) via `claude mcp add` or `ccm-cli mcp-register` | root key `mcpServers`, scopes: local/project/user |
+| Claude Desktop | `claude_desktop_config.json` (user) | root key `mcpServers`, requires a full app quit+relaunch after editing |
+| Cursor | `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (user) | root key `mcpServers`, no `type` field needed |
+| Windsurf (Codeium) | `~/.codeium/windsurf/mcp_config.json` | root key `mcpServers`; Cascade caps tool count at 100 across all connected servers |
+| VS Code + GitHub Copilot | `.vscode/mcp.json` (workspace) | root key `servers` (not `mcpServers`), requires explicit `type` |
+| Gemini CLI | `.gemini/settings.json` (project) or `~/.gemini/settings.json` (user) | root key `mcpServers` |
+| Codex CLI (OpenAI) | `~/.codex/config.toml` | TOML, table `mcp_servers.<name>` |
+| Antigravity (Google) | `~/.gemini/config/mcp_config.json` | root key `mcpServers`, editable from the IDE's MCP Servers panel |
+| Any other MCP client | client-specific | same pattern: `command` → `ccm-mcp-server`, `args` → `["--root", "<absolute-path>"]`; `--root` must be absolute |
+
+Full per-client walkthroughs (including Zed, Cline, Continue.dev, JetBrains AI Assistant/Junie, Warp, OpenHands) live in `MANUAL.md` §5 / [`manual/index.html`](manual/index.html#registering).
+
 ## Supported languages
 
 | Language | Status | Crate |
@@ -103,7 +141,7 @@ crates/
   ccm-lang-php       LanguageParser impl for PHP (tree-sitter-php) — classes/interfaces/traits/enums, methods/fields (incl. constructor property promotion), extends/implements, trait-use, calls, require/use Imports
   ccm-lang-md        LanguageParser impl for Markdown (tree-sitter-md) — ATX headings as nested Element symbols via the grammar's own section nesting, Phase 1, no relations yet
   ccm-lang-lua       LanguageParser impl for Lua — plugin-architecture acceptance test, not registered in production
-  ccm-mcp-server     MCP tools over stdio (rmcp) — list_symbols/find_symbol/find_references/find_calls/find_callers/impact_analysis/reindex/get_indexing_status
+  ccm-mcp-server     MCP tools over stdio (rmcp) — list_symbols/find_symbol/find_references/find_calls/find_callers/impact_analysis/get_file_skeleton/reindex/get_indexing_status
   ccm-cli            init/reindex/status subcommands for manual or scripted use
 ```
 
@@ -113,13 +151,11 @@ crates/
 cargo test --workspace
 ```
 
-222 tests across the workspace: `ccm-index` (reindex/query pipeline, incremental skip, deletion, syntax-error/unsupported-language reporting, secret-pattern exclusion, manifest dependency detection), each of the 15 production language crates (idiomatic-syntax extraction at the parser level — generics, traits/impls, decorators, imports, overloads, interfaces — with an added end-to-end `ccm-index` integration fixture for every crate except `ccm-lang-rust`/`ccm-lang-python`, covering language-specific cases like Go's implicit interfaces, C++'s header/source declaration correlation, HTML/CSS cross-referencing each other by id/class, a XAML event-handler attribute resolving to a method in its paired C# code-behind file, PHP's `self::`/`parent::`/`static::` scoped calls, constructor property promotion, and trait composition, or Markdown's nested-heading `section` hierarchy — each through a real multi-file, multi-language fixture, not just both parsers running side by side), `ccm-mcp-server` (all 7 tools against a versioned Rust+Python fixture, plus a dedicated 3-language Go+TypeScript+Python fixture confirming the index doesn't bleed symbols across languages), and `ccm-cli` (`mcp-register`'s config-merge behavior: creating a new `.mcp.json`, preserving other already-configured servers, and stripping Windows' `\\?\` verbatim-path prefix from the written `--root`).
+261 tests across the workspace: `ccm-index` (reindex/query pipeline, incremental skip, deletion, syntax-error/unsupported-language reporting, secret-pattern exclusion, manifest dependency detection), each of the 15 production language crates (idiomatic-syntax extraction at the parser level — generics, traits/impls, decorators, imports, overloads, interfaces — with an added end-to-end `ccm-index` integration fixture for every crate except `ccm-lang-rust`/`ccm-lang-python`, covering language-specific cases like Go's implicit interfaces, C++'s header/source declaration correlation, HTML/CSS cross-referencing each other by id/class, a XAML event-handler attribute resolving to a method in its paired C# code-behind file, PHP's `self::`/`parent::`/`static::` scoped calls, constructor property promotion, and trait composition, or Markdown's nested-heading `section` hierarchy — each through a real multi-file, multi-language fixture, not just both parsers running side by side), `ccm-mcp-server` (all 9 tools — including multi-hop `depth`/`offset` pagination and `get_file_skeleton` — against a versioned Rust+Python fixture, plus a dedicated 3-language Go+TypeScript+Python fixture confirming the index doesn't bleed symbols across languages), and `ccm-cli` (`mcp-register`'s config-merge behavior: creating a new `.mcp.json`, preserving other already-configured servers, and stripping Windows' `\\?\` verbatim-path prefix from the written `--root`).
 
 ## Benchmark of tokens saved
 
-Measured (see `benchmarks/token-benchmark.md` for full methodology and per-query tables): three canonical queries — "find the definition of X" (`find_symbol`), "what calls this function" (`find_callers`), "who uses this symbol" (`find_references`) — compared as MCP tool-call output (characters returned) versus a realistic `Grep`+`Read` baseline (grep the term across the fixture, then read every matched file in full).
-
-15 of the 16 language crates (the 14 original production languages plus Lua, kept as the plugin-architecture validation case) now have real measured numbers on small fixture repos. Most results cluster in the high-80s to high-90s percent character reduction, topping out at 97.8% (Go). Two honest caveats, not smoothed over: `find_symbol` on a tiny XML fixture measured 72.0%, the lowest of any query benchmarked; and `find_callers` on CSS/HTML/XAML, plus both relation queries on XML, come out structurally close to 100% because those parsers never emit the relation being queried (declarative/markup languages have no `Calls` relation, and `ccm-lang-xml` emits no relations at all by design, see `MANUAL.md` §12) — real numbers, but not genuine navigation wins. Markdown (`ccm-lang-md`, added after this benchmark round) has no measured row yet — its Phase 1 scope emits no relations at all, so only `find_symbol` would produce a non-degenerate number. See `benchmarks/token-benchmark.md` for the full per-language, per-query table before citing a specific figure.
+Three canonical queries — "find the definition of X" (`find_symbol`), "what calls this function" (`find_callers`), "who uses this symbol" (`find_references`) — measured as MCP tool-call output (characters returned) versus a realistic `Grep`+`Read` baseline, across 15 of the 16 language crates. Most results cluster in the high-80s to high-90s percent character reduction, topping out at 97.8% (Go), with two honest low outliers (XML `find_symbol` at 72.0%, and a few relation queries on declarative/markup languages that emit no `Calls` relation at all). See `benchmarks/token-benchmark.md` for the full methodology, per-language/per-query table, and caveats before citing a specific figure.
 
 ## How to add a new language
 
@@ -127,11 +163,11 @@ Measured (see `benchmarks/token-benchmark.md` for full methodology and per-query
 2. Implement `ccm_core::LanguageParser`: `language_id()`, `file_extensions()`, and `parse()` — walk the tree-sitter AST and emit `SymbolRecord`s (functions, methods, classes/structs, types) and `SymbolRelation`s (calls, imports, extends/implements, references). See `ccm-lang-rust/src/lib.rs` or `ccm-lang-python/src/lib.rs` for the pattern (module-root pseudo-symbol for file-level relations, an id-map from local to database symbol ids handled downstream by `ccm-index`).
 3. Register it: add one `registry.register(Arc::new(YourLangParser))` line in `ccm-mcp-server/src/registry.rs` and `ccm-cli/src/main.rs::build_registry`. No other file in `ccm-core`, `ccm-index`, or `ccm-mcp-server` changes — that's the architecture's whole point.
 4. Add fixtures covering idiomatic syntax for the language (generics, decorators, whatever the language's equivalent is) in `crates/ccm-lang-<lang>/tests/parse.rs`, following the existing tests.
-5. Update the language coverage table in this README and in `checklist.md`.
+5. Update the language coverage table in this README and in `internal/checklist.md`.
 6. Run the token benchmark for the new language once it exists (see above).
 
 See `CONTRIBUTING.md` for the same checklist in contributor-facing form.
 
 ## License
 
-Licensed under [MIT](LICENSE-MIT).
+Dual-licensed under [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE), at your option.

@@ -1,5 +1,7 @@
 # ROADMAP — mini-consumes-tokens (post-0.1.0)
 
+> **Historical / point-in-time document**, frozen at commit `9ca9ab5` (2026-09-13, pre-0.2.0). Several candidates proposed below have since shipped (e.g. Kotlin, Markdown, `list_symbols`) — `CHANGELOG.md` is the current source of truth for what's actually released. Kept for planning history, not as a live status page.
+
 Documento de análisis y planificación, no de implementación. No se ha escrito
 código de producto para generar esto — es una lectura completa de
 `checklist.md`, `CHANGELOG.md`, `README.md`, `RELEASING.md`, `CONTRIBUTING.md`

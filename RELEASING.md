@@ -33,9 +33,18 @@ cargo publish -p ccm-lang-rust
 cargo publish -p ccm-lang-python
 cargo publish -p ccm-lang-java
 cargo publish -p ccm-lang-csharp
+cargo publish -p ccm-lang-kotlin
 cargo publish -p ccm-lang-js-ts
 cargo publish -p ccm-lang-cpp
 cargo publish -p ccm-lang-go
+cargo publish -p ccm-lang-html
+cargo publish -p ccm-lang-css
+cargo publish -p ccm-lang-xml
+cargo publish -p ccm-lang-xaml
+cargo publish -p ccm-lang-bash
+cargo publish -p ccm-lang-powershell
+cargo publish -p ccm-lang-php
+cargo publish -p ccm-lang-md
 cargo publish -p ccm-lang-lua
 
 # Depend on everything above:

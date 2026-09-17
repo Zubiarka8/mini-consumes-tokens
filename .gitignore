@@ -14,3 +14,11 @@ MANUAL.md
 # Local-only: records this machine's absolute --root path, not portable
 # to another contributor's checkout location.
 .mcp.json
+
+# Session-local Claude Code state — not portable across contributors/machines
+.claude/
+
+# Windows/native build byproducts (defensive; today only appear under
+# already-ignored fuzz/target/, this guards future root-level artifacts)
+*.pdb
+*.exe

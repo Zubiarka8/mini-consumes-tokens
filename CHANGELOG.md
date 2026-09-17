@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `get_file_skeleton` MCP tool (9th tool): returns a single file's top-level
+  declarations (functions, classes, structs, interfaces, types) with bodies
+  collapsed to `// ...` — up to ~90% fewer tokens than reading the whole
+  file when only its shape is needed. Brace-delimited languages (Rust, Go,
+  Java, C++, C#, PHP, JS/TS, Kotlin) get precise body elision via brace
+  matching; other languages fall back to declaration-line-only rendering.
+  Nested members are not expanded individually.
+- Multi-hop graph traversal (`depth`, default 1, clamped to
+  `ccm_core::MAX_QUERY_DEPTH` = 32) and pagination (`offset`) on
+  `find_references`, `find_calls`, `find_callers`, and `impact_analysis`.
+  Implemented as a BFS layered over the existing single-hop queries
+  (`ccm-index/src/traversal.rs`), cycle-guarded by a visited-symbol-name
+  set so a cyclic call/reference graph can't loop forever. Each hit beyond
+  depth 1 is tagged ` [depth N]` in tool output; at the default `depth: 1`
+  and `offset: 0`, output is byte-identical to before this existed.
+
 ### Changed
 
 - **Breaking**: the index directory is now `.ccm-index/` (was

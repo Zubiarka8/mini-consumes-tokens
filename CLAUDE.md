@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-An MCP server (`ccm-mcp-server`) and CLI (`ccm-cli`) that index a code repository — any supported language, identically on any OS — via tree-sitter AST parsing into a symbol graph stored in SQLite. It exposes the index as MCP tools (`list_symbols`, `find_symbol`, `find_references`, `find_calls`, `find_callers`, `impact_analysis`, `reindex`, `get_indexing_status`) so an agent can get precise project context instead of reading whole files with `Read`/`Grep`/`Glob`.
+An MCP server (`ccm-mcp-server`) and CLI (`ccm-cli`) that index a code repository — any supported language, identically on any OS — via tree-sitter AST parsing into a symbol graph stored in SQLite. It exposes the index as MCP tools (`list_symbols`, `find_symbol`, `find_references`, `find_calls`, `find_callers`, `impact_analysis`, `reindex`, `get_indexing_status`, `get_file_skeleton`) so an agent can get precise project context instead of reading whole files with `Read`/`Grep`/`Glob`.
 
 ## Dogfooding: how Claude must explore this repo's own source
 
@@ -12,14 +12,16 @@ This project's entire point is that an agent queries a symbol graph instead of g
 
 **Scope of this rule**: it governs *exploration/lookup* questions — "what's defined in X", "where is Y", "who calls Z", "what does Z call", "what would break if I change Z", "what symbols/functions does file/crate X have". It does **not** apply to reading a file as a precondition for editing it (`Edit` requires a prior `Read`) or to general code-modification work — `Read`/`Grep`/`Edit` remain normal there.
 
-For exploration/lookup questions, the **only** permitted tools are this project's own software: the `ccm-mcp-server` MCP tools (`list_symbols`, `find_symbol`, `find_references`, `find_calls`, `find_callers`, `impact_analysis`, `reindex`, `get_indexing_status`) and `ccm-cli` (`crates/ccm-cli`) subcommands. Nothing else — no `Grep`, `Read`, `Bash cat|ls|grep`, `python`, or any other method outside `crates/`:
+For exploration/lookup questions, the **only** permitted tools are this project's own software: the `ccm-mcp-server` MCP tools (`list_symbols`, `find_symbol`, `find_references`, `find_calls`, `find_callers`, `impact_analysis`, `reindex`, `get_indexing_status`, `get_file_skeleton`) and `ccm-cli` (`crates/ccm-cli`) subcommands. Nothing else — no `Grep`, `Read`, `Bash cat|ls|grep`, `python`, or any other method outside `crates/`:
 - **What symbols does a file/crate have, without knowing a name yet?** → `list_symbols` (discovery step — takes a file path or a directory/crate prefix, optional `kind`/`language` filters)
+- **What does a file's overall shape look like** (top-level declarations, bodies collapsed), without reading it whole? → `get_file_skeleton` (single file only — use `list_symbols` first if you don't already know which file)
 - **Where is X defined?** → `find_symbol`
 - **Who calls X directly?** → `find_callers`
 - **What does X call?** → `find_calls`
 - **Every reference to X** (calls, imports, extends/implements) → `find_references`
 - **Full blast radius before changing/removing X** → `impact_analysis`
 - **Is the index stale / healthy?** → `get_indexing_status`, and `reindex` only if it looks stale
+- `find_references`/`find_calls`/`find_callers`/`impact_analysis` also take `depth` (multi-hop BFS beyond the direct hit, default 1, clamped to 32) and `offset` (pagination past `limit`) — reach for `depth` before manually chaining calls to walk the relation graph further out.
 
 **`.ccm-index/index.sqlite3` may only be touched through this project's own software** — the MCP tools listed above, or `ccm-cli` subcommands. Never open it with an external tool: no `sqlite3` CLI, no `python3`/`sqlite3` module, no DB browser, nothing outside `crates/`. If it isn't a tool this codebase ships, it doesn't get to touch the index — full stop.
 
@@ -59,8 +61,9 @@ ccm-index    SQLite schema/migrations (single schema for every language — a `l
              column on `files`, not per-language tables), reindex orchestration, queries.
              Knows no language's grammar.
 ccm-lang-*   One crate per language, each a LanguageParser impl over its tree-sitter grammar
-ccm-mcp-server  MCP tools over stdio (rmcp): find_symbol/find_references/find_calls/
-                find_callers/impact_analysis/reindex/get_indexing_status
+ccm-mcp-server  MCP tools over stdio (rmcp): list_symbols/find_symbol/find_references/
+                find_calls/find_callers/impact_analysis/reindex/get_indexing_status/
+                get_file_skeleton
 ccm-cli      init/reindex/status/mcp-register subcommands for manual/scripted use
 ```
 
@@ -69,7 +72,7 @@ ccm-cli      init/reindex/status/mcp-register subcommands for manual/scripted us
 2. Implement `LanguageParser::parse()` — pure AST walk, never executes/evals input; a syntax error returns `ParseError::Syntax`, never a panic (this runs over arbitrary third-party source).
 3. Register in exactly two places: `ccm-mcp-server/src/registry.rs::build_registry` and `ccm-cli/src/main.rs::build_registry`. Nothing else in `ccm-core`, `ccm-index`, or `ccm-mcp-server` changes.
 4. Tests in `crates/ccm-lang-<name>/tests/parse.rs`: function/call extraction, one idiomatic-syntax case (generics, decorators, whatever the language's equivalent is), one syntax-error case.
-5. Update the language table in `README.md` and `checklist.md`.
+5. Update the language table in `README.md` and `internal/checklist.md`.
 
 **Changing the `LanguageParser` trait, the SQLite schema, or a published MCP tool signature** is cross-cutting (every language crate, every index, and Claude Code's live tool contract) — open an issue first, don't drive-by PR it.
 
