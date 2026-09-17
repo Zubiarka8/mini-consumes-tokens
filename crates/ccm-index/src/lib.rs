@@ -23,7 +23,7 @@ use std::path::{Path, PathBuf};
 use ccm_core::LanguageRegistry;
 use rusqlite::Connection;
 
-/// One open connection to a project's `.claude-index/index.sqlite3`.
+/// One open connection to a project's `.ccm-index/index.sqlite3`.
 pub struct Index {
     conn: Connection,
     /// Canonicalized project root — every relative path stored in the

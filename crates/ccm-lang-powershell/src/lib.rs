@@ -31,7 +31,7 @@
 //!   style of script. Only `function`-style definitions are.
 
 use ccm_core::{
-    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
+    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
     SymbolKind, SymbolRecord, SymbolRelation,
 };
 use tree_sitter::{Node, Parser};
@@ -78,7 +78,7 @@ impl LanguageParser for PowerShellParser {
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
         let module_id = walker.push_symbol(module_name.clone(), SymbolKind::Module, location(root), None);
-        walker.visit_children(root, module_id, &module_name, module_id);
+        walker.visit_children(root, module_id, &module_name, module_id, 0);
         Ok(walker.finish())
     }
 }
@@ -188,14 +188,17 @@ impl<'a> Walker<'a> {
     /// at top level, used as `parent` for symbols declared directly here;
     /// `module_id` is this file's own module symbol id, used to tell
     /// top-level statements apart from ones nested inside a function body.
-    fn visit_children(&mut self, node: Node, owner: SymbolId, scope_name: &str, module_id: SymbolId) {
+    fn visit_children(&mut self, node: Node, owner: SymbolId, scope_name: &str, module_id: SymbolId, depth: u32) {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
-            self.visit(child, owner, scope_name, module_id);
+            self.visit(child, owner, scope_name, module_id, depth + 1);
         }
     }
 
-    fn visit(&mut self, node: Node, owner: SymbolId, scope_name: &str, module_id: SymbolId) {
+    fn visit(&mut self, node: Node, owner: SymbolId, scope_name: &str, module_id: SymbolId, depth: u32) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return;
+        }
         match node.kind() {
             "function_statement" => {
                 let Some(name_node) = find_child(node, "function_name") else {
@@ -207,7 +210,7 @@ impl<'a> Walker<'a> {
                     .and_then(|sb| sb.child_by_field_name("script_block_body"))
                     .and_then(|body| body.child_by_field_name("statement_list"))
                 {
-                    self.visit_children(body_stmts, id, &name, module_id);
+                    self.visit_children(body_stmts, id, &name, module_id, depth + 1);
                 }
             }
             "assignment_expression" => {
@@ -225,7 +228,7 @@ impl<'a> Walker<'a> {
                 // (`$x = Get-Something arg`); re-visiting the already
                 // consumed left-hand side just bottoms out on a leaf
                 // `variable` node with no children.
-                self.visit_children(node, owner, scope_name, module_id);
+                self.visit_children(node, owner, scope_name, module_id, depth + 1);
             }
             "command" => {
                 if let Some(name_field) = node.child_by_field_name("command_name") {
@@ -247,9 +250,9 @@ impl<'a> Walker<'a> {
                 // Arguments can hide a `$(...)` subexpression containing
                 // further commands/calls — recurse into everything so those
                 // are still picked up.
-                self.visit_children(node, owner, scope_name, module_id);
+                self.visit_children(node, owner, scope_name, module_id, depth + 1);
             }
-            _ => self.visit_children(node, owner, scope_name, module_id),
+            _ => self.visit_children(node, owner, scope_name, module_id, depth + 1),
         }
     }
 

@@ -30,7 +30,7 @@ const DEFAULT_EXCLUDE_PATTERNS: &[&str] = &[
     // general VCS / build output
     "**/.git/**",
     "**/target/**",
-    "**/.claude-index/**",
+    "**/.ccm-index/**",
 ];
 
 #[derive(Clone)]

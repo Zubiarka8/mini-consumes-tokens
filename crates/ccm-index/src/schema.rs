@@ -83,7 +83,7 @@ pub fn migrations() -> Migrations<'static> {
         // deliberately NOT a LanguageParser — Cargo.toml/package.json/
         // requirements.txt/go.mod aren't source code to symbol-index, just
         // metadata about what a repo depends on. A separate migration, not
-        // folded into the one above, so an existing `.claude-index/index.sqlite3`
+        // folded into the one above, so an existing `.ccm-index/index.sqlite3`
         // gets this table added instead of needing a fresh index.
         M::up(
             r#"
@@ -103,7 +103,7 @@ pub fn migrations() -> Migrations<'static> {
         // (e.g. the closing brace of a function/class body), when the
         // `LanguageParser` that produced it populates `Location::end_line`.
         // Nullable, and added via ALTER TABLE rather than folded into the
-        // schema above, so an existing `.claude-index/index.sqlite3` just
+        // schema above, so an existing `.ccm-index/index.sqlite3` just
         // gets the column added (as NULL for every already-indexed row)
         // instead of needing a fresh index — those rows read back as `None`
         // until the next reindex repopulates them from a parser that sets it.

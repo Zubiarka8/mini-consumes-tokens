@@ -1,7 +1,7 @@
 //! `LanguageParser` implementation for Java, via `tree-sitter-java`.
 
 use ccm_core::{
-    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
+    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
     SymbolKind, SymbolRecord, SymbolRelation,
 };
 use tree_sitter::{Node, Parser};
@@ -48,7 +48,7 @@ impl LanguageParser for JavaParser {
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
         let module_id = walker.push_symbol(module_name, SymbolKind::Module, location(root), None);
-        walker.visit_children(root, module_id, None);
+        walker.visit_children(root, module_id, None, 0);
         Ok(walker.finish())
     }
 }
@@ -145,14 +145,17 @@ impl<'a> Walker<'a> {
     /// overload — gets its own `SymbolRecord` row (same name, same parent,
     /// different location), so overloads are never collapsed into one
     /// symbol; `find_symbol` naturally returns all of them.
-    fn visit_children(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>) {
+    fn visit_children(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>, depth: u32) {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
-            self.visit(child, owner, type_name);
+            self.visit(child, owner, type_name, depth + 1);
         }
     }
 
-    fn visit(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>) {
+    fn visit(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>, depth: u32) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return;
+        }
         match node.kind() {
             "class_declaration" | "interface_declaration" | "enum_declaration" => {
                 let kind = match node.kind() {
@@ -177,7 +180,7 @@ impl<'a> Walker<'a> {
                     }
                 }
                 if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, owner, Some(&name));
+                    self.visit_children(body, owner, Some(&name), depth + 1);
                 }
             }
             "enum_constant" => {
@@ -194,10 +197,10 @@ impl<'a> Walker<'a> {
                     .unwrap_or_default();
                 let id = self.push_symbol(name, SymbolKind::Method, location(node), type_name.map(str::to_string));
                 if let Some(params) = node.child_by_field_name("parameters") {
-                    self.visit_children(params, id, type_name);
+                    self.visit_children(params, id, type_name, depth + 1);
                 }
                 if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, id, type_name);
+                    self.visit_children(body, id, type_name, depth + 1);
                 }
             }
             "field_declaration" => {
@@ -231,13 +234,13 @@ impl<'a> Walker<'a> {
                     self.push_relation(owner, RelationKind::Calls, text(name_node, self.source).to_string(), location(name_node));
                 }
                 if let Some(object) = node.child_by_field_name("object") {
-                    self.visit(object, owner, type_name);
+                    self.visit(object, owner, type_name, depth + 1);
                 }
                 if let Some(arguments) = node.child_by_field_name("arguments") {
-                    self.visit_children(arguments, owner, type_name);
+                    self.visit_children(arguments, owner, type_name, depth + 1);
                 }
             }
-            _ => self.visit_children(node, owner, type_name),
+            _ => self.visit_children(node, owner, type_name, depth + 1),
         }
     }
 

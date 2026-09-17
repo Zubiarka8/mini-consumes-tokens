@@ -4,7 +4,7 @@
 //! this crate is the entire integration surface for Python support.
 
 use ccm_core::{
-    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
+    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
     SymbolKind, SymbolRecord, SymbolRelation,
 };
 use tree_sitter::{Node, Parser};
@@ -51,7 +51,7 @@ impl LanguageParser for PythonParser {
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
         let module_id = walker.push_symbol(module_name, SymbolKind::Module, location(root), None);
-        walker.visit_children(root, module_id, None);
+        walker.visit_children(root, module_id, None, 0);
         Ok(walker.finish())
     }
 }
@@ -146,14 +146,17 @@ impl<'a> Walker<'a> {
     /// imports attach to it); `class_name` is the enclosing `class` name, so
     /// a `def` found directly in its body is recorded as a Method with that
     /// parent rather than a bare Function.
-    fn visit_children(&mut self, node: Node, owner: SymbolId, class_name: Option<&str>) {
+    fn visit_children(&mut self, node: Node, owner: SymbolId, class_name: Option<&str>, depth: u32) {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
-            self.visit(child, owner, class_name);
+            self.visit(child, owner, class_name, depth + 1);
         }
     }
 
-    fn visit(&mut self, node: Node, owner: SymbolId, class_name: Option<&str>) {
+    fn visit(&mut self, node: Node, owner: SymbolId, class_name: Option<&str>, depth: u32) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return;
+        }
         match node.kind() {
             "decorated_definition" => {
                 let mut cursor = node.walk();
@@ -172,7 +175,7 @@ impl<'a> Walker<'a> {
                     }
                 }
                 if let Some(definition) = node.child_by_field_name("definition") {
-                    self.visit(definition, owner, class_name);
+                    self.visit(definition, owner, class_name, depth + 1);
                 }
             }
             "function_definition" => {
@@ -187,10 +190,10 @@ impl<'a> Walker<'a> {
                 };
                 let id = self.push_symbol(name, kind, location(node), class_name.map(str::to_string));
                 if let Some(params) = node.child_by_field_name("parameters") {
-                    self.visit_children(params, id, None);
+                    self.visit_children(params, id, None, depth + 1);
                 }
                 if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, id, None);
+                    self.visit_children(body, id, None, depth + 1);
                 }
             }
             "class_definition" => {
@@ -208,7 +211,7 @@ impl<'a> Walker<'a> {
                     }
                 }
                 if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, id, Some(&name));
+                    self.visit_children(body, id, Some(&name), depth + 1);
                 }
             }
             "import_statement" => {
@@ -236,13 +239,13 @@ impl<'a> Walker<'a> {
                     if let Some((name, name_node)) = expr_name_node(function, self.source) {
                         self.push_relation(owner, RelationKind::Calls, name, location(name_node));
                     }
-                    self.visit(function, owner, class_name);
+                    self.visit(function, owner, class_name, depth + 1);
                 }
                 if let Some(arguments) = node.child_by_field_name("arguments") {
-                    self.visit_children(arguments, owner, class_name);
+                    self.visit_children(arguments, owner, class_name, depth + 1);
                 }
             }
-            _ => self.visit_children(node, owner, class_name),
+            _ => self.visit_children(node, owner, class_name, depth + 1),
         }
     }
 

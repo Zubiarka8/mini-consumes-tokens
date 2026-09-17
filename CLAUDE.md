@@ -21,7 +21,7 @@ For exploration/lookup questions, the **only** permitted tools are this project'
 - **Full blast radius before changing/removing X** → `impact_analysis`
 - **Is the index stale / healthy?** → `get_indexing_status`, and `reindex` only if it looks stale
 
-**`.claude-index/index.sqlite3` may only be touched through this project's own software** — the MCP tools listed above, or `ccm-cli` subcommands. Never open it with an external tool: no `sqlite3` CLI, no `python3`/`sqlite3` module, no DB browser, nothing outside `crates/`. If it isn't a tool this codebase ships, it doesn't get to touch the index — full stop.
+**`.ccm-index/index.sqlite3` may only be touched through this project's own software** — the MCP tools listed above, or `ccm-cli` subcommands. Never open it with an external tool: no `sqlite3` CLI, no `python3`/`sqlite3` module, no DB browser, nothing outside `crates/`. If it isn't a tool this codebase ships, it doesn't get to touch the index — full stop.
 
 **Former gap, now closed**: prior to `list_symbols` (added 2026-09-16), none of the MCP tools could answer "what symbols exist in file/crate Y" without an exact name. `list_symbols` covers that now — a file path is matched exactly, a directory/crate path (no file extension) is matched as a prefix, and `kind`/`language` narrow the result. If a *future* question still falls outside every tool's coverage, say so explicitly and ask the user whether to allow `Read`/`Grep` for that specific instance, rather than falling back automatically or treating one approval as a standing exception.
 

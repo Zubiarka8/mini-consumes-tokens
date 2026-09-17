@@ -75,12 +75,12 @@ fn main() -> anyhow::Result<()> {
     };
 
     // Doesn't touch the index at all, so it's handled before Index::open —
-    // running it shouldn't have the side effect of creating .claude-index/.
+    // running it shouldn't have the side effect of creating .ccm-index/.
     if let Command::McpRegister { name } = cli.command {
         return mcp_register(&root, name);
     }
 
-    let db_path = root.join(".claude-index").join("index.sqlite3");
+    let db_path = root.join(".ccm-index").join("index.sqlite3");
     let registry = build_registry();
     let mut index = Index::open(&root, &db_path, ExcludeSet::default())?;
 

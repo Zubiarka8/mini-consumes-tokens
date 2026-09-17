@@ -14,7 +14,7 @@
 //! inside a rule's block are not modeled at all — only the selector.
 
 use ccm_core::{
-    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
+    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
     SymbolKind, SymbolRecord, SymbolRelation,
 };
 use tree_sitter::{Node, Parser};
@@ -61,7 +61,7 @@ impl LanguageParser for CssParser {
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
         let module_id = walker.push_symbol(module_name, SymbolKind::Module, location(root));
-        walker.visit_children(root, module_id);
+        walker.visit_children(root, module_id, 0);
         Ok(walker.finish())
     }
 }
@@ -129,14 +129,17 @@ impl<'a> Walker<'a> {
         self.relations.push(SymbolRelation { from, kind, to_name, location: loc });
     }
 
-    fn visit_children(&mut self, node: Node, owner: SymbolId) {
+    fn visit_children(&mut self, node: Node, owner: SymbolId, depth: u32) {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
-            self.visit(child, owner);
+            self.visit(child, owner, depth + 1);
         }
     }
 
-    fn visit(&mut self, node: Node, owner: SymbolId) {
+    fn visit(&mut self, node: Node, owner: SymbolId, depth: u32) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return;
+        }
         match node.kind() {
             "rule_set" => {
                 if let Some(selectors) = find_child(node, "selectors") {
@@ -150,14 +153,14 @@ impl<'a> Walker<'a> {
                 // Recurse into the block too: a rule's declarations never
                 // nest another rule_set in plain CSS, but this keeps the
                 // walk uniform and costs nothing.
-                self.visit_children(node, owner);
+                self.visit_children(node, owner, depth + 1);
             }
             "import_statement" => {
                 if let Some(target) = import_target(node, self.source) {
                     self.push_relation(owner, RelationKind::Imports, target, location(node));
                 }
             }
-            _ => self.visit_children(node, owner),
+            _ => self.visit_children(node, owner, depth + 1),
         }
     }
 

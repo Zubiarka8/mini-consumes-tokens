@@ -31,7 +31,7 @@ async fn main() -> anyhow::Result<()> {
         Some(root) => root,
         None => std::env::current_dir()?,
     };
-    let db_path = root.join(".claude-index").join("index.sqlite3");
+    let db_path = root.join(".ccm-index").join("index.sqlite3");
 
     let language_registry = registry::build_registry();
     let mut index = ccm_index::Index::open(&root, &db_path, ccm_index::ExcludeSet::default())?;

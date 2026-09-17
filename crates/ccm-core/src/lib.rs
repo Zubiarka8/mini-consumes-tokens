@@ -15,6 +15,17 @@ pub use symbol::{
     Location, RelationKind, SymbolId, SymbolKind, SymbolRecord, SymbolRelation,
 };
 
+/// Recursion-depth ceiling every `ccm-lang-*` AST walker must enforce while
+/// descending into a node's children. Parsing runs over arbitrary,
+/// potentially adversarial source (see [`LanguageParser::parse`]); tree-sitter
+/// happily produces deeply right- or left-nested trees for pathological input
+/// (e.g. thousands of nested parentheses), and an unguarded recursive walker
+/// crashes the process with a native stack overflow well before that. 256
+/// comfortably covers real-world code (deeply nested real syntax is rare
+/// past a few dozen levels) while keeping each walker's native stack usage
+/// bounded regardless of input.
+pub const MAX_TRAVERSAL_DEPTH: u32 = 256;
+
 /// A single source file to be parsed, relative to the project root.
 #[derive(Debug, Clone)]
 pub struct SourceFile {

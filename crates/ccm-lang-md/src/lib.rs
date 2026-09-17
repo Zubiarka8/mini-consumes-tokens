@@ -15,7 +15,7 @@
 //! symbol for the file: a heading-less document must produce zero symbols.
 
 use ccm_core::{
-    LanguageParser, Location, ParseError, ParsedFile, SourceFile, SymbolId, SymbolKind,
+    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, SourceFile, SymbolId, SymbolKind,
     SymbolRecord,
 };
 use tree_sitter::{Node, Parser};
@@ -62,7 +62,7 @@ impl LanguageParser for MarkdownParser {
         }
 
         let mut walker = Walker::new(&file.contents);
-        walker.visit_children(root, None);
+        walker.visit_children(root, None, 0);
         Ok(walker.finish())
     }
 }
@@ -147,10 +147,10 @@ impl<'a> Walker<'a> {
         id
     }
 
-    fn visit_children(&mut self, node: Node, parent_name: Option<String>) {
+    fn visit_children(&mut self, node: Node, parent_name: Option<String>, depth: u32) {
         let mut cursor = node.walk();
         for child in node.named_children(&mut cursor) {
-            self.visit(child, parent_name.clone());
+            self.visit(child, parent_name.clone(), depth + 1);
         }
     }
 
@@ -164,7 +164,10 @@ impl<'a> Walker<'a> {
     /// first heading in a file (or a heading-less file entirely) is still
     /// wrapped in a `section`, just one with no `atx_heading` child. That
     /// case recurses with the parent unchanged and emits no symbol.
-    fn visit(&mut self, node: Node, parent_name: Option<String>) {
+    fn visit(&mut self, node: Node, parent_name: Option<String>, depth: u32) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return;
+        }
         match node.kind() {
             "section" => match find_child(node, "atx_heading") {
                 Some(heading) => {
@@ -175,11 +178,11 @@ impl<'a> Walker<'a> {
                         location(heading),
                         parent_name,
                     );
-                    self.visit_children(node, Some(name));
+                    self.visit_children(node, Some(name), depth + 1);
                 }
-                None => self.visit_children(node, parent_name),
+                None => self.visit_children(node, parent_name, depth + 1),
             },
-            _ => self.visit_children(node, parent_name),
+            _ => self.visit_children(node, parent_name, depth + 1),
         }
     }
 

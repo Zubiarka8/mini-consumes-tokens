@@ -164,3 +164,22 @@ fn syntax_error_is_reported_not_panicked() {
     });
     assert!(matches!(result, Err(ccm_core::ParseError::Syntax { .. })));
 }
+
+// Regression test for a real crash: CI's fuzz-smoke job found a native
+// stack-overflow (AddressSanitizer) from adversarially deep nesting, since
+// the Walker's visit/visit_children recursion had no depth limit. This
+// input is exactly the shape that triggered it — thousands of nested
+// parenthesized expressions — and must return `Ok` (truncated past
+// `MAX_TRAVERSAL_DEPTH`, never crashing the process) rather than panic.
+#[test]
+fn deeply_nested_expression_does_not_stack_overflow() {
+    let nesting = 5_000;
+    let mut source = String::from("<?php\n$x = ");
+    source.push_str(&"(".repeat(nesting));
+    source.push('1');
+    source.push_str(&")".repeat(nesting));
+    source.push_str(";\n");
+
+    let result = PhpParser.parse(&SourceFile { relative_path: "deep.php".to_string(), contents: source });
+    assert!(result.is_ok(), "deeply nested input must not crash the parser, even if truncated");
+}

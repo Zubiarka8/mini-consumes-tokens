@@ -1,7 +1,7 @@
 //! `LanguageParser` implementation for C#, via `tree-sitter-c-sharp`.
 
 use ccm_core::{
-    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
+    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
     SymbolKind, SymbolRecord, SymbolRelation,
 };
 use tree_sitter::{Node, Parser};
@@ -48,7 +48,7 @@ impl LanguageParser for CSharpParser {
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
         let module_id = walker.push_symbol(module_name, SymbolKind::Module, location(root), None);
-        walker.visit_children(root, module_id, None);
+        walker.visit_children(root, module_id, None, 0);
         Ok(walker.finish())
     }
 }
@@ -144,14 +144,17 @@ impl<'a> Walker<'a> {
     /// declared directly inside it. Every `method_declaration` — including
     /// each overload — gets its own `SymbolRecord` row, so overloads are
     /// never collapsed.
-    fn visit_children(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>) {
+    fn visit_children(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>, depth: u32) {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
-            self.visit(child, owner, type_name);
+            self.visit(child, owner, type_name, depth + 1);
         }
     }
 
-    fn visit(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>) {
+    fn visit(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>, depth: u32) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return;
+        }
         match node.kind() {
             "namespace_declaration" => {
                 let name = node
@@ -160,7 +163,7 @@ impl<'a> Walker<'a> {
                     .unwrap_or_default();
                 self.push_symbol(name.clone(), SymbolKind::Module, location(node), type_name.map(str::to_string));
                 if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, owner, Some(&name));
+                    self.visit_children(body, owner, Some(&name), depth + 1);
                 }
             }
             "class_declaration" | "interface_declaration" | "struct_declaration" => {
@@ -195,7 +198,7 @@ impl<'a> Walker<'a> {
                     }
                 }
                 if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, owner, Some(&name));
+                    self.visit_children(body, owner, Some(&name), depth + 1);
                 }
             }
             "method_declaration" | "constructor_declaration" => {
@@ -205,10 +208,10 @@ impl<'a> Walker<'a> {
                     .unwrap_or_default();
                 let id = self.push_symbol(name, SymbolKind::Method, location(node), type_name.map(str::to_string));
                 if let Some(params) = node.child_by_field_name("parameters") {
-                    self.visit_children(params, id, type_name);
+                    self.visit_children(params, id, type_name, depth + 1);
                 }
                 if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, id, type_name);
+                    self.visit_children(body, id, type_name, depth + 1);
                 }
             }
             // A property (`Name { get; set; }`) is ONE symbol, not two —
@@ -226,7 +229,7 @@ impl<'a> Walker<'a> {
                     let mut cursor = accessors.walk();
                     for accessor in accessors.children(&mut cursor) {
                         if let Some(body) = accessor.child_by_field_name("body") {
-                            self.visit_children(body, id, type_name);
+                            self.visit_children(body, id, type_name, depth + 1);
                         }
                     }
                 }
@@ -265,13 +268,13 @@ impl<'a> Walker<'a> {
                         // indistinguishable row.
                         self.push_relation(owner, RelationKind::Calls, text(name_node, self.source).to_string(), location(name_node));
                     }
-                    self.visit(function, owner, type_name);
+                    self.visit(function, owner, type_name, depth + 1);
                 }
                 if let Some(arguments) = node.child_by_field_name("arguments") {
-                    self.visit_children(arguments, owner, type_name);
+                    self.visit_children(arguments, owner, type_name, depth + 1);
                 }
             }
-            _ => self.visit_children(node, owner, type_name),
+            _ => self.visit_children(node, owner, type_name, depth + 1),
         }
     }
 

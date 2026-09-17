@@ -5,6 +5,37 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Breaking**: the index directory is now `.ccm-index/` (was
+  `.claude-index/`) — this tool is meant to work with any MCP-capable
+  agent, not just Claude Code, so the on-disk name should not imply
+  otherwise. No migration path: delete the old `.claude-index/` and run
+  `ccm-cli --root . init` (or restart/reconnect your MCP client, which
+  triggers the same reindex) to regenerate under the new name. Updated
+  everywhere the old name appeared: `.gitignore`, the default exclusion
+  patterns (`ccm-index/src/exclude.rs`), both `db_path` computations
+  (`ccm-cli`, `ccm-mcp-server`), `CLAUDE.md`, `internal/checklist.md`,
+  and `manual/index.html`.
+
+### Fixed
+
+- Stack-overflow DoS on adversarially deep/nested source: `ccm-lang-php`'s
+  CI fuzz-smoke job crashed (AddressSanitizer `stack-overflow`) on a
+  crafted input, root-caused to unbounded mutual recursion in every
+  language crate's `Walker::visit`/`visit_children` AST traversal (all 17
+  crates share the same pattern). Fixed by adding a new
+  `ccm_core::MAX_TRAVERSAL_DEPTH` constant (256) and threading a `depth`
+  counter through every crate's walker; once the ceiling is hit, the
+  subtree is pruned (no further symbols recorded below that point)
+  instead of recursing further, so a malicious/pathological file can no
+  longer crash the indexer. A regression test
+  (`ccm-lang-php/tests/parse.rs::deeply_nested_expression_does_not_stack_overflow`)
+  reproduces the original crash shape (5,000 nested parenthesized
+  expressions) and asserts `parse()` still returns `Ok`.
+
 ## [0.1.0] - 2026-09-17
 
 First release. Development happened in the order below — later languages

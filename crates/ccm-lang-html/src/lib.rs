@@ -18,7 +18,7 @@
 //! one reaching into inline blocks.
 
 use ccm_core::{
-    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
+    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
     SymbolKind, SymbolRecord, SymbolRelation,
 };
 use tree_sitter::{Node, Parser};
@@ -65,7 +65,7 @@ impl LanguageParser for HtmlParser {
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
         let module_id = walker.push_symbol(module_name, SymbolKind::Module, location(root), None);
-        walker.visit_children(root, module_id, None);
+        walker.visit_children(root, module_id, None, 0);
         Ok(walker.finish())
     }
 }
@@ -143,18 +143,21 @@ impl<'a> Walker<'a> {
     /// `owner` is where file-level relations (an unclosed `<link>`/`<script
     /// src>` outside any id'd element) attach; `parent_name` is the nearest
     /// enclosing id'd element's name, for nesting id'd elements under it.
-    fn visit_children(&mut self, node: Node, owner: SymbolId, parent_name: Option<&str>) {
+    fn visit_children(&mut self, node: Node, owner: SymbolId, parent_name: Option<&str>, depth: u32) {
         let mut cursor = node.walk();
         for child in node.named_children(&mut cursor) {
-            self.visit(child, owner, parent_name);
+            self.visit(child, owner, parent_name, depth + 1);
         }
     }
 
-    fn visit(&mut self, node: Node, owner: SymbolId, parent_name: Option<&str>) {
+    fn visit(&mut self, node: Node, owner: SymbolId, parent_name: Option<&str>, depth: u32) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return;
+        }
         match node.kind() {
             "element" => {
                 let Some(tag) = find_tag(node) else {
-                    self.visit_children(node, owner, parent_name);
+                    self.visit_children(node, owner, parent_name, depth + 1);
                     return;
                 };
                 let (new_owner, new_parent) = self.handle_tag(tag, owner, parent_name);
@@ -163,7 +166,7 @@ impl<'a> Walker<'a> {
                     if child.id() == tag.id() {
                         continue;
                     }
-                    self.visit(child, new_owner, new_parent.as_deref());
+                    self.visit(child, new_owner, new_parent.as_deref(), depth + 1);
                 }
             }
             "script_element" | "style_element" => {
@@ -172,7 +175,7 @@ impl<'a> Walker<'a> {
                 }
                 // Raw content (JS/CSS text) is not parsed here — see module doc.
             }
-            _ => self.visit_children(node, owner, parent_name),
+            _ => self.visit_children(node, owner, parent_name, depth + 1),
         }
     }
 

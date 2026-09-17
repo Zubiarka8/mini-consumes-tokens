@@ -12,7 +12,7 @@
 //! less standardized across tree-sitter-lua forks than Rust's or Python's.
 
 use ccm_core::{
-    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
+    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
     SymbolKind, SymbolRecord, SymbolRelation,
 };
 use tree_sitter::{Node, Parser};
@@ -59,7 +59,7 @@ impl LanguageParser for LuaParser {
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
         let module_id = walker.push_symbol(module_name, SymbolKind::Module, location(root), None);
-        walker.visit_children(root, module_id);
+        walker.visit_children(root, module_id, 0);
         Ok(walker.finish())
     }
 }
@@ -149,14 +149,21 @@ impl<'a> Walker<'a> {
         });
     }
 
-    fn visit_children(&mut self, node: Node, owner: SymbolId) {
+    fn visit_children(&mut self, node: Node, owner: SymbolId, depth: u32) {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
-            self.visit(child, owner);
+            self.visit(child, owner, depth + 1);
         }
     }
 
-    fn visit(&mut self, node: Node, owner: SymbolId) {
+    /// `depth` bounds native stack usage against adversarially deep/nested
+    /// input (see `MAX_TRAVERSAL_DEPTH`) — every recursive call below passes
+    /// `depth + 1`, and this early-return prunes the subtree instead of
+    /// recursing further once the ceiling is hit.
+    fn visit(&mut self, node: Node, owner: SymbolId, depth: u32) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return;
+        }
         match node.kind() {
             // `function foo() end`, `local function foo() end`,
             // `function M.new() end`, `function M:greet() end` — same node
@@ -173,10 +180,10 @@ impl<'a> Walker<'a> {
                         SymbolKind::Function
                     };
                     let id = self.push_symbol(name, kind, location(node), parent);
-                    self.visit_function_body(node, id);
+                    self.visit_function_body(node, id, depth);
                 }
             }
-            "assignment_statement" => self.visit_assignment(node, owner),
+            "assignment_statement" => self.visit_assignment(node, owner, depth),
             "function_call" => {
                 if let Some(callee) = node.child_by_field_name("name") {
                     let (name, name_node) = call_target_name(callee, self.source);
@@ -194,24 +201,24 @@ impl<'a> Walker<'a> {
                     }
                 }
                 if let Some(arguments) = node.child_by_field_name("arguments") {
-                    self.visit_children(arguments, owner);
+                    self.visit_children(arguments, owner, depth + 1);
                 }
             }
             // An anonymous function not caught by the assignment-statement
             // special case below (e.g. passed inline as a callback
             // argument): no symbol to record, but calls inside it still
             // attach to whatever function currently owns this scope.
-            "function_definition" => self.visit_function_body(node, owner),
-            _ => self.visit_children(node, owner),
+            "function_definition" => self.visit_function_body(node, owner, depth),
+            _ => self.visit_children(node, owner, depth + 1),
         }
     }
 
-    fn visit_function_body(&mut self, function_node: Node, owner: SymbolId) {
+    fn visit_function_body(&mut self, function_node: Node, owner: SymbolId, depth: u32) {
         if let Some(params) = function_node.child_by_field_name("parameters") {
-            self.visit_children(params, owner);
+            self.visit_children(params, owner, depth + 1);
         }
         if let Some(body) = function_node.child_by_field_name("body") {
-            self.visit_children(body, owner);
+            self.visit_children(body, owner, depth + 1);
         }
     }
 
@@ -222,7 +229,7 @@ impl<'a> Walker<'a> {
     /// and `expression_list` positionally (Lua's own multiple-assignment
     /// semantics); anything else on the right just gets recursed into for
     /// nested calls/requires, without producing a symbol.
-    fn visit_assignment(&mut self, node: Node, owner: SymbolId) {
+    fn visit_assignment(&mut self, node: Node, owner: SymbolId, depth: u32) {
         // `variable_list`/`expression_list` are plain positional children of
         // `assignment_statement` in this grammar, not named fields on it
         // (only the identifiers *inside* each one carry field names) — found
@@ -247,10 +254,10 @@ impl<'a> Walker<'a> {
                     if let Some(var) = matching_var {
                         let (name, parent, _) = target_name(*var, self.source);
                         let id = self.push_symbol(name, SymbolKind::Function, location(*var), parent);
-                        self.visit_function_body(*value, id);
+                        self.visit_function_body(*value, id, depth);
                         continue;
                     }
-                    self.visit_function_body(*value, owner);
+                    self.visit_function_body(*value, owner, depth);
                 }
                 "table_constructor" => {
                     if let Some(var) = matching_var {
@@ -259,7 +266,7 @@ impl<'a> Walker<'a> {
                         continue;
                     }
                 }
-                _ => self.visit(*value, owner),
+                _ => self.visit(*value, owner, depth + 1),
             }
         }
     }

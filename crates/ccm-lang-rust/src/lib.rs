@@ -4,8 +4,8 @@
 //! this crate is the entire integration surface for Rust support.
 
 use ccm_core::{
-    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
-    SymbolKind, SymbolRecord, SymbolRelation,
+    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind,
+    SourceFile, SymbolId, SymbolKind, SymbolRecord, SymbolRelation,
 };
 use tree_sitter::{Node, Parser};
 
@@ -51,7 +51,7 @@ impl LanguageParser for RustParser {
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
         let module_id = walker.push_symbol(module_name, SymbolKind::Module, location(root), None);
-        walker.visit_children(root, module_id, None);
+        walker.visit_children(root, module_id, None, 0);
         Ok(walker.finish())
     }
 }
@@ -145,14 +145,21 @@ impl<'a> Walker<'a> {
     /// way to `owner` (the innermost enclosing function/method/module) and
     /// labeling methods with `impl_type` (the enclosing `impl Type` name, if
     /// any) as their parent.
-    fn visit_children(&mut self, node: Node, owner: SymbolId, impl_type: Option<&str>) {
+    fn visit_children(&mut self, node: Node, owner: SymbolId, impl_type: Option<&str>, depth: u32) {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
-            self.visit(child, owner, impl_type);
+            self.visit(child, owner, impl_type, depth + 1);
         }
     }
 
-    fn visit(&mut self, node: Node, owner: SymbolId, impl_type: Option<&str>) {
+    /// `depth` bounds native stack usage against adversarially deep/nested
+    /// input (see `MAX_TRAVERSAL_DEPTH`) — every recursive call below passes
+    /// `depth + 1`, and this early-return prunes the subtree instead of
+    /// recursing further once the ceiling is hit.
+    fn visit(&mut self, node: Node, owner: SymbolId, impl_type: Option<&str>, depth: u32) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return;
+        }
         match node.kind() {
             "function_item" | "function_signature_item" => {
                 let name = node
@@ -166,10 +173,10 @@ impl<'a> Walker<'a> {
                 };
                 let id = self.push_symbol(name, kind, location(node), impl_type.map(str::to_string));
                 if let Some(params) = node.child_by_field_name("parameters") {
-                    self.visit_children(params, id, impl_type);
+                    self.visit_children(params, id, impl_type, depth + 1);
                 }
                 if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, id, impl_type);
+                    self.visit_children(body, id, impl_type, depth + 1);
                 }
             }
             "struct_item" => {
@@ -184,7 +191,7 @@ impl<'a> Walker<'a> {
             "const_item" | "static_item" => {
                 let id = self.push_named(node, SymbolKind::Constant, None);
                 if let Some(value) = node.child_by_field_name("value") {
-                    self.visit_children(value, id, impl_type);
+                    self.visit_children(value, id, impl_type, depth + 1);
                 }
             }
             "trait_item" => {
@@ -194,7 +201,7 @@ impl<'a> Walker<'a> {
                     .unwrap_or_default();
                 let id = self.push_symbol(name.clone(), SymbolKind::Trait, location(node), None);
                 if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, id, Some(&name));
+                    self.visit_children(body, id, Some(&name), depth + 1);
                 }
             }
             "impl_item" => {
@@ -207,7 +214,7 @@ impl<'a> Walker<'a> {
                     self.push_relation(owner, RelationKind::Implements, trait_name, location(node));
                 }
                 if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, owner, Some(&type_name));
+                    self.visit_children(body, owner, Some(&type_name), depth + 1);
                 }
             }
             "mod_item" => {
@@ -217,7 +224,7 @@ impl<'a> Walker<'a> {
                     .unwrap_or_default();
                 let id = self.push_symbol(name, SymbolKind::Module, location(node), None);
                 if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, id, None);
+                    self.visit_children(body, id, None, depth + 1);
                 }
             }
             "use_declaration" => {
@@ -234,13 +241,13 @@ impl<'a> Walker<'a> {
                     if let Some((name, name_node)) = call_target(function, self.source) {
                         self.push_relation(owner, RelationKind::Calls, name, location(name_node));
                     }
-                    self.visit(function, owner, impl_type);
+                    self.visit(function, owner, impl_type, depth + 1);
                 }
                 if let Some(arguments) = node.child_by_field_name("arguments") {
-                    self.visit_children(arguments, owner, impl_type);
+                    self.visit_children(arguments, owner, impl_type, depth + 1);
                 }
             }
-            _ => self.visit_children(node, owner, impl_type),
+            _ => self.visit_children(node, owner, impl_type, depth + 1),
         }
     }
 
