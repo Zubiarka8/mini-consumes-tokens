@@ -151,7 +151,7 @@
                      emitted yet, see 12)
   ccm-lang-lua       LanguageParser impl — tree-sitter-lua (acceptance test;
                      NOT registered in either binary's build_registry — see 12)
-  ccm-mcp-server     rmcp server: registry.rs, server.rs (7 tools), format.rs, main.rs
+  ccm-mcp-server     rmcp server: registry.rs, server.rs (9 tools), format.rs, main.rs
   ccm-cli            init/reindex/status subcommands</code></pre>
       </div>
       <p>The plugin contract (<code>ccm_core::LanguageParser</code>, <code>crates/ccm-core/src/lib.rs</code>):</p>
@@ -212,7 +212,7 @@ Commands:
                              --name: server key under mcpServers. Defaults to the root
                              directory's own name.</code></pre>
       </div>
-      <p>The index file path is always <code>&lt;root&gt;/.claude-index/index.sqlite3</code> — hardcoded, not configurable via flag or environment variable.</p>
+      <p>The index file path is always <code>&lt;root&gt;/.ccm-index/index.sqlite3</code> — hardcoded, not configurable via flag or environment variable.</p>
       <div class="subblock">
         <h3><code>init</code> / <code>reindex</code> output</h3>
         <div class="figure">
@@ -221,7 +221,7 @@ Commands:
         <p>If any files hit an issue, a second block follows:</p>
         <div class="figure">
           <pre><code>2 issue(s):
-  path/to/file.kt [UnsupportedLanguage]: kotlin
+  path/to/file.swift [UnsupportedLanguage]: swift
   path/to/broken.py [SyntaxError]: line 42: unexpected token</code></pre>
         </div>
       </div>
@@ -246,7 +246,7 @@ Coverage by language:
   rust: 86 files, 892 symbols
   xaml: 1 files, 3 symbols
   xml: 4 files, 18 symbols
-Languages seen but not yet supported: kotlin     <span class="cmt">← only if non-empty</span>
+Languages seen but not yet supported: swift      <span class="cmt">← only if non-empty</span>
 3 file(s) failed to parse:                       <span class="cmt">← only if non-empty</span>
   path/to/broken.py: line 42: unexpected token
 Dependencies detected:                           <span class="cmt">← only if a manifest was found; one block per manifest</span>
@@ -283,7 +283,7 @@ Registered `my-project` in /abs/path/to/project/.mcp.json</code></pre>
       </div>
       <div class="callout">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
-        <div><strong>The help text undersells it.</strong> <code>ccm-mcp-server --help</code> lists only 4 tools (<code>find_symbol</code>, <code>find_references</code>, <code>find_calls</code>, <code>find_callers</code>); the server actually registers 7. <code>impact_analysis</code>, <code>reindex</code>, and <code>get_indexing_status</code> were added after that help string was last updated — see 06.</div>
+        <div><strong>The help text undersells it.</strong> <code>ccm-mcp-server --help</code> lists only 4 tools (<code>find_symbol</code>, <code>find_references</code>, <code>find_calls</code>, <code>find_callers</code>); the server actually registers 9. <code>list_symbols</code>, <code>impact_analysis</code>, <code>reindex</code>, <code>get_indexing_status</code>, and <code>get_file_skeleton</code> were added after that help string was last updated — see 06.</div>
       </div>
       <h3>Scope choices</h3>
       <div class="tablewrap">
@@ -441,7 +441,7 @@ args = ["--root", "&lt;absolute-path-to-repo&gt;"]</code></pre>
       </div>
       <div class="callout">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
-        <div>Cascade caps tool count at <strong>100 total, across every connected server</strong>. This server's 7 tools are nowhere near that limit alone, but on a config with many other servers already registered, individual tools can be toggled off per-server (unlike Cursor, which only toggles whole servers) to stay under the cap.</div>
+        <div>Cascade caps tool count at <strong>100 total, across every connected server</strong>. This server's 9 tools are nowhere near that limit alone, but on a config with many other servers already registered, individual tools can be toggled off per-server (unlike Cursor, which only toggles whole servers) to stay under the cap.</div>
       </div>
 
       <h3 id="reg-zed">5.9 Zed editor</h3>
@@ -552,6 +552,13 @@ stdio_servers = [
       <p>The five result-returning tools (<code>find_symbol</code>, <code>find_references</code>, <code>find_calls</code>, <code>find_callers</code>, <code>impact_analysis</code>) all accept an optional <code>limit: number</code> parameter, defaulting to <strong>50</strong> (<code>DEFAULT_RESULT_LIMIT</code> in <code>server.rs</code>) when omitted — generous enough that a typical handful-to-dozens of hits is never truncated, but bounded so a symbol with hundreds of matches in a large repo can't blow up a single response past what the <code>grep</code> baseline this project replaces would cost. Raise it explicitly if you expect more hits and want them all in one call.</p>
 
       <div class="subblock">
+        <h3><code>list_symbols</code> — discovery</h3>
+        <p class="quote">"DISCOVERY, not a precise lookup — use this FIRST when you don't know a symbol's exact name yet. Lists symbol definitions (name, kind, line range) found under `path`: a single file (exact path) or a directory/crate (a path with no file extension, matched as a prefix), optionally narrowed to one symbol `kind` and/or one `language`. Answers 'what functions/structs/classes does this file or crate have' without already knowing a name. Do NOT use this to locate one already-known symbol precisely, or to jump straight to its definition — use find_symbol for that; list_symbols is the discovery step that feeds find_symbol/find_references/find_calls/find_callers/impact_analysis, not a replacement for them."</p>
+        <p><strong>Params:</strong> <code>path: string</code> (a file path matched exactly, or a directory/crate path with no file extension matched as a prefix), <code>kind: string</code> (optional), <code>language: string</code> (optional), <code>limit: number</code> (optional, default 50).</p>
+        <p><strong>Output:</strong> one line per symbol — <code>path:line-end_line [language] kind name</code>, sorted by <code>relative_path</code> then <code>line</code>.</p>
+      </div>
+
+      <div class="subblock">
         <h3><code>find_symbol</code> — atomic</h3>
         <p class="quote">"ATOMIC lookup. Find the definition location(s) of a symbol by exact name, across every indexed language in this repository (including polyglot projects). Use this instead of grepping files to answer 'where is X defined'. Do NOT use this to find who calls or references a symbol — use find_callers (direct callers only) or find_references (every reference) instead."</p>
         <p><strong>Params:</strong> <code>name: string</code>, <code>limit: number</code> (optional, default 50).</p>
@@ -574,26 +581,26 @@ crates/ccm-core/src/lib.rs:39:1 [rust] trait LanguageParser
       <div class="subblock">
         <h3><code>find_references</code> — atomic</h3>
         <p class="quote">"ATOMIC lookup. Find every place a symbol is referenced: calls, imports, extends/implements, and plain references — the broadest reference search. Do NOT use this when you only want the functions that directly call a function — use find_callers instead, which is narrower and answers that question directly. Do NOT use this to find a symbol's own definition — use find_symbol."</p>
-        <p><strong>Params:</strong> <code>symbol: string</code> — matches <code>relations.to_name = ?1</code> across every relation kind, unfiltered; <code>limit: number</code> (optional, default 50).</p>
-        <p><strong>Output:</strong> <code>N reference(s):</code> then <code>path:line:col [language] fromSymbol --kind--&gt; toName</code> per hit.</p>
+        <p><strong>Params:</strong> <code>symbol: string</code> — matches <code>relations.to_name = ?1</code> across every relation kind, unfiltered; <code>limit: number</code> (optional, default 50); <code>depth: number</code> (optional, default 1, clamped to <code>[1, 32]</code>) — walks the reference graph breadth-first beyond the direct hit, so <code>depth: 2</code> also includes referrers-of-referrers, cycle-guarded by a visited-name set (see <code>crates/ccm-index/src/traversal.rs</code>); <code>offset: number</code> (optional, default 0) — skips this many leading results before applying <code>limit</code>.</p>
+        <p><strong>Output:</strong> <code>N reference(s):</code> then <code>path:line:col [language] fromSymbol --kind--&gt; toName</code> per hit, with a trailing <code> [depth N]</code> tag beyond depth 1 (omitted for direct hits, so output is byte-identical to before <code>depth</code> existed when it's never passed).</p>
       </div>
 
       <div class="subblock">
         <h3><code>find_calls</code> — atomic</h3>
         <p class="quote">"ATOMIC lookup. Find the functions/methods called by the given function — its callees. Answers 'what does this function call'. Do NOT use this to find who calls the function — that's the inverse question, answered by find_callers."</p>
-        <p><strong>Params:</strong> <code>function: string</code> — <code>WHERE caller.name = ?1 AND r.kind = 'calls'</code>; <code>limit: number</code> (optional, default 50).</p>
+        <p><strong>Params:</strong> <code>function: string</code> — <code>WHERE caller.name = ?1 AND r.kind = 'calls'</code>; <code>limit: number</code> (optional, default 50); <code>depth: number</code> (optional, default 1, clamped to <code>[1, 32]</code>) — walks the call graph forward beyond the direct hit; <code>offset: number</code> (optional, default 0).</p>
       </div>
 
       <div class="subblock">
         <h3><code>find_callers</code> — atomic</h3>
         <p class="quote">"ATOMIC lookup. Find the functions/methods that call the given function — its callers. Answers 'who calls this function'; the inverse of find_calls. Do NOT use this for a broader reference search (imports, extends/implements, non-call references) — use find_references instead. If you're about to change or remove this function and want its full blast radius (callers + references + likely tests) in one call, use impact_analysis instead of calling this separately."</p>
-        <p><strong>Params:</strong> <code>function: string</code> — <code>WHERE r.to_name = ?1 AND r.kind = 'calls'</code>, the exact inverse of <code>find_calls</code>; <code>limit: number</code> (optional, default 50).</p>
+        <p><strong>Params:</strong> <code>function: string</code> — <code>WHERE r.to_name = ?1 AND r.kind = 'calls'</code>, the exact inverse of <code>find_calls</code>; <code>limit: number</code> (optional, default 50); <code>depth: number</code> (optional, default 1, clamped to <code>[1, 32]</code>) — walks the call graph backward beyond the direct hit; <code>offset: number</code> (optional, default 0).</p>
       </div>
 
       <div class="subblock">
         <h3><code>impact_analysis</code> — composite</h3>
         <p class="quote">"COMPOSITE (internally combines find_callers + find_references + a test-name heuristic — you do not need to call those separately). Reports everything a change to `symbol` could break: its direct callers, its full reference set (calls/imports/extends/implements/plain), and which of those look like tests (name starting with `test`). Use this before editing or removing a symbol to gauge blast radius in one call. Do NOT use this for a plain lookup of only direct callers or only references — that's cheaper via find_callers or find_references alone, and this tool's output is more verbose."</p>
-        <p><strong>Params:</strong> <code>symbol: string</code>; <code>limit: number</code> (optional, default 50 — applied independently per section: callers, references, and affected tests are each capped separately, not combined). Runs <code>find_callers</code> + <code>find_references</code> under the same lock, then computes <code>affected_tests</code> by filtering both for names matching <code>looks_like_test_name</code> (case-insensitive <code>starts_with("test")</code>/<code>"test_"</code>), deduped by name.</p>
+        <p><strong>Params:</strong> <code>symbol: string</code>; <code>limit: number</code> (optional, default 50 — applied independently per section: callers, references, and affected tests are each capped separately, not combined); <code>depth: number</code> (optional, default 1, clamped to <code>[1, 32]</code>, applied to both the caller and reference BFS walks); <code>offset: number</code> (optional, default 0, applied independently per section). Runs the same BFS <code>find_callers</code>/<code>find_references</code> walks under the same lock, then computes <code>affected_tests</code> by filtering both for names matching <code>looks_like_test_name</code> (case-insensitive <code>starts_with("test")</code>/<code>"test_"</code>), deduped by name.</p>
         <div class="figure">
           <div class="figcap"><span class="tag">output shape</span></div>
           <pre><code>Impact analysis for `Symbol`:
@@ -628,7 +635,20 @@ All references:
         <p><strong>No params.</strong> Same content and shape as <code>ccm-cli status</code> (04).</p>
       </div>
 
-      <div class="quote"><em>Server self-description (sent verbatim in the MCP <code>initialize</code> response — this is what nudges Claude toward these tools over Read/Grep/Glob):</em><br><br>"Indexes this repository's source code (any of the supported languages, including polyglot repos) into a symbol graph. Prefer these tools over reading whole files with grep or a file reader when you need to locate a definition or understand call relationships — it costs far fewer tokens. Search tools (find_symbol, find_calls, find_callers, find_references) are atomic lookups, each answering one specific question — see each tool's description for which one to use and which NOT to. impact_analysis is composite: it combines find_callers + find_references + a test heuristic internally, for when you need the full blast radius of a change in one call. reindex and get_indexing_status are index maintenance, not search — they never return symbol data. The index refreshes automatically at startup; call reindex manually only if you suspect it's stale."</div>
+      <div class="subblock">
+        <h3><code>get_file_skeleton</code> — discovery</h3>
+        <p class="quote">"TOKEN-SAVING module overview. Returns a file's top-level declarations (functions, classes, structs, interfaces, types) with bodies collapsed to `// ...` — up to ~90% fewer tokens than reading the whole file when you just need its shape. Brace-delimited languages (Rust, Go, Java, C++, C#, PHP, JS/TS, Kotlin) get precise body elision; other languages (e.g. Python, Lua, Bash, PowerShell) get a best-effort declaration-line-only rendering. Nested members (e.g. methods inside a class) are NOT shown individually — a class/struct/interface collapses to one block regardless of what's inside it. Do NOT use this for a directory/crate — it takes a single file path; use list_symbols for that. Do NOT use this when you need a symbol's actual implementation, not just its shape — use find_symbol to locate it, then read the file directly."</p>
+        <p><strong>Param:</strong> <code>path: string</code> — a single file, exact path; rejected with <code>invalid_params</code> if it looks like a directory/crate prefix — use <code>list_symbols</code> first if you don't already know which file you need.</p>
+        <p><strong>Mechanics:</strong> reads the file's own source text off disk (same traversal guard the indexer's walk uses — a path resolving outside the project root is refused), takes every top-level symbol from <code>list_symbols</code> for that file, and renders each one of two ways: brace-delimited languages (Rust, Go, Java, C++, C#, PHP, JS/TS, Kotlin) get their body collapsed to <code>// ...</code> between the matching braces; every other language falls back to showing only the declaration line. Nested members are never expanded individually.</p>
+        <div class="figure">
+          <div class="figcap"><span class="tag">output</span></div>
+          <pre><code>Skeleton of `path` (N top-level symbol(s), bodies collapsed):
+...</code></pre>
+        </div>
+        <p>Empty result: <code>No top-level symbols found in \`path\` to build a skeleton from.</code></p>
+      </div>
+
+      <div class="quote"><em>Server self-description (sent verbatim in the MCP <code>initialize</code> response — this is what nudges Claude toward these tools over Read/Grep/Glob):</em><br><br>"Indexes this repository's source code (any of the supported languages, including polyglot repos) into a symbol graph. Prefer these tools over reading whole files with grep or a file reader when you need to locate a definition or understand call relationships — it costs far fewer tokens. list_symbols is the discovery tool: use it first when you don't know a symbol's exact name, to list what a file or directory/crate contains. Search tools (find_symbol, find_calls, find_callers, find_references) are atomic lookups, each answering one specific question — see each tool's description for which one to use and which NOT to. impact_analysis is composite: it combines find_callers + find_references + a test heuristic internally, for when you need the full blast radius of a change in one call. find_references/find_calls/find_callers/impact_analysis also accept an optional `depth` to walk multiple relation-graph hops (1, the default, is today's direct-hit behavior) and `offset` to page past `limit`. get_file_skeleton returns a file's top-level declarations with bodies collapsed to `// ...` — reach for it instead of reading a whole file when you only need its shape. reindex and get_indexing_status are index maintenance, not search — they never return symbol data. The index refreshes automatically at startup; call reindex manually only if you suspect it's stale."</div>
     </section>
 
     <section class="section" id="indexing">
@@ -640,7 +660,7 @@ All references:
         <li><strong>Symlink/escape guard:</strong> each entry is <code>canonicalize()</code>d; failure (broken symlink, race) or a canonical path outside the root — both skipped silently. A symlink can never make the indexer read outside the project root.</li>
         <li><strong>Path normalization:</strong> the relative path is rebuilt with forward slashes on every OS, so the index is portable between a Windows checkout and a Linux CI runner.</li>
         <li><strong>Exclusion check</strong> (09) — excluded paths are skipped but kept in <code>seen_paths</code>, so a previously-indexed row is cleaned up if exclude patterns later change.</li>
-        <li><strong>Extension lookup</strong> via <code>registry.for_extension(ext)</code>. No parser registered? If the extension is in <code>KNOWN_PENDING_LANGUAGES</code> (<code>kt</code>/<code>kts</code>→kotlin, <code>swift</code>, <code>rb</code>→ruby), it's recorded as an <code>unsupported_language</code> issue. Any <em>other</em> unrecognized extension (docs, images, lockfiles, <code>.lua</code>) is skipped with <strong>zero</strong> record — this is why a repo with <code>.lua</code> files wouldn't show "lua" as unsupported even though <code>ccm-lang-lua</code> isn't wired in.</li>
+        <li><strong>Extension lookup</strong> via <code>registry.for_extension(ext)</code>. No parser registered? If the extension is in <code>KNOWN_PENDING_LANGUAGES</code> (<code>swift</code>, <code>rb</code>→ruby), it's recorded as an <code>unsupported_language</code> issue. Any <em>other</em> unrecognized extension (docs, images, lockfiles, <code>.lua</code>) is skipped with <strong>zero</strong> record — this is why a repo with <code>.lua</code> files wouldn't show "lua" as unsupported even though <code>ccm-lang-lua</code> isn't wired in.</li>
         <li><strong>Read + hash:</strong> I/O error → skip. Content hash is a <strong>git blob SHA-1</strong> via <code>git2::Oid::hash_object(ObjectType::Blob, &amp;bytes)</code> — works outside an actual git repo; it's just git's hashing algorithm reused for change detection.</li>
         <li><strong>Incremental skip:</strong> if the stored hash for this path matches and <code>--force</code>/<code>force:true</code> wasn't passed, count as <code>files_unchanged</code> and skip entirely — no re-parse, no writes.</li>
         <li><strong>UTF-8 check:</strong> invalid UTF-8 (binary file sharing a supported extension) is skipped silently, not recorded as a syntax error.</li>
@@ -655,7 +675,7 @@ All references:
     <section class="section" id="schema">
       <span class="eyebrow">08</span>
       <h2>Database schema — full reference</h2>
-      <p>File: <code>&lt;root&gt;/.claude-index/index.sqlite3</code>. Applied via a single <code>rusqlite_migration</code> migration (from <code>crates/ccm-index/src/schema.rs</code>):</p>
+      <p>File: <code>&lt;root&gt;/.ccm-index/index.sqlite3</code>. Applied via a single <code>rusqlite_migration</code> migration (from <code>crates/ccm-index/src/schema.rs</code>):</p>
       <div class="figure">
         <div class="figcap"><span class="tag">sql — full ddl</span><button class="copybtn" data-copy>Copy</button></div>
         <pre><code id="c-schema">CREATE TABLE files (
@@ -740,7 +760,7 @@ CREATE INDEX idx_dependencies_name ON dependencies(name);</code></pre>
         </table>
       </div>
       <p><strong>Design note baked into the schema:</strong> one shared table per concept across <em>all</em> languages — no per-language tables. <code>symbols</code>/<code>relations</code> carry a <code>language</code> column via their <code>files</code> join instead, which is why adding a language plugin never requires a <em>schema</em> migration, even HTML/CSS/XML/XAML: <code>element</code>/<code>rule</code> needed two new <code>SymbolKind</code> variants in <code>ccm-core</code> (nothing else fit an HTML element or a CSS selector), but since <code>kind</code> is a plain string column, the table itself didn't change.</p>
-      <p><strong>Dependency manifests recognized today:</strong> <code>Cargo.toml</code> (<code>[dependencies]</code>/<code>[dev-dependencies]</code>/<code>[build-dependencies]</code>, plus <code>[workspace.dependencies]</code> on a workspace root), <code>package.json</code> (<code>dependencies</code>/<code>devDependencies</code>/<code>peerDependencies</code>/<code>optionalDependencies</code>), <code>requirements.txt</code> (one requirement per line, version kept as the constraint text written — <code>"&gt;=2.0,&lt;3.0"</code>, not resolved to one version), <code>go.mod</code> (<code>require</code> block and single-line forms; <code>go.sum</code> not read — direct dependencies only). Unlike source files, a manifest is <strong>re-parsed on every reindex</strong>, not skipped when unchanged — they're few and small, not worth a second incremental-skip mechanism. Exposed via <code>get_indexing_status</code>'s "Dependencies detected" section (06), not a separate MCP tool — deliberate, to stay within the 6–8 tool budget.</p>
+      <p><strong>Dependency manifests recognized today:</strong> <code>Cargo.toml</code> (<code>[dependencies]</code>/<code>[dev-dependencies]</code>/<code>[build-dependencies]</code>, plus <code>[workspace.dependencies]</code> on a workspace root), <code>package.json</code> (<code>dependencies</code>/<code>devDependencies</code>/<code>peerDependencies</code>/<code>optionalDependencies</code>), <code>requirements.txt</code> (one requirement per line, version kept as the constraint text written — <code>"&gt;=2.0,&lt;3.0"</code>, not resolved to one version), <code>go.mod</code> (<code>require</code> block and single-line forms; <code>go.sum</code> not read — direct dependencies only). Unlike source files, a manifest is <strong>re-parsed on every reindex</strong>, not skipped when unchanged — they're few and small, not worth a second incremental-skip mechanism. Exposed via <code>get_indexing_status</code>'s "Dependencies detected" section (06), not a separate MCP tool — deliberate, to keep the tool count small (9 total, 06) rather than growing one tool per data point.</p>
     </section>
 
     <section class="section" id="exclusion">
@@ -754,7 +774,7 @@ CREATE INDEX idx_dependencies_name ON dependencies(name);</code></pre>
 **/appsettings.*.json  **/*.pfx  **/*.snk                    <span class="cmt">(.NET)</span>
 **/gradle.properties                                         <span class="cmt">(Java/Gradle/Maven)</span>
 **/*.env.local  **/config/secrets.yaml                        <span class="cmt">(Go / Viper-style config)</span>
-**/.git/**  **/target/**  **/.claude-index/**                 <span class="cmt">(VCS / build output / the index itself)</span></code></pre>
+**/.git/**  **/target/**  **/.ccm-index/**                 <span class="cmt">(VCS / build output / the index itself)</span></code></pre>
       </div>
       <p>These exist so a fresh install <strong>never</strong> accidentally indexes a secret — opt-out is the design, not opt-in. <code>ExcludeSet::new(extra_patterns)</code> accepts a list to <em>widen</em> (never narrow) this set at the API level, but <strong>neither <code>ccm-cli</code> nor <code>ccm-mcp-server</code> currently exposes a flag or config file</strong> to supply <code>extra_patterns</code> — both call <code>ExcludeSet::default()</code> unconditionally. If you need to exclude something project-specific today, your only lever is renaming/moving the file to match an existing pattern, or contributing a config surface.</p>
     </section>
@@ -772,11 +792,11 @@ CREATE INDEX idx_dependencies_name ON dependencies(name);</code></pre>
       <p><strong>When to use <code>--force</code>/<code>force: true</code>:</strong> only if you suspect internal inconsistency (manual <code>.sqlite3</code> edits, or a version upgrade that changed hashing/parsing behavior) — normal edits are always picked up incrementally, since comparison is content-hash based, not mtime-based (touching a file without changing its bytes does <em>not</em> trigger a re-parse).</p>
       <div class="figure">
         <div class="figcap"><span class="tag">shell — rebuild from scratch</span><button class="copybtn" data-copy>Copy</button></div>
-        <pre><code id="c-rebuild"><span class="prompt">$</span> rm -rf .claude-index
+        <pre><code id="c-rebuild"><span class="prompt">$</span> rm -rf .ccm-index
 <span class="prompt">$</span> ccm-cli --root . init</code></pre>
       </div>
       <p>Safe at any time — the index is a pure derived artifact; deleting it loses nothing reconstructible from source.</p>
-      <p><strong>Committing to git:</strong> never. <code>.claude-index/</code> should be gitignored. It's large relative to source (this repo's own index is ~724&nbsp;KiB for 155 files/1,272 symbols), regenerates deterministically, and is meaningless to diff.</p>
+      <p><strong>Committing to git:</strong> never. <code>.ccm-index/</code> should be gitignored. It's large relative to source (this repo's own index is ~848&nbsp;KiB for 161 files/1,445 symbols), regenerates deterministically, and is meaningless to diff.</p>
     </section>
 
     <section class="section" id="querying">
@@ -787,7 +807,7 @@ CREATE INDEX idx_dependencies_name ON dependencies(name);</code></pre>
         <div class="figcap"><span class="tag">python</span><button class="copybtn" data-copy>Copy</button></div>
         <pre><code id="c-pyquery"><span class="prompt">$</span> python3 -c "
 import sqlite3
-conn = sqlite3.connect('.claude-index/index.sqlite3')
+conn = sqlite3.connect('.ccm-index/index.sqlite3')
 cur = conn.cursor()
 cur.execute(\"SELECT name, kind, file_id FROM symbols WHERE name = 'YourSymbol'\")
 print(cur.fetchall())
@@ -817,7 +837,7 @@ SELECT f.language, COUNT(DISTINCT f.id), COUNT(s.id)
 FROM files f LEFT JOIN symbols s ON s.file_id = f.id
 GROUP BY f.language;</code></pre>
       </div>
-      <p>If the <code>sqlite3</code> CLI <em>is</em> available on your system, the same queries work with <code>sqlite3 .claude-index/index.sqlite3 "SELECT ..."</code>.</p>
+      <p>If the <code>sqlite3</code> CLI <em>is</em> available on your system, the same queries work with <code>sqlite3 .ccm-index/index.sqlite3 "SELECT ..."</code>.</p>
     </section>
 
     <section class="section" id="limitations">
@@ -836,7 +856,7 @@ GROUP BY f.language;</code></pre>
         <li><strong><code>ccm-lang-bash</code>/<code>ccm-lang-powershell</code> only index top-level variables</strong>, and every command/cmdlet invocation is recorded as an unresolved <code>Calls</code> relation regardless of whether it turns out to be a local function or an external program — same "resolved downstream, matched by name" precedent as every other language here.</li>
         <li><strong><code>ccm-lang-php</code> reuses <code>SymbolKind::Trait</code> for PHP's <code>trait</code> keyword</strong>, the same tag <code>ccm-lang-rust</code> uses for Rust traits — the two are semantically different (a PHP trait is a code-inclusion mixin, not an interface-like contract), sharing only the tag name, not the meaning.</li>
         <li><strong><code>ccm-lang-php</code> records <code>use TraitName;</code> (trait composition) as a <code>RelationKind::Implements</code> relation</strong> on the enclosing class/enum — the closest existing relation kind, though not a perfect fit. <code>ccm-core</code> has no dedicated "uses/composes" relation kind today.</li>
-        <li><strong><code>KNOWN_PENDING_LANGUAGES</code> is a short, hardcoded list</strong> (kotlin, swift, ruby) — any other genuinely unsupported language's files are skipped with zero visibility in <code>status</code>.</li>
+        <li><strong><code>KNOWN_PENDING_LANGUAGES</code> is a short, hardcoded list</strong> (swift, ruby) — any other genuinely unsupported language's files are skipped with zero visibility in <code>status</code>.</li>
         <li><strong>Exclude patterns aren't user-configurable</strong> from either binary today (09), despite the underlying API supporting it.</li>
         <li><strong>No file-watching.</strong> The index only updates on an explicit <code>reindex</code> or MCP server startup.</li>
         <li><strong>Binary files sharing a supported extension are silently skipped</strong>, not reported as a parse failure — they fail the UTF-8 check before parsing is attempted.</li>
@@ -857,7 +877,7 @@ GROUP BY f.language;</code></pre>
             <tr><td>Language shown as "seen but not yet supported"</td><td>Extension is in <code>KNOWN_PENDING_LANGUAGES</code> with no parser registered</td><td>Expected; not implemented yet</td></tr>
             <tr><td>A language's files are just missing, no issue reported</td><td>Extension isn't in <code>KNOWN_PENDING_LANGUAGES</code> either (e.g. <code>.lua</code>) — silently skipped</td><td>Check <code>build_registry()</code> in both binaries to see what's wired in</td></tr>
             <tr><td><code>.env</code>/secret-looking files never show results</td><td>Excluded by design (09)</td><td>Expected; don't rely on this index for secrets discovery</td></tr>
-            <tr><td>Exits with <code>database error: ...</code></td><td>Corrupted/locked <code>.sqlite3</code> (killed mid-write, disk full)</td><td><code>rm -rf .claude-index &amp;&amp; ccm-cli --root . init</code></td></tr>
+            <tr><td>Exits with <code>database error: ...</code></td><td>Corrupted/locked <code>.sqlite3</code> (killed mid-write, disk full)</td><td><code>rm -rf .ccm-index &amp;&amp; ccm-cli --root . init</code></td></tr>
             <tr><td>Exits with <code>invalid path: X escapes the project root</code></td><td>A symlink inside the repo resolves outside <code>--root</code></td><td>Expected safety rejection (07 step 2) — fix/remove the symlink</td></tr>
             <tr><td><code>reindex</code> reports 0 parsed but files changed</td><td>Content hash unchanged (e.g. only mtime/permissions touched, or reverted to identical bytes)</td><td>Expected; comparison is content-based on purpose</td></tr>
           </tbody>
@@ -890,7 +910,7 @@ GROUP BY f.language;</code></pre>
 <span class="prompt">$</span> cargo uninstall ccm-mcp-server
 
 <span class="cmt"># Delete a given repo's index (safe any time, see 10)</span>
-<span class="prompt">$</span> rm -rf .claude-index
+<span class="prompt">$</span> rm -rf .ccm-index
 
 <span class="cmt"># If you committed .mcp.json, remove or edit it too</span></code></pre>
       </div>
@@ -904,8 +924,8 @@ GROUP BY f.language;</code></pre>
         <li>Implement <code>ccm_core::LanguageParser</code> (02): <code>language_id()</code>, <code>file_extensions()</code>, <code>parse()</code> — walk the AST and emit <code>SymbolRecord</code>s and <code>SymbolRelation</code>s. Use <code>ccm-lang-rust/src/lib.rs</code> or <code>ccm-lang-python/src/lib.rs</code> as the reference pattern.</li>
         <li>Register it in <strong>both</strong> places — <code>ccm-mcp-server/src/registry.rs</code> and <code>ccm-cli/src/main.rs::build_registry</code> — one <code>registry.register(Arc::new(YourLangParser))</code> line each. Nothing else in <code>ccm-core</code>/<code>ccm-index</code>/<code>ccm-mcp-server</code> changes.</li>
         <li>Add idiomatic-syntax fixtures in <code>crates/ccm-lang-&lt;lang&gt;/tests/parse.rs</code> (generics, decorators, whatever that language's equivalents are).</li>
-        <li>Update the language coverage table in <code>README.md</code> and <code>checklist.md</code>.</li>
-        <li>Run the token-savings benchmark for the new language once it exists (currently unimplemented workspace-wide, tracked in <code>checklist.md</code>).</li>
+        <li>Update the language coverage table in <code>README.md</code> and <code>internal/checklist.md</code>.</li>
+        <li>Run the token-savings benchmark for the new language once it exists (currently unimplemented workspace-wide, tracked in <code>internal/checklist.md</code>).</li>
       </ol>
     </section>
 
@@ -918,27 +938,74 @@ GROUP BY f.language;</code></pre>
 <span class="prompt">$</span> cargo install --path crates/ccm-cli
 <span class="prompt">$</span> cargo install --path crates/ccm-mcp-server
 
+<span class="cmt"># Verify what's on PATH before troubleshooting anything else — neither binary
+# implements --version today, --help is the only way to confirm the build</span>
+<span class="prompt">$</span> ccm-cli --help
+<span class="prompt">$</span> ccm-mcp-server --help
+<span class="prompt">$</span> which ccm-cli ccm-mcp-server        <span class="cmt"># Linux/macOS</span>
+<span class="prompt">$</span> where.exe ccm-cli ccm-mcp-server    <span class="cmt"># Windows (PowerShell: Get-Command ccm-cli, ccm-mcp-server)</span>
+
 <span class="cmt"># Index / inspect</span>
 <span class="prompt">$</span> ccm-cli --root . init
 <span class="prompt">$</span> ccm-cli --root . reindex
 <span class="prompt">$</span> ccm-cli --root . reindex --force
 <span class="prompt">$</span> ccm-cli --root . status
 
-<span class="cmt"># Register with Claude Code — either one writes the same .mcp.json shape</span>
-<span class="prompt">$</span> claude mcp add mini-consumes-tokens --scope project -- ccm-mcp-server --root "&lt;abs-path&gt;"
+<span class="cmt"># Register — writes .mcp.json (root key "mcpServers", "type": "stdio").
+# That exact shape also works as-is for Cursor, Claude Desktop, Windsurf, and
+# Warp — see below for VS Code+Copilot and Codex CLI, which use a different shape.</span>
 <span class="prompt">$</span> ccm-cli --root . mcp-register
+<span class="prompt">$</span> claude mcp add mini-consumes-tokens --scope project -- ccm-mcp-server --root "&lt;abs-path&gt;"
 <span class="prompt">$</span> claude mcp list
 <span class="prompt">$</span> claude mcp remove mini-consumes-tokens --scope project
 
 <span class="cmt"># Rebuild the index from scratch</span>
-<span class="prompt">$</span> rm -rf .claude-index &amp;&amp; ccm-cli --root . init
+<span class="prompt">$</span> rm -rf .ccm-index &amp;&amp; ccm-cli --root . init
 
 <span class="cmt"># Inspect the database without the sqlite3 CLI</span>
-<span class="prompt">$</span> python3 -c "import sqlite3; c=sqlite3.connect('.claude-index/index.sqlite3'); print(c.execute('SELECT COUNT(*) FROM symbols').fetchone())"
+<span class="prompt">$</span> python3 -c "import sqlite3; c=sqlite3.connect('.ccm-index/index.sqlite3'); print(c.execute('SELECT COUNT(*) FROM symbols').fetchone())"
 
-<span class="cmt"># Run the test suite (222 tests across the workspace)</span>
+<span class="cmt"># Validate a generated config is well-formed JSON before restarting a client</span>
+<span class="prompt">$</span> python3 -m json.tool .mcp.json
+
+<span class="cmt"># Debug: verbose startup/reindex logs — goes to stderr by design (MCP over
+# stdio reserves stdout for the JSON-RPC stream), see ccm-mcp-server/src/main.rs</span>
+<span class="prompt">$</span> RUST_LOG=debug ccm-mcp-server --root .
+<span class="prompt">$</span> $env:RUST_LOG="debug"; ccm-mcp-server --root .    <span class="cmt"># PowerShell equivalent</span>
+
+<span class="cmt"># Uninstall</span>
+<span class="prompt">$</span> claude mcp remove mini-consumes-tokens --scope project   <span class="cmt"># match the --scope used to add it</span>
+<span class="prompt">$</span> cargo uninstall ccm-cli
+<span class="prompt">$</span> cargo uninstall ccm-mcp-server
+<span class="prompt">$</span> rm -rf .ccm-index
+
+<span class="cmt"># Run the test suite (261 tests across the workspace)</span>
 <span class="prompt">$</span> cargo test --workspace</code></pre>
       </div>
+
+      <p>Config shapes for the clients not covered by <code>mcp-register</code>'s output above:</p>
+      <div class="figure">
+        <div class="figcap"><span class="tag">json</span></div>
+        <pre><code><span class="cmt">// VS Code + GitHub Copilot: .vscode/mcp.json — different shape from every
+// other client here (root key "servers", requires an explicit "type")</span>
+{
+  "servers": {
+    "mini-consumes-tokens": {
+      "type": "stdio",
+      "command": "ccm-mcp-server",
+      "args": ["--root", "${workspaceFolder}"]
+    }
+  }
+}</code></pre>
+      </div>
+      <div class="figure">
+        <div class="figcap"><span class="tag">toml</span></div>
+        <pre><code><span class="cmt"># Codex CLI (OpenAI): ~/.codex/config.toml — TOML, not JSON</span>
+[mcp_servers.mini-consumes-tokens]
+command = "ccm-mcp-server"
+args = ["--root", "&lt;absolute-path-to-repo&gt;"]</code></pre>
+      </div>
+      <p>Zed, Cline, Continue.dev, JetBrains AI Assistant/Junie, OpenHands, Gemini CLI, and Antigravity each have their own config path/shape too — see 05 for all of them. More failure modes (pending approval, stale results after <code>git pull</code>, unrelated-looking caller/callee matches, etc.) are covered in 13.</p>
     </section>
   </main>
 </div>

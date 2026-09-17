@@ -7,7 +7,7 @@ Methodology (`crates/ccm-cli/examples/token_benchmark.rs`, run via `cargo run -p
 - **~tokens**: `chars / 4`, a standard rough English/code heuristic — not a real tokenizer run, just enough to see the order of magnitude. Character counts (the exact numbers) are the primary, reproducible metric.
 - Three canonical queries per language: "find the definition of X" (`find_symbol`), "what calls this function" (`find_callers`), "who uses this symbol" (`find_references`).
 
-Caveat: fixtures are intentionally small (3 files, ~10–20 lines each) — see "Cobertura de lenguajes" in `checklist.md` for why (no versioned larger fixture yet). Absolute counts here are small; the reduction *ratio* is the meaningful signal, and it should hold or improve on larger real repos, since MCP output stays proportional to the number of actual matches while the grep+read baseline grows with the size of every file a plain-text match happens to touch, regardless of relevance.
+Caveat: fixtures are intentionally small (3 files, ~10–20 lines each) — see "Cobertura de lenguajes" in `internal/checklist.md` for why (no versioned larger fixture yet). Absolute counts here are small; the reduction *ratio* is the meaningful signal, and it should hold or improve on larger real repos, since MCP output stays proportional to the number of actual matches while the grep+read baseline grows with the size of every file a plain-text match happens to touch, regardless of relevance.
 
 ## Java (`crates/ccm-lang-java/tests/fixtures/billing-app`)
 

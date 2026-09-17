@@ -15,12 +15,7 @@ use crate::{Index, Result};
 /// pending language rather than silently ignoring its files (unlike generic
 /// non-source files — docs, images, lockfiles — which are ignored without
 /// comment).
-const KNOWN_PENDING_LANGUAGES: &[(&str, &str)] = &[
-    ("kt", "kotlin"),
-    ("kts", "kotlin"),
-    ("swift", "swift"),
-    ("rb", "ruby"),
-];
+const KNOWN_PENDING_LANGUAGES: &[(&str, &str)] = &[("swift", "swift"), ("rb", "ruby")];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnsupportedKind {
