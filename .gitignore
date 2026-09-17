@@ -22,4 +22,6 @@ MANUAL.md
 # already-ignored fuzz/target/, this guards future root-level artifacts)
 *.pdb
 *.exe
+
+# Obsidian workspace state (per-user editor state, not vault content)
 .obsidian/

@@ -15,4 +15,4 @@ Every `ccm-lang-*` crate implements `ccm_core::LanguageParser`:
 
 Exceptions with real security/complexity implications get their own note (e.g. [[ccm-lang-php]]); everything else is just a row in [[00-index]]'s extension→crate table.
 
-#architecture #contract
+#architecture #contract #crate
