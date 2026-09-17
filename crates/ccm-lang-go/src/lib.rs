@@ -11,7 +11,7 @@
 //! decision (see `checklist.md`).
 
 use ccm_core::{
-    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
+    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
     SymbolKind, SymbolRecord, SymbolRelation,
 };
 use tree_sitter::{Node, Parser};
@@ -70,7 +70,7 @@ impl LanguageParser for GoParser {
         if let Some(ref pkg) = package_name {
             walker.push_symbol(pkg.clone(), SymbolKind::Module, location(root), None);
         }
-        walker.visit_children(root, file_module_id, package_name.as_deref());
+        walker.visit_children(root, file_module_id, package_name.as_deref(), 0);
         Ok(walker.finish())
     }
 }
@@ -148,23 +148,26 @@ impl<'a> Walker<'a> {
     /// it); `package_name` is this file's package, used as `parent` for
     /// top-level functions/types/interfaces (Go has no further nesting of
     /// declarations below package scope).
-    fn visit_children(&mut self, node: Node, owner: SymbolId, package_name: Option<&str>) {
+    fn visit_children(&mut self, node: Node, owner: SymbolId, package_name: Option<&str>, depth: u32) {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
-            self.visit(child, owner, package_name);
+            self.visit(child, owner, package_name, depth + 1);
         }
     }
 
-    fn visit(&mut self, node: Node, owner: SymbolId, package_name: Option<&str>) {
+    fn visit(&mut self, node: Node, owner: SymbolId, package_name: Option<&str>, depth: u32) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return;
+        }
         match node.kind() {
             "function_declaration" => {
                 let name = node.child_by_field_name("name").map(|n| text(n, self.source).to_string()).unwrap_or_default();
                 let id = self.push_symbol(name, SymbolKind::Function, location(node), package_name.map(str::to_string));
                 if let Some(params) = node.child_by_field_name("parameters") {
-                    self.visit_children(params, id, package_name);
+                    self.visit_children(params, id, package_name, depth + 1);
                 }
                 if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, id, package_name);
+                    self.visit_children(body, id, package_name, depth + 1);
                 }
             }
             "method_declaration" => {
@@ -173,10 +176,10 @@ impl<'a> Walker<'a> {
                 let parent = receiver_type.or_else(|| package_name.map(str::to_string));
                 let id = self.push_symbol(name, SymbolKind::Method, location(node), parent);
                 if let Some(params) = node.child_by_field_name("parameters") {
-                    self.visit_children(params, id, package_name);
+                    self.visit_children(params, id, package_name, depth + 1);
                 }
                 if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, id, package_name);
+                    self.visit_children(body, id, package_name, depth + 1);
                 }
             }
             "type_spec" => {
@@ -230,13 +233,13 @@ impl<'a> Walker<'a> {
                         // indistinguishable row.
                         self.push_relation(owner, RelationKind::Calls, text(name_node, self.source).to_string(), location(name_node));
                     }
-                    self.visit(function, owner, package_name);
+                    self.visit(function, owner, package_name, depth + 1);
                 }
                 if let Some(arguments) = node.child_by_field_name("arguments") {
-                    self.visit_children(arguments, owner, package_name);
+                    self.visit_children(arguments, owner, package_name, depth + 1);
                 }
             }
-            _ => self.visit_children(node, owner, package_name),
+            _ => self.visit_children(node, owner, package_name, depth + 1),
         }
     }
 

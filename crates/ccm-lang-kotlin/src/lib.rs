@@ -14,7 +14,7 @@
 //! read positionally/by-kind rather than via `child_by_field_name`.
 
 use ccm_core::{
-    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
+    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
     SymbolKind, SymbolRecord, SymbolRelation,
 };
 use tree_sitter::{Node, Parser};
@@ -71,7 +71,7 @@ impl LanguageParser for KotlinParser {
             }
         }
 
-        walker.visit_children(root, module_id, None);
+        walker.visit_children(root, module_id, None, 0);
         Ok(walker.finish())
     }
 }
@@ -216,10 +216,10 @@ impl<'a> Walker<'a> {
         self.relations.push(SymbolRelation { from, kind, to_name, location: loc });
     }
 
-    fn visit_children(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>) {
+    fn visit_children(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>, depth: u32) {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
-            self.visit(child, owner, type_name);
+            self.visit(child, owner, type_name, depth + 1);
         }
     }
 
@@ -227,7 +227,10 @@ impl<'a> Walker<'a> {
     /// it) or the file-level module for top-level statements; `type_name` is
     /// the innermost enclosing class/interface/object, used as `parent` for
     /// members declared directly inside it.
-    fn visit(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>) {
+    fn visit(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>, depth: u32) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return;
+        }
         match node.kind() {
             "class_declaration" | "object_declaration" => {
                 let kind = if node.kind() == "class_declaration" && is_interface(node) {
@@ -268,10 +271,10 @@ impl<'a> Walker<'a> {
                 }
 
                 if let Some(primary_ctor) = find_child(node, "primary_constructor") {
-                    self.visit_children(primary_ctor, owner, Some(&name));
+                    self.visit_children(primary_ctor, owner, Some(&name), depth + 1);
                 }
                 if let Some(body) = find_child(node, "class_body") {
-                    self.visit_children(body, owner, Some(&name));
+                    self.visit_children(body, owner, Some(&name), depth + 1);
                 }
             }
             "class_parameter" => {
@@ -282,7 +285,7 @@ impl<'a> Walker<'a> {
                 }
                 // Default-value expressions (`= mutableListOf()`) may still
                 // contain calls worth indexing, promoted property or not.
-                self.visit_children(node, owner, type_name);
+                self.visit_children(node, owner, type_name, depth + 1);
             }
             "function_declaration" => {
                 let name = node.child_by_field_name("name").map(|n| text(n, self.source).to_string()).unwrap_or_default();
@@ -290,10 +293,10 @@ impl<'a> Walker<'a> {
                 let parent = receiver.or_else(|| type_name.map(str::to_string));
                 let id = self.push_symbol(name, SymbolKind::Method, location(node), parent);
                 if let Some(params) = find_child(node, "function_value_parameters") {
-                    self.visit_children(params, id, type_name);
+                    self.visit_children(params, id, type_name, depth + 1);
                 }
                 if let Some(body) = find_child(node, "function_body") {
-                    self.visit_children(body, id, type_name);
+                    self.visit_children(body, id, type_name, depth + 1);
                 }
             }
             "property_declaration" => {
@@ -306,7 +309,7 @@ impl<'a> Walker<'a> {
                 }
                 // Always recurse: initializer expressions (`val x = Foo()`)
                 // may contain calls even for locals we don't index as Field.
-                self.visit_children(node, owner, type_name);
+                self.visit_children(node, owner, type_name, depth + 1);
             }
             "import" => {
                 let mut cursor = node.walk();
@@ -332,9 +335,9 @@ impl<'a> Walker<'a> {
                     // calls into one indistinguishable row.
                     self.push_relation(owner, RelationKind::Calls, text(name_node, self.source).to_string(), location(name_node));
                 }
-                self.visit_children(node, owner, type_name);
+                self.visit_children(node, owner, type_name, depth + 1);
             }
-            _ => self.visit_children(node, owner, type_name),
+            _ => self.visit_children(node, owner, type_name, depth + 1),
         }
     }
 

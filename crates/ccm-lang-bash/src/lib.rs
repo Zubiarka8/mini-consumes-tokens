@@ -26,7 +26,7 @@
 //!   unresolvable callee in `ccm-lang-go`/`ccm-lang-js-ts`.
 
 use ccm_core::{
-    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
+    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
     SymbolKind, SymbolRecord, SymbolRelation,
 };
 use tree_sitter::{Node, Parser};
@@ -73,7 +73,7 @@ impl LanguageParser for BashParser {
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
         let module_id = walker.push_symbol(module_name.clone(), SymbolKind::Module, location(root), None);
-        walker.visit_children(root, module_id, &module_name, module_id);
+        walker.visit_children(root, module_id, &module_name, module_id, 0);
         Ok(walker.finish())
     }
 }
@@ -147,14 +147,17 @@ impl<'a> Walker<'a> {
     /// at top level, used as `parent` for symbols declared directly here;
     /// `module_id` is this file's own module symbol id, used to tell
     /// top-level statements apart from ones nested inside a function body.
-    fn visit_children(&mut self, node: Node, owner: SymbolId, scope_name: &str, module_id: SymbolId) {
+    fn visit_children(&mut self, node: Node, owner: SymbolId, scope_name: &str, module_id: SymbolId, depth: u32) {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
-            self.visit(child, owner, scope_name, module_id);
+            self.visit(child, owner, scope_name, module_id, depth + 1);
         }
     }
 
-    fn visit(&mut self, node: Node, owner: SymbolId, scope_name: &str, module_id: SymbolId) {
+    fn visit(&mut self, node: Node, owner: SymbolId, scope_name: &str, module_id: SymbolId, depth: u32) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return;
+        }
         match node.kind() {
             // Covers both `function foo() { ... }` and `foo() { ... }` —
             // same node kind either way, `name`/`body` fields don't depend
@@ -169,7 +172,7 @@ impl<'a> Walker<'a> {
                 }
                 let id = self.push_symbol(name.clone(), SymbolKind::Function, location(node), Some(scope_name.to_string()));
                 if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, id, &name, module_id);
+                    self.visit_children(body, id, &name, module_id, depth + 1);
                 }
             }
             // Bare `FOO=bar`, or one wrapped in `declaration_command` for
@@ -184,7 +187,7 @@ impl<'a> Walker<'a> {
                     }
                 }
                 if let Some(value) = node.child_by_field_name("value") {
-                    self.visit(value, owner, scope_name, module_id);
+                    self.visit(value, owner, scope_name, module_id, depth + 1);
                 }
             }
             "command" => {
@@ -206,9 +209,9 @@ impl<'a> Walker<'a> {
                 // Arguments can hide a command substitution (`$(...)` or
                 // `` `...` ``) containing further commands/calls — recurse
                 // into everything so those are still picked up.
-                self.visit_children(node, owner, scope_name, module_id);
+                self.visit_children(node, owner, scope_name, module_id, depth + 1);
             }
-            _ => self.visit_children(node, owner, scope_name, module_id),
+            _ => self.visit_children(node, owner, scope_name, module_id, depth + 1),
         }
     }
 

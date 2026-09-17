@@ -60,8 +60,8 @@
 //!   arguments.
 
 use ccm_core::{
-    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
-    SymbolKind, SymbolRecord, SymbolRelation,
+    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind,
+    SourceFile, SymbolId, SymbolKind, SymbolRecord, SymbolRelation,
 };
 use tree_sitter::{Node, Parser};
 
@@ -107,7 +107,7 @@ impl LanguageParser for PhpParser {
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
         let module_id = walker.push_symbol(module_name, SymbolKind::Module, location(root), None);
-        walker.visit_children(root, module_id, None);
+        walker.visit_children(root, module_id, None, 0);
         Ok(walker.finish())
     }
 }
@@ -214,14 +214,21 @@ impl<'a> Walker<'a> {
     /// `owner` reset to that type's own symbol id (not the outer owner) so
     /// a body-level `use_declaration` (trait composition) attaches its
     /// relation to the type itself, not to a stale enclosing scope.
-    fn visit_children(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>) {
+    fn visit_children(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>, depth: u32) {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
-            self.visit(child, owner, type_name);
+            self.visit(child, owner, type_name, depth + 1);
         }
     }
 
-    fn visit(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>) {
+    /// `depth` bounds native stack usage against adversarially deep/nested
+    /// input (see `MAX_TRAVERSAL_DEPTH`) — every recursive call below passes
+    /// `depth + 1`, and this early-return prunes the subtree instead of
+    /// recursing further once the ceiling is hit.
+    fn visit(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>, depth: u32) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return;
+        }
         match node.kind() {
             "class_declaration" | "interface_declaration" | "trait_declaration" => {
                 let kind = match node.kind() {
@@ -250,7 +257,7 @@ impl<'a> Walker<'a> {
                     }
                 }
                 if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, id, Some(&name));
+                    self.visit_children(body, id, Some(&name), depth + 1);
                 }
             }
             "enum_declaration" => {
@@ -267,7 +274,7 @@ impl<'a> Walker<'a> {
                     }
                 }
                 if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, id, Some(&name));
+                    self.visit_children(body, id, Some(&name), depth + 1);
                 }
             }
             "enum_case" => {
@@ -297,10 +304,10 @@ impl<'a> Walker<'a> {
                 let parent = if kind == SymbolKind::Method { type_name.map(str::to_string) } else { None };
                 let id = self.push_symbol(name, kind, location(node), parent);
                 if let Some(params) = node.child_by_field_name("parameters") {
-                    self.visit_children(params, id, type_name);
+                    self.visit_children(params, id, type_name, depth + 1);
                 }
                 if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, id, type_name);
+                    self.visit_children(body, id, type_name, depth + 1);
                 }
             }
             // Constructor property promotion: a parameter with a visibility
@@ -354,7 +361,7 @@ impl<'a> Walker<'a> {
                     if let Some(path) = literal_string_text(target, self.source) {
                         self.push_relation(owner, RelationKind::Imports, path, location(node));
                     }
-                    self.visit(target, owner, type_name);
+                    self.visit(target, owner, type_name, depth + 1);
                 }
             }
             "function_call_expression" => {
@@ -362,10 +369,10 @@ impl<'a> Walker<'a> {
                     if let Some(seg) = last_segment(function) {
                         self.push_relation(owner, RelationKind::Calls, text(seg, self.source).to_string(), location(seg));
                     }
-                    self.visit(function, owner, type_name);
+                    self.visit(function, owner, type_name, depth + 1);
                 }
                 if let Some(arguments) = node.child_by_field_name("arguments") {
-                    self.visit_children(arguments, owner, type_name);
+                    self.visit_children(arguments, owner, type_name, depth + 1);
                 }
             }
             "member_call_expression" | "scoped_call_expression" => {
@@ -380,10 +387,10 @@ impl<'a> Walker<'a> {
                     }
                 }
                 if let Some(receiver) = node.child_by_field_name("object").or_else(|| node.child_by_field_name("scope")) {
-                    self.visit(receiver, owner, type_name);
+                    self.visit(receiver, owner, type_name, depth + 1);
                 }
                 if let Some(arguments) = node.child_by_field_name("arguments") {
-                    self.visit_children(arguments, owner, type_name);
+                    self.visit_children(arguments, owner, type_name, depth + 1);
                 }
             }
             // `$cb = function () {}` / `$cb = fn() => ...`: name the
@@ -398,19 +405,19 @@ impl<'a> Walker<'a> {
                         if let Some(var) = variable_text(l, self.source) {
                             let id = self.push_symbol(var.to_string(), SymbolKind::Function, location(r), type_name.map(str::to_string));
                             if let Some(params) = r.child_by_field_name("parameters") {
-                                self.visit_children(params, id, type_name);
+                                self.visit_children(params, id, type_name, depth + 1);
                             }
                             if let Some(body) = r.child_by_field_name("body") {
-                                self.visit(body, id, type_name);
+                                self.visit(body, id, type_name, depth + 1);
                             }
                         } else {
-                            self.visit(r, owner, type_name);
+                            self.visit(r, owner, type_name, depth + 1);
                         }
                     }
-                    _ => self.visit_children(node, owner, type_name),
+                    _ => self.visit_children(node, owner, type_name, depth + 1),
                 }
             }
-            _ => self.visit_children(node, owner, type_name),
+            _ => self.visit_children(node, owner, type_name, depth + 1),
         }
     }
 

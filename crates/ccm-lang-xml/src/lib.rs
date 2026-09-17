@@ -14,7 +14,7 @@
 //! see `ccm-lang-xaml`.
 
 use ccm_core::{
-    LanguageParser, Location, ParseError, ParsedFile, SourceFile, SymbolId, SymbolKind,
+    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, SourceFile, SymbolId, SymbolKind,
     SymbolRecord,
 };
 use tree_sitter::{Node, Parser};
@@ -61,7 +61,7 @@ impl LanguageParser for XmlParser {
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
         walker.push_symbol(module_name, SymbolKind::Module, location(root), None);
-        walker.visit_children(root, None);
+        walker.visit_children(root, None, 0);
         Ok(walker.finish())
     }
 }
@@ -136,19 +136,22 @@ impl<'a> Walker<'a> {
         id
     }
 
-    fn visit_children(&mut self, node: Node, parent_name: Option<String>) {
+    fn visit_children(&mut self, node: Node, parent_name: Option<String>, depth: u32) {
         let mut cursor = node.walk();
         for child in node.named_children(&mut cursor) {
-            self.visit(child, parent_name.clone());
+            self.visit(child, parent_name.clone(), depth + 1);
         }
     }
 
-    fn visit(&mut self, node: Node, parent_name: Option<String>) {
+    fn visit(&mut self, node: Node, parent_name: Option<String>, depth: u32) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return;
+        }
         match node.kind() {
             "element" => {
                 let tag = find_child(node, "STag").or_else(|| find_child(node, "EmptyElemTag"));
                 let Some(tag) = tag else {
-                    self.visit_children(node, parent_name);
+                    self.visit_children(node, parent_name, depth + 1);
                     return;
                 };
                 let attrs = collect_attributes(tag, self.source);
@@ -171,10 +174,10 @@ impl<'a> Walker<'a> {
                 };
 
                 if let Some(content) = find_child(node, "content") {
-                    self.visit_children(content, new_parent);
+                    self.visit_children(content, new_parent, depth + 1);
                 }
             }
-            _ => self.visit_children(node, parent_name),
+            _ => self.visit_children(node, parent_name, depth + 1),
         }
     }
 

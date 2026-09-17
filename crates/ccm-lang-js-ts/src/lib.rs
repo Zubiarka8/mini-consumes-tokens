@@ -33,7 +33,7 @@
 //! and neither requires knowing up front which module system a file uses.
 
 use ccm_core::{
-    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
+    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
     SymbolKind, SymbolRecord, SymbolRelation,
 };
 use tree_sitter::{Node, Parser};
@@ -87,7 +87,7 @@ impl LanguageParser for JsTsParser {
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
         let module_id = walker.push_symbol(module_name, SymbolKind::Module, location(root), None);
-        walker.visit_children(root, module_id, None);
+        walker.visit_children(root, module_id, None, 0);
         Ok(walker.finish())
     }
 }
@@ -182,10 +182,10 @@ impl<'a> Walker<'a> {
     /// imports attach to it); `type_name` is the innermost enclosing
     /// class/interface name, used as the `parent` of members declared
     /// directly inside its body.
-    fn visit_children(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>) {
+    fn visit_children(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>, depth: u32) {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
-            self.visit(child, owner, type_name);
+            self.visit(child, owner, type_name, depth + 1);
         }
     }
 
@@ -194,19 +194,26 @@ impl<'a> Walker<'a> {
     /// arrow function's body can be a single expression (`() => foo()`)
     /// rather than a `statement_block`, so the body is dispatched through
     /// `visit` (not `visit_children`) to still catch a bare top-level call.
-    fn visit_function_like_body(&mut self, function_node: Node, owner: SymbolId, type_name: Option<&str>) {
+    fn visit_function_like_body(&mut self, function_node: Node, owner: SymbolId, type_name: Option<&str>, depth: u32) {
         if let Some(params) = function_node.child_by_field_name("parameters") {
-            self.visit_children(params, owner, type_name);
+            self.visit_children(params, owner, type_name, depth + 1);
         }
         if let Some(param) = function_node.child_by_field_name("parameter") {
-            self.visit_children(param, owner, type_name);
+            self.visit_children(param, owner, type_name, depth + 1);
         }
         if let Some(body) = function_node.child_by_field_name("body") {
-            self.visit(body, owner, type_name);
+            self.visit(body, owner, type_name, depth + 1);
         }
     }
 
-    fn visit(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>) {
+    /// `depth` bounds native stack usage against adversarially deep/nested
+    /// input (see `MAX_TRAVERSAL_DEPTH`) — every recursive call below passes
+    /// `depth + 1`, and this early-return prunes the subtree instead of
+    /// recursing further once the ceiling is hit.
+    fn visit(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>, depth: u32) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return;
+        }
         match node.kind() {
             "function_declaration" | "generator_function_declaration" => {
                 let name = node
@@ -214,7 +221,7 @@ impl<'a> Walker<'a> {
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
                 let id = self.push_symbol(name, SymbolKind::Function, location(node), None);
-                self.visit_function_like_body(node, id, None);
+                self.visit_function_like_body(node, id, None, depth);
             }
             "class_declaration" | "abstract_class_declaration" => {
                 let name = node
@@ -229,7 +236,7 @@ impl<'a> Walker<'a> {
                     }
                 }
                 if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, owner, Some(&name));
+                    self.visit_children(body, owner, Some(&name), depth + 1);
                 }
             }
             "interface_declaration" => {
@@ -250,7 +257,7 @@ impl<'a> Walker<'a> {
                     }
                 }
                 if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, owner, Some(&name));
+                    self.visit_children(body, owner, Some(&name), depth + 1);
                 }
             }
             "type_alias_declaration" => {
@@ -266,7 +273,7 @@ impl<'a> Walker<'a> {
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
                 let id = self.push_symbol(name, SymbolKind::Method, location(node), type_name.map(str::to_string));
-                self.visit_function_like_body(node, id, type_name);
+                self.visit_function_like_body(node, id, type_name, depth);
             }
             // JS's `field_definition` vs TS's `public_field_definition` —
             // otherwise identical shape (`property`/`name` field, optional
@@ -283,7 +290,7 @@ impl<'a> Walker<'a> {
                 match node.child_by_field_name("value") {
                     Some(value) if matches!(value.kind(), "arrow_function" | "function_expression") => {
                         let id = self.push_symbol(name, SymbolKind::Method, location(node), type_name.map(str::to_string));
-                        self.visit_function_like_body(value, id, type_name);
+                        self.visit_function_like_body(value, id, type_name, depth);
                     }
                     _ => {
                         self.push_symbol(name, SymbolKind::Field, location(node), type_name.map(str::to_string));
@@ -306,10 +313,10 @@ impl<'a> Walker<'a> {
                         location(node),
                         type_name.map(str::to_string),
                     );
-                    self.visit_function_like_body(value, id, type_name);
+                    self.visit_function_like_body(value, id, type_name, depth);
                     return;
                 }
-                self.visit(value, owner, type_name);
+                self.visit(value, owner, type_name, depth + 1);
             }
             // A function/arrow not caught by the more specific cases above
             // (variable_declarator, field_definition, export value,
@@ -319,7 +326,7 @@ impl<'a> Walker<'a> {
             // inside it still attach to whatever function currently owns
             // this scope.
             "arrow_function" | "function_expression" | "generator_function" => {
-                self.visit_function_like_body(node, owner, type_name);
+                self.visit_function_like_body(node, owner, type_name, depth);
             }
             "call_expression" => {
                 if let Some(function) = node.child_by_field_name("function") {
@@ -346,10 +353,10 @@ impl<'a> Walker<'a> {
                         }
                         _ => {}
                     }
-                    self.visit(function, owner, type_name);
+                    self.visit(function, owner, type_name, depth + 1);
                 }
                 if let Some(arguments) = node.child_by_field_name("arguments") {
-                    self.visit_children(arguments, owner, type_name);
+                    self.visit_children(arguments, owner, type_name, depth + 1);
                 }
             }
             "new_expression" => {
@@ -357,10 +364,10 @@ impl<'a> Walker<'a> {
                     if let Some(name_node) = rightmost_name(constructor) {
                         self.push_relation(owner, RelationKind::Calls, text(name_node, self.source).to_string(), location(name_node));
                     }
-                    self.visit(constructor, owner, type_name);
+                    self.visit(constructor, owner, type_name, depth + 1);
                 }
                 if let Some(arguments) = node.child_by_field_name("arguments") {
-                    self.visit_children(arguments, owner, type_name);
+                    self.visit_children(arguments, owner, type_name, depth + 1);
                 }
             }
             "import_statement" => {
@@ -371,9 +378,9 @@ impl<'a> Walker<'a> {
                     }
                 }
             }
-            "export_statement" => self.visit_export_statement(node, owner, type_name),
-            "assignment_expression" => self.visit_assignment_expression(node, owner, type_name),
-            _ => self.visit_children(node, owner, type_name),
+            "export_statement" => self.visit_export_statement(node, owner, type_name, depth),
+            "assignment_expression" => self.visit_assignment_expression(node, owner, type_name, depth),
+            _ => self.visit_children(node, owner, type_name, depth + 1),
         }
     }
 
@@ -458,15 +465,15 @@ impl<'a> Walker<'a> {
     /// foo` and `export { foo, bar as baz }` reference an *existing* symbol
     /// by name rather than declaring a new one, recorded as `References`
     /// (the same relation the Python plugin uses for decorator references).
-    fn visit_export_statement(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>) {
+    fn visit_export_statement(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>, depth: u32) {
         if let Some(declaration) = node.child_by_field_name("declaration") {
-            self.visit(declaration, owner, type_name);
+            self.visit(declaration, owner, type_name, depth + 1);
         }
         if let Some(value) = node.child_by_field_name("value") {
             if let Some(name_node) = rightmost_name(value) {
                 self.push_relation(owner, RelationKind::References, text(name_node, self.source).to_string(), location(value));
             } else {
-                self.visit(value, owner, type_name);
+                self.visit(value, owner, type_name, depth + 1);
             }
         }
         let mut cursor = node.walk();
@@ -495,28 +502,28 @@ impl<'a> Walker<'a> {
     /// recorded as a new `Function` symbol, same treatment as the ESM
     /// arrow-assigned-to-variable case. Anything that isn't one of these
     /// shapes (e.g. a plain reassignment) is just recursed into normally.
-    fn visit_assignment_expression(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>) {
+    fn visit_assignment_expression(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>, depth: u32) {
         let left = node.child_by_field_name("left");
         let right = node.child_by_field_name("right");
         if let (Some(left), Some(right)) = (left, right) {
             if let Some(member_name) = commonjs_export_target(left, self.source) {
-                self.record_commonjs_export(member_name, right, owner);
+                self.record_commonjs_export(member_name, right, owner, depth);
                 return;
             }
         }
         if let Some(right) = right {
-            self.visit(right, owner, type_name);
+            self.visit(right, owner, type_name, depth + 1);
         }
     }
 
-    fn record_commonjs_export(&mut self, member_name: Option<String>, value: Node, owner: SymbolId) {
+    fn record_commonjs_export(&mut self, member_name: Option<String>, value: Node, owner: SymbolId, depth: u32) {
         match value.kind() {
             "arrow_function" | "function_expression" => match member_name {
                 Some(name) => {
                     let id = self.push_symbol(name, SymbolKind::Function, location(value), None);
-                    self.visit_function_like_body(value, id, None);
+                    self.visit_function_like_body(value, id, None, depth);
                 }
-                None => self.visit_function_like_body(value, owner, None),
+                None => self.visit_function_like_body(value, owner, None, depth),
             },
             "identifier" => {
                 self.push_relation(owner, RelationKind::References, text(value, self.source).to_string(), location(value));
@@ -538,7 +545,7 @@ impl<'a> Walker<'a> {
                                 }
                                 "arrow_function" | "function_expression" => {
                                     let id = self.push_symbol(text(key, self.source).to_string(), SymbolKind::Function, location(child), None);
-                                    self.visit_function_like_body(val, id, None);
+                                    self.visit_function_like_body(val, id, None, depth);
                                 }
                                 _ => {}
                             }
@@ -546,14 +553,14 @@ impl<'a> Walker<'a> {
                         "method_definition" => {
                             if let Some(name_node) = child.child_by_field_name("name") {
                                 let id = self.push_symbol(text(name_node, self.source).to_string(), SymbolKind::Function, location(child), None);
-                                self.visit_function_like_body(child, id, None);
+                                self.visit_function_like_body(child, id, None, depth);
                             }
                         }
                         _ => {}
                     }
                 }
             }
-            _ => self.visit(value, owner, None),
+            _ => self.visit(value, owner, None, depth + 1),
         }
     }
 
