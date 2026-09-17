@@ -8,7 +8,7 @@ A short description of the system.
 
 ### Indexer
 
-Walks the file tree and writes to SQLite.
+Walks the file tree and writes to SQLite. See [[Parser]] for the tree-sitter wrapper. #core
 
 ### Parser
 
