@@ -7,7 +7,7 @@ MCP tools over stdio (`rmcp`), exposing the `ccm-index` SQLite index to any MCP-
 
 ## Responsibilities
 - Auto-reindexes incrementally at startup.
-- Implements the 9 tools listed in [[mcp-protocol-spec]].
+- Implements the 10 tools listed in [[mcp-protocol-spec]].
 - Knows no language's grammar — routes everything through `ccm_core::LanguageRegistry`.
 
 ## Related

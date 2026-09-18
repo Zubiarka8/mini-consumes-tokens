@@ -1,6 +1,6 @@
 [package]
 name = "ccm-mcp-server"
-description = "MCP server exposing mini-consumes-tokens's tree-sitter-backed symbol index as Claude Code tools: list_symbols, find_symbol, find_references, find_calls, find_callers, impact_analysis, reindex, get_indexing_status, get_file_skeleton."
+description = "MCP server exposing mini-consumes-tokens's tree-sitter-backed symbol index as Claude Code tools: list_symbols, find_symbol, find_references, find_calls, find_callers, impact_analysis, reindex, get_indexing_status, get_file_skeleton, get_project_overview."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
