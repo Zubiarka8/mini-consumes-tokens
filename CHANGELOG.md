@@ -17,10 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   matching; other languages fall back to declaration-line-only rendering.
   Nested members are not expanded individually.
 - Multi-hop graph traversal (`depth`, default 1, clamped to
-  `ccm_core::MAX_QUERY_DEPTH` = 32) and pagination (`offset`) on
+  `mct_core::MAX_QUERY_DEPTH` = 32) and pagination (`offset`) on
   `find_references`, `find_calls`, `find_callers`, and `impact_analysis`.
   Implemented as a BFS layered over the existing single-hop queries
-  (`ccm-index/src/traversal.rs`), cycle-guarded by a visited-symbol-name
+  (`mct-index/src/traversal.rs`), cycle-guarded by a visited-symbol-name
   set so a cyclic call/reference graph can't loop forever. Each hit beyond
   depth 1 is tagged ` [depth N]` in tool output; at the default `depth: 1`
   and `offset: 0`, output is byte-identical to before this existed.
@@ -57,17 +57,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Stack-overflow DoS on adversarially deep/nested source: `ccm-lang-php`'s
+- Stack-overflow DoS on adversarially deep/nested source: `mct-lang-php`'s
   CI fuzz-smoke job crashed (AddressSanitizer `stack-overflow`) on a
   crafted input, root-caused to unbounded mutual recursion in every
   language crate's `Walker::visit`/`visit_children` AST traversal (all 17
   crates share the same pattern). Fixed by adding a new
-  `ccm_core::MAX_TRAVERSAL_DEPTH` constant (256) and threading a `depth`
+  `mct_core::MAX_TRAVERSAL_DEPTH` constant (256) and threading a `depth`
   counter through every crate's walker; once the ceiling is hit, the
   subtree is pruned (no further symbols recorded below that point)
   instead of recursing further, so a malicious/pathological file can no
   longer crash the indexer. A regression test
-  (`ccm-lang-php/tests/parse.rs::deeply_nested_expression_does_not_stack_overflow`)
+  (`mct-lang-php/tests/parse.rs::deeply_nested_expression_does_not_stack_overflow`)
   reproduces the original crash shape (5,000 nested parenthesized
   expressions) and asserts `parse()` still returns `Ok`.
 
