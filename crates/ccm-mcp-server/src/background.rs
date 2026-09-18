@@ -52,6 +52,22 @@ pub fn spawn_watcher(
                 }
             };
             tracing::debug!(count = events.len(), ?events, "watcher received a debounced batch");
+            // TEMPORARY diagnostic instrumentation (2026-09-18): CI on
+            // ubuntu-latest keeps failing background_watcher's
+            // a_change_under_an_excluded_path_does_not_trigger_a_reindex with
+            // an unexplained auto-reindex; dumping each event's raw path/kind
+            // and its exclusion verdict to see what's actually slipping
+            // through. Remove once root-caused.
+            for event in &events {
+                let rel = relative_slash_path(&root, &event.path);
+                eprintln!(
+                    "[DIAG] event.path={:?} rel={:?} kind={:?} excluded={:?}",
+                    event.path,
+                    rel,
+                    event.kind,
+                    rel.as_deref().map(|r| exclude.is_excluded(r))
+                );
+            }
             let relevant = events.iter().any(|event| {
                 event.kind != DebouncedEventKind::AnyContinuous
                     && relative_slash_path(&root, &event.path)
