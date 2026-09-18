@@ -1,22 +1,46 @@
-//! `LanguageParser` implementation for Markdown headings, via `tree-sitter-md`.
+//! `LanguageParser` implementation for Markdown, via `tree-sitter-md`.
 //!
-//! Phase 1 scope only: ATX headings (`#`..`######`) become `Element` symbols,
-//! nested by the block grammar's own `section` structure — no manual
-//! level-counting stack is needed, `tree-sitter-md` already wraps each
-//! heading and its lower-level content in a `section` node nested by level
-//! (verified against a real parse before writing this walker: `# A / ## B /
-//! ## C / ### D / # E / ## F` nests D under C's section, not B's, and E
-//! starts a sibling section of A's, not a child of it). No relations are
-//! emitted yet — internal links, `RelationKind::Imports`, anchors, setext
-//! headings, lists, tables, and code blocks are all deliberately out of
-//! scope for this phase.
+//! Phase 1: ATX headings (`#`..`######`) become `Element` symbols, nested by
+//! the block grammar's own `section` structure — no manual level-counting
+//! stack is needed, `tree-sitter-md` already wraps each heading and its
+//! lower-level content in a `section` node nested by level (verified against
+//! a real parse before writing this walker: `# A / ## B / ## C / ### D / # E
+//! / ## F` nests D under C's section, not B's, and E starts a sibling
+//! section of A's, not a child of it).
+//!
+//! Phase 2: `[[WikiLink]]` and `#tag` occurrences in a heading's own text or
+//! in a `paragraph` block are indexed as `RelationKind::References`
+//! relations from the enclosing heading symbol (a `#tag` target is
+//! `tag:<name>`, since `ccm-core::SymbolRecord` has no attribute field — see
+//! `docs/superpowers/specs/2026-09-17-obsidian-docs-vault-and-md-parser-design.md`).
+//! A `|alias` suffix on a WikiLink is stripped; a `#Heading` anchor is kept
+//! verbatim as part of the target. A link/tag with no enclosing heading (text
+//! before the first heading, or in a heading-less file) is silently skipped.
+//! Scanning is hand-rolled text scanning, not a second parse with the inline
+//! grammar — `tree-sitter-md`'s inline grammar is CommonMark and has no
+//! concept of this Obsidian-specific syntax. Links/tags inside list items and
+//! blockquotes are not specially handled — `tree-sitter-md` wraps their text
+//! in the same `paragraph` node kind as top-level text, so they are scanned
+//! like any other paragraph; excluding them deliberately would require
+//! detecting the containing block type, deferred to a future phase. Table
+//! cells are a distinct block-grammar node with no `paragraph` child and are
+//! never scanned. Code spans are not a separate node at all in this crate's
+//! block-only grammar (the inline grammar that defines `code_span` is never
+//! parsed) — inline-code text is embedded directly in the surrounding
+//! paragraph, so a tag or link inside backticks is scanned like ordinary text
+//! (see `scan_tags`'s doc comment). Anchor-aware target resolution and
+//! exact-span relation locations (a relation's `Location` is its whole
+//! containing block, not the bracket span) are out of scope. Standard Markdown
+//! links (`[text](url)`) are not `[[WikiLinks]]` and are never indexed. Setext
+//! headings, lists, tables, and code blocks remain out of scope for symbol
+//! extraction, same as Phase 1.
 //!
 //! Unlike `ccm-lang-xml`, this crate does not emit a synthetic root `Module`
 //! symbol for the file: a heading-less document must produce zero symbols.
 
 use ccm_core::{
-    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, SourceFile, SymbolId, SymbolKind,
-    SymbolRecord,
+    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
+    SymbolKind, SymbolRecord, SymbolRelation,
 };
 use tree_sitter::{Node, Parser};
 
@@ -62,7 +86,7 @@ impl LanguageParser for MarkdownParser {
         }
 
         let mut walker = Walker::new(&file.contents);
-        walker.visit_children(root, None, 0);
+        walker.visit_children(root, None, None, 0);
         Ok(walker.finish())
     }
 }
@@ -105,6 +129,78 @@ fn heading_text<'a>(heading: Node, source: &'a str) -> &'a str {
         .unwrap_or_default()
 }
 
+/// Extracts `[[WikiLink]]` targets from raw text. A `|alias` display
+/// suffix is stripped (the alias is presentation, not the reference
+/// identity); a `#Heading` anchor is kept verbatim as part of the target
+/// (anchor-aware resolution is deferred, see the module doc comment). Not
+/// grammar-aware — this scans raw node text directly, since
+/// `tree-sitter-md`'s inline grammar has no concept of this
+/// Obsidian-specific syntax.
+fn scan_wikilinks(text: &str) -> Vec<String> {
+    let mut targets = Vec::new();
+    let mut i = 0;
+    while let Some(start) = text[i..].find("[[") {
+        let open = i + start + 2;
+        let Some(rel_end) = text[open..].find("]]") else {
+            break;
+        };
+        let close = open + rel_end;
+        let target = text[open..close].split('|').next().unwrap_or("").trim();
+        if !target.is_empty() {
+            targets.push(target.to_string());
+        }
+        i = close + 2;
+    }
+    targets
+}
+
+/// Extracts `#tag` occurrences from raw text, each returned as its bare
+/// name (the `tag:` prefix is applied by the caller). A `#` only starts a
+/// tag when preceded by start-of-text or whitespace — this is what keeps a
+/// URL fragment like `.../page#section` from being mistaken for a tag (the
+/// character before its `#` is `/`, never whitespace). A tag-shaped token
+/// inside inline code (`` `#notatag` ``) is still matched — excluding code
+/// spans needs an inline-grammar reparse, deferred (see the module doc
+/// comment).
+///
+/// Deviates from the spec's literal `[A-Za-z0-9_/-]+` character class in two
+/// ways: a candidate that is entirely ASCII digits (`#123`) is rejected —
+/// real-world Markdown uses bare-numeric `#123`-style tokens for issue/PR
+/// references, not PKM tags, so indexing them would be noise (a token with
+/// at least one non-digit character, like `#v2` or `#2fa`, still matches).
+/// The character class itself uses `char::is_alphanumeric`, which is
+/// Unicode-broad (it already matches non-ASCII letters/digits like `é` or
+/// `日本語`) rather than the spec's nominal ASCII-only class — kept
+/// deliberately, since it matches real Obsidian tagging behavior more
+/// closely than a strict ASCII class would.
+fn scan_tags(text: &str) -> Vec<String> {
+    let chars: Vec<char> = text.chars().collect();
+    let mut tags = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        let at_boundary = i == 0 || chars[i - 1].is_whitespace();
+        if chars[i] == '#' && at_boundary {
+            let start = i + 1;
+            let mut end = start;
+            while end < chars.len()
+                && (chars[end].is_alphanumeric() || matches!(chars[end], '_' | '/' | '-'))
+            {
+                end += 1;
+            }
+            if end > start {
+                let candidate = &chars[start..end];
+                if !candidate.iter().all(|c| c.is_ascii_digit()) {
+                    tags.push(candidate.iter().collect());
+                }
+                i = end;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    tags
+}
+
 fn find_child<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
     let mut cursor = node.walk();
     let found = node
@@ -116,6 +212,7 @@ fn find_child<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
 struct Walker<'a> {
     source: &'a str,
     symbols: Vec<SymbolRecord>,
+    relations: Vec<SymbolRelation>,
     next_id: SymbolId,
 }
 
@@ -124,6 +221,7 @@ impl<'a> Walker<'a> {
         Self {
             source,
             symbols: Vec::new(),
+            relations: Vec::new(),
             next_id: 0,
         }
     }
@@ -147,10 +245,39 @@ impl<'a> Walker<'a> {
         id
     }
 
-    fn visit_children(&mut self, node: Node, parent_name: Option<String>, depth: u32) {
+    /// Scans `text` for `[[WikiLink]]` targets and records each as a
+    /// `References` relation from `from`. `loc` is the whole containing
+    /// heading/paragraph block's location — relations are block-granular,
+    /// not exact-span (see the module doc comment).
+    fn push_relations_from_text(&mut self, from: SymbolId, text: &str, loc: Location) {
+        for to_name in scan_wikilinks(text) {
+            self.relations.push(SymbolRelation {
+                from,
+                kind: RelationKind::References,
+                to_name,
+                location: loc,
+            });
+        }
+        for tag in scan_tags(text) {
+            self.relations.push(SymbolRelation {
+                from,
+                kind: RelationKind::References,
+                to_name: format!("tag:{tag}"),
+                location: loc,
+            });
+        }
+    }
+
+    fn visit_children(
+        &mut self,
+        node: Node,
+        parent_name: Option<String>,
+        parent_id: Option<SymbolId>,
+        depth: u32,
+    ) {
         let mut cursor = node.walk();
         for child in node.named_children(&mut cursor) {
-            self.visit(child, parent_name.clone(), depth + 1);
+            self.visit(child, parent_name.clone(), parent_id, depth + 1);
         }
     }
 
@@ -164,7 +291,13 @@ impl<'a> Walker<'a> {
     /// first heading in a file (or a heading-less file entirely) is still
     /// wrapped in a `section`, just one with no `atx_heading` child. That
     /// case recurses with the parent unchanged and emits no symbol.
-    fn visit(&mut self, node: Node, parent_name: Option<String>, depth: u32) {
+    fn visit(
+        &mut self,
+        node: Node,
+        parent_name: Option<String>,
+        parent_id: Option<SymbolId>,
+        depth: u32,
+    ) {
         if depth >= MAX_TRAVERSAL_DEPTH {
             return;
         }
@@ -172,24 +305,29 @@ impl<'a> Walker<'a> {
             "section" => match find_child(node, "atx_heading") {
                 Some(heading) => {
                     let name = heading_text(heading, self.source).to_string();
-                    self.push_symbol(
-                        name.clone(),
-                        SymbolKind::Element,
-                        location(heading),
-                        parent_name,
-                    );
-                    self.visit_children(node, Some(name), depth + 1);
+                    let heading_loc = location(heading);
+                    let id =
+                        self.push_symbol(name.clone(), SymbolKind::Element, heading_loc, parent_name);
+                    self.push_relations_from_text(id, &name, heading_loc);
+                    self.visit_children(node, Some(name), Some(id), depth + 1);
                 }
-                None => self.visit_children(node, parent_name, depth + 1),
+                None => self.visit_children(node, parent_name, parent_id, depth + 1),
             },
-            _ => self.visit_children(node, parent_name, depth + 1),
+            "paragraph" => {
+                if let Some(id) = parent_id {
+                    let text = node.utf8_text(self.source.as_bytes()).unwrap_or_default();
+                    self.push_relations_from_text(id, text, location(node));
+                }
+                self.visit_children(node, parent_name, parent_id, depth + 1);
+            }
+            _ => self.visit_children(node, parent_name, parent_id, depth + 1),
         }
     }
 
     fn finish(self) -> ParsedFile {
         ParsedFile {
             symbols: self.symbols,
-            relations: Vec::new(),
+            relations: self.relations,
         }
     }
 }

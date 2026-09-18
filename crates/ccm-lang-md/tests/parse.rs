@@ -3,7 +3,7 @@
 // untrusted repo content (see crates/ccm-lang-md/src/ for that policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use ccm_core::{LanguageParser, SourceFile, SymbolKind};
+use ccm_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
 use ccm_lang_md::MarkdownParser;
 
 fn parse(src: &str) -> ccm_core::ParsedFile {
@@ -110,13 +110,137 @@ fn full_abcdef_hierarchy_matches_the_spec_example() {
 
     assert!(
         parsed.relations.is_empty(),
-        "Phase 1 emits no relations: {:?}",
+        "no [[WikiLinks]] or #tags appear in this input: {:?}",
         parsed.relations
     );
 }
 
 #[test]
-fn no_relations_are_ever_emitted_in_phase_1() {
+fn a_standard_markdown_link_is_not_mistaken_for_a_wikilink() {
     let parsed = parse("# A\n\nSome text with a [link](other.md) in it.\n\n## B\n");
+    assert!(
+        parsed.relations.is_empty(),
+        "single-bracket links are not [[WikiLinks]]: {:?}",
+        parsed.relations
+    );
+}
+
+#[test]
+fn wikilink_in_a_paragraph_emits_a_references_relation() {
+    let parsed = parse("# A\n\nSee [[Other Note]] for details.\n");
+    let a = parsed.symbols.iter().find(|s| s.name == "A").unwrap();
+    let rel = parsed
+        .relations
+        .iter()
+        .find(|r| r.to_name == "Other Note")
+        .unwrap();
+    assert_eq!(rel.kind, RelationKind::References);
+    assert_eq!(rel.from, a.id);
+}
+
+#[test]
+fn wikilink_alias_is_stripped_from_the_target() {
+    let parsed = parse("# A\n\nSee [[Other Note|click here]] for details.\n");
+    assert!(parsed.relations.iter().any(|r| r.to_name == "Other Note"));
+    assert!(
+        !parsed
+            .relations
+            .iter()
+            .any(|r| r.to_name.contains("click here"))
+    );
+}
+
+#[test]
+fn wikilink_anchor_is_indexed_verbatim_not_split() {
+    let parsed = parse("# A\n\nSee [[Other Note#Some Heading]] for details.\n");
+    assert!(
+        parsed
+            .relations
+            .iter()
+            .any(|r| r.to_name == "Other Note#Some Heading")
+    );
+}
+
+#[test]
+fn wikilink_inside_the_heading_text_itself_emits_a_relation() {
+    let parsed = parse("# See [[Other Note]]\n");
+    let heading = parsed
+        .symbols
+        .iter()
+        .find(|s| s.name == "See [[Other Note]]")
+        .unwrap();
+    let rel = parsed
+        .relations
+        .iter()
+        .find(|r| r.to_name == "Other Note")
+        .unwrap();
+    assert_eq!(rel.from, heading.id);
+}
+
+#[test]
+fn hashtag_in_a_paragraph_emits_a_tag_prefixed_relation() {
+    let parsed = parse("# A\n\nThis note is about #productivity today.\n");
+    let a = parsed.symbols.iter().find(|s| s.name == "A").unwrap();
+    let rel = parsed
+        .relations
+        .iter()
+        .find(|r| r.to_name == "tag:productivity")
+        .unwrap();
+    assert_eq!(rel.kind, RelationKind::References);
+    assert_eq!(rel.from, a.id);
+}
+
+#[test]
+fn a_url_fragment_is_not_mistaken_for_a_tag() {
+    let parsed = parse("# A\n\nSee http://example.com/page#section for more.\n");
+    assert!(!parsed.relations.iter().any(|r| r.to_name == "tag:section"));
+}
+
+#[test]
+fn hashtag_inside_the_heading_text_itself_emits_a_relation() {
+    let parsed = parse("# Ideas #brainstorm\n");
+    let heading = parsed
+        .symbols
+        .iter()
+        .find(|s| s.name == "Ideas #brainstorm")
+        .unwrap();
+    let rel = parsed
+        .relations
+        .iter()
+        .find(|r| r.to_name == "tag:brainstorm")
+        .unwrap();
+    assert_eq!(rel.from, heading.id);
+}
+
+#[test]
+fn a_wikilink_before_any_heading_is_not_indexed() {
+    let parsed = parse("See [[Orphan Note]] before any heading.\n\n# A\n");
+    assert!(parsed.relations.is_empty(), "{:?}", parsed.relations);
+}
+
+#[test]
+fn an_all_digit_hashtag_is_not_indexed_as_a_tag() {
+    let parsed = parse("# A\n\nFixes #123 and #v2 today.\n");
+    assert!(!parsed.relations.iter().any(|r| r.to_name == "tag:123"));
+    assert!(parsed.relations.iter().any(|r| r.to_name == "tag:v2"));
+}
+
+#[test]
+fn a_wikilink_in_a_list_item_is_scanned_like_any_paragraph() {
+    let parsed = parse("# A\n\n- See [[Other Note]] and #tagged\n");
+    assert!(parsed.relations.iter().any(|r| r.to_name == "Other Note"));
+    assert!(parsed.relations.iter().any(|r| r.to_name == "tag:tagged"));
+}
+
+#[test]
+fn a_wikilink_in_a_blockquote_is_scanned_like_any_paragraph() {
+    let parsed = parse("# A\n\n> See [[Other Note]] and #tagged\n");
+    assert!(parsed.relations.iter().any(|r| r.to_name == "Other Note"));
+    assert!(parsed.relations.iter().any(|r| r.to_name == "tag:tagged"));
+}
+
+#[test]
+fn a_wikilink_in_a_table_cell_is_not_scanned() {
+    let parsed = parse("# A\n\n| h |\n| - |\n| [[Cell]] |\n");
     assert!(parsed.relations.is_empty(), "{:?}", parsed.relations);
 }

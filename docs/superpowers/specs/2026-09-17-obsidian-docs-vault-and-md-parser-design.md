@@ -15,7 +15,7 @@ Two independent but related deliverables:
 - No new `SymbolKind` or `RelationKind` variant.
 - No new field on `SymbolRecord` (ruled out explicitly — see Decision 1).
 - No inline-grammar reparse of Markdown (CommonMark inline AST has no concept of `[[...]]` or `#tag`; see Decision 4).
-- No support for links/tags inside list items, blockquotes, tables, or code spans (deferred to a future phase, same pattern as Phase 1's original scope note).
+- Links/tags inside table cells are not scanned (a distinct block-grammar node with no `paragraph` child, never visited by the two node kinds this phase scans). Links/tags inside list items, blockquotes, and inline code ARE scanned like ordinary paragraph text — `tree-sitter-md` gives them no distinct node kind of their own at the block-grammar level this crate parses, so their text lands in the same `paragraph`/heading `inline` text already scanned. This is an accepted consequence of the hand-rolled, node-kind-based scanning approach (Decision 4), not a deliberately built feature; excluding them would require detecting the containing block type, deferred to a future phase.
 - No per-language doc files beyond the one exception noted in Decision 6.
 
 ## Decisions (confirmed with user before this doc was written)

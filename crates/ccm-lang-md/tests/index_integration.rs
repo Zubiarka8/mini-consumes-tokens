@@ -57,7 +57,7 @@ fn a_second_top_level_heading_does_not_inherit_the_first_ones_hierarchy() {
 }
 
 #[test]
-fn status_reports_full_markdown_coverage_with_no_relations() {
+fn status_reports_full_markdown_coverage() {
     let index = open_indexed();
     let status = index.status().unwrap();
     let md = status
@@ -70,4 +70,21 @@ fn status_reports_full_markdown_coverage_with_no_relations() {
         md.symbol_count, 7,
         "Architecture, Overview, Components, Indexer, Parser, Testing, Unit Tests"
     );
+}
+
+#[test]
+fn a_wikilink_in_the_fixture_resolves_as_a_references_relation() {
+    let index = open_indexed();
+    let hits = index.find_references("Parser").unwrap();
+    assert!(
+        hits.iter().any(|h| h.from_symbol == "Indexer" && h.kind == "references"),
+        "{hits:?}"
+    );
+}
+
+#[test]
+fn a_tag_in_the_fixture_resolves_as_a_tag_prefixed_reference() {
+    let index = open_indexed();
+    let hits = index.find_references("tag:core").unwrap();
+    assert!(hits.iter().any(|h| h.from_symbol == "Indexer"), "{hits:?}");
 }
