@@ -142,23 +142,132 @@ fn wikilink_in_a_paragraph_emits_a_references_relation() {
 fn wikilink_alias_is_stripped_from_the_target() {
     let parsed = parse("# A\n\nSee [[Other Note|click here]] for details.\n");
     assert!(parsed.relations.iter().any(|r| r.to_name == "Other Note"));
+    assert!(!parsed
+        .relations
+        .iter()
+        .any(|r| r.to_name.contains("click here")));
+}
+
+#[test]
+fn wikilink_anchor_is_split_into_two_relations() {
+    let parsed = parse("# A\n\nSee [[Other Note#Some Heading]] for details.\n");
+    assert!(
+        parsed.relations.iter().any(|r| r.to_name == "Other Note"),
+        "{:?}",
+        parsed.relations
+    );
+    assert!(
+        parsed.relations.iter().any(|r| r.to_name == "Some Heading"),
+        "{:?}",
+        parsed.relations
+    );
     assert!(
         !parsed
             .relations
             .iter()
-            .any(|r| r.to_name.contains("click here"))
+            .any(|r| r.to_name == "Other Note#Some Heading"),
+        "the anchor must no longer be indexed verbatim as one target: {:?}",
+        parsed.relations
     );
 }
 
 #[test]
-fn wikilink_anchor_is_indexed_verbatim_not_split() {
-    let parsed = parse("# A\n\nSee [[Other Note#Some Heading]] for details.\n");
-    assert!(
-        parsed
-            .relations
-            .iter()
-            .any(|r| r.to_name == "Other Note#Some Heading")
+fn wikilink_anchor_and_alias_together_strip_alias_and_split_anchor() {
+    let parsed = parse("# A\n\nSee [[Other Note#Some Heading|click here]] for details.\n");
+    assert!(parsed.relations.iter().any(|r| r.to_name == "Other Note"));
+    assert!(parsed.relations.iter().any(|r| r.to_name == "Some Heading"));
+    assert!(!parsed
+        .relations
+        .iter()
+        .any(|r| r.to_name.contains("click here")));
+}
+
+#[test]
+fn a_same_document_anchor_link_emits_only_the_heading_relation() {
+    let parsed = parse("# A\n\nSee [[#Some Heading]] for details.\n");
+    assert!(parsed.relations.iter().any(|r| r.to_name == "Some Heading"));
+    assert_eq!(
+        parsed.relations.len(),
+        1,
+        "an empty note part must not produce a spurious relation: {:?}",
+        parsed.relations
     );
+}
+
+#[test]
+fn wikilink_md_suffix_is_normalized_away() {
+    let parsed = parse("# A\n\nSee [[Other Note.md]] for details.\n");
+    assert!(parsed.relations.iter().any(|r| r.to_name == "Other Note"));
+    assert!(
+        !parsed.relations.iter().any(|r| r.to_name.contains(".md")),
+        "{:?}",
+        parsed.relations
+    );
+}
+
+#[test]
+fn wikilink_md_suffix_is_normalized_case_insensitively() {
+    let parsed = parse("# A\n\nSee [[Other Note.MD]] for details.\n");
+    assert!(parsed.relations.iter().any(|r| r.to_name == "Other Note"));
+}
+
+#[test]
+fn an_embed_is_scanned_identically_to_a_plain_wikilink() {
+    let parsed = parse("# A\n\nSee ![[Other Note]] for details.\n");
+    assert!(parsed.relations.iter().any(|r| r.to_name == "Other Note"));
+}
+
+#[test]
+fn an_embed_with_an_anchor_is_split_like_a_plain_wikilink() {
+    let parsed = parse("# A\n\nSee ![[Other Note#Some Heading]] for details.\n");
+    assert!(parsed.relations.iter().any(|r| r.to_name == "Other Note"));
+    assert!(parsed.relations.iter().any(|r| r.to_name == "Some Heading"));
+}
+
+#[test]
+fn multiple_distinct_wikilinks_in_one_note_all_emit_relations() {
+    let parsed = parse("# A\n\nSee [[Note One]] and [[Note Two]] for details.\n");
+    assert!(parsed.relations.iter().any(|r| r.to_name == "Note One"));
+    assert!(parsed.relations.iter().any(|r| r.to_name == "Note Two"));
+}
+
+#[test]
+fn a_repeated_wikilink_emits_a_relation_each_time_not_deduped() {
+    let parsed = parse("# A\n\nSee [[Other Note]] and again [[Other Note]].\n");
+    let count = parsed
+        .relations
+        .iter()
+        .filter(|r| r.to_name == "Other Note")
+        .count();
+    assert_eq!(count, 2, "{:?}", parsed.relations);
+}
+
+#[test]
+fn a_wikilink_without_an_extension_or_anchor_is_unaffected() {
+    let parsed = parse("# A\n\nSee [[Other Note]] for details.\n");
+    assert!(parsed.relations.iter().any(|r| r.to_name == "Other Note"));
+    assert_eq!(parsed.relations.len(), 1, "{:?}", parsed.relations);
+}
+
+#[test]
+fn a_malformed_nested_wikilink_still_finds_the_well_formed_inner_link() {
+    let parsed = parse("# A\n\na [[ b [[Real]] c\n");
+    assert!(
+        parsed.relations.iter().any(|r| r.to_name == "Real"),
+        "{:?}",
+        parsed.relations
+    );
+    assert!(
+        !parsed.relations.iter().any(|r| r.to_name.contains("[[")),
+        "no garbage target containing a stray `[[` should ever be emitted: {:?}",
+        parsed.relations
+    );
+}
+
+#[test]
+fn unbalanced_single_brackets_are_not_mistaken_for_a_wikilink() {
+    let parsed = parse("# A\n\nThis has a stray [bracket and ] but no wikilink.\n");
+    assert!(parsed.relations.is_empty(), "{:?}", parsed.relations);
 }
 
 #[test]

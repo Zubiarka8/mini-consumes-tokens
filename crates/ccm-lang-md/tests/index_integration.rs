@@ -77,7 +77,8 @@ fn a_wikilink_in_the_fixture_resolves_as_a_references_relation() {
     let index = open_indexed();
     let hits = index.find_references("Parser").unwrap();
     assert!(
-        hits.iter().any(|h| h.from_symbol == "Indexer" && h.kind == "references"),
+        hits.iter()
+            .any(|h| h.from_symbol == "Indexer" && h.kind == "references"),
         "{hits:?}"
     );
 }
@@ -87,4 +88,42 @@ fn a_tag_in_the_fixture_resolves_as_a_tag_prefixed_reference() {
     let index = open_indexed();
     let hits = index.find_references("tag:core").unwrap();
     assert!(hits.iter().any(|h| h.from_symbol == "Indexer"), "{hits:?}");
+}
+
+#[test]
+fn a_wikilink_anchors_heading_part_is_discoverable_by_name() {
+    let index = open_indexed();
+    // `[[Parser#Testing]]` must index its note part exactly like a plain
+    // `[[Parser]]` link (already covered by the test above) and must ALSO
+    // index its heading part as an independent relation, discoverable by
+    // `find_references("Testing")` — "Testing" is a real H1 heading in this
+    // fixture. Note: the public `Index`/`RelationHit` API has no accessor
+    // for the resolved `to_symbol_id` column, so this only proves the
+    // relation is stored and discoverable by name (exactly what
+    // `find_references` guarantees regardless of resolution), not that the
+    // foreign key itself is non-NULL.
+    let hits = index.find_references("Testing").unwrap();
+    assert!(
+        hits.iter()
+            .any(|h| h.from_symbol == "Indexer" && h.kind == "references"),
+        "{hits:?}"
+    );
+}
+
+#[test]
+fn a_wikilink_to_a_nonexistent_target_is_still_discoverable_by_name() {
+    let index = open_indexed();
+    // No heading named "Nonexistent Page" exists anywhere in the fixture, so
+    // `to_symbol_id` stays NULL at insert time — but the relation row is
+    // still inserted unconditionally, and `find_references` matches purely
+    // on the `to_name` string column, never on `to_symbol_id`. Pre-existing
+    // `ccm-index` behavior, not new machinery; reconfirmed here because
+    // Phase 3 introduces a new way (the heading-part split) to end up with
+    // an unresolved name.
+    let hits = index.find_references("Nonexistent Page").unwrap();
+    assert!(
+        hits.iter()
+            .any(|h| h.from_symbol == "Indexer" && h.kind == "references"),
+        "{hits:?}"
+    );
 }
