@@ -1,6 +1,6 @@
 # Backlog
 
-## Deferred from `ccm-lang-md` Phase 2
+## Deferred from `mct-lang-md` Phase 2
 See spec `docs/superpowers/specs/2026-09-17-obsidian-docs-vault-and-md-parser-design.md`.
 - Anchor-aware resolution of `[[Page#Heading]]` against the target file's real heading symbol.
 - Tags/links inside list items, blockquotes, tables.

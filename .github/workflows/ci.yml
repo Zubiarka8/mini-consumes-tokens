@@ -118,17 +118,17 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
         crate:
-          - ccm-lang-rust
-          - ccm-lang-python
-          - ccm-lang-lua
-          - ccm-lang-java
-          - ccm-lang-csharp
-          - ccm-lang-js-ts
-          - ccm-lang-cpp
-          - ccm-lang-go
-          - ccm-lang-bash
-          - ccm-lang-powershell
-          - ccm-lang-php
+          - mct-lang-rust
+          - mct-lang-python
+          - mct-lang-lua
+          - mct-lang-java
+          - mct-lang-csharp
+          - mct-lang-js-ts
+          - mct-lang-cpp
+          - mct-lang-go
+          - mct-lang-bash
+          - mct-lang-powershell
+          - mct-lang-php
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly

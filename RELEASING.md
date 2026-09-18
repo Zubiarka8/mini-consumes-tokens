@@ -17,43 +17,43 @@ One-time setup: `cargo login <your-crates.io-api-token>` (get the token from
 https://crates.io/settings/tokens — this repo has no `CRATES_IO_TOKEN`
 secret, so this always runs from your machine, never from CI).
 
-Publish in dependency order — `ccm-core` first, then everything that only
-depends on `ccm-core`, then the two binaries that depend on all of it.
+Publish in dependency order — `mct-core` first, then everything that only
+depends on `mct-core`, then the two binaries that depend on all of it.
 crates.io's index needs a short moment to propagate after each publish
 before the next crate's build can resolve it as a registry dependency
 (`cargo publish` waits for this automatically; if a later step still can't
 find a just-published crate, wait ~30s and retry that step alone):
 
 ```sh
-cargo publish -p ccm-core
+cargo publish -p mct-core
 
-# Any order among these — they only depend on ccm-core:
-cargo publish -p ccm-index
-cargo publish -p ccm-lang-rust
-cargo publish -p ccm-lang-python
-cargo publish -p ccm-lang-java
-cargo publish -p ccm-lang-csharp
-cargo publish -p ccm-lang-kotlin
-cargo publish -p ccm-lang-js-ts
-cargo publish -p ccm-lang-cpp
-cargo publish -p ccm-lang-go
-cargo publish -p ccm-lang-html
-cargo publish -p ccm-lang-css
-cargo publish -p ccm-lang-xml
-cargo publish -p ccm-lang-xaml
-cargo publish -p ccm-lang-bash
-cargo publish -p ccm-lang-powershell
-cargo publish -p ccm-lang-php
-cargo publish -p ccm-lang-md
-cargo publish -p ccm-lang-lua
+# Any order among these — they only depend on mct-core:
+cargo publish -p mct-index
+cargo publish -p mct-lang-rust
+cargo publish -p mct-lang-python
+cargo publish -p mct-lang-java
+cargo publish -p mct-lang-csharp
+cargo publish -p mct-lang-kotlin
+cargo publish -p mct-lang-js-ts
+cargo publish -p mct-lang-cpp
+cargo publish -p mct-lang-go
+cargo publish -p mct-lang-html
+cargo publish -p mct-lang-css
+cargo publish -p mct-lang-xml
+cargo publish -p mct-lang-xaml
+cargo publish -p mct-lang-bash
+cargo publish -p mct-lang-powershell
+cargo publish -p mct-lang-php
+cargo publish -p mct-lang-md
+cargo publish -p mct-lang-lua
 
 # Depend on everything above:
-cargo publish -p ccm-mcp-server
-cargo publish -p ccm-cli
+cargo publish -p mct-mcp-server
+cargo publish -p mct-cli
 ```
 
 Sanity check from a clean machine (or `cargo uninstall` first): `cargo
-install ccm-cli` and `cargo install ccm-mcp-server` should both succeed and
+install mct-cli` and `cargo install mct-mcp-server` should both succeed and
 produce working binaries.
 
 ## 3. Tag and push (triggers the binary-release workflow)
@@ -63,8 +63,8 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-This runs `.github/workflows/release.yml`: builds `ccm-cli` +
-`ccm-mcp-server` for linux-x86_64, linux-arm64, macos-x86_64, macos-arm64,
+This runs `.github/workflows/release.yml`: builds `mct-cli` +
+`mct-mcp-server` for linux-x86_64, linux-arm64, macos-x86_64, macos-arm64,
 and windows-x86_64, and attaches the archives to a new GitHub Release at
 that tag. Watch the Actions run; if any platform job fails, fix and push a
 new tag (`v0.1.0` itself should not be force-moved once pushed).
@@ -72,8 +72,8 @@ new tag (`v0.1.0` itself should not be force-moved once pushed).
 ## 4. After the release
 
 - [ ] Point the Claude Code plugin's installer/MCP-server entry at the
-      released `ccm-mcp-server` binary (or `cargo install ccm-mcp-server`
+      released `mct-mcp-server` binary (or `cargo install mct-mcp-server`
       once published), not at an unversioned source checkout.
 - [ ] Update `README.md`'s installation section if the recommended install
       path changed (e.g. from `cargo install --path ...` to `cargo install
-      ccm-cli` now that it's on crates.io).
+      mct-cli` now that it's on crates.io).

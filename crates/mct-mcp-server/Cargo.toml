@@ -1,0 +1,39 @@
+[package]
+name = "mct-mcp-server"
+description = "MCP server exposing mini-consumes-tokens's tree-sitter-backed symbol index as Claude Code tools: list_symbols, find_symbol, find_references, find_calls, find_callers, impact_analysis, reindex, get_indexing_status, get_file_skeleton, get_project_overview."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["mcp", "claude-code", "code-index", "tree-sitter"]
+categories = ["development-tools", "command-line-utilities"]
+
+[dependencies]
+anyhow = "1.0.104"
+mct-core.workspace = true
+mct-index.workspace = true
+mct-lang-bash.workspace = true
+mct-lang-cpp.workspace = true
+mct-lang-csharp.workspace = true
+mct-lang-css.workspace = true
+mct-lang-go.workspace = true
+mct-lang-html.workspace = true
+mct-lang-java.workspace = true
+mct-lang-js-ts.workspace = true
+mct-lang-kotlin.workspace = true
+mct-lang-md.workspace = true
+mct-lang-php.workspace = true
+mct-lang-powershell.workspace = true
+mct-lang-python.workspace = true
+mct-lang-rust.workspace = true
+mct-lang-xaml.workspace = true
+mct-lang-xml.workspace = true
+clap = { version = "4.6.6", features = ["derive"] }
+notify = "8.2.0"
+notify-debouncer-full = "0.7.0"
+rmcp = { version = "3.3.0", features = ["server", "macros", "transport-io"] }
+schemars = "1.2.2"
+serde = { version = "1.0.229", features = ["derive"] }
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "sync"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }

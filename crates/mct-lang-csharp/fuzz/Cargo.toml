@@ -1,0 +1,29 @@
+# Standalone workspace (empty [workspace] table below): keeps this fuzzing
+# harness out of the parent workspace's `members`/lockfile — it's a throwaway
+# tool, not a deliverable crate.
+[workspace]
+
+[package]
+name = "mct-lang-csharp-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.mct-core]
+path = "../../mct-core"
+
+[dependencies.mct-lang-csharp]
+path = ".."
+
+[[bin]]
+name = "parse-csharp"
+path = "fuzz_targets/parse_csharp.rs"
+test = false
+doc = false
+bench = false

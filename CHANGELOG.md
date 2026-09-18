@@ -17,16 +17,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   matching; other languages fall back to declaration-line-only rendering.
   Nested members are not expanded individually.
 - Multi-hop graph traversal (`depth`, default 1, clamped to
-  `ccm_core::MAX_QUERY_DEPTH` = 32) and pagination (`offset`) on
+  `mct_core::MAX_QUERY_DEPTH` = 32) and pagination (`offset`) on
   `find_references`, `find_calls`, `find_callers`, and `impact_analysis`.
   Implemented as a BFS layered over the existing single-hop queries
-  (`ccm-index/src/traversal.rs`), cycle-guarded by a visited-symbol-name
+  (`mct-index/src/traversal.rs`), cycle-guarded by a visited-symbol-name
   set so a cyclic call/reference graph can't loop forever. Each hit beyond
   depth 1 is tagged ` [depth N]` in tool output; at the default `depth: 1`
   and `offset: 0`, output is byte-identical to before this existed.
 
 ### Changed
 
+- **Breaking**: every crate, binary and Rust module path is renamed from the
+  `ccm` prefix to `mct` (**M**ini **C**onsumes **T**okens): `ccm-core` →
+  `mct-core`, `ccm-index` → `mct-index`, `ccm-cli` → `mct-cli`,
+  `ccm-mcp-server` → `mct-mcp-server`, every `ccm-lang-*` → `mct-lang-*`, and
+  correspondingly `ccm_core::` → `mct_core::` etc. The `CcmServer` type is now
+  `MctServer`. Names only — no change to the SQLite schema, the MCP protocol,
+  the MCP tool names, parser behaviour or any API shape.
+- **Breaking**: the index directory is now `.mct-index/` (was `.ccm-index/`),
+  following the rename above. An existing `.ccm-index/` is not migrated and is
+  simply ignored — run `mct-cli --root . init` to rebuild, then delete the old
+  directory. The `.mcp.json` `command` must also be updated to
+  `mct-mcp-server`; the server *key* is unchanged.
+- **Breaking**: the installer environment variable `CCM_INSTALL_DIR` is now
+  `MCT_INSTALL_DIR`, and the Windows default install directory moved from
+  `%LOCALAPPDATA%\ccm\bin` to `%LOCALAPPDATA%\mct\bin`.
+- The GitHub repository slug stays `Zubiarka8/mini-consumes-tokens`, so all
+  install-script URLs and release-artifact names are deliberately unchanged.
 - **Breaking**: the index directory is now `.ccm-index/` (was
   `.claude-index/`) — this tool is meant to work with any MCP-capable
   agent, not just Claude Code, so the on-disk name should not imply
@@ -40,17 +57,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Stack-overflow DoS on adversarially deep/nested source: `ccm-lang-php`'s
+- Stack-overflow DoS on adversarially deep/nested source: `mct-lang-php`'s
   CI fuzz-smoke job crashed (AddressSanitizer `stack-overflow`) on a
   crafted input, root-caused to unbounded mutual recursion in every
   language crate's `Walker::visit`/`visit_children` AST traversal (all 17
   crates share the same pattern). Fixed by adding a new
-  `ccm_core::MAX_TRAVERSAL_DEPTH` constant (256) and threading a `depth`
+  `mct_core::MAX_TRAVERSAL_DEPTH` constant (256) and threading a `depth`
   counter through every crate's walker; once the ceiling is hit, the
   subtree is pruned (no further symbols recorded below that point)
   instead of recursing further, so a malicious/pathological file can no
   longer crash the indexer. A regression test
-  (`ccm-lang-php/tests/parse.rs::deeply_nested_expression_does_not_stack_overflow`)
+  (`mct-lang-php/tests/parse.rs::deeply_nested_expression_does_not_stack_overflow`)
   reproduces the original crash shape (5,000 nested parenthesized
   expressions) and asserts `parse()` still returns `Ok`.
 
