@@ -392,6 +392,50 @@ pub fn reindex_report(report: &ReindexReport) -> String {
     out
 }
 
+/// Renders `get_project_overview`'s digest: one indented block per module
+/// (file), its surfaced top-level symbols with a `(+N more)` suffix when
+/// truncated, and — when the caller passed `relations` — each surfaced
+/// symbol's top callers as sub-lines. Deliberately not JSON: a smaller,
+/// human/agent-skimmable token footprint is the entire point of this tool.
+pub fn overview(
+    root_path: &str,
+    modules: &[crate::server::ModuleDigest],
+    max_symbols_per_module: u32,
+) -> String {
+    if modules.is_empty() {
+        return format!("No symbols found under `{root_path}`.");
+    }
+    let mut out = format!(
+        "Project overview of `{root_path}` ({} module(s), up to {max_symbols_per_module} symbol(s) each):\n",
+        modules.len()
+    );
+    for module in modules {
+        out.push_str(&format!("\n{}:\n", module.relative_path));
+        if module.symbols.is_empty() {
+            out.push_str("  (no top-level symbols)\n");
+            continue;
+        }
+        for symbol in &module.symbols {
+            let range = line_range(symbol.line, symbol.end_line);
+            out.push_str(&format!("  [{}] {} {range}\n", symbol.kind, symbol.name));
+            let Some((_, callers)) = module.relations.iter().find(|(name, _)| name == &symbol.name)
+            else {
+                continue;
+            };
+            for caller in callers {
+                out.push_str(&format!(
+                    "      <- {} ({}:{})\n",
+                    caller.from_symbol, caller.relative_path, caller.line
+                ));
+            }
+        }
+        if module.omitted > 0 {
+            out.push_str(&format!("  (+{} more)\n", module.omitted));
+        }
+    }
+    out
+}
+
 pub fn index_status(status: &IndexStatus) -> String {
     let mut out = format!(
         "{} files indexed, {} symbols total.\n",
