@@ -9,8 +9,8 @@ use std::time::Duration;
 
 use ccm_core::LanguageRegistry;
 use ccm_index::{ExcludeSet, Index};
-use notify::RecursiveMode;
-use notify_debouncer_mini::{DebouncedEventKind, Debouncer, new_debouncer};
+use notify::{EventKind, RecursiveMode};
+use notify_debouncer_full::{Debouncer, RecommendedCache, new_debouncer};
 use tokio::sync::Mutex;
 
 /// `path`'s location relative to `root`, using forward slashes so it can be
@@ -28,6 +28,11 @@ fn relative_slash_path(root: &Path, path: &Path) -> Option<String> {
 /// writes to `.ccm-index/` (the reindex's own database) never re-trigger
 /// themselves into a loop.
 ///
+/// Filters out `EventKind::Access` events (a plain open/read, not a
+/// content change): `reindex` itself opens every indexed file to parse it,
+/// and inotify reports that open back through the same watch, so without
+/// this filter every reindex would trigger another one indefinitely.
+///
 /// Returns the [`Debouncer`] guard — the caller must keep it alive for as
 /// long as watching should continue; dropping it stops the watch and joins
 /// its background thread.
@@ -37,41 +42,28 @@ pub fn spawn_watcher(
     root: PathBuf,
     exclude: ExcludeSet,
     debounce: Duration,
-) -> notify::Result<Debouncer<notify::RecommendedWatcher>> {
+) -> notify::Result<Debouncer<notify::RecommendedWatcher, RecommendedCache>> {
     let (tx, rx) = mpsc::channel();
-    let mut debouncer = new_debouncer(debounce, tx)?;
-    debouncer.watcher().watch(&root, RecursiveMode::Recursive)?;
+    let mut debouncer = new_debouncer(debounce, None, tx)?;
+    debouncer.watch(&root, RecursiveMode::Recursive)?;
 
     std::thread::spawn(move || {
         for result in rx {
             let events = match result {
                 Ok(events) => events,
-                Err(err) => {
-                    tracing::warn!(error = %err, "file watcher error; will keep watching");
+                Err(errors) => {
+                    for err in errors {
+                        tracing::warn!(error = %err, "file watcher error; will keep watching");
+                    }
                     continue;
                 }
             };
             tracing::debug!(count = events.len(), ?events, "watcher received a debounced batch");
-            // TEMPORARY diagnostic instrumentation (2026-09-18): CI on
-            // ubuntu-latest keeps failing background_watcher's
-            // a_change_under_an_excluded_path_does_not_trigger_a_reindex with
-            // an unexplained auto-reindex; dumping each event's raw path/kind
-            // and its exclusion verdict to see what's actually slipping
-            // through. Remove once root-caused.
-            for event in &events {
-                let rel = relative_slash_path(&root, &event.path);
-                eprintln!(
-                    "[DIAG] event.path={:?} rel={:?} kind={:?} excluded={:?}",
-                    event.path,
-                    rel,
-                    event.kind,
-                    rel.as_deref().map(|r| exclude.is_excluded(r))
-                );
-            }
             let relevant = events.iter().any(|event| {
-                event.kind != DebouncedEventKind::AnyContinuous
-                    && relative_slash_path(&root, &event.path)
-                        .is_some_and(|rel| !exclude.is_excluded(&rel))
+                !matches!(event.kind, EventKind::Access(_))
+                    && event.paths.iter().any(|path| {
+                        relative_slash_path(&root, path).is_some_and(|rel| !exclude.is_excluded(&rel))
+                    })
             });
             if !relevant {
                 continue;
