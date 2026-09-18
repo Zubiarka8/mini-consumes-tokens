@@ -1,6 +1,7 @@
 use std::path::PathBuf;
+use std::time::Duration;
 
-use ccm_mcp_server::{registry, server};
+use ccm_mcp_server::{background, registry, server};
 use clap::Parser;
 use rmcp::{ServiceExt, transport::stdio};
 
@@ -11,6 +12,12 @@ struct Args {
     /// Project root to index. Defaults to the current working directory.
     #[arg(long)]
     root: Option<PathBuf>,
+
+    /// Milliseconds of quiet time required after the last detected file
+    /// write before auto-reindexing. 0 disables the background watcher
+    /// entirely, restoring the previous startup-only behavior.
+    #[arg(long, default_value_t = 1500)]
+    reindex_debounce_ms: u64,
 }
 
 #[tokio::main]
@@ -47,7 +54,30 @@ async fn main() -> anyhow::Result<()> {
         "initial reindex complete"
     );
 
-    let service = server::CcmServer::new(index, language_registry)
+    let watch_root = index.root().to_path_buf();
+    let server = server::CcmServer::new(index, language_registry);
+
+    // Kept alive for the process's lifetime: dropping it would stop the
+    // watch. `None` means the watcher is disabled (--reindex-debounce-ms 0).
+    let _watcher = if args.reindex_debounce_ms > 0 {
+        match background::spawn_watcher(
+            server.index_handle(),
+            server.registry_handle(),
+            watch_root,
+            ccm_index::ExcludeSet::default(),
+            Duration::from_millis(args.reindex_debounce_ms),
+        ) {
+            Ok(watcher) => Some(watcher),
+            Err(err) => {
+                tracing::warn!(error = %err, "failed to start auto-reindex watcher; continuing without it");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    let service = server
         .serve(stdio())
         .await
         .inspect_err(|e| tracing::error!("serving error: {e:?}"))?;
