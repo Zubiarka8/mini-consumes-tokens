@@ -13,7 +13,7 @@ use std::path::Path;
 use ccm_index::{ExcludeSet, Index};
 use ccm_mcp_server::server::{
     CcmServer, FindCallersArgs, FindCallsArgs, FindReferencesArgs, FindSymbolArgs,
-    GetFileSkeletonArgs, ImpactAnalysisArgs, ListSymbolsArgs,
+    GetFileSkeletonArgs, GetProjectOverviewArgs, ImpactAnalysisArgs, ListSymbolsArgs,
 };
 use rmcp::handler::server::wrapper::Parameters;
 
@@ -34,6 +34,14 @@ fn many_callers_fixture_root() -> std::path::PathBuf {
 /// need more than one file/language to be meaningful.
 fn polyglot_fixture_root() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/polyglot-app")
+}
+
+/// The real `crates/ccm-lang-go` crate of this repo — not a synthetic test
+/// fixture — used by `get_project_overview`'s truncation test since the spec
+/// asks for a real crate with more than 8 top-level symbols in one file
+/// (`src/lib.rs` has 8 functions + 2 structs + 1 synthetic module entry).
+fn ccm_lang_go_root() -> std::path::PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../ccm-lang-go")
 }
 
 fn content_of(result: &rmcp::model::CallToolResult) -> String {
@@ -468,4 +476,108 @@ async fn get_file_skeleton_on_a_missing_file_is_a_clear_error_not_a_panic() {
         }))
         .await;
     assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn get_project_overview_truncates_a_real_crates_module_and_reports_the_overflow() {
+    let server = build_server_at(&ccm_lang_go_root()).await;
+    let text = content_of(
+        &server
+            .get_project_overview(Parameters(GetProjectOverviewArgs {
+                path: Some("src/lib.rs".to_string()),
+                language: None,
+                max_symbols_per_module: None,
+                include_relations: None,
+            }))
+            .await
+            .unwrap(),
+    );
+    // src/lib.rs has 8 functions + 2 structs + 1 synthetic module entry = 11
+    // top-level candidates; the default cap (8) must truncate and report it.
+    assert!(text.contains("src/lib.rs:"), "got: {text}");
+    assert!(text.contains("(+3 more)"), "got: {text}");
+    let symbol_line_count = text.lines().filter(|l| l.trim_start().starts_with('[')).count();
+    assert_eq!(symbol_line_count, 8, "got: {text}");
+}
+
+#[tokio::test]
+async fn get_project_overview_on_a_single_file_shows_all_its_symbols_unpaginated() {
+    let server = build_server().await;
+    let text = content_of(
+        &server
+            .get_project_overview(Parameters(GetProjectOverviewArgs {
+                path: Some("src/lib.rs".to_string()),
+                language: None,
+                max_symbols_per_module: None,
+                include_relations: None,
+            }))
+            .await
+            .unwrap(),
+    );
+    assert!(text.contains("compute"), "got: {text}");
+    assert!(text.contains("helper"), "got: {text}");
+    assert!(!text.contains("more)"), "only 2 functions — must not report truncation: {text}");
+}
+
+#[tokio::test]
+async fn get_project_overview_with_include_relations_false_omits_the_callers_section() {
+    let server = build_server().await;
+    let text = content_of(
+        &server
+            .get_project_overview(Parameters(GetProjectOverviewArgs {
+                path: Some("src/lib.rs".to_string()),
+                language: None,
+                max_symbols_per_module: None,
+                include_relations: Some(false),
+            }))
+            .await
+            .unwrap(),
+    );
+    // `helper` is called by `compute` — with relations on, that would show
+    // up as a "<- compute" sub-line under `helper`; with relations off it
+    // must not appear anywhere in the output.
+    assert!(!text.contains("<-"), "got: {text}");
+}
+
+#[tokio::test]
+async fn get_project_overview_include_relations_true_shows_the_caller_subline() {
+    let server = build_server().await;
+    let text = content_of(
+        &server
+            .get_project_overview(Parameters(GetProjectOverviewArgs {
+                path: Some("src/lib.rs".to_string()),
+                language: None,
+                max_symbols_per_module: None,
+                include_relations: Some(true),
+            }))
+            .await
+            .unwrap(),
+    );
+    assert!(text.contains("<- compute"), "got: {text}");
+}
+
+#[tokio::test]
+async fn get_project_overview_with_no_path_covers_the_whole_project_and_language_filters_it() {
+    let server = build_server_at(&polyglot_fixture_root()).await;
+    let text = content_of(
+        &server
+            .get_project_overview(Parameters(GetProjectOverviewArgs {
+                path: None,
+                language: Some("go".to_string()),
+                max_symbols_per_module: None,
+                include_relations: Some(false),
+            }))
+            .await
+            .unwrap(),
+    );
+    // No `path` scans every top-level entry under the project root; the
+    // `go` language filter must still scope the digest to the backend's
+    // `.go` files only.
+    assert!(text.contains("backend/invoice.go"), "got: {text}");
+    assert!(text.contains("backend/logger.go"), "got: {text}");
+    assert!(text.contains("backend/server.go"), "got: {text}");
+    // Frontend (TypeScript) and scripts (Python) modules must not leak into
+    // a `go`-only overview.
+    assert!(!text.contains("frontend/"), "got: {text}");
+    assert!(!text.contains("scripts/"), "got: {text}");
 }
