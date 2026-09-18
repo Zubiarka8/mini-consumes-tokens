@@ -41,12 +41,17 @@ fn find_symbol_locates_definitions_across_files() {
     assert_eq!(inventory.len(), 1);
     assert_eq!(inventory[0].relative_path, "inventory.lua");
     assert_eq!(inventory[0].kind, "module");
+    // `language` is read straight off the `files.language` column via the
+    // symbols->files JOIN, so this is what proves the row landed under the
+    // right language and not merely that the parser produced the symbol.
+    assert_eq!(inventory[0].language, "lua");
 
     let log = index.find_symbol("log").unwrap();
     assert_eq!(log.len(), 1);
     assert_eq!(log[0].relative_path, "logger.lua");
     assert_eq!(log[0].kind, "method");
     assert_eq!(log[0].parent.as_deref(), Some("Logger"));
+    assert_eq!(log[0].language, "lua");
 }
 
 #[test]
