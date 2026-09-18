@@ -29,6 +29,8 @@ ccm-lang-rust.workspace = true
 ccm-lang-xaml.workspace = true
 ccm-lang-xml.workspace = true
 clap = { version = "4.6.6", features = ["derive"] }
+notify = "8.2.0"
+notify-debouncer-mini = "0.7.0"
 rmcp = { version = "3.3.0", features = ["server", "macros", "transport-io"] }
 schemars = "1.2.2"
 serde = { version = "1.0.229", features = ["derive"] }

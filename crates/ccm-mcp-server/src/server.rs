@@ -211,6 +211,19 @@ impl CcmServer {
         }
     }
 
+    /// Shares this server's index handle with the background auto-reindex
+    /// watcher (see `background::spawn_watcher`), without exposing the
+    /// `index` field itself.
+    pub fn index_handle(&self) -> Arc<Mutex<Index>> {
+        Arc::clone(&self.index)
+    }
+
+    /// Shares this server's language registry with the background
+    /// auto-reindex watcher, without exposing the `registry` field itself.
+    pub fn registry_handle(&self) -> LanguageRegistry {
+        self.registry.clone()
+    }
+
     #[tool(
         description = "DISCOVERY, not a precise lookup — use this FIRST when you don't know a symbol's exact name yet. Lists symbol definitions (name, kind, line range) found under `path`: a single file (exact path) or a directory/crate (a path with no file extension, matched as a prefix), optionally narrowed to one symbol `kind` and/or one `language`. Answers \"what functions/structs/classes does this file or crate have\" without already knowing a name. Do NOT use this to locate one already-known symbol precisely, or to jump straight to its definition — use find_symbol for that; list_symbols is the discovery step that feeds find_symbol/find_references/find_calls/find_callers/impact_analysis, not a replacement for them."
     )]
@@ -369,7 +382,7 @@ impl CcmServer {
     }
 
     #[tool(
-        description = "INDEX ADMINISTRATION, not a search tool — returns a reindex summary, not symbol data. Re-scans the project and updates the index; only files whose content changed since the last run are re-parsed unless force=true. It already runs automatically at server startup, so call this manually only if you suspect the index is stale (e.g. after changes made outside this session)."
+        description = "INDEX ADMINISTRATION, not a search tool — returns a reindex summary, not symbol data. Re-scans the project and updates the index; only files whose content changed since the last run are re-parsed unless force=true. It already runs automatically at server startup, and again in the background (non-forced/incremental) whenever the filesystem watcher detects settled file changes, so call this manually only if you need an immediate refresh right now, or force=true to bypass the incremental hash check (e.g. after suspected index corruption)."
     )]
     pub async fn reindex(
         &self,
@@ -453,8 +466,9 @@ impl ServerHandler for CcmServer {
              top-level declarations with bodies collapsed to `// ...` — reach for it instead of \
              reading a whole file when you only need its shape. reindex and get_indexing_status \
              are index maintenance, not search — they never return symbol data. The index \
-             refreshes automatically at startup; call reindex manually only if you suspect it's \
-             stale."
+             refreshes automatically at startup and silently in the background as changes settle \
+             on disk; call reindex manually only if you need an immediate refresh right now, or \
+             force=true to bypass the incremental hash check."
                 .to_string(),
         )
     }
