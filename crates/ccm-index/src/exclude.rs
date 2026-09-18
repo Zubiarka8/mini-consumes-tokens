@@ -4,20 +4,24 @@ use globset::{Glob, GlobSet, GlobSetBuilder};
 /// secrets, across the conventions of several ecosystems — not just
 /// Node/Python. Opt-out (a user can widen this), never opt-in: a fresh
 /// install must never index a `.env` file by accident.
+// Directory patterns use `{,/**}` rather than a bare trailing `/**`: in
+// globset, "dir/**" matches everything *inside* dir but not dir itself, so a
+// filesystem event for the directory's own entry (e.g. its mtime changing
+// when a child is written) would otherwise slip past the filter unexcluded.
 const DEFAULT_EXCLUDE_PATTERNS: &[&str] = &[
     // generic
     "**/.env",
     "**/.env.*",
     "**/*.pem",
     "**/*.key",
-    "**/secrets/**",
-    "**/secret/**",
+    "**/secrets{,/**}",
+    "**/secret{,/**}",
     "**/credentials.json",
-    "**/.aws/**",
+    "**/.aws{,/**}",
     // Node / JS
-    "**/node_modules/**",
+    "**/node_modules{,/**}",
     // PHP (Composer)
-    "**/vendor/**",
+    "**/vendor{,/**}",
     // .NET
     "**/appsettings.*.json",
     "**/*.pfx",
@@ -28,9 +32,9 @@ const DEFAULT_EXCLUDE_PATTERNS: &[&str] = &[
     "**/*.env.local",
     "**/config/secrets.yaml",
     // general VCS / build output
-    "**/.git/**",
-    "**/target/**",
-    "**/.ccm-index/**",
+    "**/.git{,/**}",
+    "**/target{,/**}",
+    "**/.ccm-index{,/**}",
 ];
 
 #[derive(Clone)]

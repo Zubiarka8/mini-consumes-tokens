@@ -1,7 +1,7 @@
 # Design: `get_project_overview` MCP tool (compact hierarchical context)
 
 Date: 2026-09-18
-Status: draft, high-level only — pending signature verification against live `ccm-index`/`ccm-mcp-server` source before implementation
+Status: implemented — see `get_project_overview` in `crates/ccm-mcp-server/src/server.rs` and `format::overview` in `crates/ccm-mcp-server/src/format.rs`
 
 ## Goal
 
