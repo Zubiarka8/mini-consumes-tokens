@@ -1,0 +1,11 @@
+{
+  "name": "omni-ledger-frontend",
+  "version": "0.0.0",
+  "private": true,
+  "dependencies": {
+    "left-pad": "^1.3.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}
