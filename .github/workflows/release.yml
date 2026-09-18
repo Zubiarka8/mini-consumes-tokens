@@ -1,7 +1,7 @@
 name: Release
 
-# Triggered by pushing a `v*` tag (e.g. `v0.1.0`). Builds ccm-cli and
-# ccm-mcp-server for 5 OS/arch combos and attaches them to a GitHub Release.
+# Triggered by pushing a `v*` tag (e.g. `v0.1.0`). Builds mct-cli and
+# mct-mcp-server for 5 OS/arch combos and attaches them to a GitHub Release.
 # This workflow does NOT publish to crates.io — that stays a manual step
 # (see RELEASING.md) since it needs a CRATES_IO_TOKEN this repo does not
 # have wired in as a secret yet, and publishing is deliberately not
@@ -62,12 +62,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
 
-      - name: Build ccm-cli and ccm-mcp-server
+      - name: Build mct-cli and mct-mcp-server
         shell: bash
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
           CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
-        run: cargo build --release --target ${{ matrix.target }} -p ccm-cli -p ccm-mcp-server
+        run: cargo build --release --target ${{ matrix.target }} -p mct-cli -p mct-mcp-server
 
       - name: Package archive (unix)
         if: runner.os != 'Windows'
@@ -77,8 +77,8 @@ jobs:
           pkg="mini-consumes-tokens-${{ github.ref_name }}-${{ matrix.name }}"
           dist="dist/$pkg"
           mkdir -p "$dist"
-          cp "target/${{ matrix.target }}/release/ccm-cli" "$dist/"
-          cp "target/${{ matrix.target }}/release/ccm-mcp-server" "$dist/"
+          cp "target/${{ matrix.target }}/release/mct-cli" "$dist/"
+          cp "target/${{ matrix.target }}/release/mct-mcp-server" "$dist/"
           cp README.md LICENSE-MIT LICENSE-APACHE CHANGELOG.md "$dist/"
           tar -C dist -czf "dist/$pkg.tar.gz" "$pkg"
           rm -rf "$dist"
@@ -90,8 +90,8 @@ jobs:
           $pkg = "mini-consumes-tokens-${{ github.ref_name }}-${{ matrix.name }}"
           $dist = "dist/$pkg"
           New-Item -ItemType Directory -Force -Path $dist | Out-Null
-          Copy-Item "target/${{ matrix.target }}/release/ccm-cli.exe" "$dist/"
-          Copy-Item "target/${{ matrix.target }}/release/ccm-mcp-server.exe" "$dist/"
+          Copy-Item "target/${{ matrix.target }}/release/mct-cli.exe" "$dist/"
+          Copy-Item "target/${{ matrix.target }}/release/mct-mcp-server.exe" "$dist/"
           Copy-Item README.md,LICENSE-MIT,LICENSE-APACHE,CHANGELOG.md "$dist/"
           Compress-Archive -Path "$dist/*" -DestinationPath "dist/$pkg.zip"
           Remove-Item -Recurse -Force "$dist"
@@ -124,4 +124,4 @@ jobs:
           body: |
             See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
 
-            Prebuilt binaries below (ccm-cli + ccm-mcp-server) for Linux (x86_64/arm64), macOS (Intel/Apple Silicon), and Windows (x86_64). Crates.io publishing status is tracked separately in RELEASING.md — it is not automated by this workflow.
+            Prebuilt binaries below (mct-cli + mct-mcp-server) for Linux (x86_64/arm64), macOS (Intel/Apple Silicon), and Windows (x86_64). Crates.io publishing status is tracked separately in RELEASING.md — it is not automated by this workflow.

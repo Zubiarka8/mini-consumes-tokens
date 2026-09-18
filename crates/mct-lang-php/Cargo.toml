@@ -1,0 +1,17 @@
+[package]
+name = "mct-lang-php"
+description = "PHP language plugin (tree-sitter-php) for mini-consumes-tokens's LanguageParser trait."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["mcp", "tree-sitter", "php", "code-index"]
+categories = ["development-tools", "parser-implementations"]
+
+[dependencies]
+mct-core.workspace = true
+tree-sitter.workspace = true
+tree-sitter-php = "0.24"
+
+[dev-dependencies]
+mct-index.workspace = true

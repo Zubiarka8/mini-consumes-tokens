@@ -1,0 +1,12 @@
+[package]
+name = "mct-core"
+description = "Language-agnostic LanguageParser trait and symbol/relation types at the core of mini-consumes-tokens — the sole integration surface for adding a language plugin."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["mcp", "tree-sitter", "ast", "code-index"]
+categories = ["development-tools"]
+
+[dependencies]
+thiserror.workspace = true

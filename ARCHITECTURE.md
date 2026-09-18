@@ -1,6 +1,6 @@
 # How it works
 
-This document explains what happens inside `mini-consumes-tokens` (`ccm`), in plain language. You don't need to read any code to follow it — it's written for anyone curious about how the pieces fit together and why they were built this way.
+This document explains what happens inside `mini-consumes-tokens` (`mct`), in plain language. You don't need to read any code to follow it — it's written for anyone curious about how the pieces fit together and why they were built this way.
 
 If you're looking for installation or usage instructions instead, see [README.md](README.md).
 
@@ -18,7 +18,7 @@ Your code goes in once, a searchable map comes out, and from then on your AI ass
 flowchart LR
     A["Your source code files"] --> B["A language plugin<br/>reads that language's grammar"]
     B --> C["A shared map format<br/>(functions, classes, who calls who)"]
-    C --> D[("A local database file<br/>.ccm-index/index.sqlite3")]
+    C --> D[("A local database file<br/>.mct-index/index.sqlite3")]
     D --> E["9 lookup tools"]
     E --> F["Your AI assistant, via MCP"]
     E --> G["The command line, for people"]

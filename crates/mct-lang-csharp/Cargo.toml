@@ -1,0 +1,17 @@
+[package]
+name = "mct-lang-csharp"
+description = "C# language plugin (tree-sitter-c-sharp) for mini-consumes-tokens's LanguageParser trait."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["mcp", "tree-sitter", "csharp", "code-index"]
+categories = ["development-tools", "parser-implementations"]
+
+[dependencies]
+mct-core.workspace = true
+tree-sitter.workspace = true
+tree-sitter-c-sharp = "0.23.5"
+
+[dev-dependencies]
+mct-index.workspace = true

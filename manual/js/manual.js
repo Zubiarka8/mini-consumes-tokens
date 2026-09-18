@@ -1,5 +1,5 @@
 (function(){
-  var THEME_KEY = 'ccm-manual-theme';
+  var THEME_KEY = 'mct-manual-theme';
   var themeToggle = document.getElementById('themeToggle');
   if (themeToggle){
     themeToggle.addEventListener('click', function(){
