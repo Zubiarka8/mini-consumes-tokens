@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-An MCP server (`ccm-mcp-server`) and CLI (`ccm-cli`) that index a code repository — any supported language, identically on any OS — via tree-sitter AST parsing into a symbol graph stored in SQLite. It exposes the index as MCP tools (`list_symbols`, `find_symbol`, `find_references`, `find_calls`, `find_callers`, `impact_analysis`, `reindex`, `get_indexing_status`, `get_file_skeleton`, `get_project_overview`) so an agent can get precise project context instead of reading whole files with `Read`/`Grep`/`Glob`.
+An MCP server (`mct-mcp-server`) and CLI (`mct-cli`) that index a code repository — any supported language, identically on any OS — via tree-sitter AST parsing into a symbol graph stored in SQLite. It exposes the index as MCP tools (`list_symbols`, `find_symbol`, `find_references`, `find_calls`, `find_callers`, `impact_analysis`, `reindex`, `get_indexing_status`, `get_file_skeleton`, `get_project_overview`) so an agent can get precise project context instead of reading whole files with `Read`/`Grep`/`Glob`.
 
 ## Dogfooding: how Claude must explore this repo's own source
 
@@ -12,7 +12,7 @@ This project's entire point is that an agent queries a symbol graph instead of g
 
 **Scope of this rule**: it governs *exploration/lookup* questions — "what's defined in X", "where is Y", "who calls Z", "what does Z call", "what would break if I change Z", "what symbols/functions does file/crate X have". It does **not** apply to reading a file as a precondition for editing it (`Edit` requires a prior `Read`) or to general code-modification work — `Read`/`Grep`/`Edit` remain normal there.
 
-For exploration/lookup questions, the **only** permitted tools are this project's own software: the `ccm-mcp-server` MCP tools (`list_symbols`, `find_symbol`, `find_references`, `find_calls`, `find_callers`, `impact_analysis`, `reindex`, `get_indexing_status`, `get_file_skeleton`, `get_project_overview`) and `ccm-cli` (`crates/ccm-cli`) subcommands. Nothing else — no `Grep`, `Read`, `Bash cat|ls|grep`, `python`, or any other method outside `crates/`:
+For exploration/lookup questions, the **only** permitted tools are this project's own software: the `mct-mcp-server` MCP tools (`list_symbols`, `find_symbol`, `find_references`, `find_calls`, `find_callers`, `impact_analysis`, `reindex`, `get_indexing_status`, `get_file_skeleton`, `get_project_overview`) and `mct-cli` (`crates/mct-cli`) subcommands. Nothing else — no `Grep`, `Read`, `Bash cat|ls|grep`, `python`, or any other method outside `crates/`:
 - **What symbols does a file/crate have, without knowing a name yet?** → `list_symbols` (discovery step — takes a file path or a directory/crate prefix, optional `kind`/`language` filters)
 - **What does a file's overall shape look like** (top-level declarations, bodies collapsed), without reading it whole? → `get_file_skeleton` (single file only — use `list_symbols` first if you don't already know which file)
 - **What does an unfamiliar file/directory/crate/project look like as a whole**, before diving into any one file? → `get_project_overview` (capped hierarchical digest — modules, key top-level symbols, top callers — in one call; coarser than `list_symbols`/`get_file_skeleton`, use those instead once you know which file to focus on)
@@ -24,28 +24,28 @@ For exploration/lookup questions, the **only** permitted tools are this project'
 - **Is the index stale / healthy?** → `get_indexing_status`, and `reindex` only if it looks stale
 - `find_references`/`find_calls`/`find_callers`/`impact_analysis` also take `depth` (multi-hop BFS beyond the direct hit, default 1, clamped to 32) and `offset` (pagination past `limit`) — reach for `depth` before manually chaining calls to walk the relation graph further out.
 
-**`.ccm-index/index.sqlite3` may only be touched through this project's own software** — the MCP tools listed above, or `ccm-cli` subcommands. Never open it with an external tool: no `sqlite3` CLI, no `python3`/`sqlite3` module, no DB browser, nothing outside `crates/`. If it isn't a tool this codebase ships, it doesn't get to touch the index — full stop.
+**`.mct-index/index.sqlite3` may only be touched through this project's own software** — the MCP tools listed above, or `mct-cli` subcommands. Never open it with an external tool: no `sqlite3` CLI, no `python3`/`sqlite3` module, no DB browser, nothing outside `crates/`. If it isn't a tool this codebase ships, it doesn't get to touch the index — full stop.
 
 **Former gap, now closed**: prior to `list_symbols` (added 2026-09-16), none of the MCP tools could answer "what symbols exist in file/crate Y" without an exact name. `list_symbols` covers that now — a file path is matched exactly, a directory/crate path (no file extension) is matched as a prefix, and `kind`/`language` narrow the result. If a *future* question still falls outside every tool's coverage, say so explicitly and ask the user whether to allow `Read`/`Grep` for that specific instance, rather than falling back automatically or treating one approval as a standing exception.
 
 **When Read/Grep are still correct** (unrelated to the gap above): the index only captures symbols and relations, not comment/doc-string prose — checking whether a doc-comment's *wording* still matches something requires `Grep`/`Read`. `Glob` for listing/finding files by pattern is fine (it's not a symbol lookup).
 
-**If the MCP tools are absent from the deferred-tools list** (not even shown as "failed to connect" — just missing): that means the session started before `.mcp.json` was written/updated, or before `ccm-mcp-server` was built. Tell the user to restart Claude Code / reconnect MCP rather than treating direct sqlite queries as the steady-state solution — sqlite-direct is a same-session fallback only, and even then only through this project's own tooling per the rule above.
+**If the MCP tools are absent from the deferred-tools list** (not even shown as "failed to connect" — just missing): that means the session started before `.mcp.json` was written/updated, or before `mct-mcp-server` was built. Tell the user to restart Claude Code / reconnect MCP rather than treating direct sqlite queries as the steady-state solution — sqlite-direct is a same-session fallback only, and even then only through this project's own tooling per the rule above.
 
 ## Commands
 
 ```sh
 cargo build --workspace --all-targets                              # build everything
 cargo test --workspace                                              # run all 222+ tests
-cargo test -p ccm-lang-go                                            # run one crate's tests
-cargo test -p ccm-lang-go idiomatic_syntax                           # run one test by name
+cargo test -p mct-lang-go                                            # run one crate's tests
+cargo test -p mct-lang-go idiomatic_syntax                           # run one test by name
 cargo clippy --workspace --all-targets --all-features -- -D warnings # lint (CI-gating, zero warnings)
 
-cargo run -p ccm-cli -- --root . init                                # first index of a project
-cargo run -p ccm-cli -- --root . status                              # coverage / health report
-cargo run -p ccm-cli -- --root . reindex --force
-cargo run -p ccm-cli -- --root . mcp-register [--name N]             # write/merge .mcp.json for this project
-cargo run -p ccm-mcp-server -- --root <project>                      # run the MCP server over stdio
+cargo run -p mct-cli -- --root . init                                # first index of a project
+cargo run -p mct-cli -- --root . status                              # coverage / health report
+cargo run -p mct-cli -- --root . reindex --force
+cargo run -p mct-cli -- --root . mcp-register [--name N]             # write/merge .mcp.json for this project
+cargo run -p mct-mcp-server -- --root <project>                      # run the MCP server over stdio
 ```
 
 CI (`.github/workflows/ci.yml`) runs `build-test` (build+test+clippy) on Linux/macOS/Windows, `cargo-audit` on Linux, and `fuzz-smoke` (30s `cargo-fuzz` runs per language crate) on Linux/macOS only — fuzzing is deliberately excluded on Windows (ASan DLL/MSVC-sancov issues, see the comment above that job).
@@ -54,29 +54,29 @@ CI (`.github/workflows/ci.yml`) runs `build-test` (build+test+clippy) on Linux/m
 
 ## Architecture
 
-**Plugin boundary is the whole design.** `ccm-core` defines `LanguageParser` (a trait: `language_id()`, `file_extensions()`, `parse()`) and `LanguageRegistry` (extension → parser lookup). It knows nothing about tree-sitter, SQLite, or MCP. Each `crates/ccm-lang-*` crate implements that trait for one language via its own tree-sitter grammar. `ccm-index` and `ccm-mcp-server` never match on language names or extensions directly — everything routes through the registry.
+**Plugin boundary is the whole design.** `mct-core` defines `LanguageParser` (a trait: `language_id()`, `file_extensions()`, `parse()`) and `LanguageRegistry` (extension → parser lookup). It knows nothing about tree-sitter, SQLite, or MCP. Each `crates/mct-lang-*` crate implements that trait for one language via its own tree-sitter grammar. `mct-index` and `mct-mcp-server` never match on language names or extensions directly — everything routes through the registry.
 
 ```
-ccm-core     LanguageParser trait, SymbolRecord/SymbolRelation model, LanguageRegistry
-ccm-index    SQLite schema/migrations (single schema for every language — a `language`
+mct-core     LanguageParser trait, SymbolRecord/SymbolRelation model, LanguageRegistry
+mct-index    SQLite schema/migrations (single schema for every language — a `language`
              column on `files`, not per-language tables), reindex orchestration, queries.
              Knows no language's grammar.
-ccm-lang-*   One crate per language, each a LanguageParser impl over its tree-sitter grammar
-ccm-mcp-server  MCP tools over stdio (rmcp): list_symbols/find_symbol/find_references/
+mct-lang-*   One crate per language, each a LanguageParser impl over its tree-sitter grammar
+mct-mcp-server  MCP tools over stdio (rmcp): list_symbols/find_symbol/find_references/
                 find_calls/find_callers/impact_analysis/reindex/get_indexing_status/
                 get_file_skeleton/get_project_overview
-ccm-cli      init/reindex/status/mcp-register subcommands for manual/scripted use
+mct-cli      init/reindex/status/mcp-register subcommands for manual/scripted use
 ```
 
 **Adding a language touches exactly these places** (see `CONTRIBUTING.md` for the full checklist including fuzz harnesses):
-1. New crate `crates/ccm-lang-<name>`, depending on `ccm-core` + `tree-sitter-<name>`.
+1. New crate `crates/mct-lang-<name>`, depending on `mct-core` + `tree-sitter-<name>`.
 2. Implement `LanguageParser::parse()` — pure AST walk, never executes/evals input; a syntax error returns `ParseError::Syntax`, never a panic (this runs over arbitrary third-party source).
-3. Register in exactly two places: `ccm-mcp-server/src/registry.rs::build_registry` and `ccm-cli/src/main.rs::build_registry`. Nothing else in `ccm-core`, `ccm-index`, or `ccm-mcp-server` changes.
-4. Tests in `crates/ccm-lang-<name>/tests/parse.rs`: function/call extraction, one idiomatic-syntax case (generics, decorators, whatever the language's equivalent is), one syntax-error case.
+3. Register in exactly two places: `mct-mcp-server/src/registry.rs::build_registry` and `mct-cli/src/main.rs::build_registry`. Nothing else in `mct-core`, `mct-index`, or `mct-mcp-server` changes.
+4. Tests in `crates/mct-lang-<name>/tests/parse.rs`: function/call extraction, one idiomatic-syntax case (generics, decorators, whatever the language's equivalent is), one syntax-error case.
 5. Update the language table in `README.md` and `internal/checklist.md`.
 
 **Changing the `LanguageParser` trait, the SQLite schema, or a published MCP tool signature** is cross-cutting (every language crate, every index, and Claude Code's live tool contract) — open an issue first, don't drive-by PR it.
 
-**Code-style invariants enforced across all crates**: no `unwrap()`/`panic!` on any path processing repo-input content (`.unwrap_or_default()` / early-return instead) — parsers run over arbitrary, potentially adversarial source; single responsibility per crate (`ccm-core` doesn't know SQLite, a `ccm-lang-*` crate doesn't know SQLite or MCP).
+**Code-style invariants enforced across all crates**: no `unwrap()`/`panic!` on any path processing repo-input content (`.unwrap_or_default()` / early-return instead) — parsers run over arbitrary, potentially adversarial source; single responsibility per crate (`mct-core` doesn't know SQLite, a `mct-lang-*` crate doesn't know SQLite or MCP).
 
 Commit format: `type(scope): short description` (`feat`/`fix`/`refactor`/`docs`/`test`/`chore`/`perf`), breaking changes marked explicitly.

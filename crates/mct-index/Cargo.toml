@@ -1,0 +1,23 @@
+[package]
+name = "mct-index"
+description = "SQLite-backed symbol/relation index engine for mini-consumes-tokens, with git-blob-hash incremental reindexing and default secret-path exclusion."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["mcp", "sqlite", "code-index", "tree-sitter"]
+categories = ["development-tools", "database"]
+
+[dependencies]
+mct-core.workspace = true
+# default-features off: we only read local repo state (no clone/fetch/push), so
+# skip the ssh/https transports and their system OpenSSL/libssh2 dependency —
+# keeps the build self-contained and identical across Linux/macOS/Windows.
+git2 = { version = "0.21.0", default-features = false }
+globset = "0.4.20"
+rusqlite = { version = "0.40.2", features = ["bundled", "functions"] }
+rusqlite_migration = "2.6.0"
+serde_json = "1.0.151"
+thiserror.workspace = true
+toml = "1"
+walkdir = "2.5.0"

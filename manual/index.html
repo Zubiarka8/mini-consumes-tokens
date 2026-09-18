@@ -14,7 +14,7 @@
   // theme. Default is light regardless of OS preference — only an explicit
   // prior toggle (saved below) switches this to dark.
   try{
-    var saved = localStorage.getItem('ccm-manual-theme');
+    var saved = localStorage.getItem('mct-manual-theme');
     document.documentElement.setAttribute('data-theme', saved === 'dark' ? 'dark' : 'light');
   }catch(e){
     document.documentElement.setAttribute('data-theme', 'light');
@@ -108,8 +108,8 @@
       <h2>Overview — what it is and why it exists</h2>
       <p><code>mini-consumes-tokens</code> parses a source repository with <a href="https://tree-sitter.github.io/tree-sitter/" target="_blank" rel="noopener">tree-sitter</a> into an AST-derived <strong>symbol graph</strong> — functions, methods, classes, structs, traits, and the relations between them (calls, imports, extends, implements, references) — stored in a single SQLite file. It exposes that graph two ways:</p>
       <ul>
-        <li><strong>ccm-cli</strong> — a standalone binary for manual or scripted indexing (CI, pre-commit hooks, coverage checks).</li>
-        <li><strong>ccm-mcp-server</strong> — an <a href="https://modelcontextprotocol.io/" target="_blank" rel="noopener">MCP</a> server over stdio giving Claude Code (or any MCP client) tools to query that graph directly.</li>
+        <li><strong>mct-cli</strong> — a standalone binary for manual or scripted indexing (CI, pre-commit hooks, coverage checks).</li>
+        <li><strong>mct-mcp-server</strong> — an <a href="https://modelcontextprotocol.io/" target="_blank" rel="noopener">MCP</a> server over stdio giving Claude Code (or any MCP client) tools to query that graph directly.</li>
       </ul>
       <p><strong>The problem it solves:</strong> without it, an agent answering "what calls this function?" has to <code>Grep</code>/<code>Read</code> across the repo, paying token cost proportional to file size and false-positive matches. With the index, that question is one exact SQL lookup returning a handful of <code>file:line</code> locations.</p>
       <p><strong>What it deliberately does not do:</strong> it never executes, evaluates, or type-checks indexed code — parsing is 100% static. It also does not do semantic/type-resolved analysis: relations match by symbol <strong>name</strong>, not resolved type or import graph (12).</p>
@@ -121,40 +121,40 @@
       <div class="figure">
         <div class="figcap"><span class="tag">workspace layout</span></div>
         <pre><code>crates/
-  ccm-core          LanguageParser trait, SymbolRecord/SymbolRelation model, LanguageRegistry.
+  mct-core          LanguageParser trait, SymbolRecord/SymbolRelation model, LanguageRegistry.
                      Knows nothing about tree-sitter, SQLite, or MCP.
-  ccm-index         SQLite schema/migrations, the reindex algorithm, all queries.
+  mct-index         SQLite schema/migrations, the reindex algorithm, all queries.
                      Knows nothing about any language's grammar.
-  ccm-lang-rust      LanguageParser impl — tree-sitter-rust
-  ccm-lang-python    LanguageParser impl — tree-sitter-python
-  ccm-lang-java      LanguageParser impl — tree-sitter-java
-  ccm-lang-csharp    LanguageParser impl — tree-sitter-c-sharp
-  ccm-lang-js-ts     LanguageParser impl — tree-sitter-javascript + tree-sitter-typescript (incl. TSX)
-  ccm-lang-cpp       LanguageParser impl — tree-sitter-cpp
-  ccm-lang-go        LanguageParser impl — tree-sitter-go
-  ccm-lang-html      LanguageParser impl — tree-sitter-html (id'd elements + id/class References
+  mct-lang-rust      LanguageParser impl — tree-sitter-rust
+  mct-lang-python    LanguageParser impl — tree-sitter-python
+  mct-lang-java      LanguageParser impl — tree-sitter-java
+  mct-lang-csharp    LanguageParser impl — tree-sitter-c-sharp
+  mct-lang-js-ts     LanguageParser impl — tree-sitter-javascript + tree-sitter-typescript (incl. TSX)
+  mct-lang-cpp       LanguageParser impl — tree-sitter-cpp
+  mct-lang-go        LanguageParser impl — tree-sitter-go
+  mct-lang-html      LanguageParser impl — tree-sitter-html (id'd elements + id/class References
                      toward CSS, link/script Imports)
-  ccm-lang-css       LanguageParser impl — tree-sitter-css (simple-selector Rules + @import)
-  ccm-lang-xml       LanguageParser impl — tree-sitter-xml, structural only (id/name/Name Elements,
+  mct-lang-css       LanguageParser impl — tree-sitter-css (simple-selector Rules + @import)
+  mct-lang-xml       LanguageParser impl — tree-sitter-xml, structural only (id/name/Name Elements,
                      no relations — no dialect-generic convention to link to)
-  ccm-lang-xaml      LanguageParser impl — tree-sitter-xml, x:Name/Name Elements + event-attribute
+  mct-lang-xaml      LanguageParser impl — tree-sitter-xml, x:Name/Name Elements + event-attribute
                      References into the paired C# code-behind file
-  ccm-lang-bash      LanguageParser impl — tree-sitter-bash (functions, top-level variables, calls,
+  mct-lang-bash      LanguageParser impl — tree-sitter-bash (functions, top-level variables, calls,
                      source/. Imports)
-  ccm-lang-powershell LanguageParser impl — tree-sitter-powershell (functions, top-level variables,
+  mct-lang-powershell LanguageParser impl — tree-sitter-powershell (functions, top-level variables,
                      calls, dot-source/Import-Module Imports; no classes — see 12)
-  ccm-lang-php       LanguageParser impl — tree-sitter-php (classes/interfaces/traits/enums, methods/
+  mct-lang-php       LanguageParser impl — tree-sitter-php (classes/interfaces/traits/enums, methods/
                      fields incl. constructor property promotion, extends/implements, trait-use
                      Implements, self/parent/static/Class calls, require/use Imports — see 12)
-  ccm-lang-md        LanguageParser impl — tree-sitter-md (Phase 1: ATX headings only, as nested
+  mct-lang-md        LanguageParser impl — tree-sitter-md (Phase 1: ATX headings only, as nested
                      Element symbols via the grammar's own section structure — no relations
                      emitted yet, see 12)
-  ccm-lang-lua       LanguageParser impl — tree-sitter-lua (acceptance test;
+  mct-lang-lua       LanguageParser impl — tree-sitter-lua (acceptance test;
                      NOT registered in either binary's build_registry — see 12)
-  ccm-mcp-server     rmcp server: registry.rs, server.rs (9 tools), format.rs, main.rs
-  ccm-cli            init/reindex/status subcommands</code></pre>
+  mct-mcp-server     rmcp server: registry.rs, server.rs (9 tools), format.rs, main.rs
+  mct-cli            init/reindex/status subcommands</code></pre>
       </div>
-      <p>The plugin contract (<code>ccm_core::LanguageParser</code>, <code>crates/ccm-core/src/lib.rs</code>):</p>
+      <p>The plugin contract (<code>mct_core::LanguageParser</code>, <code>crates/mct-core/src/lib.rs</code>):</p>
       <div class="figure">
         <div class="figcap"><span class="tag">rust</span><button class="copybtn" data-copy>Copy</button></div>
         <pre><code id="c-trait">pub trait LanguageParser: Send + Sync {
@@ -163,7 +163,7 @@
     fn parse(&amp;self, file: &amp;SourceFile) -&gt; Result&lt;ParsedFile, ParseError&gt;;
 }</code></pre>
       </div>
-      <p><code>parse()</code> must never execute or evaluate the source — a pure AST walk — and must return <code>ParseError::Syntax</code> rather than panic on malformed input, since it runs over arbitrary, untrusted code. Adding a language is exactly: a new crate implementing this trait, plus one <code>registry.register(...)</code> line in each binary — no changes to <code>ccm-core</code>, <code>ccm-index</code>, or the MCP tool surface (16).</p>
+      <p><code>parse()</code> must never execute or evaluate the source — a pure AST walk — and must return <code>ParseError::Syntax</code> rather than panic on malformed input, since it runs over arbitrary, untrusted code. Adding a language is exactly: a new crate implementing this trait, plus one <code>registry.register(...)</code> line in each binary — no changes to <code>mct-core</code>, <code>mct-index</code>, or the MCP tool surface (16).</p>
     </section>
 
     <section class="section" id="installation">
@@ -172,28 +172,28 @@
       <div class="figure">
         <div class="figcap"><span class="tag">shell</span><button class="copybtn" data-copy>Copy</button></div>
         <pre><code id="c-install"><span class="cmt"># Option A — from source, inside this repo (identical on Linux/macOS/Windows)</span>
-<span class="prompt">$</span> cargo install --path crates/ccm-cli
-<span class="prompt">$</span> cargo install --path crates/ccm-mcp-server
+<span class="prompt">$</span> cargo install --path crates/mct-cli
+<span class="prompt">$</span> cargo install --path crates/mct-mcp-server
 
 <span class="cmt"># Option B — from crates.io, once published (see RELEASING.md)</span>
-<span class="prompt">$</span> cargo install ccm-cli
-<span class="prompt">$</span> cargo install ccm-mcp-server</code></pre>
+<span class="prompt">$</span> cargo install mct-cli
+<span class="prompt">$</span> cargo install mct-mcp-server</code></pre>
       </div>
-      <p><strong>Option C — prebuilt binaries</strong> (no Rust toolchain required): download the archive for your OS/arch (Linux x86_64/arm64, macOS Intel/Apple Silicon, Windows x86_64) from the GitHub Releases page and put <code>ccm-cli</code>/<code>ccm-mcp-server</code> on your <code>PATH</code>.</p>
+      <p><strong>Option C — prebuilt binaries</strong> (no Rust toolchain required): download the archive for your OS/arch (Linux x86_64/arm64, macOS Intel/Apple Silicon, Windows x86_64) from the GitHub Releases page and put <code>mct-cli</code>/<code>mct-mcp-server</code> on your <code>PATH</code>.</p>
       <div class="figure">
         <div class="figcap"><span class="tag">shell — verify</span></div>
-        <pre><code><span class="prompt">$</span> ccm-cli --help
-<span class="prompt">$</span> ccm-mcp-server --help</code></pre>
+        <pre><code><span class="prompt">$</span> mct-cli --help
+<span class="prompt">$</span> mct-mcp-server --help</code></pre>
       </div>
       <p><code>cargo install</code> puts both binaries in <code>~/.cargo/bin</code> (or <code>%USERPROFILE%\.cargo\bin</code> on Windows) — make sure that directory is on <code>PATH</code>.</p>
     </section>
 
     <section class="section" id="cli">
       <span class="eyebrow">04</span>
-      <h2>The CLI — <code>ccm-cli</code></h2>
+      <h2>The CLI — <code>mct-cli</code></h2>
       <div class="figure">
         <div class="figcap"><span class="tag">grammar</span></div>
-        <pre><code>ccm [--root &lt;PATH&gt;] &lt;COMMAND&gt;
+        <pre><code>mct [--root &lt;PATH&gt;] &lt;COMMAND&gt;
 
 Global option:
   --root &lt;PATH&gt;    Project root to operate on. Defaults to the current working directory.
@@ -207,12 +207,12 @@ Commands:
   status                  Report index health: coverage per language, last-indexed timestamp,
                            unsupported languages seen, files that failed to parse. Read-only.
   mcp-register [--name N] Write (or update) .mcp.json at the root so Claude Code can launch
-                           ccm-mcp-server for this project. Merges into an existing file —
+                           mct-mcp-server for this project. Merges into an existing file —
                            other servers already configured there are left untouched.
                              --name: server key under mcpServers. Defaults to the root
                              directory's own name.</code></pre>
       </div>
-      <p>The index file path is always <code>&lt;root&gt;/.ccm-index/index.sqlite3</code> — hardcoded, not configurable via flag or environment variable.</p>
+      <p>The index file path is always <code>&lt;root&gt;/.mct-index/index.sqlite3</code> — hardcoded, not configurable via flag or environment variable.</p>
       <div class="subblock">
         <h3><code>init</code> / <code>reindex</code> output</h3>
         <div class="figure">
@@ -253,7 +253,7 @@ Dependencies detected:                           <span class="cmt">← only if a
   Cargo.toml (rust, 3 dep(s)):
     thiserror 2
     tree-sitter 0.25
-    ccm-core                                     <span class="cmt">← no version: workspace/path dependency</span></code></pre>
+    mct-core                                     <span class="cmt">← no version: workspace/path dependency</span></code></pre>
         </div>
         <p>If never indexed: <code>Never indexed yet.</code> instead of the timestamp line. If zero languages: <code>No languages indexed yet.</code></p>
       </div>
@@ -261,7 +261,7 @@ Dependencies detected:                           <span class="cmt">← only if a
         <h3><code>mcp-register</code> output</h3>
         <div class="figure">
           <div class="figcap"><span class="tag">shell</span><button class="copybtn" data-copy>Copy</button></div>
-          <pre><code id="c-mcp-register"><span class="prompt">$</span> ccm-cli --root . mcp-register --name my-project
+          <pre><code id="c-mcp-register"><span class="prompt">$</span> mct-cli --root . mcp-register --name my-project
 Registered `my-project` in /abs/path/to/project/.mcp.json</code></pre>
         </div>
         <p>Writes the resolved absolute <code>--root</code> into <code>args</code> — an alternative to <code>claude mcp add</code> (5.1) or hand-editing the JSON from 5.2–5.15 for clients that read the same <code>{"mcpServers": {...}}</code> shape. Reads and re-serializes the existing file if one is present, only inserting/replacing its own <code>name</code> key — any other server already configured there is left untouched. On Windows, <code>Path::canonicalize</code>'s <code>\\?\</code> verbatim-path prefix is stripped before writing, so the value lands as a normal <code>Z:\path\to\project</code> string rather than the raw Win32 extended form.</p>
@@ -272,18 +272,18 @@ Registered `my-project` in /abs/path/to/project/.mcp.json</code></pre>
     <section class="section" id="registering">
       <span class="eyebrow">05</span>
       <h2>Registering the MCP server</h2>
-      <p><code>ccm-mcp-server</code> is a plain MCP server over stdio — nothing about it is Claude Code-specific. Every client below launches the same binary the same way (<code>command</code> = <code>ccm-mcp-server</code>, <code>args</code> = <code>["--root", "&lt;absolute-path-to-repo&gt;"]</code>); what differs is the config file's location and root key. Formats below were checked against each project's own docs as of September&nbsp;2026 — MCP config schemas are still evolving across clients, so if a client rejects the file, check its current docs before assuming this manual is wrong.</p>
+      <p><code>mct-mcp-server</code> is a plain MCP server over stdio — nothing about it is Claude Code-specific. Every client below launches the same binary the same way (<code>command</code> = <code>mct-mcp-server</code>, <code>args</code> = <code>["--root", "&lt;absolute-path-to-repo&gt;"]</code>); what differs is the config file's location and root key. Formats below were checked against each project's own docs as of September&nbsp;2026 — MCP config schemas are still evolving across clients, so if a client rejects the file, check its current docs before assuming this manual is wrong.</p>
       <h3 id="reg-claude-code">5.1 Claude Code</h3>
       <div class="figure">
         <div class="figcap"><span class="tag">shell</span><button class="copybtn" data-copy>Copy</button></div>
-        <pre><code id="c-register"><span class="prompt">$</span> claude mcp add mini-consumes-tokens --scope project -- ccm-mcp-server --root "&lt;absolute-path-to-repo&gt;"
+        <pre><code id="c-register"><span class="prompt">$</span> claude mcp add mini-consumes-tokens --scope project -- mct-mcp-server --root "&lt;absolute-path-to-repo&gt;"
 
-<span class="cmt"># or: ccm-cli's own mcp-register (04) writes the same file directly</span>
-<span class="prompt">$</span> ccm-cli --root . mcp-register</code></pre>
+<span class="cmt"># or: mct-cli's own mcp-register (04) writes the same file directly</span>
+<span class="prompt">$</span> mct-cli --root . mcp-register</code></pre>
       </div>
       <div class="callout">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
-        <div><strong>The help text undersells it.</strong> <code>ccm-mcp-server --help</code> lists only 4 tools (<code>find_symbol</code>, <code>find_references</code>, <code>find_calls</code>, <code>find_callers</code>); the server actually registers 9. <code>list_symbols</code>, <code>impact_analysis</code>, <code>reindex</code>, <code>get_indexing_status</code>, and <code>get_file_skeleton</code> were added after that help string was last updated — see 06.</div>
+        <div><strong>The help text undersells it.</strong> <code>mct-mcp-server --help</code> lists only 4 tools (<code>find_symbol</code>, <code>find_references</code>, <code>find_calls</code>, <code>find_callers</code>); the server actually registers 9. <code>list_symbols</code>, <code>impact_analysis</code>, <code>reindex</code>, <code>get_indexing_status</code>, and <code>get_file_skeleton</code> were added after that help string was last updated — see 06.</div>
       </div>
       <h3>Scope choices</h3>
       <div class="tablewrap">
@@ -303,7 +303,7 @@ Registered `my-project` in /abs/path/to/project/.mcp.json</code></pre>
   "mcpServers": {
     "mini-consumes-tokens": {
       "type": "stdio",
-      "command": "ccm-mcp-server",
+      "command": "mct-mcp-server",
       "args": ["--root", "&lt;absolute-path-to-repo&gt;"],
       "env": {}
     }
@@ -312,7 +312,7 @@ Registered `my-project` in /abs/path/to/project/.mcp.json</code></pre>
       </div>
       <p>Decide whether to commit this file: convenient for teammates (auto-wired on <code>git pull</code>), but the absolute <code>--root</code> path is machine-specific, especially on Windows — either use a path valid for every checkout location, or gitignore it and have each person register their own.</p>
       <h3>Startup indexing behavior</h3>
-      <p>At launch, <code>ccm-mcp-server</code> opens (or creates) the index and runs an <strong>incremental</strong> reindex automatically — equivalent to <code>ccm-cli reindex</code> without <code>--force</code>. The first registration on a fresh checkout parses the whole repo (seconds to tens of seconds depending on size); later restarts only re-parse changed files.</p>
+      <p>At launch, <code>mct-mcp-server</code> opens (or creates) the index and runs an <strong>incremental</strong> reindex automatically — equivalent to <code>mct-cli reindex</code> without <code>--force</code>. The first registration on a fresh checkout parses the whole repo (seconds to tens of seconds depending on size); later restarts only re-parse changed files.</p>
       <div class="callout">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
         <div><strong>The approval / restart gotcha.</strong> A server added via <code>claude mcp add</code> while a session is already running does <em>not</em> hot-load into it. <code>claude mcp list</code> shows <code>⏸ Pending approval (run "claude" to approve)</code> and none of its tools are callable until you exit and restart <code>claude</code> in that project, approving the new server when prompted.</div>
@@ -327,7 +327,7 @@ Registered `my-project` in /abs/path/to/project/.mcp.json</code></pre>
   "servers": {
     "mini-consumes-tokens": {
       "type": "stdio",
-      "command": "ccm-mcp-server",
+      "command": "mct-mcp-server",
       "args": ["--root", "${workspaceFolder}"]
     }
   }
@@ -341,7 +341,7 @@ Registered `my-project` in /abs/path/to/project/.mcp.json</code></pre>
   "mcpServers": {
     "mini-consumes-tokens": {
       "type": "local",
-      "command": "ccm-mcp-server",
+      "command": "mct-mcp-server",
       "args": ["--root", "&lt;absolute-path-to-repo&gt;"],
       "tools": ["*"]
     }
@@ -360,7 +360,7 @@ Registered `my-project` in /abs/path/to/project/.mcp.json</code></pre>
         <pre><code>{
   "mcpServers": {
     "mini-consumes-tokens": {
-      "command": "ccm-mcp-server",
+      "command": "mct-mcp-server",
       "args": ["--root", "&lt;absolute-path-to-repo&gt;"]
     }
   }
@@ -374,7 +374,7 @@ Registered `my-project` in /abs/path/to/project/.mcp.json</code></pre>
         <pre><code>{
   "mcpServers": {
     "mini-consumes-tokens": {
-      "command": "ccm-mcp-server",
+      "command": "mct-mcp-server",
       "args": ["--root", "&lt;absolute-path-to-repo&gt;"]
     }
   }
@@ -387,7 +387,7 @@ Registered `my-project` in /abs/path/to/project/.mcp.json</code></pre>
       <div class="figure">
         <div class="figcap"><span class="tag">toml</span></div>
         <pre><code>[mcp_servers.mini-consumes-tokens]
-command = "ccm-mcp-server"
+command = "mct-mcp-server"
 args = ["--root", "&lt;absolute-path-to-repo&gt;"]</code></pre>
       </div>
       <p>The transport is inferred from which key is present (<code>command</code> → stdio, <code>url</code> → HTTP) — don't mix both in the same table. The Codex IDE extension reads the same <code>config.toml</code>, so one entry covers both.</p>
@@ -399,7 +399,7 @@ args = ["--root", "&lt;absolute-path-to-repo&gt;"]</code></pre>
         <pre><code>{
   "mcpServers": {
     "mini-consumes-tokens": {
-      "command": "ccm-mcp-server",
+      "command": "mct-mcp-server",
       "args": ["--root", "&lt;absolute-path-to-repo&gt;"]
     }
   }
@@ -414,7 +414,7 @@ args = ["--root", "&lt;absolute-path-to-repo&gt;"]</code></pre>
         <pre><code>{
   "mcpServers": {
     "mini-consumes-tokens": {
-      "command": "ccm-mcp-server",
+      "command": "mct-mcp-server",
       "args": ["--root", "&lt;absolute-path-to-repo&gt;"]
     }
   }
@@ -433,7 +433,7 @@ args = ["--root", "&lt;absolute-path-to-repo&gt;"]</code></pre>
         <pre><code>{
   "mcpServers": {
     "mini-consumes-tokens": {
-      "command": "ccm-mcp-server",
+      "command": "mct-mcp-server",
       "args": ["--root", "&lt;absolute-path-to-repo&gt;"]
     }
   }
@@ -451,7 +451,7 @@ args = ["--root", "&lt;absolute-path-to-repo&gt;"]</code></pre>
         <pre><code>{
   "context_servers": {
     "mini-consumes-tokens": {
-      "command": "ccm-mcp-server",
+      "command": "mct-mcp-server",
       "args": ["--root", "&lt;absolute-path-to-repo&gt;"],
       "env": {}
     }
@@ -467,7 +467,7 @@ args = ["--root", "&lt;absolute-path-to-repo&gt;"]</code></pre>
         <pre><code>{
   "mcpServers": {
     "mini-consumes-tokens": {
-      "command": "ccm-mcp-server",
+      "command": "mct-mcp-server",
       "args": ["--root", "&lt;absolute-path-to-repo&gt;"],
       "disabled": false,
       "autoApprove": []
@@ -483,7 +483,7 @@ args = ["--root", "&lt;absolute-path-to-repo&gt;"]</code></pre>
         <div class="figcap"><span class="tag">yaml</span></div>
         <pre><code>mcpServers:
   - name: mini-consumes-tokens
-    command: ccm-mcp-server
+    command: mct-mcp-server
     args:
       - "--root"
       - "&lt;absolute-path-to-repo&gt;"</code></pre>
@@ -501,7 +501,7 @@ args = ["--root", "&lt;absolute-path-to-repo&gt;"]</code></pre>
         <pre><code>{
   "mcpServers": {
     "mini-consumes-tokens": {
-      "command": "ccm-mcp-server",
+      "command": "mct-mcp-server",
       "args": ["--root", "&lt;absolute-path-to-repo&gt;"]
     }
   }
@@ -519,7 +519,7 @@ args = ["--root", "&lt;absolute-path-to-repo&gt;"]</code></pre>
         <pre><code>{
   "mcpServers": {
     "mini-consumes-tokens": {
-      "command": "ccm-mcp-server",
+      "command": "mct-mcp-server",
       "args": ["--root", "&lt;absolute-path-to-repo&gt;"]
     }
   }
@@ -532,23 +532,23 @@ args = ["--root", "&lt;absolute-path-to-repo&gt;"]</code></pre>
         <div class="figcap"><span class="tag">toml</span></div>
         <pre><code>[mcp]
 stdio_servers = [
-    { name = "mini-consumes-tokens", command = "ccm-mcp-server", args = ["--root", "&lt;absolute-path-to-repo&gt;"] }
+    { name = "mini-consumes-tokens", command = "mct-mcp-server", args = ["--root", "&lt;absolute-path-to-repo&gt;"] }
 ]</code></pre>
       </div>
       <p><code>name</code> is required alongside <code>command</code>/<code>args</code> here, unlike Codex where the server's name is the TOML table key itself. Servers can also be added from OpenHands' own Settings UI instead of hand-editing <code>config.toml</code>.</p>
 
       <h3 id="reg-other-clients">5.15 Any other MCP client</h3>
-      <p>The pattern generalizes: point <code>command</code> at <code>ccm-mcp-server</code> (full path if it isn't on the client's <code>PATH</code>) and pass <code>--root &lt;absolute-path-to-repo&gt;</code> via <code>args</code>. Two gotchas apply regardless of client:</p>
+      <p>The pattern generalizes: point <code>command</code> at <code>mct-mcp-server</code> (full path if it isn't on the client's <code>PATH</code>) and pass <code>--root &lt;absolute-path-to-repo&gt;</code> via <code>args</code>. Two gotchas apply regardless of client:</p>
       <ol>
         <li><strong><code>--root</code> must be absolute.</strong> A relative path resolves against whatever working directory the client happens to spawn the process from — often not the repo root, and not consistent across clients.</li>
-        <li><strong>No client here changes the file-watching behavior described in 10.</strong> <code>ccm-mcp-server</code> only reindexes at its own startup; after a <code>git pull</code> or branch switch, ask the agent to call <code>reindex</code>, or restart the server.</li>
+        <li><strong>No client here changes the file-watching behavior described in 10.</strong> <code>mct-mcp-server</code> only reindexes at its own startup; after a <code>git pull</code> or branch switch, ask the agent to call <code>reindex</code>, or restart the server.</li>
       </ol>
     </section>
 
     <section class="section" id="tools">
       <span class="eyebrow">06</span>
       <h2>MCP tools — full reference</h2>
-      <p>Every description below is the <strong>exact text</strong> the model sees (from <code>crates/ccm-mcp-server/src/server.rs</code>) — it drives which tool Claude picks, so it's worth reading verbatim if a query isn't resolving how you expect. All name parameters require an <strong>exact match</strong> (trimmed, case-sensitive, no fuzzy/regex) on <code>symbols.name</code> or <code>relations.to_name</code>/<code>from_symbol.name</code>; an empty name returns an <code>invalid_params</code> error before any query runs.</p>
+      <p>Every description below is the <strong>exact text</strong> the model sees (from <code>crates/mct-mcp-server/src/server.rs</code>) — it drives which tool Claude picks, so it's worth reading verbatim if a query isn't resolving how you expect. All name parameters require an <strong>exact match</strong> (trimmed, case-sensitive, no fuzzy/regex) on <code>symbols.name</code> or <code>relations.to_name</code>/<code>from_symbol.name</code>; an empty name returns an <code>invalid_params</code> error before any query runs.</p>
       <p>The five result-returning tools (<code>find_symbol</code>, <code>find_references</code>, <code>find_calls</code>, <code>find_callers</code>, <code>impact_analysis</code>) all accept an optional <code>limit: number</code> parameter, defaulting to <strong>50</strong> (<code>DEFAULT_RESULT_LIMIT</code> in <code>server.rs</code>) when omitted — generous enough that a typical handful-to-dozens of hits is never truncated, but bounded so a symbol with hundreds of matches in a large repo can't blow up a single response past what the <code>grep</code> baseline this project replaces would cost. Raise it explicitly if you expect more hits and want them all in one call.</p>
 
       <div class="subblock">
@@ -572,7 +572,7 @@ ORDER BY f.relative_path, s.line</code></pre>
         <div class="figure">
           <div class="figcap"><span class="tag">output</span></div>
           <pre><code>2 definition(s) of `LanguageParser`:
-crates/ccm-core/src/lib.rs:39:1 [rust] trait LanguageParser
+crates/mct-core/src/lib.rs:39:1 [rust] trait LanguageParser
 ...</code></pre>
         </div>
         <p>Empty result: <code>No symbol named \`X\` found in the index.</code> Can return <strong>multiple</strong> hits — e.g. every language's own <code>parse</code> method, since names aren't namespaced across files.</p>
@@ -581,7 +581,7 @@ crates/ccm-core/src/lib.rs:39:1 [rust] trait LanguageParser
       <div class="subblock">
         <h3><code>find_references</code> — atomic</h3>
         <p class="quote">"ATOMIC lookup. Find every place a symbol is referenced: calls, imports, extends/implements, and plain references — the broadest reference search. Do NOT use this when you only want the functions that directly call a function — use find_callers instead, which is narrower and answers that question directly. Do NOT use this to find a symbol's own definition — use find_symbol."</p>
-        <p><strong>Params:</strong> <code>symbol: string</code> — matches <code>relations.to_name = ?1</code> across every relation kind, unfiltered; <code>limit: number</code> (optional, default 50); <code>depth: number</code> (optional, default 1, clamped to <code>[1, 32]</code>) — walks the reference graph breadth-first beyond the direct hit, so <code>depth: 2</code> also includes referrers-of-referrers, cycle-guarded by a visited-name set (see <code>crates/ccm-index/src/traversal.rs</code>); <code>offset: number</code> (optional, default 0) — skips this many leading results before applying <code>limit</code>.</p>
+        <p><strong>Params:</strong> <code>symbol: string</code> — matches <code>relations.to_name = ?1</code> across every relation kind, unfiltered; <code>limit: number</code> (optional, default 50); <code>depth: number</code> (optional, default 1, clamped to <code>[1, 32]</code>) — walks the reference graph breadth-first beyond the direct hit, so <code>depth: 2</code> also includes referrers-of-referrers, cycle-guarded by a visited-name set (see <code>crates/mct-index/src/traversal.rs</code>); <code>offset: number</code> (optional, default 0) — skips this many leading results before applying <code>limit</code>.</p>
         <p><strong>Output:</strong> <code>N reference(s):</code> then <code>path:line:col [language] fromSymbol --kind--&gt; toName</code> per hit, with a trailing <code> [depth N]</code> tag beyond depth 1 (omitted for direct hits, so output is byte-identical to before <code>depth</code> existed when it's never passed).</p>
       </div>
 
@@ -626,13 +626,13 @@ All references:
       <div class="subblock">
         <h3><code>reindex</code> — index administration, not search</h3>
         <p class="quote">"INDEX ADMINISTRATION, not a search tool — returns a reindex summary, not symbol data. Re-scans the project and updates the index; only files whose content changed since the last run are re-parsed unless force=true. It already runs automatically at server startup, so call this manually only if you suspect the index is stale (e.g. after changes made outside this session)."</p>
-        <p><strong>Param:</strong> <code>force: bool</code> (default <code>false</code>). Same algorithm as <code>ccm-cli reindex</code> (07), same report shape.</p>
+        <p><strong>Param:</strong> <code>force: bool</code> (default <code>false</code>). Same algorithm as <code>mct-cli reindex</code> (07), same report shape.</p>
       </div>
 
       <div class="subblock">
         <h3><code>get_indexing_status</code> — index administration, not search</h3>
         <p class="quote">"INDEX ADMINISTRATION, not a search tool. Reports index health: files/symbols indexed per language, when it was last indexed, languages seen in the repo with no parser plugin yet, files that failed to parse, and declared dependencies detected from manifest files (Cargo.toml, package.json, requirements.txt, go.mod). Do NOT use this to search for a symbol — it returns no symbol data, only index diagnostics; use find_symbol instead."</p>
-        <p><strong>No params.</strong> Same content and shape as <code>ccm-cli status</code> (04).</p>
+        <p><strong>No params.</strong> Same content and shape as <code>mct-cli status</code> (04).</p>
       </div>
 
       <div class="subblock">
@@ -654,13 +654,13 @@ All references:
     <section class="section" id="indexing">
       <span class="eyebrow">07</span>
       <h2>How indexing actually works</h2>
-      <p>Step by step, from <code>crates/ccm-index/src/indexer.rs::reindex</code>:</p>
+      <p>Step by step, from <code>crates/mct-index/src/indexer.rs::reindex</code>:</p>
       <ol>
         <li><strong>Walk</strong> the project root with <code>walkdir::WalkDir</code>, skipping directories.</li>
         <li><strong>Symlink/escape guard:</strong> each entry is <code>canonicalize()</code>d; failure (broken symlink, race) or a canonical path outside the root — both skipped silently. A symlink can never make the indexer read outside the project root.</li>
         <li><strong>Path normalization:</strong> the relative path is rebuilt with forward slashes on every OS, so the index is portable between a Windows checkout and a Linux CI runner.</li>
         <li><strong>Exclusion check</strong> (09) — excluded paths are skipped but kept in <code>seen_paths</code>, so a previously-indexed row is cleaned up if exclude patterns later change.</li>
-        <li><strong>Extension lookup</strong> via <code>registry.for_extension(ext)</code>. No parser registered? If the extension is in <code>KNOWN_PENDING_LANGUAGES</code> (<code>swift</code>, <code>rb</code>→ruby), it's recorded as an <code>unsupported_language</code> issue. Any <em>other</em> unrecognized extension (docs, images, lockfiles, <code>.lua</code>) is skipped with <strong>zero</strong> record — this is why a repo with <code>.lua</code> files wouldn't show "lua" as unsupported even though <code>ccm-lang-lua</code> isn't wired in.</li>
+        <li><strong>Extension lookup</strong> via <code>registry.for_extension(ext)</code>. No parser registered? If the extension is in <code>KNOWN_PENDING_LANGUAGES</code> (<code>swift</code>, <code>rb</code>→ruby), it's recorded as an <code>unsupported_language</code> issue. Any <em>other</em> unrecognized extension (docs, images, lockfiles, <code>.lua</code>) is skipped with <strong>zero</strong> record — this is why a repo with <code>.lua</code> files wouldn't show "lua" as unsupported even though <code>mct-lang-lua</code> isn't wired in.</li>
         <li><strong>Read + hash:</strong> I/O error → skip. Content hash is a <strong>git blob SHA-1</strong> via <code>git2::Oid::hash_object(ObjectType::Blob, &amp;bytes)</code> — works outside an actual git repo; it's just git's hashing algorithm reused for change detection.</li>
         <li><strong>Incremental skip:</strong> if the stored hash for this path matches and <code>--force</code>/<code>force:true</code> wasn't passed, count as <code>files_unchanged</code> and skip entirely — no re-parse, no writes.</li>
         <li><strong>UTF-8 check:</strong> invalid UTF-8 (binary file sharing a supported extension) is skipped silently, not recorded as a syntax error.</li>
@@ -675,7 +675,7 @@ All references:
     <section class="section" id="schema">
       <span class="eyebrow">08</span>
       <h2>Database schema — full reference</h2>
-      <p>File: <code>&lt;root&gt;/.ccm-index/index.sqlite3</code>. Applied via a single <code>rusqlite_migration</code> migration (from <code>crates/ccm-index/src/schema.rs</code>):</p>
+      <p>File: <code>&lt;root&gt;/.mct-index/index.sqlite3</code>. Applied via a single <code>rusqlite_migration</code> migration (from <code>crates/mct-index/src/schema.rs</code>):</p>
       <div class="figure">
         <div class="figcap"><span class="tag">sql — full ddl</span><button class="copybtn" data-copy>Copy</button></div>
         <pre><code id="c-schema">CREATE TABLE files (
@@ -736,7 +736,7 @@ CREATE TABLE index_meta (
 
 -- Declared dependencies from a manifest file, matched by file NAME (not
 -- extension, not through any LanguageParser — a manifest isn't source code
--- to symbol-index). Populated by ccm-index/src/manifests.rs. A second
+-- to symbol-index). Populated by mct-index/src/manifests.rs. A second
 -- migration, added after the table above, so an existing index gets this
 -- table added instead of needing a fresh one.
 CREATE TABLE dependencies (
@@ -759,14 +759,14 @@ CREATE INDEX idx_dependencies_name ON dependencies(name);</code></pre>
           </tbody>
         </table>
       </div>
-      <p><strong>Design note baked into the schema:</strong> one shared table per concept across <em>all</em> languages — no per-language tables. <code>symbols</code>/<code>relations</code> carry a <code>language</code> column via their <code>files</code> join instead, which is why adding a language plugin never requires a <em>schema</em> migration, even HTML/CSS/XML/XAML: <code>element</code>/<code>rule</code> needed two new <code>SymbolKind</code> variants in <code>ccm-core</code> (nothing else fit an HTML element or a CSS selector), but since <code>kind</code> is a plain string column, the table itself didn't change.</p>
+      <p><strong>Design note baked into the schema:</strong> one shared table per concept across <em>all</em> languages — no per-language tables. <code>symbols</code>/<code>relations</code> carry a <code>language</code> column via their <code>files</code> join instead, which is why adding a language plugin never requires a <em>schema</em> migration, even HTML/CSS/XML/XAML: <code>element</code>/<code>rule</code> needed two new <code>SymbolKind</code> variants in <code>mct-core</code> (nothing else fit an HTML element or a CSS selector), but since <code>kind</code> is a plain string column, the table itself didn't change.</p>
       <p><strong>Dependency manifests recognized today:</strong> <code>Cargo.toml</code> (<code>[dependencies]</code>/<code>[dev-dependencies]</code>/<code>[build-dependencies]</code>, plus <code>[workspace.dependencies]</code> on a workspace root), <code>package.json</code> (<code>dependencies</code>/<code>devDependencies</code>/<code>peerDependencies</code>/<code>optionalDependencies</code>), <code>requirements.txt</code> (one requirement per line, version kept as the constraint text written — <code>"&gt;=2.0,&lt;3.0"</code>, not resolved to one version), <code>go.mod</code> (<code>require</code> block and single-line forms; <code>go.sum</code> not read — direct dependencies only). Unlike source files, a manifest is <strong>re-parsed on every reindex</strong>, not skipped when unchanged — they're few and small, not worth a second incremental-skip mechanism. Exposed via <code>get_indexing_status</code>'s "Dependencies detected" section (06), not a separate MCP tool — deliberate, to keep the tool count small (9 total, 06) rather than growing one tool per data point.</p>
     </section>
 
     <section class="section" id="exclusion">
       <span class="eyebrow">09</span>
       <h2>File exclusion rules</h2>
-      <p>Hardcoded in <code>crates/ccm-index/src/exclude.rs</code> as <code>DEFAULT_EXCLUDE_PATTERNS</code>, matched with <code>globset</code> against the forward-slash relative path:</p>
+      <p>Hardcoded in <code>crates/mct-index/src/exclude.rs</code> as <code>DEFAULT_EXCLUDE_PATTERNS</code>, matched with <code>globset</code> against the forward-slash relative path:</p>
       <div class="figure">
         <pre><code>**/.env             **/.env.*           **/*.pem            **/*.key
 **/secrets/**       **/secret/**        **/credentials.json **/.aws/**
@@ -774,9 +774,9 @@ CREATE INDEX idx_dependencies_name ON dependencies(name);</code></pre>
 **/appsettings.*.json  **/*.pfx  **/*.snk                    <span class="cmt">(.NET)</span>
 **/gradle.properties                                         <span class="cmt">(Java/Gradle/Maven)</span>
 **/*.env.local  **/config/secrets.yaml                        <span class="cmt">(Go / Viper-style config)</span>
-**/.git/**  **/target/**  **/.ccm-index/**                 <span class="cmt">(VCS / build output / the index itself)</span></code></pre>
+**/.git/**  **/target/**  **/.mct-index/**                 <span class="cmt">(VCS / build output / the index itself)</span></code></pre>
       </div>
-      <p>These exist so a fresh install <strong>never</strong> accidentally indexes a secret — opt-out is the design, not opt-in. <code>ExcludeSet::new(extra_patterns)</code> accepts a list to <em>widen</em> (never narrow) this set at the API level, but <strong>neither <code>ccm-cli</code> nor <code>ccm-mcp-server</code> currently exposes a flag or config file</strong> to supply <code>extra_patterns</code> — both call <code>ExcludeSet::default()</code> unconditionally. If you need to exclude something project-specific today, your only lever is renaming/moving the file to match an existing pattern, or contributing a config surface.</p>
+      <p>These exist so a fresh install <strong>never</strong> accidentally indexes a secret — opt-out is the design, not opt-in. <code>ExcludeSet::new(extra_patterns)</code> accepts a list to <em>widen</em> (never narrow) this set at the API level, but <strong>neither <code>mct-cli</code> nor <code>mct-mcp-server</code> currently exposes a flag or config file</strong> to supply <code>extra_patterns</code> — both call <code>ExcludeSet::default()</code> unconditionally. If you need to exclude something project-specific today, your only lever is renaming/moving the file to match an existing pattern, or contributing a config surface.</p>
     </section>
 
     <section class="section" id="managing">
@@ -792,11 +792,11 @@ CREATE INDEX idx_dependencies_name ON dependencies(name);</code></pre>
       <p><strong>When to use <code>--force</code>/<code>force: true</code>:</strong> only if you suspect internal inconsistency (manual <code>.sqlite3</code> edits, or a version upgrade that changed hashing/parsing behavior) — normal edits are always picked up incrementally, since comparison is content-hash based, not mtime-based (touching a file without changing its bytes does <em>not</em> trigger a re-parse).</p>
       <div class="figure">
         <div class="figcap"><span class="tag">shell — rebuild from scratch</span><button class="copybtn" data-copy>Copy</button></div>
-        <pre><code id="c-rebuild"><span class="prompt">$</span> rm -rf .ccm-index
-<span class="prompt">$</span> ccm-cli --root . init</code></pre>
+        <pre><code id="c-rebuild"><span class="prompt">$</span> rm -rf .mct-index
+<span class="prompt">$</span> mct-cli --root . init</code></pre>
       </div>
       <p>Safe at any time — the index is a pure derived artifact; deleting it loses nothing reconstructible from source.</p>
-      <p><strong>Committing to git:</strong> never. <code>.ccm-index/</code> should be gitignored. It's large relative to source (this repo's own index is ~848&nbsp;KiB for 161 files/1,445 symbols), regenerates deterministically, and is meaningless to diff.</p>
+      <p><strong>Committing to git:</strong> never. <code>.mct-index/</code> should be gitignored. It's large relative to source (this repo's own index is ~848&nbsp;KiB for 161 files/1,445 symbols), regenerates deterministically, and is meaningless to diff.</p>
     </section>
 
     <section class="section" id="querying">
@@ -807,7 +807,7 @@ CREATE INDEX idx_dependencies_name ON dependencies(name);</code></pre>
         <div class="figcap"><span class="tag">python</span><button class="copybtn" data-copy>Copy</button></div>
         <pre><code id="c-pyquery"><span class="prompt">$</span> python3 -c "
 import sqlite3
-conn = sqlite3.connect('.ccm-index/index.sqlite3')
+conn = sqlite3.connect('.mct-index/index.sqlite3')
 cur = conn.cursor()
 cur.execute(\"SELECT name, kind, file_id FROM symbols WHERE name = 'YourSymbol'\")
 print(cur.fetchall())
@@ -819,7 +819,7 @@ print(cur.fetchall())
         <pre><code id="c-cookbook"><span class="cmt">-- Everything indexed for one file</span>
 SELECT s.name, s.kind, s.line FROM symbols s
 JOIN files f ON f.id = s.file_id
-WHERE f.relative_path = 'crates/ccm-core/src/lib.rs' ORDER BY s.line;
+WHERE f.relative_path = 'crates/mct-core/src/lib.rs' ORDER BY s.line;
 
 <span class="cmt">-- Every relation kind used in the repo (sanity check)</span>
 SELECT DISTINCT kind FROM relations;
@@ -837,7 +837,7 @@ SELECT f.language, COUNT(DISTINCT f.id), COUNT(s.id)
 FROM files f LEFT JOIN symbols s ON s.file_id = f.id
 GROUP BY f.language;</code></pre>
       </div>
-      <p>If the <code>sqlite3</code> CLI <em>is</em> available on your system, the same queries work with <code>sqlite3 .ccm-index/index.sqlite3 "SELECT ..."</code>.</p>
+      <p>If the <code>sqlite3</code> CLI <em>is</em> available on your system, the same queries work with <code>sqlite3 .mct-index/index.sqlite3 "SELECT ..."</code>.</p>
     </section>
 
     <section class="section" id="limitations">
@@ -847,15 +847,15 @@ GROUP BY f.language;</code></pre>
         <li><strong>Name-based relations, not type-resolved.</strong> <code>find_calls</code>/<code>find_callers</code>/<code>find_references</code> match on plain text. Two unrelated functions named <code>parse</code> in different files/languages are indistinguishable by name alone — a query for "callers of <code>parse</code>" returns <em>every</em> caller of <em>any</em> <code>parse</code>, disambiguated only by reading <code>relative_path</code>/<code>language</code> in the result. Architecture, not a bug — real overload/import resolution per language is a much larger scope.</li>
         <li><strong><code>to_symbol_id</code> is best-effort and unused by queries.</strong> Populated via <code>SELECT id FROM symbols WHERE name = ?1 LIMIT 1</code> (first match, arbitrary on ambiguity) but no shipped query joins on it.</li>
         <li><strong>Test detection is a naming heuristic, not framework-aware.</strong> <code>impact_analysis</code>'s "likely affected tests" is <code>name.to_lowercase().starts_with("test")</code> — no recognition of <code>#[test]</code>, pytest fixtures, JUnit annotations, etc.</li>
-        <li><strong>Lua is implemented but not wired in.</strong> <code>ccm-lang-lua</code> is a full, tested <code>LanguageParser</code> kept as an acceptance test proving the plugin architecture — but it's <strong>not</strong> in either binary's <code>build_registry()</code>. <code>.lua</code> files are silently skipped, not even reported as "unsupported" (since <code>lua</code> isn't in <code>KNOWN_PENDING_LANGUAGES</code>).</li>
+        <li><strong>Lua is implemented but not wired in.</strong> <code>mct-lang-lua</code> is a full, tested <code>LanguageParser</code> kept as an acceptance test proving the plugin architecture — but it's <strong>not</strong> in either binary's <code>build_registry()</code>. <code>.lua</code> files are silently skipped, not even reported as "unsupported" (since <code>lua</code> isn't in <code>KNOWN_PENDING_LANGUAGES</code>).</li>
         <li><strong>CSS only indexes simple selectors.</strong> <code>.foo</code>/<code>#foo</code> alone become <code>Rule</code> symbols; compound selectors (<code>div.foo</code>) and combinators (<code>.a .b</code>, <code>#id &gt; .c</code>) are skipped — matching which elements they actually reach needs a DOM, not an AST.</li>
-        <li><strong>Plain XML never emits relations.</strong> <code>ccm-lang-xml</code> indexes <code>id</code>/<code>name</code>/<code>Name</code>-attributed elements (case-exact, in that priority) as <code>Element</code> symbols for structure only — there's no dialect-generic convention to cross-reference (a Maven POM and an Android layout mean completely different things by their attributes).</li>
-        <li><strong>Markdown is Phase 1 — headings only, no relations.</strong> <code>ccm-lang-md</code> indexes ATX headings (<code>#</code>…<code>######</code>) as <code>Element</code> symbols, nested via <code>tree-sitter-md</code>'s own <code>section</code> structure (a heading's parent is the nearest enclosing section's heading, resolved by the grammar itself — no manual level-counting stack). Deliberately out of scope for this phase: internal links, anchors, setext headings, lists, tables, and code blocks — it emits zero <code>RelationKind</code>s. Unlike <code>ccm-lang-xml</code>, a heading-less document produces zero symbols, not a synthetic root.</li>
-        <li><strong>XAML's event-handler cross-referencing is a bounded allowlist, not a heuristic.</strong> <code>EVENT_ATTRIBUTE_NAMES</code> in <code>ccm-lang-xaml</code> lists ~40 common WPF/UWP/WinUI/MAUI/Avalonia event names (<code>Click</code>, <code>Loaded</code>, <code>SelectionChanged</code>, ...) — an attribute outside that list, even if it wires up a real code-behind handler, won't produce a <code>References</code> relation.</li>
-        <li><strong><code>ccm-lang-powershell</code> doesn't index classes.</strong> <code>class Foo { ... }</code> and its methods are invisible to the index — only <code>function</code>-style definitions are, since the scope this plugin was built for is systems-scripting <code>.ps1</code>/<code>.psm1</code> files, where classes are rare.</li>
-        <li><strong><code>ccm-lang-bash</code>/<code>ccm-lang-powershell</code> only index top-level variables</strong>, and every command/cmdlet invocation is recorded as an unresolved <code>Calls</code> relation regardless of whether it turns out to be a local function or an external program — same "resolved downstream, matched by name" precedent as every other language here.</li>
-        <li><strong><code>ccm-lang-php</code> reuses <code>SymbolKind::Trait</code> for PHP's <code>trait</code> keyword</strong>, the same tag <code>ccm-lang-rust</code> uses for Rust traits — the two are semantically different (a PHP trait is a code-inclusion mixin, not an interface-like contract), sharing only the tag name, not the meaning.</li>
-        <li><strong><code>ccm-lang-php</code> records <code>use TraitName;</code> (trait composition) as a <code>RelationKind::Implements</code> relation</strong> on the enclosing class/enum — the closest existing relation kind, though not a perfect fit. <code>ccm-core</code> has no dedicated "uses/composes" relation kind today.</li>
+        <li><strong>Plain XML never emits relations.</strong> <code>mct-lang-xml</code> indexes <code>id</code>/<code>name</code>/<code>Name</code>-attributed elements (case-exact, in that priority) as <code>Element</code> symbols for structure only — there's no dialect-generic convention to cross-reference (a Maven POM and an Android layout mean completely different things by their attributes).</li>
+        <li><strong>Markdown is Phase 1 — headings only, no relations.</strong> <code>mct-lang-md</code> indexes ATX headings (<code>#</code>…<code>######</code>) as <code>Element</code> symbols, nested via <code>tree-sitter-md</code>'s own <code>section</code> structure (a heading's parent is the nearest enclosing section's heading, resolved by the grammar itself — no manual level-counting stack). Deliberately out of scope for this phase: internal links, anchors, setext headings, lists, tables, and code blocks — it emits zero <code>RelationKind</code>s. Unlike <code>mct-lang-xml</code>, a heading-less document produces zero symbols, not a synthetic root.</li>
+        <li><strong>XAML's event-handler cross-referencing is a bounded allowlist, not a heuristic.</strong> <code>EVENT_ATTRIBUTE_NAMES</code> in <code>mct-lang-xaml</code> lists ~40 common WPF/UWP/WinUI/MAUI/Avalonia event names (<code>Click</code>, <code>Loaded</code>, <code>SelectionChanged</code>, ...) — an attribute outside that list, even if it wires up a real code-behind handler, won't produce a <code>References</code> relation.</li>
+        <li><strong><code>mct-lang-powershell</code> doesn't index classes.</strong> <code>class Foo { ... }</code> and its methods are invisible to the index — only <code>function</code>-style definitions are, since the scope this plugin was built for is systems-scripting <code>.ps1</code>/<code>.psm1</code> files, where classes are rare.</li>
+        <li><strong><code>mct-lang-bash</code>/<code>mct-lang-powershell</code> only index top-level variables</strong>, and every command/cmdlet invocation is recorded as an unresolved <code>Calls</code> relation regardless of whether it turns out to be a local function or an external program — same "resolved downstream, matched by name" precedent as every other language here.</li>
+        <li><strong><code>mct-lang-php</code> reuses <code>SymbolKind::Trait</code> for PHP's <code>trait</code> keyword</strong>, the same tag <code>mct-lang-rust</code> uses for Rust traits — the two are semantically different (a PHP trait is a code-inclusion mixin, not an interface-like contract), sharing only the tag name, not the meaning.</li>
+        <li><strong><code>mct-lang-php</code> records <code>use TraitName;</code> (trait composition) as a <code>RelationKind::Implements</code> relation</strong> on the enclosing class/enum — the closest existing relation kind, though not a perfect fit. <code>mct-core</code> has no dedicated "uses/composes" relation kind today.</li>
         <li><strong><code>KNOWN_PENDING_LANGUAGES</code> is a short, hardcoded list</strong> (swift, ruby) — any other genuinely unsupported language's files are skipped with zero visibility in <code>status</code>.</li>
         <li><strong>Exclude patterns aren't user-configurable</strong> from either binary today (09), despite the underlying API supporting it.</li>
         <li><strong>No file-watching.</strong> The index only updates on an explicit <code>reindex</code> or MCP server startup.</li>
@@ -872,12 +872,12 @@ GROUP BY f.language;</code></pre>
           <thead><tr><th>Symptom</th><th>Root cause</th><th>Fix</th></tr></thead>
           <tbody>
             <tr><td><code>claude mcp list</code> shows <code>⏸ Pending approval</code></td><td>Server registered while a session was already running</td><td>Exit and restart <code>claude</code>; approve when prompted</td></tr>
-            <tr><td>Query results look stale after <code>git pull</code></td><td>Server only reindexes at its own startup, not on file changes</td><td>Ask Claude to call <code>reindex</code> (<code>force: true</code>), or run <code>ccm-cli --root . reindex</code></td></tr>
+            <tr><td>Query results look stale after <code>git pull</code></td><td>Server only reindexes at its own startup, not on file changes</td><td>Ask Claude to call <code>reindex</code> (<code>force: true</code>), or run <code>mct-cli --root . reindex</code></td></tr>
             <tr><td>A caller/callee result looks unrelated</td><td>Name-based matching (12) — another same-named symbol matched</td><td>Check <code>relative_path</code>/<code>language</code> in each result to disambiguate</td></tr>
             <tr><td>Language shown as "seen but not yet supported"</td><td>Extension is in <code>KNOWN_PENDING_LANGUAGES</code> with no parser registered</td><td>Expected; not implemented yet</td></tr>
             <tr><td>A language's files are just missing, no issue reported</td><td>Extension isn't in <code>KNOWN_PENDING_LANGUAGES</code> either (e.g. <code>.lua</code>) — silently skipped</td><td>Check <code>build_registry()</code> in both binaries to see what's wired in</td></tr>
             <tr><td><code>.env</code>/secret-looking files never show results</td><td>Excluded by design (09)</td><td>Expected; don't rely on this index for secrets discovery</td></tr>
-            <tr><td>Exits with <code>database error: ...</code></td><td>Corrupted/locked <code>.sqlite3</code> (killed mid-write, disk full)</td><td><code>rm -rf .ccm-index &amp;&amp; ccm-cli --root . init</code></td></tr>
+            <tr><td>Exits with <code>database error: ...</code></td><td>Corrupted/locked <code>.sqlite3</code> (killed mid-write, disk full)</td><td><code>rm -rf .mct-index &amp;&amp; mct-cli --root . init</code></td></tr>
             <tr><td>Exits with <code>invalid path: X escapes the project root</code></td><td>A symlink inside the repo resolves outside <code>--root</code></td><td>Expected safety rejection (07 step 2) — fix/remove the symlink</td></tr>
             <tr><td><code>reindex</code> reports 0 parsed but files changed</td><td>Content hash unchanged (e.g. only mtime/permissions touched, or reverted to identical bytes)</td><td>Expected; comparison is content-based on purpose</td></tr>
           </tbody>
@@ -890,7 +890,7 @@ GROUP BY f.language;</code></pre>
       <h2>Security model</h2>
       <ul>
         <li><strong>Static parsing only.</strong> <code>LanguageParser::parse()</code> never executes or evaluates file contents — every parser is a pure tree-sitter AST walk. Indexing an untrusted repository runs none of its code.</li>
-        <li><strong>All SQL is parameterized.</strong> Every query binds symbol names via <code>?1</code>-style placeholders — never string-interpolated (confirmed in <code>crates/ccm-index/src/queries.rs</code>, called out explicitly in source comments) — no SQL injection surface from name lookups.</li>
+        <li><strong>All SQL is parameterized.</strong> Every query binds symbol names via <code>?1</code>-style placeholders — never string-interpolated (confirmed in <code>crates/mct-index/src/queries.rs</code>, called out explicitly in source comments) — no SQL injection surface from name lookups.</li>
         <li><strong>Symlink escape prevention.</strong> Every walked entry is canonicalized and rejected if it resolves outside the project root (07) — a malicious symlink can't make the indexer touch files elsewhere.</li>
         <li><strong>Secret-pattern exclusion by default, opt-out not opt-in</strong> (09) — a fresh install never indexes <code>.env</code>, <code>*.pem</code>, <code>*.key</code>, cloud credential directories, etc.</li>
         <li><strong>No network calls, zero telemetry</strong> — indexing and querying are entirely local/offline.</li>
@@ -906,11 +906,11 @@ GROUP BY f.language;</code></pre>
 <span class="prompt">$</span> claude mcp remove mini-consumes-tokens --scope project   <span class="cmt"># match the --scope used to add it</span>
 
 <span class="cmt"># Remove the binaries</span>
-<span class="prompt">$</span> cargo uninstall ccm-cli
-<span class="prompt">$</span> cargo uninstall ccm-mcp-server
+<span class="prompt">$</span> cargo uninstall mct-cli
+<span class="prompt">$</span> cargo uninstall mct-mcp-server
 
 <span class="cmt"># Delete a given repo's index (safe any time, see 10)</span>
-<span class="prompt">$</span> rm -rf .ccm-index
+<span class="prompt">$</span> rm -rf .mct-index
 
 <span class="cmt"># If you committed .mcp.json, remove or edit it too</span></code></pre>
       </div>
@@ -920,10 +920,10 @@ GROUP BY f.language;</code></pre>
       <span class="eyebrow">16</span>
       <h2>Extending it: adding a language</h2>
       <ol>
-        <li>New crate, e.g. <code>crates/ccm-lang-&lt;lang&gt;</code>, depending on <code>ccm-core</code> and the relevant <code>tree-sitter-&lt;lang&gt;</code> grammar crate.</li>
-        <li>Implement <code>ccm_core::LanguageParser</code> (02): <code>language_id()</code>, <code>file_extensions()</code>, <code>parse()</code> — walk the AST and emit <code>SymbolRecord</code>s and <code>SymbolRelation</code>s. Use <code>ccm-lang-rust/src/lib.rs</code> or <code>ccm-lang-python/src/lib.rs</code> as the reference pattern.</li>
-        <li>Register it in <strong>both</strong> places — <code>ccm-mcp-server/src/registry.rs</code> and <code>ccm-cli/src/main.rs::build_registry</code> — one <code>registry.register(Arc::new(YourLangParser))</code> line each. Nothing else in <code>ccm-core</code>/<code>ccm-index</code>/<code>ccm-mcp-server</code> changes.</li>
-        <li>Add idiomatic-syntax fixtures in <code>crates/ccm-lang-&lt;lang&gt;/tests/parse.rs</code> (generics, decorators, whatever that language's equivalents are).</li>
+        <li>New crate, e.g. <code>crates/mct-lang-&lt;lang&gt;</code>, depending on <code>mct-core</code> and the relevant <code>tree-sitter-&lt;lang&gt;</code> grammar crate.</li>
+        <li>Implement <code>mct_core::LanguageParser</code> (02): <code>language_id()</code>, <code>file_extensions()</code>, <code>parse()</code> — walk the AST and emit <code>SymbolRecord</code>s and <code>SymbolRelation</code>s. Use <code>mct-lang-rust/src/lib.rs</code> or <code>mct-lang-python/src/lib.rs</code> as the reference pattern.</li>
+        <li>Register it in <strong>both</strong> places — <code>mct-mcp-server/src/registry.rs</code> and <code>mct-cli/src/main.rs::build_registry</code> — one <code>registry.register(Arc::new(YourLangParser))</code> line each. Nothing else in <code>mct-core</code>/<code>mct-index</code>/<code>mct-mcp-server</code> changes.</li>
+        <li>Add idiomatic-syntax fixtures in <code>crates/mct-lang-&lt;lang&gt;/tests/parse.rs</code> (generics, decorators, whatever that language's equivalents are).</li>
         <li>Update the language coverage table in <code>README.md</code> and <code>internal/checklist.md</code>.</li>
         <li>Run the token-savings benchmark for the new language once it exists (currently unimplemented workspace-wide, tracked in <code>internal/checklist.md</code>).</li>
       </ol>
@@ -935,49 +935,49 @@ GROUP BY f.language;</code></pre>
       <div class="figure">
         <div class="figcap"><span class="tag">shell</span><button class="copybtn" data-copy>Copy</button></div>
         <pre><code id="c-cheatsheet"><span class="cmt"># Install</span>
-<span class="prompt">$</span> cargo install --path crates/ccm-cli
-<span class="prompt">$</span> cargo install --path crates/ccm-mcp-server
+<span class="prompt">$</span> cargo install --path crates/mct-cli
+<span class="prompt">$</span> cargo install --path crates/mct-mcp-server
 
 <span class="cmt"># Verify what's on PATH before troubleshooting anything else — neither binary
 # implements --version today, --help is the only way to confirm the build</span>
-<span class="prompt">$</span> ccm-cli --help
-<span class="prompt">$</span> ccm-mcp-server --help
-<span class="prompt">$</span> which ccm-cli ccm-mcp-server        <span class="cmt"># Linux/macOS</span>
-<span class="prompt">$</span> where.exe ccm-cli ccm-mcp-server    <span class="cmt"># Windows (PowerShell: Get-Command ccm-cli, ccm-mcp-server)</span>
+<span class="prompt">$</span> mct-cli --help
+<span class="prompt">$</span> mct-mcp-server --help
+<span class="prompt">$</span> which mct-cli mct-mcp-server        <span class="cmt"># Linux/macOS</span>
+<span class="prompt">$</span> where.exe mct-cli mct-mcp-server    <span class="cmt"># Windows (PowerShell: Get-Command mct-cli, mct-mcp-server)</span>
 
 <span class="cmt"># Index / inspect</span>
-<span class="prompt">$</span> ccm-cli --root . init
-<span class="prompt">$</span> ccm-cli --root . reindex
-<span class="prompt">$</span> ccm-cli --root . reindex --force
-<span class="prompt">$</span> ccm-cli --root . status
+<span class="prompt">$</span> mct-cli --root . init
+<span class="prompt">$</span> mct-cli --root . reindex
+<span class="prompt">$</span> mct-cli --root . reindex --force
+<span class="prompt">$</span> mct-cli --root . status
 
 <span class="cmt"># Register — writes .mcp.json (root key "mcpServers", "type": "stdio").
 # That exact shape also works as-is for Cursor, Claude Desktop, Windsurf, and
 # Warp — see below for VS Code+Copilot and Codex CLI, which use a different shape.</span>
-<span class="prompt">$</span> ccm-cli --root . mcp-register
-<span class="prompt">$</span> claude mcp add mini-consumes-tokens --scope project -- ccm-mcp-server --root "&lt;abs-path&gt;"
+<span class="prompt">$</span> mct-cli --root . mcp-register
+<span class="prompt">$</span> claude mcp add mini-consumes-tokens --scope project -- mct-mcp-server --root "&lt;abs-path&gt;"
 <span class="prompt">$</span> claude mcp list
 <span class="prompt">$</span> claude mcp remove mini-consumes-tokens --scope project
 
 <span class="cmt"># Rebuild the index from scratch</span>
-<span class="prompt">$</span> rm -rf .ccm-index &amp;&amp; ccm-cli --root . init
+<span class="prompt">$</span> rm -rf .mct-index &amp;&amp; mct-cli --root . init
 
 <span class="cmt"># Inspect the database without the sqlite3 CLI</span>
-<span class="prompt">$</span> python3 -c "import sqlite3; c=sqlite3.connect('.ccm-index/index.sqlite3'); print(c.execute('SELECT COUNT(*) FROM symbols').fetchone())"
+<span class="prompt">$</span> python3 -c "import sqlite3; c=sqlite3.connect('.mct-index/index.sqlite3'); print(c.execute('SELECT COUNT(*) FROM symbols').fetchone())"
 
 <span class="cmt"># Validate a generated config is well-formed JSON before restarting a client</span>
 <span class="prompt">$</span> python3 -m json.tool .mcp.json
 
 <span class="cmt"># Debug: verbose startup/reindex logs — goes to stderr by design (MCP over
-# stdio reserves stdout for the JSON-RPC stream), see ccm-mcp-server/src/main.rs</span>
-<span class="prompt">$</span> RUST_LOG=debug ccm-mcp-server --root .
-<span class="prompt">$</span> $env:RUST_LOG="debug"; ccm-mcp-server --root .    <span class="cmt"># PowerShell equivalent</span>
+# stdio reserves stdout for the JSON-RPC stream), see mct-mcp-server/src/main.rs</span>
+<span class="prompt">$</span> RUST_LOG=debug mct-mcp-server --root .
+<span class="prompt">$</span> $env:RUST_LOG="debug"; mct-mcp-server --root .    <span class="cmt"># PowerShell equivalent</span>
 
 <span class="cmt"># Uninstall</span>
 <span class="prompt">$</span> claude mcp remove mini-consumes-tokens --scope project   <span class="cmt"># match the --scope used to add it</span>
-<span class="prompt">$</span> cargo uninstall ccm-cli
-<span class="prompt">$</span> cargo uninstall ccm-mcp-server
-<span class="prompt">$</span> rm -rf .ccm-index
+<span class="prompt">$</span> cargo uninstall mct-cli
+<span class="prompt">$</span> cargo uninstall mct-mcp-server
+<span class="prompt">$</span> rm -rf .mct-index
 
 <span class="cmt"># Run the test suite (261 tests across the workspace)</span>
 <span class="prompt">$</span> cargo test --workspace</code></pre>
@@ -992,7 +992,7 @@ GROUP BY f.language;</code></pre>
   "servers": {
     "mini-consumes-tokens": {
       "type": "stdio",
-      "command": "ccm-mcp-server",
+      "command": "mct-mcp-server",
       "args": ["--root", "${workspaceFolder}"]
     }
   }
@@ -1002,7 +1002,7 @@ GROUP BY f.language;</code></pre>
         <div class="figcap"><span class="tag">toml</span></div>
         <pre><code><span class="cmt"># Codex CLI (OpenAI): ~/.codex/config.toml — TOML, not JSON</span>
 [mcp_servers.mini-consumes-tokens]
-command = "ccm-mcp-server"
+command = "mct-mcp-server"
 args = ["--root", "&lt;absolute-path-to-repo&gt;"]</code></pre>
       </div>
       <p>Zed, Cline, Continue.dev, JetBrains AI Assistant/Junie, OpenHands, Gemini CLI, and Antigravity each have their own config path/shape too — see 05 for all of them. More failure modes (pending approval, stale results after <code>git pull</code>, unrelated-looking caller/callee matches, etc.) are covered in 13.</p>
