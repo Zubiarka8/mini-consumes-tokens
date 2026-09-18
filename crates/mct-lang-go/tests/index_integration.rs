@@ -38,6 +38,10 @@ fn find_symbol_locates_receiver_method_on_its_struct() {
     assert_eq!(hits[0].kind, "method");
     assert_eq!(hits[0].parent.as_deref(), Some("Invoice"));
     assert_eq!(hits[0].relative_path, "invoice.go");
+    // `language` is read straight off the `files.language` column via the
+    // symbols->files JOIN, so this is what proves the row landed under the
+    // right language and not merely that the parser produced the symbol.
+    assert_eq!(hits[0].language, "go");
 }
 
 #[test]

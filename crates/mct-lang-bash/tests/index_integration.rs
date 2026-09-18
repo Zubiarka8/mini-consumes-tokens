@@ -37,10 +37,15 @@ fn find_symbol_locates_function_and_top_level_variable() {
     assert_eq!(build.len(), 1);
     assert_eq!(build[0].kind, "function");
     assert_eq!(build[0].relative_path, "deploy.sh");
+    // `language` is read straight off the `files.language` column via the
+    // symbols->files JOIN, so this is what proves the row landed under the
+    // right language and not merely that the parser produced the symbol.
+    assert_eq!(build[0].language, "bash");
 
     let version = index.find_symbol("VERSION").unwrap();
     assert_eq!(version.len(), 1);
     assert_eq!(version[0].kind, "variable");
+    assert_eq!(version[0].language, "bash");
 }
 
 #[test]

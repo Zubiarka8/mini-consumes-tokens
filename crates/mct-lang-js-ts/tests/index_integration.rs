@@ -40,6 +40,35 @@ fn find_symbol_locates_the_invoice_class() {
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].relative_path, "invoice.ts");
     assert_eq!(hits[0].kind, "class");
+    // `language` is read straight off the `files.language` column via the
+    // symbols->files JOIN. This crate serves .js/.ts/.tsx from one parser, so
+    // all three must land under the single `javascript_typescript` id — a
+    // per-extension id would fragment the index and break cross-file lookups.
+    assert_eq!(hits[0].language, "javascript_typescript");
+}
+
+#[test]
+fn jsx_and_commonjs_files_share_the_one_javascript_typescript_language_id() {
+    let index = open_indexed();
+    // .tsx (App.tsx) and .js (mathUtils.js) are the two extensions most
+    // likely to drift onto a language id of their own.
+    // Two `App` hits: the filename-derived module symbol and the `App`
+    // component itself — the same filename/symbol-name collision every
+    // language plugin here accepts (see `mct-lang-php`'s PSR-4 note).
+    let tsx = index.find_symbol("App").unwrap();
+    assert_eq!(tsx.len(), 2, "{tsx:?}");
+    assert!(
+        tsx.iter()
+            .all(|h| h.relative_path == "App.tsx" && h.language == "javascript_typescript"),
+        "{tsx:?}"
+    );
+
+    let cjs = index.find_symbol("add").unwrap();
+    assert!(
+        cjs.iter()
+            .any(|h| h.relative_path == "mathUtils.js" && h.language == "javascript_typescript"),
+        "{cjs:?}"
+    );
 }
 
 #[test]
