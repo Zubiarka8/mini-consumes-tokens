@@ -129,262 +129,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ccm-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "ccm-core",
- "ccm-index",
- "ccm-lang-bash",
- "ccm-lang-cpp",
- "ccm-lang-csharp",
- "ccm-lang-css",
- "ccm-lang-go",
- "ccm-lang-html",
- "ccm-lang-java",
- "ccm-lang-js-ts",
- "ccm-lang-kotlin",
- "ccm-lang-md",
- "ccm-lang-php",
- "ccm-lang-powershell",
- "ccm-lang-python",
- "ccm-lang-rust",
- "ccm-lang-xaml",
- "ccm-lang-xml",
- "clap",
- "serde_json",
- "walkdir",
-]
-
-[[package]]
-name = "ccm-core"
-version = "0.1.0"
-dependencies = [
- "thiserror",
-]
-
-[[package]]
-name = "ccm-index"
-version = "0.1.0"
-dependencies = [
- "ccm-core",
- "git2",
- "globset",
- "rusqlite",
- "rusqlite_migration",
- "serde_json",
- "thiserror",
- "toml",
- "walkdir",
-]
-
-[[package]]
-name = "ccm-lang-bash"
-version = "0.1.0"
-dependencies = [
- "ccm-core",
- "ccm-index",
- "tree-sitter",
- "tree-sitter-bash",
-]
-
-[[package]]
-name = "ccm-lang-cpp"
-version = "0.1.0"
-dependencies = [
- "ccm-core",
- "ccm-index",
- "tree-sitter",
- "tree-sitter-cpp",
-]
-
-[[package]]
-name = "ccm-lang-csharp"
-version = "0.1.0"
-dependencies = [
- "ccm-core",
- "ccm-index",
- "tree-sitter",
- "tree-sitter-c-sharp",
-]
-
-[[package]]
-name = "ccm-lang-css"
-version = "0.1.0"
-dependencies = [
- "ccm-core",
- "ccm-index",
- "tree-sitter",
- "tree-sitter-css",
-]
-
-[[package]]
-name = "ccm-lang-go"
-version = "0.1.0"
-dependencies = [
- "ccm-core",
- "ccm-index",
- "tree-sitter",
- "tree-sitter-go",
-]
-
-[[package]]
-name = "ccm-lang-html"
-version = "0.1.0"
-dependencies = [
- "ccm-core",
- "ccm-index",
- "ccm-lang-css",
- "tree-sitter",
- "tree-sitter-html",
-]
-
-[[package]]
-name = "ccm-lang-java"
-version = "0.1.0"
-dependencies = [
- "ccm-core",
- "ccm-index",
- "tree-sitter",
- "tree-sitter-java",
-]
-
-[[package]]
-name = "ccm-lang-js-ts"
-version = "0.1.0"
-dependencies = [
- "ccm-core",
- "ccm-index",
- "tree-sitter",
- "tree-sitter-javascript",
- "tree-sitter-typescript",
-]
-
-[[package]]
-name = "ccm-lang-kotlin"
-version = "0.1.0"
-dependencies = [
- "ccm-core",
- "ccm-index",
- "tree-sitter",
- "tree-sitter-kotlin-ng",
-]
-
-[[package]]
-name = "ccm-lang-lua"
-version = "0.1.0"
-dependencies = [
- "ccm-core",
- "ccm-index",
- "tree-sitter",
- "tree-sitter-lua",
- "walkdir",
-]
-
-[[package]]
-name = "ccm-lang-md"
-version = "0.1.0"
-dependencies = [
- "ccm-core",
- "ccm-index",
- "tree-sitter",
- "tree-sitter-md",
-]
-
-[[package]]
-name = "ccm-lang-php"
-version = "0.1.0"
-dependencies = [
- "ccm-core",
- "ccm-index",
- "tree-sitter",
- "tree-sitter-php",
-]
-
-[[package]]
-name = "ccm-lang-powershell"
-version = "0.1.0"
-dependencies = [
- "ccm-core",
- "ccm-index",
- "tree-sitter",
- "tree-sitter-powershell",
-]
-
-[[package]]
-name = "ccm-lang-python"
-version = "0.1.0"
-dependencies = [
- "ccm-core",
- "tree-sitter",
- "tree-sitter-python",
-]
-
-[[package]]
-name = "ccm-lang-rust"
-version = "0.1.0"
-dependencies = [
- "ccm-core",
- "tree-sitter",
- "tree-sitter-rust",
-]
-
-[[package]]
-name = "ccm-lang-xaml"
-version = "0.1.0"
-dependencies = [
- "ccm-core",
- "ccm-index",
- "ccm-lang-csharp",
- "tree-sitter",
- "tree-sitter-xml",
-]
-
-[[package]]
-name = "ccm-lang-xml"
-version = "0.1.0"
-dependencies = [
- "ccm-core",
- "ccm-index",
- "tree-sitter",
- "tree-sitter-xml",
-]
-
-[[package]]
-name = "ccm-mcp-server"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "ccm-core",
- "ccm-index",
- "ccm-lang-bash",
- "ccm-lang-cpp",
- "ccm-lang-csharp",
- "ccm-lang-css",
- "ccm-lang-go",
- "ccm-lang-html",
- "ccm-lang-java",
- "ccm-lang-js-ts",
- "ccm-lang-kotlin",
- "ccm-lang-md",
- "ccm-lang-php",
- "ccm-lang-powershell",
- "ccm-lang-python",
- "ccm-lang-rust",
- "ccm-lang-xaml",
- "ccm-lang-xml",
- "clap",
- "notify",
- "notify-debouncer-full",
- "rmcp",
- "schemars",
- "serde",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "cfg-if"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -874,6 +618,264 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d1525a2a28c7f4fa0fc98bb91ae755d1e2d1505079e05539e35bc876b5d65ae9"
 dependencies = [
  "regex-automata",
+]
+
+[[package]]
+name = "mct-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "mct-core",
+ "mct-index",
+ "mct-lang-bash",
+ "mct-lang-cpp",
+ "mct-lang-csharp",
+ "mct-lang-css",
+ "mct-lang-go",
+ "mct-lang-html",
+ "mct-lang-java",
+ "mct-lang-js-ts",
+ "mct-lang-kotlin",
+ "mct-lang-md",
+ "mct-lang-php",
+ "mct-lang-powershell",
+ "mct-lang-python",
+ "mct-lang-rust",
+ "mct-lang-xaml",
+ "mct-lang-xml",
+ "serde_json",
+ "walkdir",
+]
+
+[[package]]
+name = "mct-core"
+version = "0.1.0"
+dependencies = [
+ "thiserror",
+]
+
+[[package]]
+name = "mct-index"
+version = "0.1.0"
+dependencies = [
+ "git2",
+ "globset",
+ "mct-core",
+ "rusqlite",
+ "rusqlite_migration",
+ "serde_json",
+ "thiserror",
+ "toml",
+ "walkdir",
+]
+
+[[package]]
+name = "mct-lang-bash"
+version = "0.1.0"
+dependencies = [
+ "mct-core",
+ "mct-index",
+ "tree-sitter",
+ "tree-sitter-bash",
+]
+
+[[package]]
+name = "mct-lang-cpp"
+version = "0.1.0"
+dependencies = [
+ "mct-core",
+ "mct-index",
+ "tree-sitter",
+ "tree-sitter-cpp",
+]
+
+[[package]]
+name = "mct-lang-csharp"
+version = "0.1.0"
+dependencies = [
+ "mct-core",
+ "mct-index",
+ "tree-sitter",
+ "tree-sitter-c-sharp",
+]
+
+[[package]]
+name = "mct-lang-css"
+version = "0.1.0"
+dependencies = [
+ "mct-core",
+ "mct-index",
+ "tree-sitter",
+ "tree-sitter-css",
+]
+
+[[package]]
+name = "mct-lang-go"
+version = "0.1.0"
+dependencies = [
+ "mct-core",
+ "mct-index",
+ "tree-sitter",
+ "tree-sitter-go",
+]
+
+[[package]]
+name = "mct-lang-html"
+version = "0.1.0"
+dependencies = [
+ "mct-core",
+ "mct-index",
+ "mct-lang-css",
+ "tree-sitter",
+ "tree-sitter-html",
+]
+
+[[package]]
+name = "mct-lang-java"
+version = "0.1.0"
+dependencies = [
+ "mct-core",
+ "mct-index",
+ "tree-sitter",
+ "tree-sitter-java",
+]
+
+[[package]]
+name = "mct-lang-js-ts"
+version = "0.1.0"
+dependencies = [
+ "mct-core",
+ "mct-index",
+ "tree-sitter",
+ "tree-sitter-javascript",
+ "tree-sitter-typescript",
+]
+
+[[package]]
+name = "mct-lang-kotlin"
+version = "0.1.0"
+dependencies = [
+ "mct-core",
+ "mct-index",
+ "tree-sitter",
+ "tree-sitter-kotlin-ng",
+]
+
+[[package]]
+name = "mct-lang-lua"
+version = "0.1.0"
+dependencies = [
+ "mct-core",
+ "mct-index",
+ "tree-sitter",
+ "tree-sitter-lua",
+ "walkdir",
+]
+
+[[package]]
+name = "mct-lang-md"
+version = "0.1.0"
+dependencies = [
+ "mct-core",
+ "mct-index",
+ "tree-sitter",
+ "tree-sitter-md",
+]
+
+[[package]]
+name = "mct-lang-php"
+version = "0.1.0"
+dependencies = [
+ "mct-core",
+ "mct-index",
+ "tree-sitter",
+ "tree-sitter-php",
+]
+
+[[package]]
+name = "mct-lang-powershell"
+version = "0.1.0"
+dependencies = [
+ "mct-core",
+ "mct-index",
+ "tree-sitter",
+ "tree-sitter-powershell",
+]
+
+[[package]]
+name = "mct-lang-python"
+version = "0.1.0"
+dependencies = [
+ "mct-core",
+ "mct-index",
+ "tree-sitter",
+ "tree-sitter-python",
+]
+
+[[package]]
+name = "mct-lang-rust"
+version = "0.1.0"
+dependencies = [
+ "mct-core",
+ "mct-index",
+ "tree-sitter",
+ "tree-sitter-rust",
+]
+
+[[package]]
+name = "mct-lang-xaml"
+version = "0.1.0"
+dependencies = [
+ "mct-core",
+ "mct-index",
+ "mct-lang-csharp",
+ "tree-sitter",
+ "tree-sitter-xml",
+]
+
+[[package]]
+name = "mct-lang-xml"
+version = "0.1.0"
+dependencies = [
+ "mct-core",
+ "mct-index",
+ "tree-sitter",
+ "tree-sitter-xml",
+]
+
+[[package]]
+name = "mct-mcp-server"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "mct-core",
+ "mct-index",
+ "mct-lang-bash",
+ "mct-lang-cpp",
+ "mct-lang-csharp",
+ "mct-lang-css",
+ "mct-lang-go",
+ "mct-lang-html",
+ "mct-lang-java",
+ "mct-lang-js-ts",
+ "mct-lang-kotlin",
+ "mct-lang-md",
+ "mct-lang-php",
+ "mct-lang-powershell",
+ "mct-lang-python",
+ "mct-lang-rust",
+ "mct-lang-xaml",
+ "mct-lang-xml",
+ "notify",
+ "notify-debouncer-full",
+ "rmcp",
+ "schemars",
+ "serde",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

@@ -1,0 +1,16 @@
+:root {
+  --ledger-bg: #ffffff;
+}
+
+.ledger {
+  background: var(--ledger-bg);
+  padding: 1rem;
+}
+
+.ledger-title {
+  font-weight: 600;
+}
+
+#ledger-rows {
+  display: grid;
+}

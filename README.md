@@ -1,4 +1,4 @@
-# mini-consumes-tokens (ccm)
+# mini-consumes-tokens (mct)
 
 [![CI](https://img.shields.io/github/actions/workflow/status/zubiarka8/mini-consumes-tokens/ci.yml?branch=main&label=CI)](https://github.com/zubiarka8/mini-consumes-tokens/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
@@ -42,7 +42,7 @@ Before installing, make sure you have:
 
 ### 3.1 Installing
 
-This project isn't published to a package manager (like `apt`, Homebrew, or `winget`) yet. There are two ways to install it instead: a one-line script that downloads a ready-to-run copy, or building it yourself from source. Either one leaves you with the same two programs, `ccm-cli` and `ccm-mcp-server`.
+This project isn't published to a package manager (like `apt`, Homebrew, or `winget`) yet. There are two ways to install it instead: a one-line script that downloads a ready-to-run copy, or building it yourself from source. Either one leaves you with the same two programs, `mct-cli` and `mct-mcp-server`.
 
 #### Option A: quick install script (macOS, Linux, Windows)
 
@@ -66,13 +66,13 @@ INSTALL_DIR=/usr/local/bin curl -sSL https://raw.githubusercontent.com/Zubiarka8
 irm https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.ps1 | iex
 ```
 
-By default this installs into `%LOCALAPPDATA%\ccm\bin`. To use a different folder instead:
+By default this installs into `%LOCALAPPDATA%\mct\bin`. To use a different folder instead:
 
 ```powershell
-$env:CCM_INSTALL_DIR = "C:\tools\ccm"; irm https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.ps1 | iex
+$env:MCT_INSTALL_DIR = "C:\tools\mct"; irm https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.ps1 | iex
 ```
 
-Both scripts print a warning if their install folder isn't already on your PATH, along with the exact line to add. If you'd rather not pipe a script straight into your shell, you can also download the matching archive for your system by hand from the project's [GitHub Releases page](https://github.com/Zubiarka8/mini-consumes-tokens/releases) and extract `ccm-cli`/`ccm-mcp-server` into any folder on your PATH yourself.
+Both scripts print a warning if their install folder isn't already on your PATH, along with the exact line to add. If you'd rather not pipe a script straight into your shell, you can also download the matching archive for your system by hand from the project's [GitHub Releases page](https://github.com/Zubiarka8/mini-consumes-tokens/releases) and extract `mct-cli`/`mct-mcp-server` into any folder on your PATH yourself.
 
 #### Option B: build from source
 
@@ -81,15 +81,15 @@ This requires the prerequisites above (Rust via rustup, and on Windows, the MSVC
 ```sh
 git clone https://github.com/zubiarka8/mini-consumes-tokens.git
 cd mini-consumes-tokens
-cargo install --path crates/ccm-cli
-cargo install --path crates/ccm-mcp-server
+cargo install --path crates/mct-cli
+cargo install --path crates/mct-mcp-server
 ```
 
 #### Verifying either option worked
 
 ```sh
-ccm-cli --help
-ccm-mcp-server --help
+mct-cli --help
+mct-mcp-server --help
 ```
 
 If both commands print usage text, the install worked. If you get a "command not found" error instead, see [Troubleshooting](#6-troubleshooting-common-problems) below.
@@ -105,29 +105,29 @@ Once every connection is removed, clean up the shared parts. How you remove the 
 
 ```sh
 # If you installed with the quick install script:
-# just delete ccm-cli and ccm-mcp-server from the folder they were installed into
-# ($HOME/.local/bin by default on macOS/Linux, %LOCALAPPDATA%\ccm\bin on Windows,
-# or whatever folder you overrode INSTALL_DIR/CCM_INSTALL_DIR to)
-rm "$HOME/.local/bin/ccm-cli" "$HOME/.local/bin/ccm-mcp-server"   # macOS / Linux example
-Remove-Item "$env:LOCALAPPDATA\ccm\bin\ccm-cli.exe","$env:LOCALAPPDATA\ccm\bin\ccm-mcp-server.exe"   # Windows example
+# just delete mct-cli and mct-mcp-server from the folder they were installed into
+# ($HOME/.local/bin by default on macOS/Linux, %LOCALAPPDATA%\mct\bin on Windows,
+# or whatever folder you overrode INSTALL_DIR/MCT_INSTALL_DIR to)
+rm "$HOME/.local/bin/mct-cli" "$HOME/.local/bin/mct-mcp-server"   # macOS / Linux example
+Remove-Item "$env:LOCALAPPDATA\mct\bin\mct-cli.exe","$env:LOCALAPPDATA\mct\bin\mct-mcp-server.exe"   # Windows example
 
 # If you installed by building from source:
-cargo uninstall ccm-cli
-cargo uninstall ccm-mcp-server
+cargo uninstall mct-cli
+cargo uninstall mct-mcp-server
 
 # Either way — delete the local index for a given project (safe to do any time)
-rm -rf .ccm-index                        # macOS / Linux
-Remove-Item -Recurse -Force .ccm-index   # Windows PowerShell
+rm -rf .mct-index                        # macOS / Linux
+Remove-Item -Recurse -Force .mct-index   # Windows PowerShell
 ```
 
 If you committed a `.mcp.json` file to your project (created automatically when registering the server — see below), remove or edit that file too.
 
 ### 3.3 Connecting it to your AI assistant or editor
 
-All of these connect the same underlying program (`ccm-mcp-server`) — only the exact configuration file and format differ per tool. A quick shortcut that works for most of them: run
+All of these connect the same underlying program (`mct-mcp-server`) — only the exact configuration file and format differ per tool. A quick shortcut that works for most of them: run
 
 ```sh
-ccm-cli --root . mcp-register --name mini-consumes-tokens
+mct-cli --root . mcp-register --name mini-consumes-tokens
 ```
 
 from inside your project folder. This writes (or safely merges into) a `.mcp.json` file with the right settings, without touching any other tool already configured there.
@@ -137,7 +137,7 @@ from inside your project folder. This writes (or safely merges into) a `.mcp.jso
 Claude Code has built-in, first-class support. From your project folder, run:
 
 ```sh
-claude mcp add mini-consumes-tokens --scope project -- ccm-mcp-server --root "<absolute-path-to-your-project>"
+claude mcp add mini-consumes-tokens --scope project -- mct-mcp-server --root "<absolute-path-to-your-project>"
 ```
 
 The `--scope` flag controls who can see this connection:
@@ -160,7 +160,7 @@ Codex CLI uses a different file format — a text configuration file (TOML) inst
 
 ```toml
 [mcp_servers.mini-consumes-tokens]
-command = "ccm-mcp-server"
+command = "mct-mcp-server"
 args = ["--root", "<absolute-path-to-your-project>"]
 ```
 
@@ -173,7 +173,7 @@ VS Code's Copilot integration also uses a slightly different shape than the defa
   "servers": {
     "mini-consumes-tokens": {
       "type": "stdio",
-      "command": "ccm-mcp-server",
+      "command": "mct-mcp-server",
       "args": ["--root", "${workspaceFolder}"]
     }
   }
@@ -182,23 +182,23 @@ VS Code's Copilot integration also uses a slightly different shape than the defa
 
 #### Grok Build
 
-Configuration steps for Grok Build could not be verified for this documentation pass. If it supports MCP through a JSON configuration file, try the generic pattern under "Other editors and IDEs" below, or run `ccm-cli --root . mcp-register` to generate a standard configuration block you can adapt to whatever format it expects.
+Configuration steps for Grok Build could not be verified for this documentation pass. If it supports MCP through a JSON configuration file, try the generic pattern under "Other editors and IDEs" below, or run `mct-cli --root . mcp-register` to generate a standard configuration block you can adapt to whatever format it expects.
 
 #### Open Code
 
-Configuration steps for Open Code could not be verified for this documentation pass. If it supports MCP through a JSON configuration file, try the generic pattern under "Other editors and IDEs" below, or run `ccm-cli --root . mcp-register` to generate a standard configuration block you can adapt to whatever format it expects.
+Configuration steps for Open Code could not be verified for this documentation pass. If it supports MCP through a JSON configuration file, try the generic pattern under "Other editors and IDEs" below, or run `mct-cli --root . mcp-register` to generate a standard configuration block you can adapt to whatever format it expects.
 
 #### Open Claw
 
-Configuration steps for Open Claw could not be verified for this documentation pass. If it supports MCP through a JSON configuration file, try the generic pattern under "Other editors and IDEs" below, or run `ccm-cli --root . mcp-register` to generate a standard configuration block you can adapt to whatever format it expects.
+Configuration steps for Open Claw could not be verified for this documentation pass. If it supports MCP through a JSON configuration file, try the generic pattern under "Other editors and IDEs" below, or run `mct-cli --root . mcp-register` to generate a standard configuration block you can adapt to whatever format it expects.
 
 #### Gemini
 
-Configuration steps for Gemini could not be verified for this documentation pass. If it supports MCP through a JSON configuration file, try the generic pattern under "Other editors and IDEs" below, or run `ccm-cli --root . mcp-register` to generate a standard configuration block you can adapt to whatever format it expects.
+Configuration steps for Gemini could not be verified for this documentation pass. If it supports MCP through a JSON configuration file, try the generic pattern under "Other editors and IDEs" below, or run `mct-cli --root . mcp-register` to generate a standard configuration block you can adapt to whatever format it expects.
 
 #### Other editors and IDEs (JetBrains, and any other MCP-compatible tool)
 
-Most MCP-compatible tools — including JetBrains' AI Assistant — accept the same basic connection details: a program to run (`ccm-mcp-server`), and the project folder to point it at (`--root <path>`), described in that tool's own configuration file or settings screen. Run `ccm-cli --root . mcp-register --name <a-name-you-choose>` once to generate a ready-made block, then paste the relevant part into that tool's own MCP settings, following its documentation for exactly where that goes.
+Most MCP-compatible tools — including JetBrains' AI Assistant — accept the same basic connection details: a program to run (`mct-mcp-server`), and the project folder to point it at (`--root <path>`), described in that tool's own configuration file or settings screen. Run `mct-cli --root . mcp-register --name <a-name-you-choose>` once to generate a ready-made block, then paste the relevant part into that tool's own MCP settings, following its documentation for exactly where that goes.
 
 ---
 
@@ -210,19 +210,19 @@ Most MCP-compatible tools — including JetBrains' AI Assistant — accept the s
    ```
 2. **Build the index for the first time:**
    ```sh
-   ccm-cli --root . init
+   mct-cli --root . init
    ```
    This only needs to happen once — after this, connecting an AI assistant will trigger the same process automatically if needed.
 3. **Check that it worked:**
    ```sh
-   ccm-cli --root . status
+   mct-cli --root . status
    ```
    This prints a plain-language health report: how many files and symbols were indexed, when it last ran, and whether anything failed to read.
 4. **Connect your AI assistant or editor** — see section 3.3 above for your specific tool.
 5. **Just ask.** Once connected, you can ask your assistant things like *"where is `InvoiceService` defined?"* or *"what would break if I change `calculate_total`?"* — it will use the index automatically instead of reading every file in the project.
 6. **Refresh the index if needed:**
    ```sh
-   ccm-cli --root . reindex --force
+   mct-cli --root . reindex --force
    ```
    This isn't usually necessary — the index keeps itself up to date — but it's here if your assistant ever seems to be missing something after a large batch of changes.
 
@@ -241,32 +241,32 @@ Most MCP-compatible tools — including JetBrains' AI Assistant — accept the s
 
 Every command this project provides, in one place. All of them accept a global `--root <path>` flag telling them which project to operate on (it defaults to the current folder if left out), and `--help` on any of them prints this same information from the terminal.
 
-### `ccm-cli` — the human-facing command line
+### `mct-cli` — the human-facing command line
 
 | Command | What it does |
 |---|---|
-| `ccm-cli --root . init` | Builds the index for the first time. Behaves identically to `reindex` below — it exists as its own command just to give a fresh checkout an obvious first step. |
-| `ccm-cli --root . reindex` | Re-scans the project and updates the index, but only re-reads files that changed since the last scan. |
-| `ccm-cli --root . reindex --force` | Same as above, but re-reads every file regardless of whether it changed — use this if you suspect something was missed. |
-| `ccm-cli --root . status` | Reports index health: how much of each language is covered, when it was last indexed, any languages seen with no support yet, and any files that failed to read. |
-| `ccm-cli --root . mcp-register` | Writes (or safely merges into) a `.mcp.json` file at the project root, so an MCP client can launch the server for this project. Existing entries for other tools are left untouched. |
-| `ccm-cli --root . mcp-register --name <name>` | Same as above, but lets you choose the connection's name instead of using the project folder's own name. |
-| `ccm-cli --help` | Prints this same command list from the terminal. |
+| `mct-cli --root . init` | Builds the index for the first time. Behaves identically to `reindex` below — it exists as its own command just to give a fresh checkout an obvious first step. |
+| `mct-cli --root . reindex` | Re-scans the project and updates the index, but only re-reads files that changed since the last scan. |
+| `mct-cli --root . reindex --force` | Same as above, but re-reads every file regardless of whether it changed — use this if you suspect something was missed. |
+| `mct-cli --root . status` | Reports index health: how much of each language is covered, when it was last indexed, any languages seen with no support yet, and any files that failed to read. |
+| `mct-cli --root . mcp-register` | Writes (or safely merges into) a `.mcp.json` file at the project root, so an MCP client can launch the server for this project. Existing entries for other tools are left untouched. |
+| `mct-cli --root . mcp-register --name <name>` | Same as above, but lets you choose the connection's name instead of using the project folder's own name. |
+| `mct-cli --help` | Prints this same command list from the terminal. |
 
-### `ccm-mcp-server` — the program your AI assistant actually talks to
+### `mct-mcp-server` — the program your AI assistant actually talks to
 
 You don't normally run this one by hand — your assistant or editor starts it automatically once it's connected (see section 3.3). It only has one option:
 
 | Command | What it does |
 |---|---|
-| `ccm-mcp-server --root <path>` | Starts the server for the given project and waits for an MCP client to connect over stdio. Builds/refreshes the index automatically on startup. |
-| `ccm-mcp-server --help` | Prints usage information from the terminal. |
+| `mct-mcp-server --root <path>` | Starts the server for the given project and waits for an MCP client to connect over stdio. Builds/refreshes the index automatically on startup. |
+| `mct-mcp-server --help` | Prints usage information from the terminal. |
 
 ---
 
 ## 6. Troubleshooting common problems
 
-**"`ccm-cli`" or "`ccm-mcp-server`: command not found" after installing**
+**"`mct-cli`" or "`mct-mcp-server`: command not found" after installing**
 Cargo installs programs into a folder (usually `~/.cargo/bin`, or `%USERPROFILE%\.cargo\bin` on Windows) that isn't always automatically added to your system's PATH. Add that folder to your PATH (the rustup installer usually offers to do this — you can rerun it, or add the folder manually), open a new terminal window, and try again.
 
 **Windows build fails with a `link.exe` or `cl.exe` error**
@@ -279,10 +279,10 @@ The server was added while Claude Code was already running. Type `exit`, relaunc
 This is almost always a path problem — double-check that the `--root` path used when connecting matches your actual project folder, not a subfolder or a different project. Re-register if it doesn't.
 
 **Answers seem out of date after a lot of recent changes**
-Run `ccm-cli --root . reindex --force` to force a full refresh, or `ccm-cli --root . status` to see exactly when it last indexed and whether anything failed.
+Run `mct-cli --root . reindex --force` to force a full refresh, or `mct-cli --root . status` to see exactly when it last indexed and whether anything failed.
 
 **Nothing happens at all / the assistant says it can't reach the tool**
-Most MCP connections talk over "stdio" — the same channel a program's normal input and output use — not a network address. Check that your configuration entry uses `"type": "stdio"` with a local `command`, not a URL or port. Running `ccm-cli --root . mcp-register` again will regenerate a known-good entry.
+Most MCP connections talk over "stdio" — the same channel a program's normal input and output use — not a network address. Check that your configuration entry uses `"type": "stdio"` with a local `command`, not a URL or port. Running `mct-cli --root . mcp-register` again will regenerate a known-good entry.
 
 ---
 

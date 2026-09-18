@@ -1,6 +1,6 @@
 # MCP Protocol Spec
 
-`ccm-mcp-server` speaks [MCP](https://modelcontextprotocol.io) over stdio via `rmcp`.
+`mct-mcp-server` speaks [MCP](https://modelcontextprotocol.io) over stdio via `rmcp`.
 
 ## Tools
 
@@ -21,6 +21,6 @@
 
 `get_project_overview` accepts `path` (optional, same matching semantics as `list_symbols` — omitted means the whole project root), `language`, `max_symbols_per_module` (default 8, caps top-level symbols surfaced per file), and `include_relations` (default true, whether to show each surfaced symbol's top callers). It composes `list_symbols` + `find_callers` internally — no new SQL, no new schema — ranking truncated modules by call fan-in.
 
-See [[ccm-mcp-server]] for the crate that implements this, [[glossary]] for term definitions.
+See [[mct-mcp-server]] for the crate that implements this, [[glossary]] for term definitions.
 
 #architecture #mcp

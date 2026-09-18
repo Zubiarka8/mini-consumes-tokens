@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Installs the latest release of ccm-cli and ccm-mcp-server for Linux/macOS.
+# Installs the latest release of mct-cli and mct-mcp-server for Linux/macOS.
 #
 # Usage:
 #   curl -sSL https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.sh | bash
@@ -25,7 +25,7 @@ arch="$(uname -m)"
 case "$os" in
     Linux) platform_os="linux" ;;
     Darwin) platform_os="macos" ;;
-    *) die "unsupported OS: $os (prebuilt binaries cover Linux and macOS only — see install.ps1 for Windows, or 'cargo install ccm-cli ccm-mcp-server' from source)" ;;
+    *) die "unsupported OS: $os (prebuilt binaries cover Linux and macOS only — see install.ps1 for Windows, or 'cargo install mct-cli mct-mcp-server' from source)" ;;
 esac
 
 case "$arch" in
@@ -58,10 +58,10 @@ tar -xzf "$archive" -C "$tmp_dir"
 extracted_dir="$(find "$tmp_dir" -maxdepth 1 -type d -name 'mini-consumes-tokens-*' | head -n1)"
 [ -n "$extracted_dir" ] || die "unexpected archive layout — could not find the extracted directory"
 
-install -m 755 "$extracted_dir/ccm-cli" "$INSTALL_DIR/ccm-cli"
-install -m 755 "$extracted_dir/ccm-mcp-server" "$INSTALL_DIR/ccm-mcp-server"
+install -m 755 "$extracted_dir/mct-cli" "$INSTALL_DIR/mct-cli"
+install -m 755 "$extracted_dir/mct-mcp-server" "$INSTALL_DIR/mct-mcp-server"
 
-log "Installed ccm-cli and ccm-mcp-server $tag to $INSTALL_DIR"
+log "Installed mct-cli and mct-mcp-server $tag to $INSTALL_DIR"
 
 case ":$PATH:" in
     *":$INSTALL_DIR:"*) ;;
@@ -74,5 +74,5 @@ esac
 
 log ""
 log "Next steps, from inside a project you want indexed:"
-log "  ccm-cli --root . init"
-log "  ccm-cli --root . mcp-register"
+log "  mct-cli --root . init"
+log "  mct-cli --root . mcp-register"
