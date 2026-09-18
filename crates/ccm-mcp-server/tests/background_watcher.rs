@@ -43,7 +43,11 @@ const DEBOUNCE: Duration = Duration::from_millis(100);
 /// Real filesystem watcher backends (FSEvents/inotify/ReadDirectoryChangesW)
 /// add their own OS-level latency on top of the debounce timeout, so tests
 /// give it a generous window rather than racing the debounce value exactly.
-const SETTLE_MARGIN: Duration = Duration::from_secs(5);
+/// 5s proved too tight on shared/loaded `ubuntu-latest` GitHub Actions
+/// runners (inotify event delivery can lag well past the debounce timeout
+/// under CPU contention) — 20s keeps the same "poll until true" shape while
+/// giving CI enough headroom not to flake.
+const SETTLE_MARGIN: Duration = Duration::from_secs(20);
 
 /// Polls `condition` until it's true or `SETTLE_MARGIN` (from `start`)
 /// elapses — a single fixed sleep before asserting "it happened" is flaky
