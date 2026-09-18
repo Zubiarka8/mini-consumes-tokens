@@ -808,6 +808,7 @@ name = "mct-lang-python"
 version = "0.1.0"
 dependencies = [
  "mct-core",
+ "mct-index",
  "tree-sitter",
  "tree-sitter-python",
 ]
@@ -817,6 +818,7 @@ name = "mct-lang-rust"
 version = "0.1.0"
 dependencies = [
  "mct-core",
+ "mct-index",
  "tree-sitter",
  "tree-sitter-rust",
 ]
