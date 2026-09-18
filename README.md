@@ -42,7 +42,41 @@ Before installing, make sure you have:
 
 ### 3.1 Installing
 
-This project isn't published to a package manager yet, so today the supported way to install it is to build it from source. It's the same four commands on every operating system:
+This project isn't published to a package manager (like `apt`, Homebrew, or `winget`) yet. There are two ways to install it instead: a one-line script that downloads a ready-to-run copy, or building it yourself from source. Either one leaves you with the same two programs, `ccm-cli` and `ccm-mcp-server`.
+
+#### Option A: quick install script (macOS, Linux, Windows)
+
+This downloads the latest prebuilt release for your operating system — no Rust toolchain required.
+
+**macOS / Linux:**
+
+```sh
+curl -sSL https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.sh | bash
+```
+
+By default this installs into `$HOME/.local/bin`. To use a different folder instead:
+
+```sh
+INSTALL_DIR=/usr/local/bin curl -sSL https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.ps1 | iex
+```
+
+By default this installs into `%LOCALAPPDATA%\ccm\bin`. To use a different folder instead:
+
+```powershell
+$env:CCM_INSTALL_DIR = "C:\tools\ccm"; irm https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.ps1 | iex
+```
+
+Both scripts print a warning if their install folder isn't already on your PATH, along with the exact line to add. If you'd rather not pipe a script straight into your shell, you can also download the matching archive for your system by hand from the project's [GitHub Releases page](https://github.com/Zubiarka8/mini-consumes-tokens/releases) and extract `ccm-cli`/`ccm-mcp-server` into any folder on your PATH yourself.
+
+#### Option B: build from source
+
+This requires the prerequisites above (Rust via rustup, and on Windows, the MSVC C++ build tools). It's the same four commands on every operating system:
 
 ```sh
 git clone https://github.com/zubiarka8/mini-consumes-tokens.git
@@ -51,16 +85,14 @@ cargo install --path crates/ccm-cli
 cargo install --path crates/ccm-mcp-server
 ```
 
-Then check that both programs are ready:
+#### Verifying either option worked
 
 ```sh
 ccm-cli --help
 ccm-mcp-server --help
 ```
 
-If either command prints usage text, the install worked. If you get a "command not found" error instead, see [Troubleshooting](#6-troubleshooting-common-problems) below.
-
-> This project also has one-line install scripts (`install.sh` for macOS/Linux, `install.ps1` for Windows) and ready-made downloads on its GitHub Releases page. Those exist in the repository already, but building from source above is the currently documented and recommended path — the scripts and downloads aren't covered step-by-step in this guide yet.
+If both commands print usage text, the install worked. If you get a "command not found" error instead, see [Troubleshooting](#6-troubleshooting-common-problems) below.
 
 ### 3.2 Uninstalling completely
 
@@ -69,14 +101,21 @@ Uninstalling has two parts: disconnecting it from whichever tool(s) you connecte
 - **Claude Code:** `claude mcp remove mini-consumes-tokens --scope project` (match whatever `--scope` you used when you added it — see section 3.3)
 - **Cursor, VS Code/Copilot, Codex, or any other tool:** remove the `mini-consumes-tokens` entry from that tool's own MCP configuration file (`.mcp.json`, `.vscode/mcp.json`, `~/.codex/config.toml`, or wherever that specific tool stores it — see section 3.3 for each one's exact location), either by hand or through that tool's own settings screen if it has one.
 
-Once every connection is removed, clean up the shared parts:
+Once every connection is removed, clean up the shared parts. How you remove the two programs depends on how you installed them:
 
 ```sh
-# Remove the two programs
+# If you installed with the quick install script:
+# just delete ccm-cli and ccm-mcp-server from the folder they were installed into
+# ($HOME/.local/bin by default on macOS/Linux, %LOCALAPPDATA%\ccm\bin on Windows,
+# or whatever folder you overrode INSTALL_DIR/CCM_INSTALL_DIR to)
+rm "$HOME/.local/bin/ccm-cli" "$HOME/.local/bin/ccm-mcp-server"   # macOS / Linux example
+Remove-Item "$env:LOCALAPPDATA\ccm\bin\ccm-cli.exe","$env:LOCALAPPDATA\ccm\bin\ccm-mcp-server.exe"   # Windows example
+
+# If you installed by building from source:
 cargo uninstall ccm-cli
 cargo uninstall ccm-mcp-server
 
-# Delete the local index for a given project (safe to do any time)
+# Either way — delete the local index for a given project (safe to do any time)
 rm -rf .ccm-index                        # macOS / Linux
 Remove-Item -Recurse -Force .ccm-index   # Windows PowerShell
 ```
