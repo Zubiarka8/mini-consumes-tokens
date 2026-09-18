@@ -1,7 +1,7 @@
 # Design: `get_project_overview` MCP tool (compact hierarchical context)
 
 Date: 2026-09-18
-Status: implemented — see `get_project_overview` in `crates/ccm-mcp-server/src/server.rs` and `format::overview` in `crates/ccm-mcp-server/src/format.rs`
+Status: implemented — see `get_project_overview` in `crates/mct-mcp-server/src/server.rs` and `format::overview` in `crates/mct-mcp-server/src/format.rs`
 
 ## Goal
 
@@ -10,7 +10,7 @@ Add one new MCP tool that answers "what does this crate/directory/project look l
 ## Non-goals
 
 - No change to `LanguageParser`, the SQLite schema, or any existing published MCP tool's signature — this is purely additive. Per `CLAUDE.md`'s cross-cutting rule, none of those changes are in scope here, so no issue needs to be opened first for this piece.
-- No new "centrality"/"importance" column or index in SQLite. Any ranking (e.g. by call fan-in) must be computed by composing existing `ccm-index` query functions at call time, not by adding stored state.
+- No new "centrality"/"importance" column or index in SQLite. Any ranking (e.g. by call fan-in) must be computed by composing existing `mct-index` query functions at call time, not by adding stored state.
 - Not a replacement for `find_symbol`/`find_references`/`impact_analysis` — this tool is a coarse first-pass digest; precise lookups still go through the existing tools.
 - No caching layer — that's the separate "BFS query cache" backlog item ([[roadmap]] in `docs/05-backlog/roadmap.md`), tracked independently since it *does* touch the schema.
 
@@ -29,7 +29,7 @@ Add one new MCP tool that answers "what does this crate/directory/project look l
 2. Its top-level symbols (function/struct/trait/impl-level, no nested items), capped at `max_symbols_per_module`, with a `(+N more)` suffix when truncated.
 3. If `include_relations`, each surfaced symbol's top few callers/callees (reusing whatever bounded call-relation query the existing `find_calls`/`find_callers` tools already call into — no new SQL, no new schema).
 
-## Composition from existing `ccm-index` API (to verify exact fn names once MCP tools are reachable)
+## Composition from existing `mct-index` API (to verify exact fn names once MCP tools are reachable)
 
 1. Resolve `path`/`language` into a file set — same resolution `list_symbols` already does.
 2. For each file, fetch its symbols filtered to "top-level" (no parent) — reuse whatever `list_symbols` already does for its `kind`/`language` filtering rather than writing a new query.
@@ -39,7 +39,7 @@ Add one new MCP tool that answers "what does this crate/directory/project look l
 
 ## Open questions (need the live source, or user confirmation, before implementation)
 
-- Exact `ccm-index` function signatures for "list top-level symbols in file X" and "fan-in count for symbol Y" — confirm these already exist in some form (per the user's earlier read of `queries.rs`/`lib.rs`) rather than requiring new query functions.
+- Exact `mct-index` function signatures for "list top-level symbols in file X" and "fan-in count for symbol Y" — confirm these already exist in some form (per the user's earlier read of `queries.rs`/`lib.rs`) rather than requiring new query functions.
 - Whether "top-level" should be exactly "`parent IS NULL`" or needs a `kind` allowlist (e.g. exclude `SymbolKind::Variable` even if unparented).
 - Default value for `max_symbols_per_module` — needs a concrete token-budget target to size against.
 - Whether pagination (`offset`, matching the existing tools' convention) is needed for very large crates, or whether the per-module cap makes that unnecessary for v1.
@@ -47,6 +47,6 @@ Add one new MCP tool that answers "what does this crate/directory/project look l
 ## Related
 
 - [[roadmap]] — the two token-efficiency backlog items (BFS cache, Obsidian session notes) discussed alongside this tool.
-- `docs/02-crates/core/ccm-mcp-server.md` — existing tool inventory this adds to.
+- `docs/02-crates/core/mct-mcp-server.md` — existing tool inventory this adds to.
 
 #design #mcp-tool #backlog

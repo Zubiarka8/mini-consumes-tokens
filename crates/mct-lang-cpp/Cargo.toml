@@ -1,0 +1,17 @@
+[package]
+name = "mct-lang-cpp"
+description = "C++ language plugin (tree-sitter-cpp) for mini-consumes-tokens's LanguageParser trait, correlating header declarations with out-of-line definitions."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["mcp", "tree-sitter", "cpp", "code-index"]
+categories = ["development-tools", "parser-implementations"]
+
+[dependencies]
+mct-core.workspace = true
+tree-sitter.workspace = true
+tree-sitter-cpp = "0.23.4"
+
+[dev-dependencies]
+mct-index.workspace = true

@@ -5,7 +5,7 @@
 Documento de análisis y planificación, no de implementación. No se ha escrito
 código de producto para generar esto — es una lectura completa de
 `checklist.md`, `CHANGELOG.md`, `README.md`, `RELEASING.md`, `CONTRIBUTING.md`
-y el código de `ccm-core`/`ccm-index` (schema, indexer, queries) tal como
+y el código de `mct-core`/`mct-index` (schema, indexer, queries) tal como
 están en 0.1.0 (commit `9ca9ab5`, 2026-09-13).
 
 Unidad de esfuerzo usada en todo el documento: **una sesión de este proyecto**
@@ -25,7 +25,7 @@ antemano.
 - **Qué es**: sustituir (o complementar) la resolución actual, que es 100%
   AST/heurística de nombre (`find_symbol`/`find_references`/`find_calls`
   hacen `WHERE name = ?1`, sin distinguir dos símbolos con el mismo nombre en
-  scopes distintos — ver `ccm-index/src/queries.rs`), por resolución real de
+  scopes distintos — ver `mct-index/src/queries.rs`), por resolución real de
   tipos usando un servidor de lenguaje (o una librería de resolución
   equivalente) por lenguaje.
 - **Por qué importa**: hoy, en un repo real con dos clases distintas que
@@ -49,7 +49,7 @@ antemano.
   por lenguaje o por grupo de lenguajes con protocolo compartible.
 - **Riesgo/dependencias**: toca el modelo de `core` (un símbolo ya no se
   identifica solo por `name`+`parent`; necesitaría una noción de tipo/scope
-  resuelto) y probablemente el schema de `ccm-index` (nueva columna o tabla
+  resuelto) y probablemente el schema de `mct-index` (nueva columna o tabla
   para el tipo resuelto). Un cambio de este tamaño en `core`/`index`
   **sí obligaría a revalidar los 8 lenguajes existentes** (mismo criterio de
   riesgo que HTML/CSS, candidato #4) — es el cambio de mayor blast radius de
@@ -59,7 +59,7 @@ antemano.
 
 ### 2. Patrones de exclusión de secretos — Ruby/PHP/Swift
 
-- **Corrección esta sesión**: PHP ya tiene crate propio (`ccm-lang-php`,
+- **Corrección esta sesión**: PHP ya tiene crate propio (`mct-lang-php`,
   ver candidato #5), pero eso no cambia nada aquí — los dos patrones de
   PHP de abajo (`wp-config.php`/`config/database.php`) siguen **sin
   implementar**, tal como ya decía esta entrada. Lo que sí estaba mal era
@@ -67,7 +67,7 @@ antemano.
   convención de secretos para PHP — contradecía directamente lo que ya
   decía este párrafo; corregido en `checklist.md`, ver Decisión abierta #2
   ahí.
-- **Qué es**: agregar a `ccm-index/src/exclude.rs` los patrones de
+- **Qué es**: agregar a `mct-index/src/exclude.rs` los patrones de
   convención de secretos específicos de Ruby (`config/master.key`,
   `config/credentials.yml.enc`), PHP (`.env` ya cubierto genéricamente, pero
   `wp-config.php`/`config/database.php` no) y Swift
@@ -75,14 +75,14 @@ antemano.
 - **Por qué importa**: protege a un usuario que indexa un repo Ruby/PHP/Swift
   hoy mismo, sin tener el crate de lenguaje correspondiente — la exclusión de
   paths no depende de tener un `LanguageParser` registrado, ya que
-  `ccm-index` ni siquiera necesita parsear el archivo para excluirlo por
+  `mct-index` ni siquiera necesita parsear el archivo para excluirlo por
   patrón de ruta. Es decir: **este candidato no depende de tener primero un
   crate de Ruby/PHP/Swift** (candidato #5) — son ortogonales. (El caso de
   PHP ya lo demuestra en la práctica: el crate existe desde esta sesión y
   los dos patrones de secretos de PHP siguen sin agregarse.)
 - **Esfuerzo estimado**: **Pequeño**. Mismo patrón que la resolución de Go
   esta sesión: añadir constantes a `DEFAULT_EXCLUDE_PATTERNS` + tests en
-  `ccm-index/tests/exclude.rs`. Sub-sesión de menos de una sesión completa.
+  `mct-index/tests/exclude.rs`. Sub-sesión de menos de una sesión completa.
 - **Riesgo/dependencias**: ninguno. No toca `core` ni ningún crate de
   lenguaje.
 - **Bloqueante**: No. Es la decisión abierta #2, ya documentada como
@@ -99,7 +99,7 @@ antemano.
   vía `Grep` es exactamente el trabajo de tokens que este proyecto existe
   para evitar.
 - **Esfuerzo estimado**: sin la resolución de tipos (candidato #1), un
-  heurístico estructural *dentro* del propio `ccm-lang-go` (comparar el
+  heurístico estructural *dentro* del propio `mct-lang-go` (comparar el
   conjunto de nombres de método de cada struct contra el conjunto de la
   interfaz, sin resolver tipos de parámetros) es factible como **Mediano**
   — similar en tamaño a la sesión de C++/Go, pero con riesgo real de falsos
@@ -120,7 +120,7 @@ antemano.
   `Element`/`StyleRule`) y `RelationKind` (p. ej. `Renders`/`StylesTarget`)
   para indexar HTML/CSS/JSX como grafo real, en vez de solo la lógica
   embebida (que ya se indexa hoy vía la recursión genérica de
-  `ccm-lang-js-ts` sobre nodos no reconocidos).
+  `mct-lang-js-ts` sobre nodos no reconocidos).
 - **Por qué importa**: un usuario frontend preguntando "¿qué componente
   renderiza este botón?" o "¿qué reglas CSS afectan a esta clase?" no puede
   responderlo con las tools actuales — es contexto real que hoy solo se
@@ -130,9 +130,9 @@ antemano.
   modules, Tailwind, etc.), que es un segmento de usuario muy grande.
 - **Esfuerzo estimado**: **Grande**. No es solo un nuevo crate de lenguaje —
   es la única otra decisión de este roadmap (junto con LSP) que **modifica
-  `ccm-core`** directamente. Un `SymbolKind`/`RelationKind` nuevo aparece en
+  `mct-core`** directamente. Un `SymbolKind`/`RelationKind` nuevo aparece en
   el `match` exhaustivo de `symbol_kind_str`/`relation_kind_str`
-  (`ccm-index/src/indexer.rs`) y en cualquier lugar que enumere kinds — el
+  (`mct-index/src/indexer.rs`) y en cualquier lugar que enumere kinds — el
   compilador señala todos los sitios (match exhaustivo), pero **cada uno de
   los 8 crates de lenguaje existentes debe revisarse y sus tests
   re-verificarse** para confirmar que ninguno rompe con el nuevo kind
@@ -152,17 +152,17 @@ antemano.
   `checklist.md`: esta sección seguía nombrando PHP como candidato
   pendiente, y la nota de abajo seguía diciendo "estos 4 ya están en
   `KNOWN_PENDING_LANGUAGES`" cuando la entrada `("php", "php")` de esa
-  constante ya se había eliminado al implementar `ccm-lang-php` —
+  constante ya se había eliminado al implementar `mct-lang-php` —
   desincronización real entre este documento y el estado del código, nunca
   cruzada hasta ahora). Ver fila de PHP en la tabla de cobertura de
   `checklist.md`. El candidato #2 (secretos `wp-config.php`/
   `config/database.php`) sigue abierto de forma independiente — no
   dependía de que el crate existiera primero.
-- **Qué es**: nuevos crates `ccm-lang-<kotlin|swift|ruby>` siguiendo el
+- **Qué es**: nuevos crates `mct-lang-<kotlin|swift|ruby>` siguiendo el
   patrón ya probado 11 veces (`LanguageParser` + registro en
-  `ccm-mcp-server`/`ccm-cli` + fixtures + fuzzing + benchmark).
+  `mct-mcp-server`/`mct-cli` + fixtures + fuzzing + benchmark).
 - **Por qué importa**: estos 3 siguen en `KNOWN_PENDING_LANGUAGES`
-  (`ccm-index/src/indexer.rs`) — el propio código ya anticipa que un
+  (`mct-index/src/indexer.rs`) — el propio código ya anticipa que un
   repo con estos lenguajes hoy se reporta como "lenguaje pendiente" en
   `get_indexing_status` en vez de fallar silenciosamente. Kotlin (Android +
   backend JVM en alza) y Swift (iOS) son los candidatos de mayor demanda
@@ -186,7 +186,7 @@ antemano.
 - **Qué es**: una tool (o parámetro `kind` opcional agregado a
   `find_symbol`) que liste símbolos filtrando por
   `Class`/`Struct`/`Interface`/`Enum`/`Trait`/`TypeAlias` — los 6 kinds de
-  tipo que `SymbolKind` ya distingue (`ccm-core/src/symbol.rs:15-28`).
+  tipo que `SymbolKind` ya distingue (`mct-core/src/symbol.rs:15-28`).
 - **Por qué importa**: un usuario explorando un repo desconocido a menudo
   quiere "qué tipos existen" antes de saber qué nombre buscar con
   `find_symbol` — hoy no hay forma de listarlos sin ya saber el nombre
@@ -194,7 +194,7 @@ antemano.
   de decidir cuál implementar.
 - **Esfuerzo estimado**: **Pequeño**. El dato ya existe sin cambios de
   schema — `symbols.kind` ya se guarda como TEXT. Es una query nueva en
-  `ccm-index/src/queries.rs` (filtrar por `kind IN (...)` en vez de por
+  `mct-index/src/queries.rs` (filtrar por `kind IN (...)` en vez de por
   `name`) + 1 tool nueva o un parámetro opcional en `find_symbol` + tests.
   Coherente con la nota que ya deja `checklist.md`: *"revisar si caben como
   parámetro de una tool existente... en vez de una tool nueva"* — este es
@@ -207,7 +207,7 @@ antemano.
 
 - **Qué es**: exponer como tool de primera clase el heurístico de nombre
   `test`/`test_*` que hoy solo vive *dentro* de la composición de
-  `impact_analysis` (`ccm-mcp-server/src/server.rs`), para poder listar
+  `impact_analysis` (`mct-mcp-server/src/server.rs`), para poder listar
   tests relacionados con un símbolo sin pedir el análisis de impacto
   completo.
 - **Por qué importa**: hoy, para saber "¿qué tests cubren esto?" sin querer
@@ -290,7 +290,7 @@ antemano.
 - **Por qué importa esta investigación (no la mejora en sí todavía)**: la
   lectura del código actual ya deja ver **tres sospechas concretas, no
   confirmadas**, que justifican medir antes de optimizar a ciegas:
-  1. `reindex()` (`ccm-index/src/indexer.rs:86-233`) hace `WalkDir` sobre
+  1. `reindex()` (`mct-index/src/indexer.rs:86-233`) hace `WalkDir` sobre
      **todo** el árbol en cada corrida, y para cada archivo no excluido
      **lee el archivo completo a memoria** (`std::fs::read`) solo para
      calcular el hash de contenido y decidir si cambió — incluso archivos
@@ -303,7 +303,7 @@ antemano.
      inicial escala linealmente con el número de archivos sin aprovechar
      múltiples cores.
   3. La resolución de cada `SymbolRelation` a un símbolo existente
-     (`write_parsed_file`, `ccm-index/src/indexer.rs:341-347`) hace **una
+     (`write_parsed_file`, `mct-index/src/indexer.rs:341-347`) hace **una
      query SQL por relación** (`SELECT id FROM symbols WHERE name = ?1
      LIMIT 1`), dentro de la misma transacción — con índice sobre `name`
      esto es barato por query individual, pero con decenas de miles de
@@ -334,7 +334,7 @@ antemano.
   estimación de cuántos tokens se está ahorrando al usar las tools MCP en
   vez de `Read`/`Grep`/`Glob` — hoy ese dato solo existe como benchmark
   interno de desarrollo (`benchmarks/token-benchmark.md`,
-  `ccm-cli/examples/token_benchmark.rs`), no como algo que el usuario final
+  `mct-cli/examples/token_benchmark.rs`), no como algo que el usuario final
   vea.
 - **Por qué importa**: el objetivo declarado del proyecto desde el inicio es
   "reducir el gasto de tokens" — hoy esa afirmación solo se demuestra en
@@ -358,7 +358,7 @@ antemano.
 - **Riesgo/dependencias**: riesgo de producto, no técnico — si se agrega
   como tool #8/#9, compite por el mismo presupuesto del criterio de 6-8
   tools que `find_types`/`find_tests`/`find_dead_code`. Sopesar si esta
-  encaja mejor como *comando de `ccm-cli`* (`ccm-cli --root . stats`) en vez
+  encaja mejor como *comando de `mct-cli`* (`mct-cli --root . stats`) en vez
   de tool MCP — evita el problema del límite de tools por completo, y tiene
   sentido porque es una pregunta que el usuario se hace fuera del flujo de
   un agente, no algo que Claude Code necesite invocar por sí mismo.
@@ -372,7 +372,7 @@ perderlas:
 
 - **Fixtures de integración asimétricas**: los 6 lenguajes más recientes
   (Java, C#, JS/TS, C++, Go, y el poliglota) tienen fixture de integración
-  end-to-end vía `ccm-index` real; Rust y Python (los dos primeros,
+  end-to-end vía `mct-index` real; Rust y Python (los dos primeros,
   sesión 1) solo tienen tests a nivel de parser. Esfuerzo: **Pequeño** —
   añadir un fixture de integración a cada uno siguiendo el patrón ya
   establecido 6 veces.
@@ -435,7 +435,7 @@ estimar con confianza todavía.
    para que la query de "sin relación entrante" sea barata en repos grandes,
    mejor saberlo antes de exponer la tool.
 8. **Candidato #11 — observabilidad de tokens**, evaluando primero si va
-   como subcomando de `ccm-cli` (recomendado) en vez de tool MCP — decisión
+   como subcomando de `mct-cli` (recomendado) en vez de tool MCP — decisión
    de producto a tomar por el usuario antes de estimar la sesión con
    precisión.
 9. **Decisión #1 (LSP) y candidato #4 (HTML/CSS/JSX) — sesiones grandes y
