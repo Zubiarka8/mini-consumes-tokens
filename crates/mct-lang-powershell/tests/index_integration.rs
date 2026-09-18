@@ -38,10 +38,20 @@ fn find_symbol_locates_function_and_top_level_variable() {
     assert_eq!(build.len(), 1);
     assert_eq!(build[0].kind, "function");
     assert_eq!(build[0].relative_path, "Deploy.ps1");
+    // `language` is read straight off the `files.language` column via the
+    // symbols->files JOIN — and .ps1 and .psm1 must both resolve to the one
+    // `powershell` id (Lib.psm1's Write-Log is asserted below).
+    assert_eq!(build[0].language, "powershell");
 
     let version = index.find_symbol("Version").unwrap();
     assert_eq!(version.len(), 1);
     assert_eq!(version[0].kind, "variable");
+    assert_eq!(version[0].language, "powershell");
+
+    let write_log = index.find_symbol("Write-Log").unwrap();
+    assert_eq!(write_log.len(), 1);
+    assert_eq!(write_log[0].relative_path, "Lib.psm1");
+    assert_eq!(write_log[0].language, "powershell");
 }
 
 #[test]

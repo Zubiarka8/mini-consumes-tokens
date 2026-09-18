@@ -41,6 +41,11 @@ fn find_symbol_correlates_header_declarations_with_source_definitions() {
     assert_eq!(methods.len(), 4, "both overloads' declaration and definition should all be indexed: {hits:?}");
     assert!(methods.iter().all(|h| h.parent.as_deref() == Some("Invoice")), "declaration and definition must share the same parent to correlate as one logical member");
 
+    // `language` is read straight off the `files.language` column via the
+    // symbols->files JOIN — and `.h` and `.cpp` must both resolve to the one
+    // `cpp` language id, or header/source correlation would split in two.
+    assert!(methods.iter().all(|h| h.language == "cpp"), "{methods:?}");
+
     let declared: Vec<_> = methods.iter().filter(|h| h.relative_path == "Invoice.h").collect();
     let defined: Vec<_> = methods.iter().filter(|h| h.relative_path == "Invoice.cpp").collect();
     assert_eq!(declared.len(), 2, "both overloads declared in the header");

@@ -46,6 +46,11 @@ fn find_symbol_reports_element_kind_and_correct_parent() {
     assert_eq!(indexer.len(), 1);
     assert_eq!(indexer[0].kind, "element");
     assert_eq!(indexer[0].parent.as_deref(), Some("Components"));
+    // `language` is read straight off the `files.language` column via the
+    // symbols->files JOIN — the aggregate `status()` check below can't tell
+    // which individual row it came from, this can.
+    assert_eq!(indexer[0].relative_path, "architecture.md");
+    assert_eq!(indexer[0].language, "markdown");
 }
 
 #[test]
