@@ -39,6 +39,10 @@ fn find_symbol_locates_interface_and_class() {
     assert_eq!(payable.len(), 2, "one Module hit (filename) and one Interface hit (PSR-4 collision): {payable:?}");
     let interface_hit = payable.iter().find(|s| s.kind == "interface").unwrap();
     assert_eq!(interface_hit.relative_path, "Payable.php");
+    // `language` is read straight off the `files.language` column via the
+    // symbols->files JOIN, so this is what proves the row landed under the
+    // right language and not merely that the parser produced the symbol.
+    assert!(payable.iter().all(|s| s.language == "php"), "{payable:?}");
 
     // PSR-4 naming (the file is named after its class) means the
     // filename-derived `Module` symbol and the `Invoice` class symbol share
@@ -49,6 +53,7 @@ fn find_symbol_locates_interface_and_class() {
     assert_eq!(invoice.len(), 2, "one Module hit (filename) and one Class hit (PSR-4 collision): {invoice:?}");
     let class_hit = invoice.iter().find(|s| s.kind == "class").unwrap();
     assert_eq!(class_hit.relative_path, "Invoice.php");
+    assert_eq!(class_hit.language, "php");
 }
 
 #[test]
