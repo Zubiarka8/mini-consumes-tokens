@@ -17,7 +17,14 @@ use mct_core::{
 use mct_index::{ExcludeSet, Index};
 
 /// Toy format: each line is `fn NAME calls OTHER` or `fn NAME`.
-struct FakeParser;
+///
+/// `emit_end_line` stands in for a parser that has just been taught to
+/// populate a column it previously left `NULL` — the exact situation the
+/// `end_line` column was in when it was added to the schema. Used by
+/// `incremental_reindex_does_not_backfill_*` below.
+struct FakeParser {
+    emit_end_line: bool,
+}
 
 impl mct_core::LanguageParser for FakeParser {
     fn language_id(&self) -> &'static str {
@@ -53,7 +60,7 @@ impl mct_core::LanguageParser for FakeParser {
                     line: line_no as u32 + 1,
                     column: 1,
                     byte_len: line.len() as u32,
-                    end_line: Some(line_no as u32 + 1),
+                    end_line: self.emit_end_line.then_some(line_no as u32 + 1),
                 },
                 parent: None,
             });
@@ -78,8 +85,12 @@ impl mct_core::LanguageParser for FakeParser {
 }
 
 fn registry() -> mct_core::LanguageRegistry {
+    registry_with(true)
+}
+
+fn registry_with(emit_end_line: bool) -> mct_core::LanguageRegistry {
     let mut registry = mct_core::LanguageRegistry::new();
-    registry.register(Arc::new(FakeParser));
+    registry.register(Arc::new(FakeParser { emit_end_line }));
     registry
 }
 
@@ -172,6 +183,131 @@ fn unregistered_extension_is_reported_as_unsupported_language() {
 
     let status = index.status().unwrap();
     assert_eq!(status.unsupported_languages, vec!["ruby".to_string()]);
+}
+
+#[test]
+fn an_edited_file_is_repicked_up_and_its_stale_symbols_are_dropped() {
+    let dir = tempdir();
+    let path = dir.join("a.fake");
+    fs::write(&path, "fn old_name calls helper\n").unwrap();
+    fs::write(dir.join("b.fake"), "fn helper\n").unwrap();
+
+    let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
+    index.reindex(&registry(), false).unwrap();
+    assert_eq!(index.find_symbol("old_name").unwrap().len(), 1);
+    assert_eq!(index.find_callers("helper").unwrap().len(), 1);
+
+    // Rewrite the file: one symbol renamed, the call to `helper` dropped.
+    fs::write(&path, "fn new_name\n").unwrap();
+    let report = index.reindex(&registry(), false).unwrap();
+    assert_eq!(report.files_parsed, 1, "only the edited file is re-parsed");
+    assert_eq!(report.files_unchanged, 1, "b.fake is untouched");
+
+    assert!(
+        index.find_symbol("old_name").unwrap().is_empty(),
+        "the renamed-away symbol must not survive an incremental reindex"
+    );
+    assert_eq!(index.find_symbol("new_name").unwrap().len(), 1);
+    assert!(
+        index.find_callers("helper").unwrap().is_empty(),
+        "the removed call relation must be dropped with its owning symbol"
+    );
+    // The untouched file's own symbol is still there — a re-parse of one
+    // file must not collaterally wipe another's rows.
+    assert_eq!(index.find_symbol("helper").unwrap().len(), 1);
+}
+
+#[test]
+fn an_edit_that_restores_the_previous_content_is_detected_by_hash_not_by_mtime() {
+    let dir = tempdir();
+    let path = dir.join("a.fake");
+    fs::write(&path, "fn one\n").unwrap();
+
+    let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
+    index.reindex(&registry(), false).unwrap();
+
+    fs::write(&path, "fn two\n").unwrap();
+    assert_eq!(index.reindex(&registry(), false).unwrap().files_parsed, 1);
+
+    // Back to the original bytes: the content hash matches the *current*
+    // stored hash only if the intermediate write was recorded, so this must
+    // re-parse rather than be skipped as unchanged.
+    fs::write(&path, "fn one\n").unwrap();
+    let report = index.reindex(&registry(), false).unwrap();
+    assert_eq!(report.files_parsed, 1, "content-hash change must be seen both ways");
+    assert_eq!(index.find_symbol("one").unwrap().len(), 1);
+    assert!(index.find_symbol("two").unwrap().is_empty());
+}
+
+#[test]
+fn incremental_reindex_does_not_backfill_a_newly_populated_column_on_unchanged_files() {
+    // Confirms the behaviour noted for the `end_line` column rollout: a
+    // parser that starts populating a column it previously left empty only
+    // reaches rows whose *file content* changed. `FakeParser` stands in for
+    // the parser upgrade; the file on disk never changes.
+    let dir = tempdir();
+    fs::write(dir.join("a.fake"), "fn main\n").unwrap();
+
+    let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
+    index.reindex(&registry_with(false), false).unwrap();
+    assert_eq!(
+        index.find_symbol("main").unwrap()[0].end_line,
+        None,
+        "precondition: the column starts out NULL"
+    );
+
+    // The "upgraded" parser now emits `end_line`, but the file is unchanged.
+    let report = index.reindex(&registry_with(true), false).unwrap();
+    assert_eq!(report.files_parsed, 0);
+    assert_eq!(report.files_unchanged, 1);
+    assert_eq!(
+        index.find_symbol("main").unwrap()[0].end_line,
+        None,
+        "incremental reindex leaves the pre-existing NULL in place — it never \
+         re-parses a file whose content hash still matches"
+    );
+}
+
+#[test]
+fn a_forced_reindex_does_backfill_a_newly_populated_column_on_unchanged_files() {
+    // The other half of the pair above: `force = true` bypasses the content
+    // hash check, so the upgraded parser's output does land.
+    let dir = tempdir();
+    fs::write(dir.join("a.fake"), "fn main\n").unwrap();
+
+    let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
+    index.reindex(&registry_with(false), false).unwrap();
+    assert_eq!(index.find_symbol("main").unwrap()[0].end_line, None);
+
+    let report = index.reindex(&registry_with(true), true).unwrap();
+    assert_eq!(report.files_parsed, 1, "force re-parses regardless of the hash");
+    assert_eq!(report.files_unchanged, 0);
+    assert_eq!(
+        index.find_symbol("main").unwrap()[0].end_line,
+        Some(1),
+        "force = true is the documented way to backfill a newly added column"
+    );
+}
+
+#[test]
+fn a_forced_reindex_replaces_rows_instead_of_duplicating_them() {
+    let dir = tempdir();
+    fs::write(dir.join("a.fake"), "fn main calls helper\n").unwrap();
+    fs::write(dir.join("b.fake"), "fn helper\n").unwrap();
+
+    let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
+    index.reindex(&registry(), false).unwrap();
+    let before = index.status().unwrap();
+
+    for _ in 0..3 {
+        index.reindex(&registry(), true).unwrap();
+    }
+
+    let after = index.status().unwrap();
+    assert_eq!(after.total_files, before.total_files);
+    assert_eq!(after.total_symbols, before.total_symbols);
+    assert_eq!(index.find_symbol("main").unwrap().len(), 1);
+    assert_eq!(index.find_callers("helper").unwrap().len(), 1);
 }
 
 /// A fresh temp directory, canonicalized so it matches what `Index::open_in_memory`

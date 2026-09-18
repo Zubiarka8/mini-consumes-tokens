@@ -232,6 +232,106 @@ mod tests {
         dir
     }
 
+    /// Every language this CLI must be able to index. Kept as a literal list
+    /// rather than derived from `build_registry()` so that *forgetting* to
+    /// add the `registry.register(...)` line here — the classic half-done
+    /// language rollout, since `CONTRIBUTING.md` requires registering in two
+    /// places — fails a test instead of silently shipping a CLI that skips
+    /// that language while the MCP server indexes it.
+    const EXPECTED_LANGUAGES: &[&str] = &[
+        "bash",
+        "cpp",
+        "csharp",
+        "css",
+        "go",
+        "html",
+        "java",
+        "javascript_typescript",
+        "kotlin",
+        "markdown",
+        "php",
+        "powershell",
+        "python",
+        "rust",
+        "xaml",
+        "xml",
+    ];
+
+    #[test]
+    fn the_cli_registry_wires_in_every_shipped_language() {
+        let registry = build_registry();
+        let mut ids = registry.language_ids();
+        ids.sort_unstable();
+        let mut expected = EXPECTED_LANGUAGES.to_vec();
+        expected.sort_unstable();
+        assert_eq!(ids, expected);
+    }
+
+    #[test]
+    fn the_cli_registry_resolves_a_representative_extension_for_each_language() {
+        let registry = build_registry();
+        for (extension, language) in [
+            ("sh", "bash"),
+            ("hpp", "cpp"),
+            ("cs", "csharp"),
+            ("css", "css"),
+            ("go", "go"),
+            ("htm", "html"),
+            ("java", "java"),
+            ("tsx", "javascript_typescript"),
+            ("kts", "kotlin"),
+            ("md", "markdown"),
+            ("php", "php"),
+            ("psm1", "powershell"),
+            ("pyi", "python"),
+            ("rs", "rust"),
+            ("xaml", "xaml"),
+            ("xml", "xml"),
+        ] {
+            let parser = registry
+                .for_extension(extension)
+                .unwrap_or_else(|| panic!("no parser registered for `.{extension}`"));
+            assert_eq!(parser.language_id(), language, ".{extension}");
+        }
+        // `.lua` has a crate but is deliberately not wired in here (it is the
+        // plugin-architecture proof, not a shipped language).
+        assert!(registry.for_extension("lua").is_none());
+    }
+
+    #[test]
+    fn a_polyglot_project_indexes_end_to_end_through_the_cli_registry() {
+        let dir = temp_project_dir("polyglot-index");
+        fs::write(dir.join("lib.rs"), "pub fn add(a: i32) -> i32 { a }\n").unwrap();
+        fs::write(dir.join("app.py"), "def run():\n    return add(1)\n").unwrap();
+        fs::write(dir.join("main.go"), "package main\n\nfunc Run() int {\n\treturn 1\n}\n").unwrap();
+        fs::write(dir.join("notes.md"), "# Title\n\nbody\n").unwrap();
+
+        let db_path = dir.join(".mct-index").join("index.sqlite3");
+        let registry = build_registry();
+        let mut index = Index::open(&dir, &db_path, ExcludeSet::default()).unwrap();
+
+        let report = index.reindex(&registry, false).unwrap();
+        assert_eq!(report.files_parsed, 4, "{:?}", report.issues);
+        assert!(report.issues.is_empty(), "{:?}", report.issues);
+
+        let status = index.status().unwrap();
+        let mut languages: Vec<&str> = status.languages.iter().map(|l| l.language.as_str()).collect();
+        languages.sort_unstable();
+        assert_eq!(languages, vec!["go", "markdown", "python", "rust"]);
+        assert_eq!(index.find_symbol("add").unwrap().len(), 1);
+
+        // A second run over an untouched tree re-parses nothing, and the
+        // on-disk database survives being reopened.
+        drop(index);
+        let mut index = Index::open(&dir, &db_path, ExcludeSet::default()).unwrap();
+        let second = index.reindex(&registry, false).unwrap();
+        assert_eq!(second.files_parsed, 0);
+        assert_eq!(second.files_unchanged, 4);
+        assert_eq!(index.status().unwrap().total_symbols, status.total_symbols);
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
     #[test]
     fn mcp_register_creates_new_config() {
         let dir = temp_project_dir("new");
