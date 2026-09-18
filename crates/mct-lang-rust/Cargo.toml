@@ -12,3 +12,6 @@ categories = ["development-tools", "parser-implementations"]
 mct-core.workspace = true
 tree-sitter.workspace = true
 tree-sitter-rust = "0.24.2"
+
+[dev-dependencies]
+mct-index.workspace = true
