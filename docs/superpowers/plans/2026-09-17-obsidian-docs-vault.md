@@ -14,7 +14,7 @@
 
 - Every note is atomic (one concept), bullet-structured, and concise — templates in `docs/06-templates/` must stay under ~100 words each.
 - Every note cross-links related notes via `[[WikiLink]]` (using the target's filename without `.md`) and tags itself with at least one `#tag` where it aids retrieval.
-- `docs/02-crates/parsers/` holds exactly two files: `overview.md` (the mandatory contract) and `ccm-lang-php.md` (the one language with a documented security exception). No other per-language file.
+- `docs/02-crates/parsers/` holds exactly two files: `overview.md` (the mandatory contract) and `mct-lang-php.md` (the one language with a documented security exception). No other per-language file.
 - This plan does not touch any file under `crates/` — it is pure documentation content.
 
 ---
@@ -48,10 +48,10 @@ Expected: `1`
 - **MOC** — Map of Content; a note that links out to a topic's other notes instead of holding content itself. See [[00-index]].
 - **Symbol** — a definable code entity (`SymbolRecord`): function, class, struct, heading, etc.
 - **Relation** — a directed link from one symbol to another (`SymbolRelation`): call, import, extends/implements, reference.
-- **LanguageParser** — the trait every `ccm-lang-*` crate implements to turn source text into symbols/relations. See [[overview]].
+- **LanguageParser** — the trait every `mct-lang-*` crate implements to turn source text into symbols/relations. See [[overview]].
 - **Blast radius** — everything that could break if a symbol changes: its callers, references, and likely-affected tests. Computed by `impact_analysis`.
-- **WikiLink** — `[[Note Name]]` syntax; indexed as a `References` relation by `ccm-lang-md`.
-- **Tag** — `#tag` syntax; indexed as a `tag:`-prefixed `References` relation by `ccm-lang-md`.
+- **WikiLink** — `[[Note Name]]` syntax; indexed as a `References` relation by `mct-lang-md`.
+- **Tag** — `#tag` syntax; indexed as a `tag:`-prefixed `References` relation by `mct-lang-md`.
 
 #glossary
 ```
@@ -76,14 +76,14 @@ git commit -m "docs: add .obsidian/ to gitignore and vault glossary"
 - Create: `docs/01-architecture/mcp-protocol-spec.md`
 - Create: `docs/01-architecture/adrs/001-sqlite-storage.md`
 
-**Interfaces:** Links `[[glossary]]` (Task 1), `[[ccm-mcp-server]]` and `[[overview]]` (Task 3, forward references — valid in Obsidian/WikiLinks regardless of creation order).
+**Interfaces:** Links `[[glossary]]` (Task 1), `[[mct-mcp-server]]` and `[[overview]]` (Task 3, forward references — valid in Obsidian/WikiLinks regardless of creation order).
 
 - [ ] **Step 1: Create `docs/01-architecture/mcp-protocol-spec.md`**
 
 ```markdown
 # MCP Protocol Spec
 
-`ccm-mcp-server` speaks [MCP](https://modelcontextprotocol.io) over stdio via `rmcp`.
+`mct-mcp-server` speaks [MCP](https://modelcontextprotocol.io) over stdio via `rmcp`.
 
 ## Tools
 
@@ -101,7 +101,7 @@ git commit -m "docs: add .obsidian/ to gitignore and vault glossary"
 
 `find_references`/`find_calls`/`find_callers`/`impact_analysis` accept `depth` (multi-hop, default 1), `limit`, `offset`.
 
-See [[ccm-mcp-server]] for the crate that implements this, [[glossary]] for term definitions.
+See [[mct-mcp-server]] for the crate that implements this, [[glossary]] for term definitions.
 
 #architecture #mcp
 ```
@@ -145,26 +145,26 @@ git commit -m "docs: add MCP protocol spec and ADR-001 (SQLite storage)"
 ### Task 3: Crate notes
 
 **Files:**
-- Create: `docs/02-crates/core/ccm-mcp-server.md`
+- Create: `docs/02-crates/core/mct-mcp-server.md`
 - Create: `docs/02-crates/parsers/overview.md`
-- Create: `docs/02-crates/parsers/ccm-lang-php.md`
+- Create: `docs/02-crates/parsers/mct-lang-php.md`
 
-**Interfaces:** `overview.md` and `ccm-lang-php.md` link `[[sec-001-php-stack-overflow]]` and `[[limits-spec]]` (Task 4, forward references).
+**Interfaces:** `overview.md` and `mct-lang-php.md` link `[[sec-001-php-stack-overflow]]` and `[[limits-spec]]` (Task 4, forward references).
 
-- [ ] **Step 1: Create `docs/02-crates/core/ccm-mcp-server.md`**
+- [ ] **Step 1: Create `docs/02-crates/core/mct-mcp-server.md`**
 
 ```markdown
-# ccm-mcp-server
+# mct-mcp-server
 
-MCP tools over stdio (`rmcp`), exposing the `ccm-index` SQLite index to any MCP-capable agent.
+MCP tools over stdio (`rmcp`), exposing the `mct-index` SQLite index to any MCP-capable agent.
 
 ## Depends on
-`ccm-core`, `ccm-index`, every `ccm-lang-*` production crate (registers each via `registry.rs::build_registry`).
+`mct-core`, `mct-index`, every `mct-lang-*` production crate (registers each via `registry.rs::build_registry`).
 
 ## Responsibilities
 - Auto-reindexes incrementally at startup.
 - Implements the 9 tools listed in [[mcp-protocol-spec]].
-- Knows no language's grammar — routes everything through `ccm_core::LanguageRegistry`.
+- Knows no language's grammar — routes everything through `mct_core::LanguageRegistry`.
 
 ## Related
 [[overview]] · [[001-sqlite-storage]]
@@ -175,9 +175,9 @@ MCP tools over stdio (`rmcp`), exposing the `ccm-index` SQLite index to any MCP-
 - [ ] **Step 2: Create `docs/02-crates/parsers/overview.md`**
 
 ```markdown
-# Parser contract (`ccm-lang-*`)
+# Parser contract (`mct-lang-*`)
 
-Every `ccm-lang-*` crate implements `ccm_core::LanguageParser`:
+Every `mct-lang-*` crate implements `mct_core::LanguageParser`:
 
 - `language_id() -> &'static str`
 - `file_extensions() -> &'static [&'static str]`
@@ -186,26 +186,26 @@ Every `ccm-lang-*` crate implements `ccm_core::LanguageParser`:
 ## Rules
 - **Pure AST walk.** Never executes or evaluates input — parsers run over arbitrary, potentially adversarial repo content.
 - **No panics on repo input.** A syntax error returns `ParseError::Syntax`, never `unwrap()`/`panic!`/`expect()` on a path that processes file content.
-- **Bounded recursion.** Every recursive walker function threads a `depth: u32` counter and stops at `ccm_core::MAX_TRAVERSAL_DEPTH` (256) — see [[sec-001-php-stack-overflow]] for why this exists and [[limits-spec]] for the exact value.
-- **Shared model, no new variants without a cross-cutting review.** Emit `SymbolRecord`/`SymbolRelation` using the existing `SymbolKind`/`RelationKind` enums; a new variant touches every crate's `match` arms plus `ccm-index`'s SQL mapping — needs an issue first.
-- **Registration is the only integration point.** Add one line each to `ccm-mcp-server/src/registry.rs::build_registry` and `ccm-cli/src/main.rs::build_registry`. Nothing else in `ccm-core`/`ccm-index`/`ccm-mcp-server` changes.
+- **Bounded recursion.** Every recursive walker function threads a `depth: u32` counter and stops at `mct_core::MAX_TRAVERSAL_DEPTH` (256) — see [[sec-001-php-stack-overflow]] for why this exists and [[limits-spec]] for the exact value.
+- **Shared model, no new variants without a cross-cutting review.** Emit `SymbolRecord`/`SymbolRelation` using the existing `SymbolKind`/`RelationKind` enums; a new variant touches every crate's `match` arms plus `mct-index`'s SQL mapping — needs an issue first.
+- **Registration is the only integration point.** Add one line each to `mct-mcp-server/src/registry.rs::build_registry` and `mct-cli/src/main.rs::build_registry`. Nothing else in `mct-core`/`mct-index`/`mct-mcp-server` changes.
 
-Exceptions with real security/complexity implications get their own note (e.g. [[ccm-lang-php]]); everything else is just a row in [[00-index]]'s extension→crate table.
+Exceptions with real security/complexity implications get their own note (e.g. [[mct-lang-php]]); everything else is just a row in [[00-index]]'s extension→crate table.
 
 #architecture #contract
 ```
 
-- [ ] **Step 3: Create `docs/02-crates/parsers/ccm-lang-php.md`**
+- [ ] **Step 3: Create `docs/02-crates/parsers/mct-lang-php.md`**
 
 ```markdown
-# ccm-lang-php
+# mct-lang-php
 
 The crate CI's fuzzer first caught the unbounded-recursion class of bug in — see [[sec-001-php-stack-overflow]].
 
 ## Special behaviors
 - `self::`/`parent::`/`static::`/`Class::foo()` scoped calls: the scope is ignored, only `name` is registered as `Calls`.
 - Constructor property promotion (`property_promotion_parameter`, PHP 8.0+) indexed as `Field`.
-- `use TraitName;` (trait composition) mapped to `RelationKind::Implements` — `ccm-core` has no "mixin" relation kind, documented as a deliberate reuse rather than a new variant.
+- `use TraitName;` (trait composition) mapped to `RelationKind::Implements` — `mct-core` has no "mixin" relation kind, documented as a deliberate reuse rather than a new variant.
 - `SymbolKind::Trait` reused from Rust with different semantics (documented limitation).
 
 ## Related
@@ -219,7 +219,7 @@ The crate CI's fuzzer first caught the unbounded-recursion class of bug in — s
 Run: `ls docs/02-crates/parsers/ | sort`
 Expected:
 ```
-ccm-lang-php.md
+mct-lang-php.md
 overview.md
 ```
 
@@ -227,7 +227,7 @@ overview.md
 
 ```bash
 git add docs/02-crates
-git commit -m "docs: add ccm-mcp-server, parser contract, and ccm-lang-php notes"
+git commit -m "docs: add mct-mcp-server, parser contract, and mct-lang-php notes"
 ```
 
 ---
@@ -238,7 +238,7 @@ git commit -m "docs: add ccm-mcp-server, parser contract, and ccm-lang-php notes
 - Create: `docs/03-performance/limits-spec.md`
 - Create: `docs/04-security/advisories/sec-001-php-stack-overflow.md`
 
-**Interfaces:** None new. Both reference each other and Task 3's `[[overview]]`/`[[ccm-lang-php]]`.
+**Interfaces:** None new. Both reference each other and Task 3's `[[overview]]`/`[[mct-lang-php]]`.
 
 - [ ] **Step 1: Create `docs/03-performance/limits-spec.md`**
 
@@ -258,17 +258,17 @@ git commit -m "docs: add ccm-mcp-server, parser contract, and ccm-lang-php notes
 # SEC-001: AST-walker stack overflow (unbounded recursion)
 
 - **Status**: Fixed (commit `44a3a25`)
-- **Component**: originally caught on `ccm-lang-php`; root cause shared by all 17 crates' `Walker::visit`/`visit_children`
+- **Component**: originally caught on `mct-lang-php`; root cause shared by all 17 crates' `Walker::visit`/`visit_children`
 - **Severity**: crash on adversarial/pathological input (ASan stack-overflow), not memory-unsafe — a DoS class, not RCE
 
 ## Description
-CI's `fuzz-smoke` job crashed `ccm-lang-php` on deeply nested input (AddressSanitizer stack-overflow). Every crate shared the same unbounded mutual recursion pattern; PHP was just the one the fuzzer reached first.
+CI's `fuzz-smoke` job crashed `mct-lang-php` on deeply nested input (AddressSanitizer stack-overflow). Every crate shared the same unbounded mutual recursion pattern; PHP was just the one the fuzzer reached first.
 
 ## Fix
-Added `ccm_core::MAX_TRAVERSAL_DEPTH` (256) and threaded a depth counter through every crate's walker and its recursive helpers — past the ceiling, `visit()` returns instead of recursing further. Regression test reproduces the original crash shape (5,000 nested parens) and asserts `parse()` still returns `Ok`.
+Added `mct_core::MAX_TRAVERSAL_DEPTH` (256) and threaded a depth counter through every crate's walker and its recursive helpers — past the ceiling, `visit()` returns instead of recursing further. Regression test reproduces the original crash shape (5,000 nested parens) and asserts `parse()` still returns `Ok`.
 
 ## Related
-[[overview]] · [[limits-spec]] · [[ccm-lang-php]]
+[[overview]] · [[limits-spec]] · [[mct-lang-php]]
 
 #security #advisory
 ```
@@ -302,7 +302,7 @@ git commit -m "docs: add performance/limits spec and SEC-001 advisory"
 ```markdown
 # Backlog
 
-## Deferred from `ccm-lang-md` Phase 2
+## Deferred from `mct-lang-md` Phase 2
 See spec `docs/superpowers/specs/2026-09-17-obsidian-docs-vault-and-md-parser-design.md`.
 - Anchor-aware resolution of `[[Page#Heading]]` against the target file's real heading symbol.
 - Tags/links inside list items, blockquotes, tables.
@@ -359,7 +359,7 @@ Proposed | Accepted | Superseded by [[ADR-NNN]]
 - [ ] **Step 4: Create `docs/06-templates/lang-spec-template.md`**
 
 ```markdown
-# ccm-lang-<name>
+# mct-lang-<name>
 
 > **Use this template only if the language has special behaviors, security-relevant edge cases, or macro-like syntax worth documenting.** Otherwise, do not create a note — just add a row to [[00-index]]'s extension→crate table. Most languages need no note at all.
 
@@ -405,9 +405,9 @@ Central map of this vault. Start here.
 - [[glossary]] — terms used across this vault
 - [[mcp-protocol-spec]] — MCP tool contract
 - [[001-sqlite-storage]] — ADR: why SQLite
-- [[ccm-mcp-server]] — MCP server crate
-- [[overview]] — mandatory parser contract every `ccm-lang-*` crate follows
-- [[ccm-lang-php]] — PHP parser exception (security-relevant)
+- [[mct-mcp-server]] — MCP server crate
+- [[overview]] — mandatory parser contract every `mct-lang-*` crate follows
+- [[mct-lang-php]] — PHP parser exception (security-relevant)
 - [[limits-spec]] — recursion/fuzzing/benchmark limits
 - [[sec-001-php-stack-overflow]] — security advisory
 - [[roadmap]] — backlog
@@ -416,23 +416,23 @@ Central map of this vault. Start here.
 
 | Extension | Language | Crate |
 |---|---|---|
-| .rs | Rust | `ccm-lang-rust` |
-| .py | Python | `ccm-lang-python` |
-| .js/.jsx/.mjs/.cjs/.ts/.mts/.cts/.tsx | JS/TS | `ccm-lang-js-ts` |
-| .java | Java | `ccm-lang-java` |
-| .cs | C# | `ccm-lang-csharp` |
-| .kt | Kotlin | `ccm-lang-kotlin` |
-| .cpp/.cc/.cxx/.hpp/.hh/.h | C++ | `ccm-lang-cpp` |
-| .go | Go | `ccm-lang-go` |
-| .html | HTML | `ccm-lang-html` |
-| .css | CSS | `ccm-lang-css` |
-| .xml | XML | `ccm-lang-xml` |
-| .xaml | XAML | `ccm-lang-xaml` |
-| .sh | Bash | `ccm-lang-bash` |
-| .ps1/.psm1 | PowerShell | `ccm-lang-powershell` |
-| .php | PHP | `ccm-lang-php` |
-| .md | Markdown | `ccm-lang-md` |
-| .lua | Lua (acceptance-test only) | `ccm-lang-lua` |
+| .rs | Rust | `mct-lang-rust` |
+| .py | Python | `mct-lang-python` |
+| .js/.jsx/.mjs/.cjs/.ts/.mts/.cts/.tsx | JS/TS | `mct-lang-js-ts` |
+| .java | Java | `mct-lang-java` |
+| .cs | C# | `mct-lang-csharp` |
+| .kt | Kotlin | `mct-lang-kotlin` |
+| .cpp/.cc/.cxx/.hpp/.hh/.h | C++ | `mct-lang-cpp` |
+| .go | Go | `mct-lang-go` |
+| .html | HTML | `mct-lang-html` |
+| .css | CSS | `mct-lang-css` |
+| .xml | XML | `mct-lang-xml` |
+| .xaml | XAML | `mct-lang-xaml` |
+| .sh | Bash | `mct-lang-bash` |
+| .ps1/.psm1 | PowerShell | `mct-lang-powershell` |
+| .php | PHP | `mct-lang-php` |
+| .md | Markdown | `mct-lang-md` |
+| .lua | Lua (acceptance-test only) | `mct-lang-lua` |
 
 Adding a language does not need a new note here beyond a row in this table — see [[lang-spec-template]] for the one exception.
 
@@ -443,7 +443,7 @@ Adding a language does not need a new note here beyond a row in this table — s
 
 Run:
 ```bash
-for link in glossary mcp-protocol-spec 001-sqlite-storage ccm-mcp-server overview ccm-lang-php limits-spec sec-001-php-stack-overflow roadmap lang-spec-template; do
+for link in glossary mcp-protocol-spec 001-sqlite-storage mct-mcp-server overview mct-lang-php limits-spec sec-001-php-stack-overflow roadmap lang-spec-template; do
   found=$(find docs -name "${link}.md" | wc -l)
   echo "$link: $found"
 done
@@ -460,8 +460,8 @@ docs/00-system/00-index.md
 docs/00-system/glossary.md
 docs/01-architecture/adrs/001-sqlite-storage.md
 docs/01-architecture/mcp-protocol-spec.md
-docs/02-crates/core/ccm-mcp-server.md
-docs/02-crates/parsers/ccm-lang-php.md
+docs/02-crates/core/mct-mcp-server.md
+docs/02-crates/parsers/mct-lang-php.md
 docs/02-crates/parsers/overview.md
 docs/03-performance/limits-spec.md
 docs/04-security/advisories/sec-001-php-stack-overflow.md

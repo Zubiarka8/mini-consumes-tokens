@@ -1,0 +1,17 @@
+[package]
+name = "mct-lang-java"
+description = "Java language plugin (tree-sitter-java) for mini-consumes-tokens's LanguageParser trait."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["mcp", "tree-sitter", "java", "code-index"]
+categories = ["development-tools", "parser-implementations"]
+
+[dependencies]
+mct-core.workspace = true
+tree-sitter.workspace = true
+tree-sitter-java = "0.23.5"
+
+[dev-dependencies]
+mct-index.workspace = true

@@ -27,6 +27,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking**: every crate, binary and Rust module path is renamed from the
+  `ccm` prefix to `mct` (**M**ini **C**onsumes **T**okens): `ccm-core` →
+  `mct-core`, `ccm-index` → `mct-index`, `ccm-cli` → `mct-cli`,
+  `ccm-mcp-server` → `mct-mcp-server`, every `ccm-lang-*` → `mct-lang-*`, and
+  correspondingly `ccm_core::` → `mct_core::` etc. The `CcmServer` type is now
+  `MctServer`. Names only — no change to the SQLite schema, the MCP protocol,
+  the MCP tool names, parser behaviour or any API shape.
+- **Breaking**: the index directory is now `.mct-index/` (was `.ccm-index/`),
+  following the rename above. An existing `.ccm-index/` is not migrated and is
+  simply ignored — run `mct-cli --root . init` to rebuild, then delete the old
+  directory. The `.mcp.json` `command` must also be updated to
+  `mct-mcp-server`; the server *key* is unchanged.
+- **Breaking**: the installer environment variable `CCM_INSTALL_DIR` is now
+  `MCT_INSTALL_DIR`, and the Windows default install directory moved from
+  `%LOCALAPPDATA%\ccm\bin` to `%LOCALAPPDATA%\mct\bin`.
+- The GitHub repository slug stays `Zubiarka8/mini-consumes-tokens`, so all
+  install-script URLs and release-artifact names are deliberately unchanged.
 - **Breaking**: the index directory is now `.ccm-index/` (was
   `.claude-index/`) — this tool is meant to work with any MCP-capable
   agent, not just Claude Code, so the on-disk name should not imply

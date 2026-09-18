@@ -1,16 +1,16 @@
 #!/usr/bin/env pwsh
-# Installs the latest release of ccm-cli and ccm-mcp-server for Windows.
+# Installs the latest release of mct-cli and mct-mcp-server for Windows.
 #
 # Usage:
 #   irm https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.ps1 | iex
 #
-# Override the install directory (default: $env:LOCALAPPDATA\ccm\bin):
-#   $env:CCM_INSTALL_DIR = "C:\tools\ccm"; irm .../install.ps1 | iex
+# Override the install directory (default: $env:LOCALAPPDATA\mct\bin):
+#   $env:MCT_INSTALL_DIR = "C:\tools\mct"; irm .../install.ps1 | iex
 
 $ErrorActionPreference = "Stop"
 
 $Repo = "Zubiarka8/mini-consumes-tokens"
-$InstallDir = if ($env:CCM_INSTALL_DIR) { $env:CCM_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA "ccm\bin" }
+$InstallDir = if ($env:MCT_INSTALL_DIR) { $env:MCT_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA "mct\bin" }
 $AssetName = "windows-x86_64"
 
 Write-Host "Fetching latest release info for $Repo..."
@@ -41,13 +41,13 @@ try {
         throw "unexpected archive layout - could not find the extracted directory"
     }
 
-    Copy-Item (Join-Path $extractedDir.FullName "ccm-cli.exe") (Join-Path $InstallDir "ccm-cli.exe") -Force
-    Copy-Item (Join-Path $extractedDir.FullName "ccm-mcp-server.exe") (Join-Path $InstallDir "ccm-mcp-server.exe") -Force
+    Copy-Item (Join-Path $extractedDir.FullName "mct-cli.exe") (Join-Path $InstallDir "mct-cli.exe") -Force
+    Copy-Item (Join-Path $extractedDir.FullName "mct-mcp-server.exe") (Join-Path $InstallDir "mct-mcp-server.exe") -Force
 } finally {
     Remove-Item -Recurse -Force $tmpDir -ErrorAction SilentlyContinue
 }
 
-Write-Host "Installed ccm-cli and ccm-mcp-server $tag to $InstallDir"
+Write-Host "Installed mct-cli and mct-mcp-server $tag to $InstallDir"
 
 $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
 if ($userPath -notlike "*$InstallDir*") {
@@ -59,5 +59,5 @@ if ($userPath -notlike "*$InstallDir*") {
 
 Write-Host ""
 Write-Host "Next steps, from inside a project you want indexed:"
-Write-Host "  ccm-cli --root . init"
-Write-Host "  ccm-cli --root . mcp-register"
+Write-Host "  mct-cli --root . init"
+Write-Host "  mct-cli --root . mcp-register"

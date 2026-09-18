@@ -7,9 +7,9 @@ Central map of this vault. Start here.
 - [[glossary]] — terms used across this vault
 - [[mcp-protocol-spec]] — MCP tool contract
 - [[001-sqlite-storage]] — ADR: why SQLite
-- [[ccm-mcp-server]] — MCP server crate
-- [[overview]] — mandatory parser contract every `ccm-lang-*` crate follows
-- [[ccm-lang-php]] — PHP parser exception (security-relevant)
+- [[mct-mcp-server]] — MCP server crate
+- [[overview]] — mandatory parser contract every `mct-lang-*` crate follows
+- [[mct-lang-php]] — PHP parser exception (security-relevant)
 - [[limits-spec]] — recursion/fuzzing/benchmark limits
 - [[sec-001-php-stack-overflow]] — security advisory
 - [[roadmap]] — backlog
@@ -18,23 +18,23 @@ Central map of this vault. Start here.
 
 | Extension | Language | Crate |
 |---|---|---|
-| .rs | Rust | `ccm-lang-rust` |
-| .py | Python | `ccm-lang-python` |
-| .js/.jsx/.mjs/.cjs/.ts/.mts/.cts/.tsx | JS/TS | `ccm-lang-js-ts` |
-| .java | Java | `ccm-lang-java` |
-| .cs | C# | `ccm-lang-csharp` |
-| .kt | Kotlin | `ccm-lang-kotlin` |
-| .cpp/.cc/.cxx/.hpp/.hh/.h | C++ | `ccm-lang-cpp` |
-| .go | Go | `ccm-lang-go` |
-| .html | HTML | `ccm-lang-html` |
-| .css | CSS | `ccm-lang-css` |
-| .xml | XML | `ccm-lang-xml` |
-| .xaml | XAML | `ccm-lang-xaml` |
-| .sh | Bash | `ccm-lang-bash` |
-| .ps1/.psm1 | PowerShell | `ccm-lang-powershell` |
-| .php | PHP | `ccm-lang-php` |
-| .md | Markdown | `ccm-lang-md` |
-| .lua | Lua (acceptance-test only) | `ccm-lang-lua` |
+| .rs | Rust | `mct-lang-rust` |
+| .py | Python | `mct-lang-python` |
+| .js/.jsx/.mjs/.cjs/.ts/.mts/.cts/.tsx | JS/TS | `mct-lang-js-ts` |
+| .java | Java | `mct-lang-java` |
+| .cs | C# | `mct-lang-csharp` |
+| .kt | Kotlin | `mct-lang-kotlin` |
+| .cpp/.cc/.cxx/.hpp/.hh/.h | C++ | `mct-lang-cpp` |
+| .go | Go | `mct-lang-go` |
+| .html | HTML | `mct-lang-html` |
+| .css | CSS | `mct-lang-css` |
+| .xml | XML | `mct-lang-xml` |
+| .xaml | XAML | `mct-lang-xaml` |
+| .sh | Bash | `mct-lang-bash` |
+| .ps1/.psm1 | PowerShell | `mct-lang-powershell` |
+| .php | PHP | `mct-lang-php` |
+| .md | Markdown | `mct-lang-md` |
+| .lua | Lua (acceptance-test only) | `mct-lang-lua` |
 
 Adding a language does not need a new note here beyond a row in this table — see the templates below for the one exception.
 

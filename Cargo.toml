@@ -1,27 +1,27 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/ccm-core",
-    "crates/ccm-index",
-    "crates/ccm-lang-rust",
-    "crates/ccm-lang-python",
-    "crates/ccm-mcp-server",
-    "crates/ccm-cli",
-    "crates/ccm-lang-lua",
-    "crates/ccm-lang-java",
-    "crates/ccm-lang-csharp",
-    "crates/ccm-lang-js-ts",
-    "crates/ccm-lang-cpp",
-    "crates/ccm-lang-go",
-    "crates/ccm-lang-html",
-    "crates/ccm-lang-css",
-    "crates/ccm-lang-xml",
-    "crates/ccm-lang-xaml",
-    "crates/ccm-lang-bash",
-    "crates/ccm-lang-powershell",
-    "crates/ccm-lang-php",
-    "crates/ccm-lang-md",
-    "crates/ccm-lang-kotlin",
+    "crates/mct-core",
+    "crates/mct-index",
+    "crates/mct-lang-rust",
+    "crates/mct-lang-python",
+    "crates/mct-mcp-server",
+    "crates/mct-cli",
+    "crates/mct-lang-lua",
+    "crates/mct-lang-java",
+    "crates/mct-lang-csharp",
+    "crates/mct-lang-js-ts",
+    "crates/mct-lang-cpp",
+    "crates/mct-lang-go",
+    "crates/mct-lang-html",
+    "crates/mct-lang-css",
+    "crates/mct-lang-xml",
+    "crates/mct-lang-xaml",
+    "crates/mct-lang-bash",
+    "crates/mct-lang-powershell",
+    "crates/mct-lang-php",
+    "crates/mct-lang-md",
+    "crates/mct-lang-kotlin",
 ]
 
 [workspace.package]
@@ -34,23 +34,23 @@ repository = "https://github.com/zubiarka8/mini-consumes-tokens"
 # `version` alongside `path` is required for `cargo publish`: crates.io
 # resolves published dependents by version, path is only used for local
 # workspace builds and is stripped from the packaged Cargo.toml.
-ccm-core = { path = "crates/ccm-core", version = "0.1.0" }
-ccm-index = { path = "crates/ccm-index", version = "0.1.0" }
-ccm-lang-rust = { path = "crates/ccm-lang-rust", version = "0.1.0" }
-ccm-lang-python = { path = "crates/ccm-lang-python", version = "0.1.0" }
-ccm-lang-java = { path = "crates/ccm-lang-java", version = "0.1.0" }
-ccm-lang-csharp = { path = "crates/ccm-lang-csharp", version = "0.1.0" }
-ccm-lang-js-ts = { path = "crates/ccm-lang-js-ts", version = "0.1.0" }
-ccm-lang-cpp = { path = "crates/ccm-lang-cpp", version = "0.1.0" }
-ccm-lang-go = { path = "crates/ccm-lang-go", version = "0.1.0" }
-ccm-lang-html = { path = "crates/ccm-lang-html", version = "0.1.0" }
-ccm-lang-css = { path = "crates/ccm-lang-css", version = "0.1.0" }
-ccm-lang-xml = { path = "crates/ccm-lang-xml", version = "0.1.0" }
-ccm-lang-xaml = { path = "crates/ccm-lang-xaml", version = "0.1.0" }
-ccm-lang-bash = { path = "crates/ccm-lang-bash", version = "0.1.0" }
-ccm-lang-powershell = { path = "crates/ccm-lang-powershell", version = "0.1.0" }
-ccm-lang-php = { path = "crates/ccm-lang-php", version = "0.1.0" }
-ccm-lang-md = { path = "crates/ccm-lang-md", version = "0.1.0" }
-ccm-lang-kotlin = { path = "crates/ccm-lang-kotlin", version = "0.1.0" }
+mct-core = { path = "crates/mct-core", version = "0.1.0" }
+mct-index = { path = "crates/mct-index", version = "0.1.0" }
+mct-lang-rust = { path = "crates/mct-lang-rust", version = "0.1.0" }
+mct-lang-python = { path = "crates/mct-lang-python", version = "0.1.0" }
+mct-lang-java = { path = "crates/mct-lang-java", version = "0.1.0" }
+mct-lang-csharp = { path = "crates/mct-lang-csharp", version = "0.1.0" }
+mct-lang-js-ts = { path = "crates/mct-lang-js-ts", version = "0.1.0" }
+mct-lang-cpp = { path = "crates/mct-lang-cpp", version = "0.1.0" }
+mct-lang-go = { path = "crates/mct-lang-go", version = "0.1.0" }
+mct-lang-html = { path = "crates/mct-lang-html", version = "0.1.0" }
+mct-lang-css = { path = "crates/mct-lang-css", version = "0.1.0" }
+mct-lang-xml = { path = "crates/mct-lang-xml", version = "0.1.0" }
+mct-lang-xaml = { path = "crates/mct-lang-xaml", version = "0.1.0" }
+mct-lang-bash = { path = "crates/mct-lang-bash", version = "0.1.0" }
+mct-lang-powershell = { path = "crates/mct-lang-powershell", version = "0.1.0" }
+mct-lang-php = { path = "crates/mct-lang-php", version = "0.1.0" }
+mct-lang-md = { path = "crates/mct-lang-md", version = "0.1.0" }
+mct-lang-kotlin = { path = "crates/mct-lang-kotlin", version = "0.1.0" }
 thiserror = "2"
 tree-sitter = "0.25"
