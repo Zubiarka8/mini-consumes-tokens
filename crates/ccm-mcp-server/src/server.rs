@@ -142,6 +142,46 @@ pub struct ReindexArgs {
     pub force: bool,
 }
 
+/// Cap on how many of a surfaced symbol's callers are shown in
+/// `get_project_overview`'s relations section — deliberately smaller than
+/// `DEFAULT_RESULT_LIMIT` since this tool already fans out one `find_callers`
+/// call per surfaced symbol and must stay a cheap digest, not a full report.
+const OVERVIEW_RELATIONS_PER_SYMBOL: usize = 3;
+
+/// Symbol kinds surfaced by `get_project_overview`'s module digest — every
+/// kind that reads as a "declaration" an agent would want to know exists,
+/// excluding lower-signal top-level items (`variable`, `constant`, `field`)
+/// that would mostly be noise in a coarse first-pass overview.
+const OVERVIEW_KIND_ALLOWLIST: &[&str] = &[
+    "function",
+    "method",
+    "class",
+    "struct",
+    "interface",
+    "enum",
+    "trait",
+    "type_alias",
+    "module",
+];
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct GetProjectOverviewArgs {
+    /// File, directory, or crate prefix — same matching semantics as
+    /// list_symbols. Omit for the whole project root.
+    #[serde(default)]
+    pub path: Option<String>,
+    /// Exact language id to keep. Same semantics as list_symbols.
+    #[serde(default)]
+    pub language: Option<String>,
+    /// Cap on top-level symbols surfaced per file before truncating.
+    /// Defaults to 8.
+    #[serde(default)]
+    pub max_symbols_per_module: Option<u32>,
+    /// Whether to include each surfaced symbol's top callers. Defaults to true.
+    #[serde(default)]
+    pub include_relations: Option<bool>,
+}
+
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct GetFileSkeletonArgs {
     /// A single file's path (e.g. `crates/ccm-lang-html/src/lib.rs`),
@@ -199,6 +239,55 @@ fn read_source_file(index: &Index, relative_path: &str) -> Result<String, McpErr
     std::fs::read_to_string(&canonical).map_err(|source| {
         McpError::internal_error(format!("failed to read `{relative_path}`: {source}"), None)
     })
+}
+
+/// `get_project_overview`'s path resolution: when the caller names a
+/// `path`, this is identical to `Index::list_symbols`. When `path` is
+/// omitted (whole-project overview), `Index::list_symbols`'s directory-prefix
+/// matching has no way to express "everything" — its `LIKE` pattern is
+/// always anchored to a specific prefix, and an empty prefix produces
+/// `/%%` which matches nothing, since stored `relative_path`s never start
+/// with a leading slash. So instead this walks the project root's own
+/// top-level directory entries (skipping dotfiles/dot-directories, e.g.
+/// `.git`/`.ccm-index`) and unions one `list_symbols` call per entry —
+/// each entry is itself a valid file-or-prefix path, so no new query
+/// semantics are needed in `ccm-index`.
+fn list_symbols_for_overview(
+    index: &Index,
+    path: Option<&str>,
+    language: Option<&str>,
+) -> Result<Vec<ccm_index::SymbolListEntry>, McpError> {
+    if let Some(path) = path {
+        return index.list_symbols(path, None, language).map_err(index_error);
+    }
+    let mut top_level: Vec<String> = std::fs::read_dir(index.root())
+        .map_err(|source| {
+            McpError::internal_error(format!("failed to read project root: {source}"), None)
+        })?
+        .filter_map(|entry| entry.ok())
+        .filter_map(|entry| {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            (!name.starts_with('.')).then_some(name)
+        })
+        .collect();
+    top_level.sort();
+
+    let mut entries = Vec::new();
+    for name in &top_level {
+        entries.extend(index.list_symbols(name, None, language).map_err(index_error)?);
+    }
+    Ok(entries)
+}
+
+/// One file/module's slice of `get_project_overview`'s digest: its surfaced
+/// top-level symbols (already capped to `max_symbols_per_module`, ranked by
+/// fan-in when truncated), how many were left out, and — when
+/// `include_relations` is set — each surfaced symbol's top callers.
+pub struct ModuleDigest {
+    pub relative_path: String,
+    pub symbols: Vec<ccm_index::SymbolListEntry>,
+    pub omitted: usize,
+    pub relations: Vec<(String, Vec<ccm_index::RelationHit>)>,
 }
 
 #[tool_router]
@@ -439,6 +528,99 @@ impl CcmServer {
             format::file_skeleton(path, &entries, &source),
         )]))
     }
+
+    #[tool(
+        description = "TOKEN-SAVING project digest. Returns a compact hierarchical overview — modules, their key top-level symbols (capped, ranked by call fan-in when truncated), and optionally each symbol's top callers — in one call. Use this FIRST when getting oriented in an unfamiliar file/directory/crate/project, before chaining list_symbols + get_file_skeleton + find_calls by hand to build the same picture. Do NOT use this for a precise lookup of one already-known symbol (use find_symbol) or when you need every symbol in a file/directory with no cap (use list_symbols instead — this tool truncates for compactness)."
+    )]
+    pub async fn get_project_overview(
+        &self,
+        Parameters(GetProjectOverviewArgs {
+            path,
+            language,
+            max_symbols_per_module,
+            include_relations,
+        }): Parameters<GetProjectOverviewArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let path = path.as_deref().map(str::trim).filter(|p| !p.is_empty());
+        let language = language.as_deref().map(str::trim).filter(|l| !l.is_empty());
+        let max_symbols_per_module = max_symbols_per_module.unwrap_or(8).max(1) as usize;
+        let include_relations = include_relations.unwrap_or(true);
+
+        let index = self.index.lock().await;
+        let all_entries = list_symbols_for_overview(&index, path, language)?;
+
+        // `list_symbols_for_overview`'s entries are already ordered by
+        // `relative_path` within each call and the calls themselves are made
+        // in sorted top-level-entry order, so grouping consecutive runs by
+        // `relative_path` reproduces the same grouping a full re-sort would.
+        let mut modules: Vec<(String, Vec<ccm_index::SymbolListEntry>)> = Vec::new();
+        for entry in all_entries {
+            match modules.last_mut() {
+                Some((last_path, group)) if *last_path == entry.relative_path => {
+                    group.push(entry);
+                }
+                _ => modules.push((entry.relative_path.clone(), vec![entry])),
+            }
+        }
+
+        let mut digests = Vec::with_capacity(modules.len());
+        for (relative_path, entries) in modules {
+            let mut candidates: Vec<ccm_index::SymbolListEntry> = entries
+                .into_iter()
+                .filter(|e| e.parent.is_none() && OVERVIEW_KIND_ALLOWLIST.contains(&e.kind.as_str()))
+                .collect();
+
+            let omitted = candidates.len().saturating_sub(max_symbols_per_module);
+            if omitted > 0 {
+                // Rank by fan-in (direct caller count) descending; ties keep
+                // their existing line-ascending order (`sort_by_key` is
+                // stable) since `find_callers` returning 0 for an uncalled
+                // symbol is a legitimate, common case, not a tie-break bug.
+                let mut fan_in: Vec<usize> = Vec::with_capacity(candidates.len());
+                for candidate in &candidates {
+                    fan_in.push(index.find_callers(&candidate.name).map_err(index_error)?.len());
+                }
+                let mut ranked: Vec<usize> = (0..candidates.len()).collect();
+                ranked.sort_by_key(|&i| std::cmp::Reverse(fan_in[i]));
+                let keep: std::collections::HashSet<usize> =
+                    ranked.into_iter().take(max_symbols_per_module).collect();
+                let mut kept = Vec::with_capacity(max_symbols_per_module);
+                for (i, candidate) in candidates.into_iter().enumerate() {
+                    if keep.contains(&i) {
+                        kept.push(candidate);
+                    }
+                }
+                candidates = kept;
+            }
+
+            let mut relations = Vec::new();
+            if include_relations {
+                for symbol in &candidates {
+                    let callers = index.find_callers(&symbol.name).map_err(index_error)?;
+                    let top: Vec<ccm_index::RelationHit> = callers
+                        .into_iter()
+                        .take(OVERVIEW_RELATIONS_PER_SYMBOL)
+                        .collect();
+                    relations.push((symbol.name.clone(), top));
+                }
+            }
+
+            digests.push(ModuleDigest {
+                relative_path,
+                symbols: candidates,
+                omitted,
+                relations,
+            });
+        }
+
+        Ok(CallToolResult::success(vec![ContentBlock::text(
+            format::overview(
+                path.unwrap_or("."),
+                &digests,
+                max_symbols_per_module as u32,
+            ),
+        )]))
+    }
 }
 
 #[tool_handler]
@@ -464,7 +646,10 @@ impl ServerHandler for CcmServer {
              `depth` to walk multiple relation-graph hops (1, the default, is today's direct-hit \
              behavior) and `offset` to page past `limit`. get_file_skeleton returns a file's \
              top-level declarations with bodies collapsed to `// ...` — reach for it instead of \
-             reading a whole file when you only need its shape. reindex and get_indexing_status \
+             reading a whole file when you only need its shape. get_project_overview is the \
+             cheapest way to get oriented in an unfamiliar file/directory/crate/project: a \
+             capped, ranked hierarchical digest in one call, in place of chaining list_symbols + \
+             get_file_skeleton + find_calls by hand. reindex and get_indexing_status \
              are index maintenance, not search — they never return symbol data. The index \
              refreshes automatically at startup and silently in the background as changes settle \
              on disk; call reindex manually only if you need an immediate refresh right now, or \
