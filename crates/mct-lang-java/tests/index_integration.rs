@@ -39,6 +39,10 @@ fn find_symbol_distinguishes_both_overloads_of_add_item() {
     assert!(hits.iter().all(|h| h.relative_path == "Invoice.java"));
     assert!(hits.iter().all(|h| h.kind == "method"));
     assert_ne!(hits[0].line, hits[1].line);
+    // `language` is read straight off the `files.language` column via the
+    // symbols->files JOIN, so this is what proves the row landed under the
+    // right language and not merely that the parser produced the symbol.
+    assert!(hits.iter().all(|h| h.language == "java"), "{hits:?}");
 }
 
 #[test]
