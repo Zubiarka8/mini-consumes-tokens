@@ -35,12 +35,39 @@
 //! headings, lists, tables, and code blocks remain out of scope for symbol
 //! extraction, same as Phase 1.
 //!
+//! Phase 3: `[[Note#Heading]]` is no longer indexed as one verbatim target
+//! (Phase 2's behavior). The alias-stripped identity is split on the first
+//! `#` into a note-name part and a heading part; each non-empty part becomes
+//! its own `RelationKind::References` relation from the same enclosing
+//! symbol and location. `SymbolRelation` has exactly one `to_name` per
+//! relation and this codebase has no composite or path-qualified relation
+//! concept anywhere — every existing relation, in every language, resolves a
+//! single unscoped name — so two independent relations is the closest fit
+//! without inventing a new `RelationKind` or a new `SymbolRelation` field,
+//! both out of scope. `[[#Heading]]` (no note part, e.g. a same-document
+//! link) naturally emits only the heading relation, a side effect of "only
+//! emit non-empty parts" rather than a deliberately built feature. A
+//! trailing `.md`/`.MD` suffix on the note part (never the heading part) is
+//! stripped case-insensitively before it becomes a relation, so `[[Note]]`
+//! and `[[Note.md]]` resolve to the identical target `"Note"`. `![[Embed]]`
+//! and `![[Embed#Heading]]` need no separate handling: the leading `!` sits
+//! outside the `[[...]]` span `scan_wikilinks` matches, so an embed is
+//! already scanned exactly like a plain wikilink through the same code path
+//! — true since Phase 2 but untested and undocumented until now. Also fixed
+//! in this phase: a malformed nested wikilink (e.g. `"a [[ b [[Real]] c"`) no
+//! longer swallows a well-formed inner link into garbage text — see
+//! `scan_wikilinks`'s doc comment. Whole-note resolution of the note-name
+//! part still relies on the pre-existing convention that a target note's own
+//! heading (typically its H1) is named like the note title — this crate has
+//! no notion of a "file"/"note" separate from headings, and that limitation
+//! is unchanged and explicitly accepted, not addressed by this phase.
+//!
 //! Unlike `ccm-lang-xml`, this crate does not emit a synthetic root `Module`
 //! symbol for the file: a heading-less document must produce zero symbols.
 
 use ccm_core::{
-    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
-    SymbolKind, SymbolRecord, SymbolRelation,
+    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
+    SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use tree_sitter::{Node, Parser};
 
@@ -129,14 +156,34 @@ fn heading_text<'a>(heading: Node, source: &'a str) -> &'a str {
         .unwrap_or_default()
 }
 
-/// Extracts `[[WikiLink]]` targets from raw text. A `|alias` display
-/// suffix is stripped (the alias is presentation, not the reference
-/// identity); a `#Heading` anchor is kept verbatim as part of the target
-/// (anchor-aware resolution is deferred, see the module doc comment). Not
-/// grammar-aware — this scans raw node text directly, since
-/// `tree-sitter-md`'s inline grammar has no concept of this
-/// Obsidian-specific syntax.
-fn scan_wikilinks(text: &str) -> Vec<String> {
+/// One `[[...]]`/`![[...]]` match's alias-stripped identity, split into its
+/// note-name and heading/anchor parts (see `split_note_and_heading`).
+/// Returned as two independently-optional parts rather than one combined
+/// string, since each becomes its own `RelationKind::References` relation —
+/// `SymbolRelation` has no field for a composite "note + heading" target
+/// (see the module doc comment's Phase 3 paragraph).
+struct WikiLinkTarget {
+    note: Option<String>,
+    heading: Option<String>,
+}
+
+/// Extracts `[[WikiLink]]` and `![[Embed]]` targets from raw text, each
+/// split into a note part and a heading/anchor part. An embed is scanned
+/// identically to a plain wikilink — the leading `!` sits outside the
+/// `[[...]]` span this function matches, so no special-casing is needed. A
+/// `|alias` display suffix is stripped (the alias is presentation, not
+/// reference identity) before splitting on `#`, so
+/// `[[Page#Heading|shown text]]` still splits correctly. Not grammar-aware —
+/// this scans raw node text directly, since `tree-sitter-md`'s inline
+/// grammar has no concept of this Obsidian-specific syntax.
+///
+/// A candidate span that itself contains a nested `[[` is rejected as
+/// malformed and skipped entirely, resuming the scan from just past the
+/// *outer* `[[` (`i = open`, not `i = close + 2`) so a well-formed inner
+/// wikilink is still found on a later pass instead of being swallowed into
+/// the outer match's garbage text — e.g. `a [[ b [[Real]] c` must still
+/// yield `Real`, not a garbage target like `b [[Real`.
+fn scan_wikilinks(text: &str) -> Vec<WikiLinkTarget> {
     let mut targets = Vec::new();
     let mut i = 0;
     while let Some(start) = text[i..].find("[[") {
@@ -145,13 +192,69 @@ fn scan_wikilinks(text: &str) -> Vec<String> {
             break;
         };
         let close = open + rel_end;
-        let target = text[open..close].split('|').next().unwrap_or("").trim();
-        if !target.is_empty() {
-            targets.push(target.to_string());
+        let raw = &text[open..close];
+        if raw.contains("[[") {
+            i = open;
+            continue;
+        }
+        let identity = raw.split('|').next().unwrap_or("").trim();
+        if !identity.is_empty() {
+            targets.push(split_note_and_heading(identity));
         }
         i = close + 2;
     }
     targets
+}
+
+/// Splits a wikilink's alias-stripped identity text on the first `#` into a
+/// note-name part and a heading/anchor part — `[[Note#Heading]]` must stop
+/// being indexed as one verbatim string (Phase 2's behavior) and instead
+/// point at both the note and the heading independently, since nothing else
+/// in this codebase has any other way to resolve the heading half against a
+/// real symbol. See the module doc comment's Phase 3 paragraph for why this
+/// becomes two relations rather than one composite one.
+fn split_note_and_heading(identity: &str) -> WikiLinkTarget {
+    match identity.split_once('#') {
+        Some((note, heading)) => WikiLinkTarget {
+            note: non_empty(strip_md_extension(note.trim())),
+            heading: non_empty(heading.trim().to_string()),
+        },
+        None => WikiLinkTarget {
+            note: non_empty(strip_md_extension(identity.trim())),
+            heading: None,
+        },
+    }
+}
+
+/// Strips a trailing `.md`/`.MD`/... suffix (case-insensitive) from a
+/// wikilink's note-name part, so `[[Note]]` and `[[Note.md]]` resolve to the
+/// identical target `"Note"` — Obsidian accepts both forms, and every
+/// heading symbol in this index is named without a file extension. Uses
+/// `str::get` to check the candidate suffix rather than slicing directly by
+/// byte offset: a direct `note[note.len() - 3..]` slice would panic on
+/// non-ASCII input where that byte offset isn't a char boundary; `get`
+/// returns `None` instead, treated the same as "no `.md` suffix present".
+/// Never applied to the heading part — `split_note_and_heading` calls this
+/// only on `note`.
+fn strip_md_extension(note: &str) -> String {
+    let has_md_suffix = note
+        .len()
+        .checked_sub(3)
+        .and_then(|i| note.get(i..))
+        .is_some_and(|suffix| suffix.eq_ignore_ascii_case(".md"));
+    if has_md_suffix {
+        note[..note.len() - 3].trim_end().to_string()
+    } else {
+        note.to_string()
+    }
+}
+
+fn non_empty(s: String) -> Option<String> {
+    if s.is_empty() {
+        None
+    } else {
+        Some(s)
+    }
 }
 
 /// Extracts `#tag` occurrences from raw text, each returned as its bare
@@ -245,18 +348,30 @@ impl<'a> Walker<'a> {
         id
     }
 
-    /// Scans `text` for `[[WikiLink]]` targets and records each as a
-    /// `References` relation from `from`. `loc` is the whole containing
-    /// heading/paragraph block's location — relations are block-granular,
-    /// not exact-span (see the module doc comment).
+    /// Scans `text` for `[[WikiLink]]`/`![[Embed]]` and `#tag` occurrences and
+    /// records each as a `References` relation from `from`. A wikilink with
+    /// an anchor emits up to two relations (see `split_note_and_heading`);
+    /// `loc` is the whole containing heading/paragraph block's location for
+    /// both — relations are block-granular, not exact-span (see the module
+    /// doc comment).
     fn push_relations_from_text(&mut self, from: SymbolId, text: &str, loc: Location) {
-        for to_name in scan_wikilinks(text) {
-            self.relations.push(SymbolRelation {
-                from,
-                kind: RelationKind::References,
-                to_name,
-                location: loc,
-            });
+        for target in scan_wikilinks(text) {
+            if let Some(note) = target.note {
+                self.relations.push(SymbolRelation {
+                    from,
+                    kind: RelationKind::References,
+                    to_name: note,
+                    location: loc,
+                });
+            }
+            if let Some(heading) = target.heading {
+                self.relations.push(SymbolRelation {
+                    from,
+                    kind: RelationKind::References,
+                    to_name: heading,
+                    location: loc,
+                });
+            }
         }
         for tag in scan_tags(text) {
             self.relations.push(SymbolRelation {
@@ -306,8 +421,12 @@ impl<'a> Walker<'a> {
                 Some(heading) => {
                     let name = heading_text(heading, self.source).to_string();
                     let heading_loc = location(heading);
-                    let id =
-                        self.push_symbol(name.clone(), SymbolKind::Element, heading_loc, parent_name);
+                    let id = self.push_symbol(
+                        name.clone(),
+                        SymbolKind::Element,
+                        heading_loc,
+                        parent_name,
+                    );
                     self.push_relations_from_text(id, &name, heading_loc);
                     self.visit_children(node, Some(name), Some(id), depth + 1);
                 }
