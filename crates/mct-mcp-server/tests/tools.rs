@@ -70,6 +70,7 @@ async fn list_symbols_on_a_single_file_lists_its_functions_with_line_ranges() {
     let text = content_of(
         &server
             .list_symbols(Parameters(ListSymbolsArgs {
+                format: None,
                 path: "src/lib.rs".to_string(),
                 kind: None,
                 language: None,
@@ -102,6 +103,7 @@ async fn list_symbols_on_a_directory_spans_every_file_under_it_with_paths_shown(
     let text = content_of(
         &server
             .list_symbols(Parameters(ListSymbolsArgs {
+                format: None,
                 path: "backend".to_string(),
                 kind: None,
                 language: None,
@@ -133,6 +135,7 @@ async fn list_symbols_kind_filter_narrows_to_that_kind_only() {
     let text = content_of(
         &server
             .list_symbols(Parameters(ListSymbolsArgs {
+                format: None,
                 path: "backend".to_string(),
                 kind: Some("struct".to_string()),
                 language: None,
@@ -153,6 +156,7 @@ async fn list_symbols_language_filter_excludes_other_languages() {
     let text = content_of(
         &server
             .list_symbols(Parameters(ListSymbolsArgs {
+                format: None,
                 path: "scripts".to_string(),
                 kind: None,
                 language: Some("python".to_string()),
@@ -174,6 +178,7 @@ async fn list_symbols_combines_kind_and_language_filters_with_and() {
     let text = content_of(
         &server
             .list_symbols(Parameters(ListSymbolsArgs {
+                format: None,
                 path: "backend".to_string(),
                 kind: Some("function".to_string()),
                 language: Some("go".to_string()),
@@ -194,6 +199,7 @@ async fn list_symbols_with_no_matches_says_so() {
     let text = content_of(
         &server
             .list_symbols(Parameters(ListSymbolsArgs {
+                format: None,
                 path: "nonexistent_dir".to_string(),
                 kind: None,
                 language: None,
@@ -210,6 +216,7 @@ async fn find_symbol_locates_rust_function() {
     let server = build_server().await;
     let result = server
         .find_symbol(Parameters(FindSymbolArgs {
+            format: None,
             path: None,
             language: None,
             name: "compute".to_string(),
@@ -230,6 +237,7 @@ async fn find_symbol_default_match_mode_is_exact() {
     let text = content_of(
         &server
             .find_symbol(Parameters(FindSymbolArgs {
+                format: None,
                 name: "comp".to_string(),
                 match_mode: None,
                 path: None,
@@ -248,6 +256,7 @@ async fn find_symbol_prefix_match_widens_beyond_the_exact_name() {
     let text = content_of(
         &server
             .find_symbol(Parameters(FindSymbolArgs {
+                format: None,
                 name: "comp".to_string(),
                 match_mode: Some("prefix".to_string()),
                 path: None,
@@ -269,6 +278,7 @@ async fn find_symbol_prefix_match_does_not_reach_a_mid_token_substring() {
     let text = content_of(
         &server
             .find_symbol(Parameters(FindSymbolArgs {
+                format: None,
                 name: "mpu".to_string(),
                 match_mode: Some("prefix".to_string()),
                 path: None,
@@ -287,6 +297,7 @@ async fn find_symbol_fuzzy_match_reaches_a_mid_token_substring() {
     let text = content_of(
         &server
             .find_symbol(Parameters(FindSymbolArgs {
+                format: None,
                 name: "mpu".to_string(),
                 match_mode: Some("fuzzy".to_string()),
                 path: None,
@@ -304,6 +315,7 @@ async fn find_symbol_unrecognized_match_mode_is_rejected_as_invalid_params() {
     let server = build_server().await;
     let result = server
         .find_symbol(Parameters(FindSymbolArgs {
+            format: None,
             name: "compute".to_string(),
             match_mode: Some("substring".to_string()),
             path: None,
@@ -321,6 +333,7 @@ async fn find_calls_and_find_callers_agree() {
     let calls = content_of(
         &server
             .find_calls(Parameters(FindCallsArgs {
+                format: None,
                 path: None,
                 language: None,
                 function: "compute".to_string(),
@@ -336,6 +349,7 @@ async fn find_calls_and_find_callers_agree() {
     let callers = content_of(
         &server
             .find_callers(Parameters(FindCallersArgs {
+                format: None,
                 path: None,
                 language: None,
                 function: "helper".to_string(),
@@ -355,6 +369,7 @@ async fn find_references_includes_the_python_import() {
     let text = content_of(
         &server
             .find_references(Parameters(FindReferencesArgs {
+                format: None,
                 path: None,
                 language: None,
                 symbol: "compute".to_string(),
@@ -374,6 +389,7 @@ async fn impact_analysis_flags_the_test() {
     let text = content_of(
         &server
             .impact_analysis(Parameters(ImpactAnalysisArgs {
+                format: None,
                 path: None,
                 language: None,
                 symbol: "compute".to_string(),
@@ -393,6 +409,7 @@ async fn empty_name_is_rejected_as_invalid_params() {
     let server = build_server().await;
     let result = server
         .find_symbol(Parameters(FindSymbolArgs {
+            format: None,
             path: None,
             language: None,
             name: "   ".to_string(),
@@ -409,6 +426,7 @@ async fn find_callers_truncates_to_the_default_limit_and_says_so() {
     let text = content_of(
         &server
             .find_callers(Parameters(FindCallersArgs {
+                format: None,
                 path: None,
                 language: None,
                 function: "target".to_string(),
@@ -439,6 +457,7 @@ async fn find_callers_with_explicit_higher_limit_is_not_truncated() {
     let text = content_of(
         &server
             .find_callers(Parameters(FindCallersArgs {
+                format: None,
                 path: None,
                 language: None,
                 function: "target".to_string(),
@@ -464,6 +483,7 @@ async fn impact_analysis_truncates_the_caller_and_reference_sections() {
     let text = content_of(
         &server
             .impact_analysis(Parameters(ImpactAnalysisArgs {
+                format: None,
                 path: None,
                 language: None,
                 symbol: "target".to_string(),
@@ -497,6 +517,7 @@ async fn find_calls_default_depth_is_direct_hits_only() {
     let text = content_of(
         &server
             .find_calls(Parameters(FindCallsArgs {
+                format: None,
                 path: None,
                 language: None,
                 function: "HandleCreateInvoice".to_string(),
@@ -524,6 +545,7 @@ async fn find_calls_with_depth_2_also_returns_the_second_hop() {
     let text = content_of(
         &server
             .find_calls(Parameters(FindCallsArgs {
+                format: None,
                 path: None,
                 language: None,
                 function: "HandleCreateInvoice".to_string(),
@@ -548,6 +570,7 @@ async fn find_callers_offset_pages_past_the_default_limit() {
     let text = content_of(
         &server
             .find_callers(Parameters(FindCallersArgs {
+                format: None,
                 path: None,
                 language: None,
                 function: "target".to_string(),
@@ -762,6 +785,7 @@ async fn find_dead_code_flags_an_uncalled_function_but_not_called_ones_or_method
     let text = content_of(
         &server
             .find_dead_code(Parameters(FindDeadCodeArgs {
+                format: None,
                 path: None,
                 language: None,
                 limit: None,
@@ -787,6 +811,7 @@ async fn find_dead_code_excludes_entry_points_and_test_files() {
     let text = content_of(
         &server
             .find_dead_code(Parameters(FindDeadCodeArgs {
+                format: None,
                 path: None,
                 language: None,
                 limit: None,
