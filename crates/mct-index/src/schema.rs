@@ -108,5 +108,15 @@ pub fn migrations() -> Migrations<'static> {
         // instead of needing a fresh index — those rows read back as `None`
         // until the next reindex repopulates them from a parser that sets it.
         M::up("ALTER TABLE symbols ADD COLUMN end_line INTEGER;"),
+        // `to_symbol_id` was a best-effort FK, resolved by an unscoped
+        // `SELECT id FROM symbols WHERE name = ?1 LIMIT 1` on every relation
+        // written during reindex — non-deterministic on a duplicate name
+        // (whichever row SQLite happened to return first) and never
+        // backfilled retroactively. Nothing ever read it: every relation
+        // query (`find_references`/`find_calls`/`find_callers`/
+        // `impact_analysis`) resolves purely on the `to_name` string column,
+        // narrowed by the `path`/`language` scope filters added in Fase 2
+        // instead. See investigacion.md §B2 and issue #35.
+        M::up("ALTER TABLE relations DROP COLUMN to_symbol_id;"),
     ])
 }
