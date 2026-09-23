@@ -5,6 +5,7 @@
 
 mod error;
 mod exclude;
+mod file_tree;
 mod indexer;
 mod manifests;
 mod queries;
@@ -13,6 +14,7 @@ mod traversal;
 
 pub use error::{IndexError, Result};
 pub use exclude::ExcludeSet;
+pub use file_tree::FileTreeNode;
 pub use indexer::{
     DependencyInfo, IndexStatus, LanguageCoverage, ManifestDependencies, ReindexReport,
     UnsupportedFile,
@@ -364,5 +366,16 @@ impl Index {
         language: Option<&str>,
     ) -> Result<Vec<SymbolListEntry>> {
         queries::list_symbols(&self.conn, path, self.resolve_is_file(path), kind, language)
+    }
+
+    /// Directory tree rooted at `path` (defaults to the project root), down
+    /// to `depth` levels of nesting, pruned by the same [`ExcludeSet`]
+    /// `reindex` uses. Pure filesystem listing — never touches the symbol
+    /// index — so it stays cheap and correct even for a file the parser
+    /// doesn't support. `depth` is clamped to `[1, mct_core::MAX_QUERY_DEPTH]`.
+    pub fn file_tree(&self, path: Option<&str>, depth: u32) -> Result<FileTreeNode> {
+        let depth = depth.clamp(1, mct_core::MAX_QUERY_DEPTH);
+        let relative_start = path.map(str::trim).filter(|p| !p.is_empty()).unwrap_or(".");
+        file_tree::file_tree(&self.root, &self.exclude, relative_start, depth)
     }
 }
