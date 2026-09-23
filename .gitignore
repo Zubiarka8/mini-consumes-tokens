@@ -17,6 +17,8 @@ MANUAL.md
 
 # Session-local Claude Code state — not portable across contributors/machines
 .claude/
+# Pre-rename (ccm -> mct) index directory, still present in older checkouts
+.claude-index/
 
 # Windows/native build byproducts (defensive; today only appear under
 # already-ignored fuzz/target/, this guards future root-level artifacts)
