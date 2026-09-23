@@ -17,7 +17,7 @@ pub use indexer::{
     DependencyInfo, IndexStatus, LanguageCoverage, ManifestDependencies, ReindexReport,
     UnsupportedFile,
 };
-pub use queries::{QueryScope, RelationHit, SymbolHit, SymbolListEntry};
+pub use queries::{QueryScope, RelationHit, SymbolHit, SymbolListEntry, SymbolMatchMode};
 
 use queries::ResolvedScope;
 
@@ -161,6 +161,27 @@ impl Index {
 
     pub fn find_symbol(&self, name: &str) -> Result<Vec<SymbolHit>> {
         self.find_symbol_scoped(name, QueryScope::default())
+    }
+
+    /// [`Index::find_symbol`], widened by `mode` — see [`SymbolMatchMode`].
+    pub fn find_symbol_matching(
+        &self,
+        name: &str,
+        mode: SymbolMatchMode,
+    ) -> Result<Vec<SymbolHit>> {
+        queries::find_symbol_matching(&self.conn, name, mode)
+    }
+
+    /// [`Index::find_symbol_matching`] narrowed to `scope` — see
+    /// [`Index::find_symbol_scoped`]. With an empty scope, identical hit for
+    /// hit.
+    pub fn find_symbol_matching_scoped(
+        &self,
+        name: &str,
+        mode: SymbolMatchMode,
+        scope: QueryScope<'_>,
+    ) -> Result<Vec<SymbolHit>> {
+        queries::find_symbol_matching_scoped(&self.conn, name, mode, self.resolve_scope(scope))
     }
 
     /// Every place `symbol` is referenced: calls, imports, extends/implements,

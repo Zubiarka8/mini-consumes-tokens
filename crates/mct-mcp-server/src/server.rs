@@ -46,8 +46,18 @@ pub struct ListSymbolsArgs {
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct FindSymbolArgs {
-    /// Exact symbol name to look up (e.g. a function, class, struct or method name).
+    /// Symbol name to look up (e.g. a function, class, struct or method
+    /// name). Matched exactly, as a prefix, or as a substring depending on
+    /// `match` — see that field.
     pub name: String,
+    /// How `name` is matched: `exact` (default) requires the full name,
+    /// byte for byte. `prefix` returns every symbol whose name starts with
+    /// `name`. `fuzzy` returns every symbol whose name contains `name`
+    /// anywhere, case-insensitively — use this when you're not sure of the
+    /// exact/full name instead of guessing and re-querying. Unrecognized
+    /// values are rejected rather than silently falling back to `exact`.
+    #[serde(default, rename = "match")]
+    pub match_mode: Option<String>,
     /// Narrow to one file or directory/crate prefix (same matching as
     /// list_symbols). Omit to search the whole project.
     #[serde(default)]
@@ -260,6 +270,23 @@ fn validate_name(raw: &str) -> Result<&str, McpError> {
     Ok(trimmed)
 }
 
+/// Parses `find_symbol`'s `match` argument. `None` (the field omitted) is
+/// `Exact`; an explicit but unrecognized string is rejected rather than
+/// silently treated as `Exact`, since a typo'd mode should surface as an
+/// error, not a query that quietly ran narrower than intended.
+fn parse_match_mode(raw: Option<&str>) -> Result<mct_index::SymbolMatchMode, McpError> {
+    match raw {
+        None => Ok(mct_index::SymbolMatchMode::Exact),
+        Some("exact") => Ok(mct_index::SymbolMatchMode::Exact),
+        Some("prefix") => Ok(mct_index::SymbolMatchMode::Prefix),
+        Some("fuzzy") => Ok(mct_index::SymbolMatchMode::Fuzzy),
+        Some(other) => Err(McpError::invalid_params(
+            format!("match must be one of exact, prefix, fuzzy — got `{other}`"),
+            None,
+        )),
+    }
+}
+
 fn index_error(err: mct_index::IndexError) -> McpError {
     McpError::internal_error(err.to_string(), None)
 }
@@ -407,21 +434,25 @@ impl MctServer {
     }
 
     #[tool(
-        description = "ATOMIC lookup. Find the definition location(s) of a symbol by exact name, across every indexed language in this repository (including polyglot projects). Use this instead of grepping files to answer \"where is X defined\". Do NOT use this to find who calls or references a symbol — use find_callers (direct callers only) or find_references (every reference) instead."
+        description = "ATOMIC lookup. Find the definition location(s) of a symbol by name, across every indexed language in this repository (including polyglot projects). Defaults to an exact-name match; pass match: \"prefix\" or match: \"fuzzy\" when you don't know the full/exact name instead of guessing and re-querying. Use this instead of grepping files to answer \"where is X defined\". Do NOT use this to find who calls or references a symbol — use find_callers (direct callers only) or find_references (every reference) instead."
     )]
     pub async fn find_symbol(
         &self,
         Parameters(FindSymbolArgs {
             name,
+            match_mode,
             path,
             language,
             limit,
         }): Parameters<FindSymbolArgs>,
     ) -> Result<CallToolResult, McpError> {
         let name = validate_name(&name)?;
+        let mode = parse_match_mode(match_mode.as_deref())?;
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
         let index = self.index.lock().await;
-        let hits = index.find_symbol_scoped(name, scope).map_err(index_error)?;
+        let hits = index
+            .find_symbol_matching_scoped(name, mode, scope)
+            .map_err(index_error)?;
         Ok(CallToolResult::success(vec![ContentBlock::text(
             format::symbol_hits(name, &hits, limit.unwrap_or(DEFAULT_RESULT_LIMIT)),
         )]))
