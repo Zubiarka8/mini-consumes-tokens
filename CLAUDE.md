@@ -45,6 +45,14 @@ cargo test --workspace                                              # run all 22
 cargo test -p mct-lang-go                                            # run one crate's tests
 cargo test -p mct-lang-go idiomatic_syntax                           # run one test by name
 cargo clippy --workspace --all-targets --all-features -- -D warnings # lint (CI-gating, zero warnings)
+# NOTE: the line above is the everyday lint command; the actual CI job (.github/workflows/ci.yml)
+# additionally denies unwrap/expect/panic project-wide:
+#   cargo clippy --workspace --all-targets --all-features -- -D warnings \
+#     -D clippy::unwrap_used -D clippy::expect_used -D clippy::panic
+# Any src/tests/examples file that legitimately uses those (test/bench code, never a path
+# processing repo-input content) needs its own #![allow(clippy::unwrap_used, clippy::expect_used,
+# clippy::panic)] — see crates/mct-mcp-server/tests/*.rs or the inline `mod *_tests` blocks in
+# crates/mct-mcp-server/src/format.rs for the existing convention.
 
 cargo run -p mct-cli -- --root . init                                # first index of a project
 cargo run -p mct-cli -- --root . status                              # coverage / health report
