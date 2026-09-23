@@ -21,6 +21,9 @@ pub enum IndexError {
 
     #[error("invalid path: {0} escapes the project root")]
     PathEscapesRoot(String),
+
+    #[error("`{0}` is not a directory")]
+    NotADirectory(String),
 }
 
 pub type Result<T> = std::result::Result<T, IndexError>;

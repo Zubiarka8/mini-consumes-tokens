@@ -27,3 +27,6 @@ MANUAL.md
 
 # Obsidian workspace state (per-user editor state, not vault content)
 .obsidian/
+
+# Local-only: auto-generated GitHub issues status snapshot, not source of truth
+issues.md
