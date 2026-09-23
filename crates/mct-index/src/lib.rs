@@ -17,7 +17,7 @@ pub use indexer::{
     DependencyInfo, IndexStatus, LanguageCoverage, ManifestDependencies, ReindexReport,
     UnsupportedFile,
 };
-pub use queries::{RelationHit, SymbolHit, SymbolListEntry};
+pub use queries::{RelationHit, SymbolHit, SymbolListEntry, SymbolMatchMode};
 
 use std::path::{Path, PathBuf};
 
@@ -107,6 +107,15 @@ impl Index {
 
     pub fn find_symbol(&self, name: &str) -> Result<Vec<SymbolHit>> {
         queries::find_symbol(&self.conn, name)
+    }
+
+    /// [`Index::find_symbol`], widened by `mode` — see [`SymbolMatchMode`].
+    pub fn find_symbol_matching(
+        &self,
+        name: &str,
+        mode: SymbolMatchMode,
+    ) -> Result<Vec<SymbolHit>> {
+        queries::find_symbol_matching(&self.conn, name, mode)
     }
 
     /// Every place `symbol` is referenced: calls, imports, extends/implements,
