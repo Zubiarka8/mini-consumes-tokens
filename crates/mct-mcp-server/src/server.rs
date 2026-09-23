@@ -58,6 +58,13 @@ pub struct FindSymbolArgs {
     /// values are rejected rather than silently falling back to `exact`.
     #[serde(default, rename = "match")]
     pub match_mode: Option<String>,
+    /// Narrow to one file or directory/crate prefix (same matching as
+    /// list_symbols). Omit to search the whole project.
+    #[serde(default)]
+    pub path: Option<String>,
+    /// Narrow to one language id (e.g. `rust`). Omit for every language.
+    #[serde(default)]
+    pub language: Option<String>,
     /// Maximum number of definitions to return. Defaults to 50 when omitted;
     /// raise it if you expect more hits and want them all in one call.
     #[serde(default)]
@@ -68,6 +75,13 @@ pub struct FindSymbolArgs {
 pub struct FindReferencesArgs {
     /// Exact name of the symbol to find every reference to.
     pub symbol: String,
+    /// Narrow to one file or directory/crate prefix (same matching as
+    /// list_symbols), applied at every hop. Omit to search the whole project.
+    #[serde(default)]
+    pub path: Option<String>,
+    /// Narrow to one language id (e.g. `rust`). Omit for every language.
+    #[serde(default)]
+    pub language: Option<String>,
     /// Maximum number of references to return. Defaults to 50 when omitted;
     /// raise it if you expect more hits and want them all in one call.
     #[serde(default)]
@@ -88,6 +102,13 @@ pub struct FindReferencesArgs {
 pub struct FindCallsArgs {
     /// Exact name of the function/method whose callees you want.
     pub function: String,
+    /// Narrow to one file or directory/crate prefix (same matching as
+    /// list_symbols), applied at every hop. Omit to search the whole project.
+    #[serde(default)]
+    pub path: Option<String>,
+    /// Narrow to one language id (e.g. `rust`). Omit for every language.
+    #[serde(default)]
+    pub language: Option<String>,
     /// Maximum number of calls to return. Defaults to 50 when omitted;
     /// raise it if you expect more hits and want them all in one call.
     #[serde(default)]
@@ -108,6 +129,13 @@ pub struct FindCallsArgs {
 pub struct FindCallersArgs {
     /// Exact name of the function/method whose callers you want.
     pub function: String,
+    /// Narrow to one file or directory/crate prefix (same matching as
+    /// list_symbols), applied at every hop. Omit to search the whole project.
+    #[serde(default)]
+    pub path: Option<String>,
+    /// Narrow to one language id (e.g. `rust`). Omit for every language.
+    #[serde(default)]
+    pub language: Option<String>,
     /// Maximum number of callers to return. Defaults to 50 when omitted;
     /// raise it if you expect more hits and want them all in one call.
     #[serde(default)]
@@ -128,6 +156,13 @@ pub struct FindCallersArgs {
 pub struct ImpactAnalysisArgs {
     /// Exact name of the symbol you're considering changing or removing.
     pub symbol: String,
+    /// Narrow to one file or directory/crate prefix (same matching as
+    /// list_symbols), applied at every hop. Omit to search the whole project.
+    #[serde(default)]
+    pub path: Option<String>,
+    /// Narrow to one language id (e.g. `rust`). Omit for every language.
+    #[serde(default)]
+    pub language: Option<String>,
     /// Maximum number of entries to return per section (callers/references/
     /// affected tests are each capped independently). Defaults to 50 when
     /// omitted.
@@ -187,9 +222,22 @@ pub struct GetProjectOverviewArgs {
     /// Defaults to 8.
     #[serde(default)]
     pub max_symbols_per_module: Option<u32>,
-    /// Whether to include each surfaced symbol's top callers. Defaults to true.
+    /// Whether to include each surfaced symbol's top callers. Defaults to
+    /// false — the caller lines cost roughly three quarters of this tool's
+    /// response, so ask for them only once the digest has told you which
+    /// part of the project you care about.
     #[serde(default)]
     pub include_relations: Option<bool>,
+}
+
+#[derive(Debug, Default, serde::Deserialize, schemars::JsonSchema)]
+pub struct GetIndexingStatusArgs {
+    /// List every manifest's declared dependencies individually instead of
+    /// a one-line summary. Defaults to false — the full listing is by far
+    /// the largest part of this tool's output and is rarely what the
+    /// "is the index healthy?" question needs.
+    #[serde(default)]
+    pub verbose_dependencies: bool,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -241,6 +289,20 @@ fn parse_match_mode(raw: Option<&str>) -> Result<mct_index::SymbolMatchMode, Mcp
 
 fn index_error(err: mct_index::IndexError) -> McpError {
     McpError::internal_error(err.to_string(), None)
+}
+
+/// Trims an optional tool argument and drops it when it's blank, so a caller
+/// passing `""` (or a stray `"  "`) gets the unscoped behavior rather than a
+/// filter that matches nothing.
+fn optional_arg(raw: Option<&String>) -> Option<&str> {
+    raw.map(|s| s.trim()).filter(|s| !s.is_empty())
+}
+
+/// Builds the `mct-index` scope from a tool's optional `path`/`language`
+/// arguments. Borrowed, so the caller must keep the trimmed strs alive for
+/// the duration of the query.
+fn query_scope<'a>(path: Option<&'a str>, language: Option<&'a str>) -> mct_index::QueryScope<'a> {
+    mct_index::QueryScope { path, language }
 }
 
 /// Reads `relative_path`'s contents off disk, for tools (currently only
@@ -353,14 +415,16 @@ impl MctServer {
         }): Parameters<ListSymbolsArgs>,
     ) -> Result<CallToolResult, McpError> {
         let path = validate_name(&path)?;
-        // Same file-vs-directory heuristic the query layer uses, computed
-        // here too so the formatter knows whether to print each entry's
-        // `relative_path` (needed once a directory/crate spans several
-        // files) or omit it (redundant for a single-file listing).
-        let is_file = path.rsplit('/').next().unwrap_or(path).contains('.');
-        let kind = kind.as_deref().map(str::trim).filter(|k| !k.is_empty());
-        let language = language.as_deref().map(str::trim).filter(|l| !l.is_empty());
+        let kind = optional_arg(kind.as_ref());
+        let language = optional_arg(language.as_ref());
         let index = self.index.lock().await;
+        // Asks the index the same file-vs-directory question it resolves
+        // internally, so the formatter knows whether to print each entry's
+        // `relative_path` (needed once a directory/crate spans several
+        // files) or omit it (redundant for a single-file listing). Decided
+        // from the filesystem, not from whether the last segment happens to
+        // contain a dot — `.claude`/`.github` are directories.
+        let is_file = !index.path_is_directory(path);
         let hits = index
             .list_symbols(path, kind, language)
             .map_err(index_error)?;
@@ -377,13 +441,18 @@ impl MctServer {
         Parameters(FindSymbolArgs {
             name,
             match_mode,
+            path,
+            language,
             limit,
         }): Parameters<FindSymbolArgs>,
     ) -> Result<CallToolResult, McpError> {
         let name = validate_name(&name)?;
         let mode = parse_match_mode(match_mode.as_deref())?;
+        let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
         let index = self.index.lock().await;
-        let hits = index.find_symbol_matching(name, mode).map_err(index_error)?;
+        let hits = index
+            .find_symbol_matching_scoped(name, mode, scope)
+            .map_err(index_error)?;
         Ok(CallToolResult::success(vec![ContentBlock::text(
             format::symbol_hits(name, &hits, limit.unwrap_or(DEFAULT_RESULT_LIMIT)),
         )]))
@@ -396,6 +465,8 @@ impl MctServer {
         &self,
         Parameters(FindReferencesArgs {
             symbol,
+            path,
+            language,
             limit,
             depth,
             offset,
@@ -404,9 +475,10 @@ impl MctServer {
         let symbol = validate_name(&symbol)?;
         let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
         let offset = offset.unwrap_or(0);
+        let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
         let index = self.index.lock().await;
         let hits = index
-            .find_references_bfs(symbol, depth.unwrap_or(1), limit, offset)
+            .find_references_bfs_scoped(symbol, depth.unwrap_or(1), limit, offset, scope)
             .map_err(index_error)?;
         Ok(CallToolResult::success(vec![ContentBlock::text(
             format::relation_hits(symbol, "reference(s)", &hits, offset, limit),
@@ -420,6 +492,8 @@ impl MctServer {
         &self,
         Parameters(FindCallsArgs {
             function,
+            path,
+            language,
             limit,
             depth,
             offset,
@@ -428,9 +502,10 @@ impl MctServer {
         let function = validate_name(&function)?;
         let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
         let offset = offset.unwrap_or(0);
+        let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
         let index = self.index.lock().await;
         let hits = index
-            .find_calls_bfs(function, depth.unwrap_or(1), limit, offset)
+            .find_calls_bfs_scoped(function, depth.unwrap_or(1), limit, offset, scope)
             .map_err(index_error)?;
         Ok(CallToolResult::success(vec![ContentBlock::text(
             format::relation_hits(function, "call(s) made by this function", &hits, offset, limit),
@@ -444,6 +519,8 @@ impl MctServer {
         &self,
         Parameters(FindCallersArgs {
             function,
+            path,
+            language,
             limit,
             depth,
             offset,
@@ -452,9 +529,10 @@ impl MctServer {
         let function = validate_name(&function)?;
         let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
         let offset = offset.unwrap_or(0);
+        let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
         let index = self.index.lock().await;
         let hits = index
-            .find_callers_bfs(function, depth.unwrap_or(1), limit, offset)
+            .find_callers_bfs_scoped(function, depth.unwrap_or(1), limit, offset, scope)
             .map_err(index_error)?;
         Ok(CallToolResult::success(vec![ContentBlock::text(
             format::relation_hits(function, "caller(s) of this function", &hits, offset, limit),
@@ -462,12 +540,14 @@ impl MctServer {
     }
 
     #[tool(
-        description = "COMPOSITE (internally combines find_callers + find_references + a test-name heuristic — you do not need to call those separately). Reports everything a change to `symbol` could break: its direct callers, its full reference set (calls/imports/extends/implements/plain), and which of those look like tests (name starting with `test`). Use this before editing or removing a symbol to gauge blast radius in one call. Do NOT use this for a plain lookup of only direct callers or only references — that's cheaper via find_callers or find_references alone, and this tool's output is more verbose."
+        description = "COMPOSITE (internally combines find_callers + find_references + a test-name heuristic — you do not need to call those separately). Reports everything a change to `symbol` could break: its direct callers, its full reference set (calls/imports/extends/implements/plain), and which of those look like tests (by test-file path or test-name convention). Use this before editing or removing a symbol to gauge blast radius in one call. Do NOT use this for a plain lookup of only direct callers or only references — that's cheaper via find_callers or find_references alone, and this tool's output is more verbose."
     )]
     pub async fn impact_analysis(
         &self,
         Parameters(ImpactAnalysisArgs {
             symbol,
+            path,
+            language,
             limit,
             depth,
             offset,
@@ -477,13 +557,14 @@ impl MctServer {
         let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
         let offset = offset.unwrap_or(0);
         let depth = depth.unwrap_or(1);
+        let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
         let (callers, references) = {
             let index = self.index.lock().await;
             let callers = index
-                .find_callers_bfs(symbol, depth, limit, offset)
+                .find_callers_bfs_scoped(symbol, depth, limit, offset, scope)
                 .map_err(index_error)?;
             let references = index
-                .find_references_bfs(symbol, depth, limit, offset)
+                .find_references_bfs_scoped(symbol, depth, limit, offset, scope)
                 .map_err(index_error)?;
             (callers, references)
         };
@@ -494,7 +575,7 @@ impl MctServer {
         let affected_tests: Vec<&mct_index::RelationHit> = references
             .iter()
             .chain(callers.iter())
-            .filter(|hit| format::looks_like_test_name(&hit.from_symbol))
+            .filter(|hit| format::looks_like_test_name(&hit.from_symbol, &hit.relative_path))
             .filter(|hit| seen_test_names.insert(hit.from_symbol.as_str()))
             .collect();
         Ok(CallToolResult::success(vec![ContentBlock::text(
@@ -517,13 +598,18 @@ impl MctServer {
     }
 
     #[tool(
-        description = "INDEX ADMINISTRATION, not a search tool. Reports index health: files/symbols indexed per language, when it was last indexed, languages seen in the repo with no parser plugin yet, files that failed to parse, and declared dependencies detected from manifest files (Cargo.toml, package.json, requirements.txt, go.mod). Do NOT use this to search for a symbol — it returns no symbol data, only index diagnostics; use find_symbol instead."
+        description = "INDEX ADMINISTRATION, not a search tool. Reports index health: files/symbols indexed per language, when it was last indexed, languages seen in the repo with no parser plugin yet, files that failed to parse, and a one-line summary of dependencies declared in manifest files (Cargo.toml, package.json, requirements.txt, go.mod) — pass verbose_dependencies to list them all. Do NOT use this to search for a symbol — it returns no symbol data, only index diagnostics; use find_symbol instead."
     )]
-    pub async fn get_indexing_status(&self) -> Result<CallToolResult, McpError> {
+    pub async fn get_indexing_status(
+        &self,
+        Parameters(GetIndexingStatusArgs {
+            verbose_dependencies,
+        }): Parameters<GetIndexingStatusArgs>,
+    ) -> Result<CallToolResult, McpError> {
         let index = self.index.lock().await;
         let status = index.status().map_err(index_error)?;
         Ok(CallToolResult::success(vec![ContentBlock::text(
-            format::index_status(&status),
+            format::index_status(&status, verbose_dependencies),
         )]))
     }
 
@@ -535,14 +621,13 @@ impl MctServer {
         Parameters(GetFileSkeletonArgs { path }): Parameters<GetFileSkeletonArgs>,
     ) -> Result<CallToolResult, McpError> {
         let path = validate_name(&path)?;
-        let is_file = path.rsplit('/').next().unwrap_or(path).contains('.');
-        if !is_file {
+        let index = self.index.lock().await;
+        if index.path_is_directory(path) {
             return Err(McpError::invalid_params(
                 "get_file_skeleton takes a single file path, not a directory/crate prefix — use list_symbols first if you don't know which file you need",
                 None,
             ));
         }
-        let index = self.index.lock().await;
         let source = read_source_file(&index, path)?;
         let entries: Vec<_> = index
             .list_symbols(path, None, None)
@@ -562,7 +647,7 @@ impl MctServer {
     }
 
     #[tool(
-        description = "TOKEN-SAVING project digest. Returns a compact hierarchical overview — modules, their key top-level symbols (capped, ranked by call fan-in when truncated), and optionally each symbol's top callers — in one call. Use this FIRST when getting oriented in an unfamiliar file/directory/crate/project, before chaining list_symbols + get_file_skeleton + find_calls by hand to build the same picture. Do NOT use this for a precise lookup of one already-known symbol (use find_symbol) or when you need every symbol in a file/directory with no cap (use list_symbols instead — this tool truncates for compactness)."
+        description = "TOKEN-SAVING project digest. Returns a compact hierarchical overview — modules, their key top-level symbols (capped, ranked by call fan-in when truncated), and — with include_relations, off by default — each symbol's top callers, in one call. Use this FIRST when getting oriented in an unfamiliar file/directory/crate/project, before chaining list_symbols + get_file_skeleton + find_calls by hand to build the same picture. Do NOT use this for a precise lookup of one already-known symbol (use find_symbol) or when you need every symbol in a file/directory with no cap (use list_symbols instead — this tool truncates for compactness)."
     )]
     pub async fn get_project_overview(
         &self,
@@ -576,7 +661,11 @@ impl MctServer {
         let path = path.as_deref().map(str::trim).filter(|p| !p.is_empty());
         let language = language.as_deref().map(str::trim).filter(|l| !l.is_empty());
         let max_symbols_per_module = max_symbols_per_module.unwrap_or(8).max(1) as usize;
-        let include_relations = include_relations.unwrap_or(true);
+        // Defaults to false: the per-symbol caller lines were measured at
+        // roughly three quarters of this tool's whole response on this repo
+        // (167_864 -> 45_760 bytes with them off). A digest that costs more
+        // than reading the files isn't a digest.
+        let include_relations = include_relations.unwrap_or(false);
 
         let index = self.index.lock().await;
         let all_entries = list_symbols_for_overview(&index, path, language)?;
@@ -595,6 +684,12 @@ impl MctServer {
             }
         }
 
+        // Direct-caller counts for every called name, in one grouped query,
+        // hoisted out of the module loop below. This replaces one
+        // `find_callers` per candidate symbol — over 1800 queries on this
+        // repo — with a single aggregate the ranking reads from.
+        let fan_in_counts = index.fan_in_counts().map_err(index_error)?;
+
         let mut digests = Vec::with_capacity(modules.len());
         for (relative_path, entries) in modules {
             let mut candidates: Vec<mct_index::SymbolListEntry> = entries
@@ -606,14 +701,18 @@ impl MctServer {
             if omitted > 0 {
                 // Rank by fan-in (direct caller count) descending; ties keep
                 // their existing line-ascending order (`sort_by_key` is
-                // stable) since `find_callers` returning 0 for an uncalled
-                // symbol is a legitimate, common case, not a tie-break bug.
-                let mut fan_in: Vec<usize> = Vec::with_capacity(candidates.len());
-                for candidate in &candidates {
-                    fan_in.push(index.find_callers(&candidate.name).map_err(index_error)?.len());
-                }
+                // stable) since a zero fan-in for an uncalled symbol is a
+                // legitimate, common case, not a tie-break bug. A name
+                // absent from the map has no direct callers at all.
                 let mut ranked: Vec<usize> = (0..candidates.len()).collect();
-                ranked.sort_by_key(|&i| std::cmp::Reverse(fan_in[i]));
+                ranked.sort_by_key(|&i| {
+                    std::cmp::Reverse(
+                        fan_in_counts
+                            .get(candidates[i].name.as_str())
+                            .copied()
+                            .unwrap_or(0),
+                    )
+                });
                 let keep: std::collections::HashSet<usize> =
                     ranked.into_iter().take(max_symbols_per_module).collect();
                 let mut kept = Vec::with_capacity(max_symbols_per_module);

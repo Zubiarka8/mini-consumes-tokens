@@ -310,6 +310,65 @@ fn a_forced_reindex_replaces_rows_instead_of_duplicating_them() {
     assert_eq!(index.find_callers("helper").unwrap().len(), 1);
 }
 
+#[test]
+fn relations_table_no_longer_has_a_to_symbol_id_column() {
+    // `to_symbol_id` was write-only (populated by an unscoped `SELECT ...
+    // LIMIT 1`, never read by any query) and has been dropped — see issue
+    // #35. Opens the on-disk database `Index::open` writes to and reads its
+    // live schema directly with `rusqlite`, since `Index` itself exposes no
+    // schema-introspection API and none is needed for production code.
+    let dir = tempdir();
+    fs::write(dir.join("a.fake"), "fn main calls helper\n").unwrap();
+    fs::write(dir.join("b.fake"), "fn helper\n").unwrap();
+    let db_path = dir.join(".mct-index").join("index.sqlite3");
+
+    let mut index = Index::open(&dir, &db_path, ExcludeSet::default()).unwrap();
+    index.reindex(&registry(), false).unwrap();
+    drop(index); // release the connection so a second one can open the same file
+
+    let conn = rusqlite::Connection::open(&db_path).unwrap();
+    let mut stmt = conn.prepare("PRAGMA table_info(relations)").unwrap();
+    let columns: Vec<String> = stmt
+        .query_map([], |row| row.get::<_, String>(1))
+        .unwrap()
+        .collect::<rusqlite::Result<_>>()
+        .unwrap();
+    assert!(
+        !columns.contains(&"to_symbol_id".to_string()),
+        "to_symbol_id should have been dropped by migration: {columns:?}"
+    );
+    assert!(columns.contains(&"to_name".to_string()), "{columns:?}");
+    assert!(columns.contains(&"from_symbol_id".to_string()), "{columns:?}");
+}
+
+#[test]
+fn relations_resolve_correctly_by_name_even_with_a_duplicate_symbol_name() {
+    // Two files each define a symbol named `helper` — exactly the case
+    // `to_symbol_id`'s old unscoped `SELECT ... LIMIT 1` resolved
+    // arbitrarily (whichever row SQLite returned first, order-dependent).
+    // `find_calls`/`find_callers`/`find_references` never read that column,
+    // so both definitions must surface and the relation itself must not be
+    // silently dropped or deduplicated away.
+    let dir = tempdir();
+    fs::write(dir.join("a.fake"), "fn main calls helper\n").unwrap();
+    fs::write(dir.join("b.fake"), "fn helper\n").unwrap();
+    fs::write(dir.join("c.fake"), "fn helper\n").unwrap();
+
+    let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
+    index.reindex(&registry(), false).unwrap();
+
+    let defs = index.find_symbol("helper").unwrap();
+    assert_eq!(defs.len(), 2, "both definitions of the duplicate name: {defs:?}");
+
+    let calls = index.find_calls("main").unwrap();
+    assert_eq!(calls.len(), 1, "{calls:?}");
+    assert_eq!(calls[0].to_name, "helper");
+
+    let callers = index.find_callers("helper").unwrap();
+    assert_eq!(callers.len(), 1, "{callers:?}");
+    assert_eq!(callers[0].from_symbol, "main");
+}
+
 /// A fresh temp directory, canonicalized so it matches what `Index::open_in_memory`
 /// stores as `root` after its own canonicalization.
 fn tempdir() -> std::path::PathBuf {

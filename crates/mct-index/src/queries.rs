@@ -1,4 +1,6 @@
-use rusqlite::{params, Connection};
+use std::collections::HashMap;
+
+use rusqlite::Connection;
 
 use crate::Result;
 
@@ -50,17 +52,85 @@ pub struct RelationHit {
     pub depth: u32,
 }
 
+/// Optional narrowing applied to a lookup: `path` is matched exactly when it
+/// names a file and as a directory prefix otherwise (same semantics as
+/// `list_symbols`), `language` is an exact match on the file's language id.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct QueryScope<'a> {
+    pub path: Option<&'a str>,
+    pub language: Option<&'a str>,
+}
+
+impl QueryScope<'_> {
+    /// True when no narrowing at all is requested — the query then produces
+    /// byte-for-byte the SQL (and therefore the results) of the unscoped
+    /// method it backs.
+    pub fn is_empty(&self) -> bool {
+        self.path.is_none() && self.language.is_none()
+    }
+}
+
+/// A [`QueryScope`] whose `path` has already been resolved to
+/// exact-file-vs-directory-prefix by the caller, which is the only layer that
+/// knows the project root (see `Index::resolve_is_file`). Keeping the decision
+/// out of this module is what stops `.claude`-style dotted directories from
+/// being mistaken for files (see §B5 of `investigacion.md`).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ResolvedScope<'a> {
+    pub path: Option<&'a str>,
+    /// Only consulted when `path` is `Some`.
+    pub path_is_file: bool,
+    pub language: Option<&'a str>,
+}
+
+/// Boxed values bound to a statement's `?N` placeholders, in placeholder order.
+type BoundValues = Vec<Box<dyn rusqlite::ToSql>>;
+
+/// Appends the scope predicates to `sql` and their values to `bound`.
+///
+/// Only the static predicate fragments are concatenated into the SQL string;
+/// every user-supplied value stays bound through a `?N` placeholder, where `N`
+/// is derived from the number of already-bound values, never from input.
+fn push_scope(sql: &mut String, bound: &mut BoundValues, scope: ResolvedScope<'_>) {
+    if let Some(path) = scope.path {
+        if scope.path_is_file {
+            sql.push_str(&format!(" AND f.relative_path = ?{}", bound.len() + 1));
+            bound.push(Box::new(path.to_string()));
+        } else {
+            sql.push_str(&format!(" AND f.relative_path LIKE ?{}", bound.len() + 1));
+            bound.push(Box::new(format!("{path}/%")));
+        }
+    }
+    if let Some(language) = scope.language {
+        sql.push_str(&format!(" AND f.language = ?{}", bound.len() + 1));
+        bound.push(Box::new(language.to_string()));
+    }
+}
+
+/// Symbol definitions named `name`, narrowed to `scope`.
+///
 /// All symbol names are search parameters bound via placeholders (`?1`), never
 /// interpolated into SQL — see `mct-index` security notes in the project spec.
-pub fn find_symbol(conn: &Connection, name: &str) -> Result<Vec<SymbolHit>> {
-    let mut stmt = conn.prepare(
+/// With an empty scope the built SQL is identical to the pre-scope query, so
+/// the unscoped lookup is unchanged, hit for hit.
+pub fn find_symbol_scoped(
+    conn: &Connection,
+    name: &str,
+    scope: ResolvedScope<'_>,
+) -> Result<Vec<SymbolHit>> {
+    let mut sql = String::from(
         "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line
          FROM symbols s JOIN files f ON f.id = s.file_id
-         WHERE s.name = ?1
-         ORDER BY f.relative_path, s.line",
-    )?;
+         WHERE s.name = ?1",
+    );
+    let mut bound: BoundValues = vec![Box::new(name.to_string())];
+    push_scope(&mut sql, &mut bound, scope);
+    sql.push_str(" ORDER BY f.relative_path, s.line");
+
+    let mut stmt = conn.prepare_cached(&sql)?;
+    let params: Vec<&dyn rusqlite::ToSql> = bound.iter().map(|b| b.as_ref()).collect();
     let rows = stmt
-        .query_map(params![name], |row| {
+        .query_map(params.as_slice(), |row| {
             Ok(SymbolHit {
                 name: row.get(0)?,
                 kind: row.get(1)?,
@@ -116,13 +186,24 @@ pub fn find_symbol_matching(
     name: &str,
     mode: SymbolMatchMode,
 ) -> Result<Vec<SymbolHit>> {
+    find_symbol_matching_scoped(conn, name, mode, ResolvedScope::default())
+}
+
+/// [`find_symbol_matching`], additionally narrowed to `scope` — see
+/// [`find_symbol_scoped`]. With an empty scope, identical hit for hit.
+pub fn find_symbol_matching_scoped(
+    conn: &Connection,
+    name: &str,
+    mode: SymbolMatchMode,
+    scope: ResolvedScope<'_>,
+) -> Result<Vec<SymbolHit>> {
     match mode {
-        SymbolMatchMode::Exact => find_symbol(conn, name),
+        SymbolMatchMode::Exact => find_symbol_scoped(conn, name, scope),
         SymbolMatchMode::Prefix => {
             let fts_query = format!("{}*", quote_fts_phrase(name));
-            find_symbol_fts(conn, &fts_query)
+            find_symbol_fts(conn, &fts_query, scope)
         }
-        SymbolMatchMode::Fuzzy => find_symbol_like(conn, name),
+        SymbolMatchMode::Fuzzy => find_symbol_like(conn, name, scope),
     }
 }
 
@@ -136,17 +217,26 @@ fn quote_fts_phrase(term: &str) -> String {
     format!("\"{}\"", term.replace('"', "\"\""))
 }
 
-fn find_symbol_fts(conn: &Connection, fts_query: &str) -> Result<Vec<SymbolHit>> {
-    let mut stmt = conn.prepare_cached(
+fn find_symbol_fts(
+    conn: &Connection,
+    fts_query: &str,
+    scope: ResolvedScope<'_>,
+) -> Result<Vec<SymbolHit>> {
+    let mut sql = String::from(
         "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line
          FROM symbols_fts
          JOIN symbols s ON s.id = symbols_fts.rowid
          JOIN files f ON f.id = s.file_id
-         WHERE symbols_fts MATCH ?1
-         ORDER BY f.relative_path, s.line",
-    )?;
+         WHERE symbols_fts MATCH ?1",
+    );
+    let mut bound: BoundValues = vec![Box::new(fts_query.to_string())];
+    push_scope(&mut sql, &mut bound, scope);
+    sql.push_str(" ORDER BY f.relative_path, s.line");
+
+    let mut stmt = conn.prepare_cached(&sql)?;
+    let params: Vec<&dyn rusqlite::ToSql> = bound.iter().map(|b| b.as_ref()).collect();
     let rows = stmt
-        .query_map(params![fts_query], |row| {
+        .query_map(params.as_slice(), |row| {
             Ok(SymbolHit {
                 name: row.get(0)?,
                 kind: row.get(1)?,
@@ -166,17 +256,26 @@ fn find_symbol_fts(conn: &Connection, fts_query: &str) -> Result<Vec<SymbolHit>>
 /// [`SymbolMatchMode::Fuzzy`] for why this bypasses `symbols_fts`. `term`'s
 /// own `%`/`_`/`\` are escaped before being wrapped in `%...%`, so a name
 /// containing a literal percent or underscore can't widen the match.
-fn find_symbol_like(conn: &Connection, term: &str) -> Result<Vec<SymbolHit>> {
+fn find_symbol_like(
+    conn: &Connection,
+    term: &str,
+    scope: ResolvedScope<'_>,
+) -> Result<Vec<SymbolHit>> {
     let escaped = term.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
     let pattern = format!("%{escaped}%");
-    let mut stmt = conn.prepare_cached(
+    let mut sql = String::from(
         "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line
          FROM symbols s JOIN files f ON f.id = s.file_id
-         WHERE s.name LIKE ?1 ESCAPE '\\'
-         ORDER BY f.relative_path, s.line",
-    )?;
+         WHERE s.name LIKE ?1 ESCAPE '\\'",
+    );
+    let mut bound: BoundValues = vec![Box::new(pattern)];
+    push_scope(&mut sql, &mut bound, scope);
+    sql.push_str(" ORDER BY f.relative_path, s.line");
+
+    let mut stmt = conn.prepare_cached(&sql)?;
+    let params: Vec<&dyn rusqlite::ToSql> = bound.iter().map(|b| b.as_ref()).collect();
     let rows = stmt
-        .query_map(params![pattern], |row| {
+        .query_map(params.as_slice(), |row| {
             Ok(SymbolHit {
                 name: row.get(0)?,
                 kind: row.get(1)?,
@@ -197,18 +296,18 @@ fn find_symbol_like(conn: &Connection, term: &str) -> Result<Vec<SymbolHit>> {
 /// `find_calls`/`find_callers`/`impact_analysis` in the explore -> locate ->
 /// navigate -> read pipeline.
 ///
-/// `path` is matched as an exact file when its last segment contains a `.`
-/// (e.g. `src/lib.rs`), or as a directory/crate prefix otherwise (e.g. `src`
-/// matches every file under `src/`). `kind` and `language` narrow the result
-/// with an exact match, combined with AND when both are given.
+/// `path` is matched as an exact file when `is_file`, or as a directory/crate
+/// prefix otherwise (e.g. `src` matches every file under `src/`). The caller
+/// decides which, because only it knows the project root — see
+/// `Index::resolve_is_file`. `kind` and `language` narrow the result with an
+/// exact match, combined with AND when both are given.
 pub fn list_symbols(
     conn: &Connection,
     path: &str,
+    is_file: bool,
     kind: Option<&str>,
     language: Option<&str>,
 ) -> Result<Vec<SymbolListEntry>> {
-    let is_file = path.rsplit('/').next().unwrap_or(path).contains('.');
-
     let mut sql = String::from(
         "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.end_line, s.parent
          FROM symbols s JOIN files f ON f.id = s.file_id
@@ -220,7 +319,7 @@ pub fn list_symbols(
         "f.relative_path LIKE ?1"
     });
 
-    let mut bound: Vec<Box<dyn rusqlite::ToSql>> = vec![Box::new(if is_file {
+    let mut bound: BoundValues = vec![Box::new(if is_file {
         path.to_string()
     } else {
         format!("{path}/%")
@@ -235,7 +334,7 @@ pub fn list_symbols(
     }
     sql.push_str(" ORDER BY f.relative_path, s.line");
 
-    let mut stmt = conn.prepare(&sql)?;
+    let mut stmt = conn.prepare_cached(&sql)?;
     let params: Vec<&dyn rusqlite::ToSql> = bound.iter().map(|b| b.as_ref()).collect();
     let rows = stmt
         .query_map(params.as_slice(), |row| {
@@ -253,49 +352,86 @@ pub fn list_symbols(
     Ok(rows)
 }
 
-pub fn find_references(conn: &Connection, symbol: &str) -> Result<Vec<RelationHit>> {
-    query_relations(
-        conn,
-        "SELECT r.kind, caller.name, r.to_name, f.language, f.relative_path, r.line, r.column
+/// The three relation queries differ only in their WHERE predicate; the
+/// SELECT/JOIN prefix and the ORDER BY are shared, with any scope predicates
+/// spliced in between.
+const RELATION_SELECT: &str =
+    "SELECT r.kind, caller.name, r.to_name, f.language, f.relative_path, r.line, r.column
          FROM relations r
          JOIN symbols caller ON caller.id = r.from_symbol_id
          JOIN files f ON f.id = caller.file_id
-         WHERE r.to_name = ?1
-         ORDER BY f.relative_path, r.line",
-        symbol,
-    )
+         WHERE ";
+
+/// Every relation kind pointing at `symbol`, narrowed to `scope`.
+/// `ResolvedScope::default()` is the unscoped query, row for row.
+pub fn find_references_scoped(
+    conn: &Connection,
+    symbol: &str,
+    scope: ResolvedScope<'_>,
+) -> Result<Vec<RelationHit>> {
+    query_relations(conn, "r.to_name = ?1", symbol, scope)
 }
 
-pub fn find_calls(conn: &Connection, function: &str) -> Result<Vec<RelationHit>> {
+pub fn find_calls_scoped(
+    conn: &Connection,
+    function: &str,
+    scope: ResolvedScope<'_>,
+) -> Result<Vec<RelationHit>> {
     query_relations(
         conn,
-        "SELECT r.kind, caller.name, r.to_name, f.language, f.relative_path, r.line, r.column
-         FROM relations r
-         JOIN symbols caller ON caller.id = r.from_symbol_id
-         JOIN files f ON f.id = caller.file_id
-         WHERE caller.name = ?1 AND r.kind = 'calls'
-         ORDER BY f.relative_path, r.line",
+        "caller.name = ?1 AND r.kind = 'calls'",
         function,
+        scope,
     )
 }
 
-pub fn find_callers(conn: &Connection, function: &str) -> Result<Vec<RelationHit>> {
-    query_relations(
-        conn,
-        "SELECT r.kind, caller.name, r.to_name, f.language, f.relative_path, r.line, r.column
-         FROM relations r
-         JOIN symbols caller ON caller.id = r.from_symbol_id
-         JOIN files f ON f.id = caller.file_id
-         WHERE r.to_name = ?1 AND r.kind = 'calls'
-         ORDER BY f.relative_path, r.line",
-        function,
-    )
+pub fn find_callers_scoped(
+    conn: &Connection,
+    function: &str,
+    scope: ResolvedScope<'_>,
+) -> Result<Vec<RelationHit>> {
+    query_relations(conn, "r.to_name = ?1 AND r.kind = 'calls'", function, scope)
 }
 
-fn query_relations(conn: &Connection, sql: &str, param: &str) -> Result<Vec<RelationHit>> {
-    let mut stmt = conn.prepare(sql)?;
+/// Direct-caller counts for every called name, in one query — the whole
+/// fan-in ranking `get_project_overview` needs, instead of one
+/// `find_callers` per candidate symbol.
+pub fn fan_in_counts(conn: &Connection) -> Result<HashMap<String, usize>> {
+    let mut stmt = conn.prepare_cached(
+        "SELECT to_name, COUNT(*) FROM relations WHERE kind = 'calls' GROUP BY to_name",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        let name: String = row.get(0)?;
+        let count: i64 = row.get(1)?;
+        Ok((name, count.max(0) as usize))
+    })?;
+    let mut counts = HashMap::new();
+    for row in rows {
+        let (name, count) = row?;
+        counts.insert(name, count);
+    }
+    Ok(counts)
+}
+
+/// `predicate` is a static SQL fragment chosen by the caller (never built from
+/// input) whose `?1` placeholder binds `param`; scope values bind to `?2`
+/// onwards.
+fn query_relations(
+    conn: &Connection,
+    predicate: &str,
+    param: &str,
+    scope: ResolvedScope<'_>,
+) -> Result<Vec<RelationHit>> {
+    let mut sql = String::from(RELATION_SELECT);
+    sql.push_str(predicate);
+    let mut bound: BoundValues = vec![Box::new(param.to_string())];
+    push_scope(&mut sql, &mut bound, scope);
+    sql.push_str("\n         ORDER BY f.relative_path, r.line");
+
+    let mut stmt = conn.prepare_cached(&sql)?;
+    let params: Vec<&dyn rusqlite::ToSql> = bound.iter().map(|b| b.as_ref()).collect();
     let rows = stmt
-        .query_map(params![param], |row| {
+        .query_map(params.as_slice(), |row| {
             Ok(RelationHit {
                 kind: row.get(0)?,
                 from_symbol: row.get(1)?,
