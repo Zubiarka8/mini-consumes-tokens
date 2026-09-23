@@ -7,6 +7,8 @@ use std::collections::BTreeSet;
 
 use mct_index::{IndexStatus, ReindexReport, RelationHit, SymbolHit, SymbolListEntry};
 
+use crate::toon::encode_table;
+
 /// Maximum bytes any single tool response will render before truncating.
 /// `limit` counts rows; this counts the context the caller actually pays
 /// for, which is the thing this server exists to protect.
@@ -137,6 +139,40 @@ pub fn symbol_hits(name: &str, hits: &[SymbolHit], limit: usize) -> String {
     )
 }
 
+/// TOON rendering of [`symbol_hits`]: same `limit` semantics (row-count
+/// pagination only — see the module doc on why the byte budget isn't
+/// re-applied here), one row per definition instead of one labelled line.
+pub fn symbol_hits_toon(name: &str, hits: &[SymbolHit], limit: usize) -> String {
+    if hits.is_empty() {
+        return format!("No symbol named `{name}` found in the index.");
+    }
+    let total = hits.len();
+    let shown = paginate(hits, 0, limit);
+    let rows: Vec<Vec<String>> = shown
+        .iter()
+        .map(|hit| {
+            vec![
+                hit.relative_path.clone(),
+                hit.line.to_string(),
+                hit.column.to_string(),
+                hit.language.clone(),
+                hit.kind.clone(),
+                hit.name.clone(),
+                hit.parent.clone().unwrap_or_default(),
+            ]
+        })
+        .collect();
+    format!(
+        "{total} definition(s) of `{name}`{}:\n{}",
+        truncation_note(total, 0, shown.len()),
+        encode_table(
+            "symbols",
+            &["path", "line", "column", "language", "kind", "name", "parent"],
+            &rows,
+        )
+    )
+}
+
 /// Kind strings in the order they're grouped/displayed by [`list_symbols`],
 /// paired with the plural heading printed above each non-empty group —
 /// mirrors the declaration order of `mct_core::SymbolKind` so output is
@@ -216,6 +252,40 @@ pub fn list_symbols(path: &str, is_file: bool, hits: &[SymbolListEntry], limit: 
         "{total} symbol(s) under `{path}`{}:\n{}",
         list_note(total, 0, shown.len(), &body),
         body.body
+    )
+}
+
+/// TOON rendering of [`list_symbols`]: a flat table (no per-kind grouping —
+/// `kind` is just another column) instead of headed groups, since TOON's
+/// whole point is one header row instead of repeated structure per group.
+pub fn list_symbols_toon(path: &str, is_file: bool, hits: &[SymbolListEntry], limit: usize) -> String {
+    if hits.is_empty() {
+        return format!("No symbols found under `{path}`.");
+    }
+    let total = hits.len();
+    let shown = paginate(hits, 0, limit);
+    let rows: Vec<Vec<String>> = shown
+        .iter()
+        .map(|hit| {
+            let mut row = vec![hit.kind.clone(), hit.name.clone()];
+            if !is_file {
+                row.push(hit.relative_path.clone());
+            }
+            row.push(hit.line.to_string());
+            row.push(hit.end_line.map(|e| e.to_string()).unwrap_or_default());
+            row
+        })
+        .collect();
+    let mut headers = vec!["kind", "name"];
+    if !is_file {
+        headers.push("path");
+    }
+    headers.push("line");
+    headers.push("end_line");
+    format!(
+        "{total} symbol(s) under `{path}`{}:\n{}",
+        truncation_note(total, 0, shown.len()),
+        encode_table("symbols", &headers, &rows)
     )
 }
 
@@ -368,6 +438,48 @@ pub fn relation_hits(
     )
 }
 
+/// TOON rendering of [`relation_hits`] — backs `find_references`,
+/// `find_calls` and `find_callers` alike, same as the text version. `depth`
+/// is always a column here (unlike the text version's `depth_tag`, which
+/// omits it for depth-1 hits) since a table column can't be conditionally
+/// absent per row.
+pub fn relation_hits_toon(
+    subject: &str,
+    verb_label: &str,
+    hits: &[RelationHit],
+    offset: usize,
+    limit: usize,
+) -> String {
+    if hits.is_empty() {
+        return format!("No {verb_label} found for `{subject}`.");
+    }
+    let total = hits.len();
+    let shown = paginate(hits, offset, limit);
+    let rows: Vec<Vec<String>> = shown.iter().map(relation_hit_row).collect();
+    format!(
+        "{total} {verb_label}{}:\n{}",
+        truncation_note(total, offset, shown.len()),
+        encode_table(
+            "relations",
+            &["path", "line", "column", "language", "from", "kind", "to", "depth"],
+            &rows,
+        )
+    )
+}
+
+fn relation_hit_row(hit: &RelationHit) -> Vec<String> {
+    vec![
+        hit.relative_path.clone(),
+        hit.line.to_string(),
+        hit.column.to_string(),
+        hit.language.clone(),
+        hit.from_symbol.clone(),
+        hit.kind.clone(),
+        hit.to_name.clone(),
+        hit.depth.to_string(),
+    ]
+}
+
 pub fn impact_analysis(
     symbol: &str,
     callers: &[RelationHit],
@@ -474,6 +586,66 @@ pub fn impact_analysis(
     out
 }
 
+/// TOON rendering of [`impact_analysis`]: the same three sections, each its
+/// own TOON table, under the same summary header line the text version
+/// opens with (kept as plain text — it's three scalar counts, not a table).
+pub fn impact_analysis_toon(
+    symbol: &str,
+    callers: &[RelationHit],
+    references: &[RelationHit],
+    affected_tests: &[&RelationHit],
+    offset: usize,
+    limit: usize,
+) -> String {
+    let mut out = format!("Impact analysis for `{symbol}`:\n");
+    out.push_str(&format!("  {} direct caller(s)\n", callers.len()));
+    out.push_str(&format!(
+        "  {} reference(s) total (calls/imports/extends/implements/plain)\n",
+        references.len()
+    ));
+    out.push_str(&format!(
+        "  {} likely affected test(s)\n",
+        affected_tests.len()
+    ));
+
+    let headers = ["path", "line", "column", "language", "from", "kind", "to", "depth"];
+
+    if !affected_tests.is_empty() {
+        let shown = paginate(affected_tests, offset, limit);
+        let rows: Vec<Vec<String>> = shown.iter().map(|hit| relation_hit_row(hit)).collect();
+        out.push_str(&format!(
+            "\nLikely affected tests{}:\n{}",
+            truncation_note(affected_tests.len(), offset, shown.len()),
+            encode_table("tests", &headers, &rows)
+        ));
+    }
+
+    if !callers.is_empty() {
+        let shown = paginate(callers, offset, limit);
+        let rows: Vec<Vec<String>> = shown.iter().map(relation_hit_row).collect();
+        out.push_str(&format!(
+            "\nDirect callers{}:\n{}",
+            truncation_note(callers.len(), offset, shown.len()),
+            encode_table("callers", &headers, &rows)
+        ));
+    }
+
+    if !references.is_empty() {
+        let shown = paginate(references, offset, limit);
+        let rows: Vec<Vec<String>> = shown.iter().map(relation_hit_row).collect();
+        out.push_str(&format!(
+            "\nAll references{}:\n{}",
+            truncation_note(references.len(), offset, shown.len()),
+            encode_table("references", &headers, &rows)
+        ));
+    }
+
+    if callers.is_empty() && references.is_empty() {
+        out.push_str("\nNothing else in the index references this symbol.\n");
+    }
+    out
+}
+
 /// Directory names that mean "everything below here is a test", across the
 /// supported languages' conventions.
 const TEST_DIRECTORY_SEGMENTS: &[&str] = &["tests", "test", "__tests__"];
@@ -564,6 +736,37 @@ pub fn find_dead_code(path: &str, hits: &[SymbolListEntry], offset: usize, limit
          in-repo caller yet; verify before deleting)\n\n{}",
         list_note(total, offset, shown.len(), &body),
         body.body
+    )
+}
+
+/// TOON rendering of [`find_dead_code`]. Carries the same caveat text as the
+/// header (not a table column — it's one caveat for the whole result, not
+/// per-row data).
+pub fn find_dead_code_toon(path: &str, hits: &[SymbolListEntry], offset: usize, limit: usize) -> String {
+    if hits.is_empty() {
+        return format!("No dead-code candidates found under `{path}`.");
+    }
+    let total = hits.len();
+    let shown = paginate(hits, offset, limit);
+    let rows: Vec<Vec<String>> = shown
+        .iter()
+        .map(|hit| {
+            vec![
+                hit.kind.clone(),
+                hit.name.clone(),
+                hit.relative_path.clone(),
+                hit.line.to_string(),
+                hit.end_line.map(|e| e.to_string()).unwrap_or_default(),
+            ]
+        })
+        .collect();
+    format!(
+        "{total} dead-code candidate(s) under `{path}`{}:\n\
+         (heuristic: zero indexed references found for this name anywhere in the project — \
+         does not account for dynamic dispatch, reflection, or a genuinely public API with no \
+         in-repo caller yet; verify before deleting)\n\n{}",
+        truncation_note(total, offset, shown.len()),
+        encode_table("candidates", &["kind", "name", "path", "line", "end_line"], &rows)
     )
 }
 
