@@ -413,6 +413,29 @@ pub fn fan_in_counts(conn: &Connection) -> Result<HashMap<String, usize>> {
     Ok(counts)
 }
 
+/// Total reference counts for every referenced name, across *every* relation
+/// kind (calls/imports/extends/implements/plain references) — the whole-
+/// project fan-in `find_dead_code` needs to tell "zero references anywhere"
+/// from "referenced", in one query instead of one `find_references` per
+/// candidate symbol. Unlike [`fan_in_counts`] (which is `calls`-only, for
+/// `get_project_overview`'s ranking), this counts every relation kind since a
+/// symbol referenced only via an import or a trait `impl` is not dead code.
+pub fn reference_counts(conn: &Connection) -> Result<HashMap<String, usize>> {
+    let mut stmt =
+        conn.prepare_cached("SELECT to_name, COUNT(*) FROM relations GROUP BY to_name")?;
+    let rows = stmt.query_map([], |row| {
+        let name: String = row.get(0)?;
+        let count: i64 = row.get(1)?;
+        Ok((name, count.max(0) as usize))
+    })?;
+    let mut counts = HashMap::new();
+    for row in rows {
+        let (name, count) = row?;
+        counts.insert(name, count);
+    }
+    Ok(counts)
+}
+
 /// `predicate` is a static SQL fragment chosen by the caller (never built from
 /// input) whose `?1` placeholder binds `param`; scope values bind to `?2`
 /// onwards.
