@@ -184,6 +184,12 @@ pub const KNOWN_TOOL_NAMES: &[&str] = &[
 
 #[cfg(test)]
 mod tests {
+    // Test code: an unwrap()/expect() here means a broken test precondition,
+    // and panicking is the correct behavior — this is not production code
+    // parsing untrusted repo content (see the module doc comment above for
+    // that policy).
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
     use super::*;
 
     #[test]
