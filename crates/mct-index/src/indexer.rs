@@ -8,7 +8,7 @@ use rusqlite::{params, OptionalExtension};
 use walkdir::WalkDir;
 
 use crate::manifests;
-use crate::{Index, Result};
+use crate::{ExcludeSet, Index, Result};
 
 /// Extensions of languages this project targets eventually but has no
 /// `LanguageParser` for yet, purely so `get_indexing_status` can name a
@@ -85,14 +85,24 @@ pub fn reindex(index: &mut Index, registry: &LanguageRegistry, force: bool) -> R
     let mut seen_paths = Vec::new();
     let mut seen_manifest_paths = Vec::new();
 
-    for entry in WalkDir::new(&root).into_iter().filter_map(|e| e.ok()) {
+    // Cloned out of `index` so the `filter_entry` closure below doesn't hold a
+    // borrow of it across the loop body, which needs `&mut Index` to write.
+    let exclude = index.exclude.clone();
+
+    for entry in WalkDir::new(&root)
+        .into_iter()
+        .filter_entry(|entry| walk_entry_allowed(&root, entry, &exclude))
+        .filter_map(|e| e.ok())
+    {
         if entry.file_type().is_dir() {
             continue;
         }
         let path = entry.path();
 
         // Reject any entry (symlink or not) that resolves outside the project
-        // root — never index or follow a symlink that escapes it.
+        // root — never index or follow a symlink that escapes it. Runs only on
+        // entries that already survived the exclusion filter above, so the
+        // syscall is never paid for `target/`, `.git/` and friends.
         let canonical = match path.canonicalize() {
             Ok(c) => c,
             Err(_) => continue, // broken symlink or race with a deleted file
@@ -105,7 +115,10 @@ pub fn reindex(index: &mut Index, registry: &LanguageRegistry, force: bool) -> R
             Some(p) => p,
             None => continue,
         };
-        if index.exclude.is_excluded(&relative_path) {
+        // Second exclusion check, on the *canonical* path: `walk_entry_allowed`
+        // judged the path as written, which differs for a symlink pointing
+        // into an excluded directory.
+        if exclude.is_excluded(&relative_path) {
             continue;
         }
 
@@ -537,6 +550,34 @@ fn relation_kind_str(kind: mct_core::RelationKind) -> &'static str {
         Extends => "extends",
         Implements => "implements",
         References => "references",
+    }
+}
+
+/// Exclusion filter for the walk itself. Unlike the per-file check in
+/// [`reindex`] this also runs on directories, which is what lets
+/// `WalkDir::filter_entry` prune an excluded directory instead of descending
+/// into it — in a Rust checkout `target/` and `.git/` alone are tens of
+/// thousands of entries that would otherwise be visited (and canonicalized)
+/// on every reindex only to be discarded one by one.
+///
+/// The relative path is derived by stripping the walk root, never by
+/// canonicalizing: a `canonicalize()` here would reintroduce the very syscall
+/// the pruning exists to avoid. Entries that survive this filter still go
+/// through the canonical-path escape check in [`reindex`], which is what
+/// actually guards against symlinks resolving outside the root.
+fn walk_entry_allowed(root: &Path, entry: &walkdir::DirEntry, exclude: &ExcludeSet) -> bool {
+    // Depth 0 is the walk root itself. Filtering it out would abort the walk
+    // before it starts — e.g. for a project checked out into a directory
+    // that happens to be named `target`.
+    if entry.depth() == 0 {
+        return true;
+    }
+    match to_relative_slash_path(root, entry.path()) {
+        Some(relative_path) => !exclude.is_excluded(&relative_path),
+        // Not expressible as a relative slash path (a non-UTF-8 component, or
+        // an entry somehow outside the walk root): don't prune on a guess —
+        // the canonical check in `reindex` decides.
+        None => true,
     }
 }
 

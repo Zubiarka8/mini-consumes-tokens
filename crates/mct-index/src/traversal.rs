@@ -9,7 +9,8 @@ use std::collections::HashSet;
 
 use mct_core::MAX_QUERY_DEPTH;
 
-use crate::{queries::RelationHit, Index, Result};
+use crate::queries::{self, RelationHit, ResolvedScope};
+use crate::{Index, Result};
 
 /// Walks the relation graph breadth-first starting from `start`, using
 /// `fetch` as the per-node single-hop lookup and `next_node` to pick, from
@@ -60,13 +61,16 @@ pub(crate) fn find_calls_bfs(
     function: &str,
     depth: u32,
     budget: usize,
+    scope: ResolvedScope<'_>,
 ) -> Result<Vec<RelationHit>> {
     bfs(
         index,
         function,
         depth,
         budget,
-        |idx, name| idx.find_calls(name),
+        // `scope` is `Copy`, so the same narrowing is re-applied by the
+        // per-node lookup at every level of the walk, not just the first.
+        |idx, name| queries::find_calls_scoped(&idx.conn, name, scope),
         |hit| hit.to_name.as_str(),
     )
 }
@@ -76,13 +80,14 @@ pub(crate) fn find_callers_bfs(
     function: &str,
     depth: u32,
     budget: usize,
+    scope: ResolvedScope<'_>,
 ) -> Result<Vec<RelationHit>> {
     bfs(
         index,
         function,
         depth,
         budget,
-        |idx, name| idx.find_callers(name),
+        |idx, name| queries::find_callers_scoped(&idx.conn, name, scope),
         |hit| hit.from_symbol.as_str(),
     )
 }
@@ -92,13 +97,14 @@ pub(crate) fn find_references_bfs(
     symbol: &str,
     depth: u32,
     budget: usize,
+    scope: ResolvedScope<'_>,
 ) -> Result<Vec<RelationHit>> {
     bfs(
         index,
         symbol,
         depth,
         budget,
-        |idx, name| idx.find_references(name),
+        |idx, name| queries::find_references_scoped(&idx.conn, name, scope),
         |hit| hit.from_symbol.as_str(),
     )
 }
