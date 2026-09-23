@@ -330,25 +330,13 @@ fn write_parsed_file(
         let Some(&from_row_id) = id_map.get(&relation.from) else {
             continue; // parser bug guard: relation referencing an unknown local symbol id
         };
-        // Best-effort resolution to another symbol by name, anywhere in the
-        // index (same file or not); left NULL when not found yet — later
-        // reindexing of the defining file will not retroactively backfill
-        // this row, so `find_references`/`find_calls` also match by name.
-        let to_symbol_id: Option<i64> = tx
-            .query_row(
-                "SELECT id FROM symbols WHERE name = ?1 LIMIT 1",
-                params![relation.to_name],
-                |row| row.get(0),
-            )
-            .optional()?;
         tx.execute(
-            "INSERT INTO relations (from_symbol_id, kind, to_name, to_symbol_id, line, column, byte_len)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT INTO relations (from_symbol_id, kind, to_name, line, column, byte_len)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
                 from_row_id,
                 relation_kind_str(relation.kind),
                 relation.to_name,
-                to_symbol_id,
                 relation.location.line,
                 relation.location.column,
                 relation.location.byte_len,
