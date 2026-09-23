@@ -240,6 +240,46 @@ pub struct GetIndexingStatusArgs {
     pub verbose_dependencies: bool,
 }
 
+/// Symbol kinds `find_dead_code` considers as candidates. Deliberately
+/// narrower than `OVERVIEW_KIND_ALLOWLIST`: `method` is excluded because
+/// trait/interface implementations are routinely called only through dynamic
+/// dispatch, never by name — including it would make every implemented
+/// interface method a false positive. `module` is excluded because a file's
+/// own synthetic module entry is never itself "referenced".
+const DEAD_CODE_KIND_ALLOWLIST: &[&str] = &[
+    "function",
+    "class",
+    "struct",
+    "interface",
+    "enum",
+    "trait",
+    "type_alias",
+];
+
+/// Symbol names `find_dead_code` never flags, regardless of reference count —
+/// language entry points invoked by the runtime/toolchain itself, never by an
+/// in-repo caller.
+const DEAD_CODE_ENTRY_POINT_NAMES: &[&str] = &["main"];
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct FindDeadCodeArgs {
+    /// File, directory, or crate prefix — same matching semantics as
+    /// list_symbols. Omit for the whole project root.
+    #[serde(default)]
+    pub path: Option<String>,
+    /// Exact language id to keep. Same semantics as list_symbols.
+    #[serde(default)]
+    pub language: Option<String>,
+    /// Maximum number of candidates to return. Defaults to 50 when omitted;
+    /// raise it if you expect more hits and want them all in one call.
+    #[serde(default)]
+    pub limit: Option<usize>,
+    /// Number of leading results to skip before applying `limit`, for
+    /// paging through result sets larger than one `limit` page. Defaults to 0.
+    #[serde(default)]
+    pub offset: Option<usize>,
+}
+
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct GetFileSkeletonArgs {
     /// A single file's path (e.g. `crates/mct-lang-html/src/lib.rs`),
@@ -752,6 +792,49 @@ impl MctServer {
             ),
         )]))
     }
+
+    #[tool(
+        description = "Finds top-level functions/classes/structs/enums/traits/interfaces/type-aliases with zero indexed references anywhere in the project — candidates for dead code. HEURISTIC, not a certainty: it reflects the symbol graph this project indexes (calls/imports/extends/implements/plain references by name), not true visibility or dynamic dispatch — a genuinely public API with no in-repo caller yet, or a symbol invoked via reflection/dynamic dispatch/an external consumer, will also show up with zero references. `method`-kind symbols are excluded by default (trait/interface implementations are routinely called only through dispatch, never by name) as are test-file/test-name matches and language entry points (`main`). Always sanity-check a hit — e.g. with find_references or impact_analysis — before deleting anything it reports. Do NOT use this for a precise \"does X have any references\" check on one already-known symbol — that's cheaper and more precise via find_references or impact_analysis."
+    )]
+    pub async fn find_dead_code(
+        &self,
+        Parameters(FindDeadCodeArgs {
+            path,
+            language,
+            limit,
+            offset,
+        }): Parameters<FindDeadCodeArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let path = path.as_deref().map(str::trim).filter(|p| !p.is_empty());
+        let language = language.as_deref().map(str::trim).filter(|l| !l.is_empty());
+        let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
+        let offset = offset.unwrap_or(0);
+
+        let index = self.index.lock().await;
+        let all_entries = list_symbols_for_overview(&index, path, language)?;
+        let reference_counts = index.reference_counts().map_err(index_error)?;
+
+        // Deliberately not filtered on `parent.is_none()` the way
+        // `get_project_overview`'s digest is: a `LanguageParser` uses `parent`
+        // for more than "nested inside another declaration" — e.g.
+        // `mct-lang-go` sets every top-level function's `parent` to its
+        // enclosing package name, not `None`. Filtering on it here would
+        // silently exclude every Go (and similarly-modeled) top-level
+        // function from consideration. `DEAD_CODE_KIND_ALLOWLIST` already
+        // excludes `method`/`module`/`field`, which is the distinction that
+        // actually matters for this tool.
+        let candidates: Vec<mct_index::SymbolListEntry> = all_entries
+            .into_iter()
+            .filter(|e| DEAD_CODE_KIND_ALLOWLIST.contains(&e.kind.as_str()))
+            .filter(|e| !DEAD_CODE_ENTRY_POINT_NAMES.contains(&e.name.as_str()))
+            .filter(|e| !format::looks_like_test_name(&e.name, &e.relative_path))
+            .filter(|e| !reference_counts.contains_key(e.name.as_str()))
+            .collect();
+
+        Ok(CallToolResult::success(vec![ContentBlock::text(
+            format::find_dead_code(path.unwrap_or("."), &candidates, offset, limit),
+        )]))
+    }
 }
 
 #[tool_handler]
@@ -780,7 +863,10 @@ impl ServerHandler for MctServer {
              reading a whole file when you only need its shape. get_project_overview is the \
              cheapest way to get oriented in an unfamiliar file/directory/crate/project: a \
              capped, ranked hierarchical digest in one call, in place of chaining list_symbols + \
-             get_file_skeleton + find_calls by hand. reindex and get_indexing_status \
+             get_file_skeleton + find_calls by hand. find_dead_code reports top-level symbols \
+             with zero indexed references anywhere in the project — a heuristic starting point \
+             for cleanup, not a certainty; sanity-check a hit with find_references or \
+             impact_analysis before deleting anything. reindex and get_indexing_status \
              are index maintenance, not search — they never return symbol data. The index \
              refreshes automatically at startup and silently in the background as changes settle \
              on disk; call reindex manually only if you need an immediate refresh right now, or \
