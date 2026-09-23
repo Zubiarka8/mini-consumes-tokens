@@ -134,6 +134,7 @@ async fn find_symbol_returns_every_language_holding_that_name() {
         &server
             .find_symbol(Parameters(FindSymbolArgs {
                 name: "deploy".to_string(),
+                match_mode: None,
                 limit: None,
             }))
             .await
@@ -151,6 +152,7 @@ async fn find_symbol_on_an_unknown_name_says_so_rather_than_erroring() {
         &server
             .find_symbol(Parameters(FindSymbolArgs {
                 name: "no_such_symbol_anywhere".to_string(),
+                match_mode: None,
                 limit: None,
             }))
             .await
