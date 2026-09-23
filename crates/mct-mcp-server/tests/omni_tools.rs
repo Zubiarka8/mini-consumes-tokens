@@ -18,7 +18,8 @@ use std::path::{Path, PathBuf};
 use mct_index::{ExcludeSet, Index};
 use mct_mcp_server::server::{
     FindCallersArgs, FindCallsArgs, FindReferencesArgs, FindSymbolArgs, GetFileSkeletonArgs,
-    GetProjectOverviewArgs, ImpactAnalysisArgs, ListSymbolsArgs, MctServer, ReindexArgs,
+    GetIndexingStatusArgs, GetProjectOverviewArgs, ImpactAnalysisArgs, ListSymbolsArgs, MctServer,
+    ReindexArgs,
 };
 use rmcp::handler::server::wrapper::Parameters;
 
@@ -77,8 +78,16 @@ async fn list_symbols_exact_file_path_form_works_for_every_language_family() {
         ("config/app.xml", "billing"),
         ("docs/architecture.md", "Ledger flow"),
     ] {
-        let text = content_of(&server.list_symbols(Parameters(list_args(path, None, None))).await.unwrap());
-        assert!(text.contains(expected), "`{path}` did not surface `{expected}`: {text}");
+        let text = content_of(
+            &server
+                .list_symbols(Parameters(list_args(path, None, None)))
+                .await
+                .unwrap(),
+        );
+        assert!(
+            text.contains(expected),
+            "`{path}` did not surface `{expected}`: {text}"
+        );
         assert!(text.contains(&format!("under `{path}`")), "got: {text}");
     }
 }
@@ -86,7 +95,12 @@ async fn list_symbols_exact_file_path_form_works_for_every_language_family() {
 #[tokio::test]
 async fn list_symbols_directory_prefix_form_spans_two_languages_in_one_directory() {
     let server = build_server().await;
-    let text = content_of(&server.list_symbols(Parameters(list_args("jvm", None, None))).await.unwrap());
+    let text = content_of(
+        &server
+            .list_symbols(Parameters(list_args("jvm", None, None)))
+            .await
+            .unwrap(),
+    );
     // Java and Kotlin share `jvm/`; the prefix form must return both, each
     // entry carrying its own path since the listing spans several files.
     assert!(text.contains("jvm/Invoice.java"), "got: {text}");
@@ -107,7 +121,10 @@ async fn list_symbols_language_filter_splits_a_shared_directory() {
             .unwrap(),
     );
     assert!(kotlin.contains("buildRepository"), "got: {kotlin}");
-    assert!(!kotlin.contains("addItem"), "java must be filtered out: {kotlin}");
+    assert!(
+        !kotlin.contains("addItem"),
+        "java must be filtered out: {kotlin}"
+    );
 }
 
 #[tokio::test]
@@ -133,6 +150,8 @@ async fn find_symbol_returns_every_language_holding_that_name() {
     let text = content_of(
         &server
             .find_symbol(Parameters(FindSymbolArgs {
+                path: None,
+                language: None,
                 name: "deploy".to_string(),
                 match_mode: None,
                 limit: None,
@@ -151,6 +170,8 @@ async fn find_symbol_on_an_unknown_name_says_so_rather_than_erroring() {
     let text = content_of(
         &server
             .find_symbol(Parameters(FindSymbolArgs {
+                path: None,
+                language: None,
                 name: "no_such_symbol_anywhere".to_string(),
                 match_mode: None,
                 limit: None,
@@ -158,7 +179,10 @@ async fn find_symbol_on_an_unknown_name_says_so_rather_than_erroring() {
             .await
             .unwrap(),
     );
-    assert_eq!(text, "No symbol named `no_such_symbol_anywhere` found in the index.");
+    assert_eq!(
+        text,
+        "No symbol named `no_such_symbol_anywhere` found in the index."
+    );
 }
 
 // --------------------------------------------------------------- traversal
@@ -171,6 +195,8 @@ async fn find_calls_depth_two_reaches_the_second_hop_and_tags_it() {
     let direct = content_of(
         &server
             .find_calls(Parameters(FindCallsArgs {
+                path: None,
+                language: None,
                 function: "describe_request".to_string(),
                 limit: None,
                 depth: None,
@@ -180,11 +206,16 @@ async fn find_calls_depth_two_reaches_the_second_hop_and_tags_it() {
             .unwrap(),
     );
     assert!(direct.contains("handle_request"), "got: {direct}");
-    assert!(!direct.contains("load_rows"), "depth 1 must stop at the direct hits: {direct}");
+    assert!(
+        !direct.contains("load_rows"),
+        "depth 1 must stop at the direct hits: {direct}"
+    );
 
     let deep = content_of(
         &server
             .find_calls(Parameters(FindCallsArgs {
+                path: None,
+                language: None,
                 function: "describe_request".to_string(),
                 limit: None,
                 depth: Some(2),
@@ -194,7 +225,10 @@ async fn find_calls_depth_two_reaches_the_second_hop_and_tags_it() {
             .unwrap(),
     );
     assert!(deep.contains("load_rows"), "got: {deep}");
-    assert!(deep.contains("[depth 2]"), "second-hop hits must be tagged: {deep}");
+    assert!(
+        deep.contains("[depth 2]"),
+        "second-hop hits must be tagged: {deep}"
+    );
 }
 
 #[tokio::test]
@@ -203,6 +237,8 @@ async fn find_calls_offset_pages_through_a_multi_callee_function() {
     let all = content_of(
         &server
             .find_calls(Parameters(FindCallsArgs {
+                path: None,
+                language: None,
                 function: "HandlePost".to_string(),
                 limit: None,
                 depth: None,
@@ -211,11 +247,16 @@ async fn find_calls_offset_pages_through_a_multi_callee_function() {
             .await
             .unwrap(),
     );
-    assert!(all.contains("3 call(s) made by this function"), "got: {all}");
+    assert!(
+        all.contains("3 call(s) made by this function"),
+        "got: {all}"
+    );
 
     let page = content_of(
         &server
             .find_calls(Parameters(FindCallsArgs {
+                path: None,
+                language: None,
                 function: "HandlePost".to_string(),
                 limit: Some(1),
                 depth: None,
@@ -224,7 +265,10 @@ async fn find_calls_offset_pages_through_a_multi_callee_function() {
             .await
             .unwrap(),
     );
-    assert!(page.contains("showing 1 starting at offset 2"), "got: {page}");
+    assert!(
+        page.contains("showing 1 starting at offset 2"),
+        "got: {page}"
+    );
     assert!(page.contains("0 more available"), "got: {page}");
     // The first page's callee must not reappear on the last page.
     assert!(page.contains("Describe"), "got: {page}");
@@ -237,6 +281,8 @@ async fn find_callers_depth_two_walks_the_call_graph_backwards() {
     let deep = content_of(
         &server
             .find_callers(Parameters(FindCallersArgs {
+                path: None,
+                language: None,
                 function: "load_rows".to_string(),
                 limit: None,
                 depth: Some(2),
@@ -246,7 +292,10 @@ async fn find_callers_depth_two_walks_the_call_graph_backwards() {
             .unwrap(),
     );
     assert!(deep.contains("handle_request"), "direct caller: {deep}");
-    assert!(deep.contains("describe_request"), "caller-of-caller: {deep}");
+    assert!(
+        deep.contains("describe_request"),
+        "caller-of-caller: {deep}"
+    );
     assert!(deep.contains("[depth 2]"), "got: {deep}");
 }
 
@@ -256,6 +305,8 @@ async fn find_references_honours_depth_beyond_the_direct_hits() {
     let direct = content_of(
         &server
             .find_references(Parameters(FindReferencesArgs {
+                path: None,
+                language: None,
                 symbol: "load_rows".to_string(),
                 limit: None,
                 depth: None,
@@ -265,11 +316,16 @@ async fn find_references_honours_depth_beyond_the_direct_hits() {
             .unwrap(),
     );
     assert!(direct.contains("handle_request"), "got: {direct}");
-    assert!(!direct.contains("describe_request"), "depth 1 stops here: {direct}");
+    assert!(
+        !direct.contains("describe_request"),
+        "depth 1 stops here: {direct}"
+    );
 
     let deep = content_of(
         &server
             .find_references(Parameters(FindReferencesArgs {
+                path: None,
+                language: None,
                 symbol: "load_rows".to_string(),
                 limit: None,
                 depth: Some(2),
@@ -288,6 +344,8 @@ async fn find_references_offset_pages_past_the_first_hit() {
     let all = content_of(
         &server
             .find_references(Parameters(FindReferencesArgs {
+                path: None,
+                language: None,
                 symbol: "formatAmount".to_string(),
                 limit: None,
                 depth: None,
@@ -301,6 +359,8 @@ async fn find_references_offset_pages_past_the_first_hit() {
     let page = content_of(
         &server
             .find_references(Parameters(FindReferencesArgs {
+                path: None,
+                language: None,
                 symbol: "formatAmount".to_string(),
                 limit: Some(2),
                 depth: None,
@@ -309,7 +369,10 @@ async fn find_references_offset_pages_past_the_first_hit() {
             .await
             .unwrap(),
     );
-    assert!(page.contains("showing 2 starting at offset 1"), "got: {page}");
+    assert!(
+        page.contains("showing 2 starting at offset 1"),
+        "got: {page}"
+    );
     assert!(page.contains("0 more available"), "got: {page}");
 }
 
@@ -319,6 +382,8 @@ async fn impact_analysis_combines_callers_and_references_across_a_two_hop_radius
     let shallow = content_of(
         &server
             .impact_analysis(Parameters(ImpactAnalysisArgs {
+                path: None,
+                language: None,
                 symbol: "load_rows".to_string(),
                 limit: None,
                 depth: None,
@@ -333,6 +398,8 @@ async fn impact_analysis_combines_callers_and_references_across_a_two_hop_radius
     let deep = content_of(
         &server
             .impact_analysis(Parameters(ImpactAnalysisArgs {
+                path: None,
+                language: None,
                 symbol: "load_rows".to_string(),
                 limit: None,
                 depth: Some(3),
@@ -341,7 +408,10 @@ async fn impact_analysis_combines_callers_and_references_across_a_two_hop_radius
             .await
             .unwrap(),
     );
-    assert!(deep.contains("describe_request"), "blast radius must widen with depth: {deep}");
+    assert!(
+        deep.contains("describe_request"),
+        "blast radius must widen with depth: {deep}"
+    );
 }
 
 #[tokio::test]
@@ -350,6 +420,8 @@ async fn impact_analysis_offset_applies_to_its_caller_and_reference_sections() {
     let page = content_of(
         &server
             .impact_analysis(Parameters(ImpactAnalysisArgs {
+                path: None,
+                language: None,
                 symbol: "formatAmount".to_string(),
                 limit: Some(1),
                 depth: None,
@@ -379,7 +451,10 @@ async fn get_file_skeleton_collapses_bodies_for_a_brace_language_other_than_rust
     // The body's actual statement must be gone.
     assert!(!text.contains("return [$account => 0];"), "got: {text}");
     // The synthetic whole-file `module` entry is never rendered as a block.
-    assert!(!text.contains("2 top-level symbol(s)") || text.contains("class RowStore"), "got: {text}");
+    assert!(
+        !text.contains("2 top-level symbol(s)") || text.contains("class RowStore"),
+        "got: {text}"
+    );
 }
 
 #[tokio::test]
@@ -393,9 +468,18 @@ async fn get_file_skeleton_falls_back_to_declaration_lines_for_a_non_brace_langu
             .await
             .unwrap(),
     );
-    assert!(text.contains("Skeleton of `pyscripts/notify.py`"), "got: {text}");
-    assert!(text.contains("def send_alert(channel, message):"), "got: {text}");
-    assert!(!text.contains("return f\"{channel}"), "the body must not be printed: {text}");
+    assert!(
+        text.contains("Skeleton of `pyscripts/notify.py`"),
+        "got: {text}"
+    );
+    assert!(
+        text.contains("def send_alert(channel, message):"),
+        "got: {text}"
+    );
+    assert!(
+        !text.contains("return f\"{channel}"),
+        "the body must not be printed: {text}"
+    );
 }
 
 /// Languages whose parsers give every top-level declaration a `parent` (the
@@ -490,7 +574,10 @@ async fn get_file_skeleton_is_currently_empty_wherever_declarations_carry_a_pare
                 .await
                 .unwrap(),
         );
-        assert!(text.starts_with(&format!("Skeleton of `{path}`")), "{path}: {text}");
+        assert!(
+            text.starts_with(&format!("Skeleton of `{path}`")),
+            "{path}: {text}"
+        );
     }
 }
 
@@ -521,7 +608,10 @@ async fn get_project_overview_of_the_whole_fixture_spans_every_language() {
         "shell/lib.sh",
         "pwsh/Common.psm1",
     ] {
-        assert!(text.contains(path), "`{path}` missing from the project overview: {text}");
+        assert!(
+            text.contains(path),
+            "`{path}` missing from the project overview: {text}"
+        );
     }
 }
 
@@ -544,7 +634,10 @@ async fn get_project_overview_language_filter_narrows_the_digest_to_one_language
     assert!(text.contains("RowStore"), "got: {text}");
     assert!(!text.contains("backend/server.go"), "got: {text}");
     // `include_relations: true` must attach each symbol's top callers.
-    assert!(text.contains("handle_request"), "caller sub-line missing: {text}");
+    assert!(
+        text.contains("handle_request"),
+        "caller sub-line missing: {text}"
+    );
 }
 
 #[tokio::test]
@@ -613,23 +706,74 @@ async fn get_project_overview_currently_degrades_to_module_stubs_for_parented_la
 async fn get_indexing_status_reports_every_language_and_the_detected_manifests() {
     // `get_indexing_status` had no test of its own before this one.
     let server = build_server().await;
-    let text = content_of(&server.get_indexing_status().await.unwrap());
+    let text = content_of(
+        &server
+            .get_indexing_status(Parameters(GetIndexingStatusArgs {
+                verbose_dependencies: true,
+            }))
+            .await
+            .unwrap(),
+    );
 
-    assert!(text.contains("28 files indexed, 100 symbols total."), "got: {text}");
+    assert!(
+        text.contains("28 files indexed, 100 symbols total."),
+        "got: {text}"
+    );
     assert!(text.contains("Coverage by language:"), "got: {text}");
     for language in [
-        "bash", "cpp", "csharp", "css", "go", "html", "java", "javascript_typescript",
-        "kotlin", "markdown", "php", "powershell", "python", "rust", "xaml", "xml",
+        "bash",
+        "cpp",
+        "csharp",
+        "css",
+        "go",
+        "html",
+        "java",
+        "javascript_typescript",
+        "kotlin",
+        "markdown",
+        "php",
+        "powershell",
+        "python",
+        "rust",
+        "xaml",
+        "xml",
     ] {
-        assert!(text.contains(&format!("  {language}: ")), "`{language}` missing: {text}");
+        assert!(
+            text.contains(&format!("  {language}: ")),
+            "`{language}` missing: {text}"
+        );
     }
     assert!(!text.contains("failed to parse"), "got: {text}");
     assert!(!text.contains("not yet supported"), "got: {text}");
 
     assert!(text.contains("Dependencies detected:"), "got: {text}");
-    assert!(text.contains("package.json (javascript_typescript, 2 dep(s)):"), "got: {text}");
+    assert!(
+        text.contains("package.json (javascript_typescript, 2 dep(s)):"),
+        "got: {text}"
+    );
     assert!(text.contains("go.mod (go, 1 dep(s)):"), "got: {text}");
-    assert!(text.contains("requirements.txt (python, 2 dep(s)):"), "got: {text}");
+    assert!(
+        text.contains("requirements.txt (python, 2 dep(s)):"),
+        "got: {text}"
+    );
+}
+
+#[tokio::test]
+async fn get_indexing_status_summarizes_dependencies_by_default() {
+    let server = build_server().await;
+    let text = content_of(
+        &server
+            .get_indexing_status(Parameters(GetIndexingStatusArgs::default()))
+            .await
+            .unwrap(),
+    );
+
+    assert!(
+        text.contains("Dependencies: 3 manifests, 5 declared (5 unique external)."),
+        "got: {text}"
+    );
+    assert!(!text.contains("Dependencies detected:"), "got: {text}");
+    assert!(!text.contains("package.json ("), "got: {text}");
 }
 
 #[tokio::test]
@@ -644,7 +788,8 @@ async fn reindex_tool_reports_an_incremental_no_op_then_a_full_reparse_when_forc
             .unwrap(),
     );
     assert!(
-        incremental.starts_with("Reindex complete: 0 parsed, 28 unchanged, 0 removed, 0 symbols written."),
+        incremental
+            .starts_with("Reindex complete: 0 parsed, 28 unchanged, 0 removed, 0 symbols written."),
         "nothing changed on disk, so nothing should be re-parsed: {incremental}"
     );
 
@@ -655,11 +800,21 @@ async fn reindex_tool_reports_an_incremental_no_op_then_a_full_reparse_when_forc
             .unwrap(),
     );
     assert!(
-        forced.starts_with("Reindex complete: 28 parsed, 0 unchanged, 0 removed, 100 symbols written."),
+        forced.starts_with(
+            "Reindex complete: 28 parsed, 0 unchanged, 0 removed, 100 symbols written."
+        ),
         "force must bypass the hash check for every file: {forced}"
     );
 
     // The index is still correct after a forced rewrite — no duplicated rows.
-    let status = content_of(&server.get_indexing_status().await.unwrap());
-    assert!(status.contains("28 files indexed, 100 symbols total."), "got: {status}");
+    let status = content_of(
+        &server
+            .get_indexing_status(Parameters(GetIndexingStatusArgs::default()))
+            .await
+            .unwrap(),
+    );
+    assert!(
+        status.contains("28 files indexed, 100 symbols total."),
+        "got: {status}"
+    );
 }
