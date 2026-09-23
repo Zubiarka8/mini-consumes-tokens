@@ -793,6 +793,11 @@ mod file_skeleton_tests {
 
 #[cfg(test)]
 mod budget_tests {
+    // Test code: a panic! here means a broken test precondition, and
+    // panicking is the correct behavior — this module only touches
+    // fixtures the test builds itself, never repo-input content.
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
     use super::*;
 
     fn relation(from: &str, path: &str, line: u32, column: u32) -> RelationHit {
