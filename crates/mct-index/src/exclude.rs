@@ -1,27 +1,18 @@
 use globset::{Glob, GlobSet, GlobSetBuilder};
 
-/// Patterns excluded from indexing by default because they commonly hold
+/// File patterns excluded from indexing by default because they commonly hold
 /// secrets, across the conventions of several ecosystems — not just
 /// Node/Python. Opt-out (a user can widen this), never opt-in: a fresh
 /// install must never index a `.env` file by accident.
-// Directory patterns use `{,/**}` rather than a bare trailing `/**`: in
-// globset, "dir/**" matches everything *inside* dir but not dir itself, so a
-// filesystem event for the directory's own entry (e.g. its mtime changing
-// when a child is written) would otherwise slip past the filter unexcluded.
+///
+/// Whole directories go in [`DEFAULT_EXCLUDE_DIRS`] instead.
 const DEFAULT_EXCLUDE_PATTERNS: &[&str] = &[
     // generic
     "**/.env",
     "**/.env.*",
     "**/*.pem",
     "**/*.key",
-    "**/secrets{,/**}",
-    "**/secret{,/**}",
     "**/credentials.json",
-    "**/.aws{,/**}",
-    // Node / JS
-    "**/node_modules{,/**}",
-    // PHP (Composer)
-    "**/vendor{,/**}",
     // .NET
     "**/appsettings.*.json",
     "**/*.pfx",
@@ -31,10 +22,32 @@ const DEFAULT_EXCLUDE_PATTERNS: &[&str] = &[
     // Go (Viper and similar config libraries)
     "**/*.env.local",
     "**/config/secrets.yaml",
+];
+
+/// Directory names excluded wholesale, at any depth. Each expands to the
+/// *pair* `**/<name>` and `**/<name>/**` — see the note in [`ExcludeSet::new`]
+/// for why one pattern cannot express both.
+const DEFAULT_EXCLUDE_DIRS: &[&str] = &[
+    // generic
+    "secrets",
+    "secret",
+    ".aws",
+    // Node / JS
+    "node_modules",
+    // PHP (Composer)
+    "vendor",
     // general VCS / build output
-    "**/.git{,/**}",
-    "**/target{,/**}",
-    "**/.mct-index{,/**}",
+    ".git",
+    "target",
+    ".mct-index",
+    // Agent / tooling state, not project source. `.claude/worktrees/` holds
+    // Claude Code agent worktrees — full checkouts of the project itself, so
+    // indexing it files every symbol two or three times over (measured in
+    // this repo: 65.9% of all indexed symbols were worktree duplicates).
+    // `.claude-index` is the pre-rename (ccm -> mct) index directory, still
+    // sitting in older checkouts alongside the current `.mct-index`.
+    ".claude",
+    ".claude-index",
 ];
 
 #[derive(Clone)]
@@ -54,6 +67,24 @@ impl ExcludeSet {
             // literal would be a compile-time-caught bug in this file, never
             // a runtime failure driven by an indexed repo.
             builder.add(Glob::new(pattern).expect("built-in exclude pattern is valid"));
+        }
+        // Two patterns per directory, never one. `**/dir/**` matches what is
+        // *inside* the directory but not the directory's own entry, and the
+        // seemingly equivalent one-liner `**/dir{,/**}` is not equivalent at
+        // all: globset drops the empty alternation branch and compiles it to
+        // exactly `**/dir/**`. Matching the entry itself is what lets the
+        // indexer's walk prune an excluded directory instead of descending
+        // into it, and what stops a filesystem event for the directory's own
+        // entry (e.g. its mtime changing when a child is written) from
+        // slipping past the watcher's filter unexcluded.
+        for dir in DEFAULT_EXCLUDE_DIRS {
+            for pattern in [format!("**/{dir}"), format!("**/{dir}/**")] {
+                #[allow(clippy::expect_used)]
+                // SAFETY: built from a hardcoded literal in
+                // `DEFAULT_EXCLUDE_DIRS` above, same reasoning as the loop
+                // over `DEFAULT_EXCLUDE_PATTERNS`.
+                builder.add(Glob::new(&pattern).expect("built-in exclude pattern is valid"));
+            }
         }
         for pattern in extra_patterns {
             if let Ok(glob) = Glob::new(pattern) {

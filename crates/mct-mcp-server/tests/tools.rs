@@ -12,8 +12,8 @@ use std::path::Path;
 
 use mct_index::{ExcludeSet, Index};
 use mct_mcp_server::server::{
-    MctServer, FindCallersArgs, FindCallsArgs, FindReferencesArgs, FindSymbolArgs,
-    GetFileSkeletonArgs, GetProjectOverviewArgs, ImpactAnalysisArgs, ListSymbolsArgs,
+    FindCallersArgs, FindCallsArgs, FindReferencesArgs, FindSymbolArgs, GetFileSkeletonArgs,
+    GetProjectOverviewArgs, ImpactAnalysisArgs, ListSymbolsArgs, MctServer,
 };
 use rmcp::handler::server::wrapper::Parameters;
 
@@ -79,8 +79,14 @@ async fn list_symbols_on_a_single_file_lists_its_functions_with_line_ranges() {
             .unwrap(),
     );
     assert!(text.contains("Functions:"), "got: {text}");
-    assert!(text.contains("compute") && text.contains("L1-L3"), "got: {text}");
-    assert!(text.contains("helper") && text.contains("L4-L6"), "got: {text}");
+    assert!(
+        text.contains("compute") && text.contains("L1-L3"),
+        "got: {text}"
+    );
+    assert!(
+        text.contains("helper") && text.contains("L4-L6"),
+        "got: {text}"
+    );
     // Single-file listing: the path appears once, in the header, not
     // repeated per entry.
     assert_eq!(
@@ -104,8 +110,14 @@ async fn list_symbols_on_a_directory_spans_every_file_under_it_with_paths_shown(
             .await
             .unwrap(),
     );
-    assert!(text.contains("Invoice") && text.contains("backend/invoice.go"), "got: {text}");
-    assert!(text.contains("Log") && text.contains("backend/logger.go"), "got: {text}");
+    assert!(
+        text.contains("Invoice") && text.contains("backend/invoice.go"),
+        "got: {text}"
+    );
+    assert!(
+        text.contains("Log") && text.contains("backend/logger.go"),
+        "got: {text}"
+    );
     assert!(
         text.contains("HandleCreateInvoice") && text.contains("backend/server.go"),
         "got: {text}"
@@ -198,6 +210,8 @@ async fn find_symbol_locates_rust_function() {
     let server = build_server().await;
     let result = server
         .find_symbol(Parameters(FindSymbolArgs {
+            path: None,
+            language: None,
             name: "compute".to_string(),
             limit: None,
         }))
@@ -214,6 +228,8 @@ async fn find_calls_and_find_callers_agree() {
     let calls = content_of(
         &server
             .find_calls(Parameters(FindCallsArgs {
+                path: None,
+                language: None,
                 function: "compute".to_string(),
                 limit: None,
                 depth: None,
@@ -227,6 +243,8 @@ async fn find_calls_and_find_callers_agree() {
     let callers = content_of(
         &server
             .find_callers(Parameters(FindCallersArgs {
+                path: None,
+                language: None,
                 function: "helper".to_string(),
                 limit: None,
                 depth: None,
@@ -244,6 +262,8 @@ async fn find_references_includes_the_python_import() {
     let text = content_of(
         &server
             .find_references(Parameters(FindReferencesArgs {
+                path: None,
+                language: None,
                 symbol: "compute".to_string(),
                 limit: None,
                 depth: None,
@@ -261,6 +281,8 @@ async fn impact_analysis_flags_the_test() {
     let text = content_of(
         &server
             .impact_analysis(Parameters(ImpactAnalysisArgs {
+                path: None,
+                language: None,
                 symbol: "compute".to_string(),
                 limit: None,
                 depth: None,
@@ -278,6 +300,8 @@ async fn empty_name_is_rejected_as_invalid_params() {
     let server = build_server().await;
     let result = server
         .find_symbol(Parameters(FindSymbolArgs {
+            path: None,
+            language: None,
             name: "   ".to_string(),
             limit: None,
         }))
@@ -291,6 +315,8 @@ async fn find_callers_truncates_to_the_default_limit_and_says_so() {
     let text = content_of(
         &server
             .find_callers(Parameters(FindCallersArgs {
+                path: None,
+                language: None,
                 function: "target".to_string(),
                 limit: None,
                 depth: None,
@@ -301,7 +327,10 @@ async fn find_callers_truncates_to_the_default_limit_and_says_so() {
     );
     // 70 callers exist; DEFAULT_RESULT_LIMIT (50) must cap the shown list
     // and the header must say how many were omitted.
-    assert!(text.starts_with("70 caller(s) of this function"), "got: {text}");
+    assert!(
+        text.starts_with("70 caller(s) of this function"),
+        "got: {text}"
+    );
     assert!(
         text.contains("(showing 50, 20 omitted — pass a higher `limit` to see the rest)"),
         "got: {text}"
@@ -316,6 +345,8 @@ async fn find_callers_with_explicit_higher_limit_is_not_truncated() {
     let text = content_of(
         &server
             .find_callers(Parameters(FindCallersArgs {
+                path: None,
+                language: None,
                 function: "target".to_string(),
                 limit: Some(100),
                 depth: None,
@@ -324,7 +355,10 @@ async fn find_callers_with_explicit_higher_limit_is_not_truncated() {
             .await
             .unwrap(),
     );
-    assert!(text.starts_with("70 caller(s) of this function"), "got: {text}");
+    assert!(
+        text.starts_with("70 caller(s) of this function"),
+        "got: {text}"
+    );
     assert!(!text.contains("omitted"), "got: {text}");
     let caller_line_count = text.lines().filter(|l| l.contains("caller_")).count();
     assert_eq!(caller_line_count, 70, "got: {text}");
@@ -336,6 +370,8 @@ async fn impact_analysis_truncates_the_caller_and_reference_sections() {
     let text = content_of(
         &server
             .impact_analysis(Parameters(ImpactAnalysisArgs {
+                path: None,
+                language: None,
                 symbol: "target".to_string(),
                 limit: None,
                 depth: None,
@@ -346,11 +382,15 @@ async fn impact_analysis_truncates_the_caller_and_reference_sections() {
     );
     assert!(text.contains("70 direct caller(s)"), "got: {text}");
     assert!(
-        text.contains("Direct callers (showing 50, 20 omitted — pass a higher `limit` to see the rest):"),
+        text.contains(
+            "Direct callers (showing 50, 20 omitted — pass a higher `limit` to see the rest):"
+        ),
         "got: {text}"
     );
     assert!(
-        text.contains("All references (showing 50, 20 omitted — pass a higher `limit` to see the rest):"),
+        text.contains(
+            "All references (showing 50, 20 omitted — pass a higher `limit` to see the rest):"
+        ),
         "got: {text}"
     );
 }
@@ -363,6 +403,8 @@ async fn find_calls_default_depth_is_direct_hits_only() {
     let text = content_of(
         &server
             .find_calls(Parameters(FindCallsArgs {
+                path: None,
+                language: None,
                 function: "HandleCreateInvoice".to_string(),
                 limit: None,
                 depth: None,
@@ -372,8 +414,14 @@ async fn find_calls_default_depth_is_direct_hits_only() {
             .unwrap(),
     );
     assert!(text.contains("AddItem"), "got: {text}");
-    assert!(!text.contains("Log"), "second hop leaked into depth-1 output: {text}");
-    assert!(!text.contains("[depth"), "direct hits must not carry a depth tag: {text}");
+    assert!(
+        !text.contains("Log"),
+        "second hop leaked into depth-1 output: {text}"
+    );
+    assert!(
+        !text.contains("[depth"),
+        "direct hits must not carry a depth tag: {text}"
+    );
 }
 
 #[tokio::test]
@@ -382,6 +430,8 @@ async fn find_calls_with_depth_2_also_returns_the_second_hop() {
     let text = content_of(
         &server
             .find_calls(Parameters(FindCallsArgs {
+                path: None,
+                language: None,
                 function: "HandleCreateInvoice".to_string(),
                 limit: None,
                 depth: Some(2),
@@ -392,7 +442,10 @@ async fn find_calls_with_depth_2_also_returns_the_second_hop() {
     );
     assert!(text.contains("AddItem"), "got: {text}");
     assert!(text.contains("--calls--> Log"), "got: {text}");
-    assert!(text.contains("[depth 2]"), "second hop should be tagged: {text}");
+    assert!(
+        text.contains("[depth 2]"),
+        "second hop should be tagged: {text}"
+    );
 }
 
 #[tokio::test]
@@ -401,6 +454,8 @@ async fn find_callers_offset_pages_past_the_default_limit() {
     let text = content_of(
         &server
             .find_callers(Parameters(FindCallersArgs {
+                path: None,
+                language: None,
                 function: "target".to_string(),
                 limit: Some(10),
                 depth: None,
@@ -410,7 +465,10 @@ async fn find_callers_offset_pages_past_the_default_limit() {
             .unwrap(),
     );
     // 70 total callers; offset 60 + limit 10 lands exactly on the last page.
-    assert!(text.starts_with("70 caller(s) of this function"), "got: {text}");
+    assert!(
+        text.starts_with("70 caller(s) of this function"),
+        "got: {text}"
+    );
     assert!(
         text.contains("(showing 10 starting at offset 60, 0 more available — pass `limit`/`offset` to see the rest)"),
         "got: {text}"
@@ -432,12 +490,22 @@ async fn get_file_skeleton_collapses_rust_function_bodies() {
     );
     assert!(text.contains("pub fn compute() -> i32 {"), "got: {text}");
     assert!(text.contains("fn helper() -> i32 {"), "got: {text}");
-    assert!(!text.contains("helper()\n"), "compute's body call must be collapsed: {text}");
-    assert!(!text.contains("    1\n"), "helper's body must be collapsed: {text}");
+    assert!(
+        !text.contains("helper()\n"),
+        "compute's body call must be collapsed: {text}"
+    );
+    assert!(
+        !text.contains("    1\n"),
+        "helper's body must be collapsed: {text}"
+    );
     // The synthetic whole-file `module` entry must not leak through as a
     // bogus extra skeleton block.
     assert!(!text.contains("Modules:"), "got: {text}");
-    assert_eq!(text.matches("// ...").count(), 2, "one collapsed body per function: {text}");
+    assert_eq!(
+        text.matches("// ...").count(),
+        2,
+        "one collapsed body per function: {text}"
+    );
 }
 
 #[tokio::test]
@@ -453,7 +521,10 @@ async fn get_file_skeleton_falls_back_to_declaration_only_for_python() {
     );
     assert!(text.contains("def test_compute():"), "got: {text}");
     assert!(text.contains("# ..."), "got: {text}");
-    assert!(!text.contains("assert compute"), "body must not leak through: {text}");
+    assert!(
+        !text.contains("assert compute"),
+        "body must not leak through: {text}"
+    );
 }
 
 #[tokio::test]
@@ -464,7 +535,10 @@ async fn get_file_skeleton_rejects_a_directory_path() {
             path: "src".to_string(),
         }))
         .await;
-    assert!(result.is_err(), "a directory/crate prefix must be rejected, not silently accepted");
+    assert!(
+        result.is_err(),
+        "a directory/crate prefix must be rejected, not silently accepted"
+    );
 }
 
 #[tokio::test]
@@ -496,7 +570,10 @@ async fn get_project_overview_truncates_a_real_crates_module_and_reports_the_ove
     // top-level candidates; the default cap (8) must truncate and report it.
     assert!(text.contains("src/lib.rs:"), "got: {text}");
     assert!(text.contains("(+3 more)"), "got: {text}");
-    let symbol_line_count = text.lines().filter(|l| l.trim_start().starts_with('[')).count();
+    let symbol_line_count = text
+        .lines()
+        .filter(|l| l.trim_start().starts_with('['))
+        .count();
     assert_eq!(symbol_line_count, 8, "got: {text}");
 }
 
@@ -516,7 +593,10 @@ async fn get_project_overview_on_a_single_file_shows_all_its_symbols_unpaginated
     );
     assert!(text.contains("compute"), "got: {text}");
     assert!(text.contains("helper"), "got: {text}");
-    assert!(!text.contains("more)"), "only 2 functions — must not report truncation: {text}");
+    assert!(
+        !text.contains("more)"),
+        "only 2 functions — must not report truncation: {text}"
+    );
 }
 
 #[tokio::test]

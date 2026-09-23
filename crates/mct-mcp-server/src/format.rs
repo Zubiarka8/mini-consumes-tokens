@@ -3,7 +3,14 @@
 //! reading context, so tool output stays as terse as it can while remaining
 //! unambiguous.
 
+use std::collections::BTreeSet;
+
 use mct_index::{IndexStatus, ReindexReport, RelationHit, SymbolHit, SymbolListEntry};
+
+/// Maximum bytes any single tool response will render before truncating.
+/// `limit` counts rows; this counts the context the caller actually pays
+/// for, which is the thing this server exists to protect.
+pub const DEFAULT_BYTE_BUDGET: usize = 24_000;
 
 /// One-line note appended after a count header when a result list got cut
 /// down to `shown` of `total` entries, optionally starting at `offset` —
@@ -24,6 +31,27 @@ fn truncation_note(total: usize, offset: usize, shown: usize) -> String {
     }
 }
 
+/// Note for a list the byte budget cut short. It takes precedence over
+/// [`truncation_note`]: when the budget is the binding constraint, raising
+/// `limit` does nothing, so the caller has to be pointed at narrowing or
+/// paging instead.
+fn budget_note(total: usize, shown: usize, budget: usize) -> String {
+    format!(
+        " (showing {shown} of {total}, truncated at the {budget}-byte response budget — narrow with `path`/`language` or pass `offset` to page)"
+    )
+}
+
+/// Picks the right header note for a rendered list: the budget wording when
+/// the budget dropped entries, otherwise the pre-existing row-limit wording
+/// (byte-identical to before this budget existed).
+fn list_note(total: usize, offset: usize, shown: usize, body: &BudgetedList) -> String {
+    if body.dropped > 0 {
+        budget_note(total, body.kept, body.budget)
+    } else {
+        truncation_note(total, offset, shown)
+    }
+}
+
 /// Slices `items[offset..offset+limit]`, clamped to bounds — the shared
 /// pagination behind every paginated tool's output.
 fn paginate<T>(items: &[T], offset: usize, limit: usize) -> &[T] {
@@ -33,28 +61,80 @@ fn paginate<T>(items: &[T], offset: usize, limit: usize) -> &[T] {
     &items[start..end]
 }
 
+/// Accumulates already-rendered entries up to a byte budget, applied after
+/// [`paginate`] has cut by row count.
+///
+/// Entries are appended whole, so the body can only ever end at an entry
+/// boundary — splitting a line, or a multi-byte UTF-8 codepoint, is
+/// structurally impossible here rather than something a bounds check has to
+/// get right. Once one entry is rejected every later one is counted as
+/// dropped, so what survives is always a prefix of the input order.
+struct BudgetedList {
+    body: String,
+    budget: usize,
+    kept: usize,
+    dropped: usize,
+}
+
+impl BudgetedList {
+    fn new(budget: usize) -> Self {
+        Self {
+            body: String::new(),
+            budget,
+            kept: 0,
+            dropped: 0,
+        }
+    }
+
+    /// Appends `entry`, preceded by `prefix` (a group heading) when one is
+    /// given — the heading is written only if the entry itself fits, so a
+    /// heading is never stranded above nothing. The first entry is always
+    /// accepted, so even a budget smaller than one row returns something
+    /// useful instead of an empty body. Returns whether the entry was kept.
+    fn push_with_prefix(&mut self, prefix: Option<&str>, entry: &str) -> bool {
+        let prefix_len = prefix.map_or(0, str::len);
+        let fits = self.body.len() + prefix_len + entry.len() <= self.budget;
+        let accept = self.dropped == 0 && (fits || self.kept == 0);
+        if !accept {
+            self.dropped += 1;
+            return false;
+        }
+        if let Some(prefix) = prefix {
+            self.body.push_str(prefix);
+        }
+        self.body.push_str(entry);
+        self.kept += 1;
+        true
+    }
+
+    fn push(&mut self, entry: &str) -> bool {
+        self.push_with_prefix(None, entry)
+    }
+}
+
 pub fn symbol_hits(name: &str, hits: &[SymbolHit], limit: usize) -> String {
     if hits.is_empty() {
         return format!("No symbol named `{name}` found in the index.");
     }
     let total = hits.len();
     let shown = paginate(hits, 0, limit);
-    let mut out = format!(
-        "{total} definition(s) of `{name}`{}:\n",
-        truncation_note(total, 0, shown.len())
-    );
+    let mut body = BudgetedList::new(DEFAULT_BYTE_BUDGET);
     for hit in shown {
         let parent = hit
             .parent
             .as_deref()
             .map(|p| format!(" (in {p})"))
             .unwrap_or_default();
-        out.push_str(&format!(
+        body.push(&format!(
             "{}:{}:{} [{}] {} {}{}\n",
             hit.relative_path, hit.line, hit.column, hit.language, hit.kind, hit.name, parent
         ));
     }
-    out
+    format!(
+        "{total} definition(s) of `{name}`{}:\n{}",
+        list_note(total, 0, shown.len(), &body),
+        body.body
+    )
 }
 
 /// Kind strings in the order they're grouped/displayed by [`list_symbols`],
@@ -97,36 +177,46 @@ fn line_range(line: u32, end_line: Option<u32>) -> String {
 /// order. When `path` names a single file, entries omit the (redundant)
 /// file path per line; a directory/crate listing spans multiple files, so
 /// each line carries its own `relative_path` to disambiguate.
+///
+/// Columns are separated by a fixed two spaces rather than padded to the
+/// widest name: alignment whitespace is tokens the caller pays for and
+/// carries no information.
 pub fn list_symbols(path: &str, is_file: bool, hits: &[SymbolListEntry], limit: usize) -> String {
     if hits.is_empty() {
         return format!("No symbols found under `{path}`.");
     }
     let total = hits.len();
     let shown = paginate(hits, 0, limit);
-    let mut out = format!(
-        "{total} symbol(s) under `{path}`{}:\n",
-        truncation_note(total, 0, shown.len())
-    );
+    let mut body = BudgetedList::new(DEFAULT_BYTE_BUDGET);
     for &(kind, _) in KIND_HEADINGS {
         let group: Vec<&SymbolListEntry> = shown.iter().filter(|h| h.kind == kind).collect();
         if group.is_empty() {
             continue;
         }
-        out.push_str(&format!("{}:\n", kind_heading(kind)));
-        let name_width = group.iter().map(|h| h.name.chars().count()).max().unwrap_or(0);
+        let heading = format!("{}:\n", kind_heading(kind));
+        let mut heading_pending = true;
         for hit in &group {
             let range = line_range(hit.line, hit.end_line);
-            if is_file {
-                out.push_str(&format!("  {:<name_width$}  {range}\n", hit.name));
+            let entry = if is_file {
+                format!("  {}  {range}\n", hit.name)
             } else {
-                out.push_str(&format!(
-                    "  {:<name_width$}  {}  {range}\n",
-                    hit.name, hit.relative_path
-                ));
+                format!("  {}  {}  {range}\n", hit.name, hit.relative_path)
+            };
+            let prefix = if heading_pending {
+                Some(heading.as_str())
+            } else {
+                None
+            };
+            if body.push_with_prefix(prefix, &entry) {
+                heading_pending = false;
             }
         }
     }
-    out
+    format!(
+        "{total} symbol(s) under `{path}`{}:\n{}",
+        list_note(total, 0, shown.len(), &body),
+        body.body
+    )
 }
 
 /// Languages whose function/type bodies are brace-delimited, so the first
@@ -256,13 +346,9 @@ pub fn relation_hits(
     }
     let total = hits.len();
     let shown = paginate(hits, offset, limit);
-    let mut out = format!(
-        "{total} {}{}:\n",
-        verb_label,
-        truncation_note(total, offset, shown.len())
-    );
+    let mut body = BudgetedList::new(DEFAULT_BYTE_BUDGET);
     for hit in shown {
-        out.push_str(&format!(
+        body.push(&format!(
             "{}:{}:{} [{}] {} --{}--> {}{}\n",
             hit.relative_path,
             hit.line,
@@ -274,7 +360,12 @@ pub fn relation_hits(
             depth_tag(hit.depth)
         ));
     }
-    out
+    format!(
+        "{total} {}{}:\n{}",
+        verb_label,
+        list_note(total, offset, shown.len(), &body),
+        body.body
+    )
 }
 
 pub fn impact_analysis(
@@ -299,15 +390,24 @@ pub fn impact_analysis(
     // Each section below is paginated independently against the same
     // `offset`/`limit` — a symbol with hundreds of callers but few tests
     // shouldn't have its test list truncated just because the caller list
-    // is huge.
+    // is huge. The byte budget is split the same way: only sections that
+    // actually have content get a share, so the first section can't eat the
+    // whole response and starve the other two.
+    let populated = [
+        !affected_tests.is_empty(),
+        !callers.is_empty(),
+        !references.is_empty(),
+    ]
+    .into_iter()
+    .filter(|present| *present)
+    .count();
+    let section_budget = DEFAULT_BYTE_BUDGET / populated.max(1);
+
     if !affected_tests.is_empty() {
         let shown = paginate(affected_tests, offset, limit);
-        out.push_str(&format!(
-            "\nLikely affected tests{}:\n",
-            truncation_note(affected_tests.len(), offset, shown.len())
-        ));
+        let mut body = BudgetedList::new(section_budget);
         for hit in shown {
-            out.push_str(&format!(
+            body.push(&format!(
                 "  {}:{}:{} [{}] {}{}\n",
                 hit.relative_path,
                 hit.line,
@@ -317,16 +417,18 @@ pub fn impact_analysis(
                 depth_tag(hit.depth)
             ));
         }
+        out.push_str(&format!(
+            "\nLikely affected tests{}:\n{}",
+            list_note(affected_tests.len(), offset, shown.len(), &body),
+            body.body
+        ));
     }
 
     if !callers.is_empty() {
         let shown = paginate(callers, offset, limit);
-        out.push_str(&format!(
-            "\nDirect callers{}:\n",
-            truncation_note(callers.len(), offset, shown.len())
-        ));
+        let mut body = BudgetedList::new(section_budget);
         for hit in shown {
-            out.push_str(&format!(
+            body.push(&format!(
                 "  {}:{}:{} [{}] {}{}\n",
                 hit.relative_path,
                 hit.line,
@@ -336,16 +438,18 @@ pub fn impact_analysis(
                 depth_tag(hit.depth)
             ));
         }
+        out.push_str(&format!(
+            "\nDirect callers{}:\n{}",
+            list_note(callers.len(), offset, shown.len(), &body),
+            body.body
+        ));
     }
 
     if !references.is_empty() {
         let shown = paginate(references, offset, limit);
-        out.push_str(&format!(
-            "\nAll references{}:\n",
-            truncation_note(references.len(), offset, shown.len())
-        ));
+        let mut body = BudgetedList::new(section_budget);
         for hit in shown {
-            out.push_str(&format!(
+            body.push(&format!(
                 "  {}:{}:{} [{}] {} --{}--> {}{}\n",
                 hit.relative_path,
                 hit.line,
@@ -357,6 +461,11 @@ pub fn impact_analysis(
                 depth_tag(hit.depth)
             ));
         }
+        out.push_str(&format!(
+            "\nAll references{}:\n{}",
+            list_note(references.len(), offset, shown.len(), &body),
+            body.body
+        ));
     }
 
     if callers.is_empty() && references.is_empty() {
@@ -365,14 +474,62 @@ pub fn impact_analysis(
     out
 }
 
-/// Naming-convention heuristic for "is this a test": no per-language test
-/// framework/attribute detection yet (e.g. Rust's `#[test]`, pytest fixtures),
-/// so this only catches the `test`/`test_`-prefixed-name convention common to
-/// both currently-supported languages. Simplification, not a promise — a
-/// caller relying on it for exhaustive test coverage should be warned.
-pub fn looks_like_test_name(name: &str) -> bool {
+/// Directory names that mean "everything below here is a test", across the
+/// supported languages' conventions.
+const TEST_DIRECTORY_SEGMENTS: &[&str] = &["tests", "test", "__tests__"];
+
+/// True when `relative_path` lands in a test directory, or its file name
+/// follows one of the cross-language test file conventions
+/// (`*_test.*`, `test_*.*`, `*Test.*`, `*.test.*`, `*.spec.*`).
+///
+/// Stored `relative_path`s always use `/` as the separator, on every OS, so
+/// this splits on `/` only — no platform-specific path handling.
+fn path_looks_like_test(relative_path: &str) -> bool {
+    let mut segments: Vec<&str> = relative_path.split('/').collect();
+    // The last segment is the file name; everything before it is a directory.
+    let file_name = segments.pop().unwrap_or_default();
+    if segments
+        .iter()
+        .any(|segment| TEST_DIRECTORY_SEGMENTS.contains(&segment.to_lowercase().as_str()))
+    {
+        return true;
+    }
+    file_name_looks_like_test(file_name)
+}
+
+fn file_name_looks_like_test(file_name: &str) -> bool {
+    // `*Test.*` (Java/C#/Kotlin) is the one convention that needs the
+    // original casing: lowercasing it would also match `latest.rs`.
+    let stem = file_name.split('.').next().unwrap_or_default();
+    if stem.len() > 4 && stem.ends_with("Test") {
+        return true;
+    }
+    let lower = file_name.to_lowercase();
+    let lower_stem = lower.split('.').next().unwrap_or_default();
+    lower.starts_with("test_")
+        || lower_stem == "test"
+        || lower_stem.ends_with("_test")
+        || lower.contains(".test.")
+        || lower.contains(".spec.")
+}
+
+/// Tightened naming convention, kept only as a secondary signal to
+/// [`path_looks_like_test`]. The old `starts_with("test")` form also matched
+/// `testimonial`, `tester` and `testament`; an exact `test` or a `test_`
+/// prefix is the part that's actually a convention.
+fn name_looks_like_test(name: &str) -> bool {
     let lower = name.to_lowercase();
-    lower.starts_with("test_") || lower.starts_with("test")
+    lower == "test" || lower.starts_with("test_")
+}
+
+/// Heuristic for "is this hit a test": still no per-language test
+/// framework/attribute detection (Rust's `#[test]`, pytest fixtures, JS
+/// `describe`/`it`), so this combines the two signals that are already in
+/// the index — the file path, which is by far the stronger one, and the
+/// symbol's own name. Simplification, not a promise: a caller relying on it
+/// for exhaustive test coverage should be warned.
+pub fn looks_like_test_name(name: &str, relative_path: &str) -> bool {
+    path_looks_like_test(relative_path) || name_looks_like_test(name)
 }
 
 pub fn reindex_report(report: &ReindexReport) -> String {
@@ -397,6 +554,11 @@ pub fn reindex_report(report: &ReindexReport) -> String {
 /// truncated, and — when the caller passed `relations` — each surfaced
 /// symbol's top callers as sub-lines. Deliberately not JSON: a smaller,
 /// human/agent-skimmable token footprint is the entire point of this tool.
+///
+/// Modules with nothing to surface are left out of the body entirely and
+/// only counted in the header: a `(no top-level symbols)` line per empty
+/// module is pure cost. Truncation against [`DEFAULT_BYTE_BUDGET`] drops
+/// whole modules, never half of one, and the header says how many.
 pub fn overview(
     root_path: &str,
     modules: &[crate::server::ModuleDigest],
@@ -405,38 +567,63 @@ pub fn overview(
     if modules.is_empty() {
         return format!("No symbols found under `{root_path}`.");
     }
-    let mut out = format!(
-        "Project overview of `{root_path}` ({} module(s), up to {max_symbols_per_module} symbol(s) each):\n",
-        modules.len()
-    );
+    let mut body = BudgetedList::new(DEFAULT_BYTE_BUDGET);
+    let mut empty_modules = 0usize;
     for module in modules {
-        out.push_str(&format!("\n{}:\n", module.relative_path));
         if module.symbols.is_empty() {
-            out.push_str("  (no top-level symbols)\n");
+            empty_modules += 1;
             continue;
         }
+        let mut block = format!("\n{}:\n", module.relative_path);
         for symbol in &module.symbols {
             let range = line_range(symbol.line, symbol.end_line);
-            out.push_str(&format!("  [{}] {} {range}\n", symbol.kind, symbol.name));
+            block.push_str(&format!("  [{}] {} {range}\n", symbol.kind, symbol.name));
             let Some((_, callers)) = module.relations.iter().find(|(name, _)| name == &symbol.name)
             else {
                 continue;
             };
             for caller in callers {
-                out.push_str(&format!(
+                block.push_str(&format!(
                     "      <- {} ({}:{})\n",
                     caller.from_symbol, caller.relative_path, caller.line
                 ));
             }
         }
         if module.omitted > 0 {
-            out.push_str(&format!("  (+{} more)\n", module.omitted));
+            block.push_str(&format!("  (+{} more)\n", module.omitted));
         }
+        body.push(&block);
     }
-    out
+
+    let mut header = format!(
+        "Project overview of `{root_path}` ({} module(s), up to {max_symbols_per_module} symbol(s) each",
+        modules.len()
+    );
+    if empty_modules > 0 {
+        header.push_str(&format!(
+            ", {empty_modules} with no indexed top-level symbols omitted"
+        ));
+    }
+    if body.dropped > 0 {
+        header.push_str(&format!(
+            ", {} of {} shown — {} more dropped at the {DEFAULT_BYTE_BUDGET}-byte response budget, narrow with `path`",
+            body.kept,
+            body.kept + body.dropped,
+            body.dropped
+        ));
+    }
+    header.push_str("):\n");
+    header.push_str(&body.body);
+    header
 }
 
-pub fn index_status(status: &IndexStatus) -> String {
+/// Renders `get_indexing_status`. `verbose_dependencies` controls only the
+/// dependency section: `false` collapses it to a single summary line,
+/// `true` keeps the full per-manifest listing. That section measured 97% of
+/// this tool's payload on this repo — a staleness check shouldn't cost more
+/// than the queries it guards — while every other section answers the
+/// tool's actual question and is rendered identically either way.
+pub fn index_status(status: &IndexStatus, verbose_dependencies: bool) -> String {
     let mut out = format!(
         "{} files indexed, {} symbols total.\n",
         status.total_files, status.total_symbols
@@ -469,20 +656,42 @@ pub fn index_status(status: &IndexStatus) -> String {
         }
     }
     if !status.dependencies.is_empty() {
-        out.push_str("Dependencies detected:\n");
-        for manifest in &status.dependencies {
-            out.push_str(&format!(
-                "  {} ({}, {} dep(s)):\n",
-                manifest.manifest_path,
-                manifest.language,
-                manifest.dependencies.len()
-            ));
-            for dep in &manifest.dependencies {
-                match &dep.version {
-                    Some(version) => out.push_str(&format!("    {} {}\n", dep.name, version)),
-                    None => out.push_str(&format!("    {}\n", dep.name)),
+        if verbose_dependencies {
+            out.push_str("Dependencies detected:\n");
+            for manifest in &status.dependencies {
+                out.push_str(&format!(
+                    "  {} ({}, {} dep(s)):\n",
+                    manifest.manifest_path,
+                    manifest.language,
+                    manifest.dependencies.len()
+                ));
+                for dep in &manifest.dependencies {
+                    match &dep.version {
+                        Some(version) => out.push_str(&format!("    {} {}\n", dep.name, version)),
+                        None => out.push_str(&format!("    {}\n", dep.name)),
+                    }
                 }
             }
+        } else {
+            let declared: usize = status
+                .dependencies
+                .iter()
+                .map(|manifest| manifest.dependencies.len())
+                .sum();
+            // Uniqueness is by dependency name: a workspace repeats the same
+            // handful of names across every manifest, which is exactly the
+            // repetition that made this section 97% of the payload.
+            let unique: BTreeSet<&str> = status
+                .dependencies
+                .iter()
+                .flat_map(|manifest| manifest.dependencies.iter())
+                .map(|dep| dep.name.as_str())
+                .collect();
+            out.push_str(&format!(
+                "Dependencies: {} manifests, {declared} declared ({} unique external).\n",
+                status.dependencies.len(),
+                unique.len()
+            ));
         }
     }
     out
@@ -579,5 +788,469 @@ mod file_skeleton_tests {
     fn empty_entries_says_so_instead_of_an_empty_body() {
         let out = file_skeleton("f.rs", &[], "anything");
         assert!(out.contains("No top-level symbols"), "got: {out}");
+    }
+}
+
+#[cfg(test)]
+mod budget_tests {
+    use super::*;
+
+    fn relation(from: &str, path: &str, line: u32, column: u32) -> RelationHit {
+        RelationHit {
+            kind: "calls".to_string(),
+            from_symbol: from.to_string(),
+            to_name: "target".to_string(),
+            language: "rust".to_string(),
+            relative_path: path.to_string(),
+            line,
+            column,
+            depth: 1,
+        }
+    }
+
+    /// Splits a rendered response into its (always-emitted) header line and
+    /// the body the byte budget actually governs.
+    fn body_of(out: &str) -> &str {
+        out.split_once('\n').map(|(_, rest)| rest).unwrap_or_default()
+    }
+
+    #[test]
+    fn a_relation_result_under_budget_is_byte_identical_to_the_pre_budget_rendering() {
+        // The regression guard that matters: nothing omitted, offset 0 —
+        // output must be exactly what this formatter produced before a byte
+        // budget existed, character for character.
+        let hits = [
+            relation("alpha", "src/a.rs", 3, 5),
+            relation("beta", "src/b.rs", 7, 2),
+        ];
+        let out = relation_hits("target", "caller(s) of this function", &hits, 0, 50);
+        assert_eq!(
+            out,
+            "2 caller(s) of this function:\n\
+             src/a.rs:3:5 [rust] alpha --calls--> target\n\
+             src/b.rs:7:2 [rust] beta --calls--> target\n"
+        );
+    }
+
+    #[test]
+    fn a_symbol_result_under_budget_is_byte_identical_to_the_pre_budget_rendering() {
+        let hits = [SymbolHit {
+            name: "compute".to_string(),
+            kind: "function".to_string(),
+            language: "rust".to_string(),
+            relative_path: "src/lib.rs".to_string(),
+            line: 10,
+            column: 1,
+            parent: None,
+            end_line: Some(12),
+        }];
+        let out = symbol_hits("compute", &hits, 50);
+        assert_eq!(
+            out,
+            "1 definition(s) of `compute`:\nsrc/lib.rs:10:1 [rust] function compute\n"
+        );
+    }
+
+    /// Mirrors `relation_hits`' per-entry rendering so the budget tests can
+    /// assert the kept body is *exactly* the first N entries — the check
+    /// that proves truncation never lands mid-line or mid-codepoint.
+    fn rendered_entry(hit: &RelationHit) -> String {
+        format!(
+            "{}:{}:{} [{}] {} --{}--> {}\n",
+            hit.relative_path,
+            hit.line,
+            hit.column,
+            hit.language,
+            hit.from_symbol,
+            hit.kind,
+            hit.to_name
+        )
+    }
+
+    fn many_relations(
+        count: usize,
+        name: impl Fn(usize) -> String,
+        path: impl Fn(usize) -> String,
+    ) -> Vec<RelationHit> {
+        (0..count)
+            .map(|i| relation(&name(i), &path(i), 42, 7))
+            .collect()
+    }
+
+    #[test]
+    fn a_relation_result_over_budget_truncates_at_a_line_boundary_and_says_so() {
+        let hits = many_relations(
+            600,
+            |i| format!("caller_number_{i:04}"),
+            |i| format!("crates/some-crate/src/deeply/nested/module_{i:04}.rs"),
+        );
+        // `limit` is deliberately high enough that row-count pagination
+        // cannot be what truncates here — only the byte budget can.
+        let out = relation_hits("target", "caller(s) of this function", &hits, 0, 1000);
+        let body = body_of(&out);
+
+        assert!(
+            body.len() <= DEFAULT_BYTE_BUDGET,
+            "body was {} bytes, budget is {DEFAULT_BYTE_BUDGET}",
+            body.len()
+        );
+        let kept = body.lines().count();
+        assert!(kept > 0 && kept < 600, "expected a partial result, got {kept}");
+
+        let expected: String = hits[..kept].iter().map(rendered_entry).collect();
+        assert_eq!(body, expected, "body must be exactly the first {kept} whole entries");
+
+        assert!(out.starts_with("600 caller(s) of this function (showing "), "got: {out}");
+        assert!(
+            out.contains(&format!(
+                "(showing {kept} of 600, truncated at the {DEFAULT_BYTE_BUDGET}-byte response budget"
+            )),
+            "got: {out}"
+        );
+        assert!(out.contains("narrow with `path`/`language` or pass `offset` to page"), "got: {out}");
+    }
+
+    #[test]
+    fn multi_byte_content_near_the_budget_boundary_is_never_split_mid_codepoint() {
+        // Every entry carries multi-byte UTF-8 in both the symbol name and
+        // the path, so a naive byte-offset cut would land inside a
+        // codepoint for most budgets.
+        let hits = many_relations(
+            600,
+            |i| format!("función_ñáéíóú_{i:04}"),
+            |i| format!("crates/日本語パッケージ/src/módulo_{i:04}.rs"),
+        );
+        let out = relation_hits("target", "caller(s) of this function", &hits, 0, 1000);
+        let body = body_of(&out);
+
+        assert!(body.len() <= DEFAULT_BYTE_BUDGET, "got {} bytes", body.len());
+        let kept = body.lines().count();
+        assert!(kept > 0 && kept < 600, "expected a partial result, got {kept}");
+
+        let expected: String = hits[..kept].iter().map(rendered_entry).collect();
+        assert_eq!(body, expected, "truncation must fall on a whole-entry boundary");
+        // A String cannot hold invalid UTF-8, so the real risk is a
+        // *logically* truncated name; assert the last one is complete.
+        assert!(
+            body.ends_with(&rendered_entry(&hits[kept - 1])),
+            "last entry must be whole: {body:?}"
+        );
+    }
+
+    #[test]
+    fn list_symbols_over_budget_never_strands_a_group_heading() {
+        let hits: Vec<SymbolListEntry> = (0..800)
+            .map(|i| SymbolListEntry {
+                name: format!("symbol_with_a_fairly_long_name_{i:04}"),
+                // Alternating kinds so several group headings are in play.
+                kind: if i % 2 == 0 { "function" } else { "struct" }.to_string(),
+                language: "rust".to_string(),
+                relative_path: format!("crates/some-crate/src/nested/module_{i:04}.rs"),
+                line: 1,
+                end_line: Some(9),
+                parent: None,
+            })
+            .collect();
+        let out = list_symbols("crates", false, &hits, 1000);
+        let body = body_of(&out);
+
+        assert!(body.len() <= DEFAULT_BYTE_BUDGET, "got {} bytes", body.len());
+        assert!(out.contains("response budget"), "got: {out}");
+        // Functions come first in KIND_HEADINGS, so the budget runs out
+        // before the Structs group — its heading must not be emitted alone.
+        for (idx, line) in body.lines().enumerate() {
+            if line.ends_with(':') {
+                assert!(
+                    body.lines().nth(idx + 1).is_some_and(|next| next.starts_with("  ")),
+                    "heading `{line}` has no entries under it: {body}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn list_symbols_separates_columns_with_two_spaces_instead_of_padding() {
+        let entry = |name: &str, kind: &str, line: u32, end_line: Option<u32>| SymbolListEntry {
+            name: name.to_string(),
+            kind: kind.to_string(),
+            language: "rust".to_string(),
+            relative_path: "src/lib.rs".to_string(),
+            line,
+            end_line,
+            parent: None,
+        };
+        let hits = [
+            entry("compute", "function", 10, Some(12)),
+            entry("a_much_longer_function_name", "function", 20, None),
+            entry("Thing", "struct", 1, Some(5)),
+        ];
+        let out = list_symbols("src/lib.rs", true, &hits, 50);
+        assert_eq!(
+            out,
+            "3 symbol(s) under `src/lib.rs`:\n\
+             Functions:\n\
+             \x20 compute  L10-L12\n\
+             \x20 a_much_longer_function_name  L20\n\
+             Structs:\n\
+             \x20 Thing  L1-L5\n"
+        );
+    }
+
+    #[test]
+    fn impact_analysis_splits_the_budget_across_the_sections_that_have_content() {
+        let make = |prefix: &str| {
+            many_relations(
+                400,
+                |i| format!("{prefix}_caller_number_{i:04}"),
+                |i| format!("crates/some-crate/src/deeply/nested/module_{i:04}.rs"),
+            )
+        };
+        let callers = make("c");
+        let references = make("r");
+        let tests: Vec<&RelationHit> = callers.iter().take(400).collect();
+
+        let out = impact_analysis("target", &callers, &references, &tests, 0, 1000);
+
+        // All three sections must survive: none may eat the whole budget.
+        assert!(out.contains("\nLikely affected tests ("), "got: {out}");
+        assert!(out.contains("\nDirect callers ("), "got: {out}");
+        assert!(out.contains("\nAll references ("), "got: {out}");
+        assert_eq!(out.matches("response budget").count(), 3, "got: {out}");
+
+        for section in ["Likely affected tests", "Direct callers", "All references"] {
+            let Some(start) = out.find(&format!("\n{section} (")) else {
+                panic!("missing section {section}");
+            };
+            let rest = &out[start + 1..];
+            let section_len = rest.find("\n\n").unwrap_or(rest.len());
+            assert!(
+                section_len <= DEFAULT_BYTE_BUDGET / 3 + 256,
+                "section `{section}` was {section_len} bytes, over its third of the budget"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod test_name_heuristic_tests {
+    use super::*;
+
+    #[test]
+    fn a_name_merely_starting_with_test_in_a_source_file_is_not_a_test() {
+        assert!(!looks_like_test_name("testimonial", "src/lib.rs"));
+        assert!(!looks_like_test_name("tester", "src/lib.rs"));
+        assert!(!looks_like_test_name("testament", "crates/x/src/model.rs"));
+        assert!(!looks_like_test_name("latest", "src/latest.rs"));
+    }
+
+    #[test]
+    fn anything_under_a_test_directory_is_a_test() {
+        assert!(looks_like_test_name("build_server", "crates/x/tests/foo.rs"));
+        assert!(looks_like_test_name("helper", "src/__tests__/render.js"));
+        assert!(looks_like_test_name("setUp", "app/test/AppSpec.kt"));
+    }
+
+    #[test]
+    fn test_file_name_conventions_are_recognised_across_languages() {
+        assert!(looks_like_test_name("user_test", "pkg/user_test.go"));
+        assert!(looks_like_test_name("compute", "app/CalculatorTest.java"));
+        assert!(looks_like_test_name("renders", "src/Button.test.tsx"));
+        assert!(looks_like_test_name("renders", "src/button.spec.js"));
+        assert!(looks_like_test_name("check", "scripts/test_helpers.py"));
+    }
+
+    #[test]
+    fn the_name_convention_still_works_as_a_secondary_signal() {
+        assert!(looks_like_test_name("test_compute", "src/lib.rs"));
+        assert!(looks_like_test_name("TEST_compute", "src/lib.rs"));
+        assert!(looks_like_test_name("test", "src/lib.rs"));
+    }
+}
+
+#[cfg(test)]
+mod index_status_tests {
+    use super::*;
+    use mct_index::{DependencyInfo, LanguageCoverage, ManifestDependencies};
+
+    /// `syntax_errors` is left empty because `UnsupportedKind` isn't
+    /// re-exported from `mct-index`, so it can't be constructed from here;
+    /// that section's rendering is untouched by this change either way.
+    fn sample_status() -> IndexStatus {
+        IndexStatus {
+            languages: vec![LanguageCoverage {
+                language: "rust".to_string(),
+                file_count: 2,
+                symbol_count: 10,
+            }],
+            total_files: 2,
+            total_symbols: 10,
+            last_indexed_at: Some(1_700_000_000),
+            unsupported_languages: vec!["lua".to_string()],
+            syntax_errors: Vec::new(),
+            dependencies: vec![
+                ManifestDependencies {
+                    manifest_path: "Cargo.toml".to_string(),
+                    language: "rust".to_string(),
+                    dependencies: vec![
+                        DependencyInfo {
+                            name: "serde".to_string(),
+                            version: Some("1.0".to_string()),
+                        },
+                        DependencyInfo {
+                            name: "rusqlite".to_string(),
+                            version: Some("0.31".to_string()),
+                        },
+                    ],
+                },
+                ManifestDependencies {
+                    manifest_path: "crates/x/Cargo.toml".to_string(),
+                    language: "rust".to_string(),
+                    dependencies: vec![DependencyInfo {
+                        name: "serde".to_string(),
+                        version: None,
+                    }],
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn the_default_summarises_dependencies_to_one_line() {
+        let out = index_status(&sample_status(), false);
+        assert!(
+            out.contains("Dependencies: 2 manifests, 3 declared (2 unique external).\n"),
+            "got: {out}"
+        );
+        assert!(!out.contains("serde"), "no manifest detail by default: {out}");
+        assert!(!out.contains("Dependencies detected"), "got: {out}");
+    }
+
+    #[test]
+    fn verbose_keeps_the_full_per_manifest_listing() {
+        let out = index_status(&sample_status(), true);
+        assert!(out.contains("Dependencies detected:\n"), "got: {out}");
+        assert!(out.contains("  Cargo.toml (rust, 2 dep(s)):\n"), "got: {out}");
+        assert!(out.contains("    serde 1.0\n"), "got: {out}");
+        assert!(out.contains("    rusqlite 0.31\n"), "got: {out}");
+        // A path/workspace dependency has no version and must still render.
+        assert!(out.contains("  crates/x/Cargo.toml (rust, 1 dep(s)):\n"), "got: {out}");
+    }
+
+    #[test]
+    fn every_non_dependency_section_is_identical_in_both_modes() {
+        let status = sample_status();
+        let summary = index_status(&status, false);
+        let verbose = index_status(&status, true);
+        let head = |text: &str| {
+            text.find("Dependencies")
+                .map(|idx| text[..idx].to_string())
+                .unwrap_or_default()
+        };
+        assert_eq!(head(&summary), head(&verbose));
+        assert_eq!(
+            head(&summary),
+            "2 files indexed, 10 symbols total.\n\
+             Last indexed at unix timestamp 1700000000.\n\
+             Coverage by language:\n\
+             \x20 rust: 2 files, 10 symbols\n\
+             Languages seen but not yet supported: lua\n"
+        );
+    }
+
+    #[test]
+    fn a_status_with_no_manifests_renders_no_dependency_section_at_all() {
+        let mut status = sample_status();
+        status.dependencies.clear();
+        assert_eq!(index_status(&status, false), index_status(&status, true));
+        assert!(!index_status(&status, false).contains("Dependencies"));
+    }
+}
+
+#[cfg(test)]
+mod overview_tests {
+    use super::*;
+    use crate::server::ModuleDigest;
+
+    fn symbol(name: &str, line: u32, end_line: Option<u32>) -> SymbolListEntry {
+        SymbolListEntry {
+            name: name.to_string(),
+            kind: "function".to_string(),
+            language: "rust".to_string(),
+            relative_path: "src/lib.rs".to_string(),
+            line,
+            end_line,
+            parent: None,
+        }
+    }
+
+    fn module(path: &str, symbols: Vec<SymbolListEntry>) -> ModuleDigest {
+        ModuleDigest {
+            relative_path: path.to_string(),
+            symbols,
+            omitted: 0,
+            relations: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn an_overview_with_no_empty_modules_is_byte_identical_to_the_pre_budget_rendering() {
+        let modules = [module("src/lib.rs", vec![symbol("compute", 10, Some(12))])];
+        assert_eq!(
+            overview("src", &modules, 8),
+            "Project overview of `src` (1 module(s), up to 8 symbol(s) each):\n\
+             \n\
+             src/lib.rs:\n\
+             \x20 [function] compute L10-L12\n"
+        );
+    }
+
+    #[test]
+    fn modules_with_nothing_to_surface_are_counted_in_the_header_not_printed() {
+        let modules = [
+            module("docs/00-index.md", Vec::new()),
+            module("docs/glossary.md", Vec::new()),
+            module("src/lib.rs", vec![symbol("compute", 10, Some(12))]),
+        ];
+        let out = overview("docs", &modules, 8);
+        assert_eq!(
+            out,
+            "Project overview of `docs` (3 module(s), up to 8 symbol(s) each, 2 with no indexed top-level symbols omitted):\n\
+             \n\
+             src/lib.rs:\n\
+             \x20 [function] compute L10-L12\n"
+        );
+        assert!(!out.contains("no top-level symbols)"), "noise line must be gone: {out}");
+        assert!(!out.contains("docs/glossary.md"), "empty module must not be listed: {out}");
+    }
+
+    #[test]
+    fn an_overview_over_budget_drops_whole_modules_and_reports_how_many() {
+        let modules: Vec<ModuleDigest> = (0..400)
+            .map(|i| {
+                ModuleDigest {
+                    relative_path: format!("crates/some-crate/src/nested/module_{i:04}.rs"),
+                    symbols: (0..4)
+                        .map(|j| symbol(&format!("function_number_{i:04}_{j}"), 1, Some(9)))
+                        .collect(),
+                    omitted: 0,
+                    relations: Vec::new(),
+                }
+            })
+            .collect();
+        let out = overview("crates", &modules, 8);
+        let body = out.split_once('\n').map(|(_, rest)| rest).unwrap_or_default();
+
+        assert!(body.len() <= DEFAULT_BYTE_BUDGET, "got {} bytes", body.len());
+        assert!(out.contains("response budget"), "got: {out}");
+        // Whole modules only: every module header present must be followed
+        // by its full set of 4 symbol lines.
+        let kept = body.matches("crates/some-crate/src/nested/module_").count();
+        assert!(kept > 0 && kept < 400, "expected a partial result, got {kept}");
+        assert_eq!(body.matches("  [function] function_number_").count(), kept * 4);
+        assert!(
+            out.contains(&format!(", {kept} of 400 shown — {} more dropped", 400 - kept)),
+            "got header: {}",
+            out.lines().next().unwrap_or_default()
+        );
     }
 }
