@@ -114,11 +114,7 @@ fn a_wikilink_anchors_heading_part_is_discoverable_by_name() {
     // `[[Parser]]` link (already covered by the test above) and must ALSO
     // index its heading part as an independent relation, discoverable by
     // `find_references("Testing")` — "Testing" is a real H1 heading in this
-    // fixture. Note: the public `Index`/`RelationHit` API has no accessor
-    // for the resolved `to_symbol_id` column, so this only proves the
-    // relation is stored and discoverable by name (exactly what
-    // `find_references` guarantees regardless of resolution), not that the
-    // foreign key itself is non-NULL.
+    // fixture.
     let hits = index.find_references("Testing").unwrap();
     assert!(
         hits.iter()
@@ -130,13 +126,12 @@ fn a_wikilink_anchors_heading_part_is_discoverable_by_name() {
 #[test]
 fn a_wikilink_to_a_nonexistent_target_is_still_discoverable_by_name() {
     let index = open_indexed();
-    // No heading named "Nonexistent Page" exists anywhere in the fixture, so
-    // `to_symbol_id` stays NULL at insert time — but the relation row is
-    // still inserted unconditionally, and `find_references` matches purely
-    // on the `to_name` string column, never on `to_symbol_id`. Pre-existing
-    // `mct-index` behavior, not new machinery; reconfirmed here because
-    // Phase 3 introduces a new way (the heading-part split) to end up with
-    // an unresolved name.
+    // No heading named "Nonexistent Page" exists anywhere in the fixture, but
+    // the relation row is still inserted unconditionally, and
+    // `find_references` matches purely on the `to_name` string column.
+    // Pre-existing `mct-index` behavior, not new machinery; reconfirmed here
+    // because Phase 3 introduces a new way (the heading-part split) to end up
+    // with an unresolved name.
     let hits = index.find_references("Nonexistent Page").unwrap();
     assert!(
         hits.iter()
@@ -363,10 +358,10 @@ fn an_inline_tag_becomes_a_tag_prefixed_relation() {
 fn an_unresolved_wikilink_is_recorded_by_name_and_does_not_break_the_index() {
     let index = open_vault();
     // `[[Does Not Exist]]` names no heading anywhere in the vault. The
-    // relation row is still inserted with `to_name = "Does Not Exist"` and a
-    // NULL `to_symbol_id`; indexing does not panic, does not report an issue
-    // (asserted in `open_vault`), and the dangling edge stays queryable by
-    // name — which is exactly how you would find broken links in a vault.
+    // relation row is still inserted with `to_name = "Does Not Exist"`;
+    // indexing does not panic, does not report an issue (asserted in
+    // `open_vault`), and the dangling edge stays queryable by name — which
+    // is exactly how you would find broken links in a vault.
     let hits = index.find_references("Does Not Exist").unwrap();
     assert_eq!(hits.len(), 1, "{hits:?}");
     assert_eq!(hits[0].from_symbol, "Dangling");
