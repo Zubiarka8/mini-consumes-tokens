@@ -213,12 +213,105 @@ async fn find_symbol_locates_rust_function() {
             path: None,
             language: None,
             name: "compute".to_string(),
+            match_mode: None,
             limit: None,
         }))
         .await
         .unwrap();
     let text = content_of(&result);
     assert!(text.contains("src/lib.rs"), "got: {text}");
+}
+
+#[tokio::test]
+async fn find_symbol_default_match_mode_is_exact() {
+    let server = build_server().await;
+    // "comp" is a real prefix of `compute` and `test_compute` but not an
+    // exact name of anything — the default (`match` omitted) must not widen.
+    let text = content_of(
+        &server
+            .find_symbol(Parameters(FindSymbolArgs {
+                name: "comp".to_string(),
+                match_mode: None,
+                path: None,
+                language: None,
+                limit: None,
+            }))
+            .await
+            .unwrap(),
+    );
+    assert!(text.contains("No symbol named"), "got: {text}");
+}
+
+#[tokio::test]
+async fn find_symbol_prefix_match_widens_beyond_the_exact_name() {
+    let server = build_server().await;
+    let text = content_of(
+        &server
+            .find_symbol(Parameters(FindSymbolArgs {
+                name: "comp".to_string(),
+                match_mode: Some("prefix".to_string()),
+                path: None,
+                language: None,
+                limit: None,
+            }))
+            .await
+            .unwrap(),
+    );
+    assert!(text.contains("compute"), "got: {text}");
+    assert!(text.contains("test_compute"), "got: {text}");
+}
+
+#[tokio::test]
+async fn find_symbol_prefix_match_does_not_reach_a_mid_token_substring() {
+    let server = build_server().await;
+    // "mpu" sits mid-token in `compute` (co-M-P-U-te) — a prefix query must
+    // not find it, unlike `fuzzy` below.
+    let text = content_of(
+        &server
+            .find_symbol(Parameters(FindSymbolArgs {
+                name: "mpu".to_string(),
+                match_mode: Some("prefix".to_string()),
+                path: None,
+                language: None,
+                limit: None,
+            }))
+            .await
+            .unwrap(),
+    );
+    assert!(text.contains("No symbol named"), "got: {text}");
+}
+
+#[tokio::test]
+async fn find_symbol_fuzzy_match_reaches_a_mid_token_substring() {
+    let server = build_server().await;
+    let text = content_of(
+        &server
+            .find_symbol(Parameters(FindSymbolArgs {
+                name: "mpu".to_string(),
+                match_mode: Some("fuzzy".to_string()),
+                path: None,
+                language: None,
+                limit: None,
+            }))
+            .await
+            .unwrap(),
+    );
+    assert!(text.contains("compute"), "got: {text}");
+}
+
+#[tokio::test]
+async fn find_symbol_unrecognized_match_mode_is_rejected_as_invalid_params() {
+    let server = build_server().await;
+    let result = server
+        .find_symbol(Parameters(FindSymbolArgs {
+            name: "compute".to_string(),
+            match_mode: Some("substring".to_string()),
+            path: None,
+            language: None,
+            limit: None,
+        }))
+        .await;
+    assert!(result.is_err(), "an unrecognized match mode must not silently fall back to exact");
 }
 
 #[tokio::test]
@@ -303,6 +396,7 @@ async fn empty_name_is_rejected_as_invalid_params() {
             path: None,
             language: None,
             name: "   ".to_string(),
+            match_mode: None,
             limit: None,
         }))
         .await;
