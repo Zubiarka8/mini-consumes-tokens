@@ -1,3 +1,9 @@
+// Example/bench code: a panic here means a broken benchmark precondition
+// (e.g. the local synthetic struct failing to serialize), not a path
+// processing untrusted repo-input content — see the same allow's rationale
+// in crates/mct-mcp-server/tests/*.rs.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 //! TOON-vs-JSON size benchmark for this server's tool responses.
 //!
 //! Run with:

@@ -198,6 +198,13 @@ fn parse_csv_line(line: &str) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
+    // Test code: an unwrap()/expect()/panic! here means a broken test
+    // precondition, and panicking is the correct behavior — this module
+    // only touches fixtures the test builds itself, never repo-input
+    // content (see the module doc's no-unwrap/panic policy, which is about
+    // code processing repo-derived strings, not test assertions).
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
     use super::*;
 
     #[test]
