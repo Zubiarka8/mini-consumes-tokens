@@ -12,6 +12,7 @@ use rmcp::{
 use tokio::sync::Mutex;
 
 use crate::format;
+use crate::toon::OutputFormat;
 use crate::ttc;
 
 /// Applied to any of the 5 result-returning tools below when their `limit`
@@ -43,6 +44,13 @@ pub struct ListSymbolsArgs {
     /// raise it if you expect more hits and want them all in one call.
     #[serde(default)]
     pub limit: Option<usize>,
+    /// Response shape: `text` (default) is this server's existing
+    /// human/agent-skimmable plain text. `toon` renders the same data as a
+    /// compact TOON table (one header row of column names, then one row per
+    /// symbol, no repeated labels) — fewer tokens for a large result, at the
+    /// cost of the text version's per-kind grouping.
+    #[serde(default)]
+    pub format: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -70,6 +78,10 @@ pub struct FindSymbolArgs {
     /// raise it if you expect more hits and want them all in one call.
     #[serde(default)]
     pub limit: Option<usize>,
+    /// Response shape: `text` (default) or `toon` (a compact table — see
+    /// `list_symbols`' `format` field for details).
+    #[serde(default)]
+    pub format: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -97,6 +109,10 @@ pub struct FindReferencesArgs {
     /// paging through result sets larger than one `limit` page. Defaults to 0.
     #[serde(default)]
     pub offset: Option<usize>,
+    /// Response shape: `text` (default) or `toon` (a compact table — see
+    /// `list_symbols`' `format` field for details).
+    #[serde(default)]
+    pub format: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -124,6 +140,10 @@ pub struct FindCallsArgs {
     /// paging through result sets larger than one `limit` page. Defaults to 0.
     #[serde(default)]
     pub offset: Option<usize>,
+    /// Response shape: `text` (default) or `toon` (a compact table — see
+    /// `list_symbols`' `format` field for details).
+    #[serde(default)]
+    pub format: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -151,6 +171,10 @@ pub struct FindCallersArgs {
     /// paging through result sets larger than one `limit` page. Defaults to 0.
     #[serde(default)]
     pub offset: Option<usize>,
+    /// Response shape: `text` (default) or `toon` (a compact table — see
+    /// `list_symbols`' `format` field for details).
+    #[serde(default)]
+    pub format: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -178,6 +202,10 @@ pub struct ImpactAnalysisArgs {
     /// independently to each section. Defaults to 0.
     #[serde(default)]
     pub offset: Option<usize>,
+    /// Response shape: `text` (default) or `toon` (a compact table per
+    /// section — see `list_symbols`' `format` field for details).
+    #[serde(default)]
+    pub format: Option<String>,
 }
 
 #[derive(Debug, Default, serde::Deserialize, schemars::JsonSchema)]
@@ -279,6 +307,10 @@ pub struct FindDeadCodeArgs {
     /// paging through result sets larger than one `limit` page. Defaults to 0.
     #[serde(default)]
     pub offset: Option<usize>,
+    /// Response shape: `text` (default) or `toon` (a compact table — see
+    /// `list_symbols`' `format` field for details).
+    #[serde(default)]
+    pub format: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -326,6 +358,14 @@ fn parse_match_mode(raw: Option<&str>) -> Result<mct_index::SymbolMatchMode, Mcp
             None,
         )),
     }
+}
+
+/// Parses a tool's optional `format` argument (`text`, the default, or
+/// `toon` — see `crate::toon`). An unrecognized value is rejected the same
+/// way `parse_match_mode` rejects a typo'd `match`, rather than silently
+/// falling back to `text`.
+fn parse_output_format(raw: Option<&str>) -> Result<OutputFormat, McpError> {
+    OutputFormat::parse(raw).map_err(|msg| McpError::invalid_params(msg, None))
 }
 
 fn index_error(err: mct_index::IndexError) -> McpError {
@@ -491,11 +531,13 @@ impl MctServer {
             kind,
             language,
             limit,
+            format,
         }): Parameters<ListSymbolsArgs>,
     ) -> Result<CallToolResult, McpError> {
         let path = validate_name(&path)?;
         let kind = optional_arg(kind.as_ref());
         let language = optional_arg(language.as_ref());
+        let output_format = parse_output_format(format.as_deref())?;
         let index = self.index.lock().await;
         // Asks the index the same file-vs-directory question it resolves
         // internally, so the formatter knows whether to print each entry's
@@ -507,9 +549,12 @@ impl MctServer {
         let hits = index
             .list_symbols(path, kind, language)
             .map_err(index_error)?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(
-            format::list_symbols(path, is_file, &hits, limit.unwrap_or(DEFAULT_RESULT_LIMIT)),
-        )]))
+        let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
+        let text = match output_format {
+            OutputFormat::Text => format::list_symbols(path, is_file, &hits, limit),
+            OutputFormat::Toon => format::list_symbols_toon(path, is_file, &hits, limit),
+        };
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
     // Fallback only — see tools.ttc / MctServer::new.
@@ -522,18 +567,23 @@ impl MctServer {
             path,
             language,
             limit,
+            format,
         }): Parameters<FindSymbolArgs>,
     ) -> Result<CallToolResult, McpError> {
         let name = validate_name(&name)?;
         let mode = parse_match_mode(match_mode.as_deref())?;
+        let output_format = parse_output_format(format.as_deref())?;
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
         let index = self.index.lock().await;
         let hits = index
             .find_symbol_matching_scoped(name, mode, scope)
             .map_err(index_error)?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(
-            format::symbol_hits(name, &hits, limit.unwrap_or(DEFAULT_RESULT_LIMIT)),
-        )]))
+        let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
+        let text = match output_format {
+            OutputFormat::Text => format::symbol_hits(name, &hits, limit),
+            OutputFormat::Toon => format::symbol_hits_toon(name, &hits, limit),
+        };
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
     // Fallback only — see tools.ttc / MctServer::new.
@@ -547,19 +597,23 @@ impl MctServer {
             limit,
             depth,
             offset,
+            format,
         }): Parameters<FindReferencesArgs>,
     ) -> Result<CallToolResult, McpError> {
         let symbol = validate_name(&symbol)?;
         let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
         let offset = offset.unwrap_or(0);
+        let output_format = parse_output_format(format.as_deref())?;
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
         let index = self.index.lock().await;
         let hits = index
             .find_references_bfs_scoped(symbol, depth.unwrap_or(1), limit, offset, scope)
             .map_err(index_error)?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(
-            format::relation_hits(symbol, "reference(s)", &hits, offset, limit),
-        )]))
+        let text = match output_format {
+            OutputFormat::Text => format::relation_hits(symbol, "reference(s)", &hits, offset, limit),
+            OutputFormat::Toon => format::relation_hits_toon(symbol, "reference(s)", &hits, offset, limit),
+        };
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
     // Fallback only — see tools.ttc / MctServer::new.
@@ -573,19 +627,27 @@ impl MctServer {
             limit,
             depth,
             offset,
+            format,
         }): Parameters<FindCallsArgs>,
     ) -> Result<CallToolResult, McpError> {
         let function = validate_name(&function)?;
         let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
         let offset = offset.unwrap_or(0);
+        let output_format = parse_output_format(format.as_deref())?;
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
         let index = self.index.lock().await;
         let hits = index
             .find_calls_bfs_scoped(function, depth.unwrap_or(1), limit, offset, scope)
             .map_err(index_error)?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(
-            format::relation_hits(function, "call(s) made by this function", &hits, offset, limit),
-        )]))
+        let text = match output_format {
+            OutputFormat::Text => {
+                format::relation_hits(function, "call(s) made by this function", &hits, offset, limit)
+            }
+            OutputFormat::Toon => {
+                format::relation_hits_toon(function, "call(s) made by this function", &hits, offset, limit)
+            }
+        };
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
     // Fallback only — see tools.ttc / MctServer::new.
@@ -599,19 +661,27 @@ impl MctServer {
             limit,
             depth,
             offset,
+            format,
         }): Parameters<FindCallersArgs>,
     ) -> Result<CallToolResult, McpError> {
         let function = validate_name(&function)?;
         let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
         let offset = offset.unwrap_or(0);
+        let output_format = parse_output_format(format.as_deref())?;
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
         let index = self.index.lock().await;
         let hits = index
             .find_callers_bfs_scoped(function, depth.unwrap_or(1), limit, offset, scope)
             .map_err(index_error)?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(
-            format::relation_hits(function, "caller(s) of this function", &hits, offset, limit),
-        )]))
+        let text = match output_format {
+            OutputFormat::Text => {
+                format::relation_hits(function, "caller(s) of this function", &hits, offset, limit)
+            }
+            OutputFormat::Toon => {
+                format::relation_hits_toon(function, "caller(s) of this function", &hits, offset, limit)
+            }
+        };
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
     // Fallback only — see tools.ttc / MctServer::new.
@@ -625,12 +695,14 @@ impl MctServer {
             limit,
             depth,
             offset,
+            format,
         }): Parameters<ImpactAnalysisArgs>,
     ) -> Result<CallToolResult, McpError> {
         let symbol = validate_name(&symbol)?;
         let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
         let offset = offset.unwrap_or(0);
         let depth = depth.unwrap_or(1);
+        let output_format = parse_output_format(format.as_deref())?;
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
         let (callers, references) = {
             let index = self.index.lock().await;
@@ -652,9 +724,15 @@ impl MctServer {
             .filter(|hit| format::looks_like_test_name(&hit.from_symbol, &hit.relative_path))
             .filter(|hit| seen_test_names.insert(hit.from_symbol.as_str()))
             .collect();
-        Ok(CallToolResult::success(vec![ContentBlock::text(
-            format::impact_analysis(symbol, &callers, &references, &affected_tests, offset, limit),
-        )]))
+        let text = match output_format {
+            OutputFormat::Text => {
+                format::impact_analysis(symbol, &callers, &references, &affected_tests, offset, limit)
+            }
+            OutputFormat::Toon => {
+                format::impact_analysis_toon(symbol, &callers, &references, &affected_tests, offset, limit)
+            }
+        };
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
     // Fallback only — see tools.ttc / MctServer::new.
@@ -832,12 +910,14 @@ impl MctServer {
             language,
             limit,
             offset,
+            format,
         }): Parameters<FindDeadCodeArgs>,
     ) -> Result<CallToolResult, McpError> {
         let path = path.as_deref().map(str::trim).filter(|p| !p.is_empty());
         let language = language.as_deref().map(str::trim).filter(|l| !l.is_empty());
         let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
         let offset = offset.unwrap_or(0);
+        let output_format = parse_output_format(format.as_deref())?;
 
         let index = self.index.lock().await;
         let all_entries = list_symbols_for_overview(&index, path, language)?;
@@ -860,9 +940,13 @@ impl MctServer {
             .filter(|e| !reference_counts.contains_key(e.name.as_str()))
             .collect();
 
-        Ok(CallToolResult::success(vec![ContentBlock::text(
-            format::find_dead_code(path.unwrap_or("."), &candidates, offset, limit),
-        )]))
+        let text = match output_format {
+            OutputFormat::Text => format::find_dead_code(path.unwrap_or("."), &candidates, offset, limit),
+            OutputFormat::Toon => {
+                format::find_dead_code_toon(path.unwrap_or("."), &candidates, offset, limit)
+            }
+        };
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 }
 
