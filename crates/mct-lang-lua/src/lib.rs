@@ -133,6 +133,7 @@ impl<'a> Walker<'a> {
             kind,
             location,
             parent,
+            level: None,
         });
         id
     }

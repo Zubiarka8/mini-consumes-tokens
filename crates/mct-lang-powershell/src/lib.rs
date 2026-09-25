@@ -172,7 +172,7 @@ impl<'a> Walker<'a> {
     fn push_symbol(&mut self, name: String, kind: SymbolKind, location: Location, parent: Option<String>) -> SymbolId {
         let id = self.next_id;
         self.next_id += 1;
-        self.symbols.push(SymbolRecord { id, name, kind, location, parent });
+        self.symbols.push(SymbolRecord { id, name, kind, location, parent, level: None });
         id
     }
 
