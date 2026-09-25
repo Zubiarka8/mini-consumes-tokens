@@ -5,12 +5,25 @@ use mct_core::LanguageRegistry;
 use mct_index::{ExcludeSet, Index};
 use clap::{Parser, Subcommand};
 
-/// mini-consumes-tokens: index a repository and inspect the index from the
-/// command line. The MCP server (`mct-mcp-server`) does the same indexing
-/// automatically at startup — this CLI is for manual/scripted use (CI, a
-/// pre-commit hook, or just checking coverage before wiring up the plugin).
+/// Index a repository and inspect the index from the command line.
+///
+/// The MCP server (`mct-mcp-server`) does the same indexing automatically at
+/// startup — this CLI is for manual/scripted use (CI, a pre-commit hook, or
+/// just checking coverage before wiring up the plugin).
 #[derive(Parser, Debug)]
-#[command(name = "mct")]
+#[command(name = "mct-cli", version, after_help = "\
+Invoked here via `cargo run -p mct-cli --`; once installed on PATH (e.g.
+`cargo install --path crates/mct-cli`) the binary is `mct-cli` too, so drop
+the `cargo run -p mct-cli --` prefix from every example below.
+
+Typical first run:
+  cargo run -p mct-cli -- --root . init
+  cargo run -p mct-cli -- --root . ignore-init --import-gitignore
+  cargo run -p mct-cli -- --root . gitignore-init
+  cargo run -p mct-cli -- --root . status
+
+Run `cargo run -p mct-cli -- <command> --help` for a command's full
+description and examples.")]
 struct Cli {
     /// Project root to operate on. Defaults to the current working directory.
     #[arg(long, global = true)]
@@ -22,32 +35,54 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Command {
-    /// Build the index for the first time. Equivalent to `reindex` — kept as
-    /// a separate, discoverable first command for a fresh checkout.
+    /// Build the index for the first time.
+    ///
+    /// Equivalent to `reindex` — kept as a separate, discoverable first
+    /// command for a fresh checkout.
+    #[command(after_help = "Example:\n  cargo run -p mct-cli -- --root . init")]
     Init,
     /// Re-scan the project and update the index.
+    ///
+    /// Only re-parses files that changed since the last run, unless
+    /// `--force` is given. Safe to run repeatedly (e.g. from a pre-commit
+    /// hook or CI step) — a no-op reindex costs one blob-hash comparison
+    /// per file.
+    #[command(after_help = "Examples:\n  cargo run -p mct-cli -- --root . reindex\n  cargo run -p mct-cli -- --root . reindex --force")]
     Reindex {
         /// Re-parse every supported file, even if unchanged since last run.
         #[arg(long)]
         force: bool,
     },
-    /// Report index health: coverage per language, last indexed time,
-    /// unsupported languages seen, and files that failed to parse.
+    /// Report index health.
+    ///
+    /// Prints coverage per language, the last indexed time, any unsupported
+    /// languages seen while walking the tree, and files that failed to
+    /// parse. Run this after `init`/`reindex` to sanity-check the result,
+    /// or on its own to check whether the index looks stale.
+    #[command(after_help = "Example:\n  cargo run -p mct-cli -- --root . status")]
     Status,
-    /// Write (or update) `.mcp.json` at the project root so Claude Code (or
-    /// any other client reading that file) can launch `mct-mcp-server` for
-    /// this project. Merges into an existing file instead of overwriting it,
-    /// so other servers already configured there are left untouched.
+    /// Write (or update) `.mcp.json` so an MCP client can launch this server.
+    ///
+    /// Writes (or updates) `.mcp.json` at the project root so Claude Code
+    /// (or any other client reading that file) can launch `mct-mcp-server`
+    /// for this project. Merges into an existing file instead of
+    /// overwriting it, so other servers already configured there are left
+    /// untouched.
+    #[command(after_help = "Examples:\n  cargo run -p mct-cli -- --root . mcp-register\n  cargo run -p mct-cli -- --root . mcp-register --name my-project")]
     McpRegister {
         /// Server name (the key under `mcpServers`). Defaults to the root
         /// directory's own name.
         #[arg(long)]
         name: Option<String>,
     },
-    /// Write a starter `.mctignore` at the project root, if one doesn't
+    /// Write a starter `.mctignore` for custom indexing exclusions.
+    ///
+    /// Writes a starter `.mctignore` at the project root, if one doesn't
     /// already exist. Lets a project exclude extra files/directories from
-    /// indexing (e.g. `docs/`, `*.md`) on top of the built-in exclusions.
-    /// Without `--import-gitignore`, an existing file is left untouched.
+    /// indexing (e.g. `docs/`, `*.md`) on top of the built-in exclusions,
+    /// without touching git. Without `--import-gitignore`, an existing file
+    /// is left untouched.
+    #[command(after_help = "Examples:\n  cargo run -p mct-cli -- --root . ignore-init\n  cargo run -p mct-cli -- --root . ignore-init --import-gitignore")]
     IgnoreInit {
         /// Activate `@import-gitignore`, so everything the project's
         /// `.gitignore` excludes is excluded from indexing too. On a fresh
@@ -58,11 +93,14 @@ enum Command {
         #[arg(long)]
         import_gitignore: bool,
     },
-    /// Add `.mct-index/` to the project's `.gitignore` (creating it if
+    /// Keep the generated index out of git.
+    ///
+    /// Adds `.mct-index/` to the project's `.gitignore` (creating it if
     /// needed), so the generated symbol database — fully derived from
     /// source, regenerated by `reindex` — never ends up committed. Leaves
     /// everything else already in the file untouched; a no-op if it's
     /// already covered.
+    #[command(after_help = "Example:\n  cargo run -p mct-cli -- --root . gitignore-init")]
     GitignoreInit,
 }
 
