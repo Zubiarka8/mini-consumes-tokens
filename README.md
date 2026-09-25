@@ -169,7 +169,7 @@ mct-cli --root . status     # 3. check it worked: files and symbols indexed, las
 4. **Connect your AI assistant or editor** — see section 3.2 for your specific tool.
 5. **Just ask.** Things like *"where is `InvoiceService` defined?"* or *"what would break if I change `calculate_total`?"* — your assistant uses the index automatically instead of reading every file.
 6. **Refresh if needed:** `mct-cli --root . reindex --force`. Not usually necessary (the index keeps itself up to date), but it's there if your assistant seems to be missing something after a large batch of changes.
-7. **Keep noise out (optional):** `mct-cli --root . ignore-init` writes a starter `.mctignore` — edit it to exclude things like `docs/` or `*.md` from the index, then `reindex --force`.
+7. **Keep noise out (optional):** `mct-cli --root . ignore-init` writes a starter `.mctignore` — edit it to exclude things like `docs/` or `*.md` from the index, then `reindex --force`. Add the line `@import-gitignore` to also exclude everything your project's own `.gitignore` already excludes.
 
 **What your assistant can now do**, once connected:
 
@@ -197,7 +197,7 @@ Every command, in one place. All accept a global `--root <path>` naming the proj
 | `status` | Reports index health: coverage per language, when it last indexed, languages seen with no support yet, files that failed to read. |
 | `mcp-register` | Writes (or safely merges into) `.mcp.json` at the project root, so an MCP client can launch the server for this project. Entries for other tools are left untouched. |
 | `mcp-register --name <name>` | Same, but lets you choose the connection's name instead of using the project folder's name. |
-| `ignore-init` | Writes a starter `.mctignore` at the project root (if one doesn't already exist) — a `.gitignore`-style file to exclude extra files/directories (e.g. `docs/`, `*.md`) from indexing, on top of the built-in exclusions. Edit it, then `reindex --force` to apply. |
+| `ignore-init` | Writes a starter `.mctignore` at the project root (if one doesn't already exist) — a `.gitignore`-style file to exclude extra files/directories (e.g. `docs/`, `*.md`) from indexing, on top of the built-in exclusions. Edit it, then `reindex --force` to apply. Add a line with just `@import-gitignore` to also exclude everything the project's own `.gitignore` excludes (its `!negation` lines are skipped, same simplification `.mctignore` itself has). |
 
 ### `mct-mcp-server` — the program your AI assistant actually talks to
 
