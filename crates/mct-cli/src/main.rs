@@ -47,11 +47,14 @@ enum Command {
     /// Write a starter `.mctignore` at the project root, if one doesn't
     /// already exist. Lets a project exclude extra files/directories from
     /// indexing (e.g. `docs/`, `*.md`) on top of the built-in exclusions.
+    /// Without `--import-gitignore`, an existing file is left untouched.
     IgnoreInit {
-        /// Also activate `@import-gitignore` in the generated file, so
-        /// everything the project's `.gitignore` excludes is excluded from
-        /// indexing too. Only applies when the file is actually created —
-        /// an existing `.mctignore` is never modified.
+        /// Activate `@import-gitignore`, so everything the project's
+        /// `.gitignore` excludes is excluded from indexing too. On a fresh
+        /// file this is baked into the generated content; on an existing
+        /// one, the directive is appended if it isn't already there —
+        /// otherwise this is the one case `ignore-init` updates a file
+        /// instead of leaving it alone.
         #[arg(long)]
         import_gitignore: bool,
     },
@@ -166,18 +169,23 @@ fn mcp_register(root: &Path, name: Option<String>) -> anyhow::Result<()> {
 }
 
 /// Writes a starter `.mctignore` at `root` if one doesn't already exist.
-/// Never overwrites an existing file — same non-destructive stance as
-/// `mcp_register`, just without a merge target here since there's nothing
-/// to merge into a plain-text ignore file.
+/// Never overwrites an existing file's own patterns — same non-destructive
+/// stance as `mcp_register`, just without a merge target here since there's
+/// nothing to merge into a plain-text ignore file.
 ///
-/// `import_gitignore` lets the user opt into `@import-gitignore` right at
-/// creation time, instead of hand-editing the file afterward: it activates
-/// the directive by uncommenting the template's own example line for it.
-/// Only affects a freshly created file — an existing one is left as-is,
-/// flag or no flag, same as every other case here.
+/// `import_gitignore` lets the user opt into `@import-gitignore` instead of
+/// hand-editing the file: on a fresh file it's baked into the generated
+/// content (uncommenting the template's own example line for it); on an
+/// existing one, [`activate_gitignore_import`] appends it if it isn't
+/// already there — the one case this function updates rather than leaves
+/// alone, gated entirely behind the flag so a plain `ignore-init` on an
+/// existing file still never touches it.
 fn ignore_init(root: &Path, import_gitignore: bool) -> anyhow::Result<()> {
     let path = root.join(mct_index::IGNORE_FILE_NAME);
     if path.exists() {
+        if import_gitignore {
+            return activate_gitignore_import(&path);
+        }
         println!("{} already exists, leaving it as-is.", display_path(&path));
         return Ok(());
     }
@@ -198,6 +206,32 @@ fn ignore_init(root: &Path, import_gitignore: bool) -> anyhow::Result<()> {
         } else {
             ""
         }
+    );
+    Ok(())
+}
+
+/// Appends [`mct_index::GITIGNORE_IMPORT_DIRECTIVE`] to an existing
+/// `.mctignore` at `path`, if it isn't already active on some line of its
+/// own — idempotent, and never touches anything else already in the file.
+fn activate_gitignore_import(path: &Path) -> anyhow::Result<()> {
+    let contents = std::fs::read_to_string(path)?;
+    if contents.lines().any(|line| line.trim() == mct_index::GITIGNORE_IMPORT_DIRECTIVE) {
+        println!("{} already imports .gitignore.", display_path(path));
+        return Ok(());
+    }
+
+    let mut updated = contents;
+    if !updated.is_empty() && !updated.ends_with('\n') {
+        updated.push('\n');
+    }
+    updated.push_str(mct_index::GITIGNORE_IMPORT_DIRECTIVE);
+    updated.push('\n');
+
+    std::fs::write(path, &updated)?;
+    println!(
+        "Added `{}` to {}",
+        mct_index::GITIGNORE_IMPORT_DIRECTIVE,
+        display_path(path)
     );
     Ok(())
 }
@@ -537,14 +571,42 @@ mod tests {
     }
 
     #[test]
-    fn ignore_init_import_gitignore_flag_does_not_touch_an_existing_file() {
+    fn ignore_init_without_the_flag_never_touches_an_existing_file() {
+        let dir = temp_project_dir("ignore-init-no-flag-existing");
+        fs::write(dir.join(mct_index::IGNORE_FILE_NAME), "*.md\n").expect("seed existing ignore file");
+
+        ignore_init(&dir, false).expect("ignore_init should succeed");
+
+        let contents = fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
+        assert_eq!(contents, "*.md\n");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn ignore_init_import_gitignore_flag_activates_the_directive_on_an_existing_file() {
         let dir = temp_project_dir("ignore-init-import-gitignore-existing");
         fs::write(dir.join(mct_index::IGNORE_FILE_NAME), "*.md\n").expect("seed existing ignore file");
 
         ignore_init(&dir, true).expect("ignore_init should succeed");
 
         let contents = fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
-        assert_eq!(contents, "*.md\n");
+        assert_eq!(contents, "*.md\n@import-gitignore\n");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn ignore_init_import_gitignore_flag_is_idempotent_on_an_existing_file() {
+        let dir = temp_project_dir("ignore-init-import-gitignore-idempotent");
+        fs::write(dir.join(mct_index::IGNORE_FILE_NAME), "*.md\n").expect("seed existing ignore file");
+
+        ignore_init(&dir, true).expect("first ignore_init should succeed");
+        let first = fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
+        ignore_init(&dir, true).expect("second ignore_init should succeed");
+        let second = fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
+
+        assert_eq!(first, second, "a second run should not duplicate the directive");
 
         fs::remove_dir_all(&dir).ok();
     }
