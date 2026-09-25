@@ -114,6 +114,14 @@ impl BudgetedList {
     }
 }
 
+/// The writer-declared depth annotation appended after a symbol's name when
+/// its `level` is populated (currently only Markdown ATX headings) —
+/// `" H2"`, so an H1 and an H6 read differently even though both share
+/// `kind == "element"`. Empty for every symbol with no level.
+fn level_suffix(level: Option<u32>) -> String {
+    level.map(|l| format!(" H{l}")).unwrap_or_default()
+}
+
 pub fn symbol_hits(name: &str, hits: &[SymbolHit], limit: usize) -> String {
     if hits.is_empty() {
         return format!("No symbol named `{name}` found in the index.");
@@ -128,8 +136,15 @@ pub fn symbol_hits(name: &str, hits: &[SymbolHit], limit: usize) -> String {
             .map(|p| format!(" (in {p})"))
             .unwrap_or_default();
         body.push(&format!(
-            "{}:{}:{} [{}] {} {}{}\n",
-            hit.relative_path, hit.line, hit.column, hit.language, hit.kind, hit.name, parent
+            "{}:{}:{} [{}] {} {}{}{}\n",
+            hit.relative_path,
+            hit.line,
+            hit.column,
+            hit.language,
+            hit.kind,
+            hit.name,
+            level_suffix(hit.level),
+            parent
         ));
     }
     format!(
@@ -159,6 +174,7 @@ pub fn symbol_hits_toon(name: &str, hits: &[SymbolHit], limit: usize) -> String 
                 hit.kind.clone(),
                 hit.name.clone(),
                 hit.parent.clone().unwrap_or_default(),
+                hit.level.map(|l| l.to_string()).unwrap_or_default(),
             ]
         })
         .collect();
@@ -167,7 +183,7 @@ pub fn symbol_hits_toon(name: &str, hits: &[SymbolHit], limit: usize) -> String 
         truncation_note(total, 0, shown.len()),
         encode_table(
             "symbols",
-            &["path", "line", "column", "language", "kind", "name", "parent"],
+            &["path", "line", "column", "language", "kind", "name", "parent", "level"],
             &rows,
         )
     )
@@ -233,10 +249,11 @@ pub fn list_symbols(path: &str, is_file: bool, hits: &[SymbolListEntry], limit: 
         let mut heading_pending = true;
         for hit in &group {
             let range = line_range(hit.line, hit.end_line);
+            let level = level_suffix(hit.level);
             let entry = if is_file {
-                format!("  {}  {range}\n", hit.name)
+                format!("  {}{level}  {range}\n", hit.name)
             } else {
-                format!("  {}  {}  {range}\n", hit.name, hit.relative_path)
+                format!("  {}{level}  {}  {range}\n", hit.name, hit.relative_path)
             };
             let prefix = if heading_pending {
                 Some(heading.as_str())
@@ -273,6 +290,7 @@ pub fn list_symbols_toon(path: &str, is_file: bool, hits: &[SymbolListEntry], li
             }
             row.push(hit.line.to_string());
             row.push(hit.end_line.map(|e| e.to_string()).unwrap_or_default());
+            row.push(hit.level.map(|l| l.to_string()).unwrap_or_default());
             row
         })
         .collect();
@@ -282,6 +300,7 @@ pub fn list_symbols_toon(path: &str, is_file: bool, hits: &[SymbolListEntry], li
     }
     headers.push("line");
     headers.push("end_line");
+    headers.push("level");
     format!(
         "{total} symbol(s) under `{path}`{}:\n{}",
         truncation_note(total, 0, shown.len()),
@@ -989,6 +1008,7 @@ mod file_skeleton_tests {
             line,
             end_line,
             parent: None,
+            level: None,
         }
     }
 
@@ -1196,6 +1216,7 @@ mod budget_tests {
             column: 1,
             parent: None,
             end_line: Some(12),
+            level: None,
         }];
         let out = symbol_hits("compute", &hits, 50);
         assert_eq!(
@@ -1302,6 +1323,7 @@ mod budget_tests {
                 line: 1,
                 end_line: Some(9),
                 parent: None,
+                level: None,
             })
             .collect();
         let out = list_symbols("crates", false, &hits, 1000);
@@ -1331,6 +1353,7 @@ mod budget_tests {
             line,
             end_line,
             parent: None,
+            level: None,
         };
         let hits = [
             entry("compute", "function", 10, Some(12)),
@@ -1533,6 +1556,7 @@ mod overview_tests {
             line,
             end_line,
             parent: None,
+            level: None,
         }
     }
 
@@ -1621,6 +1645,7 @@ mod dead_code_tests {
             line,
             end_line: None,
             parent: None,
+            level: None,
         }
     }
 

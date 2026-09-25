@@ -379,20 +379,22 @@ fn an_unresolved_wikilink_is_recorded_by_name_and_does_not_break_the_index() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore = "heading level is not stored: every heading is kind=element"]
 fn a_heading_records_the_level_it_was_written_at() {
     let index = open_vault();
-    // Observed: `Deep Note` (H1), `Level Two` (H2) ... `Level Six` (H6) all
-    // come back with `kind == "element"`, and neither `SymbolHit` nor
-    // `SymbolListEntry` carries a level/depth field, so `#` and `######` are
-    // indistinguishable once indexed. Parent nesting is the only surviving
-    // hierarchy signal, and it cannot be inverted into a level because a
-    // document may skip levels (`##` directly followed by `####`).
-    // Expected: an H1 and an H6 should be distinguishable in the index.
+    // `SymbolRecord`/`SymbolHit` now carry a `level` field alongside `kind`:
+    // an H1 and an H6 both remain `kind == "element"` (that classification
+    // is deliberately unchanged — see CLAUDE.md's cross-cutting-change
+    // rule), but `level` distinguishes 1..6 as written. Parent nesting alone
+    // couldn't recover this, since a document may skip levels (`##` directly
+    // followed by `####`).
     let h1 = index.find_symbol("Deep Note").unwrap();
     let h6 = index.find_symbol("Level Six").unwrap();
+    assert_eq!(h1[0].kind, "element");
+    assert_eq!(h6[0].kind, "element");
+    assert_eq!(h1[0].level, Some(1), "Deep Note is an H1");
+    assert_eq!(h6[0].level, Some(6), "Level Six is an H6");
     assert_ne!(
-        h1[0].kind, h6[0].kind,
+        h1[0].level, h6[0].level,
         "an H1 and an H6 must not be indexed as the same thing"
     );
 }

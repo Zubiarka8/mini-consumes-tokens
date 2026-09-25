@@ -63,6 +63,7 @@ impl mct_core::LanguageParser for FakeParser {
                     end_line: self.emit_end_line.then_some(line_no as u32 + 1),
                 },
                 parent: None,
+                level: None,
             });
             if parts.next() == Some("calls") {
                 if let Some(callee) = parts.next() {

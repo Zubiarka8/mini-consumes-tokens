@@ -82,7 +82,7 @@ practice.
 
 | # | Gap | Observed | Expected |
 |---|-----|----------|----------|
-| 3.1 | Heading level is not stored | `# H1` … `###### H6` all index as `kind == "element"`; neither `SymbolHit` nor `SymbolListEntry` carries a level. Parent nesting is the only hierarchy signal left, and it cannot be inverted into a level because documents skip levels (`##` then `####`). | An H1 and an H6 are distinguishable in the index. |
+| 3.1 | ~~Heading level is not stored~~ — **closed** (issue #10): `SymbolRecord`/`SymbolHit`/`SymbolListEntry` now carry an optional `level: Option<u32>`, populated 1..6 by `mct-lang-md` from the `atx_h1_marker`..`atx_h6_marker` child; `kind` stays `element` for every heading, unchanged. | `# H1` … `###### H6` all indexed as `kind == "element"`; no level field anywhere. | An H1 and an H6 are distinguishable in the index. |
 | 3.2 | Embeds collapse into links | `![[Glossary]]` and `[[Glossary]]` both yield `RelationKind::References` → `"Glossary"`. The leading `!` sits outside the span `scan_wikilinks` matches and is never recorded. | A distinct relation kind (or flag) for embeds — an embed changes rendered content, a link does not. |
 | 3.3 | YAML front-matter is skipped entirely | `daily/2026-09-18.md` declares `tags: [daily, review]`; the file parses cleanly but `find_references("tag:daily")` returns nothing. The parser scans only `atx_heading` text and `paragraph` nodes. Inline `#standup` *is* indexed. | Front-matter tags indexed like inline ones — front-matter tagging is the Obsidian template default, so such vaults get no tag graph at all. |
 | 3.4 | Path-form wikilinks are not normalized | `[[notes/Glossary]]` is stored verbatim as `to_name = "notes/Glossary"`, matching no symbol; only `strip_md_extension` runs, never a path-tail split. Obsidian treats it as the same note as `[[Glossary]]`. | Resolves to the same target as a bare `[[Glossary]]`. |
@@ -95,8 +95,7 @@ no path-aware link resolution. A single fix introducing a per-file note symbol
 and resolving wikilinks against file names (not just H1 text) would close 3.4,
 3.5 and 3.6 together, and gives 3.7 the scope it needs to disambiguate.
 
-**Pinned by** *(all ignored)*: `a_heading_records_the_level_it_was_written_at`,
-`an_embed_is_distinguishable_from_a_plain_wikilink`,
+**Pinned by**: `a_heading_records_the_level_it_was_written_at` — passing (3.1 closed); the rest still ignored: `an_embed_is_distinguishable_from_a_plain_wikilink`,
 `front_matter_tags_are_indexed`,
 `a_vault_relative_path_wikilink_resolves_to_the_note`,
 `a_wikilink_in_a_headingless_note_is_indexed`,
