@@ -67,7 +67,7 @@ const EXPECTED_COVERAGE: &[(&str, usize, usize)] = &[
     ("bash", 2, 6),
     ("cpp", 2, 7),
     ("csharp", 2, 9),
-    ("css", 1, 4),
+    ("css", 1, 5),
     ("go", 2, 9),
     ("html", 1, 3),
     ("java", 2, 8),
