@@ -28,6 +28,8 @@ An MCP server (`mct-mcp-server`) and CLI (`mct-cli`) that index a code repositor
 
 `find_references`/`find_calls`/`find_callers`/`impact_analysis` also take `depth` (multi-hop BFS beyond the direct hit, default 1, clamped to 32) and `offset` (pagination past `limit`) — reach for `depth` before manually chaining calls to walk the relation graph further out.
 
+**Progressive tool discovery:** `discover_tool_categories` lists every registered tool's name and one-line purpose grouped by category, with no input schemas — a cheap first call for a client that wants to defer the schema payload. `get_tool_schema` then returns one named tool's full input schema and description on demand. These are additive: the standard MCP `tools/list` handshake still returns every tool's full schema up front as usual, so an ordinary MCP client (including Claude Code itself) is unaffected — `discover_tool_categories`/`get_tool_schema` only help a client built to use them instead.
+
 **`.mct-index/index.sqlite3` may only be touched through this project's own software** — the MCP tools above or `mct-cli` subcommands. Never an external tool: no `sqlite3` CLI, no `python3`/`sqlite3` module, no DB browser. If this codebase doesn't ship it, it doesn't get to touch the index.
 
 **When `Read`/`Grep` are still correct:** the index captures symbols and relations, not comment/doc-string prose — checking whether a doc-comment's *wording* still matches something requires `Grep`/`Read`. `Glob` for listing/finding files by pattern is fine (it's not a symbol lookup).

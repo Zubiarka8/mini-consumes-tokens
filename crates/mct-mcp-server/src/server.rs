@@ -314,6 +314,45 @@ pub struct GetFileTreeArgs {
     pub depth: Option<u32>,
 }
 
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct GetToolSchemaArgs {
+    /// Exact tool name to fetch the input schema and description for (e.g.
+    /// `find_symbol`) — see `discover_tool_categories` for the full set of
+    /// registered names grouped by category.
+    pub name: String,
+}
+
+/// Groups this server's registered tool names for `discover_tool_categories`.
+/// Kept next to `ttc::KNOWN_TOOL_NAMES` in intent (both must track the live
+/// `#[tool(...)]` methods below), but independent of it in shape: a category
+/// is presentation grouping, not a coverage list, so nothing asserts every
+/// `KNOWN_TOOL_NAMES` entry appears here exactly once the way the TTC catalog
+/// test does for `tools.ttc`.
+const TOOL_CATEGORIES: &[(&str, &[&str])] = &[
+    (
+        "discovery",
+        &[
+            "list_symbols",
+            "get_file_skeleton",
+            "get_project_overview",
+            "get_file_tree",
+        ],
+    ),
+    ("lookup", &["find_symbol"]),
+    (
+        "relations",
+        &["find_callers", "find_calls", "find_references", "impact_analysis"],
+    ),
+    (
+        "maintenance",
+        &["reindex", "get_indexing_status", "find_dead_code"],
+    ),
+    (
+        "meta",
+        &["discover_tool_categories", "get_tool_schema"],
+    ),
+];
+
 #[derive(Clone)]
 pub struct MctServer {
     index: Arc<Mutex<Index>>,
@@ -936,6 +975,36 @@ impl MctServer {
         };
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
+
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "List tool names/categories without schemas; see tools.ttc")]
+    pub async fn discover_tool_categories(&self) -> Result<CallToolResult, McpError> {
+        let catalog = self.tool_router.list_all();
+        Ok(CallToolResult::success(vec![ContentBlock::text(
+            format::tool_categories(&catalog, TOOL_CATEGORIES),
+        )]))
+    }
+
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Full input schema for one named tool; see tools.ttc")]
+    pub async fn get_tool_schema(
+        &self,
+        Parameters(GetToolSchemaArgs { name }): Parameters<GetToolSchemaArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let name = validate_name(&name)?;
+        let catalog = self.tool_router.list_all();
+        let tool = catalog.iter().find(|t| t.name == name).ok_or_else(|| {
+            McpError::invalid_params(
+                format!(
+                    "no tool named `{name}` — call discover_tool_categories for the full list"
+                ),
+                None,
+            )
+        })?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(
+            format::tool_schema(tool),
+        )]))
+    }
 }
 
 #[tool_handler]
@@ -974,7 +1043,12 @@ impl ServerHandler for MctServer {
              are index maintenance, not search — they never return symbol data. The index \
              refreshes automatically at startup and silently in the background as changes settle \
              on disk; call reindex manually only if you need an immediate refresh right now, or \
-             force=true to bypass the incremental hash check."
+             force=true to bypass the incremental hash check. discover_tool_categories and \
+             get_tool_schema are progressive discovery: discover_tool_categories lists every \
+             tool's name and one-line purpose grouped by category with no input schemas, and \
+             get_tool_schema returns one named tool's full input schema and description on \
+             demand — useful for a client choosing to defer loading full schemas instead of \
+             requesting every tool's schema up front."
                 .to_string(),
         )
     }
