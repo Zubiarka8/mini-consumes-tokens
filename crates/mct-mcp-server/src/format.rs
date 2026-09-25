@@ -706,64 +706,6 @@ pub fn impact_analysis_toon(
     out
 }
 
-/// Directory names that mean "everything below here is a test", across the
-/// supported languages' conventions.
-const TEST_DIRECTORY_SEGMENTS: &[&str] = &["tests", "test", "__tests__"];
-
-/// True when `relative_path` lands in a test directory, or its file name
-/// follows one of the cross-language test file conventions
-/// (`*_test.*`, `test_*.*`, `*Test.*`, `*.test.*`, `*.spec.*`).
-///
-/// Stored `relative_path`s always use `/` as the separator, on every OS, so
-/// this splits on `/` only — no platform-specific path handling.
-fn path_looks_like_test(relative_path: &str) -> bool {
-    let mut segments: Vec<&str> = relative_path.split('/').collect();
-    // The last segment is the file name; everything before it is a directory.
-    let file_name = segments.pop().unwrap_or_default();
-    if segments
-        .iter()
-        .any(|segment| TEST_DIRECTORY_SEGMENTS.contains(&segment.to_lowercase().as_str()))
-    {
-        return true;
-    }
-    file_name_looks_like_test(file_name)
-}
-
-fn file_name_looks_like_test(file_name: &str) -> bool {
-    // `*Test.*` (Java/C#/Kotlin) is the one convention that needs the
-    // original casing: lowercasing it would also match `latest.rs`.
-    let stem = file_name.split('.').next().unwrap_or_default();
-    if stem.len() > 4 && stem.ends_with("Test") {
-        return true;
-    }
-    let lower = file_name.to_lowercase();
-    let lower_stem = lower.split('.').next().unwrap_or_default();
-    lower.starts_with("test_")
-        || lower_stem == "test"
-        || lower_stem.ends_with("_test")
-        || lower.contains(".test.")
-        || lower.contains(".spec.")
-}
-
-/// Tightened naming convention, kept only as a secondary signal to
-/// [`path_looks_like_test`]. The old `starts_with("test")` form also matched
-/// `testimonial`, `tester` and `testament`; an exact `test` or a `test_`
-/// prefix is the part that's actually a convention.
-fn name_looks_like_test(name: &str) -> bool {
-    let lower = name.to_lowercase();
-    lower == "test" || lower.starts_with("test_")
-}
-
-/// Heuristic for "is this hit a test": still no per-language test
-/// framework/attribute detection (Rust's `#[test]`, pytest fixtures, JS
-/// `describe`/`it`), so this combines the two signals that are already in
-/// the index — the file path, which is by far the stronger one, and the
-/// symbol's own name. Simplification, not a promise: a caller relying on it
-/// for exhaustive test coverage should be warned.
-pub fn looks_like_test_name(name: &str, relative_path: &str) -> bool {
-    path_looks_like_test(relative_path) || name_looks_like_test(name)
-}
-
 /// Renders `find_dead_code`'s result: candidate symbols with zero indexed
 /// references, grouped by file (`hits` already arrives sorted by
 /// `relative_path, line` — the same order [`list_symbols`] renders in).
@@ -1404,42 +1346,6 @@ mod budget_tests {
                 "section `{section}` was {section_len} bytes, over its third of the budget"
             );
         }
-    }
-}
-
-#[cfg(test)]
-mod test_name_heuristic_tests {
-    use super::*;
-
-    #[test]
-    fn a_name_merely_starting_with_test_in_a_source_file_is_not_a_test() {
-        assert!(!looks_like_test_name("testimonial", "src/lib.rs"));
-        assert!(!looks_like_test_name("tester", "src/lib.rs"));
-        assert!(!looks_like_test_name("testament", "crates/x/src/model.rs"));
-        assert!(!looks_like_test_name("latest", "src/latest.rs"));
-    }
-
-    #[test]
-    fn anything_under_a_test_directory_is_a_test() {
-        assert!(looks_like_test_name("build_server", "crates/x/tests/foo.rs"));
-        assert!(looks_like_test_name("helper", "src/__tests__/render.js"));
-        assert!(looks_like_test_name("setUp", "app/test/AppSpec.kt"));
-    }
-
-    #[test]
-    fn test_file_name_conventions_are_recognised_across_languages() {
-        assert!(looks_like_test_name("user_test", "pkg/user_test.go"));
-        assert!(looks_like_test_name("compute", "app/CalculatorTest.java"));
-        assert!(looks_like_test_name("renders", "src/Button.test.tsx"));
-        assert!(looks_like_test_name("renders", "src/button.spec.js"));
-        assert!(looks_like_test_name("check", "scripts/test_helpers.py"));
-    }
-
-    #[test]
-    fn the_name_convention_still_works_as_a_secondary_signal() {
-        assert!(looks_like_test_name("test_compute", "src/lib.rs"));
-        assert!(looks_like_test_name("TEST_compute", "src/lib.rs"));
-        assert!(looks_like_test_name("test", "src/lib.rs"));
     }
 }
 
