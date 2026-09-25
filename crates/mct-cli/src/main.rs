@@ -11,7 +11,7 @@ use clap::{Parser, Subcommand};
 /// startup — this CLI is for manual/scripted use (CI, a pre-commit hook, or
 /// just checking coverage before wiring up the plugin).
 #[derive(Parser, Debug)]
-#[command(name = "mct-cli", version, after_help = "\
+#[command(name = "mct-cli", version, disable_version_flag = true, after_help = "\
 Invoked here via `cargo run -p mct-cli --`; once installed on PATH (e.g.
 `cargo install --path crates/mct-cli`) the binary is `mct-cli` too, so drop
 the `cargo run -p mct-cli --` prefix from every example below.
@@ -28,6 +28,10 @@ struct Cli {
     /// Project root to operate on. Defaults to the current working directory.
     #[arg(long, global = true)]
     root: Option<PathBuf>,
+
+    /// Print version.
+    #[arg(short = 'v', short_alias = 'V', long = "version", action = clap::ArgAction::Version)]
+    version: (),
 
     #[command(subcommand)]
     command: Command,
