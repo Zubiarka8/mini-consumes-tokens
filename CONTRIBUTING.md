@@ -22,6 +22,19 @@ This is the extension point most contributions will touch, so it gets its own ch
 6. **Update docs:** the language table in `README.md` and the "Cobertura de lenguajes" section in `internal/checklist.md`.
 7. **Run the workspace test suite** (`cargo test --workspace`) and fix any regressions before opening a PR.
 
+## Framework/library coverage, beyond the language table
+
+The language table in `README.md` says which *languages* have a `LanguageParser`. It does not say how well the index captures the *frameworks/libraries* built on top of those languages — a `.tsx` file parses fine, but that doesn't mean every structural relationship a framework introduces is modeled. Tracked in [#51](https://github.com/Zubiarka8/mini-consumes-tokens/issues/51):
+
+| Library/framework | Status | Gap |
+|---|---|---|
+| React (`.jsx`/`.tsx`) | Partial | `mct-lang-js-ts` indexes function/class components, hooks calls, and event-handler methods as ordinary `Function`/`Class`/`Method`/`Calls`. JSX elements (`<Foo prop={x} />`) have no dedicated `SymbolKind`/`RelationKind`, so "what does `<App/>` render" or "who renders `<Button/>`" can't be answered from the index — deferred pending an `mct-core` symbol-model extension (cross-cutting, see below). |
+| Vue (`.vue` SFCs) | Not supported | No `mct-lang-vue` crate and no `.vue` extension registered in any `build_registry`. A `.vue` file is invisible to the index entirely. Vue projects using plain `.ts`/`.js` (Composition API outside SFCs) still get normal JS/TS coverage. |
+| CSS frameworks (Tailwind, Bootstrap, Bulma, etc.) | Partial by design | `mct-lang-css` indexes full selectors and their atomic class/id/tag/pseudo components (compound selectors, descendant combinators, escaped Tailwind utility names). No specificity/cascade modeling (would need a DOM, not an AST) and no indexing of declarations/values inside a rule's block — selectors only. This is a deliberate scope boundary, not a bug. |
+| Angular, Svelte, Next.js/Nuxt routing, Express/Fastify-style route registration, server-side templating (Handlebars/EJS/Pug) | Not yet audited | Suspected same shape of gap ("logic is indexed, structural/template/routing relationships are not"), not individually verified against source. Triage before implementing. |
+
+Extending `mct-core`'s symbol/relation model to represent generic "component renders/uses component" relationships (needed for React JSX, Vue, Svelte, Angular alike) is a schema/trait change — it falls under "Changing the `LanguageParser` trait, the SQLite schema, or an already-published MCP tool signature" below, not a per-language drive-by. Adding a new `mct-lang-vue`/`mct-lang-svelte` crate for SFC parsing follows the normal "Adding a new language" checklist above, but note SFCs mix `<template>`/`<script>`/`<style>` in one file, so the parser needs to walk more than one grammar/section.
+
 ## Adding a new MCP tool, and the TTC description format
 
 `crates/mct-mcp-server/src/server.rs` defines each tool's name, parameters and `#[tool(...)]` attribute, but that attribute's `description` is only a short fallback literal — the description an MCP client actually receives comes from `crates/mct-mcp-server/src/tools.ttc`, parsed by `crates/mct-mcp-server/src/ttc.rs` and applied to the tool router in `MctServer::new`. This is TTC (Tool Terse Catalog): a compact `WHEN`/`ERR`/`TAGS` format that replaced long prose descriptions to shrink the catalog's token footprint (~68% smaller across the 11 tools as of this writing) without dropping the "when to use this" / "when NOT to" information an agent actually needs.
