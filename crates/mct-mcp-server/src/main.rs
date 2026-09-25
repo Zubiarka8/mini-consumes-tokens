@@ -41,7 +41,8 @@ async fn main() -> anyhow::Result<()> {
     let db_path = root.join(".mct-index").join("index.sqlite3");
 
     let language_registry = registry::build_registry();
-    let mut index = mct_index::Index::open(&root, &db_path, mct_index::ExcludeSet::default())?;
+    let exclude = mct_index::ExcludeSet::new(&mct_index::read_ignore_file(&root));
+    let mut index = mct_index::Index::open(&root, &db_path, exclude.clone())?;
 
     tracing::info!(root = %root.display(), "starting initial reindex");
     let report = index.reindex(&language_registry, false)?;
@@ -64,7 +65,7 @@ async fn main() -> anyhow::Result<()> {
             server.index_handle(),
             server.registry_handle(),
             watch_root,
-            mct_index::ExcludeSet::default(),
+            exclude,
             Duration::from_millis(args.reindex_debounce_ms),
         ) {
             Ok(watcher) => Some(watcher),

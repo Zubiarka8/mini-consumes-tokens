@@ -44,6 +44,10 @@ enum Command {
         #[arg(long)]
         name: Option<String>,
     },
+    /// Write a starter `.mctignore` at the project root, if one doesn't
+    /// already exist. Lets a project exclude extra files/directories from
+    /// indexing (e.g. `docs/`, `*.md`) on top of the built-in exclusions.
+    IgnoreInit,
 }
 
 fn build_registry() -> LanguageRegistry {
@@ -74,21 +78,26 @@ fn main() -> anyhow::Result<()> {
         None => std::env::current_dir()?,
     };
 
-    // Doesn't touch the index at all, so it's handled before Index::open —
-    // running it shouldn't have the side effect of creating .mct-index/.
+    // Neither touches the index at all, so they're handled before
+    // Index::open — running them shouldn't have the side effect of creating
+    // .mct-index/.
     if let Command::McpRegister { name } = cli.command {
         return mcp_register(&root, name);
+    }
+    if let Command::IgnoreInit = cli.command {
+        return ignore_init(&root);
     }
 
     let db_path = root.join(".mct-index").join("index.sqlite3");
     let registry = build_registry();
-    let mut index = Index::open(&root, &db_path, ExcludeSet::default())?;
+    let exclude = ExcludeSet::new(&mct_index::read_ignore_file(&root));
+    let mut index = Index::open(&root, &db_path, exclude)?;
 
     match cli.command {
         Command::Init => print_reindex(index.reindex(&registry, false)?),
         Command::Reindex { force } => print_reindex(index.reindex(&registry, force)?),
         Command::Status => print_status(index.status()?),
-        Command::McpRegister { .. } => unreachable!("returned above"),
+        Command::McpRegister { .. } | Command::IgnoreInit => unreachable!("returned above"),
     }
 
     Ok(())
@@ -135,6 +144,21 @@ fn mcp_register(root: &Path, name: Option<String>) -> anyhow::Result<()> {
 
     std::fs::write(&config_path, format!("{}\n", serde_json::to_string_pretty(&config)?))?;
     println!("Registered `{server_name}` in {}", display_path(&config_path));
+    Ok(())
+}
+
+/// Writes a starter `.mctignore` at `root` if one doesn't already exist.
+/// Never overwrites an existing file — same non-destructive stance as
+/// `mcp_register`, just without a merge target here since there's nothing
+/// to merge into a plain-text ignore file.
+fn ignore_init(root: &Path) -> anyhow::Result<()> {
+    let path = root.join(mct_index::IGNORE_FILE_NAME);
+    if path.exists() {
+        println!("{} already exists, leaving it as-is.", display_path(&path));
+        return Ok(());
+    }
+    std::fs::write(&path, mct_index::IGNORE_FILE_TEMPLATE)?;
+    println!("Wrote starter {}", display_path(&path));
     Ok(())
 }
 
@@ -378,6 +402,53 @@ mod tests {
             !contents.contains(r"\\?\"),
             "config should not contain the Windows verbatim-path prefix, got: {contents}"
         );
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn ignore_init_creates_starter_file() {
+        let dir = temp_project_dir("ignore-init-new");
+
+        ignore_init(&dir).expect("ignore_init should succeed");
+
+        let contents = fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
+        assert_eq!(contents, mct_index::IGNORE_FILE_TEMPLATE);
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn ignore_init_does_not_overwrite_an_existing_file() {
+        let dir = temp_project_dir("ignore-init-existing");
+        fs::write(dir.join(mct_index::IGNORE_FILE_NAME), "*.md\n").expect("seed existing ignore file");
+
+        ignore_init(&dir).expect("ignore_init should succeed");
+
+        let contents = fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
+        assert_eq!(contents, "*.md\n");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_mctignore_pattern_keeps_matching_files_out_of_the_index() {
+        let dir = temp_project_dir("mctignore-excludes");
+        fs::write(dir.join("lib.rs"), "pub fn add(a: i32) -> i32 { a }\n").unwrap();
+        fs::write(dir.join("NOTES.md"), "# notes\n").unwrap();
+        fs::write(dir.join(mct_index::IGNORE_FILE_NAME), "*.md\n").unwrap();
+
+        let db_path = dir.join(".mct-index").join("index.sqlite3");
+        let registry = build_registry();
+        let exclude = ExcludeSet::new(&mct_index::read_ignore_file(&dir));
+        let mut index = Index::open(&dir, &db_path, exclude).unwrap();
+
+        let report = index.reindex(&registry, false).unwrap();
+        assert_eq!(report.files_parsed, 1, "{:?}", report.issues);
+
+        let status = index.status().unwrap();
+        let languages: Vec<&str> = status.languages.iter().map(|l| l.language.as_str()).collect();
+        assert_eq!(languages, vec!["rust"]);
 
         fs::remove_dir_all(&dir).ok();
     }
