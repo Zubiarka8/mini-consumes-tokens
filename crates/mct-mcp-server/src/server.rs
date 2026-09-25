@@ -1213,13 +1213,11 @@ impl MctServer {
             });
         }
 
-        Ok(CallToolResult::success(vec![ContentBlock::text(
-            format::overview(
-                path.unwrap_or("."),
-                &digests,
-                max_symbols_per_module as u32,
-            ),
-        )]))
+        let text = format::overview(path.unwrap_or("."), &digests, max_symbols_per_module as u32);
+        self.cache
+            .put("get_project_overview", &cache_key, generation, text.clone())
+            .await;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
     // Fallback only — see tools.ttc / MctServer::new.
@@ -1230,11 +1228,18 @@ impl MctServer {
     ) -> Result<CallToolResult, McpError> {
         let path = path.as_deref().map(str::trim).filter(|p| !p.is_empty());
         let depth = depth.unwrap_or(3).max(1);
+        let cache_key = format!("{path:?}\u{0}{depth}");
         let index = self.index.lock().await;
+        let generation = index.generation();
+        if let Some(cached) = self.cache.get("get_file_tree", &cache_key, generation).await {
+            return Ok(CallToolResult::success(vec![ContentBlock::text(cached)]));
+        }
         let tree = index.file_tree(path, depth).map_err(file_tree_error)?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(
-            format::file_tree(path.unwrap_or("."), &tree, depth),
-        )]))
+        let text = format::file_tree(path.unwrap_or("."), &tree, depth);
+        self.cache
+            .put("get_file_tree", &cache_key, generation, text.clone())
+            .await;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
     // Fallback only — see tools.ttc / MctServer::new.
@@ -1254,8 +1259,13 @@ impl MctServer {
         let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
         let offset = offset.unwrap_or(0);
         let output_format = parse_output_format(format.as_deref())?;
+        let cache_key = format!("{path:?}\u{0}{language:?}\u{0}{limit}\u{0}{offset}\u{0}{output_format:?}");
 
         let index = self.index.lock().await;
+        let generation = index.generation();
+        if let Some(cached) = self.cache.get("find_dead_code", &cache_key, generation).await {
+            return Ok(CallToolResult::success(vec![ContentBlock::text(cached)]));
+        }
         let all_entries = list_symbols_for_overview(&index, path, language)?;
         let reference_counts = index.reference_counts().map_err(index_error)?;
 
@@ -1282,6 +1292,9 @@ impl MctServer {
                 format::find_dead_code_toon(path.unwrap_or("."), &candidates, offset, limit)
             }
         };
+        self.cache
+            .put("find_dead_code", &cache_key, generation, text.clone())
+            .await;
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 }
