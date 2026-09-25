@@ -13,6 +13,7 @@ use tokio::sync::Mutex;
 
 use crate::format;
 use crate::toon::OutputFormat;
+use crate::ttc;
 
 /// Applied to any of the 5 result-returning tools below when their `limit`
 /// argument is omitted. 50 is a compromise: generous enough that the common
@@ -371,6 +372,34 @@ fn index_error(err: mct_index::IndexError) -> McpError {
     McpError::internal_error(err.to_string(), None)
 }
 
+/// Applies the TTC-expanded description from `source` to every tool route
+/// already present in `router`, in place, overwriting the compiled-in
+/// `#[tool(description = "...")]` fallback with the shorter
+/// `WHEN | NOT: ERR | TAGS: tags` catalog text (see `crate::ttc`). Never
+/// panics: a TTC parse failure, or a `tools.ttc` entry naming a tool that
+/// isn't registered, is logged and otherwise ignored so the server still
+/// starts with its compiled-in fallback descriptions intact.
+fn apply_ttc_catalog(router: &mut ToolRouter<MctServer>, source: &str) {
+    let entries = match ttc::parse(source) {
+        Ok(entries) => entries,
+        Err(err) => {
+            tracing::warn!(
+                error = %err,
+                "failed to parse TTC tool catalog; keeping compiled-in fallback descriptions"
+            );
+            return;
+        }
+    };
+    for (name, entry) in &entries {
+        match router.map.get_mut(name.as_str()) {
+            Some(route) => route.attr.description = Some(entry.expand().into()),
+            None => {
+                tracing::warn!(tool = %name, "tools.ttc has an entry for an unregistered tool");
+            }
+        }
+    }
+}
+
 /// Trims an optional tool argument and drops it when it's blank, so a caller
 /// passing `""` (or a stray `"  "`) gets the unscoped behavior rather than a
 /// filter that matches nothing.
@@ -462,11 +491,21 @@ pub struct ModuleDigest {
 #[tool_router]
 impl MctServer {
     pub fn new(index: Index, registry: LanguageRegistry) -> Self {
+        let mut tool_router = Self::tool_router();
+        apply_ttc_catalog(&mut tool_router, ttc::CATALOG_SOURCE);
         Self {
             index: Arc::new(Mutex::new(index)),
             registry,
-            tool_router: Self::tool_router(),
+            tool_router,
         }
+    }
+
+    /// The tool catalog as it will be sent to an MCP client: names,
+    /// TTC-expanded descriptions and input schemas. Exposed for tests and
+    /// for measuring the catalog's token/byte footprint; not itself an MCP
+    /// tool.
+    pub fn tool_catalog(&self) -> Vec<rmcp::model::Tool> {
+        self.tool_router.list_all()
     }
 
     /// Shares this server's index handle with the background auto-reindex
@@ -482,9 +521,9 @@ impl MctServer {
         self.registry.clone()
     }
 
-    #[tool(
-        description = "DISCOVERY, not a precise lookup — use this FIRST when you don't know a symbol's exact name yet. Lists symbol definitions (name, kind, line range) found under `path`: a single file (exact path) or a directory/crate (a path with no file extension, matched as a prefix), optionally narrowed to one symbol `kind` and/or one `language`. Answers \"what functions/structs/classes does this file or crate have\" without already knowing a name. Do NOT use this to locate one already-known symbol precisely, or to jump straight to its definition — use find_symbol for that; list_symbols is the discovery step that feeds find_symbol/find_references/find_calls/find_callers/impact_analysis, not a replacement for them."
-    )]
+    // Fallback only — the live description installed on this tool comes
+    // from crate::ttc's expansion of tools.ttc, applied in `MctServer::new`.
+    #[tool(description = "Discover symbols in a file or directory/crate; see tools.ttc")]
     pub async fn list_symbols(
         &self,
         Parameters(ListSymbolsArgs {
@@ -518,9 +557,8 @@ impl MctServer {
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
-    #[tool(
-        description = "ATOMIC lookup. Find the definition location(s) of a symbol by name, across every indexed language in this repository (including polyglot projects). Defaults to an exact-name match; pass match: \"prefix\" or match: \"fuzzy\" when you don't know the full/exact name instead of guessing and re-querying. Use this instead of grepping files to answer \"where is X defined\". Do NOT use this to find who calls or references a symbol — use find_callers (direct callers only) or find_references (every reference) instead."
-    )]
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Find where a symbol is defined; see tools.ttc")]
     pub async fn find_symbol(
         &self,
         Parameters(FindSymbolArgs {
@@ -548,9 +586,8 @@ impl MctServer {
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
-    #[tool(
-        description = "ATOMIC lookup. Find every place a symbol is referenced: calls, imports, extends/implements, and plain references — the broadest reference search. Do NOT use this when you only want the functions that directly call a function — use find_callers instead, which is narrower and answers that question directly. Do NOT use this to find a symbol's own definition — use find_symbol."
-    )]
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Find every reference to a symbol; see tools.ttc")]
     pub async fn find_references(
         &self,
         Parameters(FindReferencesArgs {
@@ -579,9 +616,8 @@ impl MctServer {
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
-    #[tool(
-        description = "ATOMIC lookup. Find the functions/methods called by the given function — its callees. Answers \"what does this function call\". Do NOT use this to find who calls the function — that's the inverse question, answered by find_callers."
-    )]
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Find what a function calls; see tools.ttc")]
     pub async fn find_calls(
         &self,
         Parameters(FindCallsArgs {
@@ -614,9 +650,8 @@ impl MctServer {
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
-    #[tool(
-        description = "ATOMIC lookup. Find the functions/methods that call the given function — its callers. Answers \"who calls this function\"; the inverse of find_calls. Do NOT use this for a broader reference search (imports, extends/implements, non-call references) — use find_references instead. If you're about to change or remove this function and want its full blast radius (callers + references + likely tests) in one call, use impact_analysis instead of calling this separately."
-    )]
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Find who calls a function; see tools.ttc")]
     pub async fn find_callers(
         &self,
         Parameters(FindCallersArgs {
@@ -649,9 +684,8 @@ impl MctServer {
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
-    #[tool(
-        description = "COMPOSITE (internally combines find_callers + find_references + a test-name heuristic — you do not need to call those separately). Reports everything a change to `symbol` could break: its direct callers, its full reference set (calls/imports/extends/implements/plain), and which of those look like tests (by test-file path or test-name convention). Use this before editing or removing a symbol to gauge blast radius in one call. Do NOT use this for a plain lookup of only direct callers or only references — that's cheaper via find_callers or find_references alone, and this tool's output is more verbose."
-    )]
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Full blast radius of changing a symbol; see tools.ttc")]
     pub async fn impact_analysis(
         &self,
         Parameters(ImpactAnalysisArgs {
@@ -701,9 +735,8 @@ impl MctServer {
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
-    #[tool(
-        description = "INDEX ADMINISTRATION, not a search tool — returns a reindex summary, not symbol data. Re-scans the project and updates the index; only files whose content changed since the last run are re-parsed unless force=true. It already runs automatically at server startup, and again in the background (non-forced/incremental) whenever the filesystem watcher detects settled file changes, so call this manually only if you need an immediate refresh right now, or force=true to bypass the incremental hash check (e.g. after suspected index corruption)."
-    )]
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Force an index refresh; see tools.ttc")]
     pub async fn reindex(
         &self,
         Parameters(ReindexArgs { force }): Parameters<ReindexArgs>,
@@ -715,9 +748,8 @@ impl MctServer {
         )]))
     }
 
-    #[tool(
-        description = "INDEX ADMINISTRATION, not a search tool. Reports index health: files/symbols indexed per language, when it was last indexed, languages seen in the repo with no parser plugin yet, files that failed to parse, and a one-line summary of dependencies declared in manifest files (Cargo.toml, package.json, requirements.txt, go.mod) — pass verbose_dependencies to list them all. Do NOT use this to search for a symbol — it returns no symbol data, only index diagnostics; use find_symbol instead."
-    )]
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Report index health; see tools.ttc")]
     pub async fn get_indexing_status(
         &self,
         Parameters(GetIndexingStatusArgs {
@@ -731,9 +763,8 @@ impl MctServer {
         )]))
     }
 
-    #[tool(
-        description = "TOKEN-SAVING module overview. Returns a file's top-level declarations (functions, classes, structs, interfaces, types) with bodies collapsed to `// ...` — up to ~90% fewer tokens than reading the whole file when you just need its shape. Brace-delimited languages (Rust, Go, Java, C++, C#, PHP, JS/TS, Kotlin) get precise body elision; other languages (e.g. Python, Lua, Bash, PowerShell) get a best-effort declaration-line-only rendering. Nested members (e.g. methods inside a class) are NOT shown individually — a class/struct/interface collapses to one block regardless of what's inside it. Do NOT use this for a directory/crate — it takes a single file path; use list_symbols for that. Do NOT use this when you need a symbol's actual implementation, not just its shape — use find_symbol to locate it, then read the file directly."
-    )]
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "A file's shape, bodies collapsed; see tools.ttc")]
     pub async fn get_file_skeleton(
         &self,
         Parameters(GetFileSkeletonArgs { path }): Parameters<GetFileSkeletonArgs>,
@@ -764,9 +795,8 @@ impl MctServer {
         )]))
     }
 
-    #[tool(
-        description = "TOKEN-SAVING project digest. Returns a compact hierarchical overview — modules, their key top-level symbols (capped, ranked by call fan-in when truncated), and — with include_relations, off by default — each symbol's top callers, in one call. Use this FIRST when getting oriented in an unfamiliar file/directory/crate/project, before chaining list_symbols + get_file_skeleton + find_calls by hand to build the same picture. Do NOT use this for a precise lookup of one already-known symbol (use find_symbol) or when you need every symbol in a file/directory with no cap (use list_symbols instead — this tool truncates for compactness)."
-    )]
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Capped hierarchical project digest; see tools.ttc")]
     pub async fn get_project_overview(
         &self,
         Parameters(GetProjectOverviewArgs {
@@ -871,9 +901,8 @@ impl MctServer {
         )]))
     }
 
-    #[tool(
-        description = "Finds top-level functions/classes/structs/enums/traits/interfaces/type-aliases with zero indexed references anywhere in the project — candidates for dead code. HEURISTIC, not a certainty: it reflects the symbol graph this project indexes (calls/imports/extends/implements/plain references by name), not true visibility or dynamic dispatch — a genuinely public API with no in-repo caller yet, or a symbol invoked via reflection/dynamic dispatch/an external consumer, will also show up with zero references. `method`-kind symbols are excluded by default (trait/interface implementations are routinely called only through dispatch, never by name) as are test-file/test-name matches and language entry points (`main`). Always sanity-check a hit — e.g. with find_references or impact_analysis — before deleting anything it reports. Do NOT use this for a precise \"does X have any references\" check on one already-known symbol — that's cheaper and more precise via find_references or impact_analysis."
-    )]
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Heuristic dead-code candidates; see tools.ttc")]
     pub async fn find_dead_code(
         &self,
         Parameters(FindDeadCodeArgs {

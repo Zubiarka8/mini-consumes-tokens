@@ -22,6 +22,25 @@ This is the extension point most contributions will touch, so it gets its own ch
 6. **Update docs:** the language table in `README.md` and the "Cobertura de lenguajes" section in `internal/checklist.md`.
 7. **Run the workspace test suite** (`cargo test --workspace`) and fix any regressions before opening a PR.
 
+## Adding a new MCP tool, and the TTC description format
+
+`crates/mct-mcp-server/src/server.rs` defines each tool's name, parameters and `#[tool(...)]` attribute, but that attribute's `description` is only a short fallback literal — the description an MCP client actually receives comes from `crates/mct-mcp-server/src/tools.ttc`, parsed by `crates/mct-mcp-server/src/ttc.rs` and applied to the tool router in `MctServer::new`. This is TTC (Tool Terse Catalog): a compact `WHEN`/`ERR`/`TAGS` format that replaced long prose descriptions to shrink the catalog's token footprint (~68% smaller across the 11 tools as of this writing) without dropping the "when to use this" / "when NOT to" information an agent actually needs.
+
+When adding a tool, add a block to `tools.ttc`:
+
+```
+TOOL your_tool_name
+WHEN one line: when an agent should reach for this tool.
+ERR  one line: what NOT to use it for, or its caveats/failure modes.
+TAGS comma-separated short keywords, for discovery.
+```
+
+`WHEN`/`ERR`/`TAGS` may appear in any order after the `TOOL` line, but each must appear exactly once, on a single line — no wrapping. A line starting with `#` is a comment anywhere in the file. `ttc::parse` never panics on malformed input (a missing/duplicate field, an unrecognized line, a bad `TOOL` header all return a `TtcParseError`); if it fails at server startup, `MctServer::new` logs a warning and falls back to every tool's compiled-in `#[tool(description = "...")]` literal instead of refusing to start.
+
+Two tests keep `tools.ttc` and `server.rs` from drifting apart:
+- `ttc::tests::catalog_source_parses_and_covers_every_known_tool` (in `ttc.rs`) checks `tools.ttc` parses and has exactly one block per name in `ttc::KNOWN_TOOL_NAMES` — update that list when adding/removing a tool.
+- `catalog.rs` (integration test) checks the *live* tool router's installed descriptions actually equal `tools.ttc`'s expansion, not the compiled-in fallback.
+
 ## Windows build prerequisites
 
 Building this workspace on Windows needs nothing beyond the standard Rust-on-Windows setup — no manual system dependency to install for `git2` or any tree-sitter grammar specifically:
