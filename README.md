@@ -77,6 +77,20 @@ cargo install --path crates/mct-cli
 cargo install --path crates/mct-mcp-server
 ```
 
+**Working on the repo itself and don't want to install anything?** Skip
+`cargo install` and run straight from the checkout with `cargo run -p
+<crate> --`. Every `mct-cli ...` example in this README becomes:
+
+```sh
+cargo run -p mct-cli -- --root . init
+cargo run -p mct-cli -- --root . status
+cargo run -p mct-cli -- --root . ignore-init --import-gitignore
+```
+
+(and `mct-mcp-server` the same way: `cargo run -p mct-mcp-server -- --root
+<project>`). This also matches what `mct-cli --help`/`mct-cli <command>
+--help` show when built this way.
+
 #### Verifying either option worked
 
 ```sh
