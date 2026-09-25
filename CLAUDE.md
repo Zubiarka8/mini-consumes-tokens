@@ -17,6 +17,7 @@ An MCP server (`mct-mcp-server`) and CLI (`mct-cli`) that index a code repositor
 | What symbols does a file/crate have, without knowing a name yet? | `list_symbols` — the discovery step; a file path matches exactly, a directory/crate path (no extension) matches as a prefix, `kind`/`language` narrow it |
 | What is one file's overall shape (top-level declarations, bodies collapsed)? | `get_file_skeleton` — single file; use `list_symbols` first if you don't know which file |
 | What does an unfamiliar file/directory/crate/project look like as a whole? | `get_project_overview` — capped hierarchical digest (modules, key symbols, top callers) in one call; coarser, so switch to the two above once you know the file |
+| What's the directory/file layout, before you know which file or crate to look at? | `get_file_tree` — plain directory tree (no symbol data), depth-limited, pruned of the same noise dirs (`target`, `node_modules`, `.git`) reindexing skips |
 | Where is X defined? | `find_symbol` |
 | Who calls X directly? | `find_callers` |
 | What does X call? | `find_calls` |
@@ -77,7 +78,7 @@ mct-index    SQLite schema/migrations (a single schema for every language — a 
 mct-lang-*   One crate per language, each a LanguageParser impl over its tree-sitter grammar
 mct-mcp-server  MCP tools over stdio (rmcp): list_symbols/find_symbol/find_references/
                 find_calls/find_callers/impact_analysis/find_dead_code/reindex/
-                get_indexing_status/get_file_skeleton/get_project_overview
+                get_indexing_status/get_file_skeleton/get_project_overview/get_file_tree
 mct-cli      init/reindex/status/mcp-register subcommands for manual/scripted use
 ```
 

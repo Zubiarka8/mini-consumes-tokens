@@ -5,7 +5,7 @@
 
 use std::collections::BTreeSet;
 
-use mct_index::{IndexStatus, ReindexReport, RelationHit, SymbolHit, SymbolListEntry};
+use mct_index::{FileTreeNode, IndexStatus, ReindexReport, RelationHit, SymbolHit, SymbolListEntry};
 
 use crate::toon::encode_table;
 
@@ -390,6 +390,47 @@ pub fn file_skeleton(path: &str, entries: &[SymbolListEntry], source: &str) -> S
         out.push('\n');
     }
     out
+}
+
+/// Renders `get_file_tree`: an indented directory/file listing, two spaces
+/// per nesting level, directories suffixed with `/`. Truncated at
+/// [`DEFAULT_BYTE_BUDGET`] like every other list-shaped tool here, cut at
+/// the last full line rather than mid-line, so a huge tree can't blow up a
+/// single response.
+pub fn file_tree(display_path: &str, root: &FileTreeNode, depth: u32) -> String {
+    let mut body = String::new();
+    render_tree_node(root, 0, &mut body);
+
+    let mut out = format!("File tree of `{display_path}` (depth {depth}):\n");
+    if body.len() <= DEFAULT_BYTE_BUDGET {
+        out.push_str(&body);
+        return out;
+    }
+    let mut boundary = DEFAULT_BYTE_BUDGET;
+    while boundary > 0 && !body.is_char_boundary(boundary) {
+        boundary -= 1;
+    }
+    let cut = body[..boundary].rfind('\n').map(|i| i + 1).unwrap_or(0);
+    out.push_str(&body[..cut]);
+    out.push_str(&format!(
+        "... (truncated at the {DEFAULT_BYTE_BUDGET}-byte response budget — narrow with `path` or lower `depth`)\n"
+    ));
+    out
+}
+
+fn render_tree_node(node: &FileTreeNode, indent: usize, out: &mut String) {
+    let pad = "  ".repeat(indent);
+    let suffix = if node.is_dir { "/" } else { "" };
+    out.push_str(&format!("{pad}{}{suffix}\n", node.name));
+    for child in &node.children {
+        render_tree_node(child, indent + 1, out);
+    }
+    if node.omitted > 0 {
+        out.push_str(&format!("{pad}  (+{} more)\n", node.omitted));
+    }
+    if node.depth_exhausted {
+        out.push_str(&format!("{pad}  ...\n"));
+    }
 }
 
 /// Appended to a relation-hit line when it's more than one hop from the
@@ -1026,6 +1067,75 @@ mod file_skeleton_tests {
     fn empty_entries_says_so_instead_of_an_empty_body() {
         let out = file_skeleton("f.rs", &[], "anything");
         assert!(out.contains("No top-level symbols"), "got: {out}");
+    }
+}
+
+#[cfg(test)]
+mod file_tree_tests {
+    use super::*;
+
+    fn dir(name: &str, children: Vec<FileTreeNode>) -> FileTreeNode {
+        FileTreeNode {
+            name: name.to_string(),
+            is_dir: true,
+            children,
+            omitted: 0,
+            depth_exhausted: false,
+        }
+    }
+
+    fn file(name: &str) -> FileTreeNode {
+        FileTreeNode {
+            name: name.to_string(),
+            is_dir: false,
+            children: Vec::new(),
+            omitted: 0,
+            depth_exhausted: false,
+        }
+    }
+
+    #[test]
+    fn directories_are_suffixed_and_nesting_is_indented() {
+        let root = dir(".", vec![dir("src", vec![file("lib.rs")]), file("Cargo.toml")]);
+        let out = file_tree(".", &root, 3);
+        assert!(out.contains("./\n"), "got: {out}");
+        assert!(out.contains("  src/\n"), "got: {out}");
+        assert!(out.contains("    lib.rs\n"), "got: {out}");
+        assert!(out.contains("  Cargo.toml\n"), "got: {out}");
+    }
+
+    #[test]
+    fn omitted_and_depth_exhausted_are_each_noted_once() {
+        let capped = FileTreeNode {
+            name: "many".to_string(),
+            is_dir: true,
+            children: vec![file("a")],
+            omitted: 5,
+            depth_exhausted: false,
+        };
+        let stopped = FileTreeNode {
+            name: "deep".to_string(),
+            is_dir: true,
+            children: Vec::new(),
+            omitted: 0,
+            depth_exhausted: true,
+        };
+        let root = dir(".", vec![capped, stopped]);
+        let out = file_tree(".", &root, 1);
+        assert!(out.contains("(+5 more)"), "got: {out}");
+        assert!(out.contains("deep/\n    ...\n"), "got: {out}");
+    }
+
+    #[test]
+    fn an_oversized_tree_is_truncated_at_a_line_boundary() {
+        let children: Vec<FileTreeNode> = (0..5000).map(|i| file(&format!("file_{i:05}.txt"))).collect();
+        let root = dir(".", children);
+        let out = file_tree(".", &root, 1);
+        assert!(
+            out.ends_with("byte response budget — narrow with `path` or lower `depth`)\n"),
+            "must end with the truncation note, not mid-entry: {out}"
+        );
+        assert!(out.len() < 5000 * 20, "must actually be capped well below the full tree: {} bytes", out.len());
     }
 }
 
