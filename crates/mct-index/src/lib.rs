@@ -252,6 +252,14 @@ impl Index {
         queries::fan_in_counts(&self.conn)
     }
 
+    /// Total reference counts for every referenced name, across every
+    /// relation kind — the whole-project data `find_dead_code` filters
+    /// candidate symbols against. A name absent from the map has zero
+    /// references of any kind anywhere in the index.
+    pub fn reference_counts(&self) -> Result<std::collections::HashMap<String, usize>> {
+        queries::reference_counts(&self.conn)
+    }
+
     /// Multi-hop [`Index::find_calls`]: walks the call graph forward up to
     /// `depth` hops (1 = identical to [`Index::find_calls`] — the full,
     /// uncapped direct-hit list, so a caller that always passes `depth: 1`

@@ -501,3 +501,25 @@ fn fan_in_counts_matches_find_callers_len_for_every_name() {
     let named: Vec<&String> = counts.keys().collect();
     assert_eq!(named.len(), 2, "{counts:?}");
 }
+
+#[test]
+fn reference_counts_matches_find_references_len_for_every_name() {
+    let dir = tempdir();
+    write(&dir, "src/a.fake", "fn a calls target\n");
+    write(&dir, "src/b.fake", "fn b calls target\n");
+    write(&dir, "libx/c.fake", "fn c calls target\nfn c2 calls a\n");
+    write(&dir, "lonely.fake", "fn lonely\n");
+    let index = open(&dir);
+
+    let counts = index.reference_counts().unwrap();
+    for name in ["target", "a", "c2", "lonely"] {
+        let expected = index.find_references(name).unwrap().len();
+        let actual = counts.get(name).copied().unwrap_or(0);
+        assert_eq!(actual, expected, "reference mismatch for `{name}`");
+    }
+    assert_eq!(counts.get("target").copied(), Some(3));
+    assert_eq!(counts.get("a").copied(), Some(1));
+    // Never referenced anywhere: absent from the map entirely.
+    assert_eq!(counts.get("lonely").copied(), None);
+    assert!(!counts.contains_key("c2"));
+}
