@@ -5,12 +5,25 @@ use mct_core::LanguageRegistry;
 use mct_index::{ExcludeSet, Index};
 use clap::{Parser, Subcommand};
 
-/// mini-consumes-tokens: index a repository and inspect the index from the
-/// command line. The MCP server (`mct-mcp-server`) does the same indexing
-/// automatically at startup — this CLI is for manual/scripted use (CI, a
-/// pre-commit hook, or just checking coverage before wiring up the plugin).
+/// Index a repository and inspect the index from the command line.
+///
+/// The MCP server (`mct-mcp-server`) does the same indexing automatically at
+/// startup — this CLI is for manual/scripted use (CI, a pre-commit hook, or
+/// just checking coverage before wiring up the plugin).
 #[derive(Parser, Debug)]
-#[command(name = "mct")]
+#[command(name = "mct-cli", version, after_help = "\
+Invoked here via `cargo run -p mct-cli --`; once installed on PATH (e.g.
+`cargo install --path crates/mct-cli`) the binary is `mct-cli` too, so drop
+the `cargo run -p mct-cli --` prefix from every example below.
+
+Typical first run:
+  cargo run -p mct-cli -- --root . init
+  cargo run -p mct-cli -- --root . ignore-init --import-gitignore
+  cargo run -p mct-cli -- --root . gitignore-init
+  cargo run -p mct-cli -- --root . status
+
+Run `cargo run -p mct-cli -- <command> --help` for a command's full
+description and examples.")]
 struct Cli {
     /// Project root to operate on. Defaults to the current working directory.
     #[arg(long, global = true)]
@@ -22,32 +35,73 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Command {
-    /// Build the index for the first time. Equivalent to `reindex` — kept as
-    /// a separate, discoverable first command for a fresh checkout.
+    /// Build the index for the first time.
+    ///
+    /// Equivalent to `reindex` — kept as a separate, discoverable first
+    /// command for a fresh checkout.
+    #[command(after_help = "Example:\n  cargo run -p mct-cli -- --root . init")]
     Init,
     /// Re-scan the project and update the index.
+    ///
+    /// Only re-parses files that changed since the last run, unless
+    /// `--force` is given. Safe to run repeatedly (e.g. from a pre-commit
+    /// hook or CI step) — a no-op reindex costs one blob-hash comparison
+    /// per file.
+    #[command(after_help = "Examples:\n  cargo run -p mct-cli -- --root . reindex\n  cargo run -p mct-cli -- --root . reindex --force")]
     Reindex {
         /// Re-parse every supported file, even if unchanged since last run.
         #[arg(long)]
         force: bool,
     },
-    /// Report index health: coverage per language, last indexed time,
-    /// unsupported languages seen, and files that failed to parse.
+    /// Report index health.
+    ///
+    /// Prints coverage per language, the last indexed time, any unsupported
+    /// languages seen while walking the tree, and files that failed to
+    /// parse. Run this after `init`/`reindex` to sanity-check the result,
+    /// or on its own to check whether the index looks stale.
+    #[command(after_help = "Example:\n  cargo run -p mct-cli -- --root . status")]
     Status,
-    /// Write (or update) `.mcp.json` at the project root so Claude Code (or
-    /// any other client reading that file) can launch `mct-mcp-server` for
-    /// this project. Merges into an existing file instead of overwriting it,
-    /// so other servers already configured there are left untouched.
+    /// Write (or update) `.mcp.json` so an MCP client can launch this server.
+    ///
+    /// Writes (or updates) `.mcp.json` at the project root so Claude Code
+    /// (or any other client reading that file) can launch `mct-mcp-server`
+    /// for this project. Merges into an existing file instead of
+    /// overwriting it, so other servers already configured there are left
+    /// untouched.
+    #[command(after_help = "Examples:\n  cargo run -p mct-cli -- --root . mcp-register\n  cargo run -p mct-cli -- --root . mcp-register --name my-project")]
     McpRegister {
         /// Server name (the key under `mcpServers`). Defaults to the root
         /// directory's own name.
         #[arg(long)]
         name: Option<String>,
     },
-    /// Write a starter `.mctignore` at the project root, if one doesn't
+    /// Write a starter `.mctignore` for custom indexing exclusions.
+    ///
+    /// Writes a starter `.mctignore` at the project root, if one doesn't
     /// already exist. Lets a project exclude extra files/directories from
-    /// indexing (e.g. `docs/`, `*.md`) on top of the built-in exclusions.
-    IgnoreInit,
+    /// indexing (e.g. `docs/`, `*.md`) on top of the built-in exclusions,
+    /// without touching git. Without `--import-gitignore`, an existing file
+    /// is left untouched.
+    #[command(after_help = "Examples:\n  cargo run -p mct-cli -- --root . ignore-init\n  cargo run -p mct-cli -- --root . ignore-init --import-gitignore")]
+    IgnoreInit {
+        /// Activate `@import-gitignore`, so everything the project's
+        /// `.gitignore` excludes is excluded from indexing too. On a fresh
+        /// file this is baked into the generated content; on an existing
+        /// one, the directive is appended if it isn't already there —
+        /// otherwise this is the one case `ignore-init` updates a file
+        /// instead of leaving it alone.
+        #[arg(long)]
+        import_gitignore: bool,
+    },
+    /// Keep the generated index out of git.
+    ///
+    /// Adds `.mct-index/` to the project's `.gitignore` (creating it if
+    /// needed), so the generated symbol database — fully derived from
+    /// source, regenerated by `reindex` — never ends up committed. Leaves
+    /// everything else already in the file untouched; a no-op if it's
+    /// already covered.
+    #[command(after_help = "Example:\n  cargo run -p mct-cli -- --root . gitignore-init")]
+    GitignoreInit,
 }
 
 fn build_registry() -> LanguageRegistry {
@@ -78,14 +132,17 @@ fn main() -> anyhow::Result<()> {
         None => std::env::current_dir()?,
     };
 
-    // Neither touches the index at all, so they're handled before
+    // None of these touch the index at all, so they're handled before
     // Index::open — running them shouldn't have the side effect of creating
     // .mct-index/.
     if let Command::McpRegister { name } = cli.command {
         return mcp_register(&root, name);
     }
-    if let Command::IgnoreInit = cli.command {
-        return ignore_init(&root);
+    if let Command::IgnoreInit { import_gitignore } = cli.command {
+        return ignore_init(&root, import_gitignore);
+    }
+    if let Command::GitignoreInit = cli.command {
+        return gitignore_init(&root);
     }
 
     let db_path = root.join(".mct-index").join("index.sqlite3");
@@ -97,7 +154,9 @@ fn main() -> anyhow::Result<()> {
         Command::Init => print_reindex(index.reindex(&registry, false)?),
         Command::Reindex { force } => print_reindex(index.reindex(&registry, force)?),
         Command::Status => print_status(index.status()?),
-        Command::McpRegister { .. } | Command::IgnoreInit => unreachable!("returned above"),
+        Command::McpRegister { .. } | Command::IgnoreInit { .. } | Command::GitignoreInit => {
+            unreachable!("returned above")
+        }
     }
 
     Ok(())
@@ -148,17 +207,115 @@ fn mcp_register(root: &Path, name: Option<String>) -> anyhow::Result<()> {
 }
 
 /// Writes a starter `.mctignore` at `root` if one doesn't already exist.
-/// Never overwrites an existing file — same non-destructive stance as
-/// `mcp_register`, just without a merge target here since there's nothing
-/// to merge into a plain-text ignore file.
-fn ignore_init(root: &Path) -> anyhow::Result<()> {
+/// Never overwrites an existing file's own patterns — same non-destructive
+/// stance as `mcp_register`, just without a merge target here since there's
+/// nothing to merge into a plain-text ignore file.
+///
+/// `import_gitignore` lets the user opt into `@import-gitignore` instead of
+/// hand-editing the file: on a fresh file it's baked into the generated
+/// content (uncommenting the template's own example line for it); on an
+/// existing one, [`activate_gitignore_import`] appends it if it isn't
+/// already there — the one case this function updates rather than leaves
+/// alone, gated entirely behind the flag so a plain `ignore-init` on an
+/// existing file still never touches it.
+fn ignore_init(root: &Path, import_gitignore: bool) -> anyhow::Result<()> {
     let path = root.join(mct_index::IGNORE_FILE_NAME);
     if path.exists() {
+        if import_gitignore {
+            return activate_gitignore_import(&path);
+        }
         println!("{} already exists, leaving it as-is.", display_path(&path));
         return Ok(());
     }
-    std::fs::write(&path, mct_index::IGNORE_FILE_TEMPLATE)?;
-    println!("Wrote starter {}", display_path(&path));
+
+    let contents = if import_gitignore {
+        let commented = format!("# {}\n", mct_index::GITIGNORE_IMPORT_DIRECTIVE);
+        let active = format!("{}\n", mct_index::GITIGNORE_IMPORT_DIRECTIVE);
+        mct_index::IGNORE_FILE_TEMPLATE.replacen(&commented, &active, 1)
+    } else {
+        mct_index::IGNORE_FILE_TEMPLATE.to_string()
+    };
+    std::fs::write(&path, &contents)?;
+    println!(
+        "Wrote starter {}{}",
+        display_path(&path),
+        if import_gitignore {
+            ", importing .gitignore"
+        } else {
+            ""
+        }
+    );
+    Ok(())
+}
+
+/// Appends [`mct_index::GITIGNORE_IMPORT_DIRECTIVE`] to an existing
+/// `.mctignore` at `path`, if it isn't already active on some line of its
+/// own — idempotent, and never touches anything else already in the file.
+fn activate_gitignore_import(path: &Path) -> anyhow::Result<()> {
+    let contents = std::fs::read_to_string(path)?;
+    if contents.lines().any(|line| line.trim() == mct_index::GITIGNORE_IMPORT_DIRECTIVE) {
+        println!("{} already imports .gitignore.", display_path(path));
+        return Ok(());
+    }
+
+    let mut updated = contents;
+    if !updated.is_empty() && !updated.ends_with('\n') {
+        updated.push('\n');
+    }
+    updated.push_str(mct_index::GITIGNORE_IMPORT_DIRECTIVE);
+    updated.push('\n');
+
+    std::fs::write(path, &updated)?;
+    println!(
+        "Added `{}` to {}",
+        mct_index::GITIGNORE_IMPORT_DIRECTIVE,
+        display_path(path)
+    );
+    Ok(())
+}
+
+/// `.mct-index/`'s entry, appended to `.gitignore` by [`gitignore_init`].
+const GITIGNORE_INDEX_ENTRY: &str = ".mct-index/";
+
+/// Ensures `<root>/.gitignore` excludes `.mct-index/` — the generated
+/// SQLite database is fully derived from source (`reindex` regenerates it
+/// from nothing) and changes on every run, so committing it just bloats
+/// history with a binary file nobody needs to review or merge.
+///
+/// Additive and idempotent, same non-destructive stance as `mcp_register`/
+/// `ignore_init`: creates `.gitignore` if it doesn't exist, appends the
+/// entry if no existing line already covers it, and never touches anything
+/// else already there. The existing-coverage check is a plain trimmed-line
+/// match, not full gitignore pattern matching — good enough to avoid
+/// duplicating the exact line this function itself writes on a second run,
+/// without reimplementing gitignore semantics for a single well-known path.
+fn gitignore_init(root: &Path) -> anyhow::Result<()> {
+    let path = root.join(".gitignore");
+    let existing = std::fs::read_to_string(&path).unwrap_or_default();
+
+    if existing
+        .lines()
+        .any(|line| line.trim() == GITIGNORE_INDEX_ENTRY || line.trim() == ".mct-index")
+    {
+        println!("{} already excludes `.mct-index/`.", display_path(&path));
+        return Ok(());
+    }
+
+    let mut updated = existing;
+    if !updated.is_empty() && !updated.ends_with('\n') {
+        updated.push('\n');
+    }
+    if !updated.is_empty() {
+        updated.push('\n');
+    }
+    updated.push_str(
+        "# mini-consumes-tokens: local symbol index, regenerated by `mct-cli reindex` — never worth committing.\n",
+    );
+    updated.push_str(GITIGNORE_INDEX_ENTRY);
+    updated.push('\n');
+
+    std::fs::write(&path, &updated)?;
+    println!("Added `.mct-index/` to {}", display_path(&path));
     Ok(())
 }
 
@@ -410,7 +567,7 @@ mod tests {
     fn ignore_init_creates_starter_file() {
         let dir = temp_project_dir("ignore-init-new");
 
-        ignore_init(&dir).expect("ignore_init should succeed");
+        ignore_init(&dir, false).expect("ignore_init should succeed");
 
         let contents = fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
         assert_eq!(contents, mct_index::IGNORE_FILE_TEMPLATE);
@@ -423,10 +580,130 @@ mod tests {
         let dir = temp_project_dir("ignore-init-existing");
         fs::write(dir.join(mct_index::IGNORE_FILE_NAME), "*.md\n").expect("seed existing ignore file");
 
-        ignore_init(&dir).expect("ignore_init should succeed");
+        ignore_init(&dir, false).expect("ignore_init should succeed");
 
         let contents = fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
         assert_eq!(contents, "*.md\n");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn ignore_init_with_import_gitignore_activates_the_directive() {
+        let dir = temp_project_dir("ignore-init-import-gitignore");
+
+        ignore_init(&dir, true).expect("ignore_init should succeed");
+
+        let contents = fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
+        assert!(
+            contents.lines().any(|line| line == mct_index::GITIGNORE_IMPORT_DIRECTIVE),
+            "expected an active (uncommented) directive line, got: {contents}"
+        );
+        assert_eq!(
+            mct_index::read_ignore_file(&dir),
+            Vec::<String>::new(),
+            "the directive alone (no other patterns, no .gitignore yet) should add nothing"
+        );
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn ignore_init_without_the_flag_never_touches_an_existing_file() {
+        let dir = temp_project_dir("ignore-init-no-flag-existing");
+        fs::write(dir.join(mct_index::IGNORE_FILE_NAME), "*.md\n").expect("seed existing ignore file");
+
+        ignore_init(&dir, false).expect("ignore_init should succeed");
+
+        let contents = fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
+        assert_eq!(contents, "*.md\n");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn ignore_init_import_gitignore_flag_activates_the_directive_on_an_existing_file() {
+        let dir = temp_project_dir("ignore-init-import-gitignore-existing");
+        fs::write(dir.join(mct_index::IGNORE_FILE_NAME), "*.md\n").expect("seed existing ignore file");
+
+        ignore_init(&dir, true).expect("ignore_init should succeed");
+
+        let contents = fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
+        assert_eq!(contents, "*.md\n@import-gitignore\n");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn ignore_init_import_gitignore_flag_is_idempotent_on_an_existing_file() {
+        let dir = temp_project_dir("ignore-init-import-gitignore-idempotent");
+        fs::write(dir.join(mct_index::IGNORE_FILE_NAME), "*.md\n").expect("seed existing ignore file");
+
+        ignore_init(&dir, true).expect("first ignore_init should succeed");
+        let first = fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
+        ignore_init(&dir, true).expect("second ignore_init should succeed");
+        let second = fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
+
+        assert_eq!(first, second, "a second run should not duplicate the directive");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn gitignore_init_creates_a_new_gitignore_excluding_the_index() {
+        let dir = temp_project_dir("gitignore-init-new");
+
+        gitignore_init(&dir).expect("gitignore_init should succeed");
+
+        let contents = fs::read_to_string(dir.join(".gitignore")).expect("file should exist");
+        assert!(
+            contents.lines().any(|line| line.trim() == ".mct-index/"),
+            "expected `.mct-index/` in: {contents}"
+        );
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn gitignore_init_appends_to_an_existing_gitignore_without_disturbing_it() {
+        let dir = temp_project_dir("gitignore-init-append");
+        fs::write(dir.join(".gitignore"), "node_modules/\n").expect("seed existing gitignore");
+
+        gitignore_init(&dir).expect("gitignore_init should succeed");
+
+        let contents = fs::read_to_string(dir.join(".gitignore")).expect("file should exist");
+        assert!(contents.contains("node_modules/"), "existing entry should survive: {contents}");
+        assert!(
+            contents.lines().any(|line| line.trim() == ".mct-index/"),
+            "expected `.mct-index/` appended, got: {contents}"
+        );
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn gitignore_init_is_idempotent() {
+        let dir = temp_project_dir("gitignore-init-idempotent");
+
+        gitignore_init(&dir).expect("first gitignore_init should succeed");
+        let first = fs::read_to_string(dir.join(".gitignore")).expect("file should exist");
+        gitignore_init(&dir).expect("second gitignore_init should succeed");
+        let second = fs::read_to_string(dir.join(".gitignore")).expect("file should exist");
+
+        assert_eq!(first, second, "a second run should not duplicate the entry");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn gitignore_init_recognizes_an_already_present_entry() {
+        let dir = temp_project_dir("gitignore-init-already-present");
+        fs::write(dir.join(".gitignore"), "target/\n.mct-index/\n").expect("seed existing gitignore");
+
+        gitignore_init(&dir).expect("gitignore_init should succeed");
+
+        let contents = fs::read_to_string(dir.join(".gitignore")).expect("file should exist");
+        assert_eq!(contents, "target/\n.mct-index/\n", "should not add a duplicate entry");
 
         fs::remove_dir_all(&dir).ok();
     }

@@ -25,11 +25,22 @@ pub const IGNORE_FILE_TEMPLATE: &str = "\
 # A bare glob (e.g. \"*.md\") excludes matching files at any depth; a glob
 # containing a slash (e.g. \"docs/*.md\") is anchored to the project root.
 #
+# To also exclude everything the project's own .gitignore excludes (so
+# nothing kept out of git ends up in the index either), add this exact line
+# on its own (uncomment it below). .gitignore lines starting with \"!\"
+# (negation) are skipped rather than misapplied, same simplification as this
+# file's own lack of negation.
+# @import-gitignore
+#
 # Examples (uncomment to use):
 # *.md
 # docs/
 # tests/fixtures/
 ";
+
+/// Line that, added on its own in `.mctignore`, opts into also excluding
+/// everything the project's `.gitignore` excludes — see [`read_ignore_file`].
+pub const GITIGNORE_IMPORT_DIRECTIVE: &str = "@import-gitignore";
 
 /// File patterns excluded from indexing by default because they commonly hold
 /// secrets, across the conventions of several ecosystems — not just
@@ -158,33 +169,66 @@ impl Default for ExcludeSet {
 ///   position is anchored to the project root; one without an internal `/`
 ///   matches at any depth (prefixed with `**/`) — the same anchoring rule
 ///   `.gitignore` itself uses.
+/// - A line that is exactly [`GITIGNORE_IMPORT_DIRECTIVE`] opts into also
+///   reading `<root>/.gitignore` and parsing its lines the same way (a
+///   missing `.gitignore` is silently a no-op); its `!`-negation lines are
+///   skipped rather than misapplied, for the same opt-out-only reason
+///   `.mctignore` itself has no negation.
 pub fn read_ignore_file(root: &Path) -> Vec<String> {
     let Ok(contents) = std::fs::read_to_string(root.join(IGNORE_FILE_NAME)) else {
         return Vec::new();
     };
 
     let mut patterns = Vec::new();
+    let mut import_gitignore = false;
     for line in contents.lines() {
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
+        if line == GITIGNORE_IMPORT_DIRECTIVE {
+            import_gitignore = true;
+            continue;
+        }
+        push_line_patterns(line, &mut patterns);
+    }
 
-        if let Some(dir) = line.strip_suffix('/') {
-            if dir.contains('/') {
-                patterns.push(dir.to_string());
-                patterns.push(format!("{dir}/**"));
-            } else {
-                patterns.push(format!("**/{dir}"));
-                patterns.push(format!("**/{dir}/**"));
+    if import_gitignore {
+        if let Ok(gitignore) = std::fs::read_to_string(root.join(".gitignore")) {
+            for line in gitignore.lines() {
+                let line = line.trim();
+                // Comments, blank lines, and negation (`!pattern`, which
+                // would widen back past an earlier exclusion — not
+                // expressible by this simplified, opt-out-only parser) are
+                // all skipped rather than misapplied.
+                if line.is_empty() || line.starts_with('#') || line.starts_with('!') {
+                    continue;
+                }
+                push_line_patterns(line, &mut patterns);
             }
-        } else if line.contains('/') {
-            patterns.push(line.to_string());
-        } else {
-            patterns.push(format!("**/{line}"));
         }
     }
+
     patterns
+}
+
+/// Turns one already-trimmed, non-empty, non-comment ignore-file line into
+/// its ready-to-use glob pattern(s), per the anchoring rules documented on
+/// [`read_ignore_file`], appending them to `patterns`.
+fn push_line_patterns(line: &str, patterns: &mut Vec<String>) {
+    if let Some(dir) = line.strip_suffix('/') {
+        if dir.contains('/') {
+            patterns.push(dir.to_string());
+            patterns.push(format!("{dir}/**"));
+        } else {
+            patterns.push(format!("**/{dir}"));
+            patterns.push(format!("**/{dir}/**"));
+        }
+    } else if line.contains('/') {
+        patterns.push(line.to_string());
+    } else {
+        patterns.push(format!("**/{line}"));
+    }
 }
 
 #[cfg(test)]
@@ -263,6 +307,49 @@ mod ignore_file_tests {
         assert!(set.is_excluded("nested/notes.md"));
         assert!(set.is_excluded("docs/guide.txt"));
         assert!(!set.is_excluded("src/main.rs"));
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn without_the_import_directive_gitignore_is_never_consulted() {
+        let dir = temp_dir("gitignore-not-imported");
+        fs::write(dir.join(IGNORE_FILE_NAME), "*.md\n").unwrap();
+        fs::write(dir.join(".gitignore"), "*.log\n").unwrap();
+        assert_eq!(read_ignore_file(&dir), vec!["**/*.md".to_string()]);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn the_import_directive_pulls_in_gitignore_patterns() {
+        let dir = temp_dir("gitignore-imported");
+        fs::write(dir.join(IGNORE_FILE_NAME), format!("*.md\n{GITIGNORE_IMPORT_DIRECTIVE}\n")).unwrap();
+        fs::write(dir.join(".gitignore"), "*.log\nbuild/\n").unwrap();
+        assert_eq!(
+            read_ignore_file(&dir),
+            vec![
+                "**/*.md".to_string(),
+                "**/*.log".to_string(),
+                "**/build".to_string(),
+                "**/build/**".to_string(),
+            ]
+        );
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_missing_gitignore_with_the_directive_present_is_a_silent_no_op() {
+        let dir = temp_dir("gitignore-missing");
+        fs::write(dir.join(IGNORE_FILE_NAME), GITIGNORE_IMPORT_DIRECTIVE).unwrap();
+        assert_eq!(read_ignore_file(&dir), Vec::<String>::new());
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn gitignore_negation_lines_are_skipped_not_misapplied() {
+        let dir = temp_dir("gitignore-negation");
+        fs::write(dir.join(IGNORE_FILE_NAME), GITIGNORE_IMPORT_DIRECTIVE).unwrap();
+        fs::write(dir.join(".gitignore"), "*.log\n!keep.log\n# a comment\n\n").unwrap();
+        assert_eq!(read_ignore_file(&dir), vec!["**/*.log".to_string()]);
         fs::remove_dir_all(&dir).ok();
     }
 }
