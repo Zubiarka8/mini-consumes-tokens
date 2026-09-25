@@ -224,7 +224,7 @@ You don't normally run this by hand; your assistant or editor starts it once con
 | `mct-mcp-server --root <path>` | Starts the server for that project and waits for an MCP client over stdio. Builds/refreshes the index automatically on startup. |
 | `mct-mcp-server --help` | Prints usage information. |
 
-**Response format:** `list_symbols`, `find_symbol`, `find_references`, `find_calls`, `find_callers`, `impact_analysis` and `find_dead_code` accept an optional `format` argument — `"text"` (the default, unchanged) or `"toon"`. `toon` renders the result's uniform rows (symbols, references, calls) as a compact TOON table (one header row of column names, then one row per hit, no repeated labels) instead of this server's usual labelled lines — fewer tokens on a large result, at the cost of `list_symbols`' per-kind grouping. It's opt-in and additive: nothing changes for an existing client that never passes `format`.
+**Response format:** `list_symbols`, `find_symbol`, `batch_find_symbol`, `explain_symbol`, `find_references`, `find_calls`, `find_callers`, `impact_analysis` and `find_dead_code` accept an optional `format` argument — `"text"` (the default, unchanged) or `"toon"`. `toon` renders the result's uniform rows (symbols, references, calls) as a compact TOON table (one header row of column names, then one row per hit, no repeated labels) instead of this server's usual labelled lines — fewer tokens on a large result, at the cost of `list_symbols`' per-kind grouping. It's opt-in and additive: nothing changes for an existing client that never passes `format`.
 
 ---
 

@@ -172,6 +172,7 @@ pub const KNOWN_TOOL_NAMES: &[&str] = &[
     "list_symbols",
     "find_symbol",
     "batch_find_symbol",
+    "explain_symbol",
     "find_references",
     "find_calls",
     "find_callers",

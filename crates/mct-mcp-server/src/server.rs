@@ -11,6 +11,7 @@ use rmcp::{
 };
 use tokio::sync::Mutex;
 
+use crate::cache::QueryCache;
 use crate::format;
 use crate::toon::OutputFormat;
 use crate::ttc;
@@ -116,6 +117,30 @@ pub struct BatchFindSymbolArgs {
     /// when omitted, same as `find_symbol`.
     #[serde(default)]
     pub limit: Option<usize>,
+    /// Response shape: `text` (default) or `toon` (a compact table — see
+    /// `list_symbols`' `format` field for details).
+    #[serde(default)]
+    pub format: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct ExplainSymbolArgs {
+    /// Symbol name to explain, matched exactly, as a prefix, or as a
+    /// substring depending on `match` — same semantics as `find_symbol`'s
+    /// `name`. When several definitions match, the first (by file path then
+    /// line) is explained and the rest are only counted.
+    pub name: String,
+    /// Same matching mode as `find_symbol`'s `match`.
+    #[serde(default, rename = "match")]
+    pub match_mode: Option<String>,
+    /// Narrow to one file or directory/crate prefix (same matching as
+    /// list_symbols), to pick a specific definition when `name` is
+    /// ambiguous. Omit to search the whole project.
+    #[serde(default)]
+    pub path: Option<String>,
+    /// Narrow to one language id (e.g. `rust`), same use as `path`.
+    #[serde(default)]
+    pub language: Option<String>,
     /// Response shape: `text` (default) or `toon` (a compact table — see
     /// `list_symbols`' `format` field for details).
     #[serde(default)]
@@ -377,6 +402,10 @@ pub struct GetFileTreeArgs {
 pub struct MctServer {
     index: Arc<Mutex<Index>>,
     registry: LanguageRegistry,
+    // Exact-match fast-path cache (issue #16) — see `crate::cache`. Shared
+    // across every clone of `MctServer` via the `Arc`, so all callers in a
+    // session see the same entries.
+    cache: Arc<QueryCache>,
     // Read by the #[tool_handler] macro expansion below, not by hand-written
     // code — dead_code can't see that use.
     #[allow(dead_code)]
@@ -563,6 +592,7 @@ impl MctServer {
         Self {
             index: Arc::new(Mutex::new(index)),
             registry,
+            cache: Arc::new(QueryCache::new()),
             tool_router,
         }
     }
@@ -605,7 +635,13 @@ impl MctServer {
         let kind = optional_arg(kind.as_ref());
         let language = optional_arg(language.as_ref());
         let output_format = parse_output_format(format.as_deref())?;
+        let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
+        let cache_key = format!("{path}\u{0}{kind:?}\u{0}{language:?}\u{0}{limit}\u{0}{output_format:?}");
         let index = self.index.lock().await;
+        let generation = index.generation();
+        if let Some(cached) = self.cache.get("list_symbols", &cache_key, generation).await {
+            return Ok(CallToolResult::success(vec![ContentBlock::text(cached)]));
+        }
         // Asks the index the same file-vs-directory question it resolves
         // internally, so the formatter knows whether to print each entry's
         // `relative_path` (needed once a directory/crate spans several
@@ -616,11 +652,11 @@ impl MctServer {
         let hits = index
             .list_symbols(path, kind, language)
             .map_err(index_error)?;
-        let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
         let text = match output_format {
             OutputFormat::Text => format::list_symbols(path, is_file, &hits, limit),
             OutputFormat::Toon => format::list_symbols_toon(path, is_file, &hits, limit),
         };
+        self.cache.put("list_symbols", &cache_key, generation, text.clone()).await;
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
@@ -641,15 +677,21 @@ impl MctServer {
         let mode = parse_match_mode(match_mode.as_deref())?;
         let output_format = parse_output_format(format.as_deref())?;
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
+        let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
+        let cache_key = format!("{name}\u{0}{mode:?}\u{0}{scope:?}\u{0}{limit}\u{0}{output_format:?}");
         let index = self.index.lock().await;
+        let generation = index.generation();
+        if let Some(cached) = self.cache.get("find_symbol", &cache_key, generation).await {
+            return Ok(CallToolResult::success(vec![ContentBlock::text(cached)]));
+        }
         let hits = index
             .find_symbol_matching_scoped(name, mode, scope)
             .map_err(index_error)?;
-        let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
         let text = match output_format {
             OutputFormat::Text => format::symbol_hits(name, &hits, limit),
             OutputFormat::Toon => format::symbol_hits_toon(name, &hits, limit),
         };
+        self.cache.put("find_symbol", &cache_key, generation, text.clone()).await;
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
@@ -682,8 +724,18 @@ impl MctServer {
         let output_format = parse_output_format(format.as_deref())?;
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
         let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
+        let cache_key =
+            format!("{names:?}\u{0}{mode:?}\u{0}{scope:?}\u{0}{limit}\u{0}{output_format:?}");
 
         let index = self.index.lock().await;
+        let generation = index.generation();
+        if let Some(cached) = self
+            .cache
+            .get("batch_find_symbol", &cache_key, generation)
+            .await
+        {
+            return Ok(CallToolResult::success(vec![ContentBlock::text(cached)]));
+        }
         let mut results = Vec::with_capacity(names.len());
         for raw_name in &names {
             let name = validate_name(raw_name)?;
@@ -698,6 +750,78 @@ impl MctServer {
             OutputFormat::Text => format::batch_find_symbol(&results, limit),
             OutputFormat::Toon => format::batch_find_symbol_toon(&results, limit),
         };
+        self.cache
+            .put("batch_find_symbol", &cache_key, generation, text.clone())
+            .await;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(
+        description = "Enriched single-symbol explainer: definition, snippet, doc comment, reference/caller/callee counts in one call; see tools.ttc"
+    )]
+    pub async fn explain_symbol(
+        &self,
+        Parameters(ExplainSymbolArgs {
+            name,
+            match_mode,
+            path,
+            language,
+            format,
+        }): Parameters<ExplainSymbolArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let name = validate_name(&name)?;
+        let mode = parse_match_mode(match_mode.as_deref())?;
+        let output_format = parse_output_format(format.as_deref())?;
+        let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
+        let cache_key = format!("{name}\u{0}{mode:?}\u{0}{scope:?}\u{0}{output_format:?}");
+        let index = self.index.lock().await;
+        let generation = index.generation();
+        if let Some(cached) = self.cache.get("explain_symbol", &cache_key, generation).await {
+            return Ok(CallToolResult::success(vec![ContentBlock::text(cached)]));
+        }
+        let hits = index
+            .find_symbol_matching_scoped(name, mode, scope)
+            .map_err(index_error)?;
+        let Some(primary) = hits.first() else {
+            let text = format!("No symbol named `{name}` found in the index.");
+            self.cache
+                .put("explain_symbol", &cache_key, generation, text.clone())
+                .await;
+            return Ok(CallToolResult::success(vec![ContentBlock::text(text)]));
+        };
+        let other_definitions = hits.len() - 1;
+        let source = read_source_file(&index, &primary.relative_path)?;
+
+        // Counts are unscoped (whole project): `path`/`language` above only
+        // disambiguate *which* definition is explained, the same way they
+        // narrow `find_symbol` — they aren't meant to also narrow how many
+        // references/callers/callees get counted.
+        let references = index.find_references(&primary.name).map_err(index_error)?.len();
+        let callers = index.find_callers(&primary.name).map_err(index_error)?.len();
+        let callees = index.find_calls(&primary.name).map_err(index_error)?.len();
+
+        let text = match output_format {
+            OutputFormat::Text => format::explain_symbol(
+                primary,
+                other_definitions,
+                &source,
+                references,
+                callers,
+                callees,
+            ),
+            OutputFormat::Toon => format::explain_symbol_toon(
+                primary,
+                other_definitions,
+                &source,
+                references,
+                callers,
+                callees,
+            ),
+        };
+        self.cache
+            .put("explain_symbol", &cache_key, generation, text.clone())
+            .await;
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
@@ -718,16 +842,31 @@ impl MctServer {
         let symbol = validate_name(&symbol)?;
         let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
         let offset = offset.unwrap_or(0);
+        let depth = depth.unwrap_or(1);
         let output_format = parse_output_format(format.as_deref())?;
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
+        let cache_key = format!(
+            "{symbol}\u{0}{scope:?}\u{0}{limit}\u{0}{depth}\u{0}{offset}\u{0}{output_format:?}"
+        );
         let index = self.index.lock().await;
+        let generation = index.generation();
+        if let Some(cached) = self
+            .cache
+            .get("find_references", &cache_key, generation)
+            .await
+        {
+            return Ok(CallToolResult::success(vec![ContentBlock::text(cached)]));
+        }
         let hits = index
-            .find_references_bfs_scoped(symbol, depth.unwrap_or(1), limit, offset, scope)
+            .find_references_bfs_scoped(symbol, depth, limit, offset, scope)
             .map_err(index_error)?;
         let text = match output_format {
             OutputFormat::Text => format::relation_hits(symbol, "reference(s)", &hits, offset, limit),
             OutputFormat::Toon => format::relation_hits_toon(symbol, "reference(s)", &hits, offset, limit),
         };
+        self.cache
+            .put("find_references", &cache_key, generation, text.clone())
+            .await;
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
@@ -748,11 +887,19 @@ impl MctServer {
         let function = validate_name(&function)?;
         let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
         let offset = offset.unwrap_or(0);
+        let depth = depth.unwrap_or(1);
         let output_format = parse_output_format(format.as_deref())?;
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
+        let cache_key = format!(
+            "{function}\u{0}{scope:?}\u{0}{limit}\u{0}{depth}\u{0}{offset}\u{0}{output_format:?}"
+        );
         let index = self.index.lock().await;
+        let generation = index.generation();
+        if let Some(cached) = self.cache.get("find_calls", &cache_key, generation).await {
+            return Ok(CallToolResult::success(vec![ContentBlock::text(cached)]));
+        }
         let hits = index
-            .find_calls_bfs_scoped(function, depth.unwrap_or(1), limit, offset, scope)
+            .find_calls_bfs_scoped(function, depth, limit, offset, scope)
             .map_err(index_error)?;
         let text = match output_format {
             OutputFormat::Text => {
@@ -762,6 +909,9 @@ impl MctServer {
                 format::relation_hits_toon(function, "call(s) made by this function", &hits, offset, limit)
             }
         };
+        self.cache
+            .put("find_calls", &cache_key, generation, text.clone())
+            .await;
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
@@ -782,11 +932,19 @@ impl MctServer {
         let function = validate_name(&function)?;
         let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
         let offset = offset.unwrap_or(0);
+        let depth = depth.unwrap_or(1);
         let output_format = parse_output_format(format.as_deref())?;
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
+        let cache_key = format!(
+            "{function}\u{0}{scope:?}\u{0}{limit}\u{0}{depth}\u{0}{offset}\u{0}{output_format:?}"
+        );
         let index = self.index.lock().await;
+        let generation = index.generation();
+        if let Some(cached) = self.cache.get("find_callers", &cache_key, generation).await {
+            return Ok(CallToolResult::success(vec![ContentBlock::text(cached)]));
+        }
         let hits = index
-            .find_callers_bfs_scoped(function, depth.unwrap_or(1), limit, offset, scope)
+            .find_callers_bfs_scoped(function, depth, limit, offset, scope)
             .map_err(index_error)?;
         let text = match output_format {
             OutputFormat::Text => {
@@ -796,6 +954,9 @@ impl MctServer {
                 format::relation_hits_toon(function, "caller(s) of this function", &hits, offset, limit)
             }
         };
+        self.cache
+            .put("find_callers", &cache_key, generation, text.clone())
+            .await;
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
@@ -819,6 +980,20 @@ impl MctServer {
         let depth = depth.unwrap_or(1);
         let output_format = parse_output_format(format.as_deref())?;
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
+        let cache_key = format!(
+            "{symbol}\u{0}{scope:?}\u{0}{limit}\u{0}{depth}\u{0}{offset}\u{0}{output_format:?}"
+        );
+        let generation = {
+            let index = self.index.lock().await;
+            index.generation()
+        };
+        if let Some(cached) = self
+            .cache
+            .get("impact_analysis", &cache_key, generation)
+            .await
+        {
+            return Ok(CallToolResult::success(vec![ContentBlock::text(cached)]));
+        }
         let (callers, references) = {
             let index = self.index.lock().await;
             let callers = index
@@ -847,6 +1022,9 @@ impl MctServer {
                 format::impact_analysis_toon(symbol, &callers, &references, &affected_tests, offset, limit)
             }
         };
+        self.cache
+            .put("impact_analysis", &cache_key, generation, text.clone())
+            .await;
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
@@ -871,11 +1049,22 @@ impl MctServer {
             verbose_dependencies,
         }): Parameters<GetIndexingStatusArgs>,
     ) -> Result<CallToolResult, McpError> {
+        let cache_key = format!("{verbose_dependencies}");
         let index = self.index.lock().await;
+        let generation = index.generation();
+        if let Some(cached) = self
+            .cache
+            .get("get_indexing_status", &cache_key, generation)
+            .await
+        {
+            return Ok(CallToolResult::success(vec![ContentBlock::text(cached)]));
+        }
         let status = index.status().map_err(index_error)?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(
-            format::index_status(&status, verbose_dependencies),
-        )]))
+        let text = format::index_status(&status, verbose_dependencies);
+        self.cache
+            .put("get_indexing_status", &cache_key, generation, text.clone())
+            .await;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
     // Fallback only — see tools.ttc / MctServer::new.
@@ -886,6 +1075,10 @@ impl MctServer {
     ) -> Result<CallToolResult, McpError> {
         let path = validate_name(&path)?;
         let index = self.index.lock().await;
+        let generation = index.generation();
+        if let Some(cached) = self.cache.get("get_file_skeleton", path, generation).await {
+            return Ok(CallToolResult::success(vec![ContentBlock::text(cached)]));
+        }
         if index.path_is_directory(path) {
             return Err(McpError::invalid_params(
                 "get_file_skeleton takes a single file path, not a directory/crate prefix — use list_symbols first if you don't know which file you need",
@@ -905,9 +1098,11 @@ impl MctServer {
             // functions/types, not the module wrapper.
             .filter(|entry| entry.parent.is_none() && entry.kind != "module")
             .collect();
-        Ok(CallToolResult::success(vec![ContentBlock::text(
-            format::file_skeleton(path, &entries, &source),
-        )]))
+        let text = format::file_skeleton(path, &entries, &source);
+        self.cache
+            .put("get_file_skeleton", path, generation, text.clone())
+            .await;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
     // Fallback only — see tools.ttc / MctServer::new.
@@ -929,8 +1124,19 @@ impl MctServer {
         // (167_864 -> 45_760 bytes with them off). A digest that costs more
         // than reading the files isn't a digest.
         let include_relations = include_relations.unwrap_or(false);
+        let cache_key = format!(
+            "{path:?}\u{0}{language:?}\u{0}{max_symbols_per_module}\u{0}{include_relations}"
+        );
 
         let index = self.index.lock().await;
+        let generation = index.generation();
+        if let Some(cached) = self
+            .cache
+            .get("get_project_overview", &cache_key, generation)
+            .await
+        {
+            return Ok(CallToolResult::success(vec![ContentBlock::text(cached)]));
+        }
         let all_entries = list_symbols_for_overview(&index, path, language)?;
 
         // `list_symbols_for_overview`'s entries are already ordered by

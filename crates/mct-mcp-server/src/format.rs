@@ -515,6 +515,181 @@ pub fn file_skeleton(path: &str, entries: &[SymbolListEntry], source: &str) -> S
     out
 }
 
+/// Cap on `explain_symbol`'s code snippet, in lines — the tool replaces a
+/// `find_symbol` + `Read` round-trip with one call, and a snippet long
+/// enough to rival reading the file back would defeat that.
+const MAX_SNIPPET_LINES: usize = 30;
+
+/// Common single-line-comment prefixes checked when walking upward from a
+/// symbol's declaration for a doc comment (see [`extract_doc_comment`]).
+/// This is a language-agnostic textual heuristic, not real doc-comment
+/// parsing — the index itself never stores docstrings (`SymbolHit` has no
+/// such field), since extracting and normalizing every language's doc-comment
+/// syntax is out of scope for a symbol-graph index.
+const DOC_COMMENT_PREFIXES: &[&str] = &["///", "//!", "//", "#", "*", "/**", "/*"];
+
+/// Contiguous doc-comment-shaped lines immediately above `start_idx` (a
+/// 0-based line index), returned top-to-bottom. Stops at the first blank or
+/// non-comment line reading upward, so it never wanders into unrelated code
+/// or a preceding symbol's own trailing comment.
+fn extract_doc_comment(lines: &[&str], start_idx: usize) -> Vec<String> {
+    let mut collected = Vec::new();
+    let mut idx = start_idx.min(lines.len());
+    while idx > 0 {
+        idx -= 1;
+        let trimmed = lines[idx].trim();
+        if trimmed.is_empty() || !DOC_COMMENT_PREFIXES.iter().any(|p| trimmed.starts_with(p)) {
+            break;
+        }
+        collected.push(lines[idx].to_string());
+    }
+    collected.reverse();
+    collected
+}
+
+/// A symbol's own source text, capped to [`MAX_SNIPPET_LINES`] — real code,
+/// not `file_skeleton`'s collapsed placeholder, since `explain_symbol`'s
+/// whole point is showing the actual body instead of another round-trip back
+/// to `Read`. Bounded by the symbol's own extent (`end_line` when known,
+/// otherwise just its declaration line), so it can never spill into
+/// unrelated code that follows. Returns the shown lines plus how many lines
+/// the symbol's full extent actually spans, so the caller can note when the
+/// snippet was cut short.
+fn extract_snippet<'a>(lines: &[&'a str], start_idx: usize, end_idx: Option<usize>) -> (Vec<&'a str>, usize) {
+    if start_idx >= lines.len() {
+        return (Vec::new(), 0);
+    }
+    let end = end_idx
+        .unwrap_or(start_idx)
+        .min(lines.len() - 1)
+        .max(start_idx);
+    let total = end - start_idx + 1;
+    let capped = total.min(MAX_SNIPPET_LINES);
+    (lines[start_idx..start_idx + capped].to_vec(), total)
+}
+
+/// Renders `explain_symbol`: everything needed to understand one symbol
+/// definition in a single response — its location, a compact source
+/// snippet, any doc comment immediately above it, and its total
+/// reference/direct-caller/direct-callee counts — replacing the
+/// `find_symbol` + `get_file_skeleton`/`Read` + `find_references` +
+/// `find_callers`/`find_calls` round-trips this tool exists to collapse.
+pub fn explain_symbol(
+    hit: &SymbolHit,
+    other_definitions: usize,
+    source: &str,
+    references: usize,
+    callers: usize,
+    callees: usize,
+) -> String {
+    let lines: Vec<&str> = source.lines().collect();
+    let start_idx = hit.line.saturating_sub(1) as usize;
+    let end_idx = hit.end_line.map(|e| e.saturating_sub(1) as usize);
+    let docstring = extract_doc_comment(&lines, start_idx);
+    let (snippet, snippet_total) = extract_snippet(&lines, start_idx, end_idx);
+
+    let parent = hit
+        .parent
+        .as_deref()
+        .map(|p| format!(" (in {p})"))
+        .unwrap_or_default();
+    let end = hit.end_line.map(|e| format!("-{e}")).unwrap_or_default();
+    let mut out = format!(
+        "{} `{}` — {}:{}{} [{}]{}\n",
+        hit.kind, hit.name, hit.relative_path, hit.line, end, hit.language, parent
+    );
+    if other_definitions > 0 {
+        out.push_str(&format!(
+            "({other_definitions} other definition(s) of this name elsewhere — showing the first)\n"
+        ));
+    }
+    out.push_str(&format!(
+        "\n{references} reference(s) total, {callers} direct caller(s), {callees} direct call(s) made\n"
+    ));
+
+    out.push_str("\nDoc comment: ");
+    if docstring.is_empty() {
+        out.push_str("(none)\n");
+    } else {
+        out.push('\n');
+        for line in &docstring {
+            out.push_str(line);
+            out.push('\n');
+        }
+    }
+
+    let snippet_note = if snippet_total > snippet.len() {
+        format!(" (showing {} of {snippet_total} lines)", snippet.len())
+    } else {
+        String::new()
+    };
+    out.push_str(&format!("\nSnippet{snippet_note}:\n"));
+    if snippet.is_empty() {
+        out.push_str("(source unavailable — the index may be stale; try reindex)\n");
+    } else {
+        for line in &snippet {
+            out.push_str(line);
+            out.push('\n');
+        }
+    }
+    out
+}
+
+/// TOON rendering of [`explain_symbol`]: the same data as a single-row TOON
+/// table instead of labelled text — the doc comment and snippet are still
+/// multi-line fields, quoted like any other TOON field containing a newline.
+pub fn explain_symbol_toon(
+    hit: &SymbolHit,
+    other_definitions: usize,
+    source: &str,
+    references: usize,
+    callers: usize,
+    callees: usize,
+) -> String {
+    let lines: Vec<&str> = source.lines().collect();
+    let start_idx = hit.line.saturating_sub(1) as usize;
+    let end_idx = hit.end_line.map(|e| e.saturating_sub(1) as usize);
+    let docstring = extract_doc_comment(&lines, start_idx);
+    let (snippet, snippet_total) = extract_snippet(&lines, start_idx, end_idx);
+
+    let row = vec![
+        hit.relative_path.clone(),
+        hit.line.to_string(),
+        hit.end_line.map(|e| e.to_string()).unwrap_or_default(),
+        hit.language.clone(),
+        hit.kind.clone(),
+        hit.name.clone(),
+        hit.parent.clone().unwrap_or_default(),
+        other_definitions.to_string(),
+        references.to_string(),
+        callers.to_string(),
+        callees.to_string(),
+        docstring.join("\n"),
+        snippet.join("\n"),
+        snippet_total.to_string(),
+    ];
+    encode_table(
+        "explain_symbol",
+        &[
+            "path",
+            "line",
+            "end_line",
+            "language",
+            "kind",
+            "name",
+            "parent",
+            "other_definitions",
+            "references",
+            "callers",
+            "callees",
+            "docstring",
+            "snippet",
+            "snippet_total_lines",
+        ],
+        &[row],
+    )
+}
+
 /// Renders `get_file_tree`: an indented directory/file listing, two spaces
 /// per nesting level, directories suffixed with `/`. Truncated at
 /// [`DEFAULT_BYTE_BUDGET`] like every other list-shaped tool here, cut at

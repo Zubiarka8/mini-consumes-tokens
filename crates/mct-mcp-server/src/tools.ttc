@@ -34,6 +34,11 @@ WHEN locate several symbols' definitions in one call — e.g. every name from a 
 ERR one name only — use find_symbol; not for refs/callers — use find_references/find_callers.
 TAGS lookup, definition, batch, multiple, round-trip
 
+TOOL explain_symbol
+WHEN def+snippet+doc comment+ref/caller/callee counts for one symbol, one call.
+ERR heavier than find_symbol; ambiguous names explain only the first match.
+TAGS explain, symbol, snippet, docstring, composite
+
 TOOL find_references
 WHEN every reference to a symbol: calls, imports, extends/implements.
 ERR not just direct callers (use find_callers); not a definition lookup (use find_symbol).

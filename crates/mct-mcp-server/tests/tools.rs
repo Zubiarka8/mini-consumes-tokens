@@ -12,9 +12,9 @@ use std::path::Path;
 
 use mct_index::{ExcludeSet, Index};
 use mct_mcp_server::server::{
-    BatchFindSymbolArgs, FindCallersArgs, FindCallsArgs, FindDeadCodeArgs, FindReferencesArgs,
-    FindSymbolArgs, GetFileSkeletonArgs, GetProjectOverviewArgs, ImpactAnalysisArgs,
-    ListSymbolsArgs, MctServer,
+    BatchFindSymbolArgs, ExplainSymbolArgs, FindCallersArgs, FindCallsArgs, FindDeadCodeArgs,
+    FindReferencesArgs, FindSymbolArgs, GetFileSkeletonArgs, GetProjectOverviewArgs,
+    ImpactAnalysisArgs, ListSymbolsArgs, MctServer,
 };
 use rmcp::handler::server::wrapper::Parameters;
 
@@ -325,6 +325,67 @@ async fn find_symbol_unrecognized_match_mode_is_rejected_as_invalid_params() {
         }))
         .await;
     assert!(result.is_err(), "an unrecognized match mode must not silently fall back to exact");
+}
+
+#[tokio::test]
+async fn explain_symbol_reports_location_snippet_and_counts() {
+    let server = build_server().await;
+    let text = content_of(
+        &server
+            .explain_symbol(Parameters(ExplainSymbolArgs {
+                name: "compute".to_string(),
+                match_mode: None,
+                path: None,
+                language: None,
+                format: None,
+            }))
+            .await
+            .unwrap(),
+    );
+    assert!(text.contains("src/lib.rs:1"), "got: {text}");
+    // `compute` calls `helper` once and has no other definitions.
+    assert!(text.contains("1 direct call(s) made"), "got: {text}");
+    assert!(!text.contains("other definition(s)"), "got: {text}");
+    // The real source line, not a collapsed placeholder — this is the
+    // difference from `get_file_skeleton`.
+    assert!(text.contains("helper()"), "got: {text}");
+}
+
+#[tokio::test]
+async fn explain_symbol_on_a_missing_name_says_so() {
+    let server = build_server().await;
+    let text = content_of(
+        &server
+            .explain_symbol(Parameters(ExplainSymbolArgs {
+                name: "does_not_exist_anywhere".to_string(),
+                match_mode: None,
+                path: None,
+                language: None,
+                format: None,
+            }))
+            .await
+            .unwrap(),
+    );
+    assert!(text.contains("No symbol named"), "got: {text}");
+}
+
+#[tokio::test]
+async fn explain_symbol_toon_format_renders_a_single_row_table() {
+    let server = build_server().await;
+    let text = content_of(
+        &server
+            .explain_symbol(Parameters(ExplainSymbolArgs {
+                name: "compute".to_string(),
+                match_mode: None,
+                path: None,
+                language: None,
+                format: Some("toon".to_string()),
+            }))
+            .await
+            .unwrap(),
+    );
+    assert!(text.contains("explain_symbol["), "got: {text}");
+    assert!(text.contains("compute"), "got: {text}");
 }
 
 #[tokio::test]
