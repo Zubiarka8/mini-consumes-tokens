@@ -12,8 +12,8 @@ use std::path::Path;
 
 use mct_index::{ExcludeSet, Index};
 use mct_mcp_server::server::{
-    FindCallersArgs, FindCallsArgs, FindReferencesArgs, FindSymbolArgs, GetFileSkeletonArgs,
-    GetProjectOverviewArgs, ImpactAnalysisArgs, ListSymbolsArgs, MctServer,
+    FindCallersArgs, FindCallsArgs, FindDeadCodeArgs, FindReferencesArgs, FindSymbolArgs,
+    GetFileSkeletonArgs, GetProjectOverviewArgs, ImpactAnalysisArgs, ListSymbolsArgs, MctServer,
 };
 use rmcp::handler::server::wrapper::Parameters;
 
@@ -754,4 +754,51 @@ async fn get_project_overview_with_no_path_covers_the_whole_project_and_language
     // a `go`-only overview.
     assert!(!text.contains("frontend/"), "got: {text}");
     assert!(!text.contains("scripts/"), "got: {text}");
+}
+
+#[tokio::test]
+async fn find_dead_code_flags_an_uncalled_function_but_not_called_ones_or_methods() {
+    let server = build_server_at(&polyglot_fixture_root()).await;
+    let text = content_of(
+        &server
+            .find_dead_code(Parameters(FindDeadCodeArgs {
+                path: None,
+                language: None,
+                limit: None,
+                offset: None,
+            }))
+            .await
+            .unwrap(),
+    );
+    // `HandleCreateInvoice` (Go) is never called by anything in the fixture.
+    assert!(text.contains("HandleCreateInvoice"), "got: {text}");
+    // `Log` is called from `AddItem`, `formatTotal` is called from
+    // `createInvoice` — both have an in-repo caller, so neither is dead.
+    assert!(!text.contains("Log"), "got: {text}");
+    assert!(!text.contains("formatTotal"), "got: {text}");
+    // `AddItem` is a `method`, excluded from candidates by kind even though
+    // nothing in the fixture calls it by name (only via `inv.AddItem`).
+    assert!(!text.contains("AddItem"), "got: {text}");
+}
+
+#[tokio::test]
+async fn find_dead_code_excludes_entry_points_and_test_files() {
+    let server = build_server_at(&fixture_root()).await;
+    let text = content_of(
+        &server
+            .find_dead_code(Parameters(FindDeadCodeArgs {
+                path: None,
+                language: None,
+                limit: None,
+                offset: None,
+            }))
+            .await
+            .unwrap(),
+    );
+    // `compute` is imported and called from `test_compute.py`; `helper` is
+    // called from `compute`. Neither is a dead-code candidate.
+    assert!(
+        text.starts_with("No dead-code candidates found"),
+        "got: {text}"
+    );
 }
