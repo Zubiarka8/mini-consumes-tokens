@@ -269,27 +269,6 @@ pub struct GetIndexingStatusArgs {
     pub verbose_dependencies: bool,
 }
 
-/// Symbol kinds `find_dead_code` considers as candidates. Deliberately
-/// narrower than `OVERVIEW_KIND_ALLOWLIST`: `method` is excluded because
-/// trait/interface implementations are routinely called only through dynamic
-/// dispatch, never by name — including it would make every implemented
-/// interface method a false positive. `module` is excluded because a file's
-/// own synthetic module entry is never itself "referenced".
-const DEAD_CODE_KIND_ALLOWLIST: &[&str] = &[
-    "function",
-    "class",
-    "struct",
-    "interface",
-    "enum",
-    "trait",
-    "type_alias",
-];
-
-/// Symbol names `find_dead_code` never flags, regardless of reference count —
-/// language entry points invoked by the runtime/toolchain itself, never by an
-/// in-repo caller.
-const DEAD_CODE_ENTRY_POINT_NAMES: &[&str] = &["main"];
-
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct FindDeadCodeArgs {
     /// File, directory, or crate prefix — same matching semantics as
@@ -468,42 +447,15 @@ fn read_source_file(index: &Index, relative_path: &str) -> Result<String, McpErr
     })
 }
 
-/// `get_project_overview`'s path resolution: when the caller names a
-/// `path`, this is identical to `Index::list_symbols`. When `path` is
-/// omitted (whole-project overview), `Index::list_symbols`'s directory-prefix
-/// matching has no way to express "everything" — its `LIKE` pattern is
-/// always anchored to a specific prefix, and an empty prefix produces
-/// `/%%` which matches nothing, since stored `relative_path`s never start
-/// with a leading slash. So instead this walks the project root's own
-/// top-level directory entries (skipping dotfiles/dot-directories, e.g.
-/// `.git`/`.mct-index`) and unions one `list_symbols` call per entry —
-/// each entry is itself a valid file-or-prefix path, so no new query
-/// semantics are needed in `mct-index`.
+/// `get_project_overview`/`find_dead_code`'s path resolution — thin wrapper
+/// over `Index::list_symbols_all` mapping its error type for the MCP
+/// surface.
 fn list_symbols_for_overview(
     index: &Index,
     path: Option<&str>,
     language: Option<&str>,
 ) -> Result<Vec<mct_index::SymbolListEntry>, McpError> {
-    if let Some(path) = path {
-        return index.list_symbols(path, None, language).map_err(index_error);
-    }
-    let mut top_level: Vec<String> = std::fs::read_dir(index.root())
-        .map_err(|source| {
-            McpError::internal_error(format!("failed to read project root: {source}"), None)
-        })?
-        .filter_map(|entry| entry.ok())
-        .filter_map(|entry| {
-            let name = entry.file_name().to_string_lossy().into_owned();
-            (!name.starts_with('.')).then_some(name)
-        })
-        .collect();
-    top_level.sort();
-
-    let mut entries = Vec::new();
-    for name in &top_level {
-        entries.extend(index.list_symbols(name, None, language).map_err(index_error)?);
-    }
-    Ok(entries)
+    index.list_symbols_all(path, language).map_err(index_error)
 }
 
 /// One file/module's slice of `get_project_overview`'s digest: its surfaced
@@ -750,7 +702,7 @@ impl MctServer {
         let affected_tests: Vec<&mct_index::RelationHit> = references
             .iter()
             .chain(callers.iter())
-            .filter(|hit| format::looks_like_test_name(&hit.from_symbol, &hit.relative_path))
+            .filter(|hit| mct_index::looks_like_test_name(&hit.from_symbol, &hit.relative_path))
             .filter(|hit| seen_test_names.insert(hit.from_symbol.as_str()))
             .collect();
         let text = match output_format {
@@ -964,25 +916,17 @@ impl MctServer {
         let output_format = parse_output_format(format.as_deref())?;
 
         let index = self.index.lock().await;
-        let all_entries = list_symbols_for_overview(&index, path, language)?;
-        let reference_counts = index.reference_counts().map_err(index_error)?;
-
         // Deliberately not filtered on `parent.is_none()` the way
         // `get_project_overview`'s digest is: a `LanguageParser` uses `parent`
         // for more than "nested inside another declaration" — e.g.
         // `mct-lang-go` sets every top-level function's `parent` to its
         // enclosing package name, not `None`. Filtering on it here would
         // silently exclude every Go (and similarly-modeled) top-level
-        // function from consideration. `DEAD_CODE_KIND_ALLOWLIST` already
-        // excludes `method`/`module`/`field`, which is the distinction that
-        // actually matters for this tool.
-        let candidates: Vec<mct_index::SymbolListEntry> = all_entries
-            .into_iter()
-            .filter(|e| DEAD_CODE_KIND_ALLOWLIST.contains(&e.kind.as_str()))
-            .filter(|e| !DEAD_CODE_ENTRY_POINT_NAMES.contains(&e.name.as_str()))
-            .filter(|e| !format::looks_like_test_name(&e.name, &e.relative_path))
-            .filter(|e| !reference_counts.contains_key(e.name.as_str()))
-            .collect();
+        // function from consideration. `mct_index::DEAD_CODE_KIND_ALLOWLIST`
+        // already excludes `method`/`module`/`field`, which is the
+        // distinction that actually matters for this tool.
+        let candidates =
+            mct_index::find_dead_code_candidates(&index, path, language).map_err(index_error)?;
 
         let text = match output_format {
             OutputFormat::Text => format::find_dead_code(path.unwrap_or("."), &candidates, offset, limit),
