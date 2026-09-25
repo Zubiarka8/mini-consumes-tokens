@@ -995,6 +995,53 @@ pub fn index_status(status: &IndexStatus, verbose_dependencies: bool) -> String 
     out
 }
 
+/// Renders `discover_tool_categories`' output: every registered tool's name
+/// and description, grouped under the category headings in `categories`, no
+/// input schemas. A tool present in `catalog` but not listed in any category
+/// still appears, under an `other` heading — a tool added to `server.rs`
+/// without a matching `TOOL_CATEGORIES` entry should stay discoverable rather
+/// than silently vanish from this listing.
+pub fn tool_categories(catalog: &[rmcp::model::Tool], categories: &[(&str, &[&str])]) -> String {
+    let mut out = String::new();
+    let mut seen: BTreeSet<&str> = BTreeSet::new();
+    for (heading, names) in categories {
+        out.push_str(&format!("{heading}:\n"));
+        for name in *names {
+            seen.insert(name);
+            let description = catalog
+                .iter()
+                .find(|t| t.name == *name)
+                .and_then(|t| t.description.as_deref())
+                .unwrap_or("(not registered)");
+            out.push_str(&format!("  {name} — {description}\n"));
+        }
+    }
+    let uncategorized: Vec<&rmcp::model::Tool> = catalog
+        .iter()
+        .filter(|t| !seen.contains(t.name.as_ref()))
+        .collect();
+    if !uncategorized.is_empty() {
+        out.push_str("other:\n");
+        for tool in uncategorized {
+            let description = tool.description.as_deref().unwrap_or("");
+            out.push_str(&format!("  {} — {description}\n", tool.name));
+        }
+    }
+    out.push_str("\nCall get_tool_schema with one of these names for its full input schema.\n");
+    out
+}
+
+/// Renders `get_tool_schema`'s output for one already-resolved tool: its
+/// description and full JSON input schema, pretty-printed. The schema is
+/// built by `schemars` from the tool's `Parameters<...>` struct at server
+/// startup, so this always reflects what the tool actually accepts.
+pub fn tool_schema(tool: &rmcp::model::Tool) -> String {
+    let description = tool.description.as_deref().unwrap_or("(no description)");
+    let schema = serde_json::to_string_pretty(&*tool.input_schema)
+        .unwrap_or_else(|_| "(failed to render input schema)".to_string());
+    format!("{}\n\n{description}\n\nInput schema:\n{schema}\n", tool.name)
+}
+
 #[cfg(test)]
 mod file_skeleton_tests {
     use super::*;

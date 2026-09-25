@@ -78,3 +78,13 @@ TOOL get_file_tree
 WHEN plain directory/file layout before you know which file or crate to look at.
 ERR no symbol data — use list_symbols/get_project_overview for what's defined.
 TAGS layout, directory, tree, navigation, tokens-saving
+
+TOOL discover_tool_categories
+WHEN first call in a session — names+one-line purpose per tool, grouped, no schemas.
+ERR no input schemas here — call get_tool_schema per tool name before invoking it.
+TAGS discovery, catalog, categories, progressive, tokens-saving
+
+TOOL get_tool_schema
+WHEN full input schema+description for one tool named by discover_tool_categories.
+ERR not a symbol lookup; unknown tool name is an error, not a fuzzy match.
+TAGS discovery, schema, progressive, meta

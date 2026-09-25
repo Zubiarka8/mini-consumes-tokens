@@ -83,13 +83,15 @@ async fn the_full_catalogs_serialized_footprint_is_well_under_the_pre_ttc_size()
 
     // The pre-TTC prose descriptions (measured directly from the strings
     // that were in `#[tool(description = "...")]` before this migration)
-    // summed to 6428 bytes across these 11 tools; the TTC-expanded catalog
-    // measures 2024 bytes (~68.5% smaller). 2500 is a regression guard with
-    // headroom, not a precise assertion — see the PR description for the
-    // exact before/after byte counts.
+    // summed to 6428 bytes across 11 tools; the TTC-expanded catalog started
+    // at 2024 bytes (~68.5% smaller) and sits at ~2678 bytes across today's
+    // 14 tools after `discover_tool_categories`/`get_tool_schema` (issue
+    // #15) were added. 2900 is a regression guard with headroom for a
+    // couple more tools, not a precise assertion — bump it (with a note
+    // here) rather than loosen it silently if a future tool needs the room.
     assert!(
-        description_bytes < 2_500,
-        "tool catalog description bytes grew to {description_bytes}, expected well under 2500 \
+        description_bytes < 2_900,
+        "tool catalog description bytes grew to {description_bytes}, expected well under 2900 \
          (TTC's whole point is a compact catalog)"
     );
 }
