@@ -322,6 +322,19 @@ pub struct GetFileSkeletonArgs {
     pub path: String,
 }
 
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct GetFileTreeArgs {
+    /// Directory to root the tree at, relative to the project root (e.g.
+    /// `crates/mct-lang-html`). Omit for the whole project. Must be a
+    /// directory, not a file.
+    #[serde(default)]
+    pub path: Option<String>,
+    /// How many levels of nesting to descend below `path`. Defaults to 3.
+    /// Clamped to `mct_core::MAX_QUERY_DEPTH`.
+    #[serde(default)]
+    pub depth: Option<u32>,
+}
+
 #[derive(Clone)]
 pub struct MctServer {
     index: Arc<Mutex<Index>>,
@@ -370,6 +383,22 @@ fn parse_output_format(raw: Option<&str>) -> Result<OutputFormat, McpError> {
 
 fn index_error(err: mct_index::IndexError) -> McpError {
     McpError::internal_error(err.to_string(), None)
+}
+
+/// `get_file_tree`'s error mapping: a bad `path` (not a directory, escapes
+/// the root, or doesn't exist) is the caller's mistake, not a server fault —
+/// unlike [`index_error`]'s blanket `internal_error`, these map to
+/// `invalid_params` so the agent sees an actionable message.
+fn file_tree_error(err: mct_index::IndexError) -> McpError {
+    use mct_index::IndexError::*;
+    match err {
+        NotADirectory(_) | PathEscapesRoot(_) => McpError::invalid_params(err.to_string(), None),
+        Io { .. } => McpError::invalid_params(
+            format!("{err} — is `path` a real directory under the indexed project root?"),
+            None,
+        ),
+        other => index_error(other),
+    }
 }
 
 /// Applies the TTC-expanded description from `source` to every tool route
@@ -902,6 +931,21 @@ impl MctServer {
     }
 
     // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Directory/file tree listing; see tools.ttc")]
+    pub async fn get_file_tree(
+        &self,
+        Parameters(GetFileTreeArgs { path, depth }): Parameters<GetFileTreeArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let path = path.as_deref().map(str::trim).filter(|p| !p.is_empty());
+        let depth = depth.unwrap_or(3).max(1);
+        let index = self.index.lock().await;
+        let tree = index.file_tree(path, depth).map_err(file_tree_error)?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(
+            format::file_tree(path.unwrap_or("."), &tree, depth),
+        )]))
+    }
+
+    // Fallback only — see tools.ttc / MctServer::new.
     #[tool(description = "Heuristic dead-code candidates; see tools.ttc")]
     pub async fn find_dead_code(
         &self,
@@ -976,7 +1020,10 @@ impl ServerHandler for MctServer {
              reading a whole file when you only need its shape. get_project_overview is the \
              cheapest way to get oriented in an unfamiliar file/directory/crate/project: a \
              capped, ranked hierarchical digest in one call, in place of chaining list_symbols + \
-             get_file_skeleton + find_calls by hand. find_dead_code reports top-level symbols \
+             get_file_skeleton + find_calls by hand. get_file_tree returns a plain directory/file \
+             tree (no symbol data) for layout navigation before you know which file or crate to \
+             look at — cheaper than get_project_overview when you only need the shape of the \
+             filesystem, not what's defined in it. find_dead_code reports top-level symbols \
              with zero indexed references anywhere in the project — a heuristic starting point \
              for cleanup, not a certainty; sanity-check a hit with find_references or \
              impact_analysis before deleting anything. reindex and get_indexing_status \

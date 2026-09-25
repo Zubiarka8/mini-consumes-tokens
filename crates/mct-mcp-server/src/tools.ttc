@@ -73,3 +73,8 @@ TOOL find_dead_code
 WHEN top-level symbols with zero indexed references — dead-code candidates.
 ERR heuristic only; verify with find_references/impact_analysis before deleting.
 TAGS dead-code, unused, cleanup, heuristic
+
+TOOL get_file_tree
+WHEN plain directory/file layout before you know which file or crate to look at.
+ERR no symbol data — use list_symbols/get_project_overview for what's defined.
+TAGS layout, directory, tree, navigation, tokens-saving
