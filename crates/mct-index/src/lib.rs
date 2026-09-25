@@ -13,7 +13,7 @@ mod schema;
 mod traversal;
 
 pub use error::{IndexError, Result};
-pub use exclude::ExcludeSet;
+pub use exclude::{read_ignore_file, ExcludeSet, IGNORE_FILE_NAME, IGNORE_FILE_TEMPLATE};
 pub use file_tree::FileTreeNode;
 pub use indexer::{
     DependencyInfo, IndexStatus, LanguageCoverage, ManifestDependencies, ReindexReport,
