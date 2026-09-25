@@ -106,6 +106,22 @@ enum Command {
     /// already covered.
     #[command(after_help = "Example:\n  cargo run -p mct-cli -- --root . gitignore-init")]
     GitignoreInit,
+    /// Write a CSV report of dead-code candidates (heuristic: symbols with
+    /// zero indexed references) — one row per candidate with its file,
+    /// function name, kind, language, and start/end line.
+    DeadCode {
+        /// File, directory, or crate prefix to scan — same matching
+        /// semantics as `list_symbols`. Omit for the whole project.
+        #[arg(long)]
+        path: Option<String>,
+        /// Exact language id to keep (e.g. `rust`, `python`, `go`).
+        #[arg(long)]
+        language: Option<String>,
+        /// Where to write the CSV report. Defaults to
+        /// `<root>/.mct-index/dead-code-report.csv`.
+        #[arg(long)]
+        output: Option<PathBuf>,
+    },
 }
 
 fn build_registry() -> LanguageRegistry {
@@ -158,6 +174,9 @@ fn main() -> anyhow::Result<()> {
         Command::Init => print_reindex(index.reindex(&registry, false)?),
         Command::Reindex { force } => print_reindex(index.reindex(&registry, force)?),
         Command::Status => print_status(index.status()?),
+        Command::DeadCode { path, language, output } => {
+            dead_code_report(&index, path.as_deref(), language.as_deref(), output)?
+        }
         Command::McpRegister { .. } | Command::IgnoreInit { .. } | Command::GitignoreInit => {
             unreachable!("returned above")
         }
@@ -321,6 +340,64 @@ fn gitignore_init(root: &Path) -> anyhow::Result<()> {
     std::fs::write(&path, &updated)?;
     println!("Added `.mct-index/` to {}", display_path(&path));
     Ok(())
+}
+
+/// Writes `mct_index::find_dead_code_candidates`'s result to a CSV file: one
+/// row per candidate with the project root, its file, name, kind, language,
+/// and start/end line — the same fields stored in `SymbolListEntry`, the
+/// table this heuristic scan filters down.
+fn dead_code_report(
+    index: &Index,
+    path: Option<&str>,
+    language: Option<&str>,
+    output: Option<PathBuf>,
+) -> anyhow::Result<()> {
+    let candidates = mct_index::find_dead_code_candidates(index, path, language)?;
+    let output = output.unwrap_or_else(|| index.root().join(".mct-index").join("dead-code-report.csv"));
+    if let Some(parent) = output.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let root = display_path(index.root());
+    let mut csv = String::from("project_root,file,function,kind,language,start_line,end_line\n");
+    for candidate in &candidates {
+        csv.push_str(&csv_field(&root));
+        csv.push(',');
+        csv.push_str(&csv_field(&candidate.relative_path));
+        csv.push(',');
+        csv.push_str(&csv_field(&candidate.name));
+        csv.push(',');
+        csv.push_str(&csv_field(&candidate.kind));
+        csv.push(',');
+        csv.push_str(&csv_field(&candidate.language));
+        csv.push(',');
+        csv.push_str(&candidate.line.to_string());
+        csv.push(',');
+        if let Some(end_line) = candidate.end_line {
+            csv.push_str(&end_line.to_string());
+        }
+        csv.push('\n');
+    }
+
+    std::fs::write(&output, csv)?;
+    println!(
+        "Wrote {} dead-code candidate(s) to {}",
+        candidates.len(),
+        display_path(&output)
+    );
+    Ok(())
+}
+
+/// Quotes a CSV field only when it contains a comma, quote, or newline —
+/// doubling any embedded quote, per RFC 4180. Every field this module writes
+/// is either a project-relative path or an identifier, so this is defensive
+/// rather than expected to trigger in practice.
+fn csv_field(value: &str) -> String {
+    if value.contains(',') || value.contains('"') || value.contains('\n') {
+        format!("\"{}\"", value.replace('"', "\"\""))
+    } else {
+        value.to_string()
+    }
 }
 
 /// `Path::canonicalize` returns Windows' `\\?\`-prefixed "verbatim" form —
@@ -730,6 +807,37 @@ mod tests {
         let status = index.status().unwrap();
         let languages: Vec<&str> = status.languages.iter().map(|l| l.language.as_str()).collect();
         assert_eq!(languages, vec!["rust"]);
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn dead_code_report_writes_a_csv_row_for_an_unreferenced_function() {
+        let dir = temp_project_dir("dead-code-report");
+        fs::write(
+            dir.join("lib.rs"),
+            "pub fn used(a: i32) -> i32 { a }\npub fn unused(a: i32) -> i32 { used(a) }\n",
+        )
+        .unwrap();
+
+        let db_path = dir.join(".mct-index").join("index.sqlite3");
+        let registry = build_registry();
+        let mut index = Index::open(&dir, &db_path, ExcludeSet::default()).unwrap();
+        index.reindex(&registry, false).unwrap();
+
+        let output = dir.join("report.csv");
+        dead_code_report(&index, None, None, Some(output.clone())).expect("report should succeed");
+
+        let contents = fs::read_to_string(&output).expect("report should exist");
+        let mut lines = contents.lines();
+        assert_eq!(
+            lines.next().unwrap(),
+            "project_root,file,function,kind,language,start_line,end_line"
+        );
+        let rows: Vec<&str> = lines.collect();
+        assert_eq!(rows.len(), 1, "expected exactly one candidate, got: {contents}");
+        assert!(rows[0].contains(",lib.rs,unused,function,rust,"), "{}", rows[0]);
+        assert!(!contents.contains(",used,"), "`used` should not be flagged: {contents}");
 
         fs::remove_dir_all(&dir).ok();
     }
