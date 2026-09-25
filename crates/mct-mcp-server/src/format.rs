@@ -189,6 +189,110 @@ pub fn symbol_hits_toon(name: &str, hits: &[SymbolHit], limit: usize) -> String 
     )
 }
 
+/// Renders `batch_find_symbol`'s result: one `find_symbol`-shaped section per
+/// queried name, in the order requested — the whole point of the tool is
+/// collapsing what would otherwise be one `find_symbol` call (and one
+/// response's worth of framing) per name into a single response. `limit`
+/// applies per name, exactly like `find_symbol`'s own `limit`; the combined
+/// body is still capped at [`DEFAULT_BYTE_BUDGET`] like every other renderer
+/// here, so a batch of names that individually would fit still can't blow
+/// past the response budget in aggregate.
+pub fn batch_find_symbol(results: &[(String, Vec<SymbolHit>)], limit: usize) -> String {
+    let queried = results.len();
+    let found = results.iter().filter(|(_, hits)| !hits.is_empty()).count();
+    let mut body = BudgetedList::new(DEFAULT_BYTE_BUDGET);
+    for (name, hits) in results {
+        if hits.is_empty() {
+            body.push(&format!("`{name}`: not found\n"));
+            continue;
+        }
+        let total = hits.len();
+        let shown = paginate(hits, 0, limit);
+        let heading = format!(
+            "`{name}`: {total} definition(s){}:\n",
+            truncation_note(total, 0, shown.len())
+        );
+        let mut heading_pending = true;
+        for hit in shown {
+            let parent = hit
+                .parent
+                .as_deref()
+                .map(|p| format!(" (in {p})"))
+                .unwrap_or_default();
+            let entry = format!(
+                "  {}:{}:{} [{}] {} {}{}{}\n",
+                hit.relative_path,
+                hit.line,
+                hit.column,
+                hit.language,
+                hit.kind,
+                hit.name,
+                level_suffix(hit.level),
+                parent
+            );
+            let prefix = if heading_pending {
+                Some(heading.as_str())
+            } else {
+                None
+            };
+            if body.push_with_prefix(prefix, &entry) {
+                heading_pending = false;
+            }
+        }
+    }
+    let budget_note = if body.dropped > 0 {
+        format!(
+            " (response truncated at the {}-byte budget — split into fewer names per call)",
+            body.budget
+        )
+    } else {
+        String::new()
+    };
+    format!("Batch: {queried} name(s) queried, {found} found{budget_note}:\n{}", body.body)
+}
+
+/// TOON rendering of [`batch_find_symbol`]: one flat table across every
+/// queried name (a `query` column identifies which name each row answers)
+/// instead of per-name headed sections — same trade-off as
+/// [`list_symbols_toon`] vs [`list_symbols`]. A name with no hits contributes
+/// no row; `found`/`queried` in the header still account for it.
+pub fn batch_find_symbol_toon(results: &[(String, Vec<SymbolHit>)], limit: usize) -> String {
+    let queried = results.len();
+    let found = results.iter().filter(|(_, hits)| !hits.is_empty()).count();
+    let mut total_hits = 0usize;
+    let mut shown_hits = 0usize;
+    let mut rows: Vec<Vec<String>> = Vec::new();
+    for (name, hits) in results {
+        total_hits += hits.len();
+        let shown = paginate(hits, 0, limit);
+        shown_hits += shown.len();
+        for hit in shown {
+            rows.push(vec![
+                name.clone(),
+                hit.relative_path.clone(),
+                hit.line.to_string(),
+                hit.column.to_string(),
+                hit.language.clone(),
+                hit.kind.clone(),
+                hit.name.clone(),
+                hit.parent.clone().unwrap_or_default(),
+                hit.level.map(|l| l.to_string()).unwrap_or_default(),
+            ]);
+        }
+    }
+    format!(
+        "Batch: {queried} name(s) queried, {found} found{}:\n{}",
+        truncation_note(total_hits, 0, shown_hits),
+        encode_table(
+            "symbols",
+            &[
+                "query", "path", "line", "column", "language", "kind", "name", "parent", "level"
+            ],
+            &rows,
+        )
+    )
+}
+
 /// Kind strings in the order they're grouped/displayed by [`list_symbols`],
 /// paired with the plural heading printed above each non-empty group —
 /// mirrors the declaration order of `mct_core::SymbolKind` so output is
