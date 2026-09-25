@@ -58,6 +58,7 @@ impl mct_core::LanguageParser for FakeParser {
                     end_line: Some(line_no as u32 + 1),
                 },
                 parent: None,
+                level: None,
             });
         }
         Ok(parsed)

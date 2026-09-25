@@ -156,6 +156,23 @@ fn heading_text<'a>(heading: Node, source: &'a str) -> &'a str {
         .unwrap_or_default()
 }
 
+/// An `atx_heading` node's declared level (1..6), read off its marker child
+/// (`atx_h1_marker`..`atx_h6_marker` — `tree-sitter-md` emits exactly one of
+/// these per heading, never the `#` count itself). `None` only if the grammar
+/// ever changes shape underneath this; every heading that reaches this
+/// function came from a successful parse, so this should always be `Some`.
+fn heading_level(heading: Node) -> Option<u32> {
+    let mut cursor = heading.walk();
+    let marker = heading
+        .named_children(&mut cursor)
+        .find(|child| child.kind().starts_with("atx_h") && child.kind().ends_with("_marker"))?;
+    marker
+        .kind()
+        .strip_prefix("atx_h")
+        .and_then(|rest| rest.strip_suffix("_marker"))
+        .and_then(|digit| digit.parse().ok())
+}
+
 /// One `[[...]]`/`![[...]]` match's alias-stripped identity, split into its
 /// note-name and heading/anchor parts (see `split_note_and_heading`).
 /// Returned as two independently-optional parts rather than one combined
@@ -335,6 +352,7 @@ impl<'a> Walker<'a> {
         kind: SymbolKind,
         location: Location,
         parent: Option<String>,
+        level: Option<u32>,
     ) -> SymbolId {
         let id = self.next_id;
         self.next_id += 1;
@@ -344,6 +362,7 @@ impl<'a> Walker<'a> {
             kind,
             location,
             parent,
+            level,
         });
         id
     }
@@ -426,6 +445,7 @@ impl<'a> Walker<'a> {
                         SymbolKind::Element,
                         heading_loc,
                         parent_name,
+                        heading_level(heading),
                     );
                     self.push_relations_from_text(id, &name, heading_loc);
                     self.visit_children(node, Some(name), Some(id), depth + 1);
