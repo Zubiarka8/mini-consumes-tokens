@@ -160,13 +160,16 @@ impl<'a> Walker<'a> {
         }
         match node.kind() {
             "decorated_definition" => {
+                let target_id = node
+                    .child_by_field_name("definition")
+                    .and_then(|definition| self.visit_definition(definition, owner, class_name, depth + 1));
                 let mut cursor = node.walk();
                 for decorator in node.children(&mut cursor) {
                     if decorator.kind() == "decorator" {
                         if let Some(expr) = decorator.named_child(0) {
                             if let Some(name) = expr_name(expr, self.source) {
                                 self.push_relation(
-                                    owner,
+                                    target_id.unwrap_or(owner),
                                     RelationKind::References,
                                     name,
                                     location(decorator),
@@ -175,45 +178,9 @@ impl<'a> Walker<'a> {
                         }
                     }
                 }
-                if let Some(definition) = node.child_by_field_name("definition") {
-                    self.visit(definition, owner, class_name, depth + 1);
-                }
             }
-            "function_definition" => {
-                let name = node
-                    .child_by_field_name("name")
-                    .map(|n| text(n, self.source).to_string())
-                    .unwrap_or_default();
-                let kind = if class_name.is_some() {
-                    SymbolKind::Method
-                } else {
-                    SymbolKind::Function
-                };
-                let id = self.push_symbol(name, kind, location(node), class_name.map(str::to_string));
-                if let Some(params) = node.child_by_field_name("parameters") {
-                    self.visit_children(params, id, None, depth + 1);
-                }
-                if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, id, None, depth + 1);
-                }
-            }
-            "class_definition" => {
-                let name = node
-                    .child_by_field_name("name")
-                    .map(|n| text(n, self.source).to_string())
-                    .unwrap_or_default();
-                let id = self.push_symbol(name.clone(), SymbolKind::Class, location(node), None);
-                if let Some(superclasses) = node.child_by_field_name("superclasses") {
-                    let mut cursor = superclasses.walk();
-                    for base in superclasses.named_children(&mut cursor) {
-                        if let Some(base_name) = expr_name(base, self.source) {
-                            self.push_relation(id, RelationKind::Extends, base_name, location(base));
-                        }
-                    }
-                }
-                if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, id, Some(&name), depth + 1);
-                }
+            "function_definition" | "class_definition" => {
+                self.visit_definition(node, owner, class_name, depth);
             }
             "import_statement" => {
                 let mut cursor = node.walk();
@@ -247,6 +214,59 @@ impl<'a> Walker<'a> {
                 }
             }
             _ => self.visit_children(node, owner, class_name, depth + 1),
+        }
+    }
+
+    /// Creates the symbol for a `function_definition`/`class_definition`
+    /// node and walks its body, returning the new symbol's id so a wrapping
+    /// `decorated_definition` can attach the decorator's `References`
+    /// relation to the decorated symbol itself rather than its enclosing
+    /// owner. Any other node kind is dispatched to `visit` and yields `None`
+    /// (a decorator on something else has no symbol to attach to).
+    fn visit_definition(&mut self, node: Node, owner: SymbolId, class_name: Option<&str>, depth: u32) -> Option<SymbolId> {
+        match node.kind() {
+            "function_definition" => {
+                let name = node
+                    .child_by_field_name("name")
+                    .map(|n| text(n, self.source).to_string())
+                    .unwrap_or_default();
+                let kind = if class_name.is_some() {
+                    SymbolKind::Method
+                } else {
+                    SymbolKind::Function
+                };
+                let id = self.push_symbol(name, kind, location(node), class_name.map(str::to_string));
+                if let Some(params) = node.child_by_field_name("parameters") {
+                    self.visit_children(params, id, None, depth + 1);
+                }
+                if let Some(body) = node.child_by_field_name("body") {
+                    self.visit_children(body, id, None, depth + 1);
+                }
+                Some(id)
+            }
+            "class_definition" => {
+                let name = node
+                    .child_by_field_name("name")
+                    .map(|n| text(n, self.source).to_string())
+                    .unwrap_or_default();
+                let id = self.push_symbol(name.clone(), SymbolKind::Class, location(node), None);
+                if let Some(superclasses) = node.child_by_field_name("superclasses") {
+                    let mut cursor = superclasses.walk();
+                    for base in superclasses.named_children(&mut cursor) {
+                        if let Some(base_name) = expr_name(base, self.source) {
+                            self.push_relation(id, RelationKind::Extends, base_name, location(base));
+                        }
+                    }
+                }
+                if let Some(body) = node.child_by_field_name("body") {
+                    self.visit_children(body, id, Some(&name), depth + 1);
+                }
+                Some(id)
+            }
+            _ => {
+                self.visit(node, owner, class_name, depth);
+                None
+            }
         }
     }
 

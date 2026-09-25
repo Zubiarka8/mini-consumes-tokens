@@ -85,6 +85,46 @@ fn decorated_function_is_still_indexed_with_decorator_recorded() {
 }
 
 #[test]
+fn decorator_relation_is_owned_by_the_decorated_function_not_the_module() {
+    let parsed = parse("@app.route(\"/users\")\ndef list_users():\n    return []\n");
+    let func = parsed
+        .symbols
+        .iter()
+        .find(|s| s.name == "list_users")
+        .expect("decorated function should still be indexed");
+
+    let route_ref = parsed
+        .relations
+        .iter()
+        .find(|r| r.kind == RelationKind::References && r.to_name == "route")
+        .expect("decorator should produce a References relation");
+    assert_eq!(
+        route_ref.from, func.id,
+        "the decorator relation must be owned by the decorated function, not the module"
+    );
+}
+
+#[test]
+fn decorator_relation_is_owned_by_the_decorated_class_not_the_module() {
+    let parsed = parse("@register\nclass Handler:\n    pass\n");
+    let class = parsed
+        .symbols
+        .iter()
+        .find(|s| s.name == "Handler")
+        .expect("decorated class should still be indexed");
+
+    let register_ref = parsed
+        .relations
+        .iter()
+        .find(|r| r.kind == RelationKind::References && r.to_name == "register")
+        .expect("decorator should produce a References relation");
+    assert_eq!(
+        register_ref.from, class.id,
+        "the decorator relation must be owned by the decorated class, not the module"
+    );
+}
+
+#[test]
 fn extracts_import_and_from_import() {
     let parsed = parse("import os\nfrom collections import OrderedDict, defaultdict as dd\n");
     let imports: Vec<_> = parsed
