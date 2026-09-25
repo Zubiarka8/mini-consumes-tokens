@@ -19,6 +19,7 @@ An MCP server (`mct-mcp-server`) and CLI (`mct-cli`) that index a code repositor
 | What does an unfamiliar file/directory/crate/project look like as a whole? | `get_project_overview` — capped hierarchical digest (modules, key symbols, top callers) in one call; coarser, so switch to the two above once you know the file |
 | What's the directory/file layout, before you know which file or crate to look at? | `get_file_tree` — plain directory tree (no symbol data), depth-limited, pruned of the same noise dirs (`target`, `node_modules`, `.git`) reindexing skips |
 | Where is X defined? | `find_symbol` |
+| Where are several symbols defined, in one call? | `batch_find_symbol` — same matching as `find_symbol`, one round-trip for up to 25 names |
 | Who calls X directly? | `find_callers` |
 | What does X call? | `find_calls` |
 | Every reference to X (calls, imports, extends/implements) | `find_references` |

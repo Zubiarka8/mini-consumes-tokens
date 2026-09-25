@@ -23,6 +23,14 @@ use crate::ttc;
 /// exists to replace.
 const DEFAULT_RESULT_LIMIT: usize = 50;
 
+/// Cap on `batch_find_symbol`'s `names` array. A single batch call runs one
+/// query per name against the same locked `Index` — unbounded input would
+/// let one MCP call turn into an unbounded amount of work and response
+/// bytes; 25 is generous for "several names from a diff/stack trace" while
+/// keeping a worst-case batch's response comparable in size to a handful of
+/// ordinary `find_symbol` calls.
+const MAX_BATCH_NAMES: usize = 25;
+
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct ListSymbolsArgs {
     /// A single file's path (e.g. `crates/mct-lang-html/src/lib.rs`), or a
@@ -76,6 +84,36 @@ pub struct FindSymbolArgs {
     pub language: Option<String>,
     /// Maximum number of definitions to return. Defaults to 50 when omitted;
     /// raise it if you expect more hits and want them all in one call.
+    #[serde(default)]
+    pub limit: Option<usize>,
+    /// Response shape: `text` (default) or `toon` (a compact table — see
+    /// `list_symbols`' `format` field for details).
+    #[serde(default)]
+    pub format: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct BatchFindSymbolArgs {
+    /// Symbol names to look up, each resolved exactly like `find_symbol`'s
+    /// own `name`. One MCP round-trip for many names instead of one
+    /// `find_symbol` call per name — e.g. every function touched by a diff.
+    /// Must be non-empty and at most `MAX_BATCH_NAMES` entries; duplicates
+    /// are allowed and each still gets its own result.
+    pub names: Vec<String>,
+    /// Same matching mode as `find_symbol`'s `match`, applied to every name
+    /// in the batch.
+    #[serde(default, rename = "match")]
+    pub match_mode: Option<String>,
+    /// Narrow to one file or directory/crate prefix (same matching as
+    /// list_symbols), applied to every name in the batch.
+    #[serde(default)]
+    pub path: Option<String>,
+    /// Narrow to one language id (e.g. `rust`), applied to every name in the
+    /// batch.
+    #[serde(default)]
+    pub language: Option<String>,
+    /// Maximum number of definitions to return *per name*. Defaults to 50
+    /// when omitted, same as `find_symbol`.
     #[serde(default)]
     pub limit: Option<usize>,
     /// Response shape: `text` (default) or `toon` (a compact table — see
@@ -616,6 +654,54 @@ impl MctServer {
     }
 
     // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Look up several symbol names in one call; see tools.ttc")]
+    pub async fn batch_find_symbol(
+        &self,
+        Parameters(BatchFindSymbolArgs {
+            names,
+            match_mode,
+            path,
+            language,
+            limit,
+            format,
+        }): Parameters<BatchFindSymbolArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        if names.is_empty() {
+            return Err(McpError::invalid_params(
+                "names must not be empty",
+                None,
+            ));
+        }
+        if names.len() > MAX_BATCH_NAMES {
+            return Err(McpError::invalid_params(
+                format!("names has {} entries, at most {MAX_BATCH_NAMES} allowed per batch — split into multiple calls", names.len()),
+                None,
+            ));
+        }
+        let mode = parse_match_mode(match_mode.as_deref())?;
+        let output_format = parse_output_format(format.as_deref())?;
+        let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
+        let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
+
+        let index = self.index.lock().await;
+        let mut results = Vec::with_capacity(names.len());
+        for raw_name in &names {
+            let name = validate_name(raw_name)?;
+            let hits = index
+                .find_symbol_matching_scoped(name, mode, scope)
+                .map_err(index_error)?;
+            results.push((name.to_string(), hits));
+        }
+        drop(index);
+
+        let text = match output_format {
+            OutputFormat::Text => format::batch_find_symbol(&results, limit),
+            OutputFormat::Toon => format::batch_find_symbol_toon(&results, limit),
+        };
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    // Fallback only — see tools.ttc / MctServer::new.
     #[tool(description = "Find every reference to a symbol; see tools.ttc")]
     pub async fn find_references(
         &self,
@@ -1010,7 +1096,10 @@ impl ServerHandler for MctServer {
              it first when you don't know a symbol's exact name, to list what a file or \
              directory/crate contains. Search tools (find_symbol, find_calls, find_callers, \
              find_references) are atomic lookups, each answering one specific question — see \
-             each tool's description for which one to use and which NOT to. impact_analysis is \
+             each tool's description for which one to use and which NOT to. batch_find_symbol \
+             looks up several names in a single call (e.g. every function touched by a diff) \
+             instead of one find_symbol round-trip per name; use find_symbol for a single name. \
+             impact_analysis is \
              composite: it combines find_callers + find_references + a test heuristic \
              internally, for when you need the full blast radius of a change in one call. \
              find_references/find_calls/find_callers/impact_analysis also accept an optional \

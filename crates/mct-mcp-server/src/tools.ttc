@@ -29,6 +29,11 @@ WHEN locate a symbol's definition; exact/prefix/fuzzy match, any language.
 ERR not for callers/references — use find_callers/find_references.
 TAGS lookup, definition, location, exact, prefix, fuzzy
 
+TOOL batch_find_symbol
+WHEN locate several symbols' definitions in one call — e.g. every name from a diff.
+ERR one name only — use find_symbol; not for refs/callers — use find_references/find_callers.
+TAGS lookup, definition, batch, multiple, round-trip
+
 TOOL find_references
 WHEN every reference to a symbol: calls, imports, extends/implements.
 ERR not just direct callers (use find_callers); not a definition lookup (use find_symbol).

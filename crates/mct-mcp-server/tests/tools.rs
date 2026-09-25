@@ -12,8 +12,9 @@ use std::path::Path;
 
 use mct_index::{ExcludeSet, Index};
 use mct_mcp_server::server::{
-    FindCallersArgs, FindCallsArgs, FindDeadCodeArgs, FindReferencesArgs, FindSymbolArgs,
-    GetFileSkeletonArgs, GetProjectOverviewArgs, ImpactAnalysisArgs, ListSymbolsArgs, MctServer,
+    BatchFindSymbolArgs, FindCallersArgs, FindCallsArgs, FindDeadCodeArgs, FindReferencesArgs,
+    FindSymbolArgs, GetFileSkeletonArgs, GetProjectOverviewArgs, ImpactAnalysisArgs,
+    ListSymbolsArgs, MctServer,
 };
 use rmcp::handler::server::wrapper::Parameters;
 
@@ -324,6 +325,102 @@ async fn find_symbol_unrecognized_match_mode_is_rejected_as_invalid_params() {
         }))
         .await;
     assert!(result.is_err(), "an unrecognized match mode must not silently fall back to exact");
+}
+
+#[tokio::test]
+async fn batch_find_symbol_looks_up_every_name_in_one_call() {
+    let server = build_server().await;
+    let text = content_of(
+        &server
+            .batch_find_symbol(Parameters(BatchFindSymbolArgs {
+                names: vec!["compute".to_string(), "helper".to_string()],
+                match_mode: None,
+                path: None,
+                language: None,
+                limit: None,
+                format: None,
+            }))
+            .await
+            .unwrap(),
+    );
+    assert!(text.contains("`compute`"), "got: {text}");
+    assert!(text.contains("`helper`"), "got: {text}");
+    assert!(text.contains("src/lib.rs"), "got: {text}");
+    assert!(text.contains("2 found"), "got: {text}");
+}
+
+#[tokio::test]
+async fn batch_find_symbol_reports_a_missing_name_as_not_found_without_failing_the_batch() {
+    let server = build_server().await;
+    let text = content_of(
+        &server
+            .batch_find_symbol(Parameters(BatchFindSymbolArgs {
+                names: vec!["compute".to_string(), "does_not_exist".to_string()],
+                match_mode: None,
+                path: None,
+                language: None,
+                limit: None,
+                format: None,
+            }))
+            .await
+            .unwrap(),
+    );
+    assert!(text.contains("`compute`"), "got: {text}");
+    assert!(text.contains("`does_not_exist`: not found"), "got: {text}");
+    assert!(text.contains("2 name(s) queried, 1 found"), "got: {text}");
+}
+
+#[tokio::test]
+async fn batch_find_symbol_rejects_an_empty_names_list() {
+    let server = build_server().await;
+    let result = server
+        .batch_find_symbol(Parameters(BatchFindSymbolArgs {
+            names: vec![],
+            match_mode: None,
+            path: None,
+            language: None,
+            limit: None,
+            format: None,
+        }))
+        .await;
+    assert!(result.is_err(), "an empty names list must be rejected, not treated as zero results");
+}
+
+#[tokio::test]
+async fn batch_find_symbol_rejects_more_names_than_the_batch_cap() {
+    let server = build_server().await;
+    let names: Vec<String> = (0..26).map(|i| format!("name_{i}")).collect();
+    let result = server
+        .batch_find_symbol(Parameters(BatchFindSymbolArgs {
+            names,
+            match_mode: None,
+            path: None,
+            language: None,
+            limit: None,
+            format: None,
+        }))
+        .await;
+    assert!(result.is_err(), "a names list past MAX_BATCH_NAMES must be rejected");
+}
+
+#[tokio::test]
+async fn batch_find_symbol_toon_format_renders_a_query_column() {
+    let server = build_server().await;
+    let text = content_of(
+        &server
+            .batch_find_symbol(Parameters(BatchFindSymbolArgs {
+                names: vec!["compute".to_string()],
+                match_mode: None,
+                path: None,
+                language: None,
+                limit: None,
+                format: Some("toon".to_string()),
+            }))
+            .await
+            .unwrap(),
+    );
+    assert!(text.contains("query"), "got: {text}");
+    assert!(text.contains("compute"), "got: {text}");
 }
 
 #[tokio::test]
