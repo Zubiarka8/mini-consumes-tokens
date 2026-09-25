@@ -123,6 +123,29 @@ fn reindex_finds_symbols_calls_and_callers() {
     assert_eq!(refs.len(), 1);
 }
 
+/// `Index::generation()` is what `mct-mcp-server::cache::QueryCache` keys
+/// its fast-path cache invalidation on — every `reindex()` call, changed
+/// files or not, must bump it, since a caller (e.g. a `.mctignore`/exclude
+/// change with nothing else different) can alter results without any file
+/// content changing.
+#[test]
+fn generation_is_bumped_by_every_reindex_call_even_a_no_op_one() {
+    let dir = tempdir();
+    fs::write(dir.join("a.fake"), "fn main\n").unwrap();
+
+    let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
+    assert_eq!(index.generation(), 0);
+
+    index.reindex(&registry(), false).unwrap();
+    assert_eq!(index.generation(), 1);
+
+    // A second, no-op incremental reindex (nothing changed on disk) still
+    // bumps it — the invalidation signal errs conservative rather than
+    // trying to prove nothing could have changed.
+    index.reindex(&registry(), false).unwrap();
+    assert_eq!(index.generation(), 2);
+}
+
 #[test]
 fn unchanged_files_are_skipped_on_second_reindex() {
     let dir = tempdir();

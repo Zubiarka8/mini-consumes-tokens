@@ -226,6 +226,8 @@ You don't normally run this by hand; your assistant or editor starts it once con
 
 **Response format:** `list_symbols`, `find_symbol`, `batch_find_symbol`, `explain_symbol`, `find_references`, `find_calls`, `find_callers`, `impact_analysis` and `find_dead_code` accept an optional `format` argument — `"text"` (the default, unchanged) or `"toon"`. `toon` renders the result's uniform rows (symbols, references, calls) as a compact TOON table (one header row of column names, then one row per hit, no repeated labels) instead of this server's usual labelled lines — fewer tokens on a large result, at the cost of `list_symbols`' per-kind grouping. It's opt-in and additive: nothing changes for an existing client that never passes `format`.
 
+**Query cache:** the server keeps an in-memory, exact-match cache of every read-only tool's response — a byte-for-byte repeat of the same call (same tool, same arguments) is served from memory instead of re-querying and re-rendering. It's automatic and needs no configuration. Invalidation is tied to the index, not a timer: any `reindex` (manual, or the automatic one that runs after file changes settle) invalidates the whole cache at once, so a cached answer can never outlive the index state it was computed from. There is no "similar but not identical" matching — only a byte-for-byte repeat is a cache hit.
+
 ---
 
 ## 6. Troubleshooting common problems

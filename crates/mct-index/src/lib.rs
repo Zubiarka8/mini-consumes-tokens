@@ -63,6 +63,13 @@ pub struct Index {
     /// database is validated against this to reject path traversal.
     root: PathBuf,
     exclude: ExcludeSet,
+    /// Bumped on every `reindex()` call (successful or not — a `.mctignore`/
+    /// exclude change can alter results even when the reindex itself errors
+    /// partway through). Not persisted: it's a process-lifetime signal for
+    /// an in-memory cache (`mct-mcp-server::cache::QueryCache`) to key on, so
+    /// a cached tool result never survives past the reindex that could have
+    /// changed its answer.
+    generation: u64,
 }
 
 impl Index {
@@ -88,6 +95,7 @@ impl Index {
             conn,
             root,
             exclude,
+            generation: 0,
         })
     }
 
@@ -106,11 +114,18 @@ impl Index {
             conn,
             root,
             exclude,
+            generation: 0,
         })
     }
 
     pub fn root(&self) -> &Path {
         &self.root
+    }
+
+    /// This index's current generation — see the field doc comment. Bumped
+    /// by every `reindex()` call, never by anything else.
+    pub fn generation(&self) -> u64 {
+        self.generation
     }
 
     /// Whether `path` (relative to [`Index::root`]) is a directory on disk.
@@ -156,6 +171,7 @@ impl Index {
     /// `registry` resolves for each extension. Never touches a file outside
     /// [`Index::root`], and never follows a symlink that would escape it.
     pub fn reindex(&mut self, registry: &LanguageRegistry, force: bool) -> Result<ReindexReport> {
+        self.generation = self.generation.wrapping_add(1);
         indexer::reindex(self, registry, force)
     }
 
