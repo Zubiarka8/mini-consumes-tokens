@@ -56,6 +56,13 @@ pub struct SymbolRecord {
     pub location: Location,
     /// Name of the enclosing symbol (e.g. the class containing a method), if any.
     pub parent: Option<String>,
+    /// Writer-declared depth of this symbol, where the language has one
+    /// (e.g. 1..6 for a Markdown ATX heading's `#`..`######`). Language-
+    /// neutral and optional: every `LanguageParser` besides `mct-lang-md`
+    /// leaves this `None`. Deliberately not derived from `parent` nesting —
+    /// a document can skip levels (`##` directly followed by `####`), so
+    /// nesting depth and declared level are not interchangeable.
+    pub level: Option<u32>,
 }
 
 /// Kind of relation between two symbols.

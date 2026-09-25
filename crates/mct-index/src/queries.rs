@@ -18,6 +18,10 @@ pub struct SymbolHit {
     /// that column existed and not yet re-indexed, or for a parser that
     /// hasn't been updated to populate it.
     pub end_line: Option<u32>,
+    /// Writer-declared depth of this symbol (e.g. 1..6 for a Markdown ATX
+    /// heading), when the parser that produced it populates
+    /// `SymbolRecord::level`. `None` for every other language.
+    pub level: Option<u32>,
 }
 
 /// One entry in a [`list_symbols`] result: a symbol definition's name, kind,
@@ -32,6 +36,8 @@ pub struct SymbolListEntry {
     pub line: u32,
     pub end_line: Option<u32>,
     pub parent: Option<String>,
+    /// Writer-declared depth of this symbol — see [`SymbolHit::level`].
+    pub level: Option<u32>,
 }
 
 #[derive(Debug, Clone)]
@@ -119,7 +125,7 @@ pub fn find_symbol_scoped(
     scope: ResolvedScope<'_>,
 ) -> Result<Vec<SymbolHit>> {
     let mut sql = String::from(
-        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line
+        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line, s.level
          FROM symbols s JOIN files f ON f.id = s.file_id
          WHERE s.name = ?1",
     );
@@ -140,6 +146,7 @@ pub fn find_symbol_scoped(
                 column: row.get(5)?,
                 parent: row.get(6)?,
                 end_line: row.get(7)?,
+                level: row.get(8)?,
             })
         })?
         .collect::<rusqlite::Result<_>>()?;
@@ -223,7 +230,7 @@ fn find_symbol_fts(
     scope: ResolvedScope<'_>,
 ) -> Result<Vec<SymbolHit>> {
     let mut sql = String::from(
-        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line
+        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line, s.level
          FROM symbols_fts
          JOIN symbols s ON s.id = symbols_fts.rowid
          JOIN files f ON f.id = s.file_id
@@ -246,6 +253,7 @@ fn find_symbol_fts(
                 column: row.get(5)?,
                 parent: row.get(6)?,
                 end_line: row.get(7)?,
+                level: row.get(8)?,
             })
         })?
         .collect::<rusqlite::Result<_>>()?;
@@ -264,7 +272,7 @@ fn find_symbol_like(
     let escaped = term.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
     let pattern = format!("%{escaped}%");
     let mut sql = String::from(
-        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line
+        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line, s.level
          FROM symbols s JOIN files f ON f.id = s.file_id
          WHERE s.name LIKE ?1 ESCAPE '\\'",
     );
@@ -285,6 +293,7 @@ fn find_symbol_like(
                 column: row.get(5)?,
                 parent: row.get(6)?,
                 end_line: row.get(7)?,
+                level: row.get(8)?,
             })
         })?
         .collect::<rusqlite::Result<_>>()?;
@@ -309,7 +318,7 @@ pub fn list_symbols(
     language: Option<&str>,
 ) -> Result<Vec<SymbolListEntry>> {
     let mut sql = String::from(
-        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.end_line, s.parent
+        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.end_line, s.parent, s.level
          FROM symbols s JOIN files f ON f.id = s.file_id
          WHERE ",
     );
@@ -346,6 +355,7 @@ pub fn list_symbols(
                 line: row.get(4)?,
                 end_line: row.get(5)?,
                 parent: row.get(6)?,
+                level: row.get(7)?,
             })
         })?
         .collect::<rusqlite::Result<_>>()?;
