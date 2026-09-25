@@ -182,6 +182,7 @@ fn main() {
             line: r.line,
             end_line: Some(r.line + 6),
             parent: (!r.parent.is_empty()).then(|| r.parent.clone()),
+            level: None,
         })
         .collect();
     let symbol_text = format::list_symbols("crates/mct-lang-go/src", false, &symbol_entries, 200);
@@ -269,6 +270,7 @@ fn main() {
             line: r.line,
             end_line: Some(r.line + 6),
             parent: (!r.parent.is_empty()).then(|| r.parent.clone()),
+            level: None,
         })
         .collect();
     // `find_symbol`'s text renderer is `symbol_hits`, not `list_symbols` —
@@ -285,6 +287,7 @@ fn main() {
             column: 1,
             parent: e.parent.clone(),
             end_line: e.end_line,
+            level: None,
         })
         .collect();
     let small_text = format::symbol_hits("handle_node_kind_000", &small_hits, 200);

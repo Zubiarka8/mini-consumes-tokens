@@ -118,5 +118,13 @@ pub fn migrations() -> Migrations<'static> {
         // narrowed by the `path`/`language` scope filters added in Fase 2
         // instead. See investigacion.md §B2 and issue #35.
         M::up("ALTER TABLE relations DROP COLUMN to_symbol_id;"),
+        // Writer-declared depth of a symbol, where the language has one (a
+        // Markdown ATX heading's `#`..`######`) — see `SymbolRecord::level`
+        // in `mct-core`. Nullable and additive like `end_line` above: an
+        // existing index gets the column added as NULL for every
+        // already-indexed row, repopulated by the parser that sets it on
+        // the next reindex. Every `LanguageParser` besides `mct-lang-md`
+        // leaves it NULL.
+        M::up("ALTER TABLE symbols ADD COLUMN level INTEGER;"),
     ])
 }

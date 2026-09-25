@@ -129,7 +129,7 @@ impl<'a> Walker<'a> {
     ) -> SymbolId {
         let id = self.next_id;
         self.next_id += 1;
-        self.symbols.push(SymbolRecord { id, name, kind, location, parent });
+        self.symbols.push(SymbolRecord { id, name, kind, location, parent, level: None });
         id
     }
 
