@@ -12,6 +12,7 @@ use rmcp::{
 use tokio::sync::Mutex;
 
 use crate::format;
+use crate::ttc;
 
 /// Applied to any of the 5 result-returning tools below when their `limit`
 /// argument is omitted. 50 is a compromise: generous enough that the common
@@ -240,6 +241,46 @@ pub struct GetIndexingStatusArgs {
     pub verbose_dependencies: bool,
 }
 
+/// Symbol kinds `find_dead_code` considers as candidates. Deliberately
+/// narrower than `OVERVIEW_KIND_ALLOWLIST`: `method` is excluded because
+/// trait/interface implementations are routinely called only through dynamic
+/// dispatch, never by name — including it would make every implemented
+/// interface method a false positive. `module` is excluded because a file's
+/// own synthetic module entry is never itself "referenced".
+const DEAD_CODE_KIND_ALLOWLIST: &[&str] = &[
+    "function",
+    "class",
+    "struct",
+    "interface",
+    "enum",
+    "trait",
+    "type_alias",
+];
+
+/// Symbol names `find_dead_code` never flags, regardless of reference count —
+/// language entry points invoked by the runtime/toolchain itself, never by an
+/// in-repo caller.
+const DEAD_CODE_ENTRY_POINT_NAMES: &[&str] = &["main"];
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct FindDeadCodeArgs {
+    /// File, directory, or crate prefix — same matching semantics as
+    /// list_symbols. Omit for the whole project root.
+    #[serde(default)]
+    pub path: Option<String>,
+    /// Exact language id to keep. Same semantics as list_symbols.
+    #[serde(default)]
+    pub language: Option<String>,
+    /// Maximum number of candidates to return. Defaults to 50 when omitted;
+    /// raise it if you expect more hits and want them all in one call.
+    #[serde(default)]
+    pub limit: Option<usize>,
+    /// Number of leading results to skip before applying `limit`, for
+    /// paging through result sets larger than one `limit` page. Defaults to 0.
+    #[serde(default)]
+    pub offset: Option<usize>,
+}
+
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct GetFileSkeletonArgs {
     /// A single file's path (e.g. `crates/mct-lang-html/src/lib.rs`),
@@ -317,6 +358,34 @@ fn file_tree_error(err: mct_index::IndexError) -> McpError {
             None,
         ),
         other => index_error(other),
+    }
+}
+
+/// Applies the TTC-expanded description from `source` to every tool route
+/// already present in `router`, in place, overwriting the compiled-in
+/// `#[tool(description = "...")]` fallback with the shorter
+/// `WHEN | NOT: ERR | TAGS: tags` catalog text (see `crate::ttc`). Never
+/// panics: a TTC parse failure, or a `tools.ttc` entry naming a tool that
+/// isn't registered, is logged and otherwise ignored so the server still
+/// starts with its compiled-in fallback descriptions intact.
+fn apply_ttc_catalog(router: &mut ToolRouter<MctServer>, source: &str) {
+    let entries = match ttc::parse(source) {
+        Ok(entries) => entries,
+        Err(err) => {
+            tracing::warn!(
+                error = %err,
+                "failed to parse TTC tool catalog; keeping compiled-in fallback descriptions"
+            );
+            return;
+        }
+    };
+    for (name, entry) in &entries {
+        match router.map.get_mut(name.as_str()) {
+            Some(route) => route.attr.description = Some(entry.expand().into()),
+            None => {
+                tracing::warn!(tool = %name, "tools.ttc has an entry for an unregistered tool");
+            }
+        }
     }
 }
 
@@ -411,11 +480,21 @@ pub struct ModuleDigest {
 #[tool_router]
 impl MctServer {
     pub fn new(index: Index, registry: LanguageRegistry) -> Self {
+        let mut tool_router = Self::tool_router();
+        apply_ttc_catalog(&mut tool_router, ttc::CATALOG_SOURCE);
         Self {
             index: Arc::new(Mutex::new(index)),
             registry,
-            tool_router: Self::tool_router(),
+            tool_router,
         }
+    }
+
+    /// The tool catalog as it will be sent to an MCP client: names,
+    /// TTC-expanded descriptions and input schemas. Exposed for tests and
+    /// for measuring the catalog's token/byte footprint; not itself an MCP
+    /// tool.
+    pub fn tool_catalog(&self) -> Vec<rmcp::model::Tool> {
+        self.tool_router.list_all()
     }
 
     /// Shares this server's index handle with the background auto-reindex
@@ -431,9 +510,9 @@ impl MctServer {
         self.registry.clone()
     }
 
-    #[tool(
-        description = "DISCOVERY, not a precise lookup — use this FIRST when you don't know a symbol's exact name yet. Lists symbol definitions (name, kind, line range) found under `path`: a single file (exact path) or a directory/crate (a path with no file extension, matched as a prefix), optionally narrowed to one symbol `kind` and/or one `language`. Answers \"what functions/structs/classes does this file or crate have\" without already knowing a name. Do NOT use this to locate one already-known symbol precisely, or to jump straight to its definition — use find_symbol for that; list_symbols is the discovery step that feeds find_symbol/find_references/find_calls/find_callers/impact_analysis, not a replacement for them."
-    )]
+    // Fallback only — the live description installed on this tool comes
+    // from crate::ttc's expansion of tools.ttc, applied in `MctServer::new`.
+    #[tool(description = "Discover symbols in a file or directory/crate; see tools.ttc")]
     pub async fn list_symbols(
         &self,
         Parameters(ListSymbolsArgs {
@@ -462,9 +541,8 @@ impl MctServer {
         )]))
     }
 
-    #[tool(
-        description = "ATOMIC lookup. Find the definition location(s) of a symbol by name, across every indexed language in this repository (including polyglot projects). Defaults to an exact-name match; pass match: \"prefix\" or match: \"fuzzy\" when you don't know the full/exact name instead of guessing and re-querying. Use this instead of grepping files to answer \"where is X defined\". Do NOT use this to find who calls or references a symbol — use find_callers (direct callers only) or find_references (every reference) instead."
-    )]
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Find where a symbol is defined; see tools.ttc")]
     pub async fn find_symbol(
         &self,
         Parameters(FindSymbolArgs {
@@ -487,9 +565,8 @@ impl MctServer {
         )]))
     }
 
-    #[tool(
-        description = "ATOMIC lookup. Find every place a symbol is referenced: calls, imports, extends/implements, and plain references — the broadest reference search. Do NOT use this when you only want the functions that directly call a function — use find_callers instead, which is narrower and answers that question directly. Do NOT use this to find a symbol's own definition — use find_symbol."
-    )]
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Find every reference to a symbol; see tools.ttc")]
     pub async fn find_references(
         &self,
         Parameters(FindReferencesArgs {
@@ -514,9 +591,8 @@ impl MctServer {
         )]))
     }
 
-    #[tool(
-        description = "ATOMIC lookup. Find the functions/methods called by the given function — its callees. Answers \"what does this function call\". Do NOT use this to find who calls the function — that's the inverse question, answered by find_callers."
-    )]
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Find what a function calls; see tools.ttc")]
     pub async fn find_calls(
         &self,
         Parameters(FindCallsArgs {
@@ -541,9 +617,8 @@ impl MctServer {
         )]))
     }
 
-    #[tool(
-        description = "ATOMIC lookup. Find the functions/methods that call the given function — its callers. Answers \"who calls this function\"; the inverse of find_calls. Do NOT use this for a broader reference search (imports, extends/implements, non-call references) — use find_references instead. If you're about to change or remove this function and want its full blast radius (callers + references + likely tests) in one call, use impact_analysis instead of calling this separately."
-    )]
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Find who calls a function; see tools.ttc")]
     pub async fn find_callers(
         &self,
         Parameters(FindCallersArgs {
@@ -568,9 +643,8 @@ impl MctServer {
         )]))
     }
 
-    #[tool(
-        description = "COMPOSITE (internally combines find_callers + find_references + a test-name heuristic — you do not need to call those separately). Reports everything a change to `symbol` could break: its direct callers, its full reference set (calls/imports/extends/implements/plain), and which of those look like tests (by test-file path or test-name convention). Use this before editing or removing a symbol to gauge blast radius in one call. Do NOT use this for a plain lookup of only direct callers or only references — that's cheaper via find_callers or find_references alone, and this tool's output is more verbose."
-    )]
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Full blast radius of changing a symbol; see tools.ttc")]
     pub async fn impact_analysis(
         &self,
         Parameters(ImpactAnalysisArgs {
@@ -612,9 +686,8 @@ impl MctServer {
         )]))
     }
 
-    #[tool(
-        description = "INDEX ADMINISTRATION, not a search tool — returns a reindex summary, not symbol data. Re-scans the project and updates the index; only files whose content changed since the last run are re-parsed unless force=true. It already runs automatically at server startup, and again in the background (non-forced/incremental) whenever the filesystem watcher detects settled file changes, so call this manually only if you need an immediate refresh right now, or force=true to bypass the incremental hash check (e.g. after suspected index corruption)."
-    )]
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Force an index refresh; see tools.ttc")]
     pub async fn reindex(
         &self,
         Parameters(ReindexArgs { force }): Parameters<ReindexArgs>,
@@ -626,9 +699,8 @@ impl MctServer {
         )]))
     }
 
-    #[tool(
-        description = "INDEX ADMINISTRATION, not a search tool. Reports index health: files/symbols indexed per language, when it was last indexed, languages seen in the repo with no parser plugin yet, files that failed to parse, and a one-line summary of dependencies declared in manifest files (Cargo.toml, package.json, requirements.txt, go.mod) — pass verbose_dependencies to list them all. Do NOT use this to search for a symbol — it returns no symbol data, only index diagnostics; use find_symbol instead."
-    )]
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Report index health; see tools.ttc")]
     pub async fn get_indexing_status(
         &self,
         Parameters(GetIndexingStatusArgs {
@@ -642,9 +714,8 @@ impl MctServer {
         )]))
     }
 
-    #[tool(
-        description = "TOKEN-SAVING module overview. Returns a file's top-level declarations (functions, classes, structs, interfaces, types) with bodies collapsed to `// ...` — up to ~90% fewer tokens than reading the whole file when you just need its shape. Brace-delimited languages (Rust, Go, Java, C++, C#, PHP, JS/TS, Kotlin) get precise body elision; other languages (e.g. Python, Lua, Bash, PowerShell) get a best-effort declaration-line-only rendering. Nested members (e.g. methods inside a class) are NOT shown individually — a class/struct/interface collapses to one block regardless of what's inside it. Do NOT use this for a directory/crate — it takes a single file path; use list_symbols for that. Do NOT use this when you need a symbol's actual implementation, not just its shape — use find_symbol to locate it, then read the file directly."
-    )]
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "A file's shape, bodies collapsed; see tools.ttc")]
     pub async fn get_file_skeleton(
         &self,
         Parameters(GetFileSkeletonArgs { path }): Parameters<GetFileSkeletonArgs>,
@@ -675,9 +746,8 @@ impl MctServer {
         )]))
     }
 
-    #[tool(
-        description = "TOKEN-SAVING project digest. Returns a compact hierarchical overview — modules, their key top-level symbols (capped, ranked by call fan-in when truncated), and — with include_relations, off by default — each symbol's top callers, in one call. Use this FIRST when getting oriented in an unfamiliar file/directory/crate/project, before chaining list_symbols + get_file_skeleton + find_calls by hand to build the same picture. Do NOT use this for a precise lookup of one already-known symbol (use find_symbol) or when you need every symbol in a file/directory with no cap (use list_symbols instead — this tool truncates for compactness)."
-    )]
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Capped hierarchical project digest; see tools.ttc")]
     pub async fn get_project_overview(
         &self,
         Parameters(GetProjectOverviewArgs {
@@ -782,9 +852,8 @@ impl MctServer {
         )]))
     }
 
-    #[tool(
-        description = "TOKEN-SAVING directory listing. Returns the file/directory tree rooted at `path` (default: project root) down to `depth` levels of nesting (default 3), pruned of the same noise directories reindexing already skips (`target`, `node_modules`, `.git`, etc.). Use this to get oriented on a project's layout before deciding which file or crate to explore further — cheaper than `ls -R` or reading directory listings by hand, and unlike get_project_overview it never touches the symbol index (works even on files no language parser supports). Do NOT use this for symbol-level content — use list_symbols or get_project_overview for what's actually defined in a file or crate."
-    )]
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Directory/file tree listing; see tools.ttc")]
     pub async fn get_file_tree(
         &self,
         Parameters(GetFileTreeArgs { path, depth }): Parameters<GetFileTreeArgs>,
@@ -795,6 +864,48 @@ impl MctServer {
         let tree = index.file_tree(path, depth).map_err(file_tree_error)?;
         Ok(CallToolResult::success(vec![ContentBlock::text(
             format::file_tree(path.unwrap_or("."), &tree, depth),
+        )]))
+    }
+
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Heuristic dead-code candidates; see tools.ttc")]
+    pub async fn find_dead_code(
+        &self,
+        Parameters(FindDeadCodeArgs {
+            path,
+            language,
+            limit,
+            offset,
+        }): Parameters<FindDeadCodeArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let path = path.as_deref().map(str::trim).filter(|p| !p.is_empty());
+        let language = language.as_deref().map(str::trim).filter(|l| !l.is_empty());
+        let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
+        let offset = offset.unwrap_or(0);
+
+        let index = self.index.lock().await;
+        let all_entries = list_symbols_for_overview(&index, path, language)?;
+        let reference_counts = index.reference_counts().map_err(index_error)?;
+
+        // Deliberately not filtered on `parent.is_none()` the way
+        // `get_project_overview`'s digest is: a `LanguageParser` uses `parent`
+        // for more than "nested inside another declaration" — e.g.
+        // `mct-lang-go` sets every top-level function's `parent` to its
+        // enclosing package name, not `None`. Filtering on it here would
+        // silently exclude every Go (and similarly-modeled) top-level
+        // function from consideration. `DEAD_CODE_KIND_ALLOWLIST` already
+        // excludes `method`/`module`/`field`, which is the distinction that
+        // actually matters for this tool.
+        let candidates: Vec<mct_index::SymbolListEntry> = all_entries
+            .into_iter()
+            .filter(|e| DEAD_CODE_KIND_ALLOWLIST.contains(&e.kind.as_str()))
+            .filter(|e| !DEAD_CODE_ENTRY_POINT_NAMES.contains(&e.name.as_str()))
+            .filter(|e| !format::looks_like_test_name(&e.name, &e.relative_path))
+            .filter(|e| !reference_counts.contains_key(e.name.as_str()))
+            .collect();
+
+        Ok(CallToolResult::success(vec![ContentBlock::text(
+            format::find_dead_code(path.unwrap_or("."), &candidates, offset, limit),
         )]))
     }
 }
@@ -828,7 +939,10 @@ impl ServerHandler for MctServer {
              get_file_skeleton + find_calls by hand. get_file_tree returns a plain directory/file \
              tree (no symbol data) for layout navigation before you know which file or crate to \
              look at — cheaper than get_project_overview when you only need the shape of the \
-             filesystem, not what's defined in it. reindex and get_indexing_status \
+             filesystem, not what's defined in it. find_dead_code reports top-level symbols \
+             with zero indexed references anywhere in the project — a heuristic starting point \
+             for cleanup, not a certainty; sanity-check a hit with find_references or \
+             impact_analysis before deleting anything. reindex and get_indexing_status \
              are index maintenance, not search — they never return symbol data. The index \
              refreshes automatically at startup and silently in the background as changes settle \
              on disk; call reindex manually only if you need an immediate refresh right now, or \

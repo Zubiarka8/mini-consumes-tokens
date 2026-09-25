@@ -573,6 +573,41 @@ pub fn looks_like_test_name(name: &str, relative_path: &str) -> bool {
     path_looks_like_test(relative_path) || name_looks_like_test(name)
 }
 
+/// Renders `find_dead_code`'s result: candidate symbols with zero indexed
+/// references, grouped by file (`hits` already arrives sorted by
+/// `relative_path, line` — the same order [`list_symbols`] renders in).
+/// Carries a fixed caveat: this is a heuristic over indexed relations, not
+/// real export/dynamic-dispatch analysis (see the tool's own description).
+pub fn find_dead_code(path: &str, hits: &[SymbolListEntry], offset: usize, limit: usize) -> String {
+    if hits.is_empty() {
+        return format!("No dead-code candidates found under `{path}`.");
+    }
+    let total = hits.len();
+    let shown = paginate(hits, offset, limit);
+    let mut body = BudgetedList::new(DEFAULT_BYTE_BUDGET);
+    let mut last_path: Option<&str> = None;
+    for hit in shown {
+        let heading = if last_path != Some(hit.relative_path.as_str()) {
+            Some(format!("{}:\n", hit.relative_path))
+        } else {
+            None
+        };
+        let range = line_range(hit.line, hit.end_line);
+        let entry = format!("  {} {} {range}\n", hit.kind, hit.name);
+        if body.push_with_prefix(heading.as_deref(), &entry) {
+            last_path = Some(hit.relative_path.as_str());
+        }
+    }
+    format!(
+        "{total} dead-code candidate(s) under `{path}`{}:\n\
+         (heuristic: zero indexed references found for this name anywhere in the project — \
+         does not account for dynamic dispatch, reflection, or a genuinely public API with no \
+         in-repo caller yet; verify before deleting)\n\n{}",
+        list_note(total, offset, shown.len(), &body),
+        body.body
+    )
+}
+
 pub fn reindex_report(report: &ReindexReport) -> String {
     let mut out = format!(
         "Reindex complete: {} parsed, {} unchanged, {} removed, {} symbols written.\n",
@@ -1366,6 +1401,60 @@ mod overview_tests {
             out.contains(&format!(", {kept} of 400 shown — {} more dropped", 400 - kept)),
             "got header: {}",
             out.lines().next().unwrap_or_default()
+        );
+    }
+}
+
+#[cfg(test)]
+mod dead_code_tests {
+    use super::*;
+
+    fn entry(name: &str, kind: &str, path: &str, line: u32) -> SymbolListEntry {
+        SymbolListEntry {
+            name: name.to_string(),
+            kind: kind.to_string(),
+            language: "rust".to_string(),
+            relative_path: path.to_string(),
+            line,
+            end_line: None,
+            parent: None,
+        }
+    }
+
+    #[test]
+    fn no_candidates_says_so_instead_of_an_empty_body() {
+        assert_eq!(
+            find_dead_code("src", &[], 0, 50),
+            "No dead-code candidates found under `src`."
+        );
+    }
+
+    #[test]
+    fn groups_consecutive_hits_by_file_with_one_heading_each() {
+        let hits = [
+            entry("unused_a", "function", "src/lib.rs", 3),
+            entry("UnusedB", "struct", "src/lib.rs", 20),
+            entry("unused_c", "function", "src/other.rs", 5),
+        ];
+        let out = find_dead_code("src", &hits, 0, 50);
+        assert_eq!(out.matches("src/lib.rs:\n").count(), 1);
+        assert_eq!(out.matches("src/other.rs:\n").count(), 1);
+        assert!(out.contains("  function unused_a L3\n"));
+        assert!(out.contains("  struct UnusedB L20\n"));
+        assert!(out.contains("  function unused_c L5\n"));
+        assert!(out.contains("3 dead-code candidate(s)"));
+        assert!(out.contains("heuristic"));
+    }
+
+    #[test]
+    fn pagination_note_matches_the_other_list_tools() {
+        let hits: Vec<SymbolListEntry> = (0..5)
+            .map(|i| entry(&format!("unused_{i}"), "function", "src/lib.rs", i + 1))
+            .collect();
+        let out = find_dead_code("src", &hits, 0, 2);
+        assert!(
+            out.contains("(showing 2, 3 omitted"),
+            "got: {out}"
         );
     }
 }

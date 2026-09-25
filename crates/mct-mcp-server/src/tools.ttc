@@ -1,0 +1,80 @@
+# TTC (Tool Terse Catalog) — this repo's mct-mcp-server tool descriptions.
+#
+# Format: one block per tool, blocks separated by one or more blank lines.
+#   TOOL <name>
+#   WHEN <one line: when an agent should reach for this tool>
+#   ERR  <one line: what NOT to use it for / caveats / failure modes>
+#   TAGS <comma-separated short keywords, for discovery/matching>
+#
+# WHEN/ERR/TAGS may appear in any order after the TOOL line, but each must
+# appear exactly once, on a single line (no wrapping/continuation). Lines
+# outside a block, and blank lines, are ignored as separators/comments —
+# except a line starting with `#`, which is a comment anywhere.
+#
+# Parsed by crates/mct-mcp-server/src/ttc.rs at server startup and expanded
+# into the `description` string installed on each tool in the rmcp catalog
+# (see MctServer::new). Add a block here whenever a tool is added; the
+# #[tool(description = "...")] attribute in server.rs only needs a short
+# fallback string used if this file ever fails to parse or a tool name here
+# doesn't match a registered tool. Keep WHEN/ERR terse — this file's whole
+# purpose is a compact catalog, not restated prose.
+
+TOOL list_symbols
+WHEN symbols in a file or dir/crate prefix, before you know a name.
+ERR not for a known symbol's definition — use find_symbol.
+TAGS discovery, symbols, list, file, directory, crate
+
+TOOL find_symbol
+WHEN locate a symbol's definition; exact/prefix/fuzzy match, any language.
+ERR not for callers/references — use find_callers/find_references.
+TAGS lookup, definition, location, exact, prefix, fuzzy
+
+TOOL find_references
+WHEN every reference to a symbol: calls, imports, extends/implements.
+ERR not just direct callers (use find_callers); not a definition lookup (use find_symbol).
+TAGS references, calls, imports, broad
+
+TOOL find_calls
+WHEN what a function/method calls — its callees.
+ERR not who calls it — use find_callers.
+TAGS callees, outgoing, calls
+
+TOOL find_callers
+WHEN who directly calls a function/method.
+ERR not broader refs (use find_references); not full blast radius (use impact_analysis).
+TAGS callers, incoming, calls
+
+TOOL impact_analysis
+WHEN full blast radius before changing/removing a symbol: callers+refs+likely tests.
+ERR not for just callers or just refs — cheaper via find_callers/find_references alone.
+TAGS impact, blast-radius, composite, tests
+
+TOOL reindex
+WHEN force an immediate refresh now; force=true bypasses the hash check.
+ERR no symbol data; already runs at startup and in the background.
+TAGS index, refresh, admin, force
+
+TOOL get_indexing_status
+WHEN index health: files/symbols per language, last run, parse failures, deps.
+ERR no symbol data — use find_symbol.
+TAGS index, status, health, diagnostics
+
+TOOL get_file_skeleton
+WHEN a file's top-level shape, bodies collapsed to `// ...`.
+ERR single file only (use list_symbols for dirs); no real impl (use find_symbol then read).
+TAGS skeleton, shape, file, tokens-saving
+
+TOOL get_project_overview
+WHEN get oriented in an unfamiliar file/dir/crate/project fast, ranked digest.
+ERR not a precise lookup (use find_symbol); not uncapped (use list_symbols).
+TAGS overview, digest, orientation, tokens-saving
+
+TOOL find_dead_code
+WHEN top-level symbols with zero indexed references — dead-code candidates.
+ERR heuristic only; verify with find_references/impact_analysis before deleting.
+TAGS dead-code, unused, cleanup, heuristic
+
+TOOL get_file_tree
+WHEN plain directory/file layout before you know which file or crate to look at.
+ERR no symbol data — use list_symbols/get_project_overview for what's defined.
+TAGS layout, directory, tree, navigation, tokens-saving
