@@ -3,6 +3,7 @@
 //! tables) — this crate knows about SQLite and git, never about any specific
 //! language's grammar.
 
+mod dead_code;
 mod error;
 mod exclude;
 mod file_tree;
@@ -12,6 +13,10 @@ mod queries;
 mod schema;
 mod traversal;
 
+pub use dead_code::{
+    find_dead_code_candidates, looks_like_test_name, DEAD_CODE_ENTRY_POINT_NAMES,
+    DEAD_CODE_KIND_ALLOWLIST,
+};
 pub use error::{IndexError, Result};
 pub use exclude::{
     read_ignore_file, ExcludeSet, GITIGNORE_IMPORT_DIRECTIVE, IGNORE_FILE_NAME, IGNORE_FILE_TEMPLATE,
@@ -376,6 +381,46 @@ impl Index {
         language: Option<&str>,
     ) -> Result<Vec<SymbolListEntry>> {
         queries::list_symbols(&self.conn, path, self.resolve_is_file(path), kind, language)
+    }
+
+    /// [`Index::list_symbols`], but `path` is optional: `None` lists every
+    /// symbol in the whole project.
+    ///
+    /// `Index::list_symbols`'s directory-prefix matching has no way to
+    /// express "everything" on its own — its `LIKE` pattern is always
+    /// anchored to a specific prefix, and an empty prefix produces `/%%`
+    /// which matches nothing, since stored `relative_path`s never start with
+    /// a leading slash. So instead, when `path` is omitted, this walks the
+    /// project root's own top-level directory entries (skipping
+    /// dotfiles/dot-directories, e.g. `.git`/`.mct-index`) and unions one
+    /// `list_symbols` call per entry — each entry is itself a valid
+    /// file-or-prefix path, so no new query semantics are needed.
+    pub fn list_symbols_all(
+        &self,
+        path: Option<&str>,
+        language: Option<&str>,
+    ) -> Result<Vec<SymbolListEntry>> {
+        if let Some(path) = path {
+            return self.list_symbols(path, None, language);
+        }
+        let mut top_level: Vec<String> = std::fs::read_dir(&self.root)
+            .map_err(|source| IndexError::Io {
+                path: self.root.display().to_string(),
+                source,
+            })?
+            .filter_map(|entry| entry.ok())
+            .filter_map(|entry| {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                (!name.starts_with('.')).then_some(name)
+            })
+            .collect();
+        top_level.sort();
+
+        let mut entries = Vec::new();
+        for name in &top_level {
+            entries.extend(self.list_symbols(name, None, language)?);
+        }
+        Ok(entries)
     }
 
     /// Directory tree rooted at `path` (defaults to the project root), down
