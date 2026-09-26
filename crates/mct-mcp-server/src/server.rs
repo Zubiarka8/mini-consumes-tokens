@@ -715,6 +715,18 @@ impl MctServer {
         self.registry.clone()
     }
 
+    /// Runs one read-only tool by name with JSON `args`, exactly as a `batch`
+    /// sub-query does (same validation, defaults and output as a direct
+    /// call; `reindex` and `batch` refused). Not itself an MCP tool — it is
+    /// how `mct-eval` drives the server by name.
+    pub async fn call_read_only_tool(
+        &self,
+        tool: &str,
+        args: Option<serde_json::Map<String, serde_json::Value>>,
+    ) -> Result<CallToolResult, McpError> {
+        self.run_batch_query(tool, args).await
+    }
+
     /// Runs one `batch` sub-query through the same tool method a direct call
     /// would hit, so its validation, defaults and output are identical.
     /// `reindex` is refused (a batch stays read-only, and a mid-batch

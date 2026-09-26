@@ -72,6 +72,15 @@ If `cargo build` fails on Windows with a `link.exe`/`cl.exe`-not-found error, th
 - **`cargo-audit`** — Linux only (one run is enough for a dependency audit). Two passes: a full report of every severity (informational, never fails the job — low/medium findings stay visible in the log), then a second pass with `severity_threshold = "high"` in a generated `.cargo/audit.toml`, whose exit code is what actually gates the job. Advisories with no CVSS score bypass the severity filter and always fail this step (fail-safe for unscored issues).
 - **`fuzz-smoke`** — matrix over `{ubuntu-latest, macos-latest} × {every crate listed in matrix.crate}` (8 as of C++/Go — check the workflow file for the current, authoritative list rather than this count, which will go stale again), short (30s) `cargo-fuzz` campaigns confirming each harness builds and runs without crashing. **Deliberately excludes Windows** — see the long comment above that job in the workflow file for exactly why (an ASan runtime DLL PATH issue and a separate MSVC linker limitation with sancov instrumentation, both confirmed locally before this decision was made). The regular `build-test` job still covers Windows fully; only fuzzing is Linux/macOS-only.
 
+## Quality evaluation
+
+`crates/mct-eval` scores the MCP tools on accuracy, MRR, success rate, latency and token cost over a fixed suite (`crates/mct-eval/suite.json`, run against the `omni-app` fixture) and compares the run with `crates/mct-eval/baseline.json` — see `benchmarks/quality-eval.md` for the metrics and thresholds.
+
+- **Per-PR gate:** `crates/mct-eval/tests/regression.rs` runs inside `cargo test --workspace`, so `build-test` fails on any regression.
+- **Monthly report:** `.github/workflows/quality-report.yml` (1st of each month, or on demand via *Run workflow*) re-runs the suite in a release build and publishes the report as the job summary plus a JSON/Markdown artifact.
+
+A change that intentionally moves a number (a new case, a better ranking, a deliberate output change) refreshes the baseline in the same PR: `cargo run -p mct-eval -- --write-baseline`, then commit `baseline.json`.
+
 ## Changing the `LanguageParser` trait, the SQLite schema, or an already-published MCP tool signature
 
 These are cross-cutting: the trait is implemented by every language crate, the schema is shared by every language's data, and a published tool signature is part of the contract Claude Code agents rely on. Open an issue describing the change before sending a PR — these need explicit sign-off, not a drive-by PR.
