@@ -43,7 +43,7 @@ An MCP server (`mct-mcp-server`) and CLI (`mct-cli`) that index a code repositor
 
 **Optional technical enforcement:** this rule is text Claude has to remember, so it can slip. `internal/claude-hooks/dogfood_mcp_guard.py` is a `PreToolUse` hook that turns a `Grep`/`Bash grep|cat|find` attempt against `crates/` into a one-off confirmation prompt instead of a silent pass-through — see `internal/claude-hooks/README.md` to enable it locally. Claude Code-specific; no equivalent exists yet for other coding agents.
 
-**If the MCP server shows `CONNECTION_CLOSED`** (a genuine connect failure, not "absent from the list" above): this usually means `.mct-index/index.sqlite3` was migrated by a branch with more `M::up` entries in `crates/mct-index/src/schema.rs` than the branch currently checked out — the checked-out binary sees a migration number "from the future" and aborts on startup with `migration error: Attempt to migrate a database with a migration number that is too high`. Confirm with `scripts/mcp-smoke.sh` (it runs the installed server binary, feeds it a JSON-RPC `initialize` over stdin and prints the error Claude Code hides behind `CONNECTION_CLOSED`). Fix: `scripts/reinstall.sh --reindex`, which reinstalls the binaries from the checked-out branch and rebuilds `.mct-index/index.sqlite3` for its schema (by hand: delete the file, then `cargo run -p mct-cli -- --root . init` — the index is fully derived from source, safe to delete), then `/mcp` in Claude Code to reconnect. An installed binary older than the index fails the same way, e.g. after running a newer `target/debug` server against this repo — `scripts/reinstall.sh` covers that too. This will recur any time you switch between branches with a different migration count without reindexing first.
+**If the MCP server shows `CONNECTION_CLOSED`** (a genuine connect failure, not "absent from the list" above): this usually means `.mct-index/index.sqlite3` was migrated by a branch with more `M::up` entries in `crates/mct-index/src/schema.rs` than the branch currently checked out — the checked-out binary sees a migration number "from the future" and aborts on startup with `migration error: Attempt to migrate a database with a migration number that is too high`. Confirm with `scripts/unix/mcp-smoke.sh` (it runs the installed server binary, feeds it a JSON-RPC `initialize` over stdin and prints the error Claude Code hides behind `CONNECTION_CLOSED`). Fix: `scripts/unix/reinstall.sh --reindex`, which reinstalls the binaries from the checked-out branch and rebuilds `.mct-index/index.sqlite3` for its schema (by hand: delete the file, then `cargo run -p mct-cli -- --root . init` — the index is fully derived from source, safe to delete), then `/mcp` in Claude Code to reconnect. An installed binary older than the index fails the same way, e.g. after running a newer `target/debug` server against this repo — `scripts/unix/reinstall.sh` covers that too. This will recur any time you switch between branches with a different migration count without reindexing first.
 
 ## Commands
 
@@ -71,13 +71,13 @@ cargo run -p mct-eval [-- --verbose]                                 # quality s
 cargo run -p mct-eval -- --write-baseline                            # refresh crates/mct-eval/baseline.json after an intended change
 ```
 
-**Prefer `scripts/` over the raw commands above** — same work, a few lines of summary instead of hundreds of lines of cargo output (full logs in `target/script-logs/`; see `scripts/README.md`):
+**Prefer `scripts/unix/` (macOS/Linux) over the raw commands above** — same work, a few lines of summary instead of hundreds of lines of cargo output (full logs in `target/script-logs/`; see `scripts/README.md`). On Windows run the raw commands — `scripts/windows/` has no scripts yet:
 
 ```sh
-scripts/check.sh [-p <crate>]              # verify before committing: tests + CI clippy + mct-eval, one line per step
-scripts/reinstall.sh [--reindex]           # after switching branches / merging a server change: install binaries, fix index schema, smoke-test; then /mcp
-scripts/mcp-smoke.sh [--dev] [--expect T]  # CONNECTION_CLOSED? prints the server's real startup error; --expect checks tool T is listed
-scripts/new-tool-check.sh <tool>           # adding an MCP tool: which of the ~10 places still don't mention it, then the catalog tests
+scripts/unix/check.sh [-p <crate>]                 # verify before committing: tests + CI clippy + mct-eval, one line per step
+scripts/unix/reinstall.sh [--reindex]              # after switching branches / merging a server change: install binaries, fix index schema, smoke-test; then /mcp
+scripts/unix/mcp-smoke.sh [--dev] [--expect T]     # CONNECTION_CLOSED? prints the server's real startup error; --expect checks tool T is listed
+scripts/unix/new-tool-check.sh <tool>              # adding an MCP tool: which of the ~10 places still don't mention it, then the catalog tests
 ```
 
 CI (`.github/workflows/ci.yml`) runs `build-test` (build+test+clippy, which includes the `mct-eval` quality gate) on Linux/macOS/Windows, `cargo-audit` on Linux, and `fuzz-smoke` (30s `cargo-fuzz` runs per language crate) on Linux/macOS only — fuzzing is deliberately excluded on Windows (ASan DLL/MSVC-sancov issues, see the comment above that job). `.github/workflows/quality-report.yml` re-runs the `mct-eval` suite monthly and publishes the report (see `benchmarks/quality-eval.md`).

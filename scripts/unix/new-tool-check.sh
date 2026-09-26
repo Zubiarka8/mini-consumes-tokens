@@ -5,8 +5,8 @@
 # coverage and the description-byte budget).
 #
 # Usage:
-#   scripts/new-tool-check.sh build_context_pack
-#   scripts/new-tool-check.sh build_context_pack --no-tests
+#   scripts/unix/new-tool-check.sh build_context_pack
+#   scripts/unix/new-tool-check.sh build_context_pack --no-tests
 #
 # Exit status: 1 if a required (code) place is missing or a catalog test
 # fails; documentation gaps are reported as warnings only.
@@ -14,7 +14,7 @@
 source "$(dirname "$0")/lib.sh"
 
 tool="${1:-}"
-[ -n "$tool" ] && [ "${tool#-}" = "$tool" ] || { sed -n '2,12p' "$ROOT/scripts/$(basename "$0")" | sed 's/^# \{0,1\}//'; exit 2; }
+[ -n "$tool" ] && [ "${tool#-}" = "$tool" ] || { sed -n '2,12p' "$SCRIPTS_DIR/$(basename "$0")" | sed 's/^# \{0,1\}//'; exit 2; }
 run_tests=1
 [ "${2:-}" = "--no-tests" ] && run_tests=0
 
@@ -73,7 +73,7 @@ if [ "$run_tests" -eq 1 ]; then
     grep -E 'panicked at|grew to|drifted|no TTC entry|error(\[|:)' -A2 "$log" | cap 20 "$log" || true
     echo "      a new tool that needs the room: raise the limit in crates/mct-mcp-server/tests/catalog.rs, with a note"
   fi
-  echo "next  scripts/check.sh — the mct-eval gate fails on catalog-token growth;"
+  echo "next  scripts/unix/check.sh — the mct-eval gate fails on catalog-token growth;"
   echo "      if intended, refresh with: cargo run -p mct-eval -- --write-baseline"
 fi
 exit "$status"

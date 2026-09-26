@@ -6,10 +6,10 @@
 # plus only the failing tests / lints / regressions when a step fails.
 #
 # Usage:
-#   scripts/check.sh                  # everything, like CI's build-test job
-#   scripts/check.sh -p mct-index     # tests + clippy for one crate, no eval
-#   scripts/check.sh --no-eval        # skip the mct-eval quality gate
-#   scripts/check.sh --only clippy    # one step: test | clippy | eval
+#   scripts/unix/check.sh                  # everything, like CI's build-test job
+#   scripts/unix/check.sh -p mct-index     # tests + clippy for one crate, no eval
+#   scripts/unix/check.sh --no-eval        # skip the mct-eval quality gate
+#   scripts/unix/check.sh --only clippy    # one step: test | clippy | eval
 #
 # Exit status: 0 when every step passed, 1 otherwise.
 
@@ -28,7 +28,7 @@ while [ $# -gt 0 ]; do
         *) die "--only takes test, clippy or eval" ;;
       esac
       shift 2 ;;
-    -h | --help) sed -n '2,15p' "$ROOT/scripts/$(basename "$0")" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h | --help) sed -n '2,15p' "$SCRIPTS_DIR/$(basename "$0")" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown argument: $1 (see --help)" ;;
   esac
 done

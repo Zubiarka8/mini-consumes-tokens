@@ -6,17 +6,17 @@
 # is printed here.
 #
 # Usage:
-#   scripts/mcp-smoke.sh                     # the installed binary (~/.cargo/bin)
-#   scripts/mcp-smoke.sh --dev               # build and use target/debug
-#   scripts/mcp-smoke.sh --expect NAME       # also fail unless tool NAME is listed
-#   scripts/mcp-smoke.sh --list              # also print every tool name
-#   scripts/mcp-smoke.sh --bin PATH --root DIR
+#   scripts/unix/mcp-smoke.sh                     # the installed binary (~/.cargo/bin)
+#   scripts/unix/mcp-smoke.sh --dev               # build and use target/debug
+#   scripts/unix/mcp-smoke.sh --expect NAME       # also fail unless tool NAME is listed
+#   scripts/unix/mcp-smoke.sh --list              # also print every tool name
+#   scripts/unix/mcp-smoke.sh --bin PATH --root DIR
 #
 # Exit status: 0 when the server answered and every check passed, 1 otherwise.
 
 source "$(dirname "$0")/lib.sh"
 
-bin="$CARGO_BIN/mct-mcp-server$EXE"
+bin="$CARGO_BIN/mct-mcp-server"
 root="$ROOT"
 dev=0 list=0 expect=()
 while [ $# -gt 0 ]; do
@@ -26,7 +26,7 @@ while [ $# -gt 0 ]; do
     --root) root="$(abspath "${2:?--root needs a directory}")"; shift 2 ;;
     --expect) expect+=("${2:?--expect needs a tool name}"); shift 2 ;;
     --list) list=1; shift ;;
-    -h | --help) sed -n '2,16p' "$ROOT/scripts/$(basename "$0")" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h | --help) sed -n '2,16p' "$SCRIPTS_DIR/$(basename "$0")" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown argument: $1 (see --help)" ;;
   esac
 done
@@ -34,9 +34,9 @@ done
 if [ "$dev" -eq 1 ]; then
   cargo build -q -p mct-mcp-server >"$LOG_DIR/smoke-build.log" 2>&1 \
     || { echo "build FAILED — see $LOG_DIR/smoke-build.log"; tail -n 20 "$LOG_DIR/smoke-build.log"; exit 1; }
-  bin="$ROOT/target/debug/mct-mcp-server$EXE"
+  bin="$ROOT/target/debug/mct-mcp-server"
 fi
-[ -x "$bin" ] || die "no server binary at $bin (install it with scripts/reinstall.sh, or pass --dev)"
+[ -x "$bin" ] || die "no server binary at $bin (install it with scripts/unix/reinstall.sh, or pass --dev)"
 
 out="$LOG_DIR/smoke-stdout.jsonl"
 err="$LOG_DIR/smoke-stderr.log"
@@ -51,7 +51,7 @@ if ! grep -q '"id":2' "$out"; then
   echo "server FAILED to answer — binary: $bin"
   grep -vE ' (INFO|DEBUG|TRACE) ' "$err" | cap 20 "$err"
   if grep -q 'migration number that is too high' "$err"; then
-    echo "→ the index was migrated by a newer schema; rebuild it: scripts/reinstall.sh --reindex"
+    echo "→ the index was migrated by a newer schema; rebuild it: scripts/unix/reinstall.sh --reindex"
   fi
   exit 1
 fi
@@ -78,7 +78,7 @@ for name in ${expect[@]+"${expect[@]}"}; do
   if printf '%s\n' "$names" | grep -qx "$name"; then
     echo "ok    $name is listed"
   else
-    echo "FAIL  $name is not listed — is the binary older than your change? (--dev, or scripts/reinstall.sh)"
+    echo "FAIL  $name is not listed — is the binary older than your change? (--dev, or scripts/unix/reinstall.sh)"
     status=1
   fi
 done

@@ -6,10 +6,10 @@
 # reconnect.
 #
 # Usage:
-#   scripts/reinstall.sh               # install both, fix the index only if needed
-#   scripts/reinstall.sh --reindex     # also rebuild the index from scratch
-#   scripts/reinstall.sh --semantic    # server built with --features semantic
-#   scripts/reinstall.sh --server-only # skip mct-cli
+#   scripts/unix/reinstall.sh               # install both, fix the index only if needed
+#   scripts/unix/reinstall.sh --reindex     # also rebuild the index from scratch
+#   scripts/unix/reinstall.sh --semantic    # server built with --features semantic
+#   scripts/unix/reinstall.sh --server-only # skip mct-cli
 #
 # The index is fully derived from source, so deleting it is always safe; it
 # is only deleted when --reindex is given or its schema is newer than this
@@ -23,7 +23,7 @@ while [ $# -gt 0 ]; do
     --reindex) reindex=1; shift ;;
     --semantic) semantic=1; shift ;;
     --server-only) cli=0; shift ;;
-    -h | --help) sed -n '2,17p' "$ROOT/scripts/$(basename "$0")" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h | --help) sed -n '2,17p' "$SCRIPTS_DIR/$(basename "$0")" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown argument: $1 (see --help)" ;;
   esac
 done
@@ -48,7 +48,7 @@ fi
 [ "$cli" -eq 1 ] && install mct-cli
 
 index="$ROOT/.mct-index/index.sqlite3"
-cli_bin="$CARGO_BIN/mct-cli$EXE"
+cli_bin="$CARGO_BIN/mct-cli"
 [ -x "$cli_bin" ] || cli_bin=""
 
 if [ "$reindex" -eq 0 ] && [ -f "$index" ] && [ -n "$cli_bin" ]; then
@@ -74,5 +74,5 @@ if [ "$reindex" -eq 1 ] || [ ! -f "$index" ]; then
   echo "index rebuilt — $(grep -m1 -i 'complete' "$LOG_DIR/reinstall-init.log" || true)"
 fi
 
-"$ROOT/scripts/mcp-smoke.sh"
+"$SCRIPTS_DIR/mcp-smoke.sh"
 echo "done — run /mcp in Claude Code to reconnect"

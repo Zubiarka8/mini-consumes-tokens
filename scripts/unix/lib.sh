@@ -1,9 +1,18 @@
-# Shared helpers for scripts/*.sh — sourced, not run. Bash 3.2 compatible
-# (macOS's /bin/bash), so no associative arrays, mapfile or ${var,,}.
+# Shared helpers for scripts/unix/*.sh — sourced, not run. macOS and Linux
+# only (Windows gets its own scripts under scripts/windows/). Bash 3.2
+# compatible (macOS's /bin/bash), so no associative arrays, mapfile or ${var,,}.
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+case "$(uname -s)" in
+  Darwin | Linux) ;;
+  *)
+    echo "error: scripts/unix/ is for macOS and Linux; on Windows use scripts/windows/" >&2
+    exit 2 ;;
+esac
+
+SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$SCRIPTS_DIR/../.." && pwd)"
 # Where the script was invoked from, for resolving relative path arguments;
 # every script then runs from the repo root.
 CALLER_PWD="$PWD"
@@ -16,16 +25,10 @@ mkdir -p "$LOG_DIR"
 
 CARGO_BIN="${CARGO_HOME:-$HOME/.cargo}/bin"
 
-# `.exe` on Windows (Git Bash / MSYS / Cygwin), empty elsewhere.
-case "$(uname -s)" in
-  MINGW* | MSYS* | CYGWIN*) EXE=".exe" ;;
-  *) EXE="" ;;
-esac
-
 # Absolute form of a path argument given relative to the caller's directory.
 abspath() {
   case "$1" in
-    /* | [A-Za-z]:*) printf '%s\n' "$1" ;;
+    /*) printf '%s\n' "$1" ;;
     *) printf '%s\n' "$CALLER_PWD/$1" ;;
   esac
 }
