@@ -189,6 +189,117 @@ pub fn symbol_hits_toon(name: &str, hits: &[SymbolHit], limit: usize) -> String 
     )
 }
 
+/// Up to `max_lines` lines of `source` starting at the 1-based `line`, never
+/// past `end_line` when the parser recorded one, each prefixed with its line
+/// number. Out-of-range lines (a file edited since the last reindex) are
+/// simply dropped, never a panic.
+pub fn symbol_snippet(source: &str, line: u32, end_line: Option<u32>, max_lines: usize) -> String {
+    let first = line.max(1) as usize;
+    let last_by_cap = first.saturating_add(max_lines.saturating_sub(1));
+    let last = end_line.map_or(last_by_cap, |end| last_by_cap.min((end as usize).max(first)));
+    source
+        .lines()
+        .enumerate()
+        .skip(first - 1)
+        .take_while(|(i, _)| *i < last)
+        .map(|(i, text)| format!("{}| {text}\n", i + 1))
+        .collect()
+}
+
+fn search_hit_line(hit: &SymbolHit) -> String {
+    let parent = hit
+        .parent
+        .as_deref()
+        .map(|p| format!(" (in {p})"))
+        .unwrap_or_default();
+    format!(
+        "{}:{} [{}] {} {}{}{}\n",
+        hit.relative_path,
+        line_range(hit.line, hit.end_line),
+        hit.language,
+        hit.kind,
+        hit.name,
+        level_suffix(hit.level),
+        parent
+    )
+}
+
+/// Renders `search_symbols`' ranked hits, best first, `offset`/`limit`
+/// paginated and byte-budgeted like every other list. `snippets` is aligned
+/// with the shown page (`hits[offset..][..limit]`); each present snippet is
+/// indented under its hit and kept or dropped together with it.
+pub fn search_hits(
+    query: &str,
+    hits: &[SymbolHit],
+    offset: usize,
+    limit: usize,
+    snippets: &[Option<String>],
+) -> String {
+    if hits.is_empty() {
+        return format!("No symbol matches `{query}` in the index.");
+    }
+    let total = hits.len();
+    let shown = paginate(hits, offset, limit);
+    let mut body = BudgetedList::new(DEFAULT_BYTE_BUDGET);
+    for (i, hit) in shown.iter().enumerate() {
+        let mut entry = search_hit_line(hit);
+        if let Some(Some(snippet)) = snippets.get(i) {
+            for line in snippet.lines() {
+                entry.push_str("    ");
+                entry.push_str(line);
+                entry.push('\n');
+            }
+        }
+        body.push(&entry);
+    }
+    format!(
+        "{total} match(es) for `{query}`, best first{}:\n{}",
+        list_note(total, offset, shown.len(), &body),
+        body.body
+    )
+}
+
+/// TOON rendering of [`search_hits`]: one row per hit in rank order, with
+/// the snippet (empty when not requested) as its last column.
+pub fn search_hits_toon(
+    query: &str,
+    hits: &[SymbolHit],
+    offset: usize,
+    limit: usize,
+    snippets: &[Option<String>],
+) -> String {
+    if hits.is_empty() {
+        return format!("No symbol matches `{query}` in the index.");
+    }
+    let total = hits.len();
+    let shown = paginate(hits, offset, limit);
+    let rows: Vec<Vec<String>> = shown
+        .iter()
+        .enumerate()
+        .map(|(i, hit)| {
+            vec![
+                hit.relative_path.clone(),
+                hit.line.to_string(),
+                hit.end_line.map(|l| l.to_string()).unwrap_or_default(),
+                hit.language.clone(),
+                hit.kind.clone(),
+                hit.name.clone(),
+                hit.parent.clone().unwrap_or_default(),
+                snippets.get(i).cloned().flatten().unwrap_or_default(),
+            ]
+        })
+        .collect();
+    format!(
+        "{total} match(es) for `{query}`, best first{}:\n{}",
+        truncation_note(total, offset, shown.len()),
+        encode_table(
+            "matches",
+            &["path", "line", "end_line", "language", "kind", "name", "parent", "snippet"],
+            &rows,
+        )
+    )
+}
+
 /// Kind strings in the order they're grouped/displayed by [`list_symbols`],
 /// paired with the plural heading printed above each non-empty group —
 /// mirrors the declaration order of `mct_core::SymbolKind` so output is
