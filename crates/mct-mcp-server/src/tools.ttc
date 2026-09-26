@@ -98,3 +98,8 @@ TOOL get_tool_schema
 WHEN full input schema+description for one tool named by discover_tool_categories.
 ERR not a symbol lookup; unknown tool name is an error, not a fuzzy match.
 TAGS discovery, schema, progressive, meta
+
+TOOL batch
+WHEN several known read-only queries at once: [{tool,args}], one result per [n] header.
+ERR no reindex/nested batch; a failed query is reported inline, the rest still run.
+TAGS batch, multiple, tokens-saving, composite

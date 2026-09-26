@@ -185,6 +185,7 @@ pub const KNOWN_TOOL_NAMES: &[&str] = &[
     "get_file_tree",
     "discover_tool_categories",
     "get_tool_schema",
+    "batch",
 ];
 
 #[cfg(test)]
