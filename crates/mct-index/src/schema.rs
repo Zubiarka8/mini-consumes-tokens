@@ -153,5 +153,26 @@ pub fn migrations() -> Migrations<'static> {
             END;
             "#,
         ),
+        // `hybrid_search` (issue #61): one L2-normalised embedding vector
+        // per symbol, as little-endian f32s, tagged with the model that
+        // produced it (vectors from different models are not comparable).
+        // Not backfilled — vectors come from an embedding model outside
+        // SQLite, filled lazily by `semantic::refresh_embeddings`. Dropped
+        // with the symbol via the FK cascade (`foreign_keys` is ON on every
+        // connection), and on an in-place rename by the trigger, so a stale
+        // vector never outlives the name it was computed from.
+        M::up(
+            r#"
+            CREATE TABLE symbol_embeddings (
+                symbol_id INTEGER PRIMARY KEY REFERENCES symbols(id) ON DELETE CASCADE,
+                model     TEXT NOT NULL,
+                vector    BLOB NOT NULL
+            );
+            CREATE INDEX idx_symbol_embeddings_model ON symbol_embeddings(model);
+            CREATE TRIGGER symbol_embeddings_au AFTER UPDATE OF name, kind, parent ON symbols BEGIN
+                DELETE FROM symbol_embeddings WHERE symbol_id = old.id;
+            END;
+            "#,
+        ),
     ])
 }
