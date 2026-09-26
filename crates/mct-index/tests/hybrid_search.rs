@@ -117,7 +117,10 @@ impl FakeEmbedder {
 
     fn vector(text: &str) -> Vec<f32> {
         let mut v = vec![0.0; DIMS];
-        for word in text.split_whitespace() {
+        for word in text
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|w| !w.is_empty())
+        {
             let dim = GROUPS
                 .iter()
                 .position(|g| g.contains(&word))
@@ -261,6 +264,47 @@ fn an_exact_name_ranks_first_whatever_alpha() {
             "{alpha}"
         );
     }
+}
+
+#[test]
+fn the_lexical_side_expands_dev_verb_synonyms_but_search_symbols_does_not() {
+    // Literally, no name has both `fetch` and `config`: search_symbols falls
+    // back to any-word matching and returns both names. With synonyms,
+    // `readConfig` matches every word and the noisy fallback never runs.
+    let (_dir, index) = indexed(&[("a.fake", "fn readConfig\nfn configure\n")]);
+    let literal: Vec<String> = index
+        .search_symbols("fetch config", QueryScope::default())
+        .unwrap()
+        .into_iter()
+        .map(|h| h.name)
+        .collect();
+    assert!(literal.contains(&"configure".to_string()), "{literal:?}");
+    assert_eq!(
+        hybrid(&index, "fetch config", None, 0.0),
+        vec!["readConfig".to_string()]
+    );
+    // A literal match still outranks a synonym-only one.
+    let (_dir, index) = indexed(&[("a.fake", "fn getUser\nfn fetchUser\n")]);
+    assert_eq!(
+        hybrid(&index, "fetch user", None, 0.0),
+        vec!["fetchUser".to_string(), "getUser".to_string()]
+    );
+}
+
+#[test]
+fn a_qualified_query_prefers_the_definition_inside_its_qualifier() {
+    let (_dir, index) = indexed(&[("app.fake", "fn open\n"), ("net.fake", "fn open\n")]);
+    let first = |query| {
+        index
+            .hybrid_search(query, None, 0.0, QueryScope::default())
+            .unwrap()
+            .first()
+            .map(|h| h.hit.relative_path.clone())
+    };
+    assert_eq!(first("net::open").as_deref(), Some("net.fake"));
+    assert_eq!(first("app.open").as_deref(), Some("app.fake"));
+    // Both definitions are still returned.
+    assert_eq!(hybrid(&index, "net::open", None, 0.0).len(), 2);
 }
 
 #[test]

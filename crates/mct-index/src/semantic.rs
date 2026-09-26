@@ -1,6 +1,9 @@
 //! Semantic half of hybrid search (Phase 2 of #31): per-symbol embedding
 //! vectors, a brute-force cosine ranking over them, and Reciprocal Rank
 //! Fusion with the lexical [`crate::search::search_symbols`] ranking.
+//! Phase 3 (#63) enriched the embedded text with signature, doc comment and
+//! callees ([`embedding_text`]) and added query-intent routing of `alpha`
+//! ([`classify_query`]).
 //!
 //! This crate stays free of any ML dependency: vectors come from an
 //! [`Embedder`] the caller supplies (`mct-mcp-server`'s `semantic` feature
@@ -16,11 +19,12 @@
 //! without loading a SQLite extension.
 
 use std::collections::HashMap;
+use std::path::Path;
 
 use rusqlite::Connection;
 
 use crate::queries::{push_scope, BoundValues, ResolvedScope, SymbolHit};
-use crate::search::{search_symbols, split_identifier};
+use crate::search::{search_symbols_with, split_identifier, LexicalOptions};
 use crate::{IndexError, Result};
 
 /// RRF's rank-damping constant. Lower than the paper's usual 60: the
@@ -46,6 +50,15 @@ pub trait Embedder: Send + Sync {
 
     /// One vector per input text, all of the same dimension, in input order.
     fn embed(&self, texts: &[String]) -> std::result::Result<Vec<Vec<f32>>, String>;
+
+    /// The vector for a search query. Defaults to [`Embedder::embed`];
+    /// asymmetric retrieval models (BGE, Arctic) override it to prepend the
+    /// query instruction they were trained with.
+    fn embed_query(&self, query: &str) -> std::result::Result<Vec<f32>, String> {
+        self.embed(&[query.to_string()])?
+            .pop()
+            .ok_or_else(|| "embedder returned no vector for the query".to_string())
+    }
 }
 
 /// One fused `hybrid_search` hit, with the per-list ranks it was built from
@@ -65,60 +78,295 @@ pub struct EmbeddingCoverage {
     pub total: usize,
 }
 
-/// The text a symbol is embedded from: its kind and split name words, its
-/// parent's words, and its file's stem as context —
-/// `method parse request body in http parser (server)`. Split words rather
-/// than the raw identifier, because sentence-embedding models tokenise
-/// `parseRequestBody` into fragments that carry little meaning; the file
-/// stem (`manifests`, `exclude`) says what area a terse name like
-/// `parse_go_mod` belongs to, which measurably lifts semantic recall.
-pub fn embedding_text(name: &str, kind: &str, parent: Option<&str>, relative_path: &str) -> String {
-    let words = split_identifier(name).join(" ");
-    let mut text = match parent.map(split_identifier).filter(|p| !p.is_empty()) {
-        Some(parent_words) => format!("{kind} {words} in {}", parent_words.join(" ")),
-        None => format!("{kind} {words}"),
-    };
-    let stem = relative_path
-        .rsplit('/')
+/// Version of the [`embedding_text`] format. Part of the stored `model` tag
+/// (see [`vector_space`]), so changing how the text is synthesised re-embeds
+/// every symbol instead of mixing vectors of two different formats.
+const EMBEDDING_TEXT_VERSION: &str = "ctx2";
+
+/// Caps on the synthesised text, so one symbol stays far below the model's
+/// token window (256 word pieces for MiniLM-class models) and a batch pads
+/// to a short length — embedding cost grows with the longest text in it.
+const MAX_SIGNATURE_CHARS: usize = 160;
+const MAX_DOC_CHARS: usize = 240;
+const MAX_CALLS: usize = 8;
+const MAX_EMBEDDING_CHARS: usize = 640;
+
+/// Files larger than this are not read for signature/doc context.
+const MAX_CONTEXT_FILE_BYTES: u64 = 2 * 1024 * 1024;
+
+/// File stems that name a crate/package entry point rather than a topic;
+/// the enclosing directory says more (`mct-index/src/lib.rs` → `mct index`).
+const ENTRY_POINT_STEMS: &[&str] = &["lib", "mod", "main", "index", "__init__", "init"];
+
+/// Everything one symbol's embedded text is synthesised from.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SymbolContext<'a> {
+    pub name: &'a str,
+    pub kind: &'a str,
+    pub language: &'a str,
+    pub parent: Option<&'a str>,
+    pub relative_path: &'a str,
+    /// The declaration as written (up to its body), from the source file.
+    pub signature: Option<&'a str>,
+    /// The comment block directly above the declaration (or a Python-style
+    /// docstring right below it), markers stripped.
+    pub doc: Option<&'a str>,
+    /// Names this symbol calls, from the `relations` table.
+    pub calls: &'a [String],
+}
+
+/// The text a symbol is embedded from:
+/// `[language: rust] [scope: exclude::exclude set] [symbol: method is excluded]
+/// [signature: pub fn is_excluded(&self, path: &Path) -> bool] [doc: ...] [calls: ...]`.
+/// Names are split into words, because sentence-embedding models tokenise
+/// `parseRequestBody` into fragments that carry little meaning; the module
+/// (file stem, or the directory for an entry-point file) says what area a
+/// terse name like `parse_go_mod` belongs to; the doc comment carries the
+/// plain-language intent a query describes. Empty sections are omitted and
+/// the whole text is capped at [`MAX_EMBEDDING_CHARS`].
+pub fn embedding_text(ctx: &SymbolContext<'_>) -> String {
+    let words = |s: &str| split_identifier(s).join(" ");
+    let mut sections = Vec::new();
+    if !ctx.language.is_empty() {
+        sections.push(format!("[language: {}]", ctx.language));
+    }
+    let module = module_words(ctx.relative_path);
+    let parent = ctx.parent.map(words).filter(|p| !p.is_empty());
+    match (module.is_empty(), parent) {
+        (false, Some(parent)) => sections.push(format!("[scope: {module}::{parent}]")),
+        (false, None) => sections.push(format!("[scope: {module}]")),
+        (true, Some(parent)) => sections.push(format!("[scope: {parent}]")),
+        (true, None) => {}
+    }
+    sections.push(format!("[symbol: {} {}]", ctx.kind, words(ctx.name)).replace("  ", " "));
+    if let Some(sig) = ctx.signature.map(str::trim).filter(|s| !s.is_empty()) {
+        sections.push(format!("[signature: {}]", truncate_chars(sig, MAX_SIGNATURE_CHARS)));
+    }
+    if let Some(doc) = ctx.doc.map(str::trim).filter(|d| !d.is_empty()) {
+        sections.push(format!("[doc: {}]", truncate_chars(doc, MAX_DOC_CHARS)));
+    }
+    let calls: Vec<String> = ctx
+        .calls
+        .iter()
+        .map(|c| words(c))
+        .filter(|c| !c.is_empty())
+        .take(MAX_CALLS)
+        .collect();
+    if !calls.is_empty() {
+        sections.push(format!("[calls: {}]", calls.join(", ")));
+    }
+    truncate_chars(&sections.join(" "), MAX_EMBEDDING_CHARS).to_string()
+}
+
+/// The module a file stands for, as words: its stem, or for an entry-point
+/// file (`lib.rs`, `__init__.py`) the nearest meaningful directory.
+fn module_words(relative_path: &str) -> String {
+    let mut segments = relative_path.rsplit('/');
+    let stem = segments
         .next()
         .and_then(|file| file.split('.').next())
-        .map(split_identifier)
         .unwrap_or_default();
-    if !stem.is_empty() {
-        text.push_str(&format!(" ({})", stem.join(" ")));
+    let module = if ENTRY_POINT_STEMS.contains(&stem) {
+        segments
+            .find(|dir| !matches!(*dir, "src" | "lib" | "source" | "sources"))
+            .unwrap_or(stem)
+    } else {
+        stem
+    };
+    split_identifier(module).join(" ")
+}
+
+/// `s` cut to at most `max` characters, on a char boundary.
+fn truncate_chars(s: &str, max: usize) -> &str {
+    match s.char_indices().nth(max) {
+        Some((at, _)) => &s[..at],
+        None => s,
     }
-    text
+}
+
+/// The declaration starting at 1-based `line`: that line and, while no body
+/// opener has appeared yet, up to two more (multi-line parameter lists),
+/// joined and cut before the body.
+fn signature_at(lines: &[&str], line: u32, end_line: Option<u32>) -> Option<String> {
+    let start = usize::try_from(line).ok()?.checked_sub(1)?;
+    let last = end_line
+        .and_then(|e| usize::try_from(e).ok())
+        .map_or(start + 2, |e| e.saturating_sub(1).min(start + 2));
+    let mut sig = String::new();
+    for text in lines.get(start..=last.max(start).min(lines.len().saturating_sub(1)))? {
+        let text = text.trim();
+        let (head, done) = match text.find('{') {
+            Some(at) => (&text[..at], true),
+            None => (text, text.ends_with(':') || text.ends_with(';')),
+        };
+        if !sig.is_empty() {
+            sig.push(' ');
+        }
+        sig.push_str(head.trim_end());
+        if done {
+            break;
+        }
+    }
+    let sig = sig.trim().trim_end_matches(':').trim_end().to_string();
+    (!sig.is_empty()).then_some(sig)
+}
+
+/// Comment markers stripped from a doc line, longest first.
+const COMMENT_MARKERS: &[&str] = &["///", "//!", "//", "/**", "/*", "*/", "*", "--", "#"];
+
+/// The comment block directly above 1-based `line` (skipping attribute and
+/// decorator lines), or failing that a `"""`/`'''` docstring right below the
+/// declaration — markers stripped, joined into one line.
+fn doc_at(lines: &[&str], line: u32) -> Option<String> {
+    let decl = usize::try_from(line).ok()?.checked_sub(1)?;
+    let mut above = Vec::new();
+    for text in lines.get(..decl)?.iter().rev() {
+        let text = text.trim();
+        if text.starts_with("#[") || text.starts_with('@') {
+            continue;
+        }
+        let Some(marker) = COMMENT_MARKERS
+            .iter()
+            .find(|m| text.starts_with(**m) && !text.starts_with("#!"))
+        else {
+            break;
+        };
+        above.push(text[marker.len()..].trim_end_matches("*/").trim());
+    }
+    above.reverse();
+    let mut doc = above.join(" ");
+    if doc.trim().is_empty() {
+        doc = docstring_below(lines, decl).unwrap_or_default();
+    }
+    let doc = doc.split_whitespace().collect::<Vec<_>>().join(" ");
+    (!doc.is_empty()).then_some(doc)
+}
+
+fn docstring_below(lines: &[&str], decl: usize) -> Option<String> {
+    let first = lines.get(decl + 1)?.trim();
+    let quote = ["\"\"\"", "'''"].into_iter().find(|q| first.starts_with(q))?;
+    let mut doc = Vec::new();
+    for (i, text) in lines.get(decl + 1..)?.iter().enumerate().take(12) {
+        let text = text.trim();
+        let body = if i == 0 { &text[quote.len()..] } else { text };
+        match body.find(quote) {
+            Some(end) => {
+                doc.push(&body[..end]);
+                break;
+            }
+            None => doc.push(body),
+        }
+    }
+    Some(doc.join(" "))
+}
+
+/// The lines of `relative_path` under `root`, or `None` when it is missing,
+/// too large, not UTF-8, or resolves outside `root` (the same traversal
+/// guard the reindex walk applies).
+fn read_context_source(root: &Path, relative_path: &str) -> Option<String> {
+    let canonical = root.join(relative_path).canonicalize().ok()?;
+    if !canonical.starts_with(root) {
+        return None;
+    }
+    if std::fs::metadata(&canonical).ok()?.len() > MAX_CONTEXT_FILE_BYTES {
+        return None;
+    }
+    std::fs::read_to_string(&canonical).ok()
+}
+
+/// The `model` tag vectors are stored under: the embedder's model id plus
+/// the [`embedding_text`] format version.
+fn vector_space(model: &str) -> String {
+    format!("{model}#{EMBEDDING_TEXT_VERSION}")
 }
 
 /// Embeds every symbol that has no vector for `embedder`'s model yet (new or
-/// rewritten since the last call), and drops vectors from any other model.
-/// Returns how many symbols were embedded. Incremental: after the first
-/// full pass, a call only pays for what the last reindex changed.
-pub fn refresh_embeddings(conn: &Connection, embedder: &dyn Embedder) -> Result<usize> {
-    let model = embedder.model_id();
+/// rewritten since the last call), and drops vectors from any other model
+/// or text format. Returns how many symbols were embedded. Incremental:
+/// after the first full pass, a call only pays for what the last reindex
+/// changed. Signature and doc context are read from the files under `root`,
+/// each file at most once per call.
+pub fn refresh_embeddings(conn: &Connection, root: &Path, embedder: &dyn Embedder) -> Result<usize> {
+    let space = vector_space(embedder.model_id());
+    let model = space.as_str();
     conn.execute("DELETE FROM symbol_embeddings WHERE model <> ?1", [model])?;
 
-    let pending: Vec<(i64, String)> = {
+    struct Pending {
+        id: i64,
+        name: String,
+        kind: String,
+        language: String,
+        parent: Option<String>,
+        path: String,
+        line: u32,
+        end_line: Option<u32>,
+        has_level: bool,
+        calls: Vec<String>,
+    }
+    let rows: Vec<Pending> = {
         let mut stmt = conn.prepare_cached(
-            "SELECT s.id, s.name, s.kind, s.parent, f.relative_path
+            "SELECT s.id, s.name, s.kind, f.language, s.parent, f.relative_path, s.line,
+                    s.end_line, s.level IS NOT NULL,
+                    (SELECT group_concat(to_name, ' ') FROM (
+                        SELECT DISTINCT r.to_name FROM relations r
+                        WHERE r.from_symbol_id = s.id AND r.kind = 'calls'
+                        ORDER BY r.line LIMIT ?1))
              FROM symbols s
              JOIN files f ON f.id = s.file_id
              LEFT JOIN symbol_embeddings e ON e.symbol_id = s.id
              WHERE e.symbol_id IS NULL
-             ORDER BY s.id",
+             ORDER BY f.relative_path, s.line",
         )?;
-        let rows = stmt.query_map([], |row| {
-            let name: String = row.get(1)?;
-            let kind: String = row.get(2)?;
-            let parent: Option<String> = row.get(3)?;
-            let path: String = row.get(4)?;
-            Ok((
-                row.get(0)?,
-                embedding_text(&name, &kind, parent.as_deref(), &path),
-            ))
+        let rows = stmt.query_map([MAX_CALLS as i64], |row| {
+            let calls: Option<String> = row.get(9)?;
+            Ok(Pending {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                kind: row.get(2)?,
+                language: row.get(3)?,
+                parent: row.get(4)?,
+                path: row.get(5)?,
+                line: row.get(6)?,
+                end_line: row.get(7)?,
+                has_level: row.get(8)?,
+                calls: calls
+                    .unwrap_or_default()
+                    .split_whitespace()
+                    .map(str::to_string)
+                    .collect(),
+            })
         })?;
         rows.collect::<rusqlite::Result<_>>()?
     };
+
+    // Rows are ordered by path: each file is read and split once.
+    let mut pending: Vec<(i64, String)> = Vec::with_capacity(rows.len());
+    for file_rows in rows.chunk_by(|a, b| a.path == b.path) {
+        let source = file_rows
+            .first()
+            .and_then(|p| read_context_source(root, &p.path))
+            .unwrap_or_default();
+        let lines: Vec<&str> = source.lines().collect();
+        for p in file_rows {
+            let signature = signature_at(&lines, p.line, p.end_line);
+            // A heading-like symbol (Markdown) has no doc comment above it.
+            let doc = if p.has_level { None } else { doc_at(&lines, p.line) };
+            let text = embedding_text(&SymbolContext {
+                name: &p.name,
+                kind: &p.kind,
+                language: &p.language,
+                parent: p.parent.as_deref(),
+                relative_path: &p.path,
+                signature: signature.as_deref(),
+                doc: doc.as_deref(),
+                calls: &p.calls,
+            });
+            pending.push((p.id, text));
+        }
+    }
+    // Batches of similar length: a batch is padded to its longest text, so
+    // mixing a 20-token name with a 150-token doc wastes most of the work.
+    pending.sort_by_key(|(_, text)| text.len());
 
     for chunk in pending.chunks(EMBED_BATCH) {
         let texts: Vec<String> = chunk.iter().map(|(_, text)| text.clone()).collect();
@@ -150,7 +398,7 @@ pub fn embedding_coverage(conn: &Connection, model: &str) -> Result<EmbeddingCov
     let total: i64 = conn.query_row("SELECT COUNT(*) FROM symbols", [], |r| r.get(0))?;
     let embedded: i64 = conn.query_row(
         "SELECT COUNT(*) FROM symbol_embeddings WHERE model = ?1",
-        [model],
+        [vector_space(model)],
         |r| r.get(0),
     )?;
     Ok(EmbeddingCoverage {
@@ -178,7 +426,7 @@ pub fn semantic_ranking(
          JOIN files f ON f.id = s.file_id
          WHERE e.model = ?1",
     );
-    let mut bound: BoundValues = vec![Box::new(model.to_string())];
+    let mut bound: BoundValues = vec![Box::new(vector_space(model))];
     push_scope(&mut sql, &mut bound, scope);
 
     let mut stmt = conn.prepare_cached(&sql)?;
@@ -214,13 +462,81 @@ pub fn semantic_ranking(
     Ok(scored)
 }
 
+/// What a `hybrid_search` query looks like, as far as a few string checks
+/// can tell — used to pick `alpha` when the caller doesn't.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QueryIntent {
+    /// Every word is code-shaped (`snake_case`, `camelCase`/`PascalCase`
+    /// with an inner capital, `Type::member`, `module.function`): the user
+    /// knows the name, so the lexical ranking should lead.
+    Identifier,
+    /// Several plain words, none code-shaped: the user describes behaviour,
+    /// so the semantic ranking should lead.
+    NaturalLanguage,
+    /// Anything else — one plain word, or prose mixed with identifiers.
+    Mixed,
+}
+
+impl QueryIntent {
+    /// The `alpha` this intent maps to.
+    pub fn alpha(self) -> f64 {
+        match self {
+            QueryIntent::Identifier => 0.1,
+            QueryIntent::NaturalLanguage => 0.75,
+            QueryIntent::Mixed => 0.5,
+        }
+    }
+}
+
+/// Classifies `query` by its surface form only — no index lookup, a few
+/// hundred nanoseconds. See [`QueryIntent`].
+pub fn classify_query(query: &str) -> QueryIntent {
+    let words: Vec<&str> = query.split_whitespace().collect();
+    let code_shaped = words.iter().filter(|w| is_code_shaped(w)).count();
+    match (words.len(), code_shaped) {
+        (0, _) => QueryIntent::Mixed,
+        (n, c) if c == n => QueryIntent::Identifier,
+        (1, _) => QueryIntent::Mixed,
+        (_, 0) => QueryIntent::NaturalLanguage,
+        _ => QueryIntent::Mixed,
+    }
+}
+
+/// Whether one whitespace-free word follows a code identifier convention.
+fn is_code_shaped(word: &str) -> bool {
+    let word = word.trim_matches(|c: char| !c.is_alphanumeric() && c != '_');
+    if word.contains("::") || word.contains("->") {
+        return true;
+    }
+    let chars: Vec<char> = word.chars().collect();
+    let ident = |c: &char| c.is_alphanumeric() || *c == '_';
+    // An inner `_` between identifier characters: `a_b`, `parse_go_mod`.
+    let snake = chars
+        .windows(3)
+        .any(|w| w[1] == '_' && w[0].is_alphanumeric() && ident(&w[2]));
+    // Dotted identifier segments of 2+ chars: `toon.decode` (not `e.g`).
+    let dotted = word.contains('.')
+        && word
+            .split('.')
+            .all(|seg| seg.chars().count() >= 2 && seg.chars().all(|c| ident(&c)));
+    // A lower→upper transition: `camelCase`, `PascalCase`, `parseHTTP`.
+    let inner_capital = chars
+        .windows(2)
+        .any(|w| w[0].is_lowercase() && w[1].is_uppercase());
+    snake || dotted || inner_capital
+}
+
 /// Lexical + semantic search fused with weighted Reciprocal Rank Fusion:
 /// `score = (1 - alpha) / (RRF_K + lexical_rank) + alpha / (RRF_K + semantic_rank)`.
 ///
-/// `alpha` is clamped to `0..=1` (NaN → 0). With `alpha == 0`, or no
-/// `semantic` input (no embedder / no vectors), the result is exactly the
-/// [`search_symbols`] ranking. Whatever `alpha`, a symbol whose name equals
-/// the query (case-insensitively) ranks first, as it does lexically.
+/// The lexical side is [`crate::search::search_symbols`] plus two
+/// hybrid-only [`LexicalOptions`]: dev-verb synonyms (`get`/`fetch`/`read`,
+/// ...) and qualified names (`Index::open` finds `open` inside `Index`
+/// first). `alpha` is clamped to `0..=1` (NaN → 0). With `alpha == 0`, or no
+/// `semantic` input (no embedder / no vectors), the result is exactly that
+/// lexical ranking. Whatever `alpha`, a symbol whose name equals the query
+/// (case-insensitively) ranks first, as it does lexically. Callers that
+/// don't choose `alpha` themselves can take it from [`classify_query`].
 pub fn hybrid_search(
     conn: &Connection,
     query: &str,
@@ -233,7 +549,11 @@ pub fn hybrid_search(
     } else {
         alpha.clamp(0.0, 1.0)
     };
-    let lexical = search_symbols(conn, query, scope)?;
+    let options = LexicalOptions {
+        synonyms: true,
+        qualified: true,
+    };
+    let lexical = search_symbols_with(conn, query, scope, options)?;
     let semantic = match semantic {
         Some((vector, model)) if alpha > 0.0 => {
             semantic_ranking(conn, vector, model, scope, SEMANTIC_CANDIDATES)?
@@ -329,24 +649,124 @@ mod tests {
     use super::*;
 
     #[test]
-    fn embedding_text_uses_split_words_and_parent() {
+    fn embedding_text_synthesises_every_section() {
+        let calls = ["readToEnd".to_string(), "splitLines".to_string()];
         assert_eq!(
-            embedding_text(
-                "parseRequestBody",
-                "method",
-                Some("HTTPParser"),
-                "src/http_server.rs"
-            ),
-            "method parse request body in http parser (http server)"
+            embedding_text(&SymbolContext {
+                name: "parseRequestBody",
+                kind: "method",
+                language: "rust",
+                parent: Some("HTTPParser"),
+                relative_path: "src/http_server.rs",
+                signature: Some("pub fn parse_request_body(&self) -> Body"),
+                doc: Some("Reads the whole body."),
+                calls: &calls,
+            }),
+            "[language: rust] [scope: http server::http parser] \
+             [symbol: method parse request body] \
+             [signature: pub fn parse_request_body(&self) -> Body] \
+             [doc: Reads the whole body.] [calls: read to end, split lines]"
+        );
+    }
+
+    #[test]
+    fn embedding_text_omits_empty_sections() {
+        assert_eq!(
+            embedding_text(&SymbolContext {
+                name: "run",
+                kind: "function",
+                parent: Some(""),
+                ..SymbolContext::default()
+            }),
+            "[symbol: function run]"
+        );
+        // An entry-point file stands for its directory.
+        assert_eq!(
+            embedding_text(&SymbolContext {
+                name: "Index",
+                kind: "struct",
+                language: "rust",
+                relative_path: "crates/mct-index/src/lib.rs",
+                ..SymbolContext::default()
+            }),
+            "[language: rust] [scope: mct index] [symbol: struct index]"
+        );
+    }
+
+    #[test]
+    fn embedding_text_is_capped() {
+        let doc = "word ".repeat(500);
+        let text = embedding_text(&SymbolContext {
+            name: "f",
+            kind: "function",
+            doc: Some(&doc),
+            ..SymbolContext::default()
+        });
+        assert!(text.chars().count() <= MAX_EMBEDDING_CHARS);
+    }
+
+    #[test]
+    fn signature_stops_at_the_body() {
+        let src = ["/// Doc.", "pub fn a(", "    x: u32,", ") -> u32 {", "    x", "}"];
+        assert_eq!(
+            signature_at(&src, 2, Some(6)).as_deref(),
+            Some("pub fn a( x: u32, ) -> u32")
         );
         assert_eq!(
-            embedding_text("run", "function", None, "main.go"),
-            "function run (main)"
+            signature_at(&["def f(x):", "    return x"], 1, Some(2)).as_deref(),
+            Some("def f(x)")
         );
-        assert_eq!(
-            embedding_text("run", "function", Some(""), ""),
-            "function run"
-        );
+        assert_eq!(signature_at(&src, 0, None), None);
+        assert_eq!(signature_at(&src, 99, None), None);
+    }
+
+    #[test]
+    fn doc_comes_from_the_comment_block_above_or_a_docstring_below() {
+        let src = [
+            "use x;",
+            "/// Loads the",
+            "/// settings.",
+            "#[inline]",
+            "fn load() {}",
+        ];
+        assert_eq!(doc_at(&src, 5).as_deref(), Some("Loads the settings."));
+        assert_eq!(doc_at(&src, 1), None);
+        let py = ["def f():", "    \"\"\"Return one.", "    Always.\"\"\"", "    return 1"];
+        assert_eq!(doc_at(&py, 1).as_deref(), Some("Return one. Always."));
+        let block = ["/**", " * Draws it.", " */", "function draw() {}"];
+        assert_eq!(doc_at(&block, 4).as_deref(), Some("Draws it."));
+    }
+
+    #[test]
+    fn identifier_shaped_queries_route_to_lexical() {
+        for q in [
+            "read_ignore_file",
+            "fanInCounts",
+            "LanguageRegistry",
+            "Index::hybrid_search",
+            "toon.decode_table",
+            "self->visit",
+            "parse_go_mod walker_new",
+        ] {
+            assert_eq!(classify_query(q), QueryIntent::Identifier, "{q}");
+        }
+        assert_eq!(QueryIntent::Identifier.alpha(), 0.1);
+    }
+
+    #[test]
+    fn plain_prose_routes_to_semantic() {
+        for q in ["load settings from disk", "directory tree", "is this a test file?"] {
+            assert_eq!(classify_query(q), QueryIntent::NaturalLanguage, "{q}");
+        }
+        assert_eq!(QueryIntent::NaturalLanguage.alpha(), 0.75);
+    }
+
+    #[test]
+    fn single_plain_words_and_mixtures_stay_balanced() {
+        for q in ["", "   ", "bfs", "Walker", "break camelCase names", "python Walker push_relation", "e.g."] {
+            assert_eq!(classify_query(q), QueryIntent::Mixed, "{q:?}");
+        }
+        assert_eq!(QueryIntent::Mixed.alpha(), 0.5);
     }
 
     #[test]
