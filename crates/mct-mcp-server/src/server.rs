@@ -130,19 +130,16 @@ pub struct SearchSymbolsArgs {
     pub format: Option<String>,
 }
 
-/// `hybrid_search`'s default `alpha`: an even blend of the lexical and
-/// semantic rankings.
-const HYBRID_DEFAULT_ALPHA: f64 = 0.5;
-
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct HybridSearchArgs {
     /// What you're looking for, as identifier words or a plain description:
     /// `parse request`, `load config from disk`, `retry with backoff`.
     pub query: String,
     /// Weight of the semantic (embedding) ranking against the lexical
-    /// (`search_symbols`) one: 0 = lexical only, 1 = semantic only.
-    /// Defaults to 0.5, clamped to 0..=1. Lower it when you know words of
-    /// the name; raise it when you only know what the code does.
+    /// (`search_symbols`) one: 0 = lexical only, 1 = semantic only, clamped
+    /// to 0..=1. Omit it to let the query's shape pick: 0.1 for an
+    /// identifier (`snake_case`, `camelCase`, `Type::method`,
+    /// `module.fn`), 0.75 for a plain-language description, 0.5 otherwise.
     #[serde(default)]
     pub alpha: Option<f64>,
     /// Narrow to one file or directory/crate prefix (same matching as
@@ -774,10 +771,13 @@ impl MctServer {
         let query = validate_name(&query)?;
         let output_format = parse_output_format(format.as_deref())?;
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
-        let alpha = alpha
-            .filter(|a| a.is_finite())
-            .unwrap_or(HYBRID_DEFAULT_ALPHA)
-            .clamp(0.0, 1.0);
+        let (alpha, alpha_source) = match alpha.filter(|a| a.is_finite()) {
+            Some(alpha) => (alpha.clamp(0.0, 1.0), String::new()),
+            None => {
+                let intent = mct_index::classify_query(query);
+                (intent.alpha(), format!(" (auto: {intent:?} query)"))
+            }
+        };
         let limit = top_k.unwrap_or(SEARCH_DEFAULT_LIMIT).clamp(1, SEARCH_MAX_LIMIT);
         let offset = offset.unwrap_or(0);
         let snippet_lines = snippet_lines.unwrap_or(0).min(SEARCH_MAX_SNIPPET_LINES);
@@ -801,7 +801,7 @@ impl MctServer {
                         (
                             Some(embedder),
                             format!(
-                                "hybrid: alpha {alpha:.2}, {}/{} symbols embedded ({})",
+                                "hybrid: alpha {alpha:.2}{alpha_source}, {}/{} symbols embedded ({})",
                                 coverage.embedded,
                                 coverage.total,
                                 embedder.model_id()
