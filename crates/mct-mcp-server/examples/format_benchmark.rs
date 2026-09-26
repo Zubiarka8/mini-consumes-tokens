@@ -168,7 +168,9 @@ fn main() {
         .collect();
     let symbol_toon = encode_table(
         "symbols",
-        &["path", "line", "column", "language", "kind", "name", "parent"],
+        &[
+            "path", "line", "column", "language", "kind", "name", "parent",
+        ],
         &symbol_rows_owned,
     );
     report("list_symbols (80 rows)", &symbol_toon, &symbol_json_array);
@@ -212,10 +214,16 @@ fn main() {
         .collect();
     let relation_toon = encode_table(
         "relations",
-        &["path", "line", "column", "language", "from", "kind", "to", "depth"],
+        &[
+            "path", "line", "column", "language", "from", "kind", "to", "depth",
+        ],
         &relation_rows_owned,
     );
-    report("find_references (40 rows)", &relation_toon, &relation_json_array);
+    report(
+        "find_references (40 rows)",
+        &relation_toon,
+        &relation_json_array,
+    );
     let relation_hits: Vec<RelationHit> = relations
         .iter()
         .map(|r| RelationHit {
@@ -229,7 +237,13 @@ fn main() {
             depth: r.depth,
         })
         .collect();
-    let relation_text = format::relation_hits("find_symbol_matching_scoped", "reference(s)", &relation_hits, 0, 200);
+    let relation_text = format::relation_hits(
+        "find_symbol_matching_scoped",
+        "reference(s)",
+        &relation_hits,
+        0,
+        200,
+    );
     report_vs_existing_text("find_references", &relation_toon, &relation_text);
 
     // Scenario 3: `find_symbol` with a handful of hits — the small-N case,
@@ -256,7 +270,9 @@ fn main() {
         .collect();
     let small_toon = encode_table(
         "symbols",
-        &["path", "line", "column", "language", "kind", "name", "parent"],
+        &[
+            "path", "line", "column", "language", "kind", "name", "parent",
+        ],
         &small_rows_owned,
     );
     report("find_symbol (5 rows)", &small_toon, &small_json_array);

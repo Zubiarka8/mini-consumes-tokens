@@ -3,11 +3,10 @@ use std::sync::Arc;
 use mct_core::LanguageRegistry;
 use mct_index::Index;
 use rmcp::{
-    ErrorData as McpError, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
-    model::{Implementation, InitializeResult, ProtocolVersion, ServerCapabilities},
     model::{CallToolResult, ContentBlock},
-    tool, tool_handler, tool_router,
+    model::{Implementation, InitializeResult, ProtocolVersion, ServerCapabilities},
+    tool, tool_handler, tool_router, ErrorData as McpError, ServerHandler,
 };
 use tokio::sync::Mutex;
 
@@ -502,7 +501,10 @@ const TOOL_CATEGORIES: &[(&str, &[&str])] = &[
             "get_file_tree",
         ],
     ),
-    ("lookup", &["find_symbol", "search_symbols", "hybrid_search"]),
+    (
+        "lookup",
+        &["find_symbol", "search_symbols", "hybrid_search"],
+    ),
     (
         "relations",
         &[
@@ -797,7 +799,11 @@ struct RelatedSet {
 
 impl RelatedSet {
     fn add(&mut self, name: &str, role: &str, hit: &mct_index::RelationHit, site_is_inside: bool) {
-        match self.positions.get(name).and_then(|&i| self.drafts.get_mut(i)) {
+        match self
+            .positions
+            .get(name)
+            .and_then(|&i| self.drafts.get_mut(i))
+        {
             Some(draft) => {
                 if !draft.roles.iter().any(|r| r == role) {
                     draft.roles.push(role.to_string());
@@ -926,13 +932,18 @@ impl MctServer {
             "find_dead_code" => self.find_dead_code(batch_params(tool, args)?).await,
             "discover_tool_categories" => self.discover_tool_categories().await,
             "get_tool_schema" => self.get_tool_schema(batch_params(tool, args)?).await,
-            "batch" => Err(McpError::invalid_params("`batch` can't be nested inside a batch", None)),
+            "batch" => Err(McpError::invalid_params(
+                "`batch` can't be nested inside a batch",
+                None,
+            )),
             "reindex" => Err(McpError::invalid_params(
                 "`reindex` isn't allowed in a batch (batches are read-only) — call it directly",
                 None,
             )),
             other => Err(McpError::invalid_params(
-                format!("no tool named `{other}` — call discover_tool_categories for the full list"),
+                format!(
+                    "no tool named `{other}` — call discover_tool_categories for the full list"
+                ),
                 None,
             )),
         }
@@ -1020,7 +1031,9 @@ impl MctServer {
         let query = validate_name(&query)?;
         let output_format = parse_output_format(format.as_deref())?;
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
-        let limit = limit.unwrap_or(SEARCH_DEFAULT_LIMIT).clamp(1, SEARCH_MAX_LIMIT);
+        let limit = limit
+            .unwrap_or(SEARCH_DEFAULT_LIMIT)
+            .clamp(1, SEARCH_MAX_LIMIT);
         let offset = offset.unwrap_or(0);
         let snippet_lines = snippet_lines.unwrap_or(0).min(SEARCH_MAX_SNIPPET_LINES);
         let index = self.index.lock().await;
@@ -1060,7 +1073,9 @@ impl MctServer {
                 (intent.alpha(), format!(" (auto: {intent:?} query)"))
             }
         };
-        let limit = top_k.unwrap_or(SEARCH_DEFAULT_LIMIT).clamp(1, SEARCH_MAX_LIMIT);
+        let limit = top_k
+            .unwrap_or(SEARCH_DEFAULT_LIMIT)
+            .clamp(1, SEARCH_MAX_LIMIT);
         let offset = offset.unwrap_or(0);
         let snippet_lines = snippet_lines.unwrap_or(0).min(SEARCH_MAX_SNIPPET_LINES);
         let index = self.index.lock().await;
@@ -1070,7 +1085,10 @@ impl MctServer {
         // load, or embedding the pending symbols failed. Each case is named
         // in the output's first line instead of erroring.
         let (embedder, note) = if alpha == 0.0 {
-            (None, format!("hybrid: alpha 0{alpha_source}, lexical ranking only"))
+            (
+                None,
+                format!("hybrid: alpha 0{alpha_source}, lexical ranking only"),
+            )
         } else {
             match self.semantic.get(index.root()) {
                 Err(reason) => (None, format!("hybrid: lexical ranking only — {reason}")),
@@ -1096,7 +1114,10 @@ impl MctServer {
         let fused = match index.hybrid_search(query, embedder, alpha, scope) {
             Ok(fused) => fused,
             Err(e) if embedder.is_some() => {
-                return Err(McpError::internal_error(format!("hybrid_search failed: {e}"), None))
+                return Err(McpError::internal_error(
+                    format!("hybrid_search failed: {e}"),
+                    None,
+                ))
             }
             Err(e) => return Err(index_error(e)),
         };
@@ -1147,8 +1168,12 @@ impl MctServer {
             .find_references_bfs_scoped(symbol, depth.unwrap_or(1), limit, offset, scope)
             .map_err(index_error)?;
         let text = match output_format {
-            OutputFormat::Text => format::relation_hits(symbol, "reference(s)", &hits, offset, limit),
-            OutputFormat::Toon => format::relation_hits_toon(symbol, "reference(s)", &hits, offset, limit),
+            OutputFormat::Text => {
+                format::relation_hits(symbol, "reference(s)", &hits, offset, limit)
+            }
+            OutputFormat::Toon => {
+                format::relation_hits_toon(symbol, "reference(s)", &hits, offset, limit)
+            }
         };
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
@@ -1177,12 +1202,20 @@ impl MctServer {
             .find_calls_bfs_scoped(function, depth.unwrap_or(1), limit, offset, scope)
             .map_err(index_error)?;
         let text = match output_format {
-            OutputFormat::Text => {
-                format::relation_hits(function, "call(s) made by this function", &hits, offset, limit)
-            }
-            OutputFormat::Toon => {
-                format::relation_hits_toon(function, "call(s) made by this function", &hits, offset, limit)
-            }
+            OutputFormat::Text => format::relation_hits(
+                function,
+                "call(s) made by this function",
+                &hits,
+                offset,
+                limit,
+            ),
+            OutputFormat::Toon => format::relation_hits_toon(
+                function,
+                "call(s) made by this function",
+                &hits,
+                offset,
+                limit,
+            ),
         };
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
@@ -1214,9 +1247,13 @@ impl MctServer {
             OutputFormat::Text => {
                 format::relation_hits(function, "caller(s) of this function", &hits, offset, limit)
             }
-            OutputFormat::Toon => {
-                format::relation_hits_toon(function, "caller(s) of this function", &hits, offset, limit)
-            }
+            OutputFormat::Toon => format::relation_hits_toon(
+                function,
+                "caller(s) of this function",
+                &hits,
+                offset,
+                limit,
+            ),
         };
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
@@ -1262,12 +1299,22 @@ impl MctServer {
             .filter(|hit| seen_test_names.insert(hit.from_symbol.as_str()))
             .collect();
         let text = match output_format {
-            OutputFormat::Text => {
-                format::impact_analysis(symbol, &callers, &references, &affected_tests, offset, limit)
-            }
-            OutputFormat::Toon => {
-                format::impact_analysis_toon(symbol, &callers, &references, &affected_tests, offset, limit)
-            }
+            OutputFormat::Text => format::impact_analysis(
+                symbol,
+                &callers,
+                &references,
+                &affected_tests,
+                offset,
+                limit,
+            ),
+            OutputFormat::Toon => format::impact_analysis_toon(
+                symbol,
+                &callers,
+                &references,
+                &affected_tests,
+                offset,
+                limit,
+            ),
         };
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
@@ -1365,15 +1412,21 @@ impl MctServer {
                 .clone()
         };
 
-        let omitted_definitions = definitions.len().saturating_sub(CONTEXT_PACK_MAX_DEFINITIONS);
+        let omitted_definitions = definitions
+            .len()
+            .saturating_sub(CONTEXT_PACK_MAX_DEFINITIONS);
         let mut packed_definitions = Vec::new();
         for hit in definitions.into_iter().take(CONTEXT_PACK_MAX_DEFINITIONS) {
             let (snippet, hidden_lines) = match source_of(&hit.relative_path) {
                 Some(source) => {
                     let start = format::leading_comment_start(&source, hit.line);
                     let doc_lines = hit.line.saturating_sub(start) as usize;
-                    let snippet =
-                        format::symbol_snippet(&source, start, hit.end_line, doc_lines + source_lines);
+                    let snippet = format::symbol_snippet(
+                        &source,
+                        start,
+                        hit.end_line,
+                        doc_lines + source_lines,
+                    );
                     let shown_end = hit.line as usize + source_lines - 1;
                     let hidden = hit
                         .end_line
@@ -1544,7 +1597,9 @@ impl MctServer {
         for (relative_path, entries) in modules {
             let mut candidates: Vec<mct_index::SymbolListEntry> = entries
                 .into_iter()
-                .filter(|e| e.parent.is_none() && OVERVIEW_KIND_ALLOWLIST.contains(&e.kind.as_str()))
+                .filter(|e| {
+                    e.parent.is_none() && OVERVIEW_KIND_ALLOWLIST.contains(&e.kind.as_str())
+                })
                 .collect();
 
             let omitted = candidates.len().saturating_sub(max_symbols_per_module);
@@ -1595,11 +1650,7 @@ impl MctServer {
         }
 
         Ok(CallToolResult::success(vec![ContentBlock::text(
-            format::overview(
-                path.unwrap_or("."),
-                &digests,
-                max_symbols_per_module as u32,
-            ),
+            format::overview(path.unwrap_or("."), &digests, max_symbols_per_module as u32),
         )]))
     }
 
@@ -1650,7 +1701,9 @@ impl MctServer {
             mct_index::find_dead_code_candidates(&index, path, language).map_err(index_error)?;
 
         let text = match output_format {
-            OutputFormat::Text => format::find_dead_code(path.unwrap_or("."), &candidates, offset, limit),
+            OutputFormat::Text => {
+                format::find_dead_code(path.unwrap_or("."), &candidates, offset, limit)
+            }
             OutputFormat::Toon => {
                 format::find_dead_code_toon(path.unwrap_or("."), &candidates, offset, limit)
             }
@@ -1677,9 +1730,7 @@ impl MctServer {
         let catalog = self.tool_router.list_all();
         let tool = catalog.iter().find(|t| t.name == name).ok_or_else(|| {
             McpError::invalid_params(
-                format!(
-                    "no tool named `{name}` — call discover_tool_categories for the full list"
-                ),
+                format!("no tool named `{name}` — call discover_tool_categories for the full list"),
                 None,
             )
         })?;
@@ -1695,7 +1746,10 @@ impl MctServer {
         Parameters(BatchArgs { queries }): Parameters<BatchArgs>,
     ) -> Result<CallToolResult, McpError> {
         if queries.is_empty() {
-            return Err(McpError::invalid_params("`queries` must not be empty", None));
+            return Err(McpError::invalid_params(
+                "`queries` must not be empty",
+                None,
+            ));
         }
         if queries.len() > BATCH_MAX_QUERIES {
             return Err(McpError::invalid_params(
@@ -1734,13 +1788,11 @@ impl MctServer {
 #[tool_handler]
 impl ServerHandler for MctServer {
     fn get_info(&self) -> InitializeResult {
-        InitializeResult::new(
-            ServerCapabilities::builder().enable_tools().build(),
-        )
-        .with_server_info(Implementation::from_build_env())
-        .with_protocol_version(ProtocolVersion::V_2024_11_05)
-        .with_instructions(
-            "Indexes this repository's source code (any of the supported languages, including \
+        InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
+            .with_server_info(Implementation::from_build_env())
+            .with_protocol_version(ProtocolVersion::V_2024_11_05)
+            .with_instructions(
+                "Indexes this repository's source code (any of the supported languages, including \
              polyglot repos) into a symbol graph. Prefer these tools over reading whole files \
              with grep or a file reader when you need to locate a definition or understand call \
              relationships — it costs far fewer tokens. list_symbols is the discovery tool: use \
@@ -1780,7 +1832,7 @@ impl ServerHandler for MctServer {
              (any tool above except reindex) in one call, each reported under its own header — \
              prefer it over several separate calls whenever you already know the queries you \
              need, since it drops the per-call overhead."
-                .to_string(),
-        )
+                    .to_string(),
+            )
     }
 }

@@ -326,16 +326,29 @@ fn a_quoted_query_is_a_strict_lexical_phrase_even_with_alpha_one() {
     let embedder = FakeEmbedder::new("fake-v1");
     index.refresh_embeddings(&embedder).unwrap();
     let hits = index
-        .hybrid_search("\"parse_request\"", Some(&embedder), 1.0, QueryScope::default())
+        .hybrid_search(
+            "\"parse_request\"",
+            Some(&embedder),
+            1.0,
+            QueryScope::default(),
+        )
         .unwrap();
     let names: Vec<&str> = hits.iter().map(|h| h.hit.name.as_str()).collect();
     // Literal name first, same words next, literal substring, then the
     // word sequence; `request_parse` (wrong order) never matches.
     assert_eq!(
         names,
-        ["parse_request", "ParseRequest", "parse_request_body", "ParseRequestBody"]
+        [
+            "parse_request",
+            "ParseRequest",
+            "parse_request_body",
+            "ParseRequestBody"
+        ]
     );
-    assert!(hits.iter().all(|h| h.semantic_rank.is_none()), "semantic side must be off");
+    assert!(
+        hits.iter().all(|h| h.semantic_rank.is_none()),
+        "semantic side must be off"
+    );
     assert!(hits[..3].iter().all(|h| h.score >= EXACT_PHRASE_BOOST));
     assert!(hits[3].score < EXACT_PHRASE_BOOST);
     // Unquoted, the same words are an ordinary (prefix, any-order) search.
@@ -355,14 +368,21 @@ fn error_literals_and_special_characters_land_on_top() {
         assert_eq!(first(query).as_deref(), Some(expected), "{query}");
     }
     // FTS5 operators and quotes inside the phrase are inert text, not syntax.
-    for query in ["\"parse\" OR \"request\"", "\"NEAR(parse request)\"", "\"*^:()\""] {
+    for query in [
+        "\"parse\" OR \"request\"",
+        "\"NEAR(parse request)\"",
+        "\"*^:()\"",
+    ] {
         assert!(hybrid(&index, query, None, 0.0).is_empty(), "{query}");
     }
 }
 
 #[test]
 fn a_quoted_qualified_name_prefers_its_qualifier() {
-    let (_dir, index) = indexed(&[("app.fake", "fn open\n"), ("net.fake", "fn open\nfn open_socket\n")]);
+    let (_dir, index) = indexed(&[
+        ("app.fake", "fn open\n"),
+        ("net.fake", "fn open\nfn open_socket\n"),
+    ]);
     let hits = index
         .hybrid_search("\"app::open\"", None, 0.0, QueryScope::default())
         .unwrap();

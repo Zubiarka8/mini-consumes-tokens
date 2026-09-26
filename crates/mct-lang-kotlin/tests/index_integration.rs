@@ -30,7 +30,11 @@ fn open_indexed() -> Index {
     let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
     let report = index.reindex(&registry, false).unwrap();
     assert_eq!(report.files_parsed, 3, "Invoice.kt, Logger.kt, Main.kt");
-    assert!(report.issues.is_empty(), "no parse issues expected: {:?}", report.issues);
+    assert!(
+        report.issues.is_empty(),
+        "no parse issues expected: {:?}",
+        report.issues
+    );
     index
 }
 
@@ -92,7 +96,11 @@ fn find_symbol_indexes_object_declaration_and_its_method() {
         .into_iter()
         .filter(|s| s.kind == "class")
         .collect();
-    assert_eq!(logger.len(), 1, "an `object` singleton is indexed as a class");
+    assert_eq!(
+        logger.len(),
+        1,
+        "an `object` singleton is indexed as a class"
+    );
     assert_eq!(logger[0].relative_path, "Logger.kt");
 
     let log = index.find_symbol("log").unwrap();
@@ -117,17 +125,26 @@ fn list_symbols_reports_every_definition_in_the_invoice_file_as_kotlin() {
         "files.language must be kotlin for every row: {entries:?}"
     );
 
-    let fields = index.list_symbols("Invoice.kt", Some("field"), Some("kotlin")).unwrap();
+    let fields = index
+        .list_symbols("Invoice.kt", Some("field"), Some("kotlin"))
+        .unwrap();
     let field_names: Vec<_> = fields.iter().map(|f| f.name.as_str()).collect();
     assert_eq!(field_names, vec!["name", "price", "total"]);
-    assert!(index.list_symbols("Invoice.kt", None, Some("java")).unwrap().is_empty());
+    assert!(index
+        .list_symbols("Invoice.kt", None, Some("java"))
+        .unwrap()
+        .is_empty());
 }
 
 #[test]
 fn status_reports_full_kotlin_coverage() {
     let index = open_indexed();
     let status = index.status().unwrap();
-    let kotlin = status.languages.iter().find(|l| l.language == "kotlin").unwrap();
+    let kotlin = status
+        .languages
+        .iter()
+        .find(|l| l.language == "kotlin")
+        .unwrap();
     assert_eq!(kotlin.file_count, 3);
     assert_eq!(kotlin.symbol_count, 17);
     assert_eq!(status.languages.len(), 1, "the fixture is single-language");
@@ -140,7 +157,11 @@ fn find_calls_reports_log_from_add_item() {
     let index = open_indexed();
     let calls = index.find_calls("addItem").unwrap();
     let log_calls: Vec<_> = calls.iter().filter(|c| c.to_name == "log").collect();
-    assert_eq!(log_calls.len(), 1, "`Logger.log(...)` is recorded under the called name");
+    assert_eq!(
+        log_calls.len(),
+        1,
+        "`Logger.log(...)` is recorded under the called name"
+    );
     assert_eq!(log_calls[0].relative_path, "Invoice.kt");
 }
 
@@ -148,7 +169,11 @@ fn find_calls_reports_log_from_add_item() {
 fn find_callers_of_log_shows_both_invoice_methods() {
     let index = open_indexed();
     let callers = index.find_callers("log").unwrap();
-    assert_eq!(callers.len(), 2, "addItem and addItemWithTax both call log: {callers:?}");
+    assert_eq!(
+        callers.len(),
+        2,
+        "addItem and addItemWithTax both call log: {callers:?}"
+    );
     assert!(callers.iter().all(|c| c.relative_path == "Invoice.kt"));
     assert!(callers.iter().any(|c| c.from_symbol == "addItem"));
     assert!(callers.iter().any(|c| c.from_symbol == "addItemWithTax"));
@@ -171,6 +196,10 @@ fn find_references_finds_cross_file_calls_from_main() {
 
     // Both `LineItem(...)` constructions are recorded.
     let item_refs = index.find_references("LineItem").unwrap();
-    assert_eq!(item_refs.len(), 2, "Main.kt constructs LineItem twice: {item_refs:?}");
+    assert_eq!(
+        item_refs.len(),
+        2,
+        "Main.kt constructs LineItem twice: {item_refs:?}"
+    );
     assert!(item_refs.iter().all(|r| r.relative_path == "Main.kt"));
 }

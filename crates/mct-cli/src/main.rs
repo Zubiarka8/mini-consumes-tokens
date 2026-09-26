@@ -1,9 +1,9 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use clap::{Parser, Subcommand};
 use mct_core::LanguageRegistry;
 use mct_index::{ExcludeSet, Index};
-use clap::{Parser, Subcommand};
 
 /// Index a repository and inspect the index from the command line.
 ///
@@ -11,7 +11,11 @@ use clap::{Parser, Subcommand};
 /// startup — this CLI is for manual/scripted use (CI, a pre-commit hook, or
 /// just checking coverage before wiring up the plugin).
 #[derive(Parser, Debug)]
-#[command(name = "mct-cli", version, disable_version_flag = true, after_help = "\
+#[command(
+    name = "mct-cli",
+    version,
+    disable_version_flag = true,
+    after_help = "\
 Invoked here via `cargo run -p mct-cli --`; once installed on PATH (e.g.
 `cargo install --path crates/mct-cli`) the binary is `mct-cli` too, so drop
 the `cargo run -p mct-cli --` prefix from every example below.
@@ -23,7 +27,8 @@ Typical first run:
   cargo run -p mct-cli -- --root . status
 
 Run `cargo run -p mct-cli -- <command> --help` for a command's full
-description and examples.")]
+description and examples."
+)]
 struct Cli {
     /// Project root to operate on. Defaults to the current working directory.
     #[arg(long, global = true)]
@@ -51,7 +56,9 @@ enum Command {
     /// `--force` is given. Safe to run repeatedly (e.g. from a pre-commit
     /// hook or CI step) — a no-op reindex costs one blob-hash comparison
     /// per file.
-    #[command(after_help = "Examples:\n  cargo run -p mct-cli -- --root . reindex\n  cargo run -p mct-cli -- --root . reindex --force")]
+    #[command(
+        after_help = "Examples:\n  cargo run -p mct-cli -- --root . reindex\n  cargo run -p mct-cli -- --root . reindex --force"
+    )]
     Reindex {
         /// Re-parse every supported file, even if unchanged since last run.
         #[arg(long)]
@@ -72,7 +79,9 @@ enum Command {
     /// for this project. Merges into an existing file instead of
     /// overwriting it, so other servers already configured there are left
     /// untouched.
-    #[command(after_help = "Examples:\n  cargo run -p mct-cli -- --root . mcp-register\n  cargo run -p mct-cli -- --root . mcp-register --name my-project")]
+    #[command(
+        after_help = "Examples:\n  cargo run -p mct-cli -- --root . mcp-register\n  cargo run -p mct-cli -- --root . mcp-register --name my-project"
+    )]
     McpRegister {
         /// Server name (the key under `mcpServers`). Defaults to the root
         /// directory's own name.
@@ -86,7 +95,9 @@ enum Command {
     /// indexing (e.g. `docs/`, `*.md`) on top of the built-in exclusions,
     /// without touching git. Without `--import-gitignore`, an existing file
     /// is left untouched.
-    #[command(after_help = "Examples:\n  cargo run -p mct-cli -- --root . ignore-init\n  cargo run -p mct-cli -- --root . ignore-init --import-gitignore")]
+    #[command(
+        after_help = "Examples:\n  cargo run -p mct-cli -- --root . ignore-init\n  cargo run -p mct-cli -- --root . ignore-init --import-gitignore"
+    )]
     IgnoreInit {
         /// Activate `@import-gitignore`, so everything the project's
         /// `.gitignore` excludes is excluded from indexing too. On a fresh
@@ -174,9 +185,11 @@ fn main() -> anyhow::Result<()> {
         Command::Init => print_reindex(index.reindex(&registry, false)?),
         Command::Reindex { force } => print_reindex(index.reindex(&registry, force)?),
         Command::Status => print_status(index.status()?),
-        Command::DeadCode { path, language, output } => {
-            dead_code_report(&index, path.as_deref(), language.as_deref(), output)?
-        }
+        Command::DeadCode {
+            path,
+            language,
+            output,
+        } => dead_code_report(&index, path.as_deref(), language.as_deref(), output)?,
         Command::McpRegister { .. } | Command::IgnoreInit { .. } | Command::GitignoreInit => {
             unreachable!("returned above")
         }
@@ -205,14 +218,19 @@ fn mcp_register(root: &Path, name: Option<String>) -> anyhow::Result<()> {
         serde_json::json!({})
     };
 
-    let top = config
-        .as_object_mut()
-        .ok_or_else(|| anyhow::anyhow!("{}: top level must be a JSON object", config_path.display()))?;
+    let top = config.as_object_mut().ok_or_else(|| {
+        anyhow::anyhow!("{}: top level must be a JSON object", config_path.display())
+    })?;
     let servers = top
         .entry("mcpServers")
         .or_insert_with(|| serde_json::json!({}))
         .as_object_mut()
-        .ok_or_else(|| anyhow::anyhow!("{}: \"mcpServers\" must be a JSON object", config_path.display()))?;
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "{}: \"mcpServers\" must be a JSON object",
+                config_path.display()
+            )
+        })?;
 
     servers.insert(
         server_name.clone(),
@@ -224,8 +242,14 @@ fn mcp_register(root: &Path, name: Option<String>) -> anyhow::Result<()> {
         }),
     );
 
-    std::fs::write(&config_path, format!("{}\n", serde_json::to_string_pretty(&config)?))?;
-    println!("Registered `{server_name}` in {}", display_path(&config_path));
+    std::fs::write(
+        &config_path,
+        format!("{}\n", serde_json::to_string_pretty(&config)?),
+    )?;
+    println!(
+        "Registered `{server_name}` in {}",
+        display_path(&config_path)
+    );
     Ok(())
 }
 
@@ -276,7 +300,10 @@ fn ignore_init(root: &Path, import_gitignore: bool) -> anyhow::Result<()> {
 /// own — idempotent, and never touches anything else already in the file.
 fn activate_gitignore_import(path: &Path) -> anyhow::Result<()> {
     let contents = std::fs::read_to_string(path)?;
-    if contents.lines().any(|line| line.trim() == mct_index::GITIGNORE_IMPORT_DIRECTIVE) {
+    if contents
+        .lines()
+        .any(|line| line.trim() == mct_index::GITIGNORE_IMPORT_DIRECTIVE)
+    {
         println!("{} already imports .gitignore.", display_path(path));
         return Ok(());
     }
@@ -353,7 +380,8 @@ fn dead_code_report(
     output: Option<PathBuf>,
 ) -> anyhow::Result<()> {
     let candidates = mct_index::find_dead_code_candidates(index, path, language)?;
-    let output = output.unwrap_or_else(|| index.root().join(".mct-index").join("dead-code-report.csv"));
+    let output =
+        output.unwrap_or_else(|| index.root().join(".mct-index").join("dead-code-report.csv"));
     if let Some(parent) = output.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -426,7 +454,10 @@ fn print_reindex(report: mct_index::ReindexReport) {
     if !report.issues.is_empty() {
         println!("{} issue(s):", report.issues.len());
         for issue in &report.issues {
-            println!("  {} [{:?}]: {}", issue.relative_path, issue.kind, issue.detail);
+            println!(
+                "  {} [{:?}]: {}",
+                issue.relative_path, issue.kind, issue.detail
+            );
         }
     }
 }
@@ -443,7 +474,10 @@ fn print_status(status: mct_index::IndexStatus) {
     if !status.languages.is_empty() {
         println!("Coverage by language:");
         for lang in &status.languages {
-            println!("  {}: {} files, {} symbols", lang.language, lang.file_count, lang.symbol_count);
+            println!(
+                "  {}: {} files, {} symbols",
+                lang.language, lang.file_count, lang.symbol_count
+            );
         }
     }
     if !status.unsupported_languages.is_empty() {
@@ -565,7 +599,11 @@ mod tests {
         let dir = temp_project_dir("polyglot-index");
         fs::write(dir.join("lib.rs"), "pub fn add(a: i32) -> i32 { a }\n").unwrap();
         fs::write(dir.join("app.py"), "def run():\n    return add(1)\n").unwrap();
-        fs::write(dir.join("main.go"), "package main\n\nfunc Run() int {\n\treturn 1\n}\n").unwrap();
+        fs::write(
+            dir.join("main.go"),
+            "package main\n\nfunc Run() int {\n\treturn 1\n}\n",
+        )
+        .unwrap();
         fs::write(dir.join("notes.md"), "# Title\n\nbody\n").unwrap();
 
         let db_path = dir.join(".mct-index").join("index.sqlite3");
@@ -577,7 +615,11 @@ mod tests {
         assert!(report.issues.is_empty(), "{:?}", report.issues);
 
         let status = index.status().unwrap();
-        let mut languages: Vec<&str> = status.languages.iter().map(|l| l.language.as_str()).collect();
+        let mut languages: Vec<&str> = status
+            .languages
+            .iter()
+            .map(|l| l.language.as_str())
+            .collect();
         languages.sort_unstable();
         assert_eq!(languages, vec!["go", "markdown", "python", "rust"]);
         assert_eq!(index.find_symbol("add").unwrap().len(), 1);
@@ -650,7 +692,8 @@ mod tests {
 
         ignore_init(&dir, false).expect("ignore_init should succeed");
 
-        let contents = fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
+        let contents =
+            fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
         assert_eq!(contents, mct_index::IGNORE_FILE_TEMPLATE);
 
         fs::remove_dir_all(&dir).ok();
@@ -659,11 +702,13 @@ mod tests {
     #[test]
     fn ignore_init_does_not_overwrite_an_existing_file() {
         let dir = temp_project_dir("ignore-init-existing");
-        fs::write(dir.join(mct_index::IGNORE_FILE_NAME), "*.md\n").expect("seed existing ignore file");
+        fs::write(dir.join(mct_index::IGNORE_FILE_NAME), "*.md\n")
+            .expect("seed existing ignore file");
 
         ignore_init(&dir, false).expect("ignore_init should succeed");
 
-        let contents = fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
+        let contents =
+            fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
         assert_eq!(contents, "*.md\n");
 
         fs::remove_dir_all(&dir).ok();
@@ -675,9 +720,12 @@ mod tests {
 
         ignore_init(&dir, true).expect("ignore_init should succeed");
 
-        let contents = fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
+        let contents =
+            fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
         assert!(
-            contents.lines().any(|line| line == mct_index::GITIGNORE_IMPORT_DIRECTIVE),
+            contents
+                .lines()
+                .any(|line| line == mct_index::GITIGNORE_IMPORT_DIRECTIVE),
             "expected an active (uncommented) directive line, got: {contents}"
         );
         assert_eq!(
@@ -692,11 +740,13 @@ mod tests {
     #[test]
     fn ignore_init_without_the_flag_never_touches_an_existing_file() {
         let dir = temp_project_dir("ignore-init-no-flag-existing");
-        fs::write(dir.join(mct_index::IGNORE_FILE_NAME), "*.md\n").expect("seed existing ignore file");
+        fs::write(dir.join(mct_index::IGNORE_FILE_NAME), "*.md\n")
+            .expect("seed existing ignore file");
 
         ignore_init(&dir, false).expect("ignore_init should succeed");
 
-        let contents = fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
+        let contents =
+            fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
         assert_eq!(contents, "*.md\n");
 
         fs::remove_dir_all(&dir).ok();
@@ -705,11 +755,13 @@ mod tests {
     #[test]
     fn ignore_init_import_gitignore_flag_activates_the_directive_on_an_existing_file() {
         let dir = temp_project_dir("ignore-init-import-gitignore-existing");
-        fs::write(dir.join(mct_index::IGNORE_FILE_NAME), "*.md\n").expect("seed existing ignore file");
+        fs::write(dir.join(mct_index::IGNORE_FILE_NAME), "*.md\n")
+            .expect("seed existing ignore file");
 
         ignore_init(&dir, true).expect("ignore_init should succeed");
 
-        let contents = fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
+        let contents =
+            fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
         assert_eq!(contents, "*.md\n@import-gitignore\n");
 
         fs::remove_dir_all(&dir).ok();
@@ -718,14 +770,20 @@ mod tests {
     #[test]
     fn ignore_init_import_gitignore_flag_is_idempotent_on_an_existing_file() {
         let dir = temp_project_dir("ignore-init-import-gitignore-idempotent");
-        fs::write(dir.join(mct_index::IGNORE_FILE_NAME), "*.md\n").expect("seed existing ignore file");
+        fs::write(dir.join(mct_index::IGNORE_FILE_NAME), "*.md\n")
+            .expect("seed existing ignore file");
 
         ignore_init(&dir, true).expect("first ignore_init should succeed");
-        let first = fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
+        let first =
+            fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
         ignore_init(&dir, true).expect("second ignore_init should succeed");
-        let second = fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
+        let second =
+            fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
 
-        assert_eq!(first, second, "a second run should not duplicate the directive");
+        assert_eq!(
+            first, second,
+            "a second run should not duplicate the directive"
+        );
 
         fs::remove_dir_all(&dir).ok();
     }
@@ -753,7 +811,10 @@ mod tests {
         gitignore_init(&dir).expect("gitignore_init should succeed");
 
         let contents = fs::read_to_string(dir.join(".gitignore")).expect("file should exist");
-        assert!(contents.contains("node_modules/"), "existing entry should survive: {contents}");
+        assert!(
+            contents.contains("node_modules/"),
+            "existing entry should survive: {contents}"
+        );
         assert!(
             contents.lines().any(|line| line.trim() == ".mct-index/"),
             "expected `.mct-index/` appended, got: {contents}"
@@ -779,12 +840,16 @@ mod tests {
     #[test]
     fn gitignore_init_recognizes_an_already_present_entry() {
         let dir = temp_project_dir("gitignore-init-already-present");
-        fs::write(dir.join(".gitignore"), "target/\n.mct-index/\n").expect("seed existing gitignore");
+        fs::write(dir.join(".gitignore"), "target/\n.mct-index/\n")
+            .expect("seed existing gitignore");
 
         gitignore_init(&dir).expect("gitignore_init should succeed");
 
         let contents = fs::read_to_string(dir.join(".gitignore")).expect("file should exist");
-        assert_eq!(contents, "target/\n.mct-index/\n", "should not add a duplicate entry");
+        assert_eq!(
+            contents, "target/\n.mct-index/\n",
+            "should not add a duplicate entry"
+        );
 
         fs::remove_dir_all(&dir).ok();
     }
@@ -805,7 +870,11 @@ mod tests {
         assert_eq!(report.files_parsed, 1, "{:?}", report.issues);
 
         let status = index.status().unwrap();
-        let languages: Vec<&str> = status.languages.iter().map(|l| l.language.as_str()).collect();
+        let languages: Vec<&str> = status
+            .languages
+            .iter()
+            .map(|l| l.language.as_str())
+            .collect();
         assert_eq!(languages, vec!["rust"]);
 
         fs::remove_dir_all(&dir).ok();
@@ -835,9 +904,20 @@ mod tests {
             "project_root,file,function,kind,language,start_line,end_line"
         );
         let rows: Vec<&str> = lines.collect();
-        assert_eq!(rows.len(), 1, "expected exactly one candidate, got: {contents}");
-        assert!(rows[0].contains(",lib.rs,unused,function,rust,"), "{}", rows[0]);
-        assert!(!contents.contains(",used,"), "`used` should not be flagged: {contents}");
+        assert_eq!(
+            rows.len(),
+            1,
+            "expected exactly one candidate, got: {contents}"
+        );
+        assert!(
+            rows[0].contains(",lib.rs,unused,function,rust,"),
+            "{}",
+            rows[0]
+        );
+        assert!(
+            !contents.contains(",used,"),
+            "`used` should not be flagged: {contents}"
+        );
 
         fs::remove_dir_all(&dir).ok();
     }
@@ -850,8 +930,17 @@ mod tests {
 
         let contents = fs::read_to_string(dir.join(".mcp.json")).expect("config should exist");
         let json: serde_json::Value = serde_json::from_str(&contents).expect("valid json");
-        let expected_name = dir.canonicalize().unwrap().file_name().unwrap().to_string_lossy().to_string();
-        assert!(json["mcpServers"].as_object().unwrap().contains_key(&expected_name));
+        let expected_name = dir
+            .canonicalize()
+            .unwrap()
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
+        assert!(json["mcpServers"]
+            .as_object()
+            .unwrap()
+            .contains_key(&expected_name));
 
         fs::remove_dir_all(&dir).ok();
     }

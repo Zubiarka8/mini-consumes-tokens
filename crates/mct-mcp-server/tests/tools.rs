@@ -323,7 +323,10 @@ async fn find_symbol_unrecognized_match_mode_is_rejected_as_invalid_params() {
             limit: None,
         }))
         .await;
-    assert!(result.is_err(), "an unrecognized match mode must not silently fall back to exact");
+    assert!(
+        result.is_err(),
+        "an unrecognized match mode must not silently fall back to exact"
+    );
 }
 
 #[tokio::test]

@@ -14,8 +14,8 @@
 //! read positionally/by-kind rather than via `child_by_field_name`.
 
 use mct_core::{
-    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
-    SymbolKind, SymbolRecord, SymbolRelation,
+    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
+    SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use tree_sitter::{Node, Parser};
 
@@ -42,11 +42,13 @@ impl LanguageParser for KotlinParser {
             .set_language(&tree_sitter_kotlin_ng::LANGUAGE.into())
             .expect("tree-sitter-kotlin-ng grammar is statically valid");
 
-        let tree = parser.parse(&file.contents, None).ok_or_else(|| ParseError::Syntax {
-            path: file.relative_path.clone(),
-            line: 1,
-            message: "tree-sitter produced no parse tree".to_string(),
-        })?;
+        let tree = parser
+            .parse(&file.contents, None)
+            .ok_or_else(|| ParseError::Syntax {
+                path: file.relative_path.clone(),
+                line: 1,
+                message: "tree-sitter produced no parse tree".to_string(),
+            })?;
 
         let root = tree.root_node();
         if root.has_error() {
@@ -67,7 +69,12 @@ impl LanguageParser for KotlinParser {
         // and C#'s namespace_declaration.
         if let Some(package_header) = find_child(root, "package_header") {
             if let Some(qid) = package_header.named_child(0) {
-                walker.push_symbol(text(qid, &file.contents).to_string(), SymbolKind::Module, location(package_header), None);
+                walker.push_symbol(
+                    text(qid, &file.contents).to_string(),
+                    SymbolKind::Module,
+                    location(package_header),
+                    None,
+                );
             }
         }
 
@@ -136,7 +143,10 @@ fn is_interface(class_declaration: Node) -> bool {
 /// Java's `method_invocation`/Go's `selector_expression`.
 fn last_identifier_child(node: Node) -> Option<Node> {
     let mut cursor = node.walk();
-    let idents: Vec<Node> = node.named_children(&mut cursor).filter(|c| c.kind() == "identifier").collect();
+    let idents: Vec<Node> = node
+        .named_children(&mut cursor)
+        .filter(|c| c.kind() == "identifier")
+        .collect();
     idents.last().copied()
 }
 
@@ -187,7 +197,9 @@ fn class_parameter_name(class_parameter: Node) -> Option<Node> {
 fn is_promoted_property(class_parameter: Node) -> bool {
     let mut cursor = class_parameter.walk();
     let children: Vec<Node> = class_parameter.children(&mut cursor).collect();
-    children.into_iter().any(|c| c.kind() == "val" || c.kind() == "var")
+    children
+        .into_iter()
+        .any(|c| c.kind() == "val" || c.kind() == "var")
 }
 
 struct Walker<'a> {
@@ -199,21 +211,50 @@ struct Walker<'a> {
 
 impl<'a> Walker<'a> {
     fn new(source: &'a str) -> Self {
-        Self { source, symbols: Vec::new(), relations: Vec::new(), next_id: 0 }
+        Self {
+            source,
+            symbols: Vec::new(),
+            relations: Vec::new(),
+            next_id: 0,
+        }
     }
 
-    fn push_symbol(&mut self, name: String, kind: SymbolKind, location: Location, parent: Option<String>) -> SymbolId {
+    fn push_symbol(
+        &mut self,
+        name: String,
+        kind: SymbolKind,
+        location: Location,
+        parent: Option<String>,
+    ) -> SymbolId {
         let id = self.next_id;
         self.next_id += 1;
-        self.symbols.push(SymbolRecord { id, name, kind, location, parent, level: None });
+        self.symbols.push(SymbolRecord {
+            id,
+            name,
+            kind,
+            location,
+            parent,
+            level: None,
+        });
         id
     }
 
-    fn push_relation(&mut self, from: SymbolId, kind: RelationKind, to_name: String, loc: Location) {
+    fn push_relation(
+        &mut self,
+        from: SymbolId,
+        kind: RelationKind,
+        to_name: String,
+        loc: Location,
+    ) {
         if to_name.is_empty() {
             return;
         }
-        self.relations.push(SymbolRelation { from, kind, to_name, location: loc });
+        self.relations.push(SymbolRelation {
+            from,
+            kind,
+            to_name,
+            location: loc,
+        });
     }
 
     fn visit_children(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>, depth: u32) {
@@ -239,8 +280,16 @@ impl<'a> Walker<'a> {
                     // `object_declaration` reuses Class — see module doc.
                     SymbolKind::Class
                 };
-                let name = node.child_by_field_name("name").map(|n| text(n, self.source).to_string()).unwrap_or_default();
-                let id = self.push_symbol(name.clone(), kind, location(node), type_name.map(str::to_string));
+                let name = node
+                    .child_by_field_name("name")
+                    .map(|n| text(n, self.source).to_string())
+                    .unwrap_or_default();
+                let id = self.push_symbol(
+                    name.clone(),
+                    kind,
+                    location(node),
+                    type_name.map(str::to_string),
+                );
 
                 if let Some(delegations) = find_child(node, "delegation_specifiers") {
                     let mut cursor = delegations.walk();
@@ -254,14 +303,24 @@ impl<'a> Walker<'a> {
                                 "constructor_invocation" => {
                                     if let Some(user_type) = target.named_child(0) {
                                         if let Some(type_id) = user_type.named_child(0) {
-                                            self.push_relation(id, RelationKind::Extends, text(type_id, self.source).to_string(), location(type_id));
+                                            self.push_relation(
+                                                id,
+                                                RelationKind::Extends,
+                                                text(type_id, self.source).to_string(),
+                                                location(type_id),
+                                            );
                                         }
                                     }
                                 }
                                 // A bare type name, no call — an interface.
                                 "user_type" => {
                                     if let Some(type_id) = target.named_child(0) {
-                                        self.push_relation(id, RelationKind::Implements, text(type_id, self.source).to_string(), location(type_id));
+                                        self.push_relation(
+                                            id,
+                                            RelationKind::Implements,
+                                            text(type_id, self.source).to_string(),
+                                            location(type_id),
+                                        );
                                     }
                                 }
                                 _ => {}
@@ -280,7 +339,12 @@ impl<'a> Walker<'a> {
             "class_parameter" => {
                 if is_promoted_property(node) {
                     if let Some(name_node) = class_parameter_name(node) {
-                        self.push_symbol(text(name_node, self.source).to_string(), SymbolKind::Field, location(node), type_name.map(str::to_string));
+                        self.push_symbol(
+                            text(name_node, self.source).to_string(),
+                            SymbolKind::Field,
+                            location(node),
+                            type_name.map(str::to_string),
+                        );
                     }
                 }
                 // Default-value expressions (`= mutableListOf()`) may still
@@ -288,7 +352,10 @@ impl<'a> Walker<'a> {
                 self.visit_children(node, owner, type_name, depth + 1);
             }
             "function_declaration" => {
-                let name = node.child_by_field_name("name").map(|n| text(n, self.source).to_string()).unwrap_or_default();
+                let name = node
+                    .child_by_field_name("name")
+                    .map(|n| text(n, self.source).to_string())
+                    .unwrap_or_default();
                 let receiver = extension_receiver(node, self.source);
                 let parent = receiver.or_else(|| type_name.map(str::to_string));
                 let id = self.push_symbol(name, SymbolKind::Method, location(node), parent);
@@ -303,7 +370,12 @@ impl<'a> Walker<'a> {
                 if type_name.is_some() {
                     if let Some(var_decl) = find_child(node, "variable_declaration") {
                         if let Some(name_node) = var_decl.named_child(0) {
-                            self.push_symbol(text(name_node, self.source).to_string(), SymbolKind::Field, location(node), type_name.map(str::to_string));
+                            self.push_symbol(
+                                text(name_node, self.source).to_string(),
+                                SymbolKind::Field,
+                                location(node),
+                                type_name.map(str::to_string),
+                            );
                         }
                     }
                 }
@@ -320,12 +392,20 @@ impl<'a> Walker<'a> {
                 } else {
                     named.first().and_then(|qid| {
                         let mut c = qid.walk();
-                        let idents: Vec<Node> = qid.named_children(&mut c).filter(|n| n.kind() == "identifier").collect();
+                        let idents: Vec<Node> = qid
+                            .named_children(&mut c)
+                            .filter(|n| n.kind() == "identifier")
+                            .collect();
                         idents.last().copied()
                     })
                 };
                 if let Some(name_node) = imported {
-                    self.push_relation(owner, RelationKind::Imports, text(name_node, self.source).to_string(), location(node));
+                    self.push_relation(
+                        owner,
+                        RelationKind::Imports,
+                        text(name_node, self.source).to_string(),
+                        location(node),
+                    );
                 }
             }
             "call_expression" => {
@@ -333,7 +413,12 @@ impl<'a> Walker<'a> {
                     // location(name_node), not location(node): a chained call
                     // (`a.f(x).f(y)`) would otherwise collide two distinct
                     // calls into one indistinguishable row.
-                    self.push_relation(owner, RelationKind::Calls, text(name_node, self.source).to_string(), location(name_node));
+                    self.push_relation(
+                        owner,
+                        RelationKind::Calls,
+                        text(name_node, self.source).to_string(),
+                        location(name_node),
+                    );
                 }
                 self.visit_children(node, owner, type_name, depth + 1);
             }
@@ -342,6 +427,10 @@ impl<'a> Walker<'a> {
     }
 
     fn finish(self) -> ParsedFile {
-        ParsedFile { symbols: self.symbols, relations: self.relations, ..Default::default() }
+        ParsedFile {
+            symbols: self.symbols,
+            relations: self.relations,
+            ..Default::default()
+        }
     }
 }
