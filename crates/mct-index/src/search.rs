@@ -9,6 +9,8 @@
 //! migrations run — the migration's backfill and every later write go
 //! through the exact same [`split_identifier`] this module queries with.
 
+use std::collections::HashSet;
+
 use rusqlite::functions::FunctionFlags;
 use rusqlite::Connection;
 
@@ -118,12 +120,74 @@ fn fallback_expression(query: &str) -> Option<String> {
 }
 
 fn fts_terms(words: Vec<String>, joiner: &str) -> Option<String> {
+    fts_terms_with(words, joiner, false)
+}
+
+/// [`fts_terms`], optionally turning each word of a [`SYNONYM_GROUPS`] group
+/// into an `OR` of the whole group: `get file` → `("get"* OR "fetch"* OR
+/// "read"*) "file"*`.
+fn fts_terms_with(words: Vec<String>, joiner: &str, synonyms: bool) -> Option<String> {
+    let quote = |t: &str| format!("\"{}\"*", t.replace('"', "\"\""));
     let terms: Vec<String> = words
         .into_iter()
         .take(MAX_QUERY_TERMS)
-        .map(|t| format!("\"{}\"*", t.replace('"', "\"\"")))
+        .map(|t| match synonyms.then(|| synonym_group(&t)).flatten() {
+            Some(group) => format!(
+                "({})",
+                group.iter().map(|s| quote(s)).collect::<Vec<_>>().join(" OR ")
+            ),
+            None => quote(&t),
+        })
         .collect();
     (!terms.is_empty()).then(|| terms.join(joiner))
+}
+
+/// Verbs developers use interchangeably in names. Only `hybrid_search`'s
+/// lexical side expands them (see [`LexicalOptions::synonyms`]);
+/// `search_symbols` stays literal.
+const SYNONYM_GROUPS: &[&[&str]] = &[
+    &["get", "fetch", "read"],
+    &["set", "update", "write"],
+    &["delete", "remove"],
+];
+
+fn synonym_group(word: &str) -> Option<&'static [&'static str]> {
+    SYNONYM_GROUPS.iter().copied().find(|g| g.contains(&word))
+}
+
+/// Extra behaviour for the lexical ranking `hybrid_search` fuses; the
+/// default (all off) is exactly [`search_symbols`].
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct LexicalOptions {
+    /// Also match [`SYNONYM_GROUPS`] alternatives of each query word.
+    /// Literal matches still rank before synonym-only ones in their tier.
+    pub synonyms: bool,
+    /// Read `Type::method` / `module.function` as "`method`, preferably
+    /// inside `Type`" — see [`qualified_parts`].
+    pub qualified: bool,
+}
+
+/// Splits a qualified name (`Index::hybrid_search`, `toon.decode_table`,
+/// `a->b`) into its qualifier words and its last segment, or `None` when
+/// `query` isn't one: it must be a single whitespace-free token of
+/// identifier segments.
+pub(crate) fn qualified_parts(query: &str) -> Option<(Vec<String>, &str)> {
+    let query = query.trim();
+    if query.is_empty() || query.contains(char::is_whitespace) {
+        return None;
+    }
+    let segments: Vec<&str> = query
+        .split("::")
+        .flat_map(|s| s.split("->"))
+        .flat_map(|s| s.split('.'))
+        .collect();
+    let (last, qualifiers) = segments.split_last()?;
+    let is_ident = |s: &&str| !s.is_empty() && s.chars().all(|c| c.is_alphanumeric() || c == '_');
+    if qualifiers.is_empty() || !is_ident(last) || !qualifiers.iter().all(is_ident) {
+        return None;
+    }
+    let words = qualifiers.iter().flat_map(|q| split_identifier(q)).collect();
+    Some((words, last))
 }
 
 /// How well a hit's name matches the query, before BM25 is consulted:
@@ -155,23 +219,79 @@ pub fn search_symbols(
     query: &str,
     scope: ResolvedScope<'_>,
 ) -> Result<Vec<SymbolHit>> {
+    search_symbols_with(conn, query, scope, LexicalOptions::default())
+}
+
+/// [`search_symbols`] with the [`LexicalOptions`] `hybrid_search` uses.
+/// With a qualified query, only its last segment is searched for, and hits
+/// whose parent or path contains every qualifier word rank first in their
+/// tier; with synonyms, literal matches rank before synonym-only ones.
+pub(crate) fn search_symbols_with(
+    conn: &Connection,
+    query: &str,
+    scope: ResolvedScope<'_>,
+    options: LexicalOptions,
+) -> Result<Vec<SymbolHit>> {
+    let (qualifier, query) = match options.qualified.then(|| qualified_parts(query)).flatten() {
+        Some((words, last)) => (words, last),
+        None => (Vec::new(), query),
+    };
     let Some(all_terms) = fts_expression(query, " ") else {
         return Ok(Vec::new());
     };
-    let mut ranked = run_match(conn, &all_terms, scope)?;
+    // (bm25, synonym-only, hit)
+    let mut ranked: Vec<(f64, bool, SymbolHit)> = run_match(conn, &all_terms, scope)?
+        .into_iter()
+        .map(|(score, hit)| (score, false, hit))
+        .collect();
+    let all_expanded = fts_terms_with(split_identifier(query), " AND ", true)
+        .filter(|e| options.synonyms && e.contains(" OR "));
+    if let Some(all_expanded) = all_expanded {
+        let mut seen: HashSet<(String, u32, u32)> = ranked
+            .iter()
+            .map(|(_, _, h)| (h.relative_path.clone(), h.line, h.column))
+            .collect();
+        for (score, hit) in run_match(conn, &all_expanded, scope)? {
+            if seen.insert((hit.relative_path.clone(), hit.line, hit.column)) {
+                ranked.push((score, true, hit));
+            }
+        }
+    }
     if ranked.is_empty() {
-        if let Some(any_term) = fallback_expression(query).filter(|e| *e != all_terms) {
-            ranked = run_match(conn, &any_term, scope)?;
+        let fallback_words: Vec<String> = split_identifier(query)
+            .into_iter()
+            .filter(|w| w.chars().count() > 1 && !FALLBACK_STOPWORDS.contains(&w.as_str()))
+            .collect();
+        let any_term = if options.synonyms {
+            fts_terms_with(fallback_words, " OR ", true)
+        } else {
+            fallback_expression(query)
+        };
+        if let Some(any_term) = any_term.filter(|e| *e != all_terms) {
+            ranked = run_match(conn, &any_term, scope)?
+                .into_iter()
+                .map(|(score, hit)| (score, false, hit))
+                .collect();
         }
     }
 
     let query_lower = query.trim().to_lowercase();
     let query_compact = split_identifier(query).concat();
-    let mut tiered: Vec<(u8, f64, SymbolHit)> = ranked
+    let outside_qualifier = |hit: &SymbolHit| {
+        if qualifier.is_empty() {
+            return false;
+        }
+        let mut context = split_identifier(&hit.relative_path);
+        context.extend(hit.parent.as_deref().map(split_identifier).unwrap_or_default());
+        !qualifier.iter().all(|w| context.contains(w))
+    };
+    let mut tiered: Vec<(u8, bool, bool, f64, SymbolHit)> = ranked
         .into_iter()
-        .map(|(score, hit)| {
+        .map(|(score, synonym_only, hit)| {
             (
                 match_tier(&hit.name, &query_lower, &query_compact),
+                outside_qualifier(&hit),
+                synonym_only,
                 score,
                 hit,
             )
@@ -179,11 +299,13 @@ pub fn search_symbols(
         .collect();
     tiered.sort_by(|a, b| {
         a.0.cmp(&b.0)
-            .then_with(|| a.1.total_cmp(&b.1))
-            .then_with(|| a.2.relative_path.cmp(&b.2.relative_path))
-            .then_with(|| a.2.line.cmp(&b.2.line))
+            .then_with(|| a.1.cmp(&b.1))
+            .then_with(|| a.2.cmp(&b.2))
+            .then_with(|| a.3.total_cmp(&b.3))
+            .then_with(|| a.4.relative_path.cmp(&b.4.relative_path))
+            .then_with(|| a.4.line.cmp(&b.4.line))
     });
-    Ok(tiered.into_iter().map(|(_, _, hit)| hit).collect())
+    Ok(tiered.into_iter().map(|t| t.4).collect())
 }
 
 fn run_match(
@@ -286,6 +408,36 @@ mod tests {
         assert_eq!(fallback_expression("the a of"), None);
         // All-words matching keeps them: `is_test` is a real name.
         assert_eq!(fts_expression("is test", " ").as_deref(), Some("\"is\"* \"test\"*"));
+    }
+
+    #[test]
+    fn synonym_expansion_ors_the_whole_group_and_stays_quoted() {
+        assert_eq!(
+            fts_terms_with(split_identifier("getFile"), " AND ", true).as_deref(),
+            Some("(\"get\"* OR \"fetch\"* OR \"read\"*) AND \"file\"*")
+        );
+        assert_eq!(
+            fts_terms_with(split_identifier("remove x"), " ", false).as_deref(),
+            Some("\"remove\"* \"x\"*")
+        );
+    }
+
+    #[test]
+    fn qualified_names_split_into_qualifier_words_and_last_segment() {
+        let parts = |q| qualified_parts(q).map(|(w, last)| (w.join(" "), last.to_string()));
+        assert_eq!(
+            parts("Index::hybrid_search"),
+            Some(("index".into(), "hybrid_search".into()))
+        );
+        assert_eq!(
+            parts("mct_core::SymbolRecord"),
+            Some(("mct core".into(), "SymbolRecord".into()))
+        );
+        assert_eq!(parts("toon.decode_table"), Some(("toon".into(), "decode_table".into())));
+        assert_eq!(parts("self->visit"), Some(("self".into(), "visit".into())));
+        for not_qualified in ["hybrid_search", "Index hybrid", "a::", "::a", "a..b", "e.g.", ""] {
+            assert_eq!(parts(not_qualified), None, "{not_qualified:?}");
+        }
     }
 
     #[test]
