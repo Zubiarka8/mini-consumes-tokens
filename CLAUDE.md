@@ -26,6 +26,7 @@ An MCP server (`mct-mcp-server`) and CLI (`mct-cli`) that index a code repositor
 | Every reference to X (calls, imports, extends/implements) | `find_references` |
 | Full blast radius before changing/removing X | `impact_analysis` |
 | Candidate unused functions/classes/structs/enums/traits/interfaces/type-aliases (heuristic — zero indexed references, not true visibility) | `find_dead_code` |
+| Several lookups whose queries you already know (e.g. `find_symbol` + `find_callers` + `get_file_skeleton`)? | `batch` — `queries: [{tool, args}]`, up to 25, any read-only tool (not `reindex`, not a nested `batch`); each result under its own `[n] tool` header, a failing sub-query reported inline without failing the rest. Drops the per-call envelope (≥20% fewer tokens, measured in `crates/mct-mcp-server/tests/batch.rs`) |
 | Is the index stale / healthy? | `get_indexing_status`, and `reindex` only if it looks stale |
 
 `find_references`/`find_calls`/`find_callers`/`impact_analysis` also take `depth` (multi-hop BFS beyond the direct hit, default 1, clamped to 32) and `offset` (pagination past `limit`) — reach for `depth` before manually chaining calls to walk the relation graph further out.
@@ -84,7 +85,7 @@ mct-index    SQLite schema/migrations (a single schema for every language — a 
 mct-lang-*   One crate per language, each a LanguageParser impl over its tree-sitter grammar
 mct-mcp-server  MCP tools over stdio (rmcp): list_symbols/find_symbol/search_symbols/hybrid_search/find_references/
                 find_calls/find_callers/impact_analysis/find_dead_code/reindex/
-                get_indexing_status/get_file_skeleton/get_project_overview/get_file_tree
+                get_indexing_status/get_file_skeleton/get_project_overview/get_file_tree/batch
 mct-cli      init/reindex/status/mcp-register subcommands for manual/scripted use
 ```
 

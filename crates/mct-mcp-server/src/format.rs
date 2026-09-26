@@ -1084,6 +1084,67 @@ pub fn tool_categories(catalog: &[rmcp::model::Tool], categories: &[(&str, &[&st
     out
 }
 
+/// What happened to one `batch` sub-query.
+pub enum BatchOutcome {
+    /// The tool's own rendered output, unchanged.
+    Ok(String),
+    /// The error message a direct call would have returned.
+    Err(String),
+    /// Not run: the batch's byte budget was already spent.
+    Skipped,
+}
+
+impl BatchOutcome {
+    /// Bytes this outcome contributes to the batch response, for the
+    /// caller's budget accounting.
+    pub fn len(&self) -> usize {
+        match self {
+            BatchOutcome::Ok(text) | BatchOutcome::Err(text) => text.len(),
+            BatchOutcome::Skipped => 0,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+/// Renders `batch`'s output: one count line, then each sub-query under a
+/// `[n] tool` header in request order. Each sub-result is the tool's own
+/// output verbatim — a batch only drops the per-call envelope, it never
+/// reformats what a tool returns.
+pub fn batch(outcomes: &[(String, BatchOutcome)]) -> String {
+    let failed = outcomes
+        .iter()
+        .filter(|(_, o)| matches!(o, BatchOutcome::Err(_)))
+        .count();
+    let skipped = outcomes
+        .iter()
+        .filter(|(_, o)| matches!(o, BatchOutcome::Skipped))
+        .count();
+    let mut out = format!("batch: {} quer{}", outcomes.len(), if outcomes.len() == 1 { "y" } else { "ies" });
+    if failed > 0 {
+        out.push_str(&format!(", {failed} failed"));
+    }
+    if skipped > 0 {
+        out.push_str(&format!(
+            ", {skipped} skipped (byte budget reached — rerun them in another batch)"
+        ));
+    }
+    out.push('\n');
+    for (i, (tool, outcome)) in outcomes.iter().enumerate() {
+        let n = i + 1;
+        match outcome {
+            BatchOutcome::Ok(text) => {
+                out.push_str(&format!("\n[{n}] {tool}\n{}\n", text.trim_end()));
+            }
+            BatchOutcome::Err(message) => out.push_str(&format!("\n[{n}] {tool} error: {message}\n")),
+            BatchOutcome::Skipped => out.push_str(&format!("\n[{n}] {tool} skipped\n")),
+        }
+    }
+    out
+}
+
 /// Renders `get_tool_schema`'s output for one already-resolved tool: its
 /// description and full JSON input schema, pretty-printed. The schema is
 /// built by `schemars` from the tool's `Parameters<...>` struct at server

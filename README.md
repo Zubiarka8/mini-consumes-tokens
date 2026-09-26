@@ -21,9 +21,10 @@ A few things that make this different from a typical single-purpose plugin:
 - **It understands 16 programming and markup languages at once**, including projects that mix several languages together.
 - **It isn't tied to one editor or assistant.** It speaks a common protocol called **MCP** (Model Context Protocol) — think of it as a shared language that lets an AI assistant ask a tool for information directly, the same way different apps on your phone can all talk to the same calendar. Any MCP-capable assistant can connect to it.
 - **It also works as a plain command-line tool**, for anyone who just wants to check the health of the index or rebuild it by hand, with no AI assistant involved at all.
-- **16 MCP tools, grouped by purpose** (discovery, lookup, relations, maintenance, meta) — from a single symbol lookup, a ranked search by partial name or an optional search by meaning, to a one-shot "what would this change affect" blast-radius report, plus a project-wide overview and a plain directory tree for getting oriented before you know which file you need.
+- **17 MCP tools, grouped by purpose** (discovery, lookup, relations, maintenance, meta) — from a single symbol lookup, a ranked search by partial name or an optional search by meaning, to a one-shot "what would this change affect" blast-radius report, plus a project-wide overview and a plain directory tree for getting oriented before you know which file you need.
 - **Progressive tool discovery**: an MCP client can ask for a cheap one-line-per-tool catalog first (`discover_tool_categories`) and fetch a tool's full input schema only when it actually needs it (`get_tool_schema`), instead of always loading every schema up front.
 - **Multi-hop relation queries**: `find_references`, `find_calls`, `find_callers`, and `impact_analysis` can walk multiple hops through the call/reference graph in one call (`depth`) and page through large result sets (`offset`), instead of chaining single-hop calls by hand.
+- **Batched queries**: `batch` runs up to 25 read-only queries (any tool except `reindex`) in one call, each answered under its own `[n] tool` header, dropping the per-call overhead — about 37–42% fewer tokens than the same queries sent one by one on the test fixtures. The tool catalog is also kept byte-identical across server starts, so the client's provider prompt caching can reuse it.
 - **Compact `toon` output format**: any result-returning tool can render its output as a token-lean table instead of the default labelled text, opt-in per call.
 
 **Supported languages:** Rust, Python, Java, C#, Kotlin, JavaScript/TypeScript, C++, Go, HTML, CSS, XML, XAML, Bash, PowerShell, PHP, and Markdown (headings plus [[WikiLink]]/#tag relations).
@@ -122,6 +123,7 @@ Once it's connected and healthy, prefer it over grep/reading whole files:
 - Exploring a file/folder before knowing a name -> list_symbols,
   get_file_skeleton, get_project_overview, get_file_tree
 - Candidate unused code -> find_dead_code
+- Several of the above at once, queries already known -> batch
 
 Still read/edit files normally for everything else (writing code, checking
 comment wording, anything the index doesn't cover).
