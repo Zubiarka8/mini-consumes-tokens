@@ -48,3 +48,9 @@ fastembed = { version = "7.1.0", default-features = false, features = ["ort-down
 [features]
 default = []
 semantic = ["dep:fastembed"]
+
+[dev-dependencies]
+# `tests/tools_list.rs` runs a real rmcp client against the server over an
+# in-memory duplex, to check what `tools/list` actually sends (issue #70).
+rmcp = { version = "3.4.1", features = ["client"] }
+tokio = { version = "1.53.1", features = ["io-util"] }
