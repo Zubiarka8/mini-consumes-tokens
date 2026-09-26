@@ -12,6 +12,22 @@ env:
   RUST_TOOLCHAIN: "1.96.0"
 
 jobs:
+  # rustfmt's output doesn't depend on the OS, so one Linux run is enough.
+  # Same pinned toolchain as the build, so a newer rustfmt can't make CI
+  # disagree with a contributor's `cargo fmt`.
+  fmt:
+    name: rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@1.96.0
+        with:
+          components: rustfmt
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
   build-test:
     name: build + test + clippy (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
