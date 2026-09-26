@@ -1,0 +1,115 @@
+{
+  "suite": "omni-app",
+  "catalog_tokens": 7089,
+  "cases": {
+    "Bash callers across sourced files": {
+      "score": 1.0,
+      "tokens": 168
+    },
+    "C# method reference through a field": {
+      "score": 1.0,
+      "tokens": 144
+    },
+    "C++ declaration and definition": {
+      "score": 1.0,
+      "tokens": 157
+    },
+    "Go callees of a handler": {
+      "score": 1.0,
+      "tokens": 190
+    },
+    "Kotlin references to a builder": {
+      "score": 1.0,
+      "tokens": 144
+    },
+    "PHP callers of a function and a method": {
+      "score": 1.0,
+      "tokens": 168
+    },
+    "PascalCase words": {
+      "score": 1.0,
+      "reciprocal_rank": 1.0,
+      "tokens": 147
+    },
+    "Python callees, narrowed by language": {
+      "score": 1.0,
+      "tokens": 177
+    },
+    "TypeScript callers across files": {
+      "score": 1.0,
+      "tokens": 168
+    },
+    "batched lookups": {
+      "score": 1.0,
+      "tokens": 240
+    },
+    "camelCase partial words": {
+      "score": 1.0,
+      "reciprocal_rank": 1.0,
+      "tokens": 147
+    },
+    "cross-file Rust caller": {
+      "score": 1.0,
+      "tokens": 147
+    },
+    "definition of a Go method": {
+      "score": 1.0,
+      "tokens": 146
+    },
+    "definition of a Java class": {
+      "score": 1.0,
+      "tokens": 157
+    },
+    "definition of a PowerShell function": {
+      "score": 1.0,
+      "tokens": 152
+    },
+    "direct blast radius of a constructor": {
+      "score": 1.0,
+      "tokens": 209
+    },
+    "exact-case name among many partial matches": {
+      "score": 1.0,
+      "reciprocal_rank": 0.5,
+      "tokens": 313
+    },
+    "file tree of a directory": {
+      "score": 1.0,
+      "tokens": 141
+    },
+    "fuzzy definition lookup across languages": {
+      "score": 1.0,
+      "tokens": 382
+    },
+    "hybrid lexical ranking": {
+      "score": 1.0,
+      "reciprocal_rank": 1.0,
+      "tokens": 164
+    },
+    "overview of a JVM directory": {
+      "score": 1.0,
+      "tokens": 271
+    },
+    "skeleton of a Rust file": {
+      "score": 1.0,
+      "tokens": 217
+    },
+    "snake_case words": {
+      "score": 1.0,
+      "reciprocal_rank": 1.0,
+      "tokens": 147
+    },
+    "symbols of a directory": {
+      "score": 1.0,
+      "tokens": 238
+    },
+    "two-hop blast radius": {
+      "score": 1.0,
+      "tokens": 286
+    },
+    "unreferenced symbols": {
+      "score": 1.0,
+      "tokens": 364
+    }
+  }
+}
