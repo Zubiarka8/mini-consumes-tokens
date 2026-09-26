@@ -30,3 +30,6 @@ MANUAL.md
 
 # Local-only: auto-generated GitHub issues status snapshot, not source of truth
 issues.md
+
+# Local-only: default indexing-exclusions stub, not customized/shared yet
+.mctignore

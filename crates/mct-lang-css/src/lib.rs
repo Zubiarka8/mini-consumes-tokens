@@ -3,15 +3,25 @@
 //! Nothing here is known to `mct-core`, `mct-index`, or `mct-mcp-server` —
 //! this crate is the entire integration surface for CSS support.
 //!
-//! Only **simple selectors** (a bare `.class` or `#id`, nothing else) become
-//! `Rule` symbols, named exactly as written (`.foo`, `#foo`) so they match an
-//! HTML `Element`'s outgoing `References` by plain name equality — the same
-//! name-based matching every other relation in this project uses. Compound
-//! selectors (`.a.b`, `div.foo`) and combinators (`.a .b`, `#id > .c`) are
-//! deliberately not indexed: resolving which elements they actually match
-//! needs a DOM, not an AST, and is out of scope (same kind of deliberate
-//! limitation as Go's deferred `find_implementations`). CSS properties/values
-//! inside a rule's block are not modeled at all — only the selector.
+//! Every selector in a rule's comma-separated list becomes one or more
+//! `Rule` symbols, named exactly as written (unescaped — see
+//! [`unescape_css`]) so they match an HTML `Element`'s outgoing
+//! `References` by plain name equality — the same name-based matching every
+//! other relation in this project uses:
+//!
+//! - A simple selector (`.foo`, `#foo`, a bare tag `div`, `::before`,
+//!   `[data-x]`) becomes exactly one `Rule` symbol.
+//! - A compound or combinator selector (`.a.b`, `div.foo`, `.a .b`,
+//!   `#id > .c`, `input[type="text"]`, `.btn:hover`) becomes one `Rule`
+//!   symbol for the full selector text *plus* one for each atomic
+//!   class/id/tag component it's built from, since resolving which
+//!   elements the compound as a whole matches needs a DOM, not an AST
+//!   (same kind of deliberate limitation as Go's deferred
+//!   `find_implementations`) — the atomic components are what actually
+//!   lines up with HTML `Element` references.
+//!
+//! CSS properties/values inside a rule's block are not modeled at all —
+//! only the selector.
 
 use mct_core::{
     LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
@@ -145,9 +155,7 @@ impl<'a> Walker<'a> {
                 if let Some(selectors) = find_child(node, "selectors") {
                     let mut cursor = selectors.walk();
                     for selector in selectors.named_children(&mut cursor) {
-                        if let Some(name) = simple_selector_name(selector, self.source) {
-                            self.push_symbol(name, SymbolKind::Rule, location(selector));
-                        }
+                        self.index_selector(selector);
                     }
                 }
                 // Recurse into the block too: a rule's declarations never
@@ -167,6 +175,29 @@ impl<'a> Walker<'a> {
     fn finish(self) -> ParsedFile {
         ParsedFile { symbols: self.symbols, relations: self.relations }
     }
+
+    /// Indexes one selector from a rule's (possibly comma-separated)
+    /// selector list: the full selector as written, plus any atomic
+    /// class/id/tag components nested inside it. See the module doc.
+    fn index_selector(&mut self, selector: Node) {
+        let full = unescape_css(text(selector, self.source));
+        if full.is_empty() {
+            return;
+        }
+        let mut atoms: Vec<(String, Location)> = Vec::new();
+        collect_selector_atoms(selector, self.source, &mut atoms);
+        if !atoms.iter().any(|(name, _)| *name == full) {
+            atoms.insert(0, (full, location(selector)));
+        }
+        let mut seen: Vec<String> = Vec::new();
+        for (name, loc) in atoms {
+            if seen.contains(&name) {
+                continue;
+            }
+            seen.push(name.clone());
+            self.push_symbol(name, SymbolKind::Rule, loc);
+        }
+    }
 }
 
 fn find_child<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
@@ -175,31 +206,87 @@ fn find_child<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
     found
 }
 
-/// A selector is "simple" when it's a bare `.class` or `#id` with no other
-/// combinator/compound structure — i.e. its only named child is the
-/// `class_name`/`id_name` leaf. Anything else (`div.foo`, `.a.b`, `.a .b`,
-/// `#id > .c`, ...) returns `None` and is not indexed; see the module doc.
-fn simple_selector_name(node: Node, source: &str) -> Option<String> {
+/// Drops the backslash of any CSS escape sequence, keeping the escaped
+/// character literally (`md\:flex` -> `md:flex`, `w-1\/2` -> `w-1/2`) —
+/// exactly what's needed to make escaped utility-class names (Tailwind's
+/// `md:`, `hover:`, `w-1/2`, ...) match the plain-text form an HTML
+/// `class` attribute uses. Numeric/hex CSS escapes (`\1F600`) are not
+/// unescaped to a literal character; this project only needs to undo the
+/// single-character escapes used to make otherwise-reserved punctuation
+/// legal inside an identifier.
+fn unescape_css(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            if let Some(next) = chars.next() {
+                out.push(next);
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// Recursively walks a selector node, collecting one `(name, location)`
+/// pair for every atomic class/id/tag/pseudo/attribute component nested
+/// inside it — e.g. `div.container` yields `div` and `.container`;
+/// `.navbar .nav-link` yields `.navbar` and `.nav-link`; `.btn:hover`
+/// yields `.btn` and `.btn:hover`. See the module doc for how these
+/// combine with the full-selector name in `Walker::index_selector`.
+fn collect_selector_atoms(node: Node, source: &str, out: &mut Vec<(String, Location)>) {
     match node.kind() {
         "class_selector" => {
             let mut cursor = node.walk();
-            let children: Vec<Node> = node.named_children(&mut cursor).collect();
-            if children.len() == 1 && children[0].kind() == "class_name" {
-                Some(format!(".{}", text(children[0], source)))
-            } else {
-                None
+            for child in node.named_children(&mut cursor) {
+                if child.kind() == "class_name" {
+                    out.push((format!(".{}", unescape_css(text(child, source))), location(child)));
+                } else {
+                    collect_selector_atoms(child, source, out);
+                }
             }
         }
         "id_selector" => {
             let mut cursor = node.walk();
-            let children: Vec<Node> = node.named_children(&mut cursor).collect();
-            if children.len() == 1 && children[0].kind() == "id_name" {
-                Some(format!("#{}", text(children[0], source)))
-            } else {
-                None
+            for child in node.named_children(&mut cursor) {
+                if child.kind() == "id_name" {
+                    out.push((format!("#{}", unescape_css(text(child, source))), location(child)));
+                } else {
+                    collect_selector_atoms(child, source, out);
+                }
             }
         }
-        _ => None,
+        "tag_name" => {
+            out.push((unescape_css(text(node, source)), location(node)));
+        }
+        "attribute_selector" => {
+            if let Some(base) = node.named_child(0) {
+                if matches!(base.kind(), "class_selector" | "id_selector" | "tag_name") {
+                    collect_selector_atoms(base, source, out);
+                }
+            }
+            out.push((unescape_css(text(node, source)), location(node)));
+        }
+        "pseudo_class_selector" | "pseudo_element_selector" => {
+            // Children are [base?, name-token]: a lone child is the
+            // pseudo name itself (`::before`), not a base to recurse
+            // into; two-or-more means the first child is a real base
+            // selector (`.btn` in `.btn:hover`) and the rest is the name.
+            if node.named_child_count() >= 2 {
+                if let Some(base) = node.named_child(0) {
+                    collect_selector_atoms(base, source, out);
+                }
+            }
+            out.push((unescape_css(text(node, source)), location(node)));
+        }
+        "descendant_selector" | "child_selector" | "sibling_selector" | "adjacent_sibling_selector" | "namespace_selector" => {
+            let mut cursor = node.walk();
+            for child in node.named_children(&mut cursor) {
+                collect_selector_atoms(child, source, out);
+            }
+        }
+        _ => {}
     }
 }
 
