@@ -33,30 +33,90 @@ fn comma_separated_selectors_each_become_their_own_rule() {
     assert!(parsed.symbols.iter().any(|s| s.name == ".b" && s.kind == SymbolKind::Rule));
 }
 
+fn rule_names(parsed: &mct_core::ParsedFile) -> Vec<&str> {
+    parsed.symbols.iter().filter(|s| s.kind == SymbolKind::Rule).map(|s| s.name.as_str()).collect()
+}
+
 #[test]
-fn compound_selector_is_not_indexed() {
+fn compound_selector_indexes_full_and_atomic_names() {
     let parsed = parse("div.card { color: red; }");
-    assert!(
-        parsed.symbols.iter().all(|s| s.kind != SymbolKind::Rule),
-        "div.card is compound (tag + class), out of scope for v1: {:?}",
-        parsed.symbols
-    );
+    let names = rule_names(&parsed);
+    assert!(names.contains(&"div.card"), "{names:?}");
+    assert!(names.contains(&"div"), "{names:?}");
+    assert!(names.contains(&".card"), "{names:?}");
 }
 
 #[test]
-fn descendant_combinator_is_not_indexed() {
+fn compound_class_selector_indexes_full_and_atomic_names() {
+    let parsed = parse(".btn.btn-primary { color: red; }");
+    let names = rule_names(&parsed);
+    assert!(names.contains(&".btn.btn-primary"), "{names:?}");
+    assert!(names.contains(&".btn"), "{names:?}");
+    assert!(names.contains(&".btn-primary"), "{names:?}");
+}
+
+#[test]
+fn descendant_combinator_indexes_full_and_atomic_names() {
     let parsed = parse(".card .title { color: red; }");
-    assert!(
-        parsed.symbols.iter().all(|s| s.kind != SymbolKind::Rule),
-        "a descendant combinator is out of scope for v1: {:?}",
-        parsed.symbols
-    );
+    let names = rule_names(&parsed);
+    assert!(names.contains(&".card .title"), "{names:?}");
+    assert!(names.contains(&".card"), "{names:?}");
+    assert!(names.contains(&".title"), "{names:?}");
 }
 
 #[test]
-fn bare_tag_selector_is_not_indexed() {
+fn child_combinator_indexes_full_and_atomic_names() {
+    let parsed = parse("#id > .c { color: red; }");
+    let names = rule_names(&parsed);
+    assert!(names.contains(&"#id > .c"), "{names:?}");
+    assert!(names.contains(&"#id"), "{names:?}");
+    assert!(names.contains(&".c"), "{names:?}");
+}
+
+#[test]
+fn bare_tag_selector_is_indexed() {
     let parsed = parse("div { color: red; }");
-    assert!(parsed.symbols.iter().all(|s| s.kind != SymbolKind::Rule));
+    assert_eq!(rule_names(&parsed), vec!["div"]);
+}
+
+#[test]
+fn pseudo_class_selector_indexes_full_and_base_names() {
+    let parsed = parse(".btn:hover { color: red; }");
+    let names = rule_names(&parsed);
+    assert!(names.contains(&".btn:hover"), "{names:?}");
+    assert!(names.contains(&".btn"), "{names:?}");
+}
+
+#[test]
+fn pseudo_element_selector_is_indexed_alone() {
+    let parsed = parse("::before { color: red; }");
+    assert_eq!(rule_names(&parsed), vec!["::before"]);
+}
+
+#[test]
+fn attribute_selector_is_indexed() {
+    let parsed = parse("[data-bs-toggle] { color: red; }");
+    assert_eq!(rule_names(&parsed), vec!["[data-bs-toggle]"]);
+}
+
+#[test]
+fn tag_plus_attribute_selector_indexes_full_and_atomic_names() {
+    let parsed = parse("input[type=\"text\"] { color: red; }");
+    let names = rule_names(&parsed);
+    assert!(names.contains(&"input[type=\"text\"]"), "{names:?}");
+    assert!(names.contains(&"input"), "{names:?}");
+}
+
+#[test]
+fn escaped_tailwind_class_names_are_unescaped() {
+    let parsed = parse(".md\\:flex { display: flex; }");
+    assert_eq!(rule_names(&parsed), vec![".md:flex"]);
+
+    let parsed = parse(".hover\\:bg-blue-500 { color: blue; }");
+    assert_eq!(rule_names(&parsed), vec![".hover:bg-blue-500"]);
+
+    let parsed = parse(".w-1\\/2 { width: 50%; }");
+    assert_eq!(rule_names(&parsed), vec![".w-1/2"]);
 }
 
 #[test]
