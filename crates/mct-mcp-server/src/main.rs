@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use mct_mcp_server::{background, registry, server};
+use mct_mcp_server::{background, registry, server, session_compat};
 use clap::Parser;
 use rmcp::{ServiceExt, transport::stdio};
 
@@ -78,7 +78,7 @@ async fn main() -> anyhow::Result<()> {
         None
     };
 
-    let service = server
+    let service = session_compat::SessionCompat::new(server)
         .serve(stdio())
         .await
         .inspect_err(|e| tracing::error!("serving error: {e:?}"))?;
