@@ -1,0 +1,47 @@
+name: Quality report
+
+# Monthly quality report (issue #21). The per-PR regression gate is not
+# here: it is `crates/mct-eval/tests/regression.rs`, which `cargo test
+# --workspace` in ci.yml already runs on every OS. This job re-runs the same
+# suite in a release build with more iterations (steadier latency numbers),
+# publishes the report as the job summary plus a JSON/Markdown artifact, and
+# fails — which notifies the repo — if main has drifted from the baseline.
+on:
+  schedule:
+    - cron: "0 6 1 * *" # 06:00 UTC on the 1st of every month
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality-report:
+    name: quality report
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@1.96.0
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run the quality suite (release build)
+        run: |
+          mkdir -p quality
+          cargo run --release -p mct-eval -- --iterations 20 \
+            --json quality/report.json --markdown quality/report.md
+
+      - name: Publish the report as the job summary
+        if: always()
+        run: |
+          if [ -f quality/report.md ]; then
+            cat quality/report.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quality-report-${{ github.run_number }}
+          path: quality/
+          if-no-files-found: ignore
+          retention-days: 90

@@ -67,9 +67,11 @@ cargo run -p mct-cli -- --root . status                              # coverage 
 cargo run -p mct-cli -- --root . reindex --force
 cargo run -p mct-cli -- --root . mcp-register [--name N]             # write/merge .mcp.json for this project
 cargo run -p mct-mcp-server -- --root <project>                      # run the MCP server over stdio
+cargo run -p mct-eval [-- --verbose]                                 # quality suite vs. baseline (accuracy/MRR/success/latency/tokens)
+cargo run -p mct-eval -- --write-baseline                            # refresh crates/mct-eval/baseline.json after an intended change
 ```
 
-CI (`.github/workflows/ci.yml`) runs `build-test` (build+test+clippy) on Linux/macOS/Windows, `cargo-audit` on Linux, and `fuzz-smoke` (30s `cargo-fuzz` runs per language crate) on Linux/macOS only — fuzzing is deliberately excluded on Windows (ASan DLL/MSVC-sancov issues, see the comment above that job).
+CI (`.github/workflows/ci.yml`) runs `build-test` (build+test+clippy, which includes the `mct-eval` quality gate) on Linux/macOS/Windows, `cargo-audit` on Linux, and `fuzz-smoke` (30s `cargo-fuzz` runs per language crate) on Linux/macOS only — fuzzing is deliberately excluded on Windows (ASan DLL/MSVC-sancov issues, see the comment above that job). `.github/workflows/quality-report.yml` re-runs the `mct-eval` suite monthly and publishes the report (see `benchmarks/quality-eval.md`).
 
 **Windows:** no system deps beyond the standard Rust MSVC toolchain (`link.exe`/`cl.exe` via VS Build Tools' "Desktop development with C++", which `rustup` already prompts for). `git2` builds with `default-features = false` (no ssh/https transport, no OpenSSL) — this project only reads local repo state for blob-hash change detection, never clones/fetches.
 
@@ -87,6 +89,8 @@ mct-mcp-server  MCP tools over stdio (rmcp): list_symbols/find_symbol/search_sym
                 find_calls/find_callers/impact_analysis/find_dead_code/reindex/
                 get_indexing_status/get_file_skeleton/get_project_overview/get_file_tree/batch
 mct-cli      init/reindex/status/mcp-register subcommands for manual/scripted use
+mct-eval     Quality evaluation of the MCP tools against a fixture suite and a checked-in
+             baseline (issue #21); dev-only, not published
 ```
 
 **Adding a language touches exactly these places** (full checklist, including fuzz harnesses, in `CONTRIBUTING.md`):
