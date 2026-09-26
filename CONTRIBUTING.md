@@ -20,6 +20,8 @@ This is the extension point most contributions will touch, so it gets its own ch
    - A syntax-error case asserting `ParseError::Syntax`, not a panic.
 5a. **Add a `cargo-fuzz` harness** (`crates/mct-lang-<name>/fuzz/`) — copy the structure of an existing one (e.g. `mct-lang-lua/fuzz/`): a standalone-workspace `Cargo.toml` (`[workspace]` empty table, so it stays out of the root workspace's members/lockfile) and one `fuzz_targets/parse_<name>.rs` calling `<Name>Parser::parse` on arbitrary bytes. Remember the CI matrix entry from step 4.
 6. **Update docs:** the language table in `README.md` and the "Cobertura de lenguajes" section in `internal/checklist.md`.
+
+   `scripts/unix/new-language-check.sh <name>` (macOS/Linux) checks steps 1–6 and lists whatever is still missing.
 7. **Run the workspace test suite** (`cargo test --workspace`) and fix any regressions before opening a PR — or `scripts/unix/check.sh`, which runs the tests, the CI clippy invocation and the `mct-eval` gate and prints only a summary (see `scripts/README.md`).
 
 ## Framework/library coverage, beyond the language table
@@ -49,6 +51,8 @@ TAGS comma-separated short keywords, for discovery.
 ```
 
 `WHEN`/`ERR`/`TAGS` may appear in any order after the `TOOL` line, but each must appear exactly once, on a single line — no wrapping. A line starting with `#` is a comment anywhere in the file. `ttc::parse` never panics on malformed input (a missing/duplicate field, an unrecognized line, a bad `TOOL` header all return a `TtcParseError`); if it fails at server startup, `MctServer::new` logs a warning and falls back to every tool's compiled-in `#[tool(description = "...")]` literal instead of refusing to start.
+
+`scripts/unix/new-tool-check.sh <tool>` (macOS/Linux) lists every place a new tool must be wired into and which ones still miss it.
 
 Two tests keep `tools.ttc` and `server.rs` from drifting apart:
 - `ttc::tests::catalog_source_parses_and_covers_every_known_tool` (in `ttc.rs`) checks `tools.ttc` parses and has exactly one block per name in `ttc::KNOWN_TOOL_NAMES` — update that list when adding/removing a tool.
