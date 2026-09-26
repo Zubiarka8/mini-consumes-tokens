@@ -177,6 +177,7 @@ pub const KNOWN_TOOL_NAMES: &[&str] = &[
     "find_calls",
     "find_callers",
     "impact_analysis",
+    "build_context_pack",
     "reindex",
     "get_indexing_status",
     "get_file_skeleton",

@@ -321,6 +321,17 @@ impl Index {
         queries::find_callers_scoped(&self.conn, function, self.resolve_scope(scope))
     }
 
+    /// Non-call relations made *by* `symbol`: what it imports, extends,
+    /// implements or otherwise references. See
+    /// [`Index::find_references_scoped`] for which file the scope matches.
+    pub fn find_dependencies_scoped(
+        &self,
+        symbol: &str,
+        scope: QueryScope<'_>,
+    ) -> Result<Vec<RelationHit>> {
+        queries::find_dependencies_scoped(&self.conn, symbol, self.resolve_scope(scope))
+    }
+
     /// Direct-caller counts for every called name, in one aggregate query.
     ///
     /// Replaces the one-`find_callers`-per-candidate-symbol fan-in ranking in
