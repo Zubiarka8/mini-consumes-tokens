@@ -11,6 +11,7 @@ use rmcp::{
 };
 use tokio::sync::Mutex;
 
+use crate::embedder::SemanticModel;
 use crate::format;
 use crate::toon::OutputFormat;
 use crate::ttc;
@@ -115,6 +116,48 @@ pub struct SearchSymbolsArgs {
     #[serde(default)]
     pub limit: Option<usize>,
     /// Number of leading results to skip before applying `limit`, for
+    /// paging. Defaults to 0.
+    #[serde(default)]
+    pub offset: Option<usize>,
+    /// Source lines to include under each hit, starting at its definition
+    /// line and never past its end line. Defaults to 0 (no snippet), clamped
+    /// to 50.
+    #[serde(default)]
+    pub snippet_lines: Option<usize>,
+    /// Response shape: `text` (default) or `toon` (a compact table — see
+    /// `list_symbols`' `format` field for details).
+    #[serde(default)]
+    pub format: Option<String>,
+}
+
+/// `hybrid_search`'s default `alpha`: an even blend of the lexical and
+/// semantic rankings.
+const HYBRID_DEFAULT_ALPHA: f64 = 0.5;
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct HybridSearchArgs {
+    /// What you're looking for, as identifier words or a plain description:
+    /// `parse request`, `load config from disk`, `retry with backoff`.
+    pub query: String,
+    /// Weight of the semantic (embedding) ranking against the lexical
+    /// (`search_symbols`) one: 0 = lexical only, 1 = semantic only.
+    /// Defaults to 0.5, clamped to 0..=1. Lower it when you know words of
+    /// the name; raise it when you only know what the code does.
+    #[serde(default)]
+    pub alpha: Option<f64>,
+    /// Narrow to one file or directory/crate prefix (same matching as
+    /// list_symbols). Omit to search the whole project.
+    #[serde(default)]
+    pub path: Option<String>,
+    /// Narrow to one language id (e.g. `rust`). Omit for every language.
+    #[serde(default)]
+    pub language: Option<String>,
+    /// Maximum number of ranked hits to return. Defaults to 10, clamped to
+    /// 100 — results are best-first, so page with `offset` rather than
+    /// raising it.
+    #[serde(default)]
+    pub top_k: Option<usize>,
+    /// Number of leading results to skip before applying `top_k`, for
     /// paging. Defaults to 0.
     #[serde(default)]
     pub offset: Option<usize>,
@@ -383,7 +426,7 @@ const TOOL_CATEGORIES: &[(&str, &[&str])] = &[
             "get_file_tree",
         ],
     ),
-    ("lookup", &["find_symbol", "search_symbols"]),
+    ("lookup", &["find_symbol", "search_symbols", "hybrid_search"]),
     (
         "relations",
         &["find_callers", "find_calls", "find_references", "impact_analysis"],
@@ -402,6 +445,7 @@ const TOOL_CATEGORIES: &[(&str, &[&str])] = &[
 pub struct MctServer {
     index: Arc<Mutex<Index>>,
     registry: LanguageRegistry,
+    semantic: Arc<SemanticModel>,
     // Read by the #[tool_handler] macro expansion below, not by hand-written
     // code — dead_code can't see that use.
     #[allow(dead_code)]
@@ -531,6 +575,36 @@ fn read_source_file(index: &Index, relative_path: &str) -> Result<String, McpErr
     })
 }
 
+/// Source snippets for the `offset`/`limit` page of a ranked search result
+/// (`search_symbols`/`hybrid_search`). Only the page actually shown pays for
+/// file reads, each file read at most once. A file that vanished since the
+/// last reindex just gets no snippet rather than failing the whole search.
+fn page_snippets(
+    index: &Index,
+    hits: &[mct_index::SymbolHit],
+    offset: usize,
+    limit: usize,
+    snippet_lines: usize,
+) -> Vec<Option<String>> {
+    let mut sources: std::collections::HashMap<&str, Option<String>> =
+        std::collections::HashMap::new();
+    hits.iter()
+        .skip(offset)
+        .take(limit)
+        .map(|hit| {
+            if snippet_lines == 0 {
+                return None;
+            }
+            let source = sources
+                .entry(hit.relative_path.as_str())
+                .or_insert_with(|| read_source_file(index, &hit.relative_path).ok());
+            source
+                .as_deref()
+                .map(|src| format::symbol_snippet(src, hit.line, hit.end_line, snippet_lines))
+        })
+        .collect()
+}
+
 /// `get_project_overview`/`find_dead_code`'s path resolution — thin wrapper
 /// over `Index::list_symbols_all` mapping its error type for the MCP
 /// surface.
@@ -561,6 +635,7 @@ impl MctServer {
         Self {
             index: Arc::new(Mutex::new(index)),
             registry,
+            semantic: Arc::new(SemanticModel::default()),
             tool_router,
         }
     }
@@ -673,33 +748,85 @@ impl MctServer {
         let snippet_lines = snippet_lines.unwrap_or(0).min(SEARCH_MAX_SNIPPET_LINES);
         let index = self.index.lock().await;
         let hits = index.search_symbols(query, scope).map_err(index_error)?;
-
-        // Only the page actually shown pays for file reads, each file read
-        // at most once. A file that vanished since the last reindex just
-        // gets no snippet rather than failing the whole search.
-        let mut sources: std::collections::HashMap<&str, Option<String>> =
-            std::collections::HashMap::new();
-        let snippets: Vec<Option<String>> = hits
-            .iter()
-            .skip(offset)
-            .take(limit)
-            .map(|hit| {
-                if snippet_lines == 0 {
-                    return None;
-                }
-                let source = sources
-                    .entry(hit.relative_path.as_str())
-                    .or_insert_with(|| read_source_file(&index, &hit.relative_path).ok());
-                source
-                    .as_deref()
-                    .map(|src| format::symbol_snippet(src, hit.line, hit.end_line, snippet_lines))
-            })
-            .collect();
+        let snippets = page_snippets(&index, &hits, offset, limit, snippet_lines);
         let text = match output_format {
             OutputFormat::Text => format::search_hits(query, &hits, offset, limit, &snippets),
             OutputFormat::Toon => format::search_hits_toon(query, &hits, offset, limit, &snippets),
         };
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Lexical + semantic ranked symbol search; see tools.ttc")]
+    pub async fn hybrid_search(
+        &self,
+        Parameters(HybridSearchArgs {
+            query,
+            alpha,
+            path,
+            language,
+            top_k,
+            offset,
+            snippet_lines,
+            format,
+        }): Parameters<HybridSearchArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let query = validate_name(&query)?;
+        let output_format = parse_output_format(format.as_deref())?;
+        let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
+        let alpha = alpha
+            .filter(|a| a.is_finite())
+            .unwrap_or(HYBRID_DEFAULT_ALPHA)
+            .clamp(0.0, 1.0);
+        let limit = top_k.unwrap_or(SEARCH_DEFAULT_LIMIT).clamp(1, SEARCH_MAX_LIMIT);
+        let offset = offset.unwrap_or(0);
+        let snippet_lines = snippet_lines.unwrap_or(0).min(SEARCH_MAX_SNIPPET_LINES);
+        let index = self.index.lock().await;
+
+        // Lexical-only whenever the semantic side can't contribute: alpha 0
+        // (the model is never loaded), no model in this build or it failed to
+        // load, or embedding the pending symbols failed. Each case is named
+        // in the output's first line instead of erroring.
+        let (embedder, note) = if alpha == 0.0 {
+            (None, "hybrid: alpha 0, lexical ranking only".to_string())
+        } else {
+            match self.semantic.get(index.root()) {
+                Err(reason) => (None, format!("hybrid: lexical ranking only — {reason}")),
+                Ok(embedder) => match index.refresh_embeddings(embedder) {
+                    Err(e) => (None, format!("hybrid: lexical ranking only — {e}")),
+                    Ok(_) => {
+                        let coverage = index
+                            .embedding_coverage(embedder.model_id())
+                            .map_err(index_error)?;
+                        (
+                            Some(embedder),
+                            format!(
+                                "hybrid: alpha {alpha:.2}, {}/{} symbols embedded ({})",
+                                coverage.embedded,
+                                coverage.total,
+                                embedder.model_id()
+                            ),
+                        )
+                    }
+                },
+            }
+        };
+        let fused = match index.hybrid_search(query, embedder, alpha, scope) {
+            Ok(fused) => fused,
+            Err(e) if embedder.is_some() => {
+                return Err(McpError::internal_error(format!("hybrid_search failed: {e}"), None))
+            }
+            Err(e) => return Err(index_error(e)),
+        };
+        let hits: Vec<mct_index::SymbolHit> = fused.into_iter().map(|h| h.hit).collect();
+        let snippets = page_snippets(&index, &hits, offset, limit, snippet_lines);
+        let text = match output_format {
+            OutputFormat::Text => format::search_hits(query, &hits, offset, limit, &snippets),
+            OutputFormat::Toon => format::search_hits_toon(query, &hits, offset, limit, &snippets),
+        };
+        Ok(CallToolResult::success(vec![ContentBlock::text(format!(
+            "{note}\n{text}"
+        ))]))
     }
 
     // Fallback only — see tools.ttc / MctServer::new.

@@ -12,6 +12,7 @@ mod manifests;
 mod queries;
 mod schema;
 mod search;
+mod semantic;
 mod traversal;
 
 pub use dead_code::{
@@ -29,6 +30,9 @@ pub use indexer::{
 };
 pub use queries::{QueryScope, RelationHit, SymbolHit, SymbolListEntry, SymbolMatchMode};
 pub use search::{search_words, split_identifier};
+pub use semantic::{
+    embedding_text, EmbeddingCoverage, Embedder, HybridHit, RRF_K, SEMANTIC_CANDIDATES,
+};
 
 use queries::ResolvedScope;
 
@@ -204,6 +208,50 @@ impl Index {
     /// [`search::search_symbols`] for the full ranking.
     pub fn search_symbols(&self, query: &str, scope: QueryScope<'_>) -> Result<Vec<SymbolHit>> {
         search::search_symbols(&self.conn, query, self.resolve_scope(scope))
+    }
+
+    /// Embeds every symbol with no vector yet for `embedder`'s model and
+    /// drops other models' vectors; returns how many were embedded. Cheap
+    /// after the first call — only symbols the last reindex added or
+    /// rewrote are pending.
+    pub fn refresh_embeddings(&self, embedder: &dyn Embedder) -> Result<usize> {
+        semantic::refresh_embeddings(&self.conn, embedder)
+    }
+
+    /// How many symbols have a vector for `model`, out of how many exist.
+    pub fn embedding_coverage(&self, model: &str) -> Result<EmbeddingCoverage> {
+        semantic::embedding_coverage(&self.conn, model)
+    }
+
+    /// [`Index::search_symbols`] fused with an embedding-similarity ranking
+    /// by weighted Reciprocal Rank Fusion, narrowed to `scope`. `alpha`
+    /// weighs the two (0 = lexical only, 1 = semantic only). With no
+    /// `embedder`, or `alpha == 0`, the lexical ranking is returned
+    /// unchanged — see [`semantic::hybrid_search`].
+    pub fn hybrid_search(
+        &self,
+        query: &str,
+        embedder: Option<&dyn Embedder>,
+        alpha: f64,
+        scope: QueryScope<'_>,
+    ) -> Result<Vec<HybridHit>> {
+        let query_vector = match embedder {
+            Some(embedder) if alpha > 0.0 => {
+                let text = split_identifier(query).join(" ");
+                let mut vectors = embedder
+                    .embed(&[if text.is_empty() { query.to_string() } else { text }])
+                    .map_err(IndexError::Embedding)?;
+                vectors.pop().map(|v| (v, embedder.model_id()))
+            }
+            _ => None,
+        };
+        semantic::hybrid_search(
+            &self.conn,
+            query,
+            query_vector.as_ref().map(|(v, model)| (v.as_slice(), *model)),
+            alpha,
+            self.resolve_scope(scope),
+        )
     }
 
     /// Every place `symbol` is referenced: calls, imports, extends/implements,

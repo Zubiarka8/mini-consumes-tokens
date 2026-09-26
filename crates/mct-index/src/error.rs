@@ -24,6 +24,9 @@ pub enum IndexError {
 
     #[error("`{0}` is not a directory")]
     NotADirectory(String),
+
+    #[error("embedding error: {0}")]
+    Embedding(String),
 }
 
 pub type Result<T> = std::result::Result<T, IndexError>;
