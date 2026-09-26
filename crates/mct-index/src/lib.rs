@@ -31,7 +31,9 @@ pub use indexer::{
 pub use queries::{QueryScope, RelationHit, SymbolHit, SymbolListEntry, SymbolMatchMode};
 pub use search::{search_words, split_identifier};
 pub use semantic::{
-    embedding_text, EmbeddingCoverage, Embedder, HybridHit, RRF_K, SEMANTIC_CANDIDATES,
+    classify_query, embedding_text, EmbeddingCoverage, Embedder, HybridHit, QueryIntent,
+    SymbolContext, RRF_K,
+    SEMANTIC_CANDIDATES,
 };
 
 use queries::ResolvedScope;
@@ -215,7 +217,7 @@ impl Index {
     /// after the first call — only symbols the last reindex added or
     /// rewrote are pending.
     pub fn refresh_embeddings(&self, embedder: &dyn Embedder) -> Result<usize> {
-        semantic::refresh_embeddings(&self.conn, embedder)
+        semantic::refresh_embeddings(&self.conn, &self.root, embedder)
     }
 
     /// How many symbols have a vector for `model`, out of how many exist.
@@ -238,10 +240,10 @@ impl Index {
         let query_vector = match embedder {
             Some(embedder) if alpha > 0.0 => {
                 let text = split_identifier(query).join(" ");
-                let mut vectors = embedder
-                    .embed(&[if text.is_empty() { query.to_string() } else { text }])
+                let vector = embedder
+                    .embed_query(if text.is_empty() { query } else { &text })
                     .map_err(IndexError::Embedding)?;
-                vectors.pop().map(|v| (v, embedder.model_id()))
+                Some((vector, embedder.model_id()))
             }
             _ => None,
         };
