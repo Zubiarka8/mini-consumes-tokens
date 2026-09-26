@@ -62,8 +62,16 @@ pub const MODELS: &[(&str, fastembed::EmbeddingModel, Option<&str>)] = &[
         fastembed::EmbeddingModel::BGESmallENV15,
         Some(RETRIEVAL_QUERY_PREFIX),
     ),
-    ("all-MiniLM-L6-v2", fastembed::EmbeddingModel::AllMiniLML6V2, None),
-    ("all-MiniLM-L12-v2", fastembed::EmbeddingModel::AllMiniLML12V2, None),
+    (
+        "all-MiniLM-L6-v2",
+        fastembed::EmbeddingModel::AllMiniLML6V2,
+        None,
+    ),
+    (
+        "all-MiniLM-L12-v2",
+        fastembed::EmbeddingModel::AllMiniLML12V2,
+        None,
+    ),
     (
         "snowflake-arctic-embed-xs",
         fastembed::EmbeddingModel::SnowflakeArcticEmbedXS,
@@ -87,7 +95,10 @@ fn load(root: &Path) -> Result<Box<dyn Embedder>, String> {
         .find(|(name, _, _)| wanted.is_empty() || name.eq_ignore_ascii_case(wanted))
         .ok_or_else(|| {
             let known: Vec<&str> = MODELS.iter().map(|(name, _, _)| *name).collect();
-            format!("unknown {MODEL_ENV} `{wanted}` (known: {})", known.join(", "))
+            format!(
+                "unknown {MODEL_ENV} `{wanted}` (known: {})",
+                known.join(", ")
+            )
         })?;
     let cache_dir = std::env::var_os("FASTEMBED_CACHE_DIR")
         .map(std::path::PathBuf::from)

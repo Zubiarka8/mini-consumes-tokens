@@ -534,7 +534,11 @@ fn reference_counts_matches_find_references_len_for_every_name() {
 #[test]
 fn find_dependencies_returns_only_the_non_call_relations_a_symbol_makes() {
     let dir = tempdir();
-    write(&dir, "src/a.fake", "fn a imports config\nfn a calls helper\n");
+    write(
+        &dir,
+        "src/a.fake",
+        "fn a imports config\nfn a calls helper\n",
+    );
     write(&dir, "libx/b.other", "fn a imports other_config\n");
     write(&dir, "src/c.fake", "fn c imports a\n");
     let index = open(&dir);
@@ -551,11 +555,20 @@ fn find_dependencies_returns_only_the_non_call_relations_a_symbol_makes() {
     // reference *to* `a`, not one it makes.
     assert_eq!(
         targets,
-        vec!["libx/b.other:imports->other_config", "src/a.fake:imports->config"]
+        vec![
+            "libx/b.other:imports->other_config",
+            "src/a.fake:imports->config"
+        ]
     );
 
     let scoped = index
-        .find_dependencies_scoped("a", QueryScope { path: Some("src"), language: None })
+        .find_dependencies_scoped(
+            "a",
+            QueryScope {
+                path: Some("src"),
+                language: None,
+            },
+        )
         .unwrap();
     assert_eq!(hits(&scoped), vec!["src/a.fake:a"]);
 }

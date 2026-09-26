@@ -1,8 +1,8 @@
 //! `LanguageParser` implementation for Java, via `tree-sitter-java`.
 
 use mct_core::{
-    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
-    SymbolKind, SymbolRecord, SymbolRelation,
+    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
+    SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use tree_sitter::{Node, Parser};
 
@@ -29,11 +29,13 @@ impl LanguageParser for JavaParser {
             .set_language(&tree_sitter_java::LANGUAGE.into())
             .expect("tree-sitter-java grammar is statically valid");
 
-        let tree = parser.parse(&file.contents, None).ok_or_else(|| ParseError::Syntax {
-            path: file.relative_path.clone(),
-            line: 1,
-            message: "tree-sitter produced no parse tree".to_string(),
-        })?;
+        let tree = parser
+            .parse(&file.contents, None)
+            .ok_or_else(|| ParseError::Syntax {
+                path: file.relative_path.clone(),
+                line: 1,
+                message: "tree-sitter produced no parse tree".to_string(),
+            })?;
 
         let root = tree.root_node();
         if root.has_error() {
@@ -127,7 +129,13 @@ impl<'a> Walker<'a> {
         id
     }
 
-    fn push_relation(&mut self, from: SymbolId, kind: RelationKind, to_name: String, loc: Location) {
+    fn push_relation(
+        &mut self,
+        from: SymbolId,
+        kind: RelationKind,
+        to_name: String,
+        loc: Location,
+    ) {
         if to_name.is_empty() {
             return;
         }
@@ -168,16 +176,31 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                let id = self.push_symbol(name.clone(), kind, location(node), type_name.map(str::to_string));
+                let id = self.push_symbol(
+                    name.clone(),
+                    kind,
+                    location(node),
+                    type_name.map(str::to_string),
+                );
 
                 if let Some(superclass) = node.child_by_field_name("superclass") {
                     for type_id in find_type_identifiers(superclass) {
-                        self.push_relation(id, RelationKind::Extends, text(type_id, self.source).to_string(), location(type_id));
+                        self.push_relation(
+                            id,
+                            RelationKind::Extends,
+                            text(type_id, self.source).to_string(),
+                            location(type_id),
+                        );
                     }
                 }
                 if let Some(interfaces) = node.child_by_field_name("interfaces") {
                     for type_id in find_type_identifiers(interfaces) {
-                        self.push_relation(id, RelationKind::Implements, text(type_id, self.source).to_string(), location(type_id));
+                        self.push_relation(
+                            id,
+                            RelationKind::Implements,
+                            text(type_id, self.source).to_string(),
+                            location(type_id),
+                        );
                     }
                 }
                 if let Some(body) = node.child_by_field_name("body") {
@@ -189,14 +212,24 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                self.push_symbol(name, SymbolKind::Field, location(node), type_name.map(str::to_string));
+                self.push_symbol(
+                    name,
+                    SymbolKind::Field,
+                    location(node),
+                    type_name.map(str::to_string),
+                );
             }
             "method_declaration" | "constructor_declaration" => {
                 let name = node
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                let id = self.push_symbol(name, SymbolKind::Method, location(node), type_name.map(str::to_string));
+                let id = self.push_symbol(
+                    name,
+                    SymbolKind::Method,
+                    location(node),
+                    type_name.map(str::to_string),
+                );
                 if let Some(params) = node.child_by_field_name("parameters") {
                     self.visit_children(params, id, type_name, depth + 1);
                 }
@@ -222,7 +255,12 @@ impl<'a> Walker<'a> {
             "import_declaration" => {
                 if let Some(path) = node.named_child(0) {
                     if let Some(last) = last_identifier(path) {
-                        self.push_relation(owner, RelationKind::Imports, text(last, self.source).to_string(), location(node));
+                        self.push_relation(
+                            owner,
+                            RelationKind::Imports,
+                            text(last, self.source).to_string(),
+                            location(node),
+                        );
                     }
                 }
             }
@@ -232,7 +270,12 @@ impl<'a> Walker<'a> {
                     // (`a.f(x).f(y)`) has its outer and inner method_invocation
                     // both start at `a`, which would make two same-named
                     // chained calls collide into one indistinguishable row.
-                    self.push_relation(owner, RelationKind::Calls, text(name_node, self.source).to_string(), location(name_node));
+                    self.push_relation(
+                        owner,
+                        RelationKind::Calls,
+                        text(name_node, self.source).to_string(),
+                        location(name_node),
+                    );
                 }
                 if let Some(object) = node.child_by_field_name("object") {
                     self.visit(object, owner, type_name, depth + 1);

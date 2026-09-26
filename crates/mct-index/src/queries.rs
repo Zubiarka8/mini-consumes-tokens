@@ -269,7 +269,10 @@ fn find_symbol_like(
     term: &str,
     scope: ResolvedScope<'_>,
 ) -> Result<Vec<SymbolHit>> {
-    let escaped = term.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+    let escaped = term
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_");
     let pattern = format!("%{escaped}%");
     let mut sql = String::from(
         "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line, s.level
@@ -411,7 +414,12 @@ pub fn find_dependencies_scoped(
     symbol: &str,
     scope: ResolvedScope<'_>,
 ) -> Result<Vec<RelationHit>> {
-    query_relations(conn, "caller.name = ?1 AND r.kind <> 'calls'", symbol, scope)
+    query_relations(
+        conn,
+        "caller.name = ?1 AND r.kind <> 'calls'",
+        symbol,
+        scope,
+    )
 }
 
 /// Direct-caller counts for every called name, in one query — the whole

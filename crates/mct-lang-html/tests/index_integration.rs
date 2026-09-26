@@ -35,7 +35,11 @@ fn open_indexed() -> Index {
     let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
     let report = index.reindex(&registry(), false).unwrap();
     assert_eq!(report.files_parsed, 2, "index.html, style.css");
-    assert!(report.issues.is_empty(), "no parse issues expected: {:?}", report.issues);
+    assert!(
+        report.issues.is_empty(),
+        "no parse issues expected: {:?}",
+        report.issues
+    );
     index
 }
 
@@ -43,8 +47,14 @@ fn open_indexed() -> Index {
 fn status_reports_coverage_for_both_languages() {
     let index = open_indexed();
     let status = index.status().unwrap();
-    assert!(status.languages.iter().any(|l| l.language == "html" && l.file_count == 1));
-    assert!(status.languages.iter().any(|l| l.language == "css" && l.file_count == 1));
+    assert!(status
+        .languages
+        .iter()
+        .any(|l| l.language == "html" && l.file_count == 1));
+    assert!(status
+        .languages
+        .iter()
+        .any(|l| l.language == "css" && l.file_count == 1));
 }
 
 #[test]

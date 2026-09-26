@@ -8,7 +8,10 @@ use mct_lang_xml::XmlParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
     XmlParser
-        .parse(&SourceFile { relative_path: "config.xml".to_string(), contents: src.to_string() })
+        .parse(&SourceFile {
+            relative_path: "config.xml".to_string(),
+            contents: src.to_string(),
+        })
         .expect("valid XML source should parse")
 }
 
@@ -55,8 +58,13 @@ fn nested_named_elements_track_parent() {
 
 #[test]
 fn no_relations_are_ever_emitted() {
-    let parsed = parse("<root><server id=\"api\" name=\"ignored-when-id-present\"></server></root>");
-    assert!(parsed.relations.is_empty(), "generic XML is structural-only by design: {:?}", parsed.relations);
+    let parsed =
+        parse("<root><server id=\"api\" name=\"ignored-when-id-present\"></server></root>");
+    assert!(
+        parsed.relations.is_empty(),
+        "generic XML is structural-only by design: {:?}",
+        parsed.relations
+    );
 }
 
 #[test]
@@ -65,5 +73,8 @@ fn syntax_error_is_reported_not_panicked() {
         relative_path: "broken.xml".to_string(),
         contents: "<root><unclosed>".to_string(),
     });
-    assert!(matches!(result, Err(mct_core::ParseError::Syntax { .. })), "{result:?}");
+    assert!(
+        matches!(result, Err(mct_core::ParseError::Syntax { .. })),
+        "{result:?}"
+    );
 }

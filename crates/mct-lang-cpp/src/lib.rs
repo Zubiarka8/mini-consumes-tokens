@@ -13,8 +13,8 @@
 //! `tests/index_integration.rs` for the header/definition-split assertions.
 
 use mct_core::{
-    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
-    SymbolKind, SymbolRecord, SymbolRelation,
+    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
+    SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use tree_sitter::{Node, Parser};
 
@@ -41,11 +41,13 @@ impl LanguageParser for CppParser {
             .set_language(&tree_sitter_cpp::LANGUAGE.into())
             .expect("tree-sitter-cpp grammar is statically valid");
 
-        let tree = parser.parse(&file.contents, None).ok_or_else(|| ParseError::Syntax {
-            path: file.relative_path.clone(),
-            line: 1,
-            message: "tree-sitter produced no parse tree".to_string(),
-        })?;
+        let tree = parser
+            .parse(&file.contents, None)
+            .ok_or_else(|| ParseError::Syntax {
+                path: file.relative_path.clone(),
+                line: 1,
+                message: "tree-sitter produced no parse tree".to_string(),
+            })?;
 
         let root = tree.root_node();
         if root.has_error() {
@@ -133,15 +135,33 @@ impl<'a> Walker<'a> {
     ) -> SymbolId {
         let id = self.next_id;
         self.next_id += 1;
-        self.symbols.push(SymbolRecord { id, name, kind, location, parent, level: None });
+        self.symbols.push(SymbolRecord {
+            id,
+            name,
+            kind,
+            location,
+            parent,
+            level: None,
+        });
         id
     }
 
-    fn push_relation(&mut self, from: SymbolId, kind: RelationKind, to_name: String, loc: Location) {
+    fn push_relation(
+        &mut self,
+        from: SymbolId,
+        kind: RelationKind,
+        to_name: String,
+        loc: Location,
+    ) {
         if to_name.is_empty() {
             return;
         }
-        self.relations.push(SymbolRelation { from, kind, to_name, location: loc });
+        self.relations.push(SymbolRelation {
+            from,
+            kind,
+            to_name,
+            location: loc,
+        });
     }
 
     /// `owner` is the innermost enclosing function/method (calls attach to
@@ -164,18 +184,32 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                self.push_symbol(name.clone(), SymbolKind::Module, location(node), type_name.map(str::to_string));
+                self.push_symbol(
+                    name.clone(),
+                    SymbolKind::Module,
+                    location(node),
+                    type_name.map(str::to_string),
+                );
                 if let Some(body) = node.child_by_field_name("body") {
                     self.visit_children(body, owner, Some(&name), depth + 1);
                 }
             }
             "class_specifier" | "struct_specifier" => {
-                let kind = if node.kind() == "class_specifier" { SymbolKind::Class } else { SymbolKind::Struct };
+                let kind = if node.kind() == "class_specifier" {
+                    SymbolKind::Class
+                } else {
+                    SymbolKind::Struct
+                };
                 let name = node
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                let id = self.push_symbol(name.clone(), kind, location(node), type_name.map(str::to_string));
+                let id = self.push_symbol(
+                    name.clone(),
+                    kind,
+                    location(node),
+                    type_name.map(str::to_string),
+                );
 
                 // `base_class_clause` is a direct child, not a named field —
                 // every C++ base (`public`/`private`/`protected`) is genuine
@@ -185,9 +219,21 @@ impl<'a> Walker<'a> {
                 if let Some(bases) = find_child(node, "base_class_clause") {
                     let mut cursor = bases.walk();
                     for base in bases.children(&mut cursor) {
-                        if matches!(base.kind(), "type_identifier" | "qualified_identifier" | "template_type") {
-                            let name_node = if base.kind() == "qualified_identifier" { qualified_tail(base) } else { base };
-                            self.push_relation(id, RelationKind::Extends, text(name_node, self.source).to_string(), location(base));
+                        if matches!(
+                            base.kind(),
+                            "type_identifier" | "qualified_identifier" | "template_type"
+                        ) {
+                            let name_node = if base.kind() == "qualified_identifier" {
+                                qualified_tail(base)
+                            } else {
+                                base
+                            };
+                            self.push_relation(
+                                id,
+                                RelationKind::Extends,
+                                text(name_node, self.source).to_string(),
+                                location(base),
+                            );
                         }
                     }
                 }
@@ -212,7 +258,11 @@ impl<'a> Walker<'a> {
                 };
                 let name_node = func_declarator.child_by_field_name("declarator");
                 let (name, parent) = declarator_name_and_parent(name_node, self.source, type_name);
-                let kind = if parent.is_some() { SymbolKind::Method } else { SymbolKind::Function };
+                let kind = if parent.is_some() {
+                    SymbolKind::Method
+                } else {
+                    SymbolKind::Function
+                };
                 let id = self.push_symbol(name, kind, location(node), parent);
                 if let Some(params) = func_declarator.child_by_field_name("parameters") {
                     self.visit_children(params, id, type_name, depth + 1);
@@ -234,12 +284,26 @@ impl<'a> Walker<'a> {
                 for declarator in declarators {
                     if let Some(func_declarator) = find_function_declarator(declarator) {
                         let name_node = func_declarator.child_by_field_name("declarator");
-                        let (name, parent) = declarator_name_and_parent(name_node, self.source, type_name);
-                        let kind = if parent.is_some() { SymbolKind::Method } else { SymbolKind::Function };
+                        let (name, parent) =
+                            declarator_name_and_parent(name_node, self.source, type_name);
+                        let kind = if parent.is_some() {
+                            SymbolKind::Method
+                        } else {
+                            SymbolKind::Function
+                        };
                         self.push_symbol(name, kind, location(node), parent);
                     } else if let Some(name_node) = plain_declarator_identifier(declarator) {
-                        let kind = if type_name.is_some() { SymbolKind::Field } else { SymbolKind::Variable };
-                        self.push_symbol(text(name_node, self.source).to_string(), kind, location(declarator), type_name.map(str::to_string));
+                        let kind = if type_name.is_some() {
+                            SymbolKind::Field
+                        } else {
+                            SymbolKind::Variable
+                        };
+                        self.push_symbol(
+                            text(name_node, self.source).to_string(),
+                            kind,
+                            location(declarator),
+                            type_name.map(str::to_string),
+                        );
                     }
                 }
             }
@@ -254,10 +318,14 @@ impl<'a> Walker<'a> {
                     // resolves to a local symbol (see `mct-index`'s
                     // by-name relation resolution) instead of needing a
                     // separate "external dependency" concept here.
-                    let name = if let Some(stripped) = raw.strip_prefix('"').and_then(|s| s.strip_suffix('"')) {
+                    let name = if let Some(stripped) =
+                        raw.strip_prefix('"').and_then(|s| s.strip_suffix('"'))
+                    {
                         stripped.to_string()
                     } else {
-                        raw.trim_start_matches('<').trim_end_matches('>').to_string()
+                        raw.trim_start_matches('<')
+                            .trim_end_matches('>')
+                            .to_string()
                     };
                     self.push_relation(owner, RelationKind::Imports, name, location(node));
                 }
@@ -270,7 +338,12 @@ impl<'a> Walker<'a> {
                         // call_expression both start at `a`, which would make
                         // two same-named chained calls collide into one
                         // indistinguishable row.
-                        self.push_relation(owner, RelationKind::Calls, text(name_node, self.source).to_string(), location(name_node));
+                        self.push_relation(
+                            owner,
+                            RelationKind::Calls,
+                            text(name_node, self.source).to_string(),
+                            location(name_node),
+                        );
                     }
                     self.visit(function, owner, type_name, depth + 1);
                 }
@@ -283,7 +356,11 @@ impl<'a> Walker<'a> {
     }
 
     fn finish(self) -> ParsedFile {
-        ParsedFile { symbols: self.symbols, relations: self.relations, ..Default::default() }
+        ParsedFile {
+            symbols: self.symbols,
+            relations: self.relations,
+            ..Default::default()
+        }
     }
 }
 
@@ -300,9 +377,12 @@ fn find_child<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
 fn find_function_declarator(node: Node) -> Option<Node> {
     match node.kind() {
         "function_declarator" => Some(node),
-        "pointer_declarator" | "array_declarator" | "parenthesized_declarator" | "init_declarator" => {
-            node.child_by_field_name("declarator").and_then(find_function_declarator)
-        }
+        "pointer_declarator"
+        | "array_declarator"
+        | "parenthesized_declarator"
+        | "init_declarator" => node
+            .child_by_field_name("declarator")
+            .and_then(find_function_declarator),
         "reference_declarator" => node.named_child(0).and_then(find_function_declarator),
         _ => None,
     }
@@ -313,9 +393,9 @@ fn find_function_declarator(node: Node) -> Option<Node> {
 fn plain_declarator_identifier(node: Node) -> Option<Node> {
     match node.kind() {
         "identifier" | "field_identifier" => Some(node),
-        "pointer_declarator" | "array_declarator" | "init_declarator" => {
-            node.child_by_field_name("declarator").and_then(plain_declarator_identifier)
-        }
+        "pointer_declarator" | "array_declarator" | "init_declarator" => node
+            .child_by_field_name("declarator")
+            .and_then(plain_declarator_identifier),
         "reference_declarator" => node.named_child(0).and_then(plain_declarator_identifier),
         _ => None,
     }
@@ -328,17 +408,29 @@ fn plain_declarator_identifier(node: Node) -> Option<Node> {
 /// definition half of a header/source split — in which case `scope` becomes
 /// `parent`, matching exactly what the in-class declaration would have
 /// produced for the same member.
-fn declarator_name_and_parent(name_node: Option<Node>, source: &str, fallback_parent: Option<&str>) -> (String, Option<String>) {
+fn declarator_name_and_parent(
+    name_node: Option<Node>,
+    source: &str,
+    fallback_parent: Option<&str>,
+) -> (String, Option<String>) {
     let Some(node) = name_node else {
         return (String::new(), fallback_parent.map(str::to_string));
     };
     if node.kind() == "qualified_identifier" {
-        let scope = node.child_by_field_name("scope").map(|n| text(n, source).to_string());
+        let scope = node
+            .child_by_field_name("scope")
+            .map(|n| text(n, source).to_string());
         let inner = node.child_by_field_name("name");
         let (inner_name, _) = declarator_name_and_parent(inner, source, None);
-        (inner_name, scope.or_else(|| fallback_parent.map(str::to_string)))
+        (
+            inner_name,
+            scope.or_else(|| fallback_parent.map(str::to_string)),
+        )
     } else {
-        (text(node, source).to_string(), fallback_parent.map(str::to_string))
+        (
+            text(node, source).to_string(),
+            fallback_parent.map(str::to_string),
+        )
     }
 }
 

@@ -1,8 +1,8 @@
 //! `LanguageParser` implementation for C#, via `tree-sitter-c-sharp`.
 
 use mct_core::{
-    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
-    SymbolKind, SymbolRecord, SymbolRelation,
+    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
+    SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use tree_sitter::{Node, Parser};
 
@@ -29,11 +29,13 @@ impl LanguageParser for CSharpParser {
             .set_language(&tree_sitter_c_sharp::LANGUAGE.into())
             .expect("tree-sitter-c-sharp grammar is statically valid");
 
-        let tree = parser.parse(&file.contents, None).ok_or_else(|| ParseError::Syntax {
-            path: file.relative_path.clone(),
-            line: 1,
-            message: "tree-sitter produced no parse tree".to_string(),
-        })?;
+        let tree = parser
+            .parse(&file.contents, None)
+            .ok_or_else(|| ParseError::Syntax {
+                path: file.relative_path.clone(),
+                line: 1,
+                message: "tree-sitter produced no parse tree".to_string(),
+            })?;
 
         let root = tree.root_node();
         if root.has_error() {
@@ -127,7 +129,13 @@ impl<'a> Walker<'a> {
         id
     }
 
-    fn push_relation(&mut self, from: SymbolId, kind: RelationKind, to_name: String, loc: Location) {
+    fn push_relation(
+        &mut self,
+        from: SymbolId,
+        kind: RelationKind,
+        to_name: String,
+        loc: Location,
+    ) {
         if to_name.is_empty() {
             return;
         }
@@ -162,7 +170,12 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                self.push_symbol(name.clone(), SymbolKind::Module, location(node), type_name.map(str::to_string));
+                self.push_symbol(
+                    name.clone(),
+                    SymbolKind::Module,
+                    location(node),
+                    type_name.map(str::to_string),
+                );
                 if let Some(body) = node.child_by_field_name("body") {
                     self.visit_children(body, owner, Some(&name), depth + 1);
                 }
@@ -177,7 +190,12 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                let id = self.push_symbol(name.clone(), kind, location(node), type_name.map(str::to_string));
+                let id = self.push_symbol(
+                    name.clone(),
+                    kind,
+                    location(node),
+                    type_name.map(str::to_string),
+                );
 
                 // `base_list` is unified in this grammar — C# doesn't
                 // syntactically distinguish "extends" from "implements", both
@@ -191,11 +209,24 @@ impl<'a> Walker<'a> {
                     let mut cursor = base_list.walk();
                     let bases: Vec<Node> = base_list
                         .children(&mut cursor)
-                        .filter(|n| n.kind() == "identifier" || n.kind() == "generic_name" || n.kind() == "qualified_name")
+                        .filter(|n| {
+                            n.kind() == "identifier"
+                                || n.kind() == "generic_name"
+                                || n.kind() == "qualified_name"
+                        })
                         .collect();
                     for (i, base_node) in bases.iter().enumerate() {
-                        let relation_kind = if i == 0 { RelationKind::Extends } else { RelationKind::Implements };
-                        self.push_relation(id, relation_kind, text(*base_node, self.source).to_string(), location(*base_node));
+                        let relation_kind = if i == 0 {
+                            RelationKind::Extends
+                        } else {
+                            RelationKind::Implements
+                        };
+                        self.push_relation(
+                            id,
+                            relation_kind,
+                            text(*base_node, self.source).to_string(),
+                            location(*base_node),
+                        );
                     }
                 }
                 if let Some(body) = node.child_by_field_name("body") {
@@ -207,7 +238,12 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                let id = self.push_symbol(name, SymbolKind::Method, location(node), type_name.map(str::to_string));
+                let id = self.push_symbol(
+                    name,
+                    SymbolKind::Method,
+                    location(node),
+                    type_name.map(str::to_string),
+                );
                 if let Some(params) = node.child_by_field_name("parameters") {
                     self.visit_children(params, id, type_name, depth + 1);
                 }
@@ -225,7 +261,12 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                let id = self.push_symbol(name, SymbolKind::Field, location(node), type_name.map(str::to_string));
+                let id = self.push_symbol(
+                    name,
+                    SymbolKind::Field,
+                    location(node),
+                    type_name.map(str::to_string),
+                );
                 if let Some(accessors) = node.child_by_field_name("accessors") {
                     let mut cursor = accessors.walk();
                     for accessor in accessors.children(&mut cursor) {
@@ -255,7 +296,12 @@ impl<'a> Walker<'a> {
             "using_directive" => {
                 if let Some(path) = node.named_child(0) {
                     if let Some(last) = last_identifier(path) {
-                        self.push_relation(owner, RelationKind::Imports, text(last, self.source).to_string(), location(node));
+                        self.push_relation(
+                            owner,
+                            RelationKind::Imports,
+                            text(last, self.source).to_string(),
+                            location(node),
+                        );
                     }
                 }
             }
@@ -267,7 +313,12 @@ impl<'a> Walker<'a> {
                         // invocation_expression both start at `a`, which would
                         // make two same-named chained calls collide into one
                         // indistinguishable row.
-                        self.push_relation(owner, RelationKind::Calls, text(name_node, self.source).to_string(), location(name_node));
+                        self.push_relation(
+                            owner,
+                            RelationKind::Calls,
+                            text(name_node, self.source).to_string(),
+                            location(name_node),
+                        );
                     }
                     self.visit(function, owner, type_name, depth + 1);
                 }

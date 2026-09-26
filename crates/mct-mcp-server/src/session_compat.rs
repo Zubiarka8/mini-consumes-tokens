@@ -1,9 +1,9 @@
 use std::borrow::Cow;
 use std::sync::Mutex;
 
-use rmcp::ErrorData as McpError;
 use rmcp::model::{ClientCapabilities, ClientRequest, ProtocolVersion, ServerResult};
 use rmcp::service::{NotificationContext, RequestContext, RoleServer, Service, ServiceRole};
+use rmcp::ErrorData as McpError;
 
 /// Works around rmcp (<= 3.4.1) permanently flagging a stdio session as
 /// stateless when the client's first message is `server/discover`: if the
