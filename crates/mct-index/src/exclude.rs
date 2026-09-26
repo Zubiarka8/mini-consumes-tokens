@@ -86,10 +86,16 @@ const DEFAULT_EXCLUDE_DIRS: &[&str] = &[
     // Claude Code agent worktrees — full checkouts of the project itself, so
     // indexing it files every symbol two or three times over (measured in
     // this repo: 65.9% of all indexed symbols were worktree duplicates).
-    // `.claude-index` is the pre-rename (ccm -> mct) index directory, still
-    // sitting in older checkouts alongside the current `.mct-index`.
+    // `.claude-index` is this project's original index directory, from
+    // before it was renamed `ccm` and then `mct`. `.ccm-index` is that
+    // intermediate `ccm` era's index directory. Both can still turn up
+    // alongside the current `.mct-index` — e.g. a stale globally-installed
+    // `ccm-mcp-server` binary (predating the `ccm -> mct` rename) recreates
+    // `.ccm-index` on every run if `.mcp.json` still points at it instead of
+    // `mct-mcp-server`.
     ".claude",
     ".claude-index",
+    ".ccm-index",
 ];
 
 #[derive(Clone)]
