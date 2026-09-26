@@ -84,6 +84,51 @@ pub struct FindSymbolArgs {
     pub format: Option<String>,
 }
 
+/// `search_symbols`' default `limit`: ranked search puts the best hits
+/// first, so a short page is usually all an agent needs — unlike the graph
+/// tools, whose results are exhaustive and default to
+/// [`DEFAULT_RESULT_LIMIT`].
+const SEARCH_DEFAULT_LIMIT: usize = 10;
+/// Upper clamp on `search_symbols`' `limit`; page with `offset` beyond it.
+const SEARCH_MAX_LIMIT: usize = 100;
+/// Upper clamp on `search_symbols`' `snippet_lines`, per hit.
+const SEARCH_MAX_SNIPPET_LINES: usize = 50;
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct SearchSymbolsArgs {
+    /// Words or partial identifier to search for, in any naming style:
+    /// `parse request`, `parseReq`, `parse_request_body`, `http server`.
+    /// Each word prefix-matches a word of the symbol's name (split at
+    /// camelCase/snake_case/kebab-case/acronym boundaries); FTS operators in
+    /// the input are treated as plain text.
+    pub query: String,
+    /// Narrow to one file or directory/crate prefix (same matching as
+    /// list_symbols). Omit to search the whole project.
+    #[serde(default)]
+    pub path: Option<String>,
+    /// Narrow to one language id (e.g. `rust`). Omit for every language.
+    #[serde(default)]
+    pub language: Option<String>,
+    /// Maximum number of ranked hits to return. Defaults to 10, clamped to
+    /// 100 — results are best-first, so page with `offset` rather than
+    /// raising it.
+    #[serde(default)]
+    pub limit: Option<usize>,
+    /// Number of leading results to skip before applying `limit`, for
+    /// paging. Defaults to 0.
+    #[serde(default)]
+    pub offset: Option<usize>,
+    /// Source lines to include under each hit, starting at its definition
+    /// line and never past its end line. Defaults to 0 (no snippet), clamped
+    /// to 50.
+    #[serde(default)]
+    pub snippet_lines: Option<usize>,
+    /// Response shape: `text` (default) or `toon` (a compact table — see
+    /// `list_symbols`' `format` field for details).
+    #[serde(default)]
+    pub format: Option<String>,
+}
+
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct FindReferencesArgs {
     /// Exact name of the symbol to find every reference to.
@@ -338,7 +383,7 @@ const TOOL_CATEGORIES: &[(&str, &[&str])] = &[
             "get_file_tree",
         ],
     ),
-    ("lookup", &["find_symbol"]),
+    ("lookup", &["find_symbol", "search_symbols"]),
     (
         "relations",
         &["find_callers", "find_calls", "find_references", "impact_analysis"],
@@ -602,6 +647,57 @@ impl MctServer {
         let text = match output_format {
             OutputFormat::Text => format::symbol_hits(name, &hits, limit),
             OutputFormat::Toon => format::symbol_hits_toon(name, &hits, limit),
+        };
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Ranked search over split symbol names; see tools.ttc")]
+    pub async fn search_symbols(
+        &self,
+        Parameters(SearchSymbolsArgs {
+            query,
+            path,
+            language,
+            limit,
+            offset,
+            snippet_lines,
+            format,
+        }): Parameters<SearchSymbolsArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let query = validate_name(&query)?;
+        let output_format = parse_output_format(format.as_deref())?;
+        let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
+        let limit = limit.unwrap_or(SEARCH_DEFAULT_LIMIT).clamp(1, SEARCH_MAX_LIMIT);
+        let offset = offset.unwrap_or(0);
+        let snippet_lines = snippet_lines.unwrap_or(0).min(SEARCH_MAX_SNIPPET_LINES);
+        let index = self.index.lock().await;
+        let hits = index.search_symbols(query, scope).map_err(index_error)?;
+
+        // Only the page actually shown pays for file reads, each file read
+        // at most once. A file that vanished since the last reindex just
+        // gets no snippet rather than failing the whole search.
+        let mut sources: std::collections::HashMap<&str, Option<String>> =
+            std::collections::HashMap::new();
+        let snippets: Vec<Option<String>> = hits
+            .iter()
+            .skip(offset)
+            .take(limit)
+            .map(|hit| {
+                if snippet_lines == 0 {
+                    return None;
+                }
+                let source = sources
+                    .entry(hit.relative_path.as_str())
+                    .or_insert_with(|| read_source_file(&index, &hit.relative_path).ok());
+                source
+                    .as_deref()
+                    .map(|src| format::symbol_snippet(src, hit.line, hit.end_line, snippet_lines))
+            })
+            .collect();
+        let text = match output_format {
+            OutputFormat::Text => format::search_hits(query, &hits, offset, limit, &snippets),
+            OutputFormat::Toon => format::search_hits_toon(query, &hits, offset, limit, &snippets),
         };
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
