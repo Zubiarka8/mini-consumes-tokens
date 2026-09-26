@@ -54,6 +54,7 @@ cargo test --workspace                                              # run all 22
 cargo test -p mct-lang-go                                            # run one crate's tests
 cargo test -p mct-lang-go idiomatic_syntax                           # run one test by name
 cargo clippy --workspace --all-targets --all-features -- -D warnings # lint (CI-gating, zero warnings)
+cargo fmt --all                                                      # format (CI runs `cargo fmt --all --check`)
 # NOTE: the line above is the everyday lint command; the actual CI job (.github/workflows/ci.yml)
 # additionally denies unwrap/expect/panic project-wide:
 #   cargo clippy --workspace --all-targets --all-features -- -D warnings \

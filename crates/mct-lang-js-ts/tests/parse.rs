@@ -24,8 +24,16 @@ fn arrow_function_assigned_to_variable_is_a_function_symbol() {
     let add = parsed.symbols.iter().find(|s| s.name == "add").unwrap();
     assert_eq!(add.kind, SymbolKind::Function);
 
-    let calls: Vec<_> = parsed.relations.iter().filter(|r| r.kind == RelationKind::Calls).map(|r| r.to_name.as_str()).collect();
-    assert!(calls.contains(&"helper"), "call inside the arrow function body should be attributed to it: {calls:?}");
+    let calls: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Calls)
+        .map(|r| r.to_name.as_str())
+        .collect();
+    assert!(
+        calls.contains(&"helper"),
+        "call inside the arrow function body should be attributed to it: {calls:?}"
+    );
 }
 
 #[test]
@@ -34,21 +42,45 @@ fn es_module_import_and_named_export_are_recorded() {
         "utils.ts",
         "import { log } from \"./logger\";\n\nexport function greet(name: string): void {\n    log(name);\n}\n\nexport { greet as sayHello };\n",
     );
-    let imports: Vec<_> = parsed.relations.iter().filter(|r| r.kind == RelationKind::Imports).map(|r| r.to_name.as_str()).collect();
+    let imports: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Imports)
+        .map(|r| r.to_name.as_str())
+        .collect();
     assert!(imports.contains(&"log"));
 
     let greet = parsed.symbols.iter().find(|s| s.name == "greet").unwrap();
     assert_eq!(greet.kind, SymbolKind::Function);
 
-    let references: Vec<_> = parsed.relations.iter().filter(|r| r.kind == RelationKind::References).map(|r| r.to_name.as_str()).collect();
-    assert!(references.contains(&"greet"), "`export {{ greet as sayHello }}` should reference the local name: {references:?}");
+    let references: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::References)
+        .map(|r| r.to_name.as_str())
+        .collect();
+    assert!(
+        references.contains(&"greet"),
+        "`export {{ greet as sayHello }}` should reference the local name: {references:?}"
+    );
 }
 
 #[test]
 fn import_alias_uses_local_bound_name() {
-    let parsed = parse("consumer.js", "import { foo as bar } from \"./mod\";\n\nbar();\n");
-    let imports: Vec<_> = parsed.relations.iter().filter(|r| r.kind == RelationKind::Imports).map(|r| r.to_name.as_str()).collect();
-    assert!(imports.contains(&"bar"), "aliased import should record the local alias, not the source name: {imports:?}");
+    let parsed = parse(
+        "consumer.js",
+        "import { foo as bar } from \"./mod\";\n\nbar();\n",
+    );
+    let imports: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Imports)
+        .map(|r| r.to_name.as_str())
+        .collect();
+    assert!(
+        imports.contains(&"bar"),
+        "aliased import should record the local alias, not the source name: {imports:?}"
+    );
     assert!(!imports.contains(&"foo"));
 }
 
@@ -58,18 +90,41 @@ fn commonjs_require_and_module_exports_are_recorded() {
         "mathUtils.js",
         "function add(a, b) {\n    return a + b;\n}\n\nmodule.exports = { add };\n",
     );
-    let add = parsed.symbols.iter().find(|s| s.name == "add" && s.kind == SymbolKind::Function).unwrap();
+    let add = parsed
+        .symbols
+        .iter()
+        .find(|s| s.name == "add" && s.kind == SymbolKind::Function)
+        .unwrap();
     assert_eq!(add.kind, SymbolKind::Function);
 
-    let references: Vec<_> = parsed.relations.iter().filter(|r| r.kind == RelationKind::References).map(|r| r.to_name.as_str()).collect();
-    assert!(references.contains(&"add"), "module.exports shorthand should reference the exported name: {references:?}");
+    let references: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::References)
+        .map(|r| r.to_name.as_str())
+        .collect();
+    assert!(
+        references.contains(&"add"),
+        "module.exports shorthand should reference the exported name: {references:?}"
+    );
 }
 
 #[test]
 fn require_call_is_an_import_relation() {
-    let parsed = parse("consumer.js", "const { add } = require(\"./mathUtils\");\n\nadd(1, 2);\n");
-    let imports: Vec<_> = parsed.relations.iter().filter(|r| r.kind == RelationKind::Imports).map(|r| r.to_name.as_str()).collect();
-    assert!(imports.contains(&"./mathUtils"), "require() should record the module path: {imports:?}");
+    let parsed = parse(
+        "consumer.js",
+        "const { add } = require(\"./mathUtils\");\n\nadd(1, 2);\n",
+    );
+    let imports: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Imports)
+        .map(|r| r.to_name.as_str())
+        .collect();
+    assert!(
+        imports.contains(&"./mathUtils"),
+        "require() should record the module path: {imports:?}"
+    );
 }
 
 #[test]
@@ -81,10 +136,20 @@ fn class_implements_interface_and_extends_base() {
     let shape = parsed.symbols.iter().find(|s| s.name == "Shape").unwrap();
     assert_eq!(shape.kind, SymbolKind::Interface);
 
-    let extends: Vec<_> = parsed.relations.iter().filter(|r| r.kind == RelationKind::Extends).map(|r| r.to_name.as_str()).collect();
+    let extends: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Extends)
+        .map(|r| r.to_name.as_str())
+        .collect();
     assert!(extends.contains(&"BaseShape"));
 
-    let implements: Vec<_> = parsed.relations.iter().filter(|r| r.kind == RelationKind::Implements).map(|r| r.to_name.as_str()).collect();
+    let implements: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Implements)
+        .map(|r| r.to_name.as_str())
+        .collect();
     assert!(implements.contains(&"Shape"));
 
     let area = parsed.symbols.iter().find(|s| s.name == "area").unwrap();
@@ -109,13 +174,23 @@ fn tsx_component_logic_is_indexed_without_structuring_jsx() {
     // pseudo-symbol (named after Widget.tsx) collides with the exported
     // component of the same name — disambiguate by kind, same as the Java
     // plugin's `Calculator`/`Calculator.java` test.
-    assert!(parsed.symbols.iter().any(|s| s.name == "Widget" && s.kind == SymbolKind::Function));
+    assert!(parsed
+        .symbols
+        .iter()
+        .any(|s| s.name == "Widget" && s.kind == SymbolKind::Function));
 
     // No JSX-specific SymbolKind/RelationKind exists (or is expected) — only
     // the logic embedded in the component (the hook call from the render
     // body, and the one inside the onClick handler) should show up as Calls.
-    let use_count_calls = parsed.relations.iter().filter(|r| r.kind == RelationKind::Calls && r.to_name == "useCount").count();
-    assert_eq!(use_count_calls, 2, "one call in the component body, one inside the JSX event handler");
+    let use_count_calls = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Calls && r.to_name == "useCount")
+        .count();
+    assert_eq!(
+        use_count_calls, 2,
+        "one call in the component body, one inside the JSX event handler"
+    );
 }
 
 #[test]

@@ -92,7 +92,12 @@ fn every_registered_language_lands_in_the_files_language_column_with_real_symbol
             .languages
             .iter()
             .find(|l| l.language == *language)
-            .unwrap_or_else(|| panic!("no `{language}` row in files.language: {:?}", status.languages));
+            .unwrap_or_else(|| {
+                panic!(
+                    "no `{language}` row in files.language: {:?}",
+                    status.languages
+                )
+            });
         assert_eq!(coverage.file_count, *files, "{language} file count");
         assert_eq!(coverage.symbol_count, *symbols, "{language} symbol count");
     }
@@ -103,12 +108,19 @@ fn every_registered_language_lands_in_the_files_language_column_with_real_symbol
         "unexpected extra language row: {:?}",
         status.languages
     );
-    assert_eq!(status.total_files, EXPECTED_COVERAGE.iter().map(|(_, f, _)| f).sum::<usize>());
+    assert_eq!(
+        status.total_files,
+        EXPECTED_COVERAGE.iter().map(|(_, f, _)| f).sum::<usize>()
+    );
     assert_eq!(
         status.total_symbols,
         EXPECTED_COVERAGE.iter().map(|(_, _, s)| s).sum::<usize>()
     );
-    assert!(status.syntax_errors.is_empty(), "{:?}", status.syntax_errors);
+    assert!(
+        status.syntax_errors.is_empty(),
+        "{:?}",
+        status.syntax_errors
+    );
 }
 
 #[test]
@@ -175,7 +187,10 @@ fn a_lua_file_is_skipped_without_any_diagnostic_because_lua_is_not_registered() 
         status.unsupported_languages
     );
     assert!(
-        index.list_symbols("luatools", None, None).unwrap().is_empty(),
+        index
+            .list_symbols("luatools", None, None)
+            .unwrap()
+            .is_empty(),
         "nothing from the .lua file reaches the index"
     );
 }
@@ -190,7 +205,13 @@ fn same_named_symbols_from_different_languages_coexist_as_distinct_rows() {
     let deploys = index.find_symbol("deploy").unwrap();
     let mut seen: Vec<(&str, &str, &str)> = deploys
         .iter()
-        .map(|h| (h.language.as_str(), h.relative_path.as_str(), h.kind.as_str()))
+        .map(|h| {
+            (
+                h.language.as_str(),
+                h.relative_path.as_str(),
+                h.kind.as_str(),
+            )
+        })
         .collect();
     seen.sort_unstable();
     assert_eq!(
@@ -209,7 +230,9 @@ fn same_named_symbols_from_different_languages_coexist_as_distinct_rows() {
     assert_eq!(cpp.len(), 2, "{cpp:?}");
     assert!(cpp.iter().all(|h| h.language == "cpp"));
     assert_eq!(
-        cpp.iter().map(|h| h.relative_path.as_str()).collect::<Vec<_>>(),
+        cpp.iter()
+            .map(|h| h.relative_path.as_str())
+            .collect::<Vec<_>>(),
         vec!["native/arithmetic.cpp", "native/arithmetic.hpp"]
     );
 
@@ -284,7 +307,10 @@ fn a_callee_defined_in_another_file_resolves_across_the_file_boundary() {
     let kinds: Vec<&str> = refs.iter().map(|r| r.kind.as_str()).collect();
     assert!(kinds.contains(&"imports"), "{refs:?}");
     assert!(kinds.contains(&"calls"), "{refs:?}");
-    assert!(refs.iter().all(|r| r.language == "javascript_typescript"), "{refs:?}");
+    assert!(
+        refs.iter().all(|r| r.language == "javascript_typescript"),
+        "{refs:?}"
+    );
 }
 
 #[test]
@@ -300,8 +326,10 @@ fn a_symbol_name_shared_by_two_languages_does_not_leak_relations_between_them() 
     assert!(languages.contains(&"python"), "{calls:?}");
     assert!(languages.contains(&"bash"), "{calls:?}");
     assert!(
-        calls.iter().all(|c| c.relative_path.starts_with("pyscripts/")
-            || c.relative_path.starts_with("shell/")),
+        calls
+            .iter()
+            .all(|c| c.relative_path.starts_with("pyscripts/")
+                || c.relative_path.starts_with("shell/")),
         "no third language may join in: {calls:?}"
     );
 
@@ -324,19 +352,29 @@ fn list_symbols_partitions_the_fixture_cleanly_by_directory_and_by_language() {
 
     // ...narrowed by language, the Kotlin half drops out.
     let java_only = index.list_symbols("jvm", None, Some("java")).unwrap();
-    assert!(java_only.iter().all(|e| e.language == "java"), "{java_only:?}");
+    assert!(
+        java_only.iter().all(|e| e.language == "java"),
+        "{java_only:?}"
+    );
     assert!(java_only.iter().any(|e| e.name == "addItem"));
     assert!(!java_only.iter().any(|e| e.name == "buildRepository"));
 
     // Exact-file form on a language with no functions at all.
     let css = index.list_symbols("ui/styles.css", None, None).unwrap();
     assert!(css.iter().all(|e| e.relative_path == "ui/styles.css"));
-    assert!(css.iter().any(|e| e.kind == "rule" && e.name == ".ledger"), "{css:?}");
+    assert!(
+        css.iter().any(|e| e.kind == "rule" && e.name == ".ledger"),
+        "{css:?}"
+    );
 
     // `kind` + `language` combined across the whole fixture's markup half.
-    let elements = index.list_symbols("config", Some("element"), Some("xml")).unwrap();
+    let elements = index
+        .list_symbols("config", Some("element"), Some("xml"))
+        .unwrap();
     assert_eq!(elements.len(), 3, "{elements:?}");
-    assert!(elements.iter().all(|e| e.kind == "element" && e.language == "xml"));
+    assert!(elements
+        .iter()
+        .all(|e| e.kind == "element" && e.language == "xml"));
 }
 
 #[test]
@@ -346,18 +384,34 @@ fn every_symbol_row_carries_a_usable_line_range() {
         let entries = index.list_symbols("", None, Some(language)).unwrap();
         // `list_symbols("")` is a prefix match on `/%` and matches nothing —
         // go through the real directories instead.
-        assert!(entries.is_empty(), "empty path is not a wildcard: {entries:?}");
+        assert!(
+            entries.is_empty(),
+            "empty path is not a wildcard: {entries:?}"
+        );
     }
 
     for dir in [
-        "backend", "frontend", "pyscripts", "jvm", "dotnet", "native", "web", "rustcore",
-        "shell", "pwsh", "ui", "config", "docs",
+        "backend",
+        "frontend",
+        "pyscripts",
+        "jvm",
+        "dotnet",
+        "native",
+        "web",
+        "rustcore",
+        "shell",
+        "pwsh",
+        "ui",
+        "config",
+        "docs",
     ] {
         let entries = index.list_symbols(dir, None, None).unwrap();
         assert!(!entries.is_empty(), "`{dir}` indexed nothing");
         for entry in entries {
             assert!(entry.line >= 1, "{entry:?}");
-            let end = entry.end_line.unwrap_or_else(|| panic!("no end_line on {entry:?}"));
+            let end = entry
+                .end_line
+                .unwrap_or_else(|| panic!("no end_line on {entry:?}"));
             assert!(end >= entry.line, "end_line before line: {entry:?}");
         }
     }
@@ -442,8 +496,16 @@ fn an_incremental_reindex_of_a_real_polyglot_tree_picks_up_one_edit_and_drops_it
     let status = index.status().unwrap();
     assert_eq!(status.languages.len(), EXPECTED_COVERAGE.len());
     for (language, files, symbols) in EXPECTED_COVERAGE.iter().filter(|(l, _, _)| *l != "go") {
-        let coverage = status.languages.iter().find(|l| l.language == *language).unwrap();
-        assert_eq!((coverage.file_count, coverage.symbol_count), (*files, *symbols), "{language}");
+        let coverage = status
+            .languages
+            .iter()
+            .find(|l| l.language == *language)
+            .unwrap();
+        assert_eq!(
+            (coverage.file_count, coverage.symbol_count),
+            (*files, *symbols),
+            "{language}"
+        );
     }
 
     std::fs::remove_dir_all(&root).ok();
@@ -468,9 +530,15 @@ fn deleting_a_file_from_a_real_polyglot_tree_removes_only_that_languages_rows() 
         status.languages
     );
     assert_eq!(status.languages.len(), EXPECTED_COVERAGE.len() - 1);
-    assert!(index.list_symbols("ui/styles.css", None, None).unwrap().is_empty());
+    assert!(index
+        .list_symbols("ui/styles.css", None, None)
+        .unwrap()
+        .is_empty());
     // The HTML sibling in the same directory is untouched.
-    assert!(!index.list_symbols("ui/index.html", None, None).unwrap().is_empty());
+    assert!(!index
+        .list_symbols("ui/index.html", None, None)
+        .unwrap()
+        .is_empty());
 
     std::fs::remove_dir_all(&root).ok();
 }

@@ -33,8 +33,8 @@
 //! and neither requires knowing up front which module system a file uses.
 
 use mct_core::{
-    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
-    SymbolKind, SymbolRecord, SymbolRelation,
+    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
+    SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use tree_sitter::{Node, Parser};
 
@@ -68,11 +68,13 @@ impl LanguageParser for JsTsParser {
             .set_language(&language)
             .expect("tree-sitter-javascript/typescript grammars are statically valid");
 
-        let tree = parser.parse(&file.contents, None).ok_or_else(|| ParseError::Syntax {
-            path: file.relative_path.clone(),
-            line: 1,
-            message: "tree-sitter produced no parse tree".to_string(),
-        })?;
+        let tree = parser
+            .parse(&file.contents, None)
+            .ok_or_else(|| ParseError::Syntax {
+                path: file.relative_path.clone(),
+                line: 1,
+                message: "tree-sitter produced no parse tree".to_string(),
+            })?;
 
         let root = tree.root_node();
         if root.has_error() {
@@ -167,7 +169,13 @@ impl<'a> Walker<'a> {
         id
     }
 
-    fn push_relation(&mut self, from: SymbolId, kind: RelationKind, to_name: String, loc: Location) {
+    fn push_relation(
+        &mut self,
+        from: SymbolId,
+        kind: RelationKind,
+        to_name: String,
+        loc: Location,
+    ) {
         if to_name.is_empty() {
             return;
         }
@@ -195,7 +203,13 @@ impl<'a> Walker<'a> {
     /// arrow function's body can be a single expression (`() => foo()`)
     /// rather than a `statement_block`, so the body is dispatched through
     /// `visit` (not `visit_children`) to still catch a bare top-level call.
-    fn visit_function_like_body(&mut self, function_node: Node, owner: SymbolId, type_name: Option<&str>, depth: u32) {
+    fn visit_function_like_body(
+        &mut self,
+        function_node: Node,
+        owner: SymbolId,
+        type_name: Option<&str>,
+        depth: u32,
+    ) {
         if let Some(params) = function_node.child_by_field_name("parameters") {
             self.visit_children(params, owner, type_name, depth + 1);
         }
@@ -229,7 +243,12 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                let id = self.push_symbol(name.clone(), SymbolKind::Class, location(node), type_name.map(str::to_string));
+                let id = self.push_symbol(
+                    name.clone(),
+                    SymbolKind::Class,
+                    location(node),
+                    type_name.map(str::to_string),
+                );
                 let mut cursor = node.walk();
                 for child in node.children(&mut cursor) {
                     if child.kind() == "class_heritage" {
@@ -245,14 +264,24 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                let id = self.push_symbol(name.clone(), SymbolKind::Interface, location(node), type_name.map(str::to_string));
+                let id = self.push_symbol(
+                    name.clone(),
+                    SymbolKind::Interface,
+                    location(node),
+                    type_name.map(str::to_string),
+                );
                 let mut cursor = node.walk();
                 for child in node.children(&mut cursor) {
                     if child.kind() == "extends_type_clause" {
                         let mut c2 = child.walk();
                         for t in child.named_children(&mut c2) {
                             if let Some(name_node) = rightmost_name(t) {
-                                self.push_relation(id, RelationKind::Extends, text(name_node, self.source).to_string(), location(t));
+                                self.push_relation(
+                                    id,
+                                    RelationKind::Extends,
+                                    text(name_node, self.source).to_string(),
+                                    location(t),
+                                );
                             }
                         }
                     }
@@ -266,14 +295,24 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                self.push_symbol(name, SymbolKind::TypeAlias, location(node), type_name.map(str::to_string));
+                self.push_symbol(
+                    name,
+                    SymbolKind::TypeAlias,
+                    location(node),
+                    type_name.map(str::to_string),
+                );
             }
             "method_definition" => {
                 let name = node
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                let id = self.push_symbol(name, SymbolKind::Method, location(node), type_name.map(str::to_string));
+                let id = self.push_symbol(
+                    name,
+                    SymbolKind::Method,
+                    location(node),
+                    type_name.map(str::to_string),
+                );
                 self.visit_function_like_body(node, id, type_name, depth);
             }
             // JS's `field_definition` vs TS's `public_field_definition` —
@@ -289,12 +328,24 @@ impl<'a> Walker<'a> {
                 let Some(name_node) = name_node else { return };
                 let name = text(name_node, self.source).to_string();
                 match node.child_by_field_name("value") {
-                    Some(value) if matches!(value.kind(), "arrow_function" | "function_expression") => {
-                        let id = self.push_symbol(name, SymbolKind::Method, location(node), type_name.map(str::to_string));
+                    Some(value)
+                        if matches!(value.kind(), "arrow_function" | "function_expression") =>
+                    {
+                        let id = self.push_symbol(
+                            name,
+                            SymbolKind::Method,
+                            location(node),
+                            type_name.map(str::to_string),
+                        );
                         self.visit_function_like_body(value, id, type_name, depth);
                     }
                     _ => {
-                        self.push_symbol(name, SymbolKind::Field, location(node), type_name.map(str::to_string));
+                        self.push_symbol(
+                            name,
+                            SymbolKind::Field,
+                            location(node),
+                            type_name.map(str::to_string),
+                        );
                     }
                 }
             }
@@ -305,9 +356,16 @@ impl<'a> Walker<'a> {
             // e.g. `const { add } = require(...)`) just gets recursed into
             // normally, so a `require(...)` call on the right is still found.
             "variable_declarator" => {
-                let Some(value) = node.child_by_field_name("value") else { return };
-                let name_node = node.child_by_field_name("name").filter(|n| n.kind() == "identifier");
-                if let (true, Some(name_node)) = (matches!(value.kind(), "arrow_function" | "function_expression"), name_node) {
+                let Some(value) = node.child_by_field_name("value") else {
+                    return;
+                };
+                let name_node = node
+                    .child_by_field_name("name")
+                    .filter(|n| n.kind() == "identifier");
+                if let (true, Some(name_node)) = (
+                    matches!(value.kind(), "arrow_function" | "function_expression"),
+                    name_node,
+                ) {
                     let id = self.push_symbol(
                         text(name_node, self.source).to_string(),
                         SymbolKind::Function,
@@ -336,10 +394,20 @@ impl<'a> Walker<'a> {
                             let name = text(function, self.source);
                             if name == "require" {
                                 if let Some(module) = require_argument(node, self.source) {
-                                    self.push_relation(owner, RelationKind::Imports, module, location(node));
+                                    self.push_relation(
+                                        owner,
+                                        RelationKind::Imports,
+                                        module,
+                                        location(node),
+                                    );
                                 }
                             } else {
-                                self.push_relation(owner, RelationKind::Calls, name.to_string(), location(function));
+                                self.push_relation(
+                                    owner,
+                                    RelationKind::Calls,
+                                    name.to_string(),
+                                    location(function),
+                                );
                             }
                         }
                         "member_expression" => {
@@ -349,7 +417,12 @@ impl<'a> Walker<'a> {
                                 // and inner call_expression both start at `a`,
                                 // which would make two same-named chained
                                 // calls collide into one indistinguishable row.
-                                self.push_relation(owner, RelationKind::Calls, text(property, self.source).to_string(), location(property));
+                                self.push_relation(
+                                    owner,
+                                    RelationKind::Calls,
+                                    text(property, self.source).to_string(),
+                                    location(property),
+                                );
                             }
                         }
                         _ => {}
@@ -363,7 +436,12 @@ impl<'a> Walker<'a> {
             "new_expression" => {
                 if let Some(constructor) = node.child_by_field_name("constructor") {
                     if let Some(name_node) = rightmost_name(constructor) {
-                        self.push_relation(owner, RelationKind::Calls, text(name_node, self.source).to_string(), location(name_node));
+                        self.push_relation(
+                            owner,
+                            RelationKind::Calls,
+                            text(name_node, self.source).to_string(),
+                            location(name_node),
+                        );
                     }
                     self.visit(constructor, owner, type_name, depth + 1);
                 }
@@ -380,7 +458,9 @@ impl<'a> Walker<'a> {
                 }
             }
             "export_statement" => self.visit_export_statement(node, owner, type_name, depth),
-            "assignment_expression" => self.visit_assignment_expression(node, owner, type_name, depth),
+            "assignment_expression" => {
+                self.visit_assignment_expression(node, owner, type_name, depth)
+            }
             _ => self.visit_children(node, owner, type_name, depth + 1),
         }
     }
@@ -401,7 +481,12 @@ impl<'a> Walker<'a> {
                             continue;
                         }
                         if let Some(name_node) = rightmost_name(value) {
-                            self.push_relation(class_id, RelationKind::Extends, text(name_node, self.source).to_string(), location(value));
+                            self.push_relation(
+                                class_id,
+                                RelationKind::Extends,
+                                text(name_node, self.source).to_string(),
+                                location(value),
+                            );
                         }
                     }
                 }
@@ -409,13 +494,23 @@ impl<'a> Walker<'a> {
                     let mut c2 = child.walk();
                     for value in child.named_children(&mut c2) {
                         if let Some(name_node) = rightmost_name(value) {
-                            self.push_relation(class_id, RelationKind::Implements, text(name_node, self.source).to_string(), location(value));
+                            self.push_relation(
+                                class_id,
+                                RelationKind::Implements,
+                                text(name_node, self.source).to_string(),
+                                location(value),
+                            );
                         }
                     }
                 }
                 _ => {
                     if let Some(name_node) = rightmost_name(child) {
-                        self.push_relation(class_id, RelationKind::Extends, text(name_node, self.source).to_string(), location(child));
+                        self.push_relation(
+                            class_id,
+                            RelationKind::Extends,
+                            text(name_node, self.source).to_string(),
+                            location(child),
+                        );
                     }
                 }
             }
@@ -434,11 +529,21 @@ impl<'a> Walker<'a> {
         for child in clause.named_children(&mut cursor) {
             match child.kind() {
                 "identifier" => {
-                    self.push_relation(owner, RelationKind::Imports, text(child, self.source).to_string(), location(child));
+                    self.push_relation(
+                        owner,
+                        RelationKind::Imports,
+                        text(child, self.source).to_string(),
+                        location(child),
+                    );
                 }
                 "namespace_import" => {
                     if let Some(name_node) = child.named_child(0) {
-                        self.push_relation(owner, RelationKind::Imports, text(name_node, self.source).to_string(), location(child));
+                        self.push_relation(
+                            owner,
+                            RelationKind::Imports,
+                            text(name_node, self.source).to_string(),
+                            location(child),
+                        );
                     }
                 }
                 "named_imports" => {
@@ -447,12 +552,19 @@ impl<'a> Walker<'a> {
                         if spec.kind() != "import_specifier" {
                             continue;
                         }
-                        let target = spec.child_by_field_name("alias").or_else(|| spec.child_by_field_name("name"));
+                        let target = spec
+                            .child_by_field_name("alias")
+                            .or_else(|| spec.child_by_field_name("name"));
                         if let Some(target) = target {
                             if target.kind() == "default" {
                                 continue;
                             }
-                            self.push_relation(owner, RelationKind::Imports, text(target, self.source).to_string(), location(spec));
+                            self.push_relation(
+                                owner,
+                                RelationKind::Imports,
+                                text(target, self.source).to_string(),
+                                location(spec),
+                            );
                         }
                     }
                 }
@@ -466,13 +578,24 @@ impl<'a> Walker<'a> {
     /// foo` and `export { foo, bar as baz }` reference an *existing* symbol
     /// by name rather than declaring a new one, recorded as `References`
     /// (the same relation the Python plugin uses for decorator references).
-    fn visit_export_statement(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>, depth: u32) {
+    fn visit_export_statement(
+        &mut self,
+        node: Node,
+        owner: SymbolId,
+        type_name: Option<&str>,
+        depth: u32,
+    ) {
         if let Some(declaration) = node.child_by_field_name("declaration") {
             self.visit(declaration, owner, type_name, depth + 1);
         }
         if let Some(value) = node.child_by_field_name("value") {
             if let Some(name_node) = rightmost_name(value) {
-                self.push_relation(owner, RelationKind::References, text(name_node, self.source).to_string(), location(value));
+                self.push_relation(
+                    owner,
+                    RelationKind::References,
+                    text(name_node, self.source).to_string(),
+                    location(value),
+                );
             } else {
                 self.visit(value, owner, type_name, depth + 1);
             }
@@ -487,7 +610,12 @@ impl<'a> Walker<'a> {
                     }
                     if let Some(name_node) = spec.child_by_field_name("name") {
                         if name_node.kind() != "default" {
-                            self.push_relation(owner, RelationKind::References, text(name_node, self.source).to_string(), location(spec));
+                            self.push_relation(
+                                owner,
+                                RelationKind::References,
+                                text(name_node, self.source).to_string(),
+                                location(spec),
+                            );
                         }
                     }
                 }
@@ -503,7 +631,13 @@ impl<'a> Walker<'a> {
     /// recorded as a new `Function` symbol, same treatment as the ESM
     /// arrow-assigned-to-variable case. Anything that isn't one of these
     /// shapes (e.g. a plain reassignment) is just recursed into normally.
-    fn visit_assignment_expression(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>, depth: u32) {
+    fn visit_assignment_expression(
+        &mut self,
+        node: Node,
+        owner: SymbolId,
+        type_name: Option<&str>,
+        depth: u32,
+    ) {
         let left = node.child_by_field_name("left");
         let right = node.child_by_field_name("right");
         if let (Some(left), Some(right)) = (left, right) {
@@ -517,7 +651,13 @@ impl<'a> Walker<'a> {
         }
     }
 
-    fn record_commonjs_export(&mut self, member_name: Option<String>, value: Node, owner: SymbolId, depth: u32) {
+    fn record_commonjs_export(
+        &mut self,
+        member_name: Option<String>,
+        value: Node,
+        owner: SymbolId,
+        depth: u32,
+    ) {
         match value.kind() {
             "arrow_function" | "function_expression" => match member_name {
                 Some(name) => {
@@ -527,25 +667,48 @@ impl<'a> Walker<'a> {
                 None => self.visit_function_like_body(value, owner, None, depth),
             },
             "identifier" => {
-                self.push_relation(owner, RelationKind::References, text(value, self.source).to_string(), location(value));
+                self.push_relation(
+                    owner,
+                    RelationKind::References,
+                    text(value, self.source).to_string(),
+                    location(value),
+                );
             }
             "object" => {
                 let mut cursor = value.walk();
                 for child in value.named_children(&mut cursor) {
                     match child.kind() {
                         "shorthand_property_identifier" => {
-                            self.push_relation(owner, RelationKind::References, text(child, self.source).to_string(), location(child));
+                            self.push_relation(
+                                owner,
+                                RelationKind::References,
+                                text(child, self.source).to_string(),
+                                location(child),
+                            );
                         }
                         "pair" => {
-                            let (Some(key), Some(val)) = (child.child_by_field_name("key"), child.child_by_field_name("value")) else {
+                            let (Some(key), Some(val)) = (
+                                child.child_by_field_name("key"),
+                                child.child_by_field_name("value"),
+                            ) else {
                                 continue;
                             };
                             match val.kind() {
                                 "identifier" => {
-                                    self.push_relation(owner, RelationKind::References, text(val, self.source).to_string(), location(child));
+                                    self.push_relation(
+                                        owner,
+                                        RelationKind::References,
+                                        text(val, self.source).to_string(),
+                                        location(child),
+                                    );
                                 }
                                 "arrow_function" | "function_expression" => {
-                                    let id = self.push_symbol(text(key, self.source).to_string(), SymbolKind::Function, location(child), None);
+                                    let id = self.push_symbol(
+                                        text(key, self.source).to_string(),
+                                        SymbolKind::Function,
+                                        location(child),
+                                        None,
+                                    );
                                     self.visit_function_like_body(val, id, None, depth);
                                 }
                                 _ => {}
@@ -553,7 +716,12 @@ impl<'a> Walker<'a> {
                         }
                         "method_definition" => {
                             if let Some(name_node) = child.child_by_field_name("name") {
-                                let id = self.push_symbol(text(name_node, self.source).to_string(), SymbolKind::Function, location(child), None);
+                                let id = self.push_symbol(
+                                    text(name_node, self.source).to_string(),
+                                    SymbolKind::Function,
+                                    location(child),
+                                    None,
+                                );
                                 self.visit_function_like_body(child, id, None, depth);
                             }
                         }
@@ -580,11 +748,18 @@ impl<'a> Walker<'a> {
 /// `implements` targets and `export default <expr>`.
 fn rightmost_name(node: Node) -> Option<Node> {
     match node.kind() {
-        "identifier" | "type_identifier" | "property_identifier" | "shorthand_property_identifier" => Some(node),
-        "member_expression" => node.child_by_field_name("property").and_then(rightmost_name),
+        "identifier"
+        | "type_identifier"
+        | "property_identifier"
+        | "shorthand_property_identifier" => Some(node),
+        "member_expression" => node
+            .child_by_field_name("property")
+            .and_then(rightmost_name),
         "generic_type" => node.child_by_field_name("name").and_then(rightmost_name),
         "nested_type_identifier" => node.child_by_field_name("name").and_then(rightmost_name),
-        "call_expression" => node.child_by_field_name("function").and_then(rightmost_name),
+        "call_expression" => node
+            .child_by_field_name("function")
+            .and_then(rightmost_name),
         _ => None,
     }
 }

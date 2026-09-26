@@ -11,8 +11,8 @@
 //! decision (see `checklist.md`).
 
 use mct_core::{
-    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
-    SymbolKind, SymbolRecord, SymbolRelation,
+    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
+    SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use tree_sitter::{Node, Parser};
 
@@ -39,11 +39,13 @@ impl LanguageParser for GoParser {
             .set_language(&tree_sitter_go::LANGUAGE.into())
             .expect("tree-sitter-go grammar is statically valid");
 
-        let tree = parser.parse(&file.contents, None).ok_or_else(|| ParseError::Syntax {
-            path: file.relative_path.clone(),
-            line: 1,
-            message: "tree-sitter produced no parse tree".to_string(),
-        })?;
+        let tree = parser
+            .parse(&file.contents, None)
+            .ok_or_else(|| ParseError::Syntax {
+                path: file.relative_path.clone(),
+                line: 1,
+                message: "tree-sitter produced no parse tree".to_string(),
+            })?;
 
         let root = tree.root_node();
         if root.has_error() {
@@ -66,7 +68,8 @@ impl LanguageParser for GoParser {
 
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
-        let file_module_id = walker.push_symbol(module_name, SymbolKind::Module, location(root), None);
+        let file_module_id =
+            walker.push_symbol(module_name, SymbolKind::Module, location(root), None);
         if let Some(ref pkg) = package_name {
             walker.push_symbol(pkg.clone(), SymbolKind::Module, location(root), None);
         }
@@ -127,28 +130,63 @@ struct Walker<'a> {
 
 impl<'a> Walker<'a> {
     fn new(source: &'a str) -> Self {
-        Self { source, symbols: Vec::new(), relations: Vec::new(), next_id: 0 }
+        Self {
+            source,
+            symbols: Vec::new(),
+            relations: Vec::new(),
+            next_id: 0,
+        }
     }
 
-    fn push_symbol(&mut self, name: String, kind: SymbolKind, location: Location, parent: Option<String>) -> SymbolId {
+    fn push_symbol(
+        &mut self,
+        name: String,
+        kind: SymbolKind,
+        location: Location,
+        parent: Option<String>,
+    ) -> SymbolId {
         let id = self.next_id;
         self.next_id += 1;
-        self.symbols.push(SymbolRecord { id, name, kind, location, parent, level: None });
+        self.symbols.push(SymbolRecord {
+            id,
+            name,
+            kind,
+            location,
+            parent,
+            level: None,
+        });
         id
     }
 
-    fn push_relation(&mut self, from: SymbolId, kind: RelationKind, to_name: String, loc: Location) {
+    fn push_relation(
+        &mut self,
+        from: SymbolId,
+        kind: RelationKind,
+        to_name: String,
+        loc: Location,
+    ) {
         if to_name.is_empty() {
             return;
         }
-        self.relations.push(SymbolRelation { from, kind, to_name, location: loc });
+        self.relations.push(SymbolRelation {
+            from,
+            kind,
+            to_name,
+            location: loc,
+        });
     }
 
     /// `owner` is the innermost enclosing function/method (calls attach to
     /// it); `package_name` is this file's package, used as `parent` for
     /// top-level functions/types/interfaces (Go has no further nesting of
     /// declarations below package scope).
-    fn visit_children(&mut self, node: Node, owner: SymbolId, package_name: Option<&str>, depth: u32) {
+    fn visit_children(
+        &mut self,
+        node: Node,
+        owner: SymbolId,
+        package_name: Option<&str>,
+        depth: u32,
+    ) {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             self.visit(child, owner, package_name, depth + 1);
@@ -161,8 +199,16 @@ impl<'a> Walker<'a> {
         }
         match node.kind() {
             "function_declaration" => {
-                let name = node.child_by_field_name("name").map(|n| text(n, self.source).to_string()).unwrap_or_default();
-                let id = self.push_symbol(name, SymbolKind::Function, location(node), package_name.map(str::to_string));
+                let name = node
+                    .child_by_field_name("name")
+                    .map(|n| text(n, self.source).to_string())
+                    .unwrap_or_default();
+                let id = self.push_symbol(
+                    name,
+                    SymbolKind::Function,
+                    location(node),
+                    package_name.map(str::to_string),
+                );
                 if let Some(params) = node.child_by_field_name("parameters") {
                     self.visit_children(params, id, package_name, depth + 1);
                 }
@@ -171,7 +217,10 @@ impl<'a> Walker<'a> {
                 }
             }
             "method_declaration" => {
-                let name = node.child_by_field_name("name").map(|n| text(n, self.source).to_string()).unwrap_or_default();
+                let name = node
+                    .child_by_field_name("name")
+                    .map(|n| text(n, self.source).to_string())
+                    .unwrap_or_default();
                 let receiver_type = receiver_type_name(node, self.source);
                 let parent = receiver_type.or_else(|| package_name.map(str::to_string));
                 let id = self.push_symbol(name, SymbolKind::Method, location(node), parent);
@@ -183,13 +232,26 @@ impl<'a> Walker<'a> {
                 }
             }
             "type_spec" => {
-                let name = node.child_by_field_name("name").map(|n| text(n, self.source).to_string()).unwrap_or_default();
+                let name = node
+                    .child_by_field_name("name")
+                    .map(|n| text(n, self.source).to_string())
+                    .unwrap_or_default();
                 match node.child_by_field_name("type") {
                     Some(type_node) if type_node.kind() == "struct_type" => {
-                        self.push_symbol(name, SymbolKind::Struct, location(node), package_name.map(str::to_string));
+                        self.push_symbol(
+                            name,
+                            SymbolKind::Struct,
+                            location(node),
+                            package_name.map(str::to_string),
+                        );
                     }
                     Some(type_node) if type_node.kind() == "interface_type" => {
-                        self.push_symbol(name.clone(), SymbolKind::Interface, location(node), package_name.map(str::to_string));
+                        self.push_symbol(
+                            name.clone(),
+                            SymbolKind::Interface,
+                            location(node),
+                            package_name.map(str::to_string),
+                        );
                         // The interface's own declared method set — NOT a
                         // resolution of which types implement it (see the
                         // module doc's "deferred by design" note above).
@@ -200,7 +262,12 @@ impl<'a> Walker<'a> {
                                     .child_by_field_name("name")
                                     .map(|n| text(n, self.source).to_string())
                                     .unwrap_or_default();
-                                self.push_symbol(method_name, SymbolKind::Method, location(member), Some(name.clone()));
+                                self.push_symbol(
+                                    method_name,
+                                    SymbolKind::Method,
+                                    location(member),
+                                    Some(name.clone()),
+                                );
                             }
                         }
                     }
@@ -208,7 +275,12 @@ impl<'a> Walker<'a> {
                         // `type UserID int` and similar — recorded for
                         // completeness, out of the spec's required set but
                         // free given the trait already models `TypeAlias`.
-                        self.push_symbol(name, SymbolKind::TypeAlias, location(node), package_name.map(str::to_string));
+                        self.push_symbol(
+                            name,
+                            SymbolKind::TypeAlias,
+                            location(node),
+                            package_name.map(str::to_string),
+                        );
                     }
                 }
             }
@@ -231,7 +303,12 @@ impl<'a> Walker<'a> {
                         // call_expression both start at `a`, which would make
                         // two same-named chained calls collide into one
                         // indistinguishable row.
-                        self.push_relation(owner, RelationKind::Calls, text(name_node, self.source).to_string(), location(name_node));
+                        self.push_relation(
+                            owner,
+                            RelationKind::Calls,
+                            text(name_node, self.source).to_string(),
+                            location(name_node),
+                        );
                     }
                     self.visit(function, owner, package_name, depth + 1);
                 }
@@ -244,7 +321,11 @@ impl<'a> Walker<'a> {
     }
 
     fn finish(self) -> ParsedFile {
-        ParsedFile { symbols: self.symbols, relations: self.relations, ..Default::default() }
+        ParsedFile {
+            symbols: self.symbols,
+            relations: self.relations,
+            ..Default::default()
+        }
     }
 }
 
@@ -266,9 +347,15 @@ fn collect_import_specs<'a>(node: Node<'a>, out: &mut Vec<Node<'a>>) {
 fn receiver_type_name(method_declaration: Node, source: &str) -> Option<String> {
     let receiver = method_declaration.child_by_field_name("receiver")?;
     let mut cursor = receiver.walk();
-    let param = receiver.children(&mut cursor).find(|c| c.kind() == "parameter_declaration")?;
+    let param = receiver
+        .children(&mut cursor)
+        .find(|c| c.kind() == "parameter_declaration")?;
     let ty = param.child_by_field_name("type")?;
-    let unwrapped = if ty.kind() == "pointer_type" { ty.named_child(0).unwrap_or(ty) } else { ty };
+    let unwrapped = if ty.kind() == "pointer_type" {
+        ty.named_child(0).unwrap_or(ty)
+    } else {
+        ty
+    };
     Some(text(unwrapped, source).to_string())
 }
 

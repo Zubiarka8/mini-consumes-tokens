@@ -29,7 +29,11 @@ fn open_indexed() -> Index {
         report.files_parsed, 7,
         "backend/{{invoice,logger,server}}.go, frontend/{{format,apiClient}}.ts, scripts/{{notify,deploy}}.py"
     );
-    assert!(report.issues.is_empty(), "no parse issues expected: {:?}", report.issues);
+    assert!(
+        report.issues.is_empty(),
+        "no parse issues expected: {:?}",
+        report.issues
+    );
     index
 }
 
@@ -38,7 +42,11 @@ fn status_reports_coverage_for_all_three_languages_independently() {
     let index = open_indexed();
     let status = index.status().unwrap();
 
-    let go = status.languages.iter().find(|l| l.language == "go").unwrap();
+    let go = status
+        .languages
+        .iter()
+        .find(|l| l.language == "go")
+        .unwrap();
     assert_eq!(go.file_count, 3, "invoice.go, logger.go, server.go");
 
     let ts = status
@@ -48,10 +56,19 @@ fn status_reports_coverage_for_all_three_languages_independently() {
         .unwrap();
     assert_eq!(ts.file_count, 2, "format.ts, apiClient.ts");
 
-    let python = status.languages.iter().find(|l| l.language == "python").unwrap();
+    let python = status
+        .languages
+        .iter()
+        .find(|l| l.language == "python")
+        .unwrap();
     assert_eq!(python.file_count, 2, "notify.py, deploy.py");
 
-    assert_eq!(status.languages.len(), 3, "no unexpected fourth language: {:?}", status.languages);
+    assert_eq!(
+        status.languages.len(),
+        3,
+        "no unexpected fourth language: {:?}",
+        status.languages
+    );
     assert!(status.unsupported_languages.is_empty());
     assert!(status.syntax_errors.is_empty());
 }
@@ -61,13 +78,28 @@ fn find_symbol_resolves_each_language_independently() {
     let index = open_indexed();
 
     let go_hits = index.find_symbol("AddItem").unwrap();
-    assert!(go_hits.iter().any(|h| h.relative_path == "backend/invoice.go"), "{go_hits:?}");
+    assert!(
+        go_hits
+            .iter()
+            .any(|h| h.relative_path == "backend/invoice.go"),
+        "{go_hits:?}"
+    );
 
     let ts_hits = index.find_symbol("createInvoice").unwrap();
-    assert!(ts_hits.iter().any(|h| h.relative_path == "frontend/apiClient.ts"), "{ts_hits:?}");
+    assert!(
+        ts_hits
+            .iter()
+            .any(|h| h.relative_path == "frontend/apiClient.ts"),
+        "{ts_hits:?}"
+    );
 
     let py_hits = index.find_symbol("deploy").unwrap();
-    assert!(py_hits.iter().any(|h| h.relative_path == "scripts/deploy.py"), "{py_hits:?}");
+    assert!(
+        py_hits
+            .iter()
+            .any(|h| h.relative_path == "scripts/deploy.py"),
+        "{py_hits:?}"
+    );
 }
 
 #[test]
@@ -76,15 +108,21 @@ fn find_calls_stay_within_their_own_language() {
 
     // Go: HandleCreateInvoice -> AddItem -> Log.
     let go_calls = index.find_calls("HandleCreateInvoice").unwrap();
-    assert!(go_calls.iter().any(|c| c.to_name == "AddItem" && c.relative_path == "backend/server.go"));
+    assert!(go_calls
+        .iter()
+        .any(|c| c.to_name == "AddItem" && c.relative_path == "backend/server.go"));
 
     // TS: createInvoice -> formatTotal.
     let ts_calls = index.find_calls("createInvoice").unwrap();
-    assert!(ts_calls.iter().any(|c| c.to_name == "formatTotal" && c.relative_path == "frontend/apiClient.ts"));
+    assert!(ts_calls
+        .iter()
+        .any(|c| c.to_name == "formatTotal" && c.relative_path == "frontend/apiClient.ts"));
 
     // Python: deploy -> send_alert.
     let py_calls = index.find_calls("deploy").unwrap();
-    assert!(py_calls.iter().any(|c| c.to_name == "send_alert" && c.relative_path == "scripts/deploy.py"));
+    assert!(py_calls
+        .iter()
+        .any(|c| c.to_name == "send_alert" && c.relative_path == "scripts/deploy.py"));
 }
 
 #[test]

@@ -8,7 +8,10 @@ use mct_lang_html::HtmlParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
     HtmlParser
-        .parse(&SourceFile { relative_path: "index.html".to_string(), contents: src.to_string() })
+        .parse(&SourceFile {
+            relative_path: "index.html".to_string(),
+            contents: src.to_string(),
+        })
         .expect("valid HTML source should parse")
 }
 
@@ -59,36 +62,58 @@ fn id_ancestor_is_found_through_an_unidentified_element() {
 #[test]
 fn link_stylesheet_creates_import_relation() {
     let parsed = parse("<link rel=\"stylesheet\" href=\"theme.css\">");
-    let imports: Vec<_> =
-        parsed.relations.iter().filter(|r| r.kind == RelationKind::Imports).map(|r| r.to_name.as_str()).collect();
+    let imports: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Imports)
+        .map(|r| r.to_name.as_str())
+        .collect();
     assert!(imports.contains(&"theme.css"), "{imports:?}");
 }
 
 #[test]
 fn non_stylesheet_link_is_not_an_import() {
     let parsed = parse("<link rel=\"icon\" href=\"favicon.ico\">");
-    assert!(parsed.relations.iter().all(|r| r.kind != RelationKind::Imports));
+    assert!(parsed
+        .relations
+        .iter()
+        .all(|r| r.kind != RelationKind::Imports));
 }
 
 #[test]
 fn script_src_creates_import_relation() {
     let parsed = parse("<script src=\"app.js\"></script>");
-    let imports: Vec<_> =
-        parsed.relations.iter().filter(|r| r.kind == RelationKind::Imports).map(|r| r.to_name.as_str()).collect();
+    let imports: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Imports)
+        .map(|r| r.to_name.as_str())
+        .collect();
     assert!(imports.contains(&"app.js"), "{imports:?}");
 }
 
 #[test]
 fn inline_script_without_src_creates_no_import() {
     let parsed = parse("<script>console.log('hi');</script>");
-    assert!(parsed.relations.iter().all(|r| r.kind != RelationKind::Imports));
+    assert!(parsed
+        .relations
+        .iter()
+        .all(|r| r.kind != RelationKind::Imports));
 }
 
 #[test]
 fn module_pseudo_symbol_owns_file_level_relations() {
     let parsed = parse("<script src=\"app.js\"></script>");
-    let module = parsed.symbols.iter().find(|s| s.kind == SymbolKind::Module).unwrap();
-    let import = parsed.relations.iter().find(|r| r.kind == RelationKind::Imports).unwrap();
+    let module = parsed
+        .symbols
+        .iter()
+        .find(|s| s.kind == SymbolKind::Module)
+        .unwrap();
+    let import = parsed
+        .relations
+        .iter()
+        .find(|r| r.kind == RelationKind::Imports)
+        .unwrap();
     assert_eq!(import.from, module.id);
 }
 
@@ -116,5 +141,8 @@ fn syntax_error_is_reported_not_panicked() {
         relative_path: "broken.html".to_string(),
         contents: "<div id=\"unterminated>\u{0}<<< not html at all &^%".to_string(),
     });
-    assert!(matches!(result, Err(mct_core::ParseError::Syntax { .. })), "{result:?}");
+    assert!(
+        matches!(result, Err(mct_core::ParseError::Syntax { .. })),
+        "{result:?}"
+    );
 }
