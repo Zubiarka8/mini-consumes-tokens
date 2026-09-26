@@ -90,14 +90,14 @@ pub struct ResolvedScope<'a> {
 }
 
 /// Boxed values bound to a statement's `?N` placeholders, in placeholder order.
-type BoundValues = Vec<Box<dyn rusqlite::ToSql>>;
+pub(crate) type BoundValues = Vec<Box<dyn rusqlite::ToSql>>;
 
 /// Appends the scope predicates to `sql` and their values to `bound`.
 ///
 /// Only the static predicate fragments are concatenated into the SQL string;
 /// every user-supplied value stays bound through a `?N` placeholder, where `N`
 /// is derived from the number of already-bound values, never from input.
-fn push_scope(sql: &mut String, bound: &mut BoundValues, scope: ResolvedScope<'_>) {
+pub(crate) fn push_scope(sql: &mut String, bound: &mut BoundValues, scope: ResolvedScope<'_>) {
     if let Some(path) = scope.path {
         if scope.path_is_file {
             sql.push_str(&format!(" AND f.relative_path = ?{}", bound.len() + 1));
