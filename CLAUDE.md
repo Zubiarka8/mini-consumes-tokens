@@ -19,6 +19,7 @@ An MCP server (`mct-mcp-server`) and CLI (`mct-cli`) that index a code repositor
 | What does an unfamiliar file/directory/crate/project look like as a whole? | `get_project_overview` — capped hierarchical digest (modules, key symbols, top callers) in one call; coarser, so switch to the two above once you know the file |
 | What's the directory/file layout, before you know which file or crate to look at? | `get_file_tree` — plain directory tree (no symbol data), depth-limited, pruned of the same noise dirs (`target`, `node_modules`, `.git`) reindexing skips |
 | Where is X defined? | `find_symbol` |
+| Exact name unknown — words or a partial identifier in any style (`parse request`, `parseReq`, `http server`)? | `search_symbols` — BM25-ranked FTS5 match over each name split at camelCase/snake_case/kebab-case/acronym boundaries, exact name always first; default `limit` 10 (max 100), `offset`, optional `snippet_lines`. Not exhaustive — graph tools stay the source of truth for relations |
 | Who calls X directly? | `find_callers` |
 | What does X call? | `find_calls` |
 | Every reference to X (calls, imports, extends/implements) | `find_references` |
@@ -78,7 +79,7 @@ mct-index    SQLite schema/migrations (a single schema for every language — a 
              column on `files`, not per-language tables), reindex orchestration, queries.
              Knows no language's grammar.
 mct-lang-*   One crate per language, each a LanguageParser impl over its tree-sitter grammar
-mct-mcp-server  MCP tools over stdio (rmcp): list_symbols/find_symbol/find_references/
+mct-mcp-server  MCP tools over stdio (rmcp): list_symbols/find_symbol/search_symbols/find_references/
                 find_calls/find_callers/impact_analysis/find_dead_code/reindex/
                 get_indexing_status/get_file_skeleton/get_project_overview/get_file_tree
 mct-cli      init/reindex/status/mcp-register subcommands for manual/scripted use
