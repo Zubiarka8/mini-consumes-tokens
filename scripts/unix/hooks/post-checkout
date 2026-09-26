@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# mct post-checkout hook — installed by scripts/unix/install-hooks.sh as a
+# copy (not a symlink, so it keeps working on branches that predate it);
+# re-run that script to update it. macOS and Linux.
+#
+# On a branch switch that changes the number of index schema migrations
+# (`M::up` entries in crates/mct-index/src/schema.rs), checks the index
+# against the *installed* mct-cli — the binaries Claude Code runs, which a
+# checkout doesn't change. If the index was migrated by a newer schema than
+# those binaries know (the `CONNECTION_CLOSED` failure), it is rebuilt for
+# them. Either way it says how to get this branch's server.
+#
+# Never fails the checkout. Skip it with MCT_SKIP_HOOKS=1.
+
+prev="${1:-}" next="${2:-}" branch_switch="${3:-0}"
+[ "$branch_switch" = 1 ] && [ "$prev" != "$next" ] || exit 0
+[ -z "${MCT_SKIP_HOOKS:-}" ] || exit 0
+
+schema=crates/mct-index/src/schema.rs
+migrations() { git show "$1:$schema" 2>/dev/null | grep -c 'M::up(' || true; }
+before=$(migrations "$prev")
+after=$(migrations "$next")
+[ "$before" != "$after" ] || exit 0
+
+echo "mct: index schema migrations $before → $after on this branch"
+
+index=.mct-index/index.sqlite3
+cli="${CARGO_HOME:-$HOME/.cargo}/bin/mct-cli"
+if [ -f "$index" ] && [ -x "$cli" ]; then
+  if ! status=$("$cli" --root . status 2>&1) \
+    && printf '%s\n' "$status" | grep -q 'migration number that is too high'; then
+    echo "mct: the index is newer than the installed mct-cli/mct-mcp-server — rebuilding it for them"
+    rm -f "$index" "$index-wal" "$index-shm"
+    if "$cli" --root . init >/dev/null 2>&1; then
+      echo "mct: index rebuilt — run /mcp in Claude Code to reconnect"
+    else
+      echo "mct: rebuild failed — run: $cli --root . init"
+    fi
+  fi
+fi
+echo "mct: installed binaries unchanged; to serve this branch's code run scripts/unix/reinstall.sh, then /mcp"
+exit 0
