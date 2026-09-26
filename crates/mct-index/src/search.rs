@@ -22,6 +22,16 @@ pub(crate) const SPLIT_WORDS_FUNCTION: &str = "mct_split_words";
 /// FTS5 prefix scan, and no real identifier search needs more than a few.
 const MAX_QUERY_TERMS: usize = 16;
 
+/// English function words dropped from the any-word fallback only. In the
+/// all-words match they are harmless (and sometimes meaningful — `is_test`),
+/// but OR-ed in as prefixes (`"a"*`, `"the"*`) they match most of the index
+/// and bury the real hits of a plain-language query.
+const FALLBACK_STOPWORDS: &[&str] = &[
+    "a", "an", "and", "are", "as", "at", "be", "by", "can", "do", "does", "each", "for", "from",
+    "has", "have", "how", "in", "into", "is", "it", "its", "of", "on", "or", "that", "the",
+    "their", "this", "to", "was", "were", "what", "when", "where", "which", "who", "with",
+];
+
 /// Splits an identifier into lowercase words at camelCase, PascalCase,
 /// snake_case, kebab-case, whitespace/punctuation and acronym boundaries:
 /// `parseRequestBody` → `parse request body`, `HTTPServer` → `http server`,
@@ -94,7 +104,21 @@ pub(crate) fn register_functions(conn: &Connection) -> rusqlite::Result<()> {
 /// can never inject an FTS5 operator (`NEAR`, `OR`, `:`, `^`, `(`...), and a
 /// malformed query is simply one with fewer terms, never a syntax error.
 fn fts_expression(query: &str, joiner: &str) -> Option<String> {
-    let terms: Vec<String> = split_identifier(query)
+    fts_terms(split_identifier(query), joiner)
+}
+
+/// The any-word fallback's expression: [`fts_expression`] joined by `OR`,
+/// minus [`FALLBACK_STOPWORDS`] and single-character words.
+fn fallback_expression(query: &str) -> Option<String> {
+    let words = split_identifier(query)
+        .into_iter()
+        .filter(|w| w.chars().count() > 1 && !FALLBACK_STOPWORDS.contains(&w.as_str()))
+        .collect();
+    fts_terms(words, " OR ")
+}
+
+fn fts_terms(words: Vec<String>, joiner: &str) -> Option<String> {
+    let terms: Vec<String> = words
         .into_iter()
         .take(MAX_QUERY_TERMS)
         .map(|t| format!("\"{}\"*", t.replace('"', "\"\"")))
@@ -136,7 +160,7 @@ pub fn search_symbols(
     };
     let mut ranked = run_match(conn, &all_terms, scope)?;
     if ranked.is_empty() {
-        if let Some(any_term) = fts_expression(query, " OR ").filter(|e| *e != all_terms) {
+        if let Some(any_term) = fallback_expression(query).filter(|e| *e != all_terms) {
             ranked = run_match(conn, &any_term, scope)?;
         }
     }
@@ -251,6 +275,17 @@ mod tests {
             Some("\"a\"* \"or\"* \"b\"* \"near\"* \"c\"* \"d\"* \"e\"* \"f\"* \"g\"*")
         );
         assert_eq!(fts_expression("\"*():^", " "), None);
+    }
+
+    #[test]
+    fn fallback_drops_stopwords_and_single_letters() {
+        assert_eq!(
+            fallback_expression("is this a test file").as_deref(),
+            Some("\"test\"* OR \"file\"*")
+        );
+        assert_eq!(fallback_expression("the a of"), None);
+        // All-words matching keeps them: `is_test` is a real name.
+        assert_eq!(fts_expression("is test", " ").as_deref(), Some("\"is\"* \"test\"*"));
     }
 
     #[test]
