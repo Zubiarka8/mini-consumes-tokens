@@ -31,14 +31,23 @@ pub fn manifest_language(file_name: &str) -> Option<&'static str> {
     }
 }
 
+/// One entry per dependency name: a name declared in several sections
+/// (`[dependencies]` and `[dev-dependencies]`, `dependencies` and
+/// `devDependencies`, a repeated `requirements.txt` line or `go.mod`
+/// `require`) keeps its first occurrence, which is the primary section since
+/// each parser reads those first. The `dependencies` table is
+/// `UNIQUE(manifest_path, name)`, so a duplicate would otherwise fail the
+/// whole reindex.
 pub fn parse_manifest(file_name: &str, contents: &str) -> Vec<ManifestDependency> {
-    match file_name {
+    let deps = match file_name {
         "Cargo.toml" => parse_cargo_toml(contents),
         "package.json" => parse_package_json(contents),
         "requirements.txt" => parse_requirements_txt(contents),
         "go.mod" => parse_go_mod(contents),
         _ => Vec::new(),
-    }
+    };
+    let mut seen = std::collections::HashSet::new();
+    deps.into_iter().filter(|d| seen.insert(d.name.clone())).collect()
 }
 
 /// `[dependencies]`/`[dev-dependencies]`/`[build-dependencies]` at the
@@ -239,6 +248,23 @@ mod tests {
         assert!(deps.iter().any(|d| d.name == "github.com/baz/qux" && d.version.as_deref() == Some("v0.5.0")), "trailing // indirect comment must be stripped");
         assert!(deps.iter().any(|d| d.name == "github.com/single/dep" && d.version.as_deref() == Some("v2.0.0")));
         assert_eq!(deps.len(), 3);
+    }
+
+    #[test]
+    fn a_name_in_several_sections_is_kept_once_with_its_first_version() {
+        let cargo = parse_manifest(
+            "Cargo.toml",
+            "[dependencies]\ntokio = { version = \"1.53.1\", features = [\"rt\"] }\n\n[dev-dependencies]\ntokio = { version = \"1.53.1\", features = [\"io-util\"] }\nproptest = \"1\"\n\n[build-dependencies]\ntokio = \"1\"\n",
+        );
+        assert_eq!(cargo.iter().filter(|d| d.name == "tokio").count(), 1, "{cargo:?}");
+        assert!(cargo.iter().any(|d| d.name == "tokio" && d.version.as_deref() == Some("1.53.1")));
+        assert_eq!(cargo.len(), 2);
+
+        let npm = parse_manifest("package.json", r#"{"dependencies": {"react": "^18.3.1"}, "devDependencies": {"react": "18.0.0"}}"#);
+        assert_eq!(npm, vec![ManifestDependency { name: "react".into(), version: Some("^18.3.1".into()) }]);
+
+        assert_eq!(parse_manifest("requirements.txt", "flask==2.3.0\nflask==2.3.0\n").len(), 1);
+        assert_eq!(parse_manifest("go.mod", "module m\n\nrequire a.com/b v1.0.0\nrequire a.com/b v1.0.0\n").len(), 1);
     }
 
     #[test]
