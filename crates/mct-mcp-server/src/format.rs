@@ -198,7 +198,9 @@ pub fn symbol_hits_toon(name: &str, hits: &[SymbolHit], limit: usize) -> String 
 pub fn symbol_snippet(source: &str, line: u32, end_line: Option<u32>, max_lines: usize) -> String {
     let first = line.max(1) as usize;
     let last_by_cap = first.saturating_add(max_lines.saturating_sub(1));
-    let last = end_line.map_or(last_by_cap, |end| last_by_cap.min((end as usize).max(first)));
+    let last = end_line.map_or(last_by_cap, |end| {
+        last_by_cap.min((end as usize).max(first))
+    });
     source
         .lines()
         .enumerate()
@@ -450,7 +452,12 @@ pub fn list_symbols(path: &str, is_file: bool, hits: &[SymbolListEntry], limit: 
 /// TOON rendering of [`list_symbols`]: a flat table (no per-kind grouping —
 /// `kind` is just another column) instead of headed groups, since TOON's
 /// whole point is one header row instead of repeated structure per group.
-pub fn list_symbols_toon(path: &str, is_file: bool, hits: &[SymbolListEntry], limit: usize) -> String {
+pub fn list_symbols_toon(
+    path: &str,
+    is_file: bool,
+    hits: &[SymbolListEntry],
+    limit: usize,
+) -> String {
     if hits.is_empty() {
         return format!("No symbols found under `{path}`.");
     }
@@ -843,7 +850,9 @@ pub fn impact_analysis_toon(
         affected_tests.len()
     ));
 
-    let headers = ["path", "line", "column", "language", "from", "kind", "to", "depth"];
+    let headers = [
+        "path", "line", "column", "language", "from", "kind", "to", "depth",
+    ];
 
     if !affected_tests.is_empty() {
         let shown = paginate(affected_tests, offset, limit);
@@ -984,16 +993,21 @@ fn context_pack_name_line(label: &str, names: &[String]) -> String {
         .map(String::as_str)
         .collect();
     let more = names.len().saturating_sub(shown.len());
-    let suffix = if more > 0 { format!(" (+{more} more)") } else { String::new() };
+    let suffix = if more > 0 {
+        format!(" (+{more} more)")
+    } else {
+        String::new()
+    };
     format!("{label}: {}{suffix}\n", shown.join(", "))
 }
 
 fn context_pack_footer(pack: &crate::server::ContextPack) -> String {
-    let lines = context_pack_name_line("Referenced at file level (use/import) by", &pack.file_level)
-        + &context_pack_name_line(
-            "Called but not defined in the index (std/third-party)",
-            &pack.external,
-        );
+    let lines =
+        context_pack_name_line("Referenced at file level (use/import) by", &pack.file_level)
+            + &context_pack_name_line(
+                "Called but not defined in the index (std/third-party)",
+                &pack.external,
+            );
     if lines.is_empty() {
         lines
     } else {
@@ -1134,7 +1148,12 @@ pub fn find_dead_code(path: &str, hits: &[SymbolListEntry], offset: usize, limit
 /// TOON rendering of [`find_dead_code`]. Carries the same caveat text as the
 /// header (not a table column — it's one caveat for the whole result, not
 /// per-row data).
-pub fn find_dead_code_toon(path: &str, hits: &[SymbolListEntry], offset: usize, limit: usize) -> String {
+pub fn find_dead_code_toon(
+    path: &str,
+    hits: &[SymbolListEntry],
+    offset: usize,
+    limit: usize,
+) -> String {
     if hits.is_empty() {
         return format!("No dead-code candidates found under `{path}`.");
     }
@@ -1158,7 +1177,11 @@ pub fn find_dead_code_toon(path: &str, hits: &[SymbolListEntry], offset: usize, 
          does not account for dynamic dispatch, reflection, or a genuinely public API with no \
          in-repo caller yet; verify before deleting)\n\n{}",
         truncation_note(total, offset, shown.len()),
-        encode_table("candidates", &["kind", "name", "path", "line", "end_line"], &rows)
+        encode_table(
+            "candidates",
+            &["kind", "name", "path", "line", "end_line"],
+            &rows
+        )
     )
 }
 
@@ -1208,7 +1231,10 @@ pub fn overview(
         for symbol in &module.symbols {
             let range = line_range(symbol.line, symbol.end_line);
             block.push_str(&format!("  [{}] {} {range}\n", symbol.kind, symbol.name));
-            let Some((_, callers)) = module.relations.iter().find(|(name, _)| name == &symbol.name)
+            let Some((_, callers)) = module
+                .relations
+                .iter()
+                .find(|(name, _)| name == &symbol.name)
             else {
                 continue;
             };
@@ -1280,7 +1306,10 @@ pub fn index_status(status: &IndexStatus, verbose_dependencies: bool) -> String 
         ));
     }
     if !status.syntax_errors.is_empty() {
-        out.push_str(&format!("{} file(s) failed to parse:\n", status.syntax_errors.len()));
+        out.push_str(&format!(
+            "{} file(s) failed to parse:\n",
+            status.syntax_errors.len()
+        ));
         for err in &status.syntax_errors {
             out.push_str(&format!("  {}: {}\n", err.relative_path, err.detail));
         }
@@ -1401,7 +1430,11 @@ pub fn batch(outcomes: &[(String, BatchOutcome)]) -> String {
         .iter()
         .filter(|(_, o)| matches!(o, BatchOutcome::Skipped))
         .count();
-    let mut out = format!("batch: {} quer{}", outcomes.len(), if outcomes.len() == 1 { "y" } else { "ies" });
+    let mut out = format!(
+        "batch: {} quer{}",
+        outcomes.len(),
+        if outcomes.len() == 1 { "y" } else { "ies" }
+    );
     if failed > 0 {
         out.push_str(&format!(", {failed} failed"));
     }
@@ -1417,7 +1450,9 @@ pub fn batch(outcomes: &[(String, BatchOutcome)]) -> String {
             BatchOutcome::Ok(text) => {
                 out.push_str(&format!("\n[{n}] {tool}\n{}\n", text.trim_end()));
             }
-            BatchOutcome::Err(message) => out.push_str(&format!("\n[{n}] {tool} error: {message}\n")),
+            BatchOutcome::Err(message) => {
+                out.push_str(&format!("\n[{n}] {tool} error: {message}\n"))
+            }
             BatchOutcome::Skipped => out.push_str(&format!("\n[{n}] {tool} skipped\n")),
         }
     }
@@ -1432,14 +1467,23 @@ pub fn tool_schema(tool: &rmcp::model::Tool) -> String {
     let description = tool.description.as_deref().unwrap_or("(no description)");
     let schema = serde_json::to_string_pretty(&*tool.input_schema)
         .unwrap_or_else(|_| "(failed to render input schema)".to_string());
-    format!("{}\n\n{description}\n\nInput schema:\n{schema}\n", tool.name)
+    format!(
+        "{}\n\n{description}\n\nInput schema:\n{schema}\n",
+        tool.name
+    )
 }
 
 #[cfg(test)]
 mod file_skeleton_tests {
     use super::*;
 
-    fn entry(name: &str, kind: &str, language: &str, line: u32, end_line: Option<u32>) -> SymbolListEntry {
+    fn entry(
+        name: &str,
+        kind: &str,
+        language: &str,
+        line: u32,
+        end_line: Option<u32>,
+    ) -> SymbolListEntry {
         SymbolListEntry {
             name: name.to_string(),
             kind: kind.to_string(),
@@ -1485,7 +1529,10 @@ mod file_skeleton_tests {
         let entries = [entry("long_signature", "function", "rust", 1, None)];
         let out = file_skeleton("f.rs", &entries, source);
         assert!(out.contains("fn long_signature("), "got: {out}");
-        assert!(!out.contains("// ..."), "no brace within bound — must not fabricate a body: {out}");
+        assert!(
+            !out.contains("// ..."),
+            "no brace within bound — must not fabricate a body: {out}"
+        );
     }
 
     #[test]
@@ -1497,7 +1544,10 @@ mod file_skeleton_tests {
         let entries = [entry("noBody", "method", "java", 1, Some(1))];
         let out = file_skeleton("f.java", &entries, source);
         assert!(out.contains("void noBody();"), "got: {out}");
-        assert!(!out.contains("class Next"), "must not consume a later symbol's brace: {out}");
+        assert!(
+            !out.contains("class Next"),
+            "must not consume a later symbol's brace: {out}"
+        );
     }
 
     #[test]
@@ -1507,7 +1557,10 @@ mod file_skeleton_tests {
         let out = file_skeleton("f.py", &entries, source);
         assert!(out.contains("def test_compute():"), "got: {out}");
         assert!(out.contains("# ..."), "got: {out}");
-        assert!(!out.contains("assert compute"), "body must not leak through: {out}");
+        assert!(
+            !out.contains("assert compute"),
+            "body must not leak through: {out}"
+        );
     }
 
     #[test]
@@ -1556,7 +1609,10 @@ mod file_tree_tests {
 
     #[test]
     fn directories_are_suffixed_and_nesting_is_indented() {
-        let root = dir(".", vec![dir("src", vec![file("lib.rs")]), file("Cargo.toml")]);
+        let root = dir(
+            ".",
+            vec![dir("src", vec![file("lib.rs")]), file("Cargo.toml")],
+        );
         let out = file_tree(".", &root, 3);
         assert!(out.contains("./\n"), "got: {out}");
         assert!(out.contains("  src/\n"), "got: {out}");
@@ -1588,14 +1644,20 @@ mod file_tree_tests {
 
     #[test]
     fn an_oversized_tree_is_truncated_at_a_line_boundary() {
-        let children: Vec<FileTreeNode> = (0..5000).map(|i| file(&format!("file_{i:05}.txt"))).collect();
+        let children: Vec<FileTreeNode> = (0..5000)
+            .map(|i| file(&format!("file_{i:05}.txt")))
+            .collect();
         let root = dir(".", children);
         let out = file_tree(".", &root, 1);
         assert!(
             out.ends_with("byte response budget — narrow with `path` or lower `depth`)\n"),
             "must end with the truncation note, not mid-entry: {out}"
         );
-        assert!(out.len() < 5000 * 20, "must actually be capped well below the full tree: {} bytes", out.len());
+        assert!(
+            out.len() < 5000 * 20,
+            "must actually be capped well below the full tree: {} bytes",
+            out.len()
+        );
     }
 }
 
@@ -1624,7 +1686,9 @@ mod budget_tests {
     /// Splits a rendered response into its (always-emitted) header line and
     /// the body the byte budget actually governs.
     fn body_of(out: &str) -> &str {
-        out.split_once('\n').map(|(_, rest)| rest).unwrap_or_default()
+        out.split_once('\n')
+            .map(|(_, rest)| rest)
+            .unwrap_or_default()
     }
 
     #[test]
@@ -1709,19 +1773,31 @@ mod budget_tests {
             body.len()
         );
         let kept = body.lines().count();
-        assert!(kept > 0 && kept < 600, "expected a partial result, got {kept}");
+        assert!(
+            kept > 0 && kept < 600,
+            "expected a partial result, got {kept}"
+        );
 
         let expected: String = hits[..kept].iter().map(rendered_entry).collect();
-        assert_eq!(body, expected, "body must be exactly the first {kept} whole entries");
+        assert_eq!(
+            body, expected,
+            "body must be exactly the first {kept} whole entries"
+        );
 
-        assert!(out.starts_with("600 caller(s) of this function (showing "), "got: {out}");
+        assert!(
+            out.starts_with("600 caller(s) of this function (showing "),
+            "got: {out}"
+        );
         assert!(
             out.contains(&format!(
                 "(showing {kept} of 600, truncated at the {DEFAULT_BYTE_BUDGET}-byte response budget"
             )),
             "got: {out}"
         );
-        assert!(out.contains("narrow with `path`/`language` or pass `offset` to page"), "got: {out}");
+        assert!(
+            out.contains("narrow with `path`/`language` or pass `offset` to page"),
+            "got: {out}"
+        );
     }
 
     #[test]
@@ -1737,12 +1813,22 @@ mod budget_tests {
         let out = relation_hits("target", "caller(s) of this function", &hits, 0, 1000);
         let body = body_of(&out);
 
-        assert!(body.len() <= DEFAULT_BYTE_BUDGET, "got {} bytes", body.len());
+        assert!(
+            body.len() <= DEFAULT_BYTE_BUDGET,
+            "got {} bytes",
+            body.len()
+        );
         let kept = body.lines().count();
-        assert!(kept > 0 && kept < 600, "expected a partial result, got {kept}");
+        assert!(
+            kept > 0 && kept < 600,
+            "expected a partial result, got {kept}"
+        );
 
         let expected: String = hits[..kept].iter().map(rendered_entry).collect();
-        assert_eq!(body, expected, "truncation must fall on a whole-entry boundary");
+        assert_eq!(
+            body, expected,
+            "truncation must fall on a whole-entry boundary"
+        );
         // A String cannot hold invalid UTF-8, so the real risk is a
         // *logically* truncated name; assert the last one is complete.
         assert!(
@@ -1769,14 +1855,20 @@ mod budget_tests {
         let out = list_symbols("crates", false, &hits, 1000);
         let body = body_of(&out);
 
-        assert!(body.len() <= DEFAULT_BYTE_BUDGET, "got {} bytes", body.len());
+        assert!(
+            body.len() <= DEFAULT_BYTE_BUDGET,
+            "got {} bytes",
+            body.len()
+        );
         assert!(out.contains("response budget"), "got: {out}");
         // Functions come first in KIND_HEADINGS, so the budget runs out
         // before the Structs group — its heading must not be emitted alone.
         for (idx, line) in body.lines().enumerate() {
             if line.ends_with(':') {
                 assert!(
-                    body.lines().nth(idx + 1).is_some_and(|next| next.starts_with("  ")),
+                    body.lines()
+                        .nth(idx + 1)
+                        .is_some_and(|next| next.starts_with("  ")),
                     "heading `{line}` has no entries under it: {body}"
                 );
             }
@@ -1901,7 +1993,10 @@ mod index_status_tests {
             out.contains("Dependencies: 2 manifests, 3 declared (2 unique external).\n"),
             "got: {out}"
         );
-        assert!(!out.contains("serde"), "no manifest detail by default: {out}");
+        assert!(
+            !out.contains("serde"),
+            "no manifest detail by default: {out}"
+        );
         assert!(!out.contains("Dependencies detected"), "got: {out}");
     }
 
@@ -1909,11 +2004,17 @@ mod index_status_tests {
     fn verbose_keeps_the_full_per_manifest_listing() {
         let out = index_status(&sample_status(), true);
         assert!(out.contains("Dependencies detected:\n"), "got: {out}");
-        assert!(out.contains("  Cargo.toml (rust, 2 dep(s)):\n"), "got: {out}");
+        assert!(
+            out.contains("  Cargo.toml (rust, 2 dep(s)):\n"),
+            "got: {out}"
+        );
         assert!(out.contains("    serde 1.0\n"), "got: {out}");
         assert!(out.contains("    rusqlite 0.31\n"), "got: {out}");
         // A path/workspace dependency has no version and must still render.
-        assert!(out.contains("  crates/x/Cargo.toml (rust, 1 dep(s)):\n"), "got: {out}");
+        assert!(
+            out.contains("  crates/x/Cargo.toml (rust, 1 dep(s)):\n"),
+            "got: {out}"
+        );
     }
 
     #[test]
@@ -2000,36 +2101,56 @@ mod overview_tests {
              src/lib.rs:\n\
              \x20 [function] compute L10-L12\n"
         );
-        assert!(!out.contains("no top-level symbols)"), "noise line must be gone: {out}");
-        assert!(!out.contains("docs/glossary.md"), "empty module must not be listed: {out}");
+        assert!(
+            !out.contains("no top-level symbols)"),
+            "noise line must be gone: {out}"
+        );
+        assert!(
+            !out.contains("docs/glossary.md"),
+            "empty module must not be listed: {out}"
+        );
     }
 
     #[test]
     fn an_overview_over_budget_drops_whole_modules_and_reports_how_many() {
         let modules: Vec<ModuleDigest> = (0..400)
-            .map(|i| {
-                ModuleDigest {
-                    relative_path: format!("crates/some-crate/src/nested/module_{i:04}.rs"),
-                    symbols: (0..4)
-                        .map(|j| symbol(&format!("function_number_{i:04}_{j}"), 1, Some(9)))
-                        .collect(),
-                    omitted: 0,
-                    relations: Vec::new(),
-                }
+            .map(|i| ModuleDigest {
+                relative_path: format!("crates/some-crate/src/nested/module_{i:04}.rs"),
+                symbols: (0..4)
+                    .map(|j| symbol(&format!("function_number_{i:04}_{j}"), 1, Some(9)))
+                    .collect(),
+                omitted: 0,
+                relations: Vec::new(),
             })
             .collect();
         let out = overview("crates", &modules, 8);
-        let body = out.split_once('\n').map(|(_, rest)| rest).unwrap_or_default();
+        let body = out
+            .split_once('\n')
+            .map(|(_, rest)| rest)
+            .unwrap_or_default();
 
-        assert!(body.len() <= DEFAULT_BYTE_BUDGET, "got {} bytes", body.len());
+        assert!(
+            body.len() <= DEFAULT_BYTE_BUDGET,
+            "got {} bytes",
+            body.len()
+        );
         assert!(out.contains("response budget"), "got: {out}");
         // Whole modules only: every module header present must be followed
         // by its full set of 4 symbol lines.
         let kept = body.matches("crates/some-crate/src/nested/module_").count();
-        assert!(kept > 0 && kept < 400, "expected a partial result, got {kept}");
-        assert_eq!(body.matches("  [function] function_number_").count(), kept * 4);
         assert!(
-            out.contains(&format!(", {kept} of 400 shown — {} more dropped", 400 - kept)),
+            kept > 0 && kept < 400,
+            "expected a partial result, got {kept}"
+        );
+        assert_eq!(
+            body.matches("  [function] function_number_").count(),
+            kept * 4
+        );
+        assert!(
+            out.contains(&format!(
+                ", {kept} of 400 shown — {} more dropped",
+                400 - kept
+            )),
             "got header: {}",
             out.lines().next().unwrap_or_default()
         );
@@ -2084,10 +2205,7 @@ mod dead_code_tests {
             .map(|i| entry(&format!("unused_{i}"), "function", "src/lib.rs", i + 1))
             .collect();
         let out = find_dead_code("src", &hits, 0, 2);
-        assert!(
-            out.contains("(showing 2, 3 omitted"),
-            "got: {out}"
-        );
+        assert!(out.contains("(showing 2, 3 omitted"), "got: {out}");
     }
 }
 

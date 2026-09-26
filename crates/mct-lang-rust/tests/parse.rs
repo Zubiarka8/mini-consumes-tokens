@@ -82,7 +82,9 @@ fn extracts_generic_struct_trait_and_impl_methods() {
     // one from the trait's signature, one from the impl block's body
     assert_eq!(methods.len(), 2);
     assert!(methods.iter().any(|m| m.parent.as_deref() == Some("Shape")));
-    assert!(methods.iter().any(|m| m.parent.as_deref() == Some("Rect<T>")));
+    assert!(methods
+        .iter()
+        .any(|m| m.parent.as_deref() == Some("Rect<T>")));
 
     let implements: Vec<_> = parsed
         .relations
@@ -108,9 +110,7 @@ fn extracts_use_imports() {
 
 #[test]
 fn function_end_line_spans_the_whole_multiline_body() {
-    let parsed = parse(
-        "fn multiline() -> i32 {\n    let x = 1;\n    let y = 2;\n    x + y\n}\n",
-    );
+    let parsed = parse("fn multiline() -> i32 {\n    let x = 1;\n    let y = 2;\n    x + y\n}\n");
     let sym = parsed
         .symbols
         .iter()
@@ -131,7 +131,11 @@ fn syntax_error_is_reported_not_panicked() {
 }
 
 fn literal_texts(parsed: &mct_core::ParsedFile) -> Vec<(&str, u32)> {
-    parsed.literals.iter().map(|l| (l.text.as_str(), l.line)).collect()
+    parsed
+        .literals
+        .iter()
+        .map(|l| (l.text.as_str(), l.line))
+        .collect()
 }
 
 #[test]
@@ -179,5 +183,8 @@ fn run() {
 #[test]
 fn a_multiline_literal_fragment_reports_the_line_it_starts_on() {
     let parsed = parse("fn f() {\n    let _ = \"{}\nthe second fragment starts here\";\n}\n");
-    assert_eq!(literal_texts(&parsed), vec![("the second fragment starts here", 3)]);
+    assert_eq!(
+        literal_texts(&parsed),
+        vec![("the second fragment starts here", 3)]
+    );
 }

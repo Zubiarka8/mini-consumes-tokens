@@ -4,8 +4,8 @@
 //! this crate is the entire integration surface for Python support.
 
 use mct_core::{
-    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
-    SymbolKind, SymbolRecord, SymbolRelation,
+    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
+    SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use tree_sitter::{Node, Parser};
 
@@ -32,11 +32,13 @@ impl LanguageParser for PythonParser {
             .set_language(&tree_sitter_python::LANGUAGE.into())
             .expect("tree-sitter-python grammar is statically valid");
 
-        let tree = parser.parse(&file.contents, None).ok_or_else(|| ParseError::Syntax {
-            path: file.relative_path.clone(),
-            line: 1,
-            message: "tree-sitter produced no parse tree".to_string(),
-        })?;
+        let tree = parser
+            .parse(&file.contents, None)
+            .ok_or_else(|| ParseError::Syntax {
+                path: file.relative_path.clone(),
+                line: 1,
+                message: "tree-sitter produced no parse tree".to_string(),
+            })?;
 
         let root = tree.root_node();
         if root.has_error() {
@@ -131,7 +133,13 @@ impl<'a> Walker<'a> {
         id
     }
 
-    fn push_relation(&mut self, from: SymbolId, kind: RelationKind, to_name: String, loc: Location) {
+    fn push_relation(
+        &mut self,
+        from: SymbolId,
+        kind: RelationKind,
+        to_name: String,
+        loc: Location,
+    ) {
         if to_name.is_empty() {
             return;
         }
@@ -147,7 +155,13 @@ impl<'a> Walker<'a> {
     /// imports attach to it); `class_name` is the enclosing `class` name, so
     /// a `def` found directly in its body is recorded as a Method with that
     /// parent rather than a bare Function.
-    fn visit_children(&mut self, node: Node, owner: SymbolId, class_name: Option<&str>, depth: u32) {
+    fn visit_children(
+        &mut self,
+        node: Node,
+        owner: SymbolId,
+        class_name: Option<&str>,
+        depth: u32,
+    ) {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             self.visit(child, owner, class_name, depth + 1);
@@ -162,7 +176,9 @@ impl<'a> Walker<'a> {
             "decorated_definition" => {
                 let target_id = node
                     .child_by_field_name("definition")
-                    .and_then(|definition| self.visit_definition(definition, owner, class_name, depth + 1));
+                    .and_then(|definition| {
+                        self.visit_definition(definition, owner, class_name, depth + 1)
+                    });
                 let mut cursor = node.walk();
                 for decorator in node.children(&mut cursor) {
                     if decorator.kind() == "decorator" {
@@ -223,7 +239,13 @@ impl<'a> Walker<'a> {
     /// relation to the decorated symbol itself rather than its enclosing
     /// owner. Any other node kind is dispatched to `visit` and yields `None`
     /// (a decorator on something else has no symbol to attach to).
-    fn visit_definition(&mut self, node: Node, owner: SymbolId, class_name: Option<&str>, depth: u32) -> Option<SymbolId> {
+    fn visit_definition(
+        &mut self,
+        node: Node,
+        owner: SymbolId,
+        class_name: Option<&str>,
+        depth: u32,
+    ) -> Option<SymbolId> {
         match node.kind() {
             "function_definition" => {
                 let name = node
@@ -235,7 +257,8 @@ impl<'a> Walker<'a> {
                 } else {
                     SymbolKind::Function
                 };
-                let id = self.push_symbol(name, kind, location(node), class_name.map(str::to_string));
+                let id =
+                    self.push_symbol(name, kind, location(node), class_name.map(str::to_string));
                 if let Some(params) = node.child_by_field_name("parameters") {
                     self.visit_children(params, id, None, depth + 1);
                 }
@@ -254,7 +277,12 @@ impl<'a> Walker<'a> {
                     let mut cursor = superclasses.walk();
                     for base in superclasses.named_children(&mut cursor) {
                         if let Some(base_name) = expr_name(base, self.source) {
-                            self.push_relation(id, RelationKind::Extends, base_name, location(base));
+                            self.push_relation(
+                                id,
+                                RelationKind::Extends,
+                                base_name,
+                                location(base),
+                            );
                         }
                     }
                 }

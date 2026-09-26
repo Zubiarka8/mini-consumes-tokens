@@ -235,7 +235,10 @@ fn an_edit_that_restores_the_previous_content_is_detected_by_hash_not_by_mtime()
     // re-parse rather than be skipped as unchanged.
     fs::write(&path, "fn one\n").unwrap();
     let report = index.reindex(&registry(), false).unwrap();
-    assert_eq!(report.files_parsed, 1, "content-hash change must be seen both ways");
+    assert_eq!(
+        report.files_parsed, 1,
+        "content-hash change must be seen both ways"
+    );
     assert_eq!(index.find_symbol("one").unwrap().len(), 1);
     assert!(index.find_symbol("two").unwrap().is_empty());
 }
@@ -281,7 +284,10 @@ fn a_forced_reindex_does_backfill_a_newly_populated_column_on_unchanged_files() 
     assert_eq!(index.find_symbol("main").unwrap()[0].end_line, None);
 
     let report = index.reindex(&registry_with(true), true).unwrap();
-    assert_eq!(report.files_parsed, 1, "force re-parses regardless of the hash");
+    assert_eq!(
+        report.files_parsed, 1,
+        "force re-parses regardless of the hash"
+    );
     assert_eq!(report.files_unchanged, 0);
     assert_eq!(
         index.find_symbol("main").unwrap()[0].end_line,
@@ -339,7 +345,10 @@ fn relations_table_no_longer_has_a_to_symbol_id_column() {
         "to_symbol_id should have been dropped by migration: {columns:?}"
     );
     assert!(columns.contains(&"to_name".to_string()), "{columns:?}");
-    assert!(columns.contains(&"from_symbol_id".to_string()), "{columns:?}");
+    assert!(
+        columns.contains(&"from_symbol_id".to_string()),
+        "{columns:?}"
+    );
 }
 
 #[test]
@@ -359,7 +368,11 @@ fn relations_resolve_correctly_by_name_even_with_a_duplicate_symbol_name() {
     index.reindex(&registry(), false).unwrap();
 
     let defs = index.find_symbol("helper").unwrap();
-    assert_eq!(defs.len(), 2, "both definitions of the duplicate name: {defs:?}");
+    assert_eq!(
+        defs.len(),
+        2,
+        "both definitions of the duplicate name: {defs:?}"
+    );
 
     let calls = index.find_calls("main").unwrap();
     assert_eq!(calls.len(), 1, "{calls:?}");
@@ -379,8 +392,8 @@ fn tempdir() -> std::path::PathBuf {
 }
 
 fn uuid_like() -> u64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
     use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::{SystemTime, UNIX_EPOCH};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)

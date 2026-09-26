@@ -21,7 +21,8 @@ pub use dead_code::{
 };
 pub use error::{IndexError, Result};
 pub use exclude::{
-    read_ignore_file, ExcludeSet, GITIGNORE_IMPORT_DIRECTIVE, IGNORE_FILE_NAME, IGNORE_FILE_TEMPLATE,
+    read_ignore_file, ExcludeSet, GITIGNORE_IMPORT_DIRECTIVE, IGNORE_FILE_NAME,
+    IGNORE_FILE_TEMPLATE,
 };
 pub use file_tree::FileTreeNode;
 pub use indexer::{
@@ -31,9 +32,8 @@ pub use indexer::{
 pub use queries::{QueryScope, RelationHit, SymbolHit, SymbolListEntry, SymbolMatchMode};
 pub use search::{exact_phrase, search_words, split_identifier, LiteralHit, MAX_LITERAL_HITS};
 pub use semantic::{
-    classify_query, embedding_text, EmbeddingCoverage, Embedder, HybridHit, QueryIntent,
-    SymbolContext, EXACT_PHRASE_BOOST, RRF_K,
-    SEMANTIC_CANDIDATES,
+    classify_query, embedding_text, Embedder, EmbeddingCoverage, HybridHit, QueryIntent,
+    SymbolContext, EXACT_PHRASE_BOOST, RRF_K, SEMANTIC_CANDIDATES,
 };
 
 use queries::ResolvedScope;
@@ -250,7 +250,9 @@ impl Index {
         semantic::hybrid_search(
             &self.conn,
             query,
-            query_vector.as_ref().map(|(v, model)| (v.as_slice(), *model)),
+            query_vector
+                .as_ref()
+                .map(|(v, model)| (v.as_slice(), *model)),
             alpha,
             self.resolve_scope(scope),
         )

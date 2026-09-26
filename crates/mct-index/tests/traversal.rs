@@ -95,7 +95,10 @@ fn uuid_like() -> u64 {
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as u64;
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as u64;
     nanos.wrapping_add(COUNTER.fetch_add(1, Ordering::Relaxed))
 }
 
@@ -138,7 +141,10 @@ fn bfs_on_a_cycle_terminates_instead_of_looping_forever() {
     let hits = index.find_calls_bfs("a", 20, 1000, 0).unwrap();
     assert_eq!(hits.len(), 3, "{hits:?}");
     assert_eq!(hits[2].depth, 3);
-    assert_eq!(hits[2].to_name, "a", "the cycle-closing edge c->a is still reported once");
+    assert_eq!(
+        hits[2].to_name, "a",
+        "the cycle-closing edge c->a is still reported once"
+    );
 
     let callers = index.find_callers_bfs("a", 20, 1000, 0).unwrap();
     assert_eq!(callers.len(), 3, "{callers:?}");
@@ -152,7 +158,11 @@ fn requested_depth_beyond_max_query_depth_is_clamped() {
     let dir = tempdir();
     // A 40-node acyclic chain: a0 -> a1 -> ... -> a39, each file one hop.
     for i in 0..39u32 {
-        fs::write(dir.join(format!("n{i}.fake")), format!("fn a{i} calls a{}\n", i + 1)).unwrap();
+        fs::write(
+            dir.join(format!("n{i}.fake")),
+            format!("fn a{i} calls a{}\n", i + 1),
+        )
+        .unwrap();
     }
     fs::write(dir.join("n39.fake"), "fn a39\n").unwrap();
     let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();

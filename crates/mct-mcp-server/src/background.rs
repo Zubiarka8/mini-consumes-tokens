@@ -3,14 +3,14 @@
 //! staleness and call the `reindex` tool manually.
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::sync::mpsc;
+use std::sync::Arc;
 use std::time::Duration;
 
 use mct_core::LanguageRegistry;
 use mct_index::{ExcludeSet, Index};
 use notify::{EventKind, RecursiveMode};
-use notify_debouncer_full::{Debouncer, RecommendedCache, new_debouncer};
+use notify_debouncer_full::{new_debouncer, Debouncer, RecommendedCache};
 use tokio::sync::Mutex;
 
 /// `path`'s location relative to `root`, using forward slashes so it can be
@@ -58,11 +58,16 @@ pub fn spawn_watcher(
                     continue;
                 }
             };
-            tracing::debug!(count = events.len(), ?events, "watcher received a debounced batch");
+            tracing::debug!(
+                count = events.len(),
+                ?events,
+                "watcher received a debounced batch"
+            );
             let relevant = events.iter().any(|event| {
                 !matches!(event.kind, EventKind::Access(_))
                     && event.paths.iter().any(|path| {
-                        relative_slash_path(&root, path).is_some_and(|rel| !exclude.is_excluded(&rel))
+                        relative_slash_path(&root, path)
+                            .is_some_and(|rel| !exclude.is_excluded(&rel))
                     })
             });
             if !relevant {

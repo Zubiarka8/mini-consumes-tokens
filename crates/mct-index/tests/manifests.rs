@@ -86,9 +86,18 @@ fn multiple_manifests_are_grouped_separately() {
     index.reindex(&empty_registry(), false).unwrap();
 
     let status = index.status().unwrap();
-    assert_eq!(status.dependencies.len(), 4, "one group per manifest file: {:?}", status.dependencies);
+    assert_eq!(
+        status.dependencies.len(),
+        4,
+        "one group per manifest file: {:?}",
+        status.dependencies
+    );
 
-    let languages: Vec<&str> = status.dependencies.iter().map(|m| m.language.as_str()).collect();
+    let languages: Vec<&str> = status
+        .dependencies
+        .iter()
+        .map(|m| m.language.as_str())
+        .collect();
     assert!(languages.contains(&"rust"));
     assert!(languages.contains(&"javascript_typescript"));
     assert!(languages.contains(&"python"));
@@ -124,7 +133,11 @@ fn editing_a_manifest_updates_dependencies_on_reindex() {
     fs::write(&manifest_path, "flask==2.3.0\nrequests==2.31.0\n").unwrap();
     index.reindex(&empty_registry(), false).unwrap();
     let second = index.status().unwrap();
-    assert_eq!(second.dependencies[0].dependencies.len(), 2, "manifests are re-parsed every reindex, not hash-skipped");
+    assert_eq!(
+        second.dependencies[0].dependencies.len(),
+        2,
+        "manifests are re-parsed every reindex, not hash-skipped"
+    );
 }
 
 /// A fresh temp directory, canonicalized so it matches what `Index::open_in_memory`

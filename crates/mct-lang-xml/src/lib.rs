@@ -14,8 +14,8 @@
 //! see `mct-lang-xaml`.
 
 use mct_core::{
-    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, SourceFile, SymbolId, SymbolKind,
-    SymbolRecord,
+    LanguageParser, Location, ParseError, ParsedFile, SourceFile, SymbolId, SymbolKind,
+    SymbolRecord, MAX_TRAVERSAL_DEPTH,
 };
 use tree_sitter::{Node, Parser};
 
@@ -42,11 +42,13 @@ impl LanguageParser for XmlParser {
             .set_language(&tree_sitter_xml::LANGUAGE_XML.into())
             .expect("tree-sitter-xml grammar is statically valid");
 
-        let tree = parser.parse(&file.contents, None).ok_or_else(|| ParseError::Syntax {
-            path: file.relative_path.clone(),
-            line: 1,
-            message: "tree-sitter produced no parse tree".to_string(),
-        })?;
+        let tree = parser
+            .parse(&file.contents, None)
+            .ok_or_else(|| ParseError::Syntax {
+                path: file.relative_path.clone(),
+                line: 1,
+                message: "tree-sitter produced no parse tree".to_string(),
+            })?;
 
         let root = tree.root_node();
         if root.has_error() {
@@ -67,7 +69,12 @@ impl LanguageParser for XmlParser {
 }
 
 fn module_name_for(relative_path: &str) -> String {
-    relative_path.rsplit('/').next().unwrap_or(relative_path).trim_end_matches(".xml").to_string()
+    relative_path
+        .rsplit('/')
+        .next()
+        .unwrap_or(relative_path)
+        .trim_end_matches(".xml")
+        .to_string()
 }
 
 fn first_error(node: Node) -> Option<Node> {
@@ -120,7 +127,11 @@ struct Walker<'a> {
 
 impl<'a> Walker<'a> {
     fn new(source: &'a str) -> Self {
-        Self { source, symbols: Vec::new(), next_id: 0 }
+        Self {
+            source,
+            symbols: Vec::new(),
+            next_id: 0,
+        }
     }
 
     fn push_symbol(
@@ -132,7 +143,14 @@ impl<'a> Walker<'a> {
     ) -> SymbolId {
         let id = self.next_id;
         self.next_id += 1;
-        self.symbols.push(SymbolRecord { id, name, kind, location, parent, level: None });
+        self.symbols.push(SymbolRecord {
+            id,
+            name,
+            kind,
+            location,
+            parent,
+            level: None,
+        });
         id
     }
 
@@ -182,13 +200,19 @@ impl<'a> Walker<'a> {
     }
 
     fn finish(self) -> ParsedFile {
-        ParsedFile { symbols: self.symbols, relations: Vec::new(), ..Default::default() }
+        ParsedFile {
+            symbols: self.symbols,
+            relations: Vec::new(),
+            ..Default::default()
+        }
     }
 }
 
 fn find_child<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
     let mut cursor = node.walk();
-    let found = node.named_children(&mut cursor).find(|child| child.kind() == kind);
+    let found = node
+        .named_children(&mut cursor)
+        .find(|child| child.kind() == kind);
     found
 }
 
@@ -203,8 +227,7 @@ fn collect_attributes(tag: Node, source: &str) -> Vec<(String, String)> {
             continue;
         }
         let name = find_child(attribute, "Name").map(|n| text(n, source).to_string());
-        let value =
-            find_child(attribute, "AttValue").map(|n| unquote(text(n, source)).to_string());
+        let value = find_child(attribute, "AttValue").map(|n| unquote(text(n, source)).to_string());
         if let (Some(name), Some(value)) = (name, value) {
             out.push((name, value));
         }
@@ -213,5 +236,8 @@ fn collect_attributes(tag: Node, source: &str) -> Vec<(String, String)> {
 }
 
 fn attr<'a>(attrs: &'a [(String, String)], key: &str) -> Option<&'a str> {
-    attrs.iter().find(|(n, _)| n == key).map(|(_, v)| v.as_str())
+    attrs
+        .iter()
+        .find(|(n, _)| n == key)
+        .map(|(_, v)| v.as_str())
 }

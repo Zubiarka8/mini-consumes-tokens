@@ -41,19 +41,46 @@ fn mcp_chars(index: &Index, query: &Query) -> (usize, String) {
         QueryKind::Symbol => {
             let hits = index.find_symbol(query.term).unwrap();
             hits.iter()
-                .map(|h| format!("{}:{}:{} [{}] {} {}\n", h.relative_path, h.line, h.column, h.language, h.kind, h.name))
+                .map(|h| {
+                    format!(
+                        "{}:{}:{} [{}] {} {}\n",
+                        h.relative_path, h.line, h.column, h.language, h.kind, h.name
+                    )
+                })
                 .collect::<String>()
         }
         QueryKind::Callers => {
             let hits = index.find_callers(query.term).unwrap();
             hits.iter()
-                .map(|h| format!("{}:{}:{} [{}] {} --{}--> {}\n", h.relative_path, h.line, h.column, h.language, h.from_symbol, h.kind, h.to_name))
+                .map(|h| {
+                    format!(
+                        "{}:{}:{} [{}] {} --{}--> {}\n",
+                        h.relative_path,
+                        h.line,
+                        h.column,
+                        h.language,
+                        h.from_symbol,
+                        h.kind,
+                        h.to_name
+                    )
+                })
                 .collect::<String>()
         }
         QueryKind::References => {
             let hits = index.find_references(query.term).unwrap();
             hits.iter()
-                .map(|h| format!("{}:{}:{} [{}] {} --{}--> {}\n", h.relative_path, h.line, h.column, h.language, h.from_symbol, h.kind, h.to_name))
+                .map(|h| {
+                    format!(
+                        "{}:{}:{} [{}] {} --{}--> {}\n",
+                        h.relative_path,
+                        h.line,
+                        h.column,
+                        h.language,
+                        h.from_symbol,
+                        h.kind,
+                        h.to_name
+                    )
+                })
                 .collect::<String>()
         }
     };
@@ -91,7 +118,10 @@ fn grep_then_read_chars(root: &Path, term: &str) -> (usize, usize, usize) {
 
 fn walkdir_files(root: &Path) -> Vec<std::path::PathBuf> {
     let mut out = Vec::new();
-    for entry in walkdir::WalkDir::new(root).into_iter().filter_map(|e| e.ok()) {
+    for entry in walkdir::WalkDir::new(root)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
         if entry.file_type().is_file() {
             out.push(entry.path().to_path_buf());
         }
@@ -104,7 +134,9 @@ fn run_language(name: &str, root: &Path, registry: LanguageRegistry, queries: &[
     index.reindex(&registry, false).unwrap();
 
     println!("\n## {name}\n");
-    println!("| Query | MCP chars | MCP ~tokens | Grep+Read chars | Grep+Read ~tokens | Reduction |");
+    println!(
+        "| Query | MCP chars | MCP ~tokens | Grep+Read chars | Grep+Read ~tokens | Reduction |"
+    );
     println!("|---|---|---|---|---|---|");
     for query in queries {
         let (mcp_c, _) = mcp_chars(&index, query);
@@ -140,9 +172,21 @@ fn main() {
         &lua_root,
         lua_registry,
         &[
-            Query { label: "find the definition of", kind: QueryKind::Symbol, term: "Inventory" },
-            Query { label: "what calls this function", kind: QueryKind::Callers, term: "log" },
-            Query { label: "who uses this symbol", kind: QueryKind::References, term: "addItem" },
+            Query {
+                label: "find the definition of",
+                kind: QueryKind::Symbol,
+                term: "Inventory",
+            },
+            Query {
+                label: "what calls this function",
+                kind: QueryKind::Callers,
+                term: "log",
+            },
+            Query {
+                label: "who uses this symbol",
+                kind: QueryKind::References,
+                term: "addItem",
+            },
         ],
     );
 }

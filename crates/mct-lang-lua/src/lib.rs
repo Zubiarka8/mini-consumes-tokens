@@ -12,8 +12,8 @@
 //! less standardized across tree-sitter-lua forks than Rust's or Python's.
 
 use mct_core::{
-    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
-    SymbolKind, SymbolRecord, SymbolRelation,
+    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
+    SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use tree_sitter::{Node, Parser};
 
@@ -40,11 +40,13 @@ impl LanguageParser for LuaParser {
             .set_language(&tree_sitter_lua::LANGUAGE.into())
             .expect("tree-sitter-lua grammar is statically valid");
 
-        let tree = parser.parse(&file.contents, None).ok_or_else(|| ParseError::Syntax {
-            path: file.relative_path.clone(),
-            line: 1,
-            message: "tree-sitter produced no parse tree".to_string(),
-        })?;
+        let tree = parser
+            .parse(&file.contents, None)
+            .ok_or_else(|| ParseError::Syntax {
+                path: file.relative_path.clone(),
+                line: 1,
+                message: "tree-sitter produced no parse tree".to_string(),
+            })?;
 
         let root = tree.root_node();
         if root.has_error() {
@@ -138,7 +140,13 @@ impl<'a> Walker<'a> {
         id
     }
 
-    fn push_relation(&mut self, from: SymbolId, kind: RelationKind, to_name: String, loc: Location) {
+    fn push_relation(
+        &mut self,
+        from: SymbolId,
+        kind: RelationKind,
+        to_name: String,
+        loc: Location,
+    ) {
         if to_name.is_empty() {
             return;
         }
@@ -190,7 +198,12 @@ impl<'a> Walker<'a> {
                     let (name, name_node) = call_target_name(callee, self.source);
                     if name == "require" {
                         if let Some(module) = require_argument(node, self.source) {
-                            self.push_relation(owner, RelationKind::Imports, module, location(node));
+                            self.push_relation(
+                                owner,
+                                RelationKind::Imports,
+                                module,
+                                location(node),
+                            );
                         }
                     } else if !name.is_empty() {
                         // location(name_node), not location(node): a chained
@@ -237,10 +250,18 @@ impl<'a> Walker<'a> {
         // by kind rather than `child_by_field_name`, which returns nothing here.
         let mut cursor = node.walk();
         let children: Vec<Node> = node.children(&mut cursor).collect();
-        let Some(variables) = children.iter().find(|n| n.kind() == "variable_list").copied() else {
+        let Some(variables) = children
+            .iter()
+            .find(|n| n.kind() == "variable_list")
+            .copied()
+        else {
             return;
         };
-        let Some(values) = children.iter().find(|n| n.kind() == "expression_list").copied() else {
+        let Some(values) = children
+            .iter()
+            .find(|n| n.kind() == "expression_list")
+            .copied()
+        else {
             return;
         };
         let mut var_cursor = variables.walk();
@@ -254,7 +275,8 @@ impl<'a> Walker<'a> {
                 "function_definition" => {
                     if let Some(var) = matching_var {
                         let (name, parent, _) = target_name(*var, self.source);
-                        let id = self.push_symbol(name, SymbolKind::Function, location(*var), parent);
+                        let id =
+                            self.push_symbol(name, SymbolKind::Function, location(*var), parent);
                         self.visit_function_body(*value, id, depth);
                         continue;
                     }

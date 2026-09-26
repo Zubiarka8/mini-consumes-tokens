@@ -8,7 +8,10 @@ use mct_lang_css::CssParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
     CssParser
-        .parse(&SourceFile { relative_path: "style.css".to_string(), contents: src.to_string() })
+        .parse(&SourceFile {
+            relative_path: "style.css".to_string(),
+            contents: src.to_string(),
+        })
         .expect("valid CSS source should parse")
 }
 
@@ -29,12 +32,23 @@ fn extracts_simple_id_selector() {
 #[test]
 fn comma_separated_selectors_each_become_their_own_rule() {
     let parsed = parse(".a, .b { color: red; }");
-    assert!(parsed.symbols.iter().any(|s| s.name == ".a" && s.kind == SymbolKind::Rule));
-    assert!(parsed.symbols.iter().any(|s| s.name == ".b" && s.kind == SymbolKind::Rule));
+    assert!(parsed
+        .symbols
+        .iter()
+        .any(|s| s.name == ".a" && s.kind == SymbolKind::Rule));
+    assert!(parsed
+        .symbols
+        .iter()
+        .any(|s| s.name == ".b" && s.kind == SymbolKind::Rule));
 }
 
 fn rule_names(parsed: &mct_core::ParsedFile) -> Vec<&str> {
-    parsed.symbols.iter().filter(|s| s.kind == SymbolKind::Rule).map(|s| s.name.as_str()).collect()
+    parsed
+        .symbols
+        .iter()
+        .filter(|s| s.kind == SymbolKind::Rule)
+        .map(|s| s.name.as_str())
+        .collect()
 }
 
 #[test]
@@ -122,30 +136,49 @@ fn escaped_tailwind_class_names_are_unescaped() {
 #[test]
 fn rules_nested_in_a_media_query_are_still_indexed() {
     let parsed = parse("@media (min-width: 600px) { .nav { display: flex; } }");
-    assert!(parsed.symbols.iter().any(|s| s.name == ".nav" && s.kind == SymbolKind::Rule));
+    assert!(parsed
+        .symbols
+        .iter()
+        .any(|s| s.name == ".nav" && s.kind == SymbolKind::Rule));
 }
 
 #[test]
 fn at_import_with_a_plain_string_creates_an_import_relation() {
     let parsed = parse("@import \"reset.css\";");
-    let imports: Vec<_> =
-        parsed.relations.iter().filter(|r| r.kind == RelationKind::Imports).map(|r| r.to_name.as_str()).collect();
+    let imports: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Imports)
+        .map(|r| r.to_name.as_str())
+        .collect();
     assert!(imports.contains(&"reset.css"), "{imports:?}");
 }
 
 #[test]
 fn at_import_with_url_function_creates_an_import_relation() {
     let parsed = parse("@import url(\"theme.css\");");
-    let imports: Vec<_> =
-        parsed.relations.iter().filter(|r| r.kind == RelationKind::Imports).map(|r| r.to_name.as_str()).collect();
+    let imports: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Imports)
+        .map(|r| r.to_name.as_str())
+        .collect();
     assert!(imports.contains(&"theme.css"), "{imports:?}");
 }
 
 #[test]
 fn module_pseudo_symbol_owns_the_import_relation() {
     let parsed = parse("@import \"reset.css\";");
-    let module = parsed.symbols.iter().find(|s| s.kind == SymbolKind::Module).unwrap();
-    let import = parsed.relations.iter().find(|r| r.kind == RelationKind::Imports).unwrap();
+    let module = parsed
+        .symbols
+        .iter()
+        .find(|s| s.kind == SymbolKind::Module)
+        .unwrap();
+    let import = parsed
+        .relations
+        .iter()
+        .find(|r| r.kind == RelationKind::Imports)
+        .unwrap();
     assert_eq!(import.from, module.id);
 }
 
@@ -155,5 +188,8 @@ fn syntax_error_is_reported_not_panicked() {
         relative_path: "broken.css".to_string(),
         contents: ".nav {{{ color".to_string(),
     });
-    assert!(matches!(result, Err(mct_core::ParseError::Syntax { .. })), "{result:?}");
+    assert!(
+        matches!(result, Err(mct_core::ParseError::Syntax { .. })),
+        "{result:?}"
+    );
 }

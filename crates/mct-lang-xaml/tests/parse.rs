@@ -8,7 +8,10 @@ use mct_lang_xaml::XamlParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
     XamlParser
-        .parse(&SourceFile { relative_path: "MainWindow.xaml".to_string(), contents: src.to_string() })
+        .parse(&SourceFile {
+            relative_path: "MainWindow.xaml".to_string(),
+            contents: src.to_string(),
+        })
         .expect("valid XAML source should parse")
 }
 
@@ -49,7 +52,11 @@ fn click_attribute_creates_a_reference_to_the_handler_name() {
 #[test]
 fn event_attribute_without_a_name_still_attaches_to_the_module_root() {
     let parsed = parse("<Window Loaded=\"Window_Loaded\"></Window>");
-    let module = parsed.symbols.iter().find(|s| s.kind == SymbolKind::Module).unwrap();
+    let module = parsed
+        .symbols
+        .iter()
+        .find(|s| s.kind == SymbolKind::Module)
+        .unwrap();
     let refs: Vec<_> = parsed
         .relations
         .iter()
@@ -62,7 +69,10 @@ fn event_attribute_without_a_name_still_attaches_to_the_module_root() {
 #[test]
 fn binding_expression_is_not_treated_as_a_handler_name() {
     let parsed = parse("<Button Click=\"{Binding SaveCommand}\"/>");
-    assert!(parsed.relations.iter().all(|r| r.to_name != "{Binding SaveCommand}"));
+    assert!(parsed
+        .relations
+        .iter()
+        .all(|r| r.to_name != "{Binding SaveCommand}"));
     assert!(parsed.relations.is_empty(), "{:?}", parsed.relations);
 }
 
@@ -85,5 +95,8 @@ fn syntax_error_is_reported_not_panicked() {
         relative_path: "Broken.xaml".to_string(),
         contents: "<Window><Unclosed>".to_string(),
     });
-    assert!(matches!(result, Err(mct_core::ParseError::Syntax { .. })), "{result:?}");
+    assert!(
+        matches!(result, Err(mct_core::ParseError::Syntax { .. })),
+        "{result:?}"
+    );
 }

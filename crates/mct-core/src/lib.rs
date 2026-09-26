@@ -16,9 +16,7 @@ pub use literal::{
     MIN_LITERAL_CHARS,
 };
 pub use registry::LanguageRegistry;
-pub use symbol::{
-    Location, RelationKind, SymbolId, SymbolKind, SymbolRecord, SymbolRelation,
-};
+pub use symbol::{Location, RelationKind, SymbolId, SymbolKind, SymbolRecord, SymbolRelation};
 
 /// Recursion-depth ceiling every `mct-lang-*` AST walker must enforce while
 /// descending into a node's children. Parsing runs over arbitrary,

@@ -88,8 +88,10 @@ pub fn encode_table(name: &str, headers: &[&str], rows: &[Vec<String>]) -> Strin
 /// otherwise split what looks like one row into two when read back line by
 /// line.
 fn escape_field(value: &str) -> String {
-    let needs_quotes =
-        value.contains(',') || value.contains('"') || value.contains('\\') || value.contains(['\n', '\r']);
+    let needs_quotes = value.contains(',')
+        || value.contains('"')
+        || value.contains('\\')
+        || value.contains(['\n', '\r']);
     if !needs_quotes {
         return value.to_string();
     }
@@ -154,7 +156,11 @@ pub fn decode_table(input: &str) -> Option<DecodedTable> {
         rows.push(parse_csv_line(trimmed));
     }
 
-    Some(DecodedTable { name, headers, rows })
+    Some(DecodedTable {
+        name,
+        headers,
+        rows,
+    })
 }
 
 /// Splits one row line on unquoted commas, undoing [`escape_field`]'s
@@ -221,8 +227,16 @@ mod tests {
     fn round_trips_a_simple_table() {
         let headers = ["name", "kind", "line"];
         let rows = vec![
-            vec!["compute".to_string(), "function".to_string(), "10".to_string()],
-            vec!["helper".to_string(), "function".to_string(), "20".to_string()],
+            vec![
+                "compute".to_string(),
+                "function".to_string(),
+                "10".to_string(),
+            ],
+            vec![
+                "helper".to_string(),
+                "function".to_string(),
+                "20".to_string(),
+            ],
         ];
         let encoded = encode_table("symbols", &headers, &rows);
         assert_eq!(
@@ -256,7 +270,11 @@ mod tests {
         assert!(encoded.contains("\\\"quotes\\\""), "got: {encoded}");
         // The embedded literal newline must not survive as a raw `\n` byte —
         // that would split one logical row across two lines.
-        assert_eq!(encoded.lines().count(), 2, "must still be one line per row: {encoded:?}");
+        assert_eq!(
+            encoded.lines().count(),
+            2,
+            "must still be one line per row: {encoded:?}"
+        );
         let decoded = decode_table(&encoded).expect("must decode escaped fields");
         assert_eq!(decoded.rows, rows);
     }
@@ -266,7 +284,10 @@ mod tests {
         let headers = ["name", "kind", "parent"];
         let rows = vec![vec!["compute".to_string(), "function".to_string()]];
         let encoded = encode_table("symbols", &headers, &rows);
-        assert_eq!(encoded, "symbols[1]{name,kind,parent}:\n  compute,function,\n");
+        assert_eq!(
+            encoded,
+            "symbols[1]{name,kind,parent}:\n  compute,function,\n"
+        );
     }
 
     #[test]

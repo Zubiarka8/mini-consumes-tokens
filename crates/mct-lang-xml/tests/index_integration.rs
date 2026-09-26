@@ -35,7 +35,11 @@ fn open_indexed() -> Index {
     let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
     let report = index.reindex(&registry(), false).unwrap();
     assert_eq!(report.files_parsed, 1, "settings.xml");
-    assert!(report.issues.is_empty(), "no parse issues expected: {:?}", report.issues);
+    assert!(
+        report.issues.is_empty(),
+        "no parse issues expected: {:?}",
+        report.issues
+    );
     index
 }
 
@@ -44,7 +48,11 @@ fn open_services_indexed() -> Index {
     let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
     let report = index.reindex(&registry(), false).unwrap();
     assert_eq!(report.files_parsed, 3, "api.xml, logging.xml, worker.xml");
-    assert!(report.issues.is_empty(), "no parse issues expected: {:?}", report.issues);
+    assert!(
+        report.issues.is_empty(),
+        "no parse issues expected: {:?}",
+        report.issues
+    );
     index
 }
 
@@ -53,7 +61,11 @@ fn find_symbol_locates_elements_named_by_each_attribute_convention() {
     let index = open_indexed();
     assert_eq!(index.find_symbol("api").unwrap().len(), 1);
     assert_eq!(index.find_symbol("health").unwrap().len(), 1);
-    assert_eq!(index.find_symbol("jobs").unwrap().len(), 1, "Name (capitalized) must resolve too");
+    assert_eq!(
+        index.find_symbol("jobs").unwrap().len(),
+        1,
+        "Name (capitalized) must resolve too"
+    );
 }
 
 #[test]
@@ -74,7 +86,10 @@ fn find_symbol_reports_file_language_and_exact_source_line() {
     // Line numbers are 1-based (see `mct_core::Location`).
     let api = index.find_symbol("api").unwrap();
     assert_eq!(api[0].relative_path, "settings.xml");
-    assert_eq!(api[0].language, "xml", "files.language via the symbols->files JOIN");
+    assert_eq!(
+        api[0].language, "xml",
+        "files.language via the symbols->files JOIN"
+    );
     assert_eq!(api[0].line, 2, "`<server id=\"api\">` is on line 2");
 
     let health = index.find_symbol("health").unwrap();
@@ -88,9 +103,16 @@ fn find_symbol_reports_file_language_and_exact_source_line() {
 fn status_reports_full_xml_coverage_with_no_relations() {
     let index = open_indexed();
     let status = index.status().unwrap();
-    let xml = status.languages.iter().find(|l| l.language == "xml").unwrap();
+    let xml = status
+        .languages
+        .iter()
+        .find(|l| l.language == "xml")
+        .unwrap();
     assert_eq!(xml.file_count, 1);
-    assert_eq!(xml.symbol_count, 6, "module root + api + health + metrics + worker + jobs");
+    assert_eq!(
+        xml.symbol_count, 6,
+        "module root + api + health + metrics + worker + jobs"
+    );
 
     // The "with no relations" half of this test's name was never actually
     // checked. `mct-lang-xml` emits no relations by design (see this crate's
@@ -150,6 +172,9 @@ fn a_second_reindex_skips_unchanged_files_and_force_reparses_them() {
     assert!(forced.issues.is_empty(), "{:?}", forced.issues);
 
     let status = index.status().unwrap();
-    assert_eq!(status.total_symbols, 6, "a forced reparse must not duplicate symbols");
+    assert_eq!(
+        status.total_symbols, 6,
+        "a forced reparse must not duplicate symbols"
+    );
     assert_eq!(index.find_symbol("health").unwrap().len(), 1);
 }

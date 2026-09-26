@@ -8,7 +8,10 @@ use mct_lang_kotlin::KotlinParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
     KotlinParser
-        .parse(&SourceFile { relative_path: "Invoice.kt".to_string(), contents: src.to_string() })
+        .parse(&SourceFile {
+            relative_path: "Invoice.kt".to_string(),
+            contents: src.to_string(),
+        })
         .expect("valid Kotlin source should parse")
 }
 
@@ -17,20 +20,32 @@ fn extracts_class_method_and_call() {
     let parsed = parse(
         "class Invoice {\n    fun total(): Int {\n        return helper()\n    }\n\n    fun helper(): Int {\n        return 42\n    }\n}\n",
     );
-    assert!(parsed.symbols.iter().any(|s| s.name == "Invoice" && s.kind == SymbolKind::Class));
+    assert!(parsed
+        .symbols
+        .iter()
+        .any(|s| s.name == "Invoice" && s.kind == SymbolKind::Class));
 
     let helper = parsed.symbols.iter().find(|s| s.name == "helper").unwrap();
     assert_eq!(helper.kind, SymbolKind::Method);
     assert_eq!(helper.parent.as_deref(), Some("Invoice"));
 
-    let calls: Vec<_> = parsed.relations.iter().filter(|r| r.kind == RelationKind::Calls).map(|r| r.to_name.as_str()).collect();
+    let calls: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Calls)
+        .map(|r| r.to_name.as_str())
+        .collect();
     assert!(calls.contains(&"helper"));
 }
 
 #[test]
 fn interface_is_distinguished_from_class() {
     let parsed = parse("interface Priceable {\n    fun price(): Double\n}\n\nclass Item {\n    fun name(): String = \"x\"\n}\n");
-    let priceable = parsed.symbols.iter().find(|s| s.name == "Priceable").unwrap();
+    let priceable = parsed
+        .symbols
+        .iter()
+        .find(|s| s.name == "Priceable")
+        .unwrap();
     assert_eq!(priceable.kind, SymbolKind::Interface);
 
     let item = parsed.symbols.iter().find(|s| s.name == "Item").unwrap();
@@ -39,7 +54,9 @@ fn interface_is_distinguished_from_class() {
 
 #[test]
 fn object_declaration_is_indexed_as_singleton_class() {
-    let parsed = parse("object Logger {\n    fun log(message: String) {\n        println(message)\n    }\n}\n");
+    let parsed = parse(
+        "object Logger {\n    fun log(message: String) {\n        println(message)\n    }\n}\n",
+    );
     let logger = parsed.symbols.iter().find(|s| s.name == "Logger").unwrap();
     assert_eq!(logger.kind, SymbolKind::Class);
 
@@ -56,12 +73,25 @@ fn extends_and_implements_are_distinguished_by_constructor_call() {
     let parsed = parse(
         "open class Shape(val sides: Int)\n\ninterface Priceable {\n    fun price(): Double\n}\n\nclass Circle(radius: Int) : Shape(4), Priceable {\n    fun price(): Double = 1.0\n}\n",
     );
-    let extends: Vec<_> = parsed.relations.iter().filter(|r| r.kind == RelationKind::Extends).map(|r| r.to_name.as_str()).collect();
+    let extends: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Extends)
+        .map(|r| r.to_name.as_str())
+        .collect();
     assert!(extends.contains(&"Shape"));
 
-    let implements: Vec<_> = parsed.relations.iter().filter(|r| r.kind == RelationKind::Implements).map(|r| r.to_name.as_str()).collect();
+    let implements: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Implements)
+        .map(|r| r.to_name.as_str())
+        .collect();
     assert!(implements.contains(&"Priceable"));
-    assert!(!implements.contains(&"Shape"), "the superclass call must not also be recorded as Implements");
+    assert!(
+        !implements.contains(&"Shape"),
+        "the superclass call must not also be recorded as Implements"
+    );
 }
 
 #[test]
@@ -95,10 +125,19 @@ fn primary_constructor_property_promotion_is_indexed_as_fields() {
 
 #[test]
 fn extracts_imports_with_and_without_alias() {
-    let parsed = parse("import java.math.BigDecimal\nimport java.time.LocalDate as Date\n\nclass A\n");
-    let imports: Vec<_> = parsed.relations.iter().filter(|r| r.kind == RelationKind::Imports).map(|r| r.to_name.as_str()).collect();
+    let parsed =
+        parse("import java.math.BigDecimal\nimport java.time.LocalDate as Date\n\nclass A\n");
+    let imports: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Imports)
+        .map(|r| r.to_name.as_str())
+        .collect();
     assert!(imports.contains(&"BigDecimal"));
-    assert!(imports.contains(&"Date"), "an aliased import should be indexed under its alias, not its original name");
+    assert!(
+        imports.contains(&"Date"),
+        "an aliased import should be indexed under its alias, not its original name"
+    );
 }
 
 #[test]

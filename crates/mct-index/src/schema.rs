@@ -231,7 +231,8 @@ mod tests {
 
     /// The literals migration forces a full re-parse of an existing index.
     #[test]
-    fn literals_migration_invalidates_every_content_hash() -> Result<(), Box<dyn std::error::Error>> {
+    fn literals_migration_invalidates_every_content_hash() -> Result<(), Box<dyn std::error::Error>>
+    {
         let mut conn = Connection::open_in_memory()?;
         crate::search::register_functions(&conn)?;
         let before_literals = 7;

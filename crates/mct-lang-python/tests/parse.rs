@@ -17,9 +17,8 @@ fn parse(src: &str) -> mct_core::ParsedFile {
 
 #[test]
 fn extracts_function_and_call() {
-    let parsed = parse(
-        "def helper():\n    return 42\n\ndef main():\n    x = helper()\n    print(x)\n",
-    );
+    let parsed =
+        parse("def helper():\n    return 42\n\ndef main():\n    x = helper()\n    print(x)\n");
     let names: Vec<_> = parsed.symbols.iter().map(|s| s.name.as_str()).collect();
     assert!(names.contains(&"helper"));
     assert!(names.contains(&"main"));
@@ -65,9 +64,8 @@ fn extracts_class_with_base_and_methods() {
 
 #[test]
 fn decorated_function_is_still_indexed_with_decorator_recorded() {
-    let parsed = parse(
-        "import functools\n\n@functools.lru_cache\ndef expensive():\n    return 1\n",
-    );
+    let parsed =
+        parse("import functools\n\n@functools.lru_cache\ndef expensive():\n    return 1\n");
     let func = parsed
         .symbols
         .iter()

@@ -10,8 +10,15 @@ use crate::{Index, Result, SymbolListEntry};
 /// dispatch, never by name — including it would make every implemented
 /// interface method a false positive. `module` is excluded because a file's
 /// own synthetic module entry is never itself "referenced".
-pub const DEAD_CODE_KIND_ALLOWLIST: &[&str] =
-    &["function", "class", "struct", "interface", "enum", "trait", "type_alias"];
+pub const DEAD_CODE_KIND_ALLOWLIST: &[&str] = &[
+    "function",
+    "class",
+    "struct",
+    "interface",
+    "enum",
+    "trait",
+    "type_alias",
+];
 
 /// Symbol names a dead-code scan never flags, regardless of reference count —
 /// language entry points invoked by the runtime/toolchain itself, never by an
@@ -116,7 +123,10 @@ mod tests {
 
     #[test]
     fn anything_under_a_test_directory_is_a_test() {
-        assert!(looks_like_test_name("build_server", "crates/x/tests/foo.rs"));
+        assert!(looks_like_test_name(
+            "build_server",
+            "crates/x/tests/foo.rs"
+        ));
         assert!(looks_like_test_name("helper", "src/__tests__/render.js"));
         assert!(looks_like_test_name("setUp", "app/test/AppSpec.kt"));
     }

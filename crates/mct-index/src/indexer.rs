@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use mct_core::{LanguageRegistry, ParseError, SourceFile};
 use git2::{ObjectType, Oid};
+use mct_core::{LanguageRegistry, ParseError, SourceFile};
 use rusqlite::{params, OptionalExtension};
 use walkdir::WalkDir;
 
@@ -78,7 +78,11 @@ pub struct IndexStatus {
     pub dependencies: Vec<ManifestDependencies>,
 }
 
-pub fn reindex(index: &mut Index, registry: &LanguageRegistry, force: bool) -> Result<ReindexReport> {
+pub fn reindex(
+    index: &mut Index,
+    registry: &LanguageRegistry,
+    force: bool,
+) -> Result<ReindexReport> {
     let mut report = ReindexReport::default();
     let root = index.root.clone();
 
@@ -128,7 +132,10 @@ pub fn reindex(index: &mut Index, registry: &LanguageRegistry, force: bool) -> R
         // dependency list. Always re-parsed on every reindex (not
         // hash-skipped like source files below): manifests are few and
         // small, not worth a second incremental-skip mechanism for.
-        let file_name = canonical.file_name().and_then(|n| n.to_str()).unwrap_or_default();
+        let file_name = canonical
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or_default();
         if let Some(language) = manifests::manifest_language(file_name) {
             seen_manifest_paths.push(relative_path.clone());
             if let Ok(bytes) = std::fs::read(&canonical) {
@@ -202,13 +209,8 @@ pub fn reindex(index: &mut Index, registry: &LanguageRegistry, force: bool) -> R
         match registry.parse(&source) {
             Ok(parsed) => {
                 let language = parser.language_id();
-                let symbols_written = write_parsed_file(
-                    index,
-                    &relative_path,
-                    language,
-                    &content_hash,
-                    &parsed,
-                )?;
+                let symbols_written =
+                    write_parsed_file(index, &relative_path, language, &content_hash, &parsed)?;
                 report.files_parsed += 1;
                 report.symbols_written += symbols_written;
             }
@@ -482,14 +484,12 @@ pub fn status(index: &Index) -> Result<IndexStatus> {
         .collect::<rusqlite::Result<_>>()?;
     drop(stmt);
 
-    let total_files: i64 =
-        index
-            .conn
-            .query_row("SELECT COUNT(*) FROM files", [], |row| row.get(0))?;
-    let total_symbols: i64 =
-        index
-            .conn
-            .query_row("SELECT COUNT(*) FROM symbols", [], |row| row.get(0))?;
+    let total_files: i64 = index
+        .conn
+        .query_row("SELECT COUNT(*) FROM files", [], |row| row.get(0))?;
+    let total_symbols: i64 = index
+        .conn
+        .query_row("SELECT COUNT(*) FROM symbols", [], |row| row.get(0))?;
     let last_indexed_at: Option<String> = index
         .conn
         .query_row(
