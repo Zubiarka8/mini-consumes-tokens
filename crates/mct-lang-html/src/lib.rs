@@ -236,7 +236,7 @@ impl<'a> Walker<'a> {
     }
 
     fn finish(self) -> ParsedFile {
-        ParsedFile { symbols: self.symbols, relations: self.relations }
+        ParsedFile { symbols: self.symbols, relations: self.relations, ..Default::default() }
     }
 }
 

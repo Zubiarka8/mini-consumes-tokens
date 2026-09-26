@@ -24,7 +24,10 @@ use std::path::Path;
 use rusqlite::Connection;
 
 use crate::queries::{push_scope, BoundValues, ResolvedScope, SymbolHit};
-use crate::search::{search_symbols_with, split_identifier, LexicalOptions};
+use crate::search::{
+    exact_phrase, phrase_tier, qualified_parts, search_phrase, search_symbols_with,
+    split_identifier, LexicalOptions,
+};
 use crate::{IndexError, Result};
 
 /// RRF's rank-damping constant. Lower than the paper's usual 60: the
@@ -36,6 +39,11 @@ pub const RRF_K: f64 = 10.0;
 /// How many nearest symbols the semantic side contributes to the fusion.
 /// Hits past this rank would add at most `alpha / (RRF_K + 200)` — noise.
 pub const SEMANTIC_CANDIDATES: usize = 200;
+
+/// Added to the fused score of an exact-phrase query's hits whose name
+/// matches the phrase literally ([`phrase_tier`] 0..=2). Larger than any RRF
+/// score (at most `1 / (RRF_K + 1)`), so those hits always outrank the rest.
+pub const EXACT_PHRASE_BOOST: f64 = 1.0;
 
 /// Symbols embedded per [`Embedder::embed`] call during
 /// [`refresh_embeddings`], and per committed transaction.
@@ -475,6 +483,9 @@ pub enum QueryIntent {
     NaturalLanguage,
     /// Anything else — one plain word, or prose mixed with identifiers.
     Mixed,
+    /// The whole query is `"double-quoted"`: a literal phrase, matched
+    /// strictly and lexically only — see [`crate::exact_phrase`].
+    ExactPhrase,
 }
 
 impl QueryIntent {
@@ -484,6 +495,7 @@ impl QueryIntent {
             QueryIntent::Identifier => 0.1,
             QueryIntent::NaturalLanguage => 0.75,
             QueryIntent::Mixed => 0.5,
+            QueryIntent::ExactPhrase => 0.0,
         }
     }
 }
@@ -491,6 +503,9 @@ impl QueryIntent {
 /// Classifies `query` by its surface form only — no index lookup, a few
 /// hundred nanoseconds. See [`QueryIntent`].
 pub fn classify_query(query: &str) -> QueryIntent {
+    if exact_phrase(query).is_some() {
+        return QueryIntent::ExactPhrase;
+    }
     let words: Vec<&str> = query.split_whitespace().collect();
     let code_shaped = words.iter().filter(|w| is_code_shaped(w)).count();
     match (words.len(), code_shaped) {
@@ -537,6 +552,12 @@ fn is_code_shaped(word: &str) -> bool {
 /// lexical ranking. Whatever `alpha`, a symbol whose name equals the query
 /// (case-insensitively) ranks first, as it does lexically. Callers that
 /// don't choose `alpha` themselves can take it from [`classify_query`].
+///
+/// A `"double-quoted"` query is an exact phrase ([`crate::exact_phrase`]):
+/// `alpha` is forced to 0 (the semantic side is skipped), the lexical side
+/// only matches names holding the phrase's words consecutively and in order,
+/// and hits whose name matches the phrase literally get
+/// [`EXACT_PHRASE_BOOST`], so the literal match ranks first.
 pub fn hybrid_search(
     conn: &Connection,
     query: &str,
@@ -544,16 +565,22 @@ pub fn hybrid_search(
     alpha: f64,
     scope: ResolvedScope<'_>,
 ) -> Result<Vec<HybridHit>> {
-    let alpha = if alpha.is_nan() {
+    let phrase = exact_phrase(query);
+    let alpha = if phrase.is_some() || alpha.is_nan() {
         0.0
     } else {
         alpha.clamp(0.0, 1.0)
     };
-    let options = LexicalOptions {
-        synonyms: true,
-        qualified: true,
+    let lexical = match phrase {
+        Some(phrase) => search_phrase(conn, phrase, scope)?,
+        None => {
+            let options = LexicalOptions {
+                synonyms: true,
+                qualified: true,
+            };
+            search_symbols_with(conn, query, scope, options)?
+        }
     };
-    let lexical = search_symbols_with(conn, query, scope, options)?;
     let semantic = match semantic {
         Some((vector, model)) if alpha > 0.0 => {
             semantic_ranking(conn, vector, model, scope, SEMANTIC_CANDIDATES)?
@@ -603,7 +630,16 @@ pub fn hybrid_search(
         }
     }
 
-    let query_lower = query.trim().to_lowercase();
+    if let Some(phrase) = phrase {
+        let literal = qualified_parts(phrase).map_or(phrase, |(_, last)| last);
+        for entry in &mut fused {
+            if phrase_tier(&entry.hit.name, literal) <= 2 {
+                entry.score += EXACT_PHRASE_BOOST;
+            }
+        }
+    }
+
+    let query_lower = phrase.unwrap_or(query).trim().to_lowercase();
     let is_exact = |h: &HybridHit| h.hit.name.to_lowercase() == query_lower;
     fused.retain(|h| h.score > 0.0 || is_exact(h));
     fused.sort_by(|a, b| {
@@ -751,6 +787,15 @@ mod tests {
             assert_eq!(classify_query(q), QueryIntent::Identifier, "{q}");
         }
         assert_eq!(QueryIntent::Identifier.alpha(), 0.1);
+    }
+
+    #[test]
+    fn quoted_queries_route_to_exact_phrase_with_no_semantic_weight() {
+        for q in ["\"parse request\"", " \"Index::open\" ", "\"connection refused: db\""] {
+            assert_eq!(classify_query(q), QueryIntent::ExactPhrase, "{q}");
+        }
+        assert_eq!(classify_query("\"unterminated"), QueryIntent::Mixed);
+        assert_eq!(QueryIntent::ExactPhrase.alpha(), 0.0);
     }
 
     #[test]

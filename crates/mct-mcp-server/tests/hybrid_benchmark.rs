@@ -16,6 +16,10 @@
 //! of what the code does in words absent from its name (where only the
 //! semantic side can help), and hierarchy-qualified names (`Type::method`,
 //! `module::function`) that must land on one specific definition.
+//!
+//! [`PHRASE_CASES`] separately pins `"double-quoted"` exact-phrase queries
+//! (literal names, error-message-like sentences, special characters) to the
+//! top 1. Exact phrases never touch the model, so that test isn't ignored.
 
 // Test code: an unwrap()/expect() here means a broken test precondition, and
 // panicking is the correct behavior — this is not production code parsing
@@ -351,6 +355,47 @@ const CASES: &[(Bucket, &str, &[&str])] = &[
     ),
 ];
 
+/// `"double-quoted"` exact-phrase queries and the target (same notation as
+/// [`CASES`]) that must rank first. Phrase mode forces `alpha` to 0, so
+/// these run without the embedding model.
+const PHRASE_CASES: &[(&str, &str)] = &[
+    // Literal names, in their own spelling or another style.
+    ("\"read_ignore_file\"", "read_ignore_file"),
+    ("\"DEFAULT_EXCLUDE_DIRS\"", "DEFAULT_EXCLUDE_DIRS"),
+    ("\"first_error\"", "first_error"),
+    ("\"split identifier\"", "split_identifier"),
+    ("\"fanInCounts\"", "fan_in_counts"),
+    // Error-message-like sentences, punctuation included.
+    (
+        "\"syntax error is reported, not panicked\"",
+        "syntax_error_is_reported_not_panicked",
+    ),
+    (
+        "\"missing field is an error (not a panic)\"",
+        "missing_field_is_an_error_not_a_panic",
+    ),
+    (
+        "\"No match in any mode returns empty, not an error.\"",
+        "no_match_in_any_mode_returns_empty_not_an_error",
+    ),
+    (
+        "\"malformed OR operator-laden queries never error\"",
+        "malformed_or_operator_laden_queries_never_error",
+    ),
+    // Special characters: qualifiers, call parens, FTS5 operator chars.
+    (
+        "\"Index::hybrid_search\"",
+        "hybrid_search@mct-index/src/lib.rs",
+    ),
+    ("\"mct_core::SymbolRecord\"", "SymbolRecord"),
+    ("\"toon.decode_table\"", "decode_table"),
+    ("\"ExcludeSet::is_excluded\"", "is_excluded"),
+    ("\"dot_encoded()\"", "dot_encoded"),
+    ("\"index_error()\"", "index_error"),
+    ("\"`unix_now`;\"", "unix_now"),
+    ("\"file_tree_error*\"", "file_tree_error"),
+];
+
 fn is_target(hit: &HybridHit, expected: &[&str]) -> bool {
     expected.iter().any(|target| match target.split_once('@') {
         Some((name, fragment)) => {
@@ -500,4 +545,35 @@ fn hybrid_beats_lexical_and_semantic_alone_within_the_latency_budget() {
         "p95 query took {:?}",
         hybrid.percentile(0.95)
     );
+}
+
+#[test]
+fn exact_phrases_rank_their_target_first() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .unwrap();
+    let registry = mct_mcp_server::registry::build_registry();
+    let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
+    index.reindex(&registry, false).unwrap();
+    let scope = QueryScope {
+        path: Some("crates"),
+        language: None,
+    };
+    let mut misses = Vec::new();
+    for (query, target) in PHRASE_CASES {
+        assert_eq!(classify_query(query).alpha(), 0.0, "{query}");
+        // alpha 1 asks for semantic only; the quotes must override it.
+        let hits = index.hybrid_search(query, None, 1.0, scope).unwrap();
+        assert!(hits.iter().all(|h| h.semantic_rank.is_none()), "{query}");
+        match hits.first() {
+            Some(top) if is_target(top, &[target]) => {}
+            top => misses.push(format!(
+                "`{query}`: expected {target}, got {:?}",
+                top.map(|h| (&h.hit.name, &h.hit.relative_path))
+            )),
+        }
+    }
+    println!("{} exact-phrase cases, {} top-1 misses", PHRASE_CASES.len(), misses.len());
+    assert!(misses.is_empty(), "{misses:#?}");
 }

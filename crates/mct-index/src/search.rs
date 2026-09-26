@@ -142,6 +142,49 @@ fn fts_terms_with(words: Vec<String>, joiner: &str, synonyms: bool) -> Option<St
     (!terms.is_empty()).then(|| terms.join(joiner))
 }
 
+/// The text inside a `"double-quoted"` query — `hybrid_search`'s
+/// exact-phrase mode — or `None` when `query` isn't one: it must start and
+/// end with `"` and hold something besides whitespace.
+pub fn exact_phrase(query: &str) -> Option<&str> {
+    let inner = query.trim().strip_prefix('"')?.strip_suffix('"')?.trim();
+    (!inner.is_empty()).then_some(inner)
+}
+
+/// The FTS5 expression for an exact phrase: its split words as one quoted
+/// FTS5 phrase with no prefix `*` (`"parse request"`), so only names holding
+/// those words consecutively, in that order, match. Operators are
+/// neutralised exactly as in [`fts_expression`].
+fn phrase_expression(phrase: &str) -> Option<String> {
+    let words: Vec<String> = split_identifier(phrase)
+        .into_iter()
+        .take(MAX_QUERY_TERMS)
+        .collect();
+    (!words.is_empty()).then(|| format!("\"{}\"", words.join(" ").replace('"', "\"\"")))
+}
+
+/// Where a hit sits in an exact-phrase ranking, lower is better: 0 when its
+/// name *is* the phrase up to case (`"parse_request"` → `parse_request`), 1
+/// when it holds the same words in another style (`ParseRequest`), 2 when
+/// the phrase appears literally inside it (`parse_request_body`), 3 when
+/// only the word sequence matches (`ParseRequestBody`). Punctuation around
+/// the phrase is ignored, so a pasted `parse_request()` still ranks
+/// `parse_request` at 0.
+pub(crate) fn phrase_tier(name: &str, phrase: &str) -> u8 {
+    let name_lower = name.to_lowercase();
+    let phrase_lower = phrase
+        .trim_matches(|c: char| !c.is_alphanumeric() && c != '_')
+        .to_lowercase();
+    if name_lower == phrase_lower {
+        0
+    } else if split_identifier(name) == split_identifier(phrase) {
+        1
+    } else if name_lower.contains(&phrase_lower) {
+        2
+    } else {
+        3
+    }
+}
+
 /// Verbs developers use interchangeably in names. Only `hybrid_search`'s
 /// lexical side expands them (see [`LexicalOptions::synonyms`]);
 /// `search_symbols` stays literal.
@@ -277,20 +320,12 @@ pub(crate) fn search_symbols_with(
 
     let query_lower = query.trim().to_lowercase();
     let query_compact = split_identifier(query).concat();
-    let outside_qualifier = |hit: &SymbolHit| {
-        if qualifier.is_empty() {
-            return false;
-        }
-        let mut context = split_identifier(&hit.relative_path);
-        context.extend(hit.parent.as_deref().map(split_identifier).unwrap_or_default());
-        !qualifier.iter().all(|w| context.contains(w))
-    };
     let mut tiered: Vec<(u8, bool, bool, f64, SymbolHit)> = ranked
         .into_iter()
         .map(|(score, synonym_only, hit)| {
             (
                 match_tier(&hit.name, &query_lower, &query_compact),
-                outside_qualifier(&hit),
+                outside_qualifier(&qualifier, &hit),
                 synonym_only,
                 score,
                 hit,
@@ -306,6 +341,115 @@ pub(crate) fn search_symbols_with(
             .then_with(|| a.4.line.cmp(&b.4.line))
     });
     Ok(tiered.into_iter().map(|t| t.4).collect())
+}
+
+/// Whether `hit` lies outside a qualified query's qualifier: some qualifier
+/// word is in neither its path nor its parent. Never, with no qualifier.
+fn outside_qualifier(qualifier: &[String], hit: &SymbolHit) -> bool {
+    if qualifier.is_empty() {
+        return false;
+    }
+    let mut context = split_identifier(&hit.relative_path);
+    context.extend(hit.parent.as_deref().map(split_identifier).unwrap_or_default());
+    !qualifier.iter().all(|w| context.contains(w))
+}
+
+/// `hybrid_search`'s exact-phrase lexical side: every symbol whose split
+/// name holds `phrase`'s words consecutively and in order (no prefix
+/// matching, no synonyms, no any-word fallback), narrowed to `scope`, ranked
+/// by [`phrase_tier`], then — for a qualified phrase (`Index::open`) — hits
+/// inside the qualifier first, then BM25, path and line.
+pub(crate) fn search_phrase(
+    conn: &Connection,
+    phrase: &str,
+    scope: ResolvedScope<'_>,
+) -> Result<Vec<SymbolHit>> {
+    let (qualifier, phrase) = match qualified_parts(phrase) {
+        Some((words, last)) => (words, last),
+        None => (Vec::new(), phrase),
+    };
+    let Some(expression) = phrase_expression(phrase) else {
+        return Ok(Vec::new());
+    };
+    let mut tiered: Vec<(u8, bool, f64, SymbolHit)> = run_match(conn, &expression, scope)?
+        .into_iter()
+        .map(|(score, hit)| {
+            (
+                phrase_tier(&hit.name, phrase),
+                outside_qualifier(&qualifier, &hit),
+                score,
+                hit,
+            )
+        })
+        .collect();
+    tiered.sort_by(|a, b| {
+        a.0.cmp(&b.0)
+            .then_with(|| a.1.cmp(&b.1))
+            .then_with(|| a.2.total_cmp(&b.2))
+            .then_with(|| a.3.relative_path.cmp(&b.3.relative_path))
+            .then_with(|| a.3.line.cmp(&b.3.line))
+    });
+    Ok(tiered.into_iter().map(|t| t.3).collect())
+}
+
+/// Most string-literal hits [`search_literals`] returns.
+pub const MAX_LITERAL_HITS: usize = 200;
+
+/// A prose string literal holding an exact phrase.
+#[derive(Debug, Clone)]
+pub struct LiteralHit {
+    pub relative_path: String,
+    pub language: String,
+    pub line: u32,
+    /// The literal's stored text (normalised, at most
+    /// `mct_core::MAX_LITERAL_CHARS` chars).
+    pub text: String,
+    /// Name and kind of the innermost symbol enclosing the literal, if any.
+    pub symbol: Option<(String, String)>,
+}
+
+/// Every indexed string literal holding `phrase`'s words consecutively and
+/// in order — case- and diacritic-insensitive, punctuation ignored (the
+/// `literals_fts` tokenizer) — narrowed to `scope`, best BM25 first, then
+/// path and line. At most [`MAX_LITERAL_HITS`].
+pub(crate) fn search_literals(
+    conn: &Connection,
+    phrase: &str,
+    scope: ResolvedScope<'_>,
+) -> Result<Vec<LiteralHit>> {
+    if !phrase.chars().any(char::is_alphanumeric) {
+        return Ok(Vec::new());
+    }
+    let mut sql = String::from(
+        "SELECT f.relative_path, f.language, l.line, l.text, s.name, s.kind
+         FROM literals_fts
+         JOIN literals l ON l.id = literals_fts.rowid
+         JOIN files f ON f.id = l.file_id
+         LEFT JOIN symbols s ON s.id = l.symbol_id
+         WHERE literals_fts MATCH ?1",
+    );
+    let mut bound: BoundValues = vec![Box::new(format!("\"{}\"", phrase.replace('"', "\"\"")))];
+    push_scope(&mut sql, &mut bound, scope);
+    sql.push_str(&format!(
+        " ORDER BY bm25(literals_fts), f.relative_path, l.line LIMIT {MAX_LITERAL_HITS}"
+    ));
+
+    let mut stmt = conn.prepare_cached(&sql)?;
+    let params: Vec<&dyn rusqlite::ToSql> = bound.iter().map(|b| b.as_ref()).collect();
+    let rows = stmt
+        .query_map(params.as_slice(), |row| {
+            let name: Option<String> = row.get(4)?;
+            let kind: Option<String> = row.get(5)?;
+            Ok(LiteralHit {
+                relative_path: row.get(0)?,
+                language: row.get(1)?,
+                line: row.get(2)?,
+                text: row.get(3)?,
+                symbol: name.zip(kind),
+            })
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(rows)
 }
 
 fn run_match(
@@ -433,11 +577,60 @@ mod tests {
             parts("mct_core::SymbolRecord"),
             Some(("mct core".into(), "SymbolRecord".into()))
         );
-        assert_eq!(parts("toon.decode_table"), Some(("toon".into(), "decode_table".into())));
+        assert_eq!(
+            parts("toon.decode_table"),
+            Some(("toon".into(), "decode_table".into()))
+        );
         assert_eq!(parts("self->visit"), Some(("self".into(), "visit".into())));
-        for not_qualified in ["hybrid_search", "Index hybrid", "a::", "::a", "a..b", "e.g.", ""] {
+        for not_qualified in [
+            "hybrid_search",
+            "Index hybrid",
+            "a::",
+            "::a",
+            "a..b",
+            "e.g.",
+            "",
+        ] {
             assert_eq!(parts(not_qualified), None, "{not_qualified:?}");
         }
+    }
+
+    #[test]
+    fn only_a_fully_quoted_query_is_an_exact_phrase() {
+        assert_eq!(exact_phrase("\"parse request\""), Some("parse request"));
+        assert_eq!(exact_phrase("  \" Index::open \" "), Some("Index::open"));
+        for not_phrase in [
+            "parse request",
+            "\"parse",
+            "parse\"",
+            "\"\"",
+            "\"  \"",
+            "\"",
+            "",
+        ] {
+            assert_eq!(exact_phrase(not_phrase), None, "{not_phrase:?}");
+        }
+    }
+
+    #[test]
+    fn phrase_expression_is_one_unprefixed_fts5_phrase() {
+        assert_eq!(
+            phrase_expression("Error: DB connection NEAR(x) \"lost\"*").as_deref(),
+            Some("\"error db connection near x lost\"")
+        );
+        assert_eq!(phrase_expression("\"*():^"), None);
+    }
+
+    #[test]
+    fn phrase_tiers_put_the_literal_name_first() {
+        let p = "parse_request";
+        assert_eq!(phrase_tier("parse_request", p), 0);
+        assert_eq!(phrase_tier("PARSE_REQUEST", p), 0);
+        assert_eq!(phrase_tier("parse_request", "parse_request();"), 0);
+        assert_eq!(phrase_tier("ParseRequest", "parse_request();"), 1);
+        assert_eq!(phrase_tier("ParseRequest", p), 1);
+        assert_eq!(phrase_tier("parse_request_body", p), 2);
+        assert_eq!(phrase_tier("ParseRequestBody", p), 3);
     }
 
     #[test]
