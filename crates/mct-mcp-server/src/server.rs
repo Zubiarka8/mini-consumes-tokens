@@ -134,12 +134,16 @@ pub struct SearchSymbolsArgs {
 pub struct HybridSearchArgs {
     /// What you're looking for, as identifier words or a plain description:
     /// `parse request`, `load config from disk`, `retry with backoff`.
+    /// Wrap it in double quotes (`"parse request"`) for an exact phrase:
+    /// names holding those words consecutively and in order, lexical only,
+    /// a literal name match first.
     pub query: String,
     /// Weight of the semantic (embedding) ranking against the lexical
     /// (`search_symbols`) one: 0 = lexical only, 1 = semantic only, clamped
     /// to 0..=1. Omit it to let the query's shape pick: 0.1 for an
     /// identifier (`snake_case`, `camelCase`, `Type::method`,
     /// `module.fn`), 0.75 for a plain-language description, 0.5 otherwise.
+    /// Ignored (forced to 0) for a `"double-quoted"` exact-phrase query.
     #[serde(default)]
     pub alpha: Option<f64>,
     /// Narrow to one file or directory/crate prefix (same matching as
@@ -866,7 +870,9 @@ impl MctServer {
         let query = validate_name(&query)?;
         let output_format = parse_output_format(format.as_deref())?;
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
+        // A quoted query is an exact phrase: lexical only, whatever `alpha`.
         let (alpha, alpha_source) = match alpha.filter(|a| a.is_finite()) {
+            _ if mct_index::exact_phrase(query).is_some() => (0.0, " (exact phrase)".to_string()),
             Some(alpha) => (alpha.clamp(0.0, 1.0), String::new()),
             None => {
                 let intent = mct_index::classify_query(query);
@@ -883,7 +889,7 @@ impl MctServer {
         // load, or embedding the pending symbols failed. Each case is named
         // in the output's first line instead of erroring.
         let (embedder, note) = if alpha == 0.0 {
-            (None, "hybrid: alpha 0, lexical ranking only".to_string())
+            (None, format!("hybrid: alpha 0{alpha_source}, lexical ranking only"))
         } else {
             match self.semantic.get(index.root()) {
                 Err(reason) => (None, format!("hybrid: lexical ranking only — {reason}")),

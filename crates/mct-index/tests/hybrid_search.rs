@@ -17,7 +17,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use mct_core::{Location, ParseError, ParsedFile, SourceFile, SymbolKind, SymbolRecord};
-use mct_index::{Embedder, ExcludeSet, Index, QueryScope};
+use mct_index::{Embedder, ExcludeSet, Index, QueryScope, EXACT_PHRASE_BOOST};
 
 struct FakeParser;
 
@@ -305,6 +305,69 @@ fn a_qualified_query_prefers_the_definition_inside_its_qualifier() {
     assert_eq!(first("app.open").as_deref(), Some("app.fake"));
     // Both definitions are still returned.
     assert_eq!(hybrid(&index, "net::open", None, 0.0).len(), 2);
+}
+
+fn phrase_fixture() -> (std::path::PathBuf, Index) {
+    indexed(&[
+        (
+            "req.fake",
+            "fn request_parse\nfn ParseRequestBody\nfn parse_request_body\nfn ParseRequest\nfn parse_request\n",
+        ),
+        (
+            "errors.fake",
+            "fn ERR_DB_CONNECTION_LOST\nfn db_connection_lost_error\nfn lost_db_connection\n",
+        ),
+    ])
+}
+
+#[test]
+fn a_quoted_query_is_a_strict_lexical_phrase_even_with_alpha_one() {
+    let (_dir, index) = phrase_fixture();
+    let embedder = FakeEmbedder::new("fake-v1");
+    index.refresh_embeddings(&embedder).unwrap();
+    let hits = index
+        .hybrid_search("\"parse_request\"", Some(&embedder), 1.0, QueryScope::default())
+        .unwrap();
+    let names: Vec<&str> = hits.iter().map(|h| h.hit.name.as_str()).collect();
+    // Literal name first, same words next, literal substring, then the
+    // word sequence; `request_parse` (wrong order) never matches.
+    assert_eq!(
+        names,
+        ["parse_request", "ParseRequest", "parse_request_body", "ParseRequestBody"]
+    );
+    assert!(hits.iter().all(|h| h.semantic_rank.is_none()), "semantic side must be off");
+    assert!(hits[..3].iter().all(|h| h.score >= EXACT_PHRASE_BOOST));
+    assert!(hits[3].score < EXACT_PHRASE_BOOST);
+    // Unquoted, the same words are an ordinary (prefix, any-order) search.
+    assert!(hybrid(&index, "parse request", None, 0.0).contains(&"request_parse".to_string()));
+}
+
+#[test]
+fn error_literals_and_special_characters_land_on_top() {
+    let (_dir, index) = phrase_fixture();
+    let first = |query: &str| hybrid(&index, query, None, 0.5).into_iter().next();
+    for (query, expected) in [
+        ("\"ERR_DB_CONNECTION_LOST\"", "ERR_DB_CONNECTION_LOST"),
+        ("\"err-db-connection-lost\"", "ERR_DB_CONNECTION_LOST"),
+        ("\"DB connection-lost error!\"", "db_connection_lost_error"),
+        ("\"lost: db (connection)*\"", "lost_db_connection"),
+    ] {
+        assert_eq!(first(query).as_deref(), Some(expected), "{query}");
+    }
+    // FTS5 operators and quotes inside the phrase are inert text, not syntax.
+    for query in ["\"parse\" OR \"request\"", "\"NEAR(parse request)\"", "\"*^:()\""] {
+        assert!(hybrid(&index, query, None, 0.0).is_empty(), "{query}");
+    }
+}
+
+#[test]
+fn a_quoted_qualified_name_prefers_its_qualifier() {
+    let (_dir, index) = indexed(&[("app.fake", "fn open\n"), ("net.fake", "fn open\nfn open_socket\n")]);
+    let hits = index
+        .hybrid_search("\"app::open\"", None, 0.0, QueryScope::default())
+        .unwrap();
+    assert_eq!(hits[0].hit.relative_path, "app.fake");
+    assert_eq!(hits[0].hit.name, "open");
 }
 
 #[test]

@@ -29,10 +29,10 @@ pub use indexer::{
     UnsupportedFile,
 };
 pub use queries::{QueryScope, RelationHit, SymbolHit, SymbolListEntry, SymbolMatchMode};
-pub use search::{search_words, split_identifier};
+pub use search::{exact_phrase, search_words, split_identifier};
 pub use semantic::{
     classify_query, embedding_text, EmbeddingCoverage, Embedder, HybridHit, QueryIntent,
-    SymbolContext, RRF_K,
+    SymbolContext, EXACT_PHRASE_BOOST, RRF_K,
     SEMANTIC_CANDIDATES,
 };
 
