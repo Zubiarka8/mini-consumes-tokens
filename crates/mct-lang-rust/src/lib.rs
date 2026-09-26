@@ -4,8 +4,8 @@
 //! this crate is the entire integration surface for Rust support.
 
 use mct_core::{
-    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind,
-    SourceFile, SymbolId, SymbolKind, SymbolRecord, SymbolRelation,
+    LanguageParser, LiteralCollector, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile,
+    RelationKind, SourceFile, SymbolId, SymbolKind, SymbolRecord, SymbolRelation,
 };
 use tree_sitter::{Node, Parser};
 
@@ -97,6 +97,7 @@ struct Walker<'a> {
     source: &'a str,
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
+    literals: LiteralCollector,
     next_id: SymbolId,
 }
 
@@ -106,6 +107,7 @@ impl<'a> Walker<'a> {
             source,
             symbols: Vec::new(),
             relations: Vec::new(),
+            literals: LiteralCollector::default(),
             next_id: 0,
         }
     }
@@ -248,7 +250,27 @@ impl<'a> Walker<'a> {
                     self.visit_children(arguments, owner, impl_type, depth + 1);
                 }
             }
+            "string_literal" | "raw_string_literal" => self.push_literal(node),
             _ => self.visit_children(node, owner, impl_type, depth + 1),
+        }
+    }
+
+    /// Records a string literal's fixed fragments — the text between
+    /// `format!`-style `{...}` holes — each on the line it starts on.
+    fn push_literal(&mut self, node: Node) {
+        let raw = text(node, self.source);
+        let Some(inner) = literal_body(raw) else {
+            return;
+        };
+        let line = node.start_position().row as u32 + 1;
+        let is_raw = node.kind() == "raw_string_literal";
+        for (offset, fragment) in format_fragments(inner) {
+            // Line of the fragment's first visible char, not of whitespace
+            // (a newline) it may start with.
+            let leading = fragment.len() - fragment.trim_start().len();
+            let before = inner.get(..offset + leading).unwrap_or_default();
+            let fragment_line = line + before.matches('\n').count() as u32;
+            self.literals.push(&unescape(fragment, is_raw), fragment_line);
         }
     }
 
@@ -264,6 +286,7 @@ impl<'a> Walker<'a> {
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
+            literals: self.literals.finish(),
         }
     }
 }
@@ -317,4 +340,79 @@ fn collect_use_names(node: Node, source: &str, out: &mut Vec<(String, Location)>
         }
         _ => {}
     }
+}
+
+/// The text between a literal's quotes: `"..."`, `b"..."`, `r#"..."#`.
+fn literal_body(raw: &str) -> Option<&str> {
+    let start = raw.find('"')? + 1;
+    let end = raw.rfind('"')?;
+    raw.get(start..end)
+}
+
+/// `body` split at `format!`-style holes (`{}`, `{name:?}`), with each fixed
+/// fragment's byte offset in `body`. `{{`/`}}` are escaped braces, not holes.
+fn format_fragments(body: &str) -> Vec<(usize, &str)> {
+    let mut fragments = Vec::new();
+    let mut start = 0;
+    let mut in_hole = false;
+    let mut chars = body.char_indices().peekable();
+    while let Some((i, c)) = chars.next() {
+        match (in_hole, c) {
+            (false, '{') if chars.peek().is_some_and(|&(_, n)| n == '{') => {
+                chars.next();
+            }
+            (false, '}') if chars.peek().is_some_and(|&(_, n)| n == '}') => {
+                chars.next();
+            }
+            (false, '{') => {
+                fragments.push((start, body.get(start..i).unwrap_or_default()));
+                in_hole = true;
+            }
+            (true, '}') => {
+                start = i + 1;
+                in_hole = false;
+            }
+            _ => {}
+        }
+    }
+    if !in_hole {
+        fragments.push((start, body.get(start..).unwrap_or_default()));
+    }
+    fragments
+}
+
+/// A literal fragment's source text with escapes resolved as far as matters
+/// for search: quotes and backslashes kept, every other escape (`\n`,
+/// `\u{..}`, a line continuation) read as a word break — except in a raw
+/// string, which has none. `{{`/`}}` collapse to one brace.
+fn unescape(fragment: &str, is_raw: bool) -> String {
+    let mut out = String::with_capacity(fragment.len());
+    let mut chars = fragment.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' if !is_raw => match chars.next() {
+                Some(q @ ('"' | '\'' | '\\')) => out.push(q),
+                Some('u') => {
+                    for n in chars.by_ref() {
+                        if n == '}' {
+                            break;
+                        }
+                    }
+                    out.push(' ');
+                }
+                Some('x') => {
+                    chars.next();
+                    chars.next();
+                    out.push(' ');
+                }
+                _ => out.push(' '),
+            },
+            '{' | '}' if chars.peek() == Some(&c) => {
+                chars.next();
+                out.push(c);
+            }
+            _ => out.push(c),
+        }
+    }
+    out
 }

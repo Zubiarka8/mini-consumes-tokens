@@ -311,6 +311,9 @@ fn write_parsed_file(
         )?
     };
 
+    // Literals first: deleting symbols first would null each literal's
+    // `symbol_id` one row at a time, only for the rows to be deleted anyway.
+    tx.execute("DELETE FROM literals WHERE file_id = ?1", params![file_id])?;
     tx.execute("DELETE FROM symbols WHERE file_id = ?1", params![file_id])?;
     // Also clear stale index_issues entries for this path (e.g. it used to
     // fail to parse and now succeeds).
@@ -358,9 +361,39 @@ fn write_parsed_file(
         )?;
     }
 
+    // Capped again here, not only by the parser's `LiteralCollector`, so a
+    // parser that builds the Vec by hand can't bloat the index.
+    for literal in parsed.literals.iter().take(mct_core::MAX_LITERALS_PER_FILE) {
+        let symbol_id = enclosing_symbol(&parsed.symbols, literal.line)
+            .and_then(|local| id_map.get(&local).copied());
+        tx.execute(
+            "INSERT INTO literals (file_id, symbol_id, line, text) VALUES (?1, ?2, ?3, ?4)",
+            params![file_id, symbol_id, literal.line, literal.text],
+        )?;
+    }
+
     let count = parsed.symbols.len();
     tx.commit()?;
     Ok(count)
+}
+
+/// Local id of the innermost symbol whose span holds `line`: the one that
+/// starts last, then ends first. A symbol with no `end_line` spans only its
+/// first line.
+fn enclosing_symbol(symbols: &[mct_core::SymbolRecord], line: u32) -> Option<u32> {
+    symbols
+        .iter()
+        .filter(|s| {
+            let start = s.location.line;
+            start <= line && line <= s.location.end_line.unwrap_or(start)
+        })
+        .min_by_key(|s| {
+            (
+                std::cmp::Reverse(s.location.line),
+                s.location.end_line.unwrap_or(s.location.line),
+            )
+        })
+        .map(|s| s.id)
 }
 
 fn remove_missing_files(index: &mut Index, seen_paths: &[String]) -> Result<usize> {

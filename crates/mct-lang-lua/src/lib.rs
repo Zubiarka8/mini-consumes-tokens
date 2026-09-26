@@ -276,6 +276,7 @@ impl<'a> Walker<'a> {
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
+            ..Default::default()
         }
     }
 }

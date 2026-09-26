@@ -157,3 +157,68 @@ async fn an_empty_query_is_rejected() {
         .await
         .is_err());
 }
+
+#[tokio::test]
+async fn a_quoted_query_is_lexical_only_whatever_alpha() {
+    let server = build_server_at(&fixture("polyglot-app")).await;
+    for alpha in [None, Some(1.0)] {
+        let text = hybrid(&server, args("\"create invoice\"", alpha)).await;
+        assert!(
+            text.starts_with("hybrid: alpha 0 (exact phrase), lexical ranking only\n"),
+            "got: {text}"
+        );
+        let first = body(&text).lines().nth(1).unwrap_or_default();
+        assert!(first.ends_with("function createInvoice"), "got: {text}");
+    }
+}
+
+/// A throwaway project with one Rust file holding an error message.
+fn literal_project(tag: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join(format!(
+        "mct-hybrid-literals-{tag}-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("src")).unwrap();
+    std::fs::write(
+        dir.join("src/db.rs"),
+        "pub fn connect(url: &str) -> Result<(), String> {\n    \
+         if url.is_empty() {\n        \
+         return Err(format!(\"Error de conexión con la BD: {}\", url));\n    \
+         }\n    Ok(())\n}\n",
+    )
+    .unwrap();
+    dir.canonicalize().unwrap()
+}
+
+#[tokio::test]
+async fn a_quoted_phrase_finds_the_string_literal_holding_it() {
+    let server = build_server_at(&literal_project("found")).await;
+    let text = hybrid(&server, args("\"Error de conexion con la BD\"", None)).await;
+    assert!(
+        text.contains(
+            "1 string literal(s) holding \"Error de conexion con la BD\":\n\
+             src/db.rs:3 in function connect \"Error de conexión con la BD:\"\n"
+        ),
+        "got: {text}"
+    );
+
+    let toon = hybrid(
+        &server,
+        HybridSearchArgs {
+            format: Some("toon".to_string()),
+            ..args("\"conexión con la BD\"", None)
+        },
+    )
+    .await;
+    assert!(toon.contains("literals[1]{path,line,language,kind,symbol,text}"), "got: {toon}");
+}
+
+#[tokio::test]
+async fn literals_are_searched_only_for_an_exact_phrase() {
+    let server = build_server_at(&literal_project("unquoted")).await;
+    for query in ["Error de conexion con la BD", "\"conexion la BD\""] {
+        let text = hybrid(&server, args(query, Some(0.0))).await;
+        assert!(!text.contains("string literal(s)"), "{query}: {text}");
+    }
+}
