@@ -5,7 +5,9 @@
 
 use std::collections::BTreeSet;
 
-use mct_index::{FileTreeNode, IndexStatus, ReindexReport, RelationHit, SymbolHit, SymbolListEntry};
+use mct_index::{
+    FileTreeNode, IndexStatus, LiteralHit, ReindexReport, RelationHit, SymbolHit, SymbolListEntry,
+};
 
 use crate::toon::encode_table;
 
@@ -295,6 +297,68 @@ pub fn search_hits_toon(
         encode_table(
             "matches",
             &["path", "line", "end_line", "language", "kind", "name", "parent", "snippet"],
+            &rows,
+        )
+    )
+}
+
+/// `hybrid_search`'s exact-phrase section for string literals holding the
+/// phrase, one `path:line in kind name "text"` line each (no `in ...` for a
+/// literal outside every symbol), `offset`/`limit` paginated and
+/// byte-budgeted like [`search_hits`]. Empty when there are none, so a
+/// phrase with no literal hit renders exactly as before literals existed.
+pub fn literal_hits(phrase: &str, hits: &[LiteralHit], offset: usize, limit: usize) -> String {
+    if hits.is_empty() {
+        return String::new();
+    }
+    let total = hits.len();
+    let shown = paginate(hits, offset, limit);
+    let mut body = BudgetedList::new(DEFAULT_BYTE_BUDGET);
+    for hit in shown {
+        let symbol = hit
+            .symbol
+            .as_ref()
+            .map(|(name, kind)| format!(" in {kind} {name}"))
+            .unwrap_or_default();
+        body.push(&format!(
+            "{}:{}{symbol} \"{}\"\n",
+            hit.relative_path, hit.line, hit.text
+        ));
+    }
+    format!(
+        "{total} string literal(s) holding \"{phrase}\"{}:\n{}",
+        list_note(total, offset, shown.len(), &body),
+        body.body
+    )
+}
+
+/// TOON rendering of [`literal_hits`]. Empty when there are none.
+pub fn literal_hits_toon(phrase: &str, hits: &[LiteralHit], offset: usize, limit: usize) -> String {
+    if hits.is_empty() {
+        return String::new();
+    }
+    let total = hits.len();
+    let shown = paginate(hits, offset, limit);
+    let rows: Vec<Vec<String>> = shown
+        .iter()
+        .map(|hit| {
+            let (name, kind) = hit.symbol.clone().unwrap_or_default();
+            vec![
+                hit.relative_path.clone(),
+                hit.line.to_string(),
+                hit.language.clone(),
+                kind,
+                name,
+                hit.text.clone(),
+            ]
+        })
+        .collect();
+    format!(
+        "{total} string literal(s) holding \"{phrase}\"{}:\n{}",
+        truncation_note(total, offset, shown.len()),
+        encode_table(
+            "literals",
+            &["path", "line", "language", "kind", "symbol", "text"],
             &rows,
         )
     )

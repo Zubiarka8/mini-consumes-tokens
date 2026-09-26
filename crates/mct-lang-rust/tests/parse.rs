@@ -129,3 +129,55 @@ fn syntax_error_is_reported_not_panicked() {
     });
     assert!(matches!(result, Err(mct_core::ParseError::Syntax { .. })));
 }
+
+fn literal_texts(parsed: &mct_core::ParsedFile) -> Vec<(&str, u32)> {
+    parsed.literals.iter().map(|l| (l.text.as_str(), l.line)).collect()
+}
+
+#[test]
+fn prose_literals_keep_only_fixed_format_fragments() {
+    let parsed = parse(
+        r#"
+fn connect(url: &str) -> Result<(), String> {
+    Err(format!("Error de conexión con la BD: {url} (retry {}/{} failed)", 1, 3))
+}
+"#,
+    );
+    assert_eq!(
+        literal_texts(&parsed),
+        vec![("Error de conexión con la BD:", 3)],
+        "`(retry `, `/` and ` failed)` are too short to be prose"
+    );
+}
+
+#[test]
+fn literals_resolve_escapes_and_skip_non_prose() {
+    let parsed = parse(
+        r####"
+const KEY: &str = "relative_path";
+const TOKEN: &str = "Xk9mQ2vR7tLp4wZs8bNc3hJd";
+fn run() {
+    log("first line\nsecond \"quoted\" line");
+    log(r"raw \d+ pattern kept as written");
+    log("could not open the file");
+    log("could not open the file");
+    log("braces {{escaped}} stay in text");
+}
+"####,
+    );
+    assert_eq!(
+        literal_texts(&parsed),
+        vec![
+            ("first line second \"quoted\" line", 5),
+            (r"raw \d+ pattern kept as written", 6),
+            ("could not open the file", 7),
+            ("braces {escaped} stay in text", 9),
+        ]
+    );
+}
+
+#[test]
+fn a_multiline_literal_fragment_reports_the_line_it_starts_on() {
+    let parsed = parse("fn f() {\n    let _ = \"{}\nthe second fragment starts here\";\n}\n");
+    assert_eq!(literal_texts(&parsed), vec![("the second fragment starts here", 3)]);
+}
