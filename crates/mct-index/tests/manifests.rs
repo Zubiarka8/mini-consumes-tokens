@@ -43,6 +43,26 @@ fn cargo_toml_dependencies_appear_in_status() {
 }
 
 #[test]
+fn a_crate_in_both_dependencies_and_dev_dependencies_does_not_fail_the_reindex() {
+    // A very common Cargo.toml shape (e.g. `tokio` with extra test features
+    // under `[dev-dependencies]`). It used to hit the `dependencies` table's
+    // UNIQUE(manifest_path, name) and abort the whole reindex — and with it
+    // mct-mcp-server's startup.
+    let dir = tempdir();
+    fs::write(
+        dir.join("Cargo.toml"),
+        "[dependencies]\ntokio = \"1\"\n\n[dev-dependencies]\ntokio = { version = \"1\", features = [\"io-util\"] }\n",
+    )
+    .unwrap();
+
+    let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
+    index.reindex(&empty_registry(), false).unwrap();
+
+    let status = index.status().unwrap();
+    assert_eq!(status.dependencies[0].dependencies.len(), 1, "{:?}", status.dependencies);
+}
+
+#[test]
 fn multiple_manifests_are_grouped_separately() {
     let dir = tempdir();
     fs::write(
