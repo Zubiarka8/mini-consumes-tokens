@@ -881,6 +881,221 @@ pub fn impact_analysis_toon(
     out
 }
 
+/// How far above a definition [`leading_comment_start`] walks before giving
+/// up — a license header glued to the first function isn't its doc comment.
+const MAX_LEADING_COMMENT_LINES: usize = 40;
+
+/// Line prefixes that mark a doc comment, attribute or decorator directly
+/// above a definition, across the supported languages: `//`/`///`/`//!`,
+/// `/* */` blocks and their `*` continuations, `#` comments and `#[...]`
+/// attributes, `@` decorators/annotations, `--` (Lua/SQL) and `<!--`.
+const LEADING_COMMENT_MARKERS: &[&str] = &["//", "/*", "*", "#", "@", "--", "<!--"];
+
+/// The 1-based line where the comment/attribute block directly above the
+/// definition at `line` starts, or `line` itself when there is none. The index
+/// stores no doc-comment text, so `build_context_pack` recovers it from the
+/// source: every contiguous line above the definition that starts with a
+/// [`LEADING_COMMENT_MARKERS`] entry (or is a whole `[Attribute]` line),
+/// stopping at the first blank or code line. Language-agnostic on purpose —
+/// this crate never branches on a language id.
+pub fn leading_comment_start(source: &str, line: u32) -> u32 {
+    let lines: Vec<&str> = source.lines().collect();
+    let line = line.max(1) as usize;
+    let mut start = line;
+    while start > 1 && line - start < MAX_LEADING_COMMENT_LINES {
+        let above = lines.get(start - 2).map_or("", |l| l.trim());
+        let is_comment = LEADING_COMMENT_MARKERS.iter().any(|m| above.starts_with(m))
+            || (above.starts_with('[') && above.ends_with(']'));
+        if !is_comment {
+            break;
+        }
+        start -= 1;
+    }
+    start as u32
+}
+
+/// Longest signature [`signature_line`] returns before cutting it with `…`.
+const MAX_SIGNATURE_CHARS: usize = 120;
+
+/// The trimmed source text of 1-based `line` — a definition's first line,
+/// used as its signature — cut at [`MAX_SIGNATURE_CHARS`] on a char boundary.
+/// `None` when the line is out of range (the file changed since the last
+/// reindex).
+pub fn signature_line(source: &str, line: u32) -> Option<String> {
+    let text = source.lines().nth((line.max(1) - 1) as usize)?.trim();
+    if text.chars().count() <= MAX_SIGNATURE_CHARS {
+        return Some(text.to_string());
+    }
+    let cut: String = text.chars().take(MAX_SIGNATURE_CHARS).collect();
+    Some(format!("{cut}…"))
+}
+
+/// How many file paths or unresolved callee names `build_context_pack` spells
+/// out per footer line before summarising the rest as a count.
+const CONTEXT_PACK_MAX_LISTED_NAMES: usize = 12;
+
+fn context_pack_header(pack: &crate::server::ContextPack) -> String {
+    let mut out = format!(
+        "Context pack for `{}` (depth {}): {} definition(s), {} related symbol(s)",
+        pack.symbol,
+        pack.depth,
+        pack.definitions.len() + pack.omitted_definitions,
+        pack.related.len()
+    );
+    if !pack.external.is_empty() {
+        out.push_str(&format!(", {} external call(s)", pack.external.len()));
+    }
+    out.push('\n');
+    if pack.omitted_definitions > 0 {
+        out.push_str(&format!(
+            "({} more definition(s) of `{}` not shown — narrow with `path`/`language`)\n",
+            pack.omitted_definitions, pack.symbol
+        ));
+    }
+    for def in &pack.definitions {
+        let hit = &def.hit;
+        out.push_str(&format!(
+            "\n{}:{} [{}] {} {}\n{}",
+            hit.relative_path,
+            line_range(hit.line, hit.end_line),
+            hit.language,
+            hit.kind,
+            hit.name,
+            def.snippet
+        ));
+        if def.hidden_lines > 0 {
+            out.push_str(&format!(
+                "    … {} more line(s) — raise `source_lines` to see them\n",
+                def.hidden_lines
+            ));
+        }
+    }
+    out
+}
+
+/// `label: a, b, c (+N more)` on its own line, or nothing for an empty list.
+fn context_pack_name_line(label: &str, names: &[String]) -> String {
+    if names.is_empty() {
+        return String::new();
+    }
+    let shown: Vec<&str> = names
+        .iter()
+        .take(CONTEXT_PACK_MAX_LISTED_NAMES)
+        .map(String::as_str)
+        .collect();
+    let more = names.len().saturating_sub(shown.len());
+    let suffix = if more > 0 { format!(" (+{more} more)") } else { String::new() };
+    format!("{label}: {}{suffix}\n", shown.join(", "))
+}
+
+fn context_pack_footer(pack: &crate::server::ContextPack) -> String {
+    let lines = context_pack_name_line("Referenced at file level (use/import) by", &pack.file_level)
+        + &context_pack_name_line(
+            "Called but not defined in the index (std/third-party)",
+            &pack.external,
+        );
+    if lines.is_empty() {
+        lines
+    } else {
+        format!("\n{lines}")
+    }
+}
+
+/// `lines` column of a related symbol: its definition's line range, plus how
+/// many other definitions share its name when it's ambiguous.
+fn related_location(related: &crate::server::PackedRelated) -> (String, String) {
+    match &related.definition {
+        Some(def) => {
+            let mut lines = line_range(def.line, def.end_line);
+            if related.other_definitions > 0 {
+                lines.push_str(&format!(" (+{} more def)", related.other_definitions));
+            }
+            (def.relative_path.clone(), lines)
+        }
+        None => (String::new(), String::new()),
+    }
+}
+
+/// Renders `build_context_pack`: the packed symbol's definition(s) with their
+/// doc comment and (capped) source, then every related symbol once — its
+/// roles merged into one row however many relations connect it — with the
+/// location and one-line signature of its definition, then the called names
+/// the index has no definition for. Related rows are `limit`-capped and
+/// byte-budgeted against what the definitions already used.
+pub fn context_pack(pack: &crate::server::ContextPack, limit: usize) -> String {
+    let mut out = context_pack_header(pack);
+    if pack.related.is_empty() {
+        out.push_str("\nNo related symbols in the index.\n");
+    } else {
+        let shown = paginate(&pack.related, 0, limit);
+        let budget = DEFAULT_BYTE_BUDGET.saturating_sub(out.len()).max(1);
+        let mut body = BudgetedList::new(budget);
+        for related in shown {
+            let (path, lines) = related_location(related);
+            let kind = related.definition.as_ref().map_or("", |d| d.kind.as_str());
+            let signature = related
+                .signature
+                .as_deref()
+                .map(|s| format!("  | {s}"))
+                .unwrap_or_default();
+            body.push(&format!(
+                "  {} {}{}  {path}:{lines} {kind}{signature}\n",
+                related.roles.join(","),
+                related.name,
+                depth_tag(related.hop),
+            ));
+        }
+        out.push_str(&format!(
+            "\nRelated symbols, each listed once{}:\n{}",
+            list_note(pack.related.len(), 0, shown.len(), &body),
+            body.body
+        ));
+    }
+    out.push_str(&context_pack_footer(pack));
+    out
+}
+
+/// TOON rendering of [`context_pack`]: the definitions' source stays as-is
+/// (it isn't tabular), the related symbols become one TOON table.
+pub fn context_pack_toon(pack: &crate::server::ContextPack, limit: usize) -> String {
+    let mut out = context_pack_header(pack);
+    if pack.related.is_empty() {
+        out.push_str("\nNo related symbols in the index.\n");
+    } else {
+        let shown = paginate(&pack.related, 0, limit);
+        let rows: Vec<Vec<String>> = shown
+            .iter()
+            .map(|related| {
+                let (path, lines) = related_location(related);
+                vec![
+                    related.name.clone(),
+                    related.roles.join(" "),
+                    related.hop.to_string(),
+                    path,
+                    lines,
+                    related
+                        .definition
+                        .as_ref()
+                        .map(|d| d.kind.clone())
+                        .unwrap_or_default(),
+                    related.signature.clone().unwrap_or_default(),
+                ]
+            })
+            .collect();
+        out.push_str(&format!(
+            "\nRelated symbols, each listed once{}:\n{}",
+            truncation_note(pack.related.len(), 0, shown.len()),
+            encode_table(
+                "related",
+                &["name", "roles", "hop", "path", "lines", "kind", "signature"],
+                &rows,
+            )
+        ));
+    }
+    out.push_str(&context_pack_footer(pack));
+    out
+}
+
 /// Renders `find_dead_code`'s result: candidate symbols with zero indexed
 /// references, grouped by file (`hits` already arrives sorted by
 /// `relative_path, line` — the same order [`list_symbols`] renders in).
@@ -1873,5 +2088,46 @@ mod dead_code_tests {
             out.contains("(showing 2, 3 omitted"),
             "got: {out}"
         );
+    }
+}
+
+#[cfg(test)]
+mod context_pack_tests {
+    use super::{leading_comment_start, signature_line};
+
+    #[test]
+    fn doc_comments_and_attributes_directly_above_are_included() {
+        let source = "use x;\n\n/// Does a thing.\n/// Carefully.\n#[inline]\npub fn thing() {}\n";
+        assert_eq!(leading_comment_start(source, 6), 3);
+    }
+
+    #[test]
+    fn a_blank_line_ends_the_comment_block() {
+        let source = "// file header\n\nfn thing() {}\n";
+        assert_eq!(leading_comment_start(source, 3), 3);
+    }
+
+    #[test]
+    fn other_languages_comment_and_decorator_markers_count_too() {
+        let source = "# Loads it.\n@cache\ndef load():\n    pass\n";
+        assert_eq!(leading_comment_start(source, 3), 1);
+        let source = "/**\n * Loads it.\n */\n[Obsolete]\npublic void Load() {}\n";
+        assert_eq!(leading_comment_start(source, 5), 1);
+    }
+
+    #[test]
+    fn a_first_line_or_out_of_range_definition_never_panics() {
+        assert_eq!(leading_comment_start("fn a() {}\n", 1), 1);
+        assert_eq!(leading_comment_start("fn a() {}\n", 0), 1);
+        assert_eq!(leading_comment_start("", 9), 9);
+        assert_eq!(signature_line("fn a() {}\n", 5), None);
+    }
+
+    #[test]
+    fn a_long_signature_is_cut_on_a_char_boundary() {
+        let source = format!("fn {}() {{}}\n", "é".repeat(200));
+        let signature = signature_line(&source, 1).unwrap_or_default();
+        assert!(signature.ends_with('…'), "{signature}");
+        assert_eq!(signature.chars().count(), 121);
     }
 }
