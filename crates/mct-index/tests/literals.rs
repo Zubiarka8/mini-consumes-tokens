@@ -88,7 +88,14 @@ fn found(index: &Index, phrase: &str) -> Vec<(String, u32, Option<String>, Strin
         .search_literals(phrase, QueryScope::default())
         .unwrap()
         .into_iter()
-        .map(|h| (h.relative_path, h.line, h.symbol.map(|(name, _)| name), h.text))
+        .map(|h| {
+            (
+                h.relative_path,
+                h.line,
+                h.symbol.map(|(name, _)| name),
+                h.text,
+            )
+        })
         .collect()
 }
 

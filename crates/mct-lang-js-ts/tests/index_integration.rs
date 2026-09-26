@@ -29,7 +29,11 @@ fn open_indexed() -> Index {
     let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
     let report = index.reindex(&registry, false).unwrap();
     assert_eq!(report.files_parsed, 4);
-    assert!(report.issues.is_empty(), "no parse issues expected: {:?}", report.issues);
+    assert!(
+        report.issues.is_empty(),
+        "no parse issues expected: {:?}",
+        report.issues
+    );
     index
 }
 
@@ -76,7 +80,10 @@ fn find_calls_reports_add_item_calling_compute_total_and_log() {
     let index = open_indexed();
     let calls = index.find_calls("addItem").unwrap();
     let names: Vec<_> = calls.iter().map(|c| c.to_name.as_str()).collect();
-    assert!(names.contains(&"computeTotal"), "calls from addItem: {names:?}");
+    assert!(
+        names.contains(&"computeTotal"),
+        "calls from addItem: {names:?}"
+    );
     assert!(names.contains(&"log"), "calls from addItem: {names:?}");
 }
 
@@ -93,8 +100,14 @@ fn find_callers_of_add_item_shows_cross_file_caller_in_app_tsx() {
 fn find_callers_of_use_invoice_total_shows_both_call_sites_in_app() {
     let index = open_indexed();
     let callers = index.find_callers("useInvoiceTotal").unwrap();
-    assert_eq!(callers.len(), 2, "one call in App's body, one inside the JSX onClick handler: {callers:?}");
-    assert!(callers.iter().all(|c| c.from_symbol == "App" && c.relative_path == "App.tsx"));
+    assert_eq!(
+        callers.len(),
+        2,
+        "one call in App's body, one inside the JSX onClick handler: {callers:?}"
+    );
+    assert!(callers
+        .iter()
+        .all(|c| c.from_symbol == "App" && c.relative_path == "App.tsx"));
 }
 
 #[test]
@@ -102,20 +115,30 @@ fn find_references_finds_the_commonjs_export_and_the_real_call_of_add() {
     let index = open_indexed();
     let refs = index.find_references("add").unwrap();
     let kinds: Vec<_> = refs.iter().map(|r| r.kind.as_str()).collect();
-    assert!(kinds.contains(&"references"), "mathUtils.js's `module.exports = {{ add }}` should show up: {kinds:?}");
-    assert!(kinds.contains(&"calls"), "invoice.ts's computeTotal calling add() should show up: {kinds:?}");
+    assert!(
+        kinds.contains(&"references"),
+        "mathUtils.js's `module.exports = {{ add }}` should show up: {kinds:?}"
+    );
+    assert!(
+        kinds.contains(&"calls"),
+        "invoice.ts's computeTotal calling add() should show up: {kinds:?}"
+    );
 }
 
 #[test]
 fn invoice_implements_priced_interface() {
     let index = open_indexed();
     let refs = index.find_references("Priced").unwrap();
-    assert!(refs.iter().any(|r| r.kind == "implements" && r.from_symbol == "Invoice"));
+    assert!(refs
+        .iter()
+        .any(|r| r.kind == "implements" && r.from_symbol == "Invoice"));
 }
 
 #[test]
 fn require_of_math_utils_is_recorded_as_an_import() {
     let index = open_indexed();
     let refs = index.find_references("./mathUtils").unwrap();
-    assert!(refs.iter().any(|r| r.kind == "imports" && r.relative_path == "invoice.ts"));
+    assert!(refs
+        .iter()
+        .any(|r| r.kind == "imports" && r.relative_path == "invoice.ts"));
 }

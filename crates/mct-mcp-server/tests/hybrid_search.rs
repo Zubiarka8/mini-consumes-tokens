@@ -174,10 +174,8 @@ async fn a_quoted_query_is_lexical_only_whatever_alpha() {
 
 /// A throwaway project with one Rust file holding an error message.
 fn literal_project(tag: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!(
-        "mct-hybrid-literals-{tag}-{}",
-        std::process::id()
-    ));
+    let dir =
+        std::env::temp_dir().join(format!("mct-hybrid-literals-{tag}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(dir.join("src")).unwrap();
     std::fs::write(
@@ -211,7 +209,10 @@ async fn a_quoted_phrase_finds_the_string_literal_holding_it() {
         },
     )
     .await;
-    assert!(toon.contains("literals[1]{path,line,language,kind,symbol,text}"), "got: {toon}");
+    assert!(
+        toon.contains("literals[1]{path,line,language,kind,symbol,text}"),
+        "got: {toon}"
+    );
 }
 
 #[tokio::test]

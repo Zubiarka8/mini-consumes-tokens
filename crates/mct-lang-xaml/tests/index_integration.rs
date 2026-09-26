@@ -33,8 +33,15 @@ fn open_indexed() -> Index {
     let root = fixture_root();
     let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
     let report = index.reindex(&registry(), false).unwrap();
-    assert_eq!(report.files_parsed, 2, "MainWindow.xaml, MainWindow.xaml.cs");
-    assert!(report.issues.is_empty(), "no parse issues expected: {:?}", report.issues);
+    assert_eq!(
+        report.files_parsed, 2,
+        "MainWindow.xaml, MainWindow.xaml.cs"
+    );
+    assert!(
+        report.issues.is_empty(),
+        "no parse issues expected: {:?}",
+        report.issues
+    );
     index
 }
 
@@ -42,8 +49,14 @@ fn open_indexed() -> Index {
 fn status_reports_coverage_for_both_languages() {
     let index = open_indexed();
     let status = index.status().unwrap();
-    assert!(status.languages.iter().any(|l| l.language == "xaml" && l.file_count == 1));
-    assert!(status.languages.iter().any(|l| l.language == "csharp" && l.file_count == 1));
+    assert!(status
+        .languages
+        .iter()
+        .any(|l| l.language == "xaml" && l.file_count == 1));
+    assert!(status
+        .languages
+        .iter()
+        .any(|l| l.language == "csharp" && l.file_count == 1));
 }
 
 #[test]
@@ -117,5 +130,8 @@ fn find_references_resolves_the_loaded_handler_owned_by_the_module_root() {
     let refs = index.find_references("Window_Loaded").unwrap();
     assert_eq!(refs.len(), 1, "{refs:?}");
     assert_eq!(refs[0].relative_path, "MainWindow.xaml");
-    assert_eq!(refs[0].from_symbol, "MainWindow", "Window's own x:Name owns its Loaded handler");
+    assert_eq!(
+        refs[0].from_symbol, "MainWindow",
+        "Window's own x:Name owns its Loaded handler"
+    );
 }

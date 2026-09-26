@@ -41,19 +41,46 @@ fn mcp_chars(index: &Index, query: &Query) -> (usize, String) {
         QueryKind::Symbol => {
             let hits = index.find_symbol(query.term).unwrap();
             hits.iter()
-                .map(|h| format!("{}:{}:{} [{}] {} {}\n", h.relative_path, h.line, h.column, h.language, h.kind, h.name))
+                .map(|h| {
+                    format!(
+                        "{}:{}:{} [{}] {} {}\n",
+                        h.relative_path, h.line, h.column, h.language, h.kind, h.name
+                    )
+                })
                 .collect::<String>()
         }
         QueryKind::Callers => {
             let hits = index.find_callers(query.term).unwrap();
             hits.iter()
-                .map(|h| format!("{}:{}:{} [{}] {} --{}--> {}\n", h.relative_path, h.line, h.column, h.language, h.from_symbol, h.kind, h.to_name))
+                .map(|h| {
+                    format!(
+                        "{}:{}:{} [{}] {} --{}--> {}\n",
+                        h.relative_path,
+                        h.line,
+                        h.column,
+                        h.language,
+                        h.from_symbol,
+                        h.kind,
+                        h.to_name
+                    )
+                })
                 .collect::<String>()
         }
         QueryKind::References => {
             let hits = index.find_references(query.term).unwrap();
             hits.iter()
-                .map(|h| format!("{}:{}:{} [{}] {} --{}--> {}\n", h.relative_path, h.line, h.column, h.language, h.from_symbol, h.kind, h.to_name))
+                .map(|h| {
+                    format!(
+                        "{}:{}:{} [{}] {} --{}--> {}\n",
+                        h.relative_path,
+                        h.line,
+                        h.column,
+                        h.language,
+                        h.from_symbol,
+                        h.kind,
+                        h.to_name
+                    )
+                })
                 .collect::<String>()
         }
     };
@@ -91,7 +118,10 @@ fn grep_then_read_chars(root: &Path, term: &str) -> (usize, usize, usize) {
 
 fn walkdir_files(root: &Path) -> Vec<std::path::PathBuf> {
     let mut out = Vec::new();
-    for entry in walkdir::WalkDir::new(root).into_iter().filter_map(|e| e.ok()) {
+    for entry in walkdir::WalkDir::new(root)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
         if entry.file_type().is_file() {
             out.push(entry.path().to_path_buf());
         }
@@ -104,7 +134,9 @@ fn run_language(name: &str, root: &Path, registry: LanguageRegistry, queries: &[
     index.reindex(&registry, false).unwrap();
 
     println!("\n## {name}\n");
-    println!("| Query | MCP chars | MCP ~tokens | Grep+Read chars | Grep+Read ~tokens | Reduction |");
+    println!(
+        "| Query | MCP chars | MCP ~tokens | Grep+Read chars | Grep+Read ~tokens | Reduction |"
+    );
     println!("|---|---|---|---|---|---|");
     for query in queries {
         let (mcp_c, _) = mcp_chars(&index, query);
@@ -132,8 +164,8 @@ fn run_language(name: &str, root: &Path, registry: LanguageRegistry, queries: &[
 }
 
 fn main() {
-    let java_root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../mct-lang-java/tests/fixtures/billing-app");
+    let java_root =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../mct-lang-java/tests/fixtures/billing-app");
     let mut java_registry = LanguageRegistry::new();
     java_registry.register(Arc::new(mct_lang_java::JavaParser));
     run_language(
@@ -141,14 +173,26 @@ fn main() {
         &java_root,
         java_registry,
         &[
-            Query { label: "find the definition of", kind: QueryKind::Symbol, term: "Invoice" },
-            Query { label: "what calls this function", kind: QueryKind::Callers, term: "log" },
-            Query { label: "who uses this symbol", kind: QueryKind::References, term: "addItem" },
+            Query {
+                label: "find the definition of",
+                kind: QueryKind::Symbol,
+                term: "Invoice",
+            },
+            Query {
+                label: "what calls this function",
+                kind: QueryKind::Callers,
+                term: "log",
+            },
+            Query {
+                label: "who uses this symbol",
+                kind: QueryKind::References,
+                term: "addItem",
+            },
         ],
     );
 
-    let csharp_root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../mct-lang-csharp/tests/fixtures/billing-app");
+    let csharp_root =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../mct-lang-csharp/tests/fixtures/billing-app");
     let mut csharp_registry = LanguageRegistry::new();
     csharp_registry.register(Arc::new(mct_lang_csharp::CSharpParser));
     run_language(
@@ -156,14 +200,26 @@ fn main() {
         &csharp_root,
         csharp_registry,
         &[
-            Query { label: "find the definition of", kind: QueryKind::Symbol, term: "Invoice" },
-            Query { label: "what calls this function", kind: QueryKind::Callers, term: "Log" },
-            Query { label: "who uses this symbol", kind: QueryKind::References, term: "AddItem" },
+            Query {
+                label: "find the definition of",
+                kind: QueryKind::Symbol,
+                term: "Invoice",
+            },
+            Query {
+                label: "what calls this function",
+                kind: QueryKind::Callers,
+                term: "Log",
+            },
+            Query {
+                label: "who uses this symbol",
+                kind: QueryKind::References,
+                term: "AddItem",
+            },
         ],
     );
 
-    let js_ts_root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../mct-lang-js-ts/tests/fixtures/webapp");
+    let js_ts_root =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../mct-lang-js-ts/tests/fixtures/webapp");
     let mut js_ts_registry = LanguageRegistry::new();
     js_ts_registry.register(Arc::new(mct_lang_js_ts::JsTsParser));
     run_language(
@@ -171,14 +227,26 @@ fn main() {
         &js_ts_root,
         js_ts_registry,
         &[
-            Query { label: "find the definition of", kind: QueryKind::Symbol, term: "Invoice" },
-            Query { label: "what calls this function", kind: QueryKind::Callers, term: "log" },
-            Query { label: "who uses this symbol", kind: QueryKind::References, term: "addItem" },
+            Query {
+                label: "find the definition of",
+                kind: QueryKind::Symbol,
+                term: "Invoice",
+            },
+            Query {
+                label: "what calls this function",
+                kind: QueryKind::Callers,
+                term: "log",
+            },
+            Query {
+                label: "who uses this symbol",
+                kind: QueryKind::References,
+                term: "addItem",
+            },
         ],
     );
 
-    let cpp_root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../mct-lang-cpp/tests/fixtures/billing-app");
+    let cpp_root =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../mct-lang-cpp/tests/fixtures/billing-app");
     let mut cpp_registry = LanguageRegistry::new();
     cpp_registry.register(Arc::new(mct_lang_cpp::CppParser));
     run_language(
@@ -186,14 +254,26 @@ fn main() {
         &cpp_root,
         cpp_registry,
         &[
-            Query { label: "find the definition of", kind: QueryKind::Symbol, term: "Invoice" },
-            Query { label: "what calls this function", kind: QueryKind::Callers, term: "log" },
-            Query { label: "who uses this symbol", kind: QueryKind::References, term: "addItem" },
+            Query {
+                label: "find the definition of",
+                kind: QueryKind::Symbol,
+                term: "Invoice",
+            },
+            Query {
+                label: "what calls this function",
+                kind: QueryKind::Callers,
+                term: "log",
+            },
+            Query {
+                label: "who uses this symbol",
+                kind: QueryKind::References,
+                term: "addItem",
+            },
         ],
     );
 
-    let go_root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../mct-lang-go/tests/fixtures/billing-app");
+    let go_root =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../mct-lang-go/tests/fixtures/billing-app");
     let mut go_registry = LanguageRegistry::new();
     go_registry.register(Arc::new(mct_lang_go::GoParser));
     run_language(
@@ -201,14 +281,26 @@ fn main() {
         &go_root,
         go_registry,
         &[
-            Query { label: "find the definition of", kind: QueryKind::Symbol, term: "Invoice" },
-            Query { label: "what calls this function", kind: QueryKind::Callers, term: "Log" },
-            Query { label: "who uses this symbol", kind: QueryKind::References, term: "AddItem" },
+            Query {
+                label: "find the definition of",
+                kind: QueryKind::Symbol,
+                term: "Invoice",
+            },
+            Query {
+                label: "what calls this function",
+                kind: QueryKind::Callers,
+                term: "Log",
+            },
+            Query {
+                label: "who uses this symbol",
+                kind: QueryKind::References,
+                term: "AddItem",
+            },
         ],
     );
 
-    let rust_root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../mct-lang-rust/tests/fixtures/billing-app");
+    let rust_root =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../mct-lang-rust/tests/fixtures/billing-app");
     let mut rust_registry = LanguageRegistry::new();
     rust_registry.register(Arc::new(mct_lang_rust::RustParser));
     run_language(
@@ -216,14 +308,26 @@ fn main() {
         &rust_root,
         rust_registry,
         &[
-            Query { label: "find the definition of", kind: QueryKind::Symbol, term: "Invoice" },
-            Query { label: "what calls this function", kind: QueryKind::Callers, term: "log" },
-            Query { label: "who uses this symbol", kind: QueryKind::References, term: "add_item" },
+            Query {
+                label: "find the definition of",
+                kind: QueryKind::Symbol,
+                term: "Invoice",
+            },
+            Query {
+                label: "what calls this function",
+                kind: QueryKind::Callers,
+                term: "log",
+            },
+            Query {
+                label: "who uses this symbol",
+                kind: QueryKind::References,
+                term: "add_item",
+            },
         ],
     );
 
-    let python_root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../mct-lang-python/tests/fixtures/billing-app");
+    let python_root =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../mct-lang-python/tests/fixtures/billing-app");
     let mut python_registry = LanguageRegistry::new();
     python_registry.register(Arc::new(mct_lang_python::PythonParser));
     run_language(
@@ -231,13 +335,26 @@ fn main() {
         &python_root,
         python_registry,
         &[
-            Query { label: "find the definition of", kind: QueryKind::Symbol, term: "Invoice" },
-            Query { label: "what calls this function", kind: QueryKind::Callers, term: "log" },
-            Query { label: "who uses this symbol", kind: QueryKind::References, term: "add_item" },
+            Query {
+                label: "find the definition of",
+                kind: QueryKind::Symbol,
+                term: "Invoice",
+            },
+            Query {
+                label: "what calls this function",
+                kind: QueryKind::Callers,
+                term: "log",
+            },
+            Query {
+                label: "who uses this symbol",
+                kind: QueryKind::References,
+                term: "add_item",
+            },
         ],
     );
 
-    let html_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../mct-lang-html/tests/fixtures/site");
+    let html_root =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../mct-lang-html/tests/fixtures/site");
     let mut html_registry = LanguageRegistry::new();
     html_registry.register(Arc::new(mct_lang_html::HtmlParser));
     html_registry.register(Arc::new(mct_lang_css::CssParser));
@@ -246,16 +363,29 @@ fn main() {
         &html_root,
         html_registry,
         &[
-            Query { label: "find the definition of", kind: QueryKind::Symbol, term: "header" },
+            Query {
+                label: "find the definition of",
+                kind: QueryKind::Symbol,
+                term: "header",
+            },
             // HTML never emits a `calls` relation (see mct-lang-html/src/lib.rs) —
             // this query is structurally always empty for this language; kept
             // for methodology consistency, see benchmarks/token-benchmark.md.
-            Query { label: "what calls this function", kind: QueryKind::Callers, term: "nav" },
-            Query { label: "who uses this symbol", kind: QueryKind::References, term: "style.css" },
+            Query {
+                label: "what calls this function",
+                kind: QueryKind::Callers,
+                term: "nav",
+            },
+            Query {
+                label: "who uses this symbol",
+                kind: QueryKind::References,
+                term: "style.css",
+            },
         ],
     );
 
-    let css_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../mct-lang-css/tests/fixtures/theme");
+    let css_root =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../mct-lang-css/tests/fixtures/theme");
     let mut css_registry = LanguageRegistry::new();
     css_registry.register(Arc::new(mct_lang_css::CssParser));
     run_language(
@@ -263,12 +393,24 @@ fn main() {
         &css_root,
         css_registry,
         &[
-            Query { label: "find the definition of", kind: QueryKind::Symbol, term: "#header" },
+            Query {
+                label: "find the definition of",
+                kind: QueryKind::Symbol,
+                term: "#header",
+            },
             // CSS never emits a `calls` relation (see mct-lang-css/src/lib.rs) —
             // this query is structurally always empty for this language; kept
             // for methodology consistency, see benchmarks/token-benchmark.md.
-            Query { label: "what calls this function", kind: QueryKind::Callers, term: ".sidebar" },
-            Query { label: "who uses this symbol", kind: QueryKind::References, term: "extra.css" },
+            Query {
+                label: "what calls this function",
+                kind: QueryKind::Callers,
+                term: ".sidebar",
+            },
+            Query {
+                label: "who uses this symbol",
+                kind: QueryKind::References,
+                term: "extra.css",
+            },
         ],
     );
 
@@ -281,18 +423,31 @@ fn main() {
         &xml_root,
         xml_registry,
         &[
-            Query { label: "find the definition of", kind: QueryKind::Symbol, term: "worker" },
+            Query {
+                label: "find the definition of",
+                kind: QueryKind::Symbol,
+                term: "worker",
+            },
             // mct-lang-xml deliberately emits NO relations at all (structural-only
             // by design, see its module doc) — both queries below are always
             // empty for this language, regardless of fixture. See
             // benchmarks/token-benchmark.md for why this is a real, expected
             // (not fixable) result rather than a fixture problem.
-            Query { label: "what calls this function", kind: QueryKind::Callers, term: "jobs" },
-            Query { label: "who uses this symbol", kind: QueryKind::References, term: "api" },
+            Query {
+                label: "what calls this function",
+                kind: QueryKind::Callers,
+                term: "jobs",
+            },
+            Query {
+                label: "who uses this symbol",
+                kind: QueryKind::References,
+                term: "api",
+            },
         ],
     );
 
-    let xaml_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../mct-lang-xaml/tests/fixtures/app");
+    let xaml_root =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../mct-lang-xaml/tests/fixtures/app");
     let mut xaml_registry = LanguageRegistry::new();
     xaml_registry.register(Arc::new(mct_lang_xaml::XamlParser));
     xaml_registry.register(Arc::new(mct_lang_csharp::CSharpParser));
@@ -301,11 +456,19 @@ fn main() {
         &xaml_root,
         xaml_registry,
         &[
-            Query { label: "find the definition of", kind: QueryKind::Symbol, term: "SaveBtn" },
+            Query {
+                label: "find the definition of",
+                kind: QueryKind::Symbol,
+                term: "SaveBtn",
+            },
             // XAML never emits a `calls` relation (see mct-lang-xaml/src/lib.rs) —
             // this query is structurally always empty for this language; kept
             // for methodology consistency, see benchmarks/token-benchmark.md.
-            Query { label: "what calls this function", kind: QueryKind::Callers, term: "Click" },
+            Query {
+                label: "what calls this function",
+                kind: QueryKind::Callers,
+                term: "Click",
+            },
             Query {
                 label: "who uses this symbol",
                 kind: QueryKind::References,
@@ -323,9 +486,21 @@ fn main() {
         &bash_root,
         bash_registry,
         &[
-            Query { label: "find the definition of", kind: QueryKind::Symbol, term: "deploy" },
-            Query { label: "what calls this function", kind: QueryKind::Callers, term: "log" },
-            Query { label: "who uses this symbol", kind: QueryKind::References, term: "build" },
+            Query {
+                label: "find the definition of",
+                kind: QueryKind::Symbol,
+                term: "deploy",
+            },
+            Query {
+                label: "what calls this function",
+                kind: QueryKind::Callers,
+                term: "log",
+            },
+            Query {
+                label: "who uses this symbol",
+                kind: QueryKind::References,
+                term: "build",
+            },
         ],
     );
 
@@ -338,8 +513,16 @@ fn main() {
         &powershell_root,
         powershell_registry,
         &[
-            Query { label: "find the definition of", kind: QueryKind::Symbol, term: "Invoke-Build" },
-            Query { label: "what calls this function", kind: QueryKind::Callers, term: "Write-Log" },
+            Query {
+                label: "find the definition of",
+                kind: QueryKind::Symbol,
+                term: "Invoke-Build",
+            },
+            Query {
+                label: "what calls this function",
+                kind: QueryKind::Callers,
+                term: "Write-Log",
+            },
             Query {
                 label: "who uses this symbol",
                 kind: QueryKind::References,
@@ -348,7 +531,8 @@ fn main() {
         ],
     );
 
-    let php_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../mct-lang-php/tests/fixtures/billing-app");
+    let php_root =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../mct-lang-php/tests/fixtures/billing-app");
     let mut php_registry = LanguageRegistry::new();
     php_registry.register(Arc::new(mct_lang_php::PhpParser));
     run_language(
@@ -356,9 +540,21 @@ fn main() {
         &php_root,
         php_registry,
         &[
-            Query { label: "find the definition of", kind: QueryKind::Symbol, term: "Invoice" },
-            Query { label: "what calls this function", kind: QueryKind::Callers, term: "pay" },
-            Query { label: "who uses this symbol", kind: QueryKind::References, term: "Payable" },
+            Query {
+                label: "find the definition of",
+                kind: QueryKind::Symbol,
+                term: "Invoice",
+            },
+            Query {
+                label: "what calls this function",
+                kind: QueryKind::Callers,
+                term: "pay",
+            },
+            Query {
+                label: "who uses this symbol",
+                kind: QueryKind::References,
+                term: "Payable",
+            },
         ],
     );
 }

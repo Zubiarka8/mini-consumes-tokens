@@ -20,10 +20,12 @@ use mct_index::{ExcludeSet, Index};
 use mct_mcp_server::server::{BatchArgs, BatchQuery, MctServer};
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::CallToolResult;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 fn fixture(name: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(name)
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures")
+        .join(name)
 }
 
 fn content_of(result: &CallToolResult) -> String {
@@ -58,7 +60,10 @@ async fn run_batch(server: &MctServer, queries: &[(&str, Value)]) -> CallToolRes
         .iter()
         .map(|(tool, args)| query(tool, args.clone()))
         .collect();
-    server.batch(Parameters(BatchArgs { queries })).await.unwrap()
+    server
+        .batch(Parameters(BatchArgs { queries }))
+        .await
+        .unwrap()
 }
 
 /// A sub-query run on its own, as a direct `tools/call` would — routed
@@ -170,7 +175,9 @@ async fn each_sub_result_is_the_tools_own_output_verbatim() {
     let server = build_server(&fixture("compute-app")).await;
     let direct = content_of(
         &server
-            .find_callers(Parameters(serde_json::from_value(json!({ "function": "helper" })).unwrap()))
+            .find_callers(Parameters(
+                serde_json::from_value(json!({ "function": "helper" })).unwrap(),
+            ))
             .await
             .unwrap(),
     );
@@ -211,11 +218,17 @@ async fn a_failing_sub_query_is_reported_inline_and_the_rest_still_run() {
     );
 
     assert!(text.starts_with("batch: 5 queries, 4 failed\n"), "{text}");
-    assert!(text.contains("[1] find_symbol error: invalid args for `find_symbol`"), "{text}");
+    assert!(
+        text.contains("[1] find_symbol error: invalid args for `find_symbol`"),
+        "{text}"
+    );
     assert!(text.contains("missing field `name`"), "{text}");
     assert!(text.contains("[2] reindex error:"), "{text}");
     assert!(text.contains("[3] batch error:"), "{text}");
-    assert!(text.contains("[4] not_a_tool error: no tool named `not_a_tool`"), "{text}");
+    assert!(
+        text.contains("[4] not_a_tool error: no tool named `not_a_tool`"),
+        "{text}"
+    );
     assert!(text.contains("[5] find_symbol\n"), "{text}");
     assert!(text.contains("helper"), "{text}");
 }
@@ -264,7 +277,11 @@ async fn batching_an_exploration_sweep_cuts_tokens_by_at_least_20_percent() {
     ];
     let m = measure(&server, &queries).await;
     report("compute-app sweep", &m);
-    assert!(m.reduction() >= 20.0, "only {:.1}% fewer tokens", m.reduction());
+    assert!(
+        m.reduction() >= 20.0,
+        "only {:.1}% fewer tokens",
+        m.reduction()
+    );
 }
 
 /// Same criterion on a polyglot fixture with larger, mixed results
@@ -283,7 +300,11 @@ async fn batching_a_mixed_polyglot_sweep_cuts_tokens_by_at_least_20_percent() {
     ];
     let m = measure(&server, &queries).await;
     report("omni-app sweep", &m);
-    assert!(m.reduction() >= 20.0, "only {:.1}% fewer tokens", m.reduction());
+    assert!(
+        m.reduction() >= 20.0,
+        "only {:.1}% fewer tokens",
+        m.reduction()
+    );
 }
 
 /// Provider prompt caching (Anthropic's, and the other major providers')

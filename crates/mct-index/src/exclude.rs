@@ -248,7 +248,8 @@ mod ignore_file_tests {
     use std::fs;
 
     fn temp_dir(tag: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("mct-ignore-file-test-{tag}-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("mct-ignore-file-test-{tag}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).expect("create temp test dir");
         dir
@@ -264,7 +265,11 @@ mod ignore_file_tests {
     #[test]
     fn comments_and_blank_lines_are_skipped() {
         let dir = temp_dir("comments");
-        fs::write(dir.join(IGNORE_FILE_NAME), "# a comment\n\n   \n# another\n").unwrap();
+        fs::write(
+            dir.join(IGNORE_FILE_NAME),
+            "# a comment\n\n   \n# another\n",
+        )
+        .unwrap();
         assert_eq!(read_ignore_file(&dir), Vec::<String>::new());
         fs::remove_dir_all(&dir).ok();
     }
@@ -273,7 +278,10 @@ mod ignore_file_tests {
     fn a_bare_directory_name_expands_to_the_any_depth_pair() {
         let dir = temp_dir("bare-dir");
         fs::write(dir.join(IGNORE_FILE_NAME), "docs/\n").unwrap();
-        assert_eq!(read_ignore_file(&dir), vec!["**/docs".to_string(), "**/docs/**".to_string()]);
+        assert_eq!(
+            read_ignore_file(&dir),
+            vec!["**/docs".to_string(), "**/docs/**".to_string()]
+        );
         fs::remove_dir_all(&dir).ok();
     }
 
@@ -283,7 +291,10 @@ mod ignore_file_tests {
         fs::write(dir.join(IGNORE_FILE_NAME), "tests/fixtures/\n").unwrap();
         assert_eq!(
             read_ignore_file(&dir),
-            vec!["tests/fixtures".to_string(), "tests/fixtures/**".to_string()]
+            vec![
+                "tests/fixtures".to_string(),
+                "tests/fixtures/**".to_string()
+            ]
         );
         fs::remove_dir_all(&dir).ok();
     }
@@ -328,7 +339,11 @@ mod ignore_file_tests {
     #[test]
     fn the_import_directive_pulls_in_gitignore_patterns() {
         let dir = temp_dir("gitignore-imported");
-        fs::write(dir.join(IGNORE_FILE_NAME), format!("*.md\n{GITIGNORE_IMPORT_DIRECTIVE}\n")).unwrap();
+        fs::write(
+            dir.join(IGNORE_FILE_NAME),
+            format!("*.md\n{GITIGNORE_IMPORT_DIRECTIVE}\n"),
+        )
+        .unwrap();
         fs::write(dir.join(".gitignore"), "*.log\nbuild/\n").unwrap();
         assert_eq!(
             read_ignore_file(&dir),

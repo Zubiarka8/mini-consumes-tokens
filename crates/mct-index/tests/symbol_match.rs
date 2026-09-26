@@ -81,7 +81,10 @@ fn uuid_like() -> u64 {
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as u64;
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as u64;
     nanos.wrapping_add(COUNTER.fetch_add(1, Ordering::Relaxed))
 }
 
@@ -149,7 +152,9 @@ fn prefix_mode_matches_a_non_leading_token_that_starts_with_the_term() {
     let index = fixture_index();
     // "body" is `parse_body`'s *second* token — prefix matching is
     // per-token, not anchored to the start of the whole name.
-    let hits = index.find_symbol_matching("body", SymbolMatchMode::Prefix).unwrap();
+    let hits = index
+        .find_symbol_matching("body", SymbolMatchMode::Prefix)
+        .unwrap();
     assert_eq!(hits.len(), 1, "{hits:?}");
     assert_eq!(hits[0].name, "parse_body");
 }
@@ -160,7 +165,9 @@ fn prefix_mode_does_not_match_the_term_appearing_mid_token() {
     // "body" appears inside `megabody`, but not as that token's own prefix
     // (the token is "megabody", which does not start with "body") — this is
     // exactly what distinguishes `Prefix` from `Fuzzy`.
-    let hits = index.find_symbol_matching("body", SymbolMatchMode::Prefix).unwrap();
+    let hits = index
+        .find_symbol_matching("body", SymbolMatchMode::Prefix)
+        .unwrap();
     assert!(
         hits.iter().all(|h| h.name != "megabody"),
         "megabody must not match a token-prefix query for `body`: {hits:?}"
@@ -193,7 +200,9 @@ fn prefix_mode_tolerates_fts5_special_characters_in_the_term() {
 #[test]
 fn fuzzy_mode_is_case_insensitive() {
     let index = fixture_index();
-    let hits = index.find_symbol_matching("handler", SymbolMatchMode::Fuzzy).unwrap();
+    let hits = index
+        .find_symbol_matching("handler", SymbolMatchMode::Fuzzy)
+        .unwrap();
     assert_eq!(hits.len(), 1, "{hits:?}");
     assert_eq!(hits[0].name, "Handler");
 }
@@ -201,7 +210,9 @@ fn fuzzy_mode_is_case_insensitive() {
 #[test]
 fn fuzzy_mode_matches_every_symbol_containing_the_shared_substring() {
     let index = fixture_index();
-    let hits = index.find_symbol_matching("handle", SymbolMatchMode::Fuzzy).unwrap();
+    let hits = index
+        .find_symbol_matching("handle", SymbolMatchMode::Fuzzy)
+        .unwrap();
     let names: Vec<&str> = hits.iter().map(|h| h.name.as_str()).collect();
     // Case-insensitive substring match: "handle" is also a substring of
     // `Handler`, unlike `Prefix`'s per-token matching (see the `prefix_mode_*`
@@ -218,7 +229,9 @@ fn fuzzy_mode_matches_a_substring_at_any_position_unlike_prefix_mode() {
     let index = fixture_index();
     // Unlike `Prefix` (see `prefix_mode_does_not_match_the_term_appearing_mid_token`),
     // `Fuzzy` matches `megabody` because "body" appears anywhere in the name.
-    let hits = index.find_symbol_matching("body", SymbolMatchMode::Fuzzy).unwrap();
+    let hits = index
+        .find_symbol_matching("body", SymbolMatchMode::Fuzzy)
+        .unwrap();
     let names: Vec<&str> = hits.iter().map(|h| h.name.as_str()).collect();
     // Ordered by relative_path (c.fake, f.fake), same as every other mode.
     assert_eq!(names, vec!["parse_body", "megabody"], "{names:?}");

@@ -26,8 +26,8 @@
 //!   unresolvable callee in `mct-lang-go`/`mct-lang-js-ts`.
 
 use mct_core::{
-    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
-    SymbolKind, SymbolRecord, SymbolRelation,
+    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
+    SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use tree_sitter::{Node, Parser};
 
@@ -54,11 +54,13 @@ impl LanguageParser for BashParser {
             .set_language(&tree_sitter_bash::LANGUAGE.into())
             .expect("tree-sitter-bash grammar is statically valid");
 
-        let tree = parser.parse(&file.contents, None).ok_or_else(|| ParseError::Syntax {
-            path: file.relative_path.clone(),
-            line: 1,
-            message: "tree-sitter produced no parse tree".to_string(),
-        })?;
+        let tree = parser
+            .parse(&file.contents, None)
+            .ok_or_else(|| ParseError::Syntax {
+                path: file.relative_path.clone(),
+                line: 1,
+                message: "tree-sitter produced no parse tree".to_string(),
+            })?;
 
         let root = tree.root_node();
         if root.has_error() {
@@ -72,7 +74,12 @@ impl LanguageParser for BashParser {
 
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
-        let module_id = walker.push_symbol(module_name.clone(), SymbolKind::Module, location(root), None);
+        let module_id = walker.push_symbol(
+            module_name.clone(),
+            SymbolKind::Module,
+            location(root),
+            None,
+        );
         walker.visit_children(root, module_id, &module_name, module_id, 0);
         Ok(walker.finish())
     }
@@ -125,21 +132,50 @@ struct Walker<'a> {
 
 impl<'a> Walker<'a> {
     fn new(source: &'a str) -> Self {
-        Self { source, symbols: Vec::new(), relations: Vec::new(), next_id: 0 }
+        Self {
+            source,
+            symbols: Vec::new(),
+            relations: Vec::new(),
+            next_id: 0,
+        }
     }
 
-    fn push_symbol(&mut self, name: String, kind: SymbolKind, location: Location, parent: Option<String>) -> SymbolId {
+    fn push_symbol(
+        &mut self,
+        name: String,
+        kind: SymbolKind,
+        location: Location,
+        parent: Option<String>,
+    ) -> SymbolId {
         let id = self.next_id;
         self.next_id += 1;
-        self.symbols.push(SymbolRecord { id, name, kind, location, parent, level: None });
+        self.symbols.push(SymbolRecord {
+            id,
+            name,
+            kind,
+            location,
+            parent,
+            level: None,
+        });
         id
     }
 
-    fn push_relation(&mut self, from: SymbolId, kind: RelationKind, to_name: String, loc: Location) {
+    fn push_relation(
+        &mut self,
+        from: SymbolId,
+        kind: RelationKind,
+        to_name: String,
+        loc: Location,
+    ) {
         if to_name.is_empty() {
             return;
         }
-        self.relations.push(SymbolRelation { from, kind, to_name, location: loc });
+        self.relations.push(SymbolRelation {
+            from,
+            kind,
+            to_name,
+            location: loc,
+        });
     }
 
     /// `owner` is the innermost enclosing function (calls/imports attach to
@@ -147,14 +183,28 @@ impl<'a> Walker<'a> {
     /// at top level, used as `parent` for symbols declared directly here;
     /// `module_id` is this file's own module symbol id, used to tell
     /// top-level statements apart from ones nested inside a function body.
-    fn visit_children(&mut self, node: Node, owner: SymbolId, scope_name: &str, module_id: SymbolId, depth: u32) {
+    fn visit_children(
+        &mut self,
+        node: Node,
+        owner: SymbolId,
+        scope_name: &str,
+        module_id: SymbolId,
+        depth: u32,
+    ) {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             self.visit(child, owner, scope_name, module_id, depth + 1);
         }
     }
 
-    fn visit(&mut self, node: Node, owner: SymbolId, scope_name: &str, module_id: SymbolId, depth: u32) {
+    fn visit(
+        &mut self,
+        node: Node,
+        owner: SymbolId,
+        scope_name: &str,
+        module_id: SymbolId,
+        depth: u32,
+    ) {
         if depth >= MAX_TRAVERSAL_DEPTH {
             return;
         }
@@ -170,7 +220,12 @@ impl<'a> Walker<'a> {
                 if name.is_empty() {
                     return;
                 }
-                let id = self.push_symbol(name.clone(), SymbolKind::Function, location(node), Some(scope_name.to_string()));
+                let id = self.push_symbol(
+                    name.clone(),
+                    SymbolKind::Function,
+                    location(node),
+                    Some(scope_name.to_string()),
+                );
                 if let Some(body) = node.child_by_field_name("body") {
                     self.visit_children(body, id, &name, module_id, depth + 1);
                 }
@@ -183,7 +238,12 @@ impl<'a> Walker<'a> {
                 if owner == module_id {
                     if let Some(name_node) = node.child_by_field_name("name") {
                         let name = text(name_node, self.source).to_string();
-                        self.push_symbol(name, SymbolKind::Variable, location(node), Some(scope_name.to_string()));
+                        self.push_symbol(
+                            name,
+                            SymbolKind::Variable,
+                            location(node),
+                            Some(scope_name.to_string()),
+                        );
                     }
                 }
                 if let Some(value) = node.child_by_field_name("value") {
@@ -197,11 +257,21 @@ impl<'a> Walker<'a> {
                         match cmd_text {
                             "source" | "." => {
                                 if let Some(path) = first_argument_text(node, self.source) {
-                                    self.push_relation(owner, RelationKind::Imports, path, location(node));
+                                    self.push_relation(
+                                        owner,
+                                        RelationKind::Imports,
+                                        path,
+                                        location(node),
+                                    );
                                 }
                             }
                             _ => {
-                                self.push_relation(owner, RelationKind::Calls, cmd_text.to_string(), location(word_node));
+                                self.push_relation(
+                                    owner,
+                                    RelationKind::Calls,
+                                    cmd_text.to_string(),
+                                    location(word_node),
+                                );
                             }
                         }
                     }
@@ -216,7 +286,11 @@ impl<'a> Walker<'a> {
     }
 
     fn finish(self) -> ParsedFile {
-        ParsedFile { symbols: self.symbols, relations: self.relations, ..Default::default() }
+        ParsedFile {
+            symbols: self.symbols,
+            relations: self.relations,
+            ..Default::default()
+        }
     }
 }
 

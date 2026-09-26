@@ -30,7 +30,11 @@ fn open_indexed() -> Index {
     let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
     let report = index.reindex(&registry(), false).unwrap();
     assert_eq!(report.files_parsed, 2, "main.css, extra.css");
-    assert!(report.issues.is_empty(), "no parse issues expected: {:?}", report.issues);
+    assert!(
+        report.issues.is_empty(),
+        "no parse issues expected: {:?}",
+        report.issues
+    );
     index
 }
 
@@ -62,14 +66,20 @@ fn find_symbol_locates_the_rule_nested_in_a_media_query() {
     // ".nav" appears twice: once in the top-level comma list, once again
     // inside @media — two distinct Rule symbols, same name.
     let hits = index.find_symbol(".nav").unwrap();
-    assert_eq!(hits.len(), 2, "top-level .nav and the one nested in @media: {hits:?}");
+    assert_eq!(
+        hits.len(),
+        2,
+        "top-level .nav and the one nested in @media: {hits:?}"
+    );
     // Two same-named rules are only distinguishable by position, so the
     // lines are load-bearing here: line 7 is the comma list, line 13 the
     // copy nested inside `@media (min-width: 600px)`.
     let mut lines: Vec<_> = hits.iter().map(|h| h.line).collect();
     lines.sort_unstable();
     assert_eq!(lines, vec![7, 13], "{hits:?}");
-    assert!(hits.iter().all(|h| h.kind == "rule" && h.relative_path == "main.css"));
+    assert!(hits
+        .iter()
+        .all(|h| h.kind == "rule" && h.relative_path == "main.css"));
 }
 
 #[test]
@@ -85,7 +95,11 @@ fn find_references_shows_the_cross_file_import() {
 fn status_reports_full_css_coverage() {
     let index = open_indexed();
     let status = index.status().unwrap();
-    let css = status.languages.iter().find(|l| l.language == "css").unwrap();
+    let css = status
+        .languages
+        .iter()
+        .find(|l| l.language == "css")
+        .unwrap();
     assert_eq!(css.file_count, 2);
     assert!(status.unsupported_languages.is_empty());
     assert!(status.syntax_errors.is_empty());

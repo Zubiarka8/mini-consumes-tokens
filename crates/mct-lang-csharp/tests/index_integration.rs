@@ -26,7 +26,11 @@ fn open_indexed() -> Index {
     let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
     let report = index.reindex(&registry, false).unwrap();
     assert_eq!(report.files_parsed, 3);
-    assert!(report.issues.is_empty(), "no parse issues expected: {:?}", report.issues);
+    assert!(
+        report.issues.is_empty(),
+        "no parse issues expected: {:?}",
+        report.issues
+    );
     index
 }
 
@@ -49,7 +53,11 @@ fn find_calls_reports_log_from_both_overloads() {
     let index = open_indexed();
     let calls = index.find_calls("AddItem").unwrap();
     let log_calls: Vec<_> = calls.iter().filter(|c| c.to_name == "Log").collect();
-    assert_eq!(log_calls.len(), 2, "each overload calls Logger.Log once: {calls:?}");
+    assert_eq!(
+        log_calls.len(),
+        2,
+        "each overload calls Logger.Log once: {calls:?}"
+    );
 }
 
 #[test]

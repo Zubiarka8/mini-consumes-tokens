@@ -22,7 +22,9 @@ fn claude_agent_worktrees_are_excluded() {
     assert!(set.is_excluded(".claude"));
     assert!(set.is_excluded(".claude/settings.json"));
     assert!(set.is_excluded(".claude/worktrees"));
-    assert!(set.is_excluded(".claude/worktrees/agent-a91ea5ed15bdbe91b/crates/mct-index/src/lib.rs"));
+    assert!(
+        set.is_excluded(".claude/worktrees/agent-a91ea5ed15bdbe91b/crates/mct-index/src/lib.rs")
+    );
     // Nested under a subdirectory, not just at the repo root.
     assert!(set.is_excluded("crates/mct-cli/.claude/worktrees/agent-x/main.rs"));
 }
@@ -60,7 +62,10 @@ fn the_directory_entry_itself_matches_not_only_its_contents() {
         ".aws",
         ".mct-index",
     ] {
-        assert!(set.is_excluded(dir), "`{dir}` must match as a directory entry");
+        assert!(
+            set.is_excluded(dir),
+            "`{dir}` must match as a directory entry"
+        );
         assert!(
             set.is_excluded(&format!("{dir}/inner.rs")),
             "`{dir}` must still match its contents"
@@ -93,19 +98,36 @@ fn an_excluded_directory_is_not_indexed() {
     fs::create_dir_all(dir.join("src")).unwrap();
 
     fs::write(dir.join("src/real.fake"), "fn real\n").unwrap();
-    fs::write(dir.join(".claude/worktrees/agent-x/src/real.fake"), "fn ghost\n").unwrap();
+    fs::write(
+        dir.join(".claude/worktrees/agent-x/src/real.fake"),
+        "fn ghost\n",
+    )
+    .unwrap();
     fs::write(dir.join(".claude-index/leftover.fake"), "fn leftover\n").unwrap();
     // A manifest and an unsupported-language file inside the pruned subtree:
     // neither may reach `dependencies` or `index_issues` either.
-    fs::write(dir.join(".claude/worktrees/agent-x/Cargo.toml"), "[dependencies]\nserde = \"1\"\n")
-        .unwrap();
-    fs::write(dir.join(".claude/worktrees/agent-x/script.rb"), "puts 'hi'\n").unwrap();
+    fs::write(
+        dir.join(".claude/worktrees/agent-x/Cargo.toml"),
+        "[dependencies]\nserde = \"1\"\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.join(".claude/worktrees/agent-x/script.rb"),
+        "puts 'hi'\n",
+    )
+    .unwrap();
 
     let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
     let report = index.reindex(&registry(), false).unwrap();
 
-    assert_eq!(report.files_parsed, 1, "only the real source file is parsed");
-    assert!(report.issues.is_empty(), "a pruned subtree reports no issues");
+    assert_eq!(
+        report.files_parsed, 1,
+        "only the real source file is parsed"
+    );
+    assert!(
+        report.issues.is_empty(),
+        "a pruned subtree reports no issues"
+    );
 
     assert_eq!(index.find_symbol("real").unwrap().len(), 1);
     assert!(index.find_symbol("ghost").unwrap().is_empty());
@@ -113,7 +135,10 @@ fn an_excluded_directory_is_not_indexed() {
 
     let status = index.status().unwrap();
     assert_eq!(status.total_files, 1);
-    assert!(status.dependencies.is_empty(), "no manifest inside a pruned subtree");
+    assert!(
+        status.dependencies.is_empty(),
+        "no manifest inside a pruned subtree"
+    );
     assert!(status.unsupported_languages.is_empty());
 }
 
@@ -127,14 +152,22 @@ fn a_normal_source_tree_is_still_indexed_in_full() {
 
     fs::write(dir.join("claude.fake"), "fn top_level\n").unwrap();
     fs::write(dir.join("myclaude/helper.fake"), "fn in_myclaude\n").unwrap();
-    fs::write(dir.join("crates/claude-api/src/lib.fake"), "fn in_claude_api\n").unwrap();
+    fs::write(
+        dir.join("crates/claude-api/src/lib.fake"),
+        "fn in_claude_api\n",
+    )
+    .unwrap();
 
     let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
     let report = index.reindex(&registry(), false).unwrap();
 
     assert_eq!(report.files_parsed, 3);
     for name in ["top_level", "in_myclaude", "in_claude_api"] {
-        assert_eq!(index.find_symbol(name).unwrap().len(), 1, "`{name}` must be indexed");
+        assert_eq!(
+            index.find_symbol(name).unwrap().len(),
+            1,
+            "`{name}` must be indexed"
+        );
     }
 }
 
@@ -151,12 +184,19 @@ fn a_file_that_becomes_excluded_is_removed_on_the_next_reindex() {
 
     let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
     index.reindex(&registry(), false).unwrap();
-    assert_eq!(index.find_symbol("doomed").unwrap().len(), 1, "precondition");
+    assert_eq!(
+        index.find_symbol("doomed").unwrap().len(),
+        1,
+        "precondition"
+    );
 
     fs::rename(dir.join("workspace"), dir.join(".claude")).unwrap();
 
     let report = index.reindex(&registry(), false).unwrap();
-    assert_eq!(report.files_removed, 1, "the now-excluded file's row is swept");
+    assert_eq!(
+        report.files_removed, 1,
+        "the now-excluded file's row is swept"
+    );
     assert!(
         index.find_symbol("doomed").unwrap().is_empty(),
         "a file that becomes excluded must not linger in the index"

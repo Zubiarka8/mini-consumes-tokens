@@ -148,7 +148,10 @@ pub fn embedding_text(ctx: &SymbolContext<'_>) -> String {
     }
     sections.push(format!("[symbol: {} {}]", ctx.kind, words(ctx.name)).replace("  ", " "));
     if let Some(sig) = ctx.signature.map(str::trim).filter(|s| !s.is_empty()) {
-        sections.push(format!("[signature: {}]", truncate_chars(sig, MAX_SIGNATURE_CHARS)));
+        sections.push(format!(
+            "[signature: {}]",
+            truncate_chars(sig, MAX_SIGNATURE_CHARS)
+        ));
     }
     if let Some(doc) = ctx.doc.map(str::trim).filter(|d| !d.is_empty()) {
         sections.push(format!("[doc: {}]", truncate_chars(doc, MAX_DOC_CHARS)));
@@ -252,7 +255,9 @@ fn doc_at(lines: &[&str], line: u32) -> Option<String> {
 
 fn docstring_below(lines: &[&str], decl: usize) -> Option<String> {
     let first = lines.get(decl + 1)?.trim();
-    let quote = ["\"\"\"", "'''"].into_iter().find(|q| first.starts_with(q))?;
+    let quote = ["\"\"\"", "'''"]
+        .into_iter()
+        .find(|q| first.starts_with(q))?;
     let mut doc = Vec::new();
     for (i, text) in lines.get(decl + 1..)?.iter().enumerate().take(12) {
         let text = text.trim();
@@ -294,7 +299,11 @@ fn vector_space(model: &str) -> String {
 /// after the first full pass, a call only pays for what the last reindex
 /// changed. Signature and doc context are read from the files under `root`,
 /// each file at most once per call.
-pub fn refresh_embeddings(conn: &Connection, root: &Path, embedder: &dyn Embedder) -> Result<usize> {
+pub fn refresh_embeddings(
+    conn: &Connection,
+    root: &Path,
+    embedder: &dyn Embedder,
+) -> Result<usize> {
     let space = vector_space(embedder.model_id());
     let model = space.as_str();
     conn.execute("DELETE FROM symbol_embeddings WHERE model <> ?1", [model])?;
@@ -358,7 +367,11 @@ pub fn refresh_embeddings(conn: &Connection, root: &Path, embedder: &dyn Embedde
         for p in file_rows {
             let signature = signature_at(&lines, p.line, p.end_line);
             // A heading-like symbol (Markdown) has no doc comment above it.
-            let doc = if p.has_level { None } else { doc_at(&lines, p.line) };
+            let doc = if p.has_level {
+                None
+            } else {
+                doc_at(&lines, p.line)
+            };
             let text = embedding_text(&SymbolContext {
                 name: &p.name,
                 kind: &p.kind,
@@ -743,7 +756,14 @@ mod tests {
 
     #[test]
     fn signature_stops_at_the_body() {
-        let src = ["/// Doc.", "pub fn a(", "    x: u32,", ") -> u32 {", "    x", "}"];
+        let src = [
+            "/// Doc.",
+            "pub fn a(",
+            "    x: u32,",
+            ") -> u32 {",
+            "    x",
+            "}",
+        ];
         assert_eq!(
             signature_at(&src, 2, Some(6)).as_deref(),
             Some("pub fn a( x: u32, ) -> u32")
@@ -767,7 +787,12 @@ mod tests {
         ];
         assert_eq!(doc_at(&src, 5).as_deref(), Some("Loads the settings."));
         assert_eq!(doc_at(&src, 1), None);
-        let py = ["def f():", "    \"\"\"Return one.", "    Always.\"\"\"", "    return 1"];
+        let py = [
+            "def f():",
+            "    \"\"\"Return one.",
+            "    Always.\"\"\"",
+            "    return 1",
+        ];
         assert_eq!(doc_at(&py, 1).as_deref(), Some("Return one. Always."));
         let block = ["/**", " * Draws it.", " */", "function draw() {}"];
         assert_eq!(doc_at(&block, 4).as_deref(), Some("Draws it."));
@@ -791,7 +816,11 @@ mod tests {
 
     #[test]
     fn quoted_queries_route_to_exact_phrase_with_no_semantic_weight() {
-        for q in ["\"parse request\"", " \"Index::open\" ", "\"connection refused: db\""] {
+        for q in [
+            "\"parse request\"",
+            " \"Index::open\" ",
+            "\"connection refused: db\"",
+        ] {
             assert_eq!(classify_query(q), QueryIntent::ExactPhrase, "{q}");
         }
         assert_eq!(classify_query("\"unterminated"), QueryIntent::Mixed);
@@ -800,7 +829,11 @@ mod tests {
 
     #[test]
     fn plain_prose_routes_to_semantic() {
-        for q in ["load settings from disk", "directory tree", "is this a test file?"] {
+        for q in [
+            "load settings from disk",
+            "directory tree",
+            "is this a test file?",
+        ] {
             assert_eq!(classify_query(q), QueryIntent::NaturalLanguage, "{q}");
         }
         assert_eq!(QueryIntent::NaturalLanguage.alpha(), 0.75);
@@ -808,7 +841,15 @@ mod tests {
 
     #[test]
     fn single_plain_words_and_mixtures_stay_balanced() {
-        for q in ["", "   ", "bfs", "Walker", "break camelCase names", "python Walker push_relation", "e.g."] {
+        for q in [
+            "",
+            "   ",
+            "bfs",
+            "Walker",
+            "break camelCase names",
+            "python Walker push_relation",
+            "e.g.",
+        ] {
             assert_eq!(classify_query(q), QueryIntent::Mixed, "{q:?}");
         }
         assert_eq!(QueryIntent::Mixed.alpha(), 0.5);

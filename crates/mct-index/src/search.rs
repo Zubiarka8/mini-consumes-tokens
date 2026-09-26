@@ -134,7 +134,11 @@ fn fts_terms_with(words: Vec<String>, joiner: &str, synonyms: bool) -> Option<St
         .map(|t| match synonyms.then(|| synonym_group(&t)).flatten() {
             Some(group) => format!(
                 "({})",
-                group.iter().map(|s| quote(s)).collect::<Vec<_>>().join(" OR ")
+                group
+                    .iter()
+                    .map(|s| quote(s))
+                    .collect::<Vec<_>>()
+                    .join(" OR ")
             ),
             None => quote(&t),
         })
@@ -229,7 +233,10 @@ pub(crate) fn qualified_parts(query: &str) -> Option<(Vec<String>, &str)> {
     if qualifiers.is_empty() || !is_ident(last) || !qualifiers.iter().all(is_ident) {
         return None;
     }
-    let words = qualifiers.iter().flat_map(|q| split_identifier(q)).collect();
+    let words = qualifiers
+        .iter()
+        .flat_map(|q| split_identifier(q))
+        .collect();
     Some((words, last))
 }
 
@@ -350,7 +357,12 @@ fn outside_qualifier(qualifier: &[String], hit: &SymbolHit) -> bool {
         return false;
     }
     let mut context = split_identifier(&hit.relative_path);
-    context.extend(hit.parent.as_deref().map(split_identifier).unwrap_or_default());
+    context.extend(
+        hit.parent
+            .as_deref()
+            .map(split_identifier)
+            .unwrap_or_default(),
+    );
     !qualifier.iter().all(|w| context.contains(w))
 }
 
@@ -551,7 +563,10 @@ mod tests {
         );
         assert_eq!(fallback_expression("the a of"), None);
         // All-words matching keeps them: `is_test` is a real name.
-        assert_eq!(fts_expression("is test", " ").as_deref(), Some("\"is\"* \"test\"*"));
+        assert_eq!(
+            fts_expression("is test", " ").as_deref(),
+            Some("\"is\"* \"test\"*")
+        );
     }
 
     #[test]

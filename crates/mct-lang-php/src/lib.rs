@@ -60,8 +60,8 @@
 //!   arguments.
 
 use mct_core::{
-    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind,
-    SourceFile, SymbolId, SymbolKind, SymbolRecord, SymbolRelation,
+    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
+    SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use tree_sitter::{Node, Parser};
 
@@ -88,11 +88,13 @@ impl LanguageParser for PhpParser {
             .set_language(&tree_sitter_php::LANGUAGE_PHP.into())
             .expect("tree-sitter-php grammar is statically valid");
 
-        let tree = parser.parse(&file.contents, None).ok_or_else(|| ParseError::Syntax {
-            path: file.relative_path.clone(),
-            line: 1,
-            message: "tree-sitter produced no parse tree".to_string(),
-        })?;
+        let tree = parser
+            .parse(&file.contents, None)
+            .ok_or_else(|| ParseError::Syntax {
+                path: file.relative_path.clone(),
+                line: 1,
+                message: "tree-sitter produced no parse tree".to_string(),
+            })?;
 
         let root = tree.root_node();
         if root.has_error() {
@@ -189,21 +191,50 @@ struct Walker<'a> {
 
 impl<'a> Walker<'a> {
     fn new(source: &'a str) -> Self {
-        Self { source, symbols: Vec::new(), relations: Vec::new(), next_id: 0 }
+        Self {
+            source,
+            symbols: Vec::new(),
+            relations: Vec::new(),
+            next_id: 0,
+        }
     }
 
-    fn push_symbol(&mut self, name: String, kind: SymbolKind, location: Location, parent: Option<String>) -> SymbolId {
+    fn push_symbol(
+        &mut self,
+        name: String,
+        kind: SymbolKind,
+        location: Location,
+        parent: Option<String>,
+    ) -> SymbolId {
         let id = self.next_id;
         self.next_id += 1;
-        self.symbols.push(SymbolRecord { id, name, kind, location, parent, level: None });
+        self.symbols.push(SymbolRecord {
+            id,
+            name,
+            kind,
+            location,
+            parent,
+            level: None,
+        });
         id
     }
 
-    fn push_relation(&mut self, from: SymbolId, kind: RelationKind, to_name: String, loc: Location) {
+    fn push_relation(
+        &mut self,
+        from: SymbolId,
+        kind: RelationKind,
+        to_name: String,
+        loc: Location,
+    ) {
         if to_name.is_empty() {
             return;
         }
-        self.relations.push(SymbolRelation { from, kind, to_name, location: loc });
+        self.relations.push(SymbolRelation {
+            from,
+            kind,
+            to_name,
+            location: loc,
+        });
     }
 
     /// `owner` is the innermost enclosing function/method/module (calls,
@@ -240,19 +271,34 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                let id = self.push_symbol(name.clone(), kind, location(node), type_name.map(str::to_string));
+                let id = self.push_symbol(
+                    name.clone(),
+                    kind,
+                    location(node),
+                    type_name.map(str::to_string),
+                );
 
                 if let Some(base_clause) = find_child(node, "base_clause") {
                     for base in named_children(base_clause) {
                         if let Some(seg) = last_segment(base) {
-                            self.push_relation(id, RelationKind::Extends, text(seg, self.source).to_string(), location(seg));
+                            self.push_relation(
+                                id,
+                                RelationKind::Extends,
+                                text(seg, self.source).to_string(),
+                                location(seg),
+                            );
                         }
                     }
                 }
                 if let Some(interfaces) = find_child(node, "class_interface_clause") {
                     for iface in named_children(interfaces) {
                         if let Some(seg) = last_segment(iface) {
-                            self.push_relation(id, RelationKind::Implements, text(seg, self.source).to_string(), location(seg));
+                            self.push_relation(
+                                id,
+                                RelationKind::Implements,
+                                text(seg, self.source).to_string(),
+                                location(seg),
+                            );
                         }
                     }
                 }
@@ -265,11 +311,21 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                let id = self.push_symbol(name.clone(), SymbolKind::Enum, location(node), type_name.map(str::to_string));
+                let id = self.push_symbol(
+                    name.clone(),
+                    SymbolKind::Enum,
+                    location(node),
+                    type_name.map(str::to_string),
+                );
                 if let Some(interfaces) = find_child(node, "class_interface_clause") {
                     for iface in named_children(interfaces) {
                         if let Some(seg) = last_segment(iface) {
-                            self.push_relation(id, RelationKind::Implements, text(seg, self.source).to_string(), location(seg));
+                            self.push_relation(
+                                id,
+                                RelationKind::Implements,
+                                text(seg, self.source).to_string(),
+                                location(seg),
+                            );
                         }
                     }
                 }
@@ -282,7 +338,12 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                self.push_symbol(name, SymbolKind::Field, location(node), type_name.map(str::to_string));
+                self.push_symbol(
+                    name,
+                    SymbolKind::Field,
+                    location(node),
+                    type_name.map(str::to_string),
+                );
             }
             // Trait composition (`use A, B;`, optionally with an
             // `{ A::foo insteadof B; ... }` adaptation block). Only the
@@ -291,7 +352,12 @@ impl<'a> Walker<'a> {
             "use_declaration" => {
                 for child in named_children(node) {
                     if let Some(seg) = last_segment(child) {
-                        self.push_relation(owner, RelationKind::Implements, text(seg, self.source).to_string(), location(seg));
+                        self.push_relation(
+                            owner,
+                            RelationKind::Implements,
+                            text(seg, self.source).to_string(),
+                            location(seg),
+                        );
                     }
                 }
             }
@@ -300,8 +366,16 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                let kind = if node.kind() == "method_declaration" { SymbolKind::Method } else { SymbolKind::Function };
-                let parent = if kind == SymbolKind::Method { type_name.map(str::to_string) } else { None };
+                let kind = if node.kind() == "method_declaration" {
+                    SymbolKind::Method
+                } else {
+                    SymbolKind::Function
+                };
+                let parent = if kind == SymbolKind::Method {
+                    type_name.map(str::to_string)
+                } else {
+                    None
+                };
                 let id = self.push_symbol(name, kind, location(node), parent);
                 if let Some(params) = node.child_by_field_name("parameters") {
                     self.visit_children(params, id, type_name, depth + 1);
@@ -318,7 +392,12 @@ impl<'a> Walker<'a> {
             "property_promotion_parameter" => {
                 if let Some(name_node) = node.child_by_field_name("name") {
                     if let Some(var) = variable_text(name_node, self.source) {
-                        self.push_symbol(var.to_string(), SymbolKind::Field, location(node), type_name.map(str::to_string));
+                        self.push_symbol(
+                            var.to_string(),
+                            SymbolKind::Field,
+                            location(node),
+                            type_name.map(str::to_string),
+                        );
                     }
                 }
             }
@@ -329,7 +408,12 @@ impl<'a> Walker<'a> {
                     }
                     if let Some(name_node) = element.child_by_field_name("name") {
                         if let Some(var) = variable_text(name_node, self.source) {
-                            self.push_symbol(var.to_string(), SymbolKind::Field, location(element), type_name.map(str::to_string));
+                            self.push_symbol(
+                                var.to_string(),
+                                SymbolKind::Field,
+                                location(element),
+                                type_name.map(str::to_string),
+                            );
                         }
                     }
                 }
@@ -340,7 +424,12 @@ impl<'a> Walker<'a> {
                         continue;
                     }
                     if let Some(name_node) = find_child(element, "name") {
-                        self.push_symbol(text(name_node, self.source).to_string(), SymbolKind::Constant, location(element), type_name.map(str::to_string));
+                        self.push_symbol(
+                            text(name_node, self.source).to_string(),
+                            SymbolKind::Constant,
+                            location(element),
+                            type_name.map(str::to_string),
+                        );
                     }
                 }
             }
@@ -356,7 +445,10 @@ impl<'a> Walker<'a> {
                     self.push_namespace_use_clause(owner, clause);
                 }
             }
-            "require_expression" | "require_once_expression" | "include_expression" | "include_once_expression" => {
+            "require_expression"
+            | "require_once_expression"
+            | "include_expression"
+            | "include_once_expression" => {
                 if let Some(target) = node.named_child(0) {
                     if let Some(path) = literal_string_text(target, self.source) {
                         self.push_relation(owner, RelationKind::Imports, path, location(node));
@@ -367,7 +459,12 @@ impl<'a> Walker<'a> {
             "function_call_expression" => {
                 if let Some(function) = node.child_by_field_name("function") {
                     if let Some(seg) = last_segment(function) {
-                        self.push_relation(owner, RelationKind::Calls, text(seg, self.source).to_string(), location(seg));
+                        self.push_relation(
+                            owner,
+                            RelationKind::Calls,
+                            text(seg, self.source).to_string(),
+                            location(seg),
+                        );
                     }
                     self.visit(function, owner, type_name, depth + 1);
                 }
@@ -383,10 +480,18 @@ impl<'a> Walker<'a> {
                         // call both start at `$a`, which would make two
                         // same-named chained calls collide into one
                         // indistinguishable row.
-                        self.push_relation(owner, RelationKind::Calls, text(name_node, self.source).to_string(), location(name_node));
+                        self.push_relation(
+                            owner,
+                            RelationKind::Calls,
+                            text(name_node, self.source).to_string(),
+                            location(name_node),
+                        );
                     }
                 }
-                if let Some(receiver) = node.child_by_field_name("object").or_else(|| node.child_by_field_name("scope")) {
+                if let Some(receiver) = node
+                    .child_by_field_name("object")
+                    .or_else(|| node.child_by_field_name("scope"))
+                {
                     self.visit(receiver, owner, type_name, depth + 1);
                 }
                 if let Some(arguments) = node.child_by_field_name("arguments") {
@@ -401,9 +506,16 @@ impl<'a> Walker<'a> {
                 let left = node.child_by_field_name("left");
                 let right = node.child_by_field_name("right");
                 match (left, right) {
-                    (Some(l), Some(r)) if matches!(r.kind(), "anonymous_function" | "arrow_function") => {
+                    (Some(l), Some(r))
+                        if matches!(r.kind(), "anonymous_function" | "arrow_function") =>
+                    {
                         if let Some(var) = variable_text(l, self.source) {
-                            let id = self.push_symbol(var.to_string(), SymbolKind::Function, location(r), type_name.map(str::to_string));
+                            let id = self.push_symbol(
+                                var.to_string(),
+                                SymbolKind::Function,
+                                location(r),
+                                type_name.map(str::to_string),
+                            );
                             if let Some(params) = r.child_by_field_name("parameters") {
                                 self.visit_children(params, id, type_name, depth + 1);
                             }
@@ -427,19 +539,33 @@ impl<'a> Walker<'a> {
         // `aliased_import` handling (the alias is the identifier the rest of
         // this file actually uses).
         if let Some(alias) = clause.child_by_field_name("alias") {
-            self.push_relation(owner, RelationKind::Imports, text(alias, self.source).to_string(), location(clause));
+            self.push_relation(
+                owner,
+                RelationKind::Imports,
+                text(alias, self.source).to_string(),
+                location(clause),
+            );
             return;
         }
         for child in named_children(clause) {
             if let Some(seg) = last_segment(child) {
-                self.push_relation(owner, RelationKind::Imports, text(seg, self.source).to_string(), location(clause));
+                self.push_relation(
+                    owner,
+                    RelationKind::Imports,
+                    text(seg, self.source).to_string(),
+                    location(clause),
+                );
                 return;
             }
         }
     }
 
     fn finish(self) -> ParsedFile {
-        ParsedFile { symbols: self.symbols, relations: self.relations, ..Default::default() }
+        ParsedFile {
+            symbols: self.symbols,
+            relations: self.relations,
+            ..Default::default()
+        }
     }
 }
 

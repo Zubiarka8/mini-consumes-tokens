@@ -51,11 +51,23 @@ const CASES: &[(Bucket, &str, &[&str])] = &[
     (Bucket::Exact, "read ignore file", &["read_ignore_file"]),
     (Bucket::Exact, "parse cargo toml", &["parse_cargo_toml"]),
     (Bucket::Exact, "decode table", &["decode_table"]),
-    (Bucket::Exact, "split words", &["split_identifier", "search_words"]),
-    (Bucket::Exact, "find_dead_code_candidates", &["find_dead_code_candidates"]),
+    (
+        Bucket::Exact,
+        "split words",
+        &["split_identifier", "search_words"],
+    ),
+    (
+        Bucket::Exact,
+        "find_dead_code_candidates",
+        &["find_dead_code_candidates"],
+    ),
     (Bucket::Exact, "fanInCounts", &["fan_in_counts"]),
     (Bucket::Exact, "unix_now", &["unix_now"]),
-    (Bucket::Exact, "remove_missing_files", &["remove_missing_files"]),
+    (
+        Bucket::Exact,
+        "remove_missing_files",
+        &["remove_missing_files"],
+    ),
     (Bucket::Exact, "spawnWatcher", &["spawn_watcher"]),
     (Bucket::Exact, "validate_name", &["validate_name"]),
     (Bucket::Exact, "brace_skeleton", &["brace_skeleton"]),
@@ -67,7 +79,11 @@ const CASES: &[(Bucket, &str, &[&str])] = &[
     (Bucket::Exact, "refresh embeddings", &["refresh_embeddings"]),
     (Bucket::Exact, "semantic ranking", &["semantic_ranking"]),
     (Bucket::Exact, "match_tier", &["match_tier"]),
-    (Bucket::Exact, "fallback expression", &["fallback_expression"]),
+    (
+        Bucket::Exact,
+        "fallback expression",
+        &["fallback_expression"],
+    ),
     (Bucket::Exact, "write parsed file", &["write_parsed_file"]),
     (Bucket::Exact, "parse_go_mod", &["parse_go_mod"]),
     (Bucket::Exact, "collect use names", &["collect_use_names"]),
@@ -82,8 +98,16 @@ const CASES: &[(Bucket, &str, &[&str])] = &[
     (Bucket::Exact, "mcp register", &["mcp_register"]),
     // Name known, verb swapped for a synonym.
     (Bucket::Exact, "fetch ignore file", &["read_ignore_file"]),
-    (Bucket::Exact, "delete missing manifests", &["remove_missing_manifests"]),
-    (Bucket::Exact, "read indexing status", &["get_indexing_status"]),
+    (
+        Bucket::Exact,
+        "delete missing manifests",
+        &["remove_missing_manifests"],
+    ),
+    (
+        Bucket::Exact,
+        "read indexing status",
+        &["get_indexing_status"],
+    ),
     // --- Natural-language intent ----------------------------------------
     (
         Bucket::Natural,
@@ -105,8 +129,16 @@ const CASES: &[(Bucket, &str, &[&str])] = &[
         "current time in seconds since the epoch",
         &["unix_now"],
     ),
-    (Bucket::Natural, "python requirements", &["parse_requirements_txt"]),
-    (Bucket::Natural, "npm package dependencies", &["parse_package_json"]),
+    (
+        Bucket::Natural,
+        "python requirements",
+        &["parse_requirements_txt"],
+    ),
+    (
+        Bucket::Natural,
+        "npm package dependencies",
+        &["parse_package_json"],
+    ),
     (Bucket::Natural, "go module requirements", &["parse_go_mod"]),
     (
         Bucket::Natural,
@@ -145,7 +177,11 @@ const CASES: &[(Bucket, &str, &[&str])] = &[
         "breadth first traversal of the call graph",
         &["bfs", "find_calls_bfs", "find_callers_bfs"],
     ),
-    (Bucket::Natural, "reject an empty symbol name", &["validate_name"]),
+    (
+        Bucket::Natural,
+        "reject an empty symbol name",
+        &["validate_name"],
+    ),
     (
         Bucket::Natural,
         "record a file that failed to parse",
@@ -192,8 +228,16 @@ const CASES: &[(Bucket, &str, &[&str])] = &[
         "go method receiver type",
         &["receiver_type_name"],
     ),
-    (Bucket::Natural, "python import statements", &["import_names"]),
-    (Bucket::Natural, "first syntax error in the tree", &["first_error"]),
+    (
+        Bucket::Natural,
+        "python import statements",
+        &["import_names"],
+    ),
+    (
+        Bucket::Natural,
+        "first syntax error in the tree",
+        &["first_error"],
+    ),
     (
         Bucket::Natural,
         "convert a path to forward slashes relative to the root",
@@ -255,14 +299,22 @@ const CASES: &[(Bucket, &str, &[&str])] = &[
         &["get_project_overview", "overview"],
     ),
     // --- Module / struct hierarchy ---------------------------------------
-    (Bucket::Hierarchy, "ExcludeSet::is_excluded", &["is_excluded"]),
+    (
+        Bucket::Hierarchy,
+        "ExcludeSet::is_excluded",
+        &["is_excluded"],
+    ),
     (Bucket::Hierarchy, "ExcludeSet::new", &["new@exclude.rs"]),
     (
         Bucket::Hierarchy,
         "Index::hybrid_search",
         &["hybrid_search@mct-index/src/lib.rs"],
     ),
-    (Bucket::Hierarchy, "Index::open_in_memory", &["open_in_memory"]),
+    (
+        Bucket::Hierarchy,
+        "Index::open_in_memory",
+        &["open_in_memory"],
+    ),
     (Bucket::Hierarchy, "Index.resolve_scope", &["resolve_scope"]),
     (
         Bucket::Hierarchy,
@@ -290,14 +342,22 @@ const CASES: &[(Bucket, &str, &[&str])] = &[
         "queries::find_symbol_fts",
         &["find_symbol_fts"],
     ),
-    (Bucket::Hierarchy, "manifests::parse_go_mod", &["parse_go_mod"]),
+    (
+        Bucket::Hierarchy,
+        "manifests::parse_go_mod",
+        &["parse_go_mod"],
+    ),
     (Bucket::Hierarchy, "traversal::bfs", &["bfs"]),
     (
         Bucket::Hierarchy,
         "dead_code::path_looks_like_test",
         &["path_looks_like_test"],
     ),
-    (Bucket::Hierarchy, "SemanticModel::get", &["get@embedder.rs"]),
+    (
+        Bucket::Hierarchy,
+        "SemanticModel::get",
+        &["get@embedder.rs"],
+    ),
     (
         Bucket::Hierarchy,
         "LanguageRegistry::for_extension",
@@ -320,7 +380,11 @@ const CASES: &[(Bucket, &str, &[&str])] = &[
         "Walker::visit_definition",
         &["visit_definition"],
     ),
-    (Bucket::Hierarchy, "RustParser::parse", &["parse@mct-lang-rust"]),
+    (
+        Bucket::Hierarchy,
+        "RustParser::parse",
+        &["parse@mct-lang-rust"],
+    ),
     (
         Bucket::Hierarchy,
         "GoParser.file_extensions",
@@ -331,7 +395,11 @@ const CASES: &[(Bucket, &str, &[&str])] = &[
         "background::spawn_watcher",
         &["spawn_watcher"],
     ),
-    (Bucket::Hierarchy, "mct_core::SymbolRecord", &["SymbolRecord"]),
+    (
+        Bucket::Hierarchy,
+        "mct_core::SymbolRecord",
+        &["SymbolRecord"],
+    ),
     (
         Bucket::Hierarchy,
         "LocalEmbedder::embed",
@@ -347,7 +415,11 @@ const CASES: &[(Bucket, &str, &[&str])] = &[
         "MctServer::find_dead_code",
         &["find_dead_code@server.rs"],
     ),
-    (Bucket::Hierarchy, "QueryScope::is_empty", &["is_empty@queries.rs"]),
+    (
+        Bucket::Hierarchy,
+        "QueryScope::is_empty",
+        &["is_empty@queries.rs"],
+    ),
     (
         Bucket::Hierarchy,
         "exclude::read_ignore_file",
@@ -398,9 +470,7 @@ const PHRASE_CASES: &[(&str, &str)] = &[
 
 fn is_target(hit: &HybridHit, expected: &[&str]) -> bool {
     expected.iter().any(|target| match target.split_once('@') {
-        Some((name, fragment)) => {
-            hit.hit.name == name && hit.hit.relative_path.contains(fragment)
-        }
+        Some((name, fragment)) => hit.hit.name == name && hit.hit.relative_path.contains(fragment),
         None => hit.hit.name == *target,
     })
 }
@@ -483,12 +553,7 @@ fn score(index: &Index, model: &SemanticModel, alpha: Option<f64>) -> Run {
         };
         for score in [
             &mut run.overall,
-            &mut run
-                .buckets
-                .iter_mut()
-                .find(|(b, _)| b == bucket)
-                .unwrap()
-                .1,
+            &mut run.buckets.iter_mut().find(|(b, _)| b == bucket).unwrap().1,
         ] {
             score.hits += hit;
             score.rr += rr;
@@ -574,6 +639,10 @@ fn exact_phrases_rank_their_target_first() {
             )),
         }
     }
-    println!("{} exact-phrase cases, {} top-1 misses", PHRASE_CASES.len(), misses.len());
+    println!(
+        "{} exact-phrase cases, {} top-1 misses",
+        PHRASE_CASES.len(),
+        misses.len()
+    );
     assert!(misses.is_empty(), "{misses:#?}");
 }

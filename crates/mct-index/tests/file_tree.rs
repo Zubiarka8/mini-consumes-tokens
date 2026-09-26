@@ -43,7 +43,11 @@ fn excluded_directories_never_appear() {
     let tree = index.file_tree(None, 5).unwrap();
 
     let names: Vec<&str> = tree.children.iter().map(|c| c.name.as_str()).collect();
-    assert_eq!(names, ["src"], "target/ is excluded by default, like reindexing");
+    assert_eq!(
+        names,
+        ["src"],
+        "target/ is excluded by default, like reindexing"
+    );
 }
 
 #[test]
@@ -111,7 +115,11 @@ fn a_directory_over_the_entry_cap_reports_how_many_were_omitted() {
     let tree = index.file_tree(None, 2).unwrap();
     let many = tree.children.iter().find(|c| c.name == "many").unwrap();
 
-    assert_eq!(many.children.len(), 200, "capped at the per-directory limit");
+    assert_eq!(
+        many.children.len(),
+        200,
+        "capped at the per-directory limit"
+    );
     assert_eq!(many.omitted, 1);
 }
 

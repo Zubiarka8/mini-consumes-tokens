@@ -66,14 +66,23 @@ fn parse_cargo_toml(contents: &str) -> Vec<ManifestDependency> {
     deps
 }
 
-fn collect_cargo_table(table: &toml::map::Map<String, toml::Value>, out: &mut Vec<ManifestDependency>) {
+fn collect_cargo_table(
+    table: &toml::map::Map<String, toml::Value>,
+    out: &mut Vec<ManifestDependency>,
+) {
     for (name, value) in table {
         let version = match value {
             toml::Value::String(v) => Some(v.clone()),
-            toml::Value::Table(t) => t.get("version").and_then(toml::Value::as_str).map(str::to_string),
+            toml::Value::Table(t) => t
+                .get("version")
+                .and_then(toml::Value::as_str)
+                .map(str::to_string),
             _ => None,
         };
-        out.push(ManifestDependency { name: name.clone(), version });
+        out.push(ManifestDependency {
+            name: name.clone(),
+            version,
+        });
     }
 }
 
@@ -84,11 +93,19 @@ fn parse_package_json(contents: &str) -> Vec<ManifestDependency> {
         return Vec::new();
     };
     let mut deps = Vec::new();
-    for section in ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"] {
+    for section in [
+        "dependencies",
+        "devDependencies",
+        "peerDependencies",
+        "optionalDependencies",
+    ] {
         if let Some(obj) = doc.get(section).and_then(serde_json::Value::as_object) {
             for (name, value) in obj {
                 let version = value.as_str().map(str::to_string);
-                deps.push(ManifestDependency { name: name.clone(), version });
+                deps.push(ManifestDependency {
+                    name: name.clone(),
+                    version,
+                });
             }
         }
     }
@@ -111,7 +128,10 @@ fn parse_requirements_txt(contents: &str) -> Vec<ManifestDependency> {
         if name.is_empty() {
             continue;
         }
-        deps.push(ManifestDependency { name: name.to_string(), version });
+        deps.push(ManifestDependency {
+            name: name.to_string(),
+            version,
+        });
     }
     deps
 }
@@ -182,9 +202,17 @@ mod tests {
             proptest = "1"
             "#,
         );
-        assert!(deps.iter().any(|d| d.name == "thiserror" && d.version.as_deref() == Some("2")));
-        assert!(deps.iter().any(|d| d.name == "serde" && d.version.as_deref() == Some("1.0.229")));
-        assert!(deps.iter().any(|d| d.name == "mct-core" && d.version.is_none()), "path dependency has no version");
+        assert!(deps
+            .iter()
+            .any(|d| d.name == "thiserror" && d.version.as_deref() == Some("2")));
+        assert!(deps
+            .iter()
+            .any(|d| d.name == "serde" && d.version.as_deref() == Some("1.0.229")));
+        assert!(
+            deps.iter()
+                .any(|d| d.name == "mct-core" && d.version.is_none()),
+            "path dependency has no version"
+        );
         assert!(deps.iter().any(|d| d.name == "proptest"));
     }
 
@@ -199,7 +227,9 @@ mod tests {
             tree-sitter = "0.25"
             "#,
         );
-        assert!(deps.iter().any(|d| d.name == "tree-sitter" && d.version.as_deref() == Some("0.25")));
+        assert!(deps
+            .iter()
+            .any(|d| d.name == "tree-sitter" && d.version.as_deref() == Some("0.25")));
     }
 
     #[test]
@@ -212,7 +242,9 @@ mod tests {
                 "optionalDependencies": { "fsevents": "2.3.0" }
             }"#,
         );
-        assert!(deps.iter().any(|d| d.name == "react" && d.version.as_deref() == Some("^18.3.1")));
+        assert!(deps
+            .iter()
+            .any(|d| d.name == "react" && d.version.as_deref() == Some("^18.3.1")));
         assert!(deps.iter().any(|d| d.name == "typescript"));
         assert!(deps.iter().any(|d| d.name == "react-dom"));
         assert!(deps.iter().any(|d| d.name == "fsevents"));
@@ -223,11 +255,25 @@ mod tests {
         let deps = parse_requirements_txt(
             "# a comment\nrequests==2.31.0\nflask>=2.0,<3.0\nnumpy\nclick[extras]~=8.1.3; python_version >= \"3.8\"\n-e git+https://example.com/foo#egg=foo\n--index-url https://example.com\n",
         );
-        assert!(deps.iter().any(|d| d.name == "requests" && d.version.as_deref() == Some("==2.31.0")));
-        assert!(deps.iter().any(|d| d.name == "flask" && d.version.as_deref() == Some(">=2.0,<3.0")));
-        assert!(deps.iter().any(|d| d.name == "numpy" && d.version.is_none()));
-        assert!(deps.iter().any(|d| d.name == "click" && d.version.as_deref() == Some("~=8.1.3")), "extras and environment marker must be stripped");
-        assert_eq!(deps.len(), 4, "pip options (-e, --index-url) must not become dependencies: {deps:?}");
+        assert!(deps
+            .iter()
+            .any(|d| d.name == "requests" && d.version.as_deref() == Some("==2.31.0")));
+        assert!(deps
+            .iter()
+            .any(|d| d.name == "flask" && d.version.as_deref() == Some(">=2.0,<3.0")));
+        assert!(deps
+            .iter()
+            .any(|d| d.name == "numpy" && d.version.is_none()));
+        assert!(
+            deps.iter()
+                .any(|d| d.name == "click" && d.version.as_deref() == Some("~=8.1.3")),
+            "extras and environment marker must be stripped"
+        );
+        assert_eq!(
+            deps.len(),
+            4,
+            "pip options (-e, --index-url) must not become dependencies: {deps:?}"
+        );
     }
 
     #[test]
@@ -235,9 +281,17 @@ mod tests {
         let deps = parse_go_mod(
             "module example.com/app\n\ngo 1.21\n\nrequire (\n\tgithub.com/foo/bar v1.2.3\n\tgithub.com/baz/qux v0.5.0 // indirect\n)\n\nrequire github.com/single/dep v2.0.0\n",
         );
-        assert!(deps.iter().any(|d| d.name == "github.com/foo/bar" && d.version.as_deref() == Some("v1.2.3")));
-        assert!(deps.iter().any(|d| d.name == "github.com/baz/qux" && d.version.as_deref() == Some("v0.5.0")), "trailing // indirect comment must be stripped");
-        assert!(deps.iter().any(|d| d.name == "github.com/single/dep" && d.version.as_deref() == Some("v2.0.0")));
+        assert!(deps
+            .iter()
+            .any(|d| d.name == "github.com/foo/bar" && d.version.as_deref() == Some("v1.2.3")));
+        assert!(
+            deps.iter()
+                .any(|d| d.name == "github.com/baz/qux" && d.version.as_deref() == Some("v0.5.0")),
+            "trailing // indirect comment must be stripped"
+        );
+        assert!(deps
+            .iter()
+            .any(|d| d.name == "github.com/single/dep" && d.version.as_deref() == Some("v2.0.0")));
         assert_eq!(deps.len(), 3);
     }
 

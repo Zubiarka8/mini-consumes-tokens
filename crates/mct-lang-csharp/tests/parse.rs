@@ -38,7 +38,12 @@ fn extracts_namespace_class_method_and_call() {
     let helper = parsed.symbols.iter().find(|s| s.name == "Helper").unwrap();
     assert_eq!(helper.parent.as_deref(), Some("Calculator"));
 
-    let calls: Vec<_> = parsed.relations.iter().filter(|r| r.kind == RelationKind::Calls).map(|r| r.to_name.as_str()).collect();
+    let calls: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Calls)
+        .map(|r| r.to_name.as_str())
+        .collect();
     assert!(calls.contains(&"Helper"));
 }
 
@@ -48,7 +53,11 @@ fn overloaded_methods_are_kept_as_separate_symbols() {
         "class Calculator {\n    public int Add(int a, int b) {\n        return a + b;\n    }\n\n    public double Add(double a, double b) {\n        return a + b;\n    }\n}\n",
     );
     let adds: Vec<_> = parsed.symbols.iter().filter(|s| s.name == "Add").collect();
-    assert_eq!(adds.len(), 2, "both overloads of Add() should be indexed as distinct symbols");
+    assert_eq!(
+        adds.len(),
+        2,
+        "both overloads of Add() should be indexed as distinct symbols"
+    );
     assert_ne!(adds[0].location.line, adds[1].location.line);
 }
 
@@ -58,18 +67,36 @@ fn property_with_accessors_is_one_symbol_not_two() {
         "class Person {\n    public string Name { get; set; }\n\n    public int Age {\n        get { return age; }\n        set { age = value; }\n    }\n}\n",
     );
     let name_props: Vec<_> = parsed.symbols.iter().filter(|s| s.name == "Name").collect();
-    assert_eq!(name_props.len(), 1, "auto-property must be a single symbol, not get+set");
+    assert_eq!(
+        name_props.len(),
+        1,
+        "auto-property must be a single symbol, not get+set"
+    );
     assert_eq!(name_props[0].kind, SymbolKind::Field);
 
     let age_props: Vec<_> = parsed.symbols.iter().filter(|s| s.name == "Age").collect();
-    assert_eq!(age_props.len(), 1, "property with custom get/set must still be a single symbol");
+    assert_eq!(
+        age_props.len(),
+        1,
+        "property with custom get/set must still be a single symbol"
+    );
 
     // No separate "get"/"set" symbols should have been created.
-    assert!(parsed.symbols.iter().all(|s| s.name != "get" && s.name != "set"));
+    assert!(parsed
+        .symbols
+        .iter()
+        .all(|s| s.name != "get" && s.name != "set"));
 
     // Calls inside the custom accessor bodies attach to the property symbol.
-    let calls: Vec<_> = parsed.relations.iter().filter(|r| r.kind == RelationKind::Calls).collect();
-    assert!(calls.is_empty(), "this fixture's accessors have no calls, sanity check");
+    let calls: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Calls)
+        .collect();
+    assert!(
+        calls.is_empty(),
+        "this fixture's accessors have no calls, sanity check"
+    );
 }
 
 #[test]
@@ -80,29 +107,44 @@ fn base_class_and_interfaces_are_distinguished_by_position() {
     let ishape = parsed.symbols.iter().find(|s| s.name == "IShape").unwrap();
     assert_eq!(ishape.kind, SymbolKind::Interface);
 
-    let extends: Vec<_> = parsed.relations.iter().filter(|r| r.kind == RelationKind::Extends).map(|r| r.to_name.as_str()).collect();
+    let extends: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Extends)
+        .map(|r| r.to_name.as_str())
+        .collect();
     assert!(extends.contains(&"BaseShape"));
 
-    let implements: Vec<_> = parsed.relations.iter().filter(|r| r.kind == RelationKind::Implements).map(|r| r.to_name.as_str()).collect();
+    let implements: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Implements)
+        .map(|r| r.to_name.as_str())
+        .collect();
     assert!(implements.contains(&"IShape"));
 }
 
 #[test]
 fn extracts_struct_and_using_directives() {
-    let parsed = parse("using System;\nusing static System.Math;\n\nstruct Point {\n    void Run() {}\n}\n");
+    let parsed =
+        parse("using System;\nusing static System.Math;\n\nstruct Point {\n    void Run() {}\n}\n");
     let point = parsed.symbols.iter().find(|s| s.name == "Point").unwrap();
     assert_eq!(point.kind, SymbolKind::Struct);
 
-    let imports: Vec<_> = parsed.relations.iter().filter(|r| r.kind == RelationKind::Imports).map(|r| r.to_name.as_str()).collect();
+    let imports: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Imports)
+        .map(|r| r.to_name.as_str())
+        .collect();
     assert!(imports.contains(&"System"));
     assert!(imports.contains(&"Math"));
 }
 
 #[test]
 fn method_end_line_is_its_closing_brace_not_the_class() {
-    let parsed = parse(
-        "class Foo {\n    public int Add(int a, int b) {\n        return a + b;\n    }\n}\n",
-    );
+    let parsed =
+        parse("class Foo {\n    public int Add(int a, int b) {\n        return a + b;\n    }\n}\n");
     let add = parsed
         .symbols
         .iter()

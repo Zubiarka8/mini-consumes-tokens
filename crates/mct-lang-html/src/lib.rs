@@ -18,8 +18,8 @@
 //! one reaching into inline blocks.
 
 use mct_core::{
-    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
-    SymbolKind, SymbolRecord, SymbolRelation,
+    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
+    SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use tree_sitter::{Node, Parser};
 
@@ -46,11 +46,13 @@ impl LanguageParser for HtmlParser {
             .set_language(&tree_sitter_html::LANGUAGE.into())
             .expect("tree-sitter-html grammar is statically valid");
 
-        let tree = parser.parse(&file.contents, None).ok_or_else(|| ParseError::Syntax {
-            path: file.relative_path.clone(),
-            line: 1,
-            message: "tree-sitter produced no parse tree".to_string(),
-        })?;
+        let tree = parser
+            .parse(&file.contents, None)
+            .ok_or_else(|| ParseError::Syntax {
+                path: file.relative_path.clone(),
+                line: 1,
+                message: "tree-sitter produced no parse tree".to_string(),
+            })?;
 
         let root = tree.root_node();
         if root.has_error() {
@@ -117,7 +119,12 @@ struct Walker<'a> {
 
 impl<'a> Walker<'a> {
     fn new(source: &'a str) -> Self {
-        Self { source, symbols: Vec::new(), relations: Vec::new(), next_id: 0 }
+        Self {
+            source,
+            symbols: Vec::new(),
+            relations: Vec::new(),
+            next_id: 0,
+        }
     }
 
     fn push_symbol(
@@ -129,21 +136,45 @@ impl<'a> Walker<'a> {
     ) -> SymbolId {
         let id = self.next_id;
         self.next_id += 1;
-        self.symbols.push(SymbolRecord { id, name, kind, location, parent, level: None });
+        self.symbols.push(SymbolRecord {
+            id,
+            name,
+            kind,
+            location,
+            parent,
+            level: None,
+        });
         id
     }
 
-    fn push_relation(&mut self, from: SymbolId, kind: RelationKind, to_name: String, loc: Location) {
+    fn push_relation(
+        &mut self,
+        from: SymbolId,
+        kind: RelationKind,
+        to_name: String,
+        loc: Location,
+    ) {
         if to_name.is_empty() {
             return;
         }
-        self.relations.push(SymbolRelation { from, kind, to_name, location: loc });
+        self.relations.push(SymbolRelation {
+            from,
+            kind,
+            to_name,
+            location: loc,
+        });
     }
 
     /// `owner` is where file-level relations (an unclosed `<link>`/`<script
     /// src>` outside any id'd element) attach; `parent_name` is the nearest
     /// enclosing id'd element's name, for nesting id'd elements under it.
-    fn visit_children(&mut self, node: Node, owner: SymbolId, parent_name: Option<&str>, depth: u32) {
+    fn visit_children(
+        &mut self,
+        node: Node,
+        owner: SymbolId,
+        parent_name: Option<&str>,
+        depth: u32,
+    ) {
         let mut cursor = node.walk();
         for child in node.named_children(&mut cursor) {
             self.visit(child, owner, parent_name, depth + 1);
@@ -194,7 +225,12 @@ impl<'a> Walker<'a> {
         // location of the specific attribute, not the whole tag: two
         // attributes on the same element (e.g. `id` and `class`) would
         // otherwise emit relations sharing one identical location.
-        let attr = |key: &str| attrs.iter().find(|(n, _, _)| n == key).map(|(_, v, n)| (v.as_str(), *n));
+        let attr = |key: &str| {
+            attrs
+                .iter()
+                .find(|(n, _, _)| n == key)
+                .map(|(_, v, n)| (v.as_str(), *n))
+        };
 
         let (new_owner, new_parent) = match attr("id").filter(|(id, _)| !id.is_empty()) {
             Some((id, id_node)) => {
@@ -204,7 +240,12 @@ impl<'a> Walker<'a> {
                     location(tag),
                     parent_name.map(str::to_string),
                 );
-                self.push_relation(sym_id, RelationKind::References, format!("#{id}"), location(id_node));
+                self.push_relation(
+                    sym_id,
+                    RelationKind::References,
+                    format!("#{id}"),
+                    location(id_node),
+                );
                 if let Some((classes, class_node)) = attr("class") {
                     for token in classes.split_whitespace() {
                         self.push_relation(
@@ -224,11 +265,21 @@ impl<'a> Walker<'a> {
             && attr("rel").is_some_and(|(r, _)| r.eq_ignore_ascii_case("stylesheet"))
         {
             if let Some((href, href_node)) = attr("href").filter(|(h, _)| !h.is_empty()) {
-                self.push_relation(new_owner, RelationKind::Imports, href.to_string(), location(href_node));
+                self.push_relation(
+                    new_owner,
+                    RelationKind::Imports,
+                    href.to_string(),
+                    location(href_node),
+                );
             }
         } else if tag_name.eq_ignore_ascii_case("script") {
             if let Some((src, src_node)) = attr("src").filter(|(s, _)| !s.is_empty()) {
-                self.push_relation(new_owner, RelationKind::Imports, src.to_string(), location(src_node));
+                self.push_relation(
+                    new_owner,
+                    RelationKind::Imports,
+                    src.to_string(),
+                    location(src_node),
+                );
             }
         }
 
@@ -236,13 +287,19 @@ impl<'a> Walker<'a> {
     }
 
     fn finish(self) -> ParsedFile {
-        ParsedFile { symbols: self.symbols, relations: self.relations, ..Default::default() }
+        ParsedFile {
+            symbols: self.symbols,
+            relations: self.relations,
+            ..Default::default()
+        }
     }
 }
 
 fn find_child<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
     let mut cursor = node.walk();
-    let found = node.named_children(&mut cursor).find(|child| child.kind() == kind);
+    let found = node
+        .named_children(&mut cursor)
+        .find(|child| child.kind() == kind);
     found
 }
 
@@ -255,7 +312,9 @@ fn find_tag(node: Node) -> Option<Node> {
 }
 
 fn tag_name_of(tag: Node, source: &str) -> String {
-    find_child(tag, "tag_name").map(|n| text(n, source).to_string()).unwrap_or_default()
+    find_child(tag, "tag_name")
+        .map(|n| text(n, source).to_string())
+        .unwrap_or_default()
 }
 
 /// `(lowercased attribute name, value, the attribute's own node)` triples for
