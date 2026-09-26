@@ -65,7 +65,8 @@ limit=$(grep -oE 'description_bytes < [0-9_]+' crates/mct-mcp-server/tests/catal
 status=$missing
 if [ "$run_tests" -eq 1 ]; then
   log="$LOG_DIR/new-tool-check-tests.log"
-  if cargo test -p mct-mcp-server --lib ttc >"$log" 2>&1 && cargo test -p mct-mcp-server --test catalog >>"$log" 2>&1; then
+  new_log "$log"
+  if cargo test -p mct-mcp-server --lib ttc >>"$log" 2>&1 && cargo test -p mct-mcp-server --test catalog >>"$log" 2>&1; then
     echo "ok    catalog tests (TTC coverage, description bytes < ${limit:-?})"
   else
     status=1

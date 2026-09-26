@@ -19,9 +19,29 @@ CALLER_PWD="$PWD"
 cd "$ROOT"
 # Full command output goes here; the scripts print only a summary. Under the
 # already-gitignored target/ so nothing new needs ignoring. Relative, so the
-# paths the scripts print stay short.
+# paths the scripts print stay short. Each log has a fixed name and is
+# overwritten by the next run of the same script, so the directory never
+# grows; deleting it (or `cargo clean`) is always safe.
 LOG_DIR="target/script-logs"
 mkdir -p "$LOG_DIR"
+
+# The command line and checkout a log came from, for its header. A sourced
+# file sees the calling script's arguments.
+SCRIPT_CMD="scripts/unix/$(basename "$0")${*:+ $*}"
+GIT_REV="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')@$(git rev-parse --short HEAD 2>/dev/null || echo '?')"
+git diff --quiet HEAD 2>/dev/null || GIT_REV="$GIT_REV-dirty"
+
+# `<command> — <date time zone> — <branch>@<commit>[-dirty]`
+log_stamp() {
+  printf '%s — %s — %s' "$SCRIPT_CMD" "$(date '+%Y-%m-%d %H:%M:%S %z')" "$GIT_REV"
+}
+
+# `new_log <file>`: starts a log with a `# <log_stamp>` line, so an old log
+# is recognisable at a glance (`head -n1 target/script-logs/*`). Commands
+# then append to it with >>.
+new_log() {
+  printf '# %s\n' "$(log_stamp)" >"$1"
+}
 
 CARGO_BIN="${CARGO_HOME:-$HOME/.cargo}/bin"
 
