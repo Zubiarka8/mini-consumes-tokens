@@ -1,6 +1,6 @@
 {
   "suite": "omni-app",
-  "catalog_tokens": 7089,
+  "catalog_tokens": 7698,
   "cases": {
     "Bash callers across sourced files": {
       "score": 1.0,
@@ -47,6 +47,10 @@
       "score": 1.0,
       "reciprocal_rank": 1.0,
       "tokens": 147
+    },
+    "context pack of a Go handler": {
+      "score": 1.0,
+      "tokens": 314
     },
     "cross-file Rust caller": {
       "score": 1.0,

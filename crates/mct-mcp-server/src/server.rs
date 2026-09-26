@@ -443,6 +443,49 @@ pub struct BatchArgs {
     pub queries: Vec<BatchQuery>,
 }
 
+/// `build_context_pack`'s default cap on related-symbol rows. Lower than
+/// [`DEFAULT_RESULT_LIMIT`]: the pack also carries source, and a symbol with
+/// more related symbols than this wants a narrower question, not a longer
+/// pack.
+const CONTEXT_PACK_DEFAULT_LIMIT: usize = 30;
+/// Default source lines shown per definition of the packed symbol, after its
+/// doc comment.
+const CONTEXT_PACK_DEFAULT_SOURCE_LINES: usize = 40;
+/// Upper clamp on `source_lines` — a pack shows a definition, never a file.
+const CONTEXT_PACK_MAX_SOURCE_LINES: usize = 200;
+/// Definitions of an ambiguous name rendered with source; the rest are only
+/// counted, with a hint to narrow by `path`/`language`.
+const CONTEXT_PACK_MAX_DEFINITIONS: usize = 3;
+/// Bound on each multi-hop walk behind a pack (`depth > 1`), so a hub
+/// symbol's transitive callers can't turn one call into thousands of rows.
+const CONTEXT_PACK_MAX_RELATIONS: usize = 500;
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct BuildContextPackArgs {
+    /// Exact name of the symbol to build the pack around.
+    pub symbol: String,
+    /// Which definition(s) to pack when the name is ambiguous: a file or
+    /// directory/crate prefix, as list_symbols. Callers/tests stay project-wide.
+    #[serde(default)]
+    pub path: Option<String>,
+    /// Which definition(s) to pack, by language id — like `path`.
+    #[serde(default)]
+    pub language: Option<String>,
+    /// Call-graph hops to include, both ways. Defaults to 1 (direct only).
+    #[serde(default)]
+    pub depth: Option<u32>,
+    /// Maximum related symbols listed. Defaults to 30.
+    #[serde(default)]
+    pub limit: Option<usize>,
+    /// Source lines per definition, doc comment not counted. Defaults to 40,
+    /// clamped to 1..=200.
+    #[serde(default)]
+    pub source_lines: Option<usize>,
+    /// `text` (default) or `toon` (related symbols as one table).
+    #[serde(default)]
+    pub format: Option<String>,
+}
+
 /// Groups this server's registered tool names for `discover_tool_categories`.
 /// Kept next to `ttc::KNOWN_TOOL_NAMES` in intent (both must track the live
 /// `#[tool(...)]` methods below), but independent of it in shape: a category
@@ -462,7 +505,13 @@ const TOOL_CATEGORIES: &[(&str, &[&str])] = &[
     ("lookup", &["find_symbol", "search_symbols", "hybrid_search"]),
     (
         "relations",
-        &["find_callers", "find_calls", "find_references", "impact_analysis"],
+        &[
+            "find_callers",
+            "find_calls",
+            "find_references",
+            "impact_analysis",
+            "build_context_pack",
+        ],
     ),
     (
         "maintenance",
@@ -685,6 +734,125 @@ pub struct ModuleDigest {
     pub relations: Vec<(String, Vec<mct_index::RelationHit>)>,
 }
 
+/// One definition of the symbol a `build_context_pack` is built around: its
+/// location and its doc comment + source, already cut to `source_lines`.
+pub struct PackedDefinition {
+    pub hit: mct_index::SymbolHit,
+    pub snippet: String,
+    /// Lines of the definition past the `source_lines` cut.
+    pub hidden_lines: u32,
+}
+
+/// One symbol related to the packed one, listed once however many relations
+/// connect them: every role it plays (`callee`, `caller`, `test`, or a
+/// dependency's relation kind such as `imports`), the closest hop it was
+/// found at, and where it is defined.
+pub struct PackedRelated {
+    pub name: String,
+    pub roles: Vec<String>,
+    pub hop: u32,
+    /// The definition matching the relation (the caller's own definition for
+    /// a caller/test, the same-file one for a callee when there is one).
+    pub definition: Option<mct_index::SymbolHit>,
+    /// Other indexed definitions sharing `name` — the name is ambiguous.
+    pub other_definitions: usize,
+    pub signature: Option<String>,
+}
+
+/// Everything `build_context_pack` renders, deduplicated.
+pub struct ContextPack {
+    pub symbol: String,
+    pub depth: u32,
+    pub definitions: Vec<PackedDefinition>,
+    pub omitted_definitions: usize,
+    pub related: Vec<PackedRelated>,
+    /// Files referencing the symbol at file level (a top-of-file `use`/
+    /// `import`) rather than from inside one of their symbols, sorted.
+    pub file_level: Vec<String>,
+    /// Called names with no indexed definition (std/third-party), sorted.
+    pub external: Vec<String>,
+}
+
+/// A related name while a pack is being assembled: its roles, closest hop,
+/// and the relation site used to pick the matching definition.
+struct RelatedDraft {
+    name: String,
+    roles: Vec<String>,
+    hop: u32,
+    /// `(relative_path, line)` of the first relation seen for this name.
+    site: (String, u32),
+    /// Whether `site` lies *inside* this symbol (a caller/test) rather than
+    /// being a call/reference *to* it (a callee/dependency).
+    site_is_inside: bool,
+}
+
+/// Collects related names in first-seen order, merging repeat sightings of
+/// the same name into one [`RelatedDraft`] — the deduplication behind
+/// `build_context_pack`.
+#[derive(Default)]
+struct RelatedSet {
+    drafts: Vec<RelatedDraft>,
+    positions: std::collections::HashMap<String, usize>,
+}
+
+impl RelatedSet {
+    fn add(&mut self, name: &str, role: &str, hit: &mct_index::RelationHit, site_is_inside: bool) {
+        match self.positions.get(name).and_then(|&i| self.drafts.get_mut(i)) {
+            Some(draft) => {
+                if !draft.roles.iter().any(|r| r == role) {
+                    draft.roles.push(role.to_string());
+                }
+                draft.hop = draft.hop.min(hit.depth);
+            }
+            None => {
+                self.positions.insert(name.to_string(), self.drafts.len());
+                self.drafts.push(RelatedDraft {
+                    name: name.to_string(),
+                    roles: vec![role.to_string()],
+                    hop: hit.depth,
+                    site: (hit.relative_path.clone(), hit.line),
+                    site_is_inside,
+                });
+            }
+        }
+    }
+}
+
+/// Picks the definition of a related name that its relation actually points
+/// at: for a caller/test, the one in the relation's file whose line range
+/// holds the relation; for a callee/dependency, one in the calling file when
+/// there is one. Falls back to the first definition. Returns it with how many
+/// other definitions share the name.
+fn pick_definition(
+    mut defs: Vec<mct_index::SymbolHit>,
+    draft: &RelatedDraft,
+) -> Option<(mct_index::SymbolHit, usize)> {
+    let (path, line) = (&draft.site.0, draft.site.1);
+    let same_file = |d: &mct_index::SymbolHit| d.relative_path == *path;
+    let encloses = |d: &mct_index::SymbolHit| {
+        same_file(d) && d.line <= line && line <= d.end_line.unwrap_or(d.line)
+    };
+    let index = if draft.site_is_inside {
+        defs.iter().position(encloses)
+    } else {
+        None
+    }
+    .or_else(|| defs.iter().position(same_file))
+    .unwrap_or(0);
+    let others = defs.len().saturating_sub(1);
+    (index < defs.len()).then(|| (defs.swap_remove(index), others))
+}
+
+/// Drops `module` entries (a file's synthetic whole-file symbol) when the
+/// name also has a real declaration — packing a whole file is exactly what
+/// this tool exists to avoid.
+fn without_modules(defs: Vec<mct_index::SymbolHit>) -> Vec<mct_index::SymbolHit> {
+    if defs.iter().all(|d| d.kind == "module") {
+        return defs;
+    }
+    defs.into_iter().filter(|d| d.kind != "module").collect()
+}
+
 #[tool_router]
 impl MctServer {
     pub fn new(index: Index, registry: LanguageRegistry) -> Self {
@@ -750,6 +918,7 @@ impl MctServer {
             "find_calls" => self.find_calls(batch_params(tool, args)?).await,
             "find_callers" => self.find_callers(batch_params(tool, args)?).await,
             "impact_analysis" => self.impact_analysis(batch_params(tool, args)?).await,
+            "build_context_pack" => self.build_context_pack(batch_params(tool, args)?).await,
             "get_indexing_status" => self.get_indexing_status(batch_params(tool, args)?).await,
             "get_file_skeleton" => self.get_file_skeleton(batch_params(tool, args)?).await,
             "get_project_overview" => self.get_project_overview(batch_params(tool, args)?).await,
@@ -1104,6 +1273,171 @@ impl MctServer {
     }
 
     // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "One-call context bundle for a symbol; see tools.ttc")]
+    pub async fn build_context_pack(
+        &self,
+        Parameters(BuildContextPackArgs {
+            symbol,
+            path,
+            language,
+            depth,
+            limit,
+            source_lines,
+            format,
+        }): Parameters<BuildContextPackArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let symbol = validate_name(&symbol)?;
+        let output_format = parse_output_format(format.as_deref())?;
+        let path = optional_arg(path.as_ref());
+        let language = optional_arg(language.as_ref());
+        let depth = depth.unwrap_or(1).clamp(1, mct_core::MAX_QUERY_DEPTH);
+        let limit = limit.unwrap_or(CONTEXT_PACK_DEFAULT_LIMIT).max(1);
+        let source_lines = source_lines
+            .unwrap_or(CONTEXT_PACK_DEFAULT_SOURCE_LINES)
+            .clamp(1, CONTEXT_PACK_MAX_SOURCE_LINES);
+        let index = self.index.lock().await;
+
+        let definitions = without_modules(
+            index
+                .find_symbol_scoped(symbol, query_scope(path, language))
+                .map_err(index_error)?,
+        );
+        if definitions.is_empty() {
+            return Ok(CallToolResult::success(vec![ContentBlock::text(format!(
+                "No symbol named `{symbol}` found in the index — try search_symbols for a partial name."
+            ))]));
+        }
+
+        // Relations are resolved by name, so without a narrowing every
+        // same-named symbol's outgoing calls merge in. When `path`/`language`
+        // picked specific definitions, keep only the direct calls/dependencies
+        // made from their files (a relation lives in its caller's file).
+        let definition_files: std::collections::HashSet<&str> = definitions
+            .iter()
+            .map(|d| d.relative_path.as_str())
+            .collect();
+        let narrowed = path.is_some() || language.is_some();
+        let made_by_packed = |hit: &mct_index::RelationHit| {
+            !narrowed || hit.depth > 1 || definition_files.contains(hit.relative_path.as_str())
+        };
+        let everywhere = mct_index::QueryScope::default();
+        let callees = index
+            .find_calls_bfs_scoped(symbol, depth, CONTEXT_PACK_MAX_RELATIONS, 0, everywhere)
+            .map_err(index_error)?;
+        let dependencies = index
+            .find_dependencies_scoped(symbol, everywhere)
+            .map_err(index_error)?;
+        let callers = index
+            .find_callers_bfs_scoped(symbol, depth, CONTEXT_PACK_MAX_RELATIONS, 0, everywhere)
+            .map_err(index_error)?;
+        let references = index
+            .find_references_bfs_scoped(symbol, depth, CONTEXT_PACK_MAX_RELATIONS, 0, everywhere)
+            .map_err(index_error)?;
+
+        let mut related = RelatedSet::default();
+        for hit in callees.iter().filter(|h| made_by_packed(h)) {
+            related.add(&hit.to_name, "callee", hit, false);
+        }
+        for hit in dependencies.iter().filter(|h| made_by_packed(h)) {
+            related.add(&hit.to_name, &hit.kind, hit, false);
+        }
+        for hit in &callers {
+            related.add(&hit.from_symbol, "caller", hit, true);
+        }
+        // Same test heuristic as impact_analysis, over every relation
+        // reaching the symbol — a test importing it counts, not just one
+        // calling it.
+        for hit in references.iter().chain(callers.iter()) {
+            if mct_index::looks_like_test_name(&hit.from_symbol, &hit.relative_path) {
+                related.add(&hit.from_symbol, "test", hit, true);
+            }
+        }
+
+        // Every file read at most once, shared by the definitions' source and
+        // the related symbols' signatures. A file that vanished since the
+        // last reindex just contributes no source rather than failing.
+        let mut sources: std::collections::HashMap<String, Option<String>> =
+            std::collections::HashMap::new();
+        let mut source_of = |relative_path: &str| -> Option<String> {
+            sources
+                .entry(relative_path.to_string())
+                .or_insert_with(|| read_source_file(&index, relative_path).ok())
+                .clone()
+        };
+
+        let omitted_definitions = definitions.len().saturating_sub(CONTEXT_PACK_MAX_DEFINITIONS);
+        let mut packed_definitions = Vec::new();
+        for hit in definitions.into_iter().take(CONTEXT_PACK_MAX_DEFINITIONS) {
+            let (snippet, hidden_lines) = match source_of(&hit.relative_path) {
+                Some(source) => {
+                    let start = format::leading_comment_start(&source, hit.line);
+                    let doc_lines = hit.line.saturating_sub(start) as usize;
+                    let snippet =
+                        format::symbol_snippet(&source, start, hit.end_line, doc_lines + source_lines);
+                    let shown_end = hit.line as usize + source_lines - 1;
+                    let hidden = hit
+                        .end_line
+                        .map_or(0, |end| (end as usize).saturating_sub(shown_end));
+                    (snippet, hidden as u32)
+                }
+                None => (String::new(), 0),
+            };
+            packed_definitions.push(PackedDefinition {
+                hit,
+                snippet,
+                hidden_lines,
+            });
+        }
+
+        let mut packed_related = Vec::new();
+        let mut external = std::collections::BTreeSet::new();
+        let mut file_level = std::collections::BTreeSet::new();
+        for draft in related.drafts {
+            // Recursion (the symbol calling itself) isn't a related symbol.
+            if draft.name == symbol {
+                continue;
+            }
+            let defs = without_modules(index.find_symbol(&draft.name).map_err(index_error)?);
+            let Some((definition, other_definitions)) = pick_definition(defs, &draft) else {
+                external.insert(draft.name);
+                continue;
+            };
+            // A relation made by a file's synthetic module symbol is a
+            // file-level `use`/`import` of the packed symbol: the file is
+            // worth naming, its whole-file "definition" isn't worth a row.
+            if draft.site_is_inside && definition.kind == "module" {
+                file_level.insert(draft.site.0);
+                continue;
+            }
+            let signature = source_of(&definition.relative_path)
+                .and_then(|source| format::signature_line(&source, definition.line));
+            packed_related.push(PackedRelated {
+                name: draft.name,
+                roles: draft.roles,
+                hop: draft.hop,
+                definition: Some(definition),
+                other_definitions,
+                signature,
+            });
+        }
+
+        let pack = ContextPack {
+            symbol: symbol.to_string(),
+            depth,
+            definitions: packed_definitions,
+            omitted_definitions,
+            related: packed_related,
+            file_level: file_level.into_iter().collect(),
+            external: external.into_iter().collect(),
+        };
+        let text = match output_format {
+            OutputFormat::Text => format::context_pack(&pack, limit),
+            OutputFormat::Toon => format::context_pack_toon(&pack, limit),
+        };
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    // Fallback only — see tools.ttc / MctServer::new.
     #[tool(description = "Force an index refresh; see tools.ttc")]
     pub async fn reindex(
         &self,
@@ -1429,7 +1763,11 @@ impl ServerHandler for MctServer {
              filesystem, not what's defined in it. find_dead_code reports top-level symbols \
              with zero indexed references anywhere in the project — a heuristic starting point \
              for cleanup, not a certainty; sanity-check a hit with find_references or \
-             impact_analysis before deleting anything. reindex and get_indexing_status \
+             impact_analysis before deleting anything. build_context_pack is the composite \
+             for working on one symbol: its definition with doc comment and capped source, \
+             plus every caller, callee, dependency and related test listed once with its \
+             signature — one call in place of find_symbol + find_calls + find_callers + \
+             impact_analysis + reading the files. reindex and get_indexing_status \
              are index maintenance, not search — they never return symbol data. The index \
              refreshes automatically at startup and silently in the background as changes settle \
              on disk; call reindex manually only if you need an immediate refresh right now, or \

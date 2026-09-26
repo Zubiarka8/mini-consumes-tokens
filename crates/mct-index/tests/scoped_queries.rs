@@ -22,7 +22,8 @@ use mct_core::{
 };
 use mct_index::{ExcludeSet, Index, QueryScope};
 
-/// One line per symbol: `fn NAME` or `fn NAME calls OTHER`.
+/// One line per symbol: `fn NAME`, `fn NAME calls OTHER` or
+/// `fn NAME imports OTHER`.
 struct FakeParser {
     language: &'static str,
     extensions: &'static [&'static str],
@@ -67,11 +68,16 @@ impl mct_core::LanguageParser for FakeParser {
                 parent: None,
                 level: None,
             });
-            if parts.next() == Some("calls") {
+            let kind = match parts.next() {
+                Some("calls") => Some(RelationKind::Calls),
+                Some("imports") => Some(RelationKind::Imports),
+                _ => None,
+            };
+            if let Some(kind) = kind {
                 if let Some(callee) = parts.next() {
                     parsed.relations.push(SymbolRelation {
                         from: id,
-                        kind: RelationKind::Calls,
+                        kind,
                         to_name: callee.to_string(),
                         location: Location {
                             line: line_no as u32 + 1,
@@ -523,4 +529,33 @@ fn reference_counts_matches_find_references_len_for_every_name() {
     // Never referenced anywhere: absent from the map entirely.
     assert_eq!(counts.get("lonely").copied(), None);
     assert!(!counts.contains_key("c2"));
+}
+
+#[test]
+fn find_dependencies_returns_only_the_non_call_relations_a_symbol_makes() {
+    let dir = tempdir();
+    write(&dir, "src/a.fake", "fn a imports config\nfn a calls helper\n");
+    write(&dir, "libx/b.other", "fn a imports other_config\n");
+    write(&dir, "src/c.fake", "fn c imports a\n");
+    let index = open(&dir);
+
+    let deps = index
+        .find_dependencies_scoped("a", QueryScope::default())
+        .unwrap();
+    let mut targets: Vec<String> = deps
+        .iter()
+        .map(|h| format!("{}:{}->{}", h.relative_path, h.kind, h.to_name))
+        .collect();
+    targets.sort();
+    // The call to `helper` belongs to find_calls, and `c imports a` is a
+    // reference *to* `a`, not one it makes.
+    assert_eq!(
+        targets,
+        vec!["libx/b.other:imports->other_config", "src/a.fake:imports->config"]
+    );
+
+    let scoped = index
+        .find_dependencies_scoped("a", QueryScope { path: Some("src"), language: None })
+        .unwrap();
+    assert_eq!(hits(&scoped), vec!["src/a.fake:a"]);
 }
