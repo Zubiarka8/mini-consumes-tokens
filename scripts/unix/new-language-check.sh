@@ -83,7 +83,8 @@ check warn     "internal/checklist.md coverage row"      internal/checklist.md "
 status=$missing
 if [ "$run_tests" -eq 1 ]; then
   log="$LOG_DIR/new-language-check-tests.log"
-  if cargo test -p "$crate" >"$log" 2>&1 \
+  new_log "$log"
+  if cargo test -p "$crate" >>"$log" 2>&1 \
     && cargo test -p mct-cli --bin mct-cli registry >>"$log" 2>&1; then
     passed=$(awk '/^test result:/ { for (i = 1; i <= NF; i++) if ($i ~ /^passed;?$/) p += $(i-1) } END { print p + 0 }' "$log")
     echo "ok    tests ($crate + mct-cli registry): $passed passed"

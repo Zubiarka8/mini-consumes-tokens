@@ -32,7 +32,8 @@ while [ $# -gt 0 ]; do
 done
 
 if [ "$dev" -eq 1 ]; then
-  cargo build -q -p mct-mcp-server >"$LOG_DIR/smoke-build.log" 2>&1 \
+  new_log "$LOG_DIR/smoke-build.log"
+  cargo build -q -p mct-mcp-server >>"$LOG_DIR/smoke-build.log" 2>&1 \
     || { echo "build FAILED — see $LOG_DIR/smoke-build.log"; tail -n 20 "$LOG_DIR/smoke-build.log"; exit 1; }
   bin="$ROOT/target/debug/mct-mcp-server"
 fi
@@ -40,16 +41,17 @@ fi
 
 out="$LOG_DIR/smoke-stdout.jsonl"
 err="$LOG_DIR/smoke-stderr.log"
+new_log "$err"
 # The server answers each request as it arrives and exits once stdin closes.
 printf '%s\n' \
   '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"mcp-smoke","version":"0"}}}' \
   '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
   '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
-  | "$bin" --root "$root" >"$out" 2>"$err" || true
+  | "$bin" --root "$root" >"$out" 2>>"$err" || true
 
 if ! grep -q '"id":2' "$out"; then
   echo "server FAILED to answer — binary: $bin"
-  grep -vE ' (INFO|DEBUG|TRACE) ' "$err" | cap 20 "$err"
+  grep -vE '^# | (INFO|DEBUG|TRACE) ' "$err" | cap 20 "$err"
   if grep -q 'migration number that is too high' "$err"; then
     echo "→ the index was migrated by a newer schema; rebuild it: scripts/unix/reinstall.sh --reindex"
   fi
