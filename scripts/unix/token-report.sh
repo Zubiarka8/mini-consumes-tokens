@@ -28,13 +28,14 @@ while [ $# -gt 0 ]; do
 done
 
 report="$LOG_DIR/token-report.md"
-: >"$report"
+printf '<!-- %s -->\n' "$(log_stamp)" >"$report"
 failed=0
 say() { printf '%s\n' "$*" | tee -a "$report"; }
 ran() {
   # `ran <log> <command...>`: runs the command into the log, reports a failure.
   local log="$1"; shift
-  if "$@" >"$log" 2>&1; then return 0; fi
+  new_log "$log"
+  if "$@" >>"$log" 2>&1; then return 0; fi
   failed=1
   say "  (failed to run — see $log)"
   return 1
@@ -95,7 +96,8 @@ if [ "$run_eval" -eq 1 ]; then
   say ""
   log="$LOG_DIR/token-report-eval.log"
   # Exit 1 is a quality regression, not a failure to measure.
-  cargo run -q -p mct-eval >"$log" 2>&1 || true
+  new_log "$log"
+  cargo run -q -p mct-eval >>"$log" 2>&1 || true
   if grep -q '^| Tool catalog tokens' "$log"; then
     awk -F'|' '
       /^\| Response tokens/ { gsub(/ /, "", $3); printf "  responses, all cases       %s tokens\n", $3 }
