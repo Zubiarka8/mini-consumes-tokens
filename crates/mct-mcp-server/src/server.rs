@@ -407,6 +407,38 @@ pub struct GetToolSchemaArgs {
     pub name: String,
 }
 
+/// Cap on sub-queries per `batch` call. Batching pays off by collapsing
+/// per-call envelopes; past a couple dozen queries the response itself is
+/// the cost, and an agent is better served by narrowing than by one giant
+/// reply.
+const BATCH_MAX_QUERIES: usize = 25;
+
+/// Total bytes a `batch` response renders before the remaining sub-queries
+/// are skipped (not run) and listed for a follow-up call. Each sub-query is
+/// already capped at `format::DEFAULT_BYTE_BUDGET`; this keeps N of them from
+/// adding up to N times that.
+const BATCH_BYTE_BUDGET: usize = 2 * format::DEFAULT_BYTE_BUDGET;
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct BatchQuery {
+    /// Name of the tool to run (e.g. `find_symbol`). Any read-only tool of
+    /// this server; `batch` itself and `reindex` are rejected.
+    pub tool: String,
+    /// That tool's arguments object, exactly as it would be passed to the
+    /// tool directly (e.g. `{"name": "parse"}` for `find_symbol`). Omit for
+    /// a tool that takes no arguments.
+    #[serde(default)]
+    pub args: Option<serde_json::Map<String, serde_json::Value>>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct BatchArgs {
+    /// Sub-queries to run in order, 1 to 25. Each one's result (or error)
+    /// is reported under its own `[n] tool` header; one failing doesn't
+    /// fail the rest.
+    pub queries: Vec<BatchQuery>,
+}
+
 /// Groups this server's registered tool names for `discover_tool_categories`.
 /// Kept next to `ttc::KNOWN_TOOL_NAMES` in intent (both must track the live
 /// `#[tool(...)]` methods below), but independent of it in shape: a category
@@ -434,7 +466,7 @@ const TOOL_CATEGORIES: &[(&str, &[&str])] = &[
     ),
     (
         "meta",
-        &["discover_tool_categories", "get_tool_schema"],
+        &["discover_tool_categories", "get_tool_schema", "batch"],
     ),
 ];
 
@@ -613,6 +645,31 @@ fn list_symbols_for_overview(
     index.list_symbols_all(path, language).map_err(index_error)
 }
 
+/// Deserializes one `batch` sub-query's `args` into `tool`'s own argument
+/// struct, so a sub-query is validated exactly as the direct call would be.
+/// Omitted `args` is an empty object — every tool's required fields still
+/// get reported as missing, by name.
+fn batch_params<T: serde::de::DeserializeOwned>(
+    tool: &str,
+    args: Option<serde_json::Map<String, serde_json::Value>>,
+) -> Result<Parameters<T>, McpError> {
+    serde_json::from_value(serde_json::Value::Object(args.unwrap_or_default()))
+        .map(Parameters)
+        .map_err(|err| McpError::invalid_params(format!("invalid args for `{tool}`: {err}"), None))
+}
+
+/// Every text block of a sub-query's result, joined — today each tool
+/// returns exactly one, but a batch shouldn't silently drop a second.
+fn result_text(result: &CallToolResult) -> String {
+    result
+        .content
+        .iter()
+        .filter_map(|block| block.as_text())
+        .map(|text| text.text.as_str())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// One file/module's slice of `get_project_overview`'s digest: its surfaced
 /// top-level symbols (already capped to `max_symbols_per_module`, ranked by
 /// fan-in when truncated), how many were left out, and — when
@@ -656,6 +713,44 @@ impl MctServer {
     /// auto-reindex watcher, without exposing the `registry` field itself.
     pub fn registry_handle(&self) -> LanguageRegistry {
         self.registry.clone()
+    }
+
+    /// Runs one `batch` sub-query through the same tool method a direct call
+    /// would hit, so its validation, defaults and output are identical.
+    /// `reindex` is refused (a batch stays read-only, and a mid-batch
+    /// reindex would change what later sub-queries see), as is a nested
+    /// `batch`.
+    async fn run_batch_query(
+        &self,
+        tool: &str,
+        args: Option<serde_json::Map<String, serde_json::Value>>,
+    ) -> Result<CallToolResult, McpError> {
+        match tool {
+            "list_symbols" => self.list_symbols(batch_params(tool, args)?).await,
+            "find_symbol" => self.find_symbol(batch_params(tool, args)?).await,
+            "search_symbols" => self.search_symbols(batch_params(tool, args)?).await,
+            "hybrid_search" => self.hybrid_search(batch_params(tool, args)?).await,
+            "find_references" => self.find_references(batch_params(tool, args)?).await,
+            "find_calls" => self.find_calls(batch_params(tool, args)?).await,
+            "find_callers" => self.find_callers(batch_params(tool, args)?).await,
+            "impact_analysis" => self.impact_analysis(batch_params(tool, args)?).await,
+            "get_indexing_status" => self.get_indexing_status(batch_params(tool, args)?).await,
+            "get_file_skeleton" => self.get_file_skeleton(batch_params(tool, args)?).await,
+            "get_project_overview" => self.get_project_overview(batch_params(tool, args)?).await,
+            "get_file_tree" => self.get_file_tree(batch_params(tool, args)?).await,
+            "find_dead_code" => self.find_dead_code(batch_params(tool, args)?).await,
+            "discover_tool_categories" => self.discover_tool_categories().await,
+            "get_tool_schema" => self.get_tool_schema(batch_params(tool, args)?).await,
+            "batch" => Err(McpError::invalid_params("`batch` can't be nested inside a batch", None)),
+            "reindex" => Err(McpError::invalid_params(
+                "`reindex` isn't allowed in a batch (batches are read-only) — call it directly",
+                None,
+            )),
+            other => Err(McpError::invalid_params(
+                format!("no tool named `{other}` — call discover_tool_categories for the full list"),
+                None,
+            )),
+        }
     }
 
     // Fallback only — the live description installed on this tool comes
@@ -1228,6 +1323,48 @@ impl MctServer {
             format::tool_schema(tool),
         )]))
     }
+
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Run several read-only queries in one call; see tools.ttc")]
+    pub async fn batch(
+        &self,
+        Parameters(BatchArgs { queries }): Parameters<BatchArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        if queries.is_empty() {
+            return Err(McpError::invalid_params("`queries` must not be empty", None));
+        }
+        if queries.len() > BATCH_MAX_QUERIES {
+            return Err(McpError::invalid_params(
+                format!(
+                    "a batch takes at most {BATCH_MAX_QUERIES} queries, got {} — split it",
+                    queries.len()
+                ),
+                None,
+            ));
+        }
+        // Sequential on purpose: every sub-query takes the same index lock,
+        // so running them concurrently would only queue on it. The budget is
+        // checked before each sub-query runs, so the response overshoots it
+        // by at most one sub-result (itself capped by DEFAULT_BYTE_BUDGET).
+        let mut outcomes = Vec::with_capacity(queries.len());
+        let mut rendered = 0usize;
+        for BatchQuery { tool, args } in queries {
+            let tool = tool.trim().to_string();
+            let outcome = if rendered >= BATCH_BYTE_BUDGET {
+                format::BatchOutcome::Skipped
+            } else {
+                match self.run_batch_query(&tool, args).await {
+                    Ok(result) => format::BatchOutcome::Ok(result_text(&result)),
+                    Err(err) => format::BatchOutcome::Err(err.message.to_string()),
+                }
+            };
+            rendered += outcome.len();
+            outcomes.push((tool, outcome));
+        }
+        Ok(CallToolResult::success(vec![ContentBlock::text(
+            format::batch(&outcomes),
+        )]))
+    }
 }
 
 #[tool_handler]
@@ -1271,7 +1408,10 @@ impl ServerHandler for MctServer {
              tool's name and one-line purpose grouped by category with no input schemas, and \
              get_tool_schema returns one named tool's full input schema and description on \
              demand — useful for a client choosing to defer loading full schemas instead of \
-             requesting every tool's schema up front."
+             requesting every tool's schema up front. batch runs up to 25 read-only queries \
+             (any tool above except reindex) in one call, each reported under its own header — \
+             prefer it over several separate calls whenever you already know the queries you \
+             need, since it drops the per-call overhead."
                 .to_string(),
         )
     }
