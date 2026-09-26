@@ -29,7 +29,7 @@ pub use indexer::{
     UnsupportedFile,
 };
 pub use queries::{QueryScope, RelationHit, SymbolHit, SymbolListEntry, SymbolMatchMode};
-pub use search::{exact_phrase, search_words, split_identifier};
+pub use search::{exact_phrase, search_words, split_identifier, LiteralHit, MAX_LITERAL_HITS};
 pub use semantic::{
     classify_query, embedding_text, EmbeddingCoverage, Embedder, HybridHit, QueryIntent,
     SymbolContext, EXACT_PHRASE_BOOST, RRF_K,
@@ -254,6 +254,14 @@ impl Index {
             alpha,
             self.resolve_scope(scope),
         )
+    }
+
+    /// Every indexed prose string literal holding `phrase` as consecutive
+    /// words, narrowed to `scope` — `hybrid_search`'s exact-phrase mode
+    /// reports these alongside matching symbol names. See
+    /// [`search::search_literals`].
+    pub fn search_literals(&self, phrase: &str, scope: QueryScope<'_>) -> Result<Vec<LiteralHit>> {
+        search::search_literals(&self.conn, phrase, self.resolve_scope(scope))
     }
 
     /// Every place `symbol` is referenced: calls, imports, extends/implements,

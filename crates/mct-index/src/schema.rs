@@ -174,5 +174,76 @@ pub fn migrations() -> Migrations<'static> {
             END;
             "#,
         ),
+        // Prose string literals (`ParsedFile::literals`), so a quoted
+        // `hybrid_search` finds an error/log message's file and line.
+        // `symbol_id` is the innermost symbol enclosing the literal, resolved
+        // at write time. `literals_fts` is an external-content table (the
+        // text is stored once, in `literals`), kept in sync by the triggers,
+        // which also fire for the `files` FK cascade. `detail=full` keeps
+        // token positions, which phrase queries need; `remove_diacritics`
+        // makes `conexión` match `conexion`. No embeddings for literals.
+        //
+        // Emptying every `content_hash` makes the next reindex re-parse every
+        // file: the incremental skip compares git blob hashes, so an
+        // unchanged file would otherwise never get its literals until a
+        // `reindex --force`.
+        M::up(
+            r#"
+            CREATE TABLE literals (
+                id        INTEGER PRIMARY KEY,
+                file_id   INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+                symbol_id INTEGER REFERENCES symbols(id) ON DELETE SET NULL,
+                line      INTEGER NOT NULL,
+                text      TEXT NOT NULL
+            );
+            CREATE INDEX idx_literals_file ON literals(file_id);
+            CREATE INDEX idx_literals_symbol ON literals(symbol_id);
+
+            CREATE VIRTUAL TABLE literals_fts USING fts5(
+                text,
+                content = 'literals',
+                content_rowid = 'id',
+                detail = full,
+                tokenize = 'unicode61 remove_diacritics 1'
+            );
+            CREATE TRIGGER literals_ai AFTER INSERT ON literals BEGIN
+                INSERT INTO literals_fts(rowid, text) VALUES (new.id, new.text);
+            END;
+            CREATE TRIGGER literals_ad AFTER DELETE ON literals BEGIN
+                INSERT INTO literals_fts(literals_fts, rowid, text) VALUES ('delete', old.id, old.text);
+            END;
+            CREATE TRIGGER literals_au AFTER UPDATE OF text ON literals BEGIN
+                INSERT INTO literals_fts(literals_fts, rowid, text) VALUES ('delete', old.id, old.text);
+                INSERT INTO literals_fts(rowid, text) VALUES (new.id, new.text);
+            END;
+
+            UPDATE files SET content_hash = '';
+            "#,
+        ),
     ])
+}
+
+#[cfg(test)]
+mod tests {
+    use rusqlite::Connection;
+
+    use super::migrations;
+
+    /// The literals migration forces a full re-parse of an existing index.
+    #[test]
+    fn literals_migration_invalidates_every_content_hash() -> Result<(), Box<dyn std::error::Error>> {
+        let mut conn = Connection::open_in_memory()?;
+        crate::search::register_functions(&conn)?;
+        let before_literals = 7;
+        migrations().to_version(&mut conn, before_literals)?;
+        conn.execute(
+            "INSERT INTO files (relative_path, language, content_hash, last_indexed_at)
+             VALUES ('src/lib.rs', 'rust', 'abc123', 0)",
+            [],
+        )?;
+        migrations().to_latest(&mut conn)?;
+        let hash: String = conn.query_row("SELECT content_hash FROM files", [], |r| r.get(0))?;
+        assert_eq!(hash, "");
+        Ok(())
+    }
 }

@@ -392,6 +392,66 @@ pub(crate) fn search_phrase(
     Ok(tiered.into_iter().map(|t| t.3).collect())
 }
 
+/// Most string-literal hits [`search_literals`] returns.
+pub const MAX_LITERAL_HITS: usize = 200;
+
+/// A prose string literal holding an exact phrase.
+#[derive(Debug, Clone)]
+pub struct LiteralHit {
+    pub relative_path: String,
+    pub language: String,
+    pub line: u32,
+    /// The literal's stored text (normalised, at most
+    /// `mct_core::MAX_LITERAL_CHARS` chars).
+    pub text: String,
+    /// Name and kind of the innermost symbol enclosing the literal, if any.
+    pub symbol: Option<(String, String)>,
+}
+
+/// Every indexed string literal holding `phrase`'s words consecutively and
+/// in order — case- and diacritic-insensitive, punctuation ignored (the
+/// `literals_fts` tokenizer) — narrowed to `scope`, best BM25 first, then
+/// path and line. At most [`MAX_LITERAL_HITS`].
+pub(crate) fn search_literals(
+    conn: &Connection,
+    phrase: &str,
+    scope: ResolvedScope<'_>,
+) -> Result<Vec<LiteralHit>> {
+    if !phrase.chars().any(char::is_alphanumeric) {
+        return Ok(Vec::new());
+    }
+    let mut sql = String::from(
+        "SELECT f.relative_path, f.language, l.line, l.text, s.name, s.kind
+         FROM literals_fts
+         JOIN literals l ON l.id = literals_fts.rowid
+         JOIN files f ON f.id = l.file_id
+         LEFT JOIN symbols s ON s.id = l.symbol_id
+         WHERE literals_fts MATCH ?1",
+    );
+    let mut bound: BoundValues = vec![Box::new(format!("\"{}\"", phrase.replace('"', "\"\"")))];
+    push_scope(&mut sql, &mut bound, scope);
+    sql.push_str(&format!(
+        " ORDER BY bm25(literals_fts), f.relative_path, l.line LIMIT {MAX_LITERAL_HITS}"
+    ));
+
+    let mut stmt = conn.prepare_cached(&sql)?;
+    let params: Vec<&dyn rusqlite::ToSql> = bound.iter().map(|b| b.as_ref()).collect();
+    let rows = stmt
+        .query_map(params.as_slice(), |row| {
+            let name: Option<String> = row.get(4)?;
+            let kind: Option<String> = row.get(5)?;
+            Ok(LiteralHit {
+                relative_path: row.get(0)?,
+                language: row.get(1)?,
+                line: row.get(2)?,
+                text: row.get(3)?,
+                symbol: name.zip(kind),
+            })
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(rows)
+}
+
 fn run_match(
     conn: &Connection,
     fts_query: &str,
