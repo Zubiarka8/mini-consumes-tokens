@@ -35,7 +35,7 @@ ERR not exhaustive (use find_symbol/list_symbols); not relations (use find_refer
 TAGS search, ranked, words, camelCase, snake_case, partial
 
 TOOL hybrid_search
-WHEN find code by meaning: search_symbols + embeddings, RRF-fused; alpha 0=lexical..1=semantic (auto if omitted).
+WHEN find code by meaning: search_symbols + embeddings, RRF-fused; alpha 0=lexical..1=semantic (auto if omitted); "quoted" query = exact phrase, lexical only, also lists string literals (error/log messages) holding it as path:line.
 ERR no model -> lexical only (noted); not exhaustive.
 TAGS semantic, embeddings, hybrid
 

@@ -6,10 +6,15 @@
 //! it with a [`LanguageRegistry`] — no changes here.
 
 mod error;
+mod literal;
 mod registry;
 mod symbol;
 
 pub use error::ParseError;
+pub use literal::{
+    prose_literal, LiteralCollector, StringLiteral, MAX_LITERALS_PER_FILE, MAX_LITERAL_CHARS,
+    MIN_LITERAL_CHARS,
+};
 pub use registry::LanguageRegistry;
 pub use symbol::{
     Location, RelationKind, SymbolId, SymbolKind, SymbolRecord, SymbolRelation,
@@ -43,12 +48,20 @@ pub struct SourceFile {
     pub contents: String,
 }
 
-/// Everything extracted from one source file: its symbols and the relations
-/// between them (or to symbols in other files, resolved by name).
+/// Everything extracted from one source file: its symbols, the relations
+/// between them (or to symbols in other files, resolved by name), and its
+/// prose string literals.
+///
+/// Build it with `..Default::default()` after the fields you set, so adding a
+/// field here never breaks a parser that doesn't populate it.
 #[derive(Debug, Clone, Default)]
 pub struct ParsedFile {
     pub symbols: Vec<SymbolRecord>,
     pub relations: Vec<SymbolRelation>,
+    /// Prose string literals, already filtered, deduplicated and capped by a
+    /// [`LiteralCollector`]. Empty for a parser that doesn't extract them —
+    /// by design for markup/style languages (Markdown, HTML, XML, CSS).
+    pub literals: Vec<StringLiteral>,
 }
 
 /// Implemented once per supported language, in its own crate. The indexer
