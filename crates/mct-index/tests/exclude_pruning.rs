@@ -32,6 +32,9 @@ fn the_stale_pre_rename_index_directory_is_excluded() {
     let set = ExcludeSet::default();
     assert!(set.is_excluded(".claude-index"));
     assert!(set.is_excluded(".claude-index/index.sqlite3"));
+    // The intermediate `ccm`-era index directory is excluded too.
+    assert!(set.is_excluded(".ccm-index"));
+    assert!(set.is_excluded(".ccm-index/index.sqlite3"));
     // The current index directory is still excluded too.
     assert!(set.is_excluded(".mct-index/index.sqlite3"));
 }
@@ -48,6 +51,7 @@ fn the_directory_entry_itself_matches_not_only_its_contents() {
     for dir in [
         ".claude",
         ".claude-index",
+        ".ccm-index",
         "target",
         ".git",
         "node_modules",
