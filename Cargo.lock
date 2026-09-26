@@ -1389,6 +1389,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "mct-eval"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "mct-index",
+ "mct-mcp-server",
+ "rmcp",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "mct-index"
 version = "0.1.0"
 dependencies = [

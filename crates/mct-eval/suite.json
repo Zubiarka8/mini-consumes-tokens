@@ -1,0 +1,203 @@
+{
+  "name": "omni-app",
+  "fixture": "../mct-mcp-server/tests/fixtures/omni-app",
+  "cases": [
+    {
+      "name": "definition of a Go method",
+      "category": "definition",
+      "tool": "find_symbol",
+      "args": { "name": "Post" },
+      "expect": ["backend/ledger.go:10"],
+      "absent": ["PostButton"]
+    },
+    {
+      "name": "definition of a Java class",
+      "category": "definition",
+      "tool": "find_symbol",
+      "args": { "name": "Invoice" },
+      "expect": ["jvm/Invoice.java:4"]
+    },
+    {
+      "name": "C++ declaration and definition",
+      "category": "definition",
+      "tool": "find_symbol",
+      "args": { "name": "accumulate_cents" },
+      "expect": ["native/arithmetic.cpp:3", "native/arithmetic.hpp:3"]
+    },
+    {
+      "name": "definition of a PowerShell function",
+      "category": "definition",
+      "tool": "find_symbol",
+      "args": { "name": "Write-Line" },
+      "expect": ["pwsh/Common.psm1:1"]
+    },
+    {
+      "name": "fuzzy definition lookup across languages",
+      "category": "definition",
+      "tool": "find_symbol",
+      "args": { "name": "ledger", "match": "fuzzy" },
+      "expect": ["Ledger", "NewLedger", "LedgerLine", "LedgerView"]
+    },
+    {
+      "name": "cross-file Rust caller",
+      "category": "callers",
+      "tool": "find_callers",
+      "args": { "function": "settle" },
+      "expect": ["run_tally"],
+      "absent": ["settle_totals"]
+    },
+    {
+      "name": "TypeScript callers across files",
+      "category": "callers",
+      "tool": "find_callers",
+      "args": { "function": "formatAmount" },
+      "expect": ["renderLine", "render"]
+    },
+    {
+      "name": "PHP callers of a function and a method",
+      "category": "callers",
+      "tool": "find_callers",
+      "args": { "function": "load_rows" },
+      "expect": ["handle_request", "fetch"],
+      "absent": ["describe_request"]
+    },
+    {
+      "name": "Bash callers across sourced files",
+      "category": "callers",
+      "tool": "find_callers",
+      "args": { "function": "log_line" },
+      "expect": ["build_artifact", "deploy_all"]
+    },
+    {
+      "name": "Go callees of a handler",
+      "category": "calls",
+      "tool": "find_calls",
+      "args": { "function": "HandlePost" },
+      "expect": ["NewLedger", "Post", "Describe"]
+    },
+    {
+      "name": "Python callees, narrowed by language",
+      "category": "calls",
+      "tool": "find_calls",
+      "args": { "function": "deploy", "language": "python" },
+      "expect": ["format_alert", "send_alert"],
+      "absent": ["deploy_all"]
+    },
+    {
+      "name": "C# method reference through a field",
+      "category": "references",
+      "tool": "find_references",
+      "args": { "symbol": "Authorize" },
+      "expect": ["dotnet/PaymentProcessor.cs:11"]
+    },
+    {
+      "name": "Kotlin references to a builder",
+      "category": "references",
+      "tool": "find_references",
+      "args": { "symbol": "buildRepository" },
+      "expect": ["jvm/Main.kt:4"]
+    },
+    {
+      "name": "two-hop blast radius",
+      "category": "impact",
+      "tool": "impact_analysis",
+      "args": { "symbol": "add_cents", "depth": 2 },
+      "expect": ["settle", "run_tally"]
+    },
+    {
+      "name": "direct blast radius of a constructor",
+      "category": "impact",
+      "tool": "impact_analysis",
+      "args": { "symbol": "NewLedger" },
+      "expect": ["HandlePost"]
+    },
+    {
+      "name": "snake_case words",
+      "category": "search",
+      "tool": "search_symbols",
+      "args": { "query": "format alert" },
+      "expect": ["format_alert"],
+      "ranked": true
+    },
+    {
+      "name": "camelCase partial words",
+      "category": "search",
+      "tool": "search_symbols",
+      "args": { "query": "build repo" },
+      "expect": ["buildRepository"],
+      "ranked": true
+    },
+    {
+      "name": "PascalCase words",
+      "category": "search",
+      "tool": "search_symbols",
+      "args": { "query": "ledger view" },
+      "expect": ["LedgerView"],
+      "ranked": true
+    },
+    {
+      "name": "exact-case name among many partial matches",
+      "category": "search",
+      "tool": "search_symbols",
+      "args": { "query": "Ledger" },
+      "expect": ["struct Ledger"],
+      "ranked": true
+    },
+    {
+      "name": "hybrid lexical ranking",
+      "category": "search",
+      "tool": "hybrid_search",
+      "args": { "query": "send alert", "alpha": 0.0 },
+      "expect": ["send_alert"],
+      "ranked": true
+    },
+    {
+      "name": "symbols of a directory",
+      "category": "structure",
+      "tool": "list_symbols",
+      "args": { "path": "backend" },
+      "expect": ["Ledger", "Post", "NewLedger", "HandlePost", "Describe"]
+    },
+    {
+      "name": "skeleton of a Rust file",
+      "category": "structure",
+      "tool": "get_file_skeleton",
+      "args": { "path": "rustcore/tally.rs" },
+      "expect": ["Tally", "add_cents", "settle"]
+    },
+    {
+      "name": "overview of a JVM directory",
+      "category": "structure",
+      "tool": "get_project_overview",
+      "args": { "path": "jvm" },
+      "expect": ["BillingService", "Invoice", "Repository"]
+    },
+    {
+      "name": "file tree of a directory",
+      "category": "structure",
+      "tool": "get_file_tree",
+      "args": { "path": "dotnet" },
+      "expect": ["PaymentGateway.cs", "PaymentProcessor.cs"]
+    },
+    {
+      "name": "unreferenced symbols",
+      "category": "maintenance",
+      "tool": "find_dead_code",
+      "args": {},
+      "expect": ["LedgerView"],
+      "absent": ["add_cents"]
+    },
+    {
+      "name": "batched lookups",
+      "category": "batch",
+      "tool": "batch",
+      "args": {
+        "queries": [
+          { "tool": "find_symbol", "args": { "name": "Deployer" } },
+          { "tool": "find_callers", "args": { "function": "deploy" } }
+        ]
+      },
+      "expect": ["pyscripts/deploy.py:9", "run"]
+    }
+  ]
+}
