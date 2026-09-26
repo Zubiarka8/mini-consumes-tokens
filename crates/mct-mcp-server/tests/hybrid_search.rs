@@ -157,3 +157,17 @@ async fn an_empty_query_is_rejected() {
         .await
         .is_err());
 }
+
+#[tokio::test]
+async fn a_quoted_query_is_lexical_only_whatever_alpha() {
+    let server = build_server_at(&fixture("polyglot-app")).await;
+    for alpha in [None, Some(1.0)] {
+        let text = hybrid(&server, args("\"create invoice\"", alpha)).await;
+        assert!(
+            text.starts_with("hybrid: alpha 0 (exact phrase), lexical ranking only\n"),
+            "got: {text}"
+        );
+        let first = body(&text).lines().nth(1).unwrap_or_default();
+        assert!(first.ends_with("function createInvoice"), "got: {text}");
+    }
+}
