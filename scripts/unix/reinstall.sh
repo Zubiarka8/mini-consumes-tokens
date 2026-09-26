@@ -31,7 +31,8 @@ done
 install() {
   local crate="$1"; shift
   local log="$LOG_DIR/reinstall-$crate.log"
-  if cargo install --locked --force --path "crates/$crate" "$@" >"$log" 2>&1; then
+  new_log "$log"
+  if cargo install --locked --force --path "crates/$crate" "$@" >>"$log" 2>&1; then
     echo "installed $crate $(git describe --always --dirty 2>/dev/null) → $CARGO_BIN"
   else
     echo "install FAILED for $crate — full log: $log"
@@ -52,7 +53,8 @@ cli_bin="$CARGO_BIN/mct-cli"
 [ -x "$cli_bin" ] || cli_bin=""
 
 if [ "$reindex" -eq 0 ] && [ -f "$index" ] && [ -n "$cli_bin" ]; then
-  if "$cli_bin" --root "$ROOT" status >"$LOG_DIR/reinstall-status.log" 2>&1; then
+  new_log "$LOG_DIR/reinstall-status.log"
+  if "$cli_bin" --root "$ROOT" status >>"$LOG_DIR/reinstall-status.log" 2>&1; then
     echo "index ok — schema matches this checkout"
   elif grep -q 'migration number that is too high' "$LOG_DIR/reinstall-status.log"; then
     echo "index was migrated by a newer schema — rebuilding it"
@@ -64,11 +66,12 @@ fi
 
 if [ "$reindex" -eq 1 ] || [ ! -f "$index" ]; then
   rm -f "$index" "$index-wal" "$index-shm"
+  new_log "$LOG_DIR/reinstall-init.log"
   if [ -n "$cli_bin" ]; then
-    "$cli_bin" --root "$ROOT" init >"$LOG_DIR/reinstall-init.log" 2>&1 \
+    "$cli_bin" --root "$ROOT" init >>"$LOG_DIR/reinstall-init.log" 2>&1 \
       || { echo "index rebuild FAILED — see $LOG_DIR/reinstall-init.log"; exit 1; }
   else
-    cargo run -q -p mct-cli -- --root "$ROOT" init >"$LOG_DIR/reinstall-init.log" 2>&1 \
+    cargo run -q -p mct-cli -- --root "$ROOT" init >>"$LOG_DIR/reinstall-init.log" 2>&1 \
       || { echo "index rebuild FAILED — see $LOG_DIR/reinstall-init.log"; exit 1; }
   fi
   echo "index rebuilt — $(grep -m1 -i 'complete' "$LOG_DIR/reinstall-init.log" || true)"
