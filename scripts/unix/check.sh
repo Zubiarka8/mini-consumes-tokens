@@ -38,7 +38,8 @@ failed=0
 
 step_test() {
   local log="$LOG_DIR/check-test.log" status=0
-  cargo test "${scope[@]}" >"$log" 2>&1 || status=$?
+  new_log "$log"
+  cargo test "${scope[@]}" >>"$log" 2>&1 || status=$?
   local counts
   counts=$(awk '/^test result:/ {
       for (i = 1; i <= NF; i++) {
@@ -65,9 +66,10 @@ step_test() {
 
 step_clippy() {
   local log="$LOG_DIR/check-clippy.log" status=0
+  new_log "$log"
   cargo clippy "${scope[@]}" --all-targets --all-features -- \
     -D warnings -D clippy::unwrap_used -D clippy::expect_used -D clippy::panic \
-    >"$log" 2>&1 || status=$?
+    >>"$log" 2>&1 || status=$?
   if [ "$status" -eq 0 ]; then
     echo "clippy  ok      no warnings"
     return
@@ -87,7 +89,8 @@ step_clippy() {
 
 step_eval() {
   local log="$LOG_DIR/check-eval.log" status=0
-  cargo run -q -p mct-eval >"$log" 2>&1 || status=$?
+  new_log "$log"
+  cargo run -q -p mct-eval >>"$log" 2>&1 || status=$?
   local summary
   summary=$(awk -F'|' '
     /^\| Accuracy \|/ { acc = $3 }

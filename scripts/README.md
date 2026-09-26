@@ -25,6 +25,27 @@ script names and flags wherever both exist:
 | `token-report.sh` | Every token measurement in one screen: MCP tool vs grep+read per language (`token_benchmark`), JSON/TOON/text per response shape (`format_benchmark`), each composite tool vs separate calls (any `mct-mcp-server` test printing `% fewer`), and `mct-eval`'s catalog/response totals. `--markdown <file>` for a PR body, `--no-eval`. |
 | `install-hooks.sh` | Installs the git hooks under `hooks/` (copied, so they survive checking out older branches; re-run to update, `--uninstall` to remove). Today one: `post-checkout`, which on a branch switch that changes the index schema's migration count rebuilds `.mct-index/index.sqlite3` if it's now newer than the installed binaries (the `CONNECTION_CLOSED` failure) and says how to serve the branch. Silent otherwise; `MCT_SKIP_HOOKS=1` skips it. |
 
+### Logs
+
+Every log in `target/script-logs/` has a fixed name per script and step,
+and the next run of that script overwrites it, so the directory stays at a
+few dozen small files and never needs emptying. Deleting it, or
+`cargo clean`, is always safe. The scripts create no other temporary files.
+
+Each log starts with a line recording the command, when it ran and which
+checkout it ran against, so you can tell an old log from the one you just
+produced:
+
+```
+# scripts/unix/check.sh -p mct-core — 2026-09-26 19:21:05 +0200 — chore/scripts@9e362dc-dirty
+```
+
+`head -n1 target/script-logs/*` shows all of them at once.
+`smoke-stdout.jsonl` is the exception: it holds the server's raw JSON-RPC
+replies, so it gets no header line (its file date is the only record).
+`token-report.md` has the same line as an HTML comment, so it doesn't show
+in a PR body.
+
 `lib.sh` holds the shared helpers and refuses to run on anything but macOS
 or Linux. Every script takes `--help`; `mcp-smoke.sh` needs `jq` or
 `python3`. Exit status is 0 on success, 1 on a failed check, 2 on a usage
