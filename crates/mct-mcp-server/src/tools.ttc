@@ -29,6 +29,11 @@ WHEN locate a symbol's definition; exact/prefix/fuzzy match, any language.
 ERR not for callers/references — use find_callers/find_references.
 TAGS lookup, definition, location, exact, prefix, fuzzy
 
+TOOL search_symbols
+WHEN unsure of a name: words/partial ident in any case style, BM25-ranked, exact first.
+ERR not exhaustive (use find_symbol/list_symbols); not relations (use find_references).
+TAGS search, ranked, words, camelCase, snake_case, partial
+
 TOOL find_references
 WHEN every reference to a symbol: calls, imports, extends/implements.
 ERR not just direct callers (use find_callers); not a definition lookup (use find_symbol).

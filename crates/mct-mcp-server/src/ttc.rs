@@ -171,6 +171,7 @@ pub const CATALOG_SOURCE: &str = include_str!("tools.ttc");
 pub const KNOWN_TOOL_NAMES: &[&str] = &[
     "list_symbols",
     "find_symbol",
+    "search_symbols",
     "find_references",
     "find_calls",
     "find_callers",

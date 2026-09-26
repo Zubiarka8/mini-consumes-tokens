@@ -11,6 +11,7 @@ mod indexer;
 mod manifests;
 mod queries;
 mod schema;
+mod search;
 mod traversal;
 
 pub use dead_code::{
@@ -27,6 +28,7 @@ pub use indexer::{
     UnsupportedFile,
 };
 pub use queries::{QueryScope, RelationHit, SymbolHit, SymbolListEntry, SymbolMatchMode};
+pub use search::{search_words, split_identifier};
 
 use queries::ResolvedScope;
 
@@ -88,6 +90,7 @@ impl Index {
         conn.set_prepared_statement_cache_capacity(STATEMENT_CACHE_CAPACITY);
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
+        search::register_functions(&conn)?;
         schema::migrations().to_latest(&mut conn)?;
         Ok(Self {
             conn,
@@ -106,6 +109,7 @@ impl Index {
         let mut conn = Connection::open_in_memory()?;
         conn.set_prepared_statement_cache_capacity(STATEMENT_CACHE_CAPACITY);
         conn.pragma_update(None, "foreign_keys", "ON")?;
+        search::register_functions(&conn)?;
         schema::migrations().to_latest(&mut conn)?;
         Ok(Self {
             conn,
@@ -191,6 +195,15 @@ impl Index {
         scope: QueryScope<'_>,
     ) -> Result<Vec<SymbolHit>> {
         queries::find_symbol_matching_scoped(&self.conn, name, mode, self.resolve_scope(scope))
+    }
+
+    /// Ranked lexical search over split symbol names, narrowed to `scope` —
+    /// finds `parseRequestBody` for `parse request`, `parse_req` or
+    /// `ParseRequest`, which every [`SymbolMatchMode`] misses. Exact
+    /// (case-insensitive) name matches always rank first. See
+    /// [`search::search_symbols`] for the full ranking.
+    pub fn search_symbols(&self, query: &str, scope: QueryScope<'_>) -> Result<Vec<SymbolHit>> {
+        search::search_symbols(&self.conn, query, self.resolve_scope(scope))
     }
 
     /// Every place `symbol` is referenced: calls, imports, extends/implements,
