@@ -21,7 +21,7 @@ A few things that make this different from a typical single-purpose plugin:
 - **It understands 16 programming and markup languages at once**, including projects that mix several languages together.
 - **It isn't tied to one editor or assistant.** It speaks a common protocol called **MCP** (Model Context Protocol) — think of it as a shared language that lets an AI assistant ask a tool for information directly, the same way different apps on your phone can all talk to the same calendar. Any MCP-capable assistant can connect to it.
 - **It also works as a plain command-line tool**, for anyone who just wants to check the health of the index or rebuild it by hand, with no AI assistant involved at all.
-- **15 MCP tools, grouped by purpose** (discovery, lookup, relations, maintenance, meta) — from a single symbol lookup or a ranked search by partial name to a one-shot "what would this change affect" blast-radius report, plus a project-wide overview and a plain directory tree for getting oriented before you know which file you need.
+- **16 MCP tools, grouped by purpose** (discovery, lookup, relations, maintenance, meta) — from a single symbol lookup, a ranked search by partial name or an optional search by meaning, to a one-shot "what would this change affect" blast-radius report, plus a project-wide overview and a plain directory tree for getting oriented before you know which file you need.
 - **Progressive tool discovery**: an MCP client can ask for a cheap one-line-per-tool catalog first (`discover_tool_categories`) and fetch a tool's full input schema only when it actually needs it (`get_tool_schema`), instead of always loading every schema up front.
 - **Multi-hop relation queries**: `find_references`, `find_calls`, `find_callers`, and `impact_analysis` can walk multiple hops through the call/reference graph in one call (`depth`) and page through large result sets (`offset`), instead of chaining single-hop calls by hand.
 - **Compact `toon` output format**: any result-returning tool can render its output as a token-lean table instead of the default labelled text, opt-in per call.
@@ -114,6 +114,7 @@ Before relying on it in a session:
 Once it's connected and healthy, prefer it over grep/reading whole files:
 - "Where is X defined?" -> find_symbol
 - "Something like `parse request`, exact name unknown?" -> search_symbols
+- "Code that does X, no idea what it's called?" -> hybrid_search
 - "Who calls X?" -> find_callers
 - "What does X call?" -> find_calls
 - "Every reference to X" -> find_references
@@ -180,6 +181,8 @@ cd mini-consumes-tokens
 cargo install --path crates/mct-cli
 cargo install --path crates/mct-mcp-server
 ```
+
+**Optional — search by meaning (`hybrid_search`):** install the server with `cargo install --path crates/mct-mcp-server --features semantic` instead. That adds a small local embedding model (`all-MiniLM-L6-v2`, ~90 MB, downloaded once on the first `hybrid_search` call into `.mct-index/models`, or `$FASTEMBED_CACHE_DIR` if set) so your assistant can find code from a description (*"load the settings from disk"*) even when no word of it is in the function's name. Without the feature, `hybrid_search` still works, but only matches by name, and says so. Tuning: `alpha` 0 = match by name only, 1 = match by meaning only, 0.5 (default) = both, fused with Reciprocal Rank Fusion — lower it when you know words of the name, raise it when you only know what the code does.
 
 **Working on the repo itself and don't want to install anything?** Skip `cargo install` and run straight from the checkout with `cargo run -p <crate> --`. Every `mct-cli ...` example in this README becomes:
 
@@ -310,6 +313,7 @@ mct-cli --root . status     # 3. check it worked: files and symbols indexed, las
 
 - Find everything defined in a file or folder, when you don't know the exact name yet
 - Find exactly where a specific function or class is defined
+- Find code from a description of what it does (optional `semantic` build)
 - Find every place something is used, anywhere in the project — optionally several hops out
 - Find what a function depends on, and who depends on it
 - Get a one-shot answer to "what would this change affect"
@@ -343,7 +347,7 @@ Your AI assistant doesn't use this table at all — once connected, it calls the
 ## 8. FAQ
 
 **Does my code ever leave my computer?**
-No. The index is a single local file (`.mct-index/index.sqlite3`) built and read entirely on your machine — no cloud service, no external server, no telemetry.
+No. The index is a single local file (`.mct-index/index.sqlite3`) built and read entirely on your machine — no cloud service, no external server, no telemetry. The optional `semantic` build downloads its embedding model once from Hugging Face, then runs it locally; your code is never sent anywhere.
 
 **Will this slow down my AI assistant or my machine?**
 No noticeably — the index builds once, then updates incrementally (only re-reading files that changed) instead of re-scanning your whole project every time.
