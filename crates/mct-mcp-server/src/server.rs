@@ -528,9 +528,10 @@ pub struct MctServer {
     index: Arc<Mutex<Index>>,
     registry: LanguageRegistry,
     semantic: Arc<SemanticModel>,
-    // Read by the #[tool_handler] macro expansion below, not by hand-written
-    // code — dead_code can't see that use.
-    #[allow(dead_code)]
+    // Built once in `MctServer::new` with the `tools.ttc` descriptions
+    // applied. The `#[tool_handler(router = self.tool_router)]` below serves
+    // `tools/list`/`tools/call` from this field; the macro's default would
+    // build a fresh, unpatched router.
     tool_router: ToolRouter<MctServer>,
 }
 
@@ -1731,7 +1732,10 @@ impl MctServer {
     }
 }
 
-#[tool_handler]
+// `router = self.tool_router`, not the macro's default `Self::tool_router()`:
+// the default rebuilds the router from the `#[tool]` attributes on every
+// request and serves their fallback descriptions (issue #70).
+#[tool_handler(router = self.tool_router)]
 impl ServerHandler for MctServer {
     fn get_info(&self) -> InitializeResult {
         InitializeResult::new(
