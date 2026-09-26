@@ -16,8 +16,8 @@ use std::path::Path;
 use mct_index::{ExcludeSet, Index};
 use mct_mcp_server::server::MctServer;
 use mct_mcp_server::ttc;
-use rmcp::ServiceExt;
 use rmcp::model::Tool;
+use rmcp::ServiceExt;
 
 fn fixture_root() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/compute-app")
