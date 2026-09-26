@@ -4,8 +4,8 @@
 //! this crate is the entire integration surface for Rust support.
 
 use mct_core::{
-    LanguageParser, LiteralCollector, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile,
-    RelationKind, SourceFile, SymbolId, SymbolKind, SymbolRecord, SymbolRelation,
+    LanguageParser, LiteralCollector, Location, ParseError, ParsedFile, RelationKind, SourceFile,
+    SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use tree_sitter::{Node, Parser};
 
@@ -32,11 +32,13 @@ impl LanguageParser for RustParser {
             .set_language(&tree_sitter_rust::LANGUAGE.into())
             .expect("tree-sitter-rust grammar is statically valid");
 
-        let tree = parser.parse(&file.contents, None).ok_or_else(|| ParseError::Syntax {
-            path: file.relative_path.clone(),
-            line: 1,
-            message: "tree-sitter produced no parse tree".to_string(),
-        })?;
+        let tree = parser
+            .parse(&file.contents, None)
+            .ok_or_else(|| ParseError::Syntax {
+                path: file.relative_path.clone(),
+                line: 1,
+                message: "tree-sitter produced no parse tree".to_string(),
+            })?;
 
         let root = tree.root_node();
         if root.has_error() {
@@ -132,7 +134,13 @@ impl<'a> Walker<'a> {
         id
     }
 
-    fn push_relation(&mut self, from: SymbolId, kind: RelationKind, to_name: String, loc: Location) {
+    fn push_relation(
+        &mut self,
+        from: SymbolId,
+        kind: RelationKind,
+        to_name: String,
+        loc: Location,
+    ) {
         if to_name.is_empty() {
             return;
         }
@@ -174,7 +182,8 @@ impl<'a> Walker<'a> {
                 } else {
                     SymbolKind::Function
                 };
-                let id = self.push_symbol(name, kind, location(node), impl_type.map(str::to_string));
+                let id =
+                    self.push_symbol(name, kind, location(node), impl_type.map(str::to_string));
                 if let Some(params) = node.child_by_field_name("parameters") {
                     self.visit_children(params, id, impl_type, depth + 1);
                 }
@@ -270,7 +279,8 @@ impl<'a> Walker<'a> {
             let leading = fragment.len() - fragment.trim_start().len();
             let before = inner.get(..offset + leading).unwrap_or_default();
             let fragment_line = line + before.matches('\n').count() as u32;
-            self.literals.push(&unescape(fragment, is_raw), fragment_line);
+            self.literals
+                .push(&unescape(fragment, is_raw), fragment_line);
         }
     }
 
@@ -299,22 +309,24 @@ impl<'a> Walker<'a> {
 fn call_target<'a>(node: Node<'a>, source: &str) -> Option<(String, Node<'a>)> {
     match node.kind() {
         "identifier" => Some((text(node, source).to_string(), node)),
-        "field_expression" => {
-            node.child_by_field_name("field").map(|n| (text(n, source).to_string(), n))
-        }
-        "scoped_identifier" => {
-            node.child_by_field_name("name").map(|n| (text(n, source).to_string(), n))
-        }
-        "generic_function" => {
-            node.child_by_field_name("function").and_then(|n| call_target(n, source))
-        }
+        "field_expression" => node
+            .child_by_field_name("field")
+            .map(|n| (text(n, source).to_string(), n)),
+        "scoped_identifier" => node
+            .child_by_field_name("name")
+            .map(|n| (text(n, source).to_string(), n)),
+        "generic_function" => node
+            .child_by_field_name("function")
+            .and_then(|n| call_target(n, source)),
         _ => None,
     }
 }
 
 fn collect_use_names(node: Node, source: &str, out: &mut Vec<(String, Location)>) {
     match node.kind() {
-        "identifier" | "type_identifier" => out.push((text(node, source).to_string(), location(node))),
+        "identifier" | "type_identifier" => {
+            out.push((text(node, source).to_string(), location(node)))
+        }
         "scoped_identifier" => {
             if let Some(name) = node.child_by_field_name("name") {
                 out.push((text(name, source).to_string(), location(name)));

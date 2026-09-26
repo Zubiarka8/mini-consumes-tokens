@@ -24,8 +24,8 @@
 //! only the selector.
 
 use mct_core::{
-    LanguageParser, Location, MAX_TRAVERSAL_DEPTH, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
-    SymbolKind, SymbolRecord, SymbolRelation,
+    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
+    SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use tree_sitter::{Node, Parser};
 
@@ -52,11 +52,13 @@ impl LanguageParser for CssParser {
             .set_language(&tree_sitter_css::LANGUAGE.into())
             .expect("tree-sitter-css grammar is statically valid");
 
-        let tree = parser.parse(&file.contents, None).ok_or_else(|| ParseError::Syntax {
-            path: file.relative_path.clone(),
-            line: 1,
-            message: "tree-sitter produced no parse tree".to_string(),
-        })?;
+        let tree = parser
+            .parse(&file.contents, None)
+            .ok_or_else(|| ParseError::Syntax {
+                path: file.relative_path.clone(),
+                line: 1,
+                message: "tree-sitter produced no parse tree".to_string(),
+            })?;
 
         let root = tree.root_node();
         if root.has_error() {
@@ -122,21 +124,44 @@ struct Walker<'a> {
 
 impl<'a> Walker<'a> {
     fn new(source: &'a str) -> Self {
-        Self { source, symbols: Vec::new(), relations: Vec::new(), next_id: 0 }
+        Self {
+            source,
+            symbols: Vec::new(),
+            relations: Vec::new(),
+            next_id: 0,
+        }
     }
 
     fn push_symbol(&mut self, name: String, kind: SymbolKind, location: Location) -> SymbolId {
         let id = self.next_id;
         self.next_id += 1;
-        self.symbols.push(SymbolRecord { id, name, kind, location, parent: None, level: None });
+        self.symbols.push(SymbolRecord {
+            id,
+            name,
+            kind,
+            location,
+            parent: None,
+            level: None,
+        });
         id
     }
 
-    fn push_relation(&mut self, from: SymbolId, kind: RelationKind, to_name: String, loc: Location) {
+    fn push_relation(
+        &mut self,
+        from: SymbolId,
+        kind: RelationKind,
+        to_name: String,
+        loc: Location,
+    ) {
         if to_name.is_empty() {
             return;
         }
-        self.relations.push(SymbolRelation { from, kind, to_name, location: loc });
+        self.relations.push(SymbolRelation {
+            from,
+            kind,
+            to_name,
+            location: loc,
+        });
     }
 
     fn visit_children(&mut self, node: Node, owner: SymbolId, depth: u32) {
@@ -173,7 +198,11 @@ impl<'a> Walker<'a> {
     }
 
     fn finish(self) -> ParsedFile {
-        ParsedFile { symbols: self.symbols, relations: self.relations, ..Default::default() }
+        ParsedFile {
+            symbols: self.symbols,
+            relations: self.relations,
+            ..Default::default()
+        }
     }
 
     /// Indexes one selector from a rule's (possibly comma-separated)
@@ -202,7 +231,9 @@ impl<'a> Walker<'a> {
 
 fn find_child<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
     let mut cursor = node.walk();
-    let found = node.named_children(&mut cursor).find(|child| child.kind() == kind);
+    let found = node
+        .named_children(&mut cursor)
+        .find(|child| child.kind() == kind);
     found
 }
 
@@ -241,7 +272,10 @@ fn collect_selector_atoms(node: Node, source: &str, out: &mut Vec<(String, Locat
             let mut cursor = node.walk();
             for child in node.named_children(&mut cursor) {
                 if child.kind() == "class_name" {
-                    out.push((format!(".{}", unescape_css(text(child, source))), location(child)));
+                    out.push((
+                        format!(".{}", unescape_css(text(child, source))),
+                        location(child),
+                    ));
                 } else {
                     collect_selector_atoms(child, source, out);
                 }
@@ -251,7 +285,10 @@ fn collect_selector_atoms(node: Node, source: &str, out: &mut Vec<(String, Locat
             let mut cursor = node.walk();
             for child in node.named_children(&mut cursor) {
                 if child.kind() == "id_name" {
-                    out.push((format!("#{}", unescape_css(text(child, source))), location(child)));
+                    out.push((
+                        format!("#{}", unescape_css(text(child, source))),
+                        location(child),
+                    ));
                 } else {
                     collect_selector_atoms(child, source, out);
                 }
@@ -280,7 +317,11 @@ fn collect_selector_atoms(node: Node, source: &str, out: &mut Vec<(String, Locat
             }
             out.push((unescape_css(text(node, source)), location(node)));
         }
-        "descendant_selector" | "child_selector" | "sibling_selector" | "adjacent_sibling_selector" | "namespace_selector" => {
+        "descendant_selector"
+        | "child_selector"
+        | "sibling_selector"
+        | "adjacent_sibling_selector"
+        | "namespace_selector" => {
             let mut cursor = node.walk();
             for child in node.named_children(&mut cursor) {
                 collect_selector_atoms(child, source, out);

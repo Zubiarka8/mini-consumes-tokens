@@ -8,7 +8,10 @@ use mct_lang_cpp::CppParser;
 
 fn parse(relative_path: &str, src: &str) -> mct_core::ParsedFile {
     CppParser
-        .parse(&SourceFile { relative_path: relative_path.to_string(), contents: src.to_string() })
+        .parse(&SourceFile {
+            relative_path: relative_path.to_string(),
+            contents: src.to_string(),
+        })
         .expect("valid C++ source should parse")
 }
 
@@ -22,7 +25,12 @@ fn extracts_function_and_call() {
     assert_eq!(add.kind, SymbolKind::Function);
     assert_eq!(add.parent, None);
 
-    let calls: Vec<_> = parsed.relations.iter().filter(|r| r.kind == RelationKind::Calls).map(|r| r.to_name.as_str()).collect();
+    let calls: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Calls)
+        .map(|r| r.to_name.as_str())
+        .collect();
     assert!(calls.contains(&"helper"));
 }
 
@@ -58,7 +66,11 @@ fn template_function_is_indexed_without_resolving_instantiations() {
     // AST-only scope: the generic signature is indexed as a normal
     // Function symbol; no attempt is made to resolve `maxValue<int>` vs
     // `maxValue<double>` as distinct instantiations.
-    let max_value = parsed.symbols.iter().find(|s| s.name == "maxValue").unwrap();
+    let max_value = parsed
+        .symbols
+        .iter()
+        .find(|s| s.name == "maxValue")
+        .unwrap();
     assert_eq!(max_value.kind, SymbolKind::Function);
 }
 
@@ -68,7 +80,11 @@ fn operator_overload_is_a_normal_method_not_a_special_case() {
         "complex.h",
         "class Complex {\npublic:\n    Complex operator+(const Complex& other) const {\n        return Complex();\n    }\n};\n",
     );
-    let op = parsed.symbols.iter().find(|s| s.name == "operator+").unwrap();
+    let op = parsed
+        .symbols
+        .iter()
+        .find(|s| s.name == "operator+")
+        .unwrap();
     assert_eq!(op.kind, SymbolKind::Method);
     assert_eq!(op.parent.as_deref(), Some("Complex"));
 }
@@ -79,10 +95,20 @@ fn extracts_inheritance_and_distinguishes_local_from_system_includes() {
         "shapes.h",
         "#include \"Shape.h\"\n#include <vector>\n\nclass Circle : public Shape {\npublic:\n    double area() { return 0.0; }\n};\n",
     );
-    let extends: Vec<_> = parsed.relations.iter().filter(|r| r.kind == RelationKind::Extends).map(|r| r.to_name.as_str()).collect();
+    let extends: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Extends)
+        .map(|r| r.to_name.as_str())
+        .collect();
     assert!(extends.contains(&"Shape"));
 
-    let imports: Vec<_> = parsed.relations.iter().filter(|r| r.kind == RelationKind::Imports).map(|r| r.to_name.as_str()).collect();
+    let imports: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Imports)
+        .map(|r| r.to_name.as_str())
+        .collect();
     // Local include keeps its repo-relative name; system include loses the
     // angle brackets but is never expected to resolve to a file in this
     // repo's index (see `Walker::visit`'s `preproc_include` arm).

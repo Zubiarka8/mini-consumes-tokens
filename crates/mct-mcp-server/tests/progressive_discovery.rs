@@ -67,7 +67,10 @@ async fn get_tool_schema_returns_the_named_tools_description_and_input_schema() 
 
     assert!(text.contains("find_symbol"));
     assert!(text.contains("Input schema:"));
-    assert!(text.contains("\"name\""), "expected the `name` property to appear in the rendered schema:\n{text}");
+    assert!(
+        text.contains("\"name\""),
+        "expected the `name` property to appear in the rendered schema:\n{text}"
+    );
 }
 
 #[tokio::test]

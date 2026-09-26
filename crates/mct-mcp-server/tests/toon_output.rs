@@ -14,8 +14,8 @@ use std::path::Path;
 
 use mct_index::{ExcludeSet, Index};
 use mct_mcp_server::server::{
-    FindCallersArgs, FindCallsArgs, FindDeadCodeArgs, FindReferencesArgs, FindSymbolArgs, ImpactAnalysisArgs,
-    ListSymbolsArgs, MctServer,
+    FindCallersArgs, FindCallsArgs, FindDeadCodeArgs, FindReferencesArgs, FindSymbolArgs,
+    ImpactAnalysisArgs, ListSymbolsArgs, MctServer,
 };
 use mct_mcp_server::toon::decode_table;
 use rmcp::handler::server::wrapper::Parameters;
@@ -61,7 +61,10 @@ async fn an_unrecognized_format_value_is_rejected_as_invalid_params() {
         }))
         .await
         .unwrap_err();
-    assert!(err.message.contains("format must be one of text, toon"), "got: {err:?}");
+    assert!(
+        err.message.contains("format must be one of text, toon"),
+        "got: {err:?}"
+    );
 }
 
 #[tokio::test]
@@ -92,7 +95,9 @@ async fn list_symbols_toon_decodes_to_the_same_rows_text_reports() {
             .unwrap(),
     );
 
-    let table_start = toon.find("symbols[").expect("toon body must contain the table header");
+    let table_start = toon
+        .find("symbols[")
+        .expect("toon body must contain the table header");
     let table = decode_table(&toon[table_start..]).expect("must decode a well-formed table");
     // list_symbols renders every kind found under the path, same as the
     // text version — that includes the file's own synthetic `module` entry
@@ -105,8 +110,14 @@ async fn list_symbols_toon_decodes_to_the_same_rows_text_reports() {
     // No information loss versus the text rendering: same two functions,
     // same line ranges (L1-L3 / L4-L6), just shaped as columns instead of
     // labelled prose.
-    assert!(text.contains("compute") && text.contains("L1-L3"), "got: {text}");
-    assert!(toon.contains("compute,1,3") || toon.contains("compute,1,3\n"), "got: {toon}");
+    assert!(
+        text.contains("compute") && text.contains("L1-L3"),
+        "got: {text}"
+    );
+    assert!(
+        toon.contains("compute,1,3") || toon.contains("compute,1,3\n"),
+        "got: {toon}"
+    );
 }
 
 #[tokio::test]
@@ -138,7 +149,9 @@ async fn find_symbol_toon_round_trips_and_is_smaller_than_text() {
             .await
             .unwrap(),
     );
-    let table_start = toon.find("symbols[").expect("toon body must contain the table header");
+    let table_start = toon
+        .find("symbols[")
+        .expect("toon body must contain the table header");
     let table = decode_table(&toon[table_start..]).expect("must decode");
     assert_eq!(table.rows.len(), 1);
     assert_eq!(table.rows[0][5], "compute");
@@ -166,7 +179,9 @@ async fn find_references_toon_round_trips() {
             .await
             .unwrap(),
     );
-    let table_start = toon.find("relations[").expect("toon body must contain the table header");
+    let table_start = toon
+        .find("relations[")
+        .expect("toon body must contain the table header");
     let table = decode_table(&toon[table_start..]).expect("must decode");
     assert_eq!(table.rows.len(), 1);
     assert_eq!(table.rows[0][4], "compute", "from_symbol column");
@@ -190,7 +205,9 @@ async fn find_calls_toon_round_trips() {
             .await
             .unwrap(),
     );
-    let table_start = toon.find("relations[").expect("toon body must contain the table header");
+    let table_start = toon
+        .find("relations[")
+        .expect("toon body must contain the table header");
     let table = decode_table(&toon[table_start..]).expect("must decode");
     assert_eq!(table.rows.len(), 1);
     assert_eq!(table.rows[0][6], "helper", "to column");
@@ -213,8 +230,13 @@ async fn find_callers_toon_truncates_by_limit_the_same_as_text() {
             .await
             .unwrap(),
     );
-    assert!(toon.starts_with("70 caller(s) of this function (showing 10"), "got: {toon}");
-    let table_start = toon.find("relations[").expect("toon body must contain the table header");
+    assert!(
+        toon.starts_with("70 caller(s) of this function (showing 10"),
+        "got: {toon}"
+    );
+    let table_start = toon
+        .find("relations[")
+        .expect("toon body must contain the table header");
     let table = decode_table(&toon[table_start..]).expect("must decode");
     assert_eq!(table.rows.len(), 10);
 }
@@ -269,7 +291,9 @@ async fn find_dead_code_toon_round_trips() {
             .await
             .unwrap(),
     );
-    let table_start = toon.find("candidates[").expect("toon body must contain the table header");
+    let table_start = toon
+        .find("candidates[")
+        .expect("toon body must contain the table header");
     let table = decode_table(&toon[table_start..]).expect("must decode");
     let names: Vec<&str> = table.rows.iter().map(|r| r[1].as_str()).collect();
     assert!(names.contains(&"caller_001"), "got: {names:?}");

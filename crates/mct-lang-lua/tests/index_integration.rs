@@ -28,8 +28,15 @@ fn open_indexed() -> Index {
     registry.register(Arc::new(LuaParser));
     let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
     let report = index.reindex(&registry, false).unwrap();
-    assert_eq!(report.files_parsed, 3, "all 3 fixture .lua files should parse cleanly");
-    assert!(report.issues.is_empty(), "no parse issues expected: {:?}", report.issues);
+    assert_eq!(
+        report.files_parsed, 3,
+        "all 3 fixture .lua files should parse cleanly"
+    );
+    assert!(
+        report.issues.is_empty(),
+        "no parse issues expected: {:?}",
+        report.issues
+    );
     index
 }
 
@@ -79,7 +86,10 @@ fn find_callers_finds_both_call_sites_of_log() {
         .map(|r| r.from_symbol)
         .collect();
     assert!(callers.contains(&"addItem".to_string()), "got: {callers:?}");
-    assert!(callers.contains(&"removeItem".to_string()), "got: {callers:?}");
+    assert!(
+        callers.contains(&"removeItem".to_string()),
+        "got: {callers:?}"
+    );
     assert!(callers.contains(&"warn".to_string()), "got: {callers:?}");
     assert_eq!(callers.len(), 3);
 }

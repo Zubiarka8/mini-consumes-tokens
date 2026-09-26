@@ -24,7 +24,10 @@ fn extracts_class_method_and_call() {
     // pseudo-symbol (named after Calculator.java) collides with the class
     // of the same name — the idiomatic Java convention of one public type
     // per file, named after it. Both legitimately exist; disambiguate by kind.
-    assert!(parsed.symbols.iter().any(|s| s.name == "Calculator" && s.kind == SymbolKind::Class));
+    assert!(parsed
+        .symbols
+        .iter()
+        .any(|s| s.name == "Calculator" && s.kind == SymbolKind::Class));
 
     let helper = parsed.symbols.iter().find(|s| s.name == "helper").unwrap();
     assert_eq!(helper.kind, SymbolKind::Method);
@@ -45,13 +48,19 @@ fn overloaded_methods_are_kept_as_separate_symbols() {
         "public class Calculator {\n    public int add(int a, int b) {\n        return a + b;\n    }\n\n    public double add(double a, double b) {\n        return a + b;\n    }\n}\n",
     );
     let adds: Vec<_> = parsed.symbols.iter().filter(|s| s.name == "add").collect();
-    assert_eq!(adds.len(), 2, "both overloads of add() should be indexed as distinct symbols");
+    assert_eq!(
+        adds.len(),
+        2,
+        "both overloads of add() should be indexed as distinct symbols"
+    );
     assert_ne!(
         adds[0].location.line, adds[1].location.line,
         "overloads must keep distinct locations, not collapse into one"
     );
     assert!(adds.iter().all(|s| s.kind == SymbolKind::Method));
-    assert!(adds.iter().all(|s| s.parent.as_deref() == Some("Calculator")));
+    assert!(adds
+        .iter()
+        .all(|s| s.parent.as_deref() == Some("Calculator")));
 }
 
 #[test]
@@ -64,9 +73,17 @@ fn nested_class_is_not_lost_or_confused_with_outer() {
     assert_eq!(inner.parent.as_deref(), Some("Outer"));
 
     let go = parsed.symbols.iter().find(|s| s.name == "go").unwrap();
-    assert_eq!(go.parent.as_deref(), Some("Inner"), "Inner's method must not be attributed to Outer");
+    assert_eq!(
+        go.parent.as_deref(),
+        Some("Inner"),
+        "Inner's method must not be attributed to Outer"
+    );
 
-    let outer_method = parsed.symbols.iter().find(|s| s.name == "outerMethod").unwrap();
+    let outer_method = parsed
+        .symbols
+        .iter()
+        .find(|s| s.name == "outerMethod")
+        .unwrap();
     assert_eq!(outer_method.parent.as_deref(), Some("Outer"));
 }
 
@@ -78,19 +95,32 @@ fn extracts_interface_implements_and_extends() {
     let shape = parsed.symbols.iter().find(|s| s.name == "Shape").unwrap();
     assert_eq!(shape.kind, SymbolKind::Interface);
 
-    let extends: Vec<_> = parsed.relations.iter().filter(|r| r.kind == RelationKind::Extends).map(|r| r.to_name.as_str()).collect();
+    let extends: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Extends)
+        .map(|r| r.to_name.as_str())
+        .collect();
     assert!(extends.contains(&"BaseShape"));
 
-    let implements: Vec<_> = parsed.relations.iter().filter(|r| r.kind == RelationKind::Implements).map(|r| r.to_name.as_str()).collect();
+    let implements: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Implements)
+        .map(|r| r.to_name.as_str())
+        .collect();
     assert!(implements.contains(&"Shape"));
 }
 
 #[test]
 fn extracts_imports_including_static() {
-    let parsed = parse(
-        "import java.util.List;\nimport static java.lang.Math.max;\n\nclass A {}\n",
-    );
-    let imports: Vec<_> = parsed.relations.iter().filter(|r| r.kind == RelationKind::Imports).map(|r| r.to_name.as_str()).collect();
+    let parsed = parse("import java.util.List;\nimport static java.lang.Math.max;\n\nclass A {}\n");
+    let imports: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Imports)
+        .map(|r| r.to_name.as_str())
+        .collect();
     assert!(imports.contains(&"List"));
     assert!(imports.contains(&"max"));
 }

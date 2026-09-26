@@ -25,8 +25,15 @@ fn open_indexed() -> Index {
     registry.register(Arc::new(GoParser));
     let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
     let report = index.reindex(&registry, false).unwrap();
-    assert_eq!(report.files_parsed, 4, "invoice.go, logger.go, shape.go, runner.go");
-    assert!(report.issues.is_empty(), "no parse issues expected: {:?}", report.issues);
+    assert_eq!(
+        report.files_parsed, 4,
+        "invoice.go, logger.go, shape.go, runner.go"
+    );
+    assert!(
+        report.issues.is_empty(),
+        "no parse issues expected: {:?}",
+        report.issues
+    );
     index
 }
 
@@ -70,7 +77,11 @@ fn find_calls_reports_log_from_add_item() {
 fn find_callers_of_log_shows_both_invoice_methods() {
     let index = open_indexed();
     let callers = index.find_callers("Log").unwrap();
-    assert_eq!(callers.len(), 2, "AddItem and AddItemWithTax both call Log: {callers:?}");
+    assert_eq!(
+        callers.len(),
+        2,
+        "AddItem and AddItemWithTax both call Log: {callers:?}"
+    );
     assert!(callers.iter().all(|c| c.relative_path == "invoice.go"));
 }
 

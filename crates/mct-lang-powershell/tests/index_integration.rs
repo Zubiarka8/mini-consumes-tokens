@@ -27,7 +27,11 @@ fn open_indexed() -> Index {
     let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
     let report = index.reindex(&registry, false).unwrap();
     assert_eq!(report.files_parsed, 3, "Lib.psm1, Deploy.ps1, Run.ps1");
-    assert!(report.issues.is_empty(), "no parse issues expected: {:?}", report.issues);
+    assert!(
+        report.issues.is_empty(),
+        "no parse issues expected: {:?}",
+        report.issues
+    );
     index
 }
 
@@ -67,7 +71,11 @@ fn find_calls_reports_write_log_from_invoke_build() {
 fn find_callers_of_write_log_shows_both_call_sites() {
     let index = open_indexed();
     let callers = index.find_callers("Write-Log").unwrap();
-    assert_eq!(callers.len(), 2, "Invoke-Build and Invoke-Deploy both call Write-Log: {callers:?}");
+    assert_eq!(
+        callers.len(),
+        2,
+        "Invoke-Build and Invoke-Deploy both call Write-Log: {callers:?}"
+    );
     assert!(callers.iter().all(|c| c.relative_path == "Deploy.ps1"));
 }
 
@@ -83,5 +91,8 @@ fn find_references_finds_cross_file_call_from_run() {
 fn import_module_relation_resolves_by_literal_name() {
     let index = open_indexed();
     let refs = index.find_references("Lib").unwrap();
-    assert!(refs.iter().any(|r| r.relative_path == "Deploy.ps1"), "Deploy.ps1 does `Import-Module Lib`");
+    assert!(
+        refs.iter().any(|r| r.relative_path == "Deploy.ps1"),
+        "Deploy.ps1 does `Import-Module Lib`"
+    );
 }
