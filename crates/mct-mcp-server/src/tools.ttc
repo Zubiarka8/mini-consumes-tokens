@@ -59,6 +59,11 @@ WHEN full blast radius before changing/removing a symbol: callers+refs+likely te
 ERR not for just callers or just refs — cheaper via find_callers/find_references alone.
 TAGS impact, blast-radius, composite, tests
 
+TOOL build_context_pack
+WHEN before working on a symbol: def+doc+source, callers/callees/deps/tests once each.
+ERR not blast radius (use impact_analysis); ambiguous name -> path/language.
+TAGS context, composite, tests, tokens-saving
+
 TOOL reindex
 WHEN force an immediate refresh now; force=true bypasses the hash check.
 ERR no symbol data; already runs at startup and in the background.

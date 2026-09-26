@@ -25,6 +25,7 @@ An MCP server (`mct-mcp-server`) and CLI (`mct-cli`) that index a code repositor
 | What does X call? | `find_calls` |
 | Every reference to X (calls, imports, extends/implements) | `find_references` |
 | Full blast radius before changing/removing X | `impact_analysis` |
+| About to work on X — its definition, doc comment and source plus callers/callees/dependencies/tests, without reading whole files? | `build_context_pack` — one call: X's definition(s) with the comment/attribute block above and the first `source_lines` (40, max 200) lines, then every related symbol **once** (roles merged, e.g. `caller,test`) with its location and one-line signature, file-level `use`/`import`ers and unresolved (std/third-party) callee names as footers; `depth` walks both ways, `path`/`language` pick the definition of an ambiguous name, `limit` 30, `format` `toon`. ~85% fewer tokens than find_symbol + find_calls + find_callers + impact_analysis + reading the files (`crates/mct-mcp-server/tests/context_pack.rs`) |
 | Candidate unused functions/classes/structs/enums/traits/interfaces/type-aliases (heuristic — zero indexed references, not true visibility) | `find_dead_code` |
 | Several lookups whose queries you already know (e.g. `find_symbol` + `find_callers` + `get_file_skeleton`)? | `batch` — `queries: [{tool, args}]`, up to 25, any read-only tool (not `reindex`, not a nested `batch`); each result under its own `[n] tool` header, a failing sub-query reported inline without failing the rest. Drops the per-call envelope (≥20% fewer tokens, measured in `crates/mct-mcp-server/tests/batch.rs`) |
 | Is the index stale / healthy? | `get_indexing_status`, and `reindex` only if it looks stale |
@@ -86,7 +87,7 @@ mct-index    SQLite schema/migrations (a single schema for every language — a 
              Knows no language's grammar.
 mct-lang-*   One crate per language, each a LanguageParser impl over its tree-sitter grammar
 mct-mcp-server  MCP tools over stdio (rmcp): list_symbols/find_symbol/search_symbols/hybrid_search/find_references/
-                find_calls/find_callers/impact_analysis/find_dead_code/reindex/
+                find_calls/find_callers/impact_analysis/build_context_pack/find_dead_code/reindex/
                 get_indexing_status/get_file_skeleton/get_project_overview/get_file_tree/batch
 mct-cli      init/reindex/status/mcp-register subcommands for manual/scripted use
 mct-eval     Quality evaluation of the MCP tools against a fixture suite and a checked-in
