@@ -34,6 +34,11 @@ WHEN unsure of a name: words/partial ident in any case style, BM25-ranked, exact
 ERR not exhaustive (use find_symbol/list_symbols); not relations (use find_references).
 TAGS search, ranked, words, camelCase, snake_case, partial
 
+TOOL hybrid_search
+WHEN find code by meaning: search_symbols + embeddings, RRF-fused; alpha 0=lexical..1=semantic.
+ERR no model -> lexical only (noted); not exhaustive.
+TAGS semantic, embeddings, hybrid
+
 TOOL find_references
 WHEN every reference to a symbol: calls, imports, extends/implements.
 ERR not just direct callers (use find_callers); not a definition lookup (use find_symbol).
