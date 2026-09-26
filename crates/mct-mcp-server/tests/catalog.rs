@@ -86,12 +86,14 @@ async fn the_full_catalogs_serialized_footprint_is_well_under_the_pre_ttc_size()
     // summed to 6428 bytes across 11 tools; the TTC-expanded catalog started
     // at 2024 bytes (~68.5% smaller) and sits at ~2678 bytes across today's
     // 14 tools after `discover_tool_categories`/`get_tool_schema` (issue
-    // #15) were added. 2900 is a regression guard with headroom for a
-    // couple more tools, not a precise assertion — bump it (with a note
-    // here) rather than loosen it silently if a future tool needs the room.
+    // #15) were added, then ~2913 bytes across 15 tools once
+    // `search_symbols` (issue #58) landed. 3100 is a regression guard with
+    // headroom for a couple more tools, not a precise assertion — bump it
+    // (with a note here) rather than loosen it silently if a future tool
+    // needs the room.
     assert!(
-        description_bytes < 2_900,
-        "tool catalog description bytes grew to {description_bytes}, expected well under 2900 \
+        description_bytes < 3_100,
+        "tool catalog description bytes grew to {description_bytes}, expected well under 3100 \
          (TTC's whole point is a compact catalog)"
     );
 }

@@ -126,5 +126,32 @@ pub fn migrations() -> Migrations<'static> {
         // the next reindex. Every `LanguageParser` besides `mct-lang-md`
         // leaves it NULL.
         M::up("ALTER TABLE symbols ADD COLUMN level INTEGER;"),
+        // `search_symbols` (issue #58): each symbol's name split into
+        // lowercase words at camelCase/PascalCase/snake_case/kebab-case/
+        // acronym boundaries (`HTTPServer` → `http server httpserver`), in a
+        // standalone FTS5 table keyed by `symbols.id`. The words come from
+        // `mct_split_words`, a Rust scalar function (`search.rs`) registered
+        // on the connection before migrations run — SQL alone can't split
+        // camelCase. That also means only this project's own software can
+        // write `symbols` from here on, which CLAUDE.md already requires.
+        // Backfilled here so an existing index is searchable without a
+        // forced reindex; `symbols_fts` above is left untouched, so
+        // `find_symbol`'s prefix mode is unchanged.
+        M::up(
+            r#"
+            CREATE VIRTUAL TABLE symbol_words_fts USING fts5(words);
+            INSERT INTO symbol_words_fts(rowid, words)
+                SELECT id, mct_split_words(name) FROM symbols;
+            CREATE TRIGGER symbol_words_ai AFTER INSERT ON symbols BEGIN
+                INSERT INTO symbol_words_fts(rowid, words) VALUES (new.id, mct_split_words(new.name));
+            END;
+            CREATE TRIGGER symbol_words_ad AFTER DELETE ON symbols BEGIN
+                DELETE FROM symbol_words_fts WHERE rowid = old.id;
+            END;
+            CREATE TRIGGER symbol_words_au AFTER UPDATE OF name ON symbols BEGIN
+                UPDATE symbol_words_fts SET words = mct_split_words(new.name) WHERE rowid = old.id;
+            END;
+            "#,
+        ),
     ])
 }
