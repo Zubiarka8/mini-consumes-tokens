@@ -403,6 +403,17 @@ pub fn find_callers_scoped(
     query_relations(conn, "r.to_name = ?1 AND r.kind = 'calls'", function, scope)
 }
 
+/// Every non-call relation made *by* `symbol` — what it imports, extends,
+/// implements or otherwise references. The outgoing counterpart of
+/// [`find_references_scoped`] minus the calls [`find_calls_scoped`] covers.
+pub fn find_dependencies_scoped(
+    conn: &Connection,
+    symbol: &str,
+    scope: ResolvedScope<'_>,
+) -> Result<Vec<RelationHit>> {
+    query_relations(conn, "caller.name = ?1 AND r.kind <> 'calls'", symbol, scope)
+}
+
 /// Direct-caller counts for every called name, in one query — the whole
 /// fan-in ranking `get_project_overview` needs, instead of one
 /// `find_callers` per candidate symbol.

@@ -198,6 +198,14 @@
         ]
       },
       "expect": ["pyscripts/deploy.py:9", "run"]
+    },
+    {
+      "name": "context pack of a Go handler",
+      "category": "context",
+      "tool": "build_context_pack",
+      "args": { "symbol": "HandlePost" },
+      "expect": ["function HandlePost", "callee NewLedger", "callee Post", "callee Describe"],
+      "absent": ["PostButton"]
     }
   ]
 }
