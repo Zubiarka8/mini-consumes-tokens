@@ -921,10 +921,22 @@ impl MctServer {
         };
         let hits: Vec<mct_index::SymbolHit> = fused.into_iter().map(|h| h.hit).collect();
         let snippets = page_snippets(&index, &hits, offset, limit, snippet_lines);
-        let text = match output_format {
+        let mut text = match output_format {
             OutputFormat::Text => format::search_hits(query, &hits, offset, limit, &snippets),
             OutputFormat::Toon => format::search_hits_toon(query, &hits, offset, limit, &snippets),
         };
+        // An exact phrase also searches prose string literals (error/log
+        // messages), appended as their own section when any hold it.
+        if let Some(phrase) = mct_index::exact_phrase(query) {
+            let literals = index.search_literals(phrase, scope).map_err(index_error)?;
+            let section = match output_format {
+                OutputFormat::Text => format::literal_hits(phrase, &literals, offset, limit),
+                OutputFormat::Toon => format::literal_hits_toon(phrase, &literals, offset, limit),
+            };
+            if !section.is_empty() {
+                text = format!("{}\n{section}", text.trim_end());
+            }
+        }
         Ok(CallToolResult::success(vec![ContentBlock::text(format!(
             "{note}\n{text}"
         ))]))
