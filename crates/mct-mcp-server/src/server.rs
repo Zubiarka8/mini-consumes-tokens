@@ -1014,7 +1014,12 @@ impl ServerHandler for MctServer {
             ServerCapabilities::builder().enable_tools().build(),
         )
         .with_server_info(Implementation::from_build_env())
-        .with_protocol_version(ProtocolVersion::V_2024_11_05)
+        // Track rmcp's latest supported spec revision rather than pinning to
+        // 2024-11-05 (the version available when this server was scaffolded) —
+        // clients on a newer spec (e.g. Claude Code) send `_meta` fields
+        // (`io.modelcontextprotocol/protocolVersion`, `clientCapabilities`)
+        // that an old declared version doesn't negotiate correctly.
+        .with_protocol_version(ProtocolVersion::LATEST)
         .with_instructions(
             "Indexes this repository's source code (any of the supported languages, including \
              polyglot repos) into a symbol graph. Prefer these tools over reading whole files \
