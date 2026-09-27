@@ -16,6 +16,8 @@ use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
     SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
+use std::collections::HashSet;
+
 use tree_sitter::{Node, Parser};
 
 pub struct CppParser;
@@ -61,8 +63,16 @@ impl LanguageParser for CppParser {
 
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
-        let module_id = walker.push_symbol(module_name, SymbolKind::Module, location(root), None);
-        walker.visit_children(root, module_id, None, 0);
+        let mut module_location = location(root);
+        // The root node of a file ending in a newline ends at column 0 of
+        // the (empty) line after the last one; the file's last line is the
+        // one before that.
+        let end = root.end_position();
+        if end.column == 0 && end.row > 0 {
+            module_location.end_line = Some(end.row as u32);
+        }
+        let module_id = walker.push_symbol(module_name, SymbolKind::Module, module_location, None);
+        walker.visit_children(root, Ctx::file(module_id), 0);
         Ok(walker.finish())
     }
 }
@@ -109,11 +119,87 @@ fn text<'a>(node: Node, source: &'a str) -> &'a str {
     node.utf8_text(source.as_bytes()).unwrap_or_default()
 }
 
+/// Where the walk currently is.
+#[derive(Clone, Copy)]
+struct Ctx<'s> {
+    /// Innermost enclosing function/method, or the file's module: calls
+    /// and includes attach to it.
+    owner: SymbolId,
+    /// Innermost enclosing class/struct/union/enum or namespace, used as
+    /// `parent` for what is declared directly inside it.
+    scope: Option<Scope<'s>>,
+    /// Inside a function body: declarations here are locals (not symbols),
+    /// only their initializers matter.
+    local: bool,
+}
+
+#[derive(Clone, Copy)]
+struct Scope<'s> {
+    name: &'s str,
+    /// A class/struct/union (members are methods/fields) rather than a
+    /// namespace (members are free functions/variables).
+    is_type: bool,
+}
+
+impl<'s> Ctx<'s> {
+    fn file(module_id: SymbolId) -> Self {
+        Ctx {
+            owner: module_id,
+            scope: None,
+            local: false,
+        }
+    }
+
+    fn parent(&self) -> Option<String> {
+        self.scope.map(|s| s.name.to_string())
+    }
+
+    fn in_type(&self) -> bool {
+        self.scope.is_some_and(|s| s.is_type)
+    }
+
+    fn function_kind(&self) -> SymbolKind {
+        if self.in_type() {
+            SymbolKind::Method
+        } else {
+            SymbolKind::Function
+        }
+    }
+
+    fn variable_kind(&self) -> SymbolKind {
+        if self.in_type() {
+            SymbolKind::Field
+        } else {
+            SymbolKind::Variable
+        }
+    }
+
+    fn with_scope(self, name: &'s str, is_type: bool) -> Self {
+        Ctx {
+            scope: Some(Scope { name, is_type }),
+            local: false,
+            ..self
+        }
+    }
+
+    fn in_body_of(self, function: SymbolId) -> Self {
+        Ctx {
+            owner: function,
+            scope: None,
+            local: true,
+        }
+    }
+}
+
 struct Walker<'a> {
     source: &'a str,
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
     next_id: SymbolId,
+    /// Namespace names opened so far in this file (innermost segment), so
+    /// an out-of-line `ns::fn()` definition is told apart from a
+    /// `Class::method()` one.
+    namespaces: HashSet<&'a str>,
 }
 
 impl<'a> Walker<'a> {
@@ -123,6 +209,7 @@ impl<'a> Walker<'a> {
             symbols: Vec::new(),
             relations: Vec::new(),
             next_id: 0,
+            namespaces: HashSet::new(),
         }
     }
 
@@ -164,81 +251,109 @@ impl<'a> Walker<'a> {
         });
     }
 
-    /// `owner` is the innermost enclosing function/method (calls attach to
-    /// it); `type_name` is the innermost enclosing class/struct/namespace
-    /// name, used as `parent` for members declared directly inside it.
-    fn visit_children(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>, depth: u32) {
+    fn visit_children(&mut self, node: Node<'a>, ctx: Ctx<'a>, depth: u32) {
         let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
-            self.visit(child, owner, type_name, depth + 1);
+        let children: Vec<Node<'a>> = node.children(&mut cursor).collect();
+        for child in children {
+            self.visit(child, ctx, depth + 1);
         }
     }
 
-    fn visit(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>, depth: u32) {
+    fn visit(&mut self, node: Node<'a>, ctx: Ctx<'a>, depth: u32) {
         if depth >= MAX_TRAVERSAL_DEPTH {
             return;
         }
         match node.kind() {
             "namespace_definition" => {
-                let name = node
-                    .child_by_field_name("name")
-                    .map(|n| text(n, self.source).to_string())
-                    .unwrap_or_default();
+                let body = node.child_by_field_name("body");
+                // An anonymous namespace only gives its contents internal
+                // linkage; they stay file-level, with no named scope.
+                let Some(name_node) = node.child_by_field_name("name") else {
+                    if let Some(body) = body {
+                        self.visit_children(body, ctx, depth + 1);
+                    }
+                    return;
+                };
+                let name = text(name_node, self.source);
+                self.namespaces
+                    .insert(name.rsplit("::").next().unwrap_or(name));
                 self.push_symbol(
-                    name.clone(),
+                    name.to_string(),
                     SymbolKind::Module,
                     location(node),
-                    type_name.map(str::to_string),
+                    ctx.parent(),
                 );
-                if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, owner, Some(&name), depth + 1);
+                if let Some(body) = body {
+                    self.visit_children(body, ctx.with_scope(name, false), depth + 1);
                 }
             }
-            "class_specifier" | "struct_specifier" => {
-                let kind = if node.kind() == "class_specifier" {
-                    SymbolKind::Class
-                } else {
-                    SymbolKind::Struct
+            "class_specifier" | "struct_specifier" | "union_specifier" => {
+                self.visit_class(node, ctx, depth);
+            }
+            "enum_specifier" => {
+                // Only a definition (with a body) declares the enum; `enum
+                // Color c;` merely uses it.
+                let (Some(name_node), Some(body)) = (
+                    node.child_by_field_name("name"),
+                    node.child_by_field_name("body"),
+                ) else {
+                    return;
                 };
-                let name = node
-                    .child_by_field_name("name")
-                    .map(|n| text(n, self.source).to_string())
-                    .unwrap_or_default();
-                let id = self.push_symbol(
-                    name.clone(),
-                    kind,
-                    location(node),
-                    type_name.map(str::to_string),
-                );
-
-                // `base_class_clause` is a direct child, not a named field —
-                // every C++ base (`public`/`private`/`protected`) is genuine
-                // inheritance (unlike C#, there's no syntactic "implements"
-                // to split out: interfaces are just abstract base classes),
-                // so every entry becomes Extends regardless of access.
-                if let Some(bases) = find_child(node, "base_class_clause") {
-                    let mut cursor = bases.walk();
-                    for base in bases.children(&mut cursor) {
-                        if matches!(
-                            base.kind(),
-                            "type_identifier" | "qualified_identifier" | "template_type"
-                        ) {
-                            let name_node = if base.kind() == "qualified_identifier" {
-                                qualified_tail(base)
-                            } else {
-                                base
-                            };
-                            self.push_relation(
-                                id,
-                                RelationKind::Extends,
-                                text(name_node, self.source).to_string(),
-                                location(base),
-                            );
-                        }
+                let (name, parent) = split_qualified(name_node, self.source, ctx.parent());
+                self.push_symbol(name.clone(), SymbolKind::Enum, location(node), parent);
+                let mut cursor = body.walk();
+                let enumerators: Vec<Node> = body.named_children(&mut cursor).collect();
+                for enumerator in enumerators {
+                    if enumerator.kind() != "enumerator" {
+                        continue;
+                    }
+                    if let Some(n) = enumerator.child_by_field_name("name") {
+                        self.push_symbol(
+                            text(n, self.source).to_string(),
+                            SymbolKind::Constant,
+                            location(enumerator),
+                            Some(name.clone()),
+                        );
+                    }
+                    if let Some(value) = enumerator.child_by_field_name("value") {
+                        self.visit(value, ctx, depth + 1);
                     }
                 }
-                if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, owner, Some(&name), depth + 1);
+            }
+            // `using Name = Type;`
+            "alias_declaration" => {
+                if !ctx.local {
+                    if let Some(name_node) = node.child_by_field_name("name") {
+                        self.push_symbol(
+                            text(name_node, self.source).to_string(),
+                            SymbolKind::TypeAlias,
+                            location(node),
+                            ctx.parent(),
+                        );
+                    }
+                }
+            }
+            // `typedef Type Name, *NamePtr;`
+            "type_definition" => {
+                if let Some(ty) = node.child_by_field_name("type") {
+                    self.visit(ty, ctx, depth + 1);
+                }
+                if ctx.local {
+                    return;
+                }
+                let mut cursor = node.walk();
+                let declarators: Vec<Node> = node
+                    .children_by_field_name("declarator", &mut cursor)
+                    .collect();
+                for declarator in declarators {
+                    if let Some(name_node) = type_declarator_identifier(declarator) {
+                        self.push_symbol(
+                            text(name_node, self.source).to_string(),
+                            SymbolKind::TypeAlias,
+                            location(node),
+                            ctx.parent(),
+                        );
+                    }
                 }
             }
             // A function/method *definition* (has a body). The declarator
@@ -248,64 +363,70 @@ impl<'a> Walker<'a> {
             // `qualified_identifier` (`ClassName::method`, the out-of-line
             // definition half of the header/source split).
             "function_definition" => {
-                let Some(declarator) = node.child_by_field_name("declarator") else {
-                    self.visit_children(node, owner, type_name, depth + 1);
+                let Some(func_declarator) = node
+                    .child_by_field_name("declarator")
+                    .and_then(find_function_declarator)
+                else {
+                    self.visit_children(node, ctx, depth + 1);
                     return;
                 };
-                let Some(func_declarator) = find_function_declarator(declarator) else {
-                    self.visit_children(node, owner, type_name, depth + 1);
-                    return;
-                };
-                let name_node = func_declarator.child_by_field_name("declarator");
-                let (name, parent) = declarator_name_and_parent(name_node, self.source, type_name);
-                let kind = if parent.is_some() {
-                    SymbolKind::Method
-                } else {
-                    SymbolKind::Function
-                };
+                let (name, parent, kind) =
+                    self.function_identity(func_declarator.child_by_field_name("declarator"), ctx);
                 let id = self.push_symbol(name, kind, location(node), parent);
+                let inner = ctx.in_body_of(id);
                 if let Some(params) = func_declarator.child_by_field_name("parameters") {
-                    self.visit_children(params, id, type_name, depth + 1);
+                    self.visit_children(params, inner, depth + 1);
                 }
-                if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, id, type_name, depth + 1);
+                // Constructor initializer lists (`: base_(make())`) and the
+                // body both run inside the function.
+                let mut cursor = node.walk();
+                let rest: Vec<Node<'a>> = node
+                    .children(&mut cursor)
+                    .filter(|c| {
+                        matches!(
+                            c.kind(),
+                            "field_initializer_list" | "compound_statement" | "try_statement"
+                        )
+                    })
+                    .collect();
+                for child in rest {
+                    self.visit_children(child, inner, depth + 1);
                 }
             }
             // Prototype-only forms: a class member declared but not defined
             // (`field_declaration`, inside a `class`/`struct` body) or a
             // free function/variable declared at namespace scope
             // (`declaration`). Both can hold more than one comma-separated
-            // declarator (`int a, b;`).
+            // declarator (`int a, b;`). Inside a function body they are
+            // locals — `std::lock_guard lock(m);` even parses like a
+            // function prototype — so only their initializers are walked.
             "field_declaration" | "declaration" => {
                 let mut cursor = node.walk();
-                let declarators: Vec<Node> = node
+                let declarators: Vec<Node<'a>> = node
                     .children_by_field_name("declarator", &mut cursor)
                     .collect();
-                for declarator in declarators {
-                    if let Some(func_declarator) = find_function_declarator(declarator) {
-                        let name_node = func_declarator.child_by_field_name("declarator");
-                        let (name, parent) =
-                            declarator_name_and_parent(name_node, self.source, type_name);
-                        let kind = if parent.is_some() {
-                            SymbolKind::Method
-                        } else {
-                            SymbolKind::Function
-                        };
-                        self.push_symbol(name, kind, location(node), parent);
-                    } else if let Some(name_node) = plain_declarator_identifier(declarator) {
-                        let kind = if type_name.is_some() {
-                            SymbolKind::Field
-                        } else {
-                            SymbolKind::Variable
-                        };
-                        self.push_symbol(
-                            text(name_node, self.source).to_string(),
-                            kind,
-                            location(declarator),
-                            type_name.map(str::to_string),
-                        );
+                if !ctx.local {
+                    for declarator in &declarators {
+                        if let Some(func_declarator) = find_function_declarator(*declarator) {
+                            let (name, parent, kind) = self.function_identity(
+                                func_declarator.child_by_field_name("declarator"),
+                                ctx,
+                            );
+                            self.push_symbol(name, kind, location(node), parent);
+                        } else if let Some(name_node) = plain_declarator_identifier(*declarator) {
+                            self.push_symbol(
+                                text(name_node, self.source).to_string(),
+                                ctx.variable_kind(),
+                                location(*declarator),
+                                ctx.parent(),
+                            );
+                        }
                     }
                 }
+                // Initializers (`= make()`, `x(make())`, `{a, b}`), default
+                // member initializers and an inline type definition
+                // (`struct { ... } x;`) can all contain calls or symbols.
+                self.visit_children(node, ctx, depth + 1);
             }
             "preproc_include" => {
                 if let Some(path_node) = node.child_by_field_name("path") {
@@ -327,7 +448,7 @@ impl<'a> Walker<'a> {
                             .trim_end_matches('>')
                             .to_string()
                     };
-                    self.push_relation(owner, RelationKind::Imports, name, location(node));
+                    self.push_relation(ctx.owner, RelationKind::Imports, name, location(node));
                 }
             }
             "call_expression" => {
@@ -339,20 +460,102 @@ impl<'a> Walker<'a> {
                         // two same-named chained calls collide into one
                         // indistinguishable row.
                         self.push_relation(
-                            owner,
+                            ctx.owner,
                             RelationKind::Calls,
                             text(name_node, self.source).to_string(),
                             location(name_node),
                         );
                     }
-                    self.visit(function, owner, type_name, depth + 1);
+                    self.visit(function, ctx, depth + 1);
                 }
                 if let Some(arguments) = node.child_by_field_name("arguments") {
-                    self.visit_children(arguments, owner, type_name, depth + 1);
+                    self.visit_children(arguments, ctx, depth + 1);
                 }
             }
-            _ => self.visit_children(node, owner, type_name, depth + 1),
+            _ => self.visit_children(node, ctx, depth + 1),
         }
+    }
+
+    fn visit_class(&mut self, node: Node<'a>, ctx: Ctx<'a>, depth: u32) {
+        let body = node.child_by_field_name("body");
+        let name_node = node.child_by_field_name("name");
+        // A forward declaration (`class Writer;`), an elaborated type use
+        // (`struct Foo* p`) or a `friend class X;` declares nothing new.
+        let Some(body) = body else {
+            return;
+        };
+        let kind = match node.kind() {
+            "class_specifier" => SymbolKind::Class,
+            _ => SymbolKind::Struct,
+        };
+        // An out-of-line nested class definition (`class Outer::Inner {`)
+        // belongs to `Outer`, like the in-class declaration would.
+        let (name, parent) = match name_node {
+            Some(n) => split_qualified(n, self.source, ctx.parent()),
+            None => (String::new(), ctx.parent()),
+        };
+        let id = self.push_symbol(name, kind, location(node), parent);
+
+        // `base_class_clause` is a direct child, not a named field —
+        // every C++ base (`public`/`private`/`protected`) is genuine
+        // inheritance (unlike C#, there's no syntactic "implements"
+        // to split out: interfaces are just abstract base classes),
+        // so every entry becomes Extends regardless of access.
+        if let Some(bases) = find_child(node, "base_class_clause") {
+            let mut cursor = bases.walk();
+            let bases: Vec<Node> = bases.children(&mut cursor).collect();
+            for base in bases {
+                if matches!(
+                    base.kind(),
+                    "type_identifier" | "qualified_identifier" | "template_type"
+                ) {
+                    let name_node = if base.kind() == "qualified_identifier" {
+                        qualified_tail(base)
+                    } else {
+                        base
+                    };
+                    self.push_relation(
+                        id,
+                        RelationKind::Extends,
+                        text(name_node, self.source).to_string(),
+                        location(base),
+                    );
+                }
+            }
+        }
+        // Members hang off the class's own unqualified name.
+        let scope_name = name_node.map_or("", |n| last_segment_text(n, self.source));
+        self.visit_children(body, ctx.with_scope(scope_name, true), depth + 1);
+    }
+
+    /// Name, parent and kind of a function from its declarator's name
+    /// node. An unqualified name takes the enclosing scope; a qualified
+    /// one (`Class::method`, `ns::Class::method`, `Tmpl<T>::method`,
+    /// `ns::free_fn`) takes its innermost scope segment, template
+    /// arguments dropped, so it matches the in-class/in-namespace
+    /// declaration. It is a method unless that segment is a namespace
+    /// opened earlier in this file.
+    fn function_identity(
+        &self,
+        name_node: Option<Node>,
+        ctx: Ctx,
+    ) -> (String, Option<String>, SymbolKind) {
+        let Some(node) = name_node else {
+            return (String::new(), ctx.parent(), ctx.function_kind());
+        };
+        if node.kind() != "qualified_identifier" {
+            return (
+                text(node, self.source).to_string(),
+                ctx.parent(),
+                ctx.function_kind(),
+            );
+        }
+        let (name, parent) = split_qualified(node, self.source, ctx.parent());
+        let kind = match parent.as_deref() {
+            Some(p) if self.namespaces.contains(p) => SymbolKind::Function,
+            _ => SymbolKind::Method,
+        };
+        (name, parent, kind)
     }
 
     fn finish(self) -> ParsedFile {
@@ -401,36 +604,57 @@ fn plain_declarator_identifier(node: Node) -> Option<Node> {
     }
 }
 
-/// A `function_declarator`'s own `declarator` field is the name being
-/// declared: a bare `identifier`/`field_identifier`/`operator_name`/
-/// `destructor_name` for an in-class or free-function form, or a
-/// `qualified_identifier` (`ClassName::method`) for the out-of-line
-/// definition half of a header/source split — in which case `scope` becomes
-/// `parent`, matching exactly what the in-class declaration would have
-/// produced for the same member.
-fn declarator_name_and_parent(
-    name_node: Option<Node>,
-    source: &str,
-    fallback_parent: Option<&str>,
-) -> (String, Option<String>) {
-    let Some(node) = name_node else {
-        return (String::new(), fallback_parent.map(str::to_string));
-    };
-    if node.kind() == "qualified_identifier" {
-        let scope = node
-            .child_by_field_name("scope")
-            .map(|n| text(n, source).to_string());
-        let inner = node.child_by_field_name("name");
-        let (inner_name, _) = declarator_name_and_parent(inner, source, None);
-        (
-            inner_name,
-            scope.or_else(|| fallback_parent.map(str::to_string)),
-        )
-    } else {
-        (
-            text(node, source).to_string(),
-            fallback_parent.map(str::to_string),
-        )
+/// The name a `typedef` introduces (`typedef int Id;`, `typedef T* Ptr;`).
+fn type_declarator_identifier(node: Node) -> Option<Node> {
+    match node.kind() {
+        "type_identifier" | "primitive_type" => Some(node),
+        "pointer_declarator" | "array_declarator" | "function_declarator" => node
+            .child_by_field_name("declarator")
+            .and_then(type_declarator_identifier),
+        "reference_declarator" => node.named_child(0).and_then(type_declarator_identifier),
+        _ => None,
+    }
+}
+
+/// Splits a possibly-qualified name into `(name, parent)`: `label` →
+/// (`label`, `fallback`); `Class::method`, `ns::Class::method` and
+/// `Tmpl<T>::method` → (`method`, `Class`/`Tmpl`) — the innermost scope
+/// segment, template arguments dropped, which is what the in-class
+/// declaration of the same member records as its parent. That is how the
+/// header and source halves of a split definition line up by name+parent.
+fn split_qualified(node: Node, source: &str, fallback: Option<String>) -> (String, Option<String>) {
+    if node.kind() != "qualified_identifier" {
+        return (last_segment_text(node, source).to_string(), fallback);
+    }
+    let mut scope = node.child_by_field_name("scope");
+    let mut current = node;
+    while let Some(inner) = current
+        .child_by_field_name("name")
+        .filter(|n| n.kind() == "qualified_identifier")
+    {
+        scope = inner.child_by_field_name("scope").or(scope);
+        current = inner;
+    }
+    let name = current
+        .child_by_field_name("name")
+        .map(|n| last_segment_text(n, source).to_string())
+        .unwrap_or_default();
+    let parent = scope
+        .map(|s| last_segment_text(s, source).to_string())
+        .filter(|s| !s.is_empty())
+        .or(fallback);
+    (name, parent)
+}
+
+/// The unqualified, template-argument-free text of a name node:
+/// `Tmpl<K, V>` → `Tmpl`, `a::b::C` → `C`, anything else verbatim.
+fn last_segment_text<'s>(node: Node, source: &'s str) -> &'s str {
+    match node.kind() {
+        "template_type" | "template_function" => node
+            .child_by_field_name("name")
+            .map_or("", |n| last_segment_text(n, source)),
+        "qualified_identifier" => last_segment_text(qualified_tail(node), source),
+        _ => text(node, source),
     }
 }
 
