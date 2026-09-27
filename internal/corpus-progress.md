@@ -1,0 +1,40 @@
+# Issue #74 — progreso del corpus largo por lenguaje
+
+Seguimiento de [#74](https://github.com/Zubiarka8/mini-consumes-tokens/issues/74):
+cada crate `mct-lang-*` necesita `tests/corpus/` con ≥ 5 ficheros de 300–600
+líneas que se referencian entre sí, `expected.snap`, un fichero grande en
+`malformed/` y `tests/corpus.rs` (harness compartido `mct-corpus` + tests
+propios del lenguaje). Ver `crates/mct-corpus/src/lib.rs`.
+
+**Mantener actualizado hasta que el issue se cierre**: cada PR de corpus
+cambia la fila de su lenguaje en el mismo PR (estado, PR, cifras, bugs), y
+al mergear se pasa a **Hecho**. Cuando no quede ninguna fila pendiente, se
+cierra #74 y se borra la regla correspondiente de `CLAUDE.md`.
+
+Estados: **Pendiente** → **En PR** → **Hecho** (mergeado en `main`).
+
+| Lenguaje | Crate | Estado | PR | Ficheros / líneas | Símbolos / relaciones (cross-file) | Bugs del parser encontrados |
+|---|---|---|---|---|---|---|
+| Rust | `mct-lang-rust` | **Hecho** | #77 | 6 / 2.179 | ver `expected.snap` | owner de tipos/consts asociados; `fn` anidada dentro de método tomada como método; fin del módulo +1 |
+| Python | `mct-lang-python` | **Hecho** | #78 | 6 / 2.006 | 302 / 918 (223) | fin del módulo +1; clase anidada sin parent; llamadas en argumentos de decoradores perdidas; `type X = …` (PEP 695) sin símbolo |
+| Bash | `mct-lang-bash` | **En PR** | #80 | 5 / 1.539 | 176 / 585 (162) | fin del módulo +1; asignación prefijo (`LC_ALL=C cmd`) tomada como variable; `coproc NAME { … }` mal parseado por la gramática → #79 (test `#[ignore]`) |
+| C/C++ | `mct-lang-cpp` | Pendiente | | | | |
+| C# | `mct-lang-csharp` | Pendiente | | | | |
+| CSS | `mct-lang-css` | Pendiente | | | | |
+| Go | `mct-lang-go` | Pendiente | | | | |
+| HTML | `mct-lang-html` | Pendiente | | | | |
+| Java | `mct-lang-java` | Pendiente | | | | |
+| JavaScript/TypeScript | `mct-lang-js-ts` | Pendiente | | | | |
+| Kotlin | `mct-lang-kotlin` | Pendiente | | | | |
+| Lua | `mct-lang-lua` | Pendiente | | | | |
+| Markdown | `mct-lang-md` | Pendiente | | | | |
+| PHP | `mct-lang-php` | Pendiente | | | | |
+| PowerShell | `mct-lang-powershell` | Pendiente | | | | |
+| XAML | `mct-lang-xaml` | Pendiente | | | | |
+| XML | `mct-lang-xml` | Pendiente | | | | |
+
+**Resumen: 2 hechos, 1 en PR, 14 pendientes (de 17).**
+
+## Issues derivados
+
+- #79 — `coproc NAME { … }` truncates the enclosing function (tree-sitter-bash 0.25). Abierto.
