@@ -1389,6 +1389,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mct-corpus"
+version = "0.1.0"
+dependencies = [
+ "mct-core",
+ "mct-index",
+]
+
+[[package]]
 name = "mct-eval"
 version = "0.1.0"
 dependencies = [
@@ -1422,6 +1430,7 @@ name = "mct-lang-bash"
 version = "0.1.0"
 dependencies = [
  "mct-core",
+ "mct-corpus",
  "mct-index",
  "tree-sitter",
  "tree-sitter-bash",
@@ -1432,6 +1441,7 @@ name = "mct-lang-cpp"
 version = "0.1.0"
 dependencies = [
  "mct-core",
+ "mct-corpus",
  "mct-index",
  "tree-sitter",
  "tree-sitter-cpp",
@@ -1442,6 +1452,7 @@ name = "mct-lang-csharp"
 version = "0.1.0"
 dependencies = [
  "mct-core",
+ "mct-corpus",
  "mct-index",
  "tree-sitter",
  "tree-sitter-c-sharp",
@@ -1452,6 +1463,7 @@ name = "mct-lang-css"
 version = "0.1.0"
 dependencies = [
  "mct-core",
+ "mct-corpus",
  "mct-index",
  "tree-sitter",
  "tree-sitter-css",
@@ -1462,6 +1474,7 @@ name = "mct-lang-go"
 version = "0.1.0"
 dependencies = [
  "mct-core",
+ "mct-corpus",
  "mct-index",
  "tree-sitter",
  "tree-sitter-go",
@@ -1472,6 +1485,7 @@ name = "mct-lang-html"
 version = "0.1.0"
 dependencies = [
  "mct-core",
+ "mct-corpus",
  "mct-index",
  "mct-lang-css",
  "tree-sitter",
@@ -1483,6 +1497,7 @@ name = "mct-lang-java"
 version = "0.1.0"
 dependencies = [
  "mct-core",
+ "mct-corpus",
  "mct-index",
  "tree-sitter",
  "tree-sitter-java",
@@ -1493,6 +1508,7 @@ name = "mct-lang-js-ts"
 version = "0.1.0"
 dependencies = [
  "mct-core",
+ "mct-corpus",
  "mct-index",
  "tree-sitter",
  "tree-sitter-javascript",
@@ -1504,6 +1520,7 @@ name = "mct-lang-kotlin"
 version = "0.1.0"
 dependencies = [
  "mct-core",
+ "mct-corpus",
  "mct-index",
  "tree-sitter",
  "tree-sitter-kotlin-ng",
@@ -1514,6 +1531,7 @@ name = "mct-lang-lua"
 version = "0.1.0"
 dependencies = [
  "mct-core",
+ "mct-corpus",
  "mct-index",
  "tree-sitter",
  "tree-sitter-lua",
@@ -1525,6 +1543,7 @@ name = "mct-lang-md"
 version = "0.1.0"
 dependencies = [
  "mct-core",
+ "mct-corpus",
  "mct-index",
  "tree-sitter",
  "tree-sitter-md",
@@ -1535,6 +1554,7 @@ name = "mct-lang-php"
 version = "0.1.0"
 dependencies = [
  "mct-core",
+ "mct-corpus",
  "mct-index",
  "tree-sitter",
  "tree-sitter-php",
@@ -1545,6 +1565,7 @@ name = "mct-lang-powershell"
 version = "0.1.0"
 dependencies = [
  "mct-core",
+ "mct-corpus",
  "mct-index",
  "tree-sitter",
  "tree-sitter-powershell",
@@ -1555,6 +1576,7 @@ name = "mct-lang-python"
 version = "0.1.0"
 dependencies = [
  "mct-core",
+ "mct-corpus",
  "mct-index",
  "tree-sitter",
  "tree-sitter-python",
@@ -1565,6 +1587,7 @@ name = "mct-lang-rust"
 version = "0.1.0"
 dependencies = [
  "mct-core",
+ "mct-corpus",
  "mct-index",
  "tree-sitter",
  "tree-sitter-rust",
@@ -1575,6 +1598,7 @@ name = "mct-lang-xaml"
 version = "0.1.0"
 dependencies = [
  "mct-core",
+ "mct-corpus",
  "mct-index",
  "mct-lang-csharp",
  "tree-sitter",
@@ -1586,6 +1610,7 @@ name = "mct-lang-xml"
 version = "0.1.0"
 dependencies = [
  "mct-core",
+ "mct-corpus",
  "mct-index",
  "tree-sitter",
  "tree-sitter-xml",
