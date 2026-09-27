@@ -74,10 +74,18 @@ impl LanguageParser for BashParser {
 
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
+        let mut module_location = location(root);
+        // The root node of a file ending in a newline ends at column 0 of
+        // the (empty) line after the last one; the file's last line is the
+        // one before that.
+        let end = root.end_position();
+        if end.column == 0 && end.row > 0 {
+            module_location.end_line = Some(end.row as u32);
+        }
         let module_id = walker.push_symbol(
             module_name.clone(),
             SymbolKind::Module,
-            location(root),
+            module_location,
             None,
         );
         walker.visit_children(root, module_id, &module_name, module_id, 0);
@@ -278,8 +286,20 @@ impl<'a> Walker<'a> {
                 }
                 // Arguments can hide a command substitution (`$(...)` or
                 // `` `...` ``) containing further commands/calls — recurse
-                // into everything so those are still picked up.
-                self.visit_children(node, owner, scope_name, module_id, depth + 1);
+                // into everything so those are still picked up. A prefix
+                // assignment (`LC_ALL=C sort`) only sets that one command's
+                // environment, so it is not a script-level variable: walk
+                // its value, but don't record it as a symbol.
+                let mut cursor = node.walk();
+                for child in node.children(&mut cursor) {
+                    if child.kind() == "variable_assignment" {
+                        if let Some(value) = child.child_by_field_name("value") {
+                            self.visit(value, owner, scope_name, module_id, depth + 2);
+                        }
+                    } else {
+                        self.visit(child, owner, scope_name, module_id, depth + 1);
+                    }
+                }
             }
             _ => self.visit_children(node, owner, scope_name, module_id, depth + 1),
         }
