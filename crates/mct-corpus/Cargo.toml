@@ -1,0 +1,12 @@
+[package]
+name = "mct-corpus"
+description = "Test-only harness shared by every mct-lang-* crate's long-fixture corpus tests (issue #74): size checks, golden symbol/relation snapshots, index round-trip and malformed-input checks."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+mct-core.workspace = true
+mct-index.workspace = true

@@ -14,4 +14,5 @@ tree-sitter.workspace = true
 tree-sitter-java = "0.23.5"
 
 [dev-dependencies]
+mct-corpus.workspace = true
 mct-index.workspace = true
