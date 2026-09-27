@@ -73,7 +73,7 @@ cargo run -p mct-eval [-- --verbose]                                 # quality s
 cargo run -p mct-eval -- --write-baseline                            # refresh crates/mct-eval/baseline.json after an intended change
 ```
 
-**Prefer `scripts/unix/` (macOS/Linux) over the raw commands above** — same work, a few lines of summary instead of hundreds of lines of cargo output (full logs in `target/script-logs/`; see `scripts/README.md`). On Windows run the raw commands — `scripts/windows/` has no scripts yet:
+**Prefer `scripts/unix/` (macOS/Linux) or `scripts/windows/` (PowerShell) over the raw commands above** — same work, a few lines of summary instead of hundreds of lines of cargo output (full logs in `target/script-logs/`; see `scripts/README.md`). Every script exists in both, same name and flags — on Windows it's `scripts\windows\<name>.ps1` (e.g. `scripts\windows\check.ps1 -p mct-core`):
 
 ```sh
 scripts/unix/check.sh [-p <crate>]                 # verify before committing: tests + CI clippy + mct-eval, one line per step
