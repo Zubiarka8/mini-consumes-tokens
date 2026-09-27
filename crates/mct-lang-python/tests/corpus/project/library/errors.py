@@ -288,3 +288,33 @@ def walk_causes(exc: BaseException) -> Iterator[BaseException]:
         seen.add(id(current))
         yield current
         current = current.__cause__ or current.__context__
+
+
+def collect_group(fn: Callable[[], Any]) -> list[LibraryError]:
+    """Runs ``fn`` and returns the library errors of an ExceptionGroup it raises."""
+    caught: list[LibraryError] = []
+    try:
+        fn()
+    except* LibraryError as group:
+        caught.extend(group.exceptions)  # type: ignore[arg-type]
+    except* OSError as group:
+        caught.extend(StorageError(str(e)) for e in group.exceptions)
+    return caught
+
+
+class ErrorCatalog:
+    """Registry of error codes, with a nested entry type."""
+
+    class Entry:
+        def __init__(self, code: str, status: int) -> None:
+            self.code = code
+            self.status = status
+
+        def describe(self) -> str:
+            return f"{self.code} -> {self.status}"
+
+    def __init__(self) -> None:
+        self.entries = [ErrorCatalog.Entry(cls.code, error_response(cls("x"))[0]) for cls in (ValidationError, ConflictError)]
+
+    def lookup(self, code: str) -> Optional["ErrorCatalog.Entry"]:
+        return next((e for e in self.entries if e.code == code), None)
