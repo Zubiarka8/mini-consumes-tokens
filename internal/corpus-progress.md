@@ -25,7 +25,7 @@ Estados: **Pendiente** → **En PR** → **Hecho** (mergeado en `main`).
 | Bash | `mct-lang-bash` | **Hecho** | #80 | 5 / 1.539 | 176 / 585 (162) | fin del módulo +1; asignación prefijo (`LC_ALL=C cmd`) tomada como variable; `coproc NAME { … }` mal parseado por la gramática → #79 (test `#[ignore]`) |
 | C/C++ | `mct-lang-cpp` | Pendiente | | | | |
 | C# | `mct-lang-csharp` | Pendiente | | | | |
-| CSS | `mct-lang-css` | Pendiente | | 6 / 2.194 | 617 / 12 (0) | fin del módulo +1; una regla terminaba en la línea de su selector, no en su `}`; prefijo de `@namespace` (`svg\|text`) tomado como elemento `svg`; átomos perdidos en `.a .b[attr]` (la gramática aplica `[attr]` a toda la cadena). Rechazados por tree-sitter-css 0.25 (fuera del corpus): `@page :first`, `@import … layer()`/`supports()`, rangos de media query (`400px <= width`) |
+| CSS | `mct-lang-css` | En PR | #86 | 6 / 2.194 | 617 / 12 (0) | fin del módulo +1; una regla terminaba en la línea de su selector, no en su `}`; prefijo de `@namespace` (`svg\|text`) tomado como elemento `svg`; átomos perdidos en `.a .b[attr]` (la gramática aplica `[attr]` a toda la cadena). Rechazados por tree-sitter-css 0.25 (fuera del corpus, #87): `@page :first`, `@import … layer()`/`supports()`, rangos de media query (`400px <= width`) |
 | Go | `mct-lang-go` | Pendiente | | | | |
 | HTML | `mct-lang-html` | Pendiente | | | | |
 | Java | `mct-lang-java` | Pendiente | | | | |
@@ -38,7 +38,7 @@ Estados: **Pendiente** → **En PR** → **Hecho** (mergeado en `main`).
 | XAML | `mct-lang-xaml` | Pendiente | | | | |
 | XML | `mct-lang-xml` | Pendiente | | | | |
 
-**Resumen: 3 hechos, 0 en PR, 14 pendientes (de 17).**
+**Resumen: 3 hechos, 1 en PR, 13 pendientes (de 17).**
 
 ## Issues derivados
 
