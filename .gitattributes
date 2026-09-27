@@ -2,3 +2,9 @@
 # must always have LF line endings regardless of the committer's OS/git
 # config, or the shebang and script body break.
 install.sh text eol=lf
+
+# Git hooks run under bash (Git for Windows' bundled one included), which
+# chokes on CRLF; scripts/windows/install-hooks.ps1 also rewrites them as LF
+# when copying, in case a checkout predates this rule.
+scripts/unix/hooks/* text eol=lf
+scripts/windows/hooks/* text eol=lf
