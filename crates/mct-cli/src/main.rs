@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use clap::{Parser, Subcommand};
-use mct_core::LanguageRegistry;
+use mct_core::{LanguageRegistry, ParseError, SourceFile};
 use mct_index::{ExcludeSet, Index};
 
 /// Index a repository and inspect the index from the command line.
@@ -133,6 +133,18 @@ enum Command {
         #[arg(long)]
         output: Option<PathBuf>,
     },
+    /// Parse files without indexing them and report, per file, either its
+    /// symbol/relation counts or the first syntax error with its line.
+    ///
+    /// For narrowing down which construct a grammar rejects: no index is
+    /// opened or written, and the files need not be under `--root`. Exits
+    /// non-zero if any file fails to parse.
+    #[command(after_help = "Example:\n  cargo run -p mct-cli -- probe snippet.cpp other.cpp")]
+    Probe {
+        /// Files to parse; the extension picks the language.
+        #[arg(required = true)]
+        files: Vec<PathBuf>,
+    },
 }
 
 fn build_registry() -> LanguageRegistry {
@@ -175,6 +187,9 @@ fn main() -> anyhow::Result<()> {
     if let Command::GitignoreInit = cli.command {
         return gitignore_init(&root);
     }
+    if let Command::Probe { files } = &cli.command {
+        return probe(&build_registry(), files);
+    }
 
     let db_path = root.join(".mct-index").join("index.sqlite3");
     let registry = build_registry();
@@ -190,7 +205,10 @@ fn main() -> anyhow::Result<()> {
             language,
             output,
         } => dead_code_report(&index, path.as_deref(), language.as_deref(), output)?,
-        Command::McpRegister { .. } | Command::IgnoreInit { .. } | Command::GitignoreInit => {
+        Command::McpRegister { .. }
+        | Command::IgnoreInit { .. }
+        | Command::GitignoreInit
+        | Command::Probe { .. } => {
             unreachable!("returned above")
         }
     }
@@ -202,6 +220,52 @@ fn main() -> anyhow::Result<()> {
 /// `mcpServers` in `<root>/.mcp.json`, creating the file if it doesn't exist.
 /// Any other server already configured there is left untouched — this only
 /// ever writes the one key it owns.
+/// Parses each file with the registry and prints one line per file (plus
+/// the offending source line on a syntax error). Errs if any file failed.
+fn probe(registry: &LanguageRegistry, files: &[PathBuf]) -> anyhow::Result<()> {
+    let mut failed = 0;
+    for path in files {
+        let shown = display_path(path);
+        let contents = match std::fs::read_to_string(path) {
+            Ok(contents) => contents,
+            Err(e) => {
+                println!("FAIL {shown}: {e}");
+                failed += 1;
+                continue;
+            }
+        };
+        let file = SourceFile {
+            relative_path: shown.clone(),
+            contents,
+        };
+        match registry.parse(&file) {
+            Ok(parsed) => println!(
+                "ok   {shown}: {} symbols, {} relations",
+                parsed.symbols.len(),
+                parsed.relations.len()
+            ),
+            Err(ParseError::Syntax { line, message, .. }) => {
+                failed += 1;
+                println!("FAIL {shown}:{line}: {message}");
+                let text = file
+                    .contents
+                    .lines()
+                    .nth((line as usize).saturating_sub(1))
+                    .unwrap_or_default();
+                println!("     {line:>5} | {}", text.trim_end());
+            }
+            Err(e) => {
+                failed += 1;
+                println!("FAIL {shown}: {e}");
+            }
+        }
+    }
+    if failed > 0 {
+        anyhow::bail!("{failed} of {} file(s) failed to parse", files.len());
+    }
+    Ok(())
+}
+
 fn mcp_register(root: &Path, name: Option<String>) -> anyhow::Result<()> {
     let root = root.canonicalize()?;
     let server_name = name.unwrap_or_else(|| {
@@ -918,6 +982,22 @@ mod tests {
             !contents.contains(",used,"),
             "`used` should not be flagged: {contents}"
         );
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn probe_accepts_valid_files_and_reports_syntax_errors() {
+        let dir = temp_project_dir("probe");
+        let good = dir.join("good.py");
+        let bad = dir.join("bad.py");
+        fs::write(&good, "def f():\n    return g()\n").expect("write good.py");
+        fs::write(&bad, "def f(:\n    pass\n").expect("write bad.py");
+        let registry = build_registry();
+
+        assert!(probe(&registry, std::slice::from_ref(&good)).is_ok());
+        let err = probe(&registry, &[good, bad]).expect_err("bad.py fails");
+        assert!(err.to_string().contains("1 of 2"), "{err}");
 
         fs::remove_dir_all(&dir).ok();
     }
