@@ -14,5 +14,6 @@ tree-sitter.workspace = true
 tree-sitter-html = "0.23.2"
 
 [dev-dependencies]
+mct-corpus.workspace = true
 mct-index.workspace = true
 mct-lang-css.workspace = true

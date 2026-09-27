@@ -1,0 +1,736 @@
+//! Test-only harness for the long, multi-file fixture corpus every
+//! `mct-lang-*` crate carries under `tests/corpus/` (issue #74).
+//!
+//! Layout, identical in every language crate:
+//!
+//! ```text
+//! tests/corpus/
+//!   project/               ≥ 5 realistic files, 300–600 lines each, that
+//!                          reference each other (the index root)
+//!   expected.snap          golden list of every symbol and relation the
+//!                          parser extracts from `project/`
+//!   malformed/             at least one large, deliberately broken file
+//! ```
+//!
+//! A crate's `tests/corpus.rs` loads the corpus once with [`Corpus::load`]
+//! and runs the shared checks ([`Corpus::assert_size`],
+//! [`Corpus::assert_line_ranges`], [`Corpus::assert_snapshot`], [`Corpus::assert_index_round_trip`],
+//! [`Corpus::assert_malformed_never_panics`]) plus its own
+//! language-specific assertions through [`Corpus::symbol`] and
+//! [`Corpus::relation`].
+//!
+//! After an intended parser change, regenerate the golden file with
+//! `MCT_BLESS=1 cargo test -p <crate> --test corpus` and review its diff.
+
+// Test support code: a failed precondition here must fail the calling test,
+// so unwrap()/expect()/panic!() are the correct behavior — this never runs
+// over untrusted repo content outside a test.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use std::collections::{BTreeMap, HashMap};
+use std::fmt::Write as _;
+use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
+use mct_core::{
+    LanguageParser, LanguageRegistry, ParseError, ParsedFile, RelationKind, SourceFile, SymbolKind,
+    SymbolRecord, SymbolRelation,
+};
+use mct_index::{ExcludeSet, Index};
+
+/// Defines `fn corpus() -> &'static Corpus` for `$parser` (loaded once per
+/// test binary) plus one `#[test]` per shared check. Invoke it at the top
+/// level of a crate's `tests/corpus.rs`.
+#[macro_export]
+macro_rules! standard_tests {
+    ($parser:expr) => {
+        fn corpus() -> &'static $crate::Corpus {
+            static CORPUS: ::std::sync::OnceLock<$crate::Corpus> = ::std::sync::OnceLock::new();
+            CORPUS.get_or_init(|| {
+                $crate::Corpus::load(::std::sync::Arc::new($parser), env!("CARGO_MANIFEST_DIR"))
+            })
+        }
+
+        #[test]
+        fn corpus_meets_the_size_target() {
+            corpus().assert_size();
+        }
+
+        #[test]
+        fn corpus_line_ranges_stay_inside_their_files() {
+            corpus().assert_line_ranges();
+        }
+
+        #[test]
+        fn corpus_symbols_and_relations_match_the_snapshot() {
+            corpus().assert_snapshot();
+        }
+
+        #[test]
+        fn corpus_round_trips_through_the_index() {
+            corpus().assert_index_round_trip();
+        }
+
+        #[test]
+        fn malformed_corpus_input_never_panics() {
+            corpus().assert_malformed_never_panics();
+        }
+    };
+}
+
+/// Issue #74's size target: at least this many files per language…
+pub const MIN_FILES: usize = 5;
+/// …each at least this many lines…
+pub const MIN_LINES: usize = 300;
+/// …and at most this many. The issue calls 600 a soft ceiling; this hard
+/// limit leaves room to go "a bit over" while still catching a dump.
+pub const MAX_LINES: usize = 700;
+
+/// Environment variable that rewrites `expected.snap` instead of comparing.
+pub const BLESS_ENV: &str = "MCT_BLESS";
+
+/// One parsed corpus file.
+pub struct CorpusFile {
+    /// Path relative to `tests/corpus/project`, forward slashes — the same
+    /// `relative_path` the index stores.
+    pub path: String,
+    pub contents: String,
+    pub parsed: ParsedFile,
+}
+
+impl CorpusFile {
+    pub fn line_count(&self) -> usize {
+        self.contents.lines().count()
+    }
+
+    fn symbol_by_id(&self, id: u32) -> Option<&SymbolRecord> {
+        self.parsed.symbols.iter().find(|s| s.id == id)
+    }
+}
+
+/// A language crate's whole corpus, parsed once.
+pub struct Corpus {
+    parser: Arc<dyn LanguageParser>,
+    dir: PathBuf,
+    pub files: Vec<CorpusFile>,
+}
+
+/// A relation resolved to readable names, for language-specific assertions.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Rel<'a> {
+    pub path: &'a str,
+    pub from: &'a str,
+    pub from_parent: Option<&'a str>,
+    pub kind: RelationKind,
+    pub to: &'a str,
+    pub line: u32,
+}
+
+impl Corpus {
+    /// Parses every file under `<crate_dir>/tests/corpus/project`, in path
+    /// order. Every corpus file must be valid for the grammar: a
+    /// `ParseError` here fails the test with the file and line.
+    pub fn load(parser: Arc<dyn LanguageParser>, crate_dir: &str) -> Corpus {
+        let dir = Path::new(crate_dir).join("tests/corpus");
+        let project = dir.join("project");
+        let mut paths = Vec::new();
+        collect_files(&project, &mut paths);
+        paths.sort();
+        assert!(
+            !paths.is_empty(),
+            "no corpus files under {}",
+            project.display()
+        );
+        let files = paths
+            .into_iter()
+            .map(|path| {
+                let rel = relative(&project, &path);
+                let contents = std::fs::read_to_string(&path)
+                    .unwrap_or_else(|e| panic!("reading {}: {e}", path.display()));
+                let parsed = parser
+                    .parse(&SourceFile {
+                        relative_path: rel.clone(),
+                        contents: contents.clone(),
+                    })
+                    .unwrap_or_else(|e| panic!("corpus file {rel} must parse cleanly: {e}"));
+                CorpusFile {
+                    path: rel,
+                    contents,
+                    parsed,
+                }
+            })
+            .collect();
+        Corpus { parser, dir, files }
+    }
+
+    fn project_dir(&self) -> PathBuf {
+        self.dir.join("project")
+    }
+
+    /// Every file the parser actually claims (by extension) counts towards
+    /// the size target; support files such as a `.json` next to a `.ts`
+    /// project would not, but the corpus has none.
+    pub fn assert_size(&self) {
+        assert!(
+            self.files.len() >= MIN_FILES,
+            "corpus has {} files, need at least {MIN_FILES}",
+            self.files.len()
+        );
+        for f in &self.files {
+            let n = f.line_count();
+            assert!(
+                (MIN_LINES..=MAX_LINES).contains(&n),
+                "{} has {n} lines, expected {MIN_LINES}..={MAX_LINES}",
+                f.path
+            );
+        }
+    }
+
+    /// Every symbol range and relation site lies inside its file:
+    /// `1 <= start <= end <= line count`. Catches off-by-N ends such as a
+    /// file-level module ending on the line after the last one.
+    pub fn assert_line_ranges(&self) {
+        for f in &self.files {
+            let lines = f.line_count() as u32;
+            for s in &f.parsed.symbols {
+                let end = s.location.end_line.unwrap_or(s.location.line);
+                assert!(
+                    s.location.line >= 1 && s.location.line <= end && end <= lines,
+                    "{}: {:?} {} spans {}-{end}, file has {lines} lines",
+                    f.path,
+                    s.kind,
+                    s.name,
+                    s.location.line
+                );
+            }
+            for r in &f.parsed.relations {
+                assert!(
+                    (1..=lines).contains(&r.location.line),
+                    "{}: relation to {} at line {} outside 1..={lines}",
+                    f.path,
+                    r.to_name,
+                    r.location.line
+                );
+            }
+        }
+    }
+
+    /// Renders every file's symbols and relations and compares them with
+    /// `tests/corpus/expected.snap` (or rewrites it under `MCT_BLESS=1`).
+    pub fn assert_snapshot(&self) {
+        let actual = self.render();
+        let snap = self.dir.join("expected.snap");
+        if std::env::var_os(BLESS_ENV).is_some() {
+            std::fs::write(&snap, &actual).unwrap();
+            return;
+        }
+        let expected = std::fs::read_to_string(&snap)
+            .unwrap_or_default()
+            .replace("\r\n", "\n");
+        if expected != actual {
+            panic!(
+                "corpus snapshot mismatch for {}\n{}\nIf the change is intended, rerun with {BLESS_ENV}=1 and review the diff of expected.snap.",
+                snap.display(),
+                line_diff(&expected, &actual)
+            );
+        }
+    }
+
+    /// The golden text: one `== path` section per file, then a `S` line per
+    /// symbol (`start-end kind parent::name`) and an `R` line per relation
+    /// (`line:col kind from -> to`), with `(x-file: path)` appended when
+    /// the target name is defined in a different corpus file.
+    pub fn render(&self) -> String {
+        let defined_in = self.definition_files();
+        let mut out = String::new();
+        let (syms, rels, xfile) = self.totals(&defined_in);
+        writeln!(
+            out,
+            "# language={} files={} symbols={syms} relations={rels} cross_file={xfile}",
+            self.parser.language_id(),
+            self.files.len()
+        )
+        .unwrap();
+        for f in &self.files {
+            writeln!(out, "\n== {} ({} lines)", f.path, f.line_count()).unwrap();
+            for s in &f.parsed.symbols {
+                let end = s
+                    .location
+                    .end_line
+                    .map_or_else(|| "?".to_string(), |e| e.to_string());
+                write!(
+                    out,
+                    "S {}-{} {} {}",
+                    s.location.line,
+                    end,
+                    kind_str(s.kind),
+                    qualified(s.parent.as_deref(), &s.name)
+                )
+                .unwrap();
+                if let Some(level) = s.level {
+                    write!(out, " L{level}").unwrap();
+                }
+                out.push('\n');
+            }
+            for r in &f.parsed.relations {
+                let from = f.symbol_by_id(r.from).map_or_else(
+                    || format!("<#{}>", r.from),
+                    |s| qualified(s.parent.as_deref(), &s.name),
+                );
+                write!(
+                    out,
+                    "R {}:{} {} {} -> {}",
+                    r.location.line,
+                    r.location.column,
+                    relation_str(r.kind),
+                    from,
+                    r.to_name
+                )
+                .unwrap();
+                if let Some(other) = cross_file_target(&defined_in, &f.path, r) {
+                    write!(out, " (x-file: {other})").unwrap();
+                }
+                out.push('\n');
+            }
+        }
+        out
+    }
+
+    fn totals(&self, defined_in: &HashMap<&str, Vec<&str>>) -> (usize, usize, usize) {
+        let syms = self.files.iter().map(|f| f.parsed.symbols.len()).sum();
+        let rels = self.files.iter().map(|f| f.parsed.relations.len()).sum();
+        let xfile = self
+            .files
+            .iter()
+            .flat_map(|f| {
+                f.parsed
+                    .relations
+                    .iter()
+                    .filter(|r| cross_file_target(defined_in, &f.path, r).is_some())
+            })
+            .count();
+        (syms, rels, xfile)
+    }
+
+    fn definition_files(&self) -> HashMap<&str, Vec<&str>> {
+        let mut map: HashMap<&str, Vec<&str>> = HashMap::new();
+        for f in &self.files {
+            for s in &f.parsed.symbols {
+                let files = map.entry(s.name.as_str()).or_default();
+                if !files.contains(&f.path.as_str()) {
+                    files.push(f.path.as_str());
+                }
+            }
+        }
+        map
+    }
+
+    /// Every relation in the corpus, resolved to names.
+    pub fn relations(&self) -> Vec<Rel<'_>> {
+        self.files
+            .iter()
+            .flat_map(|f| {
+                f.parsed.relations.iter().map(move |r| {
+                    let from = f.symbol_by_id(r.from);
+                    Rel {
+                        path: &f.path,
+                        from: from.map_or("", |s| s.name.as_str()),
+                        from_parent: from.and_then(|s| s.parent.as_deref()),
+                        kind: r.kind,
+                        to: &r.to_name,
+                        line: r.line(),
+                    }
+                })
+            })
+            .collect()
+    }
+
+    /// The single relation `from --kind--> to` in `path` (a path suffix is
+    /// enough). Panics listing the candidates when there is none.
+    pub fn relation(&self, path: &str, from: &str, kind: RelationKind, to: &str) -> Rel<'_> {
+        let all = self.relations();
+        if let Some(r) = all
+            .iter()
+            .find(|r| r.path.ends_with(path) && r.from == from && r.kind == kind && r.to == to)
+        {
+            return r.clone();
+        }
+        let near: Vec<_> = all
+            .iter()
+            .filter(|r| r.path.ends_with(path) && (r.from == from || r.to == to))
+            .collect();
+        panic!("no {kind:?} relation {from} -> {to} in {path}; related: {near:#?}");
+    }
+
+    /// Whether any relation `from --kind--> to` exists anywhere.
+    pub fn has_relation(&self, from: &str, kind: RelationKind, to: &str) -> bool {
+        self.relations()
+            .iter()
+            .any(|r| r.from == from && r.kind == kind && r.to == to)
+    }
+
+    /// The single symbol `name` of `kind` in `path` (a path suffix is
+    /// enough). Panics listing same-named symbols when there is none.
+    pub fn symbol(&self, path: &str, name: &str, kind: SymbolKind) -> &SymbolRecord {
+        let matches: Vec<_> = self
+            .files
+            .iter()
+            .filter(|f| f.path.ends_with(path))
+            .flat_map(|f| f.parsed.symbols.iter())
+            .filter(|s| s.name == name && s.kind == kind)
+            .collect();
+        match matches.as_slice() {
+            [one] => one,
+            [] => {
+                let near: Vec<_> = self
+                    .files
+                    .iter()
+                    .flat_map(|f| f.parsed.symbols.iter().map(move |s| (&f.path, s)))
+                    .filter(|(_, s)| s.name == name)
+                    .collect();
+                panic!("no {kind:?} `{name}` in {path}; same name elsewhere: {near:#?}")
+            }
+            many => panic!("{} {kind:?}s named `{name}` in {path}", many.len()),
+        }
+    }
+
+    /// Every symbol in the corpus named `name`, with its file.
+    pub fn symbols_named(&self, name: &str) -> Vec<(&str, &SymbolRecord)> {
+        self.files
+            .iter()
+            .flat_map(|f| f.parsed.symbols.iter().map(move |s| (f.path.as_str(), s)))
+            .filter(|(_, s)| s.name == name)
+            .collect()
+    }
+
+    /// Number of relations whose target is defined in another corpus file.
+    pub fn cross_file_relation_count(&self) -> usize {
+        self.totals(&self.definition_files()).2
+    }
+
+    /// A fresh in-memory index of `tests/corpus/project`, for
+    /// language-specific query assertions.
+    pub fn index(&self) -> Index {
+        let mut registry = LanguageRegistry::new();
+        registry.register(self.parser.clone());
+        let mut index = Index::open_in_memory(&self.project_dir(), ExcludeSet::default()).unwrap();
+        index.reindex(&registry, false).unwrap();
+        index
+    }
+
+    /// Reindexes `tests/corpus/project` through the real `mct-index`
+    /// pipeline and checks that every parsed symbol comes back from
+    /// `find_symbol`, every call from `find_callers` and `find_calls`, and
+    /// every relation from `find_references`, at the same file and line.
+    pub fn assert_index_round_trip(&self) {
+        let mut registry = LanguageRegistry::new();
+        registry.register(self.parser.clone());
+        let mut index = Index::open_in_memory(&self.project_dir(), ExcludeSet::default()).unwrap();
+        let report = index.reindex(&registry, false).unwrap();
+        assert_eq!(report.files_parsed, self.files.len(), "files indexed");
+        assert!(report.issues.is_empty(), "issues: {:?}", report.issues);
+
+        let status = index.status().unwrap();
+        let lang = status
+            .languages
+            .iter()
+            .find(|l| l.language == self.parser.language_id())
+            .expect("the corpus language shows up in status");
+        assert_eq!(lang.file_count, self.files.len());
+        let total_symbols: usize = self.files.iter().map(|f| f.parsed.symbols.len()).sum();
+        assert_eq!(lang.symbol_count, total_symbols);
+        assert!(status.syntax_errors.is_empty());
+
+        let mut find_symbol = HashMap::new();
+        for f in &self.files {
+            for s in &f.parsed.symbols {
+                let hits = find_symbol
+                    .entry(s.name.clone())
+                    .or_insert_with(|| index.find_symbol(&s.name).unwrap());
+                assert!(
+                    hits.iter().any(|h| h.relative_path == f.path
+                        && h.line == s.location.line
+                        && h.end_line == s.location.end_line
+                        && h.kind == kind_str(s.kind)
+                        && h.parent == s.parent),
+                    "find_symbol({}) misses {}:{} {:?}; got {hits:#?}",
+                    s.name,
+                    f.path,
+                    s.location.line,
+                    s.kind
+                );
+            }
+        }
+
+        let mut callers = HashMap::new();
+        let mut calls = HashMap::new();
+        let mut refs = HashMap::new();
+        for f in &self.files {
+            for r in &f.parsed.relations {
+                let Some(from) = f.symbol_by_id(r.from) else {
+                    continue;
+                };
+                let line = r.line();
+                let same_site = |h: &mct_index::RelationHit| {
+                    h.relative_path == f.path && h.line == line && h.from_symbol == from.name
+                };
+                let hits = refs
+                    .entry(r.to_name.clone())
+                    .or_insert_with(|| index.find_references(&r.to_name).unwrap());
+                assert!(
+                    hits.iter()
+                        .any(|h| same_site(h) && h.kind == relation_str(r.kind)),
+                    "find_references({}) misses {:?} from {} at {}:{line}",
+                    r.to_name,
+                    r.kind,
+                    from.name,
+                    f.path
+                );
+                if r.kind != RelationKind::Calls {
+                    continue;
+                }
+                let hits = callers
+                    .entry(r.to_name.clone())
+                    .or_insert_with(|| index.find_callers(&r.to_name).unwrap());
+                assert!(
+                    hits.iter().any(same_site),
+                    "find_callers({}) misses {} at {}:{line}",
+                    r.to_name,
+                    from.name,
+                    f.path
+                );
+                let hits = calls
+                    .entry(from.name.clone())
+                    .or_insert_with(|| index.find_calls(&from.name).unwrap());
+                assert!(
+                    hits.iter().any(|h| same_site(h) && h.to_name == r.to_name),
+                    "find_calls({}) misses {} at {}:{line}",
+                    from.name,
+                    r.to_name,
+                    f.path
+                );
+            }
+        }
+    }
+
+    /// Parses the checked-in `tests/corpus/malformed/` files (at least one,
+    /// each at least [`MIN_LINES`] long) plus mechanically corrupted
+    /// variants of every corpus file. None may panic; each must end in a
+    /// `ParseError::Syntax` or a partial result whose line ranges stay
+    /// inside the input.
+    pub fn assert_malformed_never_panics(&self) {
+        let dir = self.dir.join("malformed");
+        let mut paths = Vec::new();
+        collect_files(&dir, &mut paths);
+        paths.sort();
+        assert!(!paths.is_empty(), "no files under {}", dir.display());
+        let mut inputs: Vec<(String, String)> = Vec::new();
+        for p in paths {
+            let contents = std::fs::read_to_string(&p).unwrap();
+            let rel = relative(&dir, &p);
+            assert!(
+                contents.lines().count() >= MIN_LINES,
+                "malformed/{rel} should be a large file"
+            );
+            inputs.push((rel, contents));
+        }
+        for f in &self.files {
+            for (label, text) in corruptions(&f.contents) {
+                inputs.push((format!("{} [{label}]", f.path), text));
+            }
+        }
+        for (label, contents) in inputs {
+            // Keep the real path (and so the extension) for the parser.
+            let path = label.split(" [").next().unwrap_or(&label).to_string();
+            let lines = contents.lines().count().max(1) as u32;
+            let parser = &self.parser;
+            let result = catch_unwind(AssertUnwindSafe(|| {
+                parser.parse(&SourceFile {
+                    relative_path: path.clone(),
+                    contents: contents.clone(),
+                })
+            }));
+            match result {
+                Err(_) => panic!("parser panicked on malformed input {label}"),
+                Ok(Err(ParseError::Syntax { .. })) => {}
+                Ok(Err(e)) => panic!("{label}: expected a syntax error, got {e}"),
+                Ok(Ok(parsed)) => {
+                    for s in &parsed.symbols {
+                        let end = s.location.end_line.unwrap_or(s.location.line);
+                        assert!(
+                            s.location.line >= 1 && s.location.line <= end && end <= lines,
+                            "{label}: {} has range {}-{end} outside 1..={lines}",
+                            s.name,
+                            s.location.line
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+trait RelationLine {
+    fn line(&self) -> u32;
+}
+
+impl RelationLine for SymbolRelation {
+    fn line(&self) -> u32 {
+        self.location.line
+    }
+}
+
+/// Mechanically broken variants of a valid file.
+fn corruptions(src: &str) -> Vec<(&'static str, String)> {
+    let lines: Vec<&str> = src.lines().collect();
+    let mut half = src.len() / 2;
+    while !src.is_char_boundary(half) {
+        half -= 1;
+    }
+    let drop_every_fifth = lines
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| i % 5 != 4)
+        .map(|(_, l)| *l)
+        .collect::<Vec<_>>()
+        .join("\n");
+    let garbage = lines
+        .iter()
+        .enumerate()
+        .map(|(i, l)| {
+            if i % 40 == 20 {
+                format!("{l}\n)]}}>{{[(<\"'@@@ ;; \\ `")
+            } else {
+                (*l).to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let no_closers: String = src
+        .chars()
+        .filter(|c| !matches!(c, '}' | ')' | ']' | '>'))
+        .collect();
+    let deep = format!("{}{src}", "({[<".repeat(2_000));
+    vec![
+        ("truncated", src[..half].to_string()),
+        ("every 5th line dropped", drop_every_fifth),
+        ("garbage lines", garbage),
+        ("closers removed", no_closers),
+        ("deep nesting prefix", deep),
+    ]
+}
+
+fn cross_file_target<'a>(
+    defined_in: &HashMap<&str, Vec<&'a str>>,
+    path: &str,
+    r: &SymbolRelation,
+) -> Option<&'a str> {
+    let files = defined_in.get(r.to_name.as_str())?;
+    if files.contains(&path) {
+        return None;
+    }
+    files.first().copied()
+}
+
+fn qualified(parent: Option<&str>, name: &str) -> String {
+    match parent {
+        Some(p) => format!("{p}::{name}"),
+        None => name.to_string(),
+    }
+}
+
+/// Same strings `mct-index` stores in `symbols.kind`.
+pub fn kind_str(kind: SymbolKind) -> &'static str {
+    match kind {
+        SymbolKind::Function => "function",
+        SymbolKind::Method => "method",
+        SymbolKind::Class => "class",
+        SymbolKind::Struct => "struct",
+        SymbolKind::Interface => "interface",
+        SymbolKind::Enum => "enum",
+        SymbolKind::Trait => "trait",
+        SymbolKind::TypeAlias => "type_alias",
+        SymbolKind::Module => "module",
+        SymbolKind::Variable => "variable",
+        SymbolKind::Constant => "constant",
+        SymbolKind::Field => "field",
+        SymbolKind::Element => "element",
+        SymbolKind::Rule => "rule",
+    }
+}
+
+/// Same strings `mct-index` stores in `relations.kind`.
+pub fn relation_str(kind: RelationKind) -> &'static str {
+    match kind {
+        RelationKind::Calls => "calls",
+        RelationKind::Imports => "imports",
+        RelationKind::Extends => "extends",
+        RelationKind::Implements => "implements",
+        RelationKind::References => "references",
+    }
+}
+
+fn collect_files(dir: &Path, out: &mut Vec<PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_files(&path, out);
+        } else {
+            out.push(path);
+        }
+    }
+}
+
+fn relative(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .unwrap()
+        .components()
+        .map(|c| c.as_os_str().to_string_lossy().into_owned())
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+/// Lines missing from / added to the golden file, grouped by section,
+/// capped so a wholesale change doesn't flood the test output.
+fn line_diff(expected: &str, actual: &str) -> String {
+    fn counts(text: &str) -> BTreeMap<&str, isize> {
+        let mut m = BTreeMap::new();
+        for l in text.lines() {
+            *m.entry(l).or_insert(0) += 1;
+        }
+        m
+    }
+    let e = counts(expected);
+    let a = counts(actual);
+    let mut out = String::new();
+    let mut shown = 0;
+    for (line, n) in &e {
+        let d = n - a.get(line).copied().unwrap_or(0);
+        for _ in 0..d.max(0) {
+            if shown < 60 {
+                writeln!(out, "- {line}").unwrap();
+            }
+            shown += 1;
+        }
+    }
+    for (line, n) in &a {
+        let d = n - e.get(line).copied().unwrap_or(0);
+        for _ in 0..d.max(0) {
+            if shown < 60 {
+                writeln!(out, "+ {line}").unwrap();
+            }
+            shown += 1;
+        }
+    }
+    if shown > 60 {
+        writeln!(out, "… {} more differing lines", shown - 60).unwrap();
+    }
+    if shown == 0 {
+        out.push_str("(same lines, different order)\n");
+    }
+    out
+}

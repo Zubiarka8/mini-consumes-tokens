@@ -52,7 +52,15 @@ impl LanguageParser for RustParser {
 
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
-        let module_id = walker.push_symbol(module_name, SymbolKind::Module, location(root), None);
+        let mut module_location = location(root);
+        // The root node of a file ending in a newline ends at column 0 of
+        // the (empty) line after the last one; the file's last line is the
+        // one before that.
+        let end = root.end_position();
+        if end.column == 0 && end.row > 0 {
+            module_location.end_line = Some(end.row as u32);
+        }
+        let module_id = walker.push_symbol(module_name, SymbolKind::Module, module_location, None);
         walker.visit_children(root, module_id, None, 0);
         Ok(walker.finish())
     }
@@ -184,11 +192,14 @@ impl<'a> Walker<'a> {
                 };
                 let id =
                     self.push_symbol(name, kind, location(node), impl_type.map(str::to_string));
+                // A function body is not an impl/trait body: an `fn` or
+                // `const` nested inside a method belongs to the method, not
+                // to the enclosing type, so the impl type stops here.
                 if let Some(params) = node.child_by_field_name("parameters") {
-                    self.visit_children(params, id, impl_type, depth + 1);
+                    self.visit_children(params, id, None, depth + 1);
                 }
                 if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, id, impl_type, depth + 1);
+                    self.visit_children(body, id, None, depth + 1);
                 }
             }
             "struct_item" => {
@@ -197,11 +208,13 @@ impl<'a> Walker<'a> {
             "enum_item" => {
                 self.push_named(node, SymbolKind::Enum, None);
             }
-            "type_item" => {
-                self.push_named(node, SymbolKind::TypeAlias, None);
+            // Associated types/consts of an `impl`/`trait` hang off the type,
+            // like its methods do.
+            "type_item" | "associated_type" => {
+                self.push_named(node, SymbolKind::TypeAlias, impl_type.map(str::to_string));
             }
             "const_item" | "static_item" => {
-                let id = self.push_named(node, SymbolKind::Constant, None);
+                let id = self.push_named(node, SymbolKind::Constant, impl_type.map(str::to_string));
                 if let Some(value) = node.child_by_field_name("value") {
                     self.visit_children(value, id, impl_type, depth + 1);
                 }
