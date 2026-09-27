@@ -11,13 +11,18 @@ cambia la fila de su lenguaje en el mismo PR (estado, PR, cifras, bugs), y
 al mergear se pasa a **Hecho**. Cuando no quede ninguna fila pendiente, se
 cierra #74 y se borra la regla correspondiente de `CLAUDE.md`.
 
+Las columnas de ficheros/líneas y símbolos/relaciones, y la línea de resumen,
+las rellena `scripts/unix/corpus-report.sh <lenguaje> --update-progress`
+(`scripts\windows\corpus-report.ps1` en Windows); estado, PR y bugs se
+escriben a mano.
+
 Estados: **Pendiente** → **En PR** → **Hecho** (mergeado en `main`).
 
 | Lenguaje | Crate | Estado | PR | Ficheros / líneas | Símbolos / relaciones (cross-file) | Bugs del parser encontrados |
 |---|---|---|---|---|---|---|
-| Rust | `mct-lang-rust` | **Hecho** | #77 | 6 / 2.179 | ver `expected.snap` | owner de tipos/consts asociados; `fn` anidada dentro de método tomada como método; fin del módulo +1 |
+| Rust | `mct-lang-rust` | **Hecho** | #77 | 6 / 2.179 | 239 / 775 (218) | owner de tipos/consts asociados; `fn` anidada dentro de método tomada como método; fin del módulo +1 |
 | Python | `mct-lang-python` | **Hecho** | #78 | 6 / 2.006 | 302 / 918 (223) | fin del módulo +1; clase anidada sin parent; llamadas en argumentos de decoradores perdidas; `type X = …` (PEP 695) sin símbolo |
-| Bash | `mct-lang-bash` | **En PR** | #80 | 5 / 1.539 | 176 / 585 (162) | fin del módulo +1; asignación prefijo (`LC_ALL=C cmd`) tomada como variable; `coproc NAME { … }` mal parseado por la gramática → #79 (test `#[ignore]`) |
+| Bash | `mct-lang-bash` | **Hecho** | #80 | 5 / 1.539 | 176 / 585 (162) | fin del módulo +1; asignación prefijo (`LC_ALL=C cmd`) tomada como variable; `coproc NAME { … }` mal parseado por la gramática → #79 (test `#[ignore]`) |
 | C/C++ | `mct-lang-cpp` | Pendiente | | | | |
 | C# | `mct-lang-csharp` | Pendiente | | | | |
 | CSS | `mct-lang-css` | Pendiente | | | | |
@@ -33,7 +38,7 @@ Estados: **Pendiente** → **En PR** → **Hecho** (mergeado en `main`).
 | XAML | `mct-lang-xaml` | Pendiente | | | | |
 | XML | `mct-lang-xml` | Pendiente | | | | |
 
-**Resumen: 2 hechos, 1 en PR, 14 pendientes (de 17).**
+**Resumen: 3 hechos, 0 en PR, 14 pendientes (de 17).**
 
 ## Issues derivados
 
