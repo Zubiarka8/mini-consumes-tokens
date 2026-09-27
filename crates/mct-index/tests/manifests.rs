@@ -59,7 +59,12 @@ fn a_crate_in_both_dependencies_and_dev_dependencies_does_not_fail_the_reindex()
     index.reindex(&empty_registry(), false).unwrap();
 
     let status = index.status().unwrap();
-    assert_eq!(status.dependencies[0].dependencies.len(), 1, "{:?}", status.dependencies);
+    assert_eq!(
+        status.dependencies[0].dependencies.len(),
+        1,
+        "{:?}",
+        status.dependencies
+    );
 }
 
 #[test]

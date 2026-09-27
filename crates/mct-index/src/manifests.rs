@@ -47,7 +47,9 @@ pub fn parse_manifest(file_name: &str, contents: &str) -> Vec<ManifestDependency
         _ => Vec::new(),
     };
     let mut seen = std::collections::HashSet::new();
-    deps.into_iter().filter(|d| seen.insert(d.name.clone())).collect()
+    deps.into_iter()
+        .filter(|d| seen.insert(d.name.clone()))
+        .collect()
 }
 
 /// `[dependencies]`/`[dev-dependencies]`/`[build-dependencies]` at the
@@ -310,15 +312,40 @@ mod tests {
             "Cargo.toml",
             "[dependencies]\ntokio = { version = \"1.53.1\", features = [\"rt\"] }\n\n[dev-dependencies]\ntokio = { version = \"1.53.1\", features = [\"io-util\"] }\nproptest = \"1\"\n\n[build-dependencies]\ntokio = \"1\"\n",
         );
-        assert_eq!(cargo.iter().filter(|d| d.name == "tokio").count(), 1, "{cargo:?}");
-        assert!(cargo.iter().any(|d| d.name == "tokio" && d.version.as_deref() == Some("1.53.1")));
+        assert_eq!(
+            cargo.iter().filter(|d| d.name == "tokio").count(),
+            1,
+            "{cargo:?}"
+        );
+        assert!(cargo
+            .iter()
+            .any(|d| d.name == "tokio" && d.version.as_deref() == Some("1.53.1")));
         assert_eq!(cargo.len(), 2);
 
-        let npm = parse_manifest("package.json", r#"{"dependencies": {"react": "^18.3.1"}, "devDependencies": {"react": "18.0.0"}}"#);
-        assert_eq!(npm, vec![ManifestDependency { name: "react".into(), version: Some("^18.3.1".into()) }]);
+        let npm = parse_manifest(
+            "package.json",
+            r#"{"dependencies": {"react": "^18.3.1"}, "devDependencies": {"react": "18.0.0"}}"#,
+        );
+        assert_eq!(
+            npm,
+            vec![ManifestDependency {
+                name: "react".into(),
+                version: Some("^18.3.1".into())
+            }]
+        );
 
-        assert_eq!(parse_manifest("requirements.txt", "flask==2.3.0\nflask==2.3.0\n").len(), 1);
-        assert_eq!(parse_manifest("go.mod", "module m\n\nrequire a.com/b v1.0.0\nrequire a.com/b v1.0.0\n").len(), 1);
+        assert_eq!(
+            parse_manifest("requirements.txt", "flask==2.3.0\nflask==2.3.0\n").len(),
+            1
+        );
+        assert_eq!(
+            parse_manifest(
+                "go.mod",
+                "module m\n\nrequire a.com/b v1.0.0\nrequire a.com/b v1.0.0\n"
+            )
+            .len(),
+            1
+        );
     }
 
     #[test]
