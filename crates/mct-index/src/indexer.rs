@@ -380,22 +380,26 @@ fn write_parsed_file(
 }
 
 /// Local id of the innermost symbol whose span holds `line`: the one that
-/// starts last, then ends first. A symbol with no `end_line` spans only its
-/// first line.
+/// starts last, then ends first, then was emitted last — parsers emit an
+/// enclosing symbol before what it contains, so on an identical span (a
+/// function that fills its whole file, and the file-level module) the inner
+/// one wins. A symbol with no `end_line` spans only its first line.
 fn enclosing_symbol(symbols: &[mct_core::SymbolRecord], line: u32) -> Option<u32> {
     symbols
         .iter()
-        .filter(|s| {
+        .enumerate()
+        .filter(|(_, s)| {
             let start = s.location.line;
             start <= line && line <= s.location.end_line.unwrap_or(start)
         })
-        .min_by_key(|s| {
+        .min_by_key(|(i, s)| {
             (
                 std::cmp::Reverse(s.location.line),
                 s.location.end_line.unwrap_or(s.location.line),
+                std::cmp::Reverse(*i),
             )
         })
-        .map(|s| s.id)
+        .map(|(_, s)| s.id)
 }
 
 fn remove_missing_files(index: &mut Index, seen_paths: &[String]) -> Result<usize> {
