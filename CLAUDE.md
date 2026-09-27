@@ -46,6 +46,10 @@ An MCP server (`mct-mcp-server`) and CLI (`mct-cli`) that index a code repositor
 
 **If the MCP server shows `CONNECTION_CLOSED`** (a genuine connect failure, not "absent from the list" above): this usually means `.mct-index/index.sqlite3` was migrated by a branch with more `M::up` entries in `crates/mct-index/src/schema.rs` than the branch currently checked out — the checked-out binary sees a migration number "from the future" and aborts on startup with `migration error: Attempt to migrate a database with a migration number that is too high`. Confirm with `scripts/unix/mcp-smoke.sh` (it runs the installed server binary, feeds it a JSON-RPC `initialize` over stdin and prints the error Claude Code hides behind `CONNECTION_CLOSED`). Fix: `scripts/unix/reinstall.sh --reindex`, which reinstalls the binaries from the checked-out branch and rebuilds `.mct-index/index.sqlite3` for its schema (by hand: delete the file, then `cargo run -p mct-cli -- --root . init` — the index is fully derived from source, safe to delete), then `/mcp` in Claude Code to reconnect. An installed binary older than the index fails the same way, e.g. after running a newer `target/debug` server against this repo — `scripts/unix/reinstall.sh` covers that too. This will recur any time you switch between branches with a different migration count without reindexing first — `scripts/unix/install-hooks.sh` installs a `post-checkout` hook that does that rebuild automatically.
 
+## In-progress: per-language long-fixture corpus (issue #74)
+
+Until #74 is closed, `internal/corpus-progress.md` is the source of truth for which `crates/mct-lang-*` crates have their `tests/corpus/` done, in review, or pending. **Keep it current:** every PR that adds or changes a language's corpus updates that language's row in the same PR (state, PR number, files/lines, symbol/relation counts, parser bugs found or issues filed) and the summary line; once a PR merges, flip its row to **Hecho**. Check that file before picking the next language. When every row is **Hecho**, close #74 and delete this section.
+
 ## Commands
 
 ```sh
