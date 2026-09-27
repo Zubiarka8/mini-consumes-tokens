@@ -11,7 +11,7 @@ script names and flags wherever both exist:
 | Directory | For | Status |
 |---|---|---|
 | `unix/` | macOS and Linux (bash 3.2+, so macOS's `/bin/bash` works) | the scripts below |
-| `windows/` | Windows (PowerShell) | not written yet — see `windows/README.md` |
+| `windows/` | Windows (Windows PowerShell 5.1+ or PowerShell 7+) | the same scripts as `.ps1` — see `windows/README.md` |
 
 ## unix/
 
@@ -40,13 +40,22 @@ produced:
 # scripts/unix/check.sh -p mct-core — 2026-09-26 19:21:05 +0200 — chore/scripts@9e362dc-dirty
 ```
 
-`head -n1 target/script-logs/*` shows all of them at once.
+`head -n1 target/script-logs/*` shows all of them at once (PowerShell:
+`Get-ChildItem target\script-logs | % { Get-Content $_.FullName -TotalCount 1 }`).
 `smoke-stdout.jsonl` is the exception: it holds the server's raw JSON-RPC
 replies, so it gets no header line (its file date is the only record).
 `token-report.md` has the same line as an HTML comment, so it doesn't show
 in a PR body.
 
 `lib.sh` holds the shared helpers and refuses to run on anything but macOS
-or Linux. Every script takes `--help`; `mcp-smoke.sh` needs `jq` or
-`python3`. Exit status is 0 on success, 1 on a failed check, 2 on a usage
-error.
+or Linux; `windows/lib.ps1` is its counterpart and refuses anything but
+Windows. Every script takes `--help`; `mcp-smoke.sh` needs `jq` or
+`python3` (`mcp-smoke.ps1` needs nothing extra). Exit status is 0 on
+success, 1 on a failed check, 2 on a usage error.
+
+## windows/
+
+`check.ps1`, `reinstall.ps1`, `mcp-smoke.ps1`, `new-tool-check.ps1`,
+`new-language-check.ps1`, `token-report.ps1` and `install-hooks.ps1` — one
+per script above, same flags, output lines, logs and exit codes. The
+differences are Windows ones, listed in `windows/README.md`.
