@@ -24,7 +24,7 @@ Estados: **Pendiente** → **En PR** → **Hecho** (mergeado en `main`).
 | Python | `mct-lang-python` | **Hecho** | #78 | 6 / 2.006 | 302 / 918 (223) | fin del módulo +1; clase anidada sin parent; llamadas en argumentos de decoradores perdidas; `type X = …` (PEP 695) sin símbolo |
 | Bash | `mct-lang-bash` | **Hecho** | #80 | 5 / 1.539 | 176 / 585 (162) | fin del módulo +1; asignación prefijo (`LC_ALL=C cmd`) tomada como variable; `coproc NAME { … }` mal parseado por la gramática → #79 (test `#[ignore]`) |
 | C/C++ | `mct-lang-cpp` | Pendiente | | | | |
-| C# | `mct-lang-csharp` | Pendiente | | | | |
+| C# | `mct-lang-csharp` | En PR | #PRNUM | 6 / 2.048 | 454 / 588 (143) | fin del módulo +1; `namespace X;` (file-scoped), `record`, `enum`, `delegate`, eventos, operadores, indexers, destructores y funciones locales sin símbolo; bases genéricas con `<…>` en el target y `IFoo` primero tomado como extends; llamadas en `?.`, `F<T>()`, `new T()`, `: base(…)`, cuerpos `=>` de propiedades e inicializadores perdidas; `nameof` como llamada; atributos sin relación |
 | CSS | `mct-lang-css` | Pendiente | | | | |
 | Go | `mct-lang-go` | Pendiente | | | | |
 | HTML | `mct-lang-html` | Pendiente | | | | |
@@ -38,7 +38,7 @@ Estados: **Pendiente** → **En PR** → **Hecho** (mergeado en `main`).
 | XAML | `mct-lang-xaml` | Pendiente | | | | |
 | XML | `mct-lang-xml` | Pendiente | | | | |
 
-**Resumen: 3 hechos, 0 en PR, 14 pendientes (de 17).**
+**Resumen: 3 hechos, 1 en PR, 13 pendientes (de 17).**
 
 ## Issues derivados
 
