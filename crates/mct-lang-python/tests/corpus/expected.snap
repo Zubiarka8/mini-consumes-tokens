@@ -1,0 +1,1233 @@
+# language=python files=6 symbols=302 relations=918 cross_file=223
+
+== library/cli.py (307 lines)
+S 1-307 module cli
+S 35-44 function command
+S 38-42 function register
+S 47-64 class Context
+S 50-54 method Context::__init__
+S 56-57 method Context::echo
+S 59-61 method Context::debug
+S 63-64 method Context::emit_json
+S 67-86 class Command
+S 73-74 method Command::configure
+S 76-77 method Command::run
+S 79-86 method Command::__call__
+S 90-119 class AddBookCommand
+S 93-99 method AddBookCommand::configure
+S 102-104 method AddBookCommand::parse_author
+S 106-119 method AddBookCommand::run
+S 123-135 class AddCopyCommand
+S 126-130 method AddCopyCommand::configure
+S 132-135 method AddCopyCommand::run
+S 139-153 class JoinCommand
+S 142-147 method JoinCommand::configure
+S 149-153 method JoinCommand::run
+S 157-175 class CheckoutCommand
+S 160-163 method CheckoutCommand::configure
+S 165-175 method CheckoutCommand::run
+S 179-189 class ReturnCommand
+S 182-184 method ReturnCommand::configure
+S 186-189 method ReturnCommand::run
+S 193-213 class ReportCommand
+S 202-205 method ReportCommand::configure
+S 207-213 method ReportCommand::run
+S 217-227 class RemindCommand
+S 220-222 method RemindCommand::configure
+S 224-227 method RemindCommand::run
+S 230-237 function load_config
+S 240-248 function open_catalogue
+S 251-264 function build_parser
+S 267-282 function main
+S 285-303 function repl
+R 9:8 imports cli -> argparse
+R 10:8 imports cli -> json
+R 11:11 imports cli -> path
+R 12:8 imports cli -> sys
+R 13:21 imports cli -> Path
+R 14:20 imports cli -> Any
+R 14:25 imports cli -> Callable
+R 14:35 imports cli -> Optional
+R 14:45 imports cli -> Sequence
+R 16:27 imports cli -> svc
+R 17:21 imports cli -> LibraryError (x-file: library/errors.py)
+R 17:35 imports cli -> audit (x-file: library/errors.py)
+R 17:42 imports cli -> clear_audit (x-file: library/errors.py)
+R 17:55 imports cli -> error_response (x-file: library/errors.py)
+R 17:71 imports cli -> safe_call (x-file: library/errors.py)
+R 18:21 imports cli -> Author (x-file: library/models.py)
+R 18:29 imports cli -> Book (x-file: library/models.py)
+R 18:35 imports cli -> Copy (x-file: library/models.py)
+R 18:41 imports cli -> Genre (x-file: library/models.py)
+R 18:48 imports cli -> Member (x-file: library/models.py)
+R 18:56 imports cli -> MembershipTier (x-file: library/models.py)
+R 18:72 imports cli -> is_valid_isbn (x-file: library/models.py)
+R 18:87 imports cli -> normalize_isbn (x-file: library/models.py)
+R 20:22 imports cli -> ReportBundle (x-file: library/reports.py)
+R 20:36 imports cli -> circulation_report (x-file: library/reports.py)
+R 20:56 imports cli -> overdue_report (x-file: library/reports.py)
+R 21:25 imports cli -> Catalogue (x-file: library/repository.py)
+R 21:36 imports cli -> load_fixture (x-file: library/repository.py)
+R 21:50 imports cli -> open_database (x-file: library/repository.py)
+R 21:85 imports cli -> SqlRepo
+R 24:23 imports cli -> toml_reader
+R 54:44 calls Context::__init__ -> build_services (x-file: library/services.py)
+R 57:9 calls Context::echo -> print
+R 61:18 calls Context::debug -> echo
+R 64:14 calls Context::emit_json -> echo
+R 64:24 calls Context::emit_json -> dumps
+R 74:16 calls Command::configure -> add_argument
+R 77:15 calls Command::run -> NotImplementedError
+R 80:13 calls Command::__call__ -> debug
+R 82:25 calls Command::__call__ -> run
+R 84:28 calls Command::__call__ -> error_response (x-file: library/errors.py)
+R 85:17 calls Command::__call__ -> emit_json
+R 85:36 calls Command::__call__ -> getattr
+R 85:74 calls Command::__call__ -> echo
+R 90:22 extends AddBookCommand -> Command
+R 94:17 calls AddBookCommand::configure -> configure
+R 94:9 calls AddBookCommand::configure -> super
+R 95:16 calls AddBookCommand::configure -> add_argument
+R 96:16 calls AddBookCommand::configure -> add_argument
+R 97:16 calls AddBookCommand::configure -> add_argument
+R 98:16 calls AddBookCommand::configure -> add_argument
+R 99:16 calls AddBookCommand::configure -> add_argument
+R 103:33 calls AddBookCommand::parse_author -> partition
+R 104:16 calls AddBookCommand::parse_author -> Author (x-file: library/models.py)
+R 104:30 calls AddBookCommand::parse_author -> strip
+R 104:45 calls AddBookCommand::parse_author -> strip
+R 101:5 references AddBookCommand::parse_author -> staticmethod
+R 107:16 calls AddBookCommand::run -> is_valid_isbn (x-file: library/models.py)
+R 108:17 calls AddBookCommand::run -> echo
+R 109:16 calls AddBookCommand::run -> Book (x-file: library/models.py)
+R 110:18 calls AddBookCommand::run -> normalize_isbn (x-file: library/models.py)
+R 112:27 calls AddBookCommand::run -> parse_author
+R 116:23 calls AddBookCommand::run -> add_book (x-file: library/repository.py)
+R 117:9 calls AddBookCommand::run -> audit (x-file: library/errors.py)
+R 118:13 calls AddBookCommand::run -> emit_json
+R 118:66 calls AddBookCommand::run -> echo
+R 89:1 references AddBookCommand -> command
+R 123:22 extends AddCopyCommand -> Command
+R 127:17 calls AddCopyCommand::configure -> configure
+R 127:9 calls AddCopyCommand::configure -> super
+R 128:16 calls AddCopyCommand::configure -> add_argument
+R 129:16 calls AddCopyCommand::configure -> add_argument
+R 130:16 calls AddCopyCommand::configure -> add_argument
+R 133:30 calls AddCopyCommand::run -> add_copy (x-file: library/repository.py)
+R 133:39 calls AddCopyCommand::run -> Copy (x-file: library/models.py)
+R 133:71 calls AddCopyCommand::run -> normalize_isbn (x-file: library/models.py)
+R 134:13 calls AddCopyCommand::run -> echo
+R 122:1 references AddCopyCommand -> command
+R 139:19 extends JoinCommand -> Command
+R 143:17 calls JoinCommand::configure -> configure
+R 143:9 calls JoinCommand::configure -> super
+R 144:16 calls JoinCommand::configure -> add_argument
+R 145:16 calls JoinCommand::configure -> add_argument
+R 146:16 calls JoinCommand::configure -> add_argument
+R 147:16 calls JoinCommand::configure -> add_argument
+R 147:55 calls JoinCommand::configure -> lower
+R 150:18 calls JoinCommand::run -> Member (x-file: library/models.py)
+R 150:94 calls JoinCommand::run -> upper
+R 151:31 calls JoinCommand::run -> put (x-file: library/repository.py)
+R 152:13 calls JoinCommand::run -> echo
+R 152:62 calls JoinCommand::run -> title
+R 138:1 references JoinCommand -> command
+R 157:23 extends CheckoutCommand -> Command
+R 161:17 calls CheckoutCommand::configure -> configure
+R 161:9 calls CheckoutCommand::configure -> super
+R 162:16 calls CheckoutCommand::configure -> add_argument
+R 163:16 calls CheckoutCommand::configure -> add_argument
+R 166:12 calls CheckoutCommand::run -> len
+R 167:32 calls CheckoutCommand::run -> checkout (x-file: library/services.py)
+R 167:57 calls CheckoutCommand::run -> normalize_isbn (x-file: library/models.py)
+R 168:17 calls CheckoutCommand::run -> echo
+R 170:37 calls CheckoutCommand::run -> bulk_checkout (x-file: library/services.py)
+R 170:67 calls CheckoutCommand::run -> map (x-file: library/models.py)
+R 172:17 calls CheckoutCommand::run -> echo
+R 174:17 calls CheckoutCommand::run -> echo
+R 156:1 references CheckoutCommand -> command
+R 179:21 extends ReturnCommand -> Command
+R 183:17 calls ReturnCommand::configure -> configure
+R 183:9 calls ReturnCommand::configure -> super
+R 184:16 calls ReturnCommand::configure -> add_argument
+R 187:27 calls ReturnCommand::run -> return_copy (x-file: library/services.py)
+R 188:13 calls ReturnCommand::run -> echo
+R 178:1 references ReturnCommand -> command
+R 193:21 extends ReportCommand -> Command
+R 197:36 calls ReportCommand -> circulation_report (x-file: library/reports.py)
+R 198:32 calls ReportCommand -> overdue_report (x-file: library/reports.py)
+R 199:34 calls ReportCommand -> inventory (x-file: library/reports.py)
+R 203:17 calls ReportCommand::configure -> configure
+R 203:9 calls ReportCommand::configure -> super
+R 204:16 calls ReportCommand::configure -> add_argument
+R 205:16 calls ReportCommand::configure -> add_argument
+R 209:17 calls ReportCommand::run -> echo
+R 209:56 calls ReportCommand::run -> render_all (x-file: library/reports.py)
+R 209:35 calls ReportCommand::run -> monthly (x-file: library/reports.py)
+R 212:13 calls ReportCommand::run -> echo
+R 212:25 calls ReportCommand::run -> render (x-file: library/reports.py)
+R 192:1 references ReportCommand -> command
+R 217:21 extends RemindCommand -> Command
+R 221:17 calls RemindCommand::configure -> configure
+R 221:9 calls RemindCommand::configure -> super
+R 222:16 calls RemindCommand::configure -> add_argument
+R 225:30 calls RemindCommand::run -> run
+R 226:13 calls RemindCommand::run -> echo
+R 216:1 references RemindCommand -> command
+R 232:33 calls load_config -> exists
+R 235:21 calls load_config -> loads
+R 235:32 calls load_config -> read_text
+R 236:15 calls load_config -> open (x-file: library/models.py)
+R 237:28 calls load_config -> load
+R 241:17 calls open_catalogue -> get (x-file: library/models.py)
+R 243:16 calls open_catalogue -> open_database (x-file: library/repository.py)
+R 243:38 calls open_catalogue -> expanduser
+R 244:16 calls open_catalogue -> Catalogue (x-file: library/repository.py)
+R 244:32 calls open_catalogue -> SqlRepo
+R 245:22 calls open_catalogue -> get (x-file: library/models.py)
+R 247:16 calls open_catalogue -> load_fixture (x-file: library/repository.py)
+R 247:29 calls open_catalogue -> Path
+R 248:12 calls open_catalogue -> Catalogue (x-file: library/repository.py)
+R 252:23 calls build_parser -> ArgumentParser
+R 253:12 calls build_parser -> add_argument
+R 253:56 calls build_parser -> Path
+R 254:12 calls build_parser -> add_argument
+R 255:18 calls build_parser -> add_subparsers
+R 256:32 calls build_parser -> set
+R 257:22 calls build_parser -> sorted
+R 257:39 calls build_parser -> items
+R 260:14 calls build_parser -> add (x-file: library/models.py)
+R 261:44 calls build_parser -> items
+R 262:26 calls build_parser -> add_parser
+R 263:15 calls build_parser -> configure
+R 263:9 calls build_parser -> cls
+R 268:14 calls main -> build_parser
+R 270:23 calls main -> parse_args
+R 272:16 calls main -> int
+R 273:14 calls main -> safe_call (x-file: library/errors.py)
+R 274:11 calls main -> Context
+R 274:19 calls main -> open_catalogue
+R 276:14 calls main -> handler
+R 278:29 imports main -> audit_trail (x-file: library/errors.py)
+R 278:42 imports main -> format_trail (x-file: library/errors.py)
+R 280:13 calls main -> echo
+R 280:18 calls main -> format_trail (x-file: library/errors.py)
+R 280:31 calls main -> audit_trail (x-file: library/errors.py)
+R 281:5 calls main -> clear_audit (x-file: library/errors.py)
+R 287:12 imports repl -> shlex
+R 289:14 calls repl -> build_parser
+R 292:20 calls repl -> input
+R 295:32 calls repl -> split
+R 300:27 calls repl -> parse_args
+R 307:9 calls cli -> exit
+R 307:14 calls cli -> main
+
+== library/errors.py (320 lines)
+S 1-320 module errors
+S 22-40 class LibraryError
+S 28-31 method LibraryError::__init__
+S 33-37 method LibraryError::to_dict
+S 39-40 method LibraryError::__str__
+S 43-44 class ValidationError
+S 47-53 class NotFoundError
+S 50-53 method NotFoundError::__init__
+S 56-58 class ConflictError
+S 61-68 class LimitExceededError
+S 64-68 method LimitExceededError::__init__
+S 71-73 class StorageError
+S 76-94 class AuditRecord
+S 81-86 method AuditRecord::__init__
+S 88-90 method AuditRecord::__repr__
+S 92-94 method AuditRecord::as_line
+S 97-101 function audit
+S 104-110 function audit_trail
+S 113-116 function clear_audit
+S 119-143 function retry
+S 122-141 function decorator
+S 124-139 function wrapper
+S 146-167 function audited
+S 152-165 function decorator
+S 154-163 function wrapper
+S 171-178 function translate_errors
+S 181-192 function error_response
+S 195-212 class Timer
+S 198-202 method Timer::__init__
+S 204-206 method Timer::__enter__
+S 208-212 method Timer::__exit__
+S 215-242 class RateLimiter
+S 218-222 method RateLimiter::__init__
+S 224-230 method RateLimiter::_refill
+S 232-238 method RateLimiter::allow
+S 240-242 method RateLimiter::check
+S 245-249 function summarize_errors
+S 252-255 function format_trail
+S 258-265 function safe_call
+S 268-277 function chain_errors
+S 280-281 function is_retryable
+S 284-290 function walk_causes
+S 293-302 function collect_group
+S 305-320 class ErrorCatalog
+S 308-314 class ErrorCatalog::Entry
+S 309-311 method Entry::__init__
+S 313-314 method Entry::describe
+S 316-317 method ErrorCatalog::__init__
+S 319-320 method ErrorCatalog::lookup
+R 8:8 imports errors -> functools
+R 9:8 imports errors -> logging
+R 10:8 imports errors -> time
+R 11:25 imports errors -> deque
+R 12:24 imports errors -> contextmanager
+R 13:20 imports errors -> Any
+R 13:25 imports errors -> Callable
+R 13:35 imports errors -> Deque
+R 13:42 imports errors -> Iterator
+R 13:52 imports errors -> Optional
+R 13:62 imports errors -> TypeVar
+R 15:15 calls errors -> getLogger
+R 17:5 calls errors -> TypeVar
+R 19:32 calls errors -> deque
+R 22:20 extends LibraryError -> Exception
+R 29:17 calls LibraryError::__init__ -> __init__
+R 29:9 calls LibraryError::__init__ -> super
+R 36:33 calls LibraryError::to_dict -> dict
+R 43:23 extends ValidationError -> LibraryError
+R 43:37 extends ValidationError -> ValueError
+R 47:21 extends NotFoundError -> LibraryError
+R 47:35 extends NotFoundError -> LookupError
+R 51:17 calls NotFoundError::__init__ -> __init__
+R 51:9 calls NotFoundError::__init__ -> super
+R 51:84 calls NotFoundError::__init__ -> str
+R 56:21 extends ConflictError -> LibraryError
+R 61:26 extends LimitExceededError -> LibraryError
+R 65:17 calls LimitExceededError::__init__ -> __init__
+R 65:9 calls LimitExceededError::__init__ -> super
+R 71:20 extends StorageError -> LibraryError
+R 71:34 extends StorageError -> OSError
+R 82:26 calls AuditRecord::__init__ -> time
+R 93:22 calls AuditRecord::as_line -> strftime
+R 93:57 calls AuditRecord::as_line -> localtime
+R 94:73 calls AuditRecord::as_line -> int
+R 98:14 calls audit -> AuditRecord
+R 99:12 calls audit -> append
+R 100:9 calls audit -> debug (x-file: library/cli.py)
+R 105:15 calls audit_trail -> list
+R 114:9 calls clear_audit -> len
+R 115:12 calls clear_audit -> clear
+R 127:28 calls wrapper -> range
+R 129:28 calls wrapper -> fn
+R 134:25 calls wrapper -> warning
+R 136:30 calls wrapper -> sleep
+R 123:9 references wrapper -> wraps
+R 155:21 calls wrapper -> getattr
+R 156:23 calls wrapper -> str
+R 158:26 calls wrapper -> fn
+R 160:17 calls wrapper -> audit
+R 162:13 calls wrapper -> audit
+R 153:9 references wrapper -> wraps
+R 178:15 calls translate_errors -> StorageError
+R 170:1 references translate_errors -> contextmanager
+R 183:8 calls error_response -> isinstance
+R 184:25 calls error_response -> to_dict
+R 185:8 calls error_response -> isinstance
+R 186:25 calls error_response -> to_dict
+R 187:8 calls error_response -> isinstance
+R 188:25 calls error_response -> to_dict
+R 189:8 calls error_response -> isinstance
+R 190:25 calls error_response -> to_dict
+R 191:9 calls error_response -> exception
+R 205:28 calls Timer::__enter__ -> perf_counter
+R 209:29 calls Timer::__exit__ -> perf_counter
+R 211:17 calls Timer::__exit__ -> warning
+R 225:28 calls RateLimiter::_refill -> get (x-file: library/models.py)
+R 226:31 calls RateLimiter::_refill -> get (x-file: library/models.py)
+R 226:40 calls RateLimiter::_refill -> float
+R 227:18 calls RateLimiter::_refill -> min
+R 233:20 calls RateLimiter::allow -> monotonic
+R 234:23 calls RateLimiter::allow -> _refill
+R 241:21 calls RateLimiter::check -> allow
+R 242:19 calls RateLimiter::check -> LimitExceededError
+R 248:35 calls summarize_errors -> get (x-file: library/models.py)
+R 249:12 calls summarize_errors -> dict
+R 249:17 calls summarize_errors -> sorted
+R 249:31 calls summarize_errors -> items
+R 253:16 calls format_trail -> as_line
+R 254:19 calls format_trail -> len
+R 254:35 calls format_trail -> len
+R 255:17 calls format_trail -> join
+R 261:16 calls safe_call -> fn
+R 263:9 calls safe_call -> audit
+R 263:38 calls safe_call -> getattr
+R 264:13 calls safe_call -> info
+R 271:15 calls chain_errors -> ValueError
+R 281:12 calls is_retryable -> isinstance
+R 285:22 calls walk_causes -> set
+R 287:35 calls walk_causes -> id
+R 288:14 calls walk_causes -> add (x-file: library/models.py)
+R 288:18 calls walk_causes -> id
+R 297:9 calls collect_group -> fn
+R 299:16 calls collect_group -> extend (x-file: library/reports.py)
+R 301:16 calls collect_group -> extend (x-file: library/reports.py)
+R 301:23 calls collect_group -> StorageError
+R 301:36 calls collect_group -> str
+R 317:38 calls ErrorCatalog::__init__ -> Entry
+R 317:54 calls ErrorCatalog::__init__ -> error_response
+R 317:69 calls ErrorCatalog::__init__ -> cls
+R 320:16 calls ErrorCatalog::lookup -> next
+
+== library/models.py (326 lines)
+S 1-326 module models
+S 25-44 class Genre
+S 35-36 method Genre::loanable
+S 39-44 method Genre::parse
+S 47-53 class MembershipTier
+S 52-53 method MembershipTier::max_loans
+S 56-61 function normalize_isbn
+S 64-67 function isbn10_checksum
+S 70-72 function isbn13_checksum
+S 75-82 function is_valid_isbn
+S 86-100 class Author
+S 94-97 method Author::display_name
+S 99-100 method Author::sort_key
+S 104-143 class Book
+S 116-120 method Book::__post_init__
+S 123-127 method Book::byline
+S 129-132 method Book::matches
+S 135-143 method Book::from_row
+S 147-160 class Copy
+S 156-160 method Copy::withdraw
+S 164-186 class Member
+S 174-176 method Member::__post_init__
+S 178-180 method Member::is_blocked
+S 182-186 method Member::block
+S 190-222 class Loan
+S 199-201 method Loan::open
+S 204-205 method Loan::is_open
+S 207-210 method Loan::days_overdue
+S 212-218 method Loan::renew
+S 220-222 method Loan::close
+S 226-232 class Hold
+S 235-260 class Page
+S 238-242 method Page::__init__
+S 244-245 method Page::__iter__
+S 247-248 method Page::__len__
+S 251-252 method Page::has_next
+S 254-255 method Page::map
+S 258-260 method Page::of
+S 263-282 class Index
+S 266-268 method Index::__init__
+S 270-271 method Index::add
+S 273-276 method Index::discard
+S 278-279 method Index::get
+S 281-282 method Index::__contains__
+S 285-291 function describe_book
+S 294-306 function classify
+S 309-312 function café_hours
+S 315-317 function overdue_fee
+S 320-326 function group_by_genre
+R 9:8 imports models -> enum
+R 10:8 imports models -> re
+R 11:25 imports models -> dataclass
+R 11:36 imports models -> field
+R 12:22 imports models -> date
+R 12:28 imports models -> datetime
+R 12:38 imports models -> timedelta
+R 13:20 imports models -> ClassVar
+R 13:30 imports models -> Generic
+R 13:39 imports models -> Iterable
+R 13:49 imports models -> Iterator
+R 13:59 imports models -> Optional
+R 13:69 imports models -> TypeVar
+R 15:21 imports models -> ValidationError (x-file: library/errors.py)
+R 15:38 imports models -> LibraryError (x-file: library/errors.py)
+R 17:19 calls models -> compile
+R 21:5 calls models -> TypeVar
+R 22:5 calls models -> TypeVar
+R 25:13 extends Genre -> Enum
+R 34:5 references Genre::loanable -> property
+R 40:43 calls Genre::parse -> replace
+R 40:35 calls Genre::parse -> lower
+R 40:27 calls Genre::parse -> strip
+R 44:15 calls Genre::parse -> ValidationError (x-file: library/errors.py)
+R 38:5 references Genre::parse -> classmethod
+R 47:22 extends MembershipTier -> IntEnum
+R 58:41 calls normalize_isbn -> upper
+R 58:18 calls normalize_isbn -> sub
+R 59:25 calls normalize_isbn -> match
+R 60:15 calls normalize_isbn -> ValidationError (x-file: library/errors.py)
+R 65:13 calls isbn10_checksum -> sum
+R 65:28 calls isbn10_checksum -> int
+R 65:47 calls isbn10_checksum -> enumerate
+R 67:36 calls isbn10_checksum -> str
+R 71:13 calls isbn13_checksum -> sum
+R 71:17 calls isbn13_checksum -> int
+R 71:63 calls isbn13_checksum -> enumerate
+R 72:12 calls isbn13_checksum -> str
+R 77:16 calls is_valid_isbn -> normalize_isbn
+R 80:8 calls is_valid_isbn -> len
+R 81:16 calls is_valid_isbn -> isbn10_checksum
+R 82:12 calls is_valid_isbn -> isbn13_checksum
+R 93:5 references Author::display_name -> property
+R 100:34 calls Author::sort_key -> casefold
+R 100:63 calls Author::sort_key -> casefold
+R 85:1 references Author -> dataclass
+R 109:29 calls Book -> field
+R 112:22 calls Book -> field
+R 117:21 calls Book::__post_init__ -> normalize_isbn
+R 118:27 calls Book::__post_init__ -> strip
+R 119:19 calls Book::__post_init__ -> ValidationError (x-file: library/errors.py)
+R 124:42 calls Book::byline -> sorted
+R 125:12 calls Book::byline -> len
+R 127:22 calls Book::byline -> join
+R 122:5 references Book::byline -> property
+R 130:24 calls Book::matches -> casefold
+R 132:16 calls Book::matches -> any
+R 132:32 calls Book::matches -> casefold
+R 136:20 calls Book::from_row -> Author
+R 136:33 calls Book::from_row -> split
+R 136:89 calls Book::from_row -> split
+R 136:70 calls Book::from_row -> get
+R 137:16 calls Book::from_row -> Book
+R 141:25 calls Book::from_row -> parse
+R 141:35 calls Book::from_row -> get
+R 142:23 calls Book::from_row -> int
+R 142:52 calls Book::from_row -> get
+R 134:5 references Book::from_row -> staticmethod
+R 103:1 references Book -> dataclass
+R 158:19 calls Copy::withdraw -> LibraryError (x-file: library/errors.py)
+R 146:1 references Copy -> dataclass
+R 169:20 calls Member -> field
+R 172:46 calls Member -> compile
+R 175:32 calls Member::__post_init__ -> match
+R 176:19 calls Member::__post_init__ -> ValidationError (x-file: library/errors.py)
+R 179:31 calls Member::is_blocked -> today
+R 183:22 calls Member::block -> today
+R 183:32 calls Member::block -> timedelta
+R 163:1 references Member -> dataclass
+R 200:24 calls Loan::open -> now (x-file: library/services.py)
+R 201:16 calls Loan::open -> cls
+R 201:79 calls Loan::open -> timedelta
+R 198:5 references Loan::open -> classmethod
+R 203:5 references Loan::is_open -> property
+R 208:29 calls Loan::days_overdue -> now (x-file: library/services.py)
+R 210:16 calls Loan::days_overdue -> max
+R 214:19 calls Loan::renew -> LibraryError (x-file: library/errors.py)
+R 216:19 calls Loan::renew -> LibraryError (x-file: library/errors.py)
+R 218:21 calls Loan::renew -> timedelta
+R 221:42 calls Loan::close -> now (x-file: library/services.py)
+R 222:21 calls Loan::close -> days_overdue
+R 189:1 references Loan -> dataclass
+R 231:22 calls Hold -> field
+R 232:17 calls Hold -> field
+R 225:1 references Hold -> dataclass
+R 245:16 calls Page::__iter__ -> iter
+R 248:16 calls Page::__len__ -> len
+R 252:30 calls Page::has_next -> len
+R 250:5 references Page::has_next -> property
+R 255:16 calls Page::map -> Page
+R 255:22 calls Page::map -> fn
+R 259:22 calls Page::of -> list
+R 260:16 calls Page::of -> cls
+R 260:57 calls Page::of -> len
+R 257:5 references Page::of -> classmethod
+R 271:55 calls Index::add -> append
+R 271:23 calls Index::add -> setdefault
+R 271:39 calls Index::add -> _key
+R 274:32 calls Index::discard -> get
+R 274:41 calls Index::discard -> _key
+R 276:20 calls Index::discard -> remove
+R 279:16 calls Index::get -> list
+R 279:35 calls Index::get -> get
+R 282:16 calls Index::__contains__ -> bool
+R 282:35 calls Index::__contains__ -> get
+R 290:29 calls describe_book -> join
+R 290:34 calls describe_book -> sorted
+R 302:38 calls classify -> upper
+R 303:54 calls classify -> upper
+R 305:36 calls classify -> upper
+R 312:54 calls café_hours -> items
+R 316:17 calls overdue_fee -> days_overdue
+R 317:12 calls overdue_fee -> min
+R 317:21 calls overdue_fee -> round
+R 323:43 calls group_by_genre -> append
+R 323:16 calls group_by_genre -> setdefault
+R 325:23 calls group_by_genre -> sort
+R 325:51 calls group_by_genre -> casefold
+
+== library/reports.py (320 lines)
+S 1-320 module reports
+S 25-34 function renderer
+S 28-32 function register
+S 37-38 function fmt_name
+S 41-44 class Row
+S 47-51 class GenreStats
+S 56-111 class Report
+S 67-82 class Report::Style
+S 70-72 method Style::__init__
+S 74-75 method Style::rule
+S 77-82 class Style::Palette
+S 81-82 method Palette::pick
+S 84-91 method Report::add
+S 93-96 method Report::extend
+S 98-99 method Report::__lt__
+S 102-104 method Report::widths
+S 106-111 method Report::render
+S 115-123 function render_text
+S 127-132 function render_markdown
+S 136-141 function render_csv
+S 144-147 function _next_report_number
+S 150-163 function genre_breakdown
+S 166-171 function circulation_report
+S 174-183 function overdue_report
+S 186-190 function loan_durations
+S 193-202 function duration_summary
+S 206-207 function shelf_label
+S 210-217 function popular_authors
+S 220-241 function inventory
+S 223-232 class Totals
+S 226-228 method Totals::__init__
+S 230-232 method Totals::count
+S 244-245 function audit_report
+S 248-249 function total_fees
+S 252-255 function søk
+S 258-260 function 概要
+S 263-282 class ReportBundle
+S 266-267 method ReportBundle::__init__
+S 269-270 method ReportBundle::__iter__
+S 272-273 method ReportBundle::render_all
+S 276-282 method ReportBundle::monthly
+S 285-287 function top_rows
+S 290-291 function is_periodical
+S 294-320 class ScheduledReport
+S 297-300 method ScheduledReport::__init__
+S 303-304 method ScheduledReport::weekday
+S 307-310 method ScheduledReport::weekday
+S 313-314 method ScheduledReport::weekday
+S 316-317 method ScheduledReport::due
+S 319-320 method ScheduledReport::run
+R 6:8 imports reports -> csv
+R 7:8 imports reports -> io
+R 8:8 imports reports -> statistics
+R 9:25 imports reports -> Counter
+R 10:25 imports reports -> dataclass
+R 10:36 imports reports -> field
+R 11:22 imports reports -> datetime
+R 11:32 imports reports -> timedelta
+R 12:23 imports reports -> cached_property
+R 12:40 imports reports -> lru_cache
+R 12:51 imports reports -> reduce
+R 12:59 imports reports -> total_ordering
+R 13:20 imports reports -> Any
+R 13:25 imports reports -> Callable
+R 13:35 imports reports -> ClassVar
+R 13:45 imports reports -> Iterable
+R 13:55 imports reports -> Iterator
+R 13:65 imports reports -> NamedTuple
+R 13:77 imports reports -> Sequence
+R 13:87 imports reports -> TypedDict
+R 15:25 imports reports -> m
+R 16:21 imports reports -> Timer (x-file: library/errors.py)
+R 16:28 imports reports -> ValidationError (x-file: library/errors.py)
+R 16:45 imports reports -> format_trail (x-file: library/errors.py)
+R 16:59 imports reports -> audit_trail (x-file: library/errors.py)
+R 17:21 imports reports -> Book (x-file: library/models.py)
+R 17:27 imports reports -> Genre (x-file: library/models.py)
+R 17:34 imports reports -> Loan (x-file: library/models.py)
+R 17:40 imports reports -> describe_book (x-file: library/models.py)
+R 17:55 imports reports -> group_by_genre (x-file: library/models.py)
+R 17:71 imports reports -> overdue_fee (x-file: library/models.py)
+R 18:25 imports reports -> Catalogue (x-file: library/repository.py)
+R 19:23 imports reports -> LendingService (x-file: library/services.py)
+R 30:19 calls register -> ValidationError (x-file: library/errors.py)
+R 38:16 calls fmt_name -> join
+R 38:31 calls fmt_name -> lower
+R 38:23 calls fmt_name -> strip
+R 41:11 extends Row -> NamedTuple
+R 47:18 extends GenreStats -> TypedDict
+R 61:35 calls Report -> field
+R 62:24 calls Report -> field
+R 63:25 calls Report -> field
+R 82:43 calls Palette::pick -> len
+R 85:12 calls Report::add -> len
+R 85:27 calls Report::add -> len
+R 86:19 calls Report::add -> ValidationError (x-file: library/errors.py)
+R 86:46 calls Report::add -> len
+R 86:79 calls Report::add -> len
+R 87:12 calls Report::add -> len
+R 88:24 calls Report::add -> append
+R 90:19 calls Report::add -> append
+R 90:26 calls Report::add -> tuple
+R 95:18 calls Report::extend -> add
+R 103:35 calls Report::widths -> str
+R 104:17 calls Report::widths -> max
+R 104:21 calls Report::widths -> len
+R 104:25 calls Report::widths -> str
+R 104:61 calls Report::widths -> range
+R 104:67 calls Report::widths -> len
+R 101:5 references Report::widths -> cached_property
+R 110:19 calls Report::render -> ValidationError (x-file: library/errors.py)
+R 110:76 calls Report::render -> sorted
+R 111:16 calls Report::render -> fn
+R 54:1 references Report -> total_ordering
+R 55:1 references Report -> dataclass
+R 116:20 calls render_text -> Style
+R 116:32 calls render_text -> sum
+R 116:57 calls render_text -> len
+R 117:34 calls render_text -> rule
+R 118:11 calls render_text -> append
+R 118:24 calls render_text -> join
+R 118:31 calls render_text -> ljust
+R 118:52 calls render_text -> zip
+R 119:11 calls render_text -> append
+R 119:24 calls render_text -> rule
+R 121:15 calls render_text -> append
+R 121:28 calls render_text -> join
+R 121:40 calls render_text -> ljust
+R 121:33 calls render_text -> str
+R 121:61 calls render_text -> zip
+R 122:11 calls render_text -> extend
+R 123:17 calls render_text -> join
+R 114:1 references render_text -> renderer
+R 128:25 calls render_markdown -> join
+R 129:21 calls render_markdown -> join
+R 130:26 calls render_markdown -> join
+R 130:38 calls render_markdown -> replace
+R 130:31 calls render_markdown -> str
+R 132:17 calls render_markdown -> join
+R 126:1 references render_markdown -> renderer
+R 137:17 calls render_csv -> StringIO
+R 138:18 calls render_csv -> writer
+R 139:12 calls render_csv -> writerow
+R 140:12 calls render_csv -> writerows
+R 141:19 calls render_csv -> getvalue
+R 135:1 references render_csv -> renderer
+R 135:11 calls reports -> fmt_name
+R 151:45 calls genre_breakdown -> open_loans (x-file: library/repository.py)
+R 153:66 calls genre_breakdown -> items
+R 153:25 calls genre_breakdown -> group_by_genre (x-file: library/models.py)
+R 153:56 calls genre_breakdown -> values (x-file: library/repository.py)
+R 154:55 calls genre_breakdown -> copies_of (x-file: library/repository.py)
+R 155:15 calls genre_breakdown -> append
+R 156:13 calls genre_breakdown -> GenreStats
+R 158:24 calls genre_breakdown -> len
+R 159:24 calls genre_breakdown -> len
+R 160:25 calls genre_breakdown -> sum
+R 163:12 calls genre_breakdown -> sorted
+R 167:14 calls circulation_report -> Report
+R 167:37 calls circulation_report -> _next_report_number
+R 168:14 calls circulation_report -> genre_breakdown
+R 170:16 calls circulation_report -> add
+R 175:14 calls overdue_report -> Report
+R 177:10 calls overdue_report -> Timer (x-file: library/errors.py)
+R 178:27 calls overdue_report -> sorted
+R 178:42 calls overdue_report -> overdue (x-file: library/services.py)
+R 179:19 calls overdue_report -> overdue_fee (x-file: library/models.py)
+R 181:20 calls overdue_report -> add
+R 182:18 calls overdue_report -> append
+R 190:46 calls loan_durations -> timedelta
+R 194:17 calls duration_summary -> list
+R 194:22 calls duration_summary -> loan_durations
+R 198:18 calls duration_summary -> float
+R 198:24 calls duration_summary -> len
+R 199:17 calls duration_summary -> round
+R 199:34 calls duration_summary -> fmean
+R 200:30 calls duration_summary -> median
+R 201:16 calls duration_summary -> max
+R 207:31 calls shelf_label -> upper
+R 207:57 calls shelf_label -> upper
+R 205:1 references shelf_label -> lru_cache
+R 211:14 calls popular_authors -> Counter
+R 214:38 calls popular_authors -> require (x-file: library/repository.py)
+R 214:63 calls popular_authors -> require (x-file: library/repository.py)
+R 217:19 calls popular_authors -> most_common
+R 221:14 calls inventory -> Report
+R 234:14 calls inventory -> Totals
+R 235:17 calls inventory -> sorted
+R 235:40 calls inventory -> values (x-file: library/repository.py)
+R 236:28 calls inventory -> copies_of (x-file: library/repository.py)
+R 237:16 calls inventory -> count
+R 237:22 calls inventory -> len
+R 238:17 calls inventory -> shelf_label
+R 238:93 calls inventory -> classify (x-file: library/models.py)
+R 239:16 calls inventory -> add
+R 239:31 calls inventory -> describe_book (x-file: library/models.py)
+R 239:59 calls inventory -> len
+R 240:18 calls inventory -> append
+R 245:12 calls audit_report -> format_trail (x-file: library/errors.py)
+R 245:25 calls audit_report -> audit_trail (x-file: library/errors.py)
+R 249:12 calls total_fees -> reduce
+R 249:43 calls total_fees -> overdue_fee (x-file: library/models.py)
+R 254:23 calls søk -> search (x-file: library/repository.py)
+R 260:39 calls 概要 -> count
+R 260:58 calls 概要 -> len
+R 260:72 calls 概要 -> open_loans (x-file: library/repository.py)
+R 267:24 calls ReportBundle::__init__ -> sorted
+R 273:23 calls ReportBundle::render_all -> join
+R 273:30 calls ReportBundle::render_all -> render
+R 278:16 calls ReportBundle::monthly -> cls
+R 279:13 calls ReportBundle::monthly -> circulation_report
+R 280:13 calls ReportBundle::monthly -> overdue_report
+R 281:13 calls ReportBundle::monthly -> inventory
+R 275:5 references ReportBundle::monthly -> classmethod
+R 286:12 calls top_rows -> sorted
+R 287:13 calls top_rows -> Row
+R 287:17 calls top_rows -> str
+R 287:28 calls top_rows -> float
+R 287:75 calls top_rows -> isdigit
+R 287:55 calls top_rows -> replace
+R 287:44 calls top_rows -> str
+R 302:5 references ScheduledReport::weekday -> property
+R 308:25 calls ScheduledReport::weekday -> range
+R 309:19 calls ScheduledReport::weekday -> ValidationError (x-file: library/errors.py)
+R 306:5 references ScheduledReport::weekday -> setter
+R 312:5 references ScheduledReport::weekday -> deleter
+R 317:22 calls ScheduledReport::due -> weekday
+R 320:30 calls ScheduledReport::run -> render
+R 320:21 calls ScheduledReport::run -> _build
+
+== library/repository.py (316 lines)
+S 1-316 module repository
+S 24-25 class HasKey
+S 25-25 method HasKey::key
+S 28-62 class Repository
+S 34-35 method Repository::get
+S 38-39 method Repository::put
+S 42-43 method Repository::delete
+S 46-47 method Repository::scan
+S 49-53 method Repository::require
+S 55-56 method Repository::values
+S 58-59 method Repository::count
+S 61-62 method Repository::page
+S 65-102 class MemoryRepository
+S 68-72 method MemoryRepository::__init__
+S 74-76 method MemoryRepository::get
+S 78-81 method MemoryRepository::put
+S 83-89 method MemoryRepository::put_if_version
+S 91-92 method MemoryRepository::version
+S 94-97 method MemoryRepository::delete
+S 99-102 method MemoryRepository::scan
+S 128-165 class SqliteRepository
+S 131-137 method SqliteRepository::__init__
+S 140-145 method SqliteRepository::get
+S 148-154 method SqliteRepository::put
+S 156-159 method SqliteRepository::delete
+S 161-165 method SqliteRepository::scan
+S 168-175 function _json_default
+S 178-182 function open_database
+S 185-254 class Catalogue
+S 188-199 method Catalogue::__init__
+S 201-203 method Catalogue::add_book
+S 205-209 method Catalogue::add_copy
+S 211-212 method Catalogue::copies_of
+S 214-219 method Catalogue::open_loans
+S 221-222 method Catalogue::loan_for
+S 224-229 method Catalogue::search
+S 231-245 method Catalogue::export_csv
+S 247-254 method Catalogue::import_csv
+S 257-266 function load_fixture
+S 269-277 function iter_batches
+S 280-316 class UnitOfWork
+S 283-286 method UnitOfWork::__init__
+S 288-289 method UnitOfWork::__enter__
+S 291-296 method UnitOfWork::__exit__
+S 298-299 method UnitOfWork::add
+S 301-313 method UnitOfWork::commit
+S 315-316 method UnitOfWork::rollback
+R 6:8 imports repository -> abc
+R 7:8 imports repository -> csv
+R 8:8 imports repository -> io
+R 9:8 imports repository -> json
+R 10:8 imports repository -> sqlite3
+R 11:8 imports repository -> threading
+R 12:22 imports repository -> datetime
+R 13:21 imports repository -> Path
+R 14:20 imports repository -> Generic
+R 14:29 imports repository -> Iterable
+R 14:39 imports repository -> Iterator
+R 14:49 imports repository -> Optional
+R 14:59 imports repository -> Protocol
+R 14:69 imports repository -> TypeVar
+R 16:15 imports repository -> models (x-file: library/models.py)
+R 17:21 imports repository -> NotFoundError (x-file: library/errors.py)
+R 17:36 imports repository -> StorageError (x-file: library/errors.py)
+R 17:50 imports repository -> ConflictError (x-file: library/errors.py)
+R 17:65 imports repository -> retry (x-file: library/errors.py)
+R 17:72 imports repository -> translate_errors (x-file: library/errors.py)
+R 18:21 imports repository -> Book (x-file: library/models.py)
+R 18:27 imports repository -> Copy (x-file: library/models.py)
+R 18:33 imports repository -> Hold (x-file: library/models.py)
+R 18:39 imports repository -> Loan (x-file: library/models.py)
+R 18:45 imports repository -> Member (x-file: library/models.py)
+R 18:53 imports repository -> Page (x-file: library/models.py)
+R 20:5 calls repository -> TypeVar
+R 21:8 calls repository -> TypeVar
+R 24:14 extends HasKey -> Protocol
+R 28:18 extends Repository -> ABC
+R 33:5 references Repository::get -> abstractmethod
+R 37:5 references Repository::put -> abstractmethod
+R 41:5 references Repository::delete -> abstractmethod
+R 45:5 references Repository::scan -> abstractmethod
+R 50:22 calls Repository::require -> get
+R 52:19 calls Repository::require -> NotFoundError (x-file: library/errors.py)
+R 56:44 calls Repository::values -> scan
+R 59:16 calls Repository::count -> sum
+R 59:36 calls Repository::count -> scan
+R 62:21 calls Repository::page -> of (x-file: library/models.py)
+R 62:29 calls Repository::page -> values
+R 72:32 calls MemoryRepository::__init__ -> RLock
+R 76:31 calls MemoryRepository::get -> get
+R 81:50 calls MemoryRepository::put -> get
+R 85:38 calls MemoryRepository::put_if_version -> get
+R 87:23 calls MemoryRepository::put_if_version -> ConflictError (x-file: library/errors.py)
+R 88:18 calls MemoryRepository::put_if_version -> put
+R 92:31 calls MemoryRepository::version -> get
+R 96:28 calls MemoryRepository::delete -> pop (x-file: library/services.py)
+R 97:31 calls MemoryRepository::delete -> pop (x-file: library/services.py)
+R 101:21 calls MemoryRepository::scan -> list
+R 101:37 calls MemoryRepository::scan -> items
+R 132:22 calls SqliteRepository::__init__ -> isidentifier
+R 132:55 calls SqliteRepository::__init__ -> isidentifier
+R 133:19 calls SqliteRepository::__init__ -> StorageError (x-file: library/errors.py)
+R 137:27 calls SqliteRepository::__init__ -> rstrip
+R 141:14 calls SqliteRepository::get -> translate_errors (x-file: library/errors.py)
+R 144:15 calls SqliteRepository::get -> fetchone
+R 142:29 calls SqliteRepository::get -> execute
+R 145:21 calls SqliteRepository::get -> loads
+R 139:5 references SqliteRepository::get -> retry (x-file: library/errors.py)
+R 149:21 calls SqliteRepository::put -> dumps
+R 150:14 calls SqliteRepository::put -> translate_errors (x-file: library/errors.py)
+R 151:23 calls SqliteRepository::put -> execute
+R 147:5 references SqliteRepository::put -> retry (x-file: library/errors.py)
+R 157:14 calls SqliteRepository::delete -> translate_errors (x-file: library/errors.py)
+R 158:29 calls SqliteRepository::delete -> execute
+R 162:14 calls SqliteRepository::scan -> translate_errors (x-file: library/errors.py)
+R 163:91 calls SqliteRepository::scan -> fetchall
+R 163:30 calls SqliteRepository::scan -> execute
+R 165:29 calls SqliteRepository::scan -> loads
+R 169:8 calls _json_default -> isinstance
+R 170:22 calls _json_default -> isoformat
+R 171:8 calls _json_default -> isinstance
+R 172:16 calls _json_default -> sorted
+R 173:8 calls _json_default -> hasattr
+R 175:11 calls _json_default -> TypeError
+R 175:41 calls _json_default -> type
+R 179:20 calls open_database -> connect
+R 179:28 calls open_database -> str
+R 180:10 calls open_database -> executescript
+R 194:31 calls Catalogue::__init__ -> MemoryRepository
+R 195:33 calls Catalogue::__init__ -> MemoryRepository
+R 196:35 calls Catalogue::__init__ -> MemoryRepository
+R 199:32 calls Catalogue::__init__ -> Index (x-file: library/models.py)
+R 202:20 calls Catalogue::add_book -> put
+R 206:20 calls Catalogue::add_copy -> require
+R 207:21 calls Catalogue::add_copy -> put
+R 208:23 calls Catalogue::add_copy -> add
+R 212:42 calls Catalogue::copies_of -> get
+R 222:16 calls Catalogue::loan_for -> next
+R 225:16 calls Catalogue::search -> sorted
+R 226:36 calls Catalogue::search -> values
+R 226:50 calls Catalogue::search -> matches (x-file: library/models.py)
+R 227:36 calls Catalogue::search -> casefold
+R 229:21 calls Catalogue::search -> of (x-file: library/models.py)
+R 232:21 calls Catalogue::export_csv -> StringIO
+R 233:22 calls Catalogue::export_csv -> writer
+R 234:16 calls Catalogue::export_csv -> writerow
+R 235:21 calls Catalogue::export_csv -> sorted
+R 235:39 calls Catalogue::export_csv -> values
+R 236:20 calls Catalogue::export_csv -> writerow
+R 240:25 calls Catalogue::export_csv -> join
+R 242:21 calls Catalogue::export_csv -> len
+R 242:30 calls Catalogue::export_csv -> copies_of
+R 245:23 calls Catalogue::export_csv -> getvalue
+R 248:22 calls Catalogue::import_csv -> DictReader
+R 248:36 calls Catalogue::import_csv -> StringIO
+R 251:25 calls Catalogue::import_csv -> from_row (x-file: library/models.py)
+R 252:18 calls Catalogue::import_csv -> add_book
+R 259:10 calls load_fixture -> translate_errors (x-file: library/errors.py)
+R 260:21 calls load_fixture -> loads
+R 260:32 calls load_fixture -> read_text
+R 261:17 calls load_fixture -> Catalogue
+R 262:21 calls load_fixture -> get
+R 263:19 calls load_fixture -> add_book
+R 263:33 calls load_fixture -> from_row (x-file: library/models.py)
+R 264:21 calls load_fixture -> get
+R 265:19 calls load_fixture -> add_copy
+R 265:28 calls load_fixture -> Copy (x-file: library/models.py)
+R 272:15 calls iter_batches -> append
+R 273:12 calls iter_batches -> len
+R 293:18 calls UnitOfWork::__exit__ -> commit
+R 295:18 calls UnitOfWork::__exit__ -> rollback
+R 299:23 calls UnitOfWork::add -> append
+R 305:36 calls UnitOfWork::commit -> add_book
+R 307:36 calls UnitOfWork::commit -> add_copy
+R 309:42 calls UnitOfWork::commit -> append
+R 311:27 calls UnitOfWork::commit -> StorageError (x-file: library/errors.py)
+R 312:23 calls UnitOfWork::commit -> clear
+R 316:23 calls UnitOfWork::rollback -> clear
+
+== library/services.py (417 lines)
+S 1-417 module services
+S 48-48 type_alias Pair
+S 51-52 class Clock
+S 52-52 method Clock::now
+S 55-57 class SystemClock
+S 56-57 method SystemClock::now
+S 60-71 class FixedClock
+S 63-64 method FixedClock::__init__
+S 66-67 method FixedClock::now
+S 69-71 method FixedClock::advance
+S 74-87 class Notifier
+S 77-78 method Notifier::__init__
+S 81-81 method Notifier::deliver
+S 83-87 method Notifier::notify
+S 90-98 class EmailNotifier
+S 91-94 method EmailNotifier::__init__
+S 96-98 method EmailNotifier::deliver
+S 101-108 class SmsNotifier
+S 104-108 method SmsNotifier::deliver
+S 111-132 class EventBus
+S 114-115 method EventBus::__init__
+S 117-122 method EventBus::subscribe
+S 118-120 function register
+S 124-132 method EventBus::publish
+S 135-166 class HoldQueue
+S 138-140 method HoldQueue::__init__
+S 142-147 method HoldQueue::place
+S 149-151 method HoldQueue::pop
+S 153-155 method HoldQueue::peek
+S 157-163 method HoldQueue::cancel
+S 165-166 method HoldQueue::__len__
+S 169-299 class LendingService
+S 172-188 method LendingService::__init__
+S 191-192 method LendingService::loan_days
+S 195-198 method LendingService::loan_days
+S 200-201 method LendingService::_member
+S 203-207 method LendingService::_available_copy
+S 210-228 method LendingService::checkout
+S 231-242 method LendingService::return_copy
+S 244-250 method LendingService::_offer_to_next_hold
+S 253-261 method LendingService::renew
+S 263-269 method LendingService::place_hold
+S 272-272 method LendingService::find_loans
+S 275-275 method LendingService::find_loans
+S 277-279 method LendingService::find_loans
+S 281-287 method LendingService::overdue
+S 284-285 function late
+S 289-299 method LendingService::bulk_checkout
+S 302-341 class ReminderService
+S 305-308 method ReminderService::__init__
+S 310-313 method ReminderService::message_for
+S 315-322 method ReminderService::_send_one
+S 324-333 method ReminderService::send_all
+S 335-338 method ReminderService::stream
+S 340-341 method ReminderService::run
+S 344-368 class UpgradePolicy
+S 349-350 method UpgradePolicy::__init__
+S 352-360 method UpgradePolicy::suggest
+S 362-368 method UpgradePolicy::apply
+S 371-373 function first_available
+S 376-377 function book_pairs
+S 380-393 function make_counter
+S 384-387 function increment
+S 389-391 function reset
+S 396-409 function wire_default_listeners
+S 400-402 function on_open
+S 405-407 function on_close
+S 412-417 function build_services
+R 10:8 imports services -> asyncio
+R 11:8 imports services -> heapq
+R 12:8 imports services -> itertools
+R 13:19 imports services -> _logging
+R 14:17 imports services -> ABC
+R 14:22 imports services -> abstractmethod
+R 15:25 imports services -> defaultdict
+R 16:22 imports services -> datetime
+R 16:32 imports services -> timedelta
+R 17:20 imports services -> Awaitable
+R 17:31 imports services -> Callable
+R 17:41 imports services -> Iterable
+R 17:51 imports services -> Optional
+R 17:61 imports services -> Protocol
+R 17:71 imports services -> overload
+R 20:5 imports services -> ConflictError (x-file: library/errors.py)
+R 21:5 imports services -> LibraryError (x-file: library/errors.py)
+R 22:5 imports services -> LimitExceededError (x-file: library/errors.py)
+R 23:5 imports services -> NotFoundError (x-file: library/errors.py)
+R 24:5 imports services -> RateLimiter (x-file: library/errors.py)
+R 25:5 imports services -> Timer (x-file: library/errors.py)
+R 26:5 imports services -> ValidationError (x-file: library/errors.py)
+R 27:5 imports services -> audit (x-file: library/errors.py)
+R 28:5 imports services -> audited (x-file: library/errors.py)
+R 29:5 imports services -> retry (x-file: library/errors.py)
+R 32:5 imports services -> DEFAULT_LOAN_DAYS
+R 33:5 imports services -> Book (x-file: library/models.py)
+R 34:5 imports services -> Copy (x-file: library/models.py)
+R 35:5 imports services -> Hold (x-file: library/models.py)
+R 36:5 imports services -> Loan (x-file: library/models.py)
+R 37:5 imports services -> Member (x-file: library/models.py)
+R 38:5 imports services -> MembershipTier (x-file: library/models.py)
+R 39:5 imports services -> classify (x-file: library/models.py)
+R 40:5 imports services -> overdue_fee (x-file: library/models.py)
+R 42:25 imports services -> Catalogue (x-file: library/repository.py)
+R 42:36 imports services -> UnitOfWork (x-file: library/repository.py)
+R 42:48 imports services -> iter_batches (x-file: library/repository.py)
+R 44:19 calls services -> getLogger
+R 51:13 extends Clock -> Protocol
+R 57:25 calls SystemClock::now -> now
+R 70:21 calls FixedClock::advance -> timedelta
+R 74:16 extends Notifier -> ABC
+R 80:5 references Notifier::deliver -> abstractmethod
+R 84:19 calls Notifier::notify -> deliver
+R 86:23 calls Notifier::notify -> append
+R 90:21 extends EmailNotifier -> Notifier
+R 92:17 calls EmailNotifier::__init__ -> __init__
+R 92:9 calls EmailNotifier::__init__ -> super
+R 97:21 calls EmailNotifier::deliver -> append
+R 101:19 extends SmsNotifier -> Notifier
+R 105:12 calls SmsNotifier::deliver -> len
+R 107:16 calls SmsNotifier::deliver -> info
+R 108:16 calls SmsNotifier::deliver -> bool
+R 115:54 calls EventBus::__init__ -> defaultdict
+R 119:36 calls register -> append
+R 128:17 calls EventBus::publish -> listener
+R 131:24 calls EventBus::publish -> exception
+R 139:46 calls HoldQueue::__init__ -> defaultdict
+R 140:35 calls HoldQueue::__init__ -> count (x-file: library/reports.py)
+R 143:25 calls HoldQueue::place -> int
+R 144:16 calls HoldQueue::place -> Hold (x-file: library/models.py)
+R 145:15 calls HoldQueue::place -> heappush
+R 146:9 calls HoldQueue::place -> next
+R 150:28 calls HoldQueue::pop -> get (x-file: library/models.py)
+R 151:22 calls HoldQueue::pop -> heappop
+R 154:28 calls HoldQueue::peek -> get (x-file: library/models.py)
+R 158:28 calls HoldQueue::cancel -> get (x-file: library/models.py)
+R 160:19 calls HoldQueue::cancel -> len
+R 160:32 calls HoldQueue::cancel -> len
+R 161:15 calls HoldQueue::cancel -> heapify
+R 166:16 calls HoldQueue::__len__ -> sum
+R 166:20 calls HoldQueue::__len__ -> len
+R 166:48 calls HoldQueue::__len__ -> values (x-file: library/repository.py)
+R 182:31 calls LendingService::__init__ -> SystemClock
+R 183:37 calls LendingService::__init__ -> EmailNotifier
+R 184:27 calls LendingService::__init__ -> EventBus
+R 185:22 calls LendingService::__init__ -> HoldQueue
+R 186:24 calls LendingService::__init__ -> RateLimiter (x-file: library/errors.py)
+R 190:5 references LendingService::loan_days -> property
+R 197:19 calls LendingService::loan_days -> ValidationError (x-file: library/errors.py)
+R 194:5 references LendingService::loan_days -> setter
+R 201:39 calls LendingService::_member -> require (x-file: library/repository.py)
+R 204:36 calls LendingService::_available_copy -> copies_of (x-file: library/repository.py)
+R 205:31 calls LendingService::_available_copy -> loan_for (x-file: library/repository.py)
+R 207:15 calls LendingService::_available_copy -> ConflictError (x-file: library/errors.py)
+R 211:23 calls LendingService::checkout -> _member
+R 212:19 calls LendingService::checkout -> is_blocked (x-file: library/models.py)
+R 212:47 calls LendingService::checkout -> date
+R 212:41 calls LendingService::checkout -> now
+R 213:19 calls LendingService::checkout -> ValidationError (x-file: library/errors.py)
+R 214:37 calls LendingService::checkout -> require (x-file: library/repository.py)
+R 216:19 calls LendingService::checkout -> ValidationError (x-file: library/errors.py)
+R 217:12 calls LendingService::checkout -> len
+R 217:31 calls LendingService::checkout -> open_loans (x-file: library/repository.py)
+R 217:69 calls LendingService::checkout -> max_loans (x-file: library/models.py)
+R 218:19 calls LendingService::checkout -> LimitExceededError (x-file: library/errors.py)
+R 218:59 calls LendingService::checkout -> max_loans (x-file: library/models.py)
+R 218:72 calls LendingService::checkout -> len
+R 218:91 calls LendingService::checkout -> open_loans (x-file: library/repository.py)
+R 219:32 calls LendingService::checkout -> peek
+R 220:19 calls LendingService::checkout -> ConflictError (x-file: library/errors.py)
+R 221:21 calls LendingService::checkout -> _available_copy
+R 222:21 calls LendingService::checkout -> open (x-file: library/models.py)
+R 223:14 calls LendingService::checkout -> UnitOfWork (x-file: library/repository.py)
+R 224:17 calls LendingService::checkout -> add (x-file: library/models.py)
+R 226:24 calls LendingService::checkout -> pop
+R 227:18 calls LendingService::checkout -> publish
+R 227:97 calls LendingService::checkout -> classify (x-file: library/models.py)
+R 209:5 references LendingService::checkout -> audited (x-file: library/errors.py)
+R 232:31 calls LendingService::return_copy -> loan_for (x-file: library/repository.py)
+R 234:19 calls LendingService::return_copy -> NotFoundError (x-file: library/errors.py)
+R 235:26 calls LendingService::return_copy -> close (x-file: library/models.py)
+R 235:43 calls LendingService::return_copy -> now
+R 236:15 calls LendingService::return_copy -> overdue_fee (x-file: library/models.py)
+R 238:42 calls LendingService::return_copy -> block (x-file: library/models.py)
+R 238:18 calls LendingService::return_copy -> _member
+R 239:38 calls LendingService::return_copy -> require (x-file: library/repository.py)
+R 240:14 calls LendingService::return_copy -> _offer_to_next_hold
+R 241:18 calls LendingService::return_copy -> publish
+R 230:5 references LendingService::return_copy -> audited (x-file: library/errors.py)
+R 245:27 calls LendingService::_offer_to_next_hold -> peek
+R 248:23 calls LendingService::_offer_to_next_hold -> _member
+R 249:37 calls LendingService::_offer_to_next_hold -> require (x-file: library/repository.py)
+R 250:23 calls LendingService::_offer_to_next_hold -> notify
+R 254:31 calls LendingService::renew -> loan_for (x-file: library/repository.py)
+R 256:19 calls LendingService::renew -> NotFoundError (x-file: library/errors.py)
+R 257:38 calls LendingService::renew -> require (x-file: library/repository.py)
+R 258:23 calls LendingService::renew -> peek
+R 259:19 calls LendingService::renew -> ConflictError (x-file: library/errors.py)
+R 260:14 calls LendingService::renew -> renew
+R 252:5 references LendingService::renew -> retry (x-file: library/errors.py)
+R 264:22 calls LendingService::place_hold -> check (x-file: library/errors.py)
+R 265:23 calls LendingService::place_hold -> _member
+R 266:30 calls LendingService::place_hold -> require (x-file: library/repository.py)
+R 267:27 calls LendingService::place_hold -> place
+R 267:61 calls LendingService::place_hold -> now
+R 268:9 calls LendingService::place_hold -> audit (x-file: library/errors.py)
+R 271:5 references LendingService::find_loans -> overload
+R 274:5 references LendingService::find_loans -> overload
+R 278:41 calls LendingService::find_loans -> isinstance
+R 278:73 calls LendingService::find_loans -> int
+R 279:16 calls LendingService::find_loans -> sorted
+R 279:38 calls LendingService::find_loans -> open_loans (x-file: library/repository.py)
+R 282:26 calls LendingService::overdue -> now
+R 285:25 calls late -> days_overdue (x-file: library/models.py)
+R 287:57 calls LendingService::overdue -> open_loans (x-file: library/repository.py)
+R 287:82 calls LendingService::overdue -> late
+R 292:22 calls LendingService::bulk_checkout -> iter_batches (x-file: library/repository.py)
+R 293:18 calls LendingService::bulk_checkout -> Timer (x-file: library/errors.py)
+R 293:36 calls LendingService::bulk_checkout -> len
+R 296:31 calls LendingService::bulk_checkout -> append
+R 296:43 calls LendingService::bulk_checkout -> checkout
+R 298:32 calls LendingService::bulk_checkout -> append
+R 308:35 calls ReminderService::__init__ -> set
+R 311:45 calls ReminderService::message_for -> require (x-file: library/repository.py)
+R 311:83 calls ReminderService::message_for -> require (x-file: library/repository.py)
+R 312:15 calls ReminderService::message_for -> overdue_fee (x-file: library/models.py)
+R 317:53 calls ReminderService::_send_one -> require (x-file: library/repository.py)
+R 318:27 calls ReminderService::_send_one -> sleep
+R 319:40 calls ReminderService::_send_one -> notify
+R 319:60 calls ReminderService::_send_one -> message_for
+R 321:31 calls ReminderService::_send_one -> add (x-file: library/models.py)
+R 325:23 calls ReminderService::send_all -> Semaphore
+R 327:18 calls ReminderService::send_all -> _send_one
+R 327:76 calls ReminderService::send_all -> overdue
+R 329:33 calls ReminderService::send_all -> gather
+R 330:43 calls ReminderService::send_all -> isinstance
+R 332:20 calls ReminderService::send_all -> warning
+R 333:16 calls ReminderService::send_all -> sum
+R 336:40 calls ReminderService::stream -> overdue
+R 337:38 calls ReminderService::stream -> message_for
+R 338:27 calls ReminderService::stream -> sleep
+R 341:24 calls ReminderService::run -> run
+R 341:33 calls ReminderService::run -> send_all
+R 353:30 calls UpgradePolicy::suggest -> get (x-file: library/models.py)
+R 357:51 calls UpgradePolicy::suggest -> get (x-file: library/models.py)
+R 358:24 calls UpgradePolicy::suggest -> MembershipTier (x-file: library/models.py)
+R 358:39 calls UpgradePolicy::suggest -> int
+R 363:58 calls UpgradePolicy::apply -> suggest
+R 367:17 calls UpgradePolicy::apply -> audit (x-file: library/errors.py)
+R 367:44 calls UpgradePolicy::apply -> str
+R 373:12 calls first_available -> next
+R 373:44 calls first_available -> predicate
+R 377:12 calls book_pairs -> list
+R 377:27 calls book_pairs -> combinations
+R 377:40 calls book_pairs -> sorted
+R 397:20 calls wire_default_listeners -> make_counter
+R 401:9 calls on_open -> increment
+R 402:16 calls on_open -> info
+R 399:5 references on_open -> subscribe
+R 406:20 calls on_close -> get (x-file: library/models.py)
+R 407:13 calls on_close -> audit (x-file: library/errors.py)
+R 404:5 references on_close -> subscribe
+R 413:30 calls build_services -> Catalogue (x-file: library/repository.py)
+R 414:11 calls build_services -> EventBus
+R 415:15 calls build_services -> LendingService
+R 416:5 calls build_services -> wire_default_listeners
+R 417:21 calls build_services -> ReminderService
