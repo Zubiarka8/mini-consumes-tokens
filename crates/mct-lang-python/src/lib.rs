@@ -52,7 +52,15 @@ impl LanguageParser for PythonParser {
 
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
-        let module_id = walker.push_symbol(module_name, SymbolKind::Module, location(root), None);
+        let mut module_location = location(root);
+        // The root node of a file ending in a newline ends at column 0 of
+        // the (empty) line after the last one; the file's last line is the
+        // one before that.
+        let end = root.end_position();
+        if end.column == 0 && end.row > 0 {
+            module_location.end_line = Some(end.row as u32);
+        }
+        let module_id = walker.push_symbol(module_name, SymbolKind::Module, module_location, None);
         walker.visit_children(root, module_id, None, 0);
         Ok(walker.finish())
     }
@@ -191,12 +199,35 @@ impl<'a> Walker<'a> {
                                     location(decorator),
                                 );
                             }
+                            // Decorator arguments run in the enclosing scope:
+                            // `@renderer(fmt_name("csv"))` calls `fmt_name`
+                            // from `owner`, not from the decorated symbol.
+                            if expr.kind() == "call" {
+                                if let Some(arguments) = expr.child_by_field_name("arguments") {
+                                    self.visit_children(arguments, owner, class_name, depth + 1);
+                                }
+                            }
                         }
                     }
                 }
             }
             "function_definition" | "class_definition" => {
                 self.visit_definition(node, owner, class_name, depth);
+            }
+            // PEP 695 `type Name[T] = ...`.
+            "type_alias_statement" => {
+                if let Some(name) = node
+                    .child_by_field_name("left")
+                    .and_then(|left| first_identifier(left, depth))
+                {
+                    let name = text(name, self.source).to_string();
+                    self.push_symbol(
+                        name,
+                        SymbolKind::TypeAlias,
+                        location(node),
+                        class_name.map(str::to_string),
+                    );
+                }
             }
             "import_statement" => {
                 let mut cursor = node.walk();
@@ -272,7 +303,14 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                let id = self.push_symbol(name.clone(), SymbolKind::Class, location(node), None);
+                // A class nested directly in another class's body belongs to
+                // it, like a method does.
+                let id = self.push_symbol(
+                    name.clone(),
+                    SymbolKind::Class,
+                    location(node),
+                    class_name.map(str::to_string),
+                );
                 if let Some(superclasses) = node.child_by_field_name("superclasses") {
                     let mut cursor = superclasses.walk();
                     for base in superclasses.named_children(&mut cursor) {
@@ -305,6 +343,22 @@ impl<'a> Walker<'a> {
             ..Default::default()
         }
     }
+}
+
+/// The first `identifier` at or under `node` in document order — the alias
+/// name of a `type` statement's left side (`Pair` in `Pair[T]`).
+fn first_identifier(node: Node, depth: u32) -> Option<Node> {
+    if depth >= MAX_TRAVERSAL_DEPTH {
+        return None;
+    }
+    if node.kind() == "identifier" {
+        return Some(node);
+    }
+    let mut cursor = node.walk();
+    let children: Vec<Node> = node.named_children(&mut cursor).collect();
+    children
+        .into_iter()
+        .find_map(|child| first_identifier(child, depth + 1))
 }
 
 /// Name of a callable/base-class expression: a bare identifier, or the
