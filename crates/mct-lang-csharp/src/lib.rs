@@ -48,8 +48,10 @@ impl LanguageParser for CSharpParser {
         }
 
         let module_name = module_name_for(&file.relative_path);
-        let mut walker = Walker::new(&file.contents);
-        let module_id = walker.push_symbol(module_name, SymbolKind::Module, location(root), None);
+        let mut walker = Walker::new(&file.contents, file_end_line(root));
+        let mut module_location = location(root);
+        module_location.end_line = Some(walker.file_end);
+        let module_id = walker.push_symbol(module_name, SymbolKind::Module, module_location, None);
         walker.visit_children(root, module_id, None, 0);
         Ok(walker.finish())
     }
@@ -62,6 +64,17 @@ fn module_name_for(relative_path: &str) -> String {
         .unwrap_or(relative_path)
         .trim_end_matches(".cs")
         .to_string()
+}
+
+/// The file's last line. The root node of a file ending in a newline ends
+/// at column 0 of the (empty) line after the last one.
+fn file_end_line(root: Node) -> u32 {
+    let end = root.end_position();
+    if end.column == 0 && end.row > 0 {
+        end.row as u32
+    } else {
+        end.row as u32 + 1
+    }
 }
 
 fn first_error(node: Node) -> Option<Node> {
@@ -94,15 +107,17 @@ fn text<'a>(node: Node, source: &'a str) -> &'a str {
 
 struct Walker<'a> {
     source: &'a str,
+    file_end: u32,
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
     next_id: SymbolId,
 }
 
 impl<'a> Walker<'a> {
-    fn new(source: &'a str) -> Self {
+    fn new(source: &'a str, file_end: u32) -> Self {
         Self {
             source,
+            file_end,
             symbols: Vec::new(),
             relations: Vec::new(),
             next_id: 0,
@@ -147,16 +162,40 @@ impl<'a> Walker<'a> {
         });
     }
 
-    /// `owner` is the innermost enclosing method/property/module (calls
-    /// attach to it); `type_name` is the innermost enclosing
-    /// class/interface/struct/namespace name, used as `parent` for members
-    /// declared directly inside it. Every `method_declaration` — including
-    /// each overload — gets its own `SymbolRecord` row, so overloads are
-    /// never collapsed.
+    fn field_text(&self, node: Node, field: &str) -> String {
+        node.child_by_field_name(field)
+            .map(|n| text(n, self.source).to_string())
+            .unwrap_or_default()
+    }
+
+    /// `owner` is the innermost enclosing symbol calls attach to (a
+    /// member, a type for anything directly in its body, or the file
+    /// module); `type_name` is the innermost enclosing
+    /// class/interface/struct/record/enum/namespace name, used as `parent`
+    /// for members declared directly inside it. Every `method_declaration`
+    /// — including each overload — gets its own `SymbolRecord` row, so
+    /// overloads are never collapsed.
+    ///
+    /// A file-scoped `namespace X;` has no body: the declarations after it
+    /// are its siblings, so it becomes their `type_name` from here on.
     fn visit_children(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>, depth: u32) {
+        let mut scope: Option<String> = None;
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
-            self.visit(child, owner, type_name, depth + 1);
+            if child.kind() == "file_scoped_namespace_declaration" {
+                let name = self.field_text(child, "name");
+                let mut loc = location(child);
+                loc.end_line = Some(self.file_end);
+                self.push_symbol(
+                    name.clone(),
+                    SymbolKind::Module,
+                    loc,
+                    type_name.map(str::to_string),
+                );
+                scope = Some(name);
+                continue;
+            }
+            self.visit(child, owner, scope.as_deref().or(type_name), depth + 1);
         }
     }
 
@@ -164,109 +203,76 @@ impl<'a> Walker<'a> {
         if depth >= MAX_TRAVERSAL_DEPTH {
             return;
         }
+        let parent = type_name.map(str::to_string);
         match node.kind() {
             "namespace_declaration" => {
-                let name = node
-                    .child_by_field_name("name")
-                    .map(|n| text(n, self.source).to_string())
-                    .unwrap_or_default();
-                self.push_symbol(
-                    name.clone(),
-                    SymbolKind::Module,
-                    location(node),
-                    type_name.map(str::to_string),
-                );
+                let name = self.field_text(node, "name");
+                self.push_symbol(name.clone(), SymbolKind::Module, location(node), parent);
                 if let Some(body) = node.child_by_field_name("body") {
                     self.visit_children(body, owner, Some(&name), depth + 1);
                 }
             }
-            "class_declaration" | "interface_declaration" | "struct_declaration" => {
-                let kind = match node.kind() {
-                    "class_declaration" => SymbolKind::Class,
-                    "interface_declaration" => SymbolKind::Interface,
-                    _ => SymbolKind::Struct,
-                };
-                let name = node
-                    .child_by_field_name("name")
-                    .map(|n| text(n, self.source).to_string())
-                    .unwrap_or_default();
-                let id = self.push_symbol(
-                    name.clone(),
-                    kind,
-                    location(node),
-                    type_name.map(str::to_string),
-                );
-
-                // `base_list` is unified in this grammar — C# doesn't
-                // syntactically distinguish "extends" from "implements", both
-                // are one comma-separated list after `:`. Heuristic (AST-only,
-                // no type resolution): C# requires the base class, when
-                // present, to be listed first, so treat entry 0 as Extends
-                // and the rest as Implements. A class with only interfaces
-                // then mislabels entry 0 as Extends — accepted limitation,
-                // same class of simplification as the LSP-deferral decision.
-                if let Some(base_list) = find_child(node, "base_list") {
-                    let mut cursor = base_list.walk();
-                    let bases: Vec<Node> = base_list
-                        .children(&mut cursor)
-                        .filter(|n| {
-                            n.kind() == "identifier"
-                                || n.kind() == "generic_name"
-                                || n.kind() == "qualified_name"
-                        })
-                        .collect();
-                    for (i, base_node) in bases.iter().enumerate() {
-                        let relation_kind = if i == 0 {
-                            RelationKind::Extends
-                        } else {
-                            RelationKind::Implements
-                        };
-                        self.push_relation(
-                            id,
-                            relation_kind,
-                            text(*base_node, self.source).to_string(),
-                            location(*base_node),
-                        );
+            "class_declaration"
+            | "interface_declaration"
+            | "struct_declaration"
+            | "record_declaration"
+            | "enum_declaration" => {
+                self.visit_type(node, type_name, depth);
+            }
+            "delegate_declaration" => {
+                let name = self.field_text(node, "name");
+                let id = self.push_symbol(name, SymbolKind::TypeAlias, location(node), parent);
+                self.visit_attributes(node, id, type_name, depth);
+            }
+            "method_declaration"
+            | "constructor_declaration"
+            | "destructor_declaration"
+            | "operator_declaration"
+            | "conversion_operator_declaration" => {
+                let name = match node.kind() {
+                    "destructor_declaration" => format!("~{}", self.field_text(node, "name")),
+                    "operator_declaration" => {
+                        format!("operator {}", self.field_text(node, "operator"))
                     }
-                }
-                if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, owner, Some(&name), depth + 1);
-                }
+                    // `implicit operator Result<T>` → `operator Result`.
+                    "conversion_operator_declaration" => {
+                        let target = node
+                            .child_by_field_name("type")
+                            .and_then(|t| type_base_name(t, self.source))
+                            .unwrap_or_else(|| self.field_text(node, "type"));
+                        format!("operator {target}")
+                    }
+                    _ => self.field_text(node, "name"),
+                };
+                let id = self.push_symbol(name, SymbolKind::Method, location(node), parent);
+                self.visit_callable(node, id, type_name, depth);
             }
-            "method_declaration" | "constructor_declaration" => {
-                let name = node
-                    .child_by_field_name("name")
-                    .map(|n| text(n, self.source).to_string())
-                    .unwrap_or_default();
-                let id = self.push_symbol(
-                    name,
-                    SymbolKind::Method,
-                    location(node),
-                    type_name.map(str::to_string),
-                );
-                if let Some(params) = node.child_by_field_name("parameters") {
-                    self.visit_children(params, id, type_name, depth + 1);
-                }
-                if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, id, type_name, depth + 1);
-                }
+            // A local function (in a method body or among top-level
+            // statements) is a plain function with no owning type; its
+            // calls attach to it, not to the enclosing method.
+            "local_function_statement" => {
+                let name = self.field_text(node, "name");
+                let id = self.push_symbol(name, SymbolKind::Function, location(node), None);
+                self.visit_callable(node, id, None, depth);
             }
             // A property (`Name { get; set; }`) is ONE symbol, not two —
             // the accessors are walked into using the property's own id as
             // owner, so a custom getter/setter's calls attach to the
             // property, and get/set are never indexed as separate
-            // unrelated methods.
-            "property_declaration" => {
-                let name = node
-                    .child_by_field_name("name")
-                    .map(|n| text(n, self.source).to_string())
-                    .unwrap_or_default();
-                let id = self.push_symbol(
-                    name,
-                    SymbolKind::Field,
-                    location(node),
-                    type_name.map(str::to_string),
-                );
+            // unrelated methods. Same for an indexer (named `this`) and an
+            // event with `add`/`remove` accessors. An expression body
+            // (`=> …`) or initializer (`= …`) is the `value` field.
+            "property_declaration" | "indexer_declaration" | "event_declaration" => {
+                let name = if node.kind() == "indexer_declaration" {
+                    "this".to_string()
+                } else {
+                    self.field_text(node, "name")
+                };
+                let id = self.push_symbol(name, SymbolKind::Field, location(node), parent);
+                self.visit_attributes(node, id, type_name, depth);
+                if let Some(params) = node.child_by_field_name("parameters") {
+                    self.visit_children(params, id, type_name, depth + 1);
+                }
                 if let Some(accessors) = node.child_by_field_name("accessors") {
                     let mut cursor = accessors.walk();
                     for accessor in accessors.children(&mut cursor) {
@@ -275,19 +281,34 @@ impl<'a> Walker<'a> {
                         }
                     }
                 }
+                if let Some(value) = node.child_by_field_name("value") {
+                    self.visit(value, id, type_name, depth + 1);
+                }
             }
-            "field_declaration" => {
+            // One field symbol per declarator (`int a, b;`); an
+            // initializer's calls attach to its field.
+            "field_declaration" | "event_field_declaration" => {
                 if let Some(variable_declaration) = find_child(node, "variable_declaration") {
                     let mut cursor = variable_declaration.walk();
-                    for declarator in variable_declaration.children(&mut cursor) {
-                        if declarator.kind() == "variable_declarator" {
-                            if let Some(name_node) = declarator.child_by_field_name("name") {
-                                self.push_symbol(
-                                    text(name_node, self.source).to_string(),
-                                    SymbolKind::Field,
-                                    location(declarator),
-                                    type_name.map(str::to_string),
-                                );
+                    let declarators: Vec<Node> = variable_declaration
+                        .children(&mut cursor)
+                        .filter(|n| n.kind() == "variable_declarator")
+                        .collect();
+                    for declarator in declarators {
+                        let Some(name_node) = declarator.child_by_field_name("name") else {
+                            continue;
+                        };
+                        let id = self.push_symbol(
+                            text(name_node, self.source).to_string(),
+                            SymbolKind::Field,
+                            location(declarator),
+                            parent.clone(),
+                        );
+                        self.visit_attributes(node, id, type_name, depth);
+                        let mut cursor = declarator.walk();
+                        for child in declarator.named_children(&mut cursor) {
+                            if child.id() != name_node.id() {
+                                self.visit(child, id, type_name, depth + 1);
                             }
                         }
                     }
@@ -305,20 +326,43 @@ impl<'a> Walker<'a> {
                     }
                 }
             }
+            // `[Name(args)]` refers to the class `NameAttribute` (C#
+            // resolves the suffixed name first), so that is the target;
+            // calls in the arguments attach to the attributed symbol.
+            "attribute" => {
+                if let Some(name) = node
+                    .child_by_field_name("name")
+                    .and_then(|n| type_base_name(n, self.source))
+                {
+                    let target = if name.ends_with("Attribute") {
+                        name
+                    } else {
+                        format!("{name}Attribute")
+                    };
+                    self.push_relation(owner, RelationKind::References, target, location(node));
+                }
+                if let Some(args) = find_child(node, "attribute_argument_list") {
+                    self.visit_children(args, owner, type_name, depth + 1);
+                }
+            }
             "invocation_expression" => {
                 if let Some(function) = node.child_by_field_name("function") {
                     if let Some(name_node) = callee_identifier(function) {
-                        // location(name_node), not location(node): a chained
-                        // call (`a.F(x).F(y)`) has its outer and inner
-                        // invocation_expression both start at `a`, which would
-                        // make two same-named chained calls collide into one
-                        // indistinguishable row.
-                        self.push_relation(
-                            owner,
-                            RelationKind::Calls,
-                            text(name_node, self.source).to_string(),
-                            location(name_node),
-                        );
+                        let name = text(name_node, self.source);
+                        // `nameof(x)` is an operator, not a call.
+                        if !(name == "nameof" && function.kind() == "identifier") {
+                            // location(name_node), not location(node): a
+                            // chained call (`a.F(x).F(y)`) has its outer and
+                            // inner invocation_expression both start at `a`,
+                            // which would make two same-named chained calls
+                            // collide into one indistinguishable row.
+                            self.push_relation(
+                                owner,
+                                RelationKind::Calls,
+                                name.to_string(),
+                                location(name_node),
+                            );
+                        }
                     }
                     self.visit(function, owner, type_name, depth + 1);
                 }
@@ -326,7 +370,143 @@ impl<'a> Walker<'a> {
                     self.visit_children(arguments, owner, type_name, depth + 1);
                 }
             }
+            // `new T(…)` calls T's constructor: recorded as a call to the
+            // type's bare name, as `T(…)` is in languages without `new`.
+            "object_creation_expression" => {
+                if let Some(type_node) = node.child_by_field_name("type") {
+                    if let Some(name) = type_base_name(type_node, self.source) {
+                        self.push_relation(owner, RelationKind::Calls, name, location(type_node));
+                    }
+                }
+                self.visit_children(node, owner, type_name, depth + 1);
+            }
             _ => self.visit_children(node, owner, type_name, depth + 1),
+        }
+    }
+
+    /// A class, interface, struct, record (`record struct` is a Struct)
+    /// or enum: the symbol, its attributes, base list, primary-constructor
+    /// parameters and body. Members hang off `name`; anything else in the
+    /// body (and a primary constructor's defaults) attaches to the type.
+    fn visit_type(&mut self, node: Node, type_name: Option<&str>, depth: u32) {
+        let kind = match node.kind() {
+            "class_declaration" => SymbolKind::Class,
+            "interface_declaration" => SymbolKind::Interface,
+            "struct_declaration" => SymbolKind::Struct,
+            "enum_declaration" => SymbolKind::Enum,
+            _ if find_child(node, "struct").is_some() => SymbolKind::Struct,
+            _ => SymbolKind::Class,
+        };
+        let name = self.field_text(node, "name");
+        let id = self.push_symbol(
+            name.clone(),
+            kind,
+            location(node),
+            type_name.map(str::to_string),
+        );
+        self.visit_attributes(node, id, type_name, depth);
+        if kind != SymbolKind::Enum {
+            if let Some(base_list) = find_child(node, "base_list") {
+                self.visit_base_list(base_list, id, kind, type_name, depth);
+            }
+        }
+        if let Some(params) = find_child(node, "parameter_list") {
+            self.visit_children(params, id, Some(&name), depth + 1);
+        }
+        let Some(body) = node.child_by_field_name("body") else {
+            return;
+        };
+        if kind == SymbolKind::Enum {
+            let mut cursor = body.walk();
+            for member in body.named_children(&mut cursor) {
+                if member.kind() == "enum_member_declaration" {
+                    let member_name = self.field_text(member, "name");
+                    self.push_symbol(
+                        member_name,
+                        SymbolKind::Constant,
+                        location(member),
+                        Some(name.clone()),
+                    );
+                }
+            }
+        } else {
+            self.visit_children(body, id, Some(&name), depth + 1);
+        }
+    }
+
+    /// `base_list` is unified in this grammar — C# doesn't syntactically
+    /// distinguish "extends" from "implements", both are one
+    /// comma-separated list after `:`. Heuristic (AST-only, no type
+    /// resolution): an interface's bases are all Extends, a struct's all
+    /// Implements; for a class or record the base class, when present, must
+    /// come first, so entry 0 is Extends unless it is named like an
+    /// interface (`IFoo`, the .NET convention), and the rest are
+    /// Implements. Targets are bare names (`Entity<Sku>` → `Entity`,
+    /// `System.Exception` → `Exception`) so they match the definition.
+    fn visit_base_list(
+        &mut self,
+        base_list: Node,
+        id: SymbolId,
+        kind: SymbolKind,
+        type_name: Option<&str>,
+        depth: u32,
+    ) {
+        let mut cursor = base_list.walk();
+        let entries: Vec<Node> = base_list.named_children(&mut cursor).collect();
+        let mut first = true;
+        for entry in entries {
+            let type_node = match entry.kind() {
+                // `: Base(x, y)` after a primary constructor.
+                "primary_constructor_base_type" | "argument_list" => {
+                    if let Some(args) = find_child(entry, "argument_list")
+                        .or((entry.kind() == "argument_list").then_some(entry))
+                    {
+                        self.visit_children(args, id, type_name, depth + 1);
+                    }
+                    entry.child_by_field_name("type")
+                }
+                _ => Some(entry),
+            };
+            let Some(type_node) = type_node else {
+                continue;
+            };
+            let Some(base) = type_base_name(type_node, self.source) else {
+                continue;
+            };
+            let relation_kind = match kind {
+                SymbolKind::Interface => RelationKind::Extends,
+                SymbolKind::Struct => RelationKind::Implements,
+                _ if first && !looks_like_interface(&base) => RelationKind::Extends,
+                _ => RelationKind::Implements,
+            };
+            first = false;
+            self.push_relation(id, relation_kind, base, location(type_node));
+        }
+    }
+
+    /// Attributes, parameters and body of a method-like member.
+    fn visit_callable(&mut self, node: Node, id: SymbolId, type_name: Option<&str>, depth: u32) {
+        self.visit_attributes(node, id, type_name, depth);
+        if let Some(params) = node.child_by_field_name("parameters") {
+            self.visit_children(params, id, type_name, depth + 1);
+        }
+        // A constructor's `: base(…)` / `: this(…)` initializer.
+        if let Some(init) = find_child(node, "constructor_initializer") {
+            self.visit_children(init, id, type_name, depth + 1);
+        }
+        if let Some(body) = node.child_by_field_name("body") {
+            self.visit_children(body, id, type_name, depth + 1);
+        }
+    }
+
+    fn visit_attributes(&mut self, node: Node, id: SymbolId, type_name: Option<&str>, depth: u32) {
+        let mut cursor = node.walk();
+        let lists: Vec<Node> = node
+            .children(&mut cursor)
+            .filter(|n| n.kind() == "attribute_list")
+            .collect();
+        for list in lists {
+            self.visit_children(list, id, type_name, depth + 1);
         }
     }
 
@@ -345,14 +525,45 @@ fn find_child<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
     children.into_iter().find(|n| n.kind() == kind)
 }
 
-/// The method/member name being invoked: a bare `identifier`, or the
-/// `name` field of a `member_access_expression` (`receiver.Name(...)`).
+/// The method/member name being invoked: a bare `identifier`, a generic
+/// method's name (`Render<T>(…)` → `Render`), or the `name` of a
+/// `member_access_expression` (`receiver.Name(...)`) or of the
+/// `member_binding_expression` in a null-conditional call (`x?.Name(…)`).
 fn callee_identifier(function: Node) -> Option<Node> {
     match function.kind() {
         "identifier" => Some(function),
-        "member_access_expression" => function.child_by_field_name("name"),
+        "generic_name" => find_child(function, "identifier"),
+        "member_access_expression" | "member_binding_expression" => function
+            .child_by_field_name("name")
+            .and_then(callee_identifier),
+        "conditional_access_expression" => {
+            find_child(function, "member_binding_expression").and_then(callee_identifier)
+        }
         _ => None,
     }
+}
+
+/// A type reference's bare name: `Foo`, `Foo<T>` → `Foo`, `A.B.Foo` →
+/// `Foo`, `global::Foo` → `Foo`. `None` for predefined, tuple, array and
+/// other types that have no single declared name.
+fn type_base_name(node: Node, source: &str) -> Option<String> {
+    match node.kind() {
+        "identifier" => Some(text(node, source).to_string()),
+        "generic_name" => find_child(node, "identifier").map(|n| text(n, source).to_string()),
+        "qualified_name" | "alias_qualified_name" => node
+            .child_by_field_name("name")
+            .and_then(|n| type_base_name(n, source)),
+        _ => None,
+    }
+}
+
+/// `IFoo`: an `I`, an upper-case letter, then a lower-case one — the .NET
+/// naming convention for interfaces (`IO` or `ID` alone don't match).
+fn looks_like_interface(name: &str) -> bool {
+    let mut chars = name.chars();
+    chars.next() == Some('I')
+        && chars.next().is_some_and(char::is_uppercase)
+        && chars.next().is_some_and(char::is_lowercase)
 }
 
 /// Last identifier in a `using` path: the bare name, or a `qualified_name`'s
