@@ -629,3 +629,40 @@ fn a_symlinked_directory_is_never_walked() {
     assert_eq!(index.find_symbol("helper").unwrap().len(), 1);
     assert_matches_full(&index, &root);
 }
+
+#[test]
+fn a_directory_renamed_by_its_new_path_only_drops_its_old_manifest_and_issues() {
+    // A crate directory renamed (`lib` → `pkg`), reported by its new name
+    // only: its source files are found by content hash, but a manifest or a
+    // file with a syntax error has no `files` row and thus no hash.
+    let root = project();
+    write(
+        &root,
+        "lib/Cargo.toml",
+        "[package]\nname = \"x\"\n\n[dependencies]\nserde = \"1\"\n",
+    );
+    write(&root, "lib/broken.fake", "not fn\n");
+    let mut index = indexed(&root);
+    fs::rename(root.join("lib"), root.join("pkg")).unwrap();
+    let report = index
+        .reindex_paths(&registry(), &[root.join("pkg")])
+        .unwrap();
+    assert_eq!(report.files_removed, 1, "lib/extra.fake");
+    assert_matches_full(&index, &root);
+}
+
+#[test]
+#[ignore = "known bug, also in a full reindex: the syntax error stays (PR #90 second review)"]
+fn a_broken_file_turned_binary_drops_its_syntax_error() {
+    let root = project();
+    let mut index = indexed(&root);
+    let path = write(&root, "src/util.fake", "not fn\n");
+    index
+        .reindex_paths(&registry(), std::slice::from_ref(&path))
+        .unwrap();
+    fs::write(&path, [0xff, 0xfe, 0x00, 0x66]).unwrap();
+    index
+        .reindex_paths(&registry(), std::slice::from_ref(&path))
+        .unwrap();
+    assert_matches_full(&index, &root);
+}
