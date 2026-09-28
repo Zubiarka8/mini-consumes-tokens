@@ -33,12 +33,12 @@ Estados: **Pendiente** → **En PR** → **Hecho** (mergeado en `main`).
 | Kotlin | `mct-lang-kotlin` | Pendiente | | | | |
 | Lua | `mct-lang-lua` | Pendiente | | | | |
 | Markdown | `mct-lang-md` | Pendiente | | | | |
-| PHP | `mct-lang-php` | Pendiente | | | | |
+| PHP | `mct-lang-php` | En PR | #88 | 6 / 2.463 | 418 / 803 (339) | fin del módulo +1; llamadas `?->` (nullsafe) perdidas; `new Foo()` sin relación; atributos `#[…]` sin relación; miembros de una clase anónima (`new class { … }`) indexados como métodos/campos sin parent; closure asignada a variable dentro de un método tomada como miembro de la clase; `new` en el valor por defecto de un parámetro promocionado perdido |
 | PowerShell | `mct-lang-powershell` | Pendiente | | | | |
 | XAML | `mct-lang-xaml` | Pendiente | | | | |
 | XML | `mct-lang-xml` | Pendiente | | | | |
 
-**Resumen: 5 hechos, 1 en PR, 11 pendientes (de 17).**
+**Resumen: 5 hechos, 2 en PR, 10 pendientes (de 17).**
 
 ## Issues derivados
 
