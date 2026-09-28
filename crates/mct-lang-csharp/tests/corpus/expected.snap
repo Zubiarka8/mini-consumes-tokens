@@ -1,0 +1,1055 @@
+# language=csharp files=6 symbols=454 relations=588 cross_file=143
+
+== Warehouse/Errors.cs (379 lines)
+S 1-379 module Errors
+S 11-379 module Warehouse.Errors
+S 14-23 enum Warehouse.Errors::ErrorCode
+S 16-16 constant ErrorCode::None
+S 17-17 constant ErrorCode::NotFound
+S 18-18 constant ErrorCode::Conflict
+S 19-19 constant ErrorCode::Validation
+S 20-20 constant ErrorCode::OutOfStock
+S 21-21 constant ErrorCode::QuotaExceeded
+S 22-22 constant ErrorCode::Internal
+S 25-32 enum Warehouse.Errors::Severity
+S 28-28 constant Severity::Info
+S 29-29 constant Severity::Warning
+S 30-30 constant Severity::Error
+S 31-31 constant Severity::Fatal
+S 35-43 class Warehouse.Errors::ErrorCodeAttribute
+S 38-38 method ErrorCodeAttribute::ErrorCodeAttribute
+S 40-40 field ErrorCodeAttribute::Code
+S 42-42 field ErrorCodeAttribute::Severity
+S 46-79 class Warehouse.Errors::WarehouseException
+S 48-48 field WarehouseException::_context
+S 50-54 method WarehouseException::WarehouseException
+S 56-56 field WarehouseException::RaisedAt
+S 58-58 field WarehouseException::Code
+S 60-60 field WarehouseException::Context
+S 62-66 method WarehouseException::With
+S 68-76 method WarehouseException::Describe
+S 78-78 method WarehouseException::ToString
+S 81-96 class Warehouse.Errors::NotFoundException
+S 84-89 method NotFoundException::NotFoundException
+S 91-91 field NotFoundException::Entity
+S 93-93 field NotFoundException::Key
+S 95-95 field NotFoundException::Code
+S 98-123 class Warehouse.Errors::ValidationException
+S 101-101 field ValidationException::_errors
+S 103-107 method ValidationException::ValidationException
+S 109-112 method ValidationException::ValidationException
+S 114-114 field ValidationException::Errors
+S 116-116 field ValidationException::Code
+S 118-122 method ValidationException::Describe
+S 125-136 class Warehouse.Errors::OutOfStockException
+S 127-131 method OutOfStockException::OutOfStockException
+S 133-133 field OutOfStockException::Shortfall
+S 135-135 field OutOfStockException::Code
+S 138-152 class Warehouse.Errors::ConflictException
+S 140-145 method ConflictException::ConflictException
+S 147-147 field ConflictException::Expected
+S 149-149 field ConflictException::Actual
+S 151-151 field ConflictException::Code
+S 155-158 struct Warehouse.Errors::FieldError
+S 157-157 method FieldError::ToString
+S 161-197 struct Warehouse.Errors::Result
+S 163-163 field Result::_value
+S 165-169 method Result::Result
+S 171-171 field Result::Error
+S 173-173 field Result::IsOk
+S 175-175 field Result::Value
+S 177-177 method Result::Ok
+S 179-179 method Result::Fail
+S 181-182 method Result::Map
+S 184-185 method Result::Bind
+S 187-187 method Result::OrElse
+S 189-189 method Result::operator Result
+S 191-196 method Result::Deconstruct
+S 200-240 class Warehouse.Errors::Guard
+S 202-211 method Guard::NotBlank
+S 213-216 method Guard::Positive
+S 218-222 method Guard::Found
+S 224-230 method Guard::Version
+S 232-239 method Guard::InRange
+S 243-268 class Warehouse.Errors::ErrorCollector
+S 245-245 field ErrorCollector::_errors
+S 247-247 field ErrorCollector::HasErrors
+S 249-256 method ErrorCollector::Check
+S 258-259 method ErrorCollector::Require
+S 261-267 method ErrorCollector::ThrowIfAny
+S 271-322 class Warehouse.Errors::ErrorCatalog
+S 273-273 field ErrorCatalog::Entries
+S 275-278 class ErrorCatalog::Entry
+S 277-277 method Entry::Render
+S 280-290 class ErrorCatalog::Http
+S 282-289 method Http::StatusFor
+S 292-305 method ErrorCatalog::Build
+S 295-296 function Add
+S 307-314 method ErrorCatalog::Explain
+S 316-321 method ErrorCatalog::SeverityOf
+S 325-378 class Warehouse.Errors::RateLimiter
+S 327-327 field RateLimiter::_gate
+S 328-328 field RateLimiter::_capacity
+S 329-329 field RateLimiter::_refill
+S 330-330 field RateLimiter::_tokens
+S 331-331 field RateLimiter::_last
+S 333-339 method RateLimiter::RateLimiter
+S 341-353 method RateLimiter::TryAcquire
+S 355-361 method RateLimiter::Acquire
+S 363-369 method RateLimiter::Refill
+S 371-377 class RateLimiter::QuotaExceededException
+S 373-374 method QuotaExceededException::QuotaExceededException
+S 376-376 field QuotaExceededException::Code
+R 5:1 imports Errors -> System
+R 6:1 imports Errors -> Generic
+R 7:1 imports Errors -> Globalization
+R 8:1 imports Errors -> CompilerServices
+R 9:1 imports Errors -> Math
+R 25:6 references Warehouse.Errors::Severity -> FlagsAttribute
+R 35:6 references Warehouse.Errors::ErrorCodeAttribute -> AttributeUsageAttribute
+R 36:46 extends Warehouse.Errors::ErrorCodeAttribute -> Attribute
+R 46:48 extends Warehouse.Errors::WarehouseException -> Exception
+R 70:29 calls WarehouseException::Describe -> List
+R 73:23 calls WarehouseException::Describe -> Add
+R 73:34 calls WarehouseException::Describe -> Format
+R 75:27 calls WarehouseException::Describe -> Join
+R 78:46 calls WarehouseException::ToString -> Describe
+R 81:6 references Warehouse.Errors::NotFoundException -> ErrorCodeAttribute
+R 82:45 extends Warehouse.Errors::NotFoundException -> WarehouseException
+R 98:6 references Warehouse.Errors::ValidationException -> ErrorCodeAttribute
+R 99:40 extends Warehouse.Errors::ValidationException -> WarehouseException
+R 106:27 calls ValidationException::ValidationException -> List
+R 110:32 calls ValidationException::ValidationException -> FieldError
+R 120:29 calls ValidationException::Describe -> Describe
+R 121:69 calls ValidationException::Describe -> Join
+R 125:47 extends Warehouse.Errors::OutOfStockException -> ValidationException
+R 130:25 calls OutOfStockException::OutOfStockException -> Max
+R 138:45 extends Warehouse.Errors::ConflictException -> WarehouseException
+R 182:33 calls Result::Map -> Ok
+R 182:36 calls Result::Map -> map
+R 182:65 calls Result::Map -> Fail
+R 185:20 calls Result::Bind -> next
+R 185:49 calls Result::Bind -> Fail
+R 189:63 calls Result::operator Result -> Ok
+R 204:14 references Guard::NotBlank -> CallerArgumentExpressionAttribute
+R 206:24 calls Guard::NotBlank -> IsNullOrWhiteSpace
+R 208:27 calls Guard::NotBlank -> ValidationException
+R 210:26 calls Guard::NotBlank -> Trim
+R 215:50 calls Guard::Positive -> ValidationException
+R 221:39 calls Guard::Found -> NotFoundException
+R 228:27 calls Guard::Version -> ConflictException
+R 236:27 calls Guard::InRange -> ValidationException
+R 238:20 calls Guard::InRange -> Round
+R 253:25 calls ErrorCollector::Check -> Add
+R 253:33 calls ErrorCollector::Check -> FieldError
+R 259:13 calls ErrorCollector::Require -> Check
+R 259:27 calls ErrorCollector::Require -> IsNullOrWhiteSpace
+R 265:27 calls ErrorCollector::ThrowIfAny -> ValidationException
+R 273:72 calls ErrorCatalog::Entries -> Build
+R 294:31 calls ErrorCatalog::Build -> Dictionary
+R 296:37 calls Add -> Entry
+R 298:13 calls ErrorCatalog::Build -> Add
+R 299:13 calls ErrorCatalog::Build -> Add
+R 300:13 calls ErrorCatalog::Build -> Add
+R 301:13 calls ErrorCatalog::Build -> Add
+R 302:13 calls ErrorCatalog::Build -> Add
+R 303:13 calls ErrorCatalog::Build -> Add
+R 309:26 calls ErrorCatalog::Explain -> TryGetValue
+R 311:30 calls ErrorCatalog::Explain -> Describe
+R 313:26 calls ErrorCatalog::Explain -> Render
+R 318:64 calls ErrorCatalog::SeverityOf -> ContainsKey
+R 335:31 calls RateLimiter::RateLimiter -> Positive
+R 345:17 calls RateLimiter::TryAcquire -> Refill
+R 357:18 calls RateLimiter::Acquire -> TryAcquire
+R 359:27 calls RateLimiter::Acquire -> QuotaExceededException
+R 366:60 calls RateLimiter::Refill -> Max
+R 367:23 calls RateLimiter::Refill -> Min
+R 371:55 extends RateLimiter::QuotaExceededException -> WarehouseException
+
+== Warehouse/Models.cs (391 lines)
+S 1-391 module Models
+S 12-391 module Warehouse.Models
+S 14-20 enum Warehouse.Models::Unit
+S 16-16 constant Unit::Piece
+S 17-17 constant Unit::Box
+S 18-18 constant Unit::Pallet
+S 19-19 constant Unit::Kilogram
+S 22-29 enum Warehouse.Models::OrderStatus
+S 24-24 constant OrderStatus::Draft
+S 25-25 constant OrderStatus::Placed
+S 26-26 constant OrderStatus::Picking
+S 27-27 constant OrderStatus::Shipped
+S 28-28 constant OrderStatus::Cancelled
+S 32-67 struct Warehouse.Models::Sku
+S 34-42 method Sku::Sku
+S 44-44 field Sku::Value
+S 46-46 field Sku::Family
+S 48-49 method Sku::IsValid
+S 51-51 method Sku::Parse
+S 53-62 method Sku::TryParse
+S 64-64 method Sku::ToString
+S 66-66 method Sku::operator string
+S 70-103 struct Warehouse.Models::Price
+S 72-72 field Price::Zero
+S 74-74 method Price::Validated
+S 76-80 method Price::operator +
+S 82-82 method Price::operator *
+S 84-84 method Price::operator >
+S 86-86 method Price::operator <
+S 88-92 method Price::Compare
+S 94-100 method Price::SameCurrency
+S 102-102 method Price::ToString
+S 106-114 interface Warehouse.Models::IEntity
+S 109-109 field IEntity::Id
+S 111-111 field IEntity::Version
+S 113-113 field IEntity::IsNew
+S 116-123 interface Warehouse.Models::IAuditable
+S 118-118 field IAuditable::CreatedAt
+S 120-120 field IAuditable::UpdatedAt
+S 122-122 method IAuditable::Touch
+S 126-153 class Warehouse.Models::Entity
+S 129-133 method Entity::Entity
+S 135-135 field Entity::Id
+S 137-137 field Entity::Version
+S 139-139 field Entity::CreatedAt
+S 141-141 field Entity::UpdatedAt
+S 143-147 method Entity::Bump
+S 149-150 method Entity::Equals
+S 152-152 method Entity::GetHashCode
+S 156-202 class Warehouse.Models::Product
+S 158-158 field Product::_tags
+S 160-166 method Product::Product
+S 168-168 field Product::Name
+S 170-170 field Product::Price
+S 172-172 field Product::Unit
+S 174-174 field Product::Tags
+S 176-176 field Product::Discontinued
+S 178-183 method Product::Rename
+S 185-190 method Product::Reprice
+S 192-199 method Product::Tag
+S 201-201 method Product::Discontinue
+S 205-225 class Warehouse.Models::Location
+S 207-215 method Location::Parse
+S 217-219 method Location::CompareTo
+S 221-222 method Location::Distance
+S 224-224 method Location::ToString
+S 228-268 class Warehouse.Models::StockLine
+S 230-230 field StockLine::Sku
+S 232-232 field StockLine::Bin
+S 234-234 field StockLine::Quantity
+S 236-236 field StockLine::Reserved
+S 238-238 field StockLine::Available
+S 240-244 method StockLine::Receive
+S 246-254 method StockLine::Reserve
+S 256-260 method StockLine::Release
+S 262-267 method StockLine::Ship
+S 271-274 class Warehouse.Models::OrderLine
+S 273-273 field OrderLine::Total
+S 277-318 class Warehouse.Models::Order
+S 279-279 field Order::_lines
+S 281-285 method Order::Order
+S 287-287 field Order::Customer
+S 289-289 field Order::Status
+S 291-291 field Order::this
+S 293-293 field Order::Count
+S 295-295 field Order::Total
+S 297-313 method Order::Add
+S 315-315 method Order::GetEnumerator
+S 317-317 method Order::GetEnumerator
+S 320-352 class Warehouse.Models::Order
+S 322-327 field Order::Transitions
+S 329-338 method Order::MoveTo
+S 340-346 method Order::EnsureStatus
+S 348-351 method Order::~Order
+S 355-355 type_alias Warehouse.Models::StockChanged
+S 357-357 type_alias Warehouse.Models::Projection
+S 360-391 class Warehouse.Models::ModelExtensions
+S 362-363 method ModelExtensions::TotalAvailable
+S 365-372 method ModelExtensions::Nearest
+S 374-382 method ModelExtensions::Project
+S 384-390 method ModelExtensions::Describe
+R 5:1 imports Models -> System
+R 6:1 imports Models -> Collections
+R 7:1 imports Models -> Generic
+R 8:1 imports Models -> Linq
+R 9:1 imports Models -> Errors (x-file: Warehouse/Errors.cs)
+R 10:1 imports Models -> Money
+R 36:42 calls Sku::Sku -> ToUpperInvariant
+R 36:26 calls Sku::Sku -> NotBlank (x-file: Warehouse/Errors.cs)
+R 37:14 calls Sku::Sku -> IsValid
+R 39:23 calls Sku::Sku -> ValidationException (x-file: Warehouse/Errors.cs)
+R 49:57 calls Sku::IsValid -> All
+R 49:89 calls Sku::IsValid -> All
+R 56:30 calls Sku::TryParse -> IsValid
+R 56:50 calls Sku::TryParse -> ToUpperInvariant
+R 56:43 calls Sku::TryParse -> Trim
+R 60:19 calls Sku::TryParse -> Sku
+R 74:61 calls Price::Validated -> InRange (x-file: Warehouse/Errors.cs)
+R 78:9 calls Price::operator + -> SameCurrency
+R 79:20 calls Price::operator + -> Price
+R 84:56 calls Price::operator > -> Compare
+R 86:56 calls Price::operator < -> Compare
+R 90:9 calls Price::Compare -> SameCurrency
+R 91:25 calls Price::Compare -> CompareTo
+R 98:23 calls Price::SameCurrency -> ValidationException (x-file: Warehouse/Errors.cs)
+R 126:38 implements Warehouse.Models::Entity -> IEntity
+R 126:53 implements Warehouse.Models::Entity -> IAuditable
+R 146:28 calls Entity::Bump -> Touch
+R 150:69 calls Entity::Equals -> Equals
+R 152:45 calls Entity::GetHashCode -> GetHashCode
+R 156:31 extends Warehouse.Models::Product -> Entity
+R 163:22 calls Product::Product -> NotBlank (x-file: Warehouse/Errors.cs)
+R 164:23 calls Product::Product -> Validated
+R 180:22 calls Product::Rename -> NotBlank (x-file: Warehouse/Errors.cs)
+R 181:9 calls Product::Rename -> Bump
+R 187:23 calls Product::Reprice -> Validated
+R 188:9 calls Product::Reprice -> Bump
+R 194:34 calls Product::Tag -> Where
+R 194:53 calls Product::Tag -> IsNullOrWhiteSpace
+R 196:19 calls Product::Tag -> Add
+R 196:27 calls Product::Tag -> Trim
+R 205:66 implements Warehouse.Models::Location -> IComparable
+R 209:42 calls Location::Parse -> Split
+R 209:27 calls Location::Parse -> NotBlank (x-file: Warehouse/Errors.cs)
+R 212:23 calls Location::Parse -> ValidationException (x-file: Warehouse/Errors.cs)
+R 214:20 calls Location::Parse -> Location
+R 214:46 calls Location::Parse -> Parse
+R 214:67 calls Location::Parse -> Parse
+R 219:32 calls Location::CompareTo -> CompareTo
+R 222:14 calls Location::Distance -> Abs
+R 222:51 calls Location::Distance -> Abs
+R 222:81 calls Location::Distance -> Abs
+R 228:70 extends Warehouse.Models::StockLine -> Entity
+R 242:27 calls StockLine::Receive -> Positive (x-file: Warehouse/Errors.cs)
+R 243:9 calls StockLine::Receive -> Bump
+R 248:19 calls StockLine::Reserve -> Positive (x-file: Warehouse/Errors.cs)
+R 250:23 calls StockLine::Reserve -> OutOfStockException (x-file: Warehouse/Errors.cs)
+R 253:9 calls StockLine::Reserve -> Bump
+R 258:25 calls StockLine::Release -> Max
+R 259:9 calls StockLine::Release -> Bump
+R 264:9 calls StockLine::Ship -> Release
+R 266:9 calls StockLine::Ship -> Bump
+R 277:37 extends Warehouse.Models::Order -> Entity
+R 277:51 implements Warehouse.Models::Order -> IEnumerable
+R 284:26 calls Order::Order -> NotBlank (x-file: Warehouse/Errors.cs)
+R 291:47 calls Order::this -> FirstOrDefault
+R 295:34 calls Order::Total -> Aggregate
+R 299:9 calls Order::Add -> EnsureStatus
+R 302:23 calls Order::Add -> ValidationException (x-file: Warehouse/Errors.cs)
+R 307:20 calls Order::Add -> Remove (x-file: Warehouse/Repository.cs)
+R 310:16 calls Order::Add -> Add
+R 310:24 calls Order::Add -> OrderLine
+R 310:52 calls Order::Add -> Positive (x-file: Warehouse/Errors.cs)
+R 311:9 calls Order::Add -> Bump
+R 315:61 calls Order::GetEnumerator -> GetEnumerator
+R 317:48 calls Order::GetEnumerator -> GetEnumerator
+R 331:35 calls Order::MoveTo -> TryGetValue
+R 331:81 calls Order::MoveTo -> IndexOf
+R 334:23 calls Order::MoveTo -> ConflictException (x-file: Warehouse/Errors.cs)
+R 337:9 calls Order::MoveTo -> Bump
+R 344:23 calls Order::EnsureStatus -> ValidationException (x-file: Warehouse/Errors.cs)
+R 350:16 calls Order::~Order -> Clear
+R 363:40 calls ModelExtensions::TotalAvailable -> Sum
+R 363:15 calls ModelExtensions::TotalAvailable -> Where
+R 371:14 calls ModelExtensions::Nearest -> FirstOrDefault
+R 370:14 calls ModelExtensions::Nearest -> ThenBy
+R 369:14 calls ModelExtensions::Nearest -> OrderBy
+R 368:14 calls ModelExtensions::Nearest -> Where
+R 369:33 calls ModelExtensions::Nearest -> Distance
+R 380:26 calls ModelExtensions::Project -> projection
+R 388:82 calls ModelExtensions::Describe -> ToLowerInvariant
+R 388:71 calls ModelExtensions::Describe -> ToString
+
+== Warehouse/Program.cs (302 lines)
+S 1-302 module Program
+S 27-56 function RunAsync
+S 58-65 function PrintUsage
+S 67-302 module Warehouse.Cli
+S 70-82 class Warehouse.Cli::CommandAttribute
+S 73-77 method CommandAttribute::CommandAttribute
+S 79-79 field CommandAttribute::Name
+S 81-81 field CommandAttribute::Summary
+S 85-138 class Warehouse.Cli::Options
+S 87-87 field Options::_named
+S 88-88 field Options::_positional
+S 90-90 field Options::Positional
+S 92-121 method Options::Parse
+S 123-124 method Options::Required
+S 126-126 method Options::Get
+S 128-135 method Options::Int
+S 137-137 method Options::Flag
+S 141-157 class Warehouse.Cli::Command
+S 143-143 method Command::Command
+S 145-145 field Command::Host
+S 147-147 field Command::Name
+S 149-149 field Command::Summary
+S 151-152 field Command::Metadata
+S 154-154 method Command::RunAsync
+S 156-156 method Command::Say
+S 159-183 class Warehouse.Cli::ReceiveCommand
+S 162-165 method ReceiveCommand::ReceiveCommand
+S 167-182 method ReceiveCommand::RunAsync
+S 185-217 class Warehouse.Cli::OrderCommand
+S 188-191 method OrderCommand::OrderCommand
+S 193-209 method OrderCommand::RunAsync
+S 211-216 method OrderCommand::ParseLine
+S 219-229 class Warehouse.Cli::CancelCommand
+S 222-228 method CancelCommand::RunAsync
+S 231-258 class Warehouse.Cli::ReportCommand
+S 234-237 method ReportCommand::ReportCommand
+S 239-257 method ReportCommand::RunAsync
+S 260-277 class Warehouse.Cli::TagsCommand
+S 263-266 method TagsCommand::TagsCommand
+S 268-276 method TagsCommand::RunAsync
+S 280-301 class Warehouse.Cli::CommandRegistry
+S 282-282 field CommandRegistry::_commands
+S 284-289 method CommandRegistry::Default
+S 291-295 method CommandRegistry::Add
+S 297-297 method CommandRegistry::Find
+S 299-300 method CommandRegistry::Describe
+R 5:1 imports Program -> System
+R 6:1 imports Program -> Generic
+R 7:1 imports Program -> Linq
+R 8:1 imports Program -> Threading
+R 9:1 imports Program -> Cli
+R 10:1 imports Program -> Errors (x-file: Warehouse/Errors.cs)
+R 11:1 imports Program -> Models (x-file: Warehouse/Models.cs)
+R 12:1 imports Program -> Reporting
+R 13:1 imports Program -> Services (x-file: Warehouse/Services.cs)
+R 15:18 calls Program -> CancellationTokenSource
+R 19:12 calls Program -> Cancel
+R 22:36 calls Program -> Build (x-file: Warehouse/Errors.cs)
+R 23:32 calls Program -> Default
+R 24:22 calls Program -> RunAsync
+R 31:9 calls RunAsync -> PrintUsage
+R 34:28 calls RunAsync -> Find
+R 37:23 calls RunAsync -> WriteLine
+R 38:9 calls RunAsync -> PrintUsage
+R 43:31 calls RunAsync -> Parse
+R 43:42 calls RunAsync -> Skip
+R 44:30 calls RunAsync -> RunAsync
+R 48:23 calls RunAsync -> WriteLine
+R 48:46 calls RunAsync -> Explain (x-file: Warehouse/Errors.cs)
+R 49:34 calls RunAsync -> StatusFor (x-file: Warehouse/Errors.cs)
+R 53:23 calls RunAsync -> WriteLine
+R 60:13 calls PrintUsage -> WriteLine
+R 61:46 calls PrintUsage -> Describe
+R 63:17 calls PrintUsage -> WriteLine
+R 70:6 references Warehouse.Cli::CommandAttribute -> AttributeUsageAttribute
+R 71:44 extends Warehouse.Cli::CommandAttribute -> Attribute
+R 94:31 calls Options::Parse -> Options
+R 98:26 calls Options::Parse -> StartsWith
+R 113:41 calls Options::Parse -> Add
+R 124:20 calls Options::Required -> TryGetValue
+R 124:72 calls Options::Required -> ValidationException (x-file: Warehouse/Errors.cs)
+R 126:66 calls Options::Get -> GetValueOrDefault
+R 130:25 calls Options::Int -> TryGetValue
+R 134:24 calls Options::Int -> TryParse (x-file: Warehouse/Models.cs)
+R 134:73 calls Options::Int -> ValidationException (x-file: Warehouse/Errors.cs)
+R 137:48 calls Options::Flag -> ContainsKey
+R 147:87 calls Command::Name -> ToLowerInvariant
+R 147:64 calls Command::Name -> Replace
+R 147:49 calls Command::Name -> GetType
+R 152:42 calls Command::Metadata -> GetCustomAttribute
+R 152:61 calls Command::Metadata -> GetType
+R 156:61 calls Command::Say -> Notify (x-file: Warehouse/Services.cs)
+R 159:6 references Warehouse.Cli::ReceiveCommand -> CommandAttribute
+R 160:42 extends Warehouse.Cli::ReceiveCommand -> Command
+R 169:47 calls ReceiveCommand::RunAsync -> ReceiveAsync (x-file: Warehouse/Services.cs)
+R 170:25 calls ReceiveCommand::RunAsync -> Required
+R 171:25 calls ReceiveCommand::RunAsync -> Get
+R 172:25 calls ReceiveCommand::RunAsync -> Int
+R 177:17 calls ReceiveCommand::RunAsync -> Say
+R 177:34 calls ReceiveCommand::RunAsync -> Explain (x-file: Warehouse/Errors.cs)
+R 180:13 calls ReceiveCommand::RunAsync -> Say
+R 185:6 references Warehouse.Cli::OrderCommand -> CommandAttribute
+R 186:40 extends Warehouse.Cli::OrderCommand -> Command
+R 195:62 calls OrderCommand::RunAsync -> ToList
+R 195:44 calls OrderCommand::RunAsync -> Select
+R 196:50 calls OrderCommand::RunAsync -> DraftAsync (x-file: Warehouse/Services.cs)
+R 196:69 calls OrderCommand::RunAsync -> Required
+R 197:51 calls OrderCommand::RunAsync -> PlaceAsync (x-file: Warehouse/Services.cs)
+R 200:17 calls OrderCommand::RunAsync -> Say
+R 200:50 calls OrderCommand::RunAsync -> Describe
+R 203:25 calls OrderCommand::RunAsync -> Flag
+R 205:42 calls OrderCommand::RunAsync -> PickAsync (x-file: Warehouse/Services.cs)
+R 207:13 calls OrderCommand::RunAsync -> Say
+R 213:30 calls OrderCommand::ParseLine -> Split
+R 214:53 calls OrderCommand::ParseLine -> TryParse (x-file: Warehouse/Models.cs)
+R 219:6 references Warehouse.Cli::CancelCommand -> CommandAttribute
+R 220:59 extends Warehouse.Cli::CancelCommand -> Command
+R 224:27 calls CancelCommand::RunAsync -> Parse
+R 224:41 calls CancelCommand::RunAsync -> Required
+R 225:54 calls CancelCommand::RunAsync -> CancelAsync (x-file: Warehouse/Services.cs)
+R 225:78 calls CancelCommand::RunAsync -> Get
+R 226:13 calls CancelCommand::RunAsync -> Say
+R 231:6 references Warehouse.Cli::ReportCommand -> CommandAttribute
+R 232:41 extends Warehouse.Cli::ReportCommand -> Command
+R 241:19 calls ReportCommand::RunAsync -> ThrowIfCancellationRequested
+R 242:34 calls ReportCommand::RunAsync -> Get
+R 243:44 calls ReportCommand::RunAsync -> FirstOrDefault
+R 246:46 calls ReportCommand::RunAsync -> Render (x-file: Warehouse/Errors.cs)
+R 246:87 calls ReportCommand::RunAsync -> InventoryAsync (x-file: Warehouse/Reports.cs)
+R 247:44 calls ReportCommand::RunAsync -> Render (x-file: Warehouse/Errors.cs)
+R 247:71 calls ReportCommand::RunAsync -> BacklogAsync (x-file: Warehouse/Reports.cs)
+R 248:52 calls ReportCommand::RunAsync -> ComputeAsync (x-file: Warehouse/Reports.cs)
+R 249:32 calls ReportCommand::RunAsync -> ValidationException (x-file: Warehouse/Errors.cs)
+R 251:21 calls ReportCommand::RunAsync -> WriteLine
+R 252:25 calls ReportCommand::RunAsync -> Flag
+R 254:25 calls ReportCommand::RunAsync -> WriteLine
+R 254:61 calls ReportCommand::RunAsync -> Checksum (x-file: Warehouse/Reports.cs)
+R 260:6 references Warehouse.Cli::TagsCommand -> CommandAttribute
+R 261:39 extends Warehouse.Cli::TagsCommand -> Command
+R 270:48 calls TagsCommand::RunAsync -> ByTagAsync (x-file: Warehouse/Repository.cs)
+R 270:67 calls TagsCommand::RunAsync -> Required
+R 273:25 calls TagsCommand::RunAsync -> WriteLine
+R 273:71 calls TagsCommand::RunAsync -> Truncate (x-file: Warehouse/Reports.cs)
+R 273:60 calls TagsCommand::RunAsync -> Describe
+R 289:14 calls CommandRegistry::Default -> Add
+R 288:14 calls CommandRegistry::Default -> Add
+R 287:14 calls CommandRegistry::Default -> Add
+R 286:14 calls CommandRegistry::Default -> Add
+R 285:14 calls CommandRegistry::Default -> Add
+R 284:72 calls CommandRegistry::Default -> CommandRegistry
+R 285:22 calls CommandRegistry::Default -> ReceiveCommand
+R 286:22 calls CommandRegistry::Default -> OrderCommand
+R 287:22 calls CommandRegistry::Default -> CancelCommand
+R 288:22 calls CommandRegistry::Default -> ReportCommand
+R 289:22 calls CommandRegistry::Default -> TagsCommand
+R 297:56 calls CommandRegistry::Find -> GetValueOrDefault
+R 300:51 calls CommandRegistry::Describe -> Select
+R 300:30 calls CommandRegistry::Describe -> OrderBy
+
+== Warehouse/Reports.cs (319 lines)
+S 1-319 module Reports
+S 17-319 module Warehouse.Reporting
+S 20-26 class Warehouse.Reporting::ColumnAttribute
+S 23-23 field ColumnAttribute::Header
+S 25-25 field ColumnAttribute::Width
+S 28-31 interface Warehouse.Reporting::IRow
+S 30-30 method IRow::Cells
+S 33-38 interface Warehouse.Reporting::IRenderer
+S 35-35 field IRenderer::Name
+S 37-37 method IRenderer::Render
+S 41-48 class Warehouse.Reporting::InventoryRow
+S 47-47 method InventoryRow::Cells
+S 50-53 class Warehouse.Reporting::BacklogRow
+S 52-52 method BacklogRow::Cells
+S 56-77 class Warehouse.Reporting::Report
+S 59-59 method Report::Report
+S 61-61 field Report::Title
+S 63-63 field Report::Headers
+S 65-65 method Report::Rows
+S 67-74 method Report::RenderWith
+S 76-76 method Report::ToString
+S 79-103 class Warehouse.Reporting::InventoryReport
+S 81-81 field InventoryReport::_products
+S 82-82 field InventoryReport::_counts
+S 84-89 method InventoryReport::InventoryReport
+S 91-91 field InventoryReport::Headers
+S 93-100 method InventoryReport::Rows
+S 102-102 method InventoryReport::GrandTotal
+S 105-118 class Warehouse.Reporting::BacklogReport
+S 107-107 field BacklogReport::_orders
+S 109-110 method BacklogReport::BacklogReport
+S 112-112 field BacklogReport::Headers
+S 114-117 method BacklogReport::Rows
+S 121-195 class Warehouse.Reporting::Renderers
+S 123-123 field Renderers::Registry
+S 125-125 field Renderers::Text
+S 127-127 field Renderers::Csv
+S 129-133 method Renderers::Register
+S 135-136 method Renderers::Get
+S 138-138 field Renderers::Names
+S 140-176 class Renderers::TextRenderer
+S 142-142 field TextRenderer::Name
+S 144-162 method TextRenderer::Render
+S 157-161 function WriteRow
+S 164-175 method TextRenderer::Widths
+S 178-194 class Renderers::CsvRenderer
+S 180-180 field CsvRenderer::_separator
+S 182-182 method CsvRenderer::CsvRenderer
+S 184-184 field CsvRenderer::Name
+S 186-190 method CsvRenderer::Render
+S 192-193 method CsvRenderer::Line
+S 198-236 class Warehouse.Reporting::Layout
+S 200-201 method Layout::Pad
+S 203-204 method Layout::IsNumeric
+S 206-210 method Layout::Quote
+S 212-213 method Layout::Truncate
+S 215-235 class Layout::Style
+S 217-217 field Style::MaxWidth
+S 219-219 field Style::Colors
+S 221-234 class Style::Palette
+S 223-223 field Palette::Plain
+S 225-225 field Palette::Ansi
+S 227-227 method Palette::Palette
+S 229-229 field Palette::Bold
+S 231-231 field Palette::Reset
+S 233-233 method Palette::Emphasize
+S 239-291 class Warehouse.Reporting::ReportBuilder
+S 241-246 method ReportBuilder::InventoryAsync
+S 248-252 method ReportBuilder::BacklogAsync
+S 254-270 method ReportBuilder::Errors
+S 272-277 method ReportBuilder::Render
+S 279-290 method ReportBuilder::Checksum
+S 294-318 struct Warehouse.Reporting::Summary
+S 296-301 method Summary::Summary
+S 303-303 field Summary::Products
+S 305-305 field Summary::OpenOrders
+S 307-307 field Summary::StockValue
+S 309-314 method Summary::ComputeAsync
+S 316-317 method Summary::operator string
+R 5:1 imports Reports -> System
+R 6:1 imports Reports -> Generic
+R 7:1 imports Reports -> Globalization
+R 8:1 imports Reports -> IO
+R 9:1 imports Reports -> Linq
+R 10:1 imports Reports -> Text
+R 11:1 imports Reports -> Specialized (x-file: Warehouse/Repository.cs)
+R 12:1 imports Reports -> Errors
+R 13:1 imports Reports -> Models (x-file: Warehouse/Models.cs)
+R 14:1 imports Reports -> Services (x-file: Warehouse/Services.cs)
+R 15:1 imports Reports -> Table
+R 20:6 references Warehouse.Reporting::ColumnAttribute -> AttributeUsageAttribute
+R 21:73 extends Warehouse.Reporting::ColumnAttribute -> Attribute
+R 45:56 implements Warehouse.Reporting::InventoryRow -> IRow
+R 42:20 references Warehouse.Reporting::InventoryRow -> ColumnAttribute
+R 43:20 references Warehouse.Reporting::InventoryRow -> ColumnAttribute
+R 44:20 references Warehouse.Reporting::InventoryRow -> ColumnAttribute
+R 45:20 references Warehouse.Reporting::InventoryRow -> ColumnAttribute
+R 47:70 calls InventoryRow::Cells -> ToString
+R 47:116 calls InventoryRow::Cells -> ToString
+R 50:109 implements Warehouse.Reporting::BacklogRow -> IRow
+R 52:47 calls BacklogRow::Cells -> ToString
+R 52:84 calls BacklogRow::Cells -> ToString
+R 52:102 calls BacklogRow::Cells -> ToString
+R 52:120 calls BacklogRow::Cells -> ToString
+R 69:36 calls Report::RenderWith -> StringWriter
+R 70:28 calls Report::RenderWith -> Table
+R 71:18 calls Report::RenderWith -> AddRange
+R 71:34 calls Report::RenderWith -> Select
+R 71:27 calls Report::RenderWith -> Rows
+R 71:48 calls Report::RenderWith -> Cells
+R 72:22 calls Report::RenderWith -> Render
+R 73:27 calls Report::RenderWith -> ToString
+R 76:46 calls Report::ToString -> RenderWith
+R 79:43 extends Warehouse.Reporting::InventoryReport -> Report
+R 95:47 calls InventoryReport::Rows -> OrderBy
+R 97:40 calls InventoryReport::Rows -> GetValueOrDefault
+R 98:34 calls InventoryReport::Rows -> InventoryRow
+R 98:67 calls InventoryReport::Rows -> Describe (x-file: Warehouse/Errors.cs)
+R 102:45 calls InventoryReport::GrandTotal -> Aggregate
+R 102:38 calls InventoryReport::GrandTotal -> Rows
+R 105:41 extends Warehouse.Reporting::BacklogReport -> Report
+R 117:18 calls BacklogReport::Rows -> Select
+R 116:18 calls BacklogReport::Rows -> OrderByDescending
+R 117:34 calls BacklogReport::Rows -> BacklogRow
+R 125:49 calls Renderers::Text -> Register
+R 125:62 calls Renderers::Text -> TextRenderer
+R 127:48 calls Renderers::Csv -> Register
+R 127:61 calls Renderers::Csv -> CsvRenderer
+R 136:22 calls Renderers::Get -> TryGetValue
+R 136:81 calls Renderers::Get -> NotFoundException (x-file: Warehouse/Errors.cs)
+R 138:66 calls Renderers::Names -> OrderBy
+R 140:45 implements Renderers::TextRenderer -> IRenderer
+R 146:30 calls TextRenderer::Render -> Widths
+R 147:24 calls TextRenderer::Render -> WriteLine
+R 148:24 calls TextRenderer::Render -> WriteLine
+R 149:17 calls TextRenderer::Render -> WriteRow
+R 150:24 calls TextRenderer::Render -> WriteLine
+R 150:41 calls TextRenderer::Render -> Join
+R 150:60 calls TextRenderer::Render -> Select
+R 153:21 calls TextRenderer::Render -> WriteRow
+R 155:24 calls TextRenderer::Render -> WriteLine
+R 159:40 calls WriteRow -> Select
+R 159:67 calls WriteRow -> Pad
+R 159:95 calls WriteRow -> IsNumeric
+R 160:28 calls WriteRow -> WriteLine
+R 160:45 calls WriteRow -> Join
+R 166:60 calls TextRenderer::Widths -> ToArray
+R 166:38 calls TextRenderer::Widths -> Select
+R 171:42 calls TextRenderer::Widths -> Max
+R 178:44 implements Renderers::CsvRenderer -> IRenderer
+R 188:24 calls CsvRenderer::Render -> WriteLine
+R 188:34 calls CsvRenderer::Render -> Line
+R 189:22 calls CsvRenderer::Render -> ForEach
+R 189:44 calls CsvRenderer::Render -> WriteLine
+R 189:54 calls CsvRenderer::Render -> Line
+R 193:24 calls CsvRenderer::Line -> Join
+R 193:47 calls CsvRenderer::Line -> Select
+R 193:66 calls CsvRenderer::Line -> Quote
+R 201:26 calls Layout::Pad -> PadLeft
+R 201:48 calls Layout::Pad -> PadRight
+R 204:21 calls Layout::IsNumeric -> TryParse (x-file: Warehouse/Models.cs)
+R 204:35 calls Layout::IsNumeric -> Split
+R 208:30 calls Layout::Quote -> IndexOfAny
+R 209:38 calls Layout::Quote -> Replace
+R 213:48 calls Layout::Truncate -> Concat
+R 213:60 calls Layout::Truncate -> AsSpan
+R 213:75 calls Layout::Truncate -> Max
+R 243:48 calls ReportBuilder::InventoryAsync -> ListAsync (x-file: Warehouse/Repository.cs)
+R 244:47 calls ReportBuilder::InventoryAsync -> CountAsync (x-file: Warehouse/Services.cs)
+R 245:24 calls ReportBuilder::InventoryAsync -> InventoryReport
+R 250:37 calls ReportBuilder::BacklogAsync -> OpenAsync (x-file: Warehouse/Repository.cs)
+R 251:24 calls ReportBuilder::BacklogAsync -> BacklogReport
+R 256:31 calls ReportBuilder::Errors -> StringBuilder
+R 259:18 calls ReportBuilder::Errors -> OrderByDescending
+R 258:18 calls ReportBuilder::Errors -> GroupBy
+R 259:43 calls ReportBuilder::Errors -> Count (x-file: Warehouse/Models.cs)
+R 262:48 calls ReportBuilder::Errors -> StatusFor (x-file: Warehouse/Errors.cs)
+R 263:25 calls ReportBuilder::Errors -> AppendLine
+R 263:104 calls ReportBuilder::Errors -> Count (x-file: Warehouse/Models.cs)
+R 264:45 calls ReportBuilder::Errors -> Take
+R 266:44 calls ReportBuilder::Errors -> AppendLine
+R 266:29 calls ReportBuilder::Errors -> Append
+R 266:83 calls ReportBuilder::Errors -> Truncate
+R 266:68 calls ReportBuilder::Errors -> Explain (x-file: Warehouse/Errors.cs)
+R 269:64 calls ReportBuilder::Errors -> ToString
+R 275:38 calls ReportBuilder::Render -> Get
+R 276:27 calls ReportBuilder::Render -> RenderWith
+R 311:49 calls Summary::ComputeAsync -> InventoryAsync
+R 312:42 calls Summary::ComputeAsync -> OpenAsync (x-file: Warehouse/Repository.cs)
+R 313:24 calls Summary::ComputeAsync -> Summary
+R 313:75 calls Summary::ComputeAsync -> GrandTotal
+
+== Warehouse/Repository.cs (336 lines)
+S 1-336 module Repository
+S 15-336 module Warehouse.Data
+S 18-23 enum Warehouse.Data::ChangeKind
+S 20-20 constant ChangeKind::Added
+S 21-21 constant ChangeKind::Updated
+S 22-22 constant ChangeKind::Removed
+S 25-39 class Warehouse.Data::ChangeEventArgs
+S 27-32 method ChangeEventArgs::ChangeEventArgs
+S 34-34 field ChangeEventArgs::Key
+S 36-36 field ChangeEventArgs::Kind
+S 38-38 field ChangeEventArgs::Version
+S 42-55 interface Warehouse.Data::IReadRepository
+S 46-46 method IReadRepository::FindAsync
+S 48-48 method IReadRepository::ListAsync
+S 50-54 method IReadRepository::GetAsync
+S 58-67 interface Warehouse.Data::IRepository
+S 62-62 field IRepository::Changed
+S 64-64 method IRepository::SaveAsync
+S 66-66 method IRepository::RemoveAsync
+S 70-196 class Warehouse.Data::InMemoryRepository
+S 74-74 field InMemoryRepository::s_instances
+S 76-76 field InMemoryRepository::_items
+S 77-77 field InMemoryRepository::_lock
+S 78-78 field InMemoryRepository::_changed
+S 79-79 field InMemoryRepository::_disposed
+S 81-84 method InMemoryRepository::InMemoryRepository
+S 86-89 method InMemoryRepository::InMemoryRepository
+S 91-98 method InMemoryRepository::InMemoryRepository
+S 100-100 field InMemoryRepository::Instances
+S 102-102 field InMemoryRepository::Count
+S 104-104 field InMemoryRepository::this
+S 106-110 field InMemoryRepository::Changed
+S 112-116 method InMemoryRepository::FindAsync
+S 118-123 method InMemoryRepository::ListAsync
+S 125-141 method InMemoryRepository::SaveAsync
+S 143-152 method InMemoryRepository::RemoveAsync
+S 154-157 method InMemoryRepository::OnChanged
+S 159-170 method InMemoryRepository::Read
+S 172-184 method InMemoryRepository::Write
+S 186-195 method InMemoryRepository::Dispose
+S 198-264 module Warehouse.Data::Specialized
+S 201-219 class Specialized::ProductRepository
+S 203-206 method ProductRepository::ProductRepository
+S 208-212 method ProductRepository::ByTagAsync
+S 214-218 method ProductRepository::ByFamilyAsync
+S 222-247 class Specialized::StockRepository
+S 224-227 method StockRepository::StockRepository
+S 229-232 method StockRepository::ForSkuAsync
+S 234-238 method StockRepository::AvailableAsync
+S 240-244 method StockRepository::OnChanged
+S 246-246 field StockRepository::LastChanged
+S 250-263 class Specialized::OrderRepository
+S 252-253 method OrderRepository::OpenAsync
+S 255-262 method OrderRepository::StreamAsync
+S 267-313 class Warehouse.Data::UnitOfWork
+S 269-269 field UnitOfWork::_pending
+S 270-270 field UnitOfWork::_limiter
+S 271-271 field UnitOfWork::_commits
+S 273-273 method UnitOfWork::UnitOfWork
+S 275-275 field UnitOfWork::Pending
+S 277-277 field UnitOfWork::Commits
+S 279-286 method UnitOfWork::Save
+S 288-294 method UnitOfWork::Remove
+S 296-306 method UnitOfWork::CommitAsync
+S 308-312 method UnitOfWork::DisposeAsync
+S 316-335 class Warehouse.Data::Seed
+S 318-334 method Seed::Demo
+R 5:1 imports Repository -> Tasks
+R 7:1 imports Repository -> System
+R 8:1 imports Repository -> Concurrent
+R 9:1 imports Repository -> Generic
+R 10:1 imports Repository -> Linq
+R 11:1 imports Repository -> Threading
+R 12:1 imports Repository -> Errors (x-file: Warehouse/Errors.cs)
+R 13:1 imports Repository -> Models (x-file: Warehouse/Models.cs)
+R 25:49 extends Warehouse.Data::ChangeEventArgs -> EventArgs
+R 52:53 calls IReadRepository::GetAsync -> ConfigureAwait
+R 52:31 calls IReadRepository::GetAsync -> FindAsync
+R 53:26 calls IReadRepository::GetAsync -> Found (x-file: Warehouse/Errors.cs)
+R 58:51 extends Warehouse.Data::IRepository -> IReadRepository
+R 70:54 implements Warehouse.Data::InMemoryRepository -> IRepository
+R 70:82 implements Warehouse.Data::InMemoryRepository -> IDisposable
+R 88:25 calls InMemoryRepository::InMemoryRepository -> Increment
+R 100:53 calls InMemoryRepository::Instances -> Read
+R 104:49 calls InMemoryRepository::this -> TryGetValue
+R 104:93 calls InMemoryRepository::this -> NotFoundException (x-file: Warehouse/Errors.cs)
+R 114:19 calls InMemoryRepository::FindAsync -> ThrowIfCancellationRequested
+R 115:25 calls InMemoryRepository::FindAsync -> FromResult
+R 115:43 calls InMemoryRepository::FindAsync -> TryGetValue
+R 120:19 calls InMemoryRepository::ListAsync -> ThrowIfCancellationRequested
+R 121:45 calls InMemoryRepository::ListAsync -> Read
+R 121:99 calls InMemoryRepository::ListAsync -> ToList
+R 121:70 calls InMemoryRepository::ListAsync -> Where
+R 122:25 calls InMemoryRepository::ListAsync -> FromResult
+R 127:19 calls InMemoryRepository::SaveAsync -> ThrowIfCancellationRequested
+R 128:24 calls InMemoryRepository::SaveAsync -> Write
+R 130:28 calls InMemoryRepository::SaveAsync -> TryGetValue
+R 132:27 calls InMemoryRepository::SaveAsync -> Version
+R 132:93 calls InMemoryRepository::SaveAsync -> ReferenceEquals
+R 139:13 calls InMemoryRepository::SaveAsync -> OnChanged
+R 145:19 calls InMemoryRepository::RemoveAsync -> ThrowIfCancellationRequested
+R 146:27 calls InMemoryRepository::RemoveAsync -> Write
+R 146:46 calls InMemoryRepository::RemoveAsync -> TryRemove
+R 149:17 calls InMemoryRepository::RemoveAsync -> OnChanged
+R 151:25 calls InMemoryRepository::RemoveAsync -> FromResult
+R 156:23 calls InMemoryRepository::OnChanged -> Invoke
+R 156:40 calls InMemoryRepository::OnChanged -> ChangeEventArgs
+R 161:19 calls InMemoryRepository::Read -> EnterReadLock
+R 164:24 calls InMemoryRepository::Read -> body
+R 168:23 calls InMemoryRepository::Read -> ExitReadLock
+R 174:37 calls InMemoryRepository::Write -> ThrowIf
+R 175:19 calls InMemoryRepository::Write -> EnterWriteLock
+R 178:24 calls InMemoryRepository::Write -> body
+R 182:23 calls InMemoryRepository::Write -> ExitWriteLock
+R 193:19 calls InMemoryRepository::Dispose -> Dispose
+R 194:16 calls InMemoryRepository::Dispose -> SuppressFinalize
+R 201:49 extends Specialized::ProductRepository -> InMemoryRepository
+R 210:33 calls ProductRepository::ByTagAsync -> ListAsync
+R 210:55 calls ProductRepository::ByTagAsync -> Contains
+R 211:73 calls ProductRepository::ByTagAsync -> ToList
+R 211:28 calls ProductRepository::ByTagAsync -> OrderBy
+R 216:33 calls ProductRepository::ByFamilyAsync -> ListAsync
+R 217:28 calls ProductRepository::ByFamilyAsync -> ToLookup
+R 222:47 extends Specialized::StockRepository -> InMemoryRepository
+R 231:30 calls StockRepository::ForSkuAsync -> ListAsync
+R 236:35 calls StockRepository::AvailableAsync -> ForSkuAsync
+R 237:30 calls StockRepository::AvailableAsync -> TotalAvailable (x-file: Warehouse/Models.cs)
+R 242:22 calls StockRepository::OnChanged -> OnChanged
+R 250:47 extends Specialized::OrderRepository -> InMemoryRepository
+R 253:17 calls OrderRepository::OpenAsync -> ListAsync
+R 257:45 calls OrderRepository::StreamAsync -> ListAsync
+R 259:32 calls OrderRepository::StreamAsync -> Yield
+R 267:38 implements Warehouse.Data::UnitOfWork -> IAsyncDisposable
+R 284:22 calls UnitOfWork::Save -> Add (x-file: Warehouse/Errors.cs)
+R 284:46 calls UnitOfWork::Save -> SaveAsync
+R 292:22 calls UnitOfWork::Remove -> Add (x-file: Warehouse/Errors.cs)
+R 292:58 calls UnitOfWork::Remove -> RemoveAsync
+R 298:22 calls UnitOfWork::CommitAsync -> Acquire (x-file: Warehouse/Errors.cs)
+R 298:35 calls UnitOfWork::CommitAsync -> Max
+R 299:34 calls UnitOfWork::CommitAsync -> ToArray
+R 300:22 calls UnitOfWork::CommitAsync -> Clear
+R 303:35 calls UnitOfWork::CommitAsync -> ConfigureAwait
+R 303:23 calls UnitOfWork::CommitAsync -> step
+R 305:25 calls UnitOfWork::CommitAsync -> Increment
+R 310:22 calls UnitOfWork::DisposeAsync -> Clear
+R 322:91 calls Seed::Demo -> Tag (x-file: Warehouse/Models.cs)
+R 322:21 calls Seed::Demo -> Product (x-file: Warehouse/Models.cs)
+R 322:33 calls Seed::Demo -> Parse (x-file: Warehouse/Models.cs)
+R 322:67 calls Seed::Demo -> Price (x-file: Warehouse/Models.cs)
+R 323:90 calls Seed::Demo -> Tag (x-file: Warehouse/Models.cs)
+R 323:21 calls Seed::Demo -> Product (x-file: Warehouse/Models.cs)
+R 323:33 calls Seed::Demo -> Parse (x-file: Warehouse/Models.cs)
+R 323:66 calls Seed::Demo -> Price (x-file: Warehouse/Models.cs)
+R 324:21 calls Seed::Demo -> Product (x-file: Warehouse/Models.cs)
+R 324:33 calls Seed::Demo -> Parse (x-file: Warehouse/Models.cs)
+R 324:71 calls Seed::Demo -> Price (x-file: Warehouse/Models.cs)
+R 325:86 calls Seed::Demo -> Tag (x-file: Warehouse/Models.cs)
+R 325:21 calls Seed::Demo -> Product (x-file: Warehouse/Models.cs)
+R 325:33 calls Seed::Demo -> Parse (x-file: Warehouse/Models.cs)
+R 325:72 calls Seed::Demo -> Price (x-file: Warehouse/Models.cs)
+R 327:29 calls Seed::Demo -> StockRepository
+R 330:32 calls Seed::Demo -> StockLine (x-file: Warehouse/Models.cs)
+R 330:63 calls Seed::Demo -> Parse (x-file: Warehouse/Models.cs)
+R 331:55 calls Seed::Demo -> GetResult
+R 331:42 calls Seed::Demo -> GetAwaiter
+R 331:23 calls Seed::Demo -> SaveAsync
+R 333:25 calls Seed::Demo -> ProductRepository
+
+== Warehouse/Services.cs (321 lines)
+S 1-321 module Services
+S 15-321 module Warehouse.Services
+S 18-23 interface Warehouse.Services::IClock
+S 20-20 field IClock::Now
+S 22-22 method IClock::Create
+S 25-30 class Warehouse.Services::SystemClock
+S 27-27 field SystemClock::Now
+S 29-29 method SystemClock::Create
+S 32-39 class Warehouse.Services::FixedClock
+S 34-34 field FixedClock::Now
+S 36-36 method FixedClock::Create
+S 38-38 method FixedClock::Advance
+S 42-45 interface Warehouse.Services::INotifier
+S 44-44 method INotifier::Notify
+S 47-50 class Warehouse.Services::ConsoleNotifier
+S 49-49 method ConsoleNotifier::Notify
+S 52-59 class Warehouse.Services::RecordingNotifier
+S 54-54 field RecordingNotifier::_sent
+S 56-56 field RecordingNotifier::Sent
+S 58-58 method RecordingNotifier::Notify
+S 62-133 class Warehouse.Services::InventoryService
+S 64-64 field InventoryService::_stock
+S 65-65 field InventoryService::_products
+S 66-66 field InventoryService::_notifier
+S 68-74 method InventoryService::InventoryService
+S 76-76 field InventoryService::StockChanged
+S 78-78 field InventoryService::LowStockThreshold
+S 80-100 method InventoryService::ReceiveAsync
+S 102-112 method InventoryService::MoveAsync
+S 114-123 method InventoryService::CountAsync
+S 125-132 method InventoryService::LowStockCheck
+S 136-269 class Warehouse.Services::OrderService
+S 138-138 field OrderService::_orders
+S 139-139 field OrderService::_inventory
+S 140-140 field OrderService::_stock
+S 141-141 field OrderService::_products
+S 142-142 field OrderService::_notifier
+S 143-143 field OrderService::_clock
+S 145-155 method OrderService::OrderService
+S 157-157 field OrderService::PickingDeadline
+S 159-176 method OrderService::DraftAsync
+S 178-211 method OrderService::PlaceAsync
+S 203-210 function Rollback
+S 213-230 method OrderService::PickAsync
+S 232-246 method OrderService::PickLineAsync
+S 248-266 method OrderService::CancelAsync
+S 268-268 method OrderService::SnapshotAsync
+S 272-313 class Warehouse.Services::ServiceHost
+S 274-282 method ServiceHost::ServiceHost
+S 284-284 field ServiceHost::Products
+S 286-286 field ServiceHost::Stock
+S 288-288 field ServiceHost::Orders
+S 290-290 field ServiceHost::Notifier
+S 292-292 field ServiceHost::Inventory
+S 294-294 field ServiceHost::OrdersService
+S 296-296 field ServiceHost::UnitOfWork
+S 298-298 method ServiceHost::Build
+S 300-304 method ServiceHost::BuildForTests
+S 306-312 method ServiceHost::DisposeAsync
+S 316-321 class Warehouse.Services::Prüfung
+S 318-318 method Prüfung::Gültig
+S 320-320 method Prüfung::集計
+R 5:1 imports Services -> System
+R 6:1 imports Services -> Generic
+R 7:1 imports Services -> Diagnostics
+R 8:1 imports Services -> Linq
+R 9:1 imports Services -> Threading
+R 10:1 imports Services -> Data
+R 11:1 imports Services -> Specialized (x-file: Warehouse/Repository.cs)
+R 12:1 imports Services -> Errors (x-file: Warehouse/Errors.cs)
+R 13:1 imports Services -> Models (x-file: Warehouse/Models.cs)
+R 25:35 implements Warehouse.Services::SystemClock -> IClock
+R 29:42 calls SystemClock::Create -> SystemClock
+R 32:54 implements Warehouse.Services::FixedClock -> IClock
+R 36:42 calls FixedClock::Create -> FixedClock
+R 47:39 implements Warehouse.Services::ConsoleNotifier -> INotifier
+R 49:65 calls ConsoleNotifier::Notify -> WriteLine
+R 52:41 implements Warehouse.Services::RecordingNotifier -> INotifier
+R 58:63 calls RecordingNotifier::Notify -> Add (x-file: Warehouse/Errors.cs)
+R 73:37 calls InventoryService::InventoryService -> LowStockCheck
+R 84:27 calls InventoryService::ReceiveAsync -> Parse (x-file: Warehouse/Models.cs)
+R 85:29 calls InventoryService::ReceiveAsync -> GetAsync (x-file: Warehouse/Repository.cs)
+R 86:37 calls InventoryService::ReceiveAsync -> Parse (x-file: Warehouse/Models.cs)
+R 87:37 calls InventoryService::ReceiveAsync -> FindAsync (x-file: Warehouse/Repository.cs)
+R 87:78 calls InventoryService::ReceiveAsync -> StockLine (x-file: Warehouse/Models.cs)
+R 90:18 calls InventoryService::ReceiveAsync -> Receive (x-file: Warehouse/Models.cs)
+R 91:26 calls InventoryService::ReceiveAsync -> SaveAsync (x-file: Warehouse/Repository.cs)
+R 92:27 calls InventoryService::ReceiveAsync -> Invoke
+R 97:23 calls InventoryService::ReceiveAsync -> Notify
+R 97:54 calls InventoryService::ReceiveAsync -> Explain (x-file: Warehouse/Errors.cs)
+R 98:38 calls InventoryService::ReceiveAsync -> Fail (x-file: Warehouse/Errors.cs)
+R 104:28 calls InventoryService::MoveAsync -> Found (x-file: Warehouse/Errors.cs)
+R 104:47 calls InventoryService::MoveAsync -> FindAsync (x-file: Warehouse/Repository.cs)
+R 105:16 calls InventoryService::MoveAsync -> Reserve (x-file: Warehouse/Models.cs)
+R 106:16 calls InventoryService::MoveAsync -> Ship (x-file: Warehouse/Models.cs)
+R 107:35 calls InventoryService::MoveAsync -> FindAsync (x-file: Warehouse/Repository.cs)
+R 107:70 calls InventoryService::MoveAsync -> StockLine (x-file: Warehouse/Models.cs)
+R 108:16 calls InventoryService::MoveAsync -> Receive (x-file: Warehouse/Models.cs)
+R 109:22 calls InventoryService::MoveAsync -> SaveAsync (x-file: Warehouse/Repository.cs)
+R 110:22 calls InventoryService::MoveAsync -> SaveAsync (x-file: Warehouse/Repository.cs)
+R 111:19 calls InventoryService::MoveAsync -> Notify
+R 116:34 calls InventoryService::CountAsync -> ListAsync (x-file: Warehouse/Repository.cs)
+R 121:57 calls InventoryService::CountAsync -> Sum
+R 122:23 calls InventoryService::CountAsync -> ToDictionary
+R 127:65 calls InventoryService::LowStockCheck -> GetResult
+R 127:52 calls InventoryService::LowStockCheck -> GetAwaiter
+R 127:32 calls InventoryService::LowStockCheck -> AvailableAsync (x-file: Warehouse/Repository.cs)
+R 130:23 calls InventoryService::LowStockCheck -> Notify
+R 154:39 calls OrderService::OrderService -> Create
+R 157:63 calls OrderService::PickingDeadline -> FromHours
+R 161:43 calls OrderService::DraftAsync -> Require (x-file: Warehouse/Errors.cs)
+R 161:26 calls OrderService::DraftAsync -> ErrorCollector (x-file: Warehouse/Errors.cs)
+R 162:25 calls OrderService::DraftAsync -> Order (x-file: Warehouse/Models.cs)
+R 162:36 calls OrderService::DraftAsync -> NewGuid
+R 165:22 calls OrderService::DraftAsync -> TryParse (x-file: Warehouse/Models.cs)
+R 167:24 calls OrderService::DraftAsync -> Check (x-file: Warehouse/Errors.cs)
+R 170:43 calls OrderService::DraftAsync -> GetAsync (x-file: Warehouse/Repository.cs)
+R 171:19 calls OrderService::DraftAsync -> Add (x-file: Warehouse/Errors.cs)
+R 173:16 calls OrderService::DraftAsync -> ThrowIfAny (x-file: Warehouse/Errors.cs)
+R 174:23 calls OrderService::DraftAsync -> SaveAsync (x-file: Warehouse/Repository.cs)
+R 180:35 calls OrderService::PlaceAsync -> GetAsync (x-file: Warehouse/Repository.cs)
+R 181:28 calls OrderService::PlaceAsync -> List
+R 186:47 calls OrderService::PlaceAsync -> ForSkuAsync (x-file: Warehouse/Repository.cs)
+R 187:38 calls OrderService::PlaceAsync -> Nearest (x-file: Warehouse/Models.cs)
+R 187:55 calls OrderService::PlaceAsync -> Parse (x-file: Warehouse/Models.cs)
+R 188:34 calls OrderService::PlaceAsync -> OutOfStockException (x-file: Warehouse/Errors.cs)
+R 188:90 calls OrderService::PlaceAsync -> TotalAvailable (x-file: Warehouse/Models.cs)
+R 189:21 calls OrderService::PlaceAsync -> Reserve (x-file: Warehouse/Models.cs)
+R 190:26 calls OrderService::PlaceAsync -> Add (x-file: Warehouse/Errors.cs)
+R 192:19 calls OrderService::PlaceAsync -> MoveTo (x-file: Warehouse/Models.cs)
+R 193:27 calls OrderService::PlaceAsync -> SaveAsync (x-file: Warehouse/Repository.cs)
+R 194:23 calls OrderService::PlaceAsync -> Notify
+R 199:13 calls OrderService::PlaceAsync -> Rollback
+R 200:34 calls OrderService::PlaceAsync -> Fail (x-file: Warehouse/Errors.cs)
+R 207:22 calls Rollback -> Release (x-file: Warehouse/Models.cs)
+R 209:23 calls Rollback -> Notify
+R 215:35 calls OrderService::PickAsync -> GetAsync (x-file: Warehouse/Repository.cs)
+R 217:15 calls OrderService::PickAsync -> MoveTo (x-file: Warehouse/Models.cs)
+R 218:31 calls OrderService::PickAsync -> StartNew
+R 219:36 calls OrderService::PickAsync -> OrderBy
+R 221:19 calls OrderService::PickAsync -> PickLineAsync
+R 223:15 calls OrderService::PickAsync -> Stop
+R 226:23 calls OrderService::PickAsync -> Notify
+R 228:23 calls OrderService::PickAsync -> SaveAsync (x-file: Warehouse/Repository.cs)
+R 234:33 calls OrderService::PickLineAsync -> ForSkuAsync (x-file: Warehouse/Repository.cs)
+R 236:34 calls OrderService::PickLineAsync -> Where
+R 238:29 calls OrderService::PickLineAsync -> Min
+R 239:17 calls OrderService::PickLineAsync -> Ship (x-file: Warehouse/Models.cs)
+R 250:35 calls OrderService::CancelAsync -> FindAsync (x-file: Warehouse/Repository.cs)
+R 256:27 calls OrderService::CancelAsync -> ConflictException (x-file: Warehouse/Errors.cs)
+R 258:23 calls OrderService::CancelAsync -> MoveTo (x-file: Warehouse/Models.cs)
+R 261:27 calls OrderService::CancelAsync -> Notify
+R 264:23 calls OrderService::CancelAsync -> SaveAsync (x-file: Warehouse/Repository.cs)
+R 268:78 calls OrderService::SnapshotAsync -> CountAsync
+R 272:35 implements Warehouse.Services::ServiceHost -> IAsyncDisposable
+R 276:34 calls ServiceHost::ServiceHost -> Demo (x-file: Warehouse/Repository.cs)
+R 277:22 calls ServiceHost::ServiceHost -> OrderRepository (x-file: Warehouse/Repository.cs)
+R 279:25 calls ServiceHost::ServiceHost -> InventoryService
+R 280:29 calls ServiceHost::ServiceHost -> OrderService
+R 281:26 calls ServiceHost::ServiceHost -> UnitOfWork
+R 281:41 calls ServiceHost::ServiceHost -> RateLimiter (x-file: Warehouse/Errors.cs)
+R 281:66 calls ServiceHost::ServiceHost -> FromSeconds
+R 298:88 calls ServiceHost::Build -> ConsoleNotifier
+R 302:24 calls ServiceHost::BuildForTests -> RecordingNotifier
+R 303:16 calls ServiceHost::BuildForTests -> Build
+R 308:26 calls ServiceHost::DisposeAsync -> DisposeAsync
+R 309:18 calls ServiceHost::DisposeAsync -> Dispose (x-file: Warehouse/Repository.cs)
+R 310:15 calls ServiceHost::DisposeAsync -> Dispose (x-file: Warehouse/Repository.cs)
+R 311:16 calls ServiceHost::DisposeAsync -> Dispose (x-file: Warehouse/Repository.cs)
+R 320:69 calls Prüfung::集計 -> Sum
