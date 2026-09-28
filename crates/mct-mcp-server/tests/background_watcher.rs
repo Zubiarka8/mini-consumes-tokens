@@ -260,3 +260,154 @@ mod changed_paths {
         assert_eq!(changed(&many), Changed::Rescan);
     }
 }
+
+/// `BatchState` (what the watcher thread carries between batches) against a
+/// real index, with a failure injected into one incremental update.
+mod batch_state {
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::Duration;
+
+    use mct_core::LanguageRegistry;
+    use mct_index::{ExcludeSet, Index, IndexError, ReindexReport};
+    use mct_mcp_server::background::{BatchState, Changed, Reindexer};
+
+    /// Applies the first of the paths it's given, then fails — a batch cut
+    /// short midway (a locked database, an I/O error) — once.
+    struct FailsOnce<'a> {
+        index: &'a mut Index,
+        armed: bool,
+        full_walks: usize,
+    }
+
+    impl Reindexer for FailsOnce<'_> {
+        fn reindex_paths(
+            &mut self,
+            registry: &LanguageRegistry,
+            paths: &[PathBuf],
+        ) -> mct_index::Result<ReindexReport> {
+            if std::mem::take(&mut self.armed) {
+                self.index.reindex_paths(registry, &paths[..1])?;
+                return Err(IndexError::Embedding("injected failure".into()));
+            }
+            self.index.reindex_paths(registry, paths)
+        }
+
+        fn reindex(&mut self, registry: &LanguageRegistry) -> mct_index::Result<ReindexReport> {
+            self.full_walks += 1;
+            self.index.reindex(registry, false)
+        }
+    }
+
+    fn names(index: &Index, name: &str) -> usize {
+        index.find_symbol(name).unwrap().len()
+    }
+
+    #[test]
+    fn a_failed_batch_is_recovered_by_the_next_change() {
+        let dir = super::tempdir();
+        fs::write(dir.join("a.rs"), "pub fn a_old() {}\n").unwrap();
+        fs::write(dir.join("b.rs"), "pub fn b_old() {}\n").unwrap();
+        let registry = mct_mcp_server::registry::build_registry();
+        let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
+        index.reindex(&registry, false).unwrap();
+
+        let mut state = BatchState::default();
+        let mut target = FailsOnce {
+            index: &mut index,
+            armed: true,
+            full_walks: 0,
+        };
+
+        // Both files change; the update fails after applying only `a.rs`.
+        fs::write(dir.join("a.rs"), "pub fn a_new() {}\n").unwrap();
+        fs::write(dir.join("b.rs"), "pub fn b_new() {}\n").unwrap();
+        let batch = Changed::Paths(vec![dir.join("a.rs"), dir.join("b.rs")]);
+        assert!(matches!(
+            state.apply(&mut target, &registry, batch),
+            Some(Err(_))
+        ));
+        assert!(state.rescan_pending());
+        assert_eq!(names(target.index, "b_old"), 1, "b.rs was left stale");
+
+        // The next change names only an unrelated file, yet must bring
+        // `b.rs` up to date too: it runs as a full walk.
+        fs::write(dir.join("c.rs"), "pub fn c_fn() {}\n").unwrap();
+        let batch = Changed::Paths(vec![dir.join("c.rs")]);
+        let (mode, _) = state.apply(&mut target, &registry, batch).unwrap().unwrap();
+        assert_eq!((mode, target.full_walks), ("full", 1));
+        assert!(!state.rescan_pending());
+        for (gone, present) in [("a_old", "a_new"), ("b_old", "b_new"), ("x", "c_fn")] {
+            assert_eq!(names(target.index, gone), 0, "{gone}");
+            assert_eq!(names(target.index, present), 1, "{present}");
+        }
+
+        // Back to incremental updates afterwards.
+        fs::write(dir.join("c.rs"), "pub fn c2() {}\n").unwrap();
+        let batch = Changed::Paths(vec![dir.join("c.rs")]);
+        let (mode, _) = state.apply(&mut target, &registry, batch).unwrap().unwrap();
+        assert_eq!((mode, target.full_walks), ("incremental", 1));
+    }
+
+    #[test]
+    fn an_owed_walk_runs_even_without_a_new_change() {
+        let dir = super::tempdir();
+        fs::write(dir.join("a.rs"), "pub fn a_old() {}\n").unwrap();
+        let registry = mct_mcp_server::registry::build_registry();
+        let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
+        index.reindex(&registry, false).unwrap();
+        let mut state = BatchState::default();
+        let mut target = FailsOnce {
+            index: &mut index,
+            armed: true,
+            full_walks: 0,
+        };
+
+        fs::write(dir.join("a.rs"), "pub fn a_new() {}\n").unwrap();
+        fs::write(dir.join("b.rs"), "pub fn b() {}\n").unwrap();
+        let batch = Changed::Paths(vec![dir.join("b.rs"), dir.join("a.rs")]);
+        assert!(state.apply(&mut target, &registry, batch).unwrap().is_err());
+
+        // What the watcher thread passes when its retry timer fires.
+        let (mode, _) = state
+            .apply(&mut target, &registry, Changed::Nothing)
+            .unwrap()
+            .unwrap();
+        assert_eq!(mode, "full");
+        assert_eq!(names(target.index, "a_new"), 1);
+        // Nothing owed any more: an empty batch is a no-op again.
+        assert!(state
+            .apply(&mut target, &registry, Changed::Nothing)
+            .is_none());
+    }
+
+    #[test]
+    fn retries_back_off_up_to_a_minute() {
+        let registry = mct_mcp_server::registry::build_registry();
+        struct AlwaysFails;
+        impl Reindexer for AlwaysFails {
+            fn reindex_paths(
+                &mut self,
+                _: &LanguageRegistry,
+                _: &[PathBuf],
+            ) -> mct_index::Result<ReindexReport> {
+                Err(IndexError::Embedding("down".into()))
+            }
+            fn reindex(&mut self, _: &LanguageRegistry) -> mct_index::Result<ReindexReport> {
+                Err(IndexError::Embedding("down".into()))
+            }
+        }
+        let mut target = AlwaysFails;
+        let mut state = BatchState::default();
+        let debounce = Duration::from_millis(1500);
+        let mut delays = Vec::new();
+        for _ in 0..8 {
+            state.apply(&mut target, &registry, Changed::Rescan);
+            delays.push(state.retry_delay(debounce).as_millis());
+        }
+        assert_eq!(
+            delays,
+            [1500, 3000, 6000, 12000, 24000, 48000, 60000, 60000]
+        );
+    }
+}

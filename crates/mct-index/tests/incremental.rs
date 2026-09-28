@@ -377,16 +377,61 @@ fn a_rename_reported_by_its_new_path_only_still_drops_the_old_one() {
     // What macOS FSEvents delivers through the debouncer's file-id cache.
     let root = project();
     let mut index = indexed(&root);
+
+    // Same directory, content unchanged.
     fs::rename(root.join("src/util.fake"), root.join("src/helpers.fake")).unwrap();
-    fs::remove_file(root.join("lib/extra.fake")).unwrap(); // event lost entirely
     let report = index
         .reindex_paths(&registry(), &[root.join("src/helpers.fake")])
         .unwrap();
-    assert_eq!((report.files_parsed, report.files_removed), (1, 2));
+    assert_eq!((report.files_parsed, report.files_removed), (1, 1));
     assert_eq!(
         index.find_symbol("helper").unwrap()[0].relative_path,
         "src/helpers.fake"
     );
+    assert_matches_full(&index, &root);
+
+    // Same directory, edited within the same settled batch (found as a
+    // sibling, the content hash no longer matches).
+    fs::rename(root.join("src/helpers.fake"), root.join("src/renamed.fake")).unwrap();
+    write(&root, "src/renamed.fake", "fn helper\nfn edited\n");
+    index
+        .reindex_paths(&registry(), &[root.join("src/renamed.fake")])
+        .unwrap();
+    assert_eq!(index.find_symbol("helper").unwrap().len(), 1);
+    assert_matches_full(&index, &root);
+
+    // Another directory, content unchanged (found by its content hash).
+    fs::rename(root.join("src/renamed.fake"), root.join("lib/moved.fake")).unwrap();
+    index
+        .reindex_paths(&registry(), &[root.join("lib/moved.fake")])
+        .unwrap();
+    assert_eq!(
+        index.find_symbol("helper").unwrap()[0].relative_path,
+        "lib/moved.fake"
+    );
+    assert_matches_full(&index, &root);
+
+    // A whole directory, reported by its new name only.
+    fs::rename(root.join("lib"), root.join("pkg")).unwrap();
+    index
+        .reindex_paths(&registry(), &[root.join("pkg")])
+        .unwrap();
+    assert_eq!(index.find_symbol("extra").unwrap().len(), 1);
+    assert_matches_full(&index, &root);
+}
+
+#[test]
+fn a_moved_and_edited_file_reported_by_its_new_path_only_waits_for_a_full_reindex() {
+    // The documented limit of checking only likely old ends: neither the
+    // directory nor the content hash leads back to the old path.
+    let root = project();
+    let mut index = indexed(&root);
+    fs::remove_file(root.join("src/util.fake")).unwrap();
+    let moved = write(&root, "lib/util.fake", "fn helper\nfn edited\n");
+    index.reindex_paths(&registry(), &[moved]).unwrap();
+    assert_eq!(index.find_symbol("helper").unwrap().len(), 2);
+
+    index.reindex(&registry(), false).unwrap();
     assert_matches_full(&index, &root);
 }
 
@@ -431,4 +476,156 @@ fn only_the_given_paths_are_looked_at() {
     assert_eq!(index.find_symbol("reported").unwrap().len(), 1);
     assert!(index.find_symbol("not_reported").unwrap().is_empty());
     assert_eq!(index.find_symbol("extra").unwrap().len(), 1);
+}
+
+#[test]
+fn valid_then_broken_then_valid_again_never_keeps_stale_symbols() {
+    let root = project();
+    let mut index = indexed(&root);
+    // A second index kept up to date by full non-forced reindexes, the
+    // other path through the same per-file rules.
+    let mut full = indexed(&root);
+    let path = root.join("src/util.fake");
+    let original = fs::read_to_string(&path).unwrap();
+
+    // Valid → broken: the previous version's symbols must go, the error
+    // must be recorded.
+    fs::write(&path, "fn helper\nthis is not fn\n").unwrap();
+    index
+        .reindex_paths(&registry(), std::slice::from_ref(&path))
+        .unwrap();
+    full.reindex(&registry(), false).unwrap();
+    assert!(index.find_symbol("helper").unwrap().is_empty());
+    assert!(index.find_symbol("unused").unwrap().is_empty());
+    assert_eq!(index.status().unwrap().syntax_errors.len(), 1);
+    assert_matches_full(&index, &root);
+    assert_matches_full(&full, &root);
+
+    // Broken → reverted to the exact content last indexed (same hash as
+    // before the break): re-parsed, error cleared.
+    fs::write(&path, &original).unwrap();
+    index
+        .reindex_paths(&registry(), std::slice::from_ref(&path))
+        .unwrap();
+    full.reindex(&registry(), false).unwrap();
+    assert_eq!(index.find_symbol("helper").unwrap().len(), 1);
+    assert!(index.status().unwrap().syntax_errors.is_empty());
+    assert_matches_full(&index, &root);
+    assert_matches_full(&full, &root);
+
+    // Broken → fixed with new content.
+    fs::write(&path, "fn broken(\n").unwrap();
+    index
+        .reindex_paths(&registry(), std::slice::from_ref(&path))
+        .unwrap();
+    fs::write(&path, "fn helper\nfn fixed\n").unwrap();
+    index
+        .reindex_paths(&registry(), std::slice::from_ref(&path))
+        .unwrap();
+    assert_eq!(index.find_symbol("fixed").unwrap().len(), 1);
+    assert!(index.status().unwrap().syntax_errors.is_empty());
+    assert_matches_full(&index, &root);
+}
+
+#[test]
+fn a_file_turned_binary_drops_its_symbols() {
+    let root = project();
+    let mut index = indexed(&root);
+    let path = root.join("src/util.fake");
+    fs::write(&path, [0xff, 0xfe, 0x00, 0x66]).unwrap();
+    index
+        .reindex_paths(&registry(), std::slice::from_ref(&path))
+        .unwrap();
+    assert!(index.find_symbol("helper").unwrap().is_empty());
+    assert_matches_full(&index, &root);
+}
+
+#[test]
+fn an_edit_or_an_unrelated_create_checks_no_other_indexed_path() {
+    let root = project();
+    let mut index = indexed(&root);
+    // Deleted without any event, then an unrelated edit is reported: the
+    // edit alone doesn't pay for checking every indexed path.
+    fs::remove_file(root.join("lib/extra.fake")).unwrap();
+    let edited = write(&root, "src/util.fake", "fn helper\nfn edited\n");
+    let report = index.reindex_paths(&registry(), &[edited]).unwrap();
+    assert_eq!((report.files_parsed, report.files_removed), (1, 0));
+    assert_eq!(index.find_symbol("extra").unwrap().len(), 1);
+
+    // Neither does a create elsewhere: only a path's likely old ends are
+    // checked. An event lost entirely is the full reindex's to catch.
+    let created = write(&root, "src/new.fake", "fn fresh\n");
+    let report = index.reindex_paths(&registry(), &[created]).unwrap();
+    assert_eq!(report.files_removed, 0);
+    index.reindex(&registry(), false).unwrap();
+    assert_matches_full(&index, &root);
+}
+
+/// Whether `dir` sits on a case-insensitive filesystem (APFS/HFS+ and NTFS
+/// by default).
+fn case_insensitive(dir: &Path) -> bool {
+    let probe = dir.join("CaseProbe");
+    fs::write(&probe, "").unwrap();
+    let insensitive = dir.join("caseprobe").exists();
+    fs::remove_file(probe).unwrap();
+    insensitive
+}
+
+#[test]
+fn a_case_only_rename_moves_its_symbols_without_duplicates() {
+    let root = project();
+    if !case_insensitive(&root) {
+        return; // the old spelling simply vanishes: the plain rename test
+    }
+    let mut index = indexed(&root);
+
+    // Both ends reported (the old one still resolves, to the new spelling).
+    let (from, to) = (root.join("src/util.fake"), root.join("src/Util.fake"));
+    fs::rename(&from, &to).unwrap();
+    index.reindex_paths(&registry(), &[from, to]).unwrap();
+    let hits = index.find_symbol("helper").unwrap();
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].relative_path, "src/Util.fake");
+    assert_matches_full(&index, &root);
+
+    // Only the new end reported (macOS FSEvents through the debouncer).
+    let (from, to) = (root.join("src/Util.fake"), root.join("src/UTIL.fake"));
+    fs::rename(&from, &to).unwrap();
+    index.reindex_paths(&registry(), &[to]).unwrap();
+    let hits = index.find_symbol("helper").unwrap();
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].relative_path, "src/UTIL.fake");
+    assert_matches_full(&index, &root);
+
+    // A directory, new end only.
+    fs::rename(root.join("lib"), root.join("Lib")).unwrap();
+    index
+        .reindex_paths(&registry(), &[root.join("Lib")])
+        .unwrap();
+    let hits = index.find_symbol("extra").unwrap();
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].relative_path, "Lib/extra.fake");
+    assert_matches_full(&index, &root);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_symlinked_directory_is_never_walked() {
+    let root = project();
+    let outside = tempdir();
+    fs::write(outside.join("secret.fake"), "fn secret\n").unwrap();
+    let mut index = indexed(&root);
+
+    // Pointing out of the root, and back into it (would duplicate `src/`).
+    let out_link = root.join("outside");
+    let in_link = root.join("alias");
+    std::os::unix::fs::symlink(&outside, &out_link).unwrap();
+    std::os::unix::fs::symlink(root.join("src"), &in_link).unwrap();
+    let report = index
+        .reindex_paths(&registry(), &[out_link, in_link])
+        .unwrap();
+    assert_eq!((report.files_parsed, report.files_unchanged), (0, 0));
+    assert!(index.find_symbol("secret").unwrap().is_empty());
+    assert_eq!(index.find_symbol("helper").unwrap().len(), 1);
+    assert_matches_full(&index, &root);
 }
