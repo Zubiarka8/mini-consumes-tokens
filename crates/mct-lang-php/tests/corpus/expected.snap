@@ -1,0 +1,1234 @@
+# language=php files=6 symbols=418 relations=803 cross_file=339
+
+== library/Domain.php (492 lines)
+S 1-492 module Domain
+S 24-27 interface HasLabel
+S 26-26 method HasLabel::label
+S 29-71 enum Genre
+S 31-31 field Genre::Fiction
+S 32-32 field Genre::Mystery
+S 33-33 field Genre::Science
+S 34-34 field Genre::History
+S 35-35 field Genre::Children
+S 36-36 field Genre::Poetry
+S 38-38 constant Genre::DEFAULT
+S 40-50 method Genre::label
+S 52-60 method Genre::fromLabel
+S 63-70 method Genre::loanDays
+S 73-107 enum MembershipTier
+S 75-75 field MembershipTier::Basic
+S 76-76 field MembershipTier::Plus
+S 77-77 field MembershipTier::Premium
+S 79-82 method MembershipTier::label
+S 84-91 method MembershipTier::loanLimit
+S 94-101 method MembershipTier::finePerDay
+S 103-106 method MembershipTier::next
+S 109-120 enum LoanStatus
+S 111-111 field LoanStatus::Active
+S 112-112 field LoanStatus::Overdue
+S 113-113 field LoanStatus::Returned
+S 114-114 field LoanStatus::Lost
+S 116-119 method LoanStatus::isOpen
+S 126-180 class Isbn
+S 128-130 method Isbn::__construct
+S 128-128 field Isbn::value
+S 132-142 method Isbn::parse
+S 144-148 method Isbn::upgrade
+S 150-157 method Isbn::checkDigit
+S 159-162 method Isbn::checksumMatches
+S 164-174 method Isbn::formatted
+S 176-179 method Isbn::__toString
+S 182-222 class Money
+S 184-188 method Money::__construct
+S 185-185 field Money::cents
+S 186-186 field Money::currency
+S 190-193 method Money::zero
+S 195-199 method Money::add
+S 201-204 method Money::multiply
+S 206-209 method Money::isZero
+S 211-216 method Money::assertSameCurrency
+S 218-221 method Money::__toString
+S 228-252 class Entity
+S 232-232 field Entity::id
+S 234-237 method Entity::getId
+S 239-244 method Entity::withId
+S 246-249 method Entity::jsonSerialize
+S 251-251 method Entity::toArray
+S 254-319 class Book
+S 256-256 field Book::onLoan
+S 259-268 method Book::__construct
+S 260-260 field Book::isbn
+S 261-261 field Book::title
+S 262-262 field Book::authors
+S 263-263 field Book::genre
+S 264-264 field Book::copies
+S 270-273 method Book::isbn
+S 275-278 method Book::title
+S 280-283 method Book::genre
+S 285-288 method Book::availableCopies
+S 290-297 method Book::reserveCopy
+S 299-302 method Book::returnCopy
+S 304-307 method Book::addCopies
+S 309-318 method Book::toArray
+S 321-372 class Member
+S 323-323 field Member::email
+S 325-331 method Member::__construct
+S 326-326 field Member::name
+S 328-328 field Member::tier
+S 333-336 method Member::name
+S 338-341 method Member::email
+S 343-346 method Member::tier
+S 348-351 method Member::canBorrow
+S 353-362 method Member::upgrade
+S 364-371 method Member::toArray
+S 374-462 class Loan
+S 376-376 field Loan::returnedAt
+S 377-377 field Loan::lost
+S 378-378 field Loan::renewals
+S 380-387 method Loan::__construct
+S 381-381 field Loan::book
+S 382-382 field Loan::member
+S 383-383 field Loan::borrowedAt
+S 384-384 field Loan::dueAt
+S 389-394 method Loan::start
+S 396-399 method Loan::book
+S 401-404 method Loan::member
+S 406-409 method Loan::dueAt
+S 411-419 method Loan::status
+S 421-425 method Loan::daysOverdue
+S 427-434 method Loan::renew
+S 436-444 method Loan::close
+S 446-449 method Loan::markLost
+S 451-461 method Loan::toArray
+S 468-473 class BookBorrowed
+S 470-472 method BookBorrowed::__construct
+S 470-470 field BookBorrowed::loan
+S 475-482 class BookReturned
+S 477-481 method BookReturned::__construct
+S 478-478 field BookReturned::loan
+S 479-479 field BookReturned::daysLate
+S 484-492 class MemberUpgraded
+S 486-491 method MemberUpgraded::__construct
+S 487-487 field MemberUpgraded::member
+S 488-488 field MemberUpgraded::from
+S 489-489 field MemberUpgraded::to
+R 13:5 imports Domain -> DateTimeImmutable
+R 14:5 imports Domain -> JsonSerializable
+R 15:20 imports Domain -> Arrayable (x-file: library/Support.php)
+R 15:31 imports Domain -> Assert (x-file: library/Support.php)
+R 15:39 imports Domain -> BookUnavailable (x-file: library/Support.php)
+R 15:56 imports Domain -> Clock (x-file: library/Support.php)
+R 15:63 imports Domain -> HasEvents (x-file: library/Support.php)
+R 15:74 imports Domain -> Identifiable (x-file: library/Support.php)
+R 16:5 imports Domain -> Invalid
+R 17:29 imports Domain -> days_between (x-file: library/Support.php)
+R 17:43 imports Domain -> money_format_cents (x-file: library/Support.php)
+R 17:63 imports Domain -> slugify (x-file: library/Support.php)
+R 18:5 imports Domain -> DATE_FORMAT (x-file: library/Support.php)
+R 29:31 implements Genre -> HasLabel
+R 54:24 calls Genre::fromLabel -> cases
+R 55:17 calls Genre::fromLabel -> slugify (x-file: library/Support.php)
+R 55:33 calls Genre::fromLabel -> label
+R 55:46 calls Genre::fromLabel -> slugify (x-file: library/Support.php)
+R 59:22 calls Genre::fromLabel -> tryFrom
+R 59:30 calls Genre::fromLabel -> strtolower
+R 73:37 implements MembershipTier -> HasLabel
+R 81:16 calls MembershipTier::label -> ucfirst
+R 81:24 calls MembershipTier::label -> strtolower
+R 105:22 calls MembershipTier::next -> tryFrom
+R 126:39 implements Isbn -> Stringable
+R 134:19 calls Isbn::parse -> preg_replace
+R 134:49 calls Isbn::parse -> strtoupper
+R 135:13 calls Isbn::parse -> strlen
+R 136:29 calls Isbn::parse -> upgrade
+R 138:13 calls Isbn::parse -> strlen
+R 138:46 calls Isbn::parse -> checksumMatches
+R 139:23 calls Isbn::parse -> Invalid
+R 146:25 calls Isbn::upgrade -> substr
+R 147:30 calls Isbn::upgrade -> checkDigit
+R 153:18 calls Isbn::checkDigit -> str_split
+R 161:22 calls Isbn::checksumMatches -> checkDigit
+R 161:33 calls Isbn::checksumMatches -> substr
+R 166:16 calls Isbn::formatted -> sprintf
+R 168:13 calls Isbn::formatted -> substr
+R 169:13 calls Isbn::formatted -> substr
+R 170:13 calls Isbn::formatted -> substr
+R 171:13 calls Isbn::formatted -> substr
+R 172:13 calls Isbn::formatted -> substr
+R 178:23 calls Isbn::__toString -> formatted
+R 182:40 implements Money -> Stringable
+R 197:16 calls Money::add -> assertSameCurrency
+R 214:23 calls Money::assertSameCurrency -> Invalid
+R 220:16 calls Money::__toString -> money_format_cents (x-file: library/Support.php)
+R 228:34 implements Entity -> Identifiable (x-file: library/Support.php)
+R 228:48 implements Entity -> Arrayable (x-file: library/Support.php)
+R 228:59 implements Entity -> JsonSerializable
+R 230:9 implements Entity -> HasEvents (x-file: library/Support.php)
+R 242:29 calls Entity::withId -> positive (x-file: library/Support.php)
+R 248:45 calls Entity::jsonSerialize -> toArray
+R 254:20 extends Book -> Entity
+R 266:17 calls Book::__construct -> notBlank (x-file: library/Support.php)
+R 267:17 calls Book::__construct -> positive (x-file: library/Support.php)
+R 292:20 calls Book::reserveCopy -> availableCopies
+R 294:19 calls Book::reserveCopy -> withContext (x-file: library/Support.php)
+R 293:24 calls Book::reserveCopy -> BookUnavailable (x-file: library/Support.php)
+R 301:25 calls Book::returnCopy -> max
+R 306:34 calls Book::addCopies -> positive (x-file: library/Support.php)
+R 312:36 calls Book::toArray -> formatted
+R 314:26 calls Book::toArray -> implode
+R 315:38 calls Book::toArray -> label
+R 316:35 calls Book::toArray -> availableCopies
+R 321:22 extends Member -> Entity
+R 330:32 calls Member::__construct -> email
+R 350:42 calls Member::canBorrow -> loanLimit
+R 355:30 calls Member::upgrade -> next
+R 359:16 calls Member::upgrade -> recordEvent (x-file: library/Support.php)
+R 359:32 calls Member::upgrade -> MemberUpgraded
+R 369:36 calls Member::toArray -> label
+R 374:20 extends Loan -> Entity
+R 386:16 calls Loan::__construct -> recordEvent (x-file: library/Support.php)
+R 386:32 calls Loan::__construct -> BookBorrowed
+R 391:24 calls Loan::start -> now (x-file: library/Support.php)
+R 392:16 calls Loan::start -> reserveCopy
+R 393:53 calls Loan::start -> modify
+R 393:60 calls Loan::start -> sprintf
+R 393:96 calls Loan::start -> loanDays
+R 393:87 calls Loan::start -> genre
+R 416:21 calls Loan::status -> now (x-file: library/Support.php)
+R 423:45 calls Loan::daysOverdue -> now (x-file: library/Support.php)
+R 424:16 calls Loan::daysOverdue -> max
+R 424:23 calls Loan::daysOverdue -> days_between (x-file: library/Support.php)
+R 429:20 calls Loan::renew -> status
+R 430:23 calls Loan::renew -> Invalid
+R 433:38 calls Loan::renew -> modify
+R 433:45 calls Loan::renew -> sprintf
+R 433:87 calls Loan::renew -> loanDays
+R 433:78 calls Loan::renew -> genre
+R 438:37 calls Loan::close -> isOpen
+R 438:21 calls Loan::close -> status
+R 439:23 calls Loan::close -> Invalid
+R 441:37 calls Loan::close -> now (x-file: library/Support.php)
+R 442:22 calls Loan::close -> returnCopy
+R 443:16 calls Loan::close -> recordEvent (x-file: library/Support.php)
+R 443:32 calls Loan::close -> BookReturned
+R 443:59 calls Loan::close -> daysOverdue
+R 454:36 calls Loan::toArray -> title
+R 455:40 calls Loan::toArray -> email
+R 456:46 calls Loan::toArray -> format (x-file: library/Reports.php)
+R 457:36 calls Loan::toArray -> format (x-file: library/Reports.php)
+R 458:47 calls Loan::toArray -> format (x-file: library/Reports.php)
+
+== library/Reports.php (375 lines)
+S 1-375 module Reports
+S 27-27 constant COLUMN_GAP
+S 33-101 class Report
+S 36-36 field Report::rows
+S 39-39 field Report::notes
+S 42-50 method Report::__construct
+S 43-43 field Report::title
+S 44-44 field Report::columns
+S 45-45 field Report::generatedAt
+S 52-60 method Report::addRow
+S 62-66 method Report::addNote
+S 68-71 method Report::rows
+S 73-76 method Report::notes
+S 78-84 method Report::sortBy
+S 86-89 method Report::isEmpty
+S 91-100 method Report::toArray
+S 107-112 interface Formatter
+S 109-109 method Formatter::format
+S 111-111 method Formatter::extension
+S 114-137 class TextFormatter
+S 116-124 method TextFormatter::cell
+S 127-136 method TextFormatter::widths
+S 139-166 class TableFormatter
+S 141-160 method TableFormatter::format
+S 144-144 function pad
+S 162-165 method TableFormatter::extension
+S 168-191 class CsvFormatter
+S 170-172 method CsvFormatter::__construct
+S 170-170 field CsvFormatter::separator
+S 174-185 method CsvFormatter::format
+S 187-190 method CsvFormatter::extension
+S 193-221 class MarkdownFormatter
+S 195-215 method MarkdownFormatter::format
+S 217-220 method MarkdownFormatter::extension
+S 223-234 class JsonFormatter
+S 225-228 method JsonFormatter::format
+S 230-233 method JsonFormatter::extension
+S 236-246 function formatter_for
+S 248-251 function percent
+S 257-375 class ReportBuilder
+S 259-266 method ReportBuilder::__construct
+S 260-260 field ReportBuilder::books
+S 261-261 field ReportBuilder::members
+S 262-262 field ReportBuilder::loans
+S 263-263 field ReportBuilder::fines
+S 264-264 field ReportBuilder::clock
+S 268-271 method ReportBuilder::report
+S 273-287 method ReportBuilder::inventory
+S 289-299 method ReportBuilder::overdue
+S 301-310 method ReportBuilder::overdueRow
+S 312-329 method ReportBuilder::topBorrowers
+S 331-346 method ReportBuilder::genres
+S 348-358 method ReportBuilder::build
+S 360-363 method ReportBuilder::render
+S 366-374 method ReportBuilder::export
+R 13:5 imports Reports -> InvalidArgumentException
+R 14:5 imports Reports -> Book (x-file: library/Domain.php)
+R 15:5 imports Reports -> Genre (x-file: library/Domain.php)
+R 16:5 imports Reports -> Loan (x-file: library/Domain.php)
+R 17:5 imports Reports -> BookRepository (x-file: library/Repository.php)
+R 18:5 imports Reports -> LoanRepository (x-file: library/Repository.php)
+R 19:5 imports Reports -> MemberRepository (x-file: library/Repository.php)
+R 20:5 imports Reports -> FineCalculator (x-file: library/Services.php)
+R 21:20 imports Reports -> Arrayable (x-file: library/Support.php)
+R 21:31 imports Reports -> Clock (x-file: library/Support.php)
+R 21:38 imports Reports -> Collection (x-file: library/Support.php)
+R 23:5 imports Reports -> money_format_cents (x-file: library/Support.php)
+R 24:5 imports Reports -> str_limit (x-file: library/Support.php)
+R 25:5 imports Reports -> DATE_FORMAT (x-file: library/Support.php)
+R 33:31 implements Report -> Arrayable (x-file: library/Support.php)
+R 48:23 calls Report::__construct -> InvalidArgumentException
+R 54:20 calls Report::addRow -> array_diff
+R 54:47 calls Report::addRow -> array_keys
+R 56:23 calls Report::addRow -> InvalidArgumentException
+R 56:70 calls Report::addRow -> implode
+R 58:25 calls Report::addRow -> array_intersect_key
+R 58:51 calls Report::addRow -> array_flip
+R 80:9 calls Report::sortBy -> usort
+R 114:41 implements TextFormatter -> Formatter
+R 120:13 calls TextFormatter::cell -> is_bool
+R 121:13 calls TextFormatter::cell -> is_float
+R 121:33 calls TextFormatter::cell -> number_format
+R 122:24 calls TextFormatter::cell -> str_limit (x-file: library/Support.php)
+R 129:19 calls TextFormatter::widths -> array_combine
+R 129:51 calls TextFormatter::widths -> array_map
+R 130:27 calls TextFormatter::widths -> rows
+R 132:36 calls TextFormatter::widths -> max
+R 132:58 calls TextFormatter::widths -> mb_strlen
+R 132:75 calls TextFormatter::widths -> cell
+R 139:36 extends TableFormatter -> TextFormatter
+R 143:26 calls TableFormatter::format -> widths
+R 144:53 calls pad -> str_pad
+R 146:19 calls TableFormatter::format -> strtoupper
+R 147:20 calls TableFormatter::format -> rtrim
+R 147:26 calls TableFormatter::format -> implode
+R 147:38 calls TableFormatter::format -> array_map
+R 148:20 calls TableFormatter::format -> str_repeat
+R 148:36 calls TableFormatter::format -> array_sum
+R 148:71 calls TableFormatter::format -> count (x-file: library/Repository.php)
+R 149:27 calls TableFormatter::format -> rows
+R 152:40 calls TableFormatter::format -> cell
+R 154:24 calls TableFormatter::format -> rtrim
+R 154:30 calls TableFormatter::format -> implode
+R 156:27 calls TableFormatter::format -> notes
+R 159:16 calls TableFormatter::format -> implode
+R 168:37 implements CsvFormatter -> Formatter
+R 176:19 calls CsvFormatter::format -> fopen
+R 177:9 calls CsvFormatter::format -> fputcsv
+R 178:27 calls CsvFormatter::format -> rows
+R 179:13 calls CsvFormatter::format -> fputcsv
+R 179:30 calls CsvFormatter::format -> array_values
+R 181:9 calls CsvFormatter::format -> rewind
+R 182:16 calls CsvFormatter::format -> stream_get_contents
+R 183:9 calls CsvFormatter::format -> fclose
+R 193:39 extends MarkdownFormatter -> TextFormatter
+R 197:26 calls MarkdownFormatter::format -> implode
+R 198:23 calls MarkdownFormatter::format -> str_repeat
+R 198:44 calls MarkdownFormatter::format -> count (x-file: library/Repository.php)
+R 199:17 calls MarkdownFormatter::format -> implode
+R 199:34 calls MarkdownFormatter::format -> array_map
+R 200:39 calls MarkdownFormatter::format -> implode
+R 200:54 calls MarkdownFormatter::format -> array_map
+R 200:71 calls MarkdownFormatter::format -> cell
+R 201:22 calls MarkdownFormatter::format -> rows
+R 223:38 implements JsonFormatter -> Formatter
+R 227:16 calls JsonFormatter::format -> json_encode
+R 238:19 calls formatter_for -> strtolower
+R 239:31 calls formatter_for -> TableFormatter
+R 240:22 calls formatter_for -> CsvFormatter
+R 241:22 calls formatter_for -> CsvFormatter
+R 242:33 calls formatter_for -> MarkdownFormatter
+R 243:23 calls formatter_for -> JsonFormatter
+R 244:30 calls formatter_for -> InvalidArgumentException
+R 250:34 calls percent -> sprintf
+R 270:20 calls ReportBuilder::report -> Report
+R 270:66 calls ReportBuilder::report -> format
+R 270:59 calls ReportBuilder::report -> now (x-file: library/Support.php)
+R 275:26 calls ReportBuilder::inventory -> report
+R 276:30 calls ReportBuilder::inventory -> each (x-file: library/Support.php)
+R 276:23 calls ReportBuilder::inventory -> all (x-file: library/Repository.php)
+R 277:22 calls ReportBuilder::inventory -> addRow
+R 278:42 calls ReportBuilder::inventory -> formatted (x-file: library/Domain.php)
+R 278:34 calls ReportBuilder::inventory -> isbn (x-file: library/Domain.php)
+R 279:35 calls ReportBuilder::inventory -> title
+R 280:44 calls ReportBuilder::inventory -> label (x-file: library/Domain.php)
+R 280:35 calls ReportBuilder::inventory -> genre (x-file: library/Domain.php)
+R 281:39 calls ReportBuilder::inventory -> availableCopies (x-file: library/Domain.php)
+R 282:58 calls ReportBuilder::inventory -> count (x-file: library/Repository.php)
+R 282:42 calls ReportBuilder::inventory -> forBook (x-file: library/Repository.php)
+R 285:18 calls ReportBuilder::inventory -> addNote
+R 285:58 calls ReportBuilder::inventory -> count (x-file: library/Repository.php)
+R 286:25 calls ReportBuilder::inventory -> sortBy
+R 291:26 calls ReportBuilder::overdue -> report
+R 293:32 calls ReportBuilder::overdue -> overdue
+R 294:35 calls ReportBuilder::overdue -> fineFor (x-file: library/Services.php)
+R 296:22 calls ReportBuilder::overdue -> addRow
+R 296:36 calls ReportBuilder::overdue -> overdueRow
+R 298:25 calls ReportBuilder::overdue -> addNote
+R 298:42 calls ReportBuilder::overdue -> money_format_cents (x-file: library/Support.php)
+R 304:42 calls ReportBuilder::overdueRow -> email (x-file: library/Domain.php)
+R 304:32 calls ReportBuilder::overdueRow -> member (x-file: library/Domain.php)
+R 305:39 calls ReportBuilder::overdueRow -> title
+R 305:31 calls ReportBuilder::overdueRow -> book (x-file: library/Domain.php)
+R 306:38 calls ReportBuilder::overdueRow -> format
+R 306:29 calls ReportBuilder::overdueRow -> dueAt (x-file: library/Domain.php)
+R 307:30 calls ReportBuilder::overdueRow -> daysOverdue (x-file: library/Domain.php)
+R 308:23 calls ReportBuilder::overdueRow -> money_format_cents (x-file: library/Support.php)
+R 314:26 calls ReportBuilder::topBorrowers -> report
+R 315:33 calls ReportBuilder::topBorrowers -> borrowCounts (x-file: library/Repository.php)
+R 316:16 calls ReportBuilder::topBorrowers -> array_sum
+R 318:18 calls ReportBuilder::topBorrowers -> array_slice
+R 319:39 calls ReportBuilder::topBorrowers -> byEmail (x-file: library/Repository.php)
+R 320:22 calls ReportBuilder::topBorrowers -> addRow
+R 322:38 calls ReportBuilder::topBorrowers -> name (x-file: library/Domain.php)
+R 323:44 calls ReportBuilder::topBorrowers -> label (x-file: library/Domain.php)
+R 323:36 calls ReportBuilder::topBorrowers -> tier (x-file: library/Domain.php)
+R 325:28 calls ReportBuilder::topBorrowers -> percent
+R 333:26 calls ReportBuilder::genres -> report
+R 334:40 calls ReportBuilder::genres -> groupBy (x-file: library/Support.php)
+R 334:33 calls ReportBuilder::genres -> all (x-file: library/Repository.php)
+R 334:75 calls ReportBuilder::genres -> genre (x-file: library/Domain.php)
+R 335:38 calls ReportBuilder::genres -> count (x-file: library/Repository.php)
+R 336:25 calls ReportBuilder::genres -> cases
+R 337:53 calls ReportBuilder::genres -> Collection (x-file: library/Support.php)
+R 338:22 calls ReportBuilder::genres -> addRow
+R 339:36 calls ReportBuilder::genres -> label (x-file: library/Domain.php)
+R 340:38 calls ReportBuilder::genres -> count (x-file: library/Repository.php)
+R 341:42 calls ReportBuilder::genres -> sum (x-file: library/Support.php)
+R 341:89 calls ReportBuilder::genres -> count (x-file: library/Repository.php)
+R 341:76 calls ReportBuilder::genres -> forBook (x-file: library/Repository.php)
+R 342:28 calls ReportBuilder::genres -> percent
+R 342:45 calls ReportBuilder::genres -> count (x-file: library/Repository.php)
+R 345:25 calls ReportBuilder::genres -> sortBy
+R 351:35 calls ReportBuilder::build -> inventory
+R 352:33 calls ReportBuilder::build -> overdue
+R 353:38 calls ReportBuilder::build -> topBorrowers
+R 354:32 calls ReportBuilder::build -> genres
+R 355:34 calls ReportBuilder::build -> InvalidArgumentException
+R 362:40 calls ReportBuilder::render -> format
+R 362:16 calls ReportBuilder::render -> formatter_for
+R 362:54 calls ReportBuilder::render -> build
+R 368:22 calls ReportBuilder::export -> formatter_for
+R 371:42 calls ReportBuilder::export -> extension
+R 371:71 calls ReportBuilder::export -> format
+R 371:85 calls ReportBuilder::export -> build
+
+== library/Repository.php (391 lines)
+S 1-391 module Repository
+S 38-49 interface Repository
+S 40-40 method Repository::find
+S 42-42 method Repository::get
+S 44-44 method Repository::save
+S 46-46 method Repository::remove
+S 48-48 method Repository::all
+S 51-56 interface Searchable
+S 53-53 constant Searchable::MIN_QUERY
+S 55-55 method Searchable::search
+S 62-139 class InMemoryRepository
+S 67-67 field InMemoryRepository::items
+S 69-69 field InMemoryRepository::nextId
+S 72-72 field InMemoryRepository::onSave
+S 74-74 method InMemoryRepository::entityName
+S 76-79 method InMemoryRepository::find
+S 81-84 method InMemoryRepository::get
+S 86-98 method InMemoryRepository::save
+S 100-105 method InMemoryRepository::remove
+S 107-110 method InMemoryRepository::all
+S 112-115 method InMemoryRepository::count
+S 117-120 method InMemoryRepository::onSave
+S 123-130 method InMemoryRepository::where
+S 132-138 method InMemoryRepository::firstWhere
+S 145-184 class BookRepository
+S 147-150 method BookRepository::entityName
+S 152-160 method BookRepository::byIsbn
+S 163-166 method BookRepository::byGenre
+S 168-171 method BookRepository::available
+S 173-183 method BookRepository::search
+S 186-223 class MemberRepository
+S 188-191 method MemberRepository::entityName
+S 193-200 method MemberRepository::byEmail
+S 202-210 method MemberRepository::exists
+S 213-222 method MemberRepository::countByTier
+S 225-262 class LoanRepository
+S 227-230 method LoanRepository::entityName
+S 232-237 method LoanRepository::openFor
+S 239-244 method LoanRepository::overdue
+S 246-249 method LoanRepository::forBook
+S 252-261 method LoanRepository::borrowCounts
+S 268-321 class UnitOfWork
+S 271-271 field UnitOfWork::pending
+S 274-274 field UnitOfWork::afterCommit
+S 276-276 field UnitOfWork::committing
+S 278-281 method UnitOfWork::persist
+S 283-286 method UnitOfWork::afterCommit
+S 289-310 method UnitOfWork::commit
+S 313-320 method UnitOfWork::rollback
+S 327-391 class JsonFileStore
+S 329-329 constant JsonFileStore::VERSION
+S 331-333 method JsonFileStore::__construct
+S 331-331 field JsonFileStore::path
+S 335-338 method JsonFileStore::exists
+S 341-357 method JsonFileStore::load
+S 359-373 method JsonFileStore::save
+S 375-390 method JsonFileStore::hydrate
+R 13:5 imports Repository -> Generator
+R 14:5 imports Repository -> Book (x-file: library/Domain.php)
+R 15:5 imports Repository -> Entity (x-file: library/Domain.php)
+R 16:5 imports Repository -> Genre (x-file: library/Domain.php)
+R 17:5 imports Repository -> Isbn (x-file: library/Domain.php)
+R 18:5 imports Repository -> Loan (x-file: library/Domain.php)
+R 19:5 imports Repository -> LoanStatus (x-file: library/Domain.php)
+R 20:5 imports Repository -> Member (x-file: library/Domain.php)
+R 21:5 imports Repository -> MembershipTier (x-file: library/Domain.php)
+R 22:5 imports Repository -> Clock (x-file: library/Support.php)
+R 23:5 imports Repository -> Collection (x-file: library/Support.php)
+R 24:5 imports Repository -> Loggable (x-file: library/Support.php)
+R 25:5 imports Repository -> NotFoundException (x-file: library/Support.php)
+R 26:5 imports Repository -> ShelfException (x-file: library/Support.php)
+R 28:5 imports Repository -> slugify (x-file: library/Support.php)
+R 29:5 imports Repository -> str_limit (x-file: library/Support.php)
+R 38:31 extends Repository -> Countable
+R 51:30 extends Searchable -> Repository
+R 62:46 implements InMemoryRepository -> Repository
+R 64:9 implements InMemoryRepository -> Loggable (x-file: library/Support.php)
+R 83:23 calls InMemoryRepository::get -> find
+R 83:61 calls InMemoryRepository::get -> entity (x-file: library/Support.php)
+R 83:75 calls InMemoryRepository::get -> entityName
+R 88:24 calls InMemoryRepository::save -> getId (x-file: library/Domain.php)
+R 90:32 calls InMemoryRepository::save -> withId (x-file: library/Domain.php)
+R 91:20 calls InMemoryRepository::save -> log (x-file: library/Support.php)
+R 91:24 calls InMemoryRepository::save -> sprintf
+R 91:57 calls InMemoryRepository::save -> entityName
+R 91:80 calls InMemoryRepository::save -> getId (x-file: library/Domain.php)
+R 93:31 calls InMemoryRepository::save -> getId (x-file: library/Domain.php)
+R 102:16 calls InMemoryRepository::remove -> get
+R 104:16 calls InMemoryRepository::remove -> log (x-file: library/Support.php)
+R 104:37 calls InMemoryRepository::remove -> entityName
+R 109:28 calls InMemoryRepository::all -> of (x-file: library/Support.php)
+R 114:16 calls InMemoryRepository::count -> count
+R 134:25 calls InMemoryRepository::firstWhere -> where
+R 145:36 extends BookRepository -> InMemoryRepository
+R 145:66 implements BookRepository -> Searchable
+R 154:55 calls BookRepository::byIsbn -> parse (x-file: library/Domain.php)
+R 155:24 calls BookRepository::byIsbn -> firstWhere
+R 155:55 calls BookRepository::byIsbn -> isbn (x-file: library/Domain.php)
+R 157:38 calls BookRepository::byIsbn -> entity (x-file: library/Support.php)
+R 157:60 calls BookRepository::byIsbn -> formatted (x-file: library/Domain.php)
+R 165:27 calls BookRepository::byGenre -> where
+R 165:60 calls BookRepository::byGenre -> genre (x-file: library/Domain.php)
+R 170:30 calls BookRepository::available -> filter (x-file: library/Support.php)
+R 170:23 calls BookRepository::available -> all
+R 170:64 calls BookRepository::available -> availableCopies (x-file: library/Domain.php)
+R 175:13 calls BookRepository::search -> mb_strlen
+R 175:23 calls BookRepository::search -> trim
+R 176:24 calls BookRepository::search -> Collection (x-file: library/Support.php)
+R 178:19 calls BookRepository::search -> slugify (x-file: library/Support.php)
+R 182:15 calls BookRepository::search -> take (x-file: library/Support.php)
+R 181:15 calls BookRepository::search -> sortBy (x-file: library/Reports.php)
+R 180:15 calls BookRepository::search -> filter (x-file: library/Support.php)
+R 179:23 calls BookRepository::search -> all
+R 180:45 calls BookRepository::search -> str_contains
+R 180:58 calls BookRepository::search -> slugify (x-file: library/Support.php)
+R 180:70 calls BookRepository::search -> title (x-file: library/Domain.php)
+R 181:49 calls BookRepository::search -> title (x-file: library/Domain.php)
+R 186:38 extends MemberRepository -> InMemoryRepository
+R 195:18 calls MemberRepository::byEmail -> strtolower
+R 196:26 calls MemberRepository::byEmail -> firstWhere
+R 196:66 calls MemberRepository::byEmail -> email (x-file: library/Domain.php)
+R 199:40 calls MemberRepository::byEmail -> entity (x-file: library/Support.php)
+R 205:20 calls MemberRepository::exists -> byEmail
+R 216:34 calls MemberRepository::countByTier -> cases
+R 217:28 calls MemberRepository::countByTier -> label (x-file: library/Domain.php)
+R 217:39 calls MemberRepository::countByTier -> iterator_count
+R 218:24 calls MemberRepository::countByTier -> where
+R 218:59 calls MemberRepository::countByTier -> tier (x-file: library/Domain.php)
+R 225:36 extends LoanRepository -> InMemoryRepository
+R 234:28 calls LoanRepository::openFor -> of (x-file: library/Support.php)
+R 234:38 calls LoanRepository::openFor -> where
+R 235:40 calls LoanRepository::openFor -> member (x-file: library/Domain.php)
+R 235:84 calls LoanRepository::openFor -> isOpen (x-file: library/Domain.php)
+R 235:68 calls LoanRepository::openFor -> status (x-file: library/Domain.php)
+R 243:13 calls LoanRepository::overdue -> sortBy (x-file: library/Reports.php)
+R 241:28 calls LoanRepository::overdue -> of (x-file: library/Support.php)
+R 241:38 calls LoanRepository::overdue -> where
+R 242:40 calls LoanRepository::overdue -> status (x-file: library/Domain.php)
+R 243:47 calls LoanRepository::overdue -> daysOverdue (x-file: library/Domain.php)
+R 248:28 calls LoanRepository::forBook -> of (x-file: library/Support.php)
+R 248:38 calls LoanRepository::forBook -> where
+R 248:71 calls LoanRepository::forBook -> book (x-file: library/Domain.php)
+R 256:39 calls LoanRepository::borrowCounts -> email (x-file: library/Domain.php)
+R 256:29 calls LoanRepository::borrowCounts -> member (x-file: library/Domain.php)
+R 259:9 calls LoanRepository::borrowCounts -> arsort
+R 292:23 calls UnitOfWork::commit -> ShelfException (x-file: library/Support.php)
+R 298:41 calls UnitOfWork::commit -> save
+R 300:13 calls UnitOfWork::commit -> array_map
+R 302:20 calls UnitOfWork::commit -> rollback
+R 315:18 calls UnitOfWork::rollback -> array_reverse
+R 316:17 calls UnitOfWork::rollback -> isset
+R 316:50 calls UnitOfWork::rollback -> getId (x-file: library/Domain.php)
+R 317:30 calls UnitOfWork::rollback -> remove
+R 317:49 calls UnitOfWork::rollback -> getId (x-file: library/Domain.php)
+R 337:16 calls JsonFileStore::exists -> is_file
+R 343:21 calls JsonFileStore::load -> exists
+R 346:16 calls JsonFileStore::load -> file_get_contents
+R 348:23 calls JsonFileStore::load -> ShelfException (x-file: library/Support.php)
+R 350:17 calls JsonFileStore::load -> json_decode
+R 354:19 calls JsonFileStore::load -> withContext (x-file: library/Support.php)
+R 353:19 calls JsonFileStore::load -> withContext (x-file: library/Support.php)
+R 352:24 calls JsonFileStore::load -> ShelfException (x-file: library/Support.php)
+R 363:39 calls JsonFileStore::save -> toArray (x-file: library/Domain.php)
+R 363:32 calls JsonFileStore::save -> all
+R 364:43 calls JsonFileStore::save -> toArray (x-file: library/Domain.php)
+R 364:36 calls JsonFileStore::save -> all
+R 366:17 calls JsonFileStore::save -> json_encode
+R 368:18 calls JsonFileStore::save -> file_put_contents
+R 369:34 calls JsonFileStore::save -> rename
+R 370:23 calls JsonFileStore::save -> ShelfException (x-file: library/Support.php)
+R 370:68 calls JsonFileStore::save -> str_limit (x-file: library/Support.php)
+R 377:24 calls JsonFileStore::hydrate -> load
+R 379:21 calls JsonFileStore::hydrate -> save
+R 379:30 calls JsonFileStore::hydrate -> Book (x-file: library/Domain.php)
+R 380:23 calls JsonFileStore::hydrate -> parse (x-file: library/Domain.php)
+R 382:17 calls JsonFileStore::hydrate -> explode
+R 383:24 calls JsonFileStore::hydrate -> fromLabel (x-file: library/Domain.php)
+R 384:17 calls JsonFileStore::hydrate -> max
+R 388:23 calls JsonFileStore::hydrate -> save
+R 388:32 calls JsonFileStore::hydrate -> Member (x-file: library/Domain.php)
+
+== library/Services.php (378 lines)
+S 1-378 module Services
+S 26-29 interface EventListener
+S 28-28 method EventListener::__invoke
+S 31-77 class EventDispatcher
+S 34-34 field EventDispatcher::listeners
+S 37-37 field EventDispatcher::dispatched
+S 39-42 method EventDispatcher::listen
+S 44-49 method EventDispatcher::subscribe
+S 51-57 method EventDispatcher::dispatch
+S 60-68 method EventDispatcher::dispatchAll
+S 70-76 method EventDispatcher::dispatchedCount
+S 83-116 class FineCalculator
+S 85-85 constant FineCalculator::LOST_BOOK_FEE
+S 86-86 constant FineCalculator::MAX_FINE
+S 88-90 method FineCalculator::__construct
+S 88-88 field FineCalculator::clock
+S 92-100 method FineCalculator::fineFor
+S 102-107 method FineCalculator::totalFor
+S 109-115 method FineCalculator::describe
+S 122-224 class LendingService
+S 126-126 field LendingService::events
+S 128-135 method LendingService::__construct
+S 129-129 field LendingService::books
+S 130-130 field LendingService::members
+S 131-131 field LendingService::loans
+S 132-132 field LendingService::fines
+S 133-133 field LendingService::clock
+S 137-140 method LendingService::setEvents
+S 142-165 method LendingService::borrow
+S 167-179 method LendingService::giveBack
+S 181-189 method LendingService::renew
+S 191-197 method LendingService::reportLost
+S 200-203 method LendingService::overdue
+S 205-218 method LendingService::availability
+S 220-223 method LendingService::publish
+S 230-264 class MembershipService
+S 232-237 method MembershipService::__construct
+S 233-233 field MembershipService::members
+S 234-234 field MembershipService::loans
+S 235-235 field MembershipService::events
+S 239-245 method MembershipService::register
+S 248-263 method MembershipService::upgradeFrequentBorrowers
+S 270-333 class NotificationService
+S 273-273 field NotificationService::outbox
+S 275-279 method NotificationService::__construct
+S 276-276 field NotificationService::fines
+S 277-277 field NotificationService::from
+S 281-289 method NotificationService::__invoke
+S 291-300 method NotificationService::remindOverdue
+S 302-309 method NotificationService::confirmLoan
+S 311-315 method NotificationService::thankForReturn
+S 317-320 method NotificationService::congratulate
+S 322-325 method NotificationService::queue
+S 328-332 method NotificationService::flush
+S 339-378 function wire_services
+R 13:19 imports Services -> Book (x-file: library/Domain.php)
+R 13:25 imports Services -> BookBorrowed (x-file: library/Domain.php)
+R 13:39 imports Services -> BookReturned (x-file: library/Domain.php)
+R 13:53 imports Services -> Loan (x-file: library/Domain.php)
+R 13:59 imports Services -> LoanStatus (x-file: library/Domain.php)
+R 13:71 imports Services -> Member (x-file: library/Domain.php)
+R 13:79 imports Services -> MemberUpgraded (x-file: library/Domain.php)
+R 13:95 imports Services -> Money (x-file: library/Domain.php)
+R 14:24 imports Services -> BookRepository (x-file: library/Repository.php)
+R 14:40 imports Services -> LoanRepository (x-file: library/Repository.php)
+R 14:56 imports Services -> MemberRepository (x-file: library/Repository.php)
+R 14:74 imports Services -> UnitOfWork (x-file: library/Repository.php)
+R 15:20 imports Services -> Clock (x-file: library/Support.php)
+R 15:27 imports Services -> Collection (x-file: library/Support.php)
+R 15:39 imports Services -> LoanLimitExceeded (x-file: library/Support.php)
+R 15:58 imports Services -> NotFoundException (x-file: library/Support.php)
+R 15:77 imports Services -> SystemClock (x-file: library/Support.php)
+R 16:5 imports Services -> Auditable (x-file: library/Support.php)
+R 17:5 imports Services -> ShelfException (x-file: library/Support.php)
+R 19:5 imports Services -> money_format_cents (x-file: library/Support.php)
+R 20:5 imports Services -> retry (x-file: library/Support.php)
+R 47:20 calls EventDispatcher::subscribe -> listen
+R 64:20 calls EventDispatcher::dispatchAll -> dispatch
+R 73:20 calls EventDispatcher::dispatchedCount -> count (x-file: library/Repository.php)
+R 75:16 calls EventDispatcher::dispatchedCount -> count (x-file: library/Repository.php)
+R 75:22 calls EventDispatcher::dispatchedCount -> array_filter
+R 88:69 calls FineCalculator::__construct -> SystemClock (x-file: library/Support.php)
+R 94:20 calls FineCalculator::fineFor -> status (x-file: library/Domain.php)
+R 95:24 calls FineCalculator::fineFor -> Money (x-file: library/Domain.php)
+R 97:24 calls FineCalculator::fineFor -> daysOverdue (x-file: library/Domain.php)
+R 98:44 calls FineCalculator::fineFor -> finePerDay (x-file: library/Domain.php)
+R 98:36 calls FineCalculator::fineFor -> tier (x-file: library/Domain.php)
+R 98:26 calls FineCalculator::fineFor -> member (x-file: library/Domain.php)
+R 99:20 calls FineCalculator::fineFor -> Money (x-file: library/Domain.php)
+R 99:26 calls FineCalculator::fineFor -> min
+R 106:15 calls FineCalculator::totalFor -> reduce (x-file: library/Support.php)
+R 105:15 calls FineCalculator::totalFor -> filter (x-file: library/Support.php)
+R 104:24 calls FineCalculator::totalFor -> all (x-file: library/Repository.php)
+R 105:49 calls FineCalculator::totalFor -> member (x-file: library/Domain.php)
+R 106:56 calls FineCalculator::totalFor -> add (x-file: library/Domain.php)
+R 106:67 calls FineCalculator::totalFor -> fineFor
+R 106:88 calls FineCalculator::totalFor -> zero (x-file: library/Domain.php)
+R 111:24 calls FineCalculator::describe -> fineFor
+R 112:23 calls FineCalculator::describe -> isZero (x-file: library/Domain.php)
+R 114:15 calls FineCalculator::describe -> sprintf
+R 114:44 calls FineCalculator::describe -> money_format_cents (x-file: library/Support.php)
+R 114:85 calls FineCalculator::describe -> daysOverdue (x-file: library/Domain.php)
+R 124:9 implements LendingService -> Auditable (x-file: library/Support.php)
+R 133:45 calls LendingService::__construct -> SystemClock (x-file: library/Support.php)
+R 144:35 calls LendingService::borrow -> byEmail (x-file: library/Repository.php)
+R 145:31 calls LendingService::borrow -> byIsbn (x-file: library/Repository.php)
+R 147:63 calls LendingService::borrow -> count (x-file: library/Repository.php)
+R 147:31 calls LendingService::borrow -> openFor (x-file: library/Repository.php)
+R 148:23 calls LendingService::borrow -> canBorrow (x-file: library/Domain.php)
+R 149:38 calls LendingService::borrow -> forMember (x-file: library/Support.php)
+R 149:57 calls LendingService::borrow -> email (x-file: library/Domain.php)
+R 149:83 calls LendingService::borrow -> loanLimit (x-file: library/Domain.php)
+R 149:75 calls LendingService::borrow -> tier (x-file: library/Domain.php)
+R 151:61 calls LendingService::borrow -> isZero (x-file: library/Domain.php)
+R 151:28 calls LendingService::borrow -> totalFor
+R 153:19 calls LendingService::borrow -> withContext (x-file: library/Support.php)
+R 152:24 calls LendingService::borrow -> ShelfException (x-file: library/Support.php)
+R 153:50 calls LendingService::borrow -> email (x-file: library/Domain.php)
+R 156:20 calls LendingService::borrow -> UnitOfWork (x-file: library/Repository.php)
+R 157:23 calls LendingService::borrow -> start (x-file: library/Domain.php)
+R 158:15 calls LendingService::borrow -> persist (x-file: library/Repository.php)
+R 159:15 calls LendingService::borrow -> persist (x-file: library/Repository.php)
+R 160:15 calls LendingService::borrow -> afterCommit (x-file: library/Repository.php)
+R 160:43 calls LendingService::borrow -> publish
+R 161:26 calls LendingService::borrow -> commit (x-file: library/Repository.php)
+R 163:16 calls LendingService::borrow -> audit (x-file: library/Support.php)
+R 163:38 calls LendingService::borrow -> isbn (x-file: library/Domain.php)
+R 163:59 calls LendingService::borrow -> email (x-file: library/Domain.php)
+R 169:31 calls LendingService::giveBack -> get (x-file: library/Repository.php)
+R 171:38 calls LendingService::giveBack -> entity (x-file: library/Support.php)
+R 173:16 calls LendingService::giveBack -> close (x-file: library/Domain.php)
+R 174:23 calls LendingService::giveBack -> save (x-file: library/Repository.php)
+R 175:16 calls LendingService::giveBack -> publish
+R 176:31 calls LendingService::giveBack -> fineFor
+R 177:16 calls LendingService::giveBack -> audit (x-file: library/Support.php)
+R 177:22 calls LendingService::giveBack -> sprintf
+R 183:16 calls LendingService::renew -> retry (x-file: library/Support.php)
+R 184:35 calls LendingService::renew -> get (x-file: library/Repository.php)
+R 185:20 calls LendingService::renew -> renew
+R 186:20 calls LendingService::renew -> log (x-file: library/Support.php)
+R 187:34 calls LendingService::renew -> save (x-file: library/Repository.php)
+R 193:31 calls LendingService::reportLost -> get (x-file: library/Repository.php)
+R 194:16 calls LendingService::reportLost -> markLost (x-file: library/Domain.php)
+R 195:23 calls LendingService::reportLost -> save (x-file: library/Repository.php)
+R 196:30 calls LendingService::reportLost -> fineFor
+R 202:30 calls LendingService::overdue -> overdue
+R 207:31 calls LendingService::availability -> byIsbn (x-file: library/Repository.php)
+R 208:32 calls LendingService::availability -> forBook (x-file: library/Repository.php)
+R 212:15 calls LendingService::availability -> first (x-file: library/Support.php)
+R 211:15 calls LendingService::availability -> sortBy (x-file: library/Reports.php)
+R 210:15 calls LendingService::availability -> filter (x-file: library/Support.php)
+R 210:64 calls LendingService::availability -> isOpen (x-file: library/Domain.php)
+R 210:42 calls LendingService::availability -> status (x-file: library/Domain.php)
+R 211:49 calls LendingService::availability -> dueAt (x-file: library/Domain.php)
+R 214:20 calls LendingService::availability -> availableCopies (x-file: library/Domain.php)
+R 214:45 calls LendingService::availability -> sprintf
+R 214:76 calls LendingService::availability -> availableCopies (x-file: library/Domain.php)
+R 215:61 calls LendingService::availability -> format (x-file: library/Reports.php)
+R 215:52 calls LendingService::availability -> dueAt (x-file: library/Domain.php)
+R 222:25 calls LendingService::publish -> dispatchAll
+R 222:44 calls LendingService::publish -> releaseEvents (x-file: library/Support.php)
+R 241:29 calls MembershipService::register -> exists (x-file: library/Repository.php)
+R 242:23 calls MembershipService::register -> ShelfException (x-file: library/Support.php)
+R 244:32 calls MembershipService::register -> save (x-file: library/Repository.php)
+R 244:41 calls MembershipService::register -> Member (x-file: library/Domain.php)
+R 251:32 calls MembershipService::upgradeFrequentBorrowers -> borrowCounts (x-file: library/Repository.php)
+R 255:39 calls MembershipService::upgradeFrequentBorrowers -> byEmail (x-file: library/Repository.php)
+R 256:26 calls MembershipService::upgradeFrequentBorrowers -> upgrade (x-file: library/Domain.php)
+R 257:33 calls MembershipService::upgradeFrequentBorrowers -> save (x-file: library/Repository.php)
+R 258:32 calls MembershipService::upgradeFrequentBorrowers -> dispatchAll
+R 258:53 calls MembershipService::upgradeFrequentBorrowers -> releaseEvents (x-file: library/Support.php)
+R 270:44 implements NotificationService -> EventListener
+R 284:54 calls NotificationService::__invoke -> confirmLoan
+R 285:54 calls NotificationService::__invoke -> thankForReturn
+R 286:56 calls NotificationService::__invoke -> congratulate
+R 293:17 calls NotificationService::remindOverdue -> each (x-file: library/Support.php)
+R 294:20 calls NotificationService::remindOverdue -> queue
+R 295:34 calls NotificationService::remindOverdue -> email (x-file: library/Domain.php)
+R 295:24 calls NotificationService::remindOverdue -> member (x-file: library/Domain.php)
+R 296:17 calls NotificationService::remindOverdue -> sprintf
+R 296:63 calls NotificationService::remindOverdue -> title (x-file: library/Domain.php)
+R 296:55 calls NotificationService::remindOverdue -> book (x-file: library/Domain.php)
+R 296:86 calls NotificationService::remindOverdue -> describe
+R 299:24 calls NotificationService::remindOverdue -> count (x-file: library/Repository.php)
+R 304:16 calls NotificationService::confirmLoan -> queue
+R 304:39 calls NotificationService::confirmLoan -> email (x-file: library/Domain.php)
+R 304:29 calls NotificationService::confirmLoan -> member (x-file: library/Domain.php)
+R 304:48 calls NotificationService::confirmLoan -> sprintf
+R 306:28 calls NotificationService::confirmLoan -> title (x-file: library/Domain.php)
+R 306:20 calls NotificationService::confirmLoan -> book (x-file: library/Domain.php)
+R 307:29 calls NotificationService::confirmLoan -> format (x-file: library/Reports.php)
+R 307:20 calls NotificationService::confirmLoan -> dueAt (x-file: library/Domain.php)
+R 314:16 calls NotificationService::thankForReturn -> queue
+R 314:39 calls NotificationService::thankForReturn -> email (x-file: library/Domain.php)
+R 314:29 calls NotificationService::thankForReturn -> member (x-file: library/Domain.php)
+R 314:88 calls NotificationService::thankForReturn -> title (x-file: library/Domain.php)
+R 314:80 calls NotificationService::thankForReturn -> book (x-file: library/Domain.php)
+R 319:16 calls NotificationService::congratulate -> queue
+R 319:31 calls NotificationService::congratulate -> email (x-file: library/Domain.php)
+R 319:70 calls NotificationService::congratulate -> label (x-file: library/Domain.php)
+R 319:62 calls NotificationService::congratulate -> tier (x-file: library/Domain.php)
+R 319:90 calls NotificationService::congratulate -> name (x-file: library/Domain.php)
+R 341:19 calls wire_services -> EventDispatcher
+R 342:18 calls wire_services -> FineCalculator
+R 343:21 calls wire_services -> NotificationService
+R 344:14 calls wire_services -> subscribe
+R 346:46 references wire_services -> EventListener
+R 356:20 calls wire_services -> stamp
+R 361:13 calls wire_services -> error_log
+R 361:23 calls wire_services -> sprintf
+R 361:79 calls wire_services -> format (x-file: library/Reports.php)
+R 361:72 calls wire_services -> now (x-file: library/Support.php)
+R 364:14 calls wire_services -> listen
+R 366:20 calls wire_services -> LendingService
+R 367:15 calls wire_services -> setEvents
+R 368:15 calls wire_services -> setLogger (x-file: library/Support.php)
+R 368:53 calls wire_services -> error_log
+R 374:29 calls wire_services -> MembershipService
+
+== library/Support.php (465 lines)
+S 1-465 module Support
+S 24-24 constant VERSION
+S 25-25 constant DATE_FORMAT
+S 26-26 constant DEFAULT_CURRENCY
+S 26-26 constant MAX_PAGE_SIZE
+S 32-40 class ErrorCode
+S 35-39 method ErrorCode::__construct
+S 36-36 field ErrorCode::code
+S 37-37 field ErrorCode::httpStatus
+S 42-67 class ShelfException
+S 46-46 field ShelfException::context
+S 48-52 method ShelfException::withContext
+S 54-57 method ShelfException::context
+S 59-66 method ShelfException::code
+S 69-78 class NotFoundException
+S 72-77 method NotFoundException::entity
+S 80-116 class ValidationException
+S 84-84 field ValidationException::errors
+S 86-92 method ValidationException::__construct
+S 94-97 method ValidationException::addError
+S 99-102 method ValidationException::errors
+S 104-107 method ValidationException::hasErrors
+S 109-115 method ValidationException::first
+S 118-127 class LoanLimitExceeded
+S 121-126 method LoanLimitExceeded::forMember
+S 129-132 class BookUnavailable
+S 138-143 function money_format_cents
+S 145-150 function slugify
+S 152-158 function str_limit
+S 165-172 function array_index_by
+S 174-186 function env
+S 188-203 function retry
+S 205-241 class Assert
+S 207-213 method Assert::notBlank
+S 215-221 method Assert::positive
+S 223-230 method Assert::email
+S 232-240 method Assert::inRange
+S 247-250 interface Arrayable
+S 249-249 method Arrayable::toArray
+S 252-255 interface Identifiable
+S 254-254 method Identifiable::getId
+S 257-278 trait HasEvents
+S 260-260 field HasEvents::recordedEvents
+S 262-265 method HasEvents::recordEvent
+S 268-272 method HasEvents::releaseEvents
+S 274-277 method HasEvents::log
+S 280-293 trait Loggable
+S 282-282 field Loggable::logger
+S 284-287 method Loggable::setLogger
+S 289-292 method Loggable::log
+S 295-307 trait Auditable
+S 302-306 method Auditable::audit
+S 309-314 class LogEntry
+S 311-313 method LogEntry::__construct
+S 311-311 field LogEntry::message
+S 324-418 class Collection
+S 327-329 method Collection::__construct
+S 327-327 field Collection::items
+S 331-334 method Collection::of
+S 336-339 method Collection::map
+S 341-344 method Collection::filter
+S 346-349 method Collection::reduce
+S 351-359 method Collection::first
+S 361-369 method Collection::sortBy
+S 372-379 method Collection::groupBy
+S 381-384 method Collection::sum
+S 386-389 method Collection::take
+S 391-394 method Collection::each
+S 396-399 method Collection::isEmpty
+S 401-404 method Collection::count
+S 406-409 method Collection::getIterator
+S 411-417 method Collection::toArray
+S 424-427 interface Clock
+S 426-426 method Clock::now
+S 429-439 class SystemClock
+S 431-433 method SystemClock::__construct
+S 431-431 field SystemClock::zone
+S 435-438 method SystemClock::now
+S 441-459 class FrozenClock
+S 443-443 field FrozenClock::now
+S 445-448 method FrozenClock::__construct
+S 450-453 method FrozenClock::now
+S 455-458 method FrozenClock::advance
+S 461-465 function days_between
+R 14:5 imports Support -> Attribute
+R 15:5 imports Support -> Closure
+R 16:5 imports Support -> Countable
+R 17:5 imports Support -> DateInterval
+R 18:5 imports Support -> DateTimeImmutable
+R 19:5 imports Support -> DateTimeZone
+R 20:5 imports Support -> IteratorAggregate
+R 21:5 imports Support -> RuntimeException
+R 22:5 imports Support -> Traversable
+R 32:3 references ErrorCode -> Attribute
+R 42:3 references ShelfException -> ErrorCode
+R 43:30 extends ShelfException -> RuntimeException
+R 61:54 calls ShelfException::code -> getAttributes
+R 61:29 calls ShelfException::code -> ReflectionClass
+R 65:32 calls ShelfException::code -> newInstance
+R 69:3 references NotFoundException -> ErrorCode
+R 70:33 extends NotFoundException -> ShelfException
+R 76:15 calls NotFoundException::entity -> withContext
+R 75:15 calls NotFoundException::entity -> withContext
+R 74:26 calls NotFoundException::entity -> sprintf
+R 80:3 references ValidationException -> ErrorCode
+R 81:35 extends ValidationException -> ShelfException
+R 88:17 calls ValidationException::__construct -> __construct
+R 90:20 calls ValidationException::__construct -> addError
+R 106:16 calls ValidationException::hasErrors -> count
+R 118:3 references LoanLimitExceeded -> ErrorCode
+R 119:39 extends LoanLimitExceeded -> ValidationException
+R 124:24 calls LoanLimitExceeded::forMember -> sprintf
+R 129:3 references BookUnavailable -> ErrorCode
+R 130:37 extends BookUnavailable -> ShelfException
+R 141:14 calls money_format_cents -> abs
+R 142:12 calls money_format_cents -> sprintf
+R 142:43 calls money_format_cents -> intdiv
+R 147:13 calls slugify -> strtolower
+R 147:24 calls slugify -> trim
+R 148:13 calls slugify -> preg_replace
+R 149:12 calls slugify -> trim
+R 154:9 calls str_limit -> mb_strlen
+R 157:12 calls str_limit -> rtrim
+R 157:18 calls str_limit -> mb_substr
+R 157:47 calls str_limit -> mb_strlen
+R 176:14 calls env -> getenv
+R 180:19 calls env -> strtolower
+R 199:13 calls retry -> usleep
+R 209:13 calls Assert::notBlank -> trim
+R 210:23 calls Assert::notBlank -> ValidationException
+R 218:23 calls Assert::positive -> ValidationException
+R 225:15 calls Assert::email -> notBlank
+R 226:13 calls Assert::email -> filter_var
+R 227:23 calls Assert::email -> ValidationException
+R 229:16 calls Assert::email -> strtolower
+R 235:23 calls Assert::inRange -> ValidationException
+R 236:27 calls Assert::inRange -> sprintf
+R 276:16 calls HasEvents::log -> recordEvent
+R 276:32 calls HasEvents::log -> LogEntry
+R 286:34 calls Loggable::setLogger -> fromCallable
+R 291:25 calls Loggable::log -> __invoke (x-file: library/Services.php)
+R 291:34 calls Loggable::log -> sprintf
+R 297:9 implements Auditable -> HasEvents
+R 297:20 implements Auditable -> Loggable
+R 304:16 calls Auditable::audit -> log
+R 305:16 calls Auditable::audit -> eventLog
+R 324:29 implements Collection -> IteratorAggregate
+R 324:48 implements Collection -> Countable
+R 324:59 implements Collection -> Arrayable
+R 333:59 calls Collection::of -> iterator_to_array
+R 333:94 calls Collection::of -> array_values
+R 338:27 calls Collection::map -> array_map
+R 343:27 calls Collection::filter -> array_values
+R 343:40 calls Collection::filter -> array_filter
+R 348:16 calls Collection::reduce -> array_reduce
+R 364:9 calls Collection::sortBy -> usort
+R 378:16 calls Collection::groupBy -> array_map
+R 383:23 calls Collection::sum -> reduce
+R 388:27 calls Collection::take -> array_slice
+R 388:56 calls Collection::take -> min
+R 393:9 calls Collection::each -> array_walk
+R 403:16 calls Collection::count -> count
+R 413:16 calls Collection::toArray -> array_map
+R 414:70 calls Collection::toArray -> toArray
+R 429:36 implements SystemClock -> Clock
+R 431:75 calls SystemClock::__construct -> DateTimeZone
+R 437:20 calls SystemClock::now -> DateTimeImmutable
+R 441:36 implements FrozenClock -> Clock
+R 447:26 calls FrozenClock::__construct -> DateTimeImmutable
+R 457:34 calls FrozenClock::advance -> add (x-file: library/Domain.php)
+R 457:42 calls FrozenClock::advance -> DateInterval
+R 463:20 calls days_between -> diff
+
+== library/console.php (362 lines)
+S 1-362 module console
+S 42-52 class AsCommand
+S 46-51 method AsCommand::__construct
+S 47-47 field AsCommand::name
+S 48-48 field AsCommand::summary
+S 49-49 field AsCommand::aliases
+S 54-79 class Output
+S 56-56 constant Output::COLORS
+S 58-60 method Output::__construct
+S 58-58 field Output::ansi
+S 62-65 method Output::line
+S 67-70 method Output::error
+S 72-78 method Output::color
+S 85-118 class Input
+S 88-88 field Input::arguments
+S 91-91 field Input::options
+S 93-106 method Input::__construct
+S 108-111 method Input::argument
+S 113-117 method Input::option
+S 120-137 class Container
+S 123-123 field Container::services
+S 126-126 field Container::factories
+S 128-131 method Container::set
+S 133-136 method Container::get
+S 143-161 class Command
+S 145-147 method Command::__construct
+S 145-145 field Command::container
+S 145-145 field Command::out
+S 149-149 method Command::run
+S 151-155 method Command::metadata
+S 157-160 method Command::lending
+S 163-177 class BorrowCommand
+S 166-176 method BorrowCommand::run
+S 179-188 class ReturnCommand
+S 182-187 method ReturnCommand::run
+S 190-201 class ReportCommand
+S 193-200 method ReportCommand::run
+S 203-217 class RemindCommand
+S 206-216 method RemindCommand::run
+S 219-230 class UpgradeCommand
+S 222-229 method UpgradeCommand::run
+S 232-250 class HelpCommand
+S 236-239 method HelpCommand::__construct
+S 236-236 field HelpCommand::commands
+S 241-249 method HelpCommand::run
+S 256-291 class Application
+S 259-259 field Application::commands
+S 261-263 method Application::__construct
+S 261-261 field Application::container
+S 261-261 field Application::out
+S 265-274 method Application::register
+S 276-290 method Application::run
+S 293-306 function seed
+S 308-344 function bootstrap
+S 349-356 function main
+S 358-358 function format
+R 15:1 imports console -> Support.php
+R 16:1 imports console -> Domain.php
+R 19:1 imports console -> Reports.php
+R 21:5 imports console -> Attribute
+R 22:5 imports console -> ReflectionClass
+R 23:19 imports console -> Book (x-file: library/Domain.php)
+R 23:25 imports console -> Genre (x-file: library/Domain.php)
+R 23:32 imports console -> Isbn (x-file: library/Domain.php)
+R 23:38 imports console -> Member (x-file: library/Domain.php)
+R 23:46 imports console -> MembershipTier (x-file: library/Domain.php)
+R 24:24 imports console -> BookRepository (x-file: library/Repository.php)
+R 24:40 imports console -> JsonFileStore (x-file: library/Repository.php)
+R 24:55 imports console -> LoanRepository (x-file: library/Repository.php)
+R 24:71 imports console -> MemberRepository (x-file: library/Repository.php)
+R 25:5 imports console -> ReportBuilder (x-file: library/Reports.php)
+R 26:5 imports console -> LendingService (x-file: library/Services.php)
+R 27:5 imports console -> MembershipService (x-file: library/Services.php)
+R 28:5 imports console -> NotificationService (x-file: library/Services.php)
+R 29:20 imports console -> Clock (x-file: library/Support.php)
+R 29:27 imports console -> FrozenClock (x-file: library/Support.php)
+R 29:40 imports console -> ShelfException (x-file: library/Support.php)
+R 29:56 imports console -> SystemClock (x-file: library/Support.php)
+R 29:69 imports console -> ValidationException (x-file: library/Support.php)
+R 31:5 imports console -> formatter_for (x-file: library/Reports.php)
+R 32:5 imports console -> wire_services (x-file: library/Services.php)
+R 33:5 imports console -> env (x-file: library/Support.php)
+R 34:5 imports console -> VERSION (x-file: library/Repository.php)
+R 36:1 calls console -> define
+R 36:28 calls console -> microtime
+R 42:3 references AsCommand -> Attribute
+R 64:9 calls Output::line -> fwrite
+R 69:9 calls Output::error -> fwrite
+R 69:31 calls Output::error -> color
+R 74:30 calls Output::color -> isset
+R 77:16 calls Output::color -> sprintf
+R 97:17 calls Input::__construct -> str_starts_with
+R 98:35 calls Input::__construct -> array_pad
+R 98:45 calls Input::__construct -> explode
+R 98:58 calls Input::__construct -> substr
+R 110:54 calls Input::argument -> ValidationException (x-file: library/Support.php)
+R 135:77 calls Container::get -> ShelfException (x-file: library/Support.php)
+R 153:52 calls Command::metadata -> getAttributes
+R 153:27 calls Command::metadata -> ReflectionClass
+R 154:29 calls Command::metadata -> newInstance
+R 154:50 calls Command::metadata -> AsCommand
+R 159:34 calls Command::lending -> get
+R 163:3 references BorrowCommand -> AsCommand
+R 164:35 extends BorrowCommand -> Command
+R 168:35 calls BorrowCommand::run -> borrow (x-file: library/Services.php)
+R 168:24 calls BorrowCommand::run -> lending
+R 168:50 calls BorrowCommand::run -> argument
+R 168:80 calls BorrowCommand::run -> argument
+R 169:21 calls BorrowCommand::run -> line
+R 169:26 calls BorrowCommand::run -> sprintf
+R 171:20 calls BorrowCommand::run -> getId (x-file: library/Domain.php)
+R 172:28 calls BorrowCommand::run -> title (x-file: library/Domain.php)
+R 172:20 calls BorrowCommand::run -> book (x-file: library/Domain.php)
+R 173:29 calls BorrowCommand::run -> format
+R 173:20 calls BorrowCommand::run -> dueAt (x-file: library/Domain.php)
+R 179:3 references ReturnCommand -> AsCommand
+R 180:35 extends ReturnCommand -> Command
+R 184:35 calls ReturnCommand::run -> giveBack (x-file: library/Services.php)
+R 184:24 calls ReturnCommand::run -> lending
+R 184:58 calls ReturnCommand::run -> argument
+R 185:21 calls ReturnCommand::run -> line
+R 185:33 calls ReturnCommand::run -> isZero (x-file: library/Domain.php)
+R 190:3 references ReportCommand -> AsCommand
+R 191:35 extends ReportCommand -> Command
+R 195:38 calls ReportCommand::run -> get
+R 196:9 calls ReportCommand::run -> assert
+R 197:27 calls ReportCommand::run -> option
+R 198:21 calls ReportCommand::run -> line
+R 198:36 calls ReportCommand::run -> render (x-file: library/Reports.php)
+R 198:51 calls ReportCommand::run -> argument
+R 203:3 references RemindCommand -> AsCommand
+R 204:35 extends RemindCommand -> Command
+R 208:39 calls RemindCommand::run -> get
+R 209:9 calls RemindCommand::run -> assert
+R 210:29 calls RemindCommand::run -> remindOverdue (x-file: library/Services.php)
+R 210:61 calls RemindCommand::run -> overdue (x-file: library/Reports.php)
+R 210:50 calls RemindCommand::run -> lending
+R 211:29 calls RemindCommand::run -> flush (x-file: library/Services.php)
+R 212:25 calls RemindCommand::run -> line
+R 212:42 calls RemindCommand::run -> color
+R 214:21 calls RemindCommand::run -> line
+R 219:3 references UpgradeCommand -> AsCommand
+R 220:36 extends UpgradeCommand -> Command
+R 224:41 calls UpgradeCommand::run -> get
+R 225:9 calls UpgradeCommand::run -> assert
+R 226:36 calls UpgradeCommand::run -> option
+R 227:21 calls UpgradeCommand::run -> line
+R 227:26 calls UpgradeCommand::run -> sprintf
+R 227:71 calls UpgradeCommand::run -> upgradeFrequentBorrowers (x-file: library/Services.php)
+R 232:3 references HelpCommand -> AsCommand
+R 233:33 extends HelpCommand -> Command
+R 238:17 calls HelpCommand::__construct -> __construct
+R 243:21 calls HelpCommand::run -> line
+R 244:21 calls HelpCommand::run -> line
+R 246:25 calls HelpCommand::run -> line
+R 246:30 calls HelpCommand::run -> sprintf
+R 246:69 calls HelpCommand::run -> metadata
+R 268:31 calls Application::register -> metadata
+R 278:22 calls Application::run -> Input
+R 278:28 calls Application::run -> array_slice
+R 280:50 calls Application::run -> HelpCommand
+R 282:30 calls Application::run -> run
+R 282:38 calls Application::run -> Input
+R 282:44 calls Application::run -> array_slice
+R 284:25 calls Application::run -> error
+R 284:35 calls Application::run -> first (x-file: library/Support.php)
+R 284:50 calls Application::run -> getMessage
+R 287:25 calls Application::run -> error
+R 287:31 calls Application::run -> sprintf
+R 287:54 calls Application::run -> code (x-file: library/Support.php)
+R 287:66 calls Application::run -> getMessage
+R 302:17 calls seed -> save (x-file: library/Repository.php)
+R 302:26 calls seed -> Book (x-file: library/Domain.php)
+R 302:37 calls seed -> parse (x-file: library/Domain.php)
+R 304:15 calls seed -> save (x-file: library/Repository.php)
+R 304:24 calls seed -> Member (x-file: library/Domain.php)
+R 305:15 calls seed -> save (x-file: library/Repository.php)
+R 305:24 calls seed -> Member (x-file: library/Domain.php)
+R 310:22 calls bootstrap -> Container
+R 311:17 calls bootstrap -> set
+R 311:50 calls bootstrap -> BookRepository (x-file: library/Repository.php)
+R 312:17 calls bootstrap -> set
+R 312:52 calls bootstrap -> MemberRepository (x-file: library/Repository.php)
+R 313:17 calls bootstrap -> set
+R 313:50 calls bootstrap -> LoanRepository (x-file: library/Repository.php)
+R 314:17 calls bootstrap -> set
+R 314:70 calls bootstrap -> wire_services (x-file: library/Services.php)
+R 315:13 calls bootstrap -> get
+R 316:13 calls bootstrap -> get
+R 317:13 calls bootstrap -> get
+R 321:21 calls bootstrap -> set
+R 321:62 calls bootstrap -> get
+R 323:17 calls bootstrap -> set
+R 323:64 calls bootstrap -> ReportBuilder (x-file: library/Reports.php)
+R 324:13 calls bootstrap -> get
+R 325:13 calls bootstrap -> get
+R 326:13 calls bootstrap -> get
+R 327:13 calls bootstrap -> get
+R 331:18 calls bootstrap -> JsonFileStore (x-file: library/Repository.php)
+R 331:32 calls bootstrap -> env (x-file: library/Support.php)
+R 332:13 calls bootstrap -> exists (x-file: library/Repository.php)
+R 333:19 calls bootstrap -> hydrate (x-file: library/Repository.php)
+R 333:39 calls bootstrap -> get
+R 333:65 calls bootstrap -> get
+R 334:11 calls bootstrap -> seed
+R 334:28 calls bootstrap -> get
+R 334:54 calls bootstrap -> get
+R 337:13 calls bootstrap -> BorrowCommand
+R 338:13 calls bootstrap -> ReturnCommand
+R 339:13 calls bootstrap -> ReportCommand
+R 340:13 calls bootstrap -> RemindCommand
+R 341:13 calls bootstrap -> UpgradeCommand
+R 343:49 calls bootstrap -> register
+R 343:17 calls bootstrap -> Application
+R 346:10 calls console -> env (x-file: library/Support.php)
+R 346:44 calls console -> FrozenClock (x-file: library/Support.php)
+R 346:56 calls console -> env (x-file: library/Support.php)
+R 346:82 calls console -> SystemClock (x-file: library/Support.php)
+R 347:12 calls console -> Output
+R 347:25 calls console -> stream_isatty
+R 350:12 calls main -> bootstrap
+R 351:21 calls main -> run
+R 352:9 calls main -> env (x-file: library/Support.php)
+R 353:15 calls main -> line
+R 353:26 calls main -> color
+R 353:39 calls main -> sprintf
+R 353:59 calls main -> microtime
+R 358:54 calls format -> extension (x-file: library/Reports.php)
+R 358:32 calls format -> formatter_for (x-file: library/Reports.php)
+R 360:27 calls console -> realpath
