@@ -22,9 +22,59 @@ fn relative_slash_path(root: &Path, path: &Path) -> Option<String> {
     Some(rel.to_string_lossy().replace('\\', "/"))
 }
 
-/// Watches `root` recursively and reindexes (non-forced/incremental)
-/// whenever the debouncer reports a settled batch of changes outside
-/// `exclude` — the same [`ExcludeSet`] the indexer's own walk uses, so
+/// Above this many distinct changed paths in one settled batch (a branch
+/// switch, a mass rename, a generator run), one full walk is cheaper than a
+/// per-path update of each.
+pub const MAX_INCREMENTAL_PATHS: usize = 256;
+
+/// What a settled batch of watcher events asks the index to do.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Changed {
+    /// Nothing indexable changed (reads, excluded paths only).
+    Nothing,
+    /// Update just these absolute paths ([`Index::reindex_paths`]).
+    Paths(Vec<PathBuf>),
+    /// Walk everything ([`Index::reindex`]): the platform dropped events and
+    /// asked for a rescan, or too many paths changed at once.
+    Rescan,
+}
+
+/// Distills a debounced batch into [`Changed`]: every path of every
+/// non-`Access` event that lies under `root` and outside `exclude`,
+/// deduplicated. A rename contributes both its old and new path, so the old
+/// one is dropped from the index and the new one indexed.
+pub fn changed_paths(
+    events: &[notify_debouncer_full::DebouncedEvent],
+    root: &Path,
+    exclude: &ExcludeSet,
+) -> Changed {
+    if events.iter().any(|event| event.need_rescan()) {
+        return Changed::Rescan;
+    }
+    let mut paths: Vec<PathBuf> = events
+        .iter()
+        .filter(|event| !matches!(event.kind, EventKind::Access(_)))
+        .flat_map(|event| event.paths.iter())
+        .filter(|path| {
+            relative_slash_path(root, path).is_some_and(|rel| !exclude.is_excluded(&rel))
+        })
+        .cloned()
+        .collect();
+    paths.sort();
+    paths.dedup();
+    match paths.len() {
+        0 => Changed::Nothing,
+        n if n > MAX_INCREMENTAL_PATHS => Changed::Rescan,
+        _ => Changed::Paths(paths),
+    }
+}
+
+/// Watches `root` recursively and, whenever the debouncer reports a settled
+/// batch of changes outside `exclude`, updates the index for just the
+/// changed paths ([`Index::reindex_paths`], issue #25). Falls back to a full
+/// non-forced [`Index::reindex`] when the platform asks for a rescan, the
+/// watcher reports errors (events may be lost) or the batch is huge.
+/// `exclude` is the same [`ExcludeSet`] the indexer's own walk uses, so
 /// writes to `.mct-index/` (the reindex's own database) never re-trigger
 /// themselves into a loop.
 ///
@@ -49,33 +99,38 @@ pub fn spawn_watcher(
 
     std::thread::spawn(move || {
         for result in rx {
-            let events = match result {
-                Ok(events) => events,
+            let changed = match result {
+                Ok(events) => {
+                    tracing::debug!(
+                        count = events.len(),
+                        ?events,
+                        "watcher received a debounced batch"
+                    );
+                    changed_paths(&events, &root, &exclude)
+                }
                 Err(errors) => {
                     for err in errors {
                         tracing::warn!(error = %err, "file watcher error; will keep watching");
                     }
-                    continue;
+                    // Events may have been lost: only a full walk is sure to
+                    // catch whatever they described.
+                    Changed::Rescan
                 }
             };
-            tracing::debug!(
-                count = events.len(),
-                ?events,
-                "watcher received a debounced batch"
-            );
-            let relevant = events.iter().any(|event| {
-                !matches!(event.kind, EventKind::Access(_))
-                    && event.paths.iter().any(|path| {
-                        relative_slash_path(&root, path)
-                            .is_some_and(|rel| !exclude.is_excluded(&rel))
-                    })
-            });
-            if !relevant {
-                continue;
-            }
-            let mut guard = index.blocking_lock();
-            match guard.reindex(&registry, false) {
-                Ok(report) => tracing::debug!(
+            let result = match changed {
+                Changed::Nothing => continue,
+                Changed::Paths(paths) => index
+                    .blocking_lock()
+                    .reindex_paths(&registry, &paths)
+                    .map(|report| ("incremental", report)),
+                Changed::Rescan => index
+                    .blocking_lock()
+                    .reindex(&registry, false)
+                    .map(|report| ("full", report)),
+            };
+            match result {
+                Ok((mode, report)) => tracing::debug!(
+                    mode,
                     parsed = report.files_parsed,
                     unchanged = report.files_unchanged,
                     removed = report.files_removed,
