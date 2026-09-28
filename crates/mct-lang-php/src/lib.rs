@@ -45,7 +45,8 @@
 //!   it's parameter syntax, not a separate declaration node.
 //! - An anonymous function or arrow function assigned to a variable
 //!   (`$cb = function () {}` / `$cb = fn() => ...`) is named after that
-//!   variable and indexed as a `Function`, matching `mct-lang-js-ts`'s
+//!   variable and indexed as a top-level `Function` (no `parent`, even
+//!   inside a method — it's a local, not a class member), matching `mct-lang-js-ts`'s
 //!   handling of the same pattern — otherwise every PHP callback (the
 //!   idiomatic way to use `array_map`, etc.) would be invisible. A bare
 //!   `$x = <non-callable>;` is not indexed, matching `mct-lang-python`'s
@@ -54,6 +55,16 @@
 //!   only when their argument is a literal string; a computed path
 //!   (`require __DIR__ . '/x.php';`) has nothing static to record and is
 //!   skipped, same precedent as `mct-lang-bash`'s `source`.
+//! - `new Foo(...)` is a `Calls` relation to `Foo` (the class name, as in
+//!   `mct-lang-csharp`); `new self`/`new static`/`new $class` have no static
+//!   name and record nothing. `$a?->f()` is a call like `$a->f()`.
+//! - `#[Attr(...)]` on a class, enum, method, property or parameter is a
+//!   `References` relation from the decorated declaration (the enclosing
+//!   function for a parameter) to `Attr`.
+//! - An anonymous class (`new class (...) extends B implements I { ... }`)
+//!   is an expression: its members are not indexed (they have no named
+//!   owner), its bases are `References` from the enclosing function/module,
+//!   and the calls in its methods are attributed to that enclosing owner.
 //! - `define('NAME', value)` is recorded as an ordinary `Calls` relation to
 //!   `define` — it is syntactically a function call, not a declaration, and
 //!   no other parser in this workspace synthesizes a symbol from a call's
@@ -108,7 +119,8 @@ impl LanguageParser for PhpParser {
 
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
-        let module_id = walker.push_symbol(module_name, SymbolKind::Module, location(root), None);
+        let module_id =
+            walker.push_symbol(module_name, SymbolKind::Module, module_location(root), None);
         walker.visit_children(root, module_id, None, 0);
         Ok(walker.finish())
     }
@@ -145,6 +157,18 @@ fn location(node: Node) -> Location {
         byte_len: (node.end_byte() - node.start_byte()) as u32,
         end_line: Some(end.row as u32 + 1),
     }
+}
+
+/// The file-level module's location: the root node of a file ending in a
+/// newline ends at column 0 of the row *after* the last line, which would
+/// put the module one line past the end of the file.
+fn module_location(root: Node) -> Location {
+    let mut loc = location(root);
+    let end = root.end_position();
+    if end.column == 0 && end.row > root.start_position().row {
+        loc.end_line = Some(end.row as u32);
+    }
+    loc
 }
 
 fn text<'a>(node: Node, source: &'a str) -> &'a str {
@@ -277,6 +301,7 @@ impl<'a> Walker<'a> {
                     location(node),
                     type_name.map(str::to_string),
                 );
+                self.visit_attributes(node, id, depth);
 
                 if let Some(base_clause) = find_child(node, "base_clause") {
                     for base in named_children(base_clause) {
@@ -317,6 +342,7 @@ impl<'a> Walker<'a> {
                     location(node),
                     type_name.map(str::to_string),
                 );
+                self.visit_attributes(node, id, depth);
                 if let Some(interfaces) = find_child(node, "class_interface_clause") {
                     for iface in named_children(interfaces) {
                         if let Some(seg) = last_segment(iface) {
@@ -377,6 +403,7 @@ impl<'a> Walker<'a> {
                     None
                 };
                 let id = self.push_symbol(name, kind, location(node), parent);
+                self.visit_attributes(node, id, depth);
                 if let Some(params) = node.child_by_field_name("parameters") {
                     self.visit_children(params, id, type_name, depth + 1);
                 }
@@ -400,8 +427,13 @@ impl<'a> Walker<'a> {
                         );
                     }
                 }
+                self.visit_attributes(node, owner, depth);
+                if let Some(default) = node.child_by_field_name("default_value") {
+                    self.visit(default, owner, type_name, depth + 1);
+                }
             }
             "property_declaration" => {
+                self.visit_attributes(node, owner, depth);
                 for element in named_children(node) {
                     if element.kind() != "property_element" {
                         continue;
@@ -472,7 +504,9 @@ impl<'a> Walker<'a> {
                     self.visit_children(arguments, owner, type_name, depth + 1);
                 }
             }
-            "member_call_expression" | "scoped_call_expression" => {
+            "member_call_expression"
+            | "nullsafe_member_call_expression"
+            | "scoped_call_expression" => {
                 if let Some(name_node) = node.child_by_field_name("name") {
                     if name_node.kind() == "name" {
                         // location(name_node), not location(node): a chained
@@ -498,6 +532,75 @@ impl<'a> Walker<'a> {
                     self.visit_children(arguments, owner, type_name, depth + 1);
                 }
             }
+            // `#[Name(args)]` on a class, member, parameter or enum: a
+            // reference from the declaration it decorates to the attribute
+            // class. Class/method/enum attributes are routed here by
+            // `visit_attributes` with `owner` set to the new symbol; on a
+            // parameter, `owner` is already the function.
+            "attribute" => {
+                if let Some(seg) = named_children(node).into_iter().find_map(last_segment) {
+                    self.push_relation(
+                        owner,
+                        RelationKind::References,
+                        text(seg, self.source).to_string(),
+                        location(seg),
+                    );
+                }
+                if let Some(arguments) = node.child_by_field_name("parameters") {
+                    self.visit_children(arguments, owner, type_name, depth + 1);
+                }
+            }
+            // `new Foo(...)` calls Foo's constructor: recorded as a call to
+            // the class name, like `mct-lang-csharp`'s `new T()`. `new
+            // self`/`new static`/`new $class` have no static class name.
+            "object_creation_expression" => {
+                for child in named_children(node) {
+                    match child.kind() {
+                        "name" | "qualified_name" | "relative_name" => {
+                            if let Some(seg) = last_segment(child) {
+                                let class = text(seg, self.source);
+                                if !matches!(class, "self" | "static" | "parent") {
+                                    self.push_relation(
+                                        owner,
+                                        RelationKind::Calls,
+                                        class.to_string(),
+                                        location(seg),
+                                    );
+                                }
+                            }
+                        }
+                        _ => self.visit(child, owner, type_name, depth + 1),
+                    }
+                }
+            }
+            // `new class (...) extends B implements I { ... }` is an
+            // expression, not a declaration: its members are not indexed
+            // as symbols (they'd have no owning type), its bases become
+            // references from the enclosing owner, and every call in its
+            // methods, arguments and attributes is attributed to that owner.
+            "anonymous_class" => {
+                for clause in ["base_clause", "class_interface_clause"] {
+                    if let Some(clause) = find_child(node, clause) {
+                        for base in named_children(clause) {
+                            if let Some(seg) = last_segment(base) {
+                                self.push_relation(
+                                    owner,
+                                    RelationKind::References,
+                                    text(seg, self.source).to_string(),
+                                    location(seg),
+                                );
+                            }
+                        }
+                    }
+                }
+                self.visit_attributes(node, owner, depth);
+                if let Some(arguments) = find_child(node, "arguments") {
+                    self.visit_children(arguments, owner, type_name, depth + 1);
+                }
+                if let Some(body) = node.child_by_field_name("body") {
+                    self.visit_anonymous_class_body(body, owner, depth + 1);
+                }
+            }
             // `$cb = function () {}` / `$cb = fn() => ...`: name the
             // closure after the variable it's bound to, same reasoning as
             // `mct-lang-js-ts`'s handling of the same pattern — otherwise
@@ -510,11 +613,14 @@ impl<'a> Walker<'a> {
                         if matches!(r.kind(), "anonymous_function" | "arrow_function") =>
                     {
                         if let Some(var) = variable_text(l, self.source) {
+                            // `parent: None`: a closure bound to a local
+                            // variable inside a method is not a member of
+                            // the method's class.
                             let id = self.push_symbol(
                                 var.to_string(),
                                 SymbolKind::Function,
                                 location(r),
-                                type_name.map(str::to_string),
+                                None,
                             );
                             if let Some(params) = r.child_by_field_name("parameters") {
                                 self.visit_children(params, id, type_name, depth + 1);
@@ -530,6 +636,64 @@ impl<'a> Walker<'a> {
                 }
             }
             _ => self.visit_children(node, owner, type_name, depth + 1),
+        }
+    }
+
+    /// Visits a declaration's `attributes` field (its `#[...]` list) with
+    /// `owner` as the source of each attribute's reference.
+    fn visit_attributes(&mut self, node: Node, owner: SymbolId, depth: u32) {
+        if let Some(attributes) = node.child_by_field_name("attributes") {
+            self.visit(attributes, owner, None, depth + 1);
+        }
+    }
+
+    /// Walks an anonymous class's members without indexing them: method
+    /// bodies, parameters (promotion defaults, attributes) and property
+    /// initializers are visited for their relations only, all owned by
+    /// `owner`. Named declarations nested deeper (a closure bound to a
+    /// variable) are still indexed, top-level like any closure.
+    fn visit_anonymous_class_body(&mut self, body: Node, owner: SymbolId, depth: u32) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return;
+        }
+        for member in named_children(body) {
+            match member.kind() {
+                "method_declaration" => {
+                    self.visit_attributes(member, owner, depth);
+                    for field in ["parameters", "body"] {
+                        if let Some(part) = member.child_by_field_name(field) {
+                            self.visit_anonymous_member_part(part, owner, depth + 1);
+                        }
+                    }
+                }
+                "property_declaration" | "const_declaration" => {
+                    self.visit_anonymous_member_part(member, owner, depth + 1);
+                }
+                _ => self.visit(member, owner, None, depth + 1),
+            }
+        }
+    }
+
+    /// Visits `node`'s subtree for relations, except that promoted
+    /// constructor parameters are not turned into fields.
+    fn visit_anonymous_member_part(&mut self, node: Node, owner: SymbolId, depth: u32) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return;
+        }
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            match child.kind() {
+                "property_promotion_parameter" => {
+                    self.visit_attributes(child, owner, depth);
+                    if let Some(default) = child.child_by_field_name("default_value") {
+                        self.visit(default, owner, None, depth + 1);
+                    }
+                }
+                "property_element" | "const_element" => {
+                    self.visit_anonymous_member_part(child, owner, depth + 1);
+                }
+                _ => self.visit(child, owner, None, depth + 1),
+            }
         }
     }
 
