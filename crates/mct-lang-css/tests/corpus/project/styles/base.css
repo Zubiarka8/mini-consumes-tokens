@@ -1,0 +1,373 @@
+/*
+ * Harbor UI — base layer: reset, document defaults, typography and the
+ * handful of utility classes every page relies on. Reads the tokens from
+ * tokens.css; components/*.css and layout.css build on top of this.
+ */
+
+@import "tokens.css";
+
+@layer reset, base, utilities;
+
+/* Reset ---------------------------------------------------------------- */
+
+@layer reset {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    tab-size: 4;
+  }
+
+  body,
+  h1,
+  h2,
+  h3,
+  h4,
+  p,
+  figure,
+  blockquote,
+  dl,
+  dd {
+    margin: 0;
+  }
+
+  ul[role="list"],
+  ol[role="list"] {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  img,
+  picture,
+  video,
+  canvas,
+  svg {
+    display: block;
+    max-width: 100%;
+  }
+
+  input,
+  button,
+  textarea,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+
+  button {
+    cursor: pointer;
+    background: none;
+    border: 0;
+    padding: 0;
+  }
+
+  table {
+    border-collapse: collapse;
+    border-spacing: 0;
+  }
+
+  [hidden] {
+    display: none !important;
+  }
+}
+
+/* Document ------------------------------------------------------------- */
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    font-size: 100%;
+    line-height: var(--leading-normal);
+    color: var(--text-default);
+    background-color: var(--surface-page);
+    scroll-behavior: smooth;
+  }
+
+  body {
+    min-height: 100vh;
+    min-height: 100dvh;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background-color: var(--accent-soft);
+    color: var(--text-strong);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  /* Headings */
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    color: var(--text-strong);
+    line-height: var(--leading-tight);
+    font-weight: var(--weight-semibold);
+    text-wrap: balance;
+  }
+
+  h1 {
+    font-size: var(--text-4xl);
+    font-weight: var(--weight-bold);
+  }
+
+  h2 {
+    font-size: var(--text-3xl);
+  }
+
+  h3 {
+    font-size: var(--text-2xl);
+  }
+
+  h4 {
+    font-size: var(--text-xl);
+  }
+
+  h1 + p,
+  h2 + p {
+    margin-top: var(--space-3);
+  }
+
+  /* Running text */
+
+  p {
+    max-width: 70ch;
+    text-wrap: pretty;
+  }
+
+  p + p {
+    margin-top: var(--space-4);
+  }
+
+  a {
+    color: var(--text-link);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.2em;
+  }
+
+  a:hover {
+    text-decoration-thickness: 2px;
+  }
+
+  a:not([href]) {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  a[href^="http"]:not([href*="harbor.dev"])::after {
+    content: "\2197";
+    margin-left: 0.15em;
+    font-size: 0.8em;
+  }
+
+  strong,
+  b {
+    font-weight: var(--weight-semibold);
+  }
+
+  small {
+    font-size: var(--text-sm);
+  }
+
+  abbr[title] {
+    text-decoration: underline dotted;
+    cursor: help;
+  }
+
+  blockquote {
+    padding-left: var(--space-4);
+    border-left: 3px solid var(--border-default);
+    color: var(--text-muted);
+  }
+
+  hr {
+    border: 0;
+    border-top: 1px solid var(--border-subtle);
+    margin-block: var(--space-8);
+  }
+
+  /* Code */
+
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+  }
+
+  :not(pre) > code {
+    padding: 0.1em 0.35em;
+    border-radius: var(--radius-sm);
+    background-color: var(--surface-sunken);
+  }
+
+  pre {
+    overflow-x: auto;
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    background-color: var(--surface-sunken);
+  }
+
+  pre code {
+    padding: 0;
+    background: none;
+  }
+
+  kbd {
+    padding: 0.1em 0.4em;
+    border: 1px solid var(--border-default);
+    border-bottom-width: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  /* Lists and tables */
+
+  ul:not([role="list"]),
+  ol:not([role="list"]) {
+    padding-left: 1.25em;
+  }
+
+  li + li {
+    margin-top: var(--space-1);
+  }
+
+  dt {
+    font-weight: var(--weight-semibold);
+  }
+
+  dd + dt {
+    margin-top: var(--space-3);
+  }
+
+  th,
+  td {
+    padding: var(--space-2) var(--space-3);
+    text-align: left;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  th {
+    font-weight: var(--weight-semibold);
+    color: var(--text-strong);
+  }
+
+  tbody tr:nth-child(even) {
+    background-color: var(--surface-sunken);
+  }
+
+  tbody tr:hover {
+    background-color: var(--accent-soft);
+  }
+}
+
+/* Utilities ------------------------------------------------------------ */
+
+@layer utilities {
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .skip-link {
+    position: absolute;
+    top: var(--space-2);
+    left: var(--space-2);
+    z-index: var(--z-toast);
+    transform: translateY(-200%);
+  }
+
+  .skip-link:focus {
+    transform: none;
+  }
+
+  .text-muted {
+    color: var(--text-muted);
+  }
+
+  .text-strong {
+    color: var(--text-strong);
+  }
+
+  .text-center {
+    text-align: center;
+  }
+
+  .text-truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .stack > * + * {
+    margin-top: var(--stack-gap, var(--space-4));
+  }
+
+  .cluster {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--cluster-gap, var(--space-3));
+    align-items: center;
+  }
+
+  .md\:hidden {
+    display: revert;
+  }
+
+  .w-1\/2 {
+    width: 50%;
+  }
+
+  .is-loading {
+    animation: harbor-pulse 1.4s var(--ease-in-out) infinite;
+  }
+
+  .fade-in {
+    animation: harbor-fade-in var(--duration-normal) var(--ease-out) both;
+  }
+}
+
+@media (min-width: 48em) {
+  .md\:hidden {
+    display: none;
+  }
+}
+
+@media print {
+  html {
+    background: none;
+    color: black;
+  }
+
+  a[href]::after {
+    content: " (" attr(href) ")";
+  }
+
+  .skip-link,
+  .no-print {
+    display: none;
+  }
+}
