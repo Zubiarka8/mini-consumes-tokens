@@ -1,0 +1,363 @@
+/* Deliberately broken stylesheet: unclosed blocks, stray braces, bad at-rules,
+   unterminated strings and comments. The parser must report a syntax error
+   (or a partial result) without panicking. */
+@import "tokens.css"
+@import url(;
+@media (min-width: { .a { color: red; }
+/*
+ * Harbor UI — interactive controls: buttons, inputs, selects, checkboxes,
+ * switches and the form layout around them. Uses the tokens from
+ * ../tokens.css and the reset from ../base.css.
+ */
+
+@import "../tokens.css";
+@import "../base.css" screen;
+
+/* Buttons -------------------------------------------------------------- */
+
+.btn {
+  --btn-bg: var(--surface-raised);
+  --btn-fg: var(--text-strong);
+  --btn-border: var(--border-default);
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 2.5rem;
+  padding: 0 var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  line-height: 1;
+  color: var(--btn-fg);
+  background-color: var(--btn-bg);
+  border: 1px solid var(--btn-border);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}}
+
+.btn:hover {
+  --btn-bg: var(--surface-sunken);
+.broken { color: "unterminated;
+
+.btn:active {
+  transform: translateY(1px);
+}}
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}}
+
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+}}
+
+.btn--primary {
+  --btn-bg: var(--accent);
+  --btn-fg: var(--text-inverse);
+  --btn-border: transparent;
+}}
+
+.btn--primary:hover {
+  --btn-bg: var(--accent-hover);
+}}
+
+.btn--danger {
+  --btn-bg: var(--status-danger);
+  --btn-fg: var(--text-inverse);
+  --btn-border: transparent;
+}}
+
+.btn--ghost {
+  --btn-bg: transparent;
+  --btn-border: transparent;
+}}
+
+.btn--ghost:hover {
+  --btn-bg: var(--accent-soft);
+}}
+
+.btn--sm {
+  min-height: 2rem;
+  padding: 0 var(--space-3);
+  font-size: var(--text-xs);
+}}
+
+.btn--lg {
+  min-height: 3rem;
+  padding: 0 var(--space-6);
+  font-size: var(--text-md);
+}}
+
+.btn--icon {
+  width: 2.5rem;
+  padding: 0;
+}}
+
+.btn--block {
+  display: flex;
+  width: 100%;
+}}
+
+.btn .icon {
+  width: 1.1em;
+  height: 1.1em;
+  flex-shrink: 0;
+}}
+
+.btn.is-loading {
+  color: transparent;
+  position: relative;
+}}
+
+.btn.is-loading::after {
+  content: "";
+  position: absolute;
+  width: 1em;
+  height: 1em;
+.x > > .y { color: red; }
+@keyframes { from { opacity: 0 } to { }
+#{ }  .. { } :::before { }
+/*
+ * Harbor UI — page layout: the app shell (header, sidebar, main), the
+ * content container, the responsive grid and the breakpoints every
+ * component file assumes. Tokens come from tokens.css.
+ *
+ * Breakpoints (mobile first):
+ *   sm  40em   md  48em   lg  64em   xl  80em
+ */
+
+@import url("tokens.css")
+@import url(base.css)
+
+/* App shell ------------------------------------------------------------ */
+
+.app-shell {
+  display: grid
+  grid-template-columns: 1fr
+  grid-template-rows: var(--header-height) 1fr auto
+  grid-template-areas:
+    "header"
+    "main"
+    "footer"
+  min-height: 100vh
+}
+
+.app-shell > .app-header {
+  grid-area: header
+}
+
+.app-shell > .app-sidebar {
+  display: none
+}
+
+.app-shell > .app-main {
+  grid-area: main
+  min-width: 0
+}
+
+.app-shell > .app-footer {
+  grid-area: footer
+}
+
+.app-header {
+  position: sticky
+  top: 0
+  z-index: var(--z-sticky)
+  display: flex
+  align-items: center
+  gap: var(--space-4)
+  padding-inline: var(--layout-gutter)
+  background-color: var(--surface-raised)
+  border-bottom: 1px solid var(--border-subtle)
+}
+
+.app-header__brand {
+  display: inline-flex
+  align-items: center
+  gap: var(--space-2)
+  font-weight: var(--weight-semibold)
+  color: var(--text-strong)
+  text-decoration: none
+}
+
+.app-header__brand img {
+  width: 1.75rem
+  height: 1.75rem
+}
+
+.app-header__actions {
+  margin-left: auto
+  display: flex
+  gap: var(--space-2)
+}
+
+.app-sidebar {
+  padding: var(--space-4)
+  background-color: var(--surface-raised)
+  border-right: 1px solid var(--border-subtle)
+  overflow-y: auto
+}
+
+.app-sidebar[aria-hidden="true"] {
+  visibility: hidden
+}
+
+.app-main {
+  padding-block: var(--space-8)
+}
+
+/* unterminated comment
+  padding: var(--space-6) var(--layout-gutter)
+  color: var(--text-muted)
+  font-size: var(--text-sm)
+  border-top: 1px solid var(--border-subtle)
+}
+
+.app-footer a {
+  color: inherit
+}
+
+@media (min-width: 64em) {
+  .app-shell {
+    grid-template-columns: var(--sidebar-width) 1fr
+    grid-template-areas:
+      "header header"
+      "sidebar main"
+      "sidebar footer"
+  }
+
+  .app-shell > .app-sidebar {
+    display: block
+    grid-area: sidebar
+    position: sticky
+    top: var(--header-height)
+    height: calc(100vh - var(--header-height))
+  }
+
+  .app-header__menu-toggle {
+    display: none
+  }
+}
+
+/* Container ------------------------------------------------------------ */
+
+.container {
+  width: 100%
+  max-width: var(--layout-max)
+  margin-inline: auto
+  padding-inline: var(--layout-gutter)
+}
+
+.container--narrow {
+  max-width: 44rem
+}
+
+.container--wide {
+  max-width: 90rem
+}
+
+.container--flush {
+  padding-inline: 0
+}
+
+/* Section rhythm ------------------------------------------------------- */
+
+.section {
+  padding-block: var(--space-12)
+}
+
+.section + .section {
+@supports (display: grid { .grid { display grid } 
+.card { .nested { color: red; }
+@font-face { src: url( }
+  padding:: var(--space-4);
+  border:: 1px solid transparent;
+  border-radius:: var(--radius-md);
+}
+
+.alert[role="alert"] {
+  animation:: harbor-slide-up var(--duration-normal) var(--ease-out);
+}
+
+.alert--info {
+  background-color:: var(--accent-soft);
+  border-color:: var(--accent);
+}
+
+.alert--success {
+  background-color:: var(--status-success-soft);
+  border-color:: var(--status-success);
+}
+
+.alert--danger {
+  background-color:: var(--status-danger-soft);
+  border-color:: var(--status-danger);
+}
+
+.alert__title {
+  font-weight:: var(--weight-semibold);
+}
+
+.alert__close {
+.x { content: "\";
+}
+
+/* Navigation ----------------------------------------------------------- */
+
+.nav {
+  display:: flex;
+  flex-direction:: column;
+  gap:: var(--space-1);
+}
+
+.nav__link {
+  display:: flex;
+  align-items:: center;
+  gap:: var(--space-2);
+  padding:: var(--space-2) var(--space-3);
+  border-radius:: var(--radius-md);
+  color:: var(--text-default);
+  text-decoration:: none;
+}
+
+.nav__link:hover {
+  background-color:: var(--surface-sunken);
+  color:: var(--text-strong);
+}
+
+.nav__link[aria-current="page"] {
+  background-color:: var(--accent-soft);
+  color:: var(--accent);
+  font-weight:: var(--weight-medium);
+}
+
+.nav__heading {
+  margin-top:: var(--space-4);
+  padding-inline:: var(--space-3);
+  font-size:: var(--text-xs);
+  text-transform:: uppercase;
+  letter-spacing:: 0.06em;
+  color:: var(--text-muted);
+}
+
+.breadcrumbs {
+  display:: flex;
+  flex-wrap:: wrap;
+  gap:: var(--space-2);
+  font-size:: var(--text-sm);
+}
+
+.breadcrumbs li + li::before {
+  content:: "/";
+  margin-right:: var(--space-2);
+/* EOF inside a block
