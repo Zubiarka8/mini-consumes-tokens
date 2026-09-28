@@ -1,0 +1,371 @@
+/*
+ * Harbor UI — page layout: the app shell (header, sidebar, main), the
+ * content container, the responsive grid and the breakpoints every
+ * component file assumes. Tokens come from tokens.css.
+ *
+ * Breakpoints (mobile first):
+ *   sm  40em   md  48em   lg  64em   xl  80em
+ */
+
+@import url("tokens.css");
+@import url(base.css);
+
+/* App shell ------------------------------------------------------------ */
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: var(--header-height) 1fr auto;
+  grid-template-areas:
+    "header"
+    "main"
+    "footer";
+  min-height: 100vh;
+}
+
+.app-shell > .app-header {
+  grid-area: header;
+}
+
+.app-shell > .app-sidebar {
+  display: none;
+}
+
+.app-shell > .app-main {
+  grid-area: main;
+  min-width: 0;
+}
+
+.app-shell > .app-footer {
+  grid-area: footer;
+}
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding-inline: var(--layout-gutter);
+  background-color: var(--surface-raised);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.app-header__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: var(--weight-semibold);
+  color: var(--text-strong);
+  text-decoration: none;
+}
+
+.app-header__brand img {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.app-header__actions {
+  margin-left: auto;
+  display: flex;
+  gap: var(--space-2);
+}
+
+.app-sidebar {
+  padding: var(--space-4);
+  background-color: var(--surface-raised);
+  border-right: 1px solid var(--border-subtle);
+  overflow-y: auto;
+}
+
+.app-sidebar[aria-hidden="true"] {
+  visibility: hidden;
+}
+
+.app-main {
+  padding-block: var(--space-8);
+}
+
+.app-footer {
+  padding: var(--space-6) var(--layout-gutter);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.app-footer a {
+  color: inherit;
+}
+
+@media (min-width: 64em) {
+  .app-shell {
+    grid-template-columns: var(--sidebar-width) 1fr;
+    grid-template-areas:
+      "header header"
+      "sidebar main"
+      "sidebar footer";
+  }
+
+  .app-shell > .app-sidebar {
+    display: block;
+    grid-area: sidebar;
+    position: sticky;
+    top: var(--header-height);
+    height: calc(100vh - var(--header-height));
+  }
+
+  .app-header__menu-toggle {
+    display: none;
+  }
+}
+
+/* Container ------------------------------------------------------------ */
+
+.container {
+  width: 100%;
+  max-width: var(--layout-max);
+  margin-inline: auto;
+  padding-inline: var(--layout-gutter);
+}
+
+.container--narrow {
+  max-width: 44rem;
+}
+
+.container--wide {
+  max-width: 90rem;
+}
+
+.container--flush {
+  padding-inline: 0;
+}
+
+/* Section rhythm ------------------------------------------------------- */
+
+.section {
+  padding-block: var(--space-12);
+}
+
+.section + .section {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.section__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+
+.section__title {
+  font-size: var(--text-2xl);
+}
+
+.section__subtitle {
+  color: var(--text-muted);
+}
+
+.section--muted {
+  background-color: var(--surface-sunken);
+}
+
+/* Grid ----------------------------------------------------------------- */
+
+.grid {
+  display: grid;
+  gap: var(--grid-gap, var(--space-6));
+  grid-template-columns: repeat(var(--grid-cols, 1), minmax(0, 1fr));
+}
+
+.grid--2 {
+  --grid-cols: 1;
+}
+
+.grid--3 {
+  --grid-cols: 1;
+}
+
+.grid--4 {
+  --grid-cols: 2;
+}
+
+.grid--auto {
+  grid-template-columns: repeat(auto-fill, minmax(min(16rem, 100%), 1fr));
+}
+
+.grid--dense {
+  --grid-gap: var(--space-3);
+  grid-auto-flow: dense;
+}
+
+.grid > .span-2 {
+  grid-column: span 2;
+}
+
+.grid > .span-full {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 40em) {
+  .grid--2,
+  .grid--3 {
+    --grid-cols: 2;
+  }
+}
+
+@media (min-width: 64em) {
+  .grid--3 {
+    --grid-cols: 3;
+  }
+
+  .grid--4 {
+    --grid-cols: 4;
+  }
+}
+
+@supports not (display: grid) {
+  .grid {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .grid > * {
+    flex: 1 1 16rem;
+    margin: calc(var(--space-6) / 2);
+  }
+}
+
+/* Split and sidebar layouts -------------------------------------------- */
+
+.split {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.split__aside {
+  order: 2;
+}
+
+@media (min-width: 48em) {
+  .split {
+    flex-direction: row;
+  }
+
+  .split__main {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .split__aside {
+    order: 0;
+    flex: 0 0 20rem;
+  }
+
+  .split--reverse {
+    flex-direction: row-reverse;
+  }
+}
+
+/* Container queries ---------------------------------------------------- */
+
+.panel {
+  container-type: inline-size;
+  container-name: panel;
+}
+
+@container (min-width: 30rem) {
+  .panel__body {
+    display: grid;
+    grid-template-columns: 10rem 1fr;
+    gap: var(--space-4);
+  }
+
+  .panel__media {
+    grid-row: span 2;
+  }
+}
+
+@container (min-width: 50rem) {
+  .panel__body {
+    grid-template-columns: 14rem 1fr 12rem;
+  }
+}
+
+/* Sticky and overlay helpers ------------------------------------------- */
+
+.sticky-top {
+  position: sticky;
+  top: calc(var(--header-height) + var(--space-4));
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  background-color: var(--surface-overlay);
+  animation: harbor-fade-in var(--duration-fast) var(--ease-out);
+}
+
+.overlay[data-state="closed"] {
+  display: none;
+}
+
+/* Scroll areas --------------------------------------------------------- */
+
+.scroll-x {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+.scroll-x::-webkit-scrollbar {
+  height: 6px;
+}
+
+.scroll-x::-webkit-scrollbar-thumb {
+  background-color: var(--border-default);
+  border-radius: var(--radius-pill);
+}
+
+.scroll-snap {
+  scroll-snap-type: x mandatory;
+}
+
+.scroll-snap > * {
+  scroll-snap-align: start;
+}
+
+/* Print ---------------------------------------------------------------- */
+
+@media print {
+  .app-shell {
+    display: block;
+  }
+
+  .app-header,
+  .app-sidebar,
+  .app-footer {
+    display: none;
+  }
+
+  .container {
+    max-width: none;
+    padding: 0;
+  }
+}
+
+@media screen and (max-width: 39.99em) {
+  .hide-on-mobile {
+    display: none;
+  }
+}
+
+@media screen and (min-width: 40em) and (max-width: 63.99em) {
+  .hide-on-tablet {
+    display: none;
+  }
+}
