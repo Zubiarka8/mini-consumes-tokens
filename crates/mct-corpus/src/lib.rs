@@ -21,6 +21,9 @@
 //!
 //! After an intended parser change, regenerate the golden file with
 //! `MCT_BLESS=1 cargo test -p <crate> --test corpus` and review its diff.
+//! [`Corpus::report`] (printed by the ignored `corpus_report` test that
+//! [`standard_tests!`] adds, via `scripts/unix/corpus-report.sh`) digests
+//! the corpus and flags likely parser bugs without reading the snapshot.
 
 // Test support code: a failed precondition here must fail the calling test,
 // so unwrap()/expect()/panic!() are the correct behavior — this never runs
@@ -76,6 +79,14 @@ macro_rules! standard_tests {
         fn malformed_corpus_input_never_panics() {
             corpus().assert_malformed_never_panics();
         }
+
+        /// Prints [`Corpus::report`] (and updates the progress table named
+        /// by `MCT_CORPUS_PROGRESS`); run through `scripts/unix/corpus-report.sh`.
+        #[test]
+        #[ignore = "report, not a check: run via scripts/unix/corpus-report.sh"]
+        fn corpus_report() {
+            corpus().print_report();
+        }
     };
 }
 
@@ -89,6 +100,16 @@ pub const MAX_LINES: usize = 700;
 
 /// Environment variable that rewrites `expected.snap` instead of comparing.
 pub const BLESS_ENV: &str = "MCT_BLESS";
+
+/// Environment variable naming a progress table (`internal/corpus-progress.md`)
+/// whose row for this crate [`Corpus::print_report`] rewrites.
+pub const PROGRESS_ENV: &str = "MCT_CORPUS_PROGRESS";
+
+/// Hits listed per check in [`Corpus::report`]; the rest are counted.
+const REPORT_CAP: usize = 12;
+
+/// Lines above a symbol still counted as its own (decorators, attributes).
+const ANNOTATION_LINES: u32 = 5;
 
 /// One parsed corpus file.
 pub struct CorpusFile {
@@ -419,6 +440,265 @@ impl Corpus {
         index
     }
 
+    /// The crate this corpus belongs to (`mct-lang-…`), from its directory.
+    fn crate_name(&self) -> String {
+        self.dir
+            .parent()
+            .and_then(Path::parent)
+            .and_then(Path::file_name)
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default()
+    }
+
+    /// Prints [`Corpus::report`]; with `MCT_CORPUS_PROGRESS=<file>` also
+    /// rewrites this crate's counts in that progress table.
+    pub fn print_report(&self) {
+        println!("{}", self.report());
+        if let Some(path) = std::env::var_os(PROGRESS_ENV) {
+            let path = PathBuf::from(path);
+            let text = std::fs::read_to_string(&path)
+                .unwrap_or_else(|e| panic!("reading {}: {e}", path.display()));
+            match self.update_progress(&text) {
+                Some(updated) => {
+                    std::fs::write(&path, updated).unwrap();
+                    println!("updated {} row in {}", self.crate_name(), path.display());
+                }
+                None => println!(
+                    "no `{}` row in {}; progress not updated",
+                    self.crate_name(),
+                    path.display()
+                ),
+            }
+        }
+    }
+
+    /// A short digest of the corpus for reviewing a parser change without
+    /// reading `expected.snap`: totals, per-kind counts, the progress-table
+    /// cells, and heuristic checks listing what usually turns out to be a
+    /// parser bug (each one still needs a look — not every hit is wrong).
+    pub fn report(&self) -> String {
+        let defined_in = self.definition_files();
+        let (syms, rels, xfile) = self.totals(&defined_in);
+        let lines: usize = self.files.iter().map(CorpusFile::line_count).sum();
+        let mut out = String::new();
+        writeln!(
+            out,
+            "corpus report: {} ({})",
+            self.crate_name(),
+            self.parser.language_id()
+        )
+        .unwrap();
+        let per_file: Vec<_> = self
+            .files
+            .iter()
+            .map(|f| format!("{} {}", f.path, f.line_count()))
+            .collect();
+        writeln!(
+            out,
+            "files: {} ({} lines): {}",
+            self.files.len(),
+            thousands(lines),
+            per_file.join(", ")
+        )
+        .unwrap();
+        writeln!(
+            out,
+            "symbols: {syms}  relations: {rels}  cross-file: {xfile}"
+        )
+        .unwrap();
+        let mut kinds: BTreeMap<&str, usize> = BTreeMap::new();
+        let mut rel_kinds: BTreeMap<&str, usize> = BTreeMap::new();
+        for f in &self.files {
+            for s in &f.parsed.symbols {
+                *kinds.entry(kind_str(s.kind)).or_default() += 1;
+            }
+            for r in &f.parsed.relations {
+                *rel_kinds.entry(relation_str(r.kind)).or_default() += 1;
+            }
+        }
+        let join = |m: &BTreeMap<&str, usize>| {
+            m.iter()
+                .map(|(k, n)| format!("{k} {n}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+        writeln!(out, "symbol kinds: {}", join(&kinds)).unwrap();
+        writeln!(out, "relation kinds: {}", join(&rel_kinds)).unwrap();
+        let (files_cell, counts_cell) = self.progress_cells();
+        writeln!(out, "progress cells: | {files_cell} | {counts_cell} |").unwrap();
+
+        out.push_str("\nchecks (heuristics: review each hit, not all are bugs)\n");
+        for (name, hits) in self.checks(&defined_in) {
+            if hits.is_empty() {
+                writeln!(out, "  ok   {name}").unwrap();
+                continue;
+            }
+            writeln!(out, "  {:<4} {name}", hits.len()).unwrap();
+            for h in hits.iter().take(REPORT_CAP) {
+                writeln!(out, "         {h}").unwrap();
+            }
+            if hits.len() > REPORT_CAP {
+                writeln!(out, "         … {} more", hits.len() - REPORT_CAP).unwrap();
+            }
+        }
+        out
+    }
+
+    /// `(files / lines, symbols / relations (cross-file))`, formatted as in
+    /// `internal/corpus-progress.md`.
+    fn progress_cells(&self) -> (String, String) {
+        let (syms, rels, xfile) = self.totals(&self.definition_files());
+        let lines: usize = self.files.iter().map(CorpusFile::line_count).sum();
+        (
+            format!("{} / {}", self.files.len(), thousands(lines)),
+            format!("{syms} / {rels} ({xfile})"),
+        )
+    }
+
+    /// Rewrites this crate's files/lines and symbols/relations cells in a
+    /// progress table (columns 5 and 6 of the row whose second column is
+    /// the crate name) and recounts the `**Resumen: …**` line from the
+    /// state column. `None` when the table has no row for this crate.
+    pub fn update_progress(&self, table: &str) -> Option<String> {
+        let (files_cell, counts_cell) = self.progress_cells();
+        update_progress_table(table, &self.crate_name(), &files_cell, &counts_cell)
+    }
+
+    /// Each heuristic's name and its hits, one readable line per hit.
+    fn checks(&self, defined_in: &HashMap<&str, Vec<&str>>) -> Vec<(&'static str, Vec<String>)> {
+        let mut module_end = Vec::new();
+        let mut orphan_members = Vec::new();
+        let mut inside_bodies = Vec::new();
+        let mut odd_names = Vec::new();
+        let mut owner_mismatch = Vec::new();
+        let mut odd_targets = Vec::new();
+        let mut external: BTreeMap<&str, usize> = BTreeMap::new();
+        let mut identities: BTreeMap<&str, Vec<(SymbolKind, Option<&str>)>> = BTreeMap::new();
+
+        for f in &self.files {
+            let lines = f.line_count() as u32;
+            let bodies: Vec<&SymbolRecord> = f
+                .parsed
+                .symbols
+                .iter()
+                .filter(|s| matches!(s.kind, SymbolKind::Function | SymbolKind::Method))
+                .collect();
+            for s in &f.parsed.symbols {
+                let end = s.location.end_line.unwrap_or(s.location.line);
+                let at = format!("{}:{}", f.path, s.location.line);
+                if s.kind == SymbolKind::Module
+                    && s.parent.is_none()
+                    && s.location.line == 1
+                    && end != lines
+                {
+                    module_end.push(format!("{at} {} ends at {end}, file has {lines}", s.name));
+                }
+                if matches!(s.kind, SymbolKind::Method | SymbolKind::Field) && s.parent.is_none() {
+                    orphan_members.push(format!("{at} {} {}", kind_str(s.kind), s.name));
+                }
+                // A member of a class declared in a body is reported through
+                // its class, not once per member.
+                let in_type = s.parent.as_deref().is_some_and(|p| {
+                    f.parsed.symbols.iter().any(|t| {
+                        t.name == p && !matches!(t.kind, SymbolKind::Function | SymbolKind::Method)
+                    })
+                });
+                if let Some(body) = bodies.iter().filter(|_| !in_type).find(|b| {
+                    let b_end = b.location.end_line.unwrap_or(b.location.line);
+                    !std::ptr::eq(**b, s) && b.location.line < s.location.line && end <= b_end
+                }) {
+                    inside_bodies.push(format!(
+                        "{at} {} {} inside {} {}",
+                        kind_str(s.kind),
+                        qualified(s.parent.as_deref(), &s.name),
+                        kind_str(body.kind),
+                        qualified(body.parent.as_deref(), &body.name)
+                    ));
+                }
+                if odd_name(&s.name) {
+                    odd_names.push(format!("{at} {} {:?}", kind_str(s.kind), s.name));
+                }
+                let identity = (s.kind, s.parent.as_deref());
+                let seen = identities.entry(s.name.as_str()).or_default();
+                if !seen.contains(&identity) {
+                    seen.push(identity);
+                }
+            }
+            for r in &f.parsed.relations {
+                let at = format!("{}:{}", f.path, r.location.line);
+                match f.symbol_by_id(r.from) {
+                    None => owner_mismatch.push(format!("{at} from unknown symbol #{}", r.from)),
+                    Some(from) if from.kind != SymbolKind::Module => {
+                        let end = from.location.end_line.unwrap_or(from.location.line);
+                        // Decorators, attributes and annotations sit on the
+                        // lines just above the symbol they belong to.
+                        let first = from.location.line.saturating_sub(ANNOTATION_LINES);
+                        if !(first..=end).contains(&r.location.line) {
+                            owner_mismatch.push(format!(
+                                "{at} {} -> {} but {} spans {}-{end}",
+                                relation_str(r.kind),
+                                r.to_name,
+                                from.name,
+                                from.location.line
+                            ));
+                        }
+                    }
+                    Some(_) => {}
+                }
+                if odd_name(&r.to_name) {
+                    odd_targets.push(format!("{at} {} -> {:?}", relation_str(r.kind), r.to_name));
+                }
+                if r.kind == RelationKind::Calls && !defined_in.contains_key(r.to_name.as_str()) {
+                    *external.entry(r.to_name.as_str()).or_default() += 1;
+                }
+            }
+        }
+
+        let split_identities = identities
+            .into_iter()
+            // Same-named methods of different classes are normal; a name
+            // that is both a method and a function, or both owned and
+            // top-level, usually means one definition lost its scope.
+            .filter(|(_, ids)| {
+                ids.iter().any(|(k, _)| *k != ids[0].0)
+                    || ids.iter().any(|(_, p)| p.is_some() != ids[0].1.is_some())
+            })
+            .map(|(name, ids)| {
+                let ids: Vec<_> = ids
+                    .iter()
+                    .map(|(k, p)| format!("{} {}", kind_str(*k), qualified(*p, name)))
+                    .collect();
+                format!("{name}: {}", ids.join(" | "))
+            })
+            .collect();
+        let mut external: Vec<_> = external.into_iter().collect();
+        external.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(b.0)));
+        let external = external
+            .into_iter()
+            .map(|(name, n)| format!("{n:>3}× {name}"))
+            .collect();
+
+        vec![
+            ("file-level module ends on the last line", module_end),
+            ("method/field without a parent", orphan_members),
+            (
+                "symbol inside a function/method body (local? nested?)",
+                inside_bodies,
+            ),
+            ("empty or odd symbol name", odd_names),
+            ("relation outside its `from` symbol's range", owner_mismatch),
+            ("empty or odd relation target", odd_targets),
+            (
+                "name with mixed kinds or owned/top-level definitions",
+                split_identities,
+            ),
+            (
+                "calls to names not defined in the corpus (most frequent first)",
+                external,
+            ),
+        ]
+    }
+
     /// Reindexes `tests/corpus/project` through the real `mct-index`
     /// pipeline and checks that every parsed symbol comes back from
     /// `find_symbol`, every call from `find_callers` and `find_calls`, and
@@ -633,6 +913,82 @@ fn cross_file_target<'a>(
     files.first().copied()
 }
 
+/// See [`Corpus::update_progress`].
+fn update_progress_table(
+    table: &str,
+    crate_name: &str,
+    files_cell: &str,
+    counts_cell: &str,
+) -> Option<String> {
+    let crate_cell = format!("`{crate_name}`");
+    let mut found = false;
+    let mut rows: Vec<String> = table
+        .lines()
+        .map(|line| {
+            let mut cells: Vec<String> = line.split('|').map(str::to_string).collect();
+            // `| a | b | … |` splits into an empty first and last cell.
+            if cells.len() >= 8 && cells[2].trim() == crate_cell {
+                found = true;
+                cells[5] = format!(" {files_cell} ");
+                cells[6] = format!(" {counts_cell} ");
+                return cells.join("|");
+            }
+            line.to_string()
+        })
+        .collect();
+    if !found {
+        return None;
+    }
+    let (mut done, mut in_pr, mut pending, mut total) = (0, 0, 0, 0);
+    for line in &rows {
+        let cells: Vec<&str> = line.split('|').collect();
+        if cells.len() < 8 || !cells[2].trim().starts_with("`mct-lang-") {
+            continue;
+        }
+        total += 1;
+        match cells[3].trim().trim_matches('*') {
+            "Hecho" => done += 1,
+            "En PR" => in_pr += 1,
+            _ => pending += 1,
+        }
+    }
+    for line in &mut rows {
+        if line.starts_with("**Resumen:") {
+            *line = format!(
+                "**Resumen: {done} hechos, {in_pr} en PR, {pending} pendientes (de {total}).**"
+            );
+        }
+    }
+    let mut out = rows.join("\n");
+    if table.ends_with('\n') {
+        out.push('\n');
+    }
+    Some(out)
+}
+
+/// `1568` → `1.568`, the thousands style of the progress table.
+fn thousands(n: usize) -> String {
+    let digits = n.to_string();
+    let mut out = String::new();
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i).is_multiple_of(3) {
+            out.push('.');
+        }
+        out.push(c);
+    }
+    out
+}
+
+/// A name no parser should produce: empty, multi-line, padded, or
+/// carrying punctuation that means a whole expression was taken as a name.
+fn odd_name(name: &str) -> bool {
+    name.is_empty()
+        || name.len() > 60
+        || name.trim() != name
+        || name.contains(['\n', ';', '{', '}'])
+        || name.contains("  ")
+}
+
 fn qualified(parent: Option<&str>, name: &str) -> String {
     match parent {
         Some(p) => format!("{p}::{name}"),
@@ -733,4 +1089,51 @@ fn line_diff(expected: &str, actual: &str) -> String {
         out.push_str("(same lines, different order)\n");
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn thousands_uses_dots() {
+        assert_eq!(thousands(7), "7");
+        assert_eq!(thousands(1568), "1.568");
+        assert_eq!(thousands(1234567), "1.234.567");
+    }
+
+    #[test]
+    fn odd_names_are_flagged() {
+        assert!(odd_name(""));
+        assert!(odd_name("a;b"));
+        assert!(odd_name(" padded"));
+        assert!(!odd_name("operator()"));
+        assert!(!odd_name("inv::service"));
+    }
+
+    const TABLE: &str = "\
+| Lenguaje | Crate | Estado | PR | Ficheros / líneas | Símbolos / relaciones (cross-file) | Bugs |
+|---|---|---|---|---|---|---|
+| Rust | `mct-lang-rust` | **Hecho** | #77 | 6 / 2.179 | ver | x |
+| Go | `mct-lang-go` | **En PR** | #90 | | | |
+| Lua | `mct-lang-lua` | Pendiente | | | | |
+
+**Resumen: 0 hechos, 0 en PR, 0 pendientes (de 0).**
+";
+
+    #[test]
+    fn progress_row_and_summary_are_rewritten() {
+        let out = update_progress_table(TABLE, "mct-lang-go", "5 / 1.600", "10 / 20 (3)").unwrap();
+        assert!(
+            out.contains("| Go | `mct-lang-go` | **En PR** | #90 | 5 / 1.600 | 10 / 20 (3) | |")
+        );
+        assert!(out.contains("| Rust | `mct-lang-rust` | **Hecho** | #77 | 6 / 2.179 | ver | x |"));
+        assert!(out.contains("**Resumen: 1 hechos, 1 en PR, 1 pendientes (de 3).**"));
+        assert!(out.ends_with('\n'));
+    }
+
+    #[test]
+    fn missing_row_leaves_the_table_alone() {
+        assert!(update_progress_table(TABLE, "mct-lang-xml", "a", "b").is_none());
+    }
 }

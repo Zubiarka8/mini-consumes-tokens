@@ -23,6 +23,8 @@ script names and flags wherever both exist:
 | `new-tool-check.sh <tool>` | The wiring checklist for a new MCP tool (`#[tool]` method, `tools.ttc`, `KNOWN_TOOL_NAMES`, `TOOL_CATEGORIES`, `batch` dispatch, tests, eval suite, README, CLAUDE.md, protocol spec) with what's still missing, then the catalog tests. `--no-tests` to skip them. |
 | `new-language-check.sh <suffix>` | The same for a new `crates/mct-lang-<suffix>` (CONTRIBUTING.md's checklist): `mct-core`/grammar dependencies, `LanguageParser` impl, workspace member and dependency, both `Cargo.toml`s and `build_registry`s, `tests/parse.rs` with a `ParseError::Syntax` case, fuzz harness and its CI matrix entry, README and `internal/checklist.md`. Then the crate's tests and mct-cli's registry tests. `--readme-name 'C++'` when README spells it differently, `--no-tests`. |
 | `token-report.sh` | Every token measurement in one screen: MCP tool vs grep+read per language (`token_benchmark`), JSON/TOON/text per response shape (`format_benchmark`), each composite tool vs separate calls (any `mct-mcp-server` test printing `% fewer`), and `mct-eval`'s catalog/response totals. `--markdown <file>` for a PR body, `--no-eval`. |
+| `corpus-report.sh <lang>` | One language's long-fixture corpus (issue #74): its `tests/corpus.rs` tests, then the `mct-corpus` report — files/lines/symbols/relations/cross-file totals, per-kind counts, the `internal/corpus-progress.md` cells, and heuristic checks for the usual parser bugs (file module ending past EOF, locals or nested bodies taken as symbols, relations outside their owner's range, members without a parent, odd names, a name that is both a method and a function, the most frequent callees not defined in the corpus). Replaces reading `expected.snap`. `--bless` regenerates the snapshot first, `--update-progress` rewrites the crate's counts and the summary line in the progress table. |
+| `parse-probe.sh <files…>` | Parses each file with this project's parsers (`mct-cli probe`), nothing indexed: symbol/relation counts, or the first syntax error with its source line. For finding which construct a grammar rejects — one suspect snippet per file, all probed at once. |
 | `install-hooks.sh` | Installs the git hooks under `hooks/` (copied, so they survive checking out older branches; re-run to update, `--uninstall` to remove). Today one: `post-checkout`, which on a branch switch that changes the index schema's migration count rebuilds `.mct-index/index.sqlite3` if it's now newer than the installed binaries (the `CONNECTION_CLOSED` failure) and says how to serve the branch. Silent otherwise; `MCT_SKIP_HOOKS=1` skips it. |
 
 ### Logs
@@ -56,6 +58,7 @@ success, 1 on a failed check, 2 on a usage error.
 ## windows/
 
 `check.ps1`, `reinstall.ps1`, `mcp-smoke.ps1`, `new-tool-check.ps1`,
-`new-language-check.ps1`, `token-report.ps1` and `install-hooks.ps1` — one
+`new-language-check.ps1`, `token-report.ps1`, `corpus-report.ps1`,
+`parse-probe.ps1` and `install-hooks.ps1` — one
 per script above, same flags, output lines, logs and exit codes. The
 differences are Windows ones, listed in `windows/README.md`.

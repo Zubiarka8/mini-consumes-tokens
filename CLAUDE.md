@@ -48,7 +48,7 @@ An MCP server (`mct-mcp-server`) and CLI (`mct-cli`) that index a code repositor
 
 ## In-progress: per-language long-fixture corpus (issue #74)
 
-Until #74 is closed, `internal/corpus-progress.md` is the source of truth for which `crates/mct-lang-*` crates have their `tests/corpus/` done, in review, or pending. **Keep it current:** every PR that adds or changes a language's corpus updates that language's row in the same PR (state, PR number, files/lines, symbol/relation counts, parser bugs found or issues filed) and the summary line; once a PR merges, flip its row to **Hecho**. Check that file before picking the next language. When every row is **Hecho**, close #74 and delete this section.
+Until #74 is closed, `internal/corpus-progress.md` is the source of truth for which `crates/mct-lang-*` crates have their `tests/corpus/` done, in review, or pending. **Keep it current:** every PR that adds or changes a language's corpus updates that language's row in the same PR (state, PR number, files/lines, symbol/relation counts, parser bugs found or issues filed) and the summary line; once a PR merges, flip its row to **Hecho**. Check that file before picking the next language. Review a corpus with `scripts/unix/corpus-report.sh <lang> --bless --update-progress` (it fills the counts cells and the summary line; state, PR and bugs stay manual) rather than reading `expected.snap`, and narrow down a grammar-rejected construct with `scripts/unix/parse-probe.sh`. When every row is **Hecho**, close #74 and delete this section.
 
 ## Commands
 
@@ -86,6 +86,8 @@ scripts/unix/mcp-smoke.sh [--dev] [--expect T]     # CONNECTION_CLOSED? prints t
 scripts/unix/new-tool-check.sh <tool>              # adding an MCP tool: which of the ~10 places still don't mention it, then the catalog tests
 scripts/unix/new-language-check.sh <suffix>        # adding crates/mct-lang-<suffix>: CONTRIBUTING.md's checklist, what's missing, then its tests
 scripts/unix/token-report.sh [--markdown F]        # every token measurement (per language, formats, composite tools, catalog) in one screen
+scripts/unix/corpus-report.sh <lang> [--bless] [--update-progress]  # issue #74 corpus: tests + totals + heuristic bug checks, instead of reading expected.snap
+scripts/unix/parse-probe.sh <files…>               # parse files without indexing: counts or first syntax error + its line
 scripts/unix/install-hooks.sh                      # once per clone: post-checkout hook that rebuilds the index when a branch switch breaks it
 ```
 

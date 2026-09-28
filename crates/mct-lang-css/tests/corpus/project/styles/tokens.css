@@ -1,0 +1,353 @@
+@charset "utf-8";
+
+/*
+ * Harbor UI — design tokens.
+ *
+ * Every other stylesheet in this project reads these custom properties
+ * through `var(--…)`. Nothing here draws anything on its own except the
+ * font faces and keyframes, which are shared by the component files.
+ *
+ * Sections:
+ *   1. Font faces
+ *   2. Registered properties
+ *   3. Light palette (default)
+ *   4. Dark palette
+ *   5. High-contrast overrides
+ *   6. Spacing, radii, shadows, z-index
+ *   7. Typography scale
+ *   8. Motion
+ *   9. Keyframes
+ */
+
+/* 1. Font faces ------------------------------------------------------- */
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src:
+    url("../fonts/inter-roman.var.woff2") format("woff2"),
+    url("../fonts/inter-roman.var.woff") format("woff");
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../fonts/inter-italic.var.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../fonts/jetbrains-mono-regular.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153;
+}
+
+/* 2. Registered properties -------------------------------------------- */
+
+@property --harbor-progress {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
+
+@property --harbor-angle {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 0deg;
+}
+
+/* 3. Light palette ---------------------------------------------------- */
+
+:root {
+  color-scheme: light dark;
+
+  --color-gray-0: #ffffff;
+  --color-gray-50: #f8fafc;
+  --color-gray-100: #f1f5f9;
+  --color-gray-200: #e2e8f0;
+  --color-gray-300: #cbd5e1;
+  --color-gray-400: #94a3b8;
+  --color-gray-500: #64748b;
+  --color-gray-600: #475569;
+  --color-gray-700: #334155;
+  --color-gray-800: #1e293b;
+  --color-gray-900: #0f172a;
+
+  --color-blue-100: #dbeafe;
+  --color-blue-300: #93c5fd;
+  --color-blue-500: #3b82f6;
+  --color-blue-600: #2563eb;
+  --color-blue-700: #1d4ed8;
+
+  --color-green-100: #dcfce7;
+  --color-green-500: #22c55e;
+  --color-green-700: #15803d;
+
+  --color-amber-100: #fef3c7;
+  --color-amber-500: #f59e0b;
+  --color-amber-700: #b45309;
+
+  --color-red-100: #fee2e2;
+  --color-red-500: #ef4444;
+  --color-red-700: #b91c1c;
+
+  --surface-page: var(--color-gray-50);
+  --surface-raised: var(--color-gray-0);
+  --surface-sunken: var(--color-gray-100);
+  --surface-overlay: rgb(15 23 42 / 60%);
+
+  --text-strong: var(--color-gray-900);
+  --text-default: var(--color-gray-700);
+  --text-muted: var(--color-gray-500);
+  --text-inverse: var(--color-gray-0);
+  --text-link: var(--color-blue-600);
+
+  --border-subtle: var(--color-gray-200);
+  --border-default: var(--color-gray-300);
+  --border-strong: var(--color-gray-500);
+
+  --accent: var(--color-blue-600);
+  --accent-hover: var(--color-blue-700);
+  --accent-soft: var(--color-blue-100);
+  --focus-ring: 0 0 0 3px rgb(59 130 246 / 45%);
+
+  --status-success: var(--color-green-700);
+  --status-success-soft: var(--color-green-100);
+  --status-warning: var(--color-amber-700);
+  --status-warning-soft: var(--color-amber-100);
+  --status-danger: var(--color-red-700);
+  --status-danger-soft: var(--color-red-100);
+}
+
+/* 4. Dark palette ----------------------------------------------------- */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface-page: var(--color-gray-900);
+    --surface-raised: var(--color-gray-800);
+    --surface-sunken: #0b1120;
+    --surface-overlay: rgb(0 0 0 / 70%);
+
+    --text-strong: var(--color-gray-50);
+    --text-default: var(--color-gray-200);
+    --text-muted: var(--color-gray-400);
+    --text-inverse: var(--color-gray-900);
+    --text-link: var(--color-blue-300);
+
+    --border-subtle: var(--color-gray-800);
+    --border-default: var(--color-gray-700);
+    --border-strong: var(--color-gray-400);
+
+    --accent: var(--color-blue-500);
+    --accent-hover: var(--color-blue-300);
+    --accent-soft: rgb(59 130 246 / 20%);
+  }
+}
+
+:root[data-theme="dark"] {
+  --surface-page: var(--color-gray-900);
+  --surface-raised: var(--color-gray-800);
+  --surface-sunken: #0b1120;
+  --surface-overlay: rgb(0 0 0 / 70%);
+
+  --text-strong: var(--color-gray-50);
+  --text-default: var(--color-gray-200);
+  --text-muted: var(--color-gray-400);
+  --text-inverse: var(--color-gray-900);
+  --text-link: var(--color-blue-300);
+
+  --border-subtle: var(--color-gray-800);
+  --border-default: var(--color-gray-700);
+  --border-strong: var(--color-gray-400);
+
+  --accent: var(--color-blue-500);
+  --accent-hover: var(--color-blue-300);
+  --accent-soft: rgb(59 130 246 / 20%);
+}
+
+/* 5. High-contrast overrides ------------------------------------------ */
+
+@media (prefers-contrast: more) {
+  :root {
+    --border-subtle: var(--color-gray-500);
+    --border-default: var(--color-gray-700);
+    --text-muted: var(--color-gray-700);
+    --focus-ring: 0 0 0 4px var(--color-gray-900);
+  }
+}
+
+@media (forced-colors: active) {
+  :root {
+    --accent: Highlight;
+    --text-link: LinkText;
+    --focus-ring: 0 0 0 3px CanvasText;
+  }
+}
+
+/* 6. Spacing, radii, shadows, z-index --------------------------------- */
+
+:root {
+  --space-0: 0;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+
+  --shadow-1: 0 1px 2px rgb(15 23 42 / 8%);
+  --shadow-2:
+    0 1px 3px rgb(15 23 42 / 10%),
+    0 1px 2px rgb(15 23 42 / 6%);
+  --shadow-3:
+    0 10px 15px -3px rgb(15 23 42 / 10%),
+    0 4px 6px -4px rgb(15 23 42 / 10%);
+
+  --z-base: 0;
+  --z-sticky: 100;
+  --z-dropdown: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+
+  --layout-max: 72rem;
+  --layout-gutter: clamp(1rem, 4vw, 2rem);
+  --sidebar-width: 16rem;
+  --header-height: 3.5rem;
+}
+
+/* 7. Typography scale ------------------------------------------------- */
+
+:root {
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+  --text-4xl: 2.25rem;
+
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-loose: 1.75;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+}
+
+@media (min-width: 64em) {
+  :root {
+    --text-3xl: 2.25rem;
+    --text-4xl: 3rem;
+  }
+}
+
+/* 8. Motion ----------------------------------------------------------- */
+
+:root {
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+  --duration-slow: 320ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-normal: 0ms;
+    --duration-slow: 0ms;
+  }
+}
+
+/* 9. Keyframes -------------------------------------------------------- */
+
+@keyframes harbor-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes harbor-fade-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes harbor-slide-up {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes harbor-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@keyframes harbor-progress {
+  from {
+    --harbor-progress: 0%;
+  }
+  to {
+    --harbor-progress: 100%;
+  }
+}
+
+@keyframes harbor-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Utility hooks the tokens themselves need. */
+
+.theme-dark {
+  color-scheme: dark;
+}
+
+.theme-light {
+  color-scheme: light;
+}
