@@ -12,6 +12,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use mct_index::{Embedder, ExcludeSet, Index};
 use mct_mcp_server::cache::{CacheConfig, CacheStats, ResponseMode};
@@ -97,7 +98,13 @@ fn query_vectors() -> HashMap<String, Vec<f32>> {
 
 /// A throwaway project the tests can edit.
 fn project(tag: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("mct-query-cache-{tag}-{}", std::process::id()));
+    // Unique per call: tests run in parallel and some share a tag.
+    static NEXT: AtomicUsize = AtomicUsize::new(0);
+    let dir = std::env::temp_dir().join(format!(
+        "mct-query-cache-{tag}-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(dir.join("src")).unwrap();
     std::fs::write(
