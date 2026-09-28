@@ -310,7 +310,7 @@ mct-cli --root . status     # 3. check it worked: files and symbols indexed, las
 
 1. **Connect your AI assistant or editor** — see § 4.3 for your specific tool.
 2. **Just ask.** Things like *"where is* `InvoiceService` *defined?"* or *"what would break if I change* `calculate_total`*?"* — your assistant uses the index automatically instead of reading every file. Paste the [prompt in § 3](#3-prompt-for-your-ai-assistant-copy-paste) if it doesn't yet.
-3. **Refresh if needed:** `mct-cli --root . reindex --force`. Not usually necessary (the index also refreshes itself automatically in the background as changes settle on disk), but it's there if your assistant seems to be missing something after a large batch of changes.
+3. **Refresh if needed:** `mct-cli --root . reindex --force`. Not usually necessary (while your assistant is connected, the index also refreshes itself in the background as changes settle on disk — re-parsing only the files that changed, a few milliseconds per file), but it's there if your assistant seems to be missing something after a large batch of changes.
 4. **Keep noise out (optional):** `mct-cli --root . ignore-init` writes a starter `.mctignore` — edit it to exclude things like `docs/` or `*.md` from the index, then `reindex --force`. Pass `--import-gitignore` (works on a fresh file or an existing one) to exclude everything your project's own `.gitignore` already excludes. And `mct-cli --root . gitignore-init` keeps the generated database itself out of git.
 
 **What your assistant can now do**, once connected:
