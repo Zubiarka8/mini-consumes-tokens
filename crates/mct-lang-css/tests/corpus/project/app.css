@@ -1,0 +1,361 @@
+/*
+ * Harbor dashboard — application stylesheet. Pulls in the whole Harbor UI
+ * kit and adds the dashboard's own pages on top of it. Almost every rule
+ * here composes a class defined in one of the imported files (`.card`,
+ * `.btn--primary`, `.grid--3`, `.app-sidebar`, …) with a page-specific one.
+ */
+
+@import "styles/tokens.css";
+@import "styles/base.css";
+@import url("styles/layout.css");
+@import url("styles/components/controls.css");
+@import url("styles/components/surfaces.css") screen;
+
+@namespace svg url(http://www.w3.org/2000/svg);
+
+/* Theme hooks ---------------------------------------------------------- */
+
+:root {
+  --dashboard-accent: var(--color-blue-600);
+  --chart-1: var(--color-blue-500);
+  --chart-2: var(--color-green-500);
+  --chart-3: var(--color-amber-500);
+  --chart-4: var(--color-red-500);
+  --kpi-min: 12rem;
+}
+
+[data-theme="dark"] .dashboard {
+  --dashboard-accent: var(--color-blue-300);
+}
+
+/* Dashboard shell ------------------------------------------------------ */
+
+.dashboard {
+  background-color: var(--surface-page);
+}
+
+.dashboard .app-header {
+  box-shadow: var(--shadow-1);
+}
+
+.dashboard .app-sidebar .nav__link {
+  font-size: var(--text-sm);
+}
+
+.dashboard .app-sidebar .nav__link:hover .badge {
+  background-color: var(--surface-raised);
+}
+
+.dashboard .app-main > .container {
+  display: grid;
+  gap: var(--space-8);
+}
+
+.dashboard__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.dashboard__title .badge {
+  font-size: var(--text-xs);
+}
+
+.dashboard__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: space-between;
+}
+
+.dashboard__toolbar .input {
+  max-width: 20rem;
+}
+
+.dashboard__toolbar .btn-group .btn[aria-pressed="true"] {
+  --btn-bg: var(--accent-soft);
+  --btn-fg: var(--accent);
+}
+
+/* KPI tiles ------------------------------------------------------------ */
+
+.kpi-grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(var(--kpi-min), 1fr));
+}
+
+.kpi {
+  padding: var(--space-5);
+}
+
+.kpi.card {
+  border-top: 3px solid var(--dashboard-accent);
+}
+
+.kpi__label {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.kpi__value {
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-bold);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-strong);
+}
+
+.kpi__delta {
+  font-size: var(--text-sm);
+}
+
+.kpi__delta.is-up {
+  color: var(--status-success);
+}
+
+.kpi__delta.is-down {
+  color: var(--status-danger);
+}
+
+.kpi__delta.is-up::before {
+  content: "\25B2  ";
+}
+
+.kpi__delta.is-down::before {
+  content: "\25BC  ";
+}
+
+.kpi.is-loading .kpi__value {
+  color: transparent;
+}
+
+.kpi.is-loading .kpi__value::after {
+  content: "";
+  display: block;
+  height: 1em;
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-sunken);
+  animation: harbor-shimmer 1.5s linear infinite;
+}
+
+/* Charts --------------------------------------------------------------- */
+
+.chart {
+  position: relative;
+  min-height: 16rem;
+}
+
+.chart svg|text {
+  fill: var(--text-muted);
+  font-size: 11px;
+}
+
+.chart__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: var(--text-xs);
+}
+
+.chart__legend-item::before {
+  content: "";
+  display: inline-block;
+  width: 0.6rem;
+  height: 0.6rem;
+  margin-right: var(--space-1);
+  border-radius: 2px;
+  background-color: var(--swatch, var(--chart-1));
+}
+
+.chart__legend-item:nth-child(2) {
+  --swatch: var(--chart-2);
+}
+
+.chart__legend-item:nth-child(3) {
+  --swatch: var(--chart-3);
+}
+
+.chart__legend-item:nth-child(4) {
+  --swatch: var(--chart-4);
+}
+
+.chart .series-1 {
+  stroke: var(--chart-1);
+}
+
+.chart .series-2 {
+  stroke: var(--chart-2);
+}
+
+.chart .series-3 {
+  stroke: var(--chart-3);
+}
+
+.chart .gridline {
+  stroke: var(--border-subtle);
+  stroke-dasharray: 2 4;
+}
+
+.chart .tooltip {
+  position: absolute;
+  z-index: var(--z-dropdown);
+  padding: var(--space-2);
+  background-color: var(--text-strong);
+  color: var(--text-inverse);
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+}
+
+/* Tables --------------------------------------------------------------- */
+
+.data-table {
+  width: 100%;
+  font-size: var(--text-sm);
+}
+
+.data-table th[aria-sort] {
+  cursor: pointer;
+  user-select: none;
+}
+
+.data-table th[aria-sort="ascending"]::after {
+  content: " \2191";
+}
+
+.data-table th[aria-sort="descending"]::after {
+  content: " \2193";
+}
+
+.data-table td.numeric,
+.data-table th.numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.data-table tr.is-selected > td {
+  background-color: var(--accent-soft);
+}
+
+.data-table .badge + .badge {
+  margin-left: var(--space-1);
+}
+
+.data-table__empty {
+  padding: var(--space-12);
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* Settings page -------------------------------------------------------- */
+
+#settings .form {
+  max-width: 40rem;
+}
+
+#settings .fieldset + .fieldset {
+  margin-top: var(--space-8);
+  padding-top: var(--space-8);
+  border-top: 1px solid var(--border-subtle);
+}
+
+#settings .switch + .field__label {
+  margin-left: var(--space-2);
+}
+
+#settings .form__actions > .btn--danger {
+  margin-right: auto;
+}
+
+#settings-danger-zone.card {
+  border-color: var(--status-danger);
+}
+
+/* Activity feed -------------------------------------------------------- */
+
+.feed {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.feed__item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.feed__item > .avatar {
+  width: 2rem;
+  height: 2rem;
+}
+
+.feed__time {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.feed__item:not(:last-child) {
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+/* Onboarding ----------------------------------------------------------- */
+
+.onboarding .card:first-of-type {
+  border-color: var(--accent);
+}
+
+.onboarding .progress {
+  --harbor-progress: 40%;
+}
+
+.onboarding__step.is-done .check {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.onboarding__step:is(.is-current, :focus-within) {
+  background-color: var(--accent-soft);
+}
+
+.onboarding__step:where(.is-skipped) {
+  opacity: 0.6;
+}
+
+/* Responsive tweaks ---------------------------------------------------- */
+
+@media (min-width: 64em) {
+  .dashboard .app-main > .container {
+    grid-template-columns: minmax(0, 1fr) 20rem;
+  }
+
+  .dashboard .feed {
+    position: sticky;
+    top: calc(var(--header-height) + var(--space-6));
+  }
+
+  .kpi-grid {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 39.99em) {
+  .dashboard__toolbar .btn-group {
+    display: none;
+  }
+
+  .data-table td:nth-child(n + 4),
+  .data-table th:nth-child(n + 4) {
+    display: none;
+  }
+}
+
+@supports (backdrop-filter: blur(8px)) {
+  .dashboard .app-header {
+    background-color: rgb(255 255 255 / 80%);
+    backdrop-filter: blur(8px);
+  }
+}
