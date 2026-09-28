@@ -10,6 +10,7 @@ use rmcp::{
 };
 use tokio::sync::Mutex;
 
+use crate::cache::{self, CacheConfig, CacheStats, CachedResult, HitKind, QueryCache};
 use crate::embedder::SemanticModel;
 use crate::format;
 use crate::toon::OutputFormat;
@@ -127,6 +128,11 @@ pub struct SearchSymbolsArgs {
     /// `list_symbols`' `format` field for details).
     #[serde(default)]
     pub format: Option<String>,
+    /// `false` skips the query cache for this call and always returns the
+    /// full result — a repeated, unchanged call otherwise gets a one-line
+    /// "unchanged" reply. Omit it to use the cache.
+    #[serde(default)]
+    pub cache: Option<bool>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -170,6 +176,11 @@ pub struct HybridSearchArgs {
     /// `list_symbols`' `format` field for details).
     #[serde(default)]
     pub format: Option<String>,
+    /// `false` skips the query cache for this call and always returns the
+    /// full result — a repeated, unchanged call otherwise gets a one-line
+    /// "unchanged" reply. Omit it to use the cache.
+    #[serde(default)]
+    pub cache: Option<bool>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -525,11 +536,71 @@ const TOOL_CATEGORIES: &[(&str, &[&str])] = &[
     ),
 ];
 
+/// Cache version of `search_symbols`' ranking — bump when it changes.
+const SEARCH_SYMBOLS_CACHE_VERSION: &str = "search_symbols/1";
+/// Cache version of `hybrid_search`'s ranking — bump when it changes.
+const HYBRID_SEARCH_CACHE_VERSION: &str = "hybrid_search/1";
+
+/// Stands in for the query in the rendering a response's "already sent"
+/// digest is taken over, so an equivalent query that reuses a ranking
+/// compares equal to the response its source query produced.
+const QUERY_PLACEHOLDER: &str = "\u{0}query\u{0}";
+
+/// How an [`MctServer`] is built beyond its index and registry.
+pub struct ServerOptions {
+    pub cache: CacheConfig,
+    /// Embedder for `hybrid_search`'s semantic side; `None` loads the build's
+    /// own model lazily (see `crate::embedder`).
+    pub embedder: Option<Box<dyn mct_index::Embedder>>,
+    /// Share an existing cache instead of starting an empty one.
+    pub shared_cache: Option<Arc<std::sync::Mutex<QueryCache>>>,
+}
+
+impl ServerOptions {
+    /// The defaults `mct-mcp-server` runs with: cache configured from the
+    /// `MCT_CACHE*` environment variables, the build's own model.
+    pub fn from_env() -> Self {
+        Self {
+            cache: CacheConfig::from_env(),
+            embedder: None,
+            shared_cache: None,
+        }
+    }
+}
+
+/// The search constants a ranking depends on, as one cache-key field.
+fn search_config() -> String {
+    format!(
+        "rrf_k={};semantic_candidates={};phrase_boost={};embedding_text={}",
+        mct_index::RRF_K,
+        mct_index::SEMANTIC_CANDIDATES,
+        mct_index::EXACT_PHRASE_BOOST,
+        mct_index::EMBEDDING_TEXT_VERSION
+    )
+}
+
+/// The reply for a cache hit this session already received in full — kept
+/// to one short line, since it is the whole point of the token saving.
+fn reference_reply(kind: &HitKind) -> String {
+    match kind {
+        HitKind::Exact => {
+            "cache: unchanged since your identical earlier call (cache:false resends)".to_string()
+        }
+        HitKind::Semantic {
+            similarity,
+            source_query,
+        } => format!(
+            "cache: same as your earlier `{source_query}` (sim {similarity:.3}); cache:false resends"
+        ),
+    }
+}
+
 #[derive(Clone)]
 pub struct MctServer {
     index: Arc<Mutex<Index>>,
     registry: LanguageRegistry,
     semantic: Arc<SemanticModel>,
+    cache: Arc<std::sync::Mutex<QueryCache>>,
     // Built once in `MctServer::new` with the `tools.ttc` descriptions
     // applied. The `#[tool_handler(router = self.tool_router)]` below serves
     // `tools/list`/`tools/call` from this field; the macro's default would
@@ -862,15 +933,94 @@ fn without_modules(defs: Vec<mct_index::SymbolHit>) -> Vec<mct_index::SymbolHit>
 
 #[tool_router]
 impl MctServer {
+    /// A server with [`ServerOptions::from_env`].
     pub fn new(index: Index, registry: LanguageRegistry) -> Self {
+        Self::with_options(index, registry, ServerOptions::from_env())
+    }
+
+    pub fn with_options(index: Index, registry: LanguageRegistry, options: ServerOptions) -> Self {
         let mut tool_router = Self::tool_router();
         apply_ttc_catalog(&mut tool_router, ttc::CATALOG_SOURCE);
+        let semantic = match options.embedder {
+            Some(embedder) => SemanticModel::preloaded(embedder),
+            None => SemanticModel::default(),
+        };
+        let cache = options
+            .shared_cache
+            .unwrap_or_else(|| Arc::new(std::sync::Mutex::new(QueryCache::new(options.cache))));
         Self {
             index: Arc::new(Mutex::new(index)),
             registry,
-            semantic: Arc::new(SemanticModel::default()),
+            semantic: Arc::new(semantic),
+            cache,
             tool_router,
         }
+    }
+
+    /// This server's query cache, to share with another server (tests).
+    pub fn cache_handle(&self) -> Arc<std::sync::Mutex<QueryCache>> {
+        Arc::clone(&self.cache)
+    }
+
+    /// The query cache's counters and latencies so far.
+    pub fn cache_stats(&self) -> CacheStats {
+        self.cache_guard().stats()
+    }
+
+    /// The cache, even if a panicking holder poisoned the lock: every
+    /// mutation leaves it consistent, and a miss is always safe.
+    fn cache_guard(&self) -> std::sync::MutexGuard<'_, QueryCache> {
+        self.cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Whether this call goes through the cache at all.
+    fn cache_on(&self, cache_arg: Option<bool>) -> bool {
+        cache_arg != Some(false) && self.cache_guard().config().enabled
+    }
+
+    /// The response for a call: `full` as rendered, or — for a hit whose
+    /// query-independent rendering `digest_view` this session already
+    /// received — the one-line reference reply. A semantic hit shown in full
+    /// says whose ranking it reuses.
+    fn cached_reply(
+        &self,
+        cache_on: bool,
+        full: String,
+        digest_view: &str,
+        hit: Option<&CachedResult>,
+    ) -> CallToolResult {
+        if !cache_on {
+            return CallToolResult::success(vec![ContentBlock::text(full)]);
+        }
+        let mut cache = self.cache_guard();
+        let text = match hit {
+            Some(hit) if cache.config().response == cache::ResponseMode::Reference
+                && cache.was_sent(digest_view) =>
+            {
+                let reply = reference_reply(&hit.kind);
+                if reply.len() < full.len() {
+                    cache.record_reference();
+                    reply
+                } else {
+                    full
+                }
+            }
+            Some(CachedResult {
+                kind: HitKind::Semantic {
+                    similarity,
+                    source_query,
+                },
+                ..
+            }) => format!(
+                "{}\ncache: ranking reused from earlier query `{source_query}` (similarity {similarity:.3}), re-validated against the current index\n",
+                full.trim_end()
+            ),
+            _ => full,
+        };
+        cache.record_sent(digest_view);
+        CallToolResult::success(vec![ContentBlock::text(text)])
     }
 
     /// The tool catalog as it will be sent to an MCP client: names,
@@ -1027,6 +1177,7 @@ impl MctServer {
             offset,
             snippet_lines,
             format,
+            cache,
         }): Parameters<SearchSymbolsArgs>,
     ) -> Result<CallToolResult, McpError> {
         let query = validate_name(&query)?;
@@ -1038,13 +1189,48 @@ impl MctServer {
         let offset = offset.unwrap_or(0);
         let snippet_lines = snippet_lines.unwrap_or(0).min(SEARCH_MAX_SNIPPET_LINES);
         let index = self.index.lock().await;
-        let hits = index.search_symbols(query, scope).map_err(index_error)?;
+        let cache_on = self.cache_on(cache);
+        let mut hit = None;
+        let hits = if cache_on {
+            let root = index.root().display().to_string();
+            let key = cache::RankingKey {
+                repository: &root,
+                tool: "search_symbols",
+                tool_version: SEARCH_SYMBOLS_CACHE_VERSION,
+                params: vec![
+                    ("path", scope.path.unwrap_or_default().to_string()),
+                    ("language", scope.language.unwrap_or_default().to_string()),
+                ],
+                search_config: search_config(),
+                model: None,
+            };
+            let normalized = cache::normalize_query(query);
+            let mut rerank = |q: &str, _: Option<&[f32]>| index.search_symbols(q, scope).ok();
+            let mut guard = self.cache_guard();
+            hit = guard.lookup_exact(&index, &key, &normalized, &mut rerank);
+            match &hit {
+                Some(found) => found.hits.clone(),
+                None => {
+                    let hits = index.search_symbols(query, scope).map_err(index_error)?;
+                    guard.insert(&index, &key, &normalized, None, hits.clone());
+                    hits
+                }
+            }
+        } else {
+            index.search_symbols(query, scope).map_err(index_error)?
+        };
         let snippets = page_snippets(&index, &hits, offset, limit, snippet_lines);
-        let text = match output_format {
+        let render = |query: &str| match output_format {
             OutputFormat::Text => format::search_hits(query, &hits, offset, limit, &snippets),
             OutputFormat::Toon => format::search_hits_toon(query, &hits, offset, limit, &snippets),
         };
-        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+        let text = render(query);
+        let digest_view = if cache_on {
+            render(QUERY_PLACEHOLDER)
+        } else {
+            String::new()
+        };
+        Ok(self.cached_reply(cache_on, text, &digest_view, hit.as_ref()))
     }
 
     // Fallback only — see tools.ttc / MctServer::new.
@@ -1060,6 +1246,7 @@ impl MctServer {
             offset,
             snippet_lines,
             format,
+            cache,
         }): Parameters<HybridSearchArgs>,
     ) -> Result<CallToolResult, McpError> {
         let query = validate_name(&query)?;
@@ -1080,20 +1267,78 @@ impl MctServer {
         let offset = offset.unwrap_or(0);
         let snippet_lines = snippet_lines.unwrap_or(0).min(SEARCH_MAX_SNIPPET_LINES);
         let index = self.index.lock().await;
+        let cache_on = self.cache_on(cache);
+
+        // The embedder the semantic side would use: none at alpha 0 (the
+        // model is never loaded), or why it's unavailable.
+        let model = (alpha != 0.0).then(|| self.semantic.get(index.root()));
+        let embedder = model.and_then(|m| m.ok());
+
+        let root = index.root().display().to_string();
+        let key = cache::RankingKey {
+            repository: &root,
+            tool: "hybrid_search",
+            tool_version: HYBRID_SEARCH_CACHE_VERSION,
+            params: vec![
+                ("path", scope.path.unwrap_or_default().to_string()),
+                ("language", scope.language.unwrap_or_default().to_string()),
+                ("alpha", format!("{alpha:?}")),
+            ],
+            search_config: search_config(),
+            model: embedder.map(|e| e.model_id().to_string()),
+        };
+        let normalized = cache::normalize_query(query);
+        let mut hit = None;
+        let mut query_vector = None;
+        if cache_on {
+            let mut rerank = |q: &str, v: Option<&[f32]>| {
+                let fused = match (embedder, v) {
+                    (Some(e), Some(v)) => {
+                        index.refresh_embeddings(e).ok()?;
+                        index.hybrid_search_with_vector(q, Some((v, e.model_id())), alpha, scope)
+                    }
+                    (None, _) => index.hybrid_search_with_vector(q, None, alpha, scope),
+                    (Some(_), None) => return None,
+                };
+                fused.ok().map(|f| f.into_iter().map(|h| h.hit).collect())
+            };
+            let mut guard = self.cache_guard();
+            hit = guard.lookup_exact(&index, &key, &normalized, &mut rerank);
+            // The semantic path: never for an exact phrase (its words must
+            // match literally), only with a model to embed the query.
+            if let (None, Some(e), None, true) = (
+                &hit,
+                embedder,
+                mct_index::exact_phrase(query),
+                guard.config().semantic,
+            ) {
+                let start = std::time::Instant::now();
+                if let Ok(vector) = Index::embed_query(e, query) {
+                    guard.record_embedding(start.elapsed());
+                    hit = guard.lookup_semantic(&index, &key, &normalized, &vector, &mut rerank);
+                    query_vector = Some(vector);
+                }
+            }
+        }
 
         // Lexical-only whenever the semantic side can't contribute: alpha 0
         // (the model is never loaded), no model in this build or it failed to
         // load, or embedding the pending symbols failed. Each case is named
         // in the output's first line instead of erroring.
-        let (embedder, note) = if alpha == 0.0 {
-            (
+        let (ranked_with, note) = match model {
+            None => (
                 None,
                 format!("hybrid: alpha 0{alpha_source}, lexical ranking only"),
-            )
-        } else {
-            match self.semantic.get(index.root()) {
-                Err(reason) => (None, format!("hybrid: lexical ranking only — {reason}")),
-                Ok(embedder) => match index.refresh_embeddings(embedder) {
+            ),
+            Some(Err(reason)) => (None, format!("hybrid: lexical ranking only — {reason}")),
+            Some(Ok(embedder)) => {
+                // A hit's ranking was validated against the current index;
+                // only a miss needs the pending symbols embedded.
+                let refreshed = match hit {
+                    Some(_) => Ok(0),
+                    None => index.refresh_embeddings(embedder),
+                };
+                match refreshed {
                     Err(e) => (None, format!("hybrid: lexical ranking only — {e}")),
                     Ok(_) => {
                         let coverage = index
@@ -1109,40 +1354,80 @@ impl MctServer {
                             ),
                         )
                     }
-                },
+                }
             }
         };
-        let fused = match index.hybrid_search(query, embedder, alpha, scope) {
-            Ok(fused) => fused,
-            Err(e) if embedder.is_some() => {
-                return Err(McpError::internal_error(
-                    format!("hybrid_search failed: {e}"),
-                    None,
-                ))
+        let hits: Vec<mct_index::SymbolHit> = match &hit {
+            Some(found) => found.hits.clone(),
+            None => {
+                let vector = match (ranked_with, query_vector.take()) {
+                    (Some(_), Some(v)) => Some(v),
+                    (Some(e), None) => Some(Index::embed_query(e, query).map_err(|err| {
+                        McpError::internal_error(format!("hybrid_search failed: {err}"), None)
+                    })?),
+                    (None, _) => None,
+                };
+                let semantic = ranked_with.zip(vector.as_deref());
+                let fused = match index.hybrid_search_with_vector(
+                    query,
+                    semantic.map(|(e, v)| (v, e.model_id())),
+                    alpha,
+                    scope,
+                ) {
+                    Ok(fused) => fused,
+                    Err(e) if ranked_with.is_some() => {
+                        return Err(McpError::internal_error(
+                            format!("hybrid_search failed: {e}"),
+                            None,
+                        ))
+                    }
+                    Err(e) => return Err(index_error(e)),
+                };
+                let hits: Vec<mct_index::SymbolHit> = fused.into_iter().map(|h| h.hit).collect();
+                // Cached only when the semantic side ran exactly as keyed — a
+                // refresh failure fell back to lexical under a model's key.
+                if cache_on && ranked_with.is_some() == key.model.is_some() {
+                    self.cache_guard().insert(
+                        &index,
+                        &key,
+                        &normalized,
+                        vector.as_deref(),
+                        hits.clone(),
+                    );
+                }
+                hits
             }
-            Err(e) => return Err(index_error(e)),
         };
-        let hits: Vec<mct_index::SymbolHit> = fused.into_iter().map(|h| h.hit).collect();
         let snippets = page_snippets(&index, &hits, offset, limit, snippet_lines);
-        let mut text = match output_format {
+        let render = |query: &str| match output_format {
             OutputFormat::Text => format::search_hits(query, &hits, offset, limit, &snippets),
             OutputFormat::Toon => format::search_hits_toon(query, &hits, offset, limit, &snippets),
         };
+        let mut text = render(query);
         // An exact phrase also searches prose string literals (error/log
         // messages), appended as their own section when any hold it.
+        let mut literal_section = String::new();
         if let Some(phrase) = mct_index::exact_phrase(query) {
             let literals = index.search_literals(phrase, scope).map_err(index_error)?;
-            let section = match output_format {
+            literal_section = match output_format {
                 OutputFormat::Text => format::literal_hits(phrase, &literals, offset, limit),
                 OutputFormat::Toon => format::literal_hits_toon(phrase, &literals, offset, limit),
             };
-            if !section.is_empty() {
-                text = format!("{}\n{section}", text.trim_end());
+            if !literal_section.is_empty() {
+                text = format!("{}\n{literal_section}", text.trim_end());
             }
         }
-        Ok(CallToolResult::success(vec![ContentBlock::text(format!(
-            "{note}\n{text}"
-        ))]))
+        let digest_view = if cache_on {
+            format!("{note}\n{}\n{literal_section}", render(QUERY_PLACEHOLDER))
+        } else {
+            String::new()
+        };
+        Ok(self.cached_reply(
+            cache_on,
+            format!("{note}\n{text}"),
+            &digest_view,
+            hit.as_ref(),
+        ))
     }
 
     // Fallback only — see tools.ttc / MctServer::new.
@@ -1514,9 +1799,23 @@ impl MctServer {
     ) -> Result<CallToolResult, McpError> {
         let index = self.index.lock().await;
         let status = index.status().map_err(index_error)?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(
-            format::index_status(&status, verbose_dependencies),
-        )]))
+        let mut text = format::index_status(&status, verbose_dependencies);
+        // The query cache's counters, once it has answered anything — an idle
+        // or disabled cache leaves the report as it always was.
+        let (config, stats) = {
+            let cache = self.cache_guard();
+            (cache.config().clone(), cache.stats())
+        };
+        if config.enabled && stats.exact_hit + stats.exact_miss > 0 {
+            text = format!(
+                "{}\n\nQuery cache (semantic {}, threshold {:.2}, margin {:.2}):\n{stats}\n",
+                text.trim_end(),
+                if config.semantic { "on" } else { "off" },
+                config.threshold,
+                config.min_margin
+            );
+        }
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
     // Fallback only — see tools.ttc / MctServer::new.

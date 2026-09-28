@@ -151,7 +151,17 @@ pub async fn run(suite: &Suite, iterations: usize) -> Result<Report> {
         .reindex(&registry, false)
         .context("indexing the fixture")?;
     let index_build = start.elapsed();
-    let server = MctServer::new(index, registry);
+    // Cache off: the suite times and scores the tools themselves, and a
+    // repeated timed call must not turn into a query-cache hit.
+    let server = MctServer::with_options(
+        index,
+        registry,
+        mct_mcp_server::server::ServerOptions {
+            cache: mct_mcp_server::cache::CacheConfig::disabled(),
+            embedder: None,
+            shared_cache: None,
+        },
+    );
     let catalog = serde_json::to_string(&server.tool_catalog())?;
 
     let mut cases = Vec::with_capacity(suite.cases.len());
