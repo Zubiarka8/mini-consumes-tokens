@@ -153,6 +153,35 @@ pub fn find_symbol_scoped(
     Ok(rows)
 }
 
+/// Every symbol defined in any of `paths` (exact relative paths), ordered by
+/// path then line, in one query — the paths travel as one bound JSON array
+/// read back through `json_each`, never interpolated into the SQL.
+pub fn symbols_in_files(conn: &Connection, paths: &[&str]) -> Result<Vec<SymbolHit>> {
+    let paths = serde_json::to_string(paths).unwrap_or_else(|_| "[]".to_string());
+    let mut stmt = conn.prepare_cached(
+        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line, s.level
+         FROM symbols s JOIN files f ON f.id = s.file_id
+         WHERE f.relative_path IN (SELECT value FROM json_each(?1))
+         ORDER BY f.relative_path, s.line",
+    )?;
+    let rows = stmt
+        .query_map([paths], |row| {
+            Ok(SymbolHit {
+                name: row.get(0)?,
+                kind: row.get(1)?,
+                language: row.get(2)?,
+                relative_path: row.get(3)?,
+                line: row.get(4)?,
+                column: row.get(5)?,
+                parent: row.get(6)?,
+                end_line: row.get(7)?,
+                level: row.get(8)?,
+            })
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(rows)
+}
+
 /// How [`find_symbol_matching`] compares `name` against indexed symbol names.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SymbolMatchMode {

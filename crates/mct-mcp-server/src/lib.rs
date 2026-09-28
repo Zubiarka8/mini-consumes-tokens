@@ -1,4 +1,5 @@
 pub mod background;
+pub mod cache;
 pub mod embedder;
 pub mod format;
 pub mod registry;

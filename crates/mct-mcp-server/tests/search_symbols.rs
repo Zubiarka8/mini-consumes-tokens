@@ -44,6 +44,7 @@ fn args(query: &str) -> SearchSymbolsArgs {
         offset: None,
         snippet_lines: None,
         format: None,
+        cache: None,
     }
 }
 

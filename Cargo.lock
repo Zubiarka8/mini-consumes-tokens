@@ -1623,6 +1623,7 @@ dependencies = [
  "anyhow",
  "clap",
  "fastembed",
+ "hmac-sha256",
  "mct-core",
  "mct-index",
  "mct-lang-bash",

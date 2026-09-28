@@ -47,6 +47,7 @@ fn args(query: &str, alpha: Option<f64>) -> HybridSearchArgs {
         offset: None,
         snippet_lines: None,
         format: None,
+        cache: None,
     }
 }
 
@@ -65,6 +66,7 @@ async fn lexical(server: &MctServer, query: &str) -> String {
                 offset: None,
                 snippet_lines: None,
                 format: None,
+                cache: None,
             }))
             .await
             .unwrap(),
@@ -162,7 +164,16 @@ async fn an_empty_query_is_rejected() {
 async fn a_quoted_query_is_lexical_only_whatever_alpha() {
     let server = build_server_at(&fixture("polyglot-app")).await;
     for alpha in [None, Some(1.0)] {
-        let text = hybrid(&server, args("\"create invoice\"", alpha)).await;
+        // Both calls resolve to the same lexical ranking, so the second would
+        // be a query-cache hit (a one-line reply); this test is about routing.
+        let text = hybrid(
+            &server,
+            HybridSearchArgs {
+                cache: Some(false),
+                ..args("\"create invoice\"", alpha)
+            },
+        )
+        .await;
         assert!(
             text.starts_with("hybrid: alpha 0 (exact phrase), lexical ranking only\n"),
             "got: {text}"
