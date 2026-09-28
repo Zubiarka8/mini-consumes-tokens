@@ -23,7 +23,7 @@ Estados: **Pendiente** → **En PR** → **Hecho** (mergeado en `main`).
 | Rust | `mct-lang-rust` | **Hecho** | #77 | 6 / 2.179 | 239 / 775 (218) | owner de tipos/consts asociados; `fn` anidada dentro de método tomada como método; fin del módulo +1 |
 | Python | `mct-lang-python` | **Hecho** | #78 | 6 / 2.006 | 302 / 918 (223) | fin del módulo +1; clase anidada sin parent; llamadas en argumentos de decoradores perdidas; `type X = …` (PEP 695) sin símbolo |
 | Bash | `mct-lang-bash` | **Hecho** | #80 | 5 / 1.539 | 176 / 585 (162) | fin del módulo +1; asignación prefijo (`LC_ALL=C cmd`) tomada como variable; `coproc NAME { … }` mal parseado por la gramática → #79 (test `#[ignore]`) |
-| C/C++ | `mct-lang-cpp` | Pendiente | | | | |
+| C/C++ | `mct-lang-cpp` | En PR | #83 | 5 / 1.568 | 423 / 493 (150) | fin del módulo +1; funciones/variables de namespace tomadas como métodos/campos; locales (`auto x = f()`, `T x(args)`) tomados como símbolos y sus llamadas perdidas; `ns::Class::m`/`Tmpl<T>::m` fuera de línea con parent distinto de la declaración; `class Outer::Inner {` con nombre cualificado; namespace anónimo como módulo sin nombre; `enum`/`union`/`using`/`typedef` sin símbolo; construcciones válidas rechazadas por la gramática → #82 |
 | C# | `mct-lang-csharp` | **Hecho** | #85 | 6 / 2.048 | 454 / 588 (143) | fin del módulo +1; `namespace X;` (file-scoped), `record`, `enum`, `delegate`, eventos, operadores, indexers, destructores y funciones locales sin símbolo; bases genéricas con `<…>` en el target y `IFoo` primero tomado como extends; llamadas en `?.`, `F<T>()`, `new T()`, `: base(…)`, cuerpos `=>` de propiedades e inicializadores perdidas; `nameof` como llamada; atributos sin relación |
 | CSS | `mct-lang-css` | **Hecho** | #86 | 6 / 2.194 | 617 / 12 (0) | fin del módulo +1; una regla terminaba en la línea de su selector, no en su `}`; prefijo de `@namespace` (`svg\|text`) tomado como elemento `svg`; átomos perdidos en `.a .b[attr]` (la gramática aplica `[attr]` a toda la cadena). Rechazados por tree-sitter-css 0.25 (fuera del corpus, #87): `@page :first`, `@import … layer()`/`supports()`, rangos de media query (`400px <= width`) |
 | Go | `mct-lang-go` | Pendiente | | | | |
@@ -38,8 +38,9 @@ Estados: **Pendiente** → **En PR** → **Hecho** (mergeado en `main`).
 | XAML | `mct-lang-xaml` | Pendiente | | | | |
 | XML | `mct-lang-xml` | Pendiente | | | | |
 
-**Resumen: 5 hechos, 1 en PR, 11 pendientes (de 17).**
+**Resumen: 5 hechos, 2 en PR, 10 pendientes (de 17).**
 
 ## Issues derivados
 
 - #79 — `coproc NAME { … }` truncates the enclosing function (tree-sitter-bash 0.25). Abierto.
+- #82 — valid C++ rejected as a syntax error by tree-sitter-cpp 0.23.4 (explicit instantiation, `using Ts::operator()...`, `using typename B<K>::V`). Abierto.

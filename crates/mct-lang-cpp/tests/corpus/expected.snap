@@ -1,0 +1,927 @@
+# language=cpp files=5 symbols=423 relations=493 cross_file=150
+
+== include/inventory/model.hpp (342 lines)
+S 1-342 module model
+S 16-342 module inv
+S 19-19 variable inv::kMaxNameLength
+S 22-22 variable inv::kSkuPrefix
+S 24-24 type_alias inv::Clock
+S 25-25 type_alias inv::Timestamp
+S 26-26 type_alias inv::WarehouseId
+S 27-27 type_alias inv::Tags
+S 30-35 enum inv::Unit
+S 31-31 constant Unit::Piece
+S 32-32 constant Unit::Kilogram
+S 33-33 constant Unit::Litre
+S 34-34 constant Unit::Metre
+S 38-43 enum inv::LegacyFlag
+S 39-39 constant LegacyFlag::kNone
+S 40-40 constant LegacyFlag::kFragile
+S 41-41 constant LegacyFlag::kHazardous
+S 42-42 constant LegacyFlag::kCold
+S 46-58 function inv::unit_symbol
+S 61-67 function inv::parse_unit
+S 70-84 class inv::ProductId
+S 72-72 method ProductId::ProductId
+S 73-73 method ProductId::ProductId
+S 75-75 method ProductId::value
+S 76-76 method ProductId::valid
+S 78-78 method ProductId::operator==
+S 79-79 method ProductId::operator<
+S 80-80 method ProductId::operator<<
+S 83-83 field ProductId::value_
+S 87-91 function inv::make_sku
+S 95-145 class inv::Quantity
+S 97-97 type_alias Quantity::value_type
+S 99-99 method Quantity::Quantity
+S 100-100 method Quantity::Quantity
+S 102-102 method Quantity::amount
+S 103-103 method Quantity::unit
+S 105-108 method Quantity::operator+
+S 110-113 method Quantity::operator-
+S 115-118 method Quantity::operator+=
+S 120-123 method Quantity::operator<
+S 125-125 method Quantity::is_zero
+S 128-130 method Quantity::cast
+S 132-132 method Quantity::to_string
+S 135-135 method Quantity::clamp_non_negative
+S 137-139 method Quantity::require_same_unit
+S 141-141 method Quantity::throw_unit_mismatch
+S 143-143 field Quantity::amount_
+S 144-144 field Quantity::unit_
+S 147-147 type_alias inv::Count
+S 148-148 type_alias inv::Weight
+S 151-164 struct inv::Dimensions
+S 152-152 field Dimensions::width
+S 153-153 field Dimensions::height
+S 154-154 field Dimensions::depth
+S 156-156 method Dimensions::volume
+S 157-163 method Dimensions::fits_in
+S 167-174 struct inv::Location
+S 168-168 field Location::warehouse
+S 169-169 field Location::aisle
+S 170-170 field Location::shelf
+S 172-172 method Location::label
+S 173-173 method Location::operator<=>
+S 177-231 class inv::Product
+S 180-207 class Product::Builder
+S 182-182 method Builder::Builder
+S 183-186 method Builder::name
+S 187-190 method Builder::unit
+S 191-194 method Builder::tag
+S 195-198 method Builder::dimensions
+S 199-199 method Builder::build
+S 202-202 field Builder::id_
+S 203-203 field Builder::name_
+S 204-204 field Builder::unit_
+S 205-205 field Builder::tags_
+S 206-206 field Builder::dims_
+S 209-209 method Product::Product
+S 210-210 method Product::~Product
+S 212-212 method Product::id
+S 213-213 method Product::name
+S 214-214 method Product::unit
+S 215-215 method Product::tags
+S 216-216 method Product::has_tag
+S 217-217 method Product::sku
+S 219-219 method Product::describe
+S 220-220 method Product::perishable
+S 223-223 field Product::id_
+S 224-224 field Product::name_
+S 225-225 field Product::unit_
+S 226-226 field Product::tags_
+S 227-227 field Product::dims_
+S 228-228 field Product::flags_
+S 234-245 class inv::PerishableProduct
+S 236-237 method PerishableProduct::PerishableProduct
+S 239-239 method PerishableProduct::perishable
+S 240-240 method PerishableProduct::describe
+S 241-241 method PerishableProduct::expired
+S 244-244 field PerishableProduct::best_before_
+S 248-251 struct inv::Receipt
+S 249-249 field Receipt::amount
+S 250-250 field Receipt::supplier
+S 252-255 struct inv::Shipment
+S 253-253 field Shipment::amount
+S 254-254 field Shipment::order
+S 256-260 struct inv::Adjustment
+S 257-257 field Adjustment::amount
+S 258-258 field Adjustment::increase
+S 259-259 field Adjustment::reason
+S 261-261 type_alias inv::MovementKind
+S 264-272 struct inv::Movement
+S 265-265 field Movement::product
+S 266-266 field Movement::where
+S 267-267 field Movement::kind
+S 268-268 field Movement::at
+S 270-270 method Movement::delta
+S 271-271 method Movement::kind_name
+S 275-278 struct inv::ScanValue
+S 276-276 field ScanValue::numeric
+S 277-277 field ScanValue::raw
+S 281-287 struct inv::DeltaVisitor
+S 282-282 method DeltaVisitor::operator()
+S 283-283 method DeltaVisitor::operator()
+S 284-286 method DeltaVisitor::operator()
+S 291-294 struct inv::Tagged
+S 292-292 field Tagged::tag
+S 293-293 field Tagged::value
+S 296-296 function inv::Tagged
+S 298-300 method Movement::delta
+S 302-311 method Movement::kind_name
+S 315-321 function inv::net_change
+S 326-328 function inv::net_change
+S 330-340 module inv::detail
+S 333-333 function detail::normalize_name
+S 336-336 function detail::validate_name
+S 338-338 variable detail::kSchemaVersion
+R 5:1 imports model -> algorithm
+R 6:1 imports model -> array
+R 7:1 imports model -> chrono
+R 8:1 imports model -> cstdint
+R 9:1 imports model -> optional
+R 10:1 imports model -> ostream
+R 11:1 imports model -> string
+R 12:1 imports model -> string_view
+R 13:1 imports model -> variant
+R 14:1 imports model -> vector
+R 88:31 calls inv::make_sku -> to_string
+R 88:44 calls inv::make_sku -> value
+R 89:16 calls inv::make_sku -> size (x-file: include/inventory/storage.hpp)
+R 89:35 calls inv::make_sku -> insert
+R 89:56 calls inv::make_sku -> size (x-file: include/inventory/storage.hpp)
+R 90:17 calls inv::make_sku -> string
+R 100:45 calls Quantity::Quantity -> clamp_non_negative
+R 106:9 calls Quantity::operator+ -> require_same_unit
+R 107:16 calls Quantity::operator+ -> Quantity
+R 111:9 calls Quantity::operator- -> require_same_unit
+R 112:16 calls Quantity::operator- -> Quantity
+R 121:9 calls Quantity::operator< -> require_same_unit
+R 129:16 calls Quantity::cast -> Quantity
+R 129:28 calls Quantity::cast -> static_cast
+R 132:49 calls Quantity::to_string -> to_string
+R 132:76 calls Quantity::to_string -> unit_symbol
+R 135:56 calls Quantity::clamp_non_negative -> max
+R 138:35 calls Quantity::require_same_unit -> throw_unit_mismatch
+R 160:14 calls Dimensions::fits_in -> sort
+R 160:21 calls Dimensions::fits_in -> begin
+R 160:32 calls Dimensions::fits_in -> end
+R 161:14 calls Dimensions::fits_in -> sort
+R 161:21 calls Dimensions::fits_in -> begin
+R 161:32 calls Dimensions::fits_in -> end
+R 162:21 calls Dimensions::fits_in -> equal
+R 162:29 calls Dimensions::fits_in -> begin
+R 162:40 calls Dimensions::fits_in -> end
+R 162:49 calls Dimensions::fits_in -> begin
+R 184:26 calls Builder::name -> move
+R 192:19 calls Builder::tag -> push_back
+R 192:34 calls Builder::tag -> move
+R 217:38 calls Product::sku -> make_sku
+R 234:40 extends inv::PerishableProduct -> Product
+R 237:28 calls PerishableProduct::PerishableProduct -> move
+R 241:41 calls PerishableProduct::expired -> now
+R 268:27 calls model -> now
+R 282:71 calls DeltaVisitor::operator() -> amount
+R 283:73 calls DeltaVisitor::operator() -> amount
+R 285:38 calls DeltaVisitor::operator() -> amount
+R 285:59 calls DeltaVisitor::operator() -> amount
+R 299:17 calls Movement::delta -> visit
+R 303:18 calls Movement::kind_name -> index
+R 318:50 calls inv::net_change -> delta
+R 325:39 calls model -> begin
+R 325:50 calls model -> end
+R 327:12 calls inv::net_change -> net_change
+R 327:33 calls inv::net_change -> begin
+R 327:52 calls inv::net_change -> end
+
+== include/inventory/storage.hpp (307 lines)
+S 1-307 module storage
+S 17-293 module inv
+S 20-24 class inv::StorageError
+S 22-22 method StorageError::StorageError
+S 23-23 method StorageError::code
+S 26-31 class inv::NotFound
+S 28-29 method NotFound::NotFound
+S 30-30 method NotFound::code
+S 33-41 class inv::Conflict
+S 35-36 method Conflict::Conflict
+S 37-37 method Conflict::code
+S 40-40 method Conflict::format_conflict
+S 45-87 class inv::Repository
+S 47-47 type_alias Repository::key_type
+S 48-48 type_alias Repository::mapped_type
+S 49-49 type_alias Repository::Visitor
+S 51-51 method Repository::~Repository
+S 53-53 method Repository::find
+S 54-54 method Repository::put
+S 55-55 method Repository::erase
+S 56-56 method Repository::for_each
+S 57-57 method Repository::size
+S 60-64 method Repository::require
+S 66-66 method Repository::contains
+S 68-73 method Repository::values
+S 76-76 method Repository::kind
+S 78-86 method Repository::key_to_string
+S 91-156 class inv::MemoryRepository
+S 93-93 type_alias MemoryRepository::Visitor
+S 95-95 method MemoryRepository::MemoryRepository
+S 97-102 method MemoryRepository::find
+S 104-109 method MemoryRepository::put
+S 112-120 method MemoryRepository::put_if_version
+S 122-122 method MemoryRepository::version
+S 124-127 method MemoryRepository::erase
+S 129-132 method MemoryRepository::for_each
+S 134-137 method MemoryRepository::size
+S 139-142 method MemoryRepository::clear
+S 145-145 method MemoryRepository::kind
+S 148-151 struct MemoryRepository::Slot
+S 149-149 field Slot::value
+S 150-150 field Slot::version
+S 153-153 field MemoryRepository::kind_
+S 154-154 field MemoryRepository::mutex_
+S 155-155 field MemoryRepository::data_
+S 160-164 method MemoryRepository::version
+S 167-174 struct inv::StockLevel
+S 168-168 field StockLevel::product
+S 169-169 field StockLevel::location
+S 170-170 field StockLevel::on_hand
+S 171-171 field StockLevel::reserved
+S 173-173 method StockLevel::available
+S 177-186 struct inv::StockKey
+S 178-178 field StockKey::product
+S 179-179 field StockKey::location
+S 181-185 method StockKey::operator<
+S 188-188 type_alias inv::ProductRepository
+S 189-189 type_alias inv::StockRepository
+S 192-229 class inv::FileStore
+S 194-198 struct FileStore::Options
+S 195-195 field Options::directory
+S 196-196 field Options::fsync
+S 197-197 field Options::max_file_bytes
+S 200-200 method FileStore::FileStore
+S 201-201 method FileStore::~FileStore
+S 203-203 method FileStore::FileStore
+S 204-204 method FileStore::operator=
+S 205-205 method FileStore::FileStore
+S 206-206 method FileStore::operator=
+S 208-208 method FileStore::append
+S 209-209 method FileStore::load_all
+S 210-210 method FileStore::rotate_if_needed
+S 211-211 method FileStore::compact
+S 213-213 method FileStore::path
+S 214-214 method FileStore::bytes_written
+S 216-216 method FileStore::encode
+S 217-217 method FileStore::decode
+S 222-222 method FileStore::next_path
+S 224-224 field FileStore::options_
+S 225-225 field FileStore::current_
+S 226-226 field FileStore::writer_
+S 227-227 field FileStore::bytes_written_
+S 228-228 field FileStore::mutex_
+S 232-238 struct inv::Snapshot
+S 233-233 field Snapshot::products
+S 234-234 field Snapshot::levels
+S 235-235 field Snapshot::taken
+S 237-237 method Snapshot::item_count
+S 240-240 function inv::take_snapshot
+S 241-241 function inv::restore_snapshot
+S 244-244 function inv::make_product_repository
+S 247-264 class inv::Transaction
+S 249-250 method Transaction::Transaction
+S 252-254 method Transaction::~Transaction
+S 256-256 method Transaction::commit
+S 257-257 method Transaction::rollback
+S 260-260 field Transaction::products_
+S 261-261 field Transaction::stock_
+S 262-262 field Transaction::before_
+S 263-263 field Transaction::committed_
+S 267-287 class inv::StoreHealth
+S 269-269 enum StoreHealth::Status
+S 269-269 constant Status::Ok
+S 269-269 constant Status::Degraded
+S 269-269 constant Status::Failed
+S 271-275 struct StoreHealth::Flags
+S 272-272 field Flags::readonly
+S 273-273 field Flags::rotating
+S 274-274 field Flags::reserved
+S 277-277 method StoreHealth::status
+S 278-278 method StoreHealth::status_name
+S 279-279 method StoreHealth::degrade
+S 281-281 method StoreHealth::operator==
+S 284-284 field StoreHealth::status_
+S 285-285 field StoreHealth::flags_
+S 286-286 field StoreHealth::reasons_
+S 291-291 function inv::describe_error
+S 295-307 module std
+S 299-305 struct std::hash
+S 300-304 method hash::operator()
+R 6:1 imports storage -> inventory/model.hpp
+R 8:1 imports storage -> filesystem
+R 9:1 imports storage -> functional
+R 10:1 imports storage -> map (x-file: src/service.cpp)
+R 11:1 imports storage -> memory
+R 12:1 imports storage -> mutex
+R 13:1 imports storage -> shared_mutex
+R 14:1 imports storage -> stdexcept
+R 15:1 imports storage -> unordered_map
+R 20:29 extends inv::StorageError -> runtime_error
+R 26:25 extends inv::NotFound -> StorageError
+R 29:29 calls NotFound::NotFound -> string
+R 29:66 calls NotFound::NotFound -> string
+R 33:25 extends inv::Conflict -> StorageError
+R 36:24 calls Conflict::Conflict -> format_conflict
+R 61:22 calls Repository::require -> find
+R 62:27 calls Repository::require -> NotFound
+R 62:36 calls Repository::require -> kind
+R 62:44 calls Repository::require -> key_to_string
+R 63:22 calls Repository::require -> move
+R 66:58 calls Repository::contains -> has_value (x-file: src/service.cpp)
+R 66:48 calls Repository::contains -> find
+R 70:13 calls Repository::values -> reserve (x-file: src/service.cpp)
+R 70:21 calls Repository::values -> size
+R 71:9 calls Repository::values -> for_each
+R 71:53 calls Repository::values -> push_back
+R 80:25 calls Repository::key_to_string -> to_string (x-file: include/inventory/model.hpp)
+R 82:20 calls Repository::key_to_string -> make_sku (x-file: include/inventory/model.hpp)
+R 84:25 calls Repository::key_to_string -> string
+R 91:33 extends inv::MemoryRepository -> Repository<K, V>
+R 95:73 calls MemoryRepository::MemoryRepository -> move
+R 99:25 calls MemoryRepository::find -> find
+R 100:25 calls MemoryRepository::find -> end
+R 107:27 calls MemoryRepository::put -> move
+R 116:19 calls MemoryRepository::put_if_version -> Conflict
+R 116:46 calls MemoryRepository::put_if_version -> key_to_string
+R 118:27 calls MemoryRepository::put_if_version -> move
+R 126:22 calls MemoryRepository::erase -> erase
+R 131:47 calls MemoryRepository::for_each -> visit
+R 136:22 calls MemoryRepository::size -> size
+R 141:15 calls MemoryRepository::clear -> clear
+R 162:21 calls MemoryRepository::version -> find
+R 163:24 calls MemoryRepository::version -> end
+R 235:30 calls storage -> now
+R 237:54 calls Snapshot::item_count -> size
+R 237:70 calls Snapshot::item_count -> size
+R 250:55 calls Transaction::Transaction -> take_snapshot
+R 253:26 calls Transaction::~Transaction -> rollback
+R 257:23 calls Transaction::rollback -> restore_snapshot
+R 301:64 calls hash::operator() -> value
+
+== src/main.cpp (308 lines)
+S 1-308 module main
+S 18-27 module inv::service
+S 19-22 module inv::service::v2
+S 23-24 function inv::service::make_service
+S 25-25 function inv::service::seed_demo
+S 26-26 function inv::service::average_stock
+S 29-29 function inv_version_string
+S 31-304 module cli
+S 33-33 type_alias cli::Args
+S 36-42 enum cli::ExitCode
+S 37-37 constant ExitCode::kOk
+S 38-38 constant ExitCode::kFailure
+S 39-39 constant ExitCode::kUsage
+S 40-40 constant ExitCode::kDataError
+S 41-41 constant ExitCode::kSoftware
+S 45-51 struct cli::Options
+S 46-46 field Options::data_dir
+S 47-47 field Options::verbose
+S 48-48 field Options::json
+S 49-49 field Options::command
+S 50-50 field Options::args
+S 54-62 struct cli::Context
+S 55-55 field Context::options
+S 56-56 field Context::products
+S 57-57 field Context::stock
+S 58-58 field Context::journal
+S 59-59 field Context::service
+S 60-60 field Context::out
+S 61-61 field Context::err
+S 64-64 type_alias cli::Handler
+S 66-69 class cli::UsageError
+S 71-83 function cli::print_usage
+S 85-109 function cli::parse_options
+S 112-127 function cli::parse_location
+S 129-135 function cli::parse_product
+S 137-146 function cli::parse_amount
+S 148-152 function cli::require_args
+S 154-163 function cli::print_level
+S 165-169 function cli::cmd_demo
+S 171-181 function cli::cmd_receive
+S 183-193 function cli::cmd_ship
+S 195-208 function cli::cmd_transfer
+S 210-225 function cli::cmd_stock
+S 227-237 function cli::cmd_reorder
+S 239-250 function cli::cmd_export
+S 252-255 function cli::cmd_help
+S 257-264 function cli::handlers
+S 266-273 function cli::make_context
+S 275-302 function cli::run
+S 306-308 function main
+R 7:1 imports main -> inventory/model.hpp
+R 8:1 imports main -> inventory/storage.hpp
+R 10:1 imports main -> cstdlib
+R 11:1 imports main -> iostream
+R 12:1 imports main -> map (x-file: src/service.cpp)
+R 13:1 imports main -> sstream
+R 14:1 imports main -> string
+R 15:1 imports main -> vector
+R 66:27 extends cli::UsageError -> runtime_error
+R 72:28 calls cli::print_usage -> inv_version_string
+R 91:38 calls cli::parse_options -> UsageError
+R 93:24 calls cli::parse_options -> rfind
+R 94:36 calls cli::parse_options -> substr
+R 99:25 calls cli::parse_options -> empty
+R 100:19 calls cli::parse_options -> UsageError
+R 105:26 calls cli::parse_options -> UsageError
+R 107:40 calls cli::parse_options -> emplace_back
+R 121:15 calls cli::parse_location -> UsageError
+R 124:19 calls cli::parse_location -> static_cast
+R 125:19 calls cli::parse_location -> static_cast
+R 130:30 calls cli::parse_product -> rfind
+R 130:59 calls cli::parse_product -> substr
+R 132:29 calls cli::parse_product -> strtoull
+R 132:45 calls cli::parse_product -> c_str
+R 133:23 calls cli::parse_product -> c_str
+R 133:54 calls cli::parse_product -> UsageError
+R 134:17 calls cli::parse_product -> ProductId (x-file: include/inventory/model.hpp)
+R 140:33 calls cli::parse_amount -> stoll
+R 141:26 calls cli::parse_amount -> size (x-file: include/inventory/storage.hpp)
+R 141:54 calls cli::parse_amount -> UsageError
+R 144:15 calls cli::parse_amount -> UsageError
+R 149:26 calls cli::require_args -> size (x-file: include/inventory/storage.hpp)
+R 150:15 calls cli::require_args -> UsageError
+R 150:65 calls cli::require_args -> to_string (x-file: include/inventory/model.hpp)
+R 156:53 calls cli::print_level -> value (x-file: include/inventory/model.hpp)
+R 156:101 calls cli::print_level -> label (x-file: include/inventory/model.hpp)
+R 157:55 calls cli::print_level -> amount (x-file: include/inventory/model.hpp)
+R 157:102 calls cli::print_level -> amount (x-file: include/inventory/model.hpp)
+R 160:61 calls cli::print_level -> label (x-file: include/inventory/model.hpp)
+R 160:94 calls cli::print_level -> to_string (x-file: include/inventory/model.hpp)
+R 161:43 calls cli::print_level -> amount (x-file: include/inventory/model.hpp)
+R 166:19 calls cli::cmd_demo -> seed_demo
+R 167:43 calls cli::cmd_demo -> size (x-file: include/inventory/storage.hpp)
+R 172:5 calls cli::cmd_receive -> require_args
+R 174:32 calls cli::cmd_receive -> receive (x-file: src/service.cpp)
+R 174:40 calls cli::cmd_receive -> parse_product
+R 174:61 calls cli::cmd_receive -> parse_location
+R 174:83 calls cli::cmd_receive -> parse_amount
+R 175:17 calls cli::cmd_receive -> has_value (x-file: src/service.cpp)
+R 176:40 calls cli::cmd_receive -> error (x-file: src/service.cpp)
+R 179:5 calls cli::cmd_receive -> print_level
+R 179:29 calls cli::cmd_receive -> value (x-file: include/inventory/model.hpp)
+R 184:5 calls cli::cmd_ship -> require_args
+R 186:32 calls cli::cmd_ship -> ship (x-file: src/service.cpp)
+R 186:37 calls cli::cmd_ship -> parse_product
+R 186:58 calls cli::cmd_ship -> parse_location
+R 186:80 calls cli::cmd_ship -> parse_amount
+R 187:17 calls cli::cmd_ship -> has_value (x-file: src/service.cpp)
+R 188:40 calls cli::cmd_ship -> error (x-file: src/service.cpp)
+R 191:5 calls cli::cmd_ship -> print_level
+R 191:29 calls cli::cmd_ship -> value (x-file: include/inventory/model.hpp)
+R 196:5 calls cli::cmd_transfer -> require_args
+R 199:22 calls cli::cmd_transfer -> transfer (x-file: src/service.cpp)
+R 199:31 calls cli::cmd_transfer -> parse_product
+R 199:52 calls cli::cmd_transfer -> parse_location
+R 199:74 calls cli::cmd_transfer -> parse_location
+R 199:96 calls cli::cmd_transfer -> parse_amount
+R 200:17 calls cli::cmd_transfer -> has_value (x-file: src/service.cpp)
+R 201:40 calls cli::cmd_transfer -> error (x-file: src/service.cpp)
+R 204:37 calls cli::cmd_transfer -> value (x-file: include/inventory/model.hpp)
+R 205:5 calls cli::cmd_transfer -> print_level
+R 206:5 calls cli::cmd_transfer -> print_level
+R 211:5 calls cli::cmd_stock -> require_args
+R 212:26 calls cli::cmd_stock -> parse_product
+R 213:43 calls cli::cmd_stock -> require (x-file: include/inventory/storage.hpp)
+R 214:26 calls cli::cmd_stock -> describe (x-file: include/inventory/model.hpp)
+R 216:15 calls cli::cmd_stock -> for_each (x-file: include/inventory/storage.hpp)
+R 218:13 calls cli::cmd_stock -> print_level
+R 222:42 calls cli::cmd_stock -> total_on_hand (x-file: src/service.cpp)
+R 223:60 calls cli::cmd_stock -> average_stock
+R 228:43 calls cli::cmd_reorder -> reorder_suggestions (x-file: src/service.cpp)
+R 229:21 calls cli::cmd_reorder -> empty
+R 234:25 calls cli::cmd_reorder -> make_sku (x-file: include/inventory/model.hpp)
+R 245:46 calls cli::cmd_export -> load_all (x-file: include/inventory/storage.hpp)
+R 246:37 calls cli::cmd_export -> value (x-file: include/inventory/model.hpp)
+R 246:70 calls cli::cmd_export -> label (x-file: include/inventory/model.hpp)
+R 246:97 calls cli::cmd_export -> kind_name (x-file: include/inventory/model.hpp)
+R 247:29 calls cli::cmd_export -> delta (x-file: include/inventory/model.hpp)
+R 253:5 calls cli::cmd_help -> print_usage
+R 268:24 calls cli::make_context -> move
+R 269:25 calls cli::make_context -> make_product_repository (x-file: include/inventory/storage.hpp)
+R 270:24 calls cli::make_context -> make_unique<inv::FileStore>
+R 271:33 calls cli::make_context -> make_service
+R 271:84 calls cli::make_context -> get
+R 278:19 calls cli::run -> parse_options
+R 280:43 calls cli::run -> what
+R 281:9 calls cli::run -> print_usage
+R 284:32 calls cli::run -> find (x-file: include/inventory/storage.hpp)
+R 284:21 calls cli::run -> handlers
+R 285:26 calls cli::run -> end
+R 285:15 calls cli::run -> handlers
+R 289:16 calls cli::run -> make_context
+R 289:34 calls cli::run -> move
+R 291:20 calls cli::run -> second
+R 293:41 calls cli::run -> what
+R 296:43 calls cli::run -> code (x-file: include/inventory/storage.hpp)
+R 296:64 calls cli::run -> what
+R 299:44 calls cli::run -> what
+R 307:17 calls main -> run
+
+== src/service.cpp (309 lines)
+S 1-309 module service
+S 13-309 module inv::service
+S 15-214 module inv::service::v2
+S 19-40 class v2::Result
+S 21-21 method Result::ok
+S 22-22 method Result::fail
+S 24-24 method Result::has_value
+S 25-25 method Result::value
+S 26-26 method Result::error
+S 29-33 method Result::map
+S 36-36 method Result::Result
+S 38-38 field Result::value_
+S 39-39 field Result::error_
+S 44-54 class v2::CountingListener
+S 46-49 method CountingListener::notify
+S 50-50 method CountingListener::seen
+S 53-53 field CountingListener::seen_
+S 57-66 class v2::LoggingListener
+S 59-59 method LoggingListener::LoggingListener
+S 60-62 method LoggingListener::on_movement
+S 65-65 field LoggingListener::out_
+S 69-72 struct v2::ReorderRule
+S 70-70 field ReorderRule::minimum
+S 71-71 field ReorderRule::batch
+S 75-79 struct v2::Suggestion
+S 76-76 field Suggestion::product
+S 77-77 field Suggestion::quantity
+S 78-78 field Suggestion::reason
+S 81-114 class v2::InventoryService
+S 83-83 type_alias InventoryService::Observer
+S 85-85 method InventoryService::InventoryService
+S 87-87 method InventoryService::receive
+S 88-88 method InventoryService::ship
+S 89-90 method InventoryService::transfer
+S 91-91 method InventoryService::reserve
+S 92-92 method InventoryService::release
+S 94-94 method InventoryService::total_on_hand
+S 95-95 method InventoryService::reorder_suggestions
+S 97-97 method InventoryService::set_rule
+S 98-98 method InventoryService::subscribe
+S 100-100 method InventoryService::instances
+S 103-103 method InventoryService::level_at
+S 104-104 method InventoryService::record
+S 105-105 method InventoryService::check_product
+S 107-107 field InventoryService::products_
+S 108-108 field InventoryService::stock_
+S 109-109 field InventoryService::journal_
+S 110-110 field InventoryService::rules_
+S 111-111 field InventoryService::observers_
+S 113-113 field InventoryService::instance_count_
+S 116-119 method InventoryService::InventoryService
+S 121-124 method InventoryService::check_product
+S 126-130 method InventoryService::level_at
+S 132-135 method InventoryService::record
+S 137-146 method InventoryService::receive
+S 148-161 method InventoryService::ship
+S 163-174 method InventoryService::transfer
+S 176-182 method InventoryService::reserve
+S 184-189 method InventoryService::release
+S 191-197 method InventoryService::total_on_hand
+S 199-212 method InventoryService::reorder_suggestions
+S 221-225 function inv::service::average_stock
+S 228-234 function inv::service::warehouses_of
+S 237-243 function inv::service::stock_value
+S 246-263 function inv::service::seed_demo
+S 267-271 function inv::service::attach_logging
+S 274-278 class inv::service::PricingStrategy
+S 276-276 method PricingStrategy::~PricingStrategy
+S 277-277 method PricingStrategy::price
+S 280-287 class inv::service::FlatPricing
+S 282-282 method FlatPricing::FlatPricing
+S 283-283 method FlatPricing::price
+S 286-286 field FlatPricing::unit_
+S 290-301 function inv::service::tiered_price
+S 291-294 struct Tier
+S 292-292 field Tier::from
+S 293-293 field Tier::unit
+S 304-307 function inv::service::make_service
+R 4:1 imports service -> inventory/model.hpp
+R 5:1 imports service -> inventory/storage.hpp
+R 7:1 imports service -> cmath
+R 8:1 imports service -> iostream
+R 9:1 imports service -> numeric (x-file: include/inventory/model.hpp)
+R 10:1 imports service -> set
+R 11:1 imports service -> utility
+R 21:40 calls Result::ok -> Result
+R 21:52 calls Result::ok -> move
+R 22:52 calls Result::fail -> Result
+R 22:78 calls Result::fail -> move
+R 24:44 calls Result::has_value -> has_value
+R 31:14 calls Result::map -> has_value
+R 31:45 calls Result::map -> fail
+R 32:27 calls Result::map -> ok
+R 32:30 calls Result::map -> fn
+R 36:69 calls Result::Result -> move
+R 36:95 calls Result::Result -> move
+R 48:38 calls CountingListener::notify -> on_movement
+R 48:9 calls CountingListener::notify -> static_cast
+R 57:32 extends v2::LoggingListener -> CountingListener<LoggingListener>
+R 61:26 calls LoggingListener::on_movement -> kind_name (x-file: include/inventory/model.hpp)
+R 61:84 calls LoggingListener::on_movement -> delta (x-file: include/inventory/model.hpp)
+R 98:52 calls InventoryService::subscribe -> push_back
+R 98:67 calls InventoryService::subscribe -> move
+R 122:18 calls InventoryService::check_product -> valid (x-file: include/inventory/model.hpp)
+R 122:38 calls InventoryService::check_product -> invalid_argument
+R 123:15 calls InventoryService::check_product -> require (x-file: include/inventory/storage.hpp)
+R 127:31 calls InventoryService::level_at -> find (x-file: include/inventory/storage.hpp)
+R 129:39 calls InventoryService::level_at -> Count (x-file: include/inventory/model.hpp)
+R 129:62 calls InventoryService::level_at -> Count (x-file: include/inventory/model.hpp)
+R 133:40 calls InventoryService::record -> append (x-file: include/inventory/storage.hpp)
+R 134:45 calls InventoryService::record -> observer
+R 139:49 calls InventoryService::receive -> fail
+R 140:5 calls InventoryService::receive -> check_product
+R 141:18 calls InventoryService::receive -> level_at
+R 142:22 calls InventoryService::receive -> Count (x-file: include/inventory/model.hpp)
+R 143:12 calls InventoryService::receive -> put (x-file: include/inventory/storage.hpp)
+R 144:5 calls InventoryService::receive -> record
+R 144:45 calls InventoryService::receive -> Count (x-file: include/inventory/model.hpp)
+R 144:78 calls InventoryService::receive -> move
+R 145:32 calls InventoryService::receive -> ok
+R 150:5 calls InventoryService::ship -> check_product
+R 151:18 calls InventoryService::ship -> level_at
+R 152:27 calls InventoryService::ship -> amount (x-file: include/inventory/model.hpp)
+R 152:15 calls InventoryService::ship -> available (x-file: include/inventory/storage.hpp)
+R 153:36 calls InventoryService::ship -> fail
+R 153:74 calls InventoryService::ship -> label (x-file: include/inventory/model.hpp)
+R 154:46 calls InventoryService::ship -> to_string (x-file: include/inventory/model.hpp)
+R 154:74 calls InventoryService::ship -> amount (x-file: include/inventory/model.hpp)
+R 154:62 calls InventoryService::ship -> available (x-file: include/inventory/storage.hpp)
+R 155:46 calls InventoryService::ship -> to_string (x-file: include/inventory/model.hpp)
+R 157:37 calls InventoryService::ship -> Count (x-file: include/inventory/model.hpp)
+R 158:12 calls InventoryService::ship -> put (x-file: include/inventory/storage.hpp)
+R 159:5 calls InventoryService::ship -> record
+R 159:46 calls InventoryService::ship -> Count (x-file: include/inventory/model.hpp)
+R 159:79 calls InventoryService::ship -> move
+R 160:32 calls InventoryService::ship -> ok
+R 166:42 calls InventoryService::transfer -> fail
+R 168:20 calls InventoryService::transfer -> ship
+R 168:68 calls InventoryService::transfer -> label (x-file: include/inventory/model.hpp)
+R 169:18 calls InventoryService::transfer -> has_value
+R 169:52 calls InventoryService::transfer -> fail
+R 169:65 calls InventoryService::transfer -> error
+R 170:21 calls InventoryService::transfer -> receive
+R 170:74 calls InventoryService::transfer -> label (x-file: include/inventory/model.hpp)
+R 171:19 calls InventoryService::transfer -> has_value
+R 171:53 calls InventoryService::transfer -> fail
+R 171:67 calls InventoryService::transfer -> error
+R 172:8 calls InventoryService::transfer -> commit (x-file: include/inventory/storage.hpp)
+R 173:26 calls InventoryService::transfer -> ok
+R 173:38 calls InventoryService::transfer -> value
+R 173:56 calls InventoryService::transfer -> value
+R 177:18 calls InventoryService::reserve -> level_at
+R 178:27 calls InventoryService::reserve -> amount (x-file: include/inventory/model.hpp)
+R 178:15 calls InventoryService::reserve -> available (x-file: include/inventory/storage.hpp)
+R 179:23 calls InventoryService::reserve -> Count (x-file: include/inventory/model.hpp)
+R 180:12 calls InventoryService::reserve -> put (x-file: include/inventory/storage.hpp)
+R 185:18 calls InventoryService::release -> level_at
+R 186:32 calls InventoryService::release -> min
+R 186:59 calls InventoryService::release -> amount (x-file: include/inventory/model.hpp)
+R 187:39 calls InventoryService::release -> Count (x-file: include/inventory/model.hpp)
+R 188:12 calls InventoryService::release -> put (x-file: include/inventory/storage.hpp)
+R 193:12 calls InventoryService::total_on_hand -> for_each (x-file: include/inventory/storage.hpp)
+R 194:60 calls InventoryService::total_on_hand -> amount (x-file: include/inventory/model.hpp)
+R 202:30 calls InventoryService::reorder_suggestions -> total_on_hand
+R 206:13 calls InventoryService::reorder_suggestions -> push_back
+R 206:79 calls InventoryService::reorder_suggestions -> to_string (x-file: include/inventory/model.hpp)
+R 208:10 calls InventoryService::reorder_suggestions -> sort
+R 208:19 calls InventoryService::reorder_suggestions -> begin
+R 208:32 calls InventoryService::reorder_suggestions -> end
+R 223:24 calls inv::service::average_stock -> static_cast
+R 223:52 calls inv::service::average_stock -> total_on_hand
+R 223:78 calls inv::service::average_stock -> static_cast
+R 224:17 calls inv::service::average_stock -> round
+R 230:11 calls inv::service::warehouses_of -> for_each (x-file: include/inventory/storage.hpp)
+R 231:41 calls inv::service::warehouses_of -> insert
+R 238:31 calls inv::service::stock_value -> values (x-file: include/inventory/storage.hpp)
+R 239:17 calls inv::service::stock_value -> accumulate
+R 239:35 calls inv::service::stock_value -> begin
+R 239:51 calls inv::service::stock_value -> end
+R 240:32 calls inv::service::stock_value -> find (x-file: include/inventory/storage.hpp)
+R 241:29 calls inv::service::stock_value -> end
+R 241:62 calls inv::service::stock_value -> static_cast
+R 241:96 calls inv::service::stock_value -> amount (x-file: include/inventory/model.hpp)
+R 247:84 calls inv::service::seed_demo -> build (x-file: include/inventory/model.hpp)
+R 247:71 calls inv::service::seed_demo -> tag (x-file: include/inventory/model.hpp)
+R 247:56 calls inv::service::seed_demo -> name (x-file: include/inventory/model.hpp)
+R 247:34 calls inv::service::seed_demo -> Builder (x-file: include/inventory/model.hpp)
+R 247:42 calls inv::service::seed_demo -> ProductId (x-file: include/inventory/model.hpp)
+R 248:100 calls inv::service::seed_demo -> build (x-file: include/inventory/model.hpp)
+R 248:79 calls inv::service::seed_demo -> unit
+R 248:55 calls inv::service::seed_demo -> name (x-file: include/inventory/model.hpp)
+R 248:33 calls inv::service::seed_demo -> Builder (x-file: include/inventory/model.hpp)
+R 248:41 calls inv::service::seed_demo -> ProductId (x-file: include/inventory/model.hpp)
+R 254:28 calls inv::service::seed_demo -> build (x-file: include/inventory/model.hpp)
+R 253:28 calls inv::service::seed_demo -> dimensions (x-file: include/inventory/model.hpp)
+R 252:28 calls inv::service::seed_demo -> tag (x-file: include/inventory/model.hpp)
+R 251:28 calls inv::service::seed_demo -> unit
+R 250:28 calls inv::service::seed_demo -> name (x-file: include/inventory/model.hpp)
+R 249:32 calls inv::service::seed_demo -> Builder (x-file: include/inventory/model.hpp)
+R 249:40 calls inv::service::seed_demo -> ProductId (x-file: include/inventory/model.hpp)
+R 255:64 calls inv::service::seed_demo -> put (x-file: include/inventory/storage.hpp)
+R 255:76 calls inv::service::seed_demo -> id (x-file: include/inventory/model.hpp)
+R 258:13 calls inv::service::seed_demo -> receive
+R 258:28 calls inv::service::seed_demo -> id (x-file: include/inventory/model.hpp)
+R 259:13 calls inv::service::seed_demo -> receive
+R 259:27 calls inv::service::seed_demo -> id (x-file: include/inventory/model.hpp)
+R 260:13 calls inv::service::seed_demo -> receive
+R 260:26 calls inv::service::seed_demo -> id (x-file: include/inventory/model.hpp)
+R 261:13 calls inv::service::seed_demo -> set_rule
+R 261:29 calls inv::service::seed_demo -> id (x-file: include/inventory/model.hpp)
+R 262:13 calls inv::service::seed_demo -> set_rule
+R 262:28 calls inv::service::seed_demo -> id (x-file: include/inventory/model.hpp)
+R 268:26 calls inv::service::attach_logging -> make_unique<LoggingListener>
+R 269:13 calls inv::service::attach_logging -> subscribe
+R 269:39 calls inv::service::attach_logging -> get
+R 269:79 calls inv::service::attach_logging -> notify
+R 280:34 extends inv::service::FlatPricing -> PricingStrategy
+R 297:74 calls inv::service::tiered_price -> push_back
+R 300:29 calls inv::service::tiered_price -> back
+R 306:17 calls inv::service::make_service -> make_unique<InventoryService>
+
+== src/storage.cpp (302 lines)
+S 1-302 module storage
+S 16-16 variable kSep
+S 18-28 function split
+S 30-44 function to_int
+S 46-50 function encode_location
+S 52-61 function decode_location
+S 65-270 module inv
+S 72-74 method Quantity::throw_unit_mismatch
+S 77-81 method Product::Product
+S 83-85 method Product::has_tag
+S 87-91 method Product::describe
+S 93-98 method Builder::build
+S 100-103 method PerishableProduct::describe
+S 105-129 module inv::detail
+S 107-120 function detail::normalize_name
+S 122-127 function detail::validate_name
+S 135-139 method Conflict::format_conflict
+S 142-158 class FileStore::Writer
+S 144-146 method Writer::Writer
+S 148-153 method Writer::write_line
+S 156-156 field Writer::out_
+S 157-157 field Writer::fsync_
+S 160-166 method FileStore::FileStore
+S 168-168 method FileStore::~FileStore
+S 169-169 method FileStore::FileStore
+S 170-170 method FileStore::operator=
+S 172-175 method FileStore::next_path
+S 177-181 method FileStore::append
+S 183-190 method FileStore::rotate_if_needed
+S 192-205 method FileStore::load_all
+S 207-217 method FileStore::compact
+S 219-225 method FileStore::encode
+S 227-243 method FileStore::decode
+S 249-254 function inv::take_snapshot
+S 256-263 function inv::restore_snapshot
+S 265-268 function inv::make_product_repository
+S 273-277 method Location::label
+S 279-289 method StoreHealth::status_name
+S 291-294 method StoreHealth::degrade
+S 296-298 function inv::describe_error
+S 300-302 function inv_version_string
+R 4:1 imports storage -> inventory/storage.hpp
+R 5:1 imports storage -> inventory/model.hpp
+R 7:1 imports storage -> cstdio
+R 8:1 imports storage -> fstream
+R 9:1 imports storage -> iomanip
+R 10:1 imports storage -> sstream
+R 11:1 imports storage -> system_error
+R 22:31 calls split -> find (x-file: include/inventory/storage.hpp)
+R 23:15 calls split -> push_back
+R 23:30 calls split -> substr
+R 34:15 calls to_int -> empty
+R 38:19 calls to_int -> size (x-file: include/inventory/storage.hpp)
+R 39:21 calls to_int -> size (x-file: include/inventory/storage.hpp)
+R 49:16 calls encode_location -> str
+R 53:24 calls decode_location -> split
+R 55:15 calls decode_location -> size (x-file: include/inventory/storage.hpp)
+R 56:27 calls decode_location -> static_cast
+R 56:57 calls decode_location -> to_int
+R 57:23 calls decode_location -> static_cast
+R 57:50 calls decode_location -> to_int
+R 58:23 calls decode_location -> static_cast
+R 58:50 calls decode_location -> to_int
+R 73:16 calls Quantity::throw_unit_mismatch -> invalid_argument
+R 73:38 calls Quantity::throw_unit_mismatch -> string
+R 73:66 calls Quantity::throw_unit_mismatch -> unit_symbol (x-file: include/inventory/model.hpp)
+R 73:92 calls Quantity::throw_unit_mismatch -> unit_symbol (x-file: include/inventory/model.hpp)
+R 78:30 calls Product::Product -> normalize_name
+R 79:34 calls Product::Product -> validate_name
+R 80:18 calls Product::Product -> empty
+R 80:38 calls Product::Product -> invalid_argument
+R 84:17 calls Product::has_tag -> any_of
+R 84:30 calls Product::has_tag -> begin
+R 84:45 calls Product::has_tag -> end
+R 88:24 calls Product::describe -> sku (x-file: include/inventory/model.hpp)
+R 88:53 calls Product::describe -> unit_symbol (x-file: include/inventory/model.hpp)
+R 89:35 calls Product::describe -> to_string (x-file: include/inventory/model.hpp)
+R 89:52 calls Product::describe -> volume (x-file: include/inventory/model.hpp)
+R 101:26 calls PerishableProduct::describe -> describe
+R 102:20 calls PerishableProduct::describe -> expired (x-file: include/inventory/model.hpp)
+R 112:34 calls detail::normalize_name -> empty
+R 115:32 calls detail::normalize_name -> push_back
+R 117:13 calls detail::normalize_name -> push_back
+R 123:14 calls detail::validate_name -> empty
+R 124:14 calls detail::validate_name -> size (x-file: include/inventory/storage.hpp)
+R 125:14 calls detail::validate_name -> find (x-file: include/inventory/storage.hpp)
+R 138:16 calls Conflict::format_conflict -> str
+R 145:26 calls Writer::Writer -> StorageError (x-file: include/inventory/storage.hpp)
+R 145:61 calls Writer::Writer -> string
+R 150:26 calls Writer::write_line -> flush
+R 151:26 calls Writer::write_line -> StorageError (x-file: include/inventory/storage.hpp)
+R 152:21 calls Writer::write_line -> size (x-file: include/inventory/storage.hpp)
+R 160:55 calls FileStore::FileStore -> move
+R 162:22 calls FileStore::FileStore -> create_directories
+R 163:19 calls FileStore::FileStore -> StorageError (x-file: include/inventory/storage.hpp)
+R 163:70 calls FileStore::FileStore -> string
+R 163:91 calls FileStore::FileStore -> message
+R 164:16 calls FileStore::FileStore -> next_path
+R 165:20 calls FileStore::FileStore -> make_unique<Writer>
+R 173:106 calls FileStore::next_path -> count
+R 173:37 calls FileStore::next_path -> duration_cast<std::chrono::seconds>
+R 173:86 calls FileStore::next_path -> time_since_epoch
+R 173:80 calls FileStore::next_path -> now
+R 174:52 calls FileStore::next_path -> to_string (x-file: include/inventory/model.hpp)
+R 179:32 calls FileStore::append -> write_line
+R 179:43 calls FileStore::append -> encode
+R 180:5 calls FileStore::append -> rotate_if_needed
+R 185:16 calls FileStore::rotate_if_needed -> next_path
+R 186:20 calls FileStore::rotate_if_needed -> make_unique<Writer>
+R 195:47 calls FileStore::load_all -> directory_iterator
+R 196:26 calls FileStore::load_all -> extension
+R 196:19 calls FileStore::load_all -> path (x-file: include/inventory/storage.hpp)
+R 197:32 calls FileStore::load_all -> path (x-file: include/inventory/storage.hpp)
+R 199:21 calls FileStore::load_all -> getline
+R 200:33 calls FileStore::load_all -> decode
+R 200:57 calls FileStore::load_all -> push_back
+R 200:73 calls FileStore::load_all -> move
+R 203:10 calls FileStore::load_all -> sort
+R 203:25 calls FileStore::load_all -> begin
+R 203:44 calls FileStore::load_all -> end
+R 208:17 calls FileStore::compact -> load_all
+R 209:10 calls FileStore::compact -> erase (x-file: include/inventory/storage.hpp)
+R 209:21 calls FileStore::compact -> remove_if
+R 209:36 calls FileStore::compact -> begin
+R 209:50 calls FileStore::compact -> end
+R 209:94 calls FileStore::compact -> keep
+R 209:112 calls FileStore::compact -> end
+R 210:47 calls FileStore::compact -> directory_iterator
+R 211:26 calls FileStore::compact -> remove
+R 211:39 calls FileStore::compact -> path (x-file: include/inventory/storage.hpp)
+R 213:16 calls FileStore::compact -> next_path
+R 214:20 calls FileStore::compact -> make_unique<Writer>
+R 216:39 calls FileStore::compact -> append
+R 221:29 calls FileStore::encode -> value (x-file: include/inventory/model.hpp)
+R 221:48 calls FileStore::encode -> encode_location
+R 221:100 calls FileStore::encode -> kind_name (x-file: include/inventory/model.hpp)
+R 222:29 calls FileStore::encode -> delta (x-file: include/inventory/model.hpp)
+R 223:93 calls FileStore::encode -> count
+R 223:25 calls FileStore::encode -> duration_cast<std::chrono::seconds>
+R 223:73 calls FileStore::encode -> time_since_epoch
+R 224:16 calls FileStore::encode -> str
+R 228:25 calls FileStore::decode -> split
+R 229:16 calls FileStore::decode -> size (x-file: include/inventory/storage.hpp)
+R 231:24 calls FileStore::decode -> ProductId (x-file: include/inventory/model.hpp)
+R 231:34 calls FileStore::decode -> static_cast
+R 231:61 calls FileStore::decode -> to_int
+R 232:22 calls FileStore::decode -> decode_location
+R 233:25 calls FileStore::decode -> to_int
+R 235:33 calls FileStore::decode -> Count (x-file: include/inventory/model.hpp)
+R 237:34 calls FileStore::decode -> Count (x-file: include/inventory/model.hpp)
+R 239:36 calls FileStore::decode -> Count (x-file: include/inventory/model.hpp)
+R 241:19 calls FileStore::decode -> Timestamp (x-file: include/inventory/model.hpp)
+R 241:42 calls FileStore::decode -> seconds
+R 241:50 calls FileStore::decode -> to_int
+R 251:34 calls inv::take_snapshot -> values (x-file: include/inventory/storage.hpp)
+R 252:29 calls inv::take_snapshot -> values (x-file: include/inventory/storage.hpp)
+R 258:14 calls inv::restore_snapshot -> for_each (x-file: include/inventory/storage.hpp)
+R 258:83 calls inv::restore_snapshot -> push_back
+R 259:46 calls inv::restore_snapshot -> erase (x-file: include/inventory/storage.hpp)
+R 260:60 calls inv::restore_snapshot -> put (x-file: include/inventory/storage.hpp)
+R 260:72 calls inv::restore_snapshot -> id (x-file: include/inventory/model.hpp)
+R 261:11 calls inv::restore_snapshot -> clear (x-file: include/inventory/storage.hpp)
+R 262:53 calls inv::restore_snapshot -> put (x-file: include/inventory/storage.hpp)
+R 266:39 calls inv::make_product_repository -> make_unique<MemoryRepository<ProductId, Product>>
+R 267:11 calls inv::make_product_repository -> StorageError (x-file: include/inventory/storage.hpp)
+R 267:59 calls inv::make_product_repository -> string
+R 275:44 calls Location::label -> setw
+R 275:60 calls Location::label -> setfill
+R 276:16 calls Location::label -> str
+R 293:14 calls StoreHealth::degrade -> push_back
+R 293:29 calls StoreHealth::degrade -> move
+R 297:23 calls inv::describe_error -> to_string (x-file: include/inventory/model.hpp)
+R 297:39 calls inv::describe_error -> code (x-file: include/inventory/storage.hpp)
+R 297:62 calls inv::describe_error -> what
+R 301:32 calls inv_version_string -> to_string (x-file: include/inventory/model.hpp)
