@@ -1,0 +1,642 @@
+# language=css files=6 symbols=617 relations=12 cross_file=0
+
+== app.css (361 lines)
+S 1-361 module app
+S 18-25 rule :root
+S 27-29 rule [data-theme="dark"] .dashboard
+S 27-27 rule [data-theme="dark"]
+S 27-27 rule .dashboard
+S 33-35 rule .dashboard
+S 37-39 rule .dashboard .app-header
+S 37-37 rule .dashboard
+S 37-37 rule .app-header
+S 41-43 rule .dashboard .app-sidebar .nav__link
+S 41-41 rule .dashboard
+S 41-41 rule .app-sidebar
+S 41-41 rule .nav__link
+S 45-47 rule .dashboard .app-sidebar .nav__link:hover .badge
+S 45-45 rule .dashboard
+S 45-45 rule .app-sidebar
+S 45-45 rule .nav__link
+S 45-45 rule .dashboard .app-sidebar .nav__link:hover
+S 45-45 rule .badge
+S 49-52 rule .dashboard .app-main > .container
+S 49-49 rule .dashboard
+S 49-49 rule .app-main
+S 49-49 rule .container
+S 54-58 rule .dashboard__title
+S 60-62 rule .dashboard__title .badge
+S 60-60 rule .dashboard__title
+S 60-60 rule .badge
+S 64-69 rule .dashboard__toolbar
+S 71-73 rule .dashboard__toolbar .input
+S 71-71 rule .dashboard__toolbar
+S 71-71 rule .input
+S 75-78 rule .dashboard__toolbar .btn-group .btn[aria-pressed="true"]
+S 75-75 rule .dashboard__toolbar
+S 75-75 rule .btn-group
+S 75-75 rule .btn
+S 82-86 rule .kpi-grid
+S 88-90 rule .kpi
+S 92-94 rule .kpi.card
+S 92-92 rule .kpi
+S 92-92 rule .card
+S 96-101 rule .kpi__label
+S 103-108 rule .kpi__value
+S 110-112 rule .kpi__delta
+S 114-116 rule .kpi__delta.is-up
+S 114-114 rule .kpi__delta
+S 114-114 rule .is-up
+S 118-120 rule .kpi__delta.is-down
+S 118-118 rule .kpi__delta
+S 118-118 rule .is-down
+S 122-124 rule .kpi__delta.is-up::before
+S 122-122 rule .kpi__delta
+S 122-122 rule .is-up
+S 126-128 rule .kpi__delta.is-down::before
+S 126-126 rule .kpi__delta
+S 126-126 rule .is-down
+S 130-132 rule .kpi.is-loading .kpi__value
+S 130-130 rule .kpi
+S 130-130 rule .is-loading
+S 130-130 rule .kpi__value
+S 134-141 rule .kpi.is-loading .kpi__value::after
+S 134-134 rule .kpi
+S 134-134 rule .is-loading
+S 134-134 rule .kpi__value
+S 145-148 rule .chart
+S 150-153 rule .chart svg|text
+S 150-150 rule text
+S 155-160 rule .chart__legend
+S 162-170 rule .chart__legend-item::before
+S 162-162 rule .chart__legend-item
+S 172-174 rule .chart__legend-item:nth-child(2)
+S 172-172 rule .chart__legend-item
+S 176-178 rule .chart__legend-item:nth-child(3)
+S 176-176 rule .chart__legend-item
+S 180-182 rule .chart__legend-item:nth-child(4)
+S 180-180 rule .chart__legend-item
+S 184-186 rule .chart .series-1
+S 184-184 rule .chart
+S 184-184 rule .series-1
+S 188-190 rule .chart .series-2
+S 188-188 rule .chart
+S 188-188 rule .series-2
+S 192-194 rule .chart .series-3
+S 192-192 rule .chart
+S 192-192 rule .series-3
+S 196-199 rule .chart .gridline
+S 196-196 rule .chart
+S 196-196 rule .gridline
+S 201-209 rule .chart .tooltip
+S 201-201 rule .chart
+S 201-201 rule .tooltip
+S 213-216 rule .data-table
+S 218-221 rule .data-table th[aria-sort]
+S 218-218 rule .data-table
+S 218-218 rule th
+S 223-225 rule .data-table th[aria-sort="ascending"]::after
+S 223-223 rule .data-table
+S 223-223 rule th
+S 223-223 rule .data-table th[aria-sort="ascending"]
+S 227-229 rule .data-table th[aria-sort="descending"]::after
+S 227-227 rule .data-table
+S 227-227 rule th
+S 227-227 rule .data-table th[aria-sort="descending"]
+S 231-235 rule .data-table td.numeric
+S 231-231 rule .data-table
+S 231-231 rule td
+S 231-231 rule .numeric
+S 232-235 rule .data-table th.numeric
+S 232-232 rule .data-table
+S 232-232 rule th
+S 232-232 rule .numeric
+S 237-239 rule .data-table tr.is-selected > td
+S 237-237 rule .data-table
+S 237-237 rule tr
+S 237-237 rule .is-selected
+S 237-237 rule td
+S 241-243 rule .data-table .badge + .badge
+S 241-241 rule .data-table
+S 241-241 rule .badge
+S 245-249 rule .data-table__empty
+S 253-255 rule #settings .form
+S 253-253 rule #settings
+S 253-253 rule .form
+S 257-261 rule #settings .fieldset + .fieldset
+S 257-257 rule #settings
+S 257-257 rule .fieldset
+S 263-265 rule #settings .switch + .field__label
+S 263-263 rule #settings
+S 263-263 rule .switch
+S 263-263 rule .field__label
+S 267-269 rule #settings .form__actions > .btn--danger
+S 267-267 rule #settings
+S 267-267 rule .form__actions
+S 267-267 rule .btn--danger
+S 271-273 rule #settings-danger-zone.card
+S 271-271 rule #settings-danger-zone
+S 271-271 rule .card
+S 277-280 rule .feed
+S 282-287 rule .feed__item
+S 289-292 rule .feed__item > .avatar
+S 289-289 rule .feed__item
+S 289-289 rule .avatar
+S 294-298 rule .feed__time
+S 300-303 rule .feed__item:not(:last-child)
+S 300-300 rule .feed__item
+S 307-309 rule .onboarding .card:first-of-type
+S 307-307 rule .onboarding
+S 307-307 rule .card
+S 311-313 rule .onboarding .progress
+S 311-311 rule .onboarding
+S 311-311 rule .progress
+S 315-318 rule .onboarding__step.is-done .check
+S 315-315 rule .onboarding__step
+S 315-315 rule .is-done
+S 315-315 rule .check
+S 320-322 rule .onboarding__step:is(.is-current, :focus-within)
+S 320-320 rule .onboarding__step
+S 324-326 rule .onboarding__step:where(.is-skipped)
+S 324-324 rule .onboarding__step
+S 331-333 rule .dashboard .app-main > .container
+S 331-331 rule .dashboard
+S 331-331 rule .app-main
+S 331-331 rule .container
+S 335-338 rule .dashboard .feed
+S 335-335 rule .dashboard
+S 335-335 rule .feed
+S 340-342 rule .kpi-grid
+S 346-348 rule .dashboard__toolbar .btn-group
+S 346-346 rule .dashboard__toolbar
+S 346-346 rule .btn-group
+S 350-353 rule .data-table td:nth-child(n + 4)
+S 350-350 rule .data-table
+S 350-350 rule td
+S 351-353 rule .data-table th:nth-child(n + 4)
+S 351-351 rule .data-table
+S 351-351 rule th
+S 357-360 rule .dashboard .app-header
+S 357-357 rule .dashboard
+S 357-357 rule .app-header
+R 8:1 imports app -> styles/tokens.css
+R 9:1 imports app -> styles/base.css
+R 10:1 imports app -> styles/layout.css
+R 11:1 imports app -> styles/components/controls.css
+R 12:1 imports app -> styles/components/surfaces.css
+
+== styles/base.css (373 lines)
+S 1-373 module base
+S 14-18 rule *
+S 15-18 rule *::before
+S 16-18 rule *::after
+S 20-24 rule html
+S 26-37 rule body
+S 27-37 rule h1
+S 28-37 rule h2
+S 29-37 rule h3
+S 30-37 rule h4
+S 31-37 rule p
+S 32-37 rule figure
+S 33-37 rule blockquote
+S 34-37 rule dl
+S 35-37 rule dd
+S 39-44 rule ul[role="list"]
+S 39-39 rule ul
+S 40-44 rule ol[role="list"]
+S 40-40 rule ol
+S 46-53 rule img
+S 47-53 rule picture
+S 48-53 rule video
+S 49-53 rule canvas
+S 50-53 rule svg
+S 55-61 rule input
+S 56-61 rule button
+S 57-61 rule textarea
+S 58-61 rule select
+S 63-68 rule button
+S 70-73 rule table
+S 75-77 rule [hidden]
+S 83-90 rule html
+S 92-97 rule body
+S 99-102 rule ::selection
+S 104-107 rule :focus-visible
+S 109-111 rule :focus:not(:focus-visible)
+S 109-109 rule :focus
+S 115-123 rule h1
+S 116-123 rule h2
+S 117-123 rule h3
+S 118-123 rule h4
+S 125-128 rule h1
+S 130-132 rule h2
+S 134-136 rule h3
+S 138-140 rule h4
+S 142-145 rule h1 + p
+S 142-142 rule h1
+S 142-142 rule p
+S 143-145 rule h2 + p
+S 143-143 rule h2
+S 143-143 rule p
+S 149-152 rule p
+S 154-156 rule p + p
+S 154-154 rule p
+S 158-162 rule a
+S 164-166 rule a:hover
+S 164-164 rule a
+S 168-171 rule a:not([href])
+S 168-168 rule a
+S 173-177 rule a[href^="http"]:not([href*="harbor.dev"])::after
+S 173-173 rule a
+S 173-173 rule a[href^="http"]
+S 173-173 rule a[href^="http"]:not([href*="harbor.dev"])
+S 179-182 rule strong
+S 180-182 rule b
+S 184-186 rule small
+S 188-191 rule abbr[title]
+S 188-188 rule abbr
+S 193-197 rule blockquote
+S 199-203 rule hr
+S 207-213 rule code
+S 208-213 rule kbd
+S 209-213 rule samp
+S 210-213 rule pre
+S 215-219 rule :not(pre) > code
+S 215-215 rule :not(pre)
+S 215-215 rule code
+S 221-226 rule pre
+S 228-231 rule pre code
+S 228-228 rule pre
+S 228-228 rule code
+S 233-238 rule kbd
+S 242-245 rule ul:not([role="list"])
+S 242-242 rule ul
+S 243-245 rule ol:not([role="list"])
+S 243-243 rule ol
+S 247-249 rule li + li
+S 247-247 rule li
+S 251-253 rule dt
+S 255-257 rule dd + dt
+S 255-255 rule dd
+S 255-255 rule dt
+S 259-264 rule th
+S 260-264 rule td
+S 266-269 rule th
+S 271-273 rule tbody tr:nth-child(even)
+S 271-271 rule tbody
+S 271-271 rule tr
+S 275-277 rule tbody tr:hover
+S 275-275 rule tbody
+S 275-275 rule tr
+S 283-293 rule .visually-hidden
+S 295-301 rule .skip-link
+S 303-305 rule .skip-link:focus
+S 303-303 rule .skip-link
+S 307-309 rule .text-muted
+S 311-313 rule .text-strong
+S 315-317 rule .text-center
+S 319-323 rule .text-truncate
+S 325-327 rule .stack > * + *
+S 325-325 rule .stack
+S 329-334 rule .cluster
+S 336-338 rule .md:hidden
+S 340-342 rule .w-1/2
+S 344-346 rule .is-loading
+S 348-350 rule .fade-in
+S 354-356 rule .md:hidden
+S 360-363 rule html
+S 365-367 rule a[href]::after
+S 365-365 rule a
+S 365-365 rule a[href]
+S 369-372 rule .skip-link
+S 370-372 rule .no-print
+R 7:1 imports base -> tokens.css
+
+== styles/components/controls.css (359 lines)
+S 1-359 module controls
+S 12-36 rule .btn
+S 38-40 rule .btn:hover
+S 38-38 rule .btn
+S 42-44 rule .btn:active
+S 42-42 rule .btn
+S 46-49 rule .btn:focus-visible
+S 46-46 rule .btn
+S 51-56 rule .btn:disabled
+S 51-51 rule .btn
+S 52-56 rule .btn[aria-disabled="true"]
+S 52-52 rule .btn
+S 58-62 rule .btn--primary
+S 64-66 rule .btn--primary:hover
+S 64-64 rule .btn--primary
+S 68-72 rule .btn--danger
+S 74-77 rule .btn--ghost
+S 79-81 rule .btn--ghost:hover
+S 79-79 rule .btn--ghost
+S 83-87 rule .btn--sm
+S 89-93 rule .btn--lg
+S 95-98 rule .btn--icon
+S 100-103 rule .btn--block
+S 105-109 rule .btn .icon
+S 105-105 rule .btn
+S 105-105 rule .icon
+S 111-114 rule .btn.is-loading
+S 111-111 rule .btn
+S 111-111 rule .is-loading
+S 116-125 rule .btn.is-loading::after
+S 116-116 rule .btn
+S 116-116 rule .is-loading
+S 127-129 rule .btn-group
+S 131-135 rule .btn-group > .btn:not(:first-child)
+S 131-131 rule .btn-group
+S 131-131 rule .btn
+S 137-140 rule .btn-group > .btn:not(:last-child)
+S 137-137 rule .btn-group
+S 137-137 rule .btn
+S 144-147 rule .field
+S 149-151 rule .field + .field
+S 149-149 rule .field
+S 153-157 rule .field__label
+S 159-162 rule .field__label[data-required]::after
+S 159-159 rule .field__label
+S 159-159 rule .field__label[data-required]
+S 164-167 rule .field__hint
+S 169-172 rule .field__error
+S 174-186 rule .input
+S 175-186 rule .select
+S 176-186 rule .textarea
+S 188-192 rule .input::placeholder
+S 188-188 rule .input
+S 189-192 rule .textarea::placeholder
+S 189-189 rule .textarea
+S 194-198 rule .input:hover
+S 194-194 rule .input
+S 195-198 rule .select:hover
+S 195-195 rule .select
+S 196-198 rule .textarea:hover
+S 196-196 rule .textarea
+S 200-206 rule .input:focus
+S 200-200 rule .input
+S 201-206 rule .select:focus
+S 201-201 rule .select
+S 202-206 rule .textarea:focus
+S 202-202 rule .textarea
+S 208-211 rule .input[aria-invalid="true"]
+S 208-208 rule .input
+S 209-211 rule .field.has-error .input
+S 209-209 rule .field
+S 209-209 rule .has-error
+S 209-209 rule .input
+S 213-215 rule .input:read-only
+S 213-213 rule .input
+S 217-222 rule input[type="search"].input
+S 217-217 rule input
+S 217-217 rule input[type="search"]
+S 217-217 rule .input
+S 224-226 rule input[type="search"]::-webkit-search-cancel-button
+S 224-224 rule input
+S 224-224 rule input[type="search"]
+S 228-231 rule .textarea
+S 233-239 rule .select
+S 241-244 rule .select[multiple]
+S 241-241 rule .select
+S 248-253 rule .check
+S 255-260 rule .check input[type="checkbox"]
+S 255-255 rule .check
+S 255-255 rule input
+S 256-260 rule .check input[type="radio"]
+S 256-256 rule .check
+S 256-256 rule input
+S 262-265 rule .check:has(input:disabled)
+S 262-262 rule .check
+S 267-272 rule .switch
+S 274-278 rule .switch input
+S 274-274 rule .switch
+S 274-274 rule input
+S 280-286 rule .switch__track
+S 288-299 rule .switch__track::before
+S 288-288 rule .switch__track
+S 301-303 rule .switch input:checked + .switch__track
+S 301-301 rule .switch
+S 301-301 rule input
+S 301-301 rule .switch input:checked
+S 301-301 rule .switch__track
+S 305-307 rule .switch input:checked + .switch__track::before
+S 305-305 rule .switch
+S 305-305 rule input
+S 305-305 rule .switch input:checked
+S 305-305 rule .switch__track
+S 309-311 rule .switch input:focus-visible + .switch__track
+S 309-309 rule .switch
+S 309-309 rule input
+S 309-309 rule .switch input:focus-visible
+S 309-309 rule .switch__track
+S 315-318 rule .form
+S 320-323 rule .form__row
+S 325-331 rule .form__actions
+S 333-337 rule .fieldset
+S 339-342 rule .fieldset > legend
+S 339-339 rule .fieldset
+S 339-339 rule legend
+S 345-347 rule .form__row
+S 349-352 rule .form--inline
+S 356-358 rule .field:has(.input:focus) .field__label
+S 356-356 rule .field
+S 356-356 rule .field:has(.input:focus)
+S 356-356 rule .field__label
+R 7:1 imports controls -> ../tokens.css
+R 8:1 imports controls -> ../base.css
+
+== styles/components/surfaces.css (377 lines)
+S 1-377 module surfaces
+S 12-20 rule .card
+S 22-26 rule .card__media
+S 28-32 rule .card__body
+S 34-38 rule .card__title
+S 40-43 rule .card__meta
+S 45-52 rule .card__footer
+S 54-56 rule .card__footer .btn
+S 54-54 rule .card__footer
+S 54-54 rule .btn
+S 58-62 rule .card--interactive
+S 64-67 rule .card--interactive:hover
+S 64-64 rule .card--interactive
+S 69-71 rule .card--interactive:focus-within
+S 69-69 rule .card--interactive
+S 73-76 rule .card--flat
+S 80-91 rule .badge
+S 93-96 rule .badge--success
+S 98-101 rule .badge--warning
+S 103-106 rule .badge--danger
+S 108-113 rule .badge__dot
+S 117-124 rule .alert
+S 126-128 rule .alert[role="alert"]
+S 126-126 rule .alert
+S 130-133 rule .alert--info
+S 135-138 rule .alert--success
+S 140-143 rule .alert--danger
+S 145-147 rule .alert__title
+S 149-151 rule .alert__close
+S 155-159 rule .nav
+S 161-169 rule .nav__link
+S 171-174 rule .nav__link:hover
+S 171-171 rule .nav__link
+S 176-180 rule .nav__link[aria-current="page"]
+S 176-176 rule .nav__link
+S 182-189 rule .nav__heading
+S 191-196 rule .breadcrumbs
+S 198-202 rule .breadcrumbs li + li::before
+S 198-198 rule .breadcrumbs
+S 198-198 rule li
+S 206-210 rule .tabs
+S 212-216 rule .tabs__tab
+S 218-221 rule .tabs__tab[aria-selected="true"]
+S 218-218 rule .tabs__tab
+S 223-225 rule .tabs__panel:not([hidden])
+S 223-223 rule .tabs__panel
+S 229-236 rule .modal
+S 238-246 rule .modal__dialog
+S 248-251 rule .modal__header
+S 249-251 rule .modal__footer
+S 253-258 rule .modal__footer
+S 260-262 rule .modal__footer > .btn--primary
+S 260-260 rule .modal__footer
+S 260-260 rule .btn--primary
+S 264-266 rule dialog.modal__dialog::backdrop
+S 264-264 rule dialog
+S 264-264 rule .modal__dialog
+S 270-277 rule .toast-region
+S 279-287 rule .toast
+S 289-291 rule .toast[data-state="leaving"]
+S 289-289 rule .toast
+S 295-304 rule .progress
+S 306-316 rule .skeleton
+S 318-321 rule .skeleton--text
+S 323-327 rule .skeleton--avatar
+S 329-336 rule .spinner
+S 340-350 rule .avatar
+S 352-356 rule .avatar > img
+S 352-352 rule .avatar
+S 352-352 rule img
+S 358-360 rule .avatar-stack
+S 362-365 rule .avatar-stack > .avatar + .avatar
+S 362-362 rule .avatar-stack
+S 362-362 rule .avatar
+S 368-370 rule .card--interactive:hover
+S 368-368 rule .card--interactive
+S 372-376 rule .skeleton
+S 373-376 rule .spinner
+S 374-376 rule .progress
+R 7:1 imports surfaces -> ../tokens.css
+R 8:1 imports surfaces -> ./controls.css
+
+== styles/layout.css (371 lines)
+S 1-371 module layout
+S 15-24 rule .app-shell
+S 26-28 rule .app-shell > .app-header
+S 26-26 rule .app-shell
+S 26-26 rule .app-header
+S 30-32 rule .app-shell > .app-sidebar
+S 30-30 rule .app-shell
+S 30-30 rule .app-sidebar
+S 34-37 rule .app-shell > .app-main
+S 34-34 rule .app-shell
+S 34-34 rule .app-main
+S 39-41 rule .app-shell > .app-footer
+S 39-39 rule .app-shell
+S 39-39 rule .app-footer
+S 43-53 rule .app-header
+S 55-62 rule .app-header__brand
+S 64-67 rule .app-header__brand img
+S 64-64 rule .app-header__brand
+S 64-64 rule img
+S 69-73 rule .app-header__actions
+S 75-80 rule .app-sidebar
+S 82-84 rule .app-sidebar[aria-hidden="true"]
+S 82-82 rule .app-sidebar
+S 86-88 rule .app-main
+S 90-95 rule .app-footer
+S 97-99 rule .app-footer a
+S 97-97 rule .app-footer
+S 97-97 rule a
+S 102-108 rule .app-shell
+S 110-116 rule .app-shell > .app-sidebar
+S 110-110 rule .app-shell
+S 110-110 rule .app-sidebar
+S 118-120 rule .app-header__menu-toggle
+S 125-130 rule .container
+S 132-134 rule .container--narrow
+S 136-138 rule .container--wide
+S 140-142 rule .container--flush
+S 146-148 rule .section
+S 150-152 rule .section + .section
+S 150-150 rule .section
+S 154-161 rule .section__header
+S 163-165 rule .section__title
+S 167-169 rule .section__subtitle
+S 171-173 rule .section--muted
+S 177-181 rule .grid
+S 183-185 rule .grid--2
+S 187-189 rule .grid--3
+S 191-193 rule .grid--4
+S 195-197 rule .grid--auto
+S 199-202 rule .grid--dense
+S 204-206 rule .grid > .span-2
+S 204-204 rule .grid
+S 204-204 rule .span-2
+S 208-210 rule .grid > .span-full
+S 208-208 rule .grid
+S 208-208 rule .span-full
+S 213-216 rule .grid--2
+S 214-216 rule .grid--3
+S 220-222 rule .grid--3
+S 224-226 rule .grid--4
+S 230-233 rule .grid
+S 235-238 rule .grid > *
+S 235-235 rule .grid
+S 243-247 rule .split
+S 249-251 rule .split__aside
+S 254-256 rule .split
+S 258-261 rule .split__main
+S 263-266 rule .split__aside
+S 268-270 rule .split--reverse
+S 275-278 rule .panel
+S 281-285 rule .panel__body
+S 287-289 rule .panel__media
+S 293-295 rule .panel__body
+S 300-303 rule .sticky-top
+S 305-311 rule .overlay
+S 313-315 rule .overlay[data-state="closed"]
+S 313-313 rule .overlay
+S 319-323 rule .scroll-x
+S 325-327 rule .scroll-x::-webkit-scrollbar
+S 325-325 rule .scroll-x
+S 329-332 rule .scroll-x::-webkit-scrollbar-thumb
+S 329-329 rule .scroll-x
+S 334-336 rule .scroll-snap
+S 338-340 rule .scroll-snap > *
+S 338-338 rule .scroll-snap
+S 345-347 rule .app-shell
+S 349-353 rule .app-header
+S 350-353 rule .app-sidebar
+S 351-353 rule .app-footer
+S 355-358 rule .container
+S 362-364 rule .hide-on-mobile
+S 368-370 rule .hide-on-tablet
+R 10:1 imports layout -> tokens.css
+R 11:1 imports layout -> base.css
+
+== styles/tokens.css (353 lines)
+S 1-353 module tokens
+S 67-126 rule :root
+S 131-150 rule :root:not([data-theme="light"])
+S 131-131 rule :root
+S 153-172 rule :root[data-theme="dark"]
+S 153-153 rule :root
+S 177-182 rule :root
+S 186-190 rule :root
+S 195-232 rule :root
+S 236-257 rule :root
+S 260-263 rule :root
+S 268-274 rule :root
+S 277-281 rule :root
+S 347-349 rule .theme-dark
+S 351-353 rule .theme-light

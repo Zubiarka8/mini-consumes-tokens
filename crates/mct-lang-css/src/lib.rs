@@ -11,6 +11,9 @@
 //!
 //! - A simple selector (`.foo`, `#foo`, a bare tag `div`, `::before`,
 //!   `[data-x]`) becomes exactly one `Rule` symbol.
+//! - The full-selector symbol spans from its selector to the rule's closing
+//!   `}`, so a rule's range covers its declaration block; the atomic
+//!   components below keep the range of their own token.
 //! - A compound or combinator selector (`.a.b`, `div.foo`, `.a .b`,
 //!   `#id > .c`, `input[type="text"]`, `.btn:hover`) becomes one `Rule`
 //!   symbol for the full selector text *plus* one for each atomic
@@ -72,7 +75,15 @@ impl LanguageParser for CssParser {
 
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
-        let module_id = walker.push_symbol(module_name, SymbolKind::Module, location(root));
+        let mut module_location = location(root);
+        // The root node of a file ending in a newline ends at column 0 of
+        // the (empty) line after the last one; the file's last line is the
+        // one before that.
+        let end = root.end_position();
+        if end.column == 0 && end.row > 0 {
+            module_location.end_line = Some(end.row as u32);
+        }
+        let module_id = walker.push_symbol(module_name, SymbolKind::Module, module_location);
         walker.visit_children(root, module_id, 0);
         Ok(walker.finish())
     }
@@ -180,7 +191,7 @@ impl<'a> Walker<'a> {
                 if let Some(selectors) = find_child(node, "selectors") {
                     let mut cursor = selectors.walk();
                     for selector in selectors.named_children(&mut cursor) {
-                        self.index_selector(selector);
+                        self.index_selector(selector, node);
                     }
                 }
                 // Recurse into the block too: a rule's declarations never
@@ -208,16 +219,19 @@ impl<'a> Walker<'a> {
     /// Indexes one selector from a rule's (possibly comma-separated)
     /// selector list: the full selector as written, plus any atomic
     /// class/id/tag components nested inside it. See the module doc.
-    fn index_selector(&mut self, selector: Node) {
+    /// `rule_set` is the enclosing rule, whose end is the full selector's.
+    fn index_selector(&mut self, selector: Node, rule_set: Node) {
         let full = unescape_css(text(selector, self.source));
         if full.is_empty() {
             return;
         }
         let mut atoms: Vec<(String, Location)> = Vec::new();
         collect_selector_atoms(selector, self.source, &mut atoms);
-        if !atoms.iter().any(|(name, _)| *name == full) {
-            atoms.insert(0, (full, location(selector)));
-        }
+        let mut rule_location = location(selector);
+        rule_location.end_line = Some(rule_set.end_position().row as u32 + 1);
+        rule_location.byte_len = (rule_set.end_byte() - selector.start_byte()) as u32;
+        atoms.retain(|(name, _)| *name != full);
+        atoms.insert(0, (full, rule_location));
         let mut seen: Vec<String> = Vec::new();
         for (name, loc) in atoms {
             if seen.contains(&name) {
@@ -298,10 +312,11 @@ fn collect_selector_atoms(node: Node, source: &str, out: &mut Vec<(String, Locat
             out.push((unescape_css(text(node, source)), location(node)));
         }
         "attribute_selector" => {
+            // The base is any selector, not just a simple one: the grammar
+            // parses `.a .b[x]` as `[x]` applied to `.a .b`. A bare `[x]`'s
+            // first child is its `attribute_name`, which adds no atom.
             if let Some(base) = node.named_child(0) {
-                if matches!(base.kind(), "class_selector" | "id_selector" | "tag_name") {
-                    collect_selector_atoms(base, source, out);
-                }
+                collect_selector_atoms(base, source, out);
             }
             out.push((unescape_css(text(node, source)), location(node)));
         }
@@ -317,11 +332,19 @@ fn collect_selector_atoms(node: Node, source: &str, out: &mut Vec<(String, Locat
             }
             out.push((unescape_css(text(node, source)), location(node)));
         }
+        "namespace_selector" => {
+            // `svg|text`: the first child is the namespace prefix, not an
+            // element — only what follows the `|` is a selector.
+            let skip = usize::from(node.named_child_count() >= 2);
+            let mut cursor = node.walk();
+            for child in node.named_children(&mut cursor).skip(skip) {
+                collect_selector_atoms(child, source, out);
+            }
+        }
         "descendant_selector"
         | "child_selector"
         | "sibling_selector"
-        | "adjacent_sibling_selector"
-        | "namespace_selector" => {
+        | "adjacent_sibling_selector" => {
             let mut cursor = node.walk();
             for child in node.named_children(&mut cursor) {
                 collect_selector_atoms(child, source, out);
