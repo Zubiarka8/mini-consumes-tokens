@@ -133,3 +133,130 @@ async fn a_change_under_an_excluded_path_does_not_trigger_a_reindex() {
         "an excluded-only change must not trigger an auto-reindex"
     );
 }
+
+#[tokio::test]
+async fn watcher_drops_a_deleted_file_and_follows_a_rename_incrementally() {
+    let dir = tempdir();
+    fs::write(dir.join("keep.rs"), "pub fn keep() {}\n").unwrap();
+    fs::write(dir.join("gone.rs"), "pub fn gone() {}\n").unwrap();
+    fs::write(dir.join("old.rs"), "pub fn moved() {}\n").unwrap();
+
+    let registry = mct_mcp_server::registry::build_registry();
+    let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
+    index.reindex(&registry, false).unwrap();
+
+    let index = Arc::new(Mutex::new(index));
+    let _watcher = background::spawn_watcher(
+        Arc::clone(&index),
+        registry,
+        dir.clone(),
+        ExcludeSet::default(),
+        DEBOUNCE,
+    )
+    .unwrap();
+
+    fs::remove_file(dir.join("gone.rs")).unwrap();
+    fs::rename(dir.join("old.rs"), dir.join("new.rs")).unwrap();
+
+    let settled = wait_until(|| {
+        index
+            .try_lock()
+            .map(|guard| {
+                guard.find_symbol("gone").unwrap().is_empty()
+                    && guard
+                        .find_symbol("moved")
+                        .unwrap()
+                        .iter()
+                        .map(|h| h.relative_path.as_str())
+                        .eq(["new.rs"])
+            })
+            .unwrap_or(false)
+    })
+    .await;
+    assert!(
+        settled,
+        "expected the deletion and the rename to be indexed"
+    );
+    // An unrelated file is untouched (its function and its file-level module).
+    assert_eq!(index.lock().await.find_symbol("keep").unwrap().len(), 2);
+}
+
+mod changed_paths {
+    use std::path::{Path, PathBuf};
+    use std::time::Instant;
+
+    use mct_index::ExcludeSet;
+    use mct_mcp_server::background::{changed_paths, Changed, MAX_INCREMENTAL_PATHS};
+    use notify::event::{AccessKind, CreateKind, Flag, ModifyKind, RemoveKind};
+    use notify::{Event, EventKind};
+    use notify_debouncer_full::DebouncedEvent;
+
+    fn event(kind: EventKind, paths: &[&str]) -> DebouncedEvent {
+        let event = paths
+            .iter()
+            .fold(Event::new(kind), |e, p| e.add_path(PathBuf::from(p)));
+        DebouncedEvent::new(event, Instant::now())
+    }
+
+    fn changed(events: &[DebouncedEvent]) -> Changed {
+        changed_paths(events, Path::new("/repo"), &ExcludeSet::default())
+    }
+
+    #[test]
+    fn collects_every_changed_path_once() {
+        let events = [
+            event(EventKind::Modify(ModifyKind::Any), &["/repo/src/a.rs"]),
+            event(EventKind::Create(CreateKind::File), &["/repo/src/b.rs"]),
+            event(EventKind::Remove(RemoveKind::File), &["/repo/src/a.rs"]),
+            // A rename carries both ends.
+            event(
+                EventKind::Modify(ModifyKind::Any),
+                &["/repo/old.rs", "/repo/new.rs"],
+            ),
+        ];
+        assert_eq!(
+            changed(&events),
+            Changed::Paths(
+                [
+                    "/repo/new.rs",
+                    "/repo/old.rs",
+                    "/repo/src/a.rs",
+                    "/repo/src/b.rs"
+                ]
+                .map(PathBuf::from)
+                .to_vec()
+            )
+        );
+    }
+
+    #[test]
+    fn reads_excluded_and_outside_paths_are_nothing() {
+        let events = [
+            event(EventKind::Access(AccessKind::Any), &["/repo/src/a.rs"]),
+            event(EventKind::Modify(ModifyKind::Any), &["/repo/target/x.rs"]),
+            event(
+                EventKind::Modify(ModifyKind::Any),
+                &["/repo/.mct-index/index.sqlite3"],
+            ),
+            event(EventKind::Modify(ModifyKind::Any), &["/elsewhere/a.rs"]),
+        ];
+        assert_eq!(changed(&events), Changed::Nothing);
+    }
+
+    #[test]
+    fn a_rescan_request_or_a_huge_batch_is_a_full_reindex() {
+        let mut rescan = event(EventKind::Other, &[]);
+        rescan.event = rescan.event.clone().set_flag(Flag::Rescan);
+        assert_eq!(changed(&[rescan]), Changed::Rescan);
+
+        let many: Vec<DebouncedEvent> = (0..=MAX_INCREMENTAL_PATHS)
+            .map(|i| {
+                event(
+                    EventKind::Modify(ModifyKind::Any),
+                    &[&format!("/repo/f{i}.rs")],
+                )
+            })
+            .collect();
+        assert_eq!(changed(&many), Changed::Rescan);
+    }
+}
