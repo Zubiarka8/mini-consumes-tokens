@@ -5,7 +5,9 @@
 #   curl -sSL https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.sh | bash
 #
 # Override the install directory (default: $HOME/.local/bin):
-#   INSTALL_DIR=/usr/local/bin curl -sSL .../install.sh | bash
+#   curl -sSL .../install.sh | INSTALL_DIR=/usr/local/bin bash
+# (the variable must be set on `bash`, the process that runs this script —
+# `INSTALL_DIR=... curl ... | bash` would set it on curl only.)
 #
 # Windows: use install.ps1 instead (irm .../install.ps1 | iex).
 set -euo pipefail
