@@ -33,7 +33,7 @@ pub use queries::{QueryScope, RelationHit, SymbolHit, SymbolListEntry, SymbolMat
 pub use search::{exact_phrase, search_words, split_identifier, LiteralHit, MAX_LITERAL_HITS};
 pub use semantic::{
     classify_query, embedding_text, Embedder, EmbeddingCoverage, HybridHit, QueryIntent,
-    SymbolContext, EXACT_PHRASE_BOOST, RRF_K, SEMANTIC_CANDIDATES,
+    SymbolContext, EMBEDDING_TEXT_VERSION, EXACT_PHRASE_BOOST, RRF_K, SEMANTIC_CANDIDATES,
 };
 
 use queries::ResolvedScope;
@@ -239,23 +239,84 @@ impl Index {
     ) -> Result<Vec<HybridHit>> {
         let query_vector = match embedder {
             Some(embedder) if alpha > 0.0 => {
-                let text = split_identifier(query).join(" ");
-                let vector = embedder
-                    .embed_query(if text.is_empty() { query } else { &text })
-                    .map_err(IndexError::Embedding)?;
-                Some((vector, embedder.model_id()))
+                Some((Self::embed_query(embedder, query)?, embedder.model_id()))
             }
             _ => None,
         };
-        semantic::hybrid_search(
-            &self.conn,
+        self.hybrid_search_with_vector(
             query,
             query_vector
                 .as_ref()
                 .map(|(v, model)| (v.as_slice(), *model)),
             alpha,
+            scope,
+        )
+    }
+
+    /// The vector [`Index::hybrid_search`] ranks `query` by: its identifier
+    /// words, space-joined, embedded as a retrieval query.
+    pub fn embed_query(embedder: &dyn Embedder, query: &str) -> Result<Vec<f32>> {
+        let text = split_identifier(query).join(" ");
+        embedder
+            .embed_query(if text.is_empty() { query } else { &text })
+            .map_err(IndexError::Embedding)
+    }
+
+    /// [`Index::hybrid_search`] with the query already embedded (by
+    /// [`Index::embed_query`], for `model`), so a caller that needs the
+    /// vector for something else too — `mct-mcp-server`'s query cache —
+    /// embeds it once. `None` is the lexical ranking.
+    pub fn hybrid_search_with_vector(
+        &self,
+        query: &str,
+        query_vector: Option<(&[f32], &str)>,
+        alpha: f64,
+        scope: QueryScope<'_>,
+    ) -> Result<Vec<HybridHit>> {
+        semantic::hybrid_search(
+            &self.conn,
+            query,
+            query_vector,
+            alpha,
             self.resolve_scope(scope),
         )
+    }
+
+    /// Every symbol defined in any of `paths` — exact relative paths, never
+    /// prefixes — ordered by path then line. One query however many paths;
+    /// `mct-mcp-server`'s query cache uses it to check a cached result's
+    /// symbols still exist as they were.
+    pub fn symbols_in_files(&self, paths: &[&str]) -> Result<Vec<SymbolHit>> {
+        queries::symbols_in_files(&self.conn, paths)
+    }
+
+    /// Every indexed file's `(relative_path, content_hash)`, sorted by path —
+    /// the index's view of the repository state. `mct-mcp-server`'s query
+    /// cache fingerprints it to tell whether a cached result was computed
+    /// against the index as it is now, and diffs two of them to find which
+    /// files a reindex changed.
+    pub fn file_hashes(&self) -> Result<Vec<(String, String)>> {
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT relative_path, content_hash FROM files ORDER BY relative_path",
+        )?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
+    /// A cheap marker that changes whenever the database may have changed:
+    /// this connection's own row writes (`total_changes()`) plus
+    /// `PRAGMA data_version`, which moves when another connection (e.g. a
+    /// `mct-cli reindex` in another process) commits. Equal markers mean
+    /// [`Index::file_hashes`] can't have changed, so a caller can skip
+    /// re-reading it; different markers only mean it *might* have.
+    pub fn change_marker(&self) -> Result<(i64, i64)> {
+        let own: i64 = self
+            .conn
+            .query_row("SELECT total_changes()", [], |row| row.get(0))?;
+        let others: i64 = self
+            .conn
+            .pragma_query_value(None, "data_version", |row| row.get(0))?;
+        Ok((own, others))
     }
 
     /// Every indexed prose string literal holding `phrase` as consecutive

@@ -10,6 +10,9 @@ categories = ["development-tools", "command-line-utilities"]
 
 [dependencies]
 anyhow = "1.0.104"
+# SHA-256 for the query cache's keys and fingerprints (issue #16): zero
+# dependencies with default features, and already in the lockfile.
+hmac-sha256 = "1.1.15"
 mct-core.workspace = true
 mct-index.workspace = true
 mct-lang-bash.workspace = true
