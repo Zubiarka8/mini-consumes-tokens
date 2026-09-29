@@ -188,3 +188,131 @@ fn a_multiline_literal_fragment_reports_the_line_it_starts_on() {
         vec![("the second fragment starts here", 3)]
     );
 }
+
+fn references(parsed: &mct_core::ParsedFile) -> Vec<&str> {
+    parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::References)
+        .map(|r| r.to_name.as_str())
+        .collect()
+}
+
+#[test]
+fn a_same_file_function_used_as_a_value_is_a_reference() {
+    let parsed = parse(
+        r#"
+        pub fn actual_use() {}
+        pub fn entry() { let _f = actual_use; }
+        pub fn mapper(v: Vec<u8>) { v.into_iter().for_each(drop_it); }
+        fn drop_it(_: u8) {}
+        "#,
+    );
+    let refs = references(&parsed);
+    assert!(refs.contains(&"actual_use"), "{refs:?}");
+    assert!(refs.contains(&"drop_it"), "{refs:?}");
+}
+
+#[test]
+fn a_same_file_function_inside_a_macro_token_tree_is_a_reference_not_a_call() {
+    // The shape of `write_parsed_file`'s `params![.., symbol_kind_str(kind)]`.
+    let parsed = parse(
+        r#"
+        fn symbol_kind_str(k: u8) -> &'static str { "x" }
+        fn write(conn: &C, kind: u8) {
+            conn.execute("INSERT", params![1, symbol_kind_str(kind)]);
+        }
+        "#,
+    );
+    assert_eq!(references(&parsed), vec!["symbol_kind_str"]);
+    assert!(!parsed
+        .relations
+        .iter()
+        .any(|r| r.kind == RelationKind::Calls && r.to_name == "symbol_kind_str"));
+}
+
+#[test]
+fn locals_fields_paths_labels_and_foreign_names_are_not_references() {
+    let parsed = parse(
+        r#"
+        fn helper() {}
+        fn other_helper() {}
+        fn by_param(helper: u32) -> u32 { helper + 1 }
+        fn by_let() -> u32 { let helper = 2; helper }
+        fn by_closure() { let f = |other_helper: u32| other_helper; }
+        fn by_match(x: Option<u32>) -> u32 { match x { Some(helper) => helper, None => 0 } }
+        fn by_field(s: &S) -> u32 { s.helper }
+        fn by_path() { let _f = other::helper; }
+        fn by_label() { 'helper: loop { break 'helper; } }
+        fn foreign() { let _f = not_in_this_file; println!("{}", also_not(1)); }
+        fn in_macro(s: &S) { println!("{} {}", s.helper.0, other::helper()); }
+        #[cfg(helper)]
+        fn attributed() {}
+        "#,
+    );
+    assert!(references(&parsed).is_empty(), "{:?}", references(&parsed));
+}
+
+#[test]
+fn a_turbofish_method_call_still_walks_its_receiver_chain() {
+    let parsed = parse(
+        "fn f(v: Vec<u8>) -> u32 { v.iter().map(g).sum::<u32>() }\nfn g(x: &u8) -> u32 { 0 }\n",
+    );
+    let calls: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Calls)
+        .map(|r| r.to_name.as_str())
+        .collect();
+    for name in ["sum", "map", "iter"] {
+        assert!(calls.contains(&name), "{name} missing from {calls:?}");
+    }
+    assert_eq!(references(&parsed), vec!["g"]);
+}
+
+#[test]
+fn a_direct_call_is_recorded_once_as_a_call_only() {
+    let parsed = parse("fn helper() {}\nfn run() { helper(); helper::<u8>(); }\n");
+    assert!(references(&parsed).is_empty(), "{:?}", references(&parsed));
+}
+
+#[test]
+fn a_harness_attribute_references_its_function() {
+    let parsed = parse(
+        r#"
+        #[cfg(test)]
+        mod tests {
+            #[test]
+            /// doc comments between the attribute and the fn are fine
+            #[should_panic]
+            fn verifies_behavior() {}
+
+            #[tokio::test]
+            async fn async_case() {}
+
+            #[bench]
+            fn bench_case(b: &mut Bencher) {}
+
+            #[test_case(1)]
+            fn case(n: u32) {}
+
+            fn helper() {}
+
+            #[inline]
+            fn inlined() {}
+        }
+        "#,
+    );
+    let refs = references(&parsed);
+    for name in ["verifies_behavior", "async_case", "bench_case", "case"] {
+        assert!(refs.contains(&name), "{name} missing from {refs:?}");
+    }
+    assert!(!refs.contains(&"helper"), "{refs:?}");
+    assert!(!refs.contains(&"inlined"), "{refs:?}");
+}
+
+#[test]
+fn a_harness_attribute_does_not_leak_past_another_item() {
+    let parsed = parse("#[test]\nconst X: u8 = 1;\nfn after() {}\n");
+    assert!(references(&parsed).is_empty(), "{:?}", references(&parsed));
+}
