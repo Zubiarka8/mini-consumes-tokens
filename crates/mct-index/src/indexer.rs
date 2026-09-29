@@ -1,5 +1,5 @@
-use std::collections::HashMap;
-use std::path::Path;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use git2::{ObjectType, Oid};
@@ -101,137 +101,10 @@ pub fn reindex(
         if entry.file_type().is_dir() {
             continue;
         }
-        let path = entry.path();
-
-        // Reject any entry (symlink or not) that resolves outside the project
-        // root — never index or follow a symlink that escapes it. Runs only on
-        // entries that already survived the exclusion filter above, so the
-        // syscall is never paid for `target/`, `.git/` and friends.
-        let canonical = match path.canonicalize() {
-            Ok(c) => c,
-            Err(_) => continue, // broken symlink or race with a deleted file
-        };
-        if !canonical.starts_with(&root) {
-            continue;
-        }
-
-        let relative_path = match to_relative_slash_path(&root, &canonical) {
-            Some(p) => p,
-            None => continue,
-        };
-        // Second exclusion check, on the *canonical* path: `walk_entry_allowed`
-        // judged the path as written, which differs for a symlink pointing
-        // into an excluded directory.
-        if exclude.is_excluded(&relative_path) {
-            continue;
-        }
-
-        // Manifest files (Cargo.toml, package.json, ...) are matched by
-        // file name, not extension, and never go through a `LanguageParser`
-        // — they aren't source code to symbol-index, just a declared
-        // dependency list. Always re-parsed on every reindex (not
-        // hash-skipped like source files below): manifests are few and
-        // small, not worth a second incremental-skip mechanism for.
-        let file_name = canonical
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or_default();
-        if let Some(language) = manifests::manifest_language(file_name) {
-            seen_manifest_paths.push(relative_path.clone());
-            if let Ok(bytes) = std::fs::read(&canonical) {
-                if let Ok(contents) = String::from_utf8(bytes) {
-                    let deps = manifests::parse_manifest(file_name, &contents);
-                    write_manifest_dependencies(index, &relative_path, language, &deps)?;
-                }
-            }
-            continue;
-        }
-
-        // Tracked for cleanup below regardless of whether we can index this
-        // file, so a stale `files`/`index_issues` row is removed once the
-        // file is deleted or excluded, not just once it's re-parsed.
-        seen_paths.push(relative_path.clone());
-
-        let extension = relative_path.rsplit('.').next().unwrap_or_default();
-        let Some(parser) = registry.for_extension(extension) else {
-            if let Some((_, language)) = KNOWN_PENDING_LANGUAGES
-                .iter()
-                .find(|(ext, _)| *ext == extension)
-            {
-                record_issue(
-                    &index.conn,
-                    &relative_path,
-                    UnsupportedKind::UnsupportedLanguage,
-                    language,
-                )?;
-                report.issues.push(UnsupportedFile {
-                    relative_path: relative_path.clone(),
-                    kind: UnsupportedKind::UnsupportedLanguage,
-                    detail: (*language).to_string(),
-                });
-            }
-            continue;
-        };
-
-        let bytes = match std::fs::read(&canonical) {
-            Ok(b) => b,
-            Err(_) => continue, // unreadable (permissions, race) — skip, don't fail the run
-        };
-        let content_hash = match Oid::hash_object(ObjectType::Blob, &bytes) {
-            Ok(oid) => oid.to_string(),
-            Err(_) => continue,
-        };
-
-        let existing_hash: Option<String> = index
-            .conn
-            .query_row(
-                "SELECT content_hash FROM files WHERE relative_path = ?1",
-                params![relative_path],
-                |row| row.get(0),
-            )
-            .optional()?;
-
-        if !force && existing_hash.as_deref() == Some(content_hash.as_str()) {
-            report.files_unchanged += 1;
-            continue;
-        }
-
-        let contents = match String::from_utf8(bytes) {
-            Ok(s) => s,
-            Err(_) => continue, // binary file with a matching extension — nothing to parse
-        };
-
-        let source = SourceFile {
-            relative_path: relative_path.clone(),
-            contents,
-        };
-
-        match registry.parse(&source) {
-            Ok(parsed) => {
-                let language = parser.language_id();
-                let symbols_written =
-                    write_parsed_file(index, &relative_path, language, &content_hash, &parsed)?;
-                report.files_parsed += 1;
-                report.symbols_written += symbols_written;
-            }
-            Err(ParseError::Syntax { line, message, .. }) => {
-                let detail = format!("line {line}: {message}");
-                record_issue(
-                    &index.conn,
-                    &relative_path,
-                    UnsupportedKind::SyntaxError,
-                    &detail,
-                )?;
-                report.issues.push(UnsupportedFile {
-                    relative_path: relative_path.clone(),
-                    kind: UnsupportedKind::SyntaxError,
-                    detail,
-                });
-            }
-            Err(ParseError::UnsupportedExtension { .. }) => {
-                // Registry already confirmed a parser exists for this
-                // extension above; unreachable in practice.
-            }
+        match index_file(index, registry, entry.path(), force, &mut report)? {
+            Seen::Source(path) => seen_paths.push(path),
+            Seen::Manifest(path) => seen_manifest_paths.push(path),
+            Seen::Nothing => {}
         }
     }
 
@@ -240,6 +113,533 @@ pub fn reindex(
     touch_last_indexed_at(index)?;
 
     Ok(report)
+}
+
+/// What [`index_file`] found at a path, for the stale-row sweeps.
+enum Seen {
+    /// A file that keeps (or gets) its `files`/`index_issues` rows.
+    Source(String),
+    /// A manifest whose `dependencies` rows were rewritten.
+    Manifest(String),
+    /// Nothing to keep: outside the root, excluded, or gone.
+    Nothing,
+}
+
+/// Indexes the one file at `path` (absolute, as walked or as a watcher
+/// reported it): the per-file half of [`reindex`], shared with
+/// [`reindex_paths`] so both apply identical rules — the escape and exclusion
+/// checks on the canonical path, manifests re-parsed every time, source files
+/// skipped when their content hash is unchanged (unless `force`).
+fn index_file(
+    index: &mut Index,
+    registry: &LanguageRegistry,
+    path: &Path,
+    force: bool,
+    report: &mut ReindexReport,
+) -> Result<Seen> {
+    let root = index.root.clone();
+
+    // Reject any entry (symlink or not) that resolves outside the project
+    // root — never index or follow a symlink that escapes it. Runs only on
+    // entries that already survived the exclusion filter, so the syscall is
+    // never paid for `target/`, `.git/` and friends.
+    let canonical = match path.canonicalize() {
+        Ok(c) => c,
+        Err(_) => return Ok(Seen::Nothing), // broken symlink or race with a deleted file
+    };
+    // A symlink to a directory resolves to one: nothing to index as a file,
+    // and never walked (the walks don't follow links).
+    if !canonical.starts_with(&root) || canonical.is_dir() {
+        return Ok(Seen::Nothing);
+    }
+
+    let relative_path = match to_relative_slash_path(&root, &canonical) {
+        Some(p) => p,
+        None => return Ok(Seen::Nothing),
+    };
+    // Second exclusion check, on the *canonical* path: the walk judged the
+    // path as written, which differs for a symlink pointing into an excluded
+    // directory.
+    if index.exclude.is_excluded(&relative_path) {
+        return Ok(Seen::Nothing);
+    }
+
+    // Manifest files (Cargo.toml, package.json, ...) are matched by
+    // file name, not extension, and never go through a `LanguageParser`
+    // — they aren't source code to symbol-index, just a declared
+    // dependency list. Always re-parsed on every reindex (not
+    // hash-skipped like source files below): manifests are few and
+    // small, not worth a second incremental-skip mechanism for.
+    let file_name = canonical
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or_default();
+    if let Some(language) = manifests::manifest_language(file_name) {
+        if let Ok(bytes) = std::fs::read(&canonical) {
+            if let Ok(contents) = String::from_utf8(bytes) {
+                let deps = manifests::parse_manifest(file_name, &contents);
+                write_manifest_dependencies(index, &relative_path, language, &deps)?;
+            }
+        }
+        return Ok(Seen::Manifest(relative_path));
+    }
+
+    // Reported as seen regardless of whether we can index this file, so a
+    // stale `files`/`index_issues` row is removed once the file is deleted
+    // or excluded, not just once it's re-parsed.
+    let extension = relative_path.rsplit('.').next().unwrap_or_default();
+    let Some(parser) = registry.for_extension(extension) else {
+        if let Some((_, language)) = KNOWN_PENDING_LANGUAGES
+            .iter()
+            .find(|(ext, _)| *ext == extension)
+        {
+            record_issue(
+                &index.conn,
+                &relative_path,
+                UnsupportedKind::UnsupportedLanguage,
+                language,
+            )?;
+            report.issues.push(UnsupportedFile {
+                relative_path: relative_path.clone(),
+                kind: UnsupportedKind::UnsupportedLanguage,
+                detail: (*language).to_string(),
+            });
+        }
+        return Ok(Seen::Source(relative_path));
+    };
+
+    let bytes = match std::fs::read(&canonical) {
+        Ok(b) => b,
+        // unreadable (permissions, race) — skip, don't fail the run
+        Err(_) => return Ok(Seen::Source(relative_path)),
+    };
+    let content_hash = match Oid::hash_object(ObjectType::Blob, &bytes) {
+        Ok(oid) => oid.to_string(),
+        Err(_) => return Ok(Seen::Source(relative_path)),
+    };
+
+    // A syntax error no longer keeps a `files` row (see below), but an index
+    // written before that did: the flag lets a hash-skip clear such a stale
+    // issue once the file is back to its last parsed content.
+    let existing: Option<(String, bool)> = index
+        .conn
+        .query_row(
+            "SELECT content_hash, EXISTS(SELECT 1 FROM index_issues
+                 WHERE relative_path = ?1 AND issue_kind = 'syntax_error')
+             FROM files WHERE relative_path = ?1",
+            params![relative_path],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()?;
+
+    if let Some((hash, stale_issue)) = &existing {
+        if !force && *hash == content_hash {
+            if *stale_issue {
+                index.conn.execute(
+                    "DELETE FROM index_issues
+                     WHERE relative_path = ?1 AND issue_kind = 'syntax_error'",
+                    params![relative_path],
+                )?;
+            }
+            report.files_unchanged += 1;
+            return Ok(Seen::Source(relative_path));
+        }
+    }
+
+    let contents = match String::from_utf8(bytes) {
+        Ok(s) => s,
+        // binary file with a matching extension — nothing to parse, and
+        // nothing from an earlier text version of it may stay indexed
+        Err(_) => {
+            if existing.is_some() {
+                index.conn.execute(
+                    "DELETE FROM files WHERE relative_path = ?1",
+                    params![relative_path],
+                )?;
+            }
+            return Ok(Seen::Source(relative_path));
+        }
+    };
+
+    let source = SourceFile {
+        relative_path: relative_path.clone(),
+        contents,
+    };
+
+    match registry.parse(&source) {
+        Ok(parsed) => {
+            let language = parser.language_id();
+            let symbols_written =
+                write_parsed_file(index, &relative_path, language, &content_hash, &parsed)?;
+            report.files_parsed += 1;
+            report.symbols_written += symbols_written;
+        }
+        Err(ParseError::Syntax { line, message, .. }) => {
+            let detail = format!("line {line}: {message}");
+            // The previous version's symbols describe code that no longer
+            // exists: drop the file row (its symbols, relations, literals and
+            // embeddings cascade) together with recording the issue, so the
+            // index matches a fresh full index of the broken file — an issue,
+            // no symbols — and a later fix or revert is re-parsed, not
+            // hash-skipped against the stale row.
+            let tx = index.conn.transaction()?;
+            tx.execute(
+                "DELETE FROM files WHERE relative_path = ?1",
+                params![relative_path],
+            )?;
+            record_issue(&tx, &relative_path, UnsupportedKind::SyntaxError, &detail)?;
+            tx.commit()?;
+            report.issues.push(UnsupportedFile {
+                relative_path: relative_path.clone(),
+                kind: UnsupportedKind::SyntaxError,
+                detail,
+            });
+        }
+        Err(ParseError::UnsupportedExtension { .. }) => {
+            // Registry already confirmed a parser exists for this
+            // extension above; unreachable in practice.
+        }
+    }
+    Ok(Seen::Source(relative_path))
+}
+
+/// Incremental counterpart of [`reindex`] (issue #25): brings the index up to
+/// date for `paths` only — absolute paths under the root (or relative to
+/// it), typically what a filesystem watcher reported — without walking or
+/// hashing the rest of the project. Each path is handled by what is on disk
+/// *now*:
+///
+/// - a file: indexed exactly as [`reindex`] would (hash-skipped if unchanged);
+/// - a directory (created, or renamed into place): its subtree is walked, and
+///   indexed rows under it that are no longer on disk are dropped;
+/// - nothing (deleted, or renamed away): every row for that path — and, if it
+///   was a directory, for everything under it — is dropped.
+///
+/// A path is judged as written, so on a case-insensitive filesystem the old
+/// spelling of a case-only rename (`Foo.rs` → `foo.rs`) still resolves; its
+/// rows are dropped because the file now indexes under its on-disk spelling.
+///
+/// When a path is newly indexed (created, or the new end of a rename), the
+/// likely old ends of an unreported rename are checked and dropped if gone
+/// (see [`remove_renamed_away`]). An edit of an already indexed file or a
+/// deletion checks nothing else, so no update costs anything per indexed
+/// file. Excluded paths and paths outside the root are ignored; the root itself falls back to a full [`reindex`]. Relations
+/// are resolved by name at query time and a symbol's embedding/literals
+/// cascade with it, so rewriting one file's rows is all an update needs: the
+/// result is the same index a full [`reindex`] would produce.
+pub fn reindex_paths(
+    index: &mut Index,
+    registry: &LanguageRegistry,
+    paths: &[PathBuf],
+) -> Result<ReindexReport> {
+    let mut report = ReindexReport::default();
+    let root = index.root.clone();
+    let exclude = index.exclude.clone();
+    // Paths this batch indexed for the first time.
+    let mut created = Vec::new();
+
+    let mut unique: Vec<PathBuf> = paths
+        .iter()
+        .map(|p| {
+            if p.is_absolute() {
+                p.clone()
+            } else {
+                root.join(p)
+            }
+        })
+        .collect();
+    unique.sort();
+    unique.dedup();
+
+    for absolute in unique {
+        // Judged as written, not canonicalized: a deleted path can't be.
+        let Some(relative_path) = to_relative_slash_path(&root, &absolute) else {
+            continue;
+        };
+        if relative_path.is_empty() {
+            return reindex(index, registry, false);
+        }
+        if exclude.is_excluded(&relative_path) {
+            continue;
+        }
+
+        // `symlink_metadata`, not `is_dir`: a symlink to a directory (maybe
+        // outside the root) is never walked, as in a full reindex.
+        let metadata = absolute.symlink_metadata();
+        if metadata.as_ref().is_ok_and(|m| m.is_dir()) {
+            let mut seen = Vec::new();
+            let mut seen_manifests = Vec::new();
+            for entry in WalkDir::new(&absolute)
+                .into_iter()
+                .filter_entry(|entry| {
+                    entry.depth() == 0 || walk_entry_allowed(&root, entry, &exclude)
+                })
+                .filter_map(|e| e.ok())
+            {
+                if entry.file_type().is_dir() {
+                    continue;
+                }
+                let as_walked = to_relative_slash_path(&root, entry.path()).unwrap_or_default();
+                match index_noting_created(
+                    index,
+                    registry,
+                    entry.path(),
+                    &as_walked,
+                    &mut report,
+                    &mut created,
+                )? {
+                    Seen::Source(p) => seen.push(p),
+                    Seen::Manifest(p) => seen_manifests.push(p),
+                    Seen::Nothing => {}
+                }
+            }
+            report.files_removed +=
+                remove_under_prefix(index, &relative_path, &seen, &seen_manifests)?;
+        } else if metadata.is_ok() {
+            let (indexed_as, manifest) = match index_noting_created(
+                index,
+                registry,
+                &absolute,
+                &relative_path,
+                &mut report,
+                &mut created,
+            )? {
+                Seen::Source(p) => (Some(p), false),
+                Seen::Manifest(p) => (Some(p), true),
+                Seen::Nothing => (None, false),
+            };
+            // Indexed under another spelling (the old name of a case-only
+            // rename, a symlink resolving elsewhere) or not at all (now
+            // excluded or escaping the root): rows under the reported
+            // spelling are stale. A no-op for a plain edit.
+            if indexed_as.as_deref() != Some(relative_path.as_str()) {
+                let keep: Vec<String> = indexed_as.into_iter().collect();
+                let (files, manifests) = if manifest {
+                    (&[][..], &keep[..])
+                } else {
+                    (&keep[..], &[][..])
+                };
+                report.files_removed +=
+                    remove_under_prefix(index, &relative_path, files, manifests)?;
+            }
+        } else {
+            report.files_removed += remove_under_prefix(index, &relative_path, &[], &[])?;
+        }
+    }
+
+    if !created.is_empty() {
+        report.files_removed += remove_renamed_away(index, &created)?;
+    }
+    touch_last_indexed_at(index)?;
+    Ok(report)
+}
+
+/// Whether any `files`, `index_issues` or `dependencies` row exists for
+/// exactly `relative_path`.
+fn has_rows(index: &Index, relative_path: &str) -> Result<bool> {
+    Ok(index.conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM files WHERE relative_path = ?1)
+             OR EXISTS(SELECT 1 FROM index_issues WHERE relative_path = ?1)
+             OR EXISTS(SELECT 1 FROM dependencies WHERE manifest_path = ?1)",
+        params![relative_path],
+        |row| row.get(0),
+    )?)
+}
+
+/// Whether `relative_path` (as stored: canonical, `/`-separated) still names
+/// a file on disk under exactly that spelling. Canonicalizing, rather than a
+/// `stat`, is what catches a case-only rename on a case-insensitive
+/// filesystem (macOS, Windows): the old spelling still resolves, but to the
+/// new one. It also rejects a path that now runs through a symlink, which a
+/// full reindex would index under its target instead.
+fn on_disk_as_stored(root: &Path, relative_path: &str) -> bool {
+    let path = relative_path
+        .split('/')
+        .fold(root.to_path_buf(), |path, part| path.join(part));
+    path.canonicalize().is_ok_and(|canonical| canonical == path)
+}
+
+/// [`index_file`], noting in `created` a path it indexed that had no rows
+/// before under the spelling it was reported or walked as.
+fn index_noting_created(
+    index: &mut Index,
+    registry: &LanguageRegistry,
+    path: &Path,
+    as_reported: &str,
+    report: &mut ReindexReport,
+    created: &mut Vec<String>,
+) -> Result<Seen> {
+    let was_indexed = has_rows(index, as_reported)?;
+    let seen = index_file(index, registry, path, false, report)?;
+    if let Seen::Source(p) | Seen::Manifest(p) = &seen {
+        if !was_indexed && has_rows(index, p)? {
+            created.push(p.clone());
+        }
+    }
+    Ok(seen)
+}
+
+const PATH_TABLES: [(&str, &str); 3] = [
+    ("files", "relative_path"),
+    ("index_issues", "relative_path"),
+    ("dependencies", "manifest_path"),
+];
+
+/// The old end of a rename that was reported by its new path only — which
+/// is what macOS FSEvents delivers through the debouncer's file-id cache —
+/// would otherwise stay indexed. For the `created` paths of a batch, checks
+/// the likely old ends and drops every row of those no longer on disk
+/// ([`on_disk_as_stored`]):
+///
+/// - indexed files with the same content hash as a created one (a rename,
+///   within or across directories, of a file or a whole directory);
+/// - indexed paths directly in a created path's directory (a rename that
+///   also edited the file, a case-only rename).
+///
+/// Bounded by what the batch created, never by the size of the index: an
+/// unreported move to another directory that also changed the content is
+/// the one case left to the next full reindex, like any lost event.
+fn remove_renamed_away(index: &mut Index, created: &[String]) -> Result<usize> {
+    let root = index.root.clone();
+    let created_set: HashSet<&str> = created.iter().map(String::as_str).collect();
+    let mut candidates: Vec<String> = Vec::new();
+
+    let mut hashes: Vec<String> = Vec::new();
+    for path in created {
+        let hash: Option<Option<String>> = index
+            .conn
+            .query_row(
+                "SELECT content_hash FROM files WHERE relative_path = ?1",
+                params![path],
+                |row| row.get(0),
+            )
+            .optional()?;
+        hashes.extend(hash.flatten());
+    }
+    hashes.sort();
+    hashes.dedup();
+    for chunk in hashes.chunks(500) {
+        let placeholders = vec!["?"; chunk.len()].join(",");
+        let mut stmt = index.conn.prepare(&format!(
+            "SELECT relative_path FROM files WHERE content_hash IN ({placeholders})"
+        ))?;
+        let rows = stmt.query_map(rusqlite::params_from_iter(chunk), |row| row.get(0))?;
+        candidates.extend(rows.collect::<rusqlite::Result<Vec<String>>>()?);
+    }
+
+    let parents: HashSet<&str> = created
+        .iter()
+        .map(|p| p.rsplit_once('/').map_or("", |(dir, _)| dir))
+        .collect();
+    for parent in parents {
+        let prefix = format!("{parent}/");
+        let prefix_end = format!("{parent}0");
+        for (table, column) in PATH_TABLES {
+            let at_root = parent.is_empty();
+            let mut stmt = index
+                .conn
+                .prepare_cached(&children_sql(table, column, at_root))?;
+            let bound: &[&dyn rusqlite::ToSql] = if at_root {
+                &[]
+            } else {
+                &[&prefix, &prefix_end]
+            };
+            let rows = stmt.query_map(bound, |row| row.get(0))?;
+            candidates.extend(rows.collect::<rusqlite::Result<Vec<String>>>()?);
+        }
+    }
+
+    candidates.sort();
+    candidates.dedup();
+    let vanished: Vec<&String> = candidates
+        .iter()
+        .filter(|path| !created_set.contains(path.as_str()) && !on_disk_as_stored(&root, path))
+        .collect();
+    if vanished.is_empty() {
+        return Ok(0);
+    }
+    let tx = index.conn.transaction()?;
+    let mut removed = 0;
+    for path in vanished {
+        for (table, column) in PATH_TABLES {
+            let deleted = tx.execute(
+                &format!("DELETE FROM {table} WHERE {column} = ?1"),
+                params![path],
+            )?;
+            if table == "files" {
+                removed += deleted;
+            }
+        }
+    }
+    tx.commit()?;
+    Ok(removed)
+}
+
+/// `column` values of `table` directly in a directory: `?1` (`dir/`) ..
+/// `?2` (`dir0`) with no further `/`, or with no `/` at all at the root.
+fn children_sql(table: &str, column: &str, at_root: bool) -> String {
+    if at_root {
+        format!("SELECT DISTINCT {column} FROM {table} WHERE instr({column}, '/') = 0")
+    } else {
+        format!(
+            "SELECT DISTINCT {column} FROM {table}
+             WHERE {column} >= ?1 AND {column} < ?2
+               AND instr(substr({column}, length(?1) + 1), '/') = 0"
+        )
+    }
+}
+
+/// Drops every `files`, `index_issues` and `dependencies` row for
+/// `relative_path` itself or for anything under it as a directory, except
+/// the paths in `keep`/`keep_manifests`. Returns how many `files` rows went.
+fn remove_under_prefix(
+    index: &mut Index,
+    relative_path: &str,
+    keep: &[String],
+    keep_manifests: &[String],
+) -> Result<usize> {
+    let keep: HashSet<&str> = keep.iter().map(String::as_str).collect();
+    let keep_manifests: HashSet<&str> = keep_manifests.iter().map(String::as_str).collect();
+    // `dir/` ≤ path < `dir0` (`0` is the byte after `/`) selects exactly the
+    // paths under `dir/` and, unlike `LIKE` (`_`/`%` wildcards) or `substr`,
+    // is a range the column's index serves. Table/column names are static,
+    // never input.
+    let prefix = format!("{relative_path}/");
+    let prefix_end = format!("{relative_path}0");
+    let tx = index.conn.transaction()?;
+    let mut removed = 0;
+    for (table, column, keep) in [
+        ("files", "relative_path", &keep),
+        ("index_issues", "relative_path", &keep),
+        ("dependencies", "manifest_path", &keep_manifests),
+    ] {
+        let stored: Vec<String> = {
+            let mut stmt = tx.prepare(&under_prefix_sql(table, column))?;
+            let rows =
+                stmt.query_map(params![relative_path, prefix, prefix_end], |row| row.get(0))?;
+            rows.collect::<rusqlite::Result<_>>()?
+        };
+        for path in stored.iter().filter(|p| !keep.contains(p.as_str())) {
+            let deleted = tx.execute(
+                &format!("DELETE FROM {table} WHERE {column} = ?1"),
+                params![path],
+            )?;
+            if table == "files" {
+                removed += deleted;
+            }
+        }
+    }
+    tx.commit()?;
+    Ok(removed)
+}
+
+/// `column` values of `table` equal to `?1` or under the `?2` (`dir/`) ..
+/// `?3` (`dir0`) range — see [`remove_under_prefix`].
+fn under_prefix_sql(table: &str, column: &str) -> String {
+    format!(
+        "SELECT DISTINCT {column} FROM {table}
+         WHERE {column} = ?1 OR ({column} >= ?2 AND {column} < ?3)"
+    )
 }
 
 fn write_manifest_dependencies(
@@ -633,4 +1033,52 @@ fn unix_now() -> i64 {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod prefix_query_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::*;
+
+    /// Deleting a path must not scan whole tables: each table's prefix
+    /// query has to be served by an index on its path column.
+    #[test]
+    fn the_prefix_query_is_an_index_search_on_every_table() {
+        let root = std::env::temp_dir();
+        let index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
+        for (table, column) in [
+            ("files", "relative_path"),
+            ("index_issues", "relative_path"),
+            ("dependencies", "manifest_path"),
+        ] {
+            let sql = format!("EXPLAIN QUERY PLAN {}", under_prefix_sql(table, column));
+            let mut stmt = index.conn.prepare(&sql).unwrap();
+            let plan: Vec<String> = stmt
+                .query_map(params!["a", "a/", "a0"], |row| row.get(3))
+                .unwrap()
+                .collect::<rusqlite::Result<_>>()
+                .unwrap();
+            assert!(
+                plan.iter().all(|step| !step.starts_with("SCAN")),
+                "{table}: {plan:?}"
+            );
+            assert!(
+                plan.iter().any(|step| step.contains("INDEX")),
+                "{table}: {plan:?}"
+            );
+
+            let sql = format!("EXPLAIN QUERY PLAN {}", children_sql(table, column, false));
+            let mut stmt = index.conn.prepare(&sql).unwrap();
+            let plan: Vec<String> = stmt
+                .query_map(params!["a/", "a0"], |row| row.get(3))
+                .unwrap()
+                .collect::<rusqlite::Result<_>>()
+                .unwrap();
+            assert!(
+                plan.iter().all(|step| !step.starts_with("SCAN")),
+                "{table} children: {plan:?}"
+            );
+        }
+    }
 }
