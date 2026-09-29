@@ -174,6 +174,19 @@ impl Index {
         indexer::reindex(self, registry, force)
     }
 
+    /// Incremental [`Index::reindex`]: updates the index for `paths` only
+    /// (absolute, or relative to [`Index::root`]) — changed, created,
+    /// deleted or renamed files and directories — without walking the rest
+    /// of the project. For those paths, the same result as a full reindex;
+    /// see [`indexer::reindex_paths`].
+    pub fn reindex_paths(
+        &mut self,
+        registry: &LanguageRegistry,
+        paths: &[PathBuf],
+    ) -> Result<ReindexReport> {
+        indexer::reindex_paths(self, registry, paths)
+    }
+
     pub fn status(&self) -> Result<IndexStatus> {
         indexer::status(self)
     }

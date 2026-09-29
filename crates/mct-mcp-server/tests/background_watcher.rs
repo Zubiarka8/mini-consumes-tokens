@@ -133,3 +133,281 @@ async fn a_change_under_an_excluded_path_does_not_trigger_a_reindex() {
         "an excluded-only change must not trigger an auto-reindex"
     );
 }
+
+#[tokio::test]
+async fn watcher_drops_a_deleted_file_and_follows_a_rename_incrementally() {
+    let dir = tempdir();
+    fs::write(dir.join("keep.rs"), "pub fn keep() {}\n").unwrap();
+    fs::write(dir.join("gone.rs"), "pub fn gone() {}\n").unwrap();
+    fs::write(dir.join("old.rs"), "pub fn moved() {}\n").unwrap();
+
+    let registry = mct_mcp_server::registry::build_registry();
+    let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
+    index.reindex(&registry, false).unwrap();
+
+    let index = Arc::new(Mutex::new(index));
+    let _watcher = background::spawn_watcher(
+        Arc::clone(&index),
+        registry,
+        dir.clone(),
+        ExcludeSet::default(),
+        DEBOUNCE,
+    )
+    .unwrap();
+
+    fs::remove_file(dir.join("gone.rs")).unwrap();
+    fs::rename(dir.join("old.rs"), dir.join("new.rs")).unwrap();
+
+    let settled = wait_until(|| {
+        index
+            .try_lock()
+            .map(|guard| {
+                guard.find_symbol("gone").unwrap().is_empty()
+                    && guard
+                        .find_symbol("moved")
+                        .unwrap()
+                        .iter()
+                        .map(|h| h.relative_path.as_str())
+                        .eq(["new.rs"])
+            })
+            .unwrap_or(false)
+    })
+    .await;
+    assert!(
+        settled,
+        "expected the deletion and the rename to be indexed"
+    );
+    // An unrelated file is untouched (its function and its file-level module).
+    assert_eq!(index.lock().await.find_symbol("keep").unwrap().len(), 2);
+}
+
+mod changed_paths {
+    use std::path::{Path, PathBuf};
+    use std::time::Instant;
+
+    use mct_index::ExcludeSet;
+    use mct_mcp_server::background::{changed_paths, Changed, MAX_INCREMENTAL_PATHS};
+    use notify::event::{AccessKind, CreateKind, Flag, ModifyKind, RemoveKind};
+    use notify::{Event, EventKind};
+    use notify_debouncer_full::DebouncedEvent;
+
+    fn event(kind: EventKind, paths: &[&str]) -> DebouncedEvent {
+        let event = paths
+            .iter()
+            .fold(Event::new(kind), |e, p| e.add_path(PathBuf::from(p)));
+        DebouncedEvent::new(event, Instant::now())
+    }
+
+    fn changed(events: &[DebouncedEvent]) -> Changed {
+        changed_paths(events, Path::new("/repo"), &ExcludeSet::default())
+    }
+
+    #[test]
+    fn collects_every_changed_path_once() {
+        let events = [
+            event(EventKind::Modify(ModifyKind::Any), &["/repo/src/a.rs"]),
+            event(EventKind::Create(CreateKind::File), &["/repo/src/b.rs"]),
+            event(EventKind::Remove(RemoveKind::File), &["/repo/src/a.rs"]),
+            // A rename carries both ends.
+            event(
+                EventKind::Modify(ModifyKind::Any),
+                &["/repo/old.rs", "/repo/new.rs"],
+            ),
+        ];
+        assert_eq!(
+            changed(&events),
+            Changed::Paths(
+                [
+                    "/repo/new.rs",
+                    "/repo/old.rs",
+                    "/repo/src/a.rs",
+                    "/repo/src/b.rs"
+                ]
+                .map(PathBuf::from)
+                .to_vec()
+            )
+        );
+    }
+
+    #[test]
+    fn reads_excluded_and_outside_paths_are_nothing() {
+        let events = [
+            event(EventKind::Access(AccessKind::Any), &["/repo/src/a.rs"]),
+            event(EventKind::Modify(ModifyKind::Any), &["/repo/target/x.rs"]),
+            event(
+                EventKind::Modify(ModifyKind::Any),
+                &["/repo/.mct-index/index.sqlite3"],
+            ),
+            event(EventKind::Modify(ModifyKind::Any), &["/elsewhere/a.rs"]),
+        ];
+        assert_eq!(changed(&events), Changed::Nothing);
+    }
+
+    #[test]
+    fn a_rescan_request_or_a_huge_batch_is_a_full_reindex() {
+        let mut rescan = event(EventKind::Other, &[]);
+        rescan.event = rescan.event.clone().set_flag(Flag::Rescan);
+        assert_eq!(changed(&[rescan]), Changed::Rescan);
+
+        let many: Vec<DebouncedEvent> = (0..=MAX_INCREMENTAL_PATHS)
+            .map(|i| {
+                event(
+                    EventKind::Modify(ModifyKind::Any),
+                    &[&format!("/repo/f{i}.rs")],
+                )
+            })
+            .collect();
+        assert_eq!(changed(&many), Changed::Rescan);
+    }
+}
+
+/// `BatchState` (what the watcher thread carries between batches) against a
+/// real index, with a failure injected into one incremental update.
+mod batch_state {
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::Duration;
+
+    use mct_core::LanguageRegistry;
+    use mct_index::{ExcludeSet, Index, IndexError, ReindexReport};
+    use mct_mcp_server::background::{BatchState, Changed, Reindexer};
+
+    /// Applies the first of the paths it's given, then fails — a batch cut
+    /// short midway (a locked database, an I/O error) — once.
+    struct FailsOnce<'a> {
+        index: &'a mut Index,
+        armed: bool,
+        full_walks: usize,
+    }
+
+    impl Reindexer for FailsOnce<'_> {
+        fn reindex_paths(
+            &mut self,
+            registry: &LanguageRegistry,
+            paths: &[PathBuf],
+        ) -> mct_index::Result<ReindexReport> {
+            if std::mem::take(&mut self.armed) {
+                self.index.reindex_paths(registry, &paths[..1])?;
+                return Err(IndexError::Embedding("injected failure".into()));
+            }
+            self.index.reindex_paths(registry, paths)
+        }
+
+        fn reindex(&mut self, registry: &LanguageRegistry) -> mct_index::Result<ReindexReport> {
+            self.full_walks += 1;
+            self.index.reindex(registry, false)
+        }
+    }
+
+    fn names(index: &Index, name: &str) -> usize {
+        index.find_symbol(name).unwrap().len()
+    }
+
+    #[test]
+    fn a_failed_batch_is_recovered_by_the_next_change() {
+        let dir = super::tempdir();
+        fs::write(dir.join("a.rs"), "pub fn a_old() {}\n").unwrap();
+        fs::write(dir.join("b.rs"), "pub fn b_old() {}\n").unwrap();
+        let registry = mct_mcp_server::registry::build_registry();
+        let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
+        index.reindex(&registry, false).unwrap();
+
+        let mut state = BatchState::default();
+        let mut target = FailsOnce {
+            index: &mut index,
+            armed: true,
+            full_walks: 0,
+        };
+
+        // Both files change; the update fails after applying only `a.rs`.
+        fs::write(dir.join("a.rs"), "pub fn a_new() {}\n").unwrap();
+        fs::write(dir.join("b.rs"), "pub fn b_new() {}\n").unwrap();
+        let batch = Changed::Paths(vec![dir.join("a.rs"), dir.join("b.rs")]);
+        assert!(matches!(
+            state.apply(&mut target, &registry, batch),
+            Some(Err(_))
+        ));
+        assert!(state.rescan_pending());
+        assert_eq!(names(target.index, "b_old"), 1, "b.rs was left stale");
+
+        // The next change names only an unrelated file, yet must bring
+        // `b.rs` up to date too: it runs as a full walk.
+        fs::write(dir.join("c.rs"), "pub fn c_fn() {}\n").unwrap();
+        let batch = Changed::Paths(vec![dir.join("c.rs")]);
+        let (mode, _) = state.apply(&mut target, &registry, batch).unwrap().unwrap();
+        assert_eq!((mode, target.full_walks), ("full", 1));
+        assert!(!state.rescan_pending());
+        for (gone, present) in [("a_old", "a_new"), ("b_old", "b_new"), ("x", "c_fn")] {
+            assert_eq!(names(target.index, gone), 0, "{gone}");
+            assert_eq!(names(target.index, present), 1, "{present}");
+        }
+
+        // Back to incremental updates afterwards.
+        fs::write(dir.join("c.rs"), "pub fn c2() {}\n").unwrap();
+        let batch = Changed::Paths(vec![dir.join("c.rs")]);
+        let (mode, _) = state.apply(&mut target, &registry, batch).unwrap().unwrap();
+        assert_eq!((mode, target.full_walks), ("incremental", 1));
+    }
+
+    #[test]
+    fn an_owed_walk_runs_even_without_a_new_change() {
+        let dir = super::tempdir();
+        fs::write(dir.join("a.rs"), "pub fn a_old() {}\n").unwrap();
+        let registry = mct_mcp_server::registry::build_registry();
+        let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
+        index.reindex(&registry, false).unwrap();
+        let mut state = BatchState::default();
+        let mut target = FailsOnce {
+            index: &mut index,
+            armed: true,
+            full_walks: 0,
+        };
+
+        fs::write(dir.join("a.rs"), "pub fn a_new() {}\n").unwrap();
+        fs::write(dir.join("b.rs"), "pub fn b() {}\n").unwrap();
+        let batch = Changed::Paths(vec![dir.join("b.rs"), dir.join("a.rs")]);
+        assert!(state.apply(&mut target, &registry, batch).unwrap().is_err());
+
+        // What the watcher thread passes when its retry timer fires.
+        let (mode, _) = state
+            .apply(&mut target, &registry, Changed::Nothing)
+            .unwrap()
+            .unwrap();
+        assert_eq!(mode, "full");
+        assert_eq!(names(target.index, "a_new"), 1);
+        // Nothing owed any more: an empty batch is a no-op again.
+        assert!(state
+            .apply(&mut target, &registry, Changed::Nothing)
+            .is_none());
+    }
+
+    #[test]
+    fn retries_back_off_up_to_a_minute() {
+        let registry = mct_mcp_server::registry::build_registry();
+        struct AlwaysFails;
+        impl Reindexer for AlwaysFails {
+            fn reindex_paths(
+                &mut self,
+                _: &LanguageRegistry,
+                _: &[PathBuf],
+            ) -> mct_index::Result<ReindexReport> {
+                Err(IndexError::Embedding("down".into()))
+            }
+            fn reindex(&mut self, _: &LanguageRegistry) -> mct_index::Result<ReindexReport> {
+                Err(IndexError::Embedding("down".into()))
+            }
+        }
+        let mut target = AlwaysFails;
+        let mut state = BatchState::default();
+        let debounce = Duration::from_millis(1500);
+        let mut delays = Vec::new();
+        for _ in 0..8 {
+            state.apply(&mut target, &registry, Changed::Rescan);
+            delays.push(state.retry_delay(debounce).as_millis());
+        }
+        assert_eq!(
+            delays,
+            [1500, 3000, 6000, 12000, 24000, 48000, 60000, 60000]
+        );
+    }
+}
