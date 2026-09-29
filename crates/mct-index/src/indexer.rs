@@ -89,6 +89,11 @@ pub fn reindex(
     let mut seen_paths = Vec::new();
     let mut seen_manifest_paths = Vec::new();
 
+    // Pick up edits to the project's ignore files first: the walk below then
+    // skips newly excluded paths (and the sweep drops their rows) and indexes
+    // newly un-excluded ones, forced or not.
+    index.exclude.reload();
+
     // Cloned out of `index` so the `filter_entry` closure below doesn't hold a
     // borrow of it across the loop body, which needs `&mut Index` to write.
     let exclude = index.exclude.clone();
@@ -323,7 +328,9 @@ fn index_file(
 /// likely old ends of an unreported rename are checked and dropped if gone
 /// (see [`remove_renamed_away`]). An edit of an already indexed file or a
 /// deletion checks nothing else, so no update costs anything per indexed
-/// file. Excluded paths and paths outside the root are ignored; the root itself falls back to a full [`reindex`]. Relations
+/// file. Excluded paths and paths outside the root are ignored; the root
+/// itself, or an ignore file whose rules changed ([`ExcludeSet::reload`]),
+/// falls back to a full [`reindex`]. Relations
 /// are resolved by name at query time and a symbol's embedding/literals
 /// cascade with it, so rewriting one file's rows is all an update needs: the
 /// result is the same index a full [`reindex`] would produce.
@@ -350,6 +357,15 @@ pub fn reindex_paths(
         .collect();
     unique.sort();
     unique.dedup();
+
+    // An edited ignore file can exclude or un-exclude paths anywhere, none of
+    // which were reported: only a full walk applies the new rules.
+    let rules_file_changed = unique.iter().any(|p| {
+        to_relative_slash_path(&root, p).is_some_and(|rel| ExcludeSet::is_rules_file(&rel))
+    });
+    if rules_file_changed && exclude.reload() {
+        return reindex(index, registry, false);
+    }
 
     for absolute in unique {
         // Judged as written, not canonicalized: a deleted path can't be.
