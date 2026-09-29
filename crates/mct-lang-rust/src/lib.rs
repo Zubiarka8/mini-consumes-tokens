@@ -509,7 +509,9 @@ fn collect_identifiers(node: Node, source: &str, out: &mut HashSet<String>, dept
     if depth >= MAX_TRAVERSAL_DEPTH {
         return;
     }
-    if node.kind() == "identifier" {
+    // A struct pattern's shorthand field (`Config { root, .. }`) binds a local
+    // named after the field, just like a plain identifier pattern.
+    if matches!(node.kind(), "identifier" | "shorthand_field_identifier") {
         out.insert(text(node, source).to_string());
         return;
     }

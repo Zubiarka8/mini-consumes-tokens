@@ -79,7 +79,10 @@ fn name_looks_like_test(name: &str) -> bool {
 /// the stronger one, and the symbol's own name. (A parser can do better on
 /// its own: `mct-lang-rust` records a `#[test]`/`#[tokio::test]`/... attribute
 /// as a `References` relation to its function, so an inline Rust test is
-/// never an unreferenced dead-code candidate even under `src/`.)
+/// never an unreferenced dead-code candidate even under `src/`. Like every
+/// relation it resolves by name project-wide, so it also hides any other
+/// same-named symbol — a dead `fn parse` elsewhere next to a `#[test] fn
+/// parse` — which is the general name-resolution limit, not a safety check.)
 /// Simplification, not a promise: a caller relying on it for exhaustive test
 /// coverage should be warned.
 pub fn looks_like_test_name(name: &str, relative_path: &str) -> bool {
