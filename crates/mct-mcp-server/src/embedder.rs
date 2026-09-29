@@ -25,6 +25,14 @@ pub struct SemanticModel {
 }
 
 impl SemanticModel {
+    /// A model that is already loaded — tests and benchmarks inject a
+    /// deterministic [`Embedder`] this way instead of the ONNX one.
+    pub fn preloaded(embedder: Box<dyn Embedder>) -> Self {
+        let loaded = OnceLock::new();
+        let _ = loaded.set(Ok(embedder));
+        Self { loaded }
+    }
+
     /// The loaded model, loading it on first call, or why it's unavailable.
     pub fn get(&self, root: &Path) -> Result<&dyn Embedder, &str> {
         match self.loaded.get_or_init(|| load(root)) {

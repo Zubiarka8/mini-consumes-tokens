@@ -89,7 +89,7 @@ pub struct EmbeddingCoverage {
 /// Version of the [`embedding_text`] format. Part of the stored `model` tag
 /// (see [`vector_space`]), so changing how the text is synthesised re-embeds
 /// every symbol instead of mixing vectors of two different formats.
-const EMBEDDING_TEXT_VERSION: &str = "ctx2";
+pub const EMBEDDING_TEXT_VERSION: &str = "ctx2";
 
 /// Caps on the synthesised text, so one symbol stays far below the model's
 /// token window (256 word pieces for MiniLM-class models) and a batch pads
