@@ -316,3 +316,20 @@ fn a_harness_attribute_does_not_leak_past_another_item() {
     let parsed = parse("#[test]\nconst X: u8 = 1;\nfn after() {}\n");
     assert!(references(&parsed).is_empty(), "{:?}", references(&parsed));
 }
+
+#[test]
+fn a_struct_pattern_shorthand_binding_shadows_a_same_named_function() {
+    // `let Config { root, .. } = c;` binds `root` as a local exactly like
+    // `let root = c.root;` does: its later uses are the local, never `fn root`.
+    let parsed = parse(
+        r#"
+        fn root() {}
+        struct Config { root: u32, depth: u32 }
+        fn by_let(c: Config) -> u32 { let Config { root, .. } = c; root }
+        fn by_param(Config { root, depth }: Config) -> u32 { root + depth }
+        fn by_match(c: Config) -> u32 { match c { Config { ref root, .. } => *root } }
+        fn by_closure(v: Vec<Config>) -> Vec<u32> { v.into_iter().map(|Config { root, .. }| root).collect() }
+        "#,
+    );
+    assert!(references(&parsed).is_empty(), "{:?}", references(&parsed));
+}
