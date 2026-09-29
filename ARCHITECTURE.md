@@ -48,7 +48,7 @@ Think of it like a standard shipping container size: once something is packed in
 
 ### 2. The language plugins (one per language)
 
-Each of the 16 supported languages has its own small, self-contained "translator" that knows how to read that specific language's real grammar and package what it finds into the shared shape from step 1. Rust, Python, Java, C#, Kotlin, JavaScript/TypeScript, C++, Go, HTML, CSS, XML, XAML, Bash, PowerShell, PHP, and Markdown (headings plus [[WikiLink]]/#tag relations) each have one of these.
+Each of the 17 supported languages has its own small, self-contained "translator" that knows how to read that specific language's real grammar and package what it finds into the shared shape from step 1. Rust, Python, Java, C#, Kotlin, JavaScript/TypeScript, C++, Go, Lua, HTML, CSS, XML, XAML, Bash, PowerShell, PHP, and Markdown (headings plus [[WikiLink]]/#tag relations) each have one of these.
 
 A 17th plugin, for Lua, also exists in the project — but purely as a proof that the design works: it demonstrates that a brand-new language can be added without changing anything else in the system. It isn't part of the tools you actually connect your assistant to.
 
@@ -56,7 +56,7 @@ Because each language gets its own separate, self-contained plugin, adding suppo
 
 ### 3. The local database
 
-Whatever language wrote the code, the result always lands in the same single local file, using one shared layout — not a different storage scheme for every language. That's what makes a question like "who calls this function" work identically no matter what language answered it: one set of logic to maintain, not sixteen separate ones.
+Whatever language wrote the code, the result always lands in the same single local file, using one shared layout — not a different storage scheme for every language. That's what makes a question like "who calls this function" work identically no matter what language answered it: one set of logic to maintain, not seventeen separate ones.
 
 This database also keeps track of what's changed since the last time it looked, using the same kind of fingerprinting that version control (Git) already relies on — so re-scanning a project after a small change only looks at what's actually different, not the whole project from scratch. And by default, it deliberately skips over anything that looks like a secret (password files, API keys, credential files, and similar), so those never end up copied into the index.
 

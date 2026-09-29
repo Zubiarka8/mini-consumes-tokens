@@ -1,6 +1,6 @@
 [package]
 name = "mct-lang-lua"
-description = "Lua language plugin (tree-sitter-lua) for mini-consumes-tokens's LanguageParser trait. Built as an architecture-validation exercise (Lua is outside the project's original 7-language scope) and not wired into the production mct-cli/mct-mcp-server registries, but a working standalone plugin."
+description = "Lua language plugin (tree-sitter-lua) for mini-consumes-tokens's LanguageParser trait. Registered in the production mct-cli/mct-mcp-server registries."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
