@@ -181,6 +181,45 @@ async fn watcher_drops_a_deleted_file_and_follows_a_rename_incrementally() {
     assert_eq!(index.lock().await.find_symbol("keep").unwrap().len(), 2);
 }
 
+/// F03: a rule written to `.mctignore` while the server runs drops the file
+/// from the index, and removing it brings the file back — though the
+/// un-excluded file itself never changes and reports no event.
+#[tokio::test]
+async fn watcher_applies_ignore_file_edits_without_a_restart() {
+    let dir = tempdir();
+    fs::write(dir.join("hidden.rs"), "pub fn audit_hidden_symbol() {}\n").unwrap();
+
+    let registry = mct_mcp_server::registry::build_registry();
+    // As `main` does: one project rule set, shared by index and watcher.
+    let exclude = ExcludeSet::for_project(&dir);
+    let mut index = Index::open_in_memory(&dir, exclude.clone()).unwrap();
+    index.reindex(&registry, false).unwrap();
+    assert!(!index.find_symbol("audit_hidden_symbol").unwrap().is_empty());
+
+    let index = Arc::new(Mutex::new(index));
+    let _watcher =
+        background::spawn_watcher(Arc::clone(&index), registry, dir.clone(), exclude, DEBOUNCE)
+            .unwrap();
+    let hidden_is_indexed = |index: &Arc<Mutex<Index>>| {
+        index
+            .try_lock()
+            .ok()
+            .map(|guard| !guard.find_symbol("audit_hidden_symbol").unwrap().is_empty())
+    };
+
+    fs::write(dir.join(".mctignore"), "hidden.rs\n").unwrap();
+    assert!(
+        wait_until(|| hidden_is_indexed(&index) == Some(false)).await,
+        "expected the new rule to drop hidden.rs"
+    );
+
+    fs::write(dir.join(".mctignore"), "# nothing excluded\n").unwrap();
+    assert!(
+        wait_until(|| hidden_is_indexed(&index) == Some(true)).await,
+        "expected the removed rule to bring hidden.rs back"
+    );
+}
+
 mod changed_paths {
     use std::path::{Path, PathBuf};
     use std::time::Instant;
@@ -258,6 +297,35 @@ mod changed_paths {
             })
             .collect();
         assert_eq!(changed(&many), Changed::Rescan);
+    }
+
+    #[test]
+    fn an_ignore_file_edit_is_a_full_reindex_only_when_the_rules_change() {
+        let dir = super::tempdir();
+        std::fs::write(dir.join(".mctignore"), "@import-gitignore\n").unwrap();
+        let exclude = ExcludeSet::for_project(&dir);
+        let gitignore = dir.join(".gitignore");
+        let edit = |path: &Path| {
+            let batch = [event(
+                EventKind::Modify(ModifyKind::Any),
+                &[path.to_str().unwrap()],
+            )];
+            changed_paths(&batch, &dir, &exclude)
+        };
+
+        // The imported `.gitignore` gains a rule: the index must re-walk.
+        std::fs::write(&gitignore, "hidden.rs\n").unwrap();
+        assert_eq!(edit(&gitignore), Changed::Rescan);
+        assert!(exclude.is_excluded("hidden.rs"));
+
+        // Touched again with the same rules: an ordinary, incremental edit.
+        assert_eq!(edit(&gitignore), Changed::Paths(vec![gitignore.clone()]));
+
+        // The index's own writes never reload rules or loop.
+        assert_eq!(
+            edit(&dir.join(".mct-index/index.sqlite3")),
+            Changed::Nothing
+        );
     }
 }
 

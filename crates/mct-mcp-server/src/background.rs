@@ -43,6 +43,11 @@ pub enum Changed {
 /// non-`Access` event that lies under `root` and outside `exclude`,
 /// deduplicated. A rename contributes both its old and new path, so the old
 /// one is dropped from the index and the new one indexed.
+///
+/// A batch touching one of the project's ignore files reloads `exclude`
+/// ([`ExcludeSet::reload`] — shared with the index, so both switch rules
+/// together) and, if the rules changed, is a [`Changed::Rescan`]: the paths
+/// they newly exclude or un-exclude reported no event of their own.
 pub fn changed_paths(
     events: &[notify_debouncer_full::DebouncedEvent],
     root: &Path,
@@ -51,10 +56,19 @@ pub fn changed_paths(
     if events.iter().any(|event| event.need_rescan()) {
         return Changed::Rescan;
     }
-    let mut paths: Vec<PathBuf> = events
-        .iter()
-        .filter(|event| !matches!(event.kind, EventKind::Access(_)))
-        .flat_map(|event| event.paths.iter())
+    let changes = || {
+        events
+            .iter()
+            .filter(|event| !matches!(event.kind, EventKind::Access(_)))
+            .flat_map(|event| event.paths.iter())
+    };
+    let rules_file_touched = changes().any(|path| {
+        relative_slash_path(root, path).is_some_and(|rel| ExcludeSet::is_rules_file(&rel))
+    });
+    if rules_file_touched && exclude.reload() {
+        return Changed::Rescan;
+    }
+    let mut paths: Vec<PathBuf> = changes()
         .filter(|path| {
             relative_slash_path(root, path).is_some_and(|rel| !exclude.is_excluded(&rel))
         })
@@ -156,9 +170,11 @@ impl BatchState {
 /// watcher reports errors (events may be lost), the batch is huge, or an
 /// earlier update failed ([`BatchState`]) — retried after a backoff even
 /// if nothing else changes.
-/// `exclude` is the same [`ExcludeSet`] the indexer's own walk uses, so
-/// writes to `.mct-index/` (the reindex's own database) never re-trigger
-/// themselves into a loop.
+/// `exclude` is the same [`ExcludeSet`] the indexer's own walk uses (a clone
+/// of the index's handle, sharing its rules — edits to the project's ignore
+/// files reload both at once, see [`changed_paths`]), so writes to
+/// `.mct-index/` (the reindex's own database) never re-trigger themselves
+/// into a loop.
 ///
 /// Filters out `EventKind::Access` events (a plain open/read, not a
 /// content change): `reindex` itself opens every indexed file to parse it,
