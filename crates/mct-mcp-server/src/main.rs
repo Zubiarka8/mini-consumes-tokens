@@ -41,7 +41,9 @@ async fn main() -> anyhow::Result<()> {
     let db_path = root.join(".mct-index").join("index.sqlite3");
 
     let language_registry = registry::build_registry();
-    let exclude = mct_index::ExcludeSet::new(&mct_index::read_ignore_file(&root));
+    // One set of rules shared by the index and the watcher (clones share
+    // it), reloaded when `.mctignore`/`.gitignore` change — no restart needed.
+    let exclude = mct_index::ExcludeSet::for_project(&root);
     let mut index = mct_index::Index::open(&root, &db_path, exclude.clone())?;
 
     tracing::info!(root = %root.display(), "starting initial reindex");
