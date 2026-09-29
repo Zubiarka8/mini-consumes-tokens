@@ -165,6 +165,7 @@ fn build_registry() -> LanguageRegistry {
     registry.register(Arc::new(mct_lang_powershell::PowerShellParser));
     registry.register(Arc::new(mct_lang_php::PhpParser));
     registry.register(Arc::new(mct_lang_md::MarkdownParser));
+    registry.register(Arc::new(mct_lang_lua::LuaParser));
     registry
 }
 
@@ -608,6 +609,7 @@ mod tests {
         "java",
         "javascript_typescript",
         "kotlin",
+        "lua",
         "markdown",
         "php",
         "powershell",
@@ -640,6 +642,7 @@ mod tests {
             ("java", "java"),
             ("tsx", "javascript_typescript"),
             ("kts", "kotlin"),
+            ("lua", "lua"),
             ("md", "markdown"),
             ("php", "php"),
             ("psm1", "powershell"),
@@ -653,9 +656,6 @@ mod tests {
                 .unwrap_or_else(|| panic!("no parser registered for `.{extension}`"));
             assert_eq!(parser.language_id(), language, ".{extension}");
         }
-        // `.lua` has a crate but is deliberately not wired in here (it is the
-        // plugin-architecture proof, not a shipped language).
-        assert!(registry.for_extension("lua").is_none());
     }
 
     #[test]
@@ -696,6 +696,95 @@ mod tests {
         assert_eq!(second.files_parsed, 0);
         assert_eq!(second.files_unchanged, 4);
         assert_eq!(index.status().unwrap().total_symbols, status.total_symbols);
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn the_cli_and_mcp_server_registries_ship_the_same_languages_and_extensions() {
+        // Both binaries keep their own `build_registry()`; this compares the
+        // real production ones, so a language wired into only one of them
+        // fails here instead of hiding behind a hand-built test registry.
+        let cli = build_registry();
+        let server = mct_mcp_server::registry::build_registry();
+        assert_eq!(cli.language_ids(), server.language_ids());
+
+        let mut cli_extensions: Vec<&str> = cli.supported_extensions().collect();
+        let mut server_extensions: Vec<&str> = server.supported_extensions().collect();
+        cli_extensions.sort_unstable();
+        server_extensions.sort_unstable();
+        assert_eq!(cli_extensions, server_extensions);
+        for extension in cli_extensions {
+            assert_eq!(
+                cli.for_extension(extension).map(|p| p.language_id()),
+                server.for_extension(extension).map(|p| p.language_id()),
+                ".{extension}"
+            );
+        }
+    }
+
+    #[test]
+    fn every_language_crate_in_the_workspace_is_registered_in_production() {
+        // One `crates/mct-lang-*` crate is one language id (JS/TS included),
+        // and each must be a dependency of both binaries — an implemented but
+        // unregistered parser is silently skipped by `init`/`status`.
+        let crates_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        let mut lang_crates: Vec<String> = fs::read_dir(&crates_dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .filter(|name| name.starts_with("mct-lang-"))
+            .collect();
+        lang_crates.sort_unstable();
+        assert!(!lang_crates.is_empty());
+
+        for manifest in ["mct-cli/Cargo.toml", "mct-mcp-server/Cargo.toml"] {
+            let text = fs::read_to_string(crates_dir.join(manifest)).unwrap();
+            for name in &lang_crates {
+                assert!(
+                    text.contains(&format!("{name}.workspace = true")),
+                    "{manifest} does not depend on {name}"
+                );
+            }
+        }
+        assert_eq!(
+            build_registry().language_ids().len(),
+            lang_crates.len(),
+            "registered languages vs {lang_crates:?}"
+        );
+    }
+
+    #[test]
+    fn a_lua_file_is_probed_indexed_and_queryable_through_the_cli_registry() {
+        let dir = temp_project_dir("lua-index");
+        let file = dir.join("hello.lua");
+        fs::write(&file, "function greet()\n  print(\"hello\")\nend\n").unwrap();
+        let registry = build_registry();
+
+        assert!(probe(&registry, std::slice::from_ref(&file)).is_ok());
+
+        let db_path = dir.join(".mct-index").join("index.sqlite3");
+        let mut index = Index::open(&dir, &db_path, ExcludeSet::default()).unwrap();
+        let report = index.reindex(&registry, false).unwrap();
+        assert_eq!(report.files_parsed, 1, "{:?}", report.issues);
+        assert!(report.issues.is_empty(), "{:?}", report.issues);
+
+        let status = index.status().unwrap();
+        let lua = status
+            .languages
+            .iter()
+            .find(|l| l.language == "lua")
+            .unwrap_or_else(|| panic!("no lua row: {:?}", status.languages));
+        assert_eq!(lua.file_count, 1);
+        assert!(status.unsupported_languages.is_empty());
+
+        let hits = index.find_symbol("greet").unwrap();
+        assert_eq!(hits.len(), 1, "{hits:?}");
+        assert_eq!(hits[0].language, "lua");
+        assert_eq!(hits[0].relative_path, "hello.lua");
+        assert_eq!((hits[0].line, hits[0].end_line), (1, Some(3)));
+
+        let calls = index.find_calls("greet").unwrap();
+        assert!(calls.iter().any(|c| c.to_name == "print"), "{calls:?}");
 
         fs::remove_dir_all(&dir).ok();
     }

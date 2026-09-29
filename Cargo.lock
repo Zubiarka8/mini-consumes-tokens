@@ -1370,6 +1370,7 @@ dependencies = [
  "mct-lang-java",
  "mct-lang-js-ts",
  "mct-lang-kotlin",
+ "mct-lang-lua",
  "mct-lang-md",
  "mct-lang-php",
  "mct-lang-powershell",
@@ -1377,6 +1378,7 @@ dependencies = [
  "mct-lang-rust",
  "mct-lang-xaml",
  "mct-lang-xml",
+ "mct-mcp-server",
  "serde_json",
  "walkdir",
 ]
@@ -1634,6 +1636,7 @@ dependencies = [
  "mct-lang-java",
  "mct-lang-js-ts",
  "mct-lang-kotlin",
+ "mct-lang-lua",
  "mct-lang-md",
  "mct-lang-php",
  "mct-lang-powershell",
