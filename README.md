@@ -162,6 +162,8 @@ curl -sSL https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/
 curl -sSL https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.sh | INSTALL_DIR=/usr/local/bin bash
 ```
 
+The variable goes on `bash`, the process that runs the installer. Writing `INSTALL_DIR=… curl … | bash` sets it on `curl` only, and the installer silently falls back to `$HOME/.local/bin`.
+
 **Windows, PowerShell** (installs into `%LOCALAPPDATA%\mct\bin`; override with `MCT_INSTALL_DIR`):
 
 ```powershell
@@ -229,13 +231,19 @@ claude mcp add mini-consumes-tokens --scope project -- mct-mcp-server --root "<a
 
 **Cursor** reads the same kind of file `mcp-register` produces. Run the command above inside your project, then restart Cursor. To add it by hand instead, open Cursor's MCP settings and point them at the `.mcp.json` in your project folder.
 
-**Codex (OpenAI's Codex CLI)** uses TOML instead of JSON, usually at `~/.codex/config.toml`:
+**Codex (OpenAI's Codex CLI)** uses TOML instead of JSON. Put the entry in `~/.codex/config.toml` (every project) or in `.codex/config.toml` inside a trusted project (that project only):
 
 ```toml
 [mcp_servers.mini-consumes-tokens]
 command = "mct-mcp-server"
 args = ["--root", "<absolute-path-to-your-project>"]
 ```
+
+A ready-made, secret-free copy is in [`.codex/config.example.toml`](.codex/config.example.toml); copy it to `.codex/config.toml` and fill in the path. `codex mcp add mini-consumes-tokens -- mct-mcp-server --root <path>` writes the same entry.
+
+> **Two different files:** `mct-cli mcp-register` writes **JSON** to `.mcp.json` (Claude Code, Cursor, …). It does **not** create Codex's `.codex/config.toml`; the two are configured separately.
+>
+> **Never put a credential in either file.** This server needs none. If another MCP server in the same file needs a token (GitHub, for example), pass it through your shell environment or your client's credential mechanism, not as a literal in the file. `.gitignore` ignores `.codex/config.toml` and `.mcp.json` so a broad `git add` can't commit them, but that doesn't help if the file is copied elsewhere. If a token was ever written in plain text, treat it as exposed: revoke it in the provider's account settings (for GitHub: Settings → Developer settings → Personal access tokens), create a new one, and inject it externally. Removing it from the file does not revoke it.
 
 **GitHub Copilot (VS Code)** uses `.vscode/mcp.json` (one project) or your VS Code user settings (every project), with a top-level `"servers"` key instead of `"mcpServers"`:
 
