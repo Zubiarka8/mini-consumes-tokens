@@ -1,4 +1,4 @@
-# language=rust files=6 symbols=239 relations=775 cross_file=218
+# language=rust files=6 symbols=239 relations=817 cross_file=218
 
 == errors.rs (397 lines)
 S 1-397 module errors
@@ -94,32 +94,45 @@ R 268:5 calls with_retry -> Err
 R 270:10 calls with_retry -> report
 R 269:10 calls with_retry -> unwrap_or_else
 R 269:44 calls with_retry -> storage
+R 277:5 references tests -> codes_are_stable
+R 293:5 references tests -> retry_gives_up_on_non_retryable
 R 296:34 calls retry_gives_up_on_non_retryable -> with_retry
 R 298:13 calls retry_gives_up_on_non_retryable -> Err
 R 298:33 calls retry_gives_up_on_non_retryable -> Validation
 R 298:51 calls retry_gives_up_on_non_retryable -> into
+R 304:5 references tests -> retry_succeeds_after_conflict
 R 306:22 calls retry_succeeds_after_conflict -> with_retry
 R 308:17 calls retry_succeeds_after_conflict -> Err
 R 313:17 calls retry_succeeds_after_conflict -> Ok
+R 319:5 references tests -> bounded_helpers_reject_out_of_range
+R 326:5 references tests -> audit_log_respects_threshold
 R 328:29 calls audit_log_respects_threshold -> with_threshold
 R 329:13 calls audit_log_respects_threshold -> push
 R 330:13 calls audit_log_respects_threshold -> push
 R 332:27 calls audit_log_respects_threshold -> drain
+R 333:20 references audit_log_respects_threshold -> format_entry
+R 337:5 references tests -> display_mentions_numbers
 R 340:22 calls display_mentions_numbers -> ProductId (x-file: model.rs)
 R 344:22 calls display_mentions_numbers -> to_string
+R 349:5 references tests -> io_errors_become_storage_errors
 R 351:34 calls io_errors_become_storage_errors -> new
 R 352:36 calls io_errors_become_storage_errors -> into
+R 357:5 references tests -> parse_errors_become_validation_errors
 R 359:65 calls parse_errors_become_validation_errors -> into
 R 359:52 calls parse_errors_become_validation_errors -> unwrap_err
 R 359:37 calls parse_errors_become_validation_errors -> parse
+R 363:5 references tests -> error_count_increases_on_report
 R 365:22 calls error_count_increases_on_report -> error_count
 R 366:62 calls error_count_increases_on_report -> report
 R 366:33 calls error_count_increases_on_report -> UnknownProduct
 R 366:48 calls error_count_increases_on_report -> ProductId (x-file: model.rs)
+R 367:17 references error_count_increases_on_report -> error_count
+R 370:5 references tests -> severity_tags
 R 380:10 calls severity_tags -> collect
 R 379:10 calls severity_tags -> map (x-file: model.rs)
 R 378:10 calls severity_tags -> iter
 R 379:20 calls severity_tags -> tag
+R 384:5 references tests -> filtered_keeps_order
 R 386:29 calls filtered_keeps_order -> new
 R 387:13 calls filtered_keeps_order -> push
 R 388:13 calls filtered_keeps_order -> push
@@ -282,18 +295,28 @@ R 251:49 calls main -> collect
 R 251:41 calls main -> skip
 R 251:34 calls main -> args
 R 252:11 calls main -> run
+R 259:29 references main -> usage
 R 260:16 calls main -> error_count (x-file: errors.rs)
 R 263:23 calls main -> from (x-file: errors.rs)
 R 273:44 calls args -> collect
 R 273:21 calls args -> map (x-file: model.rs)
 R 273:14 calls args -> iter
 R 273:31 calls args -> to_string
+R 276:5 references tests -> parses_add_with_box_unit
 R 278:73 calls parses_add_with_box_unit -> unwrap
 R 278:19 calls parses_add_with_box_unit -> parse_command
 R 278:34 calls parses_add_with_box_unit -> args
+R 289:5 references tests -> empty_command_line_is_help
+R 291:20 references empty_command_line_is_help -> parse_command
+R 294:5 references tests -> unknown_flag_is_rejected
+R 296:17 references unknown_flag_is_rejected -> split_options
+R 296:31 references unknown_flag_is_rejected -> args
+R 299:5 references tests -> snapshot_flag_takes_a_value
 R 301:84 calls snapshot_flag_takes_a_value -> unwrap
 R 301:28 calls snapshot_flag_takes_a_value -> split_options
 R 301:42 calls snapshot_flag_takes_a_value -> args
+R 306:5 references tests -> category_tree_has_unicode_leaf
+R 308:17 references category_tree_has_unicode_leaf -> default_categories
 
 == model.rs (407 lines)
 S 1-407 module model
@@ -434,6 +457,9 @@ R 383:18 calls Size::fits_in -> iter
 R 383:36 calls Size::fits_in -> iter
 R 389:14 calls stacked_volume -> volume
 R 389:30 calls stacked_volume -> from (x-file: errors.rs)
+R 397:5 references tests -> sku_is_zero_padded
+R 399:20 references sku_is_zero_padded -> make_sku
+R 402:5 references tests -> unicode_names_are_accepted
 R 404:26 calls unicode_names_are_accepted -> new
 R 404:30 calls unicode_names_are_accepted -> ProductId
 
@@ -640,6 +666,12 @@ R 314:26 calls shelf_usage -> volume (x-file: model.rs)
 R 316:57 calls shelf_usage -> unwrap_or
 R 316:26 calls shelf_usage -> try_from
 R 316:43 calls shelf_usage -> min
+R 330:5 references tests -> pads_by_characters
+R 332:20 references pads_by_characters -> pad
+R 333:20 references pads_by_characters -> pad
+R 336:5 references tests -> truncates_with_ellipsis
+R 338:20 references truncates_with_ellipsis -> truncate
+R 339:20 references truncates_with_ellipsis -> truncate
 
 == service.rs (362 lines)
 S 1-362 module service
@@ -956,6 +988,8 @@ R 193:9 calls StockTable::snapshot -> Ok
 R 205:33 calls SnapshotFile::new -> to_path_buf
 R 205:24 calls SnapshotFile::new -> as_ref
 R 215:30 calls SnapshotFile::save -> create
+R 221:17 references SnapshotFile::save -> encode_unit
+R 222:17 references SnapshotFile::save -> escape
 R 232:9 calls SnapshotFile::save -> audit (x-file: errors.rs)
 R 236:9 calls SnapshotFile::save -> Ok
 R 242:33 calls SnapshotFile::load -> new
@@ -1007,11 +1041,13 @@ R 311:25 calls unescape -> push (x-file: errors.rs)
 R 322:73 calls product -> unwrap
 R 322:18 calls product -> new
 R 322:22 calls product -> ProductId (x-file: model.rs)
+R 325:5 references tests -> memory_repository_round_trip
 R 327:42 calls memory_repository_round_trip -> new
 R 328:47 calls memory_repository_round_trip -> unwrap
 R 328:14 calls memory_repository_round_trip -> extend
 R 328:22 calls memory_repository_round_trip -> product
 R 328:34 calls memory_repository_round_trip -> product
+R 335:5 references tests -> stale_version_is_a_conflict
 R 337:33 calls stale_version_is_a_conflict -> new
 R 343:14 calls stale_version_is_a_conflict -> unwrap
 R 339:14 calls stale_version_is_a_conflict -> modify
@@ -1024,4 +1060,10 @@ R 345:21 calls stale_version_is_a_conflict -> ProductId (x-file: model.rs)
 R 345:35 calls stale_version_is_a_conflict -> LocationId (x-file: model.rs)
 R 345:50 calls stale_version_is_a_conflict -> Some
 R 345:67 calls stale_version_is_a_conflict -> Ok
+R 350:5 references tests -> escape_round_trips
+R 353:20 references escape_round_trips -> unescape
+R 353:30 references escape_round_trips -> escape
+R 356:5 references tests -> units_round_trip
 R 358:70 calls units_round_trip -> Box
+R 359:24 references units_round_trip -> decode_unit
+R 359:37 references units_round_trip -> encode_unit

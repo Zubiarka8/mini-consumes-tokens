@@ -73,12 +73,15 @@ fn name_looks_like_test(name: &str) -> bool {
     lower == "test" || lower.starts_with("test_")
 }
 
-/// Heuristic for "is this hit a test": still no per-language test
-/// framework/attribute detection (Rust's `#[test]`, pytest fixtures, JS
-/// `describe`/`it`), so this combines the two signals that are already in
-/// the index — the file path, which is by far the stronger one, and the
-/// symbol's own name. Simplification, not a promise: a caller relying on it
-/// for exhaustive test coverage should be warned.
+/// Heuristic for "is this hit a test": no per-language test framework
+/// detection here (pytest fixtures, JS `describe`/`it`), so this combines the
+/// two signals that are already in the index — the file path, which is by far
+/// the stronger one, and the symbol's own name. (A parser can do better on
+/// its own: `mct-lang-rust` records a `#[test]`/`#[tokio::test]`/... attribute
+/// as a `References` relation to its function, so an inline Rust test is
+/// never an unreferenced dead-code candidate even under `src/`.)
+/// Simplification, not a promise: a caller relying on it for exhaustive test
+/// coverage should be warned.
 pub fn looks_like_test_name(name: &str, relative_path: &str) -> bool {
     path_looks_like_test(relative_path) || name_looks_like_test(name)
 }
