@@ -24,6 +24,7 @@ mct-lang-html.workspace = true
 mct-lang-java.workspace = true
 mct-lang-js-ts.workspace = true
 mct-lang-kotlin.workspace = true
+mct-lang-lua.workspace = true
 mct-lang-md.workspace = true
 mct-lang-php.workspace = true
 mct-lang-powershell.workspace = true

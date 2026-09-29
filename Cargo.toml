@@ -54,6 +54,7 @@ mct-lang-powershell = { path = "crates/mct-lang-powershell", version = "0.1.0" }
 mct-lang-php = { path = "crates/mct-lang-php", version = "0.1.0" }
 mct-lang-md = { path = "crates/mct-lang-md", version = "0.1.0" }
 mct-lang-kotlin = { path = "crates/mct-lang-kotlin", version = "0.1.0" }
+mct-lang-lua = { path = "crates/mct-lang-lua", version = "0.1.0" }
 # Test-only (publish = false): path-only, so `cargo publish` strips it from
 # the dev-dependencies of every crate that uses it.
 mct-corpus = { path = "crates/mct-corpus" }

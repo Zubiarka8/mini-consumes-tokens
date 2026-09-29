@@ -18,7 +18,7 @@ Once that map exists, your AI assistant can ask it precise questions instead of 
 
 A few things that make this different from a typical single-purpose plugin:
 
-- **It understands 16 programming and markup languages at once**, including projects that mix several languages together.
+- **It understands 17 programming and markup languages at once**, including projects that mix several languages together.
 - **It isn't tied to one editor or assistant.** It speaks a common protocol called **MCP** (Model Context Protocol) — think of it as a shared language that lets an AI assistant ask a tool for information directly, the same way different apps on your phone can all talk to the same calendar. Any MCP-capable assistant can connect to it.
 - **It also works as a plain command-line tool**, for anyone who just wants to check the health of the index or rebuild it by hand, with no AI assistant involved at all.
 - **18 MCP tools, grouped by purpose** (discovery, lookup, relations, maintenance, meta) — from a single symbol lookup, a ranked search by partial name or an optional search by meaning, to a one-shot "what would this change affect" blast-radius report, a one-call context pack for the symbol you're about to work on, plus a project-wide overview and a plain directory tree for getting oriented before you know which file you need.
@@ -28,7 +28,7 @@ A few things that make this different from a typical single-purpose plugin:
 - **Context packs**: `build_context_pack` returns everything needed to work on one symbol in a single call — its definition with doc comment and (capped) source, then every caller, callee, dependency and related test listed once with its one-line signature — instead of chaining four lookups and reading every file they point at. About 85% fewer tokens than that manual route on the test fixture.
 - **Compact `toon` output format**: any result-returning tool can render its output as a token-lean table instead of the default labelled text, opt-in per call.
 
-**Supported languages:** Rust, Python, Java, C#, Kotlin, JavaScript/TypeScript, C++, Go, HTML, CSS, XML, XAML, Bash, PowerShell, PHP, and Markdown (headings plus [[WikiLink]]/#tag relations).
+**Supported languages:** Rust, Python, Java, C#, Kotlin, JavaScript/TypeScript, C++, Go, Lua, HTML, CSS, XML, XAML, Bash, PowerShell, PHP, and Markdown (headings plus [[WikiLink]]/#tag relations).
 
 ### See it in action
 
@@ -368,7 +368,7 @@ Then this project can't connect to it directly — MCP (§ 1) is what lets an as
 Nothing is lost — it's entirely derived from your source code and gets rebuilt the next time you run `init`/`reindex`, or the next time your assistant connects.
 
 **Does it work on a project that mixes several languages?**
-Yes — the same index covers all 16 supported languages (§ 1) in one project, including files that reference each other across languages.
+Yes — the same index covers all 17 supported languages (§ 1) in one project, including files that reference each other across languages.
 ---
 
 ## 9. Troubleshooting common problems
