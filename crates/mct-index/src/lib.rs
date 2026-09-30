@@ -170,6 +170,8 @@ impl Index {
     /// last run (or every supported file, if `force`), via the parser the
     /// `registry` resolves for each extension. Never touches a file outside
     /// [`Index::root`], and never follows a symlink that would escape it.
+    /// First re-reads the project's ignore files ([`ExcludeSet::reload`]), so
+    /// a rule added or removed since the index was opened applies to this run.
     pub fn reindex(&mut self, registry: &LanguageRegistry, force: bool) -> Result<ReindexReport> {
         indexer::reindex(self, registry, force)
     }

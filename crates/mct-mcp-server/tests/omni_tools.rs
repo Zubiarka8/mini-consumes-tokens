@@ -6,7 +6,7 @@
 //! administration tools — `get_indexing_status` and `reindex` had no test at
 //! all — and (b) `depth`/`offset` on `find_references` and
 //! `impact_analysis`, and `offset` on `find_calls`. Those, plus every other
-//! tool re-run across 16 languages at once, are what this file adds.
+//! tool re-run across 17 languages at once, are what this file adds.
 
 // Test code: an unwrap()/expect() here means a broken test precondition, and
 // panicking is the correct behavior — this is not production code parsing
@@ -186,6 +186,45 @@ async fn find_symbol_on_an_unknown_name_says_so_rather_than_erroring() {
         text,
         "No symbol named `no_such_symbol_anywhere` found in the index."
     );
+}
+
+#[tokio::test]
+async fn lua_definitions_and_calls_are_served_through_the_mcp_tools() {
+    // Lua is wired into the production `build_registry()` this server uses.
+    let server = build_server().await;
+    let symbol = content_of(
+        &server
+            .find_symbol(Parameters(FindSymbolArgs {
+                format: None,
+                path: None,
+                language: Some("lua".to_string()),
+                name: "build".to_string(),
+                match_mode: None,
+                limit: None,
+            }))
+            .await
+            .unwrap(),
+    );
+    assert!(
+        symbol.contains("luatools/build.lua:5:") && symbol.contains("[lua]"),
+        "got: {symbol}"
+    );
+
+    let calls = content_of(
+        &server
+            .find_calls(Parameters(FindCallsArgs {
+                format: None,
+                path: None,
+                language: Some("lua".to_string()),
+                function: "build".to_string(),
+                limit: None,
+                depth: None,
+                offset: None,
+            }))
+            .await
+            .unwrap(),
+    );
+    assert!(calls.contains("tostring"), "got: {calls}");
 }
 
 // --------------------------------------------------------------- traversal
@@ -516,7 +555,7 @@ async fn get_file_skeleton_renders_declarations_for_every_registered_language() 
     // rendering").
     //
     // OBSERVED: `No top-level symbols found in <path> to build a skeleton
-    // from.` for all four files below — 4 of the 16 registered languages,
+    // from.` for all four files below — 4 of the 17 registered languages,
     // two of them (Go, C#) named in that very description.
     //
     // ROOT CAUSE: `MctServer::get_file_skeleton` filters entries with
@@ -731,7 +770,7 @@ async fn get_indexing_status_reports_every_language_and_the_detected_manifests()
     );
 
     assert!(
-        text.contains("28 files indexed, 101 symbols total."),
+        text.contains("29 files indexed, 104 symbols total."),
         "got: {text}"
     );
     assert!(text.contains("Coverage by language:"), "got: {text}");
@@ -745,6 +784,7 @@ async fn get_indexing_status_reports_every_language_and_the_detected_manifests()
         "java",
         "javascript_typescript",
         "kotlin",
+        "lua",
         "markdown",
         "php",
         "powershell",
@@ -804,7 +844,7 @@ async fn reindex_tool_reports_an_incremental_no_op_then_a_full_reparse_when_forc
     );
     assert!(
         incremental
-            .starts_with("Reindex complete: 0 parsed, 28 unchanged, 0 removed, 0 symbols written."),
+            .starts_with("Reindex complete: 0 parsed, 29 unchanged, 0 removed, 0 symbols written."),
         "nothing changed on disk, so nothing should be re-parsed: {incremental}"
     );
 
@@ -816,7 +856,7 @@ async fn reindex_tool_reports_an_incremental_no_op_then_a_full_reparse_when_forc
     );
     assert!(
         forced.starts_with(
-            "Reindex complete: 28 parsed, 0 unchanged, 0 removed, 101 symbols written."
+            "Reindex complete: 29 parsed, 0 unchanged, 0 removed, 104 symbols written."
         ),
         "force must bypass the hash check for every file: {forced}"
     );
@@ -829,7 +869,7 @@ async fn reindex_tool_reports_an_incremental_no_op_then_a_full_reparse_when_forc
             .unwrap(),
     );
     assert!(
-        status.contains("28 files indexed, 101 symbols total."),
+        status.contains("29 files indexed, 104 symbols total."),
         "got: {status}"
     );
 }
