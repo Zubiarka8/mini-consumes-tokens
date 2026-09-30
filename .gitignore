@@ -36,5 +36,8 @@ issues.md
 # Local-only: default indexing-exclusions stub, not customized/shared yet
 .mctignore
 
-# Local-only: Codex per-project config (may hold credentials in plain text, see GPT-Report F01)
+# Local-only Codex config may hold credentials; share only the project's hooks file.
 .codex/
+!.codex/
+.codex/*
+!.codex/hooks.json
