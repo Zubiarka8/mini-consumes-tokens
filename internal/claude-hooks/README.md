@@ -1,47 +1,10 @@
-# Claude Code hooks
+# Agent hooks (Claude Code and Codex)
 
-Scripts here are tracked so they ship with the repo, but none of them run on
-their own — Claude Code only invokes a hook that's wired into a local
-`.claude/settings.json` (or `.claude/settings.local.json`). That file is
-gitignored (session/machine-local, like `.mcp.json`), so each contributor
-who wants a hook active enables it themselves, once, on their own machine.
+Same scripts for both agents. Wired in `.claude/settings.json` (gitignored, local) and `.codex/hooks.json`; each script reads the hook JSON on stdin and needs `python3`.
 
-## dogfood_mcp_guard.py
+- `dogfood_mcp_guard.py` — PreToolUse: denies `Grep` or Bash `grep|rg|cat|find|ag|ack` over `crates/` and names the MCP tool to use; asks for confirmation in Claude Code if `.mcp.json` doesn't register `mini-consumes-tokens`, and denies in Codex because Codex PreToolUse doesn't support `ask`; `Read` is allowed.
+- `sqlite_guard.py` — PreToolUse (Bash): denies `sqlite3` or anything touching `.mct-index/index.sqlite3`.
+- `rustfmt_posttool.py` — PostToolUse (edits / `apply_patch`): silently runs `rustfmt --edition 2021` on `.rs` files from `git diff --name-only`.
+- `stop_clippy.py` — Stop: if `.rs` files are modified and `stop_hook_active` is false, runs `scripts/unix/check.sh --only clippy`; on failure prints only the failing lines to stderr and exits 2.
 
-Turns the dogfooding rule in `../../CLAUDE.md` ("explore this repo's own
-`crates/` source through the `mini-consumes-tokens` MCP tools or `mct-cli`,
-not `Grep`/`Bash` text search") from a rule Claude has to remember into one
-enforced by Claude Code itself: a `PreToolUse` hook that turns a `Grep` call
-or a `Bash` command running `grep`/`rg`/`cat`/`find`/`ag`/`ack` against
-`crates/` into a one-off user confirmation instead of letting it through
-silently. Approving it never creates a standing exception — the next
-matching call asks again, same as CLAUDE.md's own carve-out for cases the
-MCP tools don't cover.
-
-To enable it, add to `.claude/settings.json` (or `.claude/settings.local.json`)
-at the project root:
-
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Grep",
-        "hooks": [
-          { "type": "command", "command": "python3 internal/claude-hooks/dogfood_mcp_guard.py" }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          { "type": "command", "command": "python3 internal/claude-hooks/dogfood_mcp_guard.py" }
-        ]
-      }
-    ]
-  }
-}
-```
-
-Requires `python3` on `PATH`. Only Claude Code reads this hook config today
-— it's not portable to other coding agents (Codex, Cursor, Gemini, ...),
-each of which would need its own equivalent mechanism, if it has one.
+`_common.py` holds the shared helpers.
