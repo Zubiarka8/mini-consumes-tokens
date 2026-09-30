@@ -1,4 +1,5 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, PoisonError, RwLock};
 
 use globset::{Glob, GlobSet, GlobSetBuilder};
 
@@ -98,59 +99,142 @@ const DEFAULT_EXCLUDE_DIRS: &[&str] = &[
     ".ccm-index",
 ];
 
+/// The paths kept out of the index: the built-in exclusions plus a project's
+/// extra patterns.
+///
+/// A handle: clones share one set of rules, so the indexer's walk and the
+/// server's watcher filter can never disagree. A set built by
+/// [`ExcludeSet::for_project`] also remembers where its rules came from and
+/// can pick up later edits to them ([`ExcludeSet::reload`]), which every
+/// clone then sees at once.
 #[derive(Clone)]
 pub struct ExcludeSet {
+    rules: Arc<RwLock<Rules>>,
+}
+
+struct Rules {
     set: GlobSet,
+    /// The extra patterns `set` was built from.
+    extra: Vec<String>,
+    /// Project root whose ignore files the extra patterns were read from —
+    /// `None` for a fixed set ([`ExcludeSet::new`]), which never reloads.
+    project_root: Option<PathBuf>,
 }
 
 impl ExcludeSet {
     /// Builds the default exclude set. `extra_patterns` lets a project widen
-    /// (never narrow) it via configuration.
+    /// (never narrow) it via configuration. The result is fixed:
+    /// [`ExcludeSet::reload`] never changes it.
     pub fn new(extra_patterns: &[String]) -> Self {
-        let mut builder = GlobSetBuilder::new();
-        for pattern in DEFAULT_EXCLUDE_PATTERNS {
-            #[allow(clippy::expect_used)]
-            // SAFETY: `pattern` is one of the hardcoded literals in
-            // `DEFAULT_EXCLUDE_PATTERNS` above, not user input — a malformed
-            // literal would be a compile-time-caught bug in this file, never
-            // a runtime failure driven by an indexed repo.
-            builder.add(Glob::new(pattern).expect("built-in exclude pattern is valid"));
+        Self::from_rules(Rules {
+            set: build_set(extra_patterns),
+            extra: extra_patterns.to_vec(),
+            project_root: None,
+        })
+    }
+
+    /// The exclude set for the project at `root`: the built-in exclusions
+    /// plus whatever its ignore files ask for ([`read_ignore_file`]), re-read
+    /// by every [`ExcludeSet::reload`] so an edit to them takes effect
+    /// without restarting.
+    pub fn for_project(root: &Path) -> Self {
+        let extra = read_ignore_file(root);
+        Self::from_rules(Rules {
+            set: build_set(&extra),
+            extra,
+            project_root: Some(root.to_path_buf()),
+        })
+    }
+
+    fn from_rules(rules: Rules) -> Self {
+        Self {
+            rules: Arc::new(RwLock::new(rules)),
         }
-        // Two patterns per directory, never one. `**/dir/**` matches what is
-        // *inside* the directory but not the directory's own entry, and the
-        // seemingly equivalent one-liner `**/dir{,/**}` is not equivalent at
-        // all: globset drops the empty alternation branch and compiles it to
-        // exactly `**/dir/**`. Matching the entry itself is what lets the
-        // indexer's walk prune an excluded directory instead of descending
-        // into it, and what stops a filesystem event for the directory's own
-        // entry (e.g. its mtime changing when a child is written) from
-        // slipping past the watcher's filter unexcluded.
-        for dir in DEFAULT_EXCLUDE_DIRS {
-            for pattern in [format!("**/{dir}"), format!("**/{dir}/**")] {
-                #[allow(clippy::expect_used)]
-                // SAFETY: built from a hardcoded literal in
-                // `DEFAULT_EXCLUDE_DIRS` above, same reasoning as the loop
-                // over `DEFAULT_EXCLUDE_PATTERNS`.
-                builder.add(Glob::new(&pattern).expect("built-in exclude pattern is valid"));
-            }
+    }
+
+    /// Re-reads the project's ignore files (a set built by
+    /// [`ExcludeSet::for_project`] only) and swaps in the new rules if they
+    /// differ. Returns whether they changed: a path that was, or now is,
+    /// excluded produced no useful filesystem event of its own, so only a
+    /// full walk brings the index in line with the new rules.
+    pub fn reload(&self) -> bool {
+        let Some(root) = self.read().project_root.clone() else {
+            return false;
+        };
+        let extra = read_ignore_file(&root);
+        if self.read().extra == extra {
+            return false;
         }
-        for pattern in extra_patterns {
-            if let Ok(glob) = Glob::new(pattern) {
-                builder.add(glob);
-            }
-        }
-        #[allow(clippy::expect_used)]
-        // SAFETY: every glob added above came from a literal pattern or was
-        // already filtered through `if let Ok(glob)`, so building the set can
-        // never fail here.
-        let set = builder.build().expect("exclude glob set builds");
-        Self { set }
+        let set = build_set(&extra);
+        let mut rules = self.rules.write().unwrap_or_else(PoisonError::into_inner);
+        rules.set = set;
+        rules.extra = extra;
+        true
+    }
+
+    /// Whether `relative_path` (forward slashes, relative to the project
+    /// root) is one of the files [`read_ignore_file`] reads — the files whose
+    /// edits call for an [`ExcludeSet::reload`]. `.gitignore` counts even
+    /// when not imported: whether it is imported is itself a rule that may
+    /// have just changed, and reloading an unchanged set is a no-op.
+    pub fn is_rules_file(relative_path: &str) -> bool {
+        relative_path == IGNORE_FILE_NAME || relative_path == GITIGNORE_FILE_NAME
+    }
+
+    fn read(&self) -> std::sync::RwLockReadGuard<'_, Rules> {
+        // A panic while holding the lock can't leave `Rules` half-written:
+        // `reload` builds the new set before taking the write lock.
+        self.rules.read().unwrap_or_else(PoisonError::into_inner)
     }
 
     /// `relative_path` uses forward slashes, matching [`mct_core::SourceFile::relative_path`].
     pub fn is_excluded(&self, relative_path: &str) -> bool {
-        self.set.is_match(relative_path)
+        self.read().set.is_match(relative_path)
     }
+}
+
+/// The project's own `.gitignore`, read when `.mctignore` imports it.
+const GITIGNORE_FILE_NAME: &str = ".gitignore";
+
+/// The built-in exclusions plus `extra_patterns` (malformed ones skipped).
+fn build_set(extra_patterns: &[String]) -> GlobSet {
+    let mut builder = GlobSetBuilder::new();
+    for pattern in DEFAULT_EXCLUDE_PATTERNS {
+        #[allow(clippy::expect_used)]
+        // SAFETY: `pattern` is one of the hardcoded literals in
+        // `DEFAULT_EXCLUDE_PATTERNS` above, not user input — a malformed
+        // literal would be a compile-time-caught bug in this file, never
+        // a runtime failure driven by an indexed repo.
+        builder.add(Glob::new(pattern).expect("built-in exclude pattern is valid"));
+    }
+    // Two patterns per directory, never one. `**/dir/**` matches what is
+    // *inside* the directory but not the directory's own entry, and the
+    // seemingly equivalent one-liner `**/dir{,/**}` is not equivalent at
+    // all: globset drops the empty alternation branch and compiles it to
+    // exactly `**/dir/**`. Matching the entry itself is what lets the
+    // indexer's walk prune an excluded directory instead of descending
+    // into it, and what stops a filesystem event for the directory's own
+    // entry (e.g. its mtime changing when a child is written) from
+    // slipping past the watcher's filter unexcluded.
+    for dir in DEFAULT_EXCLUDE_DIRS {
+        for pattern in [format!("**/{dir}"), format!("**/{dir}/**")] {
+            #[allow(clippy::expect_used)]
+            // SAFETY: built from a hardcoded literal in
+            // `DEFAULT_EXCLUDE_DIRS` above, same reasoning as the loop
+            // over `DEFAULT_EXCLUDE_PATTERNS`.
+            builder.add(Glob::new(&pattern).expect("built-in exclude pattern is valid"));
+        }
+    }
+    for pattern in extra_patterns {
+        if let Ok(glob) = Glob::new(pattern) {
+            builder.add(glob);
+        }
+    }
+    #[allow(clippy::expect_used)]
+    // SAFETY: every glob added above came from a literal pattern or was
+    // already filtered through `if let Ok(glob)`, so building the set can
+    // never fail here.
+    builder.build().expect("exclude glob set builds")
 }
 
 impl Default for ExcludeSet {
@@ -200,7 +284,7 @@ pub fn read_ignore_file(root: &Path) -> Vec<String> {
     }
 
     if import_gitignore {
-        if let Ok(gitignore) = std::fs::read_to_string(root.join(".gitignore")) {
+        if let Ok(gitignore) = std::fs::read_to_string(root.join(GITIGNORE_FILE_NAME)) {
             for line in gitignore.lines() {
                 let line = line.trim();
                 // Comments, blank lines, and negation (`!pattern`, which

@@ -89,6 +89,11 @@ pub fn reindex(
     let mut seen_paths = Vec::new();
     let mut seen_manifest_paths = Vec::new();
 
+    // Pick up edits to the project's ignore files first: the walk below then
+    // skips newly excluded paths (and the sweep drops their rows) and indexes
+    // newly un-excluded ones, forced or not.
+    index.exclude.reload();
+
     // Cloned out of `index` so the `filter_entry` closure below doesn't hold a
     // borrow of it across the loop body, which needs `&mut Index` to write.
     let exclude = index.exclude.clone();
@@ -323,7 +328,9 @@ fn index_file(
 /// likely old ends of an unreported rename are checked and dropped if gone
 /// (see [`remove_renamed_away`]). An edit of an already indexed file or a
 /// deletion checks nothing else, so no update costs anything per indexed
-/// file. Excluded paths and paths outside the root are ignored; the root itself falls back to a full [`reindex`]. Relations
+/// file. Excluded paths and paths outside the root are ignored; the root
+/// itself, or an ignore file whose rules changed ([`ExcludeSet::reload`]),
+/// falls back to a full [`reindex`]. Relations
 /// are resolved by name at query time and a symbol's embedding/literals
 /// cascade with it, so rewriting one file's rows is all an update needs: the
 /// result is the same index a full [`reindex`] would produce.
@@ -350,6 +357,15 @@ pub fn reindex_paths(
         .collect();
     unique.sort();
     unique.dedup();
+
+    // An edited ignore file can exclude or un-exclude paths anywhere, none of
+    // which were reported: only a full walk applies the new rules.
+    let rules_file_changed = unique.iter().any(|p| {
+        to_relative_slash_path(&root, p).is_some_and(|rel| ExcludeSet::is_rules_file(&rel))
+    });
+    if rules_file_changed && exclude.reload() {
+        return reindex(index, registry, false);
+    }
 
     for absolute in unique {
         // Judged as written, not canonicalized: a deleted path can't be.
@@ -496,15 +512,21 @@ const PATH_TABLES: [(&str, &str); 3] = [
 /// - indexed paths directly in a created path's directory (a rename that
 ///   also edited the file, a case-only rename).
 ///
+/// When such a same-hash file vanished from a directory that is itself gone
+/// ([`renamed_directory`]), everything still indexed under that directory
+/// goes too — manifests and syntax errors, which have no hash to match.
+///
 /// Bounded by what the batch created, never by the size of the index: an
 /// unreported move to another directory that also changed the content is
 /// the one case left to the next full reindex, like any lost event.
+/// Known gap: a directory renamed by its new path only with no same-hash candidate (only manifests/broken files) keeps its old rows until the next full reindex.
 fn remove_renamed_away(index: &mut Index, created: &[String]) -> Result<usize> {
     let root = index.root.clone();
     let created_set: HashSet<&str> = created.iter().map(String::as_str).collect();
     let mut candidates: Vec<String> = Vec::new();
 
-    let mut hashes: Vec<String> = Vec::new();
+    // Created paths by content hash, and the indexed paths sharing one.
+    let mut created_by_hash: HashMap<String, Vec<&str>> = HashMap::new();
     for path in created {
         let hash: Option<Option<String>> = index
             .conn
@@ -514,18 +536,23 @@ fn remove_renamed_away(index: &mut Index, created: &[String]) -> Result<usize> {
                 |row| row.get(0),
             )
             .optional()?;
-        hashes.extend(hash.flatten());
+        if let Some(hash) = hash.flatten() {
+            created_by_hash.entry(hash).or_default().push(path);
+        }
     }
-    hashes.sort();
-    hashes.dedup();
+    let hashes: Vec<&String> = created_by_hash.keys().collect();
+    let mut same_hash: Vec<(String, String)> = Vec::new();
     for chunk in hashes.chunks(500) {
         let placeholders = vec!["?"; chunk.len()].join(",");
         let mut stmt = index.conn.prepare(&format!(
-            "SELECT relative_path FROM files WHERE content_hash IN ({placeholders})"
+            "SELECT relative_path, content_hash FROM files WHERE content_hash IN ({placeholders})"
         ))?;
-        let rows = stmt.query_map(rusqlite::params_from_iter(chunk), |row| row.get(0))?;
-        candidates.extend(rows.collect::<rusqlite::Result<Vec<String>>>()?);
+        let rows = stmt.query_map(rusqlite::params_from_iter(chunk), |row| {
+            Ok((row.get(0)?, row.get(1)?))
+        })?;
+        same_hash.extend(rows.collect::<rusqlite::Result<Vec<(String, String)>>>()?);
     }
+    candidates.extend(same_hash.iter().map(|(path, _)| path.clone()));
 
     let parents: HashSet<&str> = created
         .iter()
@@ -558,6 +585,28 @@ fn remove_renamed_away(index: &mut Index, created: &[String]) -> Result<usize> {
     if vanished.is_empty() {
         return Ok(0);
     }
+
+    // A vanished file with the content of a created one whose path ends the
+    // same way was moved along with its directory: rows under that old
+    // directory without a content hash (a manifest's dependencies, a file's
+    // syntax error) are stale too once the directory is gone.
+    let vanished_set: HashSet<&str> = vanished.iter().map(|p| p.as_str()).collect();
+    let mut old_dirs: Vec<&str> = same_hash
+        .iter()
+        .filter(|(path, _)| vanished_set.contains(path.as_str()))
+        .flat_map(|(path, hash)| {
+            created_by_hash
+                .get(hash)
+                .into_iter()
+                .flatten()
+                .filter_map(move |new| renamed_directory(path, new))
+        })
+        .filter(|dir| !on_disk_as_stored(&root, dir))
+        .collect();
+    old_dirs.sort_unstable();
+    old_dirs.dedup();
+    let old_dirs: Vec<String> = old_dirs.into_iter().map(str::to_owned).collect();
+
     let tx = index.conn.transaction()?;
     let mut removed = 0;
     for path in vanished {
@@ -572,7 +621,29 @@ fn remove_renamed_away(index: &mut Index, created: &[String]) -> Result<usize> {
         }
     }
     tx.commit()?;
+    for dir in &old_dirs {
+        removed += remove_under_prefix(index, dir, &[], &[])?;
+    }
     Ok(removed)
+}
+
+/// The directory a rename moved `old` out of, when `old` and `new` end in
+/// the same path components (`lib/a/x.rs` → `pkg/a/x.rs` gives `lib`).
+/// `None` when not even the file name matches or `old` sat at the root.
+fn renamed_directory<'a>(old: &'a str, new: &str) -> Option<&'a str> {
+    let old_parts: Vec<&str> = old.split('/').collect();
+    let shared = old_parts
+        .iter()
+        .rev()
+        .zip(new.split('/').rev())
+        .take_while(|(a, b)| **a == *b)
+        .count();
+    if shared == 0 || shared >= old_parts.len() {
+        return None;
+    }
+    let dir = &old_parts[..old_parts.len() - shared];
+    let len = dir.iter().map(|part| part.len()).sum::<usize>() + dir.len() - 1;
+    old.get(..len)
 }
 
 /// `column` values of `table` directly in a directory: `?1` (`dir/`) ..
@@ -1040,6 +1111,20 @@ mod prefix_query_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::*;
+
+    #[test]
+    fn the_renamed_directory_is_the_part_before_the_shared_suffix() {
+        assert_eq!(renamed_directory("lib/x.rs", "pkg/x.rs"), Some("lib"));
+        assert_eq!(
+            renamed_directory("a/lib/m/x.rs", "a/pkg/m/x.rs"),
+            Some("a/lib")
+        );
+        assert_eq!(renamed_directory("lib/x.rs", "x.rs"), Some("lib"));
+        // Renamed within a directory, or moved out of the root: no directory.
+        assert_eq!(renamed_directory("lib/x.rs", "lib/y.rs"), None);
+        assert_eq!(renamed_directory("x.rs", "pkg/x.rs"), None);
+        assert_eq!(renamed_directory("x.rs", "x.rs"), None);
+    }
 
     /// Deleting a path must not scan whole tables: each table's prefix
     /// query has to be served by an index on its path column.
