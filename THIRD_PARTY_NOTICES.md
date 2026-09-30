@@ -1,5 +1,39 @@
 # Third-Party Notices
 
+The project's original code and documentation are licensed under MIT (see
+`LICENSE-MIT`). That license does not replace the licenses of third-party
+components, including Rust dependencies, bundled libraries, optional embedding
+models, and imported skills. Earlier versions remain available under the
+licenses under which they were released.
+
+## Rust dependencies
+
+The workspace uses dependencies with their own license terms. For example,
+`rmcp`, `rmcp-macros`, and `rusqlite_migration` use Apache-2.0. The optional
+semantic-search dependencies include Apache-2.0 components such as `fastembed`,
+`hf-hub`, and `tokenizers`. The Apache-2.0 text is retained in
+[`licenses/third-party/Apache-2.0.txt`](licenses/third-party/Apache-2.0.txt)
+for these third-party components; it is not an alternative license for the
+project's original code.
+
+Other dependencies include MIT, ISC, BSD, Unicode, and MPL-2.0 components.
+Redistributors must retain the applicable upstream license texts and notices
+for the components included in their distribution. This document is not a
+complete dependency-license inventory; the required set depends on the target,
+enabled features, and distributed artifacts.
+
+## Optional embedding models
+
+The default `bge-small-en-v1.5` model is published under MIT;
+`all-MiniLM-L6-v2` is published under Apache-2.0. These models are downloaded
+separately, and their licenses apply to their weights and associated files.
+See their upstream model cards:
+
+- [BAAI/bge-small-en-v1.5](https://huggingface.co/BAAI/bge-small-en-v1.5)
+- [sentence-transformers/all-MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2)
+
+## Imported skills
+
 The project-local skills in `.agents/skills/` include material from these repositories:
 
 - Skills sourced from [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) are licensed under the MIT License. Copyright (c) 2025 Addy Osmani.
