@@ -79,7 +79,8 @@ jobs:
           mkdir -p "$dist"
           cp "target/${{ matrix.target }}/release/mct-cli" "$dist/"
           cp "target/${{ matrix.target }}/release/mct-mcp-server" "$dist/"
-          cp README.md LICENSE-MIT LICENSE-APACHE CHANGELOG.md "$dist/"
+          cp README.md LICENSE-MIT THIRD_PARTY_NOTICES.md CHANGELOG.md "$dist/"
+          cp -R licenses "$dist/"
           tar -C dist -czf "dist/$pkg.tar.gz" "$pkg"
           rm -rf "$dist"
 
@@ -92,7 +93,8 @@ jobs:
           New-Item -ItemType Directory -Force -Path $dist | Out-Null
           Copy-Item "target/${{ matrix.target }}/release/mct-cli.exe" "$dist/"
           Copy-Item "target/${{ matrix.target }}/release/mct-mcp-server.exe" "$dist/"
-          Copy-Item README.md,LICENSE-MIT,LICENSE-APACHE,CHANGELOG.md "$dist/"
+          Copy-Item README.md,LICENSE-MIT,THIRD_PARTY_NOTICES.md,CHANGELOG.md "$dist/"
+          Copy-Item -Recurse licenses "$dist/"
           Compress-Archive -Path "$dist/*" -DestinationPath "dist/$pkg.zip"
           Remove-Item -Recurse -Force "$dist"
 
