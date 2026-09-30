@@ -4,8 +4,7 @@
 //! `tests/fixtures/polyglot-app/` only spans 3 languages (Go, TypeScript,
 //! Python). This second, broader fixture — `tests/fixtures/omni-app/` — puts
 //! **every language registered in `registry::build_registry()`** into one
-//! indexed project at once, plus a `.lua` file for the one implemented-but-
-//! deliberately-unregistered parser, plus three ecosystems' manifest files.
+//! indexed project at once, plus three ecosystems' manifest files.
 //! The point is the storage layer, not the grammars: one `files.language`
 //! column, one `symbols` table, one `symbol_relations` table shared by all
 //! of them, so this file asserts that nothing collides, nothing is dropped,
@@ -73,6 +72,7 @@ const EXPECTED_COVERAGE: &[(&str, usize, usize)] = &[
     ("java", 2, 8),
     ("javascript_typescript", 2, 8),
     ("kotlin", 2, 9),
+    ("lua", 1, 3),
     ("markdown", 2, 4),
     ("php", 2, 7),
     ("powershell", 2, 5),
@@ -161,37 +161,31 @@ fn no_supported_file_is_silently_dropped_from_the_index() {
 }
 
 #[test]
-fn a_lua_file_is_skipped_without_any_diagnostic_because_lua_is_not_registered() {
-    // `crates/mct-lang-lua` implements `LanguageParser` but is deliberately
-    // NOT wired into `build_registry()` (it is the plugin-architecture proof,
-    // not a shipped language — see internal/checklist.md). `.lua` is also
-    // absent from `KNOWN_PENDING_LANGUAGES`, so the file is dropped with
-    // *no* issue, *no* `unsupported_languages` entry and *no* `files` row.
-    // Pinned here because it is a silent hole, not because it is desirable.
-    assert!(
-        fixture_root().join("luatools/build.lua").is_file(),
-        "fixture precondition: the .lua file must exist"
-    );
-
+fn a_lua_file_is_indexed_with_its_symbols_and_calls() {
+    // `crates/mct-lang-lua` is wired into `build_registry()`; before that it
+    // was silently dropped (no issue, no `unsupported_languages` entry, no
+    // `files` row), so this pins the production registry, not a test one.
     let index = open_indexed();
     let status = index.status().unwrap();
-
-    assert!(
-        !status.languages.iter().any(|l| l.language == "lua"),
-        "lua is not a registered language: {:?}",
-        status.languages
-    );
     assert!(
         status.unsupported_languages.is_empty(),
-        "a .lua file produces no `unsupported language` diagnostic at all: {:?}",
+        "{:?}",
         status.unsupported_languages
     );
+
+    let symbols = index.list_symbols("luatools", None, None).unwrap();
     assert!(
-        index
-            .list_symbols("luatools", None, None)
-            .unwrap()
-            .is_empty(),
-        "nothing from the .lua file reaches the index"
+        symbols
+            .iter()
+            .any(|s| s.name == "build" && s.language == "lua" && s.end_line == Some(7)),
+        "{symbols:?}"
+    );
+    let calls = index.find_calls("build").unwrap();
+    assert!(
+        calls
+            .iter()
+            .any(|c| c.language == "lua" && c.to_name == "tostring"),
+        "{calls:?}"
     );
 }
 
@@ -453,7 +447,7 @@ fn an_incremental_reindex_of_a_real_polyglot_tree_picks_up_one_edit_and_drops_it
     let registry = mct_mcp_server::registry::build_registry();
     let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
     let first = index.reindex(&registry, false).unwrap();
-    assert_eq!(first.files_parsed, 28);
+    assert_eq!(first.files_parsed, 29);
 
     assert_eq!(index.find_symbol("Describe").unwrap().len(), 1);
     assert!(index
@@ -477,7 +471,7 @@ fn an_incremental_reindex_of_a_real_polyglot_tree_picks_up_one_edit_and_drops_it
 
     let second = index.reindex(&registry, false).unwrap();
     assert_eq!(second.files_parsed, 1, "only the edited file re-parses");
-    assert_eq!(second.files_unchanged, 27);
+    assert_eq!(second.files_unchanged, 28);
     assert_eq!(second.files_removed, 0);
 
     assert!(

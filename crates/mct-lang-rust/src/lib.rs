@@ -7,6 +7,7 @@ use mct_core::{
     LanguageParser, LiteralCollector, Location, ParseError, ParsedFile, RelationKind, SourceFile,
     SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
+use std::collections::HashSet;
 use tree_sitter::{Node, Parser};
 
 pub struct RustParser;
@@ -61,6 +62,7 @@ impl LanguageParser for RustParser {
             module_location.end_line = Some(end.row as u32);
         }
         let module_id = walker.push_symbol(module_name, SymbolKind::Module, module_location, None);
+        collect_free_fn_names(root, &file.contents, &mut walker.free_fns, 0);
         walker.visit_children(root, module_id, None, 0);
         Ok(walker.finish())
     }
@@ -109,6 +111,14 @@ struct Walker<'a> {
     relations: Vec<SymbolRelation>,
     literals: LiteralCollector,
     next_id: SymbolId,
+    /// Names of the free (non-`impl`/`trait`) functions declared anywhere in
+    /// this file — the only names a bare identifier is resolved against when
+    /// it's used as a value rather than called (see the `identifier` arm).
+    free_fns: HashSet<String>,
+    /// Names bound as locals (parameters, `let`/`for`/`match`/closure
+    /// patterns) in the function currently being walked: a bare identifier
+    /// with one of these names is the local, never the same-named function.
+    bound: HashSet<String>,
 }
 
 impl<'a> Walker<'a> {
@@ -119,6 +129,8 @@ impl<'a> Walker<'a> {
             relations: Vec::new(),
             literals: LiteralCollector::default(),
             next_id: 0,
+            free_fns: HashSet::new(),
+            bound: HashSet::new(),
         }
     }
 
@@ -164,9 +176,33 @@ impl<'a> Walker<'a> {
     /// way to `owner` (the innermost enclosing function/method/module) and
     /// labeling methods with `impl_type` (the enclosing `impl Type` name, if
     /// any) as their parent.
+    ///
+    /// A `#[test]`-style attribute (see [`is_harness_attribute`]) directly
+    /// above a function is recorded as a `References` relation from `owner`
+    /// to that function: the test harness is what invokes it, so it is not an
+    /// unreferenced function even though nothing in the repo calls it.
     fn visit_children(&mut self, node: Node, owner: SymbolId, impl_type: Option<&str>, depth: u32) {
+        let mut harness_attribute: Option<Location> = None;
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
+            match child.kind() {
+                "attribute_item" => {
+                    if is_harness_attribute(child, self.source) {
+                        harness_attribute = Some(location(child));
+                    }
+                }
+                "line_comment" | "block_comment" => {}
+                "function_item" => {
+                    if let Some(loc) = harness_attribute.take() {
+                        let name = child
+                            .child_by_field_name("name")
+                            .map(|n| text(n, self.source).to_string())
+                            .unwrap_or_default();
+                        self.push_relation(owner, RelationKind::References, name, loc);
+                    }
+                }
+                _ => harness_attribute = None,
+            }
             self.visit(child, owner, impl_type, depth + 1);
         }
     }
@@ -192,6 +228,12 @@ impl<'a> Walker<'a> {
                 };
                 let id =
                     self.push_symbol(name, kind, location(node), impl_type.map(str::to_string));
+                // Locals are per function: a nested `fn` starts from an empty
+                // scope (it can't see its parent's locals) and the parent's
+                // scope is restored once it's done.
+                let mut locals = HashSet::new();
+                collect_bound_names(node, self.source, &mut locals, 0);
+                let outer = std::mem::replace(&mut self.bound, locals);
                 // A function body is not an impl/trait body: an `fn` or
                 // `const` nested inside a method belongs to the method, not
                 // to the enclosing type, so the impl type stops here.
@@ -200,6 +242,55 @@ impl<'a> Walker<'a> {
                 }
                 if let Some(body) = node.child_by_field_name("body") {
                     self.visit_children(body, id, None, depth + 1);
+                }
+                self.bound = outer;
+            }
+            // A bare identifier reaching here is in value position — a call's
+            // callee, an item's own name and a `use` path are all handled by
+            // their own arms and never visited as one. It's recorded only when
+            // it names a free function of this same file that no local
+            // shadows: `let f = helper;`, `.map(helper)`, or `helper(x)` inside
+            // a macro's token tree (`params![helper(x)]`), which tree-sitter
+            // leaves unparsed and so can't be told apart from a value use —
+            // hence `References`, never `Calls`. Any other identifier (a
+            // local, a field, a name from another file) is left alone.
+            "identifier" => {
+                let name = text(node, self.source);
+                if self.free_fns.contains(name) && !self.bound.contains(name) {
+                    self.push_relation(
+                        owner,
+                        RelationKind::References,
+                        name.to_string(),
+                        location(node),
+                    );
+                }
+            }
+            // Attribute arguments (`#[cfg(test)]`, `#[serde(default)]`) are
+            // not value uses of anything; only their string literals are
+            // kept, as before.
+            "attribute_item" | "inner_attribute_item" => self.visit_literals(node, depth + 1),
+            // A macro's arguments are a flat token stream: an identifier right
+            // after `.` or `::` (`s.product`, `other::helper`) is a field,
+            // method or path segment, never this file's free function.
+            "token_tree" => {
+                let mut cursor = node.walk();
+                for child in node.children(&mut cursor) {
+                    let after_accessor = child.kind() == "identifier"
+                        && child
+                            .prev_sibling()
+                            .is_some_and(|p| matches!(p.kind(), "." | "::"));
+                    if !after_accessor {
+                        self.visit(child, owner, impl_type, depth + 1);
+                    }
+                }
+            }
+            // The macro's own name (`vec`, `params`) is not a value use.
+            "macro_invocation" => {
+                let mut cursor = node.walk();
+                for child in node.children(&mut cursor) {
+                    if child.kind() == "token_tree" {
+                        self.visit(child, owner, impl_type, depth + 1);
+                    }
                 }
             }
             "struct_item" => {
@@ -266,14 +357,44 @@ impl<'a> Walker<'a> {
                     if let Some((name, name_node)) = call_target(function, self.source) {
                         self.push_relation(owner, RelationKind::Calls, name, location(name_node));
                     }
-                    self.visit(function, owner, impl_type, depth + 1);
+                    // A bare callee is already the `Calls` above; visiting it
+                    // would record it a second time as a value use. A
+                    // turbofish (`helper::<T>`, `it.sum::<T>`) is looked
+                    // through, so a method's receiver chain is still walked.
+                    let callee = if function.kind() == "generic_function" {
+                        function.child_by_field_name("function").unwrap_or(function)
+                    } else {
+                        function
+                    };
+                    if callee.kind() != "identifier" {
+                        self.visit(callee, owner, impl_type, depth + 1);
+                    }
                 }
                 if let Some(arguments) = node.child_by_field_name("arguments") {
                     self.visit_children(arguments, owner, impl_type, depth + 1);
                 }
             }
+            // `other::helper` may well be another module's `helper`, and a
+            // label/lifetime (`'helper:`) is no use of a function at all:
+            // none of their identifiers is resolved against this file.
+            "scoped_identifier" | "scoped_type_identifier" | "label" | "lifetime" => {}
             "string_literal" | "raw_string_literal" => self.push_literal(node),
             _ => self.visit_children(node, owner, impl_type, depth + 1),
+        }
+    }
+
+    /// Records the string literals under `node` and nothing else.
+    fn visit_literals(&mut self, node: Node, depth: u32) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return;
+        }
+        if matches!(node.kind(), "string_literal" | "raw_string_literal") {
+            self.push_literal(node);
+            return;
+        }
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            self.visit_literals(child, depth + 1);
         }
     }
 
@@ -333,6 +454,98 @@ fn call_target<'a>(node: Node<'a>, source: &str) -> Option<(String, Node<'a>)> {
             .and_then(|n| call_target(n, source)),
         _ => None,
     }
+}
+
+/// Names of every `fn` item under `node` that isn't an `impl`/`trait`
+/// member — those are methods, reached as `Type::f`/`x.f()`, never by a bare
+/// name.
+fn collect_free_fn_names(node: Node, source: &str, out: &mut HashSet<String>, depth: u32) {
+    if depth >= MAX_TRAVERSAL_DEPTH {
+        return;
+    }
+    match node.kind() {
+        "impl_item" | "trait_item" => return,
+        "function_item" => {
+            if let Some(name) = node.child_by_field_name("name") {
+                out.insert(text(name, source).to_string());
+            }
+        }
+        _ => {}
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        collect_free_fn_names(child, source, out, depth + 1);
+    }
+}
+
+/// Every name a pattern binds anywhere in `node` — parameters and
+/// `let`/`if let`/`for`/`match` arm patterns (all a `pattern` field) plus
+/// closure parameters — without descending into a nested `fn`, which has its
+/// own scope. Over-approximates on purpose: an enum variant in a pattern
+/// (`Some(x)` binds `x` but also yields `Some`) or a binding in a sibling
+/// block only makes the value-use check skip that name.
+fn collect_bound_names(node: Node, source: &str, out: &mut HashSet<String>, depth: u32) {
+    if depth >= MAX_TRAVERSAL_DEPTH {
+        return;
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() == "function_item" {
+            continue;
+        }
+        let is_pattern = node
+            .child_by_field_name("pattern")
+            .is_some_and(|p| p.id() == child.id())
+            || node.kind() == "closure_parameters";
+        if is_pattern {
+            collect_identifiers(child, source, out, depth + 1);
+        } else {
+            collect_bound_names(child, source, out, depth + 1);
+        }
+    }
+}
+
+fn collect_identifiers(node: Node, source: &str, out: &mut HashSet<String>, depth: u32) {
+    if depth >= MAX_TRAVERSAL_DEPTH {
+        return;
+    }
+    // A struct pattern's shorthand field (`Config { root, .. }`) binds a local
+    // named after the field, just like a plain identifier pattern.
+    if matches!(node.kind(), "identifier" | "shorthand_field_identifier") {
+        out.insert(text(node, source).to_string());
+        return;
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        collect_identifiers(child, source, out, depth + 1);
+    }
+}
+
+/// `#[test]`, `#[bench]`, `#[tokio::test]`/`#[async_std::test]` (any path
+/// ending in `test`), `#[rstest]`, `#[test_case(..)]`: attributes that hand
+/// the function to a test/bench harness. `#[cfg(test)]` is not one — it only
+/// gates compilation, and a helper under it can still be genuinely unused.
+fn is_harness_attribute(attribute_item: Node, source: &str) -> bool {
+    let mut cursor = attribute_item.walk();
+    let Some(attribute) = attribute_item
+        .named_children(&mut cursor)
+        .find(|c| c.kind() == "attribute")
+    else {
+        return false;
+    };
+    let mut cursor = attribute.walk();
+    let Some(path) = attribute.named_children(&mut cursor).next() else {
+        return false;
+    };
+    let last = match path.kind() {
+        "identifier" => text(path, source),
+        "scoped_identifier" => path
+            .child_by_field_name("name")
+            .map(|n| text(n, source))
+            .unwrap_or_default(),
+        _ => return false,
+    };
+    matches!(last, "test" | "bench" | "rstest" | "test_case")
 }
 
 fn collect_use_names(node: Node, source: &str, out: &mut Vec<(String, Location)>) {
