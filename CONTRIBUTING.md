@@ -19,7 +19,7 @@ This is the extension point most contributions will touch, so it gets its own ch
    - At least one test covering the language's distinctive idiomatic syntax (generics for C#/Java, templates for C++, decorators for Python — whatever the equivalent is for your language).
    - A syntax-error case asserting `ParseError::Syntax`, not a panic.
 5a. **Add a `cargo-fuzz` harness** (`crates/mct-lang-<name>/fuzz/`) — copy the structure of an existing one (e.g. `mct-lang-lua/fuzz/`): a standalone-workspace `Cargo.toml` (`[workspace]` empty table, so it stays out of the root workspace's members/lockfile) and one `fuzz_targets/parse_<name>.rs` calling `<Name>Parser::parse` on arbitrary bytes. Remember the CI matrix entry from step 4.
-6. **Update docs:** the language table in `README.md` and the "Cobertura de lenguajes" section in `internal/checklist.md`.
+6. **Update docs:** the language table in `README.md` and the "Language coverage" section in `internal/checklist.md`.
 
    `scripts/unix/new-language-check.sh <name>` (macOS/Linux) checks steps 1–6 and lists whatever is still missing.
 7. **Run the workspace test suite** (`cargo test --workspace`) and fix any regressions before opening a PR — or `scripts/unix/check.sh`, which runs the tests, the CI clippy invocation and the `mct-eval` gate and prints only a summary (see `scripts/README.md`).
