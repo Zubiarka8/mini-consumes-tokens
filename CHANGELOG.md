@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The project's original code and documentation in this source tree are licensed under Apache-2.0. Third-party components retain their own licenses and notices.
+
 - **Breaking**: every crate, binary and Rust module path is renamed from the
   `ccm` prefix to `mct` (**M**ini **C**onsumes **T**okens): `ccm-core` →
   `mct-core`, `ccm-index` → `mct-index`, `ccm-cli` → `mct-cli`,
