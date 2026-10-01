@@ -1,1 +1,1 @@
-Before any inquiry, planning, or change in this repository, read and follow [rules.md](rules.md), the single source of truth for project instructions.
+At the start of each new session, read and follow [rules.md](rules.md) in full. During that session, use its [table of contents](rules.md#table-of-contents) to revisit only the section relevant to the current task. Re-read a section if the rules change or you are unsure. Do not duplicate rules here.

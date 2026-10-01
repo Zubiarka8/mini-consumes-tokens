@@ -1,5 +1,17 @@
 # Repository rules
 
+## Table of contents
+
+- [Choosing an AI model](#choosing-an-ai-model)
+  - [ChatGPT and Codex](#chatgpt-and-codex)
+  - [Claude and Claude Code](#claude-and-claude-code)
+  - [Choosing between providers](#choosing-between-providers)
+- [What this is](#what-this-is)
+- [Dogfooding: how to explore this repository's source code](#dogfooding-how-to-explore-this-repositorys-source-code)
+- [In-progress: per-language long-fixture corpus](#in-progress-per-language-long-fixture-corpus-issue-74)
+- [Commands](#commands)
+- [Architecture](#architecture)
+
 Shared rules for Codex, Claude Code, and any agent working in this repository. This file is the single source of truth for project instructions; `AGENTS.md` and `CLAUDE.md` only point here.
 
 ## Choosing an AI model
