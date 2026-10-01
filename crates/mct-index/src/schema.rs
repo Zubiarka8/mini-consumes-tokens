@@ -228,9 +228,11 @@ pub fn migrations() -> Migrations<'static> {
         // backfilled by name (the dropped `to_symbol_id` above was exactly
         // that). A candidate shares the relation's name and the language
         // the evidence names (the source file's own by default), and
-        // satisfies every qualifier/path constraint; a call never targets a
-        // whole-file module. One candidate = resolved, several = ambiguous,
-        // none = unresolved, unless the parser proved `external`.
+        // satisfies every qualifier/path/module constraint; a call never
+        // targets a whole-file module and a receiver (`member`) call only a
+        // method. One candidate = resolved (unless `member`: the receiver's
+        // type is unproven, so ambiguous), several = ambiguous, none =
+        // unresolved, unless the parser proved `external`.
         //
         // `targets_parsed` is 0 on every pre-existing row: those were written
         // without evidence, so they read as unresolved until reparsed, which
@@ -242,6 +244,8 @@ pub fn migrations() -> Migrations<'static> {
             ALTER TABLE relations ADD COLUMN target_language TEXT;
             ALTER TABLE relations ADD COLUMN external INTEGER NOT NULL DEFAULT 0;
             ALTER TABLE relations ADD COLUMN targets_parsed INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE relations ADD COLUMN module TEXT;
+            ALTER TABLE relations ADD COLUMN member INTEGER NOT NULL DEFAULT 0;
 
             CREATE VIEW relation_candidates AS
                 SELECT r.id AS relation_id, s.id AS symbol_id
@@ -257,6 +261,11 @@ pub fn migrations() -> Migrations<'static> {
                        OR s.parent = r.qualifier
                        OR substr(s.parent, 1, length(r.qualifier) + 1) = r.qualifier || '<')
                   AND (r.target_path IS NULL OR sf.relative_path = r.target_path)
+                  AND (r.module IS NULL
+                       OR s.parent = r.module
+                       OR instr('/' || replace(sf.relative_path, '-', '_'), '/' || r.module || '/') > 0
+                       OR instr('/' || replace(sf.relative_path, '-', '_'), '/' || r.module || '.') > 0)
+                  AND (r.member = 0 OR s.kind = 'method')
                   AND NOT (r.kind = 'calls' AND s.kind = 'module');
 
             UPDATE files SET content_hash = '';

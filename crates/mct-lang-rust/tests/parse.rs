@@ -3,7 +3,7 @@
 // untrusted repo content (see crates/mct-lang-rust/src/ for that policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use mct_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
+use mct_core::{LanguageParser, RelationKind, RelationTarget, SourceFile, SymbolKind};
 use mct_lang_rust::RustParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
@@ -334,10 +334,9 @@ fn a_struct_pattern_shorthand_binding_shadows_a_same_named_function() {
     assert!(references(&parsed).is_empty(), "{:?}", references(&parsed));
 }
 
-/// `(to_name, qualifier, path, external)` of every call, in source order.
-fn call_evidence(
-    parsed: &mct_core::ParsedFile,
-) -> Vec<(String, Option<String>, Option<String>, bool)> {
+/// `(to_name, evidence)` of every call, in source order; the evidence's
+/// `relation` index is zeroed for terse expectations.
+fn call_evidence(parsed: &mct_core::ParsedFile) -> Vec<(String, RelationTarget)> {
     parsed
         .relations
         .iter()
@@ -350,7 +349,7 @@ fn call_evidence(
                 .find(|t| t.relation == i)
                 .cloned()
                 .unwrap_or_default();
-            (r.to_name.clone(), t.qualifier, t.path, t.external)
+            (r.to_name.clone(), RelationTarget { relation: 0, ..t })
         })
         .collect()
 }
@@ -374,29 +373,63 @@ fn main() {
     std::mem::take(&mut 1);
     let local = |x: u8| x;
     local(1);
+    rand::random();
+    serde_json::Value::from(1);
+    self::helper();
+    crate::top();
 }
 "#,
     );
-    let none = |name: &str| (name.to_string(), None, None, false);
+    let call = |name: &str, target: RelationTarget| (name.to_string(), target);
+    let qualified = |q: &str| RelationTarget {
+        qualifier: Some(q.to_string()),
+        ..Default::default()
+    };
+    let module = |m: &str| RelationTarget {
+        module: Some(m.to_string()),
+        ..Default::default()
+    };
+    let this_file = RelationTarget {
+        path: Some("src/lib.rs".to_string()),
+        ..Default::default()
+    };
     assert_eq!(
         call_evidence(&parsed),
         vec![
-            ("empty".to_string(), Some("Stack".to_string()), None, false),
-            ("grow".to_string(), Some("Stack".to_string()), None, false),
-            // An unknown receiver proves nothing.
-            none("grow"),
-            // A same-file free function no local shadows.
-            (
-                "helper".to_string(),
-                None,
-                Some("src/lib.rs".to_string()),
-                false
+            call("empty", qualified("Stack")),
+            call("grow", qualified("Stack")),
+            // An unknown receiver can only reach a method, never provably one.
+            call(
+                "grow",
+                RelationTarget {
+                    member: true,
+                    ..Default::default()
+                }
             ),
-            ("new".to_string(), Some("Stack".to_string()), None, false),
-            // A module path is not a type: unqualified, not guessed.
-            none("run"),
-            ("take".to_string(), None, None, true),
-            none("local"),
+            // A same-file free function no local shadows.
+            call("helper", this_file.clone()),
+            call("new", qualified("Stack")),
+            // A module path names where the target lives, not its type.
+            call("run", module("m")),
+            call(
+                "take",
+                RelationTarget {
+                    external: true,
+                    ..Default::default()
+                }
+            ),
+            call("local", RelationTarget::default()),
+            call("random", module("rand")),
+            call(
+                "from",
+                RelationTarget {
+                    module: Some("serde_json".to_string()),
+                    ..qualified("Value")
+                }
+            ),
+            call("helper", this_file),
+            // A bare `crate::` proves nothing about where in the crate.
+            call("top", RelationTarget::default()),
         ]
     );
 }

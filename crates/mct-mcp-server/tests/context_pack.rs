@@ -247,7 +247,7 @@ async fn toon_renders_the_related_symbols_as_one_table() {
     )
     .await;
     assert!(
-        text.contains("related[8]{name,roles,hop,path,lines,kind,signature}:"),
+        text.contains("related[7]{name,roles,hop,path,lines,kind,signature}:"),
         "{text}"
     );
     assert!(
@@ -265,8 +265,12 @@ async fn depth_two_adds_callees_of_callees_tagged_with_their_hop() {
     let deep = pack(&server, json!({ "symbol": "place_order", "depth": 2 })).await;
     println!("{deep}");
     assert!(!direct.contains("callee reserve "), "{direct}");
+    // `inventory.reserve(..)`: a receiver call is listed as uncertain, with
+    // its one method candidate, never as a proven dependency.
     assert!(
-        deep.contains("callee reserve [depth 2]  src/inventory.rs:L29-L37 method"),
+        deep.contains(
+            "callee reserve [depth 2]  ambiguous among 1: src/inventory.rs:L29-L37 method"
+        ),
         "{deep}"
     );
     assert!(

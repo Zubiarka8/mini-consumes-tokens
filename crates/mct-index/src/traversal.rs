@@ -5,8 +5,9 @@
 //! cost of one query per node instead of one recursive query — an
 //! acceptable trade for the repo sizes this project targets.
 //!
-//! Hop 1 is the name-based query, unchanged: every relation spelled (or made
-//! by a symbol named) the start name, whatever its resolution. Every later
+//! Hop 1 is the name-based query: every relation spelled (or made by a
+//! symbol named) the start name, minus incoming relations proven to target a
+//! same-named definition outside the (possibly scoped) start. Every later
 //! hop walks symbol ids, and only along edges whose target is proven: a
 //! forward hop follows a [`Resolution::Resolved`] callee, a backward hop
 //! continues only from a caller whose relation resolved to the node. An
@@ -65,6 +66,44 @@ fn bfs(
     Ok(results)
 }
 
+/// The definitions named `name` a backward walk starts from: those inside
+/// `scope`, or — when the scope holds none, so it narrows only the referring
+/// sites — every one.
+fn scoped_start(index: &Index, name: &str, scope: ResolvedScope<'_>) -> Result<Vec<i64>> {
+    let start = queries::symbol_ids_named(&index.conn, name, scope)?;
+    if start.is_empty() {
+        return queries::symbol_ids_named(&index.conn, name, ResolvedScope::default());
+    }
+    Ok(start)
+}
+
+/// Drops hop-1 hits that provably target a definition other than `start`:
+/// one resolved elsewhere, or ambiguous with no candidate in `start`. A
+/// scoped start (`A::run` under a path) would otherwise report relations to
+/// a same-named `B::run` outside it. Unresolved and external hits stay —
+/// nothing proves they miss `start`.
+fn reaching_start(
+    index: &Index,
+    hits: Vec<RelationHit>,
+    start: &[i64],
+) -> Result<Vec<RelationHit>> {
+    let start: HashSet<i64> = start.iter().copied().collect();
+    let mut kept = Vec::with_capacity(hits.len());
+    for hit in hits {
+        let keep = match hit.resolution {
+            Resolution::Resolved => hit.target_id.is_some_and(|id| start.contains(&id)),
+            Resolution::Ambiguous => queries::relation_candidates(&index.conn, hit.relation_id)?
+                .iter()
+                .any(|c| start.contains(&c.id)),
+            Resolution::External | Resolution::Unresolved => true,
+        };
+        if keep {
+            kept.push(hit);
+        }
+    }
+    Ok(kept)
+}
+
 /// A backward hop continues from the referring symbol only when its relation
 /// resolved to the node being walked.
 fn proven_referrer(hit: &RelationHit) -> Option<i64> {
@@ -99,10 +138,15 @@ pub(crate) fn find_callers_bfs(
     budget: usize,
     scope: ResolvedScope<'_>,
 ) -> Result<Vec<RelationHit>> {
-    let start = queries::symbol_ids_named(&index.conn, function, scope)?;
-    bfs(
+    let start = scoped_start(index, function, scope)?;
+    let first = reaching_start(
         index,
         queries::find_callers_scoped(&index.conn, function, scope)?,
+        &start,
+    )?;
+    bfs(
+        index,
+        first,
         start,
         depth,
         budget,
@@ -118,10 +162,15 @@ pub(crate) fn find_references_bfs(
     budget: usize,
     scope: ResolvedScope<'_>,
 ) -> Result<Vec<RelationHit>> {
-    let start = queries::symbol_ids_named(&index.conn, symbol, scope)?;
-    bfs(
+    let start = scoped_start(index, symbol, scope)?;
+    let first = reaching_start(
         index,
         queries::find_references_scoped(&index.conn, symbol, scope)?,
+        &start,
+    )?;
+    bfs(
+        index,
+        first,
         start,
         depth,
         budget,

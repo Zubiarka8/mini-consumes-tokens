@@ -113,6 +113,17 @@ pub struct RelationTarget {
     /// declared in, e.g. this same file for a lexically scoped call, or a
     /// note path for a Markdown link.
     pub path: Option<String>,
+    /// Module path segment the source names the target through (`rand` in
+    /// `rand::random()`, `m` in `crate::m::f()`). A candidate qualifies
+    /// only if declared under a path component of that name (`m.rs`,
+    /// `m/…`, `-` read as `_`) or inside a symbol of that name, so an
+    /// unrelated same-named definition elsewhere — or none at all, for a
+    /// third-party module — never resolves it.
+    pub module: Option<String>,
+    /// Reached through a receiver whose type the parser can't prove
+    /// (`x.f()`): only a method can be the target, and even a single such
+    /// candidate is reported ambiguous rather than resolved.
+    pub member: bool,
     /// Language id the target is declared in, when the source names another
     /// language explicitly (an HTML `class` naming a CSS rule). `None` means
     /// the source file's own language — spelling alone never links two

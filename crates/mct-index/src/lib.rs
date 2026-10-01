@@ -30,7 +30,8 @@ pub use indexer::{
     UnsupportedFile,
 };
 pub use queries::{
-    QueryScope, RelationHit, Resolution, SymbolHit, SymbolListEntry, SymbolMatchMode,
+    CandidateRef, QueryScope, RelationHit, Resolution, SymbolHit, SymbolListEntry, SymbolMatchMode,
+    SHOWN_CANDIDATES,
 };
 pub use search::{exact_phrase, search_words, split_identifier, LiteralHit, MAX_LITERAL_HITS};
 pub use semantic::{

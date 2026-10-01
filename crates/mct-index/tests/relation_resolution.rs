@@ -3,7 +3,7 @@
 //! only on parser evidence, and walks never cross an unproven edge.
 //!
 //! Uses a toy parser, one symbol per line:
-//! `def NAME [in PARENT] [calls TARGET [q=QUALIFIER] [path=PATH] [lang=LANG] [ext]]`,
+//! `def NAME [in PARENT] [calls TARGET [q=QUALIFIER] [path=PATH] [lang=LANG] [mod=MODULE] [member] [ext]]`,
 //! registered for two languages (`alpha` = `.a`, `beta` = `.b`).
 
 // Test code: an unwrap()/expect() here means a broken test precondition, and
@@ -74,6 +74,8 @@ impl mct_core::LanguageParser for FakeParser {
                     Some(("q", v)) => target.qualifier = Some(v.to_string()),
                     Some(("path", v)) => target.path = Some(v.to_string()),
                     Some(("lang", v)) => target.language = Some(v.to_string()),
+                    Some(("mod", v)) => target.module = Some(v.to_string()),
+                    _ if *word == "member" => target.member = true,
                     _ if *word == "ext" => target.external = true,
                     _ => {}
                 }
@@ -368,4 +370,81 @@ fn reindexing_recomputes_resolution_from_the_current_symbols() {
     index.reindex(&registry(), false).unwrap();
     assert_eq!(call_of(&index, "main").resolution, Resolution::Unresolved);
     let _ = fs::remove_dir_all(Path::new(&dir));
+}
+
+/// `run` scoped to `a/` starts at `A::run` only, so hop 1 must not report a
+/// call proven to reach a same-named definition outside it (`B::run`), nor
+/// an ambiguous call none of whose candidates is `A::run`. An ambiguous call
+/// that may reach `A::run`, and an unresolved one, stay.
+#[test]
+fn a_scoped_backward_walk_drops_hop_one_hits_to_another_same_named_target() {
+    let (_dir, index) = index_of(&[
+        (
+            "a/x.a",
+            "def run in A\n\
+             def to_a calls run q=A\n\
+             def to_b calls run q=B\n\
+             def guess calls run\n\
+             def to_bs calls run q=Bs\n\
+             def unknown calls run lang=beta\n",
+        ),
+        ("b/y.a", "def run in B\ndef run in Bs\n"),
+        ("b/z.a", "def run in Bs\n"),
+    ]);
+    let scope = mct_index::QueryScope {
+        path: Some("a"),
+        language: None,
+    };
+    let expected = vec!["to_a@1", "guess@1", "unknown@1"];
+    let callers = index
+        .find_callers_bfs_scoped("run", 1, 50, 0, scope)
+        .unwrap();
+    assert_eq!(names(&callers, |h| &h.from_symbol), expected);
+    let references = index
+        .find_references_bfs_scoped("run", 1, 50, 0, scope)
+        .unwrap();
+    assert_eq!(names(&references, |h| &h.from_symbol), expected);
+
+    // Unscoped, every same-named definition is a start: nothing is dropped.
+    let all = index.find_callers_bfs("run", 1, 50, 0).unwrap();
+    assert_eq!(all.len(), 5);
+}
+
+/// A module path (`rand::random()`) only reaches a definition declared under
+/// that module, so the one local same-named function elsewhere is never it;
+/// a receiver call (`x.get()`) only reaches methods, and never provably the
+/// one local same-named method.
+#[test]
+fn module_and_receiver_evidence_never_resolve_to_an_unrelated_unique_name() {
+    let (_dir, index) = index_of(&[
+        ("src/util.a", "def random\ndef from_str\n"),
+        ("src/repo.a", "def get in Repo\ndef size\n"),
+        (
+            "src/main.a",
+            "def third_party calls random mod=rand\n\
+             def serde calls from_str mod=serde_json\n\
+             def local_module calls random mod=util\n\
+             def receiver calls get member\n\
+             def receiver_free calls size member\n",
+        ),
+    ]);
+    for from in ["third_party", "serde", "receiver_free"] {
+        let hit = call_of(&index, from);
+        assert_eq!(hit.resolution, Resolution::Unresolved, "{from}: {hit:?}");
+        assert!(candidates(&index, &hit).is_empty(), "{from}");
+    }
+
+    // A compatible module path still resolves.
+    let local = call_of(&index, "local_module");
+    assert_eq!(local.resolution, Resolution::Resolved);
+    assert_eq!(candidates(&index, &local), vec!["src/util.a:1 None"]);
+
+    // The only same-named method stays a candidate, never the target.
+    let receiver = call_of(&index, "receiver");
+    assert_eq!(receiver.resolution, Resolution::Ambiguous);
+    assert_eq!(receiver.target_id, None);
+    assert_eq!(
+        candidates(&index, &receiver),
+        vec!["src/repo.a:1 Some(\"Repo\")"]
+    );
 }
