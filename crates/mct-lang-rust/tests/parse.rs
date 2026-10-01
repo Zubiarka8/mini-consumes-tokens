@@ -3,7 +3,7 @@
 // untrusted repo content (see crates/mct-lang-rust/src/ for that policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use mct_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
+use mct_core::{LanguageParser, RelationKind, RelationTarget, SourceFile, SymbolKind};
 use mct_lang_rust::RustParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
@@ -332,4 +332,125 @@ fn a_struct_pattern_shorthand_binding_shadows_a_same_named_function() {
         "#,
     );
     assert!(references(&parsed).is_empty(), "{:?}", references(&parsed));
+}
+
+/// `(to_name, evidence)` of every call, in source order; the evidence's
+/// `relation` index is zeroed for terse expectations.
+fn call_evidence(parsed: &mct_core::ParsedFile) -> Vec<(String, RelationTarget)> {
+    parsed
+        .relations
+        .iter()
+        .enumerate()
+        .filter(|(_, r)| r.kind == RelationKind::Calls)
+        .map(|(i, r)| {
+            let t = parsed
+                .relation_targets
+                .iter()
+                .find(|t| t.relation == i)
+                .cloned()
+                .unwrap_or_default();
+            (r.to_name.clone(), RelationTarget { relation: 0, ..t })
+        })
+        .collect()
+}
+
+#[test]
+fn calls_record_only_the_qualification_the_source_proves() {
+    let parsed = parse(
+        r#"
+struct Stack<T>(Vec<T>);
+impl<T> Stack<T> {
+    fn new() -> Self { Self::empty() }
+    fn empty() -> Self { todo!() }
+    fn push(&mut self) { self.grow(); other.grow(); }
+    fn grow(&mut self) {}
+}
+fn helper() {}
+fn main() {
+    helper();
+    Stack::<u8>::new();
+    crate::m::run();
+    std::mem::take(&mut 1);
+    let local = |x: u8| x;
+    local(1);
+    rand::random();
+    serde_json::Value::from(1);
+    self::helper();
+    crate::top();
+}
+"#,
+    );
+    let call = |name: &str, target: RelationTarget| (name.to_string(), target);
+    let qualified = |q: &str| RelationTarget {
+        qualifier: Some(q.to_string()),
+        ..Default::default()
+    };
+    let module = |m: &str| RelationTarget {
+        module: Some(m.to_string()),
+        ..Default::default()
+    };
+    let this_file = RelationTarget {
+        path: Some("src/lib.rs".to_string()),
+        ..Default::default()
+    };
+    assert_eq!(
+        call_evidence(&parsed),
+        vec![
+            call("empty", qualified("Stack")),
+            call("grow", qualified("Stack")),
+            // An unknown receiver can only reach a method, never provably one.
+            call(
+                "grow",
+                RelationTarget {
+                    member: true,
+                    ..Default::default()
+                }
+            ),
+            // A same-file free function no local shadows.
+            call("helper", this_file.clone()),
+            call("new", qualified("Stack")),
+            // A module path names where the target lives, not its type.
+            call("run", module("m")),
+            call(
+                "take",
+                RelationTarget {
+                    external: true,
+                    ..Default::default()
+                }
+            ),
+            call("local", RelationTarget::default()),
+            call("random", module("rand")),
+            call(
+                "from",
+                RelationTarget {
+                    module: Some("serde_json".to_string()),
+                    ..qualified("Value")
+                }
+            ),
+            call("helper", this_file),
+            // A bare `crate::` proves nothing about where in the crate.
+            call("top", RelationTarget::default()),
+        ]
+    );
+}
+
+#[test]
+fn std_imports_are_external_and_crate_imports_are_not() {
+    let parsed = parse("use std::collections::HashMap;\nuse crate::index::Index;\n");
+    let external: Vec<(String, bool)> = parsed
+        .relations
+        .iter()
+        .enumerate()
+        .map(|(i, r)| {
+            let ext = parsed
+                .relation_targets
+                .iter()
+                .any(|t| t.relation == i && t.external);
+            (r.to_name.clone(), ext)
+        })
+        .collect();
+    assert_eq!(
+        external,
+        vec![("HashMap".to_string(), true), ("Index".to_string(), false)]
+    );
 }

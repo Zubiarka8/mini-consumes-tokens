@@ -122,6 +122,12 @@ fn find_references_resolves_the_click_handler_back_to_its_xaml_element() {
     assert_eq!(refs.len(), 1, "{refs:?}");
     assert_eq!(refs[0].relative_path, "MainWindow.xaml");
     assert_eq!(refs[0].from_symbol, "SaveBtn");
+    // Resolved by the code-behind evidence to the one C# method, not by name.
+    assert_eq!(refs[0].resolution, mct_index::Resolution::Resolved);
+    let target = index.symbols_by_ids(&[refs[0].target_id.unwrap()]).unwrap();
+    assert_eq!(target[0].relative_path, "MainWindow.xaml.cs");
+    assert_eq!(target[0].language, "csharp");
+    assert_eq!(target[0].kind, "method");
 }
 
 #[test]

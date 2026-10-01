@@ -4,8 +4,9 @@
 //! this crate is the entire integration surface for Rust support.
 
 use mct_core::{
-    LanguageParser, LiteralCollector, Location, ParseError, ParsedFile, RelationKind, SourceFile,
-    SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
+    LanguageParser, LiteralCollector, Location, ParseError, ParsedFile, RelationKind,
+    RelationTarget, SourceFile, SymbolId, SymbolKind, SymbolRecord, SymbolRelation,
+    MAX_TRAVERSAL_DEPTH,
 };
 use std::collections::HashSet;
 use tree_sitter::{Node, Parser};
@@ -52,7 +53,7 @@ impl LanguageParser for RustParser {
         }
 
         let module_name = module_name_for(&file.relative_path);
-        let mut walker = Walker::new(&file.contents);
+        let mut walker = Walker::new(&file.contents, &file.relative_path);
         let mut module_location = location(root);
         // The root node of a file ending in a newline ends at column 0 of
         // the (empty) line after the last one; the file's last line is the
@@ -107,6 +108,8 @@ fn text<'a>(node: Node, source: &'a str) -> &'a str {
 
 struct Walker<'a> {
     source: &'a str,
+    /// This file's relative path: the lexical scope of a free-function call.
+    path: &'a str,
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
     literals: LiteralCollector,
@@ -119,18 +122,26 @@ struct Walker<'a> {
     /// patterns) in the function currently being walked: a bare identifier
     /// with one of these names is the local, never the same-named function.
     bound: HashSet<String>,
+    /// Evidence for some of `relations`, by index (see `RelationTarget`).
+    relation_targets: Vec<RelationTarget>,
+    /// Base name of the `impl`/`trait` type whose method body is being
+    /// walked — what `self.f()` and `Self::f()` are qualified by.
+    self_type: Option<String>,
 }
 
 impl<'a> Walker<'a> {
-    fn new(source: &'a str) -> Self {
+    fn new(source: &'a str, path: &'a str) -> Self {
         Self {
             source,
+            path,
             symbols: Vec::new(),
             relations: Vec::new(),
             literals: LiteralCollector::default(),
             next_id: 0,
             free_fns: HashSet::new(),
             bound: HashSet::new(),
+            relation_targets: Vec::new(),
+            self_type: None,
         }
     }
 
@@ -160,9 +171,9 @@ impl<'a> Walker<'a> {
         kind: RelationKind,
         to_name: String,
         loc: Location,
-    ) {
+    ) -> Option<usize> {
         if to_name.is_empty() {
-            return;
+            return None;
         }
         self.relations.push(SymbolRelation {
             from,
@@ -170,6 +181,18 @@ impl<'a> Walker<'a> {
             to_name,
             location: loc,
         });
+        Some(self.relations.len() - 1)
+    }
+
+    /// Attaches `target` (with its `relation` index filled in) to the
+    /// relation `push_relation` just returned, unless it carries no evidence.
+    fn qualify(&mut self, relation: Option<usize>, target: RelationTarget) {
+        if let Some(relation) = relation {
+            if target != RelationTarget::default() {
+                self.relation_targets
+                    .push(RelationTarget { relation, ..target });
+            }
+        }
     }
 
     /// Walks every child of `node`, attributing calls/imports found along the
@@ -234,6 +257,7 @@ impl<'a> Walker<'a> {
                 let mut locals = HashSet::new();
                 collect_bound_names(node, self.source, &mut locals, 0);
                 let outer = std::mem::replace(&mut self.bound, locals);
+                let outer_self = std::mem::replace(&mut self.self_type, impl_type.map(type_base));
                 // A function body is not an impl/trait body: an `fn` or
                 // `const` nested inside a method belongs to the method, not
                 // to the enclosing type, so the impl type stops here.
@@ -244,6 +268,7 @@ impl<'a> Walker<'a> {
                     self.visit_children(body, id, None, depth + 1);
                 }
                 self.bound = outer;
+                self.self_type = outer_self;
             }
             // A bare identifier reaching here is in value position — a call's
             // callee, an item's own name and a `use` path are all handled by
@@ -347,15 +372,30 @@ impl<'a> Walker<'a> {
                 if let Some(argument) = node.child_by_field_name("argument") {
                     let mut names = Vec::new();
                     collect_use_names(argument, self.source, &mut names);
+                    let external = is_std_path(text(argument, self.source));
                     for (name, loc) in names {
-                        self.push_relation(owner, RelationKind::Imports, name, loc);
+                        let relation = self.push_relation(owner, RelationKind::Imports, name, loc);
+                        self.qualify(
+                            relation,
+                            RelationTarget {
+                                external,
+                                ..Default::default()
+                            },
+                        );
                     }
                 }
             }
             "call_expression" => {
                 if let Some(function) = node.child_by_field_name("function") {
                     if let Some((name, name_node)) = call_target(function, self.source) {
-                        self.push_relation(owner, RelationKind::Calls, name, location(name_node));
+                        let target = self.call_evidence(function, &name);
+                        let relation = self.push_relation(
+                            owner,
+                            RelationKind::Calls,
+                            name,
+                            location(name_node),
+                        );
+                        self.qualify(relation, target);
                     }
                     // A bare callee is already the `Calls` above; visiting it
                     // would record it a second time as a value use. A
@@ -380,6 +420,78 @@ impl<'a> Walker<'a> {
             "scoped_identifier" | "scoped_type_identifier" | "label" | "lifetime" => {}
             "string_literal" | "raw_string_literal" => self.push_literal(node),
             _ => self.visit_children(node, owner, impl_type, depth + 1),
+        }
+    }
+
+    /// What the callee expression proves about the called symbol: `Type::f`
+    /// and `Self::f`/`self.f()` name the type it is declared in, a
+    /// `std`/`core`/`alloc` path is external, and a bare call to a free
+    /// function of this file that no local shadows stays in this file. A
+    /// module path (`rand::f`, `crate::m::f`) names the module the target
+    /// must live under, and another receiver (`x.f()`) can only reach a
+    /// method, never provably which one.
+    fn call_evidence(&self, function: Node, name: &str) -> RelationTarget {
+        let function = if function.kind() == "generic_function" {
+            function.child_by_field_name("function").unwrap_or(function)
+        } else {
+            function
+        };
+        match function.kind() {
+            "identifier" if self.free_fns.contains(name) && !self.bound.contains(name) => {
+                RelationTarget {
+                    path: Some(self.path.to_string()),
+                    ..Default::default()
+                }
+            }
+            "scoped_identifier" => {
+                let Some(path) = function.child_by_field_name("path") else {
+                    return RelationTarget::default();
+                };
+                let path = text(path, self.source);
+                if is_std_path(path) {
+                    return RelationTarget {
+                        external: true,
+                        ..Default::default()
+                    };
+                }
+                let mut segments = path_segments(path);
+                let qualifier = match segments.last().map(String::as_str) {
+                    Some("Self") => {
+                        segments.pop();
+                        self.self_type.clone()
+                    }
+                    Some(last) if last.starts_with(|c: char| c.is_ascii_uppercase()) => {
+                        segments.pop()
+                    }
+                    _ => None,
+                };
+                // What's left is the module path: `self::f` stays in this
+                // file, `rand::f`/`crate::m::f` must live under `rand`/`m`;
+                // a bare `crate::`/`super::` proves nothing.
+                let (path, module) = match segments.last().map(String::as_str) {
+                    Some("self") => (Some(self.path.to_string()), None),
+                    Some("crate" | "super") | None => (None, None),
+                    Some(_) => (None, segments.pop()),
+                };
+                RelationTarget {
+                    qualifier,
+                    path,
+                    module,
+                    ..Default::default()
+                }
+            }
+            "field_expression" => {
+                let on_self = function
+                    .child_by_field_name("value")
+                    .is_some_and(|v| v.kind() == "self");
+                let qualifier = on_self.then(|| self.self_type.clone()).flatten();
+                RelationTarget {
+                    member: qualifier.is_none(),
+                    qualifier,
+                    ..Default::default()
+                }
+            }
+            _ => RelationTarget::default(),
         }
     }
 
@@ -431,8 +543,50 @@ impl<'a> Walker<'a> {
             symbols: self.symbols,
             relations: self.relations,
             literals: self.literals.finish(),
+            relation_targets: self.relation_targets,
         }
     }
+}
+
+/// Whether a path is rooted in the standard library (`std::`, `core::`,
+/// `alloc::`, optionally with a leading `::`) — the one case this parser can
+/// prove a target lies outside the repository.
+fn is_std_path(path: &str) -> bool {
+    let root = path
+        .trim_start_matches("::")
+        .split("::")
+        .next()
+        .unwrap_or_default()
+        .trim();
+    matches!(root, "std" | "core" | "alloc")
+}
+
+/// The segments of a type or path, without generic arguments:
+/// `crate::m::Foo<T>` is `[crate, m, Foo]`, `Foo::<T>` is `[Foo]`.
+fn path_segments(path: &str) -> Vec<String> {
+    let mut depth = 0u32;
+    let bare: String = path
+        .chars()
+        .filter(|&c| {
+            match c {
+                '<' => depth += 1,
+                '>' => depth = depth.saturating_sub(1),
+                _ => return depth == 0,
+            }
+            false
+        })
+        .collect();
+    bare.split("::")
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+/// The last segment of a type or path, without generic arguments — how an
+/// `impl`'s type is matched against a qualifier.
+fn type_base(path: &str) -> String {
+    path_segments(path).pop().unwrap_or_default()
 }
 
 /// The callee's name *and* the specific node it came from — never the whole

@@ -23,7 +23,7 @@ use std::path::Path;
 
 use rusqlite::Connection;
 
-use crate::queries::{push_scope, BoundValues, ResolvedScope, SymbolHit};
+use crate::queries::{push_scope, symbol_hit, BoundValues, ResolvedScope, SymbolHit};
 use crate::search::{
     exact_phrase, phrase_tier, qualified_parts, search_phrase, search_symbols_with,
     split_identifier, LexicalOptions,
@@ -440,7 +440,7 @@ pub fn semantic_ranking(
 ) -> Result<Vec<(f32, SymbolHit)>> {
     let query = normalized(query_vector.to_vec());
     let mut sql = String::from(
-        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line, s.level,
+        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line, s.level, s.id,
                 e.vector
          FROM symbol_embeddings e
          JOIN symbols s ON s.id = e.symbol_id
@@ -455,24 +455,11 @@ pub fn semantic_ranking(
     let mut scored = Vec::new();
     let mut rows = stmt.query(params.as_slice())?;
     while let Some(row) = rows.next()? {
-        let blob: Vec<u8> = row.get(9)?;
+        let blob: Vec<u8> = row.get(10)?;
         let Some(similarity) = dot_encoded(&query, &blob) else {
             continue;
         };
-        scored.push((
-            similarity,
-            SymbolHit {
-                name: row.get(0)?,
-                kind: row.get(1)?,
-                language: row.get(2)?,
-                relative_path: row.get(3)?,
-                line: row.get(4)?,
-                column: row.get(5)?,
-                parent: row.get(6)?,
-                end_line: row.get(7)?,
-                level: row.get(8)?,
-            },
-        ));
+        scored.push((similarity, symbol_hit(row)?));
     }
     scored.sort_by(|a, b| {
         b.0.total_cmp(&a.0)

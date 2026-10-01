@@ -14,7 +14,7 @@ use std::collections::HashSet;
 use rusqlite::functions::FunctionFlags;
 use rusqlite::Connection;
 
-use crate::queries::{push_scope, BoundValues, ResolvedScope, SymbolHit};
+use crate::queries::{push_scope, symbol_hit, BoundValues, ResolvedScope, SymbolHit};
 use crate::Result;
 
 /// Name of the scalar SQL function the `symbol_words_fts` triggers call.
@@ -470,7 +470,7 @@ fn run_match(
     scope: ResolvedScope<'_>,
 ) -> Result<Vec<(f64, SymbolHit)>> {
     let mut sql = String::from(
-        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line, s.level,
+        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line, s.level, s.id,
                 bm25(symbol_words_fts)
          FROM symbol_words_fts
          JOIN symbols s ON s.id = symbol_words_fts.rowid
@@ -484,20 +484,7 @@ fn run_match(
     let params: Vec<&dyn rusqlite::ToSql> = bound.iter().map(|b| b.as_ref()).collect();
     let rows = stmt
         .query_map(params.as_slice(), |row| {
-            Ok((
-                row.get::<_, f64>(9)?,
-                SymbolHit {
-                    name: row.get(0)?,
-                    kind: row.get(1)?,
-                    language: row.get(2)?,
-                    relative_path: row.get(3)?,
-                    line: row.get(4)?,
-                    column: row.get(5)?,
-                    parent: row.get(6)?,
-                    end_line: row.get(7)?,
-                    level: row.get(8)?,
-                },
-            ))
+            Ok((row.get::<_, f64>(10)?, symbol_hit(row)?))
         })?
         .collect::<rusqlite::Result<_>>()?;
     Ok(rows)

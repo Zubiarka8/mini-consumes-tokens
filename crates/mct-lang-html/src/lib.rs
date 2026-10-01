@@ -18,8 +18,8 @@
 //! one reaching into inline blocks.
 
 use mct_core::{
-    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
-    SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
+    LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
+    SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use tree_sitter::{Node, Parser};
 
@@ -68,7 +68,24 @@ impl LanguageParser for HtmlParser {
         let mut walker = Walker::new(&file.contents);
         let module_id = walker.push_symbol(module_name, SymbolKind::Module, location(root), None);
         walker.visit_children(root, module_id, None, 0);
-        Ok(walker.finish())
+        let mut parsed = walker.finish();
+        // An id/class reference names a CSS rule: the one cross-language
+        // link spelling alone must not make, so it is stated explicitly.
+        parsed.relation_targets = parsed
+            .relations
+            .iter()
+            .enumerate()
+            .filter(|(_, r)| {
+                r.kind == RelationKind::References
+                    && (r.to_name.starts_with('#') || r.to_name.starts_with('.'))
+            })
+            .map(|(relation, _)| RelationTarget {
+                relation,
+                language: Some("css".to_string()),
+                ..Default::default()
+            })
+            .collect();
+        Ok(parsed)
     }
 }
 

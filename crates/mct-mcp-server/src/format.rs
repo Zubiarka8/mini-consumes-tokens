@@ -6,7 +6,8 @@
 use std::collections::BTreeSet;
 
 use mct_index::{
-    FileTreeNode, IndexStatus, LiteralHit, ReindexReport, RelationHit, SymbolHit, SymbolListEntry,
+    FileTreeNode, IndexStatus, LiteralHit, ReindexReport, RelationHit, Resolution, SymbolHit,
+    SymbolListEntry,
 };
 
 use crate::toon::encode_table;
@@ -646,6 +647,53 @@ fn depth_tag(depth: u32) -> String {
     }
 }
 
+/// Which definition(s) a relation reaches, after its target: ` -> path:line
+/// in Parent` when resolved, ` (ambiguous among N: path:line in P, …)` with
+/// the first candidates when ambiguous, ` (unresolved)`/` (external)`
+/// otherwise. Never a single picked target for an unproven relation.
+fn resolution_tag(hit: &RelationHit) -> String {
+    match hit.resolution {
+        Resolution::Resolved => match hit.candidates.first() {
+            Some(target) => format!(" -> {}", candidate_ref(hit, target)),
+            None => String::new(),
+        },
+        Resolution::Ambiguous => format!(
+            " (ambiguous among {}: {})",
+            hit.candidate_count,
+            candidate_list(hit)
+        ),
+        other => format!(" ({})", other.as_str()),
+    }
+}
+
+/// `path:line` — just `Lline` in the hit's own file — plus ` in Parent`
+/// when the definition has one.
+fn candidate_ref(hit: &RelationHit, c: &mct_index::CandidateRef) -> String {
+    let at = if c.relative_path == hit.relative_path {
+        format!("L{}", c.line)
+    } else {
+        format!("{}:{}", c.relative_path, c.line)
+    };
+    match &c.parent {
+        Some(parent) => format!("{at} in {parent}"),
+        None => at,
+    }
+}
+
+/// A hit's shown candidates joined by `, `, with `, +N more` for the rest.
+fn candidate_list(hit: &RelationHit) -> String {
+    let mut list: Vec<String> = hit
+        .candidates
+        .iter()
+        .map(|c| candidate_ref(hit, c))
+        .collect();
+    let more = hit.candidate_count.saturating_sub(list.len());
+    if more > 0 {
+        list.push(format!("+{more} more"));
+    }
+    list.join(", ")
+}
+
 pub fn relation_hits(
     subject: &str,
     verb_label: &str,
@@ -661,7 +709,7 @@ pub fn relation_hits(
     let mut body = BudgetedList::new(DEFAULT_BYTE_BUDGET);
     for hit in shown {
         body.push(&format!(
-            "{}:{}:{} [{}] {} --{}--> {}{}\n",
+            "{}:{}:{} [{}] {} --{}--> {}{}{}\n",
             hit.relative_path,
             hit.line,
             hit.column,
@@ -669,6 +717,7 @@ pub fn relation_hits(
             hit.from_symbol,
             hit.kind,
             hit.to_name,
+            resolution_tag(hit),
             depth_tag(hit.depth)
         ));
     }
@@ -703,7 +752,19 @@ pub fn relation_hits_toon(
         truncation_note(total, offset, shown.len()),
         encode_table(
             "relations",
-            &["path", "line", "column", "language", "from", "kind", "to", "depth"],
+            &[
+                "path",
+                "line",
+                "column",
+                "language",
+                "from",
+                "kind",
+                "to",
+                "depth",
+                "resolution",
+                "candidates",
+                "targets",
+            ],
             &rows,
         )
     )
@@ -719,6 +780,9 @@ fn relation_hit_row(hit: &RelationHit) -> Vec<String> {
         hit.kind.clone(),
         hit.to_name.clone(),
         hit.depth.to_string(),
+        hit.resolution.as_str().to_string(),
+        hit.candidate_count.to_string(),
+        candidate_list(hit),
     ]
 }
 
@@ -783,12 +847,13 @@ pub fn impact_analysis(
         let mut body = BudgetedList::new(section_budget);
         for hit in shown {
             body.push(&format!(
-                "  {}:{}:{} [{}] {}{}\n",
+                "  {}:{}:{} [{}] {}{}{}\n",
                 hit.relative_path,
                 hit.line,
                 hit.column,
                 hit.language,
                 hit.from_symbol,
+                resolution_tag(hit),
                 depth_tag(hit.depth)
             ));
         }
@@ -804,7 +869,7 @@ pub fn impact_analysis(
         let mut body = BudgetedList::new(section_budget);
         for hit in shown {
             body.push(&format!(
-                "  {}:{}:{} [{}] {} --{}--> {}{}\n",
+                "  {}:{}:{} [{}] {} --{}--> {}{}{}\n",
                 hit.relative_path,
                 hit.line,
                 hit.column,
@@ -812,6 +877,7 @@ pub fn impact_analysis(
                 hit.from_symbol,
                 hit.kind,
                 hit.to_name,
+                resolution_tag(hit),
                 depth_tag(hit.depth)
             ));
         }
@@ -851,7 +917,17 @@ pub fn impact_analysis_toon(
     ));
 
     let headers = [
-        "path", "line", "column", "language", "from", "kind", "to", "depth",
+        "path",
+        "line",
+        "column",
+        "language",
+        "from",
+        "kind",
+        "to",
+        "depth",
+        "resolution",
+        "candidates",
+        "targets",
     ];
 
     if !affected_tests.is_empty() {
@@ -951,8 +1027,14 @@ fn context_pack_header(pack: &crate::server::ContextPack) -> String {
         pack.definitions.len() + pack.omitted_definitions,
         pack.related.len()
     );
+    if !pack.uncertain.is_empty() {
+        out.push_str(&format!(", {} uncertain", pack.uncertain.len()));
+    }
     if !pack.external.is_empty() {
-        out.push_str(&format!(", {} external call(s)", pack.external.len()));
+        out.push_str(&format!(", {} external name(s)", pack.external.len()));
+    }
+    if !pack.unresolved.is_empty() {
+        out.push_str(&format!(", {} unresolved name(s)", pack.unresolved.len()));
     }
     out.push('\n');
     if pack.omitted_definitions > 0 {
@@ -1005,8 +1087,12 @@ fn context_pack_footer(pack: &crate::server::ContextPack) -> String {
     let lines =
         context_pack_name_line("Referenced at file level (use/import) by", &pack.file_level)
             + &context_pack_name_line(
-                "Called but not defined in the index (std/third-party)",
+                "External (std/third-party, proven by the parser)",
                 &pack.external,
+            )
+            + &context_pack_name_line(
+                "Unresolved (no indexed definition, no external evidence)",
+                &pack.unresolved,
             );
     if lines.is_empty() {
         lines
@@ -1015,19 +1101,72 @@ fn context_pack_footer(pack: &crate::server::ContextPack) -> String {
     }
 }
 
-/// `lines` column of a related symbol: its definition's line range, plus how
-/// many other definitions share its name when it's ambiguous.
+/// `path` and `lines` columns of a related symbol's exact definition.
 fn related_location(related: &crate::server::PackedRelated) -> (String, String) {
     match &related.definition {
-        Some(def) => {
-            let mut lines = line_range(def.line, def.end_line);
-            if related.other_definitions > 0 {
-                lines.push_str(&format!(" (+{} more def)", related.other_definitions));
-            }
-            (def.relative_path.clone(), lines)
-        }
+        Some(def) => (
+            def.relative_path.clone(),
+            line_range(def.line, def.end_line),
+        ),
         None => (String::new(), String::new()),
     }
+}
+
+/// What makes an uncertain relation uncertain, in one cell: a caller/test's
+/// own location and how many definitions its call could denote, or a
+/// callee's first candidates. Never a single picked target.
+fn uncertain_detail(item: &crate::server::UncertainRelated) -> String {
+    let loc = |d: &SymbolHit| {
+        format!(
+            "{}:{} {}",
+            d.relative_path,
+            line_range(d.line, d.end_line),
+            d.kind
+        )
+    };
+    match &item.definition {
+        Some(def) => format!(
+            "{}, its call is ambiguous among {}",
+            loc(def),
+            item.candidate_count
+        ),
+        None => {
+            let shown: Vec<String> = item.candidates.iter().map(loc).collect();
+            let more = item.candidate_count.saturating_sub(shown.len());
+            let more = if more > 0 {
+                format!(", +{more} more")
+            } else {
+                String::new()
+            };
+            format!(
+                "ambiguous among {}: {}{more}",
+                item.candidate_count,
+                shown.join(", ")
+            )
+        }
+    }
+}
+
+/// The uncertain-relations section of a context pack, or nothing.
+fn context_pack_uncertain(pack: &crate::server::ContextPack, limit: usize) -> String {
+    if pack.uncertain.is_empty() {
+        return String::new();
+    }
+    let shown = paginate(&pack.uncertain, 0, limit);
+    let mut out = format!(
+        "\nUncertain relations — target not proven, none picked, not followed{}:\n",
+        truncation_note(pack.uncertain.len(), 0, shown.len())
+    );
+    for item in shown {
+        out.push_str(&format!(
+            "  {} {}{}  {}\n",
+            item.roles.join(","),
+            item.name,
+            depth_tag(item.hop),
+            uncertain_detail(item)
+        ));
+    }
+    out
 }
 
 /// Renders `build_context_pack`: the packed symbol's definition(s) with their
@@ -1065,6 +1204,7 @@ pub fn context_pack(pack: &crate::server::ContextPack, limit: usize) -> String {
             body.body
         ));
     }
+    out.push_str(&context_pack_uncertain(pack, limit));
     out.push_str(&context_pack_footer(pack));
     out
 }
@@ -1103,6 +1243,30 @@ pub fn context_pack_toon(pack: &crate::server::ContextPack, limit: usize) -> Str
                 "related",
                 &["name", "roles", "hop", "path", "lines", "kind", "signature"],
                 &rows,
+            )
+        ));
+    }
+    if !pack.uncertain.is_empty() {
+        let shown = paginate(&pack.uncertain, 0, limit);
+        let rows: Vec<Vec<String>> = shown
+            .iter()
+            .map(|item| {
+                vec![
+                    item.name.clone(),
+                    item.roles.join(" "),
+                    item.hop.to_string(),
+                    item.candidate_count.to_string(),
+                    uncertain_detail(item),
+                ]
+            })
+            .collect();
+        out.push_str(&format!(
+            "\nUncertain relations — target not proven, none picked, not followed{}:\n{}",
+            truncation_note(pack.uncertain.len(), 0, shown.len()),
+            encode_table(
+                "uncertain",
+                &["name", "roles", "hop", "candidates", "detail"],
+                &rows
             )
         ));
     }
@@ -1680,6 +1844,8 @@ mod budget_tests {
             line,
             column,
             depth: 1,
+            resolution: mct_index::Resolution::Resolved,
+            ..Default::default()
         }
     }
 
@@ -1721,6 +1887,7 @@ mod budget_tests {
             parent: None,
             end_line: Some(12),
             level: None,
+            ..Default::default()
         }];
         let out = symbol_hits("compute", &hits, 50);
         assert_eq!(
@@ -1936,6 +2103,126 @@ mod budget_tests {
                 "section `{section}` was {section_len} bytes, over its third of the budget"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod resolution_tests {
+    // Test code: a panic! here means a broken test precondition, and
+    // panicking is the correct behavior — this module only touches
+    // fixtures the test builds itself, never repo-input content.
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::*;
+    use mct_index::CandidateRef;
+
+    fn candidate(path: &str, line: u32, parent: Option<&str>) -> CandidateRef {
+        CandidateRef {
+            relative_path: path.to_string(),
+            line,
+            parent: parent.map(str::to_string),
+        }
+    }
+
+    fn hit(
+        from: &str,
+        resolution: Resolution,
+        count: usize,
+        candidates: Vec<CandidateRef>,
+    ) -> RelationHit {
+        RelationHit {
+            kind: "calls".to_string(),
+            from_symbol: from.to_string(),
+            to_name: "run".to_string(),
+            language: "rust".to_string(),
+            relative_path: "src/main.rs".to_string(),
+            line: 4,
+            column: 5,
+            depth: 1,
+            resolution,
+            candidate_count: count,
+            candidates,
+            ..Default::default()
+        }
+    }
+
+    fn hits() -> Vec<RelationHit> {
+        vec![
+            hit(
+                "other_file",
+                Resolution::Resolved,
+                1,
+                vec![candidate("src/a.rs", 3, Some("A"))],
+            ),
+            hit(
+                "same_file",
+                Resolution::Resolved,
+                1,
+                vec![candidate("src/main.rs", 9, None)],
+            ),
+            hit(
+                "guess",
+                Resolution::Ambiguous,
+                5,
+                vec![
+                    candidate("src/a.rs", 3, Some("A")),
+                    candidate("src/b.rs", 7, Some("B")),
+                    candidate("src/main.rs", 2, None),
+                ],
+            ),
+            hit("unknown", Resolution::Unresolved, 0, Vec::new()),
+        ]
+    }
+
+    #[test]
+    fn text_names_the_resolved_target_and_the_ambiguous_candidates() {
+        let out = relation_hits("run", "caller(s) of this function", &hits(), 0, 50);
+        assert_eq!(
+            out,
+            "4 caller(s) of this function:\n\
+             src/main.rs:4:5 [rust] other_file --calls--> run -> src/a.rs:3 in A\n\
+             src/main.rs:4:5 [rust] same_file --calls--> run -> L9\n\
+             src/main.rs:4:5 [rust] guess --calls--> run (ambiguous among 5: src/a.rs:3 in A, src/b.rs:7 in B, L2, +2 more)\n\
+             src/main.rs:4:5 [rust] unknown --calls--> run (unresolved)\n"
+        );
+    }
+
+    #[test]
+    fn toon_has_a_targets_column_and_impact_sections_match_their_headers() {
+        let hits = hits();
+        let out = relation_hits_toon("run", "caller(s) of this function", &hits, 0, 50);
+        assert!(
+            out.contains(
+                "{path,line,column,language,from,kind,to,depth,resolution,candidates,targets}:"
+            ),
+            "{out}"
+        );
+        assert!(
+            out.contains("other_file,calls,run,1,resolved,1,src/a.rs:3 in A"),
+            "{out}"
+        );
+        assert!(
+            out.contains(
+                "guess,calls,run,1,ambiguous,5,\"src/a.rs:3 in A, src/b.rs:7 in B, L2, +2 more\""
+            ),
+            "{out}"
+        );
+
+        let tests: Vec<&RelationHit> = Vec::new();
+        let impact = impact_analysis_toon("run", &hits, &hits, &tests, 0, 50);
+        assert!(
+            impact.contains("callers[4]{path,line,column,language,from,kind,to,depth,resolution,candidates,targets}:"),
+            "{impact}"
+        );
+        let text = impact_analysis("run", &hits, &hits, &tests, 0, 50);
+        assert!(
+            text.contains("  src/main.rs:4:5 [rust] other_file -> src/a.rs:3 in A\n"),
+            "{text}"
+        );
+        assert!(
+            text.contains("guess --calls--> run (ambiguous among 5: src/a.rs:3 in A, src/b.rs:7 in B, L2, +2 more)\n"),
+            "{text}"
+        );
     }
 }
 
@@ -2211,7 +2498,38 @@ mod dead_code_tests {
 
 #[cfg(test)]
 mod context_pack_tests {
-    use super::{leading_comment_start, signature_line};
+    use super::{context_pack, context_pack_toon, leading_comment_start, signature_line};
+
+    #[test]
+    fn external_and_unresolved_names_stay_distinct_in_both_formats() {
+        let pack = crate::server::ContextPack {
+            symbol: "f".to_string(),
+            depth: 1,
+            definitions: Vec::new(),
+            omitted_definitions: 0,
+            related: Vec::new(),
+            uncertain: Vec::new(),
+            file_level: Vec::new(),
+            external: vec!["Vec".to_string()],
+            unresolved: vec!["mystery".to_string()],
+        };
+        for text in [context_pack(&pack, 30), context_pack_toon(&pack, 30)] {
+            assert!(
+                text.contains("1 external name(s), 1 unresolved name(s)"),
+                "{text}"
+            );
+            assert!(
+                text.contains("External (std/third-party, proven by the parser): Vec\n"),
+                "{text}"
+            );
+            assert!(
+                text.contains(
+                    "Unresolved (no indexed definition, no external evidence): mystery\n"
+                ),
+                "{text}"
+            );
+        }
+    }
 
     #[test]
     fn doc_comments_and_attributes_directly_above_are_included() {
