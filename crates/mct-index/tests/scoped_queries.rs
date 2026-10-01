@@ -17,13 +17,14 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use mct_core::{
-    Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolKind, SymbolRecord,
-    SymbolRelation,
+    Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile, SymbolKind,
+    SymbolRecord, SymbolRelation,
 };
 use mct_index::{ExcludeSet, Index, QueryScope};
 
 /// One line per symbol: `fn NAME`, `fn NAME calls OTHER` or
-/// `fn NAME imports OTHER`.
+/// `fn NAME imports OTHER`. `OTHER` written `LANG:NAME` states the language
+/// the target is declared in — the evidence a cross-language edge needs.
 struct FakeParser {
     language: &'static str,
     extensions: &'static [&'static str],
@@ -75,6 +76,17 @@ impl mct_core::LanguageParser for FakeParser {
             };
             if let Some(kind) = kind {
                 if let Some(callee) = parts.next() {
+                    let (language, callee) = match callee.split_once(':') {
+                        Some((language, name)) => (Some(language.to_string()), name),
+                        None => (None, callee),
+                    };
+                    if language.is_some() {
+                        parsed.relation_targets.push(RelationTarget {
+                            relation: parsed.relations.len(),
+                            language,
+                            ..Default::default()
+                        });
+                    }
                     parsed.relations.push(SymbolRelation {
                         from: id,
                         kind,
@@ -392,8 +404,8 @@ fn bfs_applies_the_scope_at_every_hop_not_just_the_first() {
 #[test]
 fn bfs_scope_by_language_also_holds_at_every_hop() {
     let dir = tempdir();
-    write(&dir, "src/a.fake", "fn a calls b\n");
-    write(&dir, "src/b.other", "fn b calls c\n");
+    write(&dir, "src/a.fake", "fn a calls other:b\n");
+    write(&dir, "src/b.other", "fn b calls fake:c\n");
     write(&dir, "src/c.fake", "fn c\n");
     let index = open(&dir);
 

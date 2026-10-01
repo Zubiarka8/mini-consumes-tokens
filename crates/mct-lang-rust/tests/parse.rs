@@ -333,3 +333,91 @@ fn a_struct_pattern_shorthand_binding_shadows_a_same_named_function() {
     );
     assert!(references(&parsed).is_empty(), "{:?}", references(&parsed));
 }
+
+/// `(to_name, qualifier, path, external)` of every call, in source order.
+fn call_evidence(
+    parsed: &mct_core::ParsedFile,
+) -> Vec<(String, Option<String>, Option<String>, bool)> {
+    parsed
+        .relations
+        .iter()
+        .enumerate()
+        .filter(|(_, r)| r.kind == RelationKind::Calls)
+        .map(|(i, r)| {
+            let t = parsed
+                .relation_targets
+                .iter()
+                .find(|t| t.relation == i)
+                .cloned()
+                .unwrap_or_default();
+            (r.to_name.clone(), t.qualifier, t.path, t.external)
+        })
+        .collect()
+}
+
+#[test]
+fn calls_record_only_the_qualification_the_source_proves() {
+    let parsed = parse(
+        r#"
+struct Stack<T>(Vec<T>);
+impl<T> Stack<T> {
+    fn new() -> Self { Self::empty() }
+    fn empty() -> Self { todo!() }
+    fn push(&mut self) { self.grow(); other.grow(); }
+    fn grow(&mut self) {}
+}
+fn helper() {}
+fn main() {
+    helper();
+    Stack::<u8>::new();
+    crate::m::run();
+    std::mem::take(&mut 1);
+    let local = |x: u8| x;
+    local(1);
+}
+"#,
+    );
+    let none = |name: &str| (name.to_string(), None, None, false);
+    assert_eq!(
+        call_evidence(&parsed),
+        vec![
+            ("empty".to_string(), Some("Stack".to_string()), None, false),
+            ("grow".to_string(), Some("Stack".to_string()), None, false),
+            // An unknown receiver proves nothing.
+            none("grow"),
+            // A same-file free function no local shadows.
+            (
+                "helper".to_string(),
+                None,
+                Some("src/lib.rs".to_string()),
+                false
+            ),
+            ("new".to_string(), Some("Stack".to_string()), None, false),
+            // A module path is not a type: unqualified, not guessed.
+            none("run"),
+            ("take".to_string(), None, None, true),
+            none("local"),
+        ]
+    );
+}
+
+#[test]
+fn std_imports_are_external_and_crate_imports_are_not() {
+    let parsed = parse("use std::collections::HashMap;\nuse crate::index::Index;\n");
+    let external: Vec<(String, bool)> = parsed
+        .relations
+        .iter()
+        .enumerate()
+        .map(|(i, r)| {
+            let ext = parsed
+                .relation_targets
+                .iter()
+                .any(|t| t.relation == i && t.external);
+            (r.to_name.clone(), ext)
+        })
+        .collect();
+    assert_eq!(
+        external,
+        vec![("HashMap".to_string(), true), ("Index".to_string(), false)]
+    );
+}
