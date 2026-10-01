@@ -29,7 +29,9 @@ pub use indexer::{
     DependencyInfo, IndexStatus, LanguageCoverage, ManifestDependencies, ReindexReport,
     UnsupportedFile,
 };
-pub use queries::{QueryScope, RelationHit, SymbolHit, SymbolListEntry, SymbolMatchMode};
+pub use queries::{
+    QueryScope, RelationHit, Resolution, SymbolHit, SymbolListEntry, SymbolMatchMode,
+};
 pub use search::{exact_phrase, search_words, split_identifier, LiteralHit, MAX_LITERAL_HITS};
 pub use semantic::{
     classify_query, embedding_text, Embedder, EmbeddingCoverage, HybridHit, QueryIntent,
@@ -368,9 +370,10 @@ impl Index {
     ///
     /// The scope matches the file holding the *referring* symbol — the file
     /// the caller is scoping to — not the file the reference resolves to.
-    /// Relations are resolved by global name, so without a scope a query for
-    /// a common name (`main`, `new`, `run`) returns cross-language false
-    /// positives (§B1 of `investigacion.md`).
+    /// Hits are matched by spelling (`to_name`), so without a scope a query
+    /// for a common name (`main`, `new`, `run`) also lists relations to other
+    /// same-named symbols; each hit's [`RelationHit::resolution`] says which
+    /// definition, if any, it was proven to denote (§B1 of `investigacion.md`).
     pub fn find_references_scoped(
         &self,
         symbol: &str,
@@ -410,6 +413,63 @@ impl Index {
         queries::find_dependencies_scoped(&self.conn, symbol, self.resolve_scope(scope))
     }
 
+    /// The candidate definitions of one relation ([`RelationHit::relation_id`]):
+    /// its single target when resolved, every remaining candidate when
+    /// ambiguous, none when unresolved or external.
+    pub fn relation_candidates(&self, relation_id: i64) -> Result<Vec<SymbolHit>> {
+        queries::relation_candidates(&self.conn, relation_id)
+    }
+
+    /// The symbols with the given row ids ([`SymbolHit::id`],
+    /// [`RelationHit::target_id`], [`RelationHit::from_symbol_id`]), in id
+    /// order. Ids from before a reindex of their file are simply absent.
+    pub fn symbols_by_ids(&self, ids: &[i64]) -> Result<Vec<SymbolHit>> {
+        queries::symbols_by_ids(&self.conn, ids)
+    }
+
+    /// Calls made by the exact symbol rows `start` (not by every definition
+    /// sharing their name), walked forward along resolved callees only, up
+    /// to `depth` hops and `limit` hits. See `traversal.rs`.
+    pub fn find_calls_from_symbols(
+        &self,
+        start: &[i64],
+        depth: u32,
+        limit: usize,
+    ) -> Result<Vec<RelationHit>> {
+        traversal::find_calls_from(self, start, depth, limit)
+    }
+
+    /// Calls that may reach the exact symbol rows `start` — resolved to one
+    /// of them, or ambiguous with one among the candidates — walked backward
+    /// from proven callers only, up to `depth` hops and `limit` hits.
+    pub fn find_callers_of_symbols(
+        &self,
+        start: &[i64],
+        depth: u32,
+        limit: usize,
+    ) -> Result<Vec<RelationHit>> {
+        traversal::find_referrers_of(self, start, true, depth, limit)
+    }
+
+    /// [`Index::find_callers_of_symbols`] over every relation kind.
+    pub fn find_references_of_symbols(
+        &self,
+        start: &[i64],
+        depth: u32,
+        limit: usize,
+    ) -> Result<Vec<RelationHit>> {
+        traversal::find_referrers_of(self, start, false, depth, limit)
+    }
+
+    /// Non-call relations made by the exact symbol rows `start`.
+    pub fn find_dependencies_of_symbols(&self, start: &[i64]) -> Result<Vec<RelationHit>> {
+        let mut hits = Vec::new();
+        for &id in start {
+            hits.extend(queries::dependencies_of_symbol(&self.conn, id)?);
+        }
+        Ok(hits)
+    }
+
     /// Direct-caller counts for every called name, in one aggregate query.
     ///
     /// Replaces the one-`find_callers`-per-candidate-symbol fan-in ranking in
@@ -433,7 +493,9 @@ impl Index {
     /// sees the exact same total it always has). Beyond depth 1, stops once
     /// `limit + offset` hits are collected, since an unbounded multi-hop
     /// walk has no equivalent "true total" to preserve. `depth` beyond
-    /// [`mct_core::MAX_QUERY_DEPTH`] is clamped.
+    /// [`mct_core::MAX_QUERY_DEPTH`] is clamped. Hops past the first follow
+    /// only resolved callees (by symbol id, never by name); ambiguous and
+    /// unresolved calls are reported but not expanded — see `traversal.rs`.
     pub fn find_calls_bfs(
         &self,
         function: &str,

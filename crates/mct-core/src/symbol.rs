@@ -87,3 +87,39 @@ pub struct SymbolRelation {
     pub to_name: String,
     pub location: Location,
 }
+
+/// Parser-supplied evidence about which symbol a [`SymbolRelation`] targets,
+/// beyond its bare `to_name`. Attached to a relation by index through
+/// [`crate::ParsedFile::relation_targets`]; a relation with no entry is
+/// unqualified (an empty constraint, not proof of anything).
+///
+/// The index resolves a relation against definitions named `to_name`,
+/// restricted to the source file's language and then narrowed by every
+/// field set here. Exactly one remaining candidate is `resolved`; several
+/// are `ambiguous` (all kept as candidates, none picked); none is
+/// `unresolved`. `external` is reported only when `external` is set.
+/// Set a field only when the source proves it — a guess here turns into a
+/// wrong resolved edge downstream.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RelationTarget {
+    /// Index of the relation in [`crate::ParsedFile::relations`].
+    pub relation: usize,
+    /// Name of the symbol the target is declared in, matched against a
+    /// candidate's `parent` (`A` for `A::run`, the impl type for
+    /// `self.run()`). A parent written with generic arguments (`A<T>`)
+    /// matches the bare qualifier `A`.
+    pub qualifier: Option<String>,
+    /// Repository-relative path (forward slashes) of the file the target is
+    /// declared in, e.g. this same file for a lexically scoped call, or a
+    /// note path for a Markdown link.
+    pub path: Option<String>,
+    /// Language id the target is declared in, when the source names another
+    /// language explicitly (an HTML `class` naming a CSS rule). `None` means
+    /// the source file's own language — spelling alone never links two
+    /// languages.
+    pub language: Option<String>,
+    /// The parser has positive evidence the target lies outside the indexed
+    /// repository (e.g. Rust's `std::`). Never set merely because no
+    /// definition matched.
+    pub external: bool,
+}

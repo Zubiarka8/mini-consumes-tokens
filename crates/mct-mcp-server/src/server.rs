@@ -825,12 +825,25 @@ pub struct PackedRelated {
     pub name: String,
     pub roles: Vec<String>,
     pub hop: u32,
-    /// The definition matching the relation (the caller's own definition for
-    /// a caller/test, the same-file one for a callee when there is one).
+    /// The exact definition: a callee/dependency's resolved target, or the
+    /// referring symbol itself for a caller/test.
     pub definition: Option<mct_index::SymbolHit>,
-    /// Other indexed definitions sharing `name` — the name is ambiguous.
-    pub other_definitions: usize,
     pub signature: Option<String>,
+}
+
+/// A relation whose target the index could not prove: listed apart from the
+/// related symbols, and never followed further.
+pub struct UncertainRelated {
+    pub name: String,
+    pub roles: Vec<String>,
+    pub hop: u32,
+    /// For a caller/test, its own definition (it is its call's target that
+    /// is uncertain); `None` for a callee/dependency.
+    pub definition: Option<mct_index::SymbolHit>,
+    /// For a callee/dependency, the first few remaining candidates.
+    pub candidates: Vec<mct_index::SymbolHit>,
+    /// How many definitions the uncertain relation could denote.
+    pub candidate_count: usize,
 }
 
 /// Everything `build_context_pack` renders, deduplicated.
@@ -840,29 +853,40 @@ pub struct ContextPack {
     pub definitions: Vec<PackedDefinition>,
     pub omitted_definitions: usize,
     pub related: Vec<PackedRelated>,
+    /// Ambiguous relations, kept apart from `related`.
+    pub uncertain: Vec<UncertainRelated>,
     /// Files referencing the symbol at file level (a top-of-file `use`/
     /// `import`) rather than from inside one of their symbols, sorted.
     pub file_level: Vec<String>,
-    /// Called names with no indexed definition (std/third-party), sorted.
+    /// Called/referenced names resolved to no indexed definition — external
+    /// or simply unknown — sorted.
     pub external: Vec<String>,
 }
 
-/// A related name while a pack is being assembled: its roles, closest hop,
-/// and the relation site used to pick the matching definition.
+/// How many candidates of an ambiguous callee a pack lists.
+const CONTEXT_PACK_MAX_CANDIDATES: usize = 3;
+
+/// A related symbol while a pack is being assembled: its roles, closest hop,
+/// and what identifies it — an exact symbol row, or for an ambiguous callee
+/// the relation whose candidates stand in for it.
 struct RelatedDraft {
     name: String,
     roles: Vec<String>,
     hop: u32,
-    /// `(relative_path, line)` of the first relation seen for this name.
-    site: (String, u32),
-    /// Whether `site` lies *inside* this symbol (a caller/test) rather than
-    /// being a call/reference *to* it (a callee/dependency).
-    site_is_inside: bool,
+    /// The exact row: a resolved target, or a caller/test itself.
+    symbol_id: Option<i64>,
+    /// Whether the relation is proven (resolved) — a caller is certain once
+    /// any one of its relations to the packed symbol resolved.
+    certain: bool,
+    /// One relation behind this draft, for an ambiguous callee's candidates.
+    relation_id: i64,
+    candidate_count: usize,
 }
 
-/// Collects related names in first-seen order, merging repeat sightings of
-/// the same name into one [`RelatedDraft`] — the deduplication behind
-/// `build_context_pack`.
+/// Collects related symbols in first-seen order, merging repeat sightings of
+/// the same one into one [`RelatedDraft`] — the deduplication behind
+/// `build_context_pack`. Keyed by symbol id where known, by name for an
+/// ambiguous callee.
 #[derive(Default)]
 struct RelatedSet {
     drafts: Vec<RelatedDraft>,
@@ -870,10 +894,50 @@ struct RelatedSet {
 }
 
 impl RelatedSet {
-    fn add(&mut self, name: &str, role: &str, hit: &mct_index::RelationHit, site_is_inside: bool) {
+    /// A callee/dependency sighting. Only resolved and ambiguous relations
+    /// become drafts; the name of any other is returned for the
+    /// unresolved/external footer.
+    fn add_target(&mut self, role: &str, hit: &mct_index::RelationHit) -> Option<String> {
+        match hit.resolution {
+            mct_index::Resolution::Resolved => {
+                let id = hit.target_id?;
+                self.add(format!("#{id}"), &hit.to_name, role, hit, Some(id), true);
+            }
+            mct_index::Resolution::Ambiguous => {
+                let key = format!("?{}", hit.to_name);
+                self.add(key, &hit.to_name, role, hit, None, false);
+            }
+            _ => return Some(hit.to_name.clone()),
+        }
+        None
+    }
+
+    /// A caller/test sighting: the referring symbol is always exact.
+    fn add_referrer(&mut self, role: &str, hit: &mct_index::RelationHit) {
+        let certain = hit.resolution == mct_index::Resolution::Resolved;
+        let id = hit.from_symbol_id;
+        self.add(
+            format!("#{id}"),
+            &hit.from_symbol,
+            role,
+            hit,
+            Some(id),
+            certain,
+        );
+    }
+
+    fn add(
+        &mut self,
+        key: String,
+        name: &str,
+        role: &str,
+        hit: &mct_index::RelationHit,
+        symbol_id: Option<i64>,
+        certain: bool,
+    ) {
         match self
             .positions
-            .get(name)
+            .get(&key)
             .and_then(|&i| self.drafts.get_mut(i))
         {
             Some(draft) => {
@@ -881,44 +945,22 @@ impl RelatedSet {
                     draft.roles.push(role.to_string());
                 }
                 draft.hop = draft.hop.min(hit.depth);
+                draft.certain |= certain;
             }
             None => {
-                self.positions.insert(name.to_string(), self.drafts.len());
+                self.positions.insert(key, self.drafts.len());
                 self.drafts.push(RelatedDraft {
                     name: name.to_string(),
                     roles: vec![role.to_string()],
                     hop: hit.depth,
-                    site: (hit.relative_path.clone(), hit.line),
-                    site_is_inside,
+                    symbol_id,
+                    certain,
+                    relation_id: hit.relation_id,
+                    candidate_count: hit.candidate_count,
                 });
             }
         }
     }
-}
-
-/// Picks the definition of a related name that its relation actually points
-/// at: for a caller/test, the one in the relation's file whose line range
-/// holds the relation; for a callee/dependency, one in the calling file when
-/// there is one. Falls back to the first definition. Returns it with how many
-/// other definitions share the name.
-fn pick_definition(
-    mut defs: Vec<mct_index::SymbolHit>,
-    draft: &RelatedDraft,
-) -> Option<(mct_index::SymbolHit, usize)> {
-    let (path, line) = (&draft.site.0, draft.site.1);
-    let same_file = |d: &mct_index::SymbolHit| d.relative_path == *path;
-    let encloses = |d: &mct_index::SymbolHit| {
-        same_file(d) && d.line <= line && line <= d.end_line.unwrap_or(d.line)
-    };
-    let index = if draft.site_is_inside {
-        defs.iter().position(encloses)
-    } else {
-        None
-    }
-    .or_else(|| defs.iter().position(same_file))
-    .unwrap_or(0);
-    let others = defs.len().saturating_sub(1);
-    (index < defs.len()).then(|| (defs.swap_remove(index), others))
 }
 
 /// Drops `module` entries (a file's synthetic whole-file symbol) when the
@@ -1641,48 +1683,41 @@ impl MctServer {
             ))]));
         }
 
-        // Relations are resolved by name, so without a narrowing every
-        // same-named symbol's outgoing calls merge in. When `path`/`language`
-        // picked specific definitions, keep only the direct calls/dependencies
-        // made from their files (a relation lives in its caller's file).
-        let definition_files: std::collections::HashSet<&str> = definitions
-            .iter()
-            .map(|d| d.relative_path.as_str())
-            .collect();
-        let narrowed = path.is_some() || language.is_some();
-        let made_by_packed = |hit: &mct_index::RelationHit| {
-            !narrowed || hit.depth > 1 || definition_files.contains(hit.relative_path.as_str())
-        };
-        let everywhere = mct_index::QueryScope::default();
+        // Every relation is walked from these exact rows, so a same-named
+        // symbol elsewhere (another language, another type's method) never
+        // contributes callees, and a callee is only followed — or listed as
+        // a related symbol — once its target is proven.
+        let definition_ids: Vec<i64> = definitions.iter().map(|d| d.id).collect();
         let callees = index
-            .find_calls_bfs_scoped(symbol, depth, CONTEXT_PACK_MAX_RELATIONS, 0, everywhere)
+            .find_calls_from_symbols(&definition_ids, depth, CONTEXT_PACK_MAX_RELATIONS)
             .map_err(index_error)?;
         let dependencies = index
-            .find_dependencies_scoped(symbol, everywhere)
+            .find_dependencies_of_symbols(&definition_ids)
             .map_err(index_error)?;
         let callers = index
-            .find_callers_bfs_scoped(symbol, depth, CONTEXT_PACK_MAX_RELATIONS, 0, everywhere)
+            .find_callers_of_symbols(&definition_ids, depth, CONTEXT_PACK_MAX_RELATIONS)
             .map_err(index_error)?;
         let references = index
-            .find_references_bfs_scoped(symbol, depth, CONTEXT_PACK_MAX_RELATIONS, 0, everywhere)
+            .find_references_of_symbols(&definition_ids, depth, CONTEXT_PACK_MAX_RELATIONS)
             .map_err(index_error)?;
 
         let mut related = RelatedSet::default();
-        for hit in callees.iter().filter(|h| made_by_packed(h)) {
-            related.add(&hit.to_name, "callee", hit, false);
+        let mut external = std::collections::BTreeSet::new();
+        for hit in &callees {
+            external.extend(related.add_target("callee", hit));
         }
-        for hit in dependencies.iter().filter(|h| made_by_packed(h)) {
-            related.add(&hit.to_name, &hit.kind, hit, false);
+        for hit in &dependencies {
+            external.extend(related.add_target(&hit.kind, hit));
         }
         for hit in &callers {
-            related.add(&hit.from_symbol, "caller", hit, true);
+            related.add_referrer("caller", hit);
         }
         // Same test heuristic as impact_analysis, over every relation
         // reaching the symbol — a test importing it counts, not just one
         // calling it.
         for hit in references.iter().chain(callers.iter()) {
             if mct_index::looks_like_test_name(&hit.from_symbol, &hit.relative_path) {
-                related.add(&hit.from_symbol, "test", hit, true);
+                related.add_referrer("test", hit);
             }
         }
 
@@ -1728,24 +1763,55 @@ impl MctServer {
             });
         }
 
+        let ids: Vec<i64> = related.drafts.iter().filter_map(|d| d.symbol_id).collect();
+        let by_id: std::collections::HashMap<i64, mct_index::SymbolHit> = index
+            .symbols_by_ids(&ids)
+            .map_err(index_error)?
+            .into_iter()
+            .map(|hit| (hit.id, hit))
+            .collect();
         let mut packed_related = Vec::new();
-        let mut external = std::collections::BTreeSet::new();
+        let mut uncertain = Vec::new();
         let mut file_level = std::collections::BTreeSet::new();
         for draft in related.drafts {
             // Recursion (the symbol calling itself) isn't a related symbol.
-            if draft.name == symbol {
+            if draft
+                .symbol_id
+                .is_some_and(|id| definition_ids.contains(&id))
+            {
                 continue;
             }
-            let defs = without_modules(index.find_symbol(&draft.name).map_err(index_error)?);
-            let Some((definition, other_definitions)) = pick_definition(defs, &draft) else {
-                external.insert(draft.name);
+            let definition = draft.symbol_id.and_then(|id| by_id.get(&id).cloned());
+            if !draft.certain {
+                let candidates = match draft.symbol_id {
+                    Some(_) => Vec::new(),
+                    None => index
+                        .relation_candidates(draft.relation_id)
+                        .map_err(index_error)?
+                        .into_iter()
+                        .take(CONTEXT_PACK_MAX_CANDIDATES)
+                        .collect(),
+                };
+                uncertain.push(UncertainRelated {
+                    name: draft.name,
+                    roles: draft.roles,
+                    hop: draft.hop,
+                    definition,
+                    candidates,
+                    candidate_count: draft.candidate_count,
+                });
                 continue;
+            }
+            let Some(definition) = definition else {
+                continue; // its file was reindexed away mid-query
             };
             // A relation made by a file's synthetic module symbol is a
             // file-level `use`/`import` of the packed symbol: the file is
             // worth naming, its whole-file "definition" isn't worth a row.
-            if draft.site_is_inside && definition.kind == "module" {
-                file_level.insert(draft.site.0);
+            if definition.kind == "module"
+                && draft.roles.iter().all(|r| r == "caller" || r == "test")
+            {
+                file_level.insert(definition.relative_path);
                 continue;
             }
             let signature = source_of(&definition.relative_path)
@@ -1755,7 +1821,6 @@ impl MctServer {
                 roles: draft.roles,
                 hop: draft.hop,
                 definition: Some(definition),
-                other_definitions,
                 signature,
             });
         }
@@ -1766,6 +1831,7 @@ impl MctServer {
             definitions: packed_definitions,
             omitted_definitions,
             related: packed_related,
+            uncertain,
             file_level: file_level.into_iter().collect(),
             external: external.into_iter().collect(),
         };

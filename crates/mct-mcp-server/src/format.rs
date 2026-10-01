@@ -6,7 +6,8 @@
 use std::collections::BTreeSet;
 
 use mct_index::{
-    FileTreeNode, IndexStatus, LiteralHit, ReindexReport, RelationHit, SymbolHit, SymbolListEntry,
+    FileTreeNode, IndexStatus, LiteralHit, ReindexReport, RelationHit, Resolution, SymbolHit,
+    SymbolListEntry,
 };
 
 use crate::toon::encode_table;
@@ -646,6 +647,17 @@ fn depth_tag(depth: u32) -> String {
     }
 }
 
+/// ` (ambiguous: N)`, ` (unresolved)` or ` (external)` after a relation's
+/// target; nothing for a resolved one, so a fully resolved result reads
+/// exactly as before resolution existed.
+fn resolution_tag(hit: &RelationHit) -> String {
+    match hit.resolution {
+        Resolution::Resolved => String::new(),
+        Resolution::Ambiguous => format!(" (ambiguous: {})", hit.candidate_count),
+        other => format!(" ({})", other.as_str()),
+    }
+}
+
 pub fn relation_hits(
     subject: &str,
     verb_label: &str,
@@ -661,7 +673,7 @@ pub fn relation_hits(
     let mut body = BudgetedList::new(DEFAULT_BYTE_BUDGET);
     for hit in shown {
         body.push(&format!(
-            "{}:{}:{} [{}] {} --{}--> {}{}\n",
+            "{}:{}:{} [{}] {} --{}--> {}{}{}\n",
             hit.relative_path,
             hit.line,
             hit.column,
@@ -669,6 +681,7 @@ pub fn relation_hits(
             hit.from_symbol,
             hit.kind,
             hit.to_name,
+            resolution_tag(hit),
             depth_tag(hit.depth)
         ));
     }
@@ -703,7 +716,18 @@ pub fn relation_hits_toon(
         truncation_note(total, offset, shown.len()),
         encode_table(
             "relations",
-            &["path", "line", "column", "language", "from", "kind", "to", "depth"],
+            &[
+                "path",
+                "line",
+                "column",
+                "language",
+                "from",
+                "kind",
+                "to",
+                "depth",
+                "resolution",
+                "candidates",
+            ],
             &rows,
         )
     )
@@ -719,6 +743,8 @@ fn relation_hit_row(hit: &RelationHit) -> Vec<String> {
         hit.kind.clone(),
         hit.to_name.clone(),
         hit.depth.to_string(),
+        hit.resolution.as_str().to_string(),
+        hit.candidate_count.to_string(),
     ]
 }
 
@@ -951,8 +977,11 @@ fn context_pack_header(pack: &crate::server::ContextPack) -> String {
         pack.definitions.len() + pack.omitted_definitions,
         pack.related.len()
     );
+    if !pack.uncertain.is_empty() {
+        out.push_str(&format!(", {} uncertain", pack.uncertain.len()));
+    }
     if !pack.external.is_empty() {
-        out.push_str(&format!(", {} external call(s)", pack.external.len()));
+        out.push_str(&format!(", {} unresolved name(s)", pack.external.len()));
     }
     out.push('\n');
     if pack.omitted_definitions > 0 {
@@ -1005,7 +1034,7 @@ fn context_pack_footer(pack: &crate::server::ContextPack) -> String {
     let lines =
         context_pack_name_line("Referenced at file level (use/import) by", &pack.file_level)
             + &context_pack_name_line(
-                "Called but not defined in the index (std/third-party)",
+                "Not resolved to an indexed definition (std/third-party/unknown)",
                 &pack.external,
             );
     if lines.is_empty() {
@@ -1015,19 +1044,72 @@ fn context_pack_footer(pack: &crate::server::ContextPack) -> String {
     }
 }
 
-/// `lines` column of a related symbol: its definition's line range, plus how
-/// many other definitions share its name when it's ambiguous.
+/// `path` and `lines` columns of a related symbol's exact definition.
 fn related_location(related: &crate::server::PackedRelated) -> (String, String) {
     match &related.definition {
-        Some(def) => {
-            let mut lines = line_range(def.line, def.end_line);
-            if related.other_definitions > 0 {
-                lines.push_str(&format!(" (+{} more def)", related.other_definitions));
-            }
-            (def.relative_path.clone(), lines)
-        }
+        Some(def) => (
+            def.relative_path.clone(),
+            line_range(def.line, def.end_line),
+        ),
         None => (String::new(), String::new()),
     }
+}
+
+/// What makes an uncertain relation uncertain, in one cell: a caller/test's
+/// own location and how many definitions its call could denote, or a
+/// callee's first candidates. Never a single picked target.
+fn uncertain_detail(item: &crate::server::UncertainRelated) -> String {
+    let loc = |d: &SymbolHit| {
+        format!(
+            "{}:{} {}",
+            d.relative_path,
+            line_range(d.line, d.end_line),
+            d.kind
+        )
+    };
+    match &item.definition {
+        Some(def) => format!(
+            "{}, its call is ambiguous among {}",
+            loc(def),
+            item.candidate_count
+        ),
+        None => {
+            let shown: Vec<String> = item.candidates.iter().map(loc).collect();
+            let more = item.candidate_count.saturating_sub(shown.len());
+            let more = if more > 0 {
+                format!(", +{more} more")
+            } else {
+                String::new()
+            };
+            format!(
+                "ambiguous among {}: {}{more}",
+                item.candidate_count,
+                shown.join(", ")
+            )
+        }
+    }
+}
+
+/// The uncertain-relations section of a context pack, or nothing.
+fn context_pack_uncertain(pack: &crate::server::ContextPack, limit: usize) -> String {
+    if pack.uncertain.is_empty() {
+        return String::new();
+    }
+    let shown = paginate(&pack.uncertain, 0, limit);
+    let mut out = format!(
+        "\nUncertain relations — target not proven, none picked, not followed{}:\n",
+        truncation_note(pack.uncertain.len(), 0, shown.len())
+    );
+    for item in shown {
+        out.push_str(&format!(
+            "  {} {}{}  {}\n",
+            item.roles.join(","),
+            item.name,
+            depth_tag(item.hop),
+            uncertain_detail(item)
+        ));
+    }
+    out
 }
 
 /// Renders `build_context_pack`: the packed symbol's definition(s) with their
@@ -1065,6 +1147,7 @@ pub fn context_pack(pack: &crate::server::ContextPack, limit: usize) -> String {
             body.body
         ));
     }
+    out.push_str(&context_pack_uncertain(pack, limit));
     out.push_str(&context_pack_footer(pack));
     out
 }
@@ -1103,6 +1186,30 @@ pub fn context_pack_toon(pack: &crate::server::ContextPack, limit: usize) -> Str
                 "related",
                 &["name", "roles", "hop", "path", "lines", "kind", "signature"],
                 &rows,
+            )
+        ));
+    }
+    if !pack.uncertain.is_empty() {
+        let shown = paginate(&pack.uncertain, 0, limit);
+        let rows: Vec<Vec<String>> = shown
+            .iter()
+            .map(|item| {
+                vec![
+                    item.name.clone(),
+                    item.roles.join(" "),
+                    item.hop.to_string(),
+                    item.candidate_count.to_string(),
+                    uncertain_detail(item),
+                ]
+            })
+            .collect();
+        out.push_str(&format!(
+            "\nUncertain relations — target not proven, none picked, not followed{}:\n{}",
+            truncation_note(pack.uncertain.len(), 0, shown.len()),
+            encode_table(
+                "uncertain",
+                &["name", "roles", "hop", "candidates", "detail"],
+                &rows
             )
         ));
     }
@@ -1680,6 +1787,8 @@ mod budget_tests {
             line,
             column,
             depth: 1,
+            resolution: mct_index::Resolution::Resolved,
+            ..Default::default()
         }
     }
 
@@ -1721,6 +1830,7 @@ mod budget_tests {
             parent: None,
             end_line: Some(12),
             level: None,
+            ..Default::default()
         }];
         let out = symbol_hits("compute", &hits, 50);
         assert_eq!(

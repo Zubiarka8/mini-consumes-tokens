@@ -156,7 +156,9 @@ async fn packs_definition_doc_comment_and_every_related_symbol_once() {
     assert!(!text.contains(" module  |"), "{text}");
     // Names the index can't resolve are summarised, not listed as rows.
     assert!(
-        text.contains("Called but not defined in the index (std/third-party): Ok, as_deref, len"),
+        text.contains(
+            "Not resolved to an indexed definition (std/third-party/unknown): Ok, as_deref, len"
+        ),
         "{text}"
     );
 
@@ -328,4 +330,78 @@ async fn an_unknown_symbol_says_so_and_an_empty_name_is_rejected() {
         .await
         .unwrap_err();
     assert!(err.message.contains("must not be empty"), "{}", err.message);
+}
+
+/// F02 / issue #97: a callee is listed as a related symbol only when its
+/// definition is proven. Same-named methods in other languages (C# `Ok`, PHP
+/// `get`, C++ `map`) are never it, `A::run` is never `B::run`, and a bare
+/// `x.run()` is reported as ambiguous instead of picking one.
+#[tokio::test]
+async fn homonyms_are_never_presented_as_resolved_callees() {
+    let root = std::env::temp_dir().join(format!("mct-qualified-pack-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    let files = [
+        (
+            "src/lib.rs",
+            "pub struct A;\n\
+             impl A {\n    pub fn run() {}\n}\n\
+             pub struct B;\n\
+             impl B {\n    pub fn run(&self) {}\n}\n\
+             pub fn query(v: Vec<u8>, b: B) -> Result<u8, ()> {\n\
+             \x20   A::run();\n\
+             \x20   b.run();\n\
+             \x20   let _ = v.get(0);\n\
+             \x20   let _ = v.iter().map(|x| x);\n\
+             \x20   Ok(1)\n\
+             }\n",
+        ),
+        (
+            "Errors.cs",
+            "public class Result {\n    public static Result Ok(int v) => null;\n}\n",
+        ),
+        (
+            "Repository.php",
+            "<?php\nclass Repository {\n    public function get(int $id) { return $id; }\n}\n",
+        ),
+        (
+            "service.cpp",
+            "struct Box {\n    int map(int x) const { return x; }\n};\n",
+        ),
+    ];
+    for (path, contents) in files {
+        std::fs::write(root.join(path), contents).unwrap();
+    }
+    let server = build_server(&root).await;
+    let text = pack(&server, json!({ "symbol": "query" })).await;
+    let _ = std::fs::remove_dir_all(&root);
+    println!("{text}");
+
+    let related: Vec<&str> = text
+        .lines()
+        .skip_while(|l| !l.starts_with("Related symbols"))
+        .skip(1)
+        .take_while(|l| l.starts_with("  "))
+        .collect();
+    assert_eq!(
+        related,
+        vec!["  callee run  src/lib.rs:L3 method  | pub fn run() {}"],
+        "{text}"
+    );
+    for foreign in ["Errors.cs", "Repository.php", "service.cpp"] {
+        assert!(!text.contains(foreign), "{foreign} leaked in:\n{text}");
+    }
+    assert!(
+        text.contains(
+            "Uncertain relations — target not proven, none picked, not followed:\n  \
+             callee run  ambiguous among 2: src/lib.rs:L3 method, src/lib.rs:L7 method\n"
+        ),
+        "{text}"
+    );
+    assert!(
+        text.contains(
+            "Not resolved to an indexed definition (std/third-party/unknown): Ok, get, iter, map"
+        ),
+        "{text}"
+    );
 }

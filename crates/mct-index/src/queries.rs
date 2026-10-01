@@ -4,8 +4,13 @@ use rusqlite::Connection;
 
 use crate::Result;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct SymbolHit {
+    /// The symbol's row id: an exact, snapshot-local identity — the key a
+    /// resolved relation ([`RelationHit::target_id`]) points at. Not stable
+    /// across a reindex of its file; source-stable consumers use the
+    /// `(language, relative_path, kind, parent, name, line)` tuple instead.
+    pub id: i64,
     pub name: String,
     pub kind: String,
     pub language: String,
@@ -40,7 +45,35 @@ pub struct SymbolListEntry {
     pub level: Option<u32>,
 }
 
-#[derive(Debug, Clone)]
+/// How a relation's target resolved against the index — see
+/// `mct_core::RelationTarget` for the evidence a parser supplies and the
+/// `relation_candidates` view (schema.rs) for the rule applied to it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Resolution {
+    /// Exactly one candidate definition: [`RelationHit::target_id`].
+    Resolved,
+    /// Several candidates remain; none is picked.
+    Ambiguous,
+    /// The parser proved the target lies outside the repository.
+    External,
+    /// No candidate, unsupported semantics, or a row indexed before
+    /// resolution existed. Not evidence that the target is external.
+    #[default]
+    Unresolved,
+}
+
+impl Resolution {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Resolved => "resolved",
+            Self::Ambiguous => "ambiguous",
+            Self::External => "external",
+            Self::Unresolved => "unresolved",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
 pub struct RelationHit {
     pub kind: String,
     /// Name of the symbol that defines the relation (e.g. the caller for
@@ -56,6 +89,16 @@ pub struct RelationHit {
     /// direct relation, so `1`; a multi-hop traversal (see `crate::traversal`)
     /// overwrites this with the hop number at which it found the hit.
     pub depth: u32,
+    /// Row id of the relation, for [`relation_candidates`].
+    pub relation_id: i64,
+    /// Exact row id of `from_symbol` — the relation's source is always known.
+    pub from_symbol_id: i64,
+    pub resolution: Resolution,
+    /// The one definition `to_name` denotes here; `Some` only when
+    /// `resolution` is [`Resolution::Resolved`].
+    pub target_id: Option<i64>,
+    /// How many definitions remain candidates (0 when unresolved/external).
+    pub candidate_count: usize,
 }
 
 /// Optional narrowing applied to a lookup: `path` is matched exactly when it
@@ -113,6 +156,24 @@ pub(crate) fn push_scope(sql: &mut String, bound: &mut BoundValues, scope: Resol
     }
 }
 
+/// Reads a [`SymbolHit`] from columns 0..=9 of a row selected as
+/// `s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent,
+/// s.end_line, s.level, s.id`.
+pub(crate) fn symbol_hit(row: &rusqlite::Row<'_>) -> rusqlite::Result<SymbolHit> {
+    Ok(SymbolHit {
+        name: row.get(0)?,
+        kind: row.get(1)?,
+        language: row.get(2)?,
+        relative_path: row.get(3)?,
+        line: row.get(4)?,
+        column: row.get(5)?,
+        parent: row.get(6)?,
+        end_line: row.get(7)?,
+        level: row.get(8)?,
+        id: row.get(9)?,
+    })
+}
+
 /// Symbol definitions named `name`, narrowed to `scope`.
 ///
 /// All symbol names are search parameters bound via placeholders (`?1`), never
@@ -125,7 +186,7 @@ pub fn find_symbol_scoped(
     scope: ResolvedScope<'_>,
 ) -> Result<Vec<SymbolHit>> {
     let mut sql = String::from(
-        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line, s.level
+        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line, s.level, s.id
          FROM symbols s JOIN files f ON f.id = s.file_id
          WHERE s.name = ?1",
     );
@@ -136,19 +197,7 @@ pub fn find_symbol_scoped(
     let mut stmt = conn.prepare_cached(&sql)?;
     let params: Vec<&dyn rusqlite::ToSql> = bound.iter().map(|b| b.as_ref()).collect();
     let rows = stmt
-        .query_map(params.as_slice(), |row| {
-            Ok(SymbolHit {
-                name: row.get(0)?,
-                kind: row.get(1)?,
-                language: row.get(2)?,
-                relative_path: row.get(3)?,
-                line: row.get(4)?,
-                column: row.get(5)?,
-                parent: row.get(6)?,
-                end_line: row.get(7)?,
-                level: row.get(8)?,
-            })
-        })?
+        .query_map(params.as_slice(), symbol_hit)?
         .collect::<rusqlite::Result<_>>()?;
     Ok(rows)
 }
@@ -159,25 +208,13 @@ pub fn find_symbol_scoped(
 pub fn symbols_in_files(conn: &Connection, paths: &[&str]) -> Result<Vec<SymbolHit>> {
     let paths = serde_json::to_string(paths).unwrap_or_else(|_| "[]".to_string());
     let mut stmt = conn.prepare_cached(
-        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line, s.level
+        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line, s.level, s.id
          FROM symbols s JOIN files f ON f.id = s.file_id
          WHERE f.relative_path IN (SELECT value FROM json_each(?1))
          ORDER BY f.relative_path, s.line",
     )?;
     let rows = stmt
-        .query_map([paths], |row| {
-            Ok(SymbolHit {
-                name: row.get(0)?,
-                kind: row.get(1)?,
-                language: row.get(2)?,
-                relative_path: row.get(3)?,
-                line: row.get(4)?,
-                column: row.get(5)?,
-                parent: row.get(6)?,
-                end_line: row.get(7)?,
-                level: row.get(8)?,
-            })
-        })?
+        .query_map([paths], symbol_hit)?
         .collect::<rusqlite::Result<_>>()?;
     Ok(rows)
 }
@@ -259,7 +296,7 @@ fn find_symbol_fts(
     scope: ResolvedScope<'_>,
 ) -> Result<Vec<SymbolHit>> {
     let mut sql = String::from(
-        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line, s.level
+        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line, s.level, s.id
          FROM symbols_fts
          JOIN symbols s ON s.id = symbols_fts.rowid
          JOIN files f ON f.id = s.file_id
@@ -272,19 +309,7 @@ fn find_symbol_fts(
     let mut stmt = conn.prepare_cached(&sql)?;
     let params: Vec<&dyn rusqlite::ToSql> = bound.iter().map(|b| b.as_ref()).collect();
     let rows = stmt
-        .query_map(params.as_slice(), |row| {
-            Ok(SymbolHit {
-                name: row.get(0)?,
-                kind: row.get(1)?,
-                language: row.get(2)?,
-                relative_path: row.get(3)?,
-                line: row.get(4)?,
-                column: row.get(5)?,
-                parent: row.get(6)?,
-                end_line: row.get(7)?,
-                level: row.get(8)?,
-            })
-        })?
+        .query_map(params.as_slice(), symbol_hit)?
         .collect::<rusqlite::Result<_>>()?;
     Ok(rows)
 }
@@ -304,7 +329,7 @@ fn find_symbol_like(
         .replace('_', "\\_");
     let pattern = format!("%{escaped}%");
     let mut sql = String::from(
-        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line, s.level
+        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line, s.level, s.id
          FROM symbols s JOIN files f ON f.id = s.file_id
          WHERE s.name LIKE ?1 ESCAPE '\\'",
     );
@@ -315,19 +340,7 @@ fn find_symbol_like(
     let mut stmt = conn.prepare_cached(&sql)?;
     let params: Vec<&dyn rusqlite::ToSql> = bound.iter().map(|b| b.as_ref()).collect();
     let rows = stmt
-        .query_map(params.as_slice(), |row| {
-            Ok(SymbolHit {
-                name: row.get(0)?,
-                kind: row.get(1)?,
-                language: row.get(2)?,
-                relative_path: row.get(3)?,
-                line: row.get(4)?,
-                column: row.get(5)?,
-                parent: row.get(6)?,
-                end_line: row.get(7)?,
-                level: row.get(8)?,
-            })
-        })?
+        .query_map(params.as_slice(), symbol_hit)?
         .collect::<rusqlite::Result<_>>()?;
     Ok(rows)
 }
@@ -397,8 +410,15 @@ pub fn list_symbols(
 /// The three relation queries differ only in their WHERE predicate; the
 /// SELECT/JOIN prefix and the ORDER BY are shared, with any scope predicates
 /// spliced in between.
+///
+/// The last two columns are the candidate count and, for exactly one
+/// candidate, its id — correlated lookups into `relation_candidates`, so a
+/// relation's resolution is always computed against the current symbols.
 const RELATION_SELECT: &str =
-    "SELECT r.kind, caller.name, r.to_name, f.language, f.relative_path, r.line, r.column
+    "SELECT r.kind, caller.name, r.to_name, f.language, f.relative_path, r.line, r.column,
+            r.id, r.from_symbol_id, r.external,
+            (SELECT COUNT(*) FROM relation_candidates c WHERE c.relation_id = r.id),
+            (SELECT MIN(c.symbol_id) FROM relation_candidates c WHERE c.relation_id = r.id)
          FROM relations r
          JOIN symbols caller ON caller.id = r.from_symbol_id
          JOIN files f ON f.id = caller.file_id
@@ -411,7 +431,7 @@ pub fn find_references_scoped(
     symbol: &str,
     scope: ResolvedScope<'_>,
 ) -> Result<Vec<RelationHit>> {
-    query_relations(conn, "r.to_name = ?1", symbol, scope)
+    query_relations(conn, "r.to_name = ?1", symbol.to_string(), scope)
 }
 
 pub fn find_calls_scoped(
@@ -422,7 +442,7 @@ pub fn find_calls_scoped(
     query_relations(
         conn,
         "caller.name = ?1 AND r.kind = 'calls'",
-        function,
+        function.to_string(),
         scope,
     )
 }
@@ -432,7 +452,12 @@ pub fn find_callers_scoped(
     function: &str,
     scope: ResolvedScope<'_>,
 ) -> Result<Vec<RelationHit>> {
-    query_relations(conn, "r.to_name = ?1 AND r.kind = 'calls'", function, scope)
+    query_relations(
+        conn,
+        "r.to_name = ?1 AND r.kind = 'calls'",
+        function.to_string(),
+        scope,
+    )
 }
 
 /// Every non-call relation made *by* `symbol` — what it imports, extends,
@@ -446,7 +471,7 @@ pub fn find_dependencies_scoped(
     query_relations(
         conn,
         "caller.name = ?1 AND r.kind <> 'calls'",
-        symbol,
+        symbol.to_string(),
         scope,
     )
 }
@@ -500,12 +525,12 @@ pub fn reference_counts(conn: &Connection) -> Result<HashMap<String, usize>> {
 fn query_relations(
     conn: &Connection,
     predicate: &str,
-    param: &str,
+    param: impl rusqlite::ToSql + 'static,
     scope: ResolvedScope<'_>,
 ) -> Result<Vec<RelationHit>> {
     let mut sql = String::from(RELATION_SELECT);
     sql.push_str(predicate);
-    let mut bound: BoundValues = vec![Box::new(param.to_string())];
+    let mut bound: BoundValues = vec![Box::new(param)];
     push_scope(&mut sql, &mut bound, scope);
     sql.push_str("\n         ORDER BY f.relative_path, r.line");
 
@@ -513,6 +538,15 @@ fn query_relations(
     let params: Vec<&dyn rusqlite::ToSql> = bound.iter().map(|b| b.as_ref()).collect();
     let rows = stmt
         .query_map(params.as_slice(), |row| {
+            let external: bool = row.get(9)?;
+            let count: i64 = row.get(10)?;
+            let only: Option<i64> = row.get(11)?;
+            let (resolution, target_id) = match (external, count) {
+                (true, _) => (Resolution::External, None),
+                (false, 0) => (Resolution::Unresolved, None),
+                (false, 1) => (Resolution::Resolved, only),
+                (false, _) => (Resolution::Ambiguous, None),
+            };
             Ok(RelationHit {
                 kind: row.get(0)?,
                 from_symbol: row.get(1)?,
@@ -522,8 +556,102 @@ fn query_relations(
                 line: row.get(5)?,
                 column: row.get(6)?,
                 depth: 1,
+                relation_id: row.get(7)?,
+                from_symbol_id: row.get(8)?,
+                resolution,
+                target_id,
+                candidate_count: count.max(0) as usize,
             })
         })?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(rows)
+}
+
+/// Calls made by the one symbol row `symbol_id` — the identity-based hop of
+/// a forward walk, which can't wander into a same-named definition.
+pub(crate) fn calls_from_symbol(
+    conn: &Connection,
+    symbol_id: i64,
+    scope: ResolvedScope<'_>,
+) -> Result<Vec<RelationHit>> {
+    query_relations(
+        conn,
+        "r.from_symbol_id = ?1 AND r.kind = 'calls'",
+        symbol_id,
+        scope,
+    )
+}
+
+/// Non-call relations made by the one symbol row `symbol_id` — what it
+/// imports, extends, implements or otherwise references.
+pub fn dependencies_of_symbol(conn: &Connection, symbol_id: i64) -> Result<Vec<RelationHit>> {
+    query_relations(
+        conn,
+        "r.from_symbol_id = ?1 AND r.kind <> 'calls'",
+        symbol_id,
+        ResolvedScope::default(),
+    )
+}
+
+/// Relations that may denote the one symbol row `symbol_id` — resolved to it,
+/// or ambiguous with it among the candidates — optionally only `calls`. A
+/// relation resolved to another definition, or from a language that can't
+/// name it, is not one of them.
+pub(crate) fn relations_reaching_symbol(
+    conn: &Connection,
+    symbol_id: i64,
+    calls_only: bool,
+    scope: ResolvedScope<'_>,
+) -> Result<Vec<RelationHit>> {
+    let predicate = if calls_only {
+        "r.kind = 'calls' AND r.id IN (SELECT relation_id FROM relation_candidates WHERE symbol_id = ?1)"
+    } else {
+        "r.id IN (SELECT relation_id FROM relation_candidates WHERE symbol_id = ?1)"
+    };
+    query_relations(conn, predicate, symbol_id, scope)
+}
+
+/// Every symbol row named `name` within `scope` — the start nodes of a walk.
+pub(crate) fn symbol_ids_named(
+    conn: &Connection,
+    name: &str,
+    scope: ResolvedScope<'_>,
+) -> Result<Vec<i64>> {
+    Ok(find_symbol_scoped(conn, name, scope)?
+        .into_iter()
+        .map(|hit| hit.id)
+        .collect())
+}
+
+/// The symbol rows with the given ids, in id order; unknown ids are skipped.
+pub fn symbols_by_ids(conn: &Connection, ids: &[i64]) -> Result<Vec<SymbolHit>> {
+    let ids = serde_json::to_string(ids).unwrap_or_else(|_| "[]".to_string());
+    let mut stmt = conn.prepare_cached(
+        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line, s.level, s.id
+         FROM symbols s JOIN files f ON f.id = s.file_id
+         WHERE s.id IN (SELECT value FROM json_each(?1))
+         ORDER BY s.id",
+    )?;
+    let rows = stmt
+        .query_map([ids], symbol_hit)?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(rows)
+}
+
+/// Every candidate definition of relation `relation_id`, ordered by path then
+/// line: the one target when resolved, all of them when ambiguous, none when
+/// unresolved/external.
+pub fn relation_candidates(conn: &Connection, relation_id: i64) -> Result<Vec<SymbolHit>> {
+    let mut stmt = conn.prepare_cached(
+        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line, s.level, s.id
+         FROM relation_candidates c
+         JOIN symbols s ON s.id = c.symbol_id
+         JOIN files f ON f.id = s.file_id
+         WHERE c.relation_id = ?1
+         ORDER BY f.relative_path, s.line",
+    )?;
+    let rows = stmt
+        .query_map([relation_id], symbol_hit)?
         .collect::<rusqlite::Result<_>>()?;
     Ok(rows)
 }

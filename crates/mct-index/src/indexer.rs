@@ -330,8 +330,8 @@ fn index_file(
 /// deletion checks nothing else, so no update costs anything per indexed
 /// file. Excluded paths and paths outside the root are ignored; the root
 /// itself, or an ignore file whose rules changed ([`ExcludeSet::reload`]),
-/// falls back to a full [`reindex`]. Relations
-/// are resolved by name at query time and a symbol's embedding/literals
+/// falls back to a full [`reindex`]. Relations are resolved at query time
+/// (the `relation_candidates` view) and a symbol's embedding/literals
 /// cascade with it, so rewriting one file's rows is all an update needs: the
 /// result is the same index a full [`reindex`] would produce.
 pub fn reindex_paths(
@@ -816,13 +816,20 @@ fn write_parsed_file(
         id_map.insert(symbol.id, tx.last_insert_rowid());
     }
 
-    for relation in &parsed.relations {
+    let targets: HashMap<usize, &mct_core::RelationTarget> = parsed
+        .relation_targets
+        .iter()
+        .map(|t| (t.relation, t))
+        .collect();
+    for (i, relation) in parsed.relations.iter().enumerate() {
         let Some(&from_row_id) = id_map.get(&relation.from) else {
             continue; // parser bug guard: relation referencing an unknown local symbol id
         };
+        let target = targets.get(&i);
         tx.execute(
-            "INSERT INTO relations (from_symbol_id, kind, to_name, line, column, byte_len)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT INTO relations (from_symbol_id, kind, to_name, line, column, byte_len,
+                                    qualifier, target_path, target_language, external, targets_parsed)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1)",
             params![
                 from_row_id,
                 relation_kind_str(relation.kind),
@@ -830,6 +837,10 @@ fn write_parsed_file(
                 relation.location.line,
                 relation.location.column,
                 relation.location.byte_len,
+                target.and_then(|t| t.qualifier.as_deref()),
+                target.and_then(|t| t.path.as_deref()),
+                target.and_then(|t| t.language.as_deref()),
+                target.is_some_and(|t| t.external),
             ],
         )?;
     }

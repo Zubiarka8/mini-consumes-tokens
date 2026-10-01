@@ -220,6 +220,48 @@ pub fn migrations() -> Migrations<'static> {
             UPDATE files SET content_hash = '';
             "#,
         ),
+        // Qualified relation resolution (issue #97). The parser's evidence
+        // about a relation's target (`mct_core::RelationTarget`) is stored
+        // on the row; which symbols it may denote is *derived* by the
+        // `relation_candidates` view, never stored, so a candidate can't
+        // outlive a reindex of the file that declared it and nothing is ever
+        // backfilled by name (the dropped `to_symbol_id` above was exactly
+        // that). A candidate shares the relation's name and the language
+        // the evidence names (the source file's own by default), and
+        // satisfies every qualifier/path constraint; a call never targets a
+        // whole-file module. One candidate = resolved, several = ambiguous,
+        // none = unresolved, unless the parser proved `external`.
+        //
+        // `targets_parsed` is 0 on every pre-existing row: those were written
+        // without evidence, so they read as unresolved until reparsed, which
+        // emptying every `content_hash` forces on the next reindex.
+        M::up(
+            r#"
+            ALTER TABLE relations ADD COLUMN qualifier TEXT;
+            ALTER TABLE relations ADD COLUMN target_path TEXT;
+            ALTER TABLE relations ADD COLUMN target_language TEXT;
+            ALTER TABLE relations ADD COLUMN external INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE relations ADD COLUMN targets_parsed INTEGER NOT NULL DEFAULT 0;
+
+            CREATE VIEW relation_candidates AS
+                SELECT r.id AS relation_id, s.id AS symbol_id
+                FROM relations r
+                JOIN symbols caller ON caller.id = r.from_symbol_id
+                JOIN files cf ON cf.id = caller.file_id
+                JOIN symbols s ON s.name = r.to_name
+                JOIN files sf ON sf.id = s.file_id
+                WHERE r.targets_parsed = 1
+                  AND r.external = 0
+                  AND sf.language = COALESCE(r.target_language, cf.language)
+                  AND (r.qualifier IS NULL
+                       OR s.parent = r.qualifier
+                       OR substr(s.parent, 1, length(r.qualifier) + 1) = r.qualifier || '<')
+                  AND (r.target_path IS NULL OR sf.relative_path = r.target_path)
+                  AND NOT (r.kind = 'calls' AND s.kind = 'module');
+
+            UPDATE files SET content_hash = '';
+            "#,
+        ),
     ])
 }
 
@@ -243,6 +285,33 @@ mod tests {
             [],
         )?;
         migrations().to_latest(&mut conn)?;
+        let hash: String = conn.query_row("SELECT content_hash FROM files", [], |r| r.get(0))?;
+        assert_eq!(hash, "");
+        Ok(())
+    }
+
+    /// A relation written before resolution existed is never resolved by
+    /// name after the migration — not even to the only same-named symbol —
+    /// and its file is queued for the reparse that records real evidence.
+    #[test]
+    fn resolution_migration_leaves_legacy_relations_unresolved(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let mut conn = Connection::open_in_memory()?;
+        crate::search::register_functions(&conn)?;
+        let before_resolution = 8;
+        migrations().to_version(&mut conn, before_resolution)?;
+        conn.execute_batch(
+            "INSERT INTO files (id, relative_path, language, content_hash, last_indexed_at)
+                 VALUES (1, 'src/lib.rs', 'rust', 'abc123', 0);
+             INSERT INTO symbols (id, file_id, name, kind, line, column, byte_len)
+                 VALUES (1, 1, 'main', 'function', 1, 1, 1), (2, 1, 'helper', 'function', 2, 1, 1);
+             INSERT INTO relations (from_symbol_id, kind, to_name, line, column, byte_len)
+                 VALUES (1, 'calls', 'helper', 1, 1, 1);",
+        )?;
+        migrations().to_latest(&mut conn)?;
+        let candidates: i64 =
+            conn.query_row("SELECT COUNT(*) FROM relation_candidates", [], |r| r.get(0))?;
+        assert_eq!(candidates, 0);
         let hash: String = conn.query_row("SELECT content_hash FROM files", [], |r| r.get(0))?;
         assert_eq!(hash, "");
         Ok(())
