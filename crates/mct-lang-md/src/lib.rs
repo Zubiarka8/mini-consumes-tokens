@@ -610,7 +610,7 @@ impl<'a> Walker<'a> {
             if let Some(heading) = link.heading {
                 let target = RelationTarget {
                     path: heading_scope.0,
-                    module: heading_scope.1,
+                    target_module: heading_scope.1,
                     kind: Some(SymbolKind::Element),
                     ..Default::default()
                 };

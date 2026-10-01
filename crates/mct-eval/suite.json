@@ -112,6 +112,30 @@
       "expect": ["HandlePost"]
     },
     {
+      "name": "callers of a homonym scoped to one definition",
+      "category": "callers",
+      "tool": "find_callers",
+      "args": { "function": "post", "path": "homonyms/journal.rs" },
+      "expect": ["publish"],
+      "absent": ["discard", "draft.rs"]
+    },
+    {
+      "name": "references to a homonym scoped to one definition",
+      "category": "references",
+      "tool": "find_references",
+      "args": { "symbol": "post", "path": "homonyms/journal.rs" },
+      "expect": ["publish"],
+      "absent": ["discard", "draft.rs"]
+    },
+    {
+      "name": "blast radius of a homonym scoped to one definition",
+      "category": "impact",
+      "tool": "impact_analysis",
+      "args": { "symbol": "post", "path": "homonyms/journal.rs" },
+      "expect": ["publish"],
+      "absent": ["discard", "draft.rs"]
+    },
+    {
       "name": "snake_case words",
       "category": "search",
       "tool": "search_symbols",

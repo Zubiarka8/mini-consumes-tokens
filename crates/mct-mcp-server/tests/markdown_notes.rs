@@ -148,11 +148,11 @@ async fn references_flag_an_ambiguous_note_link_and_keep_raw_spelling() {
     let server = server_for(&dir).await;
     let out = call(&server, "find_references", json!({"symbol": "beta"})).await;
     assert!(
-        out.contains("bare.md:1:1 [markdown] bare --references--> beta (ambiguous: 2)"),
+        out.contains("bare.md:1:1 [markdown] bare --references--> beta (ambiguous among 2: a/beta.md:1, b/beta.md:1)"),
         "{out}"
     );
     assert!(
-        out.contains("src --imports--> beta"),
+        out.contains("src --imports--> beta -> b/beta.md:1"),
         "embed keeps its own kind:\n{out}"
     );
     let _ = fs::remove_dir_all(&dir);

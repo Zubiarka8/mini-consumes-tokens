@@ -490,7 +490,7 @@ fn a_bare_link_targets_a_note_module_by_name_only() {
     assert_eq!(r.kind, RelationKind::References);
     let t = target_of(&parsed, i);
     assert_eq!(
-        (t.kind, t.path.as_deref(), t.module.as_deref()),
+        (t.kind, t.path.as_deref(), t.target_module.as_deref()),
         (Some(SymbolKind::Module), None, None)
     );
 }
@@ -531,7 +531,7 @@ fn an_anchor_is_scoped_to_the_named_note_not_the_whole_vault() {
     let (i, _) = relation(&bare, "Shared");
     let t = target_of(&bare, i);
     assert_eq!(
-        (t.kind, t.module.as_deref(), t.path.as_deref()),
+        (t.kind, t.target_module.as_deref(), t.path.as_deref()),
         (Some(SymbolKind::Element), Some("beta"), None)
     );
 
