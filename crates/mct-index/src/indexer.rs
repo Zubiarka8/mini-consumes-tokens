@@ -828,8 +828,9 @@ fn write_parsed_file(
         let target = targets.get(&i);
         tx.execute(
             "INSERT INTO relations (from_symbol_id, kind, to_name, line, column, byte_len,
-                                    qualifier, target_path, target_language, external, targets_parsed)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1)",
+                                    qualifier, target_path, target_language, external, targets_parsed,
+                                    target_kind, target_module)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1, ?11, ?12)",
             params![
                 from_row_id,
                 relation_kind_str(relation.kind),
@@ -841,6 +842,8 @@ fn write_parsed_file(
                 target.and_then(|t| t.path.as_deref()),
                 target.and_then(|t| t.language.as_deref()),
                 target.is_some_and(|t| t.external),
+                target.and_then(|t| t.kind).map(symbol_kind_str),
+                target.and_then(|t| t.module.as_deref()),
             ],
         )?;
     }

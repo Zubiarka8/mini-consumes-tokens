@@ -118,6 +118,14 @@ pub struct RelationTarget {
     /// the source file's own language — spelling alone never links two
     /// languages.
     pub language: Option<String>,
+    /// Kind the target must have, when the source syntax proves it (a
+    /// Markdown note link names a whole-note `Module`, never a same-named
+    /// heading). `None` accepts any kind.
+    pub kind: Option<SymbolKind>,
+    /// Name of a `Module` symbol the target's file must declare — scopes a
+    /// target to "inside the note/module named X" without knowing its path
+    /// (`[[beta#Shared]]`: a `Shared` in a file whose note is `beta`).
+    pub module: Option<String>,
     /// The parser has positive evidence the target lies outside the indexed
     /// repository (e.g. Rust's `std::`). Never set merely because no
     /// definition matched.
