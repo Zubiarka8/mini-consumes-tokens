@@ -1,13 +1,13 @@
-# Claude Code remediation plan
+# Remediation plan
 
 Source: `GPT-Report.md`, audited commit `1880048dd8274b0b3a7f82b07bedd3219bde5ca1`.
-Before starting any task from this plan, read [`rules.md`](rules.md). It is the sole authority for choosing the AI provider, model, and reasoning effort, including when to use each option and why. The audit sessions recorded below used **Claude Opus 5.5** (`claude-opus-5-5`) at `medium` effort; that is historical run metadata, not a standing recommendation. For any new run, follow `rules.md` unless the user explicitly specifies a different configuration.
+Before starting a task from this plan, read [rules.md](rules.md) for shared engineering constraints. Use your available editor or assistant; no particular AI provider, model, or subscription is required. Model names in completed-session records describe historical audit runs and are not requirements for contributors.
 
 ## Organization
 
 Each agent works in its own worktree and branch. Initial maximum: three agents. Each branch delivers one reviewable fix and a proposed PR. The branches start from the audited commit, which belongs to the work for [PR #90](https://github.com/Zubiarka8/mini-consumes-tokens/pull/90). Do not open them directly against `main` until #90 is integrated, or prepare stacked PRs against a published base that contains that exact starting point. Do not publish commits belonging to other work in the base.
 
-The task prompts are combined with the [shared rules](internal/claude-audit/00-rules.md). Those rules are supplied automatically to sessions launched from this chat. For manual use, paste the shared rules first, then the task prompt, while in the correct worktree.
+The task briefs reference the [audit rules](internal/claude-audit/00-rules.md). Read the applicable repository rules and task brief in the correct worktree. Historical client-specific launch details do not require contributors to use that client.
 
 | Agent | Branch | Prompt | Timing |
 |---|---|---|---|
