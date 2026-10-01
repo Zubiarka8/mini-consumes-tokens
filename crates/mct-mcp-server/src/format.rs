@@ -981,7 +981,10 @@ fn context_pack_header(pack: &crate::server::ContextPack) -> String {
         out.push_str(&format!(", {} uncertain", pack.uncertain.len()));
     }
     if !pack.external.is_empty() {
-        out.push_str(&format!(", {} unresolved name(s)", pack.external.len()));
+        out.push_str(&format!(", {} external name(s)", pack.external.len()));
+    }
+    if !pack.unresolved.is_empty() {
+        out.push_str(&format!(", {} unresolved name(s)", pack.unresolved.len()));
     }
     out.push('\n');
     if pack.omitted_definitions > 0 {
@@ -1034,8 +1037,12 @@ fn context_pack_footer(pack: &crate::server::ContextPack) -> String {
     let lines =
         context_pack_name_line("Referenced at file level (use/import) by", &pack.file_level)
             + &context_pack_name_line(
-                "Not resolved to an indexed definition (std/third-party/unknown)",
+                "External (std/third-party, proven by the parser)",
                 &pack.external,
+            )
+            + &context_pack_name_line(
+                "Unresolved (no indexed definition, no external evidence)",
+                &pack.unresolved,
             );
     if lines.is_empty() {
         lines
@@ -2321,7 +2328,38 @@ mod dead_code_tests {
 
 #[cfg(test)]
 mod context_pack_tests {
-    use super::{leading_comment_start, signature_line};
+    use super::{context_pack, context_pack_toon, leading_comment_start, signature_line};
+
+    #[test]
+    fn external_and_unresolved_names_stay_distinct_in_both_formats() {
+        let pack = crate::server::ContextPack {
+            symbol: "f".to_string(),
+            depth: 1,
+            definitions: Vec::new(),
+            omitted_definitions: 0,
+            related: Vec::new(),
+            uncertain: Vec::new(),
+            file_level: Vec::new(),
+            external: vec!["Vec".to_string()],
+            unresolved: vec!["mystery".to_string()],
+        };
+        for text in [context_pack(&pack, 30), context_pack_toon(&pack, 30)] {
+            assert!(
+                text.contains("1 external name(s), 1 unresolved name(s)"),
+                "{text}"
+            );
+            assert!(
+                text.contains("External (std/third-party, proven by the parser): Vec\n"),
+                "{text}"
+            );
+            assert!(
+                text.contains(
+                    "Unresolved (no indexed definition, no external evidence): mystery\n"
+                ),
+                "{text}"
+            );
+        }
+    }
 
     #[test]
     fn doc_comments_and_attributes_directly_above_are_included() {

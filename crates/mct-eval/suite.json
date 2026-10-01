@@ -205,7 +205,15 @@
       "tool": "build_context_pack",
       "args": { "symbol": "HandlePost" },
       "expect": ["function HandlePost", "callee NewLedger", "callee Post", "callee Describe"],
-      "absent": ["PostButton"]
+      "absent": ["PostButton", "Uncertain relations", "postAmount", "Authorize"]
+    },
+    {
+      "name": "context pack of a Rust caller lists only its real dependency",
+      "category": "context",
+      "tool": "build_context_pack",
+      "args": { "symbol": "run_tally" },
+      "expect": ["function run_tally", "callee settle", "rustcore/tally.rs:L11-L13"],
+      "absent": ["settle_totals", "accumulate_cents", "Uncertain relations", "[cpp]", "[go]"]
     }
   ]
 }
