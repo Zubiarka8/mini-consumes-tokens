@@ -38,11 +38,11 @@ For reasoning effort, start at the client default or **Medium** for ordinary mul
 |---|---|---|
 | Claude Haiku 4.5 (`claude-haiku-4-5`) | The work is routine and tightly scoped: quick questions, formatting, mechanical edits, or simple extraction. | It prioritizes speed and efficiency. |
 | Claude Sonnet 5.5 (`claude-sonnet-5-5`) | The task is everyday implementation, bug fixing, tests, documentation, or code review. | It balances speed and capability for general coding work. |
-| Claude Opus 5.5 (`claude-opus-5-5`) | The task needs broad context, difficult reasoning, or a careful audit, and Sonnet is insufficient. | Reserve it for cases where the extra capability is justified. |
+| Claude Opus 5.5 (`claude-opus-5-5`) | The task needs broad context, difficult reasoning, or a careful audit, and Sonnet is insufficient. Always use **Medium** effort. | Reserve it for cases where the extra capability is justified. |
 
 **Do not use Claude Fable for project work.** It is a paid model outside the project's approved model set. Use Claude Sonnet for everyday work and Opus only when Sonnet is insufficient.
 
-For Claude Code effort, prefer the model's default for ordinary work; use **Low** for simple tasks and raise effort when deeper planning or verification is worth the added time and usage. **Auto** follows the model default. Do not assume every model supports every effort level: support and defaults vary by model, Claude Code version, account, provider, and organization settings. Check the active model's current configuration before pinning an effort.
+For Claude Code effort, prefer the model's default for ordinary work; use **Low** for simple tasks and raise effort when deeper planning or verification is worth the added time and usage. **Auto** follows the model default. **For Claude Opus 5.5, always set effort to Medium; never use High.** Do not assume every model supports every effort level: support and defaults vary by model, Claude Code version, account, provider, and organization settings. Check the active model's current configuration before pinning an effort.
 
 ### Choosing between providers
 
