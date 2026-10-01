@@ -100,3 +100,23 @@ fn syntax_error_is_reported_not_panicked() {
         "{result:?}"
     );
 }
+
+/// Every handler reference names the C# code-behind file as where the
+/// target is declared: the explicit evidence a cross-language edge needs.
+#[test]
+fn handler_references_target_the_csharp_code_behind_file() {
+    let parsed = parse("<Window Loaded=\"Window_Loaded\"><Button Click=\"Save_Click\"/></Window>");
+    assert_eq!(parsed.relations.len(), 2);
+    assert_eq!(parsed.relation_targets.len(), 2);
+    for (i, target) in parsed.relation_targets.iter().enumerate() {
+        assert_eq!(
+            *target,
+            mct_core::RelationTarget {
+                relation: i,
+                path: Some("MainWindow.xaml.cs".to_string()),
+                language: Some("csharp".to_string()),
+                ..Default::default()
+            }
+        );
+    }
+}

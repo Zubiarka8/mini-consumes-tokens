@@ -17,13 +17,14 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use mct_core::{
-    Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolKind, SymbolRecord,
-    SymbolRelation,
+    Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile, SymbolKind,
+    SymbolRecord, SymbolRelation,
 };
 use mct_index::{ExcludeSet, Index, QueryScope};
 
 /// One line per symbol: `fn NAME`, `fn NAME calls OTHER` or
-/// `fn NAME imports OTHER`.
+/// `fn NAME imports OTHER`. `OTHER` written `LANG:NAME` states the language
+/// the target is declared in — the evidence a cross-language edge needs.
 struct FakeParser {
     language: &'static str,
     extensions: &'static [&'static str],
@@ -75,6 +76,17 @@ impl mct_core::LanguageParser for FakeParser {
             };
             if let Some(kind) = kind {
                 if let Some(callee) = parts.next() {
+                    let (language, callee) = match callee.split_once(':') {
+                        Some((language, name)) => (Some(language.to_string()), name),
+                        None => (None, callee),
+                    };
+                    if language.is_some() {
+                        parsed.relation_targets.push(RelationTarget {
+                            relation: parsed.relations.len(),
+                            language,
+                            ..Default::default()
+                        });
+                    }
                     parsed.relations.push(SymbolRelation {
                         from: id,
                         kind,
@@ -352,8 +364,8 @@ fn default_scope_returns_exactly_what_the_unscoped_method_returns() {
 }
 
 /// `a` (in `src/`) calls `b` (in `libx/`), which calls `c`. Scoped to
-/// `src/`, the depth-1 hit survives and the depth-2 one must not, because the
-/// symbol that *makes* the second call lives outside the scope.
+/// `src/`, hop 1 is scoped and the walk then follows exact symbol ids into
+/// `libx/`, so the depth-2 hit is still reported.
 fn two_hop_index() -> (PathBuf, Index) {
     let dir = tempdir();
     write(&dir, "src/a.fake", "fn a calls b\n");
@@ -364,15 +376,14 @@ fn two_hop_index() -> (PathBuf, Index) {
 }
 
 #[test]
-fn bfs_applies_the_scope_at_every_hop_not_just_the_first() {
+fn bfs_applies_the_scope_to_the_first_hop_only() {
     let (_dir, index) = two_hop_index();
 
     // Unscoped: both hops are reported.
     let unscoped = index.find_calls_bfs("a", 3, 50, 0).unwrap();
     assert_eq!(hits(&unscoped), vec!["libx/b.fake:b", "src/a.fake:a"]);
 
-    // Scoped to src/: hop 2 is made by `b`, which lives in libx/, so it is
-    // neither reported nor expanded.
+    // Scoped to src/: hop 1 is in scope; hop 2 follows `b`'s id into libx/.
     let scoped = index
         .find_calls_bfs_scoped(
             "a",
@@ -385,15 +396,15 @@ fn bfs_applies_the_scope_at_every_hop_not_just_the_first() {
             },
         )
         .unwrap();
-    assert_eq!(hits(&scoped), vec!["src/a.fake:a"]);
-    assert_eq!(scoped[0].depth, 1);
+    assert_eq!(hits(&scoped), vec!["libx/b.fake:b", "src/a.fake:a"]);
+    assert_eq!((scoped[0].depth, scoped[1].depth), (1, 2));
 }
 
 #[test]
-fn bfs_scope_by_language_also_holds_at_every_hop() {
+fn bfs_scope_by_language_applies_to_the_first_hop_only() {
     let dir = tempdir();
-    write(&dir, "src/a.fake", "fn a calls b\n");
-    write(&dir, "src/b.other", "fn b calls c\n");
+    write(&dir, "src/a.fake", "fn a calls other:b\n");
+    write(&dir, "src/b.other", "fn b calls fake:c\n");
     write(&dir, "src/c.fake", "fn c\n");
     let index = open(&dir);
 
@@ -411,7 +422,7 @@ fn bfs_scope_by_language_also_holds_at_every_hop() {
             },
         )
         .unwrap();
-    assert_eq!(hits(&scoped), vec!["src/a.fake:a"]);
+    assert_eq!(hits(&scoped), vec!["src/a.fake:a", "src/b.other:b"]);
 }
 
 #[test]

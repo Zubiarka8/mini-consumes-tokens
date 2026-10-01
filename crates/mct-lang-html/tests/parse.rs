@@ -146,3 +146,37 @@ fn syntax_error_is_reported_not_panicked() {
         "{result:?}"
     );
 }
+
+/// `id`/`class` references carry the explicit CSS-language evidence the
+/// index needs to link two languages; an import carries none.
+#[test]
+fn selector_references_target_css_and_imports_carry_no_evidence() {
+    let parsed = parse(
+        "<link rel=\"stylesheet\" href=\"theme.css\"><div id=\"header\" class=\"nav\"></div>",
+    );
+    let evidence: Vec<(&str, Option<&str>)> = parsed
+        .relations
+        .iter()
+        .enumerate()
+        .map(|(i, r)| {
+            let target = parsed.relation_targets.iter().find(|t| t.relation == i);
+            if let Some(t) = target {
+                assert_eq!(t.path, None);
+                assert_eq!(t.qualifier, None);
+                assert!(!t.external && !t.member && t.module.is_none());
+            }
+            (
+                r.to_name.as_str(),
+                target.and_then(|t| t.language.as_deref()),
+            )
+        })
+        .collect();
+    assert_eq!(
+        evidence,
+        vec![
+            ("theme.css", None),
+            ("#header", Some("css")),
+            (".nav", Some("css")),
+        ]
+    );
+}
