@@ -22,9 +22,13 @@ Use the model already available in the chosen client unless the task justifies c
 
 | Model | Use it when | Why |
 |---|---|---|
-| GPT-6 Luna (`gpt-6-luna`) | The task is clear, bounded, repetitive, or high-volume: focused edits, extraction, classification, summaries, or routine coding. | It is the efficient option for well-scoped work. |
-| GPT-6.1 Sol (`gpt-6.1-sol`) | The task spans several files or steps and needs sound coding judgment while time or cost still matters. | It is the general-purpose coding/work option, with near-flagship performance at lower cost than Astra. |
-| GPT-6 Astra (`gpt-6-astra`) | The work is ambiguous, high-impact, architecture-heavy, or needs the strongest end-to-end reasoning across tools and sources. | It is the highest-capability choice for difficult analysis and complex deliverables. |
+| GPT-5.6 Luna (`gpt-5.6-luna`) | The task is clear, bounded, repetitive, or high-volume: focused edits, extraction, classification, summaries, or routine coding. | It is the fastest and lowest-cost GPT-5.6 tier. |
+| GPT-5.6 Terra (`gpt-5.6-terra`) | The task spans several files or steps and needs reliable reasoning while keeping usage moderate. | It balances capability, speed, and cost for everyday work; use it as the default GPT-5.6 tier. |
+| GPT-5.6 Sol (`gpt-5.6-sol`) | The task is complex, ambiguous, or needs stronger reasoning after Terra proves insufficient. | It is the flagship GPT-5.6 tier; reserve it for work that benefits from the extra capability. |
+| GPT-6 Luna (`gpt-6-luna`) | The task is clear and routine, and this model is already available in the active client. | It is an efficient option for well-scoped work. |
+| GPT-6.1 Sol (`gpt-6.1-sol`) | The task spans several files or steps and needs stronger coding judgment, and this model is available in the active client. | It is a general-purpose coding option. |
+
+**Do not use GPT-6 Astra (`gpt-6-astra`) for project work.** Its usage cost is too high for this project's default workflow. Use GPT-5.6 Terra for ordinary multi-step work; escalate to GPT-5.6 Sol only when the task warrants it. This project preference overrides model availability and generic client recommendations.
 
 For reasoning effort, start at the client default or **Medium** for ordinary multi-step work. Use **Low/Light** for quick, well-specified tasks; **High/Extra High** for multi-step investigation and careful review; reserve **Max** for unusually difficult single-agent problems and **Ultra** for large work that can be split into meaningful parallel tasks. Ultra invokes subagents where supported, so do not select it when parallel work is disallowed or unsafe. Available levels and names vary between clients.
 
@@ -34,8 +38,9 @@ For reasoning effort, start at the client default or **Medium** for ordinary mul
 |---|---|---|
 | Claude Haiku 4.5 (`claude-haiku-4-5`) | The work is routine and tightly scoped: quick questions, formatting, mechanical edits, or simple extraction. | It prioritizes speed and efficiency. |
 | Claude Sonnet 5.5 (`claude-sonnet-5-5`) | The task is everyday implementation, bug fixing, tests, documentation, or code review. | It balances speed and capability for general coding work. |
-| Claude Opus 5.5 (`claude-opus-5-5`) | The default Claude starting point for most work; especially useful for long-running agentic coding, broad context, difficult reasoning, or a careful audit. Choose a cheaper/faster model when the task is routine and tightly scoped. | Anthropic recommends it for most workloads and describes it as suited to long-running agentic coding and knowledge work. |
-| Claude Fable 5.1 (`claude-fable-5-1`) | The task is exceptionally demanding and long-horizon. Prefer it when evaluation shows Opus 5.5 at higher effort still falls short. | Anthropic positions it for demanding reasoning and long-horizon agent work; expect more latency and cost. |
+| Claude Opus 5.5 (`claude-opus-5-5`) | The task needs broad context, difficult reasoning, or a careful audit, and Sonnet is insufficient. | Reserve it for cases where the extra capability is justified. |
+
+**Do not use Claude Fable for project work.** It is a paid model outside the project's approved model set. Use Claude Sonnet for everyday work and Opus only when Sonnet is insufficient.
 
 For Claude Code effort, prefer the model's default for ordinary work; use **Low** for simple tasks and raise effort when deeper planning or verification is worth the added time and usage. **Auto** follows the model default. Do not assume every model supports every effort level: support and defaults vary by model, Claude Code version, account, provider, and organization settings. Check the active model's current configuration before pinning an effort.
 
@@ -43,7 +48,7 @@ For Claude Code effort, prefer the model's default for ordinary work; use **Low*
 
 Prefer the provider that already has the needed repository access, tools, MCP configuration, authentication, and workflow. Do not run the same task in both providers by default. Use a second model only for an independent review or a measured comparison, and give it a concrete question. For a task already assigned in a plan, use that plan's explicit selection unless the user changes it; keep general selection guidance here so plans do not duplicate it.
 
-This guidance was checked on 2026-09-30. Recheck official docs before changing the model policy: [OpenAI model selection](https://learn.chatgpt.com/docs/model-selection), [ChatGPT/Codex model catalog](https://learn.chatgpt.com/docs/models), [Anthropic Claude models overview](https://platform.claude.com/docs/en/models/overview), and [Claude Code model configuration](https://code.claude.com/docs/en/model-config).
+GPT-5.6 tiers and their positioning: [OpenAI GPT-5.6 announcement](https://openai.com/index/gpt-5-6/) and [GPT-5.6 availability](https://help.openai.com/en/articles/20001354-gpt-56-in-chatgpt). Recheck official model catalogs before changing this policy; model IDs and availability can change. The Astra and Fable restrictions above are project policy, regardless of client availability.
 
 ## What this is
 
