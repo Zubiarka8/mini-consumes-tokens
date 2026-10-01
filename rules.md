@@ -13,7 +13,7 @@ Shared engineering rules for every contributor and coding assistant. This file i
 
 ## Contributor workflow
 
-Contribute using your preferred editor or assistant, including Cursor or Copilot. No particular AI provider, model, paid subscription, or multiagent setup is required. Use the tools and permissions available in your environment while following the engineering and source-exploration rules below.
+Contribute using your preferred editor or assistant. No particular AI provider, model, paid subscription, or multiagent setup is required. Use the tools and permissions available in your environment while following the engineering and source-exploration rules below.
 
 Keep changes scoped and reviewable. Preserve unexplained local work, record acceptance criteria, verify relevant behavior when authorized, and report any checks that could not be completed. If multiple writers are used, give each an exclusive branch/worktree and coordinate overlapping changes. Do not add personal model selections, subscription limits, or private agent state to shared documentation.
 
