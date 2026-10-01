@@ -6,6 +6,7 @@
   - [ChatGPT and Codex](#chatgpt-and-codex)
   - [Claude and Claude Code](#claude-and-claude-code)
   - [Choosing between providers](#choosing-between-providers)
+    - [ChatGPT-led Claude worker handoff](#chatgpt-led-claude-worker-handoff)
 - [What this is](#what-this-is)
 - [Dogfooding: how to explore this repository's source code](#dogfooding-how-to-explore-this-repositorys-source-code)
 - [In-progress: per-language long-fixture corpus](#in-progress-per-language-long-fixture-corpus-issue-74)
@@ -47,6 +48,17 @@ For Claude Code effort, prefer the model's default for ordinary work; use **Low*
 ### Choosing between providers
 
 Prefer the provider that already has the needed repository access, tools, MCP configuration, authentication, and workflow. Do not run the same task in both providers by default. Use a second model only for an independent review or a measured comparison, and give it a concrete question. For a task already assigned in a plan, use that plan's explicit selection unless the user changes it; keep general selection guidance here so plans do not duplicate it.
+
+#### ChatGPT-led Claude worker handoff
+
+When the user asks for coordinated work across both providers, use ChatGPT/Codex as the lead and Claude Code as the implementation worker. For ordinary multi-step work, prefer GPT-5.6 Terra as lead and Claude Sonnet as worker. The lead owns requirements, task breakdown, integration, and final review; Claude receives a bounded implementation task with acceptance criteria.
+
+- Before dispatch, check that the `claude` CLI is installed and authenticated. If it is unavailable, report that the handoff cannot run; do not imply a worker was started.
+- Run Claude Code through its non-interactive CLI (`claude -p`) and request a structured completion report containing status (`completed`, `blocked`, or `failed`), summary, changed files, checks run and their results, and any follow-up needed. The CLI process completion and its returned report are the handoff signal to the lead. Wait for that result before doing dependent integration work.
+- Give Claude an isolated Git worktree and branch. Do not let the lead and worker edit the same checkout concurrently. Parallelize only independent tasks; give each concurrent worker a separate worktree and disjoint scope.
+- The lead reviews the worker's diff and verification report, resolves integration issues, and decides whether to commit, push, or open a PR. The worker must not claim completion if checks failed or work remains blocked.
+- If the worker is blocked or the report reveals incomplete work, the lead sends a specific follow-up task and waits for its result before integration. Do not rely on an unconnected interactive Claude session receiving messages from ChatGPT/Codex; without an orchestration call, there is no direct cross-provider message channel.
+- If Claude Code is unavailable or the user has not asked for cross-provider collaboration, continue with the selected provider alone rather than starting duplicate work.
 
 GPT-5.6 tiers and their positioning: [OpenAI GPT-5.6 announcement](https://openai.com/index/gpt-5-6/) and [GPT-5.6 availability](https://help.openai.com/en/articles/20001354-gpt-56-in-chatgpt). Recheck official model catalogs before changing this policy; model IDs and availability can change. The Astra and Fable restrictions above are project policy, regardless of client availability.
 
