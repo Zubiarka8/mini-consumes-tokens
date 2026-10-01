@@ -11,17 +11,17 @@
 //! (`Click="SaveBtn_Click"`, `Loaded="Window_Loaded"`, ...) names a method in
 //! the paired code-behind file (`Foo.xaml` -> `Foo.xaml.cs`). Each such
 //! attribute whose value looks like a bare identifier (not a `{Binding ...}`
-//! expression) emits a `References` relation to that name — resolved purely
-//! by name equality against whatever `mct-lang-csharp` indexed for the
-//! code-behind file in the same project, exactly like every other
-//! cross-language relation in this project. `EVENT_ATTRIBUTE_NAMES` is a
+//! expression) emits a `References` relation to that name, with a
+//! `RelationTarget` naming the code-behind file and `csharp` as where it is
+//! declared — the explicit evidence a cross-language relation needs to
+//! resolve against what `mct-lang-csharp` indexed. `EVENT_ATTRIBUTE_NAMES` is a
 //! bounded, explicit list (WPF/UWP/WinUI/MAUI/Avalonia routed events), not a
 //! generic "any capitalized attribute" heuristic — deliberately, to avoid
 //! false positives from style/layout properties.
 
 use mct_core::{
-    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
-    SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
+    LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
+    SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use tree_sitter::{Node, Parser};
 
@@ -117,7 +117,20 @@ impl LanguageParser for XamlParser {
         let mut walker = Walker::new(&file.contents);
         let module_id = walker.push_symbol(module_name, SymbolKind::Module, location(root), None);
         walker.visit_children(root, module_id, None, 0);
-        Ok(walker.finish())
+        let mut parsed = walker.finish();
+        // Every relation is an event handler, declared in the paired
+        // code-behind file (`Foo.xaml` -> `Foo.xaml.cs`): explicit evidence
+        // for the one cross-language link this parser makes.
+        let code_behind = format!("{}.cs", file.relative_path);
+        parsed.relation_targets = (0..parsed.relations.len())
+            .map(|relation| RelationTarget {
+                relation,
+                path: Some(code_behind.clone()),
+                language: Some("csharp".to_string()),
+                ..Default::default()
+            })
+            .collect();
+        Ok(parsed)
     }
 }
 

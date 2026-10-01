@@ -25,7 +25,7 @@
 `build_context_pack` accepts `symbol` (exact name), `path`/`language` (pick the definition of an ambiguous name; callers and tests stay project-wide), `depth` (hops both ways, default 1), `limit` (related rows, default 30), `source_lines` (per definition, default 40, max 200) and `format` (`text`/`toon`). It composes `find_symbol` + `find_calls` + `find_callers` + `find_references` + the `impact_analysis` test heuristic, plus the new `Index::find_dependencies_scoped` (non-call relations a symbol makes), and reads each involved file at most once for doc comments and signatures. Example, `{"symbol": "place_order"}` on `crates/mct-mcp-server/tests/fixtures/context-pack-app`:
 
 ```text
-Context pack for `place_order` (depth 1): 1 definition(s), 8 related symbol(s), 3 external call(s)
+Context pack for `place_order` (depth 1): 1 definition(s), 8 related symbol(s), 3 unresolved name(s)
 
 src/orders.rs:L35-L49 [rust] function place_order
 31| /// Places `order`: checks it is well formed, reserves stock for every line,
@@ -43,10 +43,12 @@ Related symbols, each listed once:
   ...
 
 Referenced at file level (use/import) by: tests/orders.rs
-Called but not defined in the index (std/third-party): Ok, as_deref, len
+Not resolved to an indexed definition (std/third-party/unknown): Ok, as_deref, len
 ```
 
-Related names are resolved by name like every relation tool: an ambiguous one is marked `(+N more def)` and resolved to the definition in the calling file when there is one.
+Relations are walked from the packed definitions' exact symbol rows. A callee or dependency is a related symbol only when its target is resolved to one definition ([[002-qualified-relation-resolution]]); an ambiguous one is listed under a separate `Uncertain relations` section with its first candidates (`callee run  ambiguous among 2: …`), never picked, and never followed by `depth`; a caller whose call is ambiguous is listed there too. Unresolved and external names go to the footer.
+
+Every relation tool (`find_references`/`find_calls`/`find_callers`/`impact_analysis`) still matches its input by name at hop 1, but each text line ends in ` (ambiguous: N)`, ` (unresolved)` or ` (external)` when its target isn't resolved (a resolved line is unchanged), and `format: toon` adds `resolution` and `candidates` columns. Hops past the first follow resolved edges only.
 
 See [[mct-mcp-server]] for the crate that implements this, [[glossary]] for term definitions.
 
