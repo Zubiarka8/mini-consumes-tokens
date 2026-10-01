@@ -5,6 +5,7 @@
 - [Choosing an AI model](#choosing-an-ai-model)
   - [Optional cross-provider worker handoff](#optional-cross-provider-worker-handoff)
   - [Context and token management](#context-and-token-management)
+  - [Command and capability selection](#command-and-capability-selection)
 - [What this is](#what-this-is)
 - [Dogfooding: how to explore this repository's source code](#dogfooding-how-to-explore-this-repositorys-source-code)
 - [In-progress: per-language long-fixture corpus](#in-progress-per-language-long-fixture-corpus-issue-74)
@@ -39,6 +40,26 @@ For the requested ChatGPT/Codex-led, Claude Code-worker pattern:
 - In Claude Code, use `/context` to find context consumers and `/usage` to inspect usage. Automatic compaction handles sessions nearing their context limit. Use `/compact` when continuing the same task with a long history; its summary should preserve the goal, constraints, decisions, changed paths, verification, and open questions. Use `/clear` between unrelated tasks or after the current task is complete, not during an active handoff. A finished `claude -p` invocation exits; it needs no `/clear`.
 - In Codex, use `/compact` only when continuing the same task with a large history; start a new task/chat for unrelated work. Preserve a short handoff summary before changing sessions. Do not clear context while a worker result is pending.
 - Do not compact at arbitrary fixed intervals. Check context and usage when a task is long; compact only to continue useful work, and start fresh when the next task is unrelated.
+
+### Command and capability selection
+
+Project instructions do not grant access to commands, tools, models, MCP servers, or permissions. The active client, version, plan, installed extensions, workspace policy, and approval settings determine what is available. Before relying on a command, inspect the current client's command menu (`/`) or CLI help and the available tool list. ChatGPT web, the ChatGPT desktop app, Codex CLI, Cursor, and Claude Code do not share one command namespace. Use only commands and tools exposed by the current environment; never claim a command ran when it was only suggested.
+
+Think through the relevant command categories for both the lead and worker, then use only the commands that directly help with the current task:
+
+| Need | ChatGPT desktop / Codex | Claude Code |
+|---|---|---|
+| Select model and effort | `/model`, `/reasoning`; confirm with `/status` | `/model`, `/effort`; confirm with `/effort status` or the session header |
+| Plan a substantial task | `/plan`; use `/goal` only for a persistent multi-session objective | `/plan` |
+| Isolate concurrent changes | `/worktree` or `/fork` into a worktree | `/fork` for a separate background session; use a separate Git worktree for concurrent code edits |
+| Inspect context and usage | `/status` for session/context; `/usage` when available | `/context` and `/usage` |
+| Manage long context | `/compact` to continue the same task; start a new chat for unrelated work | `/compact` to continue the same task; `/clear` between unrelated tasks |
+| Check integrations or review work | `/mcp` to inspect connected servers; `/review` for a code review | `/mcp`; `/diff` to inspect edits; `/review` or `/code-review` for a review |
+| Track active work | `/goal` for a durable objective; `/ps` for background terminal processes | `/tasks` for current tasks/background work; `/resume` to return to a session |
+
+These are candidates, not a checklist to execute on every request. Prefer one lead and one worker; avoid `/batch`, agent teams, broad `/fork` fan-out, or repeated second-model reviews unless the task is divisible and the expected quality or elapsed-time benefit warrants their added context and usage. For a one-shot Claude worker, use CLI options such as `claude -p --model <available-model> --effort <available-level> --output-format json`; use `--max-budget-usd` and `--max-turns` only when supported and appropriate for the billing mode. A fresh `claude -p` process needs no `/clear` or `/compact`.
+
+Commands that broaden permissions or cause external side effects are not convenience switches. Keep the current least-privilege boundary; do not use bypass-approval/sandbox flags to make a handoff work. Do not relax permissions, post review comments, push, or start an auto-fix workflow unless the user authorized that action. For exact command availability and behavior, consult the [Codex slash command reference](https://learn.chatgpt.com/docs/reference/slash-commands), [Codex CLI commands](https://learn.chatgpt.com/docs/developer-commands), and [Claude Code commands](https://code.claude.com/docs/en/commands).
 
 ## What this is
 
