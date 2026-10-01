@@ -52,7 +52,8 @@ pub struct SymbolListEntry {
 pub enum Resolution {
     /// Exactly one candidate definition: [`RelationHit::target_id`].
     Resolved,
-    /// Several candidates remain; none is picked.
+    /// Several candidates remain, or one that the evidence can't prove (a
+    /// call through a receiver of unknown type); none is picked.
     Ambiguous,
     /// The parser proved the target lies outside the repository.
     External,
@@ -99,6 +100,22 @@ pub struct RelationHit {
     pub target_id: Option<i64>,
     /// How many definitions remain candidates (0 when unresolved/external).
     pub candidate_count: usize,
+    /// Identity of the first [`SHOWN_CANDIDATES`] candidates, by path then
+    /// line: the target itself when resolved. Enough for output to say
+    /// *which* definition a hit reaches without a lookup per hit; the full
+    /// set is [`relation_candidates`].
+    pub candidates: Vec<CandidateRef>,
+}
+
+/// How many candidates a [`RelationHit`] carries.
+pub const SHOWN_CANDIDATES: usize = 3;
+
+/// Where one candidate definition of a relation is declared.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CandidateRef {
+    pub relative_path: String,
+    pub line: u32,
+    pub parent: Option<String>,
 }
 
 /// Optional narrowing applied to a lookup: `path` is matched exactly when it
@@ -418,7 +435,8 @@ const RELATION_SELECT: &str =
     "SELECT r.kind, caller.name, r.to_name, f.language, f.relative_path, r.line, r.column,
             r.id, r.from_symbol_id, r.external,
             (SELECT COUNT(*) FROM relation_candidates c WHERE c.relation_id = r.id),
-            (SELECT MIN(c.symbol_id) FROM relation_candidates c WHERE c.relation_id = r.id)
+            (SELECT MIN(c.symbol_id) FROM relation_candidates c WHERE c.relation_id = r.id),
+            r.member
          FROM relations r
          JOIN symbols caller ON caller.id = r.from_symbol_id
          JOIN files f ON f.id = caller.file_id
@@ -541,10 +559,11 @@ fn query_relations(
             let external: bool = row.get(9)?;
             let count: i64 = row.get(10)?;
             let only: Option<i64> = row.get(11)?;
+            let member: bool = row.get(12)?;
             let (resolution, target_id) = match (external, count) {
                 (true, _) => (Resolution::External, None),
                 (false, 0) => (Resolution::Unresolved, None),
-                (false, 1) => (Resolution::Resolved, only),
+                (false, 1) if !member => (Resolution::Resolved, only),
                 (false, _) => (Resolution::Ambiguous, None),
             };
             Ok(RelationHit {
@@ -561,9 +580,34 @@ fn query_relations(
                 resolution,
                 target_id,
                 candidate_count: count.max(0) as usize,
+                candidates: Vec::new(),
             })
         })?
-        .collect::<rusqlite::Result<_>>()?;
+        .collect::<rusqlite::Result<Vec<RelationHit>>>()?;
+    let mut rows = rows;
+    let mut preview = conn.prepare_cached(
+        "SELECT f.relative_path, s.line, s.parent
+         FROM relation_candidates c
+         JOIN symbols s ON s.id = c.symbol_id
+         JOIN files f ON f.id = s.file_id
+         WHERE c.relation_id = ?1
+         ORDER BY f.relative_path, s.line
+         LIMIT ?2",
+    )?;
+    for hit in rows.iter_mut().filter(|h| h.candidate_count > 0) {
+        hit.candidates = preview
+            .query_map(
+                rusqlite::params![hit.relation_id, SHOWN_CANDIDATES as i64],
+                |row| {
+                    Ok(CandidateRef {
+                        relative_path: row.get(0)?,
+                        line: row.get(1)?,
+                        parent: row.get(2)?,
+                    })
+                },
+            )?
+            .collect::<rusqlite::Result<_>>()?;
+    }
     Ok(rows)
 }
 

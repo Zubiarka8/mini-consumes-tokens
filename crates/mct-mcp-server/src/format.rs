@@ -647,15 +647,51 @@ fn depth_tag(depth: u32) -> String {
     }
 }
 
-/// ` (ambiguous: N)`, ` (unresolved)` or ` (external)` after a relation's
-/// target; nothing for a resolved one, so a fully resolved result reads
-/// exactly as before resolution existed.
+/// Which definition(s) a relation reaches, after its target: ` -> path:line
+/// in Parent` when resolved, ` (ambiguous among N: path:line in P, …)` with
+/// the first candidates when ambiguous, ` (unresolved)`/` (external)`
+/// otherwise. Never a single picked target for an unproven relation.
 fn resolution_tag(hit: &RelationHit) -> String {
     match hit.resolution {
-        Resolution::Resolved => String::new(),
-        Resolution::Ambiguous => format!(" (ambiguous: {})", hit.candidate_count),
+        Resolution::Resolved => match hit.candidates.first() {
+            Some(target) => format!(" -> {}", candidate_ref(hit, target)),
+            None => String::new(),
+        },
+        Resolution::Ambiguous => format!(
+            " (ambiguous among {}: {})",
+            hit.candidate_count,
+            candidate_list(hit)
+        ),
         other => format!(" ({})", other.as_str()),
     }
+}
+
+/// `path:line` — just `Lline` in the hit's own file — plus ` in Parent`
+/// when the definition has one.
+fn candidate_ref(hit: &RelationHit, c: &mct_index::CandidateRef) -> String {
+    let at = if c.relative_path == hit.relative_path {
+        format!("L{}", c.line)
+    } else {
+        format!("{}:{}", c.relative_path, c.line)
+    };
+    match &c.parent {
+        Some(parent) => format!("{at} in {parent}"),
+        None => at,
+    }
+}
+
+/// A hit's shown candidates joined by `, `, with `, +N more` for the rest.
+fn candidate_list(hit: &RelationHit) -> String {
+    let mut list: Vec<String> = hit
+        .candidates
+        .iter()
+        .map(|c| candidate_ref(hit, c))
+        .collect();
+    let more = hit.candidate_count.saturating_sub(list.len());
+    if more > 0 {
+        list.push(format!("+{more} more"));
+    }
+    list.join(", ")
 }
 
 pub fn relation_hits(
@@ -727,6 +763,7 @@ pub fn relation_hits_toon(
                 "depth",
                 "resolution",
                 "candidates",
+                "targets",
             ],
             &rows,
         )
@@ -745,6 +782,7 @@ fn relation_hit_row(hit: &RelationHit) -> Vec<String> {
         hit.depth.to_string(),
         hit.resolution.as_str().to_string(),
         hit.candidate_count.to_string(),
+        candidate_list(hit),
     ]
 }
 
@@ -809,12 +847,13 @@ pub fn impact_analysis(
         let mut body = BudgetedList::new(section_budget);
         for hit in shown {
             body.push(&format!(
-                "  {}:{}:{} [{}] {}{}\n",
+                "  {}:{}:{} [{}] {}{}{}\n",
                 hit.relative_path,
                 hit.line,
                 hit.column,
                 hit.language,
                 hit.from_symbol,
+                resolution_tag(hit),
                 depth_tag(hit.depth)
             ));
         }
@@ -830,7 +869,7 @@ pub fn impact_analysis(
         let mut body = BudgetedList::new(section_budget);
         for hit in shown {
             body.push(&format!(
-                "  {}:{}:{} [{}] {} --{}--> {}{}\n",
+                "  {}:{}:{} [{}] {} --{}--> {}{}{}\n",
                 hit.relative_path,
                 hit.line,
                 hit.column,
@@ -838,6 +877,7 @@ pub fn impact_analysis(
                 hit.from_symbol,
                 hit.kind,
                 hit.to_name,
+                resolution_tag(hit),
                 depth_tag(hit.depth)
             ));
         }
@@ -877,7 +917,17 @@ pub fn impact_analysis_toon(
     ));
 
     let headers = [
-        "path", "line", "column", "language", "from", "kind", "to", "depth",
+        "path",
+        "line",
+        "column",
+        "language",
+        "from",
+        "kind",
+        "to",
+        "depth",
+        "resolution",
+        "candidates",
+        "targets",
     ];
 
     if !affected_tests.is_empty() {
@@ -2053,6 +2103,126 @@ mod budget_tests {
                 "section `{section}` was {section_len} bytes, over its third of the budget"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod resolution_tests {
+    // Test code: a panic! here means a broken test precondition, and
+    // panicking is the correct behavior — this module only touches
+    // fixtures the test builds itself, never repo-input content.
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::*;
+    use mct_index::CandidateRef;
+
+    fn candidate(path: &str, line: u32, parent: Option<&str>) -> CandidateRef {
+        CandidateRef {
+            relative_path: path.to_string(),
+            line,
+            parent: parent.map(str::to_string),
+        }
+    }
+
+    fn hit(
+        from: &str,
+        resolution: Resolution,
+        count: usize,
+        candidates: Vec<CandidateRef>,
+    ) -> RelationHit {
+        RelationHit {
+            kind: "calls".to_string(),
+            from_symbol: from.to_string(),
+            to_name: "run".to_string(),
+            language: "rust".to_string(),
+            relative_path: "src/main.rs".to_string(),
+            line: 4,
+            column: 5,
+            depth: 1,
+            resolution,
+            candidate_count: count,
+            candidates,
+            ..Default::default()
+        }
+    }
+
+    fn hits() -> Vec<RelationHit> {
+        vec![
+            hit(
+                "other_file",
+                Resolution::Resolved,
+                1,
+                vec![candidate("src/a.rs", 3, Some("A"))],
+            ),
+            hit(
+                "same_file",
+                Resolution::Resolved,
+                1,
+                vec![candidate("src/main.rs", 9, None)],
+            ),
+            hit(
+                "guess",
+                Resolution::Ambiguous,
+                5,
+                vec![
+                    candidate("src/a.rs", 3, Some("A")),
+                    candidate("src/b.rs", 7, Some("B")),
+                    candidate("src/main.rs", 2, None),
+                ],
+            ),
+            hit("unknown", Resolution::Unresolved, 0, Vec::new()),
+        ]
+    }
+
+    #[test]
+    fn text_names_the_resolved_target_and_the_ambiguous_candidates() {
+        let out = relation_hits("run", "caller(s) of this function", &hits(), 0, 50);
+        assert_eq!(
+            out,
+            "4 caller(s) of this function:\n\
+             src/main.rs:4:5 [rust] other_file --calls--> run -> src/a.rs:3 in A\n\
+             src/main.rs:4:5 [rust] same_file --calls--> run -> L9\n\
+             src/main.rs:4:5 [rust] guess --calls--> run (ambiguous among 5: src/a.rs:3 in A, src/b.rs:7 in B, L2, +2 more)\n\
+             src/main.rs:4:5 [rust] unknown --calls--> run (unresolved)\n"
+        );
+    }
+
+    #[test]
+    fn toon_has_a_targets_column_and_impact_sections_match_their_headers() {
+        let hits = hits();
+        let out = relation_hits_toon("run", "caller(s) of this function", &hits, 0, 50);
+        assert!(
+            out.contains(
+                "{path,line,column,language,from,kind,to,depth,resolution,candidates,targets}:"
+            ),
+            "{out}"
+        );
+        assert!(
+            out.contains("other_file,calls,run,1,resolved,1,src/a.rs:3 in A"),
+            "{out}"
+        );
+        assert!(
+            out.contains(
+                "guess,calls,run,1,ambiguous,5,\"src/a.rs:3 in A, src/b.rs:7 in B, L2, +2 more\""
+            ),
+            "{out}"
+        );
+
+        let tests: Vec<&RelationHit> = Vec::new();
+        let impact = impact_analysis_toon("run", &hits, &hits, &tests, 0, 50);
+        assert!(
+            impact.contains("callers[4]{path,line,column,language,from,kind,to,depth,resolution,candidates,targets}:"),
+            "{impact}"
+        );
+        let text = impact_analysis("run", &hits, &hits, &tests, 0, 50);
+        assert!(
+            text.contains("  src/main.rs:4:5 [rust] other_file -> src/a.rs:3 in A\n"),
+            "{text}"
+        );
+        assert!(
+            text.contains("guess --calls--> run (ambiguous among 5: src/a.rs:3 in A, src/b.rs:7 in B, L2, +2 more)\n"),
+            "{text}"
+        );
     }
 }
 

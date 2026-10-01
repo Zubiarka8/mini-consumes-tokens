@@ -427,8 +427,9 @@ impl<'a> Walker<'a> {
     /// and `Self::f`/`self.f()` name the type it is declared in, a
     /// `std`/`core`/`alloc` path is external, and a bare call to a free
     /// function of this file that no local shadows stays in this file. A
-    /// module path (`crate::m::f`) or another receiver (`x.f()`) proves
-    /// nothing here, so the call stays unqualified.
+    /// module path (`rand::f`, `crate::m::f`) names the module the target
+    /// must live under, and another receiver (`x.f()`) can only reach a
+    /// method, never provably which one.
     fn call_evidence(&self, function: Node, name: &str) -> RelationTarget {
         let function = if function.kind() == "generic_function" {
             function.child_by_field_name("function").unwrap_or(function)
@@ -453,16 +454,29 @@ impl<'a> Walker<'a> {
                         ..Default::default()
                     };
                 }
-                let last = type_base(path);
-                let qualifier = if last == "Self" {
-                    self.self_type.clone()
-                } else if last.starts_with(|c: char| c.is_ascii_uppercase()) {
-                    Some(last)
-                } else {
-                    None
+                let mut segments = path_segments(path);
+                let qualifier = match segments.last().map(String::as_str) {
+                    Some("Self") => {
+                        segments.pop();
+                        self.self_type.clone()
+                    }
+                    Some(last) if last.starts_with(|c: char| c.is_ascii_uppercase()) => {
+                        segments.pop()
+                    }
+                    _ => None,
+                };
+                // What's left is the module path: `self::f` stays in this
+                // file, `rand::f`/`crate::m::f` must live under `rand`/`m`;
+                // a bare `crate::`/`super::` proves nothing.
+                let (path, module) = match segments.last().map(String::as_str) {
+                    Some("self") => (Some(self.path.to_string()), None),
+                    Some("crate" | "super") | None => (None, None),
+                    Some(_) => (None, segments.pop()),
                 };
                 RelationTarget {
                     qualifier,
+                    path,
+                    module,
                     ..Default::default()
                 }
             }
@@ -470,8 +484,10 @@ impl<'a> Walker<'a> {
                 let on_self = function
                     .child_by_field_name("value")
                     .is_some_and(|v| v.kind() == "self");
+                let qualifier = on_self.then(|| self.self_type.clone()).flatten();
                 RelationTarget {
-                    qualifier: on_self.then(|| self.self_type.clone()).flatten(),
+                    member: qualifier.is_none(),
+                    qualifier,
                     ..Default::default()
                 }
             }
@@ -545,10 +561,9 @@ fn is_std_path(path: &str) -> bool {
     matches!(root, "std" | "core" | "alloc")
 }
 
-/// The last segment of a type or path, without generic arguments:
-/// `crate::m::Foo<T>` and `Foo::<T>` are both `Foo`. That is how an
-/// `impl`'s type is matched against a qualifier.
-fn type_base(path: &str) -> String {
+/// The segments of a type or path, without generic arguments:
+/// `crate::m::Foo<T>` is `[crate, m, Foo]`, `Foo::<T>` is `[Foo]`.
+fn path_segments(path: &str) -> Vec<String> {
     let mut depth = 0u32;
     let bare: String = path
         .chars()
@@ -561,12 +576,17 @@ fn type_base(path: &str) -> String {
             false
         })
         .collect();
-    bare.trim_end_matches("::")
-        .rsplit("::")
-        .next()
-        .unwrap_or_default()
-        .trim()
-        .to_string()
+    bare.split("::")
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+/// The last segment of a type or path, without generic arguments — how an
+/// `impl`'s type is matched against a qualifier.
+fn type_base(path: &str) -> String {
+    path_segments(path).pop().unwrap_or_default()
 }
 
 /// The callee's name *and* the specific node it came from — never the whole

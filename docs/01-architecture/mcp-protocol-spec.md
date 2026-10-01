@@ -48,7 +48,7 @@ Not resolved to an indexed definition (std/third-party/unknown): Ok, as_deref, l
 
 Relations are walked from the packed definitions' exact symbol rows. A callee or dependency is a related symbol only when its target is resolved to one definition ([[002-qualified-relation-resolution]]); an ambiguous one is listed under a separate `Uncertain relations` section with its first candidates (`callee run  ambiguous among 2: …`), never picked, and never followed by `depth`; a caller whose call is ambiguous is listed there too. Unresolved and external names go to the footer.
 
-Every relation tool (`find_references`/`find_calls`/`find_callers`/`impact_analysis`) still matches its input by name at hop 1, but each text line ends in ` (ambiguous: N)`, ` (unresolved)` or ` (external)` when its target isn't resolved (a resolved line is unchanged), and `format: toon` adds `resolution` and `candidates` columns. Hops past the first follow resolved edges only.
+Every relation tool (`find_references`/`find_calls`/`find_callers`/`impact_analysis`) still matches its input by name at hop 1, and each text line names its target: ` -> path:line in Parent` when resolved (`Lline` in the hit's own file), ` (ambiguous among N: …)` with the first candidates, ` (unresolved)` or ` (external)`; `format: toon` adds `resolution`, `candidates` and `targets` columns. With `path`/`language`, a hit proven to reach a same-named definition outside the scoped start is dropped. Hops past the first follow resolved edges only.
 
 See [[mct-mcp-server]] for the crate that implements this, [[glossary]] for term definitions.
 
