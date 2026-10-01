@@ -2,6 +2,7 @@
 
 ## Table of contents
 
+- [Project coordination](#project-coordination)
 - [Choosing an AI model](#choosing-an-ai-model)
   - [Model routing](#model-routing)
   - [Optional cross-provider worker handoff](#optional-cross-provider-worker-handoff)
@@ -16,6 +17,12 @@
 - [Architecture](#architecture)
 
 Shared rules for Codex, Claude Code, and any agent working in this repository. This file is the single source of truth for project instructions; `AGENTS.md` and `CLAUDE.md` only point here.
+
+## Project coordination
+
+Read [PROJECT_MANAGER.md](PROJECT_MANAGER.md) at the start of a substantial work session. It defines task ownership, branch isolation, durable checkpoints, review, integration, and recovery. This file remains authoritative for architecture, technical restrictions, model selection, effort, billing, and client commands. Use only project-local skills unless the user explicitly authorizes another scope.
+
+Write all repository content in English: file and branch names, documentation, code, comments, task records, commit messages, PRs, and issues. Preserve required external identifiers and literal fixture data when translation would change behavior.
 
 ## Choosing an AI model
 
@@ -45,19 +52,15 @@ For the requested ChatGPT/Codex-led, Claude Code-worker pattern:
 2. Confirm the `claude` CLI is installed and authenticated before dispatch. If not, report the limitation and continue only if the user wants a single-provider fallback.
 3. Start one Claude Code non-interactive worker in the foreground with `claude -p --output-format json` and request a structured final report (`completed`, `blocked`, or `failed`; summary; changed paths; checks and results; follow-up needed). The process result is the completion message to the lead. Wait for it before dependent integration. For API-billed runs, use a user-approved `--max-budget-usd` cap and a reasonable `--max-turns` limit; for subscription use, check Claude Code's `/usage` command and the account's usage limits. Never invent a dollar cap or enable paid overage without the user's authorization.
 4. Give the worker its own branch/worktree. Do not have the lead and worker modify the same checkout concurrently. Add workers only for independent, disjoint tasks that justify the extra context and usage; give each its own worktree. Do not use Claude Agent Teams for cross-provider messaging: they coordinate Claude sessions, not a separate ChatGPT/Codex session, and each teammate adds its own context and usage.
-5. The lead reviews the worker's diff and report, runs the required integration checks, and owns commits, pushes, and PRs unless the user explicitly delegates those actions. If the report is blocked, send one specific follow-up and wait for its result. Do not claim success while work is blocked or checks failed.
+5. The lead reviews the worker's diff and report, runs the required integration checks, and owns integration, pushes, and PRs unless the user explicitly delegates those actions; workers may create scoped commits when authorized in their task brief. If the report is blocked, send one specific follow-up and wait for its result. Do not claim success while work is blocked or checks failed.
 
 `claude -p` is a one-shot process, so its returned report is the reliable handoff; it does not send messages to an unrelated interactive Claude session. For a continuing Claude CLI session, address follow-up prompts to its explicit session rather than assuming cross-client messaging.
 
 ### Handoff checkpoints
 
-Before a long-running or cross-provider handoff, the coordinator records a concise, provider-neutral task checkpoint at `target/agent-handoffs/<task-id>.md` in its checkout. This path is ignored by Git. Give the worker the checkpoint path and its own worktree path; never have coordinator and worker edit the same checkout concurrently. The checkpoint records the task brief, owner/role, branch and worktree paths, acceptance criteria, completed work, changed paths, verification and results, next action, and blockers. Do not put secrets or a full transcript in it. The worker returns its status in the final report and, if it stops without being able to report, writes a result checkpoint at `target/agent-handoffs/<task-id>-result.md` in its own worktree, then returns that path when it can. The coordinator incorporates the result on resumption. Keep both checkpoints until integration is complete, then remove them.
+Use the durable records and recovery protocol in [PROJECT_MANAGER.md](PROJECT_MANAGER.md#checkpoints-and-handoffs). The coordinator maintains `project-management/`; workers checkpoint their assigned task in their own branch and return the commit, report, and remaining work. Ignored `target/agent-handoffs/` files may hold temporary process output, but must never be the only copy of essential project state. A hard stop may prevent a final checkpoint; recover from the latest persisted record and inspect Git before continuing.
 
-Checkpoint meaningful work slices as they complete, not only at the end. Claude Code's automatic wait for a subscription usage reset is available only in supported interactive sessions; background sessions and `claude -p` runs cannot use the interactive wait menu. A one-shot worker must leave its latest checkpoint and return `blocked` if it cannot continue; resume it after reset with the same bounded task and worktree. Do not assume an API-billed process can wait for a subscription reset.
-
-An idle coordinator does not need to send periodic prompts. A running worker continues using its own provider allowance while it is actively generating or using tools. If the coordinator's context or quota stops it while a worker is running, let the worker finish its bounded task and checkpoint its result; resume the same coordinator task when possible, read the checkpoint and inspect the worker's diff before integration. Do not restart the task from scratch or let two agents integrate the same changes.
-
-If the worker stops unexpectedly, inspect its checkpoint, assigned worktree, branch, and diff to establish what was completed before dispatching a continuation. Preserve partial work. Continue in the same worktree with a concise brief containing only the checkpoint and remaining acceptance criteria. If no authorized provider has usage available, leave the work checkpointed and paused until a limit resets. Apply this same recovery protocol if a user explicitly reverses the coordinator/worker roles. Providers cannot message one another unless the active client exposes a supported handoff route; a returned process report is not a message to another provider's unrelated chat.
+The coordinator may wait for a bounded worker without sending periodic prompts. Claude Code's automatic subscription-reset waiting is limited to supported interactive sessions; background sessions and `claude -p` runs cannot use that menu. A worker that can still report must return `blocked` when it cannot continue. Never assume an API-billed process can wait for a subscription reset. Providers cannot message unrelated chats without an exposed, authorized handoff route.
 
 ### Context and token management
 
@@ -79,7 +82,7 @@ When a request is blocked, first read the client's message and usage/status disp
 | A billing cap or paid-credit prompt appears | Stop before accepting charges, enabling credits/overage, using an API key, or increasing an organization cap. Continue only after explicit user authorization. |
 | The error type is unclear or the session/process ended without a report | Preserve all work. Record `blocked` or `failed`, the exact error, worktree/branch, completed changes, checks, and the next safe action in the checkpoint. The coordinator inspects the diff before retrying. |
 
-If ChatGPT/Codex is coordinating Claude Code and ChatGPT/Codex reaches a limit while Claude is working, Claude may finish only its assigned worker task and write its checkpoint/report. The coordinator resumes after its own context is compacted or its usage resets, then inspects and integrates the report. If Claude reaches its limit while waiting for ChatGPT/Codex, leave Claude's session and checkpoint intact; the coordinator can continue only after Claude is available again, or through a fallback already authorized by the user. The same rules apply if the roles were explicitly reversed. Neither side should poll with repeated model requests or start unapproved paid usage just to send a “task finished” message.
+If ChatGPT/Codex is coordinating Claude Code and ChatGPT/Codex reaches a limit while Claude is working, Claude may finish only its assigned worker task and write its checkpoint/report. The coordinator resumes after its own context is compacted or its usage resets, then inspects and integrates the report. If Claude reaches its limit while waiting for ChatGPT/Codex, leave Claude's session and checkpoint intact; the coordinator can continue only after Claude is available again, or through a fallback already authorized by the user. Changing the coordinator role requires explicit user authorization; follow the recovery protocol in `PROJECT_MANAGER.md`. Neither side should poll with repeated model requests or start unapproved paid usage just to send a “task finished” message.
 
 ### Command and capability selection
 
