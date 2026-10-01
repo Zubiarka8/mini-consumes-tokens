@@ -157,7 +157,7 @@ async fn packs_definition_doc_comment_and_every_related_symbol_once() {
     // Names the index can't resolve are summarised, not listed as rows.
     assert!(
         text.contains(
-            "Not resolved to an indexed definition (std/third-party/unknown): Ok, as_deref, len"
+            "Unresolved (no indexed definition, no external evidence): Ok, as_deref, len"
         ),
         "{text}"
     );
@@ -400,7 +400,7 @@ async fn homonyms_are_never_presented_as_resolved_callees() {
     );
     assert!(
         text.contains(
-            "Not resolved to an indexed definition (std/third-party/unknown): Ok, get, iter, map"
+            "Unresolved (no indexed definition, no external evidence): Ok, get, iter, map"
         ),
         "{text}"
     );

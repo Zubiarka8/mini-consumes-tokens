@@ -122,7 +122,9 @@ fn tempdir() -> PathBuf {
 fn index_of(files: &[(&str, &str)]) -> (PathBuf, Index) {
     let dir = tempdir();
     for (path, contents) in files {
-        fs::write(dir.join(path), contents).unwrap();
+        let file = dir.join(path);
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        fs::write(file, contents).unwrap();
     }
     let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
     index.reindex(&registry(), false).unwrap();
@@ -284,6 +286,49 @@ fn a_backward_walk_reports_ambiguous_callers_but_continues_only_from_proven_ones
     // `main` resolved to A::run, so it is no caller of B::run's callee.
     let to_b = index.find_callers_bfs("b_only", 3, 50, 0).unwrap();
     assert_eq!(names(&to_b, |h| &h.from_symbol), vec!["run@1", "guess@2"]);
+}
+
+fn scoped_walk_index() -> (PathBuf, Index) {
+    index_of(&[
+        ("in/s.a", "def start calls mid\n"),
+        ("out/m.a", "def mid calls leaf\n"),
+        ("out/l.a", "def leaf\n"),
+        ("out/s.a", "def start calls decoy\n"),
+        ("out/d.a", "def decoy\n"),
+    ])
+}
+
+fn scope_in() -> mct_index::QueryScope<'static> {
+    mct_index::QueryScope {
+        path: Some("in"),
+        language: None,
+    }
+}
+
+#[test]
+fn a_scoped_forward_walk_scopes_start_and_hop_one_then_follows_ids_across_files() {
+    let (_dir, index) = scoped_walk_index();
+    let hits = index
+        .find_calls_bfs_scoped("start", 3, 50, 0, scope_in())
+        .unwrap();
+    // `out/s.a`'s start and its `decoy` call are outside the scope.
+    assert_eq!(names(&hits, |h| &h.to_name), vec!["mid@1", "leaf@2"]);
+}
+
+#[test]
+fn a_scoped_backward_walk_scopes_hop_one_then_follows_ids_across_files() {
+    let (_dir, index) = index_of(&[
+        ("in/c.a", "def inner calls target\n"),
+        ("out/o.a", "def outer calls target\n"),
+        ("out/u.a", "def up calls inner\n"),
+        ("out/t.a", "def target\n"),
+    ]);
+    let hits = index
+        .find_callers_bfs_scoped("target", 3, 50, 0, scope_in())
+        .unwrap();
+    // `outer` is out of scope at hop 1; `up` is reached at hop 2 despite
+    // living outside the scope.
+    assert_eq!(names(&hits, |h| &h.from_symbol), vec!["inner@1", "up@2"]);
 }
 
 #[test]

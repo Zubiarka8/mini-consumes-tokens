@@ -188,7 +188,7 @@ pub struct FindReferencesArgs {
     /// Exact name of the symbol to find every reference to.
     pub symbol: String,
     /// Narrow to one file or directory/crate prefix (same matching as
-    /// list_symbols), applied at every hop. Omit to search the whole project.
+    /// list_symbols), applied to the start and first hop only. Omit to search the whole project.
     #[serde(default)]
     pub path: Option<String>,
     /// Narrow to one language id (e.g. `rust`). Omit for every language.
@@ -219,7 +219,7 @@ pub struct FindCallsArgs {
     /// Exact name of the function/method whose callees you want.
     pub function: String,
     /// Narrow to one file or directory/crate prefix (same matching as
-    /// list_symbols), applied at every hop. Omit to search the whole project.
+    /// list_symbols), applied to the start and first hop only. Omit to search the whole project.
     #[serde(default)]
     pub path: Option<String>,
     /// Narrow to one language id (e.g. `rust`). Omit for every language.
@@ -250,7 +250,7 @@ pub struct FindCallersArgs {
     /// Exact name of the function/method whose callers you want.
     pub function: String,
     /// Narrow to one file or directory/crate prefix (same matching as
-    /// list_symbols), applied at every hop. Omit to search the whole project.
+    /// list_symbols), applied to the start and first hop only. Omit to search the whole project.
     #[serde(default)]
     pub path: Option<String>,
     /// Narrow to one language id (e.g. `rust`). Omit for every language.
@@ -281,7 +281,7 @@ pub struct ImpactAnalysisArgs {
     /// Exact name of the symbol you're considering changing or removing.
     pub symbol: String,
     /// Narrow to one file or directory/crate prefix (same matching as
-    /// list_symbols), applied at every hop. Omit to search the whole project.
+    /// list_symbols), applied to the start and first hop only. Omit to search the whole project.
     #[serde(default)]
     pub path: Option<String>,
     /// Narrow to one language id (e.g. `rust`). Omit for every language.
@@ -858,9 +858,12 @@ pub struct ContextPack {
     /// Files referencing the symbol at file level (a top-of-file `use`/
     /// `import`) rather than from inside one of their symbols, sorted.
     pub file_level: Vec<String>,
-    /// Called/referenced names resolved to no indexed definition — external
-    /// or simply unknown — sorted.
+    /// Called/referenced names the parser proved external (std/third-party),
+    /// sorted.
     pub external: Vec<String>,
+    /// Called/referenced names with no indexed definition and no external
+    /// evidence — simply unknown — sorted.
+    pub unresolved: Vec<String>,
 }
 
 /// How many candidates of an ambiguous callee a pack lists.
@@ -895,9 +898,13 @@ struct RelatedSet {
 
 impl RelatedSet {
     /// A callee/dependency sighting. Only resolved and ambiguous relations
-    /// become drafts; the name of any other is returned for the
-    /// unresolved/external footer.
-    fn add_target(&mut self, role: &str, hit: &mct_index::RelationHit) -> Option<String> {
+    /// become drafts; any other is returned for the external/unresolved
+    /// footers, still carrying its resolution.
+    fn add_target<'h>(
+        &mut self,
+        role: &str,
+        hit: &'h mct_index::RelationHit,
+    ) -> Option<&'h mct_index::RelationHit> {
         match hit.resolution {
             mct_index::Resolution::Resolved => {
                 let id = hit.target_id?;
@@ -907,7 +914,7 @@ impl RelatedSet {
                 let key = format!("?{}", hit.to_name);
                 self.add(key, &hit.to_name, role, hit, None, false);
             }
-            _ => return Some(hit.to_name.clone()),
+            _ => return Some(hit),
         }
         None
     }
@@ -1703,11 +1710,19 @@ impl MctServer {
 
         let mut related = RelatedSet::default();
         let mut external = std::collections::BTreeSet::new();
-        for hit in &callees {
-            external.extend(related.add_target("callee", hit));
-        }
-        for hit in &dependencies {
-            external.extend(related.add_target(&hit.kind, hit));
+        let mut unresolved = std::collections::BTreeSet::new();
+        let targets = callees
+            .iter()
+            .map(|hit| ("callee", hit))
+            .chain(dependencies.iter().map(|hit| (hit.kind.as_str(), hit)));
+        for (role, hit) in targets {
+            if let Some(hit) = related.add_target(role, hit) {
+                if hit.resolution == mct_index::Resolution::External {
+                    external.insert(hit.to_name.clone());
+                } else {
+                    unresolved.insert(hit.to_name.clone());
+                }
+            }
         }
         for hit in &callers {
             related.add_referrer("caller", hit);
@@ -1834,6 +1849,7 @@ impl MctServer {
             uncertain,
             file_level: file_level.into_iter().collect(),
             external: external.into_iter().collect(),
+            unresolved: unresolved.into_iter().collect(),
         };
         let text = match output_format {
             OutputFormat::Text => format::context_pack(&pack, limit),

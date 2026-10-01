@@ -506,9 +506,9 @@ impl Index {
         self.find_calls_bfs_scoped(function, depth, limit, offset, QueryScope::default())
     }
 
-    /// [`Index::find_calls_bfs`] narrowed to `scope`, applied at *every* hop:
-    /// a hit whose referring symbol lies outside the scope is neither
-    /// reported nor expanded, so the walk never leaves the scope.
+    /// [`Index::find_calls_bfs`] narrowed to `scope` at the start definitions
+    /// and hop 1 only; later hops follow exact symbol ids across files, so
+    /// the walk may leave the scope.
     pub fn find_calls_bfs_scoped(
         &self,
         function: &str,
@@ -539,7 +539,7 @@ impl Index {
         self.find_callers_bfs_scoped(function, depth, limit, offset, QueryScope::default())
     }
 
-    /// [`Index::find_callers_bfs`] narrowed to `scope`, applied at every hop —
+    /// [`Index::find_callers_bfs`] narrowed to `scope` at the start and hop 1 only —
     /// see [`Index::find_calls_bfs_scoped`].
     pub fn find_callers_bfs_scoped(
         &self,
@@ -572,8 +572,8 @@ impl Index {
         self.find_references_bfs_scoped(symbol, depth, limit, offset, QueryScope::default())
     }
 
-    /// [`Index::find_references_bfs`] narrowed to `scope`, applied at every
-    /// hop — see [`Index::find_calls_bfs_scoped`].
+    /// [`Index::find_references_bfs`] narrowed to `scope` at the start and hop 1
+    /// only — see [`Index::find_calls_bfs_scoped`].
     pub fn find_references_bfs_scoped(
         &self,
         symbol: &str,
