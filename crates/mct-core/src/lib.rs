@@ -16,7 +16,9 @@ pub use literal::{
     MIN_LITERAL_CHARS,
 };
 pub use registry::LanguageRegistry;
-pub use symbol::{Location, RelationKind, SymbolId, SymbolKind, SymbolRecord, SymbolRelation};
+pub use symbol::{
+    Location, RelationKind, RelationTarget, SymbolId, SymbolKind, SymbolRecord, SymbolRelation,
+};
 
 /// Recursion-depth ceiling every `mct-lang-*` AST walker must enforce while
 /// descending into a node's children. Parsing runs over arbitrary,
@@ -47,7 +49,8 @@ pub struct SourceFile {
 }
 
 /// Everything extracted from one source file: its symbols, the relations
-/// between them (or to symbols in other files, resolved by name), and its
+/// between them (or to symbols in other files, resolved by the index from
+/// each relation's name and `relation_targets` evidence), and its
 /// prose string literals.
 ///
 /// Build it with `..Default::default()` after the fields you set, so adding a
@@ -60,6 +63,10 @@ pub struct ParsedFile {
     /// [`LiteralCollector`]. Empty for a parser that doesn't extract them —
     /// by design for markup/style languages (Markdown, HTML, XML, CSS).
     pub literals: Vec<StringLiteral>,
+    /// Qualification evidence for some of `relations`, by index — see
+    /// [`RelationTarget`]. Sparse: a relation without an entry is
+    /// unqualified. An entry whose index is out of range is ignored.
+    pub relation_targets: Vec<RelationTarget>,
 }
 
 /// Implemented once per supported language, in its own crate. The indexer

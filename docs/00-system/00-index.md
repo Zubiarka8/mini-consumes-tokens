@@ -7,6 +7,7 @@ Central map of this vault. Start here.
 - [[glossary]] — terms used across this vault
 - [[mcp-protocol-spec]] — MCP tool contract
 - [[001-sqlite-storage]] — ADR: why SQLite
+- [[002-qualified-relation-resolution]] — ADR: how relation targets are resolved
 - [[mct-mcp-server]] — MCP server crate
 - [[overview]] — mandatory parser contract every `mct-lang-*` crate follows
 - [[mct-lang-php]] — PHP parser exception (security-relevant)

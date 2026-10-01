@@ -235,6 +235,8 @@ fn main() {
             line: r.line,
             column: r.column,
             depth: r.depth,
+            resolution: mct_index::Resolution::Resolved,
+            ..Default::default()
         })
         .collect();
     let relation_text = format::relation_hits(
@@ -304,6 +306,7 @@ fn main() {
             parent: e.parent.clone(),
             end_line: e.end_line,
             level: None,
+            ..Default::default()
         })
         .collect();
     let small_text = format::symbol_hits("handle_node_kind_000", &small_hits, 200);
