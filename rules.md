@@ -3,10 +3,8 @@
 ## Table of contents
 
 - [Choosing an AI model](#choosing-an-ai-model)
-  - [ChatGPT and Codex](#chatgpt-and-codex)
-  - [Claude and Claude Code](#claude-and-claude-code)
-  - [Choosing between providers](#choosing-between-providers)
-    - [ChatGPT-led Claude worker handoff](#chatgpt-led-claude-worker-handoff)
+  - [Optional cross-provider worker handoff](#optional-cross-provider-worker-handoff)
+  - [Context and token management](#context-and-token-management)
 - [What this is](#what-this-is)
 - [Dogfooding: how to explore this repository's source code](#dogfooding-how-to-explore-this-repositorys-source-code)
 - [In-progress: per-language long-fixture corpus](#in-progress-per-language-long-fixture-corpus-issue-74)
@@ -17,50 +15,30 @@ Shared rules for Codex, Claude Code, and any agent working in this repository. T
 
 ## Choosing an AI model
 
-Use the model already available in the chosen client unless the task justifies changing it. Pick by task difficulty, required tools, latency, and usage cost; model labels and access vary by plan, client, and rollout. Check the current model picker before using a specific ID. Keep the lowest reasoning effort that reliably meets the task's quality bar, then increase it for ambiguous requirements, broad changes, or difficult verification. Higher effort usually costs more time and tokens. Model selection is a starting point, not a substitute for tests or review.
+Use the model already available in the contributor's client. Do not require a specific provider, subscription, model ID, or IDE. Pick the lowest-cost model and reasoning effort that reliably meet the task's quality bar. Use a lighter/faster option for a bounded routine task; start at the default or medium effort for ordinary multi-step work; raise effort or model capability only when ambiguity, risk, or failed verification justifies it. Higher effort and parallel agents can consume more tokens. Check the active client's model picker because model IDs, effort names, defaults, and access change over time. Model choice does not replace verification.
 
-### ChatGPT and Codex
+As optional examples when available: OpenAI currently positions Luna for focused, efficient tasks and Sol for more complex coding; GPT-5.6 Terra remains a balanced everyday option. Anthropic recommends Sonnet for most coding and reserves Opus for more complex architecture or multi-step reasoning. In Claude Code, use Low for small changes, Medium for everyday engineering, and raise effort only when verification or edge cases justify the extra token spend. Current Claude Sonnet 5.5 and Opus 5.5 default to Medium. Use current vendor documentation and the active client's catalog rather than assuming these names are available to every contributor: [OpenAI model catalog](https://learn.chatgpt.com/docs/models?surface=app), [Claude Code model configuration](https://code.claude.com/docs/en/model-config), and [Claude Code cost guidance](https://code.claude.com/docs/en/costs).
 
-| Model | Use it when | Why |
-|---|---|---|
-| GPT-5.6 Luna (`gpt-5.6-luna`) | The task is clear, bounded, repetitive, or high-volume: focused edits, extraction, classification, summaries, or routine coding. | It is the fastest and lowest-cost GPT-5.6 tier. |
-| GPT-5.6 Terra (`gpt-5.6-terra`) | The task spans several files or steps and needs reliable reasoning while keeping usage moderate. | It balances capability, speed, and cost for everyday work; use it as the default GPT-5.6 tier. |
-| GPT-5.6 Sol (`gpt-5.6-sol`) | The task is complex, ambiguous, or needs stronger reasoning after Terra proves insufficient. | It is the flagship GPT-5.6 tier; reserve it for work that benefits from the extra capability. |
-| GPT-6 Luna (`gpt-6-luna`) | The task is clear and routine, and this model is already available in the active client. | It is an efficient option for well-scoped work. |
-| GPT-6.1 Sol (`gpt-6.1-sol`) | The task spans several files or steps and needs stronger coding judgment, and this model is available in the active client. | It is a general-purpose coding option. |
+### Optional cross-provider worker handoff
 
-**Do not use GPT-6 Astra (`gpt-6-astra`) for project work.** Its usage cost is too high for this project's default workflow. Use GPT-5.6 Terra for ordinary multi-step work; escalate to GPT-5.6 Sol only when the task warrants it. This project preference overrides model availability and generic client recommendations.
+Use this workflow only when the user explicitly asks to coordinate providers and both tools are available. It is optional: contributors using Cursor or another single client continue with that client and follow the repository's shared engineering rules. Do not start another agent by default or repeat the same task in two providers.
 
-For reasoning effort, start at the client default or **Medium** for ordinary multi-step work. Use **Low/Light** for quick, well-specified tasks; **High/Extra High** for multi-step investigation and careful review; reserve **Max** for unusually difficult single-agent problems and **Ultra** for large work that can be split into meaningful parallel tasks. Ultra invokes subagents where supported, so do not select it when parallel work is disallowed or unsafe. Available levels and names vary between clients.
+For the requested ChatGPT/Codex-led, Claude Code-worker pattern:
 
-### Claude and Claude Code
+1. The lead turns the request into one bounded worker brief: goal, in-scope paths, acceptance criteria, applicable checks, and what to return. Send only relevant context and links; do not paste the full conversation or large files when paths/tools can supply them.
+2. Confirm the `claude` CLI is installed and authenticated before dispatch. If not, report the limitation and continue only if the user wants a single-provider fallback.
+3. Start one Claude Code non-interactive worker in the foreground with `claude -p --output-format json` and request a structured final report (`completed`, `blocked`, or `failed`; summary; changed paths; checks and results; follow-up needed). The process result is the completion message to the lead. Wait for it before dependent integration. For API-billed runs, use a user-approved `--max-budget-usd` cap and a reasonable `--max-turns` limit; for subscription use, check `/usage` and the account's usage limits. Never invent a dollar cap or enable paid overage without the user's authorization.
+4. Give the worker its own branch/worktree. Do not have the lead and worker modify the same checkout concurrently. Add workers only for independent, disjoint tasks that justify the extra context and usage; give each its own worktree. Do not use Claude Agent Teams for cross-provider messaging: they coordinate Claude sessions, not a separate ChatGPT/Codex session, and each teammate adds its own context and usage.
+5. The lead reviews the worker's diff and report, runs the required integration checks, and owns commits, pushes, and PRs unless the user explicitly delegates those actions. If the report is blocked, send one specific follow-up and wait for its result. Do not claim success while work is blocked or checks failed.
 
-| Model | Use it when | Why |
-|---|---|---|
-| Claude Haiku 4.5 (`claude-haiku-4-5`) | The work is routine and tightly scoped: quick questions, formatting, mechanical edits, or simple extraction. | It prioritizes speed and efficiency. |
-| Claude Sonnet 5.5 (`claude-sonnet-5-5`) | The task is everyday implementation, bug fixing, tests, documentation, or code review. | It balances speed and capability for general coding work. |
-| Claude Opus 5.5 (`claude-opus-5-5`) | The task needs broad context, difficult reasoning, or a careful audit, and Sonnet is insufficient. Always use **Medium** effort. | Reserve it for cases where the extra capability is justified. |
+`claude -p` is a one-shot process, so its returned report is the reliable handoff; it does not send messages to an unrelated interactive Claude session. For a continuing Claude CLI session, address follow-up prompts to its explicit session rather than assuming cross-client messaging.
 
-**Do not use Claude Fable for project work.** It is a paid model outside the project's approved model set. Use Claude Sonnet for everyday work and Opus only when Sonnet is insufficient.
+### Context and token management
 
-For Claude Code effort, prefer the model's default for ordinary work; use **Low** for simple tasks and raise effort when deeper planning or verification is worth the added time and usage. **Auto** follows the model default. **For Claude Opus 5.5, always set effort to Medium; never use High.** Do not assume every model supports every effort level: support and defaults vary by model, Claude Code version, account, provider, and organization settings. Check the active model's current configuration before pinning an effort.
-
-### Choosing between providers
-
-Prefer the provider that already has the needed repository access, tools, MCP configuration, authentication, and workflow. Do not run the same task in both providers by default. Use a second model only for an independent review or a measured comparison, and give it a concrete question. For a task already assigned in a plan, use that plan's explicit selection unless the user changes it; keep general selection guidance here so plans do not duplicate it.
-
-#### ChatGPT-led Claude worker handoff
-
-When the user asks for coordinated work across both providers, use ChatGPT/Codex as the lead and Claude Code as the implementation worker. For ordinary multi-step work, prefer GPT-5.6 Terra as lead and Claude Sonnet as worker. The lead owns requirements, task breakdown, integration, and final review; Claude receives a bounded implementation task with acceptance criteria.
-
-- Before dispatch, check that the `claude` CLI is installed and authenticated. If it is unavailable, report that the handoff cannot run; do not imply a worker was started.
-- Run Claude Code through its non-interactive CLI (`claude -p`) and request a structured completion report containing status (`completed`, `blocked`, or `failed`), summary, changed files, checks run and their results, and any follow-up needed. The CLI process completion and its returned report are the handoff signal to the lead. Wait for that result before doing dependent integration work.
-- Give Claude an isolated Git worktree and branch. Do not let the lead and worker edit the same checkout concurrently. Parallelize only independent tasks; give each concurrent worker a separate worktree and disjoint scope.
-- The lead reviews the worker's diff and verification report, resolves integration issues, and decides whether to commit, push, or open a PR. The worker must not claim completion if checks failed or work remains blocked.
-- If the worker is blocked or the report reveals incomplete work, the lead sends a specific follow-up task and waits for its result before integration. Do not rely on an unconnected interactive Claude session receiving messages from ChatGPT/Codex; without an orchestration call, there is no direct cross-provider message channel.
-- If Claude Code is unavailable or the user has not asked for cross-provider collaboration, continue with the selected provider alone rather than starting duplicate work.
-
-GPT-5.6 tiers and their positioning: [OpenAI GPT-5.6 announcement](https://openai.com/index/gpt-5-6/) and [GPT-5.6 availability](https://help.openai.com/en/articles/20001354-gpt-56-in-chatgpt). Recheck official model catalogs before changing this policy; model IDs and availability can change. The Astra and Fable restrictions above are project policy, regardless of client availability.
+- Give each worker only the task brief and necessary repository context. Prefer targeted symbol/context tools, small diffs, and concise test output over dumping whole files or transcripts.
+- In Claude Code, use `/context` to find context consumers and `/usage` to inspect usage. Automatic compaction handles sessions nearing their context limit. Use `/compact` when continuing the same task with a long history; its summary should preserve the goal, constraints, decisions, changed paths, verification, and open questions. Use `/clear` between unrelated tasks or after the current task is complete, not during an active handoff. A finished `claude -p` invocation exits; it needs no `/clear`.
+- In Codex, compact the current conversation only when continuing the same task with a large history; start a new task/chat for unrelated work. Preserve a short handoff summary before changing sessions. Do not clear context while a worker result is pending.
+- Do not compact at arbitrary fixed intervals. Check context and usage when a task is long; compact only to continue useful work, and start fresh when the next task is unrelated.
 
 ## What this is
 
