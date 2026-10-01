@@ -78,16 +78,16 @@ pub(crate) fn find_calls_bfs(
     budget: usize,
     scope: ResolvedScope<'_>,
 ) -> Result<Vec<RelationHit>> {
-    let start = queries::symbol_ids_named(&index.conn, function, ResolvedScope::default())?;
+    let start = queries::symbol_ids_named(&index.conn, function, scope)?;
     bfs(
         index,
         queries::find_calls_scoped(&index.conn, function, scope)?,
         start,
         depth,
         budget,
-        // `scope` is `Copy`, so the same narrowing is re-applied by the
-        // per-node lookup at every level of the walk, not just the first.
-        |idx, id| queries::calls_from_symbol(&idx.conn, id, scope),
+        // `scope` narrows the start definitions and hop 1 only; later hops
+        // follow exact symbol ids across files.
+        |idx, id| queries::calls_from_symbol(&idx.conn, id, ResolvedScope::default()),
         |hit| hit.target_id,
     )
 }
@@ -99,14 +99,14 @@ pub(crate) fn find_callers_bfs(
     budget: usize,
     scope: ResolvedScope<'_>,
 ) -> Result<Vec<RelationHit>> {
-    let start = queries::symbol_ids_named(&index.conn, function, ResolvedScope::default())?;
+    let start = queries::symbol_ids_named(&index.conn, function, scope)?;
     bfs(
         index,
         queries::find_callers_scoped(&index.conn, function, scope)?,
         start,
         depth,
         budget,
-        |idx, id| queries::relations_reaching_symbol(&idx.conn, id, true, scope),
+        |idx, id| queries::relations_reaching_symbol(&idx.conn, id, true, ResolvedScope::default()),
         proven_referrer,
     )
 }
@@ -118,14 +118,16 @@ pub(crate) fn find_references_bfs(
     budget: usize,
     scope: ResolvedScope<'_>,
 ) -> Result<Vec<RelationHit>> {
-    let start = queries::symbol_ids_named(&index.conn, symbol, ResolvedScope::default())?;
+    let start = queries::symbol_ids_named(&index.conn, symbol, scope)?;
     bfs(
         index,
         queries::find_references_scoped(&index.conn, symbol, scope)?,
         start,
         depth,
         budget,
-        |idx, id| queries::relations_reaching_symbol(&idx.conn, id, false, scope),
+        |idx, id| {
+            queries::relations_reaching_symbol(&idx.conn, id, false, ResolvedScope::default())
+        },
         proven_referrer,
     )
 }
