@@ -78,16 +78,30 @@ fn file_end_line(root: Node) -> u32 {
 }
 
 fn first_error(node: Node) -> Option<Node> {
-    if node.is_error() || node.is_missing() {
-        return Some(node);
-    }
     let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        if let Some(found) = first_error(child) {
-            return Some(found);
+    let mut depth = 0u32;
+
+    loop {
+        let current = cursor.node();
+        if current.is_error() || current.is_missing() {
+            return Some(current);
+        }
+
+        if depth < MAX_TRAVERSAL_DEPTH && cursor.goto_first_child() {
+            depth += 1;
+            continue;
+        }
+
+        loop {
+            if cursor.goto_next_sibling() {
+                break;
+            }
+            if depth == 0 || !cursor.goto_parent() {
+                return None;
+            }
+            depth -= 1;
         }
     }
-    None
 }
 
 fn location(node: Node) -> Location {
