@@ -2,6 +2,19 @@
 
 Date: September 29, 2026. Audited commit: `1880048dd8274b0b3a7f82b07bedd3219bde5ca1`, branch `feat/incremental-indexing-issue-25`.
 
+## Follow-up status — October 2, 2026
+
+This is a historical audit with a follow-up status, not a claim that every task is complete. Source locations and original reproduction results below refer to the audited commit unless a dated status states otherwise.
+
+- F02 was integrated into `main` by PR #99.
+- F03, F04 and the demonstrated F07 Rust cases have passing regression evidence.
+- F05/F06: PR #100 was merged into `codex/audit-relations` after PR #99, so its Markdown implementation still needed integration into `main`; this follow-up branch carries that implementation instead of the failing local opaque-link patch. Alias/title wikilink resolution and block anchors are not implemented.
+- R01: all 17 parsers use bounded iterative error traversal, with dedicated depth-budget regressions.
+- F09: the installation example sets `INSTALL_DIR` on the installer process; a local release fixture verifies that the real installer writes both executable binaries to the selected directory, including paths containing spaces. No remote installer or release was downloaded.
+- F01 owner-confirmed credential revocation, F08 duplication, R02–R04 measurements/diagnostics, the real semantic-model run, the tokenizer/workflow benchmark and issue #74 corpus completion remain outstanding.
+
+Workspace verification on this branch: **886 passed, 0 failed, 11 ignored**, run outside the sandbox on 2026-10-02. The three new Rust depth regressions and the Markdown note-graph/MCP cases are included. Ignored tests were not newly disabled by this change. The standalone installer fixture test and release document/archive smoke also passed. Strict all-target/all-feature Clippy passed with warnings, unwrap, expect and panic denied. Formatting and whitespace checks passed. The quality evaluation passed with accuracy 1.000 and no baseline regressions. Fresh CLI/STDIO MCP smoke passed with 18 tools, Lua retrieval, Markdown note context and inline-code exclusion. The original dirty checkout was preserved; these results apply to the follow-up PR branch based on `main` at `58b5c90`. Private notification scripts and personal agent configuration are excluded from this PR. Third-party notice and license assets are retained so release packaging remains valid.
+
 ## 1. Assessment
 
 The project has a useful technical foundation: separation between parsers, index, and transport; parameterized queries; per-file transactions; integration tests; quality evaluation; incremental indexing; and compact responses. **It does not need a rewrite. It does need more accurate relations and complete documentation support before it can be presented as reliable context for automated refactoring.**
@@ -58,9 +71,9 @@ flowchart LR
     F[Source code and Markdown notes] --> R[LanguageRegistry]
     R --> P[Language-specific tree-sitter parsers]
     P --> I[mct-index: symbols, relations, and locations]
-    I --> DB[(SQLite y FTS5)]
+    I --> DB[(SQLite and FTS5)]
     DB --> S[mct-mcp-server]
-    S --> C[Codex y otros clientes MCP]
+    S --> C[Codex and other MCP clients]
     CLI[mct-cli] --> I
     O[Obsidian: note editing] --> F
 ```
@@ -92,6 +105,8 @@ Priorities: **P1** affects trust, data, or core operation; **P2** affects covera
 
 ### F01 — P1: credential in local configuration and file at risk of being committed
 
+**Status (2026-10-01):** The ignored `.mcp.json` no longer contains an inline token; its GitHub server entry is retained with an empty `env` map, so the parent environment must provide `GITHUB_PERSONAL_ACCESS_TOKEN`. On 2026-10-01, GitHub CLI reported its stored credential as invalid, and `.codex/config.toml` is absent. The previous token appeared in tool output during the follow-up review and must be revoked; credential rotation requires a handoff to the account owner. The evidence below describes the earlier state.
+
 **Evidence:** `.mcp.json` and `.codex/config.toml` contain a plaintext GitHub credential. Its value is not reproduced here. `git check-ignore` identifies `.mcp.json` as ignored, but not `.codex/config.toml`; `git status` shows `.codex/` as untracked.
 
 **Impact:** a broad configuration read may expose the secret in context, and a broad `git add` may include the Codex file in the repository. This local condition was confirmed; publication to Git and token validity were not verified.
@@ -101,6 +116,8 @@ Priorities: **P1** affects trust, data, or core operation; **P2** affects covera
 **Acceptance:** no literal token in shareable files; the connection still works with an externally supplied credential; a secret check rejects test credential fixtures. Rotation requires an account action and was not performed in this audit.
 
 ### F02 — P1: name-based relations produce false dependencies
+
+**Status (2026-10-01): Design issue [#97](https://github.com/Zubiarka8/mini-consumes-tokens/issues/97) has a proposed specification at [`docs/superpowers/specs/2026-10-01-qualified-relation-identity-design.md`](docs/superpowers/specs/2026-10-01-qualified-relation-identity-design.md).** The implementation was merged into `main` through PR #99. Qualified target evidence, explicit ambiguity and resolved symbol identities replace arbitrary name-based destination selection. Historical reproductions below describe the audited commit.
 
 **Locations:** `crates/mct-mcp-server/src/server.rs:833–851`, `:1359–1383`, `:1454–1455`; `crates/mct-index/src/queries.rs:388–399`; `crates/mct-index/src/traversal.rs:22–57`; `crates/mct-lang-rust/src/lib.rs:322–336`.
 
@@ -121,6 +138,8 @@ The result reports `Ok` from a C# corpus, `get` from PHP, and `map` from C++ as 
 **Acceptance:** fixtures for `A::run`, `B::run`, `std::...`, same-file homonyms, and multilingual repositories; no unrelated dependency presented as resolved. Per `AGENTS.md`, begin any model/schema change with an issue and design.
 
 ### F03 — P1: `reindex(force=true)` does not reload `.mctignore` in the running server
+
+**Status (2026-10-02): Implemented and verified. Exclusion-reload index tests passed; all 11 watcher tests passed outside the sandbox, including live ignore-rule reload.** `Index::reindex` reloads exclusions before walking, and the server watcher reloads them when `.mctignore` or `.gitignore` changes, then schedules a full reindex. The reproduction below describes the earlier state.
 
 **Locations:** `crates/mct-mcp-server/src/main.rs:43–45`, `:64–69`; `crates/mct-index/src/indexer.rs:94`; `crates/mct-mcp-server/src/server.rs:1496–1505`.
 
@@ -144,7 +163,9 @@ The server reindex response was `1 parsed, 0 removed, 2 symbols written`. Runnin
 
 ### F04 — P2: Lua is implemented and tested but is not connected to the product
 
-**Ubicaciones:** `crates/mct-lang-lua/src/lib.rs:20–66`; `crates/mct-cli/src/main.rs:150–169`; `crates/mct-mcp-server/src/registry.rs:9–28`.
+**Status (2026-10-01): Resolved in the current working tree.** Both production registries register `mct_lang_lua::LuaParser` (CLI and MCP server). On 2026-10-02, a fresh CLI indexed a temporary Lua fixture and a fresh MCP server retrieved its `greet` definition. The earlier missing-registration evidence below is historical.
+
+**Locations:** `crates/mct-lang-lua/src/lib.rs:20–66`; `crates/mct-cli/src/main.rs:150–169`; `crates/mct-mcp-server/src/registry.rs:9–28`.
 
 The workspace contains `mct-lang-lua`, but both `build_registry` functions register 16 parsers and omit Lua. With a fixture where `sample.lua` defines `greet`, status does not show Lua and `find_symbol("greet")` returns no definitions. Lua is not reported as pending either; the indexer's pending-language list covers Swift and Ruby.
 
@@ -154,7 +175,9 @@ The workspace contains `mct-lang-lua`, but both `build_registry` functions regis
 
 ### F05 — P1 for the Obsidian use case: the index does not model a note as a unit
 
-**Ubicaciones:** `crates/mct-lang-md/src/lib.rs:85–118`, `:428–464`; `crates/mct-mcp-server/src/server.rs:1599–1603`.
+**Status (2026-10-01): Design issue [#98](https://github.com/Zubiarka8/mini-consumes-tokens/issues/98) has a proposed specification at [`docs/superpowers/specs/2026-10-01-markdown-note-graph-design.md`](docs/superpowers/specs/2026-10-01-markdown-note-graph-design.md).** The PR #100 implementation is included in this follow-up branch for integration into `main`. Notes, section ranges, metadata and path-scoped links have dedicated parser, index and MCP regression tests. Historical reproductions below describe the audited commit.
+
+**Locations:** `crates/mct-lang-md/src/lib.rs:85–118`, `:428–464`; `crates/mct-mcp-server/src/server.rs:1599–1603`.
 
 Reproductions with four notes:
 
@@ -174,6 +197,8 @@ Reproductions with four notes:
 
 ### F06 — P2: wikilinks in code and anchors without note identity pollute the graph
 
+**Status (2026-10-02): Core implementation complete in the follow-up branch, with explicit limitations.** The earlier opaque-target patch is superseded by the complete PR #100 implementation in this follow-up branch. Code spans are excluded; note and heading relations carry note-path evidence; links and embeds retain distinct kinds. Alias/title metadata is indexed, but resolving wikilinks by alias/title and block anchors remains outside the implemented scope.
+
 **Locations:** `crates/mct-lang-md/src/lib.rs:203–244`, `:376–403`; definition selection in `server.rs:833–851`.
 
 In the fixture, a paragraph containing only inline code `` `[[ghost]]` `` creates a reference to `ghost`. Also, `[[beta#Shared]]` becomes two separate targets, `beta` and `Shared`. Since `alpha.md` also contains `## Shared`, the context pack selects that local heading even though the link points to the heading in `beta.md`.
@@ -185,6 +210,8 @@ In the fixture, a paragraph containing only inline code `` `[[ghost]]` `` create
 **Acceptance:** inline code creates no references; notes with the same section title are not confused; aliases, relative paths, local anchors, and `.md` extensions are covered by tests.
 
 ### F07 — P2: “dead code” includes used functions and active tests
+
+**Status (2026-10-02): The reported Rust cases are covered by passing regressions.** Test harness functions, function values and macro uses no longer produce the demonstrated false candidates. The tool remains a heuristic, not proof that code is safe to delete.
 
 **Locations:** `crates/mct-index/src/dead_code.rs:95–110`; `crates/mct-index/src/indexer.rs:784–818`.
 
@@ -212,15 +239,19 @@ mod tests {
 
 ### F08 — P2: structural duplication encourages drift
 
+**Status (2026-10-02): Partially addressed.** CLI/MCP registry parity and shipped-language coverage tests now pass, preventing the demonstrated missing-registration drift. Parser traversal/location duplication remains; no shared AST utility refactor is included here.
+
 **Confirmed:** language registrations are duplicated in the CLI and server; `first_error` is identical in Rust (`lib.rs:78–89`), Python (`:79–90`), and C++ (`:94–105`). Location and traversal patterns also repeat across other parser skeletons; repository-wide duplication has not been quantified.
 
-**Impact:** support changes and infrastructure fixes must be repeated. The missing Lua registration illustrates the lack of an automatic guarantee for distributed registrations, even though the two current registries agree.
+**Impact:** support changes and infrastructure fixes must be repeated. The historical missing Lua registration illustrated that risk; the current parity and coverage regressions now provide an automatic guarantee for the distributed registries.
 
 **Fix:** share language composition or use a catalog that generates/verifies both registries. For AST utilities, consider a separate crate that depends on tree-sitter; **do not add tree-sitter to `mct-core`**. Share only operations that are genuinely identical; do not force a universal parser.
 
 **Acceptance:** adding a language requires one effective declaration or fails a parity/coverage check; parsers retain independent behavior tests.
 
 ### F09 — P3: installation example assigns the variable to the wrong process
+
+**Status (2026-10-01): Resolved.** The README now sets `INSTALL_DIR` on the `bash` process that runs the installer. The previous example is retained below as the historical finding.
 
 **Location:** `README.md:162`.
 
@@ -230,13 +261,15 @@ INSTALL_DIR=/usr/local/bin curl -sSL ... | bash
 
 The assignment applies to `curl`, not to the `bash` process running the installer. The custom directory may be ignored. Assign the variable to the installer process, for example `curl ... | INSTALL_DIR=/path bash`, or run a previously downloaded script with the variable set.
 
-**Acceptance:** a test with a temporary directory installs into the selected destination. The remote installer was not run during this audit.
+**Acceptance:** a test with a temporary directory installs into the selected destination. The installer destination was verified on 2026-10-02 using a local release fixture without network access. The remote release itself was not downloaded or installed.
 
 ## 5. Observed risks that still require measurement
 
 Do not present these as reproduced failures or confirmed vulnerabilities.
 
 ### R01 — Unbounded recursion while finding the first error
+
+**Status (2026-10-01): Resolved in the current working tree.** All 17 language parsers now use an iterative tree-cursor walk capped by `MAX_TRAVERSAL_DEPTH`; no recursive call stack is used to locate the error node. If the syntax error lies deeper than the limit, the parser falls back to the root location instead of reporting its exact line. Three Rust depth regressions pass: an error beyond the budget falls back to the root, later shallow errors remain reachable, and deep valid input has no error node. The depth-budget assertion failed against the old recursive implementation before the fix. No actual stack overflow was reproduced.
 
 The inspected `first_error` implementations recursively walk the tree without the main walker's depth limit. The limits documentation cites `MAX_TRAVERSAL_DEPTH = 256`, but this does not automatically protect the error-search path. Test deeply nested malformed input in subprocesses; prefer iterative traversal with a budget. **No stack overflow was reproduced.**
 
@@ -279,13 +312,13 @@ Progressive tool discovery does not by itself reduce what a client loads: saving
 
 ### Do not inherit old conclusions without rechecking them
 
-`research.md` analyzes a September 18 commit. This audit confirms subsequent improvements: bounded overview, brief dependency summary, pruning with `filter_entry`, path-based updates, FTS queries used in search, and relation writes without the former `to_symbol_id` resolution in `write_parsed_file`. Do not reopen its old findings automatically as if all were still current. Relation identity and Markdown context issues remain.
+`research.md` analyzes a September 18 commit. This audit confirms subsequent improvements: bounded overview, brief dependency summary, pruning with `filter_entry`, path-based updates, FTS queries used in search, and relation writes without the former `to_symbol_id` resolution in `write_parsed_file`. Do not reopen its old findings automatically as if all were still current. Qualified relation identity is implemented through PR #99; Markdown context improvements from PR #100 are included in this follow-up branch.
 
 ## 7. Codex usage and integration
 
 ### Verified state
 
-`mct-cli` and `mct-mcp-server` are available in `/Users/arkaitz/.cargo/bin/`. The local project configuration already declares the server with `--root` pointing to this repository. MCP calls during the review confirmed it works. That entry was neither changed nor duplicated.
+`mct-cli` and `mct-mcp-server` are available in `$HOME/.cargo/bin/`. The local project configuration already declares the server with `--root` pointing to this repository. MCP calls during the review confirmed it works. That entry was neither changed nor duplicated.
 
 ### Reproducible configuration for another project
 
@@ -295,14 +328,14 @@ Sanitized `.codex/config.toml` example; replace the paths:
 
 ```toml
 [mcp_servers.mini-consumes-tokens]
-command = "/ruta/absoluta/mct-mcp-server"
-args = ["--root", "/ruta/absoluta/proyecto"]
+command = "/absolute/path/mct-mcp-server"
+args = ["--root", "/absolute/path/project"]
 ```
 
 Alternatively, register the server with the CLI:
 
 ```sh
-codex mcp add mini-consumes-tokens -- mct-mcp-server --root /ruta/absoluta/proyecto
+codex mcp add mini-consumes-tokens -- mct-mcp-server --root /absolute/path/project
 ```
 
 `mct-cli mcp-register` writes **JSON to `.mcp.json`**, as confirmed by `crates/mct-cli/src/main.rs:269–318`; it does not generate this TOML configuration. Onboarding could offer a Codex-specific target and merge its entry without overwriting existing servers.
@@ -315,39 +348,39 @@ Recommended agent workflow:
 4. Verify ambiguous relations before changing or deleting code; name matching is not type resolution.
 5. Group known queries with `batch` and use `toon` for comparable listings.
 6. Read/edit files required for a change as directed by `AGENTS.md`; do not open SQLite directly.
-7. After changing exclusions, restart the connection until F03 is fixed.
+7. The current working tree reloads exclusions during reindex and when the watcher detects ignore-file changes; index and live-watcher regressions verified this behavior on 2026-10-02.
 
-A future skill could package this workflow and its budgets. It should be an instruction layer over the existing MCP, not a duplicate indexer or context database. The search found no versioned `SKILL.md` or `*plugin.json` manifests.
+A future skill could package this workflow and its budgets. It should be an instruction layer over the existing MCP, not a duplicate indexer or context database. The project now includes local skills; the earlier manifest observation described the audit snapshot only.
 
 ## 8. Hardening plan and completion criteria
 
 ### Delivery A — trust and working integration
 
 - Resolve F01 and ensure that only sanitized configuration is committed.
-- Add a regression for exclusion reload and resolve F03.
-- Register Lua and verify the distributed catalog, resolving F04.
+- [x] Verify exclusion reload through index and live-watcher regressions (F03).
+- [x] Register Lua in both production registries, resolving F04 (verified through fresh CLI indexing and MCP retrieval on 2026-10-02).
 - Preserve the current behavior that removes stale symbols after syntax errors.
 
 ### Delivery B — graph accuracy
 
-- Open a design issue for qualified identities and reference resolution, addressing F02.
-- Treat ambiguity as an explicit result with candidates and provenance.
+- [x] Opened design issue [#97](https://github.com/Zubiarka8/mini-consumes-tokens/issues/97) and drafted [`docs/superpowers/specs/2026-10-01-qualified-relation-identity-design.md`](docs/superpowers/specs/2026-10-01-qualified-relation-identity-design.md) for qualified identities and reference resolution (F02); implementation was merged through PR #99.
+- [x] Treat ambiguity as an explicit result with candidates and provenance (PR #99).
 - Add tests for homonyms, external libraries, callbacks, macros, and inline tests.
-- Add these fixtures to `mct-eval`; accuracy must penalize false dependencies, not only check for the expected result.
+- [x] Add qualified-relation evaluation cases that penalize false dependencies (PR #99).
 
 ### Delivery C — usable Obsidian context
 
-- Design root notes, sections, properties, and compound links for F05/F06.
-- Improve existing tools first; add a dedicated note-context tool only if it avoids costly compositions.
-- Keep note names, visible titles, and aliases distinct; use paths to resolve collisions.
-- Test note edits, renames, deletions, and backlink updates.
+- [x] Opened design issue [#98](https://github.com/Zubiarka8/mini-consumes-tokens/issues/98) and drafted [`docs/superpowers/specs/2026-10-01-markdown-note-graph-design.md`](docs/superpowers/specs/2026-10-01-markdown-note-graph-design.md) for note identities, sections, properties, and compound links (F05/F06); implementation from PR #100 is included in this follow-up branch for integration into `main`.
+- [x] Improve the existing context/overview tools without adding a dedicated note-context tool (PR #100 implementation).
+- [x] Keep note names, titles and aliases distinct and use paths to resolve collisions; alias/title-based wikilink lookup remains unsupported.
+- [x] Add regressions for note edits, renames, deletions and backlink updates.
 
 ### Delivery D — maintenance and performance
 
 - Resolve confirmed duplication (F08) without violating crate boundaries.
-- Complete the long-fixture corpus. `internal/corpus-progress.md` reports **5 done, 2 in PR, and 10 pending**; this is the document's local state, not a check of those PRs' remote status.
-- Measure R01–R04 with explicit budgets and diagnostics.
-- Fix the installation example and update documentation tied to actual contracts.
+- Complete the long-fixture corpus. `internal/corpus-progress.md` reports **7 done, 0 in PR, and 10 pending** after confirming PR #83 and PR #88 are merged on 2026-10-02.
+- Measure R02–R04 with explicit budgets and diagnostics; R01's bounded traversal has passing depth-budget regressions.
+- [x] Fix the installation example (F09). Update remaining documentation tied to actual contracts.
 
 Any schema, `LanguageParser` contract, or public MCP signature change requires a prior issue. Future PRs should be small, include a reproduction that fails before and passes after, and update corpus tracking when relevant. Do not refresh the baseline to hide an accuracy regression.
 
