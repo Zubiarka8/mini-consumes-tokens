@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+"""Verify the Unix installer destination using a local release fixture."""
+
+import json
+import os
+from pathlib import Path
+import platform
+import subprocess
+import tarfile
+import tempfile
+import unittest
+
+
+class InstallerDestinationTest(unittest.TestCase):
+    def test_pipeline_installs_both_binaries_into_the_requested_directory(self):
+        installer = Path(__file__).resolve().parents[3] / "install.sh"
+        system = {"Darwin": "macos", "Linux": "linux"}.get(platform.system())
+        arch = {"x86_64": "x86_64", "amd64": "x86_64", "arm64": "arm64", "aarch64": "arm64"}.get(platform.machine())
+        if not system or not arch:
+            self.skipTest("the Unix installer does not support this platform")
+        with tempfile.TemporaryDirectory(prefix="mct-installer-test-") as temporary:
+            root = Path(temporary)
+            package = root / "mini-consumes-tokens-test"
+            package.mkdir()
+            for name in ("mct-cli", "mct-mcp-server"):
+                (package / name).write_text("#!/bin/sh\nexit 0\n")
+            archive = root / "release.tar.gz"
+            with tarfile.open(archive, "w:gz") as tar:
+                tar.add(package, arcname=package.name)
+            release = root / "release.json"
+            release.write_text(json.dumps({"tag_name": "v-test", "assets": [{"browser_download_url": f"https://fixture.invalid/mini-consumes-tokens-v-test-{system}-{arch}.tar.gz"}]}))
+            tools = root / "tools"
+            tools.mkdir()
+            curl = tools / "curl"
+            curl.write_text("""#!/bin/sh
+set -eu
+if [ "$#" -eq 4 ] && [ "$2" = "-o" ]; then
+    cp "$MCT_TEST_ARCHIVE" "$3"
+else
+    cat "$MCT_TEST_RELEASE_JSON"
+fi
+""")
+            curl.chmod(0o755)
+            destination = root / "custom destination"
+            env = dict(os.environ, PATH=str(tools) + os.pathsep + os.environ["PATH"], INSTALL_DIR=str(destination), MCT_TEST_ARCHIVE=str(archive), MCT_TEST_RELEASE_JSON=str(release))
+            result = subprocess.run(["bash"], input=installer.read_text(), env=env, capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            for name in ("mct-cli", "mct-mcp-server"):
+                installed = destination / name
+                self.assertEqual(installed.read_bytes(), (package / name).read_bytes())
+                self.assertTrue(os.access(installed, os.X_OK))
+
+
+if __name__ == "__main__":
+    unittest.main()
