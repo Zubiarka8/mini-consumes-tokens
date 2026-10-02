@@ -27,6 +27,14 @@ script names and flags wherever both exist:
 | `parse-probe.sh <files…>` | Parses each file with this project's parsers (`mct-cli probe`), nothing indexed: symbol/relation counts, or the first syntax error with its source line. For finding which construct a grammar rejects — one suspect snippet per file, all probed at once. |
 | `install-hooks.sh` | Installs the git hooks under `hooks/` (copied, so they survive checking out older branches; re-run to update, `--uninstall` to remove). Today one: `post-checkout`, which on a branch switch that changes the index schema's migration count rebuilds `.mct-index/index.sqlite3` if it's now newer than the installed binaries (the `CONNECTION_CLOSED` failure) and says how to serve the branch. Silent otherwise; `MCT_SKIP_HOOKS=1` skips it. |
 
+### Installer regression
+
+Run `python3 scripts/unix/tests/test_install.py` (Python 3) to exercise
+`install.sh` against a local release fixture. It verifies both executables
+are installed into the requested directory, including paths with spaces,
+without downloading or installing a remote release. CI runs this check on
+Linux and macOS.
+
 ### Logs
 
 Every log in `target/script-logs/` has a fixed name per script and step,

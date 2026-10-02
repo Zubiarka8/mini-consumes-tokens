@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Markdown notes are indexed even without headings, with nested ATX/Setext sections, frontmatter metadata, path-scoped wikilinks and embeds, and note-aware context/backlinks (issue #98).
+
 - `get_file_skeleton` MCP tool (9th tool): returns a single file's top-level
   declarations (functions, classes, structs, interfaces, types) with bodies
   collapsed to `// ...` — up to ~90% fewer tokens than reading the whole
@@ -58,6 +60,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `manual/index.html`.
 
 ### Fixed
+
+- Bound syntax-error traversal in all 17 parsers without recursive calls; fall back to the root location for errors beyond the depth budget.
+- Apply the custom installation directory to the installer process in the README pipeline example.
 
 - Stack-overflow DoS on adversarially deep/nested source: `mct-lang-php`'s
   CI fuzz-smoke job crashed (AddressSanitizer `stack-overflow`) on a
