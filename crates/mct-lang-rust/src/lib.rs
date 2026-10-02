@@ -79,16 +79,30 @@ fn module_name_for(relative_path: &str) -> String {
 }
 
 fn first_error(node: Node) -> Option<Node> {
-    if node.is_error() || node.is_missing() {
-        return Some(node);
-    }
     let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        if let Some(found) = first_error(child) {
-            return Some(found);
+    let mut depth = 0u32;
+
+    loop {
+        let current = cursor.node();
+        if current.is_error() || current.is_missing() {
+            return Some(current);
+        }
+
+        if depth < MAX_TRAVERSAL_DEPTH && cursor.goto_first_child() {
+            depth += 1;
+            continue;
+        }
+
+        loop {
+            if cursor.goto_next_sibling() {
+                break;
+            }
+            if depth == 0 || !cursor.goto_parent() {
+                return None;
+            }
+            depth -= 1;
         }
     }
-    None
 }
 
 fn location(node: Node) -> Location {
@@ -807,4 +821,69 @@ fn unescape(fragment: &str, is_raw: bool) -> String {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod error_traversal_regressions {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+    use super::*;
+
+    fn tree(source: &str) -> tree_sitter::Tree {
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_rust::LANGUAGE.into())
+            .unwrap();
+        parser.parse(source, None).unwrap()
+    }
+
+    #[test]
+    fn an_error_beyond_the_depth_budget_falls_back_to_the_root() {
+        let depth = MAX_TRAVERSAL_DEPTH as usize + 64;
+        let source = format!(
+            "fn nested() {{ let _ = {}1 +{}; }}",
+            "(".repeat(depth),
+            ")".repeat(depth)
+        );
+        let tree = tree(&source);
+        let root = tree.root_node();
+        assert!(root.has_error(), "fixture must contain a syntax error");
+        assert!(
+            first_error(root).is_none(),
+            "a deep missing expression must not bypass the traversal budget"
+        );
+        let file = SourceFile {
+            relative_path: "nested.rs".into(),
+            contents: source,
+        };
+        assert!(matches!(
+            RustParser.parse(&file),
+            Err(ParseError::Syntax { line: 1, .. })
+        ));
+    }
+
+    #[test]
+    fn skipping_a_deep_subtree_still_finds_a_later_shallow_error() {
+        let depth = MAX_TRAVERSAL_DEPTH as usize + 64;
+        let source = format!(
+            "fn nested() {{ let _ = {}1{};\nlet _ = ; }}",
+            "(".repeat(depth),
+            ")".repeat(depth)
+        );
+        let tree = tree(&source);
+        let error = first_error(tree.root_node()).expect("the shallow error remains reachable");
+        assert_eq!(error.start_position().row, 1);
+    }
+
+    #[test]
+    fn deep_valid_input_has_no_error_node() {
+        let depth = MAX_TRAVERSAL_DEPTH as usize + 64;
+        let source = format!(
+            "fn nested() {{ let _ = {}1{}; }}",
+            "(".repeat(depth),
+            ")".repeat(depth)
+        );
+        let tree = tree(&source);
+        assert!(!tree.root_node().has_error());
+        assert!(first_error(tree.root_node()).is_none());
+    }
 }
