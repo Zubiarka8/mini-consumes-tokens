@@ -159,7 +159,7 @@ curl -sSL https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/
 
 ```sh
 # custom folder:
-INSTALL_DIR=/usr/local/bin curl -sSL https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.sh | INSTALL_DIR=/usr/local/bin bash
 ```
 
 **Windows, PowerShell** (installs into `%LOCALAPPDATA%\mct\bin`; override with `MCT_INSTALL_DIR`):

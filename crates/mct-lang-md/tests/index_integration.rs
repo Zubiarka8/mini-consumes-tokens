@@ -9,10 +9,10 @@
 //!   `[[Note#Section|alias]]`, `![[Note]]`, `![[Note#Section]]`,
 //!   `[[folder/Note]]`, and a dangling `[[Does Not Exist]]`).
 //!
-//! The vault tests answer one question: *does Obsidian actually work today?*
-//! Several of them are `#[ignore]`d — each ignored test documents a real,
-//! reproducible gap with its observed-versus-expected behavior, and is a
-//! deliberate deliverable rather than a broken test.
+//! The vault tests answer one question: *does Obsidian actually work?* Notes
+//! are `module` symbols named by file stem, headings are `element` symbols
+//! under them, and link targets resolve through the index's relation
+//! candidates by path/kind/note scope (see `mct_lang_md`'s module docs).
 
 // Test code: an unwrap()/expect() here means a broken test precondition, and
 // panicking is the correct behavior — this is not production code parsing
@@ -84,8 +84,8 @@ fn status_reports_full_markdown_coverage() {
         .unwrap();
     assert_eq!(md.file_count, 1);
     assert_eq!(
-        md.symbol_count, 7,
-        "Architecture, Overview, Components, Indexer, Parser, Testing, Unit Tests"
+        md.symbol_count, 8,
+        "the note, Architecture, Overview, Components, Indexer, Parser, Testing, Unit Tests"
     );
 }
 
@@ -197,24 +197,49 @@ fn the_vault_indexes_every_note_without_parse_issues() {
     assert!(md.symbol_count > 0);
 }
 
+/// Candidate definitions of `hit`, as `path:kind:name` strings.
+fn targets(index: &Index, hit: &RelationHit) -> Vec<String> {
+    index
+        .relation_candidates(hit.relation_id)
+        .unwrap()
+        .iter()
+        .map(|s| format!("{}:{}:{}", s.relative_path, s.kind, s.name))
+        .collect()
+}
+
 #[test]
-fn a_note_is_represented_by_its_top_level_heading() {
+fn every_note_is_a_module_symbol_named_by_its_file_stem() {
     let index = open_vault();
-    // There is no "note"/"file" symbol kind — the whole wikilink graph hangs
-    // off heading symbols, so a note's H1 is its stand-in.
-    for (name, path) in [
-        ("Vault Index", "index.md"),
+    for (stem, path) in [
+        ("index", "index.md"),
         ("Glossary", "notes/Glossary.md"),
         ("Project Alpha", "notes/Project Alpha.md"),
         ("Deep Note", "notes/deep/Deep Note.md"),
-        ("Daily 2026-09-18", "daily/2026-09-18.md"),
+        ("2026-09-18", "daily/2026-09-18.md"),
+        ("orphan", "orphan.md"),
+        ("Untitled Capture", "notes/Untitled Capture.md"),
     ] {
-        let hits = index.find_symbol(name).unwrap();
-        assert_eq!(hits.len(), 1, "exactly one `{name}`: {hits:?}");
-        assert_eq!(hits[0].kind, "element");
-        assert_eq!(hits[0].parent, None, "`{name}` is a top-level heading");
+        let hits: Vec<_> = index
+            .find_symbol(stem)
+            .unwrap()
+            .into_iter()
+            .filter(|h| h.kind == "module")
+            .collect();
+        assert_eq!(hits.len(), 1, "exactly one note `{stem}`: {hits:?}");
+        assert_eq!(hits[0].parent, None);
         assert_eq!(hits[0].relative_path, path);
+        assert_eq!(hits[0].line, 1);
     }
+}
+
+#[test]
+fn a_top_level_heading_is_scoped_to_its_note_by_path_not_parent() {
+    let index = open_vault();
+    let h1 = index.find_symbol("Vault Index").unwrap();
+    assert_eq!(h1.len(), 1);
+    assert_eq!(h1[0].kind, "element");
+    assert_eq!(h1[0].parent, None);
+    assert_eq!(h1[0].relative_path, "index.md");
 }
 
 #[test]
@@ -373,9 +398,7 @@ fn an_unresolved_wikilink_is_recorded_by_name_and_does_not_break_the_index() {
 }
 
 // ---------------------------------------------------------------------------
-// Known gaps. Each test below fails today; the comment records observed vs
-// expected. They are kept (ignored) as executable documentation of what an
-// Obsidian vault still cannot do through this index.
+// Note identity, resolution and front matter
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -387,7 +410,12 @@ fn a_heading_records_the_level_it_was_written_at() {
     // rule), but `level` distinguishes 1..6 as written. Parent nesting alone
     // couldn't recover this, since a document may skip levels (`##` directly
     // followed by `####`).
-    let h1 = index.find_symbol("Deep Note").unwrap();
+    let h1: Vec<_> = index
+        .find_symbol("Deep Note")
+        .unwrap()
+        .into_iter()
+        .filter(|h| h.kind == "element")
+        .collect();
     let h6 = index.find_symbol("Level Six").unwrap();
     assert_eq!(h1[0].kind, "element");
     assert_eq!(h6[0].kind, "element");
@@ -400,123 +428,133 @@ fn a_heading_records_the_level_it_was_written_at() {
 }
 
 #[test]
-#[ignore = "an embed is indexed identically to a plain link"]
 fn an_embed_is_distinguishable_from_a_plain_wikilink() {
     let index = open_vault();
-    // Observed: `![[Glossary]]` and `[[Glossary]]` both produce
-    // `RelationKind::References` with `to_name = "Glossary"`. The leading `!`
-    // is outside the span `scan_wikilinks` matches and is never recorded, so
-    // "transclude this note here" and "mention this note" collapse into one
-    // edge kind. Expected: a distinct relation kind (or a flag) for embeds,
-    // since an embed changes a note's rendered content and a link does not.
     let embed = vault_refs_from(&index, "Glossary", "Embeds");
     let plain = vault_refs_from(&index, "Glossary", "Reading Order");
-    assert_ne!(embed[0].kind, plain[0].kind, "embed vs link must differ");
-}
-
-#[test]
-#[ignore = "YAML front-matter is skipped entirely, tags included"]
-fn front_matter_tags_are_indexed() {
-    let index = open_vault();
-    // Observed: `daily/2026-09-18.md` opens with a `---` block declaring
-    // `tags: [daily, review]`. The file parses cleanly (no issue is
-    // reported), but `find_references("tag:daily")` and
-    // `find_references("tag:review")` both return zero rows — the parser only
-    // scans `atx_heading` text and `paragraph` nodes, and front-matter is
-    // neither. Inline `#standup` in the body IS indexed, so a vault that
-    // tags in front-matter (the Obsidian default for many templates) gets no
-    // tag graph at all. Expected: front-matter tags indexed like inline ones.
-    assert!(!index.find_references("tag:daily").unwrap().is_empty());
-    assert!(!index.find_references("tag:review").unwrap().is_empty());
-}
-
-#[test]
-#[ignore = "a vault-relative path wikilink is not normalized to the note name"]
-fn a_vault_relative_path_wikilink_resolves_to_the_note() {
-    let index = open_vault();
-    // Observed: `[[notes/Glossary]]` in `## Path Forms` is stored verbatim as
-    // `to_name = "notes/Glossary"`, which matches no symbol — only
-    // `strip_md_extension` runs on the note part, never a path-tail split.
-    // Obsidian treats `[[notes/Glossary]]` and `[[Glossary]]` as the same
-    // note, so this silently drops a real edge.
-    // Expected: the same target as a bare `[[Glossary]]`.
-    let path_form = index.find_references("notes/Glossary").unwrap();
-    assert!(path_form.is_empty(), "the raw path form must not survive");
-    assert!(
-        !vault_refs_from(&index, "Glossary", "Path Forms").is_empty(),
-        "a path-qualified link must resolve to the note it names"
+    assert!(embed.iter().all(|h| h.kind == "imports"), "{embed:?}");
+    assert!(plain.iter().all(|h| h.kind == "references"), "{plain:?}");
+    // The embedded section is still scoped to the embedded note.
+    let section = vault_refs_from(&index, "Terminology", "Embeds");
+    assert_eq!(
+        targets(&index, &section[0]),
+        ["notes/Glossary.md:element:Terminology"]
     );
 }
 
 #[test]
-#[ignore = "a link outside any heading is silently dropped"]
-fn a_wikilink_in_a_headingless_note_is_indexed() {
+fn front_matter_tags_aliases_and_title_are_queryable() {
     let index = open_vault();
-    // Observed: `orphan.md` has no heading at all, so it produces zero
-    // symbols; `push_relations_from_text` needs an enclosing heading symbol
-    // to hang a relation off, and a paragraph with `parent_id == None` is
-    // skipped. Its `[[Glossary]]` link and `#orphan` tag vanish without a
-    // trace or a reported issue. Heading-less capture notes are routine in a
-    // real vault, so this is a whole class of lost edges.
-    // Expected: a file-level symbol (or equivalent) to anchor such links.
-    assert!(
-        !index.find_references("tag:orphan").unwrap().is_empty(),
-        "the tag in orphan.md must be reachable"
-    );
-    assert!(
-        index
-            .find_references("Glossary")
-            .unwrap()
-            .iter()
-            .any(|h| h.relative_path == "orphan.md"),
-        "the link in orphan.md must be reachable"
+    for name in ["tag:daily", "tag:review", "title:Daily Note"] {
+        let hits = index.find_references(name).unwrap();
+        assert_eq!(hits.len(), 1, "{name}: {hits:?}");
+        assert_eq!(hits[0].from_symbol, "2026-09-18", "owned by the note");
+        assert_eq!(hits[0].relative_path, "daily/2026-09-18.md");
+    }
+}
+
+#[test]
+fn a_vault_relative_path_wikilink_resolves_to_exactly_that_note() {
+    let index = open_vault();
+    assert!(index.find_references("notes/Glossary").unwrap().is_empty());
+    let hits = vault_refs_from(&index, "Glossary", "Path Forms");
+    assert_eq!(hits.len(), 1, "{hits:?}");
+    assert_eq!(hits[0].resolution.as_str(), "resolved");
+    assert_eq!(
+        targets(&index, &hits[0]),
+        ["notes/Glossary.md:module:Glossary"]
     );
 }
 
 #[test]
-#[ignore = "a note is only addressable by its H1, never by its file name"]
+fn a_link_in_a_headingless_note_belongs_to_the_note() {
+    let index = open_vault();
+    let tag = index.find_references("tag:orphan").unwrap();
+    assert_eq!(tag.len(), 1, "{tag:?}");
+    assert_eq!(tag[0].from_symbol, "orphan");
+    let link: Vec<_> = index
+        .find_references("Glossary")
+        .unwrap()
+        .into_iter()
+        .filter(|h| h.relative_path == "orphan.md")
+        .collect();
+    assert_eq!(link.len(), 1, "{link:?}");
+    assert_eq!(link[0].from_symbol, "orphan");
+    assert_eq!(
+        targets(&index, &link[0]),
+        ["notes/Glossary.md:module:Glossary"]
+    );
+}
+
+#[test]
 fn a_wikilink_resolves_against_the_target_notes_file_name() {
     let index = open_vault();
-    // Observed: `notes/Untitled Capture.md` starts with `# A Different Title`,
-    // so the only symbol it contributes is named "A Different Title". The
-    // link `[[Untitled Capture]]` in `## Filename Mismatch` is recorded but
-    // matches nothing — this crate has no file/note symbol, and whole-note
-    // resolution relies entirely on the convention that a note's H1 equals
-    // its file name. Every renamed or untitled note in a real vault breaks it.
-    // Expected: `[[Untitled Capture]]` reaches `notes/Untitled Capture.md`.
-    assert!(
-        !vault_refs_from(&index, "Untitled Capture", "Filename Mismatch").is_empty(),
-        "the link itself is recorded"
-    );
+    let hits = vault_refs_from(&index, "Untitled Capture", "Filename Mismatch");
+    assert_eq!(hits.len(), 1, "{hits:?}");
     assert_eq!(
-        index.find_symbol("Untitled Capture").unwrap().len(),
-        1,
-        "the note must be addressable by its file name"
+        targets(&index, &hits[0]),
+        ["notes/Untitled Capture.md:module:Untitled Capture"]
     );
 }
 
 #[test]
-#[ignore = "an anchor's heading part is a bare name, unscoped to its note"]
+fn a_note_is_not_addressable_by_its_heading_title() {
+    let index = open_vault();
+    // `[[Vault Index]]` names the H1 of `index.md`, not its file name: a title
+    // is not an identity, so the link stays unresolved instead of guessing.
+    let hits = vault_refs_from(&index, "Vault Index", "Deep Note");
+    assert_eq!(hits.len(), 1, "{hits:?}");
+    assert_eq!(hits[0].resolution.as_str(), "unresolved");
+    assert!(targets(&index, &hits[0]).is_empty());
+}
+
+#[test]
+fn a_plain_link_never_resolves_to_a_same_named_heading() {
+    let index = open_vault();
+    // `Glossary` is both a note (module) and its own H1 (element).
+    let hits = vault_refs_from(&index, "Glossary", "Reading Order");
+    assert_eq!(
+        targets(&index, &hits[0]),
+        ["notes/Glossary.md:module:Glossary"]
+    );
+}
+
+#[test]
 fn an_anchor_relation_stays_scoped_to_the_note_it_names() {
     let index = open_vault();
-    // Observed: `[[Project Alpha#Goals]]` (in `notes/deep/Deep Note.md`) is
-    // split into two independent relations, `-> "Project Alpha"` and
-    // `-> "Goals"`. Nothing ties the second to the first, and this vault
-    // deliberately contains two `## Goals` headings (in `notes/Project
-    // Alpha.md` and `notes/Glossary.md`), so the heading edge is ambiguous by
-    // construction. Querying the composite name returns nothing at all.
-    // Expected: the anchor resolves to exactly one heading, the one in the
-    // note the link named.
     assert_eq!(
         index.find_symbol("Goals").unwrap().len(),
         2,
         "precondition: the vault has two same-named headings"
     );
-    assert!(
-        !index
-            .find_references("Project Alpha#Goals")
-            .unwrap()
-            .is_empty(),
-        "the note-qualified anchor must be queryable as one target"
+    // `[[Project Alpha#Goals]]` in `Deep Note` reaches only Project Alpha's.
+    let hits = vault_refs_from(&index, "Goals", "Deep Note");
+    assert_eq!(hits.len(), 1, "{hits:?}");
+    assert_eq!(hits[0].resolution.as_str(), "resolved");
+    assert_eq!(
+        targets(&index, &hits[0]),
+        ["notes/Project Alpha.md:element:Goals"]
     );
+}
+
+#[test]
+fn a_heading_range_covers_its_section_and_the_note_covers_the_file() {
+    let index = open_vault();
+    let goals = index
+        .find_symbol("Goals")
+        .unwrap()
+        .into_iter()
+        .find(|h| h.relative_path == "notes/Project Alpha.md")
+        .unwrap();
+    let alpha = index.find_symbol("Milestones").unwrap();
+    // `## Goals` ends on the line before the next `##`.
+    assert_eq!(goals.end_line, Some(alpha[0].line - 1));
+    let note = index
+        .find_symbol("Project Alpha")
+        .unwrap()
+        .into_iter()
+        .find(|h| h.kind == "module")
+        .unwrap();
+    assert_eq!(note.line, 1);
+    assert!(note.end_line >= alpha[0].end_line);
 }
