@@ -1727,6 +1727,25 @@ impl MctServer {
         for hit in &callers {
             related.add_referrer("caller", hit);
         }
+        // Backlinks by resolved identity — links and embeds reaching a
+        // note/section (`module`/`element`), so a same-named note elsewhere
+        // never shares them. Other kinds keep their callers-only pack.
+        let linkable: Vec<i64> = definitions
+            .iter()
+            .filter(|d| matches!(d.kind.as_str(), "module" | "element"))
+            .map(|d| d.id)
+            .collect();
+        if !linkable.is_empty() {
+            let backlinks = index
+                .find_references_of_symbols(&linkable, 1, CONTEXT_PACK_MAX_RELATIONS)
+                .map_err(index_error)?;
+            for hit in backlinks
+                .iter()
+                .filter(|hit| matches!(hit.kind.as_str(), "references" | "imports"))
+            {
+                related.add_referrer(&hit.kind, hit);
+            }
+        }
         // Same test heuristic as impact_analysis, over every relation
         // reaching the symbol — a test importing it counts, not just one
         // calling it.
