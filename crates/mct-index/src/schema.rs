@@ -271,6 +271,49 @@ pub fn migrations() -> Migrations<'static> {
             UPDATE files SET content_hash = '';
             "#,
         ),
+        // Markdown notes as graph nodes (issue #98). Two further constraints
+        // a parser may put on a relation's target: its `kind` (a note link
+        // names the note's `module`, not a same-named heading) and a
+        // `module` its file must declare (`[[beta#Shared]]` reaches `Shared`
+        // only in the file whose note symbol is `beta`). Both are NULL on
+        // existing rows, which keeps their candidates unchanged. The view is
+        // recreated with the extra predicates; every file is reparsed so
+        // notes get their module symbol and path-aware targets.
+        M::up(
+            r#"
+            ALTER TABLE relations ADD COLUMN target_kind TEXT;
+            ALTER TABLE relations ADD COLUMN target_module TEXT;
+
+            DROP VIEW relation_candidates;
+            CREATE VIEW relation_candidates AS
+                SELECT r.id AS relation_id, s.id AS symbol_id
+                FROM relations r
+                JOIN symbols caller ON caller.id = r.from_symbol_id
+                JOIN files cf ON cf.id = caller.file_id
+                JOIN symbols s ON s.name = r.to_name
+                JOIN files sf ON sf.id = s.file_id
+                WHERE r.targets_parsed = 1
+                  AND r.external = 0
+                  AND sf.language = COALESCE(r.target_language, cf.language)
+                  AND (r.qualifier IS NULL
+                       OR s.parent = r.qualifier
+                       OR substr(s.parent, 1, length(r.qualifier) + 1) = r.qualifier || '<')
+                  AND (r.target_path IS NULL OR sf.relative_path = r.target_path)
+                  AND (r.module IS NULL
+                       OR s.parent = r.module
+                       OR instr('/' || replace(sf.relative_path, '-', '_'), '/' || r.module || '/') > 0
+                       OR instr('/' || replace(sf.relative_path, '-', '_'), '/' || r.module || '.') > 0)
+                  AND (r.member = 0 OR s.kind = 'method')
+                  AND (r.target_kind IS NULL OR s.kind = r.target_kind)
+                  AND (r.target_module IS NULL
+                       OR EXISTS (SELECT 1 FROM symbols m
+                                  WHERE m.file_id = s.file_id AND m.kind = 'module'
+                                    AND m.name = r.target_module))
+                  AND NOT (r.kind = 'calls' AND s.kind = 'module');
+
+            UPDATE files SET content_hash = '';
+            "#,
+        ),
     ])
 }
 
@@ -321,6 +364,33 @@ mod tests {
         let candidates: i64 =
             conn.query_row("SELECT COUNT(*) FROM relation_candidates", [], |r| r.get(0))?;
         assert_eq!(candidates, 0);
+        let hash: String = conn.query_row("SELECT content_hash FROM files", [], |r| r.get(0))?;
+        assert_eq!(hash, "");
+        Ok(())
+    }
+
+    /// The note-graph migration keeps every existing relation's candidates
+    /// (the new constraints are NULL there) and queues a reparse so notes get
+    /// their module symbols and path-aware targets.
+    #[test]
+    fn note_graph_migration_invalidates_hashes_and_constrains_nothing_retroactively(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let mut conn = Connection::open_in_memory()?;
+        crate::search::register_functions(&conn)?;
+        let before_note_graph = 9;
+        migrations().to_version(&mut conn, before_note_graph)?;
+        conn.execute_batch(
+            "INSERT INTO files (id, relative_path, language, content_hash, last_indexed_at)
+                 VALUES (1, 'a.md', 'markdown', 'abc123', 0);
+             INSERT INTO symbols (id, file_id, name, kind, line, column, byte_len)
+                 VALUES (1, 1, 'A', 'element', 1, 1, 1), (2, 1, 'B', 'element', 2, 1, 1);
+             INSERT INTO relations (from_symbol_id, kind, to_name, line, column, byte_len, targets_parsed)
+                 VALUES (1, 'references', 'B', 1, 1, 1, 1);",
+        )?;
+        migrations().to_latest(&mut conn)?;
+        let candidates: i64 =
+            conn.query_row("SELECT COUNT(*) FROM relation_candidates", [], |r| r.get(0))?;
+        assert_eq!(candidates, 1);
         let hash: String = conn.query_row("SELECT content_hash FROM files", [], |r| r.get(0))?;
         assert_eq!(hash, "");
         Ok(())

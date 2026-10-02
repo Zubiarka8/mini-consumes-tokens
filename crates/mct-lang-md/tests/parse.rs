@@ -76,13 +76,15 @@ fn all_six_heading_levels_are_recognized() {
             parsed.symbols
         );
     }
-    assert_eq!(parsed.symbols.len(), 6);
+    assert_eq!(parsed.symbols.len(), 7, "six headings plus the note");
 }
 
 #[test]
-fn document_without_headings_produces_no_symbols() {
+fn document_without_headings_produces_only_the_note_symbol() {
     let parsed = parse("Just a paragraph of text.\n\nAnother paragraph, still no headings.\n");
-    assert!(parsed.symbols.is_empty(), "{:?}", parsed.symbols);
+    assert_eq!(parsed.symbols.len(), 1, "{:?}", parsed.symbols);
+    assert_eq!(parsed.symbols[0].name, "doc");
+    assert_eq!(parsed.symbols[0].kind, SymbolKind::Module);
 }
 
 /// The exact case from the Phase 1 spec: `# A / ## B / ## C / ### D` (under
@@ -322,9 +324,11 @@ fn hashtag_inside_the_heading_text_itself_emits_a_relation() {
 }
 
 #[test]
-fn a_wikilink_before_any_heading_is_not_indexed() {
+fn a_wikilink_before_any_heading_belongs_to_the_note() {
     let parsed = parse("See [[Orphan Note]] before any heading.\n\n# A\n");
-    assert!(parsed.relations.is_empty(), "{:?}", parsed.relations);
+    assert_eq!(parsed.relations.len(), 1, "{:?}", parsed.relations);
+    assert_eq!(parsed.relations[0].to_name, "Orphan Note");
+    assert_eq!(parsed.relations[0].from, 0, "the note symbol owns it");
 }
 
 #[test]
@@ -352,4 +356,262 @@ fn a_wikilink_in_a_blockquote_is_scanned_like_any_paragraph() {
 fn a_wikilink_in_a_table_cell_is_not_scanned() {
     let parsed = parse("# A\n\n| h |\n| - |\n| [[Cell]] |\n");
     assert!(parsed.relations.is_empty(), "{:?}", parsed.relations);
+}
+
+fn relation<'a>(
+    parsed: &'a mct_core::ParsedFile,
+    to_name: &str,
+) -> (usize, &'a mct_core::SymbolRelation) {
+    parsed
+        .relations
+        .iter()
+        .enumerate()
+        .find(|(_, r)| r.to_name == to_name)
+        .unwrap_or_else(|| panic!("no relation to {to_name}: {:?}", parsed.relations))
+}
+
+fn target_of(parsed: &mct_core::ParsedFile, index: usize) -> &mct_core::RelationTarget {
+    parsed
+        .relation_targets
+        .iter()
+        .find(|t| t.relation == index)
+        .expect("relation carries target evidence")
+}
+
+fn parse_at(path: &str, src: &str) -> mct_core::ParsedFile {
+    MarkdownParser
+        .parse(&SourceFile {
+            relative_path: path.to_string(),
+            contents: src.to_string(),
+        })
+        .expect("valid Markdown source should parse")
+}
+
+#[test]
+fn a_note_with_only_a_link_still_has_a_note_symbol_and_the_relation() {
+    let parsed = parse("[[beta]]\n");
+    assert_eq!(parsed.symbols.len(), 1);
+    assert_eq!(parsed.symbols[0].kind, SymbolKind::Module);
+    assert_eq!(parsed.symbols[0].location.line, 1);
+    assert_eq!(parsed.symbols[0].location.end_line, Some(1));
+    assert_eq!(relation(&parsed, "beta").1.from, 0);
+}
+
+#[test]
+fn an_empty_file_is_still_a_note() {
+    let parsed = parse("");
+    assert_eq!(parsed.symbols.len(), 1);
+    assert_eq!(parsed.symbols[0].name, "doc");
+    assert_eq!(parsed.symbols[0].location.byte_len, 0);
+}
+
+#[test]
+fn the_note_is_named_after_the_file_stem_in_a_folder() {
+    let parsed = parse_at("notes/Project Alpha.md", "# Title\n");
+    assert_eq!(parsed.symbols[0].name, "Project Alpha");
+    assert_eq!(
+        parsed.symbols[1].parent, None,
+        "its path scopes it to the note"
+    );
+}
+
+#[test]
+fn a_setext_heading_is_a_levelled_element_with_its_own_range() {
+    let parsed = parse("Title\n=====\n\nbody\n\nSub\n---\n\nmore\n");
+    let title = parsed.symbols.iter().find(|s| s.name == "Title").unwrap();
+    let sub = parsed.symbols.iter().find(|s| s.name == "Sub").unwrap();
+    assert_eq!((title.level, sub.level), (Some(1), Some(2)));
+    assert_eq!(sub.parent.as_deref(), Some("Title"));
+    assert_eq!(title.location.line, 1);
+    assert_eq!(
+        title.location.end_line,
+        Some(9),
+        "includes the nested section"
+    );
+    assert_eq!((sub.location.line, sub.location.end_line), (6, Some(9)));
+}
+
+#[test]
+fn a_section_ends_before_the_next_equal_or_shallower_heading() {
+    let parsed = parse("# A\n\na\n\n## B\n\nb\n\n## C\n\nc\n\n# D\n\nd");
+    let range = |n: &str| {
+        let s = parsed.symbols.iter().find(|s| s.name == n).unwrap();
+        (s.location.line, s.location.end_line.unwrap())
+    };
+    assert_eq!(range("A"), (1, 12));
+    assert_eq!(range("B"), (5, 8));
+    assert_eq!(range("C"), (9, 12));
+    assert_eq!(range("D"), (13, 15), "last section, no trailing newline");
+    assert_eq!(
+        parsed.symbols[0].location.end_line,
+        Some(15),
+        "note spans the file"
+    );
+}
+
+#[test]
+fn a_link_before_the_first_heading_is_the_notes_and_one_under_a_heading_is_the_headings() {
+    let parsed = parse("[[beta]]\n\n# A\n\n[[gamma]]\n");
+    assert_eq!(relation(&parsed, "beta").1.from, 0);
+    let a = parsed.symbols.iter().find(|s| s.name == "A").unwrap();
+    assert_eq!(relation(&parsed, "gamma").1.from, a.id);
+}
+
+#[test]
+fn inline_and_fenced_code_do_not_create_links_or_tags() {
+    let parsed = parse(
+        "# A\n\nUse `[[ghost]]` and ``[[ghost2]] `x` #nope`` here. Real [[real]] #yes\n\n```\n[[fenced]] #fenced\n```\n\n    [[indented]]\n",
+    );
+    let names: Vec<&str> = parsed
+        .relations
+        .iter()
+        .map(|r| r.to_name.as_str())
+        .collect();
+    assert_eq!(names, ["real", "tag:yes"], "{names:?}");
+}
+
+#[test]
+fn an_unclosed_backtick_is_literal_text() {
+    let parsed = parse("# A\n\na ` b [[still]] c\n");
+    assert!(parsed.relations.iter().any(|r| r.to_name == "still"));
+}
+
+#[test]
+fn an_embed_is_an_imports_relation_and_a_link_is_references() {
+    let parsed = parse("# A\n\n![[Note]] and [[Note]]\n");
+    let kinds: Vec<RelationKind> = parsed.relations.iter().map(|r| r.kind).collect();
+    assert_eq!(kinds, [RelationKind::Imports, RelationKind::References]);
+}
+
+#[test]
+fn a_bare_link_targets_a_note_module_by_name_only() {
+    let parsed = parse("# A\n\n[[beta]]\n");
+    let (i, r) = relation(&parsed, "beta");
+    assert_eq!(r.kind, RelationKind::References);
+    let t = target_of(&parsed, i);
+    assert_eq!(
+        (t.kind, t.path.as_deref(), t.target_module.as_deref()),
+        (Some(SymbolKind::Module), None, None)
+    );
+}
+
+#[test]
+fn a_path_link_targets_the_exact_note_path() {
+    for (src_path, link, want) in [
+        ("a.md", "[[notes/Glossary]]", "notes/Glossary.md"),
+        ("a.md", "[[notes/Glossary.md]]", "notes/Glossary.md"),
+        ("a.md", "[[/notes/Glossary]]", "notes/Glossary.md"),
+        ("x/y/a.md", "[[./b]]", "x/y/b.md"),
+        ("x/y/a.md", "[[../b]]", "x/b.md"),
+        ("x/y/a.md", "[[../../top/b]]", "top/b.md"),
+        ("a.md", "[[folder/./sub/../Note]]", "folder/Note.md"),
+    ] {
+        let parsed = parse_at(src_path, &format!("{link}\n"));
+        let r = &parsed.relations[0];
+        let t = target_of(&parsed, 0);
+        assert_eq!(t.path.as_deref(), Some(want), "{src_path} {link}");
+        assert_eq!(
+            r.to_name,
+            want.rsplit('/').next().unwrap().trim_end_matches(".md")
+        );
+    }
+}
+
+#[test]
+fn a_path_escaping_the_root_never_gets_a_resolvable_target() {
+    let parsed = parse_at("a.md", "[[../outside]]\n");
+    let r = &parsed.relations[0];
+    assert_eq!(r.to_name, "../outside", "raw spelling, matching no note");
+    assert_eq!(target_of(&parsed, 0).path.as_deref(), Some("../outside"));
+}
+
+#[test]
+fn an_anchor_is_scoped_to_the_named_note_not_the_whole_vault() {
+    let bare = parse("# A\n\n[[beta#Shared]]\n");
+    let (i, _) = relation(&bare, "Shared");
+    let t = target_of(&bare, i);
+    assert_eq!(
+        (t.kind, t.target_module.as_deref(), t.path.as_deref()),
+        (Some(SymbolKind::Element), Some("beta"), None)
+    );
+
+    let pathed = parse_at("a.md", "[[x/beta#Shared]]\n");
+    let (i, _) = relation(&pathed, "Shared");
+    assert_eq!(target_of(&pathed, i).path.as_deref(), Some("x/beta.md"));
+
+    let same = parse_at("x/a.md", "# H\n\n[[#Shared]]\n");
+    let (i, r) = relation(&same, "Shared");
+    assert_eq!(r.from, 1);
+    assert_eq!(target_of(&same, i).path.as_deref(), Some("x/a.md"));
+    assert_eq!(
+        same.relations.len(),
+        1,
+        "no note relation for `[[#Heading]]`"
+    );
+}
+
+#[test]
+fn only_the_last_anchor_segment_is_the_heading_and_block_ids_are_ignored() {
+    let parsed = parse("# A\n\n[[n#Outer#Inner]] [[n#^abc123]]\n");
+    assert!(parsed.relations.iter().any(|r| r.to_name == "Inner"));
+    assert!(!parsed.relations.iter().any(|r| r.to_name.starts_with('^')));
+}
+
+#[test]
+fn frontmatter_title_aliases_and_tags_are_read_in_every_supported_form() {
+    let parsed = parse(
+        "---\ntitle: \"My Note\"\naliases: [One, 'Two']\ntags:\n  - alpha\n  - '#beta/x'\n---\n\n# Heading\n\n#inline\n",
+    );
+    let names: Vec<&str> = parsed
+        .relations
+        .iter()
+        .map(|r| r.to_name.as_str())
+        .collect();
+    assert_eq!(
+        names,
+        [
+            "title:My Note",
+            "alias:One",
+            "alias:Two",
+            "tag:alpha",
+            "tag:beta/x",
+            "tag:inline"
+        ]
+    );
+    assert!(parsed.relations[..5].iter().all(|r| r.from == 0));
+    assert_eq!(
+        parsed.symbols[0].name, "doc",
+        "title is metadata, never identity"
+    );
+}
+
+#[test]
+fn a_scalar_tags_value_splits_and_unsafe_or_numeric_tags_are_dropped() {
+    let parsed = parse("---\ntags: a, #b 123 bad!tag\n---\n");
+    let names: Vec<&str> = parsed
+        .relations
+        .iter()
+        .map(|r| r.to_name.as_str())
+        .collect();
+    assert_eq!(names, ["tag:a", "tag:b"]);
+}
+
+#[test]
+fn malformed_or_unterminated_frontmatter_keeps_the_note_and_invents_nothing() {
+    let unterminated = parse("---\ntitle: x\ntags: [a]\n\n# H\n");
+    assert!(unterminated.symbols.iter().any(|s| s.name == "H"));
+    assert!(!unterminated
+        .relations
+        .iter()
+        .any(|r| r.to_name.starts_with("title:")));
+
+    let odd = parse("---\n: : [\ntags: {a: b}\nunknown: x\n  nested: [[not-a-link]]\n---\n# H\n");
+    assert!(odd.symbols.iter().any(|s| s.name == "H"));
+    assert!(!odd.relations.iter().any(|r| r.to_name == "not-a-link"));
+}
+
+#[test]
+fn a_hash_comment_in_frontmatter_is_not_a_tag() {
+    let parsed = parse("---\n# a comment #nottag\ntitle: T\n---\n\nbody\n");
+    assert!(!parsed.relations.iter().any(|r| r.to_name == "tag:nottag"));
 }
