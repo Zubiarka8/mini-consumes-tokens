@@ -61,6 +61,10 @@ jobs:
       - name: Test workspace
         run: cargo test --workspace
 
+      - name: Test Unix installer destination (local release fixture)
+        if: runner.os != 'Windows'
+        run: python3 scripts/unix/tests/test_install.py
+
       # Deny-by-default clippy PLUS clippy::unwrap_used/expect_used/panic
       # across the whole workspace — including tests/examples, since
       # --all-targets covers them. This means every `src/` call site that
