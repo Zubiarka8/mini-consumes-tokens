@@ -130,6 +130,89 @@ fn extracts_interface_implements_and_extends() {
     assert!(implements.contains(&"Shape"));
 }
 
+fn supertypes(parsed: &mct_core::ParsedFile, kind: RelationKind) -> Vec<&str> {
+    parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == kind)
+        .map(|r| r.to_name.as_str())
+        .collect()
+}
+
+#[test]
+fn type_arguments_and_qualifiers_are_not_supertypes() {
+    let parsed = parse(
+        "class Money implements Comparable<Money>, java.io.Serializable {}\n\
+         class Orders extends Jdbc<Order, Long> implements Repository<Map<String, Order>> {}\n",
+    );
+    assert_eq!(
+        supertypes(&parsed, RelationKind::Implements),
+        ["Comparable", "Serializable", "Repository"]
+    );
+    assert_eq!(supertypes(&parsed, RelationKind::Extends), ["Jdbc"]);
+}
+
+#[test]
+fn enum_constant_bodies_are_visited() {
+    let parsed = parse(
+        "enum State {\n    NEW {\n        Set<State> next() {\n            return EnumSet.of(PAID);\n        }\n    },\n    PAID;\n    abstract Set<State> next();\n}\n",
+    );
+    let next: Vec<_> = parsed
+        .symbols
+        .iter()
+        .filter(|s| s.name == "next")
+        .map(|s| (s.location.line, s.parent.as_deref()))
+        .collect();
+    assert_eq!(next, [(3, Some("State")), (8, Some("State"))]);
+    let of = parsed
+        .relations
+        .iter()
+        .find(|r| r.to_name == "of")
+        .expect("call in the constant body");
+    let from = parsed.symbols.iter().find(|s| s.id == of.from).unwrap();
+    assert_eq!((from.name.as_str(), from.location.line), ("next", 3));
+}
+
+#[test]
+fn records_and_annotation_types_are_type_symbols() {
+    let parsed = parse(
+        "class Money {\n    record Range(Money min, Money max) implements Comparable<Range> {\n        boolean contains(Money m) { return check(m); }\n    }\n    @interface ThreadSafe {}\n}\n",
+    );
+    let range = parsed.symbols.iter().find(|s| s.name == "Range").unwrap();
+    assert_eq!(range.kind, SymbolKind::Class);
+    assert_eq!(range.parent.as_deref(), Some("Money"));
+    let contains = parsed
+        .symbols
+        .iter()
+        .find(|s| s.name == "contains")
+        .unwrap();
+    assert_eq!(contains.parent.as_deref(), Some("Range"));
+    assert_eq!(
+        supertypes(&parsed, RelationKind::Implements),
+        ["Comparable"]
+    );
+    let safe = parsed
+        .symbols
+        .iter()
+        .find(|s| s.name == "ThreadSafe")
+        .unwrap();
+    assert_eq!(safe.kind, SymbolKind::Interface);
+}
+
+#[test]
+fn object_creation_calls_the_created_type() {
+    let parsed = parse(
+        "class S {\n    void place() {\n        var e = new PendingApproval(id);\n        var m = new java.util.HashMap<String, Order>();\n    }\n}\n",
+    );
+    let calls: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Calls)
+        .map(|r| (r.to_name.as_str(), r.location.line))
+        .collect();
+    assert_eq!(calls, [("PendingApproval", 3), ("HashMap", 4)]);
+}
+
 #[test]
 fn extracts_imports_including_static() {
     let parsed = parse("import java.util.List;\nimport static java.lang.Math.max;\n\nclass A {}\n");
