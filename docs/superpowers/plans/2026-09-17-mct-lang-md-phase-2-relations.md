@@ -1,5 +1,7 @@
 # mct-lang-md Phase 2 (WikiLink/Tag Relations) Implementation Plan
 
+> **Status: historical.** Implemented in PR #2; the checkboxes below were never ticked and are kept as written. Unsplit `#Heading` anchors were superseded by Phase 3 (PR #6). The "silently skipped" orphan links (now owned by a per-file note `module` symbol) and the "no new field" constraint (`RelationTarget` gained `kind`/`module`) were superseded by the note graph in `docs/superpowers/specs/2026-10-01-markdown-note-graph-design.md` (issue #98, PR #101); the heading `level` field came with PR #44.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Extend `crates/mct-lang-md` to index `[[WikiLink]]` and `#tag` occurrences in heading/paragraph text as `RelationKind::References` relations, with zero changes to `mct-core`'s schema.
