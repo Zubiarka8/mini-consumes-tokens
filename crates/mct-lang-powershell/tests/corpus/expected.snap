@@ -1,0 +1,350 @@
+# language=powershell files=5 symbols=87 relations=252 cross_file=57
+
+== Deploy-Warehouse.ps1 (300 lines)
+S 1-300 module Deploy-Warehouse
+S 42-42 variable Deploy-Warehouse::ErrorActionPreference
+S 48-48 variable Deploy-Warehouse::Namespace
+S 49-49 variable Deploy-Warehouse::Deployments
+S 50-50 variable Deploy-Warehouse::StartedAt
+S 56-66 function Deploy-Warehouse::Invoke-Kubectl
+S 68-71 function Deploy-Warehouse::Get-CurrentVersion
+S 73-93 function Deploy-Warehouse::Test-Preflight
+S 95-104 function Deploy-Warehouse::Invoke-Migrations
+S 106-115 function Deploy-Warehouse::Set-ImageVersion
+S 117-129 function Deploy-Warehouse::Get-CanaryMetrics
+S 131-154 function Deploy-Warehouse::Watch-Canary
+S 156-167 function Deploy-Warehouse::Invoke-Rollback
+S 169-179 function Deploy-Warehouse::Send-DeployNotification
+S 181-205 function Deploy-Warehouse::Test-DatabaseBackup
+S 207-226 function Deploy-Warehouse::Get-ReleaseNote
+S 228-245 function Deploy-Warehouse::Write-DeployRecord
+S 254-254 variable Deploy-Warehouse::lock
+S 271-271 variable Deploy-Warehouse::previous
+S 298-298 variable Deploy-Warehouse::elapsed
+R 41:1 calls Deploy-Warehouse -> Set-StrictMode
+R 44:1 imports Deploy-Warehouse -> (Join-Path $PSScriptRoot 'Warehouse.Common.psm1')
+R 44:16 calls Deploy-Warehouse -> Join-Path
+R 45:1 imports Deploy-Warehouse -> (Join-Path $PSScriptRoot 'Warehouse.Api.psm1')
+R 45:16 calls Deploy-Warehouse -> Join-Path
+R 46:4 calls Deploy-Warehouse -> Join-Path
+R 50:14 calls Deploy-Warehouse -> Get-Date
+R 60:5 calls Deploy-Warehouse::Invoke-Kubectl -> Write-WarehouseLog (x-file: Warehouse.Common.psm1)
+R 61:17 calls Deploy-Warehouse::Invoke-Kubectl -> kubectl
+R 69:14 calls Deploy-Warehouse::Get-CurrentVersion -> Invoke-Kubectl
+R 78:10 calls Deploy-Warehouse::Test-Preflight -> Get-CurrentVersion
+R 81:15 calls Deploy-Warehouse::Test-Preflight -> Invoke-WarehouseApi (x-file: Warehouse.Api.psm1)
+R 85:14 calls Deploy-Warehouse::Test-Preflight -> Invoke-WarehouseApi (x-file: Warehouse.Api.psm1)
+R 90:9 calls Deploy-Warehouse::Test-Preflight -> Write-WarehouseLog (x-file: Warehouse.Common.psm1)
+R 100:9 calls Deploy-Warehouse::Invoke-Migrations -> Invoke-Kubectl
+R 102:9 calls Deploy-Warehouse::Invoke-Migrations -> Write-WarehouseLog (x-file: Warehouse.Common.psm1)
+R 112:13 calls Deploy-Warehouse::Set-ImageVersion -> Invoke-Kubectl
+R 124:16 calls Deploy-Warehouse::Get-CanaryMetrics -> Invoke-WarehouseApi (x-file: Warehouse.Api.psm1)
+R 135:18 calls Deploy-Warehouse::Watch-Canary -> Get-Date
+R 137:13 calls Deploy-Warehouse::Watch-Canary -> Get-Date
+R 138:36 calls Deploy-Warehouse::Watch-Canary -> Get-Date
+R 140:9 calls Deploy-Warehouse::Watch-Canary -> Write-Progress
+R 141:9 calls Deploy-Warehouse::Watch-Canary -> Start-Sleep
+R 142:19 calls Deploy-Warehouse::Watch-Canary -> Get-CanaryMetrics
+R 143:19 calls Deploy-Warehouse::Watch-Canary -> Get-CanaryMetrics
+R 146:9 calls Deploy-Warehouse::Watch-Canary -> Write-WarehouseLog (x-file: Warehouse.Common.psm1)
+R 148:13 calls Deploy-Warehouse::Watch-Canary -> Write-WarehouseLog (x-file: Warehouse.Common.psm1)
+R 152:5 calls Deploy-Warehouse::Watch-Canary -> Write-Progress
+R 162:13 calls Deploy-Warehouse::Invoke-Rollback -> Invoke-Kubectl
+R 165:5 calls Deploy-Warehouse::Invoke-Rollback -> Invoke-Kubectl
+R 166:5 calls Deploy-Warehouse::Invoke-Rollback -> Send-DeployNotification
+R 172:15 calls Deploy-Warehouse::Send-DeployNotification -> Get-WarehouseConfig (x-file: Warehouse.Common.psm1)
+R 174:9 calls Deploy-Warehouse::Send-DeployNotification -> Write-WarehouseLog (x-file: Warehouse.Common.psm1)
+R 177:36 calls Deploy-Warehouse::Send-DeployNotification -> ConvertTo-Json
+R 178:5 calls Deploy-Warehouse::Send-DeployNotification -> Invoke-RestMethod
+R 178:111 calls Deploy-Warehouse::Send-DeployNotification -> Out-Null
+R 192:16 calls Deploy-Warehouse::Test-DatabaseBackup -> Invoke-WarehouseApi (x-file: Warehouse.Api.psm1)
+R 195:9 calls Deploy-Warehouse::Test-DatabaseBackup -> Write-WarehouseLog (x-file: Warehouse.Common.psm1)
+R 198:13 calls Deploy-Warehouse::Test-DatabaseBackup -> Get-Date
+R 200:9 calls Deploy-Warehouse::Test-DatabaseBackup -> Write-WarehouseLog (x-file: Warehouse.Common.psm1)
+R 203:5 calls Deploy-Warehouse::Test-DatabaseBackup -> Write-WarehouseLog (x-file: Warehouse.Common.psm1)
+R 215:14 calls Deploy-Warehouse::Get-ReleaseNote -> git
+R 219:22 calls Deploy-Warehouse::Get-ReleaseNote -> Group-Object
+R 220:47 calls Deploy-Warehouse::Get-ReleaseNote -> Sort-Object
+R 222:24 calls Deploy-Warehouse::Get-ReleaseNote -> ForEach-Object
+R 241:24 calls Deploy-Warehouse::Write-DeployRecord -> Get-Date
+R 243:13 calls Deploy-Warehouse::Write-DeployRecord -> Join-Path
+R 244:5 calls Deploy-Warehouse::Write-DeployRecord -> Add-Content
+R 244:47 calls Deploy-Warehouse::Write-DeployRecord -> ConvertTo-Json
+R 251:1 calls Deploy-Warehouse -> Set-WarehouseLogging (x-file: Warehouse.Common.psm1)
+R 251:48 calls Deploy-Warehouse -> Join-Path
+R 252:1 calls Deploy-Warehouse -> Connect-WarehouseApi (x-file: Warehouse.Api.psm1)
+R 254:9 calls Deploy-Warehouse -> Lock-WarehouseJob (x-file: Warehouse.Common.psm1)
+R 261:9 calls Deploy-Warehouse -> Invoke-Rollback
+R 265:15 calls Deploy-Warehouse -> Test-Preflight
+R 268:15 calls Deploy-Warehouse -> Test-DatabaseBackup
+R 271:17 calls Deploy-Warehouse -> Get-CurrentVersion
+R 272:5 calls Deploy-Warehouse -> Write-WarehouseLog (x-file: Warehouse.Common.psm1)
+R 272:52 calls Deploy-Warehouse -> Get-ReleaseNote
+R 273:5 calls Deploy-Warehouse -> Invoke-Migrations
+R 274:5 calls Deploy-Warehouse -> Invoke-Kubectl
+R 275:5 calls Deploy-Warehouse -> Set-ImageVersion
+R 277:9 calls Deploy-Warehouse -> Watch-Canary
+R 278:9 calls Deploy-Warehouse -> Set-ImageVersion
+R 279:9 calls Deploy-Warehouse -> Invoke-Kubectl
+R 280:9 calls Deploy-Warehouse -> Send-DeployNotification
+R 281:9 calls Deploy-Warehouse -> Write-DeployRecord
+R 284:9 calls Deploy-Warehouse -> Set-ImageVersion
+R 285:9 calls Deploy-Warehouse -> Invoke-Rollback
+R 286:9 calls Deploy-Warehouse -> Write-DeployRecord
+R 291:5 calls Deploy-Warehouse -> Write-WarehouseLog (x-file: Warehouse.Common.psm1)
+R 292:5 calls Deploy-Warehouse -> Send-DeployNotification
+R 296:5 calls Deploy-Warehouse -> Invoke-Kubectl
+R 297:5 calls Deploy-Warehouse -> Unlock-WarehouseJob (x-file: Warehouse.Common.psm1)
+R 298:17 calls Deploy-Warehouse -> Get-Date
+R 299:5 calls Deploy-Warehouse -> Write-WarehouseLog (x-file: Warehouse.Common.psm1)
+
+== Invoke-NightlyJobs.ps1 (306 lines)
+S 1-306 module Invoke-NightlyJobs
+S 25-25 variable Invoke-NightlyJobs::ErrorActionPreference
+S 32-32 variable Invoke-NightlyJobs::Results
+S 33-33 variable Invoke-NightlyJobs::ReorderPoints
+S 46-77 function Invoke-NightlyJobs::Invoke-Job
+S 79-92 function Invoke-NightlyJobs::Assert-KnownJob
+S 98-114 function Invoke-NightlyJobs::Clear-StaleReservation
+S 116-127 function Invoke-NightlyJobs::Send-PendingInvoice
+S 129-136 function Invoke-NightlyJobs::Write-ReorderReport
+S 138-154 function Invoke-NightlyJobs::Compress-OldLog
+S 156-163 function Invoke-NightlyJobs::Test-ApiHealth
+S 165-188 function Invoke-NightlyJobs::Test-CarrierEndpoint
+S 190-213 function Invoke-NightlyJobs::Export-DailyMetric
+S 215-228 function Invoke-NightlyJobs::Get-OverdueShipment
+S 230-242 function Invoke-NightlyJobs::Remove-OldReport
+S 248-271 function Invoke-NightlyJobs::Send-Summary
+S 283-283 variable Invoke-NightlyJobs::lock
+S 305-305 variable Invoke-NightlyJobs::failures
+R 24:1 calls Invoke-NightlyJobs -> Set-StrictMode
+R 27:1 imports Invoke-NightlyJobs -> (Join-Path $PSScriptRoot 'Warehouse.Common.psm1')
+R 27:16 calls Invoke-NightlyJobs -> Join-Path
+R 28:1 imports Invoke-NightlyJobs -> (Join-Path $PSScriptRoot 'Warehouse.Api.psm1')
+R 28:16 calls Invoke-NightlyJobs -> Join-Path
+R 29:1 imports Invoke-NightlyJobs -> (Join-Path $PSScriptRoot 'Warehouse.Inventory.psm1')
+R 29:16 calls Invoke-NightlyJobs -> Join-Path
+R 54:9 calls Invoke-NightlyJobs::Invoke-Job -> Write-WarehouseLog (x-file: Warehouse.Common.psm1)
+R 66:9 calls Invoke-NightlyJobs::Invoke-Job -> Write-WarehouseLog (x-file: Warehouse.Common.psm1)
+R 88:27 calls Invoke-NightlyJobs::Assert-KnownJob -> Where-Object
+R 102:16 calls Invoke-NightlyJobs::Clear-StaleReservation -> Get-Date
+R 103:14 calls Invoke-NightlyJobs::Clear-StaleReservation -> Get-WarehouseOrder (x-file: Warehouse.Api.psm1)
+R 103:56 calls Invoke-NightlyJobs::Clear-StaleReservation -> Where-Object
+R 109:13 calls Invoke-NightlyJobs::Clear-StaleReservation -> Stop-WarehouseOrder (x-file: Warehouse.Api.psm1)
+R 120:16 calls Invoke-NightlyJobs::Send-PendingInvoice -> Invoke-WarehouseApi (x-file: Warehouse.Api.psm1)
+R 121:35 calls Invoke-NightlyJobs::Send-PendingInvoice -> ForEach-Object
+R 125:16 calls Invoke-NightlyJobs::Send-PendingInvoice -> Send-InvoiceToErp (x-file: Warehouse.Api.psm1)
+R 130:15 calls Invoke-NightlyJobs::Write-ReorderReport -> Get-ReorderReport (x-file: Warehouse.Inventory.psm1)
+R 131:13 calls Invoke-NightlyJobs::Write-ReorderReport -> Join-Path
+R 131:56 calls Invoke-NightlyJobs::Write-ReorderReport -> Get-Date
+R 132:5 calls Invoke-NightlyJobs::Write-ReorderReport -> New-Item
+R 132:41 calls Invoke-NightlyJobs::Write-ReorderReport -> Split-Path
+R 132:68 calls Invoke-NightlyJobs::Write-ReorderReport -> Out-Null
+R 133:5 calls Invoke-NightlyJobs::Write-ReorderReport -> Set-Content
+R 141:13 calls Invoke-NightlyJobs::Compress-OldLog -> Join-Path
+R 142:15 calls Invoke-NightlyJobs::Compress-OldLog -> Test-Path
+R 145:12 calls Invoke-NightlyJobs::Compress-OldLog -> Get-ChildItem
+R 145:58 calls Invoke-NightlyJobs::Compress-OldLog -> Where-Object
+R 146:31 calls Invoke-NightlyJobs::Compress-OldLog -> Get-Date
+R 150:9 calls Invoke-NightlyJobs::Compress-OldLog -> Compress-Archive
+R 151:9 calls Invoke-NightlyJobs::Compress-OldLog -> Remove-Item
+R 157:14 calls Invoke-NightlyJobs::Test-ApiHealth -> Invoke-WarehouseApi (x-file: Warehouse.Api.psm1)
+R 158:13 calls Invoke-NightlyJobs::Test-ApiHealth -> Invoke-WarehouseApi (x-file: Warehouse.Api.psm1)
+R 171:17 calls Invoke-NightlyJobs::Test-CarrierEndpoint -> Invoke-WarehouseApi (x-file: Warehouse.Api.psm1)
+R 175:25 calls Invoke-NightlyJobs::Test-CarrierEndpoint -> Invoke-WebRequest
+R 198:16 calls Invoke-NightlyJobs::Export-DailyMetric -> Invoke-WarehouseApi (x-file: Warehouse.Api.psm1)
+R 204:26 calls Invoke-NightlyJobs::Export-DailyMetric -> Format-Money (x-file: Warehouse.Common.psm1)
+R 207:12 calls Invoke-NightlyJobs::Export-DailyMetric -> Join-Path
+R 208:12 calls Invoke-NightlyJobs::Export-DailyMetric -> Export-Csv
+R 210:9 calls Invoke-NightlyJobs::Export-DailyMetric -> Write-WarehouseLog (x-file: Warehouse.Common.psm1)
+R 219:16 calls Invoke-NightlyJobs::Get-OverdueShipment -> Get-Date
+R 220:13 calls Invoke-NightlyJobs::Get-OverdueShipment -> Get-WarehouseOrder (x-file: Warehouse.Api.psm1)
+R 221:26 calls Invoke-NightlyJobs::Get-OverdueShipment -> Where-Object
+R 225:25 calls Invoke-NightlyJobs::Get-OverdueShipment -> ForEach-Object
+R 226:5 calls Invoke-NightlyJobs::Get-OverdueShipment -> Write-WarehouseLog (x-file: Warehouse.Common.psm1)
+R 233:16 calls Invoke-NightlyJobs::Remove-OldReport -> Join-Path
+R 234:15 calls Invoke-NightlyJobs::Remove-OldReport -> Test-Path
+R 237:12 calls Invoke-NightlyJobs::Remove-OldReport -> Get-ChildItem
+R 237:67 calls Invoke-NightlyJobs::Remove-OldReport -> Where-Object
+R 238:31 calls Invoke-NightlyJobs::Remove-OldReport -> Get-Date
+R 240:12 calls Invoke-NightlyJobs::Remove-OldReport -> Remove-Item
+R 251:28 calls Invoke-NightlyJobs::Send-Summary -> Where-Object
+R 255:5 calls Invoke-NightlyJobs::Send-Summary -> else
+R 259:34 calls Invoke-NightlyJobs::Send-Summary -> Get-Date
+R 261:3 calls Invoke-NightlyJobs::Send-Summary -> Format-Table2 (x-file: Warehouse.Common.psm1)
+R 266:9 calls Invoke-NightlyJobs::Send-Summary -> Write-Output
+R 267:9 calls Invoke-NightlyJobs::Send-Summary -> Write-Output
+R 270:5 calls Invoke-NightlyJobs::Send-Summary -> Send-WarehouseMail
+R 278:5 calls Invoke-NightlyJobs -> Assert-KnownJob
+R 280:1 calls Invoke-NightlyJobs -> Set-WarehouseLogging (x-file: Warehouse.Common.psm1)
+R 280:48 calls Invoke-NightlyJobs -> Join-Path
+R 281:1 calls Invoke-NightlyJobs -> Connect-WarehouseApi (x-file: Warehouse.Api.psm1)
+R 283:9 calls Invoke-NightlyJobs -> Lock-WarehouseJob (x-file: Warehouse.Common.psm1)
+R 285:5 calls Invoke-NightlyJobs -> Write-WarehouseLog (x-file: Warehouse.Common.psm1)
+R 290:5 calls Invoke-NightlyJobs -> Invoke-Job
+R 290:41 calls Invoke-NightlyJobs -> Test-ApiHealth
+R 291:5 calls Invoke-NightlyJobs -> Invoke-Job
+R 291:53 calls Invoke-NightlyJobs -> Clear-StaleReservation
+R 292:5 calls Invoke-NightlyJobs -> Invoke-Job
+R 292:43 calls Invoke-NightlyJobs -> Send-PendingInvoice
+R 293:5 calls Invoke-NightlyJobs -> Invoke-Job
+R 293:49 calls Invoke-NightlyJobs -> Write-ReorderReport
+R 294:5 calls Invoke-NightlyJobs -> Invoke-Job
+R 294:43 calls Invoke-NightlyJobs -> Test-CarrierEndpoint
+R 295:5 calls Invoke-NightlyJobs -> Invoke-Job
+R 295:42 calls Invoke-NightlyJobs -> Export-DailyMetric
+R 296:5 calls Invoke-NightlyJobs -> Invoke-Job
+R 296:52 calls Invoke-NightlyJobs -> Get-OverdueShipment
+R 297:5 calls Invoke-NightlyJobs -> Invoke-Job
+R 297:39 calls Invoke-NightlyJobs -> Compress-OldLog
+R 298:5 calls Invoke-NightlyJobs -> Invoke-Job
+R 298:42 calls Invoke-NightlyJobs -> Remove-OldReport
+R 299:5 calls Invoke-NightlyJobs -> Send-Summary
+R 302:5 calls Invoke-NightlyJobs -> Unlock-WarehouseJob (x-file: Warehouse.Common.psm1)
+R 305:26 calls Invoke-NightlyJobs -> Where-Object
+
+== Warehouse.Api.psm1 (305 lines)
+S 1-305 module Warehouse.Api
+S 17-17 variable Warehouse.Api::BaseUrl
+S 18-18 variable Warehouse.Api::Session
+S 24-37 function Warehouse.Api::Connect-WarehouseApi
+S 39-98 function Warehouse.Api::Invoke-WarehouseApi
+S 100-121 function Warehouse.Api::ConvertFrom-ProblemError
+S 127-157 function Warehouse.Api::Get-WarehouseOrder
+S 159-179 function Warehouse.Api::New-WarehouseOrder
+S 181-197 function Warehouse.Api::Stop-WarehouseOrder
+S 199-211 function Warehouse.Api::Approve-WarehouseOrder
+S 217-236 function Warehouse.Api::Get-WarehouseStock
+S 238-244 function Warehouse.Api::Split-Batch
+S 246-260 function Warehouse.Api::Get-WarehouseInvoice
+S 262-281 function Warehouse.Api::Get-WarehouseTracking
+S 283-292 function Warehouse.Api::Send-InvoiceToErp
+R 13:1 calls Warehouse.Api -> Set-StrictMode
+R 15:1 imports Warehouse.Api -> (Join-Path $PSScriptRoot 'Warehouse.Common.psm1')
+R 15:16 calls Warehouse.Api -> Join-Path
+R 30:15 calls Warehouse.Api::Connect-WarehouseApi -> Get-WarehouseConfig (x-file: Warehouse.Common.psm1)
+R 35:15 calls Warehouse.Api::Connect-WarehouseApi -> Invoke-WarehouseApi
+R 36:5 calls Warehouse.Api::Connect-WarehouseApi -> Write-WarehouseLog (x-file: Warehouse.Common.psm1)
+R 81:32 calls Warehouse.Api::Invoke-WarehouseApi -> ConvertTo-Json
+R 88:13 calls Warehouse.Api::Invoke-WarehouseApi -> Invoke-RestMethod
+R 91:13 calls Warehouse.Api::Invoke-WarehouseApi -> ConvertFrom-ProblemError
+R 97:12 calls Warehouse.Api::Invoke-WarehouseApi -> Invoke-WithRetry (x-file: Warehouse.Common.psm1)
+R 109:56 calls Warehouse.Api::ConvertFrom-ProblemError -> ConvertFrom-Json
+R 169:50 calls Warehouse.Api::New-WarehouseOrder -> Sort-Object
+R 169:69 calls Warehouse.Api::New-WarehouseOrder -> ForEach-Object
+R 174:14 calls Warehouse.Api::New-WarehouseOrder -> Invoke-WarehouseApi
+R 176:9 calls Warehouse.Api::New-WarehouseOrder -> Write-WarehouseLog (x-file: Warehouse.Common.psm1)
+R 176:87 calls Warehouse.Api::New-WarehouseOrder -> Format-Money (x-file: Warehouse.Common.psm1)
+R 254:9 calls Warehouse.Api::Get-WarehouseInvoice -> Invoke-WithRetry (x-file: Warehouse.Common.psm1)
+R 255:13 calls Warehouse.Api::Get-WarehouseInvoice -> Invoke-WebRequest
+R 257:16 calls Warehouse.Api::Get-WarehouseInvoice -> Get-Item
+R 259:12 calls Warehouse.Api::Get-WarehouseInvoice -> Invoke-WarehouseApi
+R 294:1 calls Warehouse.Api -> Export-ModuleMember
+
+== Warehouse.Common.psm1 (301 lines)
+S 1-301 module Warehouse.Common
+S 15-15 variable Warehouse.Common::ModuleRoot
+S 16-16 variable Warehouse.Common::LogLevel
+S 17-17 variable Warehouse.Common::LogFile
+S 18-18 variable Warehouse.Common::Config
+S 19-19 variable Warehouse.Common::WarehouseCorrelationId
+S 21-21 variable Warehouse.Common::LevelOrder
+S 32-51 function Warehouse.Common::Set-WarehouseLogging
+S 53-87 function Warehouse.Common::Write-WarehouseLog
+S 93-118 function Warehouse.Common::Get-WarehouseConfig
+S 120-136 function Warehouse.Common::Get-WarehouseSecret
+S 142-173 function Warehouse.Common::Invoke-WithRetry
+S 175-189 function Warehouse.Common::Test-TransientError
+S 195-211 function Warehouse.Common::Format-Money
+S 213-221 function Warehouse.Common::ConvertTo-OrderNumber
+S 223-227 function Warehouse.Common::Test-OrderNumber
+S 229-253 function Warehouse.Common::Format-Table2
+S 259-278 function Warehouse.Common::Lock-WarehouseJob
+S 280-286 function Warehouse.Common::Unlock-WarehouseJob
+R 13:1 calls Warehouse.Common -> Set-StrictMode
+R 43:22 calls Warehouse.Common::Set-WarehouseLogging -> Split-Path
+R 44:19 calls Warehouse.Common::Set-WarehouseLogging -> Test-Path
+R 45:13 calls Warehouse.Common::Set-WarehouseLogging -> New-Item
+R 45:68 calls Warehouse.Common::Set-WarehouseLogging -> Out-Null
+R 50:5 calls Warehouse.Common::Set-WarehouseLogging -> Write-WarehouseLog
+R 69:26 calls Warehouse.Common::Write-WarehouseLog -> Get-Date
+R 77:22 calls Warehouse.Common::Write-WarehouseLog -> ConvertTo-Json
+R 79:9 calls Warehouse.Common::Write-WarehouseLog -> Add-Content
+R 82:19 calls Warehouse.Common::Write-WarehouseLog -> Write-Error
+R 83:21 calls Warehouse.Common::Write-WarehouseLog -> Write-Warning
+R 84:19 calls Warehouse.Common::Write-WarehouseLog -> Write-Debug
+R 85:19 calls Warehouse.Common::Write-WarehouseLog -> Write-Information
+R 108:13 calls Warehouse.Common::Get-WarehouseConfig -> Join-Path
+R 109:15 calls Warehouse.Common::Get-WarehouseConfig -> Test-Path
+R 112:17 calls Warehouse.Common::Get-WarehouseConfig -> Import-PowerShellDataFile
+R 114:26 calls Warehouse.Common::Get-WarehouseConfig -> Get-WarehouseSecret
+R 116:5 calls Warehouse.Common::Get-WarehouseConfig -> Write-WarehouseLog
+R 132:9 calls Warehouse.Common::Get-WarehouseSecret -> Get-Command
+R 133:16 calls Warehouse.Common::Get-WarehouseSecret -> Get-Secret
+R 164:53 calls Warehouse.Common::Invoke-WithRetry -> Test-TransientError
+R 165:17 calls Warehouse.Common::Invoke-WithRetry -> Write-WarehouseLog
+R 168:13 calls Warehouse.Common::Invoke-WithRetry -> Write-WarehouseLog
+R 169:13 calls Warehouse.Common::Invoke-WithRetry -> Start-Sleep
+R 244:29 calls Warehouse.Common::Format-Table2 -> ForEach-Object
+R 244:71 calls Warehouse.Common::Format-Table2 -> Measure-Object
+R 247:28 calls Warehouse.Common::Format-Table2 -> ForEach-Object
+R 248:26 calls Warehouse.Common::Format-Table2 -> ForEach-Object
+R 250:22 calls Warehouse.Common::Format-Table2 -> ForEach-Object
+R 266:17 calls Warehouse.Common::Lock-WarehouseJob -> Join-Path
+R 267:9 calls Warehouse.Common::Lock-WarehouseJob -> Test-Path
+R 268:17 calls Warehouse.Common::Lock-WarehouseJob -> Get-Date
+R 268:30 calls Warehouse.Common::Lock-WarehouseJob -> Get-Item
+R 270:13 calls Warehouse.Common::Lock-WarehouseJob -> Write-WarehouseLog
+R 273:9 calls Warehouse.Common::Lock-WarehouseJob -> Write-WarehouseLog
+R 274:9 calls Warehouse.Common::Lock-WarehouseJob -> Remove-Item
+R 276:5 calls Warehouse.Common::Lock-WarehouseJob -> Set-Content
+R 283:25 calls Warehouse.Common::Unlock-WarehouseJob -> Test-Path
+R 284:9 calls Warehouse.Common::Unlock-WarehouseJob -> Remove-Item
+R 288:1 calls Warehouse.Common -> Export-ModuleMember
+
+== Warehouse.Inventory.psm1 (302 lines)
+S 1-302 module Warehouse.Inventory
+S 34-34 variable Warehouse.Inventory::this
+S 35-35 variable Warehouse.Inventory::this
+S 36-36 variable Warehouse.Inventory::this
+S 65-65 variable Warehouse.Inventory::diff
+S 70-70 variable Warehouse.Inventory::diff
+S 81-112 function Warehouse.Inventory::Import-CycleCount
+S 114-134 function Warehouse.Inventory::Split-CycleCount
+S 136-155 function Warehouse.Inventory::Submit-CycleCount
+S 161-189 function Warehouse.Inventory::Move-WarehouseStock
+S 191-201 function Warehouse.Inventory::Get-PickingRoute
+S 207-232 function Warehouse.Inventory::Get-ReorderReport
+S 234-252 function Warehouse.Inventory::Get-SafetyStock
+S 258-270 function Warehouse.Inventory::Set-ReservationFreeze
+S 272-291 function Warehouse.Inventory::Invoke-AnnualCount
+R 13:1 calls Warehouse.Inventory -> Set-StrictMode
+R 15:1 imports Warehouse.Inventory -> (Join-Path $PSScriptRoot 'Warehouse.Common.psm1')
+R 15:16 calls Warehouse.Inventory -> Join-Path
+R 16:1 imports Warehouse.Inventory -> (Join-Path $PSScriptRoot 'Warehouse.Api.psm1')
+R 16:16 calls Warehouse.Inventory -> Join-Path
+R 95:13 calls Warehouse.Inventory::Import-CycleCount -> Import-Csv
+R 109:13 calls Warehouse.Inventory::Import-CycleCount -> Write-WarehouseLog (x-file: Warehouse.Common.psm1)
+R 176:9 calls Warehouse.Inventory::Move-WarehouseStock -> Write-WarehouseLog (x-file: Warehouse.Common.psm1)
+R 178:14 calls Warehouse.Inventory::Move-WarehouseStock -> Get-WarehouseStock (x-file: Warehouse.Api.psm1)
+R 183:9 calls Warehouse.Inventory::Move-WarehouseStock -> Invoke-WarehouseApi (x-file: Warehouse.Api.psm1)
+R 195:27 calls Warehouse.Inventory::Get-PickingRoute -> ForEach-Object
+R 196:15 calls Warehouse.Inventory::Get-PickingRoute -> Sort-Object
+R 200:9 calls Warehouse.Inventory::Get-PickingRoute -> ForEach-Object
+R 215:14 calls Warehouse.Inventory::Get-ReorderReport -> Get-WarehouseStock (x-file: Warehouse.Api.psm1)
+R 227:24 calls Warehouse.Inventory::Get-ReorderReport -> Sort-Object
+R 229:16 calls Warehouse.Inventory::Get-ReorderReport -> Format-Table2 (x-file: Warehouse.Common.psm1)
+R 242:29 calls Warehouse.Inventory::Get-SafetyStock -> Measure-Object
+R 243:31 calls Warehouse.Inventory::Get-SafetyStock -> ForEach-Object
+R 244:40 calls Warehouse.Inventory::Get-SafetyStock -> Measure-Object
+R 267:9 calls Warehouse.Inventory::Set-ReservationFreeze -> Invoke-WarehouseApi (x-file: Warehouse.Api.psm1)
+R 268:9 calls Warehouse.Inventory::Set-ReservationFreeze -> Write-WarehouseLog (x-file: Warehouse.Common.psm1)
+R 278:5 calls Warehouse.Inventory::Invoke-AnnualCount -> Set-ReservationFreeze
+R 280:33 calls Warehouse.Inventory::Invoke-AnnualCount -> ForEach-Object
+R 280:50 calls Warehouse.Inventory::Invoke-AnnualCount -> Import-CycleCount
+R 281:28 calls Warehouse.Inventory::Invoke-AnnualCount -> Split-CycleCount
+R 282:23 calls Warehouse.Inventory::Invoke-AnnualCount -> Submit-CycleCount
+R 284:39 calls Warehouse.Inventory::Invoke-AnnualCount -> ForEach-Object
+R 285:13 calls Warehouse.Inventory::Invoke-AnnualCount -> Write-WarehouseLog (x-file: Warehouse.Common.psm1)
+R 289:9 calls Warehouse.Inventory::Invoke-AnnualCount -> Set-ReservationFreeze
+R 293:1 calls Warehouse.Inventory -> Export-ModuleMember
