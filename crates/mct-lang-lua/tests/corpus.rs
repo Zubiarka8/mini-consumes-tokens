@@ -36,11 +36,12 @@ fn table_modules_and_their_functions_are_extracted() {
     // `local function f()` is a function.
     assert_eq!(parent("money.lua", "require_same", Function), None);
     assert_eq!(parent("router.lua", "proxy", Function), None);
-    // `local f = function() end` and `T.f = function() end` too.
+    // `local f = function() end` too; `T.f = function() end` is a method
+    // of T, like `function T.f()`.
     assert_eq!(parent("order.lua", "subtotal", Function), None);
-    assert_eq!(parent("money.lua", "__add", Function), Some("Money"));
+    assert_eq!(parent("money.lua", "__add", Method), Some("Money"));
     // A nested table field keeps its dotted owner.
-    assert_eq!(parent("ratelimit.lua", "advance", Function), Some("clock"));
+    assert_eq!(parent("ratelimit.lua", "advance", Method), Some("clock"));
 }
 
 #[test]
@@ -78,48 +79,51 @@ fn cross_file_calls_are_extracted() {
 }
 
 #[test]
-fn local_tables_inside_functions_become_modules() {
-    // Bug, kept visible: every `x = { … }` is a module symbol, locals
-    // included, and a non-name target keeps its full source text.
+fn only_named_file_level_tables_are_modules() {
+    // A local table in a function, or one stored through an index, is a
+    // value, not a module.
     let c = corpus();
-    assert_eq!(parent("ratelimit.lua", "out", Module), None);
-    assert_eq!(parent("router.lua", "params", Module), None);
-    c.symbol("router.lua", "self.routes[#self.routes + 1]", Module);
-}
-
-#[test]
-fn a_function_assigned_to_a_name_spans_the_name_only() {
-    // Bug, kept visible: `Money.__add = function(a, b) … end` is located on
-    // its target, so the body's calls fall outside the symbol's range.
-    let add = corpus().symbol("money.lua", "__add", Function);
-    assert_eq!(add.location.end_line, Some(add.location.line));
-    let call = corpus().relation("money.lua", "__add", Calls, "plus");
-    assert!(call.line > add.location.line);
-}
-
-#[test]
-fn functions_inside_table_constructors_are_lost() {
-    // Bug, kept visible: `local handlers = { get_stock = function() … end }`
-    // — the fields of a table constructor are never visited, so neither the
-    // functions nor the calls inside them are extracted.
-    let c = corpus();
-    for name in ["get_stock", "place_order", "get_order", "placed", "shipped"] {
-        assert!(c.symbols_named(name).is_empty(), "{name} was extracted");
+    for name in ["out", "params", "self.routes[#self.routes + 1]"] {
+        assert!(
+            c.symbols_named(name).iter().all(|(_, s)| s.kind != Module),
+            "{name}"
+        );
     }
-    assert!(!c.has_relation("handlers", Calls, "check_order"));
-    assert!(!c.relations().iter().any(|r| r.to == "from_request_body"));
-    // Functions added to the table afterwards are fine.
+}
+
+#[test]
+fn a_function_assigned_to_a_name_spans_its_body() {
+    // `Money.__add = function(a, b) … end` spans through `end`, so the
+    // body's calls lie inside it.
+    let add = corpus().symbol("money.lua", "__add", Method);
+    let call = corpus().relation("money.lua", "__add", Calls, "plus");
+    let end = add.location.end_line.unwrap();
+    assert!((add.location.line..=end).contains(&call.line));
+    assert!(end > add.location.line);
+}
+
+#[test]
+fn functions_inside_table_constructors_are_methods_of_the_table() {
+    // `local handlers = { get_stock = function() … end }`.
+    let c = corpus();
+    for name in ["get_stock", "place_order", "get_order"] {
+        assert_eq!(parent("router.lua", name, Method), Some("handlers"));
+    }
+    for name in ["placed", "shipped"] {
+        assert_eq!(parent("order.lua", name, Method), Some("describers"));
+    }
+    c.relation("router.lua", "place_order", Calls, "check_order");
+    c.relation("router.lua", "place_order", Calls, "from_request_body");
+    // Functions added to the table afterwards are methods too.
     assert_eq!(parent("router.lua", "health", Method), Some("handlers"));
 }
 
 #[test]
-fn calls_inside_the_called_expression_are_lost() {
-    // Bug, kept visible: in `money.gross(net, 21):to_json()` only the outer
-    // `to_json` is a call; the callee expression is never visited.
+fn calls_inside_the_called_expression_are_extracted() {
+    // In `money.gross(net, 21):to_json()` both calls are extracted.
     let c = corpus();
     c.relation("router.lua", "quote_preview", Calls, "to_json");
-    assert!(!c.has_relation("quote_preview", Calls, "gross"));
-    assert!(!c.has_relation("quote_preview", Calls, "vat"));
+    c.relation("router.lua", "quote_preview", Calls, "gross");
 }
 
 #[test]
