@@ -1,4 +1,4 @@
-# language=csharp files=6 symbols=454 relations=588 cross_file=143
+# language=csharp files=6 symbols=454 relations=588 name_matched_across_files=143
 
 == Warehouse/Errors.cs (379 lines)
 S 1-379 module Errors
@@ -272,35 +272,35 @@ R 5:1 imports Models -> System
 R 6:1 imports Models -> Collections
 R 7:1 imports Models -> Generic
 R 8:1 imports Models -> Linq
-R 9:1 imports Models -> Errors (x-file: Warehouse/Errors.cs)
+R 9:1 imports Models -> Errors (name-matched: Warehouse/Errors.cs)
 R 10:1 imports Models -> Money
 R 36:42 calls Sku::Sku -> ToUpperInvariant
-R 36:26 calls Sku::Sku -> NotBlank (x-file: Warehouse/Errors.cs)
+R 36:26 calls Sku::Sku -> NotBlank (name-matched: Warehouse/Errors.cs)
 R 37:14 calls Sku::Sku -> IsValid
-R 39:23 calls Sku::Sku -> ValidationException (x-file: Warehouse/Errors.cs)
+R 39:23 calls Sku::Sku -> ValidationException (name-matched: Warehouse/Errors.cs)
 R 49:57 calls Sku::IsValid -> All
 R 49:89 calls Sku::IsValid -> All
 R 56:30 calls Sku::TryParse -> IsValid
 R 56:50 calls Sku::TryParse -> ToUpperInvariant
 R 56:43 calls Sku::TryParse -> Trim
 R 60:19 calls Sku::TryParse -> Sku
-R 74:61 calls Price::Validated -> InRange (x-file: Warehouse/Errors.cs)
+R 74:61 calls Price::Validated -> InRange (name-matched: Warehouse/Errors.cs)
 R 78:9 calls Price::operator + -> SameCurrency
 R 79:20 calls Price::operator + -> Price
 R 84:56 calls Price::operator > -> Compare
 R 86:56 calls Price::operator < -> Compare
 R 90:9 calls Price::Compare -> SameCurrency
 R 91:25 calls Price::Compare -> CompareTo
-R 98:23 calls Price::SameCurrency -> ValidationException (x-file: Warehouse/Errors.cs)
+R 98:23 calls Price::SameCurrency -> ValidationException (name-matched: Warehouse/Errors.cs)
 R 126:38 implements Warehouse.Models::Entity -> IEntity
 R 126:53 implements Warehouse.Models::Entity -> IAuditable
 R 146:28 calls Entity::Bump -> Touch
 R 150:69 calls Entity::Equals -> Equals
 R 152:45 calls Entity::GetHashCode -> GetHashCode
 R 156:31 extends Warehouse.Models::Product -> Entity
-R 163:22 calls Product::Product -> NotBlank (x-file: Warehouse/Errors.cs)
+R 163:22 calls Product::Product -> NotBlank (name-matched: Warehouse/Errors.cs)
 R 164:23 calls Product::Product -> Validated
-R 180:22 calls Product::Rename -> NotBlank (x-file: Warehouse/Errors.cs)
+R 180:22 calls Product::Rename -> NotBlank (name-matched: Warehouse/Errors.cs)
 R 181:9 calls Product::Rename -> Bump
 R 187:23 calls Product::Reprice -> Validated
 R 188:9 calls Product::Reprice -> Bump
@@ -310,8 +310,8 @@ R 196:19 calls Product::Tag -> Add
 R 196:27 calls Product::Tag -> Trim
 R 205:66 implements Warehouse.Models::Location -> IComparable
 R 209:42 calls Location::Parse -> Split
-R 209:27 calls Location::Parse -> NotBlank (x-file: Warehouse/Errors.cs)
-R 212:23 calls Location::Parse -> ValidationException (x-file: Warehouse/Errors.cs)
+R 209:27 calls Location::Parse -> NotBlank (name-matched: Warehouse/Errors.cs)
+R 212:23 calls Location::Parse -> ValidationException (name-matched: Warehouse/Errors.cs)
 R 214:20 calls Location::Parse -> Location
 R 214:46 calls Location::Parse -> Parse
 R 214:67 calls Location::Parse -> Parse
@@ -320,10 +320,10 @@ R 222:14 calls Location::Distance -> Abs
 R 222:51 calls Location::Distance -> Abs
 R 222:81 calls Location::Distance -> Abs
 R 228:70 extends Warehouse.Models::StockLine -> Entity
-R 242:27 calls StockLine::Receive -> Positive (x-file: Warehouse/Errors.cs)
+R 242:27 calls StockLine::Receive -> Positive (name-matched: Warehouse/Errors.cs)
 R 243:9 calls StockLine::Receive -> Bump
-R 248:19 calls StockLine::Reserve -> Positive (x-file: Warehouse/Errors.cs)
-R 250:23 calls StockLine::Reserve -> OutOfStockException (x-file: Warehouse/Errors.cs)
+R 248:19 calls StockLine::Reserve -> Positive (name-matched: Warehouse/Errors.cs)
+R 250:23 calls StockLine::Reserve -> OutOfStockException (name-matched: Warehouse/Errors.cs)
 R 253:9 calls StockLine::Reserve -> Bump
 R 258:25 calls StockLine::Release -> Max
 R 259:9 calls StockLine::Release -> Bump
@@ -331,23 +331,23 @@ R 264:9 calls StockLine::Ship -> Release
 R 266:9 calls StockLine::Ship -> Bump
 R 277:37 extends Warehouse.Models::Order -> Entity
 R 277:51 implements Warehouse.Models::Order -> IEnumerable
-R 284:26 calls Order::Order -> NotBlank (x-file: Warehouse/Errors.cs)
+R 284:26 calls Order::Order -> NotBlank (name-matched: Warehouse/Errors.cs)
 R 291:47 calls Order::this -> FirstOrDefault
 R 295:34 calls Order::Total -> Aggregate
 R 299:9 calls Order::Add -> EnsureStatus
-R 302:23 calls Order::Add -> ValidationException (x-file: Warehouse/Errors.cs)
-R 307:20 calls Order::Add -> Remove (x-file: Warehouse/Repository.cs)
+R 302:23 calls Order::Add -> ValidationException (name-matched: Warehouse/Errors.cs)
+R 307:20 calls Order::Add -> Remove (name-matched: Warehouse/Repository.cs)
 R 310:16 calls Order::Add -> Add
 R 310:24 calls Order::Add -> OrderLine
-R 310:52 calls Order::Add -> Positive (x-file: Warehouse/Errors.cs)
+R 310:52 calls Order::Add -> Positive (name-matched: Warehouse/Errors.cs)
 R 311:9 calls Order::Add -> Bump
 R 315:61 calls Order::GetEnumerator -> GetEnumerator
 R 317:48 calls Order::GetEnumerator -> GetEnumerator
 R 331:35 calls Order::MoveTo -> TryGetValue
 R 331:81 calls Order::MoveTo -> IndexOf
-R 334:23 calls Order::MoveTo -> ConflictException (x-file: Warehouse/Errors.cs)
+R 334:23 calls Order::MoveTo -> ConflictException (name-matched: Warehouse/Errors.cs)
 R 337:9 calls Order::MoveTo -> Bump
-R 344:23 calls Order::EnsureStatus -> ValidationException (x-file: Warehouse/Errors.cs)
+R 344:23 calls Order::EnsureStatus -> ValidationException (name-matched: Warehouse/Errors.cs)
 R 350:16 calls Order::~Order -> Clear
 R 363:40 calls ModelExtensions::TotalAvailable -> Sum
 R 363:15 calls ModelExtensions::TotalAvailable -> Where
@@ -412,13 +412,13 @@ R 6:1 imports Program -> Generic
 R 7:1 imports Program -> Linq
 R 8:1 imports Program -> Threading
 R 9:1 imports Program -> Cli
-R 10:1 imports Program -> Errors (x-file: Warehouse/Errors.cs)
-R 11:1 imports Program -> Models (x-file: Warehouse/Models.cs)
+R 10:1 imports Program -> Errors (name-matched: Warehouse/Errors.cs)
+R 11:1 imports Program -> Models (name-matched: Warehouse/Models.cs)
 R 12:1 imports Program -> Reporting
-R 13:1 imports Program -> Services (x-file: Warehouse/Services.cs)
+R 13:1 imports Program -> Services (name-matched: Warehouse/Services.cs)
 R 15:18 calls Program -> CancellationTokenSource
 R 19:12 calls Program -> Cancel
-R 22:36 calls Program -> Build (x-file: Warehouse/Errors.cs)
+R 22:36 calls Program -> Build (name-matched: Warehouse/Errors.cs)
 R 23:32 calls Program -> Default
 R 24:22 calls Program -> RunAsync
 R 31:9 calls RunAsync -> PrintUsage
@@ -429,8 +429,8 @@ R 43:31 calls RunAsync -> Parse
 R 43:42 calls RunAsync -> Skip
 R 44:30 calls RunAsync -> RunAsync
 R 48:23 calls RunAsync -> WriteLine
-R 48:46 calls RunAsync -> Explain (x-file: Warehouse/Errors.cs)
-R 49:34 calls RunAsync -> StatusFor (x-file: Warehouse/Errors.cs)
+R 48:46 calls RunAsync -> Explain (name-matched: Warehouse/Errors.cs)
+R 49:34 calls RunAsync -> StatusFor (name-matched: Warehouse/Errors.cs)
 R 53:23 calls RunAsync -> WriteLine
 R 60:13 calls PrintUsage -> WriteLine
 R 61:46 calls PrintUsage -> Describe
@@ -441,46 +441,46 @@ R 94:31 calls Options::Parse -> Options
 R 98:26 calls Options::Parse -> StartsWith
 R 113:41 calls Options::Parse -> Add
 R 124:20 calls Options::Required -> TryGetValue
-R 124:72 calls Options::Required -> ValidationException (x-file: Warehouse/Errors.cs)
+R 124:72 calls Options::Required -> ValidationException (name-matched: Warehouse/Errors.cs)
 R 126:66 calls Options::Get -> GetValueOrDefault
 R 130:25 calls Options::Int -> TryGetValue
-R 134:24 calls Options::Int -> TryParse (x-file: Warehouse/Models.cs)
-R 134:73 calls Options::Int -> ValidationException (x-file: Warehouse/Errors.cs)
+R 134:24 calls Options::Int -> TryParse (name-matched: Warehouse/Models.cs)
+R 134:73 calls Options::Int -> ValidationException (name-matched: Warehouse/Errors.cs)
 R 137:48 calls Options::Flag -> ContainsKey
 R 147:87 calls Command::Name -> ToLowerInvariant
 R 147:64 calls Command::Name -> Replace
 R 147:49 calls Command::Name -> GetType
 R 152:42 calls Command::Metadata -> GetCustomAttribute
 R 152:61 calls Command::Metadata -> GetType
-R 156:61 calls Command::Say -> Notify (x-file: Warehouse/Services.cs)
+R 156:61 calls Command::Say -> Notify (name-matched: Warehouse/Services.cs)
 R 159:6 references Warehouse.Cli::ReceiveCommand -> CommandAttribute
 R 160:42 extends Warehouse.Cli::ReceiveCommand -> Command
-R 169:47 calls ReceiveCommand::RunAsync -> ReceiveAsync (x-file: Warehouse/Services.cs)
+R 169:47 calls ReceiveCommand::RunAsync -> ReceiveAsync (name-matched: Warehouse/Services.cs)
 R 170:25 calls ReceiveCommand::RunAsync -> Required
 R 171:25 calls ReceiveCommand::RunAsync -> Get
 R 172:25 calls ReceiveCommand::RunAsync -> Int
 R 177:17 calls ReceiveCommand::RunAsync -> Say
-R 177:34 calls ReceiveCommand::RunAsync -> Explain (x-file: Warehouse/Errors.cs)
+R 177:34 calls ReceiveCommand::RunAsync -> Explain (name-matched: Warehouse/Errors.cs)
 R 180:13 calls ReceiveCommand::RunAsync -> Say
 R 185:6 references Warehouse.Cli::OrderCommand -> CommandAttribute
 R 186:40 extends Warehouse.Cli::OrderCommand -> Command
 R 195:62 calls OrderCommand::RunAsync -> ToList
 R 195:44 calls OrderCommand::RunAsync -> Select
-R 196:50 calls OrderCommand::RunAsync -> DraftAsync (x-file: Warehouse/Services.cs)
+R 196:50 calls OrderCommand::RunAsync -> DraftAsync (name-matched: Warehouse/Services.cs)
 R 196:69 calls OrderCommand::RunAsync -> Required
-R 197:51 calls OrderCommand::RunAsync -> PlaceAsync (x-file: Warehouse/Services.cs)
+R 197:51 calls OrderCommand::RunAsync -> PlaceAsync (name-matched: Warehouse/Services.cs)
 R 200:17 calls OrderCommand::RunAsync -> Say
 R 200:50 calls OrderCommand::RunAsync -> Describe
 R 203:25 calls OrderCommand::RunAsync -> Flag
-R 205:42 calls OrderCommand::RunAsync -> PickAsync (x-file: Warehouse/Services.cs)
+R 205:42 calls OrderCommand::RunAsync -> PickAsync (name-matched: Warehouse/Services.cs)
 R 207:13 calls OrderCommand::RunAsync -> Say
 R 213:30 calls OrderCommand::ParseLine -> Split
-R 214:53 calls OrderCommand::ParseLine -> TryParse (x-file: Warehouse/Models.cs)
+R 214:53 calls OrderCommand::ParseLine -> TryParse (name-matched: Warehouse/Models.cs)
 R 219:6 references Warehouse.Cli::CancelCommand -> CommandAttribute
 R 220:59 extends Warehouse.Cli::CancelCommand -> Command
 R 224:27 calls CancelCommand::RunAsync -> Parse
 R 224:41 calls CancelCommand::RunAsync -> Required
-R 225:54 calls CancelCommand::RunAsync -> CancelAsync (x-file: Warehouse/Services.cs)
+R 225:54 calls CancelCommand::RunAsync -> CancelAsync (name-matched: Warehouse/Services.cs)
 R 225:78 calls CancelCommand::RunAsync -> Get
 R 226:13 calls CancelCommand::RunAsync -> Say
 R 231:6 references Warehouse.Cli::ReportCommand -> CommandAttribute
@@ -488,22 +488,22 @@ R 232:41 extends Warehouse.Cli::ReportCommand -> Command
 R 241:19 calls ReportCommand::RunAsync -> ThrowIfCancellationRequested
 R 242:34 calls ReportCommand::RunAsync -> Get
 R 243:44 calls ReportCommand::RunAsync -> FirstOrDefault
-R 246:46 calls ReportCommand::RunAsync -> Render (x-file: Warehouse/Errors.cs)
-R 246:87 calls ReportCommand::RunAsync -> InventoryAsync (x-file: Warehouse/Reports.cs)
-R 247:44 calls ReportCommand::RunAsync -> Render (x-file: Warehouse/Errors.cs)
-R 247:71 calls ReportCommand::RunAsync -> BacklogAsync (x-file: Warehouse/Reports.cs)
-R 248:52 calls ReportCommand::RunAsync -> ComputeAsync (x-file: Warehouse/Reports.cs)
-R 249:32 calls ReportCommand::RunAsync -> ValidationException (x-file: Warehouse/Errors.cs)
+R 246:46 calls ReportCommand::RunAsync -> Render (name-matched: Warehouse/Errors.cs)
+R 246:87 calls ReportCommand::RunAsync -> InventoryAsync (name-matched: Warehouse/Reports.cs)
+R 247:44 calls ReportCommand::RunAsync -> Render (name-matched: Warehouse/Errors.cs)
+R 247:71 calls ReportCommand::RunAsync -> BacklogAsync (name-matched: Warehouse/Reports.cs)
+R 248:52 calls ReportCommand::RunAsync -> ComputeAsync (name-matched: Warehouse/Reports.cs)
+R 249:32 calls ReportCommand::RunAsync -> ValidationException (name-matched: Warehouse/Errors.cs)
 R 251:21 calls ReportCommand::RunAsync -> WriteLine
 R 252:25 calls ReportCommand::RunAsync -> Flag
 R 254:25 calls ReportCommand::RunAsync -> WriteLine
-R 254:61 calls ReportCommand::RunAsync -> Checksum (x-file: Warehouse/Reports.cs)
+R 254:61 calls ReportCommand::RunAsync -> Checksum (name-matched: Warehouse/Reports.cs)
 R 260:6 references Warehouse.Cli::TagsCommand -> CommandAttribute
 R 261:39 extends Warehouse.Cli::TagsCommand -> Command
-R 270:48 calls TagsCommand::RunAsync -> ByTagAsync (x-file: Warehouse/Repository.cs)
+R 270:48 calls TagsCommand::RunAsync -> ByTagAsync (name-matched: Warehouse/Repository.cs)
 R 270:67 calls TagsCommand::RunAsync -> Required
 R 273:25 calls TagsCommand::RunAsync -> WriteLine
-R 273:71 calls TagsCommand::RunAsync -> Truncate (x-file: Warehouse/Reports.cs)
+R 273:71 calls TagsCommand::RunAsync -> Truncate (name-matched: Warehouse/Reports.cs)
 R 273:60 calls TagsCommand::RunAsync -> Describe
 R 289:14 calls CommandRegistry::Default -> Add
 R 288:14 calls CommandRegistry::Default -> Add
@@ -606,10 +606,10 @@ R 7:1 imports Reports -> Globalization
 R 8:1 imports Reports -> IO
 R 9:1 imports Reports -> Linq
 R 10:1 imports Reports -> Text
-R 11:1 imports Reports -> Specialized (x-file: Warehouse/Repository.cs)
+R 11:1 imports Reports -> Specialized (name-matched: Warehouse/Repository.cs)
 R 12:1 imports Reports -> Errors
-R 13:1 imports Reports -> Models (x-file: Warehouse/Models.cs)
-R 14:1 imports Reports -> Services (x-file: Warehouse/Services.cs)
+R 13:1 imports Reports -> Models (name-matched: Warehouse/Models.cs)
+R 14:1 imports Reports -> Services (name-matched: Warehouse/Services.cs)
 R 15:1 imports Reports -> Table
 R 20:6 references Warehouse.Reporting::ColumnAttribute -> AttributeUsageAttribute
 R 21:73 extends Warehouse.Reporting::ColumnAttribute -> Attribute
@@ -638,7 +638,7 @@ R 79:43 extends Warehouse.Reporting::InventoryReport -> Report
 R 95:47 calls InventoryReport::Rows -> OrderBy
 R 97:40 calls InventoryReport::Rows -> GetValueOrDefault
 R 98:34 calls InventoryReport::Rows -> InventoryRow
-R 98:67 calls InventoryReport::Rows -> Describe (x-file: Warehouse/Errors.cs)
+R 98:67 calls InventoryReport::Rows -> Describe (name-matched: Warehouse/Errors.cs)
 R 102:45 calls InventoryReport::GrandTotal -> Aggregate
 R 102:38 calls InventoryReport::GrandTotal -> Rows
 R 105:41 extends Warehouse.Reporting::BacklogReport -> Report
@@ -650,7 +650,7 @@ R 125:62 calls Renderers::Text -> TextRenderer
 R 127:48 calls Renderers::Csv -> Register
 R 127:61 calls Renderers::Csv -> CsvRenderer
 R 136:22 calls Renderers::Get -> TryGetValue
-R 136:81 calls Renderers::Get -> NotFoundException (x-file: Warehouse/Errors.cs)
+R 136:81 calls Renderers::Get -> NotFoundException (name-matched: Warehouse/Errors.cs)
 R 138:66 calls Renderers::Names -> OrderBy
 R 140:45 implements Renderers::TextRenderer -> IRenderer
 R 146:30 calls TextRenderer::Render -> Widths
@@ -681,35 +681,35 @@ R 193:47 calls CsvRenderer::Line -> Select
 R 193:66 calls CsvRenderer::Line -> Quote
 R 201:26 calls Layout::Pad -> PadLeft
 R 201:48 calls Layout::Pad -> PadRight
-R 204:21 calls Layout::IsNumeric -> TryParse (x-file: Warehouse/Models.cs)
+R 204:21 calls Layout::IsNumeric -> TryParse (name-matched: Warehouse/Models.cs)
 R 204:35 calls Layout::IsNumeric -> Split
 R 208:30 calls Layout::Quote -> IndexOfAny
 R 209:38 calls Layout::Quote -> Replace
 R 213:48 calls Layout::Truncate -> Concat
 R 213:60 calls Layout::Truncate -> AsSpan
 R 213:75 calls Layout::Truncate -> Max
-R 243:48 calls ReportBuilder::InventoryAsync -> ListAsync (x-file: Warehouse/Repository.cs)
-R 244:47 calls ReportBuilder::InventoryAsync -> CountAsync (x-file: Warehouse/Services.cs)
+R 243:48 calls ReportBuilder::InventoryAsync -> ListAsync (name-matched: Warehouse/Repository.cs)
+R 244:47 calls ReportBuilder::InventoryAsync -> CountAsync (name-matched: Warehouse/Services.cs)
 R 245:24 calls ReportBuilder::InventoryAsync -> InventoryReport
-R 250:37 calls ReportBuilder::BacklogAsync -> OpenAsync (x-file: Warehouse/Repository.cs)
+R 250:37 calls ReportBuilder::BacklogAsync -> OpenAsync (name-matched: Warehouse/Repository.cs)
 R 251:24 calls ReportBuilder::BacklogAsync -> BacklogReport
 R 256:31 calls ReportBuilder::Errors -> StringBuilder
 R 259:18 calls ReportBuilder::Errors -> OrderByDescending
 R 258:18 calls ReportBuilder::Errors -> GroupBy
-R 259:43 calls ReportBuilder::Errors -> Count (x-file: Warehouse/Models.cs)
-R 262:48 calls ReportBuilder::Errors -> StatusFor (x-file: Warehouse/Errors.cs)
+R 259:43 calls ReportBuilder::Errors -> Count (name-matched: Warehouse/Models.cs)
+R 262:48 calls ReportBuilder::Errors -> StatusFor (name-matched: Warehouse/Errors.cs)
 R 263:25 calls ReportBuilder::Errors -> AppendLine
-R 263:104 calls ReportBuilder::Errors -> Count (x-file: Warehouse/Models.cs)
+R 263:104 calls ReportBuilder::Errors -> Count (name-matched: Warehouse/Models.cs)
 R 264:45 calls ReportBuilder::Errors -> Take
 R 266:44 calls ReportBuilder::Errors -> AppendLine
 R 266:29 calls ReportBuilder::Errors -> Append
 R 266:83 calls ReportBuilder::Errors -> Truncate
-R 266:68 calls ReportBuilder::Errors -> Explain (x-file: Warehouse/Errors.cs)
+R 266:68 calls ReportBuilder::Errors -> Explain (name-matched: Warehouse/Errors.cs)
 R 269:64 calls ReportBuilder::Errors -> ToString
 R 275:38 calls ReportBuilder::Render -> Get
 R 276:27 calls ReportBuilder::Render -> RenderWith
 R 311:49 calls Summary::ComputeAsync -> InventoryAsync
-R 312:42 calls Summary::ComputeAsync -> OpenAsync (x-file: Warehouse/Repository.cs)
+R 312:42 calls Summary::ComputeAsync -> OpenAsync (name-matched: Warehouse/Repository.cs)
 R 313:24 calls Summary::ComputeAsync -> Summary
 R 313:75 calls Summary::ComputeAsync -> GrandTotal
 
@@ -787,19 +787,19 @@ R 8:1 imports Repository -> Concurrent
 R 9:1 imports Repository -> Generic
 R 10:1 imports Repository -> Linq
 R 11:1 imports Repository -> Threading
-R 12:1 imports Repository -> Errors (x-file: Warehouse/Errors.cs)
-R 13:1 imports Repository -> Models (x-file: Warehouse/Models.cs)
+R 12:1 imports Repository -> Errors (name-matched: Warehouse/Errors.cs)
+R 13:1 imports Repository -> Models (name-matched: Warehouse/Models.cs)
 R 25:49 extends Warehouse.Data::ChangeEventArgs -> EventArgs
 R 52:53 calls IReadRepository::GetAsync -> ConfigureAwait
 R 52:31 calls IReadRepository::GetAsync -> FindAsync
-R 53:26 calls IReadRepository::GetAsync -> Found (x-file: Warehouse/Errors.cs)
+R 53:26 calls IReadRepository::GetAsync -> Found (name-matched: Warehouse/Errors.cs)
 R 58:51 extends Warehouse.Data::IRepository -> IReadRepository
 R 70:54 implements Warehouse.Data::InMemoryRepository -> IRepository
 R 70:82 implements Warehouse.Data::InMemoryRepository -> IDisposable
 R 88:25 calls InMemoryRepository::InMemoryRepository -> Increment
 R 100:53 calls InMemoryRepository::Instances -> Read
 R 104:49 calls InMemoryRepository::this -> TryGetValue
-R 104:93 calls InMemoryRepository::this -> NotFoundException (x-file: Warehouse/Errors.cs)
+R 104:93 calls InMemoryRepository::this -> NotFoundException (name-matched: Warehouse/Errors.cs)
 R 114:19 calls InMemoryRepository::FindAsync -> ThrowIfCancellationRequested
 R 115:25 calls InMemoryRepository::FindAsync -> FromResult
 R 115:43 calls InMemoryRepository::FindAsync -> TryGetValue
@@ -840,18 +840,18 @@ R 217:28 calls ProductRepository::ByFamilyAsync -> ToLookup
 R 222:47 extends Specialized::StockRepository -> InMemoryRepository
 R 231:30 calls StockRepository::ForSkuAsync -> ListAsync
 R 236:35 calls StockRepository::AvailableAsync -> ForSkuAsync
-R 237:30 calls StockRepository::AvailableAsync -> TotalAvailable (x-file: Warehouse/Models.cs)
+R 237:30 calls StockRepository::AvailableAsync -> TotalAvailable (name-matched: Warehouse/Models.cs)
 R 242:22 calls StockRepository::OnChanged -> OnChanged
 R 250:47 extends Specialized::OrderRepository -> InMemoryRepository
 R 253:17 calls OrderRepository::OpenAsync -> ListAsync
 R 257:45 calls OrderRepository::StreamAsync -> ListAsync
 R 259:32 calls OrderRepository::StreamAsync -> Yield
 R 267:38 implements Warehouse.Data::UnitOfWork -> IAsyncDisposable
-R 284:22 calls UnitOfWork::Save -> Add (x-file: Warehouse/Errors.cs)
+R 284:22 calls UnitOfWork::Save -> Add (name-matched: Warehouse/Errors.cs)
 R 284:46 calls UnitOfWork::Save -> SaveAsync
-R 292:22 calls UnitOfWork::Remove -> Add (x-file: Warehouse/Errors.cs)
+R 292:22 calls UnitOfWork::Remove -> Add (name-matched: Warehouse/Errors.cs)
 R 292:58 calls UnitOfWork::Remove -> RemoveAsync
-R 298:22 calls UnitOfWork::CommitAsync -> Acquire (x-file: Warehouse/Errors.cs)
+R 298:22 calls UnitOfWork::CommitAsync -> Acquire (name-matched: Warehouse/Errors.cs)
 R 298:35 calls UnitOfWork::CommitAsync -> Max
 R 299:34 calls UnitOfWork::CommitAsync -> ToArray
 R 300:22 calls UnitOfWork::CommitAsync -> Clear
@@ -859,24 +859,24 @@ R 303:35 calls UnitOfWork::CommitAsync -> ConfigureAwait
 R 303:23 calls UnitOfWork::CommitAsync -> step
 R 305:25 calls UnitOfWork::CommitAsync -> Increment
 R 310:22 calls UnitOfWork::DisposeAsync -> Clear
-R 322:91 calls Seed::Demo -> Tag (x-file: Warehouse/Models.cs)
-R 322:21 calls Seed::Demo -> Product (x-file: Warehouse/Models.cs)
-R 322:33 calls Seed::Demo -> Parse (x-file: Warehouse/Models.cs)
-R 322:67 calls Seed::Demo -> Price (x-file: Warehouse/Models.cs)
-R 323:90 calls Seed::Demo -> Tag (x-file: Warehouse/Models.cs)
-R 323:21 calls Seed::Demo -> Product (x-file: Warehouse/Models.cs)
-R 323:33 calls Seed::Demo -> Parse (x-file: Warehouse/Models.cs)
-R 323:66 calls Seed::Demo -> Price (x-file: Warehouse/Models.cs)
-R 324:21 calls Seed::Demo -> Product (x-file: Warehouse/Models.cs)
-R 324:33 calls Seed::Demo -> Parse (x-file: Warehouse/Models.cs)
-R 324:71 calls Seed::Demo -> Price (x-file: Warehouse/Models.cs)
-R 325:86 calls Seed::Demo -> Tag (x-file: Warehouse/Models.cs)
-R 325:21 calls Seed::Demo -> Product (x-file: Warehouse/Models.cs)
-R 325:33 calls Seed::Demo -> Parse (x-file: Warehouse/Models.cs)
-R 325:72 calls Seed::Demo -> Price (x-file: Warehouse/Models.cs)
+R 322:91 calls Seed::Demo -> Tag (name-matched: Warehouse/Models.cs)
+R 322:21 calls Seed::Demo -> Product (name-matched: Warehouse/Models.cs)
+R 322:33 calls Seed::Demo -> Parse (name-matched: Warehouse/Models.cs)
+R 322:67 calls Seed::Demo -> Price (name-matched: Warehouse/Models.cs)
+R 323:90 calls Seed::Demo -> Tag (name-matched: Warehouse/Models.cs)
+R 323:21 calls Seed::Demo -> Product (name-matched: Warehouse/Models.cs)
+R 323:33 calls Seed::Demo -> Parse (name-matched: Warehouse/Models.cs)
+R 323:66 calls Seed::Demo -> Price (name-matched: Warehouse/Models.cs)
+R 324:21 calls Seed::Demo -> Product (name-matched: Warehouse/Models.cs)
+R 324:33 calls Seed::Demo -> Parse (name-matched: Warehouse/Models.cs)
+R 324:71 calls Seed::Demo -> Price (name-matched: Warehouse/Models.cs)
+R 325:86 calls Seed::Demo -> Tag (name-matched: Warehouse/Models.cs)
+R 325:21 calls Seed::Demo -> Product (name-matched: Warehouse/Models.cs)
+R 325:33 calls Seed::Demo -> Parse (name-matched: Warehouse/Models.cs)
+R 325:72 calls Seed::Demo -> Price (name-matched: Warehouse/Models.cs)
 R 327:29 calls Seed::Demo -> StockRepository
-R 330:32 calls Seed::Demo -> StockLine (x-file: Warehouse/Models.cs)
-R 330:63 calls Seed::Demo -> Parse (x-file: Warehouse/Models.cs)
+R 330:32 calls Seed::Demo -> StockLine (name-matched: Warehouse/Models.cs)
+R 330:63 calls Seed::Demo -> Parse (name-matched: Warehouse/Models.cs)
 R 331:55 calls Seed::Demo -> GetResult
 R 331:42 calls Seed::Demo -> GetAwaiter
 R 331:23 calls Seed::Demo -> SaveAsync
@@ -951,9 +951,9 @@ R 7:1 imports Services -> Diagnostics
 R 8:1 imports Services -> Linq
 R 9:1 imports Services -> Threading
 R 10:1 imports Services -> Data
-R 11:1 imports Services -> Specialized (x-file: Warehouse/Repository.cs)
-R 12:1 imports Services -> Errors (x-file: Warehouse/Errors.cs)
-R 13:1 imports Services -> Models (x-file: Warehouse/Models.cs)
+R 11:1 imports Services -> Specialized (name-matched: Warehouse/Repository.cs)
+R 12:1 imports Services -> Errors (name-matched: Warehouse/Errors.cs)
+R 13:1 imports Services -> Models (name-matched: Warehouse/Models.cs)
 R 25:35 implements Warehouse.Services::SystemClock -> IClock
 R 29:42 calls SystemClock::Create -> SystemClock
 R 32:54 implements Warehouse.Services::FixedClock -> IClock
@@ -961,95 +961,95 @@ R 36:42 calls FixedClock::Create -> FixedClock
 R 47:39 implements Warehouse.Services::ConsoleNotifier -> INotifier
 R 49:65 calls ConsoleNotifier::Notify -> WriteLine
 R 52:41 implements Warehouse.Services::RecordingNotifier -> INotifier
-R 58:63 calls RecordingNotifier::Notify -> Add (x-file: Warehouse/Errors.cs)
+R 58:63 calls RecordingNotifier::Notify -> Add (name-matched: Warehouse/Errors.cs)
 R 73:37 calls InventoryService::InventoryService -> LowStockCheck
-R 84:27 calls InventoryService::ReceiveAsync -> Parse (x-file: Warehouse/Models.cs)
-R 85:29 calls InventoryService::ReceiveAsync -> GetAsync (x-file: Warehouse/Repository.cs)
-R 86:37 calls InventoryService::ReceiveAsync -> Parse (x-file: Warehouse/Models.cs)
-R 87:37 calls InventoryService::ReceiveAsync -> FindAsync (x-file: Warehouse/Repository.cs)
-R 87:78 calls InventoryService::ReceiveAsync -> StockLine (x-file: Warehouse/Models.cs)
-R 90:18 calls InventoryService::ReceiveAsync -> Receive (x-file: Warehouse/Models.cs)
-R 91:26 calls InventoryService::ReceiveAsync -> SaveAsync (x-file: Warehouse/Repository.cs)
+R 84:27 calls InventoryService::ReceiveAsync -> Parse (name-matched: Warehouse/Models.cs)
+R 85:29 calls InventoryService::ReceiveAsync -> GetAsync (name-matched: Warehouse/Repository.cs)
+R 86:37 calls InventoryService::ReceiveAsync -> Parse (name-matched: Warehouse/Models.cs)
+R 87:37 calls InventoryService::ReceiveAsync -> FindAsync (name-matched: Warehouse/Repository.cs)
+R 87:78 calls InventoryService::ReceiveAsync -> StockLine (name-matched: Warehouse/Models.cs)
+R 90:18 calls InventoryService::ReceiveAsync -> Receive (name-matched: Warehouse/Models.cs)
+R 91:26 calls InventoryService::ReceiveAsync -> SaveAsync (name-matched: Warehouse/Repository.cs)
 R 92:27 calls InventoryService::ReceiveAsync -> Invoke
 R 97:23 calls InventoryService::ReceiveAsync -> Notify
-R 97:54 calls InventoryService::ReceiveAsync -> Explain (x-file: Warehouse/Errors.cs)
-R 98:38 calls InventoryService::ReceiveAsync -> Fail (x-file: Warehouse/Errors.cs)
-R 104:28 calls InventoryService::MoveAsync -> Found (x-file: Warehouse/Errors.cs)
-R 104:47 calls InventoryService::MoveAsync -> FindAsync (x-file: Warehouse/Repository.cs)
-R 105:16 calls InventoryService::MoveAsync -> Reserve (x-file: Warehouse/Models.cs)
-R 106:16 calls InventoryService::MoveAsync -> Ship (x-file: Warehouse/Models.cs)
-R 107:35 calls InventoryService::MoveAsync -> FindAsync (x-file: Warehouse/Repository.cs)
-R 107:70 calls InventoryService::MoveAsync -> StockLine (x-file: Warehouse/Models.cs)
-R 108:16 calls InventoryService::MoveAsync -> Receive (x-file: Warehouse/Models.cs)
-R 109:22 calls InventoryService::MoveAsync -> SaveAsync (x-file: Warehouse/Repository.cs)
-R 110:22 calls InventoryService::MoveAsync -> SaveAsync (x-file: Warehouse/Repository.cs)
+R 97:54 calls InventoryService::ReceiveAsync -> Explain (name-matched: Warehouse/Errors.cs)
+R 98:38 calls InventoryService::ReceiveAsync -> Fail (name-matched: Warehouse/Errors.cs)
+R 104:28 calls InventoryService::MoveAsync -> Found (name-matched: Warehouse/Errors.cs)
+R 104:47 calls InventoryService::MoveAsync -> FindAsync (name-matched: Warehouse/Repository.cs)
+R 105:16 calls InventoryService::MoveAsync -> Reserve (name-matched: Warehouse/Models.cs)
+R 106:16 calls InventoryService::MoveAsync -> Ship (name-matched: Warehouse/Models.cs)
+R 107:35 calls InventoryService::MoveAsync -> FindAsync (name-matched: Warehouse/Repository.cs)
+R 107:70 calls InventoryService::MoveAsync -> StockLine (name-matched: Warehouse/Models.cs)
+R 108:16 calls InventoryService::MoveAsync -> Receive (name-matched: Warehouse/Models.cs)
+R 109:22 calls InventoryService::MoveAsync -> SaveAsync (name-matched: Warehouse/Repository.cs)
+R 110:22 calls InventoryService::MoveAsync -> SaveAsync (name-matched: Warehouse/Repository.cs)
 R 111:19 calls InventoryService::MoveAsync -> Notify
-R 116:34 calls InventoryService::CountAsync -> ListAsync (x-file: Warehouse/Repository.cs)
+R 116:34 calls InventoryService::CountAsync -> ListAsync (name-matched: Warehouse/Repository.cs)
 R 121:57 calls InventoryService::CountAsync -> Sum
 R 122:23 calls InventoryService::CountAsync -> ToDictionary
 R 127:65 calls InventoryService::LowStockCheck -> GetResult
 R 127:52 calls InventoryService::LowStockCheck -> GetAwaiter
-R 127:32 calls InventoryService::LowStockCheck -> AvailableAsync (x-file: Warehouse/Repository.cs)
+R 127:32 calls InventoryService::LowStockCheck -> AvailableAsync (name-matched: Warehouse/Repository.cs)
 R 130:23 calls InventoryService::LowStockCheck -> Notify
 R 154:39 calls OrderService::OrderService -> Create
 R 157:63 calls OrderService::PickingDeadline -> FromHours
-R 161:43 calls OrderService::DraftAsync -> Require (x-file: Warehouse/Errors.cs)
-R 161:26 calls OrderService::DraftAsync -> ErrorCollector (x-file: Warehouse/Errors.cs)
-R 162:25 calls OrderService::DraftAsync -> Order (x-file: Warehouse/Models.cs)
+R 161:43 calls OrderService::DraftAsync -> Require (name-matched: Warehouse/Errors.cs)
+R 161:26 calls OrderService::DraftAsync -> ErrorCollector (name-matched: Warehouse/Errors.cs)
+R 162:25 calls OrderService::DraftAsync -> Order (name-matched: Warehouse/Models.cs)
 R 162:36 calls OrderService::DraftAsync -> NewGuid
-R 165:22 calls OrderService::DraftAsync -> TryParse (x-file: Warehouse/Models.cs)
-R 167:24 calls OrderService::DraftAsync -> Check (x-file: Warehouse/Errors.cs)
-R 170:43 calls OrderService::DraftAsync -> GetAsync (x-file: Warehouse/Repository.cs)
-R 171:19 calls OrderService::DraftAsync -> Add (x-file: Warehouse/Errors.cs)
-R 173:16 calls OrderService::DraftAsync -> ThrowIfAny (x-file: Warehouse/Errors.cs)
-R 174:23 calls OrderService::DraftAsync -> SaveAsync (x-file: Warehouse/Repository.cs)
-R 180:35 calls OrderService::PlaceAsync -> GetAsync (x-file: Warehouse/Repository.cs)
+R 165:22 calls OrderService::DraftAsync -> TryParse (name-matched: Warehouse/Models.cs)
+R 167:24 calls OrderService::DraftAsync -> Check (name-matched: Warehouse/Errors.cs)
+R 170:43 calls OrderService::DraftAsync -> GetAsync (name-matched: Warehouse/Repository.cs)
+R 171:19 calls OrderService::DraftAsync -> Add (name-matched: Warehouse/Errors.cs)
+R 173:16 calls OrderService::DraftAsync -> ThrowIfAny (name-matched: Warehouse/Errors.cs)
+R 174:23 calls OrderService::DraftAsync -> SaveAsync (name-matched: Warehouse/Repository.cs)
+R 180:35 calls OrderService::PlaceAsync -> GetAsync (name-matched: Warehouse/Repository.cs)
 R 181:28 calls OrderService::PlaceAsync -> List
-R 186:47 calls OrderService::PlaceAsync -> ForSkuAsync (x-file: Warehouse/Repository.cs)
-R 187:38 calls OrderService::PlaceAsync -> Nearest (x-file: Warehouse/Models.cs)
-R 187:55 calls OrderService::PlaceAsync -> Parse (x-file: Warehouse/Models.cs)
-R 188:34 calls OrderService::PlaceAsync -> OutOfStockException (x-file: Warehouse/Errors.cs)
-R 188:90 calls OrderService::PlaceAsync -> TotalAvailable (x-file: Warehouse/Models.cs)
-R 189:21 calls OrderService::PlaceAsync -> Reserve (x-file: Warehouse/Models.cs)
-R 190:26 calls OrderService::PlaceAsync -> Add (x-file: Warehouse/Errors.cs)
-R 192:19 calls OrderService::PlaceAsync -> MoveTo (x-file: Warehouse/Models.cs)
-R 193:27 calls OrderService::PlaceAsync -> SaveAsync (x-file: Warehouse/Repository.cs)
+R 186:47 calls OrderService::PlaceAsync -> ForSkuAsync (name-matched: Warehouse/Repository.cs)
+R 187:38 calls OrderService::PlaceAsync -> Nearest (name-matched: Warehouse/Models.cs)
+R 187:55 calls OrderService::PlaceAsync -> Parse (name-matched: Warehouse/Models.cs)
+R 188:34 calls OrderService::PlaceAsync -> OutOfStockException (name-matched: Warehouse/Errors.cs)
+R 188:90 calls OrderService::PlaceAsync -> TotalAvailable (name-matched: Warehouse/Models.cs)
+R 189:21 calls OrderService::PlaceAsync -> Reserve (name-matched: Warehouse/Models.cs)
+R 190:26 calls OrderService::PlaceAsync -> Add (name-matched: Warehouse/Errors.cs)
+R 192:19 calls OrderService::PlaceAsync -> MoveTo (name-matched: Warehouse/Models.cs)
+R 193:27 calls OrderService::PlaceAsync -> SaveAsync (name-matched: Warehouse/Repository.cs)
 R 194:23 calls OrderService::PlaceAsync -> Notify
 R 199:13 calls OrderService::PlaceAsync -> Rollback
-R 200:34 calls OrderService::PlaceAsync -> Fail (x-file: Warehouse/Errors.cs)
-R 207:22 calls Rollback -> Release (x-file: Warehouse/Models.cs)
+R 200:34 calls OrderService::PlaceAsync -> Fail (name-matched: Warehouse/Errors.cs)
+R 207:22 calls Rollback -> Release (name-matched: Warehouse/Models.cs)
 R 209:23 calls Rollback -> Notify
-R 215:35 calls OrderService::PickAsync -> GetAsync (x-file: Warehouse/Repository.cs)
-R 217:15 calls OrderService::PickAsync -> MoveTo (x-file: Warehouse/Models.cs)
+R 215:35 calls OrderService::PickAsync -> GetAsync (name-matched: Warehouse/Repository.cs)
+R 217:15 calls OrderService::PickAsync -> MoveTo (name-matched: Warehouse/Models.cs)
 R 218:31 calls OrderService::PickAsync -> StartNew
 R 219:36 calls OrderService::PickAsync -> OrderBy
 R 221:19 calls OrderService::PickAsync -> PickLineAsync
 R 223:15 calls OrderService::PickAsync -> Stop
 R 226:23 calls OrderService::PickAsync -> Notify
-R 228:23 calls OrderService::PickAsync -> SaveAsync (x-file: Warehouse/Repository.cs)
-R 234:33 calls OrderService::PickLineAsync -> ForSkuAsync (x-file: Warehouse/Repository.cs)
+R 228:23 calls OrderService::PickAsync -> SaveAsync (name-matched: Warehouse/Repository.cs)
+R 234:33 calls OrderService::PickLineAsync -> ForSkuAsync (name-matched: Warehouse/Repository.cs)
 R 236:34 calls OrderService::PickLineAsync -> Where
 R 238:29 calls OrderService::PickLineAsync -> Min
-R 239:17 calls OrderService::PickLineAsync -> Ship (x-file: Warehouse/Models.cs)
-R 250:35 calls OrderService::CancelAsync -> FindAsync (x-file: Warehouse/Repository.cs)
-R 256:27 calls OrderService::CancelAsync -> ConflictException (x-file: Warehouse/Errors.cs)
-R 258:23 calls OrderService::CancelAsync -> MoveTo (x-file: Warehouse/Models.cs)
+R 239:17 calls OrderService::PickLineAsync -> Ship (name-matched: Warehouse/Models.cs)
+R 250:35 calls OrderService::CancelAsync -> FindAsync (name-matched: Warehouse/Repository.cs)
+R 256:27 calls OrderService::CancelAsync -> ConflictException (name-matched: Warehouse/Errors.cs)
+R 258:23 calls OrderService::CancelAsync -> MoveTo (name-matched: Warehouse/Models.cs)
 R 261:27 calls OrderService::CancelAsync -> Notify
-R 264:23 calls OrderService::CancelAsync -> SaveAsync (x-file: Warehouse/Repository.cs)
+R 264:23 calls OrderService::CancelAsync -> SaveAsync (name-matched: Warehouse/Repository.cs)
 R 268:78 calls OrderService::SnapshotAsync -> CountAsync
 R 272:35 implements Warehouse.Services::ServiceHost -> IAsyncDisposable
-R 276:34 calls ServiceHost::ServiceHost -> Demo (x-file: Warehouse/Repository.cs)
-R 277:22 calls ServiceHost::ServiceHost -> OrderRepository (x-file: Warehouse/Repository.cs)
+R 276:34 calls ServiceHost::ServiceHost -> Demo (name-matched: Warehouse/Repository.cs)
+R 277:22 calls ServiceHost::ServiceHost -> OrderRepository (name-matched: Warehouse/Repository.cs)
 R 279:25 calls ServiceHost::ServiceHost -> InventoryService
 R 280:29 calls ServiceHost::ServiceHost -> OrderService
 R 281:26 calls ServiceHost::ServiceHost -> UnitOfWork
-R 281:41 calls ServiceHost::ServiceHost -> RateLimiter (x-file: Warehouse/Errors.cs)
+R 281:41 calls ServiceHost::ServiceHost -> RateLimiter (name-matched: Warehouse/Errors.cs)
 R 281:66 calls ServiceHost::ServiceHost -> FromSeconds
 R 298:88 calls ServiceHost::Build -> ConsoleNotifier
 R 302:24 calls ServiceHost::BuildForTests -> RecordingNotifier
 R 303:16 calls ServiceHost::BuildForTests -> Build
 R 308:26 calls ServiceHost::DisposeAsync -> DisposeAsync
-R 309:18 calls ServiceHost::DisposeAsync -> Dispose (x-file: Warehouse/Repository.cs)
-R 310:15 calls ServiceHost::DisposeAsync -> Dispose (x-file: Warehouse/Repository.cs)
-R 311:16 calls ServiceHost::DisposeAsync -> Dispose (x-file: Warehouse/Repository.cs)
+R 309:18 calls ServiceHost::DisposeAsync -> Dispose (name-matched: Warehouse/Repository.cs)
+R 310:15 calls ServiceHost::DisposeAsync -> Dispose (name-matched: Warehouse/Repository.cs)
+R 311:16 calls ServiceHost::DisposeAsync -> Dispose (name-matched: Warehouse/Repository.cs)
 R 320:69 calls Prüfung::集計 -> Sum

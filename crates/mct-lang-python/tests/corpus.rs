@@ -230,7 +230,7 @@ fn cross_file_imports_and_calls_are_extracted() {
         RelationKind::Calls,
         "overdue_fee",
     );
-    assert!(c.cross_file_relation_count() >= 100);
+    assert!(c.name_matched_relation_count() >= 100);
 }
 
 #[test]

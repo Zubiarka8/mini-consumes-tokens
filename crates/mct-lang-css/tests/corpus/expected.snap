@@ -1,4 +1,4 @@
-# language=css files=6 symbols=617 relations=12 cross_file=0
+# language=css files=6 symbols=617 relations=12 name_matched_across_files=0
 
 == app.css (361 lines)
 S 1-361 module app

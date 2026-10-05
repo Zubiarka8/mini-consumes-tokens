@@ -5,17 +5,22 @@
 //!
 //! ```text
 //! tests/corpus/
-//!   project/               ≥ 5 realistic files, 300–600 lines each, that
-//!                          reference each other (the index root)
+//!   project/               realistic files that reference each other (the
+//!                          index root): ≥ 5 of them 300–700 lines long, the
+//!                          rest (a small `urls.py`, a config…) at most 700
 //!   expected.snap          golden list of every symbol and relation the
 //!                          parser extracts from `project/`
-//!   malformed/             at least one large, deliberately broken file
+//!   malformed/             at least one large file the parser must reject
+//!                          with a syntax error
 //! ```
+//!
+//! `CONTRIBUTING.md` ("Language corpus") has the conventions and the review
+//! checklist.
 //!
 //! A crate's `tests/corpus.rs` loads the corpus once with [`Corpus::load`]
 //! and runs the shared checks ([`Corpus::assert_size`],
 //! [`Corpus::assert_line_ranges`], [`Corpus::assert_snapshot`], [`Corpus::assert_index_round_trip`],
-//! [`Corpus::assert_malformed_never_panics`]) plus its own
+//! [`Corpus::assert_malformed_never_panics`], [`Corpus::assert_malformed_rejected`]) plus its own
 //! language-specific assertions through [`Corpus::symbol`] and
 //! [`Corpus::relation`].
 //!
@@ -48,6 +53,20 @@ use mct_index::{ExcludeSet, Index};
 #[macro_export]
 macro_rules! standard_tests {
     ($parser:expr) => {
+        $crate::standard_tests!(@shared $parser);
+
+        #[test]
+        fn malformed_corpus_files_are_syntax_errors() {
+            corpus().assert_malformed_rejected();
+        }
+    };
+    // For a grammar that accepts any input (Markdown), the `malformed/`
+    // files only have to parse without panicking. The reason is required so
+    // the exception stays explained where it is taken.
+    ($parser:expr, malformed_may_parse = $reason:literal) => {
+        $crate::standard_tests!(@shared $parser);
+    };
+    (@shared $parser:expr) => {
         fn corpus() -> &'static $crate::Corpus {
             static CORPUS: ::std::sync::OnceLock<$crate::Corpus> = ::std::sync::OnceLock::new();
             CORPUS.get_or_init(|| {
@@ -92,10 +111,11 @@ macro_rules! standard_tests {
 
 /// Issue #74's size target: at least this many files per language…
 pub const MIN_FILES: usize = 5;
-/// …each at least this many lines…
+/// …at least this many lines long. Other files may be shorter, so a
+/// project keeps its natural shape (a small `urls.py` next to `models.py`).
 pub const MIN_LINES: usize = 300;
-/// …and at most this many. The issue calls 600 a soft ceiling; this hard
-/// limit leaves room to go "a bit over" while still catching a dump.
+/// No corpus file is longer than this. The issue calls 600 a soft ceiling;
+/// this hard limit leaves room to go "a bit over" while still catching a dump.
 pub const MAX_LINES: usize = 700;
 
 /// Environment variable that rewrites `expected.snap` instead of comparing.
@@ -189,23 +209,17 @@ impl Corpus {
         self.dir.join("project")
     }
 
-    /// Every file the parser actually claims (by extension) counts towards
-    /// the size target; support files such as a `.json` next to a `.ts`
-    /// project would not, but the corpus has none.
+    /// At least [`MIN_FILES`] files of [`MIN_LINES`]..=[`MAX_LINES`] lines,
+    /// and none longer than [`MAX_LINES`]. Every file under `project/` is
+    /// parsed, so it must be one the parser claims.
     pub fn assert_size(&self) {
-        assert!(
-            self.files.len() >= MIN_FILES,
-            "corpus has {} files, need at least {MIN_FILES}",
-            self.files.len()
-        );
-        for f in &self.files {
-            let n = f.line_count();
-            assert!(
-                (MIN_LINES..=MAX_LINES).contains(&n),
-                "{} has {n} lines, expected {MIN_LINES}..={MAX_LINES}",
-                f.path
-            );
-        }
+        let sizes: Vec<_> = self
+            .files
+            .iter()
+            .map(|f| (f.path.as_str(), f.line_count()))
+            .collect();
+        let problems = size_problems(&sizes);
+        assert!(problems.is_empty(), "{}", problems.join("\n"));
     }
 
     /// Every symbol range and relation site lies inside its file:
@@ -260,15 +274,16 @@ impl Corpus {
 
     /// The golden text: one `== path` section per file, then a `S` line per
     /// symbol (`start-end kind parent::name`) and an `R` line per relation
-    /// (`line:col kind from -> to`), with `(x-file: path)` appended when
-    /// the target name is defined in a different corpus file.
+    /// (`line:col kind from -> to`), with `(name-matched: path)` appended
+    /// when a symbol with the target's *name* is defined in a different
+    /// corpus file — a name coincidence, not a resolved reference.
     pub fn render(&self) -> String {
         let defined_in = self.definition_files();
         let mut out = String::new();
         let (syms, rels, xfile) = self.totals(&defined_in);
         writeln!(
             out,
-            "# language={} files={} symbols={syms} relations={rels} cross_file={xfile}",
+            "# language={} files={} symbols={syms} relations={rels} name_matched_across_files={xfile}",
             self.parser.language_id(),
             self.files.len()
         )
@@ -309,8 +324,8 @@ impl Corpus {
                     r.to_name
                 )
                 .unwrap();
-                if let Some(other) = cross_file_target(&defined_in, &f.path, r) {
-                    write!(out, " (x-file: {other})").unwrap();
+                if let Some(other) = name_matched_file(&defined_in, &f.path, r) {
+                    write!(out, " (name-matched: {other})").unwrap();
                 }
                 out.push('\n');
             }
@@ -328,7 +343,7 @@ impl Corpus {
                 f.parsed
                     .relations
                     .iter()
-                    .filter(|r| cross_file_target(defined_in, &f.path, r).is_some())
+                    .filter(|r| name_matched_file(defined_in, &f.path, r).is_some())
             })
             .count();
         (syms, rels, xfile)
@@ -425,8 +440,11 @@ impl Corpus {
             .collect()
     }
 
-    /// Number of relations whose target is defined in another corpus file.
-    pub fn cross_file_relation_count(&self) -> usize {
+    /// Relations whose target *name* is also defined in another corpus
+    /// file. A floor on how interconnected the project is, not a count of
+    /// resolved cross-file references: assert those one by one with
+    /// [`Corpus::relation`].
+    pub fn name_matched_relation_count(&self) -> usize {
         self.totals(&self.definition_files()).2
     }
 
@@ -503,7 +521,7 @@ impl Corpus {
         .unwrap();
         writeln!(
             out,
-            "symbols: {syms}  relations: {rels}  cross-file: {xfile}"
+            "symbols: {syms}  relations: {rels}  name-matched across files: {xfile} (target name defined in another file, not resolved)"
         )
         .unwrap();
         let mut kinds: BTreeMap<&str, usize> = BTreeMap::new();
@@ -544,7 +562,7 @@ impl Corpus {
         out
     }
 
-    /// `(files / lines, symbols / relations (cross-file))`, formatted as in
+    /// `(files / lines, symbols / relations (name-matched across files))`, as in
     /// `internal/corpus-progress.md`.
     fn progress_cells(&self) -> (String, String) {
         let (syms, rels, xfile) = self.totals(&self.definition_files());
@@ -794,27 +812,53 @@ impl Corpus {
         }
     }
 
-    /// Parses the checked-in `tests/corpus/malformed/` files (at least one,
-    /// each at least [`MIN_LINES`] long) plus mechanically corrupted
-    /// variants of every corpus file. None may panic; each must end in a
-    /// `ParseError::Syntax` or a partial result whose line ranges stay
-    /// inside the input.
-    pub fn assert_malformed_never_panics(&self) {
+    /// The checked-in `tests/corpus/malformed/` files (at least one, each at
+    /// least [`MIN_LINES`] long), as `(relative path, contents)`.
+    fn malformed_files(&self) -> Vec<(String, String)> {
         let dir = self.dir.join("malformed");
         let mut paths = Vec::new();
         collect_files(&dir, &mut paths);
         paths.sort();
         assert!(!paths.is_empty(), "no files under {}", dir.display());
-        let mut inputs: Vec<(String, String)> = Vec::new();
-        for p in paths {
-            let contents = std::fs::read_to_string(&p).unwrap();
-            let rel = relative(&dir, &p);
-            assert!(
-                contents.lines().count() >= MIN_LINES,
-                "malformed/{rel} should be a large file"
-            );
-            inputs.push((rel, contents));
-        }
+        paths
+            .into_iter()
+            .map(|p| {
+                let contents = std::fs::read_to_string(&p).unwrap();
+                let rel = relative(&dir, &p);
+                assert!(
+                    contents.lines().count() >= MIN_LINES,
+                    "malformed/{rel} should be a large file"
+                );
+                (rel, contents)
+            })
+            .collect()
+    }
+
+    /// Every checked-in `malformed/` file ends in `ParseError::Syntax`: a
+    /// fixture that parses cleanly proves nothing about error handling.
+    /// [`standard_tests!`]'s `malformed_may_parse = "…"` form skips this
+    /// for a grammar that accepts any input.
+    pub fn assert_malformed_rejected(&self) {
+        let problems: Vec<_> = self
+            .malformed_files()
+            .into_iter()
+            .filter_map(|(rel, contents)| {
+                let result = self.parser.parse(&SourceFile {
+                    relative_path: rel.clone(),
+                    contents,
+                });
+                malformed_verdict(&rel, &result)
+            })
+            .collect();
+        assert!(problems.is_empty(), "{}", problems.join("\n"));
+    }
+
+    /// Parses the checked-in `malformed/` files plus mechanically corrupted
+    /// variants of every corpus file. None may panic; each must end in a
+    /// `ParseError::Syntax` or a partial result whose line ranges stay
+    /// inside the input.
+    pub fn assert_malformed_never_panics(&self) {
+        let mut inputs = self.malformed_files();
         for f in &self.files {
             for (label, text) in corruptions(&f.contents) {
                 inputs.push((format!("{} [{label}]", f.path), text));
@@ -901,7 +945,10 @@ fn corruptions(src: &str) -> Vec<(&'static str, String)> {
     ]
 }
 
-fn cross_file_target<'a>(
+/// The other corpus file defining a symbol named like `r`'s target, if any.
+/// By name only, as the snapshot and report say: a call to a standard
+/// library `get` matches any `get` the corpus defines.
+fn name_matched_file<'a>(
     defined_in: &HashMap<&str, Vec<&'a str>>,
     path: &str,
     r: &SymbolRelation,
@@ -947,15 +994,15 @@ fn update_progress_table(
         }
         total += 1;
         match cells[3].trim().trim_matches('*') {
-            "Hecho" => done += 1,
-            "En PR" => in_pr += 1,
+            "Done" => done += 1,
+            "In PR" => in_pr += 1,
             _ => pending += 1,
         }
     }
     for line in &mut rows {
-        if line.starts_with("**Resumen:") {
+        if line.starts_with("**Summary:") {
             *line = format!(
-                "**Resumen: {done} hechos, {in_pr} en PR, {pending} pendientes (de {total}).**"
+                "**Summary: {done} done, {in_pr} in PR, {pending} pending ({total} total).**"
             );
         }
     }
@@ -966,13 +1013,46 @@ fn update_progress_table(
     Some(out)
 }
 
-/// `1568` → `1.568`, the thousands style of the progress table.
+/// What breaks the size target in `(path, lines)`, one line per problem.
+fn size_problems(files: &[(&str, usize)]) -> Vec<String> {
+    let mut problems: Vec<String> = files
+        .iter()
+        .filter(|(_, n)| *n > MAX_LINES)
+        .map(|(path, n)| format!("{path} has {n} lines, more than {MAX_LINES}"))
+        .collect();
+    let full = files
+        .iter()
+        .filter(|(_, n)| (MIN_LINES..=MAX_LINES).contains(n))
+        .count();
+    if full < MIN_FILES {
+        problems.push(format!(
+            "{full} file(s) have {MIN_LINES}..={MAX_LINES} lines, need at least {MIN_FILES}"
+        ));
+    }
+    problems
+}
+
+/// Why a checked-in `malformed/` file's parse result does not prove the
+/// parser rejects it, or `None` when it ended in a syntax error.
+fn malformed_verdict(rel: &str, result: &Result<ParsedFile, ParseError>) -> Option<String> {
+    match result {
+        Err(ParseError::Syntax { .. }) => None,
+        Err(e) => Some(format!("malformed/{rel}: expected a syntax error, got {e}")),
+        Ok(_) => Some(format!(
+            "malformed/{rel} parsed without a syntax error: break it for this grammar \
+             (scripts/unix/parse-probe.sh shows the first error), or use \
+             standard_tests!(…, malformed_may_parse = \"why\") if the grammar accepts any input"
+        )),
+    }
+}
+
+/// `1568` → `1,568`, the thousands style of the progress table.
 fn thousands(n: usize) -> String {
     let digits = n.to_string();
     let mut out = String::new();
     for (i, c) in digits.chars().enumerate() {
         if i > 0 && (digits.len() - i).is_multiple_of(3) {
-            out.push('.');
+            out.push(',');
         }
         out.push(c);
     }
@@ -1096,10 +1176,46 @@ mod tests {
     use super::*;
 
     #[test]
-    fn thousands_uses_dots() {
+    fn thousands_uses_commas() {
         assert_eq!(thousands(7), "7");
-        assert_eq!(thousands(1568), "1.568");
-        assert_eq!(thousands(1234567), "1.234.567");
+        assert_eq!(thousands(1568), "1,568");
+        assert_eq!(thousands(1234567), "1,234,567");
+    }
+
+    #[test]
+    fn five_full_files_meet_the_size_target_with_smaller_ones_beside_them() {
+        let five = [("a", 300), ("b", 450), ("c", 700), ("d", 320), ("e", 301)];
+        assert!(size_problems(&five).is_empty());
+        let mut with_small = five.to_vec();
+        with_small.push(("urls.py", 40));
+        assert!(size_problems(&with_small).is_empty());
+    }
+
+    #[test]
+    fn too_few_full_files_or_an_oversized_one_breaks_the_size_target() {
+        let four = [("a", 300), ("b", 450), ("c", 700), ("d", 320), ("e", 299)];
+        assert_eq!(
+            size_problems(&four),
+            ["4 file(s) have 300..=700 lines, need at least 5"]
+        );
+        let dump = [("a", 300), ("b", 450), ("c", 701), ("d", 320), ("e", 301)];
+        assert_eq!(size_problems(&dump)[0], "c has 701 lines, more than 700");
+    }
+
+    #[test]
+    fn a_malformed_file_must_end_in_a_syntax_error() {
+        let syntax = Err(ParseError::Syntax {
+            path: "x".into(),
+            line: 3,
+            message: "m".into(),
+        });
+        assert_eq!(malformed_verdict("x", &syntax), None);
+        let parsed = malformed_verdict("broken.go", &Ok(ParsedFile::default())).unwrap();
+        assert!(parsed.starts_with("malformed/broken.go parsed without a syntax error"));
+        let unsupported = Err(ParseError::UnsupportedExtension {
+            extension: "zz".into(),
+        });
+        assert!(malformed_verdict("x.zz", &unsupported).is_some());
     }
 
     #[test]
@@ -1112,23 +1228,23 @@ mod tests {
     }
 
     const TABLE: &str = "\
-| Lenguaje | Crate | Estado | PR | Ficheros / líneas | Símbolos / relaciones (cross-file) | Bugs |
+| Language | Crate | Status | PR | Files / lines | Symbols / relations (name-matched across files) | Bugs |
 |---|---|---|---|---|---|---|
-| Rust | `mct-lang-rust` | **Hecho** | #77 | 6 / 2.179 | ver | x |
-| Go | `mct-lang-go` | **En PR** | #90 | | | |
-| Lua | `mct-lang-lua` | Pendiente | | | | |
+| Rust | `mct-lang-rust` | **Done** | #77 | 6 / 2,179 | see | x |
+| Go | `mct-lang-go` | **In PR** | #90 | | | |
+| Lua | `mct-lang-lua` | Pending | | | | |
 
-**Resumen: 0 hechos, 0 en PR, 0 pendientes (de 0).**
+**Summary: 0 done, 0 in PR, 0 pending (0 total).**
 ";
 
     #[test]
     fn progress_row_and_summary_are_rewritten() {
-        let out = update_progress_table(TABLE, "mct-lang-go", "5 / 1.600", "10 / 20 (3)").unwrap();
+        let out = update_progress_table(TABLE, "mct-lang-go", "5 / 1,600", "10 / 20 (3)").unwrap();
         assert!(
-            out.contains("| Go | `mct-lang-go` | **En PR** | #90 | 5 / 1.600 | 10 / 20 (3) | |")
+            out.contains("| Go | `mct-lang-go` | **In PR** | #90 | 5 / 1,600 | 10 / 20 (3) | |")
         );
-        assert!(out.contains("| Rust | `mct-lang-rust` | **Hecho** | #77 | 6 / 2.179 | ver | x |"));
-        assert!(out.contains("**Resumen: 1 hechos, 1 en PR, 1 pendientes (de 3).**"));
+        assert!(out.contains("| Rust | `mct-lang-rust` | **Done** | #77 | 6 / 2,179 | see | x |"));
+        assert!(out.contains("**Summary: 1 done, 1 in PR, 1 pending (3 total).**"));
         assert!(out.ends_with('\n'));
     }
 
