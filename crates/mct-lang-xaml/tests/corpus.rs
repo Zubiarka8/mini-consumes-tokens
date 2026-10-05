@@ -51,7 +51,10 @@ fn x_name_and_plain_name_name_an_element() {
     // …plain `Name` on the editor's root…
     assert_eq!(parent("OrderEditorDialog.xaml", "EditorWindow"), None);
     // …and with both, `x:Name` wins.
-    assert_eq!(parent("OrdersView.xaml", "OnlyOverdue"), Some("OrdersToolbar"));
+    assert_eq!(
+        parent("OrdersView.xaml", "OnlyOverdue"),
+        Some("OrdersToolbar")
+    );
     assert!(corpus().symbols_named("OverdueFilterLegacy").is_empty());
 }
 
@@ -68,9 +71,18 @@ fn parent_is_the_nearest_named_ancestor() {
     assert_eq!(parent("MainWindow.xaml", "GlobalSearch"), Some("HeaderBar"));
     assert_eq!(parent("MainWindow.xaml", "OrdersTab"), Some("Navigation"));
     assert_eq!(parent("MainWindow.xaml", "ThumbSync"), Some("Taskbar"));
-    assert_eq!(parent("OrderEditorDialog.xaml", "Street"), Some("CustomerForm"));
-    assert_eq!(parent("OrderEditorDialog.xaml", "CustomerForm"), Some("CustomerTab"));
-    assert_eq!(parent("InventoryView.xaml", "CountedQuantity"), Some("CycleCountForm"));
+    assert_eq!(
+        parent("OrderEditorDialog.xaml", "Street"),
+        Some("CustomerForm")
+    );
+    assert_eq!(
+        parent("OrderEditorDialog.xaml", "CustomerForm"),
+        Some("CustomerTab")
+    );
+    assert_eq!(
+        parent("InventoryView.xaml", "CountedQuantity"),
+        Some("CycleCountForm")
+    );
     // Template parts belong to the part that encloses them, or to nothing
     // when the template sits in an unnamed style.
     assert_eq!(parent("Controls.xaml", "PART_Content"), Some("PART_Border"));
@@ -84,11 +96,23 @@ fn event_attributes_reference_their_handler() {
     // On a named element, from that element.
     handler("MainWindow.xaml", "ShellWindow", "ShellWindow_Loaded");
     handler("MainWindow.xaml", "ShellWindow", "ShellWindow_Closing");
-    handler("MainWindow.xaml", "GlobalSearch", "GlobalSearch_TextChanged");
+    handler(
+        "MainWindow.xaml",
+        "GlobalSearch",
+        "GlobalSearch_TextChanged",
+    );
     handler("App.xaml", "TraySync", "TraySync_Click");
     handler("InventoryView.xaml", "InventoryRoot", "InventoryRoot_Drop");
-    handler("InventoryView.xaml", "PutAwayPanel", "PutAwayPanel_DragOver");
-    handler("OrderEditorDialog.xaml", "EditorWindow", "EditorWindow_KeyDown");
+    handler(
+        "InventoryView.xaml",
+        "PutAwayPanel",
+        "PutAwayPanel_DragOver",
+    );
+    handler(
+        "OrderEditorDialog.xaml",
+        "EditorWindow",
+        "EditorWindow_KeyDown",
+    );
     handler("Controls.xaml", "PART_Value", "Stepper_PreviewKeyDown");
     handler("Controls.xaml", "PART_Value", "Stepper_MouseWheel");
     // On an unnamed root, from the file module.
@@ -105,11 +129,17 @@ fn event_attributes_reference_their_handler() {
 fn values_that_are_not_handler_names_are_not_references() {
     let c = corpus();
     // `ValueChanged="{Binding …}"` and `TextChanged="1.0"`.
-    assert!(!c.has_relation("PickPriority", RelationKind::References, "{Binding OnPriorityChanged}"));
-    assert!(c
-        .relations()
-        .iter()
-        .all(|r| !r.to.contains(['{', ' ', '.'])), "only bare identifiers");
+    assert!(!c.has_relation(
+        "PickPriority",
+        RelationKind::References,
+        "{Binding OnPriorityChanged}"
+    ));
+    assert!(
+        c.relations()
+            .iter()
+            .all(|r| !r.to.contains(['{', ' ', '.'])),
+        "only bare identifiers"
+    );
     assert!(!c.has_relation("ExternalId", RelationKind::References, "1.0"));
 }
 
@@ -126,7 +156,10 @@ fn handlers_outside_the_known_event_list_are_the_documented_limit() {
         ("StockGrid", "StockGrid_CellEditEnding"),
         ("DeliveryDate", "DeliveryDate_SelectedDateChanged"),
     ] {
-        assert!(!c.has_relation(from, RelationKind::References, to), "{from} -> {to}");
+        assert!(
+            !c.has_relation(from, RelationKind::References, to),
+            "{from} -> {to}"
+        );
     }
     // …and `<EventSetter Handler="…"/>`, whose handler is not in an event
     // attribute at all.
