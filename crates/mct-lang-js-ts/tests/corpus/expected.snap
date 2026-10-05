@@ -1,0 +1,794 @@
+# language=javascript_typescript files=6 symbols=229 relations=552 cross_file=87
+
+== scripts/seed.cjs (302 lines)
+S 1-302 module seed
+S 82-116 function parseArgs
+S 118-129 function printHelp
+S 135-174 function createApi
+S 138-165 function request
+S 170-172 method sent
+S 180-188 function seedStock
+S 190-197 function seedCustomers
+S 199-210 function randomBasket
+S 213-222 function mulberry32
+S 226-242 function advance
+S 244-257 function seedOrders
+S 259-262 function writeReport
+S 268-287 function main
+R 13:12 imports seed -> node:fs
+R 14:14 imports seed -> node:path
+R 15:31 imports seed -> node:timers/promises
+R 16:24 imports seed -> node:crypto
+R 17:21 imports seed -> ../package.json
+R 91:33 calls parseArgs -> parseInt
+R 105:9 calls parseArgs -> printHelp
+R 106:17 calls parseArgs -> exit
+R 109:19 calls parseArgs -> Error
+R 112:15 calls parseArgs -> isInteger
+R 113:15 calls parseArgs -> Error
+R 119:11 calls printHelp -> log
+R 127:7 calls printHelp -> join
+R 141:15 calls request -> log
+R 141:60 calls request -> stringify
+R 146:28 calls request -> fetch
+R 151:28 calls request -> randomUUID
+R 153:25 calls request -> stringify
+R 156:26 calls request -> Number
+R 156:50 calls request -> get (x-file: src/api/client.ts)
+R 157:13 calls request -> delay
+R 158:14 calls request -> request
+R 161:35 calls request -> text
+R 162:17 calls request -> Error
+R 164:54 calls request -> json
+R 168:23 calls createApi -> request
+R 169:30 calls createApi -> request
+R 182:15 calls seedStock -> post (x-file: src/api/client.ts)
+R 182:30 calls seedStock -> encodeURIComponent
+R 193:30 calls seedCustomers -> post (x-file: src/api/client.ts)
+R 194:13 calls seedCustomers -> push
+R 200:31 calls randomBasket -> map
+R 202:26 calls randomBasket -> floor
+R 202:32 calls randomBasket -> rng
+R 204:27 calls randomBasket -> floor
+R 204:33 calls randomBasket -> rng
+R 205:16 calls randomBasket -> some
+R 206:13 calls randomBasket -> push
+R 206:44 calls randomBasket -> floor
+R 206:50 calls randomBasket -> rng
+R 218:14 calls mulberry32 -> imul
+R 219:19 calls mulberry32 -> imul
+R 227:18 calls advance -> encodeURIComponent
+R 230:17 calls advance -> post (x-file: src/api/client.ts)
+R 233:17 calls advance -> post (x-file: src/api/client.ts)
+R 234:17 calls advance -> post (x-file: src/api/client.ts)
+R 237:17 calls advance -> post (x-file: src/api/client.ts)
+R 245:15 calls seedOrders -> mulberry32
+R 246:26 calls seedOrders -> fromEntries
+R 246:52 calls seedOrders -> map
+R 249:29 calls seedOrders -> post (x-file: src/api/client.ts)
+R 249:66 calls seedOrders -> randomBasket
+R 252:13 calls seedOrders -> advance
+R 260:6 calls writeReport -> mkdirSync
+R 260:21 calls writeReport -> dirname
+R 261:6 calls writeReport -> writeFileSync
+R 261:31 calls writeReport -> stringify
+R 268:41 calls main -> slice
+R 269:19 calls main -> parseArgs
+R 270:15 calls main -> createApi
+R 271:24 calls main -> now
+R 272:23 calls main -> seedStock
+R 273:27 calls main -> seedCustomers
+R 274:24 calls main -> seedOrders
+R 282:20 calls main -> now
+R 284:3 calls main -> writeReport
+R 284:20 calls main -> join
+R 285:11 calls main -> log
+R 289:20 references seed -> parseArgs
+R 289:31 references seed -> createApi
+R 289:42 references seed -> mulberry32
+R 289:54 references seed -> randomBasket
+R 289:68 references seed -> seedOrders
+R 289:80 references seed -> main
+R 290:27 references seed -> DEFAULTS
+R 291:25 references seed -> TARGET_STATES
+R 294:11 calls seed -> on
+R 295:13 calls seed -> error
+R 298:10 calls seed -> catch
+R 298:3 calls seed -> main
+R 299:13 calls seed -> error
+
+== src/api/client.ts (300 lines)
+S 1-300 module client
+S 12-19 interface Problem
+S 21-37 class ApiError
+S 22-28 method ApiError::constructor
+S 30-32 method ApiError::isRetryable
+S 34-36 method ApiError::isConflict
+S 39-42 interface Page
+S 44-50 interface ClientOptions
+S 52-56 interface PlaceOrderRequest
+S 58-61 type_alias PlaceOrderResponse
+S 63-68 interface StockJson
+S 71-79 function sleep
+S 85-112 class RateLimiter
+S 86-86 field RateLimiter::#tokens
+S 87-87 field RateLimiter::#last
+S 89-96 method RateLimiter::constructor
+S 98-102 method RateLimiter::#refill
+S 104-111 method RateLimiter::take
+S 115-120 function withTimeout
+S 122-125 function backoff
+S 127-254 class WarehouseClient
+S 128-128 field WarehouseClient::#options
+S 129-129 field WarehouseClient::#rates
+S 131-133 method WarehouseClient::constructor
+S 139-165 method WarehouseClient::#request
+S 167-169 method WarehouseClient::get
+S 171-173 method WarehouseClient::post
+S 179-189 method WarehouseClient::placeOrder
+S 191-193 method WarehouseClient::order
+S 195-197 method WarehouseClient::cancel
+S 199-201 method WarehouseClient::approve
+S 204-214 method WarehouseClient::orders
+S 217-224 method WarehouseClient::events
+S 230-234 method WarehouseClient::stock
+S 236-239 method WarehouseClient::price
+S 241-244 method WarehouseClient::refreshRates
+S 246-253 method WarehouseClient::rate
+S 261-273 function waitUntilShipped
+S 276-282 function snapshot
+S 285-294 function validatePlaceOrder
+S 296-298 function createClient
+R 1:10 imports client -> Currency
+R 1:20 imports client -> Money (x-file: src/money.ts)
+R 2:15 imports client -> ExchangeRates (x-file: src/money.ts)
+R 2:30 imports client -> MoneyJson (x-file: src/money.ts)
+R 3:8 imports client -> Order (x-file: src/order.ts)
+R 3:17 imports client -> describeEvent
+R 3:44 imports client -> OrderJson (x-file: src/order.ts)
+R 3:55 imports client -> OrderEvent (x-file: src/order.ts)
+R 3:67 imports client -> asOrderId (x-file: src/order.ts)
+R 4:15 imports client -> OrderId (x-file: src/order.ts)
+R 21:31 extends ApiError -> Error
+R 72:14 calls sleep -> Promise
+R 73:19 calls sleep -> setTimeout
+R 74:13 calls sleep -> addEventListener
+R 75:7 calls sleep -> clearTimeout
+R 76:7 calls sleep -> reject
+R 92:60 calls RateLimiter::constructor -> now
+R 95:18 calls RateLimiter::constructor -> now
+R 99:20 calls RateLimiter::#refill -> now
+R 100:25 calls RateLimiter::#refill -> min
+R 105:10 calls RateLimiter::take -> #refill
+R 107:13 calls RateLimiter::take -> sleep
+R 108:12 calls RateLimiter::take -> #refill
+R 116:18 calls withTimeout -> race
+R 118:9 calls withTimeout -> Promise
+R 118:39 calls withTimeout -> setTimeout
+R 118:56 calls withTimeout -> reject
+R 118:67 calls withTimeout -> Error
+R 124:22 calls backoff -> floor
+R 124:33 calls backoff -> random
+R 127:41 implements WarehouseClient -> ExchangeRates (x-file: src/money.ts)
+R 132:47 calls WarehouseClient::constructor -> bind
+R 140:30 calls WarehouseClient::#request -> randomUUID
+R 141:19 calls WarehouseClient::#request -> onRequest
+R 143:44 calls WarehouseClient::#request -> fetch
+R 147:56 calls WarehouseClient::#request -> token
+R 152:53 calls WarehouseClient::#request -> stringify
+R 155:78 calls WarehouseClient::#request -> json
+R 157:46 calls WarehouseClient::#request -> catch
+R 157:39 calls WarehouseClient::#request -> json
+R 158:25 calls WarehouseClient::#request -> ApiError
+R 162:26 calls WarehouseClient::#request -> Number
+R 162:50 calls WarehouseClient::#request -> get
+R 163:13 calls WarehouseClient::#request -> sleep
+R 163:56 calls WarehouseClient::#request -> backoff
+R 168:17 calls WarehouseClient::get -> #request
+R 172:17 calls WarehouseClient::post -> #request
+R 192:18 calls WarehouseClient::order -> fromJSON (x-file: src/money.ts)
+R 192:64 calls WarehouseClient::order -> encodeURIComponent
+R 196:16 calls WarehouseClient::cancel -> post
+R 196:32 calls WarehouseClient::cancel -> encodeURIComponent
+R 200:17 calls WarehouseClient::approve -> post
+R 200:44 calls WarehouseClient::approve -> encodeURIComponent
+R 207:25 calls WarehouseClient::orders -> URLSearchParams
+R 207:50 calls WarehouseClient::orders -> String
+R 210:21 calls WarehouseClient::orders -> fromJSON (x-file: src/money.ts)
+R 218:24 calls WarehouseClient::events -> EventSource
+R 220:26 calls WarehouseClient::events -> parse (x-file: src/money.ts)
+R 221:7 calls WarehouseClient::events -> onEvent (x-file: src/order.ts)
+R 221:15 calls WarehouseClient::events -> describeEvent
+R 223:25 calls WarehouseClient::events -> close
+R 231:67 calls WarehouseClient::stock -> join
+R 231:24 calls WarehouseClient::stock -> map
+R 231:42 calls WarehouseClient::stock -> encodeURIComponent
+R 233:16 calls WarehouseClient::stock -> Map
+R 233:25 calls WarehouseClient::stock -> map
+R 237:68 calls WarehouseClient::price -> encodeURIComponent
+R 238:18 calls WarehouseClient::price -> fromJSON (x-file: src/money.ts)
+R 250:17 calls WarehouseClient::rate -> Error
+R 267:32 calls waitUntilShipped -> order
+R 268:46 calls waitUntilShipped -> includes
+R 271:11 calls waitUntilShipped -> sleep
+R 277:19 calls snapshot -> Map
+R 278:36 calls snapshot -> orders
+R 279:9 calls snapshot -> set
+R 287:27 calls validatePlaceOrder -> trim
+R 287:42 calls validatePlaceOrder -> push
+R 288:42 calls validatePlaceOrder -> push
+R 289:17 calls validatePlaceOrder -> forEach
+R 290:23 calls validatePlaceOrder -> test
+R 290:46 calls validatePlaceOrder -> push
+R 291:36 calls validatePlaceOrder -> push
+R 297:14 calls createClient -> WarehouseClient
+R 300:10 references client -> asOrderId (x-file: src/order.ts)
+
+== src/inventory.ts (300 lines)
+S 1-300 module inventory
+S 10-14 interface Location
+S 16-23 function parseLocation
+S 25-27 function formatLocation
+S 29-30 function compareLocations
+S 33-39 function pickingRoute
+S 41-46 interface StockLevel
+S 48-48 function available
+S 50-62 class OutOfStockError
+S 51-57 method OutOfStockError::constructor
+S 59-61 method OutOfStockError::shortfall
+S 68-70 interface StockSource
+S 73-91 class Observable
+S 74-74 field Observable::#subscribers
+S 76-84 method Observable::subscribe
+S 86-88 method Observable::notify
+S 93-154 class StockCache
+S 94-94 field StockCache::#levels
+S 95-95 field StockCache::#loadedAt
+S 96-96 field StockCache::#inflight
+S 98-104 method StockCache::constructor
+S 106-108 method StockCache::get
+S 110-123 method StockCache::levels
+S 125-128 method StockCache::available
+S 131-139 method StockCache::check
+S 141-147 method StockCache::invalidate
+S 149-153 method StockCache::#store
+S 157-166 function httpStockSource
+S 159-164 method levels
+S 172-178 interface CycleCount
+S 180-180 function difference
+S 182-188 function describeCount
+S 191-199 function partitionForReview
+S 202-222 function postCounts
+S 228-235 interface Reservation
+S 237-239 function expiringSoon
+S 245-250 interface PickTask
+S 256-292 class PickListBuilder
+S 257-257 field PickListBuilder::#tasks
+S 258-258 field PickListBuilder::#missing
+S 260-260 method PickListBuilder::constructor
+S 262-276 method PickListBuilder::add
+S 278-282 method PickListBuilder::#bestLocation
+S 284-291 method PickListBuilder::build
+S 295-300 function splitLines
+R 1:15 imports inventory -> Order (x-file: src/order.ts)
+R 1:22 imports inventory -> OrderId (x-file: src/order.ts)
+R 1:31 imports inventory -> Line (x-file: src/order.ts)
+R 2:10 imports inventory -> WarehouseClient (x-file: src/api/client.ts)
+R 2:27 imports inventory -> ApiError (x-file: src/api/client.ts)
+R 2:37 imports inventory -> sleep (x-file: src/api/client.ts)
+R 17:52 calls parseLocation -> exec
+R 19:15 calls parseLocation -> Error
+R 22:25 calls parseLocation -> Number
+R 22:47 calls parseLocation -> Number
+R 26:35 calls formatLocation -> padStart
+R 26:21 calls formatLocation -> String
+R 30:10 calls compareLocations -> localeCompare
+R 34:25 calls pickingRoute -> sort
+R 35:28 calls pickingRoute -> localeCompare
+R 50:38 extends OutOfStockError -> Error
+R 77:33 calls Observable::subscribe -> get
+R 79:17 calls Observable::subscribe -> Set
+R 80:25 calls Observable::subscribe -> set
+R 82:9 calls Observable::subscribe -> add
+R 83:23 calls Observable::subscribe -> delete
+R 87:33 calls Observable::notify -> forEach
+R 87:23 calls Observable::notify -> get
+R 87:55 calls Observable::notify -> callback
+R 93:33 extends StockCache -> Observable
+R 107:25 calls StockCache::get -> get
+R 111:37 calls StockCache::levels -> get
+R 112:40 calls StockCache::levels -> now
+R 113:27 calls StockCache::levels -> get
+R 115:34 calls StockCache::levels -> get
+R 117:41 calls StockCache::levels -> finally
+R 117:29 calls StockCache::levels -> levels
+R 117:70 calls StockCache::levels -> delete
+R 118:22 calls StockCache::levels -> set
+R 121:10 calls StockCache::levels -> #store
+R 126:31 calls StockCache::available -> levels
+R 127:19 calls StockCache::available -> reduce
+R 127:52 calls StockCache::available -> available
+R 132:35 calls StockCache::check -> all
+R 133:13 calls StockCache::check -> map
+R 134:33 calls StockCache::check -> available
+R 135:43 calls StockCache::check -> OutOfStockError
+R 138:20 calls StockCache::check -> filter
+R 143:22 calls StockCache::invalidate -> clear
+R 146:20 calls StockCache::invalidate -> delete
+R 150:18 calls StockCache::#store -> set
+R 151:20 calls StockCache::#store -> set
+R 151:34 calls StockCache::#store -> now
+R 152:10 calls StockCache::#store -> notify
+R 161:19 calls levels -> encodeURIComponent
+R 163:19 calls levels -> map
+R 163:50 calls levels -> parseLocation
+R 183:16 calls describeCount -> difference
+R 184:36 calls describeCount -> formatLocation
+R 195:25 calls partitionForReview -> difference
+R 196:78 calls partitionForReview -> push
+R 196:11 calls partitionForReview -> abs
+R 196:15 calls partitionForReview -> difference
+R 207:22 calls postCounts -> post (x-file: src/api/client.ts)
+R 207:37 calls postCounts -> encodeURIComponent
+R 208:21 calls postCounts -> formatLocation
+R 213:15 calls postCounts -> invalidate
+R 217:15 calls postCounts -> sleep (x-file: src/api/client.ts)
+R 237:87 calls expiringSoon -> Date
+R 238:23 calls expiringSoon -> filter
+R 238:49 calls expiringSoon -> getTime
+R 238:65 calls expiringSoon -> getTime
+R 264:27 calls PickListBuilder::add -> #bestLocation
+R 266:27 calls PickListBuilder::add -> max (x-file: src/money.ts)
+R 266:71 calls PickListBuilder::add -> map
+R 266:50 calls PickListBuilder::add -> get
+R 267:23 calls PickListBuilder::add -> push
+R 267:32 calls PickListBuilder::add -> OutOfStockError
+R 271:33 calls PickListBuilder::add -> get
+R 272:13 calls PickListBuilder::add -> push
+R 273:19 calls PickListBuilder::add -> set
+R 281:8 calls PickListBuilder::#bestLocation -> sort
+R 280:8 calls PickListBuilder::#bestLocation -> filter
+R 279:25 calls PickListBuilder::#bestLocation -> get
+R 280:26 calls PickListBuilder::#bestLocation -> available
+R 281:23 calls PickListBuilder::#bestLocation -> available
+R 281:38 calls PickListBuilder::#bestLocation -> available
+R 285:24 calls PickListBuilder::build -> Map
+R 287:21 calls PickListBuilder::build -> pickingRoute
+R 287:40 calls PickListBuilder::build -> map
+R 288:14 calls PickListBuilder::build -> set
+R 288:30 calls PickListBuilder::build -> flatMap
+R 288:53 calls PickListBuilder::build -> filter
+R 288:67 calls PickListBuilder::build -> compareLocations
+R 296:22 calls splitLines -> filter
+R 297:23 calls splitLines -> max (x-file: src/money.ts)
+R 297:62 calls splitLines -> map
+R 297:41 calls splitLines -> get
+
+== src/money.ts (333 lines)
+S 1-333 module money
+S 22-22 type_alias MoneyJson
+S 24-24 type_alias RoundingMode
+S 26-29 interface Comparable
+S 32-42 class CurrencyMismatchError
+S 33-33 field CurrencyMismatchError::expected
+S 34-34 field CurrencyMismatchError::actual
+S 36-41 method CurrencyMismatchError::constructor
+S 45-50 class MoneyFormatError
+S 46-49 method MoneyFormatError::constructor
+S 54-62 function formatterFor
+S 65-71 function roundHalfEven
+S 73-82 function round
+S 84-241 class Money
+S 85-85 field Money::#minor
+S 86-86 field Money::currency
+S 88-94 method Money::constructor
+S 100-102 method Money::ofMinor
+S 104-110 method Money::of
+S 112-114 method Money::zero
+S 117-128 method Money::parse
+S 130-132 method Money::fromJSON
+S 138-140 method Money::minor
+S 142-144 method Money::amount
+S 146-148 method Money::isZero
+S 150-152 method Money::isNegative
+S 158-161 method Money::plus
+S 163-166 method Money::minus
+S 168-170 method Money::times
+S 172-174 method Money::negate
+S 176-178 method Money::percent
+S 181-190 method Money::split
+S 193-205 method Money::allocate
+S 207-211 method Money::#requireSameCurrency
+S 217-220 method Money::compareTo
+S 222-224 method Money::equals
+S 226-228 method Money::max
+S 230-232 method Money::format
+S 234-236 method Money::toJSON
+S 238-240 method Money::toString
+S 247-249 function isCurrency
+S 252-253 function sum
+S 255-256 function maxOf
+S 258-260 function vat
+S 262-264 function gross
+S 267-270 function distributeDiscount
+S 273-295 class MoneyRange
+S 274-281 method MoneyRange::constructor
+S 283-285 method MoneyRange::contains
+S 287-289 method MoneyRange::width
+S 291-294 method MoneyRange::parse
+S 298-300 interface ExchangeRates
+S 303-308 method rate
+S 311-314 function convert
+S 317-319 function auditLine
+S 323-325 function fromCents
+S 327-332 function toCents
+R 32:44 extends CurrencyMismatchError -> Error
+R 45:39 extends MoneyFormatError -> Error
+R 52:24 calls money -> Map
+R 56:30 calls formatterFor -> get (x-file: src/api/client.ts)
+R 58:26 calls formatterFor -> NumberFormat
+R 59:16 calls formatterFor -> set
+R 66:22 calls roundHalfEven -> floor
+R 76:14 calls round -> roundHalfEven
+R 78:19 calls round -> round
+R 80:19 calls round -> trunc
+R 84:31 implements Money -> Comparable
+R 89:17 calls Money::constructor -> isSafeInteger
+R 90:17 calls Money::constructor -> RangeError
+R 101:16 calls Money::ofMinor -> Money
+R 105:48 calls Money::of -> Number
+R 106:16 calls Money::of -> isNaN
+R 107:17 calls Money::of -> MoneyFormatError
+R 107:34 calls Money::of -> String
+R 109:16 calls Money::of -> Money
+R 109:22 calls Money::of -> round
+R 113:18 calls Money::zero -> ofMinor
+R 118:31 calls Money::parse -> split
+R 118:24 calls Money::parse -> trim
+R 120:17 calls Money::parse -> MoneyFormatError
+R 123:41 calls Money::parse -> test
+R 124:10 calls Money::parse -> isCurrency
+R 125:17 calls Money::parse -> MoneyFormatError
+R 127:18 calls Money::parse -> of
+R 131:18 calls Money::fromJSON -> of
+R 159:10 calls Money::plus -> #requireSameCurrency
+R 160:16 calls Money::plus -> Money
+R 164:10 calls Money::minus -> #requireSameCurrency
+R 165:16 calls Money::minus -> Money
+R 169:16 calls Money::times -> Money
+R 169:22 calls Money::times -> round
+R 173:16 calls Money::negate -> Money
+R 177:17 calls Money::percent -> times
+R 182:31 calls Money::split -> isInteger
+R 183:17 calls Money::split -> RangeError
+R 185:24 calls Money::split -> trunc
+R 187:18 calls Money::split -> from
+R 188:13 calls Money::split -> ofMinor
+R 194:27 calls Money::allocate -> reduce
+R 195:31 calls Money::allocate -> some
+R 196:17 calls Money::allocate -> RangeError
+R 198:28 calls Money::allocate -> map
+R 198:44 calls Money::allocate -> trunc
+R 199:41 calls Money::allocate -> reduce
+R 204:19 calls Money::allocate -> map
+R 204:40 calls Money::allocate -> ofMinor
+R 209:17 calls Money::#requireSameCurrency -> CurrencyMismatchError
+R 218:10 calls Money::compareTo -> #requireSameCurrency
+R 219:17 calls Money::compareTo -> sign
+R 227:17 calls Money::max -> compareTo
+R 231:48 calls Money::format -> format
+R 231:12 calls Money::format -> formatterFor
+R 235:34 calls Money::toJSON -> toFixed
+R 239:27 calls Money::toString -> toFixed
+R 248:48 calls isCurrency -> includes
+R 248:18 calls isCurrency -> values
+R 253:11 calls sum -> reduce
+R 253:34 calls sum -> plus
+R 253:49 calls sum -> zero
+R 256:11 calls maxOf -> reduce
+R 256:81 calls maxOf -> max
+R 259:14 calls vat -> percent
+R 263:14 calls gross -> plus
+R 263:19 calls gross -> vat
+R 269:19 calls distributeDiscount -> allocate
+R 269:41 calls distributeDiscount -> map
+R 278:13 calls MoneyRange::constructor -> compareTo
+R 279:17 calls MoneyRange::constructor -> RangeError
+R 284:18 calls MoneyRange::contains -> compareTo
+R 284:52 calls MoneyRange::contains -> compareTo
+R 288:21 calls MoneyRange::width -> minus
+R 292:41 calls MoneyRange::parse -> map
+R 292:29 calls MoneyRange::parse -> split
+R 292:61 calls MoneyRange::parse -> parse
+R 293:16 calls MoneyRange::parse -> MoneyRange
+R 305:17 calls rate -> Error
+R 313:16 calls convert -> of
+R 313:41 calls convert -> rate
+R 318:61 calls auditLine -> join
+R 318:31 calls auditLine -> map
+R 318:44 calls auditLine -> format
+R 324:18 calls fromCents -> ofMinor
+R 329:17 calls toCents -> CurrencyMismatchError
+
+== src/order.ts (311 lines)
+S 1-311 module order
+S 11-11 type_alias OrderId
+S 13-13 function asOrderId
+S 35-37 function canMoveTo
+S 39-41 function isTerminal
+S 43-48 interface Line
+S 50-55 interface LineJson
+S 57-57 function subtotal
+S 63-66 interface EventBase
+S 68-72 interface Placed
+S 74-77 interface Reserved
+S 79-83 interface Paid
+S 85-89 interface Shipped
+S 91-94 interface Cancelled
+S 96-96 type_alias OrderEvent
+S 98-98 type_alias EventOfType
+S 100-102 function isEvent
+S 104-121 function describe
+S 123-130 class IllegalTransitionError
+S 124-129 method IllegalTransitionError::constructor
+S 136-136 type_alias Listener
+S 138-256 class Order
+S 139-139 field Order::#state
+S 140-140 field Order::#lines
+S 141-141 field Order::#pending
+S 142-142 field Order::#listeners
+S 143-143 field Order::trackingNumber
+S 145-150 method Order::constructor
+S 152-160 method Order::place
+S 162-169 method Order::fromJSON
+S 171-173 method Order::state
+S 175-177 method Order::lines
+S 179-181 method Order::total
+S 183-185 method Order::isLarge
+S 191-194 method Order::reserve
+S 196-202 method Order::pay
+S 204-208 method Order::ship
+S 210-213 method Order::cancel
+S 215-220 method Order::onEvent
+S 222-224 method Order::drainEvents
+S 226-231 method Order::#moveTo
+S 233-237 method Order::#record
+S 239-244 method Order::#addLine
+S 246-255 method Order::toJSON
+S 258-265 interface OrderJson
+S 271-277 function countByState
+S 279-281 function largest
+S 284-290 function stalePayments
+S 286-288 function waitedMinutes
+S 293-297 function pages
+S 300-309 function packingSlip
+S 301-301 function rule
+S 302-302 function row
+R 1:10 imports order -> Currency
+R 1:20 imports order -> Money (x-file: src/money.ts)
+R 1:27 imports order -> sum (x-file: src/money.ts)
+R 1:32 imports order -> CurrencyMismatchError (x-file: src/money.ts)
+R 2:15 imports order -> MoneyJson (x-file: src/money.ts)
+R 3:8 imports order -> clock
+R 36:21 calls canMoveTo -> includes
+R 57:63 calls subtotal -> times (x-file: src/money.ts)
+R 68:33 extends Placed -> EventBase
+R 74:35 extends Reserved -> EventBase
+R 79:31 extends Paid -> EventBase
+R 85:34 extends Shipped -> EventBase
+R 91:36 extends Cancelled -> EventBase
+R 111:35 calls describe -> toString (x-file: src/money.ts)
+R 123:45 extends IllegalTransitionError -> Error
+R 154:17 calls Order::place -> Error
+R 156:23 calls Order::place -> Order
+R 156:29 calls Order::place -> asOrderId
+R 156:46 calls Order::place -> randomUUID
+R 157:11 calls Order::place -> forEach
+R 157:35 calls Order::place -> #addLine
+R 158:11 calls Order::place -> #record
+R 158:66 calls Order::place -> now
+R 163:23 calls Order::fromJSON -> Order
+R 163:29 calls Order::fromJSON -> asOrderId
+R 164:16 calls Order::fromJSON -> forEach
+R 165:13 calls Order::fromJSON -> #addLine
+R 165:93 calls Order::fromJSON -> fromJSON
+R 180:12 calls Order::total -> sum (x-file: src/money.ts)
+R 180:28 calls Order::total -> map
+R 184:23 calls Order::isLarge -> compareTo (x-file: src/money.ts)
+R 192:10 calls Order::reserve -> #moveTo
+R 193:17 calls Order::reserve -> #record
+R 193:73 calls Order::reserve -> now
+R 197:17 calls Order::pay -> equals (x-file: src/money.ts)
+R 198:17 calls Order::pay -> Error
+R 200:10 calls Order::pay -> #moveTo
+R 201:17 calls Order::pay -> #record
+R 201:69 calls Order::pay -> now
+R 205:10 calls Order::ship -> #moveTo
+R 207:17 calls Order::ship -> #record
+R 207:72 calls Order::ship -> now
+R 211:10 calls Order::cancel -> #moveTo
+R 212:17 calls Order::cancel -> #record
+R 212:74 calls Order::cancel -> now
+R 216:21 calls Order::onEvent -> push
+R 218:41 calls Order::onEvent -> filter
+R 223:26 calls Order::drainEvents -> splice
+R 227:10 calls Order::#moveTo -> canMoveTo
+R 228:17 calls Order::#moveTo -> IllegalTransitionError
+R 234:19 calls Order::#record -> push
+R 235:21 calls Order::#record -> forEach
+R 235:43 calls Order::#record -> listener
+R 241:17 calls Order::#addLine -> CurrencyMismatchError (x-file: src/money.ts)
+R 243:17 calls Order::#addLine -> push
+R 253:26 calls Order::toJSON -> map
+R 253:69 calls Order::toJSON -> toJSON
+R 272:22 calls countByState -> Map
+R 274:12 calls countByState -> set
+R 274:37 calls countByState -> get (x-file: src/api/client.ts)
+R 280:65 calls largest -> slice
+R 280:22 calls largest -> sort
+R 280:45 calls largest -> compareTo (x-file: src/money.ts)
+R 285:27 calls stalePayments -> getTime
+R 285:21 calls stalePayments -> now
+R 287:35 calls waitedMinutes -> getTime
+R 287:19 calls waitedMinutes -> placedAt
+R 289:17 calls stalePayments -> filter
+R 289:61 calls stalePayments -> waitedMinutes
+R 295:17 calls pages -> slice
+R 301:26 calls rule -> repeat
+R 302:53 calls row -> padEnd
+R 303:16 calls packingSlip -> rule
+R 303:24 calls packingSlip -> row
+R 303:55 calls packingSlip -> rule
+R 305:9 calls packingSlip -> push
+R 305:14 calls packingSlip -> row
+R 305:68 calls packingSlip -> format (x-file: src/money.ts)
+R 305:53 calls packingSlip -> subtotal
+R 307:7 calls packingSlip -> push
+R 307:12 calls packingSlip -> rule
+R 307:20 calls packingSlip -> row
+R 307:45 calls packingSlip -> format (x-file: src/money.ts)
+R 308:14 calls packingSlip -> join
+R 311:16 references order -> Order
+
+== src/ui/OrderTable.tsx (308 lines)
+S 1-308 module OrderTable
+S 14-14 type_alias SortKey
+S 16-20 interface Filters
+S 22-27 type_alias Action
+S 29-36 interface TableState
+S 46-70 function reducer
+S 74-83 function compareBy
+S 85-93 function applyFilters
+S 99-119 function useOrders
+S 121-137 function useStock
+S 139-146 function useDebounced
+S 152-154 function StatusPill
+S 156-160 function StockBadge
+S 162-186 function Toolbar
+S 189-214 function OrderDetail
+S 216-299 function OrderTable
+S 234-240 function cancelSelected
+S 242-246 function showSlip
+S 302-306 function createOrderTable
+R 1:8 imports OrderTable -> React
+R 1:17 imports OrderTable -> useCallback
+R 1:30 imports OrderTable -> useEffect
+R 1:41 imports OrderTable -> useMemo
+R 1:50 imports OrderTable -> useReducer
+R 1:62 imports OrderTable -> useRef
+R 1:70 imports OrderTable -> useState
+R 2:15 imports OrderTable -> ReactNode
+R 3:10 imports OrderTable -> Money (x-file: src/money.ts)
+R 3:17 imports OrderTable -> Currency
+R 3:27 imports OrderTable -> sum (x-file: src/money.ts)
+R 4:8 imports OrderTable -> Order (x-file: src/order.ts)
+R 4:17 imports OrderTable -> State
+R 4:24 imports OrderTable -> countByState (x-file: src/order.ts)
+R 4:38 imports OrderTable -> describe (x-file: src/order.ts)
+R 4:48 imports OrderTable -> packingSlip (x-file: src/order.ts)
+R 5:10 imports OrderTable -> WarehouseClient (x-file: src/api/client.ts)
+R 5:27 imports OrderTable -> ApiError (x-file: src/api/client.ts)
+R 5:37 imports OrderTable -> validatePlaceOrder (x-file: src/api/client.ts)
+R 6:10 imports OrderTable -> StockCache (x-file: src/inventory.ts)
+R 6:22 imports OrderTable -> httpStockSource (x-file: src/inventory.ts)
+R 6:39 imports OrderTable -> describeCount (x-file: src/inventory.ts)
+R 6:54 imports OrderTable -> pickingRoute (x-file: src/inventory.ts)
+R 6:68 imports OrderTable -> parseLocation (x-file: src/inventory.ts)
+R 41:17 calls OrderTable -> Set
+R 53:28 calls reducer -> Set
+R 54:20 calls reducer -> has
+R 55:18 calls reducer -> delete
+R 57:18 calls reducer -> add (x-file: src/inventory.ts)
+R 62:40 calls reducer -> Set
+R 72:27 calls OrderTable -> of (x-file: src/money.ts)
+R 77:33 calls compareBy -> localeCompare
+R 79:32 calls compareBy -> compareTo (x-file: src/money.ts)
+R 81:32 calls compareBy -> localeCompare
+R 86:38 calls applyFilters -> toLowerCase
+R 86:31 calls applyFilters -> trim
+R 87:17 calls applyFilters -> filter
+R 90:32 calls applyFilters -> isLarge (x-file: src/order.ts)
+R 91:41 calls applyFilters -> includes
+R 91:27 calls applyFilters -> toLowerCase
+R 91:87 calls applyFilters -> includes
+R 91:73 calls applyFilters -> toLowerCase
+R 100:29 calls useOrders -> useReducer
+R 102:18 calls useOrders -> useCallback
+R 105:40 calls useOrders -> orders (x-file: src/api/client.ts)
+R 106:16 calls useOrders -> push
+R 108:7 calls useOrders -> dispatch
+R 110:7 calls useOrders -> dispatch
+R 110:77 calls useOrders -> String
+R 114:3 calls useOrders -> useEffect
+R 115:10 calls useOrders -> reload
+R 122:27 calls useStock -> useState
+R 123:3 calls useStock -> useEffect
+R 125:26 calls useStock -> then
+R 125:11 calls useStock -> available (x-file: src/inventory.ts)
+R 126:23 calls useStock -> setFree
+R 128:31 calls useStock -> subscribe (x-file: src/inventory.ts)
+R 129:28 calls useStock -> then
+R 129:13 calls useStock -> available (x-file: src/inventory.ts)
+R 133:7 calls useStock -> unsubscribe
+R 140:37 calls useDebounced -> useState
+R 141:3 calls useDebounced -> useEffect
+R 142:19 calls useDebounced -> setTimeout
+R 142:36 calls useDebounced -> setDebounced
+R 143:18 calls useDebounced -> clearTimeout
+R 153:40 calls StatusPill -> toLowerCase
+R 157:16 calls StockBadge -> useStock
+R 165:54 calls Toolbar -> onChange
+R 167:31 calls Toolbar -> map
+R 167:17 calls Toolbar -> values
+R 177:26 calls Toolbar -> onChange
+R 180:77 calls Toolbar -> onChange
+R 190:33 calls OrderDetail -> useState
+R 192:3 calls OrderDetail -> useEffect
+R 193:5 calls OrderDetail -> setHistory
+R 194:25 calls OrderDetail -> events (x-file: src/api/client.ts)
+R 194:52 calls OrderDetail -> setHistory
+R 204:22 calls OrderDetail -> map
+R 206:63 calls OrderDetail -> format (x-file: src/money.ts)
+R 210:48 calls OrderDetail -> format (x-file: src/money.ts)
+R 211:40 calls OrderDetail -> map
+R 217:39 calls OrderTable -> useOrders
+R 218:33 calls OrderTable -> useState
+R 219:17 calls OrderTable -> useDebounced
+R 220:19 calls OrderTable -> useRef
+R 222:19 calls OrderTable -> useMemo
+R 223:22 calls OrderTable -> applyFilters
+R 224:29 calls OrderTable -> sort
+R 224:34 calls OrderTable -> compareBy
+R 225:46 calls OrderTable -> reverse
+R 228:18 calls OrderTable -> useMemo
+R 228:32 calls OrderTable -> countByState (x-file: src/order.ts)
+R 229:25 calls OrderTable -> useMemo
+R 230:11 calls OrderTable -> sum (x-file: src/money.ts)
+R 230:67 calls OrderTable -> map
+R 230:23 calls OrderTable -> filter
+R 230:52 calls OrderTable -> has
+R 236:20 calls cancelSelected -> cancel (x-file: src/api/client.ts)
+R 238:5 calls cancelSelected -> dispatch
+R 239:11 calls cancelSelected -> reload
+R 244:37 calls showSlip -> packingSlip (x-file: src/order.ts)
+R 255:54 calls OrderTable -> join
+R 255:24 calls OrderTable -> map
+R 261:32 calls OrderTable -> dispatch
+R 262:32 calls OrderTable -> dispatch
+R 263:32 calls OrderTable -> dispatch
+R 268:20 calls OrderTable -> map
+R 271:41 calls OrderTable -> has
+R 272:31 calls OrderTable -> dispatch
+R 273:36 calls OrderTable -> showSlip
+R 279:48 calls OrderTable -> format (x-file: src/money.ts)
+R 281:30 calls OrderTable -> map
+R 291:65 calls OrderTable -> format (x-file: src/money.ts)
+R 293:34 calls OrderTable -> dispatch
+R 303:22 calls createOrderTable -> WarehouseClient (x-file: src/api/client.ts)
+R 304:21 calls createOrderTable -> StockCache (x-file: src/inventory.ts)
+R 304:32 calls createOrderTable -> httpStockSource (x-file: src/inventory.ts)
+R 308:10 references OrderTable -> describe (x-file: src/order.ts)
+R 308:20 references OrderTable -> describeCount (x-file: src/inventory.ts)
+R 308:35 references OrderTable -> pickingRoute (x-file: src/inventory.ts)
+R 308:49 references OrderTable -> parseLocation (x-file: src/inventory.ts)
+R 308:64 references OrderTable -> validatePlaceOrder (x-file: src/api/client.ts)
