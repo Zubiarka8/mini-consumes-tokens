@@ -1,4 +1,8 @@
 //! `LanguageParser` implementation for Java, via `tree-sitter-java`.
+//!
+//! Known limits: an anonymous class's methods (`new Runnable() { … }`) and
+//! an enum constant's body attach to the enclosing type; a sealed type's
+//! `permits` list is no relation (it names subtypes, not supertypes).
 
 use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
@@ -193,10 +197,16 @@ impl<'a> Walker<'a> {
             return;
         }
         match node.kind() {
-            "class_declaration" | "interface_declaration" | "enum_declaration" => {
+            "class_declaration"
+            | "record_declaration"
+            | "interface_declaration"
+            | "annotation_type_declaration"
+            | "enum_declaration" => {
                 let kind = match node.kind() {
-                    "class_declaration" => SymbolKind::Class,
-                    "interface_declaration" => SymbolKind::Interface,
+                    "class_declaration" | "record_declaration" => SymbolKind::Class,
+                    "interface_declaration" | "annotation_type_declaration" => {
+                        SymbolKind::Interface
+                    }
                     _ => SymbolKind::Enum,
                 };
                 let name = node
@@ -245,6 +255,12 @@ impl<'a> Walker<'a> {
                     location(node),
                     type_name.map(str::to_string),
                 );
+                // `NEW { Set<State> next() { … } }`: the constant's body is
+                // an anonymous subclass of the enum, so its methods belong
+                // to the enum like the abstract declaration they override.
+                if let Some(body) = node.child_by_field_name("body") {
+                    self.visit_children(body, owner, type_name, depth + 1);
+                }
             }
             "method_declaration" | "constructor_declaration" => {
                 let name = node
@@ -311,6 +327,22 @@ impl<'a> Walker<'a> {
                     self.visit_children(arguments, owner, type_name, depth + 1);
                 }
             }
+            "object_creation_expression" => {
+                // `new Foo(…)` calls Foo's constructor: a call to the type's
+                // name (`HashMap` for `new java.util.HashMap<K, V>()`).
+                if let Some(type_id) = node
+                    .child_by_field_name("type")
+                    .and_then(|t| find_type_identifiers(t).into_iter().next())
+                {
+                    self.push_relation(
+                        owner,
+                        RelationKind::Calls,
+                        text(type_id, self.source).to_string(),
+                        location(type_id),
+                    );
+                }
+                self.visit_children(node, owner, type_name, depth + 1);
+            }
             _ => self.visit_children(node, owner, type_name, depth + 1),
         }
     }
@@ -327,6 +359,8 @@ impl<'a> Walker<'a> {
 /// `extends`/`implements` clauses wrap their `type_identifier`(s) in
 /// grammar nodes (`superclass`, `super_interfaces` → `type_list`) with no
 /// per-entry field name, so entries are found by kind rather than field.
+/// One name per supertype: the last segment of `java.io.Serializable`, and
+/// never the type arguments of `Comparable<Money>`.
 fn find_type_identifiers(node: Node) -> Vec<Node> {
     let mut out = Vec::new();
     collect_type_identifiers(node, &mut out);
@@ -334,13 +368,25 @@ fn find_type_identifiers(node: Node) -> Vec<Node> {
 }
 
 fn collect_type_identifiers<'a>(node: Node<'a>, out: &mut Vec<Node<'a>>) {
-    if node.kind() == "type_identifier" {
-        out.push(node);
-        return;
-    }
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        collect_type_identifiers(child, out);
+    match node.kind() {
+        "type_identifier" => out.push(node),
+        "type_arguments" => {}
+        "scoped_type_identifier" => {
+            let mut cursor = node.walk();
+            if let Some(last) = node
+                .named_children(&mut cursor)
+                .filter(|c| c.kind() == "type_identifier")
+                .last()
+            {
+                out.push(last);
+            }
+        }
+        _ => {
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                collect_type_identifiers(child, out);
+            }
+        }
     }
 }
 
