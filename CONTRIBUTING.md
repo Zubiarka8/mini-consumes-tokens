@@ -37,6 +37,48 @@ The language table in `README.md` says which *languages* have a `LanguageParser`
 
 Extending `mct-core`'s symbol/relation model to represent generic "component renders/uses component" relationships (needed for React JSX, Vue, Svelte, Angular alike) is a schema/trait change — it falls under "Changing the `LanguageParser` trait, the SQLite schema, or an already-published MCP tool signature" below, not a per-language drive-by. Adding a new `mct-lang-vue`/`mct-lang-svelte` crate for SFC parsing follows the normal "Adding a new language" checklist above, but note SFCs mix `<template>`/`<script>`/`<style>` in one file, so the parser needs to walk more than one grammar/section.
 
+## Language corpus (`tests/corpus/`)
+
+Every `mct-lang-*` crate carries a long-fixture corpus ([#74](https://github.com/Zubiarka8/mini-consumes-tokens/issues/74)) that pins what the parser extracts from realistic code. The shared harness is `crates/mct-corpus`; review a corpus with `scripts/unix/corpus-report.sh <lang>` instead of reading `expected.snap`.
+
+```text
+crates/mct-lang-<name>/tests/
+  corpus.rs                     standard_tests!(Parser) + language-specific assertions
+  corpus/project/<scenario>/…   the index root, one directory per app/scenario
+  corpus/expected.snap          golden symbols and relations (--bless regenerates it)
+  corpus/malformed/             at least one large file the parser must reject
+```
+
+**What goes in `project/`:**
+- **Code an application team would write and maintain.** Files reference each other the way a real project does, and they cover the language's constructs, not just `print`/`if`. No padding to reach a line count, and no copied, recreated, or generated third-party code: no CSS framework bundles, no JIT/compiler output, no vendored libraries.
+- **External dependencies stay external.** Name each one with an exact version, for example `bootstrap@5.3.3` in a header comment or a manifest the scenario already needs. Test the app's own code against it.
+- **One directory per scenario**, for example `bootstrap-shop/` or `django_site/`, not one per framework. A short header comment in the scenario's main file says which parser reads it, which framework and version, what code is owned, and which relations the parser is expected to extract.
+- **Don't claim relations MCT does not extract.** A `render_template("x.html")` call is not an edge to the template. An HTML `<link href="app.css">` is an HTML import; it doesn't mean the CSS parser checked that link.
+- **Size.** At least 5 files of 300–700 lines. Other files may be shorter, so a project keeps its natural shape (a small `urls.py` next to `models.py`). No file may exceed 700 lines. `assert_size` enforces this.
+
+**Invalid syntax:**
+- Every file in `malformed/` must end in `ParseError::Syntax`; `assert_malformed_rejected` enforces it. A fixture that parses proves nothing. Only a grammar that accepts any input may opt out, with `standard_tests!(Parser, malformed_may_parse = "why")`, Markdown for example.
+- Valid code the upstream grammar rejects stays out of `project/`. Reproduce it with `scripts/unix/parse-probe.sh` on a one-line file and record it as an upstream rejection, with its issue when there is one. Never attribute it to the local parser.
+
+**Known bugs and limits:**
+- **Fix small, well-scoped parser bugs in the corpus PR**, with a test that fails before the fix.
+- **For a larger bug, assert the correct behavior in a test marked `#[ignore = "#NN: what is wrong"]`.** Use `#[ignore = "bug, not filed yet: …"]` until the issue exists. Never assert the buggy output as if it were correct.
+- **A limit by design** (a construct the parser deliberately doesn't model) may be asserted as current behavior. Its comment must say `Known limit:` and point to the parser's module doc that states it.
+
+**Ranges and the relation metric:**
+- A symbol's range covers its whole definition, so every relation lies inside its owner's range. The report's "relation outside its `from` symbol's range" check lists the exceptions; each one is a bug or a documented decorator/attribute line.
+- The **"name-matched across files"** count (snapshot `(name-matched: path)`, report, progress table) counts relations whose target *name* is defined in another corpus file. It is not resolution: a call to the standard library's `get` matches any `get` in the corpus. Assert the cross-file relations that matter one by one with `Corpus::relation`.
+
+**Review checklist** for a corpus PR:
+- [ ] `corpus-report.sh <lang> --bless --update-progress` ran; the `expected.snap` diff is understood line by line, and the progress row matches the report.
+- [ ] Every checked-in file is owned application code: no padding, bundles, or generated output. Dependencies are named with a version.
+- [ ] Each scenario's header comment matches what the parser actually extracts.
+- [ ] `malformed/` is rejected, or the opt-out names its reason.
+- [ ] No test asserts a bug as correct. Bugs are fixed or `#[ignore = "#NN…"]`, and limits are labelled `Known limit:`.
+- [ ] The report's heuristic hits are explained: fixed, ignored with an issue, or a documented limit.
+- [ ] Grammar rejections are kept apart from parser bugs, each with a repro.
+- [ ] Cross-file claims are individual `relation(...)` assertions, not the name-matched count.
+
 ## Adding a new MCP tool, and the TTC description format
 
 `crates/mct-mcp-server/src/server.rs` defines each tool's name, parameters and `#[tool(...)]` attribute, but that attribute's `description` is only a short fallback literal — the description an MCP client actually receives comes from `crates/mct-mcp-server/src/tools.ttc`, parsed by `crates/mct-mcp-server/src/ttc.rs` and applied to the tool router in `MctServer::new`. This is TTC (Tool Terse Catalog): a compact `WHEN`/`ERR`/`TAGS` format that replaced long prose descriptions to shrink the catalog's token footprint (~68% smaller across the 11 tools as of this writing) without dropping the "when to use this" / "when NOT to" information an agent actually needs.
