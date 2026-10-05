@@ -81,8 +81,14 @@ fn methods_attach_to_their_receiver_type() {
     // Value and pointer receivers hang off the same type.
     assert_eq!(parent("money.go", "Add", Method), Some("Money"));
     assert_eq!(parent("errors.go", "Temporary", Method), Some("Error"));
-    assert_eq!(parent("errors.go", "Difference", Method), Some("UnbalancedError"));
-    assert_eq!(parent("errors.go", "ErrorOrNil", Method), Some("MultiError"));
+    assert_eq!(
+        parent("errors.go", "Difference", Method),
+        Some("UnbalancedError")
+    );
+    assert_eq!(
+        parent("errors.go", "ErrorOrNil", Method),
+        Some("MultiError")
+    );
     // Interface methods belong to the interface.
     assert_eq!(parent("account.go", "Post", Method), Some("Store"));
     assert_eq!(parent("account.go", "Next", Method), Some("IDGenerator"));
@@ -247,9 +253,7 @@ fn index_answers_cross_file_queries() {
     }
 
     let refs = index.find_references("NewService").unwrap();
-    assert!(refs
-        .iter()
-        .any(|r| r.relative_path == "cmd/ledger/main.go"));
+    assert!(refs.iter().any(|r| r.relative_path == "cmd/ledger/main.go"));
 
     let calls = index.find_calls("Transfer").unwrap();
     for callee in ["Account", "Convert", "NewTx", "Post", "Build"] {
