@@ -29,14 +29,32 @@ fn classes_interfaces_and_enums_of_every_nesting_are_extracted() {
     assert_eq!(parent("Money.java", "Money", Class), None);
     assert_eq!(parent("Money.java", "Currency", Enum), Some("Money"));
     assert_eq!(parent("Money.java", "Allocation", Class), Some("Money"));
-    assert_eq!(parent("ExchangeRates.java", "ExchangeRates", Interface), None);
-    assert_eq!(parent("ExchangeRates.java", "RateSource", Interface), Some("ExchangeRates"));
-    assert_eq!(parent("ExchangeRates.java", "CachedRates", Class), Some("ExchangeRates"));
+    assert_eq!(
+        parent("ExchangeRates.java", "ExchangeRates", Interface),
+        None
+    );
+    assert_eq!(
+        parent("ExchangeRates.java", "RateSource", Interface),
+        Some("ExchangeRates")
+    );
+    assert_eq!(
+        parent("ExchangeRates.java", "CachedRates", Class),
+        Some("ExchangeRates")
+    );
     assert_eq!(parent("Order.java", "State", Enum), Some("Order"));
-    assert_eq!(parent("Inventory.java", "Listener", Interface), Some("Inventory"));
-    assert_eq!(parent("Repository.java", "Orders", Class), Some("Repository"));
+    assert_eq!(
+        parent("Inventory.java", "Listener", Interface),
+        Some("Inventory")
+    );
+    assert_eq!(
+        parent("Repository.java", "Orders", Class),
+        Some("Repository")
+    );
     // A local class declared inside a method body is still a class.
-    assert_eq!(parent("Inventory.java", "Expired", Class), Some("Inventory"));
+    assert_eq!(
+        parent("Inventory.java", "Expired", Class),
+        Some("Inventory")
+    );
 }
 
 #[test]
@@ -46,9 +64,15 @@ fn methods_constructors_fields_and_enum_constants_attach_to_their_type() {
     assert_eq!(parent("Money.java", "scale", Field), Some("Currency"));
     assert_eq!(parent("Money.java", "JPY", Field), Some("Currency"));
     assert_eq!(parent("Order.java", "INVOICED", Field), Some("State"));
-    assert_eq!(parent("Inventory.java", "tryReserve", Method), Some("StockLevel"));
+    assert_eq!(
+        parent("Inventory.java", "tryReserve", Method),
+        Some("StockLevel")
+    );
     assert_eq!(parent("Inventory.java", "test", Method), Some("Expired"));
-    assert_eq!(parent("ExchangeRates.java", "andThenMemo", Method), Some("Memo"));
+    assert_eq!(
+        parent("ExchangeRates.java", "andThenMemo", Method),
+        Some("Memo")
+    );
     // Constructors are methods named after their class.
     let ctors: Vec<_> = corpus()
         .symbols_named("StockLevel")
@@ -62,7 +86,10 @@ fn methods_constructors_fields_and_enum_constants_attach_to_their_type() {
         .into_iter()
         .filter(|(p, s)| p.ends_with("Money.java") && s.parent.as_deref() == Some("Money"))
         .count();
-    assert_eq!(overloads, 3, "of(BigDecimal, …), of(String, …), of(long, …)");
+    assert_eq!(
+        overloads, 3,
+        "of(BigDecimal, …), of(String, …), of(long, …)"
+    );
 }
 
 #[test]
@@ -88,8 +115,18 @@ fn imports_name_the_imported_type_or_member() {
     c.relation("Money.java", "Money", Imports, "requireNonNull");
     // Nested types are imported by their own name.
     c.relation("OrderService.java", "OrderService", Imports, "Currency");
-    c.relation("OrderService.java", "OrderService", Imports, "OutOfStockException");
-    c.relation("OrderService.java", "OrderService", Imports, "Transactional");
+    c.relation(
+        "OrderService.java",
+        "OrderService",
+        Imports,
+        "OutOfStockException",
+    );
+    c.relation(
+        "OrderService.java",
+        "OrderService",
+        Imports,
+        "Transactional",
+    );
     c.relation("OrderService.java", "OrderService", Imports, "groupingBy");
 }
 
@@ -97,9 +134,24 @@ fn imports_name_the_imported_type_or_member() {
 fn extends_and_implements_name_the_supertypes() {
     let c = corpus();
     c.relation("Money.java", "Money", Implements, "Comparable");
-    c.relation("Money.java", "CurrencyMismatchException", Extends, "IllegalArgumentException");
-    c.relation("ExchangeRates.java", "CachedRates", Implements, "ExchangeRates");
-    c.relation("ExchangeRates.java", "CachedRates", Implements, "AutoCloseable");
+    c.relation(
+        "Money.java",
+        "CurrencyMismatchException",
+        Extends,
+        "IllegalArgumentException",
+    );
+    c.relation(
+        "ExchangeRates.java",
+        "CachedRates",
+        Implements,
+        "ExchangeRates",
+    );
+    c.relation(
+        "ExchangeRates.java",
+        "CachedRates",
+        Implements,
+        "AutoCloseable",
+    );
     c.relation("Repository.java", "Orders", Extends, "Jdbc");
     c.relation("Repository.java", "Jdbc", Implements, "Repository");
     c.relation("Inventory.java", "Expired", Implements, "Predicate");
@@ -139,7 +191,15 @@ fn cross_file_calls_are_extracted() {
 fn declarations_without_a_symbol_are_the_documented_limits() {
     let c = corpus();
     // `record` and `@interface` declarations are not symbols…
-    for name in ["Range", "Line", "Placed", "Reservation", "Page", "ThreadSafe", "Transactional"] {
+    for name in [
+        "Range",
+        "Line",
+        "Placed",
+        "Reservation",
+        "Page",
+        "ThreadSafe",
+        "Transactional",
+    ] {
         assert!(
             c.symbols_named(name)
                 .iter()
@@ -148,8 +208,14 @@ fn declarations_without_a_symbol_are_the_documented_limits() {
         );
     }
     // …so a record's methods attach to the enclosing class instead.
-    assert_eq!(parent("Money.java", "contains", SymbolKind::Method), Some("Money"));
-    assert_eq!(parent("Order.java", "subtotal", SymbolKind::Method), Some("Order"));
+    assert_eq!(
+        parent("Money.java", "contains", SymbolKind::Method),
+        Some("Money")
+    );
+    assert_eq!(
+        parent("Order.java", "subtotal", SymbolKind::Method),
+        Some("Order")
+    );
     // Methods of an anonymous class attach to the enclosing type too.
     assert_eq!(
         parent("OrderService.java", "run", SymbolKind::Method),
@@ -189,6 +255,9 @@ fn index_answers_cross_file_queries() {
     }
     let calls = index.find_calls("place").unwrap();
     for callee in ["priceLines", "convert", "reserve", "save", "cancel"] {
-        assert!(calls.iter().any(|h| h.to_name == callee), "place should call {callee}");
+        assert!(
+            calls.iter().any(|h| h.to_name == callee),
+            "place should call {callee}"
+        );
     }
 }
