@@ -1,0 +1,304 @@
+<Window x:Class="Warehouse.Desktop.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:views="clr-namespace:Warehouse.Desktop.Views"
+        xmlns:vm="clr-namespace:Warehouse.Desktop.ViewModels"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=vm:ShellViewModel, IsDesignTimeCreatable=True}"
+        x:Name="ShellWindow"
+        Title="{StaticResource AppTitle}"
+        Width="1280" Height="800" MinWidth="960" MinHeight="600"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource SurfaceBrush}"
+        FontFamily="{DynamicResource BodyFont}"
+        FontSize="{DynamicResource BodyFontSize}"
+        Loaded="ShellWindow_Loaded"
+        Closing="ShellWindow_Closing"
+        Closed="ShellWindow_Closed"
+        PreviewKeyDown="ShellWindow_PreviewKeyDown">
+  <!--
+    Shell window: navigation tabs, the content host where OrdersView and
+    InventoryView are shown (through the DataTemplates of App.xaml), a
+    notification area and the status bar. Styles come from
+    Themes/Controls.xaml; strings, brushes and commands from App.xaml.
+  -->
+
+  <Window.InputBindings>
+    <KeyBinding Key="N" Modifiers="Control" Command="{StaticResource NewOrderCommand}"/>
+    <KeyBinding Key="R" Modifiers="Control" Command="{StaticResource ReserveStockCommand}"/>
+    <KeyBinding Key="E" Modifiers="Control" Command="{StaticResource ShipOrderCommand}"/>
+    <KeyBinding Key="F5" Command="{StaticResource RefreshCommand}"/>
+    <KeyBinding Key="T" Modifiers="Control+Shift" Command="{StaticResource ToggleThemeCommand}"/>
+  </Window.InputBindings>
+
+  <Window.CommandBindings>
+    <CommandBinding Command="{StaticResource NewOrderCommand}"
+                    Executed="NewOrder_Executed" CanExecute="NewOrder_CanExecute"/>
+    <CommandBinding Command="{StaticResource ReserveStockCommand}"
+                    Executed="ReserveStock_Executed" CanExecute="HasSelectedOrder"/>
+    <CommandBinding Command="{StaticResource ShipOrderCommand}"
+                    Executed="ShipOrder_Executed" CanExecute="HasSelectedOrder"/>
+    <CommandBinding Command="{StaticResource RefreshCommand}" Executed="Refresh_Executed"/>
+    <CommandBinding Command="{StaticResource ToggleThemeCommand}" Executed="ToggleTheme_Executed"/>
+  </Window.CommandBindings>
+
+  <!-- Taskbar thumbnail buttons; ThumbButtonInfo raises Click too. -->
+  <Window.TaskbarItemInfo>
+    <TaskbarItemInfo x:Name="Taskbar" Description="{StaticResource AppTitle}"
+                     ProgressState="{Binding TaskbarProgressState}"
+                     ProgressValue="{Binding TaskbarProgress}">
+      <TaskbarItemInfo.ThumbButtonInfos>
+        <ThumbButtonInfo x:Name="ThumbNewOrder" Description="Nuevo pedido"
+                         Click="ThumbNewOrder_Click"/>
+        <ThumbButtonInfo x:Name="ThumbSync" Description="Sincronizar"
+                         Click="ThumbSync_Click"/>
+        <ThumbButtonInfo x:Name="ThumbMute" Description="Silenciar notificaciones"
+                         Click="ThumbMute_Click" DismissWhenClicked="False"/>
+      </TaskbarItemInfo.ThumbButtonInfos>
+    </TaskbarItemInfo>
+  </Window.TaskbarItemInfo>
+
+  <Window.Resources>
+    <Storyboard x:Key="ShowNotifications">
+      <DoubleAnimation Storyboard.TargetName="NotificationPanel"
+                       Storyboard.TargetProperty="Width" To="320" Duration="0:0:0.25">
+        <DoubleAnimation.EasingFunction>
+          <CubicEase EasingMode="EaseOut"/>
+        </DoubleAnimation.EasingFunction>
+      </DoubleAnimation>
+    </Storyboard>
+    <Storyboard x:Key="HideNotifications">
+      <DoubleAnimation Storyboard.TargetName="NotificationPanel"
+                       Storyboard.TargetProperty="Width" To="0" Duration="0:0:0.2"/>
+    </Storyboard>
+  </Window.Resources>
+
+  <Grid x:Name="LayoutRoot">
+    <Grid.RowDefinitions>
+      <RowDefinition x:Name="HeaderRow" Height="Auto"/>
+      <RowDefinition x:Name="ContentRow" Height="*"/>
+      <RowDefinition x:Name="StatusRow" Height="26"/>
+    </Grid.RowDefinitions>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="*"/>
+      <ColumnDefinition Width="Auto"/>
+    </Grid.ColumnDefinitions>
+
+    <!-- ===============================================================
+         Header: title, navigation and the global search
+         =============================================================== -->
+    <Border x:Name="HeaderBar" Grid.Row="0" Grid.ColumnSpan="2"
+            Background="{StaticResource HeaderBrush}" Padding="12,0">
+      <DockPanel LastChildFill="True">
+        <TextBlock DockPanel.Dock="Left" Text="{StaticResource AppTitle}"
+                   FontSize="{StaticResource TitleFontSize}" Foreground="White"
+                   VerticalAlignment="Center" Margin="0,0,24,0"/>
+
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+          <TextBox x:Name="GlobalSearch" Width="280" Style="{StaticResource SearchBox}"
+                   Tag="{StaticResource SearchPlaceholder}"
+                   TextChanged="GlobalSearch_TextChanged"
+                   KeyDown="GlobalSearch_KeyDown"/>
+          <Button x:Name="NotificationsButton" Style="{StaticResource IconButton}"
+                  Foreground="White" Margin="8,0,0,0" ToolTip="Notificaciones"
+                  Click="NotificationsButton_Click">
+            <Grid>
+              <TextBlock Text="🔔" FontSize="15"/>
+              <Border x:Name="UnreadBadge" Background="{StaticResource AccentBrush}"
+                      CornerRadius="6" MinWidth="12" Height="12"
+                      HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-4,-6,0"
+                      Visibility="{Binding HasUnread, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Text="{Binding UnreadCount}" FontSize="9" Foreground="Black"
+                           HorizontalAlignment="Center"/>
+              </Border>
+            </Grid>
+          </Button>
+          <!-- The user menu has no name: its handlers attach to HeaderBar. -->
+          <Menu Background="Transparent" Margin="8,0,0,0">
+            <MenuItem Header="{Binding CurrentUser.DisplayName}" Foreground="White">
+              <MenuItem Header="Mi perfil" Click="Profile_Click"/>
+              <MenuItem Header="Preferencias…" Click="Preferences_Click"/>
+              <MenuItem Header="Tema oscuro" IsCheckable="True"
+                        IsChecked="{Binding IsDarkTheme}"
+                        Checked="DarkTheme_Checked" Unchecked="DarkTheme_Unchecked"/>
+              <Separator/>
+              <MenuItem Header="Cerrar sesión" Click="SignOut_Click"/>
+            </MenuItem>
+          </Menu>
+        </StackPanel>
+
+        <TabControl x:Name="Navigation" Background="Transparent" BorderThickness="0"
+                    SelectedIndex="{Binding SelectedSection}"
+                    SelectionChanged="Navigation_SelectionChanged">
+          <TabItem x:Name="OrdersTab" Header="{StaticResource OrdersTitle}"
+                   Style="{StaticResource NavTab}"/>
+          <TabItem x:Name="InventoryTab" Header="{StaticResource InventoryTitle}"
+                   Style="{StaticResource NavTab}"/>
+          <TabItem x:Name="ShipmentsTab" Header="{StaticResource ShipmentsTitle}"
+                   Style="{StaticResource NavTab}"/>
+          <TabItem x:Name="InvoicesTab" Header="{StaticResource InvoicesTitle}"
+                   Style="{StaticResource NavTab}"
+                   Visibility="{Binding CanSeeInvoices, Converter={StaticResource BoolToVisibility}}"/>
+        </TabControl>
+      </DockPanel>
+    </Border>
+
+    <!-- ===============================================================
+         Content host. The view is picked by the DataTemplates of App.xaml
+         from the type of CurrentSection.
+         =============================================================== -->
+    <ContentControl x:Name="ContentHost" Grid.Row="1" Grid.Column="0"
+                    Margin="{StaticResource PagePadding}"
+                    Content="{Binding CurrentSection}"
+                    Focusable="False"/>
+
+    <!-- Busy overlay over the content while a section loads -->
+    <Grid x:Name="BusyOverlay" Grid.Row="1" Grid.Column="0" Background="#88FFFFFF"
+          Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">
+      <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+        <ProgressBar x:Name="BusyProgress" Width="200" Height="4" IsIndeterminate="True"/>
+        <TextBlock Text="{Binding BusyMessage}" Margin="0,8,0,0" HorizontalAlignment="Center"/>
+        <Button Content="{StaticResource CancelLabel}" Margin="0,12,0,0"
+                Style="{StaticResource SecondaryButton}" HorizontalAlignment="Center"
+                Click="CancelBusy_Click"/>
+      </StackPanel>
+    </Grid>
+
+    <!-- ===============================================================
+         Notification panel (slides in from the right)
+         =============================================================== -->
+    <Border x:Name="NotificationPanel" Grid.Row="1" Grid.Column="1" Width="0"
+            Background="{DynamicResource SurfaceAltBrush}" BorderThickness="1,0,0,0"
+            BorderBrush="{DynamicResource SurfaceAltBrush}">
+      <DockPanel>
+        <DockPanel DockPanel.Dock="Top" Margin="12,8">
+          <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="✕"
+                  Click="CloseNotifications_Click"/>
+          <TextBlock Text="Notificaciones" Style="{StaticResource SectionHeader}"/>
+        </DockPanel>
+        <Button DockPanel.Dock="Bottom" Margin="12" Content="Marcar todo como leído"
+                Style="{StaticResource SecondaryButton}"
+                Click="MarkAllRead_Click"/>
+        <ListBox x:Name="NotificationList" ItemsSource="{Binding Notifications}"
+                 BorderThickness="0" Background="Transparent"
+                 SelectionChanged="NotificationList_SelectionChanged"
+                 MouseDoubleClick="NotificationList_MouseDoubleClick">
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <Border Style="{StaticResource Card}" Margin="8,4">
+                <StackPanel>
+                  <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                  <TextBlock Text="{Binding Body}" TextWrapping="Wrap"
+                             Foreground="{DynamicResource MutedTextBrush}"/>
+                  <TextBlock Text="{Binding CreatedAt, Converter={StaticResource RelativeTime}}"
+                             FontSize="10" Foreground="{DynamicResource MutedTextBrush}"
+                             HorizontalAlignment="Right"/>
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+          <ListBox.ContextMenu>
+            <ContextMenu>
+              <MenuItem Header="Marcar como leído" Click="MarkRead_Click"/>
+              <MenuItem Header="Eliminar" Click="DeleteNotification_Click"/>
+            </ContextMenu>
+          </ListBox.ContextMenu>
+        </ListBox>
+      </DockPanel>
+    </Border>
+
+    <!-- ===============================================================
+         Keyboard help overlay (F1). Lists App.xaml's Shortcuts array.
+         =============================================================== -->
+    <Grid x:Name="HelpOverlay" Grid.Row="0" Grid.RowSpan="3" Grid.ColumnSpan="2"
+          Background="#99000000" Visibility="Collapsed"
+          MouseDown="HelpOverlay_MouseDown">
+      <Border Style="{StaticResource Card}" Width="420" HorizontalAlignment="Center"
+              VerticalAlignment="Center" Padding="20">
+        <StackPanel>
+          <DockPanel>
+            <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="✕"
+                    Click="CloseHelp_Click"/>
+            <TextBlock Text="Atajos de teclado" Style="{StaticResource SectionHeader}"/>
+          </DockPanel>
+          <ItemsControl x:Name="ShortcutList" ItemsSource="{StaticResource Shortcuts}"
+                        Margin="0,8,0,0">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding}" Margin="0,2" FontFamily="{StaticResource MonoFont}"/>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <CheckBox x:Name="ShowHelpOnStartup" Margin="0,12,0,0"
+                    Content="Mostrar al iniciar" IsChecked="{Binding ShowHelpOnStartup}"
+                    Checked="ShowHelpOnStartup_Checked" Unchecked="ShowHelpOnStartup_Unchecked"/>
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <!-- ===============================================================
+         Offline banner, shown over the header when the server is down
+         =============================================================== -->
+    <Border x:Name="OfflineBanner" Grid.Row="1" Grid.ColumnSpan="2" VerticalAlignment="Top"
+            Background="{StaticResource AccentBrush}" Padding="12,6"
+            Visibility="{Binding Connection.IsOffline, Converter={StaticResource BoolToVisibility}}">
+      <DockPanel>
+        <Button DockPanel.Dock="Right" Content="Reintentar" Style="{StaticResource SecondaryButton}"
+                Click="RetryConnection_Click"/>
+        <TextBlock VerticalAlignment="Center" TextWrapping="Wrap">
+          <Run Text="Sin conexión con el servidor." FontWeight="Bold"/>
+          <Run Text="Los cambios se guardarán localmente y se sincronizarán al reconectar."/>
+        </TextBlock>
+      </DockPanel>
+    </Border>
+
+    <!-- ===============================================================
+         Toast host, bottom-right over the content
+         =============================================================== -->
+    <ItemsControl x:Name="ToastHost" Grid.Row="1" Grid.ColumnSpan="2"
+                  HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,16,16"
+                  ItemsSource="{Binding Toasts}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate>
+          <ContentControl Style="{StaticResource ToastStyle}" Content="{Binding Message}"
+                          Margin="0,6,0,0" MaxWidth="360"/>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+
+    <!-- ===============================================================
+         Status bar
+         =============================================================== -->
+    <StatusBar x:Name="StatusBar" Grid.Row="2" Grid.ColumnSpan="2"
+               Background="{DynamicResource SurfaceAltBrush}">
+      <StatusBar.ItemsPanel>
+        <ItemsPanelTemplate>
+          <DockPanel LastChildFill="True"/>
+        </ItemsPanelTemplate>
+      </StatusBar.ItemsPanel>
+      <StatusBarItem DockPanel.Dock="Left">
+        <ContentControl ContentTemplate="{StaticResource ConnectionStatus}"
+                        Content="{Binding Connection}"/>
+      </StatusBarItem>
+      <Separator DockPanel.Dock="Left"/>
+      <StatusBarItem DockPanel.Dock="Left">
+        <ContentControl ContentTemplate="{StaticResource SyncStatus}" Content="{Binding Sync}"/>
+      </StatusBarItem>
+      <StatusBarItem DockPanel.Dock="Right">
+        <StackPanel Orientation="Horizontal">
+          <TextBlock Text="{Binding Warehouse.Name}" Margin="0,0,8,0"/>
+          <ComboBox x:Name="WarehousePicker" Width="140" Height="20" FontSize="11"
+                    ItemsSource="{Binding Warehouses}" DisplayMemberPath="Name"
+                    SelectedItem="{Binding Warehouse}"
+                    SelectionChanged="WarehousePicker_SelectionChanged"/>
+        </StackPanel>
+      </StatusBarItem>
+      <StatusBarItem>
+        <TextBlock x:Name="StatusMessage" Text="{Binding StatusMessage}"
+                   TextTrimming="CharacterEllipsis"/>
+      </StatusBarItem>
+    </StatusBar>
+  </Grid>
+</Window>
