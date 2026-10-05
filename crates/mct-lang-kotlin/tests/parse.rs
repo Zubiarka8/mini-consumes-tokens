@@ -166,3 +166,69 @@ fn syntax_error_is_reported_not_panicked() {
     });
     assert!(matches!(result, Err(mct_core::ParseError::Syntax { .. })));
 }
+
+fn symbol<'a>(parsed: &'a mct_core::ParsedFile, name: &str) -> &'a mct_core::SymbolRecord {
+    parsed
+        .symbols
+        .iter()
+        .find(|s| s.name == name)
+        .unwrap_or_else(|| panic!("no symbol {name}"))
+}
+
+#[test]
+fn top_level_and_local_functions_are_functions() {
+    let parsed = parse(
+        "fun vat(amount: Int): Int {\n    fun rule(x: Int) = x * 2\n    return rule(amount)\n}\n\nclass Pricing {\n    fun quote(): Int {\n        val subtotal = vat(1)\n        fun round(x: Int) = x\n        return round(subtotal)\n    }\n}\n",
+    );
+    for name in ["vat", "rule", "round"] {
+        let f = symbol(&parsed, name);
+        assert_eq!(
+            (f.kind, f.parent.as_deref()),
+            (SymbolKind::Function, None),
+            "{name}"
+        );
+    }
+    let quote = symbol(&parsed, "quote");
+    assert_eq!(
+        (quote.kind, quote.parent.as_deref()),
+        (SymbolKind::Method, Some("Pricing"))
+    );
+    // A local `val` is not a field of the class.
+    assert!(parsed.symbols.iter().all(|s| s.name != "subtotal"));
+}
+
+#[test]
+fn an_extension_receiver_drops_its_type_arguments() {
+    let parsed = parse(
+        "fun Collection<Order>.countByState(): Map<State, Int> = groupingBy { it.state }.eachCount()\n",
+    );
+    let f = symbol(&parsed, "countByState");
+    assert_eq!(
+        (f.kind, f.parent.as_deref()),
+        (SymbolKind::Method, Some("Collection"))
+    );
+}
+
+#[test]
+fn enum_class_bodies_are_visited() {
+    let parsed = parse(
+        "enum class State {\n    NEW {\n        override fun next() = setOf(PAID)\n    },\n    PAID {\n        override fun next() = emptySet<State>()\n    };\n\n    abstract fun next(): Set<State>\n    fun isTerminal() = next().isEmpty()\n}\n",
+    );
+    for entry in ["NEW", "PAID"] {
+        let e = symbol(&parsed, entry);
+        assert_eq!(
+            (e.kind, e.parent.as_deref()),
+            (SymbolKind::Field, Some("State"))
+        );
+    }
+    let terminal = symbol(&parsed, "isTerminal");
+    assert_eq!(terminal.parent.as_deref(), Some("State"));
+    assert_eq!(
+        parsed.symbols.iter().filter(|s| s.name == "next").count(),
+        3
+    );
+    assert!(parsed
+        .relations
+        .iter()
+        .any(|r| r.kind == RelationKind::Calls && r.to_name == "setOf"));
+}

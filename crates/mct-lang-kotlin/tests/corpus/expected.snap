@@ -1,8 +1,8 @@
-# language=kotlin files=5 symbols=514 relations=702 cross_file=92
+# language=kotlin files=5 symbols=483 relations=720 cross_file=89
 
 == app/WarehouseApp.kt (305 lines)
 S 1-305 module WarehouseApp
-S 1-1 module com.example.warehouse.app
+S 1-305 module com.example.warehouse.app
 S 33-37 class PlaceOrder
 S 33-33 field PlaceOrder::customerId
 S 33-33 field PlaceOrder::currency
@@ -51,22 +51,11 @@ S 105-105 field OrderService::outbox
 S 106-106 field OrderService::clock
 S 107-107 field OrderService::largeOrderThreshold
 S 109-120 method OrderService::place
-S 110-110 field OrderService::lines
-S 111-111 field OrderService::now
-S 112-112 field OrderService::order
-S 113-113 field OrderService::quote
-S 114-114 field OrderService::totalInEuro
 S 122-130 method OrderService::approve
-S 123-123 field OrderService::order
 S 132-136 method OrderService::confirmPayment
-S 133-133 field OrderService::order
 S 138-143 method OrderService::cancel
-S 139-139 field OrderService::order
 S 145-157 method OrderService::reserveOrReject
-S 146-146 field OrderService::now
-S 148-148 field OrderService::ids
 S 159-163 method OrderService::priceLines
-S 161-161 field OrderService::price
 S 165-168 method OrderService::save
 S 170-170 method OrderService::dashboard
 S 172-172 method OrderService::packingSlip
@@ -87,19 +76,21 @@ S 197-197 method Router::get
 S 199-199 method Router::post
 S 201-203 method Router::add
 S 205-212 method Router::handle
-S 206-206 field Router::segments
-S 207-210 field Router::match
 S 216-225 class Scope
 S 216-216 field Scope::claim
-S 228-236 method requireScope
-S 239-254 method orderRoutes
+S 217-217 field Scope::ORDERS_READ
+S 218-218 field Scope::ORDERS_WRITE
+S 219-219 field Scope::STOCK_READ
+S 222-223 method Scope::parse
+S 228-236 function requireScope
+S 239-254 function orderRoutes
 S 261-261 class Flags
 S 261-261 field Flags::expire
 S 261-261 field Flags::verbose
 S 261-261 field Flags::tier
-S 263-270 method parseFlags
-S 272-285 method demoService
-S 287-305 method main
+S 263-270 function parseFlags
+S 272-285 function demoService
+S 287-305 function main
 R 3:1 imports WarehouseApp -> Inventory (x-file: inventory/Inventory.kt)
 R 4:1 imports WarehouseApp -> InventoryListener (x-file: inventory/Inventory.kt)
 R 5:1 imports WarehouseApp -> Location (x-file: inventory/Inventory.kt)
@@ -145,7 +136,7 @@ R 110:21 calls OrderService::place -> priceLines
 R 111:25 calls OrderService::place -> instant
 R 112:27 calls OrderService::place -> place
 R 112:46 calls OrderService::place -> next
-R 113:29 calls OrderService::place -> quote
+R 113:29 calls OrderService::place -> quote (x-file: pricing/Pricing.kt)
 R 114:39 calls OrderService::place -> convert (x-file: money/Money.kt)
 R 114:78 calls OrderService::place -> now
 R 116:13 calls OrderService::place -> save
@@ -206,6 +197,10 @@ R 209:25 calls Router::handle -> zip
 R 209:57 calls Router::handle -> startsWith
 R 210:30 calls Router::handle -> notFound
 R 211:22 calls Router::handle -> third
+R 223:97 calls Scope::parse -> toSet
+R 223:31 calls Scope::parse -> mapNotNull
+R 223:20 calls Scope::parse -> split (x-file: money/Money.kt)
+R 223:61 calls Scope::parse -> firstOrNull
 R 229:48 calls requireScope -> removePrefix
 R 230:61 calls requireScope -> orEmpty
 R 230:43 calls requireScope -> let
@@ -250,9 +245,9 @@ R 275:21 calls demoService -> Inventory (x-file: inventory/Inventory.kt)
 R 276:9 calls demoService -> setReorderPoint (x-file: inventory/Inventory.kt)
 R 278:5 calls demoService -> runBlocking
 R 279:19 calls demoService -> receive (x-file: inventory/Inventory.kt)
-R 279:48 calls demoService -> parse (x-file: inventory/Inventory.kt)
+R 279:48 calls demoService -> parse
 R 280:19 calls demoService -> receive (x-file: inventory/Inventory.kt)
-R 280:48 calls demoService -> parse (x-file: inventory/Inventory.kt)
+R 280:48 calls demoService -> parse
 R 282:18 calls demoService -> mapOf
 R 282:44 calls demoService -> of (x-file: money/Money.kt)
 R 282:91 calls demoService -> of (x-file: money/Money.kt)
@@ -277,7 +272,7 @@ R 303:17 calls main -> packingSlip
 
 == inventory/Inventory.kt (309 lines)
 S 1-309 module Inventory
-S 1-1 module com.example.warehouse.inventory
+S 1-309 module com.example.warehouse.inventory
 S 26-42 class Location
 S 26-26 field Location::zone
 S 26-26 field Location::aisle
@@ -331,8 +326,8 @@ S 121-121 field StockTransfer::from
 S 121-121 field StockTransfer::to
 S 121-121 field StockTransfer::quantity
 S 127-127 field StockTransfer::crossesZones
-S 131-132 method List<Location>::pickingRoute
-S 135-136 method List<CycleCount>::partitionForReview
+S 131-132 method List::pickingRoute
+S 135-136 method List::partitionForReview
 S 138-309 class Inventory
 S 139-139 field Inventory::clock
 S 140-140 field Inventory::reservationTtl
@@ -349,39 +344,22 @@ S 167-167 method Inventory::available
 S 169-170 method Inventory::availableByLocation
 S 172-172 method Inventory::levelsOf
 S 174-178 method Inventory::levelAt
-S 175-175 field Inventory::list
 S 185-199 method Inventory::reserve
-S 187-187 field Inventory::made
 S 201-210 method Inventory::reserveLine
-S 202-202 field Inventory::expiresAt
-S 203-205 field Inventory::single
 S 212-228 method Inventory::splitLine
-S 213-213 field Inventory::remaining
-S 214-214 field Inventory::parts
-S 217-217 field Inventory::take
 S 230-232 method Inventory::newReservation
 S 234-239 method Inventory::release
 S 241-246 method Inventory::consume
 S 249-257 method Inventory::expire
-S 250-250 field Inventory::now
-S 251-251 field Inventory::due
 S 260-266 method Inventory::startExpiryJob
-S 262-262 field Inventory::released
 S 268-269 method Inventory::reservationsOf
 S 271-274 method Inventory::undo
 S 276-280 method Inventory::checkReorderPoint
-S 277-277 field Inventory::point
-S 278-278 field Inventory::available
 S 283-287 method Inventory::applyCount
-S 285-285 field Inventory::level
 S 290-295 method Inventory::transfer
-S 291-291 field Inventory::source
 S 298-308 method Inventory::recomputeReorderPoint
-S 299-299 method Inventory::mean
-S 300-303 method Inventory::stdDev
-S 301-301 field Inventory::m
-S 304-304 field Inventory::safety
-S 305-305 field Inventory::point
+S 299-299 function mean
+S 300-303 function stdDev
 R 3:1 imports Inventory -> Line (x-file: order/Order.kt)
 R 4:1 imports Inventory -> Order (x-file: order/Order.kt)
 R 5:1 imports Inventory -> OrderId (x-file: order/Order.kt)
@@ -412,12 +390,12 @@ R 82:55 calls Reservation::isExpired -> isAfter
 R 87:5 extends OutOfStockException -> RuntimeException
 R 123:9 calls Inventory -> require
 R 124:9 calls Inventory -> require
-R 132:5 calls List<Location>::pickingRoute -> sortedWith
-R 132:68 calls List<Location>::pickingRoute -> thenBy
-R 132:48 calls List<Location>::pickingRoute -> thenBy
-R 132:16 calls List<Location>::pickingRoute -> compareBy
-R 136:5 calls List<CycleCount>::partitionForReview -> partition
-R 136:29 calls List<CycleCount>::partitionForReview -> abs
+R 132:5 calls List::pickingRoute -> sortedWith
+R 132:68 calls List::pickingRoute -> thenBy
+R 132:48 calls List::pickingRoute -> thenBy
+R 132:16 calls List::pickingRoute -> compareBy
+R 136:5 calls List::partitionForReview -> partition
+R 136:29 calls List::partitionForReview -> abs
 R 140:53 calls Inventory -> ofMinutes
 R 143:26 calls Inventory -> mutableMapOf
 R 144:32 calls Inventory -> mutableMapOf
@@ -513,10 +491,10 @@ R 292:50 calls Inventory::transfer -> OutOfStockException
 R 293:16 calls Inventory::transfer -> consume
 R 294:30 calls Inventory::transfer -> receive
 R 294:9 calls Inventory::transfer -> levelAt
-R 299:38 calls Inventory::mean -> average (x-file: money/Money.kt)
-R 301:21 calls Inventory::stdDev -> mean
-R 302:32 calls Inventory::stdDev -> sqrt
-R 302:40 calls Inventory::stdDev -> sumOf
+R 299:38 calls mean -> average (x-file: money/Money.kt)
+R 301:21 calls stdDev -> mean
+R 302:32 calls stdDev -> sqrt
+R 302:40 calls stdDev -> sumOf
 R 304:26 calls Inventory::recomputeReorderPoint -> stdDev
 R 304:60 calls Inventory::recomputeReorderPoint -> sqrt
 R 304:78 calls Inventory::recomputeReorderPoint -> toDouble
@@ -526,10 +504,18 @@ R 306:9 calls Inventory::recomputeReorderPoint -> setReorderPoint
 
 == money/Money.kt (303 lines)
 S 1-303 module Money
-S 1-1 module com.example.warehouse.money
+S 1-303 module com.example.warehouse.money
 S 19-36 class Currency
 S 19-19 field Currency::scale
 S 19-19 field Currency::symbol
+S 20-20 field Currency::EUR
+S 21-21 field Currency::USD
+S 22-22 field Currency::GBP
+S 23-25 field Currency::JPY
+S 24-24 method Currency::format
+S 27-27 method Currency::format
+S 29-29 method Currency::javaCurrency
+S 32-34 method Currency::parse
 S 39-40 class CurrencyMismatchException
 S 39-39 field CurrencyMismatchException::expected
 S 39-39 field CurrencyMismatchException::actual
@@ -547,16 +533,9 @@ S 71-71 method Money::times
 S 73-73 method Money::unaryMinus
 S 75-75 method Money::percentOf
 S 77-82 method Money::split
-S 79-79 field Money::share
-S 80-80 field Money::remainder
 S 84-97 method Money::allocate
-S 85-85 field Money::total
-S 88-88 field Money::shares
-S 89-89 field Money::leftover
-S 90-90 field Money::i
 S 99-100 method Money::convert
 S 102-107 method Money::format
-S 103-105 field Money::formatter
 S 109-111 method Money::requireSameCurrency
 S 113-116 method Money::compareTo
 S 118-119 method Money::equals
@@ -567,7 +546,6 @@ S 128-128 method Money::of
 S 130-130 method Money::ofMinor
 S 132-132 method Money::zero
 S 135-144 method Money::parse
-S 136-136 field Money::parts
 S 149-157 class MoneyRange
 S 149-149 field MoneyRange::min
 S 149-149 field MoneyRange::max
@@ -580,25 +558,22 @@ S 173-173 method ExchangeRates::perEuro
 S 178-187 class FixedRates
 S 178-178 field FixedRates::perEuro
 S 179-183 method FixedRates::rate
-S 180-180 field FixedRates::fromRate
-S 181-181 field FixedRates::toRate
 S 185-186 method FixedRates::missing
 S 190-205 class CachingRates
 S 190-190 field CachingRates::source
 S 191-191 field CachingRates::cache
 S 192-193 field CachingRates::hits
 S 195-202 method CachingRates::rate
-S 196-196 field CachingRates::key
 S 204-204 method CachingRates::clear
-S 212-212 method Iterable<Money>::sum
-S 214-214 method Iterable<Money>::maxOrNull
+S 212-212 method Iterable::sum
+S 214-214 method Iterable::maxOrNull
 S 219-219 method String::toMoney
 S 221-221 method Int::eur
 S 223-223 method BigDecimal::eur
-S 226-227 method describeRate
-S 230-230 method vat
-S 233-233 method gross
-S 236-240 method distributeDiscount
+S 226-227 function describeRate
+S 230-230 function vat
+S 233-233 function gross
+S 236-240 function distributeDiscount
 S 251-277 class Budget
 S 251-251 field Budget::currency
 S 252-252 field Budget::limits
@@ -618,8 +593,8 @@ S 283-283 field MoneyStats::largest
 S 285-289 method MoneyStats::add
 S 291-292 field MoneyStats::average
 S 294-294 method MoneyStats::report
-S 298-299 method Iterable<Money>::totalsByCurrency
-S 302-303 method auditLine
+S 298-299 method Iterable::totalsByCurrency
+S 302-303 function auditLine
 R 3:1 imports Money -> BigDecimal
 R 4:1 imports Money -> MathContext
 R 5:1 imports Money -> RoundingMode
@@ -627,6 +602,13 @@ R 6:1 imports Money -> NumberFormat
 R 7:1 imports Money -> LocalDate
 R 8:1 imports Money -> Locale
 R 9:1 imports Money -> JavaCurrency
+R 24:76 calls Currency::format -> toPlainString
+R 27:61 calls Currency::format -> toPlainString
+R 29:53 calls Currency::javaCurrency -> getInstance
+R 33:21 calls Currency::parse -> firstOrNull
+R 33:43 calls Currency::parse -> equals
+R 33:55 calls Currency::parse -> trim
+R 34:26 calls Currency::parse -> IllegalArgumentException
 R 40:5 extends CurrencyMismatchException -> IllegalArgumentException
 R 44:5 extends MoneyFormatException -> IllegalArgumentException
 R 49:79 implements Money -> Comparable
@@ -685,7 +667,7 @@ R 136:30 calls Money::parse -> trim
 R 136:43 calls Money::parse -> Regex
 R 137:40 calls Money::parse -> MoneyFormatException
 R 140:35 calls Money::parse -> isLetter
-R 140:27 calls Money::parse -> first (x-file: pricing/Pricing.kt)
+R 140:27 calls Money::parse -> first
 R 140:47 calls Money::parse -> of
 R 140:67 calls Money::parse -> parse
 R 140:86 calls Money::parse -> of
@@ -706,10 +688,10 @@ R 197:21 calls CachingRates::rate -> let
 R 201:42 calls CachingRates::rate -> also
 R 201:23 calls CachingRates::rate -> rate
 R 204:25 calls CachingRates::clear -> clear
-R 212:54 calls Iterable<Money>::sum -> fold
-R 212:65 calls Iterable<Money>::sum -> zero
-R 214:43 calls Iterable<Money>::maxOrNull -> maxWithOrNull
-R 214:57 calls Iterable<Money>::maxOrNull -> compareBy
+R 212:54 calls Iterable::sum -> fold
+R 212:65 calls Iterable::sum -> zero
+R 214:43 calls Iterable::maxOrNull -> maxWithOrNull
+R 214:57 calls Iterable::maxOrNull -> compareBy
 R 217:20 calls Money -> signum
 R 219:37 calls String::toMoney -> parse
 R 221:30 calls Int::eur -> of
@@ -743,15 +725,15 @@ R 292:39 calls Money -> zero
 R 292:65 calls Money -> of
 R 292:81 calls Money -> divide
 R 292:94 calls Money -> toBigDecimal
-R 299:29 calls Iterable<Money>::totalsByCurrency -> mapValues
-R 299:5 calls Iterable<Money>::totalsByCurrency -> groupBy
-R 299:72 calls Iterable<Money>::totalsByCurrency -> sum
+R 299:29 calls Iterable::totalsByCurrency -> mapValues
+R 299:5 calls Iterable::totalsByCurrency -> groupBy
+R 299:72 calls Iterable::totalsByCurrency -> sum
 R 303:13 calls auditLine -> joinToString
 R 303:70 calls auditLine -> format
 
 == order/Order.kt (306 lines)
 S 1-306 module Order
-S 1-1 module com.example.warehouse.order
+S 1-306 module com.example.warehouse.order
 S 16-24 class OrderId
 S 17-17 field OrderId::value
 S 18-18 method OrderId::toString
@@ -765,6 +747,16 @@ S 27-27 field Line::unitPrice
 S 32-32 field Line::subtotal
 S 34-34 method Line::withQuantity
 S 38-53 class State
+S 39-39 field State::NEW
+S 39-39 field State::RESERVED
+S 39-39 field State::PAID
+S 39-39 field State::PICKED
+S 39-39 field State::SHIPPED
+S 39-39 field State::INVOICED
+S 39-39 field State::CANCELLED
+S 41-41 field State::isTerminal
+S 43-50 method State::next
+S 52-52 method State::canMoveTo
 S 56-69 class OrderEvent
 S 57-57 field OrderEvent::orderId
 S 58-58 field OrderEvent::at
@@ -831,11 +823,11 @@ S 160-165 method Order::summary
 S 167-167 method Order::toString
 S 171-177 method Order::place
 S 180-184 method Order::restore
-S 189-197 method describe
-S 200-200 method Collection<Order>::countByState
-S 203-203 method Collection<Order>::largest
-S 206-212 method Collection<Order>::stalePayments
-S 207-210 method isStale
+S 189-197 function describe
+S 200-200 method Collection::countByState
+S 203-203 method Collection::largest
+S 206-212 method Collection::stalePayments
+S 207-210 function isStale
 S 219-219 class Violation
 S 219-219 field Violation::field
 S 219-219 field Violation::message
@@ -845,10 +837,8 @@ S 224-224 field OrderValidator::maxQuantity
 S 225-225 field OrderValidator::restrictedSkus
 S 227-233 method OrderValidator::validate
 S 235-242 method OrderValidator::validateLine
-S 236-236 field OrderValidator::field
 S 244-248 method OrderValidator::duplicateSkus
 S 250-255 method OrderValidator::requireValid
-S 251-251 field OrderValidator::violations
 S 263-286 class OrderHistory
 S 263-263 field OrderHistory::orderId
 S 264-264 field OrderHistory::entries
@@ -857,9 +847,9 @@ S 271-271 field OrderHistory::size
 S 273-273 method OrderHistory::lastState
 S 275-275 method OrderHistory::lines
 S 277-285 method OrderHistory::stateAfter
-S 289-306 method packingSlip
-S 292-292 method rule
-S 294-294 method row
+S 289-306 function packingSlip
+S 292-292 function rule
+S 294-294 function row
 R 3:1 imports Order -> Currency (x-file: money/Money.kt)
 R 4:1 imports Order -> CurrencyMismatchException (x-file: money/Money.kt)
 R 5:1 imports Order -> Money (x-file: money/Money.kt)
@@ -873,6 +863,13 @@ R 22:35 calls OrderId::parse -> OrderId
 R 22:48 calls OrderId::parse -> fromString
 R 29:9 calls Order -> require
 R 34:42 calls Line::withQuantity -> copy
+R 44:16 calls State::next -> setOf
+R 45:21 calls State::next -> setOf
+R 46:17 calls State::next -> setOf
+R 47:19 calls State::next -> setOf
+R 48:20 calls State::next -> setOf
+R 49:32 calls State::next -> emptySet
+R 52:55 calls State::canMoveTo -> next
 R 62:129 extends OrderEvent::Placed -> OrderEvent
 R 63:118 extends OrderEvent::Reserved -> OrderEvent
 R 64:122 extends OrderEvent::Paid -> OrderEvent
@@ -926,14 +923,14 @@ R 181:53 calls Order::restore -> also
 R 181:13 calls Order::restore -> Order
 R 182:23 calls Order::restore -> forEach
 R 182:39 calls Order::restore -> addLine
-R 200:81 calls Collection<Order>::countByState -> eachCount
-R 200:57 calls Collection<Order>::countByState -> groupingBy
-R 203:93 calls Collection<Order>::largest -> take (x-file: inventory/Inventory.kt)
-R 203:54 calls Collection<Order>::largest -> sortedByDescending
+R 200:81 calls Collection::countByState -> eachCount
+R 200:57 calls Collection::countByState -> groupingBy
+R 203:93 calls Collection::largest -> take
+R 203:54 calls Collection::largest -> sortedByDescending
 R 208:71 calls isStale -> toMinutes
 R 208:41 calls isStale -> between
 R 208:49 calls isStale -> placedAt
-R 211:12 calls Collection<Order>::stalePayments -> filter
+R 211:12 calls Collection::stalePayments -> filter
 R 225:47 calls Order -> emptySet
 R 227:76 calls OrderValidator::validate -> buildList
 R 228:24 calls OrderValidator::validate -> isBlank
@@ -991,7 +988,7 @@ R 304:45 calls packingSlip -> toString
 
 == pricing/Pricing.kt (304 lines)
 S 1-304 module Pricing
-S 1-1 module com.example.warehouse.pricing
+S 1-304 module com.example.warehouse.pricing
 S 27-35 class Quote
 S 28-28 field Quote::lines
 S 29-29 field Quote::currency
@@ -1011,18 +1008,19 @@ S 40-40 field PricingContext::date
 S 43-50 interface DiscountRule
 S 44-44 method DiscountRule::discount
 S 46-49 method DiscountRule::then
-S 47-47 field DiscountRule::first
 S 53-62 class VatCategory
 S 53-53 field VatCategory::percent
+S 54-54 field VatCategory::GENERAL
+S 55-55 field VatCategory::FOOD
+S 56-56 field VatCategory::BOOKS
+S 57-57 field VatCategory::EXEMPT
+S 60-60 method VatCategory::forSku
 S 69-75 class VolumeDiscount
 S 69-69 field VolumeDiscount::thresholds
 S 70-74 method VolumeDiscount::discount
-S 71-71 field VolumeDiscount::units
-S 72-72 field VolumeDiscount::percent
 S 78-83 class LoyaltyDiscount
 S 78-78 field LoyaltyDiscount::tiers
 S 79-82 method LoyaltyDiscount::discount
-S 80-80 field LoyaltyDiscount::percent
 S 86-91 class CouponDiscount
 S 86-86 field CouponDiscount::code
 S 86-86 field CouponDiscount::off
@@ -1036,27 +1034,18 @@ S 106-106 field PricingBuilder::rules
 S 107-107 field PricingBuilder::vatCatalog
 S 109-111 method PricingBuilder::volume
 S 113-117 method PricingBuilder::loyalty
-S 114-114 field PricingBuilder::existing
 S 119-121 method PricingBuilder::coupon
 S 123-125 method PricingBuilder::rule
 S 127-128 method PricingBuilder::build
 S 131-138 class VolumeBuilder
 S 133-133 field VolumeBuilder::thresholds
 S 135-137 method Int::to
-S 142-143 method pricing
+S 142-143 function pricing
 S 149-181 class PricingEngine
 S 150-150 field PricingEngine::rule
 S 151-151 field PricingEngine::vatCatalog
 S 152-152 field PricingEngine::rates
 S 155-167 method PricingEngine::quote
-S 156-156 field PricingEngine::converted
-S 157-157 field PricingEngine::subtotals
-S 158-158 field PricingEngine::subtotal
-S 159-159 field PricingEngine::discount
-S 160-160 field PricingEngine::perLine
-S 161-165 field PricingEngine::quoted
-S 162-162 field PricingEngine::net
-S 163-163 field PricingEngine::category
 S 170-171 method PricingEngine::shelfPrice
 S 174-180 method PricingEngine::explain
 S 188-206 class Promotion
@@ -1070,8 +1059,6 @@ S 195-195 field BuyXGetY::sku
 S 195-195 field BuyXGetY::buy
 S 195-195 field BuyXGetY::free
 S 196-200 method BuyXGetY::toRule
-S 197-197 field BuyXGetY::line
-S 198-198 field BuyXGetY::freeUnits
 S 203-205 class Promotion::FreeShipping
 S 204-204 method FreeShipping::toRule
 S 209-226 class PriceHistory
@@ -1081,19 +1068,19 @@ S 212-215 method PriceHistory::record
 S 217-217 method PriceHistory::priceOn
 S 220-223 method PriceHistory::lowestBefore
 S 225-225 method PriceHistory::toString
-S 229-230 method priceList
+S 229-230 function priceList
 S 233-233 class ImportError
 S 233-233 field ImportError::lineNumber
 S 233-233 field ImportError::text
 S 233-233 field ImportError::reason
-S 239-255 method importPriceList
-S 258-259 method missingPrices
-S 262-263 method Map<String, Money>::convertedTo
+S 239-255 function importPriceList
+S 258-259 function missingPrices
+S 262-263 method Map::convertedTo
 S 266-270 method Quote::cashTotal
-S 273-280 method describeRules
-S 283-285 method seasonal
-S 288-297 method defaultEngine
-S 300-304 method selfCheck
+S 273-280 function describeRules
+S 283-285 function seasonal
+S 288-297 function defaultEngine
+S 300-304 function selfCheck
 R 3:1 imports Pricing -> Currency (x-file: money/Money.kt)
 R 4:1 imports Pricing -> ExchangeRates (x-file: money/Money.kt)
 R 5:1 imports Pricing -> Money (x-file: money/Money.kt)
@@ -1143,7 +1130,7 @@ R 142:50 calls pricing -> identity (x-file: money/Money.kt)
 R 143:35 calls pricing -> build
 R 143:22 calls pricing -> apply
 R 143:5 calls pricing -> PricingBuilder
-R 155:112 calls PricingEngine::quote -> now (x-file: app/WarehouseApp.kt)
+R 155:112 calls PricingEngine::quote -> now
 R 156:31 calls PricingEngine::quote -> map
 R 156:40 calls PricingEngine::quote -> copy
 R 156:70 calls PricingEngine::quote -> convert (x-file: money/Money.kt)
@@ -1202,11 +1189,11 @@ R 245:31 calls importPriceList -> split (x-file: money/Money.kt)
 R 247:17 calls importPriceList -> require
 R 249:37 calls importPriceList -> of (x-file: money/Money.kt)
 R 249:40 calls importPriceList -> BigDecimal
-R 249:69 calls importPriceList -> parse (x-file: inventory/Inventory.kt)
+R 249:69 calls importPriceList -> parse (x-file: app/WarehouseApp.kt)
 R 251:27 calls importPriceList -> ImportError
 R 259:11 calls missingPrices -> filterNot
-R 263:5 calls Map<String, Money>::convertedTo -> mapValues
-R 263:37 calls Map<String, Money>::convertedTo -> convert (x-file: money/Money.kt)
+R 263:5 calls Map::convertedTo -> mapValues
+R 263:37 calls Map::convertedTo -> convert (x-file: money/Money.kt)
 R 269:18 calls Quote::cashTotal -> ofMinor (x-file: money/Money.kt)
 R 273:63 calls describeRules -> joinToString
 R 277:35 calls describeRules -> toString
