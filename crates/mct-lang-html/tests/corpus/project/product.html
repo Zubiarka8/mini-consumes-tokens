@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sartén antiadherente 28 cm — Almacén Norte</title>
+  <!--
+    Product detail page. Reached from the cards of index.html#featured and
+    catalog.html#results-grid; the "add to cart" form posts to the same
+    endpoint the cart drawer of every page reads, and the cross-sell
+    section links back into catalog.html#filters.
+  -->
+  <link rel="stylesheet" href="assets/css/site.css">
+  <link rel="stylesheet" href="assets/css/product.css">
+  <link rel=stylesheet href=assets/css/gallery.css>
+  <script src="assets/js/vendor/htmx.min.js" defer></script>
+  <script src="assets/js/app.js" type="module"></script>
+  <script src="assets/js/gallery.js" type="module" id="gallery-script"></script>
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      "sku": "sku-1001",
+      "name": "Sartén antiadherente 28 cm",
+      "offers": { "@type": "Offer", "price": "24.90", "priceCurrency": "EUR", "availability": "InStock" },
+      "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.6", "reviewCount": "128" }
+    }
+  </script>
+</head>
+<body id="product" class="page page--product" data-sku="sku-1001">
+  <a class="skip-link" href="#main">Saltar al contenido</a>
+
+  <header id="site-header" class="site-header site-header--sticky" role="banner">
+    <div class="container">
+      <a id="logo" class="logo" href="index.html" aria-label="Almacén Norte, inicio">
+        <span class="logo__text">Almacén Norte</span>
+      </a>
+      <form id="search-form" class="search" action="catalog.html" method="get" role="search">
+        <label for="search-input" class="visually-hidden">Buscar productos</label>
+        <input id="search-input" class="search__input" type="search" name="q">
+        <button class="search__button" type="submit" aria-label="Buscar">🔍</button>
+      </form>
+      <div class="header-actions">
+        <a id="account-link" class="header-actions__link" href="account.html">Mi cuenta</a>
+        <button id="cart-toggle" class="header-actions__cart" type="button"
+                aria-controls="cart-drawer" aria-expanded="false">
+          Cesta <span id="cart-count" class="badge badge--accent">0</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="main container" tabindex="-1">
+    <nav class="breadcrumbs" aria-label="Migas de pan">
+      <ol>
+        <li><a href="index.html">Inicio</a></li>
+        <li><a href="catalog.html?cat=cat-kitchen">Cocina</a></li>
+        <li><a href="catalog.html?cat=cat-cookware#filters">Menaje</a></li>
+        <li aria-current="page">Sartén antiadherente 28&nbsp;cm</li>
+      </ol>
+    </nav>
+
+    <div id="product-layout" class="product-layout">
+
+      <!-- =============================================================
+           Gallery: thumbnails drive the main image through gallery.js
+           ============================================================= -->
+      <section id="gallery" class="gallery" aria-label="Imágenes del producto">
+        <figure id="gallery-main" class="gallery__main">
+          <img id="gallery-image" class="gallery__image"
+               src="assets/img/products/sku-1001-1.jpg"
+               alt="Sartén antiadherente vista superior" width="640" height="640">
+          <figcaption class="visually-hidden">Vista superior</figcaption>
+          <button id="gallery-zoom" class="gallery__zoom" type="button" aria-label="Ampliar">⤢</button>
+        </figure>
+        <ul id="gallery-thumbs" class="gallery__thumbs" role="tablist">
+          <li role="presentation">
+            <button class="gallery__thumb is-active" role="tab" aria-selected="true"
+                    data-src="assets/img/products/sku-1001-1.jpg">
+              <img src="assets/img/products/sku-1001-1-thumb.jpg" alt="" width="72" height="72">
+            </button>
+          </li>
+          <li role="presentation">
+            <button class="gallery__thumb" role="tab" aria-selected="false"
+                    data-src="assets/img/products/sku-1001-2.jpg">
+              <img src="assets/img/products/sku-1001-2-thumb.jpg" alt="" width="72" height="72">
+            </button>
+          </li>
+          <li role="presentation">
+            <button class="gallery__thumb" role="tab" aria-selected="false"
+                    data-src="assets/img/products/sku-1001-3.jpg">
+              <img src="assets/img/products/sku-1001-3-thumb.jpg" alt="" width="72" height="72">
+            </button>
+          </li>
+          <li role="presentation">
+            <button class="gallery__thumb gallery__thumb--video" role="tab" aria-selected="false"
+                    data-video="assets/video/sku-1001.mp4">
+              <img src="assets/img/products/sku-1001-video-thumb.jpg" alt="Vídeo" width="72" height="72">
+            </button>
+          </li>
+        </ul>
+        <dialog id="gallery-lightbox" class="lightbox">
+          <form method="dialog">
+            <button class="lightbox__close" aria-label="Cerrar">✕</button>
+          </form>
+          <img id="lightbox-image" class="lightbox__image" alt="" src="assets/img/products/sku-1001-1.jpg">
+          <video id="lightbox-video" class="lightbox__video" controls preload="none" hidden>
+            <source src="assets/video/sku-1001.mp4" type="video/mp4">
+            <track kind="captions" src="assets/video/sku-1001.es.vtt" srclang="es" label="Español" default>
+          </video>
+        </dialog>
+      </section>
+
+      <!-- =============================================================
+           Buy box
+           ============================================================= -->
+      <section id="buy-box" class="buy-box" aria-labelledby="product-title">
+        <p class="buy-box__brand">Acme Ibérica</p>
+        <h1 id="product-title" class="buy-box__title">Sartén antiadherente 28&nbsp;cm</h1>
+        <a class="rating rating--large" href="#reviews" aria-label="4,6 de 5, 128 opiniones">
+          ★★★★★ <span>4,6 · 128 opiniones</span>
+        </a>
+
+        <p id="price" class="price price--sale">
+          <span class="price__current">24,90&nbsp;€</span>
+          <del class="price__was">29,90&nbsp;€</del>
+          <span class="price__badge badge badge--accent">−17&nbsp;%</span>
+        </p>
+        <p class="price__tax">IVA incluido. Envío gratis a partir de 49&nbsp;€.</p>
+
+        <form id="add-to-cart-form" class="buy-box__form" action="/api/cart/lines" method="post"
+              hx-post="/api/cart/lines" hx-target="#cart-lines" hx-swap="beforeend">
+          <input type="hidden" name="sku" value="sku-1001">
+          <label for="quantity" class="field__label">Cantidad</label>
+          <div id="quantity-stepper" class="stepper">
+            <button class="stepper__btn" type="button" data-step="-1" aria-label="Menos">−</button>
+            <input id="quantity" class="stepper__input" type="number" name="quantity"
+                   min="1" max="12" value="1" inputmode="numeric">
+            <button class="stepper__btn" type="button" data-step="1" aria-label="Más">+</button>
+          </div>
+          <button id="add-to-cart" class="btn btn--primary btn--large btn--block" type="submit">
+            Añadir a la cesta
+          </button>
+          <button id="add-to-wishlist" class="btn btn--ghost btn--block" type="button"
+                  hx-post="/api/wishlist" hx-vals='{"sku": "sku-1001"}'>
+            ♡ Guardar para después
+          </button>
+        </form>
+
+        <ul id="stock-info" class="stock-info">
+          <li class="stock-info__item stock-info__item--ok">En stock: 37 unidades</li>
+          <li class="stock-info__item">Pide antes de las 14:00 y sale hoy</li>
+          <li class="stock-info__item">Devolución gratuita en 30 días</li>
+        </ul>
+
+        <details id="shipping-details" class="details">
+          <summary>Envío y devoluciones</summary>
+          <p>Península: 24–48&nbsp;h. Baleares: 72&nbsp;h. Canarias, Ceuta y Melilla: consultar.</p>
+          <p>Más información en <a href="help.html#shipping">Envíos</a> y <a href="help.html#returns">Devoluciones</a>.</p>
+        </details>
+      </section>
+    </div>
+
+    <!-- ===============================================================
+         Description, specifications and reviews (tabs)
+         =============================================================== -->
+    <section id="product-tabs" class="tabs" aria-label="Información del producto">
+      <div class="tabs__list" role="tablist">
+        <button id="tab-description" class="tabs__tab is-active" role="tab"
+                aria-controls="panel-description" aria-selected="true">Descripción</button>
+        <button id="tab-specs" class="tabs__tab" role="tab"
+                aria-controls="panel-specs" aria-selected="false">Características</button>
+        <button id="tab-reviews" class="tabs__tab" role="tab"
+                aria-controls="reviews" aria-selected="false">Opiniones (128)</button>
+      </div>
+
+      <div id="panel-description" class="tabs__panel prose" role="tabpanel">
+        <p>Aluminio forjado de 4&nbsp;mm con recubrimiento antiadherente sin PFOA, apta para
+          <strong>todas las cocinas</strong>, incluida inducción.</p>
+        <ul>
+          <li>Mango de baquelita con tacto suave, no se calienta.</li>
+          <li>Base de acero inoxidable para una distribución uniforme del calor.</li>
+          <li>Apta para lavavajillas, aunque recomendamos el lavado a mano.</li>
+        </ul>
+        <blockquote cite="https://www.example.org/pruebas/sartenes-2026">
+          «La mejor relación calidad-precio de las doce sartenes que probamos.»
+        </blockquote>
+      </div>
+
+      <div id="panel-specs" class="tabs__panel" role="tabpanel" hidden>
+        <table id="specs-table" class="specs">
+          <caption class="visually-hidden">Características técnicas</caption>
+          <tbody>
+            <tr><th scope="row">Diámetro</th><td>28&nbsp;cm</td></tr>
+            <tr><th scope="row">Peso</th><td>1&nbsp;150&nbsp;g</td></tr>
+            <tr><th scope="row">Material</th><td>Aluminio forjado</td></tr>
+            <tr><th scope="row">Recubrimiento</th><td>Cerámico reforzado, sin PFOA</td></tr>
+            <tr><th scope="row">Inducción</th><td>Sí</td></tr>
+            <tr><th scope="row">Horno</th><td>Hasta 180&nbsp;°C (sin mango)</td></tr>
+            <tr><th scope="row">Garantía</th><td>3 años</td></tr>
+            <tr><th scope="row">Referencia</th><td><code>sku-1001</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div id="reviews" class="tabs__panel reviews" role="tabpanel" hidden>
+        <div id="reviews-summary" class="reviews__summary">
+          <p class="reviews__score">4,6 <small>/ 5</small></p>
+          <dl class="reviews__histogram">
+            <dt>5★</dt><dd><meter min="0" max="128" value="89">89</meter></dd>
+            <dt>4★</dt><dd><meter min="0" max="128" value="24">24</meter></dd>
+            <dt>3★</dt><dd><meter min="0" max="128" value="9">9</meter></dd>
+            <dt>2★</dt><dd><meter min="0" max="128" value="4">4</meter></dd>
+            <dt>1★</dt><dd><meter min="0" max="128" value="2">2</meter></dd>
+          </dl>
+        </div>
+
+        <ol id="review-list" class="reviews__list">
+          <li id="review-8812" class="review">
+            <p class="review__meta"><strong>Itziar</strong> · Verificado · 12/09/2026</p>
+            <p class="review__stars" aria-label="5 de 5">★★★★★</p>
+            <p>Muy buena, no se pega nada. El mango no quema.</p>
+          </li>
+          <li id="review-8790" class="review">
+            <p class="review__meta"><strong>Jon</strong> · Verificado · 03/09/2026</p>
+            <p class="review__stars" aria-label="4 de 5">★★★★☆</p>
+            <p>Buena sartén. Pesa un poco más de lo que esperaba.</p>
+          </li>
+          <li id="review-8761" class="review review--with-photo">
+            <p class="review__meta"><strong>Ana Belén</strong> · Verificado · 28/08/2026</p>
+            <p class="review__stars" aria-label="5 de 5">★★★★★</p>
+            <p>Llegó al día siguiente y perfectamente embalada.</p>
+            <img src="assets/img/reviews/8761.jpg" alt="Foto de la sartén en uso" width="160" height="120" loading="lazy">
+          </li>
+        </ol>
+        <button id="reviews-more" class="btn btn--ghost" type="button"
+                hx-get="/api/products/sku-1001/reviews?page=2" hx-target="#review-list" hx-swap="beforeend">
+          Ver más opiniones
+        </button>
+
+        <form id="review-form" class="review-form" action="/api/products/sku-1001/reviews" method="post">
+          <h3>Escribe tu opinión</h3>
+          <fieldset class="stars-input">
+            <legend>Valoración</legend>
+            <input id="star-5" type="radio" name="stars" value="5"><label for="star-5">★</label>
+            <input id="star-4" type="radio" name="stars" value="4"><label for="star-4">★</label>
+            <input id="star-3" type="radio" name="stars" value="3"><label for="star-3">★</label>
+            <input id="star-2" type="radio" name="stars" value="2"><label for="star-2">★</label>
+            <input id="star-1" type="radio" name="stars" value="1"><label for="star-1">★</label>
+          </fieldset>
+          <label for="review-text" class="field__label">Comentario</label>
+          <textarea id="review-text" name="text" rows="4" maxlength="2000" required></textarea>
+          <button class="btn btn--primary" type="submit">Publicar</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- ===============================================================
+         Cross-sell
+         =============================================================== -->
+    <section id="related" class="section related" aria-labelledby="related-title">
+      <h2 id="related-title" class="section__title">Completa tu cocina</h2>
+      <div class="product-grid product-grid--4">
+        <article id="product-sku-1002" class="product-card" data-sku="sku-1002">
+          <a href="product.html?sku=sku-1002" class="product-card__link">
+            <img class="product-card__img" src="assets/img/products/sku-1002.jpg"
+                 alt="Olla a presión 6 L" loading="lazy" width="240" height="240">
+            <h3 class="product-card__name">Olla a presión 6&nbsp;L</h3>
+          </a>
+          <p class="product-card__price">79,00&nbsp;€</p>
+        </article>
+        <article id="product-sku-1101" class="product-card" data-sku="sku-1101">
+          <a href="product.html?sku=sku-1101" class="product-card__link">
+            <img class="product-card__img" src="assets/img/products/sku-1101.jpg"
+                 alt="Cuchillo santoku 18 cm" loading="lazy" width="240" height="240">
+            <h3 class="product-card__name">Cuchillo santoku 18&nbsp;cm</h3>
+          </a>
+          <p class="product-card__price">119,00&nbsp;€</p>
+        </article>
+      </div>
+      <p class="section__more"><a href="catalog.html?cat=cat-cookware#filters">Más menaje →</a></p>
+    </section>
+  </main>
+
+  <aside id="cart-drawer" class="drawer drawer--right" aria-labelledby="cart-drawer-title" hidden>
+    <div class="drawer__header">
+      <h2 id="cart-drawer-title" class="drawer__title">Tu cesta</h2>
+      <button id="cart-close" class="drawer__close" type="button" aria-label="Cerrar">✕</button>
+    </div>
+    <ul id="cart-lines" class="cart-lines"></ul>
+    <div class="drawer__footer">
+      <p class="drawer__total">Total: <strong id="cart-total">0,00&nbsp;€</strong></p>
+      <a id="cart-checkout" class="btn btn--primary btn--block" href="cart.html#summary">Ver cesta y pagar</a>
+    </div>
+  </aside>
+
+  <footer id="site-footer" class="site-footer">
+    <div class="container">
+      <p class="site-footer__copy">© 2026 Almacén Norte S.L. — <a href="legal.html#terms">Condiciones</a></p>
+    </div>
+  </footer>
+
+  <div id="toast-region" class="toast-region" role="status" aria-live="polite"></div>
+</body>
+</html>
