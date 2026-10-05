@@ -1,10 +1,11 @@
 # Issue #74 — Long-fixture corpus progress by language
 
 Tracking for [#74](https://github.com/Zubiarka8/mini-consumes-tokens/issues/74):
-each `mct-lang-*` crate needs a `tests/corpus/` containing at least five
-interconnected files of 300–600 lines, an `expected.snap`, one large file in
-`malformed/`, and `tests/corpus.rs` (the shared `mct-corpus` harness plus
-language-specific tests). See `crates/mct-corpus/src/lib.rs`.
+each `mct-lang-*` crate needs a `tests/corpus/` containing interconnected
+files (at least five of 300–700 lines, none longer), an `expected.snap`, one
+large file in `malformed/` that the parser rejects, and `tests/corpus.rs` (the
+shared `mct-corpus` harness plus language-specific tests). Conventions and the
+review checklist: `CONTRIBUTING.md`, "Language corpus".
 
 **Keep this file current until the issue is closed.** Every corpus PR updates
 its language row in the same PR (status, PR number, counts, and bugs); after
@@ -16,9 +17,11 @@ by `scripts/unix/corpus-report.sh <language> --update-progress` (use
 `scripts\\windows\\corpus-report.ps1` on Windows). Set the status, PR number,
 and bugs manually.
 
-Statuses: **Pending** → **In PR** → **Done** (merged into `main`).
+Statuses: **Pending** → **In PR** → **Done** (merged into `main`). The number in
+parentheses counts relations whose target *name* is defined in another corpus
+file; it is a name match, not a resolved cross-file reference.
 
-| Language | Crate | Status | PR | Files / lines | Symbols / relations (cross-file) | Parser bugs found |
+| Language | Crate | Status | PR | Files / lines | Symbols / relations (name-matched across files) | Parser bugs found |
 |---|---|---|---|---|---|---|
 | Rust | `mct-lang-rust` | **Done** | #77 | 6 / 2,179 | 239 / 817 (218) | Associated type/const owner; nested `fn` inside a method treated as a method; module end +1 |
 | Python | `mct-lang-python` | **Done** | #78 | 6 / 2,006 | 302 / 918 (223) | Module end +1; nested class missing parent; calls in decorator arguments missed; `type X = …` (PEP 695) has no symbol |
