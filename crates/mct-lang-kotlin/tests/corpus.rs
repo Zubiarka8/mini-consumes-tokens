@@ -19,7 +19,7 @@ use mct_lang_kotlin::KotlinParser;
 mct_corpus::standard_tests!(KotlinParser);
 
 use RelationKind::{Calls, Extends, Implements, Imports};
-use SymbolKind::{Class, Field, Interface, Method, Module};
+use SymbolKind::{Class, Field, Function, Interface, Method, Module};
 
 fn parent<'a>(path: &str, name: &str, kind: SymbolKind) -> Option<&'a str> {
     corpus().symbol(path, name, kind).parent.as_deref()
@@ -32,11 +32,18 @@ fn package_headers_are_modules() {
         ("Order.kt", "com.example.warehouse.order"),
         ("WarehouseApp.kt", "com.example.warehouse.app"),
     ] {
-        let m = corpus().symbol(path, package, Module);
-        // Limit: the package module spans the header line only, unlike Go's.
+        let c = corpus();
+        let m = c.symbol(path, package, Module);
+        // Like Go's package clause, the package module spans the file.
+        let lines = c
+            .files
+            .iter()
+            .find(|f| f.path.ends_with(path))
+            .unwrap()
+            .line_count();
         assert_eq!(
             (m.location.line, m.location.end_line),
-            (1, Some(1)),
+            (1, Some(lines as u32)),
             "{path}"
         );
     }
@@ -94,15 +101,12 @@ fn extension_functions_attach_to_their_receiver() {
         .map(|(_, s)| s.parent.as_deref().unwrap())
         .collect();
     assert_eq!(eur, ["Int", "BigDecimal"]);
-    // Bug, kept visible: the receiver keeps its type arguments.
+    // The receiver is named without its type arguments.
     assert_eq!(
         parent("Order.kt", "countByState", Method),
-        Some("Collection<Order>")
+        Some("Collection")
     );
-    assert_eq!(
-        parent("Inventory.kt", "pickingRoute", Method),
-        Some("List<Location>")
-    );
+    assert_eq!(parent("Inventory.kt", "pickingRoute", Method), Some("List"));
 }
 
 #[test]
@@ -162,59 +166,59 @@ fn cross_file_calls_are_extracted() {
 }
 
 #[test]
-fn enum_class_bodies_are_not_visited() {
-    // Bug, kept visible: an `enum class` body (`enum_class_body`) is skipped,
-    // so its entries, methods, properties and companion are lost.
+fn enum_class_bodies_are_visited() {
+    // Entries are fields of the enum; methods and properties in its body,
+    // and the overrides in entry bodies, are its members.
     let c = corpus();
-    for name in [
-        "canMoveTo",
-        "isTerminal",
-        "javaCurrency",
-        "forSku",
-        "EUR",
-        "GENERAL",
-    ] {
-        assert!(c.symbols_named(name).is_empty(), "{name} was extracted");
-    }
-    assert!(!c.has_relation("next", Calls, "setOf"));
-    // The enum itself and its constructor properties are still there.
+    assert_eq!(parent("Money.kt", "EUR", Field), Some("Currency"));
+    assert_eq!(parent("Pricing.kt", "GENERAL", Field), Some("VatCategory"));
+    assert_eq!(parent("Order.kt", "canMoveTo", Method), Some("State"));
+    assert_eq!(parent("Order.kt", "isTerminal", Field), Some("State"));
+    assert!(c.has_relation("next", Calls, "setOf"));
     assert_eq!(parent("Money.kt", "scale", Field), Some("Currency"));
     assert_eq!(parent("Pricing.kt", "VatCategory", Class), None);
 }
 
 #[test]
-fn documented_limits_of_the_parser() {
+fn top_level_and_local_functions_are_functions() {
     let c = corpus();
-    // Top-level functions are methods without a parent, not functions.
-    assert_eq!(parent("Money.kt", "vat", Method), None);
+    let function = |path: &str, name: &str| c.symbol(path, name, Function).parent.as_deref();
+    assert_eq!(function("Money.kt", "vat"), None);
     assert!(c
         .symbols_named("auditLine")
         .iter()
-        .all(|(_, s)| s.kind == Method && s.parent.is_none()));
-    // Local functions are methods too, owned by the enclosing type (or none).
-    assert_eq!(parent("Order.kt", "rule", Method), None);
-    assert_eq!(parent("Inventory.kt", "stdDev", Method), Some("Inventory"));
-    // Local `val`s inside a class's methods become fields of the class.
-    assert_eq!(
-        parent("Pricing.kt", "subtotal", Field),
-        Some("PricingEngine")
-    );
+        .all(|(_, s)| s.kind == Function && s.parent.is_none()));
+    // Local functions too, not methods of the enclosing type.
+    assert_eq!(function("Order.kt", "rule"), None);
+    assert_eq!(function("Inventory.kt", "stdDev"), None);
+    // A local `val` is no field of the class (`Line.subtotal` in Order.kt
+    // is a real property).
+    assert!(c
+        .symbols_named("subtotal")
+        .iter()
+        .all(|(p, _)| !p.ends_with("Pricing.kt")));
     let expires: Vec<_> = c
         .symbols_named("expiresAt")
         .into_iter()
-        .map(|(_, s)| s.parent.as_deref().unwrap())
+        .map(|(_, s)| s.parent.as_deref())
         .collect();
-    assert_eq!(
-        expires,
-        ["Reservation", "Inventory"],
-        "the second is a local in reserveLine"
-    );
-    // Companion objects and `typealias` leave no symbol.
-    for name in ["Factory", "Rate", "Handler"] {
-        assert!(c.symbols_named(name).is_empty(), "{name} became a symbol");
-    }
-    // Infix and operator calls (`a percentOf b`, `a + b`) are no calls.
+    assert_eq!(expires, [Some("Reservation")]);
+}
+
+#[test]
+fn documented_limits_of_the_parser() {
+    let c = corpus();
+    // Known limit (module doc): infix and operator calls (`a percentOf b`,
+    // `a + b`) are no calls.
     assert!(!c.has_relation("vat", Calls, "percentOf"));
+}
+
+#[test]
+#[ignore = "bug, not filed yet: companion objects and `typealias` leave no symbol"]
+fn companion_objects_and_type_aliases_are_symbols() {
+    for name in ["Factory", "Rate", "Handler"] {
+        assert!(!corpus().symbols_named(name).is_empty(), "{name}");
+    }
 }
 
 #[test]
