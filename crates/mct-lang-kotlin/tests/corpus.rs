@@ -34,7 +34,11 @@ fn package_headers_are_modules() {
     ] {
         let m = corpus().symbol(path, package, Module);
         // Limit: the package module spans the header line only, unlike Go's.
-        assert_eq!((m.location.line, m.location.end_line), (1, Some(1)), "{path}");
+        assert_eq!(
+            (m.location.line, m.location.end_line),
+            (1, Some(1)),
+            "{path}"
+        );
     }
 }
 
@@ -49,7 +53,10 @@ fn classes_objects_and_interfaces_are_extracted() {
     assert_eq!(parent("Inventory.kt", "InventoryListener", Interface), None);
     assert_eq!(parent("Pricing.kt", "BuyXGetY", Class), Some("Promotion"));
     // `object` declarations are classes too.
-    assert_eq!(parent("Pricing.kt", "FreeShipping", Class), Some("Promotion"));
+    assert_eq!(
+        parent("Pricing.kt", "FreeShipping", Class),
+        Some("Promotion")
+    );
     assert_eq!(parent("WarehouseApp.kt", "OrderNumbers", Class), None);
 }
 
@@ -57,12 +64,24 @@ fn classes_objects_and_interfaces_are_extracted() {
 fn members_attach_to_their_type() {
     assert_eq!(parent("Money.kt", "plus", Method), Some("Money"));
     assert_eq!(parent("Money.kt", "amount", Field), Some("Money"));
-    assert_eq!(parent("Inventory.kt", "tryReserve", Method), Some("StockLevel"));
-    assert_eq!(parent("Pricing.kt", "volume", Method), Some("PricingBuilder"));
+    assert_eq!(
+        parent("Inventory.kt", "tryReserve", Method),
+        Some("StockLevel")
+    );
+    assert_eq!(
+        parent("Pricing.kt", "volume", Method),
+        Some("PricingBuilder")
+    );
     assert_eq!(parent("WarehouseApp.kt", "handle", Method), Some("Router"));
     // Primary-constructor `val`/`var` parameters are fields.
-    assert_eq!(parent("Inventory.kt", "orderId", Field), Some("Reservation"));
-    assert_eq!(parent("Pricing.kt", "customerTier", Field), Some("PricingContext"));
+    assert_eq!(
+        parent("Inventory.kt", "orderId", Field),
+        Some("Reservation")
+    );
+    assert_eq!(
+        parent("Pricing.kt", "customerTier", Field),
+        Some("PricingContext")
+    );
 }
 
 #[test]
@@ -76,15 +95,26 @@ fn extension_functions_attach_to_their_receiver() {
         .collect();
     assert_eq!(eur, ["Int", "BigDecimal"]);
     // Bug, kept visible: the receiver keeps its type arguments.
-    assert_eq!(parent("Order.kt", "countByState", Method), Some("Collection<Order>"));
-    assert_eq!(parent("Inventory.kt", "pickingRoute", Method), Some("List<Location>"));
+    assert_eq!(
+        parent("Order.kt", "countByState", Method),
+        Some("Collection<Order>")
+    );
+    assert_eq!(
+        parent("Inventory.kt", "pickingRoute", Method),
+        Some("List<Location>")
+    );
 }
 
 #[test]
 fn delegation_specifiers_split_into_extends_and_implements() {
     let c = corpus();
     // A constructor call means a superclass…
-    c.relation("Money.kt", "CurrencyMismatchException", Extends, "IllegalArgumentException");
+    c.relation(
+        "Money.kt",
+        "CurrencyMismatchException",
+        Extends,
+        "IllegalArgumentException",
+    );
     c.relation("Order.kt", "Placed", Extends, "OrderEvent");
     c.relation("Pricing.kt", "BuyXGetY", Extends, "Promotion");
     // …a bare type an interface, type arguments dropped.
@@ -136,7 +166,14 @@ fn enum_class_bodies_are_not_visited() {
     // Bug, kept visible: an `enum class` body (`enum_class_body`) is skipped,
     // so its entries, methods, properties and companion are lost.
     let c = corpus();
-    for name in ["canMoveTo", "isTerminal", "javaCurrency", "forSku", "EUR", "GENERAL"] {
+    for name in [
+        "canMoveTo",
+        "isTerminal",
+        "javaCurrency",
+        "forSku",
+        "EUR",
+        "GENERAL",
+    ] {
         assert!(c.symbols_named(name).is_empty(), "{name} was extracted");
     }
     assert!(!c.has_relation("next", Calls, "setOf"));
@@ -158,13 +195,20 @@ fn documented_limits_of_the_parser() {
     assert_eq!(parent("Order.kt", "rule", Method), None);
     assert_eq!(parent("Inventory.kt", "stdDev", Method), Some("Inventory"));
     // Local `val`s inside a class's methods become fields of the class.
-    assert_eq!(parent("Pricing.kt", "subtotal", Field), Some("PricingEngine"));
+    assert_eq!(
+        parent("Pricing.kt", "subtotal", Field),
+        Some("PricingEngine")
+    );
     let expires: Vec<_> = c
         .symbols_named("expiresAt")
         .into_iter()
         .map(|(_, s)| s.parent.as_deref().unwrap())
         .collect();
-    assert_eq!(expires, ["Reservation", "Inventory"], "the second is a local in reserveLine");
+    assert_eq!(
+        expires,
+        ["Reservation", "Inventory"],
+        "the second is a local in reserveLine"
+    );
     // Companion objects and `typealias` leave no symbol.
     for name in ["Factory", "Rate", "Handler"] {
         assert!(c.symbols_named(name).is_empty(), "{name} became a symbol");
@@ -184,6 +228,9 @@ fn index_answers_cross_file_queries() {
     assert!(files.contains(&"pricing/Pricing.kt"), "{files:?}");
     let calls = index.find_calls("place").unwrap();
     for callee in ["priceLines", "quote", "convert", "reserveOrReject"] {
-        assert!(calls.iter().any(|h| h.to_name == callee), "place should call {callee}");
+        assert!(
+            calls.iter().any(|h| h.to_name == callee),
+            "place should call {callee}"
+        );
     }
 }
