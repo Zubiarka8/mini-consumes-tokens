@@ -93,19 +93,20 @@ fn methods_constructors_fields_and_enum_constants_attach_to_their_type() {
 }
 
 #[test]
-fn enum_constant_bodies_are_not_visited() {
-    // Bug, kept visible: `NEW { Set<State> next() { … } }` — the methods of
-    // the seven constant bodies (and the calls in them) are lost; only the
-    // abstract declaration on the enum itself is a symbol.
+fn enum_constant_bodies_belong_to_the_enum() {
+    // `NEW { Set<State> next() { … } }`: each constant body overrides the
+    // abstract `next()`; its methods, and the calls in them, belong to the
+    // enum.
     let next: Vec<_> = corpus()
         .symbols_named("next")
         .into_iter()
         .filter(|(p, _)| p.ends_with("Order.java"))
         .map(|(_, s)| s.parent.as_deref())
         .collect();
-    assert_eq!(next, [Some("State")]);
-    assert!(!corpus().has_relation("next", Calls, "of"));
-    assert!(!corpus().has_relation("next", Calls, "noneOf"));
+    assert!(next.len() > 1, "{next:?}");
+    assert!(next.iter().all(|p| *p == Some("State")), "{next:?}");
+    assert!(corpus().has_relation("next", Calls, "of"));
+    assert!(corpus().has_relation("next", Calls, "noneOf"));
 }
 
 #[test]
@@ -188,55 +189,60 @@ fn cross_file_calls_are_extracted() {
 }
 
 #[test]
-fn declarations_without_a_symbol_are_the_documented_limits() {
+fn records_annotation_types_and_object_creation() {
     let c = corpus();
-    // `record` and `@interface` declarations are not symbols…
-    for name in [
-        "Range",
-        "Line",
-        "Placed",
-        "Reservation",
-        "Page",
-        "ThreadSafe",
-        "Transactional",
-    ] {
+    // `record`s are classes and `@interface`s interfaces…
+    for name in ["Range", "Line", "Placed", "Reservation", "Page"] {
         assert!(
             c.symbols_named(name)
                 .iter()
-                .all(|(_, s)| s.kind == SymbolKind::Method),
-            "{name} became a type symbol"
+                .any(|(_, s)| s.kind == SymbolKind::Class),
+            "record {name}"
         );
     }
-    // …so a record's methods attach to the enclosing class instead.
+    for name in ["ThreadSafe", "Transactional"] {
+        assert!(
+            c.symbols_named(name)
+                .iter()
+                .any(|(_, s)| s.kind == SymbolKind::Interface),
+            "@interface {name}"
+        );
+    }
+    // …so a record's methods attach to the record…
     assert_eq!(
         parent("Money.java", "contains", SymbolKind::Method),
-        Some("Money")
+        Some("Range")
     );
     assert_eq!(
         parent("Order.java", "subtotal", SymbolKind::Method),
-        Some("Order")
+        Some("Line")
     );
-    // Methods of an anonymous class attach to the enclosing type too.
+    // …and its `implements` is a relation.
+    c.relation("Order.java", "Placed", Implements, "OrderEvent");
+    // `new T(…)` calls the type.
+    assert!(c.has_relation("place", Calls, "PendingApproval"));
+    // Known limit (module doc): an anonymous class's methods attach to the
+    // enclosing type, and a sealed interface's `permits` is no relation.
     assert_eq!(
         parent("OrderService.java", "run", SymbolKind::Method),
         Some("OrderService")
     );
-    // `new T(…)`, `this(…)`/`super(…)` and method references are no calls.
-    assert!(!c.has_relation("place", Calls, "PendingApproval"));
-    assert!(!c.has_relation("summing", Calls, "plus"));
-    // A record's `implements` and a sealed interface's `permits` leave no
-    // relation.
-    assert!(!c.has_relation("Placed", Implements, "OrderEvent"));
 }
 
 #[test]
-fn type_arguments_in_supertypes_are_taken_as_supertypes() {
-    // Bug, kept visible: every `type_identifier` under `extends`/`implements`
-    // becomes a relation, type arguments included.
+#[ignore = "bug, not filed yet: `this(…)`/`super(…)` and method references (`Money::plus`) leave no relation"]
+fn constructor_chaining_and_method_references_are_relations() {
+    assert!(corpus().has_relation("summing", Calls, "plus"));
+}
+
+#[test]
+fn type_arguments_and_qualifiers_in_supertypes_are_not_supertypes() {
     let c = corpus();
-    c.relation("Money.java", "Money", Implements, "Money");
-    c.relation("Repository.java", "Orders", Extends, "Order");
-    c.relation("ExchangeRates.java", "Memo", Implements, "K");
+    c.relation("Money.java", "Money", Implements, "Comparable");
+    assert!(!c.has_relation("Money", Implements, "Money"));
+    c.relation("Repository.java", "Orders", Extends, "Jdbc");
+    assert!(!c.has_relation("Orders", Extends, "Order"));
+    assert!(!c.has_relation("Memo", Implements, "K"));
 }
 
 #[test]
