@@ -106,13 +106,13 @@ fn parent_is_the_nearest_named_ancestor() {
 }
 
 #[test]
-fn an_element_spans_its_start_tag_only() {
-    // `<bean id="exchangeRates" …` wraps onto a second line; the element
-    // ends with its start tag, not with `</bean>`.
+fn an_element_spans_through_its_end_tag() {
+    // `<bean id="exchangeRates" …` (start tag on two lines) ends with its
+    // `</bean>`, nested beans and properties included.
     let rates = element("application.xml", "exchangeRates");
     assert_eq!(
         (rates.location.line, rates.location.end_line),
-        (99, Some(100))
+        (99, Some(109))
     );
 }
 

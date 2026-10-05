@@ -206,10 +206,11 @@ impl<'a> Walker<'a> {
 
                 let new_parent = match key {
                     Some(name) => {
+                        // The whole element, through its end tag.
                         self.push_symbol(
                             name.to_string(),
                             SymbolKind::Element,
-                            location(tag),
+                            location(node),
                             parent_name,
                         );
                         Some(name.to_string())
