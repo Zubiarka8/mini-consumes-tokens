@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Almacén Norte — Tienda</title>
+  <meta name="description" content="Menaje, alimentación y jardín con envío en 24 horas.">
+  <!--
+    Home page of the shop. Every page shares assets/css/site.css and
+    assets/js/app.js; the header, the cart drawer and the footer have the
+    same ids on every page so app.js can bind them. Pages link to each
+    other by fragment: catalog.html#filters, product.html#reviews,
+    cart.html#summary, account.html#orders.
+  -->
+  <link rel="stylesheet" href="assets/css/site.css">
+  <link rel="stylesheet" href="assets/css/home.css">
+  <link rel="stylesheet" href="assets/css/print.css" media="print">
+  <link rel="alternate stylesheet" href="assets/css/high-contrast.css" title="Alto contraste">
+  <link rel="preload" href="assets/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="canonical" href="https://tienda.example.com/">
+  <script src="assets/js/vendor/htmx.min.js" defer></script>
+  <script src="assets/js/app.js" type="module"></script>
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Store",
+      "name": "Almacén Norte",
+      "url": "https://tienda.example.com/",
+      "address": { "@type": "PostalAddress", "addressLocality": "Bilbao", "addressCountry": "ES" }
+    }
+  </script>
+  <style id="critical-css">
+    body { margin: 0; font-family: system-ui, sans-serif; }
+    .skip-link { position: absolute; left: -999px; }
+    .skip-link:focus { left: 1rem; top: 1rem; }
+  </style>
+</head>
+<body id="home" class="page page--home has-hero">
+  <a class="skip-link" href="#main">Saltar al contenido</a>
+
+  <!-- =================================================================
+       Site header (identical on every page)
+       ================================================================= -->
+  <header id="site-header" class="site-header site-header--sticky" role="banner">
+    <div class="container">
+      <a id="logo" class="logo" href="index.html" aria-label="Almacén Norte, inicio">
+        <svg class="logo__mark" width="32" height="32" viewBox="0 0 32 32" aria-hidden="true">
+          <rect x="2" y="10" width="28" height="20" rx="2" fill="currentColor"/>
+          <path d="M2 10 L16 2 L30 10 Z" fill="currentColor" opacity="0.6"/>
+        </svg>
+        <span class="logo__text">Almacén Norte</span>
+      </a>
+
+      <nav id="main-nav" class="main-nav" aria-label="Principal">
+        <ul class="main-nav__list">
+          <li><a href="catalog.html" class="main-nav__link">Catálogo</a></li>
+          <li><a href="catalog.html?cat=cat-kitchen" class="main-nav__link">Cocina</a></li>
+          <li><a href="catalog.html?cat=cat-food" class="main-nav__link">Alimentación</a></li>
+          <li><a href="catalog.html?cat=cat-garden" class="main-nav__link">Jardín</a></li>
+          <li><a href="catalog.html?sale=1" class="main-nav__link main-nav__link--sale">Ofertas</a></li>
+        </ul>
+      </nav>
+
+      <form id="search-form" class="search" action="catalog.html" method="get" role="search">
+        <label for="search-input" class="visually-hidden">Buscar productos</label>
+        <input id="search-input" class="search__input" type="search" name="q"
+               placeholder="Buscar sartenes, aceite, mesas…" autocomplete="off"
+               hx-get="/api/products/suggest" hx-trigger="keyup changed delay:300ms"
+               hx-target="#search-suggestions">
+        <button class="search__button" type="submit" aria-label="Buscar">🔍</button>
+        <ul id="search-suggestions" class="search__suggestions" role="listbox"></ul>
+      </form>
+
+      <div class="header-actions">
+        <a id="account-link" class="header-actions__link" href="account.html">Mi cuenta</a>
+        <button id="cart-toggle" class="header-actions__cart" type="button"
+                aria-controls="cart-drawer" aria-expanded="false">
+          Cesta <span id="cart-count" class="badge badge--accent">0</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- =================================================================
+       Main content
+       ================================================================= -->
+  <main id="main" class="main" tabindex="-1">
+
+    <section id="hero" class="hero hero--split">
+      <div class="container hero__inner">
+        <div class="hero__copy">
+          <p class="eyebrow">Envío gratis desde 49 €</p>
+          <h1 class="hero__title">Todo para tu cocina, tu despensa y tu jardín</h1>
+          <p class="hero__lead">
+            Más de 3&nbsp;000 productos en stock en nuestro almacén de Bilbao,
+            preparados y enviados en menos de 24&nbsp;horas.
+          </p>
+          <div class="hero__actions">
+            <a id="hero-cta" class="btn btn--primary btn--large" href="catalog.html">Ver catálogo</a>
+            <a class="btn btn--ghost" href="#how-it-works">Cómo funciona</a>
+          </div>
+        </div>
+        <picture class="hero__media">
+          <source srcset="assets/img/hero.avif" type="image/avif">
+          <source srcset="assets/img/hero.webp" type="image/webp">
+          <img src="assets/img/hero.jpg" alt="Estanterías del almacén con cajas preparadas"
+               width="720" height="540" fetchpriority="high">
+        </picture>
+      </div>
+    </section>
+
+    <!-- Categories: anchors into the catalog's filters -->
+    <section id="categories" class="section categories">
+      <div class="container">
+        <h2 class="section__title">Categorías</h2>
+        <ul class="category-grid">
+          <li class="category-card">
+            <a href="catalog.html?cat=cat-cookware#filters">
+              <img src="assets/img/cat-cookware.jpg" alt="" loading="lazy" width="320" height="200">
+              <span class="category-card__name">Menaje</span>
+            </a>
+          </li>
+          <li class="category-card">
+            <a href="catalog.html?cat=cat-cutlery#filters">
+              <img src="assets/img/cat-cutlery.jpg" alt="" loading="lazy" width="320" height="200">
+              <span class="category-card__name">Cubertería</span>
+            </a>
+          </li>
+          <li class="category-card">
+            <a href="catalog.html?cat=cat-pantry#filters">
+              <img src="assets/img/cat-pantry.jpg" alt="" loading="lazy" width="320" height="200">
+              <span class="category-card__name">Despensa</span>
+            </a>
+          </li>
+          <li class="category-card">
+            <a href="catalog.html?cat=cat-dairy#filters">
+              <img src="assets/img/cat-dairy.jpg" alt="" loading="lazy" width="320" height="200">
+              <span class="category-card__name">Lácteos</span>
+            </a>
+          </li>
+          <li class="category-card">
+            <a href="catalog.html?cat=cat-furniture#filters">
+              <img src="assets/img/cat-furniture.jpg" alt="" loading="lazy" width="320" height="200">
+              <span class="category-card__name">Muebles de exterior</span>
+            </a>
+          </li>
+          <li class="category-card category-card--wide">
+            <a href="catalog.html?cat=cat-tools#filters">
+              <img src="assets/img/cat-tools.jpg" alt="" loading="lazy" width="660" height="200">
+              <span class="category-card__name">Herramientas</span>
+            </a>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Featured products: same card markup as catalog.html -->
+    <section id="featured" class="section section--alt featured" aria-labelledby="featured-title">
+      <div class="container">
+        <h2 id="featured-title" class="section__title">Destacados de la semana</h2>
+        <div id="featured-grid" class="product-grid" data-source="/api/products?featured=1">
+          <article id="product-sku-1001" class="product-card product-card--sale" data-sku="sku-1001">
+            <a href="product.html?sku=sku-1001" class="product-card__link">
+              <img class="product-card__img" src="assets/img/products/sku-1001.jpg"
+                   alt="Sartén antiadherente 28 cm" loading="lazy" width="240" height="240">
+              <h3 class="product-card__name">Sartén antiadherente 28&nbsp;cm</h3>
+            </a>
+            <p class="product-card__price">
+              <del>29,90&nbsp;€</del> <ins>24,90&nbsp;€</ins>
+            </p>
+            <button class="btn btn--small add-to-cart" type="button" data-sku="sku-1001">Añadir</button>
+          </article>
+          <article id="product-sku-1101" class="product-card" data-sku="sku-1101">
+            <a href="product.html?sku=sku-1101" class="product-card__link">
+              <img class="product-card__img" src="assets/img/products/sku-1101.jpg"
+                   alt="Cuchillo santoku 18 cm" loading="lazy" width="240" height="240">
+              <h3 class="product-card__name">Cuchillo santoku 18&nbsp;cm</h3>
+            </a>
+            <p class="product-card__price">119,00&nbsp;€</p>
+            <p class="product-card__note">Venta a mayores de 18 años</p>
+            <button class="btn btn--small add-to-cart" type="button" data-sku="sku-1101">Añadir</button>
+          </article>
+          <article id="product-sku-2001" class="product-card" data-sku="sku-2001">
+            <a href="product.html?sku=sku-2001" class="product-card__link">
+              <img class="product-card__img" src="assets/img/products/sku-2001.jpg"
+                   alt="Aceite de oliva virgen extra 1 L" loading="lazy" width="240" height="240">
+              <h3 class="product-card__name">Aceite de oliva virgen extra 1&nbsp;L</h3>
+            </a>
+            <p class="product-card__price">9,80&nbsp;€</p>
+            <button class="btn btn--small add-to-cart" type="button" data-sku="sku-2001">Añadir</button>
+          </article>
+          <article id="product-sku-3001" class="product-card product-card--bulky" data-sku="sku-3001">
+            <a href="product.html?sku=sku-3001" class="product-card__link">
+              <img class="product-card__img" src="assets/img/products/sku-3001.jpg"
+                   alt="Mesa de teca 180 cm" loading="lazy" width="240" height="240">
+              <h3 class="product-card__name">Mesa de teca 180&nbsp;cm</h3>
+            </a>
+            <p class="product-card__price">649,00&nbsp;€</p>
+            <p class="product-card__note">Entrega con dos personas</p>
+            <button class="btn btn--small add-to-cart" type="button" data-sku="sku-3001">Añadir</button>
+          </article>
+        </div>
+        <p class="section__more"><a href="catalog.html">Ver todo el catálogo →</a></p>
+      </div>
+    </section>
+
+    <!-- How it works: three steps with inline SVG icons -->
+    <section id="how-it-works" class="section steps">
+      <div class="container">
+        <h2 class="section__title">Cómo funciona</h2>
+        <ol class="steps__list">
+          <li id="step-order" class="steps__item">
+            <svg class="steps__icon" width="48" height="48" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7 4h10l1 4H6z M5 8h14v12H5z" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            </svg>
+            <h3>Haz tu pedido</h3>
+            <p>Antes de las 14:00 y lo preparamos el mismo día.</p>
+          </li>
+          <li id="step-pick" class="steps__item">
+            <svg class="steps__icon" width="48" height="48" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 21V8l9-5 9 5v13 M7 21v-8h10v8" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            </svg>
+            <h3>Lo preparamos</h3>
+            <p>Recogido por zonas: ambiente, refrigerado y voluminoso.</p>
+          </li>
+          <li id="step-ship" class="steps__item">
+            <svg class="steps__icon" width="48" height="48" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M1 6h13v10H1z M14 9h4l3 3v4h-7z" fill="none" stroke="currentColor" stroke-width="1.5"/>
+              <circle cx="5" cy="18" r="2"/><circle cx="17" cy="18" r="2"/>
+            </svg>
+            <h3>Te llega en 24&nbsp;h</h3>
+            <p>Sigue el envío desde <a href="account.html#orders">Mis pedidos</a>.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- Newsletter: progressive enhancement through htmx -->
+    <section id="newsletter" class="section section--accent newsletter">
+      <div class="container newsletter__inner">
+        <h2 class="newsletter__title">Ofertas antes que nadie</h2>
+        <form id="newsletter-form" class="newsletter__form" action="/api/newsletter" method="post"
+              hx-post="/api/newsletter" hx-swap="outerHTML">
+          <label for="newsletter-email" class="visually-hidden">Correo electrónico</label>
+          <input id="newsletter-email" type="email" name="email" required
+                 placeholder="tu@correo.es" autocomplete="email">
+          <label class="checkbox">
+            <input type="checkbox" name="consent" required>
+            Acepto la <a href="legal.html#privacy">política de privacidad</a>
+          </label>
+          <button class="btn btn--primary" type="submit">Suscribirme</button>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <!-- =================================================================
+       Cart drawer (identical on every page; filled by app.js)
+       ================================================================= -->
+  <aside id="cart-drawer" class="drawer drawer--right" aria-labelledby="cart-drawer-title" hidden>
+    <div class="drawer__header">
+      <h2 id="cart-drawer-title" class="drawer__title">Tu cesta</h2>
+      <button id="cart-close" class="drawer__close" type="button" aria-label="Cerrar">✕</button>
+    </div>
+    <ul id="cart-lines" class="cart-lines"></ul>
+    <template id="cart-line-template">
+      <li class="cart-line">
+        <img class="cart-line__img" alt="" width="56" height="56">
+        <div class="cart-line__body">
+          <p class="cart-line__name"></p>
+          <p class="cart-line__price"></p>
+        </div>
+        <input class="cart-line__qty" type="number" min="1" max="99" value="1">
+        <button class="cart-line__remove" type="button" aria-label="Quitar">🗑</button>
+      </li>
+    </template>
+    <div class="drawer__footer">
+      <p class="drawer__total">Total: <strong id="cart-total">0,00&nbsp;€</strong></p>
+      <a id="cart-checkout" class="btn btn--primary btn--block" href="cart.html#summary">Ver cesta y pagar</a>
+    </div>
+  </aside>
+
+  <!-- =================================================================
+       Footer (identical on every page)
+       ================================================================= -->
+  <footer id="site-footer" class="site-footer">
+    <div class="container site-footer__grid">
+      <section class="site-footer__col">
+        <h2 class="site-footer__title">Almacén Norte</h2>
+        <address>
+          Polígono Ugaldeguren III, parcela 7<br>
+          48170 Zamudio, Bizkaia<br>
+          <a href="tel:+34944000000">944 000 000</a>
+        </address>
+      </section>
+      <nav class="site-footer__col" aria-label="Ayuda">
+        <h2 class="site-footer__title">Ayuda</h2>
+        <ul>
+          <li><a href="help.html#shipping">Envíos</a></li>
+          <li><a href="help.html#returns">Devoluciones</a></li>
+          <li><a href="help.html#payment">Formas de pago</a></li>
+          <li><a href="account.html#orders">Seguimiento de pedidos</a></li>
+        </ul>
+      </nav>
+      <nav class="site-footer__col" aria-label="Legal">
+        <h2 class="site-footer__title">Legal</h2>
+        <ul>
+          <li><a href="legal.html#terms">Condiciones de venta</a></li>
+          <li><a href="legal.html#privacy">Privacidad</a></li>
+          <li><a href="legal.html#cookies">Cookies</a></li>
+        </ul>
+      </nav>
+    </div>
+    <p class="site-footer__copy">© 2026 Almacén Norte S.L. — CIF B00000000</p>
+  </footer>
+
+  <div id="toast-region" class="toast-region" role="status" aria-live="polite"></div>
+
+  <script src="assets/js/home.js" type="module"></script>
+  <script>
+    // Inline bootstrap: no src, so no import.
+    window.__STORE__ = { page: "home", currency: "EUR", locale: "es-ES" };
+  </script>
+</body>
+</html>
