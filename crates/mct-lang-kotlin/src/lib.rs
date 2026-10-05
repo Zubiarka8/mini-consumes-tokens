@@ -62,7 +62,8 @@ impl LanguageParser for KotlinParser {
 
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
-        let module_id = walker.push_symbol(module_name, SymbolKind::Module, location(root), None);
+        let module_id =
+            walker.push_symbol(module_name, SymbolKind::Module, module_location(root), None);
 
         // `package foo.bar` — one Module-kind symbol per occurrence, not
         // deduplicated across files, same convention as Go's package clause
@@ -91,6 +92,18 @@ fn module_name_for(relative_path: &str) -> String {
         .trim_end_matches(".kts")
         .trim_end_matches(".kt")
         .to_string()
+}
+
+/// The file-level module's location: the root node of a file ending in a
+/// newline ends at column 0 of the row *after* the last line, which would
+/// put the module one line past the end of the file.
+fn module_location(root: Node) -> Location {
+    let mut loc = location(root);
+    let end = root.end_position();
+    if end.column == 0 && end.row > root.start_position().row {
+        loc.end_line = Some(end.row as u32);
+    }
+    loc
 }
 
 fn first_error(node: Node) -> Option<Node> {

@@ -16,6 +16,24 @@ fn parse(src: &str) -> mct_core::ParsedFile {
 }
 
 #[test]
+fn file_module_ends_on_the_last_line() {
+    // A trailing newline must not push the module one line past the file.
+    let module = |src: &str| {
+        let parsed = parse(src);
+        let m = parsed
+            .symbols
+            .iter()
+            .find(|s| s.kind == SymbolKind::Module && s.name == "Invoice")
+            .unwrap();
+        (m.location.line, m.location.end_line)
+    };
+    let class = "class A {\n  fun f() {}\n}";
+    assert_eq!(module(&format!("{class}\n")), (1, Some(3)));
+    assert_eq!(module(class), (1, Some(3)));
+    assert_eq!(module("class A\n"), (1, Some(1)));
+}
+
+#[test]
 fn extracts_class_method_and_call() {
     let parsed = parse(
         "class Invoice {\n    fun total(): Int {\n        return helper()\n    }\n\n    fun helper(): Int {\n        return 42\n    }\n}\n",
