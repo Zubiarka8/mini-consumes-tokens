@@ -83,11 +83,23 @@ fn parent_is_the_nearest_named_ancestor() {
     assert_eq!(parent("application.xml", "endpoint"), Some("exchangeRates"));
     // …but a named `<property name="caches">` is itself the owner.
     assert_eq!(parent("application.xml", "productCache"), Some("caches"));
-    assert_eq!(parent("application.xml", "catalogImporter"), Some("importer"));
+    assert_eq!(
+        parent("application.xml", "catalogImporter"),
+        Some("importer")
+    );
     // BPMN: sub-process nodes belong to the sub-process.
-    assert_eq!(parent("orders.xml", "pickChilled"), Some("pickingSubprocess"));
-    assert_eq!(parent("orders.xml", "pickingSubprocess"), Some("orderFulfilment"));
-    assert_eq!(parent("orders.xml", "orderFulfilment"), Some("warehouseDefinitions"));
+    assert_eq!(
+        parent("orders.xml", "pickChilled"),
+        Some("pickingSubprocess")
+    );
+    assert_eq!(
+        parent("orders.xml", "pickingSubprocess"),
+        Some("orderFulfilment")
+    );
+    assert_eq!(
+        parent("orders.xml", "orderFulfilment"),
+        Some("warehouseDefinitions")
+    );
     // Prefixed elements (`beans:bean`, `tx:method`) behave the same.
     assert_eq!(parent("security.xml", "passwordPolicy"), Some("policy"));
     assert_eq!(parent("datasource.xml", "reserve*"), Some("txAdvice"));
