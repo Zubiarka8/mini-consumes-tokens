@@ -1,0 +1,375 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  Root application context of the warehouse service.
+
+  Every other context file is pulled in through <import>; beans declared
+  there (dataSource, txManager, securityRealm, orderWorkflow, …) are wired
+  here by id with ref="…", the same way a Spring container resolves them.
+-->
+<?xml-stylesheet type="text/xsl" href="../tools/beans-to-html.xsl"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:util="http://www.springframework.org/schema/util"
+       xmlns:task="http://www.springframework.org/schema/task"
+       xsi:schemaLocation="
+         http://www.springframework.org/schema/beans
+         https://www.springframework.org/schema/beans/spring-beans.xsd
+         http://www.springframework.org/schema/context
+         https://www.springframework.org/schema/context/spring-context.xsd
+         http://www.springframework.org/schema/util
+         https://www.springframework.org/schema/util/spring-util.xsd
+         http://www.springframework.org/schema/task
+         https://www.springframework.org/schema/task/spring-task.xsd"
+       default-lazy-init="false"
+       default-autowire="no">
+
+  <description>Warehouse service: inventory, orders, shipping and billing.</description>
+
+  <!-- ===================================================================
+       Imported contexts. Order matters: datasource before security.
+       =================================================================== -->
+  <import resource="datasource.xml"/>
+  <import resource="security.xml"/>
+  <import resource="logging.xml"/>
+  <import resource="../workflow/orders.xml"/>
+
+  <context:property-placeholder
+      location="classpath:warehouse.properties,file:/etc/warehouse/override.properties"
+      ignore-resource-not-found="true"
+      system-properties-mode="OVERRIDE"/>
+
+  <context:annotation-config/>
+
+  <context:component-scan base-package="com.example.warehouse">
+    <context:exclude-filter type="annotation" expression="org.springframework.stereotype.Controller"/>
+    <context:exclude-filter type="regex" expression="com\.example\.warehouse\..*Test.*"/>
+  </context:component-scan>
+
+  <!-- ===================================================================
+       Shared value objects
+       =================================================================== -->
+  <util:properties id="applicationDefaults">
+    <prop key="warehouse.name">Almacén Norte</prop>
+    <prop key="warehouse.timezone">Europe/Madrid</prop>
+    <prop key="warehouse.currency">EUR</prop>
+    <prop key="warehouse.locale">es_ES</prop>
+    <prop key="warehouse.max-pick-batch">48</prop>
+  </util:properties>
+
+  <util:list id="supportedCurrencies" value-type="java.lang.String">
+    <value>EUR</value>
+    <value>USD</value>
+    <value>GBP</value>
+    <value>JPY</value>
+  </util:list>
+
+  <util:map id="carrierEndpoints" key-type="java.lang.String" value-type="java.net.URI">
+    <entry key="correos" value="https://api.correos.example/v2"/>
+    <entry key="seur" value="https://api.seur.example/shipments"/>
+    <entry key="dhl" value="https://express.api.dhl.example/mydhlapi"/>
+    <entry key="ups" value="https://onlinetools.ups.example/api"/>
+  </util:map>
+
+  <util:set id="restrictedCountries" value-type="java.lang.String">
+    <value>KP</value>
+    <value>IR</value>
+    <value>SY</value>
+  </util:set>
+
+  <util:constant id="maxOrderLines" static-field="com.example.warehouse.order.Limits.MAX_LINES"/>
+
+  <!-- ===================================================================
+       Clock, ids and money
+       =================================================================== -->
+  <bean id="clock" class="java.time.Clock" factory-method="systemUTC"/>
+
+  <bean id="idGenerator" class="com.example.warehouse.support.SnowflakeIdGenerator">
+    <constructor-arg name="workerId" value="${warehouse.worker-id:1}"/>
+    <constructor-arg name="clock" ref="clock"/>
+  </bean>
+
+  <bean id="moneyFormat" class="com.example.warehouse.money.MoneyFormat">
+    <constructor-arg index="0" value="${warehouse.locale}"/>
+    <constructor-arg index="1" ref="supportedCurrencies"/>
+    <property name="roundingMode" value="HALF_EVEN"/>
+    <property name="scale" value="2"/>
+  </bean>
+
+  <bean id="exchangeRates" class="com.example.warehouse.money.CachedExchangeRates"
+        init-method="warmUp" destroy-method="close">
+    <constructor-arg>
+      <bean class="com.example.warehouse.money.EcbRateSource">
+        <property name="endpoint" value="https://ecb.example/rates/daily.xml"/>
+        <property name="timeoutMillis" value="2500"/>
+      </bean>
+    </constructor-arg>
+    <property name="ttlSeconds" value="3600"/>
+    <property name="clock" ref="clock"/>
+  </bean>
+
+  <!-- ===================================================================
+       Repositories (backed by the beans of datasource.xml)
+       =================================================================== -->
+  <bean id="abstractRepository" abstract="true">
+    <property name="jdbcTemplate" ref="jdbcTemplate"/>
+    <property name="clock" ref="clock"/>
+    <property name="idGenerator" ref="idGenerator"/>
+  </bean>
+
+  <bean id="productRepository" parent="abstractRepository"
+        class="com.example.warehouse.catalog.JdbcProductRepository">
+    <property name="tableName" value="products"/>
+    <property name="cache" ref="productCache"/>
+  </bean>
+
+  <bean id="stockRepository" parent="abstractRepository"
+        class="com.example.warehouse.inventory.JdbcStockRepository">
+    <property name="tableName" value="stock_levels"/>
+    <property name="lockTimeoutMillis" value="750"/>
+  </bean>
+
+  <bean id="orderRepository" parent="abstractRepository"
+        class="com.example.warehouse.order.JdbcOrderRepository">
+    <property name="tableName" value="orders"/>
+    <property name="linesTableName" value="order_lines"/>
+    <property name="maxLines" ref="maxOrderLines"/>
+  </bean>
+
+  <bean id="shipmentRepository" parent="abstractRepository"
+        class="com.example.warehouse.shipping.JdbcShipmentRepository">
+    <property name="tableName" value="shipments"/>
+  </bean>
+
+  <bean id="invoiceRepository" parent="abstractRepository"
+        class="com.example.warehouse.billing.JdbcInvoiceRepository">
+    <property name="tableName" value="invoices"/>
+    <property name="archiveDataSource" ref="archiveDataSource"/>
+  </bean>
+
+  <!-- ===================================================================
+       Caches
+       =================================================================== -->
+  <bean id="cacheManager" class="com.example.warehouse.support.CaffeineCacheManager">
+    <property name="caches">
+      <list>
+        <bean id="productCache" class="com.example.warehouse.support.CacheSpec">
+          <property name="name" value="products"/>
+          <property name="maximumSize" value="50000"/>
+          <property name="expireAfterWrite" value="PT10M"/>
+        </bean>
+        <bean id="rateCache" class="com.example.warehouse.support.CacheSpec">
+          <property name="name" value="rates"/>
+          <property name="maximumSize" value="200"/>
+          <property name="expireAfterWrite" value="PT1H"/>
+        </bean>
+        <bean id="sessionCache" class="com.example.warehouse.support.CacheSpec">
+          <property name="name" value="sessions"/>
+          <property name="maximumSize" value="10000"/>
+          <property name="expireAfterAccess" value="PT30M"/>
+        </bean>
+      </list>
+    </property>
+  </bean>
+
+  <!-- ===================================================================
+       Domain services
+       =================================================================== -->
+  <bean id="catalogService" class="com.example.warehouse.catalog.CatalogService">
+    <constructor-arg ref="productRepository"/>
+    <constructor-arg ref="moneyFormat"/>
+    <property name="importer">
+      <bean id="catalogImporter" class="com.example.warehouse.catalog.XmlCatalogImporter">
+        <property name="source" value="classpath:catalog/products.xml"/>
+        <property name="validateAgainst" value="classpath:catalog/products.xsd"/>
+        <property name="batchSize" value="500"/>
+      </bean>
+    </property>
+  </bean>
+
+  <bean id="inventoryService" class="com.example.warehouse.inventory.InventoryService">
+    <constructor-arg name="stock" ref="stockRepository"/>
+    <constructor-arg name="catalog" ref="catalogService"/>
+    <constructor-arg name="events" ref="eventBus"/>
+    <property name="reorderPolicy">
+      <bean class="com.example.warehouse.inventory.ReorderPolicy">
+        <property name="safetyStockDays" value="5"/>
+        <property name="leadTimeDays" value="9"/>
+        <property name="serviceLevel" value="0.97"/>
+      </bean>
+    </property>
+  </bean>
+
+  <bean id="pricingService" class="com.example.warehouse.billing.PricingService">
+    <constructor-arg ref="catalogService"/>
+    <constructor-arg ref="exchangeRates"/>
+    <property name="rules">
+      <list>
+        <bean id="volumeDiscount" class="com.example.warehouse.billing.rules.VolumeDiscount">
+          <property name="thresholds">
+            <map>
+              <entry key="10" value="0.02"/>
+              <entry key="50" value="0.05"/>
+              <entry key="200" value="0.09"/>
+            </map>
+          </property>
+        </bean>
+        <bean id="loyaltyDiscount" class="com.example.warehouse.billing.rules.LoyaltyDiscount">
+          <property name="tiers" value="bronze:0.01,silver:0.03,gold:0.06"/>
+        </bean>
+        <bean id="vatRule" class="com.example.warehouse.billing.rules.VatRule">
+          <property name="defaultRate" value="0.21"/>
+          <property name="reducedRates">
+            <props>
+              <prop key="books">0.04</prop>
+              <prop key="food">0.10</prop>
+            </props>
+          </property>
+        </bean>
+      </list>
+    </property>
+  </bean>
+
+  <bean id="orderService" class="com.example.warehouse.order.OrderService">
+    <constructor-arg ref="orderRepository"/>
+    <constructor-arg ref="inventoryService"/>
+    <constructor-arg ref="pricingService"/>
+    <constructor-arg ref="orderWorkflow"/>
+    <property name="transactionManager" ref="txManager"/>
+    <property name="auditLog" ref="auditLogger"/>
+    <property name="restrictedCountries" ref="restrictedCountries"/>
+  </bean>
+
+  <bean id="shippingService" class="com.example.warehouse.shipping.ShippingService">
+    <constructor-arg ref="shipmentRepository"/>
+    <constructor-arg ref="carrierEndpoints"/>
+    <property name="labelPrinter">
+      <bean id="labelPrinter" class="com.example.warehouse.shipping.ZplLabelPrinter">
+        <property name="host" value="${printer.host:printer-01.local}"/>
+        <property name="port" value="9100"/>
+        <property name="template"><value><![CDATA[^XA
+^FO50,50^A0N,40,40^FD${order.number}^FS
+^FO50,110^BCN,100,Y,N,N^FD${shipment.tracking}^FS
+^XZ]]></value></property>
+      </bean>
+    </property>
+  </bean>
+
+  <bean id="billingService" class="com.example.warehouse.billing.BillingService">
+    <constructor-arg ref="invoiceRepository"/>
+    <constructor-arg ref="pricingService"/>
+    <constructor-arg ref="moneyFormat"/>
+    <property name="invoiceNumberPattern" value="FAC-{yyyy}-{seq:000000}"/>
+    <property name="mailer" ref="mailer"/>
+  </bean>
+
+  <!-- ===================================================================
+       Infrastructure: events, mail, scheduling
+       =================================================================== -->
+  <bean id="eventBus" class="com.example.warehouse.support.AsyncEventBus">
+    <constructor-arg ref="eventExecutor"/>
+    <property name="listeners">
+      <list>
+        <ref bean="inventoryService"/>
+        <ref bean="shippingService"/>
+        <ref bean="auditLogger"/>
+      </list>
+    </property>
+  </bean>
+
+  <task:executor id="eventExecutor" pool-size="4-16" queue-capacity="1000"
+                 rejection-policy="CALLER_RUNS"/>
+
+  <task:scheduler id="scheduler" pool-size="4"/>
+
+  <task:scheduled-tasks scheduler="scheduler">
+    <task:scheduled ref="inventoryService" method="reorderCheck" cron="0 0/15 * * * *"/>
+    <task:scheduled ref="exchangeRates" method="refresh" fixed-rate="3600000"/>
+    <task:scheduled ref="billingService" method="closeDailyBatch" cron="0 55 23 * * *"/>
+    <task:scheduled ref="shippingService" method="pollCarrierStatus" fixed-delay="120000"/>
+  </task:scheduled-tasks>
+
+  <bean id="mailer" class="com.example.warehouse.support.SmtpMailer">
+    <property name="host" value="${mail.host:smtp.example.com}"/>
+    <property name="port" value="${mail.port:587}"/>
+    <property name="from" value="Almacén Norte &lt;no-reply@example.com&gt;"/>
+    <property name="startTls" value="true"/>
+    <property name="templates">
+      <map>
+        <entry key="invoice" value="classpath:mail/invoice.ftl"/>
+        <entry key="shipment" value="classpath:mail/shipment.ftl"/>
+        <entry key="password-reset" value="classpath:mail/password-reset.ftl"/>
+      </map>
+    </property>
+  </bean>
+
+  <!-- ===================================================================
+       HTTP layer
+       =================================================================== -->
+  <bean id="objectMapper" class="com.fasterxml.jackson.databind.ObjectMapper">
+    <property name="propertyNamingStrategy">
+      <util:constant static-field="com.fasterxml.jackson.databind.PropertyNamingStrategies.SNAKE_CASE"/>
+    </property>
+  </bean>
+
+  <bean id="httpServer" class="com.example.warehouse.http.HttpServer"
+        init-method="start" destroy-method="stop">
+    <constructor-arg name="port" value="${http.port:8080}"/>
+    <constructor-arg name="filters">
+      <list>
+        <ref bean="securityFilterChain"/>
+        <ref bean="requestLoggingFilter"/>
+      </list>
+    </constructor-arg>
+    <property name="routes">
+      <map>
+        <entry key="/api/products">
+          <bean id="productController" class="com.example.warehouse.http.ProductController">
+            <constructor-arg ref="catalogService"/>
+            <constructor-arg ref="objectMapper"/>
+          </bean>
+        </entry>
+        <entry key="/api/orders">
+          <bean id="orderController" class="com.example.warehouse.http.OrderController">
+            <constructor-arg ref="orderService"/>
+            <constructor-arg ref="objectMapper"/>
+          </bean>
+        </entry>
+        <entry key="/api/shipments">
+          <bean id="shipmentController" class="com.example.warehouse.http.ShipmentController">
+            <constructor-arg ref="shippingService"/>
+            <constructor-arg ref="objectMapper"/>
+          </bean>
+        </entry>
+        <entry key="/api/invoices">
+          <bean id="invoiceController" class="com.example.warehouse.http.InvoiceController">
+            <constructor-arg ref="billingService"/>
+            <constructor-arg ref="objectMapper"/>
+          </bean>
+        </entry>
+      </map>
+    </property>
+  </bean>
+
+  <bean id="requestLoggingFilter" class="com.example.warehouse.http.RequestLoggingFilter">
+    <property name="logger" ref="httpAccessLogger"/>
+    <property name="includeHeaders" value="false"/>
+    <property name="maxPayloadLength" value="2048"/>
+  </bean>
+
+  <!-- Profile-specific overrides -->
+  <beans profile="dev">
+    <bean id="devDataLoader" class="com.example.warehouse.support.DevDataLoader"
+          init-method="load">
+      <property name="catalog" ref="catalogService"/>
+      <property name="seedFile" value="classpath:catalog/products.xml"/>
+    </bean>
+  </beans>
+
+  <beans profile="prod">
+    <bean id="metricsReporter" class="com.example.warehouse.support.PrometheusReporter">
+      <property name="port" value="9404"/>
+      <property name="prefix" value="warehouse_"/>
+    </bean>
+  </beans>
+</beans>
