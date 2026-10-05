@@ -36,11 +36,17 @@ fn elements_with_an_id_are_symbols_owned_by_the_nearest_id_ancestor() {
     // Through elements without an id (`<div class="container">`, `<li>`).
     assert_eq!(parent("index.html", "search-input"), Some("search-form"));
     assert_eq!(parent("index.html", "cart-count"), Some("cart-toggle"));
-    assert_eq!(parent("product.html", "lightbox-video"), Some("gallery-lightbox"));
+    assert_eq!(
+        parent("product.html", "lightbox-video"),
+        Some("gallery-lightbox")
+    );
     assert_eq!(parent("cart.html", "qty-2"), Some("line-2"));
     assert_eq!(parent("account.html", "orders-year"), Some("orders-filter"));
     // `<template>` content and inline `<svg>` are walked like any element.
-    assert_eq!(parent("catalog.html", "recently-viewed-item"), Some("recently-viewed"));
+    assert_eq!(
+        parent("catalog.html", "recently-viewed-item"),
+        Some("recently-viewed")
+    );
     assert_eq!(parent("index.html", "step-ship"), Some("how-it-works"));
 }
 
@@ -49,10 +55,20 @@ fn id_and_class_tokens_reference_their_selectors() {
     let c = corpus();
     c.relation("index.html", "hero", RelationKind::References, "#hero");
     c.relation("index.html", "hero", RelationKind::References, ".hero");
-    c.relation("index.html", "hero", RelationKind::References, ".hero--split");
+    c.relation(
+        "index.html",
+        "hero",
+        RelationKind::References,
+        ".hero--split",
+    );
     // Every whitespace-separated class is its own reference.
     for class in [".product-card", ".product-card--sale"] {
-        c.relation("catalog.html", "product-sku-1001", RelationKind::References, class);
+        c.relation(
+            "catalog.html",
+            "product-sku-1001",
+            RelationKind::References,
+            class,
+        );
     }
 }
 
@@ -106,7 +122,10 @@ fn other_links_and_inline_code_are_not_imports() {
         // An empty `href=""`.
         "",
     ] {
-        assert!(!imported.contains(&not_imported), "{not_imported:?} imported");
+        assert!(
+            !imported.contains(&not_imported),
+            "{not_imported:?} imported"
+        );
     }
 }
 
@@ -119,7 +138,13 @@ fn shared_ids_repeat_once_per_page() {
         .collect();
     assert_eq!(
         pages,
-        ["account.html", "cart.html", "catalog.html", "index.html", "product.html"]
+        [
+            "account.html",
+            "cart.html",
+            "catalog.html",
+            "index.html",
+            "product.html"
+        ]
     );
 }
 
@@ -139,7 +164,13 @@ fn index_answers_selector_and_asset_queries() {
     pages.sort();
     assert_eq!(
         pages,
-        ["account.html", "cart.html", "catalog.html", "index.html", "product.html"]
+        [
+            "account.html",
+            "cart.html",
+            "catalog.html",
+            "index.html",
+            "product.html"
+        ]
     );
     let refs = index.find_references(".add-to-cart").unwrap();
     assert!(refs.is_empty(), "the add-to-cart buttons have no id");
