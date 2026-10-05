@@ -123,6 +123,75 @@ fn extracts_nested_dotted_function_declaration() {
     assert_eq!(baz.parent.as_deref(), Some("Foo.Bar"));
 }
 
+fn symbol<'a>(parsed: &'a mct_core::ParsedFile, name: &str) -> &'a mct_core::SymbolRecord {
+    parsed
+        .symbols
+        .iter()
+        .find(|s| s.name == name)
+        .unwrap_or_else(|| panic!("no symbol {name}"))
+}
+
+#[test]
+fn a_function_assigned_to_a_target_spans_its_body() {
+    let parsed = parse("local Money = {}\nMoney.__add = function(a, b)\n  return a:plus(b)\nend\n");
+    let add = symbol(&parsed, "__add");
+    assert_eq!((add.location.line, add.location.end_line), (2, Some(4)));
+    // `T.f = function` is a method of T, like `function T.f()`.
+    assert_eq!(
+        (add.kind, add.parent.as_deref()),
+        (SymbolKind::Method, Some("Money"))
+    );
+}
+
+#[test]
+fn only_top_level_named_tables_are_modules() {
+    let parsed = parse(
+        "local M = {}\nM.cache = {}\nfunction M.route(self, p)\n  local out = { p }\n  self.routes[#self.routes + 1] = { p }\n  return out\nend\nreturn M\n",
+    );
+    let modules: Vec<_> = parsed
+        .symbols
+        .iter()
+        .filter(|s| s.kind == SymbolKind::Module)
+        .map(|s| s.name.as_str())
+        .collect();
+    assert_eq!(modules, ["module", "M", "cache"]);
+}
+
+#[test]
+fn functions_in_a_table_constructor_are_methods_of_the_table() {
+    let parsed = parse(
+        "local handlers = {\n  get_stock = function(p)\n    return check(p)\n  end,\n  limit = 10,\n}\n",
+    );
+    let f = symbol(&parsed, "get_stock");
+    assert_eq!(
+        (
+            f.kind,
+            f.parent.as_deref(),
+            f.location.line,
+            f.location.end_line
+        ),
+        (SymbolKind::Method, Some("handlers"), 2, Some(4))
+    );
+    let call = parsed
+        .relations
+        .iter()
+        .find(|r| r.to_name == "check")
+        .unwrap();
+    assert_eq!(call.from, f.id);
+}
+
+#[test]
+fn calls_in_the_called_expression_are_extracted() {
+    let parsed = parse("local function show(net)\n  return money.gross(net, 21):to_json()\nend\n");
+    let calls: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Calls)
+        .map(|r| r.to_name.as_str())
+        .collect();
+    assert_eq!(calls, ["to_json", "gross"]);
+}
+
 #[test]
 fn syntax_error_is_reported_not_panicked() {
     let result = LuaParser.parse(&SourceFile {
