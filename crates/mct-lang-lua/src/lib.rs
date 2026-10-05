@@ -240,6 +240,11 @@ impl<'a> Walker<'a> {
                         // indistinguishable row.
                         self.push_relation(owner, RelationKind::Calls, name, location(name_node));
                     }
+                    // `money.gross(net):to_json()`: the call this one is
+                    // chained on sits in the callee's table expression.
+                    if let Some(table) = callee.child_by_field_name("table") {
+                        self.visit(table, owner, depth + 1);
+                    }
                 }
                 if let Some(arguments) = node.child_by_field_name("arguments") {
                     self.visit_children(arguments, owner, depth + 1);
@@ -250,6 +255,7 @@ impl<'a> Walker<'a> {
             // argument): no symbol to record, but calls inside it still
             // attach to whatever function currently owns this scope.
             "function_definition" => self.visit_function_body(node, owner, depth),
+            "table_constructor" => self.visit_table(node, None, owner, depth),
             _ => self.visit_children(node, owner, depth + 1),
         }
     }
@@ -302,21 +308,64 @@ impl<'a> Walker<'a> {
                 "function_definition" => {
                     if let Some(var) = matching_var {
                         let (name, parent, _) = target_name(*var, self.source);
-                        let id =
-                            self.push_symbol(name, SymbolKind::Function, location(*var), parent);
+                        // `T.f = function` is a method of T, as `function
+                        // T.f()` is; it spans the target through `end`.
+                        let kind = if parent.is_some() {
+                            SymbolKind::Method
+                        } else {
+                            SymbolKind::Function
+                        };
+                        let id = self.push_symbol(name, kind, span(*var, *value), parent);
                         self.visit_function_body(*value, id, depth);
                         continue;
                     }
                     self.visit_function_body(*value, owner, depth);
                 }
                 "table_constructor" => {
-                    if let Some(var) = matching_var {
-                        let (name, parent, _) = target_name(*var, self.source);
-                        self.push_symbol(name, SymbolKind::Module, location(*var), parent);
-                        continue;
-                    }
+                    // A table bound to a name at file level is a module; a
+                    // local table in a function, or one stored through an
+                    // index (`t[#t + 1] = {}`), is just a value.
+                    let module = match matching_var {
+                        Some(var) if owner == FILE_MODULE && is_name_target(*var) => {
+                            let (name, parent, _) = target_name(*var, self.source);
+                            let qualified = parent
+                                .as_ref()
+                                .map_or_else(|| name.clone(), |p| format!("{p}.{name}"));
+                            self.push_symbol(name, SymbolKind::Module, span(*var, *value), parent);
+                            Some(qualified)
+                        }
+                        _ => None,
+                    };
+                    self.visit_table(*value, module, owner, depth);
                 }
                 _ => self.visit(*value, owner, depth + 1),
+            }
+        }
+    }
+
+    /// A table constructor's fields: in a module table, `name = function …
+    /// end` is a method of the table; any other value is visited for calls.
+    fn visit_table(&mut self, table: Node, module: Option<String>, owner: SymbolId, depth: u32) {
+        let mut cursor = table.walk();
+        let fields: Vec<Node> = table.named_children(&mut cursor).collect();
+        for field in fields {
+            let name = field
+                .child_by_field_name("name")
+                .filter(|n| n.kind() == "identifier");
+            let value = field.child_by_field_name("value");
+            match (&module, name, value) {
+                (Some(table_name), Some(name), Some(value))
+                    if value.kind() == "function_definition" =>
+                {
+                    let id = self.push_symbol(
+                        text(name, self.source).to_string(),
+                        SymbolKind::Method,
+                        location(field),
+                        Some(table_name.clone()),
+                    );
+                    self.visit_function_body(value, id, depth);
+                }
+                _ => self.visit_children(field, owner, depth + 1),
             }
         }
     }
@@ -328,6 +377,24 @@ impl<'a> Walker<'a> {
             ..Default::default()
         }
     }
+}
+
+/// The file-level module symbol: the walker pushes it first.
+const FILE_MODULE: SymbolId = 0;
+
+/// `start`'s first line through `end`'s last: `x = function … end` spans
+/// its target and its body.
+fn span(start: Node, end: Node) -> Location {
+    let mut loc = location(start);
+    loc.end_line = Some(end.end_position().row as u32 + 1);
+    loc.byte_len = end.end_byte().saturating_sub(start.start_byte()) as u32;
+    loc
+}
+
+/// A target that names something (`M`, `M.sub`), not an indexed slot
+/// (`t[#t + 1]`).
+fn is_name_target(node: Node) -> bool {
+    matches!(node.kind(), "identifier" | "dot_index_expression")
 }
 
 /// Extracts `(name, enclosing_table_name, is_method_call_syntax)` from an
