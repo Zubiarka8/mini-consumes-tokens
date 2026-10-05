@@ -43,30 +43,52 @@ fn every_note_is_a_module_named_after_its_file() {
         ("api/reference.md", "reference"),
     ] {
         let note = corpus().symbol(path, name, SymbolKind::Module);
-        assert_eq!((note.location.line, note.parent.as_deref()), (1, None), "{path}");
+        assert_eq!(
+            (note.location.line, note.parent.as_deref()),
+            (1, None),
+            "{path}"
+        );
     }
 }
 
 #[test]
 fn headings_nest_by_level() {
-    assert_eq!(parent("handbook.md", "Warehouse engineering handbook"), None);
+    assert_eq!(
+        parent("handbook.md", "Warehouse engineering handbook"),
+        None
+    );
     assert_eq!(
         parent("handbook.md", "Who we are"),
         Some("Warehouse engineering handbook")
     );
     assert_eq!(parent("handbook.md", "Team members"), Some("Who we are"));
-    assert_eq!(parent("handbook.md", "Configuration"), Some("Development environment"));
-    assert_eq!(parent("runbook.md", "Orders stuck in RESERVED"), Some("Common symptoms"));
-    assert_eq!(parent("glossary.md", "Reservation expiry"), Some("Reservation"));
+    assert_eq!(
+        parent("handbook.md", "Configuration"),
+        Some("Development environment")
+    );
+    assert_eq!(
+        parent("runbook.md", "Orders stuck in RESERVED"),
+        Some("Common symptoms")
+    );
+    assert_eq!(
+        parent("glossary.md", "Reservation expiry"),
+        Some("Reservation")
+    );
     // Headings record the level they were written at.
     assert_eq!(heading("runbook.md", "Common symptoms").level, Some(3));
-    assert_eq!(heading("runbook.md", "Orders stuck in RESERVED").level, Some(4));
+    assert_eq!(
+        heading("runbook.md", "Orders stuck in RESERVED").level,
+        Some(4)
+    );
 }
 
 #[test]
 fn setext_and_atx_headings_share_one_hierarchy() {
     // `====` and `----` underlines are levels 1 and 2…
-    assert_eq!(heading("decisions.md", "Architecture decision log").level, Some(1));
+    assert_eq!(
+        heading("decisions.md", "Architecture decision log").level,
+        Some(1)
+    );
     assert_eq!(
         parent("decisions.md", "Decision log"),
         Some("Architecture decision log")
@@ -116,10 +138,25 @@ fn wiki_links_reference_notes_and_their_sections() {
     // `[[#Planning]]`: a section of the same note.
     c.relation("handbook.md", "Rituals", References, "Planning");
     // Relative paths resolve against the note's folder.
-    c.relation("overview.md", "Architecture overview", References, "decisions");
-    c.relation("overview.md", "Architecture overview", References, "runbook");
+    c.relation(
+        "overview.md",
+        "Architecture overview",
+        References,
+        "decisions",
+    );
+    c.relation(
+        "overview.md",
+        "Architecture overview",
+        References,
+        "runbook",
+    );
     // A link to a note that does not exist yet is still a reference.
-    c.relation("handbook.md", "Notes about these notes", References, "roadmap-2027");
+    c.relation(
+        "handbook.md",
+        "Notes about these notes",
+        References,
+        "roadmap-2027",
+    );
     // `[[#ADR-008 Canary releases|ADR-008]]` keeps the section, not the alias.
     c.relation(
         "decisions.md",
@@ -145,15 +182,35 @@ fn frontmatter_and_inline_tags_are_tag_references() {
     for tag in ["tag:home", "tag:team/warehouse", "tag:onboarding"] {
         c.relation("handbook.md", "handbook", References, tag);
     }
-    c.relation("handbook.md", "handbook", References, "alias:Manual de ingeniería");
-    c.relation("handbook.md", "handbook", References, "title:Warehouse engineering handbook");
+    c.relation(
+        "handbook.md",
+        "handbook",
+        References,
+        "alias:Manual de ingeniería",
+    );
+    c.relation(
+        "handbook.md",
+        "handbook",
+        References,
+        "title:Warehouse engineering handbook",
+    );
     c.relation("glossary.md", "glossary", References, "alias:Glosario");
     // `#domain` quoted in YAML; the bare `2026` is a number, not a tag.
     c.relation("glossary.md", "glossary", References, "tag:domain");
     assert!(!c.has_relation("glossary", References, "tag:2026"));
     // Inline tags, Unicode included, attach to the enclosing section.
-    c.relation("handbook.md", "Getting started", References, "tag:onboarding");
-    c.relation("glossary.md", "Spanish ↔ English", References, "tag:almacén");
+    c.relation(
+        "handbook.md",
+        "Getting started",
+        References,
+        "tag:onboarding",
+    );
+    c.relation(
+        "glossary.md",
+        "Spanish ↔ English",
+        References,
+        "tag:almacén",
+    );
 }
 
 #[test]
@@ -189,7 +246,12 @@ fn notes_link_each_other_across_files() {
         References,
         "ADR-003 Reserve before payment",
     );
-    c.relation("reference.md", "Carrier webhooks", References, "ADR-006 One adapter per carrier");
+    c.relation(
+        "reference.md",
+        "Carrier webhooks",
+        References,
+        "ADR-006 One adapter per carrier",
+    );
 }
 
 #[test]
