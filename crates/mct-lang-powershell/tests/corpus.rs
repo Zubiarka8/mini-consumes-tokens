@@ -25,18 +25,42 @@ fn parent<'a>(path: &str, name: &str, kind: SymbolKind) -> Option<&'a str> {
 
 #[test]
 fn functions_belong_to_their_script_or_module() {
-    assert_eq!(parent("Warehouse.Common.psm1", "Write-WarehouseLog", Function), Some("Warehouse.Common"));
-    assert_eq!(parent("Warehouse.Api.psm1", "Invoke-WarehouseApi", Function), Some("Warehouse.Api"));
-    assert_eq!(parent("Warehouse.Inventory.psm1", "Import-CycleCount", Function), Some("Warehouse.Inventory"));
-    assert_eq!(parent("Deploy-Warehouse.ps1", "Watch-Canary", Function), Some("Deploy-Warehouse"));
-    assert_eq!(parent("Invoke-NightlyJobs.ps1", "Invoke-Job", Function), Some("Invoke-NightlyJobs"));
+    assert_eq!(
+        parent("Warehouse.Common.psm1", "Write-WarehouseLog", Function),
+        Some("Warehouse.Common")
+    );
+    assert_eq!(
+        parent("Warehouse.Api.psm1", "Invoke-WarehouseApi", Function),
+        Some("Warehouse.Api")
+    );
+    assert_eq!(
+        parent("Warehouse.Inventory.psm1", "Import-CycleCount", Function),
+        Some("Warehouse.Inventory")
+    );
+    assert_eq!(
+        parent("Deploy-Warehouse.ps1", "Watch-Canary", Function),
+        Some("Deploy-Warehouse")
+    );
+    assert_eq!(
+        parent("Invoke-NightlyJobs.ps1", "Invoke-Job", Function),
+        Some("Invoke-NightlyJobs")
+    );
 }
 
 #[test]
 fn script_level_variables_are_symbols_with_scope_stripped() {
-    assert_eq!(parent("Warehouse.Common.psm1", "ModuleRoot", Variable), Some("Warehouse.Common"));
-    assert_eq!(parent("Warehouse.Common.psm1", "LevelOrder", Variable), Some("Warehouse.Common"));
-    assert_eq!(parent("Invoke-NightlyJobs.ps1", "ReorderPoints", Variable), Some("Invoke-NightlyJobs"));
+    assert_eq!(
+        parent("Warehouse.Common.psm1", "ModuleRoot", Variable),
+        Some("Warehouse.Common")
+    );
+    assert_eq!(
+        parent("Warehouse.Common.psm1", "LevelOrder", Variable),
+        Some("Warehouse.Common")
+    );
+    assert_eq!(
+        parent("Invoke-NightlyJobs.ps1", "ReorderPoints", Variable),
+        Some("Invoke-NightlyJobs")
+    );
     // `$Global:` scope is stripped too.
     corpus().symbol("Warehouse.Common.psm1", "WarehouseCorrelationId", Variable);
     // Variables assigned inside a function are not symbols.
@@ -46,13 +70,43 @@ fn script_level_variables_are_symbols_with_scope_stripped() {
 #[test]
 fn commands_are_calls() {
     let c = corpus();
-    c.relation("Warehouse.Common.psm1", "Invoke-WithRetry", Calls, "Test-TransientError");
-    c.relation("Warehouse.Common.psm1", "Invoke-WithRetry", Calls, "Start-Sleep");
-    c.relation("Warehouse.Common.psm1", "Get-WarehouseConfig", Calls, "Get-WarehouseSecret");
+    c.relation(
+        "Warehouse.Common.psm1",
+        "Invoke-WithRetry",
+        Calls,
+        "Test-TransientError",
+    );
+    c.relation(
+        "Warehouse.Common.psm1",
+        "Invoke-WithRetry",
+        Calls,
+        "Start-Sleep",
+    );
+    c.relation(
+        "Warehouse.Common.psm1",
+        "Get-WarehouseConfig",
+        Calls,
+        "Get-WarehouseSecret",
+    );
     // Commands in pipelines, in `try`/`catch`, and inside script blocks.
-    c.relation("Warehouse.Common.psm1", "Format-Table2", Calls, "Measure-Object");
-    c.relation("Warehouse.Api.psm1", "Invoke-WarehouseApi", Calls, "ConvertFrom-ProblemError");
-    c.relation("Invoke-NightlyJobs.ps1", "Invoke-NightlyJobs", Calls, "Test-ApiHealth");
+    c.relation(
+        "Warehouse.Common.psm1",
+        "Format-Table2",
+        Calls,
+        "Measure-Object",
+    );
+    c.relation(
+        "Warehouse.Api.psm1",
+        "Invoke-WarehouseApi",
+        Calls,
+        "ConvertFrom-ProblemError",
+    );
+    c.relation(
+        "Invoke-NightlyJobs.ps1",
+        "Invoke-NightlyJobs",
+        Calls,
+        "Test-ApiHealth",
+    );
 }
 
 #[test]
@@ -80,11 +134,36 @@ fn a_computed_import_module_path_is_imported_as_source_text() {
 #[test]
 fn cross_file_calls_are_extracted() {
     let c = corpus();
-    c.relation("Warehouse.Api.psm1", "Connect-WarehouseApi", Calls, "Get-WarehouseConfig");
-    c.relation("Warehouse.Api.psm1", "New-WarehouseOrder", Calls, "Format-Money");
-    c.relation("Warehouse.Inventory.psm1", "Move-WarehouseStock", Calls, "Get-WarehouseStock");
-    c.relation("Deploy-Warehouse.ps1", "Test-Preflight", Calls, "Invoke-WarehouseApi");
-    c.relation("Invoke-NightlyJobs.ps1", "Write-ReorderReport", Calls, "Get-ReorderReport");
+    c.relation(
+        "Warehouse.Api.psm1",
+        "Connect-WarehouseApi",
+        Calls,
+        "Get-WarehouseConfig",
+    );
+    c.relation(
+        "Warehouse.Api.psm1",
+        "New-WarehouseOrder",
+        Calls,
+        "Format-Money",
+    );
+    c.relation(
+        "Warehouse.Inventory.psm1",
+        "Move-WarehouseStock",
+        Calls,
+        "Get-WarehouseStock",
+    );
+    c.relation(
+        "Deploy-Warehouse.ps1",
+        "Test-Preflight",
+        Calls,
+        "Invoke-WarehouseApi",
+    );
+    c.relation(
+        "Invoke-NightlyJobs.ps1",
+        "Write-ReorderReport",
+        Calls,
+        "Get-ReorderReport",
+    );
     assert!(c.cross_file_relation_count() >= 50);
 }
 
@@ -105,7 +184,13 @@ fn classes_and_enums_have_no_symbol() {
     // Limit: `class Location { … }`, its methods and `enum StorageZone`
     // are not extracted.
     let c = corpus();
-    for name in ["Location", "CycleCount", "StorageZone", "Difference", "NeedsReview"] {
+    for name in [
+        "Location",
+        "CycleCount",
+        "StorageZone",
+        "Difference",
+        "NeedsReview",
+    ] {
         assert!(c.symbols_named(name).is_empty(), "{name} became a symbol");
     }
 }
@@ -123,6 +208,9 @@ fn index_answers_cross_file_queries() {
         "Warehouse.Api.psm1",
         "Warehouse.Inventory.psm1",
     ] {
-        assert!(files.contains(&file), "{file} calls Invoke-WarehouseApi: {files:?}");
+        assert!(
+            files.contains(&file),
+            "{file} calls Invoke-WarehouseApi: {files:?}"
+        );
     }
 }
