@@ -1,0 +1,325 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Security context. Defines the filter chain referenced by httpServer in
+  application.xml, the realm backed by dataSource (datasource.xml) and the
+  role hierarchy used by the approval steps of workflow/orders.xml.
+-->
+<beans:beans xmlns="http://www.springframework.org/schema/security"
+             xmlns:beans="http://www.springframework.org/schema/beans"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="
+               http://www.springframework.org/schema/beans
+               https://www.springframework.org/schema/beans/spring-beans.xsd
+               http://www.springframework.org/schema/security
+               https://www.springframework.org/schema/security/spring-security.xsd">
+
+  <!-- ===================================================================
+       Static resources and health probes bypass the chain entirely.
+       =================================================================== -->
+  <http pattern="/static/**" security="none"/>
+  <http pattern="/favicon.ico" security="none"/>
+  <http pattern="/health/**" security="none"/>
+
+  <!-- ===================================================================
+       Machine-to-machine API: bearer tokens only, stateless.
+       =================================================================== -->
+  <http id="apiChain" pattern="/api/**" create-session="stateless"
+        entry-point-ref="apiEntryPoint" use-expressions="true">
+    <intercept-url pattern="/api/products/**" method="GET" access="hasAuthority('SCOPE_catalog:read')"/>
+    <intercept-url pattern="/api/products/**" access="hasAuthority('SCOPE_catalog:write')"/>
+    <intercept-url pattern="/api/orders/*/approve" access="hasRole('SUPERVISOR')"/>
+    <intercept-url pattern="/api/orders/**" method="GET" access="hasAuthority('SCOPE_orders:read')"/>
+    <intercept-url pattern="/api/orders/**" access="hasAuthority('SCOPE_orders:write')"/>
+    <intercept-url pattern="/api/shipments/**" access="hasAnyRole('PICKER','SHIPPER','SUPERVISOR')"/>
+    <intercept-url pattern="/api/invoices/**" access="hasRole('ACCOUNTANT') and isFullyAuthenticated()"/>
+    <intercept-url pattern="/api/admin/**" access="hasRole('ADMIN') and hasIpAddress('10.0.0.0/8')"/>
+    <intercept-url pattern="/**" access="denyAll"/>
+
+    <oauth2-resource-server>
+      <jwt jwk-set-uri="${security.jwks:https://auth.example.com/.well-known/jwks.json}"
+           jwt-authentication-converter-ref="jwtConverter"/>
+    </oauth2-resource-server>
+
+    <csrf disabled="true"/>
+    <cors configuration-source-ref="corsSource"/>
+    <headers>
+      <frame-options policy="DENY"/>
+      <content-type-options/>
+      <hsts include-subdomains="true" max-age-seconds="31536000"/>
+      <content-security-policy policy-directives="default-src 'none'; frame-ancestors 'none'"/>
+    </headers>
+    <custom-filter ref="rateLimitFilter" after="BEARER_TOKEN_AUTH_FILTER"/>
+    <custom-filter ref="tenantFilter" before="AUTHORIZATION_FILTER"/>
+  </http>
+
+  <!-- ===================================================================
+       Back-office web UI: form login backed by the database realm.
+       =================================================================== -->
+  <http id="webChain" auto-config="false" use-expressions="true"
+        authentication-manager-ref="webAuthenticationManager">
+    <intercept-url pattern="/login" access="permitAll"/>
+    <intercept-url pattern="/password/reset/**" access="permitAll"/>
+    <intercept-url pattern="/admin/**" access="hasRole('ADMIN')"/>
+    <intercept-url pattern="/reports/**" access="hasAnyRole('ACCOUNTANT','SUPERVISOR')"/>
+    <intercept-url pattern="/**" access="isAuthenticated()"/>
+
+    <form-login login-page="/login"
+                login-processing-url="/login"
+                username-parameter="email"
+                password-parameter="password"
+                default-target-url="/dashboard"
+                authentication-failure-handler-ref="loginFailureHandler"
+                authentication-success-handler-ref="loginSuccessHandler"/>
+    <logout logout-url="/logout" logout-success-url="/login?bye" delete-cookies="SESSION"
+            invalidate-session="true"/>
+    <remember-me key="${security.remember-me.key}" token-validity-seconds="1209600"
+                 data-source-ref="dataSource" user-service-ref="userDetailsService"/>
+    <session-management session-fixation-protection="changeSessionId"
+                        invalid-session-url="/login?expired">
+      <concurrency-control max-sessions="3" error-if-maximum-exceeded="false"
+                           expired-url="/login?concurrent"/>
+    </session-management>
+    <access-denied-handler error-page="/errors/403"/>
+    <csrf token-repository-ref="csrfTokenRepository"/>
+  </http>
+
+  <!-- ===================================================================
+       Authentication
+       =================================================================== -->
+  <authentication-manager id="webAuthenticationManager" erase-credentials="true">
+    <authentication-provider ref="lockoutAwareProvider"/>
+    <authentication-provider user-service-ref="userDetailsService">
+      <password-encoder ref="passwordEncoder"/>
+    </authentication-provider>
+  </authentication-manager>
+
+  <jdbc-user-service id="userDetailsService"
+      data-source-ref="dataSource"
+      users-by-username-query="SELECT email, password_hash, enabled FROM users WHERE email = ?"
+      authorities-by-username-query="SELECT u.email, r.name FROM users u JOIN user_roles ur ON ur.user_id = u.id JOIN roles r ON r.id = ur.role_id WHERE u.email = ?"
+      role-prefix="ROLE_"/>
+
+  <beans:bean id="passwordEncoder"
+              class="org.springframework.security.crypto.factory.PasswordEncoderFactories"
+              factory-method="createDelegatingPasswordEncoder"/>
+
+  <beans:bean id="lockoutAwareProvider"
+              class="com.example.warehouse.security.LockoutAwareAuthenticationProvider">
+    <beans:constructor-arg ref="userDetailsService"/>
+    <beans:constructor-arg ref="passwordEncoder"/>
+    <beans:property name="maxFailures" value="5"/>
+    <beans:property name="lockoutMinutes" value="15"/>
+    <beans:property name="clock" ref="clock"/>
+    <beans:property name="auditLog" ref="auditLogger"/>
+  </beans:bean>
+
+  <beans:bean id="loginFailureHandler"
+              class="com.example.warehouse.security.CountingFailureHandler">
+    <beans:property name="defaultFailureUrl" value="/login?error"/>
+    <beans:property name="provider" ref="lockoutAwareProvider"/>
+  </beans:bean>
+
+  <beans:bean id="loginSuccessHandler"
+              class="com.example.warehouse.security.AuditingSuccessHandler">
+    <beans:property name="defaultTargetUrl" value="/dashboard"/>
+    <beans:property name="alwaysUseDefaultTargetUrl" value="false"/>
+    <beans:property name="auditLog" ref="auditLogger"/>
+  </beans:bean>
+
+  <beans:bean id="csrfTokenRepository"
+              class="org.springframework.security.web.csrf.CookieCsrfTokenRepository"
+              factory-method="withHttpOnlyFalse"/>
+
+  <!-- ===================================================================
+       Tokens and CORS for the API chain
+       =================================================================== -->
+  <beans:bean id="jwtConverter" class="com.example.warehouse.security.ScopeAndRoleJwtConverter">
+    <beans:property name="scopeClaim" value="scope"/>
+    <beans:property name="rolesClaim" value="https://example.com/roles"/>
+    <beans:property name="tenantClaim" value="https://example.com/tenant"/>
+    <beans:property name="principalClaim" value="email"/>
+  </beans:bean>
+
+  <beans:bean id="apiEntryPoint"
+              class="org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint">
+    <beans:property name="realmName" value="warehouse-api"/>
+  </beans:bean>
+
+  <beans:bean id="corsSource" class="org.springframework.web.cors.UrlBasedCorsConfigurationSource">
+    <beans:property name="corsConfigurations">
+      <beans:map>
+        <beans:entry key="/api/**">
+          <beans:bean class="org.springframework.web.cors.CorsConfiguration">
+            <beans:property name="allowedOrigins">
+              <beans:list>
+                <beans:value>https://backoffice.example.com</beans:value>
+                <beans:value>https://partners.example.com</beans:value>
+              </beans:list>
+            </beans:property>
+            <beans:property name="allowedMethods" value="GET,POST,PUT,PATCH,DELETE"/>
+            <beans:property name="allowedHeaders" value="Authorization,Content-Type,X-Tenant"/>
+            <beans:property name="maxAge" value="3600"/>
+          </beans:bean>
+        </beans:entry>
+      </beans:map>
+    </beans:property>
+  </beans:bean>
+
+  <beans:bean id="rateLimitFilter" class="com.example.warehouse.security.TokenBucketFilter">
+    <beans:property name="capacity" value="120"/>
+    <beans:property name="refillPerSecond" value="20"/>
+    <beans:property name="keyResolver">
+      <beans:bean class="com.example.warehouse.security.PrincipalKeyResolver"/>
+    </beans:property>
+    <beans:property name="overrides">
+      <beans:map>
+        <beans:entry key="partner-acme" value="600"/>
+        <beans:entry key="partner-globex" value="300"/>
+      </beans:map>
+    </beans:property>
+  </beans:bean>
+
+  <beans:bean id="tenantFilter" class="com.example.warehouse.security.TenantFilter">
+    <beans:property name="header" value="X-Tenant"/>
+    <beans:property name="routingDataSource" ref="routingDataSource"/>
+  </beans:bean>
+
+  <beans:bean id="securityFilterChain" class="org.springframework.security.web.FilterChainProxy">
+    <beans:constructor-arg>
+      <beans:list>
+        <beans:ref bean="apiChain"/>
+        <beans:ref bean="webChain"/>
+      </beans:list>
+    </beans:constructor-arg>
+  </beans:bean>
+
+  <!-- ===================================================================
+       Roles. The hierarchy is used both by intercept-url expressions and
+       by the approval lanes of the order workflow.
+       =================================================================== -->
+  <beans:bean id="roleHierarchy"
+              class="org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl"
+              factory-method="fromHierarchy">
+    <beans:constructor-arg>
+      <beans:value>
+        ROLE_ADMIN > ROLE_SUPERVISOR
+        ROLE_SUPERVISOR > ROLE_SHIPPER
+        ROLE_SUPERVISOR > ROLE_PICKER
+        ROLE_ADMIN > ROLE_ACCOUNTANT
+        ROLE_SHIPPER > ROLE_USER
+        ROLE_PICKER > ROLE_USER
+        ROLE_ACCOUNTANT > ROLE_USER
+      </beans:value>
+    </beans:constructor-arg>
+  </beans:bean>
+
+  <beans:bean id="methodSecurityExpressionHandler"
+              class="org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler">
+    <beans:property name="roleHierarchy" ref="roleHierarchy"/>
+    <beans:property name="permissionEvaluator" ref="permissionEvaluator"/>
+  </beans:bean>
+
+  <beans:bean id="permissionEvaluator"
+              class="com.example.warehouse.security.OwnershipPermissionEvaluator">
+    <beans:property name="orderRepository" ref="orderRepository"/>
+    <beans:property name="invoiceRepository" ref="invoiceRepository"/>
+    <beans:property name="rules">
+      <beans:map>
+        <beans:entry key="Order:read" value="owner or hasRole('SUPERVISOR')"/>
+        <beans:entry key="Order:cancel" value="owner and status in ('NEW','RESERVED')"/>
+        <beans:entry key="Invoice:read" value="owner or hasRole('ACCOUNTANT')"/>
+        <beans:entry key="Invoice:void" value="hasRole('ACCOUNTANT') and !paid"/>
+      </beans:map>
+    </beans:property>
+  </beans:bean>
+
+  <global-method-security pre-post-annotations="enabled" secured-annotations="enabled">
+    <expression-handler ref="methodSecurityExpressionHandler"/>
+    <protect-pointcut expression="execution(* com.example.warehouse.billing.*Service.void*(..))"
+                      access="ROLE_ACCOUNTANT"/>
+    <protect-pointcut expression="execution(* com.example.warehouse.admin..*(..))"
+                      access="ROLE_ADMIN"/>
+  </global-method-security>
+
+  <!-- ===================================================================
+       Seed realm for local development. Passwords are bcrypt hashes of
+       "changeme"; the `{bcrypt}` prefix selects the delegating encoder.
+       =================================================================== -->
+  <beans:beans profile="dev">
+    <user-service id="devUsers">
+      <user name="admin@example.com"
+            password="{bcrypt}$2a$10$7EqJtq98hPqEX7fNZaFWoOhi5BWX4Z1H6cU7Z8ZzP2qcl/1T5pXyW"
+            authorities="ROLE_ADMIN"/>
+      <user name="supervisora@example.com"
+            password="{bcrypt}$2a$10$7EqJtq98hPqEX7fNZaFWoOhi5BWX4Z1H6cU7Z8ZzP2qcl/1T5pXyW"
+            authorities="ROLE_SUPERVISOR"/>
+      <user name="picker.01@example.com"
+            password="{bcrypt}$2a$10$7EqJtq98hPqEX7fNZaFWoOhi5BWX4Z1H6cU7Z8ZzP2qcl/1T5pXyW"
+            authorities="ROLE_PICKER"/>
+      <user name="shipper.01@example.com"
+            password="{bcrypt}$2a$10$7EqJtq98hPqEX7fNZaFWoOhi5BWX4Z1H6cU7Z8ZzP2qcl/1T5pXyW"
+            authorities="ROLE_SHIPPER"/>
+      <user name="contabilidad@example.com"
+            password="{bcrypt}$2a$10$7EqJtq98hPqEX7fNZaFWoOhi5BWX4Z1H6cU7Z8ZzP2qcl/1T5pXyW"
+            authorities="ROLE_ACCOUNTANT"/>
+      <user name="müller@example.de"
+            password="{bcrypt}$2a$10$7EqJtq98hPqEX7fNZaFWoOhi5BWX4Z1H6cU7Z8ZzP2qcl/1T5pXyW"
+            authorities="ROLE_USER" disabled="true"/>
+    </user-service>
+
+    <authentication-manager id="devAuthenticationManager">
+      <authentication-provider user-service-ref="devUsers"/>
+    </authentication-manager>
+  </beans:beans>
+
+  <!-- ===================================================================
+       Audit trail of security events (writes through auditLogger,
+       logging.xml).
+       =================================================================== -->
+  <beans:bean id="securityEventListener"
+              class="com.example.warehouse.security.SecurityEventAuditor">
+    <beans:property name="auditLog" ref="auditLogger"/>
+    <beans:property name="events">
+      <beans:set>
+        <beans:value>AuthenticationSuccessEvent</beans:value>
+        <beans:value>AuthenticationFailureBadCredentialsEvent</beans:value>
+        <beans:value>AuthenticationFailureLockedEvent</beans:value>
+        <beans:value>AuthorizationDeniedEvent</beans:value>
+        <beans:value>SessionFixationProtectionEvent</beans:value>
+        <beans:value>LogoutSuccessEvent</beans:value>
+      </beans:set>
+    </beans:property>
+    <beans:property name="redactedFields">
+      <beans:list>
+        <beans:value>password</beans:value>
+        <beans:value>token</beans:value>
+        <beans:value>authorization</beans:value>
+      </beans:list>
+    </beans:property>
+  </beans:bean>
+
+  <beans:bean id="passwordResetService"
+              class="com.example.warehouse.security.PasswordResetService">
+    <beans:constructor-arg ref="userDetailsService"/>
+    <beans:constructor-arg ref="passwordEncoder"/>
+    <beans:constructor-arg ref="mailer"/>
+    <beans:property name="tokenTtlMinutes" value="30"/>
+    <beans:property name="resetUrl" value="https://backoffice.example.com/password/reset?token={token}"/>
+    <beans:property name="policy">
+      <beans:bean id="passwordPolicy" class="com.example.warehouse.security.PasswordPolicy">
+        <beans:property name="minLength" value="12"/>
+        <beans:property name="requireDigit" value="true"/>
+        <beans:property name="requireSymbol" value="true"/>
+        <beans:property name="historySize" value="5"/>
+        <beans:property name="forbidden">
+          <beans:list>
+            <beans:value>password</beans:value>
+            <beans:value>contraseña</beans:value>
+            <beans:value>warehouse</beans:value>
+            <beans:value>123456789012</beans:value>
+          </beans:list>
+        </beans:property>
+      </beans:bean>
+    </beans:property>
+  </beans:bean>
+</beans:beans>

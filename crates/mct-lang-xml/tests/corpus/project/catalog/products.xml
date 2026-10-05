@@ -1,0 +1,309 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Product catalog imported by catalogImporter (config/application.xml) and
+  loaded by devDataLoader in the dev profile. Category and supplier ids are
+  referenced by products through categoryRef/supplierRef; reorder points
+  feed the replenishment process of workflow/orders.xml.
+
+  Naming conventions on purpose:
+    * categories, products and suppliers use `id`;
+    * attribute definitions use `name`;
+    * localized labels use `Name` (as exported by the legacy ERP);
+    * elements with an empty or missing id are anonymous.
+-->
+<?catalog-import mode="upsert" batch="500"?>
+<catalog xmlns="http://example.com/warehouse/catalog/1.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns:i18n="http://example.com/warehouse/i18n"
+         xsi:schemaLocation="http://example.com/warehouse/catalog/1.0 products.xsd"
+         version="2026.10"
+         generated="2026-10-01T06:00:00Z">
+
+  <!-- ===================================================================
+       Attribute definitions (name="…")
+       =================================================================== -->
+  <attributes>
+    <attribute name="weight" type="decimal" unit="g" required="true"/>
+    <attribute name="volume" type="decimal" unit="ml"/>
+    <attribute name="colour" type="enum">
+      <option value="black"/>
+      <option value="white"/>
+      <option value="red"/>
+      <option value="natural"/>
+    </attribute>
+    <attribute name="storage" type="enum" required="true">
+      <option value="ambient"/>
+      <option value="chilled"/>
+      <option value="frozen"/>
+      <option value="bulky"/>
+    </attribute>
+    <attribute name="hazmat" type="boolean" default="false"/>
+    <attribute name="origin" type="country"/>
+    <attribute name="shelfLifeDays" type="integer" unit="d"/>
+  </attributes>
+
+  <!-- ===================================================================
+       Suppliers
+       =================================================================== -->
+  <suppliers>
+    <supplier id="sup-acme" country="ES" leadTimeDays="5">
+      <i18n:label Name="Acme Ibérica S.L."/>
+      <contact email="pedidos@acme.example" phone="+34 910 000 001"/>
+      <terms payment="NET30" incoterm="DAP" minOrder="250.00" currency="EUR"/>
+    </supplier>
+    <supplier id="sup-globex" country="DE" leadTimeDays="9">
+      <i18n:label Name="Globex GmbH"/>
+      <contact email="orders@globex.example" phone="+49 30 0000 0002"/>
+      <terms payment="NET45" incoterm="DDP" minOrder="1000.00" currency="EUR"/>
+    </supplier>
+    <supplier id="sup-initech" country="US" leadTimeDays="21">
+      <i18n:label Name="Initech Inc."/>
+      <contact email="supply@initech.example" phone="+1 512 000 0003"/>
+      <terms payment="PREPAID" incoterm="FOB" minOrder="5000.00" currency="USD"/>
+    </supplier>
+    <supplier id="sup-kōbō" country="JP" leadTimeDays="30">
+      <i18n:label Name="工房たなか"/>
+      <contact email="export@kobo.example" phone="+81 3 0000 0004"/>
+      <terms payment="LC" incoterm="CIF" minOrder="300000" currency="JPY"/>
+    </supplier>
+  </suppliers>
+
+  <!-- ===================================================================
+       Category tree. Nesting mirrors the warehouse zones.
+       =================================================================== -->
+  <categories>
+    <category id="cat-home">
+      <i18n:label Name="Hogar"/>
+      <category id="cat-kitchen">
+        <i18n:label Name="Cocina"/>
+        <category id="cat-cookware">
+          <i18n:label Name="Menaje"/>
+        </category>
+        <category id="cat-cutlery">
+          <i18n:label Name="Cubertería"/>
+        </category>
+      </category>
+      <category id="cat-textile">
+        <i18n:label Name="Textil"/>
+      </category>
+    </category>
+    <category id="cat-food">
+      <i18n:label Name="Alimentación"/>
+      <category id="cat-pantry">
+        <i18n:label Name="Despensa"/>
+      </category>
+      <category id="cat-chilled">
+        <i18n:label Name="Refrigerados"/>
+        <category id="cat-dairy">
+          <i18n:label Name="Lácteos"/>
+        </category>
+      </category>
+    </category>
+    <category id="cat-garden">
+      <i18n:label Name="Jardín"/>
+      <category id="cat-furniture">
+        <i18n:label Name="Muebles de exterior"/>
+      </category>
+      <category id="cat-tools">
+        <i18n:label Name="Herramientas"/>
+      </category>
+    </category>
+    <!-- Legacy bucket with an empty id: it is anonymous, so its children
+         have no named parent. -->
+    <category id="">
+      <category id="cat-clearance">
+        <i18n:label Name="Liquidación"/>
+      </category>
+    </category>
+  </categories>
+
+  <!-- ===================================================================
+       Products
+       =================================================================== -->
+  <products>
+    <product id="sku-1001" categoryRef="cat-cookware" supplierRef="sup-acme" status="active">
+      <i18n:label Name="Sartén antiadherente 28 cm"/>
+      <i18n:label Name="Non-stick frying pan 28 cm" lang="en"/>
+      <price currency="EUR" amount="24.90" vat="0.21"/>
+      <value attribute="weight">1150</value>
+      <value attribute="colour">black</value>
+      <value attribute="storage">ambient</value>
+      <stock reorderPoint="40" reorderQty="120" location="A-03-2"/>
+      <description><![CDATA[
+        <p>Aluminio forjado, apta para <strong>inducción</strong>.</p>
+        <p>Mango de baquelita &amp; recubrimiento sin PFOA.</p>
+      ]]></description>
+    </product>
+
+    <product id="sku-1002" categoryRef="cat-cookware" supplierRef="sup-globex" status="active">
+      <i18n:label Name="Olla a presión 6 L"/>
+      <price currency="EUR" amount="79.00" vat="0.21"/>
+      <value attribute="weight">3400</value>
+      <value attribute="volume">6000</value>
+      <value attribute="storage">ambient</value>
+      <stock reorderPoint="10" reorderQty="30" location="A-03-4"/>
+      <bundle id="bundle-1002-spares">
+        <item productRef="sku-1003" quantity="1"/>
+        <item productRef="sku-1004" quantity="2"/>
+      </bundle>
+    </product>
+
+    <product id="sku-1003" categoryRef="cat-cookware" supplierRef="sup-globex" status="active">
+      <i18n:label Name="Junta de repuesto para olla 6 L"/>
+      <price currency="EUR" amount="6.50" vat="0.21"/>
+      <value attribute="weight">60</value>
+      <value attribute="storage">ambient</value>
+      <stock reorderPoint="25" reorderQty="200" location="A-03-5"/>
+    </product>
+
+    <product id="sku-1004" categoryRef="cat-cookware" supplierRef="sup-globex" status="active">
+      <i18n:label Name="Válvula de seguridad"/>
+      <price currency="EUR" amount="4.20" vat="0.21"/>
+      <value attribute="weight">25</value>
+      <value attribute="storage">ambient</value>
+      <stock reorderPoint="25" reorderQty="200" location="A-03-5"/>
+    </product>
+
+    <product id="sku-1101" categoryRef="cat-cutlery" supplierRef="sup-kōbō" status="active">
+      <i18n:label Name="Cuchillo santoku 18 cm"/>
+      <i18n:label Name="三徳包丁 18cm" lang="ja"/>
+      <price currency="EUR" amount="119.00" vat="0.21"/>
+      <value attribute="weight">180</value>
+      <value attribute="origin">JP</value>
+      <value attribute="storage">ambient</value>
+      <stock reorderPoint="5" reorderQty="20" location="A-07-1"/>
+      <compliance>
+        <restriction country="GB" rule="age-verification" minimumAge="18"/>
+        <restriction country="IE" rule="age-verification" minimumAge="18"/>
+      </compliance>
+    </product>
+
+    <product id="sku-1201" categoryRef="cat-textile" supplierRef="sup-acme" status="active">
+      <i18n:label Name="Mantel de lino 150 × 250"/>
+      <price currency="EUR" amount="39.95" vat="0.21"/>
+      <value attribute="weight">780</value>
+      <value attribute="colour">natural</value>
+      <value attribute="storage">ambient</value>
+      <variants>
+        <variant id="sku-1201-wht" colour="white"/>
+        <variant id="sku-1201-red" colour="red"/>
+        <variant colour="black" status="planned"/>
+      </variants>
+      <stock reorderPoint="12" reorderQty="48" location="B-01-1"/>
+    </product>
+
+    <product id="sku-2001" categoryRef="cat-pantry" supplierRef="sup-acme" status="active">
+      <i18n:label Name="Aceite de oliva virgen extra 1 L"/>
+      <price currency="EUR" amount="9.80" vat="0.10"/>
+      <value attribute="weight">980</value>
+      <value attribute="volume">1000</value>
+      <value attribute="shelfLifeDays">540</value>
+      <value attribute="storage">ambient</value>
+      <stock reorderPoint="200" reorderQty="960" location="C-02-1"/>
+      <lots>
+        <lot id="lot-2001-2609" expires="2028-03-31" quantity="420"/>
+        <lot id="lot-2001-2610" expires="2028-04-30" quantity="960"/>
+      </lots>
+    </product>
+
+    <product id="sku-2101" categoryRef="cat-dairy" supplierRef="sup-acme" status="active">
+      <i18n:label Name="Queso manchego curado 250 g"/>
+      <price currency="EUR" amount="7.45" vat="0.10"/>
+      <value attribute="weight">250</value>
+      <value attribute="shelfLifeDays">120</value>
+      <value attribute="storage">chilled</value>
+      <stock reorderPoint="60" reorderQty="240" location="F-01-3"/>
+      <lots>
+        <lot id="lot-2101-2609" expires="2027-01-15" quantity="180"/>
+      </lots>
+    </product>
+
+    <product id="sku-2102" categoryRef="cat-dairy" supplierRef="sup-globex" status="discontinued">
+      <i18n:label Name="Yogur natural pack 4"/>
+      <price currency="EUR" amount="1.95" vat="0.10"/>
+      <value attribute="weight">500</value>
+      <value attribute="shelfLifeDays">28</value>
+      <value attribute="storage">chilled</value>
+      <replacedBy productRef="sku-2103"/>
+    </product>
+
+    <product id="sku-2103" categoryRef="cat-dairy" supplierRef="sup-globex" status="active">
+      <i18n:label Name="Yogur griego pack 4"/>
+      <price currency="EUR" amount="2.45" vat="0.10"/>
+      <value attribute="weight">500</value>
+      <value attribute="shelfLifeDays">28</value>
+      <value attribute="storage">chilled</value>
+      <stock reorderPoint="150" reorderQty="600" location="F-02-1"/>
+    </product>
+
+    <product id="sku-3001" categoryRef="cat-furniture" supplierRef="sup-initech" status="active">
+      <i18n:label Name="Mesa de teca 180 cm"/>
+      <price currency="EUR" amount="649.00" vat="0.21"/>
+      <value attribute="weight">42000</value>
+      <value attribute="storage">bulky</value>
+      <stock reorderPoint="2" reorderQty="6" location="Z-BULK-1"/>
+      <shipping carrier="freight" palletised="true" twoPersonDelivery="true"/>
+    </product>
+
+    <product id="sku-3002" categoryRef="cat-furniture" supplierRef="sup-initech" status="active">
+      <i18n:label Name="Silla apilable (pack 4)"/>
+      <price currency="EUR" amount="219.00" vat="0.21"/>
+      <value attribute="weight">16800</value>
+      <value attribute="storage">bulky</value>
+      <stock reorderPoint="4" reorderQty="12" location="Z-BULK-2"/>
+      <bundle id="bundle-patio">
+        <item productRef="sku-3001" quantity="1"/>
+        <item productRef="sku-3002" quantity="2"/>
+      </bundle>
+    </product>
+
+    <product id="sku-3101" categoryRef="cat-tools" supplierRef="sup-globex" status="active">
+      <i18n:label Name="Desbrozadora a batería 36 V"/>
+      <price currency="EUR" amount="289.00" vat="0.21"/>
+      <value attribute="weight">5200</value>
+      <value attribute="hazmat">true</value>
+      <value attribute="storage">ambient</value>
+      <stock reorderPoint="3" reorderQty="10" location="D-04-1"/>
+      <compliance>
+        <hazmat class="9" unNumber="UN3480" packingInstruction="PI965"/>
+        <document id="doc-3101-msds" href="https://docs.example.com/msds/3101.pdf"/>
+      </compliance>
+    </product>
+
+    <product id="sku-3102" categoryRef="cat-tools" supplierRef="sup-globex" status="active">
+      <i18n:label Name="Batería de repuesto 36 V 4 Ah"/>
+      <price currency="EUR" amount="99.00" vat="0.21"/>
+      <value attribute="weight">1300</value>
+      <value attribute="hazmat">true</value>
+      <value attribute="storage">ambient</value>
+      <stock reorderPoint="6" reorderQty="24" location="D-04-2"/>
+      <compliance>
+        <hazmat class="9" unNumber="UN3480" packingInstruction="PI965"/>
+      </compliance>
+    </product>
+
+    <product id="sku-9001" categoryRef="cat-clearance" supplierRef="sup-acme" status="clearance">
+      <i18n:label Name="Lote de cubiertos desparejados"/>
+      <price currency="EUR" amount="5.00" vat="0.21" was="18.00"/>
+      <value attribute="weight">900</value>
+      <value attribute="storage">ambient</value>
+    </product>
+  </products>
+
+  <!-- ===================================================================
+       Price lists that override the base prices above.
+       =================================================================== -->
+  <priceLists>
+    <priceList id="pl-wholesale" currency="EUR" validFrom="2026-10-01">
+      <entry productRef="sku-1001" amount="18.50"/>
+      <entry productRef="sku-1002" amount="61.00"/>
+      <entry productRef="sku-2001" amount="7.10"/>
+      <entry productRef="sku-2101" amount="5.60"/>
+    </priceList>
+    <priceList id="pl-uk" currency="GBP" validFrom="2026-10-01">
+      <entry productRef="sku-1001" amount="21.99"/>
+      <entry productRef="sku-1101" amount="104.00"/>
+      <entry productRef="sku-3001" amount="569.00"/>
+    </priceList>
+  </priceLists>
+</catalog>

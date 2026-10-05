@@ -62,7 +62,7 @@ impl LanguageParser for XmlParser {
 
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
-        walker.push_symbol(module_name, SymbolKind::Module, location(root), None);
+        walker.push_symbol(module_name, SymbolKind::Module, module_location(root), None);
         walker.visit_children(root, None, 0);
         Ok(walker.finish())
     }
@@ -113,6 +113,18 @@ fn location(node: Node) -> Location {
         byte_len: (node.end_byte() - node.start_byte()) as u32,
         end_line: Some(end.row as u32 + 1),
     }
+}
+
+/// The file-level module's location: the root node of a file ending in a
+/// newline ends at column 0 of the row *after* the last line, which would
+/// put the module one line past the end of the file.
+fn module_location(root: Node) -> Location {
+    let mut loc = location(root);
+    let end = root.end_position();
+    if end.column == 0 && end.row > root.start_position().row {
+        loc.end_line = Some(end.row as u32);
+    }
+    loc
 }
 
 fn text<'a>(node: Node, source: &'a str) -> &'a str {
