@@ -68,10 +68,10 @@ impl LanguageParser for GoParser {
 
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
-        let file_module_id =
-            walker.push_symbol(module_name, SymbolKind::Module, location(root), None);
+        let file_loc = file_location(root);
+        let file_module_id = walker.push_symbol(module_name, SymbolKind::Module, file_loc, None);
         if let Some(ref pkg) = package_name {
-            walker.push_symbol(pkg.clone(), SymbolKind::Module, location(root), None);
+            walker.push_symbol(pkg.clone(), SymbolKind::Module, file_loc, None);
         }
         walker.visit_children(root, file_module_id, package_name.as_deref(), 0);
         Ok(walker.finish())
@@ -88,16 +88,30 @@ fn module_name_for(relative_path: &str) -> String {
 }
 
 fn first_error(node: Node) -> Option<Node> {
-    if node.is_error() || node.is_missing() {
-        return Some(node);
-    }
     let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        if let Some(found) = first_error(child) {
-            return Some(found);
+    let mut depth = 0u32;
+
+    loop {
+        let current = cursor.node();
+        if current.is_error() || current.is_missing() {
+            return Some(current);
+        }
+
+        if depth < MAX_TRAVERSAL_DEPTH && cursor.goto_first_child() {
+            depth += 1;
+            continue;
+        }
+
+        loop {
+            if cursor.goto_next_sibling() {
+                break;
+            }
+            if depth == 0 || !cursor.goto_parent() {
+                return None;
+            }
+            depth -= 1;
         }
     }
-    None
 }
 
 fn location(node: Node) -> Location {
@@ -109,6 +123,18 @@ fn location(node: Node) -> Location {
         byte_len: (node.end_byte() - node.start_byte()) as u32,
         end_line: Some(end.row as u32 + 1),
     }
+}
+
+/// The whole file's location. The root node of a file ending in a newline
+/// ends at column 0 of the (empty) line after the last one, so its end line
+/// is the previous row.
+fn file_location(root: Node) -> Location {
+    let mut loc = location(root);
+    let end = root.end_position();
+    if end.column == 0 && end.row > 0 {
+        loc.end_line = Some(end.row as u32);
+    }
+    loc
 }
 
 fn text<'a>(node: Node, source: &'a str) -> &'a str {
@@ -284,6 +310,19 @@ impl<'a> Walker<'a> {
                     }
                 }
             }
+            "type_alias" => {
+                // `type Amount = Money`
+                let name = node
+                    .child_by_field_name("name")
+                    .map(|n| text(n, self.source).to_string())
+                    .unwrap_or_default();
+                self.push_symbol(
+                    name,
+                    SymbolKind::TypeAlias,
+                    location(node),
+                    package_name.map(str::to_string),
+                );
+            }
             "import_declaration" => {
                 let mut specs = Vec::new();
                 collect_import_specs(node, &mut specs);
@@ -314,6 +353,27 @@ impl<'a> Walker<'a> {
                 }
                 if let Some(arguments) = node.child_by_field_name("arguments") {
                     self.visit_children(arguments, owner, package_name, depth + 1);
+                }
+            }
+            "type_conversion_expression" => {
+                // `Fail[T](err)` with a single type argument is ambiguous
+                // with a conversion to the generic type `Fail[T]`; the
+                // grammar picks the conversion. Without type information a
+                // generic instantiation is read as the call it usually is.
+                if let Some(ty) = node.child_by_field_name("type") {
+                    if ty.kind() == "generic_type" {
+                        if let Some(name_node) = callee_identifier(ty) {
+                            self.push_relation(
+                                owner,
+                                RelationKind::Calls,
+                                text(name_node, self.source).to_string(),
+                                location(name_node),
+                            );
+                        }
+                    }
+                }
+                if let Some(operand) = node.child_by_field_name("operand") {
+                    self.visit(operand, owner, package_name, depth + 1);
                 }
             }
             _ => self.visit_children(node, owner, package_name, depth + 1),
@@ -351,11 +411,15 @@ fn receiver_type_name(method_declaration: Node, source: &str) -> Option<String> 
         .children(&mut cursor)
         .find(|c| c.kind() == "parameter_declaration")?;
     let ty = param.child_by_field_name("type")?;
-    let unwrapped = if ty.kind() == "pointer_type" {
+    let mut unwrapped = if ty.kind() == "pointer_type" {
         ty.named_child(0).unwrap_or(ty)
     } else {
         ty
     };
+    // `func (s *Stack[T]) Push`: the owner is `Stack`, not `Stack[T]`.
+    if unwrapped.kind() == "generic_type" {
+        unwrapped = unwrapped.child_by_field_name("type").unwrap_or(unwrapped);
+    }
     Some(text(unwrapped, source).to_string())
 }
 
@@ -365,6 +429,12 @@ fn callee_identifier(function: Node) -> Option<Node> {
     match function.kind() {
         "identifier" => Some(function),
         "selector_expression" => function.child_by_field_name("field"),
+        // `Map[A, B](xs)`: explicit type arguments wrap the callee.
+        "type_instantiation_expression" | "generic_type" => {
+            callee_identifier(function.child_by_field_name("type")?)
+        }
+        "qualified_type" => function.child_by_field_name("name"),
+        "type_identifier" => Some(function),
         _ => None,
     }
 }
