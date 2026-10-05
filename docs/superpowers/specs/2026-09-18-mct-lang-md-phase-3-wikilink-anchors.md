@@ -1,7 +1,12 @@
 # Design: `mct-lang-md` Phase 3 (wikilink anchors, `.md` normalization, embeds)
 
 Date: 2026-09-18
-Status: approved, implemented
+Status: approved, implemented (PR #6); historical. PR #6 split
+`[[Note#Heading]]` into note + heading relations, normalised `.md` and fixed
+nested brackets. The non-goals below (no per-file symbol, whole-note
+resolution unchanged) held until `2026-10-01-markdown-note-graph-design.md`
+(issue #98, PR #101) added the per-file note symbol and note-scoped
+anchor/path resolution.
 
 ## Goal
 
