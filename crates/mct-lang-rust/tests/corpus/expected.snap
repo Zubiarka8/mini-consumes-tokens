@@ -1,4 +1,4 @@
-# language=rust files=6 symbols=239 relations=817 cross_file=218
+# language=rust files=6 symbols=239 relations=817 name_matched_across_files=218
 
 == errors.rs (397 lines)
 S 1-397 module errors
@@ -45,8 +45,8 @@ R 5:10 imports errors -> fmt
 R 6:25 imports errors -> AtomicUsize
 R 6:38 imports errors -> Ordering
 R 7:16 imports errors -> Mutex
-R 9:20 imports errors -> LocationId (x-file: model.rs)
-R 9:32 imports errors -> ProductId (x-file: model.rs)
+R 9:20 imports errors -> LocationId (name-matched: model.rs)
+R 9:32 imports errors -> ProductId (name-matched: model.rs)
 R 62:28 calls InventoryError::storage -> to_string
 R 68:21 calls InventoryError::report -> fetch_add
 R 69:9 calls InventoryError::report -> audit
@@ -57,7 +57,7 @@ R 102:1 implements errors -> From<std::io::Error>
 R 104:25 calls InventoryError::from -> storage
 R 108:1 implements errors -> From<std::num::ParseIntError>
 R 110:25 calls InventoryError::from -> Validation
-R 116:17 calls error_count -> load (x-file: service.rs)
+R 116:17 calls error_count -> load (name-matched: service.rs)
 R 157:29 calls AuditLog::new -> new
 R 157:38 calls AuditLog::new -> new
 R 164:29 calls AuditLog::with_threshold -> new
@@ -69,7 +69,7 @@ R 179:32 calls AuditLog::push -> len
 R 180:17 calls AuditLog::push -> push
 R 182:30 calls AuditLog::push -> to_owned
 R 188:46 calls AuditLog::len -> unwrap_or
-R 188:29 calls AuditLog::len -> map (x-file: model.rs)
+R 188:29 calls AuditLog::len -> map (name-matched: model.rs)
 R 188:22 calls AuditLog::len -> lock
 R 188:39 calls AuditLog::len -> len
 R 192:14 calls AuditLog::is_empty -> len
@@ -112,7 +112,7 @@ R 330:13 calls audit_log_respects_threshold -> push
 R 332:27 calls audit_log_respects_threshold -> drain
 R 333:20 references audit_log_respects_threshold -> format_entry
 R 337:5 references tests -> display_mentions_numbers
-R 340:22 calls display_mentions_numbers -> ProductId (x-file: model.rs)
+R 340:22 calls display_mentions_numbers -> ProductId (name-matched: model.rs)
 R 344:22 calls display_mentions_numbers -> to_string
 R 349:5 references tests -> io_errors_become_storage_errors
 R 351:34 calls io_errors_become_storage_errors -> new
@@ -125,11 +125,11 @@ R 363:5 references tests -> error_count_increases_on_report
 R 365:22 calls error_count_increases_on_report -> error_count
 R 366:62 calls error_count_increases_on_report -> report
 R 366:33 calls error_count_increases_on_report -> UnknownProduct
-R 366:48 calls error_count_increases_on_report -> ProductId (x-file: model.rs)
+R 366:48 calls error_count_increases_on_report -> ProductId (name-matched: model.rs)
 R 367:17 references error_count_increases_on_report -> error_count
 R 370:5 references tests -> severity_tags
 R 380:10 calls severity_tags -> collect
-R 379:10 calls severity_tags -> map (x-file: model.rs)
+R 379:10 calls severity_tags -> map (name-matched: model.rs)
 R 378:10 calls severity_tags -> iter
 R 379:20 calls severity_tags -> tag
 R 384:5 references tests -> filtered_keeps_order
@@ -138,7 +138,7 @@ R 387:13 calls filtered_keeps_order -> push
 R 388:13 calls filtered_keeps_order -> push
 R 389:13 calls filtered_keeps_order -> push
 R 394:14 calls filtered_keeps_order -> collect
-R 393:14 calls filtered_keeps_order -> map (x-file: model.rs)
+R 393:14 calls filtered_keeps_order -> map (name-matched: model.rs)
 R 392:14 calls filtered_keeps_order -> into_iter
 R 391:14 calls filtered_keeps_order -> filtered
 
@@ -171,28 +171,28 @@ S 307-309 function category_tree_has_unicode_leaf
 R 17:10 imports main -> env
 R 18:19 imports main -> ExitCode
 R 19:16 imports main -> Arc
-R 21:14 imports main -> audit (x-file: errors.rs)
-R 21:21 imports main -> error_count (x-file: errors.rs)
-R 21:34 imports main -> InventoryError (x-file: errors.rs)
-R 21:50 imports main -> Result (x-file: errors.rs)
-R 21:58 imports main -> Severity (x-file: errors.rs)
-R 22:13 imports main -> Category (x-file: model.rs)
-R 22:23 imports main -> LocationId (x-file: model.rs)
-R 22:35 imports main -> ProductId (x-file: model.rs)
-R 22:46 imports main -> Unit (x-file: model.rs)
-R 23:14 imports main -> full_report (x-file: report.rs)
-R 23:27 imports main -> AuditSection (x-file: report.rs)
-R 23:41 imports main -> CategorySection (x-file: report.rs)
-R 23:58 imports main -> MovementSection (x-file: report.rs)
-R 23:75 imports main -> Section (x-file: report.rs)
-R 23:84 imports main -> StockSection (x-file: report.rs)
-R 24:15 imports main -> MovementCounter (x-file: service.rs)
-R 24:32 imports main -> Warehouse (x-file: service.rs)
-R 25:14 imports main -> SnapshotFile (x-file: storage.rs)
+R 21:14 imports main -> audit (name-matched: errors.rs)
+R 21:21 imports main -> error_count (name-matched: errors.rs)
+R 21:34 imports main -> InventoryError (name-matched: errors.rs)
+R 21:50 imports main -> Result (name-matched: errors.rs)
+R 21:58 imports main -> Severity (name-matched: errors.rs)
+R 22:13 imports main -> Category (name-matched: model.rs)
+R 22:23 imports main -> LocationId (name-matched: model.rs)
+R 22:35 imports main -> ProductId (name-matched: model.rs)
+R 22:46 imports main -> Unit (name-matched: model.rs)
+R 23:14 imports main -> full_report (name-matched: report.rs)
+R 23:27 imports main -> AuditSection (name-matched: report.rs)
+R 23:41 imports main -> CategorySection (name-matched: report.rs)
+R 23:58 imports main -> MovementSection (name-matched: report.rs)
+R 23:75 imports main -> Section (name-matched: report.rs)
+R 23:84 imports main -> StockSection (name-matched: report.rs)
+R 24:15 imports main -> MovementCounter (name-matched: service.rs)
+R 24:32 imports main -> Warehouse (name-matched: service.rs)
+R 25:14 imports main -> SnapshotFile (name-matched: storage.rs)
 R 54:1 implements main -> Default
 R 57:40 calls Options::default -> to_string
 R 66:32 calls split_options -> default
-R 67:31 calls split_options -> new (x-file: errors.rs)
+R 67:31 calls split_options -> new (name-matched: errors.rs)
 R 68:25 calls split_options -> into_iter
 R 69:32 calls split_options -> next
 R 70:19 calls split_options -> as_str
@@ -203,9 +203,9 @@ R 75:74 calls split_options -> into
 R 78:26 calls split_options -> starts_with
 R 79:24 calls split_options -> Err
 R 79:44 calls split_options -> Validation
-R 81:29 calls split_options -> push (x-file: errors.rs)
+R 81:29 calls split_options -> push (name-matched: errors.rs)
 R 84:5 calls split_options -> Ok
-R 88:16 calls parse_unit -> map (x-file: model.rs)
+R 88:16 calls parse_unit -> map (name-matched: model.rs)
 R 89:30 calls parse_unit -> Ok
 R 90:23 calls parse_unit -> Ok
 R 91:22 calls parse_unit -> Ok
@@ -216,7 +216,7 @@ R 93:39 calls parse_unit -> parse
 R 94:21 calls parse_unit -> Err
 R 94:41 calls parse_unit -> Validation
 R 103:14 calls parse_command -> ok_or_else
-R 102:14 calls parse_command -> get (x-file: storage.rs)
+R 102:14 calls parse_command -> get (name-matched: storage.rs)
 R 103:44 calls parse_command -> Validation
 R 105:46 calls parse_command -> Ok
 R 105:57 calls parse_command -> parse
@@ -229,10 +229,10 @@ R 111:17 calls parse_command -> number
 R 112:27 calls parse_command -> clone
 R 112:19 calls parse_command -> arg
 R 113:19 calls parse_command -> parse_unit
-R 113:35 calls parse_command -> get (x-file: storage.rs)
-R 116:27 calls parse_command -> ProductId (x-file: model.rs)
+R 113:35 calls parse_command -> get (name-matched: storage.rs)
+R 116:27 calls parse_command -> ProductId (name-matched: model.rs)
 R 116:37 calls parse_command -> number
-R 117:22 calls parse_command -> LocationId (x-file: model.rs)
+R 117:22 calls parse_command -> LocationId (name-matched: model.rs)
 R 117:59 calls parse_command -> map_err
 R 117:38 calls parse_command -> try_from
 R 117:47 calls parse_command -> number
@@ -243,52 +243,52 @@ R 120:33 calls parse_command -> try_from
 R 120:42 calls parse_command -> number
 R 121:46 calls parse_command -> Validation
 R 121:78 calls parse_command -> into
-R 137:22 calls parse_command -> ProductId (x-file: model.rs)
+R 137:22 calls parse_command -> ProductId (name-matched: model.rs)
 R 137:32 calls parse_command -> number
-R 138:19 calls parse_command -> LocationId (x-file: model.rs)
+R 138:19 calls parse_command -> LocationId (name-matched: model.rs)
 R 138:30 calls parse_command -> number
-R 139:17 calls parse_command -> LocationId (x-file: model.rs)
+R 139:17 calls parse_command -> LocationId (name-matched: model.rs)
 R 139:28 calls parse_command -> number
 R 140:23 calls parse_command -> number
 R 145:20 calls parse_command -> Err
 R 145:40 calls parse_command -> Validation
-R 162:10 calls default_categories -> with_child (x-file: model.rs)
-R 157:10 calls default_categories -> with_child (x-file: model.rs)
-R 156:15 calls default_categories -> leaf (x-file: model.rs)
-R 160:18 calls default_categories -> with_child (x-file: model.rs)
-R 159:18 calls default_categories -> with_child (x-file: model.rs)
-R 158:23 calls default_categories -> leaf (x-file: model.rs)
-R 159:39 calls default_categories -> leaf (x-file: model.rs)
-R 160:39 calls default_categories -> leaf (x-file: model.rs)
-R 162:45 calls default_categories -> with_child (x-file: model.rs)
-R 162:31 calls default_categories -> leaf (x-file: model.rs)
-R 162:66 calls default_categories -> leaf (x-file: model.rs)
-R 168:30 calls execute -> new (x-file: errors.rs)
+R 162:10 calls default_categories -> with_child (name-matched: model.rs)
+R 157:10 calls default_categories -> with_child (name-matched: model.rs)
+R 156:15 calls default_categories -> leaf (name-matched: model.rs)
+R 160:18 calls default_categories -> with_child (name-matched: model.rs)
+R 159:18 calls default_categories -> with_child (name-matched: model.rs)
+R 158:23 calls default_categories -> leaf (name-matched: model.rs)
+R 159:39 calls default_categories -> leaf (name-matched: model.rs)
+R 160:39 calls default_categories -> leaf (name-matched: model.rs)
+R 162:45 calls default_categories -> with_child (name-matched: model.rs)
+R 162:31 calls default_categories -> leaf (name-matched: model.rs)
+R 162:66 calls default_categories -> leaf (name-matched: model.rs)
+R 168:30 calls execute -> new (name-matched: errors.rs)
 R 169:40 calls execute -> exists
-R 169:33 calls execute -> path (x-file: storage.rs)
-R 170:20 calls execute -> load (x-file: service.rs)
-R 172:20 calls execute -> new (x-file: errors.rs)
-R 174:24 calls execute -> new (x-file: errors.rs)
+R 169:33 calls execute -> path (name-matched: storage.rs)
+R 170:20 calls execute -> load (name-matched: service.rs)
+R 172:20 calls execute -> new (name-matched: errors.rs)
+R 174:24 calls execute -> new (name-matched: errors.rs)
 R 174:45 calls execute -> default
-R 175:15 calls execute -> subscribe (x-file: service.rs)
+R 175:15 calls execute -> subscribe (name-matched: service.rs)
 R 175:33 calls execute -> clone
 R 178:33 calls execute -> Ok
 R 178:44 calls execute -> to_string
 R 178:36 calls execute -> usage
-R 180:33 calls execute -> add_product (x-file: service.rs)
-R 188:23 calls execute -> receive (x-file: service.rs)
-R 196:23 calls execute -> ship (x-file: service.rs)
-R 205:23 calls execute -> transfer (x-file: service.rs)
+R 180:33 calls execute -> add_product (name-matched: service.rs)
+R 188:23 calls execute -> receive (name-matched: service.rs)
+R 196:23 calls execute -> ship (name-matched: service.rs)
+R 205:23 calls execute -> transfer (name-matched: service.rs)
 R 213:30 calls execute -> default_categories
-R 219:35 calls execute -> ledger (x-file: service.rs)
-R 223:20 calls execute -> full_report (x-file: report.rs)
-R 228:9 calls execute -> audit (x-file: errors.rs)
-R 230:19 calls execute -> save (x-file: service.rs)
-R 232:37 calls execute -> reorder_suggestions (x-file: service.rs)
-R 233:9 calls execute -> audit (x-file: errors.rs)
+R 219:35 calls execute -> ledger (name-matched: service.rs)
+R 223:20 calls execute -> full_report (name-matched: report.rs)
+R 228:9 calls execute -> audit (name-matched: errors.rs)
+R 230:19 calls execute -> save (name-matched: service.rs)
+R 232:37 calls execute -> reorder_suggestions (name-matched: service.rs)
+R 233:9 calls execute -> audit (name-matched: errors.rs)
 R 238:5 calls execute -> Ok
 R 242:33 calls run -> split_options
-R 244:9 calls run -> audit (x-file: errors.rs)
+R 244:9 calls run -> audit (name-matched: errors.rs)
 R 246:19 calls run -> parse_command
 R 247:5 calls run -> execute
 R 251:49 calls main -> collect
@@ -296,10 +296,10 @@ R 251:41 calls main -> skip
 R 251:34 calls main -> args
 R 252:11 calls main -> run
 R 259:29 references main -> usage
-R 260:16 calls main -> error_count (x-file: errors.rs)
-R 263:23 calls main -> from (x-file: errors.rs)
+R 260:16 calls main -> error_count (name-matched: errors.rs)
+R 263:23 calls main -> from (name-matched: errors.rs)
 R 273:44 calls args -> collect
-R 273:21 calls args -> map (x-file: model.rs)
+R 273:21 calls args -> map (name-matched: model.rs)
 R 273:14 calls args -> iter
 R 273:31 calls args -> to_string
 R 276:5 references tests -> parses_add_with_box_unit
@@ -382,17 +382,17 @@ R 5:22 imports model -> Display
 R 5:31 imports model -> Formatter
 R 6:17 imports model -> Hash
 R 6:23 imports model -> Hasher
-R 8:21 imports model -> InventoryError (x-file: errors.rs)
-R 8:37 imports model -> Result (x-file: errors.rs)
+R 8:21 imports model -> InventoryError (name-matched: errors.rs)
+R 8:37 imports model -> Result (name-matched: errors.rs)
 R 45:28 calls Unit::to_pieces -> Some
 R 46:38 calls Unit::to_pieces -> checked_mul
-R 46:55 calls Unit::to_pieces -> from (x-file: errors.rs)
+R 46:55 calls Unit::to_pieces -> from (name-matched: errors.rs)
 R 61:1 implements model -> Display
 R 65:24 calls Unit::fmt -> write_str
 R 65:40 calls Unit::fmt -> symbol
 R 80:24 calls Category::leaf -> to_owned
 R 81:28 calls Category::leaf -> new
-R 86:23 calls Category::with_child -> push (x-file: errors.rs)
+R 86:23 calls Category::with_child -> push (name-matched: errors.rs)
 R 93:20 calls Category::find -> Some
 R 95:30 calls Category::find -> find_map
 R 95:23 calls Category::find -> iter
@@ -407,7 +407,7 @@ R 123:18 calls Product::new -> make_sku
 R 124:24 calls Product::new -> to_string
 R 127:24 calls Product::new -> new
 R 128:35 calls Product::new -> new
-R 133:19 calls Product::with_tag -> push (x-file: errors.rs)
+R 133:19 calls Product::with_tag -> push (name-matched: errors.rs)
 R 133:28 calls Product::with_tag -> into
 R 138:25 calls Product::set_attribute -> insert
 R 138:36 calls Product::set_attribute -> to_owned
@@ -419,7 +419,7 @@ R 151:1 implements model -> PartialEq
 R 157:1 implements model -> Eq
 R 159:1 implements model -> Hash
 R 161:17 calls Product::hash -> hash
-R 167:13 calls validate_name -> is_empty (x-file: errors.rs)
+R 167:13 calls validate_name -> is_empty (name-matched: errors.rs)
 R 168:16 calls validate_name -> Err
 R 168:36 calls validate_name -> Validation
 R 168:71 calls validate_name -> into
@@ -439,24 +439,24 @@ R 204:20 calls StockLevel::reserve -> Err
 R 207:33 calls StockLevel::reserve -> available
 R 211:9 calls StockLevel::reserve -> Ok
 R 215:39 calls StockLevel::release -> saturating_sub
-R 259:78 calls Movement::delta_at -> from (x-file: errors.rs)
-R 260:80 calls Movement::delta_at -> from (x-file: errors.rs)
-R 264:30 calls Movement::delta_at -> from (x-file: errors.rs)
+R 259:78 calls Movement::delta_at -> from (name-matched: errors.rs)
+R 260:80 calls Movement::delta_at -> from (name-matched: errors.rs)
+R 264:30 calls Movement::delta_at -> from (name-matched: errors.rs)
 R 303:1 implements model -> Identified
 R 315:1 implements model -> Identified
 R 339:9 calls Versioned<T>::update -> f
 R 345:20 calls Versioned<T>::map -> f
-R 375:18 calls Size::volume -> from (x-file: errors.rs)
-R 375:42 calls Size::volume -> from (x-file: errors.rs)
-R 375:67 calls Size::volume -> from (x-file: errors.rs)
+R 375:18 calls Size::volume -> from (name-matched: errors.rs)
+R 375:42 calls Size::volume -> from (name-matched: errors.rs)
+R 375:67 calls Size::volume -> from (name-matched: errors.rs)
 R 381:18 calls Size::fits_in -> sort_unstable
 R 382:20 calls Size::fits_in -> sort_unstable
-R 383:44 calls Size::fits_in -> all (x-file: storage.rs)
+R 383:44 calls Size::fits_in -> all (name-matched: storage.rs)
 R 383:25 calls Size::fits_in -> zip
 R 383:18 calls Size::fits_in -> iter
 R 383:36 calls Size::fits_in -> iter
 R 389:14 calls stacked_volume -> volume
-R 389:30 calls stacked_volume -> from (x-file: errors.rs)
+R 389:30 calls stacked_volume -> from (name-matched: errors.rs)
 R 397:5 references tests -> sku_is_zero_padded
 R 399:20 references sku_is_zero_padded -> make_sku
 R 402:5 references tests -> unicode_names_are_accepted
@@ -506,36 +506,36 @@ S 337-340 function truncates_with_ellipsis
 R 4:18 imports report -> Cow
 R 5:23 imports report -> BTreeMap
 R 6:24 imports report -> _
-R 8:21 imports report -> format_entry (x-file: errors.rs)
-R 8:35 imports report -> InventoryError (x-file: errors.rs)
-R 8:51 imports report -> Result (x-file: errors.rs)
-R 8:59 imports report -> Severity (x-file: errors.rs)
-R 8:69 imports report -> AUDIT (x-file: errors.rs)
-R 9:32 imports report -> Size (x-file: model.rs)
-R 9:38 imports report -> Category (x-file: model.rs)
-R 9:48 imports report -> Movement (x-file: model.rs)
-R 9:58 imports report -> Product (x-file: model.rs)
-R 9:67 imports report -> ProductId (x-file: model.rs)
-R 9:78 imports report -> StockLevel (x-file: model.rs)
-R 10:21 imports report -> Warehouse (x-file: service.rs)
+R 8:21 imports report -> format_entry (name-matched: errors.rs)
+R 8:35 imports report -> InventoryError (name-matched: errors.rs)
+R 8:51 imports report -> Result (name-matched: errors.rs)
+R 8:59 imports report -> Severity (name-matched: errors.rs)
+R 8:69 imports report -> AUDIT (name-matched: errors.rs)
+R 9:32 imports report -> Size (name-matched: model.rs)
+R 9:38 imports report -> Category (name-matched: model.rs)
+R 9:48 imports report -> Movement (name-matched: model.rs)
+R 9:58 imports report -> Product (name-matched: model.rs)
+R 9:67 imports report -> ProductId (name-matched: model.rs)
+R 9:78 imports report -> StockLevel (name-matched: model.rs)
+R 10:21 imports report -> Warehouse (name-matched: service.rs)
 R 30:28 calls Column::left -> to_string
 R 37:28 calls Column::right -> to_string
 R 54:24 calls Table::new -> new
 R 63:70 calls Table::row -> collect
-R 63:54 calls Table::row -> map (x-file: model.rs)
+R 63:54 calls Table::row -> map (name-matched: model.rs)
 R 63:42 calls Table::row -> into_iter
 R 64:13 calls Table::row -> resize
-R 64:33 calls Table::row -> len (x-file: errors.rs)
+R 64:33 calls Table::row -> len (name-matched: errors.rs)
 R 64:48 calls Table::row -> new
-R 65:19 calls Table::row -> push (x-file: errors.rs)
+R 65:19 calls Table::row -> push (name-matched: errors.rs)
 R 81:14 calls Table::widths -> collect
-R 73:14 calls Table::widths -> map (x-file: model.rs)
+R 73:14 calls Table::widths -> map (name-matched: model.rs)
 R 72:14 calls Table::widths -> enumerate
 R 71:14 calls Table::widths -> iter
 R 79:22 calls Table::widths -> unwrap_or
 R 78:22 calls Table::widths -> max
 R 77:22 calls Table::widths -> chain
-R 76:22 calls Table::widths -> map (x-file: model.rs)
+R 76:22 calls Table::widths -> map (name-matched: model.rs)
 R 75:22 calls Table::widths -> iter
 R 76:30 calls Table::widths -> display_width
 R 77:39 calls Table::widths -> once
@@ -543,22 +543,22 @@ R 77:44 calls Table::widths -> display_width
 R 86:27 calls Table::render -> widths
 R 87:31 calls Table::render -> new
 R 93:14 calls Table::render -> collect
-R 92:14 calls Table::render -> map (x-file: model.rs)
+R 92:14 calls Table::render -> map (name-matched: model.rs)
 R 91:14 calls Table::render -> zip
 R 90:14 calls Table::render -> iter
 R 92:27 calls Table::render -> pad
 R 95:71 calls Table::render -> collect
-R 95:47 calls Table::render -> map (x-file: model.rs)
+R 95:47 calls Table::render -> map (name-matched: model.rs)
 R 95:40 calls Table::render -> iter
 R 95:59 calls Table::render -> repeat
 R 102:18 calls Table::render -> collect
-R 101:18 calls Table::render -> map (x-file: model.rs)
+R 101:18 calls Table::render -> map (name-matched: model.rs)
 R 100:18 calls Table::render -> zip
 R 99:18 calls Table::render -> iter
 R 100:42 calls Table::render -> zip
 R 100:35 calls Table::render -> iter
 R 101:41 calls Table::render -> pad
-R 111:18 calls display_width -> count (x-file: model.rs)
+R 111:18 calls display_width -> count (name-matched: model.rs)
 R 111:10 calls display_width -> chars
 R 116:15 calls pad -> display_width
 R 118:21 calls pad -> to_string
@@ -575,7 +575,7 @@ R 148:36 calls Section::render -> display_width
 R 149:9 calls Section::render -> Ok
 R 159:1 implements report -> Section
 R 161:14 calls StockSection<'_>::title -> Borrowed
-R 165:38 calls StockSection<'_>::body -> catalog (x-file: service.rs)
+R 165:38 calls StockSection<'_>::body -> catalog (name-matched: service.rs)
 R 166:32 calls StockSection<'_>::body -> new
 R 172:32 calls StockSection<'_>::body -> values
 R 173:25 calls StockSection<'_>::body -> total_for
@@ -590,34 +590,34 @@ R 181:18 calls StockSection<'_>::body -> render
 R 186:24 calls total_for -> stock_by_location
 R 187:5 calls total_for -> Ok
 R 187:60 calls total_for -> sum
-R 187:30 calls total_for -> map (x-file: model.rs)
+R 187:30 calls total_for -> map (name-matched: model.rs)
 R 187:21 calls total_for -> values
-R 187:43 calls total_for -> from (x-file: errors.rs)
+R 187:43 calls total_for -> from (name-matched: errors.rs)
 R 194:18 calls stock_by_location -> replay_levels
-R 194:42 calls stock_by_location -> ledger (x-file: service.rs)
+R 194:42 calls stock_by_location -> ledger (name-matched: service.rs)
 R 195:5 calls stock_by_location -> Ok
 R 195:54 calls stock_by_location -> collect
-R 195:27 calls stock_by_location -> map (x-file: model.rs)
+R 195:27 calls stock_by_location -> map (name-matched: model.rs)
 R 195:15 calls stock_by_location -> into_iter
-R 200:23 imports replay_levels -> LocationId (x-file: model.rs)
+R 200:23 imports replay_levels -> LocationId (name-matched: model.rs)
 R 203:24 calls bump -> or_insert
 R 203:14 calls bump -> entry
 R 206:32 calls replay_levels -> new
 R 207:28 calls replay_levels -> filter
 R 207:21 calls replay_levels -> iter
-R 207:41 calls replay_levels -> product (x-file: model.rs)
+R 207:41 calls replay_levels -> product (name-matched: model.rs)
 R 209:45 calls replay_levels -> bump
-R 209:70 calls replay_levels -> delta_at (x-file: model.rs)
+R 209:70 calls replay_levels -> delta_at (name-matched: model.rs)
 R 210:44 calls replay_levels -> bump
-R 210:71 calls replay_levels -> delta_at (x-file: model.rs)
+R 210:71 calls replay_levels -> delta_at (name-matched: model.rs)
 R 212:17 calls replay_levels -> bump
-R 212:44 calls replay_levels -> delta_at (x-file: model.rs)
+R 212:44 calls replay_levels -> delta_at (name-matched: model.rs)
 R 213:17 calls replay_levels -> bump
-R 213:42 calls replay_levels -> delta_at (x-file: model.rs)
+R 213:42 calls replay_levels -> delta_at (name-matched: model.rs)
 R 215:44 calls replay_levels -> bump
-R 215:69 calls replay_levels -> delta_at (x-file: model.rs)
+R 215:69 calls replay_levels -> delta_at (name-matched: model.rs)
 R 226:10 calls replay_levels -> collect
-R 220:10 calls replay_levels -> map (x-file: model.rs)
+R 220:10 calls replay_levels -> map (name-matched: model.rs)
 R 219:10 calls replay_levels -> into_iter
 R 223:52 calls replay_levels -> unwrap_or
 R 223:27 calls replay_levels -> try_from
@@ -641,28 +641,28 @@ R 276:9 calls CategorySection<'_>::body -> walk
 R 278:9 calls CategorySection<'_>::body -> Ok
 R 285:1 implements report -> Section
 R 287:20 calls AuditSection::title -> into
-R 291:29 calls AuditSection::body -> filtered (x-file: errors.rs)
-R 292:20 calls AuditSection::body -> is_empty (x-file: errors.rs)
+R 291:29 calls AuditSection::body -> filtered (name-matched: errors.rs)
+R 292:20 calls AuditSection::body -> is_empty (name-matched: errors.rs)
 R 293:20 calls AuditSection::body -> Ok
 R 293:32 calls AuditSection::body -> to_string
 R 295:9 calls AuditSection::body -> Ok
 R 295:65 calls AuditSection::body -> join
 R 295:45 calls AuditSection::body -> collect
-R 295:27 calls AuditSection::body -> map (x-file: model.rs)
+R 295:27 calls AuditSection::body -> map (name-matched: model.rs)
 R 295:20 calls AuditSection::body -> iter
 R 301:26 calls full_report -> with_capacity
-R 301:49 calls full_report -> len (x-file: errors.rs)
-R 303:15 calls full_report -> push (x-file: errors.rs)
+R 301:49 calls full_report -> len (name-matched: errors.rs)
+R 303:15 calls full_report -> push (name-matched: errors.rs)
 R 303:28 calls full_report -> render
-R 305:14 calls full_report -> is_empty (x-file: errors.rs)
+R 305:14 calls full_report -> is_empty (name-matched: errors.rs)
 R 306:16 calls full_report -> Err
 R 306:36 calls full_report -> Validation
 R 306:62 calls full_report -> into
 R 308:5 calls full_report -> Ok
 R 308:14 calls full_report -> join
-R 313:42 calls shelf_usage -> stacked_volume (x-file: model.rs)
+R 313:42 calls shelf_usage -> stacked_volume (name-matched: model.rs)
 R 314:35 calls shelf_usage -> max
-R 314:26 calls shelf_usage -> volume (x-file: model.rs)
+R 314:26 calls shelf_usage -> volume (name-matched: model.rs)
 R 316:57 calls shelf_usage -> unwrap_or
 R 316:26 calls shelf_usage -> try_from
 R 316:43 calls shelf_usage -> min
@@ -715,43 +715,43 @@ R 4:33 imports service -> VecDeque
 R 5:18 imports service -> Future
 R 6:15 imports service -> Pin
 R 7:16 imports service -> Arc
-R 9:21 imports service -> audit (x-file: errors.rs)
+R 9:21 imports service -> audit (name-matched: errors.rs)
 R 9:28 imports service -> check_quantity
-R 9:44 imports service -> with_retry (x-file: errors.rs)
-R 9:56 imports service -> InventoryError (x-file: errors.rs)
-R 9:72 imports service -> Result (x-file: errors.rs)
-R 9:80 imports service -> Severity (x-file: errors.rs)
-R 11:5 imports service -> Catalog (x-file: model.rs)
-R 11:14 imports service -> Identified (x-file: model.rs)
-R 11:26 imports service -> LocationId (x-file: model.rs)
-R 11:38 imports service -> Movement (x-file: model.rs)
-R 11:48 imports service -> Product (x-file: model.rs)
-R 11:57 imports service -> ProductId (x-file: model.rs)
-R 11:68 imports service -> StockLevel (x-file: model.rs)
-R 11:80 imports service -> Unit (x-file: model.rs)
-R 13:22 imports service -> MemoryRepository (x-file: storage.rs)
-R 13:40 imports service -> Repository (x-file: storage.rs)
-R 13:52 imports service -> SnapshotFile (x-file: storage.rs)
-R 13:66 imports service -> StockTable (x-file: storage.rs)
+R 9:44 imports service -> with_retry (name-matched: errors.rs)
+R 9:56 imports service -> InventoryError (name-matched: errors.rs)
+R 9:72 imports service -> Result (name-matched: errors.rs)
+R 9:80 imports service -> Severity (name-matched: errors.rs)
+R 11:5 imports service -> Catalog (name-matched: model.rs)
+R 11:14 imports service -> Identified (name-matched: model.rs)
+R 11:26 imports service -> LocationId (name-matched: model.rs)
+R 11:38 imports service -> Movement (name-matched: model.rs)
+R 11:48 imports service -> Product (name-matched: model.rs)
+R 11:57 imports service -> ProductId (name-matched: model.rs)
+R 11:68 imports service -> StockLevel (name-matched: model.rs)
+R 11:80 imports service -> Unit (name-matched: model.rs)
+R 13:22 imports service -> MemoryRepository (name-matched: storage.rs)
+R 13:40 imports service -> Repository (name-matched: storage.rs)
+R 13:52 imports service -> SnapshotFile (name-matched: storage.rs)
+R 13:66 imports service -> StockTable (name-matched: storage.rs)
 R 43:1 implements service -> Default
 R 45:15 calls Warehouse::default -> new
 R 52:41 calls Warehouse::new -> new
 R 53:32 calls Warehouse::new -> new
 R 54:26 calls Warehouse::new -> new
 R 55:29 calls Warehouse::new -> new
-R 60:9 calls Warehouse::subscribe -> audit (x-file: errors.rs)
-R 64:24 calls Warehouse::subscribe -> push (x-file: errors.rs)
+R 60:9 calls Warehouse::subscribe -> audit (name-matched: errors.rs)
+R 64:24 calls Warehouse::subscribe -> push (name-matched: errors.rs)
 R 69:32 calls Warehouse::add_product -> new
-R 69:36 calls Warehouse::add_product -> ProductId (x-file: model.rs)
-R 70:27 calls Warehouse::add_product -> id (x-file: model.rs)
-R 71:23 calls Warehouse::add_product -> put (x-file: storage.rs)
+R 69:36 calls Warehouse::add_product -> ProductId (name-matched: model.rs)
+R 70:27 calls Warehouse::add_product -> id (name-matched: model.rs)
+R 71:23 calls Warehouse::add_product -> put (name-matched: storage.rs)
 R 72:9 calls Warehouse::add_product -> Ok
-R 76:23 calls Warehouse::product -> require (x-file: storage.rs)
+R 76:23 calls Warehouse::product -> require (name-matched: storage.rs)
 R 80:9 calls Warehouse::catalog -> Ok
 R 85:14 calls Warehouse::catalog -> collect
-R 84:14 calls Warehouse::catalog -> map (x-file: model.rs)
+R 84:14 calls Warehouse::catalog -> map (name-matched: model.rs)
 R 83:14 calls Warehouse::catalog -> into_iter
-R 82:14 calls Warehouse::catalog -> all (x-file: storage.rs)
+R 82:14 calls Warehouse::catalog -> all (name-matched: storage.rs)
 R 90:9 calls Warehouse::receive -> check_quantity
 R 91:14 calls Warehouse::receive -> product
 R 92:14 calls Warehouse::receive -> update_level
@@ -760,9 +760,9 @@ R 96:14 calls Warehouse::receive -> record
 R 101:9 calls Warehouse::receive -> Ok
 R 106:9 calls Warehouse::ship -> check_quantity
 R 107:14 calls Warehouse::ship -> update_level
-R 108:22 calls Warehouse::ship -> available (x-file: model.rs)
+R 108:22 calls Warehouse::ship -> available (name-matched: model.rs)
 R 109:24 calls Warehouse::ship -> Err
-R 112:38 calls Warehouse::ship -> available (x-file: model.rs)
+R 112:38 calls Warehouse::ship -> available (name-matched: model.rs)
 R 116:13 calls Warehouse::ship -> Ok
 R 118:14 calls Warehouse::ship -> record
 R 123:9 calls Warehouse::ship -> Ok
@@ -774,29 +774,29 @@ R 140:30 calls Warehouse::transfer -> receive
 R 142:18 calls Warehouse::transfer -> update_level
 R 144:17 calls Warehouse::transfer -> Ok
 R 146:20 calls Warehouse::transfer -> Err
-R 149:21 calls Warehouse::transfer -> truncate (x-file: report.rs)
-R 149:42 calls Warehouse::transfer -> len (x-file: errors.rs)
+R 149:21 calls Warehouse::transfer -> truncate (name-matched: report.rs)
+R 149:42 calls Warehouse::transfer -> len (name-matched: errors.rs)
 R 150:14 calls Warehouse::transfer -> record
 R 156:9 calls Warehouse::transfer -> Ok
 R 160:14 calls Warehouse::reserve -> update_level
 R 160:54 calls Warehouse::reserve -> reserve
-R 167:9 calls Warehouse::update_level -> with_retry (x-file: errors.rs)
-R 171:18 calls Warehouse::update_level -> map (x-file: model.rs)
-R 170:18 calls Warehouse::update_level -> level (x-file: storage.rs)
-R 174:18 calls Warehouse::update_level -> map (x-file: model.rs)
-R 173:18 calls Warehouse::update_level -> modify (x-file: storage.rs)
+R 167:9 calls Warehouse::update_level -> with_retry (name-matched: errors.rs)
+R 171:18 calls Warehouse::update_level -> map (name-matched: model.rs)
+R 170:18 calls Warehouse::update_level -> level (name-matched: storage.rs)
+R 174:18 calls Warehouse::update_level -> map (name-matched: model.rs)
+R 173:18 calls Warehouse::update_level -> modify (name-matched: storage.rs)
 R 173:61 calls Warehouse::update_level -> change
 R 180:22 calls Warehouse::record -> on_movement
-R 182:9 calls Warehouse::record -> audit (x-file: errors.rs)
-R 182:41 calls Warehouse::record -> describe (x-file: model.rs)
-R 183:21 calls Warehouse::record -> push (x-file: errors.rs)
+R 182:9 calls Warehouse::record -> audit (name-matched: errors.rs)
+R 182:41 calls Warehouse::record -> describe (name-matched: model.rs)
+R 183:21 calls Warehouse::record -> push (name-matched: errors.rs)
 R 193:28 calls Warehouse::reorder_suggestions -> new
-R 194:38 calls Warehouse::reorder_suggestions -> all (x-file: storage.rs)
-R 195:36 calls Warehouse::reorder_suggestions -> total_on_hand (x-file: storage.rs)
+R 194:38 calls Warehouse::reorder_suggestions -> all (name-matched: storage.rs)
+R 195:36 calls Warehouse::reorder_suggestions -> total_on_hand (name-matched: storage.rs)
 R 196:46 calls Warehouse::reorder_suggestions -> unwrap_or
 R 196:30 calls Warehouse::reorder_suggestions -> try_from
-R 197:24 calls Warehouse::reorder_suggestions -> needs_reorder (x-file: model.rs)
-R 198:21 calls Warehouse::reorder_suggestions -> push (x-file: errors.rs)
+R 197:24 calls Warehouse::reorder_suggestions -> needs_reorder (name-matched: model.rs)
+R 198:21 calls Warehouse::reorder_suggestions -> push (name-matched: errors.rs)
 R 198:73 calls Warehouse::reorder_suggestions -> min
 R 201:13 calls Warehouse::reorder_suggestions -> sort
 R 202:9 calls Warehouse::reorder_suggestions -> Ok
@@ -805,31 +805,31 @@ R 218:24 calls Warehouse::audit_ledger -> locations_of
 R 219:53 calls Warehouse::audit_ledger -> or_default
 R 219:27 calls Warehouse::audit_ledger -> entry
 R 219:36 calls Warehouse::audit_ledger -> product
-R 219:71 calls Warehouse::audit_ledger -> delta_at (x-file: model.rs)
+R 219:71 calls Warehouse::audit_ledger -> delta_at (name-matched: model.rs)
 R 222:35 calls Warehouse::audit_ledger -> new
-R 223:33 calls Warehouse::audit_ledger -> snapshot (x-file: storage.rs)
+R 223:33 calls Warehouse::audit_ledger -> snapshot (name-matched: storage.rs)
 R 227:18 calls Warehouse::audit_ledger -> unwrap_or
 R 226:18 calls Warehouse::audit_ledger -> copied
-R 225:18 calls Warehouse::audit_ledger -> get (x-file: storage.rs)
-R 228:29 calls Warehouse::audit_ledger -> from (x-file: errors.rs)
-R 229:28 calls Warehouse::audit_ledger -> push (x-file: errors.rs)
+R 225:18 calls Warehouse::audit_ledger -> get (name-matched: storage.rs)
+R 228:29 calls Warehouse::audit_ledger -> from (name-matched: errors.rs)
+R 229:28 calls Warehouse::audit_ledger -> push (name-matched: errors.rs)
 R 232:9 calls Warehouse::audit_ledger -> Ok
-R 236:38 calls Warehouse::save -> all (x-file: storage.rs)
+R 236:38 calls Warehouse::save -> all (name-matched: storage.rs)
 R 237:14 calls Warehouse::save -> save
-R 237:42 calls Warehouse::save -> snapshot (x-file: storage.rs)
+R 237:42 calls Warehouse::save -> snapshot (name-matched: storage.rs)
 R 241:38 calls Warehouse::load -> load
 R 242:40 calls Warehouse::load -> new
-R 243:28 calls Warehouse::load -> extend (x-file: storage.rs)
-R 247:18 calls Warehouse::load -> modify (x-file: storage.rs)
+R 243:28 calls Warehouse::load -> extend (name-matched: storage.rs)
+R 247:18 calls Warehouse::load -> modify (name-matched: storage.rs)
 R 248:34 calls Warehouse::load -> clone
 R 249:21 calls Warehouse::load -> Ok
 R 252:9 calls Warehouse::load -> Ok
 R 267:14 calls MovementCounter::count -> unwrap_or
-R 266:14 calls MovementCounter::count -> map (x-file: model.rs)
+R 266:14 calls MovementCounter::count -> map (name-matched: model.rs)
 R 265:14 calls MovementCounter::count -> lock
 R 266:47 calls MovementCounter::count -> unwrap_or
 R 266:38 calls MovementCounter::count -> copied
-R 266:24 calls MovementCounter::count -> get (x-file: storage.rs)
+R 266:24 calls MovementCounter::count -> get (name-matched: storage.rs)
 R 271:1 implements service -> MovementListener
 R 273:45 calls MovementCounter::on_movement -> lock
 R 274:47 calls MovementCounter::on_movement -> or_insert
@@ -845,13 +845,13 @@ R 314:9 calls Outbox<S>::flush_once -> Ok
 R 321:26 calls Outbox<S>::flush_all -> flush_once
 R 323:24 calls Outbox<S>::flush_all -> Ok
 R 335:36 calls replay -> new
-R 336:24 calls replay -> extend (x-file: storage.rs)
+R 336:24 calls replay -> extend (name-matched: storage.rs)
 R 343:28 calls replay -> receive
 R 348:28 calls replay -> ship
 R 354:28 calls replay -> transfer
 R 355:40 calls replay -> Ok
-R 358:13 calls replay -> audit (x-file: errors.rs)
-R 361:21 calls replay -> snapshot (x-file: storage.rs)
+R 358:13 calls replay -> audit (name-matched: errors.rs)
+R 361:21 calls replay -> snapshot (name-matched: storage.rs)
 
 == storage.rs (362 lines)
 S 1-362 module storage
@@ -905,25 +905,25 @@ R 7:17 imports storage -> Path
 R 7:23 imports storage -> PathBuf
 R 8:17 imports storage -> Arc
 R 8:22 imports storage -> RwLock
-R 10:21 imports storage -> audit (x-file: errors.rs)
-R 10:28 imports storage -> InventoryError (x-file: errors.rs)
-R 10:44 imports storage -> Result (x-file: errors.rs)
-R 10:52 imports storage -> Severity (x-file: errors.rs)
-R 12:5 imports storage -> make_sku (x-file: model.rs)
-R 12:15 imports storage -> Identified (x-file: model.rs)
-R 12:27 imports storage -> LocationId (x-file: model.rs)
-R 12:39 imports storage -> Product (x-file: model.rs)
-R 12:48 imports storage -> ProductId (x-file: model.rs)
-R 12:59 imports storage -> StockLevel (x-file: model.rs)
-R 12:71 imports storage -> StockRecord (x-file: model.rs)
-R 12:84 imports storage -> Unit (x-file: model.rs)
-R 13:5 imports storage -> Versioned (x-file: model.rs)
+R 10:21 imports storage -> audit (name-matched: errors.rs)
+R 10:28 imports storage -> InventoryError (name-matched: errors.rs)
+R 10:44 imports storage -> Result (name-matched: errors.rs)
+R 10:52 imports storage -> Severity (name-matched: errors.rs)
+R 12:5 imports storage -> make_sku (name-matched: model.rs)
+R 12:15 imports storage -> Identified (name-matched: model.rs)
+R 12:27 imports storage -> LocationId (name-matched: model.rs)
+R 12:39 imports storage -> Product (name-matched: model.rs)
+R 12:48 imports storage -> ProductId (name-matched: model.rs)
+R 12:59 imports storage -> StockLevel (name-matched: model.rs)
+R 12:71 imports storage -> StockRecord (name-matched: model.rs)
+R 12:84 imports storage -> Unit (name-matched: model.rs)
+R 13:5 imports storage -> Versioned (name-matched: model.rs)
 R 29:14 calls Repository::require -> ok_or_else
 R 28:14 calls Repository::require -> get
 R 29:44 calls Repository::require -> UnknownProduct
 R 29:62 calls Repository::require -> into
 R 33:9 calls Repository::count -> Ok
-R 33:24 calls Repository::count -> len (x-file: errors.rs)
+R 33:24 calls Repository::count -> len (name-matched: errors.rs)
 R 33:17 calls Repository::count -> all
 R 37:1 implements storage -> From<ProductId>
 R 50:1 implements storage -> Default
@@ -936,7 +936,7 @@ R 84:9 calls MemoryRepository<T>::get -> Ok
 R 84:32 calls MemoryRepository<T>::get -> cloned
 R 84:23 calls MemoryRepository<T>::get -> get
 R 89:20 calls MemoryRepository<T>::put -> insert
-R 89:33 calls MemoryRepository<T>::put -> id (x-file: model.rs)
+R 89:33 calls MemoryRepository<T>::put -> id (name-matched: model.rs)
 R 90:9 calls MemoryRepository<T>::put -> Ok
 R 95:9 calls MemoryRepository<T>::remove -> Ok
 R 95:23 calls MemoryRepository<T>::remove -> remove
@@ -961,12 +961,12 @@ R 148:27 calls StockTable::modify -> entry
 R 149:24 calls StockTable::modify -> new
 R 158:24 calls StockTable::modify -> Err
 R 164:27 calls StockTable::modify -> Ok
-R 165:16 calls StockTable::modify -> update (x-file: model.rs)
+R 165:16 calls StockTable::modify -> update (name-matched: model.rs)
 R 165:41 calls StockTable::modify -> change
-R 166:17 calls StockTable::modify -> map (x-file: model.rs)
+R 166:17 calls StockTable::modify -> map (name-matched: model.rs)
 R 171:25 calls StockTable::for_product -> read_rows
 R 176:14 calls StockTable::for_product -> collect
-R 175:14 calls StockTable::for_product -> map (x-file: model.rs)
+R 175:14 calls StockTable::for_product -> map (name-matched: model.rs)
 R 174:14 calls StockTable::for_product -> filter
 R 173:14 calls StockTable::for_product -> values
 R 175:30 calls StockTable::for_product -> clone
@@ -974,13 +974,13 @@ R 177:16 calls StockTable::for_product -> sort_by_key
 R 178:9 calls StockTable::for_product -> Ok
 R 182:9 calls StockTable::total_on_hand -> Ok
 R 186:14 calls StockTable::total_on_hand -> sum
-R 185:14 calls StockTable::total_on_hand -> map (x-file: model.rs)
+R 185:14 calls StockTable::total_on_hand -> map (name-matched: model.rs)
 R 184:14 calls StockTable::total_on_hand -> iter
 R 183:14 calls StockTable::total_on_hand -> for_product
 R 185:27 calls StockTable::total_on_hand -> from
 R 190:25 calls StockTable::snapshot -> read_rows
 R 191:70 calls StockTable::snapshot -> collect
-R 191:45 calls StockTable::snapshot -> map (x-file: model.rs)
+R 191:45 calls StockTable::snapshot -> map (name-matched: model.rs)
 R 191:36 calls StockTable::snapshot -> values
 R 191:61 calls StockTable::snapshot -> clone
 R 192:13 calls StockTable::snapshot -> sort_by_key
@@ -990,7 +990,7 @@ R 205:24 calls SnapshotFile::new -> as_ref
 R 215:30 calls SnapshotFile::save -> create
 R 221:17 references SnapshotFile::save -> encode_unit
 R 222:17 references SnapshotFile::save -> escape
-R 232:9 calls SnapshotFile::save -> audit (x-file: errors.rs)
+R 232:9 calls SnapshotFile::save -> audit (name-matched: errors.rs)
 R 236:9 calls SnapshotFile::save -> Ok
 R 242:33 calls SnapshotFile::load -> new
 R 242:43 calls SnapshotFile::load -> open
@@ -1001,24 +1001,24 @@ R 245:37 calls SnapshotFile::load -> lines
 R 247:54 calls SnapshotFile::load -> collect
 R 247:42 calls SnapshotFile::load -> split
 R 248:26 calls SnapshotFile::load -> as_slice
-R 250:30 calls SnapshotFile::load -> ProductId (x-file: model.rs)
+R 250:30 calls SnapshotFile::load -> ProductId (name-matched: model.rs)
 R 250:43 calls SnapshotFile::load -> parse
 R 251:48 calls SnapshotFile::load -> new
 R 251:57 calls SnapshotFile::load -> unescape
 R 251:73 calls SnapshotFile::load -> decode_unit
-R 252:35 calls SnapshotFile::load -> make_sku (x-file: model.rs)
-R 253:30 calls SnapshotFile::load -> push (x-file: errors.rs)
-R 255:70 calls SnapshotFile::load -> push (x-file: errors.rs)
-R 256:30 calls SnapshotFile::load -> ProductId (x-file: model.rs)
+R 252:35 calls SnapshotFile::load -> make_sku (name-matched: model.rs)
+R 253:30 calls SnapshotFile::load -> push (name-matched: errors.rs)
+R 255:70 calls SnapshotFile::load -> push (name-matched: errors.rs)
+R 256:30 calls SnapshotFile::load -> ProductId (name-matched: model.rs)
 R 256:48 calls SnapshotFile::load -> parse
-R 257:31 calls SnapshotFile::load -> LocationId (x-file: model.rs)
+R 257:31 calls SnapshotFile::load -> LocationId (name-matched: model.rs)
 R 257:51 calls SnapshotFile::load -> parse
 R 258:38 calls SnapshotFile::load -> parse
 R 259:40 calls SnapshotFile::load -> parse
-R 262:26 calls SnapshotFile::load -> audit (x-file: errors.rs)
+R 262:26 calls SnapshotFile::load -> audit (name-matched: errors.rs)
 R 268:9 calls SnapshotFile::load -> Ok
 R 275:33 calls encode_unit -> to_string
-R 275:24 calls encode_unit -> symbol (x-file: model.rs)
+R 275:24 calls encode_unit -> symbol (name-matched: model.rs)
 R 280:5 calls decode_unit -> Ok
 R 284:25 calls decode_unit -> strip_prefix
 R 285:30 calls decode_unit -> Box
@@ -1029,18 +1029,18 @@ R 296:10 calls escape -> replace
 R 295:10 calls escape -> replace
 R 294:10 calls escape -> replace
 R 300:27 calls unescape -> with_capacity
-R 300:46 calls unescape -> len (x-file: errors.rs)
+R 300:46 calls unescape -> len (name-matched: errors.rs)
 R 301:26 calls unescape -> chars
 R 302:31 calls unescape -> next
-R 304:17 calls unescape -> push (x-file: errors.rs)
+R 304:17 calls unescape -> push (name-matched: errors.rs)
 R 307:21 calls unescape -> next
-R 308:30 calls unescape -> push (x-file: errors.rs)
-R 309:30 calls unescape -> push (x-file: errors.rs)
-R 310:32 calls unescape -> push (x-file: errors.rs)
-R 311:25 calls unescape -> push (x-file: errors.rs)
+R 308:30 calls unescape -> push (name-matched: errors.rs)
+R 309:30 calls unescape -> push (name-matched: errors.rs)
+R 310:32 calls unescape -> push (name-matched: errors.rs)
+R 311:25 calls unescape -> push (name-matched: errors.rs)
 R 322:73 calls product -> unwrap
 R 322:18 calls product -> new
-R 322:22 calls product -> ProductId (x-file: model.rs)
+R 322:22 calls product -> ProductId (name-matched: model.rs)
 R 325:5 references tests -> memory_repository_round_trip
 R 327:42 calls memory_repository_round_trip -> new
 R 328:47 calls memory_repository_round_trip -> unwrap
@@ -1051,13 +1051,13 @@ R 335:5 references tests -> stale_version_is_a_conflict
 R 337:33 calls stale_version_is_a_conflict -> new
 R 343:14 calls stale_version_is_a_conflict -> unwrap
 R 339:14 calls stale_version_is_a_conflict -> modify
-R 339:21 calls stale_version_is_a_conflict -> ProductId (x-file: model.rs)
-R 339:35 calls stale_version_is_a_conflict -> LocationId (x-file: model.rs)
+R 339:21 calls stale_version_is_a_conflict -> ProductId (name-matched: model.rs)
+R 339:35 calls stale_version_is_a_conflict -> LocationId (name-matched: model.rs)
 R 341:17 calls stale_version_is_a_conflict -> Ok
 R 346:14 calls stale_version_is_a_conflict -> unwrap_err
 R 345:14 calls stale_version_is_a_conflict -> modify
-R 345:21 calls stale_version_is_a_conflict -> ProductId (x-file: model.rs)
-R 345:35 calls stale_version_is_a_conflict -> LocationId (x-file: model.rs)
+R 345:21 calls stale_version_is_a_conflict -> ProductId (name-matched: model.rs)
+R 345:35 calls stale_version_is_a_conflict -> LocationId (name-matched: model.rs)
 R 345:50 calls stale_version_is_a_conflict -> Some
 R 345:67 calls stale_version_is_a_conflict -> Ok
 R 350:5 references tests -> escape_round_trips

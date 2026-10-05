@@ -225,7 +225,7 @@ fn cross_file_imports_and_calls_are_extracted() {
     c.relation("Reports.php", "overdue", Calls, "money_format_cents");
     c.relation("console.php", "bootstrap", Calls, "wire_services");
     c.relation("console.php", "seed", Calls, "parse");
-    assert!(c.cross_file_relation_count() >= 250);
+    assert!(c.name_matched_relation_count() >= 250);
 }
 
 #[test]
