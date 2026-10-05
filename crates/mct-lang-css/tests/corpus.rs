@@ -1,12 +1,15 @@
 //! Long, multi-file fixture corpus (issue #74): the Harbor UI kit — design
 //! tokens, a base layer, the page layout, two component files and the
-//! dashboard's `app.css` that `@import`s them all — each 300–600 lines. The
+//! dashboard's `app.css` that `@import`s them all — each 300–700 lines. The
 //! shared checks (size, line ranges, golden snapshot, index round trip,
 //! malformed input) come from `mct-corpus`; the tests below pin the
 //! constructs and relations this language is expected to extract.
 //!
-//! `frameworks/` (issue #114) adds Tailwind v3 and v4 stylesheets (separate
-//! files: their directives differ) and Bootstrap 5.3-shaped compiled CSS.
+//! Issue #114 adds one directory per framework scenario, each the app's own
+//! CSS with the framework kept as a versioned external dependency:
+//! `bootstrap-shop/` (Bootstrap 5.3.8), `tailwind-v3-app/` (the v3.4 input
+//! file) and `tailwind-v4-app/` (v4.1 CSS-first configuration). Each
+//! scenario's header comment says what the parser is expected to extract.
 
 // Test code: an unwrap()/expect() here means a broken test precondition, and
 // panicking is the correct behavior — this is not production code parsing
@@ -212,13 +215,64 @@ fn every_import_form_is_an_import_of_the_path_as_written() {
     // `@namespace svg url(…)` is not an import.
     assert!(!c.has_relation("app", RelationKind::Imports, "http://www.w3.org/2000/svg"));
     // Imports are the only relation CSS produces: 12 in the Harbor kit,
-    // 3 in `frameworks/` (Tailwind's `@import "tailwindcss"` and two of
-    // `../styles/tokens.css`).
+    // 4 in `bootstrap-shop/` and Tailwind v4's `@import "tailwindcss"`.
     assert!(c
         .relations()
         .iter()
         .all(|r| r.kind == RelationKind::Imports));
-    assert_eq!(c.relations().len(), 15);
+    assert_eq!(c.relations().len(), 17);
+}
+
+#[test]
+fn bootstrap_shop_customizes_a_versioned_external_bootstrap() {
+    let c = corpus();
+    // Bootstrap is imported from its versioned CDN build, as written; the
+    // shop's partials follow.
+    for (line, target) in [
+        (
+            19,
+            "https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css",
+        ),
+        (20, "theme.css"),
+        (21, "catalog.css"),
+        (22, "checkout.css"),
+    ] {
+        let r = c.relation(
+            "bootstrap-shop/shop.css",
+            "shop",
+            RelationKind::Imports,
+            target,
+        );
+        assert_eq!(r.line, line, "{target}");
+    }
+    // No Bootstrap rule is in the corpus: `.btn` and `.card` only appear
+    // as atoms of the shop's own selectors.
+    assert!(rules("bootstrap-shop/catalog.css", ".btn")
+        .iter()
+        .all(|(a, b)| a == b));
+    assert_eq!(rules("bootstrap-shop/catalog.css", ".card"), [(104, 104)]);
+    // A button variant built from `--bs-btn-*` variables, and its size
+    // modifier as a compound selector.
+    assert_eq!(
+        rules("bootstrap-shop/catalog.css", ".btn-brand"),
+        [(11, 23), (25, 25), (179, 179)]
+    );
+    assert_eq!(
+        rules("bootstrap-shop/catalog.css", ".btn-brand.btn-lg"),
+        [(25, 28)]
+    );
+    // The custom color mode spans its nested component overrides, which
+    // are rules of their own.
+    let theme = "bootstrap-shop/theme.css";
+    assert_eq!(rules(theme, "[data-bs-theme=\"harbor-night\"]"), [(40, 60)]);
+    assert_eq!(rules(theme, ".dropdown-menu"), [(51, 54)]);
+    assert_eq!(rules(theme, ".btn-brand"), [(56, 59)]);
+    assert_eq!(rules(theme, ":root"), [(10, 29)]);
+    // An id selector with a descendant: the rule and its `#id` atom.
+    assert_eq!(
+        rules("bootstrap-shop/catalog.css", "#quick-view .modal-content"),
+        [(187, 190)]
+    );
 }
 
 /// Fails if any of `names` is a symbol of the file ending in `path`.
@@ -234,55 +288,50 @@ fn assert_no_symbols(path: &str, names: &[&str]) {
 }
 
 #[test]
-fn tailwind_v3_directives_layers_and_escaped_utilities() {
-    let path = "frameworks/tailwind-v3.css";
-    corpus().relation(
-        path,
-        "tailwind-v3",
-        RelationKind::Imports,
-        "../styles/tokens.css",
-    );
+fn tailwind_v3_input_layers_apply_and_escaped_overrides() {
+    let path = "tailwind-v3-app/src/input.css";
+    // The input file imports nothing: `@tailwind` is not `@import`.
+    assert!(corpus().relations().iter().all(|r| r.path != path));
     // Rules inside `@layer components { … }` keep their block, `@apply`
-    // lines included; `@screen md`/`@screen lg` wrap rules like `@media`.
-    assert_eq!(rules(path, ".btn-primary"), [(50, 53)]);
-    assert_eq!(rules(path, ".tw-sidebar"), [(106, 108), (112, 114)]);
-    // `@tailwind`, `@apply` arguments and `theme()` paths are not rules.
+    // lines included.
+    assert_eq!(rules(path, ".btn-primary"), [(54, 57), (143, 146)]);
+    assert_eq!(rules(path, ".ledger-card"), [(63, 66), (68, 68)]);
+    assert_eq!(
+        rules(path, ".ledger-sidebar"),
+        [(118, 120), (124, 126), (142, 146)]
+    );
+    // `@tailwind`, `@layer` names, `@apply` arguments and `theme()` paths
+    // are not rules.
     assert_no_symbols(
         path,
         &[
             "base",
             "components",
             "utilities",
-            "variants",
-            "md",
-            "tw-spin",
+            "text-2xl",
+            "colors.slate.900",
         ],
     );
-    // Escaped utilities (variants, fractions, arbitrary values, the `!`
-    // modifier, arbitrary properties) are indexed as the HTML class reads.
-    assert_eq!(rules(path, ".md:flex"), [(282, 284)]);
-    assert_eq!(rules(path, ".w-1/2"), [(149, 151)]);
-    assert_eq!(rules(path, ".!mt-0"), [(161, 163)]);
-    assert_eq!(rules(path, ".w-[32rem]"), [(165, 167)]);
-    assert_eq!(rules(path, ".bg-[#1da1f2]"), [(169, 172)]);
-    assert_eq!(rules(path, ".[mask-type:luminance]"), [(178, 180)]);
-    assert_eq!(rules(path, ".lg:grid-cols-[1fr_2fr]"), [(296, 298)]);
-    assert_eq!(rules(path, ".max-md:hidden"), [(307, 309)]);
-    assert_eq!(rules(path, ".supports-[display:grid]:grid"), [(331, 333)]);
-    // Variant atoms in compound and combinator selectors.
-    assert!(rules(path, ".data-[state=open]:block").contains(&(251, 251)));
-    assert!(rules(path, ".group-hover/item:visible").contains(&(233, 233)));
-    assert!(rules(path, ".peer-checked:bg-sky-600").contains(&(237, 237)));
-    assert!(rules(path, ".dark:bg-slate-900").contains(&(261, 261)));
+    // Escaped utility names are indexed as the HTML class reads.
+    assert_eq!(rules(path, ".md:flex"), [(134, 136)]);
+}
+
+#[test]
+fn tailwind_v3_hex_escaped_class_is_indexed_as_the_html_class() {
+    let path = "tailwind-v3-app/src/input.css";
+    // `.\33xl\:grid-cols-6` is the class `3xl:grid-cols-6` (CSS Syntax 3
+    // §4.3.7: `\33` is the code point U+0033, `3`).
+    assert_eq!(rules(path, ".3xl:grid-cols-6"), [(138, 140)]);
+    assert!(rules(path, ".33xl:grid-cols-6").is_empty());
 }
 
 #[test]
 fn tailwind_v4_theme_utilities_variants_and_nesting() {
-    let path = "frameworks/tailwind-v4.css";
-    let r = corpus().relation(path, "tailwind-v4", RelationKind::Imports, "tailwindcss");
-    assert_eq!(r.line, 20);
-    // `@theme` (tokens and the keyframes inside it) and `@layer` lists
-    // produce no rules.
+    let path = "tailwind-v4-app/src/main.css";
+    let r = corpus().relation(path, "main", RelationKind::Imports, "tailwindcss");
+    assert_eq!(r.line, 25);
+    // `@theme` (tokens and the keyframes inside it), `@layer` lists and
+    // `@custom-variant` names produce no rules.
     assert_no_symbols(
         path,
         &[
@@ -292,6 +341,8 @@ fn tailwind_v4_theme_utilities_variants_and_nesting() {
             "fade-in",
             "--font-display",
             "0%",
+            "theme-midnight",
+            "--hero-angle",
         ],
     );
     // Known limit: `@utility name { … }` declares a class the HTML can
@@ -306,58 +357,16 @@ fn tailwind_v4_theme_utilities_variants_and_nesting() {
             ".scrollbar-hidden",
         ],
     );
-    assert_eq!(rules(path, "&::-webkit-scrollbar"), [(118, 120)]);
-    // Block-form `@custom-variant` with `@slot`.
-    assert_eq!(
-        rules(path, "&:where([data-theme=\"midnight\"] *)"),
-        [(84, 86), (307, 309)]
-    );
+    assert_eq!(rules(path, "&::-webkit-scrollbar"), [(121, 123)]);
     // A rule spans its nested rules and `@variant` blocks…
-    assert_eq!(rules(path, ".hb-card"), [(156, 173)]);
+    assert_eq!(rules(path, ".hb-card"), [(166, 183)]);
+    assert_eq!(rules(path, ".hero"), [(256, 268)]);
+    assert_eq!(rules(path, ".pricing-table"), [(275, 287)]);
     // …and, known limit, each nested rule is a separate rule named with
     // its literal `&` selector, not resolved against the parent (#115).
-    assert!(rules(path, "&:hover").contains(&(160, 162)));
-    assert_eq!(rules(path, "& > .hb-card__title"), [(164, 167)]);
-    assert_eq!(rules(path, ".hb-card__title"), [(164, 164)]);
-    assert_eq!(rules(path, ".@container"), [(318, 320)]);
-    assert_eq!(rules(path, ".@md:flex-row"), [(325, 327)]);
-    assert_eq!(rules(path, ".bg-harbor-500/50"), [(268, 270)]);
-    // `\33xl\:…` is the class `3xl:grid-cols-6` (hex escape `\33` + space).
-    assert_eq!(rules(path, ".3xl:grid-cols-6"), [(288, 290)]);
-    assert!(rules(path, ".33xl:grid-cols-6").is_empty());
-}
-
-#[test]
-fn bootstrap_color_modes_grid_and_state_selectors() {
-    let path = "frameworks/bootstrap.css";
-    // `:root, [data-bs-theme=light]` share one block of `--bs-*` tokens.
-    assert_eq!(rules(path, ":root"), [(13, 39), (69, 71)]);
-    assert_eq!(rules(path, "[data-bs-theme=light]"), [(14, 39)]);
-    // The dark color mode: its own block, and as an ancestor atom.
-    assert_eq!(rules(path, "[data-bs-theme=dark]"), [(41, 48), (240, 240)]);
-    assert_eq!(
-        rules(path, "[data-bs-theme=dark] .alert-primary"),
-        [(240, 243)]
-    );
-    // Grid rules inside `@media (min-width: …)`.
-    assert_eq!(rules(path, ".col-md-6"), [(109, 112)]);
-    assert_eq!(
-        rules(path, ".container"),
-        [(88, 96), (99, 101), (105, 107), (125, 127)]
-    );
-    // State selectors with sibling combinators and chained `:not()`.
-    assert_eq!(rules(path, ".btn-check:checked + .btn"), [(192, 198)]);
-    assert!(rules(path, ".btn").contains(&(192, 192)));
-    assert_eq!(
-        rules(
-            path,
-            ".visually-hidden-focusable:not(:focus):not(:focus-within)"
-        ),
-        [(307, 314)]
-    );
-    assert_no_symbols(path, &["progress-bar-stripes", "0%"]);
-    // A compiled bundle has no imports.
-    assert!(corpus().relations().iter().all(|r| r.path != path));
+    assert!(rules(path, "&:hover").contains(&(170, 172)));
+    assert_eq!(rules(path, "& > .hb-card__title"), [(174, 177)]);
+    assert_eq!(rules(path, ".hb-card__title"), [(174, 174)]);
 }
 
 #[test]
@@ -375,7 +384,8 @@ fn index_finds_a_class_in_every_file_that_styles_it() {
         files,
         [
             "app.css",
-            "frameworks/bootstrap.css",
+            "bootstrap-shop/catalog.css",
+            "bootstrap-shop/checkout.css",
             "styles/components/controls.css",
             "styles/components/surfaces.css",
         ]
