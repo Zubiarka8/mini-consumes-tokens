@@ -155,6 +155,28 @@ fn style_and_script_elements_with_an_id_are_symbols() {
 }
 
 #[test]
+fn an_element_spans_its_descendants_relations() {
+    // Each element spans through its closing tag, so a relation attributed
+    // to it — a `<script src>` deep inside `<body id="…">` included — lies
+    // inside its range.
+    for f in &corpus().files {
+        for r in &f.parsed.relations {
+            let owner = f.parsed.symbols.iter().find(|s| s.id == r.from).unwrap();
+            let end = owner.location.end_line.unwrap();
+            assert!(
+                (owner.location.line..=end).contains(&r.location.line),
+                "{}:{} {} outside {} {}-{end}",
+                f.path,
+                r.location.line,
+                r.to_name,
+                owner.name,
+                owner.location.line
+            );
+        }
+    }
+}
+
+#[test]
 fn index_answers_selector_and_asset_queries() {
     let index = corpus().index();
     let refs = index.find_references("#site-header").unwrap();
