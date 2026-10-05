@@ -45,14 +45,23 @@ fn class_members_attach_to_their_class() {
     assert_eq!(parent("money.ts", "plus", Method), Some("Money"));
     assert_eq!(parent("money.ts", "ofMinor", Method), Some("Money"));
     // `#private` members keep their `#`.
-    assert_eq!(parent("money.ts", "#requireSameCurrency", Method), Some("Money"));
+    assert_eq!(
+        parent("money.ts", "#requireSameCurrency", Method),
+        Some("Money")
+    );
     assert_eq!(parent("money.ts", "#minor", Field), Some("Money"));
     assert_eq!(parent("order.ts", "#record", Method), Some("Order"));
     // Getters are methods.
     assert_eq!(parent("money.ts", "isZero", Method), Some("Money"));
     // Async and async-generator methods.
-    assert_eq!(parent("client.ts", "placeOrder", Method), Some("WarehouseClient"));
-    assert_eq!(parent("client.ts", "orders", Method), Some("WarehouseClient"));
+    assert_eq!(
+        parent("client.ts", "placeOrder", Method),
+        Some("WarehouseClient")
+    );
+    assert_eq!(
+        parent("client.ts", "orders", Method),
+        Some("WarehouseClient")
+    );
     assert_eq!(parent("inventory.ts", "#store", Method), Some("StockCache"));
     assert_eq!(parent("order.ts", "trackingNumber", Field), Some("Order"));
 }
@@ -88,7 +97,12 @@ fn exports_by_name_are_references() {
     let c = corpus();
     c.relation("order.ts", "order", References, "Order");
     c.relation("client.ts", "client", References, "asOrderId");
-    c.relation("OrderTable.tsx", "OrderTable", References, "validatePlaceOrder");
+    c.relation(
+        "OrderTable.tsx",
+        "OrderTable",
+        References,
+        "validatePlaceOrder",
+    );
 }
 
 #[test]
@@ -113,7 +127,12 @@ fn cross_file_calls_are_extracted() {
     c.relation("client.ts", "order", Calls, "fromJSON");
     c.relation("inventory.ts", "postCounts", Calls, "invalidate");
     c.relation("OrderTable.tsx", "applyFilters", Calls, "isLarge");
-    c.relation("OrderTable.tsx", "createOrderTable", Calls, "httpStockSource");
+    c.relation(
+        "OrderTable.tsx",
+        "createOrderTable",
+        Calls,
+        "httpStockSource",
+    );
     assert!(c.cross_file_relation_count() >= 60);
 }
 
@@ -127,14 +146,21 @@ fn documented_limits_of_the_parser() {
     // Functions inside a namespace are top-level functions.
     assert_eq!(parent("money.ts", "fromCents", Function), None);
     // Interface members are not symbols.
-    assert!(c.symbols_named("compareTo").iter().all(|(_, s)| s.parent.as_deref() == Some("Money")));
+    assert!(c
+        .symbols_named("compareTo")
+        .iter()
+        .all(|(_, s)| s.parent.as_deref() == Some("Money")));
     // Object-literal methods are methods without a parent…
     let levels: Vec<_> = c
         .symbols_named("levels")
         .into_iter()
         .map(|(_, s)| s.parent.as_deref())
         .collect();
-    assert_eq!(levels, [Some("StockCache"), None], "the second is `{{ async levels(sku) }}`");
+    assert_eq!(
+        levels,
+        [Some("StockCache"), None],
+        "the second is `{{ async levels(sku) }}`"
+    );
     assert_eq!(parent("seed.cjs", "sent", Method), None);
     // …and nested functions are parentless functions.
     assert_eq!(parent("order.ts", "waitedMinutes", Function), None);
@@ -152,5 +178,7 @@ fn index_answers_cross_file_queries() {
     files.dedup();
     assert_eq!(files, ["src/api/client.ts", "src/order.ts"]);
     let refs = index.find_references("WarehouseClient").unwrap();
-    assert!(refs.iter().any(|r| r.relative_path == "src/ui/OrderTable.tsx"));
+    assert!(refs
+        .iter()
+        .any(|r| r.relative_path == "src/ui/OrderTable.tsx"));
 }
