@@ -146,8 +146,9 @@ fn values_that_are_not_handler_names_are_not_references() {
 #[test]
 fn handlers_outside_the_known_event_list_are_the_documented_limit() {
     let c = corpus();
-    // Not in the parser's event list: command bindings, DataGrid sorting and
-    // editing, double clicks, date pickers…
+    // Known limit (module doc, `EVENT_ATTRIBUTE_NAMES`): not in the parser's
+    // event list are command bindings, DataGrid sorting and editing, double
+    // clicks, date pickers…
     for (from, to) in [
         ("ShellWindow", "NewOrder_Executed"),
         ("ShellWindow", "NewOrder_CanExecute"),
