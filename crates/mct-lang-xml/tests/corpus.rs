@@ -151,9 +151,9 @@ fn same_name_in_several_files_stays_one_symbol_per_file() {
 
 #[test]
 fn references_between_files_are_the_documented_limit() {
-    // `ref="clock"`, `<import resource>`, `sourceRef`/`targetRef` and
-    // `categoryRef` all point at elements of other files, but XML emits no
-    // relation of any kind.
+    // Known limit (module doc): `ref="clock"`, `<import resource>`,
+    // `sourceRef`/`targetRef` and `categoryRef` all point at elements of
+    // other files, but XML emits no relation of any kind.
     let c = corpus();
     assert!(c.relations().is_empty());
     assert_eq!(c.cross_file_relation_count(), 0);
