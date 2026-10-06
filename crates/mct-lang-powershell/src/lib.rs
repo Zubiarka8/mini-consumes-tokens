@@ -20,12 +20,14 @@
 //!   external cmdlet/executable alike — same "unresolved external name"
 //!   precedent every other language plugin in this workspace follows.
 //! - Dot-sourcing (`. .\lib.ps1`) and `Import-Module <name>` become
-//!   `Imports` when the target is a literal argument.
+//!   `Imports` when the target is a literal argument. A computed target
+//!   (`Import-Module (Join-Path $PSScriptRoot 'X.psm1')`,
+//!   `. "$PSScriptRoot/lib.ps1"`) is not evaluated and records no import.
 //! - Only *top-level* `$var = ...` assignments become `Variable` symbols —
 //!   one assigned inside a function body is almost always local scratch
 //!   state and would just add noise. A variable's scope prefix
 //!   (`$script:x`, `$global:x`, ...) is stripped from the recorded name.
-//! - PowerShell classes (`class Foo { ... }`) and their methods are **not**
+//! - PowerShell classes (`class Foo { ... }`), their methods and `enum`s are **not**
 //!   indexed — out of scope for what this plugin was asked to cover
 //!   (systems-scripting `.ps1`/`.psm1` files), and classes are rare in that
 //!   style of script. Only `function`-style definitions are.
@@ -287,11 +289,10 @@ impl<'a> Walker<'a> {
                     location(node),
                     Some(scope_name.to_string()),
                 );
-                if let Some(body_stmts) = find_child(node, "script_block")
-                    .and_then(|sb| sb.child_by_field_name("script_block_body"))
-                    .and_then(|body| body.child_by_field_name("statement_list"))
-                {
-                    self.visit_children(body_stmts, id, &name, module_id, depth + 1);
+                // The whole block: a plain statement list or a
+                // `begin`/`process`/`end` named block list, plus `param()`.
+                if let Some(block) = find_child(node, "script_block") {
+                    self.visit_children(block, id, &name, module_id, depth + 1);
                 }
             }
             "assignment_expression" => {
@@ -395,7 +396,9 @@ fn first_command_argument_text(command_node: Node, source: &str) -> Option<Strin
         .into_iter()
         .find(|c| c.kind() != "command_argument_sep" && c.kind() != "command_parameter")?;
     let trimmed = text(arg, source).trim_matches(|c| c == '"' || c == '\'');
-    if trimmed.is_empty() {
+    // A computed target (`(Join-Path …)`, `"$PSScriptRoot/x"`, `@(…)`) is
+    // not evaluated: no import rather than its source text.
+    if trimmed.is_empty() || trimmed.contains('$') || trimmed.starts_with(['(', '@']) {
         None
     } else {
         Some(trimmed.to_string())

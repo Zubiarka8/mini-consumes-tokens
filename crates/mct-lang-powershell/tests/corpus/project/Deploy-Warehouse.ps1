@@ -43,6 +43,7 @@ $ErrorActionPreference = 'Stop'
 
 Import-Module (Join-Path $PSScriptRoot 'Warehouse.Common.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'Warehouse.Api.psm1') -Force
+Import-Module Microsoft.PowerShell.SecretManagement -ErrorAction SilentlyContinue
 . (Join-Path $PSScriptRoot 'lib/Kubernetes.ps1')
 
 $Namespace = 'warehouse'
