@@ -309,10 +309,11 @@ impl<'a> Walker<'a> {
 
                 let (new_owner, new_parent) = match key {
                     Some(name) => {
+                        // The whole element, through its end tag.
                         let sym_id = self.push_symbol(
                             name.to_string(),
                             SymbolKind::Element,
-                            location(tag),
+                            location(node),
                             parent_name.map(str::to_string),
                         );
                         (sym_id, Some(name.to_string()))
