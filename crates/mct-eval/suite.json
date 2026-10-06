@@ -112,6 +112,30 @@
       "expect": ["HandlePost"]
     },
     {
+      "name": "callers of a homonym scoped to one definition",
+      "category": "callers",
+      "tool": "find_callers",
+      "args": { "function": "post", "path": "homonyms/journal.rs" },
+      "expect": ["publish"],
+      "absent": ["discard", "draft.rs"]
+    },
+    {
+      "name": "references to a homonym scoped to one definition",
+      "category": "references",
+      "tool": "find_references",
+      "args": { "symbol": "post", "path": "homonyms/journal.rs" },
+      "expect": ["publish"],
+      "absent": ["discard", "draft.rs"]
+    },
+    {
+      "name": "blast radius of a homonym scoped to one definition",
+      "category": "impact",
+      "tool": "impact_analysis",
+      "args": { "symbol": "post", "path": "homonyms/journal.rs" },
+      "expect": ["publish"],
+      "absent": ["discard", "draft.rs"]
+    },
+    {
       "name": "snake_case words",
       "category": "search",
       "tool": "search_symbols",
@@ -205,7 +229,15 @@
       "tool": "build_context_pack",
       "args": { "symbol": "HandlePost" },
       "expect": ["function HandlePost", "callee NewLedger", "callee Post", "callee Describe"],
-      "absent": ["PostButton"]
+      "absent": ["PostButton", "Uncertain relations", "postAmount", "Authorize"]
+    },
+    {
+      "name": "context pack of a Rust caller lists only its real dependency",
+      "category": "context",
+      "tool": "build_context_pack",
+      "args": { "symbol": "run_tally" },
+      "expect": ["function run_tally", "callee settle", "rustcore/tally.rs:L11-L13"],
+      "absent": ["settle_totals", "accumulate_cents", "Uncertain relations", "[cpp]", "[go]"]
     }
   ]
 }

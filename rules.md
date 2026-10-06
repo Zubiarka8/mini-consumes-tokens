@@ -1,37 +1,25 @@
 # Repository rules
 
-Shared rules for Codex, Claude Code, and any agent working in this repository. This file is the single source of truth for project instructions; `AGENTS.md` and `CLAUDE.md` only point here.
+## Table of contents
 
-## Choosing an AI model
+- [Contributor workflow](#contributor-workflow)
+- [What this is](#what-this-is)
+- [Dogfooding: how to explore this repository's source code](#dogfooding-how-to-explore-this-repositorys-source-code)
+- [In-progress: per-language long-fixture corpus](#in-progress-per-language-long-fixture-corpus-issue-74)
+- [Commands](#commands)
+- [Architecture](#architecture)
 
-Use the model already available in the chosen client unless the task justifies changing it. Pick by task difficulty, required tools, latency, and usage cost; model labels and access vary by plan, client, and rollout. Check the current model picker before using a specific ID. Keep the lowest reasoning effort that reliably meets the task's quality bar, then increase it for ambiguous requirements, broad changes, or difficult verification. Higher effort usually costs more time and tokens. Model selection is a starting point, not a substitute for tests or review.
+Shared engineering rules for every contributor and coding assistant. This file is the single source of truth for repository instructions; AGENTS.md and CLAUDE.md are entry points.
 
-### ChatGPT and Codex
+## Contributor workflow
 
-| Model | Use it when | Why |
-|---|---|---|
-| GPT-6 Luna (`gpt-6-luna`) | The task is clear, bounded, repetitive, or high-volume: focused edits, extraction, classification, summaries, or routine coding. | It is the efficient option for well-scoped work. |
-| GPT-6.1 Sol (`gpt-6.1-sol`) | The task spans several files or steps and needs sound coding judgment while time or cost still matters. | It is the general-purpose coding/work option, with near-flagship performance at lower cost than Astra. |
-| GPT-6 Astra (`gpt-6-astra`) | The work is ambiguous, high-impact, architecture-heavy, or needs the strongest end-to-end reasoning across tools and sources. | It is the highest-capability choice for difficult analysis and complex deliverables. |
+Contribute using your preferred editor or assistant. No particular AI provider, model, paid subscription, or multiagent setup is required. Use the tools and permissions available in your environment while following the engineering and source-exploration rules below.
 
-For reasoning effort, start at the client default or **Medium** for ordinary multi-step work. Use **Low/Light** for quick, well-specified tasks; **High/Extra High** for multi-step investigation and careful review; reserve **Max** for unusually difficult single-agent problems and **Ultra** for large work that can be split into meaningful parallel tasks. Ultra invokes subagents where supported, so do not select it when parallel work is disallowed or unsafe. Available levels and names vary between clients.
+Keep changes scoped and reviewable. Preserve unexplained local work, record acceptance criteria, verify relevant behavior when authorized, and report any checks that could not be completed. If multiple writers are used, give each an exclusive branch/worktree and coordinate overlapping changes. Do not add personal model selections, subscription limits, or private agent state to shared documentation.
 
-### Claude and Claude Code
+Write repository content in English: file and branch names, documentation, code, comments, commit messages, PRs, and issues. Preserve required external identifiers and literal fixture data when translation would change behavior.
 
-| Model | Use it when | Why |
-|---|---|---|
-| Claude Haiku 4.5 (`claude-haiku-4-5`) | The work is routine and tightly scoped: quick questions, formatting, mechanical edits, or simple extraction. | It prioritizes speed and efficiency. |
-| Claude Sonnet 5.5 (`claude-sonnet-5-5`) | The task is everyday implementation, bug fixing, tests, documentation, or code review. | It balances speed and capability for general coding work. |
-| Claude Opus 5.5 (`claude-opus-5-5`) | The default Claude starting point for most work; especially useful for long-running agentic coding, broad context, difficult reasoning, or a careful audit. Choose a cheaper/faster model when the task is routine and tightly scoped. | Anthropic recommends it for most workloads and describes it as suited to long-running agentic coding and knowledge work. |
-| Claude Fable 5.1 (`claude-fable-5-1`) | The task is exceptionally demanding and long-horizon. Prefer it when evaluation shows Opus 5.5 at higher effort still falls short. | Anthropic positions it for demanding reasoning and long-horizon agent work; expect more latency and cost. |
-
-For Claude Code effort, prefer the model's default for ordinary work; use **Low** for simple tasks and raise effort when deeper planning or verification is worth the added time and usage. **Auto** follows the model default. Do not assume every model supports every effort level: support and defaults vary by model, Claude Code version, account, provider, and organization settings. Check the active model's current configuration before pinning an effort.
-
-### Choosing between providers
-
-Prefer the provider that already has the needed repository access, tools, MCP configuration, authentication, and workflow. Do not run the same task in both providers by default. Use a second model only for an independent review or a measured comparison, and give it a concrete question. For a task already assigned in a plan, use that plan's explicit selection unless the user changes it; keep general selection guidance here so plans do not duplicate it.
-
-This guidance was checked on 2026-09-30. Recheck official docs before changing the model policy: [OpenAI model selection](https://learn.chatgpt.com/docs/model-selection), [ChatGPT/Codex model catalog](https://learn.chatgpt.com/docs/models), [Anthropic Claude models overview](https://platform.claude.com/docs/en/models/overview), and [Claude Code model configuration](https://code.claude.com/docs/en/model-config).
+If a local LOCAL_INSTRUCTIONS.md file exists, read it as additional instructions for that checkout. Its absence is normal and must not block contributions. Local instructions do not override the user's instructions, client permissions, or shared engineering constraints.
 
 ## What this is
 
@@ -56,7 +44,7 @@ An MCP server (`mct-mcp-server`) and CLI (`mct-cli`) that index a code repositor
 | What does X call? | `find_calls` |
 | Every reference to X (calls, imports, extends/implements) | `find_references` |
 | Full blast radius before changing/removing X | `impact_analysis` |
-| About to work on X — its definition, doc comment and source plus callers/callees/dependencies/tests, without reading whole files? | `build_context_pack` — one call: X's definition(s) with the comment/attribute block above and the first `source_lines` (40, max 200) lines, then every related symbol **once** (roles merged, e.g. `caller,test`) with its location and one-line signature, file-level `use`/`import`ers and unresolved (std/third-party) callee names as footers; `depth` walks both ways, `path`/`language` pick the definition of an ambiguous name, `limit` 30, `format` `toon`. ~85% fewer tokens than find_symbol + find_calls + find_callers + impact_analysis + reading the files (`crates/mct-mcp-server/tests/context_pack.rs`) |
+| About to work on X — its definition, doc comment and source plus callers/callees/dependencies/tests, without reading whole files? | `build_context_pack` — one call: X's definition(s) with the comment/attribute block above and the first `source_lines` (40, max 200) lines, then every related symbol **once** (roles merged, e.g. `caller,test`) with its location and one-line signature, file-level `use`/`import`ers and unresolved callee names as footers, ambiguous callees in a separate uncertain section (never picked); `depth` walks both ways, `path`/`language` pick the definition of an ambiguous name, `limit` 30, `format` `toon`. ~85% fewer tokens than find_symbol + find_calls + find_callers + impact_analysis + reading the files (`crates/mct-mcp-server/tests/context_pack.rs`) |
 | Candidate unused functions/classes/structs/enums/traits/interfaces/type-aliases (heuristic — zero indexed references, not true visibility) | `find_dead_code` |
 | Several lookups whose queries you already know (e.g. `find_symbol` + `find_callers` + `get_file_skeleton`)? | `batch` — `queries: [{tool, args}]`, up to 25, any read-only tool (not `reindex`, not a nested `batch`); each result under its own `[n] tool` header, a failing sub-query reported inline without failing the rest. Drops the per-call envelope (≥20% fewer tokens, measured in `crates/mct-mcp-server/tests/batch.rs`) |
 | Is the index stale / healthy? | `get_indexing_status`, and `reindex` only if it looks stale |
@@ -112,7 +100,7 @@ cargo run -p mct-eval -- --write-baseline                            # refresh c
 
 ```sh
 scripts/unix/check.sh [-p <crate>]                 # verify before committing: tests + CI clippy + mct-eval, one line per step
-scripts/unix/reinstall.sh [--reindex]              # after switching branches / merging a server change: install binaries, fix index schema, smoke-test; then /mcp
+scripts/unix/reinstall.sh [--reindex]              # after switching branches / merging a server change: install binaries, fix index schema, smoke-test; then inspect/reconnect MCP from the active client's controls (ChatGPT/Codex: /mcp; Claude Code: /mcp)
 scripts/unix/mcp-smoke.sh [--dev] [--expect T]     # CONNECTION_CLOSED? prints the server's real startup error; --expect checks tool T is listed
 scripts/unix/new-tool-check.sh <tool>              # adding an MCP tool: which of the ~10 places still don't mention it, then the catalog tests
 scripts/unix/new-language-check.sh <suffix>        # adding crates/mct-lang-<suffix>: CONTRIBUTING.md's checklist, what's missing, then its tests

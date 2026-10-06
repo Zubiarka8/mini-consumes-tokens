@@ -115,6 +115,12 @@ fn find_references_resolves_the_id_selector_back_to_its_html_element() {
     assert_eq!(refs.len(), 1, "{refs:?}");
     assert_eq!(refs[0].relative_path, "index.html");
     assert_eq!(refs[0].from_symbol, "header");
+    // Resolved through the explicit CSS evidence to the one rule.
+    assert_eq!(refs[0].resolution, mct_index::Resolution::Resolved);
+    let target = index.symbols_by_ids(&[refs[0].target_id.unwrap()]).unwrap();
+    assert_eq!(target[0].relative_path, "style.css");
+    assert_eq!(target[0].language, "css");
+    assert_eq!(target[0].line, 1);
 }
 
 #[test]

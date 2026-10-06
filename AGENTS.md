@@ -1,1 +1,1 @@
-Before any inquiry, planning, or change in this repository, read and follow [rules.md](rules.md), the single source of truth for project instructions.
+At the start of each new session, read and follow [rules.md](rules.md) in full. During that session, use its [table of contents](rules.md#table-of-contents) to revisit the relevant section; reread changed or uncertain rules. If LOCAL_INSTRUCTIONS.md exists in this checkout, read it too; its absence is normal. Do not duplicate shared rules here.
