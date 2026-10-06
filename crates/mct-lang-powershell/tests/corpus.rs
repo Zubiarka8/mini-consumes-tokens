@@ -110,25 +110,24 @@ fn commands_are_calls() {
 }
 
 #[test]
-fn a_computed_import_module_path_is_imported_as_source_text() {
-    // Bug, kept visible: `Import-Module (Join-Path $PSScriptRoot 'X.psm1')`
-    // records the whole expression as the import target, and dot-sourcing a
-    // computed path (`. (Join-Path …)`, `. "$PSScriptRoot/lib/Mail.ps1"`)
-    // records nothing.
+fn only_a_literal_import_target_is_an_import() {
     let c = corpus();
     c.relation(
-        "Warehouse.Api.psm1",
-        "Warehouse.Api",
+        "Deploy-Warehouse.ps1",
+        "Deploy-Warehouse",
         Imports,
-        "(Join-Path $PSScriptRoot 'Warehouse.Common.psm1')",
+        "Microsoft.PowerShell.SecretManagement",
     );
+    // Known limit: a computed path (`Import-Module (Join-Path $PSScriptRoot
+    // 'X.psm1')`, `. "$PSScriptRoot/lib/Mail.ps1"`) is not evaluated, so it
+    // is no import at all — never its source text (see the crate docs).
     let imports: Vec<_> = c
         .relations()
         .into_iter()
         .filter(|r| r.kind == Imports)
+        .map(|r| r.to)
         .collect();
-    assert_eq!(imports.len(), 8);
-    assert!(imports.iter().all(|r| r.to.starts_with("(Join-Path")));
+    assert_eq!(imports, ["Microsoft.PowerShell.SecretManagement"]);
 }
 
 #[test]
@@ -168,21 +167,27 @@ fn cross_file_calls_are_extracted() {
 }
 
 #[test]
-fn calls_in_begin_process_end_blocks_are_lost() {
-    // Bug, kept visible: an advanced function whose body is
-    // `begin { } process { } end { }` (a named block list, not a plain
-    // statement list) is not visited, so none of its calls are extracted.
+fn calls_in_begin_process_end_blocks_are_extracted() {
+    // An advanced function's body can be `begin { } process { } end { }`
+    // (a named block list) instead of a plain statement list.
     let c = corpus();
-    assert!(!c.has_relation("Get-WarehouseOrder", Calls, "Invoke-WarehouseApi"));
-    assert!(!c.has_relation("Stop-WarehouseOrder", Calls, "Write-WarehouseLog"));
-    assert!(!c.has_relation("Split-CycleCount", Calls, "Write-WarehouseLog"));
-    assert!(!c.has_relation("Get-WarehouseStock", Calls, "Split-Batch"));
+    for (from, to) in [
+        ("Get-WarehouseOrder", "Invoke-WarehouseApi"),
+        ("Stop-WarehouseOrder", "Write-WarehouseLog"),
+        ("Split-CycleCount", "Write-WarehouseLog"),
+        ("Get-WarehouseStock", "Split-Batch"),
+        // `param()` too: `[ValidateScript({ … })]` and default values.
+        ("Get-WarehouseOrder", "Test-OrderNumber"),
+        ("Export-DailyMetric", "Get-Date"),
+    ] {
+        assert!(c.has_relation(from, Calls, to), "{from} -> {to}");
+    }
 }
 
 #[test]
 fn classes_and_enums_have_no_symbol() {
-    // Limit: `class Location { … }`, its methods and `enum StorageZone`
-    // are not extracted.
+    // Known limit: `class Location { … }`, its methods and `enum
+    // StorageZone` are out of the plugin's scope (see the crate docs).
     let c = corpus();
     for name in [
         "Location",
