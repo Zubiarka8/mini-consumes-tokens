@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Catálogo — Almacén Norte</title>
+  <!--
+    Catalog listing. Filters (#filters) are linked from index.html's
+    category cards; each product card links to product.html?sku=…, whose
+    #reviews section the rating stars point at. The grid uses the same
+    .product-card markup as index.html#featured.
+  -->
+  <link rel="stylesheet" href="assets/css/site.css">
+  <link rel="stylesheet" href="assets/css/catalog.css">
+  <LINK REL="STYLESHEET" HREF="assets/css/legacy-filters.css">
+  <link rel="stylesheet" href="">
+  <script src="assets/js/vendor/htmx-2.0.4.min.js" defer></script>
+  <script src="assets/js/app.js" type="module"></script>
+  <script src="assets/js/catalog.js" type="module"></script>
+</head>
+<body id="catalog" class="page page--catalog">
+  <a class="skip-link" href="#results">Saltar a los resultados</a>
+
+  <header id="site-header" class="site-header site-header--sticky" role="banner">
+    <div class="container">
+      <a id="logo" class="logo" href="index.html" aria-label="Almacén Norte, inicio">
+        <span class="logo__text">Almacén Norte</span>
+      </a>
+      <nav id="main-nav" class="main-nav" aria-label="Principal">
+        <ul class="main-nav__list">
+          <li><a href="catalog.html" class="main-nav__link" aria-current="page">Catálogo</a></li>
+          <li><a href="catalog.html?cat=cat-kitchen" class="main-nav__link">Cocina</a></li>
+          <li><a href="catalog.html?cat=cat-food" class="main-nav__link">Alimentación</a></li>
+          <li><a href="catalog.html?cat=cat-garden" class="main-nav__link">Jardín</a></li>
+          <li><a href="catalog.html?sale=1" class="main-nav__link main-nav__link--sale">Ofertas</a></li>
+        </ul>
+      </nav>
+      <form id="search-form" class="search" action="catalog.html" method="get" role="search">
+        <label for="search-input" class="visually-hidden">Buscar productos</label>
+        <input id="search-input" class="search__input" type="search" name="q" value="">
+        <button class="search__button" type="submit" aria-label="Buscar">🔍</button>
+      </form>
+      <div class="header-actions">
+        <a id="account-link" class="header-actions__link" href="account.html">Mi cuenta</a>
+        <button id="cart-toggle" class="header-actions__cart" type="button"
+                aria-controls="cart-drawer" aria-expanded="false">
+          Cesta <span id="cart-count" class="badge badge--accent">0</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="main container catalog-layout" tabindex="-1">
+    <nav class="breadcrumbs" aria-label="Migas de pan">
+      <ol>
+        <li><a href="index.html">Inicio</a></li>
+        <li aria-current="page">Catálogo</li>
+      </ol>
+    </nav>
+
+    <!-- ===============================================================
+         Filters (sidebar). Every control has an id so the labels and
+         catalog.js can address it; the fieldsets do not.
+         =============================================================== -->
+    <aside id="filters" class="filters" aria-label="Filtros">
+      <form id="filter-form" class="filters__form" method="get" action="catalog.html"
+            hx-get="/api/products" hx-target="#results-grid" hx-trigger="change"
+            hx-push-url="true">
+        <h2 class="filters__title">Filtrar</h2>
+
+        <fieldset class="filters__group">
+          <legend>Categoría</legend>
+          <label class="checkbox">
+            <input id="f-cat-cookware" type="checkbox" name="cat" value="cat-cookware"> Menaje
+          </label>
+          <label class="checkbox">
+            <input id="f-cat-cutlery" type="checkbox" name="cat" value="cat-cutlery"> Cubertería
+          </label>
+          <label class="checkbox">
+            <input id="f-cat-textile" type="checkbox" name="cat" value="cat-textile"> Textil
+          </label>
+          <label class="checkbox">
+            <input id="f-cat-pantry" type="checkbox" name="cat" value="cat-pantry"> Despensa
+          </label>
+          <label class="checkbox">
+            <input id="f-cat-dairy" type="checkbox" name="cat" value="cat-dairy"> Lácteos
+          </label>
+          <label class="checkbox">
+            <input id="f-cat-furniture" type="checkbox" name="cat" value="cat-furniture"> Muebles
+          </label>
+          <label class="checkbox">
+            <input id="f-cat-tools" type="checkbox" name="cat" value="cat-tools"> Herramientas
+          </label>
+        </fieldset>
+
+        <fieldset class="filters__group">
+          <legend>Precio</legend>
+          <div id="price-range" class="range range--dual" data-min="0" data-max="700">
+            <label for="price-min" class="visually-hidden">Mínimo</label>
+            <input id="price-min" class="range__input range__input--min" type="range"
+                   name="min" min="0" max="700" step="5" value="0">
+            <label for="price-max" class="visually-hidden">Máximo</label>
+            <input id="price-max" class="range__input range__input--max" type="range"
+                   name="max" min="0" max="700" step="5" value="700">
+            <output id="price-output" class="range__output" for="price-min price-max">0 € – 700 €</output>
+          </div>
+        </fieldset>
+
+        <fieldset class="filters__group">
+          <legend>Conservación</legend>
+          <label class="radio"><input id="f-storage-any" type="radio" name="storage" value="" checked> Cualquiera</label>
+          <label class="radio"><input id="f-storage-ambient" type="radio" name="storage" value="ambient"> Ambiente</label>
+          <label class="radio"><input id="f-storage-chilled" type="radio" name="storage" value="chilled"> Refrigerado</label>
+          <label class="radio"><input id="f-storage-bulky" type="radio" name="storage" value="bulky"> Voluminoso</label>
+        </fieldset>
+
+        <fieldset class="filters__group">
+          <legend>Disponibilidad</legend>
+          <label class="switch">
+            <input id="f-in-stock" class="switch__input" type="checkbox" name="stock" value="1" checked>
+            <span class="switch__track" aria-hidden="true"></span>
+            Solo en stock
+          </label>
+          <label class="switch">
+            <input id="f-sale" class="switch__input" type="checkbox" name="sale" value="1">
+            <span class="switch__track" aria-hidden="true"></span>
+            Solo ofertas
+          </label>
+        </fieldset>
+
+        <div class="filters__actions">
+          <button id="filters-apply" class="btn btn--primary btn--block" type="submit">Aplicar</button>
+          <a id="filters-reset" class="btn btn--ghost btn--block" href="catalog.html">Limpiar filtros</a>
+        </div>
+      </form>
+    </aside>
+
+    <!-- ===============================================================
+         Results
+         =============================================================== -->
+    <section id="results" class="results" aria-labelledby="results-title">
+      <div class="results__toolbar">
+        <h1 id="results-title" class="results__title">Catálogo <small id="results-count">(14)</small></h1>
+        <label for="sort" class="visually-hidden">Ordenar por</label>
+        <select id="sort" name="sort" form="filter-form" class="select">
+          <option value="relevance" selected>Relevancia</option>
+          <option value="price-asc">Precio: menor a mayor</option>
+          <option value="price-desc">Precio: mayor a menor</option>
+          <option value="newest">Novedades</option>
+          <option value="rating">Mejor valorados</option>
+        </select>
+        <div id="view-toggle" class="segmented" role="group" aria-label="Vista">
+          <button id="view-grid" class="segmented__btn is-active" type="button" aria-pressed="true">▦</button>
+          <button id="view-list" class="segmented__btn" type="button" aria-pressed="false">☰</button>
+        </div>
+      </div>
+
+      <div id="results-grid" class="product-grid product-grid--4">
+        <article id="product-sku-1001" class="product-card product-card--sale" data-sku="sku-1001">
+          <a href="product.html?sku=sku-1001" class="product-card__link">
+            <img class="product-card__img" src="assets/img/products/sku-1001.jpg"
+                 alt="Sartén antiadherente 28 cm" loading="lazy" width="240" height="240">
+            <h2 class="product-card__name">Sartén antiadherente 28&nbsp;cm</h2>
+          </a>
+          <a class="rating" href="product.html?sku=sku-1001#reviews" aria-label="4,6 de 5">★★★★★ <span>(128)</span></a>
+          <p class="product-card__price"><del>29,90&nbsp;€</del> <ins>24,90&nbsp;€</ins></p>
+          <button class="btn btn--small add-to-cart" type="button" data-sku="sku-1001">Añadir</button>
+        </article>
+
+        <article id="product-sku-1002" class="product-card" data-sku="sku-1002">
+          <a href="product.html?sku=sku-1002" class="product-card__link">
+            <img class="product-card__img" src="assets/img/products/sku-1002.jpg"
+                 alt="Olla a presión 6 L" loading="lazy" width="240" height="240">
+            <h2 class="product-card__name">Olla a presión 6&nbsp;L</h2>
+          </a>
+          <a class="rating" href="product.html?sku=sku-1002#reviews" aria-label="4,3 de 5">★★★★☆ <span>(54)</span></a>
+          <p class="product-card__price">79,00&nbsp;€</p>
+          <button class="btn btn--small add-to-cart" type="button" data-sku="sku-1002">Añadir</button>
+        </article>
+
+        <article id="product-sku-1101" class="product-card" data-sku="sku-1101">
+          <a href="product.html?sku=sku-1101" class="product-card__link">
+            <img class="product-card__img" src="assets/img/products/sku-1101.jpg"
+                 alt="Cuchillo santoku 18 cm" loading="lazy" width="240" height="240">
+            <h2 class="product-card__name">Cuchillo santoku 18&nbsp;cm</h2>
+          </a>
+          <a class="rating" href="product.html?sku=sku-1101#reviews" aria-label="4,9 de 5">★★★★★ <span>(31)</span></a>
+          <p class="product-card__price">119,00&nbsp;€</p>
+          <button class="btn btn--small add-to-cart" type="button" data-sku="sku-1101">Añadir</button>
+        </article>
+
+        <article id="product-sku-1201" class="product-card" data-sku="sku-1201">
+          <a href="product.html?sku=sku-1201" class="product-card__link">
+            <img class="product-card__img" src="assets/img/products/sku-1201.jpg"
+                 alt="Mantel de lino 150 × 250" loading="lazy" width="240" height="240">
+            <h2 class="product-card__name">Mantel de lino 150&nbsp;×&nbsp;250</h2>
+          </a>
+          <ul class="swatches" aria-label="Colores">
+            <li><span class="swatch swatch--natural" title="Natural"></span></li>
+            <li><span class="swatch swatch--white" title="Blanco"></span></li>
+            <li><span class="swatch swatch--red" title="Rojo"></span></li>
+          </ul>
+          <p class="product-card__price">39,95&nbsp;€</p>
+          <button class="btn btn--small add-to-cart" type="button" data-sku="sku-1201">Añadir</button>
+        </article>
+
+        <article id="product-sku-2001" class="product-card" data-sku="sku-2001">
+          <a href="product.html?sku=sku-2001" class="product-card__link">
+            <img class="product-card__img" src="assets/img/products/sku-2001.jpg"
+                 alt="Aceite de oliva virgen extra 1 L" loading="lazy" width="240" height="240">
+            <h2 class="product-card__name">Aceite de oliva virgen extra 1&nbsp;L</h2>
+          </a>
+          <p class="product-card__price">9,80&nbsp;€ <small>(9,80&nbsp;€/L)</small></p>
+          <button class="btn btn--small add-to-cart" type="button" data-sku="sku-2001">Añadir</button>
+        </article>
+
+        <article id="product-sku-2101" class="product-card product-card--chilled" data-sku="sku-2101">
+          <a href="product.html?sku=sku-2101" class="product-card__link">
+            <img class="product-card__img" src="assets/img/products/sku-2101.jpg"
+                 alt="Queso manchego curado 250 g" loading="lazy" width="240" height="240">
+            <h2 class="product-card__name">Queso manchego curado 250&nbsp;g</h2>
+          </a>
+          <p class="product-card__price">7,45&nbsp;€ <small>(29,80&nbsp;€/kg)</small></p>
+          <p class="product-card__note">Envío refrigerado</p>
+          <button class="btn btn--small add-to-cart" type="button" data-sku="sku-2101">Añadir</button>
+        </article>
+
+        <article id="product-sku-3001" class="product-card product-card--bulky" data-sku="sku-3001">
+          <a href="product.html?sku=sku-3001" class="product-card__link">
+            <img class="product-card__img" src="assets/img/products/sku-3001.jpg"
+                 alt="Mesa de teca 180 cm" loading="lazy" width="240" height="240">
+            <h2 class="product-card__name">Mesa de teca 180&nbsp;cm</h2>
+          </a>
+          <p class="product-card__price">649,00&nbsp;€</p>
+          <p class="product-card__note">Entrega con dos personas</p>
+          <button class="btn btn--small add-to-cart" type="button" data-sku="sku-3001">Añadir</button>
+        </article>
+
+        <article id="product-sku-3101" class="product-card" data-sku="sku-3101">
+          <a href="product.html?sku=sku-3101" class="product-card__link">
+            <img class="product-card__img" src="assets/img/products/sku-3101.jpg"
+                 alt="Desbrozadora a batería 36 V" loading="lazy" width="240" height="240">
+            <h2 class="product-card__name">Desbrozadora a batería 36&nbsp;V</h2>
+          </a>
+          <p class="product-card__price">289,00&nbsp;€</p>
+          <p class="product-card__note">Mercancía peligrosa (batería de litio)</p>
+          <button class="btn btn--small add-to-cart" type="button" data-sku="sku-3101">Añadir</button>
+        </article>
+
+        <!-- Sold-out card: no add-to-cart, a notify form instead -->
+        <article id="product-sku-2102" class="product-card is-sold-out" data-sku="sku-2102">
+          <a href="product.html?sku=sku-2102" class="product-card__link">
+            <img class="product-card__img" src="assets/img/products/sku-2102.jpg"
+                 alt="Yogur natural pack 4" loading="lazy" width="240" height="240">
+            <h2 class="product-card__name">Yogur natural pack 4</h2>
+          </a>
+          <p class="product-card__note">Descatalogado — prueba el <a href="product.html?sku=sku-2103">yogur griego</a></p>
+        </article>
+      </div>
+
+      <nav id="pagination" class="pagination" aria-label="Paginación">
+        <a class="pagination__prev is-disabled" aria-disabled="true">‹ Anterior</a>
+        <a class="pagination__page is-current" aria-current="page" href="catalog.html?page=1">1</a>
+        <a class="pagination__page" href="catalog.html?page=2">2</a>
+        <a class="pagination__next" href="catalog.html?page=2">Siguiente ›</a>
+      </nav>
+
+      <!-- Empty state, swapped in by htmx when nothing matches -->
+      <template id="empty-results">
+        <div class="empty-state">
+          <p>No hay productos que coincidan con los filtros.</p>
+          <a class="btn btn--ghost" href="catalog.html">Ver todo</a>
+        </div>
+      </template>
+    </section>
+  </main>
+
+  <!-- Recently viewed, filled from localStorage by catalog.js -->
+  <section id="recently-viewed" class="section container recently-viewed" hidden
+           aria-labelledby="recently-viewed-title">
+    <h2 id="recently-viewed-title" class="section__title">Vistos recientemente</h2>
+    <ul id="recently-viewed-list" class="strip"></ul>
+    <template id="recently-viewed-item">
+      <li class="strip__item">
+        <a class="strip__link" href="product.html">
+          <img class="strip__img" alt="" width="96" height="96">
+          <span class="strip__name"></span>
+        </a>
+      </li>
+    </template>
+  </section>
+
+  <aside id="cart-drawer"class="drawer drawer--right" aria-labelledby="cart-drawer-title" hidden>
+    <div class="drawer__header">
+      <h2 id="cart-drawer-title" class="drawer__title">Tu cesta</h2>
+      <button id="cart-close" class="drawer__close" type="button" aria-label="Cerrar">✕</button>
+    </div>
+    <ul id="cart-lines" class="cart-lines"></ul>
+    <div class="drawer__footer">
+      <p class="drawer__total">Total: <strong id="cart-total">0,00&nbsp;€</strong></p>
+      <a id="cart-checkout" class="btn btn--primary btn--block" href="cart.html#summary">Ver cesta y pagar</a>
+    </div>
+  </aside>
+
+  <footer id="site-footer" class="site-footer">
+    <div class="container">
+      <p class="site-footer__copy">© 2026 Almacén Norte S.L. — <a href="legal.html#terms">Condiciones</a></p>
+    </div>
+  </footer>
+
+  <div id="toast-region" class="toast-region" role="status" aria-live="polite"></div>
+</body>
+</html>

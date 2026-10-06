@@ -66,7 +66,8 @@ impl LanguageParser for HtmlParser {
 
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
-        let module_id = walker.push_symbol(module_name, SymbolKind::Module, location(root), None);
+        let module_id =
+            walker.push_symbol(module_name, SymbolKind::Module, module_location(root), None);
         walker.visit_children(root, module_id, None, 0);
         let mut parsed = walker.finish();
         // An id/class reference names a CSS rule: the one cross-language
@@ -97,6 +98,18 @@ fn module_name_for(relative_path: &str) -> String {
         .trim_end_matches(".html")
         .trim_end_matches(".htm")
         .to_string()
+}
+
+/// The file-level module's location: the root node of a file ending in a
+/// newline ends at column 0 of the row *after* the last line, which would
+/// put the module one line past the end of the file.
+fn module_location(root: Node) -> Location {
+    let mut loc = location(root);
+    let end = root.end_position();
+    if end.column == 0 && end.row > root.start_position().row {
+        loc.end_line = Some(end.row as u32);
+    }
+    loc
 }
 
 fn first_error(node: Node) -> Option<Node> {
@@ -222,7 +235,7 @@ impl<'a> Walker<'a> {
                     self.visit_children(node, owner, parent_name, depth + 1);
                     return;
                 };
-                let (new_owner, new_parent) = self.handle_tag(tag, owner, parent_name);
+                let (new_owner, new_parent) = self.handle_tag(node, tag, owner, parent_name);
                 let mut cursor = node.walk();
                 for child in node.named_children(&mut cursor) {
                     if child.id() == tag.id() {
@@ -233,7 +246,7 @@ impl<'a> Walker<'a> {
             }
             "script_element" | "style_element" => {
                 if let Some(tag) = find_child(node, "start_tag") {
-                    self.handle_tag(tag, owner, parent_name);
+                    self.handle_tag(node, tag, owner, parent_name);
                 }
                 // Raw content (JS/CSS text) is not parsed here — see module doc.
             }
@@ -244,9 +257,12 @@ impl<'a> Walker<'a> {
     /// Extracts `id`/`class`/`href`/`src` from a `start_tag`/`self_closing_tag`
     /// and emits the Element symbol + References/Imports relations described
     /// in the module doc. Returns the (owner, parent_name) that this tag's
-    /// children (if any) should attach to.
+    /// children (if any) should attach to. The symbol spans the whole
+    /// `element`, closing tag included, so its descendants' relations lie
+    /// inside it.
     fn handle_tag(
         &mut self,
+        element: Node,
         tag: Node,
         owner: SymbolId,
         parent_name: Option<&str>,
@@ -268,7 +284,7 @@ impl<'a> Walker<'a> {
                 let sym_id = self.push_symbol(
                     id.to_string(),
                     SymbolKind::Element,
-                    location(tag),
+                    location(element),
                     parent_name.map(str::to_string),
                 );
                 self.push_relation(
