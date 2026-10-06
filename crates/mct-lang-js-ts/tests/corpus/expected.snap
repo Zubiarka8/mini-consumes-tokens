@@ -1,4 +1,4 @@
-# language=javascript_typescript files=6 symbols=229 relations=552 cross_file=87
+# language=javascript_typescript files=7 symbols=274 relations=671 cross_file=125
 
 == scripts/seed.cjs (302 lines)
 S 1-302 module seed
@@ -6,7 +6,7 @@ S 82-116 function parseArgs
 S 118-129 function printHelp
 S 135-174 function createApi
 S 138-165 function request
-S 170-172 method sent
+S 170-172 function sent
 S 180-188 function seedStock
 S 190-197 function seedCustomers
 S 199-210 function randomBasket
@@ -139,7 +139,7 @@ S 261-273 function waitUntilShipped
 S 276-282 function snapshot
 S 285-294 function validatePlaceOrder
 S 296-298 function createClient
-R 1:10 imports client -> Currency
+R 1:10 imports client -> Currency (x-file: src/money.ts)
 R 1:20 imports client -> Money (x-file: src/money.ts)
 R 2:15 imports client -> ExchangeRates (x-file: src/money.ts)
 R 2:30 imports client -> MoneyJson (x-file: src/money.ts)
@@ -199,7 +199,7 @@ R 218:24 calls WarehouseClient::events -> EventSource
 R 220:26 calls WarehouseClient::events -> parse (x-file: src/money.ts)
 R 221:7 calls WarehouseClient::events -> onEvent (x-file: src/order.ts)
 R 221:15 calls WarehouseClient::events -> describeEvent
-R 223:25 calls WarehouseClient::events -> close
+R 223:25 calls WarehouseClient::events -> close (x-file: src/ui/PickBoard.jsx)
 R 231:67 calls WarehouseClient::stock -> join
 R 231:24 calls WarehouseClient::stock -> map
 R 231:42 calls WarehouseClient::stock -> encodeURIComponent
@@ -253,7 +253,7 @@ S 131-139 method StockCache::check
 S 141-147 method StockCache::invalidate
 S 149-153 method StockCache::#store
 S 157-166 function httpStockSource
-S 159-164 method levels
+S 159-164 function levels
 S 172-178 interface CycleCount
 S 180-180 function difference
 S 182-188 function describeCount
@@ -366,6 +366,7 @@ R 297:41 calls splitLines -> get
 
 == src/money.ts (333 lines)
 S 1-333 module money
+S 7-12 enum Currency
 S 22-22 type_alias MoneyJson
 S 24-24 type_alias RoundingMode
 S 26-29 interface Comparable
@@ -417,9 +418,10 @@ S 283-285 method MoneyRange::contains
 S 287-289 method MoneyRange::width
 S 291-294 method MoneyRange::parse
 S 298-300 interface ExchangeRates
-S 303-308 method rate
+S 303-308 function rate
 S 311-314 function convert
 S 317-319 function auditLine
+S 322-333 module Legacy
 S 323-325 function fromCents
 S 327-332 function toCents
 R 32:44 extends CurrencyMismatchError -> Error
@@ -514,6 +516,7 @@ R 329:17 calls toCents -> CurrencyMismatchError
 S 1-311 module order
 S 11-11 type_alias OrderId
 S 13-13 function asOrderId
+S 15-23 enum State
 S 35-37 function canMoveTo
 S 39-41 function isTerminal
 S 43-48 interface Line
@@ -564,7 +567,7 @@ S 293-297 function pages
 S 300-309 function packingSlip
 S 301-301 function rule
 S 302-302 function row
-R 1:10 imports order -> Currency
+R 1:10 imports order -> Currency (x-file: src/money.ts)
 R 1:20 imports order -> Money (x-file: src/money.ts)
 R 1:27 imports order -> sum (x-file: src/money.ts)
 R 1:32 imports order -> CurrencyMismatchError (x-file: src/money.ts)
@@ -679,10 +682,10 @@ R 1:62 imports OrderTable -> useRef
 R 1:70 imports OrderTable -> useState
 R 2:15 imports OrderTable -> ReactNode
 R 3:10 imports OrderTable -> Money (x-file: src/money.ts)
-R 3:17 imports OrderTable -> Currency
+R 3:17 imports OrderTable -> Currency (x-file: src/money.ts)
 R 3:27 imports OrderTable -> sum (x-file: src/money.ts)
 R 4:8 imports OrderTable -> Order (x-file: src/order.ts)
-R 4:17 imports OrderTable -> State
+R 4:17 imports OrderTable -> State (x-file: src/order.ts)
 R 4:24 imports OrderTable -> countByState (x-file: src/order.ts)
 R 4:38 imports OrderTable -> describe (x-file: src/order.ts)
 R 4:48 imports OrderTable -> packingSlip (x-file: src/order.ts)
@@ -737,11 +740,11 @@ R 142:36 calls useDebounced -> setDebounced
 R 143:18 calls useDebounced -> clearTimeout
 R 153:40 calls StatusPill -> toLowerCase
 R 157:16 calls StockBadge -> useStock
-R 165:54 calls Toolbar -> onChange
+R 165:54 calls Toolbar -> onChange (x-file: src/ui/PickBoard.jsx)
 R 167:31 calls Toolbar -> map
 R 167:17 calls Toolbar -> values
-R 177:26 calls Toolbar -> onChange
-R 180:77 calls Toolbar -> onChange
+R 177:26 calls Toolbar -> onChange (x-file: src/ui/PickBoard.jsx)
+R 180:77 calls Toolbar -> onChange (x-file: src/ui/PickBoard.jsx)
 R 190:33 calls OrderDetail -> useState
 R 192:3 calls OrderDetail -> useEffect
 R 193:5 calls OrderDetail -> setHistory
@@ -792,3 +795,166 @@ R 308:20 references OrderTable -> describeCount (x-file: src/inventory.ts)
 R 308:35 references OrderTable -> pickingRoute (x-file: src/inventory.ts)
 R 308:49 references OrderTable -> parseLocation (x-file: src/inventory.ts)
 R 308:64 references OrderTable -> validatePlaceOrder (x-file: src/api/client.ts)
+
+== src/ui/PickBoard.jsx (339 lines)
+S 1-339 module PickBoard
+S 18-28 function classifyScan
+S 34-118 class PickSession
+S 35-35 field PickSession::#nextId
+S 36-36 field PickSession::sessions
+S 38-38 field PickSession::id
+S 39-39 field PickSession::picked
+S 40-40 field PickSession::#tasks
+S 41-41 field PickSession::#position
+S 42-42 field PickSession::#listeners
+S 44-50 method PickSession::constructor
+S 52-59 method PickSession::forZone
+S 61-63 method PickSession::current
+S 65-67 method PickSession::done
+S 69-71 method PickSession::progress
+S 74-90 method PickSession::handleScan
+S 92-98 method PickSession::skip
+S 100-103 method PickSession::onChange
+S 105-108 method PickSession::#advance
+S 110-112 method PickSession::#emit
+S 114-117 method PickSession::close
+S 121-148 class ScanErrorBoundary
+S 122-122 field ScanErrorBoundary::state
+S 124-126 method ScanErrorBoundary::getDerivedStateFromError
+S 128-130 method ScanErrorBoundary::componentDidCatch
+S 132-134 method ScanErrorBoundary::retry
+S 136-147 method ScanErrorBoundary::render
+S 151-184 function createScanner
+S 155-171 function onKeyDown
+S 174-176 function start
+S 177-179 function stop
+S 180-182 function pending
+S 186-202 function useIdleLogout
+S 189-192 function reset
+S 204-213 function usePickSession
+S 215-226 function TaskCard
+S 228-241 function Feedback
+S 243-253 function ProgressBar
+S 255-294 function Board
+S 297-316 function openSession
+S 318-339 function PickBoard
+S 328-332 function finish
+R 1:8 imports PickBoard -> React
+R 1:17 imports PickBoard -> Component
+R 1:28 imports PickBoard -> useEffect
+R 1:39 imports PickBoard -> useMemo
+R 1:48 imports PickBoard -> useRef
+R 1:56 imports PickBoard -> useState
+R 2:10 imports PickBoard -> PickListBuilder (x-file: src/inventory.ts)
+R 2:27 imports PickBoard -> StockCache (x-file: src/inventory.ts)
+R 2:39 imports PickBoard -> formatLocation (x-file: src/inventory.ts)
+R 2:55 imports PickBoard -> httpStockSource (x-file: src/inventory.ts)
+R 2:72 imports PickBoard -> parseLocation (x-file: src/inventory.ts)
+R 2:87 imports PickBoard -> pickingRoute (x-file: src/inventory.ts)
+R 3:8 imports PickBoard -> orders (x-file: src/api/client.ts)
+R 4:10 imports PickBoard -> ApiError (x-file: src/api/client.ts)
+R 4:20 imports PickBoard -> createClient (x-file: src/api/client.ts)
+R 19:34 calls classifyScan -> trim
+R 19:16 calls classifyScan -> String
+R 20:12 calls classifyScan -> startsWith
+R 21:42 calls classifyScan -> parseLocation (x-file: src/inventory.ts)
+R 21:61 calls classifyScan -> slice
+R 23:12 calls classifyScan -> startsWith
+R 24:71 calls classifyScan -> split (x-file: src/money.ts)
+R 24:40 calls classifyScan -> slice
+R 25:50 calls classifyScan -> parseInt
+R 46:68 calls PickSession::constructor -> map
+R 46:19 calls PickSession::constructor -> pickingRoute (x-file: src/inventory.ts)
+R 46:38 calls PickSession::constructor -> map
+R 47:13 calls PickSession::constructor -> find
+R 47:28 calls PickSession::constructor -> formatLocation (x-file: src/inventory.ts)
+R 47:62 calls PickSession::constructor -> formatLocation (x-file: src/inventory.ts)
+R 49:26 calls PickSession::constructor -> set
+R 53:48 calls PickSession::forZone -> values
+R 75:18 calls PickSession::handleScan -> classifyScan
+R 78:19 calls PickSession::handleScan -> #emit
+R 81:24 calls PickSession::handleScan -> formatLocation (x-file: src/inventory.ts)
+R 82:22 calls PickSession::handleScan -> formatLocation (x-file: src/inventory.ts)
+R 83:19 calls PickSession::handleScan -> #emit
+R 86:19 calls PickSession::handleScan -> #emit
+R 88:17 calls PickSession::handleScan -> push
+R 88:48 calls PickSession::handleScan -> min
+R 89:10 calls PickSession::handleScan -> #advance
+R 95:12 calls PickSession::skip -> #emit
+R 96:12 calls PickSession::skip -> #advance
+R 101:21 calls PickSession::onChange -> add (x-file: src/inventory.ts)
+R 102:34 calls PickSession::onChange -> delete
+R 107:10 calls PickSession::#advance -> #emit
+R 111:21 calls PickSession::#emit -> forEach
+R 111:43 calls PickSession::#emit -> listener
+R 115:26 calls PickSession::close -> delete
+R 116:21 calls PickSession::close -> clear
+R 121:40 extends ScanErrorBoundary -> Component
+R 129:16 calls ScanErrorBoundary::componentDidCatch -> onError
+R 133:10 calls ScanErrorBoundary::retry -> setState
+R 156:22 calls onKeyDown -> now
+R 163:9 calls onKeyDown -> onScan
+R 175:14 calls start -> addEventListener
+R 178:14 calls stop -> removeEventListener
+R 187:17 calls useIdleLogout -> useRef
+R 188:3 calls useIdleLogout -> useEffect
+R 190:7 calls reset -> clearTimeout
+R 191:23 calls reset -> setTimeout
+R 193:5 calls useIdleLogout -> reset
+R 194:12 calls useIdleLogout -> addEventListener
+R 195:12 calls useIdleLogout -> addEventListener
+R 197:7 calls useIdleLogout -> clearTimeout
+R 198:14 calls useIdleLogout -> removeEventListener
+R 199:14 calls useIdleLogout -> removeEventListener
+R 205:29 calls usePickSession -> useState
+R 206:3 calls usePickSession -> useEffect
+R 206:27 calls usePickSession -> onChange
+R 206:57 calls usePickSession -> setState
+R 207:3 calls usePickSession -> useEffect
+R 208:21 calls usePickSession -> createScanner
+R 209:13 calls usePickSession -> start
+R 210:26 calls usePickSession -> stop
+R 216:18 calls TaskCard -> useMemo
+R 216:46 calls TaskCard -> reduce
+R 219:12 calls TaskCard -> formatLocation (x-file: src/inventory.ts)
+R 244:44 calls ProgressBar -> round (x-file: src/money.ts)
+R 256:31 calls Board -> usePickSession
+R 257:29 calls Board -> useState
+R 260:3 calls Board -> useEffect
+R 265:28 calls Board -> then
+R 265:11 calls Board -> levels (x-file: src/inventory.ts)
+R 267:9 calls Board -> setStock
+R 275:3 calls Board -> useEffect
+R 277:7 calls Board -> onFinish
+R 289:55 calls Board -> skip
+R 298:32 calls openSession -> forZone
+R 303:36 calls openSession -> orders (x-file: src/api/client.ts)
+R 305:12 calls openSession -> push
+R 308:22 calls openSession -> Map
+R 309:25 calls openSession -> Set
+R 309:34 calls openSession -> flatMap
+R 309:65 calls openSession -> map
+R 310:12 calls openSession -> set
+R 310:33 calls openSession -> levels (x-file: src/inventory.ts)
+R 312:23 calls openSession -> PickListBuilder (x-file: src/inventory.ts)
+R 313:8 calls openSession -> forEach
+R 313:35 calls openSession -> add (x-file: src/inventory.ts)
+R 314:30 calls openSession -> build (x-file: src/inventory.ts)
+R 315:14 calls openSession -> PickSession
+R 315:39 calls openSession -> get (x-file: src/api/client.ts)
+R 319:18 calls PickBoard -> useMemo
+R 319:32 calls PickBoard -> createClient (x-file: src/api/client.ts)
+R 320:17 calls PickBoard -> useMemo
+R 320:35 calls PickBoard -> StockCache (x-file: src/inventory.ts)
+R 320:46 calls PickBoard -> httpStockSource (x-file: src/inventory.ts)
+R 321:33 calls PickBoard -> useState
+R 322:3 calls PickBoard -> useIdleLogout
+R 324:3 calls PickBoard -> useEffect
+R 325:38 calls PickBoard -> then
+R 325:5 calls PickBoard -> openSession
+R 329:12 calls finish -> forEach
+R 329:36 calls finish -> invalidate (x-file: src/inventory.ts)
+R 330:13 calls finish -> close
+R 331:5 calls finish -> setSession
+R 331:22 calls finish -> openSession
+R 335:52 calls PickBoard -> error
