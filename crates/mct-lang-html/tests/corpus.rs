@@ -75,8 +75,9 @@ fn id_and_class_tokens_reference_their_selectors() {
 #[test]
 fn classes_without_an_id_are_the_documented_limit() {
     let c = corpus();
-    // `<a class="skip-link">`, `<nav class="breadcrumbs">` and the card links
-    // have no id, so their classes are never referenced.
+    // Known limit (module doc): `<a class="skip-link">`, `<nav
+    // class="breadcrumbs">` and the card links have no id, so their classes
+    // are never referenced.
     for class in [".skip-link", ".breadcrumbs", ".product-card__link"] {
         assert!(
             !c.relations().iter().any(|r| r.to == class),
