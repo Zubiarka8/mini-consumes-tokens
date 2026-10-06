@@ -16,6 +16,24 @@ fn parse(src: &str) -> mct_core::ParsedFile {
 }
 
 #[test]
+fn file_module_ends_on_the_last_line() {
+    // A trailing newline must not push the module one line past the file.
+    let module = |src: &str| {
+        let parsed = parse(src);
+        let m = parsed
+            .symbols
+            .iter()
+            .find(|s| s.kind == SymbolKind::Module)
+            .unwrap();
+        (m.location.line, m.location.end_line)
+    };
+    let body = "function Get-X {\n    Write-Output 1\n}";
+    assert_eq!(module(&format!("{body}\n")), (1, Some(3)));
+    assert_eq!(module(body), (1, Some(3)));
+    assert_eq!(module("Get-X\n"), (1, Some(1)));
+}
+
+#[test]
 fn extracts_function_and_call() {
     let parsed = parse(
         "function Write-Log($Message) {\n  Write-Output $Message\n}\n\nfunction Invoke-Build {\n  Write-Log \"building\"\n}\n",
