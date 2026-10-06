@@ -27,6 +27,10 @@
 //! every other unrecognized node kind. Structural HTML/CSS/JSX indexing is
 //! deferred to a future session that first extends `mct-core`'s symbol model.
 //!
+//! Other known limits: interface members are not symbols, and a TS
+//! `namespace` is a `Module` symbol whose functions stay top-level (no
+//! parent). An object literal is not a type, so its methods are `Function`s.
+//!
 //! CommonJS (`require`/`module.exports`) and ES modules (`import`/`export`)
 //! are handled by two independent sets of match arms on the node kind found —
 //! both can appear in the same file (a common real-world interop pattern),
@@ -88,7 +92,8 @@ impl LanguageParser for JsTsParser {
 
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
-        let module_id = walker.push_symbol(module_name, SymbolKind::Module, location(root), None);
+        let module_id =
+            walker.push_symbol(module_name, SymbolKind::Module, module_location(root), None);
         walker.visit_children(root, module_id, None, 0);
         Ok(walker.finish())
     }
@@ -102,6 +107,18 @@ fn module_name_for(relative_path: &str) -> String {
         }
     }
     file_name.to_string()
+}
+
+/// The file-level module's location: the root node of a file ending in a
+/// newline ends at column 0 of the row *after* the last line, which would
+/// put the module one line past the end of the file.
+fn module_location(root: Node) -> Location {
+    let mut loc = location(root);
+    let end = root.end_position();
+    if end.column == 0 && end.row > root.start_position().row {
+        loc.end_line = Some(end.row as u32);
+    }
+    loc
 }
 
 fn first_error(node: Node) -> Option<Node> {
@@ -217,21 +234,17 @@ impl<'a> Walker<'a> {
     /// arrow function's body can be a single expression (`() => foo()`)
     /// rather than a `statement_block`, so the body is dispatched through
     /// `visit` (not `visit_children`) to still catch a bare top-level call.
-    fn visit_function_like_body(
-        &mut self,
-        function_node: Node,
-        owner: SymbolId,
-        type_name: Option<&str>,
-        depth: u32,
-    ) {
+    /// The enclosing class stops here: a function nested in a method body
+    /// belongs to the method, not to the class.
+    fn visit_function_like_body(&mut self, function_node: Node, owner: SymbolId, depth: u32) {
         if let Some(params) = function_node.child_by_field_name("parameters") {
-            self.visit_children(params, owner, type_name, depth + 1);
+            self.visit_children(params, owner, None, depth + 1);
         }
         if let Some(param) = function_node.child_by_field_name("parameter") {
-            self.visit_children(param, owner, type_name, depth + 1);
+            self.visit_children(param, owner, None, depth + 1);
         }
         if let Some(body) = function_node.child_by_field_name("body") {
-            self.visit(body, owner, type_name, depth + 1);
+            self.visit(body, owner, None, depth + 1);
         }
     }
 
@@ -250,7 +263,7 @@ impl<'a> Walker<'a> {
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
                 let id = self.push_symbol(name, SymbolKind::Function, location(node), None);
-                self.visit_function_like_body(node, id, None, depth);
+                self.visit_function_like_body(node, id, depth);
             }
             "class_declaration" | "abstract_class_declaration" => {
                 let name = node
@@ -316,18 +329,42 @@ impl<'a> Walker<'a> {
                     type_name.map(str::to_string),
                 );
             }
+            "enum_declaration" => {
+                let name = node
+                    .child_by_field_name("name")
+                    .map(|n| text(n, self.source).to_string())
+                    .unwrap_or_default();
+                self.push_symbol(
+                    name,
+                    SymbolKind::Enum,
+                    location(node),
+                    type_name.map(str::to_string),
+                );
+            }
+            // `namespace Legacy { … }`: a symbol of its own, but its members
+            // stay top-level (owner and parent unchanged).
+            "internal_module" => {
+                let name = node
+                    .child_by_field_name("name")
+                    .map(|n| text(n, self.source).to_string())
+                    .unwrap_or_default();
+                self.push_symbol(name, SymbolKind::Module, location(node), None);
+                self.visit_children(node, owner, type_name, depth + 1);
+            }
             "method_definition" => {
                 let name = node
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                let id = self.push_symbol(
-                    name,
-                    SymbolKind::Method,
-                    location(node),
-                    type_name.map(str::to_string),
-                );
-                self.visit_function_like_body(node, id, type_name, depth);
+                // An object literal is not a type: its methods are functions,
+                // as in `record_commonjs_export`.
+                let kind = match node.parent().map(|p| p.kind()) {
+                    Some("object") => SymbolKind::Function,
+                    _ => SymbolKind::Method,
+                };
+                let id =
+                    self.push_symbol(name, kind, location(node), type_name.map(str::to_string));
+                self.visit_function_like_body(node, id, depth);
             }
             // JS's `field_definition` vs TS's `public_field_definition` —
             // otherwise identical shape (`property`/`name` field, optional
@@ -351,7 +388,7 @@ impl<'a> Walker<'a> {
                             location(node),
                             type_name.map(str::to_string),
                         );
-                        self.visit_function_like_body(value, id, type_name, depth);
+                        self.visit_function_like_body(value, id, depth);
                     }
                     _ => {
                         self.push_symbol(
@@ -386,7 +423,7 @@ impl<'a> Walker<'a> {
                         location(node),
                         type_name.map(str::to_string),
                     );
-                    self.visit_function_like_body(value, id, type_name, depth);
+                    self.visit_function_like_body(value, id, depth);
                     return;
                 }
                 self.visit(value, owner, type_name, depth + 1);
@@ -399,7 +436,7 @@ impl<'a> Walker<'a> {
             // inside it still attach to whatever function currently owns
             // this scope.
             "arrow_function" | "function_expression" | "generator_function" => {
-                self.visit_function_like_body(node, owner, type_name, depth);
+                self.visit_function_like_body(node, owner, depth);
             }
             "call_expression" => {
                 if let Some(function) = node.child_by_field_name("function") {
@@ -676,9 +713,9 @@ impl<'a> Walker<'a> {
             "arrow_function" | "function_expression" => match member_name {
                 Some(name) => {
                     let id = self.push_symbol(name, SymbolKind::Function, location(value), None);
-                    self.visit_function_like_body(value, id, None, depth);
+                    self.visit_function_like_body(value, id, depth);
                 }
-                None => self.visit_function_like_body(value, owner, None, depth),
+                None => self.visit_function_like_body(value, owner, depth),
             },
             "identifier" => {
                 self.push_relation(
@@ -723,7 +760,7 @@ impl<'a> Walker<'a> {
                                         location(child),
                                         None,
                                     );
-                                    self.visit_function_like_body(val, id, None, depth);
+                                    self.visit_function_like_body(val, id, depth);
                                 }
                                 _ => {}
                             }
@@ -736,7 +773,7 @@ impl<'a> Walker<'a> {
                                     location(child),
                                     None,
                                 );
-                                self.visit_function_like_body(child, id, None, depth);
+                                self.visit_function_like_body(child, id, depth);
                             }
                         }
                         _ => {}
