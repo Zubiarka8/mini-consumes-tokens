@@ -12,6 +12,11 @@
 //! `call_expression`/`navigation_expression`/`property_declaration`/
 //! `class_parameter`'s children are field-tagged in this grammar, so they're
 //! read positionally/by-kind rather than via `child_by_field_name`.
+//!
+//! Known limits: infix and operator calls (`a percentOf b`, `a + b`) are no
+//! `Calls` relation; inside a function body nothing is a member, so the
+//! functions of a local class or an `object : T { … }` expression are
+//! top-level `Function`s.
 
 use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
@@ -62,17 +67,20 @@ impl LanguageParser for KotlinParser {
 
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
-        let module_id = walker.push_symbol(module_name, SymbolKind::Module, location(root), None);
+        let module_id =
+            walker.push_symbol(module_name, SymbolKind::Module, module_location(root), None);
 
         // `package foo.bar` — one Module-kind symbol per occurrence, not
         // deduplicated across files, same convention as Go's package clause
         // and C#'s namespace_declaration.
         if let Some(package_header) = find_child(root, "package_header") {
             if let Some(qid) = package_header.named_child(0) {
+                // Spans the file, like Go's package clause: everything in it
+                // belongs to the package.
                 walker.push_symbol(
                     text(qid, &file.contents).to_string(),
                     SymbolKind::Module,
-                    location(package_header),
+                    module_location(root),
                     None,
                 );
             }
@@ -91,6 +99,18 @@ fn module_name_for(relative_path: &str) -> String {
         .trim_end_matches(".kts")
         .trim_end_matches(".kt")
         .to_string()
+}
+
+/// The file-level module's location: the root node of a file ending in a
+/// newline ends at column 0 of the row *after* the last line, which would
+/// put the module one line past the end of the file.
+fn module_location(root: Node) -> Location {
+    let mut loc = location(root);
+    let end = root.end_position();
+    if end.column == 0 && end.row > root.start_position().row {
+        loc.end_line = Some(end.row as u32);
+    }
+    loc
 }
 
 fn first_error(node: Node) -> Option<Node> {
@@ -190,7 +210,10 @@ fn extension_receiver(function_declaration: Node, source: &str) -> Option<String
             break;
         }
         if child.kind() == "user_type" {
-            return Some(text(child, source).to_string());
+            // `Collection<Order>` → `Collection`: the type the function
+            // extends, as other symbols name it.
+            let name = text(child, source);
+            return Some(name.split('<').next().unwrap_or(name).trim().to_string());
         }
     }
     None
@@ -346,9 +369,24 @@ impl<'a> Walker<'a> {
                 if let Some(primary_ctor) = find_child(node, "primary_constructor") {
                     self.visit_children(primary_ctor, owner, Some(&name), depth + 1);
                 }
-                if let Some(body) = find_child(node, "class_body") {
+                if let Some(body) =
+                    find_child(node, "class_body").or_else(|| find_child(node, "enum_class_body"))
+                {
                     self.visit_children(body, owner, Some(&name), depth + 1);
                 }
+            }
+            // `NEW { override fun next() = … }`: a field of the enum; its
+            // body overrides members of the enum, so they keep its name.
+            "enum_entry" => {
+                if let Some(name_node) = find_child(node, "identifier") {
+                    self.push_symbol(
+                        text(name_node, self.source).to_string(),
+                        SymbolKind::Field,
+                        location(node),
+                        type_name.map(str::to_string),
+                    );
+                }
+                self.visit_children(node, owner, type_name, depth + 1);
             }
             "class_parameter" => {
                 if is_promoted_property(node) {
@@ -372,12 +410,22 @@ impl<'a> Walker<'a> {
                     .unwrap_or_default();
                 let receiver = extension_receiver(node, self.source);
                 let parent = receiver.or_else(|| type_name.map(str::to_string));
-                let id = self.push_symbol(name, SymbolKind::Method, location(node), parent);
+                // A member or an extension is a method of its type; a
+                // top-level or local `fun` is a function.
+                let kind = if parent.is_some() {
+                    SymbolKind::Method
+                } else {
+                    SymbolKind::Function
+                };
+                let id = self.push_symbol(name, kind, location(node), parent);
+                // Inside the body no declaration is a member of the
+                // enclosing type: a local `val` is no field, a local `fun`
+                // no method.
                 if let Some(params) = find_child(node, "function_value_parameters") {
-                    self.visit_children(params, id, type_name, depth + 1);
+                    self.visit_children(params, id, None, depth + 1);
                 }
                 if let Some(body) = find_child(node, "function_body") {
-                    self.visit_children(body, id, type_name, depth + 1);
+                    self.visit_children(body, id, None, depth + 1);
                 }
             }
             "property_declaration" => {

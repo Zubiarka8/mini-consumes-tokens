@@ -1,0 +1,339 @@
+/*
+ * Tailwind CSS v4 stylesheet syntax (issue #114).
+ *
+ * v4 replaced the v3 `@tailwind` directives with a plain `@import`,
+ * moved configuration into CSS (`@theme`), and added `@utility`,
+ * `@variant`, `@custom-variant`, `@slot` and the `--value()`,
+ * `--alpha()` and `--spacing()` functions. Rules use native CSS nesting.
+ * See https://tailwindcss.com/docs/functions-and-directives.
+ *
+ * Not included because tree-sitter-css rejects them (see #116, #87):
+ *   @config "…";  @plugin "…";  @source "…";  @reference "…";
+ *   @import "tailwindcss" prefix(tw);  @import "…" layer(theme);
+ *   @custom-variant name (&:where(…));   (the block form below parses)
+ *   @utility tab-* { … }                 (functional utilities)
+ *   --color-*: initial;                  (namespace reset inside @theme)
+ * and media/container range queries (`width >= 40rem`, #87), which v4's
+ * generated output uses; `min-width:` is written instead.
+ */
+
+@import "tailwindcss";
+@import "../styles/tokens.css";
+
+@layer theme, base, components, utilities;
+
+/* ------------------------------------------------------------------ */
+/* @theme: design tokens that also generate utilities                  */
+/* ------------------------------------------------------------------ */
+
+@theme {
+  --font-display: "Satoshi", "sans-serif";
+  --font-body: "Inter", system-ui, sans-serif;
+
+  --breakpoint-3xl: 120rem;
+  --breakpoint-xs: 30rem;
+
+  --color-harbor-50: oklch(0.98 0.01 230);
+  --color-harbor-100: oklch(0.95 0.03 230);
+  --color-harbor-500: oklch(0.62 0.15 230);
+  --color-harbor-700: oklch(0.45 0.13 230);
+  --color-harbor-900: oklch(0.28 0.08 230);
+  --color-avocado-100: oklch(0.99 0 0);
+  --color-avocado-500: oklch(0.84 0.18 117.33);
+
+  --spacing: 0.25rem;
+  --radius-pill: 9999px;
+
+  --ease-fluid: cubic-bezier(0.3, 0, 0, 1);
+  --ease-snappy: cubic-bezier(0.2, 0, 0, 1);
+
+  --animate-wiggle: wiggle 1s ease-in-out infinite;
+  --animate-fade-in: fade-in 150ms var(--ease-fluid);
+
+  @keyframes wiggle {
+    0%,
+    100% {
+      transform: rotate(-3deg);
+    }
+    50% {
+      transform: rotate(3deg);
+    }
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+/* `inline` resolves the variable at use instead of referencing it. */
+@theme inline {
+  --font-sans: var(--font-body);
+  --color-surface: var(--harbor-surface, white);
+}
+
+/* ------------------------------------------------------------------ */
+/* Custom variants (block form) and @slot                              */
+/* ------------------------------------------------------------------ */
+
+@custom-variant theme-midnight {
+  &:where([data-theme="midnight"] *) {
+    @slot;
+  }
+}
+
+@custom-variant pointer-coarse {
+  @media (pointer: coarse) {
+    @slot;
+  }
+}
+
+@custom-variant any-hover {
+  @media (any-hover: hover) {
+    &:hover {
+      @slot;
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* @utility: static custom utilities                                   */
+/* ------------------------------------------------------------------ */
+
+@utility tab-4 {
+  tab-size: 4;
+}
+
+@utility content-auto {
+  content-visibility: auto;
+}
+
+@utility scrollbar-hidden {
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@utility btn {
+  border-radius: var(--radius-pill);
+  padding: --spacing(2) --spacing(4);
+  background-color: ButtonFace;
+}
+
+@utility text-shadow-soft {
+  text-shadow: 0 1px 2px --alpha(var(--color-harbor-900) / 25%);
+}
+
+/* ------------------------------------------------------------------ */
+/* @layer base / components with @apply and nesting                    */
+/* ------------------------------------------------------------------ */
+
+@layer base {
+  html {
+    font-family: var(--font-body);
+    color: var(--color-harbor-900);
+  }
+
+  h1,
+  h2 {
+    font-family: var(--font-display);
+    @apply tracking-tight;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+@layer components {
+  .hb-card {
+    @apply rounded-xl bg-white p-6 shadow-md;
+    border: 1px solid --alpha(var(--color-harbor-500) / 20%);
+
+    &:hover {
+      @apply shadow-lg;
+    }
+
+    & > .hb-card__title {
+      font-family: var(--font-display);
+      margin-bottom: --spacing(2);
+    }
+
+    @variant dark {
+      background-color: var(--color-harbor-900);
+      color: var(--color-harbor-50);
+    }
+  }
+
+  .hb-button {
+    @apply btn font-medium text-white;
+    background-color: var(--color-harbor-500);
+    transition: background-color 150ms var(--ease-snappy);
+
+    &:hover {
+      background-color: var(--color-harbor-700);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--color-harbor-500);
+      outline-offset: 2px;
+    }
+
+    @variant theme-midnight {
+      background-color: var(--color-avocado-500);
+    }
+
+    @variant pointer-coarse {
+      padding: --spacing(3) --spacing(6);
+    }
+  }
+
+  .hb-input {
+    @apply block w-full rounded-md;
+    padding: --spacing(2) --spacing(3);
+
+    &::placeholder {
+      color: --alpha(var(--color-harbor-900) / 40%);
+    }
+
+    &[aria-invalid="true"] {
+      border-color: red;
+    }
+  }
+
+  .hb-nav {
+    display: flex;
+    gap: --spacing(4);
+
+    & a {
+      @apply text-harbor-700 underline-offset-4;
+
+      &:hover {
+        @apply underline;
+      }
+    }
+
+    @media (min-width: 30rem) {
+      gap: --spacing(6);
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Plain rules using @variant outside any layer                        */
+/* ------------------------------------------------------------------ */
+
+.prose-harbor {
+  max-width: 65ch;
+  line-height: 1.7;
+
+  @variant dark {
+    color: var(--color-harbor-100);
+  }
+
+  @variant hover {
+    text-decoration-color: var(--color-harbor-500);
+  }
+}
+
+.hero {
+  padding-block: calc(--spacing(16) + 2vh);
+  background: linear-gradient(
+    to bottom,
+    var(--color-harbor-50),
+    --alpha(var(--color-harbor-100) / 60%)
+  );
+}
+
+.hero__title {
+  font-size: clamp(2rem, 5vw, 4rem);
+  animation: var(--animate-fade-in);
+}
+
+/* ------------------------------------------------------------------ */
+/* Shape of generated utilities (v4 output)                            */
+/* ------------------------------------------------------------------ */
+
+.bg-harbor-500 {
+  background-color: var(--color-harbor-500);
+}
+
+.bg-harbor-500\/50 {
+  background-color: color-mix(in oklab, var(--color-harbor-500) 50%, transparent);
+}
+
+.p-4 {
+  padding: calc(var(--spacing) * 4);
+}
+
+.mt-\[17px\] {
+  margin-top: 17px;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.animate-wiggle {
+  animation: var(--animate-wiggle);
+}
+
+.\33xl\:grid-cols-6 {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.hover\:bg-harbor-700 {
+  &:hover {
+    @media (hover: hover) {
+      background-color: var(--color-harbor-700);
+    }
+  }
+}
+
+.dark\:bg-harbor-900 {
+  @media (prefers-color-scheme: dark) {
+    background-color: var(--color-harbor-900);
+  }
+}
+
+.theme-midnight\:text-avocado-500 {
+  &:where([data-theme="midnight"] *) {
+    color: var(--color-avocado-500);
+  }
+}
+
+.starting\:opacity-0 {
+  @starting-style {
+    opacity: 0;
+  }
+}
+
+.\@container {
+  container-type: inline-size;
+}
+
+/* v4 nests this `@container` inside the rule; the grammar rejects a
+   nested `@container` (#116), so it is written at top level. */
+@container (min-width: 28rem) {
+  .\@md\:flex-row {
+    flex-direction: row;
+  }
+}
+
+@property --tw-rotate-x {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --tw-shadow-alpha {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 100%;
+}

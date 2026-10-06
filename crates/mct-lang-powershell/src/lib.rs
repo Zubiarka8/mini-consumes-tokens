@@ -20,12 +20,14 @@
 //!   external cmdlet/executable alike — same "unresolved external name"
 //!   precedent every other language plugin in this workspace follows.
 //! - Dot-sourcing (`. .\lib.ps1`) and `Import-Module <name>` become
-//!   `Imports` when the target is a literal argument.
+//!   `Imports` when the target is a literal argument. A computed target
+//!   (`Import-Module (Join-Path $PSScriptRoot 'X.psm1')`,
+//!   `. "$PSScriptRoot/lib.ps1"`) is not evaluated and records no import.
 //! - Only *top-level* `$var = ...` assignments become `Variable` symbols —
 //!   one assigned inside a function body is almost always local scratch
 //!   state and would just add noise. A variable's scope prefix
 //!   (`$script:x`, `$global:x`, ...) is stripped from the recorded name.
-//! - PowerShell classes (`class Foo { ... }`) and their methods are **not**
+//! - PowerShell classes (`class Foo { ... }`), their methods and `enum`s are **not**
 //!   indexed — out of scope for what this plugin was asked to cover
 //!   (systems-scripting `.ps1`/`.psm1` files), and classes are rare in that
 //!   style of script. Only `function`-style definitions are.
@@ -82,7 +84,7 @@ impl LanguageParser for PowerShellParser {
         let module_id = walker.push_symbol(
             module_name.clone(),
             SymbolKind::Module,
-            location(root),
+            module_location(root),
             None,
         );
         walker.visit_children(root, module_id, &module_name, module_id, 0);
@@ -98,6 +100,18 @@ fn module_name_for(relative_path: &str) -> String {
         .trim_end_matches(".psm1")
         .trim_end_matches(".ps1")
         .to_string()
+}
+
+/// The file-level module's location: the root node of a file ending in a
+/// newline ends at column 0 of the row *after* the last line, which would
+/// put the module one line past the end of the file.
+fn module_location(root: Node) -> Location {
+    let mut loc = location(root);
+    let end = root.end_position();
+    if end.column == 0 && end.row > root.start_position().row {
+        loc.end_line = Some(end.row as u32);
+    }
+    loc
 }
 
 fn first_error(node: Node) -> Option<Node> {
@@ -275,11 +289,10 @@ impl<'a> Walker<'a> {
                     location(node),
                     Some(scope_name.to_string()),
                 );
-                if let Some(body_stmts) = find_child(node, "script_block")
-                    .and_then(|sb| sb.child_by_field_name("script_block_body"))
-                    .and_then(|body| body.child_by_field_name("statement_list"))
-                {
-                    self.visit_children(body_stmts, id, &name, module_id, depth + 1);
+                // The whole block: a plain statement list or a
+                // `begin`/`process`/`end` named block list, plus `param()`.
+                if let Some(block) = find_child(node, "script_block") {
+                    self.visit_children(block, id, &name, module_id, depth + 1);
                 }
             }
             "assignment_expression" => {
@@ -383,7 +396,9 @@ fn first_command_argument_text(command_node: Node, source: &str) -> Option<Strin
         .into_iter()
         .find(|c| c.kind() != "command_argument_sep" && c.kind() != "command_parameter")?;
     let trimmed = text(arg, source).trim_matches(|c| c == '"' || c == '\'');
-    if trimmed.is_empty() {
+    // A computed target (`(Join-Path …)`, `"$PSScriptRoot/x"`, `@(…)`) is
+    // not evaluated: no import rather than its source text.
+    if trimmed.is_empty() || trimmed.contains('$') || trimmed.starts_with(['(', '@']) {
         None
     } else {
         Some(trimmed.to_string())
