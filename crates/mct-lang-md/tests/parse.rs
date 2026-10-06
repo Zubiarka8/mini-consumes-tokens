@@ -151,33 +151,26 @@ fn wikilink_alias_is_stripped_from_the_target() {
 }
 
 #[test]
-fn wikilink_anchor_is_split_into_two_relations() {
+fn wikilink_anchor_keeps_note_and_heading_identity_together() {
     let parsed = parse("# A\n\nSee [[Other Note#Some Heading]] for details.\n");
     assert!(
-        parsed.relations.iter().any(|r| r.to_name == "Other Note"),
-        "{:?}",
-        parsed.relations
-    );
-    assert!(
-        parsed.relations.iter().any(|r| r.to_name == "Some Heading"),
-        "{:?}",
-        parsed.relations
-    );
-    assert!(
-        !parsed
+        parsed
             .relations
             .iter()
             .any(|r| r.to_name == "Other Note#Some Heading"),
-        "the anchor must no longer be indexed verbatim as one target: {:?}",
+        "{:?}",
         parsed.relations
     );
+    assert_eq!(parsed.relations.len(), 1, "{:?}", parsed.relations);
 }
 
 #[test]
-fn wikilink_anchor_and_alias_together_strip_alias_and_split_anchor() {
+fn wikilink_anchor_and_alias_keep_identity_and_strip_alias() {
     let parsed = parse("# A\n\nSee [[Other Note#Some Heading|click here]] for details.\n");
-    assert!(parsed.relations.iter().any(|r| r.to_name == "Other Note"));
-    assert!(parsed.relations.iter().any(|r| r.to_name == "Some Heading"));
+    assert!(parsed
+        .relations
+        .iter()
+        .any(|r| r.to_name == "Other Note#Some Heading"));
     assert!(!parsed
         .relations
         .iter()
@@ -185,9 +178,12 @@ fn wikilink_anchor_and_alias_together_strip_alias_and_split_anchor() {
 }
 
 #[test]
-fn a_same_document_anchor_link_emits_only_the_heading_relation() {
+fn a_same_document_anchor_link_keeps_its_anchor_identity() {
     let parsed = parse("# A\n\nSee [[#Some Heading]] for details.\n");
-    assert!(parsed.relations.iter().any(|r| r.to_name == "Some Heading"));
+    assert!(parsed
+        .relations
+        .iter()
+        .any(|r| r.to_name == "#Some Heading"));
     assert_eq!(
         parsed.relations.len(),
         1,
@@ -220,10 +216,12 @@ fn an_embed_is_scanned_identically_to_a_plain_wikilink() {
 }
 
 #[test]
-fn an_embed_with_an_anchor_is_split_like_a_plain_wikilink() {
+fn an_embed_with_an_anchor_keeps_note_and_heading_identity_together() {
     let parsed = parse("# A\n\nSee ![[Other Note#Some Heading]] for details.\n");
-    assert!(parsed.relations.iter().any(|r| r.to_name == "Other Note"));
-    assert!(parsed.relations.iter().any(|r| r.to_name == "Some Heading"));
+    assert!(parsed
+        .relations
+        .iter()
+        .any(|r| r.to_name == "Other Note#Some Heading"));
 }
 
 #[test]
