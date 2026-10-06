@@ -182,6 +182,28 @@ fn only_references_are_emitted_and_none_cross_files() {
 }
 
 #[test]
+fn a_named_element_spans_its_descendants_handlers() {
+    // A handler on an unnamed descendant is attributed to the nearest named
+    // ancestor; that element spans through its end tag, so the handler lies
+    // inside it.
+    for f in &corpus().files {
+        for r in &f.parsed.relations {
+            let owner = f.parsed.symbols.iter().find(|s| s.id == r.from).unwrap();
+            let end = owner.location.end_line.unwrap();
+            assert!(
+                (owner.location.line..=end).contains(&r.location.line),
+                "{}:{} {} outside {} {}-{end}",
+                f.path,
+                r.location.line,
+                r.to_name,
+                owner.name,
+                owner.location.line
+            );
+        }
+    }
+}
+
+#[test]
 fn index_answers_handler_queries() {
     let index = corpus().index();
     let refs = index.find_references("StockFilter_Checked").unwrap();
