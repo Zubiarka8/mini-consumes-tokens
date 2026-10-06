@@ -27,6 +27,10 @@
 //! every other unrecognized node kind. Structural HTML/CSS/JSX indexing is
 //! deferred to a future session that first extends `mct-core`'s symbol model.
 //!
+//! Other known limits: interface members are not symbols, and a TS
+//! `namespace` is a `Module` symbol whose functions stay top-level (no
+//! parent). An object literal is not a type, so its methods are `Function`s.
+//!
 //! CommonJS (`require`/`module.exports`) and ES modules (`import`/`export`)
 //! are handled by two independent sets of match arms on the node kind found —
 //! both can appear in the same file (a common real-world interop pattern),
