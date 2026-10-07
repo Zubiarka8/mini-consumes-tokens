@@ -1,0 +1,314 @@
+<Application x:Class="Warehouse.Desktop.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sys="clr-namespace:System;assembly=System.Runtime"
+             xmlns:conv="clr-namespace:Warehouse.Desktop.Converters"
+             xmlns:vm="clr-namespace:Warehouse.Desktop.ViewModels"
+             xmlns:views="clr-namespace:Warehouse.Desktop.Views"
+             StartupUri="Views/MainWindow.xaml"
+             ShutdownMode="OnMainWindowClose"
+             Activated="App_Activated"
+             Deactivated="App_Deactivated">
+  <!--
+    Application entry point of the warehouse desktop client.
+
+    The resources below are shared by every view: Views/MainWindow.xaml,
+    Views/OrdersView.xaml, Views/InventoryView.xaml and
+    Views/OrderEditorDialog.xaml look them up by x:Key through
+    {StaticResource …}/{DynamicResource …}. Styles and templates live in
+    Themes/Controls.xaml, merged in first so the keys below can override
+    them.
+  -->
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Themes/Controls.xaml"/>
+        <ResourceDictionary Source="pack://application:,,,/Warehouse.Desktop;component/Themes/Icons.xaml"/>
+      </ResourceDictionary.MergedDictionaries>
+
+      <!-- ===============================================================
+           Palette
+           =============================================================== -->
+      <Color x:Key="PrimaryColor">#FF1F6FEB</Color>
+      <Color x:Key="PrimaryDarkColor">#FF0B4FB3</Color>
+      <Color x:Key="AccentColor">#FFF59E0B</Color>
+      <Color x:Key="DangerColor">#FFDC2626</Color>
+      <Color x:Key="SuccessColor">#FF16A34A</Color>
+      <Color x:Key="SurfaceColor">#FFF8FAFC</Color>
+      <Color x:Key="SurfaceAltColor">#FFE2E8F0</Color>
+      <Color x:Key="TextColor">#FF0F172A</Color>
+      <Color x:Key="MutedTextColor">#FF64748B</Color>
+
+      <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource PrimaryColor}"/>
+      <SolidColorBrush x:Key="PrimaryDarkBrush" Color="{StaticResource PrimaryDarkColor}"/>
+      <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}"/>
+      <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource DangerColor}"/>
+      <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}"/>
+      <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}"/>
+      <SolidColorBrush x:Key="SurfaceAltBrush" Color="{StaticResource SurfaceAltColor}"/>
+      <SolidColorBrush x:Key="TextBrush" Color="{StaticResource TextColor}"/>
+      <SolidColorBrush x:Key="MutedTextBrush" Color="{StaticResource MutedTextColor}"/>
+
+      <LinearGradientBrush x:Key="HeaderBrush" StartPoint="0,0" EndPoint="1,0">
+        <GradientStop Color="{StaticResource PrimaryDarkColor}" Offset="0"/>
+        <GradientStop Color="{StaticResource PrimaryColor}" Offset="0.6"/>
+        <GradientStop Color="#FF38BDF8" Offset="1"/>
+      </LinearGradientBrush>
+
+      <!-- ===============================================================
+           Typography and spacing
+           =============================================================== -->
+      <FontFamily x:Key="BodyFont">Segoe UI, Noto Sans, Arial</FontFamily>
+      <FontFamily x:Key="MonoFont">Cascadia Mono, Consolas, Courier New</FontFamily>
+      <sys:Double x:Key="BodyFontSize">13</sys:Double>
+      <sys:Double x:Key="TitleFontSize">20</sys:Double>
+      <sys:Double x:Key="HeaderFontSize">15</sys:Double>
+      <Thickness x:Key="PagePadding">16,12,16,12</Thickness>
+      <Thickness x:Key="FieldMargin">0,4,0,8</Thickness>
+      <CornerRadius x:Key="CardCornerRadius">6</CornerRadius>
+      <sys:TimeSpan x:Key="SearchDebounce">0:0:0.300</sys:TimeSpan>
+
+      <!-- ===============================================================
+           Strings (es-ES is the source language of the client)
+           =============================================================== -->
+      <sys:String x:Key="AppTitle">Almacén Norte — Gestión</sys:String>
+      <sys:String x:Key="OrdersTitle">Pedidos</sys:String>
+      <sys:String x:Key="InventoryTitle">Inventario</sys:String>
+      <sys:String x:Key="ShipmentsTitle">Envíos</sys:String>
+      <sys:String x:Key="InvoicesTitle">Facturas</sys:String>
+      <sys:String x:Key="SaveLabel">Guardar</sys:String>
+      <sys:String x:Key="CancelLabel">Cancelar</sys:String>
+      <sys:String x:Key="SearchPlaceholder">Buscar por número, cliente o SKU…</sys:String>
+      <sys:String x:Key="ConfirmDiscard">¿Descartar los cambios sin guardar?</sys:String>
+
+      <!-- ===============================================================
+           Converters used by the views' bindings
+           =============================================================== -->
+      <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
+      <conv:InverseBooleanConverter x:Key="InverseBool"/>
+      <conv:NullToVisibilityConverter x:Key="NullToCollapsed" NullValue="Collapsed"/>
+      <conv:MoneyConverter x:Key="Money" Culture="es-ES" Currency="EUR"/>
+      <conv:OrderStatusToBrushConverter x:Key="StatusBrush"
+                                        NewBrush="{StaticResource PrimaryBrush}"
+                                        ReservedBrush="{StaticResource AccentBrush}"
+                                        ShippedBrush="{StaticResource SuccessBrush}"
+                                        CancelledBrush="{StaticResource DangerBrush}"/>
+      <conv:StockLevelToBrushConverter x:Key="StockBrush"
+                                       LowThreshold="10"
+                                       LowBrush="{StaticResource DangerBrush}"
+                                       OkBrush="{StaticResource TextBrush}"/>
+      <conv:EnumToDisplayNameConverter x:Key="EnumDisplay"/>
+      <conv:RelativeTimeConverter x:Key="RelativeTime"/>
+
+      <!-- ===============================================================
+           View models exposed as resources for design-time data
+           =============================================================== -->
+      <vm:ShellViewModel x:Key="Shell"/>
+      <vm:OrdersViewModel x:Key="DesignOrders" IsDesignData="True"/>
+      <vm:InventoryViewModel x:Key="DesignInventory" IsDesignData="True"/>
+
+      <!-- View model → view mapping used by the shell's ContentControl -->
+      <DataTemplate DataType="{x:Type vm:OrdersViewModel}">
+        <views:OrdersView/>
+      </DataTemplate>
+      <DataTemplate DataType="{x:Type vm:InventoryViewModel}">
+        <views:InventoryView/>
+      </DataTemplate>
+      <DataTemplate DataType="{x:Type vm:OrderEditorViewModel}">
+        <views:OrderEditorDialog/>
+      </DataTemplate>
+
+      <!-- ===============================================================
+           Shared data templates
+           =============================================================== -->
+      <DataTemplate x:Key="CustomerChip">
+        <Border Background="{StaticResource SurfaceAltBrush}"
+                CornerRadius="10" Padding="8,2" Margin="0,0,4,0">
+          <StackPanel Orientation="Horizontal">
+            <TextBlock Text="{Binding Initials}" FontWeight="Bold" Margin="0,0,6,0"/>
+            <TextBlock Text="{Binding Name}"/>
+          </StackPanel>
+        </Border>
+      </DataTemplate>
+
+      <DataTemplate x:Key="MoneyCell">
+        <TextBlock Text="{Binding Converter={StaticResource Money}}"
+                   TextAlignment="Right"
+                   FontFamily="{StaticResource MonoFont}"/>
+      </DataTemplate>
+
+      <DataTemplate x:Key="StatusPill">
+        <Border CornerRadius="8" Padding="6,1"
+                Background="{Binding Status, Converter={StaticResource StatusBrush}}">
+          <TextBlock Text="{Binding Status, Converter={StaticResource EnumDisplay}}"
+                     Foreground="White" FontSize="11"/>
+        </Border>
+      </DataTemplate>
+
+      <DataTemplate x:Key="StockCell">
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+          <TextBlock Text="{Binding Available}"
+                     Foreground="{Binding Available, Converter={StaticResource StockBrush}}"/>
+          <TextBlock Text=" / " Foreground="{StaticResource MutedTextBrush}"/>
+          <TextBlock Text="{Binding OnHand}" Foreground="{StaticResource MutedTextBrush}"/>
+        </StackPanel>
+      </DataTemplate>
+
+      <!-- A template with named parts: each x:Name is scoped to the
+           template, so the same names can appear in every template. -->
+      <ControlTemplate x:Key="ValidationErrorTemplate">
+        <DockPanel LastChildFill="True">
+          <Border x:Name="ErrorBadge" DockPanel.Dock="Right" Width="16" Height="16"
+                  CornerRadius="8" Background="{StaticResource DangerBrush}"
+                  ToolTip="{Binding [0].ErrorContent}" Margin="4,0,0,0">
+            <TextBlock Text="!" Foreground="White" HorizontalAlignment="Center"
+                       FontWeight="Bold"/>
+          </Border>
+          <Border BorderBrush="{StaticResource DangerBrush}" BorderThickness="1"
+                  CornerRadius="3">
+            <AdornedElementPlaceholder x:Name="ErrorAdorner"/>
+          </Border>
+        </DockPanel>
+      </ControlTemplate>
+
+      <!-- ===============================================================
+           Commands bound from the shell's menu and key bindings
+           =============================================================== -->
+      <RoutedUICommand x:Key="NewOrderCommand" Text="Nuevo pedido"/>
+      <RoutedUICommand x:Key="ReserveStockCommand" Text="Reservar stock"/>
+      <RoutedUICommand x:Key="ShipOrderCommand" Text="Enviar pedido"/>
+      <RoutedUICommand x:Key="RefreshCommand" Text="Actualizar"/>
+      <RoutedUICommand x:Key="ToggleThemeCommand" Text="Cambiar tema"/>
+
+      <!-- ===============================================================
+           Notification popup shown by the shell. It handles its own
+           close button; the handlers live in App.xaml.cs.
+           =============================================================== -->
+      <Style x:Key="ToastStyle" TargetType="ContentControl">
+        <Setter Property="Template">
+          <Setter.Value>
+            <ControlTemplate TargetType="ContentControl">
+              <Border x:Name="ToastRoot"
+                      Background="{StaticResource TextBrush}"
+                      CornerRadius="{StaticResource CardCornerRadius}"
+                      Padding="12,8"
+                      MouseEnter="Toast_MouseEnter"
+                      MouseLeave="Toast_MouseLeave">
+                <DockPanel>
+                  <Button x:Name="ToastClose" DockPanel.Dock="Right"
+                          Content="✕" Padding="4,0" Margin="8,0,0,0"
+                          Background="Transparent" Foreground="White"
+                          BorderThickness="0"
+                          Click="ToastClose_Click"/>
+                  <ContentPresenter TextElement.Foreground="White"/>
+                </DockPanel>
+              </Border>
+              <ControlTemplate.Triggers>
+                <EventTrigger RoutedEvent="Loaded">
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="ToastRoot"
+                                       Storyboard.TargetProperty="Opacity"
+                                       From="0" To="1" Duration="0:0:0.2"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </EventTrigger>
+              </ControlTemplate.Triggers>
+            </ControlTemplate>
+          </Setter.Value>
+        </Setter>
+      </Style>
+
+      <!-- ===============================================================
+           Tray icon menu. The context menu has no name; its items do.
+           =============================================================== -->
+      <ContextMenu x:Key="TrayMenu">
+        <MenuItem x:Name="TrayOpen" Header="Abrir" Click="TrayOpen_Click" FontWeight="Bold"/>
+        <MenuItem x:Name="TraySync" Header="Sincronizar ahora" Click="TraySync_Click"/>
+        <Separator/>
+        <MenuItem Header="Modo sin conexión" IsCheckable="True"
+                  Checked="OfflineMode_Checked" Unchecked="OfflineMode_Unchecked"/>
+        <Separator/>
+        <MenuItem x:Name="TrayExit" Header="Salir" Click="TrayExit_Click"/>
+      </ContextMenu>
+
+      <!-- Splash content shown while the shell loads its first view. -->
+      <Grid x:Key="SplashContent" Background="{StaticResource HeaderBrush}">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="*"/>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <TextBlock Grid.Row="1" Text="{StaticResource AppTitle}"
+                   FontSize="28" Foreground="White" HorizontalAlignment="Center"/>
+        <ProgressBar x:Name="SplashProgress" Grid.Row="2" Width="240" Height="4"
+                     Margin="0,16,0,0" IsIndeterminate="True"
+                     Foreground="{StaticResource AccentBrush}"/>
+      </Grid>
+
+      <!-- ===============================================================
+           Keyboard shortcuts shown in the help overlay. Plain data:
+           no names, no handlers.
+           =============================================================== -->
+      <x:Array x:Key="Shortcuts" Type="{x:Type sys:String}">
+        <sys:String>Ctrl+N — Nuevo pedido</sys:String>
+        <sys:String>Ctrl+R — Reservar stock</sys:String>
+        <sys:String>Ctrl+E — Enviar pedido</sys:String>
+        <sys:String>F5 — Actualizar</sys:String>
+        <sys:String>Ctrl+F — Buscar</sys:String>
+        <sys:String>Ctrl+Shift+T — Cambiar tema</sys:String>
+        <sys:String>Esc — Cerrar diálogo</sys:String>
+      </x:Array>
+
+      <!-- Status bar segments, reused by MainWindow's status bar. -->
+      <DataTemplate x:Key="ConnectionStatus">
+        <StackPanel Orientation="Horizontal">
+          <Ellipse Width="8" Height="8" Margin="0,0,6,0"
+                   Fill="{Binding IsOnline, Converter={StaticResource StatusBrush}}"/>
+          <TextBlock Text="{Binding ServerName}"/>
+          <TextBlock Text="{Binding Latency, StringFormat=' ({0} ms)'}"
+                     Foreground="{StaticResource MutedTextBrush}"/>
+        </StackPanel>
+      </DataTemplate>
+
+      <DataTemplate x:Key="SyncStatus">
+        <StackPanel Orientation="Horizontal">
+          <TextBlock Text="Última sincronización: "/>
+          <TextBlock Text="{Binding LastSync, Converter={StaticResource RelativeTime}}"/>
+          <Button Content="↻" Padding="4,0" Margin="6,0,0,0"
+                  Command="{StaticResource RefreshCommand}"
+                  ToolTip="Sincronizar ahora"/>
+        </StackPanel>
+      </DataTemplate>
+
+      <!-- Empty-state illustration used by list views without results. -->
+      <DataTemplate x:Key="EmptyState">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24">
+          <Path Width="64" Height="64" Stretch="Uniform"
+                Fill="{StaticResource SurfaceAltBrush}"
+                Data="M4,4 L60,4 L60,60 L4,60 Z M12,20 L52,20 M12,32 L52,32 M12,44 L36,44"/>
+          <TextBlock Text="{Binding}" Margin="0,12,0,0"
+                     Foreground="{StaticResource MutedTextBrush}"
+                     HorizontalAlignment="Center" TextWrapping="Wrap" MaxWidth="280"/>
+        </StackPanel>
+      </DataTemplate>
+
+      <!-- Theme dictionaries swapped at run time by ToggleThemeCommand. -->
+      <ResourceDictionary x:Key="DarkTheme">
+        <SolidColorBrush x:Key="SurfaceBrush" Color="#FF0F172A"/>
+        <SolidColorBrush x:Key="SurfaceAltBrush" Color="#FF1E293B"/>
+        <SolidColorBrush x:Key="TextBrush" Color="#FFE2E8F0"/>
+        <SolidColorBrush x:Key="MutedTextBrush" Color="#FF94A3B8"/>
+      </ResourceDictionary>
+
+      <ResourceDictionary x:Key="HighContrastTheme">
+        <SolidColorBrush x:Key="SurfaceBrush" Color="Black"/>
+        <SolidColorBrush x:Key="SurfaceAltBrush" Color="#FF202020"/>
+        <SolidColorBrush x:Key="TextBrush" Color="White"/>
+        <SolidColorBrush x:Key="MutedTextBrush" Color="Yellow"/>
+        <SolidColorBrush x:Key="PrimaryBrush" Color="Cyan"/>
+      </ResourceDictionary>
+    </ResourceDictionary>
+  </Application.Resources>
+</Application>

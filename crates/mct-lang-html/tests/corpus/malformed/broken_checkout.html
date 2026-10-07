@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tu cesta y pago — Almacén Norte</title>
+  <!--
+    MALFORMED on purpose (issue #74): the checkout page after a bad merge —
+    a tag opened inside another tag, an unterminated attribute value, stray
+    end tags and a comment that never closes. The parser must report a
+    syntax error or a partial result, never panic.
+
+    Cart and checkout in one page: lines (#cart-table), delivery (#delivery),
+    payment (#payment) and the order summary (#summary) that the cart
+    drawer's "Ver cesta y pagar" link of every page points at. A finished
+    order lands in account.html#orders.
+  -->
+  <link rel="stylesheet" href="assets/css/site.css">
+  <link rel="stylesheet" href="assets/css/checkout.css">
+  <link rel="stylesheet" href="https://js.payments.example/v3/elements.css">
+  <script src="assets/js/app.js" type="module"></script>
+  <script src="assets/js/checkout.js" type="module"></script>
+  <script src="https://js.payments.example/v3/" async></script>
+  <noscript>
+    <link rel="stylesheet" href="assets/css/noscript.css">
+  </noscript>
+</head>
+<body id="cart" class="page page--checkout">
+  <header id="site-header" class="site-header site-header--minimal" role="banner">
+    <div class="container">
+      <a id="logo" class="logo" href="index.html" aria-label="Almacén Norte, inicio">
+        <span class="logo__text">Almacén Norte</span>
+      </a>
+      <ol id="checkout-steps" class="steps-bar" aria-label="Pasos del pedido">
+        <li id="step-cart" class="steps-bar__item is-current" aria-current="step">Cesta</li>
+        <li id="step-delivery" class="steps-bar__item">Entrega</li>
+        <li id="step-payment" class="steps-bar__item">Pago</li>
+        <li id="step-done" class="steps-bar__item">Confirmación</li>
+      </ol>
+      <p class="secure-note">🔒 Pago seguro</p>
+    </div>
+  </header>
+
+  <main id="main" class="main container checkout-layout" tabindex="-1">
+    <form id="checkout-form" class="checkout" action="/api/orders" method="post" novalidate>
+
+      <!-- =============================================================
+           Lines
+           ============================================================= -->
+      <section id="cart-lines-section" class="checkout__section" aria-labelledby="cart-title">
+        </section></table>
+        <h1 id="cart-title class="checkout__title" <span>Tu cesta <small>(3 productos)</small></h1>
+        <table id="cart-table" class="cart-table">
+          <thead>
+            <tr>
+              <th scope="col">Producto</th>
+              <th scope="col" class="num">Precio</th>
+              <th scope="col" class="num">Cantidad</th>
+              <th scope="col" class="num">Subtotal</th>
+              <th scope="col"><span class="visually-hidden">Acciones</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr id="line-1" class="cart-table__row" data-sku="sku-1001">
+              <td>
+                <a class="cart-table__product" href="product.html?sku=sku-1001">
+                  <img src="assets/img/products/sku-1001-thumb.jpg" alt="" width="56" height="56">
+                  Sartén antiadherente 28&nbsp;cm
+                </a>
+              </td>
+              <td class="num">24,90&nbsp;€</td>
+              <td class="num">
+                <label for="qty-1" class="visually-hidden">Cantidad</label>
+                <input id="qty-1" class="qty" type="number" name="lines[0][quantity]" min="1" max="12" value="2">
+                <input type="hidden" name="lines[0][sku]" value="sku-1001">
+              </td>
+              <td class="num">49,80&nbsp;€</td>
+              <td><button class="link-btn remove-line" type="button" data-line="1">Quitar</button></td>
+            </tr>
+            <tr id="line-2" class="cart-table__row" data-sku="sku-2001">
+              <td>
+                <a class="cart-table__product" href="product.html?sku=sku-2001">
+                  <img src="assets/img/products/sku-2001-thumb.jpg" alt="" width="56" height="56">
+                  Aceite de oliva virgen extra 1&nbsp;L
+                </a>
+              </td>
+              <td class="num">9,80&nbsp;€</td>
+              <td class="num">
+                <label for="qty-2" class="visually-hidden">Cantidad</label>
+                <input id="qty-2" class="qty" type="number" name="lines[1][quantity]" min="1" max="24" value="6">
+                <input type="hidden" name="lines[1][sku]" value="sku-2001">
+              </td>
+              <td class="num">58,80&nbsp;€</td>
+              <td><button class="link-btn remove-line" type="button" data-line="2">Quitar</button></td>
+            </tr>
+            <tr id="line-3" class="cart-table__row cart-table__row--chilled" data-sku="sku-2101">
+              <td>
+                <a class="cart-table__product" href="product.html?sku=sku-2101">
+                  <img src="assets/img/products/sku-2101-thumb.jpg" alt="" width="56" height="56">
+                  Queso manchego curado 250&nbsp;g
+                </a>
+                <p class="cart-table__note">Se envía en caja isotérmica</p>
+              </td>
+              <td class="num">7,45&nbsp;€</td>
+              <td class="num">
+                <label for="qty-3" class="visually-hidden">Cantidad</label>
+                <input id="qty-3" class="qty" type="number" name="lines[2][quantity]" min="1" max="10" value="1">
+                <input type="hidden" name="lines[2][sku]" value="sku-2101">
+              </td>
+              <td class="num">7,45&nbsp;€</td>
+              <td><button class="link-btn remove-line" type="button" data-line="3">Quitar</button></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div id="coupon" class="coupon">
+          <label for="coupon-code" class="field__label">¿Tienes un código de descuento?</label>
+          <div class="coupon__row">
+            <input id="coupon-code" class="field__input" type="text" name="coupon"
+                   autocomplete="off" pattern="[A-Z0-9-]{4,16}">
+            <button id="coupon-apply" class="btn btn--ghost" type="button">Aplicar</button>
+          </div>
+          <p id="coupon-feedback" class="field__hint" aria-live="polite"></p>
+        </div>
+      </section>
+
+      <!-- =============================================================
+           Delivery
+           ============================================================= -->
+      <section id="delivery" class="checkout__section" aria-labelledby="delivery-title">
+        <h2 id="delivery-title" class="checkout__subtitle">Entrega</h2>
+
+        <fieldset id="delivery-method" class="choice-group">
+          <legend class="field__label">Método de envío</legend>
+          <label class="choice">
+            <input id="ship-standard" type="radio" name="shipping" value="standard" checked>
+            <span class="choice__title">Estándar (24–48&nbsp;h)</span>
+            <span class="choice__price">Gratis</span>
+          </label>
+          <label class="choice">
+            <input id="ship-express" type="radio" name="shipping" value="express">
+            <span class="choice__title">Urgente (antes de las 14:00 del día siguiente)</span>
+            <span class="choice__price">6,90&nbsp;€</span>
+          </label>
+          <label class="choice">
+            <input id="ship-pickup" type="radio" name="shipping" value="pickup">
+            <span class="choice__title">Recogida en almacén (Zamudio)</span>
+            <span class="choice__price">Gratis</span>
+          </label>
+        </fieldset>
+
+        <div id="address-fields" class="grid grid--2">
+          <div class="field">
+            <label for="full-name" class="field__label">Nombre y apellidos</label>
+            <input id="full-name" class="field__input" type="text" name="name" autocomplete="name" required>
+          </div>
+          <div class="field">
+            <label for="phone" class="field__label">Teléfono</label>
+            <input id="phone" class="field__input" type="tel" name="phone" autocomplete="tel" required>
+          </div>
+          <div class="field field--wide">
+            <label for="street" class="field__label">Dirección</label>
+            <input id="street" class="field__input" type="text" name="street"
+                   autocomplete="address-line1" required>
+          </div>
+          <div class="field">
+            <label for="postal-code" class="field__label">Código postal</label>
+            <input id="postal-code" class="field__input" type="text" name="postalCode"
+                   inputmode="numeric" pattern="[0-9]{5}" autocomplete="postal-code" required>
+          </div>
+          <div class="field">
+            <label for="city" class="field__label">Ciudad</label>
+            <input id="city" class="field__input" type="text" name="city"
+                   autocomplete="address-level2" required>
+          </div>
+          <div class="field">
+            <label for="country" class="field__label">País</label>
+            <select id="country" class="field__input" name="country" autocomplete="country">
+              <option value="ES" selected>España</option>
+              <option value="PT">Portugal</option>
+              <option value="FR">Francia</option>
+              <option value="DE">Alemania</option>
+            </select>
+          </div>
+          <div class="field field--wide">
+            <label for="delivery-notes" class="field__label">Indicaciones para el repartidor</label>
+            <textarea id="delivery-notes" class="field__input" name="notes" rows="2"
+                      maxlength="240"></textarea>
+          </div>
+        </div>
+      </section>
+
+      <!-- =============================================================
+           Gift options
+           ============================================================= -->
+      <section id="gift" class="checkout__section" aria-labelledby="gift-title">
+        <h2 id="gift-title" class="checkout__subtitle">¿Es un regalo?</h2>
+        <label class="switch">
+          <input id="gift-toggle" class="switch__input" type="checkbox" name="gift" value="1"
+                 aria-controls="gift-fields" aria-expanded="false">
+          <span class="switch__track" aria-hidden="true"></span>
+          Envolver para regalo (2,50&nbsp;€) y ocultar precios en el albarán
+        </label>
+        <div id="gift-fields" class="gift-fields" hidden>
+          <label for="gift-to" class="field__label">Para</label>
+          <input id="gift-to" class="field__input" type="text" name="giftTo" maxlength="60">
+          <label for="gift-message" class="field__label">Mensaje (aparece en la tarjeta)</label>
+          <textarea id="gift-message" class="field__input" name="giftMessage" rows="3"
+                    maxlength="200" placeholder="¡Zorionak!"></textarea>
+          <p id="gift-message-count" class="field__hint" aria-live="polite">0 / 200</p>
+          <fieldset class="choice-group choice-group--inline">
+            <legend class="field__label">Papel</legend>
+            <label class="choice choice--swatch">
+              <input id="wrap-kraft" type="radio" name="wrap" value="kraft" checked> Kraft
+            </label>
+            <label class="choice choice--swatch">
+              <input id="wrap-red" type="radio" name="wrap" value="red"> Rojo
+            </label>
+            <label class="choice choice--swatch">
+              <input id="wrap-gold" type="radio" name="wrap" value="gold"> Dorado
+            </label>
+          </fieldset>
+        </div>
+      </section>
+
+      <!-- =============================================================
+           Payment
+           ============================================================= -->
+      <section id="payment" class="checkout__section" aria-labelledby="payment-title">
+        <h2 id="payment-title" class="checkout__subtitle">Pago</h2>
+        <div id="payment-tabs" class="segmented" role="tablist">
+          <button id="pay-card-tab" class="segmented__btn is-active" type="button" role="tab"
+                  aria-controls="pay-card" aria-selected="true">Tarjeta</button>
+          <button id="pay-bizum-tab" class="segmented__btn" type="button" role="tab"
+                  aria-controls="pay-bizum" aria-selected="false">Bizum</button>
+          <button id="pay-transfer-tab" class="segmented__btn" type="button" role="tab"
+                  aria-controls="pay-transfer" aria-selected="false">Transferencia</button>
+        </div>
+        <div id="pay-card" class="payment-panel" role="tabpanel">
+          <div id="card-element" class="card-element" data-provider="payments.example"></div>
+          <p id="card-errors" class="field__error" role="alert"></p>
+          <label class="checkbox">
+            <input id="save-card" type="checkbox" name="saveCard"> Guardar la tarjeta para futuras compras
+          </label>
+        </div>
+        <div id="pay-bizum" class="payment-panel" role="tabpanel" hidden>
+          <label for="bizum-phone" class="field__label">Teléfono asociado a Bizum</label>
+          <input id="bizum-phone" class="field__input" type="tel" name="bizumPhone">
+        </div>
+        <div id="pay-transfer" class="payment-panel" role="tabpanel" hidden>
+          <p>Te enviaremos los datos bancarios por correo. El pedido se prepara al recibir el pago.</p>
+        </div>
+      </section>
+
+      <!-- =============================================================
+           Summary (sticky on wide screens)
+           ============================================================= -->
+      <aside id="summary" class="checkout__summary" aria-labelledby="summary-title">
+        <h2 id="summary-title" class="checkout__subtitle">Resumen</h2>
+        <dl class="summary-list">
+          <dt>Subtotal</dt><dd id="summary-subtotal">116,05&nbsp;€</dd>
+          <dt>Envío</dt><dd id="summary-shipping">Gratis</dd>
+          <dt>Descuento</dt><dd id="summary-discount">—</dd>
+          <dt>IVA incluido</dt><dd id="summary-vat">14,26&nbsp;€</dd>
+          <dt class="summary-list__total">Total</dt><dd id="summary-total" class="summary-list__total">116,05&nbsp;€</dd>
+        </dl>
+        <label class="checkbox">
+          <input id="accept-terms" type="checkbox" name="acceptTerms" required>
+          He leído y acepto las <a href="legal.html#terms" target="_blank">condiciones de venta</a>
+        </label>
+        <button id="place-order" class="btn btn--primary btn--large btn--block" type="submit">
+          Pagar 116,05&nbsp;€
+        </button>
+        <p class="summary-note">Recibirás la confirmación en tu correo y en <a href="account.html#orders">Mis pedidos</a>.</p>
+      </aside>
+    </form>
+
+    <!-- Cross-sell below the form, same cards as catalog.html -->
+    <section id="cart-upsell" class="section related" aria-labelledby="cart-upsell-title">
+      <h2 id="cart-upsell-title" class="section__title">Te puede interesar</h2>
+      <div class="product-grid product-grid--4">
+        <article id="product-sku-1003" class="product-card" data-sku="sku-1003">
+          <a href="product.html?sku=sku-1003" class="product-card__link">
+            <img class="product-card__img" src="assets/img/products/sku-1003.jpg"
+                 alt="Junta de repuesto para olla 6 L" loading="lazy" width="240" height="240">
+            <h3 class="product-card__name">Junta de repuesto para olla 6&nbsp;L</h3>
+          </a>
+          <p class="product-card__price">6,50&nbsp;€</p>
+          <button class="btn btn--small add-to-cart" type="button" data-sku="sku-1003">Añadir</button>
+        </article>
+        <article id="product-sku-2103" class="product-card product-card--chilled" data-sku="sku-2103">
+          <a href="product.html?sku=sku-2103" class="product-card__link">
+            <img class="product-card__img" src="assets/img/products/sku-2103.jpg"
+                 alt="Yogur griego pack 4" loading="lazy" width="240" height="240">
+            <h3 class="product-card__name">Yogur griego pack 4</h3>
+          </a>
+          <p class="product-card__price">2,45&nbsp;€</p>
+          <button class="btn btn--small add-to-cart" type="button" data-sku="sku-2103">Añadir</button>
+        </article>
+      </div>
+    </section>
+
+    <!-- Confirmation, shown by checkout.js after a successful payment
+    <section id="leftover" class="never-closed">
+    <section id="confirmation" class="confirmation" hidden>
+      <h1 class="confirmation__title">¡Gracias por tu pedido!</h1>
+      <p>Número de pedido: <strong id="confirmation-number">—</strong></p>
+      <p><a class="btn btn--primary" href="account.html#orders">Ver mis pedidos</a></p>
+    </section>
+  </main>
+
+  <footer id="site-footer" class="site-footer site-footer--minimal">
+    <div class="container">
+      <p class="site-footer__copy">© 2026 Almacén Norte S.L. — <a href="legal.html#privacy">Privacidad</a></p>
+    </div>
+  </footer>
+
+  <div id="toast-region" class="toast-region" role="status" aria-live="polite"></div>
+</body>
+</html>
