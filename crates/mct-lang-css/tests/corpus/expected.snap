@@ -444,7 +444,7 @@ S 272-274 rule .p-4
 S 276-278 rule .mt-[17px]
 S 280-282 rule .font-display
 S 284-286 rule .animate-wiggle
-S 288-290 rule .33xl:grid-cols-6
+S 288-290 rule .3xl:grid-cols-6
 S 292-298 rule .hover:bg-harbor-700
 S 293-297 rule &:hover
 S 300-304 rule .dark:bg-harbor-900
