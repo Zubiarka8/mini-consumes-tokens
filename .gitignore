@@ -36,8 +36,9 @@ issues.md
 # Local-only: default indexing-exclusions stub, not customized/shared yet
 .mctignore
 
-# Local-only Codex config may hold credentials; share only the project's hooks file.
+# Local-only Codex config may hold credentials; share only the project's hooks file and the sanitized template.
 .codex/
 !.codex/
 .codex/*
 !.codex/hooks.json
+!.codex/config.example.toml
