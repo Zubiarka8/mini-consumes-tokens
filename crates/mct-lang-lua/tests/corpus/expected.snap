@@ -1,0 +1,537 @@
+# language=lua files=5 symbols=163 relations=363 cross_file=43
+
+== gateway/ratelimit.lua (302 lines)
+S 1-302 module ratelimit
+S 11-11 module _M
+S 13-16 module DEFAULT_LIMITS
+S 18-21 module PARTNER_LIMITS
+S 23-23 module Limiter
+S 30-35 function classify
+S 37-43 function limits_for
+S 45-47 function bucket_key
+S 49-58 function decode_bucket
+S 60-65 function refill
+S 72-85 method _M::new
+S 89-119 method Limiter::take
+S 122-128 method Limiter::remaining
+S 130-134 method Limiter::reset
+S 136-138 method Limiter::stats
+S 146-151 function client_id_of
+S 154-165 function reject
+S 168-183 method _M::access
+S 186-193 method _M::describe
+S 202-202 module Concurrency
+S 205-211 method _M::new_concurrency
+S 213-215 function inflight_key
+S 217-230 method Concurrency::enter
+S 232-242 method Concurrency::leave
+S 244-246 method Concurrency::reset
+S 248-250 method Concurrency::in_flight
+S 253-260 method _M::access_all
+S 269-283 method _M::fake_dict
+S 272-274 method dict::get
+S 275-278 method dict::set
+S 279-281 method dict::delete
+S 286-297 method _M::fake_clock
+S 293-295 method clock::advance
+R 8:15 imports ratelimit -> cjson.safe
+R 9:18 imports ratelimit -> resty.lock
+R 53:24 calls decode_bucket -> decode
+R 61:24 calls refill -> max (x-file: warehouse/money.lua)
+R 62:24 calls refill -> min
+R 78:10 calls _M::new -> setmetatable
+R 90:17 calls Limiter::take -> classify
+R 91:18 calls Limiter::take -> limits_for
+R 92:15 calls Limiter::take -> bucket_key
+R 93:35 calls Limiter::take -> new
+R 95:43 calls Limiter::take -> tostring
+R 97:29 calls Limiter::take -> lock
+R 100:9 calls Limiter::take -> log (x-file: gateway/router.lua)
+R 103:20 calls Limiter::take -> clock
+R 104:18 calls Limiter::take -> refill
+R 104:25 calls Limiter::take -> decode_bucket
+R 104:49 calls Limiter::take -> get
+R 112:13 calls Limiter::take -> set
+R 112:28 calls Limiter::take -> encode
+R 113:8 calls Limiter::take -> unlock
+R 117:28 calls Limiter::take -> ceil
+R 123:17 calls Limiter::remaining -> classify
+R 124:18 calls Limiter::remaining -> limits_for
+R 125:20 calls Limiter::remaining -> clock
+R 126:18 calls Limiter::remaining -> refill
+R 126:25 calls Limiter::remaining -> decode_bucket
+R 126:49 calls Limiter::remaining -> get
+R 126:53 calls Limiter::remaining -> bucket_key
+R 127:15 calls Limiter::remaining -> floor
+R 131:16 calls Limiter::reset -> pairs
+R 132:15 calls Limiter::reset -> delete
+R 132:22 calls Limiter::reset -> bucket_key
+R 157:31 calls reject -> tostring
+R 158:7 calls reject -> say
+R 158:17 calls reject -> encode
+R 164:14 calls reject -> exit
+R 170:21 calls _M::access -> client_id_of
+R 171:26 calls _M::access -> get_method
+R 172:35 calls _M::access -> take
+R 174:9 calls _M::access -> log (x-file: gateway/router.lua)
+R 177:39 calls _M::access -> remaining
+R 181:12 calls _M::access -> reject
+R 188:16 calls _M::describe -> pairs
+R 189:20 calls _M::describe -> limits_for
+R 210:10 calls _M::new_concurrency -> setmetatable
+R 218:15 calls Concurrency::enter -> inflight_key
+R 219:32 calls Concurrency::enter -> incr
+R 221:9 calls Concurrency::enter -> log (x-file: gateway/router.lua)
+R 225:15 calls Concurrency::enter -> incr
+R 237:27 calls Concurrency::leave -> incr
+R 237:32 calls Concurrency::leave -> inflight_key
+R 239:15 calls Concurrency::leave -> set
+R 239:19 calls Concurrency::leave -> inflight_key
+R 245:13 calls Concurrency::reset -> set
+R 245:17 calls Concurrency::reset -> inflight_key
+R 249:20 calls Concurrency::in_flight -> get
+R 249:24 calls Concurrency::in_flight -> inflight_key
+R 254:35 calls _M::access_all -> enter
+R 254:41 calls _M::access_all -> client_id_of
+R 256:9 calls _M::access_all -> log (x-file: gateway/router.lua)
+R 257:12 calls _M::access_all -> reject
+R 259:13 calls _M::access_all -> access
+R 288:17 calls _M::fake_clock -> setmetatable
+
+== gateway/router.lua (300 lines)
+S 1-300 module router
+S 15-15 module Router
+S 18-18 module M
+S 27-35 function respond
+S 37-40 function problem
+S 46-63 function proxy
+S 69-71 method M::new
+S 74-82 method Router::add
+S 84-98 method Router::match
+S 100-106 method Router::dispatch
+S 114-126 function cache
+S 128-161 module handlers
+S 129-135 method handlers::get_stock
+S 137-151 method handlers::place_order
+S 153-155 method handlers::get_order
+S 157-160 method handlers::cancel_order
+S 164-166 method handlers::get_limits
+S 170-172 method handlers::preflight
+S 175-177 method handlers::health
+S 183-186 module ALLOWED_ORIGINS
+S 189-204 function cors
+S 207-215 function max_body
+S 218-225 function require_tenant
+S 228-235 function chain
+S 245-257 function build
+S 260-268 method M::handle
+S 271-280 method M::log
+S 284-295 method M::quote_preview
+R 8:15 imports router -> cjson.safe
+R 9:14 imports router -> resty.http
+R 10:15 imports router -> warehouse.money
+R 11:15 imports router -> warehouse.order
+R 12:19 imports router -> warehouse.inventory
+R 13:19 imports router -> gateway.ratelimit
+R 20:21 calls router -> getenv
+R 21:27 calls router -> of (x-file: warehouse/money.lua)
+R 30:6 calls respond -> type
+R 31:18 calls respond -> encode
+R 33:7 calls respond -> say
+R 34:14 calls respond -> exit
+R 38:10 calls problem -> respond
+R 47:23 calls proxy -> new
+R 48:10 calls proxy -> set_timeouts
+R 49:27 calls proxy -> request_uri
+R 59:9 calls proxy -> log
+R 60:12 calls proxy -> problem
+R 62:10 calls proxy -> respond
+R 70:10 calls M::new -> setmetatable
+R 76:38 calls Router::add -> gsub
+R 85:19 calls Router::match -> ipairs
+R 87:31 calls Router::match -> match
+R 88:32 calls Router::match -> match
+R 90:24 calls Router::match -> ipairs
+R 101:32 calls Router::dispatch -> match
+R 103:12 calls Router::dispatch -> problem
+R 105:10 calls Router::dispatch -> handler
+R 116:29 calls cache -> new_cache (x-file: warehouse/inventory.lua)
+R 117:27 calls cache -> new
+R 118:31 calls cache -> request_uri
+R 120:42 calls cache -> tostring
+R 122:20 calls cache -> decode
+R 130:31 calls handlers::get_stock -> available (x-file: warehouse/inventory.lua)
+R 130:23 calls handlers::get_stock -> cache
+R 132:14 calls handlers::get_stock -> problem
+R 134:12 calls handlers::get_stock -> respond
+R 138:13 calls handlers::place_order -> read_body
+R 139:26 calls handlers::place_order -> from_request_body (x-file: warehouse/order.lua)
+R 139:52 calls handlers::place_order -> get_body_data
+R 141:14 calls handlers::place_order -> problem
+R 143:34 calls handlers::place_order -> check_order (x-file: warehouse/inventory.lua)
+R 143:46 calls handlers::place_order -> cache
+R 145:14 calls handlers::place_order -> respond
+R 145:37 calls handlers::place_order -> out_of_stock_problem (x-file: warehouse/inventory.lua)
+R 147:10 calls handlers::place_order -> is_large (x-file: warehouse/order.lua)
+R 148:11 calls handlers::place_order -> log
+R 150:12 calls handlers::place_order -> proxy
+R 150:46 calls handlers::place_order -> to_json (x-file: warehouse/money.lua)
+R 154:12 calls handlers::get_order -> proxy
+R 158:13 calls handlers::cancel_order -> read_body
+R 159:12 calls handlers::cancel_order -> proxy
+R 159:83 calls handlers::cancel_order -> get_body_data
+R 165:10 calls handlers::get_limits -> respond
+R 165:33 calls handlers::get_limits -> describe (x-file: gateway/ratelimit.lua)
+R 171:10 calls handlers::preflight -> problem
+R 176:10 calls handlers::health -> respond
+R 176:56 calls handlers::health -> stats (x-file: gateway/ratelimit.lua)
+R 176:48 calls handlers::health -> cache
+R 195:18 calls cors -> get_method
+R 199:20 calls cors -> exit
+R 202:12 calls cors -> next_handler
+R 209:20 calls max_body -> tonumber
+R 211:14 calls max_body -> problem
+R 213:12 calls max_body -> next_handler
+R 220:16 calls require_tenant -> get_method
+R 221:14 calls require_tenant -> problem
+R 223:12 calls require_tenant -> next_handler
+R 232:15 calls chain -> fns[i]
+R 246:15 calls build -> new
+R 247:5 calls build -> add
+R 248:5 calls build -> add
+R 248:35 calls build -> chain
+R 249:12 calls build -> max_body
+R 251:5 calls build -> add
+R 252:5 calls build -> add
+R 253:5 calls build -> add
+R 254:5 calls build -> add
+R 254:38 calls build -> cors
+R 255:5 calls build -> add
+R 261:22 calls M::handle -> build
+R 263:29 calls M::handle -> new
+R 265:15 calls M::handle -> access (x-file: gateway/ratelimit.lua)
+R 267:17 calls M::handle -> dispatch
+R 267:34 calls M::handle -> get_method
+R 272:18 calls M::log -> tonumber
+R 279:7 calls M::log -> log
+R 286:18 calls M::quote_preview -> ipairs
+R 287:51 calls M::quote_preview -> times (x-file: warehouse/money.lua)
+R 287:26 calls M::quote_preview -> of (x-file: warehouse/money.lua)
+R 289:21 calls M::quote_preview -> sum (x-file: warehouse/money.lua)
+R 291:15 calls M::quote_preview -> to_json (x-file: warehouse/money.lua)
+R 292:30 calls M::quote_preview -> to_json (x-file: warehouse/money.lua)
+R 292:17 calls M::quote_preview -> vat (x-file: warehouse/money.lua)
+R 293:34 calls M::quote_preview -> to_json (x-file: warehouse/money.lua)
+R 293:19 calls M::quote_preview -> gross (x-file: warehouse/money.lua)
+
+== warehouse/inventory.lua (302 lines)
+S 1-302 module inventory
+S 10-10 module M
+S 14-14 module Cache
+S 22-32 method M::parse_location
+S 34-39 method M::format_location
+S 41-52 function compare_locations
+S 55-59 method M::picking_route
+S 66-68 method M::new_cache
+S 70-72 method Cache::key
+S 74-90 method Cache::get
+S 92-98 method Cache::invalidate
+S 100-110 method Cache::available
+S 112-119 method Cache::stats
+S 127-138 method M::check_order
+S 141-153 method M::out_of_stock_problem
+S 162-186 method M::start_refresher
+S 173-180 function tick
+S 192-194 method M::difference
+S 196-205 method M::describe_count
+S 208-220 method M::partition_for_review
+S 227-236 method M::expiring_soon
+S 239-242 method M::payment_overdue
+S 245-265 method M::pick_tasks
+S 269-298 method M::validate_transfer
+R 7:19 imports inventory -> warehouse.order
+R 8:15 imports inventory -> cjson.safe
+R 23:35 calls M::parse_location -> match (x-file: gateway/router.lua)
+R 25:24 calls M::parse_location -> match (x-file: gateway/router.lua)
+R 29:35 calls M::parse_location -> tonumber
+R 31:33 calls M::parse_location -> tonumber
+R 31:58 calls M::parse_location -> tonumber
+R 36:19 calls M::format_location -> format (x-file: warehouse/money.lua)
+R 38:17 calls M::format_location -> format (x-file: warehouse/money.lua)
+R 56:19 calls M::picking_route -> unpack
+R 57:9 calls M::picking_route -> sort
+R 67:10 calls M::new_cache -> setmetatable
+R 75:25 calls Cache::get -> get
+R 75:34 calls Cache::get -> key
+R 78:18 calls Cache::get -> decode
+R 81:28 calls Cache::get -> loader
+R 85:33 calls Cache::get -> set (x-file: gateway/ratelimit.lua)
+R 85:42 calls Cache::get -> key
+R 85:58 calls Cache::get -> encode
+R 87:9 calls Cache::get -> log (x-file: gateway/router.lua)
+R 94:15 calls Cache::invalidate -> delete (x-file: gateway/ratelimit.lua)
+R 94:27 calls Cache::invalidate -> key
+R 96:15 calls Cache::invalidate -> flush_all
+R 101:28 calls Cache::available -> get
+R 106:19 calls Cache::available -> ipairs
+R 129:18 calls M::check_order -> ipairs
+R 130:29 calls M::check_order -> available
+R 132:11 calls M::check_order -> log (x-file: gateway/router.lua)
+R 143:15 calls M::out_of_stock_problem -> ipairs
+R 144:23 calls M::out_of_stock_problem -> format (x-file: warehouse/money.lua)
+R 150:20 calls M::out_of_stock_problem -> concat
+R 164:35 calls M::start_refresher -> wrap
+R 166:21 calls M::start_refresher -> ipairs
+R 167:15 calls M::start_refresher -> invalidate
+R 168:15 calls M::start_refresher -> get
+R 169:19 calls M::start_refresher -> yield
+R 178:7 calls tick -> refresh_batch
+R 181:29 calls M::start_refresher -> every
+R 183:47 calls M::start_refresher -> tostring
+R 197:42 calls M::describe_count -> format_location
+R 198:18 calls M::describe_count -> difference
+R 211:19 calls M::partition_for_review -> ipairs
+R 212:20 calls M::partition_for_review -> difference
+R 213:13 calls M::partition_for_review -> abs
+R 228:20 calls M::expiring_soon -> now
+R 230:15 calls M::expiring_soon -> ipairs
+R 247:19 calls M::pick_tasks -> ipairs
+R 248:20 calls M::pick_tasks -> ipairs
+R 250:23 calls M::pick_tasks -> ipairs
+R 257:23 calls M::pick_tasks -> parse_location
+R 260:15 calls M::pick_tasks -> insert
+R 270:28 calls M::validate_transfer -> parse_location
+R 274:24 calls M::validate_transfer -> parse_location
+R 278:8 calls M::validate_transfer -> format_location
+R 278:35 calls M::validate_transfer -> format_location
+R 281:20 calls M::validate_transfer -> tonumber
+R 285:29 calls M::validate_transfer -> get
+R 289:19 calls M::validate_transfer -> ipairs
+
+== warehouse/money.lua (321 lines)
+S 1-321 module money
+S 8-8 module M
+S 15-20 module M::SCALE
+S 22-27 module M::SYMBOLS
+S 29-29 module Money
+S 33-35 function raise
+S 37-39 function is_money
+S 41-46 function require_currency
+S 48-55 function require_same
+S 58-70 method M::round_half_even
+S 77-83 method M::of_minor
+S 86-93 method M::of
+S 95-97 method M::zero
+S 100-109 method M::parse
+S 112-114 method M::from_json
+S 120-122 method Money::amount
+S 124-126 method Money::is_zero
+S 128-130 method Money::is_negative
+S 132-135 method Money::plus
+S 137-140 method Money::minus
+S 142-144 method Money::times
+S 146-148 method Money::percent
+S 150-152 method Money::negate
+S 155-168 method Money::split
+S 171-193 method Money::allocate
+S 195-200 method Money::max
+S 202-209 method Money::format
+S 211-213 method Money::to_json
+S 219-221 method Money::__add
+S 223-225 method Money::__sub
+S 227-229 method Money::__unm
+S 231-236 method Money::__mul
+S 238-240 method Money::__eq
+S 242-245 method Money::__lt
+S 247-250 method Money::__le
+S 252-254 method Money::__tostring
+S 261-267 method M::sum
+S 270-272 method M::vat
+S 274-276 method M::gross
+S 279-288 method M::distribute_discount
+S 291-301 method M::convert
+S 305-316 method M::protect
+R 34:3 calls raise -> error
+R 38:10 calls is_money -> getmetatable
+R 43:5 calls require_currency -> raise
+R 43:63 calls require_currency -> tostring
+R 49:10 calls require_same -> is_money
+R 49:29 calls require_same -> is_money
+R 50:5 calls require_same -> raise
+R 53:5 calls require_same -> raise
+R 53:32 calls require_same -> format
+R 59:13 calls M::round_half_even -> floor
+R 78:3 calls M::of_minor -> require_currency
+R 79:15 calls M::of_minor -> floor
+R 80:5 calls M::of_minor -> raise
+R 80:64 calls M::of_minor -> tostring
+R 82:10 calls M::of_minor -> setmetatable
+R 87:3 calls M::of -> require_currency
+R 88:17 calls M::of -> tonumber
+R 90:5 calls M::of -> raise
+R 90:45 calls M::of -> tostring
+R 92:12 calls M::of -> of_minor
+R 92:23 calls M::of -> round_half_even
+R 96:12 calls M::zero -> of_minor
+R 101:21 calls M::parse -> match (x-file: gateway/router.lua)
+R 103:5 calls M::parse -> raise
+R 105:8 calls M::parse -> match (x-file: gateway/router.lua)
+R 106:14 calls M::parse -> of
+R 108:12 calls M::parse -> of
+R 113:12 calls M::from_json -> of
+R 133:3 calls Money::plus -> require_same
+R 134:12 calls Money::plus -> of_minor
+R 138:3 calls Money::minus -> require_same
+R 139:12 calls Money::minus -> of_minor
+R 143:12 calls Money::times -> of_minor
+R 143:23 calls Money::times -> round_half_even
+R 147:15 calls Money::percent -> times
+R 151:12 calls Money::negate -> of_minor
+R 156:3 calls Money::split -> assert
+R 156:33 calls Money::split -> floor
+R 157:17 calls Money::split -> floor
+R 165:19 calls Money::split -> of_minor
+R 173:15 calls Money::allocate -> ipairs
+R 174:5 calls Money::allocate -> assert
+R 177:3 calls Money::allocate -> assert
+R 179:15 calls Money::allocate -> ipairs
+R 180:17 calls Money::allocate -> floor
+R 189:19 calls Money::allocate -> ipairs
+R 190:19 calls Money::allocate -> of_minor
+R 204:16 calls Money::format -> format
+R 204:50 calls Money::format -> amount
+R 212:21 calls Money::to_json -> format
+R 212:72 calls Money::to_json -> amount
+R 220:12 calls Money::__add -> plus
+R 224:12 calls Money::__sub -> minus
+R 228:12 calls Money::__unm -> negate
+R 232:6 calls Money::__mul -> is_money
+R 233:14 calls Money::__mul -> times
+R 235:12 calls Money::__mul -> times
+R 243:3 calls Money::__lt -> require_same
+R 248:3 calls Money::__le -> require_same
+R 253:12 calls Money::__tostring -> format
+R 262:19 calls M::sum -> zero
+R 263:20 calls M::sum -> ipairs
+R 271:14 calls M::vat -> percent
+R 275:18 calls M::gross -> vat
+R 284:22 calls M::distribute_discount -> ipairs
+R 287:19 calls M::distribute_discount -> allocate
+R 298:5 calls M::convert -> raise
+R 298:27 calls M::convert -> format
+R 300:12 calls M::convert -> of
+R 300:22 calls M::convert -> amount
+R 307:24 calls M::protect -> pcall
+R 311:8 calls M::protect -> type
+R 314:5 calls M::protect -> error
+
+== warehouse/order.lua (300 lines)
+S 1-300 module order
+S 10-10 module Order
+S 13-13 module M
+S 19-27 module M::STATES
+S 31-39 module NEXT
+S 41-44 method M::can_move_to
+S 46-48 method M::is_terminal
+S 55-65 function new_line
+S 67-69 function subtotal
+S 78-101 method M::new
+S 103-109 method Order::total
+S 111-113 method Order::is_large
+S 115-119 method Order::record
+S 121-127 method Order::move_to
+S 129-135 method Order::reserve
+S 137-146 method Order::pay
+S 148-155 method Order::ship
+S 157-163 method Order::cancel
+S 166-171 method Order::drain
+S 173-187 method Order::to_json
+S 193-209 module describers
+S 194-196 method describers::placed
+S 197-199 method describers::reserved
+S 200-202 method describers::paid
+S 203-205 method describers::shipped
+S 206-208 method describers::cancelled
+S 212-218 method M::describe
+S 221-223 method M::sse_frame
+S 229-235 method M::count_by_state
+S 237-247 method M::largest
+S 250-265 method M::packing_slip
+S 252-254 function rule
+S 255-257 function row
+S 269-276 method M::next_number
+S 278-280 method M::is_order_number
+S 284-298 method M::from_request_body
+R 7:15 imports order -> warehouse.money
+R 8:15 imports order -> cjson.safe
+R 47:10 calls M::is_terminal -> next
+R 56:6 calls new_line -> type
+R 56:47 calls new_line -> match (x-file: gateway/router.lua)
+R 59:20 calls new_line -> tonumber
+R 60:56 calls new_line -> floor
+R 63:42 calls new_line -> from_json (x-file: warehouse/money.lua)
+R 63:77 calls new_line -> zero (x-file: warehouse/money.lua)
+R 68:26 calls subtotal -> times (x-file: warehouse/money.lua)
+R 80:16 calls M::new -> setmetatable
+R 89:17 calls M::new -> ipairs
+R 90:23 calls M::new -> new_line
+R 99:8 calls M::new -> record
+R 105:18 calls Order::total -> ipairs
+R 106:20 calls Order::total -> subtotal
+R 108:16 calls Order::total -> sum (x-file: warehouse/money.lua)
+R 112:15 calls Order::is_large -> total
+R 116:68 calls Order::record -> now
+R 122:12 calls Order::move_to -> can_move_to
+R 123:24 calls Order::move_to -> format (x-file: warehouse/money.lua)
+R 130:24 calls Order::reserve -> move_to
+R 134:15 calls Order::reserve -> record
+R 138:21 calls Order::pay -> total
+R 139:28 calls Order::pay -> tostring
+R 139:70 calls Order::pay -> tostring
+R 139:84 calls Order::pay -> total
+R 141:24 calls Order::pay -> move_to
+R 145:15 calls Order::pay -> record
+R 145:70 calls Order::pay -> to_json
+R 149:24 calls Order::ship -> move_to
+R 154:15 calls Order::ship -> record
+R 158:24 calls Order::cancel -> move_to
+R 162:15 calls Order::cancel -> record
+R 167:19 calls Order::drain -> ipairs
+R 168:5 calls Order::drain -> sink
+R 175:18 calls Order::to_json -> ipairs
+R 176:111 calls Order::to_json -> to_json
+R 178:16 calls Order::to_json -> encode
+R 185:26 calls Order::to_json -> to_json
+R 185:18 calls Order::to_json -> total
+R 215:12 calls M::describe -> describer
+R 222:63 calls M::sse_frame -> encode
+R 231:19 calls M::count_by_state -> ipairs
+R 238:20 calls M::largest -> unpack
+R 239:9 calls M::largest -> sort
+R 240:14 calls M::largest -> total
+R 240:26 calls M::largest -> total
+R 243:19 calls M::largest -> min
+R 253:19 calls rule -> rep
+R 256:27 calls row -> rep
+R 258:17 calls M::packing_slip -> rule
+R 258:25 calls M::packing_slip -> row
+R 258:55 calls M::packing_slip -> rule
+R 259:18 calls M::packing_slip -> ipairs
+R 260:21 calls M::packing_slip -> row
+R 260:61 calls M::packing_slip -> tostring
+R 260:70 calls M::packing_slip -> subtotal
+R 262:19 calls M::packing_slip -> rule
+R 263:19 calls M::packing_slip -> row
+R 263:32 calls M::packing_slip -> tostring
+R 263:47 calls M::packing_slip -> total
+R 264:16 calls M::packing_slip -> concat
+R 270:18 calls M::next_number -> tonumber
+R 270:30 calls M::next_number -> date
+R 271:25 calls M::next_number -> incr
+R 273:56 calls M::next_number -> tostring
+R 275:17 calls M::next_number -> format (x-file: warehouse/money.lua)
+R 279:10 calls M::is_order_number -> type
+R 279:42 calls M::is_order_number -> match (x-file: gateway/router.lua)
+R 285:37 calls M::from_request_body -> decode
+R 289:6 calls M::from_request_body -> type
+R 293:24 calls M::from_request_body -> new

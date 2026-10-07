@@ -134,6 +134,26 @@ fn escaped_tailwind_class_names_are_unescaped() {
 }
 
 #[test]
+fn hex_escapes_decode_to_their_code_point() {
+    // CSS Syntax 3 §4.3.7: `\` + 1–6 hex digits is one code point. An
+    // identifier can't start with a digit, so Tailwind writes `3xl:` as
+    // `\33xl\:` — the class `3xl:grid-cols-6` an HTML `class` attribute uses.
+    let parsed = parse(".\\33xl\\:grid-cols-6 { display: grid; }");
+    assert_eq!(rule_names(&parsed), vec![".3xl:grid-cols-6"]);
+
+    let parsed = parse(".icon-\\1F600 { content: ''; }");
+    assert_eq!(rule_names(&parsed), vec![".icon-😀"]);
+
+    // Six digits at most: the seventh is a literal character.
+    let parsed = parse(".\\00003A7 { color: red; }");
+    assert_eq!(rule_names(&parsed), vec![".:7"]);
+
+    // Zero, surrogates and values past U+10FFFF become U+FFFD.
+    let parsed = parse(".a\\0 { color: red; }");
+    assert_eq!(rule_names(&parsed), vec![".a\u{FFFD}"]);
+}
+
+#[test]
 fn rules_nested_in_a_media_query_are_still_indexed() {
     let parsed = parse("@media (min-width: 600px) { .nav { display: flex; } }");
     assert!(parsed

@@ -265,25 +265,39 @@ fn find_child<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
     found
 }
 
-/// Drops the backslash of any CSS escape sequence, keeping the escaped
-/// character literally (`md\:flex` -> `md:flex`, `w-1\/2` -> `w-1/2`) —
-/// exactly what's needed to make escaped utility-class names (Tailwind's
-/// `md:`, `hover:`, `w-1/2`, ...) match the plain-text form an HTML
-/// `class` attribute uses. Numeric/hex CSS escapes (`\1F600`) are not
-/// unescaped to a literal character; this project only needs to undo the
-/// single-character escapes used to make otherwise-reserved punctuation
-/// legal inside an identifier.
+/// Decodes CSS escapes the way CSS Syntax 3 §4.3.7 does, so escaped
+/// utility-class names (Tailwind's `md\:flex`, `w-1\/2`, `\33xl\:…`) match
+/// the plain-text form an HTML `class` attribute uses (`md:flex`, `w-1/2`,
+/// `3xl:…`): `\` + 1–6 hex digits (plus one optional whitespace) is that
+/// code point — U+FFFD for zero, a surrogate or past U+10FFFF — and `\`
+/// before any other character is that character.
 fn unescape_css(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
-    let mut chars = s.chars();
+    let mut chars = s.chars().peekable();
     while let Some(c) = chars.next() {
-        if c == '\\' {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        let mut hex = String::new();
+        while hex.len() < 6 {
+            match chars.next_if(char::is_ascii_hexdigit) {
+                Some(d) => hex.push(d),
+                None => break,
+            }
+        }
+        if hex.is_empty() {
             if let Some(next) = chars.next() {
                 out.push(next);
             }
-        } else {
-            out.push(c);
+            continue;
         }
+        chars.next_if(|c| matches!(c, ' ' | '\t' | '\n'));
+        let code = u32::from_str_radix(&hex, 16).unwrap_or(0);
+        out.push(match char::from_u32(code) {
+            Some(ch) if code != 0 => ch,
+            _ => char::REPLACEMENT_CHARACTER,
+        });
     }
     out
 }

@@ -1,0 +1,1138 @@
+# language=go files=7 symbols=291 relations=832 cross_file=254
+
+== cmd/ledger/main.go (342 lines)
+S 1-342 module main
+S 1-342 module main
+S 34-40 struct main::options
+S 43-48 struct main::command
+S 51-57 struct main::app
+S 71-73 function main::init
+S 75-77 function main::main
+S 79-119 function main::run
+S 121-139 function main::parseFlags
+S 141-147 function main::usage
+S 149-156 function main::lookup
+S 159-189 function main::newApp
+S 191-191 struct main::quiet
+S 193-193 method quiet::Printf
+S 196-224 function main::openChart
+S 226-256 function main::runDemo
+S 260-266 function main::mustTx
+S 268-289 function main::printAll
+S 291-301 function main::runBalance
+S 303-317 function main::runTransfer
+S 319-321 function main::runSheet
+S 323-329 function main::runRates
+S 332-342 function main::report
+R 7:2 imports main -> context
+R 8:2 imports main -> errors (x-file: ledger/errors.go)
+R 9:2 imports main -> flag
+R 10:2 imports main -> fmt
+R 11:2 imports main -> os
+R 12:2 imports main -> os/signal
+R 13:2 imports main -> sort
+R 14:2 imports main -> strings
+R 15:2 imports main -> syscall
+R 16:2 imports main -> time
+R 18:2 imports main -> example.com/ledger
+R 19:2 imports main -> example.com/ledger/internal/logging
+R 20:2 imports main -> example.com/ledger/internal/metrics
+R 31:17 calls main -> Now (x-file: ledger/account.go)
+R 66:7 calls main -> Fprintln
+R 72:7 calls main::init -> Slice
+R 76:5 calls main::main -> Exit
+R 76:10 calls main::main -> run
+R 80:15 calls main::run -> parseFlags
+R 82:13 calls main::run -> Is (x-file: ledger/errors.go)
+R 85:7 calls main::run -> Fprintln
+R 88:5 calls main::run -> len
+R 89:3 calls main::run -> usage
+R 93:22 calls main::run -> NotifyContext
+R 93:44 calls main::run -> Background
+R 94:8 calls main::run -> stop
+R 95:25 calls main::run -> WithTimeout
+R 96:8 calls main::run -> cancel
+R 98:14 calls main::run -> newApp
+R 100:7 calls main::run -> Errorf
+R 103:18 calls main::run -> Close (x-file: ledger/service.go)
+R 105:13 calls main::run -> lookup
+R 107:7 calls main::run -> Fprintf
+R 108:3 calls main::run -> usage
+R 112:3 calls main::run -> hook
+R 114:16 calls main::run -> run
+R 115:3 calls main::run -> report
+R 124:13 calls main::parseFlags -> NewFlagSet
+R 125:5 calls main::parseFlags -> StringVar
+R 126:5 calls main::parseFlags -> StringVar
+R 127:5 calls main::parseFlags -> BoolVar
+R 128:5 calls main::parseFlags -> DurationVar
+R 129:22 calls main::parseFlags -> usage
+R 129:31 calls main::parseFlags -> Output
+R 130:15 calls main::parseFlags -> Parse
+R 133:25 calls main::parseFlags -> Currency (x-file: ledger/money.go)
+R 133:42 calls main::parseFlags -> ToUpper
+R 134:20 calls main::parseFlags -> Valid (x-file: ledger/money.go)
+R 135:20 calls main::parseFlags -> Errorf
+R 137:17 calls main::parseFlags -> Args
+R 142:6 calls main::usage -> Fprintln
+R 143:6 calls main::usage -> Fprintln
+R 145:7 calls main::usage -> Fprintf
+R 160:18 calls main::newApp -> NewMemoryStore (x-file: ledger/store.go)
+R 161:18 calls main::newApp -> NewRateTable (x-file: ledger/money.go)
+R 162:8 calls main::newApp -> Set (x-file: ledger/money.go)
+R 163:8 calls main::newApp -> Set (x-file: ledger/money.go)
+R 165:36 calls main::newApp -> DefaultLogger (x-file: ledger/service.go)
+R 169:16 calls main::newApp -> NewService (x-file: ledger/service.go)
+R 174:10 calls main::newApp -> WithLogger (x-file: ledger/service.go)
+R 175:10 calls main::newApp -> WithHook (x-file: ledger/service.go)
+R 175:26 calls main::newApp -> AuditHook (x-file: ledger/service.go)
+R 176:10 calls main::newApp -> WithHook (x-file: ledger/service.go)
+R 176:26 calls main::newApp -> LimitHook (x-file: ledger/service.go)
+R 176:43 calls main::newApp -> Of (x-file: ledger/money.go)
+R 182:19 calls main::newApp -> NewReport (x-file: ledger/report.go)
+R 185:12 calls main::newApp -> openChart
+R 204:71 calls main::openChart -> WithParent (x-file: ledger/account.go)
+R 206:11 calls main::openChart -> WithParent (x-file: ledger/account.go)
+R 207:11 calls main::openChart -> WithLimit (x-file: ledger/account.go)
+R 207:28 calls main::openChart -> Of (x-file: ledger/money.go)
+R 210:87 calls main::openChart -> WithParent (x-file: ledger/account.go)
+R 212:74 calls main::openChart -> WithTags (x-file: ledger/account.go)
+R 217:20 calls main::openChart -> NewAccount (x-file: ledger/account.go)
+R 221:14 calls main::openChart -> append
+R 223:13 calls main::openChart -> OpenAll (x-file: ledger/service.go)
+R 231:3 calls main::runDemo -> Build (x-file: ledger/account.go)
+R 230:3 calls main::runDemo -> Credit (x-file: ledger/account.go)
+R 229:3 calls main::runDemo -> Debit (x-file: ledger/account.go)
+R 228:22 calls main::runDemo -> NewTx (x-file: ledger/account.go)
+R 229:31 calls main::runDemo -> Of (x-file: ledger/money.go)
+R 230:27 calls main::runDemo -> Of (x-file: ledger/money.go)
+R 235:22 calls main::runDemo -> Post (x-file: ledger/account.go)
+R 239:3 calls main::runDemo -> mustTx
+R 239:58 calls main::runDemo -> Of (x-file: ledger/money.go)
+R 240:3 calls main::runDemo -> mustTx
+R 240:58 calls main::runDemo -> Of (x-file: ledger/money.go)
+R 241:3 calls main::runDemo -> mustTx
+R 241:57 calls main::runDemo -> Of (x-file: ledger/money.go)
+R 243:25 calls main::runDemo -> PostAll (x-file: ledger/service.go)
+R 247:9 calls main::runDemo -> Fprintf
+R 252:25 calls main::runDemo -> Transfer (x-file: ledger/service.go)
+R 252:76 calls main::runDemo -> Of (x-file: ledger/money.go)
+R 255:9 calls main::runDemo -> printAll
+R 261:101 calls main::mustTx -> Build (x-file: ledger/account.go)
+R 261:69 calls main::mustTx -> Credit (x-file: ledger/account.go)
+R 261:39 calls main::mustTx -> Debit (x-file: ledger/account.go)
+R 261:20 calls main::mustTx -> NewTx (x-file: ledger/account.go)
+R 263:3 calls main::mustTx -> panic
+R 269:14 calls main::printAll -> Now (x-file: ledger/account.go)
+R 270:6 calls main::printAll -> Fprintln
+R 271:21 calls main::printAll -> TrialBalance (x-file: ledger/report.go)
+R 274:6 calls main::printAll -> Fprintln
+R 275:21 calls main::printAll -> BalanceSheet (x-file: ledger/report.go)
+R 278:6 calls main::printAll -> Fprintln
+R 279:21 calls main::printAll -> IncomeStatement (x-file: ledger/report.go)
+R 279:52 calls main::printAll -> Add (x-file: ledger/money.go)
+R 279:73 calls main::printAll -> Add (x-file: ledger/money.go)
+R 282:23 calls main::printAll -> Summarize (x-file: ledger/report.go)
+R 286:6 calls main::printAll -> Fprintln
+R 287:6 calls main::printAll -> Format (x-file: ledger/money.go)
+R 292:5 calls main::runBalance -> len
+R 293:17 calls main::runBalance -> New
+R 295:22 calls main::runBalance -> Balance (x-file: ledger/account.go)
+R 295:37 calls main::runBalance -> AccountID (x-file: ledger/account.go)
+R 299:6 calls main::runBalance -> Fprintln
+R 304:5 calls main::runTransfer -> len
+R 305:17 calls main::runTransfer -> New
+R 307:24 calls main::runTransfer -> ParseMoney (x-file: ledger/money.go)
+R 311:23 calls main::runTransfer -> Transfer (x-file: ledger/service.go)
+R 311:44 calls main::runTransfer -> AccountID (x-file: ledger/account.go)
+R 311:71 calls main::runTransfer -> AccountID (x-file: ledger/account.go)
+R 315:6 calls main::runTransfer -> Fprintln
+R 315:29 calls main::runTransfer -> Label (x-file: ledger/service.go)
+R 320:18 calls main::runSheet -> BalanceSheet (x-file: ledger/report.go)
+R 324:18 calls main::runRates -> NewRateTable (x-file: ledger/money.go)
+R 325:26 calls main::runRates -> Currencies (x-file: ledger/money.go)
+R 326:7 calls main::runRates -> Fprintln
+R 335:14 calls main::report -> As
+R 336:7 calls main::report -> Fprintf
+R 336:41 calls main::report -> Explain (x-file: ledger/errors.go)
+R 337:14 calls main::report -> Is (x-file: ledger/errors.go)
+R 338:7 calls main::report -> Fprintln
+R 340:7 calls main::report -> Fprintln
+
+== ledger/account.go (450 lines)
+S 1-450 module account
+S 1-450 module ledger
+S 12-12 type_alias ledger::AccountID
+S 15-15 type_alias ledger::TxID
+S 18-18 type_alias ledger::Tags
+S 22-22 type_alias ledger::Amount
+S 25-25 type_alias ledger::Kind
+S 45-50 method Kind::String
+S 54-59 method Kind::NormalSide
+S 62-69 function ledger::ParseKind
+S 72-72 type_alias ledger::Side
+S 80-80 method Side::Opposite
+S 82-87 method Side::String
+S 90-101 struct ledger::Account
+S 104-109 method Account::IsOpen
+S 112-112 method Account::Version
+S 115-115 method Account::Path
+S 118-118 method Account::Depth
+S 121-123 method Account::IsChildOf
+S 126-135 method Account::Clone
+S 138-151 method Account::Validate
+S 154-154 type_alias ledger::AccountOption
+S 157-159 function ledger::WithParent
+S 162-164 function ledger::WithLimit
+S 167-176 function ledger::WithTags
+S 179-181 function ledger::OpenedAt
+S 184-200 function ledger::NewAccount
+S 203-208 struct ledger::Entry
+S 212-217 method Entry::Signed
+S 220-225 struct ledger::Meta
+S 228-242 method Meta::Describe
+S 245-252 struct ledger::Transaction
+S 255-263 method Transaction::Debits
+S 266-274 method Transaction::Credits
+S 277-279 method Transaction::Balanced
+S 283-293 method Transaction::Accounts
+S 296-313 method Transaction::Validate
+S 316-333 method Transaction::Reversal
+S 336-339 struct ledger::Builder
+S 342-344 function ledger::NewTx
+S 347-350 method Builder::On
+S 353-357 method Builder::By
+S 360-362 method Builder::Debit
+S 365-367 method Builder::Credit
+S 369-379 method Builder::add
+S 382-391 method Builder::Build
+S 395-403 interface ledger::Store
+S 396-396 method Store::Open
+S 397-397 method Store::Account
+S 398-398 method Store::Accounts
+S 399-399 method Store::Post
+S 400-400 method Store::Transaction
+S 401-401 method Store::History
+S 402-402 method Store::Balance
+S 406-408 interface ledger::Clock
+S 407-407 method Clock::Now
+S 412-414 interface ledger::Validator
+S 413-413 method Validator::Validate
+S 417-419 interface ledger::IDGenerator
+S 418-418 method IDGenerator::Next
+S 422-422 type_alias ledger::ClockFunc
+S 425-425 method ClockFunc::Now
+S 428-428 struct ledger::systemClock
+S 430-430 method systemClock::Now
+S 436-436 struct ledger::FixedClock
+S 439-439 method FixedClock::Now
+S 442-442 method FixedClock::Advance
+R 4:2 imports account -> fmt
+R 5:2 imports account -> sort
+R 6:2 imports account -> strings
+R 7:2 imports account -> time
+R 49:13 calls Kind::String -> Sprintf
+R 49:33 calls Kind::String -> uint8
+R 64:14 calls ledger::ParseKind -> EqualFold
+R 68:12 calls ledger::ParseKind -> Invalid (x-file: ledger/errors.go)
+R 105:7 calls Account::IsOpen -> Before (x-file: ledger/service.go)
+R 108:18 calls Account::IsOpen -> IsZero (x-file: ledger/money.go)
+R 108:32 calls Account::IsOpen -> Before (x-file: ledger/service.go)
+R 115:52 calls Account::Path -> Split (x-file: ledger/money.go)
+R 115:58 calls Account::Path -> string
+R 118:40 calls Account::Depth -> len
+R 118:46 calls Account::Depth -> Path
+R 122:17 calls Account::IsChildOf -> HasPrefix
+R 122:27 calls Account::IsChildOf -> string
+R 122:41 calls Account::IsChildOf -> string
+R 129:13 calls Account::Clone -> make
+R 129:24 calls Account::Clone -> len
+R 139:9 calls Account::Validate -> Check (x-file: ledger/errors.go)
+R 140:25 calls Account::Validate -> Require (x-file: ledger/errors.go)
+R 141:25 calls Account::Validate -> Require (x-file: ledger/errors.go)
+R 142:25 calls Account::Validate -> Require (x-file: ledger/errors.go)
+R 143:25 calls Account::Validate -> Require (x-file: ledger/errors.go)
+R 143:44 calls Account::Validate -> Valid (x-file: ledger/money.go)
+R 145:15 calls Account::Validate -> Negative (x-file: ledger/money.go)
+R 146:12 calls Account::Validate -> Invalid (x-file: ledger/errors.go)
+R 170:13 calls ledger::WithTags -> make
+R 172:21 calls ledger::WithTags -> len
+R 190:13 calls ledger::NewAccount -> Zero (x-file: ledger/money.go)
+R 191:18 calls ledger::NewAccount -> Now
+R 194:3 calls ledger::NewAccount -> opt
+R 196:14 calls ledger::NewAccount -> Validate
+R 214:19 calls Entry::Signed -> Neg (x-file: ledger/money.go)
+R 231:11 calls Meta::Describe -> append
+R 233:5 calls Meta::Describe -> len
+R 234:11 calls Meta::Describe -> make
+R 234:29 calls Meta::Describe -> len
+R 236:11 calls Meta::Describe -> append
+R 238:8 calls Meta::Describe -> Strings
+R 239:11 calls Meta::Describe -> append
+R 239:41 calls Meta::Describe -> Join
+R 241:17 calls Meta::Describe -> Join
+R 259:14 calls Transaction::Debits -> Add (x-file: ledger/money.go)
+R 270:14 calls Transaction::Credits -> Add (x-file: ledger/money.go)
+R 278:20 calls Transaction::Balanced -> Cmp (x-file: ledger/money.go)
+R 278:11 calls Transaction::Balanced -> Debits
+R 278:26 calls Transaction::Balanced -> Credits
+R 285:10 calls Transaction::Accounts -> make
+R 285:35 calls Transaction::Accounts -> len
+R 289:10 calls Transaction::Accounts -> append
+R 298:5 calls Transaction::Validate -> len
+R 299:9 calls Transaction::Validate -> Append (x-file: ledger/errors.go)
+R 299:16 calls Transaction::Validate -> Invalid (x-file: ledger/errors.go)
+R 299:85 calls Transaction::Validate -> len
+R 303:10 calls Transaction::Validate -> Append (x-file: ledger/errors.go)
+R 303:17 calls Transaction::Validate -> Invalid (x-file: ledger/errors.go)
+R 305:15 calls Transaction::Validate -> Negative (x-file: ledger/money.go)
+R 306:10 calls Transaction::Validate -> Append (x-file: ledger/errors.go)
+R 306:17 calls Transaction::Validate -> Invalid (x-file: ledger/errors.go)
+R 309:5 calls Transaction::Validate -> len
+R 309:31 calls Transaction::Validate -> Balanced
+R 310:9 calls Transaction::Validate -> Append (x-file: ledger/errors.go)
+R 310:61 calls Transaction::Validate -> Debits
+R 310:82 calls Transaction::Validate -> Credits
+R 312:15 calls Transaction::Validate -> ErrorOrNil (x-file: ledger/errors.go)
+R 321:29 calls Transaction::Reversal -> string
+R 325:17 calls Transaction::Reversal -> append
+R 327:20 calls Transaction::Reversal -> Opposite
+R 343:71 calls ledger::NewTx -> Now
+R 355:22 calls Builder::By -> Now
+R 361:11 calls Builder::Debit -> add
+R 366:11 calls Builder::Credit -> add
+R 373:14 calls Builder::add -> Negative (x-file: ledger/money.go)
+R 374:11 calls Builder::add -> Invalid (x-file: ledger/errors.go)
+R 377:17 calls Builder::add -> append
+R 387:15 calls Builder::Build -> Validate
+R 388:15 calls Builder::Build -> Wrap (x-file: ledger/errors.go)
+R 425:45 calls ClockFunc::Now -> f
+R 430:50 calls systemClock::Now -> Now
+R 442:86 calls FixedClock::Advance -> Add (x-file: ledger/money.go)
+R 449:16 calls account -> ClockFunc
+
+== ledger/errors.go (475 lines)
+S 1-475 module errors
+S 1-475 module ledger
+S 21-21 type_alias ledger::ErrorCode
+S 48-53 method ErrorCode::String
+S 57-64 method ErrorCode::Retryable
+S 77-95 function ledger::sentinelFor
+S 100-106 struct ledger::Error
+S 109-125 method Error::Error
+S 128-128 method Error::Unwrap
+S 131-140 method Error::Is
+S 143-143 method Error::Temporary
+S 146-154 function ledger::newError
+S 157-159 function ledger::NotFound
+S 162-164 function ledger::Invalid
+S 167-169 function ledger::Conflict
+S 172-174 function ledger::Closed
+S 177-181 struct ledger::LimitError
+S 183-186 method LimitError::Error
+S 189-189 method LimitError::Is
+S 192-196 struct ledger::UnbalancedError
+S 198-201 method UnbalancedError::Error
+S 204-204 method UnbalancedError::Is
+S 207-207 method UnbalancedError::Difference
+S 211-213 struct ledger::MultiError
+S 216-226 method MultiError::Append
+S 229-229 method MultiError::Len
+S 233-238 method MultiError::ErrorOrNil
+S 241-254 method MultiError::Error
+S 258-258 method MultiError::Unwrap
+S 261-275 method MultiError::Codes
+S 278-294 function ledger::CodeOf
+S 298-301 struct ledger::Result
+S 304-304 function ledger::Ok
+S 307-307 function ledger::Fail
+S 310-310 method Result::Unwrap
+S 313-318 method Result::OrElse
+S 321-326 method Result::Must
+S 329-335 function ledger::Try
+S 339-353 function ledger::Recover
+S 356-361 struct ledger::RetryPolicy
+S 371-380 method RetryPolicy::delay
+S 384-407 function ledger::Retry
+S 411-416 function ledger::Describe
+S 419-423 function ledger::Explain
+S 427-436 function ledger::Wrap
+S 439-439 function ledger::IsNotFound
+S 442-445 function ledger::IsRetryable
+S 449-458 function ledger::Check
+S 461-466 function ledger::Require
+S 469-475 function ledger::Guard
+R 10:2 imports errors -> context
+R 11:2 imports errors -> errors
+R 12:2 imports errors -> fmt
+R 13:2 imports errors -> io
+R 14:2 imports errors -> sort
+R 15:2 imports errors -> strings
+R 16:2 imports errors -> time
+R 49:14 calls ErrorCode::String -> int
+R 49:24 calls ErrorCode::String -> len
+R 50:14 calls ErrorCode::String -> Sprintf
+R 50:34 calls ErrorCode::String -> int
+R 68:25 calls errors -> New
+R 69:25 calls errors -> New
+R 70:25 calls errors -> New
+R 71:25 calls errors -> New
+R 72:25 calls errors -> New
+R 73:25 calls errors -> New
+R 111:4 calls Error::Error -> WriteString
+R 113:5 calls Error::Error -> WriteString
+R 114:5 calls Error::Error -> WriteString
+R 116:4 calls Error::Error -> WriteString
+R 116:23 calls Error::Error -> String
+R 118:7 calls Error::Error -> Fprintf
+R 121:5 calls Error::Error -> WriteString
+R 122:5 calls Error::Error -> WriteString
+R 122:25 calls Error::Error -> Error
+R 124:11 calls Error::Error -> String
+R 132:17 calls Error::Is -> sentinelFor
+R 143:50 calls Error::Temporary -> Retryable
+R 152:17 calls ledger::newError -> Now (x-file: ledger/account.go)
+R 158:9 calls ledger::NotFound -> newError
+R 163:9 calls ledger::Invalid -> newError
+R 163:43 calls ledger::Invalid -> Errorf
+R 168:9 calls ledger::Conflict -> newError
+R 173:9 calls ledger::Closed -> newError
+R 184:13 calls LimitError::Error -> Sprintf
+R 185:32 calls LimitError::Error -> Sub (x-file: ledger/money.go)
+R 199:13 calls UnbalancedError::Error -> Sprintf
+R 207:63 calls UnbalancedError::Difference -> Sub (x-file: ledger/money.go)
+R 221:12 calls MultiError::Append -> As
+R 222:12 calls MultiError::Append -> append
+R 225:11 calls MultiError::Append -> append
+R 229:41 calls MultiError::Len -> len
+R 234:17 calls MultiError::ErrorOrNil -> len
+R 242:9 calls MultiError::Error -> len
+R 246:20 calls MultiError::Error -> Error
+R 248:11 calls MultiError::Error -> make
+R 248:29 calls MultiError::Error -> len
+R 249:10 calls MultiError::Error -> append
+R 249:28 calls MultiError::Error -> Sprintf
+R 249:67 calls MultiError::Error -> len
+R 251:11 calls MultiError::Error -> append
+R 251:36 calls MultiError::Error -> Error
+R 253:17 calls MultiError::Error -> Join
+R 262:10 calls MultiError::Codes -> make
+R 265:13 calls MultiError::Codes -> As
+R 269:11 calls MultiError::Codes -> make
+R 269:32 calls MultiError::Codes -> len
+R 271:11 calls MultiError::Codes -> append
+R 273:7 calls MultiError::Codes -> Slice
+R 280:12 calls ledger::CodeOf -> As
+R 284:14 calls ledger::CodeOf -> Is
+R 286:14 calls ledger::CodeOf -> Is
+R 288:14 calls ledger::CodeOf -> Is
+R 290:14 calls ledger::CodeOf -> Is
+R 323:3 calls Result::Must -> panic
+R 330:16 calls ledger::Try -> fn
+R 332:10 calls ledger::Try -> Fail
+R 334:9 calls ledger::Try -> Ok
+R 341:11 calls ledger::Recover -> recover
+R 344:11 calls ledger::Recover -> newError
+R 346:11 calls ledger::Recover -> newError
+R 346:48 calls ledger::Recover -> New
+R 348:11 calls ledger::Recover -> newError
+R 348:45 calls ledger::Recover -> Errorf
+R 352:9 calls ledger::Recover -> fn
+R 372:20 calls RetryPolicy::delay -> uint
+R 377:9 calls RetryPolicy::delay -> Jitter
+R 387:17 calls ledger::Retry -> Err
+R 388:11 calls ledger::Retry -> newError
+R 390:10 calls ledger::Retry -> fn
+R 395:13 calls ledger::Retry -> As
+R 395:34 calls ledger::Retry -> Temporary
+R 398:17 calls ledger::Retry -> NewTimer
+R 398:33 calls ledger::Retry -> delay
+R 400:14 calls ledger::Retry -> Done
+R 401:10 calls ledger::Retry -> Stop
+R 402:11 calls ledger::Retry -> newError
+R 402:50 calls ledger::Retry -> Err
+R 413:7 calls ledger::Describe -> Fprintf
+R 413:36 calls ledger::Describe -> Repeat
+R 414:16 calls ledger::Describe -> Unwrap
+R 421:2 calls ledger::Explain -> Describe
+R 422:17 calls ledger::Explain -> TrimRight
+R 422:29 calls ledger::Explain -> String
+R 432:12 calls ledger::Wrap -> As
+R 433:10 calls ledger::Wrap -> newError
+R 435:9 calls ledger::Wrap -> newError
+R 439:49 calls ledger::IsNotFound -> Is
+R 444:16 calls ledger::IsRetryable -> As
+R 444:39 calls ledger::IsRetryable -> Temporary
+R 452:9 calls ledger::Check -> Append
+R 452:16 calls ledger::Check -> cond
+R 454:11 calls ledger::Check -> Len
+R 457:9 calls ledger::Check -> Wrap
+R 457:24 calls ledger::Check -> ErrorOrNil
+R 465:9 calls ledger::Require -> Invalid
+R 471:11 calls ledger::Guard -> recover
+R 472:11 calls ledger::Guard -> newError
+R 472:45 calls ledger::Guard -> Errorf
+
+== ledger/money.go (447 lines)
+S 1-447 module money
+S 1-447 module ledger
+S 15-15 type_alias ledger::Currency
+S 36-41 method Currency::Exponent
+S 44-54 method Currency::Valid
+S 57-69 method Currency::Symbol
+S 73-76 struct ledger::Money
+S 79-79 function ledger::Zero
+S 82-88 function ledger::Of
+S 90-96 function ledger::pow10
+S 99-99 method Money::IsZero
+S 102-102 method Money::Negative
+S 105-105 method Money::Neg
+S 108-113 method Money::Abs
+S 118-128 function ledger::unify
+S 131-133 method Money::Add
+S 136-138 method Money::Sub
+S 141-143 method Money::Mul
+S 146-155 method Money::Cmp
+S 158-158 method Money::Less
+S 163-193 method Money::Allocate
+S 197-206 method Money::Split
+S 209-211 method Money::String
+S 215-234 method Money::Format
+S 237-242 method Money::MarshalJSON
+S 245-259 method Money::UnmarshalJSON
+S 262-294 function ledger::ParseMoney
+S 297-303 function ledger::MustParse
+S 307-310 struct ledger::Rate
+S 313-334 method Rate::Convert
+S 337-339 method Rate::Invert
+S 343-346 struct ledger::RateTable
+S 349-351 function ledger::NewRateTable
+S 354-360 method RateTable::Set
+S 363-379 method RateTable::Lookup
+S 382-388 method RateTable::Convert
+S 391-403 method RateTable::Currencies
+S 406-408 interface ledger::Number
+S 411-417 function ledger::SumOf
+S 420-428 function ledger::MaxOf
+S 431-433 function ledger::Percent
+S 436-442 function ledger::Total
+S 445-447 function ledger::SortMoney
+R 4:2 imports money -> encoding/json
+R 5:2 imports money -> fmt
+R 6:2 imports money -> math
+R 7:2 imports money -> math/big
+R 8:2 imports money -> sort
+R 9:2 imports money -> strconv
+R 10:2 imports money -> strings
+R 11:2 imports money -> unicode
+R 45:5 calls Currency::Valid -> len
+R 49:15 calls Currency::Valid -> IsUpper
+R 68:9 calls Currency::Symbol -> string
+R 83:11 calls ledger::Of -> pow10
+R 83:19 calls ledger::Of -> Exponent
+R 91:12 calls ledger::pow10 -> int64
+R 110:12 calls Money::Abs -> Neg
+R 127:2 calls ledger::unify -> panic
+R 127:12 calls ledger::unify -> Sprintf
+R 132:51 calls Money::Add -> unify
+R 137:51 calls Money::Sub -> unify
+R 147:2 calls Money::Cmp -> unify
+R 158:46 calls Money::Less -> Cmp
+R 164:5 calls Money::Allocate -> len
+R 165:15 calls Money::Allocate -> Invalid (x-file: ledger/errors.go)
+R 170:16 calls Money::Allocate -> Invalid (x-file: ledger/errors.go)
+R 175:15 calls Money::Allocate -> Invalid (x-file: ledger/errors.go)
+R 177:12 calls Money::Allocate -> make
+R 177:26 calls Money::Allocate -> len
+R 184:48 calls Money::Allocate -> len
+R 188:48 calls Money::Allocate -> len
+R 199:15 calls Money::Split -> Invalid (x-file: ledger/errors.go)
+R 201:12 calls Money::Split -> make
+R 205:11 calls Money::Split -> Allocate
+R 210:11 calls Money::String -> Format
+R 210:33 calls Money::String -> string
+R 216:20 calls Money::Format -> Exponent
+R 223:20 calls Money::Format -> FormatInt
+R 225:7 calls Money::Format -> len
+R 228:20 calls Money::Format -> len
+R 228:52 calls Money::Format -> len
+R 231:28 calls Money::Format -> Symbol
+R 238:14 calls Money::MarshalJSON -> Marshal
+R 241:6 calls Money::MarshalJSON -> Format
+R 250:17 calls Money::UnmarshalJSON -> Unmarshal
+R 251:10 calls Money::UnmarshalJSON -> Wrap (x-file: ledger/errors.go)
+R 253:17 calls Money::UnmarshalJSON -> ParseMoney
+R 263:8 calls ledger::ParseMoney -> Valid
+R 264:19 calls ledger::ParseMoney -> Invalid (x-file: ledger/errors.go)
+R 264:55 calls ledger::ParseMoney -> string
+R 266:14 calls ledger::ParseMoney -> ReplaceAll
+R 266:33 calls ledger::ParseMoney -> TrimSpace
+R 268:19 calls ledger::ParseMoney -> Invalid (x-file: ledger/errors.go)
+R 270:22 calls ledger::ParseMoney -> HasPrefix
+R 271:14 calls ledger::ParseMoney -> TrimPrefix
+R 272:28 calls ledger::ParseMoney -> Cut
+R 273:11 calls ledger::ParseMoney -> Exponent
+R 274:5 calls ledger::ParseMoney -> len
+R 275:19 calls ledger::ParseMoney -> Invalid (x-file: ledger/errors.go)
+R 277:18 calls ledger::ParseMoney -> Repeat
+R 277:34 calls ledger::ParseMoney -> len
+R 278:24 calls ledger::ParseMoney -> ParseInt
+R 280:19 calls ledger::ParseMoney -> Wrap (x-file: ledger/errors.go)
+R 282:11 calls ledger::ParseMoney -> int64
+R 284:24 calls ledger::ParseMoney -> ParseInt
+R 286:20 calls ledger::ParseMoney -> Wrap (x-file: ledger/errors.go)
+R 289:7 calls ledger::ParseMoney -> Of
+R 291:9 calls ledger::ParseMoney -> Neg
+R 298:12 calls ledger::MustParse -> ParseMoney
+R 300:3 calls ledger::MustParse -> panic
+R 315:19 calls Rate::Convert -> Invalid (x-file: ledger/errors.go)
+R 318:19 calls Rate::Convert -> Invalid (x-file: ledger/errors.go)
+R 320:25 calls Rate::Convert -> Mul
+R 320:12 calls Rate::Convert -> new
+R 320:33 calls Rate::Convert -> NewInt
+R 320:54 calls Rate::Convert -> NewInt
+R 321:25 calls Rate::Convert -> QuoRem
+R 321:12 calls Rate::Convert -> new
+R 321:44 calls Rate::Convert -> NewInt
+R 321:59 calls Rate::Convert -> new
+R 322:24 calls Rate::Convert -> Mul
+R 322:11 calls Rate::Convert -> new
+R 322:41 calls Rate::Convert -> Abs
+R 322:28 calls Rate::Convert -> new
+R 322:55 calls Rate::Convert -> NewInt
+R 323:11 calls Rate::Convert -> Cmp
+R 323:19 calls Rate::Convert -> NewInt
+R 324:13 calls Rate::Convert -> Sign
+R 325:6 calls Rate::Convert -> Sub
+R 325:17 calls Rate::Convert -> NewInt
+R 327:6 calls Rate::Convert -> Add
+R 327:17 calls Rate::Convert -> NewInt
+R 330:8 calls Rate::Convert -> IsInt64
+R 331:19 calls Rate::Convert -> newError (x-file: ledger/errors.go)
+R 331:58 calls Rate::Convert -> Errorf
+R 333:24 calls Rate::Convert -> Int64
+R 350:39 calls ledger::NewRateTable -> make
+R 357:12 calls RateTable::Set -> Invert
+R 383:16 calls RateTable::Convert -> Lookup
+R 385:19 calls RateTable::Convert -> NotFound (x-file: ledger/errors.go)
+R 385:39 calls RateTable::Convert -> AccountID (x-file: ledger/account.go)
+R 385:49 calls RateTable::Convert -> string
+R 385:72 calls RateTable::Convert -> string
+R 387:14 calls RateTable::Convert -> Convert
+R 397:9 calls RateTable::Currencies -> make
+R 397:29 calls RateTable::Currencies -> len
+R 399:9 calls RateTable::Currencies -> append
+R 401:7 calls RateTable::Currencies -> Slice
+R 432:22 calls ledger::Percent -> int64
+R 432:33 calls ledger::Percent -> Round
+R 432:39 calls ledger::Percent -> float64
+R 439:13 calls ledger::Total -> Add
+R 446:7 calls ledger::SortMoney -> Slice
+R 446:62 calls ledger::SortMoney -> Less
+
+== ledger/report.go (362 lines)
+S 1-362 module report
+S 1-362 module ledger
+S 14-20 function ledger::Map
+S 23-31 function ledger::Filter
+S 34-40 function ledger::Reduce
+S 43-50 function ledger::GroupBy
+S 53-60 function ledger::Keys
+S 63-69 struct ledger::Row
+S 72-78 struct ledger::Report
+S 82-87 function ledger::NewReport
+S 90-110 method Report::rows
+S 114-140 method Report::TrialBalance
+S 143-172 method Report::BalanceSheet
+S 175-205 method Report::IncomeStatement
+S 208-213 struct ledger::Statement
+S 216-220 struct ledger::StatementLine
+S 223-249 method Report::StatementFor
+S 252-262 method Statement::WriteTo
+S 266-270 struct ledger::countingWriter
+S 272-280 method countingWriter::Write
+S 283-298 method Report::Convert
+S 301-310 function ledger::Largest
+S 313-319 struct ledger::Summary
+S 322-335 method Report::Summarize
+S 338-345 method Summary::Format
+S 348-350 function ledger::Names
+S 352-352 method Row::name
+S 355-357 function ledger::Positive
+S 360-362 function ledger::Net
+R 4:2 imports report -> bufio
+R 5:2 imports report -> fmt
+R 6:2 imports report -> io
+R 7:2 imports report -> sort
+R 8:2 imports report -> strings
+R 9:2 imports report -> text/tabwriter
+R 10:2 imports report -> time
+R 15:9 calls ledger::Map -> make
+R 15:22 calls ledger::Map -> len
+R 17:9 calls ledger::Map -> append
+R 17:21 calls ledger::Map -> fn
+R 26:6 calls ledger::Filter -> fn
+R 27:10 calls ledger::Filter -> append
+R 37:9 calls ledger::Reduce -> fn
+R 44:12 calls ledger::GroupBy -> make
+R 46:8 calls ledger::GroupBy -> key
+R 47:15 calls ledger::GroupBy -> append
+R 54:10 calls ledger::Keys -> make
+R 54:23 calls ledger::Keys -> len
+R 56:10 calls ledger::Keys -> append
+R 58:7 calls ledger::Keys -> Slice
+R 91:27 calls Report::rows -> Accounts (x-file: ledger/account.go)
+R 95:10 calls Report::rows -> make
+R 95:25 calls Report::rows -> len
+R 97:23 calls Report::rows -> Balance (x-file: ledger/account.go)
+R 99:16 calls Report::rows -> Wrap (x-file: ledger/errors.go)
+R 101:10 calls Report::rows -> append
+R 105:15 calls Report::rows -> Depth (x-file: ledger/account.go)
+R 115:17 calls Report::TrialBalance -> rows
+R 119:18 calls Report::TrialBalance -> NewWriter
+R 120:11 calls Report::TrialBalance -> Flush
+R 121:6 calls Report::TrialBalance -> Fprintln
+R 126:15 calls Report::TrialBalance -> NormalSide (x-file: ledger/account.go)
+R 127:20 calls Report::TrialBalance -> Format
+R 128:18 calls Report::TrialBalance -> Add (x-file: ledger/money.go)
+R 130:20 calls Report::TrialBalance -> Format
+R 131:20 calls Report::TrialBalance -> Add (x-file: ledger/money.go)
+R 133:7 calls Report::TrialBalance -> Fprintf
+R 135:6 calls Report::TrialBalance -> Fprintf
+R 135:47 calls Report::TrialBalance -> Format
+R 135:69 calls Report::TrialBalance -> Format
+R 136:11 calls Report::TrialBalance -> Cmp (x-file: ledger/money.go)
+R 144:17 calls Report::BalanceSheet -> rows
+R 148:12 calls Report::BalanceSheet -> GroupBy
+R 149:14 calls Report::BalanceSheet -> NewWriter
+R 150:11 calls Report::BalanceSheet -> Flush
+R 154:7 calls Report::BalanceSheet -> Fprintf
+R 154:46 calls Report::BalanceSheet -> Repeat
+R 154:58 calls Report::BalanceSheet -> len
+R 157:23 calls Report::BalanceSheet -> Repeat
+R 158:9 calls Report::BalanceSheet -> Fprintf
+R 158:57 calls Report::BalanceSheet -> len
+R 158:92 calls Report::BalanceSheet -> Format
+R 159:19 calls Report::BalanceSheet -> Add (x-file: ledger/money.go)
+R 162:7 calls Report::BalanceSheet -> Fprintf
+R 162:65 calls Report::BalanceSheet -> ToLower
+R 162:87 calls Report::BalanceSheet -> Format
+R 166:12 calls Report::BalanceSheet -> section
+R 167:46 calls Report::BalanceSheet -> Add (x-file: ledger/money.go)
+R 167:12 calls Report::BalanceSheet -> section
+R 167:50 calls Report::BalanceSheet -> section
+R 168:12 calls Report::BalanceSheet -> Cmp (x-file: ledger/money.go)
+R 176:27 calls Report::IncomeStatement -> Accounts (x-file: ledger/account.go)
+R 184:27 calls Report::IncomeStatement -> History (x-file: ledger/account.go)
+R 190:24 calls Report::IncomeStatement -> NormalSide (x-file: ledger/account.go)
+R 191:15 calls Report::IncomeStatement -> Add (x-file: ledger/money.go)
+R 193:15 calls Report::IncomeStatement -> Sub (x-file: ledger/money.go)
+R 196:7 calls Report::IncomeStatement -> Fprintf
+R 196:46 calls Report::IncomeStatement -> Format
+R 198:20 calls Report::IncomeStatement -> Add (x-file: ledger/money.go)
+R 200:22 calls Report::IncomeStatement -> Add (x-file: ledger/money.go)
+R 203:6 calls Report::IncomeStatement -> Fprintf
+R 203:67 calls Report::IncomeStatement -> Format
+R 203:54 calls Report::IncomeStatement -> Sub (x-file: ledger/money.go)
+R 224:23 calls Report::StatementFor -> Account (x-file: ledger/account.go)
+R 228:26 calls Report::StatementFor -> Balance (x-file: ledger/account.go)
+R 228:43 calls Report::StatementFor -> Add (x-file: ledger/money.go)
+R 232:26 calls Report::StatementFor -> History (x-file: ledger/account.go)
+R 238:22 calls Report::StatementFor -> NormalSide (x-file: ledger/account.go)
+R 241:22 calls Report::StatementFor -> Add (x-file: ledger/money.go)
+R 243:22 calls Report::StatementFor -> Sub (x-file: ledger/money.go)
+R 245:14 calls Report::StatementFor -> append
+R 254:6 calls Statement::WriteTo -> Fprintf
+R 255:6 calls Statement::WriteTo -> Fprintf
+R 257:7 calls Statement::WriteTo -> Fprintf
+R 258:39 calls Statement::WriteTo -> Format
+R 258:67 calls Statement::WriteTo -> Format
+R 260:6 calls Statement::WriteTo -> Fprintf
+R 276:16 calls countingWriter::Write -> Write
+R 277:9 calls countingWriter::Write -> int64
+R 285:15 calls Report::Convert -> Invalid (x-file: ledger/errors.go)
+R 288:9 calls Report::Convert -> Map
+R 289:29 calls Report::Convert -> Convert
+R 291:10 calls Report::Convert -> Append (x-file: ledger/errors.go)
+R 297:20 calls Report::Convert -> ErrorOrNil (x-file: ledger/errors.go)
+R 302:12 calls ledger::Largest -> append
+R 303:7 calls ledger::Largest -> Slice
+R 304:34 calls ledger::Largest -> Cmp (x-file: ledger/money.go)
+R 304:28 calls ledger::Largest -> Abs (x-file: ledger/money.go)
+R 304:56 calls ledger::Largest -> Abs (x-file: ledger/money.go)
+R 306:9 calls ledger::Largest -> len
+R 323:17 calls Report::Summarize -> rows
+R 327:25 calls Report::Summarize -> len
+R 327:44 calls Report::Summarize -> make
+R 329:43 calls Report::Summarize -> Add (x-file: ledger/money.go)
+R 332:26 calls Report::Summarize -> Len (x-file: ledger/errors.go)
+R 339:6 calls Summary::Format -> Fprintf
+R 342:8 calls Summary::Format -> Fprintf
+R 349:9 calls ledger::Names -> Map
+R 352:47 calls Row::name -> TrimSpace
+R 356:9 calls ledger::Positive -> Filter
+R 356:63 calls ledger::Positive -> Negative (x-file: ledger/money.go)
+R 356:90 calls ledger::Positive -> IsZero (x-file: ledger/money.go)
+R 361:9 calls ledger::Net -> Reduce
+R 361:75 calls ledger::Net -> Add (x-file: ledger/money.go)
+
+== ledger/service.go (463 lines)
+S 1-463 module service
+S 1-463 module ledger
+S 14-17 interface ledger::Hook
+S 15-15 method Hook::Before
+S 16-16 method Hook::After
+S 20-23 struct ledger::HookFuncs
+S 26-31 method HookFuncs::Before
+S 34-38 method HookFuncs::After
+S 41-43 interface ledger::Logger
+S 42-42 method Logger::Printf
+S 45-45 struct ledger::discard
+S 47-47 method discard::Printf
+S 50-56 struct ledger::Config
+S 60-70 struct ledger::Service
+S 73-73 type_alias ledger::ServiceOption
+S 76-78 function ledger::WithLogger
+S 81-83 function ledger::WithHook
+S 86-88 function ledger::WithClock
+S 91-93 function ledger::WithIDs
+S 96-118 function ledger::NewService
+S 121-121 function ledger::DefaultLogger
+S 124-135 method Service::OpenAll
+S 138-170 method Service::Post
+S 172-180 method Service::reserve
+S 182-186 method Service::release
+S 191-226 method Service::Transfer
+S 229-242 method Service::Revert
+S 245-249 struct ledger::batchResult
+S 254-293 method Service::PostAll
+S 296-301 struct ledger::Reconciliation
+S 304-304 method Reconciliation::Diff
+S 307-307 method Reconciliation::Matches
+S 310-345 method Service::Reconcile
+S 348-353 method Service::convert
+S 356-375 function ledger::Label
+S 378-383 method Service::Close
+S 386-399 function ledger::AuditHook
+S 402-409 function ledger::LimitHook
+S 413-425 method Service::Each
+S 428-444 method Service::Totals
+S 448-463 method Service::Snapshot
+R 4:2 imports service -> context
+R 5:2 imports service -> fmt
+R 6:2 imports service -> log
+R 7:2 imports service -> sort
+R 8:2 imports service -> sync
+R 9:2 imports service -> time
+R 30:11 calls HookFuncs::Before -> BeforeFunc
+R 36:5 calls HookFuncs::After -> AfterFunc
+R 82:38 calls ledger::WithHook -> append
+R 100:12 calls ledger::NewService -> NewSequentialIDs (x-file: ledger/store.go)
+R 103:12 calls ledger::NewService -> make
+R 115:3 calls ledger::NewService -> opt
+R 121:42 calls ledger::DefaultLogger -> Default
+R 125:7 calls Service::OpenAll -> SliceStable
+R 126:22 calls Service::OpenAll -> Depth (x-file: ledger/account.go)
+R 126:44 calls Service::OpenAll -> Depth (x-file: ledger/account.go)
+R 129:15 calls Service::OpenAll -> Open (x-file: ledger/account.go)
+R 130:11 calls Service::OpenAll -> Wrap (x-file: ledger/errors.go)
+R 132:9 calls Service::OpenAll -> Printf
+R 141:6 calls Service::Post -> After
+R 144:5 calls Service::Post -> len
+R 145:10 calls Service::Post -> newError (x-file: ledger/errors.go)
+R 145:46 calls Service::Post -> Errorf
+R 145:79 calls Service::Post -> len
+R 148:17 calls Service::Post -> Next (x-file: ledger/account.go)
+R 153:23 calls Service::Post -> Now (x-file: ledger/account.go)
+R 155:15 calls Service::Post -> Before
+R 156:11 calls Service::Post -> Wrap (x-file: ledger/errors.go)
+R 159:8 calls Service::Post -> reserve
+R 160:10 calls Service::Post -> Conflict (x-file: ledger/errors.go)
+R 160:35 calls Service::Post -> Errorf
+R 162:10 calls Service::Post -> release
+R 164:9 calls Service::Post -> Retry (x-file: ledger/errors.go)
+R 166:10 calls Service::Post -> Printf
+R 168:18 calls Service::Post -> Post
+R 173:7 calls Service::reserve -> Lock
+R 174:13 calls Service::reserve -> Unlock
+R 183:7 calls Service::release -> Lock
+R 184:2 calls Service::release -> delete
+R 185:7 calls Service::release -> Unlock
+R 192:16 calls Service::Transfer -> Account (x-file: ledger/account.go)
+R 196:16 calls Service::Transfer -> Account (x-file: ledger/account.go)
+R 203:16 calls Service::Transfer -> Invalid (x-file: ledger/errors.go)
+R 205:29 calls Service::Transfer -> Convert (x-file: ledger/money.go)
+R 207:16 calls Service::Transfer -> Wrap (x-file: ledger/errors.go)
+R 211:15 calls Service::Transfer -> Invalid (x-file: ledger/errors.go)
+R 218:3 calls Service::Transfer -> Build (x-file: ledger/account.go)
+R 217:3 calls Service::Transfer -> Debit (x-file: ledger/account.go)
+R 216:3 calls Service::Transfer -> Credit (x-file: ledger/account.go)
+R 215:3 calls Service::Transfer -> On (x-file: ledger/account.go)
+R 214:3 calls Service::Transfer -> By (x-file: ledger/account.go)
+R 213:13 calls Service::Transfer -> NewTx (x-file: ledger/account.go)
+R 213:25 calls Service::Transfer -> Next (x-file: ledger/account.go)
+R 215:14 calls Service::Transfer -> Now (x-file: ledger/account.go)
+R 222:14 calls Service::Transfer -> Post
+R 230:17 calls Service::Revert -> Transaction (x-file: ledger/account.go)
+R 232:15 calls Service::Revert -> Wrap (x-file: ledger/errors.go)
+R 235:15 calls Service::Revert -> Invalid (x-file: ledger/errors.go)
+R 237:14 calls Service::Revert -> Reversal (x-file: ledger/account.go)
+R 237:29 calls Service::Revert -> Next (x-file: ledger/account.go)
+R 237:45 calls Service::Revert -> Now (x-file: ledger/account.go)
+R 238:14 calls Service::Revert -> Post
+R 239:15 calls Service::Revert -> Wrap (x-file: ledger/errors.go)
+R 255:10 calls Service::PostAll -> make
+R 256:13 calls Service::PostAll -> make
+R 256:36 calls Service::PostAll -> len
+R 260:6 calls Service::PostAll -> Add (x-file: ledger/money.go)
+R 262:13 calls Service::PostAll -> Done
+R 264:12 calls Service::PostAll -> Recover (x-file: ledger/errors.go)
+R 264:56 calls Service::PostAll -> Post
+R 271:9 calls Service::PostAll -> close
+R 275:15 calls Service::PostAll -> Done
+R 282:6 calls Service::PostAll -> Wait
+R 283:3 calls Service::PostAll -> close
+R 286:10 calls Service::PostAll -> make
+R 286:24 calls Service::PostAll -> len
+R 290:9 calls Service::PostAll -> Append (x-file: ledger/errors.go)
+R 292:21 calls Service::PostAll -> ErrorOrNil (x-file: ledger/errors.go)
+R 304:56 calls Reconciliation::Diff -> Sub (x-file: ledger/money.go)
+R 307:58 calls Reconciliation::Matches -> IsZero (x-file: ledger/money.go)
+R 307:51 calls Reconciliation::Matches -> Diff
+R 311:9 calls Service::Reconcile -> make
+R 311:30 calls Service::Reconcile -> len
+R 313:9 calls Service::Reconcile -> append
+R 315:7 calls Service::Reconcile -> Slice
+R 319:17 calls Service::Reconcile -> Now (x-file: ledger/account.go)
+R 323:14 calls Service::Reconcile -> Done
+R 324:10 calls Service::Reconcile -> Append (x-file: ledger/errors.go)
+R 324:17 calls Service::Reconcile -> newError (x-file: ledger/errors.go)
+R 324:60 calls Service::Reconcile -> Err
+R 328:17 calls Service::Reconcile -> Balance (x-file: ledger/account.go)
+R 330:10 calls Service::Reconcile -> Append (x-file: ledger/errors.go)
+R 335:24 calls Service::Reconcile -> convert
+R 337:11 calls Service::Reconcile -> Append (x-file: ledger/errors.go)
+R 342:9 calls Service::Reconcile -> append
+R 344:20 calls Service::Reconcile -> ErrorOrNil (x-file: ledger/errors.go)
+R 350:19 calls Service::convert -> Invalid (x-file: ledger/errors.go)
+R 352:21 calls Service::convert -> Convert (x-file: ledger/money.go)
+R 361:14 calls ledger::Label -> Sprintf
+R 363:14 calls ledger::Label -> Sprintf
+R 365:14 calls ledger::Label -> Sprintf
+R 367:12 calls ledger::Label -> String (x-file: ledger/account.go)
+R 369:24 calls ledger::Label -> Error (x-file: ledger/errors.go)
+R 371:12 calls ledger::Label -> String (x-file: ledger/account.go)
+R 373:14 calls ledger::Label -> Sprintf
+R 380:12 calls Service::Close -> Close
+R 389:11 calls ledger::AuditHook -> Require (x-file: ledger/errors.go)
+R 389:19 calls ledger::AuditHook -> len
+R 393:7 calls ledger::AuditHook -> Printf
+R 393:41 calls ledger::AuditHook -> Explain (x-file: ledger/errors.go)
+R 396:6 calls ledger::AuditHook -> Printf
+R 396:40 calls ledger::AuditHook -> Label
+R 404:18 calls ledger::LimitHook -> Debits (x-file: ledger/account.go)
+R 404:34 calls ledger::LimitHook -> Cmp (x-file: ledger/money.go)
+R 415:19 calls Service::Each -> list
+R 420:13 calls Service::Each -> fn
+R 429:12 calls Service::Totals -> make
+R 430:11 calls Service::Totals -> Each
+R 431:17 calls Service::Totals -> Balance (x-file: ledger/account.go)
+R 436:20 calls Service::Totals -> convert
+R 440:35 calls Service::Totals -> Add (x-file: ledger/money.go)
+R 449:21 calls Service::Snapshot -> Accounts (x-file: ledger/account.go)
+R 453:9 calls Service::Snapshot -> Map (x-file: ledger/report.go)
+R 454:10 calls Service::Snapshot -> make
+R 454:36 calls Service::Snapshot -> len
+R 456:17 calls Service::Snapshot -> Balance (x-file: ledger/account.go)
+
+== ledger/store.go (463 lines)
+S 1-463 module store
+S 1-463 module ledger
+S 13-17 struct ledger::Index
+S 20-22 function ledger::NewIndex
+S 25-32 method Index::Put
+S 35-40 method Index::Get
+S 43-56 method Index::Delete
+S 59-63 method Index::Len
+S 66-79 method Index::Each
+S 82-84 struct ledger::Stack
+S 87-87 method Stack::Push
+S 90-98 method Stack::Pop
+S 101-101 method Stack::Len
+S 104-112 method Stack::Drain
+S 115-118 struct ledger::Pair
+S 121-121 method Pair::Swap
+S 124-128 struct ledger::posting
+S 132-137 struct ledger::Event
+S 141-150 struct ledger::MemoryStore
+S 153-163 function ledger::NewMemoryStore
+S 166-172 method MemoryStore::Subscribe
+S 176-183 method MemoryStore::publish
+S 186-198 method MemoryStore::Close
+S 201-223 method MemoryStore::Open
+S 226-234 method MemoryStore::Account
+S 237-249 method MemoryStore::Accounts
+S 253-310 method MemoryStore::Post
+S 314-319 function ledger::exceeds
+S 322-332 method MemoryStore::Transaction
+S 336-353 method MemoryStore::History
+S 357-364 method MemoryStore::Balance
+S 367-382 method MemoryStore::balanceLocked
+S 385-389 method MemoryStore::Len
+S 393-412 method MemoryStore::Walk
+S 416-436 method MemoryStore::Stream
+S 439-442 struct ledger::SequentialIDs
+S 445-447 function ledger::NewSequentialIDs
+S 450-458 method SequentialIDs::Next
+R 4:2 imports store -> context
+R 5:2 imports store -> sort
+R 6:2 imports store -> sync
+R 7:2 imports store -> sync/atomic
+R 8:2 imports store -> time
+R 21:29 calls ledger::NewIndex -> make
+R 26:8 calls Index::Put -> Lock
+R 27:14 calls Index::Put -> Unlock
+R 29:14 calls Index::Put -> append
+R 36:8 calls Index::Get -> RLock
+R 37:14 calls Index::Get -> RUnlock
+R 44:8 calls Index::Delete -> Lock
+R 45:14 calls Index::Delete -> Unlock
+R 49:2 calls Index::Delete -> delete
+R 52:15 calls Index::Delete -> append
+R 60:8 calls Index::Len -> RLock
+R 61:14 calls Index::Len -> RUnlock
+R 62:9 calls Index::Len -> len
+R 67:8 calls Index::Each -> RLock
+R 68:10 calls Index::Each -> append
+R 69:8 calls Index::Each -> RUnlock
+R 71:15 calls Index::Each -> Get
+R 75:7 calls Index::Each -> fn
+R 87:42 calls Stack::Push -> append
+R 92:5 calls Stack::Pop -> len
+R 95:18 calls Stack::Pop -> len
+R 96:21 calls Stack::Pop -> len
+R 101:39 calls Stack::Len -> len
+R 106:14 calls Stack::Drain -> Pop
+R 110:3 calls Stack::Drain -> fn
+R 159:13 calls ledger::NewMemoryStore -> NewIndex
+R 160:13 calls ledger::NewMemoryStore -> NewIndex
+R 161:13 calls ledger::NewMemoryStore -> make
+R 167:7 calls MemoryStore::Subscribe -> Lock
+R 168:13 calls MemoryStore::Subscribe -> Unlock
+R 169:8 calls MemoryStore::Subscribe -> make
+R 170:11 calls MemoryStore::Subscribe -> append
+R 187:7 calls MemoryStore::Close -> Lock
+R 188:13 calls MemoryStore::Close -> Unlock
+R 194:3 calls MemoryStore::Close -> close
+R 202:20 calls MemoryStore::Open -> Validate (x-file: ledger/account.go)
+R 203:10 calls MemoryStore::Open -> Wrap (x-file: ledger/errors.go)
+R 205:7 calls MemoryStore::Open -> Lock
+R 206:13 calls MemoryStore::Open -> Unlock
+R 208:10 calls MemoryStore::Open -> newError (x-file: ledger/errors.go)
+R 210:29 calls MemoryStore::Open -> Get
+R 211:10 calls MemoryStore::Open -> Conflict (x-file: ledger/errors.go)
+R 214:26 calls MemoryStore::Open -> Get
+R 215:11 calls MemoryStore::Open -> NotFound (x-file: ledger/errors.go)
+R 218:20 calls MemoryStore::Open -> Clone (x-file: ledger/account.go)
+R 219:29 calls MemoryStore::Open -> Add (x-file: ledger/money.go)
+R 220:13 calls MemoryStore::Open -> Put
+R 221:4 calls MemoryStore::Open -> publish
+R 221:64 calls MemoryStore::Open -> Now (x-file: ledger/account.go)
+R 227:7 calls MemoryStore::Account -> RLock
+R 228:13 calls MemoryStore::Account -> RUnlock
+R 229:22 calls MemoryStore::Account -> Get
+R 231:15 calls MemoryStore::Account -> NotFound (x-file: ledger/errors.go)
+R 233:11 calls MemoryStore::Account -> Clone (x-file: ledger/account.go)
+R 238:7 calls MemoryStore::Accounts -> RLock
+R 239:13 calls MemoryStore::Accounts -> RUnlock
+R 241:13 calls MemoryStore::Accounts -> Each
+R 242:23 calls MemoryStore::Accounts -> filter
+R 243:10 calls MemoryStore::Accounts -> append
+R 243:24 calls MemoryStore::Accounts -> Clone (x-file: ledger/account.go)
+R 247:7 calls MemoryStore::Accounts -> Slice
+R 254:15 calls MemoryStore::Post -> Validate (x-file: ledger/account.go)
+R 255:10 calls MemoryStore::Post -> Wrap (x-file: ledger/errors.go)
+R 257:7 calls MemoryStore::Post -> Lock
+R 258:13 calls MemoryStore::Post -> Unlock
+R 260:10 calls MemoryStore::Post -> newError (x-file: ledger/errors.go)
+R 262:21 calls MemoryStore::Post -> Get
+R 263:10 calls MemoryStore::Post -> Conflict (x-file: ledger/errors.go)
+R 268:11 calls MemoryStore::Post -> Drain
+R 270:40 calls MemoryStore::Post -> len
+R 275:26 calls MemoryStore::Post -> Get
+R 277:4 calls MemoryStore::Post -> rollback
+R 278:11 calls MemoryStore::Post -> NotFound (x-file: ledger/errors.go)
+R 280:12 calls MemoryStore::Post -> IsOpen (x-file: ledger/account.go)
+R 281:4 calls MemoryStore::Post -> rollback
+R 282:11 calls MemoryStore::Post -> Closed (x-file: ledger/errors.go)
+R 285:4 calls MemoryStore::Post -> rollback
+R 286:11 calls MemoryStore::Post -> Invalid (x-file: ledger/errors.go)
+R 289:27 calls MemoryStore::Post -> append
+R 290:11 calls MemoryStore::Post -> Push
+R 292:15 calls MemoryStore::Post -> balanceLocked
+R 292:66 calls MemoryStore::Post -> IsZero (x-file: ledger/money.go)
+R 292:82 calls MemoryStore::Post -> Negative (x-file: ledger/money.go)
+R 293:7 calls MemoryStore::Post -> exceeds
+R 294:5 calls MemoryStore::Post -> rollback
+R 295:72 calls MemoryStore::Post -> Abs (x-file: ledger/money.go)
+R 301:19 calls MemoryStore::Post -> append
+R 302:8 calls MemoryStore::Post -> Put
+R 303:24 calls MemoryStore::Post -> Accounts
+R 304:29 calls MemoryStore::Post -> Get
+R 305:29 calls MemoryStore::Post -> Add (x-file: ledger/money.go)
+R 308:4 calls MemoryStore::Post -> publish
+R 308:55 calls MemoryStore::Post -> Now (x-file: ledger/account.go)
+R 315:9 calls ledger::exceeds -> Negative (x-file: ledger/money.go)
+R 316:20 calls ledger::exceeds -> Cmp (x-file: ledger/money.go)
+R 316:14 calls ledger::exceeds -> Abs (x-file: ledger/money.go)
+R 323:7 calls MemoryStore::Transaction -> RLock
+R 324:13 calls MemoryStore::Transaction -> RUnlock
+R 325:18 calls MemoryStore::Transaction -> Get
+R 327:15 calls MemoryStore::Transaction -> newError (x-file: ledger/errors.go)
+R 330:15 calls MemoryStore::Transaction -> append
+R 337:7 calls MemoryStore::History -> RLock
+R 338:13 calls MemoryStore::History -> RUnlock
+R 339:25 calls MemoryStore::History -> Get
+R 340:15 calls MemoryStore::History -> NotFound (x-file: ledger/errors.go)
+R 344:12 calls MemoryStore::History -> IsZero (x-file: ledger/money.go)
+R 344:31 calls MemoryStore::History -> Before (x-file: ledger/service.go)
+R 347:10 calls MemoryStore::History -> IsZero (x-file: ledger/money.go)
+R 347:30 calls MemoryStore::History -> Before (x-file: ledger/service.go)
+R 350:9 calls MemoryStore::History -> append
+R 358:7 calls MemoryStore::Balance -> RLock
+R 359:13 calls MemoryStore::Balance -> RUnlock
+R 360:25 calls MemoryStore::Balance -> Get
+R 361:19 calls MemoryStore::Balance -> NotFound (x-file: ledger/errors.go)
+R 363:11 calls MemoryStore::Balance -> balanceLocked
+R 368:24 calls MemoryStore::balanceLocked -> Get
+R 369:11 calls MemoryStore::balanceLocked -> Zero (x-file: ledger/money.go)
+R 370:22 calls MemoryStore::balanceLocked -> NormalSide (x-file: ledger/account.go)
+R 372:10 calls MemoryStore::balanceLocked -> IsZero (x-file: ledger/money.go)
+R 372:29 calls MemoryStore::balanceLocked -> After (x-file: ledger/service.go)
+R 376:18 calls MemoryStore::balanceLocked -> Add (x-file: ledger/money.go)
+R 378:18 calls MemoryStore::balanceLocked -> Sub (x-file: ledger/money.go)
+R 386:7 calls MemoryStore::Len -> RLock
+R 387:13 calls MemoryStore::Len -> RUnlock
+R 388:20 calls MemoryStore::Len -> Len
+R 388:33 calls MemoryStore::Len -> Len
+R 395:7 calls MemoryStore::Walk -> RLock
+R 396:8 calls MemoryStore::Walk -> Each
+R 397:9 calls MemoryStore::Walk -> append
+R 400:7 calls MemoryStore::Walk -> RUnlock
+R 403:14 calls MemoryStore::Walk -> Done
+R 404:11 calls MemoryStore::Walk -> newError (x-file: ledger/errors.go)
+R 404:49 calls MemoryStore::Walk -> Err
+R 407:13 calls MemoryStore::Walk -> fn
+R 417:9 calls MemoryStore::Stream -> make
+R 419:9 calls MemoryStore::Stream -> close
+R 420:12 calls MemoryStore::Stream -> Walk
+R 422:16 calls MemoryStore::Stream -> Ok (x-file: ledger/errors.go)
+R 424:15 calls MemoryStore::Stream -> Done
+R 425:16 calls MemoryStore::Stream -> Err
+R 430:16 calls MemoryStore::Stream -> Fail (x-file: ledger/errors.go)
+R 431:15 calls MemoryStore::Stream -> Done
+R 451:11 calls SequentialIDs::Next -> Add (x-file: ledger/money.go)
+R 453:11 calls SequentialIDs::Next -> len
+R 454:15 calls SequentialIDs::Next -> byte
+R 457:9 calls SequentialIDs::Next -> TxID (x-file: ledger/account.go)
+R 457:31 calls SequentialIDs::Next -> string

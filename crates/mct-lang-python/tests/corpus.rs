@@ -4,6 +4,10 @@
 //! (size, line ranges, golden snapshot, index round trip, malformed input)
 //! come from `mct-corpus`; the tests below pin the constructs and
 //! cross-file relations this language is expected to extract.
+//!
+//! `web/` (issue #114) adds Flask and Django code in their usual syntax —
+//! route/admin/signal decorators, class-based views, model classes with an
+//! inner `Meta`, `urlpatterns` — importing from `library/`.
 
 // Test code: an unwrap()/expect() here means a broken test precondition, and
 // panicking is the correct behavior — this is not production code parsing
@@ -234,11 +238,127 @@ fn cross_file_imports_and_calls_are_extracted() {
 }
 
 #[test]
+fn flask_routes_hooks_and_method_views() {
+    use RelationKind::{Calls, Extends, Imports, References};
+    use SymbolKind::{Class, Function, Method};
+    let c = corpus();
+    let path = "web/flask_app.py";
+    // `@bp.route(...)`, `@bp.get(...)`, `@bp.post(...)` reference the
+    // decorator's last name from the decorated function.
+    c.relation(path, "index", References, "route");
+    c.relation(path, "by_genre", References, "get");
+    c.relation(path, "logout", References, "post");
+    c.relation(path, "format_isbn", References, "app_template_filter");
+    // Stacked decorators each reference the function below them.
+    for decorator in ["post", "login_required", "staff_only"] {
+        c.relation(path, "return_copy", References, decorator);
+    }
+    // Routes, error handlers and hooks registered inside the app factory
+    // are nested functions, not methods, and keep their decorator.
+    for (name, decorator) in [
+        ("home", "route"),
+        ("not_found", "errorhandler"),
+        ("start_timer", "before_request"),
+        ("close_services", "teardown_appcontext"),
+        ("seed", "command"),
+    ] {
+        assert_eq!(c.symbol(path, name, Function).parent, None, "{name}");
+        c.relation(path, name, References, decorator);
+    }
+    // The decorator factory's inner function is a plain function too.
+    c.symbol(path, "checked", Function);
+    // `MethodView` subclasses: extends, HTTP verbs as methods.
+    c.relation(path, "LoanAPI", Extends, "MethodView");
+    assert_eq!(lines(path, "LoanAPI", Class), (203, Some(234)));
+    assert_eq!(parent(path, "delete", Method), Some("LoanAPI"));
+    c.relation(path, "register_api", Calls, "as_view");
+    c.relation(path, "register_api", Calls, "add_url_rule");
+    c.relation(path, "create_app", Calls, "register_blueprint");
+    // Cross-file into `library/`.
+    c.relation(path, "flask_app", Imports, "LendingService");
+    c.relation(path, "flask_app", Imports, "normalize_isbn");
+    c.relation(path, "detail", Calls, "normalize_isbn");
+    c.relation(path, "book_payload", Calls, "classify");
+    c.relation(path, "library_error", Calls, "error_response");
+}
+
+#[test]
+fn django_models_admin_views_signals_and_urls() {
+    use RelationKind::{Calls, Extends, Imports, References};
+    use SymbolKind::{Class, Method};
+    let c = corpus();
+    let path = "web/django_app.py";
+    // Models: dotted base, abstract base chain, inner `Meta` and choices.
+    c.relation(path, "TimeStampedModel", Extends, "Model");
+    c.relation(path, "BookRecord", Extends, "TimeStampedModel");
+    c.relation(path, "Status", Extends, "TextChoices");
+    assert_eq!(parent(path, "Status", Class), Some("CopyRecord"));
+    let metas = c.symbols_named("Meta");
+    for owner in [
+        "TimeStampedModel",
+        "AuthorRecord",
+        "BookRecord",
+        "LoanRecord",
+        "BookForm",
+    ] {
+        assert!(
+            metas
+                .iter()
+                .any(|(p, s)| *p == path && s.parent.as_deref() == Some(owner)),
+            "{owner}.Meta"
+        );
+    }
+    // Field declarations are calls owned by the model class.
+    c.relation(path, "BookRecord", Calls, "CharField");
+    c.relation(path, "BookRecord", Calls, "ManyToManyField");
+    c.relation(path, "BookRecord", Calls, "as_manager");
+    c.relation(path, "is_overdue", References, "property");
+    // Admin: class decorator, method decorators.
+    c.relation(path, "BookAdmin", References, "register");
+    c.relation(path, "BookAdmin", Extends, "ModelAdmin");
+    c.relation(path, "copy_count", References, "display");
+    c.relation(path, "mark_lost", References, "action");
+    assert_eq!(parent(path, "mark_lost", Method), Some("BookAdmin"));
+    // Class-based views list every mixin as a base.
+    for base in [
+        "LoginRequiredMixin",
+        "PermissionRequiredMixin",
+        "CreateView",
+    ] {
+        c.relation(path, "BookCreateView", Extends, base);
+    }
+    assert_eq!(parent(path, "get_queryset", Method), Some("BookListView"));
+    // Function views under decorator stacks; signal receivers.
+    for decorator in ["login_required", "permission_required", "require_POST"] {
+        c.relation(path, "waive_fee", References, decorator);
+    }
+    c.relation(path, "overdue", References, "cache_page");
+    c.relation(path, "mark_copy_on_loan", References, "receiver");
+    // `urlpatterns` and the pattern tuples are module-level calls.
+    for callee in ["path", "re_path", "include", "as_view"] {
+        c.relation(path, "django_app", Calls, callee);
+    }
+    // Cross-file into `library/`.
+    c.relation(path, "django_app", Imports, "overdue_fee");
+    c.relation(path, "fee", Calls, "overdue_fee");
+    c.relation(path, "clean", Calls, "is_valid_isbn");
+    c.relation(path, "checkout", Calls, "build_services");
+    c.relation(path, "audit_book_delete", Calls, "audit");
+}
+
+#[test]
 fn index_answers_cross_file_queries() {
     let index = corpus().index();
     let callers = index.find_callers("normalize_isbn").unwrap();
     let files: Vec<_> = callers.iter().map(|h| h.relative_path.as_str()).collect();
-    assert!(files.contains(&"library/models.py") && files.contains(&"library/cli.py"));
+    for file in [
+        "library/models.py",
+        "library/cli.py",
+        "web/flask_app.py",
+        "web/django_app.py",
+    ] {
+        assert!(files.contains(&file), "{file}");
+    }
 
     let refs = index.find_references("LibraryError").unwrap();
     for file in ["library/errors.py", "library/services.py", "library/cli.py"] {

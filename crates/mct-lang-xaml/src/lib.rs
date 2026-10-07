@@ -115,7 +115,8 @@ impl LanguageParser for XamlParser {
 
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
-        let module_id = walker.push_symbol(module_name, SymbolKind::Module, location(root), None);
+        let module_id =
+            walker.push_symbol(module_name, SymbolKind::Module, module_location(root), None);
         walker.visit_children(root, module_id, None, 0);
         let mut parsed = walker.finish();
         // Every relation is an event handler, declared in the paired
@@ -168,6 +169,18 @@ fn first_error(node: Node) -> Option<Node> {
             depth -= 1;
         }
     }
+}
+
+/// The file-level module's location: the root node of a file ending in a
+/// newline ends at column 0 of the row *after* the last line, which would
+/// put the module one line past the end of the file.
+fn module_location(root: Node) -> Location {
+    let mut loc = location(root);
+    let end = root.end_position();
+    if end.column == 0 && end.row > root.start_position().row {
+        loc.end_line = Some(end.row as u32);
+    }
+    loc
 }
 
 fn location(node: Node) -> Location {
@@ -296,10 +309,11 @@ impl<'a> Walker<'a> {
 
                 let (new_owner, new_parent) = match key {
                     Some(name) => {
+                        // The whole element, through its end tag.
                         let sym_id = self.push_symbol(
                             name.to_string(),
                             SymbolKind::Element,
-                            location(tag),
+                            location(node),
                             parent_name.map(str::to_string),
                         );
                         (sym_id, Some(name.to_string()))

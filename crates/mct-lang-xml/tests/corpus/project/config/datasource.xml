@@ -1,0 +1,339 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Persistence context: connection pools, JDBC templates, transaction
+  managers and schema migrations. Imported by application.xml, whose
+  repositories reference jdbcTemplate, txManager and archiveDataSource.
+-->
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+       xmlns:aop="http://www.springframework.org/schema/aop"
+       xmlns:jdbc="http://www.springframework.org/schema/jdbc"
+       xsi:schemaLocation="
+         http://www.springframework.org/schema/beans
+         https://www.springframework.org/schema/beans/spring-beans.xsd
+         http://www.springframework.org/schema/tx
+         https://www.springframework.org/schema/tx/spring-tx.xsd
+         http://www.springframework.org/schema/aop
+         https://www.springframework.org/schema/aop/spring-aop.xsd
+         http://www.springframework.org/schema/jdbc
+         https://www.springframework.org/schema/jdbc/spring-jdbc.xsd">
+
+  <!-- ===================================================================
+       Connection pools
+       =================================================================== -->
+  <bean id="poolDefaults" abstract="true" class="com.zaxxer.hikari.HikariDataSource"
+        destroy-method="close">
+    <property name="driverClassName" value="org.postgresql.Driver"/>
+    <property name="maximumPoolSize" value="${db.pool.max:20}"/>
+    <property name="minimumIdle" value="${db.pool.min:4}"/>
+    <property name="connectionTimeout" value="3000"/>
+    <property name="idleTimeout" value="600000"/>
+    <property name="maxLifetime" value="1800000"/>
+    <property name="leakDetectionThreshold" value="60000"/>
+    <property name="dataSourceProperties">
+      <props>
+        <prop key="cachePrepStmts">true</prop>
+        <prop key="prepStmtCacheSize">250</prop>
+        <prop key="prepStmtCacheSqlLimit">2048</prop>
+        <prop key="reWriteBatchedInserts">true</prop>
+        <prop key="ApplicationName">warehouse</prop>
+      </props>
+    </property>
+  </bean>
+
+  <bean id="dataSource" parent="poolDefaults">
+    <property name="poolName" value="primary"/>
+    <property name="jdbcUrl" value="${db.url:jdbc:postgresql://db-primary:5432/warehouse}"/>
+    <property name="username" value="${db.user:warehouse}"/>
+    <property name="password" value="${db.password}"/>
+  </bean>
+
+  <bean id="replicaDataSource" parent="poolDefaults">
+    <property name="poolName" value="replica"/>
+    <property name="jdbcUrl" value="${db.replica.url:jdbc:postgresql://db-replica:5432/warehouse}"/>
+    <property name="username" value="${db.replica.user:warehouse_ro}"/>
+    <property name="password" value="${db.replica.password}"/>
+    <property name="readOnly" value="true"/>
+    <property name="maximumPoolSize" value="40"/>
+  </bean>
+
+  <bean id="archiveDataSource" parent="poolDefaults">
+    <property name="poolName" value="archive"/>
+    <property name="jdbcUrl" value="${db.archive.url:jdbc:postgresql://db-archive:5432/archive}"/>
+    <property name="username" value="${db.archive.user:archiver}"/>
+    <property name="password" value="${db.archive.password}"/>
+    <property name="maximumPoolSize" value="5"/>
+    <property name="minimumIdle" value="1"/>
+  </bean>
+
+  <!-- Routes read-only transactions to the replica, everything else to the primary. -->
+  <bean id="routingDataSource" class="com.example.warehouse.persistence.ReadWriteRoutingDataSource">
+    <property name="targetDataSources">
+      <map key-type="com.example.warehouse.persistence.Route">
+        <entry key="PRIMARY" value-ref="dataSource"/>
+        <entry key="REPLICA" value-ref="replicaDataSource"/>
+      </map>
+    </property>
+    <property name="defaultTargetDataSource" ref="dataSource"/>
+  </bean>
+
+  <bean id="lazyDataSource" class="org.springframework.jdbc.datasource.LazyConnectionDataSourceProxy">
+    <constructor-arg ref="routingDataSource"/>
+  </bean>
+
+  <!-- ===================================================================
+       JDBC access
+       =================================================================== -->
+  <bean id="jdbcTemplate" class="org.springframework.jdbc.core.JdbcTemplate">
+    <constructor-arg ref="lazyDataSource"/>
+    <property name="fetchSize" value="500"/>
+    <property name="queryTimeout" value="30"/>
+    <property name="exceptionTranslator" ref="sqlErrorTranslator"/>
+  </bean>
+
+  <bean id="namedJdbcTemplate" class="org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate">
+    <constructor-arg ref="jdbcTemplate"/>
+  </bean>
+
+  <bean id="archiveJdbcTemplate" class="org.springframework.jdbc.core.JdbcTemplate">
+    <constructor-arg ref="archiveDataSource"/>
+    <property name="queryTimeout" value="300"/>
+  </bean>
+
+  <bean id="sqlErrorTranslator" class="org.springframework.jdbc.support.SQLErrorCodeSQLExceptionTranslator">
+    <property name="dataSource" ref="dataSource"/>
+    <property name="sqlErrorCodes">
+      <bean class="org.springframework.jdbc.support.SQLErrorCodes">
+        <property name="duplicateKeyCodes" value="23505"/>
+        <property name="dataIntegrityViolationCodes" value="23000,23502,23503,23514"/>
+        <property name="cannotAcquireLockCodes" value="55P03"/>
+        <property name="deadlockLoserCodes" value="40P01"/>
+        <property name="customTranslations">
+          <list>
+            <bean class="org.springframework.jdbc.support.CustomSQLErrorCodesTranslation">
+              <property name="errorCodes" value="P0001"/>
+              <property name="exceptionClass"
+                        value="com.example.warehouse.persistence.BusinessRuleViolation"/>
+            </bean>
+            <bean class="org.springframework.jdbc.support.CustomSQLErrorCodesTranslation">
+              <property name="errorCodes" value="40001"/>
+              <property name="exceptionClass"
+                        value="com.example.warehouse.persistence.SerializationRetry"/>
+            </bean>
+          </list>
+        </property>
+      </bean>
+    </property>
+  </bean>
+
+  <!-- ===================================================================
+       Transactions
+       =================================================================== -->
+  <bean id="txManager" class="org.springframework.jdbc.support.JdbcTransactionManager">
+    <property name="dataSource" ref="lazyDataSource"/>
+    <property name="defaultTimeout" value="30"/>
+    <property name="rollbackOnCommitFailure" value="true"/>
+  </bean>
+
+  <bean id="archiveTxManager" class="org.springframework.jdbc.support.JdbcTransactionManager">
+    <property name="dataSource" ref="archiveDataSource"/>
+  </bean>
+
+  <bean id="transactionTemplate" class="org.springframework.transaction.support.TransactionTemplate">
+    <property name="transactionManager" ref="txManager"/>
+    <property name="isolationLevelName" value="ISOLATION_READ_COMMITTED"/>
+    <property name="timeout" value="20"/>
+  </bean>
+
+  <bean id="retryingTransactionTemplate"
+        class="com.example.warehouse.persistence.RetryingTransactionTemplate">
+    <constructor-arg ref="transactionTemplate"/>
+    <property name="maxAttempts" value="4"/>
+    <property name="backoff">
+      <bean class="com.example.warehouse.persistence.ExponentialBackoff">
+        <property name="initialMillis" value="50"/>
+        <property name="multiplier" value="2.0"/>
+        <property name="maxMillis" value="2000"/>
+        <property name="jitter" value="0.2"/>
+      </bean>
+    </property>
+    <property name="retryOn">
+      <list>
+        <value>com.example.warehouse.persistence.SerializationRetry</value>
+        <value>org.springframework.dao.CannotAcquireLockException</value>
+        <value>org.springframework.dao.DeadlockLoserDataAccessException</value>
+      </list>
+    </property>
+  </bean>
+
+  <tx:advice id="txAdvice" transaction-manager="txManager">
+    <tx:attributes>
+      <tx:method name="find*" read-only="true" propagation="SUPPORTS"/>
+      <tx:method name="get*" read-only="true" propagation="SUPPORTS"/>
+      <tx:method name="list*" read-only="true" propagation="SUPPORTS"/>
+      <tx:method name="count*" read-only="true" propagation="SUPPORTS"/>
+      <tx:method name="reserve*" isolation="SERIALIZABLE" timeout="10"/>
+      <tx:method name="post*" isolation="SERIALIZABLE" timeout="15"
+                 rollback-for="com.example.warehouse.order.OrderRejected"/>
+      <tx:method name="archive*" propagation="REQUIRES_NEW" timeout="300"/>
+      <tx:method name="*" propagation="REQUIRED"/>
+    </tx:attributes>
+  </tx:advice>
+
+  <tx:advice id="archiveTxAdvice" transaction-manager="archiveTxManager">
+    <tx:attributes>
+      <tx:method name="*" propagation="REQUIRES_NEW"/>
+    </tx:attributes>
+  </tx:advice>
+
+  <aop:config>
+    <aop:pointcut id="serviceOperations"
+                  expression="execution(* com.example.warehouse..*Service.*(..))"/>
+    <aop:pointcut id="archiveOperations"
+                  expression="execution(* com.example.warehouse..*Archiver.*(..))"/>
+    <aop:advisor advice-ref="txAdvice" pointcut-ref="serviceOperations" order="10"/>
+    <aop:advisor advice-ref="archiveTxAdvice" pointcut-ref="archiveOperations" order="11"/>
+    <aop:aspect id="slowQueryAspect" ref="slowQueryMonitor" order="20">
+      <aop:around method="measure" pointcut-ref="serviceOperations"/>
+    </aop:aspect>
+  </aop:config>
+
+  <bean id="slowQueryMonitor" class="com.example.warehouse.persistence.SlowQueryMonitor">
+    <property name="thresholdMillis" value="250"/>
+    <property name="logger" ref="sqlLogger"/>
+  </bean>
+
+  <!-- ===================================================================
+       Schema migrations
+       =================================================================== -->
+  <bean id="flyway" class="org.flywaydb.core.Flyway" factory-method="configure"
+        init-method="migrate">
+    <property name="dataSource" ref="dataSource"/>
+    <property name="locations">
+      <array>
+        <value>classpath:db/migration</value>
+        <value>classpath:db/seed/${spring.profiles.active:dev}</value>
+      </array>
+    </property>
+    <property name="baselineOnMigrate" value="true"/>
+    <property name="validateOnMigrate" value="true"/>
+    <property name="outOfOrder" value="false"/>
+    <property name="placeholders">
+      <map>
+        <entry key="schema" value="warehouse"/>
+        <entry key="owner" value="warehouse_owner"/>
+        <entry key="readonly_role" value="warehouse_ro"/>
+      </map>
+    </property>
+  </bean>
+
+  <jdbc:initialize-database data-source="dataSource" enabled="${db.init:false}"
+                            ignore-failures="DROPS">
+    <jdbc:script location="classpath:db/schema.sql" encoding="UTF-8"/>
+    <jdbc:script location="classpath:db/test-data.sql" encoding="UTF-8"/>
+  </jdbc:initialize-database>
+
+  <!-- ===================================================================
+       Named queries shared by the JDBC repositories of application.xml
+       =================================================================== -->
+  <bean id="namedQueries" class="com.example.warehouse.persistence.NamedQueries">
+    <property name="queries">
+      <map>
+        <entry key="product.byId">
+          <value><![CDATA[
+            SELECT id, sku, name, unit_price, currency, weight_grams
+              FROM products
+             WHERE id = :id AND deleted_at IS NULL
+          ]]></value>
+        </entry>
+        <entry key="product.search">
+          <value><![CDATA[
+            SELECT id, sku, name
+              FROM products
+             WHERE to_tsvector('spanish', name) @@ plainto_tsquery('spanish', :q)
+             ORDER BY ts_rank(to_tsvector('spanish', name), plainto_tsquery('spanish', :q)) DESC
+             LIMIT :limit
+          ]]></value>
+        </entry>
+        <entry key="stock.reserve">
+          <value><![CDATA[
+            UPDATE stock_levels
+               SET reserved = reserved + :qty
+             WHERE product_id = :productId
+               AND location_id = :locationId
+               AND on_hand - reserved >= :qty
+          ]]></value>
+        </entry>
+        <entry key="stock.belowReorderPoint">
+          <value><![CDATA[
+            SELECT s.product_id, s.location_id, s.on_hand, s.reserved, p.reorder_point
+              FROM stock_levels s
+              JOIN products p ON p.id = s.product_id
+             WHERE s.on_hand - s.reserved < p.reorder_point
+          ]]></value>
+        </entry>
+        <entry key="order.insert">
+          <value><![CDATA[
+            INSERT INTO orders (id, number, customer_id, status, total, currency, created_at)
+            VALUES (:id, :number, :customerId, 'NEW', :total, :currency, :createdAt)
+          ]]></value>
+        </entry>
+        <entry key="order.lines">
+          <value><![CDATA[
+            SELECT line_no, product_id, quantity, unit_price
+              FROM order_lines
+             WHERE order_id = :orderId
+             ORDER BY line_no
+          ]]></value>
+        </entry>
+        <entry key="invoice.archive">
+          <value><![CDATA[
+            INSERT INTO archive.invoices SELECT * FROM invoices WHERE issued_at < :cutoff;
+            DELETE FROM invoices WHERE issued_at < :cutoff;
+          ]]></value>
+        </entry>
+      </map>
+    </property>
+  </bean>
+
+  <bean id="invoiceArchiver" class="com.example.warehouse.billing.InvoiceArchiver">
+    <constructor-arg ref="archiveJdbcTemplate"/>
+    <constructor-arg ref="namedQueries"/>
+    <property name="retentionDays" value="2555"/>
+    <property name="batchSize" value="1000"/>
+  </bean>
+
+  <!-- Health checks polled by the metrics endpoint. -->
+  <bean id="databaseHealth" class="com.example.warehouse.persistence.DatabaseHealthIndicator">
+    <property name="checks">
+      <list>
+        <bean id="primaryCheck" class="com.example.warehouse.persistence.PoolCheck">
+          <property name="dataSource" ref="dataSource"/>
+          <property name="query" value="SELECT 1"/>
+        </bean>
+        <bean id="replicaCheck" class="com.example.warehouse.persistence.PoolCheck">
+          <property name="dataSource" ref="replicaDataSource"/>
+          <property name="query" value="SELECT pg_last_xact_replay_timestamp()"/>
+          <property name="maxLagSeconds" value="30"/>
+        </bean>
+        <bean id="archiveCheck" class="com.example.warehouse.persistence.PoolCheck">
+          <property name="dataSource" ref="archiveDataSource"/>
+          <property name="query" value="SELECT 1"/>
+          <property name="critical" value="false"/>
+        </bean>
+      </list>
+    </property>
+  </bean>
+
+  <beans profile="test">
+    <jdbc:embedded-database id="embeddedDataSource" type="H2">
+      <jdbc:script location="classpath:db/schema-h2.sql"/>
+      <jdbc:script location="classpath:db/test-data.sql"/>
+    </jdbc:embedded-database>
+
+    <bean id="testJdbcTemplate" class="org.springframework.jdbc.core.JdbcTemplate">
+      <constructor-arg ref="embeddedDataSource"/>
+    </bean>
+  </beans>
+</beans>
