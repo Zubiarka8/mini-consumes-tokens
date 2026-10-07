@@ -322,10 +322,9 @@ fn tailwind_v4_theme_utilities_variants_and_nesting() {
     assert_eq!(rules(path, ".@container"), [(318, 320)]);
     assert_eq!(rules(path, ".@md:flex-row"), [(325, 327)]);
     assert_eq!(rules(path, ".bg-harbor-500/50"), [(268, 270)]);
-    // Known limit: hex escapes are not decoded, so `.\33xl\:…` (the
-    // class `3xl:grid-cols-6`) is indexed with the escape's digits.
-    assert_eq!(rules(path, ".33xl:grid-cols-6"), [(288, 290)]);
-    assert!(rules(path, ".3xl:grid-cols-6").is_empty());
+    // `\33xl\:…` is the class `3xl:grid-cols-6` (hex escape `\33` + space).
+    assert_eq!(rules(path, ".3xl:grid-cols-6"), [(288, 290)]);
+    assert!(rules(path, ".33xl:grid-cols-6").is_empty());
 }
 
 #[test]
