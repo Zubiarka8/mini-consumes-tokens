@@ -9,7 +9,7 @@ Run them with `cargo test --workspace -- --ignored`.
 
 ---
 
-## 1. `get_file_skeleton` / `get_project_overview` are blind to 4 of 16 languages
+## 1. `get_file_skeleton` / `get_project_overview` are blind to 4 of 17 languages
 
 **Affected**: Go, C#, Bash, PowerShell.
 
@@ -47,57 +47,50 @@ top-level too, or record a depth/level on the symbol at parse time.
 
 ---
 
-## 2. `.lua` files are dropped silently, with no diagnostic at all
+## 2. ~~`.lua` files are dropped silently, with no diagnostic at all~~ — **closed**
 
-**Observed**: `crates/mct-lang-lua` implements `LanguageParser`, but it is not
-wired into `build_registry()` (it is the plugin-architecture proof, not a
-shipped language). `.lua` is *also* absent from `KNOWN_PENDING_LANGUAGES`, so a
-`.lua` file in an indexed repo produces:
-- no `files` row,
-- no symbols,
-- no `unsupported_languages` entry,
-- no reported issue.
+Lua shipped: both production registries (`mct-mcp-server/src/registry.rs` and
+`mct-cli/src/main.rs`) register `mct_lang_lua::LuaParser` (commit `11df400`, merged
+into `main` through PR #91). The test that pinned the hole was replaced.
 
-It vanishes without a trace. A user with Lua in their repo gets no signal that
-part of their codebase is invisible to every query.
-
-**Expected**: whichever is intended — either register the parser, or list
-`lua` in `KNOWN_PENDING_LANGUAGES` so `get_indexing_status` reports it as a
-known-unsupported extension. Silence is the one wrong answer.
-
-**Decision needed before fixing**: is Lua meant to ship? That answer picks the
-fix. See `internal/checklist.md`.
-
-**Pinned by** (`crates/mct-mcp-server/tests/omni_fixture.rs`):
-- `a_lua_file_is_skipped_without_any_diagnostic_because_lua_is_not_registered` — passing; pins the hole rather than blessing it
+**Covered by**:
+- `a_lua_file_is_indexed_with_its_symbols_and_calls` (`crates/mct-mcp-server/tests/omni_fixture.rs`)
+- `lua_definitions_and_calls_are_served_through_the_mcp_tools` (`crates/mct-mcp-server/tests/omni_tools.rs`)
 
 ---
 
-## 3. Obsidian-vault Markdown: seven gaps in the note/link graph
+## 3. Obsidian-vault Markdown: seven gaps in the note/link graph — **closed**
 
-All pinned in `crates/mct-lang-md/tests/index_integration.rs` against the
-synthetic vault at `crates/mct-lang-md/tests/fixtures/vault/`. Each is a real,
-reproducible loss of edges or resolution on vault layouts that are routine in
-practice.
+3.1 closed with issue #10. 3.2–3.7 closed by the note graph of issue #98
+(design: `docs/superpowers/specs/2026-10-01-markdown-note-graph-design.md`),
+merged into `main` through PR #101 on top of the relation identity of
+issue #97 / PR #99. Every note is a `module` symbol named by its file stem, and
+wikilinks resolve by path and note scope. The original observations below
+describe the code before that change.
 
-| # | Gap | Observed | Expected |
+Pinned in `crates/mct-lang-md/tests/index_integration.rs` (vault:
+`crates/mct-lang-md/tests/fixtures/vault/`) unless marked `note_graph.rs`
+(`crates/mct-lang-md/tests/note_graph.rs`). None of these tests is ignored.
+
+| # | Gap (as originally observed) | Resolution | Covered by |
 |---|-----|----------|----------|
-| 3.1 | ~~Heading level is not stored~~ — **closed** (issue #10): `SymbolRecord`/`SymbolHit`/`SymbolListEntry` now carry an optional `level: Option<u32>`, populated 1..6 by `mct-lang-md` from the `atx_h1_marker`..`atx_h6_marker` child; `kind` stays `element` for every heading, unchanged. | `# H1` … `###### H6` all indexed as `kind == "element"`; no level field anywhere. | An H1 and an H6 are distinguishable in the index. |
-| 3.2 | Embeds collapse into links | `![[Glossary]]` and `[[Glossary]]` both yield `RelationKind::References` → `"Glossary"`. The leading `!` sits outside the span `scan_wikilinks` matches and is never recorded. | A distinct relation kind (or flag) for embeds — an embed changes rendered content, a link does not. |
-| 3.3 | YAML front-matter is skipped entirely | `daily/2026-09-18.md` declares `tags: [daily, review]`; the file parses cleanly but `find_references("tag:daily")` returns nothing. The parser scans only `atx_heading` text and `paragraph` nodes. Inline `#standup` *is* indexed. | Front-matter tags indexed like inline ones — front-matter tagging is the Obsidian template default, so such vaults get no tag graph at all. |
-| 3.4 | Path-form wikilinks are not normalized | `[[notes/Glossary]]` is stored verbatim as `to_name = "notes/Glossary"`, matching no symbol; only `strip_md_extension` runs, never a path-tail split. Obsidian treats it as the same note as `[[Glossary]]`. | Resolves to the same target as a bare `[[Glossary]]`. |
-| 3.5 | Links in heading-less notes are dropped | `orphan.md` has no heading → zero symbols. `push_relations_from_text` needs an enclosing heading symbol to hang a relation off, so a paragraph with `parent_id == None` is skipped; its `[[Glossary]]` link and `#orphan` tag vanish with no reported issue. | A file-level symbol (or equivalent) anchors such links — heading-less capture notes are routine. |
-| 3.6 | A note is addressable only by its H1 | `notes/Untitled Capture.md` starts with `# A Different Title`, so its only symbol is `"A Different Title"`. `[[Untitled Capture]]` is recorded but matches nothing. Whole-note resolution relies entirely on the convention that H1 == file name. | `[[Untitled Capture]]` reaches `notes/Untitled Capture.md`. Every renamed or untitled note breaks the convention. |
-| 3.7 | Anchors lose their note scope | `[[Project Alpha#Goals]]` splits into two independent relations, `→ "Project Alpha"` and `→ "Goals"`, with nothing tying them together. The fixture vault deliberately holds two `## Goals` headings, so the heading edge is ambiguous by construction; querying the composite name returns nothing. | The anchor resolves to exactly one heading — the one in the note the link named. |
+| 3.1 | Heading level is not stored | `level: Option<u32>` (1..6) on symbols; `kind` stays `element` (issue #10) | `a_heading_records_the_level_it_was_written_at` |
+| 3.2 | Embeds collapse into links: `![[Glossary]]` and `[[Glossary]]` were both `References` | Embeds are `Imports`, links stay `References` | `an_embed_is_distinguishable_from_a_plain_wikilink` |
+| 3.3 | YAML front-matter skipped: `tags: [daily, review]` produced no `tag:` reference | Front-matter `tags`, `aliases` and `title` become `tag:`/`alias:`/`title:` references from the note | `front_matter_tags_aliases_and_title_are_queryable` (asserts `tag:` and `title:`; `alias:` is not asserted) |
+| 3.4 | `[[notes/Glossary]]` stored verbatim, matching nothing | A path-written link carries the exact note path and resolves to exactly that note | `a_vault_relative_path_wikilink_resolves_to_exactly_that_note`; `note_graph.rs`: `duplicate_basenames_are_ambiguous_but_a_path_picks_one` |
+| 3.5 | Links/tags in heading-less notes dropped | The note symbol owns them; heading-less and empty files are notes | `a_link_in_a_headingless_note_belongs_to_the_note`; `note_graph.rs`: `a_heading_less_or_empty_file_is_a_searchable_note` |
+| 3.6 | A note was addressable only by its H1 | Notes resolve by file stem; a heading title is not a note identity | `a_wikilink_resolves_against_the_target_notes_file_name`, `a_note_is_not_addressable_by_its_heading_title` |
+| 3.7 | `[[Project Alpha#Goals]]` lost its note scope | The heading resolves only inside the named note; a same-named heading elsewhere is never a fallback | `an_anchor_relation_stays_scoped_to_the_note_it_names`; `note_graph.rs`: `two_notes_with_the_same_shared_heading_do_not_cross_link`, `a_heading_in_another_note_is_never_a_fallback` |
 
-**Common thread for 3.4–3.7**: `mct-lang-md` has no file/note-level symbol and
-no path-aware link resolution. A single fix introducing a per-file note symbol
-and resolving wikilinks against file names (not just H1 text) would close 3.4,
-3.5 and 3.6 together, and gives 3.7 the scope it needs to disambiguate.
+### Remaining Markdown limitations (documented, not bugs)
 
-**Pinned by**: `a_heading_records_the_level_it_was_written_at` — passing (3.1 closed); the rest still ignored: `an_embed_is_distinguishable_from_a_plain_wikilink`,
-`front_matter_tags_are_indexed`,
-`a_vault_relative_path_wikilink_resolves_to_the_note`,
-`a_wikilink_in_a_headingless_note_is_indexed`,
-`a_wikilink_resolves_against_the_target_notes_file_name`,
-`an_anchor_relation_stays_scoped_to_the_note_it_names`.
+Recorded in the "Implementation notes" of the note-graph design; none has an
+ignored test:
+- A wikilink is not resolved by alias or title: `[[Alias]]` stays `unresolved`.
+- `^block` anchors are ignored; heading anchors match the exact heading text
+  (no slug or case folding, last `#` segment only).
+- Link paths are case-sensitive and relative to the vault root or the source
+  note (`./`, `../`); Obsidian's shortest-suffix paths are not resolved.
+- Only `title`, `aliases` and `tags` front-matter keys are read.
+- HTML comments and `%%comments%%` are not skipped (inline code and fenced
+  blocks are).
