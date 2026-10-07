@@ -8,3 +8,7 @@ install.sh text eol=lf
 # when copying, in case a checkout predates this rule.
 scripts/unix/hooks/* text eol=lf
 scripts/windows/hooks/* text eol=lf
+
+# Corpus fixtures are compared by line number; a CRLF checkout on Windows made
+# the XML fixture fail to parse (syntax error at its processing instruction).
+crates/mct-lang-xml/tests/corpus/** text eol=lf
