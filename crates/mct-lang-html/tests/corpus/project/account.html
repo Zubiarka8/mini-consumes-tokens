@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mi cuenta — Almacén Norte</title>
+  <!--
+    Customer account: orders (#orders, linked from every page's footer and
+    from cart.html after checkout), addresses, payment methods, wishlist
+    (filled by product.html's "Guardar para después") and settings.
+    Sections are tab panels addressed by fragment.
+  -->
+  <link rel="stylesheet" href="assets/css/site.css">
+  <link rel="stylesheet" href="assets/css/account.css">
+  <script src="assets/js/vendor/htmx-2.0.4.min.js" defer></script>
+  <script src="assets/js/app.js" type="module"></script>
+  <script src="assets/js/account.js" type="module"></script>
+</head>
+<body id="account" class="page page--account">
+  <a class="skip-link" href="#main">Saltar al contenido</a>
+
+  <header id="site-header" class="site-header site-header--sticky" role="banner">
+    <div class="container">
+      <a id="logo" class="logo" href="index.html" aria-label="Almacén Norte, inicio">
+        <span class="logo__text">Almacén Norte</span>
+      </a>
+      <nav id="main-nav" class="main-nav" aria-label="Principal">
+        <ul class="main-nav__list">
+          <li><a href="catalog.html" class="main-nav__link">Catálogo</a></li>
+          <li><a href="catalog.html?sale=1" class="main-nav__link main-nav__link--sale">Ofertas</a></li>
+        </ul>
+      </nav>
+      <div class="header-actions">
+        <a id="account-link" class="header-actions__link is-active" href="account.html" aria-current="page">Mi cuenta</a>
+        <button id="cart-toggle" class="header-actions__cart" type="button"
+                aria-controls="cart-drawer" aria-expanded="false">
+          Cesta <span id="cart-count" class="badge badge--accent">3</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="main container account-layout" tabindex="-1">
+
+    <!-- ===============================================================
+         Side navigation between the account panels
+         =============================================================== -->
+    <nav id="account-nav" class="account-nav" aria-label="Mi cuenta">
+      <p class="account-nav__greeting">Hola, <strong>Itziar</strong></p>
+      <ul class="account-nav__list">
+        <li><a class="account-nav__link is-active" href="#orders">Mis pedidos</a></li>
+        <li><a class="account-nav__link" href="#addresses">Direcciones</a></li>
+        <li><a class="account-nav__link" href="#payment-methods">Formas de pago</a></li>
+        <li><a class="account-nav__link" href="#wishlist">Guardados</a></li>
+        <li><a class="account-nav__link" href="#settings">Ajustes</a></li>
+      </ul>
+      <form id="logout-form" action="/logout" method="post">
+        <button class="link-btn" type="submit">Cerrar sesión</button>
+      </form>
+    </nav>
+
+    <div id="account-panels" class="account-panels">
+
+      <!-- =============================================================
+           Orders
+           ============================================================= -->
+      <section id="orders" class="panel" aria-labelledby="orders-title">
+        <h1 id="orders-title" class="panel__title">Mis pedidos</h1>
+
+        <form id="orders-filter" class="toolbar" hx-get="/api/account/orders" hx-target="#order-list"
+              hx-trigger="change">
+          <label for="orders-year" class="visually-hidden">Año</label>
+          <select id="orders-year" name="year" class="select">
+            <option value="2026" selected>2026</option>
+            <option value="2025">2025</option>
+            <option value="2024">2024</option>
+          </select>
+          <label for="orders-status" class="visually-hidden">Estado</label>
+          <select id="orders-status" name="status" class="select">
+            <option value="">Todos</option>
+            <option value="NEW">Pendientes</option>
+            <option value="SHIPPED">Enviados</option>
+            <option value="CANCELLED">Cancelados</option>
+          </select>
+        </form>
+
+        <ol id="order-list" class="order-list">
+          <li id="order-PED-2026-004812" class="order order--shipped">
+            <header class="order__header">
+              <h2 class="order__number">PED-2026-004812</h2>
+              <span class="pill pill--success">Enviado</span>
+              <time class="order__date" datetime="2026-09-28">28 sep 2026</time>
+            </header>
+            <ul class="order__lines">
+              <li>2 × Sartén antiadherente 28&nbsp;cm</li>
+              <li>6 × Aceite de oliva virgen extra 1&nbsp;L</li>
+              <li>1 × Queso manchego curado 250&nbsp;g</li>
+            </ul>
+            <p class="order__total">Total: 116,05&nbsp;€</p>
+            <div class="order__actions">
+              <a id="track-PED-2026-004812" class="btn btn--small"
+                 href="https://track.carrier.example/?n=SEUR123456789ES" target="_blank" rel="noopener">Seguir envío</a>
+              <a class="btn btn--small btn--ghost" href="/api/account/orders/PED-2026-004812/invoice.pdf">Factura (PDF)</a>
+              <button class="btn btn--small btn--ghost reorder" type="button"
+                      hx-post="/api/cart/reorder/PED-2026-004812" hx-target="#cart-lines">Volver a pedir</button>
+            </div>
+            <details class="order__timeline">
+              <summary>Historial</summary>
+              <ol>
+                <li><time datetime="2026-09-28T10:02">28/09 10:02</time> Pedido recibido</li>
+                <li><time datetime="2026-09-28T10:03">28/09 10:03</time> Pago confirmado</li>
+                <li><time datetime="2026-09-28T12:41">28/09 12:41</time> Preparado y embalado</li>
+                <li><time datetime="2026-09-28T17:15">28/09 17:15</time> Recogido por el transportista</li>
+              </ol>
+            </details>
+          </li>
+
+          <li id="order-PED-2026-004377" class="order order--delivered">
+            <header class="order__header">
+              <h2 class="order__number">PED-2026-004377</h2>
+              <span class="pill">Entregado</span>
+              <time class="order__date" datetime="2026-09-02">2 sep 2026</time>
+            </header>
+            <ul class="order__lines">
+              <li>1 × Mesa de teca 180&nbsp;cm</li>
+              <li>1 × Silla apilable (pack 4)</li>
+            </ul>
+            <p class="order__total">Total: 868,00&nbsp;€</p>
+            <div class="order__actions">
+              <a class="btn btn--small btn--ghost" href="/api/account/orders/PED-2026-004377/invoice.pdf">Factura (PDF)</a>
+              <a class="btn btn--small btn--ghost" href="help.html#returns">Devolver un producto</a>
+              <a class="btn btn--small btn--ghost" href="product.html?sku=sku-3001#reviews">Valorar</a>
+            </div>
+          </li>
+
+          <li id="order-PED-2026-003950" class="order order--cancelled">
+            <header class="order__header">
+              <h2 class="order__number">PED-2026-003950</h2>
+              <span class="pill pill--danger">Cancelado</span>
+              <time class="order__date" datetime="2026-08-14">14 ago 2026</time>
+            </header>
+            <p class="order__note">Cancelado por falta de pago en 30 minutos.</p>
+          </li>
+        </ol>
+
+        <nav class="pagination" aria-label="Más pedidos">
+          <a class="pagination__next" href="account.html?page=2#orders">Pedidos anteriores ›</a>
+        </nav>
+      </section>
+
+      <!-- =============================================================
+           Returns (linked from help.html#returns)
+           ============================================================= -->
+      <section id="returns" class="panel" aria-labelledby="returns-title" hidden>
+        <h1 id="returns-title" class="panel__title">Devoluciones</h1>
+        <form id="return-form" class="return-form" action="/api/account/returns" method="post">
+          <label for="return-order" class="field__label">Pedido</label>
+          <select id="return-order" name="order" class="select" required>
+            <option value="PED-2026-004812">PED-2026-004812 — 28 sep 2026</option>
+            <option value="PED-2026-004377">PED-2026-004377 — 2 sep 2026</option>
+          </select>
+          <label for="return-reason" class="field__label">Motivo</label>
+          <select id="return-reason" name="reason" class="select" required>
+            <option value="damaged">Llegó dañado</option>
+            <option value="wrong">No es lo que pedí</option>
+            <option value="regret">Ya no lo quiero</option>
+          </select>
+          <label for="return-photos" class="field__label">Fotos (opcional)</label>
+          <input id="return-photos" type="file" name="photos" accept="image/*" multiple>
+          <button id="return-submit" class="btn btn--primary" type="submit">Solicitar devolución</button>
+        </form>
+      </section>
+
+      <!-- =============================================================
+           Addresses
+           ============================================================= -->
+      <section id="addresses" class="panel" aria-labelledby="addresses-title" hidden>
+        <h1 id="addresses-title" class="panel__title">Direcciones</h1>
+        <ul class="card-list">
+          <li id="address-home" class="card card--default">
+            <p class="card__label">Casa <span class="pill">Predeterminada</span></p>
+            <address>Itziar Etxeberria<br>Calle Iparraguirre 12, 3.º izda.<br>48009 Bilbao</address>
+            <div class="card__actions">
+              <button class="link-btn" type="button" hx-get="/api/account/addresses/home/edit"
+                      hx-target="#address-dialog-body">Editar</button>
+            </div>
+          </li>
+          <li id="address-work" class="card">
+            <p class="card__label">Trabajo</p>
+            <address>Itziar Etxeberria<br>Parque Tecnológico, edif. 204<br>48170 Zamudio</address>
+            <div class="card__actions">
+              <button class="link-btn" type="button">Editar</button>
+              <button class="link-btn" type="button">Usar por defecto</button>
+              <button class="link-btn link-btn--danger" type="button">Eliminar</button>
+            </div>
+          </li>
+        </ul>
+        <button id="address-add" class="btn btn--ghost" type="button">+ Añadir dirección</button>
+        <dialog id="address-dialog" class="dialog">
+          <form method="dialog" class="dialog__close-form">
+            <button class="dialog__close" aria-label="Cerrar">✕</button>
+          </form>
+          <div id="address-dialog-body"></div>
+        </dialog>
+      </section>
+
+      <!-- =============================================================
+           Payment methods
+           ============================================================= -->
+      <section id="payment-methods" class="panel" aria-labelledby="payment-methods-title" hidden>
+        <h1 id="payment-methods-title" class="panel__title">Formas de pago</h1>
+        <ul class="card-list">
+          <li id="card-visa-4242" class="card card--payment">
+            <p class="card__label">Visa ···· 4242 <span class="pill">Predeterminada</span></p>
+            <p class="card__meta">Caduca 08/2028</p>
+            <button class="link-btn link-btn--danger" type="button">Eliminar</button>
+          </li>
+          <li id="card-mc-5454" class="card card--payment card--expiring">
+            <p class="card__label">Mastercard ···· 5454</p>
+            <p class="card__meta">Caduca 11/2026 — <strong>caduca pronto</strong></p>
+            <button class="link-btn link-btn--danger" type="button">Eliminar</button>
+          </li>
+        </ul>
+        <p class="panel__hint">Las tarjetas se añaden al pagar en <a href="cart.html#payment">la cesta</a>.</p>
+      </section>
+
+      <!-- =============================================================
+           Wishlist
+           ============================================================= -->
+      <section id="wishlist" class="panel" aria-labelledby="wishlist-title" hidden>
+        <h1 id="wishlist-title" class="panel__title">Guardados</h1>
+        <div id="wishlist-grid" class="product-grid product-grid--3">
+          <article id="product-sku-1101" class="product-card" data-sku="sku-1101">
+            <a href="product.html?sku=sku-1101" class="product-card__link">
+              <img class="product-card__img" src="assets/img/products/sku-1101.jpg"
+                   alt="Cuchillo santoku 18 cm" loading="lazy" width="240" height="240">
+              <h2 class="product-card__name">Cuchillo santoku 18&nbsp;cm</h2>
+            </a>
+            <p class="product-card__price">119,00&nbsp;€</p>
+            <button class="btn btn--small add-to-cart" type="button" data-sku="sku-1101">Añadir</button>
+          </article>
+          <article id="product-sku-3101" class="product-card" data-sku="sku-3101">
+            <a href="product.html?sku=sku-3101" class="product-card__link">
+              <img class="product-card__img" src="assets/img/products/sku-3101.jpg"
+                   alt="Desbrozadora a batería 36 V" loading="lazy" width="240" height="240">
+              <h2 class="product-card__name">Desbrozadora a batería 36&nbsp;V</h2>
+            </a>
+            <p class="product-card__price">289,00&nbsp;€</p>
+            <p class="product-card__note product-card__note--alert">¡Ha bajado de precio!</p>
+            <button class="btn btn--small add-to-cart" type="button" data-sku="sku-3101">Añadir</button>
+          </article>
+        </div>
+      </section>
+
+      <!-- =============================================================
+           Settings
+           ============================================================= -->
+      <section id="settings" class="panel" aria-labelledby="settings-title" hidden>
+        <h1 id="settings-title" class="panel__title">Ajustes</h1>
+        <form id="settings-form" class="settings" action="/api/account/settings" method="post">
+          <fieldset class="settings__group">
+            <legend>Datos personales</legend>
+            <label for="settings-name" class="field__label">Nombre</label>
+            <input id="settings-name" class="field__input" type="text" name="name" value="Itziar Etxeberria">
+            <label for="settings-email" class="field__label">Correo electrónico</label>
+            <input id="settings-email" class="field__input" type="email" name="email"
+                   value="itziar@example.com" autocomplete="email">
+          </fieldset>
+          <fieldset class="settings__group">
+            <legend>Notificaciones</legend>
+            <label class="switch"><input id="notify-shipping" class="switch__input" type="checkbox" name="notifyShipping" checked>
+              <span class="switch__track" aria-hidden="true"></span> Avisos de envío</label>
+            <label class="switch"><input id="notify-offers" class="switch__input" type="checkbox" name="notifyOffers">
+              <span class="switch__track" aria-hidden="true"></span> Ofertas por correo</label>
+            <label class="switch"><input id="notify-wishlist" class="switch__input" type="checkbox" name="notifyWishlist" checked>
+              <span class="switch__track" aria-hidden="true"></span> Bajadas de precio en guardados</label>
+          </fieldset>
+          <fieldset class="settings__group">
+            <legend>Idioma</legend>
+            <select id="settings-language" name="language" class="select">
+              <option value="es" selected>Español</option>
+              <option value="eu">Euskara</option>
+              <option value="en">English</option>
+            </select>
+          </fieldset>
+          <button id="settings-save" class="btn btn--primary" type="submit">Guardar cambios</button>
+        </form>
+        <section id="danger-zone" class="danger-zone">
+          <h2>Eliminar cuenta</h2>
+          <p>Se borrarán tus datos personales. Las facturas se conservan por obligación legal.</p>
+          <button id="delete-account" class="btn btn--danger" type="button">Eliminar mi cuenta</button>
+        </section>
+      </section>
+    </div>
+  </main>
+
+  <footer id="site-footer" class="site-footer">
+    <div class="container">
+      <p class="site-footer__copy">© 2026 Almacén Norte S.L. — <a href="legal.html#privacy">Privacidad</a></p>
+    </div>
+  </footer>
+
+  <div id="toast-region" class="toast-region" role="status" aria-live="polite"></div>
+</body>
+</html>

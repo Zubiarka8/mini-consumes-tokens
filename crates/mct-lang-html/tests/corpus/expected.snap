@@ -1,0 +1,988 @@
+# language=html files=5 symbols=302 relations=675 cross_file=0
+
+== account.html (305 lines)
+S 1-305 module account
+S 19-304 element account
+S 22-41 element account::site-header
+S 24-26 element site-header::logo
+S 27-32 element site-header::main-nav
+S 34-34 element site-header::account-link
+S 35-38 element site-header::cart-toggle
+S 37-37 element cart-toggle::cart-count
+S 43-295 element account::main
+S 48-60 element main::account-nav
+S 57-59 element account-nav::logout-form
+S 62-294 element main::account-panels
+S 67-149 element account-panels::orders
+S 68-68 element orders::orders-title
+S 70-85 element orders::orders-filter
+S 73-77 element orders-filter::orders-year
+S 79-84 element orders-filter::orders-status
+S 87-144 element orders::order-list
+S 88-116 element order-list::order-PED-2026-004812
+S 101-102 element order-PED-2026-004812::track-PED-2026-004812
+S 118-134 element order-list::order-PED-2026-004377
+S 136-143 element order-list::order-PED-2026-003950
+S 154-172 element account-panels::returns
+S 155-155 element returns::returns-title
+S 156-171 element returns::return-form
+S 158-161 element return-form::return-order
+S 163-167 element return-form::return-reason
+S 169-170 element return-form::return-photos
+S 170-170 element return-form::return-submit
+S 177-205 element account-panels::addresses
+S 178-178 element addresses::addresses-title
+S 180-187 element addresses::address-home
+S 188-196 element addresses::address-work
+S 198-198 element addresses::address-add
+S 199-204 element addresses::address-dialog
+S 203-203 element address-dialog::address-dialog-body
+S 210-225 element account-panels::payment-methods
+S 211-211 element payment-methods::payment-methods-title
+S 213-217 element payment-methods::card-visa-4242
+S 218-222 element payment-methods::card-mc-5454
+S 230-253 element account-panels::wishlist
+S 231-231 element wishlist::wishlist-title
+S 232-252 element wishlist::wishlist-grid
+S 233-241 element wishlist-grid::product-sku-1101
+S 242-251 element wishlist-grid::product-sku-3101
+S 258-293 element account-panels::settings
+S 259-259 element settings::settings-title
+S 260-287 element settings::settings-form
+S 264-265 element settings-form::settings-name
+S 266-268 element settings-form::settings-email
+S 271-272 element settings-form::notify-shipping
+S 273-274 element settings-form::notify-offers
+S 275-276 element settings-form::notify-wishlist
+S 280-284 element settings-form::settings-language
+S 286-286 element settings-form::settings-save
+S 288-292 element settings::danger-zone
+S 291-291 element danger-zone::delete-account
+S 297-301 element account::site-footer
+S 303-303 element account::toast-region
+R 13:26 imports account -> assets/css/site.css
+R 14:26 imports account -> assets/css/account.css
+R 15:11 imports account -> assets/js/vendor/htmx-2.0.4.min.js
+R 16:11 imports account -> assets/js/app.js
+R 17:11 imports account -> assets/js/account.js
+R 19:7 references account -> #account
+R 19:20 references account -> .page
+R 19:20 references account -> .page--account
+R 22:11 references account::site-header -> #site-header
+R 22:28 references account::site-header -> .site-header
+R 22:28 references account::site-header -> .site-header--sticky
+R 24:10 references site-header::logo -> #logo
+R 24:20 references site-header::logo -> .logo
+R 27:12 references site-header::main-nav -> #main-nav
+R 27:26 references site-header::main-nav -> .main-nav
+R 34:12 references site-header::account-link -> #account-link
+R 34:30 references site-header::account-link -> .header-actions__link
+R 34:30 references site-header::account-link -> .is-active
+R 35:17 references site-header::cart-toggle -> #cart-toggle
+R 35:34 references site-header::cart-toggle -> .header-actions__cart
+R 37:23 references cart-toggle::cart-count -> #cart-count
+R 37:39 references cart-toggle::cart-count -> .badge
+R 37:39 references cart-toggle::cart-count -> .badge--accent
+R 43:9 references account::main -> #main
+R 43:19 references account::main -> .main
+R 43:19 references account::main -> .container
+R 43:19 references account::main -> .account-layout
+R 48:10 references main::account-nav -> #account-nav
+R 48:27 references main::account-nav -> .account-nav
+R 57:13 references account-nav::logout-form -> #logout-form
+R 62:10 references main::account-panels -> #account-panels
+R 62:30 references main::account-panels -> .account-panels
+R 67:16 references account-panels::orders -> #orders
+R 67:28 references account-panels::orders -> .panel
+R 68:13 references orders::orders-title -> #orders-title
+R 68:31 references orders::orders-title -> .panel__title
+R 70:15 references orders::orders-filter -> #orders-filter
+R 70:34 references orders::orders-filter -> .toolbar
+R 73:19 references orders-filter::orders-year -> #orders-year
+R 73:48 references orders-filter::orders-year -> .select
+R 79:19 references orders-filter::orders-status -> #orders-status
+R 79:52 references orders-filter::orders-status -> .select
+R 87:13 references orders::order-list -> #order-list
+R 87:29 references orders::order-list -> .order-list
+R 88:15 references order-list::order-PED-2026-004812 -> #order-PED-2026-004812
+R 88:42 references order-list::order-PED-2026-004812 -> .order
+R 88:42 references order-list::order-PED-2026-004812 -> .order--shipped
+R 101:18 references order-PED-2026-004812::track-PED-2026-004812 -> #track-PED-2026-004812
+R 101:45 references order-PED-2026-004812::track-PED-2026-004812 -> .btn
+R 101:45 references order-PED-2026-004812::track-PED-2026-004812 -> .btn--small
+R 118:15 references order-list::order-PED-2026-004377 -> #order-PED-2026-004377
+R 118:42 references order-list::order-PED-2026-004377 -> .order
+R 118:42 references order-list::order-PED-2026-004377 -> .order--delivered
+R 136:15 references order-list::order-PED-2026-003950 -> #order-PED-2026-003950
+R 136:42 references order-list::order-PED-2026-003950 -> .order
+R 136:42 references order-list::order-PED-2026-003950 -> .order--cancelled
+R 154:16 references account-panels::returns -> #returns
+R 154:29 references account-panels::returns -> .panel
+R 155:13 references returns::returns-title -> #returns-title
+R 155:32 references returns::returns-title -> .panel__title
+R 156:15 references returns::return-form -> #return-form
+R 156:32 references returns::return-form -> .return-form
+R 158:19 references return-form::return-order -> #return-order
+R 158:50 references return-form::return-order -> .select
+R 163:19 references return-form::return-reason -> #return-reason
+R 163:52 references return-form::return-reason -> .select
+R 169:18 references return-form::return-photos -> #return-photos
+R 170:19 references return-form::return-submit -> #return-submit
+R 170:38 references return-form::return-submit -> .btn
+R 170:38 references return-form::return-submit -> .btn--primary
+R 177:16 references account-panels::addresses -> #addresses
+R 177:31 references account-panels::addresses -> .panel
+R 178:13 references addresses::addresses-title -> #addresses-title
+R 178:34 references addresses::addresses-title -> .panel__title
+R 180:15 references addresses::address-home -> #address-home
+R 180:33 references addresses::address-home -> .card
+R 180:33 references addresses::address-home -> .card--default
+R 188:15 references addresses::address-work -> #address-work
+R 188:33 references addresses::address-work -> .card
+R 198:17 references addresses::address-add -> #address-add
+R 198:34 references addresses::address-add -> .btn
+R 198:34 references addresses::address-add -> .btn--ghost
+R 199:17 references addresses::address-dialog -> #address-dialog
+R 199:37 references addresses::address-dialog -> .dialog
+R 203:16 references address-dialog::address-dialog-body -> #address-dialog-body
+R 210:16 references account-panels::payment-methods -> #payment-methods
+R 210:37 references account-panels::payment-methods -> .panel
+R 211:13 references payment-methods::payment-methods-title -> #payment-methods-title
+R 211:40 references payment-methods::payment-methods-title -> .panel__title
+R 213:15 references payment-methods::card-visa-4242 -> #card-visa-4242
+R 213:35 references payment-methods::card-visa-4242 -> .card
+R 213:35 references payment-methods::card-visa-4242 -> .card--payment
+R 218:15 references payment-methods::card-mc-5454 -> #card-mc-5454
+R 218:33 references payment-methods::card-mc-5454 -> .card
+R 218:33 references payment-methods::card-mc-5454 -> .card--payment
+R 218:33 references payment-methods::card-mc-5454 -> .card--expiring
+R 230:16 references account-panels::wishlist -> #wishlist
+R 230:30 references account-panels::wishlist -> .panel
+R 231:13 references wishlist::wishlist-title -> #wishlist-title
+R 231:33 references wishlist::wishlist-title -> .panel__title
+R 232:14 references wishlist::wishlist-grid -> #wishlist-grid
+R 232:33 references wishlist::wishlist-grid -> .product-grid
+R 232:33 references wishlist::wishlist-grid -> .product-grid--3
+R 233:20 references wishlist-grid::product-sku-1101 -> #product-sku-1101
+R 233:42 references wishlist-grid::product-sku-1101 -> .product-card
+R 242:20 references wishlist-grid::product-sku-3101 -> #product-sku-3101
+R 242:42 references wishlist-grid::product-sku-3101 -> .product-card
+R 258:16 references account-panels::settings -> #settings
+R 258:30 references account-panels::settings -> .panel
+R 259:13 references settings::settings-title -> #settings-title
+R 259:33 references settings::settings-title -> .panel__title
+R 260:15 references settings::settings-form -> #settings-form
+R 260:34 references settings::settings-form -> .settings
+R 264:20 references settings-form::settings-name -> #settings-name
+R 264:39 references settings-form::settings-name -> .field__input
+R 266:20 references settings-form::settings-email -> #settings-email
+R 266:40 references settings-form::settings-email -> .field__input
+R 271:42 references settings-form::notify-shipping -> #notify-shipping
+R 271:63 references settings-form::notify-shipping -> .switch__input
+R 273:42 references settings-form::notify-offers -> #notify-offers
+R 273:61 references settings-form::notify-offers -> .switch__input
+R 275:42 references settings-form::notify-wishlist -> #notify-wishlist
+R 275:63 references settings-form::notify-wishlist -> .switch__input
+R 280:21 references settings-form::settings-language -> #settings-language
+R 280:60 references settings-form::settings-language -> .select
+R 286:19 references settings-form::settings-save -> #settings-save
+R 286:38 references settings-form::settings-save -> .btn
+R 286:38 references settings-form::settings-save -> .btn--primary
+R 288:18 references settings::danger-zone -> #danger-zone
+R 288:35 references settings::danger-zone -> .danger-zone
+R 291:19 references danger-zone::delete-account -> #delete-account
+R 291:39 references danger-zone::delete-account -> .btn
+R 291:39 references danger-zone::delete-account -> .btn--danger
+R 297:11 references account::site-footer -> #site-footer
+R 297:28 references account::site-footer -> .site-footer
+R 303:8 references account::toast-region -> #toast-region
+R 303:26 references account::toast-region -> .toast-region
+
+== cart.html (313 lines)
+S 1-313 module cart
+S 23-312 element cart
+S 24-37 element cart::site-header
+S 26-28 element site-header::logo
+S 29-34 element site-header::checkout-steps
+S 30-30 element checkout-steps::step-cart
+S 31-31 element checkout-steps::step-delivery
+S 32-32 element checkout-steps::step-payment
+S 33-33 element checkout-steps::step-done
+S 39-303 element cart::main
+S 40-270 element main::checkout-form
+S 45-119 element checkout-form::cart-lines-section
+S 46-46 element cart-lines-section::cart-title
+S 47-108 element cart-lines-section::cart-table
+S 58-73 element cart-table::line-1
+S 68-69 element line-1::qty-1
+S 74-89 element cart-table::line-2
+S 84-85 element line-2::qty-2
+S 90-106 element cart-table::line-3
+S 101-102 element line-3::qty-3
+S 110-118 element cart-lines-section::coupon
+S 113-115 element coupon::coupon-code
+S 115-115 element coupon::coupon-apply
+S 117-117 element coupon::coupon-feedback
+S 124-185 element checkout-form::delivery
+S 125-125 element delivery::delivery-title
+S 127-144 element delivery::delivery-method
+S 130-131 element delivery-method::ship-standard
+S 135-136 element delivery-method::ship-express
+S 140-141 element delivery-method::ship-pickup
+S 146-184 element delivery::address-fields
+S 149-150 element address-fields::full-name
+S 153-154 element address-fields::phone
+S 157-159 element address-fields::street
+S 162-164 element address-fields::postal-code
+S 167-169 element address-fields::city
+S 172-177 element address-fields::country
+S 181-182 element address-fields::delivery-notes
+S 190-218 element checkout-form::gift
+S 191-191 element gift::gift-title
+S 193-195 element gift::gift-toggle
+S 198-217 element gift::gift-fields
+S 200-201 element gift-fields::gift-to
+S 202-203 element gift-fields::gift-message
+S 204-204 element gift-fields::gift-message-count
+S 208-209 element gift-fields::wrap-kraft
+S 211-212 element gift-fields::wrap-red
+S 214-215 element gift-fields::wrap-gold
+S 223-247 element checkout-form::payment
+S 224-224 element payment::payment-title
+S 225-232 element payment::payment-tabs
+S 226-227 element payment-tabs::pay-card-tab
+S 228-229 element payment-tabs::pay-bizum-tab
+S 230-231 element payment-tabs::pay-transfer-tab
+S 233-239 element payment::pay-card
+S 234-234 element pay-card::card-element
+S 235-235 element pay-card::card-errors
+S 237-238 element pay-card::save-card
+S 240-243 element payment::pay-bizum
+S 242-243 element pay-bizum::bizum-phone
+S 244-246 element payment::pay-transfer
+S 252-269 element checkout-form::summary
+S 253-253 element summary::summary-title
+S 255-255 element summary::summary-subtotal
+S 256-256 element summary::summary-shipping
+S 257-257 element summary::summary-discount
+S 258-258 element summary::summary-vat
+S 259-259 element summary::summary-total
+S 262-263 element summary::accept-terms
+S 265-267 element summary::place-order
+S 273-295 element main::cart-upsell
+S 274-274 element cart-upsell::cart-upsell-title
+S 276-284 element cart-upsell::product-sku-1003
+S 285-293 element cart-upsell::product-sku-2103
+S 298-302 element main::confirmation
+S 300-300 element confirmation::confirmation-number
+S 305-309 element cart::site-footer
+S 311-311 element cart::toast-region
+R 13:26 imports cart -> assets/css/site.css
+R 14:26 imports cart -> assets/css/checkout.css
+R 15:26 imports cart -> https://js.payments.example/v3/elements.css
+R 16:11 imports cart -> assets/js/app.js
+R 17:11 imports cart -> assets/js/checkout.js
+R 18:11 imports cart -> https://js.payments.example/v3/
+R 20:28 imports cart -> assets/css/noscript.css
+R 23:7 references cart -> #cart
+R 23:17 references cart -> .page
+R 23:17 references cart -> .page--checkout
+R 24:11 references cart::site-header -> #site-header
+R 24:28 references cart::site-header -> .site-header
+R 24:28 references cart::site-header -> .site-header--minimal
+R 26:10 references site-header::logo -> #logo
+R 26:20 references site-header::logo -> .logo
+R 29:11 references site-header::checkout-steps -> #checkout-steps
+R 29:31 references site-header::checkout-steps -> .steps-bar
+R 30:13 references checkout-steps::step-cart -> #step-cart
+R 30:28 references checkout-steps::step-cart -> .steps-bar__item
+R 30:28 references checkout-steps::step-cart -> .is-current
+R 31:13 references checkout-steps::step-delivery -> #step-delivery
+R 31:32 references checkout-steps::step-delivery -> .steps-bar__item
+R 32:13 references checkout-steps::step-payment -> #step-payment
+R 32:31 references checkout-steps::step-payment -> .steps-bar__item
+R 33:13 references checkout-steps::step-done -> #step-done
+R 33:28 references checkout-steps::step-done -> .steps-bar__item
+R 39:9 references cart::main -> #main
+R 39:19 references cart::main -> .main
+R 39:19 references cart::main -> .container
+R 39:19 references cart::main -> .checkout-layout
+R 40:11 references main::checkout-form -> #checkout-form
+R 40:30 references main::checkout-form -> .checkout
+R 45:16 references checkout-form::cart-lines-section -> #cart-lines-section
+R 45:40 references checkout-form::cart-lines-section -> .checkout__section
+R 46:13 references cart-lines-section::cart-title -> #cart-title
+R 46:29 references cart-lines-section::cart-title -> .checkout__title
+R 47:16 references cart-lines-section::cart-table -> #cart-table
+R 47:32 references cart-lines-section::cart-table -> .cart-table
+R 58:17 references cart-table::line-1 -> #line-1
+R 58:29 references cart-table::line-1 -> .cart-table__row
+R 68:24 references line-1::qty-1 -> #qty-1
+R 68:35 references line-1::qty-1 -> .qty
+R 74:17 references cart-table::line-2 -> #line-2
+R 74:29 references cart-table::line-2 -> .cart-table__row
+R 84:24 references line-2::qty-2 -> #qty-2
+R 84:35 references line-2::qty-2 -> .qty
+R 90:17 references cart-table::line-3 -> #line-3
+R 90:29 references cart-table::line-3 -> .cart-table__row
+R 90:29 references cart-table::line-3 -> .cart-table__row--chilled
+R 101:24 references line-3::qty-3 -> #qty-3
+R 101:35 references line-3::qty-3 -> .qty
+R 110:14 references cart-lines-section::coupon -> #coupon
+R 110:26 references cart-lines-section::coupon -> .coupon
+R 113:20 references coupon::coupon-code -> #coupon-code
+R 113:37 references coupon::coupon-code -> .field__input
+R 115:21 references coupon::coupon-apply -> #coupon-apply
+R 115:39 references coupon::coupon-apply -> .btn
+R 115:39 references coupon::coupon-apply -> .btn--ghost
+R 117:14 references coupon::coupon-feedback -> #coupon-feedback
+R 117:35 references coupon::coupon-feedback -> .field__hint
+R 124:16 references checkout-form::delivery -> #delivery
+R 124:30 references checkout-form::delivery -> .checkout__section
+R 125:13 references delivery::delivery-title -> #delivery-title
+R 125:33 references delivery::delivery-title -> .checkout__subtitle
+R 127:19 references delivery::delivery-method -> #delivery-method
+R 127:40 references delivery::delivery-method -> .choice-group
+R 130:20 references delivery-method::ship-standard -> #ship-standard
+R 135:20 references delivery-method::ship-express -> #ship-express
+R 140:20 references delivery-method::ship-pickup -> #ship-pickup
+R 146:14 references delivery::address-fields -> #address-fields
+R 146:34 references delivery::address-fields -> .grid
+R 146:34 references delivery::address-fields -> .grid--2
+R 149:20 references address-fields::full-name -> #full-name
+R 149:35 references address-fields::full-name -> .field__input
+R 153:20 references address-fields::phone -> #phone
+R 153:31 references address-fields::phone -> .field__input
+R 157:20 references address-fields::street -> #street
+R 157:32 references address-fields::street -> .field__input
+R 162:20 references address-fields::postal-code -> #postal-code
+R 162:37 references address-fields::postal-code -> .field__input
+R 167:20 references address-fields::city -> #city
+R 167:30 references address-fields::city -> .field__input
+R 172:21 references address-fields::country -> #country
+R 172:34 references address-fields::country -> .field__input
+R 181:23 references address-fields::delivery-notes -> #delivery-notes
+R 181:43 references address-fields::delivery-notes -> .field__input
+R 190:16 references checkout-form::gift -> #gift
+R 190:26 references checkout-form::gift -> .checkout__section
+R 191:13 references gift::gift-title -> #gift-title
+R 191:29 references gift::gift-title -> .checkout__subtitle
+R 193:18 references gift::gift-toggle -> #gift-toggle
+R 193:35 references gift::gift-toggle -> .switch__input
+R 198:14 references gift::gift-fields -> #gift-fields
+R 198:31 references gift::gift-fields -> .gift-fields
+R 200:18 references gift-fields::gift-to -> #gift-to
+R 200:31 references gift-fields::gift-to -> .field__input
+R 202:21 references gift-fields::gift-message -> #gift-message
+R 202:39 references gift-fields::gift-message -> .field__input
+R 204:14 references gift-fields::gift-message-count -> #gift-message-count
+R 204:38 references gift-fields::gift-message-count -> .field__hint
+R 208:22 references gift-fields::wrap-kraft -> #wrap-kraft
+R 211:22 references gift-fields::wrap-red -> #wrap-red
+R 214:22 references gift-fields::wrap-gold -> #wrap-gold
+R 223:16 references checkout-form::payment -> #payment
+R 223:29 references checkout-form::payment -> .checkout__section
+R 224:13 references payment::payment-title -> #payment-title
+R 224:32 references payment::payment-title -> .checkout__subtitle
+R 225:14 references payment::payment-tabs -> #payment-tabs
+R 225:32 references payment::payment-tabs -> .segmented
+R 226:19 references payment-tabs::pay-card-tab -> #pay-card-tab
+R 226:37 references payment-tabs::pay-card-tab -> .segmented__btn
+R 226:37 references payment-tabs::pay-card-tab -> .is-active
+R 228:19 references payment-tabs::pay-bizum-tab -> #pay-bizum-tab
+R 228:38 references payment-tabs::pay-bizum-tab -> .segmented__btn
+R 230:19 references payment-tabs::pay-transfer-tab -> #pay-transfer-tab
+R 230:41 references payment-tabs::pay-transfer-tab -> .segmented__btn
+R 233:14 references payment::pay-card -> #pay-card
+R 233:28 references payment::pay-card -> .payment-panel
+R 234:16 references pay-card::card-element -> #card-element
+R 234:34 references pay-card::card-element -> .card-element
+R 235:14 references pay-card::card-errors -> #card-errors
+R 235:31 references pay-card::card-errors -> .field__error
+R 237:20 references pay-card::save-card -> #save-card
+R 240:14 references payment::pay-bizum -> #pay-bizum
+R 240:29 references payment::pay-bizum -> .payment-panel
+R 242:18 references pay-bizum::bizum-phone -> #bizum-phone
+R 242:35 references pay-bizum::bizum-phone -> .field__input
+R 244:14 references payment::pay-transfer -> #pay-transfer
+R 244:32 references payment::pay-transfer -> .payment-panel
+R 252:14 references checkout-form::summary -> #summary
+R 252:27 references checkout-form::summary -> .checkout__summary
+R 253:13 references summary::summary-title -> #summary-title
+R 253:32 references summary::summary-title -> .checkout__subtitle
+R 255:32 references summary::summary-subtotal -> #summary-subtotal
+R 256:30 references summary::summary-shipping -> #summary-shipping
+R 257:33 references summary::summary-discount -> #summary-discount
+R 258:36 references summary::summary-vat -> #summary-vat
+R 259:57 references summary::summary-total -> #summary-total
+R 259:76 references summary::summary-total -> .summary-list__total
+R 262:18 references summary::accept-terms -> #accept-terms
+R 265:17 references summary::place-order -> #place-order
+R 265:34 references summary::place-order -> .btn
+R 265:34 references summary::place-order -> .btn--primary
+R 265:34 references summary::place-order -> .btn--large
+R 265:34 references summary::place-order -> .btn--block
+R 273:14 references main::cart-upsell -> #cart-upsell
+R 273:31 references main::cart-upsell -> .section
+R 273:31 references main::cart-upsell -> .related
+R 274:11 references cart-upsell::cart-upsell-title -> #cart-upsell-title
+R 274:34 references cart-upsell::cart-upsell-title -> .section__title
+R 276:18 references cart-upsell::product-sku-1003 -> #product-sku-1003
+R 276:40 references cart-upsell::product-sku-1003 -> .product-card
+R 285:18 references cart-upsell::product-sku-2103 -> #product-sku-2103
+R 285:40 references cart-upsell::product-sku-2103 -> .product-card
+R 285:40 references cart-upsell::product-sku-2103 -> .product-card--chilled
+R 298:14 references main::confirmation -> #confirmation
+R 298:32 references main::confirmation -> .confirmation
+R 300:37 references confirmation::confirmation-number -> #confirmation-number
+R 305:11 references cart::site-footer -> #site-footer
+R 305:28 references cart::site-footer -> .site-footer
+R 305:28 references cart::site-footer -> .site-footer--minimal
+R 311:8 references cart::toast-region -> #toast-region
+R 311:26 references cart::toast-region -> .toast-region
+
+== catalog.html (313 lines)
+S 1-313 module catalog
+S 21-312 element catalog
+S 24-51 element catalog::site-header
+S 26-28 element site-header::logo
+S 29-37 element site-header::main-nav
+S 38-42 element site-header::search-form
+S 40-41 element search-form::search-input
+S 44-44 element site-header::account-link
+S 45-48 element site-header::cart-toggle
+S 47-47 element cart-toggle::cart-count
+S 53-276 element catalog::main
+S 65-136 element main::filters
+S 66-135 element filters::filter-form
+S 74-75 element filter-form::f-cat-cookware
+S 77-78 element filter-form::f-cat-cutlery
+S 80-81 element filter-form::f-cat-textile
+S 83-84 element filter-form::f-cat-pantry
+S 86-87 element filter-form::f-cat-dairy
+S 89-90 element filter-form::f-cat-furniture
+S 92-93 element filter-form::f-cat-tools
+S 98-106 element filter-form::price-range
+S 100-102 element price-range::price-min
+S 103-105 element price-range::price-max
+S 105-105 element price-range::price-output
+S 111-111 element filter-form::f-storage-any
+S 112-112 element filter-form::f-storage-ambient
+S 113-113 element filter-form::f-storage-chilled
+S 114-114 element filter-form::f-storage-bulky
+S 120-121 element filter-form::f-in-stock
+S 125-126 element filter-form::f-sale
+S 132-132 element filter-form::filters-apply
+S 133-133 element filter-form::filters-reset
+S 141-275 element main::results
+S 143-143 element results::results-title
+S 143-143 element results-title::results-count
+S 145-151 element results::sort
+S 152-155 element results::view-toggle
+S 153-153 element view-toggle::view-grid
+S 154-154 element view-toggle::view-list
+S 158-259 element results::results-grid
+S 159-168 element results-grid::product-sku-1001
+S 170-179 element results-grid::product-sku-1002
+S 181-190 element results-grid::product-sku-1101
+S 192-205 element results-grid::product-sku-1201
+S 207-215 element results-grid::product-sku-2001
+S 217-226 element results-grid::product-sku-2101
+S 228-237 element results-grid::product-sku-3001
+S 239-248 element results-grid::product-sku-3101
+S 251-258 element results-grid::product-sku-2102
+S 261-266 element results::pagination
+S 269-274 element results::empty-results
+S 279-291 element catalog::recently-viewed
+S 281-281 element recently-viewed::recently-viewed-title
+S 282-282 element recently-viewed::recently-viewed-list
+S 283-290 element recently-viewed::recently-viewed-item
+S 293-303 element catalog::cart-drawer
+S 295-295 element cart-drawer::cart-drawer-title
+S 296-296 element cart-drawer::cart-close
+S 298-298 element cart-drawer::cart-lines
+S 300-300 element cart-drawer::cart-total
+S 301-301 element cart-drawer::cart-checkout
+S 305-309 element catalog::site-footer
+S 311-311 element catalog::toast-region
+R 13:26 imports catalog -> assets/css/site.css
+R 14:26 imports catalog -> assets/css/catalog.css
+R 15:26 imports catalog -> assets/css/legacy-filters.css
+R 17:11 imports catalog -> assets/js/vendor/htmx-2.0.4.min.js
+R 18:11 imports catalog -> assets/js/app.js
+R 19:11 imports catalog -> assets/js/catalog.js
+R 21:7 references catalog -> #catalog
+R 21:20 references catalog -> .page
+R 21:20 references catalog -> .page--catalog
+R 24:11 references catalog::site-header -> #site-header
+R 24:28 references catalog::site-header -> .site-header
+R 24:28 references catalog::site-header -> .site-header--sticky
+R 26:10 references site-header::logo -> #logo
+R 26:20 references site-header::logo -> .logo
+R 29:12 references site-header::main-nav -> #main-nav
+R 29:26 references site-header::main-nav -> .main-nav
+R 38:13 references site-header::search-form -> #search-form
+R 38:30 references site-header::search-form -> .search
+R 40:16 references search-form::search-input -> #search-input
+R 40:34 references search-form::search-input -> .search__input
+R 44:12 references site-header::account-link -> #account-link
+R 44:30 references site-header::account-link -> .header-actions__link
+R 45:17 references site-header::cart-toggle -> #cart-toggle
+R 45:34 references site-header::cart-toggle -> .header-actions__cart
+R 47:23 references cart-toggle::cart-count -> #cart-count
+R 47:39 references cart-toggle::cart-count -> .badge
+R 47:39 references cart-toggle::cart-count -> .badge--accent
+R 53:9 references catalog::main -> #main
+R 53:19 references catalog::main -> .main
+R 53:19 references catalog::main -> .container
+R 53:19 references catalog::main -> .catalog-layout
+R 65:12 references main::filters -> #filters
+R 65:25 references main::filters -> .filters
+R 66:13 references filters::filter-form -> #filter-form
+R 66:30 references filters::filter-form -> .filters__form
+R 74:20 references filter-form::f-cat-cookware -> #f-cat-cookware
+R 77:20 references filter-form::f-cat-cutlery -> #f-cat-cutlery
+R 80:20 references filter-form::f-cat-textile -> #f-cat-textile
+R 83:20 references filter-form::f-cat-pantry -> #f-cat-pantry
+R 86:20 references filter-form::f-cat-dairy -> #f-cat-dairy
+R 89:20 references filter-form::f-cat-furniture -> #f-cat-furniture
+R 92:20 references filter-form::f-cat-tools -> #f-cat-tools
+R 98:16 references filter-form::price-range -> #price-range
+R 98:33 references filter-form::price-range -> .range
+R 98:33 references filter-form::price-range -> .range--dual
+R 100:20 references price-range::price-min -> #price-min
+R 100:35 references price-range::price-min -> .range__input
+R 100:35 references price-range::price-min -> .range__input--min
+R 103:20 references price-range::price-max -> #price-max
+R 103:35 references price-range::price-max -> .range__input
+R 103:35 references price-range::price-max -> .range__input--max
+R 105:21 references price-range::price-output -> #price-output
+R 105:39 references price-range::price-output -> .range__output
+R 111:39 references filter-form::f-storage-any -> #f-storage-any
+R 112:39 references filter-form::f-storage-ambient -> #f-storage-ambient
+R 113:39 references filter-form::f-storage-chilled -> #f-storage-chilled
+R 114:39 references filter-form::f-storage-bulky -> #f-storage-bulky
+R 120:20 references filter-form::f-in-stock -> #f-in-stock
+R 120:36 references filter-form::f-in-stock -> .switch__input
+R 125:20 references filter-form::f-sale -> #f-sale
+R 125:32 references filter-form::f-sale -> .switch__input
+R 132:19 references filter-form::filters-apply -> #filters-apply
+R 132:38 references filter-form::filters-apply -> .btn
+R 132:38 references filter-form::filters-apply -> .btn--primary
+R 132:38 references filter-form::filters-apply -> .btn--block
+R 133:14 references filter-form::filters-reset -> #filters-reset
+R 133:33 references filter-form::filters-reset -> .btn
+R 133:33 references filter-form::filters-reset -> .btn--ghost
+R 133:33 references filter-form::filters-reset -> .btn--block
+R 141:14 references main::results -> #results
+R 141:27 references main::results -> .results
+R 143:13 references results::results-title -> #results-title
+R 143:32 references results::results-title -> .results__title
+R 143:72 references results-title::results-count -> #results-count
+R 145:17 references results::sort -> #sort
+R 145:58 references results::sort -> .select
+R 152:14 references results::view-toggle -> #view-toggle
+R 152:31 references results::view-toggle -> .segmented
+R 153:19 references view-toggle::view-grid -> #view-grid
+R 153:34 references view-toggle::view-grid -> .segmented__btn
+R 153:34 references view-toggle::view-grid -> .is-active
+R 154:19 references view-toggle::view-list -> #view-list
+R 154:34 references view-toggle::view-list -> .segmented__btn
+R 158:12 references results::results-grid -> #results-grid
+R 158:30 references results::results-grid -> .product-grid
+R 158:30 references results::results-grid -> .product-grid--4
+R 159:18 references results-grid::product-sku-1001 -> #product-sku-1001
+R 159:40 references results-grid::product-sku-1001 -> .product-card
+R 159:40 references results-grid::product-sku-1001 -> .product-card--sale
+R 170:18 references results-grid::product-sku-1002 -> #product-sku-1002
+R 170:40 references results-grid::product-sku-1002 -> .product-card
+R 181:18 references results-grid::product-sku-1101 -> #product-sku-1101
+R 181:40 references results-grid::product-sku-1101 -> .product-card
+R 192:18 references results-grid::product-sku-1201 -> #product-sku-1201
+R 192:40 references results-grid::product-sku-1201 -> .product-card
+R 207:18 references results-grid::product-sku-2001 -> #product-sku-2001
+R 207:40 references results-grid::product-sku-2001 -> .product-card
+R 217:18 references results-grid::product-sku-2101 -> #product-sku-2101
+R 217:40 references results-grid::product-sku-2101 -> .product-card
+R 217:40 references results-grid::product-sku-2101 -> .product-card--chilled
+R 228:18 references results-grid::product-sku-3001 -> #product-sku-3001
+R 228:40 references results-grid::product-sku-3001 -> .product-card
+R 228:40 references results-grid::product-sku-3001 -> .product-card--bulky
+R 239:18 references results-grid::product-sku-3101 -> #product-sku-3101
+R 239:40 references results-grid::product-sku-3101 -> .product-card
+R 251:18 references results-grid::product-sku-2102 -> #product-sku-2102
+R 251:40 references results-grid::product-sku-2102 -> .product-card
+R 251:40 references results-grid::product-sku-2102 -> .is-sold-out
+R 261:12 references results::pagination -> #pagination
+R 261:28 references results::pagination -> .pagination
+R 269:17 references results::empty-results -> #empty-results
+R 279:12 references catalog::recently-viewed -> #recently-viewed
+R 279:33 references catalog::recently-viewed -> .section
+R 279:33 references catalog::recently-viewed -> .container
+R 279:33 references catalog::recently-viewed -> .recently-viewed
+R 281:9 references recently-viewed::recently-viewed-title -> #recently-viewed-title
+R 281:36 references recently-viewed::recently-viewed-title -> .section__title
+R 282:9 references recently-viewed::recently-viewed-list -> #recently-viewed-list
+R 282:35 references recently-viewed::recently-viewed-list -> .strip
+R 283:15 references recently-viewed::recently-viewed-item -> #recently-viewed-item
+R 293:10 references catalog::cart-drawer -> #cart-drawer
+R 293:26 references catalog::cart-drawer -> .drawer
+R 293:26 references catalog::cart-drawer -> .drawer--right
+R 295:11 references cart-drawer::cart-drawer-title -> #cart-drawer-title
+R 295:34 references cart-drawer::cart-drawer-title -> .drawer__title
+R 296:15 references cart-drawer::cart-close -> #cart-close
+R 296:31 references cart-drawer::cart-close -> .drawer__close
+R 298:9 references cart-drawer::cart-lines -> #cart-lines
+R 298:25 references cart-drawer::cart-lines -> .cart-lines
+R 300:47 references cart-drawer::cart-total -> #cart-total
+R 301:10 references cart-drawer::cart-checkout -> #cart-checkout
+R 301:29 references cart-drawer::cart-checkout -> .btn
+R 301:29 references cart-drawer::cart-checkout -> .btn--primary
+R 301:29 references cart-drawer::cart-checkout -> .btn--block
+R 305:11 references catalog::site-footer -> #site-footer
+R 305:28 references catalog::site-footer -> .site-footer
+R 311:8 references catalog::toast-region -> #toast-region
+R 311:26 references catalog::toast-region -> .toast-region
+
+== index.html (327 lines)
+S 1-327 module index
+S 34-38 element critical-css
+S 40-326 element home
+S 46-84 element home::site-header
+S 48-54 element site-header::logo
+S 56-64 element site-header::main-nav
+S 66-74 element site-header::search-form
+S 68-72 element search-form::search-input
+S 73-73 element search-form::search-suggestions
+S 77-77 element site-header::account-link
+S 78-81 element site-header::cart-toggle
+S 80-80 element cart-toggle::cart-count
+S 89-257 element home::main
+S 91-112 element main::hero
+S 101-101 element hero::hero-cta
+S 115-157 element main::categories
+S 160-207 element main::featured
+S 162-162 element featured::featured-title
+S 163-204 element featured::featured-grid
+S 164-174 element featured-grid::product-sku-1001
+S 175-184 element featured-grid::product-sku-1101
+S 185-193 element featured-grid::product-sku-2001
+S 194-203 element featured-grid::product-sku-3001
+S 210-238 element main::how-it-works
+S 214-220 element how-it-works::step-order
+S 221-227 element how-it-works::step-pick
+S 228-235 element how-it-works::step-ship
+S 241-256 element main::newsletter
+S 244-254 element newsletter::newsletter-form
+S 247-249 element newsletter-form::newsletter-email
+S 262-283 element home::cart-drawer
+S 264-264 element cart-drawer::cart-drawer-title
+S 265-265 element cart-drawer::cart-close
+S 267-267 element cart-drawer::cart-lines
+S 268-278 element cart-drawer::cart-line-template
+S 280-280 element cart-drawer::cart-total
+S 281-281 element cart-drawer::cart-checkout
+S 288-317 element home::site-footer
+S 319-319 element home::toast-region
+R 15:26 imports index -> assets/css/site.css
+R 16:26 imports index -> assets/css/home.css
+R 17:26 imports index -> assets/css/print.css
+R 23:11 imports index -> assets/js/vendor/htmx-2.0.4.min.js
+R 24:11 imports index -> assets/js/app.js
+R 34:10 references critical-css -> #critical-css
+R 40:7 references home -> #home
+R 40:17 references home -> .page
+R 40:17 references home -> .page--home
+R 40:17 references home -> .has-hero
+R 46:11 references home::site-header -> #site-header
+R 46:28 references home::site-header -> .site-header
+R 46:28 references home::site-header -> .site-header--sticky
+R 48:10 references site-header::logo -> #logo
+R 48:20 references site-header::logo -> .logo
+R 56:12 references site-header::main-nav -> #main-nav
+R 56:26 references site-header::main-nav -> .main-nav
+R 66:13 references site-header::search-form -> #search-form
+R 66:30 references site-header::search-form -> .search
+R 68:16 references search-form::search-input -> #search-input
+R 68:34 references search-form::search-input -> .search__input
+R 73:13 references search-form::search-suggestions -> #search-suggestions
+R 73:37 references search-form::search-suggestions -> .search__suggestions
+R 77:12 references site-header::account-link -> #account-link
+R 77:30 references site-header::account-link -> .header-actions__link
+R 78:17 references site-header::cart-toggle -> #cart-toggle
+R 78:34 references site-header::cart-toggle -> .header-actions__cart
+R 80:23 references cart-toggle::cart-count -> #cart-count
+R 80:39 references cart-toggle::cart-count -> .badge
+R 80:39 references cart-toggle::cart-count -> .badge--accent
+R 89:9 references home::main -> #main
+R 89:19 references home::main -> .main
+R 91:14 references main::hero -> #hero
+R 91:24 references main::hero -> .hero
+R 91:24 references main::hero -> .hero--split
+R 101:16 references hero::hero-cta -> #hero-cta
+R 101:30 references hero::hero-cta -> .btn
+R 101:30 references hero::hero-cta -> .btn--primary
+R 101:30 references hero::hero-cta -> .btn--large
+R 115:14 references main::categories -> #categories
+R 115:30 references main::categories -> .section
+R 115:30 references main::categories -> .categories
+R 160:14 references main::featured -> #featured
+R 160:28 references main::featured -> .section
+R 160:28 references main::featured -> .section--alt
+R 160:28 references main::featured -> .featured
+R 162:13 references featured::featured-title -> #featured-title
+R 162:33 references featured::featured-title -> .section__title
+R 163:14 references featured::featured-grid -> #featured-grid
+R 163:33 references featured::featured-grid -> .product-grid
+R 164:20 references featured-grid::product-sku-1001 -> #product-sku-1001
+R 164:42 references featured-grid::product-sku-1001 -> .product-card
+R 164:42 references featured-grid::product-sku-1001 -> .product-card--sale
+R 175:20 references featured-grid::product-sku-1101 -> #product-sku-1101
+R 175:42 references featured-grid::product-sku-1101 -> .product-card
+R 185:20 references featured-grid::product-sku-2001 -> #product-sku-2001
+R 185:42 references featured-grid::product-sku-2001 -> .product-card
+R 194:20 references featured-grid::product-sku-3001 -> #product-sku-3001
+R 194:42 references featured-grid::product-sku-3001 -> .product-card
+R 194:42 references featured-grid::product-sku-3001 -> .product-card--bulky
+R 210:14 references main::how-it-works -> #how-it-works
+R 210:32 references main::how-it-works -> .section
+R 210:32 references main::how-it-works -> .steps
+R 214:15 references how-it-works::step-order -> #step-order
+R 214:31 references how-it-works::step-order -> .steps__item
+R 221:15 references how-it-works::step-pick -> #step-pick
+R 221:30 references how-it-works::step-pick -> .steps__item
+R 228:15 references how-it-works::step-ship -> #step-ship
+R 228:30 references how-it-works::step-ship -> .steps__item
+R 241:14 references main::newsletter -> #newsletter
+R 241:30 references main::newsletter -> .section
+R 241:30 references main::newsletter -> .section--accent
+R 241:30 references main::newsletter -> .newsletter
+R 244:15 references newsletter::newsletter-form -> #newsletter-form
+R 244:36 references newsletter::newsletter-form -> .newsletter__form
+R 247:18 references newsletter-form::newsletter-email -> #newsletter-email
+R 262:10 references home::cart-drawer -> #cart-drawer
+R 262:27 references home::cart-drawer -> .drawer
+R 262:27 references home::cart-drawer -> .drawer--right
+R 264:11 references cart-drawer::cart-drawer-title -> #cart-drawer-title
+R 264:34 references cart-drawer::cart-drawer-title -> .drawer__title
+R 265:15 references cart-drawer::cart-close -> #cart-close
+R 265:31 references cart-drawer::cart-close -> .drawer__close
+R 267:9 references cart-drawer::cart-lines -> #cart-lines
+R 267:25 references cart-drawer::cart-lines -> .cart-lines
+R 268:15 references cart-drawer::cart-line-template -> #cart-line-template
+R 280:47 references cart-drawer::cart-total -> #cart-total
+R 281:10 references cart-drawer::cart-checkout -> #cart-checkout
+R 281:29 references cart-drawer::cart-checkout -> .btn
+R 281:29 references cart-drawer::cart-checkout -> .btn--primary
+R 281:29 references cart-drawer::cart-checkout -> .btn--block
+R 288:11 references home::site-footer -> #site-footer
+R 288:28 references home::site-footer -> .site-footer
+R 319:8 references home::toast-region -> #toast-region
+R 319:26 references home::toast-region -> .toast-region
+R 321:11 imports home -> assets/js/home.js
+
+== product.html (305 lines)
+S 1-305 module product
+S 18-18 element gallery-script
+S 30-304 element product
+S 33-51 element product::site-header
+S 35-37 element site-header::logo
+S 38-42 element site-header::search-form
+S 40-41 element search-form::search-input
+S 44-44 element site-header::account-link
+S 45-48 element site-header::cart-toggle
+S 47-47 element cart-toggle::cart-count
+S 53-283 element product::main
+S 63-162 element main::product-layout
+S 68-112 element product-layout::gallery
+S 69-75 element gallery::gallery-main
+S 70-73 element gallery-main::gallery-image
+S 74-74 element gallery-main::gallery-zoom
+S 76-101 element gallery::gallery-thumbs
+S 102-111 element gallery::gallery-lightbox
+S 106-107 element gallery-lightbox::lightbox-image
+S 107-110 element gallery-lightbox::lightbox-video
+S 117-161 element product-layout::buy-box
+S 119-119 element buy-box::product-title
+S 124-128 element buy-box::price
+S 131-148 element buy-box::add-to-cart-form
+S 135-140 element add-to-cart-form::quantity-stepper
+S 137-139 element quantity-stepper::quantity
+S 141-143 element add-to-cart-form::add-to-cart
+S 144-147 element add-to-cart-form::add-to-wishlist
+S 150-154 element buy-box::stock-info
+S 156-160 element buy-box::shipping-details
+S 167-256 element main::product-tabs
+S 169-170 element product-tabs::tab-description
+S 171-172 element product-tabs::tab-specs
+S 173-174 element product-tabs::tab-reviews
+S 177-188 element product-tabs::panel-description
+S 190-204 element product-tabs::panel-specs
+S 191-203 element panel-specs::specs-table
+S 206-255 element product-tabs::reviews
+S 207-216 element reviews::reviews-summary
+S 218-235 element reviews::review-list
+S 219-223 element review-list::review-8812
+S 224-228 element review-list::review-8790
+S 229-234 element review-list::review-8761
+S 236-239 element reviews::reviews-more
+S 241-254 element reviews::review-form
+S 245-245 element review-form::star-5
+S 246-246 element review-form::star-4
+S 247-247 element review-form::star-3
+S 248-248 element review-form::star-2
+S 249-249 element review-form::star-1
+S 252-252 element review-form::review-text
+S 261-282 element main::related
+S 262-262 element related::related-title
+S 264-271 element related::product-sku-1002
+S 272-279 element related::product-sku-1101
+S 285-295 element product::cart-drawer
+S 287-287 element cart-drawer::cart-drawer-title
+S 288-288 element cart-drawer::cart-close
+S 290-290 element cart-drawer::cart-lines
+S 292-292 element cart-drawer::cart-total
+S 293-293 element cart-drawer::cart-checkout
+S 297-301 element product::site-footer
+S 303-303 element product::toast-region
+R 13:26 imports product -> assets/css/site.css
+R 14:26 imports product -> assets/css/product.css
+R 15:24 imports product -> assets/css/gallery.css
+R 16:11 imports product -> assets/js/vendor/htmx-2.0.4.min.js
+R 17:11 imports product -> assets/js/app.js
+R 18:52 references gallery-script -> #gallery-script
+R 18:11 imports gallery-script -> assets/js/gallery.js
+R 30:7 references product -> #product
+R 30:20 references product -> .page
+R 30:20 references product -> .page--product
+R 33:11 references product::site-header -> #site-header
+R 33:28 references product::site-header -> .site-header
+R 33:28 references product::site-header -> .site-header--sticky
+R 35:10 references site-header::logo -> #logo
+R 35:20 references site-header::logo -> .logo
+R 38:13 references site-header::search-form -> #search-form
+R 38:30 references site-header::search-form -> .search
+R 40:16 references search-form::search-input -> #search-input
+R 40:34 references search-form::search-input -> .search__input
+R 44:12 references site-header::account-link -> #account-link
+R 44:30 references site-header::account-link -> .header-actions__link
+R 45:17 references site-header::cart-toggle -> #cart-toggle
+R 45:34 references site-header::cart-toggle -> .header-actions__cart
+R 47:23 references cart-toggle::cart-count -> #cart-count
+R 47:39 references cart-toggle::cart-count -> .badge
+R 47:39 references cart-toggle::cart-count -> .badge--accent
+R 53:9 references product::main -> #main
+R 53:19 references product::main -> .main
+R 53:19 references product::main -> .container
+R 63:10 references main::product-layout -> #product-layout
+R 63:30 references main::product-layout -> .product-layout
+R 68:16 references product-layout::gallery -> #gallery
+R 68:29 references product-layout::gallery -> .gallery
+R 69:17 references gallery::gallery-main -> #gallery-main
+R 69:35 references gallery::gallery-main -> .gallery__main
+R 70:16 references gallery-main::gallery-image -> #gallery-image
+R 70:35 references gallery-main::gallery-image -> .gallery__image
+R 74:19 references gallery-main::gallery-zoom -> #gallery-zoom
+R 74:37 references gallery-main::gallery-zoom -> .gallery__zoom
+R 76:13 references gallery::gallery-thumbs -> #gallery-thumbs
+R 76:33 references gallery::gallery-thumbs -> .gallery__thumbs
+R 102:17 references gallery::gallery-lightbox -> #gallery-lightbox
+R 102:39 references gallery::gallery-lightbox -> .lightbox
+R 106:16 references gallery-lightbox::lightbox-image -> #lightbox-image
+R 106:36 references gallery-lightbox::lightbox-image -> .lightbox__image
+R 107:18 references gallery-lightbox::lightbox-video -> #lightbox-video
+R 107:38 references gallery-lightbox::lightbox-video -> .lightbox__video
+R 117:16 references product-layout::buy-box -> #buy-box
+R 117:29 references product-layout::buy-box -> .buy-box
+R 119:13 references buy-box::product-title -> #product-title
+R 119:32 references buy-box::product-title -> .buy-box__title
+R 124:12 references buy-box::price -> #price
+R 124:23 references buy-box::price -> .price
+R 124:23 references buy-box::price -> .price--sale
+R 131:15 references buy-box::add-to-cart-form -> #add-to-cart-form
+R 131:37 references buy-box::add-to-cart-form -> .buy-box__form
+R 135:16 references add-to-cart-form::quantity-stepper -> #quantity-stepper
+R 135:38 references add-to-cart-form::quantity-stepper -> .stepper
+R 137:20 references quantity-stepper::quantity -> #quantity
+R 137:34 references quantity-stepper::quantity -> .stepper__input
+R 141:19 references add-to-cart-form::add-to-cart -> #add-to-cart
+R 141:36 references add-to-cart-form::add-to-cart -> .btn
+R 141:36 references add-to-cart-form::add-to-cart -> .btn--primary
+R 141:36 references add-to-cart-form::add-to-cart -> .btn--large
+R 141:36 references add-to-cart-form::add-to-cart -> .btn--block
+R 144:19 references add-to-cart-form::add-to-wishlist -> #add-to-wishlist
+R 144:40 references add-to-cart-form::add-to-wishlist -> .btn
+R 144:40 references add-to-cart-form::add-to-wishlist -> .btn--ghost
+R 144:40 references add-to-cart-form::add-to-wishlist -> .btn--block
+R 150:13 references buy-box::stock-info -> #stock-info
+R 150:29 references buy-box::stock-info -> .stock-info
+R 156:18 references buy-box::shipping-details -> #shipping-details
+R 156:40 references buy-box::shipping-details -> .details
+R 167:14 references main::product-tabs -> #product-tabs
+R 167:32 references main::product-tabs -> .tabs
+R 169:17 references product-tabs::tab-description -> #tab-description
+R 169:38 references product-tabs::tab-description -> .tabs__tab
+R 169:38 references product-tabs::tab-description -> .is-active
+R 171:17 references product-tabs::tab-specs -> #tab-specs
+R 171:32 references product-tabs::tab-specs -> .tabs__tab
+R 173:17 references product-tabs::tab-reviews -> #tab-reviews
+R 173:34 references product-tabs::tab-reviews -> .tabs__tab
+R 177:12 references product-tabs::panel-description -> #panel-description
+R 177:35 references product-tabs::panel-description -> .tabs__panel
+R 177:35 references product-tabs::panel-description -> .prose
+R 190:12 references product-tabs::panel-specs -> #panel-specs
+R 190:29 references product-tabs::panel-specs -> .tabs__panel
+R 191:16 references panel-specs::specs-table -> #specs-table
+R 191:33 references panel-specs::specs-table -> .specs
+R 206:12 references product-tabs::reviews -> #reviews
+R 206:25 references product-tabs::reviews -> .tabs__panel
+R 206:25 references product-tabs::reviews -> .reviews
+R 207:14 references reviews::reviews-summary -> #reviews-summary
+R 207:35 references reviews::reviews-summary -> .reviews__summary
+R 218:13 references reviews::review-list -> #review-list
+R 218:30 references reviews::review-list -> .reviews__list
+R 219:15 references review-list::review-8812 -> #review-8812
+R 219:32 references review-list::review-8812 -> .review
+R 224:15 references review-list::review-8790 -> #review-8790
+R 224:32 references review-list::review-8790 -> .review
+R 229:15 references review-list::review-8761 -> #review-8761
+R 229:32 references review-list::review-8761 -> .review
+R 229:32 references review-list::review-8761 -> .review--with-photo
+R 236:17 references reviews::reviews-more -> #reviews-more
+R 236:35 references reviews::reviews-more -> .btn
+R 236:35 references reviews::reviews-more -> .btn--ghost
+R 241:15 references reviews::review-form -> #review-form
+R 241:32 references reviews::review-form -> .review-form
+R 245:20 references review-form::star-5 -> #star-5
+R 246:20 references review-form::star-4 -> #star-4
+R 247:20 references review-form::star-3 -> #star-3
+R 248:20 references review-form::star-2 -> #star-2
+R 249:20 references review-form::star-1 -> #star-1
+R 252:21 references review-form::review-text -> #review-text
+R 261:14 references main::related -> #related
+R 261:27 references main::related -> .section
+R 261:27 references main::related -> .related
+R 262:11 references related::related-title -> #related-title
+R 262:30 references related::related-title -> .section__title
+R 264:18 references related::product-sku-1002 -> #product-sku-1002
+R 264:40 references related::product-sku-1002 -> .product-card
+R 272:18 references related::product-sku-1101 -> #product-sku-1101
+R 272:40 references related::product-sku-1101 -> .product-card
+R 285:10 references product::cart-drawer -> #cart-drawer
+R 285:27 references product::cart-drawer -> .drawer
+R 285:27 references product::cart-drawer -> .drawer--right
+R 287:11 references cart-drawer::cart-drawer-title -> #cart-drawer-title
+R 287:34 references cart-drawer::cart-drawer-title -> .drawer__title
+R 288:15 references cart-drawer::cart-close -> #cart-close
+R 288:31 references cart-drawer::cart-close -> .drawer__close
+R 290:9 references cart-drawer::cart-lines -> #cart-lines
+R 290:25 references cart-drawer::cart-lines -> .cart-lines
+R 292:47 references cart-drawer::cart-total -> #cart-total
+R 293:10 references cart-drawer::cart-checkout -> #cart-checkout
+R 293:29 references cart-drawer::cart-checkout -> .btn
+R 293:29 references cart-drawer::cart-checkout -> .btn--primary
+R 293:29 references cart-drawer::cart-checkout -> .btn--block
+R 297:11 references product::site-footer -> #site-footer
+R 297:28 references product::site-footer -> .site-footer
+R 303:8 references product::toast-region -> #toast-region
+R 303:26 references product::toast-region -> .toast-region
