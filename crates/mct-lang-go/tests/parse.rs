@@ -38,6 +38,35 @@ fn extracts_function_and_call() {
 }
 
 #[test]
+fn calling_an_indexed_function_value_is_not_a_call_to_the_collection() {
+    // `byName["a"](x)` invokes the value stored at an index, not a function
+    // named `byName`: the index is not a type, so no callee is extracted.
+    let parsed =
+        parse("package calc\n\nfunc dispatch(x int) {\n\tbyName[\"a\"](x)\n\tnotify(x)\n}\n");
+    let calls: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Calls)
+        .map(|r| r.to_name.as_str())
+        .collect();
+    // Control: a plain call in the same body is still extracted.
+    assert!(calls.contains(&"notify"), "calls: {calls:?}");
+    assert!(!calls.contains(&"byName"), "calls: {calls:?}");
+}
+
+#[test]
+fn known_limit_identifier_index_call_is_read_as_a_generic_call() {
+    // `handlers[i](x)` is syntactically identical to `Fail[T](x)` (one type
+    // argument), and telling them apart needs type information. The parser
+    // keeps the generic reading so explicit instantiations are not lost.
+    let parsed = parse("package calc\n\nfunc dispatch(i int, x int) {\n\thandlers[i](x)\n}\n");
+    assert!(parsed
+        .relations
+        .iter()
+        .any(|r| r.kind == RelationKind::Calls && r.to_name == "handlers"));
+}
+
+#[test]
 fn method_with_pointer_receiver_attaches_to_its_type() {
     let parsed = parse(
         "package billing\n\ntype Invoice struct {\n\tTotal float64\n}\n\nfunc (inv *Invoice) AddItem(price float64) float64 {\n\tinv.Total += price\n\treturn inv.Total\n}\n",

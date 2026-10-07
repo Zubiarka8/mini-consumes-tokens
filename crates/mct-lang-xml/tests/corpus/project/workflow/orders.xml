@@ -1,0 +1,335 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Order fulfilment process (BPMN 2.0). Imported by config/application.xml,
+  whose orderService receives it as orderWorkflow, the name under which the
+  engine deploys the orderFulfilment process.
+  Service tasks delegate to beans of application.xml (inventoryService,
+  pricingService, shippingService, billingService); lanes match the roles
+  of config/security.xml.
+
+  Every flow node has both an id and a human-readable name; the id is the
+  identity the engine (and the parser) uses.
+-->
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+             xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+             xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+             id="warehouseDefinitions"
+             targetNamespace="http://example.com/warehouse/bpmn"
+             exporter="hand-written"
+             exporterVersion="1.0">
+
+  <!-- ===================================================================
+       Messages, signals and errors shared by the processes below.
+       =================================================================== -->
+  <message id="msgPaymentConfirmed" name="PaymentConfirmed"/>
+  <message id="msgOrderCancelled" name="OrderCancelled"/>
+  <message id="msgCarrierPickedUp" name="CarrierPickedUp"/>
+  <signal id="sigStockReplenished" name="StockReplenished"/>
+  <signal id="sigWarehouseClosed" name="WarehouseClosed"/>
+  <error id="errOutOfStock" name="OutOfStock" errorCode="WH-001"/>
+  <error id="errPaymentDeclined" name="PaymentDeclined" errorCode="WH-002"/>
+  <error id="errAddressInvalid" name="AddressInvalid" errorCode="WH-003"/>
+  <escalation id="escManualReview" name="ManualReview" escalationCode="WH-ESC-1"/>
+
+  <itemDefinition id="orderItem" structureRef="com.example.warehouse.order.Order"/>
+  <itemDefinition id="shipmentItem" structureRef="com.example.warehouse.shipping.Shipment"/>
+  <itemDefinition id="invoiceItem" structureRef="com.example.warehouse.billing.Invoice"/>
+
+  <!-- ===================================================================
+       Collaboration: the customer-facing pool and the warehouse pool.
+       =================================================================== -->
+  <collaboration id="fulfilmentCollaboration">
+    <participant id="customerPool" name="Customer"/>
+    <participant id="warehousePool" name="Almacén Norte" processRef="orderFulfilment"/>
+    <messageFlow id="mfPayment" sourceRef="customerPool" targetRef="waitForPayment"
+                 messageRef="msgPaymentConfirmed"/>
+    <messageFlow id="mfCancel" sourceRef="customerPool" targetRef="cancelBoundary"
+                 messageRef="msgOrderCancelled"/>
+  </collaboration>
+
+  <!-- ===================================================================
+       Main process
+       =================================================================== -->
+  <process id="orderFulfilment" name="Order fulfilment" isExecutable="true"
+           camunda:historyTimeToLive="P180D">
+
+    <documentation>
+      From order placement to invoice. Reservation happens before payment so
+      that a confirmed payment never meets an empty shelf; reservations expire
+      after 30 minutes without payment.
+    </documentation>
+
+    <laneSet id="fulfilmentLanes">
+      <lane id="laneSystem" name="System">
+        <flowNodeRef>orderPlaced</flowNodeRef>
+        <flowNodeRef>validateOrder</flowNodeRef>
+        <flowNodeRef>reserveStock</flowNodeRef>
+        <flowNodeRef>priceOrder</flowNodeRef>
+        <flowNodeRef>waitForPayment</flowNodeRef>
+        <flowNodeRef>issueInvoice</flowNodeRef>
+      </lane>
+      <lane id="laneSupervisor" name="Supervisor (ROLE_SUPERVISOR)">
+        <flowNodeRef>approveLargeOrder</flowNodeRef>
+        <flowNodeRef>manualReview</flowNodeRef>
+      </lane>
+      <lane id="lanePicker" name="Picker (ROLE_PICKER)">
+        <flowNodeRef>pickingSubprocess</flowNodeRef>
+      </lane>
+      <lane id="laneShipper" name="Shipper (ROLE_SHIPPER)">
+        <flowNodeRef>shipOrder</flowNodeRef>
+        <flowNodeRef>awaitPickup</flowNodeRef>
+      </lane>
+    </laneSet>
+
+    <startEvent id="orderPlaced" name="Order placed">
+      <outgoing>sf01</outgoing>
+    </startEvent>
+
+    <serviceTask id="validateOrder" name="Validate order"
+                 camunda:expression="${orderService.validate(order)}"
+                 camunda:resultVariable="validation">
+      <incoming>sf01</incoming>
+      <outgoing>sf02</outgoing>
+    </serviceTask>
+
+    <boundaryEvent id="invalidAddress" name="Address invalid" attachedToRef="validateOrder">
+      <errorEventDefinition errorRef="errAddressInvalid"/>
+      <outgoing>sf20</outgoing>
+    </boundaryEvent>
+
+    <exclusiveGateway id="isLargeOrder" name="Total above 5 000 €?" default="sf04">
+      <incoming>sf02</incoming>
+      <outgoing>sf03</outgoing>
+      <outgoing>sf04</outgoing>
+    </exclusiveGateway>
+
+    <userTask id="approveLargeOrder" name="Approve large order"
+              camunda:candidateGroups="ROLE_SUPERVISOR"
+              camunda:dueDate="${dateTime().plusHours(4).toDate()}">
+      <documentation>Orders above the threshold need a supervisor's approval.</documentation>
+      <extensionElements>
+        <camunda:formData>
+          <camunda:formField id="approved" label="Approve?" type="boolean"/>
+          <camunda:formField id="comment" label="Comment" type="string"/>
+        </camunda:formData>
+        <camunda:taskListener event="create" delegateExpression="${auditLogger}"/>
+      </extensionElements>
+      <incoming>sf03</incoming>
+      <outgoing>sf05</outgoing>
+    </userTask>
+
+    <exclusiveGateway id="wasApproved" name="Approved?" default="sf07">
+      <incoming>sf05</incoming>
+      <outgoing>sf06</outgoing>
+      <outgoing>sf07</outgoing>
+    </exclusiveGateway>
+
+    <exclusiveGateway id="joinApproval" name="Join approval">
+      <incoming>sf04</incoming>
+      <incoming>sf06</incoming>
+      <outgoing>sf08</outgoing>
+    </exclusiveGateway>
+
+    <serviceTask id="reserveStock" name="Reserve stock"
+                 camunda:expression="${inventoryService.reserve(order)}">
+      <incoming>sf08</incoming>
+      <outgoing>sf09</outgoing>
+      <multiInstanceLoopCharacteristics isSequential="false"
+                                        camunda:collection="${order.lines}"
+                                        camunda:elementVariable="line">
+        <completionCondition>${nrOfCompletedInstances == nrOfInstances}</completionCondition>
+      </multiInstanceLoopCharacteristics>
+    </serviceTask>
+
+    <boundaryEvent id="outOfStock" name="Out of stock" attachedToRef="reserveStock">
+      <errorEventDefinition errorRef="errOutOfStock"/>
+      <outgoing>sf21</outgoing>
+    </boundaryEvent>
+
+    <serviceTask id="priceOrder" name="Price order"
+                 camunda:expression="${pricingService.price(order)}"
+                 camunda:resultVariable="quote">
+      <incoming>sf09</incoming>
+      <outgoing>sf10</outgoing>
+    </serviceTask>
+
+    <receiveTask id="waitForPayment" name="Wait for payment" messageRef="msgPaymentConfirmed">
+      <incoming>sf10</incoming>
+      <outgoing>sf11</outgoing>
+    </receiveTask>
+
+    <boundaryEvent id="paymentTimeout" name="30 minutes" attachedToRef="waitForPayment"
+                   cancelActivity="true">
+      <timerEventDefinition>
+        <timeDuration xsi:type="tFormalExpression">PT30M</timeDuration>
+      </timerEventDefinition>
+      <outgoing>sf22</outgoing>
+    </boundaryEvent>
+
+    <boundaryEvent id="cancelBoundary" name="Customer cancels" attachedToRef="waitForPayment">
+      <messageEventDefinition messageRef="msgOrderCancelled"/>
+      <outgoing>sf23</outgoing>
+    </boundaryEvent>
+
+    <!-- Picking: one parallel branch per storage zone. -->
+    <subProcess id="pickingSubprocess" name="Pick order">
+      <incoming>sf11</incoming>
+      <outgoing>sf12</outgoing>
+
+      <startEvent id="pickingStarted" name="Picking started"/>
+      <parallelGateway id="splitZones" name="Split by zone"/>
+      <userTask id="pickAmbient" name="Pick ambient zone" camunda:candidateGroups="ROLE_PICKER"/>
+      <userTask id="pickChilled" name="Pick chilled zone" camunda:candidateGroups="ROLE_PICKER">
+        <documentation>Chilled items are picked last to keep them under 4 °C.</documentation>
+      </userTask>
+      <userTask id="pickBulky" name="Pick bulky items" camunda:candidateGroups="ROLE_PICKER"/>
+      <parallelGateway id="joinZones" name="Join zones"/>
+      <serviceTask id="packOrder" name="Pack order"
+                   camunda:expression="${shippingService.pack(order)}"/>
+      <endEvent id="pickingDone" name="Picked and packed"/>
+
+      <sequenceFlow id="sp01" sourceRef="pickingStarted" targetRef="splitZones"/>
+      <sequenceFlow id="sp02" sourceRef="splitZones" targetRef="pickAmbient"/>
+      <sequenceFlow id="sp03" sourceRef="splitZones" targetRef="pickChilled"/>
+      <sequenceFlow id="sp04" sourceRef="splitZones" targetRef="pickBulky"/>
+      <sequenceFlow id="sp05" sourceRef="pickAmbient" targetRef="joinZones"/>
+      <sequenceFlow id="sp06" sourceRef="pickChilled" targetRef="joinZones"/>
+      <sequenceFlow id="sp07" sourceRef="pickBulky" targetRef="joinZones"/>
+      <sequenceFlow id="sp08" sourceRef="joinZones" targetRef="packOrder"/>
+      <sequenceFlow id="sp09" sourceRef="packOrder" targetRef="pickingDone"/>
+    </subProcess>
+
+    <serviceTask id="shipOrder" name="Book carrier and print label"
+                 camunda:expression="${shippingService.ship(order)}"
+                 camunda:resultVariable="shipment">
+      <incoming>sf12</incoming>
+      <outgoing>sf13</outgoing>
+    </serviceTask>
+
+    <intermediateCatchEvent id="awaitPickup" name="Carrier picked up">
+      <incoming>sf13</incoming>
+      <outgoing>sf14</outgoing>
+      <messageEventDefinition messageRef="msgCarrierPickedUp"/>
+    </intermediateCatchEvent>
+
+    <serviceTask id="issueInvoice" name="Issue invoice"
+                 camunda:expression="${billingService.issue(order, shipment)}"
+                 camunda:resultVariable="invoice">
+      <incoming>sf14</incoming>
+      <outgoing>sf15</outgoing>
+    </serviceTask>
+
+    <endEvent id="orderCompleted" name="Order completed">
+      <incoming>sf15</incoming>
+    </endEvent>
+
+    <!-- Exception paths -->
+    <userTask id="manualReview" name="Manual review" camunda:candidateGroups="ROLE_SUPERVISOR">
+      <incoming>sf20</incoming>
+      <incoming>sf21</incoming>
+      <outgoing>sf24</outgoing>
+    </userTask>
+
+    <serviceTask id="releaseStock" name="Release reservations"
+                 camunda:expression="${inventoryService.release(order)}">
+      <incoming>sf07</incoming>
+      <incoming>sf22</incoming>
+      <incoming>sf23</incoming>
+      <incoming>sf24</incoming>
+      <outgoing>sf25</outgoing>
+    </serviceTask>
+
+    <endEvent id="orderCancelled" name="Order cancelled">
+      <incoming>sf25</incoming>
+      <terminateEventDefinition/>
+    </endEvent>
+
+    <!-- Sequence flows of the main process -->
+    <sequenceFlow id="sf01" sourceRef="orderPlaced" targetRef="validateOrder"/>
+    <sequenceFlow id="sf02" sourceRef="validateOrder" targetRef="isLargeOrder"/>
+    <sequenceFlow id="sf03" name="yes" sourceRef="isLargeOrder" targetRef="approveLargeOrder">
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${quote.total.amount > 5000}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="sf04" name="no" sourceRef="isLargeOrder" targetRef="joinApproval"/>
+    <sequenceFlow id="sf05" sourceRef="approveLargeOrder" targetRef="wasApproved"/>
+    <sequenceFlow id="sf06" name="approved" sourceRef="wasApproved" targetRef="joinApproval">
+      <conditionExpression xsi:type="tFormalExpression">${approved}</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="sf07" name="rejected" sourceRef="wasApproved" targetRef="releaseStock"/>
+    <sequenceFlow id="sf08" sourceRef="joinApproval" targetRef="reserveStock"/>
+    <sequenceFlow id="sf09" sourceRef="reserveStock" targetRef="priceOrder"/>
+    <sequenceFlow id="sf10" sourceRef="priceOrder" targetRef="waitForPayment"/>
+    <sequenceFlow id="sf11" sourceRef="waitForPayment" targetRef="pickingSubprocess"/>
+    <sequenceFlow id="sf12" sourceRef="pickingSubprocess" targetRef="shipOrder"/>
+    <sequenceFlow id="sf13" sourceRef="shipOrder" targetRef="awaitPickup"/>
+    <sequenceFlow id="sf14" sourceRef="awaitPickup" targetRef="issueInvoice"/>
+    <sequenceFlow id="sf15" sourceRef="issueInvoice" targetRef="orderCompleted"/>
+    <sequenceFlow id="sf20" sourceRef="invalidAddress" targetRef="manualReview"/>
+    <sequenceFlow id="sf21" sourceRef="outOfStock" targetRef="manualReview"/>
+    <sequenceFlow id="sf22" sourceRef="paymentTimeout" targetRef="releaseStock"/>
+    <sequenceFlow id="sf23" sourceRef="cancelBoundary" targetRef="releaseStock"/>
+    <sequenceFlow id="sf24" sourceRef="manualReview" targetRef="releaseStock"/>
+    <sequenceFlow id="sf25" sourceRef="releaseStock" targetRef="orderCancelled"/>
+  </process>
+
+  <!-- ===================================================================
+       Replenishment process, started by the inventory reorder check.
+       =================================================================== -->
+  <process id="replenishment" name="Replenishment" isExecutable="true">
+    <startEvent id="reorderPointReached" name="Reorder point reached">
+      <conditionalEventDefinition>
+        <condition xsi:type="tFormalExpression">${stock.available &lt; stock.reorderPoint}</condition>
+      </conditionalEventDefinition>
+    </startEvent>
+    <serviceTask id="draftPurchaseOrder" name="Draft purchase order"
+                 camunda:expression="${inventoryService.draftPurchase(stock)}"/>
+    <userTask id="approvePurchase" name="Approve purchase" camunda:candidateGroups="ROLE_SUPERVISOR"/>
+    <intermediateCatchEvent id="goodsReceived" name="Goods received">
+      <signalEventDefinition signalRef="sigStockReplenished"/>
+    </intermediateCatchEvent>
+    <serviceTask id="putAway" name="Put away"
+                 camunda:expression="${inventoryService.putAway(receipt)}"/>
+    <endEvent id="replenished" name="Replenished">
+      <signalEventDefinition signalRef="sigStockReplenished"/>
+    </endEvent>
+    <sequenceFlow id="rp01" sourceRef="reorderPointReached" targetRef="draftPurchaseOrder"/>
+    <sequenceFlow id="rp02" sourceRef="draftPurchaseOrder" targetRef="approvePurchase"/>
+    <sequenceFlow id="rp03" sourceRef="approvePurchase" targetRef="goodsReceived"/>
+    <sequenceFlow id="rp04" sourceRef="goodsReceived" targetRef="putAway"/>
+    <sequenceFlow id="rp05" sourceRef="putAway" targetRef="replenished"/>
+  </process>
+
+  <!-- ===================================================================
+       Diagram interchange (positions only for the main pool).
+       =================================================================== -->
+  <bpmndi:BPMNDiagram id="fulfilmentDiagram" name="Fulfilment">
+    <bpmndi:BPMNPlane id="fulfilmentPlane" bpmnElement="fulfilmentCollaboration">
+      <bpmndi:BPMNShape id="orderPlaced_di" bpmnElement="orderPlaced">
+        <dc:Bounds x="180" y="160" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="validateOrder_di" bpmnElement="validateOrder">
+        <dc:Bounds x="260" y="138" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="isLargeOrder_di" bpmnElement="isLargeOrder" isMarkerVisible="true">
+        <dc:Bounds x="405" y="153" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="reserveStock_di" bpmnElement="reserveStock">
+        <dc:Bounds x="640" y="138" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="pickingSubprocess_di" bpmnElement="pickingSubprocess" isExpanded="false">
+        <dc:Bounds x="1040" y="138" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="sf01_di" bpmnElement="sf01">
+        <di:waypoint x="216" y="178"/>
+        <di:waypoint x="260" y="178"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="sf02_di" bpmnElement="sf02">
+        <di:waypoint x="360" y="178"/>
+        <di:waypoint x="405" y="178"/>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>

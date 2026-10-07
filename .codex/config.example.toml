@@ -1,0 +1,11 @@
+# Sanitized template. Copy to `.codex/config.toml` (git-ignored) and fill in the path.
+# Codex reads a project's `.codex/config.toml` only for trusted projects.
+#
+# NEVER put a token or password in this file. This server needs none; for any
+# other MCP server that does, inject it through your shell environment or your
+# client's credential mechanism. `mct-cli mcp-register` writes `.mcp.json`
+# (JSON) and does not touch this file.
+
+[mcp_servers.mini-consumes-tokens]
+command = "mct-mcp-server"                       # or an absolute path to the binary
+args = ["--root", "/absolute/path/to/your/project"]

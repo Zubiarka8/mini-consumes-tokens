@@ -2,14 +2,28 @@
 
 ## Table of contents
 
+- [Project coordination](#project-coordination)
 - [Contributor workflow](#contributor-workflow)
+- [Choosing an AI model](#choosing-an-ai-model)
+  - [Model routing](#model-routing)
+  - [Optional cross-provider worker handoff](#optional-cross-provider-worker-handoff)
+  - [Handoff checkpoints](#handoff-checkpoints)
+  - [Context and token management](#context-and-token-management)
+  - [Usage-limit recovery](#usage-limit-recovery)
+  - [Command and capability selection](#command-and-capability-selection)
 - [What this is](#what-this-is)
 - [Dogfooding: how to explore this repository's source code](#dogfooding-how-to-explore-this-repositorys-source-code)
 - [In-progress: per-language long-fixture corpus](#in-progress-per-language-long-fixture-corpus-issue-74)
 - [Commands](#commands)
 - [Architecture](#architecture)
 
-Shared engineering rules for every contributor and coding assistant. This file is the single source of truth for repository instructions; AGENTS.md and CLAUDE.md are entry points.
+Shared rules for Codex, Claude Code, and any agent working in this repository. This file is the single source of truth for project instructions; `AGENTS.md` and `CLAUDE.md` only point here.
+
+## Project coordination
+
+Read [PROJECT_MANAGER.md](PROJECT_MANAGER.md) at the start of a substantial work session. It defines task ownership, branch isolation, durable checkpoints, review, integration, and recovery. This file remains authoritative for architecture, technical restrictions, model selection, effort, billing, and client commands. Use only project-local skills unless the user explicitly authorizes another scope.
+
+Write all repository content in English: file and branch names, documentation, code, comments, task records, commit messages, PRs, and issues. Preserve required external identifiers and literal fixture data when translation would change behavior.
 
 ## Contributor workflow
 
@@ -20,6 +34,93 @@ Keep changes scoped and reviewable. Preserve unexplained local work, record acce
 Write repository content in English: file and branch names, documentation, code, comments, commit messages, PRs, and issues. Preserve required external identifiers and literal fixture data when translation would change behavior.
 
 If a local LOCAL_INSTRUCTIONS.md file exists, read it as additional instructions for that checkout. Its absence is normal and must not block contributions. Local instructions do not override the user's instructions, client permissions, or shared engineering constraints.
+
+## Choosing an AI model
+
+Project model policy, binding for every contributor and client:
+
+- **Prohibited: GPT-6 Astra** (`gpt-6-astra`), in any variant and at any reasoning effort (High, Medium, and so on).
+- **Prohibited: Claude Fable** (`claude-fable-5-1`), at any effort level. Do not use Claude Code's `best` alias either, because it can resolve to Fable.
+- **Allowed:** every other GPT and Claude model, at any reasoning effort the client exposes.
+
+Within that policy, choose the model and effort that meet the task's quality bar at the lowest reasonable usage. Model choice never replaces tests or review.
+
+### Model routing
+
+Use one provider by default. The preferred cross-provider arrangement, only when the user asks for it and both clients are available, is ChatGPT/Codex as coordinator and Claude Code as one bounded worker. Do not duplicate a task across providers or spawn parallel agents just because the tools are installed.
+
+| Task shape | ChatGPT/Codex options | Claude Code options | Starting effort |
+|---|---|---|---|
+| Bounded, repeatable work: summarize, classify, mechanical edits, or a well-specified small fix | GPT-6 Luna or GPT-5.6 Luna, if available | Sonnet; Haiku for simple extraction or classification | The lowest effort the model exposes |
+| Ordinary implementation, multi-file fixes, planning, and integration | GPT-5.6 Terra or GPT-6.1 Sol, if available | Sonnet | Medium (default) |
+| Difficult architecture, root-cause analysis, or high-risk tradeoffs | GPT-6.1 Sol or GPT-5.6 Sol, if available | Opus | Medium (default); raise only when verification fails |
+
+These names are examples of model families, not guarantees of availability. Check the client's model picker for what is available. If a listed model is unavailable, use a currently available, lower-cost allowed model, never a prohibited one. Parallel agents and ultra or high-effort modes add usage; require a clear task benefit before choosing them.
+
+OpenAI's current guidance describes Luna as efficient for focused tasks, Terra as balanced for everyday work, and Sol as suited to complex coding; Claude's model aliases and exact versions vary by provider. Treat the catalog and client picker as authoritative: [OpenAI model catalog](https://learn.chatgpt.com/docs/models?surface=app), [OpenAI model selection](https://learn.chatgpt.com/docs/model-selection), [OpenAI pricing and usage](https://learn.chatgpt.com/docs/pricing), [Claude Code model configuration](https://code.claude.com/docs/en/model-config), [Claude Code cost guidance](https://code.claude.com/docs/en/costs), and [Claude Code interactive usage-limit behavior](https://code.claude.com/docs/en/interactive-mode).
+
+### Optional cross-provider worker handoff
+
+Use this workflow only when the user explicitly asks to coordinate providers and both tools are available. It is optional: contributors using Cursor or another single client continue with that client and follow the repository's shared engineering rules. Do not start another agent by default or repeat the same task in two providers.
+
+For the requested ChatGPT/Codex-led, Claude Code-worker pattern:
+
+1. The lead turns the request into one bounded worker brief: goal, in-scope paths, acceptance criteria, applicable checks, and what to return. Send only relevant context and links; do not paste the full conversation or large files when paths/tools can supply them.
+2. Confirm the `claude` CLI is installed and authenticated before dispatch. If not, report the limitation and continue only if the user wants a single-provider fallback.
+3. Start one Claude Code non-interactive worker in the foreground with `claude -p --output-format json` and request a structured final report (`completed`, `blocked`, or `failed`; summary; changed paths; checks and results; follow-up needed). The process result is the completion message to the lead. Wait for it before dependent integration. For API-billed runs, use a user-approved `--max-budget-usd` cap and a reasonable `--max-turns` limit; for subscription use, check Claude Code's `/usage` command and the account's usage limits. Never invent a dollar cap or enable paid overage without the user's authorization.
+4. Give the worker its own branch/worktree. Do not have the lead and worker modify the same checkout concurrently. Add workers only for independent, disjoint tasks that justify the extra context and usage; give each its own worktree. Do not use Claude Agent Teams for cross-provider messaging: they coordinate Claude sessions, not a separate ChatGPT/Codex session, and each teammate adds its own context and usage.
+5. The lead reviews the worker's diff and report, runs the required integration checks, and owns integration, pushes, and PRs unless the user explicitly delegates those actions; workers may create scoped commits when authorized in their task brief. If the report is blocked, send one specific follow-up and wait for its result. Do not claim success while work is blocked or checks failed.
+
+`claude -p` is a one-shot process, so its returned report is the reliable handoff; it does not send messages to an unrelated interactive Claude session. For a continuing Claude CLI session, address follow-up prompts to its explicit session rather than assuming cross-client messaging.
+
+### Handoff checkpoints
+
+Use the durable records and recovery protocol in [PROJECT_MANAGER.md](PROJECT_MANAGER.md#checkpoints-and-handoffs). The coordinator maintains `project-management/`; workers checkpoint their assigned task in their own branch and return the commit, report, and remaining work. Ignored `target/agent-handoffs/` files may hold temporary process output, but must never be the only copy of essential project state. A hard stop may prevent a final checkpoint; recover from the latest persisted record and inspect Git before continuing.
+
+The coordinator may wait for a bounded worker without sending periodic prompts. Claude Code's automatic subscription-reset waiting is limited to supported interactive sessions; background sessions and `claude -p` runs cannot use that menu. A worker that can still report must return `blocked` when it cannot continue. Never assume an API-billed process can wait for a subscription reset. Providers cannot message unrelated chats without an exposed, authorized handoff route.
+
+### Context and token management
+
+- Give each worker only the task brief and necessary repository context. Prefer targeted symbol/context tools, small diffs, and concise test output over dumping whole files or transcripts.
+- A context window is per conversation/session; a provider's usage allowance or rate limit is separate. A context warning can be handled by compacting or continuing from a checkpoint. A usage limit cannot be fixed by `/compact`, clearing a chat, or opening another surface on the same account.
+- In Claude Code, use Claude Code `/context` for context consumers and Claude Code `/usage` for account usage. Let automatic compaction handle a near-full context window, or use Claude Code `/compact` to continue the same task. The summary must retain the objective, constraints, decisions, changed paths, verification, next action, and open questions. Use Claude Code `/clear` only when starting an unrelated task or after the current task is complete; it starts a new conversation and does not replenish the account allowance. A finished `claude -p` invocation exits and needs no `/clear`.
+- In ChatGPT/Codex, use ChatGPT/Codex `/compact` to continue the same task with a long history; use a new task/chat for unrelated work. Preserve the handoff checkpoint before changing sessions. Do not clear or abandon context while a worker result is pending. `/compact` is available in both Claude Code and ChatGPT/Codex, but each command only affects its own conversation.
+- Do not compact at fixed intervals. Check context and usage on long tasks; compact only when it helps continue useful work. Higher effort, larger prompts, repeated reviews, parallel agents, and long-running workers can increase usage.
+
+### Usage-limit recovery
+
+When a request is blocked, first read the client's message and usage/status display to identify whether it is a context warning, a model-specific limit, an account/workspace limit, or a billing/spend cap. Do not infer one from another. In Claude Code, `Claude Code /rate-limit-options` exposes interactive limit choices when that client offers them; supported interactive subscription sessions may wait for automatic continuation after reset. Background sessions and `claude -p` runs cannot use that wait menu. Waiting does not make exhausted shared account usage available sooner.
+
+| Situation | Recovery |
+|---|---|
+| Context is nearly full, but requests still work | Write/update the handoff checkpoint, then compact the current session. Continue from that summary; do not start a duplicate task. |
+| A model-specific limit is reached | Check the provider's exact reset/limit message. If the provider exposes another already-authorized model outside that model-family limit, switch only if it fits this routing policy. Keep the same task checkpoint and worktree. |
+| An account, subscription, or organization limit is exhausted | Check the provider's usage display and reset time. Preserve the current diff and checkpoint; wait for reset. ChatGPT Work and Codex share usage, so do not treat them as separate allowances. Claude Code distinguishes model-family limits from subscription session/weekly limits; switching model only helps for a model-family limit. Do not assume changing model, chat, app, or provider sign-in will bypass a shared limit. |
+| A billing cap or paid-credit prompt appears | Stop before accepting charges, enabling credits/overage, using an API key, or increasing an organization cap. Continue only after explicit user authorization. |
+| The error type is unclear or the session/process ended without a report | Preserve all work. Record `blocked` or `failed`, the exact error, worktree/branch, completed changes, checks, and the next safe action in the checkpoint. The coordinator inspects the diff before retrying. |
+
+If ChatGPT/Codex is coordinating Claude Code and ChatGPT/Codex reaches a limit while Claude is working, Claude may finish only its assigned worker task and write its checkpoint/report. The coordinator resumes after its own context is compacted or its usage resets, then inspects and integrates the report. If Claude reaches its limit while waiting for ChatGPT/Codex, leave Claude's session and checkpoint intact; the coordinator can continue only after Claude is available again, or through a fallback already authorized by the user. Changing the coordinator role requires explicit user authorization; follow the recovery protocol in `PROJECT_MANAGER.md`. Neither side should poll with repeated model requests or start unapproved paid usage just to send a “task finished” message.
+
+### Command and capability selection
+
+Project instructions do not grant access to commands, tools, models, MCP servers, or permissions. The active client, version, plan, installed extensions, workspace policy, and approval settings determine what is available. Before relying on a command, inspect the current client's command menu (`/`) or CLI help and the available tool list. ChatGPT web, the ChatGPT desktop app/Codex app, Codex CLI, Cursor, and Claude Code do not share one command namespace. In the table below, each column names the client that owns its commands; a repeated spelling (for example, `/compact`, `/model`, or `/plan`) is a separate client-specific command, not a shared command that switches clients. Use only commands and tools exposed by the current environment; never claim a command ran when it was only suggested.
+
+Think through the relevant command categories for both the lead and worker, then use only the commands that directly help with the current task:
+
+| Need | ChatGPT desktop / Codex app (except where marked CLI) | Claude Code |
+|---|---|---|
+| Select model and effort | ChatGPT/Codex `/model`; ChatGPT/Codex `/reasoning`; confirm with ChatGPT/Codex `/status` | Claude Code `/model`; Claude Code `/effort`; confirm with Claude Code `/effort status` or the session header |
+| Plan a substantial task | ChatGPT/Codex `/plan`; use ChatGPT/Codex `/goal` only for a persistent multi-session objective | Claude Code `/plan` |
+| Isolate concurrent changes | ChatGPT/Codex `/worktree` or ChatGPT/Codex `/fork` into a worktree | Claude Code `/fork` for a separate background session; use a separate Git worktree for concurrent code edits |
+| Inspect context and usage | ChatGPT/Codex `/status` for session/context; Codex CLI `/usage` for account limits | Claude Code `/context` and Claude Code `/usage` |
+| Manage long context | ChatGPT/Codex `/compact` to continue the same task; start a new chat for unrelated work | Claude Code `/compact` to continue the same task; Claude Code `/clear` between unrelated tasks |
+| Check integrations or review work | ChatGPT/Codex `/mcp` to inspect connected servers; ChatGPT/Codex `/review` for a code review | Claude Code `/mcp` for MCP controls; Claude Code `/diff` to inspect edits; Claude Code `/review` or Claude Code `/code-review` for a review |
+| Track active work | ChatGPT/Codex `/goal` for a durable objective; Codex CLI `/ps` for background terminal processes | Claude Code `/tasks` for current tasks/background work; Claude Code `/resume` to return to a session |
+| Recover from a usage limit | ChatGPT/Codex `/status`; Codex CLI `/usage` for account limits and reset details | Claude Code `/usage`; Claude Code `/rate-limit-options` in supported interactive sessions |
+
+These are candidates, not a checklist to execute on every request. Prefer one lead and one worker; avoid Claude Code `/batch`, agent teams, broad client-specific `/fork` fan-out, or repeated second-model reviews unless the task is divisible and the expected quality or elapsed-time benefit warrants their added context and usage. For a one-shot Claude Code worker, use CLI options such as `claude -p --model <available-model> --effort <available-level> --output-format json`; use `--max-budget-usd` and `--max-turns` only when supported and appropriate for the billing mode. A fresh `claude -p` process needs no Claude Code `/clear` or `/compact`.
+
+Commands that broaden permissions or cause external side effects are not convenience switches. Keep the current least-privilege boundary; do not use bypass-approval/sandbox flags to make a handoff work. Do not relax permissions, post review comments, push, or start an auto-fix workflow unless the user authorized that action. For exact command availability and behavior, consult the [ChatGPT/Codex app slash command reference](https://learn.chatgpt.com/docs/reference/slash-commands), [Codex CLI commands](https://learn.chatgpt.com/docs/developer-commands), [Claude Code commands](https://code.claude.com/docs/en/commands), and [Claude Code MCP commands](https://code.claude.com/docs/en/mcp).
 
 ## What this is
 
