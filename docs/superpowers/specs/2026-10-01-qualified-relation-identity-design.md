@@ -2,7 +2,17 @@
 
 Date: 2026-10-01
 
-Status: proposed for issues #97 and #98; implementation not started
+Status: implemented with deviations — #97 by PR #99, the Markdown part of #98
+by PR #101. The as-built contract is
+[ADR-002](../../01-architecture/adrs/002-qualified-relation-resolution.md);
+where it differs, ADR-002 wins. Notable deviations: resolution is derived
+from the `relation_candidates` view rather than a stored `to_symbol_id` and
+candidate table; hop 1 of relation queries still matches by name; there is
+no import binding of bare calls, receiver-type inference or overload
+selection; `fan_in_counts`/`reference_counts` still count by name; and the
+Markdown alias lookup in decision 6 is not implemented (see
+`2026-10-01-markdown-note-graph-design.md`, "Implementation notes"). The
+text below is the original proposal.
 
 ## Goal
 

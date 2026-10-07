@@ -8,12 +8,12 @@ This is a historical audit with a follow-up status, not a claim that every task 
 
 - F02 was integrated into `main` by PR #99.
 - F03, F04 and the demonstrated F07 Rust cases have passing regression evidence.
-- F05/F06: PR #100 was merged into `codex/audit-relations` after PR #99, so its Markdown implementation still needed integration into `main`; this follow-up branch carries that implementation instead of the failing local opaque-link patch. Alias/title wikilink resolution and block anchors are not implemented.
+- F05/F06: PR #100 was merged into `codex/audit-relations` after PR #99; its Markdown implementation, not the failing local opaque-link patch, reached `main` through PR #101 (merged 2026-10-02, `3732075`), which closed #98. Alias/title wikilink resolution and block anchors are not implemented.
 - R01: all 17 parsers use bounded iterative error traversal, with dedicated depth-budget regressions.
 - F09: the installation example sets `INSTALL_DIR` on the installer process; a local release fixture verifies that the real installer writes both executable binaries to the selected directory, including paths containing spaces. No remote installer or release was downloaded.
 - F01 owner-confirmed credential revocation, F08 duplication, R02–R04 measurements/diagnostics, the real semantic-model run, the tokenizer/workflow benchmark and issue #74 corpus completion remain outstanding.
 
-Workspace verification on this branch: **886 passed, 0 failed, 11 ignored**, run outside the sandbox on 2026-10-02. The three new Rust depth regressions and the Markdown note-graph/MCP cases are included. Ignored tests were not newly disabled by this change. The standalone installer fixture test and release document/archive smoke also passed. Strict all-target/all-feature Clippy passed with warnings, unwrap, expect and panic denied. Formatting and whitespace checks passed. The quality evaluation passed with accuracy 1.000 and no baseline regressions. Fresh CLI/STDIO MCP smoke passed with 18 tools, Lua retrieval, Markdown note context and inline-code exclusion. The original dirty checkout was preserved; these results apply to the follow-up PR branch based on `main` at `58b5c90`. Private notification scripts and personal agent configuration are excluded from this PR. Third-party notice and license assets are retained so release packaging remains valid.
+Workspace verification on the PR #101 branch (`codex/verified-audit-fixes`): **886 passed, 0 failed, 11 ignored**, run outside the sandbox on 2026-10-02. The three new Rust depth regressions and the Markdown note-graph/MCP cases are included. Ignored tests were not newly disabled by this change. The standalone installer fixture test and release document/archive smoke also passed. Strict all-target/all-feature Clippy passed with warnings, unwrap, expect and panic denied. Formatting and whitespace checks passed. The quality evaluation passed with accuracy 1.000 and no baseline regressions. Fresh CLI/STDIO MCP smoke passed with 18 tools, Lua retrieval, Markdown note context and inline-code exclusion. The original dirty checkout was preserved; these results apply to the follow-up PR branch based on `main` at `58b5c90`. Private notification scripts and personal agent configuration are excluded from this PR. Third-party notice and license assets are retained so release packaging remains valid.
 
 ## 1. Assessment
 
@@ -117,7 +117,7 @@ Priorities: **P1** affects trust, data, or core operation; **P2** affects covera
 
 ### F02 — P1: name-based relations produce false dependencies
 
-**Status (2026-10-01): Design issue [#97](https://github.com/Zubiarka8/mini-consumes-tokens/issues/97) has a proposed specification at [`docs/superpowers/specs/2026-10-01-qualified-relation-identity-design.md`](docs/superpowers/specs/2026-10-01-qualified-relation-identity-design.md).** The implementation was merged into `main` through PR #99. Qualified target evidence, explicit ambiguity and resolved symbol identities replace arbitrary name-based destination selection. Historical reproductions below describe the audited commit.
+**Status (2026-10-05): Design issue [#97](https://github.com/Zubiarka8/mini-consumes-tokens/issues/97) is implemented on `main` through PR #99 (`58b5c90`); [ADR-002](docs/01-architecture/adrs/002-qualified-relation-resolution.md) records the as-built design and its deviations from [`docs/superpowers/specs/2026-10-01-qualified-relation-identity-design.md`](docs/superpowers/specs/2026-10-01-qualified-relation-identity-design.md).** Qualified target evidence, explicit ambiguity and resolved symbol identities replace arbitrary name-based destination selection. Historical reproductions below describe the audited commit.
 
 **Locations:** `crates/mct-mcp-server/src/server.rs:833–851`, `:1359–1383`, `:1454–1455`; `crates/mct-index/src/queries.rs:388–399`; `crates/mct-index/src/traversal.rs:22–57`; `crates/mct-lang-rust/src/lib.rs:322–336`.
 
@@ -163,7 +163,7 @@ The server reindex response was `1 parsed, 0 removed, 2 symbols written`. Runnin
 
 ### F04 — P2: Lua is implemented and tested but is not connected to the product
 
-**Status (2026-10-01): Resolved in the current working tree.** Both production registries register `mct_lang_lua::LuaParser` (CLI and MCP server). On 2026-10-02, a fresh CLI indexed a temporary Lua fixture and a fresh MCP server retrieved its `greet` definition. The earlier missing-registration evidence below is historical.
+**Status (2026-10-05): Resolved on `main` through PR #91 (commit `11df400`).** Both production registries register `mct_lang_lua::LuaParser` (CLI and MCP server). On 2026-10-02, a fresh CLI indexed a temporary Lua fixture and a fresh MCP server retrieved its `greet` definition. The earlier missing-registration evidence below is historical.
 
 **Locations:** `crates/mct-lang-lua/src/lib.rs:20–66`; `crates/mct-cli/src/main.rs:150–169`; `crates/mct-mcp-server/src/registry.rs:9–28`.
 
@@ -175,7 +175,7 @@ The workspace contains `mct-lang-lua`, but both `build_registry` functions regis
 
 ### F05 — P1 for the Obsidian use case: the index does not model a note as a unit
 
-**Status (2026-10-01): Design issue [#98](https://github.com/Zubiarka8/mini-consumes-tokens/issues/98) has a proposed specification at [`docs/superpowers/specs/2026-10-01-markdown-note-graph-design.md`](docs/superpowers/specs/2026-10-01-markdown-note-graph-design.md).** The PR #100 implementation is included in this follow-up branch for integration into `main`. Notes, section ranges, metadata and path-scoped links have dedicated parser, index and MCP regression tests. Historical reproductions below describe the audited commit.
+**Status (2026-10-05): Design issue [#98](https://github.com/Zubiarka8/mini-consumes-tokens/issues/98) is implemented on `main` per [`docs/superpowers/specs/2026-10-01-markdown-note-graph-design.md`](docs/superpowers/specs/2026-10-01-markdown-note-graph-design.md) (see its "Implementation notes").** The PR #100 implementation reached `main` through PR #101 (merged 2026-10-02, `3732075`), which closed #98. Notes, section ranges, metadata and path-scoped links have dedicated parser, index and MCP regression tests. Historical reproductions below describe the audited commit.
 
 **Locations:** `crates/mct-lang-md/src/lib.rs:85–118`, `:428–464`; `crates/mct-mcp-server/src/server.rs:1599–1603`.
 
@@ -197,7 +197,7 @@ Reproductions with four notes:
 
 ### F06 — P2: wikilinks in code and anchors without note identity pollute the graph
 
-**Status (2026-10-02): Core implementation complete in the follow-up branch, with explicit limitations.** The earlier opaque-target patch is superseded by the complete PR #100 implementation in this follow-up branch. Code spans are excluded; note and heading relations carry note-path evidence; links and embeds retain distinct kinds. Alias/title metadata is indexed, but resolving wikilinks by alias/title and block anchors remains outside the implemented scope.
+**Status (2026-10-05): Core implementation merged into `main` through PR #101 (`3732075`), with explicit limitations.** The earlier opaque-target patch is superseded by the complete PR #100 implementation that PR #101 integrated. Code spans are excluded; note and heading relations carry note-path evidence; links and embeds retain distinct kinds. Alias/title metadata is indexed, but resolving wikilinks by alias/title and block anchors remains outside the implemented scope.
 
 **Locations:** `crates/mct-lang-md/src/lib.rs:203–244`, `:376–403`; definition selection in `server.rs:833–851`.
 
@@ -269,7 +269,7 @@ Do not present these as reproduced failures or confirmed vulnerabilities.
 
 ### R01 — Unbounded recursion while finding the first error
 
-**Status (2026-10-01): Resolved in the current working tree.** All 17 language parsers now use an iterative tree-cursor walk capped by `MAX_TRAVERSAL_DEPTH`; no recursive call stack is used to locate the error node. If the syntax error lies deeper than the limit, the parser falls back to the root location instead of reporting its exact line. Three Rust depth regressions pass: an error beyond the budget falls back to the root, later shallow errors remain reachable, and deep valid input has no error node. The depth-budget assertion failed against the old recursive implementation before the fix. No actual stack overflow was reproduced.
+**Status (2026-10-05): Resolved on `main` through PR #101 (commit `648e87c`).** All 17 language parsers now use an iterative tree-cursor walk capped by `MAX_TRAVERSAL_DEPTH`; no recursive call stack is used to locate the error node. If the syntax error lies deeper than the limit, the parser falls back to the root location instead of reporting its exact line. Three Rust depth regressions pass: an error beyond the budget falls back to the root, later shallow errors remain reachable, and deep valid input has no error node. The depth-budget assertion failed against the old recursive implementation before the fix. No actual stack overflow was reproduced.
 
 The inspected `first_error` implementations recursively walk the tree without the main walker's depth limit. The limits documentation cites `MAX_TRAVERSAL_DEPTH = 256`, but this does not automatically protect the error-search path. Test deeply nested malformed input in subprocesses; prefer iterative traversal with a budget. **No stack overflow was reproduced.**
 
@@ -312,7 +312,7 @@ Progressive tool discovery does not by itself reduce what a client loads: saving
 
 ### Do not inherit old conclusions without rechecking them
 
-`research.md` analyzes a September 18 commit. This audit confirms subsequent improvements: bounded overview, brief dependency summary, pruning with `filter_entry`, path-based updates, FTS queries used in search, and relation writes without the former `to_symbol_id` resolution in `write_parsed_file`. Do not reopen its old findings automatically as if all were still current. Qualified relation identity is implemented through PR #99; Markdown context improvements from PR #100 are included in this follow-up branch.
+`research.md` analyzes a September 18 commit. This audit confirms subsequent improvements: bounded overview, brief dependency summary, pruning with `filter_entry`, path-based updates, FTS queries used in search, and relation writes without the former `to_symbol_id` resolution in `write_parsed_file`. Do not reopen its old findings automatically as if all were still current. Qualified relation identity is implemented through PR #99; Markdown context improvements from PR #100 reached `main` through PR #101.
 
 ## 7. Codex usage and integration
 
@@ -348,7 +348,7 @@ Recommended agent workflow:
 4. Verify ambiguous relations before changing or deleting code; name matching is not type resolution.
 5. Group known queries with `batch` and use `toon` for comparable listings.
 6. Read/edit files required for a change as directed by `AGENTS.md`; do not open SQLite directly.
-7. The current working tree reloads exclusions during reindex and when the watcher detects ignore-file changes; index and live-watcher regressions verified this behavior on 2026-10-02.
+7. `main` reloads exclusions during reindex and when the watcher detects ignore-file changes; index and live-watcher regressions verified this behavior on 2026-10-02.
 
 A future skill could package this workflow and its budgets. It should be an instruction layer over the existing MCP, not a duplicate indexer or context database. The project now includes local skills; the earlier manifest observation described the audit snapshot only.
 
@@ -370,7 +370,7 @@ A future skill could package this workflow and its budgets. It should be an inst
 
 ### Delivery C — usable Obsidian context
 
-- [x] Opened design issue [#98](https://github.com/Zubiarka8/mini-consumes-tokens/issues/98) and drafted [`docs/superpowers/specs/2026-10-01-markdown-note-graph-design.md`](docs/superpowers/specs/2026-10-01-markdown-note-graph-design.md) for note identities, sections, properties, and compound links (F05/F06); implementation from PR #100 is included in this follow-up branch for integration into `main`.
+- [x] Opened design issue [#98](https://github.com/Zubiarka8/mini-consumes-tokens/issues/98) and drafted [`docs/superpowers/specs/2026-10-01-markdown-note-graph-design.md`](docs/superpowers/specs/2026-10-01-markdown-note-graph-design.md) for note identities, sections, properties, and compound links (F05/F06); implementation from PR #100 was integrated into `main` by PR #101.
 - [x] Improve the existing context/overview tools without adding a dedicated note-context tool (PR #100 implementation).
 - [x] Keep note names, titles and aliases distinct and use paths to resolve collisions; alias/title-based wikilink lookup remains unsupported.
 - [x] Add regressions for note edits, renames, deletions and backlink updates.

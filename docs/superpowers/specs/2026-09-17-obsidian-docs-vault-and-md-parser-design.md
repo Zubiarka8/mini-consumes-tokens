@@ -1,7 +1,14 @@
 # Design: Obsidian-style docs vault + `mct-lang-md` Phase 2 (PKM relations)
 
 Date: 2026-09-17
-Status: approved, pending implementation plan
+Status: implemented, historical. Part 1 (the vault under `docs/`) exists on
+`main`; Part 2 shipped as Phase 2 in PR #2. Decision 3 (anchors not
+split) was superseded by Phase 3 (`2026-09-18-mct-lang-md-phase-3-wikilink-anchors.md`,
+PR #6), which kept the "no per-file symbol" stance. Decision 2 (orphan links
+skipped) and that stance were superseded by the note graph
+(`2026-10-01-markdown-note-graph-design.md`, issue #98, PR #101): a per-file
+note `module` symbol now owns links before the first heading. The text below
+records the decisions as approved.
 
 ## Goal
 
