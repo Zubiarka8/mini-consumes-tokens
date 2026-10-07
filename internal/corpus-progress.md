@@ -24,12 +24,12 @@ file; it is a name match, not a resolved cross-file reference.
 | Language | Crate | Status | PR | Files / lines | Symbols / relations (name-matched across files) | Parser bugs found |
 |---|---|---|---|---|---|---|
 | Rust | `mct-lang-rust` | **Done** | #77 | 6 / 2,179 | 239 / 817 (218) | Associated type/const owner; nested `fn` inside a method treated as a method; module end +1 |
-| Python | `mct-lang-python` | **Done** | #78 | 6 / 2,006 | 302 / 918 (223) | Module end +1; nested class missing parent; calls in decorator arguments missed; `type X = …` (PEP 695) has no symbol |
+| Python | `mct-lang-python` | **Done** | #78 | 8 / 2.730 | 391 / 1321 (294) | Module end +1; nested class missing parent; calls in decorator arguments missed; `type X = …` (PEP 695) has no symbol. #114 added Flask/Django files under `web/`: no new bugs |
 | Bash | `mct-lang-bash` | **Done** | #80 | 5 / 1,539 | 176 / 585 (162) | Module end +1; assignment prefix (`LC_ALL=C cmd`) treated as a variable; `coproc NAME { … }` parsed incorrectly by the grammar → #79 (test is `#[ignore]`) |
 | C/C++ | `mct-lang-cpp` | **Done** | #83 | 5 / 1,568 | 423 / 493 (150) | Module end +1; namespace functions/variables treated as methods/fields; locals (`auto x = f()`, `T x(args)`) treated as symbols and their calls missed; out-of-line `ns::Class::m`/`Tmpl<T>::m` gets a different parent from its declaration; qualified name in `class Outer::Inner {`; anonymous namespace treated as an unnamed module; `enum`/`union`/`using`/`typedef` have no symbol; valid constructs rejected by the grammar → #82 |
 | C# | `mct-lang-csharp` | **Done** | #85 | 6 / 2,048 | 454 / 588 (143) | Module end +1; no symbols for file-scoped `namespace X;`, `record`, `enum`, `delegate`, events, operators, indexers, destructors, and local functions; generic bases with `<…>` in the target and first `IFoo` treated as `extends`; calls in `?.`, `F<T>()`, `new T()`, `: base(…)`, expression-bodied properties, and initializers missed; `nameof` treated as a call; attributes have no relation |
 | CSS | `mct-lang-css` | **Done** | #86 | 6 / 2,194 | 617 / 12 (0) | Module end +1; a rule ended on its selector line instead of its `}`; `@namespace` prefix (`svg\\|text`) treated as an `svg` element; atoms missed in `.a .b[attr]` (the grammar applies `[attr]` to the whole chain). Rejected by tree-sitter-css 0.25 (outside the corpus, #87): `@page :first`, `@import … layer()`/`supports()`, media-query ranges (`400px <= width`) |
-| Go | `mct-lang-go` | Pending | | | | |
+| Go | `mct-lang-go` | In PR | #103 | 7 / 3.002 | 291 / 832 (254) | Found and fixed (none pending): module end +1; `type A = B` (alias) had no symbol; methods on a generic receiver (`func (s *Stack[T]) Push`) got the parent `Stack[T]`; calls with explicit type arguments (`Map[A, B](x)`, and `Fail[T](x)`, which the grammar reads as a conversion) were missed. Known limits, kept as tests: no symbols for package `const`/`var` or struct fields; no relation for embedding or structural interface satisfaction; builtins and conversions (`len`, `string(x)`) appear as calls |
 | HTML | `mct-lang-html` | Pending | | | | |
 | Java | `mct-lang-java` | Pending | | | | |
 | JavaScript/TypeScript | `mct-lang-js-ts` | Pending | | | | |
@@ -41,9 +41,11 @@ file; it is a name match, not a resolved cross-file reference.
 | XAML | `mct-lang-xaml` | Pending | | | | |
 | XML | `mct-lang-xml` | Pending | | | | |
 
-**Summary: 7 done, 0 in PR, 10 pending (17 total).**
+**Summary: 7 done, 1 in PR, 9 pending (17 total).**
 
 ## Related issues
 
 - #79 — `coproc NAME { … }` truncates the enclosing function (tree-sitter-bash 0.25). Open.
 - #82 — valid C++ rejected as a syntax error by tree-sitter-cpp 0.23.4 (explicit instantiation, `using Ts::operator()...`, `using typename B<K>::V`). Open.
+- #115 — CSS nested rules are indexed with their literal `&` selector, not resolved against the parent (found in #114). Open.
+- #116 — Tailwind v4 at-rule preludes and some CSS Nesting forms rejected by tree-sitter-css 0.25.0 (found in #114; earlier set in #87). Open.

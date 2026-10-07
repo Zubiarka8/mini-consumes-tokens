@@ -90,6 +90,24 @@ fn nested_named_elements_track_parent() {
 }
 
 #[test]
+fn file_module_ends_on_the_last_line() {
+    // A trailing newline must not push the module one line past the file.
+    let module = |src: &str| {
+        let parsed = parse(src);
+        let m = parsed
+            .symbols
+            .iter()
+            .find(|s| s.kind == SymbolKind::Module)
+            .unwrap();
+        (m.location.line, m.location.end_line)
+    };
+    let window = "<Window>\n  <Button x:Name=\"Ok\"/>\n</Window>";
+    assert_eq!(module(&format!("{window}\n")), (1, Some(3)));
+    assert_eq!(module(window), (1, Some(3)));
+    assert_eq!(module("<Window/>\n"), (1, Some(1)));
+}
+
+#[test]
 fn syntax_error_is_reported_not_panicked() {
     let result = XamlParser.parse(&SourceFile {
         relative_path: "Broken.xaml".to_string(),
