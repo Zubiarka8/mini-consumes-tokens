@@ -1,0 +1,305 @@
+<Window x:Class="Warehouse.Desktop.Views.OrderEditorDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:controls="clr-namespace:Warehouse.Desktop.Controls"
+        xmlns:vm="clr-namespace:Warehouse.Desktop.ViewModels"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=vm:OrderEditorViewModel}"
+        Name="EditorWindow"
+        Title="{Binding Title}"
+        Width="760" Height="640" MinWidth="640" MinHeight="520"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        ResizeMode="CanResizeWithGrip"
+        Background="{DynamicResource SurfaceBrush}"
+        Loaded="EditorWindow_Loaded"
+        Closing="EditorWindow_Closing"
+        KeyDown="EditorWindow_KeyDown">
+  <!--
+    Modal editor opened from OrdersView (new order, edit, duplicate). The
+    window is named with plain `Name` instead of `x:Name`. Fields use the
+    BaseTextBox/MoneyBox styles of Themes/Controls.xaml and the
+    QuantityStepper control templated there.
+  -->
+  <Window.Resources>
+    <Style x:Key="FormRow" TargetType="Grid">
+      <Setter Property="Margin" Value="0,0,0,8"/>
+    </Style>
+    <DataTemplate x:Key="ProductSuggestion">
+      <DockPanel>
+        <TextBlock DockPanel.Dock="Right" Text="{Binding Available, StringFormat='{}{0} disp.'}"
+                   Foreground="{DynamicResource MutedTextBrush}"/>
+        <TextBlock Text="{Binding Sku}" FontFamily="{StaticResource MonoFont}" Margin="0,0,8,0"/>
+        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
+      </DockPanel>
+    </DataTemplate>
+  </Window.Resources>
+
+  <DockPanel x:Name="EditorLayout" Margin="16">
+
+    <!-- ===============================================================
+         Footer: totals and actions
+         =============================================================== -->
+    <Border x:Name="EditorFooter" DockPanel.Dock="Bottom" Padding="0,12,0,0"
+            BorderThickness="0,1,0,0" BorderBrush="{DynamicResource SurfaceAltBrush}">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+          <Button x:Name="DiscardButton" Content="{StaticResource CancelLabel}"
+                  Style="{StaticResource SecondaryButton}" IsCancel="True"
+                  Click="DiscardButton_Click"/>
+          <Button x:Name="SaveDraftButton" Content="Guardar borrador" Margin="8,0,0,0"
+                  Style="{StaticResource SecondaryButton}" Click="SaveDraft_Click"/>
+          <Button x:Name="SaveButton" Content="{StaticResource SaveLabel}" Margin="8,0,0,0"
+                  Style="{StaticResource PrimaryButton}" IsDefault="True"
+                  Click="SaveButton_Click"
+                  IsEnabled="{Binding CanSave}"/>
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+          <TextBlock Text="Total: " FontWeight="SemiBold"/>
+          <TextBlock x:Name="TotalText" FontWeight="Bold"
+                     Text="{Binding Total, Converter={StaticResource Money}}"/>
+          <TextBlock Margin="12,0,0,0" Foreground="{DynamicResource MutedTextBrush}"
+                     Text="{Binding TaxBreakdown}"/>
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
+    <!-- Validation summary, above the footer -->
+    <Border x:Name="ValidationSummary" DockPanel.Dock="Bottom" Margin="0,8,0,0"
+            Background="#1ADC2626" CornerRadius="4" Padding="8"
+            Visibility="{Binding HasErrors, Converter={StaticResource BoolToVisibility}}">
+      <ItemsControl ItemsSource="{Binding Errors}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <TextBlock Text="{Binding StringFormat='• {0}'}"
+                       Foreground="{DynamicResource DangerBrush}"/>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </Border>
+
+    <TabControl x:Name="EditorTabs" SelectionChanged="EditorTabs_SelectionChanged">
+
+      <!-- ============================================================
+           Customer
+           ============================================================ -->
+      <TabItem x:Name="CustomerTab" Header="Cliente">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,8,8,0">
+          <StackPanel x:Name="CustomerForm">
+            <Grid Style="{StaticResource FormRow}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <StackPanel Grid.Column="0">
+                <TextBlock Text="Cliente" Style="{StaticResource FieldLabel}"/>
+                <ComboBox x:Name="CustomerPicker" IsEditable="True"
+                          ItemsSource="{Binding Customers}" DisplayMemberPath="Name"
+                          SelectedItem="{Binding Customer, ValidatesOnDataErrors=True}"
+                          SelectionChanged="CustomerPicker_SelectionChanged"
+                          LostFocus="CustomerPicker_LostFocus"/>
+              </StackPanel>
+              <StackPanel Grid.Column="2">
+                <TextBlock Text="Referencia del cliente" Style="{StaticResource FieldLabel}"/>
+                <TextBox x:Name="CustomerReference" Style="{StaticResource BaseTextBox}"
+                         Text="{Binding CustomerReference, UpdateSourceTrigger=PropertyChanged}"/>
+              </StackPanel>
+            </Grid>
+
+            <TextBlock Text="Dirección de envío" Style="{StaticResource SectionHeader}"/>
+            <Grid Style="{StaticResource FormRow}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition/>
+                <RowDefinition/>
+                <RowDefinition/>
+              </Grid.RowDefinitions>
+              <StackPanel Grid.Row="0" Grid.Column="0">
+                <TextBlock Text="Calle y número" Style="{StaticResource FieldLabel}"/>
+                <TextBox x:Name="Street" Style="{StaticResource BaseTextBox}"
+                         Text="{Binding Address.Street, ValidatesOnDataErrors=True}"/>
+              </StackPanel>
+              <StackPanel Grid.Row="0" Grid.Column="2">
+                <TextBlock Text="Código postal" Style="{StaticResource FieldLabel}"/>
+                <TextBox x:Name="PostalCode" Style="{StaticResource BaseTextBox}" MaxLength="10"
+                         Text="{Binding Address.PostalCode, ValidatesOnDataErrors=True}"
+                         TextChanged="PostalCode_TextChanged"/>
+              </StackPanel>
+              <StackPanel Grid.Row="1" Grid.Column="0">
+                <TextBlock Text="Ciudad" Style="{StaticResource FieldLabel}"/>
+                <TextBox x:Name="City" Style="{StaticResource BaseTextBox}"
+                         Text="{Binding Address.City}"/>
+              </StackPanel>
+              <StackPanel Grid.Row="1" Grid.Column="2">
+                <TextBlock Text="País" Style="{StaticResource FieldLabel}"/>
+                <ComboBox x:Name="Country" ItemsSource="{Binding Countries}"
+                          SelectedValuePath="Code" DisplayMemberPath="Name"
+                          SelectedValue="{Binding Address.Country}"
+                          SelectionChanged="Country_SelectionChanged"/>
+              </StackPanel>
+              <CheckBox Grid.Row="2" Grid.ColumnSpan="3" Margin="0,4,0,0"
+                        Content="Guardar como dirección habitual del cliente"
+                        IsChecked="{Binding SaveAddress}"/>
+            </Grid>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <!-- ============================================================
+           Lines
+           ============================================================ -->
+      <TabItem x:Name="LinesTab" Header="Líneas">
+        <DockPanel Margin="0,8,0,0">
+          <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+            <Button x:Name="AddLineButton" DockPanel.Dock="Right" Content="Añadir"
+                    Style="{StaticResource PrimaryButton}" Click="AddLine_Click"/>
+            <controls:QuantityStepper x:Name="NewLineQuantity" DockPanel.Dock="Right"
+                                      Width="110" Margin="8,0" Minimum="1" Value="1"/>
+            <ComboBox x:Name="ProductSearch" IsEditable="True" IsTextSearchEnabled="False"
+                      ItemsSource="{Binding ProductSuggestions}"
+                      ItemTemplate="{StaticResource ProductSuggestion}"
+                      Text="{Binding ProductQuery, UpdateSourceTrigger=PropertyChanged, Delay=300}"
+                      KeyDown="ProductSearch_KeyDown"
+                      SelectionChanged="ProductSearch_SelectionChanged"/>
+          </DockPanel>
+
+          <DataGrid x:Name="LinesGrid" Style="{StaticResource DataGridBase}"
+                    ItemsSource="{Binding Lines}" CanUserReorderColumns="False"
+                    AllowDrop="True" Drop="LinesGrid_Drop"
+                    PreviewKeyDown="LinesGrid_PreviewKeyDown"
+                    CellEditEnding="LinesGrid_CellEditEnding">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="SKU" Binding="{Binding Product.Sku}" IsReadOnly="True"
+                                  Width="110"/>
+              <DataGridTextColumn Header="Producto" Binding="{Binding Product.Name}"
+                                  IsReadOnly="True" Width="*"/>
+              <DataGridTemplateColumn Header="Cantidad" Width="120">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate>
+                    <controls:QuantityStepper Minimum="1" Value="{Binding Quantity}"/>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+              <DataGridTemplateColumn Header="Precio" Width="110">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate>
+                    <TextBox Style="{StaticResource MoneyBox}"
+                             Text="{Binding UnitPrice, Converter={StaticResource Money}}"/>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+              <DataGridTemplateColumn Header="Subtotal" Width="110"
+                                      CellTemplate="{StaticResource MoneyCell}"/>
+              <DataGridTemplateColumn Width="36">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate>
+                    <Button Style="{StaticResource IconButton}" Content="🗑"
+                            ToolTip="Quitar línea" Click="RemoveLine_Click"/>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+            </DataGrid.Columns>
+          </DataGrid>
+        </DockPanel>
+      </TabItem>
+
+      <!-- ============================================================
+           Payment
+           ============================================================ -->
+      <TabItem x:Name="PaymentTab" Header="Pago">
+        <StackPanel x:Name="PaymentForm" Margin="0,8,8,0">
+          <TextBlock Text="Forma de pago" Style="{StaticResource FieldLabel}"/>
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+            <RadioButton x:Name="PayByCard" GroupName="PaymentMethod" Content="Tarjeta"
+                         IsChecked="{Binding IsCardPayment}" Checked="PaymentMethod_Checked"/>
+            <RadioButton x:Name="PayByTransfer" GroupName="PaymentMethod" Content="Transferencia"
+                         Margin="12,0,0,0" Checked="PaymentMethod_Checked"/>
+            <RadioButton x:Name="PayOnDelivery" GroupName="PaymentMethod"
+                         Content="Contra reembolso" Margin="12,0,0,0"
+                         Checked="PaymentMethod_Checked"/>
+          </StackPanel>
+          <TextBlock Text="Condiciones" Style="{StaticResource FieldLabel}"/>
+          <ComboBox x:Name="PaymentTerms" ItemsSource="{Binding PaymentTerms}"
+                    SelectedItem="{Binding Terms}"
+                    SelectionChanged="PaymentTerms_SelectionChanged"/>
+          <Grid Margin="0,8,0,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="12"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+              <TextBlock Text="Descuento comercial (%)" Style="{StaticResource FieldLabel}"/>
+              <TextBox x:Name="DiscountPercent" Style="{StaticResource MoneyBox}"
+                       Text="{Binding DiscountPercent, ValidatesOnDataErrors=True}"
+                       TextChanged="DiscountPercent_TextChanged"/>
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+              <TextBlock Text="Gastos de envío" Style="{StaticResource FieldLabel}"/>
+              <TextBox x:Name="ShippingCost" Style="{StaticResource MoneyBox}"
+                       Text="{Binding ShippingCost, Converter={StaticResource Money}}"/>
+            </StackPanel>
+          </Grid>
+          <CheckBox x:Name="ExemptVat" Content="Exento de IVA (operación intracomunitaria)"
+                    Margin="0,8,0,0" IsChecked="{Binding IsVatExempt}"
+                    Checked="ExemptVat_Checked" Unchecked="ExemptVat_Unchecked"/>
+          <TextBox x:Name="VatNumber" Style="{StaticResource BaseTextBox}"
+                   Tag="NIF-IVA del cliente (p. ej. DE123456789)"
+                   Text="{Binding VatNumber, ValidatesOnDataErrors=True}"
+                   IsEnabled="{Binding IsVatExempt}"/>
+        </StackPanel>
+      </TabItem>
+
+      <!-- ============================================================
+           Delivery and notes
+           ============================================================ -->
+      <TabItem x:Name="DeliveryTab" Header="Entrega">
+        <StackPanel x:Name="DeliveryForm" Margin="0,8,8,0">
+          <TextBlock Text="Transportista" Style="{StaticResource FieldLabel}"/>
+          <ComboBox x:Name="CarrierPicker" ItemsSource="{Binding Carriers}"
+                    SelectedItem="{Binding Carrier}"
+                    SelectionChanged="CarrierPicker_SelectionChanged"/>
+          <TextBlock Text="Fecha de entrega deseada" Style="{StaticResource FieldLabel}"
+                     Margin="0,8,0,2"/>
+          <DatePicker x:Name="DeliveryDate" SelectedDate="{Binding DeliveryDate}"
+                      SelectedDateChanged="DeliveryDate_SelectedDateChanged"/>
+          <CheckBox x:Name="UrgentCheck" Content="Urgente (envío en 24 h)" Margin="0,8,0,0"
+                    IsChecked="{Binding IsUrgent}"
+                    Checked="UrgentCheck_Checked" Unchecked="UrgentCheck_Unchecked"/>
+          <CheckBox x:Name="GiftCheck" Content="Envolver para regalo" Margin="0,4,0,0"
+                    IsChecked="{Binding IsGift}"/>
+          <TextBlock Text="Notas para el almacén" Style="{StaticResource FieldLabel}"
+                     Margin="0,12,0,2"/>
+          <TextBox x:Name="WarehouseNotes" Style="{StaticResource BaseTextBox}"
+                   AcceptsReturn="True" TextWrapping="Wrap" MinHeight="80"
+                   Text="{Binding WarehouseNotes}"/>
+          <TextBlock Text="Notas para el cliente (aparecen en el albarán)"
+                     Style="{StaticResource FieldLabel}" Margin="0,8,0,2"/>
+          <TextBox x:Name="CustomerNotes" Style="{StaticResource BaseTextBox}"
+                   AcceptsReturn="True" TextWrapping="Wrap" MinHeight="60"
+                   Text="{Binding CustomerNotes}"/>
+          <!-- A handler-shaped value that is not an identifier, and a
+               binding in an event attribute: neither is a reference. -->
+          <Expander Header="Avanzado" Margin="0,12,0,0"
+                    Expanded="{Binding ExpandAdvanced}" Collapsed="Advanced Collapsed">
+            <StackPanel>
+              <TextBlock Text="Prioridad de preparación" Style="{StaticResource FieldLabel}"/>
+              <Slider x:Name="PickPriority" Minimum="0" Maximum="9" TickFrequency="1"
+                      IsSnapToTickEnabled="True" Value="{Binding PickPriority}"
+                      ValueChanged="{Binding OnPriorityChanged}"/>
+              <TextBox x:Name="ExternalId" Style="{StaticResource BaseTextBox}"
+                       Text="{Binding ExternalId}" TextChanged="1.0"/>
+            </StackPanel>
+          </Expander>
+        </StackPanel>
+      </TabItem>
+    </TabControl>
+  </DockPanel>
+</Window>
