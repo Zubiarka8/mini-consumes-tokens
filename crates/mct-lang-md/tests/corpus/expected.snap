@@ -1,0 +1,611 @@
+# language=markdown files=6 symbols=260 relations=338 cross_file=229
+
+== api/reference.md (300 lines)
+S 1-300 module reference
+S 7-300 element HTTP API reference L1
+S 14-76 element HTTP API reference::Conventions L2
+S 24-42 element Conventions::Authentication L3
+S 43-66 element Conventions::Errors L3
+S 67-71 element Conventions::Pagination L3
+S 72-76 element Conventions::Idempotency L3
+S 77-106 element HTTP API reference::Products L2
+S 79-85 element Products::List products L3
+S 86-100 element Products::Get a product L3
+S 101-106 element Products::Update a product L3
+S 107-119 element HTTP API reference::Stock L2
+S 109-115 element Stock::Query stock L3
+S 116-119 element Stock::Stock by location L3
+S 120-160 element HTTP API reference::Orders L2
+S 122-141 element Orders::Place an order L3
+S 142-145 element Orders::Get an order L3
+S 146-150 element Orders::Cancel an order L3
+S 151-155 element Orders::Approve a large order L3
+S 156-160 element Orders::Order events L3
+S 161-172 element HTTP API reference::Shipments L2
+S 163-167 element Shipments::Book a shipment L3
+S 168-172 element Shipments::Get tracking L3
+S 173-187 element HTTP API reference::Invoices L2
+S 175-182 element Invoices::Get an invoice L3
+S 183-187 element Invoices::Credit notes L3
+S 188-234 element HTTP API reference::Webhooks L2
+S 190-201 element Webhooks::Payment webhook L3
+S 202-223 element Webhooks::Carrier webhooks L3
+S 224-234 element Webhooks::Carrier contacts L3
+S 235-246 element HTTP API reference::Health L2
+S 247-252 element HTTP API reference::Rate limits L2
+S 253-265 element HTTP API reference::Versioning L2
+S 259-265 element Versioning::Deprecations L3
+S 266-273 element HTTP API reference::Changelog L2
+S 274-300 element HTTP API reference::Examples L2
+S 276-285 element Examples::Placing an order with curl L3
+S 286-300 element Examples::Polling an order until it ships L3
+R 2:1 references reference -> title:HTTP API reference
+R 3:1 references reference -> alias:API
+R 3:1 references reference -> alias:API reference
+R 4:1 references reference -> tag:api
+R 4:1 references reference -> tag:team/warehouse
+R 9:1 references HTTP API reference -> glossary (x-file: glossary.md)
+R 9:1 references HTTP API reference -> overview (x-file: architecture/overview.md)
+R 9:1 references HTTP API reference -> tag:api
+R 18:3 references HTTP API reference::Conventions -> decisions (x-file: architecture/decisions.md)
+R 18:3 references HTTP API reference::Conventions -> ADR-005 Decimal money with explicit currency (x-file: architecture/decisions.md)
+R 21:3 references HTTP API reference::Conventions -> runbook (x-file: operations/runbook.md)
+R 21:3 references HTTP API reference::Conventions -> Logs and traces (x-file: operations/runbook.md)
+R 103:1 references Products::Update a product -> overview (x-file: architecture/overview.md)
+R 103:1 references Products::Update a product -> Catalog (x-file: architecture/overview.md)
+R 137:1 references Orders::Place an order -> overview (x-file: architecture/overview.md)
+R 137:1 references Orders::Place an order -> Reservations (x-file: architecture/overview.md)
+R 137:1 references Orders::Place an order -> glossary (x-file: glossary.md)
+R 137:1 references Orders::Place an order -> Large order (x-file: glossary.md)
+R 165:1 references Shipments::Book a shipment -> Carrier webhooks
+R 179:1 references Invoices::Get an invoice -> glossary (x-file: glossary.md)
+R 179:1 references Invoices::Get an invoice -> Invoice number (x-file: glossary.md)
+R 179:1 references Invoices::Get an invoice -> runbook (x-file: operations/runbook.md)
+R 179:1 references Invoices::Get an invoice -> Re-sending an invoice to the ERP (x-file: operations/runbook.md)
+R 204:1 references Webhooks::Carrier webhooks -> decisions (x-file: architecture/decisions.md)
+R 204:1 references Webhooks::Carrier webhooks -> ADR-006 One adapter per carrier (x-file: architecture/decisions.md)
+R 221:1 references Webhooks::Carrier webhooks -> overview (x-file: architecture/overview.md)
+R 221:1 references Webhooks::Carrier webhooks -> Known limitations (x-file: architecture/overview.md)
+R 233:1 references Webhooks::Carrier contacts -> runbook (x-file: operations/runbook.md)
+R 233:1 references Webhooks::Carrier contacts -> Escalation (x-file: operations/runbook.md)
+R 244:1 references HTTP API reference::Health -> runbook (x-file: operations/runbook.md)
+R 244:1 references HTTP API reference::Health -> Alerts (x-file: operations/runbook.md)
+R 249:1 references HTTP API reference::Rate limits -> tag:api
+
+== architecture/decisions.md (307 lines)
+S 1-307 module decisions
+S 7-307 element Architecture decision log L1
+S 15-255 element Architecture decision log::Decision log L2
+S 29-51 element Decision log::ADR-001 Modular monolith L3
+S 33-37 element ADR-001 Modular monolith::Context L4
+S 38-44 element ADR-001 Modular monolith::Decision L4
+S 45-51 element ADR-001 Modular monolith::Consequences L4
+S 52-74 element Decision log::ADR-002 Transactional outbox L3
+S 56-61 element ADR-002 Transactional outbox::Context L4
+S 62-67 element ADR-002 Transactional outbox::Decision L4
+S 68-74 element ADR-002 Transactional outbox::Consequences L4
+S 75-97 element Decision log::ADR-003 Reserve before payment L3
+S 79-83 element ADR-003 Reserve before payment::Context L4
+S 84-89 element ADR-003 Reserve before payment::Decision L4
+S 90-97 element ADR-003 Reserve before payment::Consequences L4
+S 98-122 element Decision log::ADR-004 Expand and contract migrations L3
+S 102-106 element ADR-004 Expand and contract migrations::Context L4
+S 107-117 element ADR-004 Expand and contract migrations::Decision L4
+S 118-122 element ADR-004 Expand and contract migrations::Consequences L4
+S 123-149 element Decision log::ADR-005 Decimal money with explicit currency L3
+S 127-130 element ADR-005 Decimal money with explicit currency::Context L4
+S 131-143 element ADR-005 Decimal money with explicit currency::Decision L4
+S 144-149 element ADR-005 Decimal money with explicit currency::Consequences L4
+S 150-175 element Decision log::ADR-006 One adapter per carrier L3
+S 154-158 element ADR-006 One adapter per carrier::Context L4
+S 159-169 element ADR-006 One adapter per carrier::Decision L4
+S 170-175 element ADR-006 One adapter per carrier::Consequences L4
+S 176-194 element Decision log::ADR-007 Event sourcing for orders L3
+S 180-183 element ADR-007 Event sourcing for orders::Context L4
+S 184-189 element ADR-007 Event sourcing for orders::Decision L4
+S 190-194 element ADR-007 Event sourcing for orders::Consequences L4
+S 195-215 element Decision log::ADR-008 Canary releases L3
+S 199-203 element ADR-008 Canary releases::Context L4
+S 204-209 element ADR-008 Canary releases::Decision L4
+S 210-215 element ADR-008 Canary releases::Consequences L4
+S 216-236 element Decision log::ADR-009 Read replica for shop queries L3
+S 220-224 element ADR-009 Read replica for shop queries::Context L4
+S 225-230 element ADR-009 Read replica for shop queries::Decision L4
+S 231-236 element ADR-009 Read replica for shop queries::Consequences L4
+S 237-255 element Decision log::ADR-010 Back-office desktop client L3
+S 241-245 element ADR-010 Back-office desktop client::Context L4
+S 246-250 element ADR-010 Back-office desktop client::Decision L4
+S 251-255 element ADR-010 Back-office desktop client::Consequences L4
+S 256-275 element Architecture decision log::Proposals under discussion L2
+S 259-269 element Proposals under discussion::Split the shipping context into its own service L3
+S 270-275 element Proposals under discussion::Replace nightly ERP import with change data capture L3
+S 276-301 element Architecture decision log::Template L2
+S 302-307 element Architecture decision log::Superseded decisions L2
+R 2:1 references decisions -> title:Architecture decision log
+R 3:1 references decisions -> alias:ADR log
+R 3:1 references decisions -> alias:Decisiones
+R 4:1 references decisions -> tag:architecture
+R 4:1 references decisions -> tag:adr
+R 10:1 references Architecture decision log -> Template
+R 10:1 references Architecture decision log -> overview (x-file: architecture/overview.md)
+R 10:1 references Architecture decision log -> handbook (x-file: handbook.md)
+R 10:1 references Architecture decision log -> Team members (x-file: handbook.md)
+R 10:1 references Architecture decision log -> tag:adr
+R 40:1 references ADR-001 Modular monolith::Decision -> overview (x-file: architecture/overview.md)
+R 40:1 references ADR-001 Modular monolith::Decision -> Bounded contexts (x-file: architecture/overview.md)
+R 47:3 references ADR-001 Modular monolith::Consequences -> runbook (x-file: operations/runbook.md)
+R 71:3 references ADR-002 Transactional outbox::Consequences -> overview (x-file: architecture/overview.md)
+R 71:3 references ADR-002 Transactional outbox::Consequences -> Deployment (x-file: architecture/overview.md)
+R 71:3 references ADR-002 Transactional outbox::Consequences -> runbook (x-file: operations/runbook.md)
+R 71:3 references ADR-002 Transactional outbox::Consequences -> Alerts (x-file: operations/runbook.md)
+R 81:1 references ADR-003 Reserve before payment::Context -> tag:money
+R 93:3 references ADR-003 Reserve before payment::Consequences -> overview (x-file: architecture/overview.md)
+R 93:3 references ADR-003 Reserve before payment::Consequences -> Reservations (x-file: architecture/overview.md)
+R 93:3 references ADR-003 Reserve before payment::Consequences -> runbook (x-file: operations/runbook.md)
+R 93:3 references ADR-003 Reserve before payment::Consequences -> Alerts (x-file: operations/runbook.md)
+R 121:3 references ADR-004 Expand and contract migrations::Consequences -> handbook (x-file: handbook.md)
+R 121:3 references ADR-004 Expand and contract migrations::Consequences -> Code review (x-file: handbook.md)
+R 129:1 references ADR-005 Decimal money with explicit currency::Context -> tag:money
+R 133:1 references ADR-005 Decimal money with explicit currency::Decision -> glossary (x-file: glossary.md)
+R 133:1 references ADR-005 Decimal money with explicit currency::Decision -> Money (x-file: glossary.md)
+R 147:3 references ADR-005 Decimal money with explicit currency::Consequences -> glossary (x-file: glossary.md)
+R 147:3 references ADR-005 Decimal money with explicit currency::Consequences -> VAT (x-file: glossary.md)
+R 166:4 references ADR-006 One adapter per carrier::Decision -> reference (x-file: api/reference.md)
+R 166:4 references ADR-006 One adapter per carrier::Decision -> Carrier webhooks (x-file: api/reference.md)
+R 168:4 references ADR-006 One adapter per carrier::Decision -> runbook (x-file: operations/runbook.md)
+R 168:4 references ADR-006 One adapter per carrier::Decision -> Alerts (x-file: operations/runbook.md)
+R 193:3 references ADR-007 Event sourcing for orders::Consequences -> ADR-002 Transactional outbox
+R 201:1 references ADR-008 Canary releases::Context -> runbook (x-file: operations/runbook.md)
+R 201:1 references ADR-008 Canary releases::Context -> Past incidents (x-file: operations/runbook.md)
+R 213:3 references ADR-008 Canary releases::Consequences -> runbook (x-file: operations/runbook.md)
+R 213:3 references ADR-008 Canary releases::Consequences -> Service level objectives (x-file: operations/runbook.md)
+R 235:3 references ADR-009 Read replica for shop queries::Consequences -> runbook (x-file: operations/runbook.md)
+R 235:3 references ADR-009 Read replica for shop queries::Consequences -> Past incidents (x-file: operations/runbook.md)
+R 248:1 references ADR-010 Back-office desktop client::Decision -> reference (x-file: api/reference.md)
+R 267:1 references Proposals under discussion::Split the shipping context into its own service -> handbook (x-file: handbook.md)
+R 267:1 references Proposals under discussion::Split the shipping context into its own service -> Rituals (x-file: handbook.md)
+R 267:1 references Proposals under discussion::Split the shipping context into its own service -> tag:proposal
+R 272:1 references Proposals under discussion::Replace nightly ERP import with change data capture -> overview (x-file: architecture/overview.md)
+R 272:1 references Proposals under discussion::Replace nightly ERP import with change data capture -> Known limitations (x-file: architecture/overview.md)
+R 272:1 references Proposals under discussion::Replace nightly ERP import with change data capture -> tag:proposal
+R 305:1 references Architecture decision log::Superseded decisions -> ADR-008 Canary releases
+
+== architecture/overview.md (302 lines)
+S 1-302 module overview
+S 9-302 element Architecture overview L1
+S 16-28 element Architecture overview::Context L2
+S 29-66 element Architecture overview::Bounded contexts L2
+S 34-40 element Bounded contexts::Catalog L3
+S 41-46 element Bounded contexts::Inventory L3
+S 47-51 element Bounded contexts::Orders L3
+S 52-56 element Bounded contexts::Pricing L3
+S 57-61 element Bounded contexts::Shipping L3
+S 62-66 element Bounded contexts::Billing L3
+S 67-119 element Architecture overview::Order lifecycle L2
+S 78-83 element Order lifecycle::Approval of large orders L3
+S 84-102 element Order lifecycle::Reservations L3
+S 97-102 element Reservations::Concurrency L4
+S 103-108 element Order lifecycle::Payment L3
+S 109-113 element Order lifecycle::Picking and packing L3
+S 114-119 element Order lifecycle::Shipping and invoicing L3
+S 120-136 element Architecture overview::Replenishment L2
+S 137-177 element Architecture overview::Data L2
+S 139-155 element Data::Storage L3
+S 156-171 element Data::Events L3
+S 172-177 element Data::Migrations L3
+S 178-193 element Architecture overview::Configuration L2
+S 194-222 element Architecture overview::Cross-cutting concerns L2
+S 196-204 element Cross-cutting concerns::Security L3
+S 205-210 element Cross-cutting concerns::Observability L3
+S 211-222 element Cross-cutting concerns::Performance budgets L3
+S 223-233 element Architecture overview::Deployment L2
+S 234-248 element Architecture overview::Failure modes L2
+S 249-263 element Architecture overview::Testing strategy L2
+S 264-272 element Architecture overview::Known limitations L2
+S 273-295 element Architecture overview::Ownership L2
+S 296-302 element Architecture overview::Further reading L2
+R 2:1 references overview -> title:Architecture overview
+R 3:1 references overview -> alias:Architecture
+R 3:1 references overview -> alias:Arquitectura
+R 6:1 references overview -> tag:architecture
+R 6:1 references overview -> tag:team/warehouse
+R 11:1 references Architecture overview -> decisions (x-file: architecture/decisions.md)
+R 11:1 references Architecture overview -> runbook (x-file: operations/runbook.md)
+R 11:1 references Architecture overview -> reference (x-file: api/reference.md)
+R 11:1 references Architecture overview -> glossary (x-file: glossary.md)
+R 11:1 references Architecture overview -> tag:architecture
+R 20:3 references Architecture overview::Context -> reference (x-file: api/reference.md)
+R 20:3 references Architecture overview::Context -> Orders
+R 20:3 references Architecture overview::Context -> reference (x-file: api/reference.md)
+R 20:3 references Architecture overview::Context -> Stock (x-file: api/reference.md)
+R 22:3 references Architecture overview::Context -> reference (x-file: api/reference.md)
+R 22:3 references Architecture overview::Context -> Carrier webhooks (x-file: api/reference.md)
+R 27:1 imports Architecture overview::Context -> context-diagram.svg
+R 31:1 references Architecture overview::Bounded contexts -> tag:ddd
+R 36:1 references Bounded contexts::Catalog -> glossary (x-file: glossary.md)
+R 36:1 references Bounded contexts::Catalog -> Product (x-file: glossary.md)
+R 43:1 references Bounded contexts::Inventory -> Reservations
+R 49:1 references Bounded contexts::Orders -> Order lifecycle
+R 54:1 references Bounded contexts::Pricing -> glossary (x-file: glossary.md)
+R 54:1 references Bounded contexts::Pricing -> VAT (x-file: glossary.md)
+R 59:1 references Bounded contexts::Shipping -> decisions (x-file: architecture/decisions.md)
+R 59:1 references Bounded contexts::Shipping -> ADR-006 One adapter per carrier (x-file: architecture/decisions.md)
+R 64:1 references Bounded contexts::Billing -> glossary (x-file: glossary.md)
+R 64:1 references Bounded contexts::Billing -> Invoice number (x-file: glossary.md)
+R 80:1 references Order lifecycle::Approval of large orders -> glossary (x-file: glossary.md)
+R 80:1 references Order lifecycle::Approval of large orders -> Large order (x-file: glossary.md)
+R 93:1 references Order lifecycle::Reservations -> decisions (x-file: architecture/decisions.md)
+R 93:1 references Order lifecycle::Reservations -> ADR-003 Reserve before payment (x-file: architecture/decisions.md)
+R 99:1 references Reservations::Concurrency -> tag:performance
+R 105:1 references Order lifecycle::Payment -> reference (x-file: api/reference.md)
+R 105:1 references Order lifecycle::Payment -> Payment webhook (x-file: api/reference.md)
+R 134:1 references Architecture overview::Replenishment -> Configuration
+R 158:1 references Data::Events -> decisions (x-file: architecture/decisions.md)
+R 158:1 references Data::Events -> ADR-002 Transactional outbox (x-file: architecture/decisions.md)
+R 174:1 references Data::Migrations -> decisions (x-file: architecture/decisions.md)
+R 174:1 references Data::Migrations -> ADR-004 Expand and contract migrations (x-file: architecture/decisions.md)
+R 191:1 references Architecture overview::Configuration -> tag:security
+R 198:3 references Cross-cutting concerns::Security -> reference (x-file: api/reference.md)
+R 198:3 references Cross-cutting concerns::Security -> Authentication (x-file: api/reference.md)
+R 202:3 references Cross-cutting concerns::Security -> runbook (x-file: operations/runbook.md)
+R 202:3 references Cross-cutting concerns::Security -> Logs and traces (x-file: operations/runbook.md)
+R 202:3 references Cross-cutting concerns::Security -> tag:security
+R 207:1 references Cross-cutting concerns::Observability -> runbook (x-file: operations/runbook.md)
+R 207:1 references Cross-cutting concerns::Observability -> Service level objectives (x-file: operations/runbook.md)
+R 220:1 references Cross-cutting concerns::Performance budgets -> tag:performance
+R 231:1 references Architecture overview::Deployment -> handbook (x-file: handbook.md)
+R 231:1 references Architecture overview::Deployment -> Releases (x-file: handbook.md)
+R 231:1 references Architecture overview::Deployment -> runbook (x-file: operations/runbook.md)
+R 231:1 references Architecture overview::Deployment -> Rollback (x-file: operations/runbook.md)
+R 247:1 references Architecture overview::Failure modes -> runbook (x-file: operations/runbook.md)
+R 247:1 references Architecture overview::Failure modes -> Common symptoms (x-file: operations/runbook.md)
+R 255:3 references Architecture overview::Testing strategy -> reference (x-file: api/reference.md)
+R 261:1 references Architecture overview::Testing strategy -> tag:testing
+R 275:1 references Architecture overview::Ownership -> handbook (x-file: handbook.md)
+R 275:1 references Architecture overview::Ownership -> Team members (x-file: handbook.md)
+R 292:1 references Architecture overview::Ownership -> runbook (x-file: operations/runbook.md)
+R 292:1 references Architecture overview::Ownership -> Alerts (x-file: operations/runbook.md)
+R 292:1 references Architecture overview::Ownership -> tag:ownership
+R 298:3 references Architecture overview::Further reading -> decisions (x-file: architecture/decisions.md)
+R 299:3 references Architecture overview::Further reading -> runbook (x-file: operations/runbook.md)
+R 300:3 references Architecture overview::Further reading -> reference (x-file: api/reference.md)
+R 301:3 references Architecture overview::Further reading -> glossary (x-file: glossary.md)
+R 302:3 references Architecture overview::Further reading -> ../../outside-the-vault
+
+== glossary.md (316 lines)
+S 1-316 module glossary
+S 9-316 element Glossary L1
+S 16-33 element Glossary::A L2
+S 18-23 element A::Advance shipping notice L3
+S 24-28 element A::Approval L3
+S 29-33 element A::Available stock L3
+S 34-45 element Glossary::B L2
+S 36-40 element B::Batch (billing) L3
+S 41-45 element B::Bundle L3
+S 46-68 element Glossary::C L2
+S 48-53 element C::Carrier L3
+S 54-58 element C::Category L3
+S 59-63 element C::Credit note L3
+S 64-68 element C::Cut-off time L3
+S 69-81 element Glossary::D L2
+S 71-75 element D::Delivery note L3
+S 76-81 element D::Domain event L3
+S 82-93 element Glossary::E L2
+S 84-88 element E::Exception (shipping) L3
+S 89-93 element E::Exchange rate L3
+S 94-105 element Glossary::F L2
+S 96-100 element F::FEFO L3
+S 101-105 element F::Fulfilment L3
+S 106-112 element Glossary::G L2
+S 108-112 element G::Goods receipt L3
+S 113-120 element Glossary::I L2
+S 115-120 element I::Invoice number L3
+S 121-138 element Glossary::L L2
+S 123-128 element L::Large order L3
+S 129-133 element L::Location L3
+S 134-138 element L::Lot L3
+S 139-153 element Glossary::M L2
+S 141-148 element M::Money L3
+S 149-153 element M::Movement L3
+S 154-160 element Glossary::N L2
+S 156-160 element N::Net weight L3
+S 161-177 element Glossary::O L2
+S 163-166 element O::On hand L3
+S 167-171 element O::Order number L3
+S 172-177 element O::Outbox L3
+S 178-198 element Glossary::P L2
+S 180-184 element P::Picking L3
+S 185-189 element P::Price list L3
+S 190-193 element P::Product L3
+S 194-198 element P::Put-away L3
+S 199-219 element Glossary::R L2
+S 201-205 element R::Reorder point L3
+S 206-219 element R::Reservation L3
+S 211-215 element Reservation::Reservation expiry L4
+S 216-219 element Reservation::Split reservation L4
+S 220-240 element Glossary::S L2
+S 222-226 element S::Safety stock L3
+S 227-231 element S::Service level L3
+S 232-236 element S::SKU L3
+S 237-240 element S::Stock level L3
+S 241-251 element Glossary::T L2
+S 243-246 element T::Tenant L3
+S 247-251 element T::Tracking event L3
+S 252-258 element Glossary::U L2
+S 254-258 element U::Unit of measure L3
+S 259-279 element Glossary::V L2
+S 261-265 element V::Variant L3
+S 266-279 element V::VAT L3
+S 280-291 element Glossary::W L2
+S 282-286 element W::Wave L3
+S 287-291 element W::Wishlist L3
+S 292-298 element Glossary::Z L2
+S 294-298 element Z::Zone L3
+S 299-316 element Glossary::Spanish ↔ English L2
+R 2:1 references glossary -> title:Glossary
+R 3:1 references glossary -> alias:Glosario
+R 3:1 references glossary -> alias:Terms
+R 6:1 references glossary -> tag:glossary
+R 6:1 references glossary -> tag:domain
+R 11:1 references Glossary -> handbook (x-file: handbook.md)
+R 11:1 references Glossary -> overview (x-file: architecture/overview.md)
+R 11:1 references Glossary -> tag:domain
+R 20:1 references A::Advance shipping notice -> overview (x-file: architecture/overview.md)
+R 20:1 references A::Advance shipping notice -> Replenishment (x-file: architecture/overview.md)
+R 26:1 references A::Approval -> Large order
+R 31:1 references A::Available stock -> runbook (x-file: operations/runbook.md)
+R 31:1 references A::Available stock -> Stock going negative (x-file: operations/runbook.md)
+R 50:1 references C::Carrier -> decisions (x-file: architecture/decisions.md)
+R 50:1 references C::Carrier -> ADR-006 One adapter per carrier (x-file: architecture/decisions.md)
+R 50:1 references C::Carrier -> reference (x-file: api/reference.md)
+R 50:1 references C::Carrier -> Carrier webhooks (x-file: api/reference.md)
+R 61:1 references C::Credit note -> Invoice number
+R 73:1 references D::Delivery note -> Tracking event
+R 78:1 references D::Domain event -> Outbox
+R 86:1 references E::Exception (shipping) -> Tracking event
+R 91:1 references E::Exchange rate -> Money
+R 98:1 references F::FEFO -> Lot
+R 110:1 references G::Goods receipt -> Advance shipping notice
+R 110:1 references G::Goods receipt -> Put-away
+R 125:1 references L::Large order -> Approval
+R 125:1 references L::Large order -> overview (x-file: architecture/overview.md)
+R 125:1 references L::Large order -> Approval of large orders (x-file: architecture/overview.md)
+R 143:1 references M::Money -> decisions (x-file: architecture/decisions.md)
+R 143:1 references M::Money -> ADR-005 Decimal money with explicit currency (x-file: architecture/decisions.md)
+R 143:1 references M::Money -> tag:money
+R 174:1 references O::Outbox -> decisions (x-file: architecture/decisions.md)
+R 174:1 references O::Outbox -> ADR-002 Transactional outbox (x-file: architecture/decisions.md)
+R 182:1 references P::Picking -> overview (x-file: architecture/overview.md)
+R 182:1 references P::Picking -> Picking and packing (x-file: architecture/overview.md)
+R 192:1 references P::Product -> SKU
+R 203:1 references R::Reorder point -> overview (x-file: architecture/overview.md)
+R 203:1 references R::Reorder point -> Replenishment (x-file: architecture/overview.md)
+R 213:1 references Reservation::Reservation expiry -> decisions (x-file: architecture/decisions.md)
+R 213:1 references Reservation::Reservation expiry -> ADR-003 Reserve before payment (x-file: architecture/decisions.md)
+R 249:1 references T::Tracking event -> reference (x-file: api/reference.md)
+R 249:1 references T::Tracking event -> Carrier webhooks (x-file: api/reference.md)
+R 263:1 references V::Variant -> SKU
+R 268:1 references V::VAT -> runbook (x-file: operations/runbook.md)
+R 268:1 references V::VAT -> 2026-09-09 Invoices with one-cent differences (x-file: operations/runbook.md)
+R 268:1 references V::VAT -> tag:money
+R 316:1 references Glossary::Spanish ↔ English -> tag:domain
+R 316:1 references Glossary::Spanish ↔ English -> tag:money
+R 316:1 references Glossary::Spanish ↔ English -> tag:almacén
+R 316:1 references Glossary::Spanish ↔ English -> tag:on-call
+
+== handbook.md (300 lines)
+S 1-300 module handbook
+S 10-300 element Warehouse engineering handbook L1
+S 22-60 element Warehouse engineering handbook::Who we are L2
+S 29-41 element Who we are::Team members L3
+S 42-50 element Who we are::Rituals L3
+S 51-60 element Who we are::Working agreements L3
+S 61-117 element Warehouse engineering handbook::Getting started L2
+S 66-73 element Getting started::Day one L3
+S 74-109 element Getting started::Development environment L3
+S 94-103 element Development environment::Configuration L4
+S 104-109 element Development environment::Test data L4
+S 110-117 element Getting started::Day two to five L3
+S 118-183 element Warehouse engineering handbook::How we work L2
+S 120-139 element How we work::Planning L3
+S 126-139 element Planning::Estimation L4
+S 140-153 element How we work::Code review L3
+S 154-173 element How we work::Releases L3
+S 168-173 element Releases::Feature flags L4
+S 174-183 element How we work::Security basics L3
+S 184-214 element Warehouse engineering handbook::Domain primer L2
+S 189-196 element Domain primer::Orders L3
+S 197-203 element Domain primer::Stock L3
+S 204-209 element Domain primer::Money L3
+S 210-214 element Domain primer::Carriers L3
+S 215-248 element Warehouse engineering handbook::Notes about these notes L2
+S 230-237 element Notes about these notes::Templates L3
+S 238-248 element Notes about these notes::Embedding L3
+S 249-281 element Warehouse engineering handbook::Frequently asked questions L2
+S 251-255 element Frequently asked questions::Where do I find the logs? L3
+S 256-261 element Frequently asked questions::Who approves database changes? L3
+S 262-266 element Frequently asked questions::What do I do if I break production? L3
+S 267-272 element Frequently asked questions::How do I add a carrier? L3
+S 273-277 element Frequently asked questions::Why is the reservation timeout 30 minutes? L3
+S 278-281 element Frequently asked questions::Can I use floats for prices just this once? L3
+S 282-293 element Warehouse engineering handbook::Glossary of acronyms L2
+S 294-300 element Warehouse engineering handbook::Changelog of this handbook L2
+R 2:1 references handbook -> title:Warehouse engineering handbook
+R 3:1 references handbook -> alias:Handbook
+R 3:1 references handbook -> alias:Manual de ingeniería
+R 4:1 references handbook -> tag:home
+R 4:1 references handbook -> tag:team/warehouse
+R 4:1 references handbook -> tag:onboarding
+R 12:1 references Warehouse engineering handbook -> overview (x-file: architecture/overview.md)
+R 12:1 references Warehouse engineering handbook -> decisions (x-file: architecture/decisions.md)
+R 12:1 references Warehouse engineering handbook -> runbook (x-file: operations/runbook.md)
+R 12:1 references Warehouse engineering handbook -> reference (x-file: api/reference.md)
+R 12:1 references Warehouse engineering handbook -> glossary (x-file: glossary.md)
+R 12:1 references Warehouse engineering handbook -> tag:home
+R 24:1 references Warehouse engineering handbook::Who we are -> overview (x-file: architecture/overview.md)
+R 24:1 references Warehouse engineering handbook::Who we are -> Bounded contexts (x-file: architecture/overview.md)
+R 45:3 references Who we are::Rituals -> Planning
+R 46:3 references Who we are::Rituals -> runbook (x-file: operations/runbook.md)
+R 46:3 references Who we are::Rituals -> Post-incident review (x-file: operations/runbook.md)
+R 48:3 references Who we are::Rituals -> decisions (x-file: architecture/decisions.md)
+R 54:4 references Who we are::Working agreements -> glossary (x-file: glossary.md)
+R 54:4 references Who we are::Working agreements -> Money
+R 58:4 references Who we are::Working agreements -> runbook (x-file: operations/runbook.md)
+R 58:4 references Who we are::Working agreements -> Handover (x-file: operations/runbook.md)
+R 63:1 references Warehouse engineering handbook::Getting started -> tag:onboarding
+R 69:7 references Getting started::Day one -> glossary (x-file: glossary.md)
+R 70:7 references Getting started::Day one -> overview (x-file: architecture/overview.md)
+R 96:1 references Development environment::Configuration -> overview (x-file: architecture/overview.md)
+R 96:1 references Development environment::Configuration -> Configuration
+R 106:1 references Development environment::Test data -> glossary (x-file: glossary.md)
+R 106:1 references Development environment::Test data -> Order number (x-file: glossary.md)
+R 113:3 references Getting started::Day two to five -> runbook (x-file: operations/runbook.md)
+R 113:3 references Getting started::Day two to five -> Past incidents (x-file: operations/runbook.md)
+R 137:1 references Planning::Estimation -> decisions (x-file: architecture/decisions.md)
+R 137:1 references Planning::Estimation -> Decision log (x-file: architecture/decisions.md)
+R 144:3 references How we work::Code review -> glossary (x-file: glossary.md)
+R 144:3 references How we work::Code review -> Reservation (x-file: glossary.md)
+R 144:3 references How we work::Code review -> glossary (x-file: glossary.md)
+R 144:3 references How we work::Code review -> Stock level (x-file: glossary.md)
+R 146:3 references How we work::Code review -> decisions (x-file: architecture/decisions.md)
+R 146:3 references How we work::Code review -> ADR-004 Expand and contract migrations (x-file: architecture/decisions.md)
+R 151:1 references How we work::Code review -> tag:code-review
+R 162:4 references How we work::Releases -> runbook (x-file: operations/runbook.md)
+R 162:4 references How we work::Releases -> Service level objectives (x-file: operations/runbook.md)
+R 165:1 references How we work::Releases -> runbook (x-file: operations/runbook.md)
+R 165:1 references How we work::Releases -> Rollback (x-file: operations/runbook.md)
+R 170:1 references Releases::Feature flags -> tag:feature-flags
+R 181:3 references How we work::Security basics -> overview (x-file: architecture/overview.md)
+R 181:3 references How we work::Security basics -> Security (x-file: architecture/overview.md)
+R 181:3 references How we work::Security basics -> tag:security
+R 186:1 references Warehouse engineering handbook::Domain primer -> glossary (x-file: glossary.md)
+R 191:1 references Domain primer::Orders -> overview (x-file: architecture/overview.md)
+R 191:1 references Domain primer::Orders -> Order lifecycle (x-file: architecture/overview.md)
+R 191:1 references Domain primer::Orders -> glossary (x-file: glossary.md)
+R 191:1 references Domain primer::Orders -> Large order (x-file: glossary.md)
+R 199:1 references Domain primer::Stock -> overview (x-file: architecture/overview.md)
+R 199:1 references Domain primer::Stock -> Replenishment (x-file: architecture/overview.md)
+R 206:1 references Domain primer::Money -> glossary (x-file: glossary.md)
+R 206:1 references Domain primer::Money -> Money
+R 206:1 references Domain primer::Money -> glossary (x-file: glossary.md)
+R 206:1 references Domain primer::Money -> VAT (x-file: glossary.md)
+R 212:1 references Domain primer::Carriers -> reference (x-file: api/reference.md)
+R 212:1 references Domain primer::Carriers -> Carrier webhooks (x-file: api/reference.md)
+R 224:3 references Warehouse engineering handbook::Notes about these notes -> roadmap-2027
+R 226:3 references Warehouse engineering handbook::Notes about these notes -> tag:security
+R 226:3 references Warehouse engineering handbook::Notes about these notes -> tag:performance
+R 226:3 references Warehouse engineering handbook::Notes about these notes -> tag:money
+R 226:3 references Warehouse engineering handbook::Notes about these notes -> tag:on-call
+R 234:3 references Notes about these notes::Templates -> decisions (x-file: architecture/decisions.md)
+R 234:3 references Notes about these notes::Templates -> Template (x-file: architecture/decisions.md)
+R 235:3 references Notes about these notes::Templates -> runbook (x-file: operations/runbook.md)
+R 235:3 references Notes about these notes::Templates -> Post-incident review (x-file: operations/runbook.md)
+R 236:3 references Notes about these notes::Templates -> reference (x-file: api/reference.md)
+R 243:1 imports Notes about these notes::Embedding -> runbook (x-file: operations/runbook.md)
+R 243:1 imports Notes about these notes::Embedding -> On-call rota (x-file: operations/runbook.md)
+R 247:1 imports Notes about these notes::Embedding -> context-diagram.svg
+R 253:1 references Frequently asked questions::Where do I find the logs? -> runbook (x-file: operations/runbook.md)
+R 253:1 references Frequently asked questions::Where do I find the logs? -> Logs and traces (x-file: operations/runbook.md)
+R 258:1 references Frequently asked questions::Who approves database changes? -> decisions (x-file: architecture/decisions.md)
+R 258:1 references Frequently asked questions::Who approves database changes? -> ADR-004 Expand and contract migrations (x-file: architecture/decisions.md)
+R 264:1 references Frequently asked questions::What do I do if I break production? -> runbook (x-file: operations/runbook.md)
+R 264:1 references Frequently asked questions::What do I do if I break production? -> Rollback (x-file: operations/runbook.md)
+R 264:1 references Frequently asked questions::What do I do if I break production? -> tag:on-call
+R 269:1 references Frequently asked questions::How do I add a carrier? -> reference (x-file: api/reference.md)
+R 269:1 references Frequently asked questions::How do I add a carrier? -> Carrier webhooks (x-file: api/reference.md)
+R 269:1 references Frequently asked questions::How do I add a carrier? -> decisions (x-file: architecture/decisions.md)
+R 269:1 references Frequently asked questions::How do I add a carrier? -> ADR-006 One adapter per carrier (x-file: architecture/decisions.md)
+R 275:1 references Frequently asked questions::Why is the reservation timeout 30 minutes? -> decisions (x-file: architecture/decisions.md)
+R 275:1 references Frequently asked questions::Why is the reservation timeout 30 minutes? -> ADR-003 Reserve before payment (x-file: architecture/decisions.md)
+R 280:1 references Frequently asked questions::Can I use floats for prices just this once? -> tag:money
+R 285:1 references Warehouse engineering handbook::Glossary of acronyms -> glossary (x-file: glossary.md)
+R 290:3 references Warehouse engineering handbook::Glossary of acronyms -> runbook (x-file: operations/runbook.md)
+R 290:3 references Warehouse engineering handbook::Glossary of acronyms -> Service level objectives (x-file: operations/runbook.md)
+
+== operations/runbook.md (300 lines)
+S 1-300 module runbook
+S 7-300 element Operations runbook L1
+S 14-44 element Operations runbook::On-call rota L2
+S 26-36 element On-call rota::Handover L3
+S 37-44 element On-call rota::Escalation L3
+S 45-53 element Operations runbook::Severity levels L2
+S 54-117 element Operations runbook::Triage L2
+S 69-117 element Triage::Common symptoms L3
+S 71-78 element Common symptoms::Orders stuck in RESERVED L4
+S 79-84 element Common symptoms::Stock going negative L4
+S 85-95 element Common symptoms::Outbox lag growing L4
+S 96-102 element Common symptoms::One carrier failing L4
+S 103-117 element Common symptoms::Database connections exhausted L4
+S 118-138 element Operations runbook::Rollback L2
+S 134-138 element Rollback::Rolling back a migration L3
+S 139-150 element Operations runbook::Service level objectives L2
+S 151-189 element Operations runbook::Alerts L2
+S 155-159 element Alerts::HighOrderErrorRate L3
+S 160-165 element Alerts::ReservationExpiryLag L3
+S 166-170 element Alerts::OutboxRelayLag L3
+S 171-175 element Alerts::CarrierBookingFailures L3
+S 176-184 element Alerts::ReplicaLag L3
+S 185-189 element Alerts::DiskSpaceLow L3
+S 190-197 element Operations runbook::Dashboards L2
+S 198-215 element Operations runbook::Logs and traces L2
+S 216-238 element Operations runbook::Data repair L2
+S 222-233 element Data repair::Recomputing reserved stock L3
+S 234-238 element Data repair::Re-sending an invoice to the ERP L3
+S 239-251 element Operations runbook::Planned maintenance L2
+S 252-264 element Operations runbook::Peak season L2
+S 265-277 element Operations runbook::Post-incident review L2
+S 278-300 element Operations runbook::Past incidents L2
+S 280-285 element Past incidents::2026-05-14 Checkout errors after a pricing change L3
+S 286-291 element Past incidents::2026-05-27 Duplicate shipments L3
+S 292-296 element Past incidents::2026-08-03 Stock showing zero in the shop L3
+S 297-300 element Past incidents::2026-09-09 Invoices with one-cent differences L3
+R 2:1 references runbook -> title:Operations runbook
+R 3:1 references runbook -> alias:Runbook
+R 3:1 references runbook -> alias:On-call guide
+R 4:1 references runbook -> tag:operations
+R 4:1 references runbook -> tag:on-call
+R 9:1 references Operations runbook -> Triage
+R 9:1 references Operations runbook -> Rollback
+R 9:1 references Operations runbook -> Post-incident review
+R 9:1 references Operations runbook -> overview (x-file: architecture/overview.md)
+R 9:1 references Operations runbook -> tag:on-call
+R 23:1 references Operations runbook::On-call rota -> handbook (x-file: handbook.md)
+R 42:4 references On-call rota::Escalation -> reference (x-file: api/reference.md)
+R 42:4 references On-call rota::Escalation -> Carrier contacts (x-file: api/reference.md)
+R 59:4 references Operations runbook::Triage -> Rollback
+R 61:4 references Operations runbook::Triage -> Dashboards
+R 73:1 references Common symptoms::Orders stuck in RESERVED -> reference (x-file: api/reference.md)
+R 73:1 references Common symptoms::Orders stuck in RESERVED -> Payment webhook (x-file: api/reference.md)
+R 73:1 references Common symptoms::Orders stuck in RESERVED -> decisions (x-file: architecture/decisions.md)
+R 73:1 references Common symptoms::Orders stuck in RESERVED -> ADR-003 Reserve before payment (x-file: architecture/decisions.md)
+R 81:1 references Common symptoms::Stock going negative -> overview (x-file: architecture/overview.md)
+R 81:1 references Common symptoms::Stock going negative -> Concurrency (x-file: architecture/overview.md)
+R 81:1 references Common symptoms::Stock going negative -> tag:data-repair
+R 87:1 references Common symptoms::Outbox lag growing -> overview (x-file: architecture/overview.md)
+R 87:1 references Common symptoms::Outbox lag growing -> Deployment (x-file: architecture/overview.md)
+R 98:1 references Common symptoms::One carrier failing -> decisions (x-file: architecture/decisions.md)
+R 98:1 references Common symptoms::One carrier failing -> ADR-006 One adapter per carrier (x-file: architecture/decisions.md)
+R 120:1 references Operations runbook::Rollback -> decisions (x-file: architecture/decisions.md)
+R 120:1 references Operations runbook::Rollback -> ADR-004 Expand and contract migrations (x-file: architecture/decisions.md)
+R 148:1 references Operations runbook::Service level objectives -> decisions (x-file: architecture/decisions.md)
+R 148:1 references Operations runbook::Service level objectives -> ADR-008 Canary releases (x-file: architecture/decisions.md)
+R 157:1 references Alerts::HighOrderErrorRate -> Triage
+R 168:1 references Alerts::OutboxRelayLag -> Outbox lag growing
+R 173:1 references Alerts::CarrierBookingFailures -> One carrier failing
+R 178:1 references Alerts::ReplicaLag -> decisions (x-file: architecture/decisions.md)
+R 178:1 references Alerts::ReplicaLag -> ADR-009 Read replica for shop queries (x-file: architecture/decisions.md)
+R 200:1 references Operations runbook::Logs and traces -> tag:security
+R 218:1 references Operations runbook::Data repair -> tag:data-repair
+R 236:1 references Data repair::Re-sending an invoice to the ERP -> reference (x-file: api/reference.md)
+R 236:1 references Data repair::Re-sending an invoice to the ERP -> Invoices (x-file: api/reference.md)
+R 260:4 references Operations runbook::Peak season -> Service level objectives
+R 262:1 references Operations runbook::Peak season -> Dashboards
+R 262:1 references Operations runbook::Peak season -> tag:peak
+R 275:4 references Operations runbook::Post-incident review -> handbook (x-file: handbook.md)
+R 275:4 references Operations runbook::Post-incident review -> Planning (x-file: handbook.md)
+R 282:1 references Past incidents::2026-05-14 Checkout errors after a pricing change -> decisions (x-file: architecture/decisions.md)
+R 282:1 references Past incidents::2026-05-14 Checkout errors after a pricing change -> ADR-008 Canary releases (x-file: architecture/decisions.md)
+R 294:1 references Past incidents::2026-08-03 Stock showing zero in the shop -> Dashboards
+R 299:1 references Past incidents::2026-09-09 Invoices with one-cent differences -> glossary (x-file: glossary.md)
+R 299:1 references Past incidents::2026-09-09 Invoices with one-cent differences -> VAT (x-file: glossary.md)
+R 299:1 references Past incidents::2026-09-09 Invoices with one-cent differences -> tag:money

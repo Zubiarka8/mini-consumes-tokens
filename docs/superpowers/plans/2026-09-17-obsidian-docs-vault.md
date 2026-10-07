@@ -8,6 +8,8 @@
 
 **Tech Stack:** Markdown only. No build step.
 
+**Status:** PR #6 delivered anchor-aware resolution; PR #101 superseded the orphan-link behavior and “no new field” constraint. The `level` field remains attributed to PR #44 (unverified).
+
 **Spec:** `docs/superpowers/specs/2026-09-17-obsidian-docs-vault-and-md-parser-design.md` (Part 1 and Decision 6)
 
 ## Global Constraints
