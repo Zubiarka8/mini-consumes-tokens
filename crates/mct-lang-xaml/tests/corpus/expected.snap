@@ -1,0 +1,295 @@
+# language=xaml files=6 symbols=157 relations=125 cross_file=0
+
+== App.xaml (314 lines)
+S 1-314 module App
+S 161-166 element ErrorBadge
+S 169-169 element ErrorAdorner
+S 191-205 element ToastRoot
+S 198-202 element ToastRoot::ToastClose
+S 226-226 element TrayOpen
+S 227-227 element TraySync
+S 232-232 element TrayExit
+S 245-247 element SplashProgress
+R 10:14 references App -> App_Activated
+R 11:14 references App -> App_Deactivated
+R 195:23 references ToastRoot -> Toast_MouseEnter
+R 196:23 references ToastRoot -> Toast_MouseLeave
+R 202:27 references ToastRoot::ToastClose -> ToastClose_Click
+R 226:52 references TrayOpen -> TrayOpen_Click
+R 227:64 references TraySync -> TraySync_Click
+R 230:19 references App -> OfflineMode_Checked
+R 230:49 references App -> OfflineMode_Unchecked
+R 232:52 references TrayExit -> TrayExit_Click
+
+== Themes/Controls.xaml (334 lines)
+S 1-334 module Controls
+S 27-37 element PART_Border
+S 33-36 element PART_Border::PART_Content
+S 118-141 element PART_SearchBorder
+S 131-131 element PART_SearchBorder::PART_ContentHost
+S 132-136 element PART_SearchBorder::PART_Watermark
+S 137-139 element PART_SearchBorder::PART_Clear
+S 242-246 element PART_TabBorder
+S 244-245 element PART_TabBorder::PART_Header
+S 271-289 element PART_StepperBorder
+S 279-280 element PART_StepperBorder::PART_Decrease
+S 281-285 element PART_StepperBorder::PART_Value
+S 286-287 element PART_StepperBorder::PART_Increase
+S 327-329 element PART_FocusRect
+R 139:23 references PART_SearchBorder::PART_Clear -> SearchClear_Click
+R 280:29 references PART_StepperBorder::PART_Decrease -> Stepper_Decrease
+R 284:24 references PART_StepperBorder::PART_Value -> Stepper_PreviewKeyDown
+R 285:24 references PART_StepperBorder::PART_Value -> Stepper_MouseWheel
+R 287:29 references PART_StepperBorder::PART_Increase -> Stepper_Increase
+
+== Views/InventoryView.xaml (301 lines)
+S 1-301 module InventoryView
+S 1-301 element InventoryRoot
+S 22-34 element InventoryRoot::ZoneBorder
+S 31-32 element ZoneBorder::ZoneFill
+S 67-300 element InventoryRoot::InventoryLayout
+S 72-98 element InventoryLayout::ZoneMapCard
+S 75-77 element ZoneMapCard::ShowEmptyZones
+S 80-92 element ZoneMapCard::ZoneLegend
+S 93-96 element ZoneMapCard::ZoneMap
+S 103-145 element InventoryLayout::PutAwayPanel
+S 111-113 element PutAwayPanel::ReceiptNumber
+S 115-118 element PutAwayPanel::PutAwayProduct
+S 120-122 element PutAwayPanel::PutAwayQuantity
+S 124-125 element PutAwayPanel::SuggestedLocation
+S 126-129 element PutAwayPanel::ConfidenceSlider
+S 134-136 element PutAwayPanel::ConfirmPutAway
+S 138-143 element PutAwayPanel::DropHint
+S 151-230 element InventoryLayout::InventoryTabs
+S 153-191 element InventoryTabs::CycleCountTab
+S 154-190 element CycleCountTab::CycleCountForm
+S 162-164 element CycleCountForm::CountLocation
+S 167-168 element CycleCountForm::SystemQuantity
+S 170-172 element CycleCountForm::CountedQuantity
+S 176-178 element CycleCountForm::CountDifference
+S 180-182 element CycleCountForm::AdjustmentReason
+S 186-187 element CycleCountForm::PostCount
+S 193-229 element InventoryTabs::MovementsTab
+S 196-197 element MovementsTab::MovementsFrom
+S 198-200 element MovementsTab::MovementsTo
+S 201-203 element MovementsTab::MovementKind
+S 205-227 element MovementsTab::MovementsList
+S 235-299 element InventoryLayout::StockArea
+S 242-244 element StockArea::StockSearch
+S 246-247 element StockArea::AllStock
+S 248-249 element StockArea::LowStock
+S 250-251 element StockArea::ExpiringStock
+S 252-254 element StockArea::ReorderButton
+S 258-294 element StockArea::StockGrid
+R 11:14 references InventoryRoot -> InventoryRoot_Drop
+R 12:14 references InventoryRoot -> InventoryRoot_DragEnter
+R 13:14 references InventoryRoot -> InventoryRoot_DragLeave
+R 24:15 references InventoryRoot::ZoneBorder -> Zone_MouseEnter
+R 24:44 references InventoryRoot::ZoneBorder -> Zone_MouseLeave
+R 25:15 references InventoryRoot::ZoneBorder -> Zone_MouseUp
+R 77:25 references ZoneMapCard::ShowEmptyZones -> ShowEmptyZones_Checked
+R 77:58 references ZoneMapCard::ShowEmptyZones -> ShowEmptyZones_Unchecked
+R 96:23 references ZoneMapCard::ZoneMap -> ZoneMap_KeyDown
+R 105:13 references InventoryLayout::PutAwayPanel -> PutAwayPanel_DragOver
+R 105:46 references InventoryLayout::PutAwayPanel -> PutAwayPanel_Drop
+R 113:20 references PutAwayPanel::ReceiptNumber -> ReceiptNumber_KeyUp
+R 118:21 references PutAwayPanel::PutAwayProduct -> PutAwayProduct_SelectionChanged
+R 122:37 references PutAwayPanel::PutAwayQuantity -> PutAwayQuantity_ValueChanged
+R 129:19 references PutAwayPanel::ConfidenceSlider -> ConfidenceSlider_ValueChanged
+R 133:19 references InventoryLayout::PutAwayPanel -> PutAwayCancel_Click
+R 135:58 references PutAwayPanel::ConfirmPutAway -> ConfirmPutAway_Click
+R 152:17 references InventoryLayout::InventoryTabs -> InventoryTabs_SelectionChanged
+R 164:23 references CycleCountForm::CountLocation -> CountLocation_SelectionChanged
+R 172:39 references CycleCountForm::CountedQuantity -> CountedQuantity_ValueChanged
+R 185:23 references CycleCountTab::CycleCountForm -> Recount_Click
+R 187:62 references CycleCountForm::PostCount -> PostCount_Click
+R 203:23 references MovementsTab::MovementKind -> MovementKind_SelectionChanged
+R 244:18 references StockArea::StockSearch -> StockSearch_TextChanged
+R 247:24 references StockArea::AllStock -> StockFilter_Checked
+R 249:41 references StockArea::LowStock -> StockFilter_Checked
+R 251:41 references StockArea::ExpiringStock -> StockFilter_Checked
+R 253:58 references StockArea::ReorderButton -> Reorder_Click
+R 261:17 references StockArea::StockGrid -> StockGrid_SelectionChanged
+R 262:17 references StockArea::StockGrid -> StockGrid_PreviewMouseMove
+R 282:66 references StockArea::StockGrid -> AdjustStock_Click
+R 289:59 references StockArea::StockGrid -> MoveStock_Click
+R 290:50 references StockArea::StockGrid -> PrintShelfLabel_Click
+R 291:48 references StockArea::StockGrid -> ShowMovements_Click
+
+== Views/MainWindow.xaml (304 lines)
+S 1-304 module MainWindow
+S 1-304 element ShellWindow
+S 49-60 element ShellWindow::Taskbar
+S 53-54 element Taskbar::ThumbNewOrder
+S 55-56 element Taskbar::ThumbSync
+S 57-58 element Taskbar::ThumbMute
+S 78-303 element ShellWindow::LayoutRoot
+S 80-80 element LayoutRoot::HeaderRow
+S 81-81 element LayoutRoot::ContentRow
+S 82-82 element LayoutRoot::StatusRow
+S 92-146 element LayoutRoot::HeaderBar
+S 100-103 element HeaderBar::GlobalSearch
+S 104-117 element HeaderBar::NotificationsButton
+S 109-115 element NotificationsButton::UnreadBadge
+S 132-144 element HeaderBar::Navigation
+S 135-136 element Navigation::OrdersTab
+S 137-138 element Navigation::InventoryTab
+S 139-140 element Navigation::ShipmentsTab
+S 141-143 element Navigation::InvoicesTab
+S 152-155 element LayoutRoot::ContentHost
+S 158-167 element LayoutRoot::BusyOverlay
+S 161-161 element BusyOverlay::BusyProgress
+S 172-210 element LayoutRoot::NotificationPanel
+S 184-208 element NotificationPanel::NotificationList
+S 215-239 element LayoutRoot::HelpOverlay
+S 226-233 element HelpOverlay::ShortcutList
+S 234-236 element HelpOverlay::ShowHelpOnStartup
+S 244-255 element LayoutRoot::OfflineBanner
+S 260-269 element LayoutRoot::ToastHost
+S 274-302 element LayoutRoot::StatusBar
+S 292-295 element StatusBar::WarehousePicker
+S 299-300 element StatusBar::StatusMessage
+R 17:9 references ShellWindow -> ShellWindow_Loaded
+R 18:9 references ShellWindow -> ShellWindow_Closing
+R 19:9 references ShellWindow -> ShellWindow_Closed
+R 20:9 references ShellWindow -> ShellWindow_PreviewKeyDown
+R 54:26 references Taskbar::ThumbNewOrder -> ThumbNewOrder_Click
+R 56:26 references Taskbar::ThumbSync -> ThumbSync_Click
+R 58:26 references Taskbar::ThumbMute -> ThumbMute_Click
+R 102:20 references HeaderBar::GlobalSearch -> GlobalSearch_TextChanged
+R 103:20 references HeaderBar::GlobalSearch -> GlobalSearch_KeyDown
+R 106:19 references HeaderBar::NotificationsButton -> NotificationsButton_Click
+R 121:44 references LayoutRoot::HeaderBar -> Profile_Click
+R 122:50 references LayoutRoot::HeaderBar -> Preferences_Click
+R 125:25 references LayoutRoot::HeaderBar -> DarkTheme_Checked
+R 125:53 references LayoutRoot::HeaderBar -> DarkTheme_Unchecked
+R 127:49 references LayoutRoot::HeaderBar -> SignOut_Click
+R 134:21 references HeaderBar::Navigation -> Navigation_SelectionChanged
+R 165:17 references LayoutRoot::BusyOverlay -> CancelBusy_Click
+R 178:19 references LayoutRoot::NotificationPanel -> CloseNotifications_Click
+R 183:17 references LayoutRoot::NotificationPanel -> MarkAllRead_Click
+R 186:18 references NotificationPanel::NotificationList -> NotificationList_SelectionChanged
+R 204:53 references NotificationPanel::NotificationList -> MarkRead_Click
+R 205:43 references NotificationPanel::NotificationList -> DeleteNotification_Click
+R 217:11 references LayoutRoot::HelpOverlay -> HelpOverlay_MouseDown
+R 223:21 references LayoutRoot::HelpOverlay -> CloseHelp_Click
+R 236:21 references HelpOverlay::ShowHelpOnStartup -> ShowHelpOnStartup_Checked
+R 236:57 references HelpOverlay::ShowHelpOnStartup -> ShowHelpOnStartup_Unchecked
+R 249:17 references LayoutRoot::OfflineBanner -> RetryConnection_Click
+R 295:21 references StatusBar::WarehousePicker -> WarehousePicker_SelectionChanged
+
+== Views/OrderEditorDialog.xaml (305 lines)
+S 1-305 module OrderEditorDialog
+S 1-305 element EditorWindow
+S 40-304 element EditorWindow::EditorLayout
+S 45-67 element EditorLayout::EditorFooter
+S 49-51 element EditorFooter::DiscardButton
+S 52-53 element EditorFooter::SaveDraftButton
+S 54-57 element EditorFooter::SaveButton
+S 61-62 element EditorFooter::TotalText
+S 70-81 element EditorLayout::ValidationSummary
+S 83-303 element EditorLayout::EditorTabs
+S 88-153 element EditorTabs::CustomerTab
+S 90-151 element CustomerTab::CustomerForm
+S 99-103 element CustomerForm::CustomerPicker
+S 107-108 element CustomerForm::CustomerReference
+S 126-127 element CustomerForm::Street
+S 131-133 element CustomerForm::PostalCode
+S 137-138 element CustomerForm::City
+S 142-145 element CustomerForm::Country
+S 158-211 element EditorTabs::LinesTab
+S 161-162 element LinesTab::AddLineButton
+S 163-164 element LinesTab::NewLineQuantity
+S 165-170 element LinesTab::ProductSearch
+S 173-209 element LinesTab::LinesGrid
+S 216-258 element EditorTabs::PaymentTab
+S 217-257 element PaymentTab::PaymentForm
+S 220-221 element PaymentForm::PayByCard
+S 222-223 element PaymentForm::PayByTransfer
+S 224-226 element PaymentForm::PayOnDelivery
+S 229-231 element PaymentForm::PaymentTerms
+S 240-242 element PaymentForm::DiscountPercent
+S 246-247 element PaymentForm::ShippingCost
+S 250-252 element PaymentForm::ExemptVat
+S 253-256 element PaymentForm::VatNumber
+S 263-302 element EditorTabs::DeliveryTab
+S 264-301 element DeliveryTab::DeliveryForm
+S 266-268 element DeliveryForm::CarrierPicker
+S 271-272 element DeliveryForm::DeliveryDate
+S 273-275 element DeliveryForm::UrgentCheck
+S 276-277 element DeliveryForm::GiftCheck
+S 280-282 element DeliveryForm::WarehouseNotes
+S 285-287 element DeliveryForm::CustomerNotes
+S 294-296 element DeliveryForm::PickPriority
+S 297-298 element DeliveryForm::ExternalId
+R 17:9 references EditorWindow -> EditorWindow_Loaded
+R 18:9 references EditorWindow -> EditorWindow_Closing
+R 19:9 references EditorWindow -> EditorWindow_KeyDown
+R 51:19 references EditorFooter::DiscardButton -> DiscardButton_Click
+R 53:60 references EditorFooter::SaveDraftButton -> SaveDraft_Click
+R 56:19 references EditorFooter::SaveButton -> SaveButton_Click
+R 83:37 references EditorLayout::EditorTabs -> EditorTabs_SelectionChanged
+R 102:27 references CustomerForm::CustomerPicker -> CustomerPicker_SelectionChanged
+R 103:27 references CustomerForm::CustomerPicker -> CustomerPicker_LostFocus
+R 133:26 references CustomerForm::PostalCode -> PostalCode_TextChanged
+R 145:27 references CustomerForm::Country -> Country_SelectionChanged
+R 162:60 references LinesTab::AddLineButton -> AddLine_Click
+R 169:23 references LinesTab::ProductSearch -> ProductSearch_KeyDown
+R 170:23 references LinesTab::ProductSearch -> ProductSearch_SelectionChanged
+R 175:38 references LinesTab::LinesGrid -> LinesGrid_Drop
+R 176:21 references LinesTab::LinesGrid -> LinesGrid_PreviewKeyDown
+R 204:53 references LinesTab::LinesGrid -> RemoveLine_Click
+R 221:62 references PaymentForm::PayByCard -> PaymentMethod_Checked
+R 223:44 references PaymentForm::PayByTransfer -> PaymentMethod_Checked
+R 226:26 references PaymentForm::PayOnDelivery -> PaymentMethod_Checked
+R 231:21 references PaymentForm::PaymentTerms -> PaymentTerms_SelectionChanged
+R 242:24 references PaymentForm::DiscountPercent -> DiscountPercent_TextChanged
+R 252:21 references PaymentForm::ExemptVat -> ExemptVat_Checked
+R 252:49 references PaymentForm::ExemptVat -> ExemptVat_Unchecked
+R 268:21 references DeliveryForm::CarrierPicker -> CarrierPicker_SelectionChanged
+R 275:21 references DeliveryForm::UrgentCheck -> UrgentCheck_Checked
+R 275:51 references DeliveryForm::UrgentCheck -> UrgentCheck_Unchecked
+
+== Views/OrdersView.xaml (302 lines)
+S 1-302 module OrdersView
+S 50-301 element OrdersRoot
+S 59-59 element OrdersRoot::DetailColumn
+S 65-101 element OrdersRoot::OrdersToolbar
+S 67-69 element OrdersToolbar::NewOrderButton
+S 70-72 element OrdersToolbar::ReserveButton
+S 73-75 element OrdersToolbar::ShipButton
+S 76-79 element OrdersToolbar::CancelOrderButton
+S 80-84 element OrdersToolbar::ExportButton
+S 88-90 element OrdersToolbar::StatusFilter
+S 91-92 element OrdersToolbar::FromDate
+S 93-94 element OrdersToolbar::ToDate
+S 96-98 element OrdersToolbar::OnlyOverdue
+S 106-134 element OrdersRoot::SummaryCards
+S 139-187 element OrdersRoot::OrdersGrid
+S 195-273 element OrdersRoot::DetailPane
+S 219-236 element DetailPane::DetailLines
+S 249-263 element DetailPane::HistoryList
+S 264-267 element DetailPane::NoteInput
+S 268-269 element DetailPane::AddNoteButton
+S 276-294 element OrdersRoot::BulkActions
+R 12:14 references OrdersView -> OrdersView_Loaded
+R 13:14 references OrdersView -> OrdersView_Unloaded
+R 78:17 references OrdersToolbar::CancelOrderButton -> CancelOrder_Click
+R 81:42 references OrdersToolbar::ExportButton -> Export_Click
+R 90:19 references OrdersToolbar::StatusFilter -> StatusFilter_SelectionChanged
+R 98:19 references OrdersToolbar::OnlyOverdue -> OnlyOverdue_Checked
+R 98:49 references OrdersToolbar::OnlyOverdue -> OnlyOverdue_Unchecked
+R 143:15 references OrdersRoot::OrdersGrid -> OrdersGrid_SelectionChanged
+R 145:15 references OrdersRoot::OrdersGrid -> OrdersGrid_KeyDown
+R 179:36 references OrdersRoot::OrdersGrid -> OpenOrder_Click
+R 180:39 references OrdersRoot::OrdersGrid -> DuplicateOrder_Click
+R 181:45 references OrdersRoot::OrdersGrid -> CopyOrderNumber_Click
+R 183:48 references OrdersRoot::OrdersGrid -> PrintPackingSlip_Click
+R 184:58 references OrdersRoot::OrdersGrid -> ResendInvoice_Click
+R 212:62 references OrdersRoot::DetailPane -> EditAddress_Click
+R 267:22 references DetailPane::NoteInput -> NoteInput_TextChanged
+R 269:60 references DetailPane::AddNoteButton -> AddNote_Click
+R 284:17 references OrdersRoot::BulkActions -> ReserveSelected_Click
+R 287:17 references OrdersRoot::BulkActions -> PrintSelected_Click
+R 290:17 references OrdersRoot::BulkActions -> AssignCarrier_Click
+R 292:62 references OrdersRoot::BulkActions -> ClearSelection_Click
