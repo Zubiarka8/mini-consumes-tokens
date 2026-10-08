@@ -232,6 +232,29 @@ fn a_same_file_function_inside_a_macro_token_tree_is_a_reference_not_a_call() {
 }
 
 #[test]
+#[ignore = "known bug, not filed yet: a method call inside a macro's token tree leaves no relation, so find_callers/find_references/impact_analysis miss it (benchmarks/agent-benchmark.md)"]
+fn a_method_call_inside_a_macro_token_tree_leaves_a_relation() {
+    // The shape of mct-cli's `the_cli_and_mcp_server_registries_ship_the_same_languages_and_extensions` test.
+    let parsed = parse(
+        r#"
+        fn agree(cli: &R, server: &R) {
+            assert_eq!(
+                cli.for_extension("rs"),
+                server.for_extension("rs"),
+            );
+        }
+        "#,
+    );
+    let lines: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.to_name == "for_extension")
+        .map(|r| r.location.line)
+        .collect();
+    assert_eq!(lines, vec![4, 5], "{:?}", parsed.relations);
+}
+
+#[test]
 fn locals_fields_paths_labels_and_foreign_names_are_not_references() {
     let parsed = parse(
         r#"
