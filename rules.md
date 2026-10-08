@@ -200,7 +200,9 @@ cargo run -p mct-eval -- --write-baseline                            # refresh c
 **Prefer `scripts/unix/` (macOS/Linux) or `scripts/windows/` (PowerShell) over the raw commands above** — same work, a few lines of summary instead of hundreds of lines of cargo output (full logs in `target/script-logs/`; see `scripts/README.md`). Every script exists in both, same name and flags — on Windows it's `scripts\windows\<name>.ps1` (e.g. `scripts\windows\check.ps1 -p mct-core`):
 
 ```sh
-scripts/unix/check.sh [-p <crate>]                 # verify before committing: tests + CI clippy + mct-eval, one line per step
+scripts/unix/check.sh [-p <crate>]                 # verify before committing: fmt + tests + CI clippy + mct-eval, one line per step; summary kept for pr-body.sh
+scripts/unix/branch-worktree.sh <branch> [base]    # a new branch in its own worktree, from origin/main; use one per concurrent change
+scripts/unix/pr-body.sh [file]                     # PR description draft: Verification from the last check.sh, token figures from token-report.sh; warns if stale
 scripts/unix/reinstall.sh [--reindex]              # after switching branches / merging a server change: install binaries, fix index schema, smoke-test; then inspect/reconnect MCP from the active client's controls (ChatGPT/Codex: /mcp; Claude Code: /mcp)
 scripts/unix/mcp-smoke.sh [--dev] [--expect T]     # CONNECTION_CLOSED? prints the server's real startup error; --expect checks tool T is listed
 scripts/unix/new-tool-check.sh <tool>              # adding an MCP tool: which of the ~10 places still don't mention it, then the catalog tests
