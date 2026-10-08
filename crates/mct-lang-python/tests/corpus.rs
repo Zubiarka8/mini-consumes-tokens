@@ -269,7 +269,7 @@ fn flask_routes_hooks_and_method_views() {
     c.symbol(path, "checked", Function);
     // `MethodView` subclasses: extends, HTTP verbs as methods.
     c.relation(path, "LoanAPI", Extends, "MethodView");
-    assert_eq!(lines(path, "LoanAPI", Class), (203, Some(234)));
+    assert_eq!(lines(path, "LoanAPI", Class), (209, Some(240)));
     assert_eq!(parent(path, "delete", Method), Some("LoanAPI"));
     c.relation(path, "register_api", Calls, "as_view");
     c.relation(path, "register_api", Calls, "add_url_rule");
@@ -287,63 +287,77 @@ fn django_models_admin_views_signals_and_urls() {
     use RelationKind::{Calls, Extends, Imports, References};
     use SymbolKind::{Class, Method};
     let c = corpus();
-    let path = "web/django_app.py";
+    let app = "web/django_site/lending/";
+    let models = &format!("{app}models.py");
+    let admin = &format!("{app}admin.py");
+    let forms = &format!("{app}forms.py");
+    let views = &format!("{app}views.py");
+    let signals = &format!("{app}signals.py");
+    let urls = &format!("{app}urls.py");
     // Models: dotted base, abstract base chain, inner `Meta` and choices.
-    c.relation(path, "TimeStampedModel", Extends, "Model");
-    c.relation(path, "BookRecord", Extends, "TimeStampedModel");
-    c.relation(path, "Status", Extends, "TextChoices");
-    assert_eq!(parent(path, "Status", Class), Some("CopyRecord"));
+    c.relation(models, "TimeStampedModel", Extends, "Model");
+    c.relation(models, "BookRecord", Extends, "TimeStampedModel");
+    c.relation(models, "Status", Extends, "TextChoices");
+    assert_eq!(parent(models, "Status", Class), Some("CopyRecord"));
     let metas = c.symbols_named("Meta");
-    for owner in [
-        "TimeStampedModel",
-        "AuthorRecord",
-        "BookRecord",
-        "LoanRecord",
-        "BookForm",
+    for (path, owner) in [
+        (models, "TimeStampedModel"),
+        (models, "AuthorRecord"),
+        (models, "BookRecord"),
+        (models, "LoanRecord"),
+        (forms, "BookForm"),
     ] {
         assert!(
             metas
                 .iter()
-                .any(|(p, s)| *p == path && s.parent.as_deref() == Some(owner)),
+                .any(|(p, s)| p == path && s.parent.as_deref() == Some(owner)),
             "{owner}.Meta"
         );
     }
     // Field declarations are calls owned by the model class.
-    c.relation(path, "BookRecord", Calls, "CharField");
-    c.relation(path, "BookRecord", Calls, "ManyToManyField");
-    c.relation(path, "BookRecord", Calls, "as_manager");
-    c.relation(path, "is_overdue", References, "property");
+    c.relation(models, "BookRecord", Calls, "CharField");
+    c.relation(models, "BookRecord", Calls, "ManyToManyField");
+    c.relation(models, "BookRecord", Calls, "as_manager");
+    c.relation(models, "is_overdue", References, "property");
     // Admin: class decorator, method decorators.
-    c.relation(path, "BookAdmin", References, "register");
-    c.relation(path, "BookAdmin", Extends, "ModelAdmin");
-    c.relation(path, "copy_count", References, "display");
-    c.relation(path, "mark_lost", References, "action");
-    assert_eq!(parent(path, "mark_lost", Method), Some("BookAdmin"));
+    c.relation(admin, "BookAdmin", References, "register");
+    c.relation(admin, "BookAdmin", Extends, "ModelAdmin");
+    c.relation(admin, "copy_count", References, "display");
+    c.relation(admin, "mark_lost", References, "action");
+    assert_eq!(parent(admin, "mark_lost", Method), Some("BookAdmin"));
     // Class-based views list every mixin as a base.
     for base in [
         "LoginRequiredMixin",
         "PermissionRequiredMixin",
         "CreateView",
     ] {
-        c.relation(path, "BookCreateView", Extends, base);
+        c.relation(views, "BookCreateView", Extends, base);
     }
-    assert_eq!(parent(path, "get_queryset", Method), Some("BookListView"));
+    assert_eq!(parent(views, "get_queryset", Method), Some("BookListView"));
     // Function views under decorator stacks; signal receivers.
     for decorator in ["login_required", "permission_required", "require_POST"] {
-        c.relation(path, "waive_fee", References, decorator);
+        c.relation(views, "waive_fee", References, decorator);
     }
-    c.relation(path, "overdue", References, "cache_page");
-    c.relation(path, "mark_copy_on_loan", References, "receiver");
+    c.relation(views, "overdue", References, "cache_page");
+    c.relation(signals, "mark_copy_on_loan", References, "receiver");
     // `urlpatterns` and the pattern tuples are module-level calls.
     for callee in ["path", "re_path", "include", "as_view"] {
-        c.relation(path, "django_app", Calls, callee);
+        c.relation(urls, "urls", Calls, callee);
     }
-    // Cross-file into `library/`.
-    c.relation(path, "django_app", Imports, "overdue_fee");
-    c.relation(path, "fee", Calls, "overdue_fee");
-    c.relation(path, "clean", Calls, "is_valid_isbn");
-    c.relation(path, "checkout", Calls, "build_services");
-    c.relation(path, "audit_book_delete", Calls, "audit");
+    // The app's modules import each other relatively…
+    c.relation(admin, "admin", Imports, "BookRecord");
+    c.relation(forms, "forms", Imports, "BookRecord");
+    c.relation(views, "views", Imports, "BookForm");
+    c.relation(signals, "signals", Imports, "LoanRecord");
+    c.relation(urls, "urls", Imports, "checkout");
+    c.relation(&format!("{app}apps.py"), "ready", Imports, "signals");
+    // …and call into `library/`.
+    c.relation(models, "models", Imports, "overdue_fee");
+    c.relation(models, "fee", Calls, "overdue_fee");
+    c.relation(models, "clean", Calls, "is_valid_isbn");
+    c.relation(forms, "clean_isbn", Calls, "normalize_isbn");
+    c.relation(views, "checkout", Calls, "build_services");
+    c.relation(signals, "audit_book_delete", Calls, "audit");
 }
 
 #[test]
@@ -355,7 +369,7 @@ fn index_answers_cross_file_queries() {
         "library/models.py",
         "library/cli.py",
         "web/flask_app.py",
-        "web/django_app.py",
+        "web/django_site/lending/views.py",
     ] {
         assert!(files.contains(&file), "{file}");
     }
