@@ -1,7 +1,7 @@
 # mini-consumes-tokens (mct)
 
 ![CI](https://img.shields.io/github/actions/workflow/status/Zubiarka8/mini-consumes-tokens/ci.yml?branch=main&label=CI)
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 ![Version](https://img.shields.io/badge/version-0.1.0-informational.svg)
 
 **A local map of your code that answers "where is this defined", "what uses it", and "what would break if I change it" — without an AI assistant having to re-read your files over and over.**
@@ -403,6 +403,6 @@ Most MCP connections talk over "stdio" — a program's normal input and output �
 
 ## License
 
-The original code and documentation in this project are licensed under the [MIT license](LICENSE-MIT). Third-party components retain their own licenses; see [Third-Party Notices](THIRD_PARTY_NOTICES.md).
+The original code and documentation in this project are licensed under the [Apache License 2.0](LICENSE). Third-party components retain their own licenses; see [Third-Party Notices](THIRD_PARTY_NOTICES.md).
 
 For the complete command/flag/tool-parameter reference, see [COMMANDS.md](COMMANDS.md). For the internal design, see [ARCHITECTURE.md](ARCHITECTURE.md). For contributing, including how to add a new language, see [CONTRIBUTING.md](CONTRIBUTING.md).
