@@ -16,6 +16,7 @@ error). What each one does is in `../README.md`.
 | `corpus-report.ps1 <lang> [--bless] [--update-progress]` | `corpus-report.sh` |
 | `ci-failures.ps1 [<run-id>]` | `ci-failures.sh` |
 | `pr-status.ps1 <number>` | `pr-status.sh` |
+| `corpus-progress-check.ps1` | `corpus-progress-check.sh` |
 | `parse-probe.ps1 <files...>` | `parse-probe.sh` |
 | `install-hooks.ps1 [--uninstall]` | `install-hooks.sh` |
 
