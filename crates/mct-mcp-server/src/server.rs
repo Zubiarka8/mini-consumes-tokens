@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use mct_core::LanguageRegistry;
@@ -338,36 +338,49 @@ const OVERVIEW_KIND_ALLOWLIST: &[&str] = &[
     "module",
 ];
 
-/// Names of the file-level containers in `entries`: `module` symbols (a Go
-/// package, a C# namespace, the synthetic file module) that no other symbol in
-/// the file shares. A child parented by one of these is a top-level
-/// declaration. A child parented by a same-named class or function is a
-/// member, e.g. C#'s `PaymentProcessor.Process` beside the file module
-/// `PaymentProcessor`.
-fn file_containers(entries: &[mct_index::SymbolListEntry]) -> HashSet<String> {
-    let modules: HashSet<&str> = entries
-        .iter()
-        .filter(|e| e.kind == "module")
-        .map(|e| e.name.as_str())
-        .collect();
-    let others: HashSet<&str> = entries
-        .iter()
-        .filter(|e| e.kind != "module")
-        .map(|e| e.name.as_str())
-        .collect();
-    modules
-        .difference(&others)
-        .map(|name| name.to_string())
-        .collect()
+/// The parts of a file's symbol list that decide [`is_top_level`].
+struct FileShape {
+    /// Names of `module` symbols: a Go package, a C# namespace, or the
+    /// synthetic file module.
+    modules: HashSet<String>,
+    /// How many non-module symbols in the file carry each name.
+    type_names: HashMap<String, usize>,
 }
 
-/// Whether `entry` is a top-level declaration of its file: no parent at all,
-/// or a parent that is one of the file's containers. See [`file_containers`].
-fn is_top_level(entry: &mct_index::SymbolListEntry, containers: &HashSet<String>) -> bool {
-    match &entry.parent {
-        None => true,
-        Some(parent) => containers.contains(parent),
+fn file_shape(entries: &[mct_index::SymbolListEntry]) -> FileShape {
+    let mut shape = FileShape {
+        modules: HashSet::new(),
+        type_names: HashMap::new(),
+    };
+    for entry in entries {
+        if entry.kind == "module" {
+            shape.modules.insert(entry.name.clone());
+        } else {
+            *shape.type_names.entry(entry.name.clone()).or_insert(0) += 1;
+        }
     }
+    shape
+}
+
+/// Whether `entry` is a top-level declaration of its file.
+///
+/// No parent: yes. A parent that is not a module: no, it is a member (a method
+/// of a class, a field of a struct). A module parent: yes, except when a class
+/// or struct in the same file has the module's name. Then the child is that
+/// type's member, unless it is a `function`, which stays at package level
+/// (`package ledger` beside `type ledger`: Go's `NewLedger` vs `Ledger.Add`).
+fn is_top_level(entry: &mct_index::SymbolListEntry, shape: &FileShape) -> bool {
+    let Some(parent) = &entry.parent else {
+        return true;
+    };
+    if !shape.modules.contains(parent) {
+        return false;
+    }
+    // The entry counts toward its own name when it is itself the type named
+    // like its parent; that is not a clash with anything else.
+    let own = usize::from(entry.kind != "module" && entry.name == *parent);
+    let clashes = shape.type_names.get(parent).copied().unwrap_or(0) > own;
+    !clashes || entry.kind == "function"
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -1968,15 +1981,15 @@ impl MctServer {
         }
         let source = read_source_file(&index, path)?;
         let all = index.list_symbols(path, None, None).map_err(index_error)?;
-        let containers = file_containers(&all);
+        let shape = file_shape(&all);
         let entries: Vec<_> = all
             .into_iter()
             // Not every top-level declaration lacks a parent: Go, C#, Bash
             // and PowerShell parent theirs to the package, namespace or file
-            // module (see `file_containers`). The module entry itself is
+            // module (see `is_top_level`). The module entry itself is
             // also dropped: the user asked for classes/structs/interfaces/
             // functions/types, not the synthetic whole-file wrapper.
-            .filter(|entry| entry.kind != "module" && is_top_level(entry, &containers))
+            .filter(|entry| entry.kind != "module" && is_top_level(entry, &shape))
             .collect();
         Ok(CallToolResult::success(vec![ContentBlock::text(
             format::file_skeleton(path, &entries, &source),
@@ -2028,12 +2041,11 @@ impl MctServer {
 
         let mut digests = Vec::with_capacity(modules.len());
         for (relative_path, entries) in modules {
-            let containers = file_containers(&entries);
+            let shape = file_shape(&entries);
             let mut candidates: Vec<mct_index::SymbolListEntry> = entries
                 .into_iter()
                 .filter(|e| {
-                    is_top_level(e, &containers)
-                        && OVERVIEW_KIND_ALLOWLIST.contains(&e.kind.as_str())
+                    is_top_level(e, &shape) && OVERVIEW_KIND_ALLOWLIST.contains(&e.kind.as_str())
                 })
                 .collect();
 
