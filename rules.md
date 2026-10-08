@@ -207,6 +207,8 @@ scripts/unix/new-tool-check.sh <tool>              # adding an MCP tool: which o
 scripts/unix/new-language-check.sh <suffix>        # adding crates/mct-lang-<suffix>: CONTRIBUTING.md's checklist, what's missing, then its tests
 scripts/unix/token-report.sh [--markdown F]        # every token measurement (per language, formats, composite tools, catalog) in one screen
 scripts/unix/corpus-report.sh <lang> [--bless] [--update-progress]  # issue #74 corpus: tests + totals + heuristic bug checks, instead of reading expected.snap
+scripts/unix/ci-failures.sh [<run-id>]             # why a CI run failed: failing jobs + first error lines (default: latest failed run on this branch)
+scripts/unix/pr-status.sh <number>                 # a PR in a few lines: state, review, checks passed/failed/running, latest comment
 scripts/unix/corpus-progress-check.sh              # issue #74 table vs GitHub: In PR / Done rows whose PR state is out of date (needs gh)
 scripts/unix/parse-probe.sh <files…>               # parse files without indexing: counts or first syntax error + its line
 scripts/unix/install-hooks.sh                      # once per clone: post-checkout hook that rebuilds the index when a branch switch breaks it
