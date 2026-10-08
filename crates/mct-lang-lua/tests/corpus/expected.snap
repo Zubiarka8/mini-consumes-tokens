@@ -1,4 +1,4 @@
-# language=lua files=5 symbols=163 relations=363 cross_file=43
+# language=lua files=5 symbols=163 relations=363 name_matched_across_files=43
 
 == gateway/ratelimit.lua (302 lines)
 S 1-302 module ratelimit
@@ -37,7 +37,7 @@ S 293-295 method clock::advance
 R 8:15 imports ratelimit -> cjson.safe
 R 9:18 imports ratelimit -> resty.lock
 R 53:24 calls decode_bucket -> decode
-R 61:24 calls refill -> max (x-file: warehouse/money.lua)
+R 61:24 calls refill -> max (name-matched: warehouse/money.lua)
 R 62:24 calls refill -> min
 R 78:10 calls _M::new -> setmetatable
 R 90:17 calls Limiter::take -> classify
@@ -46,7 +46,7 @@ R 92:15 calls Limiter::take -> bucket_key
 R 93:35 calls Limiter::take -> new
 R 95:43 calls Limiter::take -> tostring
 R 97:29 calls Limiter::take -> lock
-R 100:9 calls Limiter::take -> log (x-file: gateway/router.lua)
+R 100:9 calls Limiter::take -> log (name-matched: gateway/router.lua)
 R 103:20 calls Limiter::take -> clock
 R 104:18 calls Limiter::take -> refill
 R 104:25 calls Limiter::take -> decode_bucket
@@ -73,7 +73,7 @@ R 164:14 calls reject -> exit
 R 170:21 calls _M::access -> client_id_of
 R 171:26 calls _M::access -> get_method
 R 172:35 calls _M::access -> take
-R 174:9 calls _M::access -> log (x-file: gateway/router.lua)
+R 174:9 calls _M::access -> log (name-matched: gateway/router.lua)
 R 177:39 calls _M::access -> remaining
 R 181:12 calls _M::access -> reject
 R 188:16 calls _M::describe -> pairs
@@ -81,7 +81,7 @@ R 189:20 calls _M::describe -> limits_for
 R 210:10 calls _M::new_concurrency -> setmetatable
 R 218:15 calls Concurrency::enter -> inflight_key
 R 219:32 calls Concurrency::enter -> incr
-R 221:9 calls Concurrency::enter -> log (x-file: gateway/router.lua)
+R 221:9 calls Concurrency::enter -> log (name-matched: gateway/router.lua)
 R 225:15 calls Concurrency::enter -> incr
 R 237:27 calls Concurrency::leave -> incr
 R 237:32 calls Concurrency::leave -> inflight_key
@@ -93,7 +93,7 @@ R 249:20 calls Concurrency::in_flight -> get
 R 249:24 calls Concurrency::in_flight -> inflight_key
 R 254:35 calls _M::access_all -> enter
 R 254:41 calls _M::access_all -> client_id_of
-R 256:9 calls _M::access_all -> log (x-file: gateway/router.lua)
+R 256:9 calls _M::access_all -> log (name-matched: gateway/router.lua)
 R 257:12 calls _M::access_all -> reject
 R 259:13 calls _M::access_all -> access
 R 288:17 calls _M::fake_clock -> setmetatable
@@ -134,7 +134,7 @@ R 11:15 imports router -> warehouse.order
 R 12:19 imports router -> warehouse.inventory
 R 13:19 imports router -> gateway.ratelimit
 R 20:21 calls router -> getenv
-R 21:27 calls router -> of (x-file: warehouse/money.lua)
+R 21:27 calls router -> of (name-matched: warehouse/money.lua)
 R 30:6 calls respond -> type
 R 31:18 calls respond -> encode
 R 33:7 calls respond -> say
@@ -155,36 +155,36 @@ R 90:24 calls Router::match -> ipairs
 R 101:32 calls Router::dispatch -> match
 R 103:12 calls Router::dispatch -> problem
 R 105:10 calls Router::dispatch -> handler
-R 116:29 calls cache -> new_cache (x-file: warehouse/inventory.lua)
+R 116:29 calls cache -> new_cache (name-matched: warehouse/inventory.lua)
 R 117:27 calls cache -> new
 R 118:31 calls cache -> request_uri
 R 120:42 calls cache -> tostring
 R 122:20 calls cache -> decode
-R 130:31 calls handlers::get_stock -> available (x-file: warehouse/inventory.lua)
+R 130:31 calls handlers::get_stock -> available (name-matched: warehouse/inventory.lua)
 R 130:23 calls handlers::get_stock -> cache
 R 132:14 calls handlers::get_stock -> problem
 R 134:12 calls handlers::get_stock -> respond
 R 138:13 calls handlers::place_order -> read_body
-R 139:26 calls handlers::place_order -> from_request_body (x-file: warehouse/order.lua)
+R 139:26 calls handlers::place_order -> from_request_body (name-matched: warehouse/order.lua)
 R 139:52 calls handlers::place_order -> get_body_data
 R 141:14 calls handlers::place_order -> problem
-R 143:34 calls handlers::place_order -> check_order (x-file: warehouse/inventory.lua)
+R 143:34 calls handlers::place_order -> check_order (name-matched: warehouse/inventory.lua)
 R 143:46 calls handlers::place_order -> cache
 R 145:14 calls handlers::place_order -> respond
-R 145:37 calls handlers::place_order -> out_of_stock_problem (x-file: warehouse/inventory.lua)
-R 147:10 calls handlers::place_order -> is_large (x-file: warehouse/order.lua)
+R 145:37 calls handlers::place_order -> out_of_stock_problem (name-matched: warehouse/inventory.lua)
+R 147:10 calls handlers::place_order -> is_large (name-matched: warehouse/order.lua)
 R 148:11 calls handlers::place_order -> log
 R 150:12 calls handlers::place_order -> proxy
-R 150:46 calls handlers::place_order -> to_json (x-file: warehouse/money.lua)
+R 150:46 calls handlers::place_order -> to_json (name-matched: warehouse/money.lua)
 R 154:12 calls handlers::get_order -> proxy
 R 158:13 calls handlers::cancel_order -> read_body
 R 159:12 calls handlers::cancel_order -> proxy
 R 159:83 calls handlers::cancel_order -> get_body_data
 R 165:10 calls handlers::get_limits -> respond
-R 165:33 calls handlers::get_limits -> describe (x-file: gateway/ratelimit.lua)
+R 165:33 calls handlers::get_limits -> describe (name-matched: gateway/ratelimit.lua)
 R 171:10 calls handlers::preflight -> problem
 R 176:10 calls handlers::health -> respond
-R 176:56 calls handlers::health -> stats (x-file: gateway/ratelimit.lua)
+R 176:56 calls handlers::health -> stats (name-matched: gateway/ratelimit.lua)
 R 176:48 calls handlers::health -> cache
 R 195:18 calls cors -> get_method
 R 199:20 calls cors -> exit
@@ -209,20 +209,20 @@ R 254:38 calls build -> cors
 R 255:5 calls build -> add
 R 261:22 calls M::handle -> build
 R 263:29 calls M::handle -> new
-R 265:15 calls M::handle -> access (x-file: gateway/ratelimit.lua)
+R 265:15 calls M::handle -> access (name-matched: gateway/ratelimit.lua)
 R 267:17 calls M::handle -> dispatch
 R 267:34 calls M::handle -> get_method
 R 272:18 calls M::log -> tonumber
 R 279:7 calls M::log -> log
 R 286:18 calls M::quote_preview -> ipairs
-R 287:51 calls M::quote_preview -> times (x-file: warehouse/money.lua)
-R 287:26 calls M::quote_preview -> of (x-file: warehouse/money.lua)
-R 289:21 calls M::quote_preview -> sum (x-file: warehouse/money.lua)
-R 291:15 calls M::quote_preview -> to_json (x-file: warehouse/money.lua)
-R 292:30 calls M::quote_preview -> to_json (x-file: warehouse/money.lua)
-R 292:17 calls M::quote_preview -> vat (x-file: warehouse/money.lua)
-R 293:34 calls M::quote_preview -> to_json (x-file: warehouse/money.lua)
-R 293:19 calls M::quote_preview -> gross (x-file: warehouse/money.lua)
+R 287:51 calls M::quote_preview -> times (name-matched: warehouse/money.lua)
+R 287:26 calls M::quote_preview -> of (name-matched: warehouse/money.lua)
+R 289:21 calls M::quote_preview -> sum (name-matched: warehouse/money.lua)
+R 291:15 calls M::quote_preview -> to_json (name-matched: warehouse/money.lua)
+R 292:30 calls M::quote_preview -> to_json (name-matched: warehouse/money.lua)
+R 292:17 calls M::quote_preview -> vat (name-matched: warehouse/money.lua)
+R 293:34 calls M::quote_preview -> to_json (name-matched: warehouse/money.lua)
+R 293:19 calls M::quote_preview -> gross (name-matched: warehouse/money.lua)
 
 == warehouse/inventory.lua (302 lines)
 S 1-302 module inventory
@@ -251,13 +251,13 @@ S 245-265 method M::pick_tasks
 S 269-298 method M::validate_transfer
 R 7:19 imports inventory -> warehouse.order
 R 8:15 imports inventory -> cjson.safe
-R 23:35 calls M::parse_location -> match (x-file: gateway/router.lua)
-R 25:24 calls M::parse_location -> match (x-file: gateway/router.lua)
+R 23:35 calls M::parse_location -> match (name-matched: gateway/router.lua)
+R 25:24 calls M::parse_location -> match (name-matched: gateway/router.lua)
 R 29:35 calls M::parse_location -> tonumber
 R 31:33 calls M::parse_location -> tonumber
 R 31:58 calls M::parse_location -> tonumber
-R 36:19 calls M::format_location -> format (x-file: warehouse/money.lua)
-R 38:17 calls M::format_location -> format (x-file: warehouse/money.lua)
+R 36:19 calls M::format_location -> format (name-matched: warehouse/money.lua)
+R 38:17 calls M::format_location -> format (name-matched: warehouse/money.lua)
 R 56:19 calls M::picking_route -> unpack
 R 57:9 calls M::picking_route -> sort
 R 67:10 calls M::new_cache -> setmetatable
@@ -265,20 +265,20 @@ R 75:25 calls Cache::get -> get
 R 75:34 calls Cache::get -> key
 R 78:18 calls Cache::get -> decode
 R 81:28 calls Cache::get -> loader
-R 85:33 calls Cache::get -> set (x-file: gateway/ratelimit.lua)
+R 85:33 calls Cache::get -> set (name-matched: gateway/ratelimit.lua)
 R 85:42 calls Cache::get -> key
 R 85:58 calls Cache::get -> encode
-R 87:9 calls Cache::get -> log (x-file: gateway/router.lua)
-R 94:15 calls Cache::invalidate -> delete (x-file: gateway/ratelimit.lua)
+R 87:9 calls Cache::get -> log (name-matched: gateway/router.lua)
+R 94:15 calls Cache::invalidate -> delete (name-matched: gateway/ratelimit.lua)
 R 94:27 calls Cache::invalidate -> key
 R 96:15 calls Cache::invalidate -> flush_all
 R 101:28 calls Cache::available -> get
 R 106:19 calls Cache::available -> ipairs
 R 129:18 calls M::check_order -> ipairs
 R 130:29 calls M::check_order -> available
-R 132:11 calls M::check_order -> log (x-file: gateway/router.lua)
+R 132:11 calls M::check_order -> log (name-matched: gateway/router.lua)
 R 143:15 calls M::out_of_stock_problem -> ipairs
-R 144:23 calls M::out_of_stock_problem -> format (x-file: warehouse/money.lua)
+R 144:23 calls M::out_of_stock_problem -> format (name-matched: warehouse/money.lua)
 R 150:20 calls M::out_of_stock_problem -> concat
 R 164:35 calls M::start_refresher -> wrap
 R 166:21 calls M::start_refresher -> ipairs
@@ -373,9 +373,9 @@ R 90:45 calls M::of -> tostring
 R 92:12 calls M::of -> of_minor
 R 92:23 calls M::of -> round_half_even
 R 96:12 calls M::zero -> of_minor
-R 101:21 calls M::parse -> match (x-file: gateway/router.lua)
+R 101:21 calls M::parse -> match (name-matched: gateway/router.lua)
 R 103:5 calls M::parse -> raise
-R 105:8 calls M::parse -> match (x-file: gateway/router.lua)
+R 105:8 calls M::parse -> match (name-matched: gateway/router.lua)
 R 106:14 calls M::parse -> of
 R 108:12 calls M::parse -> of
 R 113:12 calls M::from_json -> of
@@ -466,23 +466,23 @@ R 7:15 imports order -> warehouse.money
 R 8:15 imports order -> cjson.safe
 R 47:10 calls M::is_terminal -> next
 R 56:6 calls new_line -> type
-R 56:47 calls new_line -> match (x-file: gateway/router.lua)
+R 56:47 calls new_line -> match (name-matched: gateway/router.lua)
 R 59:20 calls new_line -> tonumber
 R 60:56 calls new_line -> floor
-R 63:42 calls new_line -> from_json (x-file: warehouse/money.lua)
-R 63:77 calls new_line -> zero (x-file: warehouse/money.lua)
-R 68:26 calls subtotal -> times (x-file: warehouse/money.lua)
+R 63:42 calls new_line -> from_json (name-matched: warehouse/money.lua)
+R 63:77 calls new_line -> zero (name-matched: warehouse/money.lua)
+R 68:26 calls subtotal -> times (name-matched: warehouse/money.lua)
 R 80:16 calls M::new -> setmetatable
 R 89:17 calls M::new -> ipairs
 R 90:23 calls M::new -> new_line
 R 99:8 calls M::new -> record
 R 105:18 calls Order::total -> ipairs
 R 106:20 calls Order::total -> subtotal
-R 108:16 calls Order::total -> sum (x-file: warehouse/money.lua)
+R 108:16 calls Order::total -> sum (name-matched: warehouse/money.lua)
 R 112:15 calls Order::is_large -> total
 R 116:68 calls Order::record -> now
 R 122:12 calls Order::move_to -> can_move_to
-R 123:24 calls Order::move_to -> format (x-file: warehouse/money.lua)
+R 123:24 calls Order::move_to -> format (name-matched: warehouse/money.lua)
 R 130:24 calls Order::reserve -> move_to
 R 134:15 calls Order::reserve -> record
 R 138:21 calls Order::pay -> total
@@ -529,9 +529,9 @@ R 270:18 calls M::next_number -> tonumber
 R 270:30 calls M::next_number -> date
 R 271:25 calls M::next_number -> incr
 R 273:56 calls M::next_number -> tostring
-R 275:17 calls M::next_number -> format (x-file: warehouse/money.lua)
+R 275:17 calls M::next_number -> format (name-matched: warehouse/money.lua)
 R 279:10 calls M::is_order_number -> type
-R 279:42 calls M::is_order_number -> match (x-file: gateway/router.lua)
+R 279:42 calls M::is_order_number -> match (name-matched: gateway/router.lua)
 R 285:37 calls M::from_request_body -> decode
 R 289:6 calls M::from_request_body -> type
 R 293:24 calls M::from_request_body -> new

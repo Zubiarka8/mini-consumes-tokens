@@ -15,7 +15,10 @@
 use mct_core::{RelationKind, SymbolKind};
 use mct_lang_md::MarkdownParser;
 
-mct_corpus::standard_tests!(MarkdownParser);
+mct_corpus::standard_tests!(
+    MarkdownParser,
+    malformed_may_parse = "Markdown accepts any input; a malformed note is still a note"
+);
 
 use RelationKind::{Imports, References};
 
