@@ -1,29 +1,33 @@
 /*
- * Tailwind CSS v4 stylesheet syntax (issue #114).
+ * Harbor marketing site — the Tailwind CSS v4.1 entry stylesheet (#114).
  *
- * v4 replaced the v3 `@tailwind` directives with a plain `@import`,
- * moved configuration into CSS (`@theme`), and added `@utility`,
- * `@variant`, `@custom-variant`, `@slot` and the `--value()`,
- * `--alpha()` and `--spacing()` functions. Rules use native CSS nesting.
- * See https://tailwindcss.com/docs/functions-and-directives.
+ * Scenario: an app on Tailwind v4.1, an external build dependency pulled in
+ * by `@import "tailwindcss"`. v4 has no JavaScript config: tokens live in
+ * `@theme`, custom utilities in `@utility`, custom variants in
+ * `@custom-variant`, and rules use native CSS nesting with `@variant`.
+ * Tailwind's generated utilities are not in the corpus. Directives and
+ * functions as documented in
+ * https://tailwindcss.com/docs/functions-and-directives
  *
- * Not included because tree-sitter-css rejects them (see #116, #87):
- *   @config "…";  @plugin "…";  @source "…";  @reference "…";
- *   @import "tailwindcss" prefix(tw);  @import "…" layer(theme);
- *   @custom-variant name (&:where(…));   (the block form below parses)
- *   @utility tab-* { … }                 (functional utilities)
- *   --color-*: initial;                  (namespace reset inside @theme)
- * and media/container range queries (`width >= 40rem`, #87), which v4's
- * generated output uses; `min-width:` is written instead.
+ * Parser: mct-lang-css. Expected: one `imports` of `tailwindcss`; rules for
+ * the selectors in `@layer` blocks and plain rules, each spanning its nested
+ * rules; no symbol for `@theme` tokens, keyframes or `@custom-variant`
+ * names. Known limits: an `@utility` name has no symbol (only its nested
+ * rules do), and a nested `&` rule keeps its literal selector (#115).
+ *
+ * Not used because tree-sitter-css 0.25 rejects them (#116, #87):
+ * `@source "…";`, `@plugin "…";`, the one-line
+ * `@custom-variant name (&:where(…));` (the block form below parses),
+ * functional `@utility tab-* { … }`, `--color-*: initial;`, and range media
+ * queries (`width >= 40rem`).
  */
 
 @import "tailwindcss";
-@import "../styles/tokens.css";
 
 @layer theme, base, components, utilities;
 
 /* ------------------------------------------------------------------ */
-/* @theme: design tokens that also generate utilities                  */
+/* Design tokens                                                       */
 /* ------------------------------------------------------------------ */
 
 @theme {
@@ -41,7 +45,6 @@
   --color-avocado-100: oklch(0.99 0 0);
   --color-avocado-500: oklch(0.84 0.18 117.33);
 
-  --spacing: 0.25rem;
   --radius-pill: 9999px;
 
   --ease-fluid: cubic-bezier(0.3, 0, 0, 1);
@@ -101,7 +104,7 @@
 }
 
 /* ------------------------------------------------------------------ */
-/* @utility: static custom utilities                                   */
+/* Custom utilities                                                    */
 /* ------------------------------------------------------------------ */
 
 @utility tab-4 {
@@ -130,8 +133,15 @@
   text-shadow: 0 1px 2px --alpha(var(--color-harbor-900) / 25%);
 }
 
+/* A registered custom property, so the hero's gradient angle animates. */
+@property --hero-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 160deg;
+}
+
 /* ------------------------------------------------------------------ */
-/* @layer base / components with @apply and nesting                    */
+/* Base and components                                                 */
 /* ------------------------------------------------------------------ */
 
 @layer base {
@@ -204,7 +214,7 @@
     }
 
     &[aria-invalid="true"] {
-      border-color: red;
+      border-color: var(--color-red-600);
     }
   }
 
@@ -227,7 +237,7 @@
 }
 
 /* ------------------------------------------------------------------ */
-/* Plain rules using @variant outside any layer                        */
+/* Page sections                                                       */
 /* ------------------------------------------------------------------ */
 
 .prose-harbor {
@@ -246,10 +256,15 @@
 .hero {
   padding-block: calc(--spacing(16) + 2vh);
   background: linear-gradient(
-    to bottom,
+    var(--hero-angle),
     var(--color-harbor-50),
     --alpha(var(--color-harbor-100) / 60%)
   );
+  transition: --hero-angle 600ms var(--ease-fluid);
+
+  &:hover {
+    --hero-angle: 200deg;
+  }
 }
 
 .hero__title {
@@ -257,83 +272,16 @@
   animation: var(--animate-fade-in);
 }
 
-/* ------------------------------------------------------------------ */
-/* Shape of generated utilities (v4 output)                            */
-/* ------------------------------------------------------------------ */
+.pricing-table {
+  display: grid;
+  gap: --spacing(6);
 
-.bg-harbor-500 {
-  background-color: var(--color-harbor-500);
-}
-
-.bg-harbor-500\/50 {
-  background-color: color-mix(in oklab, var(--color-harbor-500) 50%, transparent);
-}
-
-.p-4 {
-  padding: calc(var(--spacing) * 4);
-}
-
-.mt-\[17px\] {
-  margin-top: 17px;
-}
-
-.font-display {
-  font-family: var(--font-display);
-}
-
-.animate-wiggle {
-  animation: var(--animate-wiggle);
-}
-
-.\33xl\:grid-cols-6 {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-}
-
-.hover\:bg-harbor-700 {
-  &:hover {
-    @media (hover: hover) {
-      background-color: var(--color-harbor-700);
-    }
+  @variant md {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-}
 
-.dark\:bg-harbor-900 {
-  @media (prefers-color-scheme: dark) {
-    background-color: var(--color-harbor-900);
+  & .pricing-table__plan[data-featured] {
+    outline: 2px solid var(--color-avocado-500);
+    @apply scale-105;
   }
-}
-
-.theme-midnight\:text-avocado-500 {
-  &:where([data-theme="midnight"] *) {
-    color: var(--color-avocado-500);
-  }
-}
-
-.starting\:opacity-0 {
-  @starting-style {
-    opacity: 0;
-  }
-}
-
-.\@container {
-  container-type: inline-size;
-}
-
-/* v4 nests this `@container` inside the rule; the grammar rejects a
-   nested `@container` (#116), so it is written at top level. */
-@container (min-width: 28rem) {
-  .\@md\:flex-row {
-    flex-direction: row;
-  }
-}
-
-@property --tw-rotate-x {
-  syntax: "*";
-  inherits: false;
-}
-
-@property --tw-shadow-alpha {
-  syntax: "<percentage>";
-  inherits: false;
-  initial-value: 100%;
 }

@@ -1,4 +1,4 @@
-# language=python files=8 symbols=391 relations=1321 name_matched_across_files=294
+# language=python files=15 symbols=400 relations=1362 name_matched_across_files=331
 
 == library/cli.py (307 lines)
 S 1-307 module cli
@@ -1232,498 +1232,562 @@ R 415:15 calls build_services -> LendingService
 R 416:5 calls build_services -> wire_default_listeners
 R 417:21 calls build_services -> ReminderService
 
-== web/django_app.py (365 lines)
-S 1-365 module django_app
-S 48-55 class TimeStampedModel
-S 54-55 class TimeStampedModel::Meta
-S 58-67 class AuthorRecord
-S 62-64 class AuthorRecord::Meta
-S 66-67 method AuthorRecord::__str__
-S 70-78 class BookQuerySet
-S 71-72 method BookQuerySet::available
-S 74-75 method BookQuerySet::in_genre
-S 77-78 method BookQuerySet::popular
-S 81-111 class BookRecord
-S 92-100 class BookRecord::Meta
-S 102-103 method BookRecord::__str__
-S 105-108 method BookRecord::clean
-S 110-111 method BookRecord::get_absolute_url
-S 114-125 class CopyRecord
-S 115-118 class CopyRecord::Status
-S 124-125 method CopyRecord::__str__
-S 128-151 class LoanRecord
-S 136-138 class LoanRecord::Meta
-S 141-142 method LoanRecord::is_overdue
-S 144-146 method LoanRecord::fee
-S 148-151 method LoanRecord::save
-S 159-161 class CopyInline
-S 165-181 class BookAdmin
-S 173-174 method BookAdmin::copy_count
-S 177-181 method BookAdmin::mark_lost
-S 185-186 class PlainAdmin
-S 197-207 class BookForm
-S 198-201 class BookForm::Meta
-S 203-207 method BookForm::clean_isbn
-S 210-211 class CheckoutForm
-S 219-233 class BookListView
-S 224-228 method BookListView::get_queryset
-S 230-233 method BookListView::get_context_data
-S 236-239 class BookDetailView
-S 242-245 class BookCreateView
-S 248-252 class BookUpdateView
-S 255-264 class StatsView
-S 258-264 method StatsView::get
-S 269-291 function checkout
-S 297-302 function waive_fee
-S 307-311 function overdue
-S 314-316 function my_loans
-S 325-327 function mark_copy_on_loan
-S 331-332 function audit_book_delete
-R 14:22 imports django_app -> timedelta
-R 15:20 imports django_app -> Any
-R 17:20 imports django_app -> forms
-R 18:25 imports django_app -> settings
-R 19:28 imports django_app -> admin
-R 19:35 imports django_app -> messages
-R 20:44 imports django_app -> login_required (name-matched: web/flask_app.py)
-R 20:60 imports django_app -> permission_required
-R 21:40 imports django_app -> LoginRequiredMixin
-R 21:60 imports django_app -> PermissionRequiredMixin
-R 22:55 imports django_app -> DjangoValidationError
-R 23:23 imports django_app -> models (name-matched: library/models.py)
-R 23:31 imports django_app -> transaction
-R 24:30 imports django_app -> Count
-R 24:37 imports django_app -> F
-R 24:40 imports django_app -> Q
-R 25:38 imports django_app -> post_save
-R 25:49 imports django_app -> pre_delete
-R 26:29 imports django_app -> receiver
-R 27:25 imports django_app -> HttpRequest
-R 27:38 imports django_app -> HttpResponse
-R 27:52 imports django_app -> JsonResponse
-R 28:30 imports django_app -> get_object_or_404
-R 28:49 imports django_app -> redirect
-R 28:59 imports django_app -> render (name-matched: library/reports.py)
-R 29:25 imports django_app -> include
-R 29:34 imports django_app -> path
-R 29:40 imports django_app -> re_path
-R 29:49 imports django_app -> reverse
-R 30:26 imports django_app -> timezone
-R 31:26 imports django_app -> View
-R 32:43 imports django_app -> cache_page
-R 33:42 imports django_app -> require_GET
-R 33:55 imports django_app -> require_POST
-R 34:34 imports django_app -> CreateView
-R 34:46 imports django_app -> DetailView
-R 34:58 imports django_app -> ListView
-R 34:68 imports django_app -> UpdateView
-R 36:28 imports django_app -> LimitExceededError (name-matched: library/errors.py)
-R 36:48 imports django_app -> audit (name-matched: library/errors.py)
-R 37:28 imports django_app -> Genre (name-matched: library/models.py)
-R 37:35 imports django_app -> is_valid_isbn (name-matched: library/models.py)
-R 37:50 imports django_app -> normalize_isbn (name-matched: library/models.py)
-R 37:66 imports django_app -> overdue_fee (name-matched: library/models.py)
-R 38:30 imports django_app -> build_services (name-matched: library/services.py)
-R 40:15 calls django_app -> timedelta
-R 48:24 extends TimeStampedModel -> Model
-R 51:25 calls TimeStampedModel -> DateTimeField
-R 52:25 calls TimeStampedModel -> DateTimeField
-R 58:20 extends AuthorRecord -> TimeStampedModel
-R 59:19 calls AuthorRecord -> CharField
-R 60:19 calls AuthorRecord -> DateField
-R 70:20 extends BookQuerySet -> QuerySet
-R 72:71 calls BookQuerySet::available -> distinct
-R 72:21 calls BookQuerySet::available -> filter
-R 75:21 calls BookQuerySet::in_genre -> filter
-R 78:56 calls BookQuerySet::popular -> order_by
-R 78:21 calls BookQuerySet::popular -> annotate
-R 78:32 calls BookQuerySet::popular -> Count
-R 81:18 extends BookRecord -> TimeStampedModel
-R 84:19 calls BookRecord -> CharField
-R 85:20 calls BookRecord -> CharField
-R 86:20 calls BookRecord -> CharField
-R 87:22 calls BookRecord -> ManyToManyField
-R 88:24 calls BookRecord -> PositiveSmallIntegerField
-R 90:28 calls BookRecord -> as_manager
-R 94:27 calls BookRecord::Meta -> Index (name-matched: library/models.py)
-R 96:20 calls BookRecord::Meta -> CheckConstraint
-R 97:27 calls BookRecord::Meta -> Q
-R 97:52 calls BookRecord::Meta -> Q
-R 106:21 calls BookRecord::clean -> normalize_isbn (name-matched: library/models.py)
-R 107:16 calls BookRecord::clean -> is_valid_isbn (name-matched: library/models.py)
-R 108:19 calls BookRecord::clean -> DjangoValidationError
-R 111:16 calls BookRecord::get_absolute_url -> reverse
-R 114:18 extends CopyRecord -> Model
-R 115:18 extends CopyRecord::Status -> TextChoices
-R 120:19 calls CopyRecord -> ForeignKey
-R 121:22 calls CopyRecord -> CharField
-R 122:21 calls CopyRecord -> CharField
-R 128:18 extends LoanRecord -> TimeStampedModel
-R 129:19 calls LoanRecord -> ForeignKey
-R 130:21 calls LoanRecord -> ForeignKey
-R 133:18 calls LoanRecord -> DateTimeField
-R 134:23 calls LoanRecord -> DateTimeField
-R 142:62 calls LoanRecord::is_overdue -> now (name-matched: library/services.py)
-R 140:5 references LoanRecord::is_overdue -> property
-R 145:26 calls LoanRecord::fee -> now (name-matched: library/services.py)
-R 146:16 calls LoanRecord::fee -> overdue_fee (name-matched: library/models.py)
-R 146:28 calls LoanRecord::fee -> max
-R 150:33 calls LoanRecord::save -> now (name-matched: library/services.py)
-R 151:17 calls LoanRecord::save -> save
-R 151:9 calls LoanRecord::save -> super
-R 159:18 extends CopyInline -> TabularInline
-R 165:17 extends BookAdmin -> ModelAdmin
-R 174:27 calls BookAdmin::copy_count -> count (name-matched: library/reports.py)
-R 172:5 references BookAdmin::copy_count -> display
-R 178:64 calls BookAdmin::mark_lost -> update
-R 178:38 calls BookAdmin::mark_lost -> filter
-R 181:14 calls BookAdmin::mark_lost -> message_user
-R 176:5 references BookAdmin::mark_lost -> action
-R 164:1 references BookAdmin -> register (name-matched: library/cli.py)
-R 185:18 extends PlainAdmin -> ModelAdmin
-R 184:1 references PlainAdmin -> register (name-matched: library/cli.py)
-R 189:12 calls django_app -> register (name-matched: library/cli.py)
-R 197:16 extends BookForm -> ModelForm
-R 204:16 calls BookForm::clean_isbn -> normalize_isbn (name-matched: library/models.py)
-R 205:16 calls BookForm::clean_isbn -> is_valid_isbn (name-matched: library/models.py)
-R 206:25 calls BookForm::clean_isbn -> ValidationError (name-matched: library/errors.py)
-R 210:20 extends CheckoutForm -> Form
-R 211:21 calls CheckoutForm -> CharField
-R 219:20 extends BookListView -> ListView
-R 225:33 calls BookListView::get_queryset -> all
-R 226:38 calls BookListView::get_queryset -> get
-R 227:21 calls BookListView::get_queryset -> in_genre
-R 227:42 calls BookListView::get_queryset -> upper
-R 228:19 calls BookListView::get_queryset -> prefetch_related
-R 231:27 calls BookListView::get_context_data -> get_context_data
-R 231:19 calls BookListView::get_context_data -> super
-R 232:49 calls BookListView::get_context_data -> popular
-R 236:22 extends BookDetailView -> DetailView
-R 242:22 extends BookCreateView -> LoginRequiredMixin
-R 242:42 extends BookCreateView -> PermissionRequiredMixin
-R 242:67 extends BookCreateView -> CreateView
-R 248:22 extends BookUpdateView -> LoginRequiredMixin
-R 248:42 extends BookUpdateView -> UpdateView
-R 255:17 extends StatsView -> View
-R 262:14 calls StatsView::get -> order_by
-R 261:14 calls StatsView::get -> annotate
-R 260:32 calls StatsView::get -> values (name-matched: library/repository.py)
-R 261:29 calls StatsView::get -> Count
-R 261:48 calls StatsView::get -> Count
-R 262:34 calls StatsView::get -> desc
-R 262:23 calls StatsView::get -> F
-R 264:16 calls StatsView::get -> JsonResponse
-R 264:40 calls StatsView::get -> list
-R 270:12 calls checkout -> get_object_or_404
-R 270:47 calls checkout -> normalize_isbn (name-matched: library/models.py)
-R 271:12 calls checkout -> CheckoutForm
-R 272:17 calls checkout -> is_valid
-R 273:16 calls checkout -> render (name-matched: library/reports.py)
-R 274:22 calls checkout -> atomic
-R 275:16 calls checkout -> get_object_or_404
-R 276:32 calls checkout -> select_for_update
-R 281:67 calls checkout -> checkout
-R 281:13 calls checkout -> build_services (name-matched: library/services.py)
-R 285:22 calls checkout -> error
-R 285:37 calls checkout -> str
-R 286:20 calls checkout -> redirect
-R 287:28 calls checkout -> create
-R 289:14 calls checkout -> save
-R 290:5 calls checkout -> audit (name-matched: library/errors.py)
-R 291:12 calls checkout -> redirect
-R 267:1 references checkout -> login_required (name-matched: web/flask_app.py)
-R 268:1 references checkout -> require_POST
-R 298:12 calls waive_fee -> get_object_or_404
-R 299:47 calls waive_fee -> now (name-matched: library/services.py)
-R 300:10 calls waive_fee -> save
-R 301:14 calls waive_fee -> success
-R 302:12 calls waive_fee -> redirect
-R 294:1 references waive_fee -> login_required (name-matched: web/flask_app.py)
-R 295:1 references waive_fee -> permission_required
-R 296:1 references waive_fee -> require_POST
-R 308:32 calls overdue -> filter
-R 308:79 calls overdue -> now (name-matched: library/services.py)
-R 309:12 calls overdue -> JsonResponse
-R 310:50 calls overdue -> fee
-R 310:75 calls overdue -> select_related
-R 305:1 references overdue -> require_GET
-R 306:1 references overdue -> cache_page
-R 315:60 calls my_loans -> select_related
-R 315:32 calls my_loans -> filter
-R 316:12 calls my_loans -> render (name-matched: library/reports.py)
-R 327:56 calls mark_copy_on_loan -> update
-R 327:28 calls mark_copy_on_loan -> filter
-R 324:1 references mark_copy_on_loan -> receiver
-R 332:5 calls audit_book_delete -> audit (name-matched: library/errors.py)
-R 330:1 references audit_book_delete -> receiver
-R 341:9 calls django_app -> path
-R 341:31 calls django_app -> as_view
-R 342:9 calls django_app -> path
-R 342:37 calls django_app -> as_view
-R 343:9 calls django_app -> path
-R 343:44 calls django_app -> as_view
-R 344:9 calls django_app -> path
-R 344:49 calls django_app -> as_view
-R 345:9 calls django_app -> path
-R 352:9 calls django_app -> path
-R 353:9 calls django_app -> path
-R 354:9 calls django_app -> path
-R 360:5 calls django_app -> path
-R 361:5 calls django_app -> path
-R 361:20 calls django_app -> include
-R 362:5 calls django_app -> path
-R 362:20 calls django_app -> include
-R 363:5 calls django_app -> path
-R 363:30 calls django_app -> as_view
-R 364:5 calls django_app -> re_path
-R 364:64 calls django_app -> as_view
+== web/django_site/lending/__init__.py (16 lines)
+S 1-16 module __init__
 
-== web/flask_app.py (359 lines)
-S 1-359 module flask_app
-S 50-59 function login_required
-S 54-57 function guarded
-S 62-74 function staff_only
-S 65-72 function decorate
-S 67-70 function checked
-S 77-81 function page_args
-S 84-88 function lending_service
-S 91-97 function book_payload
-S 110-117 function login
-S 121-123 function logout
-S 127-128 function load_member
-S 132-135 function index
-S 139-143 function detail
-S 147-153 function by_genre
-S 158-161 function checkout
-S 167-169 function return_copy
-S 173-175 function format_isbn
-S 179-180 function inject_genres
-S 189-192 function list_books
-S 196-200 function get_book
-S 203-234 class LoanAPI
-S 209-210 method LoanAPI::__init__
-S 212-213 method LoanAPI::_service
-S 215-222 method LoanAPI::get
-S 224-230 method LoanAPI::post
-S 232-234 method LoanAPI::delete
-S 237-247 class GenreAPI
-S 242-247 method GenreAPI::get
-S 250-255 function register_api
-S 266-326 function create_app
-S 282-283 function home
-S 286-287 function health
-S 290-293 function not_found
-S 296-298 function library_error
-S 301-302 function start_timer
-S 305-307 function add_headers
-S 310-313 function close_services
-S 316-320 function seed
-S 323-324 function shell_context
-S 338-339 function about
-S 343-348 function search
-S 351-353 function route_table
-R 12:8 imports flask_app -> functools
-R 13:8 imports flask_app -> logging
-R 14:18 imports flask_app -> HTTPStatus
-R 15:20 imports flask_app -> Any
-R 15:25 imports flask_app -> Callable
-R 15:35 imports flask_app -> TypeVar
-R 18:5 imports flask_app -> Blueprint
-R 19:5 imports flask_app -> Flask
-R 20:5 imports flask_app -> abort
-R 21:5 imports flask_app -> current_app
-R 22:5 imports flask_app -> g
-R 23:5 imports flask_app -> jsonify
-R 24:5 imports flask_app -> redirect
-R 25:5 imports flask_app -> render_template
-R 26:5 imports flask_app -> request
-R 27:5 imports flask_app -> session
-R 28:5 imports flask_app -> url_for
-R 30:25 imports flask_app -> MethodView
-R 32:28 imports flask_app -> LibraryError (name-matched: library/errors.py)
-R 32:42 imports flask_app -> NotFoundError (name-matched: library/errors.py)
-R 32:57 imports flask_app -> ValidationError (name-matched: library/errors.py)
-R 32:74 imports flask_app -> error_response (name-matched: library/errors.py)
-R 33:28 imports flask_app -> Book (name-matched: library/models.py)
-R 33:34 imports flask_app -> Genre (name-matched: library/models.py)
-R 33:41 imports flask_app -> classify (name-matched: library/models.py)
-R 33:51 imports flask_app -> describe_book (name-matched: library/models.py)
-R 33:66 imports flask_app -> normalize_isbn (name-matched: library/models.py)
-R 34:32 imports flask_app -> Catalogue (name-matched: library/repository.py)
-R 34:43 imports flask_app -> load_fixture (name-matched: library/repository.py)
-R 35:30 imports flask_app -> LendingService (name-matched: library/services.py)
-R 35:46 imports flask_app -> build_services (name-matched: library/services.py)
-R 37:15 calls flask_app -> getLogger
-R 39:5 calls flask_app -> TypeVar
-R 55:14 calls guarded -> get
-R 56:20 calls guarded -> redirect
-R 56:29 calls guarded -> url_for
-R 57:16 calls guarded -> view
-R 53:5 references guarded -> wraps
-R 68:36 calls checked -> get
-R 69:17 calls checked -> abort
-R 70:20 calls checked -> view
-R 66:9 references checked -> wraps
-R 79:25 calls page_args -> get
-R 80:25 calls page_args -> get
-R 81:12 calls page_args -> max
-R 81:26 calls page_args -> min
-R 81:30 calls page_args -> max
-R 87:21 calls lending_service -> build_services (name-matched: library/services.py)
-R 95:18 calls book_payload -> classify (name-matched: library/models.py)
-R 96:20 calls book_payload -> describe_book (name-matched: library/models.py)
-R 104:8 calls flask_app -> Blueprint
-R 105:16 calls flask_app -> Blueprint
-R 106:7 calls flask_app -> Blueprint
-R 112:55 calls login -> strip
-R 112:34 calls login -> get
-R 114:20 calls login -> render_template
-R 116:16 calls login -> redirect
-R 116:38 calls login -> get
-R 116:53 calls login -> url_for
-R 117:12 calls login -> render_template
-R 109:1 references login -> route
-R 122:13 calls logout -> clear
-R 123:12 calls logout -> redirect
-R 123:21 calls logout -> url_for
-R 120:1 references logout -> post
-R 128:27 calls load_member -> get
-R 126:1 references load_member -> before_app_request
-R 133:18 calls index -> page_args
-R 134:41 calls index -> page (name-matched: library/repository.py)
-R 134:13 calls index -> lending_service
-R 135:12 calls index -> render_template
-R 131:1 references index -> route
-R 140:40 calls detail -> find
-R 140:12 calls detail -> lending_service
-R 140:45 calls detail -> normalize_isbn (name-matched: library/models.py)
-R 142:9 calls detail -> abort
-R 143:12 calls detail -> render_template
-R 138:1 references detail -> route
-R 149:30 calls by_genre -> upper
-R 151:9 calls by_genre -> abort
-R 152:53 calls by_genre -> all
-R 152:25 calls by_genre -> lending_service
-R 152:62 calls by_genre -> classify (name-matched: library/models.py)
-R 153:12 calls by_genre -> render_template
-R 146:1 references by_genre -> get
-R 159:30 calls checkout -> checkout
-R 159:12 calls checkout -> lending_service
-R 159:52 calls checkout -> normalize_isbn (name-matched: library/models.py)
-R 160:9 calls checkout -> info
-R 161:12 calls checkout -> redirect
-R 161:21 calls checkout -> url_for
-R 156:1 references checkout -> post
-R 157:1 references checkout -> login_required
-R 168:23 calls return_copy -> return_copy
-R 168:5 calls return_copy -> lending_service
-R 168:35 calls return_copy -> normalize_isbn (name-matched: library/models.py)
-R 169:12 calls return_copy -> redirect
-R 169:21 calls return_copy -> url_for
-R 164:1 references return_copy -> post
-R 165:1 references return_copy -> login_required
-R 166:1 references return_copy -> staff_only
-R 174:14 calls format_isbn -> normalize_isbn (name-matched: library/models.py)
-R 175:16 calls format_isbn -> join
-R 172:1 references format_isbn -> app_template_filter
-R 180:23 calls inject_genres -> list
-R 178:1 references inject_genres -> app_context_processor
-R 190:18 calls list_books -> page_args
-R 191:41 calls list_books -> page (name-matched: library/repository.py)
-R 191:13 calls list_books -> lending_service
-R 192:12 calls list_books -> jsonify
-R 192:27 calls list_books -> book_payload
-R 188:1 references list_books -> get
-R 197:40 calls get_book -> find
-R 197:12 calls get_book -> lending_service
-R 197:45 calls get_book -> normalize_isbn (name-matched: library/models.py)
-R 199:15 calls get_book -> NotFoundError (name-matched: library/errors.py)
-R 200:12 calls get_book -> jsonify
-R 200:20 calls get_book -> book_payload
-R 195:1 references get_book -> route
-R 203:15 extends LoanAPI -> MethodView
-R 213:32 calls LoanAPI::_service -> lending_service
-R 217:37 calls LoanAPI::get -> open_loans (name-matched: library/repository.py)
-R 217:26 calls LoanAPI::get -> _service
-R 218:20 calls LoanAPI::get -> jsonify
-R 218:34 calls LoanAPI::get -> as_dict
-R 219:32 calls LoanAPI::get -> loan
-R 219:21 calls LoanAPI::get -> _service
-R 221:13 calls LoanAPI::get -> abort
-R 222:16 calls LoanAPI::get -> jsonify
-R 222:29 calls LoanAPI::get -> as_dict
-R 225:24 calls LoanAPI::post -> get_json
-R 226:21 calls LoanAPI::post -> get
-R 228:19 calls LoanAPI::post -> ValidationError (name-matched: library/errors.py)
-R 229:32 calls LoanAPI::post -> checkout
-R 229:21 calls LoanAPI::post -> _service
-R 229:54 calls LoanAPI::post -> normalize_isbn (name-matched: library/models.py)
-R 230:16 calls LoanAPI::post -> jsonify
-R 230:29 calls LoanAPI::post -> as_dict
-R 233:25 calls LoanAPI::delete -> return_loan
-R 233:14 calls LoanAPI::delete -> _service
-R 237:16 extends GenreAPI -> MethodView
-R 244:49 calls GenreAPI::get -> all
-R 244:21 calls GenreAPI::get -> lending_service
-R 245:20 calls GenreAPI::get -> classify (name-matched: library/models.py)
-R 246:35 calls GenreAPI::get -> get
-R 247:16 calls GenreAPI::get -> jsonify
-R 252:22 calls register_api -> as_view
-R 253:8 calls register_api -> add_url_rule
-R 254:8 calls register_api -> add_url_rule
-R 255:8 calls register_api -> add_url_rule
-R 258:1 calls flask_app -> register_api
-R 267:11 calls create_app -> Flask
-R 268:16 calls create_app -> from_mapping
-R 274:20 calls create_app -> update
-R 276:9 calls create_app -> register_blueprint
-R 277:9 calls create_app -> register_blueprint
-R 278:9 calls create_app -> register_blueprint
-R 279:9 calls create_app -> add_url_rule
-R 279:52 calls create_app -> as_view
-R 283:16 calls home -> redirect
-R 283:25 calls home -> url_for
-R 281:5 references home -> route
-R 287:42 calls health -> len
-R 287:74 calls health -> all
-R 287:46 calls health -> lending_service
-R 285:5 references health -> route
-R 291:25 calls not_found -> startswith
-R 292:20 calls not_found -> jsonify
-R 293:16 calls not_found -> render_template
-R 289:5 references not_found -> errorhandler
-R 297:24 calls library_error -> error_response (name-matched: library/errors.py)
-R 298:16 calls library_error -> jsonify
-R 295:5 references library_error -> errorhandler
-R 302:40 calls start_timer -> get
-R 302:40 calls start_timer -> get
-R 300:5 references start_timer -> before_request
-R 304:5 references add_headers -> after_request
-R 311:21 calls close_services -> pop (name-matched: library/services.py)
-R 313:21 calls close_services -> close (name-matched: library/models.py)
-R 309:5 references close_services -> teardown_appcontext
-R 318:32 calls seed -> load_fixture (name-matched: library/repository.py)
-R 319:31 calls seed -> all
-R 320:17 calls seed -> info
-R 320:35 calls seed -> describe_book (name-matched: library/models.py)
-R 315:5 references seed -> command (name-matched: library/cli.py)
-R 322:5 references shell_context -> shell_context_processor
-R 334:7 calls flask_app -> create_app
-R 339:12 calls about -> render_template
-R 339:69 calls about -> get
-R 337:1 references about -> route
-R 344:39 calls search -> strip
-R 344:26 calls search -> get
-R 346:16 calls search -> redirect
-R 346:25 calls search -> url_for
-R 347:52 calls search -> all
-R 347:24 calls search -> lending_service
-R 347:67 calls search -> lower
-R 347:86 calls search -> lower
-R 348:12 calls search -> render_template
-R 342:1 references search -> route
-R 353:12 calls route_table -> sorted
-R 353:76 calls route_table -> iter_rules
-R 357:27 calls flask_app -> route_table
-R 358:9 calls flask_app -> print
-R 359:9 calls flask_app -> run (name-matched: library/cli.py)
+== web/django_site/lending/admin.py (37 lines)
+S 1-37 module admin
+S 7-9 class CopyInline
+S 13-29 class BookAdmin
+S 21-22 method BookAdmin::copy_count
+S 25-29 method BookAdmin::mark_lost
+S 33-34 class PlainAdmin
+R 1:28 imports admin -> admin
+R 1:35 imports admin -> messages
+R 2:25 imports admin -> HttpRequest
+R 4:21 imports admin -> AuthorRecord (name-matched: web/django_site/lending/models.py)
+R 4:35 imports admin -> BookQuerySet (name-matched: web/django_site/lending/models.py)
+R 4:49 imports admin -> BookRecord (name-matched: web/django_site/lending/models.py)
+R 4:61 imports admin -> CopyRecord (name-matched: web/django_site/lending/models.py)
+R 4:73 imports admin -> LoanRecord (name-matched: web/django_site/lending/models.py)
+R 7:18 extends CopyInline -> TabularInline
+R 13:17 extends BookAdmin -> ModelAdmin
+R 22:27 calls BookAdmin::copy_count -> count (name-matched: library/reports.py)
+R 20:5 references BookAdmin::copy_count -> display
+R 26:64 calls BookAdmin::mark_lost -> update
+R 26:38 calls BookAdmin::mark_lost -> filter
+R 29:14 calls BookAdmin::mark_lost -> message_user
+R 24:5 references BookAdmin::mark_lost -> action
+R 12:1 references BookAdmin -> register (name-matched: library/cli.py)
+R 33:18 extends PlainAdmin -> ModelAdmin
+R 32:1 references PlainAdmin -> register (name-matched: library/cli.py)
+R 37:12 calls admin -> register (name-matched: library/cli.py)
+
+== web/django_site/lending/apps.py (12 lines)
+S 1-12 module apps
+S 4-12 class LendingConfig
+S 9-12 method LendingConfig::ready
+R 1:25 imports apps -> AppConfig
+R 4:21 extends LendingConfig -> AppConfig
+R 12:23 imports LendingConfig::ready -> signals (name-matched: web/django_site/lending/signals.py)
+
+== web/django_site/lending/forms.py (22 lines)
+S 1-22 module forms
+S 8-18 class BookForm
+S 9-12 class BookForm::Meta
+S 14-18 method BookForm::clean_isbn
+S 21-22 class CheckoutForm
+R 1:20 imports forms -> forms
+R 3:28 imports forms -> is_valid_isbn (name-matched: library/models.py)
+R 3:43 imports forms -> normalize_isbn (name-matched: library/models.py)
+R 5:21 imports forms -> BookRecord (name-matched: web/django_site/lending/models.py)
+R 8:16 extends BookForm -> ModelForm
+R 15:16 calls BookForm::clean_isbn -> normalize_isbn (name-matched: library/models.py)
+R 16:16 calls BookForm::clean_isbn -> is_valid_isbn (name-matched: library/models.py)
+R 17:25 calls BookForm::clean_isbn -> ValidationError (name-matched: library/errors.py)
+R 21:20 extends CheckoutForm -> Form
+R 22:21 calls CheckoutForm -> CharField
+
+== web/django_site/lending/models.py (121 lines)
+S 1-121 module models
+S 18-25 class TimeStampedModel
+S 24-25 class TimeStampedModel::Meta
+S 28-37 class AuthorRecord
+S 32-34 class AuthorRecord::Meta
+S 36-37 method AuthorRecord::__str__
+S 40-48 class BookQuerySet
+S 41-42 method BookQuerySet::available
+S 44-45 method BookQuerySet::in_genre
+S 47-48 method BookQuerySet::popular
+S 51-81 class BookRecord
+S 62-70 class BookRecord::Meta
+S 72-73 method BookRecord::__str__
+S 75-78 method BookRecord::clean
+S 80-81 method BookRecord::get_absolute_url
+S 84-95 class CopyRecord
+S 85-88 class CopyRecord::Status
+S 94-95 method CopyRecord::__str__
+S 98-121 class LoanRecord
+S 106-108 class LoanRecord::Meta
+S 111-112 method LoanRecord::is_overdue
+S 114-116 method LoanRecord::fee
+S 118-121 method LoanRecord::save
+R 3:22 imports models -> timedelta
+R 4:20 imports models -> Any
+R 6:25 imports models -> settings
+R 7:55 imports models -> DjangoValidationError
+R 8:23 imports models -> models
+R 9:30 imports models -> Count
+R 9:37 imports models -> Q
+R 10:25 imports models -> reverse
+R 11:26 imports models -> timezone
+R 13:28 imports models -> Genre (name-matched: library/models.py)
+R 13:35 imports models -> is_valid_isbn (name-matched: library/models.py)
+R 13:50 imports models -> normalize_isbn (name-matched: library/models.py)
+R 13:66 imports models -> overdue_fee (name-matched: library/models.py)
+R 15:15 calls models -> timedelta
+R 18:24 extends TimeStampedModel -> Model
+R 21:25 calls TimeStampedModel -> DateTimeField
+R 22:25 calls TimeStampedModel -> DateTimeField
+R 28:20 extends AuthorRecord -> TimeStampedModel
+R 29:19 calls AuthorRecord -> CharField
+R 30:19 calls AuthorRecord -> DateField
+R 40:20 extends BookQuerySet -> QuerySet
+R 42:71 calls BookQuerySet::available -> distinct
+R 42:21 calls BookQuerySet::available -> filter
+R 45:21 calls BookQuerySet::in_genre -> filter
+R 48:56 calls BookQuerySet::popular -> order_by
+R 48:21 calls BookQuerySet::popular -> annotate
+R 48:32 calls BookQuerySet::popular -> Count
+R 51:18 extends BookRecord -> TimeStampedModel
+R 54:19 calls BookRecord -> CharField
+R 55:20 calls BookRecord -> CharField
+R 56:20 calls BookRecord -> CharField
+R 57:22 calls BookRecord -> ManyToManyField
+R 58:24 calls BookRecord -> PositiveSmallIntegerField
+R 60:28 calls BookRecord -> as_manager
+R 64:27 calls BookRecord::Meta -> Index (name-matched: library/models.py)
+R 66:20 calls BookRecord::Meta -> CheckConstraint
+R 67:27 calls BookRecord::Meta -> Q
+R 67:52 calls BookRecord::Meta -> Q
+R 76:21 calls BookRecord::clean -> normalize_isbn (name-matched: library/models.py)
+R 77:16 calls BookRecord::clean -> is_valid_isbn (name-matched: library/models.py)
+R 78:19 calls BookRecord::clean -> DjangoValidationError
+R 81:16 calls BookRecord::get_absolute_url -> reverse
+R 84:18 extends CopyRecord -> Model
+R 85:18 extends CopyRecord::Status -> TextChoices
+R 90:19 calls CopyRecord -> ForeignKey
+R 91:22 calls CopyRecord -> CharField
+R 92:21 calls CopyRecord -> CharField
+R 98:18 extends LoanRecord -> TimeStampedModel
+R 99:19 calls LoanRecord -> ForeignKey
+R 100:21 calls LoanRecord -> ForeignKey
+R 103:18 calls LoanRecord -> DateTimeField
+R 104:23 calls LoanRecord -> DateTimeField
+R 112:62 calls LoanRecord::is_overdue -> now (name-matched: library/services.py)
+R 110:5 references LoanRecord::is_overdue -> property
+R 115:26 calls LoanRecord::fee -> now (name-matched: library/services.py)
+R 116:16 calls LoanRecord::fee -> overdue_fee (name-matched: library/models.py)
+R 116:28 calls LoanRecord::fee -> max
+R 120:33 calls LoanRecord::save -> now (name-matched: library/services.py)
+R 121:17 calls LoanRecord::save -> save
+R 121:9 calls LoanRecord::save -> super
+
+== web/django_site/lending/signals.py (19 lines)
+S 1-19 module signals
+S 12-14 function mark_copy_on_loan
+S 18-19 function audit_book_delete
+R 1:20 imports signals -> Any
+R 3:38 imports signals -> post_save
+R 3:49 imports signals -> pre_delete
+R 4:29 imports signals -> receiver
+R 6:28 imports signals -> audit (name-matched: library/errors.py)
+R 8:21 imports signals -> BookRecord (name-matched: web/django_site/lending/models.py)
+R 8:33 imports signals -> CopyRecord (name-matched: web/django_site/lending/models.py)
+R 8:45 imports signals -> LoanRecord (name-matched: web/django_site/lending/models.py)
+R 14:56 calls mark_copy_on_loan -> update
+R 14:28 calls mark_copy_on_loan -> filter
+R 11:1 references mark_copy_on_loan -> receiver
+R 19:5 calls audit_book_delete -> audit (name-matched: library/errors.py)
+R 17:1 references audit_book_delete -> receiver
+
+== web/django_site/lending/urls.py (42 lines)
+S 1-42 module urls
+R 1:28 imports urls -> admin (name-matched: web/django_site/lending/admin.py)
+R 2:25 imports urls -> include
+R 2:34 imports urls -> path
+R 2:40 imports urls -> re_path
+R 5:5 imports urls -> BookCreateView (name-matched: web/django_site/lending/views.py)
+R 6:5 imports urls -> BookDetailView (name-matched: web/django_site/lending/views.py)
+R 7:5 imports urls -> BookListView (name-matched: web/django_site/lending/views.py)
+R 8:5 imports urls -> BookUpdateView (name-matched: web/django_site/lending/views.py)
+R 9:5 imports urls -> StatsView (name-matched: web/django_site/lending/views.py)
+R 10:5 imports urls -> checkout (name-matched: library/services.py)
+R 11:5 imports urls -> my_loans (name-matched: web/django_site/lending/views.py)
+R 12:5 imports urls -> overdue (name-matched: library/services.py)
+R 13:5 imports urls -> waive_fee (name-matched: web/django_site/lending/views.py)
+R 18:9 calls urls -> path
+R 18:31 calls urls -> as_view
+R 19:9 calls urls -> path
+R 19:37 calls urls -> as_view
+R 20:9 calls urls -> path
+R 20:44 calls urls -> as_view
+R 21:9 calls urls -> path
+R 21:49 calls urls -> as_view
+R 22:9 calls urls -> path
+R 29:9 calls urls -> path
+R 30:9 calls urls -> path
+R 31:9 calls urls -> path
+R 37:5 calls urls -> path
+R 38:5 calls urls -> path
+R 38:20 calls urls -> include
+R 39:5 calls urls -> path
+R 39:20 calls urls -> include
+R 40:5 calls urls -> path
+R 40:30 calls urls -> as_view
+R 41:5 calls urls -> re_path
+R 41:64 calls urls -> as_view
+
+== web/django_site/lending/views.py (125 lines)
+S 1-125 module views
+S 27-41 class BookListView
+S 32-36 method BookListView::get_queryset
+S 38-41 method BookListView::get_context_data
+S 44-47 class BookDetailView
+S 50-53 class BookCreateView
+S 56-60 class BookUpdateView
+S 63-72 class StatsView
+S 66-72 method StatsView::get
+S 77-99 function checkout
+S 105-110 function waive_fee
+S 115-119 function overdue
+S 123-125 function my_loans
+R 3:20 imports views -> Any
+R 5:25 imports views -> settings
+R 6:28 imports views -> messages
+R 7:44 imports views -> login_required (name-matched: web/flask_app.py)
+R 7:60 imports views -> permission_required
+R 8:40 imports views -> LoginRequiredMixin
+R 8:60 imports views -> PermissionRequiredMixin
+R 9:23 imports views -> transaction
+R 10:30 imports views -> Count
+R 10:37 imports views -> F
+R 11:25 imports views -> HttpRequest
+R 11:38 imports views -> HttpResponse
+R 11:52 imports views -> JsonResponse
+R 12:30 imports views -> get_object_or_404
+R 12:49 imports views -> redirect
+R 12:59 imports views -> render (name-matched: library/reports.py)
+R 13:26 imports views -> timezone
+R 14:26 imports views -> View
+R 15:43 imports views -> cache_page
+R 16:42 imports views -> require_GET
+R 16:55 imports views -> require_POST
+R 17:34 imports views -> CreateView
+R 17:46 imports views -> DetailView
+R 17:58 imports views -> ListView
+R 17:68 imports views -> UpdateView
+R 19:28 imports views -> LimitExceededError (name-matched: library/errors.py)
+R 19:48 imports views -> audit (name-matched: library/errors.py)
+R 20:28 imports views -> Genre (name-matched: library/models.py)
+R 20:35 imports views -> normalize_isbn (name-matched: library/models.py)
+R 21:30 imports views -> build_services (name-matched: library/services.py)
+R 23:20 imports views -> BookForm (name-matched: web/django_site/lending/forms.py)
+R 23:30 imports views -> CheckoutForm (name-matched: web/django_site/lending/forms.py)
+R 24:21 imports views -> BookQuerySet (name-matched: web/django_site/lending/models.py)
+R 24:35 imports views -> BookRecord (name-matched: web/django_site/lending/models.py)
+R 24:47 imports views -> CopyRecord (name-matched: web/django_site/lending/models.py)
+R 24:59 imports views -> LoanRecord (name-matched: web/django_site/lending/models.py)
+R 27:20 extends BookListView -> ListView
+R 33:33 calls BookListView::get_queryset -> all
+R 34:38 calls BookListView::get_queryset -> get
+R 35:21 calls BookListView::get_queryset -> in_genre (name-matched: web/django_site/lending/models.py)
+R 35:42 calls BookListView::get_queryset -> upper
+R 36:19 calls BookListView::get_queryset -> prefetch_related
+R 39:27 calls BookListView::get_context_data -> get_context_data
+R 39:19 calls BookListView::get_context_data -> super
+R 40:49 calls BookListView::get_context_data -> popular (name-matched: web/django_site/lending/models.py)
+R 44:22 extends BookDetailView -> DetailView
+R 50:22 extends BookCreateView -> LoginRequiredMixin
+R 50:42 extends BookCreateView -> PermissionRequiredMixin
+R 50:67 extends BookCreateView -> CreateView
+R 56:22 extends BookUpdateView -> LoginRequiredMixin
+R 56:42 extends BookUpdateView -> UpdateView
+R 63:17 extends StatsView -> View
+R 70:14 calls StatsView::get -> order_by
+R 69:14 calls StatsView::get -> annotate
+R 68:32 calls StatsView::get -> values (name-matched: library/repository.py)
+R 69:29 calls StatsView::get -> Count
+R 69:48 calls StatsView::get -> Count
+R 70:34 calls StatsView::get -> desc
+R 70:23 calls StatsView::get -> F
+R 72:16 calls StatsView::get -> JsonResponse
+R 72:40 calls StatsView::get -> list
+R 78:12 calls checkout -> get_object_or_404
+R 78:47 calls checkout -> normalize_isbn (name-matched: library/models.py)
+R 79:12 calls checkout -> CheckoutForm (name-matched: web/django_site/lending/forms.py)
+R 80:17 calls checkout -> is_valid
+R 81:16 calls checkout -> render (name-matched: library/reports.py)
+R 82:22 calls checkout -> atomic
+R 83:16 calls checkout -> get_object_or_404
+R 84:32 calls checkout -> select_for_update
+R 89:67 calls checkout -> checkout
+R 89:13 calls checkout -> build_services (name-matched: library/services.py)
+R 93:22 calls checkout -> error
+R 93:37 calls checkout -> str
+R 94:20 calls checkout -> redirect
+R 95:28 calls checkout -> create
+R 97:14 calls checkout -> save (name-matched: web/django_site/lending/models.py)
+R 98:5 calls checkout -> audit (name-matched: library/errors.py)
+R 99:12 calls checkout -> redirect
+R 75:1 references checkout -> login_required (name-matched: web/flask_app.py)
+R 76:1 references checkout -> require_POST
+R 106:12 calls waive_fee -> get_object_or_404
+R 107:47 calls waive_fee -> now (name-matched: library/services.py)
+R 108:10 calls waive_fee -> save (name-matched: web/django_site/lending/models.py)
+R 109:14 calls waive_fee -> success
+R 110:12 calls waive_fee -> redirect
+R 102:1 references waive_fee -> login_required (name-matched: web/flask_app.py)
+R 103:1 references waive_fee -> permission_required
+R 104:1 references waive_fee -> require_POST
+R 116:32 calls overdue -> filter
+R 116:79 calls overdue -> now (name-matched: library/services.py)
+R 117:12 calls overdue -> JsonResponse
+R 118:50 calls overdue -> fee (name-matched: web/django_site/lending/models.py)
+R 118:75 calls overdue -> select_related
+R 113:1 references overdue -> require_GET
+R 114:1 references overdue -> cache_page
+R 124:60 calls my_loans -> select_related
+R 124:32 calls my_loans -> filter
+R 125:12 calls my_loans -> render (name-matched: library/reports.py)
+R 122:1 references my_loans -> login_required (name-matched: web/flask_app.py)
+
+== web/flask_app.py (365 lines)
+S 1-365 module flask_app
+S 56-65 function login_required
+S 60-63 function guarded
+S 68-80 function staff_only
+S 71-78 function decorate
+S 73-76 function checked
+S 83-87 function page_args
+S 90-94 function lending_service
+S 97-103 function book_payload
+S 116-123 function login
+S 127-129 function logout
+S 133-134 function load_member
+S 138-141 function index
+S 145-149 function detail
+S 153-159 function by_genre
+S 164-167 function checkout
+S 173-175 function return_copy
+S 179-181 function format_isbn
+S 185-186 function inject_genres
+S 195-198 function list_books
+S 202-206 function get_book
+S 209-240 class LoanAPI
+S 215-216 method LoanAPI::__init__
+S 218-219 method LoanAPI::_service
+S 221-228 method LoanAPI::get
+S 230-236 method LoanAPI::post
+S 238-240 method LoanAPI::delete
+S 243-253 class GenreAPI
+S 248-253 method GenreAPI::get
+S 256-261 function register_api
+S 272-332 function create_app
+S 288-289 function home
+S 292-293 function health
+S 296-299 function not_found
+S 302-304 function library_error
+S 307-308 function start_timer
+S 311-313 function add_headers
+S 316-319 function close_services
+S 322-326 function seed
+S 329-330 function shell_context
+S 344-345 function about
+S 349-354 function search
+S 357-359 function route_table
+R 18:8 imports flask_app -> functools
+R 19:8 imports flask_app -> logging
+R 20:18 imports flask_app -> HTTPStatus
+R 21:20 imports flask_app -> Any
+R 21:25 imports flask_app -> Callable
+R 21:35 imports flask_app -> TypeVar
+R 24:5 imports flask_app -> Blueprint
+R 25:5 imports flask_app -> Flask
+R 26:5 imports flask_app -> abort
+R 27:5 imports flask_app -> current_app
+R 28:5 imports flask_app -> g
+R 29:5 imports flask_app -> jsonify
+R 30:5 imports flask_app -> redirect
+R 31:5 imports flask_app -> render_template
+R 32:5 imports flask_app -> request
+R 33:5 imports flask_app -> session
+R 34:5 imports flask_app -> url_for
+R 36:25 imports flask_app -> MethodView
+R 38:28 imports flask_app -> LibraryError (name-matched: library/errors.py)
+R 38:42 imports flask_app -> NotFoundError (name-matched: library/errors.py)
+R 38:57 imports flask_app -> ValidationError (name-matched: library/errors.py)
+R 38:74 imports flask_app -> error_response (name-matched: library/errors.py)
+R 39:28 imports flask_app -> Book (name-matched: library/models.py)
+R 39:34 imports flask_app -> Genre (name-matched: library/models.py)
+R 39:41 imports flask_app -> classify (name-matched: library/models.py)
+R 39:51 imports flask_app -> describe_book (name-matched: library/models.py)
+R 39:66 imports flask_app -> normalize_isbn (name-matched: library/models.py)
+R 40:32 imports flask_app -> Catalogue (name-matched: library/repository.py)
+R 40:43 imports flask_app -> load_fixture (name-matched: library/repository.py)
+R 41:30 imports flask_app -> LendingService (name-matched: library/services.py)
+R 41:46 imports flask_app -> build_services (name-matched: library/services.py)
+R 43:15 calls flask_app -> getLogger
+R 45:5 calls flask_app -> TypeVar
+R 61:14 calls guarded -> get
+R 62:20 calls guarded -> redirect
+R 62:29 calls guarded -> url_for
+R 63:16 calls guarded -> view
+R 59:5 references guarded -> wraps
+R 74:36 calls checked -> get
+R 75:17 calls checked -> abort
+R 76:20 calls checked -> view
+R 72:9 references checked -> wraps
+R 85:25 calls page_args -> get
+R 86:25 calls page_args -> get
+R 87:12 calls page_args -> max
+R 87:26 calls page_args -> min
+R 87:30 calls page_args -> max
+R 93:21 calls lending_service -> build_services (name-matched: library/services.py)
+R 101:18 calls book_payload -> classify (name-matched: library/models.py)
+R 102:20 calls book_payload -> describe_book (name-matched: library/models.py)
+R 110:8 calls flask_app -> Blueprint
+R 111:16 calls flask_app -> Blueprint
+R 112:7 calls flask_app -> Blueprint
+R 118:55 calls login -> strip
+R 118:34 calls login -> get
+R 120:20 calls login -> render_template
+R 122:16 calls login -> redirect
+R 122:38 calls login -> get
+R 122:53 calls login -> url_for
+R 123:12 calls login -> render_template
+R 115:1 references login -> route
+R 128:13 calls logout -> clear
+R 129:12 calls logout -> redirect
+R 129:21 calls logout -> url_for
+R 126:1 references logout -> post
+R 134:27 calls load_member -> get
+R 132:1 references load_member -> before_app_request
+R 139:18 calls index -> page_args
+R 140:41 calls index -> page (name-matched: library/repository.py)
+R 140:13 calls index -> lending_service
+R 141:12 calls index -> render_template
+R 137:1 references index -> route
+R 146:40 calls detail -> find
+R 146:12 calls detail -> lending_service
+R 146:45 calls detail -> normalize_isbn (name-matched: library/models.py)
+R 148:9 calls detail -> abort
+R 149:12 calls detail -> render_template
+R 144:1 references detail -> route
+R 155:30 calls by_genre -> upper
+R 157:9 calls by_genre -> abort
+R 158:53 calls by_genre -> all
+R 158:25 calls by_genre -> lending_service
+R 158:62 calls by_genre -> classify (name-matched: library/models.py)
+R 159:12 calls by_genre -> render_template
+R 152:1 references by_genre -> get
+R 165:30 calls checkout -> checkout
+R 165:12 calls checkout -> lending_service
+R 165:52 calls checkout -> normalize_isbn (name-matched: library/models.py)
+R 166:9 calls checkout -> info
+R 167:12 calls checkout -> redirect
+R 167:21 calls checkout -> url_for
+R 162:1 references checkout -> post
+R 163:1 references checkout -> login_required
+R 174:23 calls return_copy -> return_copy
+R 174:5 calls return_copy -> lending_service
+R 174:35 calls return_copy -> normalize_isbn (name-matched: library/models.py)
+R 175:12 calls return_copy -> redirect
+R 175:21 calls return_copy -> url_for
+R 170:1 references return_copy -> post
+R 171:1 references return_copy -> login_required
+R 172:1 references return_copy -> staff_only
+R 180:14 calls format_isbn -> normalize_isbn (name-matched: library/models.py)
+R 181:16 calls format_isbn -> join
+R 178:1 references format_isbn -> app_template_filter
+R 186:23 calls inject_genres -> list
+R 184:1 references inject_genres -> app_context_processor
+R 196:18 calls list_books -> page_args
+R 197:41 calls list_books -> page (name-matched: library/repository.py)
+R 197:13 calls list_books -> lending_service
+R 198:12 calls list_books -> jsonify
+R 198:27 calls list_books -> book_payload
+R 194:1 references list_books -> get
+R 203:40 calls get_book -> find
+R 203:12 calls get_book -> lending_service
+R 203:45 calls get_book -> normalize_isbn (name-matched: library/models.py)
+R 205:15 calls get_book -> NotFoundError (name-matched: library/errors.py)
+R 206:12 calls get_book -> jsonify
+R 206:20 calls get_book -> book_payload
+R 201:1 references get_book -> route
+R 209:15 extends LoanAPI -> MethodView
+R 219:32 calls LoanAPI::_service -> lending_service
+R 223:37 calls LoanAPI::get -> open_loans (name-matched: library/repository.py)
+R 223:26 calls LoanAPI::get -> _service
+R 224:20 calls LoanAPI::get -> jsonify
+R 224:34 calls LoanAPI::get -> as_dict
+R 225:32 calls LoanAPI::get -> loan
+R 225:21 calls LoanAPI::get -> _service
+R 227:13 calls LoanAPI::get -> abort
+R 228:16 calls LoanAPI::get -> jsonify
+R 228:29 calls LoanAPI::get -> as_dict
+R 231:24 calls LoanAPI::post -> get_json
+R 232:21 calls LoanAPI::post -> get
+R 234:19 calls LoanAPI::post -> ValidationError (name-matched: library/errors.py)
+R 235:32 calls LoanAPI::post -> checkout
+R 235:21 calls LoanAPI::post -> _service
+R 235:54 calls LoanAPI::post -> normalize_isbn (name-matched: library/models.py)
+R 236:16 calls LoanAPI::post -> jsonify
+R 236:29 calls LoanAPI::post -> as_dict
+R 239:25 calls LoanAPI::delete -> return_loan
+R 239:14 calls LoanAPI::delete -> _service
+R 243:16 extends GenreAPI -> MethodView
+R 250:49 calls GenreAPI::get -> all
+R 250:21 calls GenreAPI::get -> lending_service
+R 251:20 calls GenreAPI::get -> classify (name-matched: library/models.py)
+R 252:35 calls GenreAPI::get -> get
+R 253:16 calls GenreAPI::get -> jsonify
+R 258:22 calls register_api -> as_view
+R 259:8 calls register_api -> add_url_rule
+R 260:8 calls register_api -> add_url_rule
+R 261:8 calls register_api -> add_url_rule
+R 264:1 calls flask_app -> register_api
+R 273:11 calls create_app -> Flask
+R 274:16 calls create_app -> from_mapping
+R 280:20 calls create_app -> update
+R 282:9 calls create_app -> register_blueprint
+R 283:9 calls create_app -> register_blueprint
+R 284:9 calls create_app -> register_blueprint
+R 285:9 calls create_app -> add_url_rule
+R 285:52 calls create_app -> as_view
+R 289:16 calls home -> redirect
+R 289:25 calls home -> url_for
+R 287:5 references home -> route
+R 293:42 calls health -> len
+R 293:74 calls health -> all
+R 293:46 calls health -> lending_service
+R 291:5 references health -> route
+R 297:25 calls not_found -> startswith
+R 298:20 calls not_found -> jsonify
+R 299:16 calls not_found -> render_template
+R 295:5 references not_found -> errorhandler
+R 303:24 calls library_error -> error_response (name-matched: library/errors.py)
+R 304:16 calls library_error -> jsonify
+R 301:5 references library_error -> errorhandler
+R 308:40 calls start_timer -> get
+R 308:40 calls start_timer -> get
+R 306:5 references start_timer -> before_request
+R 310:5 references add_headers -> after_request
+R 317:21 calls close_services -> pop (name-matched: library/services.py)
+R 319:21 calls close_services -> close (name-matched: library/models.py)
+R 315:5 references close_services -> teardown_appcontext
+R 324:32 calls seed -> load_fixture (name-matched: library/repository.py)
+R 325:31 calls seed -> all
+R 326:17 calls seed -> info
+R 326:35 calls seed -> describe_book (name-matched: library/models.py)
+R 321:5 references seed -> command (name-matched: library/cli.py)
+R 328:5 references shell_context -> shell_context_processor
+R 340:7 calls flask_app -> create_app
+R 345:12 calls about -> render_template
+R 345:69 calls about -> get
+R 343:1 references about -> route
+R 350:39 calls search -> strip
+R 350:26 calls search -> get
+R 352:16 calls search -> redirect
+R 352:25 calls search -> url_for
+R 353:52 calls search -> all
+R 353:24 calls search -> lending_service
+R 353:67 calls search -> lower
+R 353:86 calls search -> lower
+R 354:12 calls search -> render_template
+R 348:1 references search -> route
+R 359:12 calls route_table -> sorted
+R 359:76 calls route_table -> iter_rules
+R 363:27 calls flask_app -> route_table
+R 364:9 calls flask_app -> print
+R 365:9 calls flask_app -> run (name-matched: library/cli.py)
