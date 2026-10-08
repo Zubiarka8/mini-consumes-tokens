@@ -24,6 +24,11 @@ pub enum UnsupportedKind {
     UnsupportedLanguage,
     /// A registered parser rejected this file's contents.
     SyntaxError,
+    /// The file, manifest or directory could not be read (permissions, a
+    /// race): nothing is known about its current content, which says nothing
+    /// about its syntax or language. Whatever was last indexed for the path
+    /// is kept, and the issue is cleared by the next successful read.
+    ReadFailure,
 }
 
 #[derive(Debug, Clone)]
@@ -75,6 +80,10 @@ pub struct IndexStatus {
     /// Target languages seen in the repo with no plugin registered yet.
     pub unsupported_languages: Vec<String>,
     pub syntax_errors: Vec<UnsupportedFile>,
+    /// Paths that could not be read on the last attempt. Their previous rows
+    /// (symbols, dependencies) are still served, so they may be stale: a
+    /// status that lists any is not fully healthy.
+    pub read_failures: Vec<UnsupportedFile>,
     pub dependencies: Vec<ManifestDependencies>,
 }
 
@@ -88,6 +97,9 @@ pub fn reindex(
 
     let mut seen_paths = Vec::new();
     let mut seen_manifest_paths = Vec::new();
+    // Paths that could not be read: the sweeps below must not take them (or
+    // anything under them) for deleted.
+    let mut unreadable: Vec<String> = Vec::new();
 
     // Pick up edits to the project's ignore files first: the walk below then
     // skips newly excluded paths (and the sweep drops their rows) and indexes
@@ -101,20 +113,27 @@ pub fn reindex(
     for entry in WalkDir::new(&root)
         .into_iter()
         .filter_entry(|entry| walk_entry_allowed(&root, entry, &exclude))
-        .filter_map(|e| e.ok())
     {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(err) => {
+                unreadable.push(record_walk_failure(index, &err, &mut report)?);
+                continue;
+            }
+        };
         if entry.file_type().is_dir() {
             continue;
         }
         match index_file(index, registry, entry.path(), force, &mut report)? {
             Seen::Source(path) => seen_paths.push(path),
             Seen::Manifest(path) => seen_manifest_paths.push(path),
+            Seen::Unreadable(path) => unreadable.push(path),
             Seen::Nothing => {}
         }
     }
 
-    report.files_removed = remove_missing_files(index, &seen_paths)?;
-    remove_missing_manifests(index, &seen_manifest_paths)?;
+    report.files_removed = remove_missing_files(index, &seen_paths, &unreadable)?;
+    remove_missing_manifests(index, &seen_manifest_paths, &unreadable)?;
     touch_last_indexed_at(index)?;
 
     Ok(report)
@@ -126,8 +145,73 @@ enum Seen {
     Source(String),
     /// A manifest whose `dependencies` rows were rewritten.
     Manifest(String),
+    /// A path that exists but could not be read (a read failure is on record
+    /// for it): every row for it, and for anything under it, is kept as is.
+    Unreadable(String),
     /// Nothing to keep: outside the root, excluded, or gone.
     Nothing,
+}
+
+/// Whether `path` is `retained` or lies under it as a directory. The empty
+/// path is the project root, so it retains everything.
+fn is_retained(path: &str, retained: &[String]) -> bool {
+    retained.iter().any(|r| {
+        r.is_empty()
+            || path == r
+            || path
+                .strip_prefix(r.as_str())
+                .is_some_and(|rest| rest.starts_with('/'))
+    })
+}
+
+/// Records a read failure for `relative_path`, keeping its previous rows.
+fn record_read_failure(
+    index: &Index,
+    report: &mut ReindexReport,
+    relative_path: &str,
+    detail: String,
+) -> Result<()> {
+    record_issue(
+        &index.conn,
+        relative_path,
+        UnsupportedKind::ReadFailure,
+        &detail,
+    )?;
+    report.issues.push(UnsupportedFile {
+        relative_path: relative_path.to_string(),
+        kind: UnsupportedKind::ReadFailure,
+        detail,
+    });
+    Ok(())
+}
+
+/// A directory walk error (an unreadable directory, an entry that vanished
+/// or can't be stat'ed) recorded as a read failure at the path it names.
+/// Returns that path to retain: the files below it were not visited, which
+/// must not read as their deletion. A path the walk can't name (or that isn't
+/// under the root) is the root, retaining everything.
+fn record_walk_failure(
+    index: &Index,
+    err: &walkdir::Error,
+    report: &mut ReindexReport,
+) -> Result<String> {
+    let relative_path = err
+        .path()
+        .and_then(|p| to_relative_slash_path(&index.root, p))
+        .unwrap_or_default();
+    record_read_failure(index, report, &relative_path, err.to_string())?;
+    Ok(relative_path)
+}
+
+/// Drops a read failure once its path has been read again.
+fn clear_read_failure(index: &Index, relative_path: &str) -> Result<()> {
+    index
+        .conn
+        .prepare_cached(
+            "DELETE FROM index_issues WHERE relative_path = ?1 AND issue_kind = 'read_failure'",
+        )?
+        .execute(params![relative_path])?;
+    Ok(())
 }
 
 /// Indexes the one file at `path` (absolute, as walked or as a watcher
@@ -150,6 +234,15 @@ fn index_file(
     // never paid for `target/`, `.git/` and friends.
     let canonical = match path.canonicalize() {
         Ok(c) => c,
+        // Not allowed to resolve it (a parent lost its search permission):
+        // it may well still exist, so keep whatever is indexed for it.
+        Err(err) if err.kind() == std::io::ErrorKind::PermissionDenied => {
+            let Some(relative_path) = to_relative_slash_path(&root, path) else {
+                return Ok(Seen::Nothing);
+            };
+            record_read_failure(index, report, &relative_path, err.to_string())?;
+            return Ok(Seen::Unreadable(relative_path));
+        }
         Err(_) => return Ok(Seen::Nothing), // broken symlink or race with a deleted file
     };
     // A symlink to a directory resolves to one: nothing to index as a file,
@@ -180,10 +273,19 @@ fn index_file(
         .and_then(|n| n.to_str())
         .unwrap_or_default();
     if let Some(language) = manifests::manifest_language(file_name) {
-        if let Ok(bytes) = std::fs::read(&canonical) {
-            if let Ok(contents) = String::from_utf8(bytes) {
-                let deps = manifests::parse_manifest(file_name, &contents);
-                write_manifest_dependencies(index, &relative_path, language, &deps)?;
+        match std::fs::read(&canonical) {
+            Ok(bytes) => {
+                clear_read_failure(index, &relative_path)?;
+                if let Ok(contents) = String::from_utf8(bytes) {
+                    let deps = manifests::parse_manifest(file_name, &contents);
+                    write_manifest_dependencies(index, &relative_path, language, &deps)?;
+                }
+            }
+            // Unreadable (permissions, race): the last-read dependencies stay,
+            // flagged as possibly stale, rather than being swept as removed.
+            Err(err) => {
+                record_read_failure(index, report, &relative_path, err.to_string())?;
+                return Ok(Seen::Unreadable(relative_path));
             }
         }
         return Ok(Seen::Manifest(relative_path));
@@ -215,9 +317,15 @@ fn index_file(
 
     let bytes = match std::fs::read(&canonical) {
         Ok(b) => b,
-        // unreadable (permissions, race) — skip, don't fail the run
-        Err(_) => return Ok(Seen::Source(relative_path)),
+        // Unreadable (permissions, race): not a syntax error and not an
+        // unsupported language, so it is its own issue. The run carries on and
+        // the last-good symbols stay, flagged as possibly stale.
+        Err(err) => {
+            record_read_failure(index, report, &relative_path, err.to_string())?;
+            return Ok(Seen::Unreadable(relative_path));
+        }
     };
+    clear_read_failure(index, &relative_path)?;
     let content_hash = match Oid::hash_object(ObjectType::Blob, &bytes) {
         Ok(oid) => oid.to_string(),
         Err(_) => return Ok(Seen::Source(relative_path)),
@@ -385,13 +493,17 @@ pub fn reindex_paths(
         if metadata.as_ref().is_ok_and(|m| m.is_dir()) {
             let mut seen = Vec::new();
             let mut seen_manifests = Vec::new();
-            for entry in WalkDir::new(&absolute)
-                .into_iter()
-                .filter_entry(|entry| {
-                    entry.depth() == 0 || walk_entry_allowed(&root, entry, &exclude)
-                })
-                .filter_map(|e| e.ok())
-            {
+            let mut unreadable = Vec::new();
+            for entry in WalkDir::new(&absolute).into_iter().filter_entry(|entry| {
+                entry.depth() == 0 || walk_entry_allowed(&root, entry, &exclude)
+            }) {
+                let entry = match entry {
+                    Ok(entry) => entry,
+                    Err(err) => {
+                        unreadable.push(record_walk_failure(index, &err, &mut report)?);
+                        continue;
+                    }
+                };
                 if entry.file_type().is_dir() {
                     continue;
                 }
@@ -406,11 +518,12 @@ pub fn reindex_paths(
                 )? {
                     Seen::Source(p) => seen.push(p),
                     Seen::Manifest(p) => seen_manifests.push(p),
+                    Seen::Unreadable(p) => unreadable.push(p),
                     Seen::Nothing => {}
                 }
             }
             report.files_removed +=
-                remove_under_prefix(index, &relative_path, &seen, &seen_manifests)?;
+                remove_under_prefix(index, &relative_path, &seen, &seen_manifests, &unreadable)?;
         } else if metadata.is_ok() {
             let (indexed_as, manifest) = match index_noting_created(
                 index,
@@ -422,6 +535,8 @@ pub fn reindex_paths(
             )? {
                 Seen::Source(p) => (Some(p), false),
                 Seen::Manifest(p) => (Some(p), true),
+                // Its rows stay as they are, like any path indexed as reported.
+                Seen::Unreadable(p) => (Some(p), false),
                 Seen::Nothing => (None, false),
             };
             // Indexed under another spelling (the old name of a case-only
@@ -436,10 +551,18 @@ pub fn reindex_paths(
                     (&keep[..], &[][..])
                 };
                 report.files_removed +=
-                    remove_under_prefix(index, &relative_path, files, manifests)?;
+                    remove_under_prefix(index, &relative_path, files, manifests, &[])?;
             }
+        } else if metadata
+            .as_ref()
+            .is_err_and(|e| e.kind() == std::io::ErrorKind::PermissionDenied)
+        {
+            // Can't even stat it (a parent lost its search permission): it
+            // may still exist, so its rows stay, with the failure on record.
+            let detail = metadata.err().map(|e| e.to_string()).unwrap_or_default();
+            record_read_failure(index, &mut report, &relative_path, detail)?;
         } else {
-            report.files_removed += remove_under_prefix(index, &relative_path, &[], &[])?;
+            report.files_removed += remove_under_prefix(index, &relative_path, &[], &[], &[])?;
         }
     }
 
@@ -622,7 +745,7 @@ fn remove_renamed_away(index: &mut Index, created: &[String]) -> Result<usize> {
     }
     tx.commit()?;
     for dir in &old_dirs {
-        removed += remove_under_prefix(index, dir, &[], &[])?;
+        removed += remove_under_prefix(index, dir, &[], &[], &[])?;
     }
     Ok(removed)
 }
@@ -662,12 +785,14 @@ fn children_sql(table: &str, column: &str, at_root: bool) -> String {
 
 /// Drops every `files`, `index_issues` and `dependencies` row for
 /// `relative_path` itself or for anything under it as a directory, except
-/// the paths in `keep`/`keep_manifests`. Returns how many `files` rows went.
+/// the paths in `keep`/`keep_manifests` and everything at or under an
+/// `unreadable` path (see [`is_retained`]). Returns how many `files` rows went.
 fn remove_under_prefix(
     index: &mut Index,
     relative_path: &str,
     keep: &[String],
     keep_manifests: &[String],
+    unreadable: &[String],
 ) -> Result<usize> {
     let keep: HashSet<&str> = keep.iter().map(String::as_str).collect();
     let keep_manifests: HashSet<&str> = keep_manifests.iter().map(String::as_str).collect();
@@ -690,7 +815,10 @@ fn remove_under_prefix(
                 stmt.query_map(params![relative_path, prefix, prefix_end], |row| row.get(0))?;
             rows.collect::<rusqlite::Result<_>>()?
         };
-        for path in stored.iter().filter(|p| !keep.contains(p.as_str())) {
+        for path in stored
+            .iter()
+            .filter(|p| !keep.contains(p.as_str()) && !is_retained(p, unreadable))
+        {
             let deleted = tx.execute(
                 &format!("DELETE FROM {table} WHERE {column} = ?1"),
                 params![path],
@@ -734,7 +862,11 @@ fn write_manifest_dependencies(
     Ok(())
 }
 
-fn remove_missing_manifests(index: &mut Index, seen_manifest_paths: &[String]) -> Result<()> {
+fn remove_missing_manifests(
+    index: &mut Index,
+    seen_manifest_paths: &[String],
+    unreadable: &[String],
+) -> Result<()> {
     let tx = index.conn.transaction()?;
     let seen: std::collections::HashSet<&str> =
         seen_manifest_paths.iter().map(String::as_str).collect();
@@ -745,7 +877,7 @@ fn remove_missing_manifests(index: &mut Index, seen_manifest_paths: &[String]) -
         .collect::<rusqlite::Result<_>>()?;
     drop(stmt);
     for path in &stored {
-        if !seen.contains(path.as_str()) {
+        if !seen.contains(path.as_str()) && !is_retained(path, unreadable) {
             tx.execute(
                 "DELETE FROM dependencies WHERE manifest_path = ?1",
                 params![path],
@@ -889,7 +1021,11 @@ fn enclosing_symbol(symbols: &[mct_core::SymbolRecord], line: u32) -> Option<u32
         .map(|(_, s)| s.id)
 }
 
-fn remove_missing_files(index: &mut Index, seen_paths: &[String]) -> Result<usize> {
+fn remove_missing_files(
+    index: &mut Index,
+    seen_paths: &[String],
+    unreadable: &[String],
+) -> Result<usize> {
     let tx = index.conn.transaction()?;
     let seen: std::collections::HashSet<&str> = seen_paths.iter().map(String::as_str).collect();
 
@@ -900,7 +1036,7 @@ fn remove_missing_files(index: &mut Index, seen_paths: &[String]) -> Result<usiz
     drop(stmt);
     let mut removed = 0;
     for path in &stored {
-        if !seen.contains(path.as_str()) {
+        if !seen.contains(path.as_str()) && !is_retained(path, unreadable) {
             tx.execute("DELETE FROM files WHERE relative_path = ?1", params![path])?;
             removed += 1;
         }
@@ -915,7 +1051,7 @@ fn remove_missing_files(index: &mut Index, seen_paths: &[String]) -> Result<usiz
         .collect::<rusqlite::Result<_>>()?;
     drop(stmt);
     for path in issue_paths {
-        if !seen.contains(path.as_str()) {
+        if !seen.contains(path.as_str()) && !is_retained(&path, unreadable) {
             tx.execute(
                 "DELETE FROM index_issues WHERE relative_path = ?1",
                 params![path],
@@ -936,6 +1072,7 @@ fn record_issue(
     let issue_kind = match kind {
         UnsupportedKind::UnsupportedLanguage => "unsupported_language",
         UnsupportedKind::SyntaxError => "syntax_error",
+        UnsupportedKind::ReadFailure => "read_failure",
     };
     conn.execute(
         "INSERT INTO index_issues (relative_path, issue_kind, detail, detected_at)
@@ -1010,6 +1147,22 @@ pub fn status(index: &Index) -> Result<IndexStatus> {
             })
         })?
         .collect::<rusqlite::Result<_>>()?;
+    drop(stmt);
+
+    let mut stmt = index.conn.prepare(
+        "SELECT relative_path, detail FROM index_issues WHERE issue_kind = 'read_failure'
+         ORDER BY relative_path",
+    )?;
+    let read_failures: Vec<UnsupportedFile> = stmt
+        .query_map([], |row| {
+            Ok(UnsupportedFile {
+                relative_path: row.get(0)?,
+                kind: UnsupportedKind::ReadFailure,
+                detail: row.get(1)?,
+            })
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    drop(stmt);
 
     let mut stmt = index.conn.prepare(
         "SELECT manifest_path, language, name, version FROM dependencies
@@ -1043,6 +1196,7 @@ pub fn status(index: &Index) -> Result<IndexStatus> {
         last_indexed_at: last_indexed_at.and_then(|v| v.parse().ok()),
         unsupported_languages,
         syntax_errors,
+        read_failures,
         dependencies,
     })
 }
