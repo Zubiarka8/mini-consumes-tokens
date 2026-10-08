@@ -1,3 +1,4 @@
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use mct_core::LanguageRegistry;
@@ -336,6 +337,51 @@ const OVERVIEW_KIND_ALLOWLIST: &[&str] = &[
     "type_alias",
     "module",
 ];
+
+/// The parts of a file's symbol list that decide [`is_top_level`].
+struct FileShape {
+    /// Names of `module` symbols: a Go package, a C# namespace, or the
+    /// synthetic file module.
+    modules: HashSet<String>,
+    /// How many non-module symbols in the file carry each name.
+    type_names: HashMap<String, usize>,
+}
+
+fn file_shape(entries: &[mct_index::SymbolListEntry]) -> FileShape {
+    let mut shape = FileShape {
+        modules: HashSet::new(),
+        type_names: HashMap::new(),
+    };
+    for entry in entries {
+        if entry.kind == "module" {
+            shape.modules.insert(entry.name.clone());
+        } else {
+            *shape.type_names.entry(entry.name.clone()).or_insert(0) += 1;
+        }
+    }
+    shape
+}
+
+/// Whether `entry` is a top-level declaration of its file.
+///
+/// No parent: yes. A parent that is not a module: no, it is a member (a method
+/// of a class, a field of a struct). A module parent: yes, except when a class
+/// or struct in the same file has the module's name. Then the child is that
+/// type's member, unless it is a `function`, which stays at package level
+/// (`package ledger` beside `type ledger`: Go's `NewLedger` vs `Ledger.Add`).
+fn is_top_level(entry: &mct_index::SymbolListEntry, shape: &FileShape) -> bool {
+    let Some(parent) = &entry.parent else {
+        return true;
+    };
+    if !shape.modules.contains(parent) {
+        return false;
+    }
+    // The entry counts toward its own name when it is itself the type named
+    // like its parent; that is not a clash with anything else.
+    let own = usize::from(entry.kind != "module" && entry.name == *parent);
+    let clashes = shape.type_names.get(parent).copied().unwrap_or(0) > own;
+    !clashes || entry.kind == "function"
+}
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct GetProjectOverviewArgs {
@@ -1934,17 +1980,16 @@ impl MctServer {
             ));
         }
         let source = read_source_file(&index, path)?;
-        let entries: Vec<_> = index
-            .list_symbols(path, None, None)
-            .map_err(index_error)?
+        let all = index.list_symbols(path, None, None).map_err(index_error)?;
+        let shape = file_shape(&all);
+        let entries: Vec<_> = all
             .into_iter()
-            // `parent.is_none()` alone isn't "top-level declaration" — every
-            // file also gets a synthetic whole-file `module` entry spanning
-            // its entire line range with no parent of its own. Rendering
-            // that would collapse the file into one bogus self-referential
-            // block; the user asked for classes/structs/interfaces/
-            // functions/types, not the module wrapper.
-            .filter(|entry| entry.parent.is_none() && entry.kind != "module")
+            // Not every top-level declaration lacks a parent: Go, C#, Bash
+            // and PowerShell parent theirs to the package, namespace or file
+            // module (see `is_top_level`). The module entry itself is
+            // also dropped: the user asked for classes/structs/interfaces/
+            // functions/types, not the synthetic whole-file wrapper.
+            .filter(|entry| entry.kind != "module" && is_top_level(entry, &shape))
             .collect();
         Ok(CallToolResult::success(vec![ContentBlock::text(
             format::file_skeleton(path, &entries, &source),
@@ -1996,10 +2041,11 @@ impl MctServer {
 
         let mut digests = Vec::with_capacity(modules.len());
         for (relative_path, entries) in modules {
+            let shape = file_shape(&entries);
             let mut candidates: Vec<mct_index::SymbolListEntry> = entries
                 .into_iter()
                 .filter(|e| {
-                    e.parent.is_none() && OVERVIEW_KIND_ALLOWLIST.contains(&e.kind.as_str())
+                    is_top_level(e, &shape) && OVERVIEW_KIND_ALLOWLIST.contains(&e.kind.as_str())
                 })
                 .collect();
 

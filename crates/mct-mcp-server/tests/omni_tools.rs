@@ -546,26 +546,11 @@ const PARENTED_TOP_LEVEL_LANGUAGES: &[(&str, &str)] = &[
 ];
 
 #[tokio::test]
-#[ignore = "product bug: get_file_skeleton returns nothing for Go/C#/Bash/PowerShell"]
 async fn get_file_skeleton_renders_declarations_for_every_registered_language() {
-    // EXPECTED: a skeleton listing the file's declarations, as the tool's own
-    // description promises ("Brace-delimited languages (Rust, Go, Java, C++,
-    // C#, PHP, JS/TS, Kotlin) get precise body elision; other languages (e.g.
-    // Python, Lua, Bash, PowerShell) get a best-effort declaration-line-only
-    // rendering").
-    //
-    // OBSERVED: `No top-level symbols found in <path> to build a skeleton
-    // from.` for all four files below — 4 of the 17 registered languages,
-    // two of them (Go, C#) named in that very description.
-    //
-    // ROOT CAUSE: `MctServer::get_file_skeleton` filters entries with
-    // `entry.parent.is_none() && entry.kind != "module"` as its definition of
-    // "top-level declaration". For these four parsers, a top-level function
-    // *does* carry a parent — the Go package (`backend`), the C# namespace
-    // (`Omni.Payments`), or the synthetic file-module (`lib`, `Common`) — so
-    // every real declaration is filtered out and only the `module` entries
-    // remain, which the same filter then also drops. Not fixed here: this
-    // task is test-only.
+    // The tool's description promises a skeleton of the file's declarations
+    // for every language, Go, C#, Bash and PowerShell included. Those four
+    // parent their top-level declarations to a package, namespace or file
+    // module rather than leaving `parent` empty.
     let server = build_server().await;
     for (path, language) in PARENTED_TOP_LEVEL_LANGUAGES {
         let text = content_of(
@@ -584,28 +569,8 @@ async fn get_file_skeleton_renders_declarations_for_every_registered_language() 
 }
 
 #[tokio::test]
-async fn get_file_skeleton_is_currently_empty_wherever_declarations_carry_a_parent() {
-    // Pins the *observed* behaviour of the bug documented by the ignored test
-    // above, so its blast radius cannot silently grow to a fifth language
-    // without a test going red.
+async fn get_file_skeleton_renders_every_non_parented_language_too() {
     let server = build_server().await;
-    for (path, language) in PARENTED_TOP_LEVEL_LANGUAGES {
-        let text = content_of(
-            &server
-                .get_file_skeleton(Parameters(GetFileSkeletonArgs {
-                    path: path.to_string(),
-                }))
-                .await
-                .unwrap(),
-        );
-        assert_eq!(
-            text,
-            format!("No top-level symbols found in `{path}` to build a skeleton from."),
-            "{language}"
-        );
-    }
-
-    // Every other registered language does render a skeleton.
     for path in [
         "jvm/Invoice.java",
         "jvm/Main.kt",
@@ -695,43 +660,13 @@ async fn get_project_overview_language_filter_narrows_the_digest_to_one_language
 }
 
 #[tokio::test]
-#[ignore = "product bug: get_project_overview shows only the file-module stub for Go/C#/Bash/PowerShell"]
 async fn get_project_overview_surfaces_real_declarations_for_every_registered_language() {
-    // Same root cause as `get_file_skeleton_renders_declarations_for_every_
-    // registered_language` above: `get_project_overview` builds its per-module
-    // candidate list with `e.parent.is_none() && OVERVIEW_KIND_ALLOWLIST
-    // .contains(&e.kind)`, so for the four languages whose parsers parent
-    // top-level declarations, the only surviving candidate is the synthetic
-    // whole-file `module` entry.
-    //
-    // EXPECTED: `Write-Line`/`New-Artifact` (and the Go/C# equivalents)
-    // listed under their module.
-    // OBSERVED: `pwsh/Common.psm1:` followed only by `[module] Common L1-L9`.
     let server = build_server().await;
-    let text = content_of(
-        &server
-            .get_project_overview(Parameters(GetProjectOverviewArgs {
-                path: None,
-                language: Some("powershell".to_string()),
-                max_symbols_per_module: None,
-                include_relations: Some(true),
-            }))
-            .await
-            .unwrap(),
-    );
-    assert!(text.contains("Write-Line"), "got: {text}");
-    assert!(text.contains("New-Artifact"), "got: {text}");
-}
-
-#[tokio::test]
-async fn get_project_overview_currently_degrades_to_module_stubs_for_parented_languages() {
-    // Pins the observed behaviour of the bug above.
-    let server = build_server().await;
-    for (language, module) in [
-        ("powershell", "pwsh/Common.psm1"),
-        ("go", "backend/server.go"),
-        ("csharp", "dotnet/PaymentProcessor.cs"),
-        ("bash", "shell/lib.sh"),
+    for (language, declarations) in [
+        ("powershell", &["Write-Line", "New-Artifact"][..]),
+        ("go", &["HandlePost", "Describe"][..]),
+        ("csharp", &["PaymentProcessor"][..]),
+        ("bash", &["log_line", "build_artifact"][..]),
     ] {
         let text = content_of(
             &server
@@ -744,14 +679,31 @@ async fn get_project_overview_currently_degrades_to_module_stubs_for_parented_la
                 .await
                 .unwrap(),
         );
-        assert!(text.contains(module), "{language}: {text}");
-        assert!(
-            text.lines()
-                .filter(|l| l.trim_start().starts_with('['))
-                .all(|l| l.trim_start().starts_with("[module]")),
-            "{language}: only module stubs are expected today: {text}"
-        );
+        for declaration in declarations {
+            assert!(text.contains(declaration), "{language}: {text}");
+        }
     }
+}
+
+#[tokio::test]
+async fn get_project_overview_does_not_promote_a_member_that_shares_its_module_name() {
+    // `PaymentProcessor` is both the file module and the class in
+    // `dotnet/PaymentProcessor.cs`; `Process` is a method of that class, so it
+    // is a member and must not surface as a top-level declaration.
+    let server = build_server().await;
+    let text = content_of(
+        &server
+            .get_project_overview(Parameters(GetProjectOverviewArgs {
+                path: None,
+                language: Some("csharp".to_string()),
+                max_symbols_per_module: None,
+                include_relations: Some(false),
+            }))
+            .await
+            .unwrap(),
+    );
+    assert!(text.contains("[class] PaymentProcessor"), "got: {text}");
+    assert!(!text.contains("[method] Process"), "got: {text}");
 }
 
 // --------------------------------------------------------- administration
