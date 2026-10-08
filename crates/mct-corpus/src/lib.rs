@@ -102,7 +102,7 @@ macro_rules! standard_tests {
         /// Prints [`Corpus::report`] (and updates the progress table named
         /// by `MCT_CORPUS_PROGRESS`); run through `scripts/unix/corpus-report.sh`.
         #[test]
-        #[ignore = "report, not a check: run via scripts/unix/corpus-report.sh"]
+        #[ignore = "not a bug: a report, not a check; run via scripts/unix/corpus-report.sh"]
         fn corpus_report() {
             corpus().print_report();
         }

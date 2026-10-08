@@ -7,6 +7,11 @@ the fix, so a fix is done when its test passes with the `#[ignore]` removed.
 
 Run them with `cargo test --workspace -- --ignored`.
 
+Every `#[ignore]`d test that pins a bug must be listed here, with its name in
+backticks; `crates/mct-mcp-server/tests/repo_ledgers.rs` fails CI otherwise. A
+test parked on purpose (a report, a benchmark) gives the reason as
+`#[ignore = "not a bug: …"]` and is not listed here.
+
 ---
 
 ## 1. ~~`get_file_skeleton` / `get_project_overview` are blind to 4 of 17 languages~~ — **closed**
@@ -102,3 +107,54 @@ ignored test:
 - Only `title`, `aliases` and `tags` front-matter keys are read.
 - HTML comments and `%%comments%%` are not skipped (inline code and fenced
   blocks are).
+
+---
+
+## 4. Incremental reindex keeps a syntax error after a file turns binary
+
+**Observed**: after `src/util.fake` is replaced by binary content, the index
+still reports `src/util.fake line 1: expected `fn`, got `not fn`` as an error.
+A full reindex keeps it too.
+
+**Expected**: no errors, because the file no longer parses as source.
+
+**Pinned by** `a_broken_file_turned_binary_drops_its_syntax_error`
+(`crates/mct-index/tests/incremental.rs`).
+
+---
+
+## 5. Bash: a named `coproc` truncates the enclosing function (#79)
+
+**Observed**: the function that contains `coproc NAME { … }` ends at line 227
+instead of 236, because tree-sitter-bash 0.25 misparses the construct.
+
+**Expected**: the function spans its full body.
+
+**Tracked in** #79. **Pinned by** `named_coproc_keeps_the_enclosing_function_intact`
+(`crates/mct-lang-bash/tests/corpus.rs`).
+
+---
+
+## 6. Java: `this(…)`, `super(…)` and method references leave no relation
+
+**Observed**: no `calls` relation from `summing` to `plus` for the method
+reference `Money::plus`. The `this(…)`/`super(…)` chaining has the same gap.
+
+**Expected**: both produce relations, as ordinary calls do.
+
+**Issue**: not filed yet. **Pinned by**
+`constructor_chaining_and_method_references_are_relations`
+(`crates/mct-lang-java/tests/corpus.rs`).
+
+---
+
+## 7. Kotlin: companion objects and `typealias` leave no symbol
+
+**Observed**: the companion object of a class (`Factory`) and the `typealias`
+declarations are not indexed as symbols.
+
+**Expected**: each gets a symbol, as the other declarations do.
+
+**Issue**: not filed yet. **Pinned by**
+`companion_objects_and_type_aliases_are_symbols`
+(`crates/mct-lang-kotlin/tests/corpus.rs`).
