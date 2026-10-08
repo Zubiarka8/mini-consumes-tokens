@@ -1,4 +1,4 @@
-# language=css files=9 symbols=879 relations=15 name_matched_across_files=0
+# language=css files=12 symbols=931 relations=17 name_matched_across_files=0
 
 == app.css (361 lines)
 S 1-361 module app
@@ -185,276 +185,264 @@ R 10:1 imports app -> styles/layout.css
 R 11:1 imports app -> styles/components/controls.css
 R 12:1 imports app -> styles/components/surfaces.css
 
-== frameworks/bootstrap.css (353 lines)
-S 1-353 module bootstrap
-S 13-39 rule :root
-S 14-39 rule [data-bs-theme=light]
-S 41-48 rule [data-bs-theme=dark]
-S 52-55 rule .bs-media-dark .alert-primary
-S 52-52 rule .bs-media-dark
-S 52-52 rule .alert-primary
-S 62-66 rule *
-S 63-66 rule *::before
-S 64-66 rule *::after
-S 69-71 rule :root
-S 74-82 rule .bs-body
-S 88-96 rule .container
-S 89-96 rule .container-fluid
-S 99-101 rule .container
-S 105-107 rule .container
-S 109-112 rule .col-md-6
-S 114-117 rule .col-md-4
-S 119-121 rule .d-md-flex
-S 125-127 rule .container
-S 129-132 rule .col-lg-3
-S 135-140 rule .row
-S 142-146 rule .row > *
-S 142-142 rule .row
-S 148-151 rule .row-cols-2 > *
-S 148-148 rule .row-cols-2
-S 153-156 rule .g-3
-S 154-156 rule .gx-3
-S 162-176 rule .btn
-S 178-180 rule .btn:hover
-S 178-178 rule .btn
-S 182-185 rule .btn-check + .btn:hover
-S 182-182 rule .btn-check
-S 182-182 rule .btn
-S 187-190 rule .btn:focus-visible
-S 187-187 rule .btn
-S 192-198 rule .btn-check:checked + .btn
-S 192-192 rule .btn-check
-S 192-192 rule .btn-check:checked
-S 192-192 rule .btn
-S 193-198 rule :not(.btn-check) + .btn:active
-S 193-193 rule :not(.btn-check)
-S 193-193 rule .btn
-S 194-198 rule .btn:first-child:active
-S 194-194 rule .btn
-S 194-194 rule .btn:first-child
-S 195-198 rule .btn.active
-S 195-195 rule .btn
-S 195-195 rule .active
-S 196-198 rule .btn.show
-S 196-196 rule .btn
-S 196-196 rule .show
-S 200-205 rule .btn:disabled
-S 200-200 rule .btn
-S 201-205 rule .btn.disabled
-S 201-201 rule .btn
-S 201-201 rule .disabled
-S 202-205 rule fieldset:disabled .btn
-S 202-202 rule fieldset
-S 202-202 rule fieldset:disabled
-S 202-202 rule .btn
-S 207-212 rule .btn-primary
-S 214-218 rule .btn-outline-danger
-S 220-224 rule .btn-check
-S 226-229 rule .btn-group > .btn:not(:last-child):not(.dropdown-toggle)
-S 226-226 rule .btn-group
-S 226-226 rule .btn
-S 226-226 rule .btn-group > .btn:not(:last-child)
-S 235-238 rule .alert-primary
-S 240-243 rule [data-bs-theme=dark] .alert-primary
-S 240-240 rule [data-bs-theme=dark]
-S 240-240 rule .alert-primary
-S 245-248 rule .navbar-expand-lg .navbar-nav .nav-link
-S 245-245 rule .navbar-expand-lg
-S 245-245 rule .navbar-nav
-S 245-245 rule .nav-link
-S 250-252 rule .navbar-toggler:focus
-S 250-250 rule .navbar-toggler
-S 254-258 rule .dropdown-menu[data-bs-popper]
-S 254-254 rule .dropdown-menu
-S 260-263 rule .form-control:focus
-S 260-260 rule .form-control
-S 265-268 rule .form-control::placeholder
-S 265-265 rule .form-control
-S 270-272 rule .form-check-input:checked[type=checkbox]
-S 270-270 rule .form-check-input
-S 270-270 rule .form-check-input:checked
-S 274-277 rule .was-validated .form-control:invalid
-S 274-274 rule .was-validated
-S 274-274 rule .form-control
-S 275-277 rule .form-control.is-invalid
-S 275-275 rule .form-control
-S 275-275 rule .is-invalid
-S 279-282 rule .modal.fade .modal-dialog
-S 279-279 rule .modal
-S 279-279 rule .fade
-S 279-279 rule .modal-dialog
-S 284-286 rule .modal.show .modal-dialog
-S 284-284 rule .modal
-S 284-284 rule .show
-S 284-284 rule .modal-dialog
-S 288-290 rule .accordion-button:not(.collapsed)::after
-S 288-288 rule .accordion-button
-S 288-288 rule .accordion-button:not(.collapsed)
-S 298-300 rule .progress-bar-animated
-S 306-314 rule .visually-hidden
-S 307-314 rule .visually-hidden-focusable:not(:focus):not(:focus-within)
-S 307-307 rule .visually-hidden-focusable
-S 307-307 rule .visually-hidden-focusable:not(:focus)
-S 316-321 rule .stretched-link::after
-S 316-316 rule .stretched-link
-S 323-325 rule .d-none
-S 327-329 rule .d-flex
-S 331-334 rule .text-primary
-S 336-339 rule .bg-primary
-S 341-343 rule .mt-3
-S 345-347 rule .link-opacity-75-hover:hover
-S 345-345 rule .link-opacity-75-hover
-S 350-352 rule .d-print-none
+== bootstrap-shop/catalog.css (206 lines)
+S 1-206 module catalog
+S 11-23 rule .btn-brand
+S 25-28 rule .btn-brand.btn-lg
+S 25-25 rule .btn-brand
+S 25-25 rule .btn-lg
+S 30-35 rule .btn-check:checked + .btn-outline-brand
+S 30-30 rule .btn-check
+S 30-30 rule .btn-check:checked
+S 30-30 rule .btn-outline-brand
+S 31-35 rule .btn-outline-brand.active
+S 31-31 rule .btn-outline-brand
+S 31-31 rule .active
+S 37-42 rule .btn-outline-brand
+S 48-52 rule .catalog-filters
+S 54-60 rule .catalog-filters .accordion
+S 54-54 rule .catalog-filters
+S 54-54 rule .accordion
+S 62-64 rule .catalog-filters .accordion-button:not(.collapsed)
+S 62-62 rule .catalog-filters
+S 62-62 rule .accordion-button
+S 66-69 rule .catalog-filters .form-check-input:checked
+S 66-66 rule .catalog-filters
+S 66-66 rule .form-check-input
+S 71-73 rule .price-range output
+S 71-71 rule .price-range
+S 71-71 rule output
+S 75-79 rule .filter-chips .badge
+S 75-75 rule .filter-chips
+S 75-75 rule .badge
+S 81-83 rule .filter-chips .badge:hover .bi-x
+S 81-81 rule .filter-chips
+S 81-81 rule .badge
+S 81-81 rule .filter-chips .badge:hover
+S 81-81 rule .bi-x
+S 87-89 rule .catalog-filters
+S 91-93 rule #filters-offcanvas .offcanvas-body
+S 91-91 rule #filters-offcanvas
+S 91-91 rule .offcanvas-body
+S 100-102 rule .product-grid
+S 104-112 rule .product-card.card
+S 104-104 rule .product-card
+S 104-104 rule .card
+S 114-119 rule .product-card .card-img-top
+S 114-114 rule .product-card
+S 114-114 rule .card-img-top
+S 121-124 rule .product-card:hover .card-img-top
+S 121-121 rule .product-card
+S 121-121 rule .product-card:hover
+S 121-121 rule .card-img-top
+S 122-124 rule .product-card:focus-within .card-img-top
+S 122-122 rule .product-card
+S 122-122 rule .product-card:focus-within
+S 122-122 rule .card-img-top
+S 126-130 rule .product-card .card-title
+S 126-126 rule .product-card
+S 126-126 rule .card-title
+S 132-134 rule .product-card .stretched-link:focus-visible
+S 132-132 rule .product-card
+S 132-132 rule .stretched-link
+S 136-140 rule .product-card .stretched-link:focus-visible::after
+S 136-136 rule .product-card
+S 136-136 rule .stretched-link
+S 136-136 rule .product-card .stretched-link:focus-visible
+S 142-146 rule .product-card .badge.text-bg-sale
+S 142-142 rule .product-card
+S 142-142 rule .badge
+S 142-142 rule .text-bg-sale
+S 148-151 rule .price
+S 153-157 rule .price del
+S 153-153 rule .price
+S 153-153 rule del
+S 159-161 rule .price[data-on-sale="true"]
+S 159-159 rule .price
+S 163-168 rule .rating
+S 170-172 rule .rating .bi-star
+S 170-170 rule .rating
+S 170-170 rule .bi-star
+S 175-177 rule .product-card[aria-disabled="true"]
+S 175-175 rule .product-card
+S 179-181 rule .product-card[aria-disabled="true"] .btn-brand
+S 179-179 rule .product-card
+S 179-179 rule .product-card[aria-disabled="true"]
+S 179-179 rule .btn-brand
+S 187-190 rule #quick-view .modal-content
+S 187-187 rule #quick-view
+S 187-187 rule .modal-content
+S 192-196 rule #quick-view .carousel-indicators [data-bs-target]
+S 192-192 rule #quick-view
+S 192-192 rule .carousel-indicators
+S 192-192 rule [data-bs-target]
+S 198-200 rule #quick-view .size-picker .btn-check:disabled + .btn
+S 198-198 rule #quick-view
+S 198-198 rule .size-picker
+S 198-198 rule .btn-check
+S 198-198 rule #quick-view .size-picker .btn-check:disabled
+S 198-198 rule .btn
+S 203-205 rule #quick-view .modal-dialog
+S 203-203 rule #quick-view
+S 203-203 rule .modal-dialog
 
-== frameworks/tailwind-v3.css (346 lines)
-S 1-346 module tailwind-v3
-S 27-30 rule html
-S 32-34 rule h1
-S 36-38 rule h2
-S 40-42 rule a
-S 44-46 rule [type="checkbox"]:checked
-S 44-44 rule [type="checkbox"]
-S 50-53 rule .btn-primary
-S 55-57 rule .btn-ghost
-S 59-62 rule .tw-card
-S 64-66 rule .tw-card > .tw-card__title
-S 64-64 rule .tw-card
-S 64-64 rule .tw-card__title
-S 68-70 rule .form-input
-S 72-74 rule .form-input:focus
-S 72-72 rule .form-input
-S 76-78 rule .badge
-S 80-82 rule .badge-success
-S 86-88 rule .content-auto
-S 90-92 rule .scrollbar-hidden::-webkit-scrollbar
-S 90-90 rule .scrollbar-hidden
-S 94-96 rule .text-balance
-S 98-101 rule .bg-grid
-S 106-108 rule .tw-sidebar
-S 112-114 rule .tw-sidebar
-S 121-131 rule *
-S 122-131 rule ::before
-S 123-131 rule ::after
-S 133-135 rule .container
-S 137-139 rule .flex
-S 141-143 rule .grid
-S 145-147 rule .hidden
-S 149-151 rule .w-1/2
-S 153-155 rule .top-1/2
-S 157-159 rule .-mt-4
-S 161-163 rule .!mt-0
-S 165-167 rule .w-[32rem]
-S 169-172 rule .bg-[#1da1f2]
-S 174-176 rule .grid-cols-[1fr_2fr]
-S 178-180 rule .[mask-type:luminance]
-S 182-185 rule .translate-x-1/2
-S 187-190 rule .rotate-180
-S 194-197 rule .hover:bg-sky-700:hover
-S 194-194 rule .hover:bg-sky-700
-S 199-201 rule .focus:ring-2:focus
-S 199-199 rule .focus:ring-2
-S 203-205 rule .focus-visible:outline:focus-visible
-S 203-203 rule .focus-visible:outline
-S 207-209 rule .disabled:opacity-50:disabled
-S 207-207 rule .disabled:opacity-50
-S 211-213 rule .first:pt-0:first-child
-S 211-211 rule .first:pt-0
-S 215-217 rule .odd:bg-slate-50:nth-child(odd)
-S 215-215 rule .odd:bg-slate-50
-S 219-221 rule .placeholder:text-slate-400::placeholder
-S 219-219 rule .placeholder:text-slate-400
-S 223-225 rule .before:content-['']::before
-S 223-223 rule .before:content-['']
-S 229-231 rule .group:hover .group-hover:text-white
-S 229-229 rule .group
-S 229-229 rule .group:hover
-S 229-229 rule .group-hover:text-white
-S 233-235 rule .group/item:hover .group-hover/item:visible
-S 233-233 rule .group/item
-S 233-233 rule .group/item:hover
-S 233-233 rule .group-hover/item:visible
-S 237-239 rule .peer:checked ~ .peer-checked:bg-sky-600
-S 237-237 rule .peer
-S 237-237 rule .peer:checked
-S 237-237 rule .peer-checked:bg-sky-600
-S 241-243 rule .peer:invalid ~ .peer-invalid:block
-S 241-241 rule .peer
-S 241-241 rule .peer:invalid
-S 241-241 rule .peer-invalid:block
-S 247-249 rule .aria-expanded:rotate-180[aria-expanded="true"]
-S 247-247 rule .aria-expanded:rotate-180
-S 251-253 rule .data-[state=open]:block[data-state="open"]
-S 251-251 rule .data-[state=open]:block
-S 255-257 rule .open:shadow-lg[open]
-S 255-255 rule .open:shadow-lg
-S 261-263 rule .dark .dark:bg-slate-900
-S 261-261 rule .dark
-S 261-261 rule .dark:bg-slate-900
-S 265-267 rule .dark .dark:hover:bg-slate-800:hover
-S 265-265 rule .dark
-S 265-265 rule .dark:hover:bg-slate-800
-S 272-274 rule .sm:flex
-S 276-278 rule .sm:w-1/3
-S 282-284 rule .md:flex
-S 286-288 rule .md:grid-cols-2
-S 290-292 rule .md:hover:underline:hover
-S 290-290 rule .md:hover:underline
-S 296-298 rule .lg:grid-cols-[1fr_2fr]
-S 300-303 rule .lg:px-8
-S 307-309 rule .max-md:hidden
-S 313-315 rule .media-dark:text-slate-100
-S 319-321 rule .motion-reduce:transition-none
-S 325-327 rule .print:hidden
-S 331-333 rule .supports-[display:grid]:grid
-S 344-346 rule .animate-spin
-R 15:1 imports tailwind-v3 -> ../styles/tokens.css
+== bootstrap-shop/checkout.css (183 lines)
+S 1-183 module checkout
+S 10-12 rule #cart-offcanvas
+S 14-19 rule #cart-offcanvas .list-group-item
+S 14-14 rule #cart-offcanvas
+S 14-14 rule .list-group-item
+S 21-26 rule #cart-offcanvas .list-group-item img
+S 21-21 rule #cart-offcanvas
+S 21-21 rule .list-group-item
+S 21-21 rule img
+S 28-31 rule .qty-stepper
+S 33-37 rule .qty-stepper .form-control
+S 33-33 rule .qty-stepper
+S 33-33 rule .form-control
+S 39-41 rule .qty-stepper .form-control::-webkit-inner-spin-button
+S 39-39 rule .qty-stepper
+S 39-39 rule .form-control
+S 43-47 rule .cart-empty
+S 53-59 rule .checkout-steps
+S 61-67 rule .checkout-steps li
+S 61-61 rule .checkout-steps
+S 61-61 rule li
+S 69-71 rule .checkout-steps li::before
+S 69-69 rule .checkout-steps
+S 69-69 rule li
+S 73-77 rule .checkout-steps li[aria-current="step"]
+S 73-73 rule .checkout-steps
+S 73-73 rule li
+S 79-81 rule .checkout-steps li.is-done
+S 79-79 rule .checkout-steps
+S 79-79 rule li
+S 79-79 rule .is-done
+S 87-90 rule .checkout-form .form-floating > .form-control:focus ~ label
+S 87-87 rule .checkout-form
+S 87-87 rule .form-floating
+S 87-87 rule .form-control
+S 87-87 rule .checkout-form .form-floating > .form-control:focus
+S 87-87 rule label
+S 88-90 rule .checkout-form .form-floating > .form-control:not(:placeholder-shown) ~ label
+S 88-88 rule .checkout-form
+S 88-88 rule .form-floating
+S 88-88 rule .form-control
+S 88-88 rule .checkout-form .form-floating > .form-control:not(:placeholder-shown)
+S 88-88 rule label
+S 92-96 rule .checkout-form .was-validated .form-control:valid
+S 92-92 rule .checkout-form
+S 92-92 rule .was-validated
+S 92-92 rule .form-control
+S 93-96 rule .checkout-form .form-control.is-valid
+S 93-93 rule .checkout-form
+S 93-93 rule .form-control
+S 93-93 rule .is-valid
+S 98-100 rule .checkout-form .form-control.is-invalid ~ .invalid-feedback
+S 98-98 rule .checkout-form
+S 98-98 rule .form-control
+S 98-98 rule .is-invalid
+S 98-98 rule .invalid-feedback
+S 102-108 rule .payment-methods .btn-check + .btn
+S 102-102 rule .payment-methods
+S 102-102 rule .btn-check
+S 102-102 rule .btn
+S 110-113 rule .payment-methods .btn-check:checked + .btn
+S 110-110 rule .payment-methods
+S 110-110 rule .btn-check
+S 110-110 rule .payment-methods .btn-check:checked
+S 110-110 rule .btn
+S 115-119 rule #card-element
+S 121-124 rule #card-element.is-focused
+S 121-121 rule #card-element
+S 121-121 rule .is-focused
+S 130-136 rule .order-summary
+S 138-143 rule .order-summary dl
+S 138-138 rule .order-summary
+S 138-138 rule dl
+S 145-149 rule .order-summary dd
+S 145-145 rule .order-summary
+S 145-145 rule dd
+S 151-156 rule .order-summary .order-total
+S 151-151 rule .order-summary
+S 151-151 rule .order-total
+S 158-160 rule .order-summary .promo-code .input-group > .btn
+S 158-158 rule .order-summary
+S 158-158 rule .promo-code
+S 158-158 rule .input-group
+S 158-158 rule .btn
+S 163-166 rule .order-summary
+S 168-170 rule .checkout-steps li
+S 168-168 rule .checkout-steps
+S 168-168 rule li
+S 174-177 rule #cart-offcanvas
+S 175-177 rule .payment-methods
+S 179-182 rule .order-summary
 
-== frameworks/tailwind-v4.css (339 lines)
-S 1-339 module tailwind-v4
-S 84-86 rule &:where([data-theme="midnight"] *)
-S 97-99 rule &:hover
-S 118-120 rule &::-webkit-scrollbar
-S 138-141 rule html
-S 143-147 rule h1
-S 144-147 rule h2
-S 149-152 rule button:not(:disabled)
-S 149-149 rule button
-S 150-152 rule [role="button"]:not(:disabled)
-S 150-150 rule [role="button"]
-S 156-173 rule .hb-card
-S 160-162 rule &:hover
-S 164-167 rule & > .hb-card__title
-S 164-164 rule .hb-card__title
-S 175-196 rule .hb-button
-S 180-182 rule &:hover
-S 184-187 rule &:focus-visible
-S 198-209 rule .hb-input
-S 202-204 rule &::placeholder
-S 206-208 rule &[aria-invalid="true"]
-S 211-226 rule .hb-nav
-S 215-221 rule & a
-S 215-215 rule a
-S 218-220 rule &:hover
-S 233-244 rule .prose-harbor
-S 246-253 rule .hero
-S 255-258 rule .hero__title
-S 264-266 rule .bg-harbor-500
-S 268-270 rule .bg-harbor-500/50
-S 272-274 rule .p-4
-S 276-278 rule .mt-[17px]
-S 280-282 rule .font-display
-S 284-286 rule .animate-wiggle
-S 288-290 rule .3xl:grid-cols-6
-S 292-298 rule .hover:bg-harbor-700
-S 293-297 rule &:hover
-S 300-304 rule .dark:bg-harbor-900
-S 306-310 rule .theme-midnight:text-avocado-500
-S 307-309 rule &:where([data-theme="midnight"] *)
-S 312-316 rule .starting:opacity-0
-S 318-320 rule .@container
-S 325-327 rule .@md:flex-row
-R 20:1 imports tailwind-v4 -> tailwindcss
-R 21:1 imports tailwind-v4 -> ../styles/tokens.css
+== bootstrap-shop/shop.css (141 lines)
+S 1-141 module shop
+S 28-33 rule .shop-body
+S 35-38 rule .shop-main
+S 40-44 rule .shop-footer
+S 46-49 rule .shop-footer a
+S 46-46 rule .shop-footer
+S 46-46 rule a
+S 52-59 rule .promo-bar.alert
+S 52-52 rule .promo-bar
+S 52-52 rule .alert
+S 61-64 rule .promo-bar .btn-close
+S 61-61 rule .promo-bar
+S 61-61 rule .btn-close
+S 70-78 rule .navbar-shop
+S 80-83 rule .navbar-shop .navbar-brand
+S 80-80 rule .navbar-shop
+S 80-80 rule .navbar-brand
+S 85-89 rule .navbar-shop .nav-link.active
+S 85-85 rule .navbar-shop
+S 85-85 rule .nav-link
+S 85-85 rule .active
+S 91-93 rule .navbar-shop .cart-toggle
+S 91-91 rule .navbar-shop
+S 91-91 rule .cart-toggle
+S 95-100 rule .navbar-shop .cart-toggle .badge
+S 95-95 rule .navbar-shop
+S 95-95 rule .cart-toggle
+S 95-95 rule .badge
+S 102-105 rule #site-search:focus-within .form-control
+S 102-102 rule #site-search
+S 102-102 rule #site-search:focus-within
+S 102-102 rule .form-control
+S 112-114 rule .shop-main
+S 116-118 rule .navbar-shop .navbar-nav
+S 116-116 rule .navbar-shop
+S 116-116 rule .navbar-nav
+S 122-126 rule .shop-main > .container-xl
+S 122-122 rule .shop-main
+S 122-122 rule .container-xl
+S 130-132 rule .navbar-shop
+S 136-140 rule .navbar-shop
+S 137-140 rule .promo-bar
+S 138-140 rule .shop-footer
+R 19:1 imports shop -> https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css
+R 20:1 imports shop -> theme.css
+R 21:1 imports shop -> catalog.css
+R 22:1 imports shop -> checkout.css
+
+== bootstrap-shop/theme.css (82 lines)
+S 1-82 module theme
+S 10-29 rule :root
+S 11-29 rule [data-bs-theme="light"]
+S 31-36 rule [data-bs-theme="dark"]
+S 40-60 rule [data-bs-theme="harbor-night"]
+S 51-54 rule .dropdown-menu
+S 56-59 rule .btn-brand
+S 64-67 rule .text-bg-sale
+S 69-72 rule .link-brand
+S 74-77 rule .link-brand:hover
+S 74-74 rule .link-brand
+S 75-77 rule .link-brand:focus-visible
+S 75-75 rule .link-brand
+S 79-82 rule .font-display
 
 == styles/base.css (373 lines)
 S 1-373 module base
@@ -911,3 +899,75 @@ S 268-274 rule :root
 S 277-281 rule :root
 S 347-349 rule .theme-dark
 S 351-353 rule .theme-light
+
+== tailwind-v3-app/src/input.css (147 lines)
+S 1-147 module input
+S 26-30 rule html
+S 32-34 rule h1
+S 36-38 rule h2
+S 40-42 rule a
+S 44-46 rule [type="checkbox"]:checked
+S 44-44 rule [type="checkbox"]
+S 48-50 rule table
+S 54-57 rule .btn-primary
+S 59-61 rule .btn-ghost
+S 63-66 rule .ledger-card
+S 68-70 rule .ledger-card > .ledger-card__title
+S 68-68 rule .ledger-card
+S 68-68 rule .ledger-card__title
+S 72-74 rule .form-input
+S 76-78 rule .form-input:focus
+S 76-76 rule .form-input
+S 80-82 rule .badge
+S 84-86 rule .badge-overdue
+S 88-90 rule .stat-delta[data-trend="down"]
+S 88-88 rule .stat-delta
+S 92-94 rule .stat-delta[data-trend="up"]
+S 92-92 rule .stat-delta
+S 98-100 rule .content-auto
+S 102-104 rule .scrollbar-hidden::-webkit-scrollbar
+S 102-102 rule .scrollbar-hidden
+S 106-108 rule .text-balance
+S 110-113 rule .bg-grid
+S 118-120 rule .ledger-sidebar
+S 124-126 rule .ledger-sidebar
+S 134-136 rule .md:flex
+S 138-140 rule .3xl:grid-cols-6
+S 142-146 rule .ledger-sidebar
+S 143-146 rule .btn-primary
+S 144-146 rule .btn-ghost
+
+== tailwind-v4-app/src/main.css (287 lines)
+S 1-287 module main
+S 87-89 rule &:where([data-theme="midnight"] *)
+S 100-102 rule &:hover
+S 121-123 rule &::-webkit-scrollbar
+S 148-151 rule html
+S 153-157 rule h1
+S 154-157 rule h2
+S 159-162 rule button:not(:disabled)
+S 159-159 rule button
+S 160-162 rule [role="button"]:not(:disabled)
+S 160-160 rule [role="button"]
+S 166-183 rule .hb-card
+S 170-172 rule &:hover
+S 174-177 rule & > .hb-card__title
+S 174-174 rule .hb-card__title
+S 185-206 rule .hb-button
+S 190-192 rule &:hover
+S 194-197 rule &:focus-visible
+S 208-219 rule .hb-input
+S 212-214 rule &::placeholder
+S 216-218 rule &[aria-invalid="true"]
+S 221-236 rule .hb-nav
+S 225-231 rule & a
+S 225-225 rule a
+S 228-230 rule &:hover
+S 243-254 rule .prose-harbor
+S 256-268 rule .hero
+S 265-267 rule &:hover
+S 270-273 rule .hero__title
+S 275-287 rule .pricing-table
+S 283-286 rule & .pricing-table__plan[data-featured]
+S 283-283 rule .pricing-table__plan
+R 25:1 imports main -> tailwindcss
