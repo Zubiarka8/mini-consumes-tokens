@@ -196,7 +196,7 @@ fn cross_file_calls_are_extracted() {
         RelationKind::Calls,
         "summary_table",
     );
-    assert!(c.cross_file_relation_count() >= 100);
+    assert!(c.name_matched_relation_count() >= 100);
 }
 
 #[test]

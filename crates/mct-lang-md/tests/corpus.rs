@@ -15,7 +15,10 @@
 use mct_core::{RelationKind, SymbolKind};
 use mct_lang_md::MarkdownParser;
 
-mct_corpus::standard_tests!(MarkdownParser);
+mct_corpus::standard_tests!(
+    MarkdownParser,
+    malformed_may_parse = "Markdown accepts any input; a malformed note is still a note"
+);
 
 use RelationKind::{Imports, References};
 
@@ -238,7 +241,7 @@ fn code_tables_and_look_alikes_are_not_links_or_tags() {
 #[test]
 fn notes_link_each_other_across_files() {
     let c = corpus();
-    assert!(c.cross_file_relation_count() >= 100);
+    assert!(c.name_matched_relation_count() >= 100);
     // A section anchor in another note is resolved by name.
     c.relation(
         "runbook.md",

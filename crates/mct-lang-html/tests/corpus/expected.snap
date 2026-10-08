@@ -1,4 +1,4 @@
-# language=html files=5 symbols=302 relations=675 cross_file=0
+# language=html files=5 symbols=302 relations=675 name_matched_across_files=0
 
 == account.html (305 lines)
 S 1-305 module account

@@ -1,4 +1,4 @@
-# language=xaml files=6 symbols=157 relations=125 cross_file=0
+# language=xaml files=6 symbols=157 relations=125 name_matched_across_files=0
 
 == App.xaml (314 lines)
 S 1-314 module App

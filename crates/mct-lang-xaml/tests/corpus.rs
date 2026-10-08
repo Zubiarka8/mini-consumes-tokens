@@ -179,7 +179,7 @@ fn only_references_are_emitted_and_none_cross_files() {
         .iter()
         .all(|r| r.kind == RelationKind::References));
     // Handlers live in code-behind (`*.xaml.cs`), never in another XAML file.
-    assert_eq!(c.cross_file_relation_count(), 0);
+    assert_eq!(c.name_matched_relation_count(), 0);
 }
 
 #[test]

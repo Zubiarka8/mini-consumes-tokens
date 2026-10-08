@@ -212,7 +212,7 @@ fn cross_file_calls_are_extracted() {
     c.relation("main.go", "newApp", Calls, "AuditHook");
     c.relation("main.go", "runTransfer", Calls, "ParseMoney");
     c.relation("main.go", "report", Calls, "Explain");
-    assert!(c.cross_file_relation_count() >= 200);
+    assert!(c.name_matched_relation_count() >= 200);
 }
 
 #[test]
