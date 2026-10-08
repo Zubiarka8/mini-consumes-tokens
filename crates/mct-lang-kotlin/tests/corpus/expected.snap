@@ -1,4 +1,4 @@
-# language=kotlin files=5 symbols=483 relations=720 cross_file=89
+# language=kotlin files=5 symbols=483 relations=720 name_matched_across_files=89
 
 == app/WarehouseApp.kt (305 lines)
 S 1-305 module WarehouseApp
@@ -91,24 +91,24 @@ S 261-261 field Flags::tier
 S 263-270 function parseFlags
 S 272-285 function demoService
 S 287-305 function main
-R 3:1 imports WarehouseApp -> Inventory (x-file: inventory/Inventory.kt)
-R 4:1 imports WarehouseApp -> InventoryListener (x-file: inventory/Inventory.kt)
-R 5:1 imports WarehouseApp -> Location (x-file: inventory/Inventory.kt)
-R 6:1 imports WarehouseApp -> OutOfStockException (x-file: inventory/Inventory.kt)
-R 7:1 imports WarehouseApp -> Reservation (x-file: inventory/Inventory.kt)
-R 8:1 imports WarehouseApp -> Currency (x-file: money/Money.kt)
-R 9:1 imports WarehouseApp -> ExchangeRates (x-file: money/Money.kt)
-R 10:1 imports WarehouseApp -> Money (x-file: money/Money.kt)
-R 11:1 imports WarehouseApp -> eur (x-file: money/Money.kt)
-R 12:1 imports WarehouseApp -> EventSink (x-file: order/Order.kt)
-R 13:1 imports WarehouseApp -> Line (x-file: order/Order.kt)
-R 14:1 imports WarehouseApp -> Order (x-file: order/Order.kt)
-R 15:1 imports WarehouseApp -> OrderEvent (x-file: order/Order.kt)
-R 16:1 imports WarehouseApp -> OrderId (x-file: order/Order.kt)
-R 17:1 imports WarehouseApp -> countByState (x-file: order/Order.kt)
-R 18:1 imports WarehouseApp -> describe (x-file: inventory/Inventory.kt)
-R 19:1 imports WarehouseApp -> PricingEngine (x-file: pricing/Pricing.kt)
-R 20:1 imports WarehouseApp -> defaultEngine (x-file: pricing/Pricing.kt)
+R 3:1 imports WarehouseApp -> Inventory (name-matched: inventory/Inventory.kt)
+R 4:1 imports WarehouseApp -> InventoryListener (name-matched: inventory/Inventory.kt)
+R 5:1 imports WarehouseApp -> Location (name-matched: inventory/Inventory.kt)
+R 6:1 imports WarehouseApp -> OutOfStockException (name-matched: inventory/Inventory.kt)
+R 7:1 imports WarehouseApp -> Reservation (name-matched: inventory/Inventory.kt)
+R 8:1 imports WarehouseApp -> Currency (name-matched: money/Money.kt)
+R 9:1 imports WarehouseApp -> ExchangeRates (name-matched: money/Money.kt)
+R 10:1 imports WarehouseApp -> Money (name-matched: money/Money.kt)
+R 11:1 imports WarehouseApp -> eur (name-matched: money/Money.kt)
+R 12:1 imports WarehouseApp -> EventSink (name-matched: order/Order.kt)
+R 13:1 imports WarehouseApp -> Line (name-matched: order/Order.kt)
+R 14:1 imports WarehouseApp -> Order (name-matched: order/Order.kt)
+R 15:1 imports WarehouseApp -> OrderEvent (name-matched: order/Order.kt)
+R 16:1 imports WarehouseApp -> OrderId (name-matched: order/Order.kt)
+R 17:1 imports WarehouseApp -> countByState (name-matched: order/Order.kt)
+R 18:1 imports WarehouseApp -> describe (name-matched: inventory/Inventory.kt)
+R 19:1 imports WarehouseApp -> PricingEngine (name-matched: pricing/Pricing.kt)
+R 20:1 imports WarehouseApp -> defaultEngine (name-matched: pricing/Pricing.kt)
 R 21:1 imports WarehouseApp -> runBlocking
 R 22:1 imports WarehouseApp -> Clock
 R 23:1 imports WarehouseApp -> LocalDate
@@ -123,21 +123,21 @@ R 54:24 implements InMemoryOrders -> OrderRepository
 R 55:24 calls WarehouseApp -> linkedMapOf
 R 63:69 calls InMemoryOrders::findByNumber -> firstOrNull
 R 70:28 calls WarehouseApp -> AtomicLong
-R 72:52 calls OrderNumbers::next -> format (x-file: money/Money.kt)
+R 72:52 calls OrderNumbers::next -> format (name-matched: money/Money.kt)
 R 72:69 calls OrderNumbers::next -> now
 R 72:95 calls OrderNumbers::next -> incrementAndGet
-R 74:28 calls OrderNumbers::reset -> set (x-file: money/Money.kt)
-R 78:16 implements Outbox -> EventSink (x-file: order/Order.kt)
-R 78:27 implements Outbox -> InventoryListener (x-file: inventory/Inventory.kt)
+R 74:28 calls OrderNumbers::reset -> set (name-matched: money/Money.kt)
+R 78:16 implements Outbox -> EventSink (name-matched: order/Order.kt)
+R 78:27 implements Outbox -> InventoryListener (name-matched: inventory/Inventory.kt)
 R 79:18 calls WarehouseApp -> mutableListOf
 R 80:17 calls WarehouseApp -> mutableListOf
-R 107:52 calls WarehouseApp -> eur (x-file: money/Money.kt)
+R 107:52 calls WarehouseApp -> eur (name-matched: money/Money.kt)
 R 110:21 calls OrderService::place -> priceLines
 R 111:25 calls OrderService::place -> instant
 R 112:27 calls OrderService::place -> place
 R 112:46 calls OrderService::place -> next
-R 113:29 calls OrderService::place -> quote (x-file: pricing/Pricing.kt)
-R 114:39 calls OrderService::place -> convert (x-file: money/Money.kt)
+R 113:29 calls OrderService::place -> quote (name-matched: pricing/Pricing.kt)
+R 114:39 calls OrderService::place -> convert (name-matched: money/Money.kt)
 R 114:78 calls OrderService::place -> now
 R 116:13 calls OrderService::place -> save
 R 117:28 calls OrderService::place -> PendingApproval
@@ -153,28 +153,28 @@ R 129:16 calls OrderService::approve -> reserveOrReject
 R 129:50 calls OrderService::approve -> Accepted
 R 133:21 calls OrderService::confirmPayment -> requireNotNull
 R 133:43 calls OrderService::confirmPayment -> findByNumber
-R 134:15 calls OrderService::confirmPayment -> pay (x-file: order/Order.kt)
+R 134:15 calls OrderService::confirmPayment -> pay (name-matched: order/Order.kt)
 R 134:44 calls OrderService::confirmPayment -> instant
 R 135:9 calls OrderService::confirmPayment -> save
 R 139:28 calls OrderService::cancel -> find
 R 140:15 calls OrderService::cancel -> cancel
 R 140:36 calls OrderService::cancel -> instant
-R 141:19 calls OrderService::cancel -> release (x-file: inventory/Inventory.kt)
+R 141:19 calls OrderService::cancel -> release (name-matched: inventory/Inventory.kt)
 R 142:9 calls OrderService::cancel -> save
 R 146:25 calls OrderService::reserveOrReject -> instant
-R 148:33 calls OrderService::reserveOrReject -> reserve (x-file: inventory/Inventory.kt)
-R 149:19 calls OrderService::reserveOrReject -> reserve (x-file: inventory/Inventory.kt)
+R 148:33 calls OrderService::reserveOrReject -> reserve (name-matched: inventory/Inventory.kt)
+R 149:19 calls OrderService::reserveOrReject -> reserve (name-matched: inventory/Inventory.kt)
 R 150:13 calls OrderService::reserveOrReject -> save
 R 153:19 calls OrderService::reserveOrReject -> cancel
 R 154:13 calls OrderService::reserveOrReject -> save
 R 155:21 calls OrderService::reserveOrReject -> Rejected
 R 160:36 calls OrderService::priceLines -> mapIndexed
 R 161:40 calls OrderService::priceLines -> error
-R 162:13 calls OrderService::priceLines -> Line (x-file: order/Order.kt)
-R 166:15 calls OrderService::save -> drainEvents (x-file: order/Order.kt)
+R 162:13 calls OrderService::priceLines -> Line (name-matched: order/Order.kt)
+R 166:15 calls OrderService::save -> drainEvents (name-matched: order/Order.kt)
 R 167:16 calls OrderService::save -> save
 R 170:67 calls OrderService::dashboard -> joinToString
-R 170:44 calls OrderService::dashboard -> countByState (x-file: order/Order.kt)
+R 170:44 calls OrderService::dashboard -> countByState (name-matched: order/Order.kt)
 R 170:38 calls OrderService::dashboard -> all
 R 172:77 calls OrderService::packingSlip -> let
 R 172:55 calls OrderService::packingSlip -> findByNumber
@@ -187,9 +187,9 @@ R 195:26 calls WarehouseApp -> mutableListOf
 R 197:47 calls Router::get -> add
 R 199:48 calls Router::post -> add
 R 202:19 calls Router::add -> Triple
-R 202:49 calls Router::add -> split (x-file: money/Money.kt)
+R 202:49 calls Router::add -> split (name-matched: money/Money.kt)
 R 202:39 calls Router::add -> trim
-R 206:47 calls Router::handle -> split (x-file: money/Money.kt)
+R 206:47 calls Router::handle -> split (name-matched: money/Money.kt)
 R 206:37 calls Router::handle -> trim
 R 207:28 calls Router::handle -> firstOrNull
 R 209:39 calls Router::handle -> all
@@ -199,7 +199,7 @@ R 210:30 calls Router::handle -> notFound
 R 211:22 calls Router::handle -> third
 R 223:97 calls Scope::parse -> toSet
 R 223:31 calls Scope::parse -> mapNotNull
-R 223:20 calls Scope::parse -> split (x-file: money/Money.kt)
+R 223:20 calls Scope::parse -> split (name-matched: money/Money.kt)
 R 223:61 calls Scope::parse -> firstOrNull
 R 229:48 calls requireScope -> removePrefix
 R 230:61 calls requireScope -> orEmpty
@@ -214,7 +214,7 @@ R 240:5 calls orderRoutes -> get
 R 240:41 calls orderRoutes -> ok
 R 240:52 calls orderRoutes -> dashboard
 R 241:5 calls orderRoutes -> get
-R 242:31 calls orderRoutes -> split (x-file: money/Money.kt)
+R 242:31 calls orderRoutes -> split (name-matched: money/Money.kt)
 R 243:38 calls orderRoutes -> let
 R 243:17 calls orderRoutes -> packingSlip
 R 243:68 calls orderRoutes -> notFound
@@ -239,21 +239,21 @@ R 267:60 calls parseFlags -> substringAfter
 R 268:17 calls parseFlags -> error
 R 272:38 calls demoService -> systemUTC
 R 273:18 calls demoService -> Outbox
-R 274:31 calls demoService -> identity (x-file: money/Money.kt)
+R 274:31 calls demoService -> identity (name-matched: money/Money.kt)
 R 275:57 calls demoService -> apply
-R 275:21 calls demoService -> Inventory (x-file: inventory/Inventory.kt)
-R 276:9 calls demoService -> setReorderPoint (x-file: inventory/Inventory.kt)
+R 275:21 calls demoService -> Inventory (name-matched: inventory/Inventory.kt)
+R 276:9 calls demoService -> setReorderPoint (name-matched: inventory/Inventory.kt)
 R 278:5 calls demoService -> runBlocking
-R 279:19 calls demoService -> receive (x-file: inventory/Inventory.kt)
+R 279:19 calls demoService -> receive (name-matched: inventory/Inventory.kt)
 R 279:48 calls demoService -> parse
-R 280:19 calls demoService -> receive (x-file: inventory/Inventory.kt)
+R 280:19 calls demoService -> receive (name-matched: inventory/Inventory.kt)
 R 280:48 calls demoService -> parse
 R 282:18 calls demoService -> mapOf
-R 282:44 calls demoService -> of (x-file: money/Money.kt)
-R 282:91 calls demoService -> of (x-file: money/Money.kt)
+R 282:44 calls demoService -> of (name-matched: money/Money.kt)
+R 282:91 calls demoService -> of (name-matched: money/Money.kt)
 R 283:19 calls demoService -> OrderService
 R 283:32 calls demoService -> InMemoryOrders
-R 283:61 calls demoService -> defaultEngine (x-file: pricing/Pricing.kt)
+R 283:61 calls demoService -> defaultEngine (name-matched: pricing/Pricing.kt)
 R 287:33 calls main -> runBlocking
 R 288:17 calls main -> parseFlags
 R 289:29 calls main -> demoService
@@ -360,9 +360,9 @@ S 290-295 method Inventory::transfer
 S 298-308 method Inventory::recomputeReorderPoint
 S 299-299 function mean
 S 300-303 function stdDev
-R 3:1 imports Inventory -> Line (x-file: order/Order.kt)
-R 4:1 imports Inventory -> Order (x-file: order/Order.kt)
-R 5:1 imports Inventory -> OrderId (x-file: order/Order.kt)
+R 3:1 imports Inventory -> Line (name-matched: order/Order.kt)
+R 4:1 imports Inventory -> Order (name-matched: order/Order.kt)
+R 5:1 imports Inventory -> OrderId (name-matched: order/Order.kt)
 R 6:1 imports Inventory -> CoroutineScope
 R 7:1 imports Inventory -> delay
 R 8:1 imports Inventory -> isActive
@@ -377,9 +377,9 @@ R 16:1 imports Inventory -> Delegates
 R 26:73 implements Location -> Comparable
 R 27:41 calls Inventory -> startsWith
 R 30:9 calls Location::compareTo -> compareValuesBy
-R 32:44 calls Location::toString -> format (x-file: money/Money.kt)
+R 32:44 calls Location::toString -> format (name-matched: money/Money.kt)
 R 36:56 calls Location::parse -> also
-R 36:45 calls Location::parse -> split (x-file: money/Money.kt)
+R 36:45 calls Location::parse -> split (name-matched: money/Money.kt)
 R 37:17 calls Location::parse -> require
 R 39:20 calls Location::parse -> Location
 R 39:41 calls Location::parse -> toInt
@@ -491,7 +491,7 @@ R 292:50 calls Inventory::transfer -> OutOfStockException
 R 293:16 calls Inventory::transfer -> consume
 R 294:30 calls Inventory::transfer -> receive
 R 294:9 calls Inventory::transfer -> levelAt
-R 299:38 calls mean -> average (x-file: money/Money.kt)
+R 299:38 calls mean -> average (name-matched: money/Money.kt)
 R 301:21 calls stdDev -> mean
 R 302:32 calls stdDev -> sqrt
 R 302:40 calls stdDev -> sumOf
@@ -850,10 +850,10 @@ S 277-285 method OrderHistory::stateAfter
 S 289-306 function packingSlip
 S 292-292 function rule
 S 294-294 function row
-R 3:1 imports Order -> Currency (x-file: money/Money.kt)
-R 4:1 imports Order -> CurrencyMismatchException (x-file: money/Money.kt)
-R 5:1 imports Order -> Money (x-file: money/Money.kt)
-R 6:1 imports Order -> sum (x-file: money/Money.kt)
+R 3:1 imports Order -> Currency (name-matched: money/Money.kt)
+R 4:1 imports Order -> CurrencyMismatchException (name-matched: money/Money.kt)
+R 5:1 imports Order -> Money (name-matched: money/Money.kt)
+R 6:1 imports Order -> sum (name-matched: money/Money.kt)
 R 7:1 imports Order -> Instant
 R 8:1 imports Order -> UUID
 R 18:45 calls OrderId::toString -> toString
@@ -881,7 +881,7 @@ R 73:5 extends IllegalTransitionException -> IllegalStateException
 R 86:26 calls Order -> mutableListOf
 R 87:27 calls Order -> mutableListOf
 R 95:42 calls Order -> toList
-R 97:57 calls Order -> sum (x-file: money/Money.kt)
+R 97:57 calls Order -> sum (name-matched: money/Money.kt)
 R 97:37 calls Order -> map
 R 104:9 calls Order::reserve -> moveTo
 R 105:16 calls Order::reserve -> record
@@ -906,9 +906,9 @@ R 129:16 calls Order::cancel -> record
 R 129:34 calls Order::cancel -> Cancelled
 R 133:20 calls Order::moveTo -> canMoveTo
 R 133:45 calls Order::moveTo -> IllegalTransitionException
-R 144:19 calls Order::addLine -> CurrencyMismatchException (x-file: money/Money.kt)
+R 144:19 calls Order::addLine -> CurrencyMismatchException (name-matched: money/Money.kt)
 R 156:17 calls Order::drainEvents -> forEach
-R 157:17 calls Order::drainEvents -> clear (x-file: money/Money.kt)
+R 157:17 calls Order::drainEvents -> clear (name-matched: money/Money.kt)
 R 165:13 calls Order::summary -> trimMargin
 R 172:13 calls Order::place -> require
 R 172:27 calls Order::place -> isNotEmpty
@@ -934,12 +934,12 @@ R 211:12 calls Collection::stalePayments -> filter
 R 225:47 calls Order -> emptySet
 R 227:76 calls OrderValidator::validate -> buildList
 R 228:24 calls OrderValidator::validate -> isBlank
-R 228:35 calls OrderValidator::validate -> add (x-file: app/WarehouseApp.kt)
+R 228:35 calls OrderValidator::validate -> add (name-matched: app/WarehouseApp.kt)
 R 228:39 calls OrderValidator::validate -> Violation
 R 229:19 calls OrderValidator::validate -> isEmpty
-R 229:30 calls OrderValidator::validate -> add (x-file: app/WarehouseApp.kt)
+R 229:30 calls OrderValidator::validate -> add (name-matched: app/WarehouseApp.kt)
 R 229:34 calls OrderValidator::validate -> Violation
-R 230:36 calls OrderValidator::validate -> add (x-file: app/WarehouseApp.kt)
+R 230:36 calls OrderValidator::validate -> add (name-matched: app/WarehouseApp.kt)
 R 230:40 calls OrderValidator::validate -> Violation
 R 231:15 calls OrderValidator::validate -> forEach
 R 231:33 calls OrderValidator::validate -> addAll
@@ -1081,35 +1081,35 @@ S 273-280 function describeRules
 S 283-285 function seasonal
 S 288-297 function defaultEngine
 S 300-304 function selfCheck
-R 3:1 imports Pricing -> Currency (x-file: money/Money.kt)
-R 4:1 imports Pricing -> ExchangeRates (x-file: money/Money.kt)
-R 5:1 imports Pricing -> Money (x-file: money/Money.kt)
-R 6:1 imports Pricing -> distributeDiscount (x-file: money/Money.kt)
+R 3:1 imports Pricing -> Currency (name-matched: money/Money.kt)
+R 4:1 imports Pricing -> ExchangeRates (name-matched: money/Money.kt)
+R 5:1 imports Pricing -> Money (name-matched: money/Money.kt)
+R 6:1 imports Pricing -> distributeDiscount (name-matched: money/Money.kt)
 R 7:1 imports Pricing -> gross
-R 8:1 imports Pricing -> sum (x-file: money/Money.kt)
+R 8:1 imports Pricing -> sum (name-matched: money/Money.kt)
 R 9:1 imports Pricing -> vat
-R 10:1 imports Pricing -> Line (x-file: order/Order.kt)
+R 10:1 imports Pricing -> Line (name-matched: order/Order.kt)
 R 11:1 imports Pricing -> BigDecimal
 R 12:1 imports Pricing -> LocalDate
-R 31:49 calls Pricing -> sum (x-file: money/Money.kt)
+R 31:49 calls Pricing -> sum (name-matched: money/Money.kt)
 R 31:34 calls Pricing -> map
-R 32:49 calls Pricing -> sum (x-file: money/Money.kt)
+R 32:49 calls Pricing -> sum (name-matched: money/Money.kt)
 R 32:34 calls Pricing -> map
-R 34:59 calls Pricing -> sum (x-file: money/Money.kt)
+R 34:59 calls Pricing -> sum (name-matched: money/Money.kt)
 R 34:39 calls Pricing -> map
 R 46:56 calls DiscountRule::then -> DiscountRule
 R 47:21 calls DiscountRule::then -> discount
 R 48:22 calls DiscountRule::then -> discount
 R 69:63 implements VolumeDiscount -> DiscountRule
 R 71:35 calls VolumeDiscount::discount -> sumOf
-R 72:68 calls VolumeDiscount::discount -> maxOrNull (x-file: money/Money.kt)
+R 72:68 calls VolumeDiscount::discount -> maxOrNull (name-matched: money/Money.kt)
 R 72:34 calls VolumeDiscount::discount -> filterKeys
-R 72:96 calls VolumeDiscount::discount -> zero (x-file: money/Money.kt)
+R 72:96 calls VolumeDiscount::discount -> zero (name-matched: money/Money.kt)
 R 78:62 implements LoyaltyDiscount -> DiscountRule
 R 80:45 calls LoyaltyDiscount::discount -> let
 R 86:102 implements CouponDiscount -> DiscountRule
 R 88:38 calls CouponDiscount::discount -> min
-R 88:63 calls CouponDiscount::discount -> zero (x-file: money/Money.kt)
+R 88:63 calls CouponDiscount::discount -> zero (name-matched: money/Money.kt)
 R 93:84 calls Money::percentOfInt -> toBigDecimal
 R 106:25 calls Pricing -> mutableListOf
 R 107:48 calls Pricing -> emptyMap
@@ -1125,20 +1125,20 @@ R 128:9 calls PricingBuilder::build -> PricingEngine
 R 128:29 calls PricingBuilder::build -> reduceOrNull
 R 133:31 calls Pricing -> mutableMapOf
 R 140:19 calls Pricing -> DiscountRule
-R 140:55 calls Pricing -> zero (x-file: money/Money.kt)
-R 142:50 calls pricing -> identity (x-file: money/Money.kt)
+R 140:55 calls Pricing -> zero (name-matched: money/Money.kt)
+R 142:50 calls pricing -> identity (name-matched: money/Money.kt)
 R 143:35 calls pricing -> build
 R 143:22 calls pricing -> apply
 R 143:5 calls pricing -> PricingBuilder
 R 155:112 calls PricingEngine::quote -> now
 R 156:31 calls PricingEngine::quote -> map
 R 156:40 calls PricingEngine::quote -> copy
-R 156:70 calls PricingEngine::quote -> convert (x-file: money/Money.kt)
+R 156:70 calls PricingEngine::quote -> convert (name-matched: money/Money.kt)
 R 157:35 calls PricingEngine::quote -> map
-R 158:34 calls PricingEngine::quote -> sum (x-file: money/Money.kt)
+R 158:34 calls PricingEngine::quote -> sum (name-matched: money/Money.kt)
 R 159:29 calls PricingEngine::quote -> discount
 R 159:38 calls PricingEngine::quote -> PricingContext
-R 160:23 calls PricingEngine::quote -> distributeDiscount (x-file: money/Money.kt)
+R 160:23 calls PricingEngine::quote -> distributeDiscount (name-matched: money/Money.kt)
 R 161:32 calls PricingEngine::quote -> zip
 R 163:40 calls PricingEngine::quote -> forSku
 R 164:13 calls PricingEngine::quote -> QuotedLine
@@ -1162,7 +1162,7 @@ R 192:33 calls PercentOff::toRule -> DiscountRule
 R 195:107 extends Promotion::BuyXGetY -> Promotion
 R 196:33 calls BuyXGetY::toRule -> DiscountRule
 R 197:34 calls BuyXGetY::toRule -> firstOrNull
-R 197:93 calls BuyXGetY::toRule -> zero (x-file: money/Money.kt)
+R 197:93 calls BuyXGetY::toRule -> zero (name-matched: money/Money.kt)
 R 203:27 extends Promotion::FreeShipping -> Promotion
 R 210:27 calls Pricing -> mutableListOf
 R 213:9 calls PriceHistory::record -> require
@@ -1174,7 +1174,7 @@ R 222:14 calls PriceHistory::lowestBefore -> map
 R 221:17 calls PriceHistory::lowestBefore -> filter
 R 221:51 calls PriceHistory::lowestBefore -> minusDays
 R 230:12 calls priceList -> associate
-R 230:54 calls priceList -> of (x-file: money/Money.kt)
+R 230:54 calls priceList -> of (name-matched: money/Money.kt)
 R 230:57 calls priceList -> BigDecimal
 R 240:18 calls importPriceList -> mutableMapOf
 R 241:18 calls importPriceList -> mutableListOf
@@ -1185,30 +1185,30 @@ R 242:9 calls importPriceList -> lineSequence
 R 243:37 calls importPriceList -> isNotBlank
 R 243:59 calls importPriceList -> startsWith
 R 245:42 calls importPriceList -> map
-R 245:31 calls importPriceList -> split (x-file: money/Money.kt)
+R 245:31 calls importPriceList -> split (name-matched: money/Money.kt)
 R 247:17 calls importPriceList -> require
-R 249:37 calls importPriceList -> of (x-file: money/Money.kt)
+R 249:37 calls importPriceList -> of (name-matched: money/Money.kt)
 R 249:40 calls importPriceList -> BigDecimal
-R 249:69 calls importPriceList -> parse (x-file: app/WarehouseApp.kt)
+R 249:69 calls importPriceList -> parse (name-matched: app/WarehouseApp.kt)
 R 251:27 calls importPriceList -> ImportError
 R 259:11 calls missingPrices -> filterNot
 R 263:5 calls Map::convertedTo -> mapValues
-R 263:37 calls Map::convertedTo -> convert (x-file: money/Money.kt)
-R 269:18 calls Quote::cashTotal -> ofMinor (x-file: money/Money.kt)
+R 263:37 calls Map::convertedTo -> convert (name-matched: money/Money.kt)
+R 269:18 calls Quote::cashTotal -> ofMinor (name-matched: money/Money.kt)
 R 273:63 calls describeRules -> joinToString
 R 277:35 calls describeRules -> toString
 R 283:76 calls seasonal -> DiscountRule
-R 284:72 calls seasonal -> zero (x-file: money/Money.kt)
+R 284:72 calls seasonal -> zero (name-matched: money/Money.kt)
 R 288:58 calls defaultEngine -> pricing
 R 289:5 calls defaultEngine -> volume
 R 294:5 calls defaultEngine -> loyalty
 R 295:5 calls defaultEngine -> rule
 R 295:10 calls defaultEngine -> seasonal
-R 295:29 calls defaultEngine -> of (x-file: money/Money.kt)
-R 295:57 calls defaultEngine -> of (x-file: money/Money.kt)
+R 295:29 calls defaultEngine -> of (name-matched: money/Money.kt)
+R 295:57 calls defaultEngine -> of (name-matched: money/Money.kt)
 R 296:18 calls defaultEngine -> mapOf
-R 301:15 calls selfCheck -> Line (x-file: order/Order.kt)
-R 301:44 calls selfCheck -> of (x-file: money/Money.kt)
+R 301:15 calls selfCheck -> Line (name-matched: order/Order.kt)
+R 301:44 calls selfCheck -> of (name-matched: money/Money.kt)
 R 301:47 calls selfCheck -> BigDecimal
 R 302:24 calls selfCheck -> quote
 R 302:30 calls selfCheck -> listOf
