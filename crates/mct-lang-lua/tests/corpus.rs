@@ -75,7 +75,7 @@ fn cross_file_calls_are_extracted() {
     c.relation("inventory.lua", "check_order", Calls, "available");
     c.relation("router.lua", "quote_preview", Calls, "sum");
     c.relation("router.lua", "handle", Calls, "access");
-    assert!(c.cross_file_relation_count() >= 30);
+    assert!(c.name_matched_relation_count() >= 30);
 }
 
 #[test]

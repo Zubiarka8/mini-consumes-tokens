@@ -252,7 +252,7 @@ fn cross_file_usings_and_calls_are_extracted() {
     c.relation("Services.cs", "DraftAsync", Calls, "ThrowIfAny");
     c.relation("Reports.cs", "InventoryAsync", Calls, "CountAsync");
     c.relation("Program.cs", "RunAsync", Calls, "Required");
-    assert!(c.cross_file_relation_count() >= 120);
+    assert!(c.name_matched_relation_count() >= 120);
 }
 
 #[test]

@@ -1,4 +1,4 @@
-# language=java files=6 symbols=377 relations=799 cross_file=155
+# language=java files=6 symbols=377 relations=799 name_matched_across_files=155
 
 == com/example/warehouse/app/OrderService.java (303 lines)
 S 1-303 module OrderService
@@ -51,16 +51,16 @@ S 261-261 field OrderService::runs
 S 263-270 method OrderService::run
 S 275-287 method OrderService::demo
 S 289-302 method OrderService::main
-R 3:1 imports OrderService -> Inventory (x-file: com/example/warehouse/inventory/Inventory.java)
-R 4:1 imports OrderService -> OutOfStockException (x-file: com/example/warehouse/inventory/Inventory.java)
-R 5:1 imports OrderService -> ExchangeRates (x-file: com/example/warehouse/money/ExchangeRates.java)
-R 6:1 imports OrderService -> Money (x-file: com/example/warehouse/money/Money.java)
-R 7:1 imports OrderService -> Currency (x-file: com/example/warehouse/money/Money.java)
-R 8:1 imports OrderService -> Order (x-file: com/example/warehouse/order/Order.java)
-R 9:1 imports OrderService -> Line (x-file: com/example/warehouse/order/Order.java)
-R 10:1 imports OrderService -> OrderEvent (x-file: com/example/warehouse/order/Order.java)
-R 11:1 imports OrderService -> Repository (x-file: com/example/warehouse/persistence/Repository.java)
-R 12:1 imports OrderService -> Transactional (x-file: com/example/warehouse/persistence/Repository.java)
+R 3:1 imports OrderService -> Inventory (name-matched: com/example/warehouse/inventory/Inventory.java)
+R 4:1 imports OrderService -> OutOfStockException (name-matched: com/example/warehouse/inventory/Inventory.java)
+R 5:1 imports OrderService -> ExchangeRates (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 6:1 imports OrderService -> Money (name-matched: com/example/warehouse/money/Money.java)
+R 7:1 imports OrderService -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 8:1 imports OrderService -> Order (name-matched: com/example/warehouse/order/Order.java)
+R 9:1 imports OrderService -> Line (name-matched: com/example/warehouse/order/Order.java)
+R 10:1 imports OrderService -> OrderEvent (name-matched: com/example/warehouse/order/Order.java)
+R 11:1 imports OrderService -> Repository (name-matched: com/example/warehouse/persistence/Repository.java)
+R 12:1 imports OrderService -> Transactional (name-matched: com/example/warehouse/persistence/Repository.java)
 R 14:1 imports OrderService -> Clock
 R 15:1 imports OrderService -> Duration
 R 16:1 imports OrderService -> Instant
@@ -94,57 +94,57 @@ R 116:28 calls OrderService::place -> priceLines
 R 117:29 calls OrderService::place -> instant
 R 118:29 calls OrderService::place -> place
 R 118:43 calls OrderService::place -> next
-R 118:59 calls OrderService::place -> customerId (x-file: com/example/warehouse/order/Order.java)
-R 118:81 calls OrderService::place -> currency (x-file: com/example/warehouse/money/Money.java)
-R 119:35 calls OrderService::place -> convert (x-file: com/example/warehouse/money/ExchangeRates.java)
-R 119:49 calls OrderService::place -> total (x-file: com/example/warehouse/money/Money.java)
+R 118:59 calls OrderService::place -> customerId (name-matched: com/example/warehouse/order/Order.java)
+R 118:81 calls OrderService::place -> currency (name-matched: com/example/warehouse/money/Money.java)
+R 119:35 calls OrderService::place -> convert (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 119:49 calls OrderService::place -> total (name-matched: com/example/warehouse/money/Money.java)
 R 119:82 calls OrderService::place -> now
-R 120:25 calls OrderService::place -> compareTo (x-file: com/example/warehouse/inventory/Inventory.java)
+R 120:25 calls OrderService::place -> compareTo (name-matched: com/example/warehouse/inventory/Inventory.java)
 R 121:13 calls OrderService::place -> save
 R 122:17 calls OrderService::place -> info
-R 122:45 calls OrderService::place -> number (x-file: com/example/warehouse/order/Order.java)
+R 122:45 calls OrderService::place -> number (name-matched: com/example/warehouse/order/Order.java)
 R 123:24 calls OrderService::place -> PendingApproval
-R 123:46 calls OrderService::place -> id (x-file: com/example/warehouse/order/Order.java)
-R 123:58 calls OrderService::place -> number (x-file: com/example/warehouse/order/Order.java)
-R 123:74 calls OrderService::place -> total (x-file: com/example/warehouse/money/Money.java)
+R 123:46 calls OrderService::place -> id (name-matched: com/example/warehouse/order/Order.java)
+R 123:58 calls OrderService::place -> number (name-matched: com/example/warehouse/order/Order.java)
+R 123:74 calls OrderService::place -> total (name-matched: com/example/warehouse/money/Money.java)
 R 126:13 calls OrderService::place -> reserve
 R 128:19 calls OrderService::place -> cancel
-R 128:47 calls OrderService::place -> sku (x-file: com/example/warehouse/inventory/Inventory.java)
+R 128:47 calls OrderService::place -> sku (name-matched: com/example/warehouse/inventory/Inventory.java)
 R 129:13 calls OrderService::place -> save
 R 130:24 calls OrderService::place -> Rejected
 R 130:35 calls OrderService::place -> getMessage
 R 132:9 calls OrderService::place -> save
 R 133:20 calls OrderService::place -> Accepted
-R 133:35 calls OrderService::place -> id (x-file: com/example/warehouse/order/Order.java)
-R 133:47 calls OrderService::place -> number (x-file: com/example/warehouse/order/Order.java)
-R 133:63 calls OrderService::place -> total (x-file: com/example/warehouse/money/Money.java)
-R 138:30 calls OrderService::approve -> getById (x-file: com/example/warehouse/persistence/Repository.java)
+R 133:35 calls OrderService::place -> id (name-matched: com/example/warehouse/order/Order.java)
+R 133:47 calls OrderService::place -> number (name-matched: com/example/warehouse/order/Order.java)
+R 133:63 calls OrderService::place -> total (name-matched: com/example/warehouse/money/Money.java)
+R 138:30 calls OrderService::approve -> getById (name-matched: com/example/warehouse/persistence/Repository.java)
 R 139:29 calls OrderService::approve -> instant
 R 141:19 calls OrderService::approve -> cancel
 R 142:13 calls OrderService::approve -> save
 R 143:24 calls OrderService::approve -> Rejected
 R 146:13 calls OrderService::approve -> reserve
 R 148:19 calls OrderService::approve -> cancel
-R 148:62 calls OrderService::approve -> sku (x-file: com/example/warehouse/inventory/Inventory.java)
+R 148:62 calls OrderService::approve -> sku (name-matched: com/example/warehouse/inventory/Inventory.java)
 R 149:13 calls OrderService::approve -> save
 R 150:24 calls OrderService::approve -> Rejected
 R 150:35 calls OrderService::approve -> getMessage
 R 152:9 calls OrderService::approve -> save
 R 153:20 calls OrderService::approve -> Accepted
-R 153:35 calls OrderService::approve -> id (x-file: com/example/warehouse/order/Order.java)
-R 153:47 calls OrderService::approve -> number (x-file: com/example/warehouse/order/Order.java)
-R 153:63 calls OrderService::approve -> total (x-file: com/example/warehouse/money/Money.java)
+R 153:35 calls OrderService::approve -> id (name-matched: com/example/warehouse/order/Order.java)
+R 153:47 calls OrderService::approve -> number (name-matched: com/example/warehouse/order/Order.java)
+R 153:63 calls OrderService::approve -> total (name-matched: com/example/warehouse/money/Money.java)
 R 160:14 calls OrderService::confirmPayment -> orElseThrow
-R 159:14 calls OrderService::confirmPayment -> map (x-file: com/example/warehouse/persistence/Repository.java)
-R 158:30 calls OrderService::confirmPayment -> findIdByNumber (x-file: com/example/warehouse/persistence/Repository.java)
-R 160:47 calls OrderService::confirmPayment -> NotFoundException (x-file: com/example/warehouse/persistence/Repository.java)
-R 161:15 calls OrderService::confirmPayment -> pay (x-file: com/example/warehouse/order/Order.java)
+R 159:14 calls OrderService::confirmPayment -> map (name-matched: com/example/warehouse/persistence/Repository.java)
+R 158:30 calls OrderService::confirmPayment -> findIdByNumber (name-matched: com/example/warehouse/persistence/Repository.java)
+R 160:47 calls OrderService::confirmPayment -> NotFoundException (name-matched: com/example/warehouse/persistence/Repository.java)
+R 161:15 calls OrderService::confirmPayment -> pay (name-matched: com/example/warehouse/order/Order.java)
 R 161:44 calls OrderService::confirmPayment -> instant
 R 162:9 calls OrderService::confirmPayment -> save
-R 167:30 calls OrderService::cancel -> getById (x-file: com/example/warehouse/persistence/Repository.java)
+R 167:30 calls OrderService::cancel -> getById (name-matched: com/example/warehouse/persistence/Repository.java)
 R 168:15 calls OrderService::cancel -> cancel
 R 168:36 calls OrderService::cancel -> instant
-R 169:19 calls OrderService::cancel -> release (x-file: com/example/warehouse/inventory/Inventory.java)
+R 169:19 calls OrderService::cancel -> release (name-matched: com/example/warehouse/inventory/Inventory.java)
 R 170:9 calls OrderService::cancel -> save
 R 174:49 calls OrderService::reserve -> reserve
 R 175:15 calls OrderService::reserve -> reserve
@@ -154,37 +154,37 @@ R 181:53 calls OrderService::priceLines -> LinkedHashMap
 R 181:77 calls OrderService::priceLines -> quantities
 R 182:34 calls OrderService::priceLines -> unitPrice
 R 182:50 calls OrderService::priceLines -> getKey
-R 182:68 calls OrderService::priceLines -> currency (x-file: com/example/warehouse/money/Money.java)
+R 182:68 calls OrderService::priceLines -> currency (name-matched: com/example/warehouse/money/Money.java)
 R 183:19 calls OrderService::priceLines -> add
-R 183:27 calls OrderService::priceLines -> Line (x-file: com/example/warehouse/order/Order.java)
+R 183:27 calls OrderService::priceLines -> Line (name-matched: com/example/warehouse/order/Order.java)
 R 183:48 calls OrderService::priceLines -> getKey
 R 183:64 calls OrderService::priceLines -> getValue
 R 189:42 calls OrderService::save -> ArrayList
-R 190:15 calls OrderService::save -> drainEvents (x-file: com/example/warehouse/order/Order.java)
+R 190:15 calls OrderService::save -> drainEvents (name-matched: com/example/warehouse/order/Order.java)
 R 191:16 calls OrderService::save -> save
 R 193:17 calls OrderService::save -> log
-R 193:65 calls OrderService::save -> number (x-file: com/example/warehouse/order/Order.java)
-R 193:81 calls OrderService::save -> describe (x-file: com/example/warehouse/order/Order.java)
+R 193:65 calls OrderService::save -> number (name-matched: com/example/warehouse/order/Order.java)
+R 193:81 calls OrderService::save -> describe (name-matched: com/example/warehouse/order/Order.java)
 R 194:25 calls OrderService::save -> forEach
 R 194:40 calls OrderService::save -> accept
 R 203:46 calls OrderService::find -> flatMap
-R 203:23 calls OrderService::find -> findIdByNumber (x-file: com/example/warehouse/persistence/Repository.java)
+R 203:23 calls OrderService::find -> findIdByNumber (name-matched: com/example/warehouse/persistence/Repository.java)
 R 207:50 calls OrderService::countByState -> collect
 R 207:41 calls OrderService::countByState -> stream
-R 207:23 calls OrderService::countByState -> findAll (x-file: com/example/warehouse/persistence/Repository.java)
+R 207:23 calls OrderService::countByState -> findAll (name-matched: com/example/warehouse/persistence/Repository.java)
 R 207:58 calls OrderService::countByState -> groupingBy
 R 207:83 calls OrderService::countByState -> counting
 R 214:14 calls OrderService::largest -> toList
 R 213:14 calls OrderService::largest -> limit
 R 212:14 calls OrderService::largest -> sorted
 R 211:41 calls OrderService::largest -> stream
-R 211:23 calls OrderService::largest -> findAll (x-file: com/example/warehouse/persistence/Repository.java)
+R 211:23 calls OrderService::largest -> findAll (name-matched: com/example/warehouse/persistence/Repository.java)
 R 212:74 calls OrderService::largest -> reversed
 R 212:32 calls OrderService::largest -> comparing
-R 212:62 calls OrderService::largest -> byAmount (x-file: com/example/warehouse/money/Money.java)
+R 212:62 calls OrderService::largest -> byAmount (name-matched: com/example/warehouse/money/Money.java)
 R 218:28 calls OrderService::revenueSince -> instant
 R 219:23 calls OrderService::revenueSince -> revenue
-R 219:48 calls OrderService::revenueSince -> minus (x-file: com/example/warehouse/money/Money.java)
+R 219:48 calls OrderService::revenueSince -> minus (name-matched: com/example/warehouse/money/Money.java)
 R 235:24 calls DailyReport::build -> DailyReport
 R 236:25 calls DailyReport::build -> countByState
 R 237:25 calls DailyReport::build -> revenueSince
@@ -192,55 +192,55 @@ R 237:47 calls DailyReport::build -> ofDays
 R 238:25 calls DailyReport::build -> largest
 R 242:28 calls DailyReport::count -> getOrDefault
 R 250:37 calls DailyReport::render -> StringBuilder
-R 251:53 calls DailyReport::render -> append (x-file: com/example/warehouse/persistence/Repository.java)
-R 251:37 calls DailyReport::render -> append (x-file: com/example/warehouse/persistence/Repository.java)
-R 251:17 calls DailyReport::render -> append (x-file: com/example/warehouse/persistence/Repository.java)
+R 251:53 calls DailyReport::render -> append (name-matched: com/example/warehouse/persistence/Repository.java)
+R 251:37 calls DailyReport::render -> append (name-matched: com/example/warehouse/persistence/Repository.java)
+R 251:17 calls DailyReport::render -> append (name-matched: com/example/warehouse/persistence/Repository.java)
 R 252:21 calls DailyReport::render -> forEach
-R 252:84 calls DailyReport::render -> append (x-file: com/example/warehouse/persistence/Repository.java)
-R 252:74 calls DailyReport::render -> append (x-file: com/example/warehouse/persistence/Repository.java)
-R 252:61 calls DailyReport::render -> append (x-file: com/example/warehouse/persistence/Repository.java)
-R 252:47 calls DailyReport::render -> append (x-file: com/example/warehouse/persistence/Repository.java)
+R 252:84 calls DailyReport::render -> append (name-matched: com/example/warehouse/persistence/Repository.java)
+R 252:74 calls DailyReport::render -> append (name-matched: com/example/warehouse/persistence/Repository.java)
+R 252:61 calls DailyReport::render -> append (name-matched: com/example/warehouse/persistence/Repository.java)
+R 252:47 calls DailyReport::render -> append (name-matched: com/example/warehouse/persistence/Repository.java)
 R 253:21 calls DailyReport::render -> forEach
-R 253:112 calls DailyReport::render -> append (x-file: com/example/warehouse/persistence/Repository.java)
-R 253:90 calls DailyReport::render -> append (x-file: com/example/warehouse/persistence/Repository.java)
-R 253:78 calls DailyReport::render -> append (x-file: com/example/warehouse/persistence/Repository.java)
-R 253:55 calls DailyReport::render -> append (x-file: com/example/warehouse/persistence/Repository.java)
-R 253:42 calls DailyReport::render -> append (x-file: com/example/warehouse/persistence/Repository.java)
-R 253:68 calls DailyReport::render -> number (x-file: com/example/warehouse/order/Order.java)
-R 253:103 calls DailyReport::render -> total (x-file: com/example/warehouse/money/Money.java)
-R 254:24 calls DailyReport::render -> toString (x-file: com/example/warehouse/inventory/Inventory.java)
+R 253:112 calls DailyReport::render -> append (name-matched: com/example/warehouse/persistence/Repository.java)
+R 253:90 calls DailyReport::render -> append (name-matched: com/example/warehouse/persistence/Repository.java)
+R 253:78 calls DailyReport::render -> append (name-matched: com/example/warehouse/persistence/Repository.java)
+R 253:55 calls DailyReport::render -> append (name-matched: com/example/warehouse/persistence/Repository.java)
+R 253:42 calls DailyReport::render -> append (name-matched: com/example/warehouse/persistence/Repository.java)
+R 253:68 calls DailyReport::render -> number (name-matched: com/example/warehouse/order/Order.java)
+R 253:103 calls DailyReport::render -> total (name-matched: com/example/warehouse/money/Money.java)
+R 254:24 calls DailyReport::render -> toString (name-matched: com/example/warehouse/inventory/Inventory.java)
 R 260:20 calls OrderService::expiryJob -> Runnable
-R 266:41 calls OrderService::run -> expire (x-file: com/example/warehouse/inventory/Inventory.java)
+R 266:41 calls OrderService::run -> expire (name-matched: com/example/warehouse/inventory/Inventory.java)
 R 268:25 calls OrderService::run -> info
-R 276:51 calls OrderService::demo -> Orders (x-file: com/example/warehouse/persistence/Repository.java)
-R 276:79 calls OrderService::demo -> Outbox (x-file: com/example/warehouse/persistence/Repository.java)
-R 277:35 calls OrderService::demo -> Inventory (x-file: com/example/warehouse/inventory/Inventory.java)
+R 276:51 calls OrderService::demo -> Orders (name-matched: com/example/warehouse/persistence/Repository.java)
+R 276:79 calls OrderService::demo -> Outbox (name-matched: com/example/warehouse/persistence/Repository.java)
+R 277:35 calls OrderService::demo -> Inventory (name-matched: com/example/warehouse/inventory/Inventory.java)
 R 277:61 calls OrderService::demo -> ofMinutes
-R 277:95 calls OrderService::demo -> noop (x-file: com/example/warehouse/inventory/Inventory.java)
-R 278:19 calls OrderService::demo -> receive (x-file: com/example/warehouse/inventory/Inventory.java)
-R 278:58 calls OrderService::demo -> parse (x-file: com/example/warehouse/inventory/Inventory.java)
-R 279:19 calls OrderService::demo -> receive (x-file: com/example/warehouse/inventory/Inventory.java)
-R 279:58 calls OrderService::demo -> parse (x-file: com/example/warehouse/inventory/Inventory.java)
-R 281:38 calls OrderService::demo -> of (x-file: com/example/warehouse/money/ExchangeRates.java)
-R 282:38 calls OrderService::demo -> of (x-file: com/example/warehouse/money/ExchangeRates.java)
+R 277:95 calls OrderService::demo -> noop (name-matched: com/example/warehouse/inventory/Inventory.java)
+R 278:19 calls OrderService::demo -> receive (name-matched: com/example/warehouse/inventory/Inventory.java)
+R 278:58 calls OrderService::demo -> parse (name-matched: com/example/warehouse/inventory/Inventory.java)
+R 279:19 calls OrderService::demo -> receive (name-matched: com/example/warehouse/inventory/Inventory.java)
+R 279:58 calls OrderService::demo -> parse (name-matched: com/example/warehouse/inventory/Inventory.java)
+R 281:38 calls OrderService::demo -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 282:38 calls OrderService::demo -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 283:34 calls OrderService::demo -> IllegalArgumentException
-R 285:45 calls OrderService::demo -> identity (x-file: com/example/warehouse/money/ExchangeRates.java)
+R 285:45 calls OrderService::demo -> identity (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 286:20 calls OrderService::demo -> OrderService
-R 286:80 calls OrderService::demo -> of (x-file: com/example/warehouse/money/ExchangeRates.java)
+R 286:80 calls OrderService::demo -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 290:32 calls OrderService::main -> demo
 R 290:43 calls OrderService::main -> systemUTC
 R 291:17 calls OrderService::main -> subscribe
 R 291:47 calls OrderService::main -> println
-R 291:61 calls OrderService::main -> describe (x-file: com/example/warehouse/order/Order.java)
+R 291:61 calls OrderService::main -> describe (name-matched: com/example/warehouse/order/Order.java)
 R 292:35 calls OrderService::main -> place
 R 292:45 calls OrderService::main -> PlaceOrder
-R 292:86 calls OrderService::main -> of (x-file: com/example/warehouse/money/ExchangeRates.java)
-R 294:48 calls OrderService::main -> number (x-file: com/example/warehouse/order/Order.java)
-R 294:71 calls OrderService::main -> total (x-file: com/example/warehouse/money/Money.java)
-R 295:68 calls OrderService::main -> number (x-file: com/example/warehouse/order/Order.java)
+R 292:86 calls OrderService::main -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 294:48 calls OrderService::main -> number (name-matched: com/example/warehouse/order/Order.java)
+R 294:71 calls OrderService::main -> total (name-matched: com/example/warehouse/money/Money.java)
+R 295:68 calls OrderService::main -> number (name-matched: com/example/warehouse/order/Order.java)
 R 296:49 calls OrderService::main -> reason
 R 298:20 calls OrderService::main -> println
-R 299:40 calls OrderService::main -> equals (x-file: com/example/warehouse/money/Money.java)
+R 299:40 calls OrderService::main -> equals (name-matched: com/example/warehouse/money/Money.java)
 R 300:33 calls OrderService::main -> run
 R 300:21 calls OrderService::main -> expiryJob
 
@@ -311,8 +311,8 @@ S 331-336 method Inventory::reservationsOf
 S 338-341 method Inventory::undo
 S 343-349 method Inventory::checkReorderPoint
 S 351-358 method Inventory::withLock
-R 3:1 imports Inventory -> Order (x-file: com/example/warehouse/order/Order.java)
-R 4:1 imports Inventory -> Line (x-file: com/example/warehouse/order/Order.java)
+R 3:1 imports Inventory -> Order (name-matched: com/example/warehouse/order/Order.java)
+R 4:1 imports Inventory -> Line (name-matched: com/example/warehouse/order/Order.java)
 R 6:1 imports Inventory -> Clock
 R 7:1 imports Inventory -> Duration
 R 8:1 imports Inventory -> Instant
@@ -330,7 +330,7 @@ R 19:1 imports Inventory -> Predicate
 R 20:1 imports Inventory -> Collectors
 R 21:1 imports Inventory -> Stream
 R 31:74 implements Inventory::Location -> Comparable
-R 33:35 calls Location::parse -> split (x-file: com/example/warehouse/money/Money.java)
+R 33:35 calls Location::parse -> split (name-matched: com/example/warehouse/money/Money.java)
 R 35:27 calls Location::parse -> IllegalArgumentException
 R 37:24 calls Location::parse -> Location
 R 37:51 calls Location::parse -> parseInt
@@ -342,7 +342,7 @@ R 47:18 calls Location::compareTo -> thenComparingInt
 R 46:31 calls Location::compareTo -> comparing
 R 54:33 calls Location::toString -> formatted
 R 92:17 calls StockLevel::tryReserve -> available
-R 100:29 calls StockLevel::release -> max (x-file: com/example/warehouse/money/Money.java)
+R 100:29 calls StockLevel::release -> max (name-matched: com/example/warehouse/money/Money.java)
 R 104:13 calls StockLevel::consume -> release
 R 116:31 calls Reservation::isExpired -> isAfter
 R 121:53 extends Inventory::OutOfStockException -> RuntimeException
@@ -362,19 +362,19 @@ R 199:16 calls Inventory::availableByLocation -> levelsOf
 R 200:36 calls Inventory::availableByLocation -> available
 R 201:33 calls Inventory::availableByLocation -> toMap
 R 205:23 calls Inventory::levelsOf -> getOrDefault
-R 205:46 calls Inventory::levelsOf -> of (x-file: com/example/warehouse/money/ExchangeRates.java)
+R 205:46 calls Inventory::levelsOf -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 209:40 calls Inventory::levelAt -> computeIfAbsent
 R 209:70 calls Inventory::levelAt -> ArrayList
-R 211:34 calls Inventory::levelAt -> equals (x-file: com/example/warehouse/money/Money.java)
+R 211:34 calls Inventory::levelAt -> equals (name-matched: com/example/warehouse/money/Money.java)
 R 211:23 calls Inventory::levelAt -> location
 R 215:34 calls Inventory::levelAt -> StockLevel
 R 216:14 calls Inventory::levelAt -> add
 R 229:14 calls Inventory::reserve -> lock
 R 231:42 calls Inventory::reserve -> ArrayList
-R 233:40 calls Inventory::reserve -> lines (x-file: com/example/warehouse/order/Order.java)
+R 233:40 calls Inventory::reserve -> lines (name-matched: com/example/warehouse/order/Order.java)
 R 234:26 calls Inventory::reserve -> addAll
 R 234:33 calls Inventory::reserve -> reserveLine
-R 234:51 calls Inventory::reserve -> id (x-file: com/example/warehouse/order/Order.java)
+R 234:51 calls Inventory::reserve -> id (name-matched: com/example/warehouse/order/Order.java)
 R 237:22 calls Inventory::reserve -> forEach
 R 237:35 calls Inventory::reserve -> undo
 R 240:18 calls Inventory::reserve -> forEach
@@ -382,12 +382,12 @@ R 241:18 calls Inventory::reserve -> forEach
 R 241:31 calls Inventory::reserve -> checkReorderPoint
 R 241:51 calls Inventory::reserve -> sku
 R 242:55 calls Inventory::reserve -> toList
-R 242:34 calls Inventory::reserve -> map (x-file: com/example/warehouse/persistence/Repository.java)
+R 242:34 calls Inventory::reserve -> map (name-matched: com/example/warehouse/persistence/Repository.java)
 R 242:25 calls Inventory::reserve -> stream
 R 244:18 calls Inventory::reserve -> unlock
-R 249:45 calls Inventory::reserveLine -> plus (x-file: com/example/warehouse/money/Money.java)
+R 249:45 calls Inventory::reserveLine -> plus (name-matched: com/example/warehouse/money/Money.java)
 R 249:35 calls Inventory::reserveLine -> instant
-R 252:14 calls Inventory::reserveLine -> max (x-file: com/example/warehouse/money/Money.java)
+R 252:14 calls Inventory::reserveLine -> max (name-matched: com/example/warehouse/money/Money.java)
 R 251:14 calls Inventory::reserveLine -> filter
 R 250:60 calls Inventory::reserveLine -> stream
 R 250:39 calls Inventory::reserveLine -> levelsOf
@@ -397,13 +397,13 @@ R 251:56 calls Inventory::reserveLine -> quantity
 R 252:29 calls Inventory::reserveLine -> comparingInt
 R 253:20 calls Inventory::reserveLine -> isPresent
 R 253:48 calls Inventory::reserveLine -> tryReserve
-R 253:42 calls Inventory::reserveLine -> get (x-file: com/example/warehouse/money/ExchangeRates.java)
+R 253:42 calls Inventory::reserveLine -> get (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 253:64 calls Inventory::reserveLine -> quantity
-R 254:25 calls Inventory::reserveLine -> of (x-file: com/example/warehouse/money/ExchangeRates.java)
+R 254:25 calls Inventory::reserveLine -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 254:28 calls Inventory::reserveLine -> newReservation
 R 254:57 calls Inventory::reserveLine -> sku
 R 254:77 calls Inventory::reserveLine -> location
-R 254:71 calls Inventory::reserveLine -> get (x-file: com/example/warehouse/money/ExchangeRates.java)
+R 254:71 calls Inventory::reserveLine -> get (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 254:94 calls Inventory::reserveLine -> quantity
 R 256:16 calls Inventory::reserveLine -> splitLine
 R 260:30 calls Inventory::splitLine -> quantity
@@ -416,8 +416,8 @@ R 262:57 calls Inventory::splitLine -> sku
 R 263:68 calls Inventory::splitLine -> reversed
 R 263:32 calls Inventory::splitLine -> comparingInt
 R 265:44 calls Inventory::splitLine -> hasNext
-R 266:43 calls Inventory::splitLine -> next (x-file: com/example/warehouse/app/OrderService.java)
-R 267:29 calls Inventory::splitLine -> min (x-file: com/example/warehouse/money/Money.java)
+R 266:43 calls Inventory::splitLine -> next (name-matched: com/example/warehouse/app/OrderService.java)
+R 267:29 calls Inventory::splitLine -> min (name-matched: com/example/warehouse/money/Money.java)
 R 267:50 calls Inventory::splitLine -> available
 R 268:35 calls Inventory::splitLine -> tryReserve
 R 269:23 calls Inventory::splitLine -> add
@@ -434,7 +434,7 @@ R 281:39 calls Inventory::newReservation -> Reservation
 R 281:69 calls Inventory::newReservation -> toString
 R 281:56 calls Inventory::newReservation -> randomUUID
 R 282:22 calls Inventory::newReservation -> put
-R 282:38 calls Inventory::newReservation -> id (x-file: com/example/warehouse/order/Order.java)
+R 282:38 calls Inventory::newReservation -> id (name-matched: com/example/warehouse/order/Order.java)
 R 288:9 calls Inventory::release -> withLock
 R 288:48 calls Inventory::release -> forEach
 R 288:24 calls Inventory::release -> reservationsOf
@@ -449,7 +449,7 @@ R 297:23 calls Inventory::consume -> sku
 R 297:32 calls Inventory::consume -> location
 R 297:54 calls Inventory::consume -> quantity
 R 298:26 calls Inventory::consume -> remove
-R 298:35 calls Inventory::consume -> id (x-file: com/example/warehouse/order/Order.java)
+R 298:35 calls Inventory::consume -> id (name-matched: com/example/warehouse/order/Order.java)
 R 304:29 calls Inventory::expire -> instant
 R 305:34 implements Inventory::Expired -> Predicate
 R 310:47 calls Expired::test -> isExpired
@@ -458,7 +458,7 @@ R 318:14 calls Inventory::expire -> lock
 R 320:84 calls Inventory::expire -> toList
 R 320:68 calls Inventory::expire -> filter
 R 320:59 calls Inventory::expire -> stream
-R 320:50 calls Inventory::expire -> values (x-file: com/example/warehouse/money/ExchangeRates.java)
+R 320:50 calls Inventory::expire -> values (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 322:17 calls Inventory::expire -> undo
 R 323:26 calls Inventory::expire -> stockReleased
 R 326:18 calls Inventory::expire -> unlock
@@ -466,21 +466,21 @@ R 335:14 calls Inventory::reservationsOf -> stream
 R 334:14 calls Inventory::reservationsOf -> toList
 R 333:14 calls Inventory::reservationsOf -> filter
 R 332:38 calls Inventory::reservationsOf -> stream
-R 332:29 calls Inventory::reservationsOf -> values (x-file: com/example/warehouse/money/ExchangeRates.java)
-R 333:38 calls Inventory::reservationsOf -> equals (x-file: com/example/warehouse/money/Money.java)
-R 333:28 calls Inventory::reservationsOf -> orderId (x-file: com/example/warehouse/order/Order.java)
+R 332:29 calls Inventory::reservationsOf -> values (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 333:38 calls Inventory::reservationsOf -> equals (name-matched: com/example/warehouse/money/Money.java)
+R 333:28 calls Inventory::reservationsOf -> orderId (name-matched: com/example/warehouse/order/Order.java)
 R 339:60 calls Inventory::undo -> release
 R 339:9 calls Inventory::undo -> levelAt
 R 339:29 calls Inventory::undo -> sku
 R 339:48 calls Inventory::undo -> location
 R 339:80 calls Inventory::undo -> quantity
 R 340:22 calls Inventory::undo -> remove
-R 340:41 calls Inventory::undo -> id (x-file: com/example/warehouse/order/Order.java)
-R 344:39 calls Inventory::checkReorderPoint -> get (x-file: com/example/warehouse/money/ExchangeRates.java)
+R 340:41 calls Inventory::undo -> id (name-matched: com/example/warehouse/order/Order.java)
+R 344:39 calls Inventory::checkReorderPoint -> get (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 345:25 calls Inventory::checkReorderPoint -> available
 R 347:22 calls Inventory::checkReorderPoint -> reorderPointReached
 R 352:14 calls Inventory::withLock -> lock
-R 354:20 calls Inventory::withLock -> run (x-file: com/example/warehouse/app/OrderService.java)
+R 354:20 calls Inventory::withLock -> run (name-matched: com/example/warehouse/app/OrderService.java)
 R 356:18 calls Inventory::withLock -> unlock
 
 == com/example/warehouse/money/ExchangeRates.java (315 lines)
@@ -537,7 +537,7 @@ S 287-290 method ExchangeRates::toString
 S 295-314 method ExchangeRates::lazyDefault
 S 297-297 field ExchangeRates::instance
 S 299-312 method ExchangeRates::get
-R 3:1 imports ExchangeRates -> Currency (x-file: com/example/warehouse/money/Money.java)
+R 3:1 imports ExchangeRates -> Currency (name-matched: com/example/warehouse/money/Money.java)
 R 5:1 imports ExchangeRates -> Documented
 R 6:1 imports ExchangeRates -> ElementType
 R 7:1 imports ExchangeRates -> Retention
@@ -558,12 +558,12 @@ R 21:1 imports ExchangeRates -> ReentrantReadWriteLock
 R 22:1 imports ExchangeRates -> Function
 R 23:1 imports ExchangeRates -> Supplier
 R 24:1 imports ExchangeRates -> Logger
-R 37:20 calls ExchangeRates::convert -> currency (x-file: com/example/warehouse/money/Money.java)
+R 37:20 calls ExchangeRates::convert -> currency (name-matched: com/example/warehouse/money/Money.java)
 R 40:27 calls ExchangeRates::convert -> rate
-R 40:39 calls ExchangeRates::convert -> currency (x-file: com/example/warehouse/money/Money.java)
+R 40:39 calls ExchangeRates::convert -> currency (name-matched: com/example/warehouse/money/Money.java)
 R 41:22 calls ExchangeRates::convert -> of
 R 41:41 calls ExchangeRates::convert -> multiply
-R 41:32 calls ExchangeRates::convert -> amount (x-file: com/example/warehouse/money/Money.java)
+R 41:32 calls ExchangeRates::convert -> amount (name-matched: com/example/warehouse/money/Money.java)
 R 45:16 calls ExchangeRates::convertToday -> convert
 R 45:46 calls ExchangeRates::convertToday -> now
 R 49:20 calls ExchangeRates::fixed -> FixedRates
@@ -587,7 +587,7 @@ R 142:27 calls FixedRates::lookup -> UnknownRateException
 R 153:40 implements ExchangeRates::CachedRates -> ExchangeRates
 R 153:55 implements ExchangeRates::CachedRates -> AutoCloseable
 R 163:43 calls Entry::isFresh -> isAfter
-R 163:33 calls Entry::isFresh -> plus (x-file: com/example/warehouse/money/Money.java)
+R 163:33 calls Entry::isFresh -> plus (name-matched: com/example/warehouse/money/Money.java)
 R 176:47 calls CachedRates::rate -> ratesFor
 R 178:18 calls CachedRates::rate -> orElseThrow
 R 177:44 calls CachedRates::rate -> ofNullable
@@ -604,7 +604,7 @@ R 187:29 calls CachedRates::ratesFor -> lock
 R 187:18 calls CachedRates::ratesFor -> readLock
 R 189:37 calls CachedRates::ratesFor -> get
 R 190:44 calls CachedRates::ratesFor -> isFresh
-R 191:34 calls CachedRates::ratesFor -> rates (x-file: com/example/warehouse/app/OrderService.java)
+R 191:34 calls CachedRates::ratesFor -> rates (name-matched: com/example/warehouse/app/OrderService.java)
 R 194:33 calls CachedRates::ratesFor -> unlock
 R 194:22 calls CachedRates::ratesFor -> readLock
 R 196:20 calls CachedRates::ratesFor -> refresh
@@ -612,7 +612,7 @@ R 200:30 calls CachedRates::refresh -> lock
 R 200:18 calls CachedRates::refresh -> writeLock
 R 202:37 calls CachedRates::refresh -> get
 R 203:44 calls CachedRates::refresh -> isFresh
-R 204:34 calls CachedRates::refresh -> rates (x-file: com/example/warehouse/app/OrderService.java)
+R 204:34 calls CachedRates::refresh -> rates (name-matched: com/example/warehouse/app/OrderService.java)
 R 206:52 calls CachedRates::refresh -> load
 R 207:23 calls CachedRates::refresh -> put
 R 207:37 calls CachedRates::refresh -> Entry
@@ -735,7 +735,7 @@ R 13:1 imports Money -> Collector
 R 14:1 imports Money -> Collectors
 R 16:1 imports Money -> requireNonNull
 R 25:37 implements Money -> Comparable
-R 51:31 calls Currency::parse -> values (x-file: com/example/warehouse/money/ExchangeRates.java)
+R 51:31 calls Currency::parse -> values (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 52:30 calls Currency::parse -> equalsIgnoreCase
 R 52:23 calls Currency::parse -> name
 R 52:52 calls Currency::parse -> trim
@@ -816,20 +816,20 @@ R 302:38 calls Allocation::of -> ArrayList
 R 305:24 calls Allocation::of -> add
 R 305:34 calls Allocation::of -> of
 R 305:50 calls Allocation::of -> currency
-R 308:65 calls Allocation::of -> size (x-file: com/example/warehouse/persistence/Repository.java)
+R 308:65 calls Allocation::of -> size (name-matched: com/example/warehouse/persistence/Repository.java)
 R 309:24 calls Allocation::of -> set
 R 309:45 calls Allocation::of -> plus
-R 309:38 calls Allocation::of -> get (x-file: com/example/warehouse/money/ExchangeRates.java)
+R 309:38 calls Allocation::of -> get (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 309:56 calls Allocation::of -> of
 R 309:68 calls Allocation::of -> currency
 R 312:24 calls Allocation::of -> Allocation
 R 312:47 calls Allocation::of -> unmodifiableList
-R 320:27 calls Allocation::share -> get (x-file: com/example/warehouse/money/ExchangeRates.java)
+R 320:27 calls Allocation::share -> get (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 324:36 calls Allocation::total -> collect
 R 324:27 calls Allocation::total -> stream
 R 324:44 calls Allocation::total -> summing
 R 324:66 calls Allocation::total -> currency
-R 324:59 calls Allocation::total -> get (x-file: com/example/warehouse/money/ExchangeRates.java)
+R 324:59 calls Allocation::total -> get (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 331:13 calls Money -> requireNonNull
 R 332:13 calls Money -> requireNonNull
 R 333:21 calls Money -> compareTo
@@ -917,8 +917,8 @@ S 303-306 method Order::drainEvents
 S 309-319 method Order::describe
 S 322-330 method Order::summary
 S 332-335 method Order::toString
-R 3:1 imports Order -> Money (x-file: com/example/warehouse/money/Money.java)
-R 4:1 imports Order -> Currency (x-file: com/example/warehouse/money/Money.java)
+R 3:1 imports Order -> Money (name-matched: com/example/warehouse/money/Money.java)
+R 4:1 imports Order -> Currency (name-matched: com/example/warehouse/money/Money.java)
 R 6:1 imports Order -> Instant
 R 7:1 imports Order -> ArrayList
 R 8:1 imports Order -> Collections
@@ -936,16 +936,16 @@ R 35:24 calls Id::parse -> Id
 R 35:32 calls Id::parse -> fromString
 R 43:27 calls Order -> IllegalArgumentException
 R 45:21 calls Order -> requireNonNull
-R 49:30 calls Line::subtotal -> times (x-file: com/example/warehouse/money/Money.java)
+R 49:30 calls Line::subtotal -> times (name-matched: com/example/warehouse/money/Money.java)
 R 53:24 calls Line::withQuantity -> Line
-R 65:32 calls State::next -> of (x-file: com/example/warehouse/money/ExchangeRates.java)
-R 71:32 calls State::next -> of (x-file: com/example/warehouse/money/ExchangeRates.java)
-R 77:32 calls State::next -> of (x-file: com/example/warehouse/money/ExchangeRates.java)
-R 83:32 calls State::next -> of (x-file: com/example/warehouse/money/ExchangeRates.java)
-R 89:32 calls State::next -> of (x-file: com/example/warehouse/money/ExchangeRates.java)
+R 65:32 calls State::next -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 71:32 calls State::next -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 77:32 calls State::next -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 83:32 calls State::next -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 89:32 calls State::next -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 95:32 calls State::next -> noneOf
 R 106:32 calls State::next -> noneOf
-R 122:27 calls State::canMoveTo -> contains (x-file: com/example/warehouse/money/Money.java)
+R 122:27 calls State::canMoveTo -> contains (name-matched: com/example/warehouse/money/Money.java)
 R 122:20 calls State::canMoveTo -> next
 R 133:31 calls OrderEvent::type -> getSimpleName
 R 133:20 calls OrderEvent::type -> getClass
@@ -966,16 +966,16 @@ R 205:15 calls Order::place -> record
 R 205:26 calls Order::place -> Placed
 R 205:64 calls Order::place -> copyOf
 R 210:30 calls Order::addLine -> currency
-R 210:18 calls Order::addLine -> unitPrice (x-file: com/example/warehouse/app/OrderService.java)
-R 211:29 calls Order::addLine -> CurrencyMismatchException (x-file: com/example/warehouse/money/Money.java)
+R 210:18 calls Order::addLine -> unitPrice (name-matched: com/example/warehouse/app/OrderService.java)
+R 211:29 calls Order::addLine -> CurrencyMismatchException (name-matched: com/example/warehouse/money/Money.java)
 R 211:82 calls Order::addLine -> currency
-R 211:70 calls Order::addLine -> unitPrice (x-file: com/example/warehouse/app/OrderService.java)
+R 211:70 calls Order::addLine -> unitPrice (name-matched: com/example/warehouse/app/OrderService.java)
 R 213:15 calls Order::addLine -> add
 R 221:9 calls Order::reserve -> moveTo
 R 222:16 calls Order::reserve -> record
 R 222:27 calls Order::reserve -> Reserved
 R 222:49 calls Order::reserve -> copyOf
-R 226:21 calls Order::pay -> equals (x-file: com/example/warehouse/money/Money.java)
+R 226:21 calls Order::pay -> equals (name-matched: com/example/warehouse/money/Money.java)
 R 226:28 calls Order::pay -> total
 R 227:23 calls Order::pay -> IllegalArgumentException
 R 227:88 calls Order::pay -> total
@@ -1000,25 +1000,25 @@ R 262:17 calls Order::record -> add
 R 287:28 calls Order::lines -> unmodifiableList
 R 291:25 calls Order::trackingNumber -> ofNullable
 R 295:51 calls Order::total -> collect
-R 295:31 calls Order::total -> map (x-file: com/example/warehouse/persistence/Repository.java)
+R 295:31 calls Order::total -> map (name-matched: com/example/warehouse/persistence/Repository.java)
 R 295:22 calls Order::total -> stream
-R 295:65 calls Order::total -> summing (x-file: com/example/warehouse/money/Money.java)
-R 299:24 calls Order::isLarge -> compareTo (x-file: com/example/warehouse/inventory/Inventory.java)
+R 295:65 calls Order::total -> summing (name-matched: com/example/warehouse/money/Money.java)
+R 299:24 calls Order::isLarge -> compareTo (name-matched: com/example/warehouse/inventory/Inventory.java)
 R 299:16 calls Order::isLarge -> total
 R 304:17 calls Order::drainEvents -> forEach
 R 305:17 calls Order::drainEvents -> clear
-R 311:57 calls Order::describe -> size (x-file: com/example/warehouse/persistence/Repository.java)
+R 311:57 calls Order::describe -> size (name-matched: com/example/warehouse/persistence/Repository.java)
 R 311:49 calls Order::describe -> lines
-R 312:65 calls Order::describe -> size (x-file: com/example/warehouse/persistence/Repository.java)
+R 312:65 calls Order::describe -> size (name-matched: com/example/warehouse/persistence/Repository.java)
 R 312:48 calls Order::describe -> reservationIds
-R 313:40 calls Order::describe -> amount (x-file: com/example/warehouse/money/Money.java)
+R 313:40 calls Order::describe -> amount (name-matched: com/example/warehouse/money/Money.java)
 R 314:47 calls Order::describe -> picker
 R 315:51 calls Order::describe -> carrier
 R 315:72 calls Order::describe -> trackingNumber
 R 316:51 calls Order::describe -> invoiceNumber
 R 317:51 calls Order::describe -> reason
 R 329:25 calls Order::summary -> formatted
-R 329:68 calls Order::summary -> size (x-file: com/example/warehouse/persistence/Repository.java)
+R 329:68 calls Order::summary -> size (name-matched: com/example/warehouse/persistence/Repository.java)
 R 329:76 calls Order::summary -> total
 R 334:58 calls Order::toString -> total
 
@@ -1083,10 +1083,10 @@ S 287-287 field Outbox::buffer
 S 289-291 method Outbox::append
 S 293-297 method Outbox::drain
 S 299-301 method Outbox::size
-R 3:1 imports Repository -> Money (x-file: com/example/warehouse/money/Money.java)
-R 4:1 imports Repository -> Currency (x-file: com/example/warehouse/money/Money.java)
-R 5:1 imports Repository -> Order (x-file: com/example/warehouse/order/Order.java)
-R 6:1 imports Repository -> OrderEvent (x-file: com/example/warehouse/order/Order.java)
+R 3:1 imports Repository -> Money (name-matched: com/example/warehouse/money/Money.java)
+R 4:1 imports Repository -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 5:1 imports Repository -> Order (name-matched: com/example/warehouse/order/Order.java)
+R 6:1 imports Repository -> OrderEvent (name-matched: com/example/warehouse/order/Order.java)
 R 8:1 imports Repository -> ElementType
 R 9:1 imports Repository -> Retention
 R 10:1 imports Repository -> RetentionPolicy
@@ -1120,14 +1120,14 @@ R 94:46 calls Page::of -> subList
 R 98:35 calls Page::nextOffset -> size
 R 113:38 implements Repository::InMemory -> Repository
 R 123:29 calls InMemory::findById -> ofNullable
-R 123:45 calls InMemory::findById -> get (x-file: com/example/warehouse/money/ExchangeRates.java)
+R 123:45 calls InMemory::findById -> get (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 128:69 calls InMemory::findAll -> toList
 R 128:56 calls InMemory::findAll -> limit
 R 128:43 calls InMemory::findAll -> skip
 R 128:34 calls InMemory::findAll -> stream
-R 128:25 calls InMemory::findAll -> values (x-file: com/example/warehouse/money/ExchangeRates.java)
+R 128:25 calls InMemory::findAll -> values (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 133:18 calls InMemory::save -> put
-R 133:27 calls InMemory::save -> apply (x-file: com/example/warehouse/money/ExchangeRates.java)
+R 133:27 calls InMemory::save -> apply (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 138:25 calls InMemory::delete -> remove
 R 142:25 calls InMemory::size -> size
 R 151:43 implements Repository::Jdbc -> Repository
@@ -1145,7 +1145,7 @@ R 192:44 calls Jdbc::query -> getConnection
 R 193:41 calls Jdbc::query -> prepare
 R 194:36 calls Jdbc::query -> executeQuery
 R 195:35 calls Jdbc::query -> ArrayList
-R 196:27 calls Jdbc::query -> next (x-file: com/example/warehouse/app/OrderService.java)
+R 196:27 calls Jdbc::query -> next (name-matched: com/example/warehouse/app/OrderService.java)
 R 197:25 calls Jdbc::query -> add
 R 197:39 calls Jdbc::query -> map
 R 201:27 calls Jdbc::query -> PersistenceException
@@ -1157,20 +1157,20 @@ R 215:38 calls Jdbc::prepare -> prepareStatement
 R 217:20 calls Jdbc::prepare -> setObject
 R 224:32 extends Repository::Orders -> Jdbc
 R 241:27 calls Orders::mapper -> UnsupportedOperationException
-R 252:33 calls Orders::insertValues -> total (x-file: com/example/warehouse/money/Money.java)
+R 252:33 calls Orders::insertValues -> total (name-matched: com/example/warehouse/money/Money.java)
 R 254:28 calls Orders::insertValues -> value
-R 254:23 calls Orders::insertValues -> id (x-file: com/example/warehouse/order/Order.java)
-R 254:43 calls Orders::insertValues -> number (x-file: com/example/warehouse/order/Order.java)
-R 254:59 calls Orders::insertValues -> customerId (x-file: com/example/warehouse/order/Order.java)
+R 254:23 calls Orders::insertValues -> id (name-matched: com/example/warehouse/order/Order.java)
+R 254:43 calls Orders::insertValues -> number (name-matched: com/example/warehouse/order/Order.java)
+R 254:59 calls Orders::insertValues -> customerId (name-matched: com/example/warehouse/order/Order.java)
 R 254:87 calls Orders::insertValues -> name
-R 254:79 calls Orders::insertValues -> state (x-file: com/example/warehouse/order/Order.java)
-R 255:23 calls Orders::insertValues -> amount (x-file: com/example/warehouse/money/Money.java)
+R 254:79 calls Orders::insertValues -> state (name-matched: com/example/warehouse/order/Order.java)
+R 255:23 calls Orders::insertValues -> amount (name-matched: com/example/warehouse/money/Money.java)
 R 255:50 calls Orders::insertValues -> name
-R 255:39 calls Orders::insertValues -> currency (x-file: com/example/warehouse/money/Money.java)
+R 255:39 calls Orders::insertValues -> currency (name-matched: com/example/warehouse/money/Money.java)
 R 262:19 calls Orders::save -> save
-R 263:19 calls Orders::save -> drainEvents (x-file: com/example/warehouse/order/Order.java)
+R 263:19 calls Orders::save -> drainEvents (name-matched: com/example/warehouse/order/Order.java)
 R 268:34 calls Orders::findIdByNumber -> query
-R 270:33 calls Orders::findIdByNumber -> Id (x-file: com/example/warehouse/order/Order.java)
+R 270:33 calls Orders::findIdByNumber -> Id (name-matched: com/example/warehouse/order/Order.java)
 R 270:39 calls Orders::findIdByNumber -> getObject
 R 272:33 calls Orders::findIdByNumber -> findFirst
 R 272:24 calls Orders::findIdByNumber -> stream
@@ -1178,11 +1178,11 @@ R 277:34 calls Orders::revenue -> query
 R 279:29 calls Orders::revenue -> of
 R 279:35 calls Orders::revenue -> getBigDecimal
 R 280:26 calls Orders::revenue -> name
-R 280:44 calls Orders::revenue -> from (x-file: com/example/warehouse/order/Order.java)
-R 280:66 calls Orders::revenue -> from (x-file: com/example/warehouse/order/Order.java)
+R 280:44 calls Orders::revenue -> from (name-matched: com/example/warehouse/order/Order.java)
+R 280:66 calls Orders::revenue -> from (name-matched: com/example/warehouse/order/Order.java)
 R 281:36 calls Orders::revenue -> collect
 R 281:27 calls Orders::revenue -> stream
-R 281:50 calls Orders::revenue -> summing (x-file: com/example/warehouse/money/Money.java)
+R 281:50 calls Orders::revenue -> summing (name-matched: com/example/warehouse/money/Money.java)
 R 290:20 calls Outbox::append -> add
 R 294:41 calls Outbox::drain -> copyOf
 R 295:20 calls Outbox::drain -> clear

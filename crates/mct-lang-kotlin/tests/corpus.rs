@@ -162,7 +162,7 @@ fn cross_file_calls_are_extracted() {
     c.relation("WarehouseApp.kt", "place", Calls, "quote");
     c.relation("WarehouseApp.kt", "reserveOrReject", Calls, "reserve");
     c.relation("WarehouseApp.kt", "demoService", Calls, "defaultEngine");
-    assert!(c.cross_file_relation_count() >= 80);
+    assert!(c.name_matched_relation_count() >= 80);
 }
 
 #[test]

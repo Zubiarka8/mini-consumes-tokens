@@ -1,4 +1,4 @@
-# language=xml files=6 symbols=547 relations=0 cross_file=0
+# language=xml files=6 symbols=547 relations=0 name_matched_across_files=0
 
 == catalog/products.xml (309 lines)
 S 1-309 module products
