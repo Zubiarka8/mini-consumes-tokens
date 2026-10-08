@@ -614,6 +614,28 @@ impl ServerOptions {
     }
 }
 
+/// Re-ranks `query` against the current index for the query cache's
+/// validation: `None` when the ranking can't be reproduced (no vector for a
+/// model, a failed refresh or search), which the cache treats as a miss.
+fn rerank_hits(
+    index: &Index,
+    embedder: Option<&dyn mct_index::Embedder>,
+    alpha: f64,
+    scope: mct_index::QueryScope<'_>,
+    query: &str,
+    vector: Option<&[f32]>,
+) -> Option<Vec<mct_index::SymbolHit>> {
+    let fused = match (embedder, vector) {
+        (Some(e), Some(v)) => {
+            index.refresh_embeddings(e).ok()?;
+            index.hybrid_search_with_vector(query, Some((v, e.model_id())), alpha, scope)
+        }
+        (None, _) => index.hybrid_search_with_vector(query, None, alpha, scope),
+        (Some(_), None) => return None,
+    };
+    fused.ok().map(|f| f.into_iter().map(|h| h.hit).collect())
+}
+
 /// The search constants a ranking depends on, as one cache-key field.
 fn search_config() -> String {
     format!(
@@ -644,6 +666,9 @@ fn reference_reply(kind: &HitKind) -> String {
 #[derive(Clone)]
 pub struct MctServer {
     index: Arc<Mutex<Index>>,
+    /// The index's project root, kept here so the embedding model can be
+    /// loaded without taking the index mutex (`Index::root` is immutable).
+    root: std::path::PathBuf,
     registry: LanguageRegistry,
     semantic: Arc<SemanticModel>,
     cache: Arc<std::sync::Mutex<QueryCache>>,
@@ -1044,6 +1069,7 @@ impl MctServer {
             .shared_cache
             .unwrap_or_else(|| Arc::new(std::sync::Mutex::new(QueryCache::new(options.cache))));
         Self {
+            root: index.root().to_path_buf(),
             index: Arc::new(Mutex::new(index)),
             registry,
             semantic: Arc::new(semantic),
@@ -1075,6 +1101,90 @@ impl MctServer {
         cache_arg != Some(false) && self.cache_guard().config().enabled
     }
 
+    /// The embedding model, or why there is none. Loading it (an ONNX
+    /// session plus a possible first-use download) takes seconds, so it runs
+    /// on a blocking thread that this call awaits — not a detached task — and
+    /// callers must not hold the index mutex across it. Concurrent callers
+    /// wait on the same once-cell: the model is built exactly once, a failed
+    /// load is remembered, and no caller ever sees a half-built model.
+    ///
+    /// Lock order, everywhere in this server: model (this call) and query
+    /// embedding first with no lock held, then the index mutex, then the
+    /// cache mutex (a short `std` mutex never held across an `.await` or
+    /// model work). Never the reverse, so the three cannot deadlock.
+    async fn semantic_model(&self) -> Result<&dyn mct_index::Embedder, String> {
+        let model = Arc::clone(&self.semantic);
+        let root = self.root.clone();
+        let loaded = tokio::task::spawn_blocking(move || {
+            model.get(&root).map(|_| ()).map_err(str::to_string)
+        })
+        .await;
+        match loaded {
+            Ok(Ok(())) => self.semantic.get(&self.root).map_err(str::to_string),
+            Ok(Err(reason)) => Err(reason),
+            Err(e) => Err(format!("the embedding model failed to load: {e}")),
+        }
+    }
+
+    /// [`Index::embed_query`] on a blocking thread, with no lock held: ONNX
+    /// inference on the query takes tens of milliseconds and an ordinary
+    /// query must not queue behind it. Errors come back as text for the
+    /// caller to turn into a tool error or a cache miss.
+    async fn embed_query_unlocked(&self, query: &str) -> Result<Vec<f32>, String> {
+        let model = Arc::clone(&self.semantic);
+        let root = self.root.clone();
+        let query = query.to_string();
+        tokio::task::spawn_blocking(move || {
+            let embedder = model.get(&root).map_err(str::to_string)?;
+            Index::embed_query(embedder, &query).map_err(|e| e.to_string())
+        })
+        .await
+        .map_err(|e| format!("query embedding failed: {e}"))?
+    }
+
+    /// Embeds the symbols that have no vector yet, holding the index mutex
+    /// only for the snapshot and for each batch's commit: the model runs on a
+    /// blocking thread with no lock. A cold refresh after a reindex embeds
+    /// thousands of symbols; under the mutex it froze every other tool. A
+    /// reindex may land between batches: the commit skips rows that changed
+    /// since the snapshot, so nothing stale is stored.
+    async fn refresh_pending_unlocked(&self, model_id: &str) -> Result<usize, String> {
+        let mut pending = self
+            .index
+            .lock()
+            .await
+            .snapshot_pending_embeddings(model_id)
+            .map_err(|e| e.to_string())?;
+        let mut committed = 0;
+        for batch in 0..pending.batch_count() {
+            let model = Arc::clone(&self.semantic);
+            let root = self.root.clone();
+            // The snapshot travels into the closure and back: it owns the
+            // symbol texts the batch embeds, and the commit needs it again.
+            let (returned, vectors) = tokio::task::spawn_blocking(move || {
+                let vectors = model
+                    .get(&root)
+                    .map_err(str::to_string)
+                    .and_then(|embedder| {
+                        pending
+                            .embed_batch(batch, embedder)
+                            .map_err(|e| e.to_string())
+                    });
+                (pending, vectors)
+            })
+            .await
+            .map_err(|e| format!("embedding failed: {e}"))?;
+            pending = returned;
+            committed += self
+                .index
+                .lock()
+                .await
+                .commit_embedding_batch(&pending, batch, vectors?)
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(committed)
+    }
+
     /// The response for a call: `full` as rendered, or — for a hit whose
     /// query-independent rendering `digest_view` this session already
     /// received — the one-line reference reply. A semantic hit shown in full
@@ -1091,8 +1201,9 @@ impl MctServer {
         }
         let mut cache = self.cache_guard();
         let text = match hit {
-            Some(hit) if cache.config().response == cache::ResponseMode::Reference
-                && cache.was_sent(digest_view) =>
+            Some(hit)
+                if cache.config().response == cache::ResponseMode::Reference
+                    && cache.was_sent(digest_view) =>
             {
                 let reply = reference_reply(&hit.kind);
                 if reply.len() < full.len() {
@@ -1103,10 +1214,11 @@ impl MctServer {
                 }
             }
             Some(CachedResult {
-                kind: HitKind::Semantic {
-                    similarity,
-                    source_query,
-                },
+                kind:
+                    HitKind::Semantic {
+                        similarity,
+                        source_query,
+                    },
                 ..
             }) => format!(
                 "{}\ncache: ranking reused from earlier query `{source_query}` (similarity {similarity:.3}), re-validated against the current index\n",
@@ -1361,14 +1473,23 @@ impl MctServer {
             .clamp(1, SEARCH_MAX_LIMIT);
         let offset = offset.unwrap_or(0);
         let snippet_lines = snippet_lines.unwrap_or(0).min(SEARCH_MAX_SNIPPET_LINES);
-        let index = self.index.lock().await;
         let cache_on = self.cache_on(cache);
 
         // The embedder the semantic side would use: none at alpha 0 (the
-        // model is never loaded), or why it's unavailable.
-        let model = (alpha != 0.0).then(|| self.semantic.get(index.root()));
-        let embedder = model.and_then(|m| m.ok());
+        // model is never loaded), or why it's unavailable. Loaded before the
+        // index mutex is taken, so a cold start never blocks other queries.
+        let model = if alpha != 0.0 {
+            Some(self.semantic_model().await)
+        } else {
+            None
+        };
+        let embedder = model.as_ref().and_then(|m| m.as_ref().ok()).copied();
+        let semantic_cache = cache_on
+            && embedder.is_some()
+            && mct_index::exact_phrase(query).is_none()
+            && self.cache_guard().config().semantic;
 
+        let mut index = self.index.lock().await;
         let root = index.root().display().to_string();
         let key = cache::RankingKey {
             repository: &root,
@@ -1384,36 +1505,34 @@ impl MctServer {
         };
         let normalized = cache::normalize_query(query);
         let mut hit = None;
-        let mut query_vector = None;
         if cache_on {
-            let mut rerank = |q: &str, v: Option<&[f32]>| {
-                let fused = match (embedder, v) {
-                    (Some(e), Some(v)) => {
-                        index.refresh_embeddings(e).ok()?;
-                        index.hybrid_search_with_vector(q, Some((v, e.model_id())), alpha, scope)
-                    }
-                    (None, _) => index.hybrid_search_with_vector(q, None, alpha, scope),
-                    (Some(_), None) => return None,
-                };
-                fused.ok().map(|f| f.into_iter().map(|h| h.hit).collect())
-            };
-            let mut guard = self.cache_guard();
-            hit = guard.lookup_exact(&index, &key, &normalized, &mut rerank);
-            // The semantic path: never for an exact phrase (its words must
-            // match literally), only with a model to embed the query.
-            if let (None, Some(e), None, true) = (
-                &hit,
-                embedder,
-                mct_index::exact_phrase(query),
-                guard.config().semantic,
-            ) {
-                let start = std::time::Instant::now();
-                if let Ok(vector) = Index::embed_query(e, query) {
-                    guard.record_embedding(start.elapsed());
-                    hit = guard.lookup_semantic(&index, &key, &normalized, &vector, &mut rerank);
-                    query_vector = Some(vector);
-                }
+            let mut rerank =
+                |q: &str, v: Option<&[f32]>| rerank_hits(&index, embedder, alpha, scope, q, v);
+            hit = self
+                .cache_guard()
+                .lookup_exact(&index, &key, &normalized, &mut rerank);
+        }
+
+        // A miss needs the query's vector (for the semantic cache and for the
+        // ranking itself). Embed it with the index mutex released, then take
+        // the mutex again: lookups below validate against the index as it is
+        // now, and a ranking built from the earlier view is never reused.
+        let mut query_vector: Option<Result<Vec<f32>, String>> = None;
+        if hit.is_none() && embedder.is_some() {
+            drop(index);
+            let start = std::time::Instant::now();
+            let vector = self.embed_query_unlocked(query).await;
+            index = self.index.lock().await;
+            // The semantic cache path: never for an exact phrase (its words
+            // must match literally), only with a model to embed the query.
+            if let (Ok(vector), true) = (&vector, semantic_cache) {
+                let mut guard = self.cache_guard();
+                guard.record_embedding(start.elapsed());
+                let mut rerank =
+                    |q: &str, v: Option<&[f32]>| rerank_hits(&index, embedder, alpha, scope, q, v);
+                hit = guard.lookup_semantic(&index, &key, &normalized, vector, &mut rerank);
             }
+            query_vector = Some(vector);
         }
 
         // Lexical-only whenever the semantic side can't contribute: alpha 0
@@ -1428,10 +1547,17 @@ impl MctServer {
             Some(Err(reason)) => (None, format!("hybrid: lexical ranking only — {reason}")),
             Some(Ok(embedder)) => {
                 // A hit's ranking was validated against the current index;
-                // only a miss needs the pending symbols embedded.
+                // only a miss needs the pending symbols embedded, and that
+                // runs with the index mutex released (see
+                // `refresh_pending_unlocked`).
                 let refreshed = match hit {
                     Some(_) => Ok(0),
-                    None => index.refresh_embeddings(embedder),
+                    None => {
+                        drop(index);
+                        let refreshed = self.refresh_pending_unlocked(embedder.model_id()).await;
+                        index = self.index.lock().await;
+                        refreshed
+                    }
                 };
                 match refreshed {
                     Err(e) => (None, format!("hybrid: lexical ranking only — {e}")),
@@ -1455,11 +1581,22 @@ impl MctServer {
         let hits: Vec<mct_index::SymbolHit> = match &hit {
             Some(found) => found.hits.clone(),
             None => {
+                // `ranked_with` is only `Some` with an embedder, and a miss
+                // with an embedder always embedded its query above.
                 let vector = match (ranked_with, query_vector.take()) {
-                    (Some(_), Some(v)) => Some(v),
-                    (Some(e), None) => Some(Index::embed_query(e, query).map_err(|err| {
-                        McpError::internal_error(format!("hybrid_search failed: {err}"), None)
-                    })?),
+                    (Some(_), Some(Ok(v))) => Some(v),
+                    (Some(_), Some(Err(err))) => {
+                        return Err(McpError::internal_error(
+                            format!("hybrid_search failed: {err}"),
+                            None,
+                        ));
+                    }
+                    (Some(_), None) => {
+                        return Err(McpError::internal_error(
+                            "hybrid_search failed: the query was not embedded".to_string(),
+                            None,
+                        ));
+                    }
                     (None, _) => None,
                 };
                 let semantic = ranked_with.zip(vector.as_deref());
@@ -1474,7 +1611,7 @@ impl MctServer {
                         return Err(McpError::internal_error(
                             format!("hybrid_search failed: {e}"),
                             None,
-                        ))
+                        ));
                     }
                     Err(e) => return Err(index_error(e)),
                 };
