@@ -185,7 +185,7 @@ fn cross_file_calls_are_extracted() {
     c.relation("OrderService.java", "reserve", Calls, "reserve");
     c.relation("OrderService.java", "save", Calls, "describe");
     c.relation("OrderService.java", "demo", Calls, "identity");
-    assert!(c.cross_file_relation_count() >= 100);
+    assert!(c.name_matched_relation_count() >= 100);
 }
 
 #[test]

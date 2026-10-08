@@ -156,7 +156,7 @@ fn references_between_files_are_the_documented_limit() {
     // other files, but XML emits no relation of any kind.
     let c = corpus();
     assert!(c.relations().is_empty());
-    assert_eq!(c.cross_file_relation_count(), 0);
+    assert_eq!(c.name_matched_relation_count(), 0);
 }
 
 #[test]

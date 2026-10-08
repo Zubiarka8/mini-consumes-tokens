@@ -134,7 +134,7 @@ fn cross_file_calls_are_extracted() {
         Calls,
         "httpStockSource",
     );
-    assert!(c.cross_file_relation_count() >= 60);
+    assert!(c.name_matched_relation_count() >= 60);
 }
 
 #[test]

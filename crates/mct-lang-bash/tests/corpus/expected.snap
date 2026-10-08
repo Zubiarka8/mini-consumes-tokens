@@ -1,4 +1,4 @@
-# language=bash files=5 symbols=176 relations=585 cross_file=162
+# language=bash files=5 symbols=176 relations=585 name_matched_across_files=162
 
 == bin/backup.sh (303 lines)
 S 1-303 module backup
@@ -39,9 +39,9 @@ R 18:1 imports backup -> $LIB_DIR/config.sh
 R 20:1 imports backup -> $LIB_DIR/fs.sh
 R 22:1 imports backup -> $LIB_DIR/remote.sh
 R 34:5 calls backup::usage -> cat
-R 59:5 calls backup::usage -> config_usage (x-file: lib/config.sh)
+R 59:5 calls backup::usage -> config_usage (name-matched: lib/config.sh)
 R 63:5 calls backup::version -> printf
-R 72:38 calls backup::parse_args -> die (x-file: lib/log.sh)
+R 72:38 calls backup::parse_args -> die (name-matched: lib/log.sh)
 R 74:17 calls backup::parse_args -> shift
 R 78:17 calls backup::parse_args -> shift
 R 82:17 calls backup::parse_args -> shift
@@ -55,94 +55,94 @@ R 106:17 calls backup::parse_args -> version
 R 107:17 calls backup::parse_args -> exit
 R 110:17 calls backup::parse_args -> shift
 R 112:17 calls backup::parse_args -> break
-R 115:17 calls backup::parse_args -> die (x-file: lib/log.sh)
+R 115:17 calls backup::parse_args -> die (name-matched: lib/log.sh)
 R 123:17 calls backup::parse_args -> shift
 R 127:30 calls backup::parse_args -> usage
 R 127:41 calls backup::parse_args -> exit
-R 131:5 calls backup::setup -> load_config (x-file: lib/config.sh)
-R 132:5 calls backup::setup -> apply_profile (x-file: lib/config.sh)
-R 134:9 calls backup::setup -> config_set (x-file: lib/config.sh)
-R 136:5 calls backup::setup -> install_traps (x-file: lib/log.sh)
-R 137:5 calls backup::setup -> rotate_log (x-file: lib/log.sh)
-R 138:5 calls backup::setup -> log_dump_settings (x-file: lib/log.sh)
-R 147:15 calls backup::cmd_run -> config_get (x-file: lib/config.sh)
+R 131:5 calls backup::setup -> load_config (name-matched: lib/config.sh)
+R 132:5 calls backup::setup -> apply_profile (name-matched: lib/config.sh)
+R 134:9 calls backup::setup -> config_set (name-matched: lib/config.sh)
+R 136:5 calls backup::setup -> install_traps (name-matched: lib/log.sh)
+R 137:5 calls backup::setup -> rotate_log (name-matched: lib/log.sh)
+R 138:5 calls backup::setup -> log_dump_settings (name-matched: lib/log.sh)
+R 147:15 calls backup::cmd_run -> config_get (name-matched: lib/config.sh)
 R 148:5 calls backup::cmd_run -> mkdir
-R 149:5 calls backup::cmd_run -> clean_stale_workdirs (x-file: lib/fs.sh)
-R 150:27 calls backup::cmd_run -> changed_since_last_run (x-file: lib/fs.sh)
-R 151:9 calls backup::cmd_run -> log_info (x-file: lib/log.sh)
+R 149:5 calls backup::cmd_run -> clean_stale_workdirs (name-matched: lib/fs.sh)
+R 150:27 calls backup::cmd_run -> changed_since_last_run (name-matched: lib/fs.sh)
+R 151:9 calls backup::cmd_run -> log_info (name-matched: lib/log.sh)
 R 152:9 calls backup::cmd_run -> return
-R 154:5 calls backup::cmd_run -> ensure_space (x-file: lib/fs.sh)
-R 155:13 calls backup::cmd_run -> make_workdir (x-file: lib/fs.sh)
-R 157:20 calls backup::cmd_run -> banner (x-file: lib/log.sh)
+R 154:5 calls backup::cmd_run -> ensure_space (name-matched: lib/fs.sh)
+R 155:13 calls backup::cmd_run -> make_workdir (name-matched: lib/fs.sh)
+R 157:20 calls backup::cmd_run -> banner (name-matched: lib/log.sh)
 R 157:37 calls backup::cmd_run -> hostname
-R 158:5 calls backup::cmd_run -> timer_start (x-file: lib/log.sh)
-R 159:5 calls backup::cmd_run -> collect_files (x-file: lib/fs.sh)
-R 160:16 calls backup::cmd_run -> create_archive (x-file: lib/fs.sh)
-R 160:50 calls backup::cmd_run -> archive_name (x-file: lib/fs.sh)
-R 161:33 calls backup::cmd_run -> config_is_true (x-file: lib/config.sh)
-R 162:9 calls backup::cmd_run -> write_manifest (x-file: lib/fs.sh)
-R 163:9 calls backup::cmd_run -> upload (x-file: lib/remote.sh)
-R 165:5 calls backup::cmd_run -> apply_retention (x-file: lib/fs.sh)
-R 167:16 calls backup::cmd_run -> timer_stop (x-file: lib/log.sh)
-R 168:20 calls backup::cmd_run -> fs_stats (x-file: lib/fs.sh)
-R 169:5 calls backup::cmd_run -> notify (x-file: lib/remote.sh)
-R 169:37 calls backup::cmd_run -> format_duration (x-file: lib/log.sh)
-R 175:9 calls backup::cmd_list -> remote_list (x-file: lib/remote.sh)
+R 158:5 calls backup::cmd_run -> timer_start (name-matched: lib/log.sh)
+R 159:5 calls backup::cmd_run -> collect_files (name-matched: lib/fs.sh)
+R 160:16 calls backup::cmd_run -> create_archive (name-matched: lib/fs.sh)
+R 160:50 calls backup::cmd_run -> archive_name (name-matched: lib/fs.sh)
+R 161:33 calls backup::cmd_run -> config_is_true (name-matched: lib/config.sh)
+R 162:9 calls backup::cmd_run -> write_manifest (name-matched: lib/fs.sh)
+R 163:9 calls backup::cmd_run -> upload (name-matched: lib/remote.sh)
+R 165:5 calls backup::cmd_run -> apply_retention (name-matched: lib/fs.sh)
+R 167:16 calls backup::cmd_run -> timer_stop (name-matched: lib/log.sh)
+R 168:20 calls backup::cmd_run -> fs_stats (name-matched: lib/fs.sh)
+R 169:5 calls backup::cmd_run -> notify (name-matched: lib/remote.sh)
+R 169:37 calls backup::cmd_run -> format_duration (name-matched: lib/log.sh)
+R 175:9 calls backup::cmd_list -> remote_list (name-matched: lib/remote.sh)
 R 176:9 calls backup::cmd_list -> return
-R 178:15 calls backup::cmd_list -> config_get (x-file: lib/config.sh)
+R 178:15 calls backup::cmd_list -> config_get (name-matched: lib/config.sh)
 R 179:11 calls backup::cmd_list -> read
 R 180:9 calls backup::cmd_list -> printf
 R 180:34 calls backup::cmd_list -> basename
-R 180:59 calls backup::cmd_list -> format_bytes (x-file: lib/log.sh)
-R 180:75 calls backup::cmd_list -> file_size (x-file: lib/fs.sh)
-R 181:14 calls backup::cmd_list -> list_archives (x-file: lib/fs.sh)
-R 186:15 calls backup::cmd_verify -> config_get (x-file: lib/config.sh)
-R 187:8 calls backup::cmd_verify -> verify_manifest (x-file: lib/fs.sh)
-R 188:9 calls backup::cmd_verify -> log_ok (x-file: lib/log.sh)
-R 190:9 calls backup::cmd_verify -> notify (x-file: lib/remote.sh)
+R 180:59 calls backup::cmd_list -> format_bytes (name-matched: lib/log.sh)
+R 180:75 calls backup::cmd_list -> file_size (name-matched: lib/fs.sh)
+R 181:14 calls backup::cmd_list -> list_archives (name-matched: lib/fs.sh)
+R 186:15 calls backup::cmd_verify -> config_get (name-matched: lib/config.sh)
+R 187:8 calls backup::cmd_verify -> verify_manifest (name-matched: lib/fs.sh)
+R 188:9 calls backup::cmd_verify -> log_ok (name-matched: lib/log.sh)
+R 190:9 calls backup::cmd_verify -> notify (name-matched: lib/remote.sh)
 R 191:9 calls backup::cmd_verify -> return
-R 197:15 calls backup::cmd_restore -> config_get (x-file: lib/config.sh)
-R 199:12 calls backup::cmd_restore -> die (x-file: lib/log.sh)
-R 201:24 calls backup::cmd_restore -> pick_archive (x-file: lib/fs.sh)
-R 213:9 calls backup::cmd_restore -> log_info (x-file: lib/log.sh)
-R 214:9 calls backup::cmd_restore -> download (x-file: lib/remote.sh)
+R 197:15 calls backup::cmd_restore -> config_get (name-matched: lib/config.sh)
+R 199:12 calls backup::cmd_restore -> die (name-matched: lib/log.sh)
+R 201:24 calls backup::cmd_restore -> pick_archive (name-matched: lib/fs.sh)
+R 213:9 calls backup::cmd_restore -> log_info (name-matched: lib/log.sh)
+R 214:9 calls backup::cmd_restore -> download (name-matched: lib/remote.sh)
 R 217:31 calls backup::cmd_restore -> ls
-R 217:55 calls backup::cmd_restore -> confirm (x-file: lib/log.sh)
-R 218:9 calls backup::cmd_restore -> die (x-file: lib/log.sh)
-R 220:5 calls backup::cmd_restore -> restore_archive (x-file: lib/fs.sh)
-R 224:5 calls backup::cmd_prune -> apply_retention (x-file: lib/fs.sh)
-R 224:24 calls backup::cmd_prune -> config_get (x-file: lib/config.sh)
-R 225:5 calls backup::cmd_prune -> remote_configured (x-file: lib/remote.sh)
-R 225:26 calls backup::cmd_prune -> remote_prune (x-file: lib/remote.sh)
-R 225:42 calls backup::cmd_prune -> config_get (x-file: lib/config.sh)
-R 230:5 calls backup::cmd_doctor -> banner (x-file: lib/log.sh)
-R 231:5 calls backup::cmd_doctor -> require_commands (x-file: lib/log.sh)
+R 217:55 calls backup::cmd_restore -> confirm (name-matched: lib/log.sh)
+R 218:9 calls backup::cmd_restore -> die (name-matched: lib/log.sh)
+R 220:5 calls backup::cmd_restore -> restore_archive (name-matched: lib/fs.sh)
+R 224:5 calls backup::cmd_prune -> apply_retention (name-matched: lib/fs.sh)
+R 224:24 calls backup::cmd_prune -> config_get (name-matched: lib/config.sh)
+R 225:5 calls backup::cmd_prune -> remote_configured (name-matched: lib/remote.sh)
+R 225:26 calls backup::cmd_prune -> remote_prune (name-matched: lib/remote.sh)
+R 225:42 calls backup::cmd_prune -> config_get (name-matched: lib/config.sh)
+R 230:5 calls backup::cmd_doctor -> banner (name-matched: lib/log.sh)
+R 231:5 calls backup::cmd_doctor -> require_commands (name-matched: lib/log.sh)
 R 234:12 calls backup::cmd_doctor -> command
-R 235:13 calls backup::cmd_doctor -> log_ok (x-file: lib/log.sh)
+R 235:13 calls backup::cmd_doctor -> log_ok (name-matched: lib/log.sh)
 R 235:30 calls backup::cmd_doctor -> command
-R 237:13 calls backup::cmd_doctor -> log_warn (x-file: lib/log.sh)
-R 240:6 calls backup::cmd_doctor -> validate_config (x-file: lib/config.sh)
-R 241:5 calls backup::cmd_doctor -> check_remote (x-file: lib/remote.sh)
-R 243:15 calls backup::cmd_doctor -> config_get (x-file: lib/config.sh)
-R 244:27 calls backup::cmd_doctor -> du_summary (x-file: lib/fs.sh)
-R 245:28 calls backup::cmd_doctor -> log_ok (x-file: lib/log.sh)
-R 245:58 calls backup::cmd_doctor -> log_error (x-file: lib/log.sh)
+R 237:13 calls backup::cmd_doctor -> log_warn (name-matched: lib/log.sh)
+R 240:6 calls backup::cmd_doctor -> validate_config (name-matched: lib/config.sh)
+R 241:5 calls backup::cmd_doctor -> check_remote (name-matched: lib/remote.sh)
+R 243:15 calls backup::cmd_doctor -> config_get (name-matched: lib/config.sh)
+R 244:27 calls backup::cmd_doctor -> du_summary (name-matched: lib/fs.sh)
+R 245:28 calls backup::cmd_doctor -> log_ok (name-matched: lib/log.sh)
+R 245:58 calls backup::cmd_doctor -> log_error (name-matched: lib/log.sh)
 R 246:5 calls backup::cmd_doctor -> return
-R 251:9 calls backup::cmd_config -> dump_config (x-file: lib/config.sh)
-R 253:9 calls backup::cmd_config -> print_config (x-file: lib/config.sh)
-R 258:5 calls backup::cmd_speedtest -> remote_speedtest (x-file: lib/remote.sh)
+R 251:9 calls backup::cmd_config -> dump_config (name-matched: lib/config.sh)
+R 253:9 calls backup::cmd_config -> print_config (name-matched: lib/config.sh)
+R 258:5 calls backup::cmd_speedtest -> remote_speedtest (name-matched: lib/remote.sh)
 R 265:10 calls backup::dispatch -> declare
 R 266:15 calls backup::dispatch -> read
-R 270:16 calls backup::dispatch -> die (x-file: lib/log.sh)
-R 272:16 calls backup::dispatch -> die (x-file: lib/log.sh)
-R 275:5 calls backup::dispatch -> log_debug (x-file: lib/log.sh)
+R 270:16 calls backup::dispatch -> die (name-matched: lib/log.sh)
+R 272:16 calls backup::dispatch -> die (name-matched: lib/log.sh)
+R 275:5 calls backup::dispatch -> log_debug (name-matched: lib/log.sh)
 R 280:5 calls backup::main -> parse_args
 R 281:5 calls backup::main -> setup
-R 283:13 calls backup::main -> config_get (x-file: lib/config.sh)
+R 283:13 calls backup::main -> config_get (name-matched: lib/config.sh)
 R 284:5 calls backup::main -> mkdir
 R 284:17 calls backup::main -> dirname
 R 286:33 calls backup::main -> dispatch
-R 287:12 calls backup::main -> with_lock (x-file: lib/log.sh)
+R 287:12 calls backup::main -> with_lock (name-matched: lib/log.sh)
 R 293:21 calls backup -> main
 R 298:5 calls backup::cmd_version -> version
 R 302:5 calls backup::cmd_help -> usage
@@ -183,9 +183,9 @@ R 14:54 calls config -> pwd
 R 15:1 imports config -> $CONFIG_DIR/log.sh
 R 59:9 calls config::config_get -> printf
 R 61:9 calls config::config_get -> printf
-R 69:9 calls config::config_set -> log_warn (x-file: lib/log.sh)
+R 69:9 calls config::config_set -> log_warn (name-matched: lib/log.sh)
 R 70:9 calls config::config_set -> return
-R 73:5 calls config::config_set -> log_debug (x-file: lib/log.sh)
+R 73:5 calls config::config_set -> log_debug (name-matched: lib/log.sh)
 R 77:13 calls config::config_is_true -> config_get
 R 78:30 calls config::config_is_true -> return
 R 79:12 calls config::config_is_true -> return
@@ -196,12 +196,12 @@ R 93:37 calls config::config_keys -> sort
 R 105:5 calls config::trim -> printf
 R 114:5 calls config::unquote -> printf
 R 121:25 calls config::load_config_file -> return
-R 122:5 calls config::load_config_file -> log_debug (x-file: lib/log.sh)
+R 122:5 calls config::load_config_file -> log_debug (name-matched: lib/log.sh)
 R 123:16 calls config::load_config_file -> read
 R 125:17 calls config::load_config_file -> trim
 R 126:29 calls config::load_config_file -> continue
 R 129:13 calls config::load_config_file -> continue
-R 132:13 calls config::load_config_file -> log_warn (x-file: lib/log.sh)
+R 132:13 calls config::load_config_file -> log_warn (name-matched: lib/log.sh)
 R 133:13 calls config::load_config_file -> continue
 R 136:18 calls config::load_config_file -> unquote
 R 136:29 calls config::load_config_file -> trim
@@ -224,32 +224,32 @@ R 186:39 calls config::contains -> return
 R 188:5 calls config::contains -> return
 R 194:14 calls config::validate_config -> is_positive_int
 R 194:33 calls config::validate_config -> config_get
-R 195:13 calls config::validate_config -> log_error (x-file: lib/log.sh)
+R 195:13 calls config::validate_config -> log_error (name-matched: lib/log.sh)
 R 195:76 calls config::validate_config -> config_get
 R 200:17 calls config::validate_config -> config_get
-R 203:17 calls config::validate_config -> log_error (x-file: lib/log.sh)
+R 203:17 calls config::validate_config -> log_error (name-matched: lib/log.sh)
 R 208:10 calls config::validate_config -> contains
 R 208:22 calls config::validate_config -> config_get
-R 209:9 calls config::validate_config -> log_error (x-file: lib/log.sh)
+R 209:9 calls config::validate_config -> log_error (name-matched: lib/log.sh)
 R 212:13 calls config::validate_config -> config_get
-R 213:9 calls config::validate_config -> log_error (x-file: lib/log.sh)
+R 213:9 calls config::validate_config -> log_error (name-matched: lib/log.sh)
 R 216:13 calls config::validate_config -> config_get
 R 216:43 calls config::validate_config -> config_get
-R 217:9 calls config::validate_config -> log_warn (x-file: lib/log.sh)
+R 217:9 calls config::validate_config -> log_warn (name-matched: lib/log.sh)
 R 219:11 calls config::validate_config -> read
-R 220:28 calls config::validate_config -> log_warn (x-file: lib/log.sh)
+R 220:28 calls config::validate_config -> log_warn (name-matched: lib/log.sh)
 R 221:14 calls config::validate_config -> config_list
 R 222:8 calls config::validate_config -> config_is_true
 R 222:43 calls config::validate_config -> config_get
-R 223:9 calls config::validate_config -> log_error (x-file: lib/log.sh)
-R 226:26 calls config::validate_config -> die (x-file: lib/log.sh)
+R 223:9 calls config::validate_config -> log_error (name-matched: lib/log.sh)
+R 226:26 calls config::validate_config -> die (name-matched: lib/log.sh)
 R 236:11 calls config::print_config -> read
 R 237:24 calls config::print_config -> config_get
 R 238:14 calls config::print_config -> config_keys
-R 239:5 calls config::print_config -> banner (x-file: lib/log.sh)
-R 240:5 calls config::print_config -> summary_table (x-file: lib/log.sh)
+R 239:5 calls config::print_config -> banner (name-matched: lib/log.sh)
+R 240:5 calls config::print_config -> summary_table (name-matched: lib/log.sh)
 R 247:9 calls config::dump_config -> printf
-R 247:51 calls config::dump_config -> timestamp (x-file: lib/log.sh)
+R 247:51 calls config::dump_config -> timestamp (name-matched: lib/log.sh)
 R 248:9 calls config::dump_config -> printf
 R 249:15 calls config::dump_config -> read
 R 250:13 calls config::dump_config -> printf
@@ -273,10 +273,10 @@ R 285:13 calls config::apply_profile -> config_set
 R 288:13 calls config::apply_profile -> config_set
 R 289:13 calls config::apply_profile -> config_set
 R 290:13 calls config::apply_profile -> config_set
-R 295:13 calls config::apply_profile -> die (x-file: lib/log.sh)
+R 295:13 calls config::apply_profile -> die (name-matched: lib/log.sh)
 R 301:5 calls config::config_usage -> cat
 R 303:3 calls config::config_usage -> printf
-R 307:5 calls config::config_usage -> log_usage_footer (x-file: lib/log.sh)
+R 307:5 calls config::config_usage -> log_usage_footer (name-matched: lib/log.sh)
 
 == lib/fs.sh (305 lines)
 S 1-305 module fs
@@ -320,61 +320,61 @@ R 12:50 calls fs -> pwd
 R 13:1 imports fs -> $FS_DIR/log.sh
 R 14:1 imports fs -> $FS_DIR/config.sh
 R 25:12 calls fs::make_workdir -> mktemp
-R 25:53 calls fs::make_workdir -> die (x-file: lib/log.sh)
+R 25:53 calls fs::make_workdir -> die (name-matched: lib/log.sh)
 R 26:5 calls fs::make_workdir -> chmod
-R 27:5 calls fs::make_workdir -> on_exit (x-file: lib/log.sh)
+R 27:5 calls fs::make_workdir -> on_exit (name-matched: lib/log.sh)
 R 28:5 calls fs::make_workdir -> printf
 R 33:24 calls fs::archive_name -> date
 R 34:13 calls fs::archive_name -> hostname
 R 34:40 calls fs::archive_name -> uname
 R 35:5 calls fs::archive_name -> printf
-R 35:68 calls fs::archive_name -> compression_extension (x-file: lib/config.sh)
+R 35:68 calls fs::archive_name -> compression_extension (name-matched: lib/config.sh)
 R 43:9 calls fs::archive_epoch -> date
 R 43:45 calls fs::archive_epoch -> date
 R 45:9 calls fs::archive_epoch -> return
-R 52:13 calls fs::exclude_args -> config_get (x-file: lib/config.sh)
+R 52:13 calls fs::exclude_args -> config_get (name-matched: lib/config.sh)
 R 53:5 calls fs::exclude_args -> printf
 R 54:39 calls fs::exclude_args -> return
 R 55:16 calls fs::exclude_args -> read
 R 56:53 calls fs::exclude_args -> continue
 R 57:9 calls fs::exclude_args -> printf
-R 64:21 calls fs::collect_files -> config_get (x-file: lib/config.sh)
+R 64:21 calls fs::collect_files -> config_get (name-matched: lib/config.sh)
 R 65:5 calls fs::collect_files -> :
 R 66:11 calls fs::collect_files -> read
 R 67:28 calls fs::collect_files -> continue
 R 68:9 calls fs::collect_files -> find
-R 69:14 calls fs::collect_files -> config_list (x-file: lib/config.sh)
+R 69:14 calls fs::collect_files -> config_list (name-matched: lib/config.sh)
 R 70:20 calls fs::collect_files -> read
 R 72:20 calls fs::collect_files -> stat
 R 72:54 calls fs::collect_files -> stat
-R 74:17 calls fs::collect_files -> log_debug (x-file: lib/log.sh)
-R 74:57 calls fs::collect_files -> format_bytes (x-file: lib/log.sh)
+R 74:17 calls fs::collect_files -> log_debug (name-matched: lib/log.sh)
+R 74:57 calls fs::collect_files -> format_bytes (name-matched: lib/log.sh)
 R 75:17 calls fs::collect_files -> continue
 R 79:13 calls fs::collect_files -> printf
-R 81:5 calls fs::collect_files -> log_info (x-file: lib/log.sh)
+R 81:5 calls fs::collect_files -> log_info (name-matched: lib/log.sh)
 R 81:27 calls fs::collect_files -> tr
 R 81:49 calls fs::collect_files -> wc
 R 88:5 calls fs::create_archive -> mapfile
 R 88:29 calls fs::create_archive -> exclude_args
-R 89:19 calls fs::create_archive -> compression_command (x-file: lib/config.sh)
-R 90:5 calls fs::create_archive -> timer_start (x-file: lib/log.sh)
-R 91:8 calls fs::create_archive -> config_is_true (x-file: lib/config.sh)
-R 92:9 calls fs::create_archive -> log_info (x-file: lib/log.sh)
+R 89:19 calls fs::create_archive -> compression_command (name-matched: lib/config.sh)
+R 90:5 calls fs::create_archive -> timer_start (name-matched: lib/log.sh)
+R 91:8 calls fs::create_archive -> config_is_true (name-matched: lib/config.sh)
+R 92:9 calls fs::create_archive -> log_info (name-matched: lib/log.sh)
 R 92:54 calls fs::create_archive -> tr
 R 92:77 calls fs::create_archive -> wc
-R 93:9 calls fs::create_archive -> timer_stop (x-file: lib/log.sh)
+R 93:9 calls fs::create_archive -> timer_stop (name-matched: lib/log.sh)
 R 94:9 calls fs::create_archive -> return
-R 96:8 calls fs::create_archive -> config_is_true (x-file: lib/config.sh)
+R 96:8 calls fs::create_archive -> config_is_true (name-matched: lib/config.sh)
 R 97:9 calls fs::create_archive -> tar
 R 99:13 calls fs::create_archive -> gpg
-R 99:56 calls fs::create_archive -> config_get (x-file: lib/config.sh)
-R 100:13 calls fs::create_archive -> die (x-file: lib/log.sh)
+R 99:56 calls fs::create_archive -> config_get (name-matched: lib/config.sh)
+R 100:13 calls fs::create_archive -> die (name-matched: lib/log.sh)
 R 103:9 calls fs::create_archive -> tar
-R 104:13 calls fs::create_archive -> die (x-file: lib/log.sh)
-R 106:5 calls fs::create_archive -> timer_stop (x-file: lib/log.sh)
-R 107:5 calls fs::create_archive -> log_ok (x-file: lib/log.sh)
+R 104:13 calls fs::create_archive -> die (name-matched: lib/log.sh)
+R 106:5 calls fs::create_archive -> timer_stop (name-matched: lib/log.sh)
+R 107:5 calls fs::create_archive -> log_ok (name-matched: lib/log.sh)
 R 107:21 calls fs::create_archive -> basename
-R 107:42 calls fs::create_archive -> format_bytes (x-file: lib/log.sh)
+R 107:42 calls fs::create_archive -> format_bytes (name-matched: lib/log.sh)
 R 107:58 calls fs::create_archive -> file_size
 R 108:5 calls fs::create_archive -> printf
 R 112:5 calls fs::file_size -> stat
@@ -390,43 +390,43 @@ R 130:36 calls fs::write_manifest -> continue
 R 131:13 calls fs::write_manifest -> printf
 R 131:34 calls fs::write_manifest -> checksum
 R 133:9 calls fs::write_manifest -> mv
-R 140:41 calls fs::verify_manifest -> log_warn (x-file: lib/log.sh)
+R 140:41 calls fs::verify_manifest -> log_warn (name-matched: lib/log.sh)
 R 140:73 calls fs::verify_manifest -> return
 R 141:11 calls fs::verify_manifest -> read
 R 142:19 calls fs::verify_manifest -> checksum
-R 144:13 calls fs::verify_manifest -> log_error (x-file: lib/log.sh)
+R 144:13 calls fs::verify_manifest -> log_error (name-matched: lib/log.sh)
 R 148:5 calls fs::verify_manifest -> return
 R 154:5 calls fs::list_archives -> find
 R 155:9 calls fs::list_archives -> sort
 R 156:9 calls fs::list_archives -> cut
-R 163:13 calls fs::apply_retention -> config_get (x-file: lib/config.sh)
-R 164:13 calls fs::apply_retention -> config_get (x-file: lib/config.sh)
-R 165:12 calls fs::apply_retention -> now_epoch (x-file: lib/log.sh)
+R 163:13 calls fs::apply_retention -> config_get (name-matched: lib/config.sh)
+R 164:13 calls fs::apply_retention -> config_get (name-matched: lib/config.sh)
+R 165:12 calls fs::apply_retention -> now_epoch (name-matched: lib/log.sh)
 R 167:11 calls fs::apply_retention -> read
 R 170:13 calls fs::apply_retention -> continue
 R 172:18 calls fs::apply_retention -> archive_epoch
 R 172:48 calls fs::apply_retention -> continue
-R 174:16 calls fs::apply_retention -> config_is_true (x-file: lib/config.sh)
-R 175:17 calls fs::apply_retention -> log_info (x-file: lib/log.sh)
+R 174:16 calls fs::apply_retention -> config_is_true (name-matched: lib/config.sh)
+R 175:17 calls fs::apply_retention -> log_info (name-matched: lib/log.sh)
 R 175:52 calls fs::apply_retention -> basename
 R 177:17 calls fs::apply_retention -> rm
 R 180:14 calls fs::apply_retention -> list_archives
-R 181:5 calls fs::apply_retention -> log_info (x-file: lib/log.sh)
+R 181:5 calls fs::apply_retention -> log_info (name-matched: lib/log.sh)
 R 182:5 calls fs::apply_retention -> write_manifest
 R 188:5 calls fs::restore_archive -> shift
-R 189:28 calls fs::restore_archive -> die (x-file: lib/log.sh)
+R 189:28 calls fs::restore_archive -> die (name-matched: lib/log.sh)
 R 190:5 calls fs::restore_archive -> mkdir
 R 197:17 calls fs::restore_archive -> zstd
 R 198:16 calls fs::restore_archive -> xz
 R 199:16 calls fs::restore_archive -> gzip
 R 200:12 calls fs::restore_archive -> cat
 R 201:12 calls fs::restore_archive -> tar
-R 202:5 calls fs::restore_archive -> log_ok (x-file: lib/log.sh)
+R 202:5 calls fs::restore_archive -> log_ok (name-matched: lib/log.sh)
 R 202:24 calls fs::restore_archive -> basename
 R 207:5 calls fs::disk_free_mb -> df
 R 207:19 calls fs::disk_free_mb -> awk
 R 213:13 calls fs::ensure_space -> disk_free_mb
-R 215:9 calls fs::ensure_space -> die (x-file: lib/log.sh)
+R 215:9 calls fs::ensure_space -> die (name-matched: lib/log.sh)
 R 221:5 calls fs::du_summary -> du
 R 221:33 calls fs::du_summary -> sort
 R 221:44 calls fs::du_summary -> head
@@ -439,7 +439,7 @@ R 235:5 calls fs -> wait
 R 236:1 calls fs -> }
 R 241:11 calls fs::source_fingerprint -> read
 R 242:9 calls fs::source_fingerprint -> find
-R 243:14 calls fs::source_fingerprint -> config_list (x-file: lib/config.sh)
+R 243:14 calls fs::source_fingerprint -> config_list (name-matched: lib/config.sh)
 R 243:41 calls fs::source_fingerprint -> sort
 R 243:48 calls fs::source_fingerprint -> checksum
 R 248:16 calls fs::changed_since_last_run -> source_fingerprint
@@ -447,17 +447,17 @@ R 250:9 calls fs::changed_since_last_run -> return
 R 252:5 calls fs::changed_since_last_run -> printf
 R 259:5 calls fs::pick_archive -> mapfile
 R 259:29 calls fs::pick_archive -> list_archives
-R 260:30 calls fs::pick_archive -> die (x-file: lib/log.sh)
+R 260:30 calls fs::pick_archive -> die (name-matched: lib/log.sh)
 R 263:31 calls fs::pick_archive -> break
 R 265:5 calls fs::pick_archive -> printf
 R 270:5 calls fs::clean_stale_workdirs -> find
 R 270:102 calls fs::clean_stale_workdirs -> true
-R 274:5 calls fs::fs_stats -> summary_table (x-file: lib/log.sh)
-R 274:48 calls fs::fs_stats -> format_bytes (x-file: lib/log.sh)
+R 274:5 calls fs::fs_stats -> summary_table (name-matched: lib/log.sh)
+R 274:48 calls fs::fs_stats -> format_bytes (name-matched: lib/log.sh)
 R 282:9 calls snapshot_btrfs::btrfs_available -> command
 R 282:40 calls snapshot_btrfs::btrfs_available -> btrfs
 R 284:10 calls fs::snapshot_btrfs -> btrfs_available
-R 285:9 calls fs::snapshot_btrfs -> log_warn (x-file: lib/log.sh)
+R 285:9 calls fs::snapshot_btrfs -> log_warn (name-matched: lib/log.sh)
 R 286:9 calls fs::snapshot_btrfs -> return
 R 288:5 calls fs::snapshot_btrfs -> btrfs
 R 288:57 calls fs::snapshot_btrfs -> date
@@ -652,37 +652,37 @@ R 13:1 imports remote -> $REMOTE_DIR/log.sh
 R 14:1 imports remote -> $REMOTE_DIR/config.sh
 R 15:1 imports remote -> $REMOTE_DIR/fs.sh
 R 32:13 calls remote::parse_remote -> return
-R 56:13 calls remote::parse_remote -> log_error (x-file: lib/log.sh)
+R 56:13 calls remote::parse_remote -> log_error (name-matched: lib/log.sh)
 R 57:13 calls remote::parse_remote -> return
-R 60:5 calls remote::parse_remote -> log_debug (x-file: lib/log.sh)
-R 64:14 calls remote::remote_configured -> config_get (x-file: lib/config.sh)
+R 60:5 calls remote::parse_remote -> log_debug (name-matched: lib/log.sh)
+R 64:14 calls remote::remote_configured -> config_get (name-matched: lib/config.sh)
 R 64:40 calls remote::remote_configured -> parse_remote
-R 64:56 calls remote::remote_configured -> config_get (x-file: lib/config.sh)
+R 64:56 calls remote::remote_configured -> config_get (name-matched: lib/config.sh)
 R 69:5 calls remote::remote_exec -> ssh
-R 74:13 calls remote::bandwidth_args -> config_get (x-file: lib/config.sh)
+R 74:13 calls remote::bandwidth_args -> config_get (name-matched: lib/config.sh)
 R 75:23 calls remote::bandwidth_args -> printf
 R 76:5 calls remote::bandwidth_args -> return
 R 82:5 calls remote::upload_ssh -> mapfile
 R 82:26 calls remote::upload_ssh -> bandwidth_args
 R 83:5 calls remote::upload_ssh -> remote_exec
 R 83:44 calls remote::upload_ssh -> return
-R 84:5 calls remote::upload_ssh -> retry (x-file: lib/log.sh)
+R 84:5 calls remote::upload_ssh -> retry (name-matched: lib/log.sh)
 R 93:33 calls remote::upload_s3 -> basename
-R 94:9 calls remote::upload_s3 -> retry (x-file: lib/log.sh)
+R 94:9 calls remote::upload_s3 -> retry (name-matched: lib/log.sh)
 R 94:101 calls remote::upload_s3 -> return
 R 99:5 calls remote::upload_file_remote -> mkdir
 R 99:32 calls remote::upload_file_remote -> cp
 R 104:5 calls remote::upload -> remote_configured
-R 104:28 calls remote::upload -> log_info (x-file: lib/log.sh)
+R 104:28 calls remote::upload -> log_info (name-matched: lib/log.sh)
 R 104:78 calls remote::upload -> return
-R 105:8 calls remote::upload -> config_is_true (x-file: lib/config.sh)
-R 106:9 calls remote::upload -> log_info (x-file: lib/log.sh)
+R 105:8 calls remote::upload -> config_is_true (name-matched: lib/config.sh)
+R 106:9 calls remote::upload -> log_info (name-matched: lib/log.sh)
 R 107:9 calls remote::upload -> return
-R 109:5 calls remote::upload -> timer_start (x-file: lib/log.sh)
+R 109:5 calls remote::upload -> timer_start (name-matched: lib/log.sh)
 R 111:14 calls remote::upload -> upload_ssh
 R 112:13 calls remote::upload -> upload_s3
 R 113:15 calls remote::upload -> upload_file_remote
-R 116:5 calls remote::upload -> timer_stop (x-file: lib/log.sh)
+R 116:5 calls remote::upload -> timer_stop (name-matched: lib/log.sh)
 R 117:5 calls remote::upload -> return
 R 122:5 calls remote::remote_list -> remote_configured
 R 122:26 calls remote::remote_list -> return
@@ -696,26 +696,26 @@ R 134:5 calls remote::remote_prune -> mapfile
 R 134:26 calls remote::remote_prune -> remote_list
 R 134:40 calls remote::remote_prune -> sort
 R 135:34 calls remote::remote_prune -> return
-R 137:9 calls remote::remote_prune -> log_info (x-file: lib/log.sh)
+R 137:9 calls remote::remote_prune -> log_info (name-matched: lib/log.sh)
 R 139:18 calls remote::remote_prune -> remote_exec
 R 140:17 calls remote::remote_prune -> aws
 R 141:19 calls remote::remote_prune -> rm
 R 149:5 calls remote::download -> remote_configured
-R 149:26 calls remote::download -> die (x-file: lib/log.sh)
-R 151:14 calls remote::download -> retry (x-file: lib/log.sh)
+R 149:26 calls remote::download -> die (name-matched: lib/log.sh)
+R 151:14 calls remote::download -> retry (name-matched: lib/log.sh)
 R 152:13 calls remote::download -> aws
 R 153:15 calls remote::download -> cp
 R 159:5 calls remote::check_remote -> remote_configured
-R 159:28 calls remote::check_remote -> log_info (x-file: lib/log.sh)
+R 159:28 calls remote::check_remote -> log_info (name-matched: lib/log.sh)
 R 159:63 calls remote::check_remote -> return
 R 162:16 calls remote::check_remote -> remote_exec
-R 163:17 calls remote::check_remote -> log_ok (x-file: lib/log.sh)
-R 165:17 calls remote::check_remote -> log_error (x-file: lib/log.sh)
+R 163:17 calls remote::check_remote -> log_ok (name-matched: lib/log.sh)
+R 165:17 calls remote::check_remote -> log_error (name-matched: lib/log.sh)
 R 166:17 calls remote::check_remote -> return
-R 170:13 calls remote::check_remote -> require_commands (x-file: lib/log.sh)
+R 170:13 calls remote::check_remote -> require_commands (name-matched: lib/log.sh)
 R 171:13 calls remote::check_remote -> aws
-R 171:57 calls remote::check_remote -> log_ok (x-file: lib/log.sh)
-R 174:40 calls remote::check_remote -> log_ok (x-file: lib/log.sh)
+R 171:57 calls remote::check_remote -> log_ok (name-matched: lib/log.sh)
+R 174:40 calls remote::check_remote -> log_ok (name-matched: lib/log.sh)
 R 189:5 calls remote::json_escape -> printf
 R 196:23 calls remote::json_object -> json_escape
 R 196:56 calls remote::json_object -> json_escape
@@ -724,49 +724,49 @@ R 204:5 calls remote::notify_webhook -> curl
 R 211:8 calls remote::notify_mail -> command
 R 212:9 calls remote::notify_mail -> printf
 R 212:33 calls remote::notify_mail -> mail
-R 214:9 calls remote::notify_mail -> log_warn (x-file: lib/log.sh)
+R 214:9 calls remote::notify_mail -> log_warn (name-matched: lib/log.sh)
 R 215:9 calls remote::notify_mail -> return
 R 220:8 calls remote::notify_desktop -> command
 R 221:9 calls remote::notify_desktop -> notify-send
 R 222:10 calls remote::notify_desktop -> command
 R 223:9 calls remote::notify_desktop -> osascript
 R 223:48 calls remote::notify_desktop -> json_escape
-R 230:16 calls remote::notify -> config_get (x-file: lib/config.sh)
+R 230:16 calls remote::notify -> config_get (name-matched: lib/config.sh)
 R 233:20 calls remote::notify -> return
 R 235:13 calls remote::notify -> notify_webhook
 R 235:41 calls remote::notify -> json_object
 R 235:97 calls remote::notify -> hostname
-R 235:114 calls remote::notify -> timestamp (x-file: lib/log.sh)
+R 235:114 calls remote::notify -> timestamp (name-matched: lib/log.sh)
 R 238:13 calls remote::notify -> notify_mail
 R 238:56 calls remote::notify -> hostname
 R 241:13 calls remote::notify -> notify_desktop
-R 244:13 calls remote::notify -> log_warn (x-file: lib/log.sh)
-R 246:13 calls remote::notify -> log_warn (x-file: lib/log.sh)
-R 252:13 calls remote::remote_speedtest -> make_workdir (x-file: lib/fs.sh)
+R 244:13 calls remote::notify -> log_warn (name-matched: lib/log.sh)
+R 246:13 calls remote::notify -> log_warn (name-matched: lib/log.sh)
+R 252:13 calls remote::remote_speedtest -> make_workdir (name-matched: lib/fs.sh)
 R 254:5 calls remote::remote_speedtest -> head
-R 255:16 calls remote::remote_speedtest -> now_epoch (x-file: lib/log.sh)
+R 255:16 calls remote::remote_speedtest -> now_epoch (name-matched: lib/log.sh)
 R 256:5 calls remote::remote_speedtest -> upload
 R 256:23 calls remote::remote_speedtest -> return
-R 257:19 calls remote::remote_speedtest -> now_epoch (x-file: lib/log.sh)
-R 259:5 calls remote::remote_speedtest -> log_info (x-file: lib/log.sh)
-R 265:18 calls remote::remote_verify -> checksum (x-file: lib/fs.sh)
-R 265:30 calls remote::remote_verify -> config_get (x-file: lib/config.sh)
+R 257:19 calls remote::remote_speedtest -> now_epoch (name-matched: lib/log.sh)
+R 259:5 calls remote::remote_speedtest -> log_info (name-matched: lib/log.sh)
+R 265:18 calls remote::remote_verify -> checksum (name-matched: lib/fs.sh)
+R 265:30 calls remote::remote_verify -> config_get (name-matched: lib/config.sh)
 R 267:28 calls remote::remote_verify -> remote_exec
 R 267:73 calls remote::remote_verify -> cut
-R 268:29 calls remote::remote_verify -> checksum (x-file: lib/fs.sh)
-R 270:13 calls remote::remote_verify -> log_info (x-file: lib/log.sh)
+R 268:29 calls remote::remote_verify -> checksum (name-matched: lib/fs.sh)
+R 270:13 calls remote::remote_verify -> log_info (name-matched: lib/log.sh)
 R 271:13 calls remote::remote_verify -> return
-R 275:9 calls remote::remote_verify -> log_error (x-file: lib/log.sh)
+R 275:9 calls remote::remote_verify -> log_error (name-matched: lib/log.sh)
 R 276:9 calls remote::remote_verify -> return
-R 278:5 calls remote::remote_verify -> log_ok (x-file: lib/log.sh)
+R 278:5 calls remote::remote_verify -> log_ok (name-matched: lib/log.sh)
 R 284:24 calls remote::start_ssh_agent -> return
 R 285:5 calls remote::start_ssh_agent -> eval
 R 285:13 calls remote::start_ssh_agent -> ssh-agent
-R 286:5 calls remote::start_ssh_agent -> on_exit (x-file: lib/log.sh)
+R 286:5 calls remote::start_ssh_agent -> on_exit (name-matched: lib/log.sh)
 R 287:5 calls remote::start_ssh_agent -> ssh-add
-R 287:26 calls remote::start_ssh_agent -> log_warn (x-file: lib/log.sh)
-R 292:5 calls remote::notify_reliably -> retry (x-file: lib/log.sh)
+R 287:26 calls remote::start_ssh_agent -> log_warn (name-matched: lib/log.sh)
+R 292:5 calls remote::notify_reliably -> retry (name-matched: lib/log.sh)
 R 298:14 calls remote::remote_free_mb -> remote_exec
 R 298:50 calls remote::remote_free_mb -> awk
-R 299:15 calls remote::remote_free_mb -> disk_free_mb (x-file: lib/fs.sh)
+R 299:15 calls remote::remote_free_mb -> disk_free_mb (name-matched: lib/fs.sh)
 R 300:12 calls remote::remote_free_mb -> printf

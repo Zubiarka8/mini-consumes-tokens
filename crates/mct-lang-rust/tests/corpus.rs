@@ -171,7 +171,7 @@ fn cross_file_imports_and_calls_are_extracted() {
         RelationKind::Calls,
         "parse_unit",
     );
-    assert!(c.cross_file_relation_count() >= 150);
+    assert!(c.name_matched_relation_count() >= 150);
 }
 
 #[test]
