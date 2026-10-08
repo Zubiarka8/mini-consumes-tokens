@@ -27,7 +27,7 @@ pub use exclude::{
 pub use file_tree::FileTreeNode;
 pub use indexer::{
     DependencyInfo, IndexStatus, LanguageCoverage, ManifestDependencies, ReindexReport,
-    UnsupportedFile,
+    UnsupportedFile, UnsupportedKind,
 };
 pub use queries::{
     CandidateRef, QueryScope, RelationHit, Resolution, SymbolHit, SymbolListEntry, SymbolMatchMode,
