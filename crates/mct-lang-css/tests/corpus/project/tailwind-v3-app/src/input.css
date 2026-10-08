@@ -1,0 +1,147 @@
+/*
+ * Ledger dashboard — the Tailwind CSS v3.4 input stylesheet (issue #114).
+ *
+ * Scenario: an app on Tailwind v3.4, an external build dependency. This is
+ * the file the team writes; Tailwind's generated output is not in the
+ * corpus. `tailwind.config.js` (JavaScript, outside this CSS corpus) adds a
+ * `3xl: '1920px'` screen and the `brand` colors read through `theme()`.
+ * Directives and functions as documented in
+ * https://v3.tailwindcss.com/docs/functions-and-directives
+ *
+ * Parser: mct-lang-css. Expected: rules for the selectors inside `@layer`
+ * blocks (spanning their `@apply` lines), no symbol for `@tailwind`,
+ * `@apply` arguments or `theme()` paths, and escaped utility names
+ * (`.md\:flex`, `.\33xl\:grid-cols-6`) indexed as the HTML class reads.
+ *
+ * Not used because tree-sitter-css 0.25 rejects it: `@config "…";` (#116)
+ * and the documented `@media screen(md) { … }`, so breakpoints are written
+ * as `min-width` media queries.
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: theme(fontFamily.sans);
+    color: theme(colors.slate.900);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  h1 {
+    @apply text-2xl font-bold tracking-tight;
+  }
+
+  h2 {
+    @apply text-xl font-semibold;
+  }
+
+  a {
+    @apply text-brand-700 underline-offset-2 hover:underline;
+  }
+
+  [type="checkbox"]:checked {
+    background-color: theme(colors.brand.600 / 90%);
+  }
+
+  table {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply rounded-lg bg-brand-600 px-4 py-2 font-semibold text-white shadow-sm;
+    @apply hover:bg-brand-700 focus-visible:outline focus-visible:outline-2;
+  }
+
+  .btn-ghost {
+    @apply rounded-lg px-4 py-2 text-slate-700 hover:bg-slate-100 !important;
+  }
+
+  .ledger-card {
+    @apply rounded-xl border border-slate-200 bg-white p-6;
+    box-shadow: theme(boxShadow.md);
+  }
+
+  .ledger-card > .ledger-card__title {
+    @apply mb-2 text-lg font-medium;
+  }
+
+  .form-input {
+    @apply block w-full rounded-md border-slate-300 shadow-sm;
+  }
+
+  .form-input:focus {
+    @apply border-brand-500 ring-brand-500;
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs;
+  }
+
+  .badge-overdue {
+    @apply badge bg-rose-100 text-rose-800;
+  }
+
+  .stat-delta[data-trend="down"] {
+    color: theme(colors.rose.600);
+  }
+
+  .stat-delta[data-trend="up"] {
+    color: theme(colors.emerald.600);
+  }
+}
+
+@layer utilities {
+  .content-auto {
+    content-visibility: auto;
+  }
+
+  .scrollbar-hidden::-webkit-scrollbar {
+    display: none;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .bg-grid {
+    background-image: linear-gradient(theme(colors.slate.200) 1px, transparent 1px);
+    background-size: theme(spacing.6) theme(spacing.6);
+  }
+}
+
+/* The sidebar collapses below `md` (768px in the config). */
+@media (min-width: 768px) {
+  .ledger-sidebar {
+    @apply sticky top-0 h-screen w-64;
+  }
+}
+
+@media (min-width: 1024px) {
+  .ledger-sidebar {
+    @apply w-80;
+  }
+}
+
+/* Printed statements: the dashboard markup lays the KPI grid out with
+   `md:flex` and `3xl:grid-cols-6`; on paper those utilities are overridden
+   to one column. A class can't start with a digit, so `3xl:` is written
+   with the hex escape `\33`. */
+@media print {
+  .md\:flex {
+    display: block;
+  }
+
+  .\33xl\:grid-cols-6 {
+    grid-template-columns: 1fr;
+  }
+
+  .ledger-sidebar,
+  .btn-primary,
+  .btn-ghost {
+    display: none;
+  }
+}

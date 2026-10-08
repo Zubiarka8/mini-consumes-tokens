@@ -1,0 +1,141 @@
+/*
+ * Harbor Shop — the storefront's own stylesheet (issue #114).
+ *
+ * Scenario: an app built on Bootstrap 5.3.8, an external dependency loaded
+ * from its CDN build below and never copied into this tree. Every rule here
+ * is the shop's: it customizes Bootstrap through its CSS variables (global
+ * `--bs-*` on `:root`, component `--bs-btn-*`/`--bs-card-*` on the shop's
+ * own classes) and a custom color mode, as documented in
+ * https://getbootstrap.com/docs/5.3/customize/css-variables/ and
+ * https://getbootstrap.com/docs/5.3/customize/color-modes/#custom-color-modes
+ *
+ * Parser: mct-lang-css. Expected: one `imports` per `@import` below (the
+ * Bootstrap URL as written, then the three partials) and a rule per
+ * selector with its class/id/attribute atoms. Not modeled: declarations,
+ * so which `--bs-*` variable a rule sets is not in the index; Bootstrap's
+ * own classes (`.btn`, `.card`) appear only as atoms of the shop's selectors.
+ */
+
+@import url("https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css");
+@import "theme.css";
+@import "catalog.css";
+@import "checkout.css";
+
+/* ------------------------------------------------------------------ */
+/* Page shell                                                          */
+/* ------------------------------------------------------------------ */
+
+.shop-body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bs-body-bg);
+}
+
+.shop-main {
+  flex: 1 0 auto;
+  padding-block: 2rem 4rem;
+}
+
+.shop-footer {
+  padding-block: 2rem;
+  color: var(--bs-secondary-color);
+  border-top: var(--bs-border-width) solid var(--bs-border-color);
+}
+
+.shop-footer a {
+  color: inherit;
+  text-decoration-color: var(--bs-border-color);
+}
+
+/* The announcement bar above the navbar, dismissible with Bootstrap's alert. */
+.promo-bar.alert {
+  --bs-alert-padding-y: 0.5rem;
+  --bs-alert-margin-bottom: 0;
+  --bs-alert-border-radius: 0;
+  --bs-alert-bg: var(--shop-accent);
+  --bs-alert-color: var(--shop-on-accent);
+  text-align: center;
+}
+
+.promo-bar .btn-close {
+  --bs-btn-close-opacity: 0.75;
+  padding: 0.75rem;
+}
+
+/* ------------------------------------------------------------------ */
+/* Navbar                                                              */
+/* ------------------------------------------------------------------ */
+
+.navbar-shop {
+  --bs-navbar-padding-y: 0.75rem;
+  --bs-navbar-brand-font-size: 1.375rem;
+  --bs-navbar-color: var(--bs-emphasis-color);
+  --bs-navbar-hover-color: var(--shop-brand);
+  --bs-navbar-active-color: var(--shop-brand);
+  backdrop-filter: saturate(180%) blur(8px);
+  background-color: rgba(var(--bs-body-bg-rgb), 0.85);
+}
+
+.navbar-shop .navbar-brand {
+  font-family: var(--shop-font-display);
+  letter-spacing: -0.01em;
+}
+
+.navbar-shop .nav-link.active {
+  text-decoration: underline;
+  text-underline-offset: 0.5rem;
+  text-decoration-thickness: 2px;
+}
+
+.navbar-shop .cart-toggle {
+  position: relative;
+}
+
+.navbar-shop .cart-toggle .badge {
+  position: absolute;
+  top: 0;
+  right: -0.25rem;
+  --bs-badge-font-size: 0.65rem;
+}
+
+#site-search:focus-within .form-control {
+  border-color: var(--shop-brand);
+  box-shadow: 0 0 0 var(--bs-focus-ring-width) var(--bs-focus-ring-color);
+}
+
+/* ------------------------------------------------------------------ */
+/* Breakpoints: Bootstrap's grid tiers, with the same widths           */
+/* ------------------------------------------------------------------ */
+
+@media (min-width: 768px) {
+  .shop-main {
+    padding-block: 3rem 5rem;
+  }
+
+  .navbar-shop .navbar-nav {
+    gap: 0.5rem;
+  }
+}
+
+@media (min-width: 1200px) {
+  .shop-main > .container-xl {
+    display: grid;
+    grid-template-columns: 16rem 1fr;
+    gap: 2.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navbar-shop {
+    backdrop-filter: none;
+  }
+}
+
+@media print {
+  .navbar-shop,
+  .promo-bar,
+  .shop-footer {
+    display: none !important;
+  }
+}
