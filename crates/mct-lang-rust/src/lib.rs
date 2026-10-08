@@ -309,7 +309,7 @@ impl<'a> Walker<'a> {
             "const_item" | "static_item" => {
                 let id = self.push_named(node, SymbolKind::Constant, impl_type.map(str::to_string));
                 if let Some(value) = node.child_by_field_name("value") {
-                    self.visit_children(value, id, impl_type, depth + 1);
+                    self.visit(value, id, impl_type, depth + 1);
                 }
             }
             "trait_item" => {
@@ -680,6 +680,18 @@ fn is_harness_attribute(attribute_item: Node, source: &str) -> bool {
 }
 
 fn collect_use_names(node: Node, source: &str, out: &mut Vec<(String, Location)>) {
+    collect_use_names_at_depth(node, source, out, 0);
+}
+
+fn collect_use_names_at_depth(
+    node: Node,
+    source: &str,
+    out: &mut Vec<(String, Location)>,
+    depth: u32,
+) {
+    if depth >= MAX_TRAVERSAL_DEPTH {
+        return;
+    }
     match node.kind() {
         "identifier" | "type_identifier" => {
             out.push((text(node, source).to_string(), location(node)))
@@ -693,18 +705,18 @@ fn collect_use_names(node: Node, source: &str, out: &mut Vec<(String, Location)>
             if let Some(alias) = node.child_by_field_name("alias") {
                 out.push((text(alias, source).to_string(), location(alias)));
             } else if let Some(path) = node.child_by_field_name("path") {
-                collect_use_names(path, source, out);
+                collect_use_names_at_depth(path, source, out, depth + 1);
             }
         }
         "use_list" => {
             let mut cursor = node.walk();
             for child in node.named_children(&mut cursor) {
-                collect_use_names(child, source, out);
+                collect_use_names_at_depth(child, source, out, depth + 1);
             }
         }
         "scoped_use_list" => {
             if let Some(list) = node.child_by_field_name("list") {
-                collect_use_names(list, source, out);
+                collect_use_names_at_depth(list, source, out, depth + 1);
             }
         }
         _ => {}

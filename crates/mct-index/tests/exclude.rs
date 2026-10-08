@@ -67,3 +67,15 @@ fn go_non_secret_config_is_not_excluded() {
     assert!(!set.is_excluded("config/config.yaml"));
     assert!(!set.is_excluded("main.go"));
 }
+
+#[test]
+fn valid_globs_that_exceed_compiler_limits_do_not_panic() {
+    let extra = vec![format!("{}*", "[ab]".repeat(200_000))];
+    let exclusions = ExcludeSet::new(&extra);
+    assert!(
+        exclusions.is_excluded(".env"),
+        "built-in secret protection must remain"
+    );
+    assert!(exclusions.is_excluded("target/debug/app"));
+    assert!(!exclusions.is_excluded("src/lib.rs"));
+}

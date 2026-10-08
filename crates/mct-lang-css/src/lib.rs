@@ -272,6 +272,18 @@ fn unescape_css(s: &str) -> String {
 /// yields `.btn` and `.btn:hover`. See the module doc for how these
 /// combine with the full-selector name in `Walker::index_selector`.
 fn collect_selector_atoms(node: Node, source: &str, out: &mut Vec<(String, Location)>) {
+    collect_selector_atoms_at_depth(node, source, out, 0);
+}
+
+fn collect_selector_atoms_at_depth(
+    node: Node,
+    source: &str,
+    out: &mut Vec<(String, Location)>,
+    depth: u32,
+) {
+    if depth >= MAX_TRAVERSAL_DEPTH {
+        return;
+    }
     match node.kind() {
         "class_selector" => {
             let mut cursor = node.walk();
@@ -282,7 +294,7 @@ fn collect_selector_atoms(node: Node, source: &str, out: &mut Vec<(String, Locat
                         location(child),
                     ));
                 } else {
-                    collect_selector_atoms(child, source, out);
+                    collect_selector_atoms_at_depth(child, source, out, depth + 1);
                 }
             }
         }
@@ -295,7 +307,7 @@ fn collect_selector_atoms(node: Node, source: &str, out: &mut Vec<(String, Locat
                         location(child),
                     ));
                 } else {
-                    collect_selector_atoms(child, source, out);
+                    collect_selector_atoms_at_depth(child, source, out, depth + 1);
                 }
             }
         }
@@ -307,7 +319,7 @@ fn collect_selector_atoms(node: Node, source: &str, out: &mut Vec<(String, Locat
             // parses `.a .b[x]` as `[x]` applied to `.a .b`. A bare `[x]`'s
             // first child is its `attribute_name`, which adds no atom.
             if let Some(base) = node.named_child(0) {
-                collect_selector_atoms(base, source, out);
+                collect_selector_atoms_at_depth(base, source, out, depth + 1);
             }
             out.push((unescape_css(text(node, source)), location(node)));
         }
@@ -318,7 +330,7 @@ fn collect_selector_atoms(node: Node, source: &str, out: &mut Vec<(String, Locat
             // selector (`.btn` in `.btn:hover`) and the rest is the name.
             if node.named_child_count() >= 2 {
                 if let Some(base) = node.named_child(0) {
-                    collect_selector_atoms(base, source, out);
+                    collect_selector_atoms_at_depth(base, source, out, depth + 1);
                 }
             }
             out.push((unescape_css(text(node, source)), location(node)));
@@ -329,7 +341,7 @@ fn collect_selector_atoms(node: Node, source: &str, out: &mut Vec<(String, Locat
             let skip = usize::from(node.named_child_count() >= 2);
             let mut cursor = node.walk();
             for child in node.named_children(&mut cursor).skip(skip) {
-                collect_selector_atoms(child, source, out);
+                collect_selector_atoms_at_depth(child, source, out, depth + 1);
             }
         }
         "descendant_selector"
@@ -338,7 +350,7 @@ fn collect_selector_atoms(node: Node, source: &str, out: &mut Vec<(String, Locat
         | "adjacent_sibling_selector" => {
             let mut cursor = node.walk();
             for child in node.named_children(&mut cursor) {
-                collect_selector_atoms(child, source, out);
+                collect_selector_atoms_at_depth(child, source, out, depth + 1);
             }
         }
         _ => {}
