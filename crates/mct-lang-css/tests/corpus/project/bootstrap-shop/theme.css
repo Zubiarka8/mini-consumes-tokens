@@ -1,0 +1,82 @@
+/*
+ * Harbor Shop brand tokens on top of Bootstrap 5.3.8's variables.
+ *
+ * The shop sets its own `--shop-*` tokens and points Bootstrap's global
+ * variables at them; the light and dark modes Bootstrap ships keep working,
+ * and `[data-bs-theme="harbor-night"]` adds a third, the documented way to
+ * add a custom color mode.
+ */
+
+:root,
+[data-bs-theme="light"] {
+  --shop-brand: #0b6e72;
+  --shop-brand-rgb: 11, 110, 114;
+  --shop-accent: #f4b860;
+  --shop-on-accent: #3b2a0b;
+  --shop-sale: #c2410c;
+  --shop-font-display: "Fraunces", Georgia, serif;
+  --shop-radius-card: 1rem;
+
+  --bs-primary: var(--shop-brand);
+  --bs-primary-rgb: var(--shop-brand-rgb);
+  --bs-link-color: var(--shop-brand);
+  --bs-link-color-rgb: var(--shop-brand-rgb);
+  --bs-link-hover-color: #08514f;
+  --bs-border-radius: 0.5rem;
+  --bs-border-radius-lg: 0.75rem;
+  --bs-body-font-family: "Inter", system-ui, sans-serif;
+  --bs-focus-ring-color: rgba(var(--shop-brand-rgb), 0.3);
+}
+
+[data-bs-theme="dark"] {
+  --shop-brand: #5cc8c4;
+  --shop-brand-rgb: 92, 200, 196;
+  --shop-on-accent: #1d1405;
+  --bs-link-hover-color: #8fdcd9;
+}
+
+/* A third mode for the late-night sale page, with component overrides
+   nested the way Bootstrap's color-mode docs show them. */
+[data-bs-theme="harbor-night"] {
+  color-scheme: dark;
+  --shop-brand: #f4b860;
+  --shop-brand-rgb: 244, 184, 96;
+  --bs-body-color: #e6edf3;
+  --bs-body-color-rgb: 230, 237, 243;
+  --bs-body-bg: #0b1d2a;
+  --bs-body-bg-rgb: 11, 29, 42;
+  --bs-tertiary-bg: #12293a;
+  --bs-border-color: #24435a;
+
+  .dropdown-menu {
+    --bs-dropdown-bg: #12293a;
+    --bs-dropdown-link-active-bg: var(--shop-brand);
+  }
+
+  .btn-brand {
+    --bs-btn-color: #0b1d2a;
+    --bs-btn-hover-color: #0b1d2a;
+  }
+}
+
+/* Bootstrap's `.text-bg-*` helpers set both colors; the sale badge
+   follows the same pattern for the shop's own color. */
+.text-bg-sale {
+  color: #fff !important;
+  background-color: var(--shop-sale) !important;
+}
+
+.link-brand {
+  color: var(--shop-brand);
+  text-decoration-color: rgba(var(--shop-brand-rgb), 0.4);
+}
+
+.link-brand:hover,
+.link-brand:focus-visible {
+  text-decoration-color: currentColor;
+}
+
+.font-display {
+  font-family: var(--shop-font-display);
+  font-optical-sizing: auto;
+}

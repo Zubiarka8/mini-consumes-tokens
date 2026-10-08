@@ -1,0 +1,183 @@
+/*
+ * Cart and checkout: the cart offcanvas, the step indicator, the address
+ * and payment forms (Bootstrap's validation states) and the order summary.
+ */
+
+/* ------------------------------------------------------------------ */
+/* Cart offcanvas                                                      */
+/* ------------------------------------------------------------------ */
+
+#cart-offcanvas {
+  --bs-offcanvas-width: 26rem;
+}
+
+#cart-offcanvas .list-group-item {
+  display: grid;
+  grid-template-columns: 4rem 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+#cart-offcanvas .list-group-item img {
+  width: 4rem;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--bs-border-radius);
+}
+
+.qty-stepper {
+  display: inline-flex;
+  align-items: center;
+}
+
+.qty-stepper .form-control {
+  width: 3rem;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+
+.qty-stepper .form-control::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+}
+
+.cart-empty {
+  padding-block: 3rem;
+  text-align: center;
+  color: var(--bs-secondary-color);
+}
+
+/* ------------------------------------------------------------------ */
+/* Checkout steps                                                      */
+/* ------------------------------------------------------------------ */
+
+.checkout-steps {
+  counter-reset: step;
+  display: flex;
+  gap: 1rem;
+  list-style: none;
+  padding: 0;
+}
+
+.checkout-steps li {
+  counter-increment: step;
+  flex: 1;
+  padding-top: 0.75rem;
+  border-top: 3px solid var(--bs-border-color);
+  color: var(--bs-secondary-color);
+}
+
+.checkout-steps li::before {
+  content: counter(step) ". ";
+}
+
+.checkout-steps li[aria-current="step"] {
+  border-color: var(--shop-brand);
+  color: var(--bs-emphasis-color);
+  font-weight: 600;
+}
+
+.checkout-steps li.is-done {
+  border-color: rgba(var(--shop-brand-rgb), 0.4);
+}
+
+/* ------------------------------------------------------------------ */
+/* Forms                                                               */
+/* ------------------------------------------------------------------ */
+
+.checkout-form .form-floating > .form-control:focus ~ label,
+.checkout-form .form-floating > .form-control:not(:placeholder-shown) ~ label {
+  color: var(--shop-brand);
+}
+
+.checkout-form .was-validated .form-control:valid,
+.checkout-form .form-control.is-valid {
+  --bs-form-valid-border-color: var(--shop-brand);
+  background-image: none;
+}
+
+.checkout-form .form-control.is-invalid ~ .invalid-feedback {
+  font-weight: 500;
+}
+
+.payment-methods .btn-check + .btn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  text-align: start;
+}
+
+.payment-methods .btn-check:checked + .btn {
+  border-color: var(--shop-brand);
+  box-shadow: inset 0 0 0 1px var(--shop-brand);
+}
+
+#card-element {
+  padding: 0.75rem;
+  border: var(--bs-border-width) solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+}
+
+#card-element.is-focused {
+  border-color: var(--shop-brand);
+  box-shadow: 0 0 0 var(--bs-focus-ring-width) var(--bs-focus-ring-color);
+}
+
+/* ------------------------------------------------------------------ */
+/* Order summary                                                       */
+/* ------------------------------------------------------------------ */
+
+.order-summary {
+  position: sticky;
+  top: 5.5rem;
+  padding: 1.5rem;
+  background-color: var(--bs-tertiary-bg);
+  border-radius: var(--shop-radius-card);
+}
+
+.order-summary dl {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  row-gap: 0.5rem;
+  margin: 0;
+}
+
+.order-summary dd {
+  margin: 0;
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.order-summary .order-total {
+  font-size: 1.25rem;
+  font-weight: 700;
+  border-top: var(--bs-border-width) solid var(--bs-border-color);
+  padding-top: 0.75rem;
+}
+
+.order-summary .promo-code .input-group > .btn {
+  --bs-btn-padding-x: 1rem;
+}
+
+@media (max-width: 767.98px) {
+  .order-summary {
+    position: static;
+    margin-top: 2rem;
+  }
+
+  .checkout-steps li {
+    font-size: 0.875rem;
+  }
+}
+
+@media print {
+  #cart-offcanvas,
+  .payment-methods {
+    display: none !important;
+  }
+
+  .order-summary {
+    position: static;
+    background: none;
+  }
+}

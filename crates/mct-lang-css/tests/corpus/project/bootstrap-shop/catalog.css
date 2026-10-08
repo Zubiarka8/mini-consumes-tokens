@@ -1,0 +1,206 @@
+/*
+ * Catalog pages: filters, product grid, product cards and the quick view.
+ * Markup uses Bootstrap's grid (`.row-cols-*`), `.card`, `.btn`, `.badge`,
+ * `.offcanvas` and `.modal`; the shop's classes add to them.
+ */
+
+/* ------------------------------------------------------------------ */
+/* Brand button: a variant built from Bootstrap's button variables      */
+/* ------------------------------------------------------------------ */
+
+.btn-brand {
+  --bs-btn-color: #fff;
+  --bs-btn-bg: var(--shop-brand);
+  --bs-btn-border-color: var(--shop-brand);
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: #095b5e;
+  --bs-btn-hover-border-color: #095b5e;
+  --bs-btn-focus-shadow-rgb: var(--shop-brand-rgb);
+  --bs-btn-active-bg: #074a4c;
+  --bs-btn-active-border-color: #074a4c;
+  --bs-btn-disabled-bg: var(--shop-brand);
+  --bs-btn-disabled-border-color: var(--shop-brand);
+}
+
+.btn-brand.btn-lg {
+  --bs-btn-padding-x: 1.75rem;
+  --bs-btn-font-weight: 600;
+}
+
+.btn-check:checked + .btn-outline-brand,
+.btn-outline-brand.active {
+  color: #fff;
+  background-color: var(--shop-brand);
+  border-color: var(--shop-brand);
+}
+
+.btn-outline-brand {
+  --bs-btn-color: var(--shop-brand);
+  --bs-btn-border-color: var(--shop-brand);
+  --bs-btn-hover-bg: var(--shop-brand);
+  --bs-btn-hover-color: #fff;
+}
+
+/* ------------------------------------------------------------------ */
+/* Filters sidebar                                                     */
+/* ------------------------------------------------------------------ */
+
+.catalog-filters {
+  position: sticky;
+  top: 5.5rem;
+  align-self: start;
+}
+
+.catalog-filters .accordion {
+  --bs-accordion-border-width: 0;
+  --bs-accordion-btn-padding-x: 0;
+  --bs-accordion-body-padding-x: 0;
+  --bs-accordion-active-bg: transparent;
+  --bs-accordion-btn-focus-box-shadow: none;
+}
+
+.catalog-filters .accordion-button:not(.collapsed) {
+  color: var(--shop-brand);
+}
+
+.catalog-filters .form-check-input:checked {
+  background-color: var(--shop-brand);
+  border-color: var(--shop-brand);
+}
+
+.price-range output {
+  font-variant-numeric: tabular-nums;
+}
+
+.filter-chips .badge {
+  --bs-badge-padding-x: 0.75rem;
+  --bs-badge-font-weight: 500;
+  cursor: pointer;
+}
+
+.filter-chips .badge:hover .bi-x {
+  opacity: 1;
+}
+
+/* Below `lg` the filters move into an offcanvas panel. */
+@media (max-width: 991.98px) {
+  .catalog-filters {
+    position: static;
+  }
+
+  #filters-offcanvas .offcanvas-body {
+    padding-top: 0;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Product grid and card                                               */
+/* ------------------------------------------------------------------ */
+
+.product-grid {
+  --bs-gutter-y: 2rem;
+}
+
+.product-card.card {
+  --bs-card-border-width: 0;
+  --bs-card-border-radius: var(--shop-radius-card);
+  --bs-card-inner-border-radius: var(--shop-radius-card);
+  --bs-card-spacer-y: 0.75rem;
+  --bs-card-spacer-x: 0;
+  --bs-card-bg: transparent;
+  height: 100%;
+}
+
+.product-card .card-img-top {
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  background-color: var(--bs-tertiary-bg);
+  transition: transform 200ms ease;
+}
+
+.product-card:hover .card-img-top,
+.product-card:focus-within .card-img-top {
+  transform: scale(1.02);
+}
+
+.product-card .card-title {
+  font-family: var(--shop-font-display);
+  font-size: 1.05rem;
+  margin-bottom: 0.25rem;
+}
+
+.product-card .stretched-link:focus-visible {
+  outline: none;
+}
+
+.product-card .stretched-link:focus-visible::after {
+  outline: 2px solid var(--shop-brand);
+  outline-offset: 4px;
+  border-radius: var(--shop-radius-card);
+}
+
+.product-card .badge.text-bg-sale {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+}
+
+.price {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.price del {
+  color: var(--bs-secondary-color);
+  font-weight: 400;
+  margin-inline-start: 0.5rem;
+}
+
+.price[data-on-sale="true"] {
+  color: var(--shop-sale);
+}
+
+.rating {
+  --star-size: 0.875rem;
+  display: inline-flex;
+  gap: 0.125rem;
+  color: var(--shop-accent);
+}
+
+.rating .bi-star {
+  color: var(--bs-border-color);
+}
+
+/* Out-of-stock cards fade but stay readable. */
+.product-card[aria-disabled="true"] {
+  opacity: 0.6;
+}
+
+.product-card[aria-disabled="true"] .btn-brand {
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* Quick view modal                                                    */
+/* ------------------------------------------------------------------ */
+
+#quick-view .modal-content {
+  --bs-modal-border-radius: var(--shop-radius-card);
+  overflow: hidden;
+}
+
+#quick-view .carousel-indicators [data-bs-target] {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+}
+
+#quick-view .size-picker .btn-check:disabled + .btn {
+  text-decoration: line-through;
+}
+
+@media (min-width: 992px) {
+  #quick-view .modal-dialog {
+    --bs-modal-width: 960px;
+  }
+}
