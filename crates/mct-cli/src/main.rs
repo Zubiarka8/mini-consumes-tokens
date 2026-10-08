@@ -436,7 +436,6 @@ fn gitignore_init(root: &Path) -> anyhow::Result<()> {
     println!("Added `.mct-index/` to {}", display_path(&path));
     Ok(())
 }
-
 /// Writes `mct_index::find_dead_code_candidates`'s result to a CSV file: one
 /// row per candidate with the project root, its file, name, kind, language,
 /// and start/end line — the same fields stored in `SymbolListEntry`, the
