@@ -1,0 +1,108 @@
+{
+  "commit": "c06ab5c",
+  "answer_rule": "End your reply with exactly one line that starts with `ANSWER:` and holds only the requested answer.",
+  "tasks": [
+    {
+      "id": "locate-definition",
+      "category": "locate a function",
+      "prompt": "Where is the function defined that computes the Shannon entropy used to detect secrets in string literals? Answer with path:line of its definition.",
+      "expect": [
+        "crates/mct-core/src/literal\\.rs:8[5-7]"
+      ],
+      "only_expected_paths": true
+    },
+    {
+      "id": "find-call-sites",
+      "category": "references and calls",
+      "prompt": "List every call site of the method `LanguageRegistry::for_extension` in the whole workspace, tests included, as path:line entries separated by commas.",
+      "expect": [
+        "crates/mct-cli/src/main\\.rs:667",
+        "crates/mct-cli/src/main\\.rs:731",
+        "crates/mct-cli/src/main\\.rs:732",
+        "crates/mct-index/src/indexer\\.rs:298",
+        "crates/mct-mcp-server/tests/omni_fixture\\.rs:150"
+      ],
+      "notes": "Ground truth from the compiler: #[deprecated] on the method, then `cargo check --workspace --all-targets`. Two of the five sites are inside assert_eq! arguments.",
+      "only_expected_paths": true
+    },
+    {
+      "id": "understand-implementation",
+      "category": "understand an implementation",
+      "prompt": "Under exactly which conditions does `prose_literal` reject a literal because it holds a secret? In the ANSWER line, join the conditions with ` AND ` or ` OR ` as they actually combine, and write each numeric condition as `<quantity> <operator> <threshold>` with one of `>=`, `>`, `<=`, `<`, `==`.",
+      "expect": [
+        "(?i)(length|len|chars?|characters)\\w*\\s*>=\\s*20\\b",
+        "(?i)digit",
+        "(?i)entropy\\w*\\s*>=\\s*3\\.5\\b"
+      ],
+      "absent": [
+        "(?i)\\bOR\\b"
+      ],
+      "reference_answer": "token length >= 20 AND contains an ASCII digit AND Shannon entropy >= 3.5",
+      "notes": "Keyword grading cannot check that the conditions apply per whitespace-separated token; read the recorded answer."
+    },
+    {
+      "id": "change-impact",
+      "category": "impact of a change",
+      "prompt": "If the signature of `mct_core::literal::prose_literal` changed, which files would have to be edited for the whole workspace, tests included, to compile again? List only the file paths, separated by commas.",
+      "expect": [
+        "crates/mct-core/src/lib\\.rs",
+        "crates/mct-core/src/literal\\.rs"
+      ],
+      "absent": [
+        "mct-lang-",
+        "mct-index",
+        "mct-mcp-server",
+        "mct-cli"
+      ],
+      "notes": "Ground truth from the compiler, same method as find-call-sites.",
+      "only_expected_paths": true
+    },
+    {
+      "id": "locate-bug",
+      "category": "locate a bug",
+      "prompt": "`cargo test -p mct-core` fails in `drops_literals_holding_a_secret`. Find the root cause without editing any file. Answer with path:line of the faulty line.",
+      "setup": [
+        {
+          "file": "crates/mct-core/src/literal.rs",
+          "old": "-p * p.log2()",
+          "new": "-p * p.ln()"
+        }
+      ],
+      "expect": [
+        "crates/mct-core/src/literal\\.rs:99"
+      ],
+      "unchanged": [
+        "crates/mct-core/src/literal.rs"
+      ],
+      "only_expected_paths": true
+    },
+    {
+      "id": "fix-with-tests",
+      "category": "small change with tests",
+      "prompt": "`cargo test -p mct-core` fails. Fix the bug in the library code, not in the tests, and make the tests pass. Briefly say what you changed.",
+      "setup": [
+        {
+          "file": "crates/mct-core/src/literal.rs",
+          "old": "if self.literals.len() >= MAX_LITERALS_PER_FILE {",
+          "new": "if self.literals.len() > MAX_LITERALS_PER_FILE {"
+        }
+      ],
+      "check": {
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "mct-core",
+          "--lib",
+          "--locked",
+          "--offline"
+        ],
+        "stdout_contains": [
+          "test literal::tests::collector_dedupes_and_caps ... ok",
+          "test result: ok. 5 passed"
+        ],
+        "tests_unchanged": "crates/mct-core/src/literal.rs"
+      }
+    }
+  ]
+}
