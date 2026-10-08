@@ -21,6 +21,7 @@ script names and flags wherever both exist:
 | `pr-body.sh [file]` | A PR description draft whose Verification section is copied from the last `check.sh` run and whose token figures come from the last `token-report.sh` run, so the numbers are not written from memory. Runs nothing. Warns when a log is from another commit than HEAD, from a dirty tree, or from a partial `check.sh` run. Default output: `target/script-logs/pr-body.md`. |
 | `branch-worktree.sh <branch> [base]` | A new branch in its own worktree, cut from `origin/main` (or `base`), in a sibling directory of this checkout. Fetches origin first, refuses an existing branch or path, and prints the directory to `cd` into. |
 | `branches-status.sh [--all]` | What hasn't reached origin: local branches with commits missing from their upstream (or from every remote branch, when they have no upstream), diverged branches, worktrees with uncommitted changes, and stashes. Each branch line shows how many commits are new relative to `main`. Only `git fetch` touches the remote. `--all` lists every branch. |
+| `pr-conflicts.sh [--pr <number>] [--no-fetch]` | Fetches origin once, queries open PRs and CI once, and computes merges without changing the checkout. Reports conflicting files, overlap between PRs, divergence and PRs whose merged tree adds nothing to the base. Logs exact base/head revisions in `target/script-logs/pr-conflicts.json`. `--prepare <number> --worktree <new-path>` creates a new branch/worktree and starts a merge for manual review; it never commits, pushes or closes PRs. Python 3.9+ and authenticated `gh` required. Exit 0: no conflicts, 1: conflicts found (including a prepared conflicted merge), 2: usage/tool error. Windows: `scripts/windows/pr-conflicts.ps1`, same flags. |
 | `publish-branch.sh <branch> [--title <t>] [--dry-run]` | Pushes a local branch to origin and opens a PR against `main`. Fast-forward only: refuses when the push would need a force, and when the branch has nothing new relative to `main`. Pushes only when a PR is already open. Uses the branch's upstream name when it is on origin, otherwise the same name. The PR body lists the commits and ends with the Claude Code footer. Needs `gh`. `--dry-run` shows the plan without pushing. |
 | `reinstall.sh` | `cargo install` of `mct-mcp-server` and `mct-cli` from this checkout, rebuilds `.mct-index/index.sqlite3` if its schema is newer than the checkout's, then runs `mcp-smoke.sh`. `--reindex` to always rebuild, `--semantic` for `--features semantic`, `--server-only`. Run it after switching branches or merging a server change, then `/mcp`. |
 | `mcp-smoke.sh` | Starts the server over stdio, sends `initialize` + `tools/list`, reports the tool count or the real startup error behind Claude Code's `CONNECTION_CLOSED`. `--dev` for a fresh `target/debug` build, `--expect <tool>` to assert a tool is listed, `--list`. |
@@ -35,6 +36,18 @@ script names and flags wherever both exist:
 | `install-hooks.sh` | Installs the git hooks under `hooks/` (copied, so they survive checking out older branches; re-run to update, `--uninstall` to remove). Today one: `post-checkout`, which on a branch switch that changes the index schema's migration count rebuilds `.mct-index/index.sqlite3` if it's now newer than the installed binaries (the `CONNECTION_CLOSED` failure) and says how to serve the branch. Silent otherwise; `MCT_SKIP_HOOKS=1` skips it. |
 
 ### Installer regression
+
+Run `python3 scripts/unix/tests/test_pr_conflicts.py` to verify conflict detection,
+redundant changes, stale-head rejection and isolated merge preparation using
+temporary Git repositories. No network access is required.
+
+For conflict recovery, use short-lived branches and sequence PRs that edit the
+same files. Update a published branch by merging its current base when history
+must be preserved, review both sides, regenerate snapshots from the combined
+code, and run `check.sh` before a normal fast-forward push. Close a redundant
+PR after verifying its changes are already incorporated. The report and prepare
+mode automate diagnosis and isolation; semantic resolution remains a reviewed
+change. See [GitHub's conflict guidance](https://docs.github.com/en/pull-requests/reference/merge-conflicts).
 
 Run `python3 scripts/unix/tests/test_install.py` (Python 3) to exercise
 `install.sh` against a local release fixture. It verifies both executables
