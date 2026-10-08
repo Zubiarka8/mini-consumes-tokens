@@ -454,3 +454,32 @@ fn std_imports_are_external_and_crate_imports_are_not() {
         vec![("HashMap".to_string(), true), ("Index".to_string(), false)]
     );
 }
+
+#[test]
+fn constant_and_static_initializers_record_the_root_call() {
+    let parsed = parse("const fn helper()->u32{1} const X:u32=helper(); static Y:u32=helper();");
+    for name in ["X", "Y"] {
+        let id = parsed.symbols.iter().find(|s| s.name == name).unwrap().id;
+        assert!(parsed
+            .relations
+            .iter()
+            .any(|r| r.from == id && r.kind == RelationKind::Calls && r.to_name == "helper"));
+    }
+}
+
+#[test]
+fn deeply_nested_use_lists_do_not_overflow_a_small_stack() {
+    std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(|| {
+            let source = format!("use {}leaf{};", "a::{".repeat(8000), "}".repeat(8000));
+            let parsed = parse(&source);
+            assert!(
+                parsed.relations.is_empty(),
+                "over-depth subtree should be pruned"
+            );
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}

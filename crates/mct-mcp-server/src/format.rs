@@ -694,6 +694,85 @@ fn candidate_list(hit: &RelationHit) -> String {
     list.join(", ")
 }
 
+fn page_count(page: &mct_index::RelationPage) -> String {
+    match page.total {
+        Some(total) => total.to_string(),
+        None => format!(
+            "At least {}",
+            page.offset
+                .saturating_add(page.hits.len())
+                .saturating_add(usize::from(page.has_more))
+        ),
+    }
+}
+
+fn page_note(page: &mct_index::RelationPage) -> String {
+    match page.total {
+        Some(total) => truncation_note(total, page.offset, page.hits.len()),
+        None => format!(" (showing {} starting at offset {}, more available — total not computed; pass limit/offset to continue)", page.hits.len(), page.offset),
+    }
+}
+
+/// Render a page without mistaking a bounded traversal prefix for its total.
+pub fn relation_page_hits(
+    subject: &str,
+    label: &str,
+    page: &mct_index::RelationPage,
+    toon: bool,
+) -> String {
+    if toon {
+        relation_hits_toon_impl(subject, label, &page.hits, 0, usize::MAX, Some(page))
+    } else {
+        relation_hits_impl(subject, label, &page.hits, 0, usize::MAX, Some(page))
+    }
+}
+
+/// Each impact section is filtered before its own page is selected.
+pub fn impact_pages(
+    symbol: &str,
+    callers: &mct_index::RelationPage,
+    references: &mct_index::RelationPage,
+    tests: &mct_index::RelationPage,
+    toon: bool,
+) -> String {
+    let tests_refs: Vec<_> = tests.hits.iter().collect();
+    let pages = Some([callers, references, tests]);
+    if toon {
+        impact_analysis_toon_impl(
+            symbol,
+            &callers.hits,
+            &references.hits,
+            &tests_refs,
+            0,
+            usize::MAX,
+            pages,
+        )
+    } else {
+        impact_analysis_impl(
+            symbol,
+            &callers.hits,
+            &references.hits,
+            &tests_refs,
+            0,
+            usize::MAX,
+            pages,
+        )
+    }
+}
+
+fn page_list_note(page: &mct_index::RelationPage, shown: usize, body: &BudgetedList) -> String {
+    if let Some(total) = page.total {
+        list_note(total, page.offset, shown, body)
+    } else if body.dropped > 0 {
+        format!(
+            "{} (response byte budget reached — narrow or page)",
+            page_note(page)
+        )
+    } else {
+        page_note(page)
+    }
+}
+
 pub fn relation_hits(
     subject: &str,
     verb_label: &str,
@@ -701,10 +780,22 @@ pub fn relation_hits(
     offset: usize,
     limit: usize,
 ) -> String {
-    if hits.is_empty() {
+    relation_hits_impl(subject, verb_label, hits, offset, limit, None)
+}
+
+fn relation_hits_impl(
+    subject: &str,
+    verb_label: &str,
+    hits: &[RelationHit],
+    offset: usize,
+    limit: usize,
+    page: Option<&mct_index::RelationPage>,
+) -> String {
+    if hits.is_empty() && page.is_none_or(|p| p.total == Some(0)) {
         return format!("No {verb_label} found for `{subject}`.");
     }
     let total = hits.len();
+    let count = page.map_or_else(|| total.to_string(), page_count);
     let shown = paginate(hits, offset, limit);
     let mut body = BudgetedList::new(DEFAULT_BYTE_BUDGET);
     for hit in shown {
@@ -722,9 +813,12 @@ pub fn relation_hits(
         ));
     }
     format!(
-        "{total} {}{}:\n{}",
+        "{count} {}{}:\n{}",
         verb_label,
-        list_note(total, offset, shown.len(), &body),
+        page.map_or_else(
+            || list_note(total, offset, shown.len(), &body),
+            |p| page_list_note(p, shown.len(), &body)
+        ),
         body.body
     )
 }
@@ -741,15 +835,27 @@ pub fn relation_hits_toon(
     offset: usize,
     limit: usize,
 ) -> String {
-    if hits.is_empty() {
+    relation_hits_toon_impl(subject, verb_label, hits, offset, limit, None)
+}
+
+fn relation_hits_toon_impl(
+    subject: &str,
+    verb_label: &str,
+    hits: &[RelationHit],
+    offset: usize,
+    limit: usize,
+    page: Option<&mct_index::RelationPage>,
+) -> String {
+    if hits.is_empty() && page.is_none_or(|p| p.total == Some(0)) {
         return format!("No {verb_label} found for `{subject}`.");
     }
     let total = hits.len();
+    let count = page.map_or_else(|| total.to_string(), page_count);
     let shown = paginate(hits, offset, limit);
     let rows: Vec<Vec<String>> = shown.iter().map(relation_hit_row).collect();
     format!(
-        "{total} {verb_label}{}:\n{}",
-        truncation_note(total, offset, shown.len()),
+        "{count} {verb_label}{}:\n{}",
+        page.map_or_else(|| truncation_note(total, offset, shown.len()), page_note),
         encode_table(
             "relations",
             &[
@@ -794,15 +900,37 @@ pub fn impact_analysis(
     offset: usize,
     limit: usize,
 ) -> String {
+    impact_analysis_impl(
+        symbol,
+        callers,
+        references,
+        affected_tests,
+        offset,
+        limit,
+        None,
+    )
+}
+
+fn impact_analysis_impl(
+    symbol: &str,
+    callers: &[RelationHit],
+    references: &[RelationHit],
+    affected_tests: &[&RelationHit],
+    offset: usize,
+    limit: usize,
+    pages: Option<[&mct_index::RelationPage; 3]>,
+) -> String {
+    let count =
+        |i: usize, total: usize| pages.map_or_else(|| total.to_string(), |p| page_count(p[i]));
     let mut out = format!("Impact analysis for `{symbol}`:\n");
-    out.push_str(&format!("  {} direct caller(s)\n", callers.len()));
+    out.push_str(&format!("  {} direct caller(s)\n", count(0, callers.len())));
     out.push_str(&format!(
         "  {} reference(s) total (calls/imports/extends/implements/plain)\n",
-        references.len()
+        count(1, references.len())
     ));
     out.push_str(&format!(
         "  {} likely affected test(s)\n",
-        affected_tests.len()
+        count(2, affected_tests.len())
     ));
 
     // Each section below is paginated independently against the same
@@ -821,7 +949,7 @@ pub fn impact_analysis(
     .count();
     let section_budget = DEFAULT_BYTE_BUDGET / populated.max(1);
 
-    if !affected_tests.is_empty() {
+    if !affected_tests.is_empty() || pages.is_some_and(|p| p[2].total != Some(0)) {
         let shown = paginate(affected_tests, offset, limit);
         let mut body = BudgetedList::new(section_budget);
         for hit in shown {
@@ -837,12 +965,15 @@ pub fn impact_analysis(
         }
         out.push_str(&format!(
             "\nLikely affected tests{}:\n{}",
-            list_note(affected_tests.len(), offset, shown.len(), &body),
+            pages.map_or_else(
+                || list_note(affected_tests.len(), offset, shown.len(), &body),
+                |p| page_list_note(p[2], shown.len(), &body)
+            ),
             body.body
         ));
     }
 
-    if !callers.is_empty() {
+    if !callers.is_empty() || pages.is_some_and(|p| p[0].total != Some(0)) {
         let shown = paginate(callers, offset, limit);
         let mut body = BudgetedList::new(section_budget);
         for hit in shown {
@@ -859,12 +990,15 @@ pub fn impact_analysis(
         }
         out.push_str(&format!(
             "\nDirect callers{}:\n{}",
-            list_note(callers.len(), offset, shown.len(), &body),
+            pages.map_or_else(
+                || list_note(callers.len(), offset, shown.len(), &body),
+                |p| page_list_note(p[0], shown.len(), &body)
+            ),
             body.body
         ));
     }
 
-    if !references.is_empty() {
+    if !references.is_empty() || pages.is_some_and(|p| p[1].total != Some(0)) {
         let shown = paginate(references, offset, limit);
         let mut body = BudgetedList::new(section_budget);
         for hit in shown {
@@ -883,12 +1017,15 @@ pub fn impact_analysis(
         }
         out.push_str(&format!(
             "\nAll references{}:\n{}",
-            list_note(references.len(), offset, shown.len(), &body),
+            pages.map_or_else(
+                || list_note(references.len(), offset, shown.len(), &body),
+                |p| page_list_note(p[1], shown.len(), &body)
+            ),
             body.body
         ));
     }
 
-    if callers.is_empty() && references.is_empty() {
+    if callers.is_empty() && references.is_empty() && pages.is_none_or(|p| p[1].total == Some(0)) {
         out.push_str("\nNothing else in the index references this symbol.\n");
     }
     out
@@ -905,15 +1042,37 @@ pub fn impact_analysis_toon(
     offset: usize,
     limit: usize,
 ) -> String {
+    impact_analysis_toon_impl(
+        symbol,
+        callers,
+        references,
+        affected_tests,
+        offset,
+        limit,
+        None,
+    )
+}
+
+fn impact_analysis_toon_impl(
+    symbol: &str,
+    callers: &[RelationHit],
+    references: &[RelationHit],
+    affected_tests: &[&RelationHit],
+    offset: usize,
+    limit: usize,
+    pages: Option<[&mct_index::RelationPage; 3]>,
+) -> String {
+    let count =
+        |i: usize, total: usize| pages.map_or_else(|| total.to_string(), |p| page_count(p[i]));
     let mut out = format!("Impact analysis for `{symbol}`:\n");
-    out.push_str(&format!("  {} direct caller(s)\n", callers.len()));
+    out.push_str(&format!("  {} direct caller(s)\n", count(0, callers.len())));
     out.push_str(&format!(
         "  {} reference(s) total (calls/imports/extends/implements/plain)\n",
-        references.len()
+        count(1, references.len())
     ));
     out.push_str(&format!(
         "  {} likely affected test(s)\n",
-        affected_tests.len()
+        count(2, affected_tests.len())
     ));
 
     let headers = [
@@ -930,37 +1089,46 @@ pub fn impact_analysis_toon(
         "targets",
     ];
 
-    if !affected_tests.is_empty() {
+    if !affected_tests.is_empty() || pages.is_some_and(|p| p[2].total != Some(0)) {
         let shown = paginate(affected_tests, offset, limit);
         let rows: Vec<Vec<String>> = shown.iter().map(|hit| relation_hit_row(hit)).collect();
         out.push_str(&format!(
             "\nLikely affected tests{}:\n{}",
-            truncation_note(affected_tests.len(), offset, shown.len()),
+            pages.map_or_else(
+                || truncation_note(affected_tests.len(), offset, shown.len()),
+                |p| page_note(p[2])
+            ),
             encode_table("tests", &headers, &rows)
         ));
     }
 
-    if !callers.is_empty() {
+    if !callers.is_empty() || pages.is_some_and(|p| p[0].total != Some(0)) {
         let shown = paginate(callers, offset, limit);
         let rows: Vec<Vec<String>> = shown.iter().map(relation_hit_row).collect();
         out.push_str(&format!(
             "\nDirect callers{}:\n{}",
-            truncation_note(callers.len(), offset, shown.len()),
+            pages.map_or_else(
+                || truncation_note(callers.len(), offset, shown.len()),
+                |p| page_note(p[0])
+            ),
             encode_table("callers", &headers, &rows)
         ));
     }
 
-    if !references.is_empty() {
+    if !references.is_empty() || pages.is_some_and(|p| p[1].total != Some(0)) {
         let shown = paginate(references, offset, limit);
         let rows: Vec<Vec<String>> = shown.iter().map(relation_hit_row).collect();
         out.push_str(&format!(
             "\nAll references{}:\n{}",
-            truncation_note(references.len(), offset, shown.len()),
+            pages.map_or_else(
+                || truncation_note(references.len(), offset, shown.len()),
+                |p| page_note(p[1])
+            ),
             encode_table("references", &headers, &rows)
         ));
     }
 
-    if callers.is_empty() && references.is_empty() {
+    if callers.is_empty() && references.is_empty() && pages.is_none_or(|p| p[1].total == Some(0)) {
         out.push_str("\nNothing else in the index references this symbol.\n");
     }
     out
@@ -1476,6 +1644,15 @@ pub fn index_status(status: &IndexStatus, verbose_dependencies: bool) -> String 
         ));
         for err in &status.syntax_errors {
             out.push_str(&format!("  {}: {}\n", err.relative_path, err.detail));
+        }
+    }
+    if !status.read_failures.is_empty() {
+        out.push_str(&format!(
+            "{} path(s) could not be read; last-good index data may be stale:\n",
+            status.read_failures.len()
+        ));
+        for error in &status.read_failures {
+            out.push_str(&format!("  {}: {}\n", error.relative_path, error.detail));
         }
     }
     if !status.dependencies.is_empty() {

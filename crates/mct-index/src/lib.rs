@@ -10,6 +10,7 @@ mod file_tree;
 mod indexer;
 mod manifests;
 mod queries;
+mod read_limits;
 mod schema;
 mod search;
 mod semantic;
@@ -30,9 +31,10 @@ pub use indexer::{
     UnsupportedFile, UnsupportedKind,
 };
 pub use queries::{
-    CandidateRef, QueryScope, RelationHit, Resolution, SymbolHit, SymbolListEntry, SymbolMatchMode,
-    SHOWN_CANDIDATES,
+    CandidateRef, QueryScope, RelationDirection, RelationHit, RelationPage, Resolution, SymbolHit,
+    SymbolListEntry, SymbolMatchMode, SHOWN_CANDIDATES,
 };
+pub use read_limits::{read_repository_file, DEFAULT_MAX_FILE_BYTES, MAX_FILE_BYTES_ENV};
 pub use search::{exact_phrase, search_words, split_identifier, LiteralHit, MAX_LITERAL_HITS};
 pub use semantic::{
     classify_query, embedding_text, Embedder, EmbeddingCoverage, HybridHit, PendingEmbeddings,
@@ -609,6 +611,109 @@ impl Index {
             bfs_budget(depth, limit, offset),
             self.resolve_scope(scope),
         )
+    }
+
+    /// Bounded relation page used by tools. Direct queries count in SQL;
+    /// multihop queries fetch one extra hit and report an unknown total
+    /// while more hits exist. Legacy BFS methods still return prefixes.
+    pub fn relation_page(
+        &self,
+        name: &str,
+        direction: RelationDirection,
+        depth: u32,
+        window: (usize, usize),
+        scope: QueryScope<'_>,
+    ) -> Result<RelationPage> {
+        let (limit, offset) = window;
+        let scope = self.resolve_scope(scope);
+        if depth <= 1 {
+            let start = if matches!(direction, RelationDirection::Calls) {
+                None
+            } else {
+                Some(traversal::scoped_start(self, name, scope)?)
+            };
+            return queries::direct_relation_page(
+                &self.conn,
+                direction,
+                name,
+                scope,
+                start.as_deref(),
+                limit,
+                offset,
+            );
+        }
+        let budget = offset.saturating_add(limit);
+        let sentinel = budget.saturating_add(1);
+        let hits = match direction {
+            RelationDirection::Calls => {
+                traversal::find_calls_bfs(self, name, depth, sentinel, scope)?
+            }
+            RelationDirection::Callers => {
+                traversal::find_callers_bfs(self, name, depth, sentinel, scope)?
+            }
+            RelationDirection::References => {
+                traversal::find_references_bfs(self, name, depth, sentinel, scope)?
+            }
+        };
+        let has_more = hits.len() > budget;
+        let total = (!has_more).then_some(hits.len());
+        Ok(RelationPage {
+            hits: hits.into_iter().skip(offset).take(limit).collect(),
+            total,
+            has_more,
+            offset,
+        })
+    }
+
+    /// Tests are filtered and deduplicated before their own page is cut.
+    /// Increase the reference prefix only when non-test hits consumed it.
+    pub fn affected_test_page(
+        &self,
+        name: &str,
+        depth: u32,
+        window: (usize, usize),
+        scope: QueryScope<'_>,
+    ) -> Result<RelationPage> {
+        let (limit, offset) = window;
+        let needed = offset.saturating_add(limit).saturating_add(1);
+        let mut budget = needed.max(64);
+        loop {
+            let refs = traversal::find_references_bfs(
+                self,
+                name,
+                depth,
+                budget,
+                self.resolve_scope(scope),
+            )?;
+            let exhausted = refs.len() < budget || budget == usize::MAX;
+            let mut seen = std::collections::HashSet::new();
+            let mut tests: Vec<_> = refs
+                .into_iter()
+                .filter(|h| looks_like_test_name(&h.from_symbol, &h.relative_path))
+                .filter(|h| seen.insert(h.from_symbol_id))
+                .collect();
+            // File-root modules in test paths own imports, but they are
+            // not executable tests. Keep distinct callable identities.
+            let ids: Vec<_> = tests.iter().map(|hit| hit.from_symbol_id).collect();
+            let modules: std::collections::HashSet<_> = self
+                .symbols_by_ids(&ids)?
+                .into_iter()
+                .filter(|symbol| symbol.kind == "module")
+                .map(|symbol| symbol.id)
+                .collect();
+            tests.retain(|hit| !modules.contains(&hit.from_symbol_id));
+            if tests.len() >= needed || exhausted {
+                let total = exhausted.then_some(tests.len());
+                let has_more = tests.len() > offset.saturating_add(limit);
+                return Ok(RelationPage {
+                    hits: tests.into_iter().skip(offset).take(limit).collect(),
+                    total,
+                    has_more,
+                    offset,
+                });
+            }
+            budget = budget.saturating_mul(2);
+        }
     }
 
     /// Lists symbol definitions under `path` (a single file or a
