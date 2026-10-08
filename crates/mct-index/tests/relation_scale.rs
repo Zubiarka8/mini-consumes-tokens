@@ -26,7 +26,23 @@ use mct_core::{
     Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolKind, SymbolRecord,
     SymbolRelation,
 };
-use mct_index::{ExcludeSet, Index, RelationHit, Resolution};
+use mct_index::{
+    ExcludeSet, Index, QueryScope, RelationDirection, RelationHit, RelationPage, Resolution,
+};
+
+/// The bounded page `relation_page` returns for one direction, depth and window.
+fn page(
+    index: &Index,
+    direction: RelationDirection,
+    name: &str,
+    depth: u32,
+    (limit, offset): (usize, usize),
+    scope: QueryScope<'_>,
+) -> RelationPage {
+    index
+        .relation_page(name, direction, depth, (limit, offset), scope)
+        .unwrap()
+}
 
 /// `fn NAME [calls CALLEE...]` per line; every callee is a separate `calls`
 /// relation on that same line (distinct columns), which is what makes
@@ -269,14 +285,18 @@ fn same_path_and_line_ties_order_by_column_then_relation_id() {
     }
 }
 
-#[test]
-fn a_long_chain_with_a_cycle_respects_depth_and_budget() {
-    // c0 -> c1 -> ... -> c9 -> c0, plus fan-out at every node.
+/// `c0 -> c1 -> ... -> c9 -> c0`, plus fan-out at every node.
+fn chain_index() -> Index {
     let mut body = String::new();
     for i in 0..10 {
         body.push_str(&format!("fn c{i} calls c{} x{i}\n", (i + 1) % 10));
     }
-    let index = index_of(&[("chain.fake", body)]);
+    index_of(&[("chain.fake", body)])
+}
+
+#[test]
+fn a_long_chain_with_a_cycle_respects_depth_and_budget() {
+    let index = chain_index();
     let all = index.find_calls_bfs("c0", 32, 1000, 0).unwrap();
     // Every call of every reachable node is reported once; the cycle closes.
     assert_eq!(all.len(), 20);
@@ -294,9 +314,154 @@ fn a_long_chain_with_a_cycle_respects_depth_and_budget() {
 #[test]
 fn depth_one_still_reports_the_uncapped_direct_total() {
     let index = fan_in_index(200, false);
-    // `limit`/`offset` never shrink a single-hop walk: the caller derives its
-    // reported total from the length.
+    // The plain `find_*_bfs` wrappers keep returning every direct hit: the
+    // impact analysis needs the whole set. Paged reads go through
+    // `relation_page`, tested below.
     assert_eq!(index.find_callers_bfs("hot", 1, 5, 0).unwrap().len(), 200);
+}
+
+#[test]
+fn depth_one_page_is_bounded_and_reports_the_direct_total() {
+    let index = fan_in_index(200, false);
+    let full = index.find_callers_bfs("hot", 1, 1000, 0).unwrap();
+    assert_eq!(full.len(), 200);
+
+    let first = page(
+        &index,
+        RelationDirection::Callers,
+        "hot",
+        1,
+        (5, 0),
+        QueryScope::default(),
+    );
+    assert_eq!(first.hits.len(), 5);
+    assert_eq!(first.total, Some(200));
+    assert_eq!(
+        first.hits.iter().map(key).collect::<Vec<_>>(),
+        full.iter().take(5).map(key).collect::<Vec<_>>()
+    );
+
+    let shifted = page(
+        &index,
+        RelationDirection::Callers,
+        "hot",
+        1,
+        (5, 3),
+        QueryScope::default(),
+    );
+    assert_eq!(
+        shifted.hits.iter().map(key).collect::<Vec<_>>(),
+        full[3..8].iter().map(key).collect::<Vec<_>>()
+    );
+    assert_eq!(shifted.total, Some(200));
+
+    let past_the_end = page(
+        &index,
+        RelationDirection::Callers,
+        "hot",
+        1,
+        (5, 1000),
+        QueryScope::default(),
+    );
+    assert!(past_the_end.hits.is_empty());
+    assert_eq!(past_the_end.total, Some(200));
+}
+
+/// Checks each page against the full walk for every depth in `1..=20` and a
+/// grid of `limit`/`offset`. Rows must always be the matching slice of the full
+/// walk. The total is exact when the window covers the walk: at depth 1 always
+/// (a COUNT in SQL), deeper only when no hit lies past `limit + offset`, since
+/// a multihop walk is bounded and reports `None` while more hits exist.
+fn assert_pages_match_full_walk(
+    label: &str,
+    full: impl Fn(u32) -> Vec<RelationHit>,
+    paged: impl Fn(u32, usize, usize) -> RelationPage,
+) {
+    let key_and_depth = |hit: &RelationHit| (key(hit), hit.depth);
+    for depth in 1..=20u32 {
+        let walk = full(depth);
+        for limit in [0usize, 1, 5, 50] {
+            for offset in [0usize, 3, 59, 1000] {
+                let exact = depth <= 1 || walk.len() <= limit + offset;
+                let expected_total = exact.then_some(walk.len());
+                let expected: Vec<_> = walk
+                    .iter()
+                    .skip(offset)
+                    .take(limit)
+                    .map(key_and_depth)
+                    .collect();
+                let got = paged(depth, limit, offset);
+                let at = format!("{label} depth {depth} limit {limit} offset {offset}");
+                assert_eq!(got.total, expected_total, "{at}: total");
+                assert_eq!(
+                    got.hits.iter().map(key_and_depth).collect::<Vec<_>>(),
+                    expected,
+                    "{at}: rows"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn paged_walks_match_the_full_walk_at_every_depth() {
+    let ambiguous = fan_in_index(24, true);
+    let resolved = fan_in_index(24, false);
+    let chain = chain_index();
+    let scopes = [
+        QueryScope::default(),
+        QueryScope {
+            path: None,
+            language: Some("fake"),
+        },
+    ];
+    // (fixture, callee for callers/references, caller for calls)
+    let cases = [
+        ("ambiguous", &ambiguous, "hot", "c0"),
+        ("resolved", &resolved, "hot", "c0"),
+        ("chain", &chain, "c1", "c0"),
+    ];
+    for scope in scopes {
+        for (label, index, callee, caller) in cases {
+            let label = format!("{label} scoped={}", !scope.is_empty());
+            assert_pages_match_full_walk(
+                &format!("{label} callers"),
+                |d| {
+                    index
+                        .find_callers_bfs_scoped(callee, d, usize::MAX, 0, scope)
+                        .unwrap()
+                },
+                |d, l, o| page(index, RelationDirection::Callers, callee, d, (l, o), scope),
+            );
+            assert_pages_match_full_walk(
+                &format!("{label} references"),
+                |d| {
+                    index
+                        .find_references_bfs_scoped(callee, d, usize::MAX, 0, scope)
+                        .unwrap()
+                },
+                |d, l, o| {
+                    page(
+                        index,
+                        RelationDirection::References,
+                        callee,
+                        d,
+                        (l, o),
+                        scope,
+                    )
+                },
+            );
+            assert_pages_match_full_walk(
+                &format!("{label} calls"),
+                |d| {
+                    index
+                        .find_calls_bfs_scoped(caller, d, usize::MAX, 0, scope)
+                        .unwrap()
+                },
+                |d, l, o| page(index, RelationDirection::Calls, caller, d, (l, o), scope),
+            );
+        }
+    }
 }
 
 fn peak_rss_kib() -> Option<u64> {
@@ -322,100 +487,36 @@ fn relation_scale_measurement() {
         for ambiguous in [false, true] {
             let index = fan_in_index(symbols, ambiguous);
             let kind = if ambiguous { "ambiguous" } else { "resolved" };
-            let scenarios: [(&str, u32, usize); 3] = [
-                ("depth1 uncapped", 1, 50),
-                ("depth3 limit 50", 3, 50),
-                ("depth3 limit 50 offset 50 (budget 100)", 3, 100),
+            // (label, depth, budget, paged): `paged` reads the page method, the
+            // other rows read the full-list wrapper that impact analysis uses.
+            let scenarios: [(&str, u32, usize, bool); 4] = [
+                ("depth1 page limit 50", 1, 50, true),
+                ("depth1 full list (wrapper)", 1, 50, false),
+                ("depth3 limit 50", 3, 50, false),
+                ("depth3 limit 50 offset 50 (budget 100)", 3, 100, false),
             ];
-            for (label, depth, budget) in scenarios {
+            for (label, depth, budget, paged) in scenarios {
                 let started = Instant::now();
-                let hits = index.find_callers_bfs("hot", depth, budget, 0).unwrap();
+                let (rows, total) = if paged {
+                    let paged = page(
+                        &index,
+                        RelationDirection::Callers,
+                        "hot",
+                        depth,
+                        (budget, 0),
+                        QueryScope::default(),
+                    );
+                    (paged.hits.len(), paged.total.unwrap_or(paged.hits.len()))
+                } else {
+                    let hits = index.find_callers_bfs("hot", depth, budget, 0).unwrap();
+                    (hits.len(), hits.len())
+                };
                 println!(
-                    "symbols={symbols} {kind} {label}: {} hits in {:?} (peak RSS KiB: {:?})",
-                    hits.len(),
+                    "symbols={symbols} {kind} {label}: {rows} rows of {total} in {:?} (peak RSS KiB: {:?})",
                     started.elapsed(),
                     peak_rss_kib()
                 );
             }
         }
     }
-}
-
-#[test]
-fn direct_tool_pages_only_materialize_the_requested_rows() {
-    use mct_index::{QueryScope, RelationDirection};
-    let index = fan_in_index(10_000, false);
-    for direction in [RelationDirection::Callers, RelationDirection::References] {
-        let page = index
-            .relation_page("hot", direction, 1, (1, 0), QueryScope::default())
-            .unwrap();
-        assert_eq!(page.hits.len(), 1);
-        assert_eq!(page.total, Some(10_000));
-        assert!(page.has_more);
-        let last = index
-            .relation_page("hot", direction, 0, (1, 9_999), QueryScope::default())
-            .unwrap();
-        assert_eq!(last.hits.len(), 1);
-        assert!(!last.has_more);
-        let empty = index
-            .relation_page("hot", direction, 1, (0, usize::MAX), QueryScope::default())
-            .unwrap();
-        assert!(empty.hits.is_empty());
-        assert_eq!(empty.total, Some(10_000));
-    }
-}
-
-#[test]
-fn multihop_pages_have_truthful_continuation_and_no_gaps() {
-    use mct_index::{QueryScope, RelationDirection};
-    let index = index_of(&[(
-        "a.fake",
-        "fn a calls b c d\nfn b calls e\nfn c\nfn d\nfn e\n".into(),
-    )]);
-    let full = index
-        .relation_page(
-            "a",
-            RelationDirection::Calls,
-            2,
-            (10, 0),
-            QueryScope::default(),
-        )
-        .unwrap();
-    assert_eq!(full.total, Some(4));
-    for offset in 0..4 {
-        let page = index
-            .relation_page(
-                "a",
-                RelationDirection::Calls,
-                2,
-                (1, offset),
-                QueryScope::default(),
-            )
-            .unwrap();
-        assert_eq!(page.hits[0].relation_id, full.hits[offset].relation_id);
-        assert_eq!(page.has_more, offset < 3);
-        assert_eq!(page.total, if offset < 3 { None } else { Some(4) });
-    }
-    let empty = index
-        .relation_page(
-            "a",
-            RelationDirection::Calls,
-            2,
-            (0, 0),
-            QueryScope::default(),
-        )
-        .unwrap();
-    assert!(empty.hits.is_empty());
-    assert!(empty.has_more);
-    let past = index
-        .relation_page(
-            "a",
-            RelationDirection::Calls,
-            2,
-            (1, usize::MAX),
-            QueryScope::default(),
-        )
-        .unwrap();
-    assert!(past.hits.is_empty());
-    assert_eq!(past.total, Some(4));
 }
