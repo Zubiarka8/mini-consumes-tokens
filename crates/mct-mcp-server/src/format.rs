@@ -2231,9 +2231,8 @@ mod index_status_tests {
     use super::*;
     use mct_index::{DependencyInfo, LanguageCoverage, ManifestDependencies};
 
-    /// `syntax_errors` is left empty because `UnsupportedKind` isn't
-    /// re-exported from `mct-index`, so it can't be constructed from here;
-    /// that section's rendering is untouched by this change either way.
+    /// `syntax_errors` and `read_failures` are left empty: this sample covers
+    /// the coverage and dependency sections, not the issue lists.
     fn sample_status() -> IndexStatus {
         IndexStatus {
             languages: vec![LanguageCoverage {
@@ -2246,6 +2245,7 @@ mod index_status_tests {
             last_indexed_at: Some(1_700_000_000),
             unsupported_languages: vec!["lua".to_string()],
             syntax_errors: Vec::new(),
+            read_failures: Vec::new(),
             dependencies: vec![
                 ManifestDependencies {
                     manifest_path: "Cargo.toml".to_string(),
