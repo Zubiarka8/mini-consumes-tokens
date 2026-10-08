@@ -227,7 +227,10 @@ fn probe(registry: &LanguageRegistry, files: &[PathBuf]) -> anyhow::Result<()> {
     let mut failed = 0;
     for path in files {
         let shown = display_path(path);
-        let contents = match std::fs::read_to_string(path) {
+        let contents = match mct_index::read_repository_file(path).and_then(|bytes| {
+            String::from_utf8(bytes)
+                .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))
+        }) {
             Ok(contents) => contents,
             Err(e) => {
                 println!("FAIL {shown}: {e}");
@@ -555,6 +558,15 @@ fn print_status(status: mct_index::IndexStatus) {
         println!("{} file(s) failed to parse:", status.syntax_errors.len());
         for err in &status.syntax_errors {
             println!("  {}: {}", err.relative_path, err.detail);
+        }
+    }
+    if !status.read_failures.is_empty() {
+        println!(
+            "{} path(s) could not be read; last-good index data may be stale:",
+            status.read_failures.len()
+        );
+        for error in &status.read_failures {
+            println!("  {}: {}", error.relative_path, error.detail);
         }
     }
     if !status.dependencies.is_empty() {

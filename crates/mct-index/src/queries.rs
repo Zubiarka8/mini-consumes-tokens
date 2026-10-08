@@ -152,6 +152,33 @@ pub struct ResolvedScope<'a> {
 /// Boxed values bound to a statement's `?N` placeholders, in placeholder order.
 pub(crate) type BoundValues = Vec<Box<dyn rusqlite::ToSql>>;
 
+/// Direction of a relation query.
+#[derive(Debug, Clone, Copy)]
+pub enum RelationDirection {
+    Calls,
+    Callers,
+    References,
+}
+
+/// A rendered page, with an exact total only when it is known.
+#[derive(Debug)]
+pub struct RelationPage {
+    pub hits: Vec<RelationHit>,
+    pub total: Option<usize>,
+    pub has_more: bool,
+    pub offset: usize,
+}
+
+impl RelationDirection {
+    fn predicate(self) -> &'static str {
+        match self {
+            Self::Calls => "caller.name = ?1 AND r.kind = 'calls'",
+            Self::Callers => "r.to_name = ?1 AND r.kind = 'calls'",
+            Self::References => "r.to_name = ?1",
+        }
+    }
+}
+
 /// Appends the scope predicates to `sql` and their values to `bound`.
 ///
 /// Only the static predicate fragments are concatenated into the SQL string;
@@ -163,14 +190,26 @@ pub(crate) fn push_scope(sql: &mut String, bound: &mut BoundValues, scope: Resol
             sql.push_str(&format!(" AND f.relative_path = ?{}", bound.len() + 1));
             bound.push(Box::new(path.to_string()));
         } else {
-            sql.push_str(&format!(" AND f.relative_path LIKE ?{}", bound.len() + 1));
-            bound.push(Box::new(format!("{path}/%")));
+            sql.push_str(&format!(
+                " AND f.relative_path LIKE ?{} ESCAPE '\\'",
+                bound.len() + 1
+            ));
+            bound.push(Box::new(directory_pattern(path)));
         }
     }
     if let Some(language) = scope.language {
         sql.push_str(&format!(" AND f.language = ?{}", bound.len() + 1));
         bound.push(Box::new(language.to_string()));
     }
+}
+
+/// Directory names are literal, even when they contain SQL LIKE metacharacters.
+fn directory_pattern(path: &str) -> String {
+    let escaped = path
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_");
+    format!("{escaped}/%")
 }
 
 /// Reads a [`SymbolHit`] from columns 0..=9 of a row selected as
@@ -387,13 +426,13 @@ pub fn list_symbols(
     sql.push_str(if is_file {
         "f.relative_path = ?1"
     } else {
-        "f.relative_path LIKE ?1"
+        "f.relative_path LIKE ?1 ESCAPE '\\'"
     });
 
     let mut bound: BoundValues = vec![Box::new(if is_file {
         path.to_string()
     } else {
-        format!("{path}/%")
+        directory_pattern(path)
     })];
     if let Some(k) = kind {
         sql.push_str(&format!(" AND s.kind = ?{}", bound.len() + 1));
@@ -566,10 +605,71 @@ fn query_relations_page(
     limit: Option<usize>,
     offset: usize,
 ) -> Result<Vec<RelationHit>> {
+    let (sql, bound) = relation_selection(predicate, param, scope, None);
+    query_relation_rows(conn, sql, bound, limit, offset)
+}
+
+fn relation_selection(
+    predicate: &str,
+    param: impl rusqlite::ToSql + 'static,
+    scope: ResolvedScope<'_>,
+    start: Option<&[i64]>,
+) -> (String, BoundValues) {
     let mut sql = String::from(RELATION_SELECT);
     sql.push_str(predicate);
     let mut bound: BoundValues = vec![Box::new(param)];
     push_scope(&mut sql, &mut bound, scope);
+    if let Some(start) = start {
+        // This is the SQL equivalent of traversal::reaches_start: unknown
+        // and external relations stay; proven unrelated targets do not.
+        sql.push_str(" AND (r.external = 1 OR NOT EXISTS (SELECT 1 FROM relation_candidates c WHERE c.relation_id = r.id)");
+        if !start.is_empty() {
+            sql.push_str(&format!(" OR EXISTS (SELECT 1 FROM relation_candidates c WHERE c.relation_id = r.id AND c.symbol_id IN (SELECT CAST(value AS INTEGER) FROM json_each(?{})))", bound.len() + 1));
+            let ids = start
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(",");
+            bound.push(Box::new(format!("[{ids}]")));
+        }
+        sql.push(')');
+    }
+    (sql, bound)
+}
+
+pub(crate) fn direct_relation_page(
+    conn: &Connection,
+    direction: RelationDirection,
+    name: &str,
+    scope: ResolvedScope<'_>,
+    start: Option<&[i64]>,
+    limit: usize,
+    offset: usize,
+) -> Result<RelationPage> {
+    let (sql, bound) = relation_selection(direction.predicate(), name.to_string(), scope, start);
+    let params: Vec<&dyn rusqlite::ToSql> = bound.iter().map(|b| b.as_ref()).collect();
+    let total: i64 = conn.query_row(
+        &format!("SELECT COUNT(*) FROM ({sql})"),
+        params.as_slice(),
+        |row| row.get(0),
+    )?;
+    let total = usize::try_from(total).unwrap_or(usize::MAX);
+    let hits = query_relation_rows(conn, sql, bound, Some(limit), offset)?;
+    Ok(RelationPage {
+        has_more: offset.saturating_add(hits.len()) < total,
+        hits,
+        total: Some(total),
+        offset,
+    })
+}
+
+fn query_relation_rows(
+    conn: &Connection,
+    mut sql: String,
+    mut bound: BoundValues,
+    limit: Option<usize>,
+    offset: usize,
+) -> Result<Vec<RelationHit>> {
     sql.push_str("\n         ORDER BY f.relative_path, r.line, r.column, r.id");
     if let Some(limit) = limit {
         sql.push_str(&format!("\n         LIMIT ?{}", bound.len() + 1));

@@ -797,9 +797,14 @@ fn read_source_file(index: &Index, relative_path: &str) -> Result<String, McpErr
             None,
         ));
     }
-    std::fs::read_to_string(&canonical).map_err(|source| {
-        McpError::internal_error(format!("failed to read `{relative_path}`: {source}"), None)
-    })
+    mct_index::read_repository_file(&canonical)
+        .and_then(|bytes| {
+            String::from_utf8(bytes)
+                .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))
+        })
+        .map_err(|source| {
+            McpError::internal_error(format!("failed to read `{relative_path}`: {source}"), None)
+        })
 }
 
 /// Source snippets for the `offset`/`limit` page of a ranked search result
@@ -1683,16 +1688,20 @@ impl MctServer {
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
         let index = self.index.lock().await;
         let hits = index
-            .find_references_bfs_scoped(symbol, depth.unwrap_or(1), limit, offset, scope)
+            .relation_page(
+                symbol,
+                mct_index::RelationDirection::References,
+                depth.unwrap_or(1),
+                (limit, offset),
+                scope,
+            )
             .map_err(index_error)?;
-        let text = match output_format {
-            OutputFormat::Text => {
-                format::relation_hits(symbol, "reference(s)", &hits, offset, limit)
-            }
-            OutputFormat::Toon => {
-                format::relation_hits_toon(symbol, "reference(s)", &hits, offset, limit)
-            }
-        };
+        let text = format::relation_page_hits(
+            symbol,
+            "reference(s)",
+            &hits,
+            output_format == OutputFormat::Toon,
+        );
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
@@ -1717,24 +1726,20 @@ impl MctServer {
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
         let index = self.index.lock().await;
         let hits = index
-            .find_calls_bfs_scoped(function, depth.unwrap_or(1), limit, offset, scope)
+            .relation_page(
+                function,
+                mct_index::RelationDirection::Calls,
+                depth.unwrap_or(1),
+                (limit, offset),
+                scope,
+            )
             .map_err(index_error)?;
-        let text = match output_format {
-            OutputFormat::Text => format::relation_hits(
-                function,
-                "call(s) made by this function",
-                &hits,
-                offset,
-                limit,
-            ),
-            OutputFormat::Toon => format::relation_hits_toon(
-                function,
-                "call(s) made by this function",
-                &hits,
-                offset,
-                limit,
-            ),
-        };
+        let text = format::relation_page_hits(
+            function,
+            "call(s) made by this function",
+            &hits,
+            output_format == OutputFormat::Toon,
+        );
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
@@ -1759,20 +1764,20 @@ impl MctServer {
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
         let index = self.index.lock().await;
         let hits = index
-            .find_callers_bfs_scoped(function, depth.unwrap_or(1), limit, offset, scope)
-            .map_err(index_error)?;
-        let text = match output_format {
-            OutputFormat::Text => {
-                format::relation_hits(function, "caller(s) of this function", &hits, offset, limit)
-            }
-            OutputFormat::Toon => format::relation_hits_toon(
+            .relation_page(
                 function,
-                "caller(s) of this function",
-                &hits,
-                offset,
-                limit,
-            ),
-        };
+                mct_index::RelationDirection::Callers,
+                depth.unwrap_or(1),
+                (limit, offset),
+                scope,
+            )
+            .map_err(index_error)?;
+        let text = format::relation_page_hits(
+            function,
+            "caller(s) of this function",
+            &hits,
+            output_format == OutputFormat::Toon,
+        );
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
@@ -1796,44 +1801,38 @@ impl MctServer {
         let depth = depth.unwrap_or(1);
         let output_format = parse_output_format(format.as_deref())?;
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
-        let (callers, references) = {
+        let (callers, references, tests) = {
             let index = self.index.lock().await;
             let callers = index
-                .find_callers_bfs_scoped(symbol, depth, limit, offset, scope)
+                .relation_page(
+                    symbol,
+                    mct_index::RelationDirection::Callers,
+                    depth,
+                    (limit, offset),
+                    scope,
+                )
                 .map_err(index_error)?;
             let references = index
-                .find_references_bfs_scoped(symbol, depth, limit, offset, scope)
+                .relation_page(
+                    symbol,
+                    mct_index::RelationDirection::References,
+                    depth,
+                    (limit, offset),
+                    scope,
+                )
                 .map_err(index_error)?;
-            (callers, references)
+            let tests = index
+                .affected_test_page(symbol, depth, (limit, offset), scope)
+                .map_err(index_error)?;
+            (callers, references, tests)
         };
-        // A test caller shows up in both `callers` and `references` (the
-        // latter is a superset); dedupe by caller name so it's only counted
-        // once regardless of how many relation kinds connect it to `symbol`.
-        let mut seen_test_names = std::collections::HashSet::new();
-        let affected_tests: Vec<&mct_index::RelationHit> = references
-            .iter()
-            .chain(callers.iter())
-            .filter(|hit| mct_index::looks_like_test_name(&hit.from_symbol, &hit.relative_path))
-            .filter(|hit| seen_test_names.insert(hit.from_symbol.as_str()))
-            .collect();
-        let text = match output_format {
-            OutputFormat::Text => format::impact_analysis(
-                symbol,
-                &callers,
-                &references,
-                &affected_tests,
-                offset,
-                limit,
-            ),
-            OutputFormat::Toon => format::impact_analysis_toon(
-                symbol,
-                &callers,
-                &references,
-                &affected_tests,
-                offset,
-                limit,
-            ),
-        };
+        let text = format::impact_pages(
+            symbol,
+            &callers,
+            &references,
+            &tests,
+            output_format == OutputFormat::Toon,
+        );
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 

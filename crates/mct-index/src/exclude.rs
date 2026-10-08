@@ -113,7 +113,7 @@ pub struct ExcludeSet {
 }
 
 struct Rules {
-    set: GlobSet,
+    set: Option<GlobSet>,
     /// The extra patterns `set` was built from.
     extra: Vec<String>,
     /// Project root whose ignore files the extra patterns were read from —
@@ -189,7 +189,10 @@ impl ExcludeSet {
 
     /// `relative_path` uses forward slashes, matching [`mct_core::SourceFile::relative_path`].
     pub fn is_excluded(&self, relative_path: &str) -> bool {
-        self.read().set.is_match(relative_path)
+        self.read()
+            .set
+            .as_ref()
+            .is_none_or(|set| set.is_match(relative_path))
     }
 }
 
@@ -197,7 +200,7 @@ impl ExcludeSet {
 const GITIGNORE_FILE_NAME: &str = ".gitignore";
 
 /// The built-in exclusions plus `extra_patterns` (malformed ones skipped).
-fn build_set(extra_patterns: &[String]) -> GlobSet {
+fn build_set(extra_patterns: &[String]) -> Option<GlobSet> {
     let mut builder = GlobSetBuilder::new();
     for pattern in DEFAULT_EXCLUDE_PATTERNS {
         #[allow(clippy::expect_used)]
@@ -230,17 +233,41 @@ fn build_set(extra_patterns: &[String]) -> GlobSet {
             builder.add(glob);
         }
     }
-    #[allow(clippy::expect_used)]
-    // SAFETY: every glob added above came from a literal pattern or was
-    // already filtered through `if let Ok(glob)`, so building the set can
-    // never fail here.
-    builder.build().expect("exclude glob set builds")
+    // Valid globs can still exceed the regex compiler's resource limit.
+    // Preserve built-in secret exclusions when custom rules cannot compile.
+    match builder.build() {
+        Ok(set) => Some(set),
+        Err(error) => {
+            eprintln!("mct: exclusion rules could not compile: {error}; ignoring custom patterns");
+            if extra_patterns.is_empty() {
+                None
+            } else {
+                build_set(&[])
+            }
+        }
+    }
 }
 
 impl Default for ExcludeSet {
     fn default() -> Self {
         Self::new(&[])
     }
+}
+
+fn read_ignore_contents(path: &Path) -> std::io::Result<String> {
+    let result = crate::read_repository_file(path).and_then(|bytes| {
+        String::from_utf8(bytes)
+            .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))
+    });
+    if let Err(error) = &result {
+        if error.kind() != std::io::ErrorKind::NotFound {
+            eprintln!(
+                "mct: cannot read exclusion rules {}: {error}",
+                path.display()
+            );
+        }
+    }
+    result
 }
 
 /// Reads `<root>/.mctignore` (see [`IGNORE_FILE_NAME`]) and turns each line
@@ -265,7 +292,7 @@ impl Default for ExcludeSet {
 ///   skipped rather than misapplied, for the same opt-out-only reason
 ///   `.mctignore` itself has no negation.
 pub fn read_ignore_file(root: &Path) -> Vec<String> {
-    let Ok(contents) = std::fs::read_to_string(root.join(IGNORE_FILE_NAME)) else {
+    let Ok(contents) = read_ignore_contents(&root.join(IGNORE_FILE_NAME)) else {
         return Vec::new();
     };
 
@@ -284,7 +311,7 @@ pub fn read_ignore_file(root: &Path) -> Vec<String> {
     }
 
     if import_gitignore {
-        if let Ok(gitignore) = std::fs::read_to_string(root.join(GITIGNORE_FILE_NAME)) {
+        if let Ok(gitignore) = read_ignore_contents(&root.join(GITIGNORE_FILE_NAME)) {
             for line in gitignore.lines() {
                 let line = line.trim();
                 // Comments, blank lines, and negation (`!pattern`, which
