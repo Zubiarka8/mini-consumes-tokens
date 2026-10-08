@@ -158,3 +158,20 @@ declarations are not indexed as symbols.
 **Issue**: not filed yet. **Pinned by**
 `companion_objects_and_type_aliases_are_symbols`
 (`crates/mct-lang-kotlin/tests/corpus.rs`).
+
+---
+
+## 8. Rust: a method call inside a macro's arguments leaves no relation
+
+**Observed**: in `assert_eq!(cli.for_extension(e), server.for_extension(e))`
+neither call leaves a relation, because tree-sitter hands the macro's
+arguments over as a flat `token_tree` and the extractor skips identifiers
+after `.`/`::` there. `find_callers`, `find_references` and `impact_analysis`
+report 3 of the 5 real call sites of `LanguageRegistry::for_extension`.
+
+**Expected**: a relation for each call, at least a `references` one. See
+`benchmarks/agent-benchmark.md#calls-inside-macros` for the recommended fix.
+
+**Issue**: not filed yet. **Pinned by**
+`a_method_call_inside_a_macro_token_tree_leaves_a_relation`
+(`crates/mct-lang-rust/tests/parse.rs`).
