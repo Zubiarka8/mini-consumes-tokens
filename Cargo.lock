@@ -1434,6 +1434,7 @@ dependencies = [
  "mct-core",
  "mct-corpus",
  "mct-index",
+ "mct-tree-sitter",
  "tree-sitter",
  "tree-sitter-bash",
 ]
@@ -1445,6 +1446,7 @@ dependencies = [
  "mct-core",
  "mct-corpus",
  "mct-index",
+ "mct-tree-sitter",
  "tree-sitter",
  "tree-sitter-cpp",
 ]
@@ -1456,6 +1458,7 @@ dependencies = [
  "mct-core",
  "mct-corpus",
  "mct-index",
+ "mct-tree-sitter",
  "tree-sitter",
  "tree-sitter-c-sharp",
 ]
@@ -1467,6 +1470,7 @@ dependencies = [
  "mct-core",
  "mct-corpus",
  "mct-index",
+ "mct-tree-sitter",
  "tree-sitter",
  "tree-sitter-css",
 ]
@@ -1478,6 +1482,7 @@ dependencies = [
  "mct-core",
  "mct-corpus",
  "mct-index",
+ "mct-tree-sitter",
  "tree-sitter",
  "tree-sitter-go",
 ]
@@ -1490,6 +1495,7 @@ dependencies = [
  "mct-corpus",
  "mct-index",
  "mct-lang-css",
+ "mct-tree-sitter",
  "tree-sitter",
  "tree-sitter-html",
 ]
@@ -1501,6 +1507,7 @@ dependencies = [
  "mct-core",
  "mct-corpus",
  "mct-index",
+ "mct-tree-sitter",
  "tree-sitter",
  "tree-sitter-java",
 ]
@@ -1512,6 +1519,7 @@ dependencies = [
  "mct-core",
  "mct-corpus",
  "mct-index",
+ "mct-tree-sitter",
  "tree-sitter",
  "tree-sitter-javascript",
  "tree-sitter-typescript",
@@ -1524,6 +1532,7 @@ dependencies = [
  "mct-core",
  "mct-corpus",
  "mct-index",
+ "mct-tree-sitter",
  "tree-sitter",
  "tree-sitter-kotlin-ng",
 ]
@@ -1535,6 +1544,7 @@ dependencies = [
  "mct-core",
  "mct-corpus",
  "mct-index",
+ "mct-tree-sitter",
  "tree-sitter",
  "tree-sitter-lua",
  "walkdir",
@@ -1547,6 +1557,7 @@ dependencies = [
  "mct-core",
  "mct-corpus",
  "mct-index",
+ "mct-tree-sitter",
  "tree-sitter",
  "tree-sitter-md",
 ]
@@ -1558,6 +1569,7 @@ dependencies = [
  "mct-core",
  "mct-corpus",
  "mct-index",
+ "mct-tree-sitter",
  "tree-sitter",
  "tree-sitter-php",
 ]
@@ -1569,6 +1581,7 @@ dependencies = [
  "mct-core",
  "mct-corpus",
  "mct-index",
+ "mct-tree-sitter",
  "tree-sitter",
  "tree-sitter-powershell",
 ]
@@ -1580,6 +1593,7 @@ dependencies = [
  "mct-core",
  "mct-corpus",
  "mct-index",
+ "mct-tree-sitter",
  "tree-sitter",
  "tree-sitter-python",
 ]
@@ -1591,6 +1605,7 @@ dependencies = [
  "mct-core",
  "mct-corpus",
  "mct-index",
+ "mct-tree-sitter",
  "tree-sitter",
  "tree-sitter-rust",
 ]
@@ -1603,6 +1618,7 @@ dependencies = [
  "mct-corpus",
  "mct-index",
  "mct-lang-csharp",
+ "mct-tree-sitter",
  "tree-sitter",
  "tree-sitter-xml",
 ]
@@ -1614,6 +1630,7 @@ dependencies = [
  "mct-core",
  "mct-corpus",
  "mct-index",
+ "mct-tree-sitter",
  "tree-sitter",
  "tree-sitter-xml",
 ]
@@ -1654,6 +1671,15 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "mct-tree-sitter"
+version = "0.1.0"
+dependencies = [
+ "mct-core",
+ "tree-sitter",
+ "tree-sitter-bash",
 ]
 
 [[package]]
