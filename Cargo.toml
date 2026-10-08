@@ -24,6 +24,7 @@ members = [
     "crates/mct-lang-kotlin",
     "crates/mct-eval",
     "crates/mct-corpus",
+    "crates/mct-tree-sitter",
 ]
 
 [workspace.package]
@@ -58,5 +59,6 @@ mct-lang-lua = { path = "crates/mct-lang-lua", version = "0.1.0" }
 # Test-only (publish = false): path-only, so `cargo publish` strips it from
 # the dev-dependencies of every crate that uses it.
 mct-corpus = { path = "crates/mct-corpus" }
+mct-tree-sitter = { path = "crates/mct-tree-sitter", version = "0.1.0" }
 thiserror = "2"
 tree-sitter = "0.25"

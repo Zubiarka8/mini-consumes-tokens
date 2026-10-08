@@ -23,6 +23,7 @@ use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
     SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
+use mct_tree_sitter::{first_error, location};
 use tree_sitter::{Node, Parser};
 
 /// Common routed/CLR event attribute names across WPF, UWP/WinUI, MAUI, and
@@ -144,33 +145,6 @@ fn module_name_for(relative_path: &str) -> String {
         .to_string()
 }
 
-fn first_error(node: Node) -> Option<Node> {
-    let mut cursor = node.walk();
-    let mut depth = 0u32;
-
-    loop {
-        let current = cursor.node();
-        if current.is_error() || current.is_missing() {
-            return Some(current);
-        }
-
-        if depth < MAX_TRAVERSAL_DEPTH && cursor.goto_first_child() {
-            depth += 1;
-            continue;
-        }
-
-        loop {
-            if cursor.goto_next_sibling() {
-                break;
-            }
-            if depth == 0 || !cursor.goto_parent() {
-                return None;
-            }
-            depth -= 1;
-        }
-    }
-}
-
 /// The file-level module's location: the root node of a file ending in a
 /// newline ends at column 0 of the row *after* the last line, which would
 /// put the module one line past the end of the file.
@@ -181,17 +155,6 @@ fn module_location(root: Node) -> Location {
         loc.end_line = Some(end.row as u32);
     }
     loc
-}
-
-fn location(node: Node) -> Location {
-    let start = node.start_position();
-    let end = node.end_position();
-    Location {
-        line: start.row as u32 + 1,
-        column: start.column as u32 + 1,
-        byte_len: (node.end_byte() - node.start_byte()) as u32,
-        end_line: Some(end.row as u32 + 1),
-    }
 }
 
 fn text<'a>(node: Node, source: &'a str) -> &'a str {
