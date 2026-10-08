@@ -47,7 +47,11 @@ pub const EXACT_PHRASE_BOOST: f64 = 1.0;
 
 /// Symbols embedded per [`Embedder::embed`] call during
 /// [`refresh_embeddings`], and per committed transaction.
-const EMBED_BATCH: usize = 256;
+///
+/// Kept small on purpose: the local model pads every batch to its longest
+/// text, so process RSS grows with the batch size (measured on this repo:
+/// ~2.1 GB at 256, ~0.6 GB at 32; see `benchmarks/semantic-runtime.md`).
+const EMBED_BATCH: usize = 32;
 
 /// Turns text into vectors. Implemented outside this crate (see
 /// `mct-mcp-server`'s `semantic` feature); tests use a deterministic fake.
@@ -1238,6 +1242,22 @@ mod tests {
         // picks up the new symbol and the re-hashed file's.
         let again = snapshot_pending_embeddings(conn, &index.root, MODEL)?;
         assert_eq!(again.len(), 2);
+        Ok(())
+    }
+
+    /// Memory guard: the embedding batch size bounds the model's working set.
+    #[test]
+    fn pending_embeddings_split_into_small_batches() -> TestResult {
+        let index = index()?;
+        let conn = &index.conn;
+        add_file(conn, 1, "a.rs", "rust", "h")?;
+        for id in 1..=70 {
+            add_symbol(conn, id, 1, &format!("sym{id}"), id as u32)?;
+        }
+        let pending = snapshot_pending_embeddings(conn, &index.root, MODEL)?;
+        assert_eq!(pending.len(), 70);
+        assert_eq!(pending.batch_count(), 3, "70 symbols at 32 per batch");
+        assert_eq!(pending.embed_batch(0, &Fake(MODEL))?.len(), 32);
         Ok(())
     }
 
