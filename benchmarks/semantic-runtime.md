@@ -157,16 +157,92 @@ moved out of the lock.
   probed call is that much faster; the probe's own CPU load and the machine's
   load both differ between the two runs, so this gap is not a measured effect
   of the lock change.
-- Peak RSS is about 2 GB in both trees; the change does not move it.
+- Peak RSS is about 2 GB in both trees; the lock change does not move it (the batch size does, see Memory).
+
+## Memory
+
+Measured on this repository (7,235 symbols at the time), debug test profile,
+`cargo test ... --features semantic`, RSS sampled with `ps -o rss=` every
+100 ms from a thread of the test process (temporary probe, not committed).
+One cold `hybrid_search` on a freshly indexed in-memory index, then a 3 s
+settle, then one warm query.
+
+| Part | RSS |
+|---|---|
+| Empty process | ~10 MB |
+| With the index | 44 MB |
+| After model load (cold call start) | ~596 MB (earlier measurement, not re-sampled here) |
+| Vectors, 7.2k x 384 x f32 | ~11 MB (computed, not the growth) |
+
+Each row below is one run; the second table repeats the whole series
+(same binary, run back to back). "Max" is the sampled maximum, "final" the
+RSS right after the cold call.
+
+| Embedding batch | Max RSS run 1 / run 2 | Final RSS run 1 / run 2 | Cold call run 1 / run 2 | Warm query |
+|---|---|---|---|---|
+| 256 (old) | 2,471 / 2,243 MB | 2,414 / 2,076 MB | 82.2 / 75.6 s | 112 / 111 ms |
+| 256 (old, repeats) | 2,130 / 2,219 MB | 2,130 / 2,126 MB | 75.4 / 82.1 s | 110 / 118 ms |
+| 128 | 1,484 / 1,483 MB | 1,482 / 1,481 MB | 70.7 / 69.8 s | 111 / 111 ms |
+| 64 | 851 / 856 MB | 851 / 856 MB | 73.1 / 66.9 s | 111 / 111 ms |
+| 32 (new) | 659 / 665 MB | 659 / 665 MB | 66.3 / 61.3 s | 109 / 111 ms |
+| 32 (repeats) | 585 / 665 MB | 585 / 665 MB | 66.0 / 66.5 s | 111 / 113 ms |
+| 16 | 454 MB | 454 MB | 62.7 s | 117 ms |
+
+Other experiments (same series):
+
+| Experiment | Max RSS | Final / settled RSS | Cold call | Reading |
+|---|---|---|---|---|
+| ORT CPU arena off (`ep::CPU::with_arena_allocator(false)`), batch 256 | 2,695 / 2,799 MB | 2,474 / 2,179 MB final | 78.1 / 78.6 s | not lower than arena on |
+| arena off, batch 32 | 1,411 / 1,413 MB | 1,411 / 1,342 MB | 63.0 / 65.3 s | higher than arena on at batch 32 (~660 MB) |
+| model loads in the process | 1 (`load` ran once per server) | | | not loaded twice |
+
+What the numbers support:
+
+- **Batch size is the variable.** RSS falls roughly in proportion to the
+  batch (2.1-2.4 GB at 256, 1.5 GB at 128, 0.85 GB at 64, 0.66 GB at 32,
+  0.45 GB at 16), the series is monotonic in both runs, and the cold call did
+  not get slower (it was 61-67 s at 32 against 75-82 s at 256, but the machine
+  was shared; read that as "not slower", not as a speed-up).
+  fastembed pads every batch to its longest text and keeps the batch's
+  per-token output until it pools it, so a larger batch means larger live
+  buffers. I did not isolate which buffer (tokenizer, ONNX intermediates or
+  output tensors) dominates.
+- **Hypothesis "the ONNX Runtime CPU arena is not returned": not confirmed.**
+  Turning the arena off did not lower RSS at batch 256 and raised it at batch
+  32, so the arena is not the cause. The system allocator holding freed
+  memory was not tested.
+- **Hypothesis "the model is loaded or kept more than once": discarded.** One
+  load per server.
+- The ONNX memory-pattern option is not exposed by fastembed 7.1.0 (only
+  `with_session_config` string entries and execution providers), so it was not
+  tested.
+- The 2.49 GB peak is the same thing as the ~2.1-2.4 GB plateau at batch 256:
+  samples at the end of the embedding were 2.2-2.5 GB across runs and the
+  later settle moved it by up to 0.6 GB in either direction, so the original
+  "peak above plateau" gap is within run-to-run spread here.
+
+Change: `EMBED_BATCH` in `crates/mct-index/src/semantic.rs` went from 256 to 32
+(it also sets the rows per committed transaction). Guard:
+`pending_embeddings_split_into_small_batches`.
+
+Final code, full `real_model` test under `/usr/bin/time -l` (whole process,
+including the second server and the 8-way burst), load average ~11:
+cold quiet 62.3 s, cold with probe 73.8 s, worst ordinary call 310 ms
+(240,101 samples), warm median 100.3 ms, burst of 8 wall 0.75 s, peak RSS
+698 MB (Pair B above: 2.17 GB, measured at a different load, so it is
+indicative only).
 
 ## Limitations
 
 - **Real-model numbers are from one machine and one corpus.** Other processes
   shared the CPU; repeat the command above on a quiet machine before quoting a
   figure.
-- The worst ordinary call (318 ms) is the commit of one 256-symbol batch,
-  which holds the index mutex for one short transaction. A smaller batch would
-  shorten it at the cost of more transactions; not tuned.
+- The worst ordinary call (~310 ms) was attributed to the commit of one
+  256-symbol batch. With 32-symbol batches it is still 310 ms, so that
+  attribution does not hold; the cause was not isolated.
+- Memory figures: one machine, shared CPU (load average 5-12), debug test
+  profile, a single sampler at 100 ms (a shorter spike could be missed), two
+  runs per point. Compare only the rows measured back to back.
 - The probe test loops ordinary queries on a two-worker runtime, so its CPU
   competition with the ONNX embedding is part of the cold-with-probe figure.
 
