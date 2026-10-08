@@ -6,8 +6,8 @@
 use std::collections::BTreeSet;
 
 use mct_index::{
-    FileTreeNode, IndexStatus, LiteralHit, ReindexReport, RelationHit, Resolution, SymbolHit,
-    SymbolListEntry,
+    FileTreeNode, IndexStatus, LiteralHit, ReindexReport, RelationHit, RelationPage, Resolution,
+    SymbolHit, SymbolListEntry,
 };
 
 use crate::toon::encode_table;
@@ -694,18 +694,18 @@ fn candidate_list(hit: &RelationHit) -> String {
     list.join(", ")
 }
 
+/// One page of a relation walk (`page.hits` already starts at `offset`; the
+/// index pages in SQL) under a `{total} {verb_label}` header.
 pub fn relation_hits(
     subject: &str,
     verb_label: &str,
-    hits: &[RelationHit],
+    page: &RelationPage,
     offset: usize,
-    limit: usize,
 ) -> String {
-    if hits.is_empty() {
+    let (total, shown) = (page.total, page.hits.as_slice());
+    if total == 0 {
         return format!("No {verb_label} found for `{subject}`.");
     }
-    let total = hits.len();
-    let shown = paginate(hits, offset, limit);
     let mut body = BudgetedList::new(DEFAULT_BYTE_BUDGET);
     for hit in shown {
         body.push(&format!(
@@ -737,15 +737,13 @@ pub fn relation_hits(
 pub fn relation_hits_toon(
     subject: &str,
     verb_label: &str,
-    hits: &[RelationHit],
+    page: &RelationPage,
     offset: usize,
-    limit: usize,
 ) -> String {
-    if hits.is_empty() {
+    let (total, shown) = (page.total, page.hits.as_slice());
+    if total == 0 {
         return format!("No {verb_label} found for `{subject}`.");
     }
-    let total = hits.len();
-    let shown = paginate(hits, offset, limit);
     let rows: Vec<Vec<String>> = shown.iter().map(relation_hit_row).collect();
     format!(
         "{total} {verb_label}{}:\n{}",
@@ -768,6 +766,16 @@ pub fn relation_hits_toon(
             &rows,
         )
     )
+}
+
+/// Every hit as one page at offset 0 — what the index returns when nothing
+/// is cut.
+#[cfg(test)]
+fn whole(hits: &[RelationHit]) -> RelationPage {
+    RelationPage {
+        total: hits.len(),
+        hits: hits.to_vec(),
+    }
 }
 
 fn relation_hit_row(hit: &RelationHit) -> Vec<String> {
@@ -1866,7 +1874,7 @@ mod budget_tests {
             relation("alpha", "src/a.rs", 3, 5),
             relation("beta", "src/b.rs", 7, 2),
         ];
-        let out = relation_hits("target", "caller(s) of this function", &hits, 0, 50);
+        let out = relation_hits("target", "caller(s) of this function", &whole(&hits), 0);
         assert_eq!(
             out,
             "2 caller(s) of this function:\n\
@@ -1931,7 +1939,7 @@ mod budget_tests {
         );
         // `limit` is deliberately high enough that row-count pagination
         // cannot be what truncates here — only the byte budget can.
-        let out = relation_hits("target", "caller(s) of this function", &hits, 0, 1000);
+        let out = relation_hits("target", "caller(s) of this function", &whole(&hits), 0);
         let body = body_of(&out);
 
         assert!(
@@ -1977,7 +1985,7 @@ mod budget_tests {
             |i| format!("función_ñáéíóú_{i:04}"),
             |i| format!("crates/日本語パッケージ/src/módulo_{i:04}.rs"),
         );
-        let out = relation_hits("target", "caller(s) of this function", &hits, 0, 1000);
+        let out = relation_hits("target", "caller(s) of this function", &whole(&hits), 0);
         let body = body_of(&out);
 
         assert!(
@@ -2176,7 +2184,7 @@ mod resolution_tests {
 
     #[test]
     fn text_names_the_resolved_target_and_the_ambiguous_candidates() {
-        let out = relation_hits("run", "caller(s) of this function", &hits(), 0, 50);
+        let out = relation_hits("run", "caller(s) of this function", &whole(&hits()), 0);
         assert_eq!(
             out,
             "4 caller(s) of this function:\n\
@@ -2190,7 +2198,7 @@ mod resolution_tests {
     #[test]
     fn toon_has_a_targets_column_and_impact_sections_match_their_headers() {
         let hits = hits();
-        let out = relation_hits_toon("run", "caller(s) of this function", &hits, 0, 50);
+        let out = relation_hits_toon("run", "caller(s) of this function", &whole(&hits), 0);
         assert!(
             out.contains(
                 "{path,line,column,language,from,kind,to,depth,resolution,candidates,targets}:"

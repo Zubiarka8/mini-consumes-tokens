@@ -22,7 +22,7 @@
 //! like, which is the comparison the project's TOON-adoption decision is
 //! actually about.
 
-use mct_index::{RelationHit, SymbolListEntry};
+use mct_index::{RelationHit, RelationPage, SymbolListEntry};
 use mct_mcp_server::{format, toon::encode_table};
 use serde::Serialize;
 
@@ -242,9 +242,11 @@ fn main() {
     let relation_text = format::relation_hits(
         "find_symbol_matching_scoped",
         "reference(s)",
-        &relation_hits,
+        &RelationPage {
+            total: relation_hits.len(),
+            hits: relation_hits,
+        },
         0,
-        200,
     );
     report_vs_existing_text("find_references", &relation_toon, &relation_text);
 

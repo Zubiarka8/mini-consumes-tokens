@@ -30,8 +30,8 @@ pub use indexer::{
     UnsupportedFile, UnsupportedKind,
 };
 pub use queries::{
-    CandidateRef, QueryScope, RelationHit, Resolution, SymbolHit, SymbolListEntry, SymbolMatchMode,
-    SHOWN_CANDIDATES,
+    CandidateRef, QueryScope, RelationHit, RelationPage, Resolution, SymbolHit, SymbolListEntry,
+    SymbolMatchMode, SHOWN_CANDIDATES,
 };
 pub use search::{exact_phrase, search_words, split_identifier, LiteralHit, MAX_LITERAL_HITS};
 pub use semantic::{
@@ -46,20 +46,6 @@ use std::path::{Path, PathBuf};
 
 use mct_core::LanguageRegistry;
 use rusqlite::Connection;
-
-/// Early-stop budget for a `find_*_bfs` walk. At `depth <= 1` the walk is a
-/// single query identical to the plain single-hop method, which has always
-/// returned every direct hit uncapped — that invariant must hold regardless
-/// of `limit`/`offset`, or the reported total would silently shrink to the
-/// budget. Only a genuine multi-hop walk (`depth > 1`) is bounded, since an
-/// unbounded traversal has no pre-existing "true total" to preserve.
-fn bfs_budget(depth: u32, limit: usize, offset: usize) -> usize {
-    if depth <= 1 {
-        usize::MAX
-    } else {
-        limit.saturating_add(offset)
-    }
-}
 
 /// Prepared-statement cache capacity, raised from rusqlite's default of 16.
 ///
@@ -508,11 +494,13 @@ impl Index {
     }
 
     /// Multi-hop [`Index::find_calls`]: walks the call graph forward up to
-    /// `depth` hops (1 = identical to [`Index::find_calls`] — the full,
-    /// uncapped direct-hit list, so a caller that always passes `depth: 1`
-    /// sees the exact same total it always has). Beyond depth 1, stops once
-    /// `limit + offset` hits are collected, since an unbounded multi-hop
-    /// walk has no equivalent "true total" to preserve. `depth` beyond
+    /// `depth` hops and returns hits `offset..offset + limit` of that walk,
+    /// paged in SQL — no hit outside the page is materialized. At `depth: 1`
+    /// the page is a slice of [`Index::find_calls`] and `total` is its exact
+    /// length (one `COUNT(*)`), so the reported total never shrinks to the
+    /// page. Beyond depth 1, `total` is the hits skipped plus those returned:
+    /// exact once the walk runs dry, `offset + limit` otherwise, since an
+    /// unbounded multi-hop walk has no cheap "true total". `depth` beyond
     /// [`mct_core::MAX_QUERY_DEPTH`] is clamped. Hops past the first follow
     /// only resolved callees (by symbol id, never by name); ambiguous and
     /// unresolved calls are reported but not expanded — see `traversal.rs`.
@@ -522,7 +510,7 @@ impl Index {
         depth: u32,
         limit: usize,
         offset: usize,
-    ) -> Result<Vec<RelationHit>> {
+    ) -> Result<RelationPage> {
         self.find_calls_bfs_scoped(function, depth, limit, offset, QueryScope::default())
     }
 
@@ -536,12 +524,13 @@ impl Index {
         limit: usize,
         offset: usize,
         scope: QueryScope<'_>,
-    ) -> Result<Vec<RelationHit>> {
+    ) -> Result<RelationPage> {
         traversal::find_calls_bfs(
             self,
             function,
             depth,
-            bfs_budget(depth, limit, offset),
+            limit,
+            offset,
             self.resolve_scope(scope),
         )
     }
@@ -555,7 +544,7 @@ impl Index {
         depth: u32,
         limit: usize,
         offset: usize,
-    ) -> Result<Vec<RelationHit>> {
+    ) -> Result<RelationPage> {
         self.find_callers_bfs_scoped(function, depth, limit, offset, QueryScope::default())
     }
 
@@ -568,12 +557,14 @@ impl Index {
         limit: usize,
         offset: usize,
         scope: QueryScope<'_>,
-    ) -> Result<Vec<RelationHit>> {
-        traversal::find_callers_bfs(
+    ) -> Result<RelationPage> {
+        traversal::find_referrers_bfs(
             self,
             function,
+            true,
             depth,
-            bfs_budget(depth, limit, offset),
+            limit,
+            offset,
             self.resolve_scope(scope),
         )
     }
@@ -588,7 +579,7 @@ impl Index {
         depth: u32,
         limit: usize,
         offset: usize,
-    ) -> Result<Vec<RelationHit>> {
+    ) -> Result<RelationPage> {
         self.find_references_bfs_scoped(symbol, depth, limit, offset, QueryScope::default())
     }
 
@@ -601,12 +592,14 @@ impl Index {
         limit: usize,
         offset: usize,
         scope: QueryScope<'_>,
-    ) -> Result<Vec<RelationHit>> {
-        traversal::find_references_bfs(
+    ) -> Result<RelationPage> {
+        traversal::find_referrers_bfs(
             self,
             symbol,
+            false,
             depth,
-            bfs_budget(depth, limit, offset),
+            limit,
+            offset,
             self.resolve_scope(scope),
         )
     }

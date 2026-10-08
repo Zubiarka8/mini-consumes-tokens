@@ -26,7 +26,7 @@ use mct_core::{
     Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolKind, SymbolRecord,
     SymbolRelation,
 };
-use mct_index::{ExcludeSet, Index, RelationHit, Resolution};
+use mct_index::{ExcludeSet, Index, RelationHit, RelationPage, Resolution};
 
 /// `fn NAME [calls CALLEE...]` per line; every callee is a separate `calls`
 /// relation on that same line (distinct columns), which is what makes
@@ -158,28 +158,54 @@ fn key(hit: &RelationHit) -> (String, u32, u32, i64) {
     )
 }
 
-/// Pages of `limit` hits at `offset = 0, limit, 2*limit, ..` must concatenate
-/// to the same list a single large page returns.
+/// Pages of `limit` hits at `offset = 0, limit, 2*limit, ..` must each hold
+/// exactly `limit` hits (fewer only on the last) and concatenate to the list
+/// one unpaged call returns: same order, no duplicate, no gap. A single hop
+/// reports the `exact` total on every page; a multi-hop walk, the hits it
+/// skipped plus those it returned.
 fn assert_paging_equivalent(
-    fetch: impl Fn(usize, usize) -> Vec<RelationHit>,
+    fetch: impl Fn(usize, usize) -> RelationPage,
     total: usize,
     limit: usize,
+    exact: bool,
 ) {
-    let whole = fetch(total + 5, 0);
-    assert_eq!(whole.len(), total);
+    let whole = fetch(usize::MAX, 0);
+    assert_eq!((whole.hits.len(), whole.total), (total, total));
     let mut paged = Vec::new();
     let mut offset = 0;
     while offset < total {
         let page = fetch(limit, offset);
-        // The BFS API returns the first `limit + offset` hits; the caller skips
-        // `offset` of them (see the server's pagination).
-        paged.extend(page.into_iter().skip(offset));
+        assert_eq!(
+            page.hits.len(),
+            limit.min(total - offset),
+            "offset {offset}"
+        );
+        let reported = if exact {
+            total
+        } else {
+            (offset + limit).min(total)
+        };
+        assert_eq!(page.total, reported, "offset {offset}");
+        paged.extend(page.hits);
         offset += limit;
     }
     assert_eq!(
-        whole.iter().map(key).collect::<Vec<_>>(),
+        whole.hits.iter().map(key).collect::<Vec<_>>(),
         paged.iter().map(key).collect::<Vec<_>>()
     );
+}
+
+/// `hot` <- 10 `m*` <- 20 leaves each: 10 hits at hop 1, 200 at hop 2, so a
+/// page past offset 10 starts in hop 2 and must still expand the skipped hop.
+fn two_level_fan_in_index() -> Index {
+    let mut body = String::from("fn hot\n");
+    for m in 0..10 {
+        body.push_str(&format!("fn m{m} calls hot\n"));
+        for leaf in 0..20 {
+            body.push_str(&format!("fn l{m}x{leaf} calls m{m}\n"));
+        }
+    }
+    index_of(&[("tree.fake", body)])
 }
 
 #[test]
@@ -190,32 +216,63 @@ fn multi_hop_pages_concatenate_to_the_full_walk() {
         |l, o| index.find_callers_bfs("hot", 3, l, o).unwrap(),
         250,
         limit,
+        false,
     );
     assert_paging_equivalent(
         |l, o| index.find_references_bfs("hot", 3, l, o).unwrap(),
         250,
         limit,
+        false,
+    );
+}
+
+#[test]
+fn pages_at_depth_one_and_three_have_no_duplicates_or_gaps() {
+    let flat = fan_in_index(1200, true);
+    assert_paging_equivalent(
+        |l, o| flat.find_callers_bfs("hot", 1, l, o).unwrap(),
+        1200,
+        50,
+        true,
+    );
+    let tree = two_level_fan_in_index();
+    assert_paging_equivalent(
+        |l, o| tree.find_callers_bfs("hot", 3, l, o).unwrap(),
+        210,
+        50,
+        false,
+    );
+    assert_paging_equivalent(
+        |l, o| tree.find_references_bfs("hot", 3, l, o).unwrap(),
+        210,
+        50,
+        false,
     );
 }
 
 #[test]
 fn a_zero_budget_walk_returns_nothing() {
     let index = fan_in_index(30, false);
-    assert!(index.find_callers_bfs("hot", 3, 0, 0).unwrap().is_empty());
+    assert!(index
+        .find_callers_bfs("hot", 3, 0, 0)
+        .unwrap()
+        .hits
+        .is_empty());
     assert!(index
         .find_references_bfs("hot", 3, 0, 0)
         .unwrap()
+        .hits
         .is_empty());
-    assert!(index.find_calls_bfs("c0", 3, 0, 0).unwrap().is_empty());
+    assert!(index.find_calls_bfs("c0", 3, 0, 0).unwrap().hits.is_empty());
 }
 
 #[test]
 fn a_bounded_walk_is_a_prefix_of_the_unbounded_one() {
     let index = fan_in_index(120, true);
-    let full = index.find_callers_bfs("hot", 3, 1000, 0).unwrap();
+    let full = index.find_callers_bfs("hot", 3, 1000, 0).unwrap().hits;
     assert_eq!(full.len(), 120);
     for budget in [1usize, 2, 7, 64, 119, 120] {
-        let part = index.find_callers_bfs("hot", 3, budget, 0).unwrap();
+        let part = index.find_callers_bfs("hot", 3, budget, 0).unwrap().hits;
         assert_eq!(
             part.iter().map(key).collect::<Vec<_>>(),
             full.iter().take(budget).map(key).collect::<Vec<_>>(),
@@ -227,8 +284,8 @@ fn a_bounded_walk_is_a_prefix_of_the_unbounded_one() {
 #[test]
 fn bounded_hits_keep_ambiguity_and_candidate_provenance() {
     let index = fan_in_index(60, true);
-    let full = index.find_callers_bfs("hot", 2, 1000, 0).unwrap();
-    let part = index.find_callers_bfs("hot", 2, 10, 0).unwrap();
+    let full = index.find_callers_bfs("hot", 2, 1000, 0).unwrap().hits;
+    let part = index.find_callers_bfs("hot", 2, 10, 0).unwrap().hits;
     assert_eq!(part.len(), 10);
     for (p, f) in part.iter().zip(&full) {
         assert_eq!(p.resolution, Resolution::Ambiguous);
@@ -255,13 +312,13 @@ fn same_path_and_line_ties_order_by_column_then_relation_id() {
         ("a.fake", "fn a calls t t t t\n".to_string()),
         ("t.fake", "fn t\n".to_string()),
     ]);
-    let full = index.find_callers_bfs("t", 2, 100, 0).unwrap();
+    let full = index.find_callers_bfs("t", 2, 100, 0).unwrap().hits;
     assert_eq!(
         full.iter().map(|h| h.column).collect::<Vec<_>>(),
         [1, 2, 3, 4]
     );
     for budget in 1..=4usize {
-        let part = index.find_callers_bfs("t", 2, budget, 0).unwrap();
+        let part = index.find_callers_bfs("t", 2, budget, 0).unwrap().hits;
         assert_eq!(
             part.iter().map(|h| h.column).collect::<Vec<_>>(),
             (1..=budget as u32).collect::<Vec<_>>()
@@ -277,13 +334,13 @@ fn a_long_chain_with_a_cycle_respects_depth_and_budget() {
         body.push_str(&format!("fn c{i} calls c{} x{i}\n", (i + 1) % 10));
     }
     let index = index_of(&[("chain.fake", body)]);
-    let all = index.find_calls_bfs("c0", 32, 1000, 0).unwrap();
+    let all = index.find_calls_bfs("c0", 32, 1000, 0).unwrap().hits;
     // Every call of every reachable node is reported once; the cycle closes.
     assert_eq!(all.len(), 20);
     let hops: Vec<u32> = all.iter().map(|h| h.depth).collect();
     assert!(hops.windows(2).all(|w| w[0] <= w[1]), "{hops:?}");
     for budget in [1usize, 5, 13, 19] {
-        let part = index.find_calls_bfs("c0", 32, budget, 0).unwrap();
+        let part = index.find_calls_bfs("c0", 32, budget, 0).unwrap().hits;
         assert_eq!(
             part.iter().map(key).collect::<Vec<_>>(),
             all.iter().take(budget).map(key).collect::<Vec<_>>()
@@ -292,11 +349,18 @@ fn a_long_chain_with_a_cycle_respects_depth_and_budget() {
 }
 
 #[test]
-fn depth_one_still_reports_the_uncapped_direct_total() {
-    let index = fan_in_index(200, false);
-    // `limit`/`offset` never shrink a single-hop walk: the caller derives its
-    // reported total from the length.
-    assert_eq!(index.find_callers_bfs("hot", 1, 5, 0).unwrap().len(), 200);
+fn depth_one_returns_only_the_page_but_reports_the_exact_direct_total() {
+    let index = fan_in_index(1200, false);
+    // Only `limit` rows are materialized; the total is a COUNT(*) over the
+    // same filter, so it never shrinks to the page.
+    let page = index.find_callers_bfs("hot", 1, 50, 0).unwrap();
+    assert_eq!((page.hits.len(), page.total), (50, 1200));
+    let refs = index.find_references_bfs("hot", 1, 50, 0).unwrap();
+    assert_eq!((refs.hits.len(), refs.total), (50, 1200));
+    let last = index.find_callers_bfs("hot", 1, 50, 1180).unwrap();
+    assert_eq!((last.hits.len(), last.total), (20, 1200));
+    let past = index.find_callers_bfs("hot", 1, 50, 5000).unwrap();
+    assert_eq!((past.hits.len(), past.total), (0, 1200));
 }
 
 fn peak_rss_kib() -> Option<u64> {
@@ -322,17 +386,19 @@ fn relation_scale_measurement() {
         for ambiguous in [false, true] {
             let index = fan_in_index(symbols, ambiguous);
             let kind = if ambiguous { "ambiguous" } else { "resolved" };
-            let scenarios: [(&str, u32, usize); 3] = [
-                ("depth1 uncapped", 1, 50),
-                ("depth3 limit 50", 3, 50),
-                ("depth3 limit 50 offset 50 (budget 100)", 3, 100),
+            let scenarios: [(&str, u32, usize, usize); 4] = [
+                ("depth1 limit 50", 1, 50, 0),
+                ("depth1 limit 50 offset 50000", 1, 50, 50_000),
+                ("depth3 limit 50", 3, 50, 0),
+                ("depth3 limit 50 offset 50", 3, 50, 50),
             ];
-            for (label, depth, budget) in scenarios {
+            for (label, depth, limit, offset) in scenarios {
                 let started = Instant::now();
-                let hits = index.find_callers_bfs("hot", depth, budget, 0).unwrap();
+                let page = index.find_callers_bfs("hot", depth, limit, offset).unwrap();
                 println!(
-                    "symbols={symbols} {kind} {label}: {} hits in {:?} (peak RSS KiB: {:?})",
-                    hits.len(),
+                    "symbols={symbols} {kind} {label}: {} hits of {} in {:?} (peak RSS KiB: {:?})",
+                    page.hits.len(),
+                    page.total,
                     started.elapsed(),
                     peak_rss_kib()
                 );

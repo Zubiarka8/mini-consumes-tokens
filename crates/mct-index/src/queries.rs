@@ -424,23 +424,89 @@ pub fn list_symbols(
     Ok(rows)
 }
 
-/// The three relation queries differ only in their WHERE predicate; the
-/// SELECT/JOIN prefix and the ORDER BY are shared, with any scope predicates
-/// spliced in between.
+/// The relation queries differ only in their WHERE predicate; the SELECT
+/// columns, the FROM/JOIN prefix and the ORDER BY are shared, with any scope
+/// predicates spliced in between.
 ///
-/// The last two columns are the candidate count and, for exactly one
-/// candidate, its id — correlated lookups into `relation_candidates`, so a
-/// relation's resolution is always computed against the current symbols.
-const RELATION_SELECT: &str =
+/// The candidate count and, for exactly one candidate, its id are correlated
+/// lookups into `relation_candidates`, so a relation's resolution is always
+/// computed against the current symbols.
+const RELATION_COLUMNS: &str =
     "SELECT r.kind, caller.name, r.to_name, f.language, f.relative_path, r.line, r.column,
             r.id, r.from_symbol_id, r.external,
             (SELECT COUNT(*) FROM relation_candidates c WHERE c.relation_id = r.id),
             (SELECT MIN(c.symbol_id) FROM relation_candidates c WHERE c.relation_id = r.id),
-            r.member
+            r.member";
+
+const RELATION_FROM: &str = "
          FROM relations r
          JOIN symbols caller ON caller.id = r.from_symbol_id
          JOIN files f ON f.id = caller.file_id
          WHERE ";
+
+/// The total order every relation list uses — path, line, column, then the
+/// relation id — so a page is always the exact slice of the full list.
+const RELATION_ORDER: &str = "\n         ORDER BY f.relative_path, r.line, r.column, r.id";
+
+/// `NOT` of "provably targets a definition outside `?2`" (a JSON array of
+/// symbol ids): external and unresolved relations stay, a resolved or
+/// ambiguous one only when a candidate is in `?2`. The SQL form of the
+/// resolution rule in [`query_relations_page`], so a filtered list can be
+/// counted and paged without reading the rows it drops.
+const REACHES_START: &str = " AND (r.external
+              OR NOT EXISTS (SELECT 1 FROM relation_candidates c WHERE c.relation_id = r.id)
+              OR EXISTS (SELECT 1 FROM relation_candidates c WHERE c.relation_id = r.id
+                         AND c.symbol_id IN (SELECT value FROM json_each(?2))))";
+
+/// One page of a relation walk: `hits` are the requested slice, `total`
+/// how many hits that walk reports (see `Index::find_calls_bfs`).
+#[derive(Debug, Clone, Default)]
+pub struct RelationPage {
+    pub hits: Vec<RelationHit>,
+    pub total: usize,
+}
+
+/// The value bound to a relation predicate's `?1`.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum RelationKey<'a> {
+    Name(&'a str),
+    Id(i64),
+}
+
+/// The relations matching a static `predicate` (`?1` binds `key`), minus
+/// those [`REACHES_START`] drops when `start` is set, narrowed to `scope` —
+/// one run of a walk, which can be counted, paged and listed by next node in
+/// SQL without materializing rows nobody will show.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct RelationSet<'a> {
+    predicate: &'static str,
+    key: RelationKey<'a>,
+    start: Option<&'a str>,
+    scope: ResolvedScope<'a>,
+}
+
+impl RelationSet<'_> {
+    /// `FROM … WHERE …` for this set, and the values it binds.
+    fn sql_from_where(&self) -> (String, BoundValues) {
+        let mut sql = String::from(RELATION_FROM);
+        sql.push_str(self.predicate);
+        let mut bound: BoundValues = vec![match self.key {
+            RelationKey::Name(name) => Box::new(name.to_string()),
+            RelationKey::Id(id) => Box::new(id),
+        }];
+        if let Some(start) = self.start {
+            sql.push_str(REACHES_START);
+            bound.push(Box::new(start.to_string()));
+        }
+        push_scope(&mut sql, &mut bound, self.scope);
+        (sql, bound)
+    }
+}
+
+/// `ids` as the JSON array a [`REACHES_START`] predicate binds.
+pub(crate) fn id_list(ids: &[i64]) -> String {
+    serde_json::to_string(ids).unwrap_or_else(|_| "[]".to_string())
+}
 
 /// Every relation kind pointing at `symbol`, narrowed to `scope`.
 /// `ResolvedScope::default()` is the unscoped query, row for row.
@@ -449,7 +515,7 @@ pub fn find_references_scoped(
     symbol: &str,
     scope: ResolvedScope<'_>,
 ) -> Result<Vec<RelationHit>> {
-    query_relations(conn, "r.to_name = ?1", symbol.to_string(), scope)
+    query_relations(conn, "r.to_name = ?1", RelationKey::Name(symbol), scope)
 }
 
 pub fn find_calls_scoped(
@@ -460,7 +526,7 @@ pub fn find_calls_scoped(
     query_relations(
         conn,
         "caller.name = ?1 AND r.kind = 'calls'",
-        function.to_string(),
+        RelationKey::Name(function),
         scope,
     )
 }
@@ -473,7 +539,7 @@ pub fn find_callers_scoped(
     query_relations(
         conn,
         "r.to_name = ?1 AND r.kind = 'calls'",
-        function.to_string(),
+        RelationKey::Name(function),
         scope,
     )
 }
@@ -489,7 +555,7 @@ pub fn find_dependencies_scoped(
     query_relations(
         conn,
         "caller.name = ?1 AND r.kind <> 'calls'",
-        symbol.to_string(),
+        RelationKey::Name(symbol),
         scope,
     )
 }
@@ -538,15 +604,21 @@ pub fn reference_counts(conn: &Connection) -> Result<HashMap<String, usize>> {
 }
 
 /// `predicate` is a static SQL fragment chosen by the caller (never built from
-/// input) whose `?1` placeholder binds `param`; scope values bind to `?2`
+/// input) whose `?1` placeholder binds `key`; scope values bind to `?2`
 /// onwards.
 fn query_relations(
     conn: &Connection,
-    predicate: &str,
-    param: impl rusqlite::ToSql + 'static,
+    predicate: &'static str,
+    key: RelationKey<'_>,
     scope: ResolvedScope<'_>,
 ) -> Result<Vec<RelationHit>> {
-    query_relations_page(conn, predicate, param, scope, None, 0)
+    let set = RelationSet {
+        predicate,
+        key,
+        start: None,
+        scope,
+    };
+    query_relations_page(conn, &set, None, 0)
 }
 
 /// A count as an SQLite integer, saturating instead of wrapping.
@@ -554,23 +626,76 @@ fn sql_count(n: usize) -> i64 {
     i64::try_from(n).unwrap_or(i64::MAX)
 }
 
-/// [`query_relations`] restricted to `limit` rows after skipping `offset`
-/// (`None` = every row). The order is total — path, line, column, then the
-/// relation id — so a page is always the exact slice of the full list, and
-/// only the rows of the page pay for the candidate preview below.
-fn query_relations_page(
+/// How many relations `set` holds — at most `limit` of them (`None` = all) —
+/// without reading them.
+pub(crate) fn count_relations(
     conn: &Connection,
-    predicate: &str,
-    param: impl rusqlite::ToSql + 'static,
-    scope: ResolvedScope<'_>,
+    set: &RelationSet<'_>,
+    limit: Option<usize>,
+) -> Result<usize> {
+    let (sql_from_where, mut bound) = set.sql_from_where();
+    let sql = match limit {
+        None => format!("SELECT COUNT(*){sql_from_where}"),
+        Some(limit) => {
+            bound.push(Box::new(sql_count(limit)));
+            format!(
+                "SELECT COUNT(*) FROM (SELECT 1{sql_from_where} LIMIT ?{})",
+                bound.len()
+            )
+        }
+    };
+    let mut stmt = conn.prepare_cached(&sql)?;
+    let params: Vec<&dyn rusqlite::ToSql> = bound.iter().map(|b| b.as_ref()).collect();
+    let count: i64 = stmt.query_row(params.as_slice(), |row| row.get(0))?;
+    Ok(usize::try_from(count).unwrap_or_default())
+}
+
+/// The node each of the first `limit` relations of `set` leads a walk to, in
+/// the usual order: the resolved target going `forward`, else the source of
+/// a relation resolved to the node being walked; `None` for a relation whose
+/// target isn't proven (the same rule [`query_relations_page`] applies). Lets
+/// a walk skip rows before its page and still expand them, reading one
+/// integer per row.
+pub(crate) fn relation_next_nodes(
+    conn: &Connection,
+    set: &RelationSet<'_>,
+    forward: bool,
+    limit: usize,
+) -> Result<Vec<Option<i64>>> {
+    let next = if forward {
+        "(SELECT MIN(c.symbol_id) FROM relation_candidates c WHERE c.relation_id = r.id)"
+    } else {
+        "r.from_symbol_id"
+    };
+    let (sql_from_where, mut bound) = set.sql_from_where();
+    bound.push(Box::new(sql_count(limit)));
+    let sql = format!(
+        "SELECT CASE WHEN NOT r.external AND NOT r.member
+                 AND (SELECT COUNT(*) FROM relation_candidates c WHERE c.relation_id = r.id) = 1
+                 THEN {next} END{sql_from_where}{RELATION_ORDER}
+         LIMIT ?{}",
+        bound.len()
+    );
+    let mut stmt = conn.prepare_cached(&sql)?;
+    let params: Vec<&dyn rusqlite::ToSql> = bound.iter().map(|b| b.as_ref()).collect();
+    let rows = stmt
+        .query_map(params.as_slice(), |row| row.get(0))?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(rows)
+}
+
+/// The relations of `set`, `limit` rows after skipping `offset` (`None` =
+/// every row), in the total [`RELATION_ORDER`] — so a page is always the
+/// exact slice of the full list, and only the rows of the page pay for the
+/// candidate preview below.
+pub(crate) fn query_relations_page(
+    conn: &Connection,
+    set: &RelationSet<'_>,
     limit: Option<usize>,
     offset: usize,
 ) -> Result<Vec<RelationHit>> {
-    let mut sql = String::from(RELATION_SELECT);
-    sql.push_str(predicate);
-    let mut bound: BoundValues = vec![Box::new(param)];
-    push_scope(&mut sql, &mut bound, scope);
-    sql.push_str("\n         ORDER BY f.relative_path, r.line, r.column, r.id");
+    let (sql_from_where, mut bound) = set.sql_from_where();
+    let mut sql = format!("{RELATION_COLUMNS}{sql_from_where}{RELATION_ORDER}");
     if let Some(limit) = limit {
         sql.push_str(&format!("\n         LIMIT ?{}", bound.len() + 1));
         bound.push(Box::new(sql_count(limit)));
@@ -639,76 +764,46 @@ fn query_relations_page(
 
 /// Calls made by the one symbol row `symbol_id` — the identity-based hop of
 /// a forward walk, which can't wander into a same-named definition.
-/// At most `limit` of them (`None` = all), in the usual order.
-pub(crate) fn calls_from_symbol(
-    conn: &Connection,
-    symbol_id: i64,
-    scope: ResolvedScope<'_>,
-    limit: Option<usize>,
-) -> Result<Vec<RelationHit>> {
-    query_relations_page(
-        conn,
-        "r.from_symbol_id = ?1 AND r.kind = 'calls'",
-        symbol_id,
-        scope,
-        limit,
-        0,
-    )
+pub(crate) fn calls_from_symbol(symbol_id: i64) -> RelationSet<'static> {
+    RelationSet {
+        predicate: "r.from_symbol_id = ?1 AND r.kind = 'calls'",
+        key: RelationKey::Id(symbol_id),
+        start: None,
+        scope: ResolvedScope::default(),
+    }
 }
 
-/// The `limit` calls made by the function named `function` after skipping
-/// `offset` — a slice of exactly what [`find_calls_scoped`] returns.
-pub(crate) fn find_calls_page(
-    conn: &Connection,
-    function: &str,
-    scope: ResolvedScope<'_>,
-    limit: usize,
-    offset: usize,
-) -> Result<Vec<RelationHit>> {
-    query_relations_page(
-        conn,
-        "caller.name = ?1 AND r.kind = 'calls'",
-        function.to_string(),
+/// The calls made by the function named `function` — exactly the rows of
+/// [`find_calls_scoped`].
+pub(crate) fn calls_named<'a>(function: &'a str, scope: ResolvedScope<'a>) -> RelationSet<'a> {
+    RelationSet {
+        predicate: "caller.name = ?1 AND r.kind = 'calls'",
+        key: RelationKey::Name(function),
+        start: None,
         scope,
-        Some(limit),
-        offset,
-    )
+    }
 }
 
-/// A slice of [`find_callers_scoped`], as [`find_calls_page`] is of calls.
-pub(crate) fn find_callers_page(
-    conn: &Connection,
-    function: &str,
-    scope: ResolvedScope<'_>,
-    limit: usize,
-    offset: usize,
-) -> Result<Vec<RelationHit>> {
-    query_relations_page(
-        conn,
-        "r.to_name = ?1 AND r.kind = 'calls'",
-        function.to_string(),
+/// The rows of [`find_callers_scoped`] (`calls_only`) or
+/// [`find_references_scoped`] — with `start` (an [`id_list`]), only those
+/// that may reach one of its definitions: relations that provably target
+/// another definition are left out, see [`REACHES_START`].
+pub(crate) fn relations_to_start<'a>(
+    name: &'a str,
+    calls_only: bool,
+    start: Option<&'a str>,
+    scope: ResolvedScope<'a>,
+) -> RelationSet<'a> {
+    RelationSet {
+        predicate: if calls_only {
+            "r.to_name = ?1 AND r.kind = 'calls'"
+        } else {
+            "r.to_name = ?1"
+        },
+        key: RelationKey::Name(name),
+        start,
         scope,
-        Some(limit),
-        offset,
-    )
-}
-
-/// A slice of [`find_references_scoped`], as [`find_calls_page`] is of calls.
-pub(crate) fn find_references_page(
-    conn: &Connection,
-    symbol: &str,
-    scope: ResolvedScope<'_>,
-    limit: usize,
-    offset: usize,
-) -> Result<Vec<RelationHit>> {
-    query_relations_page(
-        conn,
-        "r.to_name = ?1",
-        symbol.to_string(),
-        scope,
-        Some(limit),
-        offset,
-    )
+    }
 }
 
 /// Non-call relations made by the one symbol row `symbol_id` — what it
@@ -717,7 +812,7 @@ pub fn dependencies_of_symbol(conn: &Connection, symbol_id: i64) -> Result<Vec<R
     query_relations(
         conn,
         "r.from_symbol_id = ?1 AND r.kind <> 'calls'",
-        symbol_id,
+        RelationKey::Id(symbol_id),
         ResolvedScope::default(),
     )
 }
@@ -726,19 +821,18 @@ pub fn dependencies_of_symbol(conn: &Connection, symbol_id: i64) -> Result<Vec<R
 /// or ambiguous with it among the candidates — optionally only `calls`. A
 /// relation resolved to another definition, or from a language that can't
 /// name it, is not one of them.
-pub(crate) fn relations_reaching_symbol(
-    conn: &Connection,
-    symbol_id: i64,
-    calls_only: bool,
-    scope: ResolvedScope<'_>,
-    limit: Option<usize>,
-) -> Result<Vec<RelationHit>> {
+pub(crate) fn relations_reaching_symbol(symbol_id: i64, calls_only: bool) -> RelationSet<'static> {
     let predicate = if calls_only {
         "r.kind = 'calls' AND r.id IN (SELECT relation_id FROM relation_candidates WHERE symbol_id = ?1)"
     } else {
         "r.id IN (SELECT relation_id FROM relation_candidates WHERE symbol_id = ?1)"
     };
-    query_relations_page(conn, predicate, symbol_id, scope, limit, 0)
+    RelationSet {
+        predicate,
+        key: RelationKey::Id(symbol_id),
+        start: None,
+        scope: ResolvedScope::default(),
+    }
 }
 
 /// Every symbol row named `name` within `scope` — the start nodes of a walk.
@@ -755,7 +849,7 @@ pub(crate) fn symbol_ids_named(
 
 /// The symbol rows with the given ids, in id order; unknown ids are skipped.
 pub fn symbols_by_ids(conn: &Connection, ids: &[i64]) -> Result<Vec<SymbolHit>> {
-    let ids = serde_json::to_string(ids).unwrap_or_else(|_| "[]".to_string());
+    let ids = id_list(ids);
     let mut stmt = conn.prepare_cached(
         "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line, s.level, s.id
          FROM symbols s JOIN files f ON f.id = s.file_id

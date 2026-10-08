@@ -337,27 +337,35 @@ fn default_scope_returns_exactly_what_the_unscoped_method_returns() {
 
     for depth in [1u32, 3] {
         assert_eq!(
-            debug(&index.find_callers_bfs("target", depth, 50, 0).unwrap()),
+            debug(&index.find_callers_bfs("target", depth, 50, 0).unwrap().hits),
             debug(
                 &index
                     .find_callers_bfs_scoped("target", depth, 50, 0, empty)
                     .unwrap()
+                    .hits
             )
         );
         assert_eq!(
-            debug(&index.find_calls_bfs("a", depth, 50, 0).unwrap()),
+            debug(&index.find_calls_bfs("a", depth, 50, 0).unwrap().hits),
             debug(
                 &index
                     .find_calls_bfs_scoped("a", depth, 50, 0, empty)
                     .unwrap()
+                    .hits
             )
         );
         assert_eq!(
-            debug(&index.find_references_bfs("target", depth, 50, 0).unwrap()),
+            debug(
+                &index
+                    .find_references_bfs("target", depth, 50, 0)
+                    .unwrap()
+                    .hits
+            ),
             debug(
                 &index
                     .find_references_bfs_scoped("target", depth, 50, 0, empty)
                     .unwrap()
+                    .hits
             )
         );
     }
@@ -380,7 +388,7 @@ fn bfs_applies_the_scope_to_the_first_hop_only() {
     let (_dir, index) = two_hop_index();
 
     // Unscoped: both hops are reported.
-    let unscoped = index.find_calls_bfs("a", 3, 50, 0).unwrap();
+    let unscoped = index.find_calls_bfs("a", 3, 50, 0).unwrap().hits;
     assert_eq!(hits(&unscoped), vec!["libx/b.fake:b", "src/a.fake:a"]);
 
     // Scoped to src/: hop 1 is in scope; hop 2 follows `b`'s id into libx/.
@@ -395,7 +403,8 @@ fn bfs_applies_the_scope_to_the_first_hop_only() {
                 language: None,
             },
         )
-        .unwrap();
+        .unwrap()
+        .hits;
     assert_eq!(hits(&scoped), vec!["libx/b.fake:b", "src/a.fake:a"]);
     assert_eq!((scoped[0].depth, scoped[1].depth), (1, 2));
 }
@@ -408,7 +417,7 @@ fn bfs_scope_by_language_applies_to_the_first_hop_only() {
     write(&dir, "src/c.fake", "fn c\n");
     let index = open(&dir);
 
-    assert_eq!(index.find_calls_bfs("a", 3, 50, 0).unwrap().len(), 2);
+    assert_eq!(index.find_calls_bfs("a", 3, 50, 0).unwrap().hits.len(), 2);
 
     let scoped = index
         .find_calls_bfs_scoped(
@@ -421,7 +430,8 @@ fn bfs_scope_by_language_applies_to_the_first_hop_only() {
                 language: Some("fake"),
             },
         )
-        .unwrap();
+        .unwrap()
+        .hits;
     assert_eq!(hits(&scoped), vec!["src/a.fake:a", "src/b.other:b"]);
 }
 

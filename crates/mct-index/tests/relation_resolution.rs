@@ -262,7 +262,7 @@ fn names(hits: &[RelationHit], pick: impl Fn(&RelationHit) -> &str) -> Vec<Strin
 #[test]
 fn a_forward_walk_follows_only_the_resolved_definition() {
     let (_dir, index) = walk_index();
-    let from_main = index.find_calls_bfs("main", 3, 50, 0).unwrap();
+    let from_main = index.find_calls_bfs("main", 3, 50, 0).unwrap().hits;
     assert_eq!(
         names(&from_main, |h| &h.to_name),
         vec!["run@1", "a_only@2"],
@@ -270,14 +270,14 @@ fn a_forward_walk_follows_only_the_resolved_definition() {
     );
 
     // An ambiguous callee is reported, never expanded into either candidate.
-    let from_guess = index.find_calls_bfs("guess", 3, 50, 0).unwrap();
+    let from_guess = index.find_calls_bfs("guess", 3, 50, 0).unwrap().hits;
     assert_eq!(names(&from_guess, |h| &h.to_name), vec!["run@1"]);
 }
 
 #[test]
 fn a_backward_walk_reports_ambiguous_callers_but_continues_only_from_proven_ones() {
     let (_dir, index) = walk_index();
-    let to_a = index.find_callers_bfs("a_only", 3, 50, 0).unwrap();
+    let to_a = index.find_callers_bfs("a_only", 3, 50, 0).unwrap().hits;
     assert_eq!(
         names(&to_a, |h| &h.from_symbol),
         vec!["run@1", "main@2", "guess@2"]
@@ -286,7 +286,7 @@ fn a_backward_walk_reports_ambiguous_callers_but_continues_only_from_proven_ones
     assert_eq!(guess.resolution, Resolution::Ambiguous);
 
     // `main` resolved to A::run, so it is no caller of B::run's callee.
-    let to_b = index.find_callers_bfs("b_only", 3, 50, 0).unwrap();
+    let to_b = index.find_callers_bfs("b_only", 3, 50, 0).unwrap().hits;
     assert_eq!(names(&to_b, |h| &h.from_symbol), vec!["run@1", "guess@2"]);
 }
 
@@ -312,7 +312,8 @@ fn a_scoped_forward_walk_scopes_start_and_hop_one_then_follows_ids_across_files(
     let (_dir, index) = scoped_walk_index();
     let hits = index
         .find_calls_bfs_scoped("start", 3, 50, 0, scope_in())
-        .unwrap();
+        .unwrap()
+        .hits;
     // `out/s.a`'s start and its `decoy` call are outside the scope.
     assert_eq!(names(&hits, |h| &h.to_name), vec!["mid@1", "leaf@2"]);
 }
@@ -327,7 +328,8 @@ fn a_scoped_backward_walk_scopes_hop_one_then_follows_ids_across_files() {
     ]);
     let hits = index
         .find_callers_bfs_scoped("target", 3, 50, 0, scope_in())
-        .unwrap();
+        .unwrap()
+        .hits;
     // `outer` is out of scope at hop 1; `up` is reached at hop 2 despite
     // living outside the scope.
     assert_eq!(names(&hits, |h| &h.from_symbol), vec!["inner@1", "up@2"]);
@@ -398,15 +400,17 @@ fn a_scoped_backward_walk_drops_hop_one_hits_to_another_same_named_target() {
     let expected = vec!["to_a@1", "guess@1", "unknown@1"];
     let callers = index
         .find_callers_bfs_scoped("run", 1, 50, 0, scope)
-        .unwrap();
+        .unwrap()
+        .hits;
     assert_eq!(names(&callers, |h| &h.from_symbol), expected);
     let references = index
         .find_references_bfs_scoped("run", 1, 50, 0, scope)
-        .unwrap();
+        .unwrap()
+        .hits;
     assert_eq!(names(&references, |h| &h.from_symbol), expected);
 
     // Unscoped, every same-named definition is a start: nothing is dropped.
-    let all = index.find_callers_bfs("run", 1, 50, 0).unwrap();
+    let all = index.find_callers_bfs("run", 1, 50, 0).unwrap().hits;
     assert_eq!(all.len(), 5);
 }
 

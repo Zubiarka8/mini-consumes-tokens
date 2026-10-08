@@ -1682,16 +1682,12 @@ impl MctServer {
         let output_format = parse_output_format(format.as_deref())?;
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
         let index = self.index.lock().await;
-        let hits = index
+        let page = index
             .find_references_bfs_scoped(symbol, depth.unwrap_or(1), limit, offset, scope)
             .map_err(index_error)?;
         let text = match output_format {
-            OutputFormat::Text => {
-                format::relation_hits(symbol, "reference(s)", &hits, offset, limit)
-            }
-            OutputFormat::Toon => {
-                format::relation_hits_toon(symbol, "reference(s)", &hits, offset, limit)
-            }
+            OutputFormat::Text => format::relation_hits(symbol, "reference(s)", &page, offset),
+            OutputFormat::Toon => format::relation_hits_toon(symbol, "reference(s)", &page, offset),
         };
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
@@ -1716,24 +1712,16 @@ impl MctServer {
         let output_format = parse_output_format(format.as_deref())?;
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
         let index = self.index.lock().await;
-        let hits = index
+        let page = index
             .find_calls_bfs_scoped(function, depth.unwrap_or(1), limit, offset, scope)
             .map_err(index_error)?;
         let text = match output_format {
-            OutputFormat::Text => format::relation_hits(
-                function,
-                "call(s) made by this function",
-                &hits,
-                offset,
-                limit,
-            ),
-            OutputFormat::Toon => format::relation_hits_toon(
-                function,
-                "call(s) made by this function",
-                &hits,
-                offset,
-                limit,
-            ),
+            OutputFormat::Text => {
+                format::relation_hits(function, "call(s) made by this function", &page, offset)
+            }
+            OutputFormat::Toon => {
+                format::relation_hits_toon(function, "call(s) made by this function", &page, offset)
+            }
         };
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
@@ -1758,20 +1746,16 @@ impl MctServer {
         let output_format = parse_output_format(format.as_deref())?;
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
         let index = self.index.lock().await;
-        let hits = index
+        let page = index
             .find_callers_bfs_scoped(function, depth.unwrap_or(1), limit, offset, scope)
             .map_err(index_error)?;
         let text = match output_format {
             OutputFormat::Text => {
-                format::relation_hits(function, "caller(s) of this function", &hits, offset, limit)
+                format::relation_hits(function, "caller(s) of this function", &page, offset)
             }
-            OutputFormat::Toon => format::relation_hits_toon(
-                function,
-                "caller(s) of this function",
-                &hits,
-                offset,
-                limit,
-            ),
+            OutputFormat::Toon => {
+                format::relation_hits_toon(function, "caller(s) of this function", &page, offset)
+            }
         };
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
@@ -1796,14 +1780,27 @@ impl MctServer {
         let depth = depth.unwrap_or(1);
         let output_format = parse_output_format(format.as_deref())?;
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
+        // "Likely affected tests" is filtered from every hit before its own
+        // pagination, so this tool reads the walk from the start and pages
+        // its three sections here: every direct hit at depth 1 (the exact
+        // totals it has always shown), the first `limit + offset` beyond.
+        // ponytail: O(direct hits) at depth 1 — page it in SQL once the test
+        // filter can run there.
+        let window = if depth <= 1 {
+            usize::MAX
+        } else {
+            limit.saturating_add(offset)
+        };
         let (callers, references) = {
             let index = self.index.lock().await;
             let callers = index
-                .find_callers_bfs_scoped(symbol, depth, limit, offset, scope)
-                .map_err(index_error)?;
+                .find_callers_bfs_scoped(symbol, depth, window, 0, scope)
+                .map_err(index_error)?
+                .hits;
             let references = index
-                .find_references_bfs_scoped(symbol, depth, limit, offset, scope)
-                .map_err(index_error)?;
+                .find_references_bfs_scoped(symbol, depth, window, 0, scope)
+                .map_err(index_error)?
+                .hits;
             (callers, references)
         };
         // A test caller shows up in both `callers` and `references` (the

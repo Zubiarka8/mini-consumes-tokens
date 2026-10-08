@@ -117,7 +117,7 @@ fn cyclic_index() -> Index {
 fn depth_1_bfs_matches_the_plain_single_hop_query_exactly() {
     let index = cyclic_index();
     let plain = index.find_calls("a").unwrap();
-    let bfs = index.find_calls_bfs("a", 1, 50, 0).unwrap();
+    let bfs = index.find_calls_bfs("a", 1, 50, 0).unwrap().hits;
     assert_eq!(plain.len(), bfs.len());
     assert_eq!(plain[0].to_name, bfs[0].to_name);
     assert_eq!(bfs[0].depth, 1);
@@ -126,7 +126,7 @@ fn depth_1_bfs_matches_the_plain_single_hop_query_exactly() {
 #[test]
 fn bfs_walks_multiple_hops_and_tags_each_hit_with_its_hop_number() {
     let index = cyclic_index();
-    let hits = index.find_calls_bfs("a", 2, 50, 0).unwrap();
+    let hits = index.find_calls_bfs("a", 2, 50, 0).unwrap().hits;
     // a->b (depth 1), b->c (depth 2).
     assert_eq!(hits.len(), 2, "{hits:?}");
     assert_eq!((hits[0].to_name.as_str(), hits[0].depth), ("b", 1));
@@ -138,7 +138,7 @@ fn bfs_on_a_cycle_terminates_instead_of_looping_forever() {
     let index = cyclic_index();
     // Depth far exceeds the cycle length (3): a visited-set must stop
     // re-expanding `a` once the walk returns to it, or this test would hang.
-    let hits = index.find_calls_bfs("a", 20, 1000, 0).unwrap();
+    let hits = index.find_calls_bfs("a", 20, 1000, 0).unwrap().hits;
     assert_eq!(hits.len(), 3, "{hits:?}");
     assert_eq!(hits[2].depth, 3);
     assert_eq!(
@@ -146,10 +146,10 @@ fn bfs_on_a_cycle_terminates_instead_of_looping_forever() {
         "the cycle-closing edge c->a is still reported once"
     );
 
-    let callers = index.find_callers_bfs("a", 20, 1000, 0).unwrap();
+    let callers = index.find_callers_bfs("a", 20, 1000, 0).unwrap().hits;
     assert_eq!(callers.len(), 3, "{callers:?}");
 
-    let refs = index.find_references_bfs("a", 20, 1000, 0).unwrap();
+    let refs = index.find_references_bfs("a", 20, 1000, 0).unwrap().hits;
     assert_eq!(refs.len(), 3, "{refs:?}");
 }
 
@@ -170,16 +170,22 @@ fn requested_depth_beyond_max_query_depth_is_clamped() {
 
     // mct_core::MAX_QUERY_DEPTH is 32; a depth request far beyond it must not
     // walk the full 39-hop chain.
-    let hits = index.find_calls_bfs("a0", 1000, 10_000, 0).unwrap();
+    let hits = index.find_calls_bfs("a0", 1000, 10_000, 0).unwrap().hits;
     assert_eq!(hits.len(), mct_core::MAX_QUERY_DEPTH as usize, "{hits:?}");
     assert_eq!(hits.last().unwrap().depth, mct_core::MAX_QUERY_DEPTH);
 }
 
 #[test]
-fn limit_plus_offset_budget_stops_the_walk_early() {
+fn a_page_holds_only_limit_hits_past_offset_and_stops_the_walk_early() {
     let index = cyclic_index();
-    // budget = limit + offset = 1 + 1 = 2, so the walk must stop after the
-    // second hit even though depth allows more.
-    let hits = index.find_calls_bfs("a", 20, 1, 1).unwrap();
-    assert_eq!(hits.len(), 2, "{hits:?}");
+    let full = index.find_calls_bfs("a", 20, 1000, 0).unwrap().hits;
+    // limit 1 at offset 1: just the walk's second hit, and the walk stops
+    // there even though depth allows more, so the total is offset + limit.
+    let page = index.find_calls_bfs("a", 20, 1, 1).unwrap();
+    assert_eq!(page.hits.len(), 1, "{:?}", page.hits);
+    assert_eq!(page.total, 2);
+    assert_eq!(
+        (page.hits[0].relation_id, page.hits[0].depth),
+        (full[1].relation_id, full[1].depth)
+    );
 }
