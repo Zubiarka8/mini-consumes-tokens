@@ -273,7 +273,7 @@ fn index_file(
         .and_then(|n| n.to_str())
         .unwrap_or_default();
     if let Some(language) = manifests::manifest_language(file_name) {
-        match std::fs::read(&canonical) {
+        match crate::read_repository_file(&canonical) {
             Ok(bytes) => {
                 clear_read_failure(index, &relative_path)?;
                 if let Ok(contents) = String::from_utf8(bytes) {
@@ -315,7 +315,7 @@ fn index_file(
         return Ok(Seen::Source(relative_path));
     };
 
-    let bytes = match std::fs::read(&canonical) {
+    let bytes = match crate::read_repository_file(&canonical) {
         Ok(b) => b,
         // Unreadable (permissions, race): not a syntax error and not an
         // unsupported language, so it is its own issue. The run carries on and
