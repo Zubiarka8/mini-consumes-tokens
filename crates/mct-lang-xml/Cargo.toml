@@ -10,6 +10,7 @@ categories = ["development-tools", "parser-implementations"]
 
 [dependencies]
 mct-core.workspace = true
+mct-tree-sitter.workspace = true
 tree-sitter.workspace = true
 tree-sitter-xml = "0.7.0"
 
