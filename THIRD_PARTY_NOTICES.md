@@ -11,10 +11,8 @@ licenses under which they were released.
 The workspace uses dependencies with their own license terms. For example,
 `rmcp`, `rmcp-macros`, and `rusqlite_migration` use Apache-2.0. The optional
 semantic-search dependencies include Apache-2.0 components such as `fastembed`,
-`hf-hub`, and `tokenizers`. The Apache-2.0 text is retained in
-[`licenses/third-party/Apache-2.0.txt`](licenses/third-party/Apache-2.0.txt)
-for these third-party components; it is not an alternative license for the
-project's original code.
+`hf-hub`, and `tokenizers`. These Apache-2.0 components are not an alternative
+license for the project's original code.
 
 Other dependencies include MIT, ISC, BSD, Unicode, and MPL-2.0 components.
 Redistributors must retain the applicable upstream license texts and notices

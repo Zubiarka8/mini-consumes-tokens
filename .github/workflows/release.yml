@@ -80,7 +80,6 @@ jobs:
           cp "target/${{ matrix.target }}/release/mct-cli" "$dist/"
           cp "target/${{ matrix.target }}/release/mct-mcp-server" "$dist/"
           cp README.md LICENSE THIRD_PARTY_NOTICES.md CHANGELOG.md "$dist/"
-          cp -R licenses "$dist/"
           tar -C dist -czf "dist/$pkg.tar.gz" "$pkg"
           rm -rf "$dist"
 
@@ -94,7 +93,6 @@ jobs:
           Copy-Item "target/${{ matrix.target }}/release/mct-cli.exe" "$dist/"
           Copy-Item "target/${{ matrix.target }}/release/mct-mcp-server.exe" "$dist/"
           Copy-Item README.md,LICENSE,THIRD_PARTY_NOTICES.md,CHANGELOG.md "$dist/"
-          Copy-Item -Recurse licenses "$dist/"
           Compress-Archive -Path "$dist/*" -DestinationPath "dist/$pkg.zip"
           Remove-Item -Recurse -Force "$dist"
 
