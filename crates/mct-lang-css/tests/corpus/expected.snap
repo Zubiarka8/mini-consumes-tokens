@@ -932,7 +932,7 @@ S 110-113 rule .bg-grid
 S 118-120 rule .ledger-sidebar
 S 124-126 rule .ledger-sidebar
 S 134-136 rule .md:flex
-S 138-140 rule .33xl:grid-cols-6
+S 138-140 rule .3xl:grid-cols-6
 S 142-146 rule .ledger-sidebar
 S 143-146 rule .btn-primary
 S 144-146 rule .btn-ghost
