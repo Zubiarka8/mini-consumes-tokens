@@ -1,10 +1,16 @@
 """Flask front end for the lending library (issue #114).
 
-Exercises the syntax Flask code is written in, not a runnable app: an
-application factory, blueprints, route decorators with and without
-arguments, the HTTP-method shortcut decorators, error handlers, request
-hooks, a class-based ``MethodView`` registered through ``add_url_rule``,
-CLI commands and template filters. Handlers call into ``library``.
+Scenario: a Flask 3.0 app (``flask`` is an external dependency, not in the
+corpus) read by ``mct-lang-python``. Owned code: an application factory,
+blueprints, route decorators with and without arguments, the HTTP-method
+shortcut decorators, error handlers, request hooks, a class-based
+``MethodView`` registered through ``add_url_rule``, CLI commands and
+template filters. Handlers call into ``library``.
+
+Expected relations: decorators reference their last name (``route``,
+``get``, ``errorhandler``…), ``LoanAPI`` extends ``MethodView``, calls and
+imports of ``library`` names. ``render_template("books/index.html")`` is
+only a call to ``render_template``: no edge to the template is extracted.
 """
 
 from __future__ import annotations
