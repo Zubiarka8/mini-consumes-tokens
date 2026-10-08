@@ -26,8 +26,10 @@ find a just-published crate, wait ~30s and retry that step alone):
 
 ```sh
 cargo publish -p mct-core
+# The language crates below depend on it, so it goes before them:
+cargo publish -p mct-tree-sitter
 
-# Any order among these — they only depend on mct-core:
+# Any order among these — they only depend on mct-core (and mct-tree-sitter):
 cargo publish -p mct-index
 cargo publish -p mct-lang-rust
 cargo publish -p mct-lang-python

@@ -1,0 +1,16 @@
+[package]
+name = "mct-tree-sitter"
+description = "Tree-sitter helpers shared by the mct-lang-* language plugins (error search, node locations)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["mcp", "tree-sitter", "ast", "code-index"]
+categories = ["development-tools", "parser-implementations"]
+
+[dependencies]
+mct-core.workspace = true
+tree-sitter.workspace = true
+
+[dev-dependencies]
+tree-sitter-bash = "0.25"
