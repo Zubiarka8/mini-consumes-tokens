@@ -124,7 +124,11 @@ fn first_hop_filtered(
 /// The definitions named `name` a backward walk starts from: those inside
 /// `scope`, or — when the scope holds none, so it narrows only the referring
 /// sites — every one.
-fn scoped_start(index: &Index, name: &str, scope: ResolvedScope<'_>) -> Result<Vec<i64>> {
+pub(crate) fn scoped_start(
+    index: &Index,
+    name: &str,
+    scope: ResolvedScope<'_>,
+) -> Result<Vec<i64>> {
     let start = queries::symbol_ids_named(&index.conn, name, scope)?;
     if start.is_empty() {
         return queries::symbol_ids_named(&index.conn, name, ResolvedScope::default());

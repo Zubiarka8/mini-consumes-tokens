@@ -213,3 +213,17 @@ fn syntax_error_is_reported_not_panicked() {
         "{result:?}"
     );
 }
+
+#[test]
+fn deeply_nested_selectors_do_not_overflow_a_small_stack() {
+    std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(|| {
+            let source = format!("{}{{}}", ".a ".repeat(8000));
+            let parsed = parse(&source);
+            assert!(!parsed.symbols.is_empty());
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
