@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use mct_core::LanguageRegistry;
@@ -336,6 +337,38 @@ const OVERVIEW_KIND_ALLOWLIST: &[&str] = &[
     "type_alias",
     "module",
 ];
+
+/// Names of the file-level containers in `entries`: `module` symbols (a Go
+/// package, a C# namespace, the synthetic file module) that no other symbol in
+/// the file shares. A child parented by one of these is a top-level
+/// declaration. A child parented by a same-named class or function is a
+/// member, e.g. C#'s `PaymentProcessor.Process` beside the file module
+/// `PaymentProcessor`.
+fn file_containers(entries: &[mct_index::SymbolListEntry]) -> HashSet<String> {
+    let modules: HashSet<&str> = entries
+        .iter()
+        .filter(|e| e.kind == "module")
+        .map(|e| e.name.as_str())
+        .collect();
+    let others: HashSet<&str> = entries
+        .iter()
+        .filter(|e| e.kind != "module")
+        .map(|e| e.name.as_str())
+        .collect();
+    modules
+        .difference(&others)
+        .map(|name| name.to_string())
+        .collect()
+}
+
+/// Whether `entry` is a top-level declaration of its file: no parent at all,
+/// or a parent that is one of the file's containers. See [`file_containers`].
+fn is_top_level(entry: &mct_index::SymbolListEntry, containers: &HashSet<String>) -> bool {
+    match &entry.parent {
+        None => true,
+        Some(parent) => containers.contains(parent),
+    }
+}
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct GetProjectOverviewArgs {
@@ -1934,17 +1967,16 @@ impl MctServer {
             ));
         }
         let source = read_source_file(&index, path)?;
-        let entries: Vec<_> = index
-            .list_symbols(path, None, None)
-            .map_err(index_error)?
+        let all = index.list_symbols(path, None, None).map_err(index_error)?;
+        let containers = file_containers(&all);
+        let entries: Vec<_> = all
             .into_iter()
-            // `parent.is_none()` alone isn't "top-level declaration" — every
-            // file also gets a synthetic whole-file `module` entry spanning
-            // its entire line range with no parent of its own. Rendering
-            // that would collapse the file into one bogus self-referential
-            // block; the user asked for classes/structs/interfaces/
-            // functions/types, not the module wrapper.
-            .filter(|entry| entry.parent.is_none() && entry.kind != "module")
+            // Not every top-level declaration lacks a parent: Go, C#, Bash
+            // and PowerShell parent theirs to the package, namespace or file
+            // module (see `file_containers`). The module entry itself is
+            // also dropped: the user asked for classes/structs/interfaces/
+            // functions/types, not the synthetic whole-file wrapper.
+            .filter(|entry| entry.kind != "module" && is_top_level(entry, &containers))
             .collect();
         Ok(CallToolResult::success(vec![ContentBlock::text(
             format::file_skeleton(path, &entries, &source),
@@ -1996,10 +2028,12 @@ impl MctServer {
 
         let mut digests = Vec::with_capacity(modules.len());
         for (relative_path, entries) in modules {
+            let containers = file_containers(&entries);
             let mut candidates: Vec<mct_index::SymbolListEntry> = entries
                 .into_iter()
                 .filter(|e| {
-                    e.parent.is_none() && OVERVIEW_KIND_ALLOWLIST.contains(&e.kind.as_str())
+                    is_top_level(e, &containers)
+                        && OVERVIEW_KIND_ALLOWLIST.contains(&e.kind.as_str())
                 })
                 .collect();
 

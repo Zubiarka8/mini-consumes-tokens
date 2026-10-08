@@ -9,7 +9,15 @@ Run them with `cargo test --workspace -- --ignored`.
 
 ---
 
-## 1. `get_file_skeleton` / `get_project_overview` are blind to 4 of 17 languages
+## 1. ~~`get_file_skeleton` / `get_project_overview` are blind to 4 of 17 languages~~ — **closed**
+
+Fixed on `fix/skeleton-parented-languages`: both tools now share one rule,
+`is_top_level` in `crates/mct-mcp-server/src/server.rs`. A parent counts as a
+file-level container when it is a `module` symbol that no other symbol in the
+file shares by name. The two previously ignored tests now pass without
+`#[ignore]`, and the two tests that pinned the broken output were replaced.
+
+The description below is the original report, kept as a historical snapshot.
 
 **Affected**: Go, C#, Bash, PowerShell.
 
