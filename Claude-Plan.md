@@ -22,19 +22,17 @@ The task briefs reference the [audit rules](internal/claude-audit/00-rules.md). 
 
 Tasks 04 and 05 may require contract or schema changes. `rules.md` requires opening an issue first. The agent must define the design and check this requirement before implementing cross-cutting work; it is not authorized to bypass it. Compatible fixes may proceed.
 
-### First batch completed; review and integration pending
+### First batch merged (PR #91)
 
-These sessions were launched on September 29 with `claude-opus-5-5` and `--effort medium`. All three delivered a local commit and have clean worktrees. The commits and test, Clippy, and evaluation logs were checked. Independent code review and validation of the combined changes are still pending; “completed” means the session ended, not that the change was integrated or approved.
+These sessions were launched on September 29 with `claude-opus-5-5` and `--effort medium`. All three delivered a local commit, which was then combined and merged into `main` as [PR #91](https://github.com/Zubiarka8/mini-consumes-tokens/pull/91) on 2026-09-30.
 
 | Delivery | Commit | Recorded tests | Status |
 |---|---|---|---|
-| 01 — Exclusions | `52aa751` | 769 passed, 0 failed, 17 ignored | Local commit; review rule consistency during a reindex |
-| 02 — Lua | `39dd255` | 766 passed, 0 failed, 17 ignored | Local commit; registry and end-to-end tests |
-| 03 — Dead code | `331218e` | 773 passed, 0 failed, 17 ignored | Local commit; global name-based resolution remains a limitation |
+| 01 — Exclusions | `52aa751` | 769 passed, 0 failed, 17 ignored | Merged in #91 |
+| 02 — Lua | `39dd255` | 766 passed, 0 failed, 17 ignored | Merged in #91 |
+| 03 — Dead code | `331218e` | 773 passed, 0 failed, 17 ignored | Merged in #91; global name-based resolution remains a limitation |
 
 Clippy passes, and `mct-eval` records accuracy 1.000 with no regressions on all three branches. The agents used `SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk` to work around a local linker incompatibility with the default SDK. They did not change global configuration. These results apply to each branch individually.
-
-These three deliveries have not been pushed and have no PRs; the installed MCP is still using the previous binary. The next step is to review the diffs, make any needed fixes, and validate an integration base before starting dependent tasks.
 
 | Agent | Claude session | Worktree |
 |---|---|---|
@@ -44,7 +42,7 @@ These three deliveries have not been pushed and have no PRs; the installed MCP i
 
 To view current status, run `claude agents`. To join a session, for example, run `claude attach 2114f805`. The other five tasks are prepared and require a later launch on the specified base; their start has not been scheduled automatically.
 
-The first batch produces local commits and PR summaries; it does not push, open PRs, or merge. This allows the scope and base to be reviewed before publishing. Later batches are prepared, not started merely because their prompts exist.
+Later batches are prepared, not started merely because their prompts exist.
 
 ## Efficiency
 
