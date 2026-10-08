@@ -13,7 +13,6 @@
   - [Command and capability selection](#command-and-capability-selection)
 - [What this is](#what-this-is)
 - [Dogfooding: how to explore this repository's source code](#dogfooding-how-to-explore-this-repositorys-source-code)
-- [In-progress: per-language long-fixture corpus](#in-progress-per-language-long-fixture-corpus-issue-74)
 - [Commands](#commands)
 - [Architecture](#architecture)
 
@@ -165,10 +164,6 @@ An MCP server (`mct-mcp-server`) and CLI (`mct-cli`) that index a code repositor
 **Enforcement hooks:** `.codex/hooks.json` wires the hooks in `internal/claude-hooks/` (see its `README.md`): `Bash grep|cat|find` over `crates/` and any `sqlite3` / `.mct-index/index.sqlite3` access are denied, edited `.rs` files are rustfmt'd, and Stop runs `scripts/unix/check.sh --only clippy`. Claude Code can enable its optional `PreToolUse` guard from `internal/claude-hooks/dogfood_mcp_guard.py`, as documented in that README.
 
 **If the MCP server shows `CONNECTION_CLOSED`** (a genuine connect failure, not "absent from the list" above): this usually means `.mct-index/index.sqlite3` was migrated by a branch with more `M::up` entries in `crates/mct-index/src/schema.rs` than the branch currently checked out — the checked-out binary sees a migration number "from the future" and aborts on startup with `migration error: Attempt to migrate a database with a migration number that is too high`. Confirm with `scripts/unix/mcp-smoke.sh` (it runs the installed server binary, feeds it a JSON-RPC `initialize` over stdin and prints the startup error). Fix: `scripts/unix/reinstall.sh --reindex`, which reinstalls the binaries from the checked-out branch and rebuilds `.mct-index/index.sqlite3` for its schema (by hand: delete the file, then `cargo run -p mct-cli -- --root . init` — the index is fully derived from source, safe to delete), then reconnect the MCP client. An installed binary older than the index fails the same way, e.g. after running a newer `target/debug` server against this repo — `scripts/unix/reinstall.sh` covers that too. This will recur any time you switch between branches with a different migration count without reindexing first — `scripts/unix/install-hooks.sh` installs a `post-checkout` hook that does that rebuild automatically.
-
-## In-progress: per-language long-fixture corpus (issue #74)
-
-Until #74 is closed, `internal/corpus-progress.md` is the source of truth for which `crates/mct-lang-*` crates have completed, in-review, or pending `tests/corpus/` work. **Keep it current:** every PR that adds or changes a language's corpus updates that language's row in the same PR (state, PR number, files/lines, symbol/relation counts, parser bugs found or issues filed) and the summary line; once a PR merges, set its row to **Done**. Check that file before picking the next language. Review a corpus with `scripts/unix/corpus-report.sh <lang> --bless --update-progress` (it fills the counts cells and summary line; state, PR, and bugs stay manual) rather than reading `expected.snap`, and narrow down a grammar-rejected construct with `scripts/unix/parse-probe.sh`. How to write and review a corpus (layout, invalid syntax, known bugs, the name-matched metric) is in `CONTRIBUTING.md`, "Language corpus", which outlives this section. When every row is **Done**, close #74 and delete this section.
 
 ## Commands
 
