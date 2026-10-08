@@ -564,7 +564,7 @@ fn score(index: &Index, model: &SemanticModel, alpha: Option<f64>) -> Run {
 }
 
 #[test]
-#[ignore = "downloads the embedding model; run with --features semantic -- --ignored"]
+#[ignore = "not a bug: downloads the embedding model; run with --features semantic -- --ignored"]
 fn hybrid_beats_lexical_and_semantic_alone_within_the_latency_budget() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
