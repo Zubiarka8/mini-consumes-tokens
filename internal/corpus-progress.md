@@ -24,24 +24,24 @@ file; it is a name match, not a resolved cross-file reference.
 | Language | Crate | Status | PR | Files / lines | Symbols / relations (name-matched across files) | Parser bugs found |
 |---|---|---|---|---|---|---|
 | Rust | `mct-lang-rust` | **Done** | #77 | 6 / 2,179 | 239 / 817 (218) | Associated type/const owner; nested `fn` inside a method treated as a method; module end +1 |
-| Python | `mct-lang-python` | **Done** | #78 | 8 / 2.730 | 391 / 1321 (294) | Module end +1; nested class missing parent; calls in decorator arguments missed; `type X = …` (PEP 695) has no symbol. #114 added Flask/Django files under `web/`: no new bugs |
+| Python | `mct-lang-python` | **Done** | #78 | 8 / 2,730 | 391 / 1,321 (294) | Module end +1; nested class missing parent; calls in decorator arguments missed; `type X = …` (PEP 695) has no symbol. #114 added Flask/Django files under `web/`: no new bugs |
 | Bash | `mct-lang-bash` | **Done** | #80 | 5 / 1,539 | 176 / 585 (162) | Module end +1; assignment prefix (`LC_ALL=C cmd`) treated as a variable; `coproc NAME { … }` parsed incorrectly by the grammar → #79 (test is `#[ignore]`) |
 | C/C++ | `mct-lang-cpp` | **Done** | #83 | 5 / 1,568 | 423 / 493 (150) | Module end +1; namespace functions/variables treated as methods/fields; locals (`auto x = f()`, `T x(args)`) treated as symbols and their calls missed; out-of-line `ns::Class::m`/`Tmpl<T>::m` gets a different parent from its declaration; qualified name in `class Outer::Inner {`; anonymous namespace treated as an unnamed module; `enum`/`union`/`using`/`typedef` have no symbol; valid constructs rejected by the grammar → #82 |
 | C# | `mct-lang-csharp` | **Done** | #85 | 6 / 2,048 | 454 / 588 (143) | Module end +1; no symbols for file-scoped `namespace X;`, `record`, `enum`, `delegate`, events, operators, indexers, destructors, and local functions; generic bases with `<…>` in the target and first `IFoo` treated as `extends`; calls in `?.`, `F<T>()`, `new T()`, `: base(…)`, expression-bodied properties, and initializers missed; `nameof` treated as a call; attributes have no relation |
-| CSS | `mct-lang-css` | **Done** | #86 | 6 / 2,194 | 617 / 12 (0) | Module end +1; a rule ended on its selector line instead of its `}`; `@namespace` prefix (`svg\\|text`) treated as an `svg` element; atoms missed in `.a .b[attr]` (the grammar applies `[attr]` to the whole chain). Rejected by tree-sitter-css 0.25 (outside the corpus, #87): `@page :first`, `@import … layer()`/`supports()`, media-query ranges (`400px <= width`) |
-| Go | `mct-lang-go` | **Done** | #121 | 7 / 3.002 | 291 / 832 (254) | Found and fixed (none pending): module end +1; `type A = B` (alias) had no symbol; methods on a generic receiver (`func (s *Stack[T]) Push`) got the parent `Stack[T]`; calls with explicit type arguments (`Map[A, B](x)`, and `Fail[T](x)`, which the grammar reads as a conversion) were missed. Known limits, kept as tests: no symbols for package `const`/`var` or struct fields; no relation for embedding or structural interface satisfaction; builtins and conversions (`len`, `string(x)`) appear as calls |
-| HTML | `mct-lang-html` | Pending | | | | |
-| Java | `mct-lang-java` | Pending | | | | |
-| JavaScript/TypeScript | `mct-lang-js-ts` | Pending | | | | |
-| Kotlin | `mct-lang-kotlin` | Pending | | | | |
-| Lua | `mct-lang-lua` | Pending | | | | |
-| Markdown | `mct-lang-md` | Pending | | | | |
+| CSS | `mct-lang-css` | **Done** | #86 | 9 / 3,232 | 879 / 15 (0) | Module end +1; a rule ended on its selector line instead of its `}`; `@namespace` prefix (`svg\\|text`) treated as an `svg` element; atoms missed in `.a .b[attr]` (the grammar applies `[attr]` to the whole chain). Rejected by tree-sitter-css 0.25 (outside the corpus, #87): `@page :first`, `@import … layer()`/`supports()`, media-query ranges (`400px <= width`) |
+| Go | `mct-lang-go` | **Done** | #121 | 7 / 3,002 | 291 / 832 (254) | Found and fixed (none pending): module end +1; `type A = B` (alias) had no symbol; methods on a generic receiver (`func (s *Stack[T]) Push`) got the parent `Stack[T]`; calls with explicit type arguments (`Map[A, B](x)`, and `Fail[T](x)`, which the grammar reads as a conversion) were missed. Known limits, kept as tests: no symbols for package `const`/`var` or struct fields; no relation for embedding or structural interface satisfaction; builtins and conversions (`len`, `string(x)`) appear as calls |
+| HTML | `mct-lang-html` | **Done** | #105 | 5 / 1,563 | 302 / 675 (0) | Module end +1 |
+| Java | `mct-lang-java` | **Done** | #106 | 6 / 1,989 | 377 / 799 (155) | Module end +1 |
+| JavaScript/TypeScript | `mct-lang-js-ts` | **Done** | #107 | 7 / 2,193 | 274 / 671 (125) | Module end +1 |
+| Kotlin | `mct-lang-kotlin` | **Done** | #108 | 5 / 1,527 | 483 / 720 (89) | Module end +1 |
+| Lua | `mct-lang-lua` | **Done** | #109 | 5 / 1,525 | 163 / 363 (43) | Module end +1 |
+| Markdown | `mct-lang-md` | **Done** | #110 | 6 / 1,825 | 260 / 338 (229) | None recorded in #110 |
 | PHP | `mct-lang-php` | **Done** | #88 | 6 / 2,463 | 418 / 803 (339) | Module end +1; `?->` (null-safe) calls missed; `new Foo()` has no relation; `#[…]` attributes have no relation; anonymous-class members (`new class { … }`) indexed as methods/fields without a parent; closure assigned to a variable inside a method treated as a class member; `new` in the default value of a promoted parameter missed |
-| PowerShell | `mct-lang-powershell` | Pending | | | | |
-| XAML | `mct-lang-xaml` | Pending | | | | |
-| XML | `mct-lang-xml` | Pending | | | | |
+| PowerShell | `mct-lang-powershell` | **Done** | #111 | 5 / 1,515 | 87 / 261 (62) | Module end +1 |
+| XAML | `mct-lang-xaml` | **Done** | #112 | 6 / 1,860 | 157 / 125 (0) | Module end +1 |
+| XML | `mct-lang-xml` | **Done** | #104 | 6 / 2,037 | 547 / 0 (0) | Module end +1 |
 
-**Summary: 8 done, 0 in PR, 9 pending (17 total).**
+**Summary: 17 done, 0 in PR, 0 pending (17 total).**
 
 ## Related issues
 
