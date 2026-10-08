@@ -583,3 +583,33 @@ fn find_dependencies_returns_only_the_non_call_relations_a_symbol_makes() {
         .unwrap();
     assert_eq!(hits(&scoped), vec!["src/a.fake:a"]);
 }
+
+#[test]
+fn directory_scopes_treat_percent_and_underscore_literally() {
+    use mct_index::QueryScope;
+    let dir = tempdir();
+    for path in [
+        "foo_bar/a.fake",
+        "fooXbar/b.fake",
+        "percent%/a.fake",
+        "percentXYZ/b.fake",
+    ] {
+        write(&dir, path, "fn wanted\n");
+    }
+    let index = open(&dir);
+    for prefix in ["foo_bar", "percent%"] {
+        let listed = index.list_symbols(prefix, Some("function"), None).unwrap();
+        assert_eq!(listed.len(), 1);
+        assert!(listed[0].relative_path.starts_with(prefix));
+        let found = index
+            .find_symbol_scoped(
+                "wanted",
+                QueryScope {
+                    path: Some(prefix),
+                    language: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(found.len(), 1);
+    }
+}

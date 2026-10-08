@@ -340,3 +340,82 @@ fn relation_scale_measurement() {
         }
     }
 }
+
+#[test]
+fn direct_tool_pages_only_materialize_the_requested_rows() {
+    use mct_index::{QueryScope, RelationDirection};
+    let index = fan_in_index(10_000, false);
+    for direction in [RelationDirection::Callers, RelationDirection::References] {
+        let page = index
+            .relation_page("hot", direction, 1, (1, 0), QueryScope::default())
+            .unwrap();
+        assert_eq!(page.hits.len(), 1);
+        assert_eq!(page.total, Some(10_000));
+        assert!(page.has_more);
+        let last = index
+            .relation_page("hot", direction, 0, (1, 9_999), QueryScope::default())
+            .unwrap();
+        assert_eq!(last.hits.len(), 1);
+        assert!(!last.has_more);
+        let empty = index
+            .relation_page("hot", direction, 1, (0, usize::MAX), QueryScope::default())
+            .unwrap();
+        assert!(empty.hits.is_empty());
+        assert_eq!(empty.total, Some(10_000));
+    }
+}
+
+#[test]
+fn multihop_pages_have_truthful_continuation_and_no_gaps() {
+    use mct_index::{QueryScope, RelationDirection};
+    let index = index_of(&[(
+        "a.fake",
+        "fn a calls b c d\nfn b calls e\nfn c\nfn d\nfn e\n".into(),
+    )]);
+    let full = index
+        .relation_page(
+            "a",
+            RelationDirection::Calls,
+            2,
+            (10, 0),
+            QueryScope::default(),
+        )
+        .unwrap();
+    assert_eq!(full.total, Some(4));
+    for offset in 0..4 {
+        let page = index
+            .relation_page(
+                "a",
+                RelationDirection::Calls,
+                2,
+                (1, offset),
+                QueryScope::default(),
+            )
+            .unwrap();
+        assert_eq!(page.hits[0].relation_id, full.hits[offset].relation_id);
+        assert_eq!(page.has_more, offset < 3);
+        assert_eq!(page.total, if offset < 3 { None } else { Some(4) });
+    }
+    let empty = index
+        .relation_page(
+            "a",
+            RelationDirection::Calls,
+            2,
+            (0, 0),
+            QueryScope::default(),
+        )
+        .unwrap();
+    assert!(empty.hits.is_empty());
+    assert!(empty.has_more);
+    let past = index
+        .relation_page(
+            "a",
+            RelationDirection::Calls,
+            2,
+            (1, usize::MAX),
+            QueryScope::default(),
+        )
+        .unwrap();
+    assert!(past.hits.is_empty());
+    assert_eq!(past.total, Some(4));
+}
