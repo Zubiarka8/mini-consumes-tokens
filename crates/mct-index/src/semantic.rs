@@ -18,7 +18,7 @@
 //! hundred thousand 384-dimension dot products fit the latency target
 //! without loading a SQLite extension.
 
-use std::collections::HashMap;
+use std::collections::{BinaryHeap, HashMap};
 use std::path::Path;
 
 use rusqlite::Connection;
@@ -299,14 +299,105 @@ fn vector_space(model: &str) -> String {
 /// after the first full pass, a call only pays for what the last reindex
 /// changed. Signature and doc context are read from the files under `root`,
 /// each file at most once per call.
+///
+/// This is [`snapshot_pending_embeddings`] → [`PendingEmbeddings::embed_batch`]
+/// → [`commit_embedding_batch`] run back to back on one connection. A caller
+/// that must not hold the connection while the model runs drives the three
+/// steps itself, taking the connection only for the first and last.
 pub fn refresh_embeddings(
     conn: &Connection,
     root: &Path,
     embedder: &dyn Embedder,
 ) -> Result<usize> {
-    let space = vector_space(embedder.model_id());
-    let model = space.as_str();
-    conn.execute("DELETE FROM symbol_embeddings WHERE model <> ?1", [model])?;
+    let pending = snapshot_pending_embeddings(conn, root, embedder.model_id())?;
+    let mut committed = 0;
+    for batch in 0..pending.batch_count() {
+        let vectors = pending.embed_batch(batch, embedder)?;
+        committed += commit_embedding_batch(conn, &pending, batch, vectors)?;
+    }
+    Ok(committed)
+}
+
+/// The symbols that had no vector at snapshot time, with the exact text to
+/// embed for each and the identity (see [`commit_embedding_batch`]) a vector
+/// must still match to be stored. Holds no connection: embedding it
+/// ([`PendingEmbeddings::embed_batch`]) needs nothing but the model.
+#[derive(Debug)]
+pub struct PendingEmbeddings {
+    space: String,
+    items: Vec<PendingItem>,
+}
+
+#[derive(Debug)]
+struct PendingItem {
+    id: i64,
+    name: String,
+    kind: String,
+    parent: Option<String>,
+    path: String,
+    line: u32,
+    end_line: Option<u32>,
+    file_hash: String,
+    text: String,
+}
+
+impl PendingEmbeddings {
+    /// How many symbols are pending.
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+
+    /// How many [`EMBED_BATCH`]-sized batches the snapshot splits into.
+    pub fn batch_count(&self) -> usize {
+        self.items.len().div_ceil(EMBED_BATCH)
+    }
+
+    fn batch(&self, batch: usize) -> &[PendingItem] {
+        let start = batch.saturating_mul(EMBED_BATCH).min(self.items.len());
+        let end = start.saturating_add(EMBED_BATCH).min(self.items.len());
+        &self.items[start..end]
+    }
+
+    /// One vector per symbol of `batch`, in order. Errors if `embedder` is
+    /// not the model this snapshot was taken for (its vectors would land in
+    /// the wrong space) or returns the wrong number of vectors.
+    pub fn embed_batch(&self, batch: usize, embedder: &dyn Embedder) -> Result<Vec<Vec<f32>>> {
+        if vector_space(embedder.model_id()) != self.space {
+            return Err(IndexError::Embedding(format!(
+                "snapshot is for `{}`, not `{}`",
+                self.space,
+                embedder.model_id()
+            )));
+        }
+        let items = self.batch(batch);
+        let texts: Vec<String> = items.iter().map(|item| item.text.clone()).collect();
+        let vectors = embedder.embed(&texts).map_err(IndexError::Embedding)?;
+        if vectors.len() != items.len() {
+            return Err(IndexError::Embedding(format!(
+                "embedder returned {} vectors for {} texts",
+                vectors.len(),
+                items.len()
+            )));
+        }
+        Ok(vectors)
+    }
+}
+
+/// Step 1 of a refresh: drops vectors of any other model or text format, and
+/// collects what still needs a vector for `model_id`, reading signature and
+/// doc context from the files under `root` (each file once). Cheap next to
+/// embedding; the only step besides the commit that touches `conn`.
+pub fn snapshot_pending_embeddings(
+    conn: &Connection,
+    root: &Path,
+    model_id: &str,
+) -> Result<PendingEmbeddings> {
+    let space = vector_space(model_id);
+    conn.execute("DELETE FROM symbol_embeddings WHERE model <> ?1", [&space])?;
 
     struct Pending {
         id: i64,
@@ -318,12 +409,13 @@ pub fn refresh_embeddings(
         line: u32,
         end_line: Option<u32>,
         has_level: bool,
+        file_hash: String,
         calls: Vec<String>,
     }
     let rows: Vec<Pending> = {
         let mut stmt = conn.prepare_cached(
             "SELECT s.id, s.name, s.kind, f.language, s.parent, f.relative_path, s.line,
-                    s.end_line, s.level IS NOT NULL,
+                    s.end_line, s.level IS NOT NULL, f.content_hash,
                     (SELECT group_concat(to_name, ' ') FROM (
                         SELECT DISTINCT r.to_name FROM relations r
                         WHERE r.from_symbol_id = s.id AND r.kind = 'calls'
@@ -335,7 +427,7 @@ pub fn refresh_embeddings(
              ORDER BY f.relative_path, s.line",
         )?;
         let rows = stmt.query_map([MAX_CALLS as i64], |row| {
-            let calls: Option<String> = row.get(9)?;
+            let calls: Option<String> = row.get(10)?;
             Ok(Pending {
                 id: row.get(0)?,
                 name: row.get(1)?,
@@ -346,6 +438,7 @@ pub fn refresh_embeddings(
                 line: row.get(6)?,
                 end_line: row.get(7)?,
                 has_level: row.get(8)?,
+                file_hash: row.get(9)?,
                 calls: calls
                     .unwrap_or_default()
                     .split_whitespace()
@@ -357,7 +450,7 @@ pub fn refresh_embeddings(
     };
 
     // Rows are ordered by path: each file is read and split once.
-    let mut pending: Vec<(i64, String)> = Vec::with_capacity(rows.len());
+    let mut items: Vec<PendingItem> = Vec::with_capacity(rows.len());
     for file_rows in rows.chunk_by(|a, b| a.path == b.path) {
         let source = file_rows
             .first()
@@ -382,36 +475,78 @@ pub fn refresh_embeddings(
                 doc: doc.as_deref(),
                 calls: &p.calls,
             });
-            pending.push((p.id, text));
+            items.push(PendingItem {
+                id: p.id,
+                name: p.name.clone(),
+                kind: p.kind.clone(),
+                parent: p.parent.clone(),
+                path: p.path.clone(),
+                line: p.line,
+                end_line: p.end_line,
+                file_hash: p.file_hash.clone(),
+                text,
+            });
         }
     }
     // Batches of similar length: a batch is padded to its longest text, so
     // mixing a 20-token name with a 150-token doc wastes most of the work.
-    pending.sort_by_key(|(_, text)| text.len());
+    // Stable, so equal lengths keep their (path, line) order.
+    items.sort_by_key(|item| item.text.len());
+    Ok(PendingEmbeddings { space, items })
+}
 
-    for chunk in pending.chunks(EMBED_BATCH) {
-        let texts: Vec<String> = chunk.iter().map(|(_, text)| text.clone()).collect();
-        let vectors = embedder.embed(&texts).map_err(IndexError::Embedding)?;
-        if vectors.len() != chunk.len() {
-            return Err(IndexError::Embedding(format!(
-                "embedder returned {} vectors for {} texts",
-                vectors.len(),
-                chunk.len()
-            )));
-        }
-        let tx = conn.unchecked_transaction()?;
-        {
-            let mut insert = tx.prepare_cached(
-                "INSERT OR REPLACE INTO symbol_embeddings(symbol_id, model, vector)
-                 VALUES (?1, ?2, ?3)",
-            )?;
-            for ((id, _), vector) in chunk.iter().zip(vectors) {
-                insert.execute(rusqlite::params![id, model, encode(&normalized(vector))])?;
-            }
-        }
-        tx.commit()?;
+/// Step 3 of a refresh: stores `vectors` (from [`PendingEmbeddings::embed_batch`]
+/// for the same `batch`) in one transaction, and returns how many were stored.
+///
+/// A vector is stored only if its symbol still *is* the one that was embedded:
+/// same id, name, kind, parent, line, end line and file path, in a file whose
+/// content hash is unchanged. `symbols.id` is a bare rowid that SQLite may
+/// reuse after a delete, so the id alone does not identify a symbol; a symbol
+/// deleted or rewritten by a reindex between snapshot and commit is skipped,
+/// never resurrected with a vector computed from its old text. Skipped
+/// symbols simply stay pending for the next snapshot.
+pub fn commit_embedding_batch(
+    conn: &Connection,
+    pending: &PendingEmbeddings,
+    batch: usize,
+    vectors: Vec<Vec<f32>>,
+) -> Result<usize> {
+    let items = pending.batch(batch);
+    if vectors.len() != items.len() {
+        return Err(IndexError::Embedding(format!(
+            "{} vectors for {} symbols",
+            vectors.len(),
+            items.len()
+        )));
     }
-    Ok(pending.len())
+    let mut stored = 0;
+    let tx = conn.unchecked_transaction()?;
+    {
+        let mut insert = tx.prepare_cached(
+            "INSERT OR REPLACE INTO symbol_embeddings(symbol_id, model, vector)
+             SELECT s.id, ?2, ?3
+             FROM symbols s JOIN files f ON f.id = s.file_id
+             WHERE s.id = ?1 AND s.name = ?4 AND s.kind = ?5 AND s.parent IS ?6
+               AND s.line = ?7 AND s.end_line IS ?8
+               AND f.relative_path = ?9 AND f.content_hash = ?10",
+        )?;
+        for (item, vector) in items.iter().zip(vectors) {
+            stored += insert.execute(rusqlite::params![
+                item.id,
+                pending.space,
+                encode(&normalized(vector)),
+                item.name,
+                item.kind,
+                item.parent,
+                item.line,
+                item.end_line,
+                item.path,
+                item.file_hash,
+            ])?;
+        }
+    }
+    tx.commit()?;
+    Ok(stored)
 }
 
 /// Embedded vs. total symbol counts for `model`.
@@ -438,6 +573,9 @@ pub fn semantic_ranking(
     scope: ResolvedScope<'_>,
     limit: usize,
 ) -> Result<Vec<(f32, SymbolHit)>> {
+    if limit == 0 {
+        return Ok(Vec::new());
+    }
     let query = normalized(query_vector.to_vec());
     let mut sql = String::from(
         "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line, s.level, s.id,
@@ -452,23 +590,81 @@ pub fn semantic_ranking(
 
     let mut stmt = conn.prepare_cached(&sql)?;
     let params: Vec<&dyn rusqlite::ToSql> = bound.iter().map(|b| b.as_ref()).collect();
-    let mut scored = Vec::new();
+    // Bounded top-k: a max-heap of the `limit` best so far (its top is the
+    // worst kept), so memory is O(limit) rather than one `SymbolHit` per
+    // embedded row. `Ranked`'s order is the old full sort's (similarity,
+    // path, line) plus the scan position, i.e. exactly what a stable sort
+    // did with ties — the result is identical, not merely equivalent.
+    let mut best: BinaryHeap<Ranked> = BinaryHeap::with_capacity(limit.min(1024) + 1);
     let mut rows = stmt.query(params.as_slice())?;
+    let mut seq = 0usize;
     while let Some(row) = rows.next()? {
         let blob: Vec<u8> = row.get(10)?;
         let Some(similarity) = dot_encoded(&query, &blob) else {
             continue;
         };
-        scored.push((similarity, symbol_hit(row)?));
+        seq += 1;
+        // A strictly lower similarity than the worst kept can never enter:
+        // skip it before paying to build its hit.
+        if best.len() >= limit
+            && best
+                .peek()
+                .is_some_and(|worst| similarity.total_cmp(&worst.similarity).is_lt())
+        {
+            continue;
+        }
+        let candidate = Ranked {
+            similarity,
+            seq,
+            hit: symbol_hit(row)?,
+        };
+        if best.len() < limit {
+            best.push(candidate);
+        } else if best.peek().is_some_and(|worst| candidate < *worst) {
+            best.pop();
+            best.push(candidate);
+        }
     }
-    scored.sort_by(|a, b| {
-        b.0.total_cmp(&a.0)
-            .then_with(|| a.1.relative_path.cmp(&b.1.relative_path))
-            .then_with(|| a.1.line.cmp(&b.1.line))
-    });
-    scored.truncate(limit);
-    Ok(scored)
+    Ok(best
+        .into_sorted_vec()
+        .into_iter()
+        .map(|r| (r.similarity, r.hit))
+        .collect())
 }
+
+/// One scored row in [`semantic_ranking`]'s heap. `Ord` is ranking order:
+/// `a < b` when `a` ranks ahead of `b` (higher similarity, then path, line,
+/// and finally scan position, which makes the order total).
+struct Ranked {
+    similarity: f32,
+    seq: usize,
+    hit: SymbolHit,
+}
+
+impl Ord for Ranked {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        other
+            .similarity
+            .total_cmp(&self.similarity)
+            .then_with(|| self.hit.relative_path.cmp(&other.hit.relative_path))
+            .then_with(|| self.hit.line.cmp(&other.hit.line))
+            .then_with(|| self.seq.cmp(&other.seq))
+    }
+}
+
+impl PartialOrd for Ranked {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for Ranked {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other).is_eq()
+    }
+}
+
+impl Eq for Ranked {}
 
 /// What a `hybrid_search` query looks like, as far as a few string checks
 /// can tell — used to pick `alpha` when the caller doesn't.
@@ -854,5 +1050,214 @@ mod tests {
     #[test]
     fn zero_vector_stays_finite() {
         assert_eq!(normalized(vec![0.0, 0.0]), vec![0.0, 0.0]);
+    }
+
+    // ---- ranking and refresh against the real schema ----------------------
+
+    type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
+
+    const MODEL: &str = "test/m";
+
+    fn index() -> std::result::Result<crate::Index, Box<dyn std::error::Error>> {
+        Ok(crate::Index::open_in_memory(
+            &std::env::temp_dir(),
+            crate::ExcludeSet::default(),
+        )?)
+    }
+
+    fn add_file(conn: &Connection, id: i64, path: &str, language: &str, hash: &str) -> TestResult {
+        conn.execute(
+            "INSERT INTO files (id, relative_path, language, content_hash, last_indexed_at)
+             VALUES (?1, ?2, ?3, ?4, 0)",
+            rusqlite::params![id, path, language, hash],
+        )?;
+        Ok(())
+    }
+
+    fn add_symbol(conn: &Connection, id: i64, file_id: i64, name: &str, line: u32) -> TestResult {
+        conn.execute(
+            "INSERT INTO symbols (id, file_id, name, kind, line, column, byte_len)
+             VALUES (?1, ?2, ?3, 'function', ?4, 1, 1)",
+            rusqlite::params![id, file_id, name, line],
+        )?;
+        Ok(())
+    }
+
+    fn add_vector(conn: &Connection, id: i64, vector: &[f32]) -> TestResult {
+        conn.execute(
+            "INSERT INTO symbol_embeddings (symbol_id, model, vector) VALUES (?1, ?2, ?3)",
+            rusqlite::params![
+                id,
+                vector_space(MODEL),
+                encode(&normalized(vector.to_vec()))
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Names of `semantic_ranking`'s answer, with the similarities rounded
+    /// so equal-looking ties compare equal.
+    fn ranked(
+        conn: &Connection,
+        scope: ResolvedScope<'_>,
+        limit: usize,
+    ) -> std::result::Result<Vec<(String, i32)>, Box<dyn std::error::Error>> {
+        Ok(
+            semantic_ranking(conn, &[2.0, 0.0, 0.0], MODEL, scope, limit)?
+                .into_iter()
+                .map(|(sim, hit)| (hit.name, (sim * 1000.0).round() as i32))
+                .collect(),
+        )
+    }
+
+    /// The bounded top-k answers exactly what a full sort then truncate would,
+    /// for every limit: ties on similarity (broken by path, line, then scan
+    /// order), zero and wrong-dimension vectors, limits 0, 1, k and k > rows.
+    #[test]
+    fn top_k_equals_the_full_sort_for_every_limit() -> TestResult {
+        let index = index()?;
+        let conn = &index.conn;
+        add_file(conn, 1, "a.rs", "rust", "h")?;
+        add_file(conn, 2, "b.rs", "rust", "h")?;
+        add_file(conn, 3, "c.rs", "rust", "h")?;
+        add_file(conn, 4, "d.py", "python", "h")?;
+        // (id, file, name, line, vector). Query is the x axis.
+        let rows: [(i64, i64, &str, u32, &[f32]); 10] = [
+            (1, 1, "tie_a10", 10, &[1.0, 0.0, 0.0]),
+            (2, 2, "tie_b5", 5, &[3.0, 0.0, 0.0]),
+            (3, 1, "tie_a3", 3, &[1.0, 0.0, 0.0]),
+            (4, 3, "mid", 1, &[0.6, 0.8, 0.0]),
+            (5, 1, "orth_a20", 20, &[0.0, 1.0, 0.0]),
+            (6, 2, "zero_b1", 1, &[0.0, 0.0, 0.0]),
+            (7, 3, "wrong_dim", 9, &[1.0, 0.0]),
+            (8, 3, "opposite", 2, &[-1.0, 0.0, 0.0]),
+            // Same similarity, path and line as `tie_a10`: scan order decides.
+            (9, 1, "tie_a10_twin", 10, &[1.0, 0.0, 0.0]),
+            (10, 4, "python_best", 1, &[1.0, 0.0, 0.0]),
+        ];
+        for (id, file, name, line, vector) in rows {
+            add_symbol(conn, id, file, name, line)?;
+            add_vector(conn, id, vector)?;
+        }
+
+        let everything = ResolvedScope::default();
+        let full = ranked(conn, everything, usize::MAX)?;
+        assert_eq!(
+            full.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>(),
+            [
+                "tie_a3",
+                "tie_a10",
+                "tie_a10_twin",
+                "tie_b5",
+                "python_best",
+                "mid",
+                "orth_a20",
+                "zero_b1",
+                "opposite"
+            ]
+        );
+        assert_eq!(full.len(), 9, "the wrong-dimension row never ranks");
+        for limit in [0, 1, 2, 3, 4, 8, 9, 10, 1000] {
+            let got = ranked(conn, everything, limit)?;
+            assert_eq!(got, full[..limit.min(full.len())], "limit {limit}");
+        }
+
+        let python = ResolvedScope {
+            language: Some("python"),
+            ..ResolvedScope::default()
+        };
+        assert_eq!(
+            ranked(conn, python, 5)?,
+            [("python_best".to_string(), 1000)]
+        );
+        let file_a = ResolvedScope {
+            path: Some("a.rs"),
+            path_is_file: true,
+            language: None,
+        };
+        let in_a: Vec<String> = ranked(conn, file_a, 2)?
+            .into_iter()
+            .map(|(n, _)| n)
+            .collect();
+        assert_eq!(in_a, ["tie_a3", "tie_a10"]);
+        Ok(())
+    }
+
+    struct Fake(&'static str);
+
+    impl Embedder for Fake {
+        fn model_id(&self) -> &str {
+            self.0
+        }
+        fn embed(&self, texts: &[String]) -> std::result::Result<Vec<Vec<f32>>, String> {
+            Ok(texts
+                .iter()
+                .map(|t| vec![t.len() as f32, 1.0, 0.0])
+                .collect())
+        }
+    }
+
+    fn embedded_ids(conn: &Connection) -> std::result::Result<Vec<i64>, rusqlite::Error> {
+        conn.prepare("SELECT symbol_id FROM symbol_embeddings ORDER BY symbol_id")?
+            .query_map([], |r| r.get(0))?
+            .collect()
+    }
+
+    /// Snapshot → embed → commit never stores a vector for a symbol that a
+    /// reindex deleted, rewrote or re-hashed in between, even when SQLite
+    /// hands a deleted symbol's rowid to a different one.
+    #[test]
+    fn commit_skips_symbols_changed_since_the_snapshot() -> TestResult {
+        let index = index()?;
+        let conn = &index.conn;
+        add_file(conn, 1, "a.rs", "rust", "h1")?;
+        add_file(conn, 2, "b.rs", "rust", "h2")?;
+        for (id, file, name) in [
+            (1, 1, "deleted"),
+            (2, 1, "reused_id"),
+            (3, 1, "kept"),
+            (4, 2, "rehashed"),
+        ] {
+            add_symbol(conn, id, file, name, id as u32)?;
+        }
+        let embedder = Fake(MODEL);
+        let pending = snapshot_pending_embeddings(conn, &index.root, MODEL)?;
+        assert_eq!(pending.len(), 4);
+        assert_eq!(pending.batch_count(), 1);
+
+        // What a reindex between snapshot and commit can do.
+        conn.execute("DELETE FROM symbols WHERE id IN (1, 2)", [])?;
+        add_symbol(conn, 2, 1, "someone_else", 2)?;
+        conn.execute("UPDATE files SET content_hash = 'h2-new' WHERE id = 2", [])?;
+
+        let vectors = pending.embed_batch(0, &embedder)?;
+        assert_eq!(commit_embedding_batch(conn, &pending, 0, vectors)?, 1);
+        assert_eq!(embedded_ids(conn)?, [3]);
+
+        // The skipped ones are still pending, not lost: the next snapshot
+        // picks up the new symbol and the re-hashed file's.
+        let again = snapshot_pending_embeddings(conn, &index.root, MODEL)?;
+        assert_eq!(again.len(), 2);
+        Ok(())
+    }
+
+    #[test]
+    fn refresh_is_incremental_and_rejects_a_foreign_model() -> TestResult {
+        let index = index()?;
+        let conn = &index.conn;
+        add_file(conn, 1, "a.rs", "rust", "h")?;
+        add_symbol(conn, 1, 1, "one", 1)?;
+        add_symbol(conn, 2, 1, "two", 2)?;
+        assert_eq!(refresh_embeddings(conn, &index.root, &Fake(MODEL))?, 2);
+        assert_eq!(refresh_embeddings(conn, &index.root, &Fake(MODEL))?, 0);
+
+        // A snapshot is for one vector space: another model can't fill it.
+        add_symbol(conn, 3, 1, "three", 3)?;
+        let pending = snapshot_pending_embeddings(conn, &index.root, MODEL)?;
+        assert_eq!(pending.len(), 1);
+        assert!(pending.embed_batch(0, &Fake("other/m")).is_err());
+        // Out-of-range batches are empty, not a panic.
+        assert!(pending.embed_batch(7, &Fake(MODEL))?.is_empty());
+        Ok(())
     }
 }
