@@ -35,8 +35,9 @@ pub use queries::{
 };
 pub use search::{exact_phrase, search_words, split_identifier, LiteralHit, MAX_LITERAL_HITS};
 pub use semantic::{
-    classify_query, embedding_text, Embedder, EmbeddingCoverage, HybridHit, QueryIntent,
-    SymbolContext, EMBEDDING_TEXT_VERSION, EXACT_PHRASE_BOOST, RRF_K, SEMANTIC_CANDIDATES,
+    classify_query, embedding_text, Embedder, EmbeddingCoverage, HybridHit, PendingEmbeddings,
+    QueryIntent, SymbolContext, EMBEDDING_TEXT_VERSION, EXACT_PHRASE_BOOST, RRF_K,
+    SEMANTIC_CANDIDATES,
 };
 
 use queries::ResolvedScope;
@@ -236,6 +237,24 @@ impl Index {
     /// rewrote are pending.
     pub fn refresh_embeddings(&self, embedder: &dyn Embedder) -> Result<usize> {
         semantic::refresh_embeddings(&self.conn, &self.root, embedder)
+    }
+
+    /// Step 1 of a refresh that must not hold the connection while the model
+    /// runs: the symbols with no vector for `model_id`. See
+    /// [`PendingEmbeddings::embed_batch`] and [`Index::commit_embedding_batch`].
+    pub fn snapshot_pending_embeddings(&self, model_id: &str) -> Result<PendingEmbeddings> {
+        semantic::snapshot_pending_embeddings(&self.conn, &self.root, model_id)
+    }
+
+    /// Step 3 of a refresh: stores one batch's vectors, skipping any symbol
+    /// that changed since the snapshot. Returns how many were stored.
+    pub fn commit_embedding_batch(
+        &self,
+        pending: &PendingEmbeddings,
+        batch: usize,
+        vectors: Vec<Vec<f32>>,
+    ) -> Result<usize> {
+        semantic::commit_embedding_batch(&self.conn, pending, batch, vectors)
     }
 
     /// How many symbols have a vector for `model`, out of how many exist.
