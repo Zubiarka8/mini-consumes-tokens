@@ -546,11 +546,37 @@ fn query_relations(
     param: impl rusqlite::ToSql + 'static,
     scope: ResolvedScope<'_>,
 ) -> Result<Vec<RelationHit>> {
+    query_relations_page(conn, predicate, param, scope, None, 0)
+}
+
+/// A count as an SQLite integer, saturating instead of wrapping.
+fn sql_count(n: usize) -> i64 {
+    i64::try_from(n).unwrap_or(i64::MAX)
+}
+
+/// [`query_relations`] restricted to `limit` rows after skipping `offset`
+/// (`None` = every row). The order is total — path, line, column, then the
+/// relation id — so a page is always the exact slice of the full list, and
+/// only the rows of the page pay for the candidate preview below.
+fn query_relations_page(
+    conn: &Connection,
+    predicate: &str,
+    param: impl rusqlite::ToSql + 'static,
+    scope: ResolvedScope<'_>,
+    limit: Option<usize>,
+    offset: usize,
+) -> Result<Vec<RelationHit>> {
     let mut sql = String::from(RELATION_SELECT);
     sql.push_str(predicate);
     let mut bound: BoundValues = vec![Box::new(param)];
     push_scope(&mut sql, &mut bound, scope);
-    sql.push_str("\n         ORDER BY f.relative_path, r.line");
+    sql.push_str("\n         ORDER BY f.relative_path, r.line, r.column, r.id");
+    if let Some(limit) = limit {
+        sql.push_str(&format!("\n         LIMIT ?{}", bound.len() + 1));
+        bound.push(Box::new(sql_count(limit)));
+        sql.push_str(&format!(" OFFSET ?{}", bound.len() + 1));
+        bound.push(Box::new(sql_count(offset)));
+    }
 
     let mut stmt = conn.prepare_cached(&sql)?;
     let params: Vec<&dyn rusqlite::ToSql> = bound.iter().map(|b| b.as_ref()).collect();
@@ -613,16 +639,75 @@ fn query_relations(
 
 /// Calls made by the one symbol row `symbol_id` — the identity-based hop of
 /// a forward walk, which can't wander into a same-named definition.
+/// At most `limit` of them (`None` = all), in the usual order.
 pub(crate) fn calls_from_symbol(
     conn: &Connection,
     symbol_id: i64,
     scope: ResolvedScope<'_>,
+    limit: Option<usize>,
 ) -> Result<Vec<RelationHit>> {
-    query_relations(
+    query_relations_page(
         conn,
         "r.from_symbol_id = ?1 AND r.kind = 'calls'",
         symbol_id,
         scope,
+        limit,
+        0,
+    )
+}
+
+/// The `limit` calls made by the function named `function` after skipping
+/// `offset` — a slice of exactly what [`find_calls_scoped`] returns.
+pub(crate) fn find_calls_page(
+    conn: &Connection,
+    function: &str,
+    scope: ResolvedScope<'_>,
+    limit: usize,
+    offset: usize,
+) -> Result<Vec<RelationHit>> {
+    query_relations_page(
+        conn,
+        "caller.name = ?1 AND r.kind = 'calls'",
+        function.to_string(),
+        scope,
+        Some(limit),
+        offset,
+    )
+}
+
+/// A slice of [`find_callers_scoped`], as [`find_calls_page`] is of calls.
+pub(crate) fn find_callers_page(
+    conn: &Connection,
+    function: &str,
+    scope: ResolvedScope<'_>,
+    limit: usize,
+    offset: usize,
+) -> Result<Vec<RelationHit>> {
+    query_relations_page(
+        conn,
+        "r.to_name = ?1 AND r.kind = 'calls'",
+        function.to_string(),
+        scope,
+        Some(limit),
+        offset,
+    )
+}
+
+/// A slice of [`find_references_scoped`], as [`find_calls_page`] is of calls.
+pub(crate) fn find_references_page(
+    conn: &Connection,
+    symbol: &str,
+    scope: ResolvedScope<'_>,
+    limit: usize,
+    offset: usize,
+) -> Result<Vec<RelationHit>> {
+    query_relations_page(
+        conn,
+        "r.to_name = ?1",
+        symbol.to_string(),
+        scope,
+        Some(limit),
+        offset,
     )
 }
 
@@ -646,13 +731,14 @@ pub(crate) fn relations_reaching_symbol(
     symbol_id: i64,
     calls_only: bool,
     scope: ResolvedScope<'_>,
+    limit: Option<usize>,
 ) -> Result<Vec<RelationHit>> {
     let predicate = if calls_only {
         "r.kind = 'calls' AND r.id IN (SELECT relation_id FROM relation_candidates WHERE symbol_id = ?1)"
     } else {
         "r.id IN (SELECT relation_id FROM relation_candidates WHERE symbol_id = ?1)"
     };
-    query_relations(conn, predicate, symbol_id, scope)
+    query_relations_page(conn, predicate, symbol_id, scope, limit, 0)
 }
 
 /// Every symbol row named `name` within `scope` — the start nodes of a walk.
