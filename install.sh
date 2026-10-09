@@ -27,7 +27,7 @@ arch="$(uname -m)"
 case "$os" in
     Linux) platform_os="linux" ;;
     Darwin) platform_os="macos" ;;
-    *) die "unsupported OS: $os (prebuilt binaries cover Linux and macOS only — see install.ps1 for Windows, or 'cargo install mct-cli mct-mcp-server' from source)" ;;
+    *) die "unsupported OS: $os (prebuilt binaries cover Linux and macOS only — see install.ps1 for Windows, or build from source: https://github.com/$REPO#option-b-build-from-source)" ;;
 esac
 
 case "$arch" in
@@ -41,8 +41,8 @@ asset_name="${platform_os}-${platform_arch}"
 log "Fetching latest release info for $REPO..."
 release_json="$(curl -sSL "https://api.github.com/repos/$REPO/releases/latest")"
 
-tag="$(printf '%s' "$release_json" | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')"
-[ -n "$tag" ] || die "could not determine the latest release tag — check https://github.com/$REPO/releases"
+tag="$(printf '%s' "$release_json" | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/' || true)"
+[ -n "$tag" ] || die "could not determine the latest release tag (no published release yet?) — check https://github.com/$REPO/releases, or build from source: https://github.com/$REPO#option-b-build-from-source"
 
 download_url="$(printf '%s' "$release_json" | grep -o '"browser_download_url": *"[^"]*"' | sed -E 's/.*"(https:[^"]+)"/\1/' | grep -- "-${asset_name}\.tar\.gz$" || true)"
 [ -n "$download_url" ] || die "no prebuilt archive found for $asset_name in release $tag — see https://github.com/$REPO/releases/tag/$tag"
