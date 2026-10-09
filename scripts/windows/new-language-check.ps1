@@ -10,8 +10,8 @@
 # --readme-name is the language as README.md's "Supported languages" line
 # spells it (default: the crate suffix, matched case-insensitively).
 #
-# Exit status: 1 if a required (code/CI) place is missing or a test fails;
-# documentation and fuzzing gaps are reported as warnings only.
+# Exit status: 1 if a required place (code, CI, fuzz harness) is missing or a
+# test fails; README and checklist gaps are reported as warnings only.
 
 $ScriptPath = $MyInvocation.MyCommand.Path
 $ScriptArgs = $args
@@ -83,14 +83,10 @@ Test-Place required 'mct-cli/Cargo.toml dependency'           'crates/mct-cli/Ca
 Test-Place required 'mct-cli build_registry registration'     'crates/mct-cli/src/main.rs' ($ident + '::')
 Test-Place required 'tests/parse.rs'                          "$dir/tests/parse.rs" '#\[test\]'
 Test-Place required 'syntax-error test (ParseError::Syntax)'  "$dir/tests/parse.rs" 'ParseError::Syntax'
-Test-Place warn     'fuzz harness (fuzz/Cargo.toml [workspace])' "$dir/fuzz/Cargo.toml" '^\[workspace\]'
-Test-Place warn     'fuzz target (fuzz/fuzz_targets/*.rs)'    "$dir/fuzz/fuzz_targets" 'fuzz_target!'
-if (Test-Path -LiteralPath (Get-RepoPath "$dir/fuzz") -PathType Container) {
-  # A harness CI never runs is the gap CONTRIBUTING.md warns about.
-  Test-Place required 'ci.yml fuzz-smoke matrix entry'        '.github/workflows/ci.yml' ('^ *- ' + $c + '$')
-} else {
-  Test-Place warn     'ci.yml fuzz-smoke matrix entry'        '.github/workflows/ci.yml' ('^ *- ' + $c + '$')
-}
+Test-Place required 'fuzz harness (fuzz/Cargo.toml [workspace])' "$dir/fuzz/Cargo.toml" '^\[workspace\]'
+Test-Place required 'fuzz target (fuzz/fuzz_targets/*.rs)'    "$dir/fuzz/fuzz_targets" 'fuzz_target!'
+# A harness CI never runs is the gap CONTRIBUTING.md warns about.
+Test-Place required 'ci.yml fuzz-smoke matrix entry'          '.github/workflows/ci.yml' ('^ *- ' + $c + '$')
 # Escaped: names like `C++` or `C#` are not valid/literal regexes as-is.
 Test-Place warn     'README.md supported languages'           'README.md' ('Supported languages:.*' + [regex]::Escape($readmeName)) -IgnoreCase
 Test-Place warn     'internal/checklist.md coverage row'      'internal/checklist.md' ('`' + $c + '`')

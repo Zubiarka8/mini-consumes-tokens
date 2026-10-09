@@ -615,3 +615,63 @@ fn a_hash_comment_in_frontmatter_is_not_a_tag() {
     let parsed = parse("---\n# a comment #nottag\ntitle: T\n---\n\nbody\n");
     assert!(!parsed.relations.iter().any(|r| r.to_name == "tag:nottag"));
 }
+
+#[test]
+fn a_nul_byte_is_a_syntax_error_not_a_panic() {
+    let result = MarkdownParser.parse(&SourceFile {
+        relative_path: "broken.md".to_string(),
+        contents: "text\0\n".to_string(),
+    });
+    assert!(matches!(result, Err(mct_core::ParseError::Syntax { .. })));
+}
+
+// Memory-safety regressions in the vendored tree-sitter-md block scanner
+// (see the root Cargo.toml). A plain parse cannot prove memory safety; the
+// fuzz smoke job replays fuzz/regressions/parse-md under AddressSanitizer.
+
+#[test]
+fn a_digit_before_a_non_ascii_character_parses() {
+    // The scanner passed the code point after a leading digit to `isdigit`,
+    // which glibc answers by reading its ctype table out of bounds: an
+    // AddressSanitizer SEGV in CI (PR #157) on the original fuzz input.
+    let original: &[u8] = include_bytes!(
+        "../fuzz/regressions/parse-md/crash-a13569d8fed4b109a5fc8b1bd84084532679dedd"
+    );
+    for source in [
+        std::str::from_utf8(original).unwrap(),
+        "0\u{4c68b}\n",
+        "1. one\n2ñ\n3€ item\n",
+    ] {
+        assert!(MarkdownParser
+            .parse(&SourceFile {
+                relative_path: "digits.md".to_string(),
+                contents: source.to_string(),
+            })
+            .is_ok());
+    }
+}
+
+#[test]
+fn block_quotes_nested_past_the_scanner_state_limit_are_an_error_not_an_overflow() {
+    // Each open block serializes to 4 bytes after a 5-byte header, so 254
+    // fit tree-sitter's 1024-byte buffer and 255 overflowed it.
+    let nested = |depth: usize| {
+        MarkdownParser.parse(&SourceFile {
+            relative_path: "deep.md".to_string(),
+            contents: format!("{} x\n", ">".repeat(depth)),
+        })
+    };
+    assert!(nested(254).is_ok());
+    assert!(matches!(
+        nested(255),
+        Err(mct_core::ParseError::Syntax { .. })
+    ));
+    let fuzz_input: &[u8] =
+        include_bytes!("../fuzz/regressions/parse-md/serialize-overflow-deep-block-quote");
+    assert!(MarkdownParser
+        .parse(&SourceFile {
+            relative_path: "deep.md".to_string(),
+            contents: std::str::from_utf8(fuzz_input).unwrap().to_string(),
+        })
+        .is_err());
+}
