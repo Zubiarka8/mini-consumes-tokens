@@ -46,6 +46,55 @@ See [Handoff](HANDOFF.md#task-pm-001). Prior routing/recovery implementation com
 
 Proposed in [PR #96](https://github.com/Zubiarka8/mini-consumes-tokens/pull/96); awaiting maintainer acceptance and verified integration.
 
+## TASK-LANG-001
+
+Status: REVIEW
+Owner: Claude Code session (requested by the repository maintainer)
+Reviewer: Repository maintainer
+Branch: `docs/lang-crate-base-and-fuzz`
+Worktree: main checkout (no separate worktree)
+Base commit: `5956a7611b344c4ac01d3f1613b6589a420e6908`
+Dependencies: None
+Priority: Medium
+Risk: Low; adds tests, fuzz harnesses, CI matrix entries and check-script strictness. No parser behavior change.
+Model/provider: Single session; no cross-provider dispatch
+
+### Goal
+
+Give every `mct-lang-*` crate the same base: a syntax-error test, a fuzz harness, a CI fuzz-smoke entry and the wiring checked by `new-language-check`. Provide a shared base document for new languages.
+
+### Scope
+
+- `crates/mct-lang-md/tests/parse.rs`: syntax-error test (the parser already returns `ParseError::Syntax`; the test was missing).
+- `crates/mct-lang-{css,html,kotlin,md,xaml,xml}/fuzz/`: fuzz harnesses copied from the existing pattern, with `Cargo.lock`.
+- `.github/workflows/ci.yml`: fuzz-smoke matrix entries for the six crates above.
+- `scripts/{unix,windows}/new-language-check.*`: fuzz harness, fuzz target and CI matrix entry become required.
+- `docs/06-templates/lang-crate-base.md` and a pointer in `CONTRIBUTING.md`.
+
+Exclusions: parser logic, README and `internal/checklist.md` rows (warnings, not in scope), fuzzing campaigns.
+
+### Acceptance criteria
+
+- [x] Every `mct-lang-*` crate passes `new-language-check.sh <suffix> --no-tests` with exit 0.
+- [x] `cargo test -p mct-lang-md` passes, including the new syntax-error test.
+- [x] Each new fuzz harness compiles (`cargo check --bins` in its `fuzz/` directory).
+- [x] `scripts/unix/check.sh` passes.
+- [x] Pull request opened from this branch against `main` (#157).
+
+### Required checks
+
+- `scripts/unix/new-language-check.sh <suffix> --no-tests` for all crates.
+- `cargo test -p mct-lang-md`; `scripts/unix/check.sh`.
+- `cargo check --bins` in each new `fuzz/` directory.
+
+### Checkpoint
+
+Work was first preserved in commit `2d3fd3b` on `codex/preserve-local-work-20261009`; this branch carries the same changes as scoped commits.
+
+### Result
+
+PR: https://github.com/Zubiarka8/mini-consumes-tokens/pull/157 (open, awaiting review and integration).
+
 ## New task entry template
 
 ```text
