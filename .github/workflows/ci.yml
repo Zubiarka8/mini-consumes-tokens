@@ -167,6 +167,18 @@ jobs:
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz --locked
 
+      # Inputs that once crashed or exhausted memory, replayed one by one
+      # under the sanitizer: a random 30s campaign is not guaranteed to
+      # reach them again.
+      - name: Replay fuzz regressions
+        working-directory: crates/${{ matrix.crate }}
+        run: |
+          target_name=$(cargo fuzz list)
+          dir="fuzz/regressions/$target_name"
+          if [ -d "$dir" ]; then
+            cargo fuzz run "$target_name" "$dir"/* -- -rss_limit_mb=2048 -timeout=60
+          fi
+
       # Smoke test only: confirms the harness builds and runs clean against
       # its (unseeded, in CI) corpus, not a real fuzzing campaign — no
       # crash is expected or being searched for here.

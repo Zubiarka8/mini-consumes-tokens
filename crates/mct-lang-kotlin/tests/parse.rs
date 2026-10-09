@@ -232,3 +232,32 @@ fn enum_class_bodies_are_visited() {
         .iter()
         .any(|r| r.kind == RelationKind::Calls && r.to_name == "setOf"));
 }
+
+#[test]
+fn pathological_error_recovery_stops_at_the_parse_budget() {
+    // Fuzz inputs on which tree-sitter's error recovery needed over 1 GB and a
+    // minute (CI fuzz OOMs, PR #157), originals and minimized. The fuzz
+    // smoke job replays the same files under AddressSanitizer.
+    let inputs: [&[u8]; 4] = [
+        include_bytes!(
+            "../fuzz/regressions/parse-kotlin/oom-3030c6b6d52561c8d49bb812d683bce15abc7ada"
+        ),
+        include_bytes!("../fuzz/regressions/parse-kotlin/oom-3030c6b6-minimized"),
+        include_bytes!(
+            "../fuzz/regressions/parse-kotlin/oom-e6ff4d3a0f18595d5f74790c2521c41b441c4f51"
+        ),
+        include_bytes!("../fuzz/regressions/parse-kotlin/oom-e6ff4d3a-minimized"),
+    ];
+    for input in inputs {
+        let result = KotlinParser.parse(&SourceFile {
+            relative_path: "Fuzz.kt".to_string(),
+            contents: String::from_utf8(input.to_vec()).unwrap(),
+        });
+        match result {
+            Err(mct_core::ParseError::Syntax { message, .. }) => {
+                assert!(message.contains("budget"), "{message}");
+            }
+            other => panic!("expected a budget syntax error, got {other:?}"),
+        }
+    }
+}
