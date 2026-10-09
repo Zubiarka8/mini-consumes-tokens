@@ -615,3 +615,12 @@ fn a_hash_comment_in_frontmatter_is_not_a_tag() {
     let parsed = parse("---\n# a comment #nottag\ntitle: T\n---\n\nbody\n");
     assert!(!parsed.relations.iter().any(|r| r.to_name == "tag:nottag"));
 }
+
+#[test]
+fn a_nul_byte_is_a_syntax_error_not_a_panic() {
+    let result = MarkdownParser.parse(&SourceFile {
+        relative_path: "broken.md".to_string(),
+        contents: "text\0\n".to_string(),
+    });
+    assert!(matches!(result, Err(mct_core::ParseError::Syntax { .. })));
+}
