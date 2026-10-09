@@ -31,13 +31,21 @@
 //! `title:<t>` references from the note — only `title`, `aliases` and `tags`
 //! in scalar, inline-list and `- item` forms; anything else is ignored and
 //! never evaluated. Wikilink resolution by alias or title is not done.
-//! Standard `[text](url)` links, tables and `#tag`-like text in code are not
-//! indexed. Scanning is hand-rolled text scanning, since `tree-sitter-md`'s
+//! Standard `[text](url)` links are not resolved as relations, and `#tag`-like
+//! text in code is not indexed.
+//!
+//! Every paragraph (outside frontmatter) and every table header/body row is
+//! a prose literal at its first line, through `LiteralCollector`'s filter,
+//! dedup and caps, so `hybrid_search`'s exact-phrase mode finds body text.
+//! Code blocks and headings (already symbols) are not literals. The shared
+//! prose filter and limits apply, including truncation of long blocks.
+//! Obsidian relations use hand-rolled text scanning, since `tree-sitter-md`'s
 //! inline grammar has no concept of this Obsidian-specific syntax.
 
 use mct_core::{
-    LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
-    SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
+    LanguageParser, LiteralCollector, Location, ParseError, ParsedFile, RelationKind,
+    RelationTarget, SourceFile, SymbolId, SymbolKind, SymbolRecord, SymbolRelation,
+    MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::{first_error, location};
 use tree_sitter::{Node, Parser};
@@ -457,6 +465,7 @@ struct Walker<'a> {
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
     relation_targets: Vec<RelationTarget>,
+    literals: LiteralCollector,
     next_id: SymbolId,
 }
 
@@ -472,6 +481,7 @@ impl<'a> Walker<'a> {
             symbols: Vec::new(),
             relations: Vec::new(),
             relation_targets: Vec::new(),
+            literals: LiteralCollector::default(),
             next_id: 0,
         }
     }
@@ -660,16 +670,24 @@ impl<'a> Walker<'a> {
     }
 
     /// Scans every `paragraph` under `node` (list items and blockquotes wrap
-    /// theirs; table cells and code blocks hold none) as owned by `owner`.
+    /// theirs; table cells and code blocks hold none) as owned by `owner`,
+    /// and keeps each paragraph and table row as a prose literal.
     fn scan_paragraphs(&mut self, node: Node, owner: SymbolId, depth: u32) {
         if depth >= MAX_TRAVERSAL_DEPTH {
             return;
         }
-        if node.kind() == "paragraph" {
-            let in_frontmatter = (node.start_position().row as u32) < self.frontmatter.end_line;
-            if !in_frontmatter {
+        let kind = node.kind();
+        if matches!(kind, "fenced_code_block" | "indented_code_block") {
+            return;
+        }
+        if matches!(kind, "paragraph" | "pipe_table_header" | "pipe_table_row") {
+            let row = node.start_position().row as u32;
+            if row >= self.frontmatter.end_line {
                 let text = node.utf8_text(self.source.as_bytes()).unwrap_or_default();
-                self.push_relations_from_text(owner, text, location(node));
+                self.literals.push(text, row + 1);
+                if kind == "paragraph" {
+                    self.push_relations_from_text(owner, text, location(node));
+                }
             }
             return;
         }
@@ -684,7 +702,7 @@ impl<'a> Walker<'a> {
             symbols: self.symbols,
             relations: self.relations,
             relation_targets: self.relation_targets,
-            ..Default::default()
+            literals: self.literals.finish(),
         }
     }
 }

@@ -234,3 +234,64 @@ async fn literals_are_searched_only_for_an_exact_phrase() {
         assert!(!text.contains("string literal(s)"), "{query}: {text}");
     }
 }
+
+#[tokio::test]
+async fn markdown_phrases_reach_hybrid_search_with_source_lines() {
+    let server = build_server_at(&fixture("markdown-literals")).await;
+    for (phrase, line) in [
+        ("migration finished without data loss", 6),
+        ("Operation name", 9),
+        ("register extensions & spawn extension host", 11),
+        ("restore secondary viewlet", 12),
+    ] {
+        let query = format!("\"{phrase}\"");
+        for format in ["text", "toon"] {
+            let text = hybrid(
+                &server,
+                HybridSearchArgs {
+                    format: Some(format.into()),
+                    language: Some("markdown".into()),
+                    path: Some("note.md".into()),
+                    cache: Some(false),
+                    ..args(&query, Some(1.0))
+                },
+            )
+            .await;
+            assert!(text.starts_with("hybrid: alpha 0 (exact phrase)"), "{text}");
+            if format == "toon" {
+                assert!(text.contains("literals[1]{"), "{text}");
+                assert!(
+                    text.contains(&format!("note.md,{line},markdown,")),
+                    "{text}"
+                );
+            } else {
+                assert!(text.contains("1 string literal(s)"), "{text}");
+                assert!(text.contains(&format!("note.md:{line} ")), "{text}");
+            }
+        }
+        assert!(!lexical(&server, &query).await.contains("string literal(s)"));
+    }
+
+    for query in [
+        "\"Frontmatter phrase stays excluded\"",
+        "\"Fenced code phrase stays excluded\"",
+        "\"Extension Activation Stats\"",
+        "register extensions & spawn extension host",
+        "\"migration without loss\"",
+    ] {
+        let text = hybrid(&server, args(query, Some(0.0))).await;
+        assert!(!text.contains("string literal(s)"), "{query}: {text}");
+    }
+    let heading = lexical(&server, "\"Extension Activation Stats\"").await;
+    assert!(heading.contains("Extension Activation Stats"), "{heading}");
+
+    let text = hybrid(
+        &server,
+        HybridSearchArgs {
+            language: Some("rust".into()),
+            ..args("\"restore secondary viewlet\"", Some(0.0))
+        },
+    )
+    .await;
+    assert!(!text.contains("string literal(s)"), "{text}");
+}
