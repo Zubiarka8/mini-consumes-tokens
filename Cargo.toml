@@ -26,6 +26,8 @@ members = [
     "crates/mct-corpus",
     "crates/mct-tree-sitter",
 ]
+# A patched dependency, not a member: see [patch.crates-io] below.
+exclude = ["vendor/tree-sitter-md"]
 
 [workspace.package]
 version = "0.1.0"
@@ -62,3 +64,15 @@ mct-corpus = { path = "crates/mct-corpus" }
 mct-tree-sitter = { path = "crates/mct-tree-sitter", version = "0.1.0" }
 thiserror = "2"
 tree-sitter = "0.25"
+
+# tree-sitter-md 0.5.3, the latest release, has two memory-safety bugs in its
+# block scanner reachable from ordinary Markdown: an unbounded `serialize`
+# that overflows tree-sitter's 1024-byte buffer on deep nesting (upstream
+# issue #243) and `isdigit` called with full code points (upstream #252).
+# Neither is fixed upstream. `vendor/tree-sitter-md` is the unmodified crate
+# plus those two fixes (see its git history). `cargo publish` ignores this
+# patch: drop it once an upstream release carries both fixes, and do not
+# publish mct-lang-md before then. Every fuzz workspace that builds
+# mct-lang-md repeats this patch.
+[patch.crates-io]
+tree-sitter-md = { path = "vendor/tree-sitter-md" }
