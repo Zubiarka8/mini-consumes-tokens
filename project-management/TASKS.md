@@ -79,7 +79,7 @@ Exclusions: parser logic, README and `internal/checklist.md` rows (warnings, not
 - [x] `cargo test -p mct-lang-md` passes, including the new syntax-error test.
 - [x] Each new fuzz harness compiles (`cargo check --bins` in its `fuzz/` directory).
 - [x] `scripts/unix/check.sh` passes.
-- [ ] Pull request opened from this branch against `main`.
+- [x] Pull request opened from this branch against `main` (#157).
 
 ### Required checks
 
@@ -93,7 +93,7 @@ Work was first preserved in commit `2d3fd3b` on `codex/preserve-local-work-20261
 
 ### Result
 
-Pending: PR from this branch to `main`.
+PR: https://github.com/Zubiarka8/mini-consumes-tokens/pull/157 (open, awaiting review and integration).
 
 ## New task entry template
 
