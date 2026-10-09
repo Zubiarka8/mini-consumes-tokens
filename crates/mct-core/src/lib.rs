@@ -61,7 +61,8 @@ pub struct ParsedFile {
     pub relations: Vec<SymbolRelation>,
     /// Prose string literals, already filtered, deduplicated and capped by a
     /// [`LiteralCollector`]. Empty for a parser that doesn't extract them —
-    /// by design for markup/style languages (Markdown, HTML, XML, CSS).
+    /// by design for markup/style languages (HTML, XML, CSS). Markdown keeps
+    /// its paragraphs and table rows here.
     pub literals: Vec<StringLiteral>,
     /// Qualification evidence for some of `relations`, by index — see
     /// [`RelationTarget`]. Sparse: a relation without an entry is
