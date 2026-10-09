@@ -2,7 +2,7 @@
 
 ![CI](https://img.shields.io/github/actions/workflow/status/Zubiarka8/mini-consumes-tokens/ci.yml?branch=main&label=CI)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
-![Version](https://img.shields.io/badge/version-0.1.0-informational.svg)
+![Version](https://img.shields.io/badge/version-0.2.0-informational.svg)
 
 **A local map of your code that answers "where is this defined", "what uses it", and "what would break if I change it" — without an AI assistant having to re-read your files over and over.**
 
@@ -64,8 +64,8 @@ cd mini-consumes-tokens
 **2. Build and install the two programs** this project ships — `mct-cli` (the command-line tool) and `mct-mcp-server` (what your AI assistant talks to):
 
 ```sh
-cargo install --path crates/mct-cli
-cargo install --path crates/mct-mcp-server
+cargo install --locked --path crates/mct-cli
+cargo install --locked --path crates/mct-mcp-server
 ```
 
 **3. Move into the project you actually want indexed and build its index** — this creates a `.mct-index/` folder there, safe to delete/rebuild anytime:
@@ -145,11 +145,11 @@ comment wording, anything the index doesn't cover).
 
 ### 4.2 Installing
 
-This project isn't published to a package manager (like `apt`, Homebrew, or `winget`) yet, so there are two ways to install it: a one-line script that downloads a ready-to-run copy, or building it yourself from source. Either one leaves you with the same two programs, `mct-cli` and `mct-mcp-server`.
+This project isn't published to a package manager (like `apt`, Homebrew, `winget`, or crates.io) yet, so there are two ways to install it: a one-line script that downloads a ready-to-run copy, or building it yourself from source. Either one leaves you with the same two programs, `mct-cli` and `mct-mcp-server`.
 
 #### Option A: quick install script — no Rust toolchain required
 
-This downloads the latest prebuilt release for your operating system. Both scripts print a warning if their install folder isn't already on your PATH, along with the exact line to add.
+This downloads the latest prebuilt release for your operating system from [GitHub Releases](https://github.com/Zubiarka8/mini-consumes-tokens/releases). 0.2.0 is the first version meant to ship prebuilt archives (the `v0.1.0` tag has none); until a release with archives is published, the scripts stop with an error instead of installing anything — use option B. The prebuilt binaries are built without the optional `semantic` feature, so `hybrid_search` matches by name only (see option B to add it). Both scripts print a warning if their install folder isn't already on your PATH, along with the exact line to add.
 
 **macOS / Linux** (installs into `$HOME/.local/bin`; override with `INSTALL_DIR`):
 
@@ -184,11 +184,15 @@ Requires the prerequisites above (Rust via rustup, plus the MSVC C++ build tools
 ```sh
 git clone https://github.com/Zubiarka8/mini-consumes-tokens.git
 cd mini-consumes-tokens
-cargo install --path crates/mct-cli
-cargo install --path crates/mct-mcp-server
+cargo install --locked --path crates/mct-cli
+cargo install --locked --path crates/mct-mcp-server
 ```
 
-**Optional — search by meaning (`hybrid_search`):** install the server with `cargo install --path crates/mct-mcp-server --features semantic` instead. That adds a small local embedding model (`bge-small-en-v1.5`, ~130 MB, downloaded once on the first `hybrid_search` call into `.mct-index/models`, or `$FASTEMBED_CACHE_DIR` if set; `MCT_EMBEDDING_MODEL=all-MiniLM-L6-v2` picks a smaller, faster one) so your assistant can find code from a description (*"load the settings from disk"*) even when no word of it is in the function's name. Without the feature, `hybrid_search` still works, but only matches by name, and says so. Each symbol is embedded together with its signature, doc comment and the functions it calls. Tuning: `alpha` 0 = match by name only, 1 = match by meaning only, fused with Reciprocal Rank Fusion. Leave it out and it is picked from the query's shape: 0.1 for an identifier (`parse_request`, `HttpServer`, `Index::open`), 0.75 for a plain description, 0.5 otherwise. Wrap the query in double quotes (`"parse request"`) for an exact phrase: name matching only, those words in that order, the literal name first. An exact phrase also finds it inside string literals such as error and log messages (`"database connection failed"` → `src/db.rs:3 in function connect "database connection failed"`), ignoring case and accents; so far only Rust files have their literals indexed.
+`--locked` builds with the exact dependency versions this repository was tested with. Install from the clone, not with `cargo install mct-cli` from crates.io: the crates are not published there, because the build depends on a patched Markdown parser kept in this repository (see [RELEASING.md](RELEASING.md)).
+
+**Upgrading from 0.1.0** (`ccm-cli`/`ccm-mcp-server`, `.claude-index/`): see the upgrade steps in [CHANGELOG.md](CHANGELOG.md#upgrading-from-010) — new binary names, the `.mcp.json` `command`, a rebuilt `.mct-index/`, and the Windows installer's `MCT_INSTALL_DIR`.
+
+**Optional — search by meaning (`hybrid_search`):** install the server with `cargo install --locked --path crates/mct-mcp-server --features semantic` instead. The build downloads a prebuilt ONNX Runtime library, so it needs network access and a platform ONNX Runtime ships binaries for. That adds a small local embedding model (`bge-small-en-v1.5`, ~130 MB, downloaded once on the first `hybrid_search` call into `.mct-index/models`, or `$FASTEMBED_CACHE_DIR` if set; `MCT_EMBEDDING_MODEL=all-MiniLM-L6-v2` picks a smaller, faster one) so your assistant can find code from a description (*"load the settings from disk"*) even when no word of it is in the function's name. Without the feature, `hybrid_search` still works, but only matches by name, and says so. Each symbol is embedded together with its signature, doc comment and the functions it calls. Tuning: `alpha` 0 = match by name only, 1 = match by meaning only, fused with Reciprocal Rank Fusion. Leave it out and it is picked from the query's shape: 0.1 for an identifier (`parse_request`, `HttpServer`, `Index::open`), 0.75 for a plain description, 0.5 otherwise. Wrap the query in double quotes (`"parse request"`) for an exact phrase: name matching only, those words in that order, the literal name first. An exact phrase also finds it inside string literals such as error and log messages (`"database connection failed"` → `src/db.rs:3 in function connect "database connection failed"`), ignoring case and accents. Literals are indexed for Rust string literals and for Markdown paragraphs and pipe-table rows only (at least eight characters and two words, first 256 characters of each, up to 500 per file; suspected secrets are skipped). Exact-phrase search needs no `semantic` build.
 
 **Repository input limits:** indexing, source tools, and CLI probes read regular files up to 16 MiB by default. Set `MCT_MAX_FILE_BYTES` to a positive byte count to change that limit. Oversized source files and manifests are reported as read failures; any last-good indexed data is retained and marked as possibly stale. Ignore-file read/compile failures are reported on stderr, and built-in exclusions remain active when custom glob patterns cannot compile.
 
