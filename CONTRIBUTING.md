@@ -4,7 +4,7 @@
 
 This is the extension point most contributions will touch, so it gets its own checklist:
 
-1. **New crate.** `crates/mct-lang-<name>`, depending on `mct-core` (path dependency) and `tree-sitter-<name>` (pin an exact version).
+1. **New crate.** `crates/mct-lang-<name>`, depending on `mct-core` (path dependency) and `tree-sitter-<name>` (pin an exact version). Start from the shared base in [docs/06-templates/lang-crate-base.md](docs/06-templates/lang-crate-base.md) so every language gets the same layout.
 2. **Implement `mct_core::LanguageParser`:**
    - `language_id()` — a stable lowercase identifier (`"go"`, `"kotlin"`), stored in the index's `language` column.
    - `file_extensions()` — extensions this parser owns, without the leading dot. Two parsers can never claim the same extension (`LanguageRegistry::register` panics on conflict — a startup-time configuration error, not something repo content can trigger).
