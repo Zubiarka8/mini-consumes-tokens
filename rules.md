@@ -140,7 +140,7 @@ An MCP server (`mct-mcp-server`) and CLI (`mct-cli`) that index a code repositor
 | What's the directory/file layout, before you know which file or crate to look at? | `get_file_tree` — plain directory tree (no symbol data), depth-limited, pruned of the same noise dirs (`target`, `node_modules`, `.git`) reindexing skips |
 | Where is X defined? | `find_symbol` |
 | Exact name unknown — words or a partial identifier in any style (`parse request`, `parseReq`, `http server`)? | `search_symbols` — BM25-ranked FTS5 match over each name split at camelCase/snake_case/kebab-case/acronym boundaries, exact name always first; default `limit` 10 (max 100), `offset`, optional `snippet_lines`. Not exhaustive — graph tools stay the source of truth for relations |
-| Only know what the code *does*, not words of its name (`load settings from disk`)? | `hybrid_search` — `search_symbols` fused with local-embedding similarity by weighted Reciprocal Rank Fusion; `alpha` 0 = lexical only … 1 = semantic only (omitted → routed by query shape: 0.1 identifier / 0.75 prose / 0.5 otherwise), `top_k` 10 (max 100), `offset`, `snippet_lines`. Its lexical side also expands dev-verb synonyms and resolves `Type::member` / `module.fn` qualifiers. A `"double-quoted"` query is an exact phrase: lexical only whatever `alpha`, its words consecutive and in order (no prefix/synonym/any-word matching), a literal name match boosted to #1, plus a second section listing prose string literals (error/log messages) holding the phrase as `path:line in <kind> <name> "text"` — case/diacritic-insensitive, currently extracted by `mct-lang-rust` only. Needs a `--features semantic` build of `mct-mcp-server` (`bge-small-en-v1.5` by default, `MCT_EMBEDDING_MODEL` to switch; downloaded on first use into `.mct-index/models`); otherwise it returns the lexical ranking and says so on its first line |
+| Only know what the code *does*, not words of its name (`load settings from disk`)? | `hybrid_search` — `search_symbols` fused with local-embedding similarity by weighted Reciprocal Rank Fusion; `alpha` 0 = lexical only … 1 = semantic only (omitted → routed by query shape: 0.1 identifier / 0.75 prose / 0.5 otherwise), `top_k` 10 (max 100), `offset`, `snippet_lines`. Its lexical side also expands dev-verb synonyms and resolves `Type::member` / `module.fn` qualifiers. A `"double-quoted"` query is an exact phrase: lexical only whatever `alpha`, its words consecutive and in order (no prefix/synonym/any-word matching), a literal name match boosted to #1, plus a second section listing prose string literals (error/log messages) holding the phrase as `path:line in <kind> <name> "text"` — case/diacritic-insensitive, currently extracted by `mct-lang-rust` (string literals) and `mct-lang-md` (paragraphs and table rows) only. Needs a `--features semantic` build of `mct-mcp-server` (`bge-small-en-v1.5` by default, `MCT_EMBEDDING_MODEL` to switch; downloaded on first use into `.mct-index/models`); otherwise it returns the lexical ranking and says so on its first line |
 | Who calls X directly? | `find_callers` |
 | What does X call? | `find_calls` |
 | Every reference to X (calls, imports, extends/implements) | `find_references` |
@@ -151,6 +151,20 @@ An MCP server (`mct-mcp-server`) and CLI (`mct-cli`) that index a code repositor
 | Is the index stale / healthy? | `get_indexing_status`, and `reindex` only if it looks stale |
 
 `find_references`/`find_calls`/`find_callers`/`impact_analysis` also take `depth` (multi-hop BFS beyond the direct hit, default 1, clamped to 32) and `offset` (pagination past `limit`) — reach for `depth` before manually chaining calls to walk the relation graph further out.
+
+**Markdown literal search:** use `hybrid_search` with a double-quoted phrase;
+`search_symbols` only searches symbols, even with quotes. Paragraphs and pipe-table
+headers/body rows retain their Markdown source text with whitespace collapsed.
+Headings remain symbols; frontmatter and code blocks are excluded from literals.
+The shared prose filter requires at least eight characters and two whitespace-separated
+words containing letters, and rejects suspected secrets. It keeps the first 256
+characters of each block and at most 500 distinct literals per file (the first
+occurrence supplies the line). Identifier-only or URL-only rows can therefore be
+excluded. Files without a supported extension are not treated as Markdown.
+After upgrading an existing index to Markdown literal extraction, run
+`mct-cli --root <project> reindex --force` once: unchanged files are otherwise
+skipped. This parser change requires no schema migration. Exact-phrase literal
+search also works without the optional semantic feature.
 
 **Progressive tool discovery:** `discover_tool_categories` lists every registered tool's name and one-line purpose grouped by category, with no input schemas — a cheap first call for a client that wants to defer the schema payload. `get_tool_schema` then returns one named tool's full input schema and description on demand. These are additive: the standard MCP `tools/list` handshake still returns every tool's full schema up front as usual, so ordinary MCP clients are unaffected — `discover_tool_categories`/`get_tool_schema` only help a client built to use them instead.
 
