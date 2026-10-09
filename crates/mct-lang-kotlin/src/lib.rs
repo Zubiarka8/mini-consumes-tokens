@@ -18,6 +18,8 @@
 //! functions of a local class or an `object : T { … }` expression are
 //! top-level `Function`s.
 
+use std::borrow::Cow;
+
 use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
     SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
@@ -60,7 +62,17 @@ impl LanguageParser for KotlinParser {
         // (kotlinx.coroutines, okhttp, this repo's corpus: 1,710 files)
         // needs at most 0.02 calls per byte, far under this budget. Returning
         // `true` cancels the parse, which then yields no tree.
-        let source = file.contents.as_bytes();
+        // The pinned grammar's external annotation scanner loops over
+        // non-whitespace without checking EOF. Its loop also bypasses the
+        // progress callback. A final LF gives it a terminator, including for
+        // malformed annotations; keep the original source for all locations
+        // and extracted text. Files already ending in LF need no allocation.
+        let parse_source = if file.contents.ends_with('\n') {
+            Cow::Borrowed(file.contents.as_str())
+        } else {
+            Cow::Owned(format!("{}\n", file.contents))
+        };
+        let source = parse_source.as_bytes();
         let budget = MIN_PARSE_PROGRESS_CHECKS + source.len() / BYTES_PER_PARSE_PROGRESS_CHECK;
         let mut checks = 0usize;
         let mut over_budget = |_: &ParseState| {
@@ -92,8 +104,12 @@ impl LanguageParser for KotlinParser {
 
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
-        let module_id =
-            walker.push_symbol(module_name, SymbolKind::Module, module_location(root), None);
+        let module_id = walker.push_symbol(
+            module_name,
+            SymbolKind::Module,
+            module_location(&file.contents),
+            None,
+        );
 
         // `package foo.bar` — one Module-kind symbol per occurrence, not
         // deduplicated across files, same convention as Go's package clause
@@ -105,7 +121,7 @@ impl LanguageParser for KotlinParser {
                 walker.push_symbol(
                     text(qid, &file.contents).to_string(),
                     SymbolKind::Module,
-                    module_location(root),
+                    module_location(&file.contents),
                     None,
                 );
             }
@@ -126,16 +142,15 @@ fn module_name_for(relative_path: &str) -> String {
         .to_string()
 }
 
-/// The file-level module's location: the root node of a file ending in a
-/// newline ends at column 0 of the row *after* the last line, which would
-/// put the module one line past the end of the file.
-fn module_location(root: Node) -> Location {
-    let mut loc = location(root);
-    let end = root.end_position();
-    if end.column == 0 && end.row > root.start_position().row {
-        loc.end_line = Some(end.row as u32);
+/// Span the original file, excluding any synthetic LF supplied to the
+/// scanner. Empty input still has a file-level module at line one.
+fn module_location(source: &str) -> Location {
+    Location {
+        line: 1,
+        column: 1,
+        byte_len: source.len() as u32,
+        end_line: Some(source.lines().count().max(1) as u32),
     }
-    loc
 }
 
 fn text<'a>(node: Node, source: &'a str) -> &'a str {
