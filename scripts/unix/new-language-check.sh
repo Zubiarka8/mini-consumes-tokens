@@ -11,8 +11,8 @@
 # --readme-name is the language as README.md's "Supported languages" line
 # spells it (default: the crate suffix, matched case-insensitively).
 #
-# Exit status: 1 if a required (code/CI) place is missing or a test fails;
-# documentation and fuzzing gaps are reported as warnings only.
+# Exit status: 1 if a required place (code, CI, fuzz harness) is missing or a
+# test fails; README and checklist gaps are reported as warnings only.
 
 source "$(dirname "$0")/lib.sh"
 
@@ -67,14 +67,10 @@ check required "mct-cli/Cargo.toml dependency"           crates/mct-cli/Cargo.to
 check required "mct-cli build_registry registration"     crates/mct-cli/src/main.rs "$ident::"
 check required "tests/parse.rs"                          "$dir/tests/parse.rs" '#\[test\]'
 check required "syntax-error test (ParseError::Syntax)"  "$dir/tests/parse.rs" 'ParseError::Syntax'
-check warn     "fuzz harness (fuzz/Cargo.toml [workspace])" "$dir/fuzz/Cargo.toml" '^\[workspace\]'
-check warn     "fuzz target (fuzz/fuzz_targets/*.rs)"    "$dir/fuzz/fuzz_targets" 'fuzz_target!'
-if [ -d "$dir/fuzz" ]; then
-  # A harness CI never runs is the gap CONTRIBUTING.md warns about.
-  check required "ci.yml fuzz-smoke matrix entry"        .github/workflows/ci.yml "^ *- $crate\$"
-else
-  check warn     "ci.yml fuzz-smoke matrix entry"        .github/workflows/ci.yml "^ *- $crate\$"
-fi
+check required "fuzz harness (fuzz/Cargo.toml [workspace])" "$dir/fuzz/Cargo.toml" '^\[workspace\]'
+check required "fuzz target (fuzz/fuzz_targets/*.rs)"    "$dir/fuzz/fuzz_targets" 'fuzz_target!'
+# A harness CI never runs is the gap CONTRIBUTING.md warns about.
+check required "ci.yml fuzz-smoke matrix entry"          .github/workflows/ci.yml "^ *- $crate\$"
 # Escaped: names like `C++` or `C#` are not valid/literal regexes as-is.
 readme_re="$(printf '%s' "$readme_name" | sed 's/[][\.*^$+?(){}|/]/\\&/g')"
 check warn     "README.md supported languages"           README.md "Supported languages:.*$readme_re" -i
