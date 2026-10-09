@@ -167,23 +167,47 @@ jobs:
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz --locked
 
+      # Keep compilation outside the runtime budget for the smoke campaign.
+      - name: Build fuzz target
+        timeout-minutes: 10
+        working-directory: crates/${{ matrix.crate }}
+        run: |
+          target_name=$(cargo fuzz list)
+          cargo fuzz build "$target_name"
+
       # Inputs that once crashed or exhausted memory, replayed one by one
       # under the sanitizer: a random 30s campaign is not guaranteed to
       # reach them again.
       - name: Replay fuzz regressions
+        timeout-minutes: 5
         working-directory: crates/${{ matrix.crate }}
         run: |
           target_name=$(cargo fuzz list)
           dir="fuzz/regressions/$target_name"
           if [ -d "$dir" ]; then
-            cargo fuzz run "$target_name" "$dir"/* -- -rss_limit_mb=2048 -timeout=60
+            mkdir -p fuzz/logs
+            cargo fuzz run "$target_name" "$dir"/* -- -rss_limit_mb=2048 -timeout=10 2>&1 | tee fuzz/logs/regressions.log
           fi
 
       # Smoke test only: confirms the harness builds and runs clean against
       # its (unseeded, in CI) corpus, not a real fuzzing campaign — no
       # crash is expected or being searched for here.
       - name: Short fuzz campaign (no crash expected)
+        timeout-minutes: 5
         working-directory: crates/${{ matrix.crate }}
         run: |
           target_name=$(cargo fuzz list)
-          cargo fuzz run "$target_name" -- -max_total_time=30
+          mkdir -p fuzz/logs
+          cargo fuzz run "$target_name" -- -max_total_time=30 -timeout=10 -rss_limit_mb=2048 2>&1 | tee fuzz/logs/smoke.log
+
+      - name: Preserve fuzz diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-${{ matrix.crate }}-${{ matrix.os }}-${{ github.run_attempt }}
+          path: |
+            crates/${{ matrix.crate }}/fuzz/artifacts/
+            crates/${{ matrix.crate }}/fuzz/corpus/
+            crates/${{ matrix.crate }}/fuzz/logs/
+          if-no-files-found: warn
+          retention-days: 7
