@@ -30,7 +30,7 @@ members = [
 exclude = ["vendor/tree-sitter-md"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/zubiarka8/mini-consumes-tokens"
@@ -39,29 +39,29 @@ repository = "https://github.com/zubiarka8/mini-consumes-tokens"
 # `version` alongside `path` is required for `cargo publish`: crates.io
 # resolves published dependents by version, path is only used for local
 # workspace builds and is stripped from the packaged Cargo.toml.
-mct-core = { path = "crates/mct-core", version = "0.1.0" }
-mct-index = { path = "crates/mct-index", version = "0.1.0" }
-mct-lang-rust = { path = "crates/mct-lang-rust", version = "0.1.0" }
-mct-lang-python = { path = "crates/mct-lang-python", version = "0.1.0" }
-mct-lang-java = { path = "crates/mct-lang-java", version = "0.1.0" }
-mct-lang-csharp = { path = "crates/mct-lang-csharp", version = "0.1.0" }
-mct-lang-js-ts = { path = "crates/mct-lang-js-ts", version = "0.1.0" }
-mct-lang-cpp = { path = "crates/mct-lang-cpp", version = "0.1.0" }
-mct-lang-go = { path = "crates/mct-lang-go", version = "0.1.0" }
-mct-lang-html = { path = "crates/mct-lang-html", version = "0.1.0" }
-mct-lang-css = { path = "crates/mct-lang-css", version = "0.1.0" }
-mct-lang-xml = { path = "crates/mct-lang-xml", version = "0.1.0" }
-mct-lang-xaml = { path = "crates/mct-lang-xaml", version = "0.1.0" }
-mct-lang-bash = { path = "crates/mct-lang-bash", version = "0.1.0" }
-mct-lang-powershell = { path = "crates/mct-lang-powershell", version = "0.1.0" }
-mct-lang-php = { path = "crates/mct-lang-php", version = "0.1.0" }
-mct-lang-md = { path = "crates/mct-lang-md", version = "0.1.0" }
-mct-lang-kotlin = { path = "crates/mct-lang-kotlin", version = "0.1.0" }
-mct-lang-lua = { path = "crates/mct-lang-lua", version = "0.1.0" }
+mct-core = { path = "crates/mct-core", version = "0.2.0" }
+mct-index = { path = "crates/mct-index", version = "0.2.0" }
+mct-lang-rust = { path = "crates/mct-lang-rust", version = "0.2.0" }
+mct-lang-python = { path = "crates/mct-lang-python", version = "0.2.0" }
+mct-lang-java = { path = "crates/mct-lang-java", version = "0.2.0" }
+mct-lang-csharp = { path = "crates/mct-lang-csharp", version = "0.2.0" }
+mct-lang-js-ts = { path = "crates/mct-lang-js-ts", version = "0.2.0" }
+mct-lang-cpp = { path = "crates/mct-lang-cpp", version = "0.2.0" }
+mct-lang-go = { path = "crates/mct-lang-go", version = "0.2.0" }
+mct-lang-html = { path = "crates/mct-lang-html", version = "0.2.0" }
+mct-lang-css = { path = "crates/mct-lang-css", version = "0.2.0" }
+mct-lang-xml = { path = "crates/mct-lang-xml", version = "0.2.0" }
+mct-lang-xaml = { path = "crates/mct-lang-xaml", version = "0.2.0" }
+mct-lang-bash = { path = "crates/mct-lang-bash", version = "0.2.0" }
+mct-lang-powershell = { path = "crates/mct-lang-powershell", version = "0.2.0" }
+mct-lang-php = { path = "crates/mct-lang-php", version = "0.2.0" }
+mct-lang-md = { path = "crates/mct-lang-md", version = "0.2.0" }
+mct-lang-kotlin = { path = "crates/mct-lang-kotlin", version = "0.2.0" }
+mct-lang-lua = { path = "crates/mct-lang-lua", version = "0.2.0" }
 # Test-only (publish = false): path-only, so `cargo publish` strips it from
 # the dev-dependencies of every crate that uses it.
 mct-corpus = { path = "crates/mct-corpus" }
-mct-tree-sitter = { path = "crates/mct-tree-sitter", version = "0.1.0" }
+mct-tree-sitter = { path = "crates/mct-tree-sitter", version = "0.2.0" }
 thiserror = "2"
 tree-sitter = "0.25"
 
