@@ -149,6 +149,12 @@ jobs:
           - mct-lang-bash
           - mct-lang-powershell
           - mct-lang-php
+          - mct-lang-md
+          - mct-lang-css
+          - mct-lang-html
+          - mct-lang-kotlin
+          - mct-lang-xaml
+          - mct-lang-xml
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
