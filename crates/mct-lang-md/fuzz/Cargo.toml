@@ -1,0 +1,33 @@
+# Standalone workspace (empty [workspace] table below): keeps this fuzzing
+# harness out of the parent workspace's `members`/lockfile — it's a throwaway
+# tool, not a deliverable crate.
+[workspace]
+
+[package]
+name = "mct-lang-md-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.mct-core]
+path = "../../mct-core"
+
+[dependencies.mct-lang-md]
+path = ".."
+
+[[bin]]
+name = "parse-md"
+path = "fuzz_targets/parse_md.rs"
+test = false
+doc = false
+bench = false
+
+# Same patched tree-sitter-md as the root workspace (see its Cargo.toml).
+[patch.crates-io]
+tree-sitter-md = { path = "../../../vendor/tree-sitter-md" }
