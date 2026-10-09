@@ -23,7 +23,12 @@ use mct_core::{
     SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::{first_error, location};
-use tree_sitter::{Node, Parser};
+use tree_sitter::{Node, ParseOptions, ParseState, Parser};
+
+/// Parse work budget, in tree-sitter progress-callback calls (one per 100
+/// parser operations): this floor plus one call per this many input bytes.
+const MIN_PARSE_PROGRESS_CHECKS: usize = 1_000;
+const BYTES_PER_PARSE_PROGRESS_CHECK: usize = 4;
 
 pub struct KotlinParser;
 
@@ -48,12 +53,31 @@ impl LanguageParser for KotlinParser {
             .set_language(&tree_sitter_kotlin_ng::LANGUAGE.into())
             .expect("tree-sitter-kotlin-ng grammar is statically valid");
 
+        // tree-sitter's error recovery on some malformed Kotlin grows without
+        // useful bound (a 205-byte fuzz input took over 1 GB and a minute),
+        // so the parse gets a work budget proportional to the input. The
+        // progress callback runs once per 100 parser operations; real Kotlin
+        // (kotlinx.coroutines, okhttp, this repo's corpus: 1,710 files)
+        // needs at most 0.02 calls per byte, far under this budget. Returning
+        // `true` cancels the parse, which then yields no tree.
+        let source = file.contents.as_bytes();
+        let budget = MIN_PARSE_PROGRESS_CHECKS + source.len() / BYTES_PER_PARSE_PROGRESS_CHECK;
+        let mut checks = 0usize;
+        let mut over_budget = |_: &ParseState| {
+            checks += 1;
+            checks > budget
+        };
         let tree = parser
-            .parse(&file.contents, None)
+            .parse_with_options(
+                &mut |offset, _| source.get(offset..).unwrap_or_default(),
+                None,
+                Some(ParseOptions::new().progress_callback(&mut over_budget)),
+            )
             .ok_or_else(|| ParseError::Syntax {
                 path: file.relative_path.clone(),
                 line: 1,
-                message: "tree-sitter produced no parse tree".to_string(),
+                message: "tree-sitter produced no parse tree (parse work budget exceeded)"
+                    .to_string(),
             })?;
 
         let root = tree.root_node();
