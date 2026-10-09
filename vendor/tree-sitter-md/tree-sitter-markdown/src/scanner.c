@@ -244,6 +244,14 @@ static unsigned serialize(Scanner *s, char *buffer) {
     buffer[size++] = (char)s->column;
     buffer[size++] = (char)s->fenced_code_block_delimiter_length;
     size_t blocks_count = s->open_blocks.size;
+    // mini-consumes-tokens patch (upstream issue #243): deeply nested input
+    // can open more blocks than fit in the fixed-size serialization buffer.
+    // Serialize nothing rather than overflow it; the scanner then
+    // deserializes a fresh state.
+    if (size + blocks_count * sizeof(Block) >
+        TREE_SITTER_SERIALIZATION_BUFFER_SIZE) {
+        return 0;
+    }
     if (blocks_count > 0) {
         memcpy(&buffer[size], s->open_blocks.items,
                blocks_count * sizeof(Block));
@@ -735,9 +743,14 @@ static bool parse_ordered_list_marker(Scanner *s, TSLexer *lexer,
          valid_symbols[LIST_MARKER_PARENTHESIS_DONT_INTERRUPT] ||
          valid_symbols[LIST_MARKER_DOT_DONT_INTERRUPT])) {
         size_t digits = 1;
-        bool dont_interrupt = !isdigit(lexer->lookahead);
+        // mini-consumes-tokens patch (upstream issue #252): `lookahead` is a
+        // full code point, and `isdigit` is undefined for values outside
+        // `unsigned char` (glibc reads its table out of bounds). CommonMark
+        // list markers are ASCII digits only.
+        bool dont_interrupt =
+            !(lexer->lookahead >= '0' && lexer->lookahead <= '9');
         advance(s, lexer);
-        while (isdigit(lexer->lookahead)) {
+        while (lexer->lookahead >= '0' && lexer->lookahead <= '9') {
             dont_interrupt = true;
             digits++;
             advance(s, lexer);

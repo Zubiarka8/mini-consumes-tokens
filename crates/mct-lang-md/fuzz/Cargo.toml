@@ -27,3 +27,7 @@ path = "fuzz_targets/parse_md.rs"
 test = false
 doc = false
 bench = false
+
+# Same patched tree-sitter-md as the root workspace (see its Cargo.toml).
+[patch.crates-io]
+tree-sitter-md = { path = "../../../vendor/tree-sitter-md" }
