@@ -222,9 +222,9 @@ Examples:
 
 ### `ignore-init` / `ignore-init --import-gitignore`
 
-Writes a starter `.mctignore` at the project root (if one doesn't already exist) — a `.gitignore`-style file to exclude extra files/directories (e.g. `docs/`, `*.md`) from indexing, on top of the built-in exclusions. Edit it, then `reindex --force` to apply.
+Writes a starter `.mctignore` at the project root (if one doesn't already exist) — a `.gitignore`-style file to exclude extra files/directories (e.g. `docs/`, `*.md`) from indexing, on top of the built-in exclusions. A `!pattern` line re-includes what an earlier line excluded (e.g. `*.md` then `!docs/readme.md`; last match wins, nothing inside an excluded directory, never a built-in exclusion). Edit it, then `reindex --force` to apply.
 
-`--import-gitignore` activates `@import-gitignore`: everything the project's own `.gitignore` excludes is excluded from indexing too (its `!negation` lines are skipped, same simplification `.mctignore` itself has). On a fresh file it's baked into the generated content; on an existing one, the directive is appended if it isn't already there — the one case `ignore-init` updates a file instead of leaving it alone, and only because the flag asked for it. Idempotent either way.
+`--import-gitignore` activates `@import-gitignore`: everything the project's own `.gitignore` excludes is excluded from indexing too (read as if its lines, `!` re-includes included, stood where the directive does). On a fresh file it's baked into the generated content; on an existing one, the directive is appended if it isn't already there — the one case `ignore-init` updates a file instead of leaving it alone, and only because the flag asked for it. Idempotent either way.
 
 ```sh
 mct-cli --root . ignore-init

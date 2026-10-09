@@ -4,9 +4,8 @@ use std::sync::{Arc, PoisonError, RwLock};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 
 /// Name of the user-editable ignore file at a project's root, read by
-/// [`read_ignore_file`]. Gitignore-flavored but deliberately simpler (no
-/// negation — see that function's docs) and scoped to indexing only, never
-/// touching git.
+/// [`read_ignore_file`]. Gitignore-flavored but deliberately simpler (see
+/// that function's docs) and scoped to indexing only, never touching git.
 pub const IGNORE_FILE_NAME: &str = ".mctignore";
 
 /// Starter content written by `mct-cli ignore-init` for a project that
@@ -17,7 +16,7 @@ pub const IGNORE_FILE_TEMPLATE: &str = "\
 # One pattern per line. Lines starting with # are comments; blank lines are
 # ignored. This only narrows what gets indexed on top of the built-in
 # exclusions (secrets, node_modules, target, .git, ...) — it can never widen
-# past them, and negation (!pattern) is not supported.
+# past them.
 #
 # A bare name with a trailing slash (e.g. \"docs/\") excludes that directory,
 # and everything under it, at any depth.
@@ -26,17 +25,23 @@ pub const IGNORE_FILE_TEMPLATE: &str = "\
 # A bare glob (e.g. \"*.md\") excludes matching files at any depth; a glob
 # containing a slash (e.g. \"docs/*.md\") is anchored to the project root.
 #
+# A line starting with \"!\" re-includes what an earlier line of this file
+# excluded (e.g. \"*.md\" then \"!docs/readme.md\"); the last matching line
+# wins. As in git, a file inside an excluded directory can't be re-included:
+# write \"docs/*\" rather than \"docs/\" to keep \"!docs/readme.md\" working.
+# Built-in exclusions can never be re-included.
+#
 # To also exclude everything the project's own .gitignore excludes (so
 # nothing kept out of git ends up in the index either), add this exact line
-# on its own (uncomment it below). .gitignore lines starting with \"!\"
-# (negation) are skipped rather than misapplied, same simplification as this
-# file's own lack of negation.
+# on its own (uncomment it below). Its lines, \"!\" included, are read as if
+# written where the directive stands.
 # @import-gitignore
 #
 # Examples (uncomment to use):
 # *.md
 # docs/
 # tests/fixtures/
+# !docs/readme.md
 ";
 
 /// Line that, added on its own in `.mctignore`, opts into also excluding
@@ -114,6 +119,8 @@ pub struct ExcludeSet {
 
 struct Rules {
     set: Option<GlobSet>,
+    /// What each glob in `set` does, by index.
+    kinds: Vec<RuleKind>,
     /// The extra patterns `set` was built from.
     extra: Vec<String>,
     /// Project root whose ignore files the extra patterns were read from —
@@ -125,9 +132,13 @@ impl ExcludeSet {
     /// Builds the default exclude set. `extra_patterns` lets a project widen
     /// (never narrow) it via configuration. The result is fixed:
     /// [`ExcludeSet::reload`] never changes it.
+    /// A pattern starting with `!` re-includes what an earlier extra pattern
+    /// excluded (never a built-in exclusion).
     pub fn new(extra_patterns: &[String]) -> Self {
+        let (set, kinds) = build_set(extra_patterns);
         Self::from_rules(Rules {
-            set: build_set(extra_patterns),
+            set,
+            kinds,
             extra: extra_patterns.to_vec(),
             project_root: None,
         })
@@ -139,8 +150,10 @@ impl ExcludeSet {
     /// without restarting.
     pub fn for_project(root: &Path) -> Self {
         let extra = read_ignore_file(root);
+        let (set, kinds) = build_set(&extra);
         Self::from_rules(Rules {
-            set: build_set(&extra),
+            set,
+            kinds,
             extra,
             project_root: Some(root.to_path_buf()),
         })
@@ -165,9 +178,10 @@ impl ExcludeSet {
         if self.read().extra == extra {
             return false;
         }
-        let set = build_set(&extra);
+        let (set, kinds) = build_set(&extra);
         let mut rules = self.rules.write().unwrap_or_else(PoisonError::into_inner);
         rules.set = set;
+        rules.kinds = kinds;
         rules.extra = extra;
         true
     }
@@ -188,20 +202,51 @@ impl ExcludeSet {
     }
 
     /// `relative_path` uses forward slashes, matching [`mct_core::SourceFile::relative_path`].
+    ///
+    /// Excluded when it or any ancestor directory is: a built-in pattern
+    /// matches it, or the last extra pattern that matches it is not a `!`
+    /// re-include. Checking ancestors keeps a single-path check (the
+    /// watcher) in line with the walk, which never descends into an
+    /// excluded directory — so, as in git, a `!` can't reach inside one.
     pub fn is_excluded(&self, relative_path: &str) -> bool {
-        self.read()
-            .set
-            .as_ref()
-            .is_none_or(|set| set.is_match(relative_path))
+        let rules = self.read();
+        let Some(set) = rules.set.as_ref() else {
+            return true;
+        };
+        let excludes = |path: &str| {
+            let matches = set.matches(path);
+            matches.iter().any(|&i| rules.kinds[i] == RuleKind::Builtin)
+                || matches
+                    .iter()
+                    .max()
+                    .is_some_and(|&i| rules.kinds[i] == RuleKind::Exclude)
+        };
+        relative_path
+            .match_indices('/')
+            .any(|(end, _)| excludes(&relative_path[..end]))
+            || excludes(relative_path)
     }
+}
+
+/// What one glob in an [`ExcludeSet`] does when it matches.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RuleKind {
+    /// A built-in exclusion: wins over everything.
+    Builtin,
+    /// An extra pattern.
+    Exclude,
+    /// A `!` extra pattern, re-including what an earlier extra one excluded.
+    Include,
 }
 
 /// The project's own `.gitignore`, read when `.mctignore` imports it.
 const GITIGNORE_FILE_NAME: &str = ".gitignore";
 
-/// The built-in exclusions plus `extra_patterns` (malformed ones skipped).
-fn build_set(extra_patterns: &[String]) -> Option<GlobSet> {
+/// The built-in exclusions plus `extra_patterns` (malformed ones skipped),
+/// with the [`RuleKind`] of each glob by index.
+fn build_set(extra_patterns: &[String]) -> (Option<GlobSet>, Vec<RuleKind>) {
     let mut builder = GlobSetBuilder::new();
+    let mut kinds = Vec::new();
     for pattern in DEFAULT_EXCLUDE_PATTERNS {
         #[allow(clippy::expect_used)]
         // SAFETY: `pattern` is one of the hardcoded literals in
@@ -209,6 +254,7 @@ fn build_set(extra_patterns: &[String]) -> Option<GlobSet> {
         // literal would be a compile-time-caught bug in this file, never
         // a runtime failure driven by an indexed repo.
         builder.add(Glob::new(pattern).expect("built-in exclude pattern is valid"));
+        kinds.push(RuleKind::Builtin);
     }
     // Two patterns per directory, never one. `**/dir/**` matches what is
     // *inside* the directory but not the directory's own entry, and the
@@ -226,21 +272,27 @@ fn build_set(extra_patterns: &[String]) -> Option<GlobSet> {
             // `DEFAULT_EXCLUDE_DIRS` above, same reasoning as the loop
             // over `DEFAULT_EXCLUDE_PATTERNS`.
             builder.add(Glob::new(&pattern).expect("built-in exclude pattern is valid"));
+            kinds.push(RuleKind::Builtin);
         }
     }
     for pattern in extra_patterns {
+        let (pattern, kind) = match pattern.strip_prefix('!') {
+            Some(rest) => (rest, RuleKind::Include),
+            None => (pattern.as_str(), RuleKind::Exclude),
+        };
         if let Ok(glob) = Glob::new(pattern) {
             builder.add(glob);
+            kinds.push(kind);
         }
     }
     // Valid globs can still exceed the regex compiler's resource limit.
     // Preserve built-in secret exclusions when custom rules cannot compile.
     match builder.build() {
-        Ok(set) => Some(set),
+        Ok(set) => (Some(set), kinds),
         Err(error) => {
             eprintln!("mct: exclusion rules could not compile: {error}; ignoring custom patterns");
             if extra_patterns.is_empty() {
-                None
+                (None, Vec::new())
             } else {
                 build_set(&[])
             }
@@ -275,77 +327,86 @@ fn read_ignore_contents(path: &Path) -> std::io::Result<String> {
 /// `extra_patterns`. A missing file yields an empty list, not an error — the
 /// file is opt-in for the user, not a requirement.
 ///
-/// Parsing rules (a deliberately simplified subset of `.gitignore` syntax —
-/// no negation, since this set is opt-out only and a `!pattern` would let a
-/// project widen back past the built-in exclusions):
+/// Parsing rules (a deliberately simplified subset of `.gitignore` syntax):
 /// - `#` at the start of a line is a comment; blank lines are skipped.
+/// - A line starting with `!` re-includes what an earlier line excluded; its
+///   patterns come out prefixed with `!` (see [`ExcludeSet::is_excluded`]
+///   for precedence). It can never re-include a built-in exclusion.
 /// - A line ending in `/` is a directory: excluded wholesale, same
 ///   two-pattern-per-directory treatment as [`DEFAULT_EXCLUDE_DIRS`].
 /// - Any other line is a glob pattern.
 /// - In both cases, a pattern containing a `/` elsewhere than a trailing
 ///   position is anchored to the project root; one without an internal `/`
 ///   matches at any depth (prefixed with `**/`) — the same anchoring rule
-///   `.gitignore` itself uses.
+///   `.gitignore` itself uses, leading `/` included (`/target` is only the
+///   root's `target`).
 /// - A line that is exactly [`GITIGNORE_IMPORT_DIRECTIVE`] opts into also
 ///   reading `<root>/.gitignore` and parsing its lines the same way (a
-///   missing `.gitignore` is silently a no-op); its `!`-negation lines are
-///   skipped rather than misapplied, for the same opt-out-only reason
-///   `.mctignore` itself has no negation.
+///   missing `.gitignore` is silently a no-op), as if its lines, `!` ones
+///   included, stood where the directive does.
 pub fn read_ignore_file(root: &Path) -> Vec<String> {
     let Ok(contents) = read_ignore_contents(&root.join(IGNORE_FILE_NAME)) else {
         return Vec::new();
     };
 
     let mut patterns = Vec::new();
-    let mut import_gitignore = false;
+    for line in contents.lines() {
+        if line.trim() == GITIGNORE_IMPORT_DIRECTIVE {
+            if let Ok(gitignore) = read_ignore_contents(&root.join(GITIGNORE_FILE_NAME)) {
+                push_lines(&gitignore, &mut patterns);
+            }
+        } else {
+            push_lines(line, &mut patterns);
+        }
+    }
+    patterns
+}
+
+/// Parses each line of `contents` (comments and blank lines skipped) into
+/// `patterns`, a `!` line's patterns prefixed with `!`.
+fn push_lines(contents: &str, patterns: &mut Vec<String>) {
     for line in contents.lines() {
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        if line == GITIGNORE_IMPORT_DIRECTIVE {
-            import_gitignore = true;
-            continue;
-        }
-        push_line_patterns(line, &mut patterns);
-    }
-
-    if import_gitignore {
-        if let Ok(gitignore) = read_ignore_contents(&root.join(GITIGNORE_FILE_NAME)) {
-            for line in gitignore.lines() {
-                let line = line.trim();
-                // Comments, blank lines, and negation (`!pattern`, which
-                // would widen back past an earlier exclusion — not
-                // expressible by this simplified, opt-out-only parser) are
-                // all skipped rather than misapplied.
-                if line.is_empty() || line.starts_with('#') || line.starts_with('!') {
-                    continue;
+        match line.strip_prefix('!') {
+            Some(rest) if !rest.is_empty() => {
+                let start = patterns.len();
+                push_line_patterns(rest, patterns);
+                for pattern in &mut patterns[start..] {
+                    pattern.insert(0, '!');
                 }
-                push_line_patterns(line, &mut patterns);
             }
+            Some(_) => {}
+            None => push_line_patterns(line, patterns),
         }
     }
-
-    patterns
 }
 
 /// Turns one already-trimmed, non-empty, non-comment ignore-file line into
 /// its ready-to-use glob pattern(s), per the anchoring rules documented on
 /// [`read_ignore_file`], appending them to `patterns`.
 fn push_line_patterns(line: &str, patterns: &mut Vec<String>) {
-    if let Some(dir) = line.strip_suffix('/') {
-        if dir.contains('/') {
-            patterns.push(dir.to_string());
-            patterns.push(format!("{dir}/**"));
-        } else {
-            patterns.push(format!("**/{dir}"));
-            patterns.push(format!("**/{dir}/**"));
-        }
-    } else if line.contains('/') {
-        patterns.push(line.to_string());
-    } else {
-        patterns.push(format!("**/{line}"));
+    let (body, is_dir) = match line.strip_suffix('/') {
+        Some(dir) => (dir, true),
+        None => (line, false),
+    };
+    // A leading `/` only anchors (`/target` is `target` at the root);
+    // globs match paths relative to the root, which never start with one.
+    let anchored = body.contains('/');
+    let body = body.strip_prefix('/').unwrap_or(body);
+    if body.is_empty() {
+        return;
     }
+    let base = if anchored {
+        body.to_string()
+    } else {
+        format!("**/{body}")
+    };
+    let inside = is_dir.then(|| format!("{base}/**"));
+    patterns.push(base);
+    patterns.extend(inside);
 }
 
 #[cfg(test)]
@@ -477,11 +538,63 @@ mod ignore_file_tests {
     }
 
     #[test]
-    fn gitignore_negation_lines_are_skipped_not_misapplied() {
+    fn gitignore_negation_lines_are_imported_as_re_includes() {
         let dir = temp_dir("gitignore-negation");
         fs::write(dir.join(IGNORE_FILE_NAME), GITIGNORE_IMPORT_DIRECTIVE).unwrap();
         fs::write(dir.join(".gitignore"), "*.log\n!keep.log\n# a comment\n\n").unwrap();
-        assert_eq!(read_ignore_file(&dir), vec!["**/*.log".to_string()]);
+        assert_eq!(
+            read_ignore_file(&dir),
+            vec!["**/*.log".to_string(), "!**/keep.log".to_string()]
+        );
         fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_negation_re_includes_only_what_extra_patterns_excluded() {
+        let dir = temp_dir("negation");
+        fs::write(
+            dir.join(IGNORE_FILE_NAME),
+            "*.md\n!docs/readme.md\ndocs/*\n!docs/keep.rs\nlib/\n!lib/a.rs\n!.env\n!\n",
+        )
+        .unwrap();
+        let set = ExcludeSet::new(&read_ignore_file(&dir));
+        assert!(set.is_excluded("README.md"));
+        // `docs/*` comes after `!docs/readme.md`: the last match wins.
+        assert!(set.is_excluded("docs/readme.md"));
+        assert!(!set.is_excluded("docs/keep.rs"));
+        assert!(set.is_excluded("docs/other.rs"));
+        // Inside an excluded directory, as in git: no way back in.
+        assert!(set.is_excluded("lib/a.rs"));
+        // Built-in exclusions can't be re-included.
+        assert!(set.is_excluded(".env"));
+        assert!(!set.is_excluded("src/main.rs"));
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_leading_slash_anchors_to_the_root() {
+        let dir = temp_dir("leading-slash");
+        fs::write(dir.join(IGNORE_FILE_NAME), "/build/\n/out.rs\n/\n").unwrap();
+        assert_eq!(
+            read_ignore_file(&dir),
+            vec![
+                "build".to_string(),
+                "build/**".to_string(),
+                "out.rs".to_string()
+            ]
+        );
+        let set = ExcludeSet::new(&read_ignore_file(&dir));
+        assert!(set.is_excluded("build/a.rs"));
+        assert!(set.is_excluded("out.rs"));
+        assert!(!set.is_excluded("src/build/b.rs"));
+        assert!(!set.is_excluded("src/out.rs"));
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_negation_after_an_exclusion_keeps_that_one_file() {
+        let set = ExcludeSet::new(&["**/*.md".to_string(), "!docs/readme.md".to_string()]);
+        assert!(!set.is_excluded("docs/readme.md"));
+        assert!(set.is_excluded("docs/other.md"));
     }
 }
