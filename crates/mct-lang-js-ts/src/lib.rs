@@ -20,12 +20,11 @@
 //! suggest a distinction the rest of the index (symbol/relation lookup by
 //! name, language-agnostic) doesn't actually make.
 //!
-//! JSX/TSX elements are deliberately *not* structurally indexed here (no
-//! `SymbolKind`/`RelationKind` for a JSX element, attribute, or component
-//! usage) — only the logic inside them (component functions, hooks, event
-//! handler calls) is extracted, via the same generic recursion that handles
-//! every other unrecognized node kind. Structural HTML/CSS/JSX indexing is
-//! deferred to a future session that first extends `mct-core`'s symbol model.
+//! JSX/TSX component opening/self-closing tags produce ordinary `References`
+//! relations from their enclosing function/method/module. Intrinsic DOM tags
+//! are excluded; member names retain qualification (`UI.Button`). Embedded
+//! hook/event-handler calls remain `Calls`. There is no dedicated render
+//! relation, JSX element/attribute symbol, or framework-specific resolution.
 //!
 //! Other known limits: interface members are not symbols, and a TS
 //! `namespace` is a `Module` symbol whose functions stay top-level (no
