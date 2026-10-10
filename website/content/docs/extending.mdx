@@ -79,12 +79,14 @@ categories = ["development-tools", "parser-implementations"]
 mct-core.workspace = true
 mct-tree-sitter.workspace = true
 tree-sitter.workspace = true
-tree-sitter-<name> = "=X.Y.Z"   # pin the exact version
+tree-sitter-<name> = "X.Y.Z"    # the full version you validated; caret, not "="
 
 [dev-dependencies]
 mct-corpus.workspace = true
 mct-index.workspace = true
 ```
+
+Write the grammar as the full `x.y.z` you validated (`"0.25.1"`, not `"0.25"` or `"=0.25.1"`). `Cargo.lock` is the exact pin. To upgrade a grammar later, run `cargo update -p tree-sitter-<name> --precise <v>`, raise the requirement to `<v>`, and review the `corpus-report.sh <name> --bless` snapshot diff in the same PR ([ADR-004](https://github.com/Zubiarka8/mini-consumes-tokens/blob/main/docs/01-architecture/adrs/004-grammar-version-requirements.md)). `new-language-check` rejects any other form.
 
 Add it to the root `Cargo.toml`, in `members` and in `[workspace.dependencies]`:
 
@@ -340,19 +342,17 @@ fuzz_target!(|data: &[u8]| {
 
 ## 7. Register the language
 
-Until this step, the CLI and the server don't know the parser exists. Change these files:
+Until this step, no binary knows the parser exists. The CLI, the MCP server and `mct-eval` all index through one registry in `crates/mct-languages`, so they can't ship different language sets. Change these files:
 
 | File | Change |
 | --- | --- |
-| `crates/mct-cli/Cargo.toml` | add `mct-lang-<name>.workspace = true` |
-| `crates/mct-mcp-server/Cargo.toml` | add `mct-lang-<name>.workspace = true` |
-| `crates/mct-cli/src/main.rs` → `build_registry` | `registry.register(Arc::new(mct_lang_<name>::<Name>Parser));` |
-| `crates/mct-mcp-server/src/registry.rs` → `build_registry` | the same line |
-| `crates/mct-cli/src/main.rs` → tests | add `"<name>"` to `EXPECTED_LANGUAGES`, and an `("<ext>", "<name>")` pair to the extension test |
+| `crates/mct-languages/Cargo.toml` | add `mct-lang-<name>.workspace = true` |
+| `crates/mct-languages/src/lib.rs` → `build_registry` | one line: `registry.register(Arc::new(mct_lang_<name>::<Name>Parser));` |
+| `crates/mct-languages/src/lib.rs` → tests | add an `("<ext>", "<name>")` pair to `a_representative_extension_resolves_for_each_language` |
 | `.github/workflows/ci.yml` → `fuzz-smoke` | add `- mct-lang-<name>` to `matrix.crate` |
 | `README.md`, `internal/checklist.md` | add the language to the coverage table |
 
-Tests in `mct-cli` fail if the crate is missing from either binary, or if the two registries differ.
+`cargo test -p mct-languages` fails if a `mct-lang-*` crate in the workspace is not a dependency of `mct-languages`, or if an extension resolves to no parser.
 
 ## 8. Check everything
 
