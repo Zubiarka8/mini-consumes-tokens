@@ -1,6 +1,6 @@
 "use client";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, type RefObject } from "react";
 import {
   BufferGeometry,
   Group,
@@ -328,6 +328,8 @@ export default function SpatialAtlas({
   layers,
   focusLayer,
   separation,
+  rotation,
+  reset,
   active,
   reduced,
   onSelect,
@@ -338,6 +340,8 @@ export default function SpatialAtlas({
   layers: AtlasLayers;
   focusLayer?: number;
   separation: number;
+  rotation: number;
+  reset: number;
   active: boolean;
   reduced: boolean;
   onSelect: (index: number) => void;
@@ -345,8 +349,6 @@ export default function SpatialAtlas({
   onFailure: () => void;
 }) {
   const { t } = useTranslation();
-  const [rotation, setRotation] = useState(0.2);
-  const [reset, setReset] = useState(0);
   const fileLabels = useRef<(HTMLButtonElement | null)[]>([]);
   const boardLabels = useRef<(HTMLSpanElement | null)[]>([]);
   const labels = useRef<(HTMLButtonElement | null)[]>([]);
@@ -429,23 +431,6 @@ export default function SpatialAtlas({
         ))}
       </div>
       <p className="spatial-hint">{t("spatialHint")}</p>
-      <div className="spatial-controls">
-        <button
-          type="button"
-          onClick={() => setRotation((value) => value + Math.PI / 4)}
-        >
-          {t("rotate")} ↻
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setRotation(0.2);
-            setReset((value) => value + 1);
-          }}
-        >
-          {t("resetView")}
-        </button>
-      </div>
     </>
   );
 }

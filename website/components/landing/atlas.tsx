@@ -45,6 +45,8 @@ export function Atlas() {
   const [activeStage, setActiveStage] = useState(0);
   const [layers, setLayers] = useState<AtlasLayers>([true, true, true]);
   const [separation, setSeparation] = useState(1.45);
+  const [rotation, setRotation] = useState(0.2);
+  const [reset, setReset] = useState(0);
   const [spatial, setSpatial] = useState(false);
   const [failed, setFailed] = useState(false);
   const [ready, setReady] = useState(false);
@@ -246,6 +248,8 @@ export function Atlas() {
                     layers={layers}
                     focusLayer={stage?.layer}
                     separation={separation}
+                    rotation={rotation}
+                    reset={reset}
                     onSelect={setSelected}
                     onReady={sceneReady}
                     active={inView && visible}
@@ -256,6 +260,27 @@ export function Atlas() {
               </SceneBoundary>
             </div>
           )}
+          <div className="spatial-controls">
+            {ready && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setRotation((value) => value + Math.PI / 4)}
+                >
+                  {t("rotate")} ↻
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRotation(0.2);
+                    setReset((value) => value + 1);
+                  }}
+                >
+                  {t("resetView")}
+                </button>
+              </>
+            )}
+          </div>
         </div>
         {failed && (
           <p className="atlas-fallback" role="status">
