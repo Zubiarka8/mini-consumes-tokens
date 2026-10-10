@@ -1,0 +1,29 @@
+{
+  "name": "portfolio-3d-app",
+  "fixture": "../mct-mcp-server/tests/fixtures/portfolio-3d-app",
+  "cases": [
+    {
+      "name": "definition of a binary glTF asset",
+      "category": "definition",
+      "tool": "find_symbol",
+      "args": { "name": "robot.glb" },
+      "expect": ["public/models/robot.glb:1"],
+      "absent": ["robot.gltf"]
+    },
+    {
+      "name": "every asset under public",
+      "category": "structure",
+      "tool": "list_symbols",
+      "args": { "path": "public", "kind": "asset" },
+      "expect": ["robot.glb", "robot.gltf", "wood.png", "studio.hdr"]
+    },
+    {
+      "name": "manifest declaring three",
+      "category": "maintenance",
+      "tool": "get_indexing_status",
+      "args": { "dependency": "three" },
+      "expect": ["package.json (javascript_typescript): ^0.164.0"],
+      "absent": ["failed to parse"]
+    }
+  ]
+}

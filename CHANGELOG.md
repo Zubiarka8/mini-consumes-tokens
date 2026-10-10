@@ -15,6 +15,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the installed version.
 - `scripts/unix/release.sh` (`bump`, `dry-run`, `publish`) automates the
   scriptable steps of `RELEASING.md`.
+- Web/3D foundation (ADR-003 P0b): asset files (`glb gltf png jpg jpeg webp
+  ktx2 hdr exr`) are indexed as `files` rows with language `asset` and one
+  `asset` symbol each; images are only stat'ed, glTF JSON is read under an
+  8 MiB cap (a `.glb`'s BIN chunk never), and bad glTF records a
+  `syntax_error` while keeping the asset. New symbol kinds `asset`,
+  `model_node`, `material`, `animation`, `finding`;
+  `mct_core::resolve_reference_path`; `mct_tree_sitter::mask`;
+  `get_indexing_status` takes an optional `dependency` to list the
+  manifests declaring a package; `build_context_pack` prints no source for
+  an asset. No schema migration and no `reindex --force` needed: the next
+  normal reindex adds the assets.
 
 ## [0.2.0] - 2026-10-09
 

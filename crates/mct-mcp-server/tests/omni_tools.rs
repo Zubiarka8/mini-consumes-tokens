@@ -716,6 +716,7 @@ async fn get_indexing_status_reports_every_language_and_the_detected_manifests()
         &server
             .get_indexing_status(Parameters(GetIndexingStatusArgs {
                 verbose_dependencies: true,
+                ..Default::default()
             }))
             .await
             .unwrap(),

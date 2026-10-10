@@ -386,6 +386,11 @@ const KIND_HEADINGS: &[(&str, &str)] = &[
     ("field", "Fields"),
     ("element", "Elements"),
     ("rule", "Rules"),
+    ("asset", "Assets"),
+    ("model_node", "Model Nodes"),
+    ("material", "Materials"),
+    ("animation", "Animations"),
+    ("finding", "Findings"),
 ];
 
 fn kind_heading(kind: &str) -> String {
@@ -1697,6 +1702,39 @@ pub fn index_status(status: &IndexStatus, verbose_dependencies: bool) -> String 
     out
 }
 
+/// Renders `get_indexing_status`' `dependency` section: every manifest
+/// that declares the package `name` (exact match), with its version.
+pub fn dependency_declarations(status: &IndexStatus, name: &str) -> String {
+    let declarations: Vec<String> = status
+        .dependencies
+        .iter()
+        .flat_map(|manifest| {
+            manifest
+                .dependencies
+                .iter()
+                .filter(|dep| dep.name == name)
+                .map(move |dep| match &dep.version {
+                    Some(version) => format!(
+                        "  {} ({}): {version}\n",
+                        manifest.manifest_path, manifest.language
+                    ),
+                    None => format!(
+                        "  {} ({}): no version\n",
+                        manifest.manifest_path, manifest.language
+                    ),
+                })
+        })
+        .collect();
+    if declarations.is_empty() {
+        return format!("Dependency `{name}`: not declared by any manifest.\n");
+    }
+    format!(
+        "Dependency `{name}` declared by {} manifest(s):\n{}",
+        declarations.len(),
+        declarations.concat()
+    )
+}
+
 /// Renders `discover_tool_categories`' output: every registered tool's name
 /// and description, grouped under the category headings in `categories`, no
 /// input schemas. A tool present in `catalog` but not listed in any category
@@ -2499,6 +2537,21 @@ mod index_status_tests {
              Coverage by language:\n\
              \x20 rust: 2 files, 10 symbols\n\
              Languages seen but not yet supported: lua\n"
+        );
+    }
+
+    #[test]
+    fn dependency_lists_each_declaring_manifest_with_its_version() {
+        let status = sample_status();
+        assert_eq!(
+            dependency_declarations(&status, "serde"),
+            "Dependency `serde` declared by 2 manifest(s):\n\
+             \x20 Cargo.toml (rust): 1.0\n\
+             \x20 crates/x/Cargo.toml (rust): no version\n"
+        );
+        assert_eq!(
+            dependency_declarations(&status, "Serde"),
+            "Dependency `Serde`: not declared by any manifest.\n"
         );
     }
 
