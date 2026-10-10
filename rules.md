@@ -232,6 +232,8 @@ CI (`.github/workflows/ci.yml`) runs `build-test` (build+test+clippy, which incl
 
 ## Architecture
 
+For library/framework work, follow the [implementation map](docs/01-architecture/library-support.md). Keep dependency-format parsing in the private ecosystem modules under `mct-index/src/manifests/`; `manifests.rs` owns file-name routing and shared deduplication. Keep source/framework syntax in its language crate and persistence in `mct-index`. In JS/TS, grammar selection, AST traversal, imports and exports have separate private modules. Update the existing framework coverage and corpus records when behavior changes; language support alone must not be presented as complete framework support.
+
 **The plugin boundary is the whole design.** `mct-core` defines `LanguageParser` (`language_id()`, `file_extensions()`, `parse()`) and `LanguageRegistry` (extension → parser lookup), and knows nothing about tree-sitter, SQLite, or MCP. Each `crates/mct-lang-*` crate implements that trait for one language via its own tree-sitter grammar. `mct-index` and `mct-mcp-server` never match on language names or extensions directly — everything routes through the registry.
 
 ```
