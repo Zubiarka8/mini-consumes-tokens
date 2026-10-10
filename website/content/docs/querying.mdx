@@ -1,0 +1,42 @@
+---
+title: "Querying the database directly"
+---
+
+No `sqlite3` CLI needed — Python's standard library works everywhere:
+
+```text
+$ python3 -c "
+import sqlite3
+conn = sqlite3.connect('.mct-index/index.sqlite3')
+cur = conn.cursor()
+cur.execute(\"SELECT name, kind, file_id FROM symbols WHERE name = 'YourSymbol'\")
+print(cur.fetchall())
+"
+```
+
+Useful ad hoc queries:
+
+```text
+-- Everything indexed for one file
+SELECT s.name, s.kind, s.line FROM symbols s
+JOIN files f ON f.id = s.file_id
+WHERE f.relative_path = 'crates/mct-core/src/lib.rs' ORDER BY s.line;
+
+-- Every relation kind used in the repo (sanity check)
+SELECT DISTINCT kind FROM relations;
+
+-- Fuzzy/substring symbol search (no CLI/MCP tool exposes this — direct FTS5 query)
+SELECT s.name, s.kind FROM symbols_fts
+JOIN symbols s ON s.id = symbols_fts.rowid
+WHERE symbols_fts MATCH 'Pars*';
+
+-- Every file that failed to parse or is in an unsupported language
+SELECT * FROM index_issues;
+
+-- Coverage per language, same numbers `status` reports
+SELECT f.language, COUNT(DISTINCT f.id), COUNT(s.id)
+FROM files f LEFT JOIN symbols s ON s.file_id = f.id
+GROUP BY f.language;
+```
+
+If the `sqlite3` CLI _is_ available on your system, the same queries work with `sqlite3 .mct-index/index.sqlite3 "SELECT ..."`.

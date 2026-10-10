@@ -34,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   now means one dependency and one `register` line there, instead of two
   copies kept in sync by a parity test. `mct_mcp_server::registry::build_registry`
   still works (re-export). No change to the shipped language set.
+- The reference manual moved from the hand-written `site/index.html` to a
+  Fumadocs site in `website/` (one MDX page per section, built-in search,
+  `llms.txt`), deployed to GitHub Pages by `.github/workflows/docs.yml`.
 
 ### Fixed
 
