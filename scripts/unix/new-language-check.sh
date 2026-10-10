@@ -57,7 +57,8 @@ if [ ! -d "$dir" ]; then
   exit 1
 fi
 check required "depends on mct-core"                     "$dir/Cargo.toml" '^mct-core'
-check required "depends on a tree-sitter grammar"        "$dir/Cargo.toml" '^tree-sitter-'
+# Full validated version, caret semantics (ADR-004): "0.25.1", not "0.25" or "=0.25.1".
+check required "tree-sitter grammar at a full x.y.z"     "$dir/Cargo.toml" '^tree-sitter-[a-z0-9-]+ = "[0-9]+\.[0-9]+\.[0-9]+"'
 check required "implements LanguageParser"               "$dir/src" 'impl +LanguageParser +for'
 check required "workspace member"                        Cargo.toml "\"$dir\""
 check required "workspace dependency"                    Cargo.toml "^$crate *="
