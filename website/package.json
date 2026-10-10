@@ -1,0 +1,44 @@
+{
+  "name": "website",
+  "version": "0.0.43",
+  "private": true,
+  "scripts": {
+    "build": "next build --webpack",
+    "dev": "next dev",
+    "start": "node scripts/preview.mjs",
+    "types:check": "next typegen && tsc --noEmit",
+    "preview": "node scripts/preview.mjs",
+    "test:resources": "node scripts/check-resources.mjs",
+    "test:browser": "playwright test",
+    "format:check": "prettier --check \"components/landing/**/*.{ts,tsx}\" \"messages/*.ts\" \"app/(home)/page.tsx\" \"app/(home)/layout.tsx\" \"app/(home)/landing.css\" \"scripts/*.mjs\" \"tests/*.ts\" playwright.config.ts",
+    "test:export": "node scripts/check-export.mjs"
+  },
+  "dependencies": {
+    "@react-three/fiber": "^9.8.1",
+    "cn": "^0.4.0",
+    "fumadocs-core": "16.17.1",
+    "fumadocs-mdx": "15.4.7",
+    "fumadocs-ui": "npm:@fumadocs/base-ui@16.17.1",
+    "i18next": "^26.4.3",
+    "lucide-react": "^1.50.0",
+    "motion": "^14.1.0",
+    "next": "16.3.8",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-i18next": "^17.0.16",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.0",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/mdx": "^2.0.14",
+    "@types/node": "^26.6.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.186.0",
+    "postcss": "^8.5.28",
+    "prettier": "^3.9.10",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2"
+  }
+}

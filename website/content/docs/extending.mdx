@@ -1,0 +1,380 @@
+---
+title: Adding a language
+description: A step-by-step guide to writing a new mct-lang-* crate and wiring it in.
+---
+
+Each language is one crate, `crates/mct-lang-<name>`. It turns a source file into **symbols** (what is defined) and **relations** (what calls, imports or extends what). Nothing else in the project changes: the index, the MCP tools and the CLI work with any language that implements one trait.
+
+This guide uses `<name>` for the language id (`zig`) and `<Name>` for the type prefix (`Zig`). [`mct-lang-lua`](https://github.com/Zubiarka8/mini-consumes-tokens/tree/main/crates/mct-lang-lua) is the best example to copy: it was added later, to prove that a language fits in one crate.
+
+## Before you start
+
+- A Rust toolchain, and a clone of the repository.
+- A **tree-sitter grammar** for the language, published on crates.io as `tree-sitter-<name>`. Every parser here is built on tree-sitter: it gives a syntax tree without running the code.
+- Read [Architecture](/docs/architecture) for the overall layout.
+
+## What a parser produces
+
+`parse()` returns a `ParsedFile`. You fill two lists:
+
+**`symbols`**: one `SymbolRecord` per definition.
+
+| Field | Meaning |
+| --- | --- |
+| `id` | A number unique **inside this file** (0, 1, 2…). Relations point to it. |
+| `name` | The name as written: `load_config`. |
+| `kind` | One of `Function`, `Method`, `Class`, `Struct`, `Interface`, `Enum`, `Trait`, `TypeAlias`, `Module`, `Variable`, `Constant`, `Field` (plus `Element` and `Rule` for HTML/CSS). Map your language's constructs onto these. |
+| `location` | 1-based `line` and `column`, `byte_len`, and `end_line` (the last line of the definition, so tools can show its source). |
+| `parent` | Name of the enclosing symbol (the class of a method), or `None`. |
+| `level` | Leave `None`. Only Markdown uses it, for heading levels. |
+
+**`relations`**: one `SymbolRelation` per use of a name.
+
+| Field | Meaning |
+| --- | --- |
+| `from` | `id` of the symbol where the use happens (the function that makes the call). |
+| `kind` | `Calls`, `Imports`, `Extends`, `Implements` or `References`. |
+| `to_name` | The target's name, as written at the call site. It doesn't need to exist in the project: the index matches names across files later. |
+| `location` | Where the use happens. |
+
+`literals` (prose strings, for `hybrid_search`) and `relation_targets` (extra hints about which definition a relation means) are optional. Leave them empty at first with `..Default::default()`.
+
+For example, this Python file:
+
+```python
+def load():
+    return read_file("a.toml")
+```
+
+gives one symbol (`load`, `Function`, line 1) and one relation (`load --Calls--> read_file`, line 2).
+
+## 1. Create the crate
+
+```text
+crates/mct-lang-<name>/
+  Cargo.toml
+  src/lib.rs                  the parser
+  tests/parse.rs              small unit tests
+  tests/corpus.rs             realistic multi-file test (step 5)
+  tests/corpus/project/       the realistic project
+  tests/corpus/malformed/     files the parser must reject
+  tests/corpus/expected.snap  generated snapshot
+  fuzz/                       fuzzing harness (step 6)
+```
+
+`Cargo.toml`:
+
+```toml title="crates/mct-lang-<name>/Cargo.toml"
+[package]
+name = "mct-lang-<name>"
+description = "<Name> language plugin (tree-sitter-<name>) for mini-consumes-tokens's LanguageParser trait."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["mcp", "tree-sitter", "code-index"]
+categories = ["development-tools", "parser-implementations"]
+
+[dependencies]
+mct-core.workspace = true
+mct-tree-sitter.workspace = true
+tree-sitter.workspace = true
+tree-sitter-<name> = "=X.Y.Z"   # pin the exact version
+
+[dev-dependencies]
+mct-corpus.workspace = true
+mct-index.workspace = true
+```
+
+Add it to the root `Cargo.toml`, in `members` and in `[workspace.dependencies]`:
+
+```toml title="Cargo.toml"
+[workspace]
+members = [
+  # ...
+  "crates/mct-lang-<name>",
+]
+
+[workspace.dependencies]
+# ...
+mct-lang-<name> = { path = "crates/mct-lang-<name>" }
+```
+
+## 2. Look at the syntax tree
+
+Before you write the walker, find out what tree-sitter calls each construct. Node names differ between grammars, and the grammar's docs are often incomplete. Print the tree of a small sample in a scratch test:
+
+```rust
+let mut parser = tree_sitter::Parser::new();
+parser.set_language(&tree_sitter_<name>::LANGUAGE.into()).unwrap();
+let tree = parser.parse("fn add(a: i32) i32 { return sum(a); }", None).unwrap();
+println!("{}", tree.root_node().to_sexp());
+```
+
+The output shows node kinds such as `function_declaration` and `call_expression`, and field names such as `name:` and `function:`. Note down the ones you need.
+
+## 3. Implement the parser
+
+`src/lib.rs` implements `mct_core::LanguageParser`, which has three methods:
+
+```rust title="crates/mct-lang-<name>/src/lib.rs"
+//! `LanguageParser` implementation for <Name>, via `tree-sitter-<name>`.
+
+use mct_core::{
+    LanguageParser, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId, SymbolKind,
+    SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
+};
+use mct_tree_sitter::{first_error, location};
+use tree_sitter::{Node, Parser};
+
+pub struct <Name>Parser;
+
+impl LanguageParser for <Name>Parser {
+    // Stored in the index's `language` column. Lowercase, unique.
+    fn language_id(&self) -> &'static str {
+        "<name>"
+    }
+
+    // Extensions without the dot. Two parsers can't claim the same one.
+    fn file_extensions(&self) -> &'static [&'static str] {
+        &["<ext>"]
+    }
+
+    fn parse(&self, file: &SourceFile) -> Result<ParsedFile, ParseError> {
+        let syntax_error = |line: u32, message: &str| ParseError::Syntax {
+            path: file.relative_path.clone(),
+            line,
+            message: message.to_string(),
+        };
+
+        let mut parser = Parser::new();
+        if parser.set_language(&tree_sitter_<name>::LANGUAGE.into()).is_err() {
+            return Err(syntax_error(1, "grammar ABI mismatch"));
+        }
+        let tree = parser
+            .parse(&file.contents, None)
+            .ok_or_else(|| syntax_error(1, "tree-sitter produced no parse tree"))?;
+
+        // A file with a syntax error is reported, never half-indexed.
+        let root = tree.root_node();
+        if root.has_error() {
+            let line = first_error(root).unwrap_or(root).start_position().row as u32 + 1;
+            return Err(syntax_error(line, "syntax error"));
+        }
+
+        let mut out = ParsedFile::default();
+        walk(root, &file.contents, None, 0, &mut out);
+        Ok(out)
+    }
+}
+
+/// Visits every node once. `owner` is the id of the enclosing function,
+/// so calls inside it are attributed to it.
+fn walk(node: Node, src: &str, owner: Option<SymbolId>, depth: u32, out: &mut ParsedFile) {
+    // Deeply nested input must not overflow the stack.
+    if depth > MAX_TRAVERSAL_DEPTH {
+        return;
+    }
+    let mut owner = owner;
+
+    match node.kind() {
+        // Node kinds come from step 2.
+        "function_declaration" => {
+            if let Some(name) = node.child_by_field_name("name") {
+                let id = out.symbols.len() as SymbolId;
+                out.symbols.push(SymbolRecord {
+                    id,
+                    name: text(name, src).to_string(),
+                    kind: SymbolKind::Function,
+                    location: location(node), // whole node, so end_line covers the body
+                    parent: None,
+                    level: None,
+                });
+                owner = Some(id);
+            }
+        }
+        "call_expression" => {
+            if let (Some(from), Some(callee)) = (owner, node.child_by_field_name("function")) {
+                out.relations.push(SymbolRelation {
+                    from,
+                    kind: RelationKind::Calls,
+                    to_name: text(callee, src).to_string(),
+                    location: location(callee),
+                });
+            }
+        }
+        _ => {}
+    }
+
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        walk(child, src, owner, depth + 1, out);
+    }
+}
+
+fn text<'a>(node: Node, src: &'a str) -> &'a str {
+    // Never unwrap on repository input.
+    node.utf8_text(src.as_bytes()).unwrap_or_default()
+}
+```
+
+Start with functions and calls, get them working end to end, then add classes, methods (set `parent`), imports and inheritance one at a time.
+
+### Rules every parser must follow
+
+The parser runs on code from any repository, including hostile code:
+
+- **Never run the code.** Only walk the syntax tree. No `eval`, no build step, no external process.
+- **Never panic on input.** No `unwrap()`, `expect()` or `panic!` on anything derived from the file. Use `unwrap_or_default()`, `?` or an early return. A syntax error is returned as `ParseError::Syntax`.
+- **Bound recursion** with `MAX_TRAVERSAL_DEPTH`, as in the example.
+
+## 4. Write unit tests
+
+`tests/parse.rs` needs at least three tests:
+
+```rust title="crates/mct-lang-<name>/tests/parse.rs"
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use mct_core::{LanguageParser, ParseError, RelationKind, SourceFile};
+use mct_lang_<name>::<Name>Parser;
+
+fn parse(src: &str) -> Result<mct_core::ParsedFile, ParseError> {
+    <Name>Parser.parse(&SourceFile {
+        relative_path: "sample.<ext>".to_string(),
+        contents: src.to_string(),
+    })
+}
+
+#[test]
+fn extracts_function_and_call() {
+    let out = parse("fn add(a: i32) i32 { return sum(a); }").unwrap();
+    assert!(out.symbols.iter().any(|s| s.name == "add"));
+    assert!(out
+        .relations
+        .iter()
+        .any(|r| r.kind == RelationKind::Calls && r.to_name == "sum"));
+}
+
+#[test]
+fn idiomatic_syntax_is_extracted() {
+    // The language's distinctive construct: generics, decorators, macros…
+}
+
+#[test]
+fn syntax_error_is_a_value_not_a_panic() {
+    let result = parse("fn broken( {");
+    assert!(matches!(result, Err(ParseError::Syntax { .. })));
+}
+```
+
+<Callout type="warn">
+  Don't guess the broken input. Many grammars accept text that looks invalid. Check it first with `mct-cli probe broken.<ext>`: it must print `FAIL broken.<ext>:<line>: syntax error`.
+</Callout>
+
+Run them:
+
+```bash
+cargo test -p mct-lang-<name>
+```
+
+## 5. Add the corpus
+
+The corpus is a realistic project that pins down exactly what the parser extracts. `crates/mct-corpus` runs the shared checks: file sizes, line ranges, a snapshot, an index round trip, and malformed files.
+
+- **`tests/corpus/project/<scenario>/`**: code a real team would write, with files that reference each other. At least 5 files of 300–700 lines; no file over 700. No padding, no copied third-party or generated code.
+- **`tests/corpus/malformed/`**: at least one large file the parser must reject.
+- **`tests/corpus.rs`**:
+
+```rust title="crates/mct-lang-<name>/tests/corpus.rs"
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use mct_core::{RelationKind, SymbolKind};
+use mct_lang_<name>::<Name>Parser;
+
+mct_corpus::standard_tests!(<Name>Parser);
+
+#[test]
+fn methods_belong_to_their_type() {
+    let method = corpus().symbol("order.<ext>", "total", SymbolKind::Method);
+    assert_eq!(method.parent.as_deref(), Some("Order"));
+}
+
+#[test]
+fn cross_file_calls_are_extracted() {
+    corpus().relation("order.<ext>", "total", RelationKind::Calls, "sum");
+}
+```
+
+Create the snapshot, then read its diff line by line:
+
+```bash
+MCT_BLESS=1 cargo test -p mct-lang-<name> --test corpus
+scripts/unix/corpus-report.sh <name>   # summary that flags likely parser bugs
+```
+
+The full rules are in `CONTRIBUTING.md`, section "Language corpus".
+
+## 6. Add a fuzz harness
+
+Copy `crates/mct-lang-lua/fuzz/` and rename it. The target feeds random input to the parser to prove it never panics:
+
+```rust title="crates/mct-lang-<name>/fuzz/fuzz_targets/parse_<name>.rs"
+#![no_main]
+
+use libfuzzer_sys::fuzz_target;
+use mct_core::{LanguageParser, SourceFile};
+use mct_lang_<name>::<Name>Parser;
+
+fuzz_target!(|data: &[u8]| {
+    let Ok(contents) = std::str::from_utf8(data) else {
+        return;
+    };
+    let _ = <Name>Parser.parse(&SourceFile {
+        relative_path: "fuzz.<ext>".to_string(),
+        contents: contents.to_string(),
+    });
+});
+```
+
+`fuzz/Cargo.toml` must have an empty `[workspace]` table, so it stays out of the main workspace.
+
+## 7. Register the language
+
+Until this step, the CLI and the server don't know the parser exists. Change these files:
+
+| File | Change |
+| --- | --- |
+| `crates/mct-cli/Cargo.toml` | add `mct-lang-<name>.workspace = true` |
+| `crates/mct-mcp-server/Cargo.toml` | add `mct-lang-<name>.workspace = true` |
+| `crates/mct-cli/src/main.rs` → `build_registry` | `registry.register(Arc::new(mct_lang_<name>::<Name>Parser));` |
+| `crates/mct-mcp-server/src/registry.rs` → `build_registry` | the same line |
+| `crates/mct-cli/src/main.rs` → tests | add `"<name>"` to `EXPECTED_LANGUAGES`, and an `("<ext>", "<name>")` pair to the extension test |
+| `.github/workflows/ci.yml` → `fuzz-smoke` | add `- mct-lang-<name>` to `matrix.crate` |
+| `README.md`, `internal/checklist.md` | add the language to the coverage table |
+
+Tests in `mct-cli` fail if the crate is missing from either binary, or if the two registries differ.
+
+## 8. Check everything
+
+```bash
+scripts/unix/new-language-check.sh <name>
+```
+
+It lists each step above as `ok`, `MISS` or `warn`, then runs the crate's tests and the registry tests. You're done when it shows no `MISS` and no `FAIL`. Then run the whole suite:
+
+```bash
+scripts/unix/check.sh   # tests, clippy and the mct-eval quality gate
+```
+
+Try it on a real project:
+
+```bash
+cargo run -p mct-cli -- --root /path/to/project reindex
+cargo run -p mct-cli -- --root /path/to/project status   # the language should appear under "Coverage by language"
+```
+
+On Windows, each script has a `.ps1` twin in `scripts/windows/`.
+
+## Next
+
+To detect the language's package manifest (its declared libraries), mark calls into libraries as external, or cover a framework, see [Adding library support](/docs/libraries).

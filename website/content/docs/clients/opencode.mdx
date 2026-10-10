@@ -1,0 +1,31 @@
+---
+title: OpenCode
+description: Add a local server under the mcp key of opencode.json.
+---
+
+## Install
+
+Edit `opencode.json` at the project root, or `~/.config/opencode/opencode.json` for every project. OpenCode has its own shape: the root key is `mcp`, the type is `local`, and `command` is **one array** holding the binary and its arguments:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "mini-consumes-tokens": {
+      "type": "local",
+      "command": ["mct-mcp-server", "--root", "<absolute-path-to-repo>"],
+      "enabled": true
+    }
+  }
+}
+```
+
+## Verify
+
+```bash
+opencode mcp list
+```
+
+## Uninstall
+
+OpenCode has no remove command. Delete the `mini-consumes-tokens` entry from `opencode.json`, or set `"enabled": false` to keep the entry but stop it from starting. To delete the binaries and the index, see [Uninstalling](/docs/uninstalling).
