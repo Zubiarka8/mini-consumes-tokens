@@ -136,7 +136,7 @@ See [Handoff](HANDOFF.md#task-lib-001).
 
 ### Result
 
-Draft PR: https://github.com/Zubiarka8/mini-consumes-tokens/pull/170 (CI green, awaiting review; ERR-010 open).
+Draft PR: https://github.com/Zubiarka8/mini-consumes-tokens/pull/170 (awaiting review). ERR-010 fixed in `b3a1490`/`d92d4f6`, separable from the rest.
 
 ## New task entry template
 
