@@ -234,7 +234,7 @@ fn a_same_file_function_inside_a_macro_token_tree_is_a_reference_not_a_call() {
 #[test]
 #[ignore = "known bug, not filed yet: a method call inside a macro's token tree leaves no relation, so find_callers/find_references/impact_analysis miss it (benchmarks/agent-benchmark.md)"]
 fn a_method_call_inside_a_macro_token_tree_leaves_a_relation() {
-    // The shape of mct-cli's `the_cli_and_mcp_server_registries_ship_the_same_languages_and_extensions` test.
+    // The shape of the former CLI/MCP-server registry parity test.
     let parsed = parse(
         r#"
         fn agree(cli: &R, server: &R) {
@@ -252,6 +252,35 @@ fn a_method_call_inside_a_macro_token_tree_leaves_a_relation() {
         .map(|r| r.location.line)
         .collect();
     assert_eq!(lines, vec![4, 5], "{:?}", parsed.relations);
+}
+
+#[test]
+#[ignore = "known bug, not filed yet (errors/REGISTRY.md ERR-010): a path in value position (`m::Item`) leaves no relation, so find_references/impact_analysis miss e.g. mct-languages' `Arc::new(mct_lang_rust::RustParser)`"]
+fn a_path_in_value_position_is_a_reference_qualified_by_its_module() {
+    // The shape of `mct_languages::build_registry`. A call through the same
+    // path (`m::f()`) is already a `Calls` with `module` evidence; a value
+    // use must get the same evidence, so it never resolves to a same-named
+    // item of this file. Fixing this changes the `by_path` expectation in
+    // `locals_fields_paths_labels_and_foreign_names_are_not_references`.
+    let parsed = parse(
+        r#"
+        fn build(registry: &mut R) {
+            registry.register(Arc::new(mct_lang_rust::RustParser));
+        }
+        "#,
+    );
+    let hit = parsed
+        .relations
+        .iter()
+        .enumerate()
+        .find(|(_, r)| r.kind == RelationKind::References && r.to_name == "RustParser");
+    let (index, relation) = hit.unwrap_or_else(|| panic!("no reference: {:?}", parsed.relations));
+    assert_eq!(relation.location.line, 3);
+    let target = parsed.relation_targets.iter().find(|t| t.relation == index);
+    assert_eq!(
+        target.and_then(|t| t.module.as_deref()),
+        Some("mct_lang_rust")
+    );
 }
 
 #[test]
