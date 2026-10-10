@@ -603,11 +603,17 @@ test("full screen retains selection, traps focus and exits on Escape", async ({
   page,
 }) => {
   await page.goto(home);
+  const supported = await page.evaluate(
+    () => !!document.createElement("canvas").getContext("webgl2"),
+  );
+  test.skip(!supported, "WebKit runtime has no WebGL2");
   const atlas = page.locator(".atlas");
   await atlas
     .locator(".symbol-controls")
     .getByRole("button", { name: "validate_input", exact: true })
     .click();
+  await atlas.locator(".atlas-space").scrollIntoViewIfNeeded();
+  await expect(atlas).toHaveAttribute("data-scene", "ready");
   await atlas.getByRole("button", { name: "Full screen", exact: true }).click();
   await expect(
     page.getByRole("dialog", { name: "Code atlas", exact: true }),
@@ -623,16 +629,23 @@ test("full screen retains selection, traps focus and exits on Escape", async ({
   await expect(atlas.locator(".context-pack strong")).toHaveText(
     "validate_input",
   );
+  // The explorer and context pack are hidden, so the trap runs from the layer
+  // toggles to the tools reference link at the end of the tour.
+  const first = atlas.locator(".atlas-layer-toggles button").first();
+  const last = atlas.getByRole("link", {
+    name: "Read the MCP tools reference",
+    exact: true,
+  });
+  await first.focus();
   await page.keyboard.press("Shift+Tab");
-  await expect(atlas.locator(".atlas-source")).toBeFocused();
+  await expect(last).toBeFocused();
   await page.keyboard.press("Tab");
-  await expect(
-    atlas.getByRole("button", { name: "Exit full screen", exact: true }),
-  ).toBeFocused();
-  await atlas
-    .locator(".symbol-controls")
-    .getByRole("button", { name: "handle_request", exact: true })
-    .click();
+  await expect(first).toBeFocused();
+  const label = atlas
+    .locator(".spatial-labels")
+    .getByRole("button", { name: "handle_request", exact: true });
+  await expect(label).toBeVisible();
+  await label.click();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(
@@ -808,24 +821,60 @@ for (const [width, height] of [
   [1440, 900],
   [390, 844],
 ] as const)
-  test(`full screen shows the scene and tour before the explorer at ${width}px`, async ({
+  test(`full screen shows only the scene and tour at ${width}px`, async ({
     page,
   }) => {
     await page.setViewportSize({ width, height });
     await page.goto(home);
+    const supported = await page.evaluate(
+      () => !!document.createElement("canvas").getContext("webgl2"),
+    );
+    test.skip(!supported, "WebKit runtime has no WebGL2");
     const atlas = page.locator(".atlas");
+    await atlas.locator(".atlas-space").scrollIntoViewIfNeeded();
+    await expect(atlas).toHaveAttribute("data-scene", "ready");
     await atlas
       .getByRole("button", { name: "Full screen", exact: true })
       .click();
-    const box = async (selector: string) =>
-      (await atlas.locator(selector).boundingBox())!;
-    const controls = await box(".symbol-controls");
-    const stages = atlas.locator(".atlas-stage");
-    expect((await box(".atlas-space")).y).toBeLessThan(controls.y);
-    expect((await stages.first().boundingBox())!.y).toBeLessThan(controls.y);
-    const last = (await stages.last().boundingBox())!;
-    expect(last.y + last.height).toBeLessThanOrEqual(controls.y);
+    for (const selector of [
+      ".symbol-controls",
+      ".context-pack",
+      ".atlas-caption",
+    ])
+      await expect(atlas.locator(selector)).toBeHidden();
+    await expect(atlas.locator(".atlas-space")).toBeVisible();
+    await expect(atlas.locator(".atlas-stage").first()).toBeVisible();
   });
+
+test("full screen keeps the explorer and context pack without WebGL", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (
+      this: HTMLCanvasElement,
+      type: string,
+      ...args: any[]
+    ) {
+      return type === "webgl2"
+        ? null
+        : original.call(this, type as any, ...args);
+    } as typeof original;
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(home);
+  const atlas = page.locator(".atlas");
+  await atlas.scrollIntoViewIfNeeded();
+  await expect(atlas.locator(".atlas-fallback")).toBeVisible();
+  await atlas.getByRole("button", { name: "Full screen", exact: true }).click();
+  await expect(atlas.locator(".atlas-fallback")).toBeVisible();
+  for (const selector of [
+    ".symbol-controls",
+    ".context-pack",
+    ".atlas-caption",
+  ])
+    await expect(atlas.locator(selector)).toBeVisible();
+});
 
 test("tour explains the server in seven translated stages", async ({
   page,

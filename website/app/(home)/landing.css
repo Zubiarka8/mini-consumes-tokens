@@ -1521,6 +1521,11 @@
   max-width: 1000px;
   margin-inline: auto;
 }
+/* Full screen is the scene and the tour; without the scene, the explorer stays. */
+.atlas-expanded:not([data-scene="failed"])
+  :is(.symbol-controls, .context-pack, .atlas-caption) {
+  display: none;
+}
 @media (max-width: 767px) {
   .atlas-top-actions .mono,
   .atlas-expand span {
