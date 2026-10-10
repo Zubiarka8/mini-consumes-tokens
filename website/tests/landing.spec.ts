@@ -712,6 +712,159 @@ test("tour explains the server in seven translated stages", async ({
   }
 });
 
+test("reduced motion shows every tour stage without scrolling or transforms", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto(home);
+  const atlas = page.locator(".atlas");
+  await atlas.getByRole("button", { name: "Full screen", exact: true }).click();
+  const stages = atlas.locator(".atlas-stage");
+  await expect(stages).toHaveCount(7);
+  expect(
+    await stages.evaluateAll((elements) =>
+      elements.map((element) => {
+        const style = getComputedStyle(element);
+        return `${style.opacity} ${style.transform}`;
+      }),
+    ),
+  ).toEqual(Array(7).fill("1 none"));
+  expect(await atlas.evaluate((element) => element.scrollTop)).toBe(0);
+});
+
+test("tour reads in full when WebGL is unavailable", async ({ page }) => {
+  await page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (
+      this: HTMLCanvasElement,
+      type: string,
+      ...args: any[]
+    ) {
+      return type === "webgl2"
+        ? null
+        : original.call(this, type as any, ...args);
+    } as typeof original;
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(home);
+  const atlas = page.locator(".atlas");
+  await atlas.scrollIntoViewIfNeeded();
+  await expect(atlas.locator(".atlas-fallback")).toBeVisible();
+  await atlas.getByRole("button", { name: "Full screen", exact: true }).click();
+  const stages = atlas.locator(".atlas-stage");
+  await expect(stages).toHaveCount(7);
+  for (const stage of await stages.all()) {
+    // Stages can be taller than the viewport, so centre the heading itself.
+    await stage
+      .locator("h3")
+      .evaluate((element) => element.scrollIntoView({ block: "center" }));
+    await expect
+      .poll(() =>
+        stage.evaluate((element) => Number(getComputedStyle(element).opacity)),
+      )
+      .toBe(1);
+    // Nothing covers the heading, and the single column keeps its full text.
+    expect(
+      await stage.locator("h3").evaluate((heading) => {
+        const box = heading.getBoundingClientRect();
+        return heading.contains(
+          document.elementFromPoint(box.left + 4, box.top + box.height / 2),
+        );
+      }),
+    ).toBe(true);
+    expect((await stage.boundingBox())!.x).toBeLessThan(100);
+  }
+});
+
+test("tour controls join the focus trap and Escape restores focus", async ({
+  page,
+}) => {
+  await page.goto(home);
+  const atlas = page.locator(".atlas");
+  await atlas.getByRole("button", { name: "Full screen", exact: true }).click();
+  const link = atlas.getByRole("link", {
+    name: "Read the MCP tools reference",
+    exact: true,
+  });
+  const visited: string[] = [];
+  // WebKit on macOS uses Option+Tab to include links in keyboard traversal.
+  for (let i = 0; i < 80; i++) {
+    await page.keyboard.press("Alt+Tab");
+    visited.push(
+      await page.evaluate(
+        () => document.activeElement?.getAttribute("aria-label") ?? "",
+      ),
+    );
+    if (await link.evaluate((element) => element === document.activeElement))
+      break;
+  }
+  await expect(link).toBeFocused();
+  expect(visited).toContain("Copy command: mct-cli --root . init");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(
+    atlas.getByRole("button", { name: "Full screen", exact: true }),
+  ).toBeFocused();
+});
+
+test("full-screen tour has no horizontal scroll at 390px", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(home);
+  await page
+    .locator(".atlas")
+    .getByRole("button", { name: "Full screen", exact: true })
+    .click();
+  await expect(page.locator(".atlas-stage")).toHaveCount(7);
+  const widths = await page.evaluate(() => {
+    const dialog = document.querySelector(".atlas-expanded")!;
+    return {
+      document: document.documentElement.scrollWidth,
+      viewport: document.documentElement.clientWidth,
+      dialog: dialog.scrollWidth,
+      dialogViewport: dialog.clientWidth,
+    };
+  });
+  expect(widths.document).toBeLessThanOrEqual(widths.viewport);
+  expect(widths.dialog).toBeLessThanOrEqual(widths.dialogViewport);
+});
+
+test("tour scrolling registers no scroll listeners", async ({ page }) => {
+  await page.addInitScript(() => {
+    const state = { scroll: 0 };
+    (window as Window & { listeners?: typeof state }).listeners = state;
+    const original = EventTarget.prototype.addEventListener;
+    EventTarget.prototype.addEventListener = function (
+      this: EventTarget,
+      ...args: Parameters<typeof original>
+    ) {
+      if (args[0] === "scroll") state.scroll++;
+      return original.apply(this, args);
+    };
+  });
+  await page.goto(home);
+  // Next.js mounts its route announcer (and React's listeners for it) after hydration.
+  await page
+    .locator("#__next-route-announcer__")
+    .waitFor({ state: "attached" });
+  const scrollListeners = () =>
+    page.evaluate(
+      () =>
+        (window as Window & { listeners?: { scroll: number } }).listeners
+          ?.scroll,
+    );
+  const before = await scrollListeners();
+  const atlas = page.locator(".atlas");
+  await atlas.getByRole("button", { name: "Full screen", exact: true }).click();
+  const last = atlas.locator(".atlas-stage").last();
+  await last.evaluate((element) => element.scrollIntoView({ block: "center" }));
+  await expect
+    .poll(() =>
+      last.evaluate((element) => Number(getComputedStyle(element).opacity)),
+    )
+    .toBe(1);
+  expect(await scrollListeners()).toBe(before);
+});
+
 test("Spanish browser starts in English and invalid storage is ignored", async ({
   browser,
 }) => {
