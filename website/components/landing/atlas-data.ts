@@ -1,3 +1,14 @@
+import {
+  Boxes,
+  Compass,
+  Layers,
+  Network,
+  Search,
+  Terminal,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
+
 // A deterministic illustrative repository, used by the spatial atlas and code inspector.
 // Each position is an [x, z] point on the boards; together they are centred on the origin.
 export const examples = [
@@ -56,6 +67,22 @@ export const connections = [
   [handleRequest, parseRequest],
   [parseRequest, validateInput],
 ] as const;
+// The full-screen tour, from first contact to advanced use. `layer` lights a board and
+// `symbol` selects an example while the stage is in the middle of the dialog.
+export const tourStages: {
+  key: string;
+  icon: LucideIcon;
+  layer?: 0 | 1 | 2;
+  symbol?: (typeof examples)[number]["name"];
+}[] = [
+  { key: "tourWhat", icon: Network, layer: 1 },
+  { key: "tourHow", icon: Layers, layer: 0 },
+  { key: "tourOrient", icon: Compass, layer: 0 },
+  { key: "tourLookup", icon: Search, layer: 1, symbol: "parse_request" },
+  { key: "tourComposite", icon: Boxes, layer: 2, symbol: "validate_input" },
+  { key: "tourAdvanced", icon: Zap, layer: 1, symbol: "handle_request" },
+  { key: "tourStart", icon: Terminal },
+];
 export const layerKeys = ["files", "symbols", "context"] as const;
 export type AtlasLayers = [boolean, boolean, boolean];
 export function layerHeight(layer: number, separation: number) {
