@@ -44,6 +44,9 @@ mod walker;
 
 use walker::Walker;
 
+#[cfg(test)]
+mod libraries;
+
 pub struct JsTsParser;
 
 impl LanguageParser for JsTsParser {
