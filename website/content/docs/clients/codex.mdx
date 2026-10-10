@@ -1,0 +1,35 @@
+---
+title: Codex (OpenAI)
+description: The Codex CLI and the Codex IDE extension share one config.toml.
+---
+
+## Install
+
+```bash
+codex mcp add mini-consumes-tokens -- mct-mcp-server --root "<absolute-path-to-repo>"
+```
+
+Or edit `~/.codex/config.toml` (user), or `.codex/config.toml` in a trusted project. It is **TOML**, one table per server:
+
+```toml
+[mcp_servers.mini-consumes-tokens]
+command = "mct-mcp-server"
+args = ["--root", "<absolute-path-to-repo>"]
+```
+
+The transport is inferred from the key present (`command` → stdio, `url` → HTTP), so don't mix both in one table. The Codex IDE extension reads the same file, so one entry covers both.
+
+## Verify
+
+```bash
+codex mcp list
+codex mcp get mini-consumes-tokens
+```
+
+## Uninstall
+
+```bash
+codex mcp remove mini-consumes-tokens
+```
+
+Or delete the `[mcp_servers.mini-consumes-tokens]` table from `config.toml`. To delete the binaries and the index, see [Uninstalling](/docs/uninstalling).

@@ -1,0 +1,56 @@
+---
+title: Claude Code
+description: Register the server with the claude CLI.
+---
+
+## Install
+
+```bash
+claude mcp add mini-consumes-tokens --scope project -- mct-mcp-server --root "<absolute-path-to-repo>"
+```
+
+Everything after `--` is passed to the server untouched. Alternatively, `mct-cli --root . mcp-register` writes the same project-scoped `.mcp.json` ([CLI reference](/docs/cli)).
+
+| Scope | Stored in | Use when |
+| --- | --- | --- |
+| `--scope local` (default) | this machine's Claude Code config only | personal testing |
+| `--scope project` | `.mcp.json` at the repo root, committable | the whole team uses the same setup |
+| `--scope user` | your global Claude Code config | you want it in every project |
+
+Resulting `.mcp.json` (project scope):
+
+```json
+{
+  "mcpServers": {
+    "mini-consumes-tokens": {
+      "type": "stdio",
+      "command": "mct-mcp-server",
+      "args": ["--root", "<absolute-path-to-repo>"],
+      "env": {}
+    }
+  }
+}
+```
+
+The absolute `--root` is machine-specific. Either commit a path valid for every checkout, or gitignore `.mcp.json` and let each person register their own.
+
+<Callout type="warn">
+**Restart to approve.** A server added while a session is running does not hot-load. `claude mcp list` shows `⏸ Pending approval` until you exit, start `claude` again in that project, and approve it.
+</Callout>
+
+## Verify
+
+```bash
+claude mcp list
+claude mcp get mini-consumes-tokens
+```
+
+`claude mcp list` shows `✔ Connected` when the server starts correctly.
+
+## Uninstall
+
+```bash
+claude mcp remove mini-consumes-tokens --scope project   # use the scope you added it with
+```
+
+If you committed `.mcp.json`, remove the entry there too. To delete the binaries and the index, see [Uninstalling](/docs/uninstalling).
