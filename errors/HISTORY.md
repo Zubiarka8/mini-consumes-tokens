@@ -24,3 +24,15 @@
 - Reviewed refactor saved in local commits `10110f5` (manifest formats), `fec4fb5` (JS/TS private modules), and `9dfa1cc` (implementation guide and maintenance rule). Verified source/documentation files copied to the primary checkout after checking its originals against the base; unrelated website work preserved. No push or PR created.
 - Existing parser failures and documented framework limits retain their previous statuses. This refactor changes maintenance boundaries, not framework coverage.
 - After integration, MCP status reports 568 indexed files and 11,236 symbols at timestamp `1791630208`, with the same 18 parse failures and dependency counts. `list_symbols` finds the five declarations in the new JS/TS `walker/exports.rs`; the watcher has indexed the new layout without a forced reindex. No new indexing failure observed.
+
+## 2026-10-10 — Library onboarding audit (TASK-LIB-001)
+
+- Registry incorporated into `claude/library-onboarding-audit` by cherry-picking `e9280d8` (PR #168, still open); entries updated here instead of starting a second registry.
+- Observation: `mct-cli --root . reindex --force` and `status` at `dab3059`, no `.mctignore`; index timestamp `1791636301`, 550 files, 11,501 symbols, the same 18 diagnostics.
+- ERR-001 → KNOWN_LIMITATION. Isolated with one-line `parse-probe.sh` files: tree-sitter-bash 0.25.1 (latest) rejects `;` inside `${var:+…}`. `bash -n` and a `bash -c` run accept it.
+- ERR-002 → KNOWN_LIMITATION. tree-sitter-powershell 0.26.4 (latest) rejects comma-separated bareword arguments (`Select-Object Name,Id`, `--json number,title`); the multiline jq string parses line by line. The earlier jq hypothesis was wrong. Native PowerShell validation not run (no `pwsh`; Windows CI requires a push).
+- Both rejections are also recorded in `internal/corpus-progress.md`. Upstream issues not filed.
+- ERR-003 unchanged. The optional `.mctignore` line that keeps the fixtures out of a working index is documented in CONTRIBUTING; fixtures and their rejection tests are kept.
+- ERR-006 evidence refreshed: the React test moved to `crates/mct-lang-js-ts/src/libraries/react/mod.rs` and passed.
+- Created ERR-010 (OPEN): `find_references RustParser` found none of the registry uses (`Arc::new(mct_lang_rust::RustParser)`); the compiler found them when the registry moved to `mct-languages`. Reproduced by an `#[ignore]`d regression test in `crates/mct-lang-rust/tests/parse.rs`; the parser fix is not made.
+- No project MCP tool returned an error in this session.
