@@ -367,6 +367,33 @@ impl<'a> Walker<'a> {
                     }
                 }
             }
+            "jsx_opening_element" | "jsx_self_closing_element" => {
+                if let Some(name) = node.child_by_field_name("name") {
+                    let component = text(name, self.source);
+                    // Lowercase single names and namespaced names denote
+                    // intrinsic/custom DOM elements. Member expressions are
+                    // component values even with a lowercase namespace.
+                    let is_component = name.kind() == "member_expression"
+                        || (name.kind() == "identifier"
+                            && component
+                                .chars()
+                                .next()
+                                .is_some_and(|first| !first.is_ascii_lowercase()));
+                    if is_component {
+                        // Retain qualification: UI.Button must not resolve
+                        // to an unrelated local Button by discarding UI.
+                        self.push_relation(
+                            owner,
+                            RelationKind::References,
+                            component.to_string(),
+                            location(name),
+                        );
+                    }
+                }
+                // Attribute expressions still contain ordinary calls and
+                // nested JSX; the closing tag produces no second reference.
+                self.visit_children(node, owner, type_name, depth + 1);
+            }
             "export_statement" => self.visit_export_statement(node, owner, type_name, depth),
             "assignment_expression" => {
                 self.visit_assignment_expression(node, owner, type_name, depth)
