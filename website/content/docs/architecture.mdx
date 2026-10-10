@@ -41,6 +41,7 @@ Each `mct-lang-*` crate lives in `crates/mct-lang-<name>/` and has its own tree-
 | `mct-tree-sitter` | tree-sitter helpers shared by the language crates (error search, node locations) | SQLite, MCP |
 | `mct-index` | SQLite schema and migrations, the reindex algorithm, every query | any language grammar |
 | `mct-mcp-server` | MCP server over stdio (`rmcp`): tool definitions and output formatting | — |
+| `mct-languages` | `build_registry`: the one list of language parsers, used by the CLI, the server and `mct-eval` | SQLite, MCP |
 | `mct-cli` | `init`, `reindex`, `status`, `mcp-register` and other commands ([CLI](/docs/cli)) | — |
 
 Two more crates are internal and never published: `mct-corpus` (test harness shared by every language crate's corpus tests) and `mct-eval` (accuracy, latency and token-cost evaluation of the MCP tools against a checked-in baseline).
@@ -81,13 +82,14 @@ mini-consumes-tokens/
 ├── crates/
 │   ├── mct-core/                 shared model, LanguageParser trait
 │   ├── mct-tree-sitter/          tree-sitter helpers
-│   ├── mct-index/                SQLite index; src/manifests.rs reads manifests
+│   ├── mct-index/                SQLite index; src/manifests.rs + manifests/<ecosystem>.rs
+│   ├── mct-languages/            the one language registry (build_registry)
 │   ├── mct-mcp-server/           MCP server binary
 │   ├── mct-cli/                  CLI binary
 │   ├── mct-lang-js-ts/           one folder per language:
 │   ├── mct-lang-python/            src/lib.rs     the parser
 │   ├── mct-lang-css/               Cargo.toml     its grammar library (tree-sitter-…)
-│   ├── mct-lang-…/                 tests/, fuzz/
+│   ├── mct-lang-…/                 src/libraries/<name>/, tests/, fuzz/
 │   ├── mct-corpus/               test harness (internal)
 │   └── mct-eval/                 quality evaluation (internal)
 └── vendor/
@@ -120,10 +122,10 @@ Dependencies are declared in two places:
 
 | What | Where |
 | --- | --- |
-| Reading manifests (`Cargo.toml`, `package.json`, `requirements.txt`, `go.mod`) | `crates/mct-index/src/manifests.rs`, called from `indexer.rs` |
+| Reading manifests (`Cargo.toml`, `package.json`, `requirements.txt`, `go.mod`) | `crates/mct-index/src/manifests.rs` (dispatch) and `manifests/<ecosystem>.rs` (one parser per format), called from `indexer.rs` |
 | Where detected dependencies are stored | the [`dependencies`](/docs/schema#dependencies) table |
 | Marking a call as going into a library (`RelationTarget`) | defined in `crates/mct-core/src/symbol.rs`, set by each `mct-lang-*` parser |
-| Framework patterns (React, Django…) | inside the parser of that framework's language |
+| Framework patterns (React, Django…) | inside the parser of that framework's language; focused tests in `crates/mct-lang-<language>/src/libraries/<name>/` |
 
 How to extend each one: [Adding library support](/docs/libraries).
 
@@ -144,4 +146,4 @@ pub trait LanguageParser: Send + Sync {
 - **never execute or evaluate** the source: it is a pure AST walk;
 - **never panic** on malformed input: return `ParseError::Syntax` instead.
 
-Adding a language is one new crate implementing this trait plus one `registry.register(...)` line in each binary. Nothing changes in `mct-core`, `mct-index` or the MCP tools. See [Adding a language](/docs/extending).
+Adding a language is one new crate implementing this trait plus one `registry.register(...)` line in `crates/mct-languages/src/lib.rs`, shared by every binary. Nothing changes in `mct-core`, `mct-index` or the MCP tools. See [Adding a language](/docs/extending).
