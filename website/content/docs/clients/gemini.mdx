@@ -1,0 +1,39 @@
+---
+title: Gemini CLI
+description: Register with gemini mcp add, or edit settings.json.
+---
+
+## Install
+
+```bash
+gemini mcp add -s project mini-consumes-tokens mct-mcp-server --root "<absolute-path-to-repo>"
+```
+
+`-s project` (the default) writes `.gemini/settings.json`; `-s user` writes `~/.gemini/settings.json`. The resulting entry:
+
+```json
+{
+  "mcpServers": {
+    "mini-consumes-tokens": {
+      "command": "mct-mcp-server",
+      "args": ["--root", "<absolute-path-to-repo>"]
+    }
+  }
+}
+```
+
+If you register many servers, the same `settings.json` supports a top-level `mcp.allowed` / `mcp.excluded` list by server name.
+
+## Verify
+
+```bash
+gemini mcp list
+```
+
+## Uninstall
+
+```bash
+gemini mcp remove -s project mini-consumes-tokens   # use the scope you added it with
+```
+
+To delete the binaries and the index, see [Uninstalling](/docs/uninstalling).

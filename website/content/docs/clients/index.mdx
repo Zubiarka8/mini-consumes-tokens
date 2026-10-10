@@ -1,0 +1,29 @@
+---
+title: AI clients
+description: Connect mct-mcp-server to the assistant you use.
+---
+
+`mct-mcp-server` is a plain MCP server over stdio. Every client starts the same binary the same way; only the config file and its root key differ.
+
+<Cards>
+  <Card title="Claude Code" href="/docs/clients/claude-code" />
+  <Card title="Codex (OpenAI)" href="/docs/clients/codex" />
+  <Card title="Cursor" href="/docs/clients/cursor" />
+  <Card title="GitHub Copilot" href="/docs/clients/copilot" />
+  <Card title="Gemini CLI" href="/docs/clients/gemini" />
+  <Card title="OpenCode" href="/docs/clients/opencode" />
+  <Card title="Other clients" href="/docs/clients/others" description="Antigravity, Claude Desktop, Windsurf, Zed, Cline, Continue, JetBrains, Warp, OpenHands…" />
+</Cards>
+
+## Before you start
+
+1. [Install the binaries](/docs/installation) and check that `mct-mcp-server --help` works.
+2. Have the **absolute** path of the repository you want indexed. A relative `--root` resolves against whatever directory the client spawns the process from, which is rarely the repo.
+
+## Rules that apply to every client
+
+- At launch the server opens (or creates) the index in `<root>/.mct-index/` and runs an **incremental** reindex. The first start on a fresh checkout parses the whole repo; later starts only re-parse changed files.
+- The server does not watch files. After a `git pull` or a branch switch, ask the agent to call `reindex`, or restart the client.
+- Most clients only read their MCP config at startup: restart the client after adding or removing the server.
+
+Config formats were checked against each client's official docs, and they still change often. If a client rejects a file, check its current docs first.
