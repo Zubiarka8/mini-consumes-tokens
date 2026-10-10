@@ -60,7 +60,7 @@ crates/mct-lang-<name>/tests/
 
 **Invalid syntax:**
 - Every file in `malformed/` must end in `ParseError::Syntax`; `assert_malformed_rejected` enforces it. A fixture that parses proves nothing. Only a grammar that accepts any input may opt out, with `standard_tests!(Parser, malformed_may_parse = "why")`, Markdown for example.
-- Valid code the upstream grammar rejects stays out of `project/`. Reproduce it with `scripts/unix/parse-probe.sh` on a one-line file and record it as an upstream rejection, with its issue when there is one. Never attribute it to the local parser.
+- Valid code the upstream grammar rejects stays out of `project/`. Reproduce it with `scripts/unix/parse-probe.sh` on a one-line file and record it as an upstream rejection, with its issue when there is one, in this language's row of `internal/corpus-progress.md` and in [`errors/REGISTRY.md`](errors/REGISTRY.md) when it shows up in an index. Never attribute it to the local parser.
 
 **Known bugs and limits:**
 - **Fix small, well-scoped parser bugs in the corpus PR**, with a test that fails before the fix.
@@ -80,6 +80,16 @@ crates/mct-lang-<name>/tests/
 - [ ] The report's heuristic hits are explained: fixed, ignored with an issue, or a documented limit.
 - [ ] Grammar rejections are kept apart from parser bugs, each with a repro.
 - [ ] Cross-file claims are individual `relation(...)` assertions, not the name-matched count.
+
+### Malformed fixtures and the working index
+
+Indexing this repository reports each `malformed/` file as a parse failure (`errors/REGISTRY.md` ERR-003). That is expected: the fixtures and their rejection test stay. In a working index used day to day, though, they bury a real failure among 16 expected ones. To keep them out of *your* index only, add this line to your local `.mctignore` (the file is in `.gitignore`, so each checkout keeps its own) and run `mct-cli --root . reindex`:
+
+```text
+crates/*/tests/corpus/malformed/
+```
+
+The corpus tests read the fixtures from disk, and a CI checkout has no `.mctignore`, so neither is affected. Exclude only expected rejections this way, never an unexpected failure, and record `errors/` observations from an index without the line.
 
 ## Adding a new MCP tool, and the TTC description format
 
