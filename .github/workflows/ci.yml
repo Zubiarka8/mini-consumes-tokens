@@ -52,14 +52,14 @@ jobs:
       # here; this step exists only to fail loudly and early if that ever
       # stops being true, instead of failing obscurely at the test step.
       - name: "Build workspace (all targets: lib, bins, examples, tests)"
-        run: cargo build --workspace --all-targets
+        run: cargo build --locked --workspace --all-targets
 
       # Runs the tree-sitter parsing + SQLite query integration tests for
       # all 8 language crates (Rust, Python, Lua, Java, C#, JS/TS, C++, Go)
       # on every OS — first time this project confirms Windows behaves the
       # same as Linux/macOS here, not just "probably fine because it built".
       - name: Test workspace
-        run: cargo test --workspace
+        run: cargo test --locked --workspace
 
       - name: Test Unix installer destination (local release fixture)
         if: runner.os != 'Windows'
@@ -96,7 +96,7 @@ jobs:
       # there. A NEW unwrap()/expect()/panic!() added to `src/` without its
       # own justified `#[allow]` fails this step — that is the point.
       - name: Clippy (deny warnings, unwrap/expect/panic in production code)
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::unwrap_used -D clippy::expect_used -D clippy::panic
+        run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings -D clippy::unwrap_used -D clippy::expect_used -D clippy::panic
 
   cargo-audit:
     name: cargo-audit (dependency vulnerabilities)

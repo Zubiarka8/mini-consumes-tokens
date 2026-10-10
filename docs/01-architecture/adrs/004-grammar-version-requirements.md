@@ -17,6 +17,6 @@ Accepted (2026-10-10)
 ## Consequences
 - The minimum validated version is visible in each crate's `Cargo.toml`; the lockfile decides the build. No dependency changed: the three crates moved to the version already locked (`0.25.1`, `0.24.2`, `0.26.4`).
 - A downstream crates.io user may still resolve a newer patch release than the one tested here. That is accepted as the normal semver contract; this repository's own builds are fixed by `Cargo.lock`.
-- `cargo test`/`cargo build` in CI do not pass `--locked`; a requirement change that the lockfile cannot satisfy would update `Cargo.lock` on the runner instead of failing. Out of scope here.
+- CI `build-test` (build, test, clippy) and the quality report pass `--locked`, so a requirement change that the lockfile cannot satisfy fails the job instead of updating `Cargo.lock` on the runner. The fuzz crates keep their own lockfiles and are not covered.
 
 #adr
