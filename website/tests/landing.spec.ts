@@ -698,6 +698,8 @@ test("full screen opens a scroll tour that reveals stages inside the dialog", as
 
 for (const [width, height] of [
   [1440, 900],
+  [1280, 720],
+  [1024, 768],
   [390, 844],
 ] as const)
   test(`full-screen button sits bottom-right of the scene at ${width}px`, async ({
@@ -736,6 +738,14 @@ for (const [width, height] of [
       expect(
         Math.abs((await rotate.boundingBox())!.y - box.y),
       ).toBeLessThanOrEqual(2);
+      if (name === "Exit full screen") {
+        const { top, bottom, innerHeight } = await button.evaluate((el) => ({
+          ...el.getBoundingClientRect().toJSON(),
+          innerHeight: window.innerHeight,
+        }));
+        expect(top).toBeGreaterThanOrEqual(0);
+        expect(bottom).toBeLessThanOrEqual(innerHeight);
+      }
       if (name === "Full screen") await button.click();
     }
   });
