@@ -155,6 +155,7 @@ jobs:
           - mct-lang-kotlin
           - mct-lang-xaml
           - mct-lang-xml
+          - mct-index
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly

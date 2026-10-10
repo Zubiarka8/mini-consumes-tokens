@@ -34,7 +34,9 @@ pub struct ListSymbolsArgs {
     pub path: String,
     /// Exact symbol kind to keep (e.g. `function`, `method`, `class`,
     /// `struct`, `interface`, `enum`, `trait`, `type_alias`, `module`,
-    /// `variable`, `constant`, `field`). Omit to include every kind.
+    /// `variable`, `constant`, `field`, `element`, `rule`, `asset`,
+    /// `model_node`, `material`, `animation`, `finding`). Omit to include
+    /// every kind.
     #[serde(default)]
     pub kind: Option<String>,
     /// Exact language id to keep (e.g. `rust`, `python`, `go`). Omit to
@@ -412,6 +414,10 @@ pub struct GetIndexingStatusArgs {
     /// "is the index healthy?" question needs.
     #[serde(default)]
     pub verbose_dependencies: bool,
+    /// Exact package name (e.g. `three`): also list each manifest that
+    /// declares it, with its version. Omit for the usual report only.
+    #[serde(default)]
+    pub dependency: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -1954,7 +1960,13 @@ impl MctServer {
             .saturating_sub(CONTEXT_PACK_MAX_DEFINITIONS);
         let mut packed_definitions = Vec::new();
         for hit in definitions.into_iter().take(CONTEXT_PACK_MAX_DEFINITIONS) {
-            let (snippet, hidden_lines) = match source_of(&hit.relative_path) {
+            // An asset is binary or glTF JSON: no source lines to show.
+            let source = if hit.kind == "asset" {
+                None
+            } else {
+                source_of(&hit.relative_path)
+            };
+            let (snippet, hidden_lines) = match source {
                 Some(source) => {
                     let start = format::leading_comment_start(&source, hit.line);
                     let doc_lines = hit.line.saturating_sub(start) as usize;
@@ -2078,11 +2090,15 @@ impl MctServer {
         &self,
         Parameters(GetIndexingStatusArgs {
             verbose_dependencies,
+            dependency,
         }): Parameters<GetIndexingStatusArgs>,
     ) -> Result<CallToolResult, McpError> {
         let index = self.index.lock().await;
         let status = index.status().map_err(index_error)?;
         let mut text = format::index_status(&status, verbose_dependencies);
+        if let Some(name) = optional_arg(dependency.as_ref()) {
+            text.push_str(&format::dependency_declarations(&status, name));
+        }
         // The query cache's counters, once it has answered anything — an idle
         // or disabled cache leaves the report as it always was.
         let (config, stats) = {

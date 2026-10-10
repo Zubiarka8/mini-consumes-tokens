@@ -14,7 +14,9 @@ struct Cli {
     /// Suite of cases to run. Defaults to this crate's `suite.json`.
     #[arg(long)]
     suite: Option<PathBuf>,
-    /// Baseline to compare against. Defaults to this crate's `baseline.json`.
+    /// Baseline to compare against. Defaults to the suite's own:
+    /// `suite-<name>.json` → `baseline-<name>.json`, `suite.json` →
+    /// `baseline.json`.
     #[arg(long)]
     baseline: Option<PathBuf>,
     /// Timed calls per case, after one untimed warm-up.
@@ -52,7 +54,9 @@ async fn main() -> ExitCode {
 /// `Ok(false)` when the run regressed against the baseline.
 async fn run(cli: Cli) -> Result<bool> {
     let suite_path = cli.suite.unwrap_or_else(mct_eval::default_suite_path);
-    let baseline_path = cli.baseline.unwrap_or_else(mct_eval::default_baseline_path);
+    let baseline_path = cli
+        .baseline
+        .unwrap_or_else(|| mct_eval::baseline_path_for(&suite_path));
     let suite = Suite::load(&suite_path)?;
     let report = mct_eval::run(&suite, cli.iterations).await?;
     if cli.verbose {
