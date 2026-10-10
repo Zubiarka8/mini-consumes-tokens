@@ -5,6 +5,7 @@ const withMDX = createMDX();
 /** @type {import('next').NextConfig} */
 const config = {
   output: 'export',
+  trailingSlash: true,
   reactStrictMode: true,
   // Stop `next dev` writing AGENTS.md/CLAUDE.md here; repo agent rules live in rules.md.
   agentRules: false,

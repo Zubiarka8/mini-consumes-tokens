@@ -1,17 +1,36 @@
-import Link from 'next/link';
+import type { Metadata } from "next";
+import { LandingLocale } from "@/components/landing/locale";
+import { Landing } from "@/components/landing/landing";
+import "./landing.css";
 
+const title = "mini-consumes-tokens — A code atlas for your AI agent";
+const description =
+  "Turn source code into a local symbol graph. Give MCP coding assistants focused context with definitions, relationships and impact analysis.";
+export const metadata: Metadata = {
+  title,
+  description,
+  alternates: {
+    canonical: "https://zubiarka8.github.io/mini-consumes-tokens/",
+  },
+  openGraph: {
+    title,
+    description,
+    url: "https://zubiarka8.github.io/mini-consumes-tokens/",
+    type: "website",
+    images: [
+      {
+        url: "https://zubiarka8.github.io/mini-consumes-tokens/code-atlas.svg",
+        width: 1200,
+        height: 630,
+        alt: "mini-consumes-tokens code atlas",
+      },
+    ],
+  },
+};
 export default function HomePage() {
   return (
-    <div className="flex flex-col justify-center text-center flex-1 gap-4 px-4">
-      <h1 className="text-3xl font-bold">mini-consumes-tokens</h1>
-      <p className="text-fd-muted-foreground max-w-xl mx-auto">
-        A tree-sitter symbol graph of your repository in SQLite, served to coding agents over MCP.
-      </p>
-      <p>
-        <Link href="/docs" className="font-medium underline">
-          Read the reference manual
-        </Link>
-      </p>
-    </div>
+    <LandingLocale>
+      <Landing />
+    </LandingLocale>
   );
 }
