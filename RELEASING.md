@@ -1,6 +1,8 @@
 # Releasing
 
-This is a manual checklist. A release has two independent channels:
+This is the checklist. `scripts/unix/release.sh` runs its scriptable steps
+(`bump`, `dry-run`, `publish`); the CHANGELOG entry and the review stay
+manual. A release has two independent channels:
 
 1. **GitHub Release with prebuilt binaries** — automated by
    `.github/workflows/release.yml` when a `v*` tag is pushed. This is what
