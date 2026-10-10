@@ -687,6 +687,127 @@ for (const [width, height] of [
   [1440, 900],
   [390, 844],
 ] as const)
+  test(`full-screen button sits bottom-right of the scene at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height });
+    await page.goto(home);
+    const supported = await page.evaluate(
+      () => !!document.createElement("canvas").getContext("webgl2"),
+    );
+    test.skip(!supported, "WebKit runtime has no WebGL2");
+    const atlas = page.locator(".atlas");
+    await expect(atlas.locator(".atlas-top-actions")).toHaveText("MCT / 001");
+    await expect(atlas.locator(".atlas-top-actions button")).toHaveCount(0);
+    await atlas.locator(".atlas-space").scrollIntoViewIfNeeded();
+    for (const name of ["Full screen", "Exit full screen"]) {
+      const rotate = atlas.getByRole("button", { name: "Rotate the atlas" });
+      await expect(rotate).toBeVisible();
+      const button = atlas.getByRole("button", { name, exact: true });
+      const space = (await atlas.locator(".atlas-space").boundingBox())!;
+      const box = (await button.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(space.x);
+      expect(box.y).toBeGreaterThanOrEqual(space.y);
+      expect(space.x + space.width - (box.x + box.width)).toBeLessThanOrEqual(
+        24,
+      );
+      expect(space.y + space.height - (box.y + box.height)).toBeLessThanOrEqual(
+        24,
+      );
+      expect(
+        space.x + space.width - (box.x + box.width),
+      ).toBeGreaterThanOrEqual(0);
+      expect(
+        space.y + space.height - (box.y + box.height),
+      ).toBeGreaterThanOrEqual(0);
+      expect(
+        Math.abs((await rotate.boundingBox())!.y - box.y),
+      ).toBeLessThanOrEqual(2);
+      if (name === "Full screen") await button.click();
+    }
+  });
+
+for (const width of [320, 390])
+  test(`full-screen button leaves the scene controls clear at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto(home);
+    const supported = await page.evaluate(
+      () => !!document.createElement("canvas").getContext("webgl2"),
+    );
+    test.skip(!supported, "WebKit runtime has no WebGL2");
+    const atlas = page.locator(".atlas");
+    for (const language of ["en", "es"]) {
+      await page.locator("select").selectOption(language);
+      await atlas.locator(".atlas-space").scrollIntoViewIfNeeded();
+      const buttons = atlas.locator(".spatial-controls button");
+      await expect(buttons).toHaveCount(3);
+      const boxes = await buttons.evaluateAll((elements) =>
+        elements.map((element) => element.getBoundingClientRect().toJSON()),
+      );
+      const overlaps = boxes.flatMap((a, i) =>
+        boxes
+          .slice(i + 1)
+          .filter(
+            (b) =>
+              a.left < b.right &&
+              b.left < a.right &&
+              a.top < b.bottom &&
+              b.top < a.bottom,
+          ),
+      );
+      expect(overlaps).toEqual([]);
+      // Below 768px the full-screen button shows its icon only, on a 44px target.
+      expect(boxes[2].width).toBeGreaterThanOrEqual(44);
+      expect(boxes[2].height).toBeGreaterThanOrEqual(44);
+      await expect(
+        atlas.locator(".spatial-controls button").last().locator("span"),
+      ).toBeHidden();
+    }
+  });
+
+test("full-screen button works without WebGL", async ({ page }) => {
+  await page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (
+      this: HTMLCanvasElement,
+      type: string,
+      ...args: any[]
+    ) {
+      return type === "webgl2"
+        ? null
+        : original.call(this, type as any, ...args);
+    } as typeof original;
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(home);
+  const atlas = page.locator(".atlas");
+  await atlas.scrollIntoViewIfNeeded();
+  const fallback = atlas.locator(".atlas-fallback");
+  await expect(fallback).toBeVisible();
+  for (const name of ["Full screen", "Exit full screen"]) {
+    const button = atlas.getByRole("button", { name, exact: true });
+    await expect(button).toBeVisible();
+    // The fallback stands in for the scene, so the button sits at its bottom-right.
+    const area = (await fallback.boundingBox())!;
+    const box = (await button.boundingBox())!;
+    const right = area.x + area.width - (box.x + box.width);
+    expect(right).toBeGreaterThanOrEqual(0);
+    expect(right).toBeLessThanOrEqual(24);
+    expect(box.y).toBeGreaterThanOrEqual(area.y + area.height);
+    expect(box.y - (area.y + area.height)).toBeLessThanOrEqual(24);
+    if (name === "Full screen") {
+      await button.click();
+      await expect(page.getByRole("dialog")).toBeVisible();
+    }
+  }
+});
+
+for (const [width, height] of [
+  [1440, 900],
+  [390, 844],
+] as const)
   test(`full screen shows the scene and tour before the explorer at ${width}px`, async ({
     page,
   }) => {
