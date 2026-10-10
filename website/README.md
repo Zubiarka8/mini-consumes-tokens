@@ -23,13 +23,12 @@ NEXT_PUBLIC_BASE_PATH=/mini-consumes-tokens npm run preview
 # http://127.0.0.1:4173/mini-consumes-tokens/docs/
 ```
 
-The preview server serves only exported files; it does not hide missing routes with a SPA fallback. Use the same prefix for build and preview. The Docs workflow checks pull requests and deploys the static export from `main` to GitHub Pages. Pull requests also validate the repository prefix; preview and export checks use the same base path.
+The preview server serves only exported files; it does not hide missing routes with a SPA fallback. Use the same prefix for build and preview. All content remains local until the maintainer explicitly publishes it.
 
 ```sh
 npm run test:resources
 NEXT_PUBLIC_BASE_PATH=/mini-consumes-tokens npm run test:export
 npm run test:browser
-# PORT=4189 npm run test:browser  # when another preview uses 4173
 ```
 
 Browser checks use Playwright WebKit exclusively. Install that engine with `npx playwright install webkit` when needed. No Chrome/Chromium runner is configured.
