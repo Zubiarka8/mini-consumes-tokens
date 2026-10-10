@@ -24,6 +24,8 @@ Read [PROJECT_MANAGER.md](PROJECT_MANAGER.md) at the start of a substantial work
 
 Write all repository content in English: file and branch names, documentation, code, comments, task records, commit messages, PRs, and issues. Preserve required external identifiers and literal fixture data when translation would change behavior.
 
+Whenever a project MCP tool reports an error (including connection failures, invalid tool arguments, indexing/parse failures, or query failures), notify the user and record it in [errors/REGISTRY.md](errors/REGISTRY.md), following [errors/README.md](errors/README.md). Record the date, tool/operation, relevant arguments without secrets, exact diagnostic, impact, and verification or next action. Update an existing entry for the same problem and append the observation or status change to [errors/HISTORY.md](errors/HISTORY.md), including errors corrected during the same session. Separate intentional malformed-fixture rejection from unexpected failures and caller mistakes from server defects; retain resolved entries and require verification before closing them. When investigating documented parser limitations, maintain these same records.
+
 ## Contributor workflow
 
 Contribute using your preferred editor or assistant. No particular AI provider, model, paid subscription, or multiagent setup is required. Use the tools and permissions available in your environment while following the engineering and source-exploration rules below.
