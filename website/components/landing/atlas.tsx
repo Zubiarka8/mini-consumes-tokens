@@ -91,7 +91,8 @@ export function Atlas() {
         first?.focus();
       }
     };
-    expandButton.current?.focus();
+    // The button sits at the foot of the scene; opening must not scroll the dialog to it.
+    expandButton.current?.focus({ preventScroll: true });
     document.addEventListener("keydown", keyboard);
     return () => {
       document.body.style.overflow = previousOverflow;
@@ -152,6 +153,43 @@ export function Atlas() {
     }
   }, [inView, spatial, failed]);
   const item = examples[selected];
+  const controls = (
+    <div className="spatial-controls">
+      {ready && (
+        <>
+          <button
+            type="button"
+            onClick={() => setRotation((value) => value + Math.PI / 4)}
+          >
+            {t("rotate")} ↻
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setRotation(0.2);
+              setReset((value) => value + 1);
+            }}
+          >
+            {t("resetView")}
+          </button>
+        </>
+      )}
+      <button
+        ref={expandButton}
+        type="button"
+        className="atlas-expand"
+        onClick={() => setExpanded((value) => !value)}
+        aria-label={t(expanded ? "exitFullscreen" : "fullscreen")}
+      >
+        {expanded ? (
+          <Minimize2 size={16} aria-hidden="true" />
+        ) : (
+          <Maximize2 size={16} aria-hidden="true" />
+        )}
+        <span>{t(expanded ? "exitFullscreen" : "fullscreen")}</span>
+      </button>
+    </div>
+  );
   return (
     <div
       className={`atlas${expanded ? " atlas-expanded" : ""}`}
@@ -168,19 +206,6 @@ export function Atlas() {
         </span>
         <div className="atlas-top-actions">
           <span className="mono">MCT / 001</span>
-          <button
-            ref={expandButton}
-            type="button"
-            onClick={() => setExpanded((value) => !value)}
-            aria-label={t(expanded ? "exitFullscreen" : "fullscreen")}
-          >
-            {expanded ? (
-              <Minimize2 size={16} aria-hidden="true" />
-            ) : (
-              <Maximize2 size={16} aria-hidden="true" />
-            )}
-            <span>{t(expanded ? "exitFullscreen" : "fullscreen")}</span>
-          </button>
         </div>
       </div>
       <div className="atlas-project">
@@ -260,33 +285,15 @@ export function Atlas() {
               </SceneBoundary>
             </div>
           )}
-          <div className="spatial-controls">
-            {ready && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setRotation((value) => value + Math.PI / 4)}
-                >
-                  {t("rotate")} ↻
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRotation(0.2);
-                    setReset((value) => value + 1);
-                  }}
-                >
-                  {t("resetView")}
-                </button>
-              </>
-            )}
-          </div>
+          {!failed && controls}
         </div>
         {failed && (
           <p className="atlas-fallback" role="status">
             {t("fallback")}
           </p>
         )}
+        {/* .atlas-space hides beside the fallback, so the row follows it instead. */}
+        {failed && controls}
         {expanded && (
           <div className="atlas-tour" data-active-stage={activeStage}>
             {tourStages.map(({ key, icon: Icon, tools, docs }, i) => (
