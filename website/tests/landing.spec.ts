@@ -274,7 +274,7 @@ test("3D scene loads on approach, rotates and handles context loss", async ({
   await expect.poll(draws).toBeGreaterThan(0);
   await expect.poll(settled).toBeGreaterThan(100);
   const labels = page.locator(".spatial-labels");
-  await expect(labels.getByRole("button")).toHaveCount(6);
+  await expect(labels.getByRole("button")).toHaveCount(3);
   const selectedLabel = labels.getByRole("button", {
     name: "parse_request",
     exact: true,
@@ -471,12 +471,12 @@ test("additional files expose connected source and translated context", async ({
   await page.goto(home);
   const atlas = page.locator(".atlas");
   await atlas.locator(".atlas-space").scrollIntoViewIfNeeded();
-  await expect(atlas.locator(".spatial-file-labels button")).toHaveCount(6);
-  await expect(atlas.locator(".symbol-controls button")).toHaveCount(6);
+  await expect(atlas.locator(".spatial-file-labels button")).toHaveCount(3);
+  await expect(atlas.locator(".symbol-controls button")).toHaveCount(3);
   for (const [filename, symbol, line, dependency] of [
-    ["main.rs", "route", "12", "handle_request(input)"],
-    ["normalize.rs", "normalize", "6", "input.trim().to_lowercase()"],
-    ["response.rs", "build_response", "8", "Response::ok(request)"],
+    ["server.rs", "handle_request", "42", "parse_request(input)"],
+    ["parser.rs", "parse_request", "18", "validate_input(&request)"],
+    ["validation.rs", "validate_input", "9", "input.is_empty()"],
   ]) {
     await atlas
       .getByRole("button", {
@@ -495,29 +495,82 @@ test("additional files expose connected source and translated context", async ({
   }
   await page.getByLabel("Language", { exact: true }).selectOption("es");
   await expect(atlas.locator(".atlas-query")).toContainText(
-    "¿Dónde se construye la respuesta",
+    "¿Dónde se rechazan los datos vacíos",
   );
   await expect(atlas.locator(".atlas-explanation")).toContainText(
-    "sin errores",
+    "rechaza un valor vacío",
   );
   await expect(
     atlas
       .locator(".symbol-controls")
-      .getByRole("button", { name: "build_response", exact: true }),
-  ).toContainText("Construir la respuesta");
-  await atlas.screenshot({ path: "test-results/atlas-six-files.png" });
+      .getByRole("button", { name: "validate_input", exact: true }),
+  ).toContainText("Validar los datos");
+  await atlas.screenshot({ path: "test-results/atlas-three-files.png" });
   await page.setViewportSize({ width: 320, height: 900 });
   await atlas
     .locator(".symbol-controls")
-    .getByRole("button", { name: "normalize", exact: true })
+    .getByRole("button", { name: "parse_request", exact: true })
     .click();
   await expect(atlas.locator(".atlas-query")).toContainText(
-    "¿Cómo se limpian los datos",
+    "¿Dónde se interpreta la petición",
   );
   await expect(atlas.locator(".atlas-source")).toContainText(
-    "input.trim().to_lowercase()",
+    "Request::from_str(input)",
   );
 });
+
+for (const width of [1440, 390])
+  test(`atlas shows exactly three files with separate labels at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(home);
+    const atlas = page.locator(".atlas");
+    await atlas.locator(".atlas-space").scrollIntoViewIfNeeded();
+    const controls = atlas.locator(".symbol-controls button");
+    await expect(controls).toHaveCount(3);
+    for (const [i, filename] of [
+      "parser.rs",
+      "server.rs",
+      "validation.rs",
+    ].entries())
+      await expect(controls.nth(i)).toContainText(filename);
+    await expect(atlas.locator(".spatial-labels button")).toHaveCount(3);
+    const names = (
+      await atlas
+        .locator(".symbol-controls, .spatial-labels, .spatial-file-labels")
+        .allTextContents()
+    ).join(" ");
+    expect(names).not.toMatch(
+      /\b(route|normalize|build_response)\b|main\.rs|normalize\.rs|response\.rs/,
+    );
+    // Mobile shows only the selected file and symbol labels.
+    await expect
+      .poll(() =>
+        atlas.locator(".spatial-label").evaluateAll((elements) => {
+          const boxes = elements
+            .filter(
+              (element) =>
+                element.getClientRects().length &&
+                getComputedStyle(element).visibility === "visible",
+            )
+            .map((element) => element.getBoundingClientRect());
+          const overlaps = boxes.flatMap((a, i) =>
+            boxes
+              .slice(i + 1)
+              .filter(
+                (b) =>
+                  a.left < b.right &&
+                  b.left < a.right &&
+                  a.top < b.bottom &&
+                  b.top < a.bottom,
+              ),
+          ).length;
+          return { visible: boxes.length, overlaps };
+        }),
+      )
+      .toEqual({ visible: width === 1440 ? 6 : 2, overlaps: 0 });
+  });
 
 test("full screen retains selection, traps focus and exits on Escape", async ({
   page,
@@ -526,7 +579,7 @@ test("full screen retains selection, traps focus and exits on Escape", async ({
   const atlas = page.locator(".atlas");
   await atlas
     .locator(".symbol-controls")
-    .getByRole("button", { name: "normalize", exact: true })
+    .getByRole("button", { name: "validate_input", exact: true })
     .click();
   await atlas.getByRole("button", { name: "Full screen", exact: true }).click();
   await expect(
@@ -540,7 +593,9 @@ test("full screen retains selection, traps focus and exits on Escape", async ({
   expect(box?.y).toBe(0);
   expect(box?.width).toBe(page.viewportSize()!.width);
   expect(box?.height).toBe(page.viewportSize()!.height);
-  await expect(atlas.locator(".context-pack strong")).toHaveText("normalize");
+  await expect(atlas.locator(".context-pack strong")).toHaveText(
+    "validate_input",
+  );
   await page.keyboard.press("Shift+Tab");
   await expect(atlas.locator(".atlas-source")).toBeFocused();
   await page.keyboard.press("Tab");
@@ -549,14 +604,16 @@ test("full screen retains selection, traps focus and exits on Escape", async ({
   ).toBeFocused();
   await atlas
     .locator(".symbol-controls")
-    .getByRole("button", { name: "route", exact: true })
+    .getByRole("button", { name: "handle_request", exact: true })
     .click();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(
     atlas.getByRole("button", { name: "Full screen", exact: true }),
   ).toBeFocused();
-  await expect(atlas.locator(".context-pack strong")).toHaveText("route");
+  await expect(atlas.locator(".context-pack strong")).toHaveText(
+    "handle_request",
+  );
   expect(await page.evaluate(() => document.body.style.overflow)).not.toBe(
     "hidden",
   );

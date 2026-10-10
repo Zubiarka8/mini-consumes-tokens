@@ -17,13 +17,11 @@ import {
   examples,
   layerHeight,
   layerKeys,
-  symbolPositions,
   type AtlasLayers,
 } from "./atlas-data";
 
-function linkGeometry(a: number, b: number) {
-  const [ax, az] = symbolPositions[a];
-  const [bx, bz] = symbolPositions[b];
+type Point = readonly [number, number];
+function linkGeometry([ax, az]: Point, [bx, bz]: Point) {
   const curve = new QuadraticBezierCurve3(
     new Vector3(ax, 0.15, az),
     new Vector3((ax + bx) / 2, 0.45, (az + bz) / 2 - 0.35),
@@ -111,7 +109,7 @@ function Graph({
   const { invalidate, gl } = useThree();
   const projected = useMemo(() => new Vector3(), []);
   const geometry = useMemo(
-    () => connections.map(([a, b]) => linkGeometry(a, b)),
+    () => connections.map(([a, b]) => linkGeometry(a.position, b.position)),
     [],
   );
   useEffect(() => () => geometry.forEach((link) => link.dispose()), [geometry]);
@@ -149,7 +147,7 @@ function Graph({
       element.style.visibility =
         shown && projected.z < 1 ? "visible" : "hidden";
     };
-    symbolPositions.forEach(([x, z], i) => {
+    examples.forEach(({ position: [x, z] }, i) => {
       place(labels.current[i], x, 0.2, z, layers[1], 16);
       place(fileLabels.current[i], x, separation + 0.65, z, layers[0], -30);
     });
@@ -193,8 +191,7 @@ function Graph({
                   <meshBasicMaterial color="#48624f" />
                 </mesh>
               ))}
-              {examples.map((_, i) => {
-                const [x, z] = symbolPositions[i];
+              {examples.map(({ position: [x, z] }, i) => {
                 const color = selected === i ? "#b0d897" : "#899c8c";
                 const select = (event: { stopPropagation: () => void }) => {
                   event.stopPropagation();
@@ -261,8 +258,8 @@ function Graph({
               })}
               {layer === 1 &&
                 connections.map(([a, b], i) => {
-                  const [bx, bz] = symbolPositions[b];
-                  const [ax, az] = symbolPositions[a];
+                  const [ax, az] = a.position;
+                  const [bx, bz] = b.position;
                   return (
                     <group key={i}>
                       <lineSegments geometry={geometry[i]}>
@@ -291,7 +288,7 @@ function Graph({
       )}
       {layers.map((shown, layer) => {
         if (!shown || layer === 2 || !layers[layer + 1]) return null;
-        const [x, z] = symbolPositions[selected];
+        const [x, z] = examples[selected].position;
         const top = layerHeight(layer, separation);
         const bottom = layerHeight(layer + 1, separation);
         return (
