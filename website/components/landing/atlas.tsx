@@ -154,6 +154,7 @@ export function Atlas() {
     <div
       className={`atlas${expanded ? " atlas-expanded" : ""}`}
       ref={root}
+      data-scene={failed ? "failed" : ready ? "ready" : "loading"}
       role={expanded ? "dialog" : undefined}
       aria-modal={expanded ? true : undefined}
       aria-label={expanded ? t("atlas") : undefined}
