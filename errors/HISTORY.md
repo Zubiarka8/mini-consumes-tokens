@@ -43,3 +43,12 @@
 
 - Reviewed revision: `57d536544556af0becdec3317d4705747302bbbd`. An isolated MCP server built from that revision indexed its own review checkout; `reindex` with `force: true` reported 550 parsed files, 11,509 symbols, and the same 18 known diagnostics: ERR-001/ERR-002 plus the 16 intentionally malformed ERR-003 fixtures. No new diagnostic was found.
 - ERR-010 live verification completed: `find_references` with `symbol: RustParser`, `format: toon` reports seven references, including `build_registry` at `crates/mct-languages/src/lib.rs:12:47`, uniquely resolved to `crates/mct-lang-rust/src/lib.rs:15`. The lookup succeeds after forced reindexing with the reviewed parser; an unchanged index built by an older installed CLI does not automatically acquire new relations.
+
+## 2026-10-10 — ERR-011 caller correction
+
+- Recorded the previously reported `find_references` mistake: `name` was supplied instead of `symbol`. The original response is unavailable; this entry distinguishes it from the controlled reproduction.
+- `get_tool_schema` with `name: "find_references"` succeeded and identified `symbol` as required.
+- Reproduced with `name: "RustParser", format: "toon", limit: 1`: ``failed to deserialize parameters: missing field `symbol` ``. Notified the user.
+- Corrected retry with `symbol: "RustParser", format: "toon", limit: 1` succeeded: eight references, one displayed, seven omitted by the requested limit. ERR-011 is RESOLVED; no source or server change was required.
+- The connected MCP serves the preserved primary checkout/index, whose HEAD is `af20fe955f58d1c3fab1d0e2221208f34a30058f`. This checks argument validity; it does not validate current main's symbol graph or refresh any previous diagnostic snapshot.
+- Prevention: consult the required input schema before calls and distinguish discovery's `name` from relation queries' `symbol`.

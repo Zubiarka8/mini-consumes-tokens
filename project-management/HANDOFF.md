@@ -98,9 +98,9 @@ Closed: PR #170 merged as `a94d101` (2026-10-10). No package publication. Live M
 
 ## TASK-WEB-169
 
-Status: REVIEW
+Status: DONE (verified integration 2026-10-10)
 Branch: `docs/fumadocs-site` (PR #169), from `codex/reconcile-website-169`
-Latest commit: `6b1bede`
+Latest reconciled candidate: `6b1bede`; integrated as `d016df9`, followed by #171/#173/#174
 
 ### Completed
 
@@ -109,8 +109,8 @@ Latest commit: `6b1bede`
 
 ### Checks
 
-On `6b1bede`: `npm ci --offline` (0 vulnerabilities), `types:check`, `format:check`, `test:resources` (102 keys), prefixed build, `test:export` (29 HTML, 1127 links), `test:browser` (18 WebKit tests). No Chromium run, screen-reader or device audit, or Pages deployment.
+On `6b1bede`: `npm ci --offline` (0 vulnerabilities), `types:check`, `format:check`, `test:resources` (102 keys), prefixed build, `test:export` (29 HTML, 1127 links), `test:browser` (18 WebKit tests). These were local candidate checks; no Chromium, screen-reader or device audit was performed. Docs run 38083267842 subsequently passed build and Pages deployment on `fca28b1`.
 
 ### Exact next step
 
-Wait for PR #169 CI, then maintainer merge. Merging deploys GitHub Pages.
+Website integration is complete; see [TASK-WEB-169](TASKS.md#task-web-169) for follow-up commits and acceptance evidence. Review the records-only branch locally; stop before publication or worktree cleanup.
