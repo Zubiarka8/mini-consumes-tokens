@@ -1,0 +1,23 @@
+title: mini-consumes-tokens
+pages:
+  - "---Get started---"
+  - index
+  - installation
+  - clients
+  - uninstalling
+  - "---Reference---"
+  - cli
+  - tools
+  - managing
+  - exclusion
+  - querying
+  - cheatsheet
+  - troubleshooting
+  - "---Internals---"
+  - architecture
+  - indexing
+  - schema
+  - security
+  - limitations
+  - extending
+  - libraries

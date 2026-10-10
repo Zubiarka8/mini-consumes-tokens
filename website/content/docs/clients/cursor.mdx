@@ -1,0 +1,28 @@
+---
+title: Cursor
+description: Project or global mcp.json.
+---
+
+## Install
+
+Create `.cursor/mcp.json` in the project, or `~/.cursor/mcp.json` for every project:
+
+```json
+{
+  "mcpServers": {
+    "mini-consumes-tokens": {
+      "type": "stdio",
+      "command": "mct-mcp-server",
+      "args": ["--root", "<absolute-path-to-repo>"]
+    }
+  }
+}
+```
+
+## Verify
+
+Open **Customize** in the sidebar. `mini-consumes-tokens` should be listed with its tools and its toggle on.
+
+## Uninstall
+
+Remove the server from **Customize**, or delete its entry from `mcp.json`. The toggle only disables it; it does not remove it. To delete the binaries and the index, see [Uninstalling](/docs/uninstalling).
