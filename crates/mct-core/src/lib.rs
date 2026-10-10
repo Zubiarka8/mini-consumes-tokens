@@ -7,6 +7,7 @@
 
 mod error;
 mod literal;
+mod reference_path;
 mod registry;
 mod symbol;
 
@@ -15,6 +16,7 @@ pub use literal::{
     prose_literal, LiteralCollector, StringLiteral, MAX_LITERALS_PER_FILE, MAX_LITERAL_CHARS,
     MIN_LITERAL_CHARS,
 };
+pub use reference_path::resolve_reference_path;
 pub use registry::LanguageRegistry;
 pub use symbol::{
     Location, RelationKind, RelationTarget, SymbolId, SymbolKind, SymbolRecord, SymbolRelation,

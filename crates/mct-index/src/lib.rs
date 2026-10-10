@@ -3,6 +3,7 @@
 //! tables) — this crate knows about SQLite and git, never about any specific
 //! language's grammar.
 
+mod assets;
 mod dead_code;
 mod error;
 mod exclude;
@@ -16,6 +17,9 @@ mod search;
 mod semantic;
 mod traversal;
 
+pub use assets::{
+    read_glb_json_chunk, AssetError, ASSET_EXTENSIONS, ASSET_LANGUAGE, MAX_GLTF_JSON_BYTES,
+};
 pub use dead_code::{
     find_dead_code_candidates, looks_like_test_name, DEAD_CODE_ENTRY_POINT_NAMES,
     DEAD_CODE_KIND_ALLOWLIST,
