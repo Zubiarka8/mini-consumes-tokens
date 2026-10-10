@@ -6,16 +6,14 @@ import {
   Network,
   ScanLine,
   GitBranch,
-  Copy,
-  Check,
   BookOpen,
 } from "lucide-react";
 import { MotionConfig, motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
-import { useState } from "react";
 import { localeKey } from "./locale";
 import { ContextDemo } from "./context-demo";
 import { Atlas } from "./atlas";
+import { CopyCommand, setupCommands } from "./copy-command";
 const repository = "https://github.com/Zubiarka8/mini-consumes-tokens";
 function DocsLink({
   children,
@@ -29,38 +27,6 @@ function DocsLink({
       {children}
       <ArrowUpRight size={18} aria-hidden="true" />
     </Link>
-  );
-}
-function CopyCommand({ command, label }: { command: string; label: string }) {
-  const { t } = useTranslation();
-  const [feedback, setFeedback] = useState<"copied" | "copyError" | null>(null);
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(command);
-      setFeedback("copied");
-    } catch {
-      setFeedback("copyError");
-    }
-  }
-  return (
-    <div className="command-row">
-      <div>
-        <span>{label}</span>
-        <code>{command}</code>
-      </div>
-      <button
-        type="button"
-        onClick={copy}
-        aria-label={`${t("copy")}: ${command}`}
-      >
-        {feedback === "copied" ? (
-          <Check size={18} aria-hidden />
-        ) : (
-          <Copy size={18} aria-hidden />
-        )}
-      </button>
-      <p role="status">{feedback && t(feedback)}</p>
-    </div>
   );
 }
 export function Landing() {
@@ -262,18 +228,13 @@ export function Landing() {
                 </Link>
               </div>
               <div className="command-panel">
-                <CopyCommand
-                  command="mct-cli --root . init"
-                  label={t("initLabel")}
-                />
-                <CopyCommand
-                  command="mct-cli --root . mcp-register"
-                  label={t("registerLabel")}
-                />
-                <CopyCommand
-                  command="mct-cli --root . status"
-                  label={t("statusLabel")}
-                />
+                {setupCommands.map(({ command, label }) => (
+                  <CopyCommand
+                    key={command}
+                    command={command}
+                    label={t(label)}
+                  />
+                ))}
                 <p className="caption">{t("reconnect")}</p>
               </div>
             </div>
