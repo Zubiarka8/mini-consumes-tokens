@@ -19,7 +19,7 @@ $out = if ($argv.Count -ge 1) { Get-AbsPath $argv[0] } else { Get-RepoPath "$Log
 $checkRel = "$LogDir/check-summary.md"
 $tokensRel = "$LogDir/token-report.md"
 if (-not (Test-Path -LiteralPath (Get-RepoPath $checkRel))) {
-  Stop-Usage "no $checkRel: run scripts\windows\check.ps1 first"
+  Stop-Usage "no ${checkRel}: run scripts\windows\check.ps1 first"
 }
 
 $headRev = (Get-Git @('rev-parse', '--short', 'HEAD')) | Select-Object -First 1

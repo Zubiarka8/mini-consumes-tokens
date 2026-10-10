@@ -3,7 +3,7 @@
 MCP tools over stdio (`rmcp`), exposing the `mct-index` SQLite index to any MCP-capable agent.
 
 ## Depends on
-`mct-core`, `mct-index`, every `mct-lang-*` production crate (registers each via `registry.rs::build_registry`).
+`mct-core`, `mct-index`, `mct-languages` (`registry.rs` re-exports its `build_registry`, the language set shared with `mct-cli`).
 
 ## Responsibilities
 - Auto-reindexes incrementally at startup (full walk, content-hash skip).
