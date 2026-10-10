@@ -5,6 +5,7 @@
 //! it moved here (finding F08).
 
 use mct_core::{Location, MAX_TRAVERSAL_DEPTH};
+use std::ops::Range;
 use tree_sitter::Node;
 
 /// The first `ERROR` or `MISSING` node in `node`'s subtree, in document order.
@@ -49,6 +50,24 @@ pub fn location(node: Node) -> Location {
         byte_len: (node.end_byte() - node.start_byte()) as u32,
         end_line: Some(end.row as u32 + 1),
     }
+}
+
+/// `contents` with every byte outside the `keep` byte ranges replaced by a
+/// space, except `\n` and `\r`. The result has the same byte length and
+/// line breaks, so a sub-parser's lines and byte columns over it are the
+/// original file's (ADR-003 D4). A multi-byte char is kept whole when its
+/// first byte is in `keep`, else replaced by one space per byte, so the
+/// result is always valid UTF-8.
+pub fn mask(contents: &str, keep: &[Range<usize>]) -> String {
+    let mut out = String::with_capacity(contents.len());
+    for (i, c) in contents.char_indices() {
+        if c == '\n' || c == '\r' || keep.iter().any(|r| r.contains(&i)) {
+            out.push(c);
+        } else {
+            out.extend(std::iter::repeat_n(' ', c.len_utf8()));
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -101,5 +120,19 @@ mod tests {
                 end_line: Some(2),
             }
         );
+    }
+
+    #[test]
+    // One keep range per call is intended: `&[a..b]` is a slice of ranges.
+    #[allow(clippy::single_range_in_vec_init)]
+    fn mask_blanks_outside_keep_and_preserves_layout() {
+        let source = "---\nlet a = 1;\n---\r\n<p>é</p>\n";
+        let masked = mask(source, &[4..15]);
+        assert_eq!(masked.len(), source.len());
+        assert_eq!(masked, "   \nlet a = 1;\n   \r\n         \n");
+        assert_eq!(mask(source, &[]).lines().count(), source.lines().count());
+        // A range starting mid-char keeps no partial char.
+        assert_eq!(mask("é!", &[1..3]), "  !");
+        assert_eq!(mask("aé", &[1..2]), "aé".replace('a', " "));
     }
 }
