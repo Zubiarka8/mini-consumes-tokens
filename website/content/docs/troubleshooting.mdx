@@ -1,0 +1,15 @@
+---
+title: "Troubleshooting"
+---
+
+| Symptom | Root cause | Fix |
+| --- | --- | --- |
+| `claude mcp list` shows `⏸ Pending approval` | Server registered while a session was already running | Exit and restart `claude`; approve when prompted |
+| Query results look stale after `git pull` | Server only reindexes at its own startup, not on file changes | Ask Claude to call `reindex` (`force: true`), or run `mct-cli --root . reindex` |
+| A caller/callee result looks unrelated | Name-based matching ([Known limitations and deliberate simplifications](/docs/limitations)) — another same-named symbol matched | Check `relative_path`/`language` in each result to disambiguate |
+| Language shown as "seen but not yet supported" | Extension is in `KNOWN_PENDING_LANGUAGES` with no parser registered | Expected; not implemented yet |
+| A language's files are just missing, no issue reported | Extension isn't in `KNOWN_PENDING_LANGUAGES` either (e.g. `.lua`) — silently skipped | Check `build_registry()` in both binaries to see what's wired in |
+| `.env`/secret-looking files never show results | Excluded by design ([File exclusion rules](/docs/exclusion)) | Expected; don't rely on this index for secrets discovery |
+| Exits with `database error: ...` | Corrupted/locked `.sqlite3` (killed mid-write, disk full) | `rm -rf .mct-index && mct-cli --root . init` |
+| Exits with `invalid path: X escapes the project root` | A symlink inside the repo resolves outside `--root` | Expected safety rejection (07 step 2) — fix/remove the symlink |
+| `reindex` reports 0 parsed but files changed | Content hash unchanged (e.g. only mtime/permissions touched, or reverted to identical bytes) | Expected; comparison is content-based on purpose |

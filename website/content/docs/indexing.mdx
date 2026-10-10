@@ -1,0 +1,20 @@
+---
+title: "How indexing actually works"
+---
+
+Step by step, from `crates/mct-index/src/indexer.rs::reindex`:
+
+1.  **Walk** the project root with `walkdir::WalkDir`, skipping directories.
+2.  **Symlink/escape guard:** each entry is `canonicalize()`d; failure (broken symlink, race) or a canonical path outside the root — both skipped silently. A symlink can never make the indexer read outside the project root.
+3.  **Path normalization:** the relative path is rebuilt with forward slashes on every OS, so the index is portable between a Windows checkout and a Linux CI runner.
+4.  **Exclusion check** ([File exclusion rules](/docs/exclusion)) — excluded paths are skipped but kept in `seen_paths`, so a previously-indexed row is cleaned up if exclude patterns later change.
+5.  **Extension lookup** via `registry.for_extension(ext)`. No parser registered? If the extension is in `KNOWN_PENDING_LANGUAGES` (`swift`, `rb`→ruby), it's recorded as an `unsupported_language` issue. Any _other_ unrecognized extension (docs, images, lockfiles, `.lua`) is skipped with **zero** record — this is why a repo with `.lua` files wouldn't show "lua" as unsupported even though `mct-lang-lua` isn't wired in.
+6.  **Read + hash:** I/O error → skip. Content hash is a **git blob SHA-1** via `git2::Oid::hash_object(ObjectType::Blob, &bytes)` — works outside an actual git repo; it's just git's hashing algorithm reused for change detection.
+7.  **Incremental skip:** if the stored hash for this path matches and `--force`/`force:true` wasn't passed, count as `files_unchanged` and skip entirely — no re-parse, no writes.
+8.  **UTF-8 check:** invalid UTF-8 (binary file sharing a supported extension) is skipped silently, not recorded as a syntax error.
+9.  **Parse** via the matching `LanguageParser`. Success → written in one transaction (below). `ParseError::Syntax` → recorded as a `syntax_error` issue with line/message; the file's previous data (if any) is left untouched until it parses successfully again.
+10.  **Per-file write transaction** (`write_parsed_file`): upsert the `files` row; delete existing `symbols` for that `file_id` (cascades to `relations`) and any stale `index_issues` row; insert every symbol, building a local-id→row-id map; insert every relation, with `to_symbol_id` resolved **best-effort by name only** (first match, arbitrary on ambiguity — and _not_ what powers any lookup query, which all match on text columns directly); commit.
+11.  **Deletion sweep** after the whole walk: any `files` row not in `seen_paths` this run is deleted (cascades), plus orphaned `index_issues` rows — this is how a deleted or moved file disappears from the index.
+12.  **Timestamp:** `index_meta.last_indexed_at` upserted with the current Unix time.
+
+**Concurrency:** the MCP server wraps the whole `Index` in a `tokio::sync::Mutex` — one query or reindex at a time, no concurrent access from overlapping tool calls.

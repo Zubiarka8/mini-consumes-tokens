@@ -1,0 +1,9 @@
+---
+title: "Security model"
+---
+
+-   **Static parsing only.** `LanguageParser::parse()` never executes or evaluates file contents — every parser is a pure tree-sitter AST walk. Indexing an untrusted repository runs none of its code.
+-   **All SQL is parameterized.** Every query binds symbol names via `?1`\-style placeholders — never string-interpolated (confirmed in `crates/mct-index/src/queries.rs`, called out explicitly in source comments) — no SQL injection surface from name lookups.
+-   **Symlink escape prevention.** Every walked entry is canonicalized and rejected if it resolves outside the project root ([How indexing actually works](/docs/indexing)) — a malicious symlink can't make the indexer touch files elsewhere.
+-   **Secret-pattern exclusion by default, opt-out not opt-in** ([File exclusion rules](/docs/exclusion)) — a fresh install never indexes `.env`, `*.pem`, `*.key`, cloud credential directories, etc.
+-   **No network calls, zero telemetry** — indexing and querying are entirely local/offline.
