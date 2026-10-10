@@ -94,6 +94,7 @@ function Graph({
   reduced,
   active,
   layers,
+  focusLayer,
   separation,
   labels,
   fileLabels,
@@ -107,6 +108,7 @@ function Graph({
   reduced: boolean;
   active: boolean;
   layers: AtlasLayers;
+  focusLayer?: number;
   separation: number;
   labels: RefObject<(HTMLButtonElement | null)[]>;
   fileLabels: RefObject<(HTMLButtonElement | null)[]>;
@@ -126,7 +128,7 @@ function Graph({
   useEffect(() => () => geometry.forEach((link) => link.dispose()), [geometry]);
   useEffect(() => {
     if (active) invalidate();
-  }, [active, rotation, selected, layers, separation, invalidate]);
+  }, [active, rotation, selected, layers, focusLayer, separation, invalidate]);
   useEffect(() => {
     const lost = (event: Event) => {
       event.preventDefault();
@@ -191,6 +193,8 @@ function Graph({
                 <boxGeometry args={[5.5, 0.14, 2.7]} />
                 <meshStandardMaterial
                   color={layer === 1 ? "#334f3c" : "#405246"}
+                  emissive="#60814b"
+                  emissiveIntensity={focusLayer === layer ? 0.45 : 0}
                   roughness={0.6}
                   metalness={0.06}
                 />
@@ -322,6 +326,7 @@ function Graph({
 export default function SpatialAtlas({
   selected,
   layers,
+  focusLayer,
   separation,
   active,
   reduced,
@@ -331,6 +336,7 @@ export default function SpatialAtlas({
 }: {
   selected: number;
   layers: AtlasLayers;
+  focusLayer?: number;
   separation: number;
   active: boolean;
   reduced: boolean;
@@ -367,6 +373,7 @@ export default function SpatialAtlas({
           fileLabels={fileLabels}
           boardLabels={boardLabels}
           layers={layers}
+          focusLayer={focusLayer}
           separation={separation}
           onSelect={onSelect}
           onReady={onReady}

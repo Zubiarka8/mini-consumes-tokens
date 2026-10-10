@@ -633,6 +633,29 @@ test("full screen retains selection, traps focus and exits on Escape", async ({
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
+test("full screen opens a scroll tour that reveals stages inside the dialog", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(home);
+  const atlas = page.locator(".atlas");
+  await expect(atlas.locator(".atlas-tour")).toHaveCount(0);
+  await atlas.getByRole("button", { name: "Full screen", exact: true }).click();
+  const tour = page.getByRole("dialog").locator(".atlas-tour");
+  await expect(tour).toBeVisible();
+  await expect(tour).toHaveAttribute("data-active-stage", "0");
+  const last = tour.locator(".atlas-stage").last();
+  const opacity = () =>
+    last.evaluate((element) => Number(getComputedStyle(element).opacity));
+  await expect.poll(opacity).toBeLessThan(1);
+  await last.evaluate((element) => element.scrollIntoView({ block: "center" }));
+  await expect.poll(opacity).toBe(1);
+  await expect(tour).not.toHaveAttribute("data-active-stage", "0");
+  expect(await atlas.evaluate((element) => element.scrollTop)).toBeGreaterThan(
+    0,
+  );
+});
+
 test("Spanish browser starts in English and invalid storage is ignored", async ({
   browser,
 }) => {

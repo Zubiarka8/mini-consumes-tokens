@@ -70,6 +70,27 @@ const en = {
   resetView: "Reset view",
   fullscreen: "Full screen",
   exitFullscreen: "Exit full screen",
+  tourWhatTitle: "Your agent asks the map, not the files.",
+  tourWhatText:
+    "mini-consumes-tokens indexes your repository into a graph of symbols (functions, types, methods) and the calls and imports between them. A coding assistant connected over MCP can then ask precise questions instead of reading whole files.",
+  tourHowTitle: "Parsed, stored and served on your machine.",
+  tourHowText:
+    "Tree-sitter parses each supported file, SQLite stores the graph in your project and the MCP server answers the assistant's tool calls.",
+  tourOrientTitle: "Get your bearings.",
+  tourOrientText:
+    "Four tools show the shape of a project before you know any names.",
+  tourLookupTitle: "Ask one precise question.",
+  tourLookupText:
+    "Each search tool answers one question about a symbol and returns locations, not whole files.",
+  tourCompositeTitle: "Several questions, one call.",
+  tourCompositeText:
+    "Composite tools run several lookups internally and return one merged answer.",
+  tourAdvancedTitle: "Work at scale.",
+  tourAdvancedText:
+    "Group queries, load tool schemas on demand and keep the index fresh.",
+  tourStartTitle: "Try it on your repository.",
+  tourStartText:
+    "Run these commands inside the project you want to index, then read the tool reference.",
   spatialHint: "Drag to orbit · Scroll to zoom · Select a symbol",
   mapNote: "One question. Its relevant neighborhood.",
   problemLabel: "01 / THE PROBLEM",
