@@ -26,6 +26,8 @@ This is the extension point most contributions will touch, so it gets its own ch
 
 ## Framework/library coverage, beyond the language table
 
+For dependency-manifest modules, JS/TS import/export modules and the boundary between package detection and framework parsing, see the [library support implementation map](docs/01-architecture/library-support.md).
+
 The language table in `README.md` says which *languages* have a `LanguageParser`. It does not say how well the index captures the *frameworks/libraries* built on top of those languages — a `.tsx` file parses fine, but that doesn't mean every structural relationship a framework introduces is modeled. Tracked in [#51](https://github.com/Zubiarka8/mini-consumes-tokens/issues/51):
 
 | Library/framework | Status | Gap |
