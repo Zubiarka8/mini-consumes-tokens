@@ -4,16 +4,16 @@
 
 This is the extension point most contributions will touch, so it gets its own checklist:
 
-1. **New crate.** `crates/mct-lang-<name>`, depending on `mct-core` (path dependency) and `tree-sitter-<name>` (pin an exact version). Start from the shared base in [docs/06-templates/lang-crate-base.md](docs/06-templates/lang-crate-base.md) so every language gets the same layout.
+1. **New crate.** `crates/mct-lang-<name>`, depending on `mct-core` (path dependency) and `tree-sitter-<name>` at the full version you validated, e.g. `"0.25.1"` (caret, not `=`; `Cargo.lock` is the exact pin — see [ADR-004](docs/01-architecture/adrs/004-grammar-version-requirements.md)). Start from the shared base in [docs/06-templates/lang-crate-base.md](docs/06-templates/lang-crate-base.md) so every language gets the same layout.
 2. **Implement `mct_core::LanguageParser`:**
    - `language_id()` — a stable lowercase identifier (`"go"`, `"kotlin"`), stored in the index's `language` column.
    - `file_extensions()` — extensions this parser owns, without the leading dot. Two parsers can never claim the same extension (`LanguageRegistry::register` panics on conflict — a startup-time configuration error, not something repo content can trigger).
    - `parse()` — must never execute, `eval`, or otherwise run any part of the input; parsing is purely AST-based. A syntax error in the input is a `ParseError::Syntax` return value, never a panic — this method runs over arbitrary third-party source.
 3. **No `unwrap()`/`panic!`** on any path that processes file content from the indexed repo. `.unwrap_or_default()` / early-return on `Option`/`Result` instead.
-4. **Register it** — three places, nowhere else changes:
-   - `mct-mcp-server/src/registry.rs::build_registry`
-   - `mct-cli/src/main.rs::build_registry`
-   - if you're also adding a `fuzz/` harness for it (see step 5a below), the `matrix.crate` list in `.github/workflows/ci.yml`'s `fuzz-smoke` job — otherwise CI silently never fuzzes it.
+4. **Wire it in** — nowhere else in `mct-core`, `mct-index`, `mct-cli` or `mct-mcp-server` changes:
+   - the root `Cargo.toml`: a `members` entry and a `[workspace.dependencies]` entry.
+   - `crates/mct-languages`: one dependency in its `Cargo.toml`, one `registry.register(...)` line in `src/lib.rs::build_registry`, and a representative extension in that file's test. The CLI, the MCP server and `mct-eval` all index through this one registry, so they cannot ship different language sets.
+   - the `matrix.crate` list in `.github/workflows/ci.yml`'s `fuzz-smoke` job, for the `fuzz/` harness from step 5a — otherwise CI silently never fuzzes it.
 5. **Tests** in `crates/mct-lang-<name>/tests/parse.rs`:
    - A function-and-call extraction test.
    - At least one test covering the language's distinctive idiomatic syntax (generics for C#/Java, templates for C++, decorators for Python — whatever the equivalent is for your language).
@@ -21,17 +21,19 @@ This is the extension point most contributions will touch, so it gets its own ch
 5a. **Add a `cargo-fuzz` harness** (`crates/mct-lang-<name>/fuzz/`) — copy the structure of an existing one (e.g. `mct-lang-lua/fuzz/`): a standalone-workspace `Cargo.toml` (`[workspace]` empty table, so it stays out of the root workspace's members/lockfile) and one `fuzz_targets/parse_<name>.rs` calling `<Name>Parser::parse` on arbitrary bytes. Remember the CI matrix entry from step 4.
 6. **Update docs:** the language table in `README.md` and the "Language coverage" section in `internal/checklist.md`.
 
-   `scripts/unix/new-language-check.sh <name>` (macOS/Linux) checks steps 1–6 and lists whatever is still missing.
+   `scripts/unix/new-language-check.sh <name>` (macOS/Linux) or `scripts\windows\new-language-check.ps1 <name>` checks steps 1–6 and lists whatever is still missing.
 7. **Run the workspace test suite** (`cargo test --workspace`) and fix any regressions before opening a PR — or `scripts/unix/check.sh`, which runs the tests, the CI clippy invocation and the `mct-eval` gate and prints only a summary (see `scripts/README.md`).
 
 ## Framework/library coverage, beyond the language table
+
+For dependency-manifest modules, JS/TS import/export modules, the boundary between package detection and framework parsing, and where framework tests go (`crates/mct-lang-<language>/src/libraries/<name>/`), see the [library support implementation map](docs/01-architecture/library-support.md). Update the table below in the same PR as any framework behavior change.
 
 The language table in `README.md` says which *languages* have a `LanguageParser`. It does not say how well the index captures the *frameworks/libraries* built on top of those languages — a `.tsx` file parses fine, but that doesn't mean every structural relationship a framework introduces is modeled. Tracked in [#51](https://github.com/Zubiarka8/mini-consumes-tokens/issues/51):
 
 | Library/framework | Status | Gap |
 |---|---|---|
 | React (`.jsx`/`.tsx`) | Partial | `mct-lang-js-ts` indexes function/class components, hooks calls, and event-handler methods as ordinary `Function`/`Class`/`Method`/`Calls`. JSX elements (`<Foo prop={x} />`) have no dedicated `SymbolKind`/`RelationKind`, so "what does `<App/>` render" or "who renders `<Button/>`" can't be answered from the index — deferred pending an `mct-core` symbol-model extension (cross-cutting, see below). |
-| Vue (`.vue` SFCs) | Not supported | No `mct-lang-vue` crate and no `.vue` extension registered in any `build_registry`. A `.vue` file is invisible to the index entirely. Vue projects using plain `.ts`/`.js` (Composition API outside SFCs) still get normal JS/TS coverage. |
+| Vue (`.vue` SFCs) | Not supported | No `mct-lang-vue` crate and no `.vue` extension registered in `mct-languages::build_registry`. A `.vue` file is invisible to the index entirely. Vue projects using plain `.ts`/`.js` (Composition API outside SFCs) still get normal JS/TS coverage. |
 | CSS frameworks (Tailwind, Bootstrap, Bulma, etc.) | Partial by design | `mct-lang-css` indexes full selectors and their atomic class/id/tag/pseudo components (compound selectors, descendant combinators, escaped Tailwind utility names). No specificity/cascade modeling (would need a DOM, not an AST) and no indexing of declarations/values inside a rule's block — selectors only. This is a deliberate scope boundary, not a bug. |
 | Angular, Svelte, Next.js/Nuxt routing, Express/Fastify-style route registration, server-side templating (Handlebars/EJS/Pug) | Not yet audited | Suspected same shape of gap ("logic is indexed, structural/template/routing relationships are not"), not individually verified against source. Triage before implementing. |
 
@@ -58,7 +60,7 @@ crates/mct-lang-<name>/tests/
 
 **Invalid syntax:**
 - Every file in `malformed/` must end in `ParseError::Syntax`; `assert_malformed_rejected` enforces it. A fixture that parses proves nothing. Only a grammar that accepts any input may opt out, with `standard_tests!(Parser, malformed_may_parse = "why")`, Markdown for example.
-- Valid code the upstream grammar rejects stays out of `project/`. Reproduce it with `scripts/unix/parse-probe.sh` on a one-line file and record it as an upstream rejection, with its issue when there is one. Never attribute it to the local parser.
+- Valid code the upstream grammar rejects stays out of `project/`. Reproduce it with `scripts/unix/parse-probe.sh` on a one-line file and record it as an upstream rejection, with its issue when there is one, in this language's row of `internal/corpus-progress.md` and in [`errors/REGISTRY.md`](errors/REGISTRY.md) when it shows up in an index. Never attribute it to the local parser.
 
 **Known bugs and limits:**
 - **Fix small, well-scoped parser bugs in the corpus PR**, with a test that fails before the fix.
@@ -78,6 +80,16 @@ crates/mct-lang-<name>/tests/
 - [ ] The report's heuristic hits are explained: fixed, ignored with an issue, or a documented limit.
 - [ ] Grammar rejections are kept apart from parser bugs, each with a repro.
 - [ ] Cross-file claims are individual `relation(...)` assertions, not the name-matched count.
+
+### Malformed fixtures and the working index
+
+Indexing this repository reports each `malformed/` file as a parse failure (`errors/REGISTRY.md` ERR-003). That is expected: the fixtures and their rejection test stay. In a working index used day to day, though, they bury a real failure among 16 expected ones. To keep them out of *your* index only, add this line to your local `.mctignore` (the file is in `.gitignore`, so each checkout keeps its own) and run `mct-cli --root . reindex`:
+
+```text
+crates/*/tests/corpus/malformed/
+```
+
+The corpus tests read the fixtures from disk, and a CI checkout has no `.mctignore`, so neither is affected. Exclude only expected rejections this way, never an unexpected failure, and record `errors/` observations from an index without the line.
 
 ## Adding a new MCP tool, and the TTC description format
 
@@ -114,7 +126,7 @@ If `cargo build` fails on Windows with a `link.exe`/`cl.exe`-not-found error, th
 
 `.github/workflows/ci.yml` has three jobs:
 
-- **`build-test`** — matrix over Linux/macOS/Windows: `cargo build --workspace --all-targets`, `cargo test --workspace`, `cargo clippy --workspace --all-targets --all-features -- -D warnings`. Runs on every push/PR, on all three OS, no exceptions.
+- **`build-test`** — matrix over Linux/macOS/Windows: `cargo build --locked --workspace --all-targets`, `cargo test --locked --workspace`, `cargo clippy --locked --workspace --all-targets --all-features -- -D warnings`; `--locked` fails the job when `Cargo.lock` would need an update. Runs on every push/PR, on all three OS, no exceptions.
 - **`cargo-audit`** — Linux only (one run is enough for a dependency audit). Two passes: a full report of every severity (informational, never fails the job — low/medium findings stay visible in the log), then a second pass with `severity_threshold = "high"` in a generated `.cargo/audit.toml`, whose exit code is what actually gates the job. Advisories with no CVSS score bypass the severity filter and always fail this step (fail-safe for unscored issues).
 - **`fuzz-smoke`** — matrix over `{ubuntu-latest, macos-latest} × {every crate listed in matrix.crate}` (8 as of C++/Go — check the workflow file for the current, authoritative list rather than this count, which will go stale again), short (30s) `cargo-fuzz` campaigns confirming each harness builds and runs without crashing. **Deliberately excludes Windows** — see the long comment above that job in the workflow file for exactly why (an ASan runtime DLL PATH issue and a separate MSVC linker limitation with sancov instrumentation, both confirmed locally before this decision was made). The regular `build-test` job still covers Windows fully; only fuzzing is Linux/macOS-only.
 
