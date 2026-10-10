@@ -229,98 +229,100 @@ export function Atlas() {
           />
         </label>
       </div>
-      <div className="atlas-space">
-        {!ready && !failed && (
-          <p className="atlas-loading" role="status">
-            {t("loading3d")}
+      <div className="atlas-view">
+        <div className="atlas-space">
+          {!ready && !failed && (
+            <p className="atlas-loading" role="status">
+              {t("loading3d")}
+            </p>
+          )}
+          {spatial && (
+            <div className="spatial-layer" data-testid="spatial-layer">
+              <SceneBoundary onFailure={sceneFailure}>
+                <Suspense fallback={null}>
+                  <SpatialAtlas
+                    selected={selected}
+                    layers={layers}
+                    focusLayer={stage?.layer}
+                    separation={separation}
+                    onSelect={setSelected}
+                    onReady={sceneReady}
+                    active={inView && visible}
+                    reduced={reduced}
+                    onFailure={sceneFailure}
+                  />
+                </Suspense>
+              </SceneBoundary>
+            </div>
+          )}
+        </div>
+        {failed && (
+          <p className="atlas-fallback" role="status">
+            {t("fallback")}
           </p>
         )}
-        {spatial && (
-          <div className="spatial-layer" data-testid="spatial-layer">
-            <SceneBoundary onFailure={sceneFailure}>
-              <Suspense fallback={null}>
-                <SpatialAtlas
-                  selected={selected}
-                  layers={layers}
-                  focusLayer={stage?.layer}
-                  separation={separation}
-                  onSelect={setSelected}
-                  onReady={sceneReady}
-                  active={inView && visible}
-                  reduced={reduced}
-                  onFailure={sceneFailure}
-                />
-              </Suspense>
-            </SceneBoundary>
+        {expanded && (
+          <div className="atlas-tour" data-active-stage={activeStage}>
+            {tourStages.map(({ key, icon: Icon, tools, docs }, i) => (
+              <motion.section
+                key={key}
+                className="atlas-stage"
+                data-stage={i}
+                aria-labelledby={`${key}-title`}
+                initial={reduced ? false : { opacity: 0, y: 12 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, root }}
+              >
+                <Icon size={20} aria-hidden="true" />
+                <h3 id={`${key}-title`}>{t(`${key}Title`)}</h3>
+                <p>{t(`${key}Text`)}</p>
+                {tools && (
+                  <ul className="atlas-tools">
+                    {tools.map(({ name, params, replaces, output }) => (
+                      <li key={name}>
+                        <p className="atlas-tool-call">
+                          <code>{name}</code> <span>{params}</span>
+                        </p>
+                        <p>{t(`ask_${name}`)}</p>
+                        {replaces && (
+                          <p className="atlas-tool-replaces">
+                            {t("replaces")} <code>{replaces}</code>
+                          </p>
+                        )}
+                        {output && (
+                          <pre
+                            tabIndex={0}
+                            aria-label={`${t("exampleOutput")}: ${name}`}
+                          >
+                            <code>{output}</code>
+                          </pre>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {docs && (
+                  <>
+                    <div className="command-panel">
+                      {setupCommands.map(({ command, label }) => (
+                        <CopyCommand
+                          key={command}
+                          command={command}
+                          label={t(label)}
+                        />
+                      ))}
+                    </div>
+                    <Link href={docs} className="text-link">
+                      {t("toolsReference")}
+                      <ArrowUpRight size={16} aria-hidden="true" />
+                    </Link>
+                  </>
+                )}
+              </motion.section>
+            ))}
           </div>
         )}
       </div>
-      {failed && (
-        <p className="atlas-fallback" role="status">
-          {t("fallback")}
-        </p>
-      )}
-      {expanded && (
-        <div className="atlas-tour" data-active-stage={activeStage}>
-          {tourStages.map(({ key, icon: Icon, tools, docs }, i) => (
-            <motion.section
-              key={key}
-              className="atlas-stage"
-              data-stage={i}
-              aria-labelledby={`${key}-title`}
-              initial={reduced ? false : { opacity: 0, y: 12 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, root }}
-            >
-              <Icon size={20} aria-hidden="true" />
-              <h3 id={`${key}-title`}>{t(`${key}Title`)}</h3>
-              <p>{t(`${key}Text`)}</p>
-              {tools && (
-                <ul className="atlas-tools">
-                  {tools.map(({ name, params, replaces, output }) => (
-                    <li key={name}>
-                      <p className="atlas-tool-call">
-                        <code>{name}</code> <span>{params}</span>
-                      </p>
-                      <p>{t(`ask_${name}`)}</p>
-                      {replaces && (
-                        <p className="atlas-tool-replaces">
-                          {t("replaces")} <code>{replaces}</code>
-                        </p>
-                      )}
-                      {output && (
-                        <pre
-                          tabIndex={0}
-                          aria-label={`${t("exampleOutput")}: ${name}`}
-                        >
-                          <code>{output}</code>
-                        </pre>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {docs && (
-                <>
-                  <div className="command-panel">
-                    {setupCommands.map(({ command, label }) => (
-                      <CopyCommand
-                        key={command}
-                        command={command}
-                        label={t(label)}
-                      />
-                    ))}
-                  </div>
-                  <Link href={docs} className="text-link">
-                    {t("toolsReference")}
-                    <ArrowUpRight size={16} aria-hidden="true" />
-                  </Link>
-                </>
-              )}
-            </motion.section>
-          ))}
-        </div>
-      )}
       <div className="symbol-controls" role="group" aria-label={t("select")}>
         {examples.map((node, i) => (
           <button

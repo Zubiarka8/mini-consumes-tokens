@@ -1393,25 +1393,11 @@
   box-shadow: none;
   border: 0;
   --atlas-bar: 77px;
-  /* The scene sticks inside the tour's grid row, then releases before the explorer. */
-  display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-  align-content: start;
   scroll-padding-top: var(--atlas-bar);
 }
-.atlas-expanded > * {
-  grid-column: 1 / -1;
-}
-/* A margin, not container padding, which WebKit adds to the sticky offset. */
-.atlas-expanded > .atlas-toolbar {
-  margin-top: var(--atlas-bar);
-}
-/* Grid items can only stick inside their own row, so the bar is fixed instead. */
 .atlas-expanded .atlas-top {
-  position: fixed;
+  position: sticky;
   top: 0;
-  left: 0;
-  right: 0;
   z-index: 2;
   height: var(--atlas-bar);
   background: var(--ink);
@@ -1419,9 +1405,18 @@
 .atlas-expanded .atlas-project {
   display: none;
 }
-.atlas-expanded > .atlas-space {
-  grid-column: 1;
-  grid-row: 3;
+/* Only full screen lays out the scene beside the tour; the scene sticks until the view ends. */
+.atlas-view {
+  display: contents;
+}
+.atlas-expanded .atlas-view {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+}
+.atlas-expanded .atlas-view:has(> .atlas-fallback) {
+  grid-template-columns: minmax(0, 1fr);
+}
+.atlas-expanded .atlas-space {
   position: sticky;
   top: var(--atlas-bar);
   align-self: start;
@@ -1429,15 +1424,8 @@
   width: 100%;
   height: calc(100dvh - var(--atlas-bar));
 }
-.atlas-expanded > .atlas-tour {
-  grid-column: 2;
-  grid-row: 3;
+.atlas-expanded .atlas-tour {
   padding: 0 40px 64px;
-}
-.atlas-expanded:has(> .atlas-fallback) > .atlas-tour {
-  grid-column: 1 / -1;
-  grid-row: auto;
-  padding-top: 0;
 }
 .atlas-stage {
   min-height: 70dvh;
@@ -1522,8 +1510,6 @@
   color: var(--mineral);
 }
 .atlas-expanded .context-pack {
-  /* Without a width, auto margins shrink the grid item to its longest code line. */
-  width: 100%;
   max-width: 1000px;
   margin-inline: auto;
 }
@@ -1557,13 +1543,15 @@
   .spatial-board-labels {
     display: none;
   }
-  /* Scene and stages share one cell: the scene stays on top while the text passes under it. */
+  /* The scene stays above the stages while their text scrolls under it. */
   .atlas.atlas-expanded {
     --atlas-scene: 260px;
-    grid-template-columns: minmax(0, 1fr);
     scroll-padding-top: calc(var(--atlas-bar) + var(--atlas-scene));
   }
-  .atlas-expanded > .atlas-space {
+  .atlas-expanded .atlas-view {
+    display: block;
+  }
+  .atlas-expanded .atlas-space {
     z-index: 1;
     height: var(--atlas-scene);
   }
@@ -1571,9 +1559,8 @@
   .atlas-expanded .spatial-hint {
     display: none;
   }
-  .atlas-expanded > .atlas-tour {
-    grid-column: 1;
-    padding: var(--atlas-scene) 16px 48px;
+  .atlas-expanded .atlas-tour {
+    padding: 0 16px 48px;
   }
   .atlas-stage {
     min-height: 60dvh;
