@@ -203,6 +203,33 @@ test("WebGL absence retains readable source and project context", async ({
   );
   await expect(page.locator(".atlas-source")).toBeVisible();
 });
+test("atlas exposes the scene state", async ({ page, request }) => {
+  const response = await request.get(home);
+  expect(await response.text()).toContain('data-scene="loading"');
+  await page.goto(home);
+  const supported = await page.evaluate(
+    () => !!document.createElement("canvas").getContext("webgl2"),
+  );
+  if (supported) {
+    await page.locator(".atlas").scrollIntoViewIfNeeded();
+    await expect(page.locator(".atlas")).toHaveAttribute("data-scene", "ready");
+  }
+  await page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (
+      this: HTMLCanvasElement,
+      type: string,
+      ...args: any[]
+    ) {
+      return type === "webgl2"
+        ? null
+        : original.call(this, type as any, ...args);
+    } as typeof original;
+  });
+  await page.goto(home);
+  await page.locator(".atlas").scrollIntoViewIfNeeded();
+  await expect(page.locator(".atlas")).toHaveAttribute("data-scene", "failed");
+});
 test("3D scene loads on approach, rotates and handles context loss", async ({
   page,
 }) => {
