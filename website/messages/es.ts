@@ -71,6 +71,27 @@ const es: Record<keyof typeof en, string> = {
   resetView: "Restablecer vista",
   fullscreen: "Pantalla completa",
   exitFullscreen: "Salir de pantalla completa",
+  tourWhatTitle: "Tu agente consulta el mapa, no los archivos.",
+  tourWhatText:
+    "mini-consumes-tokens indexa tu repositorio en un grafo de símbolos (funciones, tipos, métodos) y de las llamadas e importaciones entre ellos. Un asistente de código conectado por MCP puede hacer preguntas precisas en vez de leer archivos completos.",
+  tourHowTitle: "Analizado, guardado y servido en tu equipo.",
+  tourHowText:
+    "Tree-sitter analiza cada archivo compatible, SQLite guarda el grafo en tu proyecto y el servidor MCP responde a las llamadas a herramientas del asistente.",
+  tourOrientTitle: "Oriéntate.",
+  tourOrientText:
+    "Cuatro herramientas muestran la forma de un proyecto antes de que conozcas ningún nombre.",
+  tourLookupTitle: "Haz una pregunta precisa.",
+  tourLookupText:
+    "Cada herramienta de búsqueda responde a una pregunta sobre un símbolo y devuelve ubicaciones, no archivos completos.",
+  tourCompositeTitle: "Varias preguntas, una llamada.",
+  tourCompositeText:
+    "Las herramientas compuestas hacen varias consultas internas y devuelven una sola respuesta combinada.",
+  tourAdvancedTitle: "Trabaja a escala.",
+  tourAdvancedText:
+    "Agrupa consultas, carga los esquemas de las herramientas cuando los necesites y mantén el índice al día.",
+  tourStartTitle: "Pruébalo en tu repositorio.",
+  tourStartText:
+    "Ejecuta estos comandos dentro del proyecto que quieras indexar y después consulta la referencia de herramientas.",
   spatialHint:
     "Arrastra para girar · Desplázate para acercar · Elige un símbolo",
   mapNote: "Una pregunta. Las conexiones que importan.",

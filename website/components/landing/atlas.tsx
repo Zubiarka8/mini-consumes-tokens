@@ -13,7 +13,12 @@ import { motion, useInView } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { FileCode2, Maximize2, Minimize2 } from "lucide-react";
 
-import { examples, layerKeys, type AtlasLayers } from "./atlas-data";
+import {
+  examples,
+  layerKeys,
+  tourStages,
+  type AtlasLayers,
+} from "./atlas-data";
 
 const SpatialAtlas = lazy(() => import("./spatial-atlas"));
 class SceneBoundary extends Component<
@@ -35,6 +40,7 @@ export function Atlas() {
   const { t } = useTranslation();
   const [selected, setSelected] = useState(0);
   const [expanded, setExpanded] = useState(false);
+  const [activeStage, setActiveStage] = useState(0);
   const [layers, setLayers] = useState<AtlasLayers>([true, true, true]);
   const [separation, setSeparation] = useState(1.45);
   const [spatial, setSpatial] = useState(false);
@@ -64,7 +70,7 @@ export function Atlas() {
       if (event.key !== "Tab") return;
       const controls = Array.from(
         root.current?.querySelectorAll<HTMLElement>(
-          'button:not(:disabled), input, [tabindex="0"]',
+          'a[href], button:not(:disabled), input, [tabindex="0"]',
         ) ?? [],
       ).filter(
         (element) =>
@@ -89,6 +95,29 @@ export function Atlas() {
       expandButton.current?.focus();
     };
   }, [expanded]);
+  // One observer marks the stage crossing the middle of the dialog.
+  useEffect(() => {
+    const dialog = root.current;
+    if (!expanded || !dialog) return;
+    setActiveStage(0);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries)
+          if (entry.isIntersecting)
+            setActiveStage(Number((entry.target as HTMLElement).dataset.stage));
+      },
+      { root: dialog, rootMargin: "-45% 0px -50% 0px" },
+    );
+    dialog
+      .querySelectorAll(".atlas-stage")
+      .forEach((stage) => observer.observe(stage));
+    return () => observer.disconnect();
+  }, [expanded]);
+  const stage = expanded ? tourStages[activeStage] : undefined;
+  useEffect(() => {
+    if (stage?.symbol)
+      setSelected(examples.findIndex(({ name }) => name === stage.symbol));
+  }, [stage]);
   const inView = useInView(root);
   useEffect(() => {
     const motionPreference = matchMedia("(prefers-reduced-motion: reduce)");
@@ -211,6 +240,7 @@ export function Atlas() {
                 <SpatialAtlas
                   selected={selected}
                   layers={layers}
+                  focusLayer={stage?.layer}
                   separation={separation}
                   onSelect={setSelected}
                   onReady={sceneReady}
@@ -227,6 +257,25 @@ export function Atlas() {
         <p className="atlas-fallback" role="status">
           {t("fallback")}
         </p>
+      )}
+      {expanded && (
+        <div className="atlas-tour" data-active-stage={activeStage}>
+          {tourStages.map(({ key, icon: Icon }, i) => (
+            <motion.section
+              key={key}
+              className="atlas-stage"
+              data-stage={i}
+              aria-labelledby={`${key}-title`}
+              initial={reduced ? false : { opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, root }}
+            >
+              <Icon size={20} aria-hidden="true" />
+              <h3 id={`${key}-title`}>{t(`${key}Title`)}</h3>
+              <p>{t(`${key}Text`)}</p>
+            </motion.section>
+          ))}
+        </div>
       )}
       <div className="symbol-controls" role="group" aria-label={t("select")}>
         {examples.map((node, i) => (
