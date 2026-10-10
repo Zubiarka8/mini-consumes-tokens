@@ -72,6 +72,17 @@ function CameraControls({ active, reset }: { active: boolean; reset: number }) {
     orbit.addEventListener("change", change);
     return () => orbit.removeEventListener("change", change);
   }, [active, invalidate]);
+  // Projected labels sit over the canvas; let scrolling over them still zoom the scene.
+  useEffect(() => {
+    const layer = gl.domElement.closest(".spatial-layer");
+    const forward = (event: Event) => {
+      if (!(event.target as Element).closest(".spatial-label")) return;
+      event.preventDefault();
+      gl.domElement.dispatchEvent(new WheelEvent("wheel", event as WheelEvent));
+    };
+    layer?.addEventListener("wheel", forward, { passive: false });
+    return () => layer?.removeEventListener("wheel", forward);
+  }, [gl]);
   useEffect(() => {
     controls.current?.reset();
   }, [reset]);
