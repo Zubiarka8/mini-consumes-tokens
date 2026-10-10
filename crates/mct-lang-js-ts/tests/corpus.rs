@@ -226,4 +226,8 @@ fn index_answers_cross_file_queries() {
     assert!(refs
         .iter()
         .any(|r| r.relative_path == "src/ui/OrderTable.tsx"));
+    let component_refs = index.find_references("StockBadge").unwrap();
+    assert!(component_refs
+        .iter()
+        .any(|r| r.relative_path == "src/ui/OrderTable.tsx" && r.kind == "references"));
 }

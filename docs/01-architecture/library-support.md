@@ -21,7 +21,7 @@ Rust and Go manifests have their own private `manifests/rust.rs` and `manifests/
 
 The authoritative framework coverage table is in [CONTRIBUTING.md](../../CONTRIBUTING.md#frameworklibrary-coverage-beyond-the-language-table); detailed fixture findings are in [corpus progress](../../internal/corpus-progress.md). Update those records when behavior changes rather than maintaining competing coverage tables.
 
-- JS/TS dependencies include the four `package.json` dependency sections. React component logic is parsed, but JSX render relationships remain a documented gap.
+- JS/TS dependencies include the four `package.json` dependency sections. JSX component opening/self-closing tags produce generic `References`; a dedicated render relation and framework-specific resolution remain gaps.
 - Python manifest support currently covers `requirements.txt`; `pyproject.toml`, Poetry and Pipenv manifests are not implemented. Flask and Django corpus scenarios exercise application code, not framework internals.
 - CSS framework packages can be declared in `package.json` and detected by the JS ecosystem manifest parser. CSS extraction handles selectors and imports, not a browser's cascade or computed styles; Tailwind grammar limitations are documented separately.
 - Declared versions are kept as written. There is no package installation, lockfile dependency resolution, or automatic external-source indexing. `node_modules/` and `vendor/` are built-in exclusions.
@@ -45,7 +45,7 @@ Each directory currently holds one `mod.rs`: a module doc stating its scope, the
 
 These tests read the corpus fixtures under `tests/corpus/project/`, but they are unit tests of the library target, not part of the `corpus` test binary. `corpus-report.sh`/`corpus-report.ps1` therefore run both `--test corpus` and `--lib libraries`; a new library module needs no script change.
 
-The React tests cover TSX component logic and hook calls. Django and Flask tests cover application classes, decorators, imports and calls. Bootstrap and Tailwind tests cover application CSS selectors and imports, including assertions documenting unsupported constructs. These are parser tests against source examples, not tests running the frameworks.
+The React tests cover JSX/TSX component references, ownership, member names, intrinsic exclusions, component logic and hook calls. Django and Flask tests cover application classes, decorators, imports and calls. Bootstrap and Tailwind tests cover application CSS selectors and imports, including assertions documenting unsupported constructs. These are parser tests against source examples, not tests running the frameworks.
 
 Keep the shared grammar and AST traversal outside library directories. Add production code to a library directory only when a concrete framework pattern needs specialized extraction; connect that code explicitly to the parser and test it. Do not create empty adapters or duplicate language behavior to populate a directory. Keep multi-file fixtures, corpus snapshots and index integration in `tests/`; moving those fixtures can change import relationships and expected locations.
 
