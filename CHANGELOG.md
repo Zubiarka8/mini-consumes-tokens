@@ -27,6 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   an asset. No schema migration and no `reindex --force` needed: the next
   normal reindex adds the assets.
 
+### Changed
+
+- The reference manual moved from the hand-written `site/index.html` to a
+  Fumadocs site in `website/` (one MDX page per section, built-in search,
+  `llms.txt`), deployed to GitHub Pages by `.github/workflows/docs.yml`.
+
 ## [0.2.0] - 2026-10-09
 
 Second release, and the first intended to ship prebuilt binaries: the

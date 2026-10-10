@@ -1,0 +1,13 @@
+---
+title: "Overview"
+description: "what it is and why it exists"
+---
+
+`mini-consumes-tokens` parses a source repository with [tree-sitter](https://tree-sitter.github.io/tree-sitter/) into an AST-derived **symbol graph** — functions, methods, classes, structs, traits, and the relations between them (calls, imports, extends, implements, references) — stored in a single SQLite file. It exposes that graph two ways:
+
+-   **mct-cli** — a standalone binary for manual or scripted indexing (CI, pre-commit hooks, coverage checks).
+-   **mct-mcp-server** — an [MCP](https://modelcontextprotocol.io/) server over stdio giving Claude Code (or any MCP client) tools to query that graph directly.
+
+**The problem it solves:** without it, an agent answering "what calls this function?" has to `Grep`/`Read` across the repo, paying token cost proportional to file size and false-positive matches. With the index, that question is one exact SQL lookup returning a handful of `file:line` locations.
+
+**What it deliberately does not do:** it never executes, evaluates, or type-checks indexed code — parsing is 100% static. It also does not do semantic/type-resolved analysis: relations match by symbol **name**, not resolved type or import graph ([Known limitations and deliberate simplifications](/docs/limitations)).

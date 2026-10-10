@@ -1,0 +1,202 @@
+---
+title: The CLI
+description: Every mct-cli command, what it is for, and what it prints.
+---
+
+`mct-cli` builds and inspects the index from a terminal. You don't need it for daily use: the MCP server indexes the project by itself when your client starts it. Use the CLI to build the index the first time, to check it, or from scripts and CI.
+
+```bash
+mct-cli [--root <PATH>] <COMMAND> [OPTIONS]
+```
+
+| Option | Meaning |
+| --- | --- |
+| `--root <PATH>` | Project to work on. Defaults to the current directory. Works before or after the command. |
+| `-v`, `--version` | Print the version. |
+| `-h`, `--help` | Print help. `mct-cli <command> --help` shows a command's own help and examples. |
+
+The index always lives in `<root>/.mct-index/index.sqlite3`. The path can't be changed.
+
+## Commands at a glance
+
+| Command | What it does | Touches the index? |
+| --- | --- | --- |
+| [`init`](#init) | Build the index for the first time | writes |
+| [`reindex`](#reindex) | Update the index after changes | writes |
+| [`status`](#status) | Show what is indexed and what failed | reads |
+| [`mcp-register`](#mcp-register) | Add the server to `.mcp.json` | no |
+| [`ignore-init`](#ignore-init) | Create a starter `.mctignore` | no |
+| [`gitignore-init`](#gitignore-init) | Add `.mct-index/` to `.gitignore` | no |
+| [`dead-code`](#dead-code) | Write a CSV of possibly unused symbols | reads |
+| [`probe`](#probe) | Parse files without indexing them, to debug a parser | no |
+
+Commands marked "no" never create `.mct-index/`.
+
+## `init` [#init]
+
+Builds the index for the first time. It does exactly the same as `reindex`; it just has an obvious name for a fresh checkout.
+
+```bash
+mct-cli --root . init
+```
+
+```text
+Reindex complete: 155 parsed, 0 unchanged, 0 removed, 1272 symbols written.
+```
+
+If some files could not be indexed, a list follows. A file that fails to parse doesn't stop the run; it is reported and skipped:
+
+```text
+2 issue(s):
+  path/to/file.swift [UnsupportedLanguage]: swift
+  path/to/broken.py [SyntaxError]: line 42: unexpected token
+```
+
+## `reindex` [#reindex]
+
+Scans the project again and updates the index. Only files whose content changed are parsed again, so running it with nothing changed is fast and safe. Use it from a pre-commit hook or a CI step if you like.
+
+```bash
+mct-cli --root . reindex           # only changed files
+mct-cli --root . reindex --force   # parse every file again
+```
+
+| Option | Meaning |
+| --- | --- |
+| `--force` | Parse every supported file again, even if it hasn't changed. Only needed after upgrading mini-consumes-tokens or if the index looks wrong. |
+
+The output is the same as `init`. See [Reindexing](/docs/managing) for when you need it.
+
+## `status` [#status]
+
+Shows the state of the index. It never changes anything.
+
+```bash
+mct-cli --root . status
+```
+
+```text
+155 files indexed, 1272 symbols total.
+Last indexed at unix timestamp 1789589409.
+Coverage by language:
+  python: 7 files, 23 symbols
+  rust: 86 files, 892 symbols
+  ...
+Languages seen but not yet supported: swift
+3 file(s) failed to parse:
+  path/to/broken.py: line 42: unexpected token
+Dependencies detected:
+  Cargo.toml (rust, 3 dep(s)):
+    thiserror 2
+    tree-sitter 0.25
+    mct-core
+```
+
+What each block means:
+
+| Block | Shown when |
+| --- | --- |
+| files and symbols total, last indexed time | always (`Never indexed yet.` before the first run) |
+| `Coverage by language` | at least one file is indexed |
+| `Languages seen but not yet supported` | the project has files in a language with no parser |
+| `file(s) failed to parse` | some files have syntax errors |
+| `path(s) could not be read` | some files could not be read; their old data may be stale |
+| `Dependencies detected` | a manifest (`Cargo.toml`, `package.json`, `requirements.txt`, `go.mod`) was found. A dependency without a version is a workspace or path dependency. |
+
+## `mcp-register` [#mcp-register]
+
+Adds this project's server to `.mcp.json` at the project root, so Claude Code (and any client that reads the same file) can start it.
+
+```bash
+mct-cli --root . mcp-register
+mct-cli --root . mcp-register --name my-project
+```
+
+```text
+Registered `my-project` in /abs/path/to/project/.mcp.json
+```
+
+| Option | Meaning |
+| --- | --- |
+| `--name <NAME>` | Key under `mcpServers`. Defaults to the project folder's name. |
+
+It writes this entry, with the absolute project path:
+
+```json
+{
+  "mcpServers": {
+    "my-project": {
+      "type": "stdio",
+      "command": "mct-mcp-server",
+      "args": ["--root", "/abs/path/to/project"],
+      "env": {}
+    }
+  }
+}
+```
+
+If `.mcp.json` already exists, only this one entry is added or replaced; other servers in the file are kept. For clients that use a different file, see [AI clients](/docs/clients).
+
+## `ignore-init` [#ignore-init]
+
+Creates a starter `.mctignore` at the project root, with comments that explain the syntax. Use it to keep extra files out of the index (docs, fixtures, generated code). See [Excluding files](/docs/exclusion).
+
+```bash
+mct-cli --root . ignore-init
+mct-cli --root . ignore-init --import-gitignore
+```
+
+| Option | Meaning |
+| --- | --- |
+| `--import-gitignore` | Also skip everything your `.gitignore` skips. Turns on the `@import-gitignore` line. |
+
+If `.mctignore` already exists it is left alone. The one exception: with `--import-gitignore`, the `@import-gitignore` line is appended if it is missing.
+
+## `gitignore-init` [#gitignore-init]
+
+Adds `.mct-index/` to `.gitignore` (and creates the file if needed), so the index is never committed. It only appends; if the entry is already there, nothing changes.
+
+```bash
+mct-cli --root . gitignore-init
+```
+
+```text
+Added `.mct-index/` to /abs/path/to/project/.gitignore
+```
+
+## `dead-code` [#dead-code]
+
+Writes a CSV of symbols that nothing in the index references. It is a hint, not proof: code called by reflection, by a framework, or from outside the repository also shows up. Check each one before you delete it.
+
+```bash
+mct-cli --root . dead-code
+mct-cli --root . dead-code --path src/api --language python --output dead.csv
+```
+
+| Option | Meaning |
+| --- | --- |
+| `--path <PATH>` | File or folder to scan. Defaults to the whole project. |
+| `--language <ID>` | Only one language, for example `rust` or `python`. |
+| `--output <FILE>` | Where to write the CSV. Defaults to `.mct-index/dead-code-report.csv`. |
+
+Columns: `project_root,file,function,kind,language,start_line,end_line`.
+
+## `probe` [#probe]
+
+Parses files and prints what was found, without opening or writing any index. The files don't have to be inside the project. Use it to find which line a parser rejects, or to test a parser while [adding a language](/docs/extending).
+
+```bash
+mct-cli probe snippet.cpp other.cpp
+```
+
+```text
+ok   snippet.cpp: 12 symbols, 30 relations
+FAIL other.cpp:7: syntax error
+         7 | template <typename T> auto f() -> decltype(
+```
+
+The file extension picks the language. The command exits with an error if any file fails.
+
+## Exit codes
+
+`0` on success. Non-zero on an I/O, database or migration error, or when `probe` finds a failing file. A file that fails to parse during `init` or `reindex` is **not** an error: it is listed and the run continues. See [Troubleshooting](/docs/troubleshooting).
