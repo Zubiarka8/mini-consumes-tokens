@@ -1355,7 +1355,7 @@ dependencies = [
 
 [[package]]
 name = "mct-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -1385,14 +1385,14 @@ dependencies = [
 
 [[package]]
 name = "mct-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "mct-corpus"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "mct-core",
  "mct-index",
@@ -1400,7 +1400,7 @@ dependencies = [
 
 [[package]]
 name = "mct-eval"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -1414,7 +1414,7 @@ dependencies = [
 
 [[package]]
 name = "mct-index"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "git2",
  "globset",
@@ -1429,7 +1429,7 @@ dependencies = [
 
 [[package]]
 name = "mct-lang-bash"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "mct-core",
  "mct-corpus",
@@ -1441,7 +1441,7 @@ dependencies = [
 
 [[package]]
 name = "mct-lang-cpp"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "mct-core",
  "mct-corpus",
@@ -1453,7 +1453,7 @@ dependencies = [
 
 [[package]]
 name = "mct-lang-csharp"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "mct-core",
  "mct-corpus",
@@ -1465,7 +1465,7 @@ dependencies = [
 
 [[package]]
 name = "mct-lang-css"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "mct-core",
  "mct-corpus",
@@ -1477,7 +1477,7 @@ dependencies = [
 
 [[package]]
 name = "mct-lang-go"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "mct-core",
  "mct-corpus",
@@ -1489,7 +1489,7 @@ dependencies = [
 
 [[package]]
 name = "mct-lang-html"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "mct-core",
  "mct-corpus",
@@ -1502,7 +1502,7 @@ dependencies = [
 
 [[package]]
 name = "mct-lang-java"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "mct-core",
  "mct-corpus",
@@ -1514,7 +1514,7 @@ dependencies = [
 
 [[package]]
 name = "mct-lang-js-ts"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "mct-core",
  "mct-corpus",
@@ -1527,7 +1527,7 @@ dependencies = [
 
 [[package]]
 name = "mct-lang-kotlin"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "mct-core",
  "mct-corpus",
@@ -1539,7 +1539,7 @@ dependencies = [
 
 [[package]]
 name = "mct-lang-lua"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "mct-core",
  "mct-corpus",
@@ -1552,7 +1552,7 @@ dependencies = [
 
 [[package]]
 name = "mct-lang-md"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "mct-core",
  "mct-corpus",
@@ -1564,7 +1564,7 @@ dependencies = [
 
 [[package]]
 name = "mct-lang-php"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "mct-core",
  "mct-corpus",
@@ -1576,7 +1576,7 @@ dependencies = [
 
 [[package]]
 name = "mct-lang-powershell"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "mct-core",
  "mct-corpus",
@@ -1588,7 +1588,7 @@ dependencies = [
 
 [[package]]
 name = "mct-lang-python"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "mct-core",
  "mct-corpus",
@@ -1600,7 +1600,7 @@ dependencies = [
 
 [[package]]
 name = "mct-lang-rust"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "mct-core",
  "mct-corpus",
@@ -1612,7 +1612,7 @@ dependencies = [
 
 [[package]]
 name = "mct-lang-xaml"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "mct-core",
  "mct-corpus",
@@ -1625,7 +1625,7 @@ dependencies = [
 
 [[package]]
 name = "mct-lang-xml"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "mct-core",
  "mct-corpus",
@@ -1637,7 +1637,7 @@ dependencies = [
 
 [[package]]
 name = "mct-mcp-server"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -1675,7 +1675,7 @@ dependencies = [
 
 [[package]]
 name = "mct-tree-sitter"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "mct-core",
  "tree-sitter",
