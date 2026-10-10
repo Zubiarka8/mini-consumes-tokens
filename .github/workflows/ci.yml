@@ -65,6 +65,24 @@ jobs:
         if: runner.os != 'Windows'
         run: python3 scripts/unix/tests/test_install.py
 
+      # Nothing else runs scripts/windows/: parse every script with
+      # PowerShell's own parser, then run the two scripts whose cargo
+      # invocations a language or library change touches.
+      - name: PowerShell scripts (parse all, run new-language-check and corpus-report)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $errors = Get-ChildItem scripts/windows -Recurse -Filter *.ps1 | ForEach-Object {
+            $parseErrors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$null, [ref]$parseErrors)
+            $parseErrors | ForEach-Object { "$($_.Extent.File):$($_.Extent.StartLineNumber): $($_.Message)" }
+          }
+          if ($errors) { $errors; exit 1 }
+          scripts/windows/new-language-check.ps1 lua --no-tests
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          scripts/windows/corpus-report.ps1 css
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       # Deny-by-default clippy PLUS clippy::unwrap_used/expect_used/panic
       # across the whole workspace — including tests/examples, since
       # --all-targets covers them. This means every `src/` call site that
