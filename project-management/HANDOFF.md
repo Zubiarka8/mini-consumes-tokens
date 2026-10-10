@@ -86,6 +86,12 @@ Maintainer review of `1ad9972..claude/library-onboarding-audit`; push and open a
 - `4c2cbd3`: CI `build`/`test`/`clippy` and the quality report pass `--locked`; local runs of the three commands exit 0, and an unsatisfiable requirement fails `cargo metadata --locked` (exit 101).
 - Pushed; draft [PR #170](https://github.com/Zubiarka8/mini-consumes-tokens/pull/170). First run 38055596733: Windows "PowerShell scripts" failed on `scripts/windows/pr-body.ps1:22` (`"$checkRel:"`, a drive-qualified variable). Fixed in `418e295`; `pr-status.ps1` parsed natively, so ERR-002 is grammar-only (`29dcdff`).
 - Run 38056059719 on `29dcdff`: 41/41 checks pass. Windows step: every `scripts/windows/*.ps1` parses, `new-language-check.ps1 lua --no-tests` all ok, `corpus-report.ps1 css` 18 passed, 0 failed.
-- ERR-010 stays OPEN; its test is `#[ignore]`d.
+- ERR-010 was still OPEN at this point (fixed below).
 
-Exact next step: maintainer review of PR #170; decide whether to integrate with ERR-010 documented or fix it first. No merge or package publication.
+### ERR-010 fix (2026-10-10)
+
+- `b3a1490`: the Rust walker records a path in value position as `References` with call-path evidence; pinning test un-ignored, `by_path` became a positive test (`module: other`); Rust corpus snapshot re-blessed (+73 references, each reviewed as a real value use). `d92d4f6`: ERR-010 RESOLVED, ISSUES_PENDING entry 9 closed.
+- Checks on `d92d4f6`, clean tree: `check.sh` 1201 passed, 0 failed, 24 ignored; CI clippy ok; eval no regressions. `mct-cli dead-code --language rust` on the worktree: two false candidates gone (`default_suite`, `Rules`).
+- Both commits revert cleanly on their own if the maintainer prefers to integrate with ERR-010 documented.
+
+Exact next step: maintainer review of PR #170. No merge or package publication. Live MCP `find_references` recheck after the installed server is rebuilt (`scripts/unix/reinstall.sh --reindex`).
