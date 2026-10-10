@@ -1093,6 +1093,11 @@ pub fn kind_str(kind: SymbolKind) -> &'static str {
         SymbolKind::Field => "field",
         SymbolKind::Element => "element",
         SymbolKind::Rule => "rule",
+        SymbolKind::Asset => "asset",
+        SymbolKind::ModelNode => "model_node",
+        SymbolKind::Material => "material",
+        SymbolKind::Animation => "animation",
+        SymbolKind::Finding => "finding",
     }
 }
 
