@@ -167,11 +167,34 @@ declarations are not indexed as symbols.
 neither call leaves a relation, because tree-sitter hands the macro's
 arguments over as a flat `token_tree` and the extractor skips identifiers
 after `.`/`::` there. `find_callers`, `find_references` and `impact_analysis`
-report 3 of the 5 real call sites of `LanguageRegistry::for_extension`.
+report 3 of the 5 real call sites of `LanguageRegistry::for_extension` (counted
+before that CLI/MCP-server parity test was removed with the shared
+`mct-languages` registry; the test below keeps its shape).
 
 **Expected**: a relation for each call, at least a `references` one. See
 `benchmarks/agent-benchmark.md#calls-inside-macros` for the recommended fix.
 
 **Issue**: not filed yet. **Pinned by**
 `a_method_call_inside_a_macro_token_tree_leaves_a_relation`
+(`crates/mct-lang-rust/tests/parse.rs`).
+
+---
+
+## 9. Rust: a path in value position leaves no relation
+
+**Observed**: `registry.register(Arc::new(mct_lang_rust::RustParser))` leaves
+only `calls` to `register` and `new`. The walker's `scoped_identifier` arm
+records nothing, so `find_references RustParser` found none of the registry
+uses when the registry moved to `mct-languages`; the compiler did. A call
+through the same path (`m::f()`) is already recorded with `module` evidence.
+Tracked as `errors/REGISTRY.md` ERR-010.
+
+**Expected**: a `references` relation with `module` evidence
+(`mct_lang_rust`), so it never resolves to a same-named item of this file.
+The fix changes the `by_path` case of
+`locals_fields_paths_labels_and_foreign_names_are_not_references` and the
+Rust corpus snapshot, to be reviewed together.
+
+**Issue**: not filed yet. **Pinned by**
+`a_path_in_value_position_is_a_reference_qualified_by_its_module`
 (`crates/mct-lang-rust/tests/parse.rs`).
