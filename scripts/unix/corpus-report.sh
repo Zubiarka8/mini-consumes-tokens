@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # One language's long-fixture corpus (issue #74) in one screen: runs its
-# corpus tests, then prints the `mct-corpus` report — file/line/symbol/
+# corpus tests (and its src/libraries/ tests), then prints the `mct-corpus` report — file/line/symbol/
 # relation totals, the progress-table cells, and heuristic checks that list
 # the usual parser bugs (module ending past EOF, locals taken as symbols,
 # relations outside their owner, members without a parent, odd names…) —
@@ -39,6 +39,9 @@ if [ "$bless" -eq 1 ]; then
 else
   cargo test -p "$crate" --test corpus >>"$log" 2>&1 || status=$?
 fi
+# Library-pattern tests (src/libraries/<name>/) read the same corpus but are
+# unit tests of the lib target, outside the `corpus` binary.
+cargo test -p "$crate" --lib libraries:: >>"$log" 2>&1 || status=$?
 counts=$(awk '/^test result:/ { for (i = 1; i <= NF; i++) {
     if ($i ~ /^passed;?$/) p += $(i-1); if ($i ~ /^failed;?$/) f += $(i-1) } }
   END { printf "%d passed, %d failed", p, f }' "$log")
