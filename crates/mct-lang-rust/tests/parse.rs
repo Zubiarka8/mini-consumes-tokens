@@ -255,20 +255,20 @@ fn a_method_call_inside_a_macro_token_tree_leaves_a_relation() {
 }
 
 #[test]
-#[ignore = "known bug, not filed yet (errors/REGISTRY.md ERR-010): a path in value position (`m::Item`) leaves no relation, so find_references/impact_analysis miss e.g. mct-languages' `Arc::new(mct_lang_rust::RustParser)`"]
 fn a_path_in_value_position_is_a_reference_qualified_by_its_module() {
-    // The shape of `mct_languages::build_registry`. A call through the same
-    // path (`m::f()`) is already a `Calls` with `module` evidence; a value
-    // use must get the same evidence, so it never resolves to a same-named
-    // item of this file. Fixing this changes the `by_path` expectation in
-    // `locals_fields_paths_labels_and_foreign_names_are_not_references`.
+    // The shape of `mct_languages::build_registry` (errors/REGISTRY.md
+    // ERR-010). A value use gets the same `module` evidence as a call through
+    // the same path (`m::f()`), so it never resolves to a same-named item of
+    // this file; the call itself stays a single `Calls`.
     let parsed = parse(
         r#"
         fn build(registry: &mut R) {
             registry.register(Arc::new(mct_lang_rust::RustParser));
+            other::helper();
         }
         "#,
     );
+    assert_eq!(references(&parsed), vec!["RustParser"]);
     let hit = parsed
         .relations
         .iter()
@@ -294,7 +294,6 @@ fn locals_fields_paths_labels_and_foreign_names_are_not_references() {
         fn by_closure() { let f = |other_helper: u32| other_helper; }
         fn by_match(x: Option<u32>) -> u32 { match x { Some(helper) => helper, None => 0 } }
         fn by_field(s: &S) -> u32 { s.helper }
-        fn by_path() { let _f = other::helper; }
         fn by_label() { 'helper: loop { break 'helper; } }
         fn foreign() { let _f = not_in_this_file; println!("{}", also_not(1)); }
         fn in_macro(s: &S) { println!("{} {}", s.helper.0, other::helper()); }
@@ -303,6 +302,22 @@ fn locals_fields_paths_labels_and_foreign_names_are_not_references() {
         "#,
     );
     assert!(references(&parsed).is_empty(), "{:?}", references(&parsed));
+}
+
+#[test]
+fn a_path_to_another_module_never_names_this_files_item() {
+    let parsed = parse("fn helper() {}\nfn by_path() { let _f = other::helper; }\n");
+    let module: Vec<_> = parsed
+        .relations
+        .iter()
+        .enumerate()
+        .filter(|(_, r)| r.kind == RelationKind::References)
+        .map(|(i, r)| {
+            let t = parsed.relation_targets.iter().find(|t| t.relation == i);
+            (r.to_name.as_str(), t.and_then(|t| t.module.as_deref()))
+        })
+        .collect();
+    assert_eq!(module, vec![("helper", Some("other"))]);
 }
 
 #[test]
