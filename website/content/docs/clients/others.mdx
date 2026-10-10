@@ -1,0 +1,173 @@
+---
+title: Other clients
+description: Antigravity, Claude Desktop, Windsurf, Zed, Cline, Continue, JetBrains, Warp, OpenHands and any other MCP client.
+---
+
+Every client launches the same binary: `command` = `mct-mcp-server`, `args` = `["--root", "<absolute-path-to-repo>"]`. Only the file location and root key change. To **uninstall**, delete the `mini-consumes-tokens` entry from the same file (or the client's MCP settings UI) and restart the client.
+
+## Antigravity (Google) [#reg-antigravity]
+
+Antigravity's IDE and CLI share one config at `~/.gemini/config/mcp_config.json`, root key `"mcpServers"`, same stdio shape as Gemini CLI and Cursor:
+
+```json
+{
+  "mcpServers": {
+    "mini-consumes-tokens": {
+      "command": "mct-mcp-server",
+      "args": ["--root", "<absolute-path-to-repo>"]
+    }
+  }
+}
+```
+
+From inside the IDE you can reach this without hand-editing the file: agent panel menu → **MCP Servers** → **Manage MCP Servers** → **View raw config** opens the same JSON for editing.
+
+## Claude Desktop [#reg-claude-desktop]
+
+The desktop app — a separate product from the Claude Code CLI in [Claude Code](/docs/clients/claude-code), with its own config file: `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows). Root key `"mcpServers"`, no `"type"` field:
+
+```json
+{
+  "mcpServers": {
+    "mini-consumes-tokens": {
+      "command": "mct-mcp-server",
+      "args": ["--root", "<absolute-path-to-repo>"]
+    }
+  }
+}
+```
+
+Reach the file without hand-navigating the filesystem: Claude menu (macOS menu bar, or the app's own menu on Windows — not the in-chat settings) → **Settings** → **Developer** → **Edit Config**. This creates the file if it doesn't exist yet.
+
+<Callout type="warn">
+**Closing the window isn't enough.** Claude Desktop keeps running in the background after its window is closed; editing `claude_desktop_config.json` only takes effect after **fully quitting** the app (Claude menu → Quit, or Task Manager on Windows) and relaunching — not just closing and reopening a window.
+</Callout>
+
+## Windsurf (Codeium) [#reg-windsurf]
+
+`~/.codeium/windsurf/mcp_config.json` (macOS/Linux) or `%USERPROFILE%\.codeium\windsurf\mcp_config.json` (Windows), reachable from the Cascade panel's hammer/MCP icon → **Configure**. Root key `"mcpServers"`, same shape as Claude Desktop's — no `"type"` field for a stdio entry:
+
+```json
+{
+  "mcpServers": {
+    "mini-consumes-tokens": {
+      "command": "mct-mcp-server",
+      "args": ["--root", "<absolute-path-to-repo>"]
+    }
+  }
+}
+```
+
+<Callout type="warn">
+Cascade caps tool count at **100 total, across every connected server**. This server's 9 tools are nowhere near that limit alone, but on a config with many other servers already registered, individual tools can be toggled off per-server (unlike Cursor, which only toggles whole servers) to stay under the cap.
+</Callout>
+
+## Zed editor [#reg-zed]
+
+Zed has no dedicated MCP config file — entries go under the `"context_servers"` key in Zed's own `settings.json` (open it with the **zed: open settings** command), alongside every other editor setting:
+
+```json
+{
+  "context_servers": {
+    "mini-consumes-tokens": {
+      "command": "mct-mcp-server",
+      "args": ["--root", "<absolute-path-to-repo>"],
+      "env": {}
+    }
+  }
+}
+```
+
+No `"type"` or `"source"` field is required for a manually-configured stdio server (that distinction matters only for servers Zed installs from its own extension registry).
+
+## Cline (VS Code extension) [#reg-cline]
+
+`cline_mcp_settings.json` under VS Code's per-extension global storage: `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json` (macOS) or `%APPDATA%\Code\User\globalStorage\saoudrizwan.claude-dev\settings\cline_mcp_settings.json` (Windows). Reachable in-editor via the Cline panel's **MCP Servers** icon → **Configure** → **Configure MCP Servers**, which opens the file directly instead of requiring that path be typed by hand. Root key `"mcpServers"`, same base shape as Claude Desktop's, plus two Cline-specific optional fields:
+
+```json
+{
+  "mcpServers": {
+    "mini-consumes-tokens": {
+      "command": "mct-mcp-server",
+      "args": ["--root", "<absolute-path-to-repo>"],
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+`disabled`/`autoApprove` are Cline additions on top of the common shape — omit both and the server is enabled with no tools auto-approved, same as every other client here.
+
+## Continue.dev [#reg-continue]
+
+`config.yaml` (global `~/.continue/config.yaml`, or a project's `.continue/config.yaml`) — **YAML, and `mcpServers` is a list, not a keyed object** like every other client in this section:
+
+```yaml
+mcpServers:
+  - name: mini-consumes-tokens
+    command: mct-mcp-server
+    args:
+      - "--root"
+      - "<absolute-path-to-repo>"
+```
+
+<Callout type="warn">
+The older `config.json` format is deprecated in favor of `config.yaml`. Separately, Continue also reads standalone files under `.continue/mcpServers/` — and will accept a `claude_desktop_config.json`\-shaped (keyed-object) JSON file dropped in that directory as-is, without conversion to the list form above.
+</Callout>
+
+## JetBrains AI Assistant / Junie [#reg-jetbrains-junie]
+
+Two separate MCP surfaces inside JetBrains IDEs (IntelliJ, PyCharm, WebStorm, Rider, …) — the same split-config trap as VS Code/Copilot in [VS Code + GitHub Copilot](/docs/clients/copilot):
+
+**Junie** reads its own `mcp.json`: project-scoped at `.junie/mcp/mcp.json`, user-scoped at `~/.junie/mcp/mcp.json`. Root key `"mcpServers"`, same shape as Claude Desktop's:
+
+```json
+{
+  "mcpServers": {
+    "mini-consumes-tokens": {
+      "command": "mct-mcp-server",
+      "args": ["--root", "<absolute-path-to-repo>"]
+    }
+  }
+}
+```
+
+<Callout type="warn">
+**AI Assistant's own MCP servers** (configured under **Settings → Tools → AI Assistant → MCP**) are a separate list Junie does not see by default. Either register the server in Junie's own `mcp.json` above, or enable **Settings → Tools → AI Assistant → Agents → Pass custom MCP servers** to share the AI Assistant list with Junie.
+</Callout>
+
+## Warp terminal [#reg-warp]
+
+`~/.warp/.mcp.json` (global) or `.warp/.mcp.json` (project), or the same JSON pasted into **Settings → Agents → MCP Servers**. Root key `"mcpServers"`, identical stdio shape to Claude Desktop's — no new format to document:
+
+```json
+{
+  "mcpServers": {
+    "mini-consumes-tokens": {
+      "command": "mct-mcp-server",
+      "args": ["--root", "<absolute-path-to-repo>"]
+    }
+  }
+}
+```
+
+## OpenHands [#reg-openhands]
+
+`config.toml`, under an `[mcp]` table with `stdio_servers` as an **array of inline tables** — TOML, but a different shape from Codex CLI's one-table-per-server style in [Codex CLI (OpenAI)](/docs/clients/codex):
+
+```toml
+[mcp]
+stdio_servers = [
+    { name = "mini-consumes-tokens", command = "mct-mcp-server", args = ["--root", "<absolute-path-to-repo>"] }
+]
+```
+
+`name` is required alongside `command`/`args` here, unlike Codex where the server's name is the TOML table key itself. Servers can also be added from OpenHands' own Settings UI instead of hand-editing `config.toml`.
+
+## Any other MCP client [#reg-other-clients]
+
+The pattern generalizes: point `command` at `mct-mcp-server` (full path if it isn't on the client's `PATH`) and pass `--root <absolute-path-to-repo>` via `args`. Two gotchas apply regardless of client:
+
+1.  **`--root` must be absolute.** A relative path resolves against whatever working directory the client happens to spawn the process from — often not the repo root, and not consistent across clients.
+2.  **No client here changes the file-watching behavior described in [Managing the index day to day](/docs/managing).** `mct-mcp-server` only reindexes at its own startup; after a `git pull` or branch switch, ask the agent to call `reindex`, or restart the server.

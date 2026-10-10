@@ -1,0 +1,56 @@
+---
+title: GitHub Copilot
+description: VS Code (Copilot Chat) and the Copilot CLI use different files.
+---
+
+<Callout type="warn">
+**Two separate config surfaces.** VS Code and the standalone `copilot` CLI do not share MCP config. Mixing them up is the most common reason the server doesn't show up.
+</Callout>
+
+## Install in VS Code
+
+Use the workspace file `.vscode/mcp.json` (or the user-profile `mcp.json`). The root key is `servers`, not `mcpServers`:
+
+```json
+{
+  "servers": {
+    "mini-consumes-tokens": {
+      "type": "stdio",
+      "command": "mct-mcp-server",
+      "args": ["--root", "${workspaceFolder}"]
+    }
+  }
+}
+```
+
+`${workspaceFolder}` expands to the open folder's absolute path, so a committed workspace file needs no machine-specific path.
+
+## Install in the Copilot CLI
+
+Use the user-level `~/.copilot/mcp-config.json`, with root key `mcpServers` and type `local`:
+
+```json
+{
+  "mcpServers": {
+    "mini-consumes-tokens": {
+      "type": "local",
+      "command": "mct-mcp-server",
+      "args": ["--root", "<absolute-path-to-repo>"],
+      "tools": ["*"]
+    }
+  }
+}
+```
+
+The Copilot CLI no longer reads `.vscode/mcp.json`, so each surface needs its own file.
+
+## Verify
+
+In VS Code, run **MCP: List Servers** from the Command Palette. The server should be listed as running.
+
+## Uninstall
+
+- **VS Code:** run **MCP: List Servers**, select `mini-consumes-tokens`, and choose **Uninstall**. Or delete its entry from `mcp.json`.
+- **Copilot CLI:** delete its entry from `~/.copilot/mcp-config.json`.
+
+To delete the binaries and the index, see [Uninstalling](/docs/uninstalling).

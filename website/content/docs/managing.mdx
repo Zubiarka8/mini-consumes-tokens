@@ -1,0 +1,88 @@
+---
+title: Reindexing
+description: When the index updates by itself, when to reindex by hand, and how to start over.
+---
+
+## Usually you do nothing
+
+The MCP server keeps the index up to date by itself:
+
+1. **At startup** it reindexes every file that changed since the last run.
+2. **While it runs** it watches the project. About 1.5 seconds after the last file change, it reindexes in the background. This covers editing, `git pull`, switching branches and renaming files.
+
+Only changed files are parsed again. A file counts as changed when its **content** changes, not its modification date, so `touch` alone does nothing.
+
+## Reindexing by hand
+
+You only need to reindex by hand when:
+
+- the background watcher is off (`--reindex-debounce-ms 0`), or the server was not running when files changed and you want fresh results before it restarts;
+- you use the index from the CLI only, without the MCP server;
+- `status` shows counts that look wrong.
+
+Pick one:
+
+<Tabs items={['CLI', 'From your AI client']}>
+<Tab value="CLI">
+
+```bash
+mct-cli --root . reindex
+```
+
+</Tab>
+<Tab value="From your AI client">
+
+Ask it to "reindex mini-consumes-tokens", or to call the `reindex` tool.
+
+</Tab>
+</Tabs>
+
+The result says what happened:
+
+```text
+Reindex complete: 3 parsed, 152 unchanged, 1 removed, 40 symbols written.
+```
+
+| Number | Meaning |
+| --- | --- |
+| parsed | new or changed files, parsed again |
+| unchanged | files skipped because their content is the same |
+| removed | files that were deleted or are now excluded, taken out of the index |
+| symbols written | symbols saved from the parsed files |
+
+## Forcing a full reindex
+
+`--force` parses every file again, even unchanged ones:
+
+```bash
+mct-cli --root . reindex --force
+```
+
+Use it after upgrading mini-consumes-tokens, because a newer parser may extract more from the same files. Also use it if results look wrong even though the files didn't change. Normal edits never need it.
+
+## Starting over
+
+The index is built entirely from your source files, so deleting it loses nothing:
+
+```bash
+rm -rf .mct-index
+mct-cli --root . init
+```
+
+If the MCP server is running, restart your client instead of running `init`; the server rebuilds the index at startup.
+
+## Checking the index
+
+```bash
+mct-cli --root . status
+```
+
+Or ask your client for the indexing status (`get_indexing_status`). See [`status`](/docs/cli#status) for what each line means.
+
+## Don't commit the index
+
+`.mct-index/` is large compared with the source, changes on every run and is rebuilt the same way on every machine. Keep it out of git:
+
+```bash
+mct-cli --root . gitignore-init
+```

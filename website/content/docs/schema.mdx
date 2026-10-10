@@ -1,0 +1,161 @@
+---
+title: Database schema
+description: What is stored in .mct-index/index.sqlite3, table by table.
+---
+
+The index is one SQLite file per project: `<root>/.mct-index/index.sqlite3`. It is built entirely from your source files, so you can delete it at any time ([Reindexing](/docs/managing)).
+
+The schema is defined in `crates/mct-index/src/schema.rs`. Every language shares the same tables: there are no per-language tables, so adding a language never changes the schema.
+
+## Overview
+
+```text
+files ──< symbols ──< relations          the code graph
+  │          │
+  │          ├── symbols_fts              name search   (find_symbol prefix)
+  │          ├── symbol_words_fts         word search   (search_symbols)
+  │          └── symbol_embeddings        meaning search (hybrid_search)
+  │
+  └──< literals ── literals_fts           error/log message search (hybrid_search "…")
+
+relation_candidates   view: which symbols a relation may point to
+dependencies          libraries declared in manifests (Cargo.toml, package.json…)
+index_issues          files that were skipped, and why
+index_meta            key/value settings
+```
+
+`A ──< B` means one `A` has many `B`. Deleting a file deletes its symbols, relations, literals and embeddings with it (`ON DELETE CASCADE`).
+
+## The code graph
+
+### `files`
+
+One row per indexed source file.
+
+| Column | Type | Meaning |
+| --- | --- | --- |
+| `id` | integer | Primary key. |
+| `relative_path` | text, unique | Path from the project root, with `/` on every OS. |
+| `language` | text | Language id: `rust`, `python`, `javascript_typescript`… |
+| `content_hash` | text | Git blob SHA-1 of the file. If it hasn't changed, the file is skipped on reindex. An empty value forces a re-parse. |
+| `last_indexed_at` | integer | Unix time of the last parse. |
+
+### `symbols`
+
+One row per definition: a function, class, method, field…
+
+| Column | Type | Meaning |
+| --- | --- | --- |
+| `id` | integer | Primary key. |
+| `file_id` | integer | The file it is in → `files.id`. |
+| `name` | text | Name as written: `load_config`. |
+| `kind` | text | `function`, `method`, `class`, `struct`, `interface`, `enum`, `trait`, `type_alias`, `module`, `variable`, `constant`, `field`, `element` (HTML element with an `id`), `rule` (simple CSS selector). |
+| `parent` | text | Name of the enclosing symbol (the class of a method). `NULL` at top level. |
+| `line`, `column` | integer | Where the definition starts, 1-based. |
+| `byte_len` | integer | Length of the name token. |
+| `end_line` | integer | Last line of the definition. `NULL` if the parser doesn't set it. |
+| `level` | integer | Heading level (1–6) for Markdown. `NULL` for every other language. |
+
+A symbol's language is its file's language: join `files` to get it.
+
+### `relations`
+
+One row per use of a name: a call, an import, an `extends`…
+
+| Column | Type | Meaning |
+| --- | --- | --- |
+| `id` | integer | Primary key. |
+| `from_symbol_id` | integer | The symbol where the use happens → `symbols.id`. |
+| `kind` | text | `calls`, `imports`, `extends`, `implements`, `references`. |
+| `to_name` | text | The target's name as written. It may match no symbol at all (a standard library call, for example). |
+| `line`, `column`, `byte_len` | integer | Where the use happens. |
+
+The parser can also record evidence about **which** symbol the name means. All these columns are optional; see [`RelationTarget`](/docs/extending#what-a-parser-produces):
+
+| Column | Meaning |
+| --- | --- |
+| `qualifier` | The target must be declared inside this symbol: `A` in `A::run()`. |
+| `target_path` | The target must be in this file. |
+| `module` | The target must be under a module or folder with this name: `rand` in `rand::random()`. |
+| `member` | `1` for a call through an object of unknown type (`x.f()`): only methods qualify. |
+| `target_language` | The target is in another language (an HTML `class` pointing at a CSS rule). |
+| `target_kind` | The target must have this kind. |
+| `target_module` | The target's file must declare a module with this name. |
+| `external` | `1` when the parser proved the target is outside the repository (a library, `std::`…). |
+| `targets_parsed` | `1` once this evidence was recorded. Rows from older versions have `0` until reparsed. |
+
+### `relation_candidates` (view)
+
+Matches each relation to the symbols it may point to. It is computed on every read, never stored, so it can't go stale. A candidate must have the same name, be in the same language (or `target_language`), and satisfy every constraint above. Calls never point at a whole-file module.
+
+| Result | Meaning |
+| --- | --- |
+| one candidate | **resolved**: the relation points to that symbol |
+| several | **ambiguous**: all are kept, none is picked |
+| none | **unresolved**, or **external** when `external = 1` |
+
+## Search tables
+
+These are filled by triggers when `symbols` or `literals` change. You never write them directly.
+
+| Table | Used by | Contents |
+| --- | --- | --- |
+| `symbols_fts` | `find_symbol` with `match: prefix` | Symbol names, FTS5. |
+| `symbol_words_fts` | `search_symbols` | Each name split into lowercase words: `HTTPServer` → `http server httpserver`. The splitting is a Rust function (`mct_split_words`) registered by mini-consumes-tokens, so other tools can't insert into `symbols`. |
+| `symbol_embeddings` | `hybrid_search` | One vector per symbol (`symbol_id`, `model`, `vector` as little-endian f32). Filled lazily the first time it is needed. Deleted when a symbol is renamed. |
+| `literals` | `hybrid_search` with a `"quoted"` query | Prose strings such as error and log messages: `file_id`, `symbol_id` (the enclosing symbol), `line`, `text`. |
+| `literals_fts` | same | Full-text index over `literals.text`. Accent-insensitive: `conexión` matches `conexion`. |
+
+## Other tables
+
+### `dependencies`
+
+Libraries declared in manifest files. See [Adding library support](/docs/libraries) for the formats read.
+
+| Column | Type | Meaning |
+| --- | --- | --- |
+| `id` | integer | Primary key. |
+| `manifest_path` | text | Path of the manifest, e.g. `crates/foo/Cargo.toml`. |
+| `language` | text | Ecosystem: `rust`, `javascript_typescript`, `python`, `go`. |
+| `name` | text | Library name. Unique per manifest. |
+| `version` | text | Version as written (`^18.3.1`, `>=2.0,<3.0`). `NULL` for path, git or workspace dependencies. |
+
+### `index_issues`
+
+Files that were seen but not indexed. Shown by `status`.
+
+| Column | Meaning |
+| --- | --- |
+| `relative_path` | The file. |
+| `issue_kind` | `syntax_error`, `unsupported_language` (a known language with no parser yet) or `read_failure` (the file couldn't be read; its old data is kept). |
+| `detail` | The error message, or the language name. |
+| `detected_at` | Unix time. |
+
+### `index_meta`
+
+Key/value pairs, for example `last_indexed_at`.
+
+## Migrations
+
+`Index::open` upgrades an older index automatically with [`rusqlite_migration`](https://crates.io/crates/rusqlite_migration). Migrations are only ever **added**, never edited, so an index from any older version can be opened.
+
+| # | Change |
+| --- | --- |
+| 1 | `files`, `symbols`, `relations`, `symbols_fts`, `index_issues`, `index_meta` |
+| 2 | `dependencies` |
+| 3 | `symbols.end_line` |
+| 4 | drop `relations.to_symbol_id` (never read, and unreliable with duplicate names) |
+| 5 | `symbols.level` |
+| 6 | `symbol_words_fts` |
+| 7 | `symbol_embeddings` |
+| 8 | `literals`, `literals_fts` |
+| 9 | relation evidence columns and `relation_candidates` |
+| 10 | `target_kind`, `target_module` |
+
+A migration that changes what gets extracted sets every `content_hash` to `''`, so the next reindex parses every file again. You don't need `--force`.
+
+Changing the schema is a cross-cutting change: open an issue before sending a pull request (`CONTRIBUTING.md`).
+
+## Reading it yourself
+
+The database is read-only for everyone except mini-consumes-tokens. To run your own SQL, see [Querying the database directly](/docs/querying).

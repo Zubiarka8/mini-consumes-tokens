@@ -1,0 +1,215 @@
+---
+title: MCP tools
+description: The 20 tools the server gives your AI client, grouped by what they answer.
+---
+
+Your AI client calls these tools itself; you don't type them. This page tells you what each one answers, so you know what to ask for and can read the results.
+
+## Which tool for which question
+
+| You want to know… | Tool |
+| --- | --- |
+| What is in this file, folder or project? | [`get_project_overview`](#get_project_overview), [`list_symbols`](#list_symbols), [`get_file_tree`](#get_file_tree) |
+| What does this file look like, without the bodies? | [`get_file_skeleton`](#get_file_skeleton) |
+| Where is `X` defined? | [`find_symbol`](#find_symbol) |
+| I don't know the exact name | [`search_symbols`](#search_symbols), [`hybrid_search`](#hybrid_search) |
+| Who calls this function? | [`find_callers`](#find_callers) |
+| What does this function call? | [`find_calls`](#find_calls) |
+| Where is `X` used at all (calls, imports, inheritance)? | [`find_references`](#find_references) |
+| What breaks if I change `X`? | [`impact_analysis`](#impact_analysis) |
+| Everything I need to work on `X`, in one call | [`build_context_pack`](#build_context_pack) |
+| What code is never used? | [`find_dead_code`](#find_dead_code) |
+| Is the index up to date? | [`get_indexing_status`](#get_indexing_status), [`reindex`](#reindex) |
+| Several of the above at once | [`batch`](#batch) |
+
+## Parameters most tools share
+
+| Parameter | Meaning | Default |
+| --- | --- | --- |
+| `path` | Limit to one file (exact path) or a folder (a path with no extension, used as a prefix). Paths are relative to the project root, with `/` on every OS. | whole project |
+| `language` | Limit to one language id: `rust`, `python`, `go`, `javascript_typescript`… | every language |
+| `limit` | Maximum results. | 50 (10 for the search tools) |
+| `offset` | Skip this many results first, to page. | 0 |
+| `depth` | How many hops to follow in the call/reference graph. `1` = direct only; `2` adds callers of callers, and so on. Max 32. | 1 |
+| `format` | `text`, or `toon` for a compact table that costs fewer tokens on big results. | `text` |
+
+Names are matched **exactly** (case-sensitive) unless the tool says otherwise. An empty name is rejected.
+
+## Discovery
+
+### `get_project_overview` [#get_project_overview]
+
+A short, ranked summary of a project, folder or file: the most important declarations per file. The cheapest way to get oriented.
+
+- `path` (optional), `language`, `max_symbols_per_module` (default 8), `include_relations` (default `false`; adds the top callers of each symbol, but makes the answer about four times bigger).
+
+### `list_symbols` [#list_symbols]
+
+Every definition in a file or folder: name, kind and line range. Use it when you don't know a name yet.
+
+- `path` (required), `kind` (`function`, `method`, `class`, `struct`, `interface`, `enum`, `trait`, `type_alias`, `module`, `variable`, `constant`, `field`), `language`, `limit`, `format`.
+
+```text
+crates/mct-core/src/lib.rs:77-93 [rust] trait LanguageParser
+```
+
+### `get_file_tree` [#get_file_tree]
+
+The folders and files under a path, with no symbol data. Cheaper than an overview when you only need the layout.
+
+- `path` (a folder; optional), `depth` (default 3).
+
+### `get_file_skeleton` [#get_file_skeleton]
+
+A file's top-level declarations with their bodies replaced by `// ...`. Often around 90% fewer tokens than reading the whole file.
+
+- `path` (one file, required).
+- Rust, Go, Java, C++, C#, PHP, JS/TS and Kotlin collapse the body exactly. Other languages show only the declaration line. Methods inside a class are not listed one by one.
+
+## Lookup
+
+### `find_symbol` [#find_symbol]
+
+Where a symbol is defined. It can return several hits, for example every class that has a `parse` method.
+
+- `name` (required), `match`: `exact` (default), `prefix` (names that start with it) or `fuzzy` (names that contain it, any case). Also `path`, `language`, `limit`, `format`.
+
+```text
+2 definition(s) of `LanguageParser`:
+crates/mct-core/src/lib.rs:77:1 [rust] trait LanguageParser
+...
+```
+
+### `search_symbols` [#search_symbols]
+
+Ranked search by words when you are not sure of the name. `parse request`, `parseReq` and `parse_request` all find `parse_request_body`, because names are split at camelCase, snake_case and kebab-case boundaries. Exact matches come first.
+
+- `query` (required), `path`, `language`, `limit` (default 10, max 100), `offset`, `snippet_lines` (source lines to show per hit, max 50), `format`, `cache`.
+
+### `hybrid_search` [#hybrid_search]
+
+Search by meaning: `load config from disk` also finds `read_settings`. It mixes `search_symbols` with an embedding model.
+
+- `query` (required). Put it in double quotes (`"parse request"`) for an exact phrase; that also lists string literals (error and log messages) that contain it.
+- `alpha`: `0` = words only, `1` = meaning only. If you omit it, it is picked from the query: 0.1 for an identifier, 0.75 for a plain sentence, 0.5 otherwise.
+- `top_k` (default 10, max 100), `offset`, `path`, `language`, `snippet_lines`, `format`, `cache`.
+- If no embedding model is available, it falls back to words only and says so.
+
+## Relations
+
+### `find_callers` [#find_callers]
+
+The functions that call this one: "who calls `X`?".
+
+- `function` (required), `path`, `language`, `limit`, `depth`, `offset`, `format`.
+
+### `find_calls` [#find_calls]
+
+The functions this one calls: "what does `X` call?". The opposite of `find_callers`.
+
+- `function` (required), plus the same options as `find_callers`.
+
+### `find_references` [#find_references]
+
+Every place a symbol is used: calls, imports, extends, implements and plain references. Broader than `find_callers`.
+
+- `symbol` (required), plus the same options as `find_callers`.
+
+```text
+3 reference(s):
+src/app.py:12:5 [python] main --calls--> load_config
+src/cli.py:3:1 [python] cli --imports--> load_config
+...
+```
+
+With `depth` above 1, each hit beyond the first hop ends with `[depth N]`.
+
+### `impact_analysis` [#impact_analysis]
+
+Everything a change to a symbol could break, in one call: its callers, all its references, and which of them look like tests (names that start with `test`).
+
+- `symbol` (required), `path`, `language`, `limit` and `offset` (applied to each section separately), `depth`, `format`.
+
+```text
+Impact analysis for `load_config`:
+  2 direct caller(s)
+  3 reference(s) total (calls/imports/extends/implements/plain)
+  1 likely affected test(s)
+
+Likely affected tests:
+  tests/test_config.py:8:1 [python] test_load_config
+...
+```
+
+### `build_context_pack` [#build_context_pack]
+
+Everything you need before editing one symbol: its definition with the doc comment and source, and every caller, callee, dependency and related test, each listed once with its signature. It replaces `find_symbol` + `find_calls` + `find_callers` + `impact_analysis` + reading the files.
+
+- `symbol` (required), `path` and `language` (to pick one definition when the name is ambiguous), `depth`, `limit` (default 30), `source_lines` (default 40, max 200), `format`.
+
+## Maintenance
+
+### `find_dead_code` [#find_dead_code]
+
+Top-level symbols that nothing in the index references. A starting point for clean-up, not proof: check a hit with `find_references` before deleting it. The same scan is available as [`mct-cli dead-code`](/docs/cli#dead-code).
+
+- `path`, `language`, `limit`, `offset`, `format`.
+
+### `get_indexing_status` [#get_indexing_status]
+
+The health of the index: files and symbols per language, last run, files that failed to parse, unsupported languages and dependencies. The same as [`mct-cli status`](/docs/cli#status).
+
+- `verbose_dependencies` (default `false`; list every dependency instead of a one-line summary).
+
+### `reindex` [#reindex]
+
+Update the index right now. You rarely need it: the server indexes at startup and again in the background a moment after files change. See [Reindexing](/docs/managing).
+
+- `force` (default `false`): parse every file again, even unchanged ones.
+
+## Meta
+
+### `discover_tool_categories` [#discover_tool_categories]
+
+Lists every tool with a one-line purpose, grouped by category, without the input schemas. For clients that load tool schemas only when needed.
+
+### `get_tool_schema` [#get_tool_schema]
+
+The full input schema and description of one tool, by exact name.
+
+- `name` (required).
+
+### `batch` [#batch]
+
+Run up to 25 read-only queries in one call. Each result comes under its own `[n] tool` header, and a failing query doesn't stop the others. `reindex` and `batch` itself are not allowed inside.
+
+```json
+{
+  "queries": [
+    { "tool": "find_symbol", "args": { "name": "load_config" } },
+    { "tool": "find_callers", "args": { "function": "load_config" } }
+  ]
+}
+```
+
+## Server options
+
+Your client starts `mct-mcp-server` with these flags:
+
+| Flag | Meaning | Default |
+| --- | --- | --- |
+| `--root <PATH>` | Project to index. | current directory |
+| `--reindex-debounce-ms <MS>` | Quiet time after the last file change before the background reindex runs. `0` turns the background watcher off. | 1500 |
+
+The server also keeps a query cache. When the same question comes back unchanged in a session, the answer is a one-line "unchanged" note instead of the full result, which saves tokens. It is tuned with environment variables in your client's `env` block:
+
+| Variable | Meaning | Default |
+| --- | --- | --- |
+| `MCT_CACHE` | `off` turns every cache off. | on |
+| `MCT_SEMANTIC_CACHE` | `off` keeps only the exact cache, no "similar question" matching. | on |
+| `MCT_CACHE_THRESHOLD` | How similar (0.5–1.0) a question must be to reuse an answer. | 0.95 |
+| `MCT_CACHE_MARGIN` | Minimum gap between the best and second-best match. | 0.02 |
+| `MCT_CACHE_RESPONSE` | `reference` (short note) or `full` (always repeat the answer). | `reference` |
+| `MCT_CACHE_MAX_ENTRIES` | Entries kept before the oldest is dropped. | 256 |
+
+Logs go to stderr; set `RUST_LOG=debug` to see more.

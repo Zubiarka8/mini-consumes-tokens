@@ -1,0 +1,178 @@
+---
+title: Cheat sheet
+description: Every command step by step, then the whole setup in one script.
+---
+
+All commands run from the project root. On Windows, use the PowerShell lines where they differ.
+
+## Step by step
+
+### 1. Install
+
+<Tabs items={['macOS / Linux', 'Windows', 'cargo']}>
+<Tab value="macOS / Linux">
+
+```bash
+curl -sSL https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.sh | bash
+```
+
+</Tab>
+<Tab value="Windows">
+
+```powershell
+irm https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.ps1 | iex
+```
+
+</Tab>
+<Tab value="cargo">
+
+```bash
+cargo install --path crates/mct-cli
+cargo install --path crates/mct-mcp-server
+```
+
+</Tab>
+</Tabs>
+
+### 2. Check the install
+
+```bash
+mct-cli --version
+mct-mcp-server --help
+```
+
+If a command is not found, its folder is not on your `PATH`. See [Installation](/docs/installation).
+
+### 3. Keep the index out of git
+
+```bash
+mct-cli --root . gitignore-init
+```
+
+### 4. Choose what not to index (optional)
+
+```bash
+mct-cli --root . ignore-init --import-gitignore
+```
+
+Then edit `.mctignore`. See [Excluding files](/docs/exclusion).
+
+### 5. Build the index
+
+```bash
+mct-cli --root . init
+```
+
+### 6. Check what was indexed
+
+```bash
+mct-cli --root . status
+```
+
+### 7. Connect your AI client
+
+Claude Code:
+
+```bash
+claude mcp add mini-consumes-tokens --scope project -- mct-mcp-server --root "$(pwd)"
+```
+
+Any client that reads `.mcp.json`:
+
+```bash
+mct-cli --root . mcp-register --name mini-consumes-tokens
+```
+
+Other clients: [AI clients](/docs/clients). Restart the client afterwards.
+
+### 8. Day to day
+
+```bash
+mct-cli --root . reindex           # update after changes (the server does this by itself)
+mct-cli --root . reindex --force   # parse everything again, e.g. after upgrading
+mct-cli --root . dead-code         # CSV of possibly unused symbols
+mct-cli probe path/to/file.py      # why does this file fail to parse?
+```
+
+### 9. Start over
+
+```bash
+rm -rf .mct-index
+mct-cli --root . init
+```
+
+### 10. Debug the server
+
+Logs go to stderr:
+
+<Tabs items={['bash', 'PowerShell']}>
+<Tab value="bash">
+
+```bash
+RUST_LOG=debug mct-mcp-server --root .
+```
+
+</Tab>
+<Tab value="PowerShell">
+
+```powershell
+$env:RUST_LOG = "debug"; mct-mcp-server --root .
+```
+
+</Tab>
+</Tabs>
+
+### 11. Uninstall
+
+```bash
+claude mcp remove mini-consumes-tokens --scope project   # or your client's own way
+cargo uninstall mct-cli mct-mcp-server                  # or delete the binaries from the install folder
+rm -rf .mct-index .mctignore
+```
+
+Details for each client: [Uninstalling](/docs/uninstalling).
+
+## All in one
+
+Run this from the root of the project you want to index (macOS/Linux, Claude Code). It installs both binaries, prepares the project, builds the index and connects Claude Code:
+
+```bash title="setup.sh"
+set -euo pipefail
+
+# 1. Install
+curl -sSL https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.sh | bash
+export PATH="$HOME/.local/bin:$PATH"
+
+# 2. Prepare the project
+mct-cli --root . gitignore-init
+mct-cli --root . ignore-init --import-gitignore
+
+# 3. Build and check the index
+mct-cli --root . init
+mct-cli --root . status
+
+# 4. Connect Claude Code
+claude mcp add mini-consumes-tokens --scope project -- mct-mcp-server --root "$(pwd)"
+claude mcp list
+```
+
+Windows (PowerShell):
+
+```powershell title="setup.ps1"
+$ErrorActionPreference = "Stop"
+
+irm https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.ps1 | iex
+$env:PATH = "$env:LOCALAPPDATA\mct\bin;$env:PATH"
+
+mct-cli --root . gitignore-init
+mct-cli --root . ignore-init --import-gitignore
+mct-cli --root . init
+mct-cli --root . status
+
+claude mcp add mini-consumes-tokens --scope project -- mct-mcp-server --root "$PWD"
+claude mcp list
+```
+
+For another client, replace the last two lines with its install command from [AI clients](/docs/clients). Then restart the client.
+
+If something fails, see [Troubleshooting](/docs/troubleshooting).

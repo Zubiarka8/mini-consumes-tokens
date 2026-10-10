@@ -1,0 +1,216 @@
+---
+title: Adding library support
+description: Detect a new package manager's manifest, mark library calls as external, and cover a framework's patterns.
+---
+
+"Library support" covers three separate jobs. Each one is independent: you can do one without the others.
+
+| Goal | Where | Example |
+| --- | --- | --- |
+| [List the libraries a project **declares**](#manifests) | `crates/mct-index/src/manifests.rs` | read `composer.json` for PHP |
+| [Mark calls **into** a library as external](#external-calls) | the language's parser | `std::collections::HashMap` is not in your repo |
+| [Understand a **framework's** patterns](#frameworks) | the language's parser and its corpus | React components, Django views |
+
+To add a whole new language, see [Adding a language](/docs/extending) first.
+
+## Where everything is
+
+| What | File |
+| --- | --- |
+| Manifest detection and parsing | `crates/mct-index/src/manifests.rs` |
+| Where manifests are picked out during indexing | `crates/mct-index/src/indexer.rs` (`manifest_language` call in `index_file`) |
+| Manifest tests | `manifests.rs` unit tests, `crates/mct-index/tests/manifests.rs` |
+| Stored dependencies | [`dependencies`](/docs/schema#dependencies) table |
+| `RelationTarget` (external, module, qualifier…) | `crates/mct-core/src/symbol.rs` |
+| Parsers that set it | `crates/mct-lang-<name>/src/lib.rs` |
+| Framework coverage table | `CONTRIBUTING.md`, "Framework/library coverage" |
+
+### Adding a library to the project itself
+
+The section above is about the libraries **your indexed project** uses. To add a Rust library to **mini-consumes-tokens**, for example a parsing crate for a new manifest format:
+
+1. Check first whether a library already in use covers it. `mct-index` already has `serde_json` (JSON) and `toml` (TOML); see [Where the libraries are](/docs/architecture#libraries).
+2. Used by one crate only: add it to that crate's `Cargo.toml` with an exact version, e.g. `quick-xml = "X.Y.Z"` (the current version from crates.io).
+3. Used by several crates: add it once to `[workspace.dependencies]` in the root `Cargo.toml`, and use `quick-xml.workspace = true` in each crate.
+4. Prefer libraries that need no system packages (no OpenSSL, no C libraries to install), so the build stays the same on Linux, macOS and Windows.
+5. Run `cargo test --workspace`. CI's `cargo-audit` job checks the new library for known vulnerabilities.
+
+## 1. Detect a new manifest [#manifests]
+
+### What exists today
+
+While indexing, every file whose **name** is a known manifest is read and its dependencies are saved in the [`dependencies`](/docs/schema#dependencies) table. You can see them in [`status`](/docs/cli#status) and [`get_indexing_status`](/docs/tools#get_indexing_status).
+
+| File | Ecosystem | Sections read |
+| --- | --- | --- |
+| `Cargo.toml` | `rust` | `[dependencies]`, `[dev-dependencies]`, `[build-dependencies]`, `[workspace.dependencies]` |
+| `package.json` | `javascript_typescript` | `dependencies`, `devDependencies`, `peerDependencies`, `optionalDependencies` |
+| `requirements.txt` | `python` | one requirement per line; `-r`, `-e` and other options are skipped |
+| `go.mod` | `go` | `require` block and single-line `require`; `go.sum` is not read |
+
+Only direct dependencies are recorded, never lock files. The version is kept as written (`^18.3.1`, `>=2.0,<3.0`), and is empty for path, git and workspace dependencies. Manifests inside excluded folders (`node_modules/`, `vendor/`…) are ignored.
+
+Maven and Gradle are left out on purpose: Gradle build files are code (Groovy or Kotlin), not a fixed data format.
+
+### How it works
+
+A manifest never goes through a language parser. In `indexer.rs`, each file's name is checked first with `manifests::manifest_language`; if it matches, `manifests::parse_manifest` reads it and the file is not indexed as source code. Manifests are read again on every reindex, because they are few and small.
+
+No schema change and no new MCP tool is needed: the new format appears in the existing `dependencies` table and in `status`.
+
+### Step by step: `composer.json` (PHP)
+
+All changes are in `crates/mct-index/src/manifests.rs`.
+
+**1. Recognize the file name.** The value is the language id of the ecosystem; use the id of an existing parser.
+
+```rust title="crates/mct-index/src/manifests.rs"
+pub fn manifest_language(file_name: &str) -> Option<&'static str> {
+    match file_name {
+        "Cargo.toml" => Some("rust"),
+        "package.json" => Some("javascript_typescript"),
+        "requirements.txt" => Some("python"),
+        "go.mod" => Some("go"),
+        "composer.json" => Some("php"), // new
+        _ => None,
+    }
+}
+```
+
+**2. Route it to a parse function.**
+
+```rust
+pub fn parse_manifest(file_name: &str, contents: &str) -> Vec<ManifestDependency> {
+    let deps = match file_name {
+        // ...
+        "go.mod" => parse_go_mod(contents),
+        "composer.json" => parse_composer_json(contents), // new
+        _ => Vec::new(),
+    };
+    // ... duplicates are removed here, keeping the first occurrence
+}
+```
+
+**3. Write the parse function.** Read the main section first: if a name appears twice, the first one is kept. Invalid input returns an empty list. It must never panic, because the file comes from the repository being indexed.
+
+```rust
+/// `require` then `require-dev`. Platform entries (`php`, `ext-*`) are
+/// requirements on the runtime, not libraries, so they are skipped.
+fn parse_composer_json(contents: &str) -> Vec<ManifestDependency> {
+    let Ok(doc) = serde_json::from_str::<serde_json::Value>(contents) else {
+        return Vec::new();
+    };
+    let mut deps = Vec::new();
+    for section in ["require", "require-dev"] {
+        if let Some(obj) = doc.get(section).and_then(serde_json::Value::as_object) {
+            for (name, value) in obj {
+                if name == "php" || name.starts_with("ext-") {
+                    continue;
+                }
+                deps.push(ManifestDependency {
+                    name: name.clone(),
+                    version: value.as_str().map(str::to_string),
+                });
+            }
+        }
+    }
+    deps
+}
+```
+
+`serde_json` and `toml` are already dependencies of `mct-index`. For a line-based format, follow `parse_requirements_txt` or `parse_go_mod`. Avoid adding a new crate for a format a few lines of code can read.
+
+**4. Test it.** Add a unit test next to the others in the same file:
+
+```rust
+#[test]
+fn composer_json_reads_require_and_skips_platform_entries() {
+    let deps = parse_composer_json(
+        r#"{
+            "require": { "php": ">=8.1", "ext-json": "*", "monolog/monolog": "^3.0" },
+            "require-dev": { "phpunit/phpunit": "^10.5" }
+        }"#,
+    );
+    assert!(deps
+        .iter()
+        .any(|d| d.name == "monolog/monolog" && d.version.as_deref() == Some("^3.0")));
+    assert!(deps.iter().any(|d| d.name == "phpunit/phpunit"));
+    assert_eq!(deps.len(), 2, "php and ext-* are not libraries: {deps:?}");
+}
+```
+
+Also check that malformed input returns an empty list: `malformed_manifest_returns_empty_not_panic` shows the pattern.
+
+**5. Run and try it.**
+
+```bash
+cargo test -p mct-index manifests
+cargo run -p mct-cli -- --root /path/to/php-project reindex
+cargo run -p mct-cli -- --root /path/to/php-project status   # look for "Dependencies detected"
+```
+
+**6. Update the docs:** the manifest table in this page.
+
+## 2. Mark library calls as external [#external-calls]
+
+A call to `HashMap::new()` has the name `new`, which probably matches several of your own symbols. If the parser can **prove** the target lives outside the repository, it says so, and the index never links the call to a symbol of yours with the same name.
+
+The parser does this with a `RelationTarget` attached to the relation by its index:
+
+```rust
+use mct_core::RelationTarget;
+
+// `use std::collections::HashMap;` — std is never part of the repo.
+let index = out.relations.len();
+out.relations.push(SymbolRelation {
+    from: module_id,
+    kind: RelationKind::Imports,
+    to_name: "HashMap".to_string(),
+    location: location(node),
+});
+out.relation_targets.push(RelationTarget {
+    relation: index,
+    external: true,
+    ..Default::default()
+});
+```
+
+When you only know **which module** the name comes through, set `module` instead. `rand::random()` gets `module: Some("rand")`: the call then resolves only to a symbol under a `rand` folder or file. For a third-party crate, that means it resolves to nothing, which is correct.
+
+| Evidence | Field | Example |
+| --- | --- | --- |
+| Target is certainly outside the repo | `external: true` | `std::`, `java.lang.`, Python built-ins |
+| Target comes through a named module | `module` | `rand::random()`, `np.array()` |
+| Target is declared in a named type | `qualifier` | `Value::from()` |
+
+<Callout type="warn">
+  Set a field only when the source code proves it. A guess turns into a wrong link in `find_callers` and `impact_analysis`. `external` must never be set just because no definition matched.
+</Callout>
+
+Test it as the Rust parser does in `std_imports_are_external_and_crate_imports_are_not` (`crates/mct-lang-rust/tests/parse.rs`).
+
+## 3. Cover a framework [#frameworks]
+
+A framework is code written in a language that is already supported, so it is handled **inside that language's parser**. No new crate is needed. Coverage today is described in `CONTRIBUTING.md` under "Framework/library coverage". For example, React components and hooks are indexed as ordinary functions and calls, but `<Button />` in JSX is not yet a relation.
+
+### Steps
+
+1. **Pick one pattern** the index misses, and write down what a user would ask: "which views handle `/orders`?", "who renders `<Button/>`?".
+2. **Check whether existing kinds can express it.** Most patterns fit: a component is a `Function` or `Class`, a decorator registering a handler is a `References` relation, an import is `Imports`. If they fit, change only the parser:
+   - find the node kinds with `to_sexp()` ([step 2 of Adding a language](/docs/extending#2-look-at-the-syntax-tree));
+   - emit the symbol or relation in the walker;
+   - add a unit test in `tests/parse.rs`.
+3. **Add a corpus scenario** under `tests/corpus/project/<scenario>/`: a small app built with the framework. Name the framework and its exact version in a header comment (`react@18.3.1`). Test only the app's own code: never copy the framework's source into the repository.
+4. **Assert the new relations one by one** in `tests/corpus.rs` with `corpus().relation(...)`, then regenerate the snapshot:
+
+   ```bash
+   MCT_BLESS=1 cargo test -p mct-lang-<name> --test corpus
+   ```
+
+5. **Update the coverage table** in `CONTRIBUTING.md`.
+
+### When it needs a new kind
+
+Some patterns don't fit any existing kind, for example "component renders component". Adding a `SymbolKind` or `RelationKind` changes `mct-core`, which every parser and the index depend on. Open an issue describing the change before writing code.
+
+Files that mix several languages in one file, such as Vue (`.vue`) or Svelte single-file components, need a new parser crate that handles each section: follow [Adding a language](/docs/extending).

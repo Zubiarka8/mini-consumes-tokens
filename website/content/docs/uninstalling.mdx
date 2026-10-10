@@ -1,0 +1,46 @@
+---
+title: Uninstalling
+description: Remove the client registration, the binaries and the index.
+---
+
+## 1. Remove the server from your client
+
+Each client page has its own **Uninstall** section:
+
+| Client | How to remove |
+| --- | --- |
+| [Claude Code](/docs/clients/claude-code#uninstall) | `claude mcp remove mini-consumes-tokens --scope <scope>` |
+| [Codex](/docs/clients/codex#uninstall) | `codex mcp remove mini-consumes-tokens` |
+| [Cursor](/docs/clients/cursor#uninstall) | **Customize** → remove, or edit `mcp.json` |
+| [GitHub Copilot](/docs/clients/copilot#uninstall) | **MCP: List Servers** → Uninstall, or edit the config file |
+| [Gemini CLI](/docs/clients/gemini#uninstall) | `gemini mcp remove -s <scope> mini-consumes-tokens` |
+| [OpenCode](/docs/clients/opencode#uninstall) | delete the entry from `opencode.json` |
+| [Other clients](/docs/clients/others) | delete the entry from the client's config file |
+
+If you committed a project config such as `.mcp.json`, remove the entry there too.
+
+## 2. Remove the binaries
+
+<Tabs items={['Install script', 'cargo']}>
+<Tab value="Install script">
+
+Delete `mct-cli` and `mct-mcp-server` from the install directory: `~/.local/bin` (macOS/Linux) or `%LOCALAPPDATA%\mct\bin` (Windows), unless you overrode it.
+
+</Tab>
+<Tab value="cargo">
+
+```bash
+cargo uninstall mct-cli
+cargo uninstall mct-mcp-server
+```
+
+</Tab>
+</Tabs>
+
+## 3. Delete the index
+
+Each indexed repository has its own `.mct-index/` directory at its root. Deleting it is safe at any time; it is rebuilt on the next start ([Managing the index](/docs/managing)).
+
+```bash
+rm -rf .mct-index
+```

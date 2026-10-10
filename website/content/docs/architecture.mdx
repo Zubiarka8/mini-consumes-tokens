@@ -1,0 +1,147 @@
+---
+title: Architecture
+description: How the workspace is split, and the one trait every language implements.
+---
+
+The workspace has three layers. Each one knows nothing about the layers it doesn't need:
+
+```text
+mct-cli / mct-mcp-server            binaries: wire everything together
+        │
+        ├── mct-index               SQLite storage, reindex algorithm, queries,
+        │                           manifests (Cargo.toml, package.json, …)
+        │
+        └── mct-lang-*              one crate per language, tree-sitter → symbols
+              │
+              ├── code              mct-lang-rust        mct-lang-python
+              │                     mct-lang-js-ts       mct-lang-java
+              │                     mct-lang-kotlin      mct-lang-csharp
+              │                     mct-lang-cpp         mct-lang-go
+              │                     mct-lang-php         mct-lang-lua
+              │
+              ├── scripts           mct-lang-bash        mct-lang-powershell
+              │
+              ├── web & markup      mct-lang-html        mct-lang-css
+              │                     mct-lang-xml         mct-lang-xaml
+              │
+              ├── docs              mct-lang-md
+              │
+              ├── mct-tree-sitter   shared tree-sitter helpers
+              │
+              └── mct-core          shared model and the LanguageParser trait
+```
+
+Each `mct-lang-*` crate lives in `crates/mct-lang-<name>/` and has its own tree-sitter grammar. See [Language crates](#language-crates) for what each one extracts, and [Where the libraries are](#libraries) for the libraries each crate uses.
+
+## Core crates
+
+| Crate | Responsibility | Does **not** know about |
+| --- | --- | --- |
+| `mct-core` | `LanguageParser` trait, `SymbolRecord` / `SymbolRelation` model, `LanguageRegistry` | tree-sitter, SQLite, MCP |
+| `mct-tree-sitter` | tree-sitter helpers shared by the language crates (error search, node locations) | SQLite, MCP |
+| `mct-index` | SQLite schema and migrations, the reindex algorithm, every query | any language grammar |
+| `mct-mcp-server` | MCP server over stdio (`rmcp`): tool definitions and output formatting | — |
+| `mct-cli` | `init`, `reindex`, `status`, `mcp-register` and other commands ([CLI](/docs/cli)) | — |
+
+Two more crates are internal and never published: `mct-corpus` (test harness shared by every language crate's corpus tests) and `mct-eval` (accuracy, latency and token-cost evaluation of the MCP tools against a checked-in baseline).
+
+## Language crates
+
+Every `mct-lang-*` crate implements `LanguageParser` on top of a tree-sitter grammar.
+
+| Crate | Grammar | What it extracts |
+| --- | --- | --- |
+| `mct-lang-rust` | tree-sitter-rust | full symbols and relations |
+| `mct-lang-python` | tree-sitter-python | full symbols and relations |
+| `mct-lang-java` | tree-sitter-java | full symbols and relations |
+| `mct-lang-csharp` | tree-sitter-c-sharp | full symbols and relations |
+| `mct-lang-kotlin` | tree-sitter-kotlin-ng | full symbols and relations |
+| `mct-lang-js-ts` | tree-sitter-javascript + tree-sitter-typescript | JS, TS and TSX |
+| `mct-lang-cpp` | tree-sitter-cpp | full symbols and relations |
+| `mct-lang-go` | tree-sitter-go | full symbols and relations |
+| `mct-lang-php` | tree-sitter-php | classes, interfaces, traits, enums, methods; extends/implements, trait use, `require`/`use` imports |
+| `mct-lang-bash` | tree-sitter-bash | functions, top-level variables, calls, `source` imports |
+| `mct-lang-powershell` | tree-sitter-powershell | functions, top-level variables, calls, dot-source / `Import-Module`; no classes |
+| `mct-lang-html` | tree-sitter-html | elements with an `id`; `id`/`class` references toward CSS; `link`/`script` imports |
+| `mct-lang-css` | tree-sitter-css | simple-selector rules, `@import` |
+| `mct-lang-xml` | tree-sitter-xml | structural only: elements with `id`/`name`; no relations |
+| `mct-lang-xaml` | tree-sitter-xml | `x:Name` elements; event handlers linked to the C# code-behind |
+| `mct-lang-md` | tree-sitter-md | headings as nested sections, frontmatter, wikilinks and embeds |
+| `mct-lang-lua` | tree-sitter-lua | full symbols and relations |
+
+Per-language caveats are listed in [Known limitations](/docs/limitations).
+
+## Where the libraries are [#libraries]
+
+### Paths
+
+```text
+mini-consumes-tokens/
+├── Cargo.toml                    workspace: members + shared library versions
+├── crates/
+│   ├── mct-core/                 shared model, LanguageParser trait
+│   ├── mct-tree-sitter/          tree-sitter helpers
+│   ├── mct-index/                SQLite index; src/manifests.rs reads manifests
+│   ├── mct-mcp-server/           MCP server binary
+│   ├── mct-cli/                  CLI binary
+│   ├── mct-lang-js-ts/           one folder per language:
+│   ├── mct-lang-python/            src/lib.rs     the parser
+│   ├── mct-lang-css/               Cargo.toml     its grammar library (tree-sitter-…)
+│   ├── mct-lang-…/                 tests/, fuzz/
+│   ├── mct-corpus/               test harness (internal)
+│   └── mct-eval/                 quality evaluation (internal)
+└── vendor/
+    └── tree-sitter-md/           patched Markdown grammar
+```
+
+Third-party libraries (`tree-sitter-python`, `rusqlite`, `rmcp`…) are **not** in the repository. Each crate's `Cargo.toml` names them, and Cargo downloads them from crates.io into `~/.cargo/registry/` (`%USERPROFILE%\.cargo\registry\` on Windows) on the first build. The exact versions in use are pinned in `Cargo.lock`. The only library kept in the repository is `vendor/tree-sitter-md/`.
+
+### Third-party libraries the project uses
+
+Dependencies are declared in two places:
+
+- **Root `Cargo.toml`, `[workspace.dependencies]`:** every internal `mct-*` crate, plus the libraries shared by several crates (`tree-sitter`, `thiserror`). A crate uses them with `name.workspace = true`, so their version is set once.
+- **Each crate's own `Cargo.toml`:** the libraries only that crate needs, with an exact version.
+
+| Crate | Main libraries | What for |
+| --- | --- | --- |
+| `mct-core` | `thiserror` | error types |
+| `mct-tree-sitter` | `tree-sitter` | shared syntax-tree helpers |
+| `mct-lang-*` | `tree-sitter` + its own grammar (`tree-sitter-rust`, `tree-sitter-python`…) | parsing one language |
+| `mct-index` | `rusqlite` (bundled SQLite), `rusqlite_migration`, `git2`, `globset`, `walkdir`, `serde_json`, `toml` | database, migrations, file hashes, exclusions, walking the project, reading manifests |
+| `mct-mcp-server` | `rmcp`, `tokio`, `clap`, `notify` + `notify-debouncer-full`, `schemars`, `serde`, `tracing`; `fastembed` (optional) | MCP protocol, async runtime, flags, file watcher, tool schemas, logs; embeddings for `hybrid_search` |
+| `mct-cli` | `clap`, `serde_json`, `anyhow` | commands, writing `.mcp.json` |
+
+`fastembed` is only built with the `semantic` feature (`cargo install --path crates/mct-mcp-server --features semantic`). Without it, `hybrid_search` searches by words only.
+
+`vendor/tree-sitter-md/` is a patched copy of the Markdown grammar, with two memory-safety fixes not yet released upstream. The root `Cargo.toml` swaps it in through `[patch.crates-io]`; remove it once an upstream release contains both fixes.
+
+### Code that understands your project's libraries
+
+| What | Where |
+| --- | --- |
+| Reading manifests (`Cargo.toml`, `package.json`, `requirements.txt`, `go.mod`) | `crates/mct-index/src/manifests.rs`, called from `indexer.rs` |
+| Where detected dependencies are stored | the [`dependencies`](/docs/schema#dependencies) table |
+| Marking a call as going into a library (`RelationTarget`) | defined in `crates/mct-core/src/symbol.rs`, set by each `mct-lang-*` parser |
+| Framework patterns (React, Django…) | inside the parser of that framework's language |
+
+How to extend each one: [Adding library support](/docs/libraries).
+
+## The plugin contract
+
+`mct_core::LanguageParser`, in `crates/mct-core/src/lib.rs`:
+
+```rust
+pub trait LanguageParser: Send + Sync {
+    fn language_id(&self) -> &'static str;                // e.g. "rust", stored in files.language
+    fn file_extensions(&self) -> &'static [&'static str]; // e.g. ["rs"], without the leading dot
+    fn parse(&self, file: &SourceFile) -> Result<ParsedFile, ParseError>;
+}
+```
+
+`parse()` runs over arbitrary, untrusted code, so it must:
+
+- **never execute or evaluate** the source: it is a pure AST walk;
+- **never panic** on malformed input: return `ParseError::Syntax` instead.
+
+Adding a language is one new crate implementing this trait plus one `registry.register(...)` line in each binary. Nothing changes in `mct-core`, `mct-index` or the MCP tools. See [Adding a language](/docs/extending).

@@ -1,0 +1,66 @@
+---
+title: Installation
+description: Get mct-cli and mct-mcp-server on your PATH.
+---
+
+You need two binaries: `mct-cli` (index from the terminal or CI) and `mct-mcp-server` (what your AI client launches).
+
+<Tabs items={['macOS / Linux', 'Windows', 'From source (cargo)']}>
+<Tab value="macOS / Linux">
+
+Installs the latest release into `~/.local/bin`:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.sh | bash
+```
+
+To choose another directory, set `INSTALL_DIR` on `bash`, not on `curl`:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.sh | INSTALL_DIR=/usr/local/bin bash
+```
+
+</Tab>
+<Tab value="Windows">
+
+Installs the latest release into `%LOCALAPPDATA%\mct\bin`:
+
+```powershell
+irm https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.ps1 | iex
+```
+
+To choose another directory:
+
+```powershell
+$env:MCT_INSTALL_DIR = "C:\tools\mct"; irm https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.ps1 | iex
+```
+
+</Tab>
+<Tab value="From source (cargo)">
+
+Needs a Rust toolchain. Run from a clone of the repository:
+
+```bash
+cargo install --path crates/mct-cli
+cargo install --path crates/mct-mcp-server
+```
+
+Both binaries land in `~/.cargo/bin` (`%USERPROFILE%\.cargo\bin` on Windows).
+
+</Tab>
+</Tabs>
+
+Prebuilt archives cover Linux x86\_64/arm64, macOS Intel/Apple Silicon and Windows x86\_64. You can also download them by hand from the [GitHub Releases page](https://github.com/Zubiarka8/mini-consumes-tokens/releases).
+
+## Verify
+
+```bash
+mct-cli --help
+mct-mcp-server --help
+```
+
+If either command is not found, add the install directory to your `PATH`.
+
+## Next step
+
+Connect the server to your assistant: [AI clients](/docs/clients).
