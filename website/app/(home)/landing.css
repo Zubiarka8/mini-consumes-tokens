@@ -412,9 +412,14 @@
 .spatial-controls {
   position: absolute;
   left: 16px;
+  right: 16px;
   bottom: 12px;
   display: flex;
   gap: 6px;
+}
+.atlas-fallback + .spatial-controls {
+  position: static;
+  padding: 0 16px 12px;
 }
 .principle-bar {
   background: #e8e9df;
@@ -1375,10 +1380,13 @@
   align-items: center;
   gap: 14px;
 }
-.atlas-top-actions button {
+.atlas .atlas-expand {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
+  margin-left: auto;
+  min-width: 44px;
 }
 .atlas.atlas-expanded {
   position: fixed;
@@ -1515,7 +1523,7 @@
 }
 @media (max-width: 767px) {
   .atlas-top-actions .mono,
-  .atlas-top-actions button span {
+  .atlas-expand span {
     display: none;
   }
   .atlas-space {
