@@ -357,6 +357,9 @@ export default function SpatialAtlas({
         tabIndex={-1}
         camera={{ position: [4.6, 4.2, 8], fov: 43 }}
         dpr={[1, 2]}
+        // Pointer events use offset coordinates and labels only need the size, so
+        // skip the default scroll listeners that re-measure the canvas on every scroll.
+        resize={{ scroll: false }}
         frameloop={active ? "demand" : "never"}
         gl={{ antialias: true, alpha: true, powerPreference: "low-power" }}
         fallback={<span>{t("fallback")}</span>}
