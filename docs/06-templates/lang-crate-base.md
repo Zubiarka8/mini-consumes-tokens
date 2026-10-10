@@ -183,8 +183,8 @@ These are the places the base does not cover by itself. The check script
 treats items 1–4 as required; item 5 is a warning:
 
 1. Root `Cargo.toml`: add `"crates/mct-lang-<name>"` to `members` and `mct-lang-<name> = { path = ... }` to `[workspace.dependencies]`.
-2. `crates/mct-mcp-server/Cargo.toml` and `crates/mct-cli/Cargo.toml`: dependency on the crate.
-3. `crates/mct-mcp-server/src/registry.rs::build_registry` and `crates/mct-cli/src/main.rs::build_registry`: register `<Name>Parser`.
+2. `crates/mct-languages/Cargo.toml`: dependency on the crate.
+3. `crates/mct-languages/src/lib.rs::build_registry`: register `<Name>Parser`, and add a representative extension to that file's test. The CLI, the MCP server and `mct-eval` all use this registry.
 4. `.github/workflows/ci.yml`: add `- mct-lang-<name>` to the `fuzz-smoke` matrix.
 5. `README.md` supported-languages line and a row in `internal/checklist.md`.
 

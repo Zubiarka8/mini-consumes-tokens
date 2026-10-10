@@ -109,6 +109,7 @@ When the block is lifted:
    # Any order — they depend only on mct-core (and mct-tree-sitter):
    cargo publish -p mct-index
    cargo publish -p mct-lang-rust      # … and every other mct-lang-* crate
+   cargo publish -p mct-languages      # after every mct-lang-* crate
    # Depend on everything above:
    cargo publish -p mct-mcp-server
    cargo publish -p mct-cli
