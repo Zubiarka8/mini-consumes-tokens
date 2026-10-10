@@ -1,6 +1,22 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 const home = "/mini-consumes-tokens/";
+// The compact atlas keeps symbol cards and the context pack behind "View details".
+const openDetail = async (page: Page) => {
+  const atlas = page.locator(".atlas");
+  if (await atlas.locator(".context-pack").count()) return;
+  await atlas
+    .getByRole("button", { name: /^(View details|Ver detalle)$/ })
+    .click();
+};
+const closeDetail = async (page: Page) => {
+  await page
+    .locator(".atlas")
+    .getByRole("button", {
+      name: /^(Back to overview|Volver a la vista compacta)$/,
+    })
+    .click();
+};
 test("English default, complete Spanish switch, persistence and English docs", async ({
   page,
 }) => {
@@ -33,11 +49,13 @@ test("symbol selection, clipboard failure, FAQ and keyboard", async ({
   page,
 }) => {
   await page.goto(home);
+  await openDetail(page);
   await page
     .locator(".symbol-controls")
     .getByRole("button", { name: "handle_request", exact: true })
     .click();
   await expect(page.locator(".context-pack")).toContainText("src/server.rs:42");
+  await closeDetail(page);
   await page.evaluate(() =>
     Object.defineProperty(navigator, "clipboard", {
       value: { writeText: () => Promise.reject(new Error("denied")) },
@@ -267,7 +285,6 @@ test("3D scene loads on approach, rotates and handles context loss", async ({
   await expect(page.locator(".atlas-loading")).toContainText(
     "Loading the spatial atlas",
   );
-  await expect(page.locator(".atlas-source")).toBeVisible();
   finishLoading();
   await expect(page.locator("canvas")).toBeVisible();
   expect(requested.some((name) => spatialChunks.includes(name))).toBe(true);
@@ -284,7 +301,9 @@ test("3D scene loads on approach, rotates and handles context loss", async ({
   await labels
     .getByRole("button", { name: "handle_request", exact: true })
     .click();
+  await openDetail(page);
   await expect(page.locator(".context-pack")).toContainText("src/server.rs:42");
+  await closeDetail(page);
   await expect(
     labels.getByRole("button", { name: "handle_request", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
@@ -413,6 +432,7 @@ test("layer controls and source selection explain the project in 3D", async ({
   });
   await spacing.fill("0.7");
   await expect(spacing).toHaveValue("0.7");
+  await openDetail(page);
   await atlas
     .locator(".symbol-controls")
     .getByRole("button", { name: "validate_input", exact: true })
@@ -472,6 +492,7 @@ test("additional files expose connected source and translated context", async ({
   const atlas = page.locator(".atlas");
   await atlas.locator(".atlas-space").scrollIntoViewIfNeeded();
   await expect(atlas.locator(".spatial-file-labels button")).toHaveCount(6);
+  await openDetail(page);
   await expect(atlas.locator(".symbol-controls button")).toHaveCount(6);
   for (const [filename, symbol, line, dependency] of [
     ["main.rs", "route", "12", "handle_request(input)"],
@@ -519,59 +540,61 @@ test("additional files expose connected source and translated context", async ({
   );
 });
 
-test("full screen retains selection, traps focus and exits on Escape", async ({
+test("detail view retains selection, traps focus and exits on Escape", async ({
   page,
 }) => {
   await page.goto(home);
   const atlas = page.locator(".atlas");
-  await atlas
-    .locator(".symbol-controls")
-    .getByRole("button", { name: "normalize", exact: true })
-    .click();
-  await atlas.getByRole("button", { name: "Full screen", exact: true }).click();
+  await expect(atlas.locator(".context-pack")).toHaveCount(0);
+  await openDetail(page);
   await expect(
     page.getByRole("dialog", { name: "Code atlas", exact: true }),
   ).toBeVisible();
   await expect(
-    atlas.getByRole("button", { name: "Exit full screen", exact: true }),
+    atlas.getByRole("button", { name: "Back to overview", exact: true }),
   ).toBeFocused();
   const box = await atlas.boundingBox();
   expect(box?.x).toBe(0);
   expect(box?.y).toBe(0);
   expect(box?.width).toBe(page.viewportSize()!.width);
   expect(box?.height).toBe(page.viewportSize()!.height);
-  await expect(atlas.locator(".context-pack strong")).toHaveText("normalize");
   await page.keyboard.press("Shift+Tab");
   await expect(atlas.locator(".atlas-source")).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(
-    atlas.getByRole("button", { name: "Exit full screen", exact: true }),
+    atlas.getByRole("button", { name: "Back to overview", exact: true }),
   ).toBeFocused();
+  await atlas
+    .locator(".symbol-controls")
+    .getByRole("button", { name: "normalize", exact: true })
+    .click();
+  await expect(atlas.locator(".context-pack strong")).toHaveText("normalize");
   await atlas
     .locator(".symbol-controls")
     .getByRole("button", { name: "route", exact: true })
     .click();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(atlas.locator(".context-pack")).toHaveCount(0);
   await expect(
-    atlas.getByRole("button", { name: "Full screen", exact: true }),
+    atlas.getByRole("button", { name: "View details", exact: true }),
   ).toBeFocused();
-  await expect(atlas.locator(".context-pack strong")).toHaveText("route");
   expect(await page.evaluate(() => document.body.style.overflow)).not.toBe(
     "hidden",
   );
+  await openDetail(page);
+  await expect(atlas.locator(".context-pack strong")).toHaveText("route");
+  await page.keyboard.press("Escape");
   await page.getByLabel("Language", { exact: true }).selectOption("es");
   await page.setViewportSize({ width: 320, height: 900 });
-  await atlas
-    .getByRole("button", { name: "Pantalla completa", exact: true })
-    .click();
+  await atlas.getByRole("button", { name: "Ver detalle", exact: true }).click();
   await expect(
     page.getByRole("dialog", { name: "Atlas de código", exact: true }),
   ).toBeVisible();
   await expect(atlas.locator("canvas")).toBeVisible();
   await atlas.screenshot({ path: "test-results/atlas-fullscreen-mobile.png" });
   await atlas
-    .getByRole("button", { name: "Salir de pantalla completa", exact: true })
+    .getByRole("button", { name: "Volver a la vista compacta", exact: true })
     .click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });

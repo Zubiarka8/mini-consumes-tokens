@@ -138,14 +138,14 @@ export function Atlas() {
             ref={expandButton}
             type="button"
             onClick={() => setExpanded((value) => !value)}
-            aria-label={t(expanded ? "exitFullscreen" : "fullscreen")}
+            aria-label={t(expanded ? "closeDetail" : "viewDetail")}
           >
             {expanded ? (
               <Minimize2 size={16} aria-hidden="true" />
             ) : (
               <Maximize2 size={16} aria-hidden="true" />
             )}
-            <span>{t(expanded ? "exitFullscreen" : "fullscreen")}</span>
+            <span>{t(expanded ? "closeDetail" : "viewDetail")}</span>
           </button>
         </div>
       </div>
@@ -210,12 +210,13 @@ export function Atlas() {
             <SceneBoundary onFailure={sceneFailure}>
               <Suspense fallback={null}>
                 <SpatialAtlas
+                  key={expanded ? "detail" : "compact"}
                   selected={selected}
                   layers={layers}
                   separation={separation}
                   onSelect={setSelected}
                   onReady={sceneReady}
-                  active={inView && visible}
+                  active={(inView || expanded) && visible}
                   reduced={reduced}
                   onFailure={sceneFailure}
                 />
@@ -229,71 +230,75 @@ export function Atlas() {
           {t("fallback")}
         </p>
       )}
-      <div className="symbol-controls" role="group" aria-label={t("select")}>
-        {examples.map((node, i) => (
-          <button
-            key={node.name}
-            type="button"
-            aria-pressed={selected === i}
-            aria-label={node.name}
-            onClick={() => setSelected(i)}
-          >
-            <span className="atlas-file-name">
-              <FileCode2 size={16} aria-hidden="true" />
-              <span>{node.filename}</span>
-            </span>
-            <span className="atlas-file-role">{t(`role${i}`)}</span>
-            <span className="atlas-file-symbol">{node.name}</span>
-          </button>
-        ))}
-      </div>
-      <div className="context-pack" aria-live="polite" aria-atomic="true">
-        <div className="atlas-query">
-          <span>{t("agentQuestion")}</span>
-          <p>{t(`query${selected}`)}</p>
+      {(expanded || failed) && (
+        <div className="symbol-controls" role="group" aria-label={t("select")}>
+          {examples.map((node, i) => (
+            <button
+              key={node.name}
+              type="button"
+              aria-pressed={selected === i}
+              aria-label={node.name}
+              onClick={() => setSelected(i)}
+            >
+              <span className="atlas-file-name">
+                <FileCode2 size={16} aria-hidden="true" />
+                <span>{node.filename}</span>
+              </span>
+              <span className="atlas-file-role">{t(`role${i}`)}</span>
+              <span className="atlas-file-symbol">{node.name}</span>
+            </button>
+          ))}
         </div>
-        <div className="pack-label">
-          <span>{t("pack")}</span>
-          <span aria-hidden="true">↗</span>
-        </div>
-        <motion.div key={item.name} initial={false} animate={{ opacity: 1 }}>
-          <strong>{item.name}</strong>
-          <p className="atlas-explanation">{t(`purpose${selected}`)}</p>
-          <dl>
-            <div>
-              <dt>{t("definition")}</dt>
-              <dd>{item.file}</dd>
-            </div>
-            <div>
-              <dt>{t("callers")}</dt>
-              <dd>{item.callers}</dd>
-            </div>
-            <div>
-              <dt>{t("dependencies")}</dt>
-              <dd>{item.calls}</dd>
-            </div>
-          </dl>
-          <div
-            className="atlas-source"
-            role="region"
-            aria-label={t("sourcePreview")}
-            tabIndex={0}
-          >
-            <pre>
-              <code>
-                {item.source.map((line, i) => (
-                  <span className="atlas-code-line" key={i}>
-                    <span className="atlas-line-number" aria-hidden="true">
-                      {item.line + i}
-                    </span>
-                    <span>{line}</span>
-                  </span>
-                ))}
-              </code>
-            </pre>
+      )}
+      {(expanded || failed) && (
+        <div className="context-pack" aria-live="polite" aria-atomic="true">
+          <div className="atlas-query">
+            <span>{t("agentQuestion")}</span>
+            <p>{t(`query${selected}`)}</p>
           </div>
-        </motion.div>
-      </div>
+          <div className="pack-label">
+            <span>{t("pack")}</span>
+            <span aria-hidden="true">↗</span>
+          </div>
+          <motion.div key={item.name} initial={false} animate={{ opacity: 1 }}>
+            <strong>{item.name}</strong>
+            <p className="atlas-explanation">{t(`purpose${selected}`)}</p>
+            <dl>
+              <div>
+                <dt>{t("definition")}</dt>
+                <dd>{item.file}</dd>
+              </div>
+              <div>
+                <dt>{t("callers")}</dt>
+                <dd>{item.callers}</dd>
+              </div>
+              <div>
+                <dt>{t("dependencies")}</dt>
+                <dd>{item.calls}</dd>
+              </div>
+            </dl>
+            <div
+              className="atlas-source"
+              role="region"
+              aria-label={t("sourcePreview")}
+              tabIndex={0}
+            >
+              <pre>
+                <code>
+                  {item.source.map((line, i) => (
+                    <span className="atlas-code-line" key={i}>
+                      <span className="atlas-line-number" aria-hidden="true">
+                        {item.line + i}
+                      </span>
+                      <span>{line}</span>
+                    </span>
+                  ))}
+                </code>
+              </pre>
+            </div>
+          </motion.div>
+        </div>
+      )}
       <p className="atlas-caption">{t("illustration")}</p>
     </div>
   );
