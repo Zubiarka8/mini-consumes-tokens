@@ -81,8 +81,8 @@ const es: Record<keyof typeof en, string> = {
     "La vista 3D no está disponible en este dispositivo. Puedes explorar el código y su contexto a continuación.",
   rotate: "Girar el atlas",
   resetView: "Restablecer vista",
-  fullscreen: "Pantalla completa",
-  exitFullscreen: "Salir de pantalla completa",
+  viewDetail: "Ver detalle",
+  closeDetail: "Volver a la vista compacta",
   spatialHint:
     "Arrastra para girar · Desplázate para acercar · Elige un símbolo",
   mapNote: "Una pregunta. Las conexiones que importan.",
