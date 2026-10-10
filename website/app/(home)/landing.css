@@ -1401,7 +1401,8 @@
   box-shadow: none;
   border: 0;
   --atlas-bar: 77px;
-  scroll-padding-top: var(--atlas-bar);
+  --atlas-toolbar: 73px;
+  scroll-padding-top: calc(var(--atlas-bar) + var(--atlas-toolbar));
 }
 .atlas-expanded .atlas-top {
   position: sticky;
@@ -1412,6 +1413,11 @@
 }
 .atlas-expanded .atlas-project {
   display: none;
+}
+.atlas-expanded .atlas-toolbar {
+  position: sticky;
+  top: var(--atlas-bar);
+  z-index: 2;
 }
 /* Only full screen lays out the scene beside the tour; the scene sticks until the view ends. */
 .atlas-view {
@@ -1426,11 +1432,11 @@
 }
 .atlas-expanded .atlas-space {
   position: sticky;
-  top: var(--atlas-bar);
+  top: calc(var(--atlas-bar) + var(--atlas-toolbar));
   align-self: start;
   aspect-ratio: auto;
   width: 100%;
-  height: calc(100dvh - var(--atlas-bar));
+  height: calc(100dvh - var(--atlas-bar) - var(--atlas-toolbar));
 }
 .atlas-expanded .atlas-tour {
   padding: 0 40px 64px;
@@ -1558,8 +1564,11 @@
   }
   /* The scene stays above the stages while their text scrolls under it. */
   .atlas.atlas-expanded {
+    --atlas-toolbar: 107px;
     --atlas-scene: 260px;
-    scroll-padding-top: calc(var(--atlas-bar) + var(--atlas-scene));
+    scroll-padding-top: calc(
+      var(--atlas-bar) + var(--atlas-toolbar) + var(--atlas-scene)
+    );
   }
   .atlas-expanded .atlas-view {
     display: block;
