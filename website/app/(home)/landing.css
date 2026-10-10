@@ -1402,7 +1402,11 @@
   border: 0;
   --atlas-bar: 77px;
   --atlas-toolbar: 73px;
-  scroll-padding-top: calc(var(--atlas-bar) + var(--atlas-toolbar));
+  /* Room for the 3px focus outline and its 5px offset. */
+  --atlas-focus-ring: 8px;
+  scroll-padding-top: calc(
+    var(--atlas-bar) + var(--atlas-toolbar) + var(--atlas-focus-ring)
+  );
 }
 .atlas-expanded .atlas-top {
   position: sticky;
@@ -1567,7 +1571,8 @@
     --atlas-toolbar: 122px;
     --atlas-scene: 260px;
     scroll-padding-top: calc(
-      var(--atlas-bar) + var(--atlas-toolbar) + var(--atlas-scene)
+      var(--atlas-bar) + var(--atlas-toolbar) + var(--atlas-scene) +
+        var(--atlas-focus-ring)
     );
   }
   .atlas-expanded .atlas-view {
