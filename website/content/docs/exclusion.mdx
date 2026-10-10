@@ -1,0 +1,96 @@
+---
+title: Excluding files
+description: What is never indexed, and how to skip more with .mctignore.
+---
+
+Two layers decide what gets indexed:
+
+1. **Built-in exclusions.** Always on, can't be turned off. They keep secrets and build output out of the index.
+2. **`.mctignore`.** Optional. Your own extra rules, in a file at the project root.
+
+A file is also skipped when no parser handles its extension; `status` lists those under "Languages seen but not yet supported".
+
+## Built-in exclusions
+
+These are skipped in every project, at any depth. They live in `crates/mct-index/src/exclude.rs`.
+
+| Group | Files | Folders |
+| --- | --- | --- |
+| Secrets | `.env`, `.env.*`, `*.pem`, `*.key`, `credentials.json` | `secrets/`, `secret/`, `.aws/` |
+| .NET | `appsettings.*.json`, `*.pfx`, `*.snk` | |
+| Java / Gradle | `gradle.properties` | |
+| Go config | `*.env.local`, `config/secrets.yaml` | |
+| Dependencies | | `node_modules/`, `vendor/` |
+| Git and build output | | `.git/`, `target/` |
+| Tool state | | `.mct-index/`, `.claude/`, `.claude-index/`, `.ccm-index/` |
+
+<Callout type="info">
+  Nothing in `.mctignore` can bring these back. A `!` line only re-includes what an earlier line of your own file excluded.
+</Callout>
+
+## Your own rules: `.mctignore`
+
+Create the file with comments that explain the syntax:
+
+```bash
+mct-cli --root . ignore-init
+```
+
+Or write it by hand. Example:
+
+```text title=".mctignore"
+# Generated code and test data
+generated/
+tests/fixtures/
+
+# All Markdown except the README
+*.md
+!README.md
+
+# Also skip everything .gitignore skips
+@import-gitignore
+```
+
+### Syntax
+
+The syntax is a simplified `.gitignore`. One pattern per line:
+
+| Line | What it skips | Example |
+| --- | --- | --- |
+| `# text` or blank | nothing; a comment | `# fixtures` |
+| `name/` | that folder, at any depth | `docs/` skips `docs/` and `web/docs/` |
+| `path/to/dir/` | that folder, only from the project root | `tests/fixtures/` |
+| `/name/` | that folder, only at the root | `/build/` skips `build/` but not `web/build/` |
+| `*.ext` | matching files, at any depth | `*.md` |
+| `dir/*.ext` | matching files, only from the root | `docs/*.md` |
+| `!pattern` | **re-includes** what an earlier line excluded | `!docs/readme.md` |
+| `@import-gitignore` | everything your `.gitignore` excludes, read as if pasted here | |
+
+The rule: a pattern **with a `/` in the middle** (or at the start) is anchored to the project root. A pattern **without one** matches at any depth.
+
+### Re-including a file
+
+The last matching line wins:
+
+```text
+*.md
+!docs/readme.md
+```
+
+As in git, you can't re-include a file **inside an excluded folder**. `docs/` skips the whole folder, so `!docs/readme.md` never runs. Exclude the folder's contents instead:
+
+```text
+docs/*
+!docs/readme.md
+```
+
+### Reusing `.gitignore`
+
+`@import-gitignore` (or `mct-cli ignore-init --import-gitignore`) adds every line of `.gitignore`, `!` lines included, at the place where the directive stands. Without the directive, `.gitignore` is never read. If `.gitignore` doesn't exist, the line does nothing.
+
+## When changes take effect
+
+- **MCP server:** right away. The server watches `.mctignore` and `.gitignore`, reloads the rules when either changes, and reindexes. Files that are now excluded are removed from the index; files that are now included are added. No restart is needed.
+- **CLI:** on the next `mct-cli reindex`.
+
+A pattern that is not a valid glob is skipped. If your rules can't be compiled at all, only the built-in exclusions are used and a warning goes to stderr.
