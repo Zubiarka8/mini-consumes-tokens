@@ -41,27 +41,15 @@ const en = {
   query0: "Where is the request parsed, and what validates it?",
   query1: "What happens when the server receives a request?",
   query2: "Where is empty input rejected, and who uses that check?",
-  query3: "How does a request enter the service?",
-  query4: "How is input cleaned before validation?",
-  query5: "Where is the response built after parsing succeeds?",
   role0: "Parse the request",
   role1: "Handle the request",
   role2: "Validate the input",
-  role3: "Route incoming requests",
-  role4: "Clean the input",
-  role5: "Build the response",
   purpose0:
     "The parser builds a Request and delegates validation. Its caller and dependency explain where it fits in the request flow.",
   purpose1:
     "The entry point calls the parser and builds a response. Following that call leads to the parsing and validation code.",
   purpose2:
     "Validation normalizes the input and rejects an empty value. The caller shows how this check is reached from the parser.",
-  purpose3:
-    "The router hands incoming input to the server handler. This is the start of the path through parsing, validation and response building.",
-  purpose4:
-    "Normalization trims surrounding whitespace and converts input to lowercase. Validation uses this cleaned value to detect empty input.",
-  purpose5:
-    "The response builder wraps the parsed request in a successful response. The server reaches it only after parsing and validation succeed.",
   atlas: "Code atlas",
   illustration: "Illustrative repository, not a live index",
   graphAlt:

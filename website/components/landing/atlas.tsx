@@ -158,8 +158,7 @@ export function Atlas() {
         </div>
         <p>{t("projectBrief")}</p>
         <p className="atlas-project-flow">
-          main.rs <span>→</span> server.rs <span>→</span> parser.rs{" "}
-          <span>→</span> validation.rs
+          server.rs <span>→</span> parser.rs <span>→</span> validation.rs
         </p>
       </div>
       <div className="atlas-toolbar">

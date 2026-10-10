@@ -42,27 +42,15 @@ const es: Record<keyof typeof en, string> = {
   query0: "¿Dónde se interpreta la petición y qué función la valida?",
   query1: "¿Qué ocurre cuando el servidor recibe una petición?",
   query2: "¿Dónde se rechazan los datos vacíos y quién usa esa comprobación?",
-  query3: "¿Cómo entra una petición en el servicio?",
-  query4: "¿Cómo se limpian los datos antes de validarlos?",
-  query5: "¿Dónde se construye la respuesta tras interpretar la petición?",
   role0: "Interpretar la petición",
   role1: "Procesar la petición",
   role2: "Validar los datos",
-  role3: "Dirigir las peticiones",
-  role4: "Limpiar los datos",
-  role5: "Construir la respuesta",
   purpose0:
     "El parser construye un Request y delega la validación. Su llamador y su dependencia explican dónde encaja en el recorrido de la petición.",
   purpose1:
     "El punto de entrada llama al parser y construye una respuesta. Seguir esa llamada lleva al código de interpretación y validación.",
   purpose2:
     "La validación normaliza los datos y rechaza un valor vacío. El llamador muestra cómo se llega a esta comprobación desde el parser.",
-  purpose3:
-    "El router entrega los datos al controlador del servidor. Aquí empieza el recorrido por la interpretación, la validación y la construcción de la respuesta.",
-  purpose4:
-    "La normalización elimina los espacios de los extremos y convierte los datos a minúsculas. La validación usa ese valor limpio para detectar datos vacíos.",
-  purpose5:
-    "El constructor envuelve la petición interpretada en una respuesta correcta. El servidor solo llega aquí si la interpretación y la validación terminan sin errores.",
   atlas: "Atlas de código",
   illustration: "Repositorio ilustrativo, no un índice en vivo",
   graphAlt:
