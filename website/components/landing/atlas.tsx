@@ -91,8 +91,7 @@ export function Atlas() {
         first?.focus();
       }
     };
-    // The button sits at the foot of the scene; opening must not scroll the dialog to it.
-    expandButton.current?.focus({ preventScroll: true });
+    expandButton.current?.focus();
     document.addEventListener("keydown", keyboard);
     return () => {
       document.body.style.overflow = previousOverflow;
