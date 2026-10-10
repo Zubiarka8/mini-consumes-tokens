@@ -1,7 +1,7 @@
 # ADR-003: Web / 3D portfolio indexing foundation
 
 ## Status
-Accepted (2026-10-10). Issue: pending (draft below). Covers the seven items under "Web / 3D portfolio support" in the [roadmap](../../05-backlog/roadmap.md#web--3d-portfolio-support-by-priority); prompts in [web-3d-prompts](../../05-backlog/web-3d-prompts.md). Builds on [ADR-002](002-qualified-relation-resolution.md) (`RelationTarget` resolution).
+Accepted (2026-10-10). Issue: [#165](https://github.com/Zubiarka8/mini-consumes-tokens/issues/165). Covers the seven items under "Web / 3D portfolio support" in the [roadmap](../../05-backlog/roadmap.md#web--3d-portfolio-support-by-priority); prompts in [web-3d-prompts](../../05-backlog/web-3d-prompts.md). Builds on [ADR-002](002-qualified-relation-resolution.md) (`RelationTarget` resolution).
 
 ## Context
 - `SourceFile.contents` is `String`. `index_file` drops a non-UTF-8 file before any parser, and a file with no registered extension gets no `files` row, so a `.glb`, `.png` or `.hdr` has no node for a relation to resolve to.
@@ -138,7 +138,7 @@ Each phase that needs `--force` states it in CHANGELOG, as the Markdown literal 
 - Lang crates may now depend on lang crates, in one direction only (embedding → leaf).
 - Known limits: no tsconfig aliases or custom `publicDir`; no component tags inside Astro `{…}` expressions; no meshes; no JSX props; in-root symlinked assets resolve only by their canonical path; findings are heuristics with documented false positives.
 
-## Issue draft
+## Issue draft (opened as #165)
 **Title:** Web/3D foundation: asset nodes, five symbol kinds, reference-path resolver (ADR-003)
 
 **Body:**
