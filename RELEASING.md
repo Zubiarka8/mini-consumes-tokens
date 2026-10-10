@@ -86,7 +86,7 @@ would build against the unpatched upstream crate.
 
 Until a `tree-sitter-md` release on crates.io contains both fixes (or the
 owner chooses another publishable, reviewed dependency), do **not** publish
-`mct-lang-md`, `mct-cli` or `mct-mcp-server`, and do not use `--no-verify` or
+`mct-lang-md`, `mct-languages`, `mct-cli` or `mct-mcp-server`, and do not use `--no-verify` or
 remove the patch to get around it. Publishing only the crates that do not
 depend on `mct-lang-md` is possible but gives users nothing installable, so
 the whole crates.io channel waits.
@@ -109,7 +109,8 @@ When the block is lifted:
    # Any order — they depend only on mct-core (and mct-tree-sitter):
    cargo publish -p mct-index
    cargo publish -p mct-lang-rust      # … and every other mct-lang-* crate
-   cargo publish -p mct-languages      # after every mct-lang-* crate
+   cargo publish -p mct-languages      # after all 17 mct-lang-* crates
+                                       # (mct-lang-md included)
    # Depend on everything above:
    cargo publish -p mct-mcp-server
    cargo publish -p mct-cli
