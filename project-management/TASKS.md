@@ -123,7 +123,7 @@ Recovered: the manifest-format modules and JS/TS walker split (`690f5b0`), and t
 - [x] Library tests moved out of `tests/corpus.rs` still run in `corpus-report`.
 - [x] Guard test fails when a language is left unregistered (checked by removing Lua temporarily).
 - [x] `scripts/unix/check.sh` passes on `9109edd` (see Handoff).
-- [ ] Windows CI "PowerShell scripts" step passes (needs a push).
+- [x] Windows CI "PowerShell scripts" step passes (run 38056059719).
 - [ ] Maintainer review and integration.
 
 ### Required checks
@@ -136,7 +136,7 @@ See [Handoff](HANDOFF.md#task-lib-001).
 
 ### Result
 
-Commits on `claude/library-onboarding-audit`; not pushed, no PR.
+Draft PR: https://github.com/Zubiarka8/mini-consumes-tokens/pull/170 (CI green, awaiting review; ERR-010 open).
 
 ## New task entry template
 

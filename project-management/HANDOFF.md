@@ -67,7 +67,7 @@ Latest verified implementation commit: `9109edd`; resolve the branch HEAD throug
 
 - The two remaining index parse failures (`scripts/unix/pr-body.sh`, `scripts/windows/pr-status.ps1`) are upstream grammar rejections, not yet filed upstream.
 - The 16 `tests/corpus/malformed/` rejections in `get_indexing_status` are intentional. `.mctignore` is local-only in this repository (`.gitignore`), so the exclusion `crates/*/tests/corpus/malformed/` was not committed.
-- `errors/` lives on unmerged `chore/mcp-error-registry`; not duplicated here.
+- `errors/` comes from PR #168 (cherry-picked as `57f834e`, see the follow-up below); not duplicated.
 
 ### Exact next step
 
@@ -81,4 +81,11 @@ Maintainer review of `1ad9972..claude/library-onboarding-audit`; push and open a
 - `1a064b1`: Windows CI step parses every `scripts/windows/*.ps1` and runs `new-language-check.ps1 lua --no-tests` and `corpus-report.ps1 css`. Not run yet: it needs a push or PR.
 - Checks on `46d722f`, clean tree: `check.sh` fmt ok, 1199 passed / 0 failed / 25 ignored, CI clippy ok, eval no regressions. `new-language-check.sh <lang> --no-tests` exit 0 for all 17 crates; exit 1 with the old `"0.25"` form. `corpus-report.sh` ok for rust, bash, php, powershell, js-ts, python. `cargo metadata --locked` ok. `cargo package -p mct-languages` fails only on unpublished `mct-core`, same as `mct-cli`.
 
-Exact next step: maintainer review; on push, read the Windows "PowerShell scripts" step output.
+### Draft PR session (2026-10-10)
+
+- `4c2cbd3`: CI `build`/`test`/`clippy` and the quality report pass `--locked`; local runs of the three commands exit 0, and an unsatisfiable requirement fails `cargo metadata --locked` (exit 101).
+- Pushed; draft [PR #170](https://github.com/Zubiarka8/mini-consumes-tokens/pull/170). First run 38055596733: Windows "PowerShell scripts" failed on `scripts/windows/pr-body.ps1:22` (`"$checkRel:"`, a drive-qualified variable). Fixed in `418e295`; `pr-status.ps1` parsed natively, so ERR-002 is grammar-only (`29dcdff`).
+- Run 38056059719 on `29dcdff`: 41/41 checks pass. Windows step: every `scripts/windows/*.ps1` parses, `new-language-check.ps1 lua --no-tests` all ok, `corpus-report.ps1 css` 18 passed, 0 failed.
+- ERR-010 stays OPEN; its test is `#[ignore]`d.
+
+Exact next step: maintainer review of PR #170; decide whether to integrate with ERR-010 documented or fix it first. No merge or package publication.
