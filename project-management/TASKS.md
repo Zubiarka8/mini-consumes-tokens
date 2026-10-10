@@ -140,7 +140,7 @@ Merged in https://github.com/Zubiarka8/mini-consumes-tokens/pull/170 as `a94d101
 
 ## TASK-WEB-169
 
-Status: REVIEW
+Status: DONE (integration verified 2026-10-10)
 Owner: Codex coordinator; integration continued by a Claude Code session
 Reviewer: Repository maintainer
 Branch: `docs/fumadocs-site` (PR #169), updated from `codex/reconcile-website-169`
@@ -157,13 +157,15 @@ Ship one website: the Fumadocs reference manual from PR #169 plus the EN/ES Code
 
 ### Acceptance criteria
 
-- The 27 reference documentation files are unchanged from PR #169.
+- The reconciled #169 candidate preserved all 27 reference documentation files. Subsequent maintainer-merged #174 intentionally updated architecture, extending, libraries and limitations; the other 23 remain unchanged. This accepted follow-up supersedes byte-for-byte preservation of those four files.
 - Types, formatting, translation resources, prefixed and default builds, export link checks and WebKit browser tests pass.
 - PR #169 has no merge conflict with `main` and its CI is green.
 
 ### Result
 
-`405fea8` reconciles the landing with the manual; `6b1bede` merges `main` (CHANGELOG conflict resolved keeping both entries) and was pushed to PR #169. Local checks on `6b1bede`: `npm ci` (0 vulnerabilities), types, format, 102 translation keys, prefixed build, 29 HTML / 1127 links export check, 18 WebKit tests passed. Awaiting CI and maintainer merge.
+`405fea8` reconciles the landing with the manual; `6b1bede` merges `main` (CHANGELOG conflict resolved keeping both entries) and was pushed to PR #169. Local checks on `6b1bede`: `npm ci` (0 vulnerabilities), types, format, 102 translation keys, prefixed build, 29 HTML / 1127 links export check, 18 WebKit tests passed. PR #169 merged as `d016df971edac5929efeab67df08f10c72f2dd2f`. Follow-ups [#171](https://github.com/Zubiarka8/mini-consumes-tokens/pull/171), [#173](https://github.com/Zubiarka8/mini-consumes-tokens/pull/173) and [#174](https://github.com/Zubiarka8/mini-consumes-tokens/pull/174) merged as `d148df9`, `d12127b` and `fca28b1`; all four merge commits are ancestors of current main `eee98e9ed0f1467dac32fe172cb90eb846628f83`. #171 adds atlas work, #173 moves details into a dialog, and #174 aligns four manual pages with the language registry/layout.
+
+[Docs run 38083267842](https://github.com/Zubiarka8/mini-consumes-tokens/actions/runs/38083267842), on `fca28b1`, completed successfully: types, format, resources, static build, export links, artifact upload and Pages deployment. Main's website/workflow tree matches that tested revision (`git diff --exit-code fca28b1 origin/main -- website .github/workflows/docs.yml` passed). PR #169's checks show 42 successful jobs and one expected skipped PR deployment, with no failing or pending checks. Default/prefixed build and 18 WebKit results on `6b1bede` are historical local evidence; #173 reports 21 WebKit passes in its PR, not independently rerun here. No runtime/browser tests were added or executed for this bookkeeping change.
 
 ## New task entry template
 
