@@ -35,14 +35,16 @@ The MCP server (`mct-mcp-server`) does the same indexing automatically at startu
 Usage: mct-cli [OPTIONS] <COMMAND>
 
 Commands:
-  init            Build the index for the first time
-  reindex         Re-scan the project and update the index
-  status          Report index health
-  mcp-register    Write (or update) `.mcp.json` so an MCP client can launch this server
-  ignore-init     Write a starter `.mctignore` for custom indexing exclusions
-  gitignore-init  Keep the generated index out of git
-  dead-code       Write a CSV report of dead-code candidates (heuristic: symbols with zero indexed references) — one row per candidate with its file, function name, kind, language, and start/end line
-  help            Print this message or the help of the given subcommand(s)
+  init                  Build the index for the first time
+  reindex               Re-scan the project and update the index
+  status                Report index health
+  mcp-register          Write (or update) `.mcp.json` so an MCP client can launch this server
+  ignore-init           Write a starter `.mctignore` for custom indexing exclusions
+  gitignore-init        Keep the generated index out of git
+  dead-code             Write a CSV report of dead-code candidates (heuristic: symbols with zero indexed references) — one row per candidate with its file, function name, kind, language, and start/end line
+  probe                 Parse files without indexing them and report, per file, either its symbol/relation counts or the first syntax error with its line
+  update, -u, --update  Update mct-cli and mct-mcp-server to the latest GitHub release
+  help                  Print this message or the help of the given subcommand(s)
 
 Options:
       --root <ROOT>
@@ -312,6 +314,39 @@ Options:
       --language <LANGUAGE>  Exact language id to keep (e.g. `rust`, `python`, `go`)
       --output <OUTPUT>      Where to write the CSV report. Defaults to `<root>/.mct-index/dead-code-report.csv`
   -h, --help                 Print help
+```
+
+</details>
+
+### `update` / `-u` / `--update`
+
+Updates `mct-cli` and `mct-mcp-server` to the latest [GitHub release](https://github.com/Zubiarka8/mini-consumes-tokens/releases) by running the official installer (`install.sh`, or `install.ps1` on Windows) with the folder `mct-cli` runs from as the install folder, so both programs are replaced where they already are. Check the result with `mct-cli --version`.
+
+```sh
+mct-cli update      # same as: mct-cli -u, mct-cli --update
+```
+
+<details>
+<summary>Full output</summary>
+
+```
+Update mct-cli and mct-mcp-server to the latest GitHub release.
+
+Runs the official installer (`install.sh`, or `install.ps1` on Windows) with this binary's own folder as the install directory, so both programs are replaced where they already are. Needs network access, plus `curl` and `bash` on macOS/Linux. Release binaries are built without the `semantic` feature: a source install with `--features semantic` is replaced by one without it. Close the MCP client first on Windows, which cannot overwrite a running `mct-mcp-server.exe`.
+
+Usage: mct-cli {update|--update|-u} [OPTIONS]
+
+Options:
+      --root <ROOT>
+          Project root to operate on. Defaults to the current working directory
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+Examples:
+  mct-cli update
+  mct-cli -u
+  mct-cli --update
 ```
 
 </details>
