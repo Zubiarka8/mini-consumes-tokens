@@ -1,14 +1,14 @@
 # Project State
 
 Last update: 2026-10-10
-Updated by: Claude Code session (continuing the Codex coordinator)
+Updated by: Codex coordinator (bounded records reconciliation)
 Main branch: `main`
-Observed main commit: `a94d10129d95c43d8cd56d80ba1656517a354beb` (PR #170)
+Observed main commit: `eee98e9ed0f1467dac32fe172cb90eb846628f83` (GitHub and local refs match)
 Scope: reconciliation of these records with merged PRs and open issues; not a full backlog audit.
 
 ## Current objective
 
-Integrate the reconciled website (PR #169), then recover the partial local work listed below without repeating what is already merged.
+Reconcile website integration and ERR-011, inventory local worktrees, and prepare documentation-only changes for review. Stop before push, PR creation or cleanup.
 
 ## Merged since the last update
 
@@ -16,11 +16,13 @@ PR #96 (`adbc43a`) shared coordination rules; #157 (`7558113`) language-crate ba
 
 ## Active work
 
-- [TASK-WEB-169](TASKS.md#task-web-169) is in REVIEW: PR #169 updated with the reconciled landing and a merge of `main`.
+- [TASK-WEB-169](TASKS.md#task-web-169) is DONE: #169/#171/#173/#174 are merged and Docs build/deploy passed. See the task for the accepted four-page manual update and verification limits.
+- ERR-011 is RESOLVED after schema inspection, controlled reproduction and successful corrected retry; see [error history](../errors/HISTORY.md).
+- Worktree audit: 85 entries, 68 clean, 15 dirty, two prunable/unusable, seven detached; 57 HEADs are ancestors of main. Integration alone does not establish safe deletion; ownership and ignored data remain unverified.
 
-## Completed but not integrated
+## Additional integration observation
 
-- JSX component references for #51 on `codex/framework-followup-51` (`2d3def5`): focused checks passed, not reviewed or published. #51 stays open; Vue SFC support is not started.
+- The JSX candidate is already reachable from current main via PR #176 (`c8fb4b1`); do not implement it again. This observation does not close the wider #51 framework acceptance or assess Vue support.
 
 ## Partial, uncommitted work (not validated)
 
@@ -40,4 +42,4 @@ None. #24 benchmarks and #22 sandbox audit are investigation only; no paid bench
 
 ## Next recommended action
 
-Merge PR #169 once CI is green and the maintainer accepts it. Then review and publish the JSX change, and resume #135 and #11/#17 from their uncommitted diffs.
+Review the prepared documentation diff and proposed PR summary. Publication requires separate authorization in this task. Preserve every worktree; resume functional work only under a new scoped assignment.
