@@ -7,6 +7,7 @@ members = [
     "crates/mct-lang-python",
     "crates/mct-mcp-server",
     "crates/mct-cli",
+    "crates/mct-languages",
     "crates/mct-lang-lua",
     "crates/mct-lang-java",
     "crates/mct-lang-csharp",
@@ -41,6 +42,7 @@ repository = "https://github.com/zubiarka8/mini-consumes-tokens"
 # workspace builds and is stripped from the packaged Cargo.toml.
 mct-core = { path = "crates/mct-core", version = "0.2.0" }
 mct-index = { path = "crates/mct-index", version = "0.2.0" }
+mct-languages = { path = "crates/mct-languages", version = "0.2.0" }
 mct-lang-rust = { path = "crates/mct-lang-rust", version = "0.2.0" }
 mct-lang-python = { path = "crates/mct-lang-python", version = "0.2.0" }
 mct-lang-java = { path = "crates/mct-lang-java", version = "0.2.0" }
