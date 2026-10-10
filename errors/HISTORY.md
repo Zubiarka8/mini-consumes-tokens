@@ -38,3 +38,8 @@
 - No project MCP tool returned an error in this session.
 - ERR-002 evidence: the Windows CI step "PowerShell scripts" (PR #170, run 38055596733) parsed `pr-status.ps1` with PowerShell 7's parser without errors, so the rejection is the grammar's. The same step found a real error the grammar accepts: `scripts/windows/pr-body.ps1:22` used `"$checkRel:"`, a drive-qualified variable reference; fixed as `${checkRel}:`. Not an MCP tool error, so no registry entry.
 - ERR-010 → RESOLVED on `claude/library-onboarding-audit` (PR #170). The Rust walker records a path in value position as `References` with call-path evidence; the pinning test is no longer ignored, a second test checks that `other::helper` carries `module: other`, and the Rust corpus snapshot was re-blessed (+73 references). `mct-cli dead-code --language rust` on the worktree drops two false candidates (`default_suite`, `Rules`). Live MCP recheck pending a server rebuild.
+
+## Independent PR #170 review (2026-10-10)
+
+- Reviewed revision: `57d536544556af0becdec3317d4705747302bbbd`. An isolated MCP server built from that revision indexed its own review checkout; `reindex` with `force: true` reported 550 parsed files, 11,509 symbols, and the same 18 known diagnostics: ERR-001/ERR-002 plus the 16 intentionally malformed ERR-003 fixtures. No new diagnostic was found.
+- ERR-010 live verification completed: `find_references` with `symbol: RustParser`, `format: toon` reports seven references, including `build_registry` at `crates/mct-languages/src/lib.rs:12:47`, uniquely resolved to `crates/mct-lang-rust/src/lib.rs:15`. The lookup succeeds after forced reindexing with the reviewed parser; an unchanged index built by an older installed CLI does not automatically acquire new relations.

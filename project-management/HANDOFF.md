@@ -41,7 +41,7 @@ No automated orchestrator, locks, failover, or provider-to-provider messaging is
 
 ### Exact next step
 
-Check Git status/HEAD and PR #96's latest revision. Review the documentation diff, resolve findings, and integrate only when accepted and authorized. Record the merge commit before marking the task DONE.
+None. PR #96 merged as `adbc43a`; the task is DONE.
 
 ## TASK-LIB-001
 
@@ -94,4 +94,23 @@ Maintainer review of `1ad9972..claude/library-onboarding-audit`; push and open a
 - Checks on `d92d4f6`, clean tree: `check.sh` 1201 passed, 0 failed, 24 ignored; CI clippy ok; eval no regressions. `mct-cli dead-code --language rust` on the worktree: two false candidates gone (`default_suite`, `Rules`).
 - Both commits revert cleanly on their own if the maintainer prefers to integrate with ERR-010 documented.
 
-Exact next step: maintainer review of PR #170. No merge or package publication. Live MCP `find_references` recheck after the installed server is rebuilt (`scripts/unix/reinstall.sh --reindex`).
+Closed: PR #170 merged as `a94d101` (2026-10-10). No package publication. Live MCP `find_references` recheck after the installed server is rebuilt (`scripts/unix/reinstall.sh --reindex`).
+
+## TASK-WEB-169
+
+Status: REVIEW
+Branch: `docs/fumadocs-site` (PR #169), from `codex/reconcile-website-169`
+Latest commit: `6b1bede`
+
+### Completed
+
+- `405fea8`: EN/ES Code Atlas landing with an optional deferred 3D atlas next to the unchanged reference manual; strict types fixed for the Fiber JSX augmentation; export, resource and WebKit checks; the Pages workflow runs format, resource and export checks.
+- `6b1bede`: merge of `main`; the only conflict, `CHANGELOG.md`, keeps both entries.
+
+### Checks
+
+On `6b1bede`: `npm ci --offline` (0 vulnerabilities), `types:check`, `format:check`, `test:resources` (102 keys), prefixed build, `test:export` (29 HTML, 1127 links), `test:browser` (18 WebKit tests). No Chromium run, screen-reader or device audit, or Pages deployment.
+
+### Exact next step
+
+Wait for PR #169 CI, then maintainer merge. Merging deploys GitHub Pages.
