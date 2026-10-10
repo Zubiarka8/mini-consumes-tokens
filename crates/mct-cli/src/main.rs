@@ -145,6 +145,22 @@ enum Command {
         #[arg(required = true)]
         files: Vec<PathBuf>,
     },
+    /// Update mct-cli and mct-mcp-server to the latest GitHub release.
+    ///
+    /// Runs the official installer (`install.sh`, or `install.ps1` on
+    /// Windows) with this binary's own folder as the install directory, so
+    /// both programs are replaced where they already are. Needs network
+    /// access, plus `curl` and `bash` on macOS/Linux. Release binaries are
+    /// built without the `semantic` feature: a source install with
+    /// `--features semantic` is replaced by one without it. Close the MCP
+    /// client first on Windows, which cannot overwrite a running
+    /// `mct-mcp-server.exe`.
+    #[command(
+        short_flag = 'u',
+        long_flag = "update",
+        after_help = "Examples:\n  mct-cli update\n  mct-cli -u\n  mct-cli --update"
+    )]
+    Update,
 }
 
 fn build_registry() -> LanguageRegistry {
@@ -191,6 +207,9 @@ fn main() -> anyhow::Result<()> {
     if let Command::Probe { files } = &cli.command {
         return probe(&build_registry(), files);
     }
+    if let Command::Update = cli.command {
+        return self_update();
+    }
 
     let db_path = root.join(".mct-index").join("index.sqlite3");
     let registry = build_registry();
@@ -209,11 +228,61 @@ fn main() -> anyhow::Result<()> {
         Command::McpRegister { .. }
         | Command::IgnoreInit { .. }
         | Command::GitignoreInit
-        | Command::Probe { .. } => {
+        | Command::Probe { .. }
+        | Command::Update => {
             unreachable!("returned above")
         }
     }
 
+    Ok(())
+}
+
+const INSTALLER_BASE: &str =
+    "https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main";
+
+/// Reinstalls both binaries from the latest GitHub release into the folder
+/// this executable runs from, by running the same installer the README
+/// documents. The installer prints the release it installed.
+// ponytail: always reinstalls, even when already on the latest release —
+// compare against the release tag first if the download time matters.
+fn self_update() -> anyhow::Result<()> {
+    let exe = std::env::current_exe()?;
+    let dir = exe
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("cannot tell which folder {} is in", exe.display()))?;
+    println!(
+        "mct-cli {} installed in {}; fetching the latest release…",
+        env!("CARGO_PKG_VERSION"),
+        dir.display()
+    );
+
+    #[cfg(windows)]
+    let status = {
+        // Windows cannot overwrite a running .exe but can rename it, so this
+        // binary steps aside for the installer and is put back if it fails.
+        let old = exe.with_extension("old.exe");
+        let _ = std::fs::remove_file(&old);
+        std::fs::rename(&exe, &old)?;
+        let status = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command"])
+            .arg(format!("irm {INSTALLER_BASE}/install.ps1 | iex"))
+            .env("MCT_INSTALL_DIR", dir)
+            .status();
+        if !matches!(&status, Ok(s) if s.success()) && !exe.exists() {
+            let _ = std::fs::rename(&old, &exe);
+        }
+        status?
+    };
+    #[cfg(not(windows))]
+    let status = std::process::Command::new("bash")
+        .arg("-c")
+        .arg(format!("curl -fsSL {INSTALLER_BASE}/install.sh | bash"))
+        .env("INSTALL_DIR", dir)
+        .status()?;
+
+    if !status.success() {
+        anyhow::bail!("the installer failed ({status}); nothing was updated");
+    }
     Ok(())
 }
 
@@ -798,6 +867,33 @@ mod tests {
         assert!(calls.iter().any(|c| c.to_name == "print"), "{calls:?}");
 
         fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn update_and_version_accept_their_short_and_long_spellings() {
+        for args in [
+            ["mct-cli", "update"],
+            ["mct-cli", "-u"],
+            ["mct-cli", "--update"],
+        ] {
+            let cli = Cli::try_parse_from(args).map_err(|e| e.to_string());
+            assert!(
+                matches!(
+                    cli,
+                    Ok(Cli {
+                        command: Command::Update,
+                        ..
+                    })
+                ),
+                "{args:?} → {cli:?}"
+            );
+        }
+        for flag in ["-v", "-V", "--version"] {
+            let kind = Cli::try_parse_from(["mct-cli", flag])
+                .map(|_| ())
+                .map_err(|e| e.kind());
+            assert_eq!(kind, Err(clap::error::ErrorKind::DisplayVersion), "{flag}");
+        }
     }
 
     #[test]
