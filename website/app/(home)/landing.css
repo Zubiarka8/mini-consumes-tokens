@@ -1402,7 +1402,7 @@
   border: 0;
   --atlas-bar: 77px;
   --atlas-toolbar: 73px;
-  scroll-padding-top: calc(var(--atlas-bar) + var(--atlas-toolbar));
+  scroll-padding-top: var(--atlas-bar);
 }
 .atlas-expanded .atlas-top {
   position: sticky;
@@ -1566,9 +1566,7 @@
   .atlas.atlas-expanded {
     --atlas-toolbar: 107px;
     --atlas-scene: 260px;
-    scroll-padding-top: calc(
-      var(--atlas-bar) + var(--atlas-toolbar) + var(--atlas-scene)
-    );
+    scroll-padding-top: calc(var(--atlas-bar) + var(--atlas-scene));
   }
   .atlas-expanded .atlas-view {
     display: block;
