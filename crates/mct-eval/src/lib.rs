@@ -45,6 +45,25 @@ pub fn default_baseline_path() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("baseline.json")
 }
 
+/// Every checked-in suite, next to this crate's manifest. Each has its own
+/// baseline ([`baseline_path_for`]) and fixture.
+pub const SUITES: &[&str] = &["suite.json", "suite-portfolio-3d.json"];
+
+/// The baseline of the suite at `suite`: `suite<rest>` →
+/// `baseline<rest>` in the same directory (`suite-portfolio-3d.json` →
+/// `baseline-portfolio-3d.json`). Any other file name gets
+/// [`default_baseline_path`].
+pub fn baseline_path_for(suite: &Path) -> PathBuf {
+    let name = suite
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or_default();
+    match name.strip_prefix("suite") {
+        Some(rest) => suite.with_file_name(format!("baseline{rest}")),
+        None => default_baseline_path(),
+    }
+}
+
 /// A named set of cases run against one fixture.
 #[derive(Debug, Deserialize)]
 pub struct Suite {

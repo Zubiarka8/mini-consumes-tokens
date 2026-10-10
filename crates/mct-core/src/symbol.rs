@@ -41,6 +41,18 @@ pub enum SymbolKind {
     /// `References`). Compound/combinator selectors are not indexed — see
     /// `mct-lang-css`.
     Rule,
+    /// A binary or data asset file (`.glb`, `.png`, …), one per file, named
+    /// after its file name. Produced by `mct-index`, not a `LanguageParser`.
+    Asset,
+    /// A glTF scene or node.
+    ModelNode,
+    /// A glTF material.
+    Material,
+    /// A glTF animation clip.
+    Animation,
+    /// One hit of a static heuristic (e.g. an accessibility check), named
+    /// after the heuristic.
+    Finding,
 }
 
 /// Within-file identifier used to link [`SymbolRelation`]s to the

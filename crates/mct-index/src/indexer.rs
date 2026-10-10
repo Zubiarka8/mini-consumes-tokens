@@ -7,6 +7,7 @@ use mct_core::{LanguageRegistry, ParseError, SourceFile};
 use rusqlite::{params, OptionalExtension};
 use walkdir::WalkDir;
 
+use crate::assets::{self, AssetError};
 use crate::manifests;
 use crate::{ExcludeSet, Index, Result};
 
@@ -291,6 +292,19 @@ fn index_file(
         return Ok(Seen::Manifest(relative_path));
     }
 
+    if let Some(extension) = assets::asset_extension(file_name) {
+        let file_name = file_name.to_string();
+        return index_asset(
+            index,
+            &canonical,
+            relative_path,
+            file_name,
+            &extension,
+            force,
+            report,
+        );
+    }
+
     // Reported as seen regardless of whether we can index this file, so a
     // stale `files`/`index_issues` row is removed once the file is deleted
     // or excluded, not just once it's re-parsed.
@@ -412,6 +426,94 @@ fn index_file(
             // Registry already confirmed a parser exists for this
             // extension above; unreachable in practice.
         }
+    }
+    Ok(Seen::Source(relative_path))
+}
+
+/// Indexes one asset file (ADR-003 D1): a `files` row with language
+/// `asset` and one `asset` symbol named `file_name`, hash-skipped on
+/// `asset:<size>:<mtime-secs>`. Malformed, truncated or over-cap glTF JSON
+/// keeps the symbol and records a `syntax_error` issue.
+fn index_asset(
+    index: &mut Index,
+    canonical: &Path,
+    relative_path: String,
+    file_name: String,
+    extension: &str,
+    force: bool,
+    report: &mut ReindexReport,
+) -> Result<Seen> {
+    let metadata = match std::fs::metadata(canonical) {
+        Ok(m) => m,
+        Err(err) => {
+            record_read_failure(index, report, &relative_path, err.to_string())?;
+            return Ok(Seen::Unreadable(relative_path));
+        }
+    };
+    let mtime = metadata
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map_or(0, |d| d.as_secs());
+    let content_hash = format!("asset:{}:{mtime}", metadata.len());
+    let existing: Option<String> = index
+        .conn
+        .query_row(
+            "SELECT content_hash FROM files WHERE relative_path = ?1",
+            params![relative_path],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if !force && existing.as_deref() == Some(content_hash.as_str()) {
+        clear_read_failure(index, &relative_path)?;
+        report.files_unchanged += 1;
+        return Ok(Seen::Source(relative_path));
+    }
+
+    let issue = match assets::read_gltf_json(canonical, extension, metadata.len()) {
+        Ok(_) => None,
+        Err(AssetError::Invalid(detail)) => Some(detail),
+        Err(AssetError::Io(err)) => {
+            record_read_failure(index, report, &relative_path, err.to_string())?;
+            return Ok(Seen::Unreadable(relative_path));
+        }
+    };
+    let parsed = mct_core::ParsedFile {
+        symbols: vec![mct_core::SymbolRecord {
+            id: 0,
+            name: file_name,
+            kind: mct_core::SymbolKind::Asset,
+            location: mct_core::Location {
+                line: 1,
+                column: 1,
+                byte_len: 0,
+                end_line: None,
+            },
+            parent: None,
+            level: None,
+        }],
+        ..Default::default()
+    };
+    report.symbols_written += write_parsed_file(
+        index,
+        &relative_path,
+        assets::ASSET_LANGUAGE,
+        &content_hash,
+        &parsed,
+    )?;
+    report.files_parsed += 1;
+    if let Some(detail) = issue {
+        record_issue(
+            &index.conn,
+            &relative_path,
+            UnsupportedKind::SyntaxError,
+            &detail,
+        )?;
+        report.issues.push(UnsupportedFile {
+            relative_path: relative_path.clone(),
+            kind: UnsupportedKind::SyntaxError,
+            detail,
+        });
     }
     Ok(Seen::Source(relative_path))
 }
@@ -1218,6 +1320,11 @@ fn symbol_kind_str(kind: mct_core::SymbolKind) -> &'static str {
         Field => "field",
         Element => "element",
         Rule => "rule",
+        Asset => "asset",
+        ModelNode => "model_node",
+        Material => "material",
+        Animation => "animation",
+        Finding => "finding",
     }
 }
 
