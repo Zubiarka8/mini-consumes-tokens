@@ -123,6 +123,7 @@ Recovered: the manifest-format modules and JS/TS walker split (`690f5b0`), and t
 - [x] Library tests moved out of `tests/corpus.rs` still run in `corpus-report`.
 - [x] Guard test fails when a language is left unregistered (checked by removing Lua temporarily).
 - [x] `scripts/unix/check.sh` passes on `9109edd` (see Handoff).
+- [ ] Windows CI "PowerShell scripts" step passes (needs a push).
 - [ ] Maintainer review and integration.
 
 ### Required checks

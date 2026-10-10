@@ -72,3 +72,13 @@ Latest verified implementation commit: `9109edd`; resolve the branch HEAD throug
 ### Exact next step
 
 Maintainer review of `1ad9972..claude/library-onboarding-audit`; push and open a PR only when authorized.
+
+### Follow-up session (2026-10-10)
+
+- `57f834e`: PR #168's `errors/` registry cherry-picked (`-x e9280d8`); `283cbc5` updates it (ERR-001/002 root causes, ERR-003 exclusion note, ERR-010). PR #167 is identical to `4a59515`. Rebase after either merges drops the duplicate patch.
+- `ac5227d`: ADR-004 grammar version policy; three requirements moved to the locked x.y.z; `new-language-check` enforces it.
+- `dab3059`: ignored regression test for ERR-010; `46d722f` lists it in ISSUES_PENDING.md (required by `repo_ledgers`).
+- `1a064b1`: Windows CI step parses every `scripts/windows/*.ps1` and runs `new-language-check.ps1 lua --no-tests` and `corpus-report.ps1 css`. Not run yet: it needs a push or PR.
+- Checks on `46d722f`, clean tree: `check.sh` fmt ok, 1199 passed / 0 failed / 25 ignored, CI clippy ok, eval no regressions. `new-language-check.sh <lang> --no-tests` exit 0 for all 17 crates; exit 1 with the old `"0.25"` form. `corpus-report.sh` ok for rust, bash, php, powershell, js-ts, python. `cargo metadata --locked` ok. `cargo package -p mct-languages` fails only on unpublished `mct-core`, same as `mct-cli`.
+
+Exact next step: maintainer review; on push, read the Windows "PowerShell scripts" step output.
