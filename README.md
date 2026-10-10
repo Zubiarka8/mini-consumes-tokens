@@ -192,6 +192,15 @@ cargo install --locked --path crates/mct-mcp-server
 
 **Upgrading from 0.1.0** (`ccm-cli`/`ccm-mcp-server`, `.claude-index/`): see the upgrade steps in [CHANGELOG.md](CHANGELOG.md#upgrading-from-010) — new binary names, the `.mcp.json` `command`, a rebuilt `.mct-index/`, and the Windows installer's `MCT_INSTALL_DIR`.
 
+#### Checking the installed version and updating
+
+```sh
+mct-cli --version   # or -v: prints e.g. "mct-cli 0.2.0"
+mct-cli update      # or -u / --update: installs the latest release in place
+```
+
+`update` runs the option A installer for your system with the folder `mct-cli` is in as the install folder, so `mct-cli` and `mct-mcp-server` are both replaced where they already are; run `mct-cli --version` afterwards to confirm. It needs network access (and `curl` + `bash` on macOS/Linux). The release binaries are built without the `semantic` feature, so if you built from source with `--features semantic`, update with the option B commands instead (pull the clone, then the same `cargo install`). On Windows, close your MCP client first: Windows cannot replace a running `mct-mcp-server.exe`. After updating, restart the MCP client (or `/mcp` in Claude Code) so it starts the new server.
+
 **Optional — search by meaning (`hybrid_search`):** install the server with `cargo install --locked --path crates/mct-mcp-server --features semantic` instead. The build downloads a prebuilt ONNX Runtime library, so it needs network access and a platform ONNX Runtime ships binaries for. That adds a small local embedding model (`bge-small-en-v1.5`, ~130 MB, downloaded once on the first `hybrid_search` call into `.mct-index/models`, or `$FASTEMBED_CACHE_DIR` if set; `MCT_EMBEDDING_MODEL=all-MiniLM-L6-v2` picks a smaller, faster one) so your assistant can find code from a description (*"load the settings from disk"*) even when no word of it is in the function's name. Without the feature, `hybrid_search` still works, but only matches by name, and says so. Each symbol is embedded together with its signature, doc comment and the functions it calls. Tuning: `alpha` 0 = match by name only, 1 = match by meaning only, fused with Reciprocal Rank Fusion. Leave it out and it is picked from the query's shape: 0.1 for an identifier (`parse_request`, `HttpServer`, `Index::open`), 0.75 for a plain description, 0.5 otherwise. Wrap the query in double quotes (`"parse request"`) for an exact phrase: name matching only, those words in that order, the literal name first. An exact phrase also finds it inside string literals such as error and log messages (`"database connection failed"` → `src/db.rs:3 in function connect "database connection failed"`), ignoring case and accents. Literals are indexed for Rust string literals and for Markdown paragraphs and pipe-table rows only (at least eight characters and two words, first 256 characters of each, up to 500 per file; suspected secrets are skipped). Exact-phrase search needs no `semantic` build.
 
 **Repository input limits:** indexing, source tools, and CLI probes read regular files up to 16 MiB by default. Set `MCT_MAX_FILE_BYTES` to a positive byte count to change that limit. Oversized source files and manifests are reported as read failures; any last-good indexed data is retained and marked as possibly stale. Ignore-file read/compile failures are reported on stderr, and built-in exclusions remain active when custom glob patterns cannot compile.
@@ -359,6 +368,8 @@ The handful of commands you'll actually type by hand. For the full technical ref
 | Keep the generated index files out of git          | `mct-cli --root . gitignore-init`          |
 | Exclude extra files/folders from indexing          | `mct-cli --root . ignore-init`             |
 | Find candidate unused code                         | `mct-cli --root . dead-code`               |
+| See which version is installed                     | `mct-cli --version` (or `-v`)              |
+| Update to the latest release                       | `mct-cli update` (or `-u` / `--update`)    |
 
 Everything above accepts `--help` for its full description and examples (e.g. `mct-cli reindex --help`), and every command works the same way on Windows, macOS, and Linux.
 

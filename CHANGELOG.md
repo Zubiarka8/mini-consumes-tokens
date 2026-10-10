@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `mct-cli update` (also `-u` / `--update`) installs the latest GitHub
+  release of `mct-cli` and `mct-mcp-server` into the folder `mct-cli` runs
+  from, through the official installer. `mct-cli --version` (`-v`) shows
+  the installed version.
+- `scripts/unix/release.sh` (`bump`, `dry-run`, `publish`) automates the
+  scriptable steps of `RELEASING.md`.
+
 ## [0.2.0] - 2026-10-09
 
 Second release, and the first intended to ship prebuilt binaries: the
