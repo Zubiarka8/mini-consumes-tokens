@@ -180,21 +180,17 @@ before that CLI/MCP-server parity test was removed with the shared
 
 ---
 
-## 9. Rust: a path in value position leaves no relation
+## 9. ~~Rust: a path in value position leaves no relation~~ — **closed**
 
-**Observed**: `registry.register(Arc::new(mct_lang_rust::RustParser))` leaves
-only `calls` to `register` and `new`. The walker's `scoped_identifier` arm
-records nothing, so `find_references RustParser` found none of the registry
-uses when the registry moved to `mct-languages`; the compiler did. A call
-through the same path (`m::f()`) is already recorded with `module` evidence.
-Tracked as `errors/REGISTRY.md` ERR-010.
+`registry.register(Arc::new(mct_lang_rust::RustParser))` left only `calls` to
+`register` and `new`, so `find_references RustParser` missed every registry use
+(`errors/REGISTRY.md` ERR-010). The walker now records a path in value position
+as a `references` relation to its last segment, with the evidence a call
+through the same path gets (`module`, `qualifier`, or `external` for
+`std`/`core`/`alloc`); a call through a path stays a single `calls`. The Rust
+corpus snapshot gained 73 such references (enum variants, `u32::MAX`,
+`char::is_control` passed as a value…), reviewed one by one.
 
-**Expected**: a `references` relation with `module` evidence
-(`mct_lang_rust`), so it never resolves to a same-named item of this file.
-The fix changes the `by_path` case of
-`locals_fields_paths_labels_and_foreign_names_are_not_references` and the
-Rust corpus snapshot, to be reviewed together.
-
-**Issue**: not filed yet. **Pinned by**
-`a_path_in_value_position_is_a_reference_qualified_by_its_module`
-(`crates/mct-lang-rust/tests/parse.rs`).
+**Covered by**:
+- `a_path_in_value_position_is_a_reference_qualified_by_its_module` (`crates/mct-lang-rust/tests/parse.rs`)
+- `a_path_to_another_module_never_names_this_files_item` (`crates/mct-lang-rust/tests/parse.rs`)
