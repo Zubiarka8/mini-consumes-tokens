@@ -656,6 +656,62 @@ test("full screen opens a scroll tour that reveals stages inside the dialog", as
   );
 });
 
+test("tour explains the server in seven translated stages", async ({
+  page,
+}) => {
+  await page.goto(home);
+  const atlas = page.locator(".atlas");
+  for (const [language, fullScreen, exit, titles] of [
+    [
+      "en",
+      "Full screen",
+      "Exit full screen",
+      [
+        "Your agent asks the map, not the files.",
+        "Parsed, stored and served on your machine.",
+        "Get your bearings.",
+        "Ask one precise question.",
+        "Several questions, one call.",
+        "Work at scale.",
+        "Start with your own repository.",
+      ],
+    ],
+    [
+      "es",
+      "Pantalla completa",
+      "Salir de pantalla completa",
+      [
+        "Tu agente consulta el mapa, no los archivos.",
+        "Analizado, guardado y servido en tu equipo.",
+        "Oriéntate.",
+        "Haz una pregunta precisa.",
+        "Varias preguntas, una llamada.",
+        "Trabaja a escala.",
+        "Empieza con tu propio repositorio.",
+      ],
+    ],
+  ] as const) {
+    await page.getByLabel(/Language|Idioma/).selectOption(language);
+    await atlas.getByRole("button", { name: fullScreen, exact: true }).click();
+    const stages = atlas.locator(".atlas-stage");
+    await expect(stages).toHaveCount(7);
+    await expect(stages.locator("h3")).toHaveText([...titles]);
+    await expect(stages.nth(3)).toContainText(
+      "src/parser.rs:18:1 [rust] function parse_request",
+    );
+    const last = stages.last();
+    await expect(
+      last.locator('a[href="/mini-consumes-tokens/docs/tools/"]'),
+    ).toHaveCount(1);
+    await expect(last.locator(".command-row code")).toHaveText([
+      "mct-cli --root . init",
+      "mct-cli --root . mcp-register",
+      "mct-cli --root . status",
+    ]);
+    await atlas.getByRole("button", { name: exit, exact: true }).click();
+  }
+});
+
 test("Spanish browser starts in English and invalid storage is ignored", async ({
   browser,
 }) => {

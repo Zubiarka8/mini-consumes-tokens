@@ -11,7 +11,8 @@ import {
 } from "react";
 import { motion, useInView } from "motion/react";
 import { useTranslation } from "react-i18next";
-import { FileCode2, Maximize2, Minimize2 } from "lucide-react";
+import Link from "next/link";
+import { ArrowUpRight, FileCode2, Maximize2, Minimize2 } from "lucide-react";
 
 import {
   examples,
@@ -19,6 +20,7 @@ import {
   tourStages,
   type AtlasLayers,
 } from "./atlas-data";
+import { CopyCommand, setupCommands } from "./copy-command";
 
 const SpatialAtlas = lazy(() => import("./spatial-atlas"));
 class SceneBoundary extends Component<
@@ -260,7 +262,7 @@ export function Atlas() {
       )}
       {expanded && (
         <div className="atlas-tour" data-active-stage={activeStage}>
-          {tourStages.map(({ key, icon: Icon }, i) => (
+          {tourStages.map(({ key, icon: Icon, tools, docs }, i) => (
             <motion.section
               key={key}
               className="atlas-stage"
@@ -273,6 +275,48 @@ export function Atlas() {
               <Icon size={20} aria-hidden="true" />
               <h3 id={`${key}-title`}>{t(`${key}Title`)}</h3>
               <p>{t(`${key}Text`)}</p>
+              {tools && (
+                <ul className="atlas-tools">
+                  {tools.map(({ name, params, replaces, output }) => (
+                    <li key={name}>
+                      <p className="atlas-tool-call">
+                        <code>{name}</code> <span>{params}</span>
+                      </p>
+                      <p>{t(`ask_${name}`)}</p>
+                      {replaces && (
+                        <p className="atlas-tool-replaces">
+                          {t("replaces")} <code>{replaces}</code>
+                        </p>
+                      )}
+                      {output && (
+                        <pre
+                          tabIndex={0}
+                          aria-label={`${t("exampleOutput")}: ${name}`}
+                        >
+                          <code>{output}</code>
+                        </pre>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {docs && (
+                <>
+                  <div className="command-panel">
+                    {setupCommands.map(({ command, label }) => (
+                      <CopyCommand
+                        key={command}
+                        command={command}
+                        label={t(label)}
+                      />
+                    ))}
+                  </div>
+                  <Link href={docs} className="text-link">
+                    {t("toolsReference")}
+                    <ArrowUpRight size={16} aria-hidden="true" />
+                  </Link>
+                </>
+              )}
             </motion.section>
           ))}
         </div>
