@@ -210,12 +210,13 @@ export function Atlas() {
             <SceneBoundary onFailure={sceneFailure}>
               <Suspense fallback={null}>
                 <SpatialAtlas
+                  key={expanded ? "detail" : "compact"}
                   selected={selected}
                   layers={layers}
                   separation={separation}
                   onSelect={setSelected}
                   onReady={sceneReady}
-                  active={inView && visible}
+                  active={(inView || expanded) && visible}
                   reduced={reduced}
                   onFailure={sceneFailure}
                 />
