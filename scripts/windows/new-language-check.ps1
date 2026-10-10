@@ -73,7 +73,8 @@ if (-not (Test-Path -LiteralPath (Get-RepoPath $dir) -PathType Container)) {
   exit 1
 }
 Test-Place required 'depends on mct-core'                     "$dir/Cargo.toml" '^mct-core'
-Test-Place required 'depends on a tree-sitter grammar'        "$dir/Cargo.toml" '^tree-sitter-'
+# Full validated version, caret semantics (ADR-004): "0.25.1", not "0.25" or "=0.25.1".
+Test-Place required 'tree-sitter grammar at a full x.y.z'     "$dir/Cargo.toml" '^tree-sitter-[a-z0-9-]+ = "[0-9]+\.[0-9]+\.[0-9]+"'
 Test-Place required 'implements LanguageParser'               "$dir/src" 'impl +LanguageParser +for'
 Test-Place required 'workspace member'                        'Cargo.toml' ('"' + [regex]::Escape($dir) + '"')
 Test-Place required 'workspace dependency'                    'Cargo.toml' ('^' + $c + ' *=')

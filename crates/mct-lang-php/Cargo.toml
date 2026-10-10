@@ -12,7 +12,7 @@ categories = ["development-tools", "parser-implementations"]
 mct-core.workspace = true
 mct-tree-sitter.workspace = true
 tree-sitter.workspace = true
-tree-sitter-php = "0.24"
+tree-sitter-php = "0.24.2"
 
 [dev-dependencies]
 mct-corpus.workspace = true

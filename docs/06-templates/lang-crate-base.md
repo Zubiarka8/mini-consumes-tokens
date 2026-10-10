@@ -41,7 +41,7 @@ categories = ["development-tools", "parser-implementations"]
 mct-core.workspace = true
 mct-tree-sitter.workspace = true
 tree-sitter.workspace = true
-tree-sitter-<name> = "<exact version>"
+tree-sitter-<name> = "<x.y.z you validated>"   # caret, not `=`; see ADR-004
 
 [dev-dependencies]
 mct-corpus.workspace = true
