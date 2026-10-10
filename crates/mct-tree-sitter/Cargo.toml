@@ -13,4 +13,4 @@ mct-core.workspace = true
 tree-sitter.workspace = true
 
 [dev-dependencies]
-tree-sitter-bash = "0.25"
+tree-sitter-bash = "0.25.1"

@@ -27,6 +27,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   an asset. No schema migration and no `reindex --force` needed: the next
   normal reindex adds the assets.
 
+### Changed
+
+- New crate `mct-languages` holds the one `build_registry()` that
+  `mct-cli`, `mct-mcp-server` and `mct-eval` index with. Adding a language
+  now means one dependency and one `register` line there, instead of two
+  copies kept in sync by a parity test. `mct_mcp_server::registry::build_registry`
+  still works (re-export). No change to the shipped language set.
+
+### Fixed
+
+- Rust: a path in value position (`Arc::new(m::Parser)`, `Severity::Warning`,
+  `.any(char::is_control)`) is now a `references` relation with the same
+  module/type evidence as a call through that path, so `find_references`,
+  `impact_analysis` and `find_dead_code` see it. Run `reindex --force` once
+  so unchanged Rust files pick it up.
+
 ## [0.2.0] - 2026-10-09
 
 Second release, and the first intended to ship prebuilt binaries: the

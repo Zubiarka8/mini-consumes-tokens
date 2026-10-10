@@ -12,7 +12,7 @@ categories = ["development-tools", "parser-implementations"]
 mct-core.workspace = true
 mct-tree-sitter.workspace = true
 tree-sitter.workspace = true
-tree-sitter-powershell = "0.26"
+tree-sitter-powershell = "0.26.4"
 
 [dev-dependencies]
 mct-corpus.workspace = true
