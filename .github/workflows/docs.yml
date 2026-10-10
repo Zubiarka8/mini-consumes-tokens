@@ -41,10 +41,19 @@ jobs:
 
       - run: npm run types:check
 
+      - run: npm run format:check
+
+      - run: npm run test:resources
+
       - name: Build static site
         run: npm run build
         env:
-          NEXT_PUBLIC_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          NEXT_PUBLIC_BASE_PATH: ${{ github.event_name == 'pull_request' && format('/{0}', github.event.repository.name) || steps.pages.outputs.base_path }}
+
+      - name: Check exported routes and asset links
+        run: npm run test:export
+        env:
+          NEXT_PUBLIC_BASE_PATH: ${{ github.event_name == 'pull_request' && format('/{0}', github.event.repository.name) || steps.pages.outputs.base_path }}
 
       - if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v4
