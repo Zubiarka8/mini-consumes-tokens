@@ -1466,6 +1466,61 @@
   line-height: 1.7;
   color: #abb9ad;
 }
+.atlas-tools {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 18px;
+}
+.atlas-tools li {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding-top: 14px;
+  border-top: 1px solid #2a3a2e;
+}
+.atlas-stage .atlas-tool-call {
+  color: #dce7d8;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.atlas-tool-call code {
+  color: var(--mineral);
+}
+.atlas-stage .atlas-tool-replaces {
+  font-size: 12px;
+}
+.atlas-tool-replaces code {
+  color: #dce7d8;
+}
+.atlas-tools pre {
+  margin: 4px 0 0;
+  padding: 12px 14px;
+  font-size: 11px;
+  line-height: 1.7;
+  color: #c9d5c5;
+  background: #111c15;
+  border: 1px solid #3b5240;
+  border-radius: 5px;
+  overflow-x: auto;
+}
+.atlas-stage .command-row {
+  border-top-color: #354538;
+}
+.atlas-stage .command-row span,
+.atlas-stage .command-row > p {
+  color: #abb9ad;
+}
+.atlas-stage .command-row button {
+  border-color: #566959;
+}
+.atlas-stage .command-row button:hover {
+  background: #2f4232;
+}
+.atlas-stage .text-link {
+  color: var(--mineral);
+}
 .atlas-expanded .context-pack {
   max-width: 1000px;
   margin-inline: auto;
