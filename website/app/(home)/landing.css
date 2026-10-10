@@ -1522,6 +1522,8 @@
   color: var(--mineral);
 }
 .atlas-expanded .context-pack {
+  /* Without a width, auto margins shrink the grid item to its longest code line. */
+  width: 100%;
   max-width: 1000px;
   margin-inline: auto;
 }
