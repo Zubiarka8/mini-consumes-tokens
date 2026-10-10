@@ -103,7 +103,7 @@ Reviewer: Repository maintainer
 Branch: `claude/library-onboarding-audit`
 Worktree: `mini-consumes-tokens-claude-library-onboarding-audit` (resolve the local path using Git)
 Base commit: `1ad997242c5629df14d77acb1f5c36baec202140`
-Dependencies: Recovers `codex/library-support-layout` (`60cd44e`, which contains `codex/library-maintainability` `9dfa1cc` rebased as `690f5b0`). Does not include `chore/mcp-error-registry` (`errors/`), which is still unmerged.
+Dependencies: Recovers `codex/library-support-layout` (`60cd44e`, which contains `codex/library-maintainability` `9dfa1cc` rebased as `690f5b0`). Carries the `errors/` registry from PR #168 (`chore/mcp-error-registry`, cherry-picked as `57f834e`); rebase once #167 or #168 merge.
 Priority: Medium
 Risk: Medium; new workspace crate `mct-languages`. No change to the shipped language set, `LanguageParser`, the schema or MCP signatures.
 Model/provider: Single session; no cross-provider dispatch
