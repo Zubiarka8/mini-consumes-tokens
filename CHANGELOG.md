@@ -27,6 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   an asset. No schema migration and no `reindex --force` needed: the next
   normal reindex adds the assets.
 
+### Changed
+
+- New crate `mct-languages` holds the one `build_registry()` that
+  `mct-cli`, `mct-mcp-server` and `mct-eval` index with. Adding a language
+  now means one dependency and one `register` line there, instead of two
+  copies kept in sync by a parity test. `mct_mcp_server::registry::build_registry`
+  still works (re-export). No change to the shipped language set.
+
 ## [0.2.0] - 2026-10-09
 
 Second release, and the first intended to ship prebuilt binaries: the

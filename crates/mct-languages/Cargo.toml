@@ -1,24 +1,15 @@
 [package]
-name = "mct-cli"
-description = "CLI for mini-consumes-tokens: init/reindex/status subcommands over the local tree-sitter-backed symbol index."
+name = "mct-languages"
+description = "The language set mini-consumes-tokens ships: one LanguageRegistry shared by mct-cli and mct-mcp-server."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-keywords = ["mcp", "cli", "code-index", "tree-sitter"]
-categories = ["command-line-utilities", "development-tools"]
+keywords = ["code-index", "tree-sitter"]
+categories = ["development-tools"]
 
 [dependencies]
-anyhow = "1.0.104"
 mct-core.workspace = true
-mct-index.workspace = true
-mct-languages.workspace = true
-clap = { version = "4.6.6", features = ["derive"] }
-serde_json = "1.0.151"
-
-[dev-dependencies]
-# examples/token_benchmark.rs indexes each fixture with a one-language
-# registry; production code uses mct-languages' shared registry instead.
 mct-lang-bash.workspace = true
 mct-lang-cpp.workspace = true
 mct-lang-csharp.workspace = true
@@ -27,10 +18,12 @@ mct-lang-go.workspace = true
 mct-lang-html.workspace = true
 mct-lang-java.workspace = true
 mct-lang-js-ts.workspace = true
+mct-lang-kotlin.workspace = true
+mct-lang-lua.workspace = true
+mct-lang-md.workspace = true
 mct-lang-php.workspace = true
 mct-lang-powershell.workspace = true
 mct-lang-python.workspace = true
 mct-lang-rust.workspace = true
 mct-lang-xaml.workspace = true
 mct-lang-xml.workspace = true
-walkdir = "2.5.0"

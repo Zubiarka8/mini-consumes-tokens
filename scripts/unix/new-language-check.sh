@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Lists every place a new language crate has to be wired into (CONTRIBUTING.md
 # "Adding a new language"), and which of them are still missing. Then runs
-# the crate's own tests and mct-cli's registry tests.
+# the crate's own tests and the shared registry's (mct-languages) tests.
 #
 # Usage:
 #   scripts/unix/new-language-check.sh go            # crate crates/mct-lang-go
@@ -61,10 +61,8 @@ check required "depends on a tree-sitter grammar"        "$dir/Cargo.toml" '^tre
 check required "implements LanguageParser"               "$dir/src" 'impl +LanguageParser +for'
 check required "workspace member"                        Cargo.toml "\"$dir\""
 check required "workspace dependency"                    Cargo.toml "^$crate *="
-check required "mct-mcp-server/Cargo.toml dependency"    crates/mct-mcp-server/Cargo.toml "^$crate"
-check required "mct-mcp-server registry.rs registration" crates/mct-mcp-server/src/registry.rs "$ident::"
-check required "mct-cli/Cargo.toml dependency"           crates/mct-cli/Cargo.toml "^$crate"
-check required "mct-cli build_registry registration"     crates/mct-cli/src/main.rs "$ident::"
+check required "mct-languages/Cargo.toml dependency"     crates/mct-languages/Cargo.toml "^$crate"
+check required "mct-languages build_registry registration" crates/mct-languages/src/lib.rs "$ident::"
 check required "tests/parse.rs"                          "$dir/tests/parse.rs" '#\[test\]'
 check required "syntax-error test (ParseError::Syntax)"  "$dir/tests/parse.rs" 'ParseError::Syntax'
 check required "fuzz harness (fuzz/Cargo.toml [workspace])" "$dir/fuzz/Cargo.toml" '^\[workspace\]'
@@ -81,9 +79,9 @@ if [ "$run_tests" -eq 1 ]; then
   log="$LOG_DIR/new-language-check-tests.log"
   new_log "$log"
   if cargo test -p "$crate" >>"$log" 2>&1 \
-    && cargo test -p mct-cli --bin mct-cli registry >>"$log" 2>&1; then
+    && cargo test -p mct-languages >>"$log" 2>&1; then
     passed=$(awk '/^test result:/ { for (i = 1; i <= NF; i++) if ($i ~ /^passed;?$/) p += $(i-1) } END { print p + 0 }' "$log")
-    echo "ok    tests ($crate + mct-cli registry): $passed passed"
+    echo "ok    tests ($crate + mct-languages registry): $passed passed"
   else
     status=1
     echo "FAIL  tests — full log: $log"

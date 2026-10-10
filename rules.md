@@ -244,6 +244,7 @@ mct-index    SQLite schema/migrations (a single schema for every language — a 
              column on `files`, not per-language tables), reindex orchestration, queries.
              Knows no language's grammar.
 mct-lang-*   One crate per language, each a LanguageParser impl over its tree-sitter grammar
+mct-languages  The shipped language set: the one build_registry() every binary indexes with
 mct-mcp-server  MCP tools over stdio (rmcp): list_symbols/find_symbol/search_symbols/hybrid_search/find_references/
                 find_calls/find_callers/impact_analysis/build_context_pack/find_dead_code/reindex/
                 get_indexing_status/get_file_skeleton/get_project_overview/get_file_tree/batch
@@ -256,7 +257,7 @@ mct-eval     Quality evaluation of the MCP tools against a fixture suite and a c
 
 1. New crate `crates/mct-lang-<name>`, depending on `mct-core` + `tree-sitter-<name>`.
 2. Implement `LanguageParser::parse()` — a pure AST walk that never executes/evals input; a syntax error returns `ParseError::Syntax`, never a panic (this runs over arbitrary third-party source).
-3. Register in exactly two places: `mct-mcp-server/src/registry.rs::build_registry` and `mct-cli/src/main.rs::build_registry`. Nothing else in `mct-core`, `mct-index`, or `mct-mcp-server` changes.
+3. Register in exactly one place: `crates/mct-languages` (a `Cargo.toml` dependency and one line in `src/lib.rs::build_registry`). The CLI, the MCP server and `mct-eval` all use that registry. Nothing else in `mct-core`, `mct-index`, `mct-cli`, or `mct-mcp-server` changes.
 4. Tests in `crates/mct-lang-<name>/tests/parse.rs`: function/call extraction, one idiomatic-syntax case (generics, decorators, whatever the language's equivalent is), one syntax-error case.
 5. Update the language table in `README.md` and `internal/checklist.md`.
 
