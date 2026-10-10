@@ -4,7 +4,7 @@ The coordinator owns this board. Statuses: TODO, READY, IN_PROGRESS, REVIEW, BLO
 
 ## TASK-PM-001
 
-Status: REVIEW
+Status: DONE
 Owner: Codex coordinator
 Reviewer: Repository maintainer; Codex performs the documentation consistency review
 Branch: `codex/rules-navigation`
@@ -44,11 +44,11 @@ See [Handoff](HANDOFF.md#task-pm-001). Prior routing/recovery implementation com
 
 ### Result
 
-Proposed in [PR #96](https://github.com/Zubiarka8/mini-consumes-tokens/pull/96); awaiting maintainer acceptance and verified integration.
+Merged in [PR #96](https://github.com/Zubiarka8/mini-consumes-tokens/pull/96) as `adbc43a` (2026-10-01).
 
 ## TASK-LANG-001
 
-Status: REVIEW
+Status: DONE
 Owner: Claude Code session (requested by the repository maintainer)
 Reviewer: Repository maintainer
 Branch: `docs/lang-crate-base-and-fuzz`
@@ -93,11 +93,11 @@ Work was first preserved in commit `2d3fd3b` on `codex/preserve-local-work-20261
 
 ### Result
 
-PR: https://github.com/Zubiarka8/mini-consumes-tokens/pull/157 (open, awaiting review and integration).
+Merged in https://github.com/Zubiarka8/mini-consumes-tokens/pull/157 as `7558113` (2026-10-09).
 
 ## TASK-LIB-001
 
-Status: REVIEW
+Status: DONE
 Owner: Claude Code session (requested by the repository maintainer)
 Reviewer: Repository maintainer
 Branch: `claude/library-onboarding-audit`
@@ -136,7 +136,34 @@ See [Handoff](HANDOFF.md#task-lib-001).
 
 ### Result
 
-Draft PR: https://github.com/Zubiarka8/mini-consumes-tokens/pull/170 (awaiting review). ERR-010 fixed in `b3a1490`/`d92d4f6`, separable from the rest.
+Merged in https://github.com/Zubiarka8/mini-consumes-tokens/pull/170 as `a94d101` (2026-10-10), including the ERR-010 fix. PRs #167 and #168 were closed as exact patch duplicates carried by #170. ERR-010 was re-verified through a live MCP `find_references` call after a forced reindex (`errors/HISTORY.md`).
+
+## TASK-WEB-169
+
+Status: REVIEW
+Owner: Codex coordinator; integration continued by a Claude Code session
+Reviewer: Repository maintainer
+Branch: `docs/fumadocs-site` (PR #169), updated from `codex/reconcile-website-169`
+Worktree: `mct-reconcile-website-169` (resolve the local path using Git)
+Base commit: `4d7d2ea5993bf8e3d5fad45fa10dad2f285e03d2`
+Dependencies: None
+Priority: Medium
+Risk: Medium; website dependencies (React Three Fiber, i18next, Motion, Playwright) and the Pages workflow. No Rust change.
+Model/provider: Codex worker, Claude Code integration review
+
+### Goal
+
+Ship one website: the Fumadocs reference manual from PR #169 plus the EN/ES Code Atlas landing, instead of two competing sites.
+
+### Acceptance criteria
+
+- The 27 reference documentation files are unchanged from PR #169.
+- Types, formatting, translation resources, prefixed and default builds, export link checks and WebKit browser tests pass.
+- PR #169 has no merge conflict with `main` and its CI is green.
+
+### Result
+
+`405fea8` reconciles the landing with the manual; `6b1bede` merges `main` (CHANGELOG conflict resolved keeping both entries) and was pushed to PR #169. Local checks on `6b1bede`: `npm ci` (0 vulnerabilities), types, format, 102 translation keys, prefixed build, 29 HTML / 1127 links export check, 18 WebKit tests passed. Awaiting CI and maintainer merge.
 
 ## New task entry template
 
