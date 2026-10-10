@@ -656,6 +656,29 @@ test("full screen opens a scroll tour that reveals stages inside the dialog", as
   );
 });
 
+for (const [width, height] of [
+  [1440, 900],
+  [390, 844],
+] as const)
+  test(`full screen shows the scene and tour before the explorer at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height });
+    await page.goto(home);
+    const atlas = page.locator(".atlas");
+    await atlas
+      .getByRole("button", { name: "Full screen", exact: true })
+      .click();
+    const box = async (selector: string) =>
+      (await atlas.locator(selector).boundingBox())!;
+    const controls = await box(".symbol-controls");
+    const stages = atlas.locator(".atlas-stage");
+    expect((await box(".atlas-space")).y).toBeLessThan(controls.y);
+    expect((await stages.first().boundingBox())!.y).toBeLessThan(controls.y);
+    const last = (await stages.last().boundingBox())!;
+    expect(last.y + last.height).toBeLessThanOrEqual(controls.y);
+  });
+
 test("tour explains the server in seven translated stages", async ({
   page,
 }) => {
