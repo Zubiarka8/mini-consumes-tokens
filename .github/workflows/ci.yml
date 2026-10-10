@@ -191,6 +191,8 @@ jobs:
         timeout-minutes: 10
         working-directory: crates/${{ matrix.crate }}
         run: |
+          # cargo-fuzz has no --locked; fail here if fuzz/Cargo.lock is stale.
+          (cd fuzz && cargo fetch --locked)
           target_name=$(cargo fuzz list)
           cargo fuzz build "$target_name"
 
