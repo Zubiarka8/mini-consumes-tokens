@@ -95,6 +95,48 @@ Work was first preserved in commit `2d3fd3b` on `codex/preserve-local-work-20261
 
 PR: https://github.com/Zubiarka8/mini-consumes-tokens/pull/157 (open, awaiting review and integration).
 
+## TASK-LIB-001
+
+Status: REVIEW
+Owner: Claude Code session (requested by the repository maintainer)
+Reviewer: Repository maintainer
+Branch: `claude/library-onboarding-audit`
+Worktree: `mini-consumes-tokens-claude-library-onboarding-audit` (resolve the local path using Git)
+Base commit: `1ad997242c5629df14d77acb1f5c36baec202140`
+Dependencies: Recovers `codex/library-support-layout` (`60cd44e`, which contains `codex/library-maintainability` `9dfa1cc` rebased as `690f5b0`). Does not include `chore/mcp-error-registry` (`errors/`), which is still unmerged.
+Priority: Medium
+Risk: Medium; new workspace crate `mct-languages`. No change to the shipped language set, `LanguageParser`, the schema or MCP signatures.
+Model/provider: Single session; no cross-provider dispatch
+
+### Goal
+
+Audit and improve the process for adding and maintaining a language or library, from wiring through indexing, tests, diagnostics and release, by fixing root causes.
+
+### Scope
+
+Recovered: the manifest-format modules and JS/TS walker split (`690f5b0`), and the `src/libraries/<name>/` test layout (`60cd44e`, without its five duplicated READMEs). New: `crates/mct-languages` as the single language registry; `corpus-report` also runs `--lib libraries::`; grammar rejections recorded in `internal/corpus-progress.md`. Exclusions: `website/`, parser behavior, the user's local `.mctignore`.
+
+### Acceptance criteria
+
+- [x] Both reference branches compared with main; only the missing, useful changes recovered.
+- [x] One registration point per language; `new-language-check` passes for an existing language.
+- [x] Library tests moved out of `tests/corpus.rs` still run in `corpus-report`.
+- [x] Guard test fails when a language is left unregistered (checked by removing Lua temporarily).
+- [x] `scripts/unix/check.sh` passes on `9109edd` (see Handoff).
+- [ ] Maintainer review and integration.
+
+### Required checks
+
+`scripts/unix/check.sh` (fmt, workspace tests, CI clippy, mct-eval); `new-language-check.sh lua`; `corpus-report.sh css` and `go`.
+
+### Checkpoint
+
+See [Handoff](HANDOFF.md#task-lib-001).
+
+### Result
+
+Commits on `claude/library-onboarding-audit`; not pushed, no PR.
+
 ## New task entry template
 
 ```text
