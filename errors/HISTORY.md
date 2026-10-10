@@ -36,3 +36,4 @@
 - ERR-006 evidence refreshed: the React test moved to `crates/mct-lang-js-ts/src/libraries/react/mod.rs` and passed.
 - Created ERR-010 (OPEN): `find_references RustParser` found none of the registry uses (`Arc::new(mct_lang_rust::RustParser)`); the compiler found them when the registry moved to `mct-languages`. Reproduced by an `#[ignore]`d regression test in `crates/mct-lang-rust/tests/parse.rs`; the parser fix is not made.
 - No project MCP tool returned an error in this session.
+- ERR-002 evidence: the Windows CI step "PowerShell scripts" (PR #170, run 38055596733) parsed `pr-status.ps1` with PowerShell 7's parser without errors, so the rejection is the grammar's. The same step found a real error the grammar accepts: `scripts/windows/pr-body.ps1:22` used `"$checkRel:"`, a drive-qualified variable reference; fixed as `${checkRel}:`. Not an MCP tool error, so no registry entry.
