@@ -169,7 +169,7 @@ After upgrading an existing index to Markdown literal extraction, run
 skipped. This parser change requires no schema migration. Exact-phrase literal
 search also works without the optional semantic feature.
 
-**Progressive tool discovery:** `discover_tool_categories` lists every registered tool's name and one-line purpose grouped by category, with no input schemas — a cheap first call for a client that wants to defer the schema payload. `get_tool_schema` then returns one named tool's full input schema and description on demand. These are additive: the standard MCP `tools/list` handshake still returns every tool's full schema up front as usual, so ordinary MCP clients are unaffected — `discover_tool_categories`/`get_tool_schema` only help a client built to use them instead.
+**Progressive tool discovery:** `discover_tool_categories` lists every registered tool's name and one-line purpose grouped by category, with no input schemas — a cheap first call for a client that wants to defer the schema payload. `get_tool_schema` then returns one named tool's full input schema, description and contract (`PRE`/`POST`/`EFFECTS` from `tools.ttc`) on demand. These are additive: the standard MCP `tools/list` handshake still returns every tool's full schema up front as usual, so ordinary MCP clients are unaffected — `discover_tool_categories`/`get_tool_schema` only help a client built to use them instead.
 
 **`.mct-index/index.sqlite3` may only be touched through this project's own software** — the MCP tools above or `mct-cli` subcommands. Never an external tool: no `sqlite3` CLI, no `python3`/`sqlite3` module, no DB browser. If this codebase doesn't ship it, it doesn't get to touch the index.
 

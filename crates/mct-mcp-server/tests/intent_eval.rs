@@ -374,8 +374,9 @@ async fn tool_attention_narrows_tools_list() {
 }
 
 /// Regression guard at the first measured value (see
-/// benchmarks/intent-selection.md): 0.754, held down by the 6/42 fallbacks
-/// that list the full catalog. The full-recall floor (`oracle_mean`) is 0.917.
+/// benchmarks/intent-selection.md): 0.753 (0.754 before #17's annotations),
+/// held down by the 6/42 fallbacks that list the full catalog. The
+/// full-recall floor (`oracle_mean`) is 0.915.
 const ATTENTION_TURN_GUARD: f64 = 0.75;
 
 /// First held-out measurement: recall 42/42 groups, top-1 33/34.

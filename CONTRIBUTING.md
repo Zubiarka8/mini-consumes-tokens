@@ -102,9 +102,14 @@ TOOL your_tool_name
 WHEN one line: when an agent should reach for this tool.
 ERR  one line: what NOT to use it for, or its caveats/failure modes.
 TAGS comma-separated short keywords, for discovery.
+PRE  contract: what must hold before a call (required args, scope).
+POST contract: what a successful call returns.
+EFFECTS none|read|write; what it touches.
 ```
 
-`WHEN`/`ERR`/`TAGS` may appear in any order after the `TOOL` line, but each must appear exactly once, on a single line — no wrapping. A line starting with `#` is a comment anywhere in the file. `ttc::parse` never panics on malformed input (a missing/duplicate field, an unrecognized line, a bad `TOOL` header all return a `TtcParseError`); if it fails at server startup, `MctServer::new` logs a warning and falls back to every tool's compiled-in `#[tool(description = "...")]` literal instead of refusing to start.
+`PRE`/`POST`/`EFFECTS` are the tool's contract (issue #17). They stay out of the catalog description; `get_tool_schema` shows them on demand. The `EFFECTS` class (`none`, `read` or `write`, the text before `;`) sets the MCP `readOnlyHint`/`destructiveHint` annotations, and `batch` refuses any tool not marked read-only. Every successful call must return some text; the server rejects an empty success as a contract violation.
+
+Every field may appear in any order after the `TOOL` line, but each must appear exactly once, on a single line — no wrapping. A line starting with `#` is a comment anywhere in the file. `ttc::parse` never panics on malformed input (a missing/duplicate field, an unrecognized line, a bad `TOOL` header, an unknown `EFFECTS` class all return a `TtcParseError`); if it fails at server startup, `MctServer::new` logs a warning and falls back to every tool's compiled-in `#[tool(description = "...")]` literal instead of refusing to start.
 
 `scripts/unix/new-tool-check.sh <tool>` (macOS/Linux) lists every place a new tool must be wired into and which ones still miss it.
 
