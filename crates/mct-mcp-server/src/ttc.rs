@@ -213,6 +213,7 @@ pub const KNOWN_TOOL_NAMES: &[&str] = &[
     "find_symbol",
     "search_symbols",
     "hybrid_search",
+    "semantic_search",
     "find_references",
     "find_calls",
     "find_callers",
