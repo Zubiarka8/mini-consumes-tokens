@@ -18,6 +18,11 @@ struct Args {
     /// entirely, restoring the previous startup-only behavior.
     #[arg(long, default_value_t = 1500)]
     reindex_debounce_ms: u64,
+
+    /// Reindex, drop every stored embedding, re-embed every symbol with the
+    /// build's model (`--features semantic`), then exit without serving.
+    #[arg(long)]
+    rebuild_embeddings: bool,
 }
 
 #[tokio::main]
@@ -56,6 +61,17 @@ async fn main() -> anyhow::Result<()> {
         issues = report.issues.len(),
         "initial reindex complete"
     );
+
+    if args.rebuild_embeddings {
+        let model = mct_mcp_server::embedder::SemanticModel::default();
+        let embedder = model
+            .get(index.root())
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        index.clear_embeddings()?;
+        let embedded = index.refresh_embeddings(embedder)?;
+        tracing::info!(embedded, model = embedder.model_id(), "embeddings rebuilt");
+        return Ok(());
+    }
 
     let watch_root = index.root().to_path_buf();
     let server = server::MctServer::new(index, language_registry);
