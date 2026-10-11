@@ -263,18 +263,6 @@ async fn rules_beat_the_full_catalog() {
     );
 }
 
-/// No model: keeps `attend` on the rules (and the fallback) whatever
-/// features the test build has.
-struct NoModel;
-impl mct_index::Embedder for NoModel {
-    fn model_id(&self) -> &str {
-        "none"
-    }
-    fn embed(&self, _: &[String]) -> Result<Vec<Vec<f32>>, String> {
-        Err("no model in this test".into())
-    }
-}
-
 fn names(tools: &[Tool]) -> Vec<String> {
     tools.iter().map(|t| t.name.to_string()).collect()
 }
@@ -291,7 +279,7 @@ async fn tool_attention_narrows_tools_list() {
         mct_mcp_server::registry::build_registry(),
         ServerOptions {
             cache: CacheConfig::disabled(),
-            embedder: Some(Box::new(NoModel)),
+            embedder: None,
             shared_cache: None,
             tool_attention: true,
         },
@@ -375,6 +363,13 @@ async fn tool_attention_narrows_tools_list() {
         mct_mcp_server::registry::build_registry(),
     );
     assert!(off.attend("who calls parse").await.is_err());
+    // Off, `batch` treats it as any unknown name.
+    let args = serde_json::from_value(serde_json::json!({"queries": [{"tool": "select_tools"}]}));
+    let reply = off
+        .batch(rmcp::handler::server::wrapper::Parameters(args.unwrap()))
+        .await
+        .unwrap();
+    assert!(format!("{:?}", reply.content).contains("no tool named `select_tools`"));
     assert!(server.attend("   ").await.is_err());
 }
 
