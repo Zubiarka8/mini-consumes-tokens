@@ -2,7 +2,6 @@
 import Link from "next/link";
 import {
   ArrowUpRight,
-  ArrowRight,
   Network,
   ScanLine,
   GitBranch,
@@ -158,18 +157,7 @@ export function Landing() {
             <div className="shell">
               <p className="eyebrow">{t("howLabel")}</p>
               <h2 id="how-title">{t("howTitle")}</h2>
-              <div className="steps">
-                {[1, 2, 3].map((step) => (
-                  <article key={step}>
-                    <div className="step-head">
-                      <span className="step-number mono">0{step}</span>
-                      <ArrowRight size={24} aria-hidden />
-                    </div>
-                    <h3>{t(`step${step}Title`)}</h3>
-                    <p>{t(`step${step}Text`)}</p>
-                  </article>
-                ))}
-              </div>
+              {/* The atlas story tells the three steps of the mechanism. */}
               <div className="mechanism-atlas">
                 <Atlas />
               </div>
