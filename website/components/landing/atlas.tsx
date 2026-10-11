@@ -312,6 +312,7 @@ export function Atlas() {
                     selected={selected}
                     layers={layers}
                     focusLayer={stage.layer}
+                    view={tourStage ? undefined : story.view}
                     separation={separation}
                     cue={cue}
                     rotation={rotation}
