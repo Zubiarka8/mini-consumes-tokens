@@ -75,6 +75,7 @@ fn server(root: &Path) -> MctServer {
         cache: CacheConfig::default(),
         embedder: Some(Box::new(BagOfWords)),
         shared_cache: None,
+        tool_attention: false,
     };
     MctServer::with_options(index, registry, options)
 }
