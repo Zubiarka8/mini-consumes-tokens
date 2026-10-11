@@ -5,7 +5,7 @@ use mct_core::LanguageRegistry;
 use mct_index::Index;
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
-    model::{CallToolResult, ContentBlock},
+    model::{CallToolResult, ContentBlock, ToolAnnotations},
     model::{Implementation, InitializeResult, ProtocolVersion, ServerCapabilities},
     tool, tool_handler, tool_router, ErrorData as McpError, ServerHandler,
 };
@@ -747,7 +747,9 @@ fn file_tree_error(err: mct_index::IndexError) -> McpError {
 /// `WHEN | NOT: ERR | TAGS: tags` catalog text (see `crate::ttc`). Never
 /// panics: a TTC parse failure, or a `tools.ttc` entry naming a tool that
 /// isn't registered, is logged and otherwise ignored so the server still
-/// starts with its compiled-in fallback descriptions intact.
+/// starts with its compiled-in fallback descriptions intact. Each entry's
+/// `EFFECTS` class also sets the MCP `readOnlyHint`/`destructiveHint`
+/// annotations (issue #17); `batch` refuses any tool not marked read-only.
 fn apply_ttc_catalog(router: &mut ToolRouter<MctServer>, source: &str) {
     let entries = match ttc::parse(source) {
         Ok(entries) => entries,
@@ -761,7 +763,17 @@ fn apply_ttc_catalog(router: &mut ToolRouter<MctServer>, source: &str) {
     };
     for (name, entry) in &entries {
         match router.map.get_mut(name.as_str()) {
-            Some(route) => route.attr.description = Some(entry.expand().into()),
+            Some(route) => {
+                route.attr.description = Some(entry.expand().into());
+                // Only `reindex` writes, and it rebuilds derived data — not
+                // destructive, which MCP otherwise assumes for a non-read-only tool.
+                route.attr.annotations = Some(match entry.effect() {
+                    ttc::Effect::None | ttc::Effect::Read => ToolAnnotations::new().read_only(true),
+                    ttc::Effect::Write => {
+                        ToolAnnotations::new().read_only(false).destructive(false)
+                    }
+                });
+            }
             None => {
                 tracing::warn!(tool = %name, "tools.ttc has an entry for an unregistered tool");
             }
@@ -865,6 +877,20 @@ fn batch_params<T: serde::de::DeserializeOwned>(
     serde_json::from_value(serde_json::Value::Object(args.unwrap_or_default()))
         .map(Parameters)
         .map_err(|err| McpError::invalid_params(format!("invalid args for `{tool}`: {err}"), None))
+}
+
+/// Every tool's POST contract floor (issue #17): a successful call returns
+/// some text. Checked on every direct call and `batch` sub-query, so a tool
+/// that regresses to an empty answer fails loudly instead of leaving the
+/// agent to guess what nothing means.
+fn check_postcondition(tool: &str, result: &CallToolResult) -> Result<(), McpError> {
+    if result.is_error == Some(true) || !result_text(result).trim().is_empty() {
+        return Ok(());
+    }
+    Err(McpError::internal_error(
+        format!("`{tool}` broke its contract: a successful call returned no text"),
+        None,
+    ))
 }
 
 /// Every text block of a sub-query's result, joined — today each tool
@@ -1284,7 +1310,24 @@ impl MctServer {
         tool: &str,
         args: Option<serde_json::Map<String, serde_json::Value>>,
     ) -> Result<CallToolResult, McpError> {
-        match tool {
+        if let Some(route) = self.tool_router.map.get(tool) {
+            let read_only = route
+                .attr
+                .annotations
+                .as_ref()
+                .and_then(|a| a.read_only_hint)
+                == Some(true);
+            if !read_only {
+                return Err(McpError::invalid_params(
+                    format!(
+                        "`{tool}` isn't allowed in a batch: its contract has write effects \
+                         (batches are read-only) — call it directly"
+                    ),
+                    None,
+                ));
+            }
+        }
+        let result = match tool {
             "list_symbols" => self.list_symbols(batch_params(tool, args)?).await,
             "find_symbol" => self.find_symbol(batch_params(tool, args)?).await,
             "search_symbols" => self.search_symbols(batch_params(tool, args)?).await,
@@ -1305,17 +1348,15 @@ impl MctServer {
                 "`batch` can't be nested inside a batch",
                 None,
             )),
-            "reindex" => Err(McpError::invalid_params(
-                "`reindex` isn't allowed in a batch (batches are read-only) — call it directly",
-                None,
-            )),
             other => Err(McpError::invalid_params(
                 format!(
                     "no tool named `{other}` — call discover_tool_categories for the full list"
                 ),
                 None,
             )),
-        }
+        }?;
+        check_postcondition(tool, &result)?;
+        Ok(result)
     }
 
     // Fallback only — the live description installed on this tool comes
@@ -2333,9 +2374,14 @@ impl MctServer {
                 None,
             )
         })?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(
-            format::tool_schema(tool),
-        )]))
+        let contract = ttc::parse(ttc::CATALOG_SOURCE)
+            .ok()
+            .and_then(|entries| entries.get(name).map(ttc::TtcEntry::contract))
+            .unwrap_or_else(|| "(contract unavailable)".to_string());
+        Ok(CallToolResult::success(vec![ContentBlock::text(format!(
+            "{}\nContract:\n{contract}\n",
+            format::tool_schema(tool)
+        ))]))
     }
 
     // Fallback only — see tools.ttc / MctServer::new.
@@ -2389,6 +2435,21 @@ impl MctServer {
 // request and serves their fallback descriptions (issue #70).
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for MctServer {
+    // The macro's default `call_tool`, plus the POST contract check.
+    async fn call_tool(
+        &self,
+        request: rmcp::model::CallToolRequestParams,
+        context: rmcp::service::RequestContext<rmcp::RoleServer>,
+    ) -> Result<rmcp::model::CallToolResponse, McpError> {
+        let tool = request.name.clone();
+        let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
+        let response = self.tool_router.call(call).await?;
+        if let rmcp::model::CallToolResponse::Complete(result) = &response {
+            check_postcondition(&tool, result)?;
+        }
+        Ok(response)
+    }
+
     fn get_info(&self) -> InitializeResult {
         InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::from_build_env())
@@ -2436,5 +2497,29 @@ impl ServerHandler for MctServer {
              need, since it drops the per-call overhead."
                     .to_string(),
             )
+    }
+}
+
+#[cfg(test)]
+mod contract_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::*;
+
+    #[test]
+    fn postcondition_rejects_an_empty_success_only() {
+        let empty = CallToolResult::success(vec![ContentBlock::text("  ")]);
+        let err = check_postcondition("find_symbol", &empty).unwrap_err();
+        assert!(
+            err.message.contains("broke its contract"),
+            "{}",
+            err.message
+        );
+
+        assert!(
+            check_postcondition("t", &CallToolResult::success(vec![ContentBlock::text("x")]))
+                .is_ok()
+        );
+        assert!(check_postcondition("t", &CallToolResult::error(vec![])).is_ok());
     }
 }
