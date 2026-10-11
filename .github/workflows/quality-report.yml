@@ -28,7 +28,7 @@ jobs:
       - name: Run the quality suite (release build)
         run: |
           mkdir -p quality
-          cargo run --release -p mct-eval -- --iterations 20 \
+          cargo run --release --locked -p mct-eval -- --iterations 20 \
             --json quality/report.json --markdown quality/report.md
 
       - name: Publish the report as the job summary

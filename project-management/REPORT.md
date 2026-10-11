@@ -1,5 +1,14 @@
 # Review Report
 
+## Records reconciliation — 2026-10-10
+
+Reviewed tree: documentation-only changes on `docs/reconcile-records-worktree-audit`, base `eee98e9ed0f1467dac32fe172cb90eb846628f83`.
+
+- ERR-011: required `symbol` confirmed by schema; incorrect `name` reproduced the exact missing-field error; corrected call succeeded. Historical original response is unavailable and not presented as newly captured evidence.
+- TASK-WEB-169: merged #169/#171/#173/#174 ancestry checked; Docs run 38083267842 passed build and deployment; current website/workflow tree matches its tested revision. The four intentional manual edits in #174 are recorded explicitly. Earlier local/browser evidence is distinguished from current CI and was not rerun.
+- Worktrees: 85 inspected through Git; 68 clean, 15 dirty, two prunable/unusable, seven detached, 57 HEADs reachable from main. Git status failed for the two invalid administrative links. Ownership and ignored data prevent unconditional safe-delete claims. No cleanup or GitHub mutation performed.
+- Verification: documentation diff review, relative file links and `git diff --check`; runtime tests are not applicable. Review the prepared local diff before any separately authorized publication.
+
 ## TASK-PM-001
 
 Branch: `codex/rules-navigation`

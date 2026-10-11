@@ -24,6 +24,8 @@ Read [PROJECT_MANAGER.md](PROJECT_MANAGER.md) at the start of a substantial work
 
 Write all repository content in English: file and branch names, documentation, code, comments, task records, commit messages, PRs, and issues. Preserve required external identifiers and literal fixture data when translation would change behavior.
 
+Whenever a project MCP tool reports an error (including connection failures, invalid tool arguments, indexing/parse failures, or query failures), notify the user and record it in [errors/REGISTRY.md](errors/REGISTRY.md), following [errors/README.md](errors/README.md). Record the date, tool/operation, relevant arguments without secrets, exact diagnostic, impact, and verification or next action. Update an existing entry for the same problem and append the observation or status change to [errors/HISTORY.md](errors/HISTORY.md), including errors corrected during the same session. Separate intentional malformed-fixture rejection from unexpected failures and caller mistakes from server defects; retain resolved entries and require verification before closing them. When investigating documented parser limitations, maintain these same records.
+
 ## Contributor workflow
 
 Contribute using your preferred editor or assistant. No particular AI provider, model, paid subscription, or multiagent setup is required. Use the tools and permissions available in your environment while following the engineering and source-exploration rules below.
@@ -232,6 +234,10 @@ CI (`.github/workflows/ci.yml`) runs `build-test` (build+test+clippy, which incl
 
 ## Architecture
 
+For library/framework work, follow the [implementation map](docs/01-architecture/library-support.md). Keep dependency-format parsing in the private ecosystem modules under `mct-index/src/manifests/`; `manifests.rs` owns file-name routing and shared deduplication. Keep source/framework syntax in its language crate and persistence in `mct-index`. In JS/TS, grammar selection, AST traversal, imports and exports have separate private modules. Update the existing framework coverage and corpus records when behavior changes; language support alone must not be presented as complete framework support.
+
+Organize library-specific extraction and focused parser regressions under `crates/mct-lang-<language>/src/libraries/<name>/`, using English names. Keep common grammar and traversal shared. A test-only library module must use `#[cfg(test)]` and document its actual scope; do not imply production support from a folder's existence. Keep corpus fixtures, snapshots and index integration under `tests/` and preserve their paths during organizational refactors.
+
 **The plugin boundary is the whole design.** `mct-core` defines `LanguageParser` (`language_id()`, `file_extensions()`, `parse()`) and `LanguageRegistry` (extension → parser lookup), and knows nothing about tree-sitter, SQLite, or MCP. Each `crates/mct-lang-*` crate implements that trait for one language via its own tree-sitter grammar. `mct-index` and `mct-mcp-server` never match on language names or extensions directly — everything routes through the registry.
 
 ```
@@ -240,6 +246,7 @@ mct-index    SQLite schema/migrations (a single schema for every language — a 
              column on `files`, not per-language tables), reindex orchestration, queries.
              Knows no language's grammar.
 mct-lang-*   One crate per language, each a LanguageParser impl over its tree-sitter grammar
+mct-languages  The shipped language set: the one build_registry() every binary indexes with
 mct-mcp-server  MCP tools over stdio (rmcp): list_symbols/find_symbol/search_symbols/hybrid_search/find_references/
                 find_calls/find_callers/impact_analysis/build_context_pack/find_dead_code/reindex/
                 get_indexing_status/get_file_skeleton/get_project_overview/get_file_tree/batch
@@ -252,7 +259,7 @@ mct-eval     Quality evaluation of the MCP tools against a fixture suite and a c
 
 1. New crate `crates/mct-lang-<name>`, depending on `mct-core` + `tree-sitter-<name>`.
 2. Implement `LanguageParser::parse()` — a pure AST walk that never executes/evals input; a syntax error returns `ParseError::Syntax`, never a panic (this runs over arbitrary third-party source).
-3. Register in exactly two places: `mct-mcp-server/src/registry.rs::build_registry` and `mct-cli/src/main.rs::build_registry`. Nothing else in `mct-core`, `mct-index`, or `mct-mcp-server` changes.
+3. Register in exactly one place: `crates/mct-languages` (a `Cargo.toml` dependency and one line in `src/lib.rs::build_registry`). The CLI, the MCP server and `mct-eval` all use that registry. Nothing else in `mct-core`, `mct-index`, `mct-cli`, or `mct-mcp-server` changes.
 4. Tests in `crates/mct-lang-<name>/tests/parse.rs`: function/call extraction, one idiomatic-syntax case (generics, decorators, whatever the language's equivalent is), one syntax-error case.
 5. Update the language table in `README.md` and `internal/checklist.md`.
 

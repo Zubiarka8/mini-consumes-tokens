@@ -374,8 +374,9 @@ impl<'a> Walker<'a> {
                         );
                         self.qualify(relation, target);
                     }
-                    // A bare callee is already the `Calls` above; visiting it
-                    // would record it a second time as a value use. A
+                    // A bare or path callee is already the `Calls` above;
+                    // visiting it would record it a second time as a value
+                    // use. A
                     // turbofish (`helper::<T>`, `it.sum::<T>`) is looked
                     // through, so a method's receiver chain is still walked.
                     let callee = if function.kind() == "generic_function" {
@@ -383,7 +384,7 @@ impl<'a> Walker<'a> {
                     } else {
                         function
                     };
-                    if callee.kind() != "identifier" {
+                    if !matches!(callee.kind(), "identifier" | "scoped_identifier") {
                         self.visit(callee, owner, impl_type, depth + 1);
                     }
                 }
@@ -391,10 +392,26 @@ impl<'a> Walker<'a> {
                     self.visit_children(arguments, owner, impl_type, depth + 1);
                 }
             }
-            // `other::helper` may well be another module's `helper`, and a
-            // label/lifetime (`'helper:`) is no use of a function at all:
-            // none of their identifiers is resolved against this file.
-            "scoped_identifier" | "scoped_type_identifier" | "label" | "lifetime" => {}
+            // A path in value position (`Arc::new(m::Parser)`, `let f =
+            // other::helper;`) references its last segment with the same
+            // evidence a call through that path gets, so `other::helper`
+            // must live under `other` and never resolves to this file's
+            // `helper`. Type paths and labels/lifetimes (`'helper:`) are no
+            // value use of anything.
+            "scoped_identifier" => {
+                if let Some(name_node) = node.child_by_field_name("name") {
+                    let name = text(name_node, self.source).to_string();
+                    let target = self.call_evidence(node, &name);
+                    let relation = self.push_relation(
+                        owner,
+                        RelationKind::References,
+                        name,
+                        location(name_node),
+                    );
+                    self.qualify(relation, target);
+                }
+            }
+            "scoped_type_identifier" | "label" | "lifetime" => {}
             "string_literal" | "raw_string_literal" => self.push_literal(node),
             _ => self.visit_children(node, owner, impl_type, depth + 1),
         }

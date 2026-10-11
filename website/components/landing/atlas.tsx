@@ -276,7 +276,7 @@ export function Atlas() {
                     reset={reset}
                     onSelect={setSelected}
                     onReady={sceneReady}
-                    active={inView && visible}
+                    active={(inView || expanded) && visible}
                     reduced={reduced}
                     onFailure={sceneFailure}
                   />

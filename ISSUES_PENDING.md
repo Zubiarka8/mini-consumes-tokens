@@ -167,7 +167,9 @@ declarations are not indexed as symbols.
 neither call leaves a relation, because tree-sitter hands the macro's
 arguments over as a flat `token_tree` and the extractor skips identifiers
 after `.`/`::` there. `find_callers`, `find_references` and `impact_analysis`
-report 3 of the 5 real call sites of `LanguageRegistry::for_extension`.
+report 3 of the 5 real call sites of `LanguageRegistry::for_extension` (counted
+before that CLI/MCP-server parity test was removed with the shared
+`mct-languages` registry; the test below keeps its shape).
 
 **Expected**: a relation for each call, at least a `references` one. See
 `benchmarks/agent-benchmark.md#calls-inside-macros` for the recommended fix.
@@ -175,3 +177,20 @@ report 3 of the 5 real call sites of `LanguageRegistry::for_extension`.
 **Issue**: not filed yet. **Pinned by**
 `a_method_call_inside_a_macro_token_tree_leaves_a_relation`
 (`crates/mct-lang-rust/tests/parse.rs`).
+
+---
+
+## 9. ~~Rust: a path in value position leaves no relation~~ — **closed**
+
+`registry.register(Arc::new(mct_lang_rust::RustParser))` left only `calls` to
+`register` and `new`, so `find_references RustParser` missed every registry use
+(`errors/REGISTRY.md` ERR-010). The walker now records a path in value position
+as a `references` relation to its last segment, with the evidence a call
+through the same path gets (`module`, `qualifier`, or `external` for
+`std`/`core`/`alloc`); a call through a path stays a single `calls`. The Rust
+corpus snapshot gained 73 such references (enum variants, `u32::MAX`,
+`char::is_control` passed as a value…), reviewed one by one.
+
+**Covered by**:
+- `a_path_in_value_position_is_a_reference_qualified_by_its_module` (`crates/mct-lang-rust/tests/parse.rs`)
+- `a_path_to_another_module_never_names_this_files_item` (`crates/mct-lang-rust/tests/parse.rs`)

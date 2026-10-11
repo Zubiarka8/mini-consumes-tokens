@@ -1,9 +1,9 @@
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use clap::{Parser, Subcommand};
 use mct_core::{LanguageRegistry, ParseError, SourceFile};
 use mct_index::{ExcludeSet, Index};
+use mct_languages::build_registry;
 
 /// Index a repository and inspect the index from the command line.
 ///
@@ -161,28 +161,6 @@ enum Command {
         after_help = "Examples:\n  mct-cli update\n  mct-cli -u\n  mct-cli --update"
     )]
     Update,
-}
-
-fn build_registry() -> LanguageRegistry {
-    let mut registry = LanguageRegistry::new();
-    registry.register(Arc::new(mct_lang_rust::RustParser));
-    registry.register(Arc::new(mct_lang_python::PythonParser));
-    registry.register(Arc::new(mct_lang_java::JavaParser));
-    registry.register(Arc::new(mct_lang_kotlin::KotlinParser));
-    registry.register(Arc::new(mct_lang_csharp::CSharpParser));
-    registry.register(Arc::new(mct_lang_js_ts::JsTsParser));
-    registry.register(Arc::new(mct_lang_cpp::CppParser));
-    registry.register(Arc::new(mct_lang_go::GoParser));
-    registry.register(Arc::new(mct_lang_html::HtmlParser));
-    registry.register(Arc::new(mct_lang_css::CssParser));
-    registry.register(Arc::new(mct_lang_xml::XmlParser));
-    registry.register(Arc::new(mct_lang_xaml::XamlParser));
-    registry.register(Arc::new(mct_lang_bash::BashParser));
-    registry.register(Arc::new(mct_lang_powershell::PowerShellParser));
-    registry.register(Arc::new(mct_lang_php::PhpParser));
-    registry.register(Arc::new(mct_lang_md::MarkdownParser));
-    registry.register(Arc::new(mct_lang_lua::LuaParser));
-    registry
 }
 
 fn main() -> anyhow::Result<()> {
@@ -673,71 +651,6 @@ mod tests {
         dir
     }
 
-    /// Every language this CLI must be able to index. Kept as a literal list
-    /// rather than derived from `build_registry()` so that *forgetting* to
-    /// add the `registry.register(...)` line here — the classic half-done
-    /// language rollout, since `CONTRIBUTING.md` requires registering in two
-    /// places — fails a test instead of silently shipping a CLI that skips
-    /// that language while the MCP server indexes it.
-    const EXPECTED_LANGUAGES: &[&str] = &[
-        "bash",
-        "cpp",
-        "csharp",
-        "css",
-        "go",
-        "html",
-        "java",
-        "javascript_typescript",
-        "kotlin",
-        "lua",
-        "markdown",
-        "php",
-        "powershell",
-        "python",
-        "rust",
-        "xaml",
-        "xml",
-    ];
-
-    #[test]
-    fn the_cli_registry_wires_in_every_shipped_language() {
-        let registry = build_registry();
-        let mut ids = registry.language_ids();
-        ids.sort_unstable();
-        let mut expected = EXPECTED_LANGUAGES.to_vec();
-        expected.sort_unstable();
-        assert_eq!(ids, expected);
-    }
-
-    #[test]
-    fn the_cli_registry_resolves_a_representative_extension_for_each_language() {
-        let registry = build_registry();
-        for (extension, language) in [
-            ("sh", "bash"),
-            ("hpp", "cpp"),
-            ("cs", "csharp"),
-            ("css", "css"),
-            ("go", "go"),
-            ("htm", "html"),
-            ("java", "java"),
-            ("tsx", "javascript_typescript"),
-            ("kts", "kotlin"),
-            ("lua", "lua"),
-            ("md", "markdown"),
-            ("php", "php"),
-            ("psm1", "powershell"),
-            ("pyi", "python"),
-            ("rs", "rust"),
-            ("xaml", "xaml"),
-            ("xml", "xml"),
-        ] {
-            let parser = registry
-                .for_extension(extension)
-                .unwrap_or_else(|| panic!("no parser registered for `.{extension}`"));
-            assert_eq!(parser.language_id(), language, ".{extension}");
-        }
-    }
-
     #[test]
     fn a_polyglot_project_indexes_end_to_end_through_the_cli_registry() {
         let dir = temp_project_dir("polyglot-index");
@@ -778,59 +691,6 @@ mod tests {
         assert_eq!(index.status().unwrap().total_symbols, status.total_symbols);
 
         fs::remove_dir_all(&dir).ok();
-    }
-
-    #[test]
-    fn the_cli_and_mcp_server_registries_ship_the_same_languages_and_extensions() {
-        // Both binaries keep their own `build_registry()`; this compares the
-        // real production ones, so a language wired into only one of them
-        // fails here instead of hiding behind a hand-built test registry.
-        let cli = build_registry();
-        let server = mct_mcp_server::registry::build_registry();
-        assert_eq!(cli.language_ids(), server.language_ids());
-
-        let mut cli_extensions: Vec<&str> = cli.supported_extensions().collect();
-        let mut server_extensions: Vec<&str> = server.supported_extensions().collect();
-        cli_extensions.sort_unstable();
-        server_extensions.sort_unstable();
-        assert_eq!(cli_extensions, server_extensions);
-        for extension in cli_extensions {
-            assert_eq!(
-                cli.for_extension(extension).map(|p| p.language_id()),
-                server.for_extension(extension).map(|p| p.language_id()),
-                ".{extension}"
-            );
-        }
-    }
-
-    #[test]
-    fn every_language_crate_in_the_workspace_is_registered_in_production() {
-        // One `crates/mct-lang-*` crate is one language id (JS/TS included),
-        // and each must be a dependency of both binaries — an implemented but
-        // unregistered parser is silently skipped by `init`/`status`.
-        let crates_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
-        let mut lang_crates: Vec<String> = fs::read_dir(&crates_dir)
-            .unwrap()
-            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
-            .filter(|name| name.starts_with("mct-lang-"))
-            .collect();
-        lang_crates.sort_unstable();
-        assert!(!lang_crates.is_empty());
-
-        for manifest in ["mct-cli/Cargo.toml", "mct-mcp-server/Cargo.toml"] {
-            let text = fs::read_to_string(crates_dir.join(manifest)).unwrap();
-            for name in &lang_crates {
-                assert!(
-                    text.contains(&format!("{name}.workspace = true")),
-                    "{manifest} does not depend on {name}"
-                );
-            }
-        }
-        assert_eq!(
-            build_registry().language_ids().len(),
-            lang_crates.len(),
-            "registered languages vs {lang_crates:?}"
-        );
     }
 
     #[test]

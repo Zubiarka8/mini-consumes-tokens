@@ -1,5 +1,5 @@
 # One language's long-fixture corpus (issue #74) in one screen: runs its
-# corpus tests, then prints the `mct-corpus` report -- file/line/symbol/
+# corpus tests (and its src/libraries/ tests), then prints the `mct-corpus` report -- file/line/symbol/
 # relation totals, the progress-table cells, and heuristic checks that list
 # the usual parser bugs (module ending past EOF, locals taken as symbols,
 # relations outside their owner, members without a parent, odd names...) --
@@ -47,6 +47,10 @@ try {
 } finally {
   Remove-Item Env:MCT_BLESS -ErrorAction SilentlyContinue
 }
+# Library-pattern tests (src/libraries/<name>/) read the same corpus but are
+# unit tests of the lib target, outside the `corpus` binary.
+$libStatus = Invoke-Logged $log 'cargo' @('test', '-p', $crate, '--lib', 'libraries::')
+if ($libStatus -ne 0) { $status = $libStatus }
 $lines = @(Get-Lines $log)
 $c = Get-TestCounts $lines
 $counts = '{0} passed, {1} failed' -f $c.Passed, $c.Failed

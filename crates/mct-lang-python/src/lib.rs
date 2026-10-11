@@ -10,6 +10,9 @@ use mct_core::{
 use mct_tree_sitter::{first_error, location};
 use tree_sitter::{Node, Parser};
 
+#[cfg(test)]
+mod libraries;
+
 pub struct PythonParser;
 
 impl LanguageParser for PythonParser {

@@ -30,6 +30,8 @@ A few things that make this different from a typical single-purpose plugin:
 
 **Supported languages:** Rust, Python, Java, C#, Kotlin, JavaScript/TypeScript, C++, Go, Lua, HTML, CSS, XML, XAML, Bash, PowerShell, PHP, and Markdown (headings plus [[WikiLink]]/#tag relations).
 
+For declared dependencies, framework coverage and where each responsibility is implemented, see [Library and framework support](docs/01-architecture/library-support.md).
+
 ### See it in action
 
 Without an index, asking "where is `InvoiceService` defined, and what would break if I changed its `calculate_total` method?" usually sends an assistant off to open and read a pile of files just to find out. With the index connected, it asks two precise questions instead — *where is this defined* and *what depends on it* — gets back a short, exact answer, and moves straight on to actually helping you, instead of spending its attention re-discovering your codebase from scratch.

@@ -29,3 +29,7 @@ Reason: Avoid duplicated policies and unnecessary provider/subscription requirem
 Alternatives considered: Embedding model tables throughout task/process documents; requiring two providers for every change.
 
 Consequences: Task briefs record the selected provider/model/effort but link to the current policy. The documentation does not install a scheduler or messaging layer.
+
+## Architecture decision links
+
+- [ADR-004 — Grammar version requirements](../docs/01-architecture/adrs/004-grammar-version-requirements.md) (2026-10-10, TASK-LIB-001): grammars are written as the full validated `x.y.z` with caret semantics; `Cargo.lock` is the exact pin.
