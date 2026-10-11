@@ -1,12 +1,7 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import {
-  ArrowUpRight,
-  Network,
-  ScanLine,
-  GitBranch,
-} from "lucide-react";
+import { ArrowUpRight, Network, ScanLine, GitBranch } from "lucide-react";
 import { MotionConfig, motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { basePath } from "@/lib/shared";
