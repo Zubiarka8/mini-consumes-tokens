@@ -130,8 +130,8 @@ export const connections = [
   [index, status],
   [reindexPaths, reindex],
 ] as const;
-// A cue lights the connections of its stage step by step; any other key is "idle",
-// which lights them all.
+// A cue lights the connections of its tour or story stage step by step; any other key
+// is "idle", which lights them all.
 export const CUE_STEP = 300;
 export type CueKey = string;
 export type Cue = { key: CueKey; id: number };
@@ -337,6 +337,20 @@ export const tourStages: {
     ],
   },
   { key: "start", icon: Terminal, docs: "/docs/tools/" },
+];
+// The landing story, outside full screen: what the atlas shows, then the mechanism's
+// three steps. Same shape as a tour stage; `key` names its title and text, and empty
+// `steps` dims every connection.
+export const storyStages: {
+  key: string;
+  layer: 0 | 1 | 2;
+  symbol?: (typeof examples)[number]["name"];
+  steps: number[][];
+}[] = [
+  { key: "tourWhat", layer: 1, steps: [[0], [1, 2, 3], [4]] },
+  { key: "step1", layer: 0, symbol: "Index", steps: [] },
+  { key: "step2", layer: 1, symbol: "Index", steps: [[1], [2], [3]] },
+  { key: "step3", layer: 2, symbol: "reindex", steps: [[1], [4]] },
 ];
 export const layerKeys = ["files", "symbols", "context"] as const;
 export type AtlasLayers = [boolean, boolean, boolean];

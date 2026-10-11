@@ -24,6 +24,7 @@ import {
   files,
   layerHeight,
   layerKeys,
+  storyStages,
   tourStages,
   type AtlasLayers,
   type Cue,
@@ -178,7 +179,8 @@ function Graph({
   );
   // An unknown key, or "idle", holds no state: every connection stays lit.
   const steps = useMemo(
-    () => tourStages.find(({ key }) => key === cue.key)?.steps,
+    () =>
+      [...tourStages, ...storyStages].find(({ key }) => key === cue.key)?.steps,
     [cue.key],
   );
   useEffect(
