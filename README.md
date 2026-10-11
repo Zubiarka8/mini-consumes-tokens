@@ -120,6 +120,7 @@ Once it's connected and healthy, prefer it over grep/reading whole files:
 - "Where is X defined?" -> find_symbol
 - "Something like `parse request`, exact name unknown?" -> search_symbols
 - "Code that does X, no idea what it's called?" -> hybrid_search
+- "Only the meaning, with a similarity score per hit?" -> semantic_search
 - "Who calls X?" -> find_callers
 - "What does X call?" -> find_calls
 - "Every reference to X" -> find_references
@@ -205,6 +206,25 @@ mct-cli update      # or -u / --update: installs the latest release in place
 `update` runs the option A installer for your system with the folder `mct-cli` is in as the install folder, so `mct-cli` and `mct-mcp-server` are both replaced where they already are; run `mct-cli --version` afterwards to confirm. It needs network access (and `curl` + `bash` on macOS/Linux). The release binaries are built without the `semantic` feature, so if you built from source with `--features semantic`, update with the option B commands instead (pull the clone, then the same `cargo install`). On Windows, close your MCP client first: Windows cannot replace a running `mct-mcp-server.exe`. After updating, restart the MCP client (or `/mcp` in Claude Code) so it starts the new server.
 
 **Optional — search by meaning (`hybrid_search`):** install the server with `cargo install --locked --path crates/mct-mcp-server --features semantic` instead. The build downloads a prebuilt ONNX Runtime library, so it needs network access and a platform ONNX Runtime ships binaries for. That adds a small local embedding model (`bge-small-en-v1.5`, ~130 MB, downloaded once on the first `hybrid_search` call into `.mct-index/models`, or `$FASTEMBED_CACHE_DIR` if set; `MCT_EMBEDDING_MODEL=all-MiniLM-L6-v2` picks a smaller, faster one) so your assistant can find code from a description (*"load the settings from disk"*) even when no word of it is in the function's name. Without the feature, `hybrid_search` still works, but only matches by name, and says so. Each symbol is embedded together with its signature, doc comment and the functions it calls. Tuning: `alpha` 0 = match by name only, 1 = match by meaning only, fused with Reciprocal Rank Fusion. Leave it out and it is picked from the query's shape: 0.1 for an identifier (`parse_request`, `HttpServer`, `Index::open`), 0.75 for a plain description, 0.5 otherwise. Wrap the query in double quotes (`"parse request"`) for an exact phrase: name matching only, those words in that order, the literal name first. An exact phrase also finds it inside string literals such as error and log messages (`"database connection failed"` → `src/db.rs:3 in function connect "database connection failed"`), ignoring case and accents. Literals are indexed for Rust string literals and for Markdown paragraphs and pipe-table rows only (at least eight characters and two words, first 256 characters of each, up to 500 per file; suspected secrets are skipped). Exact-phrase search needs no `semantic` build.
+
+**Meaning only, with scores (`semantic_search`):** the same model and stored vectors as `hybrid_search`, with no name matching at all: the `top_k` (default 10, max 100) symbols closest to the query by cosine similarity, each with its signature and score; `path`/`language` narrow it. It needs the `semantic` build (without it, it says so and points to `search_symbols`/`hybrid_search`). Vectors are refreshed incrementally — only symbols added or changed since the last reindex are embedded on the next call. To re-embed everything (after changing `MCT_EMBEDDING_MODEL`, or if the vectors look stale), run `mct-mcp-server --root . --rebuild-embeddings`: it reindexes, drops every stored vector, re-embeds all symbols and exits.
+
+Real output on the generated ~10K-symbol project of the ignored `real_model_finds_validate_token_among_10k_symbols` test in `crates/mct-mcp-server/tests/semantic_search.rs` (first three hits of ten; `validate_token` was 8th, and the best of the 400 generated `*_token` distractors, `validate_admin_token`, 37th):
+
+```text
+semantic_search { "query": "validate user authentication", "top_k": 10 }
+
+semantic: 10425/10425 symbols embedded (fastembed/bge-small-en-v1.5)
+10 match(es) for `validate user authentication`, most similar first:
+src/auth.rs:L17-L19 [rust] function authenticate_user  similarity 0.748
+    pub fn authenticate_user(name: &str, password: &str) -> bool
+src/search.rs:L1-L3 [rust] function validate_search_user  similarity 0.738
+    pub fn validate_search_user(input: &str) -> usize
+src/profile.rs:L1-L3 [rust] function validate_profile_user  similarity 0.737
+    pub fn validate_profile_user(input: &str) -> usize
+```
+
+Measured by that test (release build, Apple M4, in-memory index, warm model, 30 runs, median / p95, range over five runs): query embedding 7–20 / 9–90 ms, similarity scan of 10,425 vectors plus signatures 11–25 / 14–42 ms, whole warm tool call 24–49 / 39–83 ms. Not included: loading the model (~5 s, first call only) and embedding every symbol the first time (105–218 s for 10K symbols; later calls embed only what changed).
 
 **Repository input limits:** indexing, source tools, and CLI probes read regular files up to 16 MiB by default. Set `MCT_MAX_FILE_BYTES` to a positive byte count to change that limit. Oversized source files and manifests are reported as read failures; any last-good indexed data is retained and marked as possibly stale. Ignore-file read/compile failures are reported on stderr, and built-in exclusions remain active when custom glob patterns cannot compile.
 
