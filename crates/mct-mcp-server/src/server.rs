@@ -1298,10 +1298,10 @@ impl MctServer {
     }
 
     /// `select_tools` minus the `tools/list_changed` notification: picks the
-    /// tools for `query` and makes them the advertised set. Rules first
-    /// (`intent::preselect`); only when they find nothing does the embedding
-    /// model rank the catalog descriptions; when neither is decisive, the
-    /// full catalog.
+    /// tools for `query` and makes them the advertised set: the word rules of
+    /// `intent::preselect`, or the full catalog when they find nothing. No
+    /// embedding step: in benchmarks/intent-selection.md it lost a required
+    /// tool and guessed on requests no tool answers.
     pub async fn attend(&self, query: &str) -> Result<CallToolResult, McpError> {
         let Some(active) = &self.attention else {
             return Err(McpError::invalid_params(
@@ -1319,16 +1319,7 @@ impl MctServer {
             .filter(|t| t.name != "select_tools")
             .collect();
         let languages = self.registry.language_ids();
-        let mut selection = intent::preselect(query, &languages, &catalog, None);
-        if selection.source == intent::Source::Fallback {
-            // ponytail: the catalog is re-embedded on every such call (~18
-            // short texts); cache the vectors if that shows up in latency.
-            if let Ok(embedder) = self.semantic_model().await {
-                if let Ok(vectors) = intent::ToolVectors::new(embedder, &catalog) {
-                    selection = intent::preselect(query, &languages, &catalog, Some(&vectors));
-                }
-            }
-        }
+        let selection = intent::preselect(query, &languages, &catalog, None);
         let mut names = vec!["select_tools".to_string()];
         names.extend(selection.tools.iter().cloned());
         *active
@@ -1396,7 +1387,7 @@ impl MctServer {
             "find_dead_code" => self.find_dead_code(batch_params(tool, args)?).await,
             "discover_tool_categories" => self.discover_tool_categories().await,
             "get_tool_schema" => self.get_tool_schema(batch_params(tool, args)?).await,
-            "select_tools" => Err(McpError::invalid_params(
+            "select_tools" if self.attention.is_some() => Err(McpError::invalid_params(
                 "`select_tools` changes the advertised tool list — call it directly",
                 None,
             )),

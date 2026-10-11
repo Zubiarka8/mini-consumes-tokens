@@ -106,17 +106,21 @@ recall 1.000 (41/41), fallbacks 6/42 ["e32", "e34", "e35", "e36", "e41", "e42"]
   the rules do not recognise. Listing only `select_tools`,
   `discover_tool_categories` and `get_tool_schema` (445 tokens) on a fallback
   instead of the full catalog (8,152) would still leave the mean at −89.2 %
-  and would hide e41/e42's tools, so it is not done. Rules are not tuned on e41/e42: they are held-out
-  cases. With embeddings (`rules+embeddings` above) fallbacks drop to 3, but
-  it guesses wrong on 3/5 requests no tool answers and loses e41's tool.
+  and would hide e41/e42's tools, so it is not done. Rules are not tuned on
+  e41/e42: they are held-out cases.
+- Fallbacks are not what keeps the mean under 90 %. With the oracle's cost on
+  all 6 (no fallback at all), the mean is ~856 tokens, −89.3 %: the 36
+  selective turns list ~932 tokens against the oracle's ~707, because the
+  rules keep acceptable alternatives (e.g. `find_symbol` with
+  `search_symbols`). Reaching 90 % means dropping those, which risks recall.
 - Accuracy: delivered-tool recall stays at 1.000 and no negated tool is
   listed. That matches `rules` above; nothing was lost by integrating.
 - The `select_tools` call itself costs one round trip plus its reply (one
   intent line, tool names, hints). That reply is not counted above.
-- The embedding model is the existing `bge-small-en-v1.5` (`semantic`
-  feature, `MCT_EMBEDDING_MODEL` to switch, `all-MiniLM-L6-v2` included). It
-  is consulted only when the rules find nothing and is kept behind the 0.60
-  floor, for the reasons in the table above.
+- No embedding model, even in a `semantic` build: `select_tools` uses the
+  rules only. `rules+embeddings` above drops fallbacks to 3 but guesses wrong
+  on 3/5 requests no tool answers and loses e41's tool (recall 0.976), and it
+  would download the model (~130 MB) on the first unclear request.
 
 ## Limitations
 
