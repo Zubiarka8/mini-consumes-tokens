@@ -143,6 +143,7 @@ An MCP server (`mct-mcp-server`) and CLI (`mct-cli`) that index a code repositor
 | Where is X defined? | `find_symbol` |
 | Exact name unknown — words or a partial identifier in any style (`parse request`, `parseReq`, `http server`)? | `search_symbols` — BM25-ranked FTS5 match over each name split at camelCase/snake_case/kebab-case/acronym boundaries, exact name always first; default `limit` 10 (max 100), `offset`, optional `snippet_lines`. Not exhaustive — graph tools stay the source of truth for relations |
 | Only know what the code *does*, not words of its name (`load settings from disk`)? | `hybrid_search` — `search_symbols` fused with local-embedding similarity by weighted Reciprocal Rank Fusion; `alpha` 0 = lexical only … 1 = semantic only (omitted → routed by query shape: 0.1 identifier / 0.75 prose / 0.5 otherwise), `top_k` 10 (max 100), `offset`, `snippet_lines`. Its lexical side also expands dev-verb synonyms and resolves `Type::member` / `module.fn` qualifiers. A `"double-quoted"` query is an exact phrase: lexical only whatever `alpha`, its words consecutive and in order (no prefix/synonym/any-word matching), a literal name match boosted to #1, plus a second section listing prose string literals (error/log messages) holding the phrase as `path:line in <kind> <name> "text"` — case/diacritic-insensitive, currently extracted by `mct-lang-rust` (string literals) and `mct-lang-md` (paragraphs and table rows) only. Needs a `--features semantic` build of `mct-mcp-server` (`bge-small-en-v1.5` by default, `MCT_EMBEDDING_MODEL` to switch; downloaded on first use into `.mct-index/models`); otherwise it returns the lexical ranking and says so on its first line |
+| Search by meaning only, with a cosine-similarity score and signature per hit? | `semantic_search` — the `top_k` (10, max 100) symbols nearest the query embedding, no lexical side; `path`/`language` narrow it. Same `--features semantic` model and stored vectors as `hybrid_search`; `mct-mcp-server --rebuild-embeddings` re-embeds everything and exits |
 | Who calls X directly? | `find_callers` |
 | What does X call? | `find_calls` |
 | Every reference to X (calls, imports, extends/implements) | `find_references` |
@@ -247,7 +248,7 @@ mct-index    SQLite schema/migrations (a single schema for every language — a 
              Knows no language's grammar.
 mct-lang-*   One crate per language, each a LanguageParser impl over its tree-sitter grammar
 mct-languages  The shipped language set: the one build_registry() every binary indexes with
-mct-mcp-server  MCP tools over stdio (rmcp): list_symbols/find_symbol/search_symbols/hybrid_search/find_references/
+mct-mcp-server  MCP tools over stdio (rmcp): list_symbols/find_symbol/search_symbols/hybrid_search/semantic_search/find_references/
                 find_calls/find_callers/impact_analysis/build_context_pack/find_dead_code/reindex/
                 get_indexing_status/get_file_skeleton/get_project_overview/get_file_tree/batch
 mct-cli      init/reindex/status/mcp-register subcommands for manual/scripted use
