@@ -35,28 +35,41 @@ const es: Record<keyof typeof en, string> = {
   layerSpacing: "Separación de capas",
   sourcePreview: "Código fuente seleccionado",
   inspectFile: "Explorar archivo",
-  exampleProject: "PROYECTO DE EJEMPLO",
+  exampleProject: "ESTE REPOSITORIO",
   projectBrief:
-    "Un pequeño servicio en Rust: recibe una petición, la interpreta y valida sus datos. Sigue el mismo código a través de las tres capas.",
+    "mini-consumes-tokens tal como lo ve su propio índice: el servidor MCP, el índice que guarda y el indexador que lo llena. Tres archivos, seis símbolos y solo las llamadas que el índice resuelve.",
   agentQuestion: "LA PREGUNTA DEL AGENTE",
-  query0: "¿Dónde se interpreta la petición y qué función la valida?",
-  query1: "¿Qué ocurre cuando el servidor recibe una petición?",
-  query2: "¿Dónde se rechazan los datos vacíos y quién usa esa comprobación?",
-  role0: "Interpretar la petición",
-  role1: "Procesar la petición",
-  role2: "Validar los datos",
+  query0: "¿Qué responde a las llamadas a herramientas de mi asistente?",
+  query1: "¿Dónde lee el servidor su configuración?",
+  query2:
+    "¿Quién es dueño de la base de datos que leen todas las herramientas?",
+  query3: "¿Qué ocurre en una reindexación completa?",
+  query4: "¿Qué se ejecuta cuando solo cambian unos archivos?",
+  query5: "¿Está sano el índice?",
+  role0: "Servir las herramientas MCP",
+  role1: "Configurar el servidor",
+  role2: "Guardar el índice",
+  role3: "Indexar todo el proyecto",
+  role4: "Indexar rutas cambiadas",
+  role5: "Informar del estado del índice",
   purpose0:
-    "El parser construye un Request y delega la validación. Su llamador y su dependencia explican dónde encaja en el recorrido de la petición.",
+    "El servidor MCP guarda el índice tras un mutex, junto al registro de lenguajes y una caché de consultas. main.rs lo crea con MctServer::new, que lee sus opciones del entorno.",
   purpose1:
-    "El punto de entrada llama al parser y construye una respuesta. Seguir esa llamada lleva al código de interpretación y validación.",
+    "Las opciones del servidor: la caché de consultas, un embedder opcional y una caché compartida. from_env lee la configuración de la caché de las variables MCT_CACHE*.",
   purpose2:
-    "La validación normaliza los datos y rechaza un valor vacío. El llamador muestra cómo se llega a esta comprobación desde el parser.",
+    "Index envuelve la conexión SQLite y la raíz del proyecto. Sus métodos son lo que llama el servidor; reindex, reindex_paths y status pasan el trabajo al indexador.",
+  purpose3:
+    "Recorre el proyecto, indexa cada archivo compatible, elimina los archivos y manifiestos que ya no existen y registra cuándo terminó.",
+  purpose4:
+    "Actualiza solo las rutas que recibe: creadas, cambiadas, borradas o renombradas. La raíz del proyecto o un archivo de exclusión cambiado vuelve a una reindexación completa.",
+  purpose5:
+    "Lee de la base los archivos y símbolos por lenguaje, los fallos y las dependencias de manifiestos, y los devuelve como un IndexStatus.",
   tourHowText:
     "Tree-sitter lee cada archivo compatible y extrae los símbolos y sus relaciones. Una base SQLite guarda ese grafo dentro de tu proyecto, y la indexación se ejecuta en tu equipo. El servidor MCP responde con esa base a las llamadas a herramientas del asistente. Mientras está activo, reindexa en segundo plano los archivos modificados cuando las ediciones llevan 1,5 segundos en pausa.",
   tourOrientText:
     "Empieza aquí cuando aún no conoces ningún nombre. Estas herramientas describen la estructura y el contenido de un proyecto sin abrir archivos completos.",
   tourLookupText:
-    "Cada herramienta responde a una pregunta y devuelve ubicaciones como ruta:línea, no el contenido de los archivos. Los ejemplos usan request-service.",
+    "Cada herramienta responde a una pregunta y devuelve ubicaciones como ruta:línea, no el contenido de los archivos.",
   tourCompositeText:
     "Las herramientas compuestas combinan varias consultas en una sola respuesta. Las herramientas de relaciones aceptan además depth, para seguir llamadores de llamadores hasta 32 saltos, y offset, para paginar resultados largos.",
   tourAdvancedText:
@@ -94,10 +107,14 @@ const es: Record<keyof typeof en, string> = {
   ask_get_indexing_status:
     "¿Está sano el índice? Archivos y símbolos por lenguaje, última ejecución y errores de análisis.",
   replaces: "En una llamada, en lugar de",
-  exampleOutput: "Ejemplo de salida",
   toolsReference: "Consulta la referencia de herramientas MCP",
   atlas: "Atlas de código",
-  illustration: "Repositorio ilustrativo, no un índice en vivo",
+  illustration:
+    "Símbolos y llamadas resueltas del propio índice de este repositorio, no una vista en vivo",
+  allSymbols: "Ver todos los símbolos",
+  hideSymbols: "Ocultar todos los símbolos",
+  allSymbolsTitle: "Todos los símbolos de los tres archivos",
+  symbolCount: "{{count}} símbolos",
   graphAlt:
     "Los archivos se convierten en símbolos conectados. Al elegir un símbolo, se muestran su definición, sus llamadores y sus dependencias en un paquete de contexto preciso.",
   files: "Archivos fuente",
@@ -124,6 +141,27 @@ const es: Record<keyof typeof en, string> = {
   tourLookupTitle: "Haz una pregunta precisa.",
   tourCompositeTitle: "Varias preguntas, una llamada.",
   tourAdvancedTitle: "Trabaja a escala.",
+  tourServerTitle: "Una llamada a herramienta llega al servidor.",
+  tourServerText:
+    "MctServer responde a todas las herramientas MCP. main.rs lo crea con MctServer::new, que llama a ServerOptions::from_env para configurar la caché. Guarda el Index tras un mutex.",
+  tourIndexTitle: "El índice es dueño de la base de datos.",
+  tourIndexText:
+    "Index envuelve la conexión SQLite y la raíz del proyecto, y main.rs lo abre con Index::open. Tres de sus métodos pasan el trabajo al indexador: reindex, reindex_paths y status.",
+  tourReindexTitle: "Una reindexación completa recorre el proyecto.",
+  tourReindexText:
+    "reindex avanza en cuatro pasos. Recorrer: walk_entry_allowed, record_walk_failure. Indexar: index_file. Limpiar: remove_missing_files, remove_missing_manifests. Registrar: touch_last_indexed_at.",
+  tourReindexPathsTitle: "Un cambio solo reindexa sus rutas.",
+  tourReindexPathsText:
+    "reindex_paths agrupa igual sus diez llamadas. Recorrer: to_relative_slash_path, is_rules_file, walk_entry_allowed, record_walk_failure. Indexar: reindex, index_noting_created, record_read_failure. Limpiar: remove_under_prefix, remove_renamed_away. Registrar: touch_last_indexed_at.",
+  tourStatusTitle: "El estado sale de la misma base.",
+  tourStatusText:
+    "status lee los archivos y símbolos por lenguaje, los fallos y las dependencias, y construye un IndexStatus. Solo lo llama Index::status.",
+  tourToolsTitle: "Ocho herramientas que llegan al índice.",
+  tourToolsText:
+    "Cada una de estas herramientas de server.rs llama a un método de Index. El número entre paréntesis es la línea de esa llamada.",
+  tourMethodsTitle: "Ocho métodos de Index detrás de ellas.",
+  tourMethodsText:
+    "El lado de lib.rs de esas mismas llamadas: quién llama a cada método o qué pasa al indexador.",
   spatialHint:
     "Arrastra para girar · Desplázate para acercar · Elige un símbolo",
   mapNote: "Una pregunta. Las conexiones que importan.",
