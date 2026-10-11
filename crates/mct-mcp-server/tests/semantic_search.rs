@@ -338,6 +338,7 @@ async fn real_model_finds_validate_token_among_10k_symbols() {
             cache: CacheConfig::disabled(),
             embedder: None,
             shared_cache: None,
+            tool_attention: false,
         },
     );
     let call = |q: &str| {
