@@ -59,6 +59,14 @@ PRE `query` non-blank; `alpha` in 0..1 if given.
 POST a ranked page; first line notes a lexical-only fallback.
 EFFECTS read; index, project files, query cache; may download the embedding model once.
 
+TOOL semantic_search
+WHEN find code by meaning only: embedding cosine similarity, top_k hits with signature + score.
+ERR needs a --features semantic build; no name matching (use search_symbols/hybrid_search).
+TAGS semantic, embeddings, meaning, similarity
+PRE `query` non-blank; `top_k` clamped to 1..100.
+POST coverage line, then hits most similar first with path:line, signature, score; or an unavailable note.
+EFFECTS read; index, embeddings of changed symbols; may download the embedding model once.
+
 TOOL find_references
 WHEN every reference to a symbol: calls, imports, extends/implements.
 ERR not just direct callers (use find_callers); not a definition lookup (use find_symbol).
