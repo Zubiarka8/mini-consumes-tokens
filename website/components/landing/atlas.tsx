@@ -19,6 +19,7 @@ import {
   examples,
   files,
   layerKeys,
+  storyStages,
   tourStages,
   type AtlasLayers,
   type Cue,
@@ -47,6 +48,7 @@ export function Atlas() {
   const [selected, setSelected] = useState(0);
   const [expanded, setExpanded] = useState(false);
   const [activeStage, setActiveStage] = useState(0);
+  const [storyStage, setStoryStage] = useState(0);
   const [layers, setLayers] = useState<AtlasLayers>([true, true, true]);
   const [separation, setSeparation] = useState(1.45);
   const [rotation, setRotation] = useState(0.2);
@@ -106,36 +108,52 @@ export function Atlas() {
       expandButton.current?.focus();
     };
   }, [expanded]);
-  // One observer marks the stage crossing the middle of the dialog.
+  // One observer marks the stage crossing the middle of the dialog in full screen, or
+  // the story stage crossing the middle of the viewport on the page.
   useEffect(() => {
-    const dialog = root.current;
-    if (!expanded || !dialog) return;
-    setActiveStage(0);
-    setDetails(false);
+    const atlas = root.current;
+    if (!atlas) return;
+    if (expanded) {
+      setActiveStage(0);
+      setDetails(false);
+    }
+    const setStage = expanded ? setActiveStage : setStoryStage;
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries)
           if (entry.isIntersecting)
-            setActiveStage(Number((entry.target as HTMLElement).dataset.stage));
+            setStage(Number((entry.target as HTMLElement).dataset.stage));
       },
-      { root: dialog, rootMargin: "-45% 0px -50% 0px" },
+      { root: expanded ? atlas : null, rootMargin: "-45% 0px -50% 0px" },
     );
-    dialog
-      .querySelectorAll(".atlas-stage")
+    atlas
+      .querySelectorAll(expanded ? ".atlas-stage" : ".atlas-story-stage")
       .forEach((stage) => observer.observe(stage));
     return () => observer.disconnect();
   }, [expanded]);
-  const stage = expanded ? tourStages[activeStage] : undefined;
+  const tourStage = expanded ? tourStages[activeStage] : undefined;
+  const story = storyStages[storyStage];
+  const stage = tourStage ?? story;
+  // A stage selects its symbol when it activates; leaving full screen keeps the
+  // selection made there, because the story stage itself has not changed.
   useEffect(() => {
-    if (stage?.symbol)
-      setSelected(examples.findIndex(({ name }) => name === stage.symbol));
-    // Each stage that reaches the middle of the dialog plays its cue once.
-    setCue(({ id }) => ({ key: stage?.key ?? "idle", id: id + 1 }));
+    if (tourStage?.symbol)
+      setSelected(examples.findIndex(({ name }) => name === tourStage.symbol));
+  }, [tourStage]);
+  useEffect(() => {
+    if (story.symbol)
+      setSelected(examples.findIndex(({ name }) => name === story.symbol));
+  }, [story]);
+  // Each stage that reaches the middle plays its cue once.
+  useEffect(() => {
+    setCue(({ id }) => ({ key: stage.key, id: id + 1 }));
   }, [stage]);
   useEffect(() => {
     if (details) firstSummary.current?.focus();
   }, [details]);
-  const inView = useInView(root);
+  // The scene, not the whole atlas: the story makes the atlas much taller than its scene.
+  const space = useRef<HTMLDivElement>(null);
+  const inView = useInView(space);
   useEffect(() => {
     const motionPreference = matchMedia("(prefers-reduced-motion: reduce)");
     const update = () => setReduced(motionPreference.matches);
@@ -207,6 +225,7 @@ export function Atlas() {
       className={`atlas${expanded ? " atlas-expanded" : ""}`}
       ref={root}
       data-scene={failed ? "failed" : ready ? "ready" : "loading"}
+      data-story-stage={expanded ? undefined : storyStage}
       role={expanded ? "dialog" : undefined}
       aria-modal={expanded ? true : undefined}
       aria-label={expanded ? t("atlas") : undefined}
@@ -275,20 +294,25 @@ export function Atlas() {
         </label>
       </div>
       <div className="atlas-view">
-        <div className="atlas-space">
+        <div className="atlas-space" ref={space}>
           {!ready && !failed && (
             <p className="atlas-loading" role="status">
               {t("loading3d")}
             </p>
           )}
           {spatial && (
-            <div className="spatial-layer" data-testid="spatial-layer">
+            <div
+              className="spatial-layer"
+              data-testid="spatial-layer"
+              data-cue={cue.key}
+            >
               <SceneBoundary onFailure={sceneFailure}>
                 <Suspense fallback={null}>
                   <SpatialAtlas
                     selected={selected}
                     layers={layers}
-                    focusLayer={stage?.layer}
+                    focusLayer={stage.layer}
+                    view={tourStage ? undefined : story.view}
                     separation={separation}
                     cue={cue}
                     rotation={rotation}
@@ -312,6 +336,23 @@ export function Atlas() {
         )}
         {/* .atlas-space hides beside the fallback, so the row follows it instead. */}
         {failed && controls}
+        {/* Full screen has its own tour, so the story lives only on the page. */}
+        {!expanded && (
+          <ol className="atlas-story">
+            {storyStages.map(({ key }, i) => (
+              <li
+                key={key}
+                className="atlas-story-stage"
+                data-stage={i}
+                aria-current={storyStage === i ? "step" : undefined}
+              >
+                <span className="step-number mono">0{i + 1}</span>
+                <h3>{t(`${key}Title`)}</h3>
+                <p>{t(`${key}Text`)}</p>
+              </li>
+            ))}
+          </ol>
+        )}
         {expanded && (
           <div className="atlas-tour" data-active-stage={activeStage}>
             {tourStages.map(({ key, icon: Icon, methods, tools, docs }, i) => (
