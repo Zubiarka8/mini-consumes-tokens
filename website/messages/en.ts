@@ -34,28 +34,40 @@ const en = {
   layerSpacing: "Layer spacing",
   sourcePreview: "Selected source code",
   inspectFile: "Inspect file",
-  exampleProject: "EXAMPLE PROJECT",
+  exampleProject: "THIS REPOSITORY",
   projectBrief:
-    "A small Rust service: receive a request, parse it, then validate its input. Follow the same code through all three layers.",
+    "mini-consumes-tokens as its own index sees it: the MCP server, the index it holds and the indexer that fills it. Three files, six symbols and only the calls the index resolves.",
   agentQuestion: "THE AGENT’S QUESTION",
-  query0: "Where is the request parsed, and what validates it?",
-  query1: "What happens when the server receives a request?",
-  query2: "Where is empty input rejected, and who uses that check?",
-  role0: "Parse the request",
-  role1: "Handle the request",
-  role2: "Validate the input",
+  query0: "What answers my assistant's tool calls?",
+  query1: "Where does the server read its settings?",
+  query2: "What owns the database every tool reads?",
+  query3: "What happens on a full reindex?",
+  query4: "What runs when only a few files change?",
+  query5: "Is the index healthy?",
+  role0: "Serve the MCP tools",
+  role1: "Configure the server",
+  role2: "Hold the index",
+  role3: "Index the whole project",
+  role4: "Index changed paths",
+  role5: "Report index health",
   purpose0:
-    "The parser builds a Request and delegates validation. Its caller and dependency explain where it fits in the request flow.",
+    "The MCP server keeps the index behind a mutex, with the language registry and a query cache. main.rs builds it with MctServer::new, which reads its options from the environment.",
   purpose1:
-    "The entry point calls the parser and builds a response. Following that call leads to the parsing and validation code.",
+    "The server's options: the query cache, an optional embedder and a shared cache. from_env reads the cache settings from the MCT_CACHE* variables.",
   purpose2:
-    "Validation normalizes the input and rejects an empty value. The caller shows how this check is reached from the parser.",
+    "Index wraps the SQLite connection and the project root. Its methods are what the server calls; reindex, reindex_paths and status hand the work to the indexer.",
+  purpose3:
+    "Walks the project, indexes each supported file, removes the files and manifests that are gone and records when the run finished.",
+  purpose4:
+    "Updates only the paths it is given: created, changed, deleted or renamed. The project root or a changed ignore file falls back to a full reindex.",
+  purpose5:
+    "Reads files and symbols per language, failures and manifest dependencies from the database and returns them as an IndexStatus.",
   tourHowText:
     "Tree-sitter reads each supported file and extracts symbols and the relations between them. A SQLite database keeps that graph inside your project, and indexing runs on your machine. The MCP server answers your assistant's tool calls from that database. While it runs, it reindexes changed files in the background once edits have been quiet for 1.5 seconds.",
   tourOrientText:
     "Start here when you don't know any names yet. These tools describe the layout and contents of a project without opening whole files.",
   tourLookupText:
-    "Each tool answers one question and returns locations as path:line, not file contents. The examples run on request-service.",
+    "Each tool answers one question and returns locations as path:line, not file contents.",
   tourCompositeText:
     "Composite tools combine several lookups into one answer. Relation tools also accept depth, to follow callers of callers up to 32 hops, and offset, to page through long results.",
   tourAdvancedText:
@@ -94,10 +106,14 @@ const en = {
   ask_get_indexing_status:
     "Is the index healthy? Files and symbols per language, last run and parse failures.",
   replaces: "In one call, instead of",
-  exampleOutput: "Example output",
   toolsReference: "Read the MCP tools reference",
   atlas: "Code atlas",
-  illustration: "Illustrative repository, not a live index",
+  illustration:
+    "Symbols and resolved calls from this repository's own index, not a live view",
+  allSymbols: "See all symbols",
+  hideSymbols: "Hide all symbols",
+  allSymbolsTitle: "Every symbol in the three files",
+  symbolCount: "{{count}} symbols",
   graphAlt:
     "Source files become connected symbols. Selecting a symbol reveals its definition, callers and dependencies in a focused context pack.",
   files: "Source files",
@@ -124,6 +140,27 @@ const en = {
   tourLookupTitle: "Ask one precise question.",
   tourCompositeTitle: "Several questions, one call.",
   tourAdvancedTitle: "Work at scale.",
+  tourServerTitle: "A tool call reaches the server.",
+  tourServerText:
+    "MctServer answers every MCP tool. main.rs builds it with MctServer::new, which calls ServerOptions::from_env for the cache settings. It holds the Index behind a mutex.",
+  tourIndexTitle: "The index owns the database.",
+  tourIndexText:
+    "Index wraps the SQLite connection and the project root, and main.rs opens it with Index::open. Three of its methods hand the work to the indexer: reindex, reindex_paths and status.",
+  tourReindexTitle: "A full reindex walks the project.",
+  tourReindexText:
+    "reindex runs in four steps. Walk: walk_entry_allowed, record_walk_failure. Index: index_file. Clean up: remove_missing_files, remove_missing_manifests. Record: touch_last_indexed_at.",
+  tourReindexPathsTitle: "A change reindexes only its paths.",
+  tourReindexPathsText:
+    "reindex_paths groups its ten callees the same way. Walk: to_relative_slash_path, is_rules_file, walk_entry_allowed, record_walk_failure. Index: reindex, index_noting_created, record_read_failure. Clean up: remove_under_prefix, remove_renamed_away. Record: touch_last_indexed_at.",
+  tourStatusTitle: "Health comes from the same database.",
+  tourStatusText:
+    "status reads files and symbols per language, failures and dependencies, and builds an IndexStatus. Only Index::status calls it.",
+  tourToolsTitle: "Eight tools that reach the index.",
+  tourToolsText:
+    "Each of these server.rs tools calls one Index method. The number in brackets is the line of that call.",
+  tourMethodsTitle: "Eight Index methods behind them.",
+  tourMethodsText:
+    "The lib.rs side of the same calls: who calls each method, or what it hands to the indexer.",
   spatialHint: "Drag to orbit · Scroll to zoom · Select a symbol",
   mapNote: "One question. Its relevant neighborhood.",
   problemLabel: "01 / THE PROBLEM",

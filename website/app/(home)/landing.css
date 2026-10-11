@@ -1511,6 +1511,43 @@
   border-radius: 5px;
   overflow-x: auto;
 }
+.atlas-stage .atlas-details-toggle {
+  justify-self: start;
+}
+.atlas-details {
+  display: grid;
+  gap: 8px;
+}
+.atlas-details h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+}
+.atlas-details summary {
+  cursor: pointer;
+  padding: 10px 0;
+  font-size: 12px;
+  color: #dce7d8;
+  overflow-wrap: anywhere;
+}
+.atlas-details ul {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 12px;
+  display: grid;
+  gap: 4px;
+  font-size: 11px;
+}
+.atlas-details li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  color: #abb9ad;
+}
+.atlas-details li code {
+  color: var(--mineral);
+  overflow-wrap: anywhere;
+}
 .atlas-stage .command-row {
   border-top-color: #354538;
 }
