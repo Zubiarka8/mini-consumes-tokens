@@ -95,13 +95,15 @@ async fn the_full_catalogs_serialized_footprint_is_well_under_the_pre_ttc_size()
     // with `hybrid_search` (issue #61), then ~3334 bytes across 17 tools
     // with `batch` (issue #20), then ~3662 bytes across 18 tools with
     // `build_context_pack` (issue #27; `hybrid_search`'s exact-phrase wording
-    // had already taken the catalog to ~3470). 3900 is a regression guard with
+    // had already taken the catalog to ~3470), then ~4103 bytes across 20
+    // tools with `semantic_search` and `select_tools` (issue #11), which
+    // moved the guard from 3900 to 4300. It is a regression guard with
     // headroom for a couple more tools, not a precise assertion — bump it
     // (with a note here) rather than loosen it silently if a future tool
     // needs the room.
     assert!(
-        description_bytes < 3_900,
-        "tool catalog description bytes grew to {description_bytes}, expected well under 3900 \
+        description_bytes < 4_300,
+        "tool catalog description bytes grew to {description_bytes}, expected well under 4300 \
          (TTC's whole point is a compact catalog)"
     );
 }

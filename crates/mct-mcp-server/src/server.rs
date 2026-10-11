@@ -189,6 +189,24 @@ pub struct HybridSearchArgs {
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct SemanticSearchArgs {
+    /// What the code does, in plain words: `validate user authentication`,
+    /// `load config from disk`.
+    pub query: String,
+    /// Maximum number of hits, most similar first. Defaults to 10, clamped
+    /// to 100.
+    #[serde(default)]
+    pub top_k: Option<usize>,
+    /// Narrow to one file or directory/crate prefix (same matching as
+    /// list_symbols). Omit to search the whole project.
+    #[serde(default)]
+    pub path: Option<String>,
+    /// Narrow to one language id (e.g. `rust`). Omit for every language.
+    #[serde(default)]
+    pub language: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct FindReferencesArgs {
     /// Exact name of the symbol to find every reference to.
     pub symbol: String,
@@ -578,7 +596,12 @@ const TOOL_CATEGORIES: &[(&str, &[&str])] = &[
     ),
     (
         "lookup",
-        &["find_symbol", "search_symbols", "hybrid_search"],
+        &[
+            "find_symbol",
+            "search_symbols",
+            "hybrid_search",
+            "semantic_search",
+        ],
     ),
     (
         "relations",
@@ -1419,6 +1442,7 @@ impl MctServer {
             "find_symbol" => self.find_symbol(batch_params(tool, args)?).await,
             "search_symbols" => self.search_symbols(batch_params(tool, args)?).await,
             "hybrid_search" => self.hybrid_search(batch_params(tool, args)?).await,
+            "semantic_search" => self.semantic_search(batch_params(tool, args)?).await,
             "find_references" => self.find_references(batch_params(tool, args)?).await,
             "find_calls" => self.find_calls(batch_params(tool, args)?).await,
             "find_callers" => self.find_callers(batch_params(tool, args)?).await,
@@ -1799,6 +1823,56 @@ impl MctServer {
             &digest_view,
             hit.as_ref(),
         ))
+    }
+
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Meaning-based symbol search by embedding similarity; see tools.ttc")]
+    pub async fn semantic_search(
+        &self,
+        Parameters(SemanticSearchArgs {
+            query,
+            top_k,
+            path,
+            language,
+        }): Parameters<SemanticSearchArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let query = validate_name(&query)?;
+        let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
+        let limit = top_k
+            .unwrap_or(SEARCH_DEFAULT_LIMIT)
+            .clamp(1, SEARCH_MAX_LIMIT);
+        // Same lock order as hybrid_search: model, pending symbols and query
+        // embedding with no lock held, then the index mutex for the scan.
+        // ponytail: no query cache here, unlike hybrid_search; add one if
+        // repeated identical queries show up in measurements.
+        let embedder = match self.semantic_model().await {
+            Ok(embedder) => embedder,
+            Err(reason) => {
+                return Ok(CallToolResult::success(vec![ContentBlock::text(format!(
+                    "semantic_search unavailable — {reason}; use search_symbols or hybrid_search"
+                ))]))
+            }
+        };
+        let failed =
+            |e: String| McpError::internal_error(format!("semantic_search failed: {e}"), None);
+        self.refresh_pending_unlocked(embedder.model_id())
+            .await
+            .map_err(failed)?;
+        let vector = self.embed_query_unlocked(query).await.map_err(failed)?;
+        let index = self.index.lock().await;
+        let hits = index
+            .semantic_search(&vector, embedder.model_id(), scope, limit)
+            .map_err(index_error)?;
+        let coverage = index
+            .embedding_coverage(embedder.model_id())
+            .map_err(index_error)?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(format!(
+            "semantic: {}/{} symbols embedded ({})\n{}",
+            coverage.embedded,
+            coverage.total,
+            embedder.model_id(),
+            format::semantic_hits(query, &hits)
+        ))]))
     }
 
     // Fallback only — see tools.ttc / MctServer::new.

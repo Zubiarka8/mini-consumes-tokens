@@ -1,6 +1,6 @@
 {
   "suite": "omni-app",
-  "catalog_tokens": 7698,
+  "catalog_tokens": 8541,
   "cases": {
     "Bash callers across sourced files": {
       "score": 1.0,
