@@ -3,10 +3,15 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, type RefObject } from "react";
 import {
   BufferGeometry,
+  Color,
   Group,
+  type Mesh,
   QuadraticBezierCurve3,
   Vector3,
   PerspectiveCamera,
+  type LineBasicMaterial,
+  type MeshBasicMaterial,
+  type MeshStandardMaterial,
 } from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { useTranslation } from "react-i18next";
@@ -14,24 +19,61 @@ import { FileCode2 } from "lucide-react";
 
 import {
   connections,
+  CUE_STEP,
   examples,
+  files,
   layerHeight,
   layerKeys,
+  tourStages,
   type AtlasLayers,
+  type Cue,
 } from "./atlas-data";
 
+const lit = new Color("#b0d897");
+const dim = new Color("#48624f");
+const resting = new Color("#899c8c");
+// Moves `color` toward `target` by `amount`, snapping at the end; true while it moves.
+function easeColor(color: Color, target: Color, amount: number) {
+  color.lerp(target, amount);
+  const moving =
+    Math.abs(color.r - target.r) +
+      Math.abs(color.g - target.g) +
+      Math.abs(color.b - target.b) >
+    0.003;
+  if (!moving) color.copy(target);
+  return moving;
+}
+function easeEmissive(
+  material: MeshStandardMaterial,
+  target: number,
+  amount: number,
+) {
+  const remaining = target - material.emissiveIntensity;
+  material.emissiveIntensity =
+    Math.abs(remaining) < 0.001
+      ? target
+      : material.emissiveIntensity + remaining * amount;
+  return material.emissiveIntensity !== target;
+}
+
 type Point = readonly [number, number];
-function linkGeometry([ax, az]: Point, [bx, bz]: Point) {
+function link([ax, az]: Point, [bx, bz]: Point) {
   const curve = new QuadraticBezierCurve3(
     new Vector3(ax, 0.15, az),
     new Vector3((ax + bx) / 2, 0.45, (az + bz) / 2 - 0.35),
     new Vector3(bx, 0.15, bz),
   );
   const points = curve.getPoints(40);
-  return new BufferGeometry().setFromPoints(
+  const geometry = new BufferGeometry().setFromPoints(
     points.slice(0, -1).flatMap((point, i) => [point, points[i + 1]]),
   );
+  return { curve, geometry };
 }
+// Idle motion periods in seconds, and how far the context sheets float.
+const PULSE_PERIOD = 2.4;
+const BREATH_PERIOD = 3;
+const FLOAT_PERIOD = 4;
+const FLOAT_HEIGHT = 0.02;
 function CameraControls({ active, reset }: { active: boolean; reset: number }) {
   const { camera, gl, invalidate, size } = useThree();
   const controls = useRef<OrbitControls | null>(null);
@@ -96,6 +138,7 @@ function Graph({
   layers,
   focusLayer,
   separation,
+  cue,
   labels,
   fileLabels,
   boardLabels,
@@ -110,6 +153,7 @@ function Graph({
   layers: AtlasLayers;
   focusLayer?: number;
   separation: number;
+  cue: Cue;
   labels: RefObject<(HTMLButtonElement | null)[]>;
   fileLabels: RefObject<(HTMLButtonElement | null)[]>;
   boardLabels: RefObject<(HTMLSpanElement | null)[]>;
@@ -119,16 +163,40 @@ function Graph({
 }) {
   const group = useRef<Group>(null);
   const firstFrame = useRef(true);
+  const cubes = useRef<(MeshStandardMaterial | null)[]>([]);
+  const boards = useRef<(MeshStandardMaterial | null)[]>([]);
+  const links = useRef<(LineBasicMaterial | MeshBasicMaterial | null)[]>([]);
+  const pulses = useRef<(Mesh | null)[]>([]);
+  const sheets = useRef<(Group | null)[]>([]);
+  const cueId = useRef(-1);
+  const cueStart = useRef(0);
   const { invalidate, gl } = useThree();
   const projected = useMemo(() => new Vector3(), []);
-  const geometry = useMemo(
-    () => connections.map(([a, b]) => linkGeometry(a.position, b.position)),
+  const curves = useMemo(
+    () => connections.map(([a, b]) => link(a.position, b.position)),
     [],
   );
-  useEffect(() => () => geometry.forEach((link) => link.dispose()), [geometry]);
+  // An unknown key, or "idle", holds no state: every connection stays lit.
+  const steps = useMemo(
+    () => tourStages.find(({ key }) => key === cue.key)?.steps,
+    [cue.key],
+  );
+  useEffect(
+    () => () => curves.forEach(({ geometry }) => geometry.dispose()),
+    [curves],
+  );
   useEffect(() => {
     if (active) invalidate();
-  }, [active, rotation, selected, layers, focusLayer, separation, invalidate]);
+  }, [
+    active,
+    rotation,
+    selected,
+    layers,
+    focusLayer,
+    separation,
+    cue,
+    invalidate,
+  ]);
   useEffect(() => {
     const lost = (event: Event) => {
       event.preventDefault();
@@ -137,11 +205,73 @@ function Graph({
     gl.domElement.addEventListener("webglcontextlost", lost);
     return () => gl.domElement.removeEventListener("webglcontextlost", lost);
   }, [gl, onFailure]);
-  useFrame(({ camera, size }, delta) => {
+  useFrame(({ camera, clock, size }, delta) => {
     if (!active || !group.current) return;
     const remaining = rotation - group.current.rotation.y;
     group.current.rotation.y +=
       remaining * (reduced ? 1 : Math.min(1, delta * 9));
+    // Selection, focused board and the cue's connections ease toward their state.
+    // On demand, the first frame after a pause reports the whole pause as its delta.
+    const amount =
+      reduced || firstFrame.current ? 1 : Math.min(delta, 1 / 30) * 10;
+    let moving = Math.abs(remaining) > 0.001;
+    // Idle motion, never on anything that carries an HTML label: a pulse along every
+    // connection, breathing on the selected cube and focused board, floating sheets.
+    const time = clock.elapsedTime;
+    const breath = reduced
+      ? 0
+      : 0.1 * Math.sin((2 * Math.PI * time) / BREATH_PERIOD);
+    for (let i = 0; i < connections.length; i++) {
+      const pulse = pulses.current[i];
+      if (!pulse) continue;
+      pulse.visible = !reduced;
+      curves[i].curve.getPoint(
+        (time / PULSE_PERIOD + i / connections.length) % 1,
+        pulse.position,
+      );
+    }
+    for (let i = 0; i < examples.length; i++) {
+      const sheet = sheets.current[i];
+      if (sheet)
+        sheet.position.y = reduced
+          ? 0
+          : FLOAT_HEIGHT * Math.sin((2 * Math.PI * time) / FLOAT_PERIOD + i);
+    }
+    for (let i = 0; i < examples.length; i++) {
+      const cube = cubes.current[i];
+      if (!cube) continue;
+      if (easeColor(cube.color, selected === i ? lit : resting, amount))
+        moving = true;
+      if (easeEmissive(cube, selected === i ? 0.25 + breath : 0, amount))
+        moving = true;
+    }
+    for (let i = 0; i < boards.current.length; i++) {
+      const board = boards.current[i];
+      if (
+        board &&
+        easeEmissive(board, focusLayer === i ? 0.45 + breath : 0, amount)
+      )
+        moving = true;
+    }
+    if (cueId.current !== cue.id) {
+      cueId.current = cue.id;
+      cueStart.current = clock.elapsedTime;
+    }
+    // Step k starts at k * CUE_STEP; reduced motion applies the final state at once.
+    const elapsed = reduced
+      ? Infinity
+      : (clock.elapsedTime - cueStart.current) * 1000;
+    if (steps && elapsed < (steps.length - 1) * CUE_STEP) moving = true;
+    for (let i = 0; i < connections.length; i++) {
+      let on = !steps;
+      for (let k = 0; !on && steps && k < steps.length; k++)
+        on = elapsed >= k * CUE_STEP && steps[k].includes(i);
+      const line = links.current[2 * i];
+      const arrow = links.current[2 * i + 1];
+      if (line && easeColor(line.color, on ? lit : dim, amount)) moving = true;
+      if (arrow && easeColor(arrow.color, on ? lit : dim, amount))
+        moving = true;
+    }
     group.current.updateWorldMatrix(true, true);
     camera.updateMatrixWorld();
     const place = (
@@ -160,10 +290,12 @@ function Graph({
       element.style.visibility =
         shown && projected.z < 1 ? "visible" : "hidden";
     };
-    examples.forEach(({ position: [x, z] }, i) => {
-      place(labels.current[i], x, 0.2, z, layers[1], 16);
-      place(fileLabels.current[i], x, separation + 0.65, z, layers[0], -30);
-    });
+    examples.forEach(({ position: [x, z] }, i) =>
+      place(labels.current[i], x, 0.2, z, layers[1], 16),
+    );
+    files.forEach(({ x }, i) =>
+      place(fileLabels.current[i], x, separation + 0.65, 0, layers[0], -30),
+    );
     layers.forEach((shown, i) =>
       place(
         boardLabels.current[i],
@@ -178,7 +310,8 @@ function Graph({
       firstFrame.current = false;
       onReady();
     }
-    if (Math.abs(remaining) > 0.001) invalidate();
+    // Continuous while visible; with reduced motion, only until a change settles.
+    if (!reduced || moving) invalidate();
   });
   return (
     <group ref={group} rotation={[0, 0.2, 0]}>
@@ -192,9 +325,12 @@ function Graph({
               <mesh position={[0, -0.09, 0]}>
                 <boxGeometry args={[5.5, 0.14, 2.7]} />
                 <meshStandardMaterial
+                  ref={(material) => {
+                    boards.current[layer] = material;
+                  }}
                   color={layer === 1 ? "#334f3c" : "#405246"}
                   emissive="#60814b"
-                  emissiveIntensity={focusLayer === layer ? 0.45 : 0}
+                  emissiveIntensity={0}
                   roughness={0.6}
                   metalness={0.06}
                 />
@@ -206,79 +342,112 @@ function Graph({
                   <meshBasicMaterial color="#48624f" />
                 </mesh>
               ))}
-              {examples.map(({ position: [x, z] }, i) => {
-                const color = selected === i ? "#b0d897" : "#899c8c";
-                const select = (event: { stopPropagation: () => void }) => {
-                  event.stopPropagation();
-                  onSelect(i);
-                };
-                return (
-                  <group key={i} position={[x, 0, z]}>
-                    {layer === 0 ? (
-                      <group position={[0, 0.32, 0]}>
-                        <mesh onClick={select}>
-                          <boxGeometry args={[0.4, 0.62, 0.11]} />
-                          <meshStandardMaterial
-                            color={color}
-                            roughness={0.35}
-                            metalness={0.1}
-                          />
-                        </mesh>
-                        {[0.12, 0.02, -0.08].map((y) => (
-                          <mesh key={y} position={[0, y, 0.061]}>
-                            <boxGeometry args={[0.23, 0.018, 0.009]} />
-                            <meshBasicMaterial color="#3c5842" />
-                          </mesh>
-                        ))}
-                        <mesh position={[0.115, 0.22, 0.065]}>
-                          <boxGeometry args={[0.11, 0.1, 0.012]} />
-                          <meshStandardMaterial color="#dce6d4" />
-                        </mesh>
-                      </group>
-                    ) : layer === 1 ? (
-                      <mesh position={[0, 0.16, 0]} onClick={select}>
-                        <boxGeometry args={[0.32, 0.32, 0.32]} />
+              {layer === 0 &&
+                files.map(({ x }, file) => {
+                  const select = (event: { stopPropagation: () => void }) => {
+                    event.stopPropagation();
+                    onSelect(examples.findIndex((item) => item.file === file));
+                  };
+                  return (
+                    <group key={file} position={[x, 0.32, 0]}>
+                      <mesh onClick={select}>
+                        <boxGeometry args={[0.4, 0.62, 0.11]} />
                         <meshStandardMaterial
-                          color={color}
-                          emissive="#60814b"
-                          emissiveIntensity={selected === i ? 0.25 : 0}
+                          color={
+                            examples[selected].file === file
+                              ? "#b0d897"
+                              : "#899c8c"
+                          }
                           roughness={0.35}
+                          metalness={0.1}
                         />
                       </mesh>
-                    ) : (
-                      <group>
-                        {[0, 1, 2, 3].map((sheet) => (
-                          <mesh
-                            key={sheet}
-                            position={[0, 0.04 + sheet * 0.045, 0]}
-                            onClick={select}
-                          >
-                            <boxGeometry args={[0.72, 0.032, 0.65]} />
-                            <meshStandardMaterial
-                              color={color}
-                              roughness={0.7}
-                            />
-                          </mesh>
-                        ))}
-                        {[-0.17, -0.04, 0.09, 0.22].map((z) => (
-                          <mesh key={z} position={[0, 0.2, z]}>
-                            <boxGeometry args={[0.5, 0.007, 0.022]} />
-                            <meshBasicMaterial color="#507047" />
-                          </mesh>
-                        ))}
-                      </group>
-                    )}
-                  </group>
-                );
-              })}
+                      {[0.12, 0.02, -0.08].map((y) => (
+                        <mesh key={y} position={[0, y, 0.061]}>
+                          <boxGeometry args={[0.23, 0.018, 0.009]} />
+                          <meshBasicMaterial color="#3c5842" />
+                        </mesh>
+                      ))}
+                      <mesh position={[0.115, 0.22, 0.065]}>
+                        <boxGeometry args={[0.11, 0.1, 0.012]} />
+                        <meshStandardMaterial color="#dce6d4" />
+                      </mesh>
+                    </group>
+                  );
+                })}
+              {layer > 0 &&
+                examples.map(({ position: [x, z] }, i) => {
+                  const select = (event: { stopPropagation: () => void }) => {
+                    event.stopPropagation();
+                    onSelect(i);
+                  };
+                  return (
+                    <group key={i} position={[x, 0, z]}>
+                      {layer === 1 ? (
+                        <mesh position={[0, 0.16, 0]} onClick={select}>
+                          <boxGeometry args={[0.32, 0.32, 0.32]} />
+                          {/* Colour and emissive ease in the frame loop. */}
+                          <meshStandardMaterial
+                            ref={(material) => {
+                              cubes.current[i] = material;
+                            }}
+                            color="#899c8c"
+                            emissive="#60814b"
+                            emissiveIntensity={0}
+                            roughness={0.35}
+                          />
+                        </mesh>
+                      ) : (
+                        <group
+                          ref={(element) => {
+                            sheets.current[i] = element;
+                          }}
+                        >
+                          {[0, 1, 2, 3].map((sheet) => (
+                            <mesh
+                              key={sheet}
+                              position={[0, 0.04 + sheet * 0.045, 0]}
+                              onClick={select}
+                            >
+                              <boxGeometry args={[0.6, 0.032, 0.5]} />
+                              <meshStandardMaterial
+                                color={selected === i ? "#b0d897" : "#899c8c"}
+                                roughness={0.7}
+                              />
+                            </mesh>
+                          ))}
+                          {[-0.14, -0.03, 0.08, 0.19].map((z) => (
+                            <mesh key={z} position={[0, 0.2, z]}>
+                              <boxGeometry args={[0.42, 0.007, 0.022]} />
+                              <meshBasicMaterial color="#507047" />
+                            </mesh>
+                          ))}
+                        </group>
+                      )}
+                    </group>
+                  );
+                })}
               {layer === 1 &&
                 connections.map(([a, b], i) => {
                   const [ax, az] = a.position;
                   const [bx, bz] = b.position;
                   return (
                     <group key={i}>
-                      <lineSegments geometry={geometry[i]}>
-                        <lineBasicMaterial color="#b0d897" />
+                      <mesh
+                        ref={(element) => {
+                          pulses.current[i] = element;
+                        }}
+                      >
+                        <sphereGeometry args={[0.045, 12, 8]} />
+                        <meshBasicMaterial color="#dce6d4" />
+                      </mesh>
+                      <lineSegments geometry={curves[i].geometry}>
+                        <lineBasicMaterial
+                          ref={(material) => {
+                            links.current[2 * i] = material;
+                          }}
+                          color="#b0d897"
+                        />
                       </lineSegments>
                       <mesh
                         position={[
@@ -293,7 +462,12 @@ function Graph({
                         ]}
                       >
                         <coneGeometry args={[0.055, 0.16, 8]} />
-                        <meshBasicMaterial color="#b0d897" />
+                        <meshBasicMaterial
+                          ref={(material) => {
+                            links.current[2 * i + 1] = material;
+                          }}
+                          color="#b0d897"
+                        />
                       </mesh>
                     </group>
                   );
@@ -332,6 +506,7 @@ export default function SpatialAtlas({
   reset,
   active,
   reduced,
+  cue,
   onSelect,
   onReady,
   onFailure,
@@ -344,6 +519,7 @@ export default function SpatialAtlas({
   reset: number;
   active: boolean;
   reduced: boolean;
+  cue: Cue;
   onSelect: (index: number) => void;
   onReady: () => void;
   onFailure: () => void;
@@ -380,6 +556,7 @@ export default function SpatialAtlas({
           layers={layers}
           focusLayer={focusLayer}
           separation={separation}
+          cue={cue}
           onSelect={onSelect}
           onReady={onReady}
           onFailure={onFailure}
@@ -402,19 +579,21 @@ export default function SpatialAtlas({
         ))}
       </div>
       <div className="spatial-file-labels">
-        {examples.map((item, i) => (
+        {files.map(({ name, path }, i) => (
           <button
-            key={item.filename}
+            key={name}
             type="button"
             className="spatial-label spatial-file-label"
             ref={(element) => {
               fileLabels.current[i] = element;
             }}
-            aria-label={`${t("inspectFile")} src/${item.filename}`}
-            aria-pressed={selected === i}
-            onClick={() => onSelect(i)}
+            aria-label={`${t("inspectFile")} ${path}`}
+            aria-pressed={examples[selected].file === i}
+            onClick={() =>
+              onSelect(examples.findIndex(({ file }) => file === i))
+            }
           >
-            <FileCode2 size={12} aria-hidden="true" /> {item.filename}
+            <FileCode2 size={12} aria-hidden="true" /> {name}
           </button>
         ))}
       </div>

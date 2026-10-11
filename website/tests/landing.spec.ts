@@ -12,7 +12,7 @@ test("English default, complete Spanish switch, persistence and English docs", a
   await expect(page.locator("h1")).toContainText("Menos búsquedas.");
   await expect(page.locator("html")).toHaveAttribute("lang", "es");
   await expect(page.locator(".atlas-project")).toContainText(
-    "Un pequeño servicio en Rust",
+    "tal como lo ve su propio índice",
   );
   await page.reload();
   await expect(page.locator("h1")).toContainText("Menos búsquedas.");
@@ -35,9 +35,11 @@ test("symbol selection, clipboard failure, FAQ and keyboard", async ({
   await page.goto(home);
   await page
     .locator(".symbol-controls")
-    .getByRole("button", { name: "handle_request", exact: true })
+    .getByRole("button", { name: "Index", exact: true })
     .click();
-  await expect(page.locator(".context-pack")).toContainText("src/server.rs:42");
+  await expect(page.locator(".context-pack")).toContainText(
+    "crates/mct-index/src/lib.rs:83",
+  );
   await page.evaluate(() =>
     Object.defineProperty(navigator, "clipboard", {
       value: { writeText: () => Promise.reject(new Error("denied")) },
@@ -299,21 +301,32 @@ test("3D scene loads on approach, rotates and handles context loss", async ({
   await expect(page.locator("canvas")).toBeVisible();
   expect(requested.some((name) => spatialChunks.includes(name))).toBe(true);
   await expect.poll(draws).toBeGreaterThan(0);
+  // Idle motion never settles, so settling is checked under reduced motion.
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await expect.poll(settled).toBeGreaterThan(100);
   const labels = page.locator(".spatial-labels");
-  await expect(labels.getByRole("button")).toHaveCount(3);
+  await expect(labels.getByRole("button")).toHaveCount(6);
   const selectedLabel = labels.getByRole("button", {
-    name: "parse_request",
+    name: "MctServer",
     exact: true,
   });
   await expect(selectedLabel).toBeVisible();
+  // Without reduced motion the visible scene keeps drawing, and labels stay still.
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  const idleDraws = await draws();
+  const idlePosition = (await selectedLabel.boundingBox())!;
+  await page.waitForTimeout(1000);
+  expect((await draws()) - idleDraws).toBeGreaterThanOrEqual(10);
+  const stillPosition = (await selectedLabel.boundingBox())!;
+  expect(Math.abs(stillPosition.x - idlePosition.x)).toBeLessThanOrEqual(0.5);
+  expect(Math.abs(stillPosition.y - idlePosition.y)).toBeLessThanOrEqual(0.5);
   const initialPosition = await selectedLabel.boundingBox();
-  await labels
-    .getByRole("button", { name: "handle_request", exact: true })
-    .click();
-  await expect(page.locator(".context-pack")).toContainText("src/server.rs:42");
+  await labels.getByRole("button", { name: "Index", exact: true }).click();
+  await expect(page.locator(".context-pack")).toContainText(
+    "crates/mct-index/src/lib.rs:83",
+  );
   await expect(
-    labels.getByRole("button", { name: "handle_request", exact: true }),
+    labels.getByRole("button", { name: "Index", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
   // The taller layered scene must be fully in view before pointer gestures.
   await page.locator("canvas").scrollIntoViewIfNeeded();
@@ -343,6 +356,7 @@ test("3D scene loads on approach, rotates and handles context loss", async ({
       Math.abs((await selectedLabel.boundingBox())!.x - initialPosition!.x),
     )
     .toBeLessThan(2);
+  await page.emulateMedia({ reducedMotion: "reduce" });
   const firstDraws = await draws();
   await page.getByRole("button", { name: "Rotate the atlas" }).click();
   await expect.poll(draws).toBeGreaterThan(firstDraws);
@@ -442,17 +456,17 @@ test("layer controls and source selection explain the project in 3D", async ({
   await expect(spacing).toHaveValue("0.7");
   await atlas
     .locator(".symbol-controls")
-    .getByRole("button", { name: "validate_input", exact: true })
+    .getByRole("button", { name: "reindex", exact: true })
     .click();
   await expect(atlas.locator(".atlas-source")).toContainText(
-    "normalize(&request.input)",
+    "registry: &LanguageRegistry",
   );
-  await expect(atlas.locator(".atlas-line-number").first()).toHaveText("9");
+  await expect(atlas.locator(".atlas-line-number").first()).toHaveText("91");
   await expect(atlas.locator(".atlas-query")).toContainText(
-    "Where is empty input rejected",
+    "What happens on a full reindex",
   );
   await expect(atlas.locator(".atlas-explanation")).toContainText(
-    "normalizes the input",
+    "indexes each supported file",
   );
   const supported = await page.evaluate(
     () => !!document.createElement("canvas").getContext("webgl2"),
@@ -460,13 +474,13 @@ test("layer controls and source selection explain the project in 3D", async ({
   if (supported) {
     await atlas.locator("canvas").scrollIntoViewIfNeeded();
     const file = atlas.getByRole("button", {
-      name: "Inspect file src/server.rs",
+      name: "Inspect file crates/mct-mcp-server/src/server.rs",
       exact: true,
     });
     await expect(file).toBeVisible();
     await file.click();
     await expect(atlas.locator(".atlas-source")).toContainText(
-      "parse_request(input)",
+      "index: Arc<Mutex<Index>>",
     );
     await files.click();
     await expect(file).toBeHidden();
@@ -479,7 +493,7 @@ test("layer controls and source selection explain the project in 3D", async ({
     await expect(
       atlas
         .locator(".spatial-labels")
-        .getByRole("button", { name: "handle_request", exact: true }),
+        .getByRole("button", { name: "Index", exact: true }),
     ).toBeVisible();
     await atlas.screenshot({ path: "test-results/atlas-layers.png" });
   }
@@ -499,20 +513,30 @@ test("additional files expose connected source and translated context", async ({
   const atlas = page.locator(".atlas");
   await atlas.locator(".atlas-space").scrollIntoViewIfNeeded();
   await expect(atlas.locator(".spatial-file-labels button")).toHaveCount(3);
-  await expect(atlas.locator(".symbol-controls button")).toHaveCount(3);
-  for (const [filename, symbol, line, dependency] of [
-    ["server.rs", "handle_request", "42", "parse_request(input)"],
-    ["parser.rs", "parse_request", "18", "validate_input(&request)"],
-    ["validation.rs", "validate_input", "9", "input.is_empty()"],
+  await expect(atlas.locator(".symbol-controls button")).toHaveCount(6);
+  for (const [path, symbol, line, source] of [
+    [
+      "crates/mct-mcp-server/src/server.rs",
+      "MctServer",
+      "673",
+      "index: Arc<Mutex<Index>>",
+    ],
+    ["crates/mct-index/src/lib.rs", "Index", "83", "conn: Connection"],
+    [
+      "crates/mct-index/src/indexer.rs",
+      "reindex",
+      "91",
+      "registry: &LanguageRegistry",
+    ],
   ]) {
     await atlas
       .getByRole("button", {
-        name: `Inspect file src/${filename}`,
+        name: `Inspect file ${path}`,
         exact: true,
       })
       .click();
     await expect(atlas.locator(".context-pack strong")).toHaveText(symbol);
-    await expect(atlas.locator(".atlas-source")).toContainText(dependency);
+    await expect(atlas.locator(".atlas-source")).toContainText(source);
     await expect(atlas.locator(".atlas-line-number").first()).toHaveText(line);
     await expect(
       atlas
@@ -522,27 +546,27 @@ test("additional files expose connected source and translated context", async ({
   }
   await page.getByLabel("Language", { exact: true }).selectOption("es");
   await expect(atlas.locator(".atlas-query")).toContainText(
-    "¿Dónde se rechazan los datos vacíos",
+    "¿Qué ocurre en una reindexación completa",
   );
   await expect(atlas.locator(".atlas-explanation")).toContainText(
-    "rechaza un valor vacío",
+    "indexa cada archivo compatible",
   );
   await expect(
     atlas
       .locator(".symbol-controls")
-      .getByRole("button", { name: "validate_input", exact: true }),
-  ).toContainText("Validar los datos");
+      .getByRole("button", { name: "reindex", exact: true }),
+  ).toContainText("Indexar todo el proyecto");
   await atlas.screenshot({ path: "test-results/atlas-three-files.png" });
   await page.setViewportSize({ width: 320, height: 900 });
   await atlas
     .locator(".symbol-controls")
-    .getByRole("button", { name: "parse_request", exact: true })
+    .getByRole("button", { name: "status", exact: true })
     .click();
   await expect(atlas.locator(".atlas-query")).toContainText(
-    "¿Dónde se interpreta la petición",
+    "¿Está sano el índice",
   );
   await expect(atlas.locator(".atlas-source")).toContainText(
-    "Request::from_str(input)",
+    "index.conn.prepare(",
   );
 });
 
@@ -555,21 +579,26 @@ for (const width of [1440, 390])
     const atlas = page.locator(".atlas");
     await atlas.locator(".atlas-space").scrollIntoViewIfNeeded();
     const controls = atlas.locator(".symbol-controls button");
-    await expect(controls).toHaveCount(3);
+    await expect(controls).toHaveCount(6);
     for (const [i, filename] of [
-      "parser.rs",
       "server.rs",
-      "validation.rs",
+      "server.rs",
+      "lib.rs",
+      "indexer.rs",
+      "indexer.rs",
+      "indexer.rs",
     ].entries())
       await expect(controls.nth(i)).toContainText(filename);
-    await expect(atlas.locator(".spatial-labels button")).toHaveCount(3);
+    await expect(atlas.locator(".spatial-labels button")).toHaveCount(6);
+    await expect(atlas.locator(".spatial-file-labels button")).toHaveCount(3);
     const names = (
       await atlas
         .locator(".symbol-controls, .spatial-labels, .spatial-file-labels")
         .allTextContents()
     ).join(" ");
+    // Symbols without a resolved call stay in the detail view.
     expect(names).not.toMatch(
-      /\b(route|normalize|build_response)\b|main\.rs|normalize\.rs|response\.rs/,
+      /\b(index_file|walk_entry_allowed|validate_name|ListSymbolsArgs)\b|main\.rs/,
     );
     // Mobile shows only the selected file and symbol labels.
     await expect
@@ -596,7 +625,7 @@ for (const width of [1440, 390])
           return { visible: boxes.length, overlaps };
         }),
       )
-      .toEqual({ visible: width === 1440 ? 6 : 2, overlaps: 0 });
+      .toEqual({ visible: width === 1440 ? 9 : 2, overlaps: 0 });
   });
 
 test("full screen retains selection, traps focus and exits on Escape", async ({
@@ -610,7 +639,7 @@ test("full screen retains selection, traps focus and exits on Escape", async ({
   const atlas = page.locator(".atlas");
   await atlas
     .locator(".symbol-controls")
-    .getByRole("button", { name: "validate_input", exact: true })
+    .getByRole("button", { name: "reindex", exact: true })
     .click();
   await atlas.locator(".atlas-space").scrollIntoViewIfNeeded();
   await expect(atlas).toHaveAttribute("data-scene", "ready");
@@ -626,9 +655,7 @@ test("full screen retains selection, traps focus and exits on Escape", async ({
   expect(box?.y).toBe(0);
   expect(box?.width).toBe(page.viewportSize()!.width);
   expect(box?.height).toBe(page.viewportSize()!.height);
-  await expect(atlas.locator(".context-pack strong")).toHaveText(
-    "validate_input",
-  );
+  await expect(atlas.locator(".context-pack strong")).toHaveText("reindex");
   // The explorer and context pack are hidden, so the trap runs from the layer
   // toggles to the tools reference link at the end of the tour.
   const first = atlas.locator(".atlas-layer-toggles button").first();
@@ -643,7 +670,7 @@ test("full screen retains selection, traps focus and exits on Escape", async ({
   await expect(first).toBeFocused();
   const label = atlas
     .locator(".spatial-labels")
-    .getByRole("button", { name: "handle_request", exact: true });
+    .getByRole("button", { name: "Index", exact: true });
   await expect(label).toBeVisible();
   await label.click();
   await page.keyboard.press("Escape");
@@ -651,9 +678,7 @@ test("full screen retains selection, traps focus and exits on Escape", async ({
   await expect(
     atlas.getByRole("button", { name: "Full screen", exact: true }),
   ).toBeFocused();
-  await expect(atlas.locator(".context-pack strong")).toHaveText(
-    "handle_request",
-  );
+  await expect(atlas.locator(".context-pack strong")).toHaveText("Index");
   expect(await page.evaluate(() => document.body.style.overflow)).not.toBe(
     "hidden",
   );
@@ -886,7 +911,7 @@ test("full screen keeps the explorer and context pack without WebGL", async ({
     await expect(atlas.locator(selector)).toBeVisible();
 });
 
-test("tour explains the server in seven translated stages", async ({
+test("tour explains the server in fourteen translated stages", async ({
   page,
 }) => {
   await page.goto(home);
@@ -898,6 +923,13 @@ test("tour explains the server in seven translated stages", async ({
       "Exit full screen",
       [
         "Your agent asks the map, not the files.",
+        "A tool call reaches the server.",
+        "The index owns the database.",
+        "A full reindex walks the project.",
+        "A change reindexes only its paths.",
+        "Health comes from the same database.",
+        "Eight tools that reach the index.",
+        "Eight Index methods behind them.",
         "Parsed, stored and served on your machine.",
         "Get your bearings.",
         "Ask one precise question.",
@@ -912,6 +944,13 @@ test("tour explains the server in seven translated stages", async ({
       "Salir de pantalla completa",
       [
         "Tu agente consulta el mapa, no los archivos.",
+        "Una llamada a herramienta llega al servidor.",
+        "El índice es dueño de la base de datos.",
+        "Una reindexación completa recorre el proyecto.",
+        "Un cambio solo reindexa sus rutas.",
+        "El estado sale de la misma base.",
+        "Ocho herramientas que llegan al índice.",
+        "Ocho métodos de Index detrás de ellas.",
         "Analizado, guardado y servido en tu equipo.",
         "Oriéntate.",
         "Haz una pregunta precisa.",
@@ -924,11 +963,9 @@ test("tour explains the server in seven translated stages", async ({
     await page.getByLabel(/Language|Idioma/).selectOption(language);
     await atlas.getByRole("button", { name: fullScreen, exact: true }).click();
     const stages = atlas.locator(".atlas-stage");
-    await expect(stages).toHaveCount(7);
+    await expect(stages).toHaveCount(14);
     await expect(stages.locator("h3")).toHaveText([...titles]);
-    await expect(stages.nth(3)).toContainText(
-      "src/parser.rs:18:1 [rust] function parse_request",
-    );
+    await expect(stages.nth(6)).toContainText("→ Index::list_symbols (1347)");
     const last = stages.last();
     await expect(
       last.locator('a[href="/mini-consumes-tokens/docs/tools/"]'),
@@ -950,7 +987,7 @@ test("reduced motion shows every tour stage without scrolling or transforms", as
   const atlas = page.locator(".atlas");
   await atlas.getByRole("button", { name: "Full screen", exact: true }).click();
   const stages = atlas.locator(".atlas-stage");
-  await expect(stages).toHaveCount(7);
+  await expect(stages).toHaveCount(14);
   expect(
     await stages.evaluateAll((elements) =>
       elements.map((element) => {
@@ -958,7 +995,7 @@ test("reduced motion shows every tour stage without scrolling or transforms", as
         return `${style.opacity} ${style.transform}`;
       }),
     ),
-  ).toEqual(Array(7).fill("1 none"));
+  ).toEqual(Array(14).fill("1 none"));
   expect(await atlas.evaluate((element) => element.scrollTop)).toBe(0);
 });
 
@@ -982,7 +1019,7 @@ test("tour reads in full when WebGL is unavailable", async ({ page }) => {
   await expect(atlas.locator(".atlas-fallback")).toBeVisible();
   await atlas.getByRole("button", { name: "Full screen", exact: true }).click();
   const stages = atlas.locator(".atlas-stage");
-  await expect(stages).toHaveCount(7);
+  await expect(stages).toHaveCount(14);
   for (const stage of await stages.all()) {
     // Stages can be taller than the viewport, so centre the heading itself.
     await stage
@@ -1044,7 +1081,7 @@ test("full-screen tour has no horizontal scroll at 390px", async ({ page }) => {
     .locator(".atlas")
     .getByRole("button", { name: "Full screen", exact: true })
     .click();
-  await expect(page.locator(".atlas-stage")).toHaveCount(7);
+  await expect(page.locator(".atlas-stage")).toHaveCount(14);
   const widths = await page.evaluate(() => {
     const dialog = document.querySelector(".atlas-expanded")!;
     return {

@@ -1,90 +1,283 @@
 import {
   Boxes,
   Compass,
+  Database,
+  FolderSync,
+  Gauge,
   Layers,
+  ListTree,
   Network,
+  RefreshCw,
   Search,
+  Server,
+  Settings,
   Terminal,
   Zap,
   type LucideIcon,
 } from "lucide-react";
 
-// A deterministic illustrative repository, used by the spatial atlas and code inspector.
+// Three files of this repository, in the order a request crosses them. `x` is the file's
+// column on the boards.
+export const files = [
+  { name: "server.rs", path: "crates/mct-mcp-server/src/server.rs", x: -1.75 },
+  { name: "lib.rs", path: "crates/mct-index/src/lib.rs", x: 0 },
+  { name: "indexer.rs", path: "crates/mct-index/src/indexer.rs", x: 1.75 },
+] as const;
+// Their top-level symbols with at least one resolved call, as the index reports them.
 // Each position is an [x, z] point on the boards; together they are centred on the origin.
 export const examples = [
   {
-    name: "parse_request",
-    file: "src/parser.rs:18",
-    filename: "parser.rs",
-    callers: "handle_request",
-    calls: "validate_input",
-    line: 18,
-    position: [0, 0.85],
+    name: "MctServer",
+    file: 0,
+    line: 673,
+    callers: "main.rs:61 (MctServer::new)",
+    calls: "ServerOptions::from_env (server.rs:1069)",
+    position: [-1.75, -0.6],
     source: [
-      "pub fn parse_request(input: &str) -> Result<Request, Error> {",
-      "    let request = Request::from_str(input)?;",
-      "    validate_input(&request)?;",
-      "    Ok(request)",
-      "}",
+      "pub struct MctServer {",
+      "    index: Arc<Mutex<Index>>,",
+      "    /// The index's project root, kept here so the embedding model can be",
+      "    /// loaded without taking the index mutex (`Index::root` is immutable).",
+      "    root: std::path::PathBuf,",
     ],
   },
   {
-    name: "handle_request",
-    file: "src/server.rs:42",
-    filename: "server.rs",
-    callers: "route",
-    calls: "parse_request, build_response",
-    line: 42,
-    position: [-1.75, -0.85],
+    name: "ServerOptions",
+    file: 0,
+    line: 602,
+    callers: "MctServer::new (server.rs:1069)",
+    calls: "CacheConfig::from_env (server.rs:616)",
+    position: [-1.75, 0.6],
     source: [
-      "pub fn handle_request(input: &str) -> Result<Response, Error> {",
-      "    let request = parse_request(input)?;",
-      "    Ok(build_response(request))",
-      "}",
+      "pub struct ServerOptions {",
+      "    pub cache: CacheConfig,",
+      "    /// Embedder for `hybrid_search`'s semantic side; `None` loads the build's",
+      "    /// own model lazily (see `crate::embedder`).",
+      "    pub embedder: Option<Box<dyn mct_index::Embedder>>,",
     ],
   },
   {
-    name: "validate_input",
-    file: "src/validation.rs:9",
-    filename: "validation.rs",
-    callers: "parse_request",
-    calls: "normalize",
-    line: 9,
-    position: [1.75, 0],
+    name: "Index",
+    file: 1,
+    line: 83,
+    callers: "main.rs:47 (Index::open)",
+    calls: "indexer::reindex, reindex_paths, status (lib.rs:186, 199, 203)",
+    position: [0, 0],
     source: [
-      "pub fn validate_input(request: &Request) -> Result<(), Error> {",
-      "    let input = normalize(&request.input);",
-      "    if input.is_empty() { return Err(Error::EmptyInput); }",
-      "    Ok(())",
-      "}",
+      "pub struct Index {",
+      "    conn: Connection,",
+      "    /// Canonicalized project root — every relative path stored in the",
+      "    /// database is validated against this to reject path traversal.",
+      "    root: PathBuf,",
+    ],
+  },
+  {
+    name: "reindex",
+    file: 2,
+    line: 91,
+    callers: "Index::reindex (lib.rs:186), reindex_paths (indexer.rs:577, 586)",
+    calls:
+      "walk_entry_allowed, record_walk_failure, index_file, remove_missing_files, remove_missing_manifests, touch_last_indexed_at",
+    position: [1.35, -0.85],
+    source: [
+      "pub fn reindex(",
+      "    index: &mut Index,",
+      "    registry: &LanguageRegistry,",
+      "    force: bool,",
+      ") -> Result<ReindexReport> {",
+    ],
+  },
+  {
+    name: "reindex_paths",
+    file: 2,
+    line: 547,
+    callers: "Index::reindex_paths (lib.rs:199)",
+    calls:
+      "reindex, index_noting_created, remove_under_prefix, remove_renamed_away, record_read_failure and 5 more",
+    position: [2.2, 0.05],
+    source: [
+      "pub fn reindex_paths(",
+      "    index: &mut Index,",
+      "    registry: &LanguageRegistry,",
+      "    paths: &[PathBuf],",
+      ") -> Result<ReindexReport> {",
+    ],
+  },
+  {
+    name: "status",
+    file: 2,
+    line: 1200,
+    callers: "Index::status (lib.rs:203)",
+    calls: "—",
+    position: [1.35, 0.95],
+    source: [
+      "pub fn status(index: &Index) -> Result<IndexStatus> {",
+      "    let mut stmt = index.conn.prepare(",
+      '        "SELECT f.language, COUNT(DISTINCT f.id), COUNT(s.id)',
+      "         FROM files f LEFT JOIN symbols s ON s.file_id = f.id",
+      '         GROUP BY f.language ORDER BY f.language",',
     ],
   },
 ] as const;
 // Destructuring the tuple makes a missing example a type error.
-const [parseRequest, handleRequest, validateInput] = examples;
-// The server calls the parser, which calls validation.
+const [mctServer, serverOptions, index, reindex, reindexPaths, status] =
+  examples;
+// Only resolved calls: MctServer reaches Index through a mutex, which the index can't type.
 export const connections = [
-  [handleRequest, parseRequest],
-  [parseRequest, validateInput],
+  [mctServer, serverOptions],
+  [index, reindex],
+  [index, reindexPaths],
+  [index, status],
+  [reindexPaths, reindex],
 ] as const;
-// The full-screen tour, from first contact to advanced use. `layer` lights a board and
-// `symbol` selects an example while the stage is in the middle of the dialog. Tool
-// outputs follow the real server's output format, applied to request-service.
+// A cue lights the connections of its stage step by step; any other key is "idle",
+// which lights them all.
+export const CUE_STEP = 300;
+export type CueKey = string;
+export type Cue = { key: CueKey; id: number };
+// The full-screen tour: the six symbols, the methods the server and the index expose,
+// then what each tool asks. `layer` lights a board, `symbol` selects an example and
+// `steps` lists the connections each cue step lights while the stage is in the middle
+// of the dialog.
 type TourTool = {
   name: string;
   params: string;
   replaces?: string;
-  output?: string;
 };
+type TourMethod = { name: string; at: string; link: string };
 export const tourStages: {
   key: string;
   icon: LucideIcon;
   layer?: 0 | 1 | 2;
   symbol?: (typeof examples)[number]["name"];
+  steps?: number[][];
+  methods?: TourMethod[];
   tools?: TourTool[];
   docs?: string;
 }[] = [
-  { key: "tourWhat", icon: Network, layer: 1 },
+  { key: "tourWhat", icon: Network, layer: 1, steps: [[0], [1, 2, 3], [4]] },
+  {
+    key: "tourServer",
+    icon: Server,
+    layer: 1,
+    symbol: "MctServer",
+    steps: [[0]],
+  },
+  {
+    key: "tourIndex",
+    icon: Database,
+    layer: 1,
+    symbol: "Index",
+    steps: [[1], [2], [3]],
+  },
+  {
+    key: "tourReindex",
+    icon: RefreshCw,
+    layer: 1,
+    symbol: "reindex",
+    steps: [[1], [4]],
+  },
+  {
+    key: "tourReindexPaths",
+    icon: FolderSync,
+    layer: 1,
+    symbol: "reindex_paths",
+    steps: [[2], [4]],
+  },
+  { key: "tourStatus", icon: Gauge, layer: 1, symbol: "status", steps: [[3]] },
+  {
+    key: "tourTools",
+    icon: Settings,
+    layer: 2,
+    symbol: "MctServer",
+    methods: [
+      {
+        name: "list_symbols",
+        at: "server.rs:1324",
+        link: "→ Index::list_symbols (1347)",
+      },
+      {
+        name: "find_symbol",
+        at: "server.rs:1359",
+        link: "→ Index::find_symbol_matching_scoped (1376)",
+      },
+      {
+        name: "find_references",
+        at: "server.rs:1678",
+        link: "→ Index::relation_page (1697)",
+      },
+      {
+        name: "find_callers",
+        at: "server.rs:1754",
+        link: "→ Index::relation_page (1773)",
+      },
+      {
+        name: "reindex",
+        at: "server.rs:2076",
+        link: "→ Index::reindex (2081)",
+      },
+      {
+        name: "get_indexing_status",
+        at: "server.rs:2089",
+        link: "→ Index::status (2097)",
+      },
+      {
+        name: "get_file_skeleton",
+        at: "server.rs:2122",
+        link: "→ Index::list_symbols (2135)",
+      },
+      {
+        name: "get_project_overview",
+        at: "server.rs:2153",
+        link: "→ Index::find_callers (2234)",
+      },
+    ],
+  },
+  {
+    key: "tourMethods",
+    icon: ListTree,
+    layer: 1,
+    symbol: "Index",
+    steps: [[1, 2, 3]],
+    methods: [
+      { name: "Index::open", at: "lib.rs:94", link: "← main.rs:47" },
+      {
+        name: "Index::reindex",
+        at: "lib.rs:185",
+        link: "→ indexer::reindex (186)",
+      },
+      {
+        name: "Index::reindex_paths",
+        at: "lib.rs:194",
+        link: "→ indexer::reindex_paths (199)",
+      },
+      {
+        name: "Index::status",
+        at: "lib.rs:202",
+        link: "→ indexer::status (203)",
+      },
+      {
+        name: "Index::find_symbol_matching_scoped",
+        at: "lib.rs:222",
+        link: "← find_symbol (server.rs:1376)",
+      },
+      {
+        name: "Index::find_callers",
+        at: "lib.rs:385",
+        link: "← get_project_overview (server.rs:2234)",
+      },
+      {
+        name: "Index::relation_page",
+        at: "lib.rs:623",
+        link: "← find_references, find_callers (server.rs:1697, 1773)",
+      },
+      {
+        name: "Index::list_symbols",
+        at: "lib.rs:728",
+        link: "← list_symbols, get_file_skeleton (server.rs:1347, 2135)",
+      },
+    ],
+  },
   { key: "tourHow", icon: Layers, layer: 0 },
   {
     key: "tourOrient",
@@ -104,58 +297,24 @@ export const tourStages: {
     key: "tourLookup",
     icon: Search,
     layer: 1,
-    symbol: "parse_request",
     tools: [
-      {
-        name: "find_symbol",
-        params: 'name: "parse_request"',
-        output:
-          "1 definition(s) of `parse_request`:\nsrc/parser.rs:18:1 [rust] function parse_request",
-      },
-      {
-        name: "find_callers",
-        params: 'function: "parse_request"',
-        output:
-          "1 caller(s) of this function:\nsrc/server.rs:43:19 [rust] handle_request --calls--> parse_request -> src/parser.rs:18",
-      },
-      {
-        name: "find_calls",
-        params: 'function: "parse_request"',
-        output:
-          "2 call(s) made by this function:\nsrc/parser.rs:19:28 [rust] parse_request --calls--> from_str (unresolved)\nsrc/parser.rs:20:5 [rust] parse_request --calls--> validate_input -> src/validation.rs:9",
-      },
-      {
-        name: "find_references",
-        params: 'symbol: "validate_input"',
-        output:
-          "1 reference(s):\nsrc/parser.rs:20:5 [rust] parse_request --calls--> validate_input -> src/validation.rs:9",
-      },
-      {
-        name: "search_symbols",
-        params: 'query: "parse req"',
-        output:
-          "1 match(es) for `parse req`, best first:\nsrc/parser.rs:L18-L22 [rust] function parse_request",
-      },
-      {
-        name: "hybrid_search",
-        params: 'query: "reject empty input"',
-        output:
-          "1 match(es) for `reject empty input`, best first:\nsrc/validation.rs:L9-L13 [rust] function validate_input",
-      },
+      { name: "find_symbol", params: "name" },
+      { name: "find_callers", params: "function" },
+      { name: "find_calls", params: "function" },
+      { name: "find_references", params: "symbol" },
+      { name: "search_symbols", params: "query" },
+      { name: "hybrid_search", params: "query" },
     ],
   },
   {
     key: "tourComposite",
     icon: Boxes,
     layer: 2,
-    symbol: "validate_input",
     tools: [
       {
         name: "impact_analysis",
-        params: 'symbol: "validate_input", depth',
+        params: "symbol, depth",
         replaces: "find_callers + find_references",
-        output:
-          "Impact analysis for `validate_input`:\n  1 direct caller(s)\n  1 reference(s) total (calls/imports/extends/implements/plain)\n  0 likely affected test(s)",
       },
       {
         name: "build_context_pack",
@@ -169,14 +328,8 @@ export const tourStages: {
     key: "tourAdvanced",
     icon: Zap,
     layer: 1,
-    symbol: "handle_request",
     tools: [
-      {
-        name: "batch",
-        params: "queries: [{ tool, args }] ≤ 25",
-        output:
-          "batch: 2 queries\n\n[1] find_symbol\n1 definition(s) of `handle_request`:\nsrc/server.rs:42:1 [rust] function handle_request\n\n[2] find_callers\n1 caller(s) of this function:\nsrc/server.rs:43:19 [rust] handle_request --calls--> parse_request -> src/parser.rs:18",
-      },
+      { name: "batch", params: "queries: [{ tool, args }] ≤ 25" },
       { name: "discover_tool_categories", params: "—" },
       { name: "get_tool_schema", params: "name" },
       { name: "reindex", params: "force = false" },

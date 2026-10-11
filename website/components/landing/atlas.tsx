@@ -1,6 +1,7 @@
 "use client";
 import {
   Component,
+  Fragment,
   lazy,
   Suspense,
   useCallback,
@@ -16,10 +17,13 @@ import { ArrowUpRight, FileCode2, Maximize2, Minimize2 } from "lucide-react";
 
 import {
   examples,
+  files,
   layerKeys,
   tourStages,
   type AtlasLayers,
+  type Cue,
 } from "./atlas-data";
+import { fileSymbols } from "./atlas-symbols";
 import { CopyCommand, setupCommands } from "./copy-command";
 
 const SpatialAtlas = lazy(() => import("./spatial-atlas"));
@@ -47,6 +51,9 @@ export function Atlas() {
   const [separation, setSeparation] = useState(1.45);
   const [rotation, setRotation] = useState(0.2);
   const [reset, setReset] = useState(0);
+  const [cue, setCue] = useState<Cue>({ key: "idle", id: 0 });
+  const [details, setDetails] = useState(false);
+  const firstSummary = useRef<HTMLElement>(null);
   const [spatial, setSpatial] = useState(false);
   const [failed, setFailed] = useState(false);
   const [ready, setReady] = useState(false);
@@ -74,7 +81,7 @@ export function Atlas() {
       if (event.key !== "Tab") return;
       const controls = Array.from(
         root.current?.querySelectorAll<HTMLElement>(
-          'a[href], button:not(:disabled), input, [tabindex="0"]',
+          'a[href], button:not(:disabled), input, summary, [tabindex="0"]',
         ) ?? [],
       ).filter(
         (element) =>
@@ -104,6 +111,7 @@ export function Atlas() {
     const dialog = root.current;
     if (!expanded || !dialog) return;
     setActiveStage(0);
+    setDetails(false);
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries)
@@ -121,7 +129,12 @@ export function Atlas() {
   useEffect(() => {
     if (stage?.symbol)
       setSelected(examples.findIndex(({ name }) => name === stage.symbol));
+    // Each stage that reaches the middle of the dialog plays its cue once.
+    setCue(({ id }) => ({ key: stage?.key ?? "idle", id: id + 1 }));
   }, [stage]);
+  useEffect(() => {
+    if (details) firstSummary.current?.focus();
+  }, [details]);
   const inView = useInView(root);
   useEffect(() => {
     const motionPreference = matchMedia("(prefers-reduced-motion: reduce)");
@@ -211,12 +224,17 @@ export function Atlas() {
         <div>
           <span className="pack-label">{t("exampleProject")}</span>
           <strong>
-            request-service <span>/ Rust</span>
+            mini-consumes-tokens <span>/ Rust</span>
           </strong>
         </div>
         <p>{t("projectBrief")}</p>
         <p className="atlas-project-flow">
-          server.rs <span>→</span> parser.rs <span>→</span> validation.rs
+          {files.map(({ name }, i) => (
+            <Fragment key={name}>
+              {i > 0 && <span> → </span>}
+              {name}
+            </Fragment>
+          ))}
         </p>
       </div>
       <div className="atlas-toolbar">
@@ -272,6 +290,7 @@ export function Atlas() {
                     layers={layers}
                     focusLayer={stage?.layer}
                     separation={separation}
+                    cue={cue}
                     rotation={rotation}
                     reset={reset}
                     onSelect={setSelected}
@@ -295,7 +314,7 @@ export function Atlas() {
         {failed && controls}
         {expanded && (
           <div className="atlas-tour" data-active-stage={activeStage}>
-            {tourStages.map(({ key, icon: Icon, tools, docs }, i) => (
+            {tourStages.map(({ key, icon: Icon, methods, tools, docs }, i) => (
               <motion.section
                 key={key}
                 className="atlas-stage"
@@ -308,9 +327,21 @@ export function Atlas() {
                 <Icon size={20} aria-hidden="true" />
                 <h3 id={`${key}-title`}>{t(`${key}Title`)}</h3>
                 <p>{t(`${key}Text`)}</p>
+                {methods && (
+                  <ul className="atlas-tools">
+                    {methods.map(({ name, at, link }) => (
+                      <li key={name}>
+                        <p className="atlas-tool-call">
+                          <code>{name}</code> <span>{at}</span>
+                        </p>
+                        <p>{link}</p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 {tools && (
                   <ul className="atlas-tools">
-                    {tools.map(({ name, params, replaces, output }) => (
+                    {tools.map(({ name, params, replaces }) => (
                       <li key={name}>
                         <p className="atlas-tool-call">
                           <code>{name}</code> <span>{params}</span>
@@ -321,20 +352,51 @@ export function Atlas() {
                             {t("replaces")} <code>{replaces}</code>
                           </p>
                         )}
-                        {output && (
-                          <pre
-                            tabIndex={0}
-                            aria-label={`${t("exampleOutput")}: ${name}`}
-                          >
-                            <code>{output}</code>
-                          </pre>
-                        )}
                       </li>
                     ))}
                   </ul>
                 )}
                 {docs && (
                   <>
+                    <button
+                      type="button"
+                      className="atlas-details-toggle"
+                      aria-expanded={details}
+                      aria-controls="atlas-details"
+                      onClick={() => setDetails((value) => !value)}
+                    >
+                      {t(details ? "hideSymbols" : "allSymbols")}
+                    </button>
+                    {/* Mounted only when open, so the FAQ keeps the page's first <details>. */}
+                    {details && (
+                      <section
+                        id="atlas-details"
+                        className="atlas-details"
+                        aria-labelledby="atlas-details-title"
+                      >
+                        <h4 id="atlas-details-title">{t("allSymbolsTitle")}</h4>
+                        {fileSymbols.map(({ file, symbols }, i) => (
+                          // A shared name keeps one section open at a time.
+                          <details key={file} name="atlas-files">
+                            <summary ref={i === 0 ? firstSummary : undefined}>
+                              {file} ·{" "}
+                              {t("symbolCount", { count: symbols.length })}
+                            </summary>
+                            <ul>
+                              {symbols.map(([line, name, kind, pub]) => (
+                                <li key={line}>
+                                  <code>{name}</code>
+                                  <span>
+                                    {pub ? "pub " : ""}
+                                    {kind} · {line}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        ))}
+                      </section>
+                    )}
                     <div className="command-panel">
                       {setupCommands.map(({ command, label }) => (
                         <CopyCommand
@@ -366,7 +428,7 @@ export function Atlas() {
           >
             <span className="atlas-file-name">
               <FileCode2 size={16} aria-hidden="true" />
-              <span>{node.filename}</span>
+              <span>{files[node.file].name}</span>
             </span>
             <span className="atlas-file-role">{t(`role${i}`)}</span>
             <span className="atlas-file-symbol">{node.name}</span>
@@ -388,7 +450,9 @@ export function Atlas() {
           <dl>
             <div>
               <dt>{t("definition")}</dt>
-              <dd>{item.file}</dd>
+              <dd>
+                {files[item.file].path}:{item.line}
+              </dd>
             </div>
             <div>
               <dt>{t("callers")}</dt>
