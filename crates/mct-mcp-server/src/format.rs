@@ -264,6 +264,29 @@ pub fn search_hits(
     )
 }
 
+/// Renders `semantic_search`'s hits, most similar first: each hit's line
+/// with its cosine similarity, and its signature indented underneath.
+pub fn semantic_hits(query: &str, hits: &[mct_index::SemanticHit]) -> String {
+    if hits.is_empty() {
+        return format!("No embedded symbol to compare `{query}` with.");
+    }
+    let mut body = BudgetedList::new(DEFAULT_BYTE_BUDGET);
+    for h in hits {
+        let mut entry = search_hit_line(&h.hit).trim_end().to_string();
+        entry.push_str(&format!("  similarity {:.3}\n", h.similarity));
+        if let Some(signature) = &h.signature {
+            entry.push_str(&format!("    {signature}\n"));
+        }
+        body.push(&entry);
+    }
+    format!(
+        "{} match(es) for `{query}`, most similar first{}:\n{}",
+        hits.len(),
+        list_note(hits.len(), 0, hits.len(), &body),
+        body.body
+    )
+}
+
 /// TOON rendering of [`search_hits`]: one row per hit in rank order, with
 /// the snippet (empty when not requested) as its last column.
 pub fn search_hits_toon(

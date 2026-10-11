@@ -42,7 +42,7 @@ pub use read_limits::{read_repository_file, DEFAULT_MAX_FILE_BYTES, MAX_FILE_BYT
 pub use search::{exact_phrase, search_words, split_identifier, LiteralHit, MAX_LITERAL_HITS};
 pub use semantic::{
     classify_query, embedding_text, Embedder, EmbeddingCoverage, HybridHit, PendingEmbeddings,
-    QueryIntent, SymbolContext, EMBEDDING_TEXT_VERSION, EXACT_PHRASE_BOOST, RRF_K,
+    QueryIntent, SemanticHit, SymbolContext, EMBEDDING_TEXT_VERSION, EXACT_PHRASE_BOOST, RRF_K,
     SEMANTIC_CANDIDATES,
 };
 
@@ -266,6 +266,31 @@ impl Index {
     /// How many symbols have a vector for `model`, out of how many exist.
     pub fn embedding_coverage(&self, model: &str) -> Result<EmbeddingCoverage> {
         semantic::embedding_coverage(&self.conn, model)
+    }
+
+    /// Drops every stored vector; the next refresh re-embeds every symbol.
+    pub fn clear_embeddings(&self) -> Result<()> {
+        semantic::clear_embeddings(&self.conn)
+    }
+
+    /// The `limit` symbols (within `scope`) most similar by cosine to
+    /// `query_vector` (from [`Index::embed_query`], for `model`), best
+    /// first, each with its signature — no lexical ranking involved.
+    pub fn semantic_search(
+        &self,
+        query_vector: &[f32],
+        model: &str,
+        scope: QueryScope<'_>,
+        limit: usize,
+    ) -> Result<Vec<SemanticHit>> {
+        semantic::semantic_search(
+            &self.conn,
+            &self.root,
+            query_vector,
+            model,
+            self.resolve_scope(scope),
+            limit,
+        )
     }
 
     /// [`Index::search_symbols`] fused with an embedding-similarity ranking
