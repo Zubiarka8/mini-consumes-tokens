@@ -41,27 +41,61 @@ const en = {
   query0: "Where is the request parsed, and what validates it?",
   query1: "What happens when the server receives a request?",
   query2: "Where is empty input rejected, and who uses that check?",
-  query3: "How does a request enter the service?",
-  query4: "How is input cleaned before validation?",
-  query5: "Where is the response built after parsing succeeds?",
   role0: "Parse the request",
   role1: "Handle the request",
   role2: "Validate the input",
-  role3: "Route incoming requests",
-  role4: "Clean the input",
-  role5: "Build the response",
   purpose0:
     "The parser builds a Request and delegates validation. Its caller and dependency explain where it fits in the request flow.",
   purpose1:
     "The entry point calls the parser and builds a response. Following that call leads to the parsing and validation code.",
   purpose2:
     "Validation normalizes the input and rejects an empty value. The caller shows how this check is reached from the parser.",
-  purpose3:
-    "The router hands incoming input to the server handler. This is the start of the path through parsing, validation and response building.",
-  purpose4:
-    "Normalization trims surrounding whitespace and converts input to lowercase. Validation uses this cleaned value to detect empty input.",
-  purpose5:
-    "The response builder wraps the parsed request in a successful response. The server reaches it only after parsing and validation succeed.",
+  tourHowText:
+    "Tree-sitter reads each supported file and extracts symbols and the relations between them. A SQLite database keeps that graph inside your project, and indexing runs on your machine. The MCP server answers your assistant's tool calls from that database. While it runs, it reindexes changed files in the background once edits have been quiet for 1.5 seconds.",
+  tourOrientText:
+    "Start here when you don't know any names yet. These tools describe the layout and contents of a project without opening whole files.",
+  tourLookupText:
+    "Each tool answers one question and returns locations as path:line, not file contents. The examples run on request-service.",
+  tourCompositeText:
+    "Composite tools combine several lookups into one answer. Relation tools also accept depth, to follow callers of callers up to 32 hops, and offset, to page through long results.",
+  tourAdvancedText:
+    "Group queries, load tool schemas only when needed and keep the index up to date.",
+  ask_get_file_tree: "Which folders and files does the project have?",
+  ask_get_project_overview:
+    "What are the most important declarations in this file, folder or project?",
+  ask_list_symbols:
+    "What is defined in this file or folder, with kind and line range?",
+  ask_get_file_skeleton:
+    "What does this file look like without its function bodies?",
+  ask_find_symbol: "Where is this symbol defined?",
+  ask_find_callers: "Who calls this function?",
+  ask_find_calls:
+    "What does this function call, and where is each callee defined?",
+  ask_find_references:
+    "Where is this symbol used at all: calls, imports, inheritance?",
+  ask_search_symbols:
+    "I only know part of the name. Which symbols match these words?",
+  ask_hybrid_search:
+    "I know what the code does, not its name. What matches by meaning? Without an embedding model it ranks by words only.",
+  ask_impact_analysis:
+    "What could break if I change this? Its callers, every reference and the tests that look affected.",
+  ask_build_context_pack:
+    "Everything needed before editing this symbol: its definition, doc comment and source, plus each caller, callee, dependency and related test, listed once. It also saves reading the files.",
+  ask_find_dead_code:
+    "Which top-level symbols does nothing in the index reference? A heuristic starting point, not proof.",
+  ask_batch:
+    "Several known read-only queries in one call, each answer under its own header. reindex and nested batches are not allowed.",
+  ask_discover_tool_categories:
+    "Which tools exist? Names and one-line purposes, grouped, without input schemas.",
+  ask_get_tool_schema:
+    "What is one tool's full input schema? Loaded only when the client needs it.",
+  ask_reindex:
+    "Refresh the index right now. force parses every file again, even unchanged ones.",
+  ask_get_indexing_status:
+    "Is the index healthy? Files and symbols per language, last run and parse failures.",
+  replaces: "In one call, instead of",
+  exampleOutput: "Example output",
+  toolsReference: "Read the MCP tools reference",
   atlas: "Code atlas",
   illustration: "Illustrative repository, not a live index",
   graphAlt:
@@ -80,8 +114,16 @@ const en = {
     "The 3D view is unavailable on this device. You can still explore the source and context below.",
   rotate: "Rotate the atlas",
   resetView: "Reset view",
-  viewDetail: "View details",
-  closeDetail: "Back to overview",
+  fullscreen: "Full screen",
+  exitFullscreen: "Exit full screen",
+  tourWhatTitle: "Your agent asks the map, not the files.",
+  tourWhatText:
+    "mini-consumes-tokens indexes your repository into a graph of symbols (functions, types, methods) and the calls and imports between them. A coding assistant connected over MCP can then ask precise questions instead of reading whole files.",
+  tourHowTitle: "Parsed, stored and served on your machine.",
+  tourOrientTitle: "Get your bearings.",
+  tourLookupTitle: "Ask one precise question.",
+  tourCompositeTitle: "Several questions, one call.",
+  tourAdvancedTitle: "Work at scale.",
   spatialHint: "Drag to orbit · Scroll to zoom · Select a symbol",
   mapNote: "One question. Its relevant neighborhood.",
   problemLabel: "01 / THE PROBLEM",

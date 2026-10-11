@@ -1,6 +1,6 @@
 "use client";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, type RefObject } from "react";
 import {
   BufferGeometry,
   Group,
@@ -17,13 +17,11 @@ import {
   examples,
   layerHeight,
   layerKeys,
-  symbolPositions,
   type AtlasLayers,
 } from "./atlas-data";
 
-function linkGeometry(a: number, b: number) {
-  const [ax, az] = symbolPositions[a];
-  const [bx, bz] = symbolPositions[b];
+type Point = readonly [number, number];
+function linkGeometry([ax, az]: Point, [bx, bz]: Point) {
   const curve = new QuadraticBezierCurve3(
     new Vector3(ax, 0.15, az),
     new Vector3((ax + bx) / 2, 0.45, (az + bz) / 2 - 0.35),
@@ -74,6 +72,17 @@ function CameraControls({ active, reset }: { active: boolean; reset: number }) {
     orbit.addEventListener("change", change);
     return () => orbit.removeEventListener("change", change);
   }, [active, invalidate]);
+  // Projected labels sit over the canvas; let scrolling over them still zoom the scene.
+  useEffect(() => {
+    const layer = gl.domElement.closest(".spatial-layer");
+    const forward = (event: Event) => {
+      if (!(event.target as Element).closest(".spatial-label")) return;
+      event.preventDefault();
+      gl.domElement.dispatchEvent(new WheelEvent("wheel", event as WheelEvent));
+    };
+    layer?.addEventListener("wheel", forward, { passive: false });
+    return () => layer?.removeEventListener("wheel", forward);
+  }, [gl]);
   useEffect(() => {
     controls.current?.reset();
   }, [reset]);
@@ -85,6 +94,7 @@ function Graph({
   reduced,
   active,
   layers,
+  focusLayer,
   separation,
   labels,
   fileLabels,
@@ -98,6 +108,7 @@ function Graph({
   reduced: boolean;
   active: boolean;
   layers: AtlasLayers;
+  focusLayer?: number;
   separation: number;
   labels: RefObject<(HTMLButtonElement | null)[]>;
   fileLabels: RefObject<(HTMLButtonElement | null)[]>;
@@ -111,13 +122,13 @@ function Graph({
   const { invalidate, gl } = useThree();
   const projected = useMemo(() => new Vector3(), []);
   const geometry = useMemo(
-    () => connections.map(([a, b]) => linkGeometry(a, b)),
+    () => connections.map(([a, b]) => linkGeometry(a.position, b.position)),
     [],
   );
   useEffect(() => () => geometry.forEach((link) => link.dispose()), [geometry]);
   useEffect(() => {
     if (active) invalidate();
-  }, [active, rotation, selected, layers, separation, invalidate]);
+  }, [active, rotation, selected, layers, focusLayer, separation, invalidate]);
   useEffect(() => {
     const lost = (event: Event) => {
       event.preventDefault();
@@ -149,7 +160,7 @@ function Graph({
       element.style.visibility =
         shown && projected.z < 1 ? "visible" : "hidden";
     };
-    symbolPositions.forEach(([x, z], i) => {
+    examples.forEach(({ position: [x, z] }, i) => {
       place(labels.current[i], x, 0.2, z, layers[1], 16);
       place(fileLabels.current[i], x, separation + 0.65, z, layers[0], -30);
     });
@@ -182,6 +193,8 @@ function Graph({
                 <boxGeometry args={[5.5, 0.14, 2.7]} />
                 <meshStandardMaterial
                   color={layer === 1 ? "#334f3c" : "#405246"}
+                  emissive="#60814b"
+                  emissiveIntensity={focusLayer === layer ? 0.45 : 0}
                   roughness={0.6}
                   metalness={0.06}
                 />
@@ -193,8 +206,7 @@ function Graph({
                   <meshBasicMaterial color="#48624f" />
                 </mesh>
               ))}
-              {examples.map((_, i) => {
-                const [x, z] = symbolPositions[i];
+              {examples.map(({ position: [x, z] }, i) => {
                 const color = selected === i ? "#b0d897" : "#899c8c";
                 const select = (event: { stopPropagation: () => void }) => {
                   event.stopPropagation();
@@ -261,8 +273,8 @@ function Graph({
               })}
               {layer === 1 &&
                 connections.map(([a, b], i) => {
-                  const [bx, bz] = symbolPositions[b];
-                  const [ax, az] = symbolPositions[a];
+                  const [ax, az] = a.position;
+                  const [bx, bz] = b.position;
                   return (
                     <group key={i}>
                       <lineSegments geometry={geometry[i]}>
@@ -291,7 +303,7 @@ function Graph({
       )}
       {layers.map((shown, layer) => {
         if (!shown || layer === 2 || !layers[layer + 1]) return null;
-        const [x, z] = symbolPositions[selected];
+        const [x, z] = examples[selected].position;
         const top = layerHeight(layer, separation);
         const bottom = layerHeight(layer + 1, separation);
         return (
@@ -314,7 +326,10 @@ function Graph({
 export default function SpatialAtlas({
   selected,
   layers,
+  focusLayer,
   separation,
+  rotation,
+  reset,
   active,
   reduced,
   onSelect,
@@ -323,7 +338,10 @@ export default function SpatialAtlas({
 }: {
   selected: number;
   layers: AtlasLayers;
+  focusLayer?: number;
   separation: number;
+  rotation: number;
+  reset: number;
   active: boolean;
   reduced: boolean;
   onSelect: (index: number) => void;
@@ -331,8 +349,6 @@ export default function SpatialAtlas({
   onFailure: () => void;
 }) {
   const { t } = useTranslation();
-  const [rotation, setRotation] = useState(0.2);
-  const [reset, setReset] = useState(0);
   const fileLabels = useRef<(HTMLButtonElement | null)[]>([]);
   const boardLabels = useRef<(HTMLSpanElement | null)[]>([]);
   const labels = useRef<(HTMLButtonElement | null)[]>([]);
@@ -343,6 +359,9 @@ export default function SpatialAtlas({
         tabIndex={-1}
         camera={{ position: [4.6, 4.2, 8], fov: 43 }}
         dpr={[1, 2]}
+        // Pointer events use offset coordinates and labels only need the size, so
+        // skip the default scroll listeners that re-measure the canvas on every scroll.
+        resize={{ scroll: false }}
         frameloop={active ? "demand" : "never"}
         gl={{ antialias: true, alpha: true, powerPreference: "low-power" }}
         fallback={<span>{t("fallback")}</span>}
@@ -359,6 +378,7 @@ export default function SpatialAtlas({
           fileLabels={fileLabels}
           boardLabels={boardLabels}
           layers={layers}
+          focusLayer={focusLayer}
           separation={separation}
           onSelect={onSelect}
           onReady={onReady}
@@ -411,23 +431,6 @@ export default function SpatialAtlas({
         ))}
       </div>
       <p className="spatial-hint">{t("spatialHint")}</p>
-      <div className="spatial-controls">
-        <button
-          type="button"
-          onClick={() => setRotation((value) => value + Math.PI / 4)}
-        >
-          {t("rotate")} ↻
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setRotation(0.2);
-            setReset((value) => value + 1);
-          }}
-        >
-          {t("resetView")}
-        </button>
-      </div>
     </>
   );
 }

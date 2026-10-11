@@ -1,22 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 const home = "/mini-consumes-tokens/";
-// The compact atlas keeps symbol cards and the context pack behind "View details".
-const openDetail = async (page: Page) => {
-  const atlas = page.locator(".atlas");
-  if (await atlas.locator(".context-pack").count()) return;
-  await atlas
-    .getByRole("button", { name: /^(View details|Ver detalle)$/ })
-    .click();
-};
-const closeDetail = async (page: Page) => {
-  await page
-    .locator(".atlas")
-    .getByRole("button", {
-      name: /^(Back to overview|Volver a la vista compacta)$/,
-    })
-    .click();
-};
 test("English default, complete Spanish switch, persistence and English docs", async ({
   page,
 }) => {
@@ -49,13 +33,11 @@ test("symbol selection, clipboard failure, FAQ and keyboard", async ({
   page,
 }) => {
   await page.goto(home);
-  await openDetail(page);
   await page
     .locator(".symbol-controls")
     .getByRole("button", { name: "handle_request", exact: true })
     .click();
   await expect(page.locator(".context-pack")).toContainText("src/server.rs:42");
-  await closeDetail(page);
   await page.evaluate(() =>
     Object.defineProperty(navigator, "clipboard", {
       value: { writeText: () => Promise.reject(new Error("denied")) },
@@ -221,6 +203,33 @@ test("WebGL absence retains readable source and project context", async ({
   );
   await expect(page.locator(".atlas-source")).toBeVisible();
 });
+test("atlas exposes the scene state", async ({ page, request }) => {
+  const response = await request.get(home);
+  expect(await response.text()).toContain('data-scene="loading"');
+  await page.goto(home);
+  const supported = await page.evaluate(
+    () => !!document.createElement("canvas").getContext("webgl2"),
+  );
+  if (supported) {
+    await page.locator(".atlas").scrollIntoViewIfNeeded();
+    await expect(page.locator(".atlas")).toHaveAttribute("data-scene", "ready");
+  }
+  await page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (
+      this: HTMLCanvasElement,
+      type: string,
+      ...args: any[]
+    ) {
+      return type === "webgl2"
+        ? null
+        : original.call(this, type as any, ...args);
+    } as typeof original;
+  });
+  await page.goto(home);
+  await page.locator(".atlas").scrollIntoViewIfNeeded();
+  await expect(page.locator(".atlas")).toHaveAttribute("data-scene", "failed");
+});
 test("3D scene loads on approach, rotates and handles context loss", async ({
   page,
 }) => {
@@ -285,13 +294,14 @@ test("3D scene loads on approach, rotates and handles context loss", async ({
   await expect(page.locator(".atlas-loading")).toContainText(
     "Loading the spatial atlas",
   );
+  await expect(page.locator(".atlas-source")).toBeVisible();
   finishLoading();
   await expect(page.locator("canvas")).toBeVisible();
   expect(requested.some((name) => spatialChunks.includes(name))).toBe(true);
   await expect.poll(draws).toBeGreaterThan(0);
   await expect.poll(settled).toBeGreaterThan(100);
   const labels = page.locator(".spatial-labels");
-  await expect(labels.getByRole("button")).toHaveCount(6);
+  await expect(labels.getByRole("button")).toHaveCount(3);
   const selectedLabel = labels.getByRole("button", {
     name: "parse_request",
     exact: true,
@@ -301,9 +311,7 @@ test("3D scene loads on approach, rotates and handles context loss", async ({
   await labels
     .getByRole("button", { name: "handle_request", exact: true })
     .click();
-  await openDetail(page);
   await expect(page.locator(".context-pack")).toContainText("src/server.rs:42");
-  await closeDetail(page);
   await expect(
     labels.getByRole("button", { name: "handle_request", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
@@ -432,7 +440,6 @@ test("layer controls and source selection explain the project in 3D", async ({
   });
   await spacing.fill("0.7");
   await expect(spacing).toHaveValue("0.7");
-  await openDetail(page);
   await atlas
     .locator(".symbol-controls")
     .getByRole("button", { name: "validate_input", exact: true })
@@ -491,13 +498,12 @@ test("additional files expose connected source and translated context", async ({
   await page.goto(home);
   const atlas = page.locator(".atlas");
   await atlas.locator(".atlas-space").scrollIntoViewIfNeeded();
-  await expect(atlas.locator(".spatial-file-labels button")).toHaveCount(6);
-  await openDetail(page);
-  await expect(atlas.locator(".symbol-controls button")).toHaveCount(6);
+  await expect(atlas.locator(".spatial-file-labels button")).toHaveCount(3);
+  await expect(atlas.locator(".symbol-controls button")).toHaveCount(3);
   for (const [filename, symbol, line, dependency] of [
-    ["main.rs", "route", "12", "handle_request(input)"],
-    ["normalize.rs", "normalize", "6", "input.trim().to_lowercase()"],
-    ["response.rs", "build_response", "8", "Response::ok(request)"],
+    ["server.rs", "handle_request", "42", "parse_request(input)"],
+    ["parser.rs", "parse_request", "18", "validate_input(&request)"],
+    ["validation.rs", "validate_input", "9", "input.is_empty()"],
   ]) {
     await atlas
       .getByRole("button", {
@@ -516,87 +522,577 @@ test("additional files expose connected source and translated context", async ({
   }
   await page.getByLabel("Language", { exact: true }).selectOption("es");
   await expect(atlas.locator(".atlas-query")).toContainText(
-    "¿Dónde se construye la respuesta",
+    "¿Dónde se rechazan los datos vacíos",
   );
   await expect(atlas.locator(".atlas-explanation")).toContainText(
-    "sin errores",
+    "rechaza un valor vacío",
   );
   await expect(
     atlas
       .locator(".symbol-controls")
-      .getByRole("button", { name: "build_response", exact: true }),
-  ).toContainText("Construir la respuesta");
-  await atlas.screenshot({ path: "test-results/atlas-six-files.png" });
+      .getByRole("button", { name: "validate_input", exact: true }),
+  ).toContainText("Validar los datos");
+  await atlas.screenshot({ path: "test-results/atlas-three-files.png" });
   await page.setViewportSize({ width: 320, height: 900 });
   await atlas
     .locator(".symbol-controls")
-    .getByRole("button", { name: "normalize", exact: true })
+    .getByRole("button", { name: "parse_request", exact: true })
     .click();
   await expect(atlas.locator(".atlas-query")).toContainText(
-    "¿Cómo se limpian los datos",
+    "¿Dónde se interpreta la petición",
   );
   await expect(atlas.locator(".atlas-source")).toContainText(
-    "input.trim().to_lowercase()",
+    "Request::from_str(input)",
   );
 });
 
-test("detail view retains selection, traps focus and exits on Escape", async ({
+for (const width of [1440, 390])
+  test(`atlas shows exactly three files with separate labels at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(home);
+    const atlas = page.locator(".atlas");
+    await atlas.locator(".atlas-space").scrollIntoViewIfNeeded();
+    const controls = atlas.locator(".symbol-controls button");
+    await expect(controls).toHaveCount(3);
+    for (const [i, filename] of [
+      "parser.rs",
+      "server.rs",
+      "validation.rs",
+    ].entries())
+      await expect(controls.nth(i)).toContainText(filename);
+    await expect(atlas.locator(".spatial-labels button")).toHaveCount(3);
+    const names = (
+      await atlas
+        .locator(".symbol-controls, .spatial-labels, .spatial-file-labels")
+        .allTextContents()
+    ).join(" ");
+    expect(names).not.toMatch(
+      /\b(route|normalize|build_response)\b|main\.rs|normalize\.rs|response\.rs/,
+    );
+    // Mobile shows only the selected file and symbol labels.
+    await expect
+      .poll(() =>
+        atlas.locator(".spatial-label").evaluateAll((elements) => {
+          const boxes = elements
+            .filter(
+              (element) =>
+                element.getClientRects().length &&
+                getComputedStyle(element).visibility === "visible",
+            )
+            .map((element) => element.getBoundingClientRect());
+          const overlaps = boxes.flatMap((a, i) =>
+            boxes
+              .slice(i + 1)
+              .filter(
+                (b) =>
+                  a.left < b.right &&
+                  b.left < a.right &&
+                  a.top < b.bottom &&
+                  b.top < a.bottom,
+              ),
+          ).length;
+          return { visible: boxes.length, overlaps };
+        }),
+      )
+      .toEqual({ visible: width === 1440 ? 6 : 2, overlaps: 0 });
+  });
+
+test("full screen retains selection, traps focus and exits on Escape", async ({
   page,
 }) => {
   await page.goto(home);
+  const supported = await page.evaluate(
+    () => !!document.createElement("canvas").getContext("webgl2"),
+  );
+  test.skip(!supported, "WebKit runtime has no WebGL2");
   const atlas = page.locator(".atlas");
-  await expect(atlas.locator(".context-pack")).toHaveCount(0);
-  await openDetail(page);
+  await atlas
+    .locator(".symbol-controls")
+    .getByRole("button", { name: "validate_input", exact: true })
+    .click();
+  await atlas.locator(".atlas-space").scrollIntoViewIfNeeded();
+  await expect(atlas).toHaveAttribute("data-scene", "ready");
+  await atlas.getByRole("button", { name: "Full screen", exact: true }).click();
   await expect(
     page.getByRole("dialog", { name: "Code atlas", exact: true }),
   ).toBeVisible();
   await expect(
-    atlas.getByRole("button", { name: "Back to overview", exact: true }),
+    atlas.getByRole("button", { name: "Exit full screen", exact: true }),
   ).toBeFocused();
   const box = await atlas.boundingBox();
   expect(box?.x).toBe(0);
   expect(box?.y).toBe(0);
   expect(box?.width).toBe(page.viewportSize()!.width);
   expect(box?.height).toBe(page.viewportSize()!.height);
+  await expect(atlas.locator(".context-pack strong")).toHaveText(
+    "validate_input",
+  );
+  // The explorer and context pack are hidden, so the trap runs from the layer
+  // toggles to the tools reference link at the end of the tour.
+  const first = atlas.locator(".atlas-layer-toggles button").first();
+  const last = atlas.getByRole("link", {
+    name: "Read the MCP tools reference",
+    exact: true,
+  });
+  await first.focus();
   await page.keyboard.press("Shift+Tab");
-  await expect(atlas.locator(".atlas-source")).toBeFocused();
+  await expect(last).toBeFocused();
   await page.keyboard.press("Tab");
-  await expect(
-    atlas.getByRole("button", { name: "Back to overview", exact: true }),
-  ).toBeFocused();
-  await atlas
-    .locator(".symbol-controls")
-    .getByRole("button", { name: "normalize", exact: true })
-    .click();
-  await expect(atlas.locator(".context-pack strong")).toHaveText("normalize");
-  await atlas
-    .locator(".symbol-controls")
-    .getByRole("button", { name: "route", exact: true })
-    .click();
+  await expect(first).toBeFocused();
+  const label = atlas
+    .locator(".spatial-labels")
+    .getByRole("button", { name: "handle_request", exact: true });
+  await expect(label).toBeVisible();
+  await label.click();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(atlas.locator(".context-pack")).toHaveCount(0);
   await expect(
-    atlas.getByRole("button", { name: "View details", exact: true }),
+    atlas.getByRole("button", { name: "Full screen", exact: true }),
   ).toBeFocused();
+  await expect(atlas.locator(".context-pack strong")).toHaveText(
+    "handle_request",
+  );
   expect(await page.evaluate(() => document.body.style.overflow)).not.toBe(
     "hidden",
   );
-  await openDetail(page);
-  await expect(atlas.locator(".context-pack strong")).toHaveText("route");
-  await page.keyboard.press("Escape");
   await page.getByLabel("Language", { exact: true }).selectOption("es");
   await page.setViewportSize({ width: 320, height: 900 });
-  await atlas.getByRole("button", { name: "Ver detalle", exact: true }).click();
+  await atlas
+    .getByRole("button", { name: "Pantalla completa", exact: true })
+    .click();
   await expect(
     page.getByRole("dialog", { name: "Atlas de código", exact: true }),
   ).toBeVisible();
   await expect(atlas.locator("canvas")).toBeVisible();
   await atlas.screenshot({ path: "test-results/atlas-fullscreen-mobile.png" });
   await atlas
-    .getByRole("button", { name: "Volver a la vista compacta", exact: true })
+    .getByRole("button", { name: "Salir de pantalla completa", exact: true })
     .click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
+test("full screen opens a scroll tour that reveals stages inside the dialog", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(home);
+  const atlas = page.locator(".atlas");
+  await expect(atlas.locator(".atlas-tour")).toHaveCount(0);
+  await atlas.getByRole("button", { name: "Full screen", exact: true }).click();
+  const tour = page.getByRole("dialog").locator(".atlas-tour");
+  await expect(tour).toBeVisible();
+  await expect(tour).toHaveAttribute("data-active-stage", "0");
+  const last = tour.locator(".atlas-stage").last();
+  const opacity = () =>
+    last.evaluate((element) => Number(getComputedStyle(element).opacity));
+  await expect.poll(opacity).toBeLessThan(1);
+  await last.evaluate((element) => element.scrollIntoView({ block: "center" }));
+  await expect.poll(opacity).toBe(1);
+  await expect(tour).not.toHaveAttribute("data-active-stage", "0");
+  expect(await atlas.evaluate((element) => element.scrollTop)).toBeGreaterThan(
+    0,
+  );
+});
+
+for (const [width, height] of [
+  [1440, 900],
+  [1280, 720],
+  [1024, 768],
+  [390, 844],
+] as const)
+  test(`full-screen button sits bottom-right of the scene at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height });
+    await page.goto(home);
+    const supported = await page.evaluate(
+      () => !!document.createElement("canvas").getContext("webgl2"),
+    );
+    test.skip(!supported, "WebKit runtime has no WebGL2");
+    const atlas = page.locator(".atlas");
+    await expect(atlas.locator(".atlas-top-actions")).toHaveText("MCT / 001");
+    await expect(atlas.locator(".atlas-top-actions button")).toHaveCount(0);
+    await atlas.locator(".atlas-space").scrollIntoViewIfNeeded();
+    for (const name of ["Full screen", "Exit full screen"]) {
+      const rotate = atlas.getByRole("button", { name: "Rotate the atlas" });
+      await expect(rotate).toBeVisible();
+      const button = atlas.getByRole("button", { name, exact: true });
+      const space = (await atlas.locator(".atlas-space").boundingBox())!;
+      const box = (await button.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(space.x);
+      expect(box.y).toBeGreaterThanOrEqual(space.y);
+      expect(space.x + space.width - (box.x + box.width)).toBeLessThanOrEqual(
+        24,
+      );
+      expect(space.y + space.height - (box.y + box.height)).toBeLessThanOrEqual(
+        24,
+      );
+      expect(
+        space.x + space.width - (box.x + box.width),
+      ).toBeGreaterThanOrEqual(0);
+      expect(
+        space.y + space.height - (box.y + box.height),
+      ).toBeGreaterThanOrEqual(0);
+      expect(
+        Math.abs((await rotate.boundingBox())!.y - box.y),
+      ).toBeLessThanOrEqual(2);
+      if (name === "Exit full screen") {
+        const { top, bottom, innerHeight } = await button.evaluate((el) => ({
+          ...el.getBoundingClientRect().toJSON(),
+          innerHeight: window.innerHeight,
+        }));
+        expect(top).toBeGreaterThanOrEqual(0);
+        expect(bottom).toBeLessThanOrEqual(innerHeight);
+      }
+      if (name === "Full screen") await button.click();
+    }
+  });
+
+for (const width of [320, 390])
+  test(`full-screen button leaves the scene controls clear at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto(home);
+    const supported = await page.evaluate(
+      () => !!document.createElement("canvas").getContext("webgl2"),
+    );
+    test.skip(!supported, "WebKit runtime has no WebGL2");
+    const atlas = page.locator(".atlas");
+    for (const language of ["en", "es"]) {
+      await page.locator("select").selectOption(language);
+      await atlas.locator(".atlas-space").scrollIntoViewIfNeeded();
+      const buttons = atlas.locator(".spatial-controls button");
+      await expect(buttons).toHaveCount(3);
+      const boxes = await buttons.evaluateAll((elements) =>
+        elements.map((element) => element.getBoundingClientRect().toJSON()),
+      );
+      const overlaps = boxes.flatMap((a, i) =>
+        boxes
+          .slice(i + 1)
+          .filter(
+            (b) =>
+              a.left < b.right &&
+              b.left < a.right &&
+              a.top < b.bottom &&
+              b.top < a.bottom,
+          ),
+      );
+      expect(overlaps).toEqual([]);
+      // Below 768px the full-screen button shows its icon only, on a 44px target.
+      expect(boxes[2].width).toBeGreaterThanOrEqual(44);
+      expect(boxes[2].height).toBeGreaterThanOrEqual(44);
+      await expect(
+        atlas.locator(".spatial-controls button").last().locator("span"),
+      ).toBeHidden();
+    }
+  });
+
+test("full-screen button works without WebGL", async ({ page }) => {
+  await page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (
+      this: HTMLCanvasElement,
+      type: string,
+      ...args: any[]
+    ) {
+      return type === "webgl2"
+        ? null
+        : original.call(this, type as any, ...args);
+    } as typeof original;
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(home);
+  const atlas = page.locator(".atlas");
+  await atlas.scrollIntoViewIfNeeded();
+  const fallback = atlas.locator(".atlas-fallback");
+  await expect(fallback).toBeVisible();
+  for (const name of ["Full screen", "Exit full screen"]) {
+    const button = atlas.getByRole("button", { name, exact: true });
+    await expect(button).toBeVisible();
+    // The fallback stands in for the scene, so the button sits at its bottom-right.
+    const area = (await fallback.boundingBox())!;
+    const box = (await button.boundingBox())!;
+    const right = area.x + area.width - (box.x + box.width);
+    expect(right).toBeGreaterThanOrEqual(0);
+    expect(right).toBeLessThanOrEqual(24);
+    expect(box.y).toBeGreaterThanOrEqual(area.y + area.height);
+    expect(box.y - (area.y + area.height)).toBeLessThanOrEqual(24);
+    if (name === "Full screen") {
+      await button.click();
+      await expect(page.getByRole("dialog")).toBeVisible();
+    }
+  }
+});
+
+for (const [width, height] of [
+  [1440, 900],
+  [390, 844],
+] as const)
+  test(`full screen shows only the scene and tour at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height });
+    await page.goto(home);
+    const supported = await page.evaluate(
+      () => !!document.createElement("canvas").getContext("webgl2"),
+    );
+    test.skip(!supported, "WebKit runtime has no WebGL2");
+    const atlas = page.locator(".atlas");
+    await atlas.locator(".atlas-space").scrollIntoViewIfNeeded();
+    await expect(atlas).toHaveAttribute("data-scene", "ready");
+    await atlas
+      .getByRole("button", { name: "Full screen", exact: true })
+      .click();
+    for (const selector of [
+      ".symbol-controls",
+      ".context-pack",
+      ".atlas-caption",
+    ])
+      await expect(atlas.locator(selector)).toBeHidden();
+    await expect(atlas.locator(".atlas-space")).toBeVisible();
+    await expect(atlas.locator(".atlas-stage").first()).toBeVisible();
+  });
+
+test("full screen keeps the explorer and context pack without WebGL", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (
+      this: HTMLCanvasElement,
+      type: string,
+      ...args: any[]
+    ) {
+      return type === "webgl2"
+        ? null
+        : original.call(this, type as any, ...args);
+    } as typeof original;
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(home);
+  const atlas = page.locator(".atlas");
+  await atlas.scrollIntoViewIfNeeded();
+  await expect(atlas.locator(".atlas-fallback")).toBeVisible();
+  await atlas.getByRole("button", { name: "Full screen", exact: true }).click();
+  await expect(atlas.locator(".atlas-fallback")).toBeVisible();
+  for (const selector of [
+    ".symbol-controls",
+    ".context-pack",
+    ".atlas-caption",
+  ])
+    await expect(atlas.locator(selector)).toBeVisible();
+});
+
+test("tour explains the server in seven translated stages", async ({
+  page,
+}) => {
+  await page.goto(home);
+  const atlas = page.locator(".atlas");
+  for (const [language, fullScreen, exit, titles] of [
+    [
+      "en",
+      "Full screen",
+      "Exit full screen",
+      [
+        "Your agent asks the map, not the files.",
+        "Parsed, stored and served on your machine.",
+        "Get your bearings.",
+        "Ask one precise question.",
+        "Several questions, one call.",
+        "Work at scale.",
+        "Start with your own repository.",
+      ],
+    ],
+    [
+      "es",
+      "Pantalla completa",
+      "Salir de pantalla completa",
+      [
+        "Tu agente consulta el mapa, no los archivos.",
+        "Analizado, guardado y servido en tu equipo.",
+        "Oriéntate.",
+        "Haz una pregunta precisa.",
+        "Varias preguntas, una llamada.",
+        "Trabaja a escala.",
+        "Empieza con tu propio repositorio.",
+      ],
+    ],
+  ] as const) {
+    await page.getByLabel(/Language|Idioma/).selectOption(language);
+    await atlas.getByRole("button", { name: fullScreen, exact: true }).click();
+    const stages = atlas.locator(".atlas-stage");
+    await expect(stages).toHaveCount(7);
+    await expect(stages.locator("h3")).toHaveText([...titles]);
+    await expect(stages.nth(3)).toContainText(
+      "src/parser.rs:18:1 [rust] function parse_request",
+    );
+    const last = stages.last();
+    await expect(
+      last.locator('a[href="/mini-consumes-tokens/docs/tools/"]'),
+    ).toHaveCount(1);
+    await expect(last.locator(".command-row code")).toHaveText([
+      "mct-cli --root . init",
+      "mct-cli --root . mcp-register",
+      "mct-cli --root . status",
+    ]);
+    await atlas.getByRole("button", { name: exit, exact: true }).click();
+  }
+});
+
+test("reduced motion shows every tour stage without scrolling or transforms", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto(home);
+  const atlas = page.locator(".atlas");
+  await atlas.getByRole("button", { name: "Full screen", exact: true }).click();
+  const stages = atlas.locator(".atlas-stage");
+  await expect(stages).toHaveCount(7);
+  expect(
+    await stages.evaluateAll((elements) =>
+      elements.map((element) => {
+        const style = getComputedStyle(element);
+        return `${style.opacity} ${style.transform}`;
+      }),
+    ),
+  ).toEqual(Array(7).fill("1 none"));
+  expect(await atlas.evaluate((element) => element.scrollTop)).toBe(0);
+});
+
+test("tour reads in full when WebGL is unavailable", async ({ page }) => {
+  await page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (
+      this: HTMLCanvasElement,
+      type: string,
+      ...args: any[]
+    ) {
+      return type === "webgl2"
+        ? null
+        : original.call(this, type as any, ...args);
+    } as typeof original;
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(home);
+  const atlas = page.locator(".atlas");
+  await atlas.scrollIntoViewIfNeeded();
+  await expect(atlas.locator(".atlas-fallback")).toBeVisible();
+  await atlas.getByRole("button", { name: "Full screen", exact: true }).click();
+  const stages = atlas.locator(".atlas-stage");
+  await expect(stages).toHaveCount(7);
+  for (const stage of await stages.all()) {
+    // Stages can be taller than the viewport, so centre the heading itself.
+    await stage
+      .locator("h3")
+      .evaluate((element) => element.scrollIntoView({ block: "center" }));
+    await expect
+      .poll(() =>
+        stage.evaluate((element) => Number(getComputedStyle(element).opacity)),
+      )
+      .toBe(1);
+    // Nothing covers the heading, and the single column keeps its full text.
+    expect(
+      await stage.locator("h3").evaluate((heading) => {
+        const box = heading.getBoundingClientRect();
+        return heading.contains(
+          document.elementFromPoint(box.left + 4, box.top + box.height / 2),
+        );
+      }),
+    ).toBe(true);
+    expect((await stage.boundingBox())!.x).toBeLessThan(100);
+  }
+});
+
+test("tour controls join the focus trap and Escape restores focus", async ({
+  page,
+}) => {
+  await page.goto(home);
+  const atlas = page.locator(".atlas");
+  await atlas.getByRole("button", { name: "Full screen", exact: true }).click();
+  const link = atlas.getByRole("link", {
+    name: "Read the MCP tools reference",
+    exact: true,
+  });
+  const visited: string[] = [];
+  // WebKit on macOS uses Option+Tab to include links in keyboard traversal.
+  for (let i = 0; i < 80; i++) {
+    await page.keyboard.press("Alt+Tab");
+    visited.push(
+      await page.evaluate(
+        () => document.activeElement?.getAttribute("aria-label") ?? "",
+      ),
+    );
+    if (await link.evaluate((element) => element === document.activeElement))
+      break;
+  }
+  await expect(link).toBeFocused();
+  expect(visited).toContain("Copy command: mct-cli --root . init");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(
+    atlas.getByRole("button", { name: "Full screen", exact: true }),
+  ).toBeFocused();
+});
+
+test("full-screen tour has no horizontal scroll at 390px", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(home);
+  await page
+    .locator(".atlas")
+    .getByRole("button", { name: "Full screen", exact: true })
+    .click();
+  await expect(page.locator(".atlas-stage")).toHaveCount(7);
+  const widths = await page.evaluate(() => {
+    const dialog = document.querySelector(".atlas-expanded")!;
+    return {
+      document: document.documentElement.scrollWidth,
+      viewport: document.documentElement.clientWidth,
+      dialog: dialog.scrollWidth,
+      dialogViewport: dialog.clientWidth,
+    };
+  });
+  expect(widths.document).toBeLessThanOrEqual(widths.viewport);
+  expect(widths.dialog).toBeLessThanOrEqual(widths.dialogViewport);
+});
+
+test("tour scrolling registers no scroll listeners", async ({ page }) => {
+  await page.addInitScript(() => {
+    const state = { scroll: 0 };
+    (window as Window & { listeners?: typeof state }).listeners = state;
+    const original = EventTarget.prototype.addEventListener;
+    EventTarget.prototype.addEventListener = function (
+      this: EventTarget,
+      ...args: Parameters<typeof original>
+    ) {
+      if (args[0] === "scroll") state.scroll++;
+      return original.apply(this, args);
+    };
+  });
+  await page.goto(home);
+  // Next.js mounts its route announcer (and React's listeners for it) after hydration.
+  await page
+    .locator("#__next-route-announcer__")
+    .waitFor({ state: "attached" });
+  const scrollListeners = () =>
+    page.evaluate(
+      () =>
+        (window as Window & { listeners?: { scroll: number } }).listeners
+          ?.scroll,
+    );
+  const before = await scrollListeners();
+  const atlas = page.locator(".atlas");
+  await atlas.getByRole("button", { name: "Full screen", exact: true }).click();
+  const last = atlas.locator(".atlas-stage").last();
+  await last.evaluate((element) => element.scrollIntoView({ block: "center" }));
+  await expect
+    .poll(() =>
+      last.evaluate((element) => Number(getComputedStyle(element).opacity)),
+    )
+    .toBe(1);
+  expect(await scrollListeners()).toBe(before);
 });
 
 test("Spanish browser starts in English and invalid storage is ignored", async ({
