@@ -1132,6 +1132,180 @@ test("tour scrolling registers no scroll listeners", async ({ page }) => {
   expect(await scrollListeners()).toBe(before);
 });
 
+// The page story: each stage, scrolled to the middle of the viewport, drives the scene.
+const storyStages = [
+  [0, "tourWhat", null],
+  [1, "step1", "Index"],
+  [2, "step2", "Index"],
+  [3, "step3", "reindex"],
+] as const;
+const centre = (element: Element) =>
+  element.scrollIntoView({ block: "center" });
+// True when nothing, such as the sticky scene, covers the middle of a heading.
+const headingClear = (heading: Element) => {
+  const box = heading.getBoundingClientRect();
+  return heading.contains(
+    document.elementFromPoint(box.left + 4, box.top + box.height / 2),
+  );
+};
+const withoutWebGL = () => {
+  const original = HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = function (
+    this: HTMLCanvasElement,
+    type: string,
+    ...args: any[]
+  ) {
+    return type === "webgl2" ? null : original.call(this, type as any, ...args);
+  } as typeof original;
+};
+
+test("page story walks four stages without full screen", async ({ page }) => {
+  await page.addInitScript(() => {
+    const state = { scroll: 0 };
+    (window as Window & { listeners?: typeof state }).listeners = state;
+    const original = EventTarget.prototype.addEventListener;
+    EventTarget.prototype.addEventListener = function (
+      this: EventTarget,
+      ...args: Parameters<typeof original>
+    ) {
+      if (args[0] === "scroll") state.scroll++;
+      return original.apply(this, args);
+    };
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(home);
+  await page
+    .locator("#__next-route-announcer__")
+    .waitFor({ state: "attached" });
+  const scrollListeners = () =>
+    page.evaluate(
+      () =>
+        (window as Window & { listeners?: { scroll: number } }).listeners
+          ?.scroll,
+    );
+  const before = await scrollListeners();
+  const supported = await page.evaluate(
+    () => !!document.createElement("canvas").getContext("webgl2"),
+  );
+  const atlas = page.locator(".atlas");
+  const stages = atlas.locator(".atlas-story-stage");
+  await expect(stages.locator("h3")).toHaveText([
+    "Your agent asks the map, not the files.",
+    "Index locally.",
+    "Ask the graph.",
+    "Bring the right context.",
+  ]);
+  // The three steps now live in the story only.
+  await expect(page.locator(".steps")).toHaveCount(0);
+  for (const [i, key, symbol] of storyStages) {
+    await stages.nth(i).evaluate(centre);
+    await expect(atlas).toHaveAttribute("data-story-stage", String(i));
+    await expect(stages.nth(i)).toHaveAttribute("aria-current", "step");
+    await expect(atlas.locator(".atlas-story-stage[aria-current]")).toHaveCount(
+      1,
+    );
+    expect(await stages.nth(i).locator("h3").evaluate(headingClear)).toBe(true);
+    if (symbol)
+      await expect(atlas.locator(".context-pack strong")).toHaveText(symbol);
+    if (supported)
+      await expect(atlas.locator(".spatial-layer")).toHaveAttribute(
+        "data-cue",
+        key,
+      );
+  }
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  // A direct selection holds until another stage activates.
+  await atlas
+    .locator(".symbol-controls")
+    .getByRole("button", { name: "status", exact: true })
+    .click();
+  await expect(atlas.locator(".context-pack strong")).toHaveText("status");
+  await stages.nth(1).evaluate(centre);
+  await expect(atlas.locator(".context-pack strong")).toHaveText("Index");
+  expect(await scrollListeners()).toBe(before);
+  await page.getByLabel("Language", { exact: true }).selectOption("es");
+  await expect(stages.locator("h3")).toHaveText([
+    "Tu agente consulta el mapa, no los archivos.",
+    "Indexa en local.",
+    "Consulta el grafo.",
+    "Recibe el contexto adecuado.",
+  ]);
+});
+
+for (const [width, height] of [
+  [390, 844],
+  [768, 1024],
+  [1024, 768],
+] as const)
+  test(`page story headings stay clear of the scene at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height });
+    await page.goto(home);
+    const atlas = page.locator(".atlas");
+    const stages = atlas.locator(".atlas-story-stage");
+    for (const [i] of storyStages) {
+      await stages.nth(i).evaluate(centre);
+      await expect(stages.nth(i)).toHaveAttribute("aria-current", "step");
+      expect(await stages.nth(i).locator("h3").evaluate(headingClear)).toBe(
+        true,
+      );
+    }
+    // The scene is still on screen while the last stage is read.
+    const space = (await atlas.locator(".atlas-space").boundingBox())!;
+    expect(space.y).toBeGreaterThanOrEqual(-1);
+    expect(space.y).toBeLessThan(height / 2);
+  });
+
+test("page story reads in full when WebGL is unavailable", async ({ page }) => {
+  await page.addInitScript(withoutWebGL);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(home);
+  const atlas = page.locator(".atlas");
+  await atlas.scrollIntoViewIfNeeded();
+  await expect(atlas.locator(".atlas-fallback")).toBeVisible();
+  const stages = atlas.locator(".atlas-story-stage");
+  await expect(stages).toHaveCount(4);
+  for (const [i, , symbol] of storyStages) {
+    await stages.nth(i).evaluate(centre);
+    await expect(stages.nth(i)).toHaveAttribute("aria-current", "step");
+    await expect(stages.nth(i).locator("p")).toBeVisible();
+    expect(await stages.nth(i).locator("h3").evaluate(headingClear)).toBe(true);
+    if (symbol)
+      await expect(atlas.locator(".context-pack strong")).toHaveText(symbol);
+  }
+});
+
+test("page story changes the scene at each stage under reduced motion", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(home);
+  const supported = await page.evaluate(
+    () => !!document.createElement("canvas").getContext("webgl2"),
+  );
+  test.skip(!supported, "WebKit runtime has no WebGL2");
+  const atlas = page.locator(".atlas");
+  const stages = atlas.locator(".atlas-story-stage");
+  const canvas = atlas.locator("canvas");
+  await stages.first().evaluate(centre);
+  await expect(atlas).toHaveAttribute("data-scene", "ready");
+  let previous = await canvas.screenshot();
+  for (const [i] of storyStages.slice(1)) {
+    await stages.nth(i).evaluate(centre);
+    await expect(stages.nth(i)).toHaveAttribute("aria-current", "step");
+    // The final state applies at once, then holds: no idle motion when reduced.
+    await expect
+      .poll(async () => (await canvas.screenshot()).equals(previous))
+      .toBe(false);
+    const settled = await canvas.screenshot();
+    await page.waitForTimeout(600);
+    expect((await canvas.screenshot()).equals(settled)).toBe(true);
+    previous = settled;
+  }
+});
+
 test("Spanish browser starts in English and invalid storage is ignored", async ({
   browser,
 }) => {
