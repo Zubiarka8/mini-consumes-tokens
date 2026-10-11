@@ -11,7 +11,7 @@
 use std::path::Path;
 
 use mct_index::{ExcludeSet, Index};
-use mct_mcp_server::server::MctServer;
+use mct_mcp_server::server::{MctServer, ServerOptions};
 use mct_mcp_server::ttc;
 
 fn fixture_root() -> std::path::PathBuf {
@@ -22,7 +22,11 @@ async fn build_server() -> MctServer {
     let registry = mct_mcp_server::registry::build_registry();
     let mut index = Index::open_in_memory(&fixture_root(), ExcludeSet::default()).unwrap();
     index.reindex(&registry, false).unwrap();
-    MctServer::new(index, registry)
+    // Tool Attention on: the only build that registers every known tool
+    // (`select_tools` is removed when it is off).
+    let mut options = ServerOptions::from_env();
+    options.tool_attention = true;
+    MctServer::with_options(index, registry, options)
 }
 
 #[tokio::test]

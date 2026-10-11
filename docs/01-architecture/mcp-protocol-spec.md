@@ -17,6 +17,9 @@
 | `get_project_overview` | discovery | Compact hierarchical digest of a file/directory/crate/project |
 | `reindex` | maintenance | Force a re-scan |
 | `get_indexing_status` | maintenance | Index health report |
+| `select_tools` | meta | Tool Attention, only with `MCT_TOOL_ATTENTION=1`: narrow `tools/list` to one request's tools |
+
+`select_tools` accepts `query` (the user's request, verbatim). With `MCT_TOOL_ATTENTION=1` the server declares `tools.listChanged` and `tools/list` starts with `select_tools` alone. Each call runs `intent::preselect` on the query (word rules; the embedding model only when the rules find nothing; the full catalog when neither is decisive), makes `select_tools` plus the picked tools the advertised set, sends `notifications/tools/list_changed`, and replies with the intent line, the tool names and argument hints. It never runs a tool. `tools/call` accepts every catalog tool whatever is advertised. Without the variable, `select_tools` is not registered and nothing else changes. `batch` refuses it.
 
 `find_references`/`find_calls`/`find_callers`/`impact_analysis` accept `depth` (multi-hop, default 1), `limit`, `offset`.
 

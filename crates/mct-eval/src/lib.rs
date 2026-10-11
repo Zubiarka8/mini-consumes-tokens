@@ -179,6 +179,7 @@ pub async fn run(suite: &Suite, iterations: usize) -> Result<Report> {
             cache: mct_mcp_server::cache::CacheConfig::disabled(),
             embedder: None,
             shared_cache: None,
+            tool_attention: false,
         },
     );
     let catalog = serde_json::to_string(&server.tool_catalog())?;

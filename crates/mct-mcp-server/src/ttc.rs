@@ -187,6 +187,7 @@ pub const KNOWN_TOOL_NAMES: &[&str] = &[
     "discover_tool_categories",
     "get_tool_schema",
     "batch",
+    "select_tools",
 ];
 
 #[cfg(test)]

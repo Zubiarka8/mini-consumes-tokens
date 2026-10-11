@@ -1748,11 +1748,12 @@ pub fn tool_categories(catalog: &[rmcp::model::Tool], categories: &[(&str, &[&st
         out.push_str(&format!("{heading}:\n"));
         for name in *names {
             seen.insert(name);
-            let description = catalog
-                .iter()
-                .find(|t| t.name == *name)
-                .and_then(|t| t.description.as_deref())
-                .unwrap_or("(not registered)");
+            // Unregistered names are skipped: `select_tools` exists only
+            // with Tool Attention on.
+            let Some(tool) = catalog.iter().find(|t| t.name == *name) else {
+                continue;
+            };
+            let description = tool.description.as_deref().unwrap_or("");
             out.push_str(&format!("  {name} — {description}\n"));
         }
     }

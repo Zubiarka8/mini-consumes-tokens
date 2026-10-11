@@ -108,3 +108,8 @@ TOOL batch
 WHEN several known read-only queries at once: [{tool,args}], one result per [n] header.
 ERR no reindex/nested batch; a failed query is reported inline, the rest still run.
 TAGS batch, multiple, tokens-saving, composite
+
+TOOL select_tools
+WHEN first, with the user's request: narrows tools/list to the tools it needs.
+ERR picks, never runs; unclear request -> full list; all tools stay callable.
+TAGS attention, intent, selection, tokens-saving

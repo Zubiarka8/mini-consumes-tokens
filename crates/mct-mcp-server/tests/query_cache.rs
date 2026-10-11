@@ -134,6 +134,7 @@ fn options(cache: CacheConfig, model: &str) -> ServerOptions {
             queries: query_vectors(),
         })),
         shared_cache: None,
+        tool_attention: false,
     }
 }
 
