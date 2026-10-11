@@ -55,7 +55,7 @@ impl LanguageParser for BashParser {
             .set_language(&tree_sitter_bash::LANGUAGE.into())
             .expect("tree-sitter-bash grammar is statically valid");
 
-        let tree = parser
+        let mut tree = parser
             .parse(&file.contents, None)
             .ok_or_else(|| ParseError::Syntax {
                 path: file.relative_path.clone(),
@@ -63,6 +63,18 @@ impl LanguageParser for BashParser {
                 message: "tree-sitter produced no parse tree".to_string(),
             })?;
 
+        // tree-sitter-bash rejects literal semicolons in double-quoted
+        // ${name:+word}. Reparse that precise grammar gap with same-width
+        // word characters, retaining original source for extraction.
+        if tree.root_node().has_error() {
+            if let Some(contents) =
+                quoted_alternative_parse_buffer(tree.root_node(), &file.contents)
+            {
+                if let Some(reparsed) = parser.parse(&contents, None) {
+                    tree = reparsed;
+                }
+            }
+        }
         let root = tree.root_node();
         if root.has_error() {
             let error_node = first_error(root).unwrap_or(root);
@@ -92,6 +104,49 @@ impl LanguageParser for BashParser {
         walker.visit_children(root, module_id, &module_name, module_id, 0);
         Ok(walker.finish())
     }
+}
+
+/// Only repairs the observed grammar gap. The reparsed tree must still pass
+/// the normal syntax check, including errors in nested command substitutions.
+fn quoted_alternative_parse_buffer(root: Node, source: &str) -> Option<String> {
+    let mut bytes = source.as_bytes().to_vec();
+    let mut changed = false;
+    let mut pending = vec![(root, 0)];
+    while let Some((node, depth)) = pending.pop() {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            continue;
+        }
+        if node.is_error() && text(node, source) == ";" {
+            let concatenation = node.parent()?;
+            let expansion = concatenation.parent()?;
+            let string = expansion.parent()?;
+            let mut cursor = expansion.walk();
+            let has_alternative = expansion
+                .children(&mut cursor)
+                .any(|child| child.kind() == ":+");
+            if concatenation.kind() == "concatenation"
+                && expansion.kind() == "expansion"
+                && string.kind() == "string"
+                && has_alternative
+                && expansion.child(0).is_some_and(|child| child.kind() == "${")
+                && expansion
+                    .child(expansion.child_count().saturating_sub(1))
+                    .is_some_and(|child| child.kind() == "}" && !child.is_missing())
+            {
+                if let Some(byte) = bytes.get_mut(node.start_byte()) {
+                    *byte = b'_';
+                    changed = true;
+                }
+            }
+        }
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            if child.has_error() {
+                pending.push((child, depth + 1));
+            }
+        }
+    }
+    changed.then(|| String::from_utf8(bytes).ok()).flatten()
 }
 
 fn module_name_for(relative_path: &str) -> String {
