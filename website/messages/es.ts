@@ -42,27 +42,60 @@ const es: Record<keyof typeof en, string> = {
   query0: "¿Dónde se interpreta la petición y qué función la valida?",
   query1: "¿Qué ocurre cuando el servidor recibe una petición?",
   query2: "¿Dónde se rechazan los datos vacíos y quién usa esa comprobación?",
-  query3: "¿Cómo entra una petición en el servicio?",
-  query4: "¿Cómo se limpian los datos antes de validarlos?",
-  query5: "¿Dónde se construye la respuesta tras interpretar la petición?",
   role0: "Interpretar la petición",
   role1: "Procesar la petición",
   role2: "Validar los datos",
-  role3: "Dirigir las peticiones",
-  role4: "Limpiar los datos",
-  role5: "Construir la respuesta",
   purpose0:
     "El parser construye un Request y delega la validación. Su llamador y su dependencia explican dónde encaja en el recorrido de la petición.",
   purpose1:
     "El punto de entrada llama al parser y construye una respuesta. Seguir esa llamada lleva al código de interpretación y validación.",
   purpose2:
     "La validación normaliza los datos y rechaza un valor vacío. El llamador muestra cómo se llega a esta comprobación desde el parser.",
-  purpose3:
-    "El router entrega los datos al controlador del servidor. Aquí empieza el recorrido por la interpretación, la validación y la construcción de la respuesta.",
-  purpose4:
-    "La normalización elimina los espacios de los extremos y convierte los datos a minúsculas. La validación usa ese valor limpio para detectar datos vacíos.",
-  purpose5:
-    "El constructor envuelve la petición interpretada en una respuesta correcta. El servidor solo llega aquí si la interpretación y la validación terminan sin errores.",
+  tourHowText:
+    "Tree-sitter lee cada archivo compatible y extrae los símbolos y sus relaciones. Una base SQLite guarda ese grafo dentro de tu proyecto, y la indexación se ejecuta en tu equipo. El servidor MCP responde con esa base a las llamadas a herramientas del asistente. Mientras está activo, reindexa en segundo plano los archivos modificados cuando las ediciones llevan 1,5 segundos en pausa.",
+  tourOrientText:
+    "Empieza aquí cuando aún no conoces ningún nombre. Estas herramientas describen la estructura y el contenido de un proyecto sin abrir archivos completos.",
+  tourLookupText:
+    "Cada herramienta responde a una pregunta y devuelve ubicaciones como ruta:línea, no el contenido de los archivos. Los ejemplos usan request-service.",
+  tourCompositeText:
+    "Las herramientas compuestas combinan varias consultas en una sola respuesta. Las herramientas de relaciones aceptan además depth, para seguir llamadores de llamadores hasta 32 saltos, y offset, para paginar resultados largos.",
+  tourAdvancedText:
+    "Agrupa consultas, carga los esquemas de las herramientas solo cuando los necesites y mantén el índice al día.",
+  ask_get_file_tree: "¿Qué carpetas y archivos tiene el proyecto?",
+  ask_get_project_overview:
+    "¿Cuáles son las declaraciones más importantes de este archivo, carpeta o proyecto?",
+  ask_list_symbols:
+    "¿Qué se define en este archivo o carpeta, con su tipo y rango de líneas?",
+  ask_get_file_skeleton:
+    "¿Qué forma tiene este archivo sin el cuerpo de sus funciones?",
+  ask_find_symbol: "¿Dónde se define este símbolo?",
+  ask_find_callers: "¿Quién llama a esta función?",
+  ask_find_calls: "¿A qué llama esta función y dónde se define cada una?",
+  ask_find_references:
+    "¿Dónde se usa este símbolo: llamadas, importaciones, herencia?",
+  ask_search_symbols:
+    "Solo conozco parte del nombre. ¿Qué símbolos coinciden con estas palabras?",
+  ask_hybrid_search:
+    "Sé qué hace el código, no cómo se llama. ¿Qué coincide por significado? Sin un modelo de embeddings ordena solo por palabras.",
+  ask_impact_analysis:
+    "¿Qué puede romperse si cambio esto? Sus llamadores, todas sus referencias y las pruebas que parecen afectadas.",
+  ask_build_context_pack:
+    "Todo lo necesario antes de editar este símbolo: su definición, su comentario de documentación y su código, más cada llamador, llamada, dependencia y prueba relacionada, una sola vez. Además ahorra leer los archivos.",
+  ask_find_dead_code:
+    "¿Qué símbolos de primer nivel no tienen ninguna referencia en el índice? Una heurística para empezar, no una prueba.",
+  ask_batch:
+    "Varias consultas de solo lectura ya conocidas en una sola llamada, cada respuesta bajo su propio encabezado. No admite reindex ni batch anidados.",
+  ask_discover_tool_categories:
+    "¿Qué herramientas hay? Nombres y propósito en una línea, por categorías, sin esquemas de entrada.",
+  ask_get_tool_schema:
+    "¿Cuál es el esquema de entrada completo de una herramienta? Se carga solo cuando el cliente lo necesita.",
+  ask_reindex:
+    "Actualiza el índice ahora mismo. force vuelve a analizar todos los archivos, aunque no hayan cambiado.",
+  ask_get_indexing_status:
+    "¿Está sano el índice? Archivos y símbolos por lenguaje, última ejecución y errores de análisis.",
+  replaces: "En una llamada, en lugar de",
+  exampleOutput: "Ejemplo de salida",
+  toolsReference: "Consulta la referencia de herramientas MCP",
   atlas: "Atlas de código",
   illustration: "Repositorio ilustrativo, no un índice en vivo",
   graphAlt:
@@ -81,8 +114,16 @@ const es: Record<keyof typeof en, string> = {
     "La vista 3D no está disponible en este dispositivo. Puedes explorar el código y su contexto a continuación.",
   rotate: "Girar el atlas",
   resetView: "Restablecer vista",
-  viewDetail: "Ver detalle",
-  closeDetail: "Volver a la vista compacta",
+  fullscreen: "Pantalla completa",
+  exitFullscreen: "Salir de pantalla completa",
+  tourWhatTitle: "Tu agente consulta el mapa, no los archivos.",
+  tourWhatText:
+    "mini-consumes-tokens indexa tu repositorio en un grafo de símbolos (funciones, tipos, métodos) y de las llamadas e importaciones entre ellos. Un asistente de código conectado por MCP puede hacer preguntas precisas en vez de leer archivos completos.",
+  tourHowTitle: "Analizado, guardado y servido en tu equipo.",
+  tourOrientTitle: "Oriéntate.",
+  tourLookupTitle: "Haz una pregunta precisa.",
+  tourCompositeTitle: "Varias preguntas, una llamada.",
+  tourAdvancedTitle: "Trabaja a escala.",
   spatialHint:
     "Arrastra para girar · Desplázate para acercar · Elige un símbolo",
   mapNote: "Una pregunta. Las conexiones que importan.",
