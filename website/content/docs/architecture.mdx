@@ -66,7 +66,7 @@ Every `mct-lang-*` crate implements `LanguageParser` on top of a tree-sitter gra
 | `mct-lang-css` | tree-sitter-css | simple-selector rules, `@import` |
 | `mct-lang-xml` | tree-sitter-xml | structural only: elements with `id`/`name`; no relations |
 | `mct-lang-xaml` | tree-sitter-xml | `x:Name` elements; event handlers linked to the C# code-behind |
-| `mct-lang-md` | tree-sitter-md | headings as nested sections, frontmatter, wikilinks and embeds |
+| `mct-lang-md` | tree-sitter-md | note and nested heading symbols; frontmatter metadata; wikilink, embed and tag relations; prose literals for exact-phrase search |
 | `mct-lang-lua` | tree-sitter-lua | full symbols and relations |
 
 Per-language caveats are listed in [Known limitations](/docs/limitations).
