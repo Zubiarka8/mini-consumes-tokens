@@ -66,14 +66,14 @@ impl LanguageParser for HtmlParser {
         }
 
         let module_name = module_name_for(&file.relative_path);
-        let mut walker = Walker::new(&file.contents);
+        let mut walker = Walker::new(&file.contents, &file.relative_path);
         let module_id =
             walker.push_symbol(module_name, SymbolKind::Module, module_location(root), None);
         walker.visit_children(root, module_id, None, 0);
         let mut parsed = walker.finish();
         // An id/class reference names a CSS rule: the one cross-language
         // link spelling alone must not make, so it is stated explicitly.
-        parsed.relation_targets = parsed
+        let references = parsed
             .relations
             .iter()
             .enumerate()
@@ -86,7 +86,8 @@ impl LanguageParser for HtmlParser {
                 language: Some("css".to_string()),
                 ..Default::default()
             })
-            .collect();
+            .collect::<Vec<_>>();
+        parsed.relation_targets.extend(references);
         Ok(parsed)
     }
 }
@@ -121,13 +122,19 @@ struct Walker<'a> {
     source: &'a str,
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
+    /// Evidence for the `Imports` relations of linked stylesheets/scripts.
+    relation_targets: Vec<RelationTarget>,
+    /// This file's repository-relative path, the base of relative links.
+    path: &'a str,
     next_id: SymbolId,
 }
 
 impl<'a> Walker<'a> {
-    fn new(source: &'a str) -> Self {
+    fn new(source: &'a str, path: &'a str) -> Self {
         Self {
             source,
+            path,
+            relation_targets: Vec::new(),
             symbols: Vec::new(),
             relations: Vec::new(),
             next_id: 0,
@@ -275,21 +282,11 @@ impl<'a> Walker<'a> {
             && attr("rel").is_some_and(|(r, _)| r.eq_ignore_ascii_case("stylesheet"))
         {
             if let Some((href, href_node)) = attr("href").filter(|(h, _)| !h.is_empty()) {
-                self.push_relation(
-                    new_owner,
-                    RelationKind::Imports,
-                    href.to_string(),
-                    location(href_node),
-                );
+                self.push_asset_import(new_owner, href, location(href_node));
             }
         } else if tag_name.eq_ignore_ascii_case("script") {
             if let Some((src, src_node)) = attr("src").filter(|(s, _)| !s.is_empty()) {
-                self.push_relation(
-                    new_owner,
-                    RelationKind::Imports,
-                    src.to_string(),
-                    location(src_node),
-                );
+                self.push_asset_import(new_owner, src, location(src_node));
             }
         }
 
@@ -300,9 +297,62 @@ impl<'a> Walker<'a> {
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
+            relation_targets: self.relation_targets,
             ..Default::default()
         }
     }
+
+    /// Records a linked asset (`<link href>` / `<script src>`): the plain
+    /// path relation, marked external for an absolute URL, plus — for a local
+    /// `.css`/`.js` file — an `Imports` relation to that file's `Module`
+    /// symbol, pinned to its exact path and language.
+    fn push_asset_import(&mut self, owner: SymbolId, spec: &str, loc: Location) {
+        self.push_relation(owner, RelationKind::Imports, spec.to_string(), loc);
+        let plain = self.relations.len().checked_sub(1);
+        if spec.starts_with("//") || spec.contains("://") {
+            if let Some(relation) = plain {
+                self.relation_targets.push(RelationTarget {
+                    relation,
+                    external: true,
+                    ..Default::default()
+                });
+            }
+            return;
+        }
+        let Some((name, language)) = asset_module(spec) else {
+            return;
+        };
+        let local = if spec.starts_with('/') || spec.starts_with("./") || spec.starts_with("../") {
+            spec.to_string()
+        } else {
+            format!("./{spec}")
+        };
+        let Some(resolved) = mct_core::resolve_reference_path(self.path, &local) else {
+            return;
+        };
+        let relation = self.relations.len();
+        self.push_relation(owner, RelationKind::Imports, name, loc);
+        self.relation_targets.push(RelationTarget {
+            relation,
+            path: Some(resolved),
+            kind: Some(SymbolKind::Module),
+            language: Some(language.to_string()),
+            ..Default::default()
+        });
+    }
+}
+
+/// The module name and language id of a linked local asset file, from its
+/// extension (the name the target file's `Module` symbol carries), or `None`
+/// for any other file type or a query/fragment-only link.
+fn asset_module(spec: &str) -> Option<(String, &'static str)> {
+    let file = spec.split(['?', '#']).next()?.rsplit('/').next()?;
+    let js = [".tsx", ".mts", ".cts", ".ts", ".jsx", ".mjs", ".cjs", ".js"]
+        .iter()
+        .find_map(|ext| file.strip_suffix(ext))
+        .map(|stem| (stem, "javascript_typescript"));
+    let (stem, language) = file.strip_suffix(".css").map(|stem| (stem, "css")).or(js)?;
+    (!stem.is_empty()).then(|| (stem.to_string(), language))
 }
 
 fn find_child<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
