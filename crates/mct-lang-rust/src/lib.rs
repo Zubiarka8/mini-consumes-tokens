@@ -538,6 +538,7 @@ impl<'a> Walker<'a> {
             relations: self.relations,
             literals: self.literals.finish(),
             relation_targets: self.relation_targets,
+            ..Default::default()
         }
     }
 }
