@@ -27,7 +27,7 @@ The tasks run against this repository at the commit pinned in `tasks.json`. They
 
 Tasks 1–5 are graded on the final `ANSWER:` line with the regular expressions in `tasks.json`. This uses the `expect`/`absent` scoring of `mct-eval`: a wrong hit zeroes the score. Task 5 also fails if the agent edits the file. Task 6 is graded by running `cargo test -p mct-core --lib`, and fails if the `#[cfg(test)]` block was edited.
 
-The ground truth for tasks 2 and 4 comes from the compiler, not from the MCP server. Each method was marked `#[deprecated]` in a scratch copy, and every warning from `cargo check --workspace --all-targets` was recorded. This matters for interpreting results: at this commit, `find_callers for_extension` returns 3 of the 5 real call sites. It misses `crates/mct-cli/src/main.rs:731` and `:732`, which are inside `assert_eq!` arguments (see [Calls inside macros](#calls-inside-macros)). Task 2 can therefore show the MCP server misleading the agent.
+The ground truth for tasks 2 and 4 comes from the compiler, not from the MCP server. Each method was marked `#[deprecated]` in a scratch copy, and every warning from `cargo check --workspace --all-targets` was recorded. This matters for interpreting results: at this commit, `find_callers for_extension` returns 3 of the 5 real call sites. It misses `crates/mct-cli/src/main.rs:731` and `:732` (line numbers as of the pinned commit `c06ab5c`; the file has changed since), which are inside `assert_eq!` arguments (see [Calls inside macros](#calls-inside-macros)). Task 2 can therefore show the MCP server misleading the agent.
 
 ## Calls inside macros
 
