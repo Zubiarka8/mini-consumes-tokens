@@ -1,6 +1,6 @@
 ---
 title: MCP tools
-description: The 18 tools the server gives your AI client, grouped by what they answer.
+description: The 19 tools the server gives your AI client, grouped by what they answer.
 ---
 
 Your AI client calls these tools itself; you don't type them. This page tells you what each one answers, so you know what to ask for and can read the results.
@@ -14,6 +14,7 @@ Your AI client calls these tools itself; you don't type them. This page tells yo
 | Where is `X` defined? | [`find_symbol`](#find_symbol) |
 | I know part of a function or type name | [`search_symbols`](#search_symbols) |
 | I know what I want the code to do, but not its name | [`hybrid_search`](#hybrid_search) |
+| I want only embedding similarity, without name matching | [`semantic_search`](#semantic_search) |
 | Who calls this function? | [`find_callers`](#find_callers) |
 | What does this function call? | [`find_calls`](#find_calls) |
 | Where is `X` used at all (calls, imports, inheritance)? | [`find_references`](#find_references) |
@@ -36,7 +37,7 @@ Your AI client calls these tools itself; you don't type them. This page tells yo
 
 Names are matched **exactly** (case-sensitive) unless the tool says otherwise. An empty name is rejected.
 
-Every tool response is capped at 24,000 bytes. If a result list is shortened, the response says how many entries were shown and how many were omitted; use `limit` and `offset` to page through the remaining results.
+Result-list renderers use a 24,000-byte body budget and report omitted entries. Headers and notices are additional, so this is not a hard cap on the whole response. Use `limit` (or `top_k`) and `offset` where the tool supports paging; `list_symbols` has no `offset`, so narrow `path` or `kind` for a large listing.
 
 ## Discovery
 
@@ -50,7 +51,7 @@ A short, ranked summary of a project, folder or file: the most important declara
 
 Every definition in a file or folder: name, kind and line range. Use it when you don't know a name yet.
 
-- `path` (required), `kind` (`function`, `method`, `class`, `struct`, `interface`, `enum`, `trait`, `type_alias`, `module`, `variable`, `constant`, `field`, `element`, `rule`, `model_node`, `material`, `animation`, `finding`), `language`, `limit`, `format`.
+- `path` (required), `kind` (`function`, `method`, `class`, `struct`, `interface`, `enum`, `trait`, `type_alias`, `module`, `variable`, `constant`, `field`, `element`, `rule`, `asset`, `model_node`, `material`, `animation`, `finding`), `language`, `limit`, `format`.
 
 ```text
 crates/mct-core/src/lib.rs:77-93 [rust] trait LanguageParser
@@ -93,11 +94,19 @@ Ranked search by words when you know part of a function or type name. `parse req
 
 Search for functionality by describing its behavior in plain language. For example, `load config from disk` can find a symbol named `read_settings`, even though the names don't share those words. It combines `search_symbols` with an embedding model, so it is useful when you don't know the symbol name yet. Results are ranked candidates, not an exhaustive inventory; use `build_context_pack` on a promising hit to inspect its definition and related code.
 
-- `query` (required). Put it in double quotes (`"parse request"`) for an exact phrase; quoted queries use lexical matching and also list indexed prose literals containing the phrase. These include Rust string literals and Markdown paragraphs and table rows. Markdown headings are symbols; frontmatter and code blocks are excluded. A literal must contain at least eight characters and two words, and suspected secrets are filtered out.
+- `query` (required). Put it in double quotes (`"parse request"`) for an exact phrase; quoted queries use lexical matching regardless of `alpha` and also list indexed prose literals containing the phrase. These include Rust string literals and Markdown paragraphs and table rows. Markdown headings are symbols; frontmatter and code blocks are excluded from prose literals. A literal must contain at least eight characters and two words containing letters, and suspected secrets are filtered out.
 - `alpha`: `0` = words only, `1` = meaning only. If you omit it, it is picked from the query: 0.1 for an identifier, 0.75 for a plain sentence, 0.5 otherwise.
 - `top_k` (default 10, max 100), `offset`, `path`, `language`, `snippet_lines`, `format`, `cache`.
 - Quoted exact-phrase searches are lexical and work without the optional semantic feature. Other searches use embeddings when the server was built with `--features semantic`; without that feature, the tool falls back to words only and says so. The default model is downloaded on first use; `MCT_EMBEDDING_MODEL` selects another model.
 - Set `cache: false` on a query to skip cached replies and always get the full result.
+
+### `semantic_search` [#semantic_search]
+
+Ranked search by embedding cosine similarity, without lexical name matching. Results include each symbol's signature and similarity score.
+
+- `query` (required), `top_k` (default 10, clamped to 1–100), `path`, `language`.
+- Requires a server built with `--features semantic` and an available embedding model. If the model is unavailable, it returns a note suggesting `search_symbols` or `hybrid_search`.
+- It does not accept `offset`, `format`, `snippet_lines` or `cache`.
 
 ## Relations
 
