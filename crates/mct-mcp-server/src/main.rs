@@ -2,22 +2,39 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use clap::Parser;
+use mct_mcp_server::reindex_delay::{parse_reindex_delay_arg, ReindexDelay};
 use mct_mcp_server::{background, registry, server, session_compat};
 use rmcp::{transport::stdio, ServiceExt};
 
 /// mini-consumes-tokens: MCP server exposing an AST-derived symbol graph of
 /// this repository (find_symbol, find_references, find_calls, find_callers).
 #[derive(Parser, Debug)]
+#[command(
+    after_help = "Examples:\n  --reindex-delay 30s     update the index after 30s without file changes\n  --reindex-delay 2m      custom delay (<N>s, <N>m or <N>ms)\n  --reindex-delay off     disable automatic updates"
+)]
 struct Args {
     /// Project root to index. Defaults to the current working directory.
     #[arg(long)]
     root: Option<PathBuf>,
 
     /// Milliseconds of quiet time required after the last detected file
-    /// write before auto-reindexing. 0 disables the background watcher
-    /// entirely, restoring the previous startup-only behavior.
-    #[arg(long, default_value_t = 1500)]
-    reindex_debounce_ms: u64,
+    /// write before auto-reindexing (default 1500). 0 disables the background
+    /// watcher entirely, restoring the previous startup-only behavior.
+    /// Conflicts with --reindex-delay.
+    #[arg(long, conflicts_with = "reindex_delay")]
+    reindex_debounce_ms: Option<u64>,
+
+    /// Quiet time without file changes before the index updates itself.
+    /// Presets: 15s, 30s, 45s, 1m. Custom: <N>s, <N>m or <N>ms (N > 0), e.g.
+    /// 90s, 2m, 500ms. 'off' disables automatic updates. Conflicts with
+    /// --reindex-debounce-ms.
+    #[arg(
+        long,
+        value_name = "VALUE",
+        value_parser = parse_reindex_delay_arg,
+        conflicts_with = "reindex_debounce_ms"
+    )]
+    reindex_delay: Option<ReindexDelay>,
 
     /// Reindex, drop every stored embedding, re-embed every symbol with the
     /// build's model (`--features semantic`), then exit without serving.
@@ -77,14 +94,21 @@ async fn main() -> anyhow::Result<()> {
     let server = server::MctServer::new(index, language_registry);
 
     // Kept alive for the process's lifetime: dropping it would stop the
-    // watch. `None` means the watcher is disabled (--reindex-debounce-ms 0).
-    let _watcher = if args.reindex_debounce_ms > 0 {
+    // watch. `None` means the watcher is disabled (--reindex-debounce-ms 0
+    // or --reindex-delay off).
+    let debounce = match (args.reindex_delay, args.reindex_debounce_ms) {
+        (Some(ReindexDelay(delay)), _) => delay,
+        (None, Some(0)) => None,
+        (None, Some(ms)) => Some(Duration::from_millis(ms)),
+        (None, None) => Some(Duration::from_millis(1500)),
+    };
+    let _watcher = if let Some(debounce) = debounce {
         match background::spawn_watcher(
             server.index_handle(),
             server.registry_handle(),
             watch_root,
             exclude,
-            Duration::from_millis(args.reindex_debounce_ms),
+            debounce,
         ) {
             Ok(watcher) => Some(watcher),
             Err(err) => {
