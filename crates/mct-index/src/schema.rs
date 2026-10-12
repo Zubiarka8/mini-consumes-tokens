@@ -314,6 +314,83 @@ pub fn migrations() -> Migrations<'static> {
             UPDATE files SET content_hash = '';
             "#,
         ),
+        // Parser-declared aliases (issue #135). Start empty: legacy relation
+        // names cannot prove alias declarations. Reparse once after migration.
+        M::up(
+            r#"
+            CREATE TABLE symbol_aliases (
+                symbol_id INTEGER NOT NULL REFERENCES symbols(id) ON DELETE CASCADE,
+                alias TEXT NOT NULL,
+                PRIMARY KEY (symbol_id, alias)
+            );
+            CREATE INDEX idx_symbol_aliases_alias ON symbol_aliases(alias);
+
+            CREATE VIEW relation_scope_candidates AS
+                SELECT r.id AS relation_id, m.id AS symbol_id
+                FROM relations r
+                JOIN symbols caller ON caller.id = r.from_symbol_id
+                JOIN files cf ON cf.id = caller.file_id
+                JOIN symbols m ON m.id IN (
+                    SELECT id FROM symbols WHERE name = r.target_module
+                    UNION
+                    SELECT symbol_id FROM symbol_aliases WHERE alias = r.target_module
+                )
+                JOIN files mf ON mf.id = m.file_id
+                WHERE r.targets_parsed = 1 AND r.external = 0
+                  AND r.target_module IS NOT NULL AND r.target_path IS NULL
+                  AND m.kind = 'module'
+                  AND mf.language = COALESCE(r.target_language, cf.language);
+
+            DROP VIEW relation_candidates;
+            CREATE VIEW relation_candidates AS
+                SELECT r.id AS relation_id, s.id AS symbol_id
+                FROM relations r
+                JOIN symbols caller ON caller.id = r.from_symbol_id
+                JOIN files cf ON cf.id = caller.file_id
+                JOIN symbols s ON s.id IN (
+                    SELECT id FROM symbols WHERE name = r.to_name
+                      AND (SELECT COUNT(*) FROM relation_scope_candidates sc
+                           WHERE sc.relation_id = r.id) <= 1
+                    UNION
+                    SELECT symbol_id FROM symbol_aliases
+                    WHERE alias = r.to_name AND r.target_kind = 'module'
+                      AND r.target_path IS NULL
+                    UNION
+                    SELECT symbol_id FROM relation_scope_candidates sc
+                    WHERE sc.relation_id = r.id
+                      AND (SELECT COUNT(*) FROM relation_scope_candidates scopes
+                           WHERE scopes.relation_id = r.id) > 1
+                )
+                JOIN files sf ON sf.id = s.file_id
+                WHERE r.targets_parsed = 1
+                  AND r.external = 0
+                  AND sf.language = COALESCE(r.target_language, cf.language)
+                  AND (r.qualifier IS NULL
+                       OR s.parent = r.qualifier
+                       OR substr(s.parent, 1, length(r.qualifier) + 1) = r.qualifier || '<')
+                  AND (r.target_path IS NULL OR sf.relative_path = r.target_path)
+                  AND (r.module IS NULL
+                       OR s.parent = r.module
+                       OR instr('/' || replace(sf.relative_path, '-', '_'), '/' || r.module || '/') > 0
+                       OR instr('/' || replace(sf.relative_path, '-', '_'), '/' || r.module || '.') > 0)
+                  AND (r.member = 0 OR s.kind = 'method')
+                  AND (r.target_kind IS NULL OR s.kind = r.target_kind
+                       OR (EXISTS (SELECT 1 FROM relation_scope_candidates sc
+                                   WHERE sc.relation_id = r.id AND sc.symbol_id = s.id)
+                           AND (SELECT COUNT(*) FROM relation_scope_candidates scopes
+                                WHERE scopes.relation_id = r.id) > 1))
+                  AND (r.target_module IS NULL
+                       OR EXISTS (SELECT 1 FROM symbols m
+                                  WHERE m.file_id = s.file_id AND m.kind = 'module'
+                                    AND (m.name = r.target_module
+                                         OR EXISTS (SELECT 1 FROM symbol_aliases a
+                                                    WHERE a.symbol_id = m.id
+                                                      AND a.alias = r.target_module))))
+                  AND NOT (r.kind = 'calls' AND s.kind = 'module');
+
+            UPDATE files SET content_hash = '';
+            "#,
+        ),
     ])
 }
 
@@ -322,6 +399,37 @@ mod tests {
     use rusqlite::Connection;
 
     use super::migrations;
+
+    #[test]
+    fn alias_migration_reparses_without_inventing_legacy_aliases(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let mut conn = Connection::open_in_memory()?;
+        crate::search::register_functions(&conn)?;
+        migrations().to_version(&mut conn, 10)?;
+        conn.execute_batch(
+            "INSERT INTO files (id, relative_path, language, content_hash, last_indexed_at)
+                 VALUES (1, 'Other.md', 'markdown', 'old-hash', 0);
+             INSERT INTO symbols (id, file_id, name, kind, line, column, byte_len)
+                 VALUES (1, 1, 'Other', 'module', 1, 1, 1), (2, 1, 'Alpha', 'element', 2, 1, 1);
+             INSERT INTO relations (from_symbol_id, kind, to_name, line, column, byte_len)
+                 VALUES (1, 'references', 'alias:Alpha', 1, 1, 0),
+                        (1, 'references', 'Alpha', 3, 1, 1);",
+        )?;
+        migrations().to_latest(&mut conn)?;
+        let aliases: i64 =
+            conn.query_row("SELECT COUNT(*) FROM symbol_aliases", [], |r| r.get(0))?;
+        let candidates: i64 =
+            conn.query_row("SELECT COUNT(*) FROM relation_candidates", [], |r| r.get(0))?;
+        assert_eq!(aliases, 0);
+        assert_eq!(candidates, 0);
+        let hash: String = conn.query_row("SELECT content_hash FROM files", [], |r| r.get(0))?;
+        assert_eq!(hash, "");
+        conn.execute("UPDATE files SET content_hash = 'reparsed'", [])?;
+        migrations().to_latest(&mut conn)?;
+        let hash: String = conn.query_row("SELECT content_hash FROM files", [], |r| r.get(0))?;
+        assert_eq!(hash, "reparsed", "hash invalidation runs only once");
+        Ok(())
+    }
 
     /// The literals migration forces a full re-parse of an existing index.
     #[test]
