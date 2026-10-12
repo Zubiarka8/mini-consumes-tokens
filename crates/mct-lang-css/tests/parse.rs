@@ -249,8 +249,8 @@ fn nesting_resolves_parents_and_keeps_source_ranges() {
         ".b:hover",
         ".a .title",
         ".b .title",
-        ".a .title:focus",
-        ".b .title:focus",
+        ":is(.a .title):focus",
+        ":is(.b .title):focus",
     ] {
         assert!(names.contains(&expected), "missing {expected}: {names:?}");
     }
@@ -327,9 +327,9 @@ fn deep_nesting_resolves_through_every_level() {
     let names = rule_names(&parsed);
     for expected in [
         ".a .b",
-        ".a .b:hover",
-        ".a .b:hover .c",
-        ".a .b:hover .c > .d",
+        ":is(.a .b):hover",
+        ":is(.a .b):hover .c",
+        ":is(:is(.a .b):hover .c) > .d",
     ] {
         assert!(names.contains(&expected), "missing {expected}: {names:?}");
     }
@@ -471,10 +471,10 @@ fn repeated_ampersands_combine_across_nesting_levels() {
     assert_eq!(
         full_names_with(&parsed, " ~ "),
         [
-            ".a .c ~ .a .c:hover",
-            ".a .c ~ .b .c:hover",
-            ".b .c ~ .a .c:hover",
-            ".b .c ~ .b .c:hover",
+            ":is(.a .c) ~ :is(.a .c):hover",
+            ":is(.a .c) ~ :is(.b .c):hover",
+            ":is(.b .c) ~ :is(.a .c):hover",
+            ":is(.b .c) ~ :is(.b .c):hover",
         ]
     );
     // A third `&` takes the full product as well: 2^3 names.
@@ -492,4 +492,38 @@ fn several_children_with_several_parents_expand_per_selector() {
     ] {
         assert!(names.contains(&expected), "missing {expected}: {names:?}");
     }
+}
+
+#[test]
+fn leading_combinator_implies_a_parent_even_with_an_explicit_ampersand() {
+    let parsed = parse(".a, .b { + .next + & {} }");
+    assert_eq!(
+        full_names_with(&parsed, " + .next + "),
+        [
+            ".a + .next + .a",
+            ".a + .next + .b",
+            ".b + .next + .a",
+            ".b + .next + .b",
+        ]
+    );
+}
+
+#[test]
+fn complex_parents_are_grouped_per_parent_when_replacing_ampersands() {
+    // CSS Nesting §4 substitutes :is(parent). Without grouping, the second
+    // `.a .b` would introduce another descendant chain after the sibling.
+    let parsed = parse(".a .b[x], .c > .d { & + & {} }");
+    assert_eq!(
+        full_names_with(&parsed, " + "),
+        [
+            ":is(.a .b[x]) + :is(.a .b[x])",
+            ":is(.a .b[x]) + :is(.c > .d)",
+            ":is(.c > .d) + :is(.a .b[x])",
+            ":is(.c > .d) + :is(.c > .d)",
+        ]
+    );
+    // A combinator inside a function does not make the outer selector
+    // complex: preserve the existing simple-parent spelling.
+    let parsed = parse(".a:is(.x .y) { &:hover {} }");
+    assert!(rule_names(&parsed).contains(&".a:is(.x .y):hover"));
 }

@@ -964,7 +964,7 @@ S 216-218 rule .hb-input[aria-invalid="true"]
 S 221-236 rule .hb-nav
 S 225-231 rule .hb-nav a
 S 225-225 rule a
-S 228-230 rule .hb-nav a:hover
+S 228-230 rule :is(.hb-nav a):hover
 S 243-254 rule .prose-harbor
 S 256-268 rule .hero
 S 265-267 rule .hero:hover

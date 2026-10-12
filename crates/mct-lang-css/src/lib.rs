@@ -35,6 +35,10 @@
 //! combination, never a `:is()` list: one per (child, parent) pair, and with
 //! several `&` in one selector every `&` takes every parent independently
 //! (`.a, .b { & + & {} }` is `.a + .a`, `.a + .b`, `.b + .a`, `.b + .b`). A
+//! complex parent is grouped individually as `:is(.a .b)` when replacing
+//! `&`, preserving its matched element. A leading combinator implies another
+//! parent even when the selector also contains `&` (`.a { + .b + & {} }`
+//! resolves to `.a + .b + .a`). Specificity is not modeled. A
 //! resolved selector written with `&` is indexed under its resolved names
 //! only, never also as the literal `&…`; one written without `&` also keeps
 //! its name as written. The parent context crosses any at-rule block
@@ -60,8 +64,9 @@ use std::collections::HashSet;
 use tree_sitter::{Node, Parser};
 
 /// The most resolved names one nested rule may expand to: the sum, over its
-/// selectors, of the parent count raised to the selector's `&` count (one
-/// for a selector without `&`). Exactly this many is expanded; one more and
+/// selectors, of the parent count raised to the selector's `&` count plus
+/// any implicit leading parent (one for a selector without `&`). Exactly
+/// this many is expanded; one more and
 /// the rule is indexed unexpanded, with [`UNEXPANDED_MARKER`].
 const MAX_RESOLVED_SELECTORS_PER_RULE: usize = 256;
 
@@ -158,7 +163,7 @@ enum Parents<'p> {
     /// `@scope`'s or `@utility`'s) whose `&` is not a parent selector.
     Root,
     /// The enclosing rule's resolved selectors (never empty).
-    Resolved(&'p [String]),
+    Resolved(&'p [ParentSelector]),
     /// An enclosing rule had no parent for its `&`: names here are indexed
     /// as written.
     Unresolved,
@@ -169,9 +174,15 @@ enum Parents<'p> {
 
 /// What a rule passes down to the rules nested in it.
 enum Inner {
-    Resolved(Vec<String>),
+    Resolved(Vec<ParentSelector>),
     Unresolved,
     Unexpanded,
+}
+
+struct ParentSelector {
+    name: String,
+    /// A combinator outside a function requires grouping when used as `&`.
+    complex: bool,
 }
 
 /// Why a nested selector was indexed without being expanded.
@@ -210,6 +221,8 @@ struct SelectorParts {
     amps: Vec<usize>,
     /// `false` when the depth guard stopped the search for `&` nodes.
     complete: bool,
+    relative: bool,
+    complex: bool,
 }
 
 impl SelectorParts {
@@ -224,21 +237,22 @@ impl SelectorParts {
         if self.amps.is_empty() {
             return Some(parents);
         }
-        parents.checked_pow(u32::try_from(self.amps.len()).ok()?)
+        let slots = self.amps.len() + usize::from(self.relative);
+        parents.checked_pow(u32::try_from(slots).ok()?)
     }
 
     /// Total length of every name this selector resolves to against
-    /// `parents`, or `None` on overflow. With `k` `&` and `p` parents of total
-    /// length `s`, each parent fills each `&` in `p^(k-1)` of the `p^k`
-    /// names.
-    fn resolved_bytes(&self, parents: &[String]) -> Option<usize> {
+    /// `parents`, or `None` on overflow. Each parent fills each explicit or
+    /// implied parent slot equally often; complex explicit parents include
+    /// the length of their `:is()` grouping.
+    fn resolved_bytes(&self, parents: &[ParentSelector]) -> Option<usize> {
         let own = self
             .pieces
             .iter()
             .try_fold(0usize, |sum, piece| sum.checked_add(piece.len()))?;
         let parent_bytes = parents
             .iter()
-            .try_fold(0usize, |sum, parent| sum.checked_add(parent.len()))?;
+            .try_fold(0usize, |sum, parent| sum.checked_add(parent.name.len()))?;
         let count = self.expansion_count(parents.len())?;
         if self.amps.is_empty() {
             return count
@@ -246,30 +260,53 @@ impl SelectorParts {
                 .checked_add(parent_bytes);
         }
         let per_parent = count / parents.len().max(1);
+        let grouped_bytes = parents.iter().try_fold(0usize, |sum, parent| {
+            sum.checked_add(parent.name.len())?
+                .checked_add(if parent.complex { 5 } else { 0 })
+        })?;
         let fills = per_parent
             .checked_mul(self.amps.len())?
-            .checked_mul(parent_bytes)?;
-        count.checked_mul(own)?.checked_add(fills)
+            .checked_mul(grouped_bytes)?;
+        let prefix = if self.relative {
+            per_parent.checked_mul(parent_bytes)?.checked_add(count)?
+        } else {
+            0
+        };
+        count
+            .checked_mul(own)?
+            .checked_add(fills)?
+            .checked_add(prefix)
     }
 
     /// Every name this selector resolves to against the non-empty `parents`,
     /// in source order of the parents with the last `&` varying fastest.
-    fn resolve(&self, parents: &[String]) -> Vec<String> {
+    fn resolve(&self, parents: &[ParentSelector]) -> Vec<String> {
         if self.amps.is_empty() {
             let own = self.pieces.concat();
             return parents
                 .iter()
-                .map(|parent| format!("{parent} {own}"))
+                .map(|parent| format!("{} {own}", parent.name))
                 .collect();
         }
-        let mut choice = vec![0usize; self.amps.len()];
+        let offset = usize::from(self.relative);
+        let mut choice = vec![0usize; self.amps.len() + offset];
         let mut names = Vec::new();
         loop {
             let mut name = String::new();
+            if self.relative {
+                name.push_str(&parents[choice[0]].name);
+                name.push(' ');
+            }
             for (i, piece) in self.pieces.iter().enumerate() {
                 name.push_str(piece);
-                if let Some(parent) = choice.get(i).and_then(|&c| parents.get(c)) {
-                    name.push_str(parent);
+                if let Some(parent) = choice.get(i + offset).and_then(|&c| parents.get(c)) {
+                    if parent.complex {
+                        name.push_str(":is(");
+                        name.push_str(&parent.name);
+                        name.push(')');
+                    } else {
+                        name.push_str(&parent.name);
+                    }
                 }
             }
             names.push(name);
@@ -408,7 +445,15 @@ impl<'a> Walker<'a> {
                         .iter()
                         .all(|part| part.complete && part.amps.is_empty());
                 return if resolvable {
-                    Inner::Resolved(parts.iter().map(SelectorParts::literal).collect())
+                    Inner::Resolved(
+                        parts
+                            .iter()
+                            .map(|part| ParentSelector {
+                                name: part.literal(),
+                                complex: part.complex,
+                            })
+                            .collect(),
+                    )
                 } else {
                     Inner::Unresolved
                 };
@@ -418,7 +463,10 @@ impl<'a> Walker<'a> {
             Ok(per_selector) => {
                 let mut all = Vec::new();
                 for ((node, part), mut names) in nodes.iter().zip(&parts).zip(per_selector) {
-                    all.extend(names.iter().cloned());
+                    all.extend(names.iter().cloned().map(|name| ParentSelector {
+                        name,
+                        complex: part.complex || part.amps.is_empty() || part.relative,
+                    }));
                     if part.amps.is_empty() {
                         names.push(part.literal());
                     }
@@ -447,7 +495,7 @@ impl<'a> Walker<'a> {
     /// before any name is built.
     fn resolve_nested(
         &mut self,
-        parents: &[String],
+        parents: &[ParentSelector],
         parts: &[SelectorParts],
     ) -> Result<Vec<Vec<String>>, Unexpanded> {
         if !parts.iter().all(|part| part.complete) {
@@ -580,6 +628,41 @@ fn selector_parts(selector: Node, source: &str, depth: u32) -> SelectorParts {
         pieces,
         amps: amps.into_iter().map(|(start, _)| start).collect(),
         complete,
+        relative: starts_with_combinator(selector),
+        complex: has_outer_combinator(selector, 0),
+    }
+}
+
+fn starts_with_combinator(mut node: Node) -> bool {
+    for _ in 0..MAX_TRAVERSAL_DEPTH {
+        if matches!(node.kind(), ">" | "+" | "~" | "||") {
+            return true;
+        }
+        let Some(first) = node.child(0) else {
+            return false;
+        };
+        node = first;
+    }
+    false
+}
+
+fn has_outer_combinator(node: Node, depth: u32) -> bool {
+    if depth >= MAX_TRAVERSAL_DEPTH {
+        return true;
+    }
+    match node.kind() {
+        "descendant_selector"
+        | "child_selector"
+        | "sibling_selector"
+        | "adjacent_sibling_selector" => true,
+        "arguments" | "call_expression" => false,
+        _ => {
+            let mut cursor = node.walk();
+            let complex = node
+                .named_children(&mut cursor)
+                .any(|child| has_outer_combinator(child, depth + 1));
+            complex
+        }
     }
 }
 
@@ -858,6 +941,25 @@ mod nesting_limit_tests {
         // One more selector makes 257: the whole rule stays unexpanded.
         let src = format!(".p0, .p1 {{ {amps}, &.x {{ .leaf {{}} }} }}");
         assert_unexpanded(&src, &[&amps, "&.x"]);
+    }
+
+    #[test]
+    fn leading_combinator_counts_its_implicit_parent_against_the_limit() {
+        // Seven explicit parents plus the implied leading one: 2^8 names.
+        let at = format!("+ .next + {}", ["&"; 7].join(" + "));
+        let names = rule_names(&format!(".p0, .p1 {{ {at} {{}} }}"));
+        assert_eq!(
+            names
+                .iter()
+                .filter(|name| name.contains(" + .next + "))
+                .count(),
+            MAX
+        );
+        assert!(!names.iter().any(|name| name.contains(UNEXPANDED_MARKER)));
+        let over = format!("+ .next + {}", ["&"; 8].join(" + "));
+        let names = rule_names(&format!(".p0, .p1 {{ {over} {{}} }}"));
+        assert!(names.contains(&over_limit(&over)));
+        assert!(!names.iter().any(|name| name.starts_with(".p0 + .next")));
     }
 
     #[test]

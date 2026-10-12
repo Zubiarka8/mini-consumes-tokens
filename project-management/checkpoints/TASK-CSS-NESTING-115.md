@@ -1,5 +1,30 @@
 # TASK-CSS-NESTING-115 checkpoint
 
+## Final recovery review (2026-10-12)
+
+Branch/worktree: `codex/review-css-115-final` / `mct-review-css-115-final`.
+Review base: `a3e10b0f450a93107061152feb862a1d242820a1`; recovery starts at `e3f7ca9`.
+Status: focused review and fixes complete; pending coordinator review and combined workspace verification.
+
+Two additional correctness findings were fixed against the [CSS Nesting specification](https://drafts.csswg.org/css-nesting-1/#nest-selector):
+
+- A leading combinator implies an initial parent even when explicit `&` occurs later. `.a, .b { + .next + & {} }` now produces all four combinations. This implicit slot participates in the 256-name cap and byte budget.
+- Complex parents require grouping when replacing `&`: `.a .b { & + & {} }` resolves to `:is(.a .b) + :is(.a .b)`, rather than a different descendant/sibling chain. Each parent still gets a separate expansion, never a grouped parent list. Simple-parent names such as `.a:hover` are preserved. Complexity is determined from AST combinators outside function arguments; strings and escaped ampersands remain unaffected.
+
+Regression checks: the leading-combinator test failed before the fix (zero of the four expected names). Added focused complex-parent/function-argument and implicit-slot limit coverage. Existing deep-nesting and Tailwind expectations now use individual complex-parent grouping. The regenerated corpus changes exactly one symbol spelling: `.hb-nav a:hover` to `:is(.hb-nav a):hover`.
+
+Independent checks on the recovered result:
+
+- `cargo test --offline -p mct-lang-css`: 71 passed, 0 failed, 1 ignored (11 unit, 14 corpus, 6 integration, 40 parse; corpus report intentionally ignored).
+- `cargo clippy --offline -p mct-lang-css --all-targets -- -D warnings -D clippy::unwrap_used -D clippy::expect_used -D clippy::panic`: exit 0.
+- `cargo fmt --all --check` and `git diff --check`: exit 0.
+
+The website CSS limitation now documents actual selector indexing, bounded nesting expansion, and the grammar limitations. Shared coordination records were not edited. User-requested local Dogfooding hook/script changes are excluded from the feature commit. No push or PR.
+
+Remaining limitations: DOM matching and specificity are not modeled; upstream grammar limitations (#116) remain. Combined workspace/evaluation and platform CI verification belong to the coordinator. The earlier checkpoint below records predecessor work; the grouped selector spellings described here supersede its plain complex-parent examples.
+
+Exact next action: coordinator reviews the recovery commit (resolve `HEAD`) and integrates it in the isolated combined tree before running required workspace checks.
+
 Task / previous agent / status: TASK-CSS-NESTING-115 (issue #115, CSS Nesting selector resolution) / earlier session on this branch (`1fa4b3f`, `910ceca`, `992892c`) / completed with the user's decisions applied, awaiting coordinator review.
 
 Branch / worktree name / base commit / latest commit: `claude/css-nesting-115` / `mini-consumes-tokens-claude-css-nesting-115` / `a3e10b0f450a93107061152feb862a1d242820a1` / implementation `1fa4b3f` + `3cbb88c`, docs `910ceca` + `1ab2ea4`, then this checkpoint commit (resolve with `git -C <worktree> rev-parse HEAD`). Not pushed; no PR.
