@@ -224,7 +224,7 @@ Examples:
 
 ### `ignore-init` / `ignore-init --import-gitignore`
 
-Writes a starter `.mctignore` at the project root (if one doesn't already exist) — a `.gitignore`-style file to exclude extra files/directories (e.g. `docs/`, `*.md`) from indexing, on top of the built-in exclusions. A `!pattern` line re-includes what an earlier line excluded (e.g. `*.md` then `!docs/readme.md`; last match wins, nothing inside an excluded directory, never a built-in exclusion). Edit it, then `reindex --force` to apply.
+Writes a starter `.mctignore` at the project root (if one doesn't already exist) — a `.gitignore`-style file to exclude extra files/directories (e.g. `docs/`, `*.md`) from indexing, on top of the built-in exclusions. A `!pattern` line re-includes what an earlier line excluded (e.g. `*.md` then `!docs/readme.md`; last match wins, nothing inside an excluded directory, never a built-in exclusion). Edit it, then `reindex --force` to apply. A running `mct-mcp-server` applies an edit to `.mctignore` (or to an imported `.gitignore`) before its next tool call, even with the watcher disabled: no tool serves a newly excluded path from rows indexed before the edit. If an existing rule file cannot be read (including invalid UTF-8), the server retains the previous rules and rejects the tool call until the file is readable again; a missing rule file still removes its opt-in rules.
 
 `--import-gitignore` activates `@import-gitignore`: everything the project's own `.gitignore` excludes is excluded from indexing too (read as if its lines, `!` re-includes included, stood where the directive does). On a fresh file it's baked into the generated content; on an existing one, the directive is appended if it isn't already there — the one case `ignore-init` updates a file instead of leaving it alone, and only because the flag asked for it. Idempotent either way.
 
@@ -367,7 +367,7 @@ mct-mcp-server --root /path/to/your/project
 
 ### `--reindex-debounce-ms <ms>`
 
-Milliseconds of quiet time required after the last detected file write before the background watcher auto-reindexes. Defaults to `1500`. Passing `0` disables the background watcher entirely (index only refreshes on startup or a manual `reindex`).
+Milliseconds of quiet time required after the last detected file write before the background watcher auto-reindexes. Defaults to `1500`. Passing `0` disables the background watcher entirely (index only refreshes on startup or a manual `reindex`). Edits to the ignore rules are the exception: every tool call first checks `.mctignore` (and an imported `.gitignore`) and, if the rules changed, reindexes before answering.
 
 ```sh
 mct-mcp-server --root /path/to/your/project --reindex-debounce-ms 3000
