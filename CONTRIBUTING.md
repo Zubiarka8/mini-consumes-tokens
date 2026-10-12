@@ -2,6 +2,12 @@
 
 ## Adding a new language
 
+Use this path when the repository needs to parse a new programming or markup
+language and its files are not handled by an existing parser. Start with the
+[language crate template](docs/06-templates/lang-crate-base.md), then follow
+this checklist and finish with `scripts/unix/new-language-check.sh <name>`
+(PowerShell equivalent: `scripts\windows\new-language-check.ps1 <name>`).
+
 This is the extension point most contributions will touch, so it gets its own checklist:
 
 1. **New crate.** `crates/mct-lang-<name>`, depending on `mct-core` (path dependency) and `tree-sitter-<name>` at the full version you validated, e.g. `"0.25.1"` (caret, not `=`; `Cargo.lock` is the exact pin — see [ADR-004](docs/01-architecture/adrs/004-grammar-version-requirements.md)). Start from the shared base in [docs/06-templates/lang-crate-base.md](docs/06-templates/lang-crate-base.md) so every language gets the same layout.
@@ -25,6 +31,12 @@ This is the extension point most contributions will touch, so it gets its own ch
 7. **Run the workspace test suite** (`cargo test --workspace`) and fix any regressions before opening a PR — or `scripts/unix/check.sh`, which runs the tests, the CI clippy invocation and the `mct-eval` gate and prints only a summary (see `scripts/README.md`).
 
 ## Framework/library coverage, beyond the language table
+
+Use the library path when the language parser already handles the source files
+and you are documenting or improving a framework-specific pattern. Start with
+the [library module template](docs/06-templates/library-module-template.md).
+That template distinguishes a focused regression test from actual production
+support: tests alone do not add extraction behavior.
 
 For dependency-manifest modules, JS/TS import/export modules, the boundary between package detection and framework parsing, and where framework tests go (`crates/mct-lang-<language>/src/libraries/<name>/`), see the [library support implementation map](docs/01-architecture/library-support.md). Update the table below in the same PR as any framework behavior change.
 

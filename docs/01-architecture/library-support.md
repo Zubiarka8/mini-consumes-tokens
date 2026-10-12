@@ -30,6 +30,12 @@ The Python corpus directory `project/library/` models a lending library (books, 
 
 ## Library directory layout
 
+For a step-by-step contribution flow and copyable test skeleton, see the
+[library module template](../06-templates/library-module-template.md). The
+template covers manifest support, language-wide parser changes, framework
+specific extraction, fixture expectations, and the documentation that must
+stay in sync.
+
 Use the English plural `libraries` and the established lowercase package name:
 
 ```text
