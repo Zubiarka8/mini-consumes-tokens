@@ -1,4 +1,4 @@
-# language=go files=7 symbols=291 relations=832 name_matched_across_files=254
+# language=go files=7 symbols=291 relations=835 name_matched_across_files=255
 
 == cmd/ledger/main.go (342 lines)
 S 1-342 module main
@@ -34,8 +34,11 @@ R 13:2 imports main -> sort
 R 14:2 imports main -> strings
 R 15:2 imports main -> syscall
 R 16:2 imports main -> time
+R 18:2 imports main -> ledger (name-matched: ledger/account.go)
 R 18:2 imports main -> example.com/ledger
+R 19:2 imports main -> logging
 R 19:2 imports main -> example.com/ledger/internal/logging
+R 20:2 imports main -> metrics
 R 20:2 imports main -> example.com/ledger/internal/metrics
 R 31:17 calls main -> Now (name-matched: ledger/account.go)
 R 66:7 calls main -> Fprintln

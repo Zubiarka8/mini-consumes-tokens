@@ -18,6 +18,13 @@ impl Walker<'_> {
         type_name: Option<&str>,
         depth: u32,
     ) {
+        // `export { x } from "./m"` / `export * from "./m"` depend on `./m`.
+        if let Some(spec) = node
+            .child_by_field_name("source")
+            .and_then(|source| super::imports::string_value(source, self.source))
+        {
+            self.push_module_import(owner, &spec, location(node));
+        }
         if let Some(declaration) = node.child_by_field_name("declaration") {
             self.visit(declaration, owner, type_name, depth + 1);
         }

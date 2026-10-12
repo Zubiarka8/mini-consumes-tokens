@@ -1,4 +1,4 @@
-# language=rust files=6 symbols=239 relations=892 name_matched_across_files=218
+# language=rust files=6 symbols=239 relations=897 name_matched_across_files=218
 
 == errors.rs (397 lines)
 S 1-397 module errors
@@ -196,6 +196,11 @@ S 290-292 function empty_command_line_is_help
 S 295-297 function unknown_flag_is_rejected
 S 300-304 function snapshot_flag_takes_a_value
 S 307-309 function category_tree_has_unicode_leaf
+R 11:1 imports main -> errors
+R 12:1 imports main -> model
+R 13:1 imports main -> report
+R 14:1 imports main -> service
+R 15:1 imports main -> storage
 R 17:10 imports main -> env
 R 18:19 imports main -> ExitCode
 R 19:16 imports main -> Arc
