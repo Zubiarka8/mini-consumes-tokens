@@ -385,7 +385,8 @@ fn at_rules_around_a_rule_do_not_break_its_nested_resolution() {
 
 #[test]
 fn nested_rule_literal_ampersand_selector_is_not_indexed() {
-    // Provisional decision DC1 (#115): only the resolved names are indexed.
+    // User decision (#115): only the resolved names are indexed, never the
+    // literal `&` selector alongside them.
     let parsed = parse(".a { &:hover {} & > .b {} &[x] {} }");
     let names = rule_names(&parsed);
     for literal in ["&:hover", "& > .b", "&[x]"] {
@@ -418,7 +419,7 @@ fn every_resolved_name_keeps_the_nested_rule_range() {
     // The parent's own range is untouched.
     assert_eq!(rule_lines(&parsed, ".a"), [(1, Some(8))]);
     // A nested selector without `&` also keeps its name as written, with
-    // the nested rule's range (DC1 only drops literal `&` names).
+    // the nested rule's range (only literal `&` names are dropped).
     assert_eq!(rule_lines(&parsed, ".y"), [(5, Some(7))]);
     // An atom keeps the range of its own token.
     assert_eq!(rule_lines(&parsed, ".x"), [(4, Some(4))]);
@@ -439,4 +440,56 @@ fn self_doubling_nesting_stays_bounded() {
         .unwrap()
         .join()
         .unwrap();
+}
+
+/// Every full `Rule` name that contains `needle`, sorted.
+fn full_names_with(parsed: &mct_core::ParsedFile, needle: &str) -> Vec<String> {
+    let mut names: Vec<String> = parsed
+        .symbols
+        .iter()
+        .filter(|s| s.kind == SymbolKind::Rule && s.name.contains(needle))
+        .map(|s| s.name.clone())
+        .collect();
+    names.sort();
+    names
+}
+
+#[test]
+fn repeated_ampersands_combine_every_parent_selector() {
+    // `&` is `:is(.a, .b)` (CSS Nesting §4), so `& + &` matches every pair.
+    let parsed = parse(".a, .b { & + & {} }");
+    assert_eq!(
+        full_names_with(&parsed, " + "),
+        [".a + .a", ".a + .b", ".b + .a", ".b + .b"]
+    );
+    assert!(!rule_names(&parsed).iter().any(|n| n.contains('&')));
+}
+
+#[test]
+fn repeated_ampersands_combine_across_nesting_levels() {
+    let parsed = parse(".a, .b { .c { & ~ &:hover {} } }");
+    assert_eq!(
+        full_names_with(&parsed, " ~ "),
+        [
+            ".a .c ~ .a .c:hover",
+            ".a .c ~ .b .c:hover",
+            ".b .c ~ .a .c:hover",
+            ".b .c ~ .b .c:hover",
+        ]
+    );
+    // A third `&` takes the full product as well: 2^3 names.
+    let parsed = parse(".a, .b { & + & + & {} }");
+    assert_eq!(full_names_with(&parsed, " + ").len(), 8);
+    assert!(full_names_with(&parsed, " + ").contains(&".b + .a + .b".to_string()));
+}
+
+#[test]
+fn several_children_with_several_parents_expand_per_selector() {
+    let parsed = parse(".a, .b { &:hover, & + &, .c {} }");
+    let names = rule_names(&parsed);
+    for expected in [
+        ".a:hover", ".b:hover", ".a + .a", ".a + .b", ".b + .a", ".b + .b", ".a .c", ".b .c",
+    ] {
+        assert!(names.contains(&expected), "missing {expected}: {names:?}");
+    }
 }
