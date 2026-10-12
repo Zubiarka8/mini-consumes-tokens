@@ -40,7 +40,7 @@ The server defines **20** tools. By default **19** are available and listed in `
 
 Names are matched **exactly** (case-sensitive) unless the tool says otherwise. An empty name is rejected.
 
-Result-list renderers use a 24,000-byte body budget and report omitted entries. Headers and notices are additional, so this is not a hard cap on the whole response. Use `limit` (or `top_k`) and `offset` where the tool supports paging; `list_symbols` has no `offset`, so narrow `path` or `kind` for a large listing.
+Text-format result lists use a 24,000-byte body budget and report omitted entries; `toon` tables are limited by row count only. Headers and notices are additional, so this is not a hard cap on the whole response. Use `limit` (or `top_k`) and `offset` where the tool supports paging; `list_symbols` has no `offset`, so narrow `path` or `kind` for a large listing.
 
 ## Discovery
 
