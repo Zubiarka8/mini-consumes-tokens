@@ -1,6 +1,25 @@
 # ROADMAP — mini-consumes-tokens (post-0.1.0)
 
-> **Historical / point-in-time document**, frozen at commit `9ca9ab5` (2026-09-13, pre-0.2.0). Several candidates proposed below have since shipped (e.g. Kotlin, Markdown, `list_symbols`) — `CHANGELOG.md` is the current source of truth for what's actually released. Kept for planning history, not as a live status page.
+> **Historical document with a status table.** The candidate text below is frozen at commit `9ca9ab5` (2026-09-13, pre-0.2.0). The table that follows records what has happened since, verified against the code, `CHANGELOG.md` and git history on 2026-10-13 (base `2641f50`). `CHANGELOG.md` remains the source of truth for what is released.
+
+## Status as of 2026-10-13
+
+| # | Candidate | Status | Evidence |
+|---|---|---|---|
+| 1 | Real type resolution / LSP | Open (partial) | Relations now resolve to qualified identities from parser evidence and ambiguous targets are reported, not guessed (ADR-002, CHANGELOG 0.2.0). No LSP; `CHANGELOG` "Known limitations": type resolution is AST-only. |
+| 2 | Ruby / PHP / Swift secret exclusions | Open | `DEFAULT_EXCLUDE_PATTERNS` in `crates/mct-index/src/exclude.rs` has no `wp-config.php`, `config/database.php`, `config/master.key`, `credentials.yml.enc`, `GoogleService-Info.plist` or `*.xcconfig`. `docs/05-backlog/roadmap.md` still lists the PHP patterns as not implemented. |
+| 3 | `find_implementations` for Go | Open | No such tool or parameter in `mct-mcp-server`. |
+| 4 | Structural HTML / CSS / JSX | Partly shipped | `mct-lang-html`, `mct-lang-css`, `mct-lang-xml`, `mct-lang-xaml` exist and `list_symbols` documents `element` and `rule` kinds. JSX/TSX elements as symbols and framework structure remain open (issue #51; `docs/05-backlog/roadmap.md`). |
+| 5 | Kotlin, Swift, Ruby | Kotlin shipped; Swift and Ruby open | `crates/mct-lang-kotlin` exists. `KNOWN_PENDING_LANGUAGES` in `crates/mct-index/src/indexer.rs` lists only `swift` and `rb`. 17 languages are indexed (CHANGELOG 0.2.0). |
+| 6 | `find_types(kind?)` | Shipped differently | `list_symbols` takes `kind` (`class`, `struct`, `interface`, `enum`, `trait`, `type_alias`, ...) and `language`. `find_symbol` has `match: exact\|prefix\|fuzzy`. |
+| 7 | `find_tests(symbol?)` | Open | No such tool. `build_context_pack` and `impact_analysis` list related tests. The tool count is already 18, so the original 6-8 tool budget no longer applies. |
+| 8 | `find_dead_code()` | Shipped | MCP tool `find_dead_code` and `mct-cli dead-code` CSV report (CHANGELOG 0.2.0). Documented as a heuristic. |
+| 9 | `semantic_search` | Shipped as `hybrid_search` (local, opt-in build) | Local embeddings behind `--features semantic`; release binaries are lexical only (CHANGELOG 0.2.0). No network API. |
+| 10 | Large-repository performance research | Partly done | Relation pagination moved into the database; `crates/mct-index/tests/relation_scale.rs` measures relation scale (ignored, on demand). No `rayon` or parallel parsing in the workspace; a synthetic hundreds-of-thousands-of-files benchmark was not found. |
+| 11 | Token-savings observability | Open | Measurements remain in `benchmarks/` (token, agent, intent, semantic-runtime, quality-eval). No `stats` subcommand or savings tool. `scripts` has a read-only usage-check for Claude Code billing keys (a dev script, not a product feature). |
+| 12 | Minor debt | Mostly stale | README status claims were corrected during release prep (0.2.0 notes). The first GitHub Release is v0.2.0 (2026-10-09); crates are deliberately not on crates.io because of the vendored `tree-sitter-md` patch. Rust/Python integration fixtures and benchmarks: not re-checked. |
+
+Shipped since this document was written and not listed above: `mct-cli update` and `scripts/unix/release.sh` (Unreleased), the Web/3D asset foundation of ADR-003 (Unreleased, `docs/05-backlog/roadmap.md`), the Markdown note graph, `.mctignore` with `!` re-includes, the background file watcher, `mct-eval`, a per-language fuzzing and corpus suite, and intent extraction with catalog tool preselection (issue #19). Open product bugs are tracked in `ISSUES_PENDING.md`; the live web/3D backlog is `docs/05-backlog/roadmap.md`.
 
 Analysis and planning only; no product code was written to produce this
 document. It is based on a full review of `checklist.md`, `CHANGELOG.md`,
@@ -16,7 +35,7 @@ or a session at significant risk of expanding unless scoped in advance.
 
 ---
 
-## Candidatos evaluados
+## Candidates evaluated
 
 ### 1. Type resolution through real LSP integration
 
@@ -283,7 +302,7 @@ blocks current work; they were grouped here for tracking:
 
 ---
 
-## Orden sugerido
+## Suggested order
 
 This is a reasoned sequence, not a schedule. Start with low-cost work that
 does not change `core`; reserve isolated sessions for `core` changes; measure
