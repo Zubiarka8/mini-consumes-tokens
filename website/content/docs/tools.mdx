@@ -1,11 +1,11 @@
 ---
 title: MCP tools
-description: "The MCP tools the server gives your AI client, grouped by what they answer: 19 listed by default, 20 registered."
+description: "The MCP tools the server gives your AI client, grouped by what they answer: 19 listed by default, 20 defined."
 ---
 
 Your AI client calls these tools itself; you don't type them. This page tells you what each one answers, so you know what to ask for and can read the results.
 
-The server registers **20** tools. By default it lists **19** of them in `tools/list`; the twentieth, [`select_tools`](#select_tools), is registered only when the `MCT_TOOL_ATTENTION=1` environment variable is set. With that variable set, the initial list is `select_tools` alone, and the tools listed afterwards depend on each request you pass to it. Unlisted tools stay callable by name.
+The server defines **20** tools. By default **19** are available and listed in `tools/list`; the twentieth, [`select_tools`](#select_tools), is available only when the `MCT_TOOL_ATTENTION=1` environment variable is set. With that variable set, the initial list is `select_tools` alone, and the tools listed afterwards depend on each request you pass to it. Tools that are available but not listed stay callable by name.
 
 ## Which tool for which question
 
@@ -108,7 +108,7 @@ Search for functionality by describing its behavior in plain language. For examp
 Ranked search by embedding cosine similarity, without lexical name matching. Results include each symbol's signature and similarity score.
 
 - `query` (required), `top_k` (default 10, clamped to 1–100), `path`, `language`.
-- Requires a server built with `--features semantic` and an available embedding model. The tool is registered and listed either way. Without the feature, or if the model cannot load, the call does not fail: it returns the text `semantic_search unavailable` with the reason (for a build without the feature: "this build has no embedding model (rebuild mct-mcp-server with `--features semantic`)") and suggests `search_symbols` or `hybrid_search`.
+- Requires a server built with `--features semantic` and an available embedding model. The tool is available and listed either way. Without the feature, or if the model cannot load, the call does not fail: it returns the text `semantic_search unavailable` with the reason (for a build without the feature: "this build has no embedding model (rebuild mct-mcp-server with `--features semantic`)") and suggests `search_symbols` or `hybrid_search`.
 - It does not accept `offset`, `format`, `snippet_lines` or `cache`.
 
 ## Relations
@@ -213,7 +213,7 @@ Run up to 25 read-only queries in one call. Each result comes under its own `[n]
 
 ### `select_tools` [#select_tools]
 
-Opt-in Tool Attention, available only when the server runs with `MCT_TOOL_ATTENTION=1`. Without that variable the tool is not registered, and calling it is an error. With it, `tools/list` starts with `select_tools` alone. Call it first with the user's request: it picks the tools that request needs (all of them when the request is unclear), narrows `tools/list` to those plus `select_tools`, sends a `tools/list_changed` notification, and returns the chosen tool names with argument hints. It never runs the chosen tools, and every tool stays callable by name even when it is not listed.
+Opt-in Tool Attention, available only when the server runs with `MCT_TOOL_ATTENTION=1`. Without that variable the tool is not available, and calling it is an error. With it, `tools/list` starts with `select_tools` alone. Call it first with the user's request: it picks the tools that request needs (all of them when the request is unclear), narrows `tools/list` to those plus `select_tools`, sends a `tools/list_changed` notification, and returns the chosen tool names with argument hints. It never runs the chosen tools, and every tool stays callable by name even when it is not listed.
 
 - `query` (required, not empty).
 
