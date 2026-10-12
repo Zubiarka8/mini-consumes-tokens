@@ -217,12 +217,14 @@ fn every_import_form_is_an_import_of_the_path_as_written() {
     // `@namespace svg url(…)` is not an import.
     assert!(!c.has_relation("app", RelationKind::Imports, "http://www.w3.org/2000/svg"));
     // Imports are the only relation CSS produces: 12 in the Harbor kit,
-    // 4 in `bootstrap-shop/` and Tailwind v4's `@import "tailwindcss"`.
+    // 4 in `bootstrap-shop/` and Tailwind v4's `@import "tailwindcss"`, each
+    // as written — plus one file-level relation per local `.css` import
+    // (15: 11 + 4), named after the imported stylesheet's module.
     assert!(c
         .relations()
         .iter()
         .all(|r| r.kind == RelationKind::Imports));
-    assert_eq!(c.relations().len(), 17);
+    assert_eq!(c.relations().len(), 32);
 }
 
 #[test]

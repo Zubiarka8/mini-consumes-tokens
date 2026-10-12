@@ -1,4 +1,4 @@
-# language=python files=15 symbols=400 relations=1362 name_matched_across_files=331
+# language=python files=15 symbols=400 relations=1451 name_matched_across_files=365
 
 == library/cli.py (307 lines)
 S 1-307 module cli
@@ -44,17 +44,21 @@ R 9:8 imports cli -> argparse
 R 10:8 imports cli -> json
 R 11:11 imports cli -> path
 R 12:8 imports cli -> sys
+R 13:6 imports cli -> pathlib
 R 13:21 imports cli -> Path
+R 14:6 imports cli -> typing
 R 14:20 imports cli -> Any
 R 14:25 imports cli -> Callable
 R 14:35 imports cli -> Optional
 R 14:45 imports cli -> Sequence
 R 16:27 imports cli -> svc
+R 17:7 imports cli -> errors (name-matched: library/errors.py)
 R 17:21 imports cli -> LibraryError (name-matched: library/errors.py)
 R 17:35 imports cli -> audit (name-matched: library/errors.py)
 R 17:42 imports cli -> clear_audit (name-matched: library/errors.py)
 R 17:55 imports cli -> error_response (name-matched: library/errors.py)
 R 17:71 imports cli -> safe_call (name-matched: library/errors.py)
+R 18:7 imports cli -> models (name-matched: library/models.py)
 R 18:21 imports cli -> Author (name-matched: library/models.py)
 R 18:29 imports cli -> Book (name-matched: library/models.py)
 R 18:35 imports cli -> Copy (name-matched: library/models.py)
@@ -63,14 +67,18 @@ R 18:48 imports cli -> Member (name-matched: library/models.py)
 R 18:56 imports cli -> MembershipTier (name-matched: library/models.py)
 R 18:72 imports cli -> is_valid_isbn (name-matched: library/models.py)
 R 18:87 imports cli -> normalize_isbn (name-matched: library/models.py)
+R 19:7 imports cli -> reports (name-matched: library/reports.py)
+R 20:7 imports cli -> reports (name-matched: library/reports.py)
 R 20:22 imports cli -> ReportBundle (name-matched: library/reports.py)
 R 20:36 imports cli -> circulation_report (name-matched: library/reports.py)
 R 20:56 imports cli -> overdue_report (name-matched: library/reports.py)
+R 21:7 imports cli -> repository (name-matched: library/repository.py)
 R 21:25 imports cli -> Catalogue (name-matched: library/repository.py)
 R 21:36 imports cli -> load_fixture (name-matched: library/repository.py)
 R 21:50 imports cli -> open_database (name-matched: library/repository.py)
 R 21:85 imports cli -> SqlRepo
 R 24:23 imports cli -> toml_reader
+R 24:12 imports cli -> tomllib
 R 54:44 calls Context::__init__ -> build_services (name-matched: library/services.py)
 R 57:9 calls Context::echo -> print
 R 61:18 calls Context::debug -> echo
@@ -208,6 +216,7 @@ R 273:14 calls main -> safe_call (name-matched: library/errors.py)
 R 274:11 calls main -> Context
 R 274:19 calls main -> open_catalogue
 R 276:14 calls main -> handler
+R 278:15 imports main -> errors (name-matched: library/errors.py)
 R 278:29 imports main -> audit_trail (name-matched: library/errors.py)
 R 278:42 imports main -> format_trail (name-matched: library/errors.py)
 R 280:13 calls main -> echo
@@ -275,8 +284,11 @@ S 319-320 method ErrorCatalog::lookup
 R 8:8 imports errors -> functools
 R 9:8 imports errors -> logging
 R 10:8 imports errors -> time
+R 11:6 imports errors -> collections
 R 11:25 imports errors -> deque
+R 12:6 imports errors -> contextlib
 R 12:24 imports errors -> contextmanager
+R 13:6 imports errors -> typing
 R 13:20 imports errors -> Any
 R 13:25 imports errors -> Callable
 R 13:35 imports errors -> Deque
@@ -426,17 +438,21 @@ S 315-317 function overdue_fee
 S 320-326 function group_by_genre
 R 9:8 imports models -> enum
 R 10:8 imports models -> re
+R 11:6 imports models -> dataclasses
 R 11:25 imports models -> dataclass
 R 11:36 imports models -> field
+R 12:6 imports models -> datetime
 R 12:22 imports models -> date
 R 12:28 imports models -> datetime
 R 12:38 imports models -> timedelta
+R 13:6 imports models -> typing
 R 13:20 imports models -> ClassVar
 R 13:30 imports models -> Generic
 R 13:39 imports models -> Iterable
 R 13:49 imports models -> Iterator
 R 13:59 imports models -> Optional
 R 13:69 imports models -> TypeVar
+R 15:7 imports models -> errors (name-matched: library/errors.py)
 R 15:21 imports models -> ValidationError (name-matched: library/errors.py)
 R 15:38 imports models -> LibraryError (name-matched: library/errors.py)
 R 17:19 calls models -> compile
@@ -607,15 +623,20 @@ S 319-320 method ScheduledReport::run
 R 6:8 imports reports -> csv
 R 7:8 imports reports -> io
 R 8:8 imports reports -> statistics
+R 9:6 imports reports -> collections
 R 9:25 imports reports -> Counter
+R 10:6 imports reports -> dataclasses
 R 10:25 imports reports -> dataclass
 R 10:36 imports reports -> field
+R 11:6 imports reports -> datetime
 R 11:22 imports reports -> datetime
 R 11:32 imports reports -> timedelta
+R 12:6 imports reports -> functools
 R 12:23 imports reports -> cached_property
 R 12:40 imports reports -> lru_cache
 R 12:51 imports reports -> reduce
 R 12:59 imports reports -> total_ordering
+R 13:6 imports reports -> typing
 R 13:20 imports reports -> Any
 R 13:25 imports reports -> Callable
 R 13:35 imports reports -> ClassVar
@@ -625,17 +646,21 @@ R 13:65 imports reports -> NamedTuple
 R 13:77 imports reports -> Sequence
 R 13:87 imports reports -> TypedDict
 R 15:25 imports reports -> m
+R 16:7 imports reports -> errors (name-matched: library/errors.py)
 R 16:21 imports reports -> Timer (name-matched: library/errors.py)
 R 16:28 imports reports -> ValidationError (name-matched: library/errors.py)
 R 16:45 imports reports -> format_trail (name-matched: library/errors.py)
 R 16:59 imports reports -> audit_trail (name-matched: library/errors.py)
+R 17:7 imports reports -> models (name-matched: library/models.py)
 R 17:21 imports reports -> Book (name-matched: library/models.py)
 R 17:27 imports reports -> Genre (name-matched: library/models.py)
 R 17:34 imports reports -> Loan (name-matched: library/models.py)
 R 17:40 imports reports -> describe_book (name-matched: library/models.py)
 R 17:55 imports reports -> group_by_genre (name-matched: library/models.py)
 R 17:71 imports reports -> overdue_fee (name-matched: library/models.py)
+R 18:7 imports reports -> repository (name-matched: library/repository.py)
 R 18:25 imports reports -> Catalogue (name-matched: library/repository.py)
+R 19:7 imports reports -> services (name-matched: library/services.py)
 R 19:23 imports reports -> LendingService (name-matched: library/services.py)
 R 30:19 calls register -> ValidationError (name-matched: library/errors.py)
 R 38:16 calls fmt_name -> join
@@ -838,8 +863,11 @@ R 8:8 imports repository -> io
 R 9:8 imports repository -> json
 R 10:8 imports repository -> sqlite3
 R 11:8 imports repository -> threading
+R 12:6 imports repository -> datetime
 R 12:22 imports repository -> datetime
+R 13:6 imports repository -> pathlib
 R 13:21 imports repository -> Path
+R 14:6 imports repository -> typing
 R 14:20 imports repository -> Generic
 R 14:29 imports repository -> Iterable
 R 14:39 imports repository -> Iterator
@@ -847,11 +875,13 @@ R 14:49 imports repository -> Optional
 R 14:59 imports repository -> Protocol
 R 14:69 imports repository -> TypeVar
 R 16:15 imports repository -> models (name-matched: library/models.py)
+R 17:7 imports repository -> errors (name-matched: library/errors.py)
 R 17:21 imports repository -> NotFoundError (name-matched: library/errors.py)
 R 17:36 imports repository -> StorageError (name-matched: library/errors.py)
 R 17:50 imports repository -> ConflictError (name-matched: library/errors.py)
 R 17:65 imports repository -> retry (name-matched: library/errors.py)
 R 17:72 imports repository -> translate_errors (name-matched: library/errors.py)
+R 18:7 imports repository -> models (name-matched: library/models.py)
 R 18:21 imports repository -> Book (name-matched: library/models.py)
 R 18:27 imports repository -> Copy (name-matched: library/models.py)
 R 18:33 imports repository -> Hold (name-matched: library/models.py)
@@ -1037,17 +1067,23 @@ R 10:8 imports services -> asyncio
 R 11:8 imports services -> heapq
 R 12:8 imports services -> itertools
 R 13:19 imports services -> _logging
+R 13:8 imports services -> logging
+R 14:6 imports services -> abc
 R 14:17 imports services -> ABC
 R 14:22 imports services -> abstractmethod
+R 15:6 imports services -> collections
 R 15:25 imports services -> defaultdict
+R 16:6 imports services -> datetime
 R 16:22 imports services -> datetime
 R 16:32 imports services -> timedelta
+R 17:6 imports services -> typing
 R 17:20 imports services -> Awaitable
 R 17:31 imports services -> Callable
 R 17:41 imports services -> Iterable
 R 17:51 imports services -> Optional
 R 17:61 imports services -> Protocol
 R 17:71 imports services -> overload
+R 19:7 imports services -> errors (name-matched: library/errors.py)
 R 20:5 imports services -> ConflictError (name-matched: library/errors.py)
 R 21:5 imports services -> LibraryError (name-matched: library/errors.py)
 R 22:5 imports services -> LimitExceededError (name-matched: library/errors.py)
@@ -1058,6 +1094,7 @@ R 26:5 imports services -> ValidationError (name-matched: library/errors.py)
 R 27:5 imports services -> audit (name-matched: library/errors.py)
 R 28:5 imports services -> audited (name-matched: library/errors.py)
 R 29:5 imports services -> retry (name-matched: library/errors.py)
+R 31:7 imports services -> models (name-matched: library/models.py)
 R 32:5 imports services -> DEFAULT_LOAN_DAYS
 R 33:5 imports services -> Book (name-matched: library/models.py)
 R 34:5 imports services -> Copy (name-matched: library/models.py)
@@ -1067,6 +1104,7 @@ R 37:5 imports services -> Member (name-matched: library/models.py)
 R 38:5 imports services -> MembershipTier (name-matched: library/models.py)
 R 39:5 imports services -> classify (name-matched: library/models.py)
 R 40:5 imports services -> overdue_fee (name-matched: library/models.py)
+R 42:7 imports services -> repository (name-matched: library/repository.py)
 R 42:25 imports services -> Catalogue (name-matched: library/repository.py)
 R 42:36 imports services -> UnitOfWork (name-matched: library/repository.py)
 R 42:48 imports services -> iter_batches (name-matched: library/repository.py)
@@ -1242,9 +1280,12 @@ S 13-29 class BookAdmin
 S 21-22 method BookAdmin::copy_count
 S 25-29 method BookAdmin::mark_lost
 S 33-34 class PlainAdmin
+R 1:13 imports admin -> contrib
 R 1:28 imports admin -> admin
 R 1:35 imports admin -> messages
+R 2:13 imports admin -> http
 R 2:25 imports admin -> HttpRequest
+R 4:7 imports admin -> models (name-matched: library/models.py)
 R 4:21 imports admin -> AuthorRecord (name-matched: web/django_site/lending/models.py)
 R 4:35 imports admin -> BookQuerySet (name-matched: web/django_site/lending/models.py)
 R 4:49 imports admin -> BookRecord (name-matched: web/django_site/lending/models.py)
@@ -1267,6 +1308,7 @@ R 37:12 calls admin -> register (name-matched: library/cli.py)
 S 1-12 module apps
 S 4-12 class LendingConfig
 S 9-12 method LendingConfig::ready
+R 1:13 imports apps -> apps
 R 1:25 imports apps -> AppConfig
 R 4:21 extends LendingConfig -> AppConfig
 R 12:23 imports LendingConfig::ready -> signals (name-matched: web/django_site/lending/signals.py)
@@ -1277,9 +1319,12 @@ S 8-18 class BookForm
 S 9-12 class BookForm::Meta
 S 14-18 method BookForm::clean_isbn
 S 21-22 class CheckoutForm
+R 1:6 imports forms -> django
 R 1:20 imports forms -> forms
+R 3:14 imports forms -> models (name-matched: library/models.py)
 R 3:28 imports forms -> is_valid_isbn (name-matched: library/models.py)
 R 3:43 imports forms -> normalize_isbn (name-matched: library/models.py)
+R 5:7 imports forms -> models (name-matched: library/models.py)
 R 5:21 imports forms -> BookRecord (name-matched: web/django_site/lending/models.py)
 R 8:16 extends BookForm -> ModelForm
 R 15:16 calls BookForm::clean_isbn -> normalize_isbn (name-matched: library/models.py)
@@ -1312,15 +1357,24 @@ S 106-108 class LoanRecord::Meta
 S 111-112 method LoanRecord::is_overdue
 S 114-116 method LoanRecord::fee
 S 118-121 method LoanRecord::save
+R 3:6 imports models -> datetime
 R 3:22 imports models -> timedelta
+R 4:6 imports models -> typing
 R 4:20 imports models -> Any
+R 6:13 imports models -> conf
 R 6:25 imports models -> settings
+R 7:18 imports models -> exceptions
 R 7:55 imports models -> DjangoValidationError
+R 8:13 imports models -> db
 R 8:23 imports models -> models
+R 9:16 imports models -> models
 R 9:30 imports models -> Count
 R 9:37 imports models -> Q
+R 10:13 imports models -> urls (name-matched: web/django_site/lending/urls.py)
 R 10:25 imports models -> reverse
+R 11:13 imports models -> utils
 R 11:26 imports models -> timezone
+R 13:14 imports models -> models
 R 13:28 imports models -> Genre (name-matched: library/models.py)
 R 13:35 imports models -> is_valid_isbn (name-matched: library/models.py)
 R 13:50 imports models -> normalize_isbn (name-matched: library/models.py)
@@ -1377,11 +1431,16 @@ R 121:9 calls LoanRecord::save -> super
 S 1-19 module signals
 S 12-14 function mark_copy_on_loan
 S 18-19 function audit_book_delete
+R 1:6 imports signals -> typing
 R 1:20 imports signals -> Any
+R 3:23 imports signals -> signals
 R 3:38 imports signals -> post_save
 R 3:49 imports signals -> pre_delete
+R 4:13 imports signals -> dispatch
 R 4:29 imports signals -> receiver
+R 6:14 imports signals -> errors (name-matched: library/errors.py)
 R 6:28 imports signals -> audit (name-matched: library/errors.py)
+R 8:7 imports signals -> models (name-matched: library/models.py)
 R 8:21 imports signals -> BookRecord (name-matched: web/django_site/lending/models.py)
 R 8:33 imports signals -> CopyRecord (name-matched: web/django_site/lending/models.py)
 R 8:45 imports signals -> LoanRecord (name-matched: web/django_site/lending/models.py)
@@ -1393,10 +1452,13 @@ R 17:1 references audit_book_delete -> receiver
 
 == web/django_site/lending/urls.py (42 lines)
 S 1-42 module urls
+R 1:13 imports urls -> contrib
 R 1:28 imports urls -> admin (name-matched: web/django_site/lending/admin.py)
+R 2:13 imports urls -> urls
 R 2:25 imports urls -> include
 R 2:34 imports urls -> path
 R 2:40 imports urls -> re_path
+R 4:7 imports urls -> views (name-matched: web/django_site/lending/views.py)
 R 5:5 imports urls -> BookCreateView (name-matched: web/django_site/lending/views.py)
 R 6:5 imports urls -> BookDetailView (name-matched: web/django_site/lending/views.py)
 R 7:5 imports urls -> BookListView (name-matched: web/django_site/lending/views.py)
@@ -1442,38 +1504,57 @@ S 77-99 function checkout
 S 105-110 function waive_fee
 S 115-119 function overdue
 S 123-125 function my_loans
+R 3:6 imports views -> typing
 R 3:20 imports views -> Any
+R 5:13 imports views -> conf
 R 5:25 imports views -> settings
+R 6:13 imports views -> contrib
 R 6:28 imports views -> messages
+R 7:26 imports views -> decorators
 R 7:44 imports views -> login_required (name-matched: web/flask_app.py)
 R 7:60 imports views -> permission_required
+R 8:26 imports views -> mixins
 R 8:40 imports views -> LoginRequiredMixin
 R 8:60 imports views -> PermissionRequiredMixin
+R 9:13 imports views -> db
 R 9:23 imports views -> transaction
+R 10:16 imports views -> models (name-matched: library/models.py)
 R 10:30 imports views -> Count
 R 10:37 imports views -> F
+R 11:13 imports views -> http
 R 11:25 imports views -> HttpRequest
 R 11:38 imports views -> HttpResponse
 R 11:52 imports views -> JsonResponse
+R 12:13 imports views -> shortcuts
 R 12:30 imports views -> get_object_or_404
 R 12:49 imports views -> redirect
 R 12:59 imports views -> render (name-matched: library/reports.py)
+R 13:13 imports views -> utils
 R 13:26 imports views -> timezone
+R 14:13 imports views -> views
 R 14:26 imports views -> View
+R 15:30 imports views -> cache
 R 15:43 imports views -> cache_page
+R 16:30 imports views -> http
 R 16:42 imports views -> require_GET
 R 16:55 imports views -> require_POST
+R 17:19 imports views -> generic
 R 17:34 imports views -> CreateView
 R 17:46 imports views -> DetailView
 R 17:58 imports views -> ListView
 R 17:68 imports views -> UpdateView
+R 19:14 imports views -> errors (name-matched: library/errors.py)
 R 19:28 imports views -> LimitExceededError (name-matched: library/errors.py)
 R 19:48 imports views -> audit (name-matched: library/errors.py)
+R 20:14 imports views -> models (name-matched: library/models.py)
 R 20:28 imports views -> Genre (name-matched: library/models.py)
 R 20:35 imports views -> normalize_isbn (name-matched: library/models.py)
+R 21:14 imports views -> services (name-matched: library/services.py)
 R 21:30 imports views -> build_services (name-matched: library/services.py)
+R 23:7 imports views -> forms (name-matched: web/django_site/lending/forms.py)
 R 23:20 imports views -> BookForm (name-matched: web/django_site/lending/forms.py)
 R 23:30 imports views -> CheckoutForm (name-matched: web/django_site/lending/forms.py)
+R 24:7 imports views -> models (name-matched: library/models.py)
 R 24:21 imports views -> BookQuerySet (name-matched: web/django_site/lending/models.py)
 R 24:35 imports views -> BookRecord (name-matched: web/django_site/lending/models.py)
 R 24:47 imports views -> CopyRecord (name-matched: web/django_site/lending/models.py)
@@ -1588,10 +1669,13 @@ S 349-354 function search
 S 357-359 function route_table
 R 18:8 imports flask_app -> functools
 R 19:8 imports flask_app -> logging
+R 20:6 imports flask_app -> http
 R 20:18 imports flask_app -> HTTPStatus
+R 21:6 imports flask_app -> typing
 R 21:20 imports flask_app -> Any
 R 21:25 imports flask_app -> Callable
 R 21:35 imports flask_app -> TypeVar
+R 23:6 imports flask_app -> flask
 R 24:5 imports flask_app -> Blueprint
 R 25:5 imports flask_app -> Flask
 R 26:5 imports flask_app -> abort
@@ -1603,18 +1687,23 @@ R 31:5 imports flask_app -> render_template
 R 32:5 imports flask_app -> request
 R 33:5 imports flask_app -> session
 R 34:5 imports flask_app -> url_for
+R 36:12 imports flask_app -> views (name-matched: web/django_site/lending/views.py)
 R 36:25 imports flask_app -> MethodView
+R 38:14 imports flask_app -> errors (name-matched: library/errors.py)
 R 38:28 imports flask_app -> LibraryError (name-matched: library/errors.py)
 R 38:42 imports flask_app -> NotFoundError (name-matched: library/errors.py)
 R 38:57 imports flask_app -> ValidationError (name-matched: library/errors.py)
 R 38:74 imports flask_app -> error_response (name-matched: library/errors.py)
+R 39:14 imports flask_app -> models (name-matched: library/models.py)
 R 39:28 imports flask_app -> Book (name-matched: library/models.py)
 R 39:34 imports flask_app -> Genre (name-matched: library/models.py)
 R 39:41 imports flask_app -> classify (name-matched: library/models.py)
 R 39:51 imports flask_app -> describe_book (name-matched: library/models.py)
 R 39:66 imports flask_app -> normalize_isbn (name-matched: library/models.py)
+R 40:14 imports flask_app -> repository (name-matched: library/repository.py)
 R 40:32 imports flask_app -> Catalogue (name-matched: library/repository.py)
 R 40:43 imports flask_app -> load_fixture (name-matched: library/repository.py)
+R 41:14 imports flask_app -> services (name-matched: library/services.py)
 R 41:30 imports flask_app -> LendingService (name-matched: library/services.py)
 R 41:46 imports flask_app -> build_services (name-matched: library/services.py)
 R 43:15 calls flask_app -> getLogger
