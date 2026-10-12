@@ -56,8 +56,8 @@
 //! A selector without `&` also keeps its plain written name, as above.
 
 use mct_core::{
-    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
-    SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
+    LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
+    SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::{first_error, location};
 use std::collections::HashSet;
@@ -128,7 +128,7 @@ impl LanguageParser for CssParser {
         }
 
         let module_name = module_name_for(&file.relative_path);
-        let mut walker = Walker::new(&file.contents);
+        let mut walker = Walker::new(&file.contents, &file.relative_path);
         let mut module_location = location(root);
         // The root node of a file ending in a newline ends at column 0 of
         // the (empty) line after the last one; the file's last line is the
@@ -331,17 +331,22 @@ struct Walker<'a> {
     source: &'a str,
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
+    relation_targets: Vec<RelationTarget>,
+    /// This file's repository-relative path, the base of relative imports.
+    path: &'a str,
     next_id: SymbolId,
     /// What is left of the per-file budget for resolved nested names.
     resolved_budget: usize,
 }
 
 impl<'a> Walker<'a> {
-    fn new(source: &'a str) -> Self {
+    fn new(source: &'a str, path: &'a str) -> Self {
         Self {
             source,
+            path,
             symbols: Vec::new(),
             relations: Vec::new(),
+            relation_targets: Vec::new(),
             next_id: 0,
             resolved_budget: RESOLVED_BUDGET_BASE
                 .saturating_add(source.len().saturating_mul(RESOLVED_BUDGET_PER_SOURCE_BYTE)),
@@ -411,7 +416,7 @@ impl<'a> Walker<'a> {
             "scope_statement" => self.visit_children(node, owner, depth + 1, Parents::Root),
             "import_statement" => {
                 if let Some(target) = import_target(node, self.source) {
-                    self.push_relation(owner, RelationKind::Imports, target, location(node));
+                    self.push_import(owner, target, location(node));
                 }
             }
             _ => self.visit_children(node, owner, depth + 1, parents),
@@ -528,8 +533,55 @@ impl<'a> Walker<'a> {
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
+            relation_targets: self.relation_targets,
             ..Default::default()
         }
+    }
+
+    /// `@import "x.css"`: the path as written (external for an absolute
+    /// URL), plus an `Imports` relation to the imported stylesheet's
+    /// `Module` symbol, pinned to its exact path. A CSS import path is
+    /// relative to the importing file; a bare package name
+    /// (`@import "tailwindcss"`) has no `.css` file name and records no
+    /// file evidence.
+    fn push_import(&mut self, owner: SymbolId, spec: String, loc: Location) {
+        self.push_relation(owner, RelationKind::Imports, spec.clone(), loc);
+        let plain = self.relations.len().checked_sub(1);
+        if spec.starts_with("//") || spec.contains("://") {
+            if let Some(relation) = plain {
+                self.relation_targets.push(RelationTarget {
+                    relation,
+                    external: true,
+                    ..Default::default()
+                });
+            }
+            return;
+        }
+        let file = spec.split(['?', '#']).next().unwrap_or_default();
+        let Some(stem) = file
+            .rsplit('/')
+            .next()
+            .and_then(|name| name.strip_suffix(".css"))
+            .filter(|stem| !stem.is_empty())
+        else {
+            return;
+        };
+        let local = if file.starts_with('/') || file.starts_with("./") || file.starts_with("../") {
+            file.to_string()
+        } else {
+            format!("./{file}")
+        };
+        let Some(resolved) = mct_core::resolve_reference_path(self.path, &local) else {
+            return;
+        };
+        let relation = self.relations.len();
+        self.push_relation(owner, RelationKind::Imports, stem.to_string(), loc);
+        self.relation_targets.push(RelationTarget {
+            relation,
+            path: Some(resolved),
+            kind: Some(SymbolKind::Module),
+            ..Default::default()
+        });
     }
 
     /// Indexes one selector from a rule's (possibly comma-separated)
