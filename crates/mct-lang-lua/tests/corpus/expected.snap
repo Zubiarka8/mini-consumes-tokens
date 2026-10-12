@@ -1,4 +1,4 @@
-# language=lua files=5 symbols=163 relations=363 name_matched_across_files=43
+# language=lua files=5 symbols=163 relations=375 name_matched_across_files=49
 
 == gateway/ratelimit.lua (302 lines)
 S 1-302 module ratelimit
@@ -34,7 +34,9 @@ S 275-278 method dict::set
 S 279-281 method dict::delete
 S 286-297 method _M::fake_clock
 S 293-295 method clock::advance
+R 8:15 imports ratelimit -> safe
 R 8:15 imports ratelimit -> cjson.safe
+R 9:18 imports ratelimit -> lock
 R 9:18 imports ratelimit -> resty.lock
 R 53:24 calls decode_bucket -> decode
 R 61:24 calls refill -> max (name-matched: warehouse/money.lua)
@@ -127,11 +129,17 @@ S 245-257 function build
 S 260-268 method M::handle
 S 271-280 method M::log
 S 284-295 method M::quote_preview
+R 8:15 imports router -> safe
 R 8:15 imports router -> cjson.safe
+R 9:14 imports router -> http
 R 9:14 imports router -> resty.http
+R 10:15 imports router -> money (name-matched: warehouse/money.lua)
 R 10:15 imports router -> warehouse.money
+R 11:15 imports router -> order (name-matched: warehouse/order.lua)
 R 11:15 imports router -> warehouse.order
+R 12:19 imports router -> inventory (name-matched: warehouse/inventory.lua)
 R 12:19 imports router -> warehouse.inventory
+R 13:19 imports router -> ratelimit (name-matched: gateway/ratelimit.lua)
 R 13:19 imports router -> gateway.ratelimit
 R 20:21 calls router -> getenv
 R 21:27 calls router -> of (name-matched: warehouse/money.lua)
@@ -249,7 +257,9 @@ S 227-236 method M::expiring_soon
 S 239-242 method M::payment_overdue
 S 245-265 method M::pick_tasks
 S 269-298 method M::validate_transfer
+R 7:19 imports inventory -> order (name-matched: warehouse/order.lua)
 R 7:19 imports inventory -> warehouse.order
+R 8:15 imports inventory -> safe
 R 8:15 imports inventory -> cjson.safe
 R 23:35 calls M::parse_location -> match (name-matched: gateway/router.lua)
 R 25:24 calls M::parse_location -> match (name-matched: gateway/router.lua)
@@ -462,7 +472,9 @@ S 255-257 function row
 S 269-276 method M::next_number
 S 278-280 method M::is_order_number
 S 284-298 method M::from_request_body
+R 7:15 imports order -> money (name-matched: warehouse/money.lua)
 R 7:15 imports order -> warehouse.money
+R 8:15 imports order -> safe
 R 8:15 imports order -> cjson.safe
 R 47:10 calls M::is_terminal -> next
 R 56:6 calls new_line -> type
