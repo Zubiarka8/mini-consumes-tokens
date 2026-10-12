@@ -97,9 +97,9 @@ fn tailwind_v4_theme_utilities_variants_and_nesting() {
     assert_eq!(rules(path, ".hb-card > .hb-card__title"), [(174, 177)]);
     assert_eq!(rules(path, ".hb-card__title"), [(174, 174)]);
     assert_eq!(rules(path, ".hb-nav a:hover"), [(228, 230)]);
-    // Provisional DC1 (#115): the literal `&` selector of a resolved rule
-    // is not kept. The `&:hover` inside `@custom-variant` has no parent
-    // rule, so it keeps its literal name.
+    // The literal `&` selector of a resolved rule is not indexed next to
+    // its resolved name (#115). The `&:hover` inside `@custom-variant`
+    // has no parent rule, so it keeps its literal name.
     assert_eq!(rules(path, "&:hover"), [(100, 102)]);
     assert!(rules(path, "& > .hb-card__title").is_empty());
 }

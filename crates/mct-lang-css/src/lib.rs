@@ -30,14 +30,26 @@
 //! its parent rule's (#115): every `&` (a `nesting_selector` node — never an
 //! `&` inside a string or an escaped `\&`) becomes the parent selector, and a
 //! selector without `&` is prefixed by the parent and a space (`.a { .b {} }`
-//! is `.a .b`, `.a { > .c {} }` is `.a > .c`). Comma lists expand to one name
-//! per (child, parent) pair, never a `:is()` list. The parent context crosses
-//! any at-rule block (`@media`, `@supports`, `@layer`, `@container`, …) except
-//! `@scope`, whose `&` is its scoping root. Where there is no parent selector
-//! (a top-level `&`, `@utility`/`@custom-variant` blocks) or resolution is
-//! over its bounds, the selector is indexed as written and so are its
-//! descendants. See [`KEEP_LITERAL_NESTED_SELECTORS`] and
-//! [`MAX_RESOLVED_SELECTORS_PER_RULE`] for the two provisional decisions.
+//! is `.a .b`, `.a { > .c {} }` is `.a > .c`). Since `&` stands for
+//! `:is(<parent list>)` (CSS Nesting §4), comma lists expand to one name per
+//! combination, never a `:is()` list: one per (child, parent) pair, and with
+//! several `&` in one selector every `&` takes every parent independently
+//! (`.a, .b { & + & {} }` is `.a + .a`, `.a + .b`, `.b + .a`, `.b + .b`). A
+//! resolved selector written with `&` is indexed under its resolved names
+//! only, never also as the literal `&…`; one written without `&` also keeps
+//! its name as written. The parent context crosses any at-rule block
+//! (`@media`, `@supports`, `@layer`, `@container`, …) except `@scope`, whose
+//! `&` is its scoping root. Where there is no parent selector (a top-level
+//! `&`, `@utility`/`@custom-variant` blocks) the selector is indexed as
+//! written and so are its descendants.
+//!
+//! A nested rule over [`MAX_RESOLVED_SELECTORS_PER_RULE`] (or the per-file
+//! budget, or the depth guard) is not expanded, partially or at all, and the
+//! file still parses: each of its selectors is indexed as written followed by
+//! an [`UNEXPANDED_MARKER`] comment naming the reason
+//! (`&.c0 /* mct: not expanded, over 256 selectors */`), and so is every
+//! selector nested in it (`… /* mct: not expanded, parent not expanded */`).
+//! A selector without `&` also keeps its plain written name, as above.
 
 use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
@@ -47,30 +59,22 @@ use mct_tree_sitter::{first_error, location};
 use std::collections::HashSet;
 use tree_sitter::{Node, Parser};
 
-/// Provisional decision DC1 (#115, not decided): whether a nested selector
-/// written with `&` that was resolved against its parent also keeps its
-/// literal name (`&:hover`, and atoms such as `&[x]` that contain the `&`)
-/// next to the resolved one (`.card:hover`). `false` indexes the resolved
-/// names only. A nested selector without `&` (`.b` in `.a { .b {} }`) is a
-/// valid selector as written and always keeps that name, as before #115; a
-/// selector that could not be resolved is always indexed as written. See
-/// [`keeps_literal_name`].
-const KEEP_LITERAL_NESTED_SELECTORS: bool = false;
-
-/// Provisional decision DC2 (#115, not decided): the most resolved names one
-/// nested rule may expand to (its selectors times its parent's). Beyond it the
-/// rule — and every rule nested in it — is indexed with its literal selector
-/// instead; the file is never rejected. 256 keeps a two-level nesting of two
-/// 16-selector lists (e.g. Bootstrap's 12-entry heading list nested in
-/// another) while bounding a single 3-byte `&{}` to 256 symbols.
+/// The most resolved names one nested rule may expand to: the sum, over its
+/// selectors, of the parent count raised to the selector's `&` count (one
+/// for a selector without `&`). Exactly this many is expanded; one more and
+/// the rule is indexed unexpanded, with [`UNEXPANDED_MARKER`].
 const MAX_RESOLVED_SELECTORS_PER_RULE: usize = 256;
 
-/// Safety bound for adversarial input (part of DC2): every resolved name
-/// costs its length plus one `SymbolRecord` against a per-file budget of
-/// this base plus [`RESOLVED_BUDGET_PER_SOURCE_BYTE`] per source byte. Once
-/// spent, later nested rules are indexed as written. It stops `& + &` chains,
-/// whose length doubles per level, and many children of a wide parent list
-/// from growing memory far beyond the file's own size.
+/// Start of the comment appended to a selector that was indexed without
+/// being expanded against its parent: search for it to find such rules.
+pub const UNEXPANDED_MARKER: &str = "/* mct: not expanded";
+
+/// Safety bound for adversarial input: every resolved name costs its length
+/// plus one `SymbolRecord` against a per-file budget of this base plus
+/// [`RESOLVED_BUDGET_PER_SOURCE_BYTE`] per source byte. Once spent, later
+/// nested rules are indexed unexpanded. It stops `& + &` chains, whose length
+/// doubles per level, and many children of a wide parent list from growing
+/// memory far beyond the file's own size.
 const RESOLVED_BUDGET_BASE: usize = 1 << 20;
 const RESOLVED_BUDGET_PER_SOURCE_BYTE: usize = 8;
 
@@ -153,11 +157,49 @@ enum Parents<'p> {
     /// No enclosing style rule: the top level, or a block (such as
     /// `@scope`'s or `@utility`'s) whose `&` is not a parent selector.
     Root,
-    /// The enclosing rule's resolved selectors.
+    /// The enclosing rule's resolved selectors (never empty).
     Resolved(&'p [String]),
-    /// An enclosing rule could not be resolved (no parent for its `&`, or
-    /// over the expansion bounds): names here are indexed as written.
+    /// An enclosing rule had no parent for its `&`: names here are indexed
+    /// as written.
     Unresolved,
+    /// An enclosing nested rule was not expanded: names here are indexed as
+    /// written, marked with [`Unexpanded::ParentNotExpanded`].
+    Unexpanded,
+}
+
+/// What a rule passes down to the rules nested in it.
+enum Inner {
+    Resolved(Vec<String>),
+    Unresolved,
+    Unexpanded,
+}
+
+/// Why a nested selector was indexed without being expanded.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Unexpanded {
+    /// Over [`MAX_RESOLVED_SELECTORS_PER_RULE`].
+    TooMany,
+    /// Over the per-file budget (see [`RESOLVED_BUDGET_BASE`]).
+    Budget,
+    /// The depth guard cut the search for `&` nodes short.
+    TooDeep,
+    /// An enclosing nested rule was not expanded.
+    ParentNotExpanded,
+}
+
+impl Unexpanded {
+    /// `name` followed by [`UNEXPANDED_MARKER`] and this reason.
+    fn mark(self, name: &str) -> String {
+        let reason = match self {
+            Unexpanded::TooMany => {
+                format!("over {MAX_RESOLVED_SELECTORS_PER_RULE} selectors")
+            }
+            Unexpanded::Budget => "over the file budget".to_string(),
+            Unexpanded::TooDeep => "nested too deep".to_string(),
+            Unexpanded::ParentNotExpanded => "parent not expanded".to_string(),
+        };
+        format!("{name} {UNEXPANDED_MARKER}, {reason} */")
+    }
 }
 
 /// One selector split around its `nesting_selector` (`&`) nodes.
@@ -175,24 +217,76 @@ impl SelectorParts {
         self.pieces.join("&")
     }
 
-    /// Length of this selector resolved against a parent of `parent_len`
-    /// bytes, or `None` on overflow.
-    fn resolved_len(&self, parent_len: usize) -> Option<usize> {
+    /// How many names this selector resolves to against `parents` parent
+    /// selectors (each `&` takes each parent independently), or `None` on
+    /// overflow.
+    fn expansion_count(&self, parents: usize) -> Option<usize> {
+        if self.amps.is_empty() {
+            return Some(parents);
+        }
+        parents.checked_pow(u32::try_from(self.amps.len()).ok()?)
+    }
+
+    /// Total length of every name this selector resolves to against
+    /// `parents`, or `None` on overflow. With `k` `&` and `p` parents of total
+    /// length `s`, each parent fills each `&` in `p^(k-1)` of the `p^k`
+    /// names.
+    fn resolved_bytes(&self, parents: &[String]) -> Option<usize> {
         let own = self
             .pieces
             .iter()
             .try_fold(0usize, |sum, piece| sum.checked_add(piece.len()))?;
+        let parent_bytes = parents
+            .iter()
+            .try_fold(0usize, |sum, parent| sum.checked_add(parent.len()))?;
+        let count = self.expansion_count(parents.len())?;
         if self.amps.is_empty() {
-            return parent_len.checked_add(1)?.checked_add(own);
+            return count
+                .checked_mul(own.checked_add(1)?)?
+                .checked_add(parent_bytes);
         }
-        parent_len.checked_mul(self.amps.len())?.checked_add(own)
+        let per_parent = count / parents.len().max(1);
+        let fills = per_parent
+            .checked_mul(self.amps.len())?
+            .checked_mul(parent_bytes)?;
+        count.checked_mul(own)?.checked_add(fills)
     }
 
-    fn resolve(&self, parent: &str) -> String {
+    /// Every name this selector resolves to against the non-empty `parents`,
+    /// in source order of the parents with the last `&` varying fastest.
+    fn resolve(&self, parents: &[String]) -> Vec<String> {
         if self.amps.is_empty() {
-            return format!("{parent} {}", self.pieces.concat());
+            let own = self.pieces.concat();
+            return parents
+                .iter()
+                .map(|parent| format!("{parent} {own}"))
+                .collect();
         }
-        self.pieces.join(parent)
+        let mut choice = vec![0usize; self.amps.len()];
+        let mut names = Vec::new();
+        loop {
+            let mut name = String::new();
+            for (i, piece) in self.pieces.iter().enumerate() {
+                name.push_str(piece);
+                if let Some(parent) = choice.get(i).and_then(|&c| parents.get(c)) {
+                    name.push_str(parent);
+                }
+            }
+            names.push(name);
+            // Advance `choice` like an odometer; done once it wraps around.
+            let mut advanced = false;
+            for slot in choice.iter_mut().rev() {
+                *slot += 1;
+                if *slot < parents.len() {
+                    advanced = true;
+                    break;
+                }
+                *slot = 0;
+            }
+            if !advanced {
+                return names;
+            }
+        }
     }
 }
 
@@ -262,14 +356,19 @@ impl<'a> Walker<'a> {
         }
         match node.kind() {
             "rule_set" => {
-                let own = self.index_rule_set(node, parents, depth);
                 // The block may nest rules (CSS Nesting), directly or inside
                 // at-rules; they resolve against this rule's selectors.
-                let inner = match &own {
-                    Some(names) => Parents::Resolved(names),
-                    None => Parents::Unresolved,
-                };
-                self.visit_children(node, owner, depth + 1, inner);
+                match self.index_rule_set(node, parents, depth) {
+                    Inner::Resolved(names) if !names.is_empty() => {
+                        self.visit_children(node, owner, depth + 1, Parents::Resolved(&names));
+                    }
+                    Inner::Resolved(_) | Inner::Unresolved => {
+                        self.visit_children(node, owner, depth + 1, Parents::Unresolved);
+                    }
+                    Inner::Unexpanded => {
+                        self.visit_children(node, owner, depth + 1, Parents::Unexpanded);
+                    }
+                }
             }
             // Inside `@scope`, `&` is the scoping root, not a parent rule.
             "scope_statement" => self.visit_children(node, owner, depth + 1, Parents::Root),
@@ -282,15 +381,15 @@ impl<'a> Walker<'a> {
         }
     }
 
-    /// Indexes every selector of `rule_set` and returns the names its nested
-    /// rules resolve against, or `None` when they can't be (see [`Parents`]).
-    fn index_rule_set(
-        &mut self,
-        rule_set: Node,
-        parents: Parents,
-        depth: u32,
-    ) -> Option<Vec<String>> {
-        let selectors = find_child(rule_set, "selectors")?;
+    /// Indexes every selector of `rule_set` and returns what its nested
+    /// rules resolve against (see [`Parents`]).
+    fn index_rule_set(&mut self, rule_set: Node, parents: Parents, depth: u32) -> Inner {
+        let Some(selectors) = find_child(rule_set, "selectors") else {
+            return match parents {
+                Parents::Unexpanded => Inner::Unexpanded,
+                _ => Inner::Unresolved,
+            };
+        };
         let mut cursor = selectors.walk();
         let nodes: Vec<Node> = selectors.named_children(&mut cursor).collect();
         let parts: Vec<SelectorParts> = nodes
@@ -299,71 +398,82 @@ impl<'a> Walker<'a> {
             .collect();
         let resolved = match parents {
             Parents::Resolved(parent_names) => self.resolve_nested(parent_names, &parts),
-            Parents::Root | Parents::Unresolved => None,
-        };
-        let Some(resolved) = resolved else {
-            for (node, part) in nodes.iter().zip(&parts) {
-                self.index_selector(*node, rule_set, vec![part.literal()], &[]);
+            Parents::Unexpanded => Err(Unexpanded::ParentNotExpanded),
+            Parents::Root | Parents::Unresolved => {
+                for (node, part) in nodes.iter().zip(&parts) {
+                    self.index_selector(*node, rule_set, vec![part.literal()], &[]);
+                }
+                let resolvable = matches!(parents, Parents::Root)
+                    && parts
+                        .iter()
+                        .all(|part| part.complete && part.amps.is_empty());
+                return if resolvable {
+                    Inner::Resolved(parts.iter().map(SelectorParts::literal).collect())
+                } else {
+                    Inner::Unresolved
+                };
             }
-            let resolvable = matches!(parents, Parents::Root)
-                && parts
-                    .iter()
-                    .all(|part| part.complete && part.amps.is_empty());
-            return resolvable.then(|| parts.iter().map(SelectorParts::literal).collect());
         };
-        let per_selector = resolved.len() / parts.len().max(1);
-        for (i, (node, part)) in nodes.iter().zip(&parts).enumerate() {
-            let start = i * per_selector;
-            let mut names: Vec<String> = resolved
-                .get(start..start + per_selector)
-                .unwrap_or_default()
-                .to_vec();
-            let hidden: &[usize] = if keeps_literal_name(part) {
-                names.push(part.literal());
-                &[]
-            } else {
-                &part.amps
-            };
-            self.index_selector(*node, rule_set, names, hidden);
+        match resolved {
+            Ok(per_selector) => {
+                let mut all = Vec::new();
+                for ((node, part), mut names) in nodes.iter().zip(&parts).zip(per_selector) {
+                    all.extend(names.iter().cloned());
+                    if part.amps.is_empty() {
+                        names.push(part.literal());
+                    }
+                    self.index_selector(*node, rule_set, names, &part.amps);
+                }
+                Inner::Resolved(all)
+            }
+            Err(reason) => {
+                for (node, part) in nodes.iter().zip(&parts) {
+                    let literal = part.literal();
+                    let mut names = vec![reason.mark(&literal)];
+                    if part.amps.is_empty() {
+                        names.push(literal);
+                    }
+                    self.index_selector(*node, rule_set, names, &part.amps);
+                }
+                Inner::Unexpanded
+            }
         }
-        Some(resolved)
     }
 
-    /// Every selector of a nested rule resolved against every parent name,
-    /// selector-major, or `None` when that is over the expansion bounds
-    /// ([`MAX_RESOLVED_SELECTORS_PER_RULE`], the per-file budget) or a
-    /// selector's `&` search was cut short. Sizes are checked before any
-    /// name is built.
+    /// Every selector of a nested rule resolved against `parents`, one list
+    /// per selector, or why it is not expanded: over
+    /// [`MAX_RESOLVED_SELECTORS_PER_RULE`] in total, over the per-file
+    /// budget, or a selector's `&` search was cut short. Sizes are checked
+    /// before any name is built.
     fn resolve_nested(
         &mut self,
         parents: &[String],
         parts: &[SelectorParts],
-    ) -> Option<Vec<String>> {
-        let count = parts.len().checked_mul(parents.len())?;
-        if count == 0 || count > MAX_RESOLVED_SELECTORS_PER_RULE {
-            return None;
-        }
+    ) -> Result<Vec<Vec<String>>, Unexpanded> {
         if !parts.iter().all(|part| part.complete) {
-            return None;
+            return Err(Unexpanded::TooDeep);
+        }
+        let mut count = 0usize;
+        for part in parts {
+            count = part
+                .expansion_count(parents.len())
+                .and_then(|n| count.checked_add(n))
+                .filter(|&total| total <= MAX_RESOLVED_SELECTORS_PER_RULE)
+                .ok_or(Unexpanded::TooMany)?;
         }
         let record = std::mem::size_of::<SymbolRecord>();
-        let mut cost = 0usize;
+        let mut cost = count.checked_mul(record).ok_or(Unexpanded::Budget)?;
         for part in parts {
-            for parent in parents {
-                let len = part.resolved_len(parent.len())?;
-                cost = cost.checked_add(len)?.checked_add(record)?;
-            }
+            cost = part
+                .resolved_bytes(parents)
+                .and_then(|bytes| cost.checked_add(bytes))
+                .ok_or(Unexpanded::Budget)?;
         }
         if cost > self.resolved_budget {
-            return None;
+            return Err(Unexpanded::Budget);
         }
         self.resolved_budget -= cost;
-        Some(
-            parts
-                .iter()
-                .flat_map(|part| parents.iter().map(|parent| part.resolve(parent)))
-                .collect(),
-        )
+        Ok(parts.iter().map(|part| part.resolve(parents)).collect())
     }
 
     fn finish(self) -> ParsedFile {
@@ -450,12 +560,6 @@ fn unescape_css(s: &str) -> String {
         });
     }
     out
-}
-
-/// Whether a resolved nested selector also keeps its name as written
-/// (DC1, see [`KEEP_LITERAL_NESTED_SELECTORS`]).
-fn keeps_literal_name(part: &SelectorParts) -> bool {
-    KEEP_LITERAL_NESTED_SELECTORS || part.amps.is_empty()
 }
 
 /// Splits `selector` around its `nesting_selector` nodes. `depth` is the
@@ -650,6 +754,8 @@ mod nesting_limit_tests {
 
     use super::*;
 
+    const MAX: usize = MAX_RESOLVED_SELECTORS_PER_RULE;
+
     fn rule_names(src: &str) -> Vec<String> {
         CssParser
             .parse(&SourceFile {
@@ -664,12 +770,29 @@ mod nesting_limit_tests {
             .collect()
     }
 
+    fn list(prefix: &str, n: usize) -> String {
+        (0..n)
+            .map(|i| format!("{prefix}{i}"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
     /// `.p0, … { &.c0, &.c1, … { .leaf {} } }` with `parents` × `children`
     /// resolved names for the middle rule.
     fn nested(parents: usize, children: usize) -> String {
-        let p: Vec<String> = (0..parents).map(|i| format!(".p{i}")).collect();
-        let c: Vec<String> = (0..children).map(|i| format!("&.c{i}")).collect();
-        format!("{} {{ {} {{ .leaf {{}} }} }}", p.join(", "), c.join(", "))
+        format!(
+            "{} {{ {} {{ .leaf {{}} }} }}",
+            list(".p", parents),
+            list("&.c", children)
+        )
+    }
+
+    fn over_limit(name: &str) -> String {
+        format!("{name} /* mct: not expanded, over {MAX} selectors */")
+    }
+
+    fn parent_unexpanded(name: &str) -> String {
+        format!("{name} /* mct: not expanded, parent not expanded */")
     }
 
     fn assert_resolved(parents: usize, children: usize) {
@@ -681,54 +804,84 @@ mod nesting_limit_tests {
             }
         }
         assert!(!names.iter().any(|n| n.starts_with('&')), "literal kept");
+        assert!(!names.iter().any(|n| n.contains(UNEXPANDED_MARKER)));
         let last = format!(".p{}.c{} .leaf", parents - 1, children - 1);
         assert!(names.contains(&last), "descendant not resolved: {last}");
     }
 
+    fn assert_unexpanded(src: &str, literals: &[&str]) {
+        let names = rule_names(src);
+        // The file still parses; every selector of the rule is kept as
+        // written and marked, with no partial expansion…
+        for literal in literals {
+            assert!(names.contains(&over_limit(literal)), "{literal}: {src}");
+            assert!(!names.contains(&literal.to_string()), "bare {literal}");
+        }
+        assert!(!names.iter().any(|n| n.starts_with(".p0.c")), "partial");
+        assert!(!names.iter().any(|n| n.starts_with(".p0 + ")), "partial");
+        // …and what is nested in it is marked too, keeping its plain name.
+        assert!(names.contains(&".leaf".to_string()));
+        assert!(names.contains(&parent_unexpanded(".leaf")));
+        assert!(!names.iter().any(|n| n.ends_with(" .leaf")));
+    }
+
     #[test]
     fn expansion_just_under_the_limit_is_resolved() {
-        assert_resolved(1, MAX_RESOLVED_SELECTORS_PER_RULE - 1);
+        assert_resolved(1, MAX - 1);
     }
 
     #[test]
     fn expansion_at_the_limit_is_resolved() {
-        assert_resolved(1, MAX_RESOLVED_SELECTORS_PER_RULE);
-        assert_resolved(2, MAX_RESOLVED_SELECTORS_PER_RULE / 2);
+        assert_resolved(1, MAX);
+        assert_resolved(2, MAX / 2);
     }
 
     #[test]
-    fn expansion_over_the_limit_degrades_to_the_literal_selector() {
-        for (parents, children) in [
-            (1, MAX_RESOLVED_SELECTORS_PER_RULE + 1),
-            (2, MAX_RESOLVED_SELECTORS_PER_RULE / 2 + 1),
-        ] {
-            let names = rule_names(&nested(parents, children));
-            // The file still parses; the rule keeps its selectors as written…
-            assert!(names.contains(&"&.c0".to_string()), "{parents}x{children}");
-            assert!(
-                !names.iter().any(|n| n.starts_with(".p0.c")),
-                "{parents}x{children}"
-            );
-            // …and so does what is nested in it.
-            assert!(names.contains(&".leaf".to_string()));
-            assert!(!names.iter().any(|n| n.ends_with(" .leaf")));
-        }
+    fn expansion_over_the_limit_is_kept_unexpanded_and_marked() {
+        assert_unexpanded(&nested(1, MAX + 1), &["&.c0", "&.c256"]);
+        assert_unexpanded(&nested(2, MAX / 2 + 1), &["&.c0", "&.c128"]);
+    }
+
+    #[test]
+    fn repeated_ampersands_count_the_full_product_against_the_limit() {
+        // Two parents and eight `&`: 2^8 = 256 names, exactly the limit.
+        let amps = ["&"; 8].join(" + ");
+        let src = format!(".p0, .p1 {{ {amps} {{ .leaf {{}} }} }}");
+        let names = rule_names(&src);
+        let resolved: Vec<&String> = names
+            .iter()
+            .filter(|n| n.matches(" + ").count() == 7 && !n.ends_with(" .leaf"))
+            .collect();
+        assert_eq!(resolved.len(), MAX, "{}", resolved.len());
+        assert!(names.contains(&[".p1"; 8].join(" + ")));
+        assert!(!names.iter().any(|n| n.contains(UNEXPANDED_MARKER)));
+        // One more selector makes 257: the whole rule stays unexpanded.
+        let src = format!(".p0, .p1 {{ {amps}, &.x {{ .leaf {{}} }} }}");
+        assert_unexpanded(&src, &[&amps, "&.x"]);
+    }
+
+    #[test]
+    fn a_child_without_ampersand_over_the_limit_keeps_its_plain_name() {
+        let src = format!("{} {{ .x {{}} }}", list(".p", MAX + 1));
+        let names = rule_names(&src);
+        assert!(names.contains(&".x".to_string()));
+        assert!(names.contains(&over_limit(".x")));
+        assert!(!names.iter().any(|n| n.ends_with(" .x")));
     }
 
     #[test]
     fn the_per_file_budget_stops_resolution_without_failing_the_file() {
         // Every `& + &` level doubles the resolved length; the budget stops
         // it long before the 2^40-fold name and keeps the deeper levels as
-        // written.
+        // written, marked.
         let src = format!(".a {{ {}{} }}", "& + & { ".repeat(40), "} ".repeat(40));
         let names = rule_names(&src);
         let bytes: usize = names.iter().map(String::len).sum();
         let budget = RESOLVED_BUDGET_BASE + src.len() * RESOLVED_BUDGET_PER_SOURCE_BYTE;
-        assert!(bytes <= budget + src.len() * 2, "{bytes} bytes");
+        assert!(bytes <= budget + src.len() * 2 + 40 * 64, "{bytes} bytes");
         assert!(names.contains(&".a + .a".to_string()));
-        assert!(
-            names.contains(&"& + &".to_string()),
-            "deep levels as written"
-        );
+        assert!(names.contains(&"& + & /* mct: not expanded, over the file budget */".to_string()));
+        assert!(names.contains(&parent_unexpanded("& + &")));
+        assert!(!names.contains(&"& + &".to_string()), "unmarked literal");
     }
 }
