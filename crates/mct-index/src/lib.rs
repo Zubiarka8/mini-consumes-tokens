@@ -86,6 +86,10 @@ pub struct Index {
     /// database is validated against this to reject path traversal.
     root: PathBuf,
     exclude: ExcludeSet,
+    /// The [`ExcludeSet::generation`] the last full reindex applied. Behind
+    /// the set's current generation, rows of paths its rules now exclude may
+    /// still be stored ([`Index::apply_exclusion_changes`]).
+    applied_exclusions: u64,
 }
 
 impl Index {
@@ -111,6 +115,7 @@ impl Index {
         Ok(Self {
             conn,
             root,
+            applied_exclusions: exclude.generation(),
             exclude,
         })
     }
@@ -130,6 +135,7 @@ impl Index {
         Ok(Self {
             conn,
             root,
+            applied_exclusions: exclude.generation(),
             exclude,
         })
     }
@@ -184,6 +190,24 @@ impl Index {
     /// a rule added or removed since the index was opened applies to this run.
     pub fn reindex(&mut self, registry: &LanguageRegistry, force: bool) -> Result<ReindexReport> {
         indexer::reindex(self, registry, force)
+    }
+
+    /// Brings the stored rows in line with the project's current ignore
+    /// rules before anything is read from them: re-reads the ignore files
+    /// ([`ExcludeSet::reload`]) and, when the rules differ from those the
+    /// last full reindex applied — whether this call or a clone of the set
+    /// (the watcher's) reloaded them — runs that full reindex now
+    /// (hash-skipped, like the watcher's). Without it, a path that an edit to
+    /// `.mctignore` (or an imported `.gitignore`) excludes stays queryable
+    /// until the next reindex. Returns whether it reindexed; a failed reindex
+    /// leaves the rules unapplied, so the next call tries again.
+    pub fn apply_exclusion_changes(&mut self, registry: &LanguageRegistry) -> Result<bool> {
+        self.exclude.try_reload()?;
+        if self.exclude.generation() == self.applied_exclusions {
+            return Ok(false);
+        }
+        indexer::reindex(self, registry, false)?;
+        Ok(true)
     }
 
     /// Incremental [`Index::reindex`]: updates the index for `paths` only

@@ -52,3 +52,11 @@
 - Corrected retry with `symbol: "RustParser", format: "toon", limit: 1` succeeded: eight references, one displayed, seven omitted by the requested limit. ERR-011 is RESOLVED; no source or server change was required.
 - The connected MCP serves the preserved primary checkout/index, whose HEAD is `af20fe955f58d1c3fab1d0e2221208f34a30058f`. This checks argument validity; it does not validate current main's symbol graph or refresh any previous diagnostic snapshot.
 - Prevention: consult the required input schema before calls and distinguish discovery's `name` from relation queries' `symbol`.
+
+
+## 2026-10-12 — Privacy review environment
+
+- ERR-012 observed and resolved: local MCP initialization in `feat/index-privacy-hygiene` failed inside the filesystem sandbox with `Error: database error: unable to open database file`, `Error code 14: unable to open database file`. Notified the user; retried with authorized filesystem access, using the project's own server binary and the same worktree root.
+- Successful `get_indexing_status` on the dirty tree based on `32f8a79ccfcd09c3d790e43edc284d7602e9737b`: timestamp 1791792386, 594 files and 12,370 symbols. The 16 malformed-corpus parse failures are expected (ERR-003); no other parse diagnostic was observed in this worktree.
+- Source lookup proceeded through local `build_context_pack` calls. A connected MCP with an unconfirmed root was not used for the code review.
+- Intentional malformed ignore-file and permission-denial fixtures belong to the synthetic regression tests; their diagnostics and reproduced privacy defects are recorded in `project-management/checkpoints/index-privacy-hygiene-review.md`.
