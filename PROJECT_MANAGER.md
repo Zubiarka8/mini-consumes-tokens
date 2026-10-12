@@ -146,7 +146,18 @@ Check crate boundaries, cross-cutting contracts, MCP/schema/client impact, arbit
 5. Push, publish, or merge only within the user's authorization. An approved PR awaiting merge remains REVIEW; record approval separately from integration.
 6. After verified integration update Tasks, Project State, Registry, Handoff, report references, and relevant issues/PRs. Record the integration commit, summarize obsolete handoffs, and inspect remaining worktrees before any authorized cleanup.
 
-Before opening a PR run `scripts/unix/check.sh`, then open it with `scripts/unix/publish-branch.sh` (fast-forward push only; see [scripts/README.md](scripts/README.md)). Branch protection on `main` requires the status checks `rustfmt` and `build + test + clippy` on ubuntu, macOS and Windows, and disallows force-push and deletion; inspect the live settings with `gh api repos/{owner}/{repo}/branches/main/protection` rather than relying on this sentence. Merge method, auto-merge, and review requirements are not set by this document.
+### Pull requests and `main`
+
+Project policy (a convention, enforced by people and agents rather than by GitHub except where stated below):
+
+- Every change, documentation included, reaches `main` through a pull request. Never push directly to `main`.
+- Before opening a PR run `scripts/unix/check.sh`, then open it with `scripts/unix/publish-branch.sh` (fast-forward push only; see [scripts/README.md](scripts/README.md)).
+- Review before integration: the actual base-to-head diff is reviewed as described in "Review, findings, and completeness" and step 2 above. This is project policy; GitHub does not require it.
+- Merge with a merge commit. Do not squash or rebase-merge by default, so reviewed branch commits and the hashes recorded in checkpoints stay reachable. An exception needs the user's explicit authorization and a recorded reason.
+- Auto-merge is not used. A merge happens only after the authorization in step 5.
+- There is no universal rule that every new test must fail before the change. Changed behavior needs regression coverage appropriate to it: for a bug fix, a test that reproduces the bug where feasible, otherwise a stated reason in the PR or report. Corpus parser fixes keep the stricter rule in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+Enforced by GitHub on `main` (observed 2026-10-12; inspect `gh api repos/{owner}/{repo}/branches/main/protection` and `gh api repos/{owner}/{repo}` instead of trusting this list): the status checks `rustfmt` and `build + test + clippy` on ubuntu, macOS and Windows must pass, and force-push and deletion are disallowed. Not enforced: opening a PR, an approving review, admin enforcement, linear history, or an up-to-date branch. The repository settings still allow merge, squash and rebase merges and auto-merge, so the merge rules above rely on discipline, not on GitHub.
 
 Commits must be small, coherent, English, and follow `rules.md`. Keep features, unrelated refactors, docs, and accidental formatting changes separate. State-only commits may refer to a preceding implementation commit; they cannot contain their own final hash, so resolve the branch's latest HEAD through Git at recovery.
 
