@@ -1,4 +1,4 @@
-# language=css files=12 symbols=931 relations=17 name_matched_across_files=0
+# language=css files=12 symbols=933 relations=17 name_matched_across_files=0
 
 == app.css (361 lines)
 S 1-361 module app
@@ -434,7 +434,9 @@ S 10-29 rule :root
 S 11-29 rule [data-bs-theme="light"]
 S 31-36 rule [data-bs-theme="dark"]
 S 40-60 rule [data-bs-theme="harbor-night"]
+S 51-54 rule [data-bs-theme="harbor-night"] .dropdown-menu
 S 51-54 rule .dropdown-menu
+S 56-59 rule [data-bs-theme="harbor-night"] .btn-brand
 S 56-59 rule .btn-brand
 S 64-67 rule .text-bg-sale
 S 69-72 rule .link-brand
@@ -950,24 +952,24 @@ S 159-159 rule button
 S 160-162 rule [role="button"]:not(:disabled)
 S 160-160 rule [role="button"]
 S 166-183 rule .hb-card
-S 170-172 rule &:hover
-S 174-177 rule & > .hb-card__title
+S 170-172 rule .hb-card:hover
+S 174-177 rule .hb-card > .hb-card__title
 S 174-174 rule .hb-card__title
 S 185-206 rule .hb-button
-S 190-192 rule &:hover
-S 194-197 rule &:focus-visible
+S 190-192 rule .hb-button:hover
+S 194-197 rule .hb-button:focus-visible
 S 208-219 rule .hb-input
-S 212-214 rule &::placeholder
-S 216-218 rule &[aria-invalid="true"]
+S 212-214 rule .hb-input::placeholder
+S 216-218 rule .hb-input[aria-invalid="true"]
 S 221-236 rule .hb-nav
-S 225-231 rule & a
+S 225-231 rule .hb-nav a
 S 225-225 rule a
-S 228-230 rule &:hover
+S 228-230 rule .hb-nav a:hover
 S 243-254 rule .prose-harbor
 S 256-268 rule .hero
-S 265-267 rule &:hover
+S 265-267 rule .hero:hover
 S 270-273 rule .hero__title
 S 275-287 rule .pricing-table
-S 283-286 rule & .pricing-table__plan[data-featured]
+S 283-286 rule .pricing-table .pricing-table__plan[data-featured]
 S 283-283 rule .pricing-table__plan
 R 25:1 imports main -> tailwindcss

@@ -227,3 +227,216 @@ fn deeply_nested_selectors_do_not_overflow_a_small_stack() {
         .join()
         .unwrap();
 }
+
+// --- CSS Nesting (#115): nested selectors resolved against their parent ---
+
+/// Every `Rule` symbol named `name`, as `(line, end_line)`.
+fn rule_lines(parsed: &mct_core::ParsedFile, name: &str) -> Vec<(u32, Option<u32>)> {
+    parsed
+        .symbols
+        .iter()
+        .filter(|s| s.kind == SymbolKind::Rule && s.name == name)
+        .map(|s| (s.location.line, s.location.end_line))
+        .collect()
+}
+
+#[test]
+fn nesting_resolves_parents_and_keeps_source_ranges() {
+    let parsed = parse(".a, .b {\n &:hover { color: red; }\n .title {\n  @media (min-width: 600px) { &:focus { color: blue; } }\n }\n}\n");
+    let names = rule_names(&parsed);
+    for expected in [
+        ".a:hover",
+        ".b:hover",
+        ".a .title",
+        ".b .title",
+        ".a .title:focus",
+        ".b .title:focus",
+    ] {
+        assert!(names.contains(&expected), "missing {expected}: {names:?}");
+    }
+    let hover = parsed
+        .symbols
+        .iter()
+        .find(|s| s.name == ".a:hover")
+        .unwrap();
+    assert_eq!(hover.location.line, 2);
+    assert_eq!(hover.location.end_line, Some(2));
+    assert!(names.contains(&".title"));
+}
+
+#[test]
+fn nesting_does_not_replace_literal_or_escaped_ampersands() {
+    let parsed = parse(r#".a { &[data-label="&"] { color: red; } .icon\& { color: blue; } }"#);
+    let names = rule_names(&parsed);
+    assert!(names.contains(&r#".a[data-label="&"]"#), "{names:?}");
+    assert!(names.contains(&".a .icon&"), "{names:?}");
+    // The `&` inside the string and the escaped `\&` are not nesting
+    // selectors: nothing is substituted into them.
+    assert!(
+        !names
+            .iter()
+            .any(|n| n.contains(r#""".a""#) || n.contains(".icon.a")),
+        "{names:?}"
+    );
+}
+
+#[test]
+fn explicit_nesting_substitutes_the_parent_for_each_ampersand() {
+    let parsed = parse(".card { &:hover {} &.active {} & > .t {} & + & {} .x:not(&) {} }");
+    let names = rule_names(&parsed);
+    for expected in [
+        ".card:hover",
+        ".card.active",
+        ".card > .t",
+        ".card + .card",
+        ".x:not(.card)",
+    ] {
+        assert!(names.contains(&expected), "missing {expected}: {names:?}");
+    }
+    // A selector containing `&` gets no implicit descendant prefix.
+    assert!(!names.contains(&".card .x:not(.card)"), "{names:?}");
+}
+
+#[test]
+fn implicit_nesting_prefixes_the_parent_and_keeps_leading_combinators() {
+    let parsed = parse(".a { .b {} > .c {} + .d {} ~ .e {} div {} }");
+    let names = rule_names(&parsed);
+    for expected in [".a .b", ".a > .c", ".a + .d", ".a ~ .e", ".a div"] {
+        assert!(names.contains(&expected), "missing {expected}: {names:?}");
+    }
+    // The child's own atoms are still indexed for HTML matching.
+    for atom in [".b", ".c", ".d", ".e", "div"] {
+        assert!(names.contains(&atom), "missing atom {atom}: {names:?}");
+    }
+}
+
+#[test]
+fn comma_lists_on_parent_and_child_expand_to_their_cartesian_product() {
+    let parsed = parse(".a, .b { & .x, .y {} }");
+    let names = rule_names(&parsed);
+    for expected in [".a .x", ".b .x", ".a .y", ".b .y"] {
+        assert!(names.contains(&expected), "missing {expected}: {names:?}");
+    }
+    // One rule per parent, never a `:is()` list.
+    assert!(!names.iter().any(|n| n.contains(":is(")), "{names:?}");
+}
+
+#[test]
+fn deep_nesting_resolves_through_every_level() {
+    let parsed = parse(".a { .b { &:hover { .c { & > .d {} } } } }");
+    let names = rule_names(&parsed);
+    for expected in [
+        ".a .b",
+        ".a .b:hover",
+        ".a .b:hover .c",
+        ".a .b:hover .c > .d",
+    ] {
+        assert!(names.contains(&expected), "missing {expected}: {names:?}");
+    }
+}
+
+#[test]
+fn parent_context_crosses_a_media_query_inside_a_rule() {
+    let parsed = parse(".a { @media (min-width: 1px) { &:hover {} .b {} } }");
+    let names = rule_names(&parsed);
+    assert!(names.contains(&".a:hover"), "{names:?}");
+    assert!(names.contains(&".a .b"), "{names:?}");
+}
+
+#[test]
+fn parent_context_crosses_a_supports_block_inside_a_rule() {
+    let parsed = parse(".a { @supports (display: grid) { &:hover {} .b {} } }");
+    let names = rule_names(&parsed);
+    assert!(names.contains(&".a:hover"), "{names:?}");
+    assert!(names.contains(&".a .b"), "{names:?}");
+}
+
+#[test]
+fn parent_context_crosses_named_and_anonymous_layers_inside_a_rule() {
+    let parsed = parse(".a { @layer base { &:hover {} } @layer { .b {} } }");
+    let names = rule_names(&parsed);
+    assert!(names.contains(&".a:hover"), "{names:?}");
+    assert!(names.contains(&".a .b"), "{names:?}");
+}
+
+#[test]
+fn parent_context_crosses_a_container_query_inside_a_rule() {
+    // tree-sitter-css 0.25 accepts a named `@container` inside a rule; a
+    // parenthesized condition there is rejected by the grammar (#116).
+    let parsed = parse(".a { @container sidebar { &:hover {} .b {} } }");
+    let names = rule_names(&parsed);
+    assert!(names.contains(&".a:hover"), "{names:?}");
+    assert!(names.contains(&".a .b"), "{names:?}");
+}
+
+#[test]
+fn at_rules_around_a_rule_do_not_break_its_nested_resolution() {
+    for src in [
+        "@media (min-width: 1px) { .a { &:hover {} } }",
+        "@supports (display: grid) { .a { &:hover {} } }",
+        "@layer components { .a { &:hover {} } }",
+        "@container (min-width: 1px) { .a { &:hover {} } }",
+    ] {
+        let parsed = parse(src);
+        let names = rule_names(&parsed);
+        assert!(names.contains(&".a:hover"), "{src}: {names:?}");
+    }
+}
+
+#[test]
+fn nested_rule_literal_ampersand_selector_is_not_indexed() {
+    // Provisional decision DC1 (#115): only the resolved names are indexed.
+    let parsed = parse(".a { &:hover {} & > .b {} &[x] {} }");
+    let names = rule_names(&parsed);
+    for literal in ["&:hover", "& > .b", "&[x]"] {
+        assert!(!names.contains(&literal), "{literal} kept: {names:?}");
+    }
+    assert!(names.contains(&".a:hover"), "{names:?}");
+    assert!(names.contains(&".a > .b"), "{names:?}");
+    assert!(names.contains(&".a[x]"), "{names:?}");
+}
+
+#[test]
+fn ampersand_without_a_parent_rule_keeps_its_literal_selector() {
+    // `@utility`/`@custom-variant` blocks are not style rules: there is no
+    // parent selector to substitute, so the selector is indexed as written.
+    let parsed = parse("@utility scrollbar-hidden { &::-webkit-scrollbar { display: none; } }");
+    let names = rule_names(&parsed);
+    assert!(names.contains(&"&::-webkit-scrollbar"), "{names:?}");
+}
+
+#[test]
+fn every_resolved_name_keeps_the_nested_rule_range() {
+    let parsed = parse(".a,\n.b {\n  color: red;\n  & .x,\n  .y {\n    color: blue;\n  }\n}\n");
+    // Each name spans from its own selector of the list to the rule's `}`.
+    for name in [".a .x", ".b .x"] {
+        assert_eq!(rule_lines(&parsed, name), [(4, Some(7))], "{name}");
+    }
+    for name in [".a .y", ".b .y"] {
+        assert_eq!(rule_lines(&parsed, name), [(5, Some(7))], "{name}");
+    }
+    // The parent's own range is untouched.
+    assert_eq!(rule_lines(&parsed, ".a"), [(1, Some(8))]);
+    // A nested selector without `&` also keeps its name as written, with
+    // the nested rule's range (DC1 only drops literal `&` names).
+    assert_eq!(rule_lines(&parsed, ".y"), [(5, Some(7))]);
+    // An atom keeps the range of its own token.
+    assert_eq!(rule_lines(&parsed, ".x"), [(4, Some(4))]);
+}
+
+#[test]
+fn self_doubling_nesting_stays_bounded() {
+    // Each level doubles the resolved length (`& + &`); 64 levels would be
+    // 2^64 parents long. Parsing must stay bounded and still succeed.
+    std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(|| {
+            let source = format!(".a {{ {}{} }}", "& + & { ".repeat(64), "} ".repeat(64));
+            let parsed = parse(&source);
+            let bytes: usize = parsed.symbols.iter().map(|s| s.name.len()).sum();
+            assert!(bytes < 16 * 1024 * 1024, "{bytes} bytes of names");
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
