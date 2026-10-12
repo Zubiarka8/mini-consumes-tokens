@@ -1,14 +1,10 @@
 "use client";
+import Image from "next/image";
 import Link from "next/link";
-import {
-  ArrowUpRight,
-  Network,
-  ScanLine,
-  GitBranch,
-  BookOpen,
-} from "lucide-react";
+import { ArrowUpRight, Network, ScanLine, GitBranch } from "lucide-react";
 import { MotionConfig, motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
+import { basePath } from "@/lib/shared";
 import { localeKey } from "./locale";
 import { ContextDemo } from "./context-demo";
 import { Atlas } from "./atlas";
@@ -232,13 +228,14 @@ export function Landing() {
             aria-labelledby="docs-title"
           >
             <div className="docs-art" aria-hidden="true">
-              <BookOpen size={76} strokeWidth={0.8} />
-              <span className="mono">
-                MCT
-                <br />
-                {t("fieldGuide")}
-                <br />↗
-              </span>
+              <Image
+                className="docs-art-image"
+                src={`${basePath}/img/docs-field-guide.png`}
+                alt=""
+                width={1370}
+                height={956}
+                unoptimized
+              />
             </div>
             <div>
               <p className="eyebrow">{t("docsLabel")}</p>
