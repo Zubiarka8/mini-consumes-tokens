@@ -4,6 +4,7 @@ pub mod embedder;
 pub mod format;
 pub mod intent;
 pub mod registry;
+pub mod reindex_delay;
 pub mod server;
 pub mod session_compat;
 pub mod toon;
