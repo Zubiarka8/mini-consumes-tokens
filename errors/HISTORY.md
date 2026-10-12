@@ -53,6 +53,13 @@
 - The connected MCP serves the preserved primary checkout/index, whose HEAD is `af20fe955f58d1c3fab1d0e2221208f34a30058f`. This checks argument validity; it does not validate current main's symbol graph or refresh any previous diagnostic snapshot.
 - Prevention: consult the required input schema before calls and distinguish discovery's `name` from relation queries' `symbol`.
 
+## 2026-10-12 — ERR-004 fix candidate (TASK-CSS-NESTING-115)
+
+- Reproduced ERR-004 on `a3e10b0`: 13 new nesting tests in `crates/mct-lang-css/tests/parse.rs` failed before the change; nested rules were named `&:hover`, `& > .b`, `> .c`.
+- Branch `claude/css-nesting-115` (`1fa4b3f`) resolves nested selectors from the tree-sitter `nesting_selector` nodes. The CSS corpus snapshot changed by 11 renamed and 2 added rules; `cargo test -p mct-lang-css` and `scripts/unix/check.sh` pass.
+- Status stays KNOWN_LIMITATION: the fix is not merged and no refreshed index was checked. DC1 (whether to keep literal `&` names) and DC2 (the expansion limit) remain open product decisions.
+- No project MCP tool was used or returned an error in this task.
+- Follow-up (`3cbb88c`): repeated `&` now takes every parent combination (`.a, .b { & + & {} }` gives four names; before, only `.a + .a` and `.b + .b`, shown failing by `repeated_ampersands_combine_every_parent_selector`). Over 256 resolved names, a rule is indexed as written with a `/* mct: not expanded, over 256 selectors */` suffix instead of an unmarked literal. The user settled both open decisions: no literal `&` names, 256 per rule. The CSS corpus snapshot is unchanged by this follow-up.
 
 ## 2026-10-12 — Privacy review environment
 
