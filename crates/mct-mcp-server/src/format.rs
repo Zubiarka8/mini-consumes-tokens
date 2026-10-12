@@ -6,8 +6,8 @@
 use std::collections::BTreeSet;
 
 use mct_index::{
-    FileTreeNode, IndexStatus, LiteralHit, ReindexReport, RelationHit, Resolution, SymbolHit,
-    SymbolListEntry,
+    DependencyGraph, FileTreeNode, IndexStatus, LiteralHit, ReindexReport, RelationHit, Resolution,
+    SymbolHit, SymbolListEntry,
 };
 
 use crate::toon::encode_table;
@@ -1545,6 +1545,145 @@ pub fn find_dead_code_toon(
     )
 }
 
+/// Most external (unresolved) imports `get_dependency_graph` lists.
+pub const DEPENDENCY_GRAPH_EXTERNAL_CAP: usize = 30;
+
+/// `A -> B -> A` for one cycle as `find_cycles` reports it (the first node is
+/// repeated at the end so the loop reads as closed).
+fn cycle_line(cycle: &[String]) -> String {
+    let mut parts: Vec<&str> = cycle.iter().map(String::as_str).collect();
+    if let Some(first) = cycle.first() {
+        parts.push(first.as_str());
+    }
+    parts.join(" -> ")
+}
+
+/// Header and trailing sections shared by both renderings of
+/// `get_dependency_graph`: the `circular dependencies` verdict, the capped
+/// external imports, the truncation flag and the optional export.
+fn dependency_graph_tail(
+    graph: &DependencyGraph,
+    cycles: &[Vec<String>],
+    export: Option<(&str, &str)>,
+) -> String {
+    let mut out = String::new();
+    if cycles.is_empty() {
+        out.push_str("circular dependencies: none\n");
+    } else {
+        out.push_str(&format!("circular dependencies: {}\n", cycles.len()));
+        for cycle in cycles {
+            out.push_str(&format!("  {}\n", cycle_line(cycle)));
+        }
+    }
+    if graph.external.is_empty() {
+        out.push_str("external imports: none\n");
+    } else {
+        let shown = graph.external.len().min(DEPENDENCY_GRAPH_EXTERNAL_CAP);
+        let omitted = graph.external.len() - shown;
+        out.push_str(&format!("external imports ({}):", graph.external.len()));
+        if omitted > 0 {
+            out.push_str(&format!(" showing {shown}, {omitted} omitted"));
+        }
+        out.push('\n');
+        for name in graph.external.iter().take(shown) {
+            out.push_str(&format!("  {name}\n"));
+        }
+    }
+    if graph.truncated {
+        out.push_str(
+            "truncated: true (the `limit` cut the walk short — pass a higher `limit` to see the rest)\n",
+        );
+    } else {
+        out.push_str("truncated: false\n");
+    }
+    if let Some((label, rendered)) = export {
+        out.push_str(&format!("\nexport ({label}):\n{rendered}\n"));
+    }
+    out
+}
+
+/// Renders `get_dependency_graph` as labelled text. `export` is the chosen
+/// export format's name plus its rendered graph.
+pub fn dependency_graph(
+    graph: &DependencyGraph,
+    cycles: &[Vec<String>],
+    export: Option<(&str, &str)>,
+) -> String {
+    if graph.nodes.is_empty() {
+        return dependency_graph_not_found(&graph.root);
+    }
+    let mut out = format!(
+        "dependency graph of `{}`: {} module(s), {} edge(s)\nnodes:\n",
+        graph.root,
+        graph.nodes.len(),
+        graph.edges.len()
+    );
+    for node in &graph.nodes {
+        let depth = node_depth(graph, node);
+        out.push_str(&format!("  {node} (depth {depth})\n"));
+    }
+    out.push_str("edges:\n");
+    for edge in &graph.edges {
+        out.push_str(&format!(
+            "  {} -> {} (depth {})\n",
+            edge.from, edge.to, edge.depth
+        ));
+    }
+    out.push_str(&dependency_graph_tail(graph, cycles, export));
+    out
+}
+
+/// TOON rendering of [`dependency_graph`]: `nodes` and `edges` as tables,
+/// the verdict lines as in the text form.
+pub fn dependency_graph_toon(
+    graph: &DependencyGraph,
+    cycles: &[Vec<String>],
+    export: Option<(&str, &str)>,
+) -> String {
+    if graph.nodes.is_empty() {
+        return dependency_graph_not_found(&graph.root);
+    }
+    let node_rows: Vec<Vec<String>> = graph
+        .nodes
+        .iter()
+        .map(|n| vec![n.clone(), node_depth(graph, n).to_string()])
+        .collect();
+    let edge_rows: Vec<Vec<String>> = graph
+        .edges
+        .iter()
+        .map(|e| vec![e.from.clone(), e.to.clone(), e.depth.to_string()])
+        .collect();
+    format!(
+        "dependency graph of `{}`\n{}{}{}",
+        graph.root,
+        encode_table("nodes", &["path", "depth"], &node_rows),
+        encode_table("edges", &["from", "to", "depth"], &edge_rows),
+        dependency_graph_tail(graph, cycles, export)
+    )
+}
+
+/// Reply for a `module` the index doesn't know (the graph has no nodes).
+fn dependency_graph_not_found(root: &str) -> String {
+    format!(
+        "module not found / not indexed: `{root}` (no indexed file or directory by that path — check the path or reindex)"
+    )
+}
+
+/// Hop count at which `node` was first reached: 0 for the root, otherwise
+/// the smallest depth among the edges leading to it.
+fn node_depth(graph: &DependencyGraph, node: &str) -> u32 {
+    if node == graph.root {
+        return 0;
+    }
+    graph
+        .edges
+        .iter()
+        .filter(|e| e.to == node)
+        .map(|e| e.depth)
+        .min()
+        .unwrap_or(0)
+}
+
 pub fn reindex_report(report: &ReindexReport) -> String {
     let mut out = format!(
         "Reindex complete: {} parsed, {} unchanged, {} removed, {} symbols written.\n",
@@ -2819,5 +2958,90 @@ mod context_pack_tests {
         let signature = signature_line(&source, 1).unwrap_or_default();
         assert!(signature.ends_with('…'), "{signature}");
         assert_eq!(signature.chars().count(), 121);
+    }
+}
+
+#[cfg(test)]
+mod dependency_graph_tests {
+    use super::*;
+    use mct_index::DependencyEdge;
+
+    fn edge(from: &str, to: &str, depth: u32) -> DependencyEdge {
+        DependencyEdge {
+            from: from.into(),
+            to: to.into(),
+            depth,
+        }
+    }
+
+    fn sample() -> DependencyGraph {
+        DependencyGraph {
+            root: "src/a.rs".into(),
+            nodes: vec!["src/a.rs".into(), "src/b.rs".into(), "src/c.rs".into()],
+            edges: vec![
+                edge("src/a.rs", "src/b.rs", 1),
+                edge("src/b.rs", "src/c.rs", 2),
+            ],
+            external: vec!["serde".into()],
+            truncated: false,
+        }
+    }
+
+    #[test]
+    fn toon_has_tables_depths_and_explicit_no_cycles() {
+        let out = dependency_graph_toon(&sample(), &[], None);
+        assert!(out.contains("nodes[3]{path,depth}:"), "{out}");
+        assert!(out.contains("src/c.rs,2"), "{out}");
+        assert!(out.contains("edges[2]{from,to,depth}:"), "{out}");
+        assert!(out.contains("circular dependencies: none"), "{out}");
+        assert!(out.contains("serde"), "{out}");
+        assert!(out.contains("truncated: false"), "{out}");
+        assert!(!out.contains("export ("), "{out}");
+    }
+
+    #[test]
+    fn text_lists_cycles_closed_and_the_export() {
+        let cycles = vec![vec!["src/a.rs".to_string(), "src/b.rs".to_string()]];
+        let out = dependency_graph(&sample(), &cycles, Some(("dot", "digraph {}")));
+        assert!(out.contains("circular dependencies: 1"), "{out}");
+        assert!(out.contains("src/a.rs -> src/b.rs -> src/a.rs"), "{out}");
+        assert!(
+            out.contains(
+                "export (dot):
+digraph {}"
+            ),
+            "{out}"
+        );
+    }
+
+    #[test]
+    fn empty_graph_is_reported_as_not_found() {
+        let graph = DependencyGraph {
+            root: "src/nope.rs".into(),
+            ..DependencyGraph::default()
+        };
+        for out in [
+            dependency_graph(&graph, &[], None),
+            dependency_graph_toon(&graph, &[], None),
+        ] {
+            assert!(out.contains("module not found / not indexed"), "{out}");
+            assert!(out.contains("src/nope.rs"), "{out}");
+        }
+    }
+
+    #[test]
+    fn truncation_and_external_cap_are_reported() {
+        let mut graph = sample();
+        graph.truncated = true;
+        graph.external = (0..DEPENDENCY_GRAPH_EXTERNAL_CAP + 5)
+            .map(|i| format!("ext{i}"))
+            .collect();
+        let out = dependency_graph_toon(&graph, &[], None);
+        assert!(out.contains("truncated: true"), "{out}");
+        assert!(out.contains("5 omitted"), "{out}");
+        assert!(
+            !out.contains(&format!("ext{}", DEPENDENCY_GRAPH_EXTERNAL_CAP)),
+            "{out}"
+        );
     }
 }
