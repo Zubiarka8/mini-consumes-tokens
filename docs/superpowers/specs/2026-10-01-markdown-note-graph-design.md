@@ -282,8 +282,8 @@ What shipped, and where it deliberately departs from the text above:
 - **Note symbol name is the file stem**, not the frontmatter title. A link
   resolves by symbol name, so a title-named note would not answer `[[stem]]`.
   `title`, `aliases` and `tags` are queryable as `title:<t>`, `alias:<a>`,
-  `tag:<t>` references from the note. **Alias lookup** (issue #135; the
-  `symbol_aliases` storage shape is pending design review): a bare
+  `tag:<t>` references from the note. **Alias lookup** (issue #135; storage in
+  the `symbol_aliases` table, [ADR-005](../../01-architecture/adrs/005-markdown-alias-storage.md)): a bare
   `[[Alias]]` or `[[Alias#Heading]]` reaches the note declaring that exact,
   case-sensitive alias; an alias shared by several notes, or equal to another
   note's stem, is `ambiguous` with every candidate. Path links never use
