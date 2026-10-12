@@ -26,6 +26,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   manifests declaring a package; `build_context_pack` prints no source for
   an asset. No schema migration and no `reindex --force` needed: the next
   normal reindex adds the assets.
+- Markdown wikilinks resolve by frontmatter alias (issue #135, ADR-005).
+  A bare `[[Alpha]]` or `[[Alpha#Section]]` reaches the note that declares
+  `aliases: [Alpha]`, by exact, case-sensitive text. An alias shared by
+  several notes, or equal to another note's stem, is `ambiguous` and lists
+  every candidate. A `title` is never an alias, and path links ignore
+  aliases. Schema migration 11 adds the `symbol_aliases` table and resets
+  every `content_hash`, so the next normal reindex reparses everything
+  (no `--force` needed). A binary from before this change cannot open a
+  migrated index (`CONNECTION_CLOSED`): run `scripts/unix/reinstall.sh
+  --reindex`.
 
 ### Changed
 

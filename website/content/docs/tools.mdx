@@ -1,9 +1,11 @@
 ---
 title: MCP tools
-description: The 18 tools the server gives your AI client, grouped by what they answer.
+description: "The MCP tools the server gives your AI client, grouped by what they answer: 19 listed by default, 20 defined."
 ---
 
 Your AI client calls these tools itself; you don't type them. This page tells you what each one answers, so you know what to ask for and can read the results.
+
+The server defines **20** tools. By default **19** are available and listed in `tools/list`; the twentieth, [`select_tools`](#select_tools), is available only when the `MCT_TOOL_ATTENTION=1` environment variable is set. With that variable set, the initial list is `select_tools` alone, and the tools listed afterwards depend on each request you pass to it. Tools that are available but not listed stay callable by name.
 
 ## Which tool for which question
 
@@ -14,6 +16,7 @@ Your AI client calls these tools itself; you don't type them. This page tells yo
 | Where is `X` defined? | [`find_symbol`](#find_symbol) |
 | I know part of a function or type name | [`search_symbols`](#search_symbols) |
 | I know what I want the code to do, but not its name | [`hybrid_search`](#hybrid_search) |
+| I want only embedding similarity, without name matching | [`semantic_search`](#semantic_search) |
 | Who calls this function? | [`find_callers`](#find_callers) |
 | What does this function call? | [`find_calls`](#find_calls) |
 | Where is `X` used at all (calls, imports, inheritance)? | [`find_references`](#find_references) |
@@ -22,6 +25,7 @@ Your AI client calls these tools itself; you don't type them. This page tells yo
 | What code is never used? | [`find_dead_code`](#find_dead_code) |
 | Is the index up to date? | [`get_indexing_status`](#get_indexing_status), [`reindex`](#reindex) |
 | Several of the above at once | [`batch`](#batch) |
+| Show only the tools one request needs (opt-in) | [`select_tools`](#select_tools) |
 
 ## Parameters most tools share
 
@@ -36,7 +40,7 @@ Your AI client calls these tools itself; you don't type them. This page tells yo
 
 Names are matched **exactly** (case-sensitive) unless the tool says otherwise. An empty name is rejected.
 
-Every tool response is capped at 24,000 bytes. If a result list is shortened, the response says how many entries were shown and how many were omitted; use `limit` and `offset` to page through the remaining results.
+Text-format result lists use a 24,000-byte body budget and report omitted entries; `toon` tables are limited by row count only. Headers and notices are additional, so this is not a hard cap on the whole response. Use `limit` (or `top_k`) and `offset` where the tool supports paging; `list_symbols` has no `offset`, so narrow `path` or `kind` for a large listing.
 
 ## Discovery
 
@@ -50,7 +54,7 @@ A short, ranked summary of a project, folder or file: the most important declara
 
 Every definition in a file or folder: name, kind and line range. Use it when you don't know a name yet.
 
-- `path` (required), `kind` (`function`, `method`, `class`, `struct`, `interface`, `enum`, `trait`, `type_alias`, `module`, `variable`, `constant`, `field`, `element`, `rule`, `model_node`, `material`, `animation`, `finding`), `language`, `limit`, `format`.
+- `path` (required), `kind` (`function`, `method`, `class`, `struct`, `interface`, `enum`, `trait`, `type_alias`, `module`, `variable`, `constant`, `field`, `element`, `rule`, `asset`, `model_node`, `material`, `animation`, `finding`), `language`, `limit`, `format`.
 
 ```text
 crates/mct-core/src/lib.rs:77-93 [rust] trait LanguageParser
@@ -93,11 +97,19 @@ Ranked search by words when you know part of a function or type name. `parse req
 
 Search for functionality by describing its behavior in plain language. For example, `load config from disk` can find a symbol named `read_settings`, even though the names don't share those words. It combines `search_symbols` with an embedding model, so it is useful when you don't know the symbol name yet. Results are ranked candidates, not an exhaustive inventory; use `build_context_pack` on a promising hit to inspect its definition and related code.
 
-- `query` (required). Put it in double quotes (`"parse request"`) for an exact phrase; quoted queries use lexical matching and also list indexed prose literals containing the phrase. These include Rust string literals and Markdown paragraphs and table rows. Markdown headings are symbols; frontmatter and code blocks are excluded. A literal must contain at least eight characters and two words, and suspected secrets are filtered out.
+- `query` (required). Put it in double quotes (`"parse request"`) for an exact phrase; quoted queries use lexical matching regardless of `alpha` and also list indexed prose literals containing the phrase. These include Rust string literals and Markdown paragraphs and table rows. Markdown headings are symbols; frontmatter and code blocks are excluded from prose literals. A literal must contain at least eight characters and two words containing letters, and suspected secrets are filtered out.
 - `alpha`: `0` = words only, `1` = meaning only. If you omit it, it is picked from the query: 0.1 for an identifier, 0.75 for a plain sentence, 0.5 otherwise.
 - `top_k` (default 10, max 100), `offset`, `path`, `language`, `snippet_lines`, `format`, `cache`.
 - Quoted exact-phrase searches are lexical and work without the optional semantic feature. Other searches use embeddings when the server was built with `--features semantic`; without that feature, the tool falls back to words only and says so. The default model is downloaded on first use; `MCT_EMBEDDING_MODEL` selects another model.
 - Set `cache: false` on a query to skip cached replies and always get the full result.
+
+### `semantic_search` [#semantic_search]
+
+Ranked search by embedding cosine similarity, without lexical name matching. Results include each symbol's signature and similarity score.
+
+- `query` (required), `top_k` (default 10, clamped to 1–100), `path`, `language`.
+- Requires a server built with `--features semantic` and an available embedding model. The tool is available and listed either way. Without the feature, or if the model cannot load, the call does not fail: it returns the text `semantic_search unavailable` with the reason (for a build without the feature: "this build has no embedding model (rebuild mct-mcp-server with `--features semantic`)") and suggests `search_symbols` or `hybrid_search`.
+- It does not accept `offset`, `format`, `snippet_lines` or `cache`.
 
 ## Relations
 
@@ -184,11 +196,11 @@ The full input schema and description of one tool, by exact name.
 
 - `name` (required).
 
-These discovery tools are optional. The standard MCP `tools/list` handshake still returns every tool's full schema, so existing clients work as before.
+These discovery tools are optional. By default the standard MCP `tools/list` handshake still returns every listed tool's full schema, so existing clients work as before.
 
 ### `batch` [#batch]
 
-Run up to 25 read-only queries in one call. Each result comes under its own `[n] tool` header, and a failing query doesn't stop the others. `reindex` and `batch` itself are not allowed inside.
+Run up to 25 read-only queries in one call. Each result comes under its own `[n] tool` header, and a failing query doesn't stop the others. `reindex`, `select_tools` and `batch` itself are not allowed inside.
 
 ```json
 {
@@ -198,6 +210,12 @@ Run up to 25 read-only queries in one call. Each result comes under its own `[n]
   ]
 }
 ```
+
+### `select_tools` [#select_tools]
+
+Opt-in Tool Attention, available only when the server runs with `MCT_TOOL_ATTENTION=1`. Without that variable the tool is not available, and calling it is an error. With it, `tools/list` starts with `select_tools` alone. Call it first with the user's request: it picks the tools that request needs (all of them when the request is unclear), narrows `tools/list` to those plus `select_tools`, sends a `tools/list_changed` notification, and returns the chosen tool names with argument hints. It never runs the chosen tools, and every tool stays callable by name even when it is not listed.
+
+- `query` (required, not empty).
 
 ## Server options
 
