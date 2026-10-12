@@ -1,4 +1,4 @@
-# language=kotlin files=5 symbols=483 relations=720 name_matched_across_files=89
+# language=kotlin files=5 symbols=483 relations=765 name_matched_across_files=113
 
 == app/WarehouseApp.kt (305 lines)
 S 1-305 module WarehouseApp
@@ -92,26 +92,43 @@ S 263-270 function parseFlags
 S 272-285 function demoService
 S 287-305 function main
 R 3:1 imports WarehouseApp -> Inventory (name-matched: inventory/Inventory.kt)
+R 3:1 imports WarehouseApp -> Inventory (name-matched: inventory/Inventory.kt)
+R 4:1 imports WarehouseApp -> InventoryListener (name-matched: inventory/Inventory.kt)
 R 4:1 imports WarehouseApp -> InventoryListener (name-matched: inventory/Inventory.kt)
 R 5:1 imports WarehouseApp -> Location (name-matched: inventory/Inventory.kt)
+R 5:1 imports WarehouseApp -> Location (name-matched: inventory/Inventory.kt)
+R 6:1 imports WarehouseApp -> OutOfStockException (name-matched: inventory/Inventory.kt)
 R 6:1 imports WarehouseApp -> OutOfStockException (name-matched: inventory/Inventory.kt)
 R 7:1 imports WarehouseApp -> Reservation (name-matched: inventory/Inventory.kt)
+R 7:1 imports WarehouseApp -> Reservation (name-matched: inventory/Inventory.kt)
+R 8:1 imports WarehouseApp -> Currency (name-matched: money/Money.kt)
 R 8:1 imports WarehouseApp -> Currency (name-matched: money/Money.kt)
 R 9:1 imports WarehouseApp -> ExchangeRates (name-matched: money/Money.kt)
+R 9:1 imports WarehouseApp -> ExchangeRates (name-matched: money/Money.kt)
+R 10:1 imports WarehouseApp -> Money (name-matched: money/Money.kt)
 R 10:1 imports WarehouseApp -> Money (name-matched: money/Money.kt)
 R 11:1 imports WarehouseApp -> eur (name-matched: money/Money.kt)
 R 12:1 imports WarehouseApp -> EventSink (name-matched: order/Order.kt)
+R 12:1 imports WarehouseApp -> EventSink (name-matched: order/Order.kt)
+R 13:1 imports WarehouseApp -> Line (name-matched: order/Order.kt)
 R 13:1 imports WarehouseApp -> Line (name-matched: order/Order.kt)
 R 14:1 imports WarehouseApp -> Order (name-matched: order/Order.kt)
+R 14:1 imports WarehouseApp -> Order (name-matched: order/Order.kt)
 R 15:1 imports WarehouseApp -> OrderEvent (name-matched: order/Order.kt)
+R 15:1 imports WarehouseApp -> OrderEvent (name-matched: order/Order.kt)
+R 16:1 imports WarehouseApp -> OrderId (name-matched: order/Order.kt)
 R 16:1 imports WarehouseApp -> OrderId (name-matched: order/Order.kt)
 R 17:1 imports WarehouseApp -> countByState (name-matched: order/Order.kt)
 R 18:1 imports WarehouseApp -> describe (name-matched: inventory/Inventory.kt)
 R 19:1 imports WarehouseApp -> PricingEngine (name-matched: pricing/Pricing.kt)
+R 19:1 imports WarehouseApp -> PricingEngine (name-matched: pricing/Pricing.kt)
 R 20:1 imports WarehouseApp -> defaultEngine (name-matched: pricing/Pricing.kt)
 R 21:1 imports WarehouseApp -> runBlocking
 R 22:1 imports WarehouseApp -> Clock
+R 22:1 imports WarehouseApp -> Clock
 R 23:1 imports WarehouseApp -> LocalDate
+R 23:1 imports WarehouseApp -> LocalDate
+R 24:1 imports WarehouseApp -> AtomicLong
 R 24:1 imports WarehouseApp -> AtomicLong
 R 25:1 imports WarehouseApp -> renderSlip
 R 35:9 calls WarehouseApp -> require
@@ -361,18 +378,28 @@ S 298-308 method Inventory::recomputeReorderPoint
 S 299-299 function mean
 S 300-303 function stdDev
 R 3:1 imports Inventory -> Line (name-matched: order/Order.kt)
+R 3:1 imports Inventory -> Line (name-matched: order/Order.kt)
+R 4:1 imports Inventory -> Order (name-matched: order/Order.kt)
 R 4:1 imports Inventory -> Order (name-matched: order/Order.kt)
 R 5:1 imports Inventory -> OrderId (name-matched: order/Order.kt)
+R 5:1 imports Inventory -> OrderId (name-matched: order/Order.kt)
+R 6:1 imports Inventory -> CoroutineScope
 R 6:1 imports Inventory -> CoroutineScope
 R 7:1 imports Inventory -> delay
 R 8:1 imports Inventory -> isActive
 R 9:1 imports Inventory -> launch
 R 10:1 imports Inventory -> Mutex
+R 10:1 imports Inventory -> Mutex
 R 11:1 imports Inventory -> withLock
 R 12:1 imports Inventory -> Clock
+R 12:1 imports Inventory -> Clock
+R 13:1 imports Inventory -> Duration
 R 13:1 imports Inventory -> Duration
 R 14:1 imports Inventory -> Instant
+R 14:1 imports Inventory -> Instant
 R 15:1 imports Inventory -> UUID
+R 15:1 imports Inventory -> UUID
+R 16:1 imports Inventory -> Delegates
 R 16:1 imports Inventory -> Delegates
 R 26:73 implements Location -> Comparable
 R 27:41 calls Inventory -> startsWith
@@ -596,11 +623,18 @@ S 294-294 method MoneyStats::report
 S 298-299 method Iterable::totalsByCurrency
 S 302-303 function auditLine
 R 3:1 imports Money -> BigDecimal
+R 3:1 imports Money -> BigDecimal
+R 4:1 imports Money -> MathContext
 R 4:1 imports Money -> MathContext
 R 5:1 imports Money -> RoundingMode
+R 5:1 imports Money -> RoundingMode
+R 6:1 imports Money -> NumberFormat
 R 6:1 imports Money -> NumberFormat
 R 7:1 imports Money -> LocalDate
+R 7:1 imports Money -> LocalDate
 R 8:1 imports Money -> Locale
+R 8:1 imports Money -> Locale
+R 9:1 imports Money -> Currency
 R 9:1 imports Money -> JavaCurrency
 R 24:76 calls Currency::format -> toPlainString
 R 27:61 calls Currency::format -> toPlainString
@@ -851,10 +885,15 @@ S 289-306 function packingSlip
 S 292-292 function rule
 S 294-294 function row
 R 3:1 imports Order -> Currency (name-matched: money/Money.kt)
+R 3:1 imports Order -> Currency (name-matched: money/Money.kt)
 R 4:1 imports Order -> CurrencyMismatchException (name-matched: money/Money.kt)
+R 4:1 imports Order -> CurrencyMismatchException (name-matched: money/Money.kt)
+R 5:1 imports Order -> Money (name-matched: money/Money.kt)
 R 5:1 imports Order -> Money (name-matched: money/Money.kt)
 R 6:1 imports Order -> sum (name-matched: money/Money.kt)
 R 7:1 imports Order -> Instant
+R 7:1 imports Order -> Instant
+R 8:1 imports Order -> UUID
 R 8:1 imports Order -> UUID
 R 18:45 calls OrderId::toString -> toString
 R 21:24 calls OrderId::random -> OrderId
@@ -1082,14 +1121,20 @@ S 283-285 function seasonal
 S 288-297 function defaultEngine
 S 300-304 function selfCheck
 R 3:1 imports Pricing -> Currency (name-matched: money/Money.kt)
+R 3:1 imports Pricing -> Currency (name-matched: money/Money.kt)
 R 4:1 imports Pricing -> ExchangeRates (name-matched: money/Money.kt)
+R 4:1 imports Pricing -> ExchangeRates (name-matched: money/Money.kt)
+R 5:1 imports Pricing -> Money (name-matched: money/Money.kt)
 R 5:1 imports Pricing -> Money (name-matched: money/Money.kt)
 R 6:1 imports Pricing -> distributeDiscount (name-matched: money/Money.kt)
 R 7:1 imports Pricing -> gross
 R 8:1 imports Pricing -> sum (name-matched: money/Money.kt)
 R 9:1 imports Pricing -> vat
 R 10:1 imports Pricing -> Line (name-matched: order/Order.kt)
+R 10:1 imports Pricing -> Line (name-matched: order/Order.kt)
 R 11:1 imports Pricing -> BigDecimal
+R 11:1 imports Pricing -> BigDecimal
+R 12:1 imports Pricing -> LocalDate
 R 12:1 imports Pricing -> LocalDate
 R 31:49 calls Pricing -> sum (name-matched: money/Money.kt)
 R 31:34 calls Pricing -> map
