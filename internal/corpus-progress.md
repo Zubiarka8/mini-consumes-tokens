@@ -47,5 +47,5 @@ file; it is a name match, not a resolved cross-file reference.
 
 - #79 — `coproc NAME { … }` truncates the enclosing function (tree-sitter-bash 0.25). Open.
 - #82 — valid C++ rejected as a syntax error by tree-sitter-cpp 0.23.4 (explicit instantiation, `using Ts::operator()...`, `using typename B<K>::V`). Open.
-- #115 — CSS nested rules are indexed with their literal `&` selector, not resolved against the parent (found in #114). Open; fix on branch `claude/css-nesting-115`, pending review, with two provisional decisions (literal `&` names dropped; 256 resolved names per rule).
+- #115 — CSS nested rules are indexed with their literal `&` selector, not resolved against the parent (found in #114). Open; fix on branch `claude/css-nesting-115`, pending review: literal `&` names are not indexed, repeated `&` takes every parent combination, and a rule over 256 resolved names is indexed as written with a `/* mct: not expanded, … */` suffix.
 - #116 — Tailwind v4 at-rule preludes and some CSS Nesting forms rejected by tree-sitter-css 0.25.0 (found in #114; earlier set in #87). Open.
