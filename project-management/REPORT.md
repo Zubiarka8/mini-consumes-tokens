@@ -1,5 +1,79 @@
 # Review Report
 
+## Four-task recovery review — 2026-10-12
+
+Base: a3e10b0f450a93107061152feb862a1d242820a1. Combined code tree: ddbc17b.
+Candidate refs are listed in TASKS.md. Original worktrees and partial probe preserved.
+
+- Aliases: independent diff review APPROVED at 9258d3f; later d0fe58f and 6bdbbcd change
+  only its checkpoint, and f3617fd and 7d085f3 add only documentation
+  (scale evidence). ADR005/migration11 and exact aliases verified. Coordinator:
+  Markdown 129 pass/0 fail/1 ignore; assets 5/0; schema migration tests 4/0.
+  Result: APPROVED (independent) at 9258d3f; later commits do not change reviewed code.
+- CSS: two required defects (R-001, R-002 below) corrected in a361b23.
+  AST offsets and capacity checks retained. Focused crate 71/0/1; focused CI Clippy,
+  fmt and snapshot passed. Coordinator reviewed the follow-up diff.
+  Result: CHANGES_REQUIRED resolved; APPROVED by the coordinator at a361b23 (not independent).
+- PR policy: independent review APPROVED at 14a2586, including upstream-safe
+  publish-branch.sh. 3ca8f70 is an ancestor. GitHub protection refresh failed DNS;
+  date-qualified previous observations are not asserted as freshly checked.
+  Result: APPROVED (independent) at 14a2586.
+- Docs: combined limitations conflict resolved preserving both alias behavior and
+  prose bounds. Published candidate 62c677f is prior reported evidence; remote
+  refresh failed DNS. No recovery push.
+  Result: no independent review recorded; conflict resolution checked by the coordinator only.
+- Hook: 6a0daf3 removes registration and replaces stale entry point with a no-op.
+  JSON validation, direct invocation and diff check passed. Original worktrees'
+  active settings were updated with explicit user authorization.
+  Result: no independent review recorded; checks above passed. Not claimed as APPROVED.
+
+Findings (template format). The original review called both defects "required", so
+severity major is assigned here; file/line and per-finding checks were not recorded.
+- R-001: major. A relative selector containing `&` needs its implicit leading parent.
+  Required check: focused CSS crate tests (71/0/1). Status: fixed in a361b23.
+- R-002: major. Complex parents need individual grouping.
+  Required check: focused CSS crate tests (71/0/1). Status: fixed in a361b23.
+
+Direct performance verification after the user's follow-up:
+`cargo test --locked -p mct-index --release --test relation_scale -- --ignored --nocapture`
+passed on base a3e10b0 and the combined candidate. Existing synthetic fixtures:
+10,000 and 100,000 symbols, resolved and ambiguous, four query scenarios per case.
+Base test 15.85 s; candidate 15.75 s. At 100,000 resolved symbols, page limit 50:
+313.08 ms / 315.98 ms; full list: 4.61294 s / 4.61014 s; depth 3 limit 50:
+13.88 ms / 12.99 ms (base / candidate). One matched run; no alias-heavy workload
+or peak-RSS claim. Raw logs: relation-scale-base.log, relation-scale-candidate.log.
+
+Commands/results on the combined tree:
+- scripts/unix/check.sh (offline): fmt passed, CI Clippy passed,
+  mct-eval no regressions (accuracy 1.000, catalog approximately 8545 tokens).
+  Default test step stopped on watcher failures after 1085 pass/3 fail/23 ignore.
+- cargo test --locked --workspace --no-fail-fast (escalated attempt):
+  1260 passed / 3 failed / 24 ignored. Only background_watcher target failed.
+- cargo test --locked -p mct-mcp-server --test background_watcher, retry:
+  8 passed / 3 failed. The identical tests on a3e10b0 also gave 8/3.
+  Failure names: watcher_reindexes_after_a_file_change_settles,
+  watcher_drops_a_deleted_file_and_follows_a_rename_incrementally,
+  watcher_applies_ignore_file_edits_without_a_restart.
+  These are reproduced baseline failures in this environment, not introduced by
+  the four tasks. Event delivery cause remains unverified. No tests relaxed/skipped.
+- npm run types:check; npm run build: passed.
+- npm run test:export: 29 HTML exports / 1101 local targets passed.
+- npm run test:resources: 177 matching translation keys passed.
+  Build emitted dependency cache/CSS optimizer warnings; no build errors.
+
+Logs retained locally under target/script-logs in the integration worktree:
+check-summary.md, check-test.log, check-clippy.log, check-eval.log,
+background-watcher-retry.log, workspace-all.log. Website checks were also captured.
+
+Recovery refs imported through a verified local bundle; original aliases and CSS
+branches fast-forwarded without rewriting history. Local hook modifications and
+the interrupted worker probe preserved. Primary checkout HEAD unchanged.
+
+Result: code and policy review accepted; combined verification has a reproduced
+baseline watcher limitation. Main integration, live GitHub verification and the
+public schema issue decision record remain pending. No new dependencies.
+
+
 ## Records reconciliation — 2026-10-10
 
 Reviewed tree: documentation-only changes on `docs/reconcile-records-worktree-audit`, base `eee98e9ed0f1467dac32fe172cb90eb846628f83`.
