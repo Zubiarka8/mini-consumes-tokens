@@ -5,7 +5,7 @@
 Base: a3e10b0f450a93107061152feb862a1d242820a1. Combined code tree: ddbc17b.
 Candidate refs are listed in TASKS.md. Original worktrees and partial probe preserved.
 
-- Aliases: independent diff review APPROVED at 9258d3f; later d0fe58f changes
+- Aliases: independent diff review APPROVED at 9258d3f; later d0fe58f and 6bdbbcd change
   only its checkpoint. ADR005/migration11 and exact aliases verified. Coordinator:
   Markdown 129 pass/0 fail/1 ignore; assets 5/0; schema migration tests 4/0.
 - CSS: two required defects corrected in a361b2: a relative selector containing &
@@ -21,6 +21,15 @@ Candidate refs are listed in TASKS.md. Original worktrees and partial probe pres
 - Hook: 6a0daf3 removes registration and replaces stale entry point with a no-op.
   JSON validation, direct invocation and diff check passed. Original worktrees'
   active settings were updated with explicit user authorization.
+
+Direct performance verification after the user's follow-up:
+`cargo test --locked -p mct-index --release --test relation_scale -- --ignored --nocapture`
+passed on base a3e10b0 and the combined candidate. Existing synthetic fixtures:
+10,000 and 100,000 symbols, resolved and ambiguous, four query scenarios per case.
+Base test 15.85 s; candidate 15.75 s. At 100,000 resolved symbols, page limit50:
+313.08 ms / 315.98 ms; full list: 4.61294 s / 4.61014 s; depth3 limit50:
+13.88 ms / 12.99 ms (base / candidate). One matched run; no alias-heavy workload
+or peak-RSS claim. Raw logs: relation-scale-base.log, relation-scale-candidate.log.
 
 Commands/results on the combined tree:
 - scripts/unix/check.sh (offline): fmt passed, CI Clippy passed,
