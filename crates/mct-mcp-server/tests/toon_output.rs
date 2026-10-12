@@ -85,7 +85,7 @@ async fn list_symbols_toon_decodes_to_the_same_rows_text_reports() {
     let text = content_of(
         &server
             .list_symbols(Parameters(ListSymbolsArgs {
-                format: None,
+                format: Some("text".to_string()),
                 path: "src/lib.rs".to_string(),
                 kind: None,
                 language: None,
@@ -139,7 +139,7 @@ async fn find_symbol_toon_round_trips_and_is_smaller_than_text() {
     let text = content_of(
         &server
             .find_symbol(Parameters(FindSymbolArgs {
-                format: None,
+                format: Some("text".to_string()),
                 name: "compute".to_string(),
                 match_mode: None,
                 path: None,
