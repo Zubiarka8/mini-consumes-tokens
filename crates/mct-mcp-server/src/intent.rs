@@ -15,9 +15,9 @@
 //! definition. The original query always travels with the intent, so
 //! constraints the rules cannot represent are not lost.
 //!
-//! Not yet wired into a request path: the MCP server never sees the user's
-//! query before the model does. The consumer is the per-turn tool filter of
-//! issue #11 (Tool Attention), still to be built.
+//! Its consumer is Tool Attention (issue #11,
+//! [`crate::server::MctServer::attend`]): the `select_tools` tool hands the
+//! user's query to [`preselect`] and narrows `tools/list` to the result.
 
 use mct_index::{classify_query, Embedder, QueryIntent};
 use rmcp::model::Tool;

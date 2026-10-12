@@ -7,13 +7,15 @@ use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{CallToolResult, ContentBlock, ToolAnnotations},
     model::{Implementation, InitializeResult, ProtocolVersion, ServerCapabilities},
-    tool, tool_handler, tool_router, ErrorData as McpError, ServerHandler,
+    service::RequestContext,
+    tool, tool_handler, tool_router, ErrorData as McpError, RoleServer, ServerHandler,
 };
 use tokio::sync::Mutex;
 
 use crate::cache::{self, CacheConfig, CacheStats, CachedResult, HitKind, QueryCache};
 use crate::embedder::SemanticModel;
 use crate::format;
+use crate::intent;
 use crate::toon::OutputFormat;
 use crate::ttc;
 
@@ -491,6 +493,16 @@ pub struct GetToolSchemaArgs {
     pub name: String,
 }
 
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct SelectToolsArgs {
+    /// The user's request, verbatim (e.g. `who calls parse_config, but don't
+    /// reindex`). Longer than `intent::MAX_QUERY_CHARS` is truncated.
+    pub query: String,
+}
+
+/// Env var opting into Tool Attention (issue #11): `1` turns it on.
+pub const TOOL_ATTENTION_ENV: &str = "MCT_TOOL_ATTENTION";
+
 /// Cap on sub-queries per `batch` call. Batching pays off by collapsing
 /// per-call envelopes; past a couple dozen queries the response itself is
 /// the cost, and an agent is better served by narrowing than by one giant
@@ -506,7 +518,7 @@ const BATCH_BYTE_BUDGET: usize = 2 * format::DEFAULT_BYTE_BUDGET;
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct BatchQuery {
     /// Name of the tool to run (e.g. `find_symbol`). Any read-only tool of
-    /// this server; `batch` itself and `reindex` are rejected.
+    /// this server; `batch` itself, `reindex` and `select_tools` are rejected.
     pub tool: String,
     /// That tool's arguments object, exactly as it would be passed to the
     /// tool directly (e.g. `{"name": "parse"}` for `find_symbol`). Omit for
@@ -607,7 +619,12 @@ const TOOL_CATEGORIES: &[(&str, &[&str])] = &[
     ),
     (
         "meta",
-        &["discover_tool_categories", "get_tool_schema", "batch"],
+        &[
+            "discover_tool_categories",
+            "get_tool_schema",
+            "select_tools",
+            "batch",
+        ],
     ),
 ];
 
@@ -629,6 +646,10 @@ pub struct ServerOptions {
     pub embedder: Option<Box<dyn mct_index::Embedder>>,
     /// Share an existing cache instead of starting an empty one.
     pub shared_cache: Option<Arc<std::sync::Mutex<QueryCache>>>,
+    /// Tool Attention (issue #11): `tools/list` starts with `select_tools`
+    /// only and is narrowed per request. Off: the full catalog, no
+    /// `select_tools`.
+    pub tool_attention: bool,
 }
 
 impl ServerOptions {
@@ -639,6 +660,7 @@ impl ServerOptions {
             cache: CacheConfig::from_env(),
             embedder: None,
             shared_cache: None,
+            tool_attention: std::env::var(TOOL_ATTENTION_ENV).is_ok_and(|v| v == "1"),
         }
     }
 }
@@ -706,6 +728,11 @@ pub struct MctServer {
     // `tools/list`/`tools/call` from this field; the macro's default would
     // build a fresh, unpatched router.
     tool_router: ToolRouter<MctServer>,
+    /// With Tool Attention on, the tool names `tools/list` currently
+    /// advertises; `None` when it is off (the full catalog).
+    // ponytail: one set per server, i.e. per stdio session; key it by
+    // session if a multi-session transport is ever added.
+    attention: Option<Arc<std::sync::Mutex<Vec<String>>>>,
 }
 
 fn validate_name(raw: &str) -> Result<&str, McpError> {
@@ -788,8 +815,9 @@ fn apply_ttc_catalog(router: &mut ToolRouter<MctServer>, source: &str) {
         match router.map.get_mut(name.as_str()) {
             Some(route) => {
                 route.attr.description = Some(entry.expand().into());
-                // Only `reindex` writes, and it rebuilds derived data — not
-                // destructive, which MCP otherwise assumes for a non-read-only tool.
+                // Only `reindex` (derived data) and `select_tools` (the
+                // advertised list) write — not destructive, which MCP
+                // otherwise assumes for a non-read-only tool.
                 route.attr.annotations = Some(match entry.effect() {
                     ttc::Effect::None | ttc::Effect::Read => ToolAnnotations::new().read_only(true),
                     ttc::Effect::Write => {
@@ -1121,6 +1149,12 @@ impl MctServer {
     pub fn with_options(index: Index, registry: LanguageRegistry, options: ServerOptions) -> Self {
         let mut tool_router = Self::tool_router();
         apply_ttc_catalog(&mut tool_router, ttc::CATALOG_SOURCE);
+        if !options.tool_attention {
+            tool_router.remove_route("select_tools");
+        }
+        let attention = options
+            .tool_attention
+            .then(|| Arc::new(std::sync::Mutex::new(vec!["select_tools".to_string()])));
         let semantic = match options.embedder {
             Some(embedder) => SemanticModel::preloaded(embedder),
             None => SemanticModel::default(),
@@ -1135,6 +1169,7 @@ impl MctServer {
             semantic: Arc::new(semantic),
             cache,
             tool_router,
+            attention,
         }
     }
 
@@ -1296,6 +1331,58 @@ impl MctServer {
     /// tool.
     pub fn tool_catalog(&self) -> Vec<rmcp::model::Tool> {
         self.tool_router.list_all()
+    }
+
+    /// What `tools/list` returns now: the full catalog, or with Tool
+    /// Attention on, only the tools the last `select_tools` picked (plus
+    /// `select_tools` itself). Every catalog tool stays callable either way.
+    pub fn advertised_tools(&self) -> Vec<rmcp::model::Tool> {
+        let mut tools = self.tool_catalog();
+        if let Some(active) = &self.attention {
+            let active = active
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            tools.retain(|t| active.iter().any(|name| name == t.name.as_ref()));
+        }
+        tools
+    }
+
+    /// `select_tools` minus the `tools/list_changed` notification: picks the
+    /// tools for `query` and makes them the advertised set: the word rules of
+    /// `intent::preselect`, or the full catalog when they find nothing. No
+    /// embedding step: in benchmarks/intent-selection.md it lost a required
+    /// tool and guessed on requests no tool answers.
+    pub async fn attend(&self, query: &str) -> Result<CallToolResult, McpError> {
+        let Some(active) = &self.attention else {
+            return Err(McpError::invalid_params(
+                format!("Tool Attention is off — set {TOOL_ATTENTION_ENV}=1"),
+                None,
+            ));
+        };
+        let query = query.trim();
+        if query.is_empty() {
+            return Err(McpError::invalid_params("query must not be empty", None));
+        }
+        let catalog: Vec<rmcp::model::Tool> = self
+            .tool_catalog()
+            .into_iter()
+            .filter(|t| t.name != "select_tools")
+            .collect();
+        let languages = self.registry.language_ids();
+        let selection = intent::preselect(query, &languages, &catalog, None);
+        let mut names = vec!["select_tools".to_string()];
+        names.extend(selection.tools.iter().cloned());
+        *active
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = names;
+
+        let mut text = selection.intent.render(selection.source);
+        text.push_str(&format!("\ntools: {}", selection.tools.join(", ")));
+        for (name, args) in &selection.hints {
+            let args: Vec<String> = args.iter().map(|(k, v)| format!("{k}={v}")).collect();
+            text.push_str(&format!("\nhint {name}: {}", args.join(" ")));
+        }
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
     /// Shares this server's index handle with the background auto-reindex
@@ -2476,6 +2563,20 @@ impl MctServer {
     }
 
     // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Pick the tools for one user request; see tools.ttc")]
+    pub async fn select_tools(
+        &self,
+        Parameters(SelectToolsArgs { query }): Parameters<SelectToolsArgs>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let result = self.attend(&query).await?;
+        // Best effort: a client that ignores it still gets the names in the
+        // reply, and every tool stays callable.
+        let _ = context.peer.notify_tool_list_changed().await;
+        Ok(result)
+    }
+
+    // Fallback only — see tools.ttc / MctServer::new.
     #[tool(description = "Run several read-only queries in one call; see tools.ttc")]
     pub async fn batch(
         &self,
@@ -2526,12 +2627,23 @@ impl MctServer {
 // request and serves their fallback descriptions (issue #70).
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for MctServer {
+    async fn list_tools(
+        &self,
+        _request: Option<rmcp::model::PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<rmcp::model::ListToolsResult, McpError> {
+        Ok(rmcp::model::ListToolsResult {
+            tools: self.advertised_tools(),
+            ..Default::default()
+        })
+    }
+
     // The macro's default `call_tool`, plus the POST contract check — and,
     // first, the current ignore rules applied to the index.
     async fn call_tool(
         &self,
         request: rmcp::model::CallToolRequestParams,
-        context: rmcp::service::RequestContext<rmcp::RoleServer>,
+        context: RequestContext<RoleServer>,
     ) -> Result<rmcp::model::CallToolResponse, McpError> {
         self.apply_exclusion_changes().await?;
         let tool = request.name.clone();
@@ -2544,11 +2656,23 @@ impl ServerHandler for MctServer {
     }
 
     fn get_info(&self) -> InitializeResult {
-        InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
+        let tools = ServerCapabilities::builder().enable_tools();
+        let (capabilities, attention) = if self.attention.is_some() {
+            (
+                tools.enable_tool_list_changed().build(),
+                "Tool Attention is on: tools/list starts with select_tools only. Call \
+                 select_tools with the user's request first; it narrows tools/list to the tools \
+                 that request needs and sends tools/list_changed. Every tool stays callable by \
+                 name. ",
+            )
+        } else {
+            (tools.build(), "")
+        };
+        InitializeResult::new(capabilities)
             .with_server_info(Implementation::from_build_env())
             .with_protocol_version(ProtocolVersion::V_2024_11_05)
-            .with_instructions(
-                "Indexes this repository's source code (any of the supported languages, including \
+            .with_instructions(format!(
+                "{attention}Indexes this repository's source code (any of the supported languages, including \
              polyglot repos) into a symbol graph. Prefer these tools over reading whole files \
              with grep or a file reader when you need to locate a definition or understand call \
              relationships — it costs far fewer tokens. list_symbols is the discovery tool: use \
@@ -2588,8 +2712,7 @@ impl ServerHandler for MctServer {
              (any tool above except reindex) in one call, each reported under its own header — \
              prefer it over several separate calls whenever you already know the queries you \
              need, since it drops the per-call overhead."
-                    .to_string(),
-            )
+            ))
     }
 }
 

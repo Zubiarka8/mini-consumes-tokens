@@ -9,16 +9,19 @@
 use std::path::Path;
 
 use mct_index::{ExcludeSet, Index};
-use mct_mcp_server::server::MctServer;
+use mct_mcp_server::server::{MctServer, ServerOptions};
 use mct_mcp_server::ttc::{self, Effect};
 use serde_json::{json, Map, Value};
 
+/// Tool Attention on, so `select_tools` is in the catalog too.
 async fn build_server() -> MctServer {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/compute-app");
     let registry = mct_mcp_server::registry::build_registry();
     let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
     index.reindex(&registry, false).unwrap();
-    MctServer::new(index, registry)
+    let mut options = ServerOptions::from_env();
+    options.tool_attention = true;
+    MctServer::with_options(index, registry, options)
 }
 
 fn text(result: &rmcp::model::CallToolResult) -> String {
@@ -31,7 +34,7 @@ fn text(result: &rmcp::model::CallToolResult) -> String {
 }
 
 #[tokio::test]
-async fn effects_set_the_mcp_annotations_and_only_reindex_writes() {
+async fn effects_set_the_mcp_annotations_and_only_reindex_and_select_tools_write() {
     let server = build_server().await;
     let entries = ttc::parse(ttc::CATALOG_SOURCE).unwrap();
     for tool in server.tool_catalog() {
@@ -40,7 +43,8 @@ async fn effects_set_the_mcp_annotations_and_only_reindex_writes() {
             .as_ref()
             .unwrap_or_else(|| panic!("`{}` has no annotations", tool.name));
         let writes = entries[tool.name.as_ref()].effect() == Effect::Write;
-        assert_eq!(writes, tool.name == "reindex", "`{}`", tool.name);
+        let expected = matches!(tool.name.as_ref(), "reindex" | "select_tools");
+        assert_eq!(writes, expected, "`{}`", tool.name);
         assert_eq!(annotations.read_only_hint, Some(!writes), "`{}`", tool.name);
         if writes {
             assert_eq!(annotations.destructive_hint, Some(false), "`{}`", tool.name);

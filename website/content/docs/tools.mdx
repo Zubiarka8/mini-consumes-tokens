@@ -1,6 +1,6 @@
 ---
 title: MCP tools
-description: The 20 tools the server gives your AI client, grouped by what they answer.
+description: The 18 tools the server gives your AI client, grouped by what they answer.
 ---
 
 Your AI client calls these tools itself; you don't type them. This page tells you what each one answers, so you know what to ask for and can read the results.
@@ -12,7 +12,8 @@ Your AI client calls these tools itself; you don't type them. This page tells yo
 | What is in this file, folder or project? | [`get_project_overview`](#get_project_overview), [`list_symbols`](#list_symbols), [`get_file_tree`](#get_file_tree) |
 | What does this file look like, without the bodies? | [`get_file_skeleton`](#get_file_skeleton) |
 | Where is `X` defined? | [`find_symbol`](#find_symbol) |
-| I don't know the exact name | [`search_symbols`](#search_symbols), [`hybrid_search`](#hybrid_search) |
+| I know part of a function or type name | [`search_symbols`](#search_symbols) |
+| I know what I want the code to do, but not its name | [`hybrid_search`](#hybrid_search) |
 | Who calls this function? | [`find_callers`](#find_callers) |
 | What does this function call? | [`find_calls`](#find_calls) |
 | Where is `X` used at all (calls, imports, inheritance)? | [`find_references`](#find_references) |
@@ -35,6 +36,8 @@ Your AI client calls these tools itself; you don't type them. This page tells yo
 
 Names are matched **exactly** (case-sensitive) unless the tool says otherwise. An empty name is rejected.
 
+Every tool response is capped at 24,000 bytes. If a result list is shortened, the response says how many entries were shown and how many were omitted; use `limit` and `offset` to page through the remaining results.
+
 ## Discovery
 
 ### `get_project_overview` [#get_project_overview]
@@ -47,7 +50,7 @@ A short, ranked summary of a project, folder or file: the most important declara
 
 Every definition in a file or folder: name, kind and line range. Use it when you don't know a name yet.
 
-- `path` (required), `kind` (`function`, `method`, `class`, `struct`, `interface`, `enum`, `trait`, `type_alias`, `module`, `variable`, `constant`, `field`), `language`, `limit`, `format`.
+- `path` (required), `kind` (`function`, `method`, `class`, `struct`, `interface`, `enum`, `trait`, `type_alias`, `module`, `variable`, `constant`, `field`, `element`, `rule`, `model_node`, `material`, `animation`, `finding`), `language`, `limit`, `format`.
 
 ```text
 crates/mct-core/src/lib.rs:77-93 [rust] trait LanguageParser
@@ -82,18 +85,19 @@ crates/mct-core/src/lib.rs:77:1 [rust] trait LanguageParser
 
 ### `search_symbols` [#search_symbols]
 
-Ranked search by words when you are not sure of the name. `parse request`, `parseReq` and `parse_request` all find `parse_request_body`, because names are split at camelCase, snake_case and kebab-case boundaries. Exact matches come first.
+Ranked search by words when you know part of a function or type name. `parse request`, `parseReq` and `parse_request` all find `parse_request_body`, because names are split at camelCase, snake_case and kebab-case boundaries. Exact matches come first.
 
 - `query` (required), `path`, `language`, `limit` (default 10, max 100), `offset`, `snippet_lines` (source lines to show per hit, max 50), `format`, `cache`.
 
 ### `hybrid_search` [#hybrid_search]
 
-Search by meaning: `load config from disk` also finds `read_settings`. It mixes `search_symbols` with an embedding model.
+Search for functionality by describing its behavior in plain language. For example, `load config from disk` can find a symbol named `read_settings`, even though the names don't share those words. It combines `search_symbols` with an embedding model, so it is useful when you don't know the symbol name yet. Results are ranked candidates, not an exhaustive inventory; use `build_context_pack` on a promising hit to inspect its definition and related code.
 
-- `query` (required). Put it in double quotes (`"parse request"`) for an exact phrase; that also lists string literals (error and log messages) that contain it.
+- `query` (required). Put it in double quotes (`"parse request"`) for an exact phrase; quoted queries use lexical matching and also list indexed prose literals containing the phrase. These include Rust string literals and Markdown paragraphs and table rows. Markdown headings are symbols; frontmatter and code blocks are excluded. A literal must contain at least eight characters and two words, and suspected secrets are filtered out.
 - `alpha`: `0` = words only, `1` = meaning only. If you omit it, it is picked from the query: 0.1 for an identifier, 0.75 for a plain sentence, 0.5 otherwise.
 - `top_k` (default 10, max 100), `offset`, `path`, `language`, `snippet_lines`, `format`, `cache`.
-- If no embedding model is available, it falls back to words only and says so.
+- Quoted exact-phrase searches are lexical and work without the optional semantic feature. Other searches use embeddings when the server was built with `--features semantic`; without that feature, the tool falls back to words only and says so. The default model is downloaded on first use; `MCT_EMBEDDING_MODEL` selects another model.
+- Set `cache: false` on a query to skip cached replies and always get the full result.
 
 ## Relations
 
@@ -146,6 +150,7 @@ Likely affected tests:
 Everything you need before editing one symbol: its definition with the doc comment and source, and every caller, callee, dependency and related test, each listed once with its signature. It replaces `find_symbol` + `find_calls` + `find_callers` + `impact_analysis` + reading the files.
 
 - `symbol` (required), `path` and `language` (to pick one definition when the name is ambiguous), `depth`, `limit` (default 30), `source_lines` (default 40, max 200), `format`.
+- Related symbols merge their roles into one entry. File-level importers and unresolved callee names appear in footers; ambiguous callees are listed separately as uncertain instead of being guessed.
 
 ## Maintenance
 
@@ -171,13 +176,15 @@ Update the index right now. You rarely need it: the server indexes at startup an
 
 ### `discover_tool_categories` [#discover_tool_categories]
 
-Lists every tool with a one-line purpose, grouped by category, without the input schemas. For clients that load tool schemas only when needed.
+Lists every tool with a one-line purpose, grouped by category, without the input schemas. A client can use it to decide which schemas to request next with `get_tool_schema`.
 
 ### `get_tool_schema` [#get_tool_schema]
 
 The full input schema and description of one tool, by exact name.
 
 - `name` (required).
+
+These discovery tools are optional. The standard MCP `tools/list` handshake still returns every tool's full schema, so existing clients work as before.
 
 ### `batch` [#batch]
 
@@ -201,7 +208,7 @@ Your client starts `mct-mcp-server` with these flags:
 | `--root <PATH>` | Project to index. | current directory |
 | `--reindex-debounce-ms <MS>` | Quiet time after the last file change before the background reindex runs. `0` turns the background watcher off. | 1500 |
 
-The server also keeps a query cache. When the same question comes back unchanged in a session, the answer is a one-line "unchanged" note instead of the full result, which saves tokens. It is tuned with environment variables in your client's `env` block:
+The server also keeps a query cache. When the same question comes back unchanged in a session, the answer is a one-line "unchanged" note instead of the full result, which saves tokens. Both `search_symbols` and `hybrid_search` accept `cache: false` to bypass the cache and return the full result for that call. The cache is tuned with environment variables in your client's `env` block:
 
 | Variable | Meaning | Default |
 | --- | --- | --- |

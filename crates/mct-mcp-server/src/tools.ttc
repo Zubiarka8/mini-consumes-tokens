@@ -178,3 +178,11 @@ TAGS batch, multiple, tokens-saving, composite
 PRE 1..25 `queries`, each naming a read-only tool.
 POST one [n] section per query; failures inline.
 EFFECTS read; runs read-only tools only, never a nested batch.
+
+TOOL select_tools
+WHEN first, with the user's request: narrows tools/list to the tools it needs.
+ERR picks, never runs; unclear request -> full list; all tools stay callable.
+TAGS attention, intent, selection, tokens-saving
+PRE `query` non-empty; only with MCT_TOOL_ATTENTION=1.
+POST the intent, the picked tool names and argument hints.
+EFFECTS write; replaces this session's advertised tools/list; refused inside batch.
