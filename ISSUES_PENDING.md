@@ -99,7 +99,7 @@ Pinned in `crates/mct-lang-md/tests/index_integration.rs` (vault:
 
 Recorded in the "Implementation notes" of the note-graph design; none has an
 ignored test:
-- A wikilink is not resolved by alias or title: `[[Alias]]` stays `unresolved`.
+- A wikilink is not resolved by alias or title: `[[Alias]]` stays `unresolved` (issue #135).
 - `^block` anchors are ignored; heading anchors match the exact heading text
   (no slug or case folding, last `#` segment only).
 - Link paths are case-sensitive and relative to the vault root or the source
@@ -194,3 +194,23 @@ corpus snapshot gained 73 such references (enum variants, `u32::MAX`,
 **Covered by**:
 - `a_path_in_value_position_is_a_reference_qualified_by_its_module` (`crates/mct-lang-rust/tests/parse.rs`)
 - `a_path_to_another_module_never_names_this_files_item` (`crates/mct-lang-rust/tests/parse.rs`)
+
+---
+
+## Known limitations tracked without an ignored test
+
+Listed in `CHANGELOG.md` (0.2.0, "Known limitations") and tracked in GitHub
+issues. They have no `#[ignore]`d test, so the ledger check does not require
+them here; they are recorded so this file does not look complete when it is not.
+Status checked against the CHANGELOG on 2026-10-13; issue state itself was not
+queried.
+
+- `get_indexing_status` does not list read failures (files that cannot be read
+  or exceed `MCT_MAX_FILE_BYTES`) yet: issue #133.
+- Some valid C++ is rejected by tree-sitter-cpp: issue #82.
+- tree-sitter-css 0.25 syntax gaps, including Tailwind v4 preludes and nesting:
+  issues #87, #115, #116.
+- Framework-specific structure (React JSX usage, Vue SFCs, ...) is only
+  partially indexed: issue #51.
+- Fuzzing closes specific crash classes but is not a claim that the parsers are
+  free of vulnerabilities: issue #22.
