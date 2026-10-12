@@ -1,45 +1,57 @@
 # Project State
 
-Last update: 2026-10-10
-Updated by: Codex coordinator (bounded records reconciliation)
-Main branch: `main`
-Observed main commit: `eee98e9ed0f1467dac32fe172cb90eb846628f83` (GitHub and local refs match)
-Scope: reconciliation of these records with merged PRs and open issues; not a full backlog audit.
+Last update: 2026-10-12
+Updated by: Codex recovery coordinator
+Observed local base: `a3e10b0f450a93107061152feb862a1d242820a1` (`origin/main`).
+Remote freshness is unverified: GitHub DNS failed during this session.
+Scope: finish the four reviewed task branches and retire the requested hook.
 
 ## Current objective
 
-Reconcile website integration and ERR-011, inventory local worktrees, and prepare documentation-only changes for review. Stop before push, PR creation or cleanup.
+Deliver separately reviewed docs, Markdown aliases, CSS nesting and integration
+policy candidates, together with a verified local combination and durable handoff.
+The original primary checkout and interrupted worker's probe are preserved.
 
-## Merged since the last update
+## Candidates awaiting integration
 
-PR #96 (`adbc43a`) shared coordination rules; #157 (`7558113`) language-crate base and fuzzing; #170 (`a94d101`) one language registry, grammar version policy, Windows script CI and the ERR-010 fix. Also merged: the issue #74 corpora (#130), shared AST helpers (#131), index read-failure and pagination fixes (#134, #138, #141, #142), semantic memory work (#137, #139), conflict automation (#156), Markdown exact-phrase literals (#162), intent extraction (#160), the 0.2.0 preparation (#163), `mct-cli update` (#164) and the web/3D indexing foundation (#166). PRs #167 and #168 were closed as duplicates carried by #170.
+All tasks remain REVIEW until accepted integration into main:
+- TASK-DOCS-MCP-PROSE: `docs/semantic-search-prose-limits` at `62c677f`, published
+  by the prior Claude coordinator according to its report and local tracking ref.
+- TASK-MD-ALIAS-135: recovered as `claude/md-alias-135` at `6bdbbcd` (recovery ref retained).
+  ADR-005, schema assertion and alias cases are complete; independent review passed.
+- TASK-CSS-NESTING-115: `claude/css-nesting-115` at `a361b23` (recovery ref retained).
+  Includes repeated-parent products, implicit relative parents and complex grouping.
+- TASK-PR-POLICY: `docs/pr-integration-policy-draft` at `14a2586`.
+  Independent review passed; `3ca8f70` is an ancestor of this candidate.
+- Hook retirement: `codex/retire-dogfooding-hook` at `6a0daf3`.
+  No active Dogfooding registration; cached calls execute a harmless entry point.
 
-## Active work
+## Verification and limitations
 
-- [TASK-WEB-169](TASKS.md#task-web-169) is DONE: #169/#171/#173/#174 are merged and Docs build/deploy passed. See the task for the accepted four-page manual update and verification limits.
-- ERR-011 is RESOLVED after schema inspection, controlled reproduction and successful corrected retry; see [error history](../errors/HISTORY.md).
-- Worktree audit: 85 entries, 68 clean, 15 dirty, two prunable/unusable, seven detached; 57 HEADs are ancestors of main. Integration alone does not establish safe deletion; ownership and ignored data remain unverified.
+See REPORT.md for exact commands and findings. The combined code tree `ddbc17b`
+passed formatting, CI Clippy, evaluation and website types/build/export/resources.
+Full workspace run: 1260 passed, 3 failed, 24 ignored. The same three filesystem
+watcher tests fail on base `a3e10b0` in this environment; the actual event delivery
+cause is unverified. No tests were skipped or weakened. Schema migration tests pass.
+The later hook-only merge does not change the tested Rust or website code.
 
-## Additional integration observation
+## Publication and preservation
 
-- The JSX candidate is already reachable from current main via PR #176 (`c8fb4b1`); do not implement it again. This observation does not close the wider #51 framework acceptance or assess Vue support.
+No new push, PR, issue comment, main merge, branch deletion or worktree cleanup.
+The four original worktrees remain; user-requested local hook retirement is active.
+Recovery used an isolated repository because original Git metadata writes failed.
+Candidate refs and history were imported into the original repository from
+`mct-recovery-final.bundle`. Original aliases and CSS branches were fast-forwarded
+to 6bdbbcd and a361b23; the temporary probe and local hook settings remain intact.
 
-## Partial, uncommitted work (not validated)
+## Next action
 
-- #135 Markdown wikilinks by frontmatter alias: schema migration 11 and alias table drafted; ambiguous-identity edge case not fixed.
-- #11 tool selection and #17 tool contracts: drafted in the MCP server, not compiled against the locked `rmcp` version, no tests.
-- #115 CSS nesting: test file only.
+Recovery import and feature fast-forwards are complete. Record the approved schema decision on #135 before the feature PR. Recheck watcher
+behavior on an unrestricted host or CI before claiming a fully green integration.
+Publication beyond the existing docs branch and integration into main are pending.
 
-## Blocked
+## Historical context
 
-None. #24 benchmarks and #22 sandbox audit are investigation only; no paid benchmark model runs are authorized.
-
-## Known risks
-
-- Several stale local worktrees exist; their branches are not all merged or abandoned. Check Git before reuse or cleanup.
-- #133 remains open although #134 merged; compare its acceptance criteria before closing.
-- Updates to the seven shared records require one coordinator writer; this is an operational convention, not an enforced lock.
-
-## Next recommended action
-
-Review the prepared documentation diff and proposed PR summary. Publication requires separate authorization in this task. Preserve every worktree; resume functional work only under a new scoped assignment.
+Prior coordination, language-base, registry and website tasks were integrated as
+recorded in TASKS.md. Unrelated #11/#17/#51 work and older worktree inventory have
+not been audited by this recovery; do not infer their current status or remove them.

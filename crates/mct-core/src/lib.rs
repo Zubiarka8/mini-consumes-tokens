@@ -70,6 +70,16 @@ pub struct ParsedFile {
     /// [`RelationTarget`]. Sparse: a relation without an entry is
     /// unqualified. An entry whose index is out of range is ignored.
     pub relation_targets: Vec<RelationTarget>,
+    /// Alternate lookup names declared for exact local symbol identities.
+    /// Empty for parsers that do not extract aliases; never inferred from references.
+    pub symbol_aliases: Vec<SymbolAlias>,
+}
+
+/// A parser-declared alias of one symbol in its own parsed file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SymbolAlias {
+    pub symbol: SymbolId,
+    pub name: String,
 }
 
 /// Implemented once per supported language, in its own crate. The indexer
