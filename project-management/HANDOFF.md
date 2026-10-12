@@ -114,3 +114,22 @@ On `6b1bede`: `npm ci --offline` (0 vulnerabilities), `types:check`, `format:che
 ### Exact next step
 
 Website integration is complete; see [TASK-WEB-169](TASKS.md#task-web-169) for follow-up commits and acceptance evidence. Review the records-only branch locally; stop before publication or worktree cleanup.
+
+## Current recovery — 2026-10-12
+
+Objective: finish the four task candidates after the previous alias worker stopped.
+Candidates and statuses: see current PROJECT_STATE.md and authoritative TASKS.md.
+No feature code remains in progress. Shared records are coordinator-owned.
+
+Latest tested combined Rust/website tree: `ddbc17b`; later hook-only merge: `335b528`.
+Resolve the final coordination branch HEAD with Git. Full test result is
+1260 pass / 3 fail / 24 ignore; only watcher tests fail, also on base a3e10b0.
+Web checks, fmt, CI Clippy and evaluation pass. REPORT.md records limits.
+
+Next: import mct-recovery-final.bundle into the original repo; fast-forward aliases
+from d9ffeec to d0fe58f and CSS from e3f7ca9 to a361b2. Preserve the untracked probe
+and local hook modifications. Import the policy and hook refs for later review;
+do not merge the umbrella integration branch into main automatically.
+Record user approval on #135 and get an unrestricted-host/CI watcher result before
+claiming complete verification. GitHub network access was unavailable here.
+No feature push, PR, main merge or deletion was performed in recovery.

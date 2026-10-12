@@ -180,3 +180,60 @@ Required checks and why:
 Checkpoint path / latest known implementation commit:
 Result / PR / integration commit:
 ```
+
+## TASK-DOCS-MCP-PROSE
+
+Status: REVIEW. Candidate: `docs/semantic-search-prose-limits` at `62c677f`.
+Owner: prior Claude docs worker/coordinator; recovery validates the combined site.
+Base: `a3e10b0f450a93107061152feb862a1d242820a1`.
+Scope: tools, client count, prose limits and task checkpoint.
+Acceptance: accurate 20 defined / 19 default tools, conditional select_tools,
+semantic_search feature behavior, text-format list budget, bounded prose search.
+Evidence: checkpoint TASK-DOCS-MCP-PROSE.md; combined site checks in REPORT.md.
+Published previously; no PR or main integration claimed by recovery.
+
+## TASK-MD-ALIAS-135
+
+Status: REVIEW. Candidate: `codex/recover-alias-135-final` at `d0fe58f`.
+Owner: Codex recovery coordinator; independent alias reviewer.
+Base: `a3e10b0f450a93107061152feb862a1d242820a1`.
+Scope: parser aliases, generic storage/migration11, relation view, tests, ADR005,
+and related docs. No MCP signature changes.
+Acceptance: exact aliases; titles excluded; ambiguity preserved; path links exact;
+incremental/full consistency; one-time migration; bounded query cost.
+Evidence: checkpoints/TASK-MD-ALIAS-135.md and REPORT.md.
+Remaining: record approval on #135 and verify baseline watcher limitation on CI.
+No alias publication or main integration.
+
+## TASK-CSS-NESTING-115
+
+Status: REVIEW. Candidate: `codex/review-css-115-final` at `a361b2`.
+Owner: CSS recovery worker; coordinator review.
+Base: `a3e10b0f450a93107061152feb862a1d242820a1`.
+Scope: CSS walker, focused/corpus/library tests, error registry and docs.
+Acceptance: AST ampersand replacement; full products; implicit relative parent;
+complex-parent grouping; 256 per-rule limit with marked unexpanded fallback.
+Evidence: 71 pass / 0 fail / 1 ignore in crate; checkpoints/TASK-CSS-NESTING-115.md;
+combined workspace and website evidence in REPORT.md.
+Remaining: baseline watcher CI verification, authorized feature publication.
+
+## TASK-PR-POLICY
+
+Status: REVIEW. Candidate: `docs/pr-integration-policy-draft` at `14a2586`.
+Owner: prior policy worker; independent Codex policy reviewer.
+Base: `a3e10b0f450a93107061152feb862a1d242820a1`.
+Scope: PROJECT_MANAGER.md and task checkpoint.
+Acceptance: user-approved integration policy separate from GitHub enforcement;
+merge commits, PRs for every change, review, no auto-merge/direct main pushes;
+no universal red-before-change test mandate.
+Evidence: diff review, script inspection, diff check; GitHub refresh unavailable.
+No policy publication or main integration.
+
+## TASK-HOOK-RETIREMENT
+
+Status: REVIEW. Candidate: `codex/retire-dogfooding-hook` at `6a0daf3`.
+Owner/reviewer: Codex coordinator.
+Scope: only Dogfooding registration, retired entry point and related hook docs.
+Acceptance: remove registration and ensure stale calls never block source reads.
+Evidence: JSON parse, silent successful invocation, diff check and live source
+read after retirement. SQLite guard remains active. No publication.
