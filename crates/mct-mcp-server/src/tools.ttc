@@ -32,7 +32,7 @@ WHEN symbols in a file or dir/crate prefix, before you know a name.
 ERR not for a known symbol's definition — use find_symbol.
 TAGS discovery, symbols, list, file, directory, crate
 PRE `path` non-blank, relative to the project root.
-POST symbols under that file or dir/crate prefix, capped by `limit`.
+POST symbols under that file or dir/crate prefix, capped by `limit`. TOON by default; `format`:`text` for plain text.
 EFFECTS read; index only.
 
 TOOL find_symbol
@@ -40,7 +40,7 @@ WHEN locate a symbol's definition; exact/prefix/fuzzy match, any language.
 ERR not for callers/references — use find_callers/find_references.
 TAGS lookup, definition, location, exact, prefix, fuzzy
 PRE `name` non-blank.
-POST matching definitions with path:line, or a no-match note.
+POST matching definitions with path:line, or a no-match note. TOON by default; `format`:`text` for plain text.
 EFFECTS read; index only.
 
 TOOL search_symbols
@@ -48,7 +48,7 @@ WHEN unsure of a name: words/partial ident in any case style, BM25-ranked, exact
 ERR not exhaustive (use find_symbol/list_symbols); not relations (use find_references).
 TAGS search, ranked, words, camelCase, snake_case, partial
 PRE `query` non-blank.
-POST a ranked page (`offset`/`limit`), exact name first; optional snippets.
+POST a ranked page (`offset`/`limit`), exact name first; optional snippets. TOON by default; `format`:`text` for plain text.
 EFFECTS read; index, project files for snippets, query cache.
 
 TOOL hybrid_search
@@ -56,7 +56,7 @@ WHEN find code by meaning: search_symbols + embeddings, RRF-fused; alpha 0=lexic
 ERR no model -> lexical only (noted); not exhaustive.
 TAGS semantic, embeddings, hybrid
 PRE `query` non-blank; `alpha` in 0..1 if given.
-POST a ranked page; first line notes a lexical-only fallback.
+POST a ranked page; first line notes a lexical-only fallback. TOON by default; `format`:`text` for plain text.
 EFFECTS read; index, project files, query cache; may download the embedding model once.
 
 TOOL semantic_search
@@ -72,7 +72,7 @@ WHEN every reference to a symbol: calls, imports, extends/implements.
 ERR not just direct callers (use find_callers); not a definition lookup (use find_symbol).
 TAGS references, calls, imports, broad
 PRE `symbol` non-blank.
-POST every indexed reference with path:line, paged by `offset`/`limit`.
+POST every indexed reference with path:line, paged by `offset`/`limit`. TOON by default; `format`:`text` for plain text.
 EFFECTS read; index only.
 
 TOOL find_calls
@@ -80,7 +80,7 @@ WHEN what a function/method calls — its callees.
 ERR not who calls it — use find_callers.
 TAGS callees, outgoing, calls
 PRE `function` non-blank.
-POST its indexed callees with path:line.
+POST its indexed callees with path:line. TOON by default; `format`:`text` for plain text.
 EFFECTS read; index only.
 
 TOOL find_callers
@@ -88,7 +88,7 @@ WHEN who directly calls a function/method.
 ERR not broader refs (use find_references); not full blast radius (use impact_analysis).
 TAGS callers, incoming, calls
 PRE `function` non-blank.
-POST its indexed direct callers with path:line.
+POST its indexed direct callers with path:line. TOON by default; `format`:`text` for plain text.
 EFFECTS read; index only.
 
 TOOL impact_analysis
@@ -96,7 +96,7 @@ WHEN full blast radius before changing/removing a symbol: callers+refs+likely te
 ERR not for just callers or just refs — cheaper via find_callers/find_references alone.
 TAGS impact, blast-radius, composite, tests
 PRE `symbol` non-blank.
-POST callers, references and likely tests, each section capped.
+POST callers, references and likely tests, each section capped. TOON by default; `format`:`text` for plain text.
 EFFECTS read; index only.
 
 TOOL build_context_pack
@@ -104,7 +104,7 @@ WHEN before working on a symbol: def+doc+source, callers/callees/deps/tests once
 ERR not blast radius (use impact_analysis); ambiguous name -> path/language.
 TAGS context, composite, tests, tokens-saving
 PRE `symbol` non-blank; `path`/`language` disambiguate.
-POST definitions with source, then each related symbol once; ambiguous callees apart.
+POST definitions with source, then each related symbol once; ambiguous callees apart. TOON by default; `format`:`text` for plain text.
 EFFECTS read; index, project files, query cache.
 
 TOOL reindex
@@ -144,7 +144,7 @@ WHEN top-level symbols with zero indexed references — dead-code candidates.
 ERR heuristic only; verify with find_references/impact_analysis before deleting.
 TAGS dead-code, unused, cleanup, heuristic
 PRE none; `path`/`language` scope it.
-POST top-level symbols with zero indexed references.
+POST top-level symbols with zero indexed references. TOON by default; `format`:`text` for plain text.
 EFFECTS read; index only.
 
 TOOL get_file_tree
@@ -176,7 +176,7 @@ WHEN several known read-only queries at once: [{tool,args}], one result per [n] 
 ERR no reindex/nested batch; a failed query is reported inline, the rest still run.
 TAGS batch, multiple, tokens-saving, composite
 PRE 1..25 `queries`, each naming a read-only tool.
-POST one [n] section per query; failures inline.
+POST one [n] section per query; failures inline. Sub-queries default to TOON like direct calls.
 EFFECTS read; runs read-only tools only, never a nested batch.
 
 TOOL select_tools
