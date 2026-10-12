@@ -105,7 +105,10 @@ pub fn reindex(
     // Pick up edits to the project's ignore files first: the walk below then
     // skips newly excluded paths (and the sweep drops their rows) and indexes
     // newly un-excluded ones, forced or not.
-    index.exclude.reload();
+    index.exclude.try_reload()?;
+    // Read before the walk: a reload by another clone mid-walk leaves this
+    // run's rules behind the set's, and the next check sweeps again.
+    let generation = index.exclude.generation();
 
     // Cloned out of `index` so the `filter_entry` closure below doesn't hold a
     // borrow of it across the loop body, which needs `&mut Index` to write.
@@ -136,6 +139,7 @@ pub fn reindex(
     report.files_removed = remove_missing_files(index, &seen_paths, &unreadable)?;
     remove_missing_manifests(index, &seen_manifest_paths, &unreadable)?;
     touch_last_indexed_at(index)?;
+    index.applied_exclusions = generation;
 
     Ok(report)
 }
@@ -979,7 +983,9 @@ fn remove_missing_manifests(
         .collect::<rusqlite::Result<_>>()?;
     drop(stmt);
     for path in &stored {
-        if !seen.contains(path.as_str()) && !is_retained(path, unreadable) {
+        if index.exclude.is_excluded(path)
+            || (!seen.contains(path.as_str()) && !is_retained(path, unreadable))
+        {
             tx.execute(
                 "DELETE FROM dependencies WHERE manifest_path = ?1",
                 params![path],
@@ -1151,7 +1157,9 @@ fn remove_missing_files(
     drop(stmt);
     let mut removed = 0;
     for path in &stored {
-        if !seen.contains(path.as_str()) && !is_retained(path, unreadable) {
+        if index.exclude.is_excluded(path)
+            || (!seen.contains(path.as_str()) && !is_retained(path, unreadable))
+        {
             tx.execute("DELETE FROM files WHERE relative_path = ?1", params![path])?;
             removed += 1;
         }
@@ -1166,7 +1174,9 @@ fn remove_missing_files(
         .collect::<rusqlite::Result<_>>()?;
     drop(stmt);
     for path in issue_paths {
-        if !seen.contains(path.as_str()) && !is_retained(&path, unreadable) {
+        if index.exclude.is_excluded(&path)
+            || (!seen.contains(path.as_str()) && !is_retained(&path, unreadable))
+        {
             tx.execute(
                 "DELETE FROM index_issues WHERE relative_path = ?1",
                 params![path],
