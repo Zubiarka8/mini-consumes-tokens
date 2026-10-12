@@ -1,3 +1,9 @@
+> **Archive status (verified 2026-10-12 against 65d4990).** Implemented and merged in 74b6a4a,
+> shipped by PR #184 (32f8a79). The "Implemented, uncommitted" wording below is stale. The
+> `referencias/` reference folder and the `test-results/before` and `test-results/after`
+> captures are local and not in the repository (`test-results/` is gitignored), and the "47
+> existing tests" count is a 2026-10-11 snapshot. The merged code and tests are authoritative.
+
 # Spec: atlas-cinematic
 
 Status: approved 2026-10-11 (all of it, including pointer parallax). Implemented, uncommitted;

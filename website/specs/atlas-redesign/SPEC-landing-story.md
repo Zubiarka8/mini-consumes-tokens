@@ -1,3 +1,12 @@
+> **Archive status (verified 2026-10-12 against 65d4990).** Implemented and merged: four
+> story stages, observer, `data-story-stage`, `aria-current="step"` and the sticky scene layout
+> in 40e03c3, shipped by PR #184 (32f8a79). The "Implemented, uncommitted" status, the
+> "Current state (HEAD 2641f50)" section and the "Decisions (pending)" list below are stale
+> snapshots from 2026-10-11: the decisions were resolved by the commit itself (the step cards
+> moved into the story). The per-tool choreography (C1-C7) and `DESIGN.md` M5 mentioned below
+> remain **not implemented in 65d4990 and not approved**. The merged code and tests are
+> authoritative for layout details.
+
 # Spec: landing-story
 
 Status: approved 2026-10-11 (decisions: move the step cards, new worktree branch

@@ -1,3 +1,10 @@
+> **Archive status (verified 2026-10-12 against 65d4990).** Historical plan for the
+> `feat/landing-scroll-tour` branch (base `20910db`), not a current task list. Modules 1 and 2
+> shipped (PR #178, 5620e3c; PR #180, 4c3fd65), except M1's `labelsDirty` ref and M5 (`DESIGN.md`
+> line 9), which are **not implemented** in 65d4990 and not approved. Module 3 (tour-choreography)
+> is **not implemented** and not approved. `prompt2` to `prompt4` are local, untracked prompt
+> files that do not exist in the repository, and the test line numbers cited below are stale.
+
 # Plan: Atlas 3D redesign
 
 Status: Phase 2. Specs approved (Phase 1) with every non-blocking default:
