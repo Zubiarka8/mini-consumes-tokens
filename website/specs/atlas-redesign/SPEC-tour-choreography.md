@@ -1,3 +1,13 @@
+> **Archive status: proposal, not implemented (verified 2026-10-12 against 65d4990).** Do not
+> treat this document as a requirement. Its "approved" wording is the author's own and no merged
+> PR, ADR or accepted-spec marker confirms it. None of its mechanisms exist in 65d4990:
+> `data-active-tool`, `data-tool` on `.atlas-tools li`, `data-revealed`, `--step`, per-tool cues
+> and the choreography table (git grep for each returns no match under `website/`). The shipped
+> tour has 14 stages (`tourStages`) with stage-level cues. The example it targets
+> (`request-service`, `parse_request`, `validate_input`, `parser.rs`) was replaced by the
+> project's own index in 21c97b9, so the table cannot be applied as written. Any future work
+> needs a new approval and a rewritten table.
+
 # Spec: tour-choreography
 
 Module of [CAPABILITY-MAP.md](CAPABILITY-MAP.md). Depends on: atlas-motion (cue interface,

@@ -1,3 +1,12 @@
+> **Archive status (verified 2026-10-12 against 65d4990).** Partly implemented in PR #180
+> (4c3fd65, 21c97b9): continuous loop while visible with zero frames offscreen or hidden, idle
+> pulses, breathing and floating sheets, eased transitions, and the cue interface (`Cue`,
+> `CueKey`, `CUE_STEP = 300`, `data-cue`). **Not implemented in 65d4990 and not approved as
+> requirements:** the `labelsDirty` ref (labels are projected on every frame by `place` inside
+> `useFrame`, which is still declared in the frame callback), and the `DESIGN.md` line 9 update.
+> The cue interface ships with stage-level connection steps, not the per-tool cues. The test
+> names and line numbers cited below are historical.
+
 # Spec: atlas-motion
 
 Module of [CAPABILITY-MAP.md](CAPABILITY-MAP.md). Depends on: nothing (built after

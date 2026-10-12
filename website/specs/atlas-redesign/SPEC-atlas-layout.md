@@ -1,3 +1,11 @@
+> **Archive status (verified 2026-10-12 against 65d4990).** Implemented: `data-scene` on the atlas
+> root, the control row rendered by `Atlas`, the full-screen button in that row, and the CSS rule
+> hiding `.symbol-controls`, `.context-pack` and `.atlas-caption` in full screen unless
+> `data-scene="failed"`. Evidence: PR #178 (5620e3c: 5d79e25, a2201c0, 9cf1d5d, f6ed65d) and
+> `landing.css` `.atlas-expanded:not([data-scene="failed"])`. The test line numbers and the
+> "Tests that contradict this module" section are historical: those tests were rewritten in
+> f6ed65d. Approval evidence is the merged PR; the spec itself carries no accepted status.
+
 # Spec: atlas-layout
 
 Module of [CAPABILITY-MAP.md](CAPABILITY-MAP.md). Depends on: nothing.
