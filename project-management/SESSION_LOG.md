@@ -34,3 +34,5 @@ Record significant events only. Link to task, review, and decision details; omit
   recoverable refs for import. No new publication or main integration.
 - Recovery bundle verified and imported locally; original aliases and CSS branches
   advanced by fast-forward to the reviewed candidates. No main integration.
+- Reproduced the ignored relation_scale release measurement on base and candidate:
+  both pass, 15.85 s versus 15.75 s; final alias checkpoint records direct evidence.

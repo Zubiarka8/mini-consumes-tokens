@@ -127,10 +127,13 @@ Resolve the final coordination branch HEAD with Git. Full test result is
 Web checks, fmt, CI Clippy and evaluation pass. REPORT.md records limits.
 
 Recovery refs have been imported into the original repo. Original aliases were
-fast-forwarded from d9ffeec to d0fe58f and CSS from e3f7ca9 to a361b2. The untracked
+fast-forwarded from d9ffeec to 6bdbbcd (d0fe58f implementation plus performance checkpoint) and CSS from e3f7ca9 to a361b2. The untracked
 probe and local hook modifications were preserved. Policy, hook and coordination
 refs are available locally; do not merge the umbrella integration branch into
 main automatically.
 Record user approval on #135 and get an unrestricted-host/CI watcher result before
 claiming complete verification. GitHub network access was unavailable here.
 No feature push, PR, main merge or deletion was performed in recovery.
+
+Direct relation_scale release measurement now reproduced: base 15.85 s, candidate
+15.75 s, 10k/100k synthetic symbols, 1 passed in each run. See REPORT.md for limits.

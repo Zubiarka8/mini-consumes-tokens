@@ -17,7 +17,7 @@ The original primary checkout and interrupted worker's probe are preserved.
 All tasks remain REVIEW until accepted integration into main:
 - TASK-DOCS-MCP-PROSE: `docs/semantic-search-prose-limits` at `62c677f`, published
   by the prior Claude coordinator according to its report and local tracking ref.
-- TASK-MD-ALIAS-135: recovered as `claude/md-alias-135` at `d0fe58f` (recovery ref retained).
+- TASK-MD-ALIAS-135: recovered as `claude/md-alias-135` at `6bdbbcd` (recovery ref retained).
   ADR-005, schema assertion and alias cases are complete; independent review passed.
 - TASK-CSS-NESTING-115: `claude/css-nesting-115` at `a361b2` (recovery ref retained).
   Includes repeated-parent products, implicit relative parents and complex grouping.
@@ -42,7 +42,7 @@ The four original worktrees remain; user-requested local hook retirement is acti
 Recovery used an isolated repository because original Git metadata writes failed.
 Candidate refs and history were imported into the original repository from
 `mct-recovery-final.bundle`. Original aliases and CSS branches were fast-forwarded
-to d0fe58f and a361b2; the temporary probe and local hook settings remain intact.
+to 6bdbbcd and a361b2; the temporary probe and local hook settings remain intact.
 
 ## Next action
 

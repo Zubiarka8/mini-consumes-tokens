@@ -194,7 +194,7 @@ Published previously; no PR or main integration claimed by recovery.
 
 ## TASK-MD-ALIAS-135
 
-Status: REVIEW. Candidate: `claude/md-alias-135` at `d0fe58f`; recovery ref retained.
+Status: REVIEW. Candidate: `claude/md-alias-135` at `6bdbbcd`; recovery ref retained.
 Owner: Codex recovery coordinator; independent alias reviewer.
 Base: `a3e10b0f450a93107061152feb862a1d242820a1`.
 Scope: parser aliases, generic storage/migration11, relation view, tests, ADR005,
