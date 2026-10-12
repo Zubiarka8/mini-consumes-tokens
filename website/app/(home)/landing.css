@@ -585,30 +585,12 @@
   align-items: center;
 }
 .docs-art {
-  background: #dce6cf;
-  min-height: 330px;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: 44px;
-  border: 1px solid #b9c8ac;
-  position: relative;
-  color: #3c5b30;
+  min-width: 0;
 }
-.docs-art:after {
-  content: "";
-  position: absolute;
-  inset: 20px;
-  border: 1px solid #b9c8ac;
-  pointer-events: none;
-}
-.docs-art .mono {
-  font-size: 11px;
-  line-height: 1.8;
-  text-align: right;
-}
-.docs-art svg {
-  align-self: center;
+.docs-art-image {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 .guide-links {
   display: flex;
@@ -741,10 +723,6 @@
   .atlas-stages {
     font-size: 8px;
   }
-  .docs-art {
-    padding: 32px;
-    min-height: 300px;
-  }
 }
 @media (max-width: 767px) {
   .shell {
@@ -851,9 +829,6 @@
   }
   .cap-list article {
     gap: 18px;
-  }
-  .docs-art {
-    min-height: 200px;
   }
   .faq {
     padding-top: 40px;
