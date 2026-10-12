@@ -46,7 +46,7 @@ Each recovery agent used an exclusive branch and worktree in the recovery clone.
 - Codex coordinator: TASK-MD-ALIAS-135, `codex/recover-alias-135-final`,
   worktree `mct-recovery-final-repo`, candidate `d0fe58f`, review.
 - CSS reviewer/worker: TASK-CSS-NESTING-115, `codex/review-css-115-final`,
-  worktree `mct-review-css-115-final`, candidate `a361b2`, completed assignment.
+  worktree `mct-review-css-115-final`, candidate `a361b23`, completed assignment.
 - Alias independent reviewer: `codex/review-alias-135-final`,
   worktree `mct-review-alias-135-final`, reviewed `9258d3f`, completed assignment.
 - Policy independent reviewer: `codex/review-pr-policy-final`,
