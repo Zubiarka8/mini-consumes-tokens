@@ -177,7 +177,10 @@ fn a_saved_file_becomes_searchable_only_after_the_delay() {
         }
         std::thread::sleep(Duration::from_millis(100));
     }
-    assert!(found, "expected the saved file to be indexed after the delay");
+    assert!(
+        found,
+        "expected the saved file to be indexed after the delay"
+    );
     assert!(
         saved.elapsed() >= Duration::from_millis(400),
         "indexed after only {:?}, before the 500ms delay",
