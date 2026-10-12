@@ -194,7 +194,7 @@ Published previously; no PR or main integration claimed by recovery.
 
 ## TASK-MD-ALIAS-135
 
-Status: REVIEW. Candidate: `codex/recover-alias-135-final` at `d0fe58f`.
+Status: REVIEW. Candidate: `claude/md-alias-135` at `d0fe58f`; recovery ref retained.
 Owner: Codex recovery coordinator; independent alias reviewer.
 Base: `a3e10b0f450a93107061152feb862a1d242820a1`.
 Scope: parser aliases, generic storage/migration11, relation view, tests, ADR005,
@@ -207,7 +207,7 @@ No alias publication or main integration.
 
 ## TASK-CSS-NESTING-115
 
-Status: REVIEW. Candidate: `codex/review-css-115-final` at `a361b2`.
+Status: REVIEW. Candidate: `claude/css-nesting-115` at `a361b2`; recovery ref retained.
 Owner: CSS recovery worker; coordinator review.
 Base: `a3e10b0f450a93107061152feb862a1d242820a1`.
 Scope: CSS walker, focused/corpus/library tests, error registry and docs.

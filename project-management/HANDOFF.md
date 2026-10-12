@@ -126,10 +126,11 @@ Resolve the final coordination branch HEAD with Git. Full test result is
 1260 pass / 3 fail / 24 ignore; only watcher tests fail, also on base a3e10b0.
 Web checks, fmt, CI Clippy and evaluation pass. REPORT.md records limits.
 
-Next: import mct-recovery-final.bundle into the original repo; fast-forward aliases
-from d9ffeec to d0fe58f and CSS from e3f7ca9 to a361b2. Preserve the untracked probe
-and local hook modifications. Import the policy and hook refs for later review;
-do not merge the umbrella integration branch into main automatically.
+Recovery refs have been imported into the original repo. Original aliases were
+fast-forwarded from d9ffeec to d0fe58f and CSS from e3f7ca9 to a361b2. The untracked
+probe and local hook modifications were preserved. Policy, hook and coordination
+refs are available locally; do not merge the umbrella integration branch into
+main automatically.
 Record user approval on #135 and get an unrestricted-host/CI watcher result before
 claiming complete verification. GitHub network access was unavailable here.
 No feature push, PR, main merge or deletion was performed in recovery.
