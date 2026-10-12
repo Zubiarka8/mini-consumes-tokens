@@ -445,7 +445,7 @@ fn an_embed_is_distinguishable_from_a_plain_wikilink() {
 #[test]
 fn front_matter_tags_aliases_and_title_are_queryable() {
     let index = open_vault();
-    for name in ["tag:daily", "tag:review", "title:Daily Note"] {
+    for name in ["tag:daily", "tag:review", "title:Daily Note", "alias:Daily"] {
         let hits = index.find_references(name).unwrap();
         assert_eq!(hits.len(), 1, "{name}: {hits:?}");
         assert_eq!(hits[0].from_symbol, "2026-09-18", "owned by the note");
