@@ -146,6 +146,8 @@ Check crate boundaries, cross-cutting contracts, MCP/schema/client impact, arbit
 5. Push, publish, or merge only within the user's authorization. An approved PR awaiting merge remains REVIEW; record approval separately from integration.
 6. After verified integration update Tasks, Project State, Registry, Handoff, report references, and relevant issues/PRs. Record the integration commit, summarize obsolete handoffs, and inspect remaining worktrees before any authorized cleanup.
 
+Before opening a PR run `scripts/unix/check.sh`, then open it with `scripts/unix/publish-branch.sh` (fast-forward push only; see [scripts/README.md](scripts/README.md)). Branch protection on `main` requires the status checks `rustfmt` and `build + test + clippy` on ubuntu, macOS and Windows, and disallows force-push and deletion; inspect the live settings with `gh api repos/{owner}/{repo}/branches/main/protection` rather than relying on this sentence. Merge method, auto-merge, and review requirements are not set by this document.
+
 Commits must be small, coherent, English, and follow `rules.md`. Keep features, unrelated refactors, docs, and accidental formatting changes separate. State-only commits may refer to a preceding implementation commit; they cannot contain their own final hash, so resolve the branch's latest HEAD through Git at recovery.
 
 ## Session closure and autonomy
