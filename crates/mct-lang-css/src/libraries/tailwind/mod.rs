@@ -91,9 +91,15 @@ fn tailwind_v4_theme_utilities_variants_and_nesting() {
     assert_eq!(rules(path, ".hb-card"), [(166, 183)]);
     assert_eq!(rules(path, ".hero"), [(256, 268)]);
     assert_eq!(rules(path, ".pricing-table"), [(275, 287)]);
-    // …and, known limit, each nested rule is a separate rule named with
-    // its literal `&` selector, not resolved against the parent (#115).
-    assert!(rules(path, "&:hover").contains(&(170, 172)));
-    assert_eq!(rules(path, "& > .hb-card__title"), [(174, 177)]);
+    // …and each nested rule is a separate rule named with its selector
+    // resolved against the parent (#115), over its own range.
+    assert_eq!(rules(path, ".hb-card:hover"), [(170, 172)]);
+    assert_eq!(rules(path, ".hb-card > .hb-card__title"), [(174, 177)]);
     assert_eq!(rules(path, ".hb-card__title"), [(174, 174)]);
+    assert_eq!(rules(path, ".hb-nav a:hover"), [(228, 230)]);
+    // Provisional DC1 (#115): the literal `&` selector of a resolved rule
+    // is not kept. The `&:hover` inside `@custom-variant` has no parent
+    // rule, so it keeps its literal name.
+    assert_eq!(rules(path, "&:hover"), [(100, 102)]);
+    assert!(rules(path, "& > .hb-card__title").is_empty());
 }
