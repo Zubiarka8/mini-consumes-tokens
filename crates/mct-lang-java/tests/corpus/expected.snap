@@ -1,4 +1,4 @@
-# language=java files=6 symbols=377 relations=799 name_matched_across_files=155
+# language=java files=6 symbols=377 relations=912 name_matched_across_files=174
 
 == com/example/warehouse/app/OrderService.java (303 lines)
 S 1-303 module OrderService
@@ -52,31 +52,58 @@ S 263-270 method OrderService::run
 S 275-287 method OrderService::demo
 S 289-302 method OrderService::main
 R 3:1 imports OrderService -> Inventory (name-matched: com/example/warehouse/inventory/Inventory.java)
+R 3:1 imports OrderService -> Inventory (name-matched: com/example/warehouse/inventory/Inventory.java)
+R 4:1 imports OrderService -> Inventory (name-matched: com/example/warehouse/inventory/Inventory.java)
 R 4:1 imports OrderService -> OutOfStockException (name-matched: com/example/warehouse/inventory/Inventory.java)
 R 5:1 imports OrderService -> ExchangeRates (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 5:1 imports OrderService -> ExchangeRates (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 6:1 imports OrderService -> Money (name-matched: com/example/warehouse/money/Money.java)
+R 6:1 imports OrderService -> Money (name-matched: com/example/warehouse/money/Money.java)
+R 7:1 imports OrderService -> Money (name-matched: com/example/warehouse/money/Money.java)
 R 7:1 imports OrderService -> Currency (name-matched: com/example/warehouse/money/Money.java)
 R 8:1 imports OrderService -> Order (name-matched: com/example/warehouse/order/Order.java)
+R 8:1 imports OrderService -> Order (name-matched: com/example/warehouse/order/Order.java)
+R 9:1 imports OrderService -> Order (name-matched: com/example/warehouse/order/Order.java)
 R 9:1 imports OrderService -> Line (name-matched: com/example/warehouse/order/Order.java)
+R 10:1 imports OrderService -> Order (name-matched: com/example/warehouse/order/Order.java)
 R 10:1 imports OrderService -> OrderEvent (name-matched: com/example/warehouse/order/Order.java)
 R 11:1 imports OrderService -> Repository (name-matched: com/example/warehouse/persistence/Repository.java)
+R 11:1 imports OrderService -> Repository (name-matched: com/example/warehouse/persistence/Repository.java)
+R 12:1 imports OrderService -> Repository (name-matched: com/example/warehouse/persistence/Repository.java)
 R 12:1 imports OrderService -> Transactional (name-matched: com/example/warehouse/persistence/Repository.java)
 R 14:1 imports OrderService -> Clock
+R 14:1 imports OrderService -> Clock
+R 15:1 imports OrderService -> Duration
 R 15:1 imports OrderService -> Duration
 R 16:1 imports OrderService -> Instant
+R 16:1 imports OrderService -> Instant
+R 17:1 imports OrderService -> LocalDate
 R 17:1 imports OrderService -> LocalDate
 R 18:1 imports OrderService -> ArrayList
+R 18:1 imports OrderService -> ArrayList
+R 19:1 imports OrderService -> Comparator
 R 19:1 imports OrderService -> Comparator
 R 20:1 imports OrderService -> LinkedHashMap
+R 20:1 imports OrderService -> LinkedHashMap
+R 21:1 imports OrderService -> List
 R 21:1 imports OrderService -> List
 R 22:1 imports OrderService -> Map
+R 22:1 imports OrderService -> Map
+R 23:1 imports OrderService -> Objects
 R 23:1 imports OrderService -> Objects
 R 24:1 imports OrderService -> Optional
+R 24:1 imports OrderService -> Optional
+R 25:1 imports OrderService -> AtomicLong
 R 25:1 imports OrderService -> AtomicLong
 R 26:1 imports OrderService -> Consumer
+R 26:1 imports OrderService -> Consumer
+R 27:1 imports OrderService -> Level
 R 27:1 imports OrderService -> Level
 R 28:1 imports OrderService -> Logger
+R 28:1 imports OrderService -> Logger
+R 30:1 imports OrderService -> Collectors
 R 30:1 imports OrderService -> groupingBy
+R 31:1 imports OrderService -> Collectors
 R 31:1 imports OrderService -> counting
 R 45:21 calls OrderService -> requireNonNull
 R 46:28 calls OrderService -> isEmpty
@@ -312,22 +339,40 @@ S 338-341 method Inventory::undo
 S 343-349 method Inventory::checkReorderPoint
 S 351-358 method Inventory::withLock
 R 3:1 imports Inventory -> Order (name-matched: com/example/warehouse/order/Order.java)
+R 3:1 imports Inventory -> Order (name-matched: com/example/warehouse/order/Order.java)
+R 4:1 imports Inventory -> Order (name-matched: com/example/warehouse/order/Order.java)
 R 4:1 imports Inventory -> Line (name-matched: com/example/warehouse/order/Order.java)
 R 6:1 imports Inventory -> Clock
+R 6:1 imports Inventory -> Clock
+R 7:1 imports Inventory -> Duration
 R 7:1 imports Inventory -> Duration
 R 8:1 imports Inventory -> Instant
+R 8:1 imports Inventory -> Instant
+R 9:1 imports Inventory -> ArrayList
 R 9:1 imports Inventory -> ArrayList
 R 10:1 imports Inventory -> Comparator
+R 10:1 imports Inventory -> Comparator
+R 11:1 imports Inventory -> HashMap
 R 11:1 imports Inventory -> HashMap
 R 12:1 imports Inventory -> Iterator
+R 12:1 imports Inventory -> Iterator
+R 13:1 imports Inventory -> List
 R 13:1 imports Inventory -> List
 R 14:1 imports Inventory -> Map
+R 14:1 imports Inventory -> Map
+R 15:1 imports Inventory -> Optional
 R 15:1 imports Inventory -> Optional
 R 16:1 imports Inventory -> UUID
+R 16:1 imports Inventory -> UUID
+R 17:1 imports Inventory -> Lock
 R 17:1 imports Inventory -> Lock
 R 18:1 imports Inventory -> ReentrantLock
+R 18:1 imports Inventory -> ReentrantLock
+R 19:1 imports Inventory -> Predicate
 R 19:1 imports Inventory -> Predicate
 R 20:1 imports Inventory -> Collectors
+R 20:1 imports Inventory -> Collectors
+R 21:1 imports Inventory -> Stream
 R 21:1 imports Inventory -> Stream
 R 31:74 implements Inventory::Location -> Comparable
 R 33:35 calls Location::parse -> split (name-matched: com/example/warehouse/money/Money.java)
@@ -537,26 +582,47 @@ S 287-290 method ExchangeRates::toString
 S 295-314 method ExchangeRates::lazyDefault
 S 297-297 field ExchangeRates::instance
 S 299-312 method ExchangeRates::get
+R 3:1 imports ExchangeRates -> Money (name-matched: com/example/warehouse/money/Money.java)
 R 3:1 imports ExchangeRates -> Currency (name-matched: com/example/warehouse/money/Money.java)
 R 5:1 imports ExchangeRates -> Documented
+R 5:1 imports ExchangeRates -> Documented
+R 6:1 imports ExchangeRates -> ElementType
 R 6:1 imports ExchangeRates -> ElementType
 R 7:1 imports ExchangeRates -> Retention
+R 7:1 imports ExchangeRates -> Retention
+R 8:1 imports ExchangeRates -> RetentionPolicy
 R 8:1 imports ExchangeRates -> RetentionPolicy
 R 9:1 imports ExchangeRates -> Target
+R 9:1 imports ExchangeRates -> Target
+R 10:1 imports ExchangeRates -> BigDecimal
 R 10:1 imports ExchangeRates -> BigDecimal
 R 11:1 imports ExchangeRates -> MathContext
+R 11:1 imports ExchangeRates -> MathContext
+R 12:1 imports ExchangeRates -> Clock
 R 12:1 imports ExchangeRates -> Clock
 R 13:1 imports ExchangeRates -> Duration
+R 13:1 imports ExchangeRates -> Duration
+R 14:1 imports ExchangeRates -> Instant
 R 14:1 imports ExchangeRates -> Instant
 R 15:1 imports ExchangeRates -> LocalDate
+R 15:1 imports ExchangeRates -> LocalDate
+R 16:1 imports ExchangeRates -> EnumMap
 R 16:1 imports ExchangeRates -> EnumMap
 R 17:1 imports ExchangeRates -> HashMap
+R 17:1 imports ExchangeRates -> HashMap
+R 18:1 imports ExchangeRates -> Map
 R 18:1 imports ExchangeRates -> Map
 R 19:1 imports ExchangeRates -> Optional
+R 19:1 imports ExchangeRates -> Optional
+R 20:1 imports ExchangeRates -> ConcurrentHashMap
 R 20:1 imports ExchangeRates -> ConcurrentHashMap
 R 21:1 imports ExchangeRates -> ReentrantReadWriteLock
+R 21:1 imports ExchangeRates -> ReentrantReadWriteLock
+R 22:1 imports ExchangeRates -> Function
 R 22:1 imports ExchangeRates -> Function
 R 23:1 imports ExchangeRates -> Supplier
+R 23:1 imports ExchangeRates -> Supplier
+R 24:1 imports ExchangeRates -> Logger
 R 24:1 imports ExchangeRates -> Logger
 R 37:20 calls ExchangeRates::convert -> currency (name-matched: com/example/warehouse/money/Money.java)
 R 40:27 calls ExchangeRates::convert -> rate
@@ -722,17 +788,30 @@ S 362-364 method CurrencyMismatchException::actual
 S 368-372 class Money::MoneyFormatException
 S 369-371 method MoneyFormatException::MoneyFormatException
 R 3:1 imports Money -> BigDecimal
+R 3:1 imports Money -> BigDecimal
+R 4:1 imports Money -> RoundingMode
 R 4:1 imports Money -> RoundingMode
 R 5:1 imports Money -> ArrayList
+R 5:1 imports Money -> ArrayList
+R 6:1 imports Money -> Collections
 R 6:1 imports Money -> Collections
 R 7:1 imports Money -> Comparator
+R 7:1 imports Money -> Comparator
+R 8:1 imports Money -> List
 R 8:1 imports Money -> List
 R 9:1 imports Money -> Locale
+R 9:1 imports Money -> Locale
+R 10:1 imports Money -> Objects
 R 10:1 imports Money -> Objects
 R 11:1 imports Money -> NumberFormat
+R 11:1 imports Money -> NumberFormat
+R 12:1 imports Money -> BinaryOperator
 R 12:1 imports Money -> BinaryOperator
 R 13:1 imports Money -> Collector
+R 13:1 imports Money -> Collector
 R 14:1 imports Money -> Collectors
+R 14:1 imports Money -> Collectors
+R 16:1 imports Money -> Objects
 R 16:1 imports Money -> requireNonNull
 R 25:37 implements Money -> Comparable
 R 51:31 calls Currency::parse -> values (name-matched: com/example/warehouse/money/ExchangeRates.java)
@@ -918,16 +997,28 @@ S 309-319 method Order::describe
 S 322-330 method Order::summary
 S 332-335 method Order::toString
 R 3:1 imports Order -> Money (name-matched: com/example/warehouse/money/Money.java)
+R 3:1 imports Order -> Money (name-matched: com/example/warehouse/money/Money.java)
+R 4:1 imports Order -> Money (name-matched: com/example/warehouse/money/Money.java)
 R 4:1 imports Order -> Currency (name-matched: com/example/warehouse/money/Money.java)
 R 6:1 imports Order -> Instant
+R 6:1 imports Order -> Instant
+R 7:1 imports Order -> ArrayList
 R 7:1 imports Order -> ArrayList
 R 8:1 imports Order -> Collections
+R 8:1 imports Order -> Collections
+R 9:1 imports Order -> EnumSet
 R 9:1 imports Order -> EnumSet
 R 10:1 imports Order -> List
+R 10:1 imports Order -> List
+R 11:1 imports Order -> Objects
 R 11:1 imports Order -> Objects
 R 12:1 imports Order -> Optional
+R 12:1 imports Order -> Optional
+R 13:1 imports Order -> Set
 R 13:1 imports Order -> Set
 R 14:1 imports Order -> UUID
+R 14:1 imports Order -> UUID
+R 15:1 imports Order -> Consumer
 R 15:1 imports Order -> Consumer
 R 27:21 calls Order -> requireNonNull
 R 31:24 calls Id::random -> Id
@@ -1084,26 +1175,48 @@ S 289-291 method Outbox::append
 S 293-297 method Outbox::drain
 S 299-301 method Outbox::size
 R 3:1 imports Repository -> Money (name-matched: com/example/warehouse/money/Money.java)
+R 3:1 imports Repository -> Money (name-matched: com/example/warehouse/money/Money.java)
+R 4:1 imports Repository -> Money (name-matched: com/example/warehouse/money/Money.java)
 R 4:1 imports Repository -> Currency (name-matched: com/example/warehouse/money/Money.java)
 R 5:1 imports Repository -> Order (name-matched: com/example/warehouse/order/Order.java)
+R 5:1 imports Repository -> Order (name-matched: com/example/warehouse/order/Order.java)
+R 6:1 imports Repository -> Order (name-matched: com/example/warehouse/order/Order.java)
 R 6:1 imports Repository -> OrderEvent (name-matched: com/example/warehouse/order/Order.java)
 R 8:1 imports Repository -> ElementType
+R 8:1 imports Repository -> ElementType
+R 9:1 imports Repository -> Retention
 R 9:1 imports Repository -> Retention
 R 10:1 imports Repository -> RetentionPolicy
+R 10:1 imports Repository -> RetentionPolicy
+R 11:1 imports Repository -> Target
 R 11:1 imports Repository -> Target
 R 12:1 imports Repository -> Connection
+R 12:1 imports Repository -> Connection
+R 13:1 imports Repository -> PreparedStatement
 R 13:1 imports Repository -> PreparedStatement
 R 14:1 imports Repository -> ResultSet
+R 14:1 imports Repository -> ResultSet
+R 15:1 imports Repository -> SQLException
 R 15:1 imports Repository -> SQLException
 R 16:1 imports Repository -> Timestamp
+R 16:1 imports Repository -> Timestamp
+R 17:1 imports Repository -> Instant
 R 17:1 imports Repository -> Instant
 R 18:1 imports Repository -> ArrayList
+R 18:1 imports Repository -> ArrayList
+R 19:1 imports Repository -> Collection
 R 19:1 imports Repository -> Collection
 R 20:1 imports Repository -> List
+R 20:1 imports Repository -> List
+R 21:1 imports Repository -> Map
 R 21:1 imports Repository -> Map
 R 22:1 imports Repository -> Optional
+R 22:1 imports Repository -> Optional
+R 23:1 imports Repository -> ConcurrentHashMap
 R 23:1 imports Repository -> ConcurrentHashMap
 R 24:1 imports Repository -> Function
+R 24:1 imports Repository -> Function
+R 25:1 imports Repository -> DataSource
 R 25:1 imports Repository -> DataSource
 R 45:29 calls Repository::getById -> orElseThrow
 R 45:16 calls Repository::getById -> findById
