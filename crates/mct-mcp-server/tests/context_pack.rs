@@ -110,7 +110,11 @@ fn numbered(source: &str) -> String {
 #[tokio::test]
 async fn packs_definition_doc_comment_and_every_related_symbol_once() {
     let server = build_server(&fixture("context-pack-app")).await;
-    let text = pack(&server, json!({ "symbol": "place_order" })).await;
+    let text = pack(
+        &server,
+        json!({ "symbol": "place_order", "format": "text" }),
+    )
+    .await;
     println!("{text}");
 
     assert!(
@@ -261,8 +265,16 @@ async fn toon_renders_the_related_symbols_as_one_table() {
 #[tokio::test]
 async fn depth_two_adds_callees_of_callees_tagged_with_their_hop() {
     let server = build_server(&fixture("context-pack-app")).await;
-    let direct = pack(&server, json!({ "symbol": "place_order" })).await;
-    let deep = pack(&server, json!({ "symbol": "place_order", "depth": 2 })).await;
+    let direct = pack(
+        &server,
+        json!({ "symbol": "place_order", "format": "text" }),
+    )
+    .await;
+    let deep = pack(
+        &server,
+        json!({ "symbol": "place_order", "depth": 2, "format": "text" }),
+    )
+    .await;
     println!("{deep}");
     assert!(!direct.contains("callee reserve "), "{direct}");
     // `inventory.reserve(..)`: a receiver call is listed as uncertain, with
@@ -377,7 +389,7 @@ async fn homonyms_are_never_presented_as_resolved_callees() {
         std::fs::write(root.join(path), contents).unwrap();
     }
     let server = build_server(&root).await;
-    let text = pack(&server, json!({ "symbol": "query" })).await;
+    let text = pack(&server, json!({ "symbol": "query", "format": "text" })).await;
     let _ = std::fs::remove_dir_all(&root);
     println!("{text}");
 
