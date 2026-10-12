@@ -32,3 +32,5 @@ Record significant events only. Link to task, review, and decision details; omit
   full tests 1260/3/24, with the same watcher failures reproduced on the base.
 - Updated shared recovery records; preserved original branches and prepared local
   recoverable refs for import. No new publication or main integration.
+- Recovery bundle verified and imported locally; original aliases and CSS branches
+  advanced by fast-forward to the reviewed candidates. No main integration.

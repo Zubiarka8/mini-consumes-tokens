@@ -56,3 +56,7 @@ Each recovery agent used an exclusive branch and worktree in the recovery clone.
 
 The interrupted Claude alias worktree is preserved, including untracked
 `crates/mct-index/tests/zz_probe.rs`. No branch or worktree was deleted.
+
+Recovery candidate refs imported into the original repository. Original branches
+`claude/md-alias-135` and `claude/css-nesting-115` now point to the reviewed
+candidates; previous writer probe and local hook settings are preserved.
