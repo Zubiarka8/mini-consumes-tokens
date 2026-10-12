@@ -308,8 +308,8 @@ fn alias_collisions_list_every_note_without_choosing_one() {
     );
 }
 
-/// Pending decision D2 (TASK-MD-ALIAS-135 checkpoint): an anchor behind an
-/// ambiguous note name lists the matching sections, exactly like the
+/// ADR-005: an anchor behind an ambiguous note name stays ambiguous and
+/// lists the matching section of every note, exactly like the
 /// duplicate-basename case in
 /// `an_anchor_on_an_ambiguous_note_stays_ambiguous_not_first_match`.
 #[test]
@@ -323,10 +323,30 @@ fn an_anchor_through_a_shared_alias_lists_both_sections() {
         v.outcome("src.md", "Sec"),
         "ambiguous a/First.md:element:Sec | b/Second.md:element:Sec"
     );
+    // The link's note edge keeps the note-level ambiguity as well.
+    assert_eq!(
+        v.outcome("src.md", "Alpha"),
+        "ambiguous a/First.md:module:First | b/Second.md:module:Second"
+    );
 }
 
-/// Pending decision D3 (TASK-MD-ALIAS-135 checkpoint): case folding is out
-/// of scope for issue #135, so an alias matches only its exact spelling.
+/// ADR-005: alias comparison is case-sensitive (case folding is out of scope
+/// for issue #135), so an alias matches only its exact spelling.
+/// The same rule when the ambiguity is one note's alias against another
+/// note's stem: both sections are listed, neither is chosen.
+#[test]
+fn an_anchor_through_an_alias_colliding_with_a_stem_lists_both_sections() {
+    let v = Vault::new(&[
+        ("a/Alpha.md", "# A\n\n## Sec\n"),
+        ("b/Other.md", "---\naliases: [Alpha]\n---\n## Sec\n"),
+        ("src.md", "[[Alpha#Sec]]\n"),
+    ]);
+    assert_eq!(
+        v.outcome("src.md", "Sec"),
+        "ambiguous a/Alpha.md:element:Sec | b/Other.md:element:Sec"
+    );
+}
+
 #[test]
 fn alias_matching_is_case_sensitive() {
     let v = Vault::new(&[
@@ -365,6 +385,21 @@ fn a_frontmatter_title_is_never_an_alias() {
         ("src.md", "[[Alpha]]\n"),
     ]);
     assert_eq!(v.outcome("src.md", "Alpha"), "unresolved ");
+}
+
+/// A title equal to another note's alias adds no candidate: only the note
+/// declaring the alias is a target.
+#[test]
+fn a_title_does_not_join_an_alias_match() {
+    let v = Vault::new(&[
+        ("a/Titled.md", "---\ntitle: Alpha\n---\n"),
+        ("b/Aliased.md", "---\naliases: [Alpha]\n---\n"),
+        ("src.md", "[[Alpha]]\n"),
+    ]);
+    assert_eq!(
+        v.outcome("src.md", "Alpha"),
+        "resolved b/Aliased.md:module:Aliased"
+    );
 }
 
 #[test]
@@ -455,6 +490,97 @@ fn alias_edits_rename_and_delete_update_unchanged_referrers_incrementally() {
     v.index.reindex(&v.registry, true).unwrap();
     assert_eq!(v.outcome("src.md", "Alpha"), "unresolved ");
     assert_eq!(v.outcome("src.md", "Beta"), "unresolved ");
+}
+
+/// From `src.md`: the note edges of `[[Alpha]]` and `[[Alpha#Sec]]`, then
+/// the section edge of `[[Alpha#Sec]]`, each with every candidate, for
+/// comparing an incremental index with a full one.
+fn alias_snapshot(v: &Vault) -> Vec<String> {
+    let notes = v.link("src.md", "Alpha");
+    assert_eq!(notes.len(), 2, "{notes:?}");
+    let candidates = |relation_id: i64| -> String {
+        v.index
+            .relation_candidates(relation_id)
+            .unwrap()
+            .iter()
+            .map(|s| format!("{}:{}:{}", s.relative_path, s.kind, s.name))
+            .collect::<Vec<_>>()
+            .join(" | ")
+    };
+    let mut rows: Vec<String> = notes
+        .iter()
+        .map(|h| {
+            format!(
+                "Alpha: {} {}",
+                h.resolution.as_str(),
+                candidates(h.relation_id)
+            )
+        })
+        .collect();
+    rows.sort();
+    rows.push(format!("Sec: {}", v.outcome("src.md", "Sec")));
+    rows
+}
+
+#[test]
+fn shared_alias_edits_agree_between_incremental_and_full_reindex() {
+    let mut v = Vault::new(&[
+        ("a/First.md", "---\naliases: [Alpha]\n---\n## Sec\n"),
+        ("b/Second.md", "---\naliases: [Alpha]\n---\n## Sec\n"),
+        ("src.md", "[[Alpha]]\n[[Alpha#Sec]]\n"),
+    ]);
+    assert_eq!(
+        alias_snapshot(&v),
+        [
+            "Alpha: ambiguous a/First.md:module:First | b/Second.md:module:Second",
+            "Alpha: ambiguous a/First.md:module:First | b/Second.md:module:Second",
+            "Sec: ambiguous a/First.md:element:Sec | b/Second.md:element:Sec",
+        ]
+    );
+    // Steps: drop the alias from one note, add it to a third, then remove
+    // the remaining declaration. `src.md` never changes, and after each step
+    // a forced full reindex must give the same outcomes.
+    // In step 2 only `a/First.md` has `## Sec`: the section edge has that one
+    // candidate, while the same link's note edge stays ambiguous.
+    let steps: [(&str, &str, [&str; 3]); 3] = [
+        (
+            "b/Second.md",
+            "---\naliases: [Other]\n---\n## Sec\n",
+            [
+                "Alpha: resolved a/First.md:module:First",
+                "Alpha: resolved a/First.md:module:First",
+                "Sec: resolved a/First.md:element:Sec",
+            ],
+        ),
+        (
+            "c/Third.md",
+            "---\naliases: [Alpha]\n---\n",
+            [
+                "Alpha: ambiguous a/First.md:module:First | c/Third.md:module:Third",
+                "Alpha: ambiguous a/First.md:module:First | c/Third.md:module:Third",
+                "Sec: resolved a/First.md:element:Sec",
+            ],
+        ),
+        (
+            "a/First.md",
+            "---\ntitle: Alpha\n---\n## Sec\n",
+            [
+                "Alpha: resolved c/Third.md:module:Third",
+                "Alpha: resolved c/Third.md:module:Third",
+                "Sec: unresolved ",
+            ],
+        ),
+    ];
+    for (path, contents, expected) in steps {
+        v.write(path, contents);
+        v.index
+            .reindex_paths(&v.registry, &[v.dir.join(path)])
+            .unwrap();
+        let incremental = alias_snapshot(&v);
+        assert_eq!(incremental, expected, "incremental after editing {path}");
+        v.index.reindex(&v.registry, true).unwrap();
+        assert_eq!(alias_snapshot(&v), incremental, "full after editing {path}");
+    }
 }
 
 #[test]
