@@ -1,108 +1,60 @@
-# TASK-MD-ALIAS-135 checkpoint
+# TASK-MD-ALIAS-135 recovery checkpoint
 
-**Task / previous agent / status:** TASK-MD-ALIAS-135, Claude worker; status
-`blocked` on decisions D1-D3 (implementation candidate committed, not pushed).
+## Status and ownership
 
-**Branch / worktree name / base commit / latest commit:**
-`claude/md-alias-135`, worktree `mini-consumes-tokens-claude-md-alias-135`,
-base `a3e10b0f450a93107061152feb862a1d242820a1` (origin/main). Latest
-commit: resolve with `git rev-parse claude/md-alias-135` (this checkpoint is
-the last commit; the implementation ends at `test(md): cover wikilink
-resolution by frontmatter alias`).
+REVIEW: implementation complete, independently reviewed; final combined checks
+are owned by the Codex coordinator. Recovered the stopped Claude worker's
+committed revision `d9ffeec` without altering its worktree or uncommitted probe.
 
-**Objective and acceptance criteria:** recover the uncommitted issue #135
-work (wikilink resolution by frontmatter alias), verify it, fix the
-`relation_scale` regression, and commit a candidate without resolving the
-open product decisions. Issue #135 criteria: unique alias resolves; shared
-alias is `ambiguous` with every candidate; title-only match stays
-`unresolved`; migration does not backfill by name; full and incremental
-reindex agree; `alias:<a>` asserted in
-`front_matter_tags_aliases_and_title_are_queryable`.
+Branch: `codex/recover-alias-135-final`.
+Base: `a3e10b0f450a93107061152feb862a1d242820a1`.
+Implementation reviewed: `9258d3f` (resolve latest HEAD through Git).
 
-**Completed:**
-- Recovered diff applied cleanly at the base (no touched file changed
-  between the old base and `a3e10b0`).
-- `feat(core)`: `ParsedFile::symbol_aliases` / `SymbolAlias`.
-- `feat(index)`: migration 11 (`symbol_aliases` table) and the recovered
-  view, committed as found.
-- `perf(index)`: view rewritten; restores main's ambiguous-anchor behavior.
-- `feat(md)`: Markdown parser declares `aliases` entries; crate docs and the
-  note-graph spec updated.
-- `test(md)`: alias tests, D2/D3 pinning tests, macOS temp-dir canonicalize.
+## Approved decisions
 
-**In progress / not started:** nothing in progress. Not started: an ADR or
-issue comment for D1 (requires a decision); push/PR (not authorized).
+The user approved these decisions on 2026-10-12:
+- Migration 11 and `symbol_aliases`, documented by ADR-005.
+- Ambiguous note names keep all candidates; their heading edge lists matching
+  headings, and the separate note edge retains note-level ambiguity.
+- Exact, case-sensitive aliases; a title never supplies an alias.
 
-**Changed paths:** `crates/mct-core/src/lib.rs`,
-`crates/mct-lang-rust/src/lib.rs`, `crates/mct-index/src/schema.rs`,
-`crates/mct-index/src/indexer.rs`, `crates/mct-lang-md/src/lib.rs`,
-`crates/mct-lang-md/tests/note_graph.rs`,
-`crates/mct-lang-md/tests/index_integration.rs`,
-`crates/mct-lang-md/tests/fixtures/vault/daily/2026-09-18.md`,
-`docs/superpowers/specs/2026-10-01-markdown-note-graph-design.md`, this file.
-No uncommitted changes.
+The assertion in `assets.rs` now expects schema 11 and refers to ADR-005.
+The original issue's public discussion has not been updated by this recovery;
+record the approved schema decision on #135 before publishing the feature PR.
 
-**Checks executed (macOS, same machine):**
-- `scripts/unix/check.sh`: fmt ok; CI clippy ok (no warnings); mct-eval ok
-  (accuracy 1.000); test step FAILED on one test (below; the script stops at
-  the first failing test binary).
-- `cargo test --workspace --no-fail-fast`: 149 test binaries, 1232 passed,
-  1 failed, 24 ignored. Only failure:
-  `mct-index/tests/assets.rs::an_index_from_before_assets_gains_them_on_a_normal_reindex`
-  (`user_version` 11, expected 10 per ADR-003 D7). Caused by migration 11;
-  passes on the base. Blocked on D1; the test was not modified.
-- Base `a3e10b0`, `cargo test -p mct-index -p mct-lang-md`: all pass.
-- `relation_scale`: debug suite base 33.6 s, recovered 145.9 s, final 41.5 s.
-  Release suite base 15.4-21.3 s, recovered 65.8 s, final 19.2 s.
+## Completed
 
-**Known problems and relevant decisions:**
+- Reviewed parser-declared alias storage, parameterized inserts, foreign-key
+  lifecycle, no inference from old relation names, and one-time hash reset.
+- Verified duplicate declarations, shared aliases, stem collisions, exact
+  paths, titles, case sensitivity and section resolution.
+- Verified tests cover unchanged referrers after alias edits, rename and deletion,
+  with incremental and full reindex producing the same results.
+- Corrected website wording to describe supported link resolution accurately.
+- Independent review of the actual base-to-candidate diff: no required findings.
 
-D1 - alias storage shape and migration (issue #135 open question).
-- Candidate: migration 11 adds `symbol_aliases(symbol_id, alias)` with
-  `ON DELETE CASCADE`, an alias index, and recreates `relation_candidates`;
-  starts empty and clears `content_hash` once to force a reparse.
-- ADR-003 D7 says "No schema migration in any phase"; the ADR is scoped to
-  the web/3D plan, but `crates/mct-index/tests/assets.rs` asserts
-  `user_version == 10` with "Bump only with a new ADR", so in practice it
-  gates every migration.
-- Options: (a) approve migration 11 with a new ADR (or ADR-003 amendment)
-  and bump the assertion to 11; (b) no migration: emit an extra `module`
-  symbol per alias in the same file (duplicate symbols in listings and
-  search; the view still needs a kind/name rule); (c) no migration: resolve
-  through the existing `alias:<a>` relations from the note (still requires
-  recreating the view, which is itself a migration, or resolving in Rust
-  outside the view).
-- Impact: a migration changes the count, so older binaries hit
-  `CONNECTION_CLOSED` on a migrated index (`scripts/unix/reinstall.sh`).
-- Affected tests: `assets.rs` D7 assertion,
-  `schema::tests::alias_migration_reparses_without_inventing_legacy_aliases`.
+## Checks reproduced by coordinator
 
-D2 - `[[note#Section]]` when `note` is ambiguous.
-- The recovered view resolved it to the notes; that broke main's
-  `an_anchor_on_an_ambiguous_note_stays_ambiguous_not_first_match`.
-- Candidate: keep main's behavior (ambiguous, listing the same-named
-  sections), for basenames and shared aliases alike.
-- Options: (a) sections (candidate, no test change); (b) notes (requires
-  changing main's test and restoring a scope view, with a cost to check);
-  (c) unresolved.
-- Affected tests: `an_anchor_on_an_ambiguous_note_stays_ambiguous_not_first_match`,
-  `an_anchor_through_a_shared_alias_lists_both_sections`.
+On macOS, offline with a separate build directory:
+- `scripts/unix/check.sh -p mct-lang-md`: fmt passed, 129 passed / 0 failed /
+  1 ignored, CI Clippy passed.
+- `cargo test --locked -p mct-index --test assets`: 5 passed / 0 failed.
+- `cargo test --locked -p mct-index schema::tests`: 4 passed / 0 failed.
+- `git diff --check`: passed.
 
-D3 - alias comparison case sensitivity.
-- Candidate: exact, case-sensitive (issue lists case folding out of scope).
-- Options: (a) keep; (b) case-fold aliases only (inconsistent with stems and
-  headings); (c) fold everywhere together with the slug decision.
-- Affected test: `alias_matching_is_case_sensitive`.
+Prior performance evidence (not independently rerun in this checkpoint):
+`relation_scale` debug 41.5 s versus base 33.6 s; release 19.2 s versus base
+15.4–21.3 s. The original materialized-view regression was 145.9 s in debug.
 
-**Dependencies / outstanding references:** none running. Scratch base
-worktree (detached at `a3e10b0`) exists under the worker's scratchpad;
-remove with `git worktree remove` when no longer needed.
+## Remaining integration work
 
-**Files or symbols to inspect first:** migration 11 in
-`crates/mct-index/src/schema.rs`; `write_parsed_file` in
-`crates/mct-index/src/indexer.rs`; `push_frontmatter_relations` in
-`crates/mct-lang-md/src/lib.rs`.
+The coordinator runs the complete fmt/test/CI-Clippy/eval checks on an isolated
+combination of the final docs, alias, CSS and policy commits. A docs conflict in
+`limitations.mdx` must preserve both alias resolution and bounded prose search.
+Preserve the original worker's temporary `zz_probe.rs`; it is not part of the
+candidate and must not be committed or run as a shipped test.
 
-**Exact next action and resume condition:** the coordinator or user decides
-D1-D3. If D1 = (a): write the ADR, then update the `assets.rs` assertion in
-the same change and rerun `scripts/unix/check.sh`. Then review and open a PR.
+## Publication
+
+No alias push, PR or main merge performed. Candidate is ready for final combined
+verification and an issue decision record; do not claim integration into main.
