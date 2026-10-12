@@ -7,6 +7,14 @@ large file in `malformed/` that the parser rejects, and `tests/corpus.rs` (the
 shared `mct-corpus` harness plus language-specific tests). Conventions and the
 review checklist: `CONTRIBUTING.md`, "Language corpus".
 
+> **Status note (2026-10-13):** #74 is now closed on GitHub. The files and
+> lines columns below were re-counted against `crates/mct-lang-*/tests/corpus/`
+> (excluding `expected.snap` and `malformed/`) and match for all 17 languages.
+> Symbol and relation counts were not re-run. The closing step in the next
+> paragraph is still partly pending: `rules.md` still mentions #74 in its command
+> list, and this file is still read by `repo_ledgers.rs`. Related issues #79,
+> #82, #115 and #116 were confirmed open on the same date.
+
 **Keep this file current until the issue is closed.** Every corpus PR updates
 its language row in the same PR (status, PR number, counts, and bugs); after
 merge, set its status to **Done**. When no rows remain pending, close #74 and
