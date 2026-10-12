@@ -239,7 +239,6 @@ async fn no_update_runs_before_the_quiet_period_elapses() {
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
-#[ignore = "bug: notify-debouncer-full releases each event `debounce` after the event itself, so a later save does not restart the quiet period (a second save at +1s still gets indexed at +2s after the first); spawn_watcher needs trailing-edge debounce"]
 async fn a_second_save_inside_the_period_resets_it() {
     let _serial = begin().await;
     let dir = tempdir();
@@ -287,7 +286,6 @@ async fn a_second_save_inside_the_period_resets_it() {
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
-#[ignore = "bug: no quiet-period reset (notify-debouncer-full emits events in age-ordered chunks), so a 1.2 s burst of saves is split into several updates (observed 4) instead of one"]
 async fn a_burst_of_saves_yields_a_single_update() {
     const SAVES: usize = 8;
     let _serial = begin().await;

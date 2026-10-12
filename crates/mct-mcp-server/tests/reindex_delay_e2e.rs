@@ -1,10 +1,7 @@
 //! Black-box checks of `mct-mcp-server --reindex-delay <VALUE>` (issue #196):
 //! the real binary over stdio, a real temp project and real filesystem events.
 //!
-//! Every test is `#[ignore]`d until the server gains the flag (branch
-//! issue-196-server-delay-flag); on a base without it they fail because clap
-//! rejects `--reindex-delay` as an unknown argument. Run them with
-//! `scripts/unix/reindex-delay-smoke.sh`.
+//! Run them with `scripts/unix/reindex-delay-smoke.sh`.
 
 // Test code: an unwrap()/expect() here means a broken test precondition, and
 // panicking is the correct behavior (see crates/mct-mcp-server/src/ for the
@@ -108,18 +105,18 @@ impl StdioServer {
         }
     }
 
-    /// Whether `find_symbol` currently reports `name`.
+    /// Whether `find_symbol` currently reports a function `name` (a "not found" reply also contains the name, so match the definition line).
     fn finds(&mut self, name: &str) -> bool {
         let response = self.request(
             "tools/call",
-            json!({"name": "find_symbol", "arguments": {"name": name}}),
+            json!({"name": "find_symbol", "arguments": {"name": name, "format": "text"}}),
         );
         response["result"]["content"]
             .as_array()
             .into_iter()
             .flatten()
             .filter_map(|block| block["text"].as_str())
-            .any(|text| text.contains(name))
+            .any(|text| text.contains(&format!("] function {name}")))
     }
 }
 
@@ -149,7 +146,6 @@ fn run_rejected(args: &[&str]) -> String {
 }
 
 #[test]
-#[ignore = "needs issue-196-server-delay-flag"]
 fn a_saved_file_becomes_searchable_only_after_the_delay() {
     let dir = tempdir();
     fs::write(dir.join("lib.rs"), "pub fn delay_one() {}\n").unwrap();
@@ -189,7 +185,6 @@ fn a_saved_file_becomes_searchable_only_after_the_delay() {
 }
 
 #[test]
-#[ignore = "needs issue-196-server-delay-flag"]
 fn off_never_auto_updates_a_saved_file() {
     let dir = tempdir();
     fs::write(dir.join("lib.rs"), "pub fn off_one() {}\n").unwrap();
@@ -212,7 +207,6 @@ fn off_never_auto_updates_a_saved_file() {
 }
 
 #[test]
-#[ignore = "needs issue-196-server-delay-flag"]
 fn invalid_delay_values_are_rejected_with_a_clear_message() {
     for value in ["0s", "abc", "-5s", "10x"] {
         // `=` form so a leading `-` is read as the value, not a flag.
@@ -230,7 +224,6 @@ fn invalid_delay_values_are_rejected_with_a_clear_message() {
 }
 
 #[test]
-#[ignore = "needs issue-196-server-delay-flag"]
 fn reindex_delay_conflicts_with_the_debounce_flag() {
     let stderr = run_rejected(&["--reindex-delay", "30s", "--reindex-debounce-ms", "100"]);
     assert!(

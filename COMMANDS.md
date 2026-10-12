@@ -212,11 +212,15 @@ Options:
       --name <NAME>
           Server name (the key under `mcpServers`). Defaults to the root directory's own name
 
-      --reindex-delay <VALUE>
-          Quiet period the server waits after the last file change before updating the index: 15s, 30s, 45s, 1m, a custom <N>s/<N>m/<N>ms, or off. Written to the server args in `.mcp.json`; omitted keeps the existing value
-
       --root <ROOT>
-          Project root to operate on. Defaults to the current working directory
+          Project root to operate on. Defaults to the current working directory.
+          
+          `init` and `call` accept several roots, as a repeated `--root` or a comma-separated `--roots a,b`; every other command takes exactly one.
+          
+          [alias: --roots]
+
+      --reindex-delay <VALUE>
+          Quiet period without file changes before the server refreshes the index automatically: `15s`, `30s`, `45s`, `1m`, a custom positive `<N>s` / `<N>m` / `<N>ms`, or `off` to disable automatic updates. Written to the server entry's args as `--reindex-delay` and kept by later `mcp-register` runs that omit the flag
 
   -h, --help
           Print help (see a summary with '-h')
@@ -225,6 +229,7 @@ Examples:
   cargo run -p mct-cli -- --root . mcp-register
   cargo run -p mct-cli -- --root . mcp-register --name my-project
   cargo run -p mct-cli -- --root . mcp-register --reindex-delay 30s
+  cargo run -p mct-cli -- --root . mcp-register --reindex-delay off
 ```
 
 </details>
@@ -434,11 +439,18 @@ Options:
       --root <ROOT>
           Project root to index. Defaults to the current working directory
       --reindex-debounce-ms <REINDEX_DEBOUNCE_MS>
-          Milliseconds of quiet time required after the last detected file write before auto-reindexing. 0 disables the background watcher entirely, restoring the previous startup-only behavior [default: 1500]
+          Milliseconds of quiet time required after the last detected file write before auto-reindexing (default 1500). 0 disables the background watcher entirely, restoring the previous startup-only behavior. Conflicts with --reindex-delay
       --reindex-delay <VALUE>
-          Quiet period without file changes before the index is updated: 15s, 30s, 45s, 1m, a custom <N>s/<N>m/<N>ms, or off. Conflicts with --reindex-debounce-ms
+          Quiet time without file changes before the index updates itself. Presets: 15s, 30s, 45s, 1m. Custom: <N>s, <N>m or <N>ms (N > 0), e.g. 90s, 2m, 500ms. 'off' disables automatic updates. Conflicts with --reindex-debounce-ms
+      --rebuild-embeddings
+          Reindex, drop every stored embedding, re-embed every symbol with the build's model (`--features semantic`), then exit without serving
   -h, --help
           Print help
+
+Examples:
+  --reindex-delay 30s     update the index after 30s without file changes
+  --reindex-delay 2m      custom delay (<N>s, <N>m or <N>ms)
+  --reindex-delay off     disable automatic updates
 ```
 
 </details>
