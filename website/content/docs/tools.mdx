@@ -36,7 +36,7 @@ The server defines **20** tools. By default **19** are available and listed in `
 | `limit` | Maximum results. | 50 (10 for the search tools) |
 | `offset` | Skip this many results first, to page. | 0 |
 | `depth` | How many hops to follow in the call/reference graph. `1` = direct only; `2` adds callers of callers, and so on. Max 32. | 1 |
-| `format` | `text`, or `toon` for a compact table that costs fewer tokens on big results. | `text` |
+| `format` | `toon` for a compact table that costs fewer tokens on big results, or `text` for plain labelled text. Omitting it or sending `null` gives `toon`; any other value is rejected. Changed from `text`: a client that parsed the old default output must now pass `"format":"text"`. | `toon` |
 
 Names are matched **exactly** (case-sensitive) unless the tool says otherwise. An empty name is rejected.
 

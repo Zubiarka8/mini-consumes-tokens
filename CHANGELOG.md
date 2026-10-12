@@ -39,6 +39,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** the ten tools with a `format` argument (`list_symbols`,
+  `find_symbol`, `search_symbols`, `hybrid_search`, `find_references`,
+  `find_calls`, `find_callers`, `impact_analysis`, `find_dead_code`,
+  `build_context_pack`) and their `batch` sub-queries now default to TOON
+  when `format` is omitted or null. Pass `"format":"text"` for the previous
+  labelled text; consumers that parsed the old default output must do so.
+  Invalid values are still rejected.
 - New crate `mct-languages` holds the one `build_registry()` that
   `mct-cli`, `mct-mcp-server` and `mct-eval` index with. Adding a language
   now means one dependency and one `register` line there, instead of two

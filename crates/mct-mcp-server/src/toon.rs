@@ -24,26 +24,28 @@
 //! repo-derived strings (symbol names, paths) since those flow in from
 //! parsed source files.
 
-/// Which shape a tool renders its response in. `Text` (the default, and the
-/// only option before this module existed) keeps today's response
-/// byte-for-byte — no existing MCP consumer breaks by upgrading this server.
-/// `Toon` is opt-in per call via each tool's `format` argument.
+/// Which shape a tool renders its response in. `Toon` is the default: a tool
+/// call that omits `format` (or sends null) gets a TOON table. `Text` — the
+/// only shape before this module existed, and still rendered byte-for-byte as
+/// before — is opt-in per call with `"format": "text"`. A consumer that relied
+/// on the old default text output must now pass `"format": "text"`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum OutputFormat {
-    #[default]
     Text,
+    #[default]
     Toon,
 }
 
 impl OutputFormat {
-    /// Parses a tool's optional `format` argument. `None` or an empty/blank
-    /// string is `Text` (today's default, unchanged). An unrecognized value
-    /// is rejected rather than silently falling back, matching how
-    /// `find_symbol`'s `match` argument is validated in `server.rs`.
+    /// Parses a tool's optional `format` argument. `None` (omitted or null)
+    /// or an empty/blank string is the default, `Toon`. `text` and `toon`
+    /// select a shape explicitly. An unrecognized value is rejected rather
+    /// than silently falling back, matching how `find_symbol`'s `match`
+    /// argument is validated in `server.rs`.
     pub fn parse(raw: Option<&str>) -> Result<Self, String> {
         match raw.map(str::trim) {
-            None => Ok(Self::Text),
-            Some("") => Ok(Self::Text),
+            None => Ok(Self::default()),
+            Some("") => Ok(Self::default()),
             Some("text") => Ok(Self::Text),
             Some("toon") => Ok(Self::Toon),
             Some(other) => Err(format!("format must be one of text, toon — got `{other}`")),
@@ -215,9 +217,9 @@ mod tests {
 
     #[test]
     fn output_format_parses_the_documented_values() {
-        assert_eq!(OutputFormat::parse(None), Ok(OutputFormat::Text));
-        assert_eq!(OutputFormat::parse(Some("")), Ok(OutputFormat::Text));
-        assert_eq!(OutputFormat::parse(Some("  ")), Ok(OutputFormat::Text));
+        assert_eq!(OutputFormat::parse(None), Ok(OutputFormat::Toon));
+        assert_eq!(OutputFormat::parse(Some("")), Ok(OutputFormat::Toon));
+        assert_eq!(OutputFormat::parse(Some("  ")), Ok(OutputFormat::Toon));
         assert_eq!(OutputFormat::parse(Some("text")), Ok(OutputFormat::Text));
         assert_eq!(OutputFormat::parse(Some("toon")), Ok(OutputFormat::Toon));
         assert!(OutputFormat::parse(Some("xml")).is_err());

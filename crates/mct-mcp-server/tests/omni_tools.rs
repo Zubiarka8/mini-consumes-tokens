@@ -49,7 +49,7 @@ async fn build_server_at(root: &Path) -> MctServer {
 
 fn list_args(path: &str, kind: Option<&str>, language: Option<&str>) -> ListSymbolsArgs {
     ListSymbolsArgs {
-        format: None,
+        format: Some("text".to_string()),
         path: path.to_string(),
         kind: kind.map(str::to_string),
         language: language.map(str::to_string),
@@ -151,7 +151,7 @@ async fn find_symbol_returns_every_language_holding_that_name() {
     let text = content_of(
         &server
             .find_symbol(Parameters(FindSymbolArgs {
-                format: None,
+                format: Some("text".to_string()),
                 path: None,
                 language: None,
                 name: "deploy".to_string(),
@@ -172,7 +172,7 @@ async fn find_symbol_on_an_unknown_name_says_so_rather_than_erroring() {
     let text = content_of(
         &server
             .find_symbol(Parameters(FindSymbolArgs {
-                format: None,
+                format: Some("text".to_string()),
                 path: None,
                 language: None,
                 name: "no_such_symbol_anywhere".to_string(),
@@ -195,7 +195,7 @@ async fn lua_definitions_and_calls_are_served_through_the_mcp_tools() {
     let symbol = content_of(
         &server
             .find_symbol(Parameters(FindSymbolArgs {
-                format: None,
+                format: Some("text".to_string()),
                 path: None,
                 language: Some("lua".to_string()),
                 name: "build".to_string(),
@@ -213,7 +213,7 @@ async fn lua_definitions_and_calls_are_served_through_the_mcp_tools() {
     let calls = content_of(
         &server
             .find_calls(Parameters(FindCallsArgs {
-                format: None,
+                format: Some("text".to_string()),
                 path: None,
                 language: Some("lua".to_string()),
                 function: "build".to_string(),
@@ -237,7 +237,7 @@ async fn find_calls_depth_two_reaches_the_second_hop_and_tags_it() {
     let direct = content_of(
         &server
             .find_calls(Parameters(FindCallsArgs {
-                format: None,
+                format: Some("text".to_string()),
                 path: None,
                 language: None,
                 function: "describe_request".to_string(),
@@ -257,7 +257,7 @@ async fn find_calls_depth_two_reaches_the_second_hop_and_tags_it() {
     let deep = content_of(
         &server
             .find_calls(Parameters(FindCallsArgs {
-                format: None,
+                format: Some("text".to_string()),
                 path: None,
                 language: None,
                 function: "describe_request".to_string(),
@@ -281,7 +281,7 @@ async fn find_calls_offset_pages_through_a_multi_callee_function() {
     let all = content_of(
         &server
             .find_calls(Parameters(FindCallsArgs {
-                format: None,
+                format: Some("text".to_string()),
                 path: None,
                 language: None,
                 function: "HandlePost".to_string(),
@@ -300,7 +300,7 @@ async fn find_calls_offset_pages_through_a_multi_callee_function() {
     let page = content_of(
         &server
             .find_calls(Parameters(FindCallsArgs {
-                format: None,
+                format: Some("text".to_string()),
                 path: None,
                 language: None,
                 function: "HandlePost".to_string(),
@@ -327,7 +327,7 @@ async fn find_callers_depth_two_walks_the_call_graph_backwards() {
     let deep = content_of(
         &server
             .find_callers(Parameters(FindCallersArgs {
-                format: None,
+                format: Some("text".to_string()),
                 path: None,
                 language: None,
                 function: "load_rows".to_string(),
@@ -352,7 +352,7 @@ async fn find_references_honours_depth_beyond_the_direct_hits() {
     let direct = content_of(
         &server
             .find_references(Parameters(FindReferencesArgs {
-                format: None,
+                format: Some("text".to_string()),
                 path: None,
                 language: None,
                 symbol: "load_rows".to_string(),
@@ -372,7 +372,7 @@ async fn find_references_honours_depth_beyond_the_direct_hits() {
     let deep = content_of(
         &server
             .find_references(Parameters(FindReferencesArgs {
-                format: None,
+                format: Some("text".to_string()),
                 path: None,
                 language: None,
                 symbol: "load_rows".to_string(),
@@ -393,7 +393,7 @@ async fn find_references_offset_pages_past_the_first_hit() {
     let all = content_of(
         &server
             .find_references(Parameters(FindReferencesArgs {
-                format: None,
+                format: Some("text".to_string()),
                 path: None,
                 language: None,
                 symbol: "formatAmount".to_string(),
@@ -409,7 +409,7 @@ async fn find_references_offset_pages_past_the_first_hit() {
     let page = content_of(
         &server
             .find_references(Parameters(FindReferencesArgs {
-                format: None,
+                format: Some("text".to_string()),
                 path: None,
                 language: None,
                 symbol: "formatAmount".to_string(),
@@ -433,7 +433,7 @@ async fn impact_analysis_combines_callers_and_references_across_a_two_hop_radius
     let shallow = content_of(
         &server
             .impact_analysis(Parameters(ImpactAnalysisArgs {
-                format: None,
+                format: Some("text".to_string()),
                 path: None,
                 language: None,
                 symbol: "load_rows".to_string(),
@@ -450,7 +450,7 @@ async fn impact_analysis_combines_callers_and_references_across_a_two_hop_radius
     let deep = content_of(
         &server
             .impact_analysis(Parameters(ImpactAnalysisArgs {
-                format: None,
+                format: Some("text".to_string()),
                 path: None,
                 language: None,
                 symbol: "load_rows".to_string(),
@@ -473,7 +473,7 @@ async fn impact_analysis_offset_applies_to_its_caller_and_reference_sections() {
     let page = content_of(
         &server
             .impact_analysis(Parameters(ImpactAnalysisArgs {
-                format: None,
+                format: Some("text".to_string()),
                 path: None,
                 language: None,
                 symbol: "formatAmount".to_string(),
