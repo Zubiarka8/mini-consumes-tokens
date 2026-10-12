@@ -1,8 +1,8 @@
 //! AST traversal and symbol ownership shared by the JS, TS and TSX grammars.
 
 use mct_core::{
-    Location, ParsedFile, RelationKind, SymbolId, SymbolKind, SymbolRecord, SymbolRelation,
-    MAX_TRAVERSAL_DEPTH,
+    Location, ParsedFile, RelationKind, RelationTarget, SymbolId, SymbolKind, SymbolRecord,
+    SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::location;
 use tree_sitter::Node;
@@ -10,7 +10,7 @@ use tree_sitter::Node;
 mod exports;
 mod imports;
 
-use imports::require_argument;
+use imports::{require_argument, string_value};
 
 fn text<'a>(node: Node, source: &'a str) -> &'a str {
     node.utf8_text(source.as_bytes()).unwrap_or_default()
@@ -20,15 +20,21 @@ pub(super) struct Walker<'a> {
     source: &'a str,
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
+    /// Evidence for the file-level `Imports` relations (see `imports.rs`).
+    relation_targets: Vec<RelationTarget>,
+    /// This file's repository-relative path, the base of relative imports.
+    path: &'a str,
     next_id: SymbolId,
 }
 
 impl<'a> Walker<'a> {
-    pub(super) fn new(source: &'a str) -> Self {
+    pub(super) fn new(source: &'a str, path: &'a str) -> Self {
         Self {
             source,
             symbols: Vec::new(),
             relations: Vec::new(),
+            relation_targets: Vec::new(),
+            path,
             next_id: 0,
         }
     }
@@ -300,16 +306,29 @@ impl<'a> Walker<'a> {
             "call_expression" => {
                 if let Some(function) = node.child_by_field_name("function") {
                     match function.kind() {
+                        // Dynamic `import("./x")`: a literal path is a
+                        // static dependency like a `require`.
+                        "import" => {
+                            if let Some(spec) = require_argument(node, self.source) {
+                                self.push_module_import(owner, &spec, location(node));
+                            }
+                        }
                         "identifier" => {
                             let name = text(function, self.source);
                             if name == "require" {
                                 if let Some(module) = require_argument(node, self.source) {
-                                    self.push_relation(
-                                        owner,
-                                        RelationKind::Imports,
-                                        module,
-                                        location(node),
-                                    );
+                                    // A builtin is recorded once, as external,
+                                    // under its own spec name.
+                                    let named_by_spec =
+                                        self.push_module_import(owner, &module, location(node));
+                                    if !named_by_spec {
+                                        self.push_relation(
+                                            owner,
+                                            RelationKind::Imports,
+                                            module,
+                                            location(node),
+                                        );
+                                    }
                                 }
                             } else {
                                 self.push_relation(
@@ -360,6 +379,12 @@ impl<'a> Walker<'a> {
                 }
             }
             "import_statement" => {
+                if let Some(spec) = node
+                    .child_by_field_name("source")
+                    .and_then(|source| string_value(source, self.source))
+                {
+                    self.push_module_import(owner, &spec, location(node));
+                }
                 let mut cursor = node.walk();
                 for child in node.named_children(&mut cursor) {
                     if child.kind() == "import_clause" {
@@ -458,6 +483,7 @@ impl<'a> Walker<'a> {
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
+            relation_targets: self.relation_targets,
             ..Default::default()
         }
     }
