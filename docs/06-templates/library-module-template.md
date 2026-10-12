@@ -62,10 +62,15 @@ fn library_application_patterns_are_indexed() {
 }
 ```
 
-Adapt the imports and assertions to the existing helpers in the language
-crate. This skeleton is intentionally expected to fail until its example path,
-names, kind, parent and source line are replaced with values from the new
-fixture. Assert behavior in application-owned fixtures, not framework
+The `corpus`/`parent` helpers shown above exist today only in
+`crates/mct-lang-python/src/libraries/mod.rs` (which also has `lines`); the
+CSS crate defines `corpus` and `rules`, and the JS/TS crate defines none and
+parses inline in each module (see `libraries/react/mod.rs`). Import the helpers
+your crate really has, or add a small private one to its `libraries/mod.rs`
+modelled on the Python/CSS `corpus()` (`Corpus::load` with
+`env!("CARGO_MANIFEST_DIR")`). This skeleton is intentionally expected to
+fail until its example path, names, kind, parent and source line are replaced
+with values from the new fixture. Assert behavior in application-owned fixtures, not framework
 internals. If the behavior is better expressed as a small parser unit test, use
 the local parsing helper and assert the exact symbols/relations and their
 owners.
