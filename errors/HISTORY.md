@@ -60,3 +60,10 @@
 - Status stays KNOWN_LIMITATION: the fix is not merged and no refreshed index was checked. DC1 (whether to keep literal `&` names) and DC2 (the expansion limit) remain open product decisions.
 - No project MCP tool was used or returned an error in this task.
 - Follow-up (`3cbb88c`): repeated `&` now takes every parent combination (`.a, .b { & + & {} }` gives four names; before, only `.a + .a` and `.b + .b`, shown failing by `repeated_ampersands_combine_every_parent_selector`). Over 256 resolved names, a rule is indexed as written with a `/* mct: not expanded, over 256 selectors */` suffix instead of an unmarked literal. The user settled both open decisions: no literal `&` names, 256 per rule. The CSS corpus snapshot is unchanged by this follow-up.
+
+## 2026-10-12 — Privacy review environment
+
+- ERR-012 observed and resolved: local MCP initialization in `feat/index-privacy-hygiene` failed inside the filesystem sandbox with `Error: database error: unable to open database file`, `Error code 14: unable to open database file`. Notified the user; retried with authorized filesystem access, using the project's own server binary and the same worktree root.
+- Successful `get_indexing_status` on the dirty tree based on `32f8a79ccfcd09c3d790e43edc284d7602e9737b`: timestamp 1791792386, 594 files and 12,370 symbols. The 16 malformed-corpus parse failures are expected (ERR-003); no other parse diagnostic was observed in this worktree.
+- Source lookup proceeded through local `build_context_pack` calls. A connected MCP with an unconfirmed root was not used for the code review.
+- Intentional malformed ignore-file and permission-denial fixtures belong to the synthetic regression tests; their diagnostics and reproduced privacy defects are recorded in `project-management/checkpoints/index-privacy-hygiene-review.md`.
