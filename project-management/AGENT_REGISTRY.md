@@ -38,3 +38,21 @@ Observed by Git on 2026-10-01. These are inventory entries, not agent assignment
 | feat/fts5-search-symbols | mct-fts5-search-symbols | 84d7e9b |
 
 Existing names are recorded verbatim as Git identifiers, including legacy non-English names; renaming them is outside this task.
+
+## Recovery assignments — 2026-10-12
+
+Supersedes the previous partial-diff descriptions for #135 and #115 only.
+Each recovery agent used an exclusive branch and worktree in the recovery clone.
+- Codex coordinator: TASK-MD-ALIAS-135, `codex/recover-alias-135-final`,
+  worktree `mct-recovery-final-repo`, candidate `d0fe58f`, review.
+- CSS reviewer/worker: TASK-CSS-NESTING-115, `codex/review-css-115-final`,
+  worktree `mct-review-css-115-final`, candidate `a361b2`, completed assignment.
+- Alias independent reviewer: `codex/review-alias-135-final`,
+  worktree `mct-review-alias-135-final`, reviewed `9258d3f`, completed assignment.
+- Policy independent reviewer: `codex/review-pr-policy-final`,
+  worktree `mct-review-pr-policy-final`, reviewed `14a2586`, completed assignment.
+- Coordinator combination: `codex/integration-four-final`,
+  worktree `mct-integration-four-final`, local verification only.
+
+The interrupted Claude alias worktree is preserved, including untracked
+`crates/mct-index/tests/zz_probe.rs`. No branch or worktree was deleted.
