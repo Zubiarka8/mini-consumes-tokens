@@ -2,8 +2,8 @@
 
 ## Status and ownership
 
-REVIEW: implementation complete, independently reviewed; final combined checks
-are owned by the Codex coordinator. Recovered the stopped Claude worker's
+REVIEW: implementation complete, independently reviewed; local combined checks
+are complete, with the baseline watcher limitation recorded below. Recovered the stopped Claude worker's
 committed revision `d9ffeec` without altering its worktree or uncommitted probe.
 
 Branch: `codex/recover-alias-135-final`.
@@ -42,15 +42,26 @@ On macOS, offline with a separate build directory:
 - `cargo test --locked -p mct-index schema::tests`: 4 passed / 0 failed.
 - `git diff --check`: passed.
 
-Prior performance evidence (not independently rerun in this checkpoint):
-`relation_scale` debug 41.5 s versus base 33.6 s; release 19.2 s versus base
-15.4–21.3 s. The original materialized-view regression was 145.9 s in debug.
+Performance reproduced on base a3e10b0 and combined code tree ddbc17b:
+`cargo test --locked -p mct-index --release --test relation_scale -- --ignored --nocapture`.
+The existing synthetic measurement uses 10,000 and 100,000 symbols, both resolved
+and ambiguous references, and four page/full-list/multihop scenarios at each size.
+Both runs passed (1 measurement test each). Base 15.85 s; candidate 15.75 s.
+At 100,000 resolved symbols: limit-50 page 313.08 ms / 315.98 ms; full list
+4.61294 s / 4.61014 s; depth-3 limit-50 13.88 ms / 12.99 ms (base / candidate).
+This is one matched run and does not establish an alias-heavy workload or a memory
+limit; macOS peak RSS was not captured. Raw logs are retained with integration logs.
+The original materialized-view regression was 145.9 s in debug.
 
 ## Remaining integration work
 
-The coordinator runs the complete fmt/test/CI-Clippy/eval checks on an isolated
-combination of the final docs, alias, CSS and policy commits. A docs conflict in
-`limitations.mdx` must preserve both alias resolution and bounded prose search.
+The coordinator combined final docs, alias, CSS and policy candidates locally.
+Formatting, CI Clippy, evaluation and website checks pass. Full workspace tests:
+1260 pass / 3 fail / 24 ignore. The same three watcher tests also fail on base
+a3e10b0 in this environment; their event-delivery cause remains unverified.
+The limitations.mdx conflict preserves both alias resolution and bounded prose
+search. Obtain an unrestricted-host/CI watcher result before claiming fully green
+integration. No main integration has occurred.
 Preserve the original worker's temporary `zz_probe.rs`; it is not part of the
 candidate and must not be committed or run as a shipped test.
 
