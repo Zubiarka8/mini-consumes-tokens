@@ -115,22 +115,25 @@ impl LanguageParser for XamlParser {
         }
 
         let module_name = module_name_for(&file.relative_path);
-        let mut walker = Walker::new(&file.contents);
+        let mut walker = Walker::new(&file.contents, &file.relative_path);
         let module_id =
             walker.push_symbol(module_name, SymbolKind::Module, module_location(root), None);
         walker.visit_children(root, module_id, None, 0);
+        let import_targets = std::mem::take(&mut walker.import_targets);
         let mut parsed = walker.finish();
-        // Every relation is an event handler, declared in the paired
-        // code-behind file (`Foo.xaml` -> `Foo.xaml.cs`): explicit evidence
-        // for the one cross-language link this parser makes.
+        // Every `References` relation is an event handler, declared in the
+        // paired code-behind file (`Foo.xaml` -> `Foo.xaml.cs`): explicit
+        // evidence for the one cross-language link this parser makes.
         let code_behind = format!("{}.cs", file.relative_path);
         parsed.relation_targets = (0..parsed.relations.len())
+            .filter(|&relation| parsed.relations[relation].kind == RelationKind::References)
             .map(|relation| RelationTarget {
                 relation,
                 path: Some(code_behind.clone()),
                 language: Some("csharp".to_string()),
                 ..Default::default()
             })
+            .chain(import_targets)
             .collect();
         Ok(parsed)
     }
@@ -190,13 +193,19 @@ struct Walker<'a> {
     source: &'a str,
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
+    /// Evidence for the `Imports` relations of merged resource dictionaries.
+    import_targets: Vec<RelationTarget>,
+    /// This file's repository-relative path, the base of relative `Source`s.
+    path: &'a str,
     next_id: SymbolId,
 }
 
 impl<'a> Walker<'a> {
-    fn new(source: &'a str) -> Self {
+    fn new(source: &'a str, path: &'a str) -> Self {
         Self {
             source,
+            path,
+            import_targets: Vec::new(),
             symbols: Vec::new(),
             relations: Vec::new(),
             next_id: 0,
@@ -284,6 +293,19 @@ impl<'a> Walker<'a> {
                     None => (owner, parent_name.map(str::to_string)),
                 };
 
+                // `<ResourceDictionary Source="Styles/Colors.xaml"/>` merges
+                // another XAML file, named relative to this one.
+                let tag_name = find_child(tag, "Name").map(|n| text(n, self.source));
+                if tag_name.is_some_and(|n| {
+                    n == "ResourceDictionary" || n.ends_with(":ResourceDictionary")
+                }) {
+                    if let Some((_, value, attr_node)) =
+                        attrs.iter().find(|(n, _, _)| n == "Source")
+                    {
+                        self.push_dictionary_import(new_owner, value, location(*attr_node));
+                    }
+                }
+
                 for (attr_name, value, attr_node) in &attrs {
                     if EVENT_ATTRIBUTE_NAMES.contains(&attr_name.as_str())
                         && looks_like_identifier(value)
@@ -303,6 +325,40 @@ impl<'a> Walker<'a> {
             }
             _ => self.visit_children(node, owner, parent_name, depth + 1),
         }
+    }
+
+    /// A merged resource dictionary depends on the `.xaml` file its relative
+    /// `Source` names: an `Imports` relation to that file's `Module` symbol,
+    /// pinned to its exact path. An absolute, `pack:` or `;component` URI
+    /// names an assembly resource and records nothing.
+    fn push_dictionary_import(&mut self, owner: SymbolId, source: &str, loc: Location) {
+        if source.contains([':', ';', '{']) || source.starts_with('/') {
+            return;
+        }
+        let Some(stem) = source
+            .rsplit('/')
+            .next()
+            .and_then(|file| file.strip_suffix(".xaml"))
+            .filter(|stem| !stem.is_empty())
+        else {
+            return;
+        };
+        let local = if source.starts_with("./") || source.starts_with("../") {
+            source.to_string()
+        } else {
+            format!("./{source}")
+        };
+        let Some(resolved) = mct_core::resolve_reference_path(self.path, &local) else {
+            return;
+        };
+        let relation = self.relations.len();
+        self.push_relation(owner, RelationKind::Imports, stem.to_string(), loc);
+        self.import_targets.push(RelationTarget {
+            relation,
+            path: Some(resolved),
+            kind: Some(SymbolKind::Module),
+            ..Default::default()
+        });
     }
 
     fn finish(self) -> ParsedFile {
