@@ -444,9 +444,11 @@ All four accept `depth` (how many relation-graph hops to walk beyond the direct 
 
 **`get_tool_schema`** — returns one named tool's full input schema and description on demand, once `discover_tool_categories` (or this document) has told you which tool you need.
 
-### A note on `format: "toon"`
+### A note on `format`
 
-`list_symbols`, `find_symbol`, `find_references`, `find_calls`, `find_callers`, `impact_analysis`, and `find_dead_code` all accept an optional `format` argument — `"text"` (the default, unchanged) or `"toon"`. `toon` renders the result's uniform rows (symbols, references, calls) as a compact TOON table (one header row of column names, then one row per hit, no repeated labels) instead of this server's usual labelled lines — fewer tokens on a large result, at the cost of `list_symbols`' per-kind grouping. It's opt-in and additive: nothing changes for an existing client that never passes `format`.
+`list_symbols`, `find_symbol`, `search_symbols`, `hybrid_search`, `find_references`, `find_calls`, `find_callers`, `impact_analysis`, `find_dead_code`, and `build_context_pack` accept an optional `format` argument — `"toon"` (the default) or `"text"`. Omitting `format`, or sending `null` or a blank string, selects `toon`; any other value is rejected with `format must be one of text, toon`. `toon` renders the result's uniform rows (symbols, references, calls) as a compact TOON table (one header row of column names, then one row per hit, no repeated labels) — fewer tokens on a large result, at the cost of `list_symbols`' per-kind grouping. Pass `"format":"text"` for this server's labelled lines. `batch` sub-queries follow the same default, and `semantic_search` and the other tools without a `format` argument are unchanged. MCP arguments and the JSON-RPC envelope remain JSON.
+
+**Compatibility:** the default used to be `text`. A client or script that parsed the old default output must now pass `"format":"text"`.
 
 ---
 
