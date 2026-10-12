@@ -26,13 +26,26 @@ Typical first run:
   cargo run -p mct-cli -- --root . gitignore-init
   cargo run -p mct-cli -- --root . status
 
+Query without an MCP client, on one or several projects:
+  cargo run -p mct-cli -- --root . call --tool get_indexing_status
+  cargo run -p mct-cli -- --roots ../a,../b call --tool list_symbols --args '{\"path\":\"src\"}'
+
 Run `cargo run -p mct-cli -- <command> --help` for a command's full
 description and examples."
 )]
 struct Cli {
     /// Project root to operate on. Defaults to the current working directory.
-    #[arg(long, global = true)]
-    root: Option<PathBuf>,
+    ///
+    /// `init` and `call` accept several roots, as a repeated `--root` or a
+    /// comma-separated `--roots a,b`; every other command takes exactly one.
+    #[arg(
+        long,
+        visible_alias = "roots",
+        global = true,
+        value_delimiter = ',',
+        action = clap::ArgAction::Append
+    )]
+    root: Vec<PathBuf>,
 
     /// Print version.
     #[arg(short = 'v', short_alias = 'V', long = "version", action = clap::ArgAction::Version)]
@@ -47,9 +60,18 @@ enum Command {
     /// Build the index for the first time.
     ///
     /// Equivalent to `reindex` — kept as a separate, discoverable first
-    /// command for a fresh checkout.
-    #[command(after_help = "Example:\n  cargo run -p mct-cli -- --root . init")]
-    Init,
+    /// command for a fresh checkout. With several roots (`--root a --root b`
+    /// or `--roots a,b`) each one is indexed independently and gets its own
+    /// summary. A root whose index is already up to date is not re-parsed
+    /// unless `--force` is given.
+    #[command(
+        after_help = "Examples:\n  cargo run -p mct-cli -- --root . init\n  cargo run -p mct-cli -- --roots ../a,../b init\n  cargo run -p mct-cli -- --root . init --force"
+    )]
+    Init {
+        /// Re-parse every supported file, even if unchanged since last run.
+        #[arg(long)]
+        force: bool,
+    },
     /// Re-scan the project and update the index.
     ///
     /// Only re-parses files that changed since the last run, unless
@@ -63,6 +85,42 @@ enum Command {
         /// Re-parse every supported file, even if unchanged since last run.
         #[arg(long)]
         force: bool,
+    },
+    /// Call one MCP tool once and print its result.
+    ///
+    /// Runs the same tool code `mct-mcp-server` serves, in this process: no
+    /// server to start, no JSON-RPC to write. Each root is brought up to date
+    /// first (an incremental reindex, like the server's startup), then the
+    /// tool is called with `--args`. With several roots the call runs on each
+    /// and every result is labelled `== <root> ==`; a failure on one root is
+    /// reported and the rest still run, then the exit status is non-zero.
+    /// Tool names: `list_symbols`, `get_file_skeleton`, `get_project_overview`,
+    /// `get_file_tree`, `find_symbol`, `search_symbols`, `hybrid_search`,
+    /// `find_references`, `find_calls`, `find_callers`, `impact_analysis`,
+    /// `build_context_pack`, `find_dead_code`, `batch`, `get_indexing_status`,
+    /// `reindex`. Add `"format":"toon"` to `--args` where a tool supports it
+    /// for the most compact output.
+    #[command(
+        after_help = "Examples:\n  cargo run -p mct-cli -- --root . call --tool get_indexing_status\n  cargo run -p mct-cli -- --root . call --tool list_symbols --args '{\"path\":\"src/main.rs\"}'\n  cargo run -p mct-cli -- --root . call --tool find_symbol --args-file query.json --json\n  echo '{\"symbol\":\"main\"}' | cargo run -p mct-cli -- --roots ../a,../b call --tool build_context_pack --args -"
+    )]
+    Call {
+        /// Tool to call (see the list above).
+        #[arg(long)]
+        tool: String,
+        /// The tool's arguments as one JSON object; `-` reads it from stdin.
+        /// Defaults to `{}`.
+        #[arg(long, conflicts_with = "args_file")]
+        args: Option<String>,
+        /// Read the arguments JSON object from this file; `-` is stdin.
+        #[arg(long)]
+        args_file: Option<PathBuf>,
+        /// Print the raw MCP result as JSON instead of its text. With several
+        /// roots, an array of `{root, result}` / `{root, error}` objects.
+        #[arg(long)]
+        json: bool,
+        /// Give up on a root after this many seconds (indexing included).
+        #[arg(long, value_name = "SECONDS")]
+        timeout: Option<u64>,
     },
     /// Report index health.
     ///
@@ -165,9 +223,32 @@ enum Command {
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
-    let root = match cli.root {
-        Some(root) => root,
-        None => std::env::current_dir()?,
+    let roots = if cli.root.is_empty() {
+        vec![std::env::current_dir()?]
+    } else {
+        cli.root
+    };
+
+    // The only commands that take several roots; they open their own indexes.
+    if let Command::Init { force } = cli.command {
+        return init_roots(&roots, force);
+    }
+    if let Command::Call {
+        tool,
+        args,
+        args_file,
+        json,
+        timeout,
+    } = cli.command
+    {
+        let args = read_call_args(args.as_deref(), args_file.as_deref())?;
+        return call_roots(&roots, &tool, args, json, timeout);
+    }
+    let root = match roots.as_slice() {
+        [root] => root.clone(),
+        _ => anyhow::bail!(
+            "this command takes exactly one --root; only `init` and `call` accept several"
+        ),
     };
 
     // None of these touch the index at all, so they're handled before
@@ -195,7 +276,6 @@ fn main() -> anyhow::Result<()> {
     let mut index = Index::open(&root, &db_path, exclude)?;
 
     match cli.command {
-        Command::Init => print_reindex(index.reindex(&registry, false)?),
         Command::Reindex { force } => print_reindex(index.reindex(&registry, force)?),
         Command::Status => print_status(index.status()?),
         Command::DeadCode {
@@ -203,7 +283,9 @@ fn main() -> anyhow::Result<()> {
             language,
             output,
         } => dead_code_report(&index, path.as_deref(), language.as_deref(), output)?,
-        Command::McpRegister { .. }
+        Command::Init { .. }
+        | Command::Call { .. }
+        | Command::McpRegister { .. }
         | Command::IgnoreInit { .. }
         | Command::GitignoreInit
         | Command::Probe { .. }
@@ -557,6 +639,183 @@ fn display_path(path: &Path) -> String {
         rest.to_string()
     } else {
         s
+    }
+}
+
+/// Fails fast, before any index is touched, on a root that isn't a directory.
+fn check_roots(roots: &[PathBuf]) -> anyhow::Result<()> {
+    for root in roots {
+        anyhow::ensure!(
+            root.is_dir(),
+            "root `{}` does not exist or is not a directory",
+            display_path(root)
+        );
+    }
+    Ok(())
+}
+
+/// `init` over one or more roots. A single root prints exactly what it always
+/// did; several print a labelled summary each (this run's work, then the
+/// index's totals), and keep going past a root that fails.
+fn init_roots(roots: &[PathBuf], force: bool) -> anyhow::Result<()> {
+    check_roots(roots)?;
+    let registry = build_registry();
+    let mut failed = 0;
+    for root in roots {
+        let result = (|| -> anyhow::Result<()> {
+            let db_path = root.join(".mct-index").join("index.sqlite3");
+            let exclude = ExcludeSet::new(&mct_index::read_ignore_file(root));
+            let mut index = Index::open(root, &db_path, exclude)?;
+            if roots.len() > 1 {
+                println!("== {} ==", display_path(root));
+            }
+            print_reindex(index.reindex(&registry, force)?);
+            if roots.len() > 1 {
+                let status = index.status()?;
+                println!(
+                    "Index: {} files, {} symbols.",
+                    status.total_files, status.total_symbols
+                );
+            }
+            Ok(())
+        })();
+        if let Err(err) = result {
+            failed += 1;
+            eprintln!("error: {}: {err:#}", display_path(root));
+        }
+    }
+    match (failed, roots.len()) {
+        (0, _) => Ok(()),
+        (_, 1) => anyhow::bail!("init failed"),
+        (failed, total) => anyhow::bail!("init failed on {failed} of {total} roots"),
+    }
+}
+
+/// Reads `call`'s JSON argument object from `--args`, `--args-file` or stdin
+/// (`-`); no argument at all means `{}`.
+fn read_call_args(
+    args: Option<&str>,
+    args_file: Option<&Path>,
+) -> anyhow::Result<serde_json::Map<String, serde_json::Value>> {
+    use std::io::Read;
+    let read_stdin = || -> anyhow::Result<String> {
+        let mut text = String::new();
+        std::io::stdin().read_to_string(&mut text)?;
+        Ok(text)
+    };
+    let text = match (args, args_file) {
+        (Some("-"), _) => read_stdin()?,
+        (Some(text), _) => text.to_string(),
+        (None, Some(file)) if file == Path::new("-") => read_stdin()?,
+        (None, Some(file)) => std::fs::read_to_string(file).map_err(|err| {
+            anyhow::anyhow!("cannot read --args-file `{}`: {err}", display_path(file))
+        })?,
+        (None, None) => return Ok(serde_json::Map::new()),
+    };
+    match serde_json::from_str::<serde_json::Value>(&text) {
+        Ok(serde_json::Value::Object(map)) => Ok(map),
+        Ok(_) => anyhow::bail!("tool arguments must be a JSON object, e.g. '{{\"path\":\"src\"}}'"),
+        Err(err) => anyhow::bail!("tool arguments are not valid JSON: {err}"),
+    }
+}
+
+/// Brings one root's index up to date, then calls `tool` on it in this
+/// process, returning the serialized MCP result.
+async fn call_one(
+    root: &Path,
+    tool: &str,
+    args: serde_json::Map<String, serde_json::Value>,
+) -> anyhow::Result<serde_json::Value> {
+    let registry = build_registry();
+    let db_path = root.join(".mct-index").join("index.sqlite3");
+    let mut index = Index::open(root, &db_path, ExcludeSet::for_project(root))?;
+    index.reindex(&registry, false)?;
+    let server = mct_mcp_server::server::MctServer::new(index, registry);
+    let result = server
+        .call_tool_by_name(tool, Some(args))
+        .await
+        .map_err(|err| anyhow::anyhow!("{}", err.message))?;
+    let value = serde_json::to_value(&result)?;
+    if value.get("isError").and_then(serde_json::Value::as_bool) == Some(true) {
+        anyhow::bail!("{}", result_text(&value));
+    }
+    Ok(value)
+}
+
+/// The text blocks of a serialized MCP result, joined.
+fn result_text(result: &serde_json::Value) -> String {
+    result
+        .get("content")
+        .and_then(serde_json::Value::as_array)
+        .map(|blocks| {
+            blocks
+                .iter()
+                .filter_map(|block| block.get("text").and_then(serde_json::Value::as_str))
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+        .unwrap_or_default()
+}
+
+/// `call` over one or more roots; see [`Command::Call`].
+fn call_roots(
+    roots: &[PathBuf],
+    tool: &str,
+    args: serde_json::Map<String, serde_json::Value>,
+    json: bool,
+    timeout: Option<u64>,
+) -> anyhow::Result<()> {
+    check_roots(roots)?;
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_time()
+        .build()?;
+    let mut outcomes = Vec::new();
+    for root in roots {
+        let call = call_one(root, tool, args.clone());
+        let outcome = runtime.block_on(async {
+            match timeout {
+                Some(secs) => tokio::time::timeout(std::time::Duration::from_secs(secs), call)
+                    .await
+                    .unwrap_or_else(|_| Err(anyhow::anyhow!("timed out after {secs}s"))),
+                None => call.await,
+            }
+        });
+        outcomes.push((root, outcome));
+    }
+
+    let failed = outcomes
+        .iter()
+        .filter(|(_, outcome)| outcome.is_err())
+        .count();
+    let labelled = roots.len() > 1;
+    if json && labelled {
+        let entries: Vec<_> = outcomes
+            .iter()
+            .map(|(root, outcome)| match outcome {
+                Ok(result) => serde_json::json!({ "root": display_path(root), "result": result }),
+                Err(err) => {
+                    serde_json::json!({ "root": display_path(root), "error": format!("{err:#}") })
+                }
+            })
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&entries)?);
+    } else {
+        for (root, outcome) in &outcomes {
+            if labelled {
+                println!("== {} ==", display_path(root));
+            }
+            match outcome {
+                Ok(result) if json => println!("{}", serde_json::to_string_pretty(result)?),
+                Ok(result) => println!("{}", result_text(result)),
+                Err(err) if labelled => eprintln!("error: {}: {err:#}", display_path(root)),
+                Err(err) => eprintln!("error: {err:#}"),
+            }
+        }
+    }
+    match (failed, roots.len()) {
+        (0, _) => Ok(()),
+        (_, 1) => anyhow::bail!("call `{tool}` failed"),
+        (failed, total) => anyhow::bail!("call `{tool}` failed on {failed} of {total} roots"),
     }
 }
 
