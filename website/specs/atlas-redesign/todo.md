@@ -1,3 +1,12 @@
+> **Archive status (verified 2026-10-12 against 65d4990).** Historical task list; the checkboxes
+> were never maintained and are intentionally left unticked, so they do not reflect progress.
+> Shipped: L1-L4 (PR #178, 5620e3c), M2-M4 and the loop policy of M1 (PR #180, 21c97b9).
+> **Not implemented in 65d4990 and not approved:** the `labelsDirty` part of M1, M5 (`DESIGN.md`
+> line 9 still says the scene "renders on demand" and that reduced-motion users "keep the SVG"),
+> and all of C1-C7 (per-tool activation `data-active-tool`, progressive text `data-revealed` and
+> `--step`, the per-tool cue table, new 3D elements). `prompt2` to `prompt4` are untracked local
+> files, and the cited test line numbers and names are stale.
+
 # Tasks: Atlas 3D redesign
 
 Plan: [plan.md](plan.md). Paths are relative to `website/`.

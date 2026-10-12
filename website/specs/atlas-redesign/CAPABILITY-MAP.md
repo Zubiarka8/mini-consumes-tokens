@@ -1,3 +1,15 @@
+> **Archive status (verified 2026-10-12 against 65d4990).** Historical planning record, not a
+> current requirement. The "approved" wording below is the author's own status line from design
+> sessions; no merged PR description, ADR or accepted-spec marker confirms it independently.
+> Implementation evidence: atlas-layout shipped in PR #178 (5620e3c: 5d79e25, a2201c0, 9cf1d5d,
+> f6ed65d); atlas-motion (loop policy, idle motion, eased transitions, cue mechanism) shipped in
+> PR #180 (4c3fd65: 21c97b9). tour-choreography is **not implemented** in 65d4990 and is not
+> approved for implementation: no `data-active-tool`, `data-revealed` or `--step` exists, and the
+> example it was written for (`request-service`) was replaced by the project's own index in 21c97b9.
+> Branch `feat/landing-scroll-tour` and base `20910db` are historical; see
+> [SPEC-landing-story.md](SPEC-landing-story.md) and [SPEC-atlas-cinematic.md](SPEC-atlas-cinematic.md)
+> for the later, merged story work (PR #184, 32f8a79).
+
 # Capability Map: Atlas 3D redesign
 
 Status: approved (Phase 0). Branch `feat/landing-scroll-tour`, base commit `20910db`.
