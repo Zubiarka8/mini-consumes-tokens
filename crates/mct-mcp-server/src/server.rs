@@ -50,11 +50,12 @@ pub struct ListSymbolsArgs {
     /// raise it if you expect more hits and want them all in one call.
     #[serde(default)]
     pub limit: Option<usize>,
-    /// Response shape: `text` (default) is this server's existing
-    /// human/agent-skimmable plain text. `toon` renders the same data as a
-    /// compact TOON table (one header row of column names, then one row per
-    /// symbol, no repeated labels) — fewer tokens for a large result, at the
-    /// cost of the text version's per-kind grouping.
+    /// Response shape: `toon` (default; also used when omitted or null)
+    /// renders the data as a compact TOON table (one header row of column
+    /// names, then one row per symbol, no repeated labels) — fewer tokens
+    /// for a large result. `text` is this server's plain human/agent-skimmable
+    /// text, with per-kind grouping, kept as an explicit option. Any other
+    /// value is rejected.
     #[serde(default)]
     pub format: Option<String>,
 }
@@ -84,8 +85,8 @@ pub struct FindSymbolArgs {
     /// raise it if you expect more hits and want them all in one call.
     #[serde(default)]
     pub limit: Option<usize>,
-    /// Response shape: `text` (default) or `toon` (a compact table — see
-    /// `list_symbols`' `format` field for details).
+    /// Response shape: `toon` (default) or `text` (plain text, opt-in) — see
+    /// `list_symbols`' `format` field for details.
     #[serde(default)]
     pub format: Option<String>,
 }
@@ -129,8 +130,8 @@ pub struct SearchSymbolsArgs {
     /// to 50.
     #[serde(default)]
     pub snippet_lines: Option<usize>,
-    /// Response shape: `text` (default) or `toon` (a compact table — see
-    /// `list_symbols`' `format` field for details).
+    /// Response shape: `toon` (default) or `text` (plain text, opt-in) — see
+    /// `list_symbols`' `format` field for details.
     #[serde(default)]
     pub format: Option<String>,
     /// `false` skips the query cache for this call and always returns the
@@ -177,8 +178,8 @@ pub struct HybridSearchArgs {
     /// to 50.
     #[serde(default)]
     pub snippet_lines: Option<usize>,
-    /// Response shape: `text` (default) or `toon` (a compact table — see
-    /// `list_symbols`' `format` field for details).
+    /// Response shape: `toon` (default) or `text` (plain text, opt-in) — see
+    /// `list_symbols`' `format` field for details.
     #[serde(default)]
     pub format: Option<String>,
     /// `false` skips the query cache for this call and always returns the
@@ -231,8 +232,8 @@ pub struct FindReferencesArgs {
     /// paging through result sets larger than one `limit` page. Defaults to 0.
     #[serde(default)]
     pub offset: Option<usize>,
-    /// Response shape: `text` (default) or `toon` (a compact table — see
-    /// `list_symbols`' `format` field for details).
+    /// Response shape: `toon` (default) or `text` (plain text, opt-in) — see
+    /// `list_symbols`' `format` field for details.
     #[serde(default)]
     pub format: Option<String>,
 }
@@ -262,8 +263,8 @@ pub struct FindCallsArgs {
     /// paging through result sets larger than one `limit` page. Defaults to 0.
     #[serde(default)]
     pub offset: Option<usize>,
-    /// Response shape: `text` (default) or `toon` (a compact table — see
-    /// `list_symbols`' `format` field for details).
+    /// Response shape: `toon` (default) or `text` (plain text, opt-in) — see
+    /// `list_symbols`' `format` field for details.
     #[serde(default)]
     pub format: Option<String>,
 }
@@ -293,8 +294,8 @@ pub struct FindCallersArgs {
     /// paging through result sets larger than one `limit` page. Defaults to 0.
     #[serde(default)]
     pub offset: Option<usize>,
-    /// Response shape: `text` (default) or `toon` (a compact table — see
-    /// `list_symbols`' `format` field for details).
+    /// Response shape: `toon` (default) or `text` (plain text, opt-in) — see
+    /// `list_symbols`' `format` field for details.
     #[serde(default)]
     pub format: Option<String>,
 }
@@ -324,8 +325,8 @@ pub struct ImpactAnalysisArgs {
     /// independently to each section. Defaults to 0.
     #[serde(default)]
     pub offset: Option<usize>,
-    /// Response shape: `text` (default) or `toon` (a compact table per
-    /// section — see `list_symbols`' `format` field for details).
+    /// Response shape: `toon` (default; a compact table per section) or
+    /// `text` (plain text, opt-in) — see `list_symbols`' `format` field.
     #[serde(default)]
     pub format: Option<String>,
 }
@@ -457,8 +458,8 @@ pub struct FindDeadCodeArgs {
     /// paging through result sets larger than one `limit` page. Defaults to 0.
     #[serde(default)]
     pub offset: Option<usize>,
-    /// Response shape: `text` (default) or `toon` (a compact table — see
-    /// `list_symbols`' `format` field for details).
+    /// Response shape: `toon` (default) or `text` (plain text, opt-in) — see
+    /// `list_symbols`' `format` field for details.
     #[serde(default)]
     pub format: Option<String>,
 }
@@ -573,7 +574,7 @@ pub struct BuildContextPackArgs {
     /// clamped to 1..=200.
     #[serde(default)]
     pub source_lines: Option<usize>,
-    /// `text` (default) or `toon` (related symbols as one table).
+    /// `toon` (default; related symbols as one table) or `text` (opt-in).
     #[serde(default)]
     pub format: Option<String>,
 }
@@ -763,10 +764,10 @@ fn parse_match_mode(raw: Option<&str>) -> Result<mct_index::SymbolMatchMode, Mcp
     }
 }
 
-/// Parses a tool's optional `format` argument (`text`, the default, or
-/// `toon` — see `crate::toon`). An unrecognized value is rejected the same
-/// way `parse_match_mode` rejects a typo'd `match`, rather than silently
-/// falling back to `text`.
+/// Parses a tool's optional `format` argument (`toon`, the default when it is
+/// omitted or null, or `text` — see `crate::toon`). An unrecognized value is
+/// rejected the same way `parse_match_mode` rejects a typo'd `match`, rather
+/// than silently falling back to the default.
 fn parse_output_format(raw: Option<&str>) -> Result<OutputFormat, McpError> {
     OutputFormat::parse(raw).map_err(|msg| McpError::invalid_params(msg, None))
 }

@@ -40,7 +40,7 @@ async fn every_asset_is_an_asset_symbol() {
                 kind: Some("asset".to_string()),
                 language: None,
                 limit: None,
-                format: None,
+                format: Some("text".to_string()),
             }))
             .await
             .unwrap(),
@@ -68,7 +68,7 @@ async fn an_asset_definition_is_packed_without_source() {
                 depth: None,
                 limit: None,
                 source_lines: None,
-                format: None,
+                format: Some("text".to_string()),
             }))
             .await
             .unwrap(),
