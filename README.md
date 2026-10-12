@@ -278,6 +278,8 @@ All of these launch the same program (`mct-mcp-server`) — only the configurati
 mct-cli --root . mcp-register --name mini-consumes-tokens
 ```
 
+To make the server update the index only after a quiet period without file changes (for example 30 seconds), add `--reindex-delay 30s` to `mcp-register` (or to the server's `args`); `off` disables automatic updates. Details and examples: [COMMANDS.md](COMMANDS.md#--reindex-delay-value).
+
 **Claude Code** has built-in, first-class support. From your project folder:
 
 ```sh
