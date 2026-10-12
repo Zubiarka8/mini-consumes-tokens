@@ -1427,6 +1427,22 @@ impl MctServer {
             .map_err(index_error)
     }
 
+    /// Calls any tool by name with a JSON argument object, through the same
+    /// method (and so the same validation, defaults and output) an MCP client
+    /// reaches over stdio. Used by `mct-cli call`; unlike a `batch`
+    /// sub-query it also accepts `reindex` and `batch` themselves.
+    pub async fn call_tool_by_name(
+        &self,
+        tool: &str,
+        args: Option<serde_json::Map<String, serde_json::Value>>,
+    ) -> Result<CallToolResult, McpError> {
+        match tool {
+            "reindex" => self.reindex(batch_params(tool, args)?).await,
+            "batch" => self.batch(batch_params(tool, args)?).await,
+            other => self.run_batch_query(other, args).await,
+        }
+    }
+
     /// Runs one `batch` sub-query through the same tool method a direct call
     /// would hit, so its validation, defaults and output are identical.
     /// `reindex` is refused (a batch stays read-only, and a mid-batch
