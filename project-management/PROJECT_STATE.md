@@ -19,7 +19,7 @@ All tasks remain REVIEW until accepted integration into main:
   by the prior Claude coordinator according to its report and local tracking ref.
 - TASK-MD-ALIAS-135: recovered as `claude/md-alias-135` at `6bdbbcd` (recovery ref retained).
   ADR-005, schema assertion and alias cases are complete; independent review passed.
-- TASK-CSS-NESTING-115: `claude/css-nesting-115` at `a361b2` (recovery ref retained).
+- TASK-CSS-NESTING-115: `claude/css-nesting-115` at `a361b23` (recovery ref retained).
   Includes repeated-parent products, implicit relative parents and complex grouping.
 - TASK-PR-POLICY: `docs/pr-integration-policy-draft` at `14a2586`.
   Independent review passed; `3ca8f70` is an ancestor of this candidate.
@@ -42,7 +42,7 @@ The four original worktrees remain; user-requested local hook retirement is acti
 Recovery used an isolated repository because original Git metadata writes failed.
 Candidate refs and history were imported into the original repository from
 `mct-recovery-final.bundle`. Original aliases and CSS branches were fast-forwarded
-to 6bdbbcd and a361b2; the temporary probe and local hook settings remain intact.
+to 6bdbbcd and a361b23; the temporary probe and local hook settings remain intact.
 
 ## Next action
 

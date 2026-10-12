@@ -207,7 +207,7 @@ No alias publication or main integration.
 
 ## TASK-CSS-NESTING-115
 
-Status: REVIEW. Candidate: `claude/css-nesting-115` at `a361b2`; recovery ref retained.
+Status: REVIEW. Candidate: `claude/css-nesting-115` at `a361b23`; recovery ref retained.
 Owner: CSS recovery worker; coordinator review.
 Base: `a3e10b0f450a93107061152feb862a1d242820a1`.
 Scope: CSS walker, focused/corpus/library tests, error registry and docs.
