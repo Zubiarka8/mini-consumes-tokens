@@ -96,7 +96,7 @@ fn tailwind_v4_theme_utilities_variants_and_nesting() {
     assert_eq!(rules(path, ".hb-card:hover"), [(170, 172)]);
     assert_eq!(rules(path, ".hb-card > .hb-card__title"), [(174, 177)]);
     assert_eq!(rules(path, ".hb-card__title"), [(174, 174)]);
-    assert_eq!(rules(path, ".hb-nav a:hover"), [(228, 230)]);
+    assert_eq!(rules(path, ":is(.hb-nav a):hover"), [(228, 230)]);
     // The literal `&` selector of a resolved rule is not indexed next to
     // its resolved name (#115). The `&:hover` inside `@custom-variant`
     // has no parent rule, so it keeps its literal name.
