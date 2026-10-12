@@ -1050,6 +1050,19 @@ fn write_parsed_file(
         id_map.insert(symbol.id, tx.last_insert_rowid());
     }
 
+    for alias in &parsed.symbol_aliases {
+        let Some(&symbol_id) = id_map.get(&alias.symbol) else {
+            continue; // Ignore aliases of nonexistent local symbols.
+        };
+        if alias.name.is_empty() {
+            continue;
+        }
+        tx.execute(
+            "INSERT OR IGNORE INTO symbol_aliases (symbol_id, alias) VALUES (?1, ?2)",
+            params![symbol_id, alias.name],
+        )?;
+    }
+
     let targets: HashMap<usize, &mct_core::RelationTarget> = parsed
         .relation_targets
         .iter()
