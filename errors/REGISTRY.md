@@ -43,3 +43,10 @@ Paths are relative to the project root. Message for every entry: `syntax error`.
 | `crates/mct-lang-cpp/tests/corpus/malformed/broken_service.cpp` | 42 |
 | `crates/mct-lang-python/tests/corpus/malformed/broken_services.py` | 63 |
 | `crates/mct-lang-powershell/tests/corpus/malformed/Broken.Api.psm1` | 1 |
+
+
+## Privacy review environment (2026-10-12)
+
+| ID | Status | Location / scope | Observed behavior and impact | Evidence / next action |
+| --- | --- | --- | --- | --- |
+| ERR-012 | RESOLVED | Local MCP startup in the privacy review worktree / filesystem sandbox | `Error: database error: unable to open database file`; cause: `Error code 14: unable to open database file`. The local server closed stdout before the initialize reply, preventing source lookup | First/last observed 2026-10-12 on `feat/index-privacy-hygiene`, base `32f8a79ccfcd09c3d790e43edc284d7602e9737b`, dirty tree. The same binary and root started successfully with authorized filesystem access. `get_indexing_status` then succeeded (594 files, 12,370 symbols, timestamp 1791792386), reporting only the 16 intentionally malformed ERR-003 fixtures. Targeted `build_context_pack` calls succeeded. Environment restriction; no database-tool bypass or code fix required. |
