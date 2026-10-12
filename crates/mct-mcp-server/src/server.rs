@@ -1323,6 +1323,22 @@ impl MctServer {
         self.run_batch_query(tool, args).await
     }
 
+    /// Applies an edit to the project's ignore files before a tool reads the
+    /// index ([`Index::apply_exclusion_changes`]): a path that `.mctignore`
+    /// (or an imported `.gitignore`) now excludes is never served from rows
+    /// stored before the edit, even with the watcher disabled or still
+    /// debouncing. Fails closed: if the reindex fails, so does the call. The
+    /// index lock is released before the tool runs, keeping the lock order
+    /// documented on [`MctServer::semantic_model`].
+    async fn apply_exclusion_changes(&self) -> Result<(), McpError> {
+        self.index
+            .lock()
+            .await
+            .apply_exclusion_changes(&self.registry)
+            .map(|_| ())
+            .map_err(index_error)
+    }
+
     /// Runs one `batch` sub-query through the same tool method a direct call
     /// would hit, so its validation, defaults and output are identical.
     /// `reindex` is refused (a batch stays read-only, and a mid-batch
@@ -1333,6 +1349,7 @@ impl MctServer {
         tool: &str,
         args: Option<serde_json::Map<String, serde_json::Value>>,
     ) -> Result<CallToolResult, McpError> {
+        self.apply_exclusion_changes().await?;
         if let Some(route) = self.tool_router.map.get(tool) {
             let read_only = route
                 .attr
@@ -2509,12 +2526,14 @@ impl MctServer {
 // request and serves their fallback descriptions (issue #70).
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for MctServer {
-    // The macro's default `call_tool`, plus the POST contract check.
+    // The macro's default `call_tool`, plus the POST contract check — and,
+    // first, the current ignore rules applied to the index.
     async fn call_tool(
         &self,
         request: rmcp::model::CallToolRequestParams,
         context: rmcp::service::RequestContext<rmcp::RoleServer>,
     ) -> Result<rmcp::model::CallToolResponse, McpError> {
+        self.apply_exclusion_changes().await?;
         let tool = request.name.clone();
         let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
         let response = self.tool_router.call(call).await?;
