@@ -1376,7 +1376,9 @@ dependencies = [
  "mct-lang-xaml",
  "mct-lang-xml",
  "mct-languages",
+ "mct-mcp-server",
  "serde_json",
+ "tokio",
  "walkdir",
 ]
 

@@ -90,6 +90,25 @@ mct-cli --root . mcp-register --name mini-consumes-tokens
 mct-cli --root . status
 ```
 
+**Optional — query the index straight from the terminal, no assistant needed.** `mct-cli call` runs one MCP tool once and prints the result (it brings the index up to date first, like the server does at startup):
+
+```sh
+mct-cli --root . call --tool get_indexing_status
+mct-cli --root . call --tool list_symbols --args '{"path":"src/main.rs"}'
+mct-cli --root . call --tool find_symbol --args-file query.json    # arguments from a file
+echo '{"symbol":"main"}' | mct-cli --root . call --tool build_context_pack --args -   # or stdin
+mct-cli --root . call --tool get_indexing_status --json            # raw MCP result as JSON
+```
+
+`--tool` is any tool name the server lists (`mct-cli call --help` has them); `--args` is one JSON object (default `{}`); `--timeout <seconds>` gives up on a root that takes too long. It exits non-zero, with a message on stderr, for an unknown tool, invalid JSON, a missing root or a tool error.
+
+**Several projects or worktrees at once** (for example, comparing two branches): `init` and `call` take `--roots a,b` or a repeated `--root a --root b`. Each root is handled independently and its output is labelled `== <root> ==`; a failure on one root is reported, the others still run, and the exit status is non-zero.
+
+```sh
+mct-cli --roots ../main-checkout,../my-branch init            # index both; unchanged roots are not re-parsed (add --force to re-parse)
+mct-cli --roots ../main-checkout,../my-branch call --tool find_symbol --args '{"name":"main"}'
+```
+
 **Last step:** restart or reconnect your AI assistant (tool-specific steps in § 4.3 — some need a manual restart to pick up the new MCP connection), then just ask it something like *"where is `InvoiceService` defined?"*. If it keeps grepping/reading whole files instead of using the index, paste the [prompt in § 3](#3-prompt-for-your-ai-assistant-copy-paste) into its instructions.
 
 Hit an error along the way? Jump straight to [§ 9 Troubleshooting](#9-troubleshooting-common-problems).

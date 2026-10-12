@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `mct-cli call --tool <name> [--args <json> | --args-file <path>] [--json]
+  [--timeout <seconds>]` runs one MCP tool in-process and prints its result,
+  so scripts no longer need to spawn `mct-mcp-server` and speak JSON-RPC.
+  `init` and `call` accept several roots (`--roots a,b` or a repeated
+  `--root`), with a labelled result or summary per root; `init` gained
+  `--force`. `MctServer::call_tool_by_name` is the new public entry point.
 - `mct-cli update` (also `-u` / `--update`) installs the latest GitHub
   release of `mct-cli` and `mct-mcp-server` into the folder `mct-cli` runs
   from, through the official installer. `mct-cli --version` (`-v`) shows
