@@ -44,6 +44,10 @@ Logs retained locally under target/script-logs in the integration worktree:
 check-summary.md, check-test.log, check-clippy.log, check-eval.log,
 background-watcher-retry.log, workspace-all.log. Website checks were also captured.
 
+Recovery refs imported through a verified local bundle; original aliases and CSS
+branches fast-forwarded without rewriting history. Local hook modifications and
+the interrupted worker probe preserved. Primary checkout HEAD unchanged.
+
 Result: code and policy review accepted; combined verification has a reproduced
 baseline watcher limitation. Main integration, live GitHub verification and the
 public schema issue decision record remain pending. No new dependencies.

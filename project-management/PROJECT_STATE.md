@@ -17,9 +17,9 @@ The original primary checkout and interrupted worker's probe are preserved.
 All tasks remain REVIEW until accepted integration into main:
 - TASK-DOCS-MCP-PROSE: `docs/semantic-search-prose-limits` at `62c677f`, published
   by the prior Claude coordinator according to its report and local tracking ref.
-- TASK-MD-ALIAS-135: recovered as `codex/recover-alias-135-final` at `d0fe58f`.
+- TASK-MD-ALIAS-135: recovered as `claude/md-alias-135` at `d0fe58f` (recovery ref retained).
   ADR-005, schema assertion and alias cases are complete; independent review passed.
-- TASK-CSS-NESTING-115: `codex/review-css-115-final` at `a361b2`.
+- TASK-CSS-NESTING-115: `claude/css-nesting-115` at `a361b2` (recovery ref retained).
   Includes repeated-parent products, implicit relative parents and complex grouping.
 - TASK-PR-POLICY: `docs/pr-integration-policy-draft` at `14a2586`.
   Independent review passed; `3ca8f70` is an ancestor of this candidate.
@@ -40,12 +40,13 @@ The later hook-only merge does not change the tested Rust or website code.
 No new push, PR, issue comment, main merge, branch deletion or worktree cleanup.
 The four original worktrees remain; user-requested local hook retirement is active.
 Recovery used an isolated repository because original Git metadata writes failed.
-Recoverable candidate refs and history are delivered as `mct-recovery-final.bundle`.
+Candidate refs and history were imported into the original repository from
+`mct-recovery-final.bundle`. Original aliases and CSS branches were fast-forwarded
+to d0fe58f and a361b2; the temporary probe and local hook settings remain intact.
 
 ## Next action
 
-Import the recovery refs and fast-forward the original aliases and CSS branches.
-Record the approved schema decision on #135 before the feature PR. Recheck watcher
+Recovery import and feature fast-forwards are complete. Record the approved schema decision on #135 before the feature PR. Recheck watcher
 behavior on an unrestricted host or CI before claiming a fully green integration.
 Publication beyond the existing docs branch and integration into main are pending.
 
