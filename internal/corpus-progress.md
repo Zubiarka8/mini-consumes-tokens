@@ -32,12 +32,12 @@ file; it is a name match, not a resolved cross-file reference.
 | Go | `mct-lang-go` | **Done** | #121 | 7 / 3,002 | 291 / 832 (254) | Found and fixed (none pending): module end +1; `type A = B` (alias) had no symbol; methods on a generic receiver (`func (s *Stack[T]) Push`) got the parent `Stack[T]`; calls with explicit type arguments (`Map[A, B](x)`, and `Fail[T](x)`, which the grammar reads as a conversion) were missed. Known limits, kept as tests: no symbols for package `const`/`var` or struct fields; no relation for embedding or structural interface satisfaction; builtins and conversions (`len`, `string(x)`) appear as calls |
 | HTML | `mct-lang-html` | **Done** | #105 | 5 / 1,563 | 302 / 675 (0) | Module end +1 |
 | Java | `mct-lang-java` | **Done** | #106 | 6 / 1,989 | 377 / 799 (155) | Module end +1 |
-| JavaScript/TypeScript | `mct-lang-js-ts` | **Done** | #107 | 7 / 2,193 | 274 / 671 (125) | Module end +1 |
+| JavaScript/TypeScript | `mct-lang-js-ts` | **Done** | #107 | 7 / 2,193 | 274 / 681 (125) | Module end +1 |
 | Kotlin | `mct-lang-kotlin` | **Done** | #108 | 5 / 1,527 | 483 / 720 (89) | Module end +1 |
 | Lua | `mct-lang-lua` | **Done** | #109 | 5 / 1,525 | 163 / 363 (43) | Module end +1 |
 | Markdown | `mct-lang-md` | **Done** | #110 | 6 / 1,825 | 260 / 338 (229) | None recorded in #110 |
 | PHP | `mct-lang-php` | **Done** | #88 | 6 / 2,463 | 418 / 803 (339) | Module end +1; `?->` (null-safe) calls missed; `new Foo()` has no relation; `#[…]` attributes have no relation; anonymous-class members (`new class { … }`) indexed as methods/fields without a parent; closure assigned to a variable inside a method treated as a class member; `new` in the default value of a promoted parameter missed |
-| PowerShell | `mct-lang-powershell` | **Done** | #111 | 5 / 1,515 | 87 / 261 (62) | Module end +1. Rejected by tree-sitter-powershell 0.26.4 (outside the corpus; found 2026-10-10 in this repo's `scripts/windows/pr-status.ps1`), not yet filed: a comma-separated bareword argument (`Select-Object Name,Id`, `gh x --json a,b`); `Write-Output 1,2` and `"a,b"` parse (`errors/REGISTRY.md` ERR-002) |
+| PowerShell | `mct-lang-powershell` | **Done** | #111 | 5 / 1,515 | 87 / 261 (62) | Module end +1. Rejected by tree-sitter-powershell 0.26.4 (outside the corpus; found 2026-10-10 in this repo's `scripts/windows/pr-status.ps1`), not yet filed: a comma-separated bareword argument (`Select-Object Name,Id`, `gh x --json a,b`); `Write-Output 1,2` and `"a,b"` parse (`errors/REGISTRY.md` ERR-002). Also rejected (re-checked 2026-10-12 with `mct-cli probe` on one-line files; no issue found, not yet filed): `$a ?? $b`, `$a ??= $b`, the `$c ? 1 : 2` ternary, `Cmd -X a, b`, `kubectl --timeout=300s get pods`, and `cmd -- arg` |
 | XAML | `mct-lang-xaml` | **Done** | #112 | 6 / 1,860 | 157 / 125 (0) | Module end +1 |
 | XML | `mct-lang-xml` | **Done** | #104 | 6 / 2,037 | 547 / 0 (0) | Module end +1 |
 
