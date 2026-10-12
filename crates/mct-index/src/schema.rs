@@ -316,6 +316,23 @@ pub fn migrations() -> Migrations<'static> {
         ),
         // Parser-declared aliases (issue #135). Start empty: legacy relation
         // names cannot prove alias declarations. Reparse once after migration.
+        //
+        // The view keeps migration 10's single-SELECT shape and only widens
+        // the target lookup: a `module` relation without an explicit path
+        // also matches symbols declaring `to_name` as an alias, and a
+        // `target_module` scope also matches a note by alias. Every other
+        // predicate is unchanged, so an ambiguous scope still yields its
+        // same-named sections, never the notes.
+        //
+        // Query-plan notes (measured with `relation_scale`): the lookup is a
+        // correlated `IN` (UNION ALL: `IN` already deduplicates), because a
+        // compound view is materialized under the `COUNT(*) ... WHERE
+        // relation_id = r.id` lookups and an `OR` join was ~30x slower. The
+        // `r.to_name IN (s.name, aliases of s)` term is implied by the lookup
+        // but lets a `symbol_id = ?` query reach `relations` through
+        // `idx_relations_to_name` instead of scanning every relation, and
+        // `CROSS JOIN` keeps `sf` after `s`, so a `relation_id = ?` query
+        // never walks `idx_files_language` per relation.
         M::up(
             r#"
             CREATE TABLE symbol_aliases (
@@ -325,22 +342,6 @@ pub fn migrations() -> Migrations<'static> {
             );
             CREATE INDEX idx_symbol_aliases_alias ON symbol_aliases(alias);
 
-            CREATE VIEW relation_scope_candidates AS
-                SELECT r.id AS relation_id, m.id AS symbol_id
-                FROM relations r
-                JOIN symbols caller ON caller.id = r.from_symbol_id
-                JOIN files cf ON cf.id = caller.file_id
-                JOIN symbols m ON m.id IN (
-                    SELECT id FROM symbols WHERE name = r.target_module
-                    UNION
-                    SELECT symbol_id FROM symbol_aliases WHERE alias = r.target_module
-                )
-                JOIN files mf ON mf.id = m.file_id
-                WHERE r.targets_parsed = 1 AND r.external = 0
-                  AND r.target_module IS NOT NULL AND r.target_path IS NULL
-                  AND m.kind = 'module'
-                  AND mf.language = COALESCE(r.target_language, cf.language);
-
             DROP VIEW relation_candidates;
             CREATE VIEW relation_candidates AS
                 SELECT r.id AS relation_id, s.id AS symbol_id
@@ -349,20 +350,17 @@ pub fn migrations() -> Migrations<'static> {
                 JOIN files cf ON cf.id = caller.file_id
                 JOIN symbols s ON s.id IN (
                     SELECT id FROM symbols WHERE name = r.to_name
-                      AND (SELECT COUNT(*) FROM relation_scope_candidates sc
-                           WHERE sc.relation_id = r.id) <= 1
-                    UNION
+                    UNION ALL
                     SELECT symbol_id FROM symbol_aliases
                     WHERE alias = r.to_name AND r.target_kind = 'module'
                       AND r.target_path IS NULL
-                    UNION
-                    SELECT symbol_id FROM relation_scope_candidates sc
-                    WHERE sc.relation_id = r.id
-                      AND (SELECT COUNT(*) FROM relation_scope_candidates scopes
-                           WHERE scopes.relation_id = r.id) > 1
                 )
-                JOIN files sf ON sf.id = s.file_id
+                CROSS JOIN files sf ON sf.id = s.file_id
                 WHERE r.targets_parsed = 1
+                  AND r.to_name IN (SELECT s.name
+                                    UNION ALL
+                                    SELECT alias FROM symbol_aliases
+                                    WHERE symbol_id = s.id)
                   AND r.external = 0
                   AND sf.language = COALESCE(r.target_language, cf.language)
                   AND (r.qualifier IS NULL
@@ -374,11 +372,7 @@ pub fn migrations() -> Migrations<'static> {
                        OR instr('/' || replace(sf.relative_path, '-', '_'), '/' || r.module || '/') > 0
                        OR instr('/' || replace(sf.relative_path, '-', '_'), '/' || r.module || '.') > 0)
                   AND (r.member = 0 OR s.kind = 'method')
-                  AND (r.target_kind IS NULL OR s.kind = r.target_kind
-                       OR (EXISTS (SELECT 1 FROM relation_scope_candidates sc
-                                   WHERE sc.relation_id = r.id AND sc.symbol_id = s.id)
-                           AND (SELECT COUNT(*) FROM relation_scope_candidates scopes
-                                WHERE scopes.relation_id = r.id) > 1))
+                  AND (r.target_kind IS NULL OR s.kind = r.target_kind)
                   AND (r.target_module IS NULL
                        OR EXISTS (SELECT 1 FROM symbols m
                                   WHERE m.file_id = s.file_id AND m.kind = 'module'
