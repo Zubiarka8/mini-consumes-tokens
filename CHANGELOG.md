@@ -222,9 +222,8 @@ CLI:
   0.1.0); no automatic migration — see the upgrade steps above.
 - **Breaking:** the Windows installer reads `MCT_INSTALL_DIR` (was
   `CCM_INSTALL_DIR`) and defaults to `%LOCALAPPDATA%\mct\bin`.
-- License: the project's own code and documentation are Apache-2.0 (0.1.0
-  declared `MIT OR Apache-2.0`). Third-party components keep their own
-  licenses; see `THIRD_PARTY_NOTICES.md`.
+- License: the project's own code and documentation are Apache-2.0.
+  Third-party components keep their own licenses; see `THIRD_PARTY_NOTICES.md`.
 - Relation queries page in the database instead of loading every relation,
   for both direct and multi-hop queries; multi-hop results report a lower
   bound when the total was not computed.
