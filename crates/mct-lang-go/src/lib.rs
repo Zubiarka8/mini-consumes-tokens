@@ -79,32 +79,6 @@ impl LanguageParser for GoParser {
     }
 }
 
-/// The directory name an import path ends in, skipping a `/vN` major-version
-/// suffix. `None` for cgo (`C`), `unsafe`, empty paths and paths whose first
-/// element has no dot (see `push_package_import`).
-fn package_dir_name(import_path: &str) -> Option<String> {
-    if !import_path
-        .split('/')
-        .next()
-        .is_some_and(|root| root.contains('.'))
-    {
-        return None;
-    }
-    let mut segments = import_path.rsplit('/').filter(|s| !s.is_empty());
-    let mut last = segments.next()?;
-    let is_version = |s: &str| {
-        s.strip_prefix('v')
-            .is_some_and(|d| !d.is_empty() && d.bytes().all(|b| b.is_ascii_digit()))
-    };
-    if is_version(last) {
-        last = segments.next()?;
-    }
-    if matches!(last, "C" | "unsafe" | "." | "..") {
-        return None;
-    }
-    Some(last.to_string())
-}
-
 fn module_name_for(relative_path: &str) -> String {
     relative_path
         .rsplit('/')
@@ -381,6 +355,32 @@ impl<'a> Walker<'a> {
         }
     }
 
+    /// The directory name an import path ends in, skipping a `/vN` major-version
+    /// suffix. `None` for cgo (`C`), `unsafe`, empty paths and paths whose first
+    /// element has no dot (see `push_package_import`).
+    fn package_dir_name(import_path: &str) -> Option<String> {
+        if !import_path
+            .split('/')
+            .next()
+            .is_some_and(|root| root.contains('.'))
+        {
+            return None;
+        }
+        let mut segments = import_path.rsplit('/').filter(|s| !s.is_empty());
+        let mut last = segments.next()?;
+        let is_version = |s: &str| {
+            s.strip_prefix('v')
+                .is_some_and(|d| !d.is_empty() && d.bytes().all(|b| b.is_ascii_digit()))
+        };
+        if is_version(last) {
+            last = segments.next()?;
+        }
+        if matches!(last, "C" | "unsafe" | "." | "..") {
+            return None;
+        }
+        Some(last.to_string())
+    }
+
     /// `import "a/b/pkg"` depends on the package declared in a directory
     /// named `pkg` (the import path's last element): an `Imports` relation to
     /// the `Module` symbol every file of that package declares by its
@@ -393,7 +393,7 @@ impl<'a> Walker<'a> {
     /// name (`errors`, `encoding/json`) is also a common file stem, which
     /// would resolve to the wrong local file.
     fn push_package_import(&mut self, owner: SymbolId, import_path: &str, loc: Location) {
-        let Some(name) = package_dir_name(import_path) else {
+        let Some(name) = Self::package_dir_name(import_path) else {
             return;
         };
         let relation = self.relations.len();
