@@ -237,6 +237,7 @@ fn blocked_server(
                 symbol_gate,
             })),
             shared_cache: None,
+            tool_attention: false,
         },
     );
     Blocked {
@@ -405,6 +406,7 @@ async fn real_model_cold_warm_and_concurrent_latency() {
                 cache: CacheConfig::disabled(),
                 embedder: None,
                 shared_cache: None,
+                tool_attention: false,
             },
         )
     };
