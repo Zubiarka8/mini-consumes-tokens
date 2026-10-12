@@ -32,6 +32,9 @@ impl Vault {
         ));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
+        // `reindex_paths` matches paths against the canonical index root;
+        // macOS's temp dir is behind a symlink (`/var` -> `/private/var`).
+        let dir = dir.canonicalize().unwrap();
         let mut registry = LanguageRegistry::new();
         registry.register(Arc::new(MarkdownParser));
         let index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
@@ -270,28 +273,141 @@ fn a_second_note_with_the_same_name_makes_a_bare_link_ambiguous_not_rebound() {
 }
 
 #[test]
+fn unique_frontmatter_aliases_resolve_notes_and_their_sections() {
+    let v = Vault::new(&[
+        (
+            "notes/Project Alpha.md",
+            "---\naliases: [Alpha, Alpha]\n---\n## Shared\n",
+        ),
+        ("src.md", "[[Alpha]] ![[Alpha#Shared]]\n"),
+    ]);
+    let notes = v.link("src.md", "Alpha");
+    assert_eq!(notes.len(), 2);
+    for note in notes {
+        assert_eq!(note.resolution.as_str(), "resolved");
+        let candidates = v.index.relation_candidates(note.relation_id).unwrap();
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].relative_path, "notes/Project Alpha.md");
+    }
+    assert_eq!(
+        v.outcome("src.md", "Shared"),
+        "resolved notes/Project Alpha.md:element:Shared"
+    );
+}
+
+#[test]
+fn alias_collisions_list_every_note_without_choosing_one() {
+    let v = Vault::new(&[
+        ("a/First.md", "---\naliases: [Alpha]\n---\n"),
+        ("b/Second.md", "---\naliases: [Alpha]\n---\n"),
+        ("src.md", "[[Alpha]]\n"),
+    ]);
+    assert_eq!(
+        v.outcome("src.md", "Alpha"),
+        "ambiguous a/First.md:module:First | b/Second.md:module:Second"
+    );
+}
+
+/// Pending decision D2 (TASK-MD-ALIAS-135 checkpoint): an anchor behind an
+/// ambiguous note name lists the matching sections, exactly like the
+/// duplicate-basename case in
+/// `an_anchor_on_an_ambiguous_note_stays_ambiguous_not_first_match`.
+#[test]
+fn an_anchor_through_a_shared_alias_lists_both_sections() {
+    let v = Vault::new(&[
+        ("a/First.md", "---\naliases: [Alpha]\n---\n## Sec\n"),
+        ("b/Second.md", "---\naliases: [Alpha]\n---\n## Sec\n"),
+        ("src.md", "[[Alpha#Sec]]\n"),
+    ]);
+    assert_eq!(
+        v.outcome("src.md", "Sec"),
+        "ambiguous a/First.md:element:Sec | b/Second.md:element:Sec"
+    );
+}
+
+/// Pending decision D3 (TASK-MD-ALIAS-135 checkpoint): case folding is out
+/// of scope for issue #135, so an alias matches only its exact spelling.
+#[test]
+fn alias_matching_is_case_sensitive() {
+    let v = Vault::new(&[
+        ("a/First.md", "---\naliases: [Alpha]\n---\n"),
+        ("src.md", "[[alpha]] [[Alpha]]\n"),
+    ]);
+    assert_eq!(v.outcome("src.md", "alpha"), "unresolved ");
+    assert_eq!(
+        v.outcome("src.md", "Alpha"),
+        "resolved a/First.md:module:First"
+    );
+}
+
+#[test]
+fn basename_and_alias_collisions_are_ambiguous_but_explicit_paths_are_exact() {
+    let v = Vault::new(&[
+        ("a/Alpha.md", "# Alpha\n"),
+        ("b/Other.md", "---\naliases: [Alpha]\n---\n"),
+        ("src.md", "[[Alpha]] [[a/Alpha]]\n"),
+    ]);
+    let hits = v.link("src.md", "Alpha");
+    assert_eq!(hits.len(), 2);
+    assert_eq!(hits[0].resolution.as_str(), "ambiguous");
+    assert_eq!(hits[0].candidate_count, 2);
+    assert_eq!(hits[1].resolution.as_str(), "resolved");
+    assert_eq!(
+        v.index.relation_candidates(hits[1].relation_id).unwrap()[0].relative_path,
+        "a/Alpha.md"
+    );
+}
+
+#[test]
+fn a_frontmatter_title_is_never_an_alias() {
+    let v = Vault::new(&[
+        ("Other.md", "---\ntitle: Alpha\n---\n# Alpha\n"),
+        ("src.md", "[[Alpha]]\n"),
+    ]);
+    assert_eq!(v.outcome("src.md", "Alpha"), "unresolved ");
+}
+
+#[test]
 fn incremental_and_full_reindex_agree() {
     let mut v = Vault::new(&[
-        ("a/beta.md", "---\ntags: [t]\n---\n# B\n\n## S\n"),
+        (
+            "a/beta.md",
+            "---\ntags: [t]\naliases: [Before]\n---\n# B\n\n## S\n",
+        ),
         ("src.md", "[[beta#S]] ![[a/beta]]\n"),
     ]);
-    v.write("src.md", "[[a/beta#S]] ![[beta]] #new\n");
+    v.write(
+        "a/beta.md",
+        "---\ntags: [t]\naliases: [After]\n---\n# B\n\n## S\n",
+    );
+    v.write(
+        "src.md",
+        "[[a/beta#S]] ![[beta]] [[Before]] [[After]] #new\n",
+    );
     v.reindex();
     let snapshot = |v: &Vault| {
-        let mut rows: Vec<String> = ["S", "beta", "tag:new", "tag:t"]
-            .iter()
-            .flat_map(|n| v.index.find_references(n).unwrap())
-            .map(|h| {
-                format!(
-                    "{}:{}:{}:{}:{}",
-                    h.relative_path,
-                    h.to_name,
-                    h.kind,
-                    h.resolution.as_str(),
-                    h.candidate_count
-                )
-            })
-            .collect();
+        let mut rows: Vec<String> = [
+            "S",
+            "beta",
+            "Before",
+            "After",
+            "alias:After",
+            "tag:new",
+            "tag:t",
+        ]
+        .iter()
+        .flat_map(|n| v.index.find_references(n).unwrap())
+        .map(|h| {
+            format!(
+                "{}:{}:{}:{}:{}",
+                h.relative_path,
+                h.to_name,
+                h.kind,
+                h.resolution.as_str(),
+                h.candidate_count
+            )
+        })
+        .collect();
         rows.sort();
         rows
     };
@@ -299,6 +415,46 @@ fn incremental_and_full_reindex_agree() {
     v.index.reindex(&v.registry, true).unwrap();
     assert_eq!(incremental, snapshot(&v));
     assert!(!incremental.is_empty());
+}
+
+#[test]
+fn alias_edits_rename_and_delete_update_unchanged_referrers_incrementally() {
+    let mut v = Vault::new(&[
+        ("a/Original.md", "---\naliases: [Alpha]\n---\n"),
+        ("src.md", "[[Alpha]] [[Beta]]\n"),
+    ]);
+    assert_eq!(
+        v.outcome("src.md", "Alpha"),
+        "resolved a/Original.md:module:Original"
+    );
+    v.write("a/Original.md", "---\naliases: [Beta]\n---\n");
+    v.index
+        .reindex_paths(&v.registry, &[v.dir.join("a/Original.md")])
+        .unwrap();
+    assert_eq!(v.outcome("src.md", "Alpha"), "unresolved ");
+    assert_eq!(
+        v.outcome("src.md", "Beta"),
+        "resolved a/Original.md:module:Original"
+    );
+    fs::rename(v.dir.join("a/Original.md"), v.dir.join("a/Renamed.md")).unwrap();
+    v.index
+        .reindex_paths(
+            &v.registry,
+            &[v.dir.join("a/Original.md"), v.dir.join("a/Renamed.md")],
+        )
+        .unwrap();
+    assert_eq!(
+        v.outcome("src.md", "Beta"),
+        "resolved a/Renamed.md:module:Renamed"
+    );
+    fs::remove_file(v.dir.join("a/Renamed.md")).unwrap();
+    v.index
+        .reindex_paths(&v.registry, &[v.dir.join("a/Renamed.md")])
+        .unwrap();
+    assert_eq!(v.outcome("src.md", "Beta"), "unresolved ");
+    v.index.reindex(&v.registry, true).unwrap();
+    assert_eq!(v.outcome("src.md", "Alpha"), "unresolved ");
+    assert_eq!(v.outcome("src.md", "Beta"), "unresolved ");
 }
 
 #[test]
