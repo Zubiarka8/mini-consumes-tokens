@@ -67,6 +67,66 @@ about Rust" — the capitalized language name is read as a symbol name, so the
 lookup alternatives are offered instead of the full catalog). They are left
 unfixed so the figures above stay a held-out measurement.
 
+## Tool Attention (issue #11)
+
+The integrated flow behind `MCT_TOOL_ATTENTION=1`: the client calls
+`select_tools` with the user's request and the server narrows `tools/list`
+(see `docs/01-architecture/mcp-protocol-spec.md`). Measured by
+`tool_attention_narrows_tools_list` over the same 42 held-out queries, with no
+embedding model, counting `approx_tokens` of the serialized `tools/list`
+payload (tool definitions only):
+
+```sh
+cargo test -p mct-mcp-server --test intent_eval tool_attention -- --nocapture
+```
+
+```
+attention[4]{list,approx_tokens,reduction}:
+  full_catalog,8193,0.000
+  initial,200,0.976
+  per_turn_mean,2027.1,0.753
+  oracle_mean,692.8,0.915
+recall 1.000 (41/41), fallbacks 6/42 ["e32", "e34", "e35", "e36", "e41", "e42"]
+```
+
+- `initial` is what a client loads at connect time: `select_tools` alone,
+  −97.6 % against the full catalog. This meets issue #11's ≥90 % target.
+- `per_turn_mean` is `tools/list` after `select_tools` ran on each query
+  (`select_tools` plus the picked tools): −75.3 % on average, **below** 90 %.
+  The 6/42 fallbacks list the full catalog by design. The 36 selective turns
+  average ~966 tokens (≈ −88 %). The 1–3 tools of #11's proposal are not
+  enough for multi-action requests, so they are not forced.
+- `oracle_mean` is the floor for any selector that keeps recall at 1.000:
+  `select_tools` plus the cheapest acceptable tool of each required group,
+  and `select_tools` alone for requests no tool answers. Even that perfect
+  selector reaches only −91.5 %, so a per-turn ≥90 % needs near-perfect
+  selection on every turn.
+- The fallbacks: e32, e34, e35, e36 have no correct tool ("hello", a config
+  question, "Make it faster", "fix the bug"). e41 and e42 are code questions
+  the rules do not recognise. Listing only `select_tools`,
+  `discover_tool_categories` and `get_tool_schema` (487 tokens) on a fallback
+  instead of the full catalog (8,392) would still leave the mean at −89.0 %
+  and would hide e41/e42's tools, so it is not done. Rules are not tuned on
+  e41/e42: they are held-out cases.
+- Fallbacks are not what keeps the mean under 90 %. With the oracle's cost on
+  all 6 (no fallback at all), the mean is ~889 tokens, −89.2 %: the 36
+  selective turns list ~966 tokens against the oracle's ~738, because the
+  rules keep acceptable alternatives (e.g. `find_symbol` with
+  `search_symbols`). Reaching 90 % means dropping those, which risks recall.
+- Baseline: #11's 90 % was set against 9 tools and ~900–2,430 tokens per
+  turn; the catalog is now 18 tools and ~8,193. In absolute terms the
+  per-turn mean (~2,027) is still inside the range #11 called the problem,
+  while the per-turn saving (~6,200) exceeds that whole range. A restated
+  criterion should name today's base.
+- Accuracy: delivered-tool recall stays at 1.000 and no negated tool is
+  listed. That matches `rules` above; nothing was lost by integrating.
+- The `select_tools` call itself costs one round trip plus its reply (one
+  intent line, tool names, hints). That reply is not counted above.
+- No embedding model, even in a `semantic` build: `select_tools` uses the
+  rules only. `rules+embeddings` above drops fallbacks to 3 but guesses wrong
+  on 3/5 requests no tool answers and loses e41's tool (recall 0.976), and it
+  would download the model (~130 MB) on the first unclear request.
+
 ## Limitations
 
 - Token counts are approximate (`approx_tokens`: a word run or a punctuation
@@ -76,7 +136,8 @@ unfixed so the figures above stay a held-out measurement.
 - Rules are English-only. The same author wrote the development examples and
   the evaluation set; the set was committed before the rules, but shared
   phrasing habits remain possible.
-- Not integrated into a request path: the server never receives the user's
-  query before the model. The consumer is issue #11 (Tool Attention), which
-  needs a query-carrying entry point — a new or changed MCP tool signature,
-  which rules.md treats as a cross-cutting change.
+- The server never receives the user's query by itself. Tool Attention
+  (issue #11, opt-in) gets it through `select_tools`, so it depends on the
+  client calling that tool first and honouring `tools/list_changed`. A client
+  that ignores the notification still gets the tool names in the reply and
+  can call any tool.
