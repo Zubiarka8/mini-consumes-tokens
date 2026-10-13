@@ -4,6 +4,8 @@
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 ![Version](https://img.shields.io/badge/version-0.2.0-informational.svg)
 
+**[Official website](https://zubiarka8.github.io/mini-consumes-tokens/)** · **[Documentation](https://zubiarka8.github.io/mini-consumes-tokens/docs)**
+
 **A local map of your code that answers "where is this defined", "what uses it", and "what would break if I change it" — without an AI assistant having to re-read your files over and over.**
 
 ---
