@@ -56,6 +56,16 @@ Verified: types passed; format passed; 100 matching EN/ES keys passed; productio
 
 Final screenshots: test-results/hero-full.png, test-results/hero-relevant.png and test-results/landing-{width}-{language}.png. Desktop and mobile screenshots reviewed. Line counts illustrate this prepared selection only; no token benchmark is claimed. Existing upstream build warnings remain. No documentation content, backend, deployment or external publishing changed.
 
+## Plain-language landing — 2026-10-13
+
+Supersedes the symbol panel, layer spacing slider, source listing, context pack and skip link described in the sections below; those parts no longer exist. Styles live in app/(home)/landing-shell.css, landing-context.css and landing-atlas.css (not landing.css), and messages in messages/landing/.
+
+- Layers are named Your files, Map of the pieces and What the assistant needs; the 3D labels are plain words; the spacing is fixed; FAQ uses chevrons; arrows are ArrowIcon (Lucide, ISC).
+- The skip link was removed on request (this drops the WCAG 2.4.1 bypass-block affordance; header, nav, main and footer landmarks remain). The landing spec asserts it is absent and that the first Tab lands on the brand link; it failed while the link existed.
+- landing.spec.ts was rewritten only where these removals required it; the fourteen-stage tour tests are unchanged.
+- The production-prefix build, `format:check`, `types:check` and `test:resources` (167 matching keys) passed; the full WebKit suite passed (72 tests).
+- Known residual: at 768px in Spanish the longest 3D labels can touch while the scene idles; the 1440px and 375px label-overlap checks pass.
+
 ## Original landing checks
 
 - `npm run types:check`: passed.
