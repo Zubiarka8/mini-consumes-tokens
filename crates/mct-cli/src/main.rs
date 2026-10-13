@@ -138,13 +138,20 @@ enum Command {
     /// overwriting it, so other servers already configured there are left
     /// untouched.
     #[command(
-        after_help = "Examples:\n  cargo run -p mct-cli -- --root . mcp-register\n  cargo run -p mct-cli -- --root . mcp-register --name my-project"
+        after_help = "Examples:\n  cargo run -p mct-cli -- --root . mcp-register\n  cargo run -p mct-cli -- --root . mcp-register --name my-project\n  cargo run -p mct-cli -- --root . mcp-register --reindex-delay 30s\n  cargo run -p mct-cli -- --root . mcp-register --reindex-delay off"
     )]
     McpRegister {
         /// Server name (the key under `mcpServers`). Defaults to the root
         /// directory's own name.
         #[arg(long)]
         name: Option<String>,
+        /// Quiet period without file changes before the server refreshes the
+        /// index automatically: `15s`, `30s`, `45s`, `1m`, a custom positive
+        /// `<N>s` / `<N>m` / `<N>ms`, or `off` to disable automatic updates.
+        /// Written to the server entry's args as `--reindex-delay` and kept
+        /// by later `mcp-register` runs that omit the flag.
+        #[arg(long, value_name = "VALUE", value_parser = parse_reindex_delay)]
+        reindex_delay: Option<String>,
     },
     /// Write a starter `.mctignore` for custom indexing exclusions.
     ///
@@ -254,8 +261,12 @@ fn main() -> anyhow::Result<()> {
     // None of these touch the index at all, so they're handled before
     // Index::open — running them shouldn't have the side effect of creating
     // .mct-index/.
-    if let Command::McpRegister { name } = cli.command {
-        return mcp_register(&root, name);
+    if let Command::McpRegister {
+        name,
+        reindex_delay,
+    } = cli.command
+    {
+        return mcp_register(&root, name, reindex_delay);
     }
     if let Command::IgnoreInit { import_gitignore } = cli.command {
         return ignore_init(&root, import_gitignore);
@@ -399,7 +410,53 @@ fn probe(registry: &LanguageRegistry, files: &[PathBuf]) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn mcp_register(root: &Path, name: Option<String>) -> anyhow::Result<()> {
+/// Validates and normalises a `--reindex-delay` value (same grammar as the
+/// server): `off`, or a positive `<N>ms` / `<N>s` / `<N>m`. Returns the
+/// trimmed, lowercase form.
+fn parse_reindex_delay(raw: &str) -> Result<String, String> {
+    let value = raw.trim().to_ascii_lowercase();
+    if value == "off" {
+        return Ok(value);
+    }
+    let invalid = || {
+        format!(
+            "invalid reindex delay `{raw}`: use `off` or a positive duration such as 15s, 30s, 45s, 1m, 500ms"
+        )
+    };
+    let digits_end = value
+        .find(|c: char| !c.is_ascii_digit())
+        .ok_or_else(invalid)?;
+    let (digits, unit) = value.split_at(digits_end);
+    if !matches!(unit, "ms" | "s" | "m") {
+        return Err(invalid());
+    }
+    match digits.parse::<u64>() {
+        Ok(n) if n > 0 => Ok(value),
+        _ => Err(invalid()),
+    }
+}
+
+/// Finds a `--reindex-delay` value in an existing server entry's args.
+fn existing_reindex_delay(entry: Option<&serde_json::Value>) -> Option<String> {
+    let args = entry?.get("args")?.as_array()?;
+    let strs: Vec<&str> = args.iter().filter_map(|a| a.as_str()).collect();
+    strs.iter().enumerate().find_map(|(i, a)| {
+        if *a == "--reindex-delay" {
+            strs.get(i + 1).map(|v| v.to_string())
+        } else {
+            a.strip_prefix("--reindex-delay=").map(str::to_string)
+        }
+    })
+}
+
+fn mcp_register(
+    root: &Path,
+    name: Option<String>,
+    reindex_delay: Option<String>,
+) -> anyhow::Result<()> {
+    let reindex_delay = reindex_delay
+        .map(|v| parse_reindex_delay(&v).map_err(|e| anyhow::anyhow!(e)))
+        .transpose()?;
     let root = root.canonicalize()?;
     let server_name = name.unwrap_or_else(|| {
         root.file_name()
@@ -429,12 +486,21 @@ fn mcp_register(root: &Path, name: Option<String>) -> anyhow::Result<()> {
             )
         })?;
 
+    // An explicit flag wins; otherwise keep what the entry already has so the
+    // choice survives re-registering.
+    let delay = reindex_delay.or_else(|| existing_reindex_delay(servers.get(&server_name)));
+    let mut args = vec!["--root".to_string(), display_path(&root)];
+    if let Some(delay) = delay {
+        args.push("--reindex-delay".to_string());
+        args.push(delay);
+    }
+
     servers.insert(
         server_name.clone(),
         serde_json::json!({
             "type": "stdio",
             "command": "mct-mcp-server",
-            "args": ["--root", display_path(&root)],
+            "args": args,
             "env": {}
         }),
     );
@@ -1019,7 +1085,7 @@ mod tests {
     fn mcp_register_creates_new_config() {
         let dir = temp_project_dir("new");
 
-        mcp_register(&dir, Some("my-server".to_string())).expect("register should succeed");
+        mcp_register(&dir, Some("my-server".to_string()), None).expect("register should succeed");
 
         let contents = fs::read_to_string(dir.join(".mcp.json")).expect("config should exist");
         let json: serde_json::Value = serde_json::from_str(&contents).expect("valid json");
@@ -1038,8 +1104,8 @@ mod tests {
         )
         .expect("seed existing config");
 
-        mcp_register(&dir, Some("mine".to_string())).expect("first register should succeed");
-        mcp_register(&dir, Some("mine".to_string())).expect("second register should succeed");
+        mcp_register(&dir, Some("mine".to_string()), None).expect("first register should succeed");
+        mcp_register(&dir, Some("mine".to_string()), None).expect("second register should succeed");
 
         let contents = fs::read_to_string(dir.join(".mcp.json")).expect("config should exist");
         let json: serde_json::Value = serde_json::from_str(&contents).expect("valid json");
@@ -1050,11 +1116,99 @@ mod tests {
         fs::remove_dir_all(&dir).ok();
     }
 
+    fn registered_args(dir: &Path, name: &str) -> Vec<String> {
+        let contents = fs::read_to_string(dir.join(".mcp.json")).expect("config should exist");
+        let json: serde_json::Value = serde_json::from_str(&contents).expect("valid json");
+        json["mcpServers"][name]["args"]
+            .as_array()
+            .expect("args array")
+            .iter()
+            .map(|v| v.as_str().expect("string arg").to_string())
+            .collect()
+    }
+
+    #[test]
+    fn parse_reindex_delay_accepts_and_normalises() {
+        for (raw, want) in [
+            ("15s", "15s"),
+            (" 1M ", "1m"),
+            ("45S", "45s"),
+            ("250ms", "250ms"),
+            ("90s", "90s"),
+            ("OFF", "off"),
+        ] {
+            assert_eq!(parse_reindex_delay(raw).as_deref(), Ok(want), "{raw}");
+        }
+    }
+
+    #[test]
+    fn parse_reindex_delay_rejects_invalid() {
+        for raw in [
+            "",
+            "0",
+            "0s",
+            "-5s",
+            "10",
+            "s",
+            "1h",
+            "abc",
+            "1.5s",
+            "99999999999999999999s",
+        ] {
+            assert!(parse_reindex_delay(raw).is_err(), "{raw}");
+        }
+    }
+
+    #[test]
+    fn mcp_register_writes_reindex_delay() {
+        let dir = temp_project_dir("delay-write");
+        mcp_register(&dir, Some("s".to_string()), Some("30S".to_string())).expect("register");
+        let args = registered_args(&dir, "s");
+        assert_eq!(&args[2..], ["--reindex-delay", "30s"]);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn mcp_register_preserves_and_replaces_reindex_delay() {
+        let dir = temp_project_dir("delay-persist");
+        let reg = |d: Option<&str>| {
+            mcp_register(&dir, Some("s".to_string()), d.map(str::to_string)).expect("register")
+        };
+        reg(Some("1m"));
+        reg(None);
+        assert_eq!(&registered_args(&dir, "s")[2..], ["--reindex-delay", "1m"]);
+        reg(Some("off"));
+        reg(None);
+        assert_eq!(&registered_args(&dir, "s")[2..], ["--reindex-delay", "off"]);
+        reg(Some("15s"));
+        let args = registered_args(&dir, "s");
+        assert_eq!(args.iter().filter(|a| *a == "--reindex-delay").count(), 1);
+        assert_eq!(&args[2..], ["--reindex-delay", "15s"]);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn mcp_register_invalid_delay_writes_nothing() {
+        let dir = temp_project_dir("delay-invalid");
+        let err = mcp_register(&dir, None, Some("0s".to_string()));
+        assert!(err.is_err());
+        assert!(!dir.join(".mcp.json").exists());
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn mcp_register_without_flag_has_no_delay_args() {
+        let dir = temp_project_dir("delay-none");
+        mcp_register(&dir, Some("s".to_string()), None).expect("register");
+        assert_eq!(registered_args(&dir, "s").len(), 2);
+        fs::remove_dir_all(&dir).ok();
+    }
+
     #[test]
     fn mcp_register_strips_windows_verbatim_path_prefix() {
         let dir = temp_project_dir("verbatim-path");
 
-        mcp_register(&dir, Some("my-server".to_string())).expect("register should succeed");
+        mcp_register(&dir, Some("my-server".to_string()), None).expect("register should succeed");
 
         let contents = fs::read_to_string(dir.join(".mcp.json")).expect("config should exist");
         assert!(
@@ -1321,7 +1475,7 @@ mod tests {
     fn mcp_register_defaults_name_to_root_directory_name() {
         let dir = temp_project_dir("default-name");
 
-        mcp_register(&dir, None).expect("register should succeed");
+        mcp_register(&dir, None, None).expect("register should succeed");
 
         let contents = fs::read_to_string(dir.join(".mcp.json")).expect("config should exist");
         let json: serde_json::Value = serde_json::from_str(&contents).expect("valid json");

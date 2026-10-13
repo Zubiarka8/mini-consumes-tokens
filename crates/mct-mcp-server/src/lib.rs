@@ -5,6 +5,7 @@ pub mod format;
 pub mod graph_render;
 pub mod intent;
 pub mod registry;
+pub mod reindex_delay;
 pub mod server;
 pub mod session_compat;
 pub mod toon;
