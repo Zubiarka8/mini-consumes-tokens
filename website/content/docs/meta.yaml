@@ -18,5 +18,6 @@ pages:
   - schema
   - security
   - limitations
+  - development
   - extending
   - libraries

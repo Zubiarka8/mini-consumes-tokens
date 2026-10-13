@@ -1,0 +1,40 @@
+---
+title: Development
+description: Where to start when you work on mini-consumes-tokens itself, and where the detailed guides live.
+---
+
+This page is the entry point for people changing the project's own code. It points to the detailed guides instead of repeating them.
+
+## Where things live
+
+| You want to change… | Look in |
+| --- | --- |
+| The symbol and relation model, the `LanguageParser` trait | `crates/mct-core` |
+| One language's parser | `crates/mct-lang-<name>` |
+| Indexing, the SQLite schema, queries | `crates/mct-index` ([Database schema](/docs/schema)) |
+| MCP tools, their descriptions and the query cache | `crates/mct-mcp-server` (`server.rs`, `tools.ttc`) |
+| The `mct-cli` commands | `crates/mct-cli` |
+| The search-quality gate | `crates/mct-eval` |
+
+For the full layout, see [Architecture](/docs/architecture).
+
+## Checks before a pull request
+
+`scripts/unix/check.sh` runs the whole suite in one go: formatting, the tests, the same clippy invocation CI uses, and the `mct-eval` quality gate. Pass `-p <crate>` to check a single crate.
+
+Changing the `LanguageParser` trait, the SQLite schema or an already-published MCP tool signature is a cross-cutting change: open an issue first. See `CONTRIBUTING.md`.
+
+## Adding a language
+
+Each language is one crate. The step-by-step guide is [Adding a language](/docs/extending); the checklist for the pull request (registration, tests, fuzz harness, docs) is the "Adding a new language" section of [`CONTRIBUTING.md`](https://github.com/Zubiarka8/mini-consumes-tokens/blob/main/CONTRIBUTING.md). `scripts/unix/new-language-check.sh <name>` lists whatever is still missing.
+
+## Adding a library
+
+There are two different things called "library support":
+
+- Teaching the index about the libraries your project uses (manifests, external calls, frameworks): see [Adding library support](/docs/libraries).
+- Adding a Rust dependency to this project: see [Adding a library to the project itself](/docs/libraries#adding-a-library-to-the-project-itself).
+
+## Adding an MCP tool
+
+Each tool needs a description block in `tools.ttc` and wiring in several places. `scripts/unix/new-tool-check.sh <tool>` lists every place that still misses it. The format is explained in the "Adding a new MCP tool" section of [`CONTRIBUTING.md`](https://github.com/Zubiarka8/mini-consumes-tokens/blob/main/CONTRIBUTING.md).
