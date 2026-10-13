@@ -278,10 +278,6 @@
   line-height: 1.8;
   color: #566151;
 }
-.comparison > .caption {
-  padding: 8px 0;
-  margin-bottom: 0;
-}
 .mechanism {
   background: var(--ink);
   color: var(--ivory);
@@ -466,6 +462,7 @@
   gap: 20px;
   list-style: none;
   min-height: 70px;
+  min-width: 44px;
   font-size: 16px;
   font-weight: 500;
   padding-block: 16px;
@@ -473,12 +470,9 @@
 .faq summary::-webkit-details-marker {
   display: none;
 }
-.faq summary span {
-  font-size: 23px;
+.faq summary svg {
+  flex: none;
   color: #537440;
-}
-.faq details[open] summary span {
-  transform: rotate(45deg);
 }
 .faq details p {
   font-size: 15px;
@@ -508,6 +502,7 @@
   min-height: 44px;
   display: inline-flex;
   align-items: center;
+  gap: 6px;
 }
 .skip-link {
   position: fixed;

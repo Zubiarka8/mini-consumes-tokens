@@ -25,8 +25,6 @@ export const shellEn = {
   beforeText: "Open files. Search names. Piece together relationships.",
   after: "A map of the code",
   afterText: "Locate a symbol. Follow its edges. Ask for focused context.",
-  comparisonNote:
-    "A conceptual comparison, not a token benchmark. Results depend on the repository and the query.",
   howLabel: "02 / THE MECHANISM",
   howTitle: "From source to understanding.",
   step1Title: "Index locally.",
@@ -68,7 +66,8 @@ export const shellEn = {
   docsLabel: "THE REFERENCE MANUAL",
   docsTitle: "A clear path from install to insight.",
   docsText:
-    "Installation, client setup, CLI commands, MCP tools, supported languages, architecture and troubleshooting. The existing reference manual is in English.",
+    "Installation, client setup, CLI commands, MCP tools, supported languages, architecture and troubleshooting.",
+  docsLanguageNote: "The existing reference manual is in English.",
   guide1: "Install & connect",
   guide2: "Query & explore",
   guide3: "Understand & extend",

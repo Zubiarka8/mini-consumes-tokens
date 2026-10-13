@@ -2,15 +2,16 @@
 import Link from "next/link";
 import {
   ArrowUpRight,
-  ArrowRight,
   Network,
   ScanLine,
   GitBranch,
   BookOpen,
 } from "lucide-react";
 import { MotionConfig, motion, useReducedMotion } from "motion/react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { localeKey } from "./locale";
+import { ArrowIcon, ChevronDown, ChevronUp } from "./arrow-icon";
 import { ContextDemo } from "./context-demo";
 import { Atlas } from "./atlas";
 import { CopyCommand, setupCommands } from "./copy-command";
@@ -27,6 +28,20 @@ function DocsLink({
       {children}
       <ArrowUpRight size={18} aria-hidden="true" />
     </Link>
+  );
+}
+function FaqItem({ index }: { index: number }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const Chevron = open ? ChevronUp : ChevronDown;
+  return (
+    <details onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary aria-expanded={open}>
+        {t(`faq${index}`)}
+        <Chevron size={22} />
+      </summary>
+      <p>{t(`answer${index}`)}</p>
+    </details>
   );
 }
 export function Landing() {
@@ -110,9 +125,9 @@ export function Landing() {
           <div className="principle-bar">
             <div className="shell">
               <span className="mono">tree-sitter</span>
-              <span aria-hidden>→</span>
+              <ArrowIcon size={16} />
               <span className="mono">SQLite</span>
-              <span aria-hidden>→</span>
+              <ArrowIcon size={16} />
               <span className="mono">MCP</span>
               <p>{t("mapNote")}</p>
             </div>
@@ -147,7 +162,6 @@ export function Landing() {
                   <p>{t("afterText")}</p>
                 </div>
               </motion.div>
-              <p className="caption">{t("comparisonNote")}</p>
             </div>
           </section>
           <section
@@ -163,7 +177,7 @@ export function Landing() {
                   <article key={step}>
                     <div className="step-head">
                       <span className="step-number mono">0{step}</span>
-                      <ArrowRight size={24} aria-hidden />
+                      <ArrowIcon size={24} />
                     </div>
                     <h3>{t(`step${step}Title`)}</h3>
                     <p>{t(`step${step}Text`)}</p>
@@ -249,13 +263,17 @@ export function Landing() {
                 MCT
                 <br />
                 {t("fieldGuide")}
-                <br />↗
+                <br />
+                <ArrowUpRight size={16} aria-hidden />
               </span>
             </div>
             <div>
               <p className="eyebrow">{t("docsLabel")}</p>
               <h2 id="docs-title">{t("docsTitle")}</h2>
-              <p className="body-copy">{t("docsText")}</p>
+              <p className="body-copy">
+                {t("docsText")}
+                {i18n.language === "es" && ` ${t("docsLanguageNote")}`}
+              </p>
               <DocsLink>{t("readDocs")}</DocsLink>
               <div className="guide-links">
                 <Link href="/docs/installation/">{t("guide1")}</Link>
@@ -271,13 +289,7 @@ export function Landing() {
             </div>
             <div>
               {[1, 2, 3, 4].map((i) => (
-                <details key={i}>
-                  <summary>
-                    {t(`faq${i}`)}
-                    <span aria-hidden="true">+</span>
-                  </summary>
-                  <p>{t(`answer${i}`)}</p>
-                </details>
+                <FaqItem key={i} index={i} />
               ))}
             </div>
           </section>
@@ -290,7 +302,10 @@ export function Landing() {
           <div>
             <a href={repository}>GitHub</a>
             <a href={`${repository}/blob/main/LICENSE`}>{t("license")}</a>
-            <a href="#top">{t("top")} ↑</a>
+            <a href="#top">
+              {t("top")}
+              <ArrowIcon size={14} style={{ transform: "rotate(-90deg)" }} />
+            </a>
           </div>
         </footer>
       </div>

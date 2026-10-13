@@ -29,8 +29,6 @@ export const shellEs: Record<keyof typeof shellEn, string> = {
   after: "Un mapa del código",
   afterText:
     "Localizar un símbolo. Seguir sus conexiones. Pedir contexto preciso.",
-  comparisonNote:
-    "Comparación conceptual, no una medición de tokens. Los resultados dependen del repositorio y de la consulta.",
   howLabel: "02 / EL MECANISMO",
   howTitle: "Del código a la comprensión.",
   step1Title: "Indexa en local.",
@@ -72,7 +70,8 @@ export const shellEs: Record<keyof typeof shellEn, string> = {
   docsLabel: "EL MANUAL DE REFERENCIA",
   docsTitle: "De la instalación a entender tu código.",
   docsText:
-    "Instalación, configuración de clientes, comandos CLI, herramientas MCP, lenguajes compatibles, arquitectura y resolución de problemas. El manual existente está en inglés.",
+    "Instalación, configuración de clientes, comandos CLI, herramientas MCP, lenguajes compatibles, arquitectura y resolución de problemas.",
+  docsLanguageNote: "El manual existente está en inglés.",
   guide1: "Instala y conecta",
   guide2: "Consulta y explora",
   guide3: "Comprende y amplía",
