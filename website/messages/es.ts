@@ -218,7 +218,7 @@ const es: Record<keyof typeof en, string> = {
   docsLabel: "EL MANUAL DE REFERENCIA",
   docsTitle: "De la instalación a entender tu código.",
   docsText:
-    "Instalación, configuración de clientes, comandos CLI, herramientas MCP, lenguajes compatibles, arquitectura y resolución de problemas. El manual existente está en inglés.",
+    "Instalación, configuración de clientes, comandos CLI, herramientas MCP, lenguajes compatibles, arquitectura y funcionamiento interno. El manual existente está en inglés.",
   guide1: "Instala y conecta",
   guide2: "Consulta y explora",
   guide3: "Comprende y amplía",
