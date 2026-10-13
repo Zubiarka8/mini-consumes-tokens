@@ -10,7 +10,7 @@ this checklist and finish with `scripts/unix/new-language-check.sh <name>`
 
 This is the extension point most contributions will touch, so it gets its own checklist:
 
-1. **New crate.** `crates/mct-lang-<name>`, depending on `mct-core` (path dependency) and `tree-sitter-<name>` at the full version you validated, e.g. `"0.25.1"` (caret, not `=`; `Cargo.lock` is the exact pin — see [ADR-004](docs/01-architecture/adrs/004-grammar-version-requirements.md)). Start from the shared base in [docs/06-templates/lang-crate-base.md](docs/06-templates/lang-crate-base.md) so every language gets the same layout.
+1. **New crate.** `crates/mct-lang-<name>`, depending on `mct-core` (path dependency), `mct-tree-sitter` (shared first-error/location helpers), `tree-sitter` and `tree-sitter-<name>` at the full version you validated, e.g. `"0.25.1"` (caret, not `=`; `Cargo.lock` is the exact pin — see [ADR-004](docs/01-architecture/adrs/004-grammar-version-requirements.md)). Start from the shared base in [docs/06-templates/lang-crate-base.md](docs/06-templates/lang-crate-base.md) so every language gets the same layout.
 2. **Implement `mct_core::LanguageParser`:**
    - `language_id()` — a stable lowercase identifier (`"go"`, `"kotlin"`), stored in the index's `language` column.
    - `file_extensions()` — extensions this parser owns, without the leading dot. Two parsers can never claim the same extension (`LanguageRegistry::register` panics on conflict — a startup-time configuration error, not something repo content can trigger).
@@ -143,7 +143,8 @@ If `cargo build` fails on Windows with a `link.exe`/`cl.exe`-not-found error, th
 
 `.github/workflows/ci.yml` has four jobs:
 
-- **`build-test`** — matrix over Linux/macOS/Windows: `cargo build --locked --workspace --all-targets`, `cargo test --locked --workspace`, `cargo clippy --locked --workspace --all-targets --all-features -- -D warnings`; `--locked` fails the job when `Cargo.lock` would need an update. Runs on every push/PR, on all three OS, no exceptions.
+- **`fmt`** — `cargo fmt --all --check` on one Linux run (rustfmt output does not depend on the OS).
+- **`build-test`** — matrix over Linux/macOS/Windows: `cargo build --locked --workspace --all-targets`, `cargo test --locked --workspace`, `cargo clippy --locked --workspace --all-targets --all-features -- -D warnings -D clippy::unwrap_used -D clippy::expect_used -D clippy::panic`; `--locked` fails the job when `Cargo.lock` would need an update. Runs on every push/PR, on all three OS, no exceptions.
 - **`cargo-audit`** — Linux only (one run is enough for a dependency audit). Two passes: a full report of every severity (informational, never fails the job — low/medium findings stay visible in the log), then a second pass with `severity_threshold = "high"` in a generated `.cargo/audit.toml`, whose exit code is what actually gates the job. Advisories with no CVSS score bypass the severity filter and always fail this step (fail-safe for unscored issues).
 - **`fuzz-smoke`** — matrix over `{ubuntu-latest, macos-latest} × {every crate listed in matrix.crate}` (every `mct-lang-*` crate plus `mct-index`; check the workflow file for the authoritative list rather than a count that goes stale), short (30s) `cargo-fuzz` campaigns confirming each harness builds and runs without crashing. **Deliberately excludes Windows** — see the long comment above that job in the workflow file for exactly why (an ASan runtime DLL PATH issue and a separate MSVC linker limitation with sancov instrumentation, both confirmed locally before this decision was made). The regular `build-test` job still covers Windows fully; only fuzzing is Linux/macOS-only.
 
