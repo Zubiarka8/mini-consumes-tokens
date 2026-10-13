@@ -1,14 +1,14 @@
 {
   "suite": "omni-app",
-  "catalog_tokens": 7698,
+  "catalog_tokens": 9643,
   "cases": {
     "Bash callers across sourced files": {
       "score": 1.0,
-      "tokens": 168
+      "tokens": 184
     },
     "C# method reference through a field": {
       "score": 1.0,
-      "tokens": 144
+      "tokens": 155
     },
     "C++ declaration and definition": {
       "score": 1.0,
@@ -16,15 +16,15 @@
     },
     "Go callees of a handler": {
       "score": 1.0,
-      "tokens": 190
+      "tokens": 217
     },
     "Kotlin references to a builder": {
       "score": 1.0,
-      "tokens": 144
+      "tokens": 153
     },
     "PHP callers of a function and a method": {
       "score": 1.0,
-      "tokens": 168
+      "tokens": 180
     },
     "PascalCase words": {
       "score": 1.0,
@@ -33,15 +33,23 @@
     },
     "Python callees, narrowed by language": {
       "score": 1.0,
-      "tokens": 177
+      "tokens": 195
     },
     "TypeScript callers across files": {
       "score": 1.0,
-      "tokens": 168
+      "tokens": 180
     },
     "batched lookups": {
       "score": 1.0,
-      "tokens": 240
+      "tokens": 243
+    },
+    "blast radius of a homonym scoped to one definition": {
+      "score": 1.0,
+      "tokens": 231
+    },
+    "callers of a homonym scoped to one definition": {
+      "score": 1.0,
+      "tokens": 164
     },
     "camelCase partial words": {
       "score": 1.0,
@@ -52,9 +60,13 @@
       "score": 1.0,
       "tokens": 314
     },
+    "context pack of a Rust caller lists only its real dependency": {
+      "score": 1.0,
+      "tokens": 220
+    },
     "cross-file Rust caller": {
       "score": 1.0,
-      "tokens": 147
+      "tokens": 156
     },
     "definition of a Go method": {
       "score": 1.0,
@@ -68,14 +80,19 @@
       "score": 1.0,
       "tokens": 152
     },
+    "deprecated search_symbols alias": {
+      "score": 1.0,
+      "reciprocal_rank": 1.0,
+      "tokens": 147
+    },
     "direct blast radius of a constructor": {
       "score": 1.0,
-      "tokens": 209
+      "tokens": 231
     },
     "exact-case name among many partial matches": {
       "score": 1.0,
       "reciprocal_rank": 0.5,
-      "tokens": 313
+      "tokens": 319
     },
     "file tree of a directory": {
       "score": 1.0,
@@ -92,7 +109,11 @@
     },
     "overview of a JVM directory": {
       "score": 1.0,
-      "tokens": 271
+      "tokens": 275
+    },
+    "references to a homonym scoped to one definition": {
+      "score": 1.0,
+      "tokens": 161
     },
     "skeleton of a Rust file": {
       "score": 1.0,
@@ -109,11 +130,11 @@
     },
     "two-hop blast radius": {
       "score": 1.0,
-      "tokens": 286
+      "tokens": 319
     },
     "unreferenced symbols": {
       "score": 1.0,
-      "tokens": 364
+      "tokens": 402
     }
   }
 }

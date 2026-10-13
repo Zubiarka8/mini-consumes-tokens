@@ -91,13 +91,16 @@ async fn the_full_catalogs_serialized_footprint_is_well_under_the_pre_ttc_size()
     // with `hybrid_search` (issue #61), then ~3334 bytes across 17 tools
     // with `batch` (issue #20), then ~3662 bytes across 18 tools with
     // `build_context_pack` (issue #27; `hybrid_search`'s exact-phrase wording
-    // had already taken the catalog to ~3470). 3900 is a regression guard with
-    // headroom for a couple more tools, not a precise assertion — bump it
+    // had already taken the catalog to ~3470). The `search_symbols_like` /
+    // `hybrid_search_like` rename kept the old names as two short deprecated
+    // aliases (+~250 bytes across 20 tools) and `find_references` gained its
+    // `sort` note; drop the aliases' bytes again when they are removed. 4200
+    // is a regression guard with headroom, not a precise assertion — bump it
     // (with a note here) rather than loosen it silently if a future tool
     // needs the room.
     assert!(
-        description_bytes < 3_900,
-        "tool catalog description bytes grew to {description_bytes}, expected well under 3900 \
+        description_bytes < 4_200,
+        "tool catalog description bytes grew to {description_bytes}, expected well under 4200 \
          (TTC's whole point is a compact catalog)"
     );
 }

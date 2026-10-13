@@ -138,6 +138,14 @@
     {
       "name": "snake_case words",
       "category": "search",
+      "tool": "search_symbols_like",
+      "args": { "query": "format alert" },
+      "expect": ["format_alert"],
+      "ranked": true
+    },
+    {
+      "name": "deprecated search_symbols alias",
+      "category": "search",
       "tool": "search_symbols",
       "args": { "query": "format alert" },
       "expect": ["format_alert"],
@@ -146,7 +154,7 @@
     {
       "name": "camelCase partial words",
       "category": "search",
-      "tool": "search_symbols",
+      "tool": "search_symbols_like",
       "args": { "query": "build repo" },
       "expect": ["buildRepository"],
       "ranked": true
@@ -154,7 +162,7 @@
     {
       "name": "PascalCase words",
       "category": "search",
-      "tool": "search_symbols",
+      "tool": "search_symbols_like",
       "args": { "query": "ledger view" },
       "expect": ["LedgerView"],
       "ranked": true
@@ -162,7 +170,7 @@
     {
       "name": "exact-case name among many partial matches",
       "category": "search",
-      "tool": "search_symbols",
+      "tool": "search_symbols_like",
       "args": { "query": "Ledger" },
       "expect": ["struct Ledger"],
       "ranked": true
@@ -170,7 +178,7 @@
     {
       "name": "hybrid lexical ranking",
       "category": "search",
-      "tool": "hybrid_search",
+      "tool": "hybrid_search_like",
       "args": { "query": "send alert", "alpha": 0.0 },
       "expect": ["send_alert"],
       "ranked": true

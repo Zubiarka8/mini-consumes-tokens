@@ -29,19 +29,29 @@ WHEN locate a symbol's definition; exact/prefix/fuzzy match, any language.
 ERR not for callers/references — use find_callers/find_references.
 TAGS lookup, definition, location, exact, prefix, fuzzy
 
-TOOL search_symbols
+TOOL search_symbols_like
 WHEN unsure of a name: words/partial ident in any case style, BM25-ranked, exact first.
 ERR not exhaustive (use find_symbol/list_symbols); not relations (use find_references).
 TAGS search, ranked, words, camelCase, snake_case, partial
 
-TOOL hybrid_search
-WHEN find code by meaning: search_symbols + embeddings, RRF-fused; alpha 0=lexical..1=semantic (auto if omitted); "quoted" query = exact phrase, lexical only, also lists string literals (error/log messages) holding it as path:line.
+TOOL hybrid_search_like
+WHEN find code by meaning: search_symbols_like + embeddings, RRF-fused; alpha 0=lexical..1=semantic (auto if omitted); "quoted" query = exact phrase, lexical only, also lists string literals (error/log messages) holding it as path:line.
 ERR no model -> lexical only (noted); not exhaustive.
 TAGS semantic, embeddings, hybrid
 
+TOOL search_symbols
+WHEN deprecated, use search_symbols_like (same behavior).
+ERR removed next version.
+TAGS deprecated, alias
+
+TOOL hybrid_search
+WHEN deprecated, use hybrid_search_like (same behavior).
+ERR removed next version.
+TAGS deprecated, alias
+
 TOOL find_references
-WHEN every reference to a symbol: calls, imports, extends/implements.
-ERR not just direct callers (use find_callers); not a definition lookup (use find_symbol).
+WHEN every reference to a symbol: calls, imports, extends/implements; sort=execution orders by hop, file, line.
+ERR sort=execution is a static approximation (index has no runtime order: branches/loops/callbacks not modelled); not just direct callers (use find_callers); not a definition lookup (use find_symbol).
 TAGS references, calls, imports, broad
 
 TOOL find_calls
