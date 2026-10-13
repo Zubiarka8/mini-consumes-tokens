@@ -4,8 +4,8 @@
 //! this crate is the entire integration surface for Python support.
 
 use mct_core::{
-    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
-    SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
+    LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
+    SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::{first_error, location};
 use tree_sitter::{Node, Parser};
@@ -55,7 +55,7 @@ impl LanguageParser for PythonParser {
         }
 
         let module_name = module_name_for(&file.relative_path);
-        let mut walker = Walker::new(&file.contents);
+        let mut walker = Walker::new(&file.contents, &file.relative_path);
         let mut module_location = location(root);
         // The root node of a file ending in a newline ends at column 0 of
         // the (empty) line after the last one; the file's last line is the
@@ -86,17 +86,22 @@ fn text<'a>(node: Node, source: &'a str) -> &'a str {
 
 struct Walker<'a> {
     source: &'a str,
+    /// This file's repository-relative path, the base of relative imports.
+    path: &'a str,
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
+    relation_targets: Vec<RelationTarget>,
     next_id: SymbolId,
 }
 
 impl<'a> Walker<'a> {
-    fn new(source: &'a str) -> Self {
+    fn new(source: &'a str, path: &'a str) -> Self {
         Self {
             source,
+            path,
             symbols: Vec::new(),
             relations: Vec::new(),
+            relation_targets: Vec::new(),
             next_id: 0,
         }
     }
@@ -212,13 +217,14 @@ impl<'a> Walker<'a> {
             "import_statement" => {
                 let mut cursor = node.walk();
                 for child in node.named_children(&mut cursor) {
-                    for (name, loc) in import_names(child, self.source) {
-                        self.push_relation(owner, RelationKind::Imports, name, loc);
-                    }
+                    self.visit_import_name(child, owner);
                 }
             }
             "import_from_statement" => {
                 let module_child_id = node.child_by_field_name("module_name").map(|n| n.id());
+                if let Some(module_node) = node.child_by_field_name("module_name") {
+                    self.visit_from_module(module_node, owner);
+                }
                 let mut cursor = node.walk();
                 for child in node.named_children(&mut cursor) {
                     if Some(child.id()) == module_child_id {
@@ -320,9 +326,114 @@ impl<'a> Walker<'a> {
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
+            relation_targets: self.relation_targets,
             ..Default::default()
         }
     }
+
+    /// An `Imports` relation to the `Module` symbol of an imported module
+    /// file, with the evidence the import statement proves about it.
+    fn push_module_import(
+        &mut self,
+        owner: SymbolId,
+        name: String,
+        loc: Location,
+        module: Option<String>,
+    ) {
+        if name.is_empty() {
+            return;
+        }
+        let relation = self.relations.len();
+        self.push_relation(owner, RelationKind::Imports, name, loc);
+        self.relation_targets.push(RelationTarget {
+            relation,
+            module,
+            kind: Some(SymbolKind::Module),
+            ..Default::default()
+        });
+    }
+
+    /// `import a.b.c [as x]`: the module `c`, which must live under `b`.
+    /// The alias, when present, is still recorded as the local name.
+    fn visit_import_name(&mut self, child: Node, owner: SymbolId) {
+        let dotted = match child.kind() {
+            "dotted_name" => Some(child),
+            "aliased_import" => child
+                .child_by_field_name("name")
+                .filter(|n| n.kind() == "dotted_name"),
+            _ => None,
+        };
+        let aliased = child.kind() == "aliased_import";
+        if !aliased {
+            // Unaliased: the module itself is the local name.
+            if let Some(dotted) = dotted {
+                let (name, module, loc) = dotted_parts(dotted, self.source);
+                self.push_module_import(owner, name, loc, module);
+            }
+            return;
+        }
+        for (name, loc) in import_names(child, self.source) {
+            self.push_relation(owner, RelationKind::Imports, name, loc);
+        }
+        if let Some(dotted) = dotted {
+            let (name, module, loc) = dotted_parts(dotted, self.source);
+            self.push_module_import(owner, name, loc, module);
+        }
+    }
+
+    /// `from [.]a.b import …`: the module `b`, which must live under `a`
+    /// (or, for `from .b`, under this file's package directory).
+    fn visit_from_module(&mut self, module_node: Node, owner: SymbolId) {
+        match module_node.kind() {
+            "dotted_name" => {
+                let (name, module, loc) = dotted_parts(module_node, self.source);
+                self.push_module_import(owner, name, loc, module);
+            }
+            "relative_import" => {
+                let mut cursor = module_node.walk();
+                let mut dots = 0usize;
+                let mut dotted = None;
+                for part in module_node.named_children(&mut cursor) {
+                    match part.kind() {
+                        "import_prefix" => dots = text(part, self.source).matches('.').count(),
+                        "dotted_name" => dotted = Some(part),
+                        _ => {}
+                    }
+                }
+                // `from . import x` names no module file of its own.
+                let Some(dotted) = dotted else { return };
+                let (name, module, loc) = dotted_parts(dotted, self.source);
+                let module = module.or_else(|| relative_package(self.path, dots));
+                self.push_module_import(owner, name, loc, module);
+            }
+            _ => {}
+        }
+    }
+}
+
+/// `a.b.c` -> (`c`, `Some("b")`, location of `c`).
+fn dotted_parts(dotted: Node, source: &str) -> (String, Option<String>, Location) {
+    let count = dotted.named_child_count();
+    let Some(last) = count.checked_sub(1).and_then(|i| dotted.named_child(i)) else {
+        return (String::new(), None, location(dotted));
+    };
+    let previous = count
+        .checked_sub(2)
+        .and_then(|i| dotted.named_child(i))
+        .map(|n| text(n, source).to_string());
+    (text(last, source).to_string(), previous, location(last))
+}
+
+/// The directory name `dots` leading dots reach from `path`'s package: one
+/// dot is the file's own directory, each further dot climbs one level.
+/// `None` at the repository root, where no directory name proves anything.
+fn relative_package(path: &str, dots: usize) -> Option<String> {
+    let mut dirs: Vec<&str> = path.split('/').collect();
+    dirs.pop();
+    let keep = dirs.len().checked_sub(dots.saturating_sub(1))?;
+    dirs.get(keep.checked_sub(1)?)
+        .filter(|d| !d.is_empty())
+        .map(|d| d.to_string())
 }
 
 /// The first `identifier` at or under `node` in document order — the alias

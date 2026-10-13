@@ -5,8 +5,8 @@
 //! `permits` list is no relation (it names subtypes, not supertypes).
 
 use mct_core::{
-    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
-    SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
+    LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
+    SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::{first_error, location};
 use tree_sitter::{Node, Parser};
@@ -90,6 +90,7 @@ struct Walker<'a> {
     source: &'a str,
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
+    relation_targets: Vec<RelationTarget>,
     next_id: SymbolId,
 }
 
@@ -99,6 +100,7 @@ impl<'a> Walker<'a> {
             source,
             symbols: Vec::new(),
             relations: Vec::new(),
+            relation_targets: Vec::new(),
             next_id: 0,
         }
     }
@@ -260,6 +262,7 @@ impl<'a> Walker<'a> {
             }
             "import_declaration" => {
                 if let Some(path) = node.named_child(0) {
+                    self.push_type_import(owner, text(path, self.source), location(node));
                     if let Some(last) = last_identifier(path) {
                         self.push_relation(
                             owner,
@@ -314,8 +317,37 @@ impl<'a> Walker<'a> {
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
+            relation_targets: self.relation_targets,
             ..Default::default()
         }
+    }
+
+    /// `import a.b.Type;` / `import static a.b.Type.member;` depend on the
+    /// file declaring `Type` (a public Java type lives in `Type.java`): an
+    /// `Imports` relation to that file's `Module` symbol, scoped to a path
+    /// under the package segment `b`. A JDK package is external. A package
+    /// wildcard names a directory, not a file, and records nothing.
+    fn push_type_import(&mut self, owner: SymbolId, path: &str, loc: Location) {
+        let segments: Vec<&str> = path.split('.').map(str::trim).collect();
+        let Some(at) = segments
+            .iter()
+            .position(|s| s.starts_with(|c: char| c.is_ascii_uppercase()))
+        else {
+            return;
+        };
+        let external = matches!(segments.first(), Some(&"java" | &"javax"));
+        let relation = self.relations.len();
+        self.push_relation(owner, RelationKind::Imports, segments[at].to_string(), loc);
+        self.relation_targets.push(RelationTarget {
+            relation,
+            module: at
+                .checked_sub(1)
+                .map(|i| segments[i].to_string())
+                .filter(|m| !m.is_empty()),
+            kind: Some(SymbolKind::Module),
+            external,
+            ..Default::default()
+        });
     }
 }
 
