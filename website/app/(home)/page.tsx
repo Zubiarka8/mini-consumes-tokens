@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { LandingLocale } from "@/components/landing/locale";
 import { Landing } from "@/components/landing/landing";
-import "./landing.css";
+import "./landing-shell.css";
+import "./landing-context.css";
+import "./landing-atlas.css";
 
 const title = "mini-consumes-tokens — A code atlas for your AI agent";
 const description =

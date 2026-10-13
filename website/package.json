@@ -10,7 +10,7 @@
     "preview": "node scripts/preview.mjs",
     "test:resources": "node scripts/check-resources.mjs",
     "test:browser": "playwright test",
-    "format:check": "prettier --check \"components/landing/**/*.{ts,tsx}\" \"messages/*.ts\" \"app/(home)/page.tsx\" \"app/(home)/layout.tsx\" \"app/(home)/landing.css\" \"scripts/*.mjs\" \"tests/*.ts\" playwright.config.ts",
+    "format:check": "prettier --check \"components/landing/**/*.{ts,tsx}\" \"messages/**/*.ts\" \"app/(home)/page.tsx\" \"app/(home)/layout.tsx\" \"app/(home)/landing-shell.css\" \"app/(home)/landing-context.css\" \"app/(home)/landing-atlas.css\" \"scripts/*.mjs\" \"tests/*.ts\" playwright.config.ts",
     "test:export": "node scripts/check-export.mjs"
   },
   "dependencies": {

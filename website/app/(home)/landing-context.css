@@ -1,0 +1,200 @@
+/* Query-driven source selection in the hero. */
+.context-demo {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #143e48;
+  color: #f7faf8;
+  box-shadow: 8px 8px 0 #dce1d5;
+}
+.demo-intro {
+  padding: 24px;
+}
+.demo-badge {
+  display: inline-block;
+  padding: 4px 9px;
+  border-radius: 3px;
+  background: #e7f3b0;
+  color: #143e48;
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 18px;
+}
+.landing .demo-intro h2 {
+  font-size: clamp(24px, 2.5vw, 32px);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  margin-bottom: 12px;
+}
+.demo-intro p {
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+.demo-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.demo-controls button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 12px;
+  background: transparent;
+  color: #f7faf8;
+  border: 1px solid #b7d0d4;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.demo-controls button[aria-pressed="true"] {
+  color: #143e48;
+  background: #f7faf8;
+}
+.demo-controls button:hover {
+  border-color: #e7f3b0;
+}
+.context-demo :focus-visible {
+  outline-color: #e7f3b0;
+  outline-offset: -3px;
+}
+.demo-filebar {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 24px;
+  background: #1a4b56;
+  font-size: 11px;
+  font-weight: 600;
+}
+.demo-editor {
+  display: flex;
+  padding-block: 14px;
+}
+.demo-code {
+  flex: 1;
+  min-width: 0;
+  height: 260px;
+  overflow: auto;
+  scrollbar-color: #75969c #143e48;
+}
+.demo-code pre {
+  margin: 0;
+  width: max-content;
+  min-width: 100%;
+}
+.demo-code code {
+  font:
+    11px/20px "SFMono-Regular",
+    Consolas,
+    "Liberation Mono",
+    monospace;
+}
+.demo-line {
+  display: block;
+  height: 20px;
+  padding-right: 16px;
+}
+.demo-line-number {
+  display: inline-block;
+  width: 42px;
+  padding-left: 14px;
+  color: #adc8cd;
+  user-select: none;
+}
+.demo-line.is-relevant {
+  background: #e7f3b0;
+  color: #143e48;
+  box-shadow: inset 3px 0 #fafde9;
+}
+.demo-line.is-relevant .demo-line-number {
+  color: #41646b;
+}
+.demo-minimap {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 27px;
+  height: 260px;
+  padding: 0 7px;
+  flex-shrink: 0;
+}
+.demo-minimap span {
+  height: 3px;
+  background: #709299;
+  border-radius: 1px;
+}
+.demo-minimap .is-relevant {
+  background: #e7f3b0;
+}
+.demo-minimap .is-omitted {
+  opacity: 0.15;
+}
+.demo-summary {
+  padding: 16px 24px 12px;
+  border-top: 1px solid #41646b;
+}
+.demo-count {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.demo-count strong {
+  font-size: 30px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -0.05em;
+}
+.demo-count strong:nth-of-type(2) {
+  color: #e7f3b0;
+}
+.demo-count > span {
+  color: #c0d5d8;
+  font-size: 12px;
+}
+.demo-summary p {
+  font-size: 12px;
+  line-height: 1.7;
+  min-height: 41px;
+  margin-bottom: 0;
+}
+.demo-disclaimer {
+  border-top: 1px solid #41646b;
+  padding: 14px 24px;
+  margin-bottom: 0;
+  color: #c0d5d8;
+  font-size: 10px;
+  line-height: 1.7;
+}
+@media (max-width: 960px) {
+  .context-demo {
+    width: 100%;
+    max-width: 600px;
+    margin-inline: auto;
+  }
+}
+@media (max-width: 767px) {
+  .demo-intro {
+    padding: 20px;
+  }
+  .demo-filebar,
+  .demo-summary,
+  .demo-disclaimer {
+    padding-inline: 20px;
+  }
+  .demo-code code {
+    font-size: 10px;
+  }
+  .demo-line-number {
+    width: 32px;
+    padding-left: 10px;
+  }
+  .demo-controls button {
+    font-size: 11px;
+    padding-inline: 10px;
+  }
+}

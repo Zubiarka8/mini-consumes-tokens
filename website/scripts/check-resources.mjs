@@ -1,15 +1,24 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
+import { dirname, resolve } from "node:path";
 import vm from "node:vm";
 import { createInstance } from "i18next";
 function resource(path) {
-  const source = readFileSync(path, "utf8");
-  const output = stripTypeScriptTypes(source).replace(
-    /export default (en|es);/,
-    "$1;",
+  const dir = dirname(path);
+  const strip = (file) => stripTypeScriptTypes(readFileSync(file, "utf8"));
+  const parts = [];
+  const main = strip(path);
+  for (const [, from] of main.matchAll(/import \{[^}]*\} from "([^"]+)";/g))
+    parts.push(
+      strip(resolve(dir, from + ".ts"))
+        .replace(/^import .*$/gm, "")
+        .replace(/export const/g, "const"),
+    );
+  parts.push(
+    main.replace(/^import .*$/gm, "").replace(/export default (en|es);/, "$1;"),
   );
-  return vm.runInNewContext(output);
+  return vm.runInNewContext(parts.join("\n"));
 }
 const en = resource("messages/en.ts");
 const es = resource("messages/es.ts");
