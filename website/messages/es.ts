@@ -65,7 +65,7 @@ const es: Record<keyof typeof en, string> = {
   purpose5:
     "Lee de la base los archivos y símbolos por lenguaje, los fallos y las dependencias de manifiestos, y los devuelve como un IndexStatus.",
   tourHowText:
-    "Tree-sitter lee cada archivo compatible y extrae los símbolos y sus relaciones. Una base SQLite guarda ese grafo dentro de tu proyecto, y la indexación se ejecuta en tu equipo. El servidor MCP responde con esa base a las llamadas a herramientas del asistente. Mientras está activo, reindexa en segundo plano los archivos modificados cuando las ediciones llevan 1,5 segundos en pausa.",
+    "Tree-sitter lee cada archivo compatible y extrae los símbolos y sus relaciones. Una base SQLite guarda ese grafo dentro de tu proyecto, y la indexación se ejecuta en tu equipo. El servidor MCP responde con esa base a las llamadas a herramientas del asistente. Mientras está activo, reindexa en segundo plano los archivos modificados cuando las ediciones llevan 15 segundos en pausa.",
   tourOrientText:
     "Empieza aquí cuando aún no conoces ningún nombre. Estas herramientas describen la estructura y el contenido de un proyecto sin abrir archivos completos.",
   tourLookupText:

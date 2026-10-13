@@ -63,7 +63,7 @@ const en = {
   purpose5:
     "Reads files and symbols per language, failures and manifest dependencies from the database and returns them as an IndexStatus.",
   tourHowText:
-    "Tree-sitter reads each supported file and extracts symbols and the relations between them. A SQLite database keeps that graph inside your project, and indexing runs on your machine. The MCP server answers your assistant's tool calls from that database. While it runs, it reindexes changed files in the background once edits have been quiet for 1.5 seconds.",
+    "Tree-sitter reads each supported file and extracts symbols and the relations between them. A SQLite database keeps that graph inside your project, and indexing runs on your machine. The MCP server answers your assistant's tool calls from that database. While it runs, it reindexes changed files in the background once edits have been quiet for 15 seconds.",
   tourOrientText:
     "Start here when you don't know any names yet. These tools describe the layout and contents of a project without opening whole files.",
   tourLookupText:
