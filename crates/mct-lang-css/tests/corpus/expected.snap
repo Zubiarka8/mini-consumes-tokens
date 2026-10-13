@@ -1,4 +1,4 @@
-# language=css files=12 symbols=931 relations=17 name_matched_across_files=0
+# language=css files=12 symbols=933 relations=32 name_matched_across_files=15
 
 == app.css (361 lines)
 S 1-361 module app
@@ -180,10 +180,15 @@ S 357-360 rule .dashboard .app-header
 S 357-357 rule .dashboard
 S 357-357 rule .app-header
 R 8:1 imports app -> styles/tokens.css
+R 8:1 imports app -> tokens (name-matched: styles/tokens.css)
 R 9:1 imports app -> styles/base.css
+R 9:1 imports app -> base (name-matched: styles/base.css)
 R 10:1 imports app -> styles/layout.css
+R 10:1 imports app -> layout (name-matched: styles/layout.css)
 R 11:1 imports app -> styles/components/controls.css
+R 11:1 imports app -> controls (name-matched: styles/components/controls.css)
 R 12:1 imports app -> styles/components/surfaces.css
+R 12:1 imports app -> surfaces (name-matched: styles/components/surfaces.css)
 
 == bootstrap-shop/catalog.css (206 lines)
 S 1-206 module catalog
@@ -425,8 +430,11 @@ S 137-140 rule .promo-bar
 S 138-140 rule .shop-footer
 R 19:1 imports shop -> https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css
 R 20:1 imports shop -> theme.css
+R 20:1 imports shop -> theme (name-matched: bootstrap-shop/theme.css)
 R 21:1 imports shop -> catalog.css
+R 21:1 imports shop -> catalog (name-matched: bootstrap-shop/catalog.css)
 R 22:1 imports shop -> checkout.css
+R 22:1 imports shop -> checkout (name-matched: bootstrap-shop/checkout.css)
 
 == bootstrap-shop/theme.css (82 lines)
 S 1-82 module theme
@@ -434,7 +442,9 @@ S 10-29 rule :root
 S 11-29 rule [data-bs-theme="light"]
 S 31-36 rule [data-bs-theme="dark"]
 S 40-60 rule [data-bs-theme="harbor-night"]
+S 51-54 rule [data-bs-theme="harbor-night"] .dropdown-menu
 S 51-54 rule .dropdown-menu
+S 56-59 rule [data-bs-theme="harbor-night"] .btn-brand
 S 56-59 rule .btn-brand
 S 64-67 rule .text-bg-sale
 S 69-72 rule .link-brand
@@ -569,6 +579,7 @@ S 365-365 rule a[href]
 S 369-372 rule .skip-link
 S 370-372 rule .no-print
 R 7:1 imports base -> tokens.css
+R 7:1 imports base -> tokens (name-matched: styles/tokens.css)
 
 == styles/components/controls.css (359 lines)
 S 1-359 module controls
@@ -702,7 +713,9 @@ S 356-356 rule .field
 S 356-356 rule .field:has(.input:focus)
 S 356-356 rule .field__label
 R 7:1 imports controls -> ../tokens.css
+R 7:1 imports controls -> tokens (name-matched: styles/tokens.css)
 R 8:1 imports controls -> ../base.css
+R 8:1 imports controls -> base (name-matched: styles/base.css)
 
 == styles/components/surfaces.css (377 lines)
 S 1-377 module surfaces
@@ -785,7 +798,9 @@ S 372-376 rule .skeleton
 S 373-376 rule .spinner
 S 374-376 rule .progress
 R 7:1 imports surfaces -> ../tokens.css
+R 7:1 imports surfaces -> tokens (name-matched: styles/tokens.css)
 R 8:1 imports surfaces -> ./controls.css
+R 8:1 imports surfaces -> controls (name-matched: styles/components/controls.css)
 
 == styles/layout.css (371 lines)
 S 1-371 module layout
@@ -881,7 +896,9 @@ S 355-358 rule .container
 S 362-364 rule .hide-on-mobile
 S 368-370 rule .hide-on-tablet
 R 10:1 imports layout -> tokens.css
+R 10:1 imports layout -> tokens (name-matched: styles/tokens.css)
 R 11:1 imports layout -> base.css
+R 11:1 imports layout -> base (name-matched: styles/base.css)
 
 == styles/tokens.css (353 lines)
 S 1-353 module tokens
@@ -950,24 +967,24 @@ S 159-159 rule button
 S 160-162 rule [role="button"]:not(:disabled)
 S 160-160 rule [role="button"]
 S 166-183 rule .hb-card
-S 170-172 rule &:hover
-S 174-177 rule & > .hb-card__title
+S 170-172 rule .hb-card:hover
+S 174-177 rule .hb-card > .hb-card__title
 S 174-174 rule .hb-card__title
 S 185-206 rule .hb-button
-S 190-192 rule &:hover
-S 194-197 rule &:focus-visible
+S 190-192 rule .hb-button:hover
+S 194-197 rule .hb-button:focus-visible
 S 208-219 rule .hb-input
-S 212-214 rule &::placeholder
-S 216-218 rule &[aria-invalid="true"]
+S 212-214 rule .hb-input::placeholder
+S 216-218 rule .hb-input[aria-invalid="true"]
 S 221-236 rule .hb-nav
-S 225-231 rule & a
+S 225-231 rule .hb-nav a
 S 225-225 rule a
-S 228-230 rule &:hover
+S 228-230 rule :is(.hb-nav a):hover
 S 243-254 rule .prose-harbor
 S 256-268 rule .hero
-S 265-267 rule &:hover
+S 265-267 rule .hero:hover
 S 270-273 rule .hero__title
 S 275-287 rule .pricing-table
-S 283-286 rule & .pricing-table__plan[data-featured]
+S 283-286 rule .pricing-table .pricing-table__plan[data-featured]
 S 283-283 rule .pricing-table__plan
 R 25:1 imports main -> tailwindcss

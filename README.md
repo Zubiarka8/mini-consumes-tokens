@@ -21,14 +21,17 @@ A few things that make this different from a typical single-purpose plugin:
 - **It understands 17 programming and markup languages at once**, including projects that mix several languages together.
 - **It isn't tied to one editor or assistant.** It speaks a common protocol called **MCP** (Model Context Protocol) — think of it as a shared language that lets an AI assistant ask a tool for information directly, the same way different apps on your phone can all talk to the same calendar. Any MCP-capable assistant can connect to it.
 - **It also works as a plain command-line tool**, for anyone who just wants to check the health of the index or rebuild it by hand, with no AI assistant involved at all.
-- **18 MCP tools, grouped by purpose** (discovery, lookup, relations, maintenance, meta) — from a single symbol lookup, a ranked search by partial name or an optional search by meaning, to a one-shot "what would this change affect" blast-radius report, a one-call context pack for the symbol you're about to work on, plus a project-wide overview and a plain directory tree for getting oriented before you know which file you need.
+- **21 MCP tools, grouped by purpose** (`select_tools` only with `MCT_TOOL_ATTENTION=1`) (discovery, lookup, relations, maintenance, meta) — from a single symbol lookup, a ranked search by partial name or an optional search by meaning, to a one-shot "what would this change affect" blast-radius report, a one-call context pack for the symbol you're about to work on, a module-level dependency graph (who imports whom, cycles, Mermaid/DOT export), plus a project-wide overview and a plain directory tree for getting oriented before you know which file you need.
 - **Progressive tool discovery**: an MCP client can ask for a cheap one-line-per-tool catalog first (`discover_tool_categories`) and fetch a tool's full input schema only when it actually needs it (`get_tool_schema`), instead of always loading every schema up front.
+- **Tool Attention (opt-in, `MCT_TOOL_ATTENTION=1`)**: `tools/list` starts with `select_tools` alone (~98% fewer catalog tokens). The client calls it with the user's request; the server narrows `tools/list` to the tools that request needs and sends `tools/list_changed`. An unclear request keeps the full list, and every tool stays callable by name. Figures in [`benchmarks/intent-selection.md`](benchmarks/intent-selection.md#tool-attention-issue-11).
 - **Multi-hop relation queries**: `find_references`, `find_calls`, `find_callers`, and `impact_analysis` can walk multiple hops through the call/reference graph in one call (`depth`) and page through large result sets (`offset`), instead of chaining single-hop calls by hand.
 - **Batched queries**: `batch` runs up to 25 read-only queries (any tool except `reindex`) in one call, each answered under its own `[n] tool` header, dropping the per-call overhead — about 37–42% fewer tokens than the same queries sent one by one on the test fixtures. The tool catalog is also kept byte-identical across server starts, so the client's provider prompt caching can reuse it.
 - **Context packs**: `build_context_pack` returns everything needed to work on one symbol in a single call — its definition with doc comment and (capped) source, then every caller, callee, dependency and related test listed once with its one-line signature — instead of chaining four lookups and reading every file they point at. About 85% fewer tokens than that manual route on the test fixture.
-- **Compact `toon` output format**: any result-returning tool can render its output as a token-lean table instead of the default labelled text, opt-in per call.
+- **Compact `toon` output format (default)**: the eleven tools with a `format` argument (`list_symbols`, `find_symbol`, `search_symbols`, `hybrid_search`, `find_references`, `find_calls`, `find_callers`, `impact_analysis`, `find_dead_code`, `build_context_pack`, `get_dependency_graph`) answer with a token-lean TOON table unless the call passes `"format":"text"` for the previous labelled text.
 
 **Supported languages:** Rust, Python, Java, C#, Kotlin, JavaScript/TypeScript, C++, Go, Lua, HTML, CSS, XML, XAML, Bash, PowerShell, PHP, and Markdown (headings plus [[WikiLink]]/#tag relations).
+
+For declared dependencies, framework coverage and where each responsibility is implemented, see [Library and framework support](docs/01-architecture/library-support.md).
 
 ### See it in action
 
@@ -87,6 +90,25 @@ mct-cli --root . mcp-register --name mini-consumes-tokens
 mct-cli --root . status
 ```
 
+**Optional — query the index straight from the terminal, no assistant needed.** `mct-cli call` runs one MCP tool once and prints the result (it brings the index up to date first, like the server does at startup):
+
+```sh
+mct-cli --root . call --tool get_indexing_status
+mct-cli --root . call --tool list_symbols --args '{"path":"src/main.rs"}'
+mct-cli --root . call --tool find_symbol --args-file query.json    # arguments from a file
+echo '{"symbol":"main"}' | mct-cli --root . call --tool build_context_pack --args -   # or stdin
+mct-cli --root . call --tool get_indexing_status --json            # raw MCP result as JSON
+```
+
+`--tool` is any tool name the server lists (`mct-cli call --help` has them); `--args` is one JSON object (default `{}`); `--timeout <seconds>` gives up on a root that takes too long. It exits non-zero, with a message on stderr, for an unknown tool, invalid JSON, a missing root or a tool error.
+
+**Several projects or worktrees at once** (for example, comparing two branches): `init` and `call` take `--roots a,b` or a repeated `--root a --root b`. Each root is handled independently and its output is labelled `== <root> ==`; a failure on one root is reported, the others still run, and the exit status is non-zero.
+
+```sh
+mct-cli --roots ../main-checkout,../my-branch init            # index both; unchanged roots are not re-parsed (add --force to re-parse)
+mct-cli --roots ../main-checkout,../my-branch call --tool find_symbol --args '{"name":"main"}'
+```
+
 **Last step:** restart or reconnect your AI assistant (tool-specific steps in § 4.3 — some need a manual restart to pick up the new MCP connection), then just ask it something like *"where is `InvoiceService` defined?"*. If it keeps grepping/reading whole files instead of using the index, paste the [prompt in § 3](#3-prompt-for-your-ai-assistant-copy-paste) into its instructions.
 
 Hit an error along the way? Jump straight to [§ 9 Troubleshooting](#9-troubleshooting-common-problems).
@@ -117,10 +139,12 @@ Once it's connected and healthy, prefer it over grep/reading whole files:
 - "Where is X defined?" -> find_symbol
 - "Something like `parse request`, exact name unknown?" -> search_symbols
 - "Code that does X, no idea what it's called?" -> hybrid_search
+- "Only the meaning, with a similarity score per hit?" -> semantic_search
 - "Who calls X?" -> find_callers
 - "What does X call?" -> find_calls
 - "Every reference to X" -> find_references
 - "What would break if I changed/removed X?" -> impact_analysis
+- "Which files/modules does this module depend on, and is there an import cycle?" -> get_dependency_graph
 - About to work on X, want its code + callers/callees/tests in one go -> build_context_pack
 - Exploring a file/folder before knowing a name -> list_symbols,
   get_file_skeleton, get_project_overview, get_file_tree
@@ -203,6 +227,25 @@ mct-cli update      # or -u / --update: installs the latest release in place
 
 **Optional — search by meaning (`hybrid_search`):** install the server with `cargo install --locked --path crates/mct-mcp-server --features semantic` instead. The build downloads a prebuilt ONNX Runtime library, so it needs network access and a platform ONNX Runtime ships binaries for. That adds a small local embedding model (`bge-small-en-v1.5`, ~130 MB, downloaded once on the first `hybrid_search` call into `.mct-index/models`, or `$FASTEMBED_CACHE_DIR` if set; `MCT_EMBEDDING_MODEL=all-MiniLM-L6-v2` picks a smaller, faster one) so your assistant can find code from a description (*"load the settings from disk"*) even when no word of it is in the function's name. Without the feature, `hybrid_search` still works, but only matches by name, and says so. Each symbol is embedded together with its signature, doc comment and the functions it calls. Tuning: `alpha` 0 = match by name only, 1 = match by meaning only, fused with Reciprocal Rank Fusion. Leave it out and it is picked from the query's shape: 0.1 for an identifier (`parse_request`, `HttpServer`, `Index::open`), 0.75 for a plain description, 0.5 otherwise. Wrap the query in double quotes (`"parse request"`) for an exact phrase: name matching only, those words in that order, the literal name first. An exact phrase also finds it inside string literals such as error and log messages (`"database connection failed"` → `src/db.rs:3 in function connect "database connection failed"`), ignoring case and accents. Literals are indexed for Rust string literals and for Markdown paragraphs and pipe-table rows only (at least eight characters and two words, first 256 characters of each, up to 500 per file; suspected secrets are skipped). Exact-phrase search needs no `semantic` build.
 
+**Meaning only, with scores (`semantic_search`):** the same model and stored vectors as `hybrid_search`, with no name matching at all: the `top_k` (default 10, max 100) symbols closest to the query by cosine similarity, each with its signature and score; `path`/`language` narrow it. It needs the `semantic` build (without it, it says so and points to `search_symbols`/`hybrid_search`). Vectors are refreshed incrementally — only symbols added or changed since the last reindex are embedded on the next call. To re-embed everything (after changing `MCT_EMBEDDING_MODEL`, or if the vectors look stale), run `mct-mcp-server --root . --rebuild-embeddings`: it reindexes, drops every stored vector, re-embeds all symbols and exits.
+
+Real output on the generated ~10K-symbol project of the ignored `real_model_finds_validate_token_among_10k_symbols` test in `crates/mct-mcp-server/tests/semantic_search.rs` (first three hits of ten; `validate_token` was 8th, and the best of the 400 generated `*_token` distractors, `validate_admin_token`, 37th):
+
+```text
+semantic_search { "query": "validate user authentication", "top_k": 10 }
+
+semantic: 10425/10425 symbols embedded (fastembed/bge-small-en-v1.5)
+10 match(es) for `validate user authentication`, most similar first:
+src/auth.rs:L17-L19 [rust] function authenticate_user  similarity 0.748
+    pub fn authenticate_user(name: &str, password: &str) -> bool
+src/search.rs:L1-L3 [rust] function validate_search_user  similarity 0.738
+    pub fn validate_search_user(input: &str) -> usize
+src/profile.rs:L1-L3 [rust] function validate_profile_user  similarity 0.737
+    pub fn validate_profile_user(input: &str) -> usize
+```
+
+Measured by that test (release build, Apple M4, in-memory index, warm model, 30 runs, median / p95, range over five runs): query embedding 7–20 / 9–90 ms, similarity scan of 10,425 vectors plus signatures 11–25 / 14–42 ms, whole warm tool call 24–49 / 39–83 ms. Not included: loading the model (~5 s, first call only) and embedding every symbol the first time (105–218 s for 10K symbols; later calls embed only what changed).
+
 **Repository input limits:** indexing, source tools, and CLI probes read regular files up to 16 MiB by default. Set `MCT_MAX_FILE_BYTES` to a positive byte count to change that limit. Oversized source files and manifests are reported as read failures; any last-good indexed data is retained and marked as possibly stale. Ignore-file read/compile failures are reported on stderr, and built-in exclusions remain active when custom glob patterns cannot compile.
 
 **Relation pagination:** direct queries report an exact total while fetching only the requested rows. Multihop queries fetch one extra relation to detect continuation; when more results exist, they report a lower bound and say that the total has not been computed. `impact_analysis` filters and deduplicates affected tests by symbol identity before applying their independent pagination window.
@@ -235,6 +278,8 @@ All of these launch the same program (`mct-mcp-server`) — only the configurati
 ```sh
 mct-cli --root . mcp-register --name mini-consumes-tokens
 ```
+
+To make the server update the index only after a quiet period without file changes (for example 30 seconds), add `--reindex-delay 30s` to `mcp-register` (or to the server's `args`); `off` disables automatic updates. Details and examples: [COMMANDS.md](COMMANDS.md#--reindex-delay-value).
 
 **Claude Code** has built-in, first-class support. From your project folder:
 
@@ -338,7 +383,7 @@ mct-cli --root . status     # 3. check it worked: files and symbols indexed, las
 1. **Connect your AI assistant or editor** — see § 4.3 for your specific tool.
 2. **Just ask.** Things like *"where is* `InvoiceService` *defined?"* or *"what would break if I change* `calculate_total`*?"* — your assistant uses the index automatically instead of reading every file. Paste the [prompt in § 3](#3-prompt-for-your-ai-assistant-copy-paste) if it doesn't yet.
 3. **Refresh if needed:** `mct-cli --root . reindex --force`. Not usually necessary (while your assistant is connected, the index also refreshes itself in the background as changes settle on disk — re-parsing only the files that changed, a few milliseconds per file), but it's there if your assistant seems to be missing something after a large batch of changes.
-4. **Keep noise out (optional):** `mct-cli --root . ignore-init` writes a starter `.mctignore` — edit it to exclude things like `docs/` or `*.md` from the index, then `reindex --force`. Pass `--import-gitignore` (works on a fresh file or an existing one) to exclude everything your project's own `.gitignore` already excludes. And `mct-cli --root . gitignore-init` keeps the generated database itself out of git.
+4. **Keep noise out (optional):** `mct-cli --root . ignore-init` writes a starter `.mctignore` — edit it to exclude things like `docs/` or `*.md` from the index, then `reindex --force` (a connected assistant's server applies the edit before its next tool call, so a newly excluded file is never served from the old index). Pass `--import-gitignore` (works on a fresh file or an existing one) to exclude everything your project's own `.gitignore` already excludes. And `mct-cli --root . gitignore-init` keeps the generated database itself out of git.
 
 **What your assistant can now do**, once connected:
 
@@ -348,11 +393,59 @@ mct-cli --root . status     # 3. check it worked: files and symbols indexed, las
 - Find every place something is used, anywhere in the project — optionally several hops out
 - Find what a function depends on, and who depends on it
 - Get a one-shot answer to "what would this change affect"
+- See which files a module imports (and which import it), spot import cycles, and export the graph as Mermaid or DOT
 - See a file's overall shape without reading the whole thing
 - Get oriented in an unfamiliar file, directory, or the whole project in one call
 - Browse the plain directory/file layout before picking a file
 - Spot candidate dead code (heuristic: zero indexed references)
 - Check whether the index itself is healthy and up to date
+
+### Module dependency graph (`get_dependency_graph`)
+
+`impact_analysis` answers "which *symbols* break if I change this?". `get_dependency_graph` answers the module-level question: "which *files* does this file or directory import, who imports it, and is there an import cycle?". It complements `impact_analysis`; it does not replace it.
+
+| Argument | Meaning |
+|---|---|
+| `module` (required) | Repo-relative file or directory, e.g. `src/orders.rs` or `frontend/` |
+| `depth` | Import hops to follow from `module`, default 2, clamped to the project's maximum query depth |
+| `limit` | Standard row cap; the output says `truncated: true` when it cut anything |
+| `format` | `toon` (default) or `text` |
+| `export` | Optional: `mermaid` or `dot` adds a rendered graph to the answer |
+
+Rules worth knowing: the unit is the **file** (a directory root expands to the files under it); an edge `A -> B` ("A imports B") exists only for a **resolved** import, so a guess never becomes an edge; imports that resolve to nothing in the index (third-party, std, unknown) are listed separately under `external`; cycles are listed one per line, or `circular: none`. Design: [ADR-006](docs/01-architecture/adrs/006-dependency-graph-tool.md).
+
+Example call (Rust or TypeScript project):
+
+```json
+{"module": "frontend/apiClient.ts", "depth": 2}
+```
+
+Illustrative TOON answer (the exact column set follows the tool's schema):
+
+```text
+root: frontend/apiClient.ts (depth 2)
+nodes[2]{path,hop}:
+  frontend/apiClient.ts,0
+  frontend/format.ts,1
+edges[1]{from,to}:
+  frontend/apiClient.ts,frontend/format.ts
+circular: none
+external[0]:
+truncated: false
+```
+
+A cycle (`a.ts` imports `b.ts`, `b.ts` imports `a.ts`) is reported once per strongly connected component:
+
+```text
+circular[1]: src/a.ts -> src/b.ts -> src/a.ts
+```
+
+With `"export": "mermaid"` the answer also carries a ready-to-paste diagram (`"export": "dot"` gives Graphviz DOT):
+
+```text
+graph LR
+  n0["frontend/apiClient.ts"] --> n1["frontend/format.ts"]
+```
 
 ---
 ## 7. Common commands

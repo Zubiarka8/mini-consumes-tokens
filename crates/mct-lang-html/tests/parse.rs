@@ -170,7 +170,8 @@ fn syntax_error_is_reported_not_panicked() {
 }
 
 /// `id`/`class` references carry the explicit CSS-language evidence the
-/// index needs to link two languages; an import carries none.
+/// index needs to link two languages; the plain import path carries none
+/// (the file-level `theme` import beside it is covered in `depgraph.rs`).
 #[test]
 fn selector_references_target_css_and_imports_carry_no_evidence() {
     let parsed = parse(
@@ -182,7 +183,7 @@ fn selector_references_target_css_and_imports_carry_no_evidence() {
         .enumerate()
         .map(|(i, r)| {
             let target = parsed.relation_targets.iter().find(|t| t.relation == i);
-            if let Some(t) = target {
+            if let Some(t) = target.filter(|t| t.kind.is_none()) {
                 assert_eq!(t.path, None);
                 assert_eq!(t.qualifier, None);
                 assert!(!t.external && !t.member && t.module.is_none());
@@ -197,6 +198,7 @@ fn selector_references_target_css_and_imports_carry_no_evidence() {
         evidence,
         vec![
             ("theme.css", None),
+            ("theme", Some("css")),
             ("#header", Some("css")),
             (".nav", Some("css")),
         ]
