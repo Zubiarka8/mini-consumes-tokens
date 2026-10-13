@@ -1,4 +1,4 @@
-# language=html files=5 symbols=302 relations=675 name_matched_across_files=0
+# language=html files=5 symbols=302 relations=703 name_matched_across_files=0
 
 == account.html (305 lines)
 S 1-305 module account
@@ -61,10 +61,15 @@ S 291-291 element danger-zone::delete-account
 S 297-301 element account::site-footer
 S 303-303 element account::toast-region
 R 13:26 imports account -> assets/css/site.css
+R 13:26 imports account -> site
 R 14:26 imports account -> assets/css/account.css
+R 14:26 imports account -> account
 R 15:11 imports account -> assets/js/vendor/htmx-2.0.4.min.js
+R 15:11 imports account -> htmx-2.0.4.min
 R 16:11 imports account -> assets/js/app.js
+R 16:11 imports account -> app
 R 17:11 imports account -> assets/js/account.js
+R 17:11 imports account -> account
 R 19:7 references account -> #account
 R 19:20 references account -> .page
 R 19:20 references account -> .page--account
@@ -278,12 +283,17 @@ S 300-300 element confirmation::confirmation-number
 S 305-309 element cart::site-footer
 S 311-311 element cart::toast-region
 R 13:26 imports cart -> assets/css/site.css
+R 13:26 imports cart -> site
 R 14:26 imports cart -> assets/css/checkout.css
+R 14:26 imports cart -> checkout
 R 15:26 imports cart -> https://js.payments.example/v3/elements.css
 R 16:11 imports cart -> assets/js/app.js
+R 16:11 imports cart -> app
 R 17:11 imports cart -> assets/js/checkout.js
+R 17:11 imports cart -> checkout
 R 18:11 imports cart -> https://js.payments.example/v3/
 R 20:28 imports cart -> assets/css/noscript.css
+R 20:28 imports cart -> noscript
 R 23:7 references cart -> #cart
 R 23:17 references cart -> .page
 R 23:17 references cart -> .page--checkout
@@ -506,11 +516,17 @@ S 301-301 element cart-drawer::cart-checkout
 S 305-309 element catalog::site-footer
 S 311-311 element catalog::toast-region
 R 13:26 imports catalog -> assets/css/site.css
+R 13:26 imports catalog -> site
 R 14:26 imports catalog -> assets/css/catalog.css
+R 14:26 imports catalog -> catalog
 R 15:26 imports catalog -> assets/css/legacy-filters.css
+R 15:26 imports catalog -> legacy-filters
 R 17:11 imports catalog -> assets/js/vendor/htmx-2.0.4.min.js
+R 17:11 imports catalog -> htmx-2.0.4.min
 R 18:11 imports catalog -> assets/js/app.js
+R 18:11 imports catalog -> app
 R 19:11 imports catalog -> assets/js/catalog.js
+R 19:11 imports catalog -> catalog
 R 21:7 references catalog -> #catalog
 R 21:20 references catalog -> .page
 R 21:20 references catalog -> .page--catalog
@@ -685,10 +701,15 @@ S 281-281 element cart-drawer::cart-checkout
 S 288-317 element home::site-footer
 S 319-319 element home::toast-region
 R 15:26 imports index -> assets/css/site.css
+R 15:26 imports index -> site
 R 16:26 imports index -> assets/css/home.css
+R 16:26 imports index -> home
 R 17:26 imports index -> assets/css/print.css
+R 17:26 imports index -> print
 R 23:11 imports index -> assets/js/vendor/htmx-2.0.4.min.js
+R 23:11 imports index -> htmx-2.0.4.min
 R 24:11 imports index -> assets/js/app.js
+R 24:11 imports index -> app
 R 34:10 references critical-css -> #critical-css
 R 40:7 references home -> #home
 R 40:17 references home -> .page
@@ -780,6 +801,7 @@ R 288:28 references home::site-footer -> .site-footer
 R 319:8 references home::toast-region -> #toast-region
 R 319:26 references home::toast-region -> .toast-region
 R 321:11 imports home -> assets/js/home.js
+R 321:11 imports home -> home
 
 == product.html (305 lines)
 S 1-305 module product
@@ -846,12 +868,18 @@ S 293-293 element cart-drawer::cart-checkout
 S 297-301 element product::site-footer
 S 303-303 element product::toast-region
 R 13:26 imports product -> assets/css/site.css
+R 13:26 imports product -> site
 R 14:26 imports product -> assets/css/product.css
+R 14:26 imports product -> product
 R 15:24 imports product -> assets/css/gallery.css
+R 15:24 imports product -> gallery
 R 16:11 imports product -> assets/js/vendor/htmx-2.0.4.min.js
+R 16:11 imports product -> htmx-2.0.4.min
 R 17:11 imports product -> assets/js/app.js
+R 17:11 imports product -> app
 R 18:52 references gallery-script -> #gallery-script
 R 18:11 imports gallery-script -> assets/js/gallery.js
+R 18:11 imports gallery-script -> gallery
 R 30:7 references product -> #product
 R 30:20 references product -> .page
 R 30:20 references product -> .page--product

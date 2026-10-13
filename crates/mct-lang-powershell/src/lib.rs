@@ -33,8 +33,8 @@
 //!   style of script. Only `function`-style definitions are.
 
 use mct_core::{
-    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
-    SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
+    LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
+    SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::{first_error, location};
 use tree_sitter::{Node, Parser};
@@ -97,7 +97,7 @@ impl LanguageParser for PowerShellParser {
         }
 
         let module_name = module_name_for(&file.relative_path);
-        let mut walker = Walker::new(&file.contents);
+        let mut walker = Walker::new(&file.contents, &file.relative_path);
         let module_id = walker.push_symbol(
             module_name.clone(),
             SymbolKind::Module,
@@ -233,15 +233,20 @@ struct Walker<'a> {
     source: &'a str,
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
+    relation_targets: Vec<RelationTarget>,
+    /// This file's repository-relative path, the base of relative sources.
+    path: &'a str,
     next_id: SymbolId,
 }
 
 impl<'a> Walker<'a> {
-    fn new(source: &'a str) -> Self {
+    fn new(source: &'a str, path: &'a str) -> Self {
         Self {
             source,
+            path,
             symbols: Vec::new(),
             relations: Vec::new(),
+            relation_targets: Vec::new(),
             next_id: 0,
         }
     }
@@ -363,6 +368,7 @@ impl<'a> Walker<'a> {
                             .map(|op| text(op, self.source) == ".")
                             .unwrap_or(false);
                         if is_dot_source {
+                            self.push_file_import(owner, &cmd_text, location(name_node));
                             self.push_relation(
                                 owner,
                                 RelationKind::Imports,
@@ -371,6 +377,7 @@ impl<'a> Walker<'a> {
                             );
                         } else if cmd_text.eq_ignore_ascii_case("Import-Module") {
                             for module in first_command_argument_texts(node, self.source) {
+                                self.push_file_import(owner, &module, location(node));
                                 self.push_relation(
                                     owner,
                                     RelationKind::Imports,
@@ -401,8 +408,45 @@ impl<'a> Walker<'a> {
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
+            relation_targets: self.relation_targets,
             ..Default::default()
         }
+    }
+
+    /// Dot-sourcing or `Import-Module` of a script/module file by relative
+    /// path depends on that file: an `Imports` relation to its `Module`
+    /// symbol, pinned to the exact path. The path is read against the
+    /// importing script's directory (PowerShell resolves it against the
+    /// working directory); a mismatch leaves the import unresolved.
+    fn push_file_import(&mut self, owner: SymbolId, spec: &str, loc: Location) {
+        let spec = spec.replace('\\', "/");
+        let file = spec.rsplit('/').next().unwrap_or(&spec);
+        let Some(stem) = file
+            .strip_suffix(".psm1")
+            .or_else(|| file.strip_suffix(".ps1"))
+            .filter(|stem| !stem.is_empty())
+        else {
+            return;
+        };
+        if spec.contains(['$', '`', '*', '(', '~']) || spec.starts_with('/') || spec.contains(':') {
+            return;
+        }
+        let relative = if spec.starts_with("./") || spec.starts_with("../") {
+            spec.clone()
+        } else {
+            format!("./{spec}")
+        };
+        let Some(resolved) = mct_core::resolve_reference_path(self.path, &relative) else {
+            return;
+        };
+        let relation = self.relations.len();
+        self.push_relation(owner, RelationKind::Imports, stem.to_string(), loc);
+        self.relation_targets.push(RelationTarget {
+            relation,
+            path: Some(resolved),
+            kind: Some(SymbolKind::Module),
+            ..Default::default()
+        });
     }
 }
 

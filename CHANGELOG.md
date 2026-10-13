@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `mct-mcp-server --reindex-delay <15s|30s|45s|1m|N s/m/ms|off>` updates the
+  index once no relevant file has changed for the chosen time (every change
+  restarts the wait, bursts collapse into one update, changes during an
+  update are processed afterwards, ignore rules are respected).
+  `mct-cli mcp-register --reindex-delay <value>` writes it into `.mcp.json`
+  and keeps it on later runs. Documented in [COMMANDS.md](COMMANDS.md#--reindex-delay-value).
+- The server's automatic update log (`auto-reindex after file changes settled`)
+  now also reports `symbols_added`, `symbols_removed` and the names of the
+  removed symbols (`removed_symbols`, up to 20, as `kind name (path)`), so a
+  function deleted from a file shows up and not only a deleted file. New
+  `Index::track_symbol_changes` and `ReindexReport` fields back it; tracking is
+  off unless the watcher turns it on.
 - `mct-cli call --tool <name> [--args <json> | --args-file <path>] [--json]
   [--timeout <seconds>]` runs one MCP tool in-process and prints its result,
   so scripts no longer need to spawn `mct-mcp-server` and speak JSON-RPC.

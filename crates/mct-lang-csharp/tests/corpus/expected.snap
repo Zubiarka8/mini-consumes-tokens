@@ -1,4 +1,4 @@
-# language=csharp files=6 symbols=454 relations=588 name_matched_across_files=143
+# language=csharp files=6 symbols=454 relations=634 name_matched_across_files=156
 
 == Warehouse/Errors.cs (379 lines)
 S 1-379 module Errors
@@ -101,8 +101,12 @@ S 371-377 class RateLimiter::QuotaExceededException
 S 373-374 method QuotaExceededException::QuotaExceededException
 S 376-376 field QuotaExceededException::Code
 R 5:1 imports Errors -> System
+R 5:1 imports Errors -> System
+R 6:1 imports Errors -> System.Collections.Generic
 R 6:1 imports Errors -> Generic
+R 7:1 imports Errors -> System.Globalization
 R 7:1 imports Errors -> Globalization
+R 8:1 imports Errors -> System.Runtime.CompilerServices
 R 8:1 imports Errors -> CompilerServices
 R 9:1 imports Errors -> Math
 R 25:6 references Warehouse.Errors::Severity -> FlagsAttribute
@@ -269,10 +273,16 @@ S 365-372 method ModelExtensions::Nearest
 S 374-382 method ModelExtensions::Project
 S 384-390 method ModelExtensions::Describe
 R 5:1 imports Models -> System
+R 5:1 imports Models -> System
+R 6:1 imports Models -> System.Collections
 R 6:1 imports Models -> Collections
+R 7:1 imports Models -> System.Collections.Generic
 R 7:1 imports Models -> Generic
+R 8:1 imports Models -> System.Linq
 R 8:1 imports Models -> Linq
+R 9:1 imports Models -> Warehouse.Errors (name-matched: Warehouse/Errors.cs)
 R 9:1 imports Models -> Errors (name-matched: Warehouse/Errors.cs)
+R 10:1 imports Models -> System.Decimal
 R 10:1 imports Models -> Money
 R 36:42 calls Sku::Sku -> ToUpperInvariant
 R 36:26 calls Sku::Sku -> NotBlank (name-matched: Warehouse/Errors.cs)
@@ -408,13 +418,22 @@ S 291-295 method CommandRegistry::Add
 S 297-297 method CommandRegistry::Find
 S 299-300 method CommandRegistry::Describe
 R 5:1 imports Program -> System
+R 5:1 imports Program -> System
+R 6:1 imports Program -> System.Collections.Generic
 R 6:1 imports Program -> Generic
+R 7:1 imports Program -> System.Linq
 R 7:1 imports Program -> Linq
+R 8:1 imports Program -> System.Threading
 R 8:1 imports Program -> Threading
+R 9:1 imports Program -> Warehouse.Cli
 R 9:1 imports Program -> Cli
+R 10:1 imports Program -> Warehouse.Errors (name-matched: Warehouse/Errors.cs)
 R 10:1 imports Program -> Errors (name-matched: Warehouse/Errors.cs)
+R 11:1 imports Program -> Warehouse.Models (name-matched: Warehouse/Models.cs)
 R 11:1 imports Program -> Models (name-matched: Warehouse/Models.cs)
+R 12:1 imports Program -> Warehouse.Reporting (name-matched: Warehouse/Reports.cs)
 R 12:1 imports Program -> Reporting
+R 13:1 imports Program -> Warehouse.Services (name-matched: Warehouse/Services.cs)
 R 13:1 imports Program -> Services (name-matched: Warehouse/Services.cs)
 R 15:18 calls Program -> CancellationTokenSource
 R 19:12 calls Program -> Cancel
@@ -601,14 +620,24 @@ S 307-307 field Summary::StockValue
 S 309-314 method Summary::ComputeAsync
 S 316-317 method Summary::operator string
 R 5:1 imports Reports -> System
+R 5:1 imports Reports -> System
+R 6:1 imports Reports -> System.Collections.Generic
 R 6:1 imports Reports -> Generic
+R 7:1 imports Reports -> System.Globalization
 R 7:1 imports Reports -> Globalization
+R 8:1 imports Reports -> System.IO
 R 8:1 imports Reports -> IO
+R 9:1 imports Reports -> System.Linq
 R 9:1 imports Reports -> Linq
+R 10:1 imports Reports -> System.Text
 R 10:1 imports Reports -> Text
+R 11:1 imports Reports -> Warehouse.Data.Specialized
 R 11:1 imports Reports -> Specialized (name-matched: Warehouse/Repository.cs)
+R 12:1 imports Reports -> Warehouse.Errors (name-matched: Warehouse/Errors.cs)
 R 12:1 imports Reports -> Errors
+R 13:1 imports Reports -> Warehouse.Models (name-matched: Warehouse/Models.cs)
 R 13:1 imports Reports -> Models (name-matched: Warehouse/Models.cs)
+R 14:1 imports Reports -> Warehouse.Services (name-matched: Warehouse/Services.cs)
 R 14:1 imports Reports -> Services (name-matched: Warehouse/Services.cs)
 R 15:1 imports Reports -> Table
 R 20:6 references Warehouse.Reporting::ColumnAttribute -> AttributeUsageAttribute
@@ -781,13 +810,21 @@ S 296-306 method UnitOfWork::CommitAsync
 S 308-312 method UnitOfWork::DisposeAsync
 S 316-335 class Warehouse.Data::Seed
 S 318-334 method Seed::Demo
+R 5:1 imports Repository -> System.Threading.Tasks
 R 5:1 imports Repository -> Tasks
 R 7:1 imports Repository -> System
+R 7:1 imports Repository -> System
+R 8:1 imports Repository -> System.Collections.Concurrent
 R 8:1 imports Repository -> Concurrent
+R 9:1 imports Repository -> System.Collections.Generic
 R 9:1 imports Repository -> Generic
+R 10:1 imports Repository -> System.Linq
 R 10:1 imports Repository -> Linq
+R 11:1 imports Repository -> System.Threading
 R 11:1 imports Repository -> Threading
+R 12:1 imports Repository -> Warehouse.Errors (name-matched: Warehouse/Errors.cs)
 R 12:1 imports Repository -> Errors (name-matched: Warehouse/Errors.cs)
+R 13:1 imports Repository -> Warehouse.Models (name-matched: Warehouse/Models.cs)
 R 13:1 imports Repository -> Models (name-matched: Warehouse/Models.cs)
 R 25:49 extends Warehouse.Data::ChangeEventArgs -> EventArgs
 R 52:53 calls IReadRepository::GetAsync -> ConfigureAwait
@@ -946,13 +983,22 @@ S 316-321 class Warehouse.Services::Prüfung
 S 318-318 method Prüfung::Gültig
 S 320-320 method Prüfung::集計
 R 5:1 imports Services -> System
+R 5:1 imports Services -> System
+R 6:1 imports Services -> System.Collections.Generic
 R 6:1 imports Services -> Generic
+R 7:1 imports Services -> System.Diagnostics
 R 7:1 imports Services -> Diagnostics
+R 8:1 imports Services -> System.Linq
 R 8:1 imports Services -> Linq
+R 9:1 imports Services -> System.Threading
 R 9:1 imports Services -> Threading
+R 10:1 imports Services -> Warehouse.Data (name-matched: Warehouse/Repository.cs)
 R 10:1 imports Services -> Data
+R 11:1 imports Services -> Warehouse.Data.Specialized
 R 11:1 imports Services -> Specialized (name-matched: Warehouse/Repository.cs)
+R 12:1 imports Services -> Warehouse.Errors (name-matched: Warehouse/Errors.cs)
 R 12:1 imports Services -> Errors (name-matched: Warehouse/Errors.cs)
+R 13:1 imports Services -> Warehouse.Models (name-matched: Warehouse/Models.cs)
 R 13:1 imports Services -> Models (name-matched: Warehouse/Models.cs)
 R 25:35 implements Warehouse.Services::SystemClock -> IClock
 R 29:42 calls SystemClock::Create -> SystemClock

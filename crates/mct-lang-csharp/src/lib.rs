@@ -1,8 +1,8 @@
 //! `LanguageParser` implementation for C#, via `tree-sitter-c-sharp`.
 
 use mct_core::{
-    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
-    SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
+    LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
+    SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::{first_error, location};
 use tree_sitter::{Node, Parser};
@@ -87,6 +87,7 @@ struct Walker<'a> {
     file_end: u32,
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
+    relation_targets: Vec<RelationTarget>,
     next_id: SymbolId,
 }
 
@@ -97,6 +98,7 @@ impl<'a> Walker<'a> {
             file_end,
             symbols: Vec::new(),
             relations: Vec::new(),
+            relation_targets: Vec::new(),
             next_id: 0,
         }
     }
@@ -292,6 +294,7 @@ impl<'a> Walker<'a> {
                 }
             }
             "using_directive" => {
+                self.push_namespace_import(owner, node);
                 if let Some(path) = node.named_child(0) {
                     if let Some(last) = last_identifier(path) {
                         self.push_relation(
@@ -491,8 +494,42 @@ impl<'a> Walker<'a> {
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
+            relation_targets: self.relation_targets,
             ..Default::default()
         }
+    }
+
+    /// `using A.B;` depends on the namespace `A.B`, which is not a file: the
+    /// `Imports` relation targets the `Module` symbols named `A.B` that every
+    /// file declaring that namespace holds, so it resolves only when a
+    /// single file declares it (otherwise it is ambiguous over those
+    /// files). `System`/`Microsoft` namespaces are the BCL and external.
+    /// A `using static` names a type, not a namespace, and records nothing.
+    fn push_namespace_import(&mut self, owner: SymbolId, node: Node) {
+        let mut cursor = node.walk();
+        if node.children(&mut cursor).any(|c| c.kind() == "static") {
+            return;
+        }
+        // `using Alias = A.B;` names its target last.
+        let mut cursor = node.walk();
+        let Some(path) = node.named_children(&mut cursor).last() else {
+            return;
+        };
+        let name: String = text(path, self.source).split_whitespace().collect();
+        // A generic type alias (`using L = List<string>;`) is no namespace.
+        if name.is_empty() || name.contains('<') {
+            return;
+        }
+        let root = name.split('.').next().unwrap_or_default();
+        let external = matches!(root, "System" | "Microsoft");
+        let relation = self.relations.len();
+        self.push_relation(owner, RelationKind::Imports, name, location(node));
+        self.relation_targets.push(RelationTarget {
+            relation,
+            kind: Some(SymbolKind::Module),
+            external,
+            ..Default::default()
+        });
     }
 }
 

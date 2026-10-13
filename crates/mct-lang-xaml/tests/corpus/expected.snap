@@ -1,4 +1,4 @@
-# language=xaml files=6 symbols=157 relations=125 name_matched_across_files=0
+# language=xaml files=6 symbols=157 relations=126 name_matched_across_files=1
 
 == App.xaml (314 lines)
 S 1-314 module App
@@ -12,6 +12,7 @@ S 232-232 element TrayExit
 S 245-247 element SplashProgress
 R 10:14 references App -> App_Activated
 R 11:14 references App -> App_Deactivated
+R 25:29 imports App -> Controls (name-matched: Themes/Controls.xaml)
 R 195:23 references ToastRoot -> Toast_MouseEnter
 R 196:23 references ToastRoot -> Toast_MouseLeave
 R 202:27 references ToastRoot::ToastClose -> ToastClose_Click
