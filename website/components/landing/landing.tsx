@@ -58,9 +58,6 @@ export function Landing() {
   return (
     <MotionConfig reducedMotion="user">
       <div className="landing" id="top">
-        <a className="skip-link" href="#main">
-          {t("skip")}
-        </a>
         <header className="landing-header shell">
           <Link href="/" className="brand" aria-label="mini-consumes-tokens">
             <Network size={26} strokeWidth={1.4} aria-hidden />
@@ -89,7 +86,7 @@ export function Landing() {
             <DocsLink className="header-docs">{t("docs")}</DocsLink>
           </div>
         </header>
-        <main id="main" tabIndex={-1}>
+        <main id="main">
           <section className="hero shell" aria-labelledby="hero-title">
             <div className="hero-copy">
               <p className="eyebrow">

@@ -39,9 +39,6 @@
   outline: 3px solid #487a35;
   outline-offset: 5px;
 }
-.landing main:focus {
-  outline: none;
-}
 .shell {
   width: min(1280px, calc(100% - 96px));
   margin-inline: auto;
@@ -503,18 +500,6 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-}
-.skip-link {
-  position: fixed;
-  left: 16px;
-  top: -100px;
-  padding: 12px 20px;
-  background: var(--ivory);
-  border: 2px solid var(--ink);
-  z-index: 100;
-}
-.skip-link:focus {
-  top: 16px;
 }
 .landing .sr-only {
   position: absolute;

@@ -2,7 +2,6 @@ export const shellEn = {
   coordinate: "SOURCE → SYMBOLS → CONTEXT",
   localFirst: "LOCAL FIRST. RELATIONSHIP AWARE.",
   fieldGuide: "FIELD GUIDE",
-  skip: "Skip to content",
   nav: "Main navigation",
   language: "Language",
   how: "How it works",

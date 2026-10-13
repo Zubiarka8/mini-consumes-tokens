@@ -4,7 +4,6 @@ export const shellEs: Record<keyof typeof shellEn, string> = {
   coordinate: "CÓDIGO → SÍMBOLOS → CONTEXTO",
   localFirst: "LOCAL. CONECTADO. PRECISO.",
   fieldGuide: "GUÍA DE CAMPO",
-  skip: "Saltar al contenido",
   nav: "Navegación principal",
   language: "Idioma",
   how: "Cómo funciona",

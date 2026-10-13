@@ -56,12 +56,14 @@ test("clipboard failure, FAQ and keyboard", async ({ page }) => {
   await page.goto("about:blank");
   await page.goto(home);
   // WebKit on macOS uses Option+Tab to include links in keyboard traversal.
+  // plain-language: the skip link was removed; the first Tab lands on the brand link.
+  await expect(page.locator(".skip-link")).toHaveCount(0);
+  await expect(page.getByText(/Skip to content/i)).toHaveCount(0);
   await page.keyboard.press("Alt+Tab");
-  await expect(
-    page.getByText("Skip to content", { exact: true }),
-  ).toBeFocused();
-  await page.keyboard.press("Enter");
-  await expect(page.locator("#main")).toBeFocused();
+  await expect(page.locator(".brand")).toBeFocused();
+  // The page keeps its landmark regions.
+  for (const landmark of ["header", "nav", "main", "footer"])
+    await expect(page.locator(landmark).first()).toBeAttached();
 });
 test("storage denied still permits language changes", async ({ page }) => {
   await page.addInitScript(() => {
