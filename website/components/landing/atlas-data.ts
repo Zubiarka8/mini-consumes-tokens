@@ -23,100 +23,37 @@ export const files = [
   { name: "lib.rs", path: "crates/mct-index/src/lib.rs", x: 0 },
   { name: "indexer.rs", path: "crates/mct-index/src/indexer.rs", x: 1.75 },
 ] as const;
-// Their top-level symbols with at least one resolved call, as the index reports them.
-// Each position is an [x, z] point on the boards; together they are centred on the origin.
+// The pieces drawn on the map (the message keys role0..role5 name them). Each position is an [x, z] point on the boards; together they are centred on the origin.
 export const examples = [
   {
     name: "MctServer",
     file: 0,
-    line: 673,
-    callers: "main.rs:61 (MctServer::new)",
-    calls: "ServerOptions::from_env (server.rs:1069)",
     position: [-1.75, -0.6],
-    source: [
-      "pub struct MctServer {",
-      "    index: Arc<Mutex<Index>>,",
-      "    /// The index's project root, kept here so the embedding model can be",
-      "    /// loaded without taking the index mutex (`Index::root` is immutable).",
-      "    root: std::path::PathBuf,",
-    ],
   },
   {
     name: "ServerOptions",
     file: 0,
-    line: 602,
-    callers: "MctServer::new (server.rs:1069)",
-    calls: "CacheConfig::from_env (server.rs:616)",
     position: [-1.75, 0.6],
-    source: [
-      "pub struct ServerOptions {",
-      "    pub cache: CacheConfig,",
-      "    /// Embedder for `hybrid_search`'s semantic side; `None` loads the build's",
-      "    /// own model lazily (see `crate::embedder`).",
-      "    pub embedder: Option<Box<dyn mct_index::Embedder>>,",
-    ],
   },
   {
     name: "Index",
     file: 1,
-    line: 83,
-    callers: "main.rs:47 (Index::open)",
-    calls: "indexer::reindex, reindex_paths, status (lib.rs:186, 199, 203)",
     position: [0, 0],
-    source: [
-      "pub struct Index {",
-      "    conn: Connection,",
-      "    /// Canonicalized project root — every relative path stored in the",
-      "    /// database is validated against this to reject path traversal.",
-      "    root: PathBuf,",
-    ],
   },
   {
     name: "reindex",
     file: 2,
-    line: 91,
-    callers: "Index::reindex (lib.rs:186), reindex_paths (indexer.rs:577, 586)",
-    calls:
-      "walk_entry_allowed, record_walk_failure, index_file, remove_missing_files, remove_missing_manifests, touch_last_indexed_at",
     position: [1.35, -0.85],
-    source: [
-      "pub fn reindex(",
-      "    index: &mut Index,",
-      "    registry: &LanguageRegistry,",
-      "    force: bool,",
-      ") -> Result<ReindexReport> {",
-    ],
   },
   {
     name: "reindex_paths",
     file: 2,
-    line: 547,
-    callers: "Index::reindex_paths (lib.rs:199)",
-    calls:
-      "reindex, index_noting_created, remove_under_prefix, remove_renamed_away, record_read_failure and 5 more",
     position: [2.2, 0.05],
-    source: [
-      "pub fn reindex_paths(",
-      "    index: &mut Index,",
-      "    registry: &LanguageRegistry,",
-      "    paths: &[PathBuf],",
-      ") -> Result<ReindexReport> {",
-    ],
   },
   {
     name: "status",
     file: 2,
-    line: 1200,
-    callers: "Index::status (lib.rs:203)",
-    calls: "—",
     position: [1.35, 0.95],
-    source: [
-      "pub fn status(index: &Index) -> Result<IndexStatus> {",
-      "    let mut stmt = index.conn.prepare(",
-      '        "SELECT f.language, COUNT(DISTINCT f.id), COUNT(s.id)',
-      "         FROM files f LEFT JOIN symbols s ON s.file_id = f.id",
-      '         GROUP BY f.language ORDER BY f.language",',
-    ],
   },
 ] as const;
 // Destructuring the tuple makes a missing example a type error.
@@ -338,8 +275,10 @@ export const tourStages: {
   },
   { key: "start", icon: Terminal, docs: "/docs/tools/" },
 ];
-export const layerKeys = ["files", "symbols", "context"] as const;
+export const layerKeys = ["layerFiles", "layerMap", "layerNeeded"] as const;
 export type AtlasLayers = [boolean, boolean, boolean];
-export function layerHeight(layer: number, separation: number) {
-  return (1 - layer) * separation;
+// The gap between boards is fixed at the largest value the old spacing slider offered.
+export const LAYER_SEPARATION = 1.65;
+export function layerHeight(layer: number) {
+  return (1 - layer) * LAYER_SEPARATION;
 }

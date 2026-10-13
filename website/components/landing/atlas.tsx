@@ -13,19 +13,21 @@ import {
 import { motion, useInView } from "motion/react";
 import { useTranslation } from "react-i18next";
 import Link from "next/link";
-import { ArrowUpRight, FileCode2, Maximize2, Minimize2 } from "lucide-react";
+import { ArrowUpRight, Maximize2, Minimize2 } from "lucide-react";
 
 import {
   examples,
-  files,
   layerKeys,
   tourStages,
   type AtlasLayers,
   type Cue,
 } from "./atlas-data";
 import { fileSymbols } from "./atlas-symbols";
+import { ArrowIcon } from "./arrow-icon";
 import { CopyCommand, setupCommands } from "./copy-command";
 
+// Plain-language steps shown above the scene, in the order the data travels.
+const flowKeys = ["flowFiles", "flowMap", "flowNeeded"] as const;
 const SpatialAtlas = lazy(() => import("./spatial-atlas"));
 class SceneBoundary extends Component<
   { children: ReactNode; onFailure: () => void },
@@ -48,7 +50,6 @@ export function Atlas() {
   const [expanded, setExpanded] = useState(false);
   const [activeStage, setActiveStage] = useState(0);
   const [layers, setLayers] = useState<AtlasLayers>([true, true, true]);
-  const [separation, setSeparation] = useState(1.45);
   const [rotation, setRotation] = useState(0.2);
   const [reset, setReset] = useState(0);
   const [cue, setCue] = useState<Cue>({ key: "idle", id: 0 });
@@ -164,7 +165,6 @@ export function Atlas() {
       setFailed(true);
     }
   }, [inView, spatial, failed]);
-  const item = examples[selected];
   const controls = (
     <div className="spatial-controls">
       {ready && (
@@ -211,15 +211,6 @@ export function Atlas() {
       aria-modal={expanded ? true : undefined}
       aria-label={expanded ? t("atlas") : undefined}
     >
-      <div className="atlas-top">
-        <span>
-          <span className="status-dot" />
-          {t("atlas")}
-        </span>
-        <div className="atlas-top-actions">
-          <span className="mono">MCT / 001</span>
-        </div>
-      </div>
       <div className="atlas-project">
         <div>
           <span className="pack-label">{t("exampleProject")}</span>
@@ -229,10 +220,10 @@ export function Atlas() {
         </div>
         <p>{t("projectBrief")}</p>
         <p className="atlas-project-flow">
-          {files.map(({ name }, i) => (
-            <Fragment key={name}>
-              {i > 0 && <span> → </span>}
-              {name}
+          {flowKeys.map((key, i) => (
+            <Fragment key={key}>
+              {i > 0 && <ArrowIcon size="1.25em" />}
+              <span>{t(key)}</span>
             </Fragment>
           ))}
         </p>
@@ -262,17 +253,6 @@ export function Atlas() {
             </button>
           ))}
         </div>
-        <label className="atlas-separation">
-          <span>{t("layerSpacing")}</span>
-          <input
-            type="range"
-            min="0.7"
-            max="1.65"
-            step="0.05"
-            value={separation}
-            onChange={(event) => setSeparation(Number(event.target.value))}
-          />
-        </label>
       </div>
       <div className="atlas-view">
         <div className="atlas-space">
@@ -289,7 +269,6 @@ export function Atlas() {
                     selected={selected}
                     layers={layers}
                     focusLayer={stage?.layer}
-                    separation={separation}
                     cue={cue}
                     rotation={rotation}
                     reset={reset}
@@ -417,74 +396,6 @@ export function Atlas() {
           </div>
         )}
       </div>
-      <div className="symbol-controls" role="group" aria-label={t("select")}>
-        {examples.map((node, i) => (
-          <button
-            key={node.name}
-            type="button"
-            aria-pressed={selected === i}
-            aria-label={node.name}
-            onClick={() => setSelected(i)}
-          >
-            <span className="atlas-file-name">
-              <FileCode2 size={16} aria-hidden="true" />
-              <span>{files[node.file].name}</span>
-            </span>
-            <span className="atlas-file-role">{t(`role${i}`)}</span>
-            <span className="atlas-file-symbol">{node.name}</span>
-          </button>
-        ))}
-      </div>
-      <div className="context-pack" aria-live="polite" aria-atomic="true">
-        <div className="atlas-query">
-          <span>{t("agentQuestion")}</span>
-          <p>{t(`query${selected}`)}</p>
-        </div>
-        <div className="pack-label">
-          <span>{t("pack")}</span>
-          <span aria-hidden="true">↗</span>
-        </div>
-        <motion.div key={item.name} initial={false} animate={{ opacity: 1 }}>
-          <strong>{item.name}</strong>
-          <p className="atlas-explanation">{t(`purpose${selected}`)}</p>
-          <dl>
-            <div>
-              <dt>{t("definition")}</dt>
-              <dd>
-                {files[item.file].path}:{item.line}
-              </dd>
-            </div>
-            <div>
-              <dt>{t("callers")}</dt>
-              <dd>{item.callers}</dd>
-            </div>
-            <div>
-              <dt>{t("dependencies")}</dt>
-              <dd>{item.calls}</dd>
-            </div>
-          </dl>
-          <div
-            className="atlas-source"
-            role="region"
-            aria-label={t("sourcePreview")}
-            tabIndex={0}
-          >
-            <pre>
-              <code>
-                {item.source.map((line, i) => (
-                  <span className="atlas-code-line" key={i}>
-                    <span className="atlas-line-number" aria-hidden="true">
-                      {item.line + i}
-                    </span>
-                    <span>{line}</span>
-                  </span>
-                ))}
-              </code>
-            </pre>
-          </div>
-        </motion.div>
-      </div>
-      <p className="atlas-caption">{t("illustration")}</p>
     </div>
   );
 }
