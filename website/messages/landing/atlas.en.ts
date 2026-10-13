@@ -1,36 +1,15 @@
 export const atlasEn = {
   visibleLayers: "Visible layers",
-  layerSpacing: "Layer spacing",
-  sourcePreview: "Selected source code",
   inspectFile: "Inspect file",
   exampleProject: "THIS REPOSITORY",
   projectBrief:
-    "mini-consumes-tokens as its own index sees it: the MCP server, the index it holds and the indexer that fills it. Three files, six symbols and only the calls the index resolves.",
-  agentQuestion: "THE AGENT’S QUESTION",
-  query0: "What answers my assistant's tool calls?",
-  query1: "Where does the server read its settings?",
-  query2: "What owns the database every tool reads?",
-  query3: "What happens on a full reindex?",
-  query4: "What runs when only a few files change?",
-  query5: "Is the index healthy?",
-  role0: "Serve the MCP tools",
-  role1: "Configure the server",
-  role2: "Hold the index",
-  role3: "Index the whole project",
-  role4: "Index changed paths",
-  role5: "Report index health",
-  purpose0:
-    "The MCP server keeps the index behind a mutex, with the language registry and a query cache. main.rs builds it with MctServer::new, which reads its options from the environment.",
-  purpose1:
-    "The server's options: the query cache, an optional embedder and a shared cache. from_env reads the cache settings from the MCT_CACHE* variables.",
-  purpose2:
-    "Index wraps the SQLite connection and the project root. Its methods are what the server calls; reindex, reindex_paths and status hand the work to the indexer.",
-  purpose3:
-    "Walks the project, indexes each supported file, removes the files and manifests that are gone and records when the run finished.",
-  purpose4:
-    "Updates only the paths it is given: created, changed, deleted or renamed. The project root or a changed ignore file falls back to a full reindex.",
-  purpose5:
-    "Reads files and symbols per language, failures and manifest dependencies from the database and returns them as an IndexStatus.",
+    "How mini-consumes-tokens works, shown on its own code: it turns your files into a map of the pieces and how they connect, then gives your assistant only what it needs.",
+  role0: "Answers",
+  role1: "Settings",
+  role2: "Map keeper",
+  role3: "Full scan",
+  role4: "Quick update",
+  role5: "Health check",
   tourHowText:
     "Tree-sitter reads each supported file and extracts symbols and the relations between them. A SQLite database keeps that graph inside your project, and indexing runs on your machine. The MCP server answers your assistant's tool calls from that database. While it runs, it reindexes changed files in the background once edits have been quiet for 1.5 seconds.",
   tourOrientText:
@@ -77,26 +56,14 @@ export const atlasEn = {
   replaces: "In one call, instead of",
   toolsReference: "Read the MCP tools reference",
   atlas: "Code atlas",
-  illustration:
-    "Symbols and resolved calls from this repository's own index, not a live view",
   allSymbols: "See all symbols",
   hideSymbols: "Hide all symbols",
   allSymbolsTitle: "Every symbol in the three files",
   symbolCount: "{{count}} symbols",
-  graphAlt:
-    "Source files become connected symbols. Selecting a symbol reveals its definition, callers and dependencies in a focused context pack.",
-  files: "Source files",
-  symbols: "Symbol graph",
-  context: "Agent context",
-  select: "Choose a symbol to inspect",
-  selected: "Selected symbol",
-  definition: "Definition",
-  callers: "Called by",
-  dependencies: "Calls",
-  pack: "Focused context pack",
+  select: "Choose a piece to highlight",
   loading3d: "Loading the spatial atlas…",
   fallback:
-    "The 3D view is unavailable on this device. You can still explore the source and context below.",
+    "The 3D view is unavailable on this device. In short: your files become a map of the pieces, and your assistant gets only what it needs.",
   rotate: "Rotate the atlas",
   resetView: "Reset view",
   fullscreen: "Full screen",
@@ -130,5 +97,11 @@ export const atlasEn = {
   tourMethodsTitle: "Eight Index methods behind them.",
   tourMethodsText:
     "The lib.rs side of the same calls: who calls each method, or what it hands to the indexer.",
-  spatialHint: "Drag to orbit · Scroll to zoom · Select a symbol",
+  spatialHint: "Drag to orbit · Scroll to zoom · Select a piece",
+  flowFiles: "Your files",
+  flowMap: "A map of the pieces and how they connect",
+  flowNeeded: "Only what the assistant needs",
+  layerFiles: "Your files",
+  layerMap: "Map of the pieces",
+  layerNeeded: "What the assistant needs",
 };

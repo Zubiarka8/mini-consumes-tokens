@@ -2,38 +2,16 @@ import type { atlasEn } from "./atlas.en";
 
 export const atlasEs: Record<keyof typeof atlasEn, string> = {
   visibleLayers: "Capas visibles",
-  layerSpacing: "Separación de capas",
-  sourcePreview: "Código fuente seleccionado",
   inspectFile: "Explorar archivo",
   exampleProject: "ESTE REPOSITORIO",
   projectBrief:
-    "mini-consumes-tokens tal como lo ve su propio índice: el servidor MCP, el índice que guarda y el indexador que lo llena. Tres archivos, seis símbolos y solo las llamadas que el índice resuelve.",
-  agentQuestion: "LA PREGUNTA DEL AGENTE",
-  query0: "¿Qué responde a las llamadas a herramientas de mi asistente?",
-  query1: "¿Dónde lee el servidor su configuración?",
-  query2:
-    "¿Quién es dueño de la base de datos que leen todas las herramientas?",
-  query3: "¿Qué ocurre en una reindexación completa?",
-  query4: "¿Qué se ejecuta cuando solo cambian unos archivos?",
-  query5: "¿Está sano el índice?",
-  role0: "Servir las herramientas MCP",
-  role1: "Configurar el servidor",
-  role2: "Guardar el índice",
-  role3: "Indexar todo el proyecto",
-  role4: "Indexar rutas cambiadas",
-  role5: "Informar del estado del índice",
-  purpose0:
-    "El servidor MCP guarda el índice tras un mutex, junto al registro de lenguajes y una caché de consultas. main.rs lo crea con MctServer::new, que lee sus opciones del entorno.",
-  purpose1:
-    "Las opciones del servidor: la caché de consultas, un embedder opcional y una caché compartida. from_env lee la configuración de la caché de las variables MCT_CACHE*.",
-  purpose2:
-    "Index envuelve la conexión SQLite y la raíz del proyecto. Sus métodos son lo que llama el servidor; reindex, reindex_paths y status pasan el trabajo al indexador.",
-  purpose3:
-    "Recorre el proyecto, indexa cada archivo compatible, elimina los archivos y manifiestos que ya no existen y registra cuándo terminó.",
-  purpose4:
-    "Actualiza solo las rutas que recibe: creadas, cambiadas, borradas o renombradas. La raíz del proyecto o un archivo de exclusión cambiado vuelve a una reindexación completa.",
-  purpose5:
-    "Lee de la base los archivos y símbolos por lenguaje, los fallos y las dependencias de manifiestos, y los devuelve como un IndexStatus.",
+    "Cómo funciona mini-consumes-tokens, mostrado sobre su propio código: convierte tus archivos en un mapa de las piezas y cómo se conectan, y le da a tu asistente solo lo que necesita.",
+  role0: "Responde",
+  role1: "Ajustes",
+  role2: "Guarda el mapa",
+  role3: "Escaneo total",
+  role4: "Actualización",
+  role5: "Revisión",
   tourHowText:
     "Tree-sitter lee cada archivo compatible y extrae los símbolos y sus relaciones. Una base SQLite guarda ese grafo dentro de tu proyecto, y la indexación se ejecuta en tu equipo. El servidor MCP responde con esa base a las llamadas a herramientas del asistente. Mientras está activo, reindexa en segundo plano los archivos modificados cuando las ediciones llevan 1,5 segundos en pausa.",
   tourOrientText:
@@ -79,26 +57,14 @@ export const atlasEs: Record<keyof typeof atlasEn, string> = {
   replaces: "En una llamada, en lugar de",
   toolsReference: "Consulta la referencia de herramientas MCP",
   atlas: "Atlas de código",
-  illustration:
-    "Símbolos y llamadas resueltas del propio índice de este repositorio, no una vista en vivo",
   allSymbols: "Ver todos los símbolos",
   hideSymbols: "Ocultar todos los símbolos",
   allSymbolsTitle: "Todos los símbolos de los tres archivos",
   symbolCount: "{{count}} símbolos",
-  graphAlt:
-    "Los archivos se convierten en símbolos conectados. Al elegir un símbolo, se muestran su definición, sus llamadores y sus dependencias en un paquete de contexto preciso.",
-  files: "Archivos fuente",
-  symbols: "Grafo de símbolos",
-  context: "Contexto del agente",
-  select: "Elige un símbolo para explorarlo",
-  selected: "Símbolo seleccionado",
-  definition: "Definición",
-  callers: "Lo llaman",
-  dependencies: "Llama a",
-  pack: "Paquete de contexto preciso",
+  select: "Elige una pieza para resaltarla",
   loading3d: "Cargando el atlas espacial…",
   fallback:
-    "La vista 3D no está disponible en este dispositivo. Puedes explorar el código y su contexto a continuación.",
+    "La vista 3D no está disponible en este dispositivo. En resumen: tus archivos se convierten en un mapa de las piezas, y tu asistente recibe solo lo que necesita.",
   rotate: "Girar el atlas",
   resetView: "Restablecer vista",
   fullscreen: "Pantalla completa",
@@ -133,5 +99,11 @@ export const atlasEs: Record<keyof typeof atlasEn, string> = {
   tourMethodsText:
     "El lado de lib.rs de esas mismas llamadas: quién llama a cada método o qué pasa al indexador.",
   spatialHint:
-    "Arrastra para girar · Desplázate para acercar · Elige un símbolo",
+    "Arrastra para girar · Desplázate para acercar · Elige una pieza",
+  flowFiles: "Tus archivos",
+  flowMap: "Un mapa de las piezas y cómo se conectan",
+  flowNeeded: "Solo lo que necesita el asistente",
+  layerFiles: "Tus archivos",
+  layerMap: "Mapa de las piezas",
+  layerNeeded: "Lo que necesita el asistente",
 };

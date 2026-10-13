@@ -22,6 +22,7 @@ import {
   CUE_STEP,
   examples,
   files,
+  LAYER_SEPARATION,
   layerHeight,
   layerKeys,
   tourStages,
@@ -137,7 +138,6 @@ function Graph({
   active,
   layers,
   focusLayer,
-  separation,
   cue,
   labels,
   fileLabels,
@@ -152,7 +152,6 @@ function Graph({
   active: boolean;
   layers: AtlasLayers;
   focusLayer?: number;
-  separation: number;
   cue: Cue;
   labels: RefObject<(HTMLButtonElement | null)[]>;
   fileLabels: RefObject<(HTMLButtonElement | null)[]>;
@@ -187,16 +186,7 @@ function Graph({
   );
   useEffect(() => {
     if (active) invalidate();
-  }, [
-    active,
-    rotation,
-    selected,
-    layers,
-    focusLayer,
-    separation,
-    cue,
-    invalidate,
-  ]);
+  }, [active, rotation, selected, layers, focusLayer, cue, invalidate]);
   useEffect(() => {
     const lost = (event: Event) => {
       event.preventDefault();
@@ -294,17 +284,17 @@ function Graph({
       place(labels.current[i], x, 0.2, z, layers[1], 16),
     );
     files.forEach(({ x }, i) =>
-      place(fileLabels.current[i], x, separation + 0.65, 0, layers[0], -30),
+      place(
+        fileLabels.current[i],
+        x,
+        LAYER_SEPARATION + 0.65,
+        0,
+        layers[0],
+        -30,
+      ),
     );
     layers.forEach((shown, i) =>
-      place(
-        boardLabels.current[i],
-        -2.65,
-        layerHeight(i, separation),
-        1.35,
-        shown,
-        8,
-      ),
+      place(boardLabels.current[i], -2.65, layerHeight(i), 1.35, shown, 8),
     );
     if (firstFrame.current) {
       firstFrame.current = false;
@@ -318,10 +308,7 @@ function Graph({
       {layers.map(
         (shown, layer) =>
           shown && (
-            <group
-              key={layer}
-              position={[0, layerHeight(layer, separation), 0]}
-            >
+            <group key={layer} position={[0, layerHeight(layer), 0]}>
               <mesh position={[0, -0.09, 0]}>
                 <boxGeometry args={[5.5, 0.14, 2.7]} />
                 <meshStandardMaterial
@@ -478,8 +465,8 @@ function Graph({
       {layers.map((shown, layer) => {
         if (!shown || layer === 2 || !layers[layer + 1]) return null;
         const [x, z] = examples[selected].position;
-        const top = layerHeight(layer, separation);
-        const bottom = layerHeight(layer + 1, separation);
+        const top = layerHeight(layer);
+        const bottom = layerHeight(layer + 1);
         return (
           <group key={layer}>
             {Array.from({ length: 9 }, (_, i) => (
@@ -501,7 +488,6 @@ export default function SpatialAtlas({
   selected,
   layers,
   focusLayer,
-  separation,
   rotation,
   reset,
   active,
@@ -514,7 +500,6 @@ export default function SpatialAtlas({
   selected: number;
   layers: AtlasLayers;
   focusLayer?: number;
-  separation: number;
   rotation: number;
   reset: number;
   active: boolean;
@@ -555,7 +540,6 @@ export default function SpatialAtlas({
           boardLabels={boardLabels}
           layers={layers}
           focusLayer={focusLayer}
-          separation={separation}
           cue={cue}
           onSelect={onSelect}
           onReady={onReady}
@@ -574,7 +558,7 @@ export default function SpatialAtlas({
             aria-pressed={selected === i}
             onClick={() => onSelect(i)}
           >
-            {name}
+            {t(`role${i}`)}
           </button>
         ))}
       </div>
