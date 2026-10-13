@@ -105,7 +105,7 @@ The corpus tests read the fixtures from disk, and a CI checkout has no `.mctigno
 
 ## Adding a new MCP tool, and the TTC description format
 
-`crates/mct-mcp-server/src/server.rs` defines each tool's name, parameters and `#[tool(...)]` attribute, but that attribute's `description` is only a short fallback literal — the description an MCP client actually receives comes from `crates/mct-mcp-server/src/tools.ttc`, parsed by `crates/mct-mcp-server/src/ttc.rs` and applied to the tool router in `MctServer::new`. This is TTC (Tool Terse Catalog): a compact `WHEN`/`ERR`/`TAGS` format that replaced long prose descriptions to shrink the catalog's token footprint (~68% smaller, measured when the format was introduced; the catalog now has 18 tools) without dropping the "when to use this" / "when NOT to" information an agent actually needs.
+`crates/mct-mcp-server/src/server.rs` defines each tool's name, parameters and `#[tool(...)]` attribute, but that attribute's `description` is only a short fallback literal — the description an MCP client actually receives comes from `crates/mct-mcp-server/src/tools.ttc`, parsed by `crates/mct-mcp-server/src/ttc.rs` and applied to the tool router in `MctServer::new`. This is TTC (Tool Terse Catalog): a compact `WHEN`/`ERR`/`TAGS` format that replaced long prose descriptions to shrink the catalog's token footprint (~68% smaller, measured when the format was introduced; the catalog now has 19 tools by default, 20 with the opt-in `select_tools`) without dropping the "when to use this" / "when NOT to" information an agent actually needs.
 
 When adding a tool, add a block to `tools.ttc`:
 

@@ -19,7 +19,7 @@ flowchart LR
     A["Your source code files"] --> B["A language plugin<br/>reads that language's grammar"]
     B --> C["A shared map format<br/>(functions, classes, who calls who)"]
     C --> D[("A local database file<br/>.mct-index/index.sqlite3")]
-    D --> E["18 lookup tools"]
+    D --> E["19 lookup tools"]
     E --> F["Your AI assistant, via MCP"]
     E --> G["The command line, for people"]
     F --> H["You get an answer —<br/>instead of the assistant<br/>reading whole files"]
@@ -32,7 +32,7 @@ Walking through each step:
 2. **A language plugin reads that language's grammar** — a small, dedicated component understands the real structure of that one programming language (not just guessing from text).
 3. **A shared map format** — whatever language the plugin just read, the result is translated into the same simple shape: "here's a function/class, here's its name and location, here's what it calls."
 4. **A local database file** — that shared map is stored on your own machine, in one plain file, using the same well-known storage format (SQLite) regardless of which languages your project uses.
-5. **18 lookup tools** — a small, fixed set of questions and helpers this map can answer quickly (summarized below).
+5. **19 lookup tools** (20 with the opt-in `select_tools`) — a small, fixed set of questions and helpers this map can answer quickly (summarized below).
 6. **Your AI assistant, via MCP, or the command line, for people** — either an AI assistant asks these questions automatically as it works, or you ask them yourself from a terminal.
 7. **You get an answer instead of the assistant reading whole files** — the whole point: a precise answer to a precise question, without scanning or re-reading anything unnecessary.
 
@@ -56,13 +56,13 @@ Because each language gets its own separate, self-contained plugin, adding suppo
 
 ### 3. The local database
 
-Whatever language wrote the code, the result always lands in the same single local file, using one shared layout — not a different storage scheme for every language. That's what makes a question like "who calls this function" work identically no matter what language answered it: one set of logic to maintain, not seventeen separate ones. The layout evolves through a numbered series of migrations (10 as of this writing), so an index created by an older version is upgraded in place.
+Whatever language wrote the code, the result always lands in the same single local file, using one shared layout — not a different storage scheme for every language. That's what makes a question like "who calls this function" work identically no matter what language answered it: one set of logic to maintain, not seventeen separate ones. The layout evolves through a numbered series of migrations (11 as of this writing), so an index created by an older version is upgraded in place.
 
 This database also keeps track of what's changed since the last time it looked, using the same kind of fingerprinting that version control (Git) already relies on — so re-scanning a project after a small change only looks at what's actually different, not the whole project from scratch. And by default, it deliberately skips over anything that looks like a secret (password files, API keys, credential files, and similar), so those never end up copied into the index.
 
 ### 4. The question-answering layer
 
-This is the part that an AI assistant actually talks to. It offers 18 tools. The core questions are:
+This is the part that an AI assistant actually talks to. It offers 19 tools by default (20 with the opt-in `select_tools`). The core questions are:
 
 - **What's defined in this file or folder** — useful for browsing when you don't know an exact name yet
 - **Where exactly is this thing defined**
