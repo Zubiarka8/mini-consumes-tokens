@@ -3,7 +3,7 @@ import { LandingLocale } from "@/components/landing/locale";
 import { Landing } from "@/components/landing/landing";
 import "./landing.css";
 
-const title = "mini-consumes-tokens — A code atlas for your AI agent";
+const title = "mini-consumes-tokens — A map of your code for your AI assistant";
 const description =
   "Turn source code into a local symbol graph. Give MCP coding assistants focused context with definitions, relationships and impact analysis.";
 export const metadata: Metadata = {
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
         url: "https://zubiarka8.github.io/mini-consumes-tokens/code-atlas.svg",
         width: 1200,
         height: 630,
-        alt: "mini-consumes-tokens code atlas",
+        alt: "mini-consumes-tokens: a map of your code",
       },
     ],
   },

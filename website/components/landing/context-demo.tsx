@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { Combobox } from "@base-ui/react/combobox";
+import { ArrowRight, ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 const source = `const currency = "EUR";
@@ -55,16 +57,43 @@ export function createInvoice(id, customer, items) {
   };
 }`;
 
-const lines = source.split("\n").map((text, index) => ({
-  text,
-  number: index + 1,
-  relevant: index === 1 || (index >= 4 && index <= 8),
-}));
-const selection = lines.filter((line) => line.relevant);
+const sourceLines = source.split("\n");
+// 0-based indexes of a top-level declaration: a `const` line or a whole function.
+function declaration(name: string): number[] {
+  const start = sourceLines.findIndex(
+    (line) =>
+      line.startsWith(`const ${name} `) ||
+      line.startsWith(`export function ${name}(`),
+  );
+  const end = sourceLines[start].startsWith("const ")
+    ? start
+    : sourceLines.indexOf("}", start);
+  return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+}
+// Each query selects the declarations that answer it.
+const queries = [
+  ["taxRate", "calculateTotal"],
+  ["paymentTerms", "paymentDue"],
+  ["paymentTerms", "paymentDue", "invoiceStatus"],
+  ["customerDetails", "createInvoice"],
+  ["currency", "formatPrice"],
+].map((names) => new Set(names.flatMap(declaration)));
+const queryIds = queries.map((_, index) => String(index));
+
+function buildLines(query: number) {
+  return sourceLines.map((text, index) => ({
+    text,
+    number: index + 1,
+    relevant: queries[query].has(index),
+  }));
+}
 
 export function ContextDemo() {
   const { t } = useTranslation();
   const [focused, setFocused] = useState(false);
+  const [query, setQuery] = useState("0");
+  const lines = buildLines(Number(query));
+  const selection = lines.filter((line) => line.relevant);
   const visible = focused ? selection : lines;
 
   return (
@@ -72,10 +101,42 @@ export function ContextDemo() {
       <div className="demo-intro">
         <span className="demo-badge">{t("demoBadge")}</span>
         <h2 id="demo-title">{t("demoTitle")}</h2>
-        <p>{t("demoQuery")}</p>
+        <Combobox.Root
+          items={queryIds}
+          value={query}
+          onValueChange={(next) => next && setQuery(next)}
+          openOnInputClick
+          itemToStringLabel={(id) => t(`demoQuery${id}`)}
+        >
+          <Combobox.Label className="demo-combo-label">
+            {t("demoQueryLabel")}
+          </Combobox.Label>
+          <Combobox.InputGroup className="demo-combo">
+            <Combobox.Input className="demo-combo-input" readOnly />
+            <Combobox.Trigger
+              className="demo-combo-trigger"
+              aria-label={t("demoQueryLabel")}
+            >
+              <ChevronDown size={16} aria-hidden="true" />
+            </Combobox.Trigger>
+          </Combobox.InputGroup>
+          <Combobox.Portal>
+            <Combobox.Positioner sideOffset={6} className="demo-combo-layer">
+              <Combobox.Popup className="demo-combo-popup">
+                <Combobox.List>
+                  {(id: string) => (
+                    <Combobox.Item key={id} value={id} className="demo-combo-item">
+                      {t(`demoQuery${id}`)}
+                    </Combobox.Item>
+                  )}
+                </Combobox.List>
+              </Combobox.Popup>
+            </Combobox.Positioner>
+          </Combobox.Portal>
+        </Combobox.Root>
         <div className="demo-count">
           <strong>{lines.length}</strong>
-          <span aria-hidden="true">→</span>
+          <ArrowRight size={18} aria-hidden="true" />
           <strong>{selection.length}</strong>
           <span>{t("demoLines")}</span>
         </div>
