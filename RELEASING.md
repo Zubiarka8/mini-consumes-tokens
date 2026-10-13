@@ -25,7 +25,11 @@ tag list.
       `Cargo.lock` and the per-crate `crates/*/fuzz/Cargo.lock` files were
       refreshed with `cargo update --workspace` (only workspace packages
       should change).
-- [ ] The README version badge matches.
+- [ ] The README version badge matches (`release.sh bump` updates it). The
+      other version spots are manual, as listed under "Release version files"
+      in `rules.md`: the README sentence about the first version shipping
+      prebuilt archives and the `mct-cli --version` example output.
+      Then run `git grep` for the old version to confirm none remains.
 - [ ] `scripts/unix/check.sh` (or `scripts\windows\check.ps1`) is clean
       locally: fmt, tests, CI-equivalent clippy, `mct-eval`.
 - [ ] `python3 scripts/unix/tests/test_install.py` passes.
