@@ -292,7 +292,7 @@ pub fn spawn_watcher(
             let mut guard = index.blocking_lock();
             match state.apply(&mut *guard, &registry, changed) {
                 None => {}
-                Some(Ok((mode, report))) => tracing::debug!(
+                Some(Ok((mode, report))) => tracing::info!(
                     mode,
                     parsed = report.files_parsed,
                     unchanged = report.files_unchanged,
