@@ -12,12 +12,12 @@ pages:
   - exclusion
   - querying
   - cheatsheet
-  - troubleshooting
   - "---Internals---"
   - architecture
   - indexing
   - schema
   - security
   - limitations
+  - development
   - extending
   - libraries
