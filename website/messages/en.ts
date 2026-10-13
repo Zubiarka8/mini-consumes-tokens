@@ -214,7 +214,7 @@ const en = {
   docsLabel: "THE REFERENCE MANUAL",
   docsTitle: "A clear path from install to insight.",
   docsText:
-    "Installation, client setup, CLI commands, MCP tools, supported languages, architecture and troubleshooting. The existing reference manual is in English.",
+    "Installation, client setup, CLI commands, MCP tools, supported languages, architecture and internals. The existing reference manual is in English.",
   guide1: "Install & connect",
   guide2: "Query & explore",
   guide3: "Understand & extend",
