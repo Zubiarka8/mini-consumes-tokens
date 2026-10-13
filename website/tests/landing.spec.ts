@@ -11,8 +11,9 @@ test("English default, complete Spanish switch, persistence and English docs", a
   await page.getByLabel("Language", { exact: true }).selectOption("es");
   await expect(page.locator("h1")).toContainText("Menos búsquedas.");
   await expect(page.locator("html")).toHaveAttribute("lang", "es");
+  // plain-language: the project brief now speaks of "un mapa de las piezas".
   await expect(page.locator(".atlas-project")).toContainText(
-    "tal como lo ve su propio índice",
+    "un mapa de las piezas",
   );
   await page.reload();
   await expect(page.locator("h1")).toContainText("Menos búsquedas.");
@@ -29,17 +30,9 @@ test("English default, complete Spanish switch, persistence and English docs", a
   await page.goto(home + "docs/installation/");
   await expect(page.locator("h1")).toContainText("Installation");
 });
-test("symbol selection, clipboard failure, FAQ and keyboard", async ({
-  page,
-}) => {
+test("clipboard failure, FAQ and keyboard", async ({ page }) => {
   await page.goto(home);
-  await page
-    .locator(".symbol-controls")
-    .getByRole("button", { name: "Index", exact: true })
-    .click();
-  await expect(page.locator(".context-pack")).toContainText(
-    "crates/mct-index/src/lib.rs:83",
-  );
+  // plain-language: the symbol panel and context pack are gone, so the selection step is dropped.
   await page.evaluate(() =>
     Object.defineProperty(navigator, "clipboard", {
       value: { writeText: () => Promise.reject(new Error("denied")) },
@@ -183,7 +176,7 @@ test("reduced motion retains the 3D scene and manual controls", async ({
   await expect(page.locator(".spatial-labels button").first()).toBeVisible();
   await expect(page.locator(".atlas-svg")).toHaveCount(0);
 });
-test("WebGL absence retains readable source and project context", async ({
+test("WebGL absence retains the plain explanation and project context", async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -203,7 +196,11 @@ test("WebGL absence retains readable source and project context", async ({
   await expect(page.locator(".atlas-fallback")).toContainText(
     "3D view is unavailable",
   );
-  await expect(page.locator(".atlas-source")).toBeVisible();
+  // plain-language: the fallback carries the short plain explanation instead of a source listing.
+  await expect(page.locator(".atlas-fallback")).toContainText(
+    "your files become a map of the pieces",
+  );
+  await expect(page.locator(".atlas-project")).toBeVisible();
 });
 test("atlas exposes the scene state", async ({ page, request }) => {
   const response = await request.get(home);
@@ -296,7 +293,8 @@ test("3D scene loads on approach, rotates and handles context loss", async ({
   await expect(page.locator(".atlas-loading")).toContainText(
     "Loading the spatial atlas",
   );
-  await expect(page.locator(".atlas-source")).toBeVisible();
+  // plain-language: the source listing is gone; the project card stays readable while loading.
+  await expect(page.locator(".atlas-project")).toBeVisible();
   finishLoading();
   await expect(page.locator("canvas")).toBeVisible();
   expect(requested.some((name) => spatialChunks.includes(name))).toBe(true);
@@ -306,8 +304,9 @@ test("3D scene loads on approach, rotates and handles context loss", async ({
   await expect.poll(settled).toBeGreaterThan(100);
   const labels = page.locator(".spatial-labels");
   await expect(labels.getByRole("button")).toHaveCount(6);
+  // plain-language: 3D labels are plain words ("Answers"), not code names.
   const selectedLabel = labels.getByRole("button", {
-    name: "MctServer",
+    name: "Answers",
     exact: true,
   });
   await expect(selectedLabel).toBeVisible();
@@ -321,12 +320,10 @@ test("3D scene loads on approach, rotates and handles context loss", async ({
   expect(Math.abs(stillPosition.x - idlePosition.x)).toBeLessThanOrEqual(0.5);
   expect(Math.abs(stillPosition.y - idlePosition.y)).toBeLessThanOrEqual(0.5);
   const initialPosition = await selectedLabel.boundingBox();
-  await labels.getByRole("button", { name: "Index", exact: true }).click();
-  await expect(page.locator(".context-pack")).toContainText(
-    "crates/mct-index/src/lib.rs:83",
-  );
+  // plain-language: "Map keeper" is the plain label of Index; no context pack to check.
+  await labels.getByRole("button", { name: "Map keeper", exact: true }).click();
   await expect(
-    labels.getByRole("button", { name: "Index", exact: true }),
+    labels.getByRole("button", { name: "Map keeper", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
   // The taller layered scene must be fully in view before pointer gestures.
   await page.locator("canvas").scrollIntoViewIfNeeded();
@@ -389,9 +386,10 @@ test("3D scene loads on approach, rotates and handles context loss", async ({
     "3D view is unavailable",
   );
   await expect(page.locator("canvas")).toHaveCount(0);
-  await expect(page.locator(".atlas-source")).toBeVisible();
+  // plain-language: the project card replaces the removed source listing.
+  await expect(page.locator(".atlas-project")).toBeVisible();
 });
-test("3D chunk failure retains source and project context", async ({
+test("3D chunk failure retains the plain explanation and project context", async ({
   page,
 }) => {
   await page.goto(home);
@@ -417,11 +415,12 @@ test("3D chunk failure retains source and project context", async ({
   await expect(page.locator(".atlas-fallback")).toContainText(
     "3D view is unavailable",
   );
-  await expect(page.locator(".atlas-source")).toBeVisible();
+  // plain-language: the project card replaces the removed source listing.
+  await expect(page.locator(".atlas-project")).toBeVisible();
   await expect(page.locator(".spatial-layer")).toHaveCount(0);
   await expect(page.locator(".atlas-mode")).toHaveCount(0);
 });
-test("layer controls and source selection explain the project in 3D", async ({
+test("layer controls and piece selection explain the project in 3D", async ({
   page,
 }) => {
   await page.goto(home);
@@ -430,16 +429,17 @@ test("layer controls and source selection explain the project in 3D", async ({
     name: "Visible layers",
     exact: true,
   });
+  // plain-language: layers are named «Your files / Map of the pieces / What the assistant needs».
   const files = layers.getByRole("button", {
-    name: "01 Source files",
+    name: "01 Your files",
     exact: true,
   });
   const symbols = layers.getByRole("button", {
-    name: "02 Symbol graph",
+    name: "02 Map of the pieces",
     exact: true,
   });
   const context = layers.getByRole("button", {
-    name: "03 Agent context",
+    name: "03 What the assistant needs",
     exact: true,
   });
   await files.click();
@@ -448,26 +448,8 @@ test("layer controls and source selection explain the project in 3D", async ({
   await expect(context).toHaveAttribute("aria-pressed", "true");
   await files.click();
   await symbols.click();
-  const spacing = atlas.getByRole("slider", {
-    name: "Layer spacing",
-    exact: true,
-  });
-  await spacing.fill("0.7");
-  await expect(spacing).toHaveValue("0.7");
-  await atlas
-    .locator(".symbol-controls")
-    .getByRole("button", { name: "reindex", exact: true })
-    .click();
-  await expect(atlas.locator(".atlas-source")).toContainText(
-    "registry: &LanguageRegistry",
-  );
-  await expect(atlas.locator(".atlas-line-number").first()).toHaveText("91");
-  await expect(atlas.locator(".atlas-query")).toContainText(
-    "What happens on a full reindex",
-  );
-  await expect(atlas.locator(".atlas-explanation")).toContainText(
-    "indexes each supported file",
-  );
+  // plain-language: the layer spacing slider was removed; the spacing is fixed.
+  await expect(atlas.getByRole("slider")).toHaveCount(0);
   const supported = await page.evaluate(
     () => !!document.createElement("canvas").getContext("webgl2"),
   );
@@ -479,9 +461,8 @@ test("layer controls and source selection explain the project in 3D", async ({
     });
     await expect(file).toBeVisible();
     await file.click();
-    await expect(atlas.locator(".atlas-source")).toContainText(
-      "index: Arc<Mutex<Index>>",
-    );
+    // plain-language: selecting a file highlights its piece instead of showing source.
+    await expect(file).toHaveAttribute("aria-pressed", "true");
     await files.click();
     await expect(file).toBeHidden();
     await symbols.click();
@@ -489,11 +470,10 @@ test("layer controls and source selection explain the project in 3D", async ({
     await files.click();
     await expect(file).toBeVisible();
     await symbols.click();
-    await spacing.fill("1.65");
     await expect(
       atlas
         .locator(".spatial-labels")
-        .getByRole("button", { name: "Index", exact: true }),
+        .getByRole("button", { name: "Map keeper", exact: true }),
     ).toBeVisible();
     await atlas.screenshot({ path: "test-results/atlas-layers.png" });
   }
@@ -501,73 +481,46 @@ test("layer controls and source selection explain the project in 3D", async ({
   await expect(
     atlas.getByRole("group", { name: "Capas visibles", exact: true }),
   ).toBeVisible();
+  // plain-language: Spanish layer names.
   await expect(
-    atlas.getByRole("slider", { name: "Separación de capas", exact: true }),
-  ).toHaveValue(supported ? "1.65" : "0.7");
+    atlas.getByRole("button", { name: "02 Mapa de las piezas", exact: true }),
+  ).toBeVisible();
 });
 
-test("additional files expose connected source and translated context", async ({
+test("three files and six pieces carry plain labels in both languages", async ({
   page,
 }) => {
   await page.goto(home);
   const atlas = page.locator(".atlas");
   await atlas.locator(".atlas-space").scrollIntoViewIfNeeded();
+  const supported = await page.evaluate(
+    () => !!document.createElement("canvas").getContext("webgl2"),
+  );
+  test.skip(!supported, "WebKit runtime has no WebGL2");
   await expect(atlas.locator(".spatial-file-labels button")).toHaveCount(3);
-  await expect(atlas.locator(".symbol-controls button")).toHaveCount(6);
-  for (const [path, symbol, line, source] of [
-    [
-      "crates/mct-mcp-server/src/server.rs",
-      "MctServer",
-      "673",
-      "index: Arc<Mutex<Index>>",
-    ],
-    ["crates/mct-index/src/lib.rs", "Index", "83", "conn: Connection"],
-    [
-      "crates/mct-index/src/indexer.rs",
-      "reindex",
-      "91",
-      "registry: &LanguageRegistry",
-    ],
+  // plain-language: no symbol panel; each file label selects its first piece.
+  await expect(atlas.locator(".symbol-controls")).toHaveCount(0);
+  for (const [path, piece] of [
+    ["crates/mct-mcp-server/src/server.rs", "Answers"],
+    ["crates/mct-index/src/lib.rs", "Map keeper"],
+    ["crates/mct-index/src/indexer.rs", "Full scan"],
   ]) {
     await atlas
-      .getByRole("button", {
-        name: `Inspect file ${path}`,
-        exact: true,
-      })
+      .getByRole("button", { name: `Inspect file ${path}`, exact: true })
       .click();
-    await expect(atlas.locator(".context-pack strong")).toHaveText(symbol);
-    await expect(atlas.locator(".atlas-source")).toContainText(source);
-    await expect(atlas.locator(".atlas-line-number").first()).toHaveText(line);
     await expect(
       atlas
-        .locator(".symbol-controls")
-        .getByRole("button", { name: symbol, exact: true }),
+        .locator(".spatial-labels")
+        .getByRole("button", { name: piece, exact: true }),
     ).toHaveAttribute("aria-pressed", "true");
   }
   await page.getByLabel("Language", { exact: true }).selectOption("es");
-  await expect(atlas.locator(".atlas-query")).toContainText(
-    "¿Qué ocurre en una reindexación completa",
-  );
-  await expect(atlas.locator(".atlas-explanation")).toContainText(
-    "indexa cada archivo compatible",
-  );
   await expect(
     atlas
-      .locator(".symbol-controls")
-      .getByRole("button", { name: "reindex", exact: true }),
-  ).toContainText("Indexar todo el proyecto");
+      .locator(".spatial-labels")
+      .getByRole("button", { name: "Escaneo total", exact: true }),
+  ).toBeVisible();
   await atlas.screenshot({ path: "test-results/atlas-three-files.png" });
-  await page.setViewportSize({ width: 320, height: 900 });
-  await atlas
-    .locator(".symbol-controls")
-    .getByRole("button", { name: "status", exact: true })
-    .click();
-  await expect(atlas.locator(".atlas-query")).toContainText(
-    "¿Está sano el índice",
-  );
-  await expect(atlas.locator(".atlas-source")).toContainText(
-    "index.conn.prepare(",
-  );
 });
 
 for (const width of [1440, 390])
@@ -578,28 +531,21 @@ for (const width of [1440, 390])
     await page.goto(home);
     const atlas = page.locator(".atlas");
     await atlas.locator(".atlas-space").scrollIntoViewIfNeeded();
-    const controls = atlas.locator(".symbol-controls button");
-    await expect(controls).toHaveCount(6);
-    for (const [i, filename] of [
-      "server.rs",
-      "server.rs",
-      "lib.rs",
-      "indexer.rs",
-      "indexer.rs",
-      "indexer.rs",
-    ].entries())
-      await expect(controls.nth(i)).toContainText(filename);
+    // plain-language: the symbol panel is gone; the 3D labels are the only symbol buttons.
+    await expect(atlas.locator(".symbol-controls")).toHaveCount(0);
     await expect(atlas.locator(".spatial-labels button")).toHaveCount(6);
     await expect(atlas.locator(".spatial-file-labels button")).toHaveCount(3);
     const names = (
       await atlas
-        .locator(".symbol-controls, .spatial-labels, .spatial-file-labels")
+        .locator(".spatial-labels, .spatial-file-labels")
         .allTextContents()
     ).join(" ");
     // Symbols without a resolved call stay in the detail view.
     expect(names).not.toMatch(
       /\b(index_file|walk_entry_allowed|validate_name|ListSymbolsArgs)\b|main\.rs/,
     );
+    // plain-language: piece labels are plain words, never code names.
+    expect(names).not.toMatch(/MctServer|ServerOptions|reindex|_/);
     // Mobile shows only the selected file and symbol labels.
     await expect
       .poll(() =>
@@ -637,12 +583,13 @@ test("full screen retains selection, traps focus and exits on Escape", async ({
   );
   test.skip(!supported, "WebKit runtime has no WebGL2");
   const atlas = page.locator(".atlas");
-  await atlas
-    .locator(".symbol-controls")
-    .getByRole("button", { name: "reindex", exact: true })
-    .click();
   await atlas.locator(".atlas-space").scrollIntoViewIfNeeded();
   await expect(atlas).toHaveAttribute("data-scene", "ready");
+  // plain-language: select "Full scan" (reindex) through its plain 3D label.
+  await atlas
+    .locator(".spatial-labels")
+    .getByRole("button", { name: "Full scan", exact: true })
+    .click();
   await atlas.getByRole("button", { name: "Full screen", exact: true }).click();
   await expect(
     page.getByRole("dialog", { name: "Code atlas", exact: true }),
@@ -655,9 +602,13 @@ test("full screen retains selection, traps focus and exits on Escape", async ({
   expect(box?.y).toBe(0);
   expect(box?.width).toBe(page.viewportSize()!.width);
   expect(box?.height).toBe(page.viewportSize()!.height);
-  await expect(atlas.locator(".context-pack strong")).toHaveText("reindex");
-  // The explorer and context pack are hidden, so the trap runs from the layer
-  // toggles to the tools reference link at the end of the tour.
+  await expect(
+    atlas
+      .locator(".spatial-labels")
+      .getByRole("button", { name: "Full scan", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  // The trap runs from the layer toggles to the tools reference link at the
+  // end of the tour.
   const first = atlas.locator(".atlas-layer-toggles button").first();
   const last = atlas.getByRole("link", {
     name: "Read the MCP tools reference",
@@ -670,7 +621,7 @@ test("full screen retains selection, traps focus and exits on Escape", async ({
   await expect(first).toBeFocused();
   const label = atlas
     .locator(".spatial-labels")
-    .getByRole("button", { name: "Index", exact: true });
+    .getByRole("button", { name: "Map keeper", exact: true });
   await expect(label).toBeVisible();
   await label.click();
   await page.keyboard.press("Escape");
@@ -678,7 +629,8 @@ test("full screen retains selection, traps focus and exits on Escape", async ({
   await expect(
     atlas.getByRole("button", { name: "Full screen", exact: true }),
   ).toBeFocused();
-  await expect(atlas.locator(".context-pack strong")).toHaveText("Index");
+  // plain-language: the selection survives leaving full screen (no context pack to read).
+  await expect(label).toHaveAttribute("aria-pressed", "true");
   expect(await page.evaluate(() => document.body.style.overflow)).not.toBe(
     "hidden",
   );
@@ -737,8 +689,8 @@ for (const [width, height] of [
     );
     test.skip(!supported, "WebKit runtime has no WebGL2");
     const atlas = page.locator(".atlas");
-    await expect(atlas.locator(".atlas-top-actions")).toHaveText("MCT / 001");
-    await expect(atlas.locator(".atlas-top-actions button")).toHaveCount(0);
+    // plain-language: the "MCT / 001" header row was removed with the symbol panel.
+    await expect(atlas.locator(".atlas-top-actions")).toHaveCount(0);
     await atlas.locator(".atlas-space").scrollIntoViewIfNeeded();
     for (const name of ["Full screen", "Exit full screen"]) {
       const rotate = atlas.getByRole("button", { name: "Rotate the atlas" });
@@ -871,17 +823,18 @@ for (const [width, height] of [
     await atlas
       .getByRole("button", { name: "Full screen", exact: true })
       .click();
+    // plain-language: the removed panels no longer exist at all.
     for (const selector of [
       ".symbol-controls",
       ".context-pack",
       ".atlas-caption",
     ])
-      await expect(atlas.locator(selector)).toBeHidden();
+      await expect(atlas.locator(selector)).toHaveCount(0);
     await expect(atlas.locator(".atlas-space")).toBeVisible();
     await expect(atlas.locator(".atlas-stage").first()).toBeVisible();
   });
 
-test("full screen keeps the explorer and context pack without WebGL", async ({
+test("full screen keeps the plain explanation without WebGL", async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -903,12 +856,16 @@ test("full screen keeps the explorer and context pack without WebGL", async ({
   await expect(atlas.locator(".atlas-fallback")).toBeVisible();
   await atlas.getByRole("button", { name: "Full screen", exact: true }).click();
   await expect(atlas.locator(".atlas-fallback")).toBeVisible();
+  // plain-language: the fallback explanation replaces the explorer and context pack.
+  await expect(atlas.locator(".atlas-fallback")).toContainText(
+    "your files become a map of the pieces",
+  );
   for (const selector of [
     ".symbol-controls",
     ".context-pack",
     ".atlas-caption",
   ])
-    await expect(atlas.locator(selector)).toBeVisible();
+    await expect(atlas.locator(selector)).toHaveCount(0);
 });
 
 test("tour explains the server in fourteen translated stages", async ({

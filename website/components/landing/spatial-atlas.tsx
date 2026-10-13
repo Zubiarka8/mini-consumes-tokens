@@ -294,7 +294,7 @@ function Graph({
       ),
     );
     layers.forEach((shown, i) =>
-      place(boardLabels.current[i], -2.65, layerHeight(i), 1.35, shown, 8),
+      place(boardLabels.current[i], -2.65, layerHeight(i), 1.85, shown, 8),
     );
     if (firstFrame.current) {
       firstFrame.current = false;

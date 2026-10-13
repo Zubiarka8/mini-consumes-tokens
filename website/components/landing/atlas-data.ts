@@ -53,7 +53,7 @@ export const examples = [
   {
     name: "status",
     file: 2,
-    position: [1.35, 0.95],
+    position: [1.05, 1],
   },
 ] as const;
 // Destructuring the tuple makes a missing example a type error.
