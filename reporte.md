@@ -25,6 +25,8 @@ After the rebase, the docs were checked against an index of `main` built with `m
 - Migrations: `ARCHITECTURE.md` said 10; `main` has 11 (`symbol_aliases`, issue #135).
 - `COMMANDS.md` did not document `select_tools`; added.
 - Confirmed unchanged on main: `find_implementations` and `find_tests` absent, `KNOWN_PENDING_LANGUAGES` lists only Swift and Ruby, no Ruby/PHP/Swift secret patterns in Rust source, `mct-languages::build_registry` registers the languages, `mct-cli` has `call`, `probe` and `update`.
+- `RELEASING.md` referenced the `site/index.html` eyebrow, which no longer exists on `main` (the manual moved to `website/`); removed. The `site/index.html` follow-up elsewhere in this report is obsolete.
+- Confirmed accurate: the `scripts/` helper programs and Windows twins exist, and `website/README.md` matches `package.json` and `scripts/serve.sh`.
 - Not verified: benchmark figures, test counts, `scripts/` and `website/` claims, and the `README.md` figures.
 
 ## Branches
