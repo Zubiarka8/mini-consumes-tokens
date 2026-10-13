@@ -17,6 +17,16 @@ The audit ran against base `2641f50`; `origin/main` was 132 commits ahead (new `
 
 Findings below that mention two `build_registry` functions or a "no-conflict" merge describe the audit base, not main. Facts were not re-verified against main's code after the rebase.
 
+## Verification against main (2026-10-13)
+
+After the rebase, the docs were checked against an index of `main` built with `mct-cli`. Corrections made:
+
+- Tool count: `main` has 19 tools by default (`semantic_search` was added after the audit base) and 20 with the opt-in `select_tools`, as `README.md` says. `ARCHITECTURE.md`, `CONTRIBUTING.md` and `ROADMAP.md` said 18 and were fixed. Mentions of "18 tools" in the per-area reports and above describe the audit base.
+- Migrations: `ARCHITECTURE.md` said 10; `main` has 11 (`symbol_aliases`, issue #135).
+- `COMMANDS.md` did not document `select_tools`; added.
+- Confirmed unchanged on main: `find_implementations` and `find_tests` absent, `KNOWN_PENDING_LANGUAGES` lists only Swift and Ruby, no Ruby/PHP/Swift secret patterns in Rust source, `mct-languages::build_registry` registers the languages, `mct-cli` has `call`, `probe` and `update`.
+- Not verified: benchmark figures, test counts, `scripts/` and `website/` claims, and the `README.md` figures.
+
 ## Branches
 
 | Branch | Worktree (sibling of the repo) | Files | Commits |
