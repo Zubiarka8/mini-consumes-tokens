@@ -10,7 +10,7 @@
 use std::path::Path;
 
 use mct_index::{ExcludeSet, Index};
-use mct_mcp_server::server::{FindSymbolArgs, MctServer, SearchSymbolsArgs};
+use mct_mcp_server::server::{FindSymbolArgs, HybridSearchArgs, MctServer, SearchSymbolsArgs};
 use rmcp::handler::server::wrapper::Parameters;
 
 fn fixture(name: &str) -> std::path::PathBuf {
@@ -159,4 +159,97 @@ async fn empty_and_unmatchable_queries_are_handled_cleanly() {
         .is_err());
     let text = search(&server, args("\"*()")).await;
     assert!(text.contains("No symbol matches"), "got: {text}");
+}
+
+/// The renamed tools (`*_like`) and the deprecated aliases share one
+/// implementation, so the same call must give byte-identical output.
+#[tokio::test]
+async fn search_symbols_like_and_the_deprecated_alias_answer_identically() {
+    let server = build_server_at(&fixture("polyglot-app")).await;
+    let mut a = args("create invoice");
+    a.cache = Some(false);
+    let mut b = args("create invoice");
+    b.cache = Some(false);
+    let new = content_of(&server.search_symbols_like(Parameters(a)).await.unwrap());
+    let old = content_of(&server.search_symbols(Parameters(b)).await.unwrap());
+    assert!(!new.is_empty());
+    assert_eq!(new, old);
+}
+
+fn hybrid_args(query: &str) -> HybridSearchArgs {
+    HybridSearchArgs {
+        query: query.to_string(),
+        alpha: Some(0.0),
+        path: None,
+        language: None,
+        top_k: None,
+        offset: None,
+        snippet_lines: None,
+        format: None,
+        cache: Some(false),
+    }
+}
+
+#[tokio::test]
+async fn hybrid_search_like_and_the_deprecated_alias_answer_identically() {
+    let server = build_server_at(&fixture("polyglot-app")).await;
+    let new = content_of(
+        &server
+            .hybrid_search_like(Parameters(hybrid_args("create invoice")))
+            .await
+            .unwrap(),
+    );
+    let old = content_of(
+        &server
+            .hybrid_search(Parameters(hybrid_args("create invoice")))
+            .await
+            .unwrap(),
+    );
+    assert!(!new.is_empty());
+    assert_eq!(new, old);
+}
+
+/// `batch` and `call_read_only_tool` accept both the new and the old name,
+/// and the catalog lists the old names as deprecated.
+#[tokio::test]
+async fn both_names_dispatch_in_a_batch_and_the_old_ones_are_listed_as_deprecated() {
+    let server = build_server_at(&fixture("polyglot-app")).await;
+    let query = serde_json::json!({"query": "create invoice", "cache": false});
+    let args = query.as_object().cloned();
+    for tool in [
+        "search_symbols_like",
+        "search_symbols",
+        "hybrid_search_like",
+        "hybrid_search",
+    ] {
+        let text = content_of(
+            &server
+                .call_read_only_tool(tool, args.clone())
+                .await
+                .unwrap_or_else(|e| panic!("{tool}: {e:?}")),
+        );
+        assert!(!text.is_empty(), "{tool} returned nothing");
+    }
+    let catalog = server.tool_catalog();
+    for (old, new) in [
+        ("search_symbols", "search_symbols_like"),
+        ("hybrid_search", "hybrid_search_like"),
+    ] {
+        let find = |name: &str| {
+            catalog
+                .iter()
+                .find(|t| t.name.as_ref() == name)
+                .unwrap_or_else(|| panic!("`{name}` not registered"))
+                .description
+                .clone()
+                .unwrap_or_default()
+                .to_string()
+        };
+        assert!(
+            find(old).contains(&format!("deprecated, use {new}")),
+            "got: {}",
+            find(old)
+        );
+        assert!(!find(new).contains("deprecated"), "got: {}", find(new));
+    }
 }

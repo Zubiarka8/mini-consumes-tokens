@@ -168,6 +168,7 @@ async fn find_references_toon_round_trips() {
     let toon = content_of(
         &server
             .find_references(Parameters(FindReferencesArgs {
+                sort: None,
                 format: Some("toon".to_string()),
                 symbol: "helper".to_string(),
                 path: None,
