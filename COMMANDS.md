@@ -367,10 +367,10 @@ mct-mcp-server --root /path/to/your/project
 
 ### `--reindex-debounce-ms <ms>`
 
-Milliseconds of quiet time required after the last detected file write before the background watcher auto-reindexes. Defaults to `1500`. Passing `0` disables the background watcher entirely (index only refreshes on startup or a manual `reindex`).
+Milliseconds of quiet time required after the last detected file write before the background watcher auto-reindexes. Defaults to `15000` (15 seconds). Passing `0` disables the background watcher entirely (index only refreshes on startup or a manual `reindex`). The `MCT_REINDEX_DEBOUNCE_MS` environment variable sets the same value; precedence is flag, then variable, then default.
 
 ```sh
-mct-mcp-server --root /path/to/your/project --reindex-debounce-ms 3000
+mct-mcp-server --root /path/to/your/project --reindex-debounce-ms 5000
 ```
 
 ### `--help`
@@ -391,7 +391,7 @@ Options:
       --root <ROOT>
           Project root to index. Defaults to the current working directory
       --reindex-debounce-ms <REINDEX_DEBOUNCE_MS>
-          Milliseconds of quiet time required after the last detected file write before auto-reindexing. 0 disables the background watcher entirely, restoring the previous startup-only behavior [default: 1500]
+          Milliseconds of quiet time required after the last detected file write before auto-reindexing. 0 disables the background watcher entirely, restoring the previous startup-only behavior. Precedence: this flag, then the MCT_REINDEX_DEBOUNCE_MS environment variable, then the default of 15000
   -h, --help
           Print help
 ```
