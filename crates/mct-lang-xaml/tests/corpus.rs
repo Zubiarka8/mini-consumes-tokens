@@ -172,14 +172,23 @@ fn handlers_outside_the_known_event_list_are_the_documented_limit() {
 }
 
 #[test]
-fn only_references_are_emitted_and_none_cross_files() {
+fn handlers_are_references_and_only_a_merged_dictionary_crosses_files() {
     let c = corpus();
+    let imports: Vec<_> = c
+        .relations()
+        .into_iter()
+        .filter(|r| r.kind == RelationKind::Imports)
+        .collect();
+    // `<ResourceDictionary Source="Themes/Controls.xaml"/>` in `App.xaml`.
+    assert_eq!(imports.len(), 1);
+    assert_eq!(imports[0].to, "Controls");
     assert!(c
         .relations()
         .iter()
-        .all(|r| r.kind == RelationKind::References));
-    // Handlers live in code-behind (`*.xaml.cs`), never in another XAML file.
-    assert_eq!(c.name_matched_relation_count(), 0);
+        .all(|r| matches!(r.kind, RelationKind::References | RelationKind::Imports)));
+    // Handlers live in code-behind (`*.xaml.cs`), never in another XAML file:
+    // the one name-matched relation is that import.
+    assert_eq!(c.name_matched_relation_count(), 1);
 }
 
 #[test]

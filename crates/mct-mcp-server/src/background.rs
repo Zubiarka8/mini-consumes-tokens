@@ -5,7 +5,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use mct_core::LanguageRegistry;
 use mct_index::{ExcludeSet, Index, ReindexReport};
@@ -108,7 +108,8 @@ impl Reindexer for Index {
     }
 }
 
-/// Longest wait before retrying a failed update when no new event arrives.
+/// Longest wait before retrying a failed update when no new event arrives
+/// (never shorter than the configured quiet period itself).
 const MAX_RETRY_DELAY: Duration = Duration::from_secs(60);
 
 /// What the watcher carries from one batch to the next. A failed update may
@@ -127,11 +128,14 @@ impl BatchState {
     }
 
     /// How long to wait for an event before retrying the owed walk anyway:
-    /// `debounce` doubled per consecutive failure, capped at a minute, so a
-    /// persistent failure (disk full, a locked database) doesn't spin.
+    /// `debounce` doubled per consecutive failure, capped at a minute (or at
+    /// `debounce` itself when that is longer — a retry never comes sooner
+    /// than the quiet period), so a persistent failure (disk full, a locked database) doesn't spin.
     pub fn retry_delay(&self, debounce: Duration) -> Duration {
         let factor = 2u32.saturating_pow(self.failures.saturating_sub(1).min(16));
-        debounce.saturating_mul(factor).min(MAX_RETRY_DELAY)
+        debounce
+            .saturating_mul(factor)
+            .min(MAX_RETRY_DELAY.max(debounce))
     }
 
     /// Runs the update `changed` asks for (a full walk instead while one is
@@ -163,8 +167,38 @@ impl BatchState {
     }
 }
 
-/// Watches `root` recursively and, whenever the debouncer reports a settled
-/// batch of changes outside `exclude`, updates the index for just the
+/// Folds a newly classified batch into the changes already waiting for the
+/// quiet period to end: a rescan absorbs everything, path sets are united,
+/// and a union past [`MAX_INCREMENTAL_PATHS`] becomes a rescan.
+pub fn merge_changed(pending: Changed, new: Changed) -> Changed {
+    match (pending, new) {
+        (Changed::Nothing, other) | (other, Changed::Nothing) => other,
+        (Changed::Rescan, _) | (_, Changed::Rescan) => Changed::Rescan,
+        (Changed::Paths(mut a), Changed::Paths(b)) => {
+            a.extend(b);
+            a.sort();
+            a.dedup();
+            if a.len() > MAX_INCREMENTAL_PATHS {
+                Changed::Rescan
+            } else {
+                Changed::Paths(a)
+            }
+        }
+    }
+}
+
+/// `notify_debouncer_full` only settles each file on its own (a file's
+/// events are released once *that file* has been quiet for its timeout), so
+/// it cannot by itself give a project-wide quiet period. It is therefore run
+/// with at most this short timeout, merely to coalesce raw event noise, and
+/// the watcher thread adds the rest of the configured delay as a quiet period
+/// that every relevant batch restarts.
+const MAX_COALESCE: Duration = Duration::from_millis(500);
+
+/// Watches `root` recursively and, once no relevant change has arrived for
+/// `debounce` (every new relevant change restarts the wait; a burst becomes
+/// one update; irrelevant or excluded events never restart it),
+/// updates the index for the changed paths outside `exclude`, updates the index for just the
 /// changed paths ([`Index::reindex_paths`], issue #25). Falls back to a full
 /// non-forced [`Index::reindex`] when the platform asks for a rescan, the
 /// watcher reports errors (events may be lost), the batch is huge, or an
@@ -192,13 +226,29 @@ pub fn spawn_watcher(
     debounce: Duration,
 ) -> notify::Result<Debouncer<notify::RecommendedWatcher, RecommendedCache>> {
     let (tx, rx) = mpsc::channel();
-    let mut debouncer = new_debouncer(debounce, None, tx)?;
+    let coalesce = debounce.min(MAX_COALESCE);
+    // Total latency after the last change stays ~`debounce`.
+    let quiet = debounce - coalesce;
+    let mut debouncer = new_debouncer(coalesce, None, tx)?;
     debouncer.watch(&root, RecursiveMode::Recursive)?;
 
     std::thread::spawn(move || {
+        // Only the watcher asks for it: the initial index would pay a trigger
+        // run per symbol for a count nobody reads.
+        if let Err(err) = index.blocking_lock().track_symbol_changes(true) {
+            tracing::warn!(error = %err, "cannot track symbol changes; updates will log file counts only");
+        }
         let mut state = BatchState::default();
+        let mut pending = Changed::Nothing;
+        let mut deadline = Instant::now();
         loop {
-            let received = if state.rescan_pending() {
+            let received = if pending != Changed::Nothing {
+                match rx.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
+                    Ok(result) => Some(result),
+                    Err(mpsc::RecvTimeoutError::Timeout) => None,
+                    Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                }
+            } else if state.rescan_pending() {
                 match rx.recv_timeout(state.retry_delay(debounce)) {
                     Ok(result) => Some(result),
                     Err(mpsc::RecvTimeoutError::Timeout) => None,
@@ -210,37 +260,51 @@ pub fn spawn_watcher(
                     Err(_) => break,
                 }
             };
-            let changed = match received {
-                // Retrying an owed full walk: `apply` turns this into one.
-                None => Changed::Nothing,
-                Some(Ok(events)) => {
-                    tracing::debug!(
-                        count = events.len(),
-                        ?events,
-                        "watcher received a debounced batch"
-                    );
-                    changed_paths(&events, &root, &exclude)
-                }
-                Some(Err(errors)) => {
-                    for err in errors {
-                        tracing::warn!(error = %err, "file watcher error; will keep watching");
+            if let Some(result) = received {
+                let batch = match result {
+                    Ok(events) => {
+                        tracing::debug!(
+                            count = events.len(),
+                            ?events,
+                            "watcher received a debounced batch"
+                        );
+                        changed_paths(&events, &root, &exclude)
                     }
-                    // Events may have been lost: only a full walk is sure to
-                    // catch whatever they described.
-                    Changed::Rescan
+                    Err(errors) => {
+                        for err in errors {
+                            tracing::warn!(error = %err, "file watcher error; will keep watching");
+                        }
+                        // Events may have been lost: only a full walk is sure
+                        // to catch whatever they described.
+                        Changed::Rescan
+                    }
+                };
+                if batch != Changed::Nothing {
+                    pending =
+                        merge_changed(std::mem::replace(&mut pending, Changed::Nothing), batch);
+                    deadline = Instant::now() + quiet;
                 }
-            };
+                if pending != Changed::Nothing && !quiet.is_zero() {
+                    continue; // still inside the quiet period
+                }
+            }
+            // Quiet period over (or a retry of an owed full walk is due).
+            // Anything arriving while the update runs waits in the channel.
+            let changed = std::mem::replace(&mut pending, Changed::Nothing);
             if changed == Changed::Nothing && !state.rescan_pending() {
                 continue; // don't take the index lock for nothing
             }
             let mut guard = index.blocking_lock();
             match state.apply(&mut *guard, &registry, changed) {
                 None => {}
-                Some(Ok((mode, report))) => tracing::debug!(
+                Some(Ok((mode, report))) => tracing::info!(
                     mode,
                     parsed = report.files_parsed,
                     unchanged = report.files_unchanged,
                     removed = report.files_removed,
+                    symbols_added = report.symbols_added,
+                    symbols_removed = report.symbols_removed,
+                    removed_symbols = ?report.removed_symbols,
                     "auto-reindex after file changes settled"
                 ),
                 Some(Err(err)) => tracing::warn!(
@@ -252,4 +316,59 @@ pub fn spawn_watcher(
     });
 
     Ok(debouncer)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn paths(names: &[&str]) -> Changed {
+        Changed::Paths(names.iter().map(PathBuf::from).collect())
+    }
+
+    #[test]
+    fn merge_groups_a_burst_into_one_deduplicated_set() {
+        let merged = merge_changed(paths(&["/a", "/b"]), paths(&["/b", "/c"]));
+        assert_eq!(merged, paths(&["/a", "/b", "/c"]));
+    }
+
+    #[test]
+    fn merge_ignores_nothing_and_rescan_absorbs_everything() {
+        assert_eq!(
+            merge_changed(Changed::Nothing, paths(&["/a"])),
+            paths(&["/a"])
+        );
+        assert_eq!(
+            merge_changed(paths(&["/a"]), Changed::Nothing),
+            paths(&["/a"])
+        );
+        assert_eq!(
+            merge_changed(paths(&["/a"]), Changed::Rescan),
+            Changed::Rescan
+        );
+        assert_eq!(
+            merge_changed(Changed::Rescan, paths(&["/a"])),
+            Changed::Rescan
+        );
+    }
+
+    #[test]
+    fn merge_escalates_to_rescan_past_the_incremental_cap() {
+        let half = MAX_INCREMENTAL_PATHS / 2 + 1;
+        let batch = |tag: &str| {
+            Changed::Paths(
+                (0..half)
+                    .map(|i| PathBuf::from(format!("/{tag}{i}")))
+                    .collect(),
+            )
+        };
+        assert_eq!(merge_changed(batch("x"), batch("y")), Changed::Rescan);
+    }
+
+    #[test]
+    fn retry_delay_never_undercuts_a_long_quiet_period() {
+        let state = BatchState { failures: 1 };
+        let five_minutes = Duration::from_secs(300);
+        assert_eq!(state.retry_delay(five_minutes), five_minutes);
+    }
 }

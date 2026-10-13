@@ -1,4 +1,4 @@
-# language=javascript_typescript files=7 symbols=274 relations=681 name_matched_across_files=125
+# language=javascript_typescript files=7 symbols=274 relations=697 name_matched_across_files=138
 
 == scripts/seed.cjs (302 lines)
 S 1-302 module seed
@@ -139,15 +139,19 @@ S 261-273 function waitUntilShipped
 S 276-282 function snapshot
 S 285-294 function validatePlaceOrder
 S 296-298 function createClient
+R 1:1 imports client -> money (name-matched: src/money.ts)
 R 1:10 imports client -> Currency (name-matched: src/money.ts)
 R 1:20 imports client -> Money (name-matched: src/money.ts)
+R 2:1 imports client -> money (name-matched: src/money.ts)
 R 2:15 imports client -> ExchangeRates (name-matched: src/money.ts)
 R 2:30 imports client -> MoneyJson (name-matched: src/money.ts)
+R 3:1 imports client -> order
 R 3:8 imports client -> Order (name-matched: src/order.ts)
 R 3:17 imports client -> describeEvent
 R 3:44 imports client -> OrderJson (name-matched: src/order.ts)
 R 3:55 imports client -> OrderEvent (name-matched: src/order.ts)
 R 3:67 imports client -> asOrderId (name-matched: src/order.ts)
+R 4:1 imports client -> order
 R 4:15 imports client -> OrderId (name-matched: src/order.ts)
 R 21:31 extends ApiError -> Error
 R 72:14 calls sleep -> Promise
@@ -270,9 +274,11 @@ S 262-276 method PickListBuilder::add
 S 278-282 method PickListBuilder::#bestLocation
 S 284-291 method PickListBuilder::build
 S 295-300 function splitLines
+R 1:1 imports inventory -> order (name-matched: src/api/client.ts)
 R 1:15 imports inventory -> Order (name-matched: src/order.ts)
 R 1:22 imports inventory -> OrderId (name-matched: src/order.ts)
 R 1:31 imports inventory -> Line (name-matched: src/order.ts)
+R 2:1 imports inventory -> client (name-matched: src/api/client.ts)
 R 2:10 imports inventory -> WarehouseClient (name-matched: src/api/client.ts)
 R 2:27 imports inventory -> ApiError (name-matched: src/api/client.ts)
 R 2:37 imports inventory -> sleep (name-matched: src/api/client.ts)
@@ -567,11 +573,14 @@ S 293-297 function pages
 S 300-309 function packingSlip
 S 301-301 function rule
 S 302-302 function row
+R 1:1 imports order -> money (name-matched: src/money.ts)
 R 1:10 imports order -> Currency (name-matched: src/money.ts)
 R 1:20 imports order -> Money (name-matched: src/money.ts)
 R 1:27 imports order -> sum (name-matched: src/money.ts)
 R 1:32 imports order -> CurrencyMismatchError (name-matched: src/money.ts)
+R 2:1 imports order -> money (name-matched: src/money.ts)
 R 2:15 imports order -> MoneyJson (name-matched: src/money.ts)
+R 3:1 imports order -> clock
 R 3:8 imports order -> clock
 R 36:21 calls canMoveTo -> includes
 R 57:63 calls subtotal -> times (name-matched: src/money.ts)
@@ -681,17 +690,21 @@ R 1:50 imports OrderTable -> useReducer
 R 1:62 imports OrderTable -> useRef
 R 1:70 imports OrderTable -> useState
 R 2:15 imports OrderTable -> ReactNode
+R 3:1 imports OrderTable -> money (name-matched: src/money.ts)
 R 3:10 imports OrderTable -> Money (name-matched: src/money.ts)
 R 3:17 imports OrderTable -> Currency (name-matched: src/money.ts)
 R 3:27 imports OrderTable -> sum (name-matched: src/money.ts)
+R 4:1 imports OrderTable -> order (name-matched: src/api/client.ts)
 R 4:8 imports OrderTable -> Order (name-matched: src/order.ts)
 R 4:17 imports OrderTable -> State (name-matched: src/order.ts)
 R 4:24 imports OrderTable -> countByState (name-matched: src/order.ts)
 R 4:38 imports OrderTable -> describe (name-matched: src/order.ts)
 R 4:48 imports OrderTable -> packingSlip (name-matched: src/order.ts)
+R 5:1 imports OrderTable -> client (name-matched: src/api/client.ts)
 R 5:10 imports OrderTable -> WarehouseClient (name-matched: src/api/client.ts)
 R 5:27 imports OrderTable -> ApiError (name-matched: src/api/client.ts)
 R 5:37 imports OrderTable -> validatePlaceOrder (name-matched: src/api/client.ts)
+R 6:1 imports OrderTable -> inventory (name-matched: src/inventory.ts)
 R 6:10 imports OrderTable -> StockCache (name-matched: src/inventory.ts)
 R 6:22 imports OrderTable -> httpStockSource (name-matched: src/inventory.ts)
 R 6:39 imports OrderTable -> describeCount (name-matched: src/inventory.ts)
@@ -850,13 +863,16 @@ R 1:28 imports PickBoard -> useEffect
 R 1:39 imports PickBoard -> useMemo
 R 1:48 imports PickBoard -> useRef
 R 1:56 imports PickBoard -> useState
+R 2:1 imports PickBoard -> inventory (name-matched: src/inventory.ts)
 R 2:10 imports PickBoard -> PickListBuilder (name-matched: src/inventory.ts)
 R 2:27 imports PickBoard -> StockCache (name-matched: src/inventory.ts)
 R 2:39 imports PickBoard -> formatLocation (name-matched: src/inventory.ts)
 R 2:55 imports PickBoard -> httpStockSource (name-matched: src/inventory.ts)
 R 2:72 imports PickBoard -> parseLocation (name-matched: src/inventory.ts)
 R 2:87 imports PickBoard -> pickingRoute (name-matched: src/inventory.ts)
+R 3:1 imports PickBoard -> order (name-matched: src/api/client.ts)
 R 3:8 imports PickBoard -> orders (name-matched: src/api/client.ts)
+R 4:1 imports PickBoard -> client (name-matched: src/api/client.ts)
 R 4:10 imports PickBoard -> ApiError (name-matched: src/api/client.ts)
 R 4:20 imports PickBoard -> createClient (name-matched: src/api/client.ts)
 R 19:34 calls classifyScan -> trim
