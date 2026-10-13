@@ -2,19 +2,11 @@
 title: "Querying the database directly"
 ---
 
-No `sqlite3` CLI needed — Python's standard library works everywhere:
+The index at `.mct-index/index.sqlite3` is meant to be read through the MCP tools and `mct-cli`. If the `sqlite3` command-line tool is installed, you can also run your own queries with `sqlite3 .mct-index/index.sqlite3 "SELECT ..."`. Treat the file as read-only.
 
-```text
-$ python3 -c "
-import sqlite3
-conn = sqlite3.connect('.mct-index/index.sqlite3')
-cur = conn.cursor()
-cur.execute(\"SELECT name, kind, file_id FROM symbols WHERE name = 'YourSymbol'\")
-print(cur.fetchall())
-"
-```
+## Queries that use only the main tables
 
-Useful ad hoc queries:
+These use the `files`, `symbols`, `relations` and `index_issues` tables, and only columns listed in `crates/mct-index/src/schema.rs` and [Database schema](/docs/schema). The table and column names were checked against that schema; the queries themselves were not run, because `mct-cli` has no command that executes SQL.
 
 ```text
 -- Everything indexed for one file
@@ -25,13 +17,8 @@ WHERE f.relative_path = 'crates/mct-core/src/lib.rs' ORDER BY s.line;
 -- Every relation kind used in the repo (sanity check)
 SELECT DISTINCT kind FROM relations;
 
--- Fuzzy/substring symbol search (no CLI/MCP tool exposes this — direct FTS5 query)
-SELECT s.name, s.kind FROM symbols_fts
-JOIN symbols s ON s.id = symbols_fts.rowid
-WHERE symbols_fts MATCH 'Pars*';
-
--- Every file that failed to parse or is in an unsupported language
-SELECT * FROM index_issues;
+-- Every file that was skipped, and why
+SELECT relative_path, issue_kind, detail FROM index_issues;
 
 -- Coverage per language, same numbers `status` reports
 SELECT f.language, COUNT(DISTINCT f.id), COUNT(s.id)
@@ -39,4 +26,13 @@ FROM files f LEFT JOIN symbols s ON s.file_id = f.id
 GROUP BY f.language;
 ```
 
-If the `sqlite3` CLI _is_ available on your system, the same queries work with `sqlite3 .mct-index/index.sqlite3 "SELECT ..."`.
+## Queries that depend on internal details
+
+These rely on the full-text search tables (FTS5). Those tables are an implementation detail and may change between versions, so these queries are not verified and may break after an upgrade. For name lookups, prefer `find_symbol` with `match: prefix` or `match: fuzzy`.
+
+```text
+-- Names that start with "Pars" (full-text prefix query)
+SELECT s.name, s.kind FROM symbols_fts
+JOIN symbols s ON s.id = symbols_fts.rowid
+WHERE symbols_fts MATCH 'Pars*';
+```
