@@ -12,8 +12,8 @@
 //! less standardized across tree-sitter-lua forks than Rust's or Python's.
 
 use mct_core::{
-    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
-    SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
+    LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
+    SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::{first_error, location};
 use tree_sitter::{Node, Parser};
@@ -97,6 +97,7 @@ struct Walker<'a> {
     source: &'a str,
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
+    relation_targets: Vec<RelationTarget>,
     next_id: SymbolId,
 }
 
@@ -106,6 +107,7 @@ impl<'a> Walker<'a> {
             source,
             symbols: Vec::new(),
             relations: Vec::new(),
+            relation_targets: Vec::new(),
             next_id: 0,
         }
     }
@@ -188,12 +190,15 @@ impl<'a> Walker<'a> {
                     let (name, name_node) = call_target_name(callee, self.source);
                     if name == "require" {
                         if let Some(module) = require_argument(node, self.source) {
-                            self.push_relation(
-                                owner,
-                                RelationKind::Imports,
-                                module,
-                                location(node),
-                            );
+                            let merged = self.push_module_import(owner, &module, location(node));
+                            if !merged {
+                                self.push_relation(
+                                    owner,
+                                    RelationKind::Imports,
+                                    module,
+                                    location(node),
+                                );
+                            }
                         }
                     } else if !name.is_empty() {
                         // location(name_node), not location(node): a chained
@@ -337,8 +342,40 @@ impl<'a> Walker<'a> {
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
+            relation_targets: self.relation_targets,
             ..Default::default()
         }
+    }
+
+    /// `require("a.b.c")` loads `a/b/c.lua`: an `Imports` relation to the
+    /// `Module` symbol named `c` of a file under a `b` path segment. A
+    /// package's `a/b/init.lua` is named `init` and is not matched.
+    ///
+    /// Returns whether the relation is named exactly like `module_path`
+    /// (a single-segment path), so the caller's plain name relation would
+    /// only duplicate it.
+    fn push_module_import(&mut self, owner: SymbolId, module_path: &str, loc: Location) -> bool {
+        let segments: Vec<&str> = module_path.split('.').collect();
+        let Some(name) = segments.last().filter(|n| !n.is_empty()) else {
+            return false;
+        };
+        if segments.iter().any(|s| s.is_empty() || s.contains('/')) {
+            return false;
+        }
+        let module = segments
+            .len()
+            .checked_sub(2)
+            .and_then(|i| segments.get(i))
+            .map(|m| m.to_string());
+        let relation = self.relations.len();
+        self.push_relation(owner, RelationKind::Imports, name.to_string(), loc);
+        self.relation_targets.push(RelationTarget {
+            relation,
+            module,
+            kind: Some(SymbolKind::Module),
+            ..Default::default()
+        });
+        segments.len() == 1
     }
 }
 
