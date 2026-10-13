@@ -1,7 +1,13 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowUpRight, Network, ScanLine, GitBranch } from "lucide-react";
+import {
+  ArrowRight,
+  ArrowUpRight,
+  Network,
+  ScanLine,
+  GitBranch,
+} from "lucide-react";
 import { MotionConfig, motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { basePath } from "@/lib/shared";
@@ -104,11 +110,11 @@ export function Landing() {
           </section>
           <div className="principle-bar">
             <div className="shell">
-              <span className="mono">tree-sitter</span>
-              <span aria-hidden>→</span>
-              <span className="mono">SQLite</span>
-              <span aria-hidden>→</span>
-              <span className="mono">MCP</span>
+              <span className="mono">{t("principle1")}</span>
+              <ArrowRight size={16} aria-hidden="true" />
+              <span className="mono">{t("principle2")}</span>
+              <ArrowRight size={16} aria-hidden="true" />
+              <span className="mono">{t("principle3")}</span>
               <p>{t("mapNote")}</p>
             </div>
           </div>
@@ -224,6 +230,27 @@ export function Landing() {
             </div>
           </section>
           <section
+            id="prompting"
+            className="prompting shell section start-grid"
+            aria-labelledby="prompting-title"
+          >
+            <div>
+              <p className="eyebrow">{t("promptingLabel")}</p>
+              <h2 id="prompting-title">{t("promptingTitle")}</h2>
+              <p className="body-copy">{t("promptingText")}</p>
+            </div>
+            <div className="command-panel">
+              {[1, 2, 3, 4].map((i) => (
+                <CopyCommand
+                  key={i}
+                  command={t(`prompt${i}`)}
+                  label={t(`promptLabel${i}`)}
+                />
+              ))}
+              <p className="caption">{t("promptingNote")}</p>
+            </div>
+          </section>
+          <section
             className="docs-invite shell section"
             aria-labelledby="docs-title"
           >
@@ -255,11 +282,11 @@ export function Landing() {
               <h2 id="faq-title">{t("faqTitle")}</h2>
             </div>
             <div>
-              {[1, 2, 3, 4].map((i) => (
-                <details key={i}>
+              {Array.from({ length: 10 }, (_, i) => i + 1).map((i) => (
+                <details key={i} name="faq">
                   <summary>
                     {t(`faq${i}`)}
-                    <span aria-hidden="true">+</span>
+                    <span aria-hidden="true" />
                   </summary>
                   <p>{t(`answer${i}`)}</p>
                 </details>
