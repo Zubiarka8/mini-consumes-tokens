@@ -152,6 +152,13 @@
 .demo-count strong:nth-of-type(2) {
   color: #e7f3b0;
 }
+.demo-count .demo-arrow {
+  align-self: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  color: #e7f3b0;
+}
 .demo-count > span {
   color: #c0d5d8;
   font-size: 12px;
@@ -161,6 +168,66 @@
   line-height: 1.7;
   min-height: 41px;
   margin-bottom: 0;
+}
+.demo-benefits {
+  list-style: none;
+  margin: 0;
+  padding: 16px 24px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+  border-top: 1px solid #41646b;
+}
+.demo-benefits li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.demo-benefits svg {
+  flex-shrink: 0;
+  color: #e7f3b0;
+}
+.demo-mcp {
+  padding: 16px 24px;
+  border-top: 1px solid #41646b;
+}
+.demo-mcp-what {
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 0 0 12px;
+}
+.demo-mcp-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.demo-mcp-card {
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px dashed #b7d0d4;
+}
+.demo-mcp-card.is-with {
+  border: 1px solid #e7f3b0;
+  background: #1a4b56;
+}
+.demo-mcp-card h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.demo-mcp-card.is-with h3 {
+  color: #e7f3b0;
+}
+.demo-mcp-card p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #dbe8ea;
 }
 .demo-disclaimer {
   border-top: 1px solid #41646b;
@@ -183,8 +250,14 @@
   }
   .demo-filebar,
   .demo-summary,
+  .demo-benefits,
+  .demo-mcp,
   .demo-disclaimer {
     padding-inline: 20px;
+  }
+  .demo-benefits,
+  .demo-mcp-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
   .demo-code code {
     font-size: 10px;

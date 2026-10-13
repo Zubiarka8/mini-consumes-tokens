@@ -2,6 +2,16 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Check, Coins, Focus, MapPin, Search, X } from "lucide-react";
+import { ArrowIcon } from "./arrow-icon";
+
+/* Lucide icons (ISC licence), decorative: the text carries the meaning. */
+const benefits = [
+  { key: "demoBenefitFind", Icon: Search },
+  { key: "demoBenefitSave", Icon: Coins },
+  { key: "demoBenefitFocus", Icon: Focus },
+  { key: "demoBenefitSource", Icon: MapPin },
+] as const;
 
 const source = `const currency = "EUR";
 const taxRate = 0.21;
@@ -75,7 +85,7 @@ export function ContextDemo() {
         <p>{t("demoQuery")}</p>
         <div className="demo-count">
           <strong>{lines.length}</strong>
-          <span aria-hidden="true">→</span>
+          <ArrowIcon className="demo-arrow" size="1em" strokeWidth={2.5} />
           <strong>{selection.length}</strong>
           <span>{t("demoLines")}</span>
         </div>
@@ -137,6 +147,33 @@ export function ContextDemo() {
       </div>
       <div className="demo-summary">
         <p role="status">{t(focused ? "demoSelectionNote" : "demoFullNote")}</p>
+      </div>
+      <ul className="demo-benefits" aria-label={t("demoBenefitsTitle")}>
+        {benefits.map(({ key, Icon }) => (
+          <li key={key}>
+            <Icon aria-hidden="true" focusable="false" size={20} />
+            <span>{t(key)}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="demo-mcp">
+        <p className="demo-mcp-what">{t("demoMcpWhat")}</p>
+        <div className="demo-mcp-grid">
+          <div className="demo-mcp-card is-without">
+            <h3>
+              <X aria-hidden="true" focusable="false" size={18} />
+              {t("demoMcpWithout")}
+            </h3>
+            <p>{t("demoMcpWithoutText")}</p>
+          </div>
+          <div className="demo-mcp-card is-with">
+            <h3>
+              <Check aria-hidden="true" focusable="false" size={18} />
+              {t("demoMcpWith")}
+            </h3>
+            <p>{t("demoMcpWithText")}</p>
+          </div>
+        </div>
       </div>
       <p className="demo-disclaimer">{t("demoDisclaimer")}</p>
     </section>
