@@ -5,7 +5,8 @@ const es: Record<keyof typeof en, string> = {
   demoQueryLabel: "Elige una consulta",
   demoQuery0: "¿Dónde está la función que calcula el total de una factura?",
   demoQuery1: "¿Cuándo vence una factura y de dónde sale ese plazo?",
-  demoQuery2: "¿Cómo decide la aplicación si una factura está pagada, pendiente o vencida?",
+  demoQuery2:
+    "¿Cómo decide la aplicación si una factura está pagada, pendiente o vencida?",
   demoQuery3: "¿Dónde se añaden los datos del cliente a una factura nueva?",
   demoQuery4: "¿Dónde se da formato de dinero a un precio y en qué moneda?",
   demoView: "Vista del código",
@@ -19,8 +20,7 @@ const es: Record<keyof typeof en, string> = {
     "La función y su dependencia, con los números de línea originales. El resto queda fuera del contexto.",
   demoDisclaimer:
     "Ejemplo inventado. Las líneas solo ilustran la selección; no son un ahorro medido.",
-  coordinate:
-    "CÓDIGO → MAPA → RESPUESTA",
+  coordinate: "CÓDIGO → MAPA → RESPUESTA",
   localFirst: "LOCAL. CONECTADO. PRECISO.",
   fieldGuide: "GUÍA DE CAMPO",
   skip: "Saltar al contenido",
@@ -36,42 +36,26 @@ const es: Record<keyof typeof en, string> = {
   intro:
     "Los asistentes de IA suelen leer archivos enteros solo para encontrar una cosa. mini-consumes-tokens crea en tu propio equipo un mapa consultable de tu proyecto, para que tu asistente pida solo las partes que necesita.",
   readDocs: "Explora la documentación",
-  heroNote:
-    "Código abierto · Gratis · Funciona en tu equipo",
+  heroNote: "Código abierto · Gratis · Funciona en tu equipo",
   visibleLayers: "Capas visibles",
-  sourcePreview:
-    "Código fuente elegido",
-  inspectFile:
-    "Explorar archivo",
+  sourcePreview: "Código fuente elegido",
+  inspectFile: "Explorar archivo",
   exampleProject: "ESTE REPOSITORIO",
   projectBrief:
     "Este proyecto tal como lo ve su propio mapa: la parte que responde a tu asistente, el mapa guardado y la parte que lo construye. Tres archivos, seis piezas de código y solo las conexiones que el mapa encontró.",
-  agentQuestion:
-    "LA PREGUNTA DEL ASISTENTE",
-  query0:
-    "¿Qué responde a las peticiones de mi asistente?",
-  query1:
-    "¿Dónde lee el programa su configuración?",
-  query2:
-    "¿Qué guarda el mapa que leen todas las herramientas?",
-  query3:
-    "¿Qué ocurre cuando se analiza todo de nuevo?",
-  query4:
-    "¿Qué se ejecuta cuando solo cambian unos archivos?",
-  query5:
-    "¿Está el mapa al día y sano?",
-  role0:
-    "Responder a las peticiones del asistente",
-  role1:
-    "Cargar la configuración",
-  role2:
-    "Guardar el mapa",
-  role3:
-    "Analizar todo el proyecto",
-  role4:
-    "Analizar solo los archivos cambiados",
-  role5:
-    "Informar de la salud del mapa",
+  agentQuestion: "LA PREGUNTA DEL ASISTENTE",
+  query0: "¿Qué responde a las peticiones de mi asistente?",
+  query1: "¿Dónde lee el programa su configuración?",
+  query2: "¿Qué guarda el mapa que leen todas las herramientas?",
+  query3: "¿Qué ocurre cuando se analiza todo de nuevo?",
+  query4: "¿Qué se ejecuta cuando solo cambian unos archivos?",
+  query5: "¿Está el mapa al día y sano?",
+  role0: "Responder a las peticiones del asistente",
+  role1: "Cargar la configuración",
+  role2: "Guardar el mapa",
+  role3: "Analizar todo el proyecto",
+  role4: "Analizar solo los archivos cambiados",
+  role5: "Informar de la salud del mapa",
   purpose0:
     "La parte del programa que responde a tu asistente. Guarda el mapa y recuerda las respuestas recientes para que las preguntas repetidas sean rápidas. main.rs lo arranca y le da su configuración.",
   purpose1:
@@ -101,14 +85,10 @@ const es: Record<keyof typeof en, string> = {
     "¿Qué se define en este archivo o carpeta, y en qué líneas?",
   ask_get_file_skeleton:
     "¿Qué aspecto tiene este archivo sin el interior de sus funciones?",
-  ask_find_symbol:
-    "¿Dónde se define esta función, clase o variable?",
-  ask_find_callers:
-    "¿Qué llama a esta función?",
-  ask_find_calls:
-    "¿Qué usa esta función y dónde se define cada cosa?",
-  ask_find_references:
-    "¿Dónde se usa esto en el proyecto?",
+  ask_find_symbol: "¿Dónde se define esta función, clase o variable?",
+  ask_find_callers: "¿Qué llama a esta función?",
+  ask_find_calls: "¿Qué usa esta función y dónde se define cada cosa?",
+  ask_find_references: "¿Dónde se usa esto en el proyecto?",
   ask_search_symbols:
     "Solo conozco parte del nombre. ¿Qué coincide con estas palabras?",
   ask_hybrid_search:
@@ -134,34 +114,21 @@ const es: Record<keyof typeof en, string> = {
   atlas: "Mapa 3D del código",
   illustration:
     "Piezas de código y conexiones del propio mapa de este proyecto, no una vista en vivo",
-  allSymbols:
-    "Ver todas las piezas de código",
-  hideSymbols:
-    "Ocultar todas las piezas de código",
-  allSymbolsTitle:
-    "Todas las piezas de código de los tres archivos",
-  symbolCount:
-    "{{count}} piezas de código",
+  allSymbols: "Ver todas las piezas de código",
+  hideSymbols: "Ocultar todas las piezas de código",
+  allSymbolsTitle: "Todas las piezas de código de los tres archivos",
+  symbolCount: "{{count}} piezas de código",
   graphAlt:
     "Los archivos se convierten en piezas de código conectadas. Al elegir una, se muestra dónde se define, qué la usa y de qué depende, en un resumen breve y preciso.",
-  files:
-    "Tus archivos",
-  symbols:
-    "Mapa del código",
-  context:
-    "Lo que recibe el asistente",
-  select:
-    "Elige una pieza de código para explorarla",
-  selected:
-    "Pieza de código elegida",
-  definition:
-    "Dónde se define",
-  callers:
-    "La usan",
-  dependencies:
-    "Usa",
-  pack:
-    "Resumen preciso",
+  files: "Tus archivos",
+  symbols: "Mapa del código",
+  context: "Lo que recibe el asistente",
+  select: "Elige una pieza de código para explorarla",
+  selected: "Pieza de código elegida",
+  definition: "Dónde se define",
+  callers: "La usan",
+  dependencies: "Usa",
+  pack: "Resumen preciso",
   loading3d: "Cargando el mapa 3D…",
   fallback:
     "La vista 3D no está disponible en este dispositivo. Puedes explorar el código y su contexto a continuación.",
@@ -169,39 +136,30 @@ const es: Record<keyof typeof en, string> = {
   resetView: "Restablecer vista",
   fullscreen: "Pantalla completa",
   exitFullscreen: "Salir de pantalla completa",
-  tourWhatTitle:
-    "Tu asistente consulta el mapa, no los archivos.",
+  tourWhatTitle: "Tu asistente consulta el mapa, no los archivos.",
   tourWhatText:
     "mini-consumes-tokens analiza tu proyecto y crea un mapa de sus funciones, tipos y métodos, y de cómo se usan entre sí. Un asistente de IA conectado por MCP (una forma estándar de enlazar herramientas con asistentes) puede entonces hacer preguntas precisas en vez de leer archivos completos.",
-  tourHowTitle:
-    "Leído, guardado y servido en tu equipo.",
+  tourHowTitle: "Leído, guardado y servido en tu equipo.",
   tourOrientTitle: "Oriéntate.",
   tourLookupTitle: "Haz una pregunta precisa.",
-  tourCompositeTitle:
-    "Varias preguntas, una petición.",
-  tourAdvancedTitle:
-    "Trabaja con proyectos grandes.",
-  tourServerTitle:
-    "Una petición llega al servidor.",
+  tourCompositeTitle: "Varias preguntas, una petición.",
+  tourAdvancedTitle: "Trabaja con proyectos grandes.",
+  tourServerTitle: "Una petición llega al servidor.",
   tourServerText:
     "El servidor responde a cada petición de tu asistente. main.rs lo arranca con MctServer::new, que carga la configuración con ServerOptions::from_env. Guarda el Index y deja que una petición lo use cada vez.",
-  tourIndexTitle:
-    "El mapa guardado vive en un solo sitio.",
+  tourIndexTitle: "El mapa guardado vive en un solo sitio.",
   tourIndexText:
     "Index guarda la conexión con la base de datos y la carpeta del proyecto, y main.rs lo abre con Index::open. Tres de sus métodos pasan el trabajo al analizador: reindex, reindex_paths y status.",
-  tourReindexTitle:
-    "Un análisis completo recorre todo el proyecto.",
+  tourReindexTitle: "Un análisis completo recorre todo el proyecto.",
   tourReindexText:
     "reindex avanza en cuatro pasos. Recorrer: walk_entry_allowed, record_walk_failure. Leer: index_file. Limpiar: remove_missing_files, remove_missing_manifests. Anotar la hora: touch_last_indexed_at.",
-  tourReindexPathsTitle:
-    "Un cambio solo analiza sus archivos.",
+  tourReindexPathsTitle: "Un cambio solo analiza sus archivos.",
   tourReindexPathsText:
     "reindex_paths sigue los mismos cuatro pasos con diez ayudantes. Recorrer: to_relative_slash_path, is_rules_file, walk_entry_allowed, record_walk_failure. Leer: reindex, index_noting_created, record_read_failure. Limpiar: remove_under_prefix, remove_renamed_away. Anotar la hora: touch_last_indexed_at.",
   tourStatusTitle: "El estado sale de la misma base.",
   tourStatusText:
     "status cuenta los archivos y las piezas de código por lenguaje, los fallos y las dependencias, y construye un informe IndexStatus. Solo lo llama Index::status.",
-  tourToolsTitle:
-    "Ocho herramientas que llegan al mapa guardado.",
+  tourToolsTitle: "Ocho herramientas que llegan al mapa guardado.",
   tourToolsText:
     "Cada una de estas herramientas de server.rs le pregunta una cosa al mapa guardado. El número entre paréntesis es la línea donde lo hace.",
   tourMethodsTitle: "Ocho métodos de Index detrás de ellas.",
@@ -224,12 +182,10 @@ const es: Record<keyof typeof en, string> = {
     "Comparación conceptual, no una medición del ahorro. Los resultados dependen del proyecto y de la pregunta.",
   howLabel: "02 / EL MECANISMO",
   howTitle: "Del código a la comprensión.",
-  step1Title:
-    "Analiza en local.",
+  step1Title: "Analiza en local.",
   step1Text:
     "Un lector recorre tu código y encuentra sus funciones, tipos y cómo se conectan. El resultado se guarda en una pequeña base de datos dentro de tu proyecto.",
-  step2Title:
-    "Consulta el mapa.",
+  step2Title: "Consulta el mapa.",
   step2Text:
     "Un asistente de IA compatible con MCP (una forma estándar de conectar herramientas a asistentes) pregunta dónde se define algo, qué lo usa y de qué depende, en vez de recorrer los archivos una y otra vez.",
   step3Title: "Recibe el contexto adecuado.",
@@ -243,8 +199,7 @@ const es: Record<keyof typeof en, string> = {
   changeTitle: "Sigue el alcance de un cambio",
   changeText:
     "Sigue qué usa a qué por todo el mapa. Comprueba qué partes y pruebas puede afectar un cambio.",
-  contextTitle:
-    "Dale a tu asistente un resumen preciso",
+  contextTitle: "Dale a tu asistente un resumen preciso",
   contextText:
     "Obtén un resumen alrededor de una función o tipo, con su definición, dependencias y código relacionado, en una sola petición.",
   extras:
@@ -252,16 +207,12 @@ const es: Record<keyof typeof en, string> = {
   audience:
     "Para desarrolladores que usan asistentes de código de IA compatibles con MCP, en proyectos escritos en varios lenguajes. La herramienta de línea de comandos también funciona por separado.",
   startLabel: "04 / TU PRIMER MAPA",
-  startTitle:
-    "Empieza con tu propio proyecto.",
+  startTitle: "Empieza con tu propio proyecto.",
   startText:
     "Instala primero la herramienta de línea de comandos y el servidor siguiendo la documentación. Después ejecuta estos comandos dentro del proyecto que quieras analizar.",
-  initLabel:
-    "Crea el mapa de tu proyecto",
-  registerLabel:
-    "Conecta tu asistente de IA",
-  statusLabel:
-    "Comprueba que el mapa está sano",
+  initLabel: "Crea el mapa de tu proyecto",
+  registerLabel: "Conecta tu asistente de IA",
+  statusLabel: "Comprueba que el mapa está sano",
   copy: "Copiar comando",
   copied: "Comando copiado",
   copyError: "No se puede copiar. Selecciona el comando y cópialo manualmente.",
@@ -294,22 +245,19 @@ const es: Record<keyof typeof en, string> = {
   guide3: "Comprende y amplía",
   faqLabel: "ALGUNAS BUENAS PREGUNTAS",
   faqTitle: "Antes de empezar.",
-  faq1:
-    "¿Dónde se guarda el mapa?",
+  faq1: "¿Dónde se guarda el mapa?",
   answer1:
     "En tu proyecto, en una pequeña base de datos local (SQLite). Todo se analiza en tu equipo. Tu asistente de IA puede enviar las respuestas de las herramientas a su proveedor, según la configuración de ese asistente.",
   faq2: "¿Funciona con cualquier asistente?",
   answer2:
     "El asistente necesita soporte MCP para usar las herramientas. También puedes usar la herramienta de línea de comandos por separado para analizar, comprobar la salud y encontrar código que parece sin uso.",
-  faq3:
-    "¿El mapa muestra todo lo que hace mi código?",
+  faq3: "¿El mapa muestra todo lo que hace mi código?",
   answer3:
     "No. Solo entiende los lenguajes compatibles. Lo que solo se decide mientras el programa se ejecuta puede escaparse, y el código «sin uso» es una estimación, no una certeza. La documentación explica estos límites.",
   faq4: "¿Qué ocurre cuando edito un archivo?",
   answer4:
     "Mientras el servidor está conectado, detecta los archivos modificados y actualiza el mapa cuando dejas de editar. También puedes pedir un nuevo análisis o comprobar la salud desde la línea de comandos.",
-  faq5:
-    "¿En qué se diferencia de una búsqueda de texto normal?",
+  faq5: "¿En qué se diferencia de una búsqueda de texto normal?",
   answer5:
     "Una búsqueda de texto devuelve las líneas que coinciden. El mapa devuelve dónde se define cada cosa y cómo se conectan: qué usa una función, de qué depende y dónde se menciona, para que tu asistente lea menos y entienda más.",
   faq6: "¿Qué lenguajes admite?",
@@ -330,11 +278,8 @@ const es: Record<keyof typeof en, string> = {
   footer: "Un mejor mapa es el inicio de un contexto preciso.",
   license: "Licencia Apache 2.0",
   top: "Volver al inicio",
-  principle1:
-    "Tu código",
-  principle2:
-    "Un mapa pequeño",
-  principle3:
-    "Tu asistente de IA",
+  principle1: "Tu código",
+  principle2: "Un mapa pequeño",
+  principle3: "Tu asistente de IA",
 };
 export default es;
