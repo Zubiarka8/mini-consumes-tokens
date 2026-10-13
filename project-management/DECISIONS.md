@@ -29,3 +29,25 @@ Reason: Avoid duplicated policies and unnecessary provider/subscription requirem
 Alternatives considered: Embedding model tables throughout task/process documents; requiring two providers for every change.
 
 Consequences: Task briefs record the selected provider/model/effort but link to the current policy. The documentation does not install a scheduler or messaging layer.
+
+## Architecture decision links
+
+- [ADR-004 — Grammar version requirements](../docs/01-architecture/adrs/004-grammar-version-requirements.md) (2026-10-10, TASK-LIB-001): grammars are written as the full validated `x.y.z` with caret semantics; `Cargo.lock` is the exact pin.
+
+## Recovery product decisions — 2026-10-12
+
+User-approved: migration11 and symbol_aliases (ADR-005); case-sensitive aliases;
+retain all matching destinations for ambiguous note identities; no title fallback.
+Public issue #135 decision record is still pending.
+
+User-approved CSS: 256 expansions per rule; preserve marked unexpanded selectors
+above the limit without aborting or emitting partial results; no duplicate literal
+&:hover beside resolved names. Separate expansions remain per parent. Individually
+grouping complex parents with :is() preserves CSS matching semantics without
+collapsing the parent list; implicit relative parents participate in the cap.
+
+User-approved PR policy is documented once in PROJECT_MANAGER.md.
+User-requested Dogfooding retirement removes hook enforcement; SQLite/index access
+constraints and the source-exploration guidance remain distinct.
+
+- [ADR-005 — Markdown frontmatter alias storage](../docs/01-architecture/adrs/005-markdown-alias-storage.md).

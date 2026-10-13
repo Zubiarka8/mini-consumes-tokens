@@ -1,4 +1,4 @@
-# language=bash files=5 symbols=176 relations=585 name_matched_across_files=162
+# language=bash files=5 symbols=176 relations=595 name_matched_across_files=172
 
 == bin/backup.sh (303 lines)
 S 1-303 module backup
@@ -34,9 +34,13 @@ R 10:1 calls backup -> shopt
 R 12:12 calls backup -> cd
 R 12:18 calls backup -> dirname
 R 12:51 calls backup -> pwd
+R 16:1 imports backup -> log (name-matched: lib/log.sh)
 R 16:1 imports backup -> $LIB_DIR/log.sh
+R 18:1 imports backup -> config (name-matched: lib/config.sh)
 R 18:1 imports backup -> $LIB_DIR/config.sh
+R 20:1 imports backup -> fs (name-matched: lib/fs.sh)
 R 20:1 imports backup -> $LIB_DIR/fs.sh
+R 22:1 imports backup -> remote (name-matched: lib/remote.sh)
 R 22:1 imports backup -> $LIB_DIR/remote.sh
 R 34:5 calls backup::usage -> cat
 R 59:5 calls backup::usage -> config_usage (name-matched: lib/config.sh)
@@ -180,6 +184,7 @@ R 10:5 calls config -> return
 R 14:15 calls config -> cd
 R 14:21 calls config -> dirname
 R 14:54 calls config -> pwd
+R 15:1 imports config -> log (name-matched: lib/log.sh)
 R 15:1 imports config -> $CONFIG_DIR/log.sh
 R 59:9 calls config::config_get -> printf
 R 61:9 calls config::config_get -> printf
@@ -317,7 +322,9 @@ R 8:5 calls fs -> return
 R 12:11 calls fs -> cd
 R 12:17 calls fs -> dirname
 R 12:50 calls fs -> pwd
+R 13:1 imports fs -> log (name-matched: lib/log.sh)
 R 13:1 imports fs -> $FS_DIR/log.sh
+R 14:1 imports fs -> config (name-matched: lib/config.sh)
 R 14:1 imports fs -> $FS_DIR/config.sh
 R 25:12 calls fs::make_workdir -> mktemp
 R 25:53 calls fs::make_workdir -> die (name-matched: lib/log.sh)
@@ -648,8 +655,11 @@ R 8:5 calls remote -> return
 R 12:15 calls remote -> cd
 R 12:21 calls remote -> dirname
 R 12:54 calls remote -> pwd
+R 13:1 imports remote -> log (name-matched: lib/log.sh)
 R 13:1 imports remote -> $REMOTE_DIR/log.sh
+R 14:1 imports remote -> config (name-matched: lib/config.sh)
 R 14:1 imports remote -> $REMOTE_DIR/config.sh
+R 15:1 imports remote -> fs (name-matched: lib/fs.sh)
 R 15:1 imports remote -> $REMOTE_DIR/fs.sh
 R 32:13 calls remote::parse_remote -> return
 R 56:13 calls remote::parse_remote -> log_error (name-matched: lib/log.sh)

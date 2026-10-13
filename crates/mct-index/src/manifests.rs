@@ -13,6 +13,16 @@
 //! root's own manifest, itself scanned as its own file) — recorded as
 //! `None`, not skipped.
 
+mod go;
+mod javascript;
+mod python;
+mod rust;
+
+use go::parse_go_mod;
+use javascript::parse_package_json;
+use python::parse_requirements_txt;
+use rust::parse_cargo_toml;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ManifestDependency {
     pub name: String,
@@ -50,147 +60,6 @@ pub fn parse_manifest(file_name: &str, contents: &str) -> Vec<ManifestDependency
     deps.into_iter()
         .filter(|d| seen.insert(d.name.clone()))
         .collect()
-}
-
-/// `[dependencies]`/`[dev-dependencies]`/`[build-dependencies]` at the
-/// document root, plus `[workspace.dependencies]` for a workspace root
-/// manifest — not `[target.'cfg(...)'.dependencies]`, a deliberately
-/// uncommon case left out.
-fn parse_cargo_toml(contents: &str) -> Vec<ManifestDependency> {
-    let Ok(doc) = contents.parse::<toml::Table>() else {
-        return Vec::new();
-    };
-    let mut deps = Vec::new();
-    for section in ["dependencies", "dev-dependencies", "build-dependencies"] {
-        if let Some(table) = doc.get(section).and_then(toml::Value::as_table) {
-            collect_cargo_table(table, &mut deps);
-        }
-    }
-    if let Some(table) = doc
-        .get("workspace")
-        .and_then(toml::Value::as_table)
-        .and_then(|w| w.get("dependencies"))
-        .and_then(toml::Value::as_table)
-    {
-        collect_cargo_table(table, &mut deps);
-    }
-    deps
-}
-
-fn collect_cargo_table(
-    table: &toml::map::Map<String, toml::Value>,
-    out: &mut Vec<ManifestDependency>,
-) {
-    for (name, value) in table {
-        let version = match value {
-            toml::Value::String(v) => Some(v.clone()),
-            toml::Value::Table(t) => t
-                .get("version")
-                .and_then(toml::Value::as_str)
-                .map(str::to_string),
-            _ => None,
-        };
-        out.push(ManifestDependency {
-            name: name.clone(),
-            version,
-        });
-    }
-}
-
-/// `dependencies`/`devDependencies`/`peerDependencies`/`optionalDependencies`
-/// — npm/pnpm/yarn all read the same four keys.
-fn parse_package_json(contents: &str) -> Vec<ManifestDependency> {
-    let Ok(doc) = serde_json::from_str::<serde_json::Value>(contents) else {
-        return Vec::new();
-    };
-    let mut deps = Vec::new();
-    for section in [
-        "dependencies",
-        "devDependencies",
-        "peerDependencies",
-        "optionalDependencies",
-    ] {
-        if let Some(obj) = doc.get(section).and_then(serde_json::Value::as_object) {
-            for (name, value) in obj {
-                let version = value.as_str().map(str::to_string);
-                deps.push(ManifestDependency {
-                    name: name.clone(),
-                    version,
-                });
-            }
-        }
-    }
-    deps
-}
-
-/// One requirement per non-comment, non-option line. The version field
-/// keeps the constraint as written (`">=2.0,<3.0"`), not a single resolved
-/// version — pip itself doesn't resolve to one without a lockfile either.
-fn parse_requirements_txt(contents: &str) -> Vec<ManifestDependency> {
-    let mut deps = Vec::new();
-    for raw_line in contents.lines() {
-        let line = raw_line.split('#').next().unwrap_or("").trim();
-        if line.is_empty() || line.starts_with('-') {
-            continue; // blank, comment-only, or a pip option (-r, -e, --index-url, ...)
-        }
-        let line = line.split(';').next().unwrap_or(line).trim(); // drop environment markers
-        let (name_part, version) = split_requirement(line);
-        let name = name_part.split('[').next().unwrap_or(name_part).trim(); // drop [extras]
-        if name.is_empty() {
-            continue;
-        }
-        deps.push(ManifestDependency {
-            name: name.to_string(),
-            version,
-        });
-    }
-    deps
-}
-
-fn split_requirement(spec: &str) -> (&str, Option<String>) {
-    match spec.find(['=', '>', '<', '!', '~']) {
-        Some(idx) if idx > 0 => (spec[..idx].trim(), Some(spec[idx..].trim().to_string())),
-        _ => (spec.trim(), None),
-    }
-}
-
-/// Both `require (\n module version\n)` block form and single-line
-/// `require module version` — `go.sum` (resolved, transitive-included
-/// checksums) is deliberately not read, `go.mod` alone is the direct
-/// dependency declaration, same "one manifest, direct deps" scope as the
-/// other three formats here.
-fn parse_go_mod(contents: &str) -> Vec<ManifestDependency> {
-    let mut deps = Vec::new();
-    let mut in_require_block = false;
-    for raw_line in contents.lines() {
-        let line = raw_line.split("//").next().unwrap_or("").trim();
-        if line.is_empty() {
-            continue;
-        }
-        if in_require_block {
-            if line == ")" {
-                in_require_block = false;
-            } else if let Some(dep) = parse_go_require_entry(line) {
-                deps.push(dep);
-            }
-            continue;
-        }
-        if line == "require (" {
-            in_require_block = true;
-        } else if let Some(rest) = line.strip_prefix("require ") {
-            if let Some(dep) = parse_go_require_entry(rest.trim()) {
-                deps.push(dep);
-            }
-        }
-    }
-    deps
-}
-
-fn parse_go_require_entry(entry: &str) -> Option<ManifestDependency> {
-    let mut parts = entry.split_whitespace();
-    let name = parts.next()?.to_string();
-    let version = parts.next().map(str::to_string);
-    Some(ManifestDependency { name, version })
 }
 
 #[cfg(test)]

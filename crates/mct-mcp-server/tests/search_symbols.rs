@@ -43,7 +43,7 @@ fn args(query: &str) -> SearchSymbolsArgs {
         limit: None,
         offset: None,
         snippet_lines: None,
-        format: None,
+        format: Some("text".to_string()),
         cache: None,
     }
 }
@@ -58,7 +58,7 @@ async fn split_words_find_what_find_symbol_misses_across_naming_styles() {
     let fuzzy = content_of(
         &server
             .find_symbol(Parameters(FindSymbolArgs {
-                format: None,
+                format: Some("text".to_string()),
                 name: "create invoice".to_string(),
                 match_mode: Some("fuzzy".to_string()),
                 path: None,

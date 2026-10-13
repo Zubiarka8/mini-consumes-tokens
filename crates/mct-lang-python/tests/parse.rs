@@ -156,3 +156,29 @@ fn syntax_error_is_reported_not_panicked() {
     });
     assert!(matches!(result, Err(mct_core::ParseError::Syntax { .. })));
 }
+
+#[test]
+fn jsx_templates_escape_literal_braces_in_f_strings() {
+    let parsed = parse(
+        r#"def handlers(event, handler_name):
+    return [
+        f'{event}={{(e) => console.log("{handler_name}", e)}}',
+        f'on{event.capitalize()}={{(e) => console.log("{event}", e)}}',
+        f'{{/* Lighting */}} <mesh name="{handler_name}" />',
+    ]
+"#,
+    );
+    assert!(parsed
+        .symbols
+        .iter()
+        .any(|symbol| symbol.name == "handlers"));
+
+    let invalid = PythonParser.parse(&SourceFile {
+        relative_path: "pkg/broken_handler.py".to_string(),
+        contents: r#"def handler(event, handler_name):
+    return f'{event}={(e) => console.log("{handler_name}", e)}'
+"#
+        .to_string(),
+    });
+    assert!(matches!(invalid, Err(mct_core::ParseError::Syntax { .. })));
+}

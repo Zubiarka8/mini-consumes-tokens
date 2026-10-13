@@ -1,6 +1,6 @@
 # Lists every place a new language crate has to be wired into (CONTRIBUTING.md
 # "Adding a new language"), and which of them are still missing. Then runs
-# the crate's own tests and mct-cli's registry tests.
+# the crate's own tests and the shared registry's (mct-languages) tests.
 #
 # Usage:
 #   scripts\windows\new-language-check.ps1 go            # crate crates/mct-lang-go
@@ -73,14 +73,13 @@ if (-not (Test-Path -LiteralPath (Get-RepoPath $dir) -PathType Container)) {
   exit 1
 }
 Test-Place required 'depends on mct-core'                     "$dir/Cargo.toml" '^mct-core'
-Test-Place required 'depends on a tree-sitter grammar'        "$dir/Cargo.toml" '^tree-sitter-'
+# Full validated version, caret semantics (ADR-004): "0.25.1", not "0.25" or "=0.25.1".
+Test-Place required 'tree-sitter grammar at a full x.y.z'     "$dir/Cargo.toml" '^tree-sitter-[a-z0-9-]+ = "[0-9]+\.[0-9]+\.[0-9]+"'
 Test-Place required 'implements LanguageParser'               "$dir/src" 'impl +LanguageParser +for'
 Test-Place required 'workspace member'                        'Cargo.toml' ('"' + [regex]::Escape($dir) + '"')
 Test-Place required 'workspace dependency'                    'Cargo.toml' ('^' + $c + ' *=')
-Test-Place required 'mct-mcp-server/Cargo.toml dependency'    'crates/mct-mcp-server/Cargo.toml' ('^' + $c)
-Test-Place required 'mct-mcp-server registry.rs registration' 'crates/mct-mcp-server/src/registry.rs' ($ident + '::')
-Test-Place required 'mct-cli/Cargo.toml dependency'           'crates/mct-cli/Cargo.toml' ('^' + $c)
-Test-Place required 'mct-cli build_registry registration'     'crates/mct-cli/src/main.rs' ($ident + '::')
+Test-Place required 'mct-languages/Cargo.toml dependency'     'crates/mct-languages/Cargo.toml' ('^' + $c)
+Test-Place required 'mct-languages build_registry registration' 'crates/mct-languages/src/lib.rs' ($ident + '::')
 Test-Place required 'tests/parse.rs'                          "$dir/tests/parse.rs" '#\[test\]'
 Test-Place required 'syntax-error test (ParseError::Syntax)'  "$dir/tests/parse.rs" 'ParseError::Syntax'
 Test-Place required 'fuzz harness (fuzz/Cargo.toml [workspace])' "$dir/fuzz/Cargo.toml" '^\[workspace\]'
@@ -96,10 +95,10 @@ if ($runTests) {
   $log = "$LogDir/new-language-check-tests.log"
   New-Log $log
   $ok = (Invoke-Logged $log 'cargo' @('test', '-p', $crate)) -eq 0
-  if ($ok) { $ok = (Invoke-Logged $log 'cargo' @('test', '-p', 'mct-cli', '--bin', 'mct-cli', 'registry')) -eq 0 }
+  if ($ok) { $ok = (Invoke-Logged $log 'cargo' @('test', '-p', 'mct-languages')) -eq 0 }
   if ($ok) {
     $passed = (Get-TestCounts (Get-Lines $log)).Passed
-    Write-Host "ok    tests ($crate + mct-cli registry): $passed passed"
+    Write-Host "ok    tests ($crate + mct-languages registry): $passed passed"
   } else {
     $status = 1
     Write-Host "FAIL  tests - full log: $log"

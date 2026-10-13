@@ -636,6 +636,56 @@ pub fn semantic_ranking(
         .collect())
 }
 
+/// One `semantic_search` hit: cosine similarity to the query (−1..=1) and
+/// the declaration line(s) read from the source file, when still readable.
+#[derive(Debug, Clone)]
+pub struct SemanticHit {
+    pub similarity: f32,
+    pub hit: SymbolHit,
+    pub signature: Option<String>,
+}
+
+/// [`semantic_ranking`] with each hit's signature read from the files under
+/// `root` (each file once) — pure meaning-based search, no lexical side.
+pub fn semantic_search(
+    conn: &Connection,
+    root: &Path,
+    query_vector: &[f32],
+    model: &str,
+    scope: ResolvedScope<'_>,
+    limit: usize,
+) -> Result<Vec<SemanticHit>> {
+    let ranked = semantic_ranking(conn, query_vector, model, scope, limit)?;
+    let mut sources: HashMap<String, String> = HashMap::new();
+    Ok(ranked
+        .into_iter()
+        .map(|(similarity, hit)| {
+            let source = sources.entry(hit.relative_path.clone()).or_insert_with(|| {
+                read_context_source(root, &hit.relative_path).unwrap_or_default()
+            });
+            let lines: Vec<&str> = source.lines().collect();
+            // A `module` (a file's synthetic whole-file symbol) has no
+            // declaration line: its first line belongs to something else.
+            let signature = if hit.kind == "module" {
+                None
+            } else {
+                signature_at(&lines, hit.line, hit.end_line)
+            };
+            SemanticHit {
+                similarity,
+                hit,
+                signature,
+            }
+        })
+        .collect())
+}
+
+/// Drops every stored vector, so the next refresh re-embeds every symbol.
+pub fn clear_embeddings(conn: &Connection) -> Result<()> {
+    conn.execute("DELETE FROM symbol_embeddings", [])?;
+    Ok(())
+}
+
 /// One scored row in [`semantic_ranking`]'s heap. `Ord` is ranking order:
 /// `a < b` when `a` ranks ahead of `b` (higher similarity, then path, line,
 /// and finally scan position, which makes the order total).

@@ -12,7 +12,7 @@ categories = ["development-tools", "parser-implementations"]
 mct-core.workspace = true
 mct-tree-sitter.workspace = true
 tree-sitter.workspace = true
-tree-sitter-bash = "0.25"
+tree-sitter-bash = "0.25.1"
 
 [dev-dependencies]
 mct-corpus.workspace = true

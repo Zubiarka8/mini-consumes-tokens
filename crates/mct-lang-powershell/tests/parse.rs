@@ -109,3 +109,57 @@ fn syntax_error_is_reported_not_panicked() {
     });
     assert!(matches!(result, Err(mct_core::ParseError::Syntax { .. })));
 }
+
+#[test]
+fn bare_identifier_comma_arguments_keep_calls_and_locations() {
+    let parsed = parse(
+        "# prefix\nfunction Show {\n    gh pr view 127 --json number,title,state --jq '.'\n}\n",
+    );
+    let call = parsed.relations.iter().find(|r| r.to_name == "gh").unwrap();
+    assert_eq!(call.kind, RelationKind::Calls);
+    assert_eq!(call.location.line, 3);
+    assert_eq!(call.location.column, 5);
+    let function = parsed.symbols.iter().find(|s| s.name == "Show").unwrap();
+    assert_eq!(function.location.end_line, Some(4));
+}
+
+#[test]
+fn comma_module_arguments_keep_each_literal_import() {
+    let parsed = parse("Import-Module Alpha,Beta,Gamma\nImport-Module 'Quoted,Name'\n");
+    let imports: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Imports)
+        .map(|r| r.to_name.as_str())
+        .collect();
+    assert_eq!(imports, ["Alpha", "Beta", "Gamma", "Quoted,Name"]);
+}
+
+#[test]
+fn comma_recovery_does_not_accept_unrelated_syntax_errors() {
+    for src in [
+        "gh --json a,b --jq '\n",
+        "gh --json a,b\nfunction Broken {\n",
+        "gh --json a,b\n$x = (\n",
+    ] {
+        assert!(
+            matches!(
+                PowerShellParser.parse(&SourceFile {
+                    relative_path: "invalid.ps1".into(),
+                    contents: src.into()
+                }),
+                Err(mct_core::ParseError::Syntax { .. })
+            ),
+            "accepted {src:?}"
+        );
+    }
+}
+
+#[test]
+fn repository_pr_status_script_parses_without_execution() {
+    let parsed = parse(include_str!("../../../scripts/windows/pr-status.ps1"));
+    assert!(parsed
+        .relations
+        .iter()
+        .any(|r| r.kind == RelationKind::Calls && r.to_name == "gh"));
+}

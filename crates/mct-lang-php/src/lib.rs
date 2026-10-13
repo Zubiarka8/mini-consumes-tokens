@@ -71,8 +71,8 @@
 //!   arguments.
 
 use mct_core::{
-    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
-    SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
+    LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
+    SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::{first_error, location};
 use tree_sitter::{Node, Parser};
@@ -119,7 +119,7 @@ impl LanguageParser for PhpParser {
         }
 
         let module_name = module_name_for(&file.relative_path);
-        let mut walker = Walker::new(&file.contents);
+        let mut walker = Walker::new(&file.contents, &file.relative_path);
         let module_id =
             walker.push_symbol(module_name, SymbolKind::Module, module_location(root), None);
         walker.visit_children(root, module_id, None, 0);
@@ -187,15 +187,20 @@ struct Walker<'a> {
     source: &'a str,
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
+    relation_targets: Vec<RelationTarget>,
+    /// This file's repository-relative path, the base of relative includes.
+    path: &'a str,
     next_id: SymbolId,
 }
 
 impl<'a> Walker<'a> {
-    fn new(source: &'a str) -> Self {
+    fn new(source: &'a str, path: &'a str) -> Self {
         Self {
             source,
+            path,
             symbols: Vec::new(),
             relations: Vec::new(),
+            relation_targets: Vec::new(),
             next_id: 0,
         }
     }
@@ -443,15 +448,30 @@ impl<'a> Walker<'a> {
                 }
             }
             "namespace_use_declaration" => {
+                // `use function A\f;` / `use const A\C;` import a symbol,
+                // not a type file.
+                let mut cursor = node.walk();
+                let symbol_use = node
+                    .children(&mut cursor)
+                    .any(|c| matches!(c.kind(), "function" | "const"));
+                let prefix = find_child(node, "namespace_name")
+                    .map(|n| namespace_segments(text(n, self.source)))
+                    .unwrap_or_default();
                 if let Some(group) = node.child_by_field_name("body") {
                     for clause in named_children(group) {
                         if clause.kind() != "namespace_use_clause" {
                             continue;
                         }
                         self.push_namespace_use_clause(owner, clause);
+                        if !symbol_use {
+                            self.push_use_module_import(owner, clause, &prefix);
+                        }
                     }
                 } else if let Some(clause) = find_child(node, "namespace_use_clause") {
                     self.push_namespace_use_clause(owner, clause);
+                    if !symbol_use {
+                        self.push_use_module_import(owner, clause, &[]);
+                    }
                 }
             }
             "require_expression"
@@ -459,6 +479,7 @@ impl<'a> Walker<'a> {
             | "include_expression"
             | "include_once_expression" => {
                 if let Some(target) = node.named_child(0) {
+                    self.push_include_target(owner, target, location(node));
                     if let Some(path) = literal_string_text(target, self.source) {
                         self.push_relation(owner, RelationKind::Imports, path, location(node));
                     }
@@ -674,6 +695,27 @@ impl<'a> Walker<'a> {
         }
     }
 
+    /// The module relation of one `use` clause: the clause's own name (not
+    /// its alias) prefixed by a group's shared namespace.
+    fn push_use_module_import(&mut self, owner: SymbolId, clause: Node, prefix: &[String]) {
+        let mut cursor = clause.walk();
+        if clause
+            .children(&mut cursor)
+            .any(|c| matches!(c.kind(), "function" | "const"))
+        {
+            return;
+        }
+        let Some(name_node) = named_children(clause)
+            .into_iter()
+            .find(|c| last_segment(*c).is_some())
+        else {
+            return;
+        };
+        let mut segments = prefix.to_vec();
+        segments.extend(namespace_segments(text(name_node, self.source)));
+        self.push_module_import(owner, &segments, location(clause));
+    }
+
     fn push_namespace_use_clause(&mut self, owner: SymbolId, clause: Node) {
         // Alias, when present, is recorded as the relation target instead of
         // the original name — same convention as `mct-lang-python`'s
@@ -705,9 +747,90 @@ impl<'a> Walker<'a> {
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
+            relation_targets: self.relation_targets,
             ..Default::default()
         }
     }
+
+    /// `use A\B\Type;` depends on the file declaring `Type` (PSR-4 names it
+    /// `Type.php`, under a directory named after the namespace segment `B`):
+    /// an `Imports` relation to that file's `Module` symbol.
+    fn push_module_import(&mut self, owner: SymbolId, segments: &[String], loc: Location) {
+        let Some(name) = segments.last().filter(|n| !n.is_empty()) else {
+            return;
+        };
+        let module = segments
+            .len()
+            .checked_sub(2)
+            .and_then(|i| segments.get(i))
+            .filter(|m| !m.is_empty())
+            .cloned();
+        let relation = self.relations.len();
+        self.push_relation(owner, RelationKind::Imports, name.clone(), loc);
+        self.relation_targets.push(RelationTarget {
+            relation,
+            module,
+            kind: Some(SymbolKind::Module),
+            ..Default::default()
+        });
+    }
+
+    /// `require`/`include` of a path built from a literal, either alone or
+    /// after `__DIR__`: an `Imports` relation to the target file's `Module`
+    /// symbol, pinned to its exact path. A bare relative literal is read
+    /// against the including file's directory (PHP also tries `include_path`
+    /// and the working directory, so a file elsewhere stays unresolved); an
+    /// absolute or computed path records nothing.
+    fn push_include_target(&mut self, owner: SymbolId, target: Node, loc: Location) {
+        let spec = match target.kind() {
+            "binary_expression" => {
+                let left = target.child_by_field_name("left");
+                let right = target.child_by_field_name("right");
+                match (left, right) {
+                    (Some(l), Some(r)) if text(l, self.source) == "__DIR__" => {
+                        literal_string_text(r, self.source).map(|lit| format!(".{lit}"))
+                    }
+                    _ => None,
+                }
+            }
+            _ => literal_string_text(target, self.source)
+                .filter(|lit| !lit.starts_with('/'))
+                .map(|lit| {
+                    if lit.starts_with("./") || lit.starts_with("../") {
+                        lit
+                    } else {
+                        format!("./{lit}")
+                    }
+                }),
+        };
+        let Some(resolved) =
+            spec.and_then(|spec| mct_core::resolve_reference_path(self.path, &spec))
+        else {
+            return;
+        };
+        let file = resolved.rsplit('/').next().unwrap_or(&resolved);
+        let name = file.trim_end_matches(".php").to_string();
+        if name.is_empty() || !file.ends_with(".php") {
+            return;
+        }
+        let relation = self.relations.len();
+        self.push_relation(owner, RelationKind::Imports, name, loc);
+        self.relation_targets.push(RelationTarget {
+            relation,
+            path: Some(resolved),
+            kind: Some(SymbolKind::Module),
+            ..Default::default()
+        });
+    }
+}
+
+/// `\A\B\C` -> `[A, B, C]`.
+fn namespace_segments(path: &str) -> Vec<String> {
+    path.split('\\')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .collect()
 }
 
 fn named_children(node: Node) -> Vec<Node> {

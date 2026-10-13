@@ -86,22 +86,27 @@ async fn path_scoped_relation_tools_never_report_a_same_named_target_outside_the
     let callers = call(
         &server,
         "find_callers",
-        json!({ "function": "run", "path": "a" }),
+        json!({ "function": "run", "path": "a", "format": "text" }),
     )
     .await;
     let references = call(
         &server,
         "find_references",
-        json!({ "symbol": "run", "path": "a" }),
+        json!({ "symbol": "run", "path": "a", "format": "text" }),
     )
     .await;
     let impact = call(
         &server,
         "impact_analysis",
-        json!({ "symbol": "run", "path": "a" }),
+        json!({ "symbol": "run", "path": "a", "format": "text" }),
     )
     .await;
-    let unscoped = call(&server, "find_callers", json!({ "function": "run" })).await;
+    let unscoped = call(
+        &server,
+        "find_callers",
+        json!({ "function": "run", "format": "text" }),
+    )
+    .await;
 
     for text in [&callers, &references, &impact] {
         assert!(text.contains("to_a "), "{text}");
@@ -121,7 +126,12 @@ async fn path_scoped_relation_tools_never_report_a_same_named_target_outside_the
         "{unscoped}"
     );
 
-    let calls = call(&server, "find_calls", json!({ "function": "main" })).await;
+    let calls = call(
+        &server,
+        "find_calls",
+        json!({ "function": "main", "format": "text" }),
+    )
+    .await;
     let _ = std::fs::remove_dir_all(&root);
     // `rand::`/`serde_json::` are not `c/src/util.rs`, whatever it defines.
     assert!(

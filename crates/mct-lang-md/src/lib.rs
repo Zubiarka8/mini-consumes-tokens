@@ -30,7 +30,12 @@
 //! A leading YAML frontmatter block yields `tag:<t>`, `alias:<a>` and
 //! `title:<t>` references from the note — only `title`, `aliases` and `tags`
 //! in scalar, inline-list and `- item` forms; anything else is ignored and
-//! never evaluated. Wikilink resolution by alias or title is not done.
+//! never evaluated. Each `aliases` entry is also declared as an alias of the
+//! note (`ParsedFile::symbol_aliases`), so a bare `[[Alias]]` or
+//! `[[Alias#Heading]]` reaches that note by exact, case-sensitive text; a
+//! name shared by several notes, or by one note's alias and another's stem,
+//! is ambiguous, never picked. A `title` is never an alias, and a path link
+//! never uses aliases.
 //! Standard `[text](url)` links are not resolved as relations, and `#tag`-like
 //! text in code is not indexed.
 //!
@@ -465,6 +470,7 @@ struct Walker<'a> {
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
     relation_targets: Vec<RelationTarget>,
+    symbol_aliases: Vec<mct_core::SymbolAlias>,
     literals: LiteralCollector,
     next_id: SymbolId,
 }
@@ -481,6 +487,7 @@ impl<'a> Walker<'a> {
             symbols: Vec::new(),
             relations: Vec::new(),
             relation_targets: Vec::new(),
+            symbol_aliases: Vec::new(),
             literals: LiteralCollector::default(),
             next_id: 0,
         }
@@ -547,6 +554,11 @@ impl<'a> Walker<'a> {
     /// `tag:`/`alias:`/`title:` references from the note for its frontmatter.
     fn push_frontmatter_relations(&mut self, note: SymbolId) {
         let fm = std::mem::take(&mut self.frontmatter);
+        self.symbol_aliases
+            .extend(fm.aliases.iter().map(|(name, _)| mct_core::SymbolAlias {
+                symbol: note,
+                name: name.clone(),
+            }));
         let site = |line: u32| Location {
             line,
             column: 1,
@@ -703,6 +715,7 @@ impl<'a> Walker<'a> {
             relations: self.relations,
             relation_targets: self.relation_targets,
             literals: self.literals.finish(),
+            symbol_aliases: self.symbol_aliases,
         }
     }
 }

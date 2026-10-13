@@ -33,8 +33,8 @@
 //!   style of script. Only `function`-style definitions are.
 
 use mct_core::{
-    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
-    SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
+    LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
+    SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::{first_error, location};
 use tree_sitter::{Node, Parser};
@@ -62,13 +62,29 @@ impl LanguageParser for PowerShellParser {
             .set_language(&tree_sitter_powershell::LANGUAGE.into())
             .expect("tree-sitter-powershell grammar is statically valid");
 
-        let tree = parser
+        let mut tree = parser
             .parse(&file.contents, None)
             .ok_or_else(|| ParseError::Syntax {
                 path: file.relative_path.clone(),
                 line: 1,
                 message: "tree-sitter produced no parse tree".to_string(),
             })?;
+
+        if tree.root_node().has_error() {
+            let mut normalized = file.contents.as_bytes().to_vec();
+            if normalize_identifier_comma_arguments(
+                tree.root_node(),
+                &file.contents,
+                &mut normalized,
+                0,
+            ) {
+                if let Some(reparsed) = parser.parse(&normalized, None) {
+                    if !reparsed.root_node().has_error() {
+                        tree = reparsed;
+                    }
+                }
+            }
+        }
 
         let root = tree.root_node();
         if root.has_error() {
@@ -81,7 +97,7 @@ impl LanguageParser for PowerShellParser {
         }
 
         let module_name = module_name_for(&file.relative_path);
-        let mut walker = Walker::new(&file.contents);
+        let mut walker = Walker::new(&file.contents, &file.relative_path);
         let module_id = walker.push_symbol(
             module_name.clone(),
             SymbolKind::Module,
@@ -91,6 +107,64 @@ impl LanguageParser for PowerShellParser {
         walker.visit_children(root, module_id, &module_name, module_id, 0);
         Ok(walker.finish())
     }
+}
+
+/// Repair only the pinned grammar's missing separator between bare identifiers
+/// in command arguments. PowerShell permits comma lists for cmdlets and literal
+/// commas for native commands. A full reparse must accept the entire file.
+/// One-byte substitutions preserve locations; extraction reads original text.
+fn normalize_identifier_comma_arguments(
+    node: Node,
+    source: &str,
+    normalized: &mut [u8],
+    depth: u32,
+) -> bool {
+    if depth >= MAX_TRAVERSAL_DEPTH {
+        return false;
+    }
+    let mut changed = false;
+    let mut cursor = node.walk();
+    let children: Vec<_> = node.children(&mut cursor).collect();
+    if node.kind() == "command_elements" {
+        for group in children.windows(3) {
+            let [previous, separator, next] = group else {
+                continue;
+            };
+            if previous.kind() != "generic_token"
+                || separator.kind() != "command_argument_sep"
+                || next.kind() != "generic_token"
+                || separator.start_byte() != separator.end_byte()
+                || previous.end_byte() != separator.start_byte()
+                || next.start_byte() != separator.end_byte()
+                || separator.child_count() != 1
+                || !separator
+                    .child(0)
+                    .is_some_and(|child| child.is_missing() && child.kind() == " ")
+            {
+                continue;
+            }
+            let before = text(*previous, source).trim_start_matches(',');
+            let after = text(*next, source);
+            if simple_identifier(before) && after.strip_prefix(',').is_some_and(simple_identifier) {
+                if let Some(byte) = normalized.get_mut(next.start_byte()) {
+                    *byte = b'_';
+                    changed = true;
+                }
+            }
+        }
+    }
+    for child in children {
+        changed |= normalize_identifier_comma_arguments(child, source, normalized, depth + 1);
+    }
+    changed
+}
+
+fn simple_identifier(value: &str) -> bool {
+    let mut bytes = value.bytes();
+    bytes
+        .next()
+        .is_some_and(|first| first.is_ascii_alphabetic() || first == b'_')
+        && bytes.all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
 }
 
 fn module_name_for(relative_path: &str) -> String {
@@ -159,15 +233,20 @@ struct Walker<'a> {
     source: &'a str,
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
+    relation_targets: Vec<RelationTarget>,
+    /// This file's repository-relative path, the base of relative sources.
+    path: &'a str,
     next_id: SymbolId,
 }
 
 impl<'a> Walker<'a> {
-    fn new(source: &'a str) -> Self {
+    fn new(source: &'a str, path: &'a str) -> Self {
         Self {
             source,
+            path,
             symbols: Vec::new(),
             relations: Vec::new(),
+            relation_targets: Vec::new(),
             next_id: 0,
         }
     }
@@ -289,6 +368,7 @@ impl<'a> Walker<'a> {
                             .map(|op| text(op, self.source) == ".")
                             .unwrap_or(false);
                         if is_dot_source {
+                            self.push_file_import(owner, &cmd_text, location(name_node));
                             self.push_relation(
                                 owner,
                                 RelationKind::Imports,
@@ -296,7 +376,8 @@ impl<'a> Walker<'a> {
                                 location(name_node),
                             );
                         } else if cmd_text.eq_ignore_ascii_case("Import-Module") {
-                            if let Some(module) = first_command_argument_text(node, self.source) {
+                            for module in first_command_argument_texts(node, self.source) {
+                                self.push_file_import(owner, &module, location(node));
                                 self.push_relation(
                                     owner,
                                     RelationKind::Imports,
@@ -327,8 +408,45 @@ impl<'a> Walker<'a> {
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
+            relation_targets: self.relation_targets,
             ..Default::default()
         }
+    }
+
+    /// Dot-sourcing or `Import-Module` of a script/module file by relative
+    /// path depends on that file: an `Imports` relation to its `Module`
+    /// symbol, pinned to the exact path. The path is read against the
+    /// importing script's directory (PowerShell resolves it against the
+    /// working directory); a mismatch leaves the import unresolved.
+    fn push_file_import(&mut self, owner: SymbolId, spec: &str, loc: Location) {
+        let spec = spec.replace('\\', "/");
+        let file = spec.rsplit('/').next().unwrap_or(&spec);
+        let Some(stem) = file
+            .strip_suffix(".psm1")
+            .or_else(|| file.strip_suffix(".ps1"))
+            .filter(|stem| !stem.is_empty())
+        else {
+            return;
+        };
+        if spec.contains(['$', '`', '*', '(', '~']) || spec.starts_with('/') || spec.contains(':') {
+            return;
+        }
+        let relative = if spec.starts_with("./") || spec.starts_with("../") {
+            spec.clone()
+        } else {
+            format!("./{spec}")
+        };
+        let Some(resolved) = mct_core::resolve_reference_path(self.path, &relative) else {
+            return;
+        };
+        let relation = self.relations.len();
+        self.push_relation(owner, RelationKind::Imports, stem.to_string(), loc);
+        self.relation_targets.push(RelationTarget {
+            relation,
+            path: Some(resolved),
+            kind: Some(SymbolKind::Module),
+            ..Default::default()
+        });
     }
 }
 
@@ -351,19 +469,32 @@ fn command_literal_name<'a>(name_field: Node<'a>, source: &str) -> Option<(Strin
 /// The literal text of a `command`'s first real argument (skipping
 /// whitespace separators and named `-Parameter` flags), quotes trimmed —
 /// used for `Import-Module`'s target name.
-fn first_command_argument_text(command_node: Node, source: &str) -> Option<String> {
+fn first_command_argument_texts(command_node: Node, source: &str) -> Vec<String> {
+    first_command_argument_node(command_node)
+        .map(|arg| {
+            let raw = text(arg, source);
+            if arg.kind() == "generic_token"
+                && raw.contains(',')
+                && raw.split(',').all(simple_identifier)
+            {
+                return raw.split(',').map(str::to_string).collect();
+            }
+            let trimmed = raw.trim_matches(|c| c == '"' || c == '\'');
+            if trimmed.is_empty() || trimmed.contains('$') || trimmed.starts_with(['(', '@']) {
+                Vec::new()
+            } else {
+                vec![trimmed.to_string()]
+            }
+        })
+        .unwrap_or_default()
+}
+
+fn first_command_argument_node(command_node: Node) -> Option<Node> {
     let elements = command_node.child_by_field_name("command_elements")?;
     let mut cursor = elements.walk();
     let candidates: Vec<Node> = elements.named_children(&mut cursor).collect();
     let arg = candidates
         .into_iter()
         .find(|c| c.kind() != "command_argument_sep" && c.kind() != "command_parameter")?;
-    let trimmed = text(arg, source).trim_matches(|c| c == '"' || c == '\'');
-    // A computed target (`(Join-Path …)`, `"$PSScriptRoot/x"`, `@(…)`) is
-    // not evaluated: no import rather than its source text.
-    if trimmed.is_empty() || trimmed.contains('$') || trimmed.starts_with(['(', '@']) {
-        None
-    } else {
-        Some(trimmed.to_string())
-    }
+    Some(arg)
 }

@@ -4,7 +4,9 @@
 //! language's grammar.
 
 mod assets;
+mod cycles;
 mod dead_code;
+mod dependency_graph;
 mod error;
 mod exclude;
 mod file_tree;
@@ -15,15 +17,18 @@ mod read_limits;
 mod schema;
 mod search;
 mod semantic;
+mod symbol_changes;
 mod traversal;
 
 pub use assets::{
     read_glb_json_chunk, AssetError, ASSET_EXTENSIONS, ASSET_LANGUAGE, MAX_GLTF_JSON_BYTES,
 };
+pub use cycles::find_cycles;
 pub use dead_code::{
     find_dead_code_candidates, looks_like_test_name, DEAD_CODE_ENTRY_POINT_NAMES,
     DEAD_CODE_KIND_ALLOWLIST,
 };
+pub use dependency_graph::{DependencyEdge, DependencyGraph};
 pub use error::{IndexError, Result};
 pub use exclude::{
     read_ignore_file, ExcludeSet, GITIGNORE_IMPORT_DIRECTIVE, IGNORE_FILE_NAME,
@@ -42,7 +47,7 @@ pub use read_limits::{read_repository_file, DEFAULT_MAX_FILE_BYTES, MAX_FILE_BYT
 pub use search::{exact_phrase, search_words, split_identifier, LiteralHit, MAX_LITERAL_HITS};
 pub use semantic::{
     classify_query, embedding_text, Embedder, EmbeddingCoverage, HybridHit, PendingEmbeddings,
-    QueryIntent, SymbolContext, EMBEDDING_TEXT_VERSION, EXACT_PHRASE_BOOST, RRF_K,
+    QueryIntent, SemanticHit, SymbolContext, EMBEDDING_TEXT_VERSION, EXACT_PHRASE_BOOST, RRF_K,
     SEMANTIC_CANDIDATES,
 };
 
@@ -86,6 +91,10 @@ pub struct Index {
     /// database is validated against this to reject path traversal.
     root: PathBuf,
     exclude: ExcludeSet,
+    /// The [`ExcludeSet::generation`] the last full reindex applied. Behind
+    /// the set's current generation, rows of paths its rules now exclude may
+    /// still be stored ([`Index::apply_exclusion_changes`]).
+    applied_exclusions: u64,
 }
 
 impl Index {
@@ -111,6 +120,7 @@ impl Index {
         Ok(Self {
             conn,
             root,
+            applied_exclusions: exclude.generation(),
             exclude,
         })
     }
@@ -130,6 +140,7 @@ impl Index {
         Ok(Self {
             conn,
             root,
+            applied_exclusions: exclude.generation(),
             exclude,
         })
     }
@@ -184,6 +195,39 @@ impl Index {
     /// a rule added or removed since the index was opened applies to this run.
     pub fn reindex(&mut self, registry: &LanguageRegistry, force: bool) -> Result<ReindexReport> {
         indexer::reindex(self, registry, force)
+    }
+
+    /// Turns on (or off) naming the symbols each [`Index::reindex`] and
+    /// [`Index::reindex_paths`] adds or removes, in
+    /// [`ReindexReport::symbols_added`], [`ReindexReport::symbols_removed`]
+    /// and [`ReindexReport::removed_symbols`]. Off by default: it costs a
+    /// trigger run per symbol written, which the initial index of a large
+    /// project does not need. Per connection; nothing is stored in the
+    /// database file.
+    pub fn track_symbol_changes(&mut self, on: bool) -> Result<()> {
+        if on {
+            symbol_changes::enable(&self.conn)
+        } else {
+            symbol_changes::disable(&self.conn)
+        }
+    }
+
+    /// Brings the stored rows in line with the project's current ignore
+    /// rules before anything is read from them: re-reads the ignore files
+    /// ([`ExcludeSet::reload`]) and, when the rules differ from those the
+    /// last full reindex applied — whether this call or a clone of the set
+    /// (the watcher's) reloaded them — runs that full reindex now
+    /// (hash-skipped, like the watcher's). Without it, a path that an edit to
+    /// `.mctignore` (or an imported `.gitignore`) excludes stays queryable
+    /// until the next reindex. Returns whether it reindexed; a failed reindex
+    /// leaves the rules unapplied, so the next call tries again.
+    pub fn apply_exclusion_changes(&mut self, registry: &LanguageRegistry) -> Result<bool> {
+        self.exclude.try_reload()?;
+        if self.exclude.generation() == self.applied_exclusions {
+            return Ok(false);
+        }
+        indexer::reindex(self, registry, false)?;
+        Ok(true)
     }
 
     /// Incremental [`Index::reindex`]: updates the index for `paths` only
@@ -266,6 +310,31 @@ impl Index {
     /// How many symbols have a vector for `model`, out of how many exist.
     pub fn embedding_coverage(&self, model: &str) -> Result<EmbeddingCoverage> {
         semantic::embedding_coverage(&self.conn, model)
+    }
+
+    /// Drops every stored vector; the next refresh re-embeds every symbol.
+    pub fn clear_embeddings(&self) -> Result<()> {
+        semantic::clear_embeddings(&self.conn)
+    }
+
+    /// The `limit` symbols (within `scope`) most similar by cosine to
+    /// `query_vector` (from [`Index::embed_query`], for `model`), best
+    /// first, each with its signature — no lexical ranking involved.
+    pub fn semantic_search(
+        &self,
+        query_vector: &[f32],
+        model: &str,
+        scope: QueryScope<'_>,
+        limit: usize,
+    ) -> Result<Vec<SemanticHit>> {
+        semantic::semantic_search(
+            &self.conn,
+            &self.root,
+            query_vector,
+            model,
+            self.resolve_scope(scope),
+            limit,
+        )
     }
 
     /// [`Index::search_symbols`] fused with an embedding-similarity ranking
