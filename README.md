@@ -21,13 +21,13 @@ A few things that make this different from a typical single-purpose plugin:
 - **It understands 17 programming and markup languages at once**, including projects that mix several languages together.
 - **It isn't tied to one editor or assistant.** It speaks a common protocol called **MCP** (Model Context Protocol) — think of it as a shared language that lets an AI assistant ask a tool for information directly, the same way different apps on your phone can all talk to the same calendar. Any MCP-capable assistant can connect to it.
 - **It also works as a plain command-line tool**, for anyone who just wants to check the health of the index or rebuild it by hand, with no AI assistant involved at all.
-- **20 MCP tools, grouped by purpose** (`select_tools` only with `MCT_TOOL_ATTENTION=1`) (discovery, lookup, relations, maintenance, meta) — from a single symbol lookup, a ranked search by partial name or an optional search by meaning, to a one-shot "what would this change affect" blast-radius report, a one-call context pack for the symbol you're about to work on, plus a project-wide overview and a plain directory tree for getting oriented before you know which file you need.
+- **21 MCP tools, grouped by purpose** (`select_tools` only with `MCT_TOOL_ATTENTION=1`) (discovery, lookup, relations, maintenance, meta) — from a single symbol lookup, a ranked search by partial name or an optional search by meaning, to a one-shot "what would this change affect" blast-radius report, a one-call context pack for the symbol you're about to work on, a module-level dependency graph (who imports whom, cycles, Mermaid/DOT export), plus a project-wide overview and a plain directory tree for getting oriented before you know which file you need.
 - **Progressive tool discovery**: an MCP client can ask for a cheap one-line-per-tool catalog first (`discover_tool_categories`) and fetch a tool's full input schema only when it actually needs it (`get_tool_schema`), instead of always loading every schema up front.
 - **Tool Attention (opt-in, `MCT_TOOL_ATTENTION=1`)**: `tools/list` starts with `select_tools` alone (~98% fewer catalog tokens). The client calls it with the user's request; the server narrows `tools/list` to the tools that request needs and sends `tools/list_changed`. An unclear request keeps the full list, and every tool stays callable by name. Figures in [`benchmarks/intent-selection.md`](benchmarks/intent-selection.md#tool-attention-issue-11).
 - **Multi-hop relation queries**: `find_references`, `find_calls`, `find_callers`, and `impact_analysis` can walk multiple hops through the call/reference graph in one call (`depth`) and page through large result sets (`offset`), instead of chaining single-hop calls by hand.
 - **Batched queries**: `batch` runs up to 25 read-only queries (any tool except `reindex`) in one call, each answered under its own `[n] tool` header, dropping the per-call overhead — about 37–42% fewer tokens than the same queries sent one by one on the test fixtures. The tool catalog is also kept byte-identical across server starts, so the client's provider prompt caching can reuse it.
 - **Context packs**: `build_context_pack` returns everything needed to work on one symbol in a single call — its definition with doc comment and (capped) source, then every caller, callee, dependency and related test listed once with its one-line signature — instead of chaining four lookups and reading every file they point at. About 85% fewer tokens than that manual route on the test fixture.
-- **Compact `toon` output format (default)**: the ten tools with a `format` argument (`list_symbols`, `find_symbol`, `search_symbols`, `hybrid_search`, `find_references`, `find_calls`, `find_callers`, `impact_analysis`, `find_dead_code`, `build_context_pack`) answer with a token-lean TOON table unless the call passes `"format":"text"` for the previous labelled text.
+- **Compact `toon` output format (default)**: the eleven tools with a `format` argument (`list_symbols`, `find_symbol`, `search_symbols`, `hybrid_search`, `find_references`, `find_calls`, `find_callers`, `impact_analysis`, `find_dead_code`, `build_context_pack`, `get_dependency_graph`) answer with a token-lean TOON table unless the call passes `"format":"text"` for the previous labelled text.
 
 **Supported languages:** Rust, Python, Java, C#, Kotlin, JavaScript/TypeScript, C++, Go, Lua, HTML, CSS, XML, XAML, Bash, PowerShell, PHP, and Markdown (headings plus [[WikiLink]]/#tag relations).
 
@@ -144,6 +144,7 @@ Once it's connected and healthy, prefer it over grep/reading whole files:
 - "What does X call?" -> find_calls
 - "Every reference to X" -> find_references
 - "What would break if I changed/removed X?" -> impact_analysis
+- "Which files/modules does this module depend on, and is there an import cycle?" -> get_dependency_graph
 - About to work on X, want its code + callers/callees/tests in one go -> build_context_pack
 - Exploring a file/folder before knowing a name -> list_symbols,
   get_file_skeleton, get_project_overview, get_file_tree
@@ -390,11 +391,59 @@ mct-cli --root . status     # 3. check it worked: files and symbols indexed, las
 - Find every place something is used, anywhere in the project — optionally several hops out
 - Find what a function depends on, and who depends on it
 - Get a one-shot answer to "what would this change affect"
+- See which files a module imports (and which import it), spot import cycles, and export the graph as Mermaid or DOT
 - See a file's overall shape without reading the whole thing
 - Get oriented in an unfamiliar file, directory, or the whole project in one call
 - Browse the plain directory/file layout before picking a file
 - Spot candidate dead code (heuristic: zero indexed references)
 - Check whether the index itself is healthy and up to date
+
+### Module dependency graph (`get_dependency_graph`)
+
+`impact_analysis` answers "which *symbols* break if I change this?". `get_dependency_graph` answers the module-level question: "which *files* does this file or directory import, who imports it, and is there an import cycle?". It complements `impact_analysis`; it does not replace it.
+
+| Argument | Meaning |
+|---|---|
+| `module` (required) | Repo-relative file or directory, e.g. `src/orders.rs` or `frontend/` |
+| `depth` | Import hops to follow from `module`, default 2, clamped to the project's maximum query depth |
+| `limit` | Standard row cap; the output says `truncated: true` when it cut anything |
+| `format` | `toon` (default) or `text` |
+| `export` | Optional: `mermaid` or `dot` adds a rendered graph to the answer |
+
+Rules worth knowing: the unit is the **file** (a directory root expands to the files under it); an edge `A -> B` ("A imports B") exists only for a **resolved** import, so a guess never becomes an edge; imports that resolve to nothing in the index (third-party, std, unknown) are listed separately under `external`; cycles are listed one per line, or `circular: none`. Design: [ADR-006](docs/01-architecture/adrs/006-dependency-graph-tool.md).
+
+Example call (Rust or TypeScript project):
+
+```json
+{"module": "frontend/apiClient.ts", "depth": 2}
+```
+
+Illustrative TOON answer (the exact column set follows the tool's schema):
+
+```text
+root: frontend/apiClient.ts (depth 2)
+nodes[2]{path,hop}:
+  frontend/apiClient.ts,0
+  frontend/format.ts,1
+edges[1]{from,to}:
+  frontend/apiClient.ts,frontend/format.ts
+circular: none
+external[0]:
+truncated: false
+```
+
+A cycle (`a.ts` imports `b.ts`, `b.ts` imports `a.ts`) is reported once per strongly connected component:
+
+```text
+circular[1]: src/a.ts -> src/b.ts -> src/a.ts
+```
+
+With `"export": "mermaid"` the answer also carries a ready-to-paste diagram (`"export": "dot"` gives Graphviz DOT):
+
+```text
+graph LR
+  n0["frontend/apiClient.ts"] --> n1["frontend/format.ts"]
+```
 
 ---
 ## 7. Common commands

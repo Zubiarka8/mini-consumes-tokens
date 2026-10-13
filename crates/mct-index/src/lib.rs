@@ -4,7 +4,9 @@
 //! language's grammar.
 
 mod assets;
+mod cycles;
 mod dead_code;
+mod dependency_graph;
 mod error;
 mod exclude;
 mod file_tree;
@@ -20,10 +22,12 @@ mod traversal;
 pub use assets::{
     read_glb_json_chunk, AssetError, ASSET_EXTENSIONS, ASSET_LANGUAGE, MAX_GLTF_JSON_BYTES,
 };
+pub use cycles::find_cycles;
 pub use dead_code::{
     find_dead_code_candidates, looks_like_test_name, DEAD_CODE_ENTRY_POINT_NAMES,
     DEAD_CODE_KIND_ALLOWLIST,
 };
+pub use dependency_graph::{DependencyEdge, DependencyGraph};
 pub use error::{IndexError, Result};
 pub use exclude::{
     read_ignore_file, ExcludeSet, GITIGNORE_IMPORT_DIRECTIVE, IGNORE_FILE_NAME,
