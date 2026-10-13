@@ -233,6 +233,11 @@ pub fn spawn_watcher(
     debouncer.watch(&root, RecursiveMode::Recursive)?;
 
     std::thread::spawn(move || {
+        // Only the watcher asks for it: the initial index would pay a trigger
+        // run per symbol for a count nobody reads.
+        if let Err(err) = index.blocking_lock().track_symbol_changes(true) {
+            tracing::warn!(error = %err, "cannot track symbol changes; updates will log file counts only");
+        }
         let mut state = BatchState::default();
         let mut pending = Changed::Nothing;
         let mut deadline = Instant::now();
@@ -297,6 +302,9 @@ pub fn spawn_watcher(
                     parsed = report.files_parsed,
                     unchanged = report.files_unchanged,
                     removed = report.files_removed,
+                    symbols_added = report.symbols_added,
+                    symbols_removed = report.symbols_removed,
+                    removed_symbols = ?report.removed_symbols,
                     "auto-reindex after file changes settled"
                 ),
                 Some(Err(err)) => tracing::warn!(
