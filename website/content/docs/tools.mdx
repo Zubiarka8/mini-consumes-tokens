@@ -12,7 +12,7 @@ Your AI client calls these tools itself; you don't type them. This page tells yo
 | What is in this file, folder or project? | [`get_project_overview`](#get_project_overview), [`list_symbols`](#list_symbols), [`get_file_tree`](#get_file_tree) |
 | What does this file look like, without the bodies? | [`get_file_skeleton`](#get_file_skeleton) |
 | Where is `X` defined? | [`find_symbol`](#find_symbol) |
-| I don't know the exact name | [`search_symbols`](#search_symbols), [`hybrid_search`](#hybrid_search) |
+| I don't know the exact name | [`search_symbols_like`](#search_symbols_like), [`hybrid_search_like`](#hybrid_search_like) |
 | Who calls this function? | [`find_callers`](#find_callers) |
 | What does this function call? | [`find_calls`](#find_calls) |
 | Where is `X` used at all (calls, imports, inheritance)? | [`find_references`](#find_references) |
@@ -67,15 +67,19 @@ crates/mct-core/src/lib.rs:77:1 [rust] trait LanguageParser
 ...
 ```
 
-### `search_symbols` [#search_symbols]
+### `search_symbols_like` [#search_symbols_like]
+
+Formerly `search_symbols`, still available as a deprecated alias for one version.
 
 Ranked search by words when you are not sure of the name. `parse request`, `parseReq` and `parse_request` all find `parse_request_body`, because names are split at camelCase, snake_case and kebab-case boundaries. Exact matches come first.
 
 - `query` (required), `path`, `language`, `limit` (default 10, max 100), `offset`, `snippet_lines` (source lines to show per hit, max 50), `format`, `cache`.
 
-### `hybrid_search` [#hybrid_search]
+### `hybrid_search_like` [#hybrid_search_like]
 
-Search by meaning: `load config from disk` also finds `read_settings`. It mixes `search_symbols` with an embedding model.
+Formerly `hybrid_search`, still available as a deprecated alias for one version.
+
+Search by meaning: `load config from disk` also finds `read_settings`. It mixes `search_symbols_like` with an embedding model.
 
 - `query` (required). Put it in double quotes (`"parse request"`) for an exact phrase; that also lists string literals (error and log messages) that contain it.
 - `alpha`: `0` = words only, `1` = meaning only. If you omit it, it is picked from the query: 0.1 for an identifier, 0.75 for a plain sentence, 0.5 otherwise.
@@ -101,6 +105,7 @@ The functions this one calls: "what does `X` call?". Use it when you are reading
 Every place a symbol is used: calls, imports, extends, implements and plain references. Broader than `find_callers`.
 
 - `symbol` (required), plus the same options as `find_callers`.
+- `sort`: `relevance` (default, unchanged) or `execution`. `execution` orders the references by graph hop (`depth`), then file, then line, so references inside one function appear in source order. The index is static: this is an approximation of what runs first, not the real execution order (branches, loops, callbacks and call order across files are not modelled).
 
 ```text
 3 reference(s):
