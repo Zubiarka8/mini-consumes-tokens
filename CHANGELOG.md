@@ -54,6 +54,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (no `--force` needed). A binary from before this change cannot open a
   migrated index (`CONNECTION_CLOSED`): run `scripts/unix/reinstall.sh
   --reindex`.
+- `website/`: the official landing page, an interactive 3D atlas of the
+  project's own index with a full-screen scroll tour of the MCP tools. It is
+  not part of the released binaries; `npm run preview` builds and serves it
+  locally (see `website/README.md`).
 
 ### Changed
 
