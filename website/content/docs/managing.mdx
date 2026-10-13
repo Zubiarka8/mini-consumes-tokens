@@ -5,10 +5,12 @@ description: When the index updates by itself, when to reindex by hand, and how 
 
 ## Usually you do nothing
 
+By default the server reindexes **15 seconds** after the last file change (`15000` ms). To change it, set `MCT_REINDEX_DEBOUNCE_MS` or pass `--reindex-debounce-ms`; see [Change how often it reindexes](#change-how-often-it-reindexes).
+
 The MCP server keeps the index up to date by itself:
 
 1. **At startup** it reindexes every file that changed since the last run.
-2. **While it runs** it watches the project. About 1.5 seconds after the last file change, it reindexes in the background. This covers editing, `git pull`, switching branches and renaming files.
+2. **While it runs** it watches the project. About 15 seconds after the last file change, it reindexes in the background. This covers editing, `git pull`, switching branches and renaming files.
 
 Only changed files are parsed again. A file counts as changed when its **content** changes, not its modification date, so `touch` alone does nothing.
 
@@ -49,6 +51,62 @@ Reindex complete: 3 parsed, 152 unchanged, 1 removed, 40 symbols written.
 | unchanged | files skipped because their content is the same |
 | removed | files that were deleted or are now excluded, taken out of the index |
 | symbols written | symbols saved from the parsed files |
+
+## Change how often it reindexes
+
+The background reindex waits until files have been quiet for a set time, in milliseconds. Pick a value:
+
+| Setting | Value | When to use it |
+| --- | --- | --- |
+| Off | `0` | You reindex by hand only. |
+| Fast | `5000` | You want results to catch up within a few seconds. |
+| Default | `15000` | Good for most projects. |
+| Calm | `60000` | Big repos, or tools that rewrite many files. |
+
+Set it with the `--reindex-debounce-ms <ms>` flag or the `MCT_REINDEX_DEBOUNCE_MS` environment variable. The flag wins over the variable, and the variable wins over the default. A value that is not a whole number is ignored and the default is used.
+
+<Tabs items={['Claude Code', 'Codex', 'Cursor, Gemini, Copilot']}>
+<Tab value="Claude Code">
+
+In `.mcp.json`, put the variable in `env` (this is what `mct-cli mcp-register` writes, with an empty `env`), or add the flag to `args`:
+
+```json
+{
+  "mcpServers": {
+    "mini-consumes-tokens": {
+      "type": "stdio",
+      "command": "mct-mcp-server",
+      "args": ["--root", "<absolute-path-to-repo>"],
+      "env": { "MCT_REINDEX_DEBOUNCE_MS": "5000" }
+    }
+  }
+}
+```
+
+</Tab>
+<Tab value="Codex">
+
+In `~/.codex/config.toml`, add the flag to `args`:
+
+```toml
+[mcp_servers.mini-consumes-tokens]
+command = "mct-mcp-server"
+args = ["--root", "<absolute-path-to-repo>", "--reindex-debounce-ms", "5000"]
+```
+
+</Tab>
+<Tab value="Cursor, Gemini, Copilot">
+
+In the client's MCP file, add the flag to `args` (same shape in each; Copilot and Cursor also keep their `"type": "stdio"` line):
+
+```json
+"args": ["--root", "<absolute-path-to-repo>", "--reindex-debounce-ms", "5000"]
+```
+
+</Tab>
+</Tabs>
+
+Use the same `args` line with `0`, `15000` or `60000` for the other settings. Restart your client afterwards so it launches the server again.
 
 ## Forcing a full reindex
 
