@@ -465,6 +465,28 @@ pub struct FindDeadCodeArgs {
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct GetDependencyGraphArgs {
+    /// Repo-relative file or directory path (forward slashes) whose imports
+    /// to follow. A directory counts as one module.
+    pub module: String,
+    /// Import hops to follow from `module`. Defaults to 2; clamped to
+    /// `mct_core::MAX_QUERY_DEPTH`.
+    #[serde(default)]
+    pub depth: Option<u32>,
+    /// Maximum number of modules to return. Defaults to 50 when omitted;
+    /// the response says when the walk was cut short.
+    #[serde(default)]
+    pub limit: Option<usize>,
+    /// Also return the graph rendered as `dot` (Graphviz) or `mermaid`.
+    #[serde(default)]
+    pub export: Option<String>,
+    /// Response shape: `toon` (default) or `text` (plain text, opt-in) — see
+    /// `list_symbols`' `format` field for details.
+    #[serde(default)]
+    pub format: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct GetFileSkeletonArgs {
     /// A single file's path (e.g. `crates/mct-lang-html/src/lib.rs`),
     /// relative to the project root, forward slashes on any OS. Must be a
@@ -612,6 +634,7 @@ const TOOL_CATEGORIES: &[(&str, &[&str])] = &[
             "find_references",
             "impact_analysis",
             "build_context_pack",
+            "get_dependency_graph",
         ],
     ),
     (
@@ -770,6 +793,41 @@ fn parse_match_mode(raw: Option<&str>) -> Result<mct_index::SymbolMatchMode, Mcp
 /// than silently falling back to the default.
 fn parse_output_format(raw: Option<&str>) -> Result<OutputFormat, McpError> {
     OutputFormat::parse(raw).map_err(|msg| McpError::invalid_params(msg, None))
+}
+
+/// Validates `get_dependency_graph`'s `module`: repo-relative, forward or
+/// back slashes, no absolute path and no `..` component. Returns it with
+/// forward slashes and without a leading `./` or trailing `/`.
+fn validate_module_path(raw: &str) -> Result<String, McpError> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(McpError::invalid_params("`module` must not be empty", None));
+    }
+    let normalized = trimmed.replace('\\', "/");
+    let is_windows_drive = normalized.as_bytes().get(1) == Some(&b':');
+    if normalized.starts_with('/') || is_windows_drive {
+        return Err(McpError::invalid_params(
+            format!("`module` must be relative to the project root, got `{trimmed}`"),
+            None,
+        ));
+    }
+    if normalized.split('/').any(|part| part == "..") {
+        return Err(McpError::invalid_params(
+            format!("`module` must not contain `..`, got `{trimmed}`"),
+            None,
+        ));
+    }
+    let cleaned: Vec<&str> = normalized
+        .split('/')
+        .filter(|part| !part.is_empty() && *part != ".")
+        .collect();
+    if cleaned.is_empty() {
+        return Err(McpError::invalid_params(
+            "`module` must name a file or directory",
+            None,
+        ));
+    }
+    Ok(cleaned.join("/"))
 }
 
 fn index_error(err: mct_index::IndexError) -> McpError {
@@ -1487,6 +1545,7 @@ impl MctServer {
             "get_project_overview" => self.get_project_overview(batch_params(tool, args)?).await,
             "get_file_tree" => self.get_file_tree(batch_params(tool, args)?).await,
             "find_dead_code" => self.find_dead_code(batch_params(tool, args)?).await,
+            "get_dependency_graph" => self.get_dependency_graph(batch_params(tool, args)?).await,
             "discover_tool_categories" => self.discover_tool_categories().await,
             "get_tool_schema" => self.get_tool_schema(batch_params(tool, args)?).await,
             "batch" => Err(McpError::invalid_params(
@@ -2542,6 +2601,61 @@ impl MctServer {
             OutputFormat::Toon => {
                 format::find_dead_code_toon(path.unwrap_or("."), &candidates, offset, limit)
             }
+        };
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Module import graph with cycles; see tools.ttc")]
+    pub async fn get_dependency_graph(
+        &self,
+        Parameters(GetDependencyGraphArgs {
+            module,
+            depth,
+            limit,
+            export,
+            format,
+        }): Parameters<GetDependencyGraphArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let module = validate_module_path(&module)?;
+        let depth = depth.unwrap_or(2).clamp(1, mct_core::MAX_QUERY_DEPTH);
+        let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
+        let output_format = parse_output_format(format.as_deref())?;
+        let export = match export.as_deref().map(str::trim).filter(|e| !e.is_empty()) {
+            None => None,
+            Some("dot") => Some("dot"),
+            Some("mermaid") => Some("mermaid"),
+            Some(other) => {
+                return Err(McpError::invalid_params(
+                    format!("export must be one of dot, mermaid — got `{other}`"),
+                    None,
+                ))
+            }
+        };
+
+        let graph = {
+            let index = self.index.lock().await;
+            index
+                .dependency_graph(&module, depth, limit)
+                .map_err(file_tree_error)?
+        };
+        let edges: Vec<(String, String)> = graph
+            .edges
+            .iter()
+            .map(|e| (e.from.clone(), e.to.clone()))
+            .collect();
+        let cycles = mct_index::find_cycles(&edges);
+        let rendered = export.map(|kind| {
+            let body = match kind {
+                "dot" => crate::graph_render::render_dot(&graph.root, &edges, &cycles),
+                _ => crate::graph_render::render_mermaid(&graph.root, &edges, &cycles),
+            };
+            (kind, body)
+        });
+        let export_arg = rendered.as_ref().map(|(k, b)| (*k, b.as_str()));
+        let text = match output_format {
+            OutputFormat::Text => format::dependency_graph(&graph, &cycles, export_arg),
+            OutputFormat::Toon => format::dependency_graph_toon(&graph, &cycles, export_arg),
         };
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }

@@ -12,6 +12,7 @@
 | `find_calls` | atomic | What a function calls |
 | `find_callers` | atomic | What calls a function |
 | `impact_analysis` | composite | Full blast radius in one call |
+| `get_dependency_graph` | composite | Module-level import graph: nodes by hop, resolved import edges, cycles, external imports, optional DOT/Mermaid |
 | `build_context_pack` | composite | Definition + doc + capped source, and every caller/callee/dependency/test once, in one call |
 | `get_file_skeleton` | discovery | Top-level shape of one file, bodies collapsed |
 | `get_project_overview` | discovery | Compact hierarchical digest of a file/directory/crate/project |
@@ -50,6 +51,24 @@ Not resolved to an indexed definition (std/third-party/unknown): Ok, as_deref, l
 ```
 
 Relations are walked from the packed definitions' exact symbol rows. A callee or dependency is a related symbol only when its target is resolved to one definition ([[002-qualified-relation-resolution]]); an ambiguous one is listed under a separate `Uncertain relations` section with its first candidates (`callee run  ambiguous among 2: …`), never picked, and never followed by `depth`; a caller whose call is ambiguous is listed there too. Unresolved and external names go to the footer.
+
+`get_dependency_graph` accepts `module` (required; repo-relative file or directory), `depth` (hops, default 2, clamped to the project's maximum query depth), `limit` (standard), `format` (`toon` default, or `text`) and `export` (optional `dot` | `mermaid`). It is the module-level counterpart of `impact_analysis`: the unit is a file, and an edge `importer -> imported` exists only for a RESOLVED `Imports` relation. The answer carries the root, the nodes with their hop depth, the directed edges, the circular dependencies (one line per cycle, `none` otherwise), the external imports (unresolved or third-party, never edges), a `truncated` flag and, when `export` is set, the rendered graph. Cycles come from an iterative strongly-connected-component pass. Decision record: [ADR-006](adrs/006-dependency-graph-tool.md). Example, `{"module": "src/a.ts", "export": "mermaid"}` on a project where `a.ts` and `b.ts` import each other and `a.ts` also imports `lodash`:
+
+```text
+root: src/a.ts (depth 2)
+nodes[2]{path,hop}:
+  src/a.ts,0
+  src/b.ts,1
+edges[2]{from,to}:
+  src/a.ts,src/b.ts
+  src/b.ts,src/a.ts
+circular[1]: src/a.ts -> src/b.ts -> src/a.ts
+external[1]: lodash
+truncated: false
+graph LR
+  n0["src/a.ts"] --> n1["src/b.ts"]
+  n1 --> n0
+```
 
 Every relation tool (`find_references`/`find_calls`/`find_callers`/`impact_analysis`) still matches its input by name at hop 1, and each text line names its target: ` -> path:line in Parent` when resolved (`Lline` in the hit's own file), ` (ambiguous among N: …)` with the first candidates, ` (unresolved)` or ` (external)`; `format: toon` adds `resolution`, `candidates` and `targets` columns. With `path`/`language`, a hit proven to reach a same-named definition outside the scoped start is dropped. Hops past the first follow resolved edges only.
 

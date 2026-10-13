@@ -193,7 +193,10 @@ Writes (or safely merges into) `.mcp.json` at the project root, so an MCP client
 ```sh
 mct-cli --root . mcp-register
 mct-cli --root . mcp-register --name my-project
+mct-cli --root . mcp-register --reindex-delay 30s
 ```
+
+`--reindex-delay <VALUE>` writes `"--reindex-delay", "<value>"` into the server entry's `args`, so the server waits that long without file changes before updating the index (see [`--reindex-delay`](#--reindex-delay-value)). `VALUE` is `15s`, `30s`, `45s`, `1m`, a custom positive `<N>s` / `<N>m` / `<N>ms` (for example `90s`), or `off` to disable automatic updates. Re-running `mcp-register` without the flag keeps the value already in `.mcp.json`; re-running it with the flag replaces it. `off` is kept the same way.
 
 <details>
 <summary>Full output</summary>
@@ -210,7 +213,14 @@ Options:
           Server name (the key under `mcpServers`). Defaults to the root directory's own name
 
       --root <ROOT>
-          Project root to operate on. Defaults to the current working directory
+          Project root to operate on. Defaults to the current working directory.
+          
+          `init` and `call` accept several roots, as a repeated `--root` or a comma-separated `--roots a,b`; every other command takes exactly one.
+          
+          [alias: --roots]
+
+      --reindex-delay <VALUE>
+          Quiet period without file changes before the server refreshes the index automatically: `15s`, `30s`, `45s`, `1m`, a custom positive `<N>s` / `<N>m` / `<N>ms`, or `off` to disable automatic updates. Written to the server entry's args as `--reindex-delay` and kept by later `mcp-register` runs that omit the flag
 
   -h, --help
           Print help (see a summary with '-h')
@@ -218,6 +228,8 @@ Options:
 Examples:
   cargo run -p mct-cli -- --root . mcp-register
   cargo run -p mct-cli -- --root . mcp-register --name my-project
+  cargo run -p mct-cli -- --root . mcp-register --reindex-delay 30s
+  cargo run -p mct-cli -- --root . mcp-register --reindex-delay off
 ```
 
 </details>
@@ -400,9 +412,45 @@ Starts the server for that project and waits for an MCP client over stdio. Build
 mct-mcp-server --root /path/to/your/project
 ```
 
+### `--reindex-delay <VALUE>`
+
+How long the server waits **without any relevant file change** before it updates the index in the background. `VALUE` is one of:
+
+| Value | Meaning |
+| --- | --- |
+| `15s`, `30s`, `45s`, `1m` | Common presets |
+| `<N>s`, `<N>m`, `<N>ms` | Any custom positive duration, for example `90s` |
+| `off` | Disables automatic updates (same as `--reindex-debounce-ms 0`) |
+
+It conflicts with `--reindex-debounce-ms`; give only one. With neither, the wait is 1500 ms.
+
+Behaviour (quiet-period semantics):
+
+- Every relevant file change restarts the wait. A burst of saves collapses into a single update.
+- Changes that arrive while an update is running are processed right afterwards: updates never overlap and no change is lost.
+- Paths excluded by `.mctignore`, `.gitignore` or the built-in exclusions do not trigger or extend the wait.
+
+Example with `--reindex-delay 30s`:
+
+1. You save a file. The server starts a 30 s wait.
+2. After 20 s you save another file. The wait starts over from 30 s.
+3. Nothing changes for 30 s. The server updates the index and persists it.
+
+```sh
+mct-mcp-server --root /path/to/your/project --reindex-delay 30s
+mct-mcp-server --root /path/to/your/project --reindex-delay 90s
+mct-mcp-server --root /path/to/your/project --reindex-delay off
+```
+
+To set it for an MCP client, run `mct-cli --root . mcp-register --reindex-delay 30s`; the generated `.mcp.json` entry then contains:
+
+```json
+"args": ["--root", "/path/to/your/project", "--reindex-delay", "30s"]
+```
+
 ### `--reindex-debounce-ms <ms>`
 
-Milliseconds of quiet time required after the last detected file write before the background watcher auto-reindexes. Defaults to `1500`. Passing `0` disables the background watcher entirely (index only refreshes on startup or a manual `reindex`). Edits to the ignore rules are the exception: every tool call first checks `.mctignore` (and an imported `.gitignore`) and, if the rules changed, reindexes before answering.
+Milliseconds of quiet time required after the last detected file write before the background watcher auto-reindexes. Defaults to `1500`. Conflicts with [`--reindex-delay`](#--reindex-delay-value). Passing `0` disables the background watcher entirely (index only refreshes on startup or a manual `reindex`). Edits to the ignore rules are the exception: every tool call first checks `.mctignore` (and an imported `.gitignore`) and, if the rules changed, reindexes before answering.
 
 ```sh
 mct-mcp-server --root /path/to/your/project --reindex-debounce-ms 3000
@@ -434,11 +482,18 @@ Options:
       --root <ROOT>
           Project root to index. Defaults to the current working directory
       --reindex-debounce-ms <REINDEX_DEBOUNCE_MS>
-          Milliseconds of quiet time required after the last detected file write before auto-reindexing. 0 disables the background watcher entirely, restoring the previous startup-only behavior [default: 1500]
+          Milliseconds of quiet time required after the last detected file write before auto-reindexing (default 1500). 0 disables the background watcher entirely, restoring the previous startup-only behavior. Conflicts with --reindex-delay
+      --reindex-delay <VALUE>
+          Quiet time without file changes before the index updates itself. Presets: 15s, 30s, 45s, 1m. Custom: <N>s, <N>m or <N>ms (N > 0), e.g. 90s, 2m, 500ms. 'off' disables automatic updates. Conflicts with --reindex-debounce-ms
       --rebuild-embeddings
           Reindex, drop every stored embedding, re-embed every symbol with the build's model (`--features semantic`), then exit without serving
   -h, --help
           Print help
+
+Examples:
+  --reindex-delay 30s     update the index after 30s without file changes
+  --reindex-delay 2m      custom delay (<N>s, <N>m or <N>ms)
+  --reindex-delay off     disable automatic updates
 ```
 
 </details>

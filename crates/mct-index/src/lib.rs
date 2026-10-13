@@ -4,7 +4,9 @@
 //! language's grammar.
 
 mod assets;
+mod cycles;
 mod dead_code;
+mod dependency_graph;
 mod error;
 mod exclude;
 mod file_tree;
@@ -15,15 +17,18 @@ mod read_limits;
 mod schema;
 mod search;
 mod semantic;
+mod symbol_changes;
 mod traversal;
 
 pub use assets::{
     read_glb_json_chunk, AssetError, ASSET_EXTENSIONS, ASSET_LANGUAGE, MAX_GLTF_JSON_BYTES,
 };
+pub use cycles::find_cycles;
 pub use dead_code::{
     find_dead_code_candidates, looks_like_test_name, DEAD_CODE_ENTRY_POINT_NAMES,
     DEAD_CODE_KIND_ALLOWLIST,
 };
+pub use dependency_graph::{DependencyEdge, DependencyGraph};
 pub use error::{IndexError, Result};
 pub use exclude::{
     read_ignore_file, ExcludeSet, GITIGNORE_IMPORT_DIRECTIVE, IGNORE_FILE_NAME,
@@ -190,6 +195,21 @@ impl Index {
     /// a rule added or removed since the index was opened applies to this run.
     pub fn reindex(&mut self, registry: &LanguageRegistry, force: bool) -> Result<ReindexReport> {
         indexer::reindex(self, registry, force)
+    }
+
+    /// Turns on (or off) naming the symbols each [`Index::reindex`] and
+    /// [`Index::reindex_paths`] adds or removes, in
+    /// [`ReindexReport::symbols_added`], [`ReindexReport::symbols_removed`]
+    /// and [`ReindexReport::removed_symbols`]. Off by default: it costs a
+    /// trigger run per symbol written, which the initial index of a large
+    /// project does not need. Per connection; nothing is stored in the
+    /// database file.
+    pub fn track_symbol_changes(&mut self, on: bool) -> Result<()> {
+        if on {
+            symbol_changes::enable(&self.conn)
+        } else {
+            symbol_changes::disable(&self.conn)
+        }
     }
 
     /// Brings the stored rows in line with the project's current ignore
