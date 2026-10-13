@@ -330,6 +330,41 @@ Options:
 
 </details>
 
+### `probe <files...>`
+
+Parses files without indexing them and reports, per file, either its symbol/relation counts or the first syntax error with its line. No index is opened or written, the files need not be under `--root`, and the extension picks the language. Exits non-zero if any file fails to parse. Useful for finding which construct a grammar rejects.
+
+```sh
+mct-cli probe snippet.cpp other.cpp
+```
+
+<details>
+<summary>Full output</summary>
+
+```
+Parse files without indexing them and report, per file, either its symbol/relation counts or the first syntax error with its line.
+
+For narrowing down which construct a grammar rejects: no index is opened or written, and the files need not be under `--root`. Exits non-zero if any file fails to parse.
+
+Usage: mct-cli probe [OPTIONS] <FILES>...
+
+Arguments:
+  <FILES>...
+          Files to parse; the extension picks the language
+
+Options:
+      --root <ROOT>
+          Project root to operate on. Defaults to the current working directory
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+Example:
+  cargo run -p mct-cli -- probe snippet.cpp other.cpp
+```
+
+</details>
+
 ### `update` / `-u` / `--update`
 
 Updates `mct-cli` and `mct-mcp-server` to the latest [GitHub release](https://github.com/Zubiarka8/mini-consumes-tokens/releases) by running the official installer (`install.sh`, or `install.ps1` on Windows) with the folder `mct-cli` runs from as the install folder, so both programs are replaced where they already are. Check the result with `mct-cli --version`.
@@ -367,7 +402,7 @@ Examples:
 
 ## 2. `mct-mcp-server` — the program your AI assistant actually talks to
 
-You don't normally run this by hand; your assistant or editor starts it once connected (see [README.md § Connecting it to your AI assistant or editor](README.md#4-installation-and-setup)).
+You don't normally run this by hand; your assistant or editor starts it once connected (see [README.md § Connecting it to your AI assistant or editor](README.md#43-connecting-it-to-your-ai-assistant-or-editor)).
 
 ### `mct-mcp-server --root <path>`
 
@@ -421,6 +456,14 @@ Milliseconds of quiet time required after the last detected file write before th
 mct-mcp-server --root /path/to/your/project --reindex-debounce-ms 3000
 ```
 
+### `--rebuild-embeddings`
+
+Reindexes, drops every stored embedding, re-embeds every symbol with the build's model (needs a build with `--features semantic`), then exits without serving.
+
+```sh
+mct-mcp-server --root /path/to/your/project --rebuild-embeddings
+```
+
 ### `--help`
 
 ```sh
@@ -459,7 +502,7 @@ Examples:
 
 ## 3. MCP tools — what your AI assistant calls for you
 
-These aren't run by hand; they're the tools an MCP client (Claude Code, Cursor, etc.) calls once connected. Grouped the same way `discover_tool_categories` (§ 3.5) groups them. Response-returning tools share three optional parameters, documented once here instead of per tool: `limit` (max results, default 50), `offset` (skip this many results before applying `limit`, for paging), and `format` (`"text"`, the default human/agent-readable layout, or `"toon"`, a compact token-lean table — see the note at the end of this section).
+These aren't run by hand; they're the tools an MCP client (Claude Code, Cursor, etc.) calls once connected. Grouped the same way `discover_tool_categories` (§ 3.5) groups them. Most response-returning tools share three optional parameters, documented once here instead of per tool: `limit` (max results; default 50, except `search_symbols` and `hybrid_search` which default to 10 and clamp to 100 — the latter names it `top_k`), `offset` (skip this many results before applying `limit`, for paging; not offered by `list_symbols` or `find_symbol`), and `format` (`"text"`, the default human/agent-readable layout, or `"toon"`, a compact token-lean table — see the note at the end of this section).
 
 ### 3.1 Discovery — "what exists here, and what does it look like?"
 
@@ -467,13 +510,17 @@ These aren't run by hand; they're the tools an MCP client (Claude Code, Cursor, 
 
 **`get_file_skeleton`** — a single file's top-level declarations with bodies collapsed to `// ...`, up to ~90% fewer tokens than reading the whole file. Brace-delimited languages get precise body elision; others get a best-effort declaration-line rendering. Takes one file path, not a directory — use `list_symbols` first if you don't know which file you need.
 
-**`get_project_overview`** — the cheapest way to get oriented in an unfamiliar file, directory, or the whole project: a capped, ranked hierarchical digest (modules, key symbols, optionally each symbol's top callers) in one call, instead of chaining `list_symbols` + `get_file_skeleton` + `find_calls` by hand. Coarser than the two tools above, so switch to them once you know which file you care about. Optional `include_relations` (default false) adds top-caller lines at roughly 4x the response cost.
+**`get_project_overview`** — the cheapest way to get oriented in an unfamiliar file, directory, or the whole project: a capped, ranked hierarchical digest (modules, key symbols, optionally each symbol's top callers) in one call, instead of chaining `list_symbols` + `get_file_skeleton` + `find_calls` by hand. Coarser than the two tools above, so switch to them once you know which file you care about. Optional `include_relations` (default false) adds top-caller lines at roughly 4x the response cost; `max_symbols_per_module` (default 8) caps the top-level symbols shown per file, and `path`/`language` narrow the scope.
 
 **`get_file_tree`** — a plain directory/file tree, no symbol data, depth-limited (`depth`, default 3) and pruned of the same noise directories (`target`, `node_modules`, `.git`) reindexing skips. Cheaper than `get_project_overview` when you only need the filesystem shape, before you know which file or crate to look at.
 
 ### 3.2 Lookup — "where is this, exactly?"
 
 **`find_symbol`** — finds the definition location(s) of a symbol by name, across every indexed language, including polyglot projects. `match` controls how `name` is matched: `exact` (default), `prefix`, or `fuzzy` (substring, case-insensitive — use this instead of guessing the exact name and re-querying). Does not find callers/references — use `find_callers`/`find_references` for that.
+
+**`search_symbols`** — for when you're unsure of the exact name: give words or a partial identifier in any case style (`parse request`, `parseReq`, `parse_request_body`) and get BM25-ranked hits, exact matches first. Each word prefix-matches a word of the symbol's name. Optional `path`, `language`, `limit` (default 10, max 100), `offset`, `snippet_lines` (source lines shown under each hit, default 0, max 50) and `cache` (`false` skips the query cache, which otherwise answers a repeated unchanged call with a one-line "unchanged"). Not exhaustive — use `find_symbol`/`list_symbols` for that.
+
+**`hybrid_search`** — finds code by meaning: `search_symbols` fused with embedding similarity (RRF). `alpha` weights semantic against lexical (0 = lexical only, 1 = semantic only; omitted, the query's shape picks it). A `"double-quoted"` query is an exact phrase, lexical only, and also lists string literals (error/log messages) that hold it as `path:line`. Without an embedding model (build without `--features semantic`) it falls back to lexical only and says so. Takes the same `path`, `language`, `top_k`, `offset`, `snippet_lines`, `cache` and `format` options as `search_symbols`.
 
 ### 3.3 Relations — "who touches this, and what does it touch?"
 
@@ -485,21 +532,27 @@ These aren't run by hand; they're the tools an MCP client (Claude Code, Cursor, 
 
 **`impact_analysis`** — the full blast radius of changing or removing a symbol in one call: combines `find_callers` + `find_references` + a heuristic check for affected tests, instead of three separate calls.
 
-All four accept `depth` (how many relation-graph hops to walk beyond the direct hit; default 1 is today's direct-hit behavior, raising it also includes hits-of-hits, each tagged with its hop number, clamped to a hard maximum) — reach for `depth` before manually chaining calls to walk the graph further out.
+**`build_context_pack`** — the composite for working on one symbol: its definition with doc comment and capped source (`source_lines`, default 40, 1–200), plus every caller, callee, dependency and related test listed once with its signature — one call in place of `find_symbol` + `find_calls` + `find_callers` + `impact_analysis` + reading the files. Takes the exact `symbol` name; `path`/`language` pick the definition when the name is ambiguous, `depth` (default 1) sets the call-graph hops in both directions, `limit` (default 30) caps the related symbols listed.
+
+`find_callers`, `find_calls`, `find_references` and `impact_analysis` accept `depth` (how many relation-graph hops to walk beyond the direct hit; default 1 is today's direct-hit behavior, raising it also includes hits-of-hits, each tagged with its hop number, clamped to a hard maximum) — reach for `depth` before manually chaining calls to walk the graph further out.
 
 ### 3.4 Maintenance — "is the index okay, and what's unused?"
 
 **`reindex`** — re-scans the project on demand. `force` (default false) re-parses every file regardless of whether its content changed; omit it for the normal incremental behavior. Rarely needed by hand since the index also refreshes automatically at startup and in the background.
 
-**`get_indexing_status`** — reports index health: coverage per language, last indexed time, unsupported languages seen, files that failed to parse. `verbose_dependencies` (default false) lists every manifest's dependencies individually instead of a one-line summary.
+**`get_indexing_status`** — reports index health: coverage per language, last indexed time, unsupported languages seen, files that failed to parse. `verbose_dependencies` (default false) lists every manifest's dependencies individually instead of a one-line summary; `dependency` (an exact package name, e.g. `three`) also lists each manifest that declares it, with its version.
 
 **`find_dead_code`** — candidate unused functions/classes/structs/enums/traits/interfaces/type-aliases: a heuristic based on zero indexed references, not true visibility analysis. A starting point for cleanup, not a certainty — sanity-check a hit with `find_references` or `impact_analysis` before deleting anything.
 
-### 3.5 Meta — progressive tool discovery
+### 3.5 Meta — progressive tool discovery and batching
 
 **`discover_tool_categories`** — lists every registered tool's name and one-line purpose, grouped by category, with no input schemas. A cheap first call for an MCP client that wants to defer loading full schemas. The standard MCP `tools/list` handshake still returns every tool's full schema up front as usual — these two meta tools only help a client built to use them instead.
 
 **`get_tool_schema`** — returns one named tool's full input schema and description on demand, once `discover_tool_categories` (or this document) has told you which tool you need.
+
+**`batch`** — runs 1 to 25 read-only queries in one call (`queries`: a list of `{tool, args}`, each `args` exactly as the tool would take it directly). Each result is reported under its own `[n] tool` header; a failing query is reported inline and the rest still run. `reindex` and nested `batch` are rejected. Use it whenever you already know the queries you need, to drop the per-call overhead.
+
+**`select_tools`** — opt-in (`MCT_TOOL_ATTENTION=1`); not listed otherwise. With it set, `tools/list` starts with this tool alone. Call it with `query` (the user's request): the server narrows `tools/list` to the tools that request needs and sends `tools/list_changed`. An unclear request keeps the full list, and every tool stays callable by name. Figures: [`benchmarks/intent-selection.md`](benchmarks/intent-selection.md).
 
 ### A note on `format`
 
