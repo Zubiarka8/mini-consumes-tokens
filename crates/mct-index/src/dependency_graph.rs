@@ -171,6 +171,9 @@ impl Index {
     fn import_targets(&self, file: &str) -> Result<Vec<ImportTarget>> {
         let mut stmt = self.conn.prepare_cached(
             "SELECT r.to_name, r.external, r.member,
+                    (SELECT COUNT(DISTINCT s.file_id) FROM relation_candidates c
+                       JOIN symbols s ON s.id = c.symbol_id
+                      WHERE c.relation_id = r.id),
                     (SELECT COUNT(*) FROM relation_candidates c WHERE c.relation_id = r.id),
                     (SELECT sf.relative_path FROM relation_candidates c
                        JOIN symbols s ON s.id = c.symbol_id
@@ -188,11 +191,14 @@ impl Index {
                 let name: String = row.get(0)?;
                 let external: bool = row.get(1)?;
                 let member: bool = row.get(2)?;
-                let count: i64 = row.get(3)?;
-                let path: Option<String> = row.get(4)?;
+                let files: i64 = row.get(3)?;
+                let count: i64 = row.get(4)?;
+                let path: Option<String> = row.get(5)?;
+                // Several candidates inside one file (a class and its module
+                // symbol, a Go package of one file) still denote that file.
                 Ok(match (external, count, path) {
                     (true, _, _) | (false, 0, _) => ImportTarget::External(name),
-                    (false, 1, Some(path)) if !member => ImportTarget::File(path),
+                    (false, _, Some(path)) if !member && files == 1 => ImportTarget::File(path),
                     _ => ImportTarget::Ambiguous,
                 })
             })?
