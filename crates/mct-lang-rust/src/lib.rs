@@ -340,9 +340,27 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                let id = self.push_symbol(name, SymbolKind::Module, location(node), None);
+                let id = self.push_symbol(name.clone(), SymbolKind::Module, location(node), None);
                 if let Some(body) = node.child_by_field_name("body") {
                     self.visit_children(body, id, None, depth + 1);
+                } else if !name.is_empty() {
+                    // `mod name;` pulls in the file `name.rs`: a dependency
+                    // on the Module of a file under a `name` path segment
+                    // (`name/mod.rs` is named `mod` and is not matched).
+                    let relation = self.push_relation(
+                        owner,
+                        RelationKind::Imports,
+                        name.clone(),
+                        location(node),
+                    );
+                    self.qualify(
+                        relation,
+                        RelationTarget {
+                            module: Some(name),
+                            kind: Some(SymbolKind::Module),
+                            ..Default::default()
+                        },
+                    );
                 }
             }
             "use_declaration" => {
@@ -350,11 +368,14 @@ impl<'a> Walker<'a> {
                     let mut names = Vec::new();
                     collect_use_names(argument, self.source, &mut names);
                     let external = is_std_path(text(argument, self.source));
-                    for (name, loc) in names {
-                        let relation = self.push_relation(owner, RelationKind::Imports, name, loc);
+                    for used in names {
+                        let relation =
+                            self.push_relation(owner, RelationKind::Imports, used.name, used.loc);
                         self.qualify(
                             relation,
                             RelationTarget {
+                                qualifier: used.qualifier,
+                                module: used.module,
                                 external,
                                 ..Default::default()
                             },
@@ -697,44 +718,92 @@ fn is_harness_attribute(attribute_item: Node, source: &str) -> bool {
     matches!(last, "test" | "bench" | "rstest" | "test_case")
 }
 
-fn collect_use_names(node: Node, source: &str, out: &mut Vec<(String, Location)>) {
-    collect_use_names_at_depth(node, source, out, 0);
+/// One name a `use` declaration brings in, with what its path proves.
+struct UseName {
+    name: String,
+    loc: Location,
+    /// The type the name is declared in (`Enum` in `use m::Enum::Variant`).
+    qualifier: Option<String>,
+    /// The module segment the path names it through (`m` in `use a::m::f`).
+    module: Option<String>,
+}
+
+/// Splits the segments leading to a `use` item into the type it lives in
+/// (a trailing capitalized segment) and the module that holds it. A bare
+/// `crate`/`super`/`self` proves nothing.
+fn use_scope(prefix: &[String]) -> (Option<String>, Option<String>) {
+    let mut segments = prefix.to_vec();
+    let qualifier = match segments.last() {
+        Some(last) if last.starts_with(|c: char| c.is_ascii_uppercase()) => segments.pop(),
+        _ => None,
+    };
+    let module = segments
+        .pop()
+        .filter(|m| !matches!(m.as_str(), "crate" | "super" | "self"));
+    (qualifier, module)
+}
+
+fn collect_use_names(node: Node, source: &str, out: &mut Vec<UseName>) {
+    collect_use_names_at_depth(node, source, &[], out, 0);
 }
 
 fn collect_use_names_at_depth(
     node: Node,
     source: &str,
-    out: &mut Vec<(String, Location)>,
+    prefix: &[String],
+    out: &mut Vec<UseName>,
     depth: u32,
 ) {
     if depth >= MAX_TRAVERSAL_DEPTH {
         return;
     }
+    let mut push = |name_node: Node, prefix: &[String]| {
+        let (qualifier, module) = use_scope(prefix);
+        out.push(UseName {
+            name: text(name_node, source).to_string(),
+            loc: location(name_node),
+            qualifier,
+            module,
+        });
+    };
     match node.kind() {
-        "identifier" | "type_identifier" => {
-            out.push((text(node, source).to_string(), location(node)))
-        }
+        "identifier" | "type_identifier" => push(node, prefix),
         "scoped_identifier" => {
             if let Some(name) = node.child_by_field_name("name") {
-                out.push((text(name, source).to_string(), location(name)));
+                let mut full = prefix.to_vec();
+                if let Some(path) = node.child_by_field_name("path") {
+                    full.extend(path_segments(text(path, source)));
+                }
+                push(name, &full);
             }
         }
         "use_as_clause" => {
+            // The alias is the local name; the real item is not named
+            // `to_name`, so no path evidence applies to it.
             if let Some(alias) = node.child_by_field_name("alias") {
-                out.push((text(alias, source).to_string(), location(alias)));
+                out.push(UseName {
+                    name: text(alias, source).to_string(),
+                    loc: location(alias),
+                    qualifier: None,
+                    module: None,
+                });
             } else if let Some(path) = node.child_by_field_name("path") {
-                collect_use_names_at_depth(path, source, out, depth + 1);
+                collect_use_names_at_depth(path, source, prefix, out, depth + 1);
             }
         }
         "use_list" => {
             let mut cursor = node.walk();
             for child in node.named_children(&mut cursor) {
-                collect_use_names_at_depth(child, source, out, depth + 1);
+                collect_use_names_at_depth(child, source, prefix, out, depth + 1);
             }
         }
         "scoped_use_list" => {
             if let Some(list) = node.child_by_field_name("list") {
-                collect_use_names_at_depth(list, source, out, depth + 1);
+                let mut full = prefix.to_vec();
+                if let Some(path) = node.child_by_field_name("path") {
+                    full.extend(path_segments(text(path, source)));
+                }
+                collect_use_names_at_depth(list, source, &full, out, depth + 1);
             }
         }
         _ => {}

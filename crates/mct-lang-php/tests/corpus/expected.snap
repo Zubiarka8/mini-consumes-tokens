@@ -1,4 +1,4 @@
-# language=php files=6 symbols=418 relations=803 name_matched_across_files=339
+# language=php files=6 symbols=418 relations=890 name_matched_across_files=411
 
 == library/Domain.php (492 lines)
 S 1-492 module Domain
@@ -113,14 +113,23 @@ S 487-487 field MemberUpgraded::member
 S 488-488 field MemberUpgraded::from
 S 489-489 field MemberUpgraded::to
 R 13:5 imports Domain -> DateTimeImmutable
+R 13:5 imports Domain -> DateTimeImmutable
+R 14:5 imports Domain -> JsonSerializable
 R 14:5 imports Domain -> JsonSerializable
 R 15:20 imports Domain -> Arrayable (name-matched: library/Support.php)
+R 15:20 imports Domain -> Arrayable (name-matched: library/Support.php)
+R 15:31 imports Domain -> Assert (name-matched: library/Support.php)
 R 15:31 imports Domain -> Assert (name-matched: library/Support.php)
 R 15:39 imports Domain -> BookUnavailable (name-matched: library/Support.php)
+R 15:39 imports Domain -> BookUnavailable (name-matched: library/Support.php)
+R 15:56 imports Domain -> Clock (name-matched: library/Support.php)
 R 15:56 imports Domain -> Clock (name-matched: library/Support.php)
 R 15:63 imports Domain -> HasEvents (name-matched: library/Support.php)
+R 15:63 imports Domain -> HasEvents (name-matched: library/Support.php)
+R 15:74 imports Domain -> Identifiable (name-matched: library/Support.php)
 R 15:74 imports Domain -> Identifiable (name-matched: library/Support.php)
 R 16:5 imports Domain -> Invalid
+R 16:5 imports Domain -> ValidationException (name-matched: library/Support.php)
 R 17:29 imports Domain -> days_between (name-matched: library/Support.php)
 R 17:43 imports Domain -> money_format_cents (name-matched: library/Support.php)
 R 17:63 imports Domain -> slugify (name-matched: library/Support.php)
@@ -275,15 +284,26 @@ S 348-358 method ReportBuilder::build
 S 360-363 method ReportBuilder::render
 S 366-374 method ReportBuilder::export
 R 13:5 imports Reports -> InvalidArgumentException
+R 13:5 imports Reports -> InvalidArgumentException
+R 14:5 imports Reports -> Book (name-matched: library/Domain.php)
 R 14:5 imports Reports -> Book (name-matched: library/Domain.php)
 R 15:5 imports Reports -> Genre (name-matched: library/Domain.php)
+R 15:5 imports Reports -> Genre (name-matched: library/Domain.php)
+R 16:5 imports Reports -> Loan (name-matched: library/Domain.php)
 R 16:5 imports Reports -> Loan (name-matched: library/Domain.php)
 R 17:5 imports Reports -> BookRepository (name-matched: library/Repository.php)
+R 17:5 imports Reports -> BookRepository (name-matched: library/Repository.php)
+R 18:5 imports Reports -> LoanRepository (name-matched: library/Repository.php)
 R 18:5 imports Reports -> LoanRepository (name-matched: library/Repository.php)
 R 19:5 imports Reports -> MemberRepository (name-matched: library/Repository.php)
+R 19:5 imports Reports -> MemberRepository (name-matched: library/Repository.php)
+R 20:5 imports Reports -> FineCalculator (name-matched: library/Services.php)
 R 20:5 imports Reports -> FineCalculator (name-matched: library/Services.php)
 R 21:20 imports Reports -> Arrayable (name-matched: library/Support.php)
+R 21:20 imports Reports -> Arrayable (name-matched: library/Support.php)
 R 21:31 imports Reports -> Clock (name-matched: library/Support.php)
+R 21:31 imports Reports -> Clock (name-matched: library/Support.php)
+R 21:38 imports Reports -> Collection (name-matched: library/Support.php)
 R 21:38 imports Reports -> Collection (name-matched: library/Support.php)
 R 23:5 imports Reports -> money_format_cents (name-matched: library/Support.php)
 R 24:5 imports Reports -> str_limit (name-matched: library/Support.php)
@@ -484,18 +504,32 @@ S 341-357 method JsonFileStore::load
 S 359-373 method JsonFileStore::save
 S 375-390 method JsonFileStore::hydrate
 R 13:5 imports Repository -> Generator
+R 13:5 imports Repository -> Generator
+R 14:5 imports Repository -> Book (name-matched: library/Domain.php)
 R 14:5 imports Repository -> Book (name-matched: library/Domain.php)
 R 15:5 imports Repository -> Entity (name-matched: library/Domain.php)
+R 15:5 imports Repository -> Entity (name-matched: library/Domain.php)
+R 16:5 imports Repository -> Genre (name-matched: library/Domain.php)
 R 16:5 imports Repository -> Genre (name-matched: library/Domain.php)
 R 17:5 imports Repository -> Isbn (name-matched: library/Domain.php)
+R 17:5 imports Repository -> Isbn (name-matched: library/Domain.php)
+R 18:5 imports Repository -> Loan (name-matched: library/Domain.php)
 R 18:5 imports Repository -> Loan (name-matched: library/Domain.php)
 R 19:5 imports Repository -> LoanStatus (name-matched: library/Domain.php)
+R 19:5 imports Repository -> LoanStatus (name-matched: library/Domain.php)
+R 20:5 imports Repository -> Member (name-matched: library/Domain.php)
 R 20:5 imports Repository -> Member (name-matched: library/Domain.php)
 R 21:5 imports Repository -> MembershipTier (name-matched: library/Domain.php)
+R 21:5 imports Repository -> MembershipTier (name-matched: library/Domain.php)
+R 22:5 imports Repository -> Clock (name-matched: library/Support.php)
 R 22:5 imports Repository -> Clock (name-matched: library/Support.php)
 R 23:5 imports Repository -> Collection (name-matched: library/Support.php)
+R 23:5 imports Repository -> Collection (name-matched: library/Support.php)
+R 24:5 imports Repository -> Loggable (name-matched: library/Support.php)
 R 24:5 imports Repository -> Loggable (name-matched: library/Support.php)
 R 25:5 imports Repository -> NotFoundException (name-matched: library/Support.php)
+R 25:5 imports Repository -> NotFoundException (name-matched: library/Support.php)
+R 26:5 imports Repository -> ShelfException (name-matched: library/Support.php)
 R 26:5 imports Repository -> ShelfException (name-matched: library/Support.php)
 R 28:5 imports Repository -> slugify (name-matched: library/Support.php)
 R 29:5 imports Repository -> str_limit (name-matched: library/Support.php)
@@ -664,23 +698,42 @@ S 322-325 method NotificationService::queue
 S 328-332 method NotificationService::flush
 S 339-378 function wire_services
 R 13:19 imports Services -> Book (name-matched: library/Domain.php)
+R 13:19 imports Services -> Book (name-matched: library/Domain.php)
+R 13:25 imports Services -> BookBorrowed (name-matched: library/Domain.php)
 R 13:25 imports Services -> BookBorrowed (name-matched: library/Domain.php)
 R 13:39 imports Services -> BookReturned (name-matched: library/Domain.php)
+R 13:39 imports Services -> BookReturned (name-matched: library/Domain.php)
+R 13:53 imports Services -> Loan (name-matched: library/Domain.php)
 R 13:53 imports Services -> Loan (name-matched: library/Domain.php)
 R 13:59 imports Services -> LoanStatus (name-matched: library/Domain.php)
+R 13:59 imports Services -> LoanStatus (name-matched: library/Domain.php)
+R 13:71 imports Services -> Member (name-matched: library/Domain.php)
 R 13:71 imports Services -> Member (name-matched: library/Domain.php)
 R 13:79 imports Services -> MemberUpgraded (name-matched: library/Domain.php)
+R 13:79 imports Services -> MemberUpgraded (name-matched: library/Domain.php)
+R 13:95 imports Services -> Money (name-matched: library/Domain.php)
 R 13:95 imports Services -> Money (name-matched: library/Domain.php)
 R 14:24 imports Services -> BookRepository (name-matched: library/Repository.php)
+R 14:24 imports Services -> BookRepository (name-matched: library/Repository.php)
+R 14:40 imports Services -> LoanRepository (name-matched: library/Repository.php)
 R 14:40 imports Services -> LoanRepository (name-matched: library/Repository.php)
 R 14:56 imports Services -> MemberRepository (name-matched: library/Repository.php)
+R 14:56 imports Services -> MemberRepository (name-matched: library/Repository.php)
+R 14:74 imports Services -> UnitOfWork (name-matched: library/Repository.php)
 R 14:74 imports Services -> UnitOfWork (name-matched: library/Repository.php)
 R 15:20 imports Services -> Clock (name-matched: library/Support.php)
+R 15:20 imports Services -> Clock (name-matched: library/Support.php)
+R 15:27 imports Services -> Collection (name-matched: library/Support.php)
 R 15:27 imports Services -> Collection (name-matched: library/Support.php)
 R 15:39 imports Services -> LoanLimitExceeded (name-matched: library/Support.php)
+R 15:39 imports Services -> LoanLimitExceeded (name-matched: library/Support.php)
+R 15:58 imports Services -> NotFoundException (name-matched: library/Support.php)
 R 15:58 imports Services -> NotFoundException (name-matched: library/Support.php)
 R 15:77 imports Services -> SystemClock (name-matched: library/Support.php)
+R 15:77 imports Services -> SystemClock (name-matched: library/Support.php)
 R 16:5 imports Services -> Auditable (name-matched: library/Support.php)
+R 16:5 imports Services -> Auditable (name-matched: library/Support.php)
+R 17:5 imports Services -> ShelfException (name-matched: library/Support.php)
 R 17:5 imports Services -> ShelfException (name-matched: library/Support.php)
 R 19:5 imports Services -> money_format_cents (name-matched: library/Support.php)
 R 20:5 imports Services -> retry (name-matched: library/Support.php)
@@ -913,13 +966,22 @@ S 450-453 method FrozenClock::now
 S 455-458 method FrozenClock::advance
 S 461-465 function days_between
 R 14:5 imports Support -> Attribute
+R 14:5 imports Support -> Attribute
+R 15:5 imports Support -> Closure
 R 15:5 imports Support -> Closure
 R 16:5 imports Support -> Countable
+R 16:5 imports Support -> Countable
+R 17:5 imports Support -> DateInterval
 R 17:5 imports Support -> DateInterval
 R 18:5 imports Support -> DateTimeImmutable
+R 18:5 imports Support -> DateTimeImmutable
+R 19:5 imports Support -> DateTimeZone
 R 19:5 imports Support -> DateTimeZone
 R 20:5 imports Support -> IteratorAggregate
+R 20:5 imports Support -> IteratorAggregate
 R 21:5 imports Support -> RuntimeException
+R 21:5 imports Support -> RuntimeException
+R 22:5 imports Support -> Traversable
 R 22:5 imports Support -> Traversable
 R 32:3 references ErrorCode -> Attribute
 R 42:3 references ShelfException -> ErrorCode
@@ -1058,28 +1120,53 @@ S 293-306 function seed
 S 308-344 function bootstrap
 S 349-356 function main
 S 358-358 function format
+R 15:1 imports console -> Support (name-matched: library/Support.php)
 R 15:1 imports console -> Support.php
+R 16:1 imports console -> Domain (name-matched: library/Domain.php)
 R 16:1 imports console -> Domain.php
+R 17:1 imports console -> Repository (name-matched: library/Repository.php)
+R 18:1 imports console -> Services (name-matched: library/Services.php)
+R 19:1 imports console -> Reports (name-matched: library/Reports.php)
 R 19:1 imports console -> Reports.php
 R 21:5 imports console -> Attribute
+R 21:5 imports console -> Attribute
+R 22:5 imports console -> ReflectionClass
 R 22:5 imports console -> ReflectionClass
 R 23:19 imports console -> Book (name-matched: library/Domain.php)
+R 23:19 imports console -> Book (name-matched: library/Domain.php)
+R 23:25 imports console -> Genre (name-matched: library/Domain.php)
 R 23:25 imports console -> Genre (name-matched: library/Domain.php)
 R 23:32 imports console -> Isbn (name-matched: library/Domain.php)
+R 23:32 imports console -> Isbn (name-matched: library/Domain.php)
+R 23:38 imports console -> Member (name-matched: library/Domain.php)
 R 23:38 imports console -> Member (name-matched: library/Domain.php)
 R 23:46 imports console -> MembershipTier (name-matched: library/Domain.php)
+R 23:46 imports console -> MembershipTier (name-matched: library/Domain.php)
+R 24:24 imports console -> BookRepository (name-matched: library/Repository.php)
 R 24:24 imports console -> BookRepository (name-matched: library/Repository.php)
 R 24:40 imports console -> JsonFileStore (name-matched: library/Repository.php)
+R 24:40 imports console -> JsonFileStore (name-matched: library/Repository.php)
+R 24:55 imports console -> LoanRepository (name-matched: library/Repository.php)
 R 24:55 imports console -> LoanRepository (name-matched: library/Repository.php)
 R 24:71 imports console -> MemberRepository (name-matched: library/Repository.php)
+R 24:71 imports console -> MemberRepository (name-matched: library/Repository.php)
+R 25:5 imports console -> ReportBuilder (name-matched: library/Reports.php)
 R 25:5 imports console -> ReportBuilder (name-matched: library/Reports.php)
 R 26:5 imports console -> LendingService (name-matched: library/Services.php)
+R 26:5 imports console -> LendingService (name-matched: library/Services.php)
+R 27:5 imports console -> MembershipService (name-matched: library/Services.php)
 R 27:5 imports console -> MembershipService (name-matched: library/Services.php)
 R 28:5 imports console -> NotificationService (name-matched: library/Services.php)
+R 28:5 imports console -> NotificationService (name-matched: library/Services.php)
+R 29:20 imports console -> Clock (name-matched: library/Support.php)
 R 29:20 imports console -> Clock (name-matched: library/Support.php)
 R 29:27 imports console -> FrozenClock (name-matched: library/Support.php)
+R 29:27 imports console -> FrozenClock (name-matched: library/Support.php)
+R 29:40 imports console -> ShelfException (name-matched: library/Support.php)
 R 29:40 imports console -> ShelfException (name-matched: library/Support.php)
 R 29:56 imports console -> SystemClock (name-matched: library/Support.php)
+R 29:56 imports console -> SystemClock (name-matched: library/Support.php)
+R 29:69 imports console -> ValidationException (name-matched: library/Support.php)
 R 29:69 imports console -> ValidationException (name-matched: library/Support.php)
 R 31:5 imports console -> formatter_for (name-matched: library/Reports.php)
 R 32:5 imports console -> wire_services (name-matched: library/Services.php)

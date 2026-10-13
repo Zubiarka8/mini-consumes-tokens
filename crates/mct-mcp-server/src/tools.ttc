@@ -147,6 +147,14 @@ PRE none; `path`/`language` scope it.
 POST top-level symbols with zero indexed references. TOON by default; `format`:`text` for plain text.
 EFFECTS read; index only.
 
+TOOL get_dependency_graph
+WHEN module import graph, `depth` hops, cycles flagged; `export` dot|mermaid.
+ERR imports only (use find_calls); cycles limited to explored depth.
+TAGS dependencies, imports, graph, cycles
+PRE `module` repo-relative file or dir.
+POST nodes+depth, edges, cycles (or none), external imports. TOON by default; `format`:`text` for plain text.
+EFFECTS read; index only.
+
 TOOL get_file_tree
 WHEN plain directory/file layout before you know which file or crate to look at.
 ERR no symbol data — use list_symbols/get_project_overview for what's defined.
