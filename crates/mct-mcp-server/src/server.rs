@@ -211,6 +211,14 @@ pub struct FindReferencesArgs {
     /// paging through result sets larger than one `limit` page. Defaults to 0.
     #[serde(default)]
     pub offset: Option<usize>,
+    /// Result order: `relevance` (default, the index's own order) or
+    /// `execution` — a static approximation of "what runs first": by graph
+    /// hop (`depth`), then file path, then line of the reference, which also
+    /// puts references inside one function in source order. The index is
+    /// static, so this is NOT the real runtime order (branches, loops,
+    /// callbacks and cross-file call order are not modelled).
+    #[serde(default)]
+    pub sort: Option<String>,
     /// Response shape: `text` (default) or `toon` (a compact table — see
     /// `list_symbols`' `format` field for details).
     #[serde(default)]
@@ -566,7 +574,13 @@ const TOOL_CATEGORIES: &[(&str, &[&str])] = &[
     ),
     (
         "lookup",
-        &["find_symbol", "search_symbols", "hybrid_search"],
+        &[
+            "find_symbol",
+            "search_symbols_like",
+            "hybrid_search_like",
+            "search_symbols",
+            "hybrid_search",
+        ],
     ),
     (
         "relations",
@@ -587,6 +601,10 @@ const TOOL_CATEGORIES: &[(&str, &[&str])] = &[
         &["discover_tool_categories", "get_tool_schema", "batch"],
     ),
 ];
+
+/// Most references `find_references` loads to sort them with `sort:
+/// execution`; beyond it the page says the total is not computed.
+const EXECUTION_SORT_MAX_HITS: usize = 5000;
 
 /// Cache version of `search_symbols`' ranking — bump when it changes.
 const SEARCH_SYMBOLS_CACHE_VERSION: &str = "search_symbols/1";
@@ -708,6 +726,20 @@ fn parse_match_mode(raw: Option<&str>) -> Result<mct_index::SymbolMatchMode, Mcp
         Some("fuzzy") => Ok(mct_index::SymbolMatchMode::Fuzzy),
         Some(other) => Err(McpError::invalid_params(
             format!("match must be one of exact, prefix, fuzzy — got `{other}`"),
+            None,
+        )),
+    }
+}
+
+/// Parses `find_references`' optional `sort` argument: `relevance` (the
+/// default, `false`) or `execution` (`true`). Anything else is rejected
+/// like a typo'd `match`, not silently treated as the default.
+fn parse_execution_sort(raw: Option<&str>) -> Result<bool, McpError> {
+    match raw.map(str::trim) {
+        None | Some("") | Some("relevance") => Ok(false),
+        Some("execution") => Ok(true),
+        Some(other) => Err(McpError::invalid_params(
+            format!("sort must be one of relevance, execution — got `{other}`"),
             None,
         )),
     }
@@ -1287,6 +1319,8 @@ impl MctServer {
         match tool {
             "list_symbols" => self.list_symbols(batch_params(tool, args)?).await,
             "find_symbol" => self.find_symbol(batch_params(tool, args)?).await,
+            "search_symbols_like" => self.search_symbols_like(batch_params(tool, args)?).await,
+            "hybrid_search_like" => self.hybrid_search_like(batch_params(tool, args)?).await,
             "search_symbols" => self.search_symbols(batch_params(tool, args)?).await,
             "hybrid_search" => self.hybrid_search(batch_params(tool, args)?).await,
             "find_references" => self.find_references(batch_params(tool, args)?).await,
@@ -1385,7 +1419,7 @@ impl MctServer {
 
     // Fallback only — see tools.ttc / MctServer::new.
     #[tool(description = "Ranked search over split symbol names; see tools.ttc")]
-    pub async fn search_symbols(
+    pub async fn search_symbols_like(
         &self,
         Parameters(SearchSymbolsArgs {
             query,
@@ -1413,7 +1447,7 @@ impl MctServer {
             let root = index.root().display().to_string();
             let key = cache::RankingKey {
                 repository: &root,
-                tool: "search_symbols",
+                tool: "search_symbols_like",
                 tool_version: SEARCH_SYMBOLS_CACHE_VERSION,
                 params: vec![
                     ("path", scope.path.unwrap_or_default().to_string()),
@@ -1453,7 +1487,7 @@ impl MctServer {
 
     // Fallback only — see tools.ttc / MctServer::new.
     #[tool(description = "Lexical + semantic ranked symbol search; see tools.ttc")]
-    pub async fn hybrid_search(
+    pub async fn hybrid_search_like(
         &self,
         Parameters(HybridSearchArgs {
             query,
@@ -1504,7 +1538,7 @@ impl MctServer {
         let root = index.root().display().to_string();
         let key = cache::RankingKey {
             repository: &root,
-            tool: "hybrid_search",
+            tool: "hybrid_search_like",
             tool_version: HYBRID_SEARCH_CACHE_VERSION,
             params: vec![
                 ("path", scope.path.unwrap_or_default().to_string()),
@@ -1674,6 +1708,24 @@ impl MctServer {
     }
 
     // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Deprecated alias of search_symbols_like; see tools.ttc")]
+    pub async fn search_symbols(
+        &self,
+        args: Parameters<SearchSymbolsArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.search_symbols_like(args).await
+    }
+
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Deprecated alias of hybrid_search_like; see tools.ttc")]
+    pub async fn hybrid_search(
+        &self,
+        args: Parameters<HybridSearchArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.hybrid_search_like(args).await
+    }
+
+    // Fallback only — see tools.ttc / MctServer::new.
     #[tool(description = "Find every reference to a symbol; see tools.ttc")]
     pub async fn find_references(
         &self,
@@ -1684,24 +1736,41 @@ impl MctServer {
             limit,
             depth,
             offset,
+            sort,
             format,
         }): Parameters<FindReferencesArgs>,
     ) -> Result<CallToolResult, McpError> {
         let symbol = validate_name(&symbol)?;
         let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
         let offset = offset.unwrap_or(0);
+        let by_execution = parse_execution_sort(sort.as_deref())?;
         let output_format = parse_output_format(format.as_deref())?;
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
         let index = self.index.lock().await;
-        let hits = index
-            .relation_page(
-                symbol,
-                mct_index::RelationDirection::References,
-                depth.unwrap_or(1),
-                (limit, offset),
-                scope,
-            )
-            .map_err(index_error)?;
+        let hits = if by_execution {
+            // Sorting must see the whole set, not one page of it: fetch up
+            // to EXECUTION_SORT_MAX_HITS, order, then cut the page.
+            let all = index
+                .relation_page(
+                    symbol,
+                    mct_index::RelationDirection::References,
+                    depth.unwrap_or(1),
+                    (EXECUTION_SORT_MAX_HITS, 0),
+                    scope,
+                )
+                .map_err(index_error)?;
+            format::page_by_execution(all, limit, offset)
+        } else {
+            index
+                .relation_page(
+                    symbol,
+                    mct_index::RelationDirection::References,
+                    depth.unwrap_or(1),
+                    (limit, offset),
+                    scope,
+                )
+                .map_err(index_error)?
+        };
         let text = format::relation_page_hits(
             symbol,
             "reference(s)",

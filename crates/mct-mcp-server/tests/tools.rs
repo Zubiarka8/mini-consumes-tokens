@@ -372,6 +372,7 @@ async fn find_references_includes_the_python_import() {
     let text = content_of(
         &server
             .find_references(Parameters(FindReferencesArgs {
+                sort: None,
                 format: None,
                 path: None,
                 language: None,
@@ -829,4 +830,83 @@ async fn find_dead_code_excludes_entry_points_and_test_files() {
         text.starts_with("No dead-code candidates found"),
         "got: {text}"
     );
+}
+
+fn references_args(
+    sort: Option<&str>,
+    limit: Option<usize>,
+    offset: Option<usize>,
+) -> FindReferencesArgs {
+    FindReferencesArgs {
+        sort: sort.map(str::to_string),
+        format: None,
+        path: None,
+        language: None,
+        symbol: "target".to_string(),
+        limit,
+        depth: None,
+        offset,
+    }
+}
+
+async fn references_text(server: &MctServer, args: FindReferencesArgs) -> String {
+    content_of(&server.find_references(Parameters(args)).await.unwrap())
+}
+
+#[tokio::test]
+async fn find_references_sort_relevance_is_the_unchanged_default() {
+    let server = build_server_at(&many_callers_fixture_root()).await;
+    let default = references_text(&server, references_args(None, Some(100), None)).await;
+    let relevance =
+        references_text(&server, references_args(Some("relevance"), Some(100), None)).await;
+    assert!(default.contains("caller_"), "got: {default}");
+    assert_eq!(default, relevance);
+}
+
+#[tokio::test]
+async fn find_references_sort_execution_orders_by_file_then_line_and_pages_consistently() {
+    let server = build_server_at(&many_callers_fixture_root()).await;
+    let full = references_text(&server, references_args(Some("execution"), Some(100), None)).await;
+    // `path:line` of every reference, in output order.
+    let sites: Vec<(String, u32)> = full
+        .lines()
+        .filter(|l| l.contains("caller_"))
+        .filter_map(|l| {
+            let token = l.split_whitespace().find(|t| t.contains(".rs:"))?;
+            let mut parts = token.trim_matches(|c| c == ',' || c == '`').split(':');
+            Some((parts.next()?.to_string(), parts.next()?.parse().ok()?))
+        })
+        .collect();
+    assert_eq!(sites.len(), 70, "got: {full}");
+    let mut sorted = sites.clone();
+    sorted.sort();
+    assert_eq!(sites, sorted, "not in file/line order: {full}");
+
+    // A second page continues exactly where the first stopped.
+    let first = references_text(&server, references_args(Some("execution"), Some(30), None)).await;
+    let second = references_text(
+        &server,
+        references_args(Some("execution"), Some(30), Some(30)),
+    )
+    .await;
+    let names = |t: &str| -> Vec<String> {
+        t.lines()
+            .filter(|l| l.contains("caller_"))
+            .map(str::to_string)
+            .collect()
+    };
+    let mut joined = names(&first);
+    joined.extend(names(&second));
+    let all = names(&full);
+    assert_eq!(joined, all[..60].to_vec());
+}
+
+#[tokio::test]
+async fn find_references_rejects_an_unknown_sort() {
+    let server = build_server_at(&many_callers_fixture_root()).await;
+    let err = server
+        .find_references(Parameters(references_args(Some("fastest"), None, None)))
+        .await
+        .unwrap_err();
+    assert!(err.message.contains("sort must be one of"), "got: {err:?}");
 }
