@@ -9,6 +9,7 @@ use walkdir::WalkDir;
 
 use crate::assets::{self, AssetError};
 use crate::manifests;
+use crate::symbol_changes;
 use crate::{ExcludeSet, Index, Result};
 
 /// Extensions of languages this project targets eventually but has no
@@ -45,6 +46,14 @@ pub struct ReindexReport {
     pub files_unchanged: usize,
     pub files_removed: usize,
     pub symbols_written: usize,
+    /// Symbols this run added / removed, netted out per file (a symbol
+    /// rewritten unchanged counts as neither). Only filled while
+    /// [`Index::track_symbol_changes`] is on; zero otherwise.
+    pub symbols_added: usize,
+    pub symbols_removed: usize,
+    /// Up to 20 removed symbols as `kind name (path)`, sorted;
+    /// `symbols_removed` is the exact count. Same condition as above.
+    pub removed_symbols: Vec<String>,
     pub issues: Vec<UnsupportedFile>,
 }
 
@@ -95,6 +104,7 @@ pub fn reindex(
 ) -> Result<ReindexReport> {
     let mut report = ReindexReport::default();
     let root = index.root.clone();
+    symbol_changes::begin(&index.conn)?;
 
     let mut seen_paths = Vec::new();
     let mut seen_manifest_paths = Vec::new();
@@ -140,6 +150,7 @@ pub fn reindex(
     remove_missing_manifests(index, &seen_manifest_paths, &unreadable)?;
     touch_last_indexed_at(index)?;
     index.applied_exclusions = generation;
+    symbol_changes::finish(&index.conn, &mut report)?;
 
     Ok(report)
 }
@@ -556,6 +567,7 @@ pub fn reindex_paths(
     let mut report = ReindexReport::default();
     let root = index.root.clone();
     let exclude = index.exclude.clone();
+    symbol_changes::begin(&index.conn)?;
     // Paths this batch indexed for the first time.
     let mut created = Vec::new();
 
@@ -676,6 +688,7 @@ pub fn reindex_paths(
         report.files_removed += remove_renamed_away(index, &created)?;
     }
     touch_last_indexed_at(index)?;
+    symbol_changes::finish(&index.conn, &mut report)?;
     Ok(report)
 }
 
