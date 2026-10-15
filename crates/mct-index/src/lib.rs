@@ -7,6 +7,7 @@ mod assets;
 mod cycles;
 mod dead_code;
 mod dependency_graph;
+mod duplicates;
 mod error;
 mod exclude;
 mod file_tree;
@@ -29,6 +30,11 @@ pub use dead_code::{
     DEAD_CODE_KIND_ALLOWLIST,
 };
 pub use dependency_graph::{DependencyEdge, DependencyGraph};
+pub use duplicates::{
+    find_duplicate_groups, DuplicateGroup, DuplicateMember, DuplicateOptions, DuplicateReport,
+    GeneratedCodeHandling, SkipReason, SkippedCandidate, DEFAULT_MIN_LINES, DEFAULT_MIN_TOKENS,
+    DUPLICATE_KIND_ALLOWLIST, MAX_EXCERPT_LINES, MAX_EXCERPT_LINE_CHARS,
+};
 pub use error::{IndexError, Result};
 pub use exclude::{
     read_ignore_file, ExcludeSet, GITIGNORE_IMPORT_DIRECTIVE, IGNORE_FILE_NAME,
