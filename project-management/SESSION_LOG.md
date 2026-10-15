@@ -50,3 +50,9 @@ Record significant events only. Link to task, review, and decision details; omit
   nesting false positive (REPORT R207-3). Fixed with prove-it tests first (`99f7058`), ADR-007
   updated (`bfb7ee7`), Stage 8 re-measured with identical groups. check.sh on `bfb7ee7`:
   all checks passed (1488/0/24). Still local only, nothing pushed.
+- Rust black-box fixture: all expected groups formed and no solo function grouped.
+  The live report on this repository showed visibility-only misses (REPORT R207-4). Fixed in
+  `29b4c2e` and recorded in ADR-007 (`01fe107`). check.sh: all checks passed (1490/0/24).
+  The issue-#207 fix commits had landed on a branch `test/auto-reindex-check` that
+  something else created at d500db5. `feat/207-token-twins` was fast-forwarded to them.
+  Still local only.
