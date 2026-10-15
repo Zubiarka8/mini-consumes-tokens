@@ -12,6 +12,9 @@ use tree_sitter::{Node, Parser};
 
 #[cfg(test)]
 mod libraries;
+mod tokens;
+
+pub use tokens::PythonTokenSource;
 
 pub struct PythonParser;
 
