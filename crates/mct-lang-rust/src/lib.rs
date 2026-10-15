@@ -12,6 +12,10 @@ use mct_tree_sitter::{first_error, location};
 use std::collections::HashSet;
 use tree_sitter::{Node, Parser};
 
+mod tokens;
+
+pub use tokens::RustTokenSource;
+
 pub struct RustParser;
 
 impl LanguageParser for RustParser {
