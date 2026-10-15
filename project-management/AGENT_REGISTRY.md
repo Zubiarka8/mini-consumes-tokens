@@ -12,9 +12,9 @@ Last update: 2026-10-10. The coordinator is the only writer. Resolve local absol
 | MD-01 | Codex | #135 aliases | codex/markdown-alias-135 | mct-markdown-alias-135 | 883d18fd0a86ce858614e6ae08688ef0a8dd5413 | recovered |
 | TOOLS-01 | Codex | #11/#17 | codex/tool-attention-contracts | mct-tool-attention-contracts | a94d10129d95c43d8cd56d80ba1656517a354beb | recovered |
 | CSS-01 | Codex | #115 | codex/css-nesting-115 | mct-css-nesting-115 | 2d3def5add49e4f3d29b280149dbb5099ca482c5 | recovered |
-| DUP-A | Claude Code (Sonnet) | TASK-207-A | claude/207-a-token-sources | mct-207-a-token-sources | coordination commit after 5efc8a7 | active |
-| DUP-B | Claude Code (Sonnet) | TASK-207-B | claude/207-b-duplicate-analysis | mct-207-b-duplicate-analysis | coordination commit after 5efc8a7 | active |
-| DUP-C | Claude Code (Sonnet) | TASK-207-C | claude/207-c-cli-report | mct-207-c-cli-report | coordination commit after 5efc8a7 | active |
+| DUP-A | Claude Code (Sonnet) | TASK-207-A | claude/207-a-token-sources | mct-207-a-token-sources | coordination commit after 5efc8a7 | completed |
+| DUP-B | Claude Code (Sonnet) | TASK-207-B | claude/207-b-duplicate-analysis | mct-207-b-duplicate-analysis | coordination commit after 5efc8a7 | completed |
+| DUP-C | Claude Code (Sonnet) | TASK-207-C | claude/207-c-cli-report | mct-207-c-cli-report | coordination commit after 5efc8a7 | completed |
 
 The Codex workers were stopped by the user on 2026-10-10; "recovered" rows hold uncommitted partial diffs awaiting a new owner.
 
