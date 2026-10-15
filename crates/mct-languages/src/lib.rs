@@ -113,7 +113,7 @@ mod tests {
     fn token_sources_cover_rust_and_python_with_their_parsers_ids() {
         let sources = build_token_sources();
         assert_eq!(sources.language_ids(), ["python", "rust"]);
-        // A token source is selected by an indexed file's , which
+        // A token source is selected by an indexed file's `language`, which
         // is its parser's id.
         let registry = build_registry();
         for id in sources.language_ids() {
