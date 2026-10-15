@@ -4,13 +4,14 @@ The coordinator records the current continuation here; workers checkpoint in the
 
 ## TASK-207
 
-Previous agent: Claude Code coordinator. Status: IN_PROGRESS.
+Previous agent: Claude Code coordinator. Status: REVIEW (all workers completed and merged;
+check.sh passed on `3ca021a`; see TASKS.md and REPORT.md).
 Branch `feat/207-token-twins` (primary checkout); contract `5efc8a7`. Workers:
 `claude/207-a-token-sources`, `claude/207-b-duplicate-analysis`, `claude/207-c-cli-report`,
 each in a `mct-207-*` worktree, checkpoints at `project-management/checkpoints/TASK-207-{A,B,C}.md`
-in their own branch. Next action: if workers are gone, inspect each worktree's commits and
-checkpoint, then review and merge them in the order A, B, C (disjoint files, no conflicts
-expected). Remaining: end-to-end tests, check.sh, Stage 8 report, final ADR figures.
+in their own branch. Next action: maintainer review of `feat/207-token-twins` against
+`origin/main`; publish with `scripts/unix/publish-branch.sh` and open a PR only when the user
+approves. Worktree cleanup also needs the user's approval.
 
 ## TASK-PM-001
 
