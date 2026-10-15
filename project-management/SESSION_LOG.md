@@ -46,3 +46,7 @@ Record significant events only. Link to task, review, and decision details; omit
   scrubbed a local-account leak from worker A's unpublished history (REPORT R207-1), added
   real-token end-to-end tests, ran Stage 8 on this repository and pydantic-core, finished
   ADR-007 and docs. check.sh on `3ca021a`: all checks passed (1476/0/24).
+- Black-box testing of `mct-cli duplicates` on purpose-built fixtures found a Python
+  nesting false positive (REPORT R207-3). Fixed with prove-it tests first (`99f7058`), ADR-007
+  updated (`bfb7ee7`), Stage 8 re-measured with identical groups. check.sh on `bfb7ee7`:
+  all checks passed (1488/0/24). Still local only, nothing pushed.

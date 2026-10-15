@@ -150,3 +150,12 @@ by the coordinator for maintainer review; not integrated into main.
 - Scope audit: no change to `schema.rs`, `indexer.rs`, `mct-mcp-server` or `LanguageParser`;
   no TODO/FIXME/placeholder in the new code; no Cargo.toml/Cargo.lock change.
 - Stage 8 and the 20-group manual review: ADR-007 "Evaluation (Stage 8)".
+- R207-3 (major, fixed in `99f7058`): black-box testing found that two Python functions
+  differing only in whether a statement sits inside an `if` were grouped as clones, because
+  Python's indent/dedent tokens are hidden in the tree. Fixed with synthetic block markers,
+  restricted to the candidate's own blocks. Prove-it tests were written first and failed
+  before the fix. An intermediate version that kept every marker in the candidate's lines
+  lost two real pydantic-core groups; the re-measurement caught it, and a regression test
+  now covers it. Final reports are identical to Stage 8 on both projects. ADR-007 updated in
+  `bfb7ee7`, which also documents three further limitations found by the same testing.
+  check.sh on `bfb7ee7`: all checks passed (1488/0/24).
