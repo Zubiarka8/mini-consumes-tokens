@@ -42,6 +42,7 @@ Commands:
   ignore-init           Write a starter `.mctignore` for custom indexing exclusions
   gitignore-init        Keep the generated index out of git
   dead-code             Write a CSV report of dead-code candidates (heuristic: symbols with zero indexed references) — one row per candidate with its file, function name, kind, language, and start/end line
+  duplicates            Report candidate duplicate functions and methods, as TOON
   probe                 Parse files without indexing them and report, per file, either its symbol/relation counts or the first syntax error with its line
   update, -u, --update  Update mct-cli and mct-mcp-server to the latest GitHub release
   help                  Print this message or the help of the given subcommand(s)
@@ -326,6 +327,53 @@ Options:
       --language <LANGUAGE>  Exact language id to keep (e.g. `rust`, `python`, `go`)
       --output <OUTPUT>      Where to write the CSV report. Defaults to `<root>/.mct-index/dead-code-report.csv`
   -h, --help                 Print help
+```
+
+</details>
+
+### `duplicates` / `duplicates --min-lines <N> --min-tokens <N>`
+
+Prints, as TOON, groups of same-language functions and methods whose token sequences are identical once identifiers and literals are normalized (Type-2 clones). Every group is a candidate for human review, never proof of redundant or equivalent behavior. Rust and Python are analyzed; the report names the other indexed languages as unsupported. Runs on demand against the existing index and the current files, without reindexing or writing anything: a file edited since the last `reindex` is listed as skipped and the report is marked partial. Design and evaluation: [ADR-007](docs/01-architecture/adrs/007-duplicate-function-report.md).
+
+```sh
+mct-cli --root . duplicates
+mct-cli --root . duplicates --min-lines 10 --min-tokens 80
+```
+
+<details>
+<summary>Full output</summary>
+
+```
+Report candidate duplicate functions and methods, as TOON.
+
+Groups functions and methods of the same language whose token sequences are identical once identifiers and literals are normalized (Type-2 clones). Every group is a CANDIDATE for human review: matching structure does not prove the code is redundant or behaves the same. Runs on demand against the existing index and the current files; it never reindexes or writes anything, so run `init` or `reindex` first. Candidates that cannot be analyzed are listed as skipped and mark the report partial. Only languages with a token source are analyzed; the report names the rest.
+
+Usage: mct-cli duplicates [OPTIONS]
+
+Options:
+      --min-lines <N>
+          Minimum lines containing at least one token (comments and blank lines excluded) a function needs to be compared
+
+          [default: 6]
+
+      --root <ROOT>
+          Project root to operate on. Defaults to the current working directory.
+
+          `init` and `call` accept several roots, as a repeated `--root` or a comma-separated `--roots a,b`; every other command takes exactly one.
+
+          [alias: --roots]
+
+      --min-tokens <N>
+          Minimum tokens (counted before normalization) a function needs to be compared
+
+          [default: 40]
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+Examples:
+  cargo run -p mct-cli -- --root . duplicates
+  cargo run -p mct-cli -- --root . duplicates --min-lines 10 --min-tokens 80
 ```
 
 </details>
