@@ -463,6 +463,7 @@ The handful of commands you'll actually type by hand. For the full technical ref
 | Keep the generated index files out of git          | `mct-cli --root . gitignore-init`          |
 | Exclude extra files/folders from indexing          | `mct-cli --root . ignore-init`             |
 | Find candidate unused code                         | `mct-cli --root . dead-code`               |
+| Find candidate duplicated functions (Rust, Python) | `mct-cli --root . duplicates`              |
 | See which version is installed                     | `mct-cli --version` (or `-v`)              |
 | Update to the latest release                       | `mct-cli update` (or `-u` / `--update`)    |
 
