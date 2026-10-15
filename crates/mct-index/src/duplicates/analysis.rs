@@ -22,7 +22,7 @@ use super::{
     SkipReason, SkippedCandidate, DUPLICATE_KIND_ALLOWLIST, MAX_EXCERPT_LINES,
     MAX_EXCERPT_LINE_CHARS,
 };
-use crate::{Index, Result, SymbolListEntry};
+use crate::{queries, Index, Result, SymbolListEntry};
 use fingerprint::Interner;
 
 pub(super) fn run(
@@ -30,8 +30,17 @@ pub(super) fn run(
     token_sources: &TokenSourceRegistry,
     options: DuplicateOptions,
 ) -> Result<DuplicateReport> {
-    let entries = index.list_symbols_all(None, None)?;
-    let hashes: HashMap<String, String> = index.file_hashes()?.into_iter().collect();
+    // Every indexed file is queried by its stored path, not through
+    // `Index::list_symbols_all`: that one enumerates the root's entries on
+    // disk, so a file deleted or replaced since indexing would vanish from
+    // the report instead of being skipped as stale or unreadable (and
+    // dot-directories at the root would never be seen).
+    let file_hashes = index.file_hashes()?;
+    let mut entries = Vec::new();
+    for (path, _) in &file_hashes {
+        entries.extend(queries::list_symbols(&index.conn, path, true, None, None)?);
+    }
+    let hashes: HashMap<String, String> = file_hashes.into_iter().collect();
 
     // Candidates per (file, language), so each file is read and tokenized once.
     let mut files: BTreeMap<(&str, &str), Vec<&SymbolListEntry>> = BTreeMap::new();
