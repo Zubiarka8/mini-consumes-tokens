@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use mct_core::LanguageRegistry;
+use mct_core::{LanguageRegistry, TokenSourceRegistry};
 
 pub fn build_registry() -> LanguageRegistry {
     let mut registry = LanguageRegistry::new();
@@ -27,6 +27,14 @@ pub fn build_registry() -> LanguageRegistry {
     registry.register(Arc::new(mct_lang_md::MarkdownParser));
     registry.register(Arc::new(mct_lang_lua::LuaParser));
     registry
+}
+
+/// Token sources for on-demand analyses such as `mct-cli duplicates`. Only
+/// languages listed here are analyzed; the rest are reported as unsupported.
+///
+/// Contract placeholder for TASK-207-A, which registers Rust and Python.
+pub fn build_token_sources() -> TokenSourceRegistry {
+    TokenSourceRegistry::new()
 }
 
 #[cfg(test)]
