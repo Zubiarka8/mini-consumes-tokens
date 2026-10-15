@@ -50,3 +50,10 @@ Paths are relative to the project root. Message for every entry: `syntax error`.
 | ID | Status | Location / scope | Observed behavior and impact | Evidence / next action |
 | --- | --- | --- | --- | --- |
 | ERR-012 | RESOLVED | Local MCP startup in the privacy review worktree / filesystem sandbox | `Error: database error: unable to open database file`; cause: `Error code 14: unable to open database file`. The local server closed stdout before the initialize reply, preventing source lookup | First/last observed 2026-10-12 on `feat/index-privacy-hygiene`, base `32f8a79ccfcd09c3d790e43edc284d7602e9737b`, dirty tree. The same binary and root started successfully with authorized filesystem access. `get_indexing_status` then succeeded (594 files, 12,370 symbols, timestamp 1791792386), reporting only the 16 intentionally malformed ERR-003 fixtures. Targeted `build_context_pack` calls succeeded. Environment restriction; no database-tool bypass or code fix required. |
+
+## Issue #207 planning (2026-10-15)
+
+| ID | Status | Location / scope | Observed behavior and impact | Evidence / next action |
+| --- | --- | --- | --- | --- |
+| ERR-013 | RESOLVED | MCP `get_file_skeleton` invocation (inside `batch`) | Caller supplied `path: "crates/mct-core/src/parser.rs"`, a file that does not exist; diagnostic: `` `crates/mct-core/src/parser.rs` was not found under the indexed project root ``. Only that sub-query failed | First/last observed 2026-10-15 on `feat/207-token-twins` at `2705d64`. `LanguageParser` is defined in `crates/mct-core/src/lib.rs`; `build_context_pack(symbol: "LanguageParser")` then succeeded. Caller path guess; no server change. |
+| ERR-014 | RESOLVED | MCP `build_context_pack` invocation (inside `batch`) | Caller supplied `name: "dead_code_report"` instead of the required `symbol`; diagnostic: ``invalid args for `build_context_pack`: missing field `symbol` `` | First/last observed 2026-10-15 on `feat/207-token-twins` at `2705d64`. Retried with `symbol: "dead_code_report"`: succeeded. Caller argument error, same class as ERR-011; no server change. |
