@@ -1,7 +1,7 @@
 # ADR-007: On-demand duplicate function report
 
 ## Status
-Proposed (spike, issue #207). Draft: the sections marked `TODO(coordinator)` are filled in after the Stage 8 measurements and manual review, and the status moves to Accepted or Rejected then. Adds the `mct-cli duplicates` subcommand. No schema migration, no MCP tool, and no change to `LanguageParser`.
+Proposed (spike, issue #207). The Stage 8 evaluation below is recorded; acceptance is pending maintainer review. Adds the `mct-cli duplicates` subcommand. No schema migration, no MCP tool, and no change to `LanguageParser`.
 
 ## Context
 - Duplicated logic is documented but never reported. `first_error` is identical in `mct-lang-rust`, `mct-lang-python` and `mct-lang-cpp`, and language registrations repeat between `mct-cli` and `mct-mcp-server`. `find_dead_code` finds symbols nobody references. Nothing finds code that exists twice.
@@ -19,7 +19,8 @@ Proposed (spike, issue #207). Draft: the sections marked `TODO(coordinator)` are
 
 ### Token source
 - **A new `TokenSource` trait in `mct-core`**, next to but separate from `LanguageParser`. It turns one file's text into a stream of non-comment tokens, each with a kind (keyword, identifier, literal or punctuation), its text, its line range and its byte range, plus the line ranges of any syntax errors. A language crate opts in by implementing it; a language without an implementation is simply not covered.
-- **Tokens come from the tree-sitter tree, not from text.** `mct-tree-sitter` holds one generic walker over the leaves of a tree. Each language crate supplies a small per-grammar table that says which node kinds are comments, which are literals, which are identifiers, and which keywords the grammar exposes. Nothing in the walker is specific to a language.
+- **Tokens come from the tree-sitter tree, not from text.** `mct-tree-sitter` holds one generic, iterative walker (`tokenize_tree`, over a `TreeCursor`, so nesting depth costs heap, never stack). Each language crate supplies a `TokenClasses` table read off its grammar's `node-types.json`: `trivia_kinds` (comments, Python line continuations; whole subtrees dropped), `literal_kinds` (one token per node, children not walked), `identifier_kinds`, and `keyword_kinds` for keyword tokens that are not purely alphabetic (Rust's `macro_rules!`). Every other leaf made only of letters and underscores is a keyword; any other leaf is punctuation. `ERROR` and `MISSING` nodes are reported as `error_lines`, and a candidate overlapping one is skipped. Nothing in the walker is specific to a language.
+- **Notable classifications.** Rust `primitive_type` (`i32`, `str`) is an identifier; `self`, `super`, `crate`, `mut` are keywords; a lifetime is `'` plus an identifier. Python `True`, `False`, `None` and `...` are literals, and `self`/`cls` are identifiers.
 - **`mct-index` stays grammar-free.** The caller builds a `TokenSourceRegistry` (`mct_languages::build_token_sources()`) and passes it to the analysis. The index crate gains no dependency on any grammar and no language knowledge. Registering a language is one line next to its parser registration.
 - **`LanguageParser`, the schema and the MCP server do not change.** Indexing never tokenizes, so a token source costs nothing unless the report is requested.
 
@@ -58,8 +59,10 @@ Proposed (spike, issue #207). Draft: the sections marked `TODO(coordinator)` are
 - **Ranges are line-based.** A candidate covers whole lines from the indexed start line to the end line, so tokens on the first or last line that sit outside the function's own node (for example an attribute or a closing brace of an enclosing block on the same line) are counted with it.
 - **Nested functions count inside the outer one.** A function defined inside another is a candidate on its own and also contributes its tokens to the outer function, so an outer and an inner pair can both appear.
 - **Literal values are ignored.** Two functions that differ only in a constant (`1` vs `2`, `"a"` vs `"b"`) group together, and their behavior may differ.
-- **Rust macro bodies are raw token trees.** Tokens inside a macro invocation are not parsed by the grammar, so identifiers, keywords and literals there are classified from the token tree and may be less precise.
+- **Rust macro bodies are token trees.** The grammar splits a macro invocation's body into identifiers, literals and punctuation without parsing it as code, and macro expansion is not modelled. In `macro_rules!`, fragment specifiers (`expr`, `ident`) read as keywords and `$x` as an identifier.
 - **Python f-string interpolations collapse into one literal.** The expressions inside `{}` are not compared token by token.
+- **Docstrings weigh as lines.** A multi-line string literal counts every line it spans, as the issue's line rule requires, so a long Python docstring can lift a short function over `min_lines` (in pydantic-core, a 43-line group has 119 tokens). It is still one `$LIT` token, so a docstring present in one function and absent in another keeps them apart.
+- **The analysis enumerates indexed files, not the disk.** A file deleted or edited since indexing is skipped as stale; it never silently disappears or groups on old content. `reindex` before running for a complete report.
 - **No Type-3 detection.** One inserted or deleted token separates two otherwise identical functions into different groups.
 - **Generated code is not detected.** See above.
 - **Same shape is not same intent.** Small accessors, builders and trait method bodies often match by design.
@@ -72,25 +75,52 @@ Each is a reason to open a separate design issue, not to extend this one.
 - **Type-3 detection.** Reviewers report near-misses as the main missing signal, not as noise.
 
 ## Evaluation (Stage 8)
-TODO(coordinator): fill in from the measured runs; do not estimate. Record only what was run.
+Measured on 2026-10-15 on macOS (Apple Silicon) with a release build of `mct-cli` (`cargo build --release -p mct-cli`) at `3f70db8`, default thresholds (6 lines, 40 tokens). Times are wall-clock and memory is the maximum resident set size, both from `/usr/bin/time -l` around one run; they are single observations, not benchmarks.
 
-### This repository
-- TODO(coordinator): command used.
-- TODO(coordinator): revision.
-- TODO(coordinator): supported and unsupported languages as reported.
-- TODO(coordinator): indexing time, separately from analysis time.
-- TODO(coordinator): duplicate-analysis runtime.
-- TODO(coordinator): approximate memory use and how it was estimated.
-- TODO(coordinator): candidates analyzed, below threshold, skipped (per reason) and groups found.
+| | This repository | pydantic-core |
+|---|---|---|
+| Source | `git archive 3f70db8` (tracked files only, so untracked local folders are not analyzed) | `git clone --depth 1 https://github.com/pydantic/pydantic-core`, commit `383eb95a19433754c0cecf7025b50c26b6d97a36` (2026-01-07); read and indexed only, nothing built or executed |
+| Commands | `mct-cli --root <dir> init`, then `mct-cli --root <dir> duplicates` | same |
+| Supported languages | python, rust | python, rust |
+| Unsupported, reported | bash, cpp, csharp, go, java, javascript_typescript, kotlin, lua, php, powershell | javascript_typescript |
+| Indexing (`init`) | 5.01 s, 39.8 MB; 744 files, 13,584 symbols | 1.85 s, 27.0 MB; 253 files, 5,695 symbols |
+| Duplicate analysis | 0.48 s, 31.7 MB | 0.49 s, 27.0 MB |
+| Candidates analyzed | 3,712 (1,104 below threshold) | 4,024 (1,589 below threshold) |
+| Skipped | 0 (complete) | 0 (complete) |
+| Groups (members) | 147 (464), all Rust | 149 (355): 55 Rust, 94 Python |
+| Groups entirely in tests, benches or examples | 110 | 90 |
 
-### External project
-- TODO(coordinator): project, source and revision, and how it was obtained and analyzed.
-- TODO(coordinator): the same figures as above.
+The `first_error` copies that motivated the issue no longer exist: the function now lives once in `mct-tree-sitter`, and no group contains it.
 
 ### Manual review
-- TODO(coordinator): sample criteria (up to 20 groups, all of them if fewer exist).
-- TODO(coordinator): per reviewed group, its language, the evidence used and the classification (useful structural candidate, coincidental match or false positive).
-- TODO(coordinator): totals per classification. A small sample is not a false-positive rate.
+Sample: the 10 highest-ranked groups of each project (20 in total), in report order. Evidence: the member list and excerpts of the report, plus reading the source of at least two members of every group. Classes: **useful** (a structural duplicate worth consolidating or parametrizing), **coincidental** (same shape by design or by API convention, not worth merging), **false positive** (members do not actually share their structure).
+
+| Project | # | Language | Members | Classification and evidence |
+|---|---|---|---|---|
+| this repository | 1 | Rust | 14 | Useful: `push_symbol` repeated verbatim in 14 language crates' walkers. |
+| this repository | 2 | Rust | 14 | Useful: `push_relation`, same 14-crate repetition. |
+| this repository | 3 | Rust | 10 | Useful: `open_indexed` test helper in each `tests/index_integration.rs`. |
+| this repository | 4 | Rust | 14 | Useful, low value: the 8-line `parse` helper of each `tests/parse.rs`. |
+| this repository | 5 | Rust | 12 | Useful: `open_indexed` of each `tests/depgraph.rs`. |
+| this repository | 6 | Rust | 3 | Useful: the `find_references`, `find_calls` and `find_callers` MCP handlers in `server.rs` differ only by argument name, relation direction and label. |
+| this repository | 7 | Rust | 2 | Useful: `mcp_chars` copied between the two `token_benchmark` examples. |
+| this repository | 8 | Rust | 3 | Useful: the same test-double `parse` in three `mct-index` test files. |
+| this repository | 9 | Rust | 13 | Coincidental: one syntax-error test per language crate, required by the contributing checklist. |
+| this repository | 10 | Rust | 9 | Useful: `uuid_like` copied into nine `mct-index` test files. |
+| pydantic-core | 1 | Rust | 8 | Useful: `serialize_i8` … `serialize_u64` share one body that a macro could generate. |
+| pydantic-core | 2 | Python | 3 | Coincidental: `list_schema`, `set_schema`, `frozenset_schema` public builders; the shared shape is the API convention. |
+| pydantic-core | 3 | Python | 3 | Coincidental: `no_info_{before,after,wrap}_validator_function` builders. |
+| pydantic-core | 4 | Python | 2 | Coincidental: `with_info_{before,wrap}_validator_function` builders. |
+| pydantic-core | 5 | Python | 2 | Coincidental: `url_schema` and `multi_host_url_schema` builders. |
+| pydantic-core | 6 | Python | 2 | Coincidental: `tuple_schema` and `arguments_schema` only share the count of keyword parameters forwarded to `_dict_not_none`. |
+| pydantic-core | 7 | Python | 3 | Useful: `test_config_datetime`, `_date`, `_time` could be one parametrized test. |
+| pydantic-core | 8 | Rust | 2 | Useful: `Url::py_new` and `MultiHostUrl::py_new` repeat the same validation setup. |
+| pydantic-core | 9 | Rust | 2 | Useful: the two URL validators' `validate` bodies. |
+| pydantic-core | 10 | Python | 3 | Useful, low value: three argument-validation tests differing only in data. |
+
+Totals in this sample: 14 useful, 6 coincidental, 0 false positives. Coincidental matches cluster in thin API builders whose bodies only forward keyword arguments, where identifier normalization erases the only difference. This is a 20-group sample chosen by rank, not a false-positive rate.
 
 ### Outcome
-- TODO(coordinator): update the Status line, and revisit "Conditions for a later phase" against the measurements.
+- At least one language has a reliable token source without changing `LanguageParser`, so the Stage 1 gate passed; Rust and Python both do.
+- On-demand analysis costs about half a second and under 32 MB on projects of this size, well within routine use, so the persistence condition above is not met.
+- The report surfaced the parser-walker repetition the issue suspected but had not measured (`push_symbol` and `push_relation` in 14 crates each) and test-helper copies. Whether to accept this ADR, and whether an MCP tool or more languages are worth a follow-up issue, is the maintainer's decision.
