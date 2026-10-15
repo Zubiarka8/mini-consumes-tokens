@@ -14,7 +14,8 @@
 //! - Tokens are whitespace-separated words. A fixed list are keywords, another
 //!   fixed list punctuation, digits and `"..."` words literals, anything else
 //!   an identifier. `#` starts a comment. `<<` ... `>>` is one literal that may
-//!   span lines. Marker comments drive failure cases: `# !!tokenize-fail`
+//!   span lines. `{{` and `}}` emit a zero-width, empty-text block start and
+//!   end, as a layout-only block (Python's) does. Marker comments drive failure cases: `# !!tokenize-fail`
 //!   makes `tokenize` return `Err`; `# !!error` reports its own line in
 //!   `error_lines`.
 //! - A symbol name prefix makes the parser store a bad range: `noend_` (no end
@@ -73,7 +74,10 @@ impl LanguageParser for Toy {
         for (index, raw) in file.contents.lines().enumerate() {
             let line_no = u32::try_from(index).unwrap() + 1;
             let code = raw.split('#').next().unwrap_or_default();
-            let words: Vec<&str> = code.split_whitespace().collect();
+            let words: Vec<&str> = code
+                .split_whitespace()
+                .filter(|word| !matches!(*word, "{{" | "}}"))
+                .collect();
             match words.as_slice() {
                 ["fn", name, ..] if open.is_none() => {
                     open = Some((SymbolKind::Function, (*name).to_string(), line_no));
@@ -200,6 +204,22 @@ impl TokenSource for Toy {
                 }
                 if word == "<<" {
                     literal = Some((line_no, start_byte));
+                    continue;
+                }
+                let marker = match word {
+                    "{{" => Some(TokenKind::BlockStart),
+                    "}}" => Some(TokenKind::BlockEnd),
+                    _ => None,
+                };
+                if let Some(kind) = marker {
+                    out.tokens.push(Token {
+                        kind,
+                        text: String::new(),
+                        line: line_no,
+                        end_line: line_no,
+                        start_byte,
+                        end_byte: start_byte,
+                    });
                     continue;
                 }
                 let kind = if KEYWORDS.contains(&word) {
@@ -494,6 +514,77 @@ fn case_5_comments_and_whitespace_do_not_change_the_group() {
     let noisy_member = &group.members[1];
     assert_eq!((noisy_member.start_line, noisy_member.end_line), (3, 15));
     assert_eq!(noisy_member.line_count, 7);
+}
+
+/// 9 physical lines; `{{`/`}}` hold no source tokens, so 7 token-bearing
+/// lines and 30 tokens. `close_after` names the statement the block ends after.
+fn blocked(name: &str, a: &str, b: &str, close_after: &str) -> String {
+    let statements = [
+        ("let", format!("let {a} = 1 + {b} ;\n")),
+        ("while", format!("while {a} + {b} ;\n")),
+        ("if", format!("if {a} = {b} ;\n")),
+        ("return", format!("return {a} + 1 ;\n")),
+        ("last", format!("let {b} = {a} ;\n")),
+    ];
+    let mut body = String::from("{{\n");
+    for (key, statement) in &statements {
+        body.push_str(statement);
+        if *key == close_after {
+            body.push_str("}}\n");
+        }
+    }
+    format!("fn {name}\n{body}end\n")
+}
+
+#[test]
+fn block_markers_separate_other_nesting_without_adding_tokens_or_lines() {
+    let files = [
+        ("a.dup", blocked("a", "x", "y", "while")),
+        ("b.dup", blocked("b", "p", "q", "while")),
+        // Same source tokens as `a`, but `if` moved into the block.
+        ("c.dup", blocked("c", "x", "y", "if")),
+    ];
+    let fixture = Fixture::new(&borrowed(&files));
+
+    let report = fixture.run(small());
+    assert_eq!(
+        spans(&report),
+        [[("a.dup".to_string(), 1, 9), ("b.dup".to_string(), 1, 9)]]
+    );
+    let member = &report.groups[0].members[0];
+    assert_eq!((member.line_count, member.token_count), (7, 30));
+    assert_eq!(report.below_threshold, 0);
+
+    // Counting the marker-only lines would make these 9 lines long.
+    let report = fixture.run(DuplicateOptions {
+        min_lines: 8,
+        min_tokens: 20,
+    });
+    assert!(report.groups.is_empty());
+    assert_eq!(report.below_threshold, 3);
+}
+
+#[test]
+fn markers_of_an_enclosing_block_on_a_boundary_line_are_ignored() {
+    let plain = blocked("a", "x", "y", "while");
+    // An enclosing block that starts on the function's first line and ends on
+    // its last one (a class whose only method this is).
+    let wrapped = format!("{{{{ {}", blocked("b", "x", "y", "while")).replace("end\n", "end }}\n");
+    // An enclosing block opened above the function and closed on its last line
+    // (the last method of a class).
+    let closed = format!("{{{{\n{}", blocked("c", "x", "y", "while")).replace("end\n", "end }}\n");
+    let files = [("a.dup", plain), ("b.dup", wrapped), ("c.dup", closed)];
+    let fixture = Fixture::new(&borrowed(&files));
+
+    let report = fixture.run(small());
+    assert_eq!(
+        spans(&report),
+        [[
+            ("a.dup".to_string(), 1, 9),
+            ("b.dup".to_string(), 1, 9),
+            ("c.dup".to_string(), 2, 10)
+        ]]
+    );
 }
 
 #[test]
