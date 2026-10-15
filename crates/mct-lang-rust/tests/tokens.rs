@@ -31,7 +31,7 @@ fn keywords_are_told_apart_from_identifiers() {
     let file = tokenize("pub fn add(self, x: i32) -> i32 { if x > 0 { return x; } x }\n");
     assert!(file.error_lines.is_empty());
     let tokens = pairs(&file);
-    for keyword in ["pub", "fn", "self", "if", "return"] {
+    for keyword in ["fn", "self", "if", "return"] {
         assert!(tokens.contains(&(Keyword, keyword)), "{keyword}");
     }
     assert!(tokens.contains(&(Identifier, "add")));
@@ -127,6 +127,27 @@ fn comments_doc_comments_and_whitespace_produce_no_tokens() {
         .tokens
         .iter()
         .any(|token| token.kind == Literal && token.text == "\"// not a comment\""));
+}
+
+#[test]
+fn visibility_produces_no_tokens() {
+    // A visibility decides who may use an item, not what it does: the same
+    // function under any visibility is the same token sequence.
+    let plain = tokenize("fn f(x: u8) -> u8 { x }\n");
+    for source in [
+        "pub fn f(x: u8) -> u8 { x }\n",
+        "pub(crate) fn f(x: u8) -> u8 { x }\n",
+        "pub(super) fn f(x: u8) -> u8 { x }\n",
+        "pub(in crate::a) fn f(x: u8) -> u8 { x }\n",
+    ] {
+        let file = tokenize(source);
+        assert!(file.error_lines.is_empty(), "{source}");
+        assert_eq!(pairs(&file), pairs(&plain), "{source}");
+    }
+    // Inside a body as well: a nested item's or a field's visibility.
+    let file = tokenize("fn f() { struct S { pub a: u8 } pub fn g() {} }\n");
+    assert!(file.error_lines.is_empty());
+    assert!(!pairs(&file).contains(&(Keyword, "pub")));
 }
 
 #[test]
