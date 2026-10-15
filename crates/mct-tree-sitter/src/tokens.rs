@@ -25,6 +25,9 @@ pub struct TokenClasses {
     pub literal_kinds: &'static [&'static str],
     /// Named leaf kinds that become [`TokenKind::Identifier`].
     pub identifier_kinds: &'static [&'static str],
+    /// Leaf kinds that are keywords although their text is not only letters,
+    /// such as Rust's single `macro_rules!` token.
+    pub keyword_kinds: &'static [&'static str],
 }
 
 /// Parses `source` with `language` and extracts its tokens.
@@ -59,8 +62,9 @@ pub fn tokenize_source(
 /// costs heap, never stack. It emits, in source order:
 /// - one [`TokenKind::Literal`] per node of a literal kind;
 /// - one token per remaining leaf: [`TokenKind::Identifier`] for a named leaf
-///   of an identifier kind, [`TokenKind::Keyword`] when its text is only
-///   letters and underscores, [`TokenKind::Punctuation`] otherwise.
+///   of an identifier kind, [`TokenKind::Keyword`] for a keyword kind or when
+///   its text is only letters and underscores, [`TokenKind::Punctuation`]
+///   otherwise.
 ///
 /// Trivia subtrees, zero-width leaves (`MISSING` nodes) and whitespace-only
 /// leaves produce nothing. Tokens inside `ERROR` nodes are still emitted, but
@@ -149,7 +153,9 @@ fn visit(
     }
     let token_kind = if node.is_named() && classes.identifier_kinds.contains(&kind) {
         TokenKind::Identifier
-    } else if text.chars().all(|c| c.is_alphabetic() || c == '_') {
+    } else if classes.keyword_kinds.contains(&kind)
+        || text.chars().all(|c| c.is_alphabetic() || c == '_')
+    {
         TokenKind::Keyword
     } else {
         TokenKind::Punctuation
@@ -226,6 +232,7 @@ mod tests {
         trivia_kinds: &["comment"],
         literal_kinds: &["string", "number"],
         identifier_kinds: &["variable_name", "word"],
+        keyword_kinds: &[],
     };
 
     fn bash(source: &str) -> TokenizedFile {
