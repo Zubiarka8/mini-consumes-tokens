@@ -1,6 +1,6 @@
 //! End-to-end tests of `mct-cli duplicates`, running the real binary against
-//! throwaway projects. They assert the report's shape and the command's
-//! error handling, not which functions get grouped.
+//! throwaway projects: the report's shape, the command's error handling, and
+//! grouping through the shipped Rust and Python token sources.
 
 // Test code: an unwrap()/expect() here means a broken test precondition, and
 // panicking is the correct behavior — this is not production code parsing
@@ -237,4 +237,156 @@ fn help_lists_the_command_and_its_thresholds() {
     assert!(text.contains("[default: 6]"), "{text}");
     assert!(text.contains("[default: 40]"), "{text}");
     assert!(text.contains("Examples:"), "{text}");
+}
+
+/// Two Rust functions with the same structure under different names and
+/// literal values, in different files, plus one with a different operator.
+const RUST_TWIN_A: &str = "pub fn total(items: &[u32]) -> u32 {
+    // Sum the items above the limit.
+    let mut sum = 0;
+    for item in items {
+        if *item > 10 {
+            sum += item;
+        }
+    }
+    sum
+}
+";
+const RUST_TWIN_B: &str = "pub fn weight(values: &[u32]) -> u32 {
+    let mut acc = 1;
+    for value in values {
+        if *value > 99 {
+            acc += value;
+        }
+    }
+    acc
+}
+
+pub fn other(values: &[u32]) -> u32 {
+    let mut acc = 1;
+    for value in values {
+        if *value < 99 {
+            acc += value;
+        }
+    }
+    acc
+}
+";
+const PYTHON_TWINS: &str = "def scale(rows, factor):
+    out = []
+    for row in rows:
+        if row > 0:
+            out.append(row * factor)
+    return out
+
+
+def shift(cells, delta):
+    \"\"\"Shift every positive cell.\"\"\"
+    result = []
+    for cell in cells:
+        if cell > 5:
+            result.append(cell * delta)
+    return result
+";
+
+fn grouping_report(project: &Project) -> String {
+    let output = mct(&[
+        &"--root",
+        &project.path(),
+        &"duplicates",
+        &"--min-lines",
+        &"4",
+        &"--min-tokens",
+        &"20",
+    ]);
+    assert!(
+        output.status.success(),
+        "duplicates failed: {}",
+        stderr(&output)
+    );
+    stdout(&output)
+}
+
+#[test]
+fn rust_and_python_twins_are_grouped_per_language_by_the_real_token_sources() {
+    let project = Project::new("twins");
+    fs::write(project.path().join("src/a.rs"), RUST_TWIN_A).unwrap();
+    fs::write(project.path().join("src/b.rs"), RUST_TWIN_B).unwrap();
+    fs::write(project.path().join("tools.py"), PYTHON_TWINS).unwrap();
+    project.init();
+
+    let text = grouping_report(&project);
+    assert!(text.contains("\nstatus: complete\n"), "{text}");
+    assert!(
+        text.contains("\nsupported_languages[2]: python,rust\n"),
+        "{text}"
+    );
+    assert!(text.contains("\ntotal_groups: 1\n"), "{text}");
+    // Same structure, other names and literals; `other` differs by one
+    // operator and stays out, and the comment in `total` changes nothing. In
+    // Python, `shift`'s docstring is a literal statement `scale` lacks, so
+    // the two do not group here (see the next test for the matching pair).
+    assert!(
+        text.contains("src/a.rs,1-10,total,function,rust,"),
+        "{text}"
+    );
+    assert!(
+        text.contains("src/b.rs,1-9,weight,function,rust,"),
+        "{text}"
+    );
+    assert!(!text.contains(",other,"), "{text}");
+    assert!(
+        text.contains("inspect src/a.rs:1-10, src/b.rs:1-9"),
+        "{text}"
+    );
+    assert_eq!(text.matches("\n    language: rust\n").count(), 1, "{text}");
+    assert_eq!(
+        text.matches("\n    language: python\n").count(),
+        0,
+        "{text}"
+    );
+}
+
+#[test]
+fn python_twins_form_one_group_and_never_join_a_rust_group() {
+    let project = Project::new("python-twins");
+    let python = PYTHON_TWINS.replace("    \"\"\"Shift every positive cell.\"\"\"\n", "");
+    fs::write(project.path().join("tools.py"), python).unwrap();
+    fs::write(project.path().join("src/a.rs"), RUST_TWIN_A).unwrap();
+    project.init();
+
+    let text = grouping_report(&project);
+    assert!(text.contains("\ntotal_groups: 1\n"), "{text}");
+    assert!(text.contains("\n    language: python\n"), "{text}");
+    assert!(
+        text.contains("tools.py,1-6,scale,function,python,"),
+        "{text}"
+    );
+    assert!(
+        text.contains("tools.py,9-14,shift,function,python,"),
+        "{text}"
+    );
+    assert!(!text.contains("src/a.rs,"), "{text}");
+}
+
+#[test]
+fn a_file_edited_after_indexing_is_skipped_as_stale_not_grouped() {
+    let project = Project::new("stale");
+    fs::write(project.path().join("src/a.rs"), RUST_TWIN_A).unwrap();
+    fs::write(project.path().join("src/b.rs"), RUST_TWIN_B).unwrap();
+    project.init();
+    fs::write(
+        project.path().join("src/b.rs"),
+        format!("// edited\n{RUST_TWIN_B}"),
+    )
+    .unwrap();
+
+    let text = grouping_report(&project);
+    assert!(text.contains("\nstatus: partial\n"), "{text}");
+    assert!(text.contains("\ntotal_groups: 0\n"), "{text}");
+    assert!(text.contains("\n  stale-location: 2\n"), "{text}");
+    assert!(
+        text.contains("src/b.rs,1-9,weight,rust,stale-location,"),
+        "{text}"
+    );
 }
