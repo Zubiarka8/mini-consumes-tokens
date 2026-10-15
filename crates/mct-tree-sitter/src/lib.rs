@@ -8,6 +8,10 @@ use mct_core::{Location, MAX_TRAVERSAL_DEPTH};
 use std::ops::Range;
 use tree_sitter::Node;
 
+mod tokens;
+
+pub use tokens::{tokenize_source, tokenize_tree, TokenClasses};
+
 /// The first `ERROR` or `MISSING` node in `node`'s subtree, in document order.
 ///
 /// Iterative, with the depth capped at `MAX_TRAVERSAL_DEPTH`: a deeper subtree
