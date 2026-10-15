@@ -4,8 +4,10 @@
 //! and parsed probes), not guessed:
 //!
 //! - **Trivia:** `line_comment` and `block_comment` (doc comments are
-//!   `line_comment`s with `doc_comment` children, dropped with them) and
-//!   `shebang`.
+//!   `line_comment`s with `doc_comment` children, dropped with them),
+//!   `shebang`, and `visibility_modifier` (`pub`, `pub(crate)`,
+//!   `pub(in path)`): a visibility decides who may use an item, not what it
+//!   does, so a private function and its `pub` copy must compare equal.
 //! - **Literals**, one token each: `string_literal` (also byte and C strings,
 //!   with their `string_content`/`escape_sequence` children),
 //!   `raw_string_literal`, `char_literal` (also byte chars), `integer_literal`,
@@ -27,7 +29,12 @@ use mct_core::{ParseError, TokenSource, TokenizedFile};
 use mct_tree_sitter::{tokenize_source, TokenClasses};
 
 const CLASSES: TokenClasses = TokenClasses {
-    trivia_kinds: &["line_comment", "block_comment", "shebang"],
+    trivia_kinds: &[
+        "line_comment",
+        "block_comment",
+        "shebang",
+        "visibility_modifier",
+    ],
     literal_kinds: &[
         "string_literal",
         "raw_string_literal",
