@@ -159,3 +159,10 @@ by the coordinator for maintainer review; not integrated into main.
   now covers it. Final reports are identical to Stage 8 on both projects. ADR-007 updated in
   `bfb7ee7`, which also documents three further limitations found by the same testing.
   check.sh on `bfb7ee7`: all checks passed (1488/0/24).
+- R207-4 (minor, fixed in `29b4c2e`): reviewing the live report for this repository found
+  Rust copies that differed only in visibility left ungrouped, because `pub` was a token.
+  Examples: `pub(super) fn push_symbol` in the JS/TS walker and `pub fn approx_tokens` in
+  mct-eval. Rust's `visibility_modifier` is now trivia. Tests were written first and failed
+  before the fix. Stage 8 re-measured: this repository 147 to 148 groups, pydantic-core 149 to
+  151. No group lost a member, and every added member was read and is a real copy. ADR-007
+  updated in `01fe107`. check.sh: all checks passed (1490/0/24).
