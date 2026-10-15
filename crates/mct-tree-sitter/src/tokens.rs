@@ -28,6 +28,12 @@ pub struct TokenClasses {
     /// Leaf kinds that are keywords although their text is not only letters,
     /// such as Rust's single `macro_rules!` token.
     pub keyword_kinds: &'static [&'static str],
+    /// Kinds of blocks that only layout delimits, such as Python's indented
+    /// `block`, whose indent/dedent markers never appear in the tree. Each
+    /// one with children is bracketed by a [`TokenKind::BlockStart`] and a
+    /// [`TokenKind::BlockEnd`]. Empty for a grammar whose blocks have
+    /// delimiter tokens of their own (braces, `end`).
+    pub block_kinds: &'static [&'static str],
 }
 
 /// Parses `source` with `language` and extracts its tokens.
@@ -64,7 +70,9 @@ pub fn tokenize_source(
 /// - one token per remaining leaf: [`TokenKind::Identifier`] for a named leaf
 ///   of an identifier kind, [`TokenKind::Keyword`] for a keyword kind or when
 ///   its text is only letters and underscores, [`TokenKind::Punctuation`]
-///   otherwise.
+///   otherwise;
+/// - a zero-width [`TokenKind::BlockStart`] at the start and a
+///   [`TokenKind::BlockEnd`] at the end of every node of a block kind.
 ///
 /// Trivia subtrees, zero-width leaves (`MISSING` nodes) and whitespace-only
 /// leaves produce nothing. Tokens inside `ERROR` nodes are still emitted, but
@@ -93,6 +101,13 @@ pub fn tokenize_tree(tree: &Tree, source: &str, classes: &TokenClasses) -> Token
                 break 'walk;
             }
             depth -= 1;
+            // Every child of the parent has been walked: the parent ends here.
+            // Only a node with children is descended into, so this closes
+            // exactly the blocks `visit` opened.
+            let parent = cursor.node();
+            if classes.block_kinds.contains(&parent.kind()) {
+                push_block_marker(parent, TokenKind::BlockEnd, &mut out);
+            }
             if error_depth == Some(depth) {
                 error_depth = None;
             }
@@ -140,6 +155,9 @@ fn visit(
         return false;
     }
     if node.child_count() > 0 {
+        if classes.block_kinds.contains(&kind) {
+            push_block_marker(node, TokenKind::BlockStart, out);
+        }
         return true;
     }
 
@@ -184,6 +202,26 @@ fn push_token(node: Node, kind: TokenKind, source: &str, out: &mut TokenizedFile
         end_line: range.end,
         start_byte: node.start_byte(),
         end_byte: node.end_byte(),
+    });
+}
+
+/// A zero-width marker at the start ([`TokenKind::BlockStart`]) or end
+/// ([`TokenKind::BlockEnd`]) of `block`, on that edge's line, so markers stay
+/// in `(line, start_byte)` order with the tokens around them.
+fn push_block_marker(block: Node, kind: TokenKind, out: &mut TokenizedFile) {
+    let range = line_range(block);
+    let (line, byte) = if kind == TokenKind::BlockEnd {
+        (range.end, block.end_byte())
+    } else {
+        (range.start, block.start_byte())
+    };
+    out.tokens.push(Token {
+        kind,
+        text: String::new(),
+        line,
+        end_line: line,
+        start_byte: byte,
+        end_byte: byte,
     });
 }
 
@@ -233,10 +271,64 @@ mod tests {
         literal_kinds: &["string", "number"],
         identifier_kinds: &["variable_name", "word"],
         keyword_kinds: &[],
+        block_kinds: &[],
     };
 
     fn bash(source: &str) -> TokenizedFile {
         tokenize_source(&tree_sitter_bash::LANGUAGE.into(), &BASH, "t.sh", source).unwrap()
+    }
+
+    /// Bash's `{ ...; }` group stands in for a layout-only block: the markers
+    /// are emitted the same way whatever tokens the block has of its own.
+    const BASH_WITH_BLOCKS: TokenClasses = TokenClasses {
+        block_kinds: &["compound_statement"],
+        ..BASH
+    };
+
+    #[test]
+    fn block_kinds_are_bracketed_by_zero_width_markers_in_order() {
+        let source = "{ echo a; { echo b; }; }\necho c\n";
+        let file = tokenize_source(
+            &tree_sitter_bash::LANGUAGE.into(),
+            &BASH_WITH_BLOCKS,
+            "t.sh",
+            source,
+        )
+        .unwrap();
+        let kinds: Vec<TokenKind> = file.tokens.iter().map(|token| token.kind).collect();
+        let starts: Vec<usize> = kinds
+            .iter()
+            .enumerate()
+            .filter(|(_, kind)| **kind == TokenKind::BlockStart)
+            .map(|(i, _)| i)
+            .collect();
+        let ends: Vec<usize> = kinds
+            .iter()
+            .enumerate()
+            .filter(|(_, kind)| **kind == TokenKind::BlockEnd)
+            .map(|(i, _)| i)
+            .collect();
+        assert_eq!((starts.len(), ends.len()), (2, 2), "{kinds:?}");
+        // Nested, not sequential: outer start, inner start, inner end, outer end.
+        assert!(starts[0] < starts[1] && starts[1] < ends[0] && ends[0] < ends[1]);
+        // The inner block holds `echo b` and the outer one closes before `echo c`.
+        assert_eq!(file.tokens[ends[1] + 1].text, "echo");
+        assert_eq!(file.tokens[ends[1] + 1].line, 2);
+        for marker in file.tokens.iter().filter(|t| t.kind.is_block_marker()) {
+            assert!(marker.text.is_empty());
+            assert_eq!(marker.start_byte, marker.end_byte);
+            assert_eq!((marker.line, marker.end_line), (1, 1));
+        }
+        assert!(file
+            .tokens
+            .windows(2)
+            .all(|w| (w[0].line, w[0].end_byte) <= (w[1].line, w[1].start_byte)));
+    }
+
+    #[test]
+    fn without_block_kinds_no_marker_is_emitted() {
+        let file = bash("{ echo a; }\n");
+        assert!(file.tokens.iter().all(|t| !t.kind.is_block_marker()));
     }
 
     fn kinds_and_texts(file: &TokenizedFile) -> Vec<(TokenKind, &str)> {

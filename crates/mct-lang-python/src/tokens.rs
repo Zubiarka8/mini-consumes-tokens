@@ -17,9 +17,12 @@
 //! - **Keywords:** every other alphabetic leaf: `def`, `class`, `if`, `return`,
 //!   `async`, `await`, `lambda`, `not`, `and`, `in`, `is`, `pass`, `break`, ...
 //!
-//! Indentation produces no tokens: the grammar's indent/dedent markers are
-//! hidden, so block structure shows only through the surrounding keywords and
-//! `:`.
+//! - **Blocks:** `block`, the body of every compound statement (indented or a
+//!   one-line suite). The grammar's indent/dedent markers are hidden, so
+//!   without a [`mct_core::TokenKind::BlockStart`]/`BlockEnd` pair around each
+//!   `block`, a statement moved in or out of an `if` would leave the token
+//!   sequence unchanged although the behavior changes. Indentation itself
+//!   still produces no token, so a one-line suite and its indented form match.
 
 use mct_core::{ParseError, TokenSource, TokenizedFile};
 use mct_tree_sitter::{tokenize_source, TokenClasses};
@@ -31,6 +34,7 @@ const CLASSES: TokenClasses = TokenClasses {
     ],
     identifier_kinds: &["identifier"],
     keyword_kinds: &[],
+    block_kinds: &["block"],
 };
 
 /// Token source for Python files.

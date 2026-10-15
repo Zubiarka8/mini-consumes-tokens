@@ -4,7 +4,7 @@
 
 use mct_core::{TokenKind, TokenSource, TokenizedFile};
 use mct_lang_python::PythonTokenSource;
-use TokenKind::{Identifier, Keyword, Literal, Punctuation};
+use TokenKind::{BlockEnd, BlockStart, Identifier, Keyword, Literal, Punctuation};
 
 fn tokenize(source: &str) -> TokenizedFile {
     PythonTokenSource.tokenize("pkg/mod.py", source).unwrap()
@@ -157,6 +157,78 @@ fn indentation_width_does_not_change_the_tokens() {
     let four = tokenize("if a:\n    b()\n");
     let eight = tokenize("if a:\n        b()\n");
     assert_eq!(pairs(&four), pairs(&eight));
+}
+
+#[test]
+fn every_block_is_bracketed_by_markers_around_its_statements() {
+    let file = tokenize("if a:\n    b()\nc()\n");
+    assert_eq!(
+        pairs(&file),
+        [
+            (Keyword, "if"),
+            (Identifier, "a"),
+            (Punctuation, ":"),
+            (BlockStart, ""),
+            (Identifier, "b"),
+            (Punctuation, "("),
+            (Punctuation, ")"),
+            (BlockEnd, ""),
+            (Identifier, "c"),
+            (Punctuation, "("),
+            (Punctuation, ")"),
+        ]
+    );
+    let lines: Vec<(TokenKind, u32)> = file
+        .tokens
+        .iter()
+        .filter(|token| token.kind.is_block_marker())
+        .map(|token| (token.kind, token.line))
+        .collect();
+    assert_eq!(lines, [(BlockStart, 2), (BlockEnd, 2)]);
+}
+
+#[test]
+fn moving_a_statement_out_of_a_block_changes_the_tokens() {
+    let inside = tokenize("if a:\n    b()\n    c()\n");
+    let outside = tokenize("if a:\n    b()\nc()\n");
+    let texts = |file: &TokenizedFile| -> Vec<String> {
+        file.tokens
+            .iter()
+            .filter(|token| !token.kind.is_block_marker())
+            .map(|token| token.text.clone())
+            .collect()
+    };
+    // Same source tokens, different nesting: only the markers tell them apart.
+    assert_eq!(texts(&inside), texts(&outside));
+    assert_ne!(pairs(&inside), pairs(&outside));
+}
+
+#[test]
+fn a_one_line_suite_matches_its_indented_form() {
+    let one_line = tokenize("for x in y: f(x)\n");
+    let indented = tokenize("for x in y:\n    f(x)\n");
+    assert_eq!(pairs(&one_line), pairs(&indented));
+}
+
+#[test]
+fn a_functions_markers_stay_within_its_own_lines() {
+    let source = "def f(a):\n    if a:\n        return 1\n    return 2\n\n\ny = 3\n";
+    let file = tokenize(source);
+    let markers: Vec<(TokenKind, u32)> = file
+        .tokens
+        .iter()
+        .filter(|token| token.kind.is_block_marker())
+        .map(|token| (token.kind, token.line))
+        .collect();
+    assert_eq!(
+        markers,
+        [
+            (BlockStart, 2),
+            (BlockStart, 3),
+            (BlockEnd, 3),
+            (BlockEnd, 4)
+        ]
+    );
 }
 
 #[test]

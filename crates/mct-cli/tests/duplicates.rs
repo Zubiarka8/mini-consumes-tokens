@@ -369,6 +369,94 @@ fn python_twins_form_one_group_and_never_join_a_rust_group() {
     assert!(!text.contains("src/a.rs,"), "{text}");
 }
 
+/// Same tokens in the same order; only `total = total * row` moves out of
+/// the `if`. In Python that indentation is syntax and changes behavior.
+const PYTHON_INDENTATION_ONLY: &str = "def inside(flag, rows):
+    total = 0
+    for row in rows:
+        if flag:
+            total = total + row
+            total = total * row
+    return total
+
+
+def outside(flag, rows):
+    total = 0
+    for row in rows:
+        if flag:
+            total = total + row
+        total = total * row
+    return total
+";
+
+#[test]
+fn python_functions_differing_only_in_block_nesting_do_not_group() {
+    let project = Project::new("python-indentation");
+    fs::write(project.path().join("tools.py"), PYTHON_INDENTATION_ONLY).unwrap();
+    project.init();
+
+    let text = grouping_report(&project);
+    assert!(text.contains("\nstatus: complete\n"), "{text}");
+    assert!(text.contains("\ntotal_groups: 0\n"), "{text}");
+    // Both Python functions pass the thresholds; only `src/main.rs`'s two
+    // tiny Rust functions fall below them.
+    assert!(text.contains("\ncandidates_analyzed: 4\n"), "{text}");
+    assert!(text.contains("\nbelow_threshold: 2\n"), "{text}");
+}
+
+#[test]
+fn python_functions_with_the_same_nesting_but_other_layout_still_group() {
+    // A one-line suite and an indented block are the same structure.
+    let project = Project::new("python-layout");
+    let one_line = PYTHON_INDENTATION_ONLY
+        .replace(
+            "        if flag:\n            total = total + row\n        total",
+            "        if flag: total = total + row\n        total",
+        )
+        .replace("def inside", "def unused_inside")
+        .replace("def outside", "def compact");
+    let source = format!("{PYTHON_INDENTATION_ONLY}\n\n{one_line}");
+    fs::write(project.path().join("tools.py"), source).unwrap();
+    project.init();
+
+    let text = grouping_report(&project);
+    assert!(text.contains("\ntotal_groups: 2\n"), "{text}");
+    assert!(text.contains(",outside,function,python,"), "{text}");
+    assert!(text.contains(",compact,function,python,"), "{text}");
+    assert!(
+        text.contains("inspect tools.py:10-16, tools.py:28-33"),
+        "{text}"
+    );
+}
+
+#[test]
+fn the_first_and_last_methods_of_a_class_group_like_any_other() {
+    // The class body starts on `first`'s first line and ends on `last`'s last
+    // line; that enclosing block must not leak into either method.
+    let method = |name: &str| {
+        format!(
+            "    def {name}(self, rows):
+        total = 0
+        for row in rows:
+            if row:
+                total = total + row
+        return total
+"
+        )
+    };
+    let source = format!("class Box:\n{}\n{}", method("first"), method("last"));
+    let project = Project::new("python-class-edges");
+    fs::write(project.path().join("tools.py"), source).unwrap();
+    project.init();
+
+    let text = grouping_report(&project);
+    assert!(text.contains("\ntotal_groups: 1\n"), "{text}");
+    assert!(
+        text.contains("inspect tools.py:2-7, tools.py:9-14"),
+        "{text}"
+    );
+}
+
 #[test]
 fn a_file_edited_after_indexing_is_skipped_as_stale_not_grouped() {
     let project = Project::new("stale");
