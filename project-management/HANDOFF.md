@@ -2,6 +2,16 @@
 
 The coordinator records the current continuation here; workers checkpoint in their own task branch. See [checkpoint requirements](../PROJECT_MANAGER.md#checkpoints-and-handoffs).
 
+## TASK-207
+
+Previous agent: Claude Code coordinator. Status: IN_PROGRESS.
+Branch `feat/207-token-twins` (primary checkout); contract `5efc8a7`. Workers:
+`claude/207-a-token-sources`, `claude/207-b-duplicate-analysis`, `claude/207-c-cli-report`,
+each in a `mct-207-*` worktree, checkpoints at `project-management/checkpoints/TASK-207-{A,B,C}.md`
+in their own branch. Next action: if workers are gone, inspect each worktree's commits and
+checkpoint, then review and merge them in the order A, B, C (disjoint files, no conflicts
+expected). Remaining: end-to-end tests, check.sh, Stage 8 report, final ADR figures.
+
 ## TASK-PM-001
 
 Previous agent: PM-01 / Codex
