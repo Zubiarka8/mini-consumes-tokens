@@ -1,102 +1,62 @@
-# scripts/
+# Scripts
 
-Wrappers for the commands this repo's contributors (and coding agents) run
-over and over. Each one prints a short summary and sends the full output to
-`target/script-logs/`, so a routine check costs a few lines of terminal
-output — or of an agent's context — instead of hundreds.
+Inventario de scripts del repositorio, agrupados por dominio funcional.
 
-Scripts are split by operating system, one directory each, with the same
-script names and flags wherever both exist:
+## CI
 
-| Directory | For | Status |
-|---|---|---|
-| `unix/` | macOS and Linux (bash 3.2+, so macOS's `/bin/bash` works) | the scripts below |
-| `windows/` | Windows (Windows PowerShell 5.1+ or PowerShell 7+) | the same scripts as `.ps1` — see `windows/README.md` |
+- unix/check.sh: ejecuta los checks locales antes de commitear.
+- unix/ci-failures.sh: resume fallos de CI recientes.
 
-## unix/
+## PR y ramas
 
-| Script | What it does |
-|---|---|
-| `check.sh` | CI's checks locally: `cargo fmt --check`, `cargo test`, the CI clippy invocation (unwrap/expect/panic denied), the `mct-eval` quality gate. One line per step; on failure, only the unformatted files, the failing tests' panic messages, the lint headlines with their location, or the eval regressions. The status lines are also kept in `target/script-logs/check-summary.md` for `pr-body.sh`. `-p <crate>` for one crate (skips eval), `--only fmt\|test\|clippy\|eval`, `--no-eval`. |
-| `pr-body.sh [file]` | A PR description draft whose Verification section is copied from the last `check.sh` run and whose token figures come from the last `token-report.sh` run, so the numbers are not written from memory. Runs nothing. Warns when a log is from another commit than HEAD, from a dirty tree, or from a partial `check.sh` run. Default output: `target/script-logs/pr-body.md`. |
-| `branch-worktree.sh <branch> [base]` | A new branch in its own worktree, cut from `origin/main` (or `base`), in a sibling directory of this checkout. Fetches origin first, refuses an existing branch or path, and prints the directory to `cd` into. |
-| `branches-status.sh [--all]` | What hasn't reached origin: local branches with commits missing from their upstream (or from every remote branch, when they have no upstream), diverged branches, worktrees with uncommitted changes, and stashes. Each branch line shows how many commits are new relative to `main`. Only `git fetch` touches the remote. `--all` lists every branch. |
-| `pr-conflicts.sh [--pr <number>] [--no-fetch]` | Fetches origin once, queries open PRs and CI once, and computes merges without changing the checkout. Reports conflicting files, overlap between PRs, divergence and PRs whose merged tree adds nothing to the base. Logs exact base/head revisions in `target/script-logs/pr-conflicts.json`. `--prepare <number> --worktree <new-path>` creates a new branch/worktree and starts a merge for manual review; it never commits, pushes or closes PRs. Python 3.9+ and authenticated `gh` required. Exit 0: no conflicts, 1: conflicts found (including a prepared conflicted merge), 2: usage/tool error. Windows: `scripts/windows/pr-conflicts.ps1`, same flags. |
-| `publish-branch.sh <branch> [--title <t>] [--dry-run]` | Pushes a local branch to origin and opens a PR against `main`. Fast-forward only: refuses when the push would need a force, and when the branch has nothing new relative to `main`. Pushes only when a PR is already open. Uses the branch's upstream name when it is on origin, otherwise the same name. The PR body lists the commits and ends with the Claude Code footer. Needs `gh`. `--dry-run` shows the plan without pushing. |
-| `release.sh bump <x.y.z\|patch\|minor\|major>`, `dry-run`, `publish` | The scriptable steps of `RELEASING.md`. `bump` sets every workspace and internal dependency version and the README badge, refreshes `Cargo.lock` and the fuzz lockfiles and commits (on `main`, on a new `release-<x.y.z>` branch). `dry-run` checks the dated CHANGELOG section, runs `check.sh` and the installer test, opens the PR with `publish-branch.sh` and waits for a manual Release run. `publish` checks `origin/main`'s version, CHANGELOG and CI, pushes the `v<x.y.z>` tag (this publishes the GitHub Release) and waits until the release has its five archives. Never runs `cargo publish`. Needs `gh`. |
-| `reinstall.sh` | `cargo install` of `mct-mcp-server` and `mct-cli` from this checkout, rebuilds `.mct-index/index.sqlite3` if its schema is newer than the checkout's, then runs `mcp-smoke.sh`. `--reindex` to always rebuild, `--semantic` for `--features semantic`, `--server-only`. Run it after switching branches or merging a server change, then `/mcp`. |
-| `mcp-smoke.sh` | Starts the server over stdio, sends `initialize` + `tools/list`, reports the tool count or the real startup error behind Claude Code's `CONNECTION_CLOSED`. `--dev` for a fresh `target/debug` build, `--expect <tool>` to assert a tool is listed, `--list`, `--bin <path>` and `--root <dir>` to test another binary or project. |
-| `new-tool-check.sh <tool>` | The wiring checklist for a new MCP tool (`#[tool]` method, `tools.ttc`, `KNOWN_TOOL_NAMES`, `TOOL_CATEGORIES`, `batch` dispatch, tests, eval suite, README, CLAUDE.md, protocol spec) with what's still missing, then the catalog tests. `--no-tests` to skip them. |
-| `new-language-check.sh <suffix>` | The same for a new `crates/mct-lang-<suffix>` (CONTRIBUTING.md's checklist): `mct-core`/grammar dependencies, `LanguageParser` impl, workspace member and dependency, the `mct-languages` dependency and `build_registry` line, `tests/parse.rs` with a `ParseError::Syntax` case, fuzz harness and its CI matrix entry, README and `internal/checklist.md`. Then the crate's tests and the `mct-languages` registry tests. `--readme-name 'C++'` when README spells it differently, `--no-tests`. |
-| `token-report.sh` | Every token measurement in one screen: MCP tool vs grep+read per language (`token_benchmark`), JSON/TOON/text per response shape (`format_benchmark`), each composite tool vs separate calls (any `mct-mcp-server` test printing `% fewer`), and `mct-eval`'s catalog/response totals. `--markdown <file>` for a PR body, `--no-eval`. |
-| `corpus-report.sh <lang>` | One language's long-fixture corpus (issue #74): its `tests/corpus.rs` tests, then the `mct-corpus` report — files/lines/symbols/relations totals and relations name-matched across files, per-kind counts, the `internal/corpus-progress.md` cells, and heuristic checks for the usual parser bugs (file module ending past EOF, locals or nested bodies taken as symbols, relations outside their owner's range, members without a parent, odd names, a name that is both a method and a function, the most frequent callees not defined in the corpus). Replaces reading `expected.snap`. `--bless` regenerates the snapshot first, `--update-progress` rewrites the crate's counts and the summary line in the progress table. |
-| `ci-failures.sh [<run-id>]` | Why a CI run failed, in one screen: the jobs that failed and the first error lines of each (compiler errors, panics, failed assertions with the line after), instead of the full `gh run view --log-failed` output. Default: the latest failed run on the current branch. Full log in `target/script-logs/ci-failures.log`. Needs `gh`. |
-| `pr-status.sh <number>` | A pull request in a few lines: title and state, review decision, merge readiness, checks passed/failed/running with the first failing names, and the latest comment. Filtered by `gh`'s own `--jq`, so no jq install. Needs `gh`. |
-| `corpus-progress-check.sh` | Checks the issue #74 progress table against GitHub: every row marked `In PR` must name an open PR, every `Done` row a merged one. Exits 1 and says which row to fix. Needs `gh` authenticated. The table's own consistency (statuses, PR numbers, summary counts) is a CI test, `repo_ledgers.rs`. |
-| `parse-probe.sh <files…>` | Parses each file with this project's parsers (`mct-cli probe`), nothing indexed: symbol/relation counts, or the first syntax error with its source line. For finding which construct a grammar rejects — one suspect snippet per file, all probed at once. |
-| `install-hooks.sh` | Installs the git hooks under `hooks/` (copied, so they survive checking out older branches; re-run to update, `--uninstall` to remove). Today one: `post-checkout`, which on a branch switch that changes the index schema's migration count rebuilds `.mct-index/index.sqlite3` if it's now newer than the installed binaries (the `CONNECTION_CLOSED` failure) and says how to serve the branch. Silent otherwise; `MCT_SKIP_HOOKS=1` skips it. |
+- unix/pr-body.sh: genera el cuerpo del PR.
+- unix/pr-conflicts.sh: detecta conflictos con la rama base.
+- unix/pr-status.sh: muestra el estado del PR actual.
+- unix/publish-branch.sh: publica la rama actual.
+- unix/branch-worktree.sh: crea un worktree para trabajo aislado.
+- unix/branches-status.sh: estado de todas las ramas.
 
-### Helper programs
+## Calidad
 
-| File | What it does |
-|---|---|
-| `pr-conflicts.py` | The shared implementation behind `pr-conflicts.sh` and `pr-conflicts.ps1`; `--pr` can be repeated. Run through the wrappers. |
-| `usage-check.py` | Read-only: prints the Claude Code usage/billing keys cached in `~/.claude.json` as TOON. Local cache values, not live billing; confirm limits with `/usage`. |
+- unix/corpus-progress-check.sh: progreso de indexacion del corpus.
+- unix/corpus-report.sh: reporte de calidad del corpus.
+- unix/new-language-check.sh: valida un nuevo parser de lenguaje.
+- unix/new-tool-check.sh: valida una nueva herramienta MCP.
+- unix/parse-probe.sh: prueba de parsing sobre un archivo concreto.
 
-### Regression tests
+## Rendimiento
 
-Run `python3 scripts/unix/tests/test_pr_conflicts.py` to verify conflict detection,
-redundant changes, stale-head rejection and isolated merge preparation using
-temporary Git repositories. No network access is required.
+- unix/token-report.sh: reporte de ahorro de tokens.
+- unix/reindex-delay-smoke.sh: smoke test de indexacion incremental.
 
-For conflict recovery, use short-lived branches and sequence PRs that edit the
-same files. Update a published branch by merging its current base when history
-must be preserved, review both sides, regenerate snapshots from the combined
-code, and run `check.sh` before a normal fast-forward push. Close a redundant
-PR after verifying its changes are already incorporated. The report and prepare
-mode automate diagnosis and isolation; semantic resolution remains a reviewed
-change. See [GitHub's conflict guidance](https://docs.github.com/en/pull-requests/reference/merge-conflicts).
+## Setup
 
-Run `python3 scripts/unix/tests/test_install.py` (Python 3) to exercise
-`install.sh` against a local release fixture. It verifies both executables
-are installed into the requested directory, including paths with spaces,
-without downloading or installing a remote release. CI runs this check on
-Linux and macOS.
+- unix/install-hooks.sh: instala los git hooks.
+- unix/reinstall.sh: reinstala el binario local.
+- unix/release.sh: prepara una release.
 
-### Logs
+## MCP
 
-Every log in `target/script-logs/` has a fixed name per script and step,
-and the next run of that script overwrites it, so the directory stays at a
-few dozen small files and never needs emptying. Deleting it, or
-`cargo clean`, is always safe. The scripts create no other temporary files.
+- unix/mcp-smoke.sh: smoke test del servidor MCP.
 
-Each log starts with a line recording the command, when it ran and which
-checkout it ran against, so you can tell an old log from the one you just
-produced:
+## Review
 
-```
-# scripts/unix/check.sh -p mct-core — 2026-09-26 19:21:05 +0200 — chore/scripts@9e362dc-dirty
-```
+- codex/review/00-setup-dirs.sh: crea directorios de salida.
+- codex/review/01-validate-config.sh: valida configuracion de Codex.
+- codex/review/02-validate-agents.sh: valida archivos de agentes.
+- codex/review/03-launch-native.sh: lanza revision nativa multi-agente.
+- codex/review/04-launch-parallel.sh: lanza revision paralela manual.
+- codex/review/05-aggregate.sh: consolida reportes.
+- codex/review/06-cleanup.sh: limpia y archiva.
 
-`head -n1 target/script-logs/*` shows all of them at once (PowerShell:
-`Get-ChildItem target\script-logs | % { Get-Content $_.FullName -TotalCount 1 }`).
-`smoke-stdout.jsonl` is the exception: it holds the server's raw JSON-RPC
-replies, so it gets no header line (its file date is the only record).
-`token-report.md` has the same line as an HTML comment, so it doesn't show
-in a PR body.
+## Convenciones
 
-`lib.sh` holds the shared helpers and refuses to run on anything but macOS
-or Linux; `windows/lib.ps1` is its counterpart and refuses anything but
-Windows. Every script takes `--help`; `mcp-smoke.sh` needs `jq` or
-`python3` (`mcp-smoke.ps1` needs nothing extra). Exit status is 0 on
-success, 1 on a failed check, 2 on a usage error.
-
-## windows/
-
-`check.ps1`, `pr-body.ps1`, `branch-worktree.ps1`, `pr-conflicts.ps1`,
-`reinstall.ps1`, `mcp-smoke.ps1`, `new-tool-check.ps1`,
-`new-language-check.ps1`, `token-report.ps1`, `corpus-report.ps1`,
-`ci-failures.ps1`, `pr-status.ps1`, `corpus-progress-check.ps1`,
-`parse-probe.ps1` and `install-hooks.ps1` — one
-per script above, same flags, output lines, logs and exit codes. `branches-status`, `publish-branch` and `release` are unix-only for now. The
-differences are Windows ones, listed in `windows/README.md`.
+- Los scripts imprimen un resumen corto en terminal.
+- El output completo se redirige a target/script-logs/ o .review-output/logs/.
+- Los scripts de Unix son compatibles con bash 3.2+ (macOS por defecto).
+- Los scripts de Windows son PowerShell 5.1+.
+- Cada script tiene un proposito unico.
+- Los scripts no modifican el estado del repositorio salvo los que lo declaran.
+- Los scripts de revision son estrictamente de solo lectura.
+- Subcomandos disponibles con ./scripts/run.sh <subcomando>.
+- Ayuda disponible con ./scripts/help.sh <categoria>.
