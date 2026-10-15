@@ -132,3 +132,21 @@ Status and fix commit:
 ```
 
 Results: APPROVED, CHANGES_REQUIRED, BLOCKED. APPROVED identifies a reviewed revision; it does not imply integration or user acceptance.
+
+## TASK-207 review (2026-10-15, coordinator)
+
+Revision: `feat/207-token-twins` at `3ca021a`, base `2705d64` (`origin/main`). Result: APPROVED
+by the coordinator for maintainer review; not integrated into main.
+
+- R207-1 (major, fixed): worker A's commit `a324710` embedded the output of the shell `id`
+  command (local account and group names) in an assertion message in
+  `crates/mct-languages/src/lib.rs`. Replaced by `{id}` and squashed into the same commit
+  before integration (now `d690c7b`); `git log -p bfbf4b3..HEAD` on the branch has no match.
+  The branch was never pushed. Worker A's checkpoint lists the pre-rewrite hashes.
+- R207-2 (minor, fixed): the coordinator's first real-grouping test expected two groups; a
+  Python docstring is a literal statement, so only one group is correct. Expectation fixed.
+- Checks on `3ca021a`: `scripts/unix/check.sh` fmt ok; tests 1476 passed, 0 failed, 24 ignored;
+  CI clippy (unwrap/expect/panic denied) no warnings; mct-eval no regressions.
+- Scope audit: no change to `schema.rs`, `indexer.rs`, `mct-mcp-server` or `LanguageParser`;
+  no TODO/FIXME/placeholder in the new code; no Cargo.toml/Cargo.lock change.
+- Stage 8 and the 20-group manual review: ADR-007 "Evaluation (Stage 8)".

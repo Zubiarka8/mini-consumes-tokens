@@ -42,3 +42,7 @@ Record significant events only. Link to task, review, and decision details; omit
 - User confirmed on-demand scope, Rust + Python, local-only work and three agents.
 - Coordinator committed the interface contract `5efc8a7` and error records `e36b890`;
   dispatched TASK-207-A/B/C in separate worktrees (PM-DEC-207).
+- Workers A, B and C completed; coordinator reviewed and merged them without conflicts,
+  scrubbed a local-account leak from worker A's unpublished history (REPORT R207-1), added
+  real-token end-to-end tests, ran Stage 8 on this repository and pydantic-core, finished
+  ADR-007 and docs. check.sh on `3ca021a`: all checks passed (1476/0/24).

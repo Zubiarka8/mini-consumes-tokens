@@ -5,10 +5,10 @@ Updated by: Claude Code coordinator (issue #207)
 
 ## Active: issue #207 duplicate-function spike
 
-TASK-207 in TASKS.md. Branch `feat/207-token-twins`, contract `5efc8a7`; workers A/B/C
-in their own worktrees. Next action: review each worker's diff, merge the three
-branches into `feat/207-token-twins`, add end-to-end tests, run `scripts/unix/check.sh`,
-then Stage 8 measurements. Local only: no push or PR without the user's approval.
+TASK-207 in TASKS.md: REVIEW. `feat/207-token-twins` holds the contract, the three merged
+worker branches, end-to-end tests, ADR-007 with the Stage 8 evaluation and docs; `check.sh`
+passed on `3ca021a`. Next action: maintainer review; push/PR only with the user's approval.
+Worker worktrees `mct-207-*` are kept until the user authorizes cleanup.
 
 ## Earlier state (2026-10-12, Codex recovery coordinator)
 
