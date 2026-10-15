@@ -237,3 +237,42 @@ Scope: only Dogfooding registration, retired entry point and related hook docs.
 Acceptance: remove registration and ensure stale calls never block source reads.
 Evidence: JSON parse, silent successful invocation, diff check and live source
 read after retirement. SQLite guard remains active. No publication.
+
+## TASK-207 — Duplicate-function spike (issue #207)
+
+Status: IN_PROGRESS. Coordinator: Claude Code (Opus) in the primary checkout on
+`feat/207-token-twins`. User-confirmed scope (2026-10-15): on demand only through
+`mct-cli duplicates`; Rust and Python token sources; local work only, no push or PR.
+Contract commit: `5efc8a7` (TokenSource in mct-core, DuplicateReport types in
+mct-index, `build_token_sources` in mct-languages). Workers branch from the
+coordination commit that records this entry. Write scopes are disjoint
+(PM-DEC-207); no worker may touch any `Cargo.toml`, `Cargo.lock`, the contract
+files outside its scope, or the seven shared records.
+
+### TASK-207-A — Rust and Python token sources
+
+Status: IN_PROGRESS. Branch `claude/207-a-token-sources`, worktree `mct-207-a-token-sources`.
+Scope: `crates/mct-tree-sitter/src/{lib.rs,tokens.rs}`, `crates/mct-lang-rust/src/{lib.rs,tokens.rs}`,
+`crates/mct-lang-rust/tests/tokens.rs`, the same three Python paths, `crates/mct-languages/src/lib.rs`.
+Acceptance: keyword/identifier/literal/punctuation classification from the tree-sitter
+tree (no regex lexer); comments and whitespace dropped; one token per literal;
+error/missing nodes reported as `error_lines`; bounded recursion, no panic;
+`build_token_sources` registers both; tests for each rule.
+
+### TASK-207-B — Duplicate analysis
+
+Status: IN_PROGRESS. Branch `claude/207-b-duplicate-analysis`, worktree `mct-207-b-duplicate-analysis`.
+Scope: `crates/mct-index/src/duplicates/**` (not `duplicates.rs`), `crates/mct-index/tests/duplicates.rs`.
+Acceptance: issue stages 3–5 and the Stage 7 cases with test-double parser and token source.
+
+### TASK-207-C — CLI subcommand and ADR draft
+
+Status: IN_PROGRESS. Branch `claude/207-c-cli-report`, worktree `mct-207-c-cli-report`.
+Scope: `crates/mct-cli/src/main.rs`, `crates/mct-cli/src/duplicates.rs`, `crates/mct-cli/tests/duplicates.rs`,
+`docs/01-architecture/adrs/007-duplicate-function-report.md`.
+Acceptance: issue Stage 6 TOON report, deterministic rendering tests, ADR draft (Stage 9).
+
+### Coordinator after integration
+
+End-to-end tests with real token sources, `scripts/unix/check.sh`, Stage 8 measurements
+(this repository and one external project), manual review, final ADR figures.

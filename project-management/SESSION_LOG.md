@@ -36,3 +36,9 @@ Record significant events only. Link to task, review, and decision details; omit
   advanced by fast-forward to the reviewed candidates. No main integration.
 - Reproduced the ignored relation_scale release measurement on base and candidate:
   both pass, 15.85 s versus 15.75 s; final alias checkpoint records direct evidence.
+
+## 2026-10-15 — Issue #207 dispatch
+
+- User confirmed on-demand scope, Rust + Python, local-only work and three agents.
+- Coordinator committed the interface contract `5efc8a7` and error records `e36b890`;
+  dispatched TASK-207-A/B/C in separate worktrees (PM-DEC-207).
