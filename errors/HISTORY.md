@@ -67,3 +67,7 @@
 - Successful `get_indexing_status` on the dirty tree based on `32f8a79ccfcd09c3d790e43edc284d7602e9737b`: timestamp 1791792386, 594 files and 12,370 symbols. The 16 malformed-corpus parse failures are expected (ERR-003); no other parse diagnostic was observed in this worktree.
 - Source lookup proceeded through local `build_context_pack` calls. A connected MCP with an unconfirmed root was not used for the code review.
 - Intentional malformed ignore-file and permission-denial fixtures belong to the synthetic regression tests; their diagnostics and reproduced privacy defects are recorded in `project-management/checkpoints/index-privacy-hygiene-review.md`.
+
+## 2026-10-15 — Issue #207 planning
+
+- ERR-013 and ERR-014 observed and resolved in the same session: two caller mistakes inside one `batch` call (a non-existent file path for `get_file_skeleton`, and `name` instead of `symbol` for `build_context_pack`). The other batch sub-queries succeeded; both lookups succeeded on retry with correct arguments. The user was notified. No server defect.
