@@ -21,6 +21,7 @@
 //!
 //! Macro invocation bodies (`token_tree`) are tokenized like ordinary code:
 //! the grammar already splits them into identifiers, literals and punctuation.
+//! No block markers: every Rust block has its own `{`/`}` tokens.
 
 use mct_core::{ParseError, TokenSource, TokenizedFile};
 use mct_tree_sitter::{tokenize_source, TokenClasses};
@@ -44,6 +45,7 @@ const CLASSES: TokenClasses = TokenClasses {
         "primitive_type",
     ],
     keyword_kinds: &["macro_rules!"],
+    block_kinds: &[],
 };
 
 /// Token source for Rust files.

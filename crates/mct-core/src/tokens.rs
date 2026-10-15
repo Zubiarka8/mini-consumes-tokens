@@ -25,13 +25,28 @@ pub enum TokenKind {
     Literal,
     /// An operator or structural punctuation (`+`, `->`, `{`, `;`, `,`, `::`).
     Punctuation,
+    /// Synthetic, zero-width start of a block that only layout delimits (a
+    /// Python indented block), so the same statements nested differently
+    /// never yield the same token sequence. Not source text: it has empty
+    /// [`Token::text`] and does not count as a token of the source.
+    BlockStart,
+    /// Synthetic, zero-width end of the block opened by the matching
+    /// [`TokenKind::BlockStart`].
+    BlockEnd,
+}
+
+impl TokenKind {
+    /// Whether this kind is a synthetic block marker rather than source text.
+    pub fn is_block_marker(self) -> bool {
+        matches!(self, Self::BlockStart | Self::BlockEnd)
+    }
 }
 
 /// One token of a source file. Comments and whitespace are never tokens.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
     pub kind: TokenKind,
-    /// The token's exact source text.
+    /// The token's exact source text; empty for a block marker.
     pub text: String,
     /// 1-based line of the token's first byte (the same convention as
     /// [`crate::Location::line`]).
@@ -74,7 +89,9 @@ pub trait TokenSource: Send + Sync {
     /// so an indexed file's `language` selects its token source.
     fn language_id(&self) -> &'static str;
 
-    /// Every non-comment token of `source`, in source order.
+    /// Every non-comment token of `source`, in source order, plus a
+    /// [`TokenKind::BlockStart`]/[`TokenKind::BlockEnd`] pair around each
+    /// block that only indentation delimits.
     ///
     /// Localized syntax errors are reported through
     /// [`TokenizedFile::error_lines`], not as an `Err`. `Err` is reserved for
@@ -135,6 +152,20 @@ mod tests {
 
         fn tokenize(&self, _: &str, _: &str) -> Result<TokenizedFile, ParseError> {
             Ok(TokenizedFile::default())
+        }
+    }
+
+    #[test]
+    fn only_the_block_kinds_are_block_markers() {
+        assert!(TokenKind::BlockStart.is_block_marker());
+        assert!(TokenKind::BlockEnd.is_block_marker());
+        for kind in [
+            TokenKind::Keyword,
+            TokenKind::Identifier,
+            TokenKind::Literal,
+            TokenKind::Punctuation,
+        ] {
+            assert!(!kind.is_block_marker(), "{kind:?}");
         }
     }
 
