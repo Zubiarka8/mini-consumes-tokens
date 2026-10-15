@@ -458,6 +458,26 @@ fn the_first_and_last_methods_of_a_class_group_like_any_other() {
 }
 
 #[test]
+fn rust_twins_that_differ_only_in_visibility_group() {
+    // A private function copied elsewhere as `pub(super)` is still a copy.
+    let project = Project::new("rust-visibility");
+    let private = RUST_TWIN_A.replace("pub fn total", "fn total");
+    let restricted = RUST_TWIN_B.replace("pub fn weight", "pub(super) fn weight");
+    fs::write(project.path().join("src/a.rs"), private).unwrap();
+    fs::write(project.path().join("src/b.rs"), restricted).unwrap();
+    project.init();
+
+    let text = grouping_report(&project);
+    assert!(text.contains("\nstatus: complete\n"), "{text}");
+    assert!(text.contains("\ntotal_groups: 1\n"), "{text}");
+    assert!(
+        text.contains("inspect src/a.rs:1-10, src/b.rs:1-9"),
+        "{text}"
+    );
+    assert!(!text.contains(",other,"), "{text}");
+}
+
+#[test]
 fn a_file_edited_after_indexing_is_skipped_as_stale_not_grouped() {
     let project = Project::new("stale");
     fs::write(project.path().join("src/a.rs"), RUST_TWIN_A).unwrap();

@@ -16,8 +16,9 @@ use tree_sitter::{Language, Node, Parser, Tree};
 #[derive(Debug, Clone, Copy)]
 pub struct TokenClasses {
     /// Kinds whose whole subtree is dropped: comments (a Rust doc comment has
-    /// child nodes) and other nodes with no lexical content, such as a Python
-    /// line continuation.
+    /// child nodes), other nodes with no lexical content, such as a Python
+    /// line continuation, and nodes that do not change what code does, such
+    /// as a Rust visibility.
     pub trivia_kinds: &'static [&'static str],
     /// Kinds that become exactly one [`TokenKind::Literal`] covering the
     /// whole node, without looking at its children (a string with escape or
