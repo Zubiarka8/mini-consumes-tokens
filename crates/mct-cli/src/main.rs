@@ -5,6 +5,8 @@ use mct_core::{LanguageRegistry, ParseError, SourceFile};
 use mct_index::{ExcludeSet, Index};
 use mct_languages::build_registry;
 
+mod duplicates;
+
 /// Index a repository and inspect the index from the command line.
 ///
 /// The MCP server (`mct-mcp-server`) does the same indexing automatically at
@@ -198,6 +200,40 @@ enum Command {
         #[arg(long)]
         output: Option<PathBuf>,
     },
+    /// Report candidate duplicate functions and methods, as TOON.
+    ///
+    /// Groups functions and methods of the same language whose token
+    /// sequences are identical once identifiers and literals are normalized
+    /// (Type-2 clones). Every group is a CANDIDATE for human review: matching
+    /// structure does not prove the code is redundant or behaves the same.
+    /// Runs on demand against the existing index and the current files; it
+    /// never reindexes or writes anything, so run `init` or `reindex` first.
+    /// Candidates that cannot be analyzed are listed as skipped and mark the
+    /// report partial. Only languages with a token source are analyzed; the
+    /// report names the rest.
+    #[command(
+        after_help = "Examples:\n  cargo run -p mct-cli -- --root . duplicates\n  cargo run -p mct-cli -- --root . duplicates --min-lines 10 --min-tokens 80"
+    )]
+    Duplicates {
+        /// Minimum lines containing at least one token (comments and blank
+        /// lines excluded) a function needs to be compared.
+        #[arg(
+            long,
+            value_name = "N",
+            default_value_t = mct_index::DEFAULT_MIN_LINES,
+            value_parser = duplicates::parse_threshold
+        )]
+        min_lines: usize,
+        /// Minimum tokens (counted before normalization) a function needs to
+        /// be compared.
+        #[arg(
+            long,
+            value_name = "N",
+            default_value_t = mct_index::DEFAULT_MIN_TOKENS,
+            value_parser = duplicates::parse_threshold
+        )]
+        min_tokens: usize,
+    },
     /// Parse files without indexing them and report, per file, either its
     /// symbol/relation counts or the first syntax error with its line.
     ///
@@ -280,6 +316,19 @@ fn main() -> anyhow::Result<()> {
     if let Command::Update = cli.command {
         return self_update();
     }
+    // Read-only like `status`, but it must not create an empty index for a
+    // project that was never indexed, so it checks for the database itself.
+    if let Command::Duplicates {
+        min_lines,
+        min_tokens,
+    } = cli.command
+    {
+        let options = mct_index::DuplicateOptions {
+            min_lines,
+            min_tokens,
+        };
+        return duplicates::run(&root, options);
+    }
 
     let db_path = root.join(".mct-index").join("index.sqlite3");
     let registry = build_registry();
@@ -300,6 +349,7 @@ fn main() -> anyhow::Result<()> {
         | Command::IgnoreInit { .. }
         | Command::GitignoreInit
         | Command::Probe { .. }
+        | Command::Duplicates { .. }
         | Command::Update => {
             unreachable!("returned above")
         }
