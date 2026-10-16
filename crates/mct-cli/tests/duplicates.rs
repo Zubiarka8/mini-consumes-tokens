@@ -59,6 +59,21 @@ fn stderr(output: &Output) -> String {
     String::from_utf8_lossy(&output.stderr).into_owned()
 }
 
+/// The report of `duplicates` run on `project` with `args`; the run must succeed.
+fn duplicates(project: &Project, args: &[&str]) -> String {
+    let mut command: Vec<&dyn AsRef<std::ffi::OsStr>> = vec![&"--root", &project.0, &"duplicates"];
+    for arg in args {
+        command.push(arg);
+    }
+    let output = mct(&command);
+    assert!(
+        output.status.success(),
+        "duplicates failed: {}",
+        stderr(&output)
+    );
+    stdout(&output)
+}
+
 #[test]
 fn exact_callable_boundaries_ignore_neighboring_syntax() {
     let project = Project::new("byte-boundaries");
@@ -68,21 +83,8 @@ fn exact_callable_boundaries_ignore_neighboring_syntax() {
     )
     .unwrap();
     project.init();
-    let output = mct(&[
-        &"--root",
-        &project.path(),
-        &"duplicates",
-        &"--min-lines",
-        &"1",
-        &"--min-tokens",
-        &"1",
-    ]);
-    assert!(output.status.success(), "{}", stderr(&output));
-    assert!(
-        stdout(&output).contains("total_groups: 1\n"),
-        "{}",
-        stdout(&output)
-    );
+    let text = duplicates(&project, &["--min-lines", "1", "--min-tokens", "1"]);
+    assert!(text.contains("total_groups: 1\n"), "{text}");
 }
 
 #[test]
@@ -102,21 +104,19 @@ fn normalization_quality_corpus_preserves_identifier_and_interpolation_structure
         fs::write(project.path().join("sample.py"), source).unwrap();
         project.init();
         for (policy, members, groups) in [("broad", 3, 1), ("consistent", 2, 1), ("exact", 0, 0)] {
-            let output = mct(&[
-                &"--root",
-                &project.path(),
-                &"duplicates",
-                &"--min-lines",
-                &"1",
-                &"--min-tokens",
-                &"1",
-                &"--normalization",
-                &policy,
-                &"--language",
-                &"python",
-            ]);
-            assert!(output.status.success(), "{}", stderr(&output));
-            let text = stdout(&output);
+            let text = duplicates(
+                &project,
+                &[
+                    "--min-lines",
+                    "1",
+                    "--min-tokens",
+                    "1",
+                    "--normalization",
+                    policy,
+                    "--language",
+                    "python",
+                ],
+            );
             assert!(
                 text.contains(&format!("total_groups: {groups}\n")),
                 "{tag}/{policy}: {text}"
@@ -156,21 +156,14 @@ fn group_of<'a>(report: &'a str, symbol: &str) -> &'a str {
     &report[start..end]
 }
 
+/// Every function counts (thresholds of 1), excerpts omitted, then `extra`.
+fn trivial_report(project: &Project, extra: &[&str]) -> String {
+    let base = ["--min-lines", "1", "--min-tokens", "1", "--no-excerpts"];
+    duplicates(project, &[&base[..], extra].concat())
+}
+
 fn evidence_report(project: &Project, policy: &str) -> String {
-    let output = mct(&[
-        &"--root",
-        &project.path(),
-        &"duplicates",
-        &"--min-lines",
-        &"1",
-        &"--min-tokens",
-        &"1",
-        &"--no-excerpts",
-        &"--normalization",
-        &policy,
-    ]);
-    assert!(output.status.success(), "{}", stderr(&output));
-    stdout(&output)
+    trivial_report(project, &["--normalization", policy])
 }
 
 #[test]
@@ -325,22 +318,7 @@ fn mixed_groups_split_into_evidence_subgroups_without_changing_membership() {
     }
 
     // `split_groups` counts every group, like `total_groups`, not the page.
-    let output = mct(&[
-        &"--root",
-        &project.path(),
-        &"duplicates",
-        &"--min-lines",
-        &"1",
-        &"--min-tokens",
-        &"1",
-        &"--no-excerpts",
-        &"--limit",
-        &"1",
-        &"--offset",
-        &"2",
-    ]);
-    assert!(output.status.success(), "{}", stderr(&output));
-    let page = stdout(&output);
+    let page = trivial_report(&project, &["--limit", "1", "--offset", "2"]);
     for expected in ["total_groups: 5\n", "split_groups: 3\n", "groups[1]:\n"] {
         assert!(page.contains(expected), "{expected:?}: {page}");
     }
@@ -555,26 +533,6 @@ fn context_evidence_reports_decorators_and_enclosing_constructs_without_changing
         assert!(inline.contains(",slow_max,function,"), "{inline}");
         assert!(inline.contains("#[inline] / (none)"), "{inline}");
     }
-}
-
-fn trivial_report(project: &Project, extra: &[&str]) -> String {
-    let root = project.path();
-    let mut args: Vec<&dyn AsRef<std::ffi::OsStr>> = vec![
-        &"--root",
-        &root,
-        &"duplicates",
-        &"--min-lines",
-        &"1",
-        &"--min-tokens",
-        &"1",
-        &"--no-excerpts",
-    ];
-    for arg in extra {
-        args.push(arg);
-    }
-    let output = mct(&args);
-    assert!(output.status.success(), "{}", stderr(&output));
-    stdout(&output)
 }
 
 #[test]
@@ -875,22 +833,7 @@ fn coverage_and_pagination_are_independent_of_analysis_completeness() {
     .unwrap();
     fs::write(project.path().join("broken.py"), "def broken(:\n").unwrap();
     project.init();
-    let output = mct(&[
-        &"--root",
-        &project.path(),
-        &"duplicates",
-        &"--min-lines",
-        &"1",
-        &"--min-tokens",
-        &"1",
-        &"--language",
-        &"python",
-        &"--limit",
-        &"0",
-        &"--no-excerpts",
-    ]);
-    assert!(output.status.success(), "{}", stderr(&output));
-    let text = stdout(&output);
+    let text = trivial_report(&project, &["--language", "python", "--limit", "0"]);
     for expected in [
         "status: complete\n",
         "index_coverage: partial\n",
@@ -914,13 +857,8 @@ fn path_filter_runs_before_reading_stale_files_and_respects_directory_boundaries
     .unwrap();
     project.init();
     fs::remove_file(project.path().join("src2/twins.py")).unwrap();
-    let output = mct(&[&"--root", &project.path(), &"duplicates", &"--path", &"src"]);
-    assert!(output.status.success(), "{}", stderr(&output));
-    assert!(
-        stdout(&output).contains("total_skipped: 0\n"),
-        "{}",
-        stdout(&output)
-    );
+    let text = duplicates(&project, &["--path", "src"]);
+    assert!(text.contains("total_skipped: 0\n"), "{text}");
 }
 
 #[test]
@@ -928,30 +866,23 @@ fn report_controls_preserve_totals_rank_positions_and_omit_excerpts() {
     let project = Project::new("report-controls");
     fs::write(project.path().join("sample.py"), "def a(x):\n    return x + x\ndef b(y):\n    return y + y\ndef c(x):\n    return x - x\ndef d(y):\n    return y - y\n").unwrap();
     project.init();
-    let output = mct(&[
-        &"--root",
-        &project.path(),
-        &"duplicates",
-        &"--min-lines",
-        &"1",
-        &"--min-tokens",
-        &"1",
-        &"--language",
-        &"python",
-        &"--path",
-        &"./sample.py",
-        &"--normalization",
-        &"consistent",
-        &"--ranking",
-        &"tokens",
-        &"--limit",
-        &"1",
-        &"--offset",
-        &"1",
-        &"--no-excerpts",
-    ]);
-    assert!(output.status.success(), "{}", stderr(&output));
-    let text = stdout(&output);
+    let text = trivial_report(
+        &project,
+        &[
+            "--language",
+            "python",
+            "--path",
+            "./sample.py",
+            "--normalization",
+            "consistent",
+            "--ranking",
+            "tokens",
+            "--limit",
+            "1",
+            "--offset",
+            "1",
+        ],
+    );
     for expected in [
         "total_groups: 2\n",
         "omitted_groups: 1\n",
@@ -963,22 +894,11 @@ fn report_controls_preserve_totals_rank_positions_and_omit_excerpts() {
         assert!(text.contains(expected), "{expected}: {text}");
     }
     assert!(!text.contains("def c"), "{text}");
-    let root_filter = mct(&[
-        &"--root",
-        &project.path(),
-        &"duplicates",
-        &"--path",
-        &".",
-        &"--min-lines",
-        &"1",
-        &"--min-tokens",
-        &"1",
-    ]);
-    assert!(
-        stdout(&root_filter).contains("total_groups: 2\n"),
-        "{}",
-        stdout(&root_filter)
+    let root_filter = duplicates(
+        &project,
+        &["--path", ".", "--min-lines", "1", "--min-tokens", "1"],
     );
+    assert!(root_filter.contains("total_groups: 2\n"), "{root_filter}");
 }
 
 #[test]
@@ -996,25 +916,23 @@ fn exact_mode_matches_equal_names_across_files_and_preserves_literal_text() {
         )
         .unwrap();
         project.init();
-        let output = mct(&[
-            &"--root",
-            &project.path(),
-            &"duplicates",
-            &"--min-lines",
-            &"1",
-            &"--min-tokens",
-            &"1",
-            &"--language",
-            &"python",
-            &"--normalization",
-            &"exact",
-        ]);
-        assert!(output.status.success(), "{}", stderr(&output));
+        let text = duplicates(
+            &project,
+            &[
+                "--min-lines",
+                "1",
+                "--min-tokens",
+                "1",
+                "--language",
+                "python",
+                "--normalization",
+                "exact",
+            ],
+        );
         let groups = if literal == "1" { 1 } else { 0 };
         assert!(
-            stdout(&output).contains(&format!("total_groups: {groups}\n")),
-            "{}",
-            stdout(&output)
+            text.contains(&format!("total_groups: {groups}\n")),
+            "{text}"
         );
     }
 }
@@ -1028,21 +946,19 @@ fn consistent_mode_compares_spellings_without_claiming_scope_resolution() {
     )
     .unwrap();
     project.init();
-    let output = mct(&[
-        &"--root",
-        &project.path(),
-        &"duplicates",
-        &"--min-lines",
-        &"1",
-        &"--min-tokens",
-        &"20",
-        &"--normalization",
-        &"consistent",
-        &"--language",
-        &"python",
-    ]);
-    assert!(output.status.success(), "{}", stderr(&output));
-    let text = stdout(&output);
+    let text = duplicates(
+        &project,
+        &[
+            "--min-lines",
+            "1",
+            "--min-tokens",
+            "20",
+            "--normalization",
+            "consistent",
+            "--language",
+            "python",
+        ],
+    );
     assert!(
         text.contains("total_groups: 1\n") && text.contains("member_count: 2\n"),
         "{text}"
@@ -1059,8 +975,7 @@ fn duplicate_analysis_does_not_modify_the_database() {
     let database = project.path().join(".mct-index/index.sqlite3");
     let before = fs::read(&database).unwrap();
     let modified = fs::metadata(&database).unwrap().modified().unwrap();
-    let output = mct(&[&"--root", &project.path(), &"duplicates"]);
-    assert!(output.status.success(), "{}", stderr(&output));
+    duplicates(&project, &[]);
     assert_eq!(fs::read(&database).unwrap(), before);
     assert_eq!(
         fs::metadata(&database).unwrap().modified().unwrap(),
@@ -1106,13 +1021,7 @@ fn duplicates_prints_a_valid_complete_report_with_default_thresholds() {
     let project = Project::new("defaults");
     project.init();
 
-    let output = mct(&[&"--root", &project.path(), &"duplicates"]);
-    assert!(
-        output.status.success(),
-        "duplicates failed: {}",
-        stderr(&output)
-    );
-    assert_zero_group_report(&stdout(&output), "6", "40");
+    assert_zero_group_report(&duplicates(&project, &[]), "6", "40");
 }
 
 #[test]
@@ -1120,21 +1029,8 @@ fn custom_thresholds_are_echoed_in_the_report() {
     let project = Project::new("custom");
     project.init();
 
-    let output = mct(&[
-        &"--root",
-        &project.path(),
-        &"duplicates",
-        &"--min-lines",
-        &"12",
-        &"--min-tokens",
-        &"90",
-    ]);
-    assert!(
-        output.status.success(),
-        "duplicates failed: {}",
-        stderr(&output)
-    );
-    assert_zero_group_report(&stdout(&output), "12", "90");
+    let text = duplicates(&project, &["--min-lines", "12", "--min-tokens", "90"]);
+    assert_zero_group_report(&text, "12", "90");
 }
 
 #[test]
@@ -1142,10 +1038,7 @@ fn the_output_is_identical_between_runs() {
     let project = Project::new("repeat");
     project.init();
 
-    let first = mct(&[&"--root", &project.path(), &"duplicates"]);
-    let second = mct(&[&"--root", &project.path(), &"duplicates"]);
-    assert!(first.status.success() && second.status.success());
-    assert_eq!(stdout(&first), stdout(&second));
+    assert_eq!(duplicates(&project, &[]), duplicates(&project, &[]));
 }
 
 #[test]
@@ -1299,21 +1192,7 @@ def shift(cells, delta):
 ";
 
 fn grouping_report(project: &Project) -> String {
-    let output = mct(&[
-        &"--root",
-        &project.path(),
-        &"duplicates",
-        &"--min-lines",
-        &"4",
-        &"--min-tokens",
-        &"20",
-    ]);
-    assert!(
-        output.status.success(),
-        "duplicates failed: {}",
-        stderr(&output)
-    );
-    stdout(&output)
+    duplicates(project, &["--min-lines", "4", "--min-tokens", "20"])
 }
 
 #[test]
@@ -1525,20 +1404,21 @@ fn primitive_spelling_conflicts_keep_compatibility_unknown_and_preserve_groups()
         let project = Project::new(tag);
         fs::write(project.path().join("src").join(filename), source).unwrap();
         project.init();
+        let report = |mode: &str| {
+            duplicates(
+                &project,
+                &[
+                    "--min-lines",
+                    "1",
+                    "--min-tokens",
+                    "1",
+                    "--normalization",
+                    mode,
+                ],
+            )
+        };
         for mode in ["broad", "consistent"] {
-            let output = mct(&[
-                &"--root",
-                &project.path(),
-                &"duplicates",
-                &"--min-lines",
-                &"1",
-                &"--min-tokens",
-                &"1",
-                &"--normalization",
-                &mode,
-            ]);
-            assert!(output.status.success(), "{}", stderr(&output));
-            let text = stdout(&output);
+            let text = report(mode);
             assert!(text.contains("total_groups: 2\n"), "{text}");
             assert_eq!(text.matches("compatibility: unknown").count(), 2, "{text}");
             assert_eq!(
@@ -1561,23 +1441,8 @@ fn primitive_spelling_conflicts_keep_compatibility_unknown_and_preserve_groups()
             assert!(text.contains("Custom") || text.contains("Alias"), "{text}");
             assert!(!text.contains("compatibility: incompatible"), "{text}");
         }
-        let output = mct(&[
-            &"--root",
-            &project.path(),
-            &"duplicates",
-            &"--min-lines",
-            &"1",
-            &"--min-tokens",
-            &"1",
-            &"--normalization",
-            &"exact",
-        ]);
-        assert!(output.status.success(), "{}", stderr(&output));
-        assert!(
-            stdout(&output).contains("total_groups: 0\n"),
-            "{}",
-            stdout(&output)
-        );
+        let exact = report("exact");
+        assert!(exact.contains("total_groups: 0\n"), "{exact}");
     }
 }
 
@@ -1601,14 +1466,7 @@ fn blocks_project(tag: &str) -> Project {
 }
 
 fn blocks_report(project: &Project, extra: &[&str]) -> String {
-    let mut args: Vec<&dyn AsRef<std::ffi::OsStr>> =
-        vec![&"--root", &project.0, &"duplicates", &"--no-excerpts"];
-    for arg in extra {
-        args.push(arg);
-    }
-    let output = mct(&args);
-    assert!(output.status.success(), "{}", stderr(&output));
-    stdout(&output)
+    duplicates(project, &[&["--no-excerpts"][..], extra].concat())
 }
 
 #[test]
