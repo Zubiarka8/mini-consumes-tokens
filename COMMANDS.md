@@ -370,6 +370,10 @@ their identifier and literal tokens are compared position by position:
   method or keyword name), `callee`, `type`, `literal-value`,
   `literal-category` (for example number versus string), `interpolated-string`,
   `docstring`, `mixed-role`. At most 12 distinct differences are listed.
+- `undeclared_name_positions` counts differing `name` positions where some
+  member's spelling is not one of its own parameters: a renamed local, or a
+  reference to a different outside item (path, constant, unit struct, enum
+  variant, function). Bindings are not resolved, so the two are not told apart.
 - `warnings` explain differences worth a reviewer's attention: different
   members, callees or type names, literal values or categories, interpolated
   strings that broad compares whole, and a non-one-to-one identifier pattern.
@@ -410,9 +414,33 @@ Each group also has a `priority` block, computed before pagination:
   `total_groups` and pagination include demoted groups, and `demoted_groups`
   counts them.
 
-Evidence never changes grouping and is not a verdict: no domain is inferred from
-names, type compatibility is not evaluated, and `alignment_not_evaluated` lists
-the remaining unevaluated criteria.
+Each reported group also has a `verdict` block, derived only from the blocks
+above by a fixed rule table (no score, weight or probability):
+- `level`: `SUSPICIOUS` when any rule fires, otherwise `REAL`. `FALSE_POSITIVE`
+  is part of the output contract, but no current rule emits it: no available
+  evidence alone shows that members are not duplicates.
+- `reasons`: every rule that fired, in a stable order. Suspicion reasons are
+  `alignment-unavailable`, `identifier-pattern-differs`,
+  `undeclared-names-differ`, `mixed-role-differences`, `member-names-differ`,
+  `callee-names-differ`, `type-names-differ`,
+  `primitive-type-spellings-differ`, `literal-categories-differ`,
+  `literal-values-differ`, `interpolated-strings-differ`,
+  `context-unavailable`, `decorators-differ`, `enclosing-context-differs`,
+  `call-only-bodies`, `call-shape-mixed` and `body-shape-not-evaluated`. A
+  `REAL` group lists `identical-tokens` or `consistent-renaming` (only the
+  declaration name and the members' own parameters differ), `same-context`,
+  and `docstrings-differ` when docstrings differ.
+- The header's `verdict_counts` (`real`, `suspicious`, `false_positive`) cover
+  the reported groups only, after `--limit`/`--offset`.
+
+Verdicts are heuristic explanations, not proof: `REAL` does not prove equal
+behavior (bindings, types and call effects are unresolved), and renamed locals
+are conservatively `SUSPICIOUS`. A verdict never removes, splits, reorders or
+filters a group; demotion and ranking are unchanged.
+
+Evidence never changes grouping: no domain is inferred from names, type
+compatibility is not evaluated, and `alignment_not_evaluated` lists the
+remaining unevaluated criteria.
 
 ```sh
 mct-cli --root . duplicates

@@ -34,10 +34,11 @@ pub use duplicates::{
     find_duplicate_groups, AlignedDifference, CallShape, ContextAspect, ContextComparison,
     ContextEvidence, ContextStatus, DifferenceKind, DuplicateGroup, DuplicateMember,
     DuplicateOptions, DuplicateRanking, DuplicateReport, EvidenceWarning, GeneratedCodeHandling,
-    GroupEvidence, GroupPriority, IdentifierPattern, Normalization, PriorityLevel, SkipReason,
-    SkippedCandidate, TrivialCallPolicy, TypeEvidence, WarningCode, DEFAULT_MIN_LINES,
-    DEFAULT_MIN_TOKENS, DUPLICATE_KIND_ALLOWLIST, EVIDENCE_NOT_EVALUATED,
-    MAX_DIFFERENCE_TEXT_CHARS, MAX_EXCERPT_LINES, MAX_EXCERPT_LINE_CHARS, MAX_LISTED_DIFFERENCES,
+    GroupEvidence, GroupPriority, GroupVerdict, IdentifierPattern, Normalization, PriorityLevel,
+    SkipReason, SkippedCandidate, TrivialCallPolicy, TypeEvidence, VerdictCounts, VerdictLevel,
+    VerdictReason, WarningCode, DEFAULT_MIN_LINES, DEFAULT_MIN_TOKENS, DUPLICATE_KIND_ALLOWLIST,
+    EVIDENCE_NOT_EVALUATED, MAX_DIFFERENCE_TEXT_CHARS, MAX_EXCERPT_LINES, MAX_EXCERPT_LINE_CHARS,
+    MAX_LISTED_DIFFERENCES,
 };
 pub use error::{IndexError, Result};
 pub use exclude::{

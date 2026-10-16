@@ -223,7 +223,7 @@ fn aligned_evidence_reports_located_differences_without_changing_groups() {
     project.init();
     let broad = evidence_report(&project, "broad");
     assert!(
-        broad.contains("alignment_not_evaluated[5]: "),
+        broad.contains("alignment_not_evaluated[6]: "),
         "the report must name what it does not evaluate: {broad}"
     );
 
@@ -532,6 +532,198 @@ fn call_only_groups_are_demoted_by_shape_not_by_callee_name_and_never_removed() 
         "{}",
         stderr(&output)
     );
+}
+
+/// `(level, reasons line)` of the group whose members include `symbol`.
+fn verdict_of(report: &str, symbol: &str) -> (String, String) {
+    let group = group_of(report, symbol);
+    let block = &group[group.find("    verdict:\n").unwrap()..];
+    let mut lines = block.lines().skip(1);
+    let level = lines.next().unwrap().trim().to_string();
+    let reasons = lines.next().unwrap().trim().to_string();
+    (level, reasons)
+}
+
+/// The header's verdict counts must match the levels of the listed groups.
+fn assert_counts_match_listed_groups(report: &str) {
+    let count = |level: &str| report.matches(&format!("      level: {level}\n")).count();
+    let expected = format!(
+        "verdict_counts:\n  real: {}\n  suspicious: {}\n  false_positive: {}\n",
+        count("REAL"),
+        count("SUSPICIOUS"),
+        count("FALSE_POSITIVE"),
+    );
+    assert!(report.contains(&expected), "{expected} in {report}");
+    assert_eq!(
+        count("REAL") + count("SUSPICIOUS") + count("FALSE_POSITIVE"),
+        report.matches("  - index: ").count(),
+        "{report}"
+    );
+}
+
+#[test]
+fn verdicts_explain_each_group_from_its_evidence_without_changing_groups() {
+    let project = Project::new("verdicts");
+    for name in ["evidence.py", "contexts.py", "trivial.py", "splat.py"] {
+        let source = match name {
+            "evidence.py" => include_str!("fixtures/duplicates/evidence.py"),
+            "contexts.py" => include_str!("fixtures/duplicates/contexts.py"),
+            "splat.py" => include_str!("fixtures/duplicates/splat.py"),
+            _ => include_str!("fixtures/duplicates/trivial.py"),
+        };
+        fs::write(project.path().join(name), source).unwrap();
+    }
+    fs::write(
+        project.path().join("src/main.rs"),
+        include_str!("fixtures/duplicates/evidence.rs"),
+    )
+    .unwrap();
+    project.init();
+
+    let report = evidence_report(&project, "broad");
+    assert!(report.contains("verdict_scope: "), "{report}");
+    assert!(
+        report.contains(
+            "behavioral equivalence (verdicts are heuristic explanations and prove nothing)"
+        ),
+        "{report}"
+    );
+    assert!(report.contains("  false_positive: 0\n"), "{report}");
+    assert_counts_match_listed_groups(&report);
+    for (symbol, level, reasons) in [
+        // Only renamed parameters and locals in the same context.
+        (
+            "renamed_a",
+            "REAL",
+            "reasons[2]: consistent-renaming,same-context",
+        ),
+        (
+            "same_types_a",
+            "REAL",
+            "reasons[2]: consistent-renaming,same-context",
+        ),
+        (
+            "same_context_a",
+            "REAL",
+            "reasons[2]: consistent-renaming,same-context",
+        ),
+        (
+            "documented_a",
+            "REAL",
+            "reasons[3]: consistent-renaming,same-context,docstrings-differ",
+        ),
+        // Differences the detector cannot judge. Renamed locals are not
+        // declared like parameters, so they cannot be told apart from a
+        // reference to a different outside item (a conservative miss).
+        (
+            "forward_a",
+            "SUSPICIOUS",
+            "reasons[1]: undeclared-names-differ",
+        ),
+        (
+            "pattern_a",
+            "SUSPICIOUS",
+            "reasons[1]: identifier-pattern-differs",
+        ),
+        (
+            "members_a",
+            "SUSPICIOUS",
+            "reasons[2]: member-names-differ,callee-names-differ",
+        ),
+        (
+            "typed_a",
+            "SUSPICIOUS",
+            "reasons[3]: type-names-differ,primitive-type-spellings-differ,literal-categories-differ",
+        ),
+        (
+            "retries_a",
+            "SUSPICIOUS",
+            "reasons[1]: literal-values-differ",
+        ),
+        (
+            "fmt_a",
+            "SUSPICIOUS",
+            "reasons[1]: interpolated-strings-differ",
+        ),
+        ("cached_total", "SUSPICIOUS", "reasons[1]: decorators-differ"),
+        (
+            "guarded_rate",
+            "SUSPICIOUS",
+            "reasons[1]: enclosing-context-differs",
+        ),
+        (
+            "log_order",
+            "SUSPICIOUS",
+            "reasons[3]: undeclared-names-differ,member-names-differ,call-only-bodies",
+        ),
+        (
+            "order_total",
+            "SUSPICIOUS",
+            "reasons[4]: member-names-differ,callee-names-differ,type-names-differ,literal-categories-differ",
+        ),
+    ] {
+        assert_eq!(
+            verdict_of(&report, symbol),
+            (format!("level: {level}"), reasons.to_string()),
+            "{symbol}"
+        );
+    }
+
+    // A verdict never removes a group: both ranking policies list the same
+    // members, and the call-only group stays suspicious when kept in rank order.
+    let kept = trivial_report(&project, &["--trivial-calls", "keep"]);
+    assert_counts_match_listed_groups(&kept);
+    assert_eq!(
+        verdict_of(&kept, "log_order").1,
+        "reasons[3]: undeclared-names-differ,member-names-differ,call-only-bodies"
+    );
+    let members = |text: &str| -> Vec<String> {
+        let mut rows: Vec<String> = text
+            .lines()
+            .filter(|line| line.contains(",function,"))
+            .map(str::to_string)
+            .collect();
+        rows.sort();
+        rows
+    };
+    assert_eq!(members(&report), members(&kept));
+
+    // Counts follow the reported page, not the whole total.
+    let page = trivial_report(&project, &["--limit", "2"]);
+    assert!(page.contains("omitted_groups: "), "{page}");
+    assert_counts_match_listed_groups(&page);
+
+    // Consistent mode splits the pairs its policy separates; what remains
+    // keeps its verdict.
+    let consistent = evidence_report(&project, "consistent");
+    assert_counts_match_listed_groups(&consistent);
+    assert!(!consistent.contains(",pattern_a,function,"), "{consistent}");
+    assert_eq!(verdict_of(&consistent, "renamed_a").0, "level: REAL");
+}
+
+#[test]
+fn identical_copies_are_real_with_identical_tokens_in_every_policy() {
+    let project = Project::new("verdict-identical");
+    let source = "def copy(items):\n    total = 0\n    for item in items:\n        total += item * 2\n    return total\n";
+    fs::write(project.path().join("a.py"), source).unwrap();
+    fs::write(project.path().join("b.py"), source).unwrap();
+    project.init();
+    for policy in ["broad", "consistent", "exact"] {
+        let report = evidence_report(&project, policy);
+        assert!(report.contains("total_groups: 1\n"), "{policy}: {report}");
+        assert_eq!(
+            verdict_of(&report, "copy"),
+            (
+                "level: REAL".to_string(),
+                "reasons[2]: identical-tokens,same-context".to_string()
+            ),
+            "{policy}"
+        );
+        assert!(
+            report.contains("verdict_counts:\n  real: 1\n  suspicious: 0\n  false_positive: 0\n"),
+            "{report}"
+        );
+    }
 }
 
 #[test]

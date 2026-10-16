@@ -454,3 +454,132 @@ scenario and size as the unexplained F1.3 RSS increase; the evidence points
 to binary or allocator behavior rather than the algorithm, but the cause is
 unconfirmed. The generated workloads have no splat parameters, so the active
 wrapper path is exercised only by the tests and the source evaluation.
+
+## Explainable verdicts
+
+Design and rule table: [ADR-010](../docs/01-architecture/adrs/010-duplicate-group-verdicts.md).
+
+Evaluation protocol, fixed before inspecting any verdict:
+- Index a copy of this worktree's tracked and unignored files (no `prompt/`
+  snapshots) with the release CLI.
+- Python: `--language python --min-lines 3 --min-tokens 20`, broad. Rust:
+  `--language rust --path crates`, default thresholds.
+- Run the same commands with the pre-verdict release binary. Reports must be
+  identical once verdict lines are removed.
+- Report the distribution and the reason frequencies, then inspect Rust ranks
+  1-5 and Python ranks 1-5 against the source.
+- Criterion: every reason names a difference that exists. A `REAL` group shows
+  nothing beyond the declaration name, renamed parameters and docstrings.
+  `SUSPICIOUS` names something a reviewer must actually judge.
+
+Both rounds left membership, order, counts and every pre-existing line
+identical: 153 Rust groups (3,505 candidates) and 7 Python groups (430
+candidates), both complete with zero skips.
+
+Round 1 (first rule draft, any one-to-one renaming of `name` positions):
+- Rust: 42 `REAL`, 111 `SUSPICIOUS`. Python: 1 `REAL`, 6 `SUSPICIOUS`.
+- The sample looked right. The riskiest class was `REAL` through
+  `consistent-renaming`, so all 12 such Rust groups were inspected as well.
+  This was an addition made after seeing the results.
+- Six of the 12 were wrong. Their members reach different items through
+  renamed paths, enum variants, unit structs or grammar functions:
+  - groups 24 and 66, `traversal::find_calls_bfs` and
+    `queries::find_references_scoped` wrappers in
+    `crates/mct-index/src/lib.rs`;
+  - 86, `SymbolMatchMode::Prefix` / `Fuzzy` tests;
+  - 89 and 145, parser unit structs;
+  - 126, `tree_sitter_python` / `tree_sitter_rust`.
+- This led to the parameter-only `undeclared-names-differ` rule (ADR-010).
+
+Round 2 (final rules; not blind, because the rule change came from round 1):
+
+| Language | Groups | REAL | SUSPICIOUS | FALSE_POSITIVE |
+|---|---|---|---|---|
+| Rust (`crates`) | 153 | 36 (30 `identical-tokens`, 6 `consistent-renaming`) | 117 | 0 |
+| Python | 7 | 0 | 7 | 0 |
+
+Rust reason frequencies:
+
+| Reason | Groups |
+|---|---|
+| `literal-values-differ` | 98 |
+| `undeclared-names-differ` | 49 |
+| `member-names-differ` | 13 |
+| `identifier-pattern-differs` | 7 |
+| `callee-names-differ` | 5 |
+| `type-names-differ` | 4 |
+| `call-only-bodies` | 4 |
+| `literal-categories-differ` | 2 |
+| `enclosing-context-differs` | 2 |
+| `decorators-differ` | 1 |
+
+Python: `undeclared-names-differ` 4, `member-names-differ`,
+`identifier-pattern-differs` and `callee-names-differ` 3 each,
+`call-only-bodies` 1. All 7 Python groups are test fixtures under
+`crates/mct-cli/tests/fixtures/duplicates`.
+
+Sample, read against the source through MCP context packs (Rust) and the
+fixtures (Python):
+- Rust 1 and 2, `push_symbol` (15 members) and `push_relation` (14): `REAL`
+  `identical-tokens`. Correct; the copies are identical.
+- Rust 3, 4 and 5, `open_indexed`, `parse` and depgraph `open_indexed`:
+  `SUSPICIOUS`, `undeclared-names-differ` plus `literal-values-differ`.
+  Correct: `BashParser` versus `CppParser` and the expected counts and
+  fixture paths differ. These are useful consolidations, but only with a
+  parameter.
+- Python 1, `scopes.py`: `identifier-pattern-differs` and
+  `callee-names-differ`. Correct for `distinct`. The `repeated`/`renamed` pair
+  in the same group is equivalent, so this is a conservative over-flag from
+  shadowing.
+- Python 2, `print_report`/`log_summary`: member, callee and undeclared
+  differences (`print` / `log`). Correct.
+- Python 3, `shadow_a`/`shadow_b`: `identifier-pattern-differs` and
+  `undeclared-names-differ`. These are equivalent loops with shadowed names,
+  so this is a conservative miss.
+- Python 4, `splat.py`: `undeclared-names-differ` from renamed locals
+  (`head`/`first`). A consistent rename, so this is a conservative miss.
+- Python 5, `pattern_a`/`pattern_b` (`a*a` versus `x*y`):
+  `identifier-pattern-differs`. Correct; the data flow differs.
+
+Of 10 sampled verdicts, none is a confident wrong label. Seven are accurate
+and three are conservative `SUSPICIOUS` on equivalent code.
+
+Of the 12 groups inspected after round 1:
+- The 6 still `REAL` were checked: 33 `build_server`, 48 HTML/XAML corpus
+  tests, 94 `text`, 96 `search_args`, 119 `to_relative_slash_path` and 144
+  `parent`. Each differs only in its name and renamed parameters. Group 119's
+  two copies, for example, differ only in `entry_path` versus `canonical`.
+- The other 6 are now `SUSPICIOUS` with `undeclared-names-differ`.
+
+These counts describe this snapshot and this sample. They are not a precision
+or recall rate.
+
+Performance: `duplicate_analysis.py` unchanged. The pre-verdict and verdict
+release binaries were run at 1,000 functions (5 runs) and 10,000 (3 runs), in
+both binary orders. Raw results:
+[token-twins-verdicts-results.toon](token-twins-verdicts-results.toon).
+
+Three other agents were building concurrently, and the load average was
+37-72. Timings are therefore dominated by noise. For example, 10,000-function
+`unique` read 0.89 / 4.74 s before/after in one order and 4.78 / 3.17 s in the
+reversed order. No timing difference is attributed to the change. Medians at
+1,000 functions, before / after, in seconds:
+
+| Scenario | Initial order | Reversed order |
+|---|---|---|
+| many-small | 0.160 / 0.202 | 0.165 / 0.248 |
+| few-large | 0.130 / 0.116 | 0.102 / 0.100 |
+| unique | 0.136 / 0.117 | 0.092 / 0.091 |
+| large-group | 0.128 / 0.132 | 0.096 / 0.140 |
+
+Other observations:
+- Peak RSS differs by at most about 1.4 MB, except one reversed-order
+  10,000-function `few-large` observation, where the after-binary peaked 9 MB
+  lower. That difference did not reproduce in the initial order and is not
+  attributed to the change.
+- Group counts are identical in every comparison.
+- Output grows by 562 bytes on empty reports (header) and by about 173 bytes
+  per reported group.
+- The added work is one parameter set per member and one scan of the evidence
+  per reported group, so a measurable cost is not expected. Under this load it
+  could not be confirmed either way.
