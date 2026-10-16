@@ -463,6 +463,39 @@ pub fn list_symbols(
     Ok(rows)
 }
 
+/// All callable candidates in one query, independent of disk enumeration.
+/// A missing/deleted file must remain visible so analysis can report staleness.
+pub(crate) fn list_duplicate_candidates(
+    conn: &Connection,
+    path: Option<&str>,
+    language: Option<&str>,
+) -> Result<Vec<SymbolListEntry>> {
+    let pattern = path.map(directory_pattern);
+    let mut statement = conn.prepare_cached(
+        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.end_line, s.parent, s.level
+         FROM symbols s JOIN files f ON f.id = s.file_id
+         WHERE s.kind IN ('function', 'method')
+           AND (?1 IS NULL OR f.language = ?1)
+           AND (?2 IS NULL OR f.relative_path = ?2 OR f.relative_path LIKE ?3 ESCAPE '\\')
+         ORDER BY f.relative_path, s.line, s.name",
+    )?;
+    let rows = statement
+        .query_map(rusqlite::params![language, path, pattern], |row| {
+            Ok(SymbolListEntry {
+                name: row.get(0)?,
+                kind: row.get(1)?,
+                language: row.get(2)?,
+                relative_path: row.get(3)?,
+                line: row.get(4)?,
+                end_line: row.get(5)?,
+                parent: row.get(6)?,
+                level: row.get(7)?,
+            })
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(rows)
+}
+
 /// The three relation queries differ only in their WHERE predicate; the
 /// SELECT/JOIN prefix and the ORDER BY are shared, with any scope predicates
 /// spliced in between.

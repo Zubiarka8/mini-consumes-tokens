@@ -51,3 +51,21 @@ User-requested Dogfooding retirement removes hook enforcement; SQLite/index acce
 constraints and the source-exploration guidance remain distinct.
 
 - [ADR-005 — Markdown frontmatter alias storage](../docs/01-architecture/adrs/005-markdown-alias-storage.md).
+
+## PM-DEC-207 — Contract-first, file-disjoint split for issue #207
+
+Date: 2026-10-15
+Status: Accepted by the user (three agents, one branch each, no shared file)
+Context: Stage 1 (token source) gates every later stage, and the CLI cannot compile
+without the analysis types, so three agents started from `main` would either collide
+on files or build against guessed interfaces.
+
+Decision: The coordinator first commits the frozen interfaces (`5efc8a7`). Then three
+workers run in parallel on disjoint paths: A token sources, B analysis, C CLI and ADR
+draft. `mct-index` receives tokens through `TokenSourceRegistry`, keeping it free of
+grammar knowledge; `LanguageParser` is unchanged. End-to-end tests and Stage 8
+measurements follow integration, because they need all three parts.
+
+Alternatives considered: one agent per issue stage (stages 2–5 share one module);
+a fourth agent for Go and JS/TS (out of the confirmed Rust + Python scope); two agents
+(token and analysis work would share an owner and serialize).

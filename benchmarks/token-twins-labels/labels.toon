@@ -1,0 +1,144 @@
+schema: token-twins-labels/1
+corpus: benchmarks/token-twins-labels
+labeled: 2026-10-15
+labeling: "human judgment from reading the source, recorded before any verdict, subgroup or partial-block implementation was scored; see benchmarks/token-twins.md#labeled-corpus-for-verdicts-subgroups-and-partial-blocks"
+reference_normalization: broad
+analysis_flags[4]: --min-lines,5,--min-tokens,30
+partial_block_minimum: "assumed equal to the analysis thresholds; every expected block spans at least 7 lines and 60 source tokens, every below-minimum negative at most 3 shared lines"
+levels[4]{level,meaning}:
+  REAL,"the members encode one rule; replacing them with one function needs no new parameter beyond names, or only wraps context (a decorator or attribute) around one shared body"
+  SUSPICIOUS,"plausibly one rule, but consolidation needs parameters for differing members, callees, types, literals or registration context, or the group mixes families; a reviewer must decide"
+  FALSE_POSITIVE,"the shape coincides but the members implement different rules or effects; merging them would couple unrelated code or change behavior"
+  ambiguous,"reasonable reviewers disagree; excluded from the confusion matrix and counted separately"
+partitions[3]{value,meaning}:
+  single,"the whole labeled group is one family; a subgroup report must not split it"
+  split,"members carry a family letter; the expected partition groups members by family"
+  unscored,"no partition claim (pairs whose members are neither one family nor clearly two)"
+cases[31]{id,category,language,verdict,partition,rationale}:
+  py-real-rows,renaming,python,REAL,single,"consistent renaming of locals and parameters; same keys, members, callees and literals"
+  py-real-methods,renaming,python,REAL,single,"same total-with-tax rule in two classes; only locals differ and both read self.lines"
+  py-single-chunks,renaming,python,REAL,single,"three consistent renamings of one batching generator"
+  py-calls-identical,call-only,python,REAL,single,"identical request trace calls copied into two handlers; only receiver and parameter names differ"
+  py-ctx-cache,context,python,REAL,single,"identical bodies; the cached variant should wrap the plain function instead of repeating it, so the decorator difference does not justify two bodies"
+  py-ctx-static,context,python,REAL,single,"a staticmethod copy of a module helper with one renamed parameter; placement does not change the rule"
+  rs-real-checksum,renaming,rust,REAL,single,"consistent renaming; visibility differs, which is not structure"
+  rs-real-methods,renaming,rust,REAL,single,"same total-weight rule in two containers of the same Item type; only locals differ"
+  rs-single-pairs,renaming,rust,REAL,single,"three consistent renamings of one key=value parser"
+  rs-calls-identical,call-only,rust,REAL,single,"identical banner macro calls in two binaries; only the parameter name differs"
+  rs-ctx-inline,context,rust,REAL,single,"#[inline] is an optimization hint; the clamp rule and its data flow are identical"
+  py-susp-retry,literal,python,SUSPICIOUS,unscored,"one retry-GET rule, but endpoint, attempt count, timeout and backoff differ and may be deliberate per-resource policy"
+  py-susp-types,type,python,SUSPICIOUS,unscored,"one range check; bounds and annotations differ (int port versus float ratio), so a merge needs bounds parameters and a type decision"
+  py-split-members,families,python,SUSPICIOUS,split,"family A sums paid amounts skipping cancelled rows, family B sums late days skipping returned loans; each family is a real copy, the whole group is not"
+  py-split-dataflow,families,python,SUSPICIOUS,split,"two scale copies are one rule; skew_points multiplies y by x, a different transform with a not-one-to-one identifier pattern"
+  py-ctx-routes,context,python,SUSPICIOUS,unscored,"handlers registered on different routes must stay separate; the shared pagination body could become a helper taking the model class"
+  rs-susp-types,type,rust,SUSPICIOUS,unscored,"one averaging rule over u32 and u64; a generic version is plausible but overflow behavior and casts differ by width"
+  rs-susp-retry,literal,rust,SUSPICIOUS,unscored,"one retry loop; target URL member, timeout, attempt limit and sleep differ and may be deliberate policy"
+  rs-split-sinks,families,rust,SUSPICIOUS,split,"family A appends live records to a writer, family B feeds non-empty blocks to a hasher; each family is a real copy"
+  py-fp-domains,members,python,FALSE_POSITIVE,unscored,"order discount and parcel surcharge share only a gated-product shape; members and reasons to change are unrelated"
+  py-fp-effects,callees,python,FALSE_POSITIVE,unscored,"sending notifications and revoking tokens have opposite effects; callees, members and audit labels differ"
+  py-fp-dataflow,dataflow,python,FALSE_POSITIVE,unscored,"squared error multiplies the deviation by itself, the cross moment by the sample; the identifier pattern is not one-to-one"
+  py-calls-sinks,call-only,python,FALSE_POSITIVE,unscored,"metrics emission and audit recording call different methods with different effects; only the call shape matches"
+  rs-fp-domains,members,rust,FALSE_POSITIVE,unscored,"seat booking and account withdrawal share a check-and-decrement shape over unrelated aggregates and error types"
+  rs-fp-dataflow,dataflow,rust,FALSE_POSITIVE,unscored,"squared deviation versus deviation times value; the identifier pattern is not one-to-one"
+  rs-calls-sinks,call-only,rust,FALSE_POSITIVE,unscored,"debug logging and gauge export are different sinks; only the macro call shape matches"
+  rs-ctx-platform,context,rust,FALSE_POSITIVE,unscored,"mutually exclusive cfg alternatives: only one exists in any build, and the environment variable and path segments differ"
+  py-amb-builders,api-convention,python,ambiguous,unscored,"public schema builders whose shared shape is the API convention; some reviewers merge them, others keep each builder explicit"
+  py-amb-tests,tests,python,ambiguous,unscored,"tests differing only in input data; parametrizing is reasonable, keeping two readable scenarios is too"
+  py-calls-fields,call-only,python,ambiguous,unscored,"same logger, different events and fields; a field-table helper is possible but of debatable value"
+  rs-ctx-test-oracle,context,rust,ambiguous,unscored,"a test module re-implements the production escaper; it may be an independent oracle or a copy that should call production code"
+members[69]{case,family,path,function,start_line,end_line,broad,consistent,exact}:
+  py-real-rows,A,python/renaming.py,normalize_customer_rows,9,17,true,true,false
+  py-real-rows,A,python/renaming.py,normalize_vendor_rows,20,28,true,true,false
+  py-real-methods,A,python/renaming.py,total_with_tax,36,41,true,true,false
+  py-real-methods,A,python/renaming.py,total_with_tax,48,53,true,true,false
+  py-single-chunks,A,python/families.py,chunked,75,83,true,true,false
+  py-single-chunks,A,python/families.py,batched_rows,86,94,true,true,false
+  py-single-chunks,A,python/families.py,paged_ids,97,105,true,true,false
+  py-calls-identical,A,python/logging_calls.py,trace_checkout_request,9,14,true,true,false
+  py-calls-identical,A,python/logging_calls.py,trace_refund_request,17,22,true,true,false
+  py-ctx-cache,A,python/decorated.py,exchange_rate_cached,30,37,true,true,false
+  py-ctx-cache,A,python/decorated.py,exchange_rate,40,47,true,true,false
+  py-ctx-static,A,python/decorated.py,slugify,51,56,true,true,false
+  py-ctx-static,A,python/decorated.py,make_slug,61,66,true,true,false
+  rs-real-checksum,A,rust/renaming.rs,header_checksum,7,14,true,true,false
+  rs-real-checksum,A,rust/renaming.rs,payload_checksum,16,23,true,true,false
+  rs-real-methods,A,rust/renaming.rs,total_weight,40,46,true,true,false
+  rs-real-methods,A,rust/renaming.rs,total_weight,50,56,true,true,false
+  rs-single-pairs,A,rust/families.rs,parse_pairs,56,64,true,true,false
+  rs-single-pairs,A,rust/families.rs,parse_labels,66,74,true,true,false
+  rs-single-pairs,A,rust/families.rs,parse_tags,76,84,true,true,false
+  rs-calls-identical,A,rust/logging_calls.rs,print_server_banner,7,13,true,true,false
+  rs-calls-identical,A,rust/logging_calls.rs,print_worker_banner,15,21,true,true,false
+  rs-ctx-inline,A,rust/attributes.rs,clamp_volume,8,16,true,true,false
+  rs-ctx-inline,A,rust/attributes.rs,clamp_brightness,18,26,true,true,false
+  py-susp-retry,-,python/twins.py,fetch_profile,67,73,true,true,false
+  py-susp-retry,-,python/twins.py,fetch_invoice,76,82,true,true,false
+  py-susp-types,-,python/twins.py,checked_port,86,91,true,true,false
+  py-susp-types,-,python/twins.py,checked_ratio,94,99,true,true,false
+  py-split-members,A,python/families.py,paid_total,10,16,true,true,false
+  py-split-members,A,python/families.py,settled_total,19,25,true,true,false
+  py-split-members,B,python/families.py,overdue_days,28,34,true,true,false
+  py-split-members,B,python/families.py,outstanding_days,37,43,true,true,false
+  py-split-dataflow,A,python/families.py,scale_points,47,53,true,true,false
+  py-split-dataflow,A,python/families.py,scale_vertices,56,62,true,true,false
+  py-split-dataflow,B,python/families.py,skew_points,65,71,true,false,false
+  py-ctx-routes,-,python/decorated.py,list_users,11,16,true,true,false
+  py-ctx-routes,-,python/decorated.py,list_teams,20,25,true,true,false
+  rs-susp-types,-,rust/twins.rs,average_u32,48,54,true,true,false
+  rs-susp-types,-,rust/twins.rs,average_u64,56,62,true,true,false
+  rs-susp-retry,-,rust/twins.rs,connect_primary,65,77,true,true,false
+  rs-susp-retry,-,rust/twins.rs,connect_replica,79,91,true,true,false
+  rs-split-sinks,A,rust/families.rs,write_records,7,17,true,true,false
+  rs-split-sinks,A,rust/families.rs,write_entries,19,29,true,true,false
+  rs-split-sinks,B,rust/families.rs,hash_blocks,31,41,true,true,false
+  rs-split-sinks,B,rust/families.rs,hash_chunks,43,53,true,true,false
+  py-fp-domains,-,python/twins.py,order_discount,10,16,true,true,false
+  py-fp-domains,-,python/twins.py,shipping_surcharge,19,25,true,true,false
+  py-fp-effects,-,python/twins.py,notify_owners,29,36,true,true,false
+  py-fp-effects,-,python/twins.py,revoke_tokens,39,46,true,true,false
+  py-fp-dataflow,-,python/twins.py,squared_error,50,55,true,false,false
+  py-fp-dataflow,-,python/twins.py,cross_moment,58,63,true,false,false
+  py-calls-sinks,-,python/logging_calls.py,emit_payment_metrics,45,50,true,true,false
+  py-calls-sinks,-,python/logging_calls.py,record_payment_audit,53,58,true,true,false
+  rs-fp-domains,-,rust/twins.rs,reserve_seats,10,17,true,true,false
+  rs-fp-domains,-,rust/twins.rs,withdraw_funds,19,26,true,true,false
+  rs-fp-dataflow,-,rust/twins.rs,sum_squared_deviation,29,36,true,false,false
+  rs-fp-dataflow,-,rust/twins.rs,sum_deviation_product,38,45,true,false,false
+  rs-calls-sinks,-,rust/logging_calls.rs,log_queue_state,24,31,true,true,false
+  rs-calls-sinks,-,rust/logging_calls.rs,export_queue_gauges,33,40,true,true,false
+  rs-ctx-platform,-,rust/attributes.rs,config_dir,30,36,true,true,false
+  rs-ctx-platform,-,rust/attributes.rs,config_dir,39,45,true,true,false
+  py-amb-builders,-,python/twins.py,list_schema,103,110,true,true,false
+  py-amb-builders,-,python/twins.py,set_schema,113,120,true,true,false
+  py-amb-tests,-,python/test_dates.py,test_parse_date_iso,9,14,true,true,false
+  py-amb-tests,-,python/test_dates.py,test_parse_date_compact,17,22,true,true,false
+  py-calls-fields,-,python/logging_calls.py,log_order_created,26,32,true,true,false
+  py-calls-fields,-,python/logging_calls.py,log_order_shipped,35,41,true,true,false
+  rs-ctx-test-oracle,-,rust/attributes.rs,escape_field,47,57,true,true,false
+  rs-ctx-test-oracle,-,rust/attributes.rs,expected_escape,62,72,true,true,false
+partial_blocks[3]{id,language,rationale}:
+  pb-py-validate,python,"the payload validation block (type check, required fields, email check) repeats in create and update; the code around it differs"
+  pb-py-csv,python,"the CSV reading block repeats in three importers across two files; validation before it and use after it differ"
+  pb-rs-parse,rust,"the read-and-parse key=value loop repeats in two loaders; the lock check before it and the result after it differ"
+partial_block_occurrences[7]{block,path,function,start_line,end_line}:
+  pb-py-validate,python/accounts.py,create_account,15,22
+  pb-py-validate,python/accounts.py,update_account,32,39
+  pb-py-csv,python/imports.py,import_contacts,14,20
+  pb-py-csv,python/exports.py,import_products,11,17
+  pb-py-csv,python/exports.py,preview_csv,24,30
+  pb-rs-parse,rust/config.rs,load_config,13,25
+  pb-rs-parse,rust/config.rs,load_secrets,34,46
+negative_blocks[3]{id,kind,rationale}:
+  neg-py-timing,below-minimum,"a three-line timing snippet (elapsed, debug log, return) shared by two different functions; too small to report"
+  neg-rs-timing,below-minimum,"a timing start line and a two-line timing report shared by two different functions; too small to report"
+  neg-py-callshape,shape-only,"five logging call lines whose shape repeats between the trace and order-log groups; same shape, different events, already demoted call-only groups"
+negative_block_occurrences[8]{block,path,function,start_line,end_line}:
+  neg-py-timing,python/accounts.py,rebuild_search_index,49,56
+  neg-py-timing,python/accounts.py,purge_expired_sessions,60,66
+  neg-rs-timing,rust/config.rs,compact_log,53,58
+  neg-rs-timing,rust/config.rs,rebuild_cache,62,68
+  neg-py-callshape,python/logging_calls.py,trace_checkout_request,9,14
+  neg-py-callshape,python/logging_calls.py,trace_refund_request,17,22
+  neg-py-callshape,python/logging_calls.py,log_order_created,26,32
+  neg-py-callshape,python/logging_calls.py,log_order_shipped,35,41
+covered_by_group_rule: "any reported partial block whose occurrences all lie inside members of one labeled case is a false positive of kind covered-by-group: the whole-function group already reports that repetition"

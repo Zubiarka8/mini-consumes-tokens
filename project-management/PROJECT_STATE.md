@@ -1,7 +1,17 @@
 # Project State
 
-Last update: 2026-10-12
-Updated by: Codex recovery coordinator
+Last update: 2026-10-15
+Updated by: Claude Code coordinator (issue #207)
+
+## Active: issue #207 duplicate-function spike
+
+TASK-207 in TASKS.md: REVIEW. `feat/207-token-twins` holds the contract, the three merged
+worker branches, end-to-end tests, ADR-007 with the Stage 8 evaluation and docs; `check.sh`
+passed on `3ca021a`. Next action: maintainer review; push/PR only with the user's approval.
+Worker worktrees `mct-207-*` are kept until the user authorizes cleanup.
+
+## Earlier state (2026-10-12, Codex recovery coordinator)
+
 Observed local base: `a3e10b0f450a93107061152feb862a1d242820a1` (`origin/main`).
 Remote freshness is unverified: GitHub DNS failed during this session.
 Scope: finish the four reviewed task branches and retire the requested hook.
