@@ -24,6 +24,8 @@ Read [PROJECT_MANAGER.md](PROJECT_MANAGER.md) at the start of a substantial work
 
 Write all repository content in English: file and branch names, documentation, code, comments, task records, commit messages, PRs, and issues. Preserve required external identifiers and literal fixture data when translation would change behavior.
 
+Whenever a project MCP tool reports an error (including connection failures, invalid tool arguments, indexing/parse failures, or query failures), notify the user and record it in [errors/REGISTRY.md](errors/REGISTRY.md), following [errors/README.md](errors/README.md). Record the date, tool/operation, relevant arguments without secrets, exact diagnostic, impact, and verification or next action. Update an existing entry for the same problem and append the observation or status change to [errors/HISTORY.md](errors/HISTORY.md), including errors corrected during the same session. Separate intentional malformed-fixture rejection from unexpected failures and caller mistakes from server defects; retain resolved entries and require verification before closing them. When investigating documented parser limitations, maintain these same records.
+
 ## Contributor workflow
 
 Contribute using your preferred editor or assistant. No particular AI provider, model, paid subscription, or multiagent setup is required. Use the tools and permissions available in your environment while following the engineering and source-exploration rules below.
@@ -141,12 +143,15 @@ An MCP server (`mct-mcp-server`) and CLI (`mct-cli`) that index a code repositor
 | Where is X defined? | `find_symbol` |
 | Exact name unknown — words or a partial identifier in any style (`parse request`, `parseReq`, `http server`)? | `search_symbols` — BM25-ranked FTS5 match over each name split at camelCase/snake_case/kebab-case/acronym boundaries, exact name always first; default `limit` 10 (max 100), `offset`, optional `snippet_lines`. Not exhaustive — graph tools stay the source of truth for relations |
 | Only know what the code *does*, not words of its name (`load settings from disk`)? | `hybrid_search` — `search_symbols` fused with local-embedding similarity by weighted Reciprocal Rank Fusion; `alpha` 0 = lexical only … 1 = semantic only (omitted → routed by query shape: 0.1 identifier / 0.75 prose / 0.5 otherwise), `top_k` 10 (max 100), `offset`, `snippet_lines`. Its lexical side also expands dev-verb synonyms and resolves `Type::member` / `module.fn` qualifiers. A `"double-quoted"` query is an exact phrase: lexical only whatever `alpha`, its words consecutive and in order (no prefix/synonym/any-word matching), a literal name match boosted to #1, plus a second section listing prose string literals (error/log messages) holding the phrase as `path:line in <kind> <name> "text"` — case/diacritic-insensitive, currently extracted by `mct-lang-rust` (string literals) and `mct-lang-md` (paragraphs and table rows) only. Needs a `--features semantic` build of `mct-mcp-server` (`bge-small-en-v1.5` by default, `MCT_EMBEDDING_MODEL` to switch; downloaded on first use into `.mct-index/models`); otherwise it returns the lexical ranking and says so on its first line |
+| Search by meaning only, with a cosine-similarity score and signature per hit? | `semantic_search` — the `top_k` (10, max 100) symbols nearest the query embedding, no lexical side; `path`/`language` narrow it. Same `--features semantic` model and stored vectors as `hybrid_search`; `mct-mcp-server --rebuild-embeddings` re-embeds everything and exits |
 | Who calls X directly? | `find_callers` |
 | What does X call? | `find_calls` |
 | Every reference to X (calls, imports, extends/implements) | `find_references` |
 | Full blast radius before changing/removing X | `impact_analysis` |
+| Module-level coupling: which files does this file/directory import (and who imports it), any import cycle? | `get_dependency_graph` — `module` (repo-relative file or directory), `depth` (default 2, clamped to the max query depth), `limit`, `format` `toon`, `export` `dot`/`mermaid`; only RESOLVED imports are edges, unresolved/third-party imports are listed separately; complements the symbol-level `impact_analysis` |
 | About to work on X — its definition, doc comment and source plus callers/callees/dependencies/tests, without reading whole files? | `build_context_pack` — one call: X's definition(s) with the comment/attribute block above and the first `source_lines` (40, max 200) lines, then every related symbol **once** (roles merged, e.g. `caller,test`) with its location and one-line signature, file-level `use`/`import`ers and unresolved callee names as footers, ambiguous callees in a separate uncertain section (never picked); `depth` walks both ways, `path`/`language` pick the definition of an ambiguous name, `limit` 30, `format` `toon`. ~85% fewer tokens than find_symbol + find_calls + find_callers + impact_analysis + reading the files (`crates/mct-mcp-server/tests/context_pack.rs`) |
 | Candidate unused functions/classes/structs/enums/traits/interfaces/type-aliases (heuristic — zero indexed references, not true visibility) | `find_dead_code` |
+| Server started with `MCT_TOOL_ATTENTION=1` (only `select_tools` listed)? | `select_tools` with the user's request first — it narrows `tools/list` and sends `tools/list_changed`; every tool stays callable by name |
 | Several lookups whose queries you already know (e.g. `find_symbol` + `find_callers` + `get_file_skeleton`)? | `batch` — `queries: [{tool, args}]`, up to 25, any read-only tool (not `reindex`, not a nested `batch`); each result under its own `[n] tool` header, a failing sub-query reported inline without failing the rest. Drops the per-call envelope (≥20% fewer tokens, measured in `crates/mct-mcp-server/tests/batch.rs`) |
 | Is the index stale / healthy? | `get_indexing_status`, and `reindex` only if it looks stale |
 
@@ -166,7 +171,7 @@ After upgrading an existing index to Markdown literal extraction, run
 skipped. This parser change requires no schema migration. Exact-phrase literal
 search also works without the optional semantic feature.
 
-**Progressive tool discovery:** `discover_tool_categories` lists every registered tool's name and one-line purpose grouped by category, with no input schemas — a cheap first call for a client that wants to defer the schema payload. `get_tool_schema` then returns one named tool's full input schema and description on demand. These are additive: the standard MCP `tools/list` handshake still returns every tool's full schema up front as usual, so ordinary MCP clients are unaffected — `discover_tool_categories`/`get_tool_schema` only help a client built to use them instead.
+**Progressive tool discovery:** `discover_tool_categories` lists every registered tool's name and one-line purpose grouped by category, with no input schemas — a cheap first call for a client that wants to defer the schema payload. `get_tool_schema` then returns one named tool's full input schema, description and contract (`PRE`/`POST`/`EFFECTS` from `tools.ttc`) on demand. These are additive: the standard MCP `tools/list` handshake still returns every tool's full schema up front as usual, so ordinary MCP clients are unaffected — `discover_tool_categories`/`get_tool_schema` only help a client built to use them instead.
 
 **`.mct-index/index.sqlite3` may only be touched through this project's own software** — the MCP tools above or `mct-cli` subcommands. Never an external tool: no `sqlite3` CLI, no `python3`/`sqlite3` module, no DB browser. If this codebase doesn't ship it, it doesn't get to touch the index.
 
@@ -176,7 +181,7 @@ search also works without the optional semantic feature.
 
 **If the MCP tools are absent from the deferred-tools list** (not shown as "failed to connect" — simply missing): the session started before `.mcp.json` was written/updated, or before `mct-mcp-server` was built. Tell the user to restart Codex or Claude Code / reconnect MCP rather than treating direct SQLite queries as the steady state — direct SQLite access is a same-session fallback only, and even then only through this project's own tooling.
 
-**Enforcement hooks:** `.codex/hooks.json` wires the hooks in `internal/claude-hooks/` (see its `README.md`): `Bash grep|cat|find` over `crates/` and any `sqlite3` / `.mct-index/index.sqlite3` access are denied, edited `.rs` files are rustfmt'd, and Stop runs `scripts/unix/check.sh --only clippy`. Claude Code can enable its optional `PreToolUse` guard from `internal/claude-hooks/dogfood_mcp_guard.py`, as documented in that README.
+**Enforcement hooks:** `.codex/hooks.json` wires the hooks in `internal/claude-hooks/` (see its `README.md`): database index access is denied, edited `.rs` files are rustfmt'd, and Stop runs `scripts/unix/check.sh --only clippy`. The Dogfooding hook is retired; its entry point is a no-op for clients that still have a cached registration.
 
 **If the MCP server shows `CONNECTION_CLOSED`** (a genuine connect failure, not "absent from the list" above): this usually means `.mct-index/index.sqlite3` was migrated by a branch with more `M::up` entries in `crates/mct-index/src/schema.rs` than the branch currently checked out — the checked-out binary sees a migration number "from the future" and aborts on startup with `migration error: Attempt to migrate a database with a migration number that is too high`. Confirm with `scripts/unix/mcp-smoke.sh` (it runs the installed server binary, feeds it a JSON-RPC `initialize` over stdin and prints the startup error). Fix: `scripts/unix/reinstall.sh --reindex`, which reinstalls the binaries from the checked-out branch and rebuilds `.mct-index/index.sqlite3` for its schema (by hand: delete the file, then `cargo run -p mct-cli -- --root . init` — the index is fully derived from source, safe to delete), then reconnect the MCP client. An installed binary older than the index fails the same way, e.g. after running a newer `target/debug` server against this repo — `scripts/unix/reinstall.sh` covers that too. This will recur any time you switch between branches with a different migration count without reindexing first — `scripts/unix/install-hooks.sh` installs a `post-checkout` hook that does that rebuild automatically.
 
@@ -232,6 +237,10 @@ CI (`.github/workflows/ci.yml`) runs `build-test` (build+test+clippy, which incl
 
 ## Architecture
 
+For library/framework work, follow the [implementation map](docs/01-architecture/library-support.md). Keep dependency-format parsing in the private ecosystem modules under `mct-index/src/manifests/`; `manifests.rs` owns file-name routing and shared deduplication. Keep source/framework syntax in its language crate and persistence in `mct-index`. In JS/TS, grammar selection, AST traversal, imports and exports have separate private modules. Update the existing framework coverage and corpus records when behavior changes; language support alone must not be presented as complete framework support.
+
+Organize library-specific extraction and focused parser regressions under `crates/mct-lang-<language>/src/libraries/<name>/`, using English names. Keep common grammar and traversal shared. A test-only library module must use `#[cfg(test)]` and document its actual scope; do not imply production support from a folder's existence. Keep corpus fixtures, snapshots and index integration under `tests/` and preserve their paths during organizational refactors.
+
 **The plugin boundary is the whole design.** `mct-core` defines `LanguageParser` (`language_id()`, `file_extensions()`, `parse()`) and `LanguageRegistry` (extension → parser lookup), and knows nothing about tree-sitter, SQLite, or MCP. Each `crates/mct-lang-*` crate implements that trait for one language via its own tree-sitter grammar. `mct-index` and `mct-mcp-server` never match on language names or extensions directly — everything routes through the registry.
 
 ```
@@ -240,8 +249,9 @@ mct-index    SQLite schema/migrations (a single schema for every language — a 
              column on `files`, not per-language tables), reindex orchestration, queries.
              Knows no language's grammar.
 mct-lang-*   One crate per language, each a LanguageParser impl over its tree-sitter grammar
-mct-mcp-server  MCP tools over stdio (rmcp): list_symbols/find_symbol/search_symbols/hybrid_search/find_references/
-                find_calls/find_callers/impact_analysis/build_context_pack/find_dead_code/reindex/
+mct-languages  The shipped language set: the one build_registry() every binary indexes with
+mct-mcp-server  MCP tools over stdio (rmcp): list_symbols/find_symbol/search_symbols/hybrid_search/semantic_search/find_references/
+                find_calls/find_callers/impact_analysis/get_dependency_graph/build_context_pack/find_dead_code/reindex/
                 get_indexing_status/get_file_skeleton/get_project_overview/get_file_tree/batch
 mct-cli      init/reindex/status/mcp-register subcommands for manual/scripted use
 mct-eval     Quality evaluation of the MCP tools against a fixture suite and a checked-in
@@ -252,7 +262,7 @@ mct-eval     Quality evaluation of the MCP tools against a fixture suite and a c
 
 1. New crate `crates/mct-lang-<name>`, depending on `mct-core` + `tree-sitter-<name>`.
 2. Implement `LanguageParser::parse()` — a pure AST walk that never executes/evals input; a syntax error returns `ParseError::Syntax`, never a panic (this runs over arbitrary third-party source).
-3. Register in exactly two places: `mct-mcp-server/src/registry.rs::build_registry` and `mct-cli/src/main.rs::build_registry`. Nothing else in `mct-core`, `mct-index`, or `mct-mcp-server` changes.
+3. Register in exactly one place: `crates/mct-languages` (a `Cargo.toml` dependency and one line in `src/lib.rs::build_registry`). The CLI, the MCP server and `mct-eval` all use that registry. Nothing else in `mct-core`, `mct-index`, `mct-cli`, or `mct-mcp-server` changes.
 4. Tests in `crates/mct-lang-<name>/tests/parse.rs`: function/call extraction, one idiomatic-syntax case (generics, decorators, whatever the language's equivalent is), one syntax-error case.
 5. Update the language table in `README.md` and `internal/checklist.md`.
 

@@ -125,7 +125,11 @@ export function ContextDemo() {
               <Combobox.Popup className="demo-combo-popup">
                 <Combobox.List>
                   {(id: string) => (
-                    <Combobox.Item key={id} value={id} className="demo-combo-item">
+                    <Combobox.Item
+                      key={id}
+                      value={id}
+                      className="demo-combo-item"
+                    >
                       {t(`demoQuery${id}`)}
                     </Combobox.Item>
                   )}

@@ -4,7 +4,7 @@ The coordinator owns this board. Statuses: TODO, READY, IN_PROGRESS, REVIEW, BLO
 
 ## TASK-PM-001
 
-Status: REVIEW
+Status: DONE
 Owner: Codex coordinator
 Reviewer: Repository maintainer; Codex performs the documentation consistency review
 Branch: `codex/rules-navigation`
@@ -44,11 +44,11 @@ See [Handoff](HANDOFF.md#task-pm-001). Prior routing/recovery implementation com
 
 ### Result
 
-Proposed in [PR #96](https://github.com/Zubiarka8/mini-consumes-tokens/pull/96); awaiting maintainer acceptance and verified integration.
+Merged in [PR #96](https://github.com/Zubiarka8/mini-consumes-tokens/pull/96) as `adbc43a` (2026-10-01).
 
 ## TASK-LANG-001
 
-Status: REVIEW
+Status: DONE
 Owner: Claude Code session (requested by the repository maintainer)
 Reviewer: Repository maintainer
 Branch: `docs/lang-crate-base-and-fuzz`
@@ -93,7 +93,79 @@ Work was first preserved in commit `2d3fd3b` on `codex/preserve-local-work-20261
 
 ### Result
 
-PR: https://github.com/Zubiarka8/mini-consumes-tokens/pull/157 (open, awaiting review and integration).
+Merged in https://github.com/Zubiarka8/mini-consumes-tokens/pull/157 as `7558113` (2026-10-09).
+
+## TASK-LIB-001
+
+Status: DONE
+Owner: Claude Code session (requested by the repository maintainer)
+Reviewer: Repository maintainer
+Branch: `claude/library-onboarding-audit`
+Worktree: `mini-consumes-tokens-claude-library-onboarding-audit` (resolve the local path using Git)
+Base commit: `1ad997242c5629df14d77acb1f5c36baec202140`
+Dependencies: Recovers `codex/library-support-layout` (`60cd44e`, which contains `codex/library-maintainability` `9dfa1cc` rebased as `690f5b0`). Carries the `errors/` registry from PR #168 (`chore/mcp-error-registry`, cherry-picked as `57f834e`); rebase once #167 or #168 merge.
+Priority: Medium
+Risk: Medium; new workspace crate `mct-languages`. No change to the shipped language set, `LanguageParser`, the schema or MCP signatures.
+Model/provider: Single session; no cross-provider dispatch
+
+### Goal
+
+Audit and improve the process for adding and maintaining a language or library, from wiring through indexing, tests, diagnostics and release, by fixing root causes.
+
+### Scope
+
+Recovered: the manifest-format modules and JS/TS walker split (`690f5b0`), and the `src/libraries/<name>/` test layout (`60cd44e`, without its five duplicated READMEs). New: `crates/mct-languages` as the single language registry; `corpus-report` also runs `--lib libraries::`; grammar rejections recorded in `internal/corpus-progress.md`. Exclusions: `website/`, parser behavior, the user's local `.mctignore`.
+
+### Acceptance criteria
+
+- [x] Both reference branches compared with main; only the missing, useful changes recovered.
+- [x] One registration point per language; `new-language-check` passes for an existing language.
+- [x] Library tests moved out of `tests/corpus.rs` still run in `corpus-report`.
+- [x] Guard test fails when a language is left unregistered (checked by removing Lua temporarily).
+- [x] `scripts/unix/check.sh` passes on `9109edd` (see Handoff).
+- [x] Windows CI "PowerShell scripts" step passes (run 38056059719).
+- [ ] Maintainer review and integration.
+
+### Required checks
+
+`scripts/unix/check.sh` (fmt, workspace tests, CI clippy, mct-eval); `new-language-check.sh lua`; `corpus-report.sh css` and `go`.
+
+### Checkpoint
+
+See [Handoff](HANDOFF.md#task-lib-001).
+
+### Result
+
+Merged in https://github.com/Zubiarka8/mini-consumes-tokens/pull/170 as `a94d101` (2026-10-10), including the ERR-010 fix. PRs #167 and #168 were closed as exact patch duplicates carried by #170. ERR-010 was re-verified through a live MCP `find_references` call after a forced reindex (`errors/HISTORY.md`).
+
+## TASK-WEB-169
+
+Status: DONE (integration verified 2026-10-10)
+Owner: Codex coordinator; integration continued by a Claude Code session
+Reviewer: Repository maintainer
+Branch: `docs/fumadocs-site` (PR #169), updated from `codex/reconcile-website-169`
+Worktree: `mct-reconcile-website-169` (resolve the local path using Git)
+Base commit: `4d7d2ea5993bf8e3d5fad45fa10dad2f285e03d2`
+Dependencies: None
+Priority: Medium
+Risk: Medium; website dependencies (React Three Fiber, i18next, Motion, Playwright) and the Pages workflow. No Rust change.
+Model/provider: Codex worker, Claude Code integration review
+
+### Goal
+
+Ship one website: the Fumadocs reference manual from PR #169 plus the EN/ES Code Atlas landing, instead of two competing sites.
+
+### Acceptance criteria
+
+- The reconciled #169 candidate preserved all 27 reference documentation files. Subsequent maintainer-merged #174 intentionally updated architecture, extending, libraries and limitations; the other 23 remain unchanged. This accepted follow-up supersedes byte-for-byte preservation of those four files.
+- Types, formatting, translation resources, prefixed and default builds, export link checks and WebKit browser tests pass.
+- PR #169 has no merge conflict with `main` and its CI is green.
+
+### Result
+
+`405fea8` reconciles the landing with the manual; `6b1bede` merges `main` (CHANGELOG conflict resolved keeping both entries) and was pushed to PR #169. Local checks on `6b1bede`: `npm ci` (0 vulnerabilities), types, format, 102 translation keys, prefixed build, 29 HTML / 1127 links export check, 18 WebKit tests passed. PR #169 merged as `d016df971edac5929efeab67df08f10c72f2dd2f`. Follow-ups [#171](https://github.com/Zubiarka8/mini-consumes-tokens/pull/171), [#173](https://github.com/Zubiarka8/mini-consumes-tokens/pull/173) and [#174](https://github.com/Zubiarka8/mini-consumes-tokens/pull/174) merged as `d148df9`, `d12127b` and `fca28b1`; all four merge commits are ancestors of current main `eee98e9ed0f1467dac32fe172cb90eb846628f83`. #171 adds atlas work, #173 moves details into a dialog, and #174 aligns four manual pages with the language registry/layout.
+
+[Docs run 38083267842](https://github.com/Zubiarka8/mini-consumes-tokens/actions/runs/38083267842), on `fca28b1`, completed successfully: types, format, resources, static build, export links, artifact upload and Pages deployment. Main's website/workflow tree matches that tested revision (`git diff --exit-code fca28b1 origin/main -- website .github/workflows/docs.yml` passed). PR #169's checks show 42 successful jobs and one expected skipped PR deployment, with no failing or pending checks. Default/prefixed build and 18 WebKit results on `6b1bede` are historical local evidence; #173 reports 21 WebKit passes in its PR, not independently rerun here. No runtime/browser tests were added or executed for this bookkeeping change.
 
 ## New task entry template
 
@@ -108,3 +180,60 @@ Required checks and why:
 Checkpoint path / latest known implementation commit:
 Result / PR / integration commit:
 ```
+
+## TASK-DOCS-MCP-PROSE
+
+Status: REVIEW. Candidate: `docs/semantic-search-prose-limits` at `62c677f`.
+Owner: prior Claude docs worker/coordinator; recovery validates the combined site.
+Base: `a3e10b0f450a93107061152feb862a1d242820a1`.
+Scope: tools, client count, prose limits and task checkpoint.
+Acceptance: accurate 20 defined / 19 default tools, conditional select_tools,
+semantic_search feature behavior, text-format list budget, bounded prose search.
+Evidence: checkpoint TASK-DOCS-MCP-PROSE.md; combined site checks in REPORT.md.
+Published previously; no PR or main integration claimed by recovery.
+
+## TASK-MD-ALIAS-135
+
+Status: REVIEW. Candidate: `claude/md-alias-135` at `6bdbbcd`; recovery ref retained.
+Owner: Codex recovery coordinator; independent alias reviewer.
+Base: `a3e10b0f450a93107061152feb862a1d242820a1`.
+Scope: parser aliases, generic storage/migration11, relation view, tests, ADR005,
+and related docs. No MCP signature changes.
+Acceptance: exact aliases; titles excluded; ambiguity preserved; path links exact;
+incremental/full consistency; one-time migration; bounded query cost.
+Evidence: checkpoints/TASK-MD-ALIAS-135.md and REPORT.md.
+Remaining: record approval on #135 and verify baseline watcher limitation on CI.
+No alias publication or main integration.
+
+## TASK-CSS-NESTING-115
+
+Status: REVIEW. Candidate: `claude/css-nesting-115` at `a361b23`; recovery ref retained.
+Owner: CSS recovery worker; coordinator review.
+Base: `a3e10b0f450a93107061152feb862a1d242820a1`.
+Scope: CSS walker, focused/corpus/library tests, error registry and docs.
+Acceptance: AST ampersand replacement; full products; implicit relative parent;
+complex-parent grouping; 256 per-rule limit with marked unexpanded fallback.
+Evidence: 71 pass / 0 fail / 1 ignore in crate; checkpoints/TASK-CSS-NESTING-115.md;
+combined workspace and website evidence in REPORT.md.
+Remaining: baseline watcher CI verification, authorized feature publication.
+
+## TASK-PR-POLICY
+
+Status: REVIEW. Candidate: `docs/pr-integration-policy-draft` at `14a2586`.
+Owner: prior policy worker; independent Codex policy reviewer.
+Base: `a3e10b0f450a93107061152feb862a1d242820a1`.
+Scope: PROJECT_MANAGER.md and task checkpoint.
+Acceptance: user-approved integration policy separate from GitHub enforcement;
+merge commits, PRs for every change, review, no auto-merge/direct main pushes;
+no universal red-before-change test mandate.
+Evidence: diff review, script inspection, diff check; GitHub refresh unavailable.
+No policy publication or main integration.
+
+## TASK-HOOK-RETIREMENT
+
+Status: REVIEW. Candidate: `codex/retire-dogfooding-hook` at `6a0daf3`.
+Owner/reviewer: Codex coordinator.
+Scope: only Dogfooding registration, retired entry point and related hook docs.
+Acceptance: remove registration and ensure stale calls never block source reads.
+Evidence: JSON parse, silent successful invocation, diff check and live source
+read after retirement. SQLite guard remains active. No publication.

@@ -116,6 +116,7 @@ fn build(root: &Path, cache: CacheConfig) -> MctServer {
             cache,
             embedder: embedder(),
             shared_cache: None,
+            tool_attention: false,
         },
     )
 }

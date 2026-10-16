@@ -126,6 +126,8 @@ struct Rules {
     /// Project root whose ignore files the extra patterns were read from —
     /// `None` for a fixed set ([`ExcludeSet::new`]), which never reloads.
     project_root: Option<PathBuf>,
+    /// How many times [`ExcludeSet::reload`] has swapped in new rules.
+    generation: u64,
 }
 
 impl ExcludeSet {
@@ -141,6 +143,7 @@ impl ExcludeSet {
             kinds,
             extra: extra_patterns.to_vec(),
             project_root: None,
+            generation: 0,
         })
     }
 
@@ -156,6 +159,7 @@ impl ExcludeSet {
             kinds,
             extra,
             project_root: Some(root.to_path_buf()),
+            generation: 0,
         })
     }
 
@@ -171,19 +175,38 @@ impl ExcludeSet {
     /// excluded produced no useful filesystem event of its own, so only a
     /// full walk brings the index in line with the new rules.
     pub fn reload(&self) -> bool {
+        // read_ignore_contents logs non-missing read failures. Retain the
+        // previous rules so the watcher's best-effort reload cannot expose
+        // excluded content while a rule file is unreadable.
+        self.try_reload().unwrap_or(false)
+    }
+
+    /// Checked reload for indexing and the MCP query boundary: a read error
+    /// preserves the previous rules and rejects the operation.
+    pub(crate) fn try_reload(&self) -> crate::Result<bool> {
         let Some(root) = self.read().project_root.clone() else {
-            return false;
+            return Ok(false);
         };
-        let extra = read_ignore_file(&root);
+        let extra = read_ignore_file_checked(&root)?;
         if self.read().extra == extra {
-            return false;
+            return Ok(false);
         }
         let (set, kinds) = build_set(&extra);
         let mut rules = self.rules.write().unwrap_or_else(PoisonError::into_inner);
         rules.set = set;
         rules.kinds = kinds;
         rules.extra = extra;
-        true
+        rules.generation = rules.generation.wrapping_add(1);
+        Ok(true)
+    }
+
+    /// Changes with every [`ExcludeSet::reload`] that swapped in new rules,
+    /// through any clone. Whoever reloads, an index compares it with the
+    /// generation its last full reindex applied to tell whether it may still
+    /// hold rows of paths that the current rules exclude
+    /// ([`crate::Index::apply_exclusion_changes`]).
+    pub fn generation(&self) -> u64 {
+        self.read().generation
     }
 
     /// Whether `relative_path` (forward slashes, relative to the project
@@ -320,6 +343,33 @@ fn read_ignore_contents(path: &Path) -> std::io::Result<String> {
         }
     }
     result
+}
+
+/// Unlike the legacy opt-in reader below, a reload must distinguish an
+/// absent rule file from a failed read. Discarding rules on a failed read
+/// would re-index paths the last valid configuration excluded.
+fn read_ignore_file_checked(root: &Path) -> crate::Result<Vec<String>> {
+    let read_optional = |name: &str| {
+        let path = root.join(name);
+        match read_ignore_contents(&path) {
+            Ok(contents) => Ok(contents),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+            Err(source) => Err(crate::IndexError::Io {
+                path: path.display().to_string(),
+                source,
+            }),
+        }
+    };
+    let contents = read_optional(IGNORE_FILE_NAME)?;
+    let mut patterns = Vec::new();
+    for line in contents.lines() {
+        if line.trim() == GITIGNORE_IMPORT_DIRECTIVE {
+            push_lines(&read_optional(GITIGNORE_FILE_NAME)?, &mut patterns);
+        } else {
+            push_lines(line, &mut patterns);
+        }
+    }
+    Ok(patterns)
 }
 
 /// Reads `<root>/.mctignore` (see [`IGNORE_FILE_NAME`]) and turns each line

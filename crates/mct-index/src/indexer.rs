@@ -9,6 +9,7 @@ use walkdir::WalkDir;
 
 use crate::assets::{self, AssetError};
 use crate::manifests;
+use crate::symbol_changes;
 use crate::{ExcludeSet, Index, Result};
 
 /// Extensions of languages this project targets eventually but has no
@@ -45,6 +46,14 @@ pub struct ReindexReport {
     pub files_unchanged: usize,
     pub files_removed: usize,
     pub symbols_written: usize,
+    /// Symbols this run added / removed, netted out per file (a symbol
+    /// rewritten unchanged counts as neither). Only filled while
+    /// [`Index::track_symbol_changes`] is on; zero otherwise.
+    pub symbols_added: usize,
+    pub symbols_removed: usize,
+    /// Up to 20 removed symbols as `kind name (path)`, sorted;
+    /// `symbols_removed` is the exact count. Same condition as above.
+    pub removed_symbols: Vec<String>,
     pub issues: Vec<UnsupportedFile>,
 }
 
@@ -95,6 +104,7 @@ pub fn reindex(
 ) -> Result<ReindexReport> {
     let mut report = ReindexReport::default();
     let root = index.root.clone();
+    symbol_changes::begin(&index.conn)?;
 
     let mut seen_paths = Vec::new();
     let mut seen_manifest_paths = Vec::new();
@@ -105,7 +115,10 @@ pub fn reindex(
     // Pick up edits to the project's ignore files first: the walk below then
     // skips newly excluded paths (and the sweep drops their rows) and indexes
     // newly un-excluded ones, forced or not.
-    index.exclude.reload();
+    index.exclude.try_reload()?;
+    // Read before the walk: a reload by another clone mid-walk leaves this
+    // run's rules behind the set's, and the next check sweeps again.
+    let generation = index.exclude.generation();
 
     // Cloned out of `index` so the `filter_entry` closure below doesn't hold a
     // borrow of it across the loop body, which needs `&mut Index` to write.
@@ -136,6 +149,8 @@ pub fn reindex(
     report.files_removed = remove_missing_files(index, &seen_paths, &unreadable)?;
     remove_missing_manifests(index, &seen_manifest_paths, &unreadable)?;
     touch_last_indexed_at(index)?;
+    index.applied_exclusions = generation;
+    symbol_changes::finish(&index.conn, &mut report)?;
 
     Ok(report)
 }
@@ -552,6 +567,7 @@ pub fn reindex_paths(
     let mut report = ReindexReport::default();
     let root = index.root.clone();
     let exclude = index.exclude.clone();
+    symbol_changes::begin(&index.conn)?;
     // Paths this batch indexed for the first time.
     let mut created = Vec::new();
 
@@ -672,6 +688,7 @@ pub fn reindex_paths(
         report.files_removed += remove_renamed_away(index, &created)?;
     }
     touch_last_indexed_at(index)?;
+    symbol_changes::finish(&index.conn, &mut report)?;
     Ok(report)
 }
 
@@ -979,7 +996,9 @@ fn remove_missing_manifests(
         .collect::<rusqlite::Result<_>>()?;
     drop(stmt);
     for path in &stored {
-        if !seen.contains(path.as_str()) && !is_retained(path, unreadable) {
+        if index.exclude.is_excluded(path)
+            || (!seen.contains(path.as_str()) && !is_retained(path, unreadable))
+        {
             tx.execute(
                 "DELETE FROM dependencies WHERE manifest_path = ?1",
                 params![path],
@@ -1048,6 +1067,19 @@ fn write_parsed_file(
             ],
         )?;
         id_map.insert(symbol.id, tx.last_insert_rowid());
+    }
+
+    for alias in &parsed.symbol_aliases {
+        let Some(&symbol_id) = id_map.get(&alias.symbol) else {
+            continue; // Ignore aliases of nonexistent local symbols.
+        };
+        if alias.name.is_empty() {
+            continue;
+        }
+        tx.execute(
+            "INSERT OR IGNORE INTO symbol_aliases (symbol_id, alias) VALUES (?1, ?2)",
+            params![symbol_id, alias.name],
+        )?;
     }
 
     let targets: HashMap<usize, &mct_core::RelationTarget> = parsed
@@ -1138,7 +1170,9 @@ fn remove_missing_files(
     drop(stmt);
     let mut removed = 0;
     for path in &stored {
-        if !seen.contains(path.as_str()) && !is_retained(path, unreadable) {
+        if index.exclude.is_excluded(path)
+            || (!seen.contains(path.as_str()) && !is_retained(path, unreadable))
+        {
             tx.execute("DELETE FROM files WHERE relative_path = ?1", params![path])?;
             removed += 1;
         }
@@ -1153,7 +1187,9 @@ fn remove_missing_files(
         .collect::<rusqlite::Result<_>>()?;
     drop(stmt);
     for path in issue_paths {
-        if !seen.contains(path.as_str()) && !is_retained(&path, unreadable) {
+        if index.exclude.is_excluded(&path)
+            || (!seen.contains(path.as_str()) && !is_retained(&path, unreadable))
+        {
             tx.execute(
                 "DELETE FROM index_issues WHERE relative_path = ?1",
                 params![path],

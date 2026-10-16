@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `mct-mcp-server --reindex-delay <15s|30s|45s|1m|N s/m/ms|off>` updates the
+  index once no relevant file has changed for the chosen time (every change
+  restarts the wait, bursts collapse into one update, changes during an
+  update are processed afterwards, ignore rules are respected).
+  `mct-cli mcp-register --reindex-delay <value>` writes it into `.mcp.json`
+  and keeps it on later runs. Documented in [COMMANDS.md](COMMANDS.md#--reindex-delay-value).
+- The server's automatic update log (`auto-reindex after file changes settled`)
+  now also reports `symbols_added`, `symbols_removed` and the names of the
+  removed symbols (`removed_symbols`, up to 20, as `kind name (path)`), so a
+  function deleted from a file shows up and not only a deleted file. New
+  `Index::track_symbol_changes` and `ReindexReport` fields back it; tracking is
+  off unless the watcher turns it on.
+- `mct-cli call --tool <name> [--args <json> | --args-file <path>] [--json]
+  [--timeout <seconds>]` runs one MCP tool in-process and prints its result,
+  so scripts no longer need to spawn `mct-mcp-server` and speak JSON-RPC.
+  `init` and `call` accept several roots (`--roots a,b` or a repeated
+  `--root`), with a labelled result or summary per root; `init` gained
+  `--force`. `MctServer::call_tool_by_name` is the new public entry point.
 - `mct-cli update` (also `-u` / `--update`) installs the latest GitHub
   release of `mct-cli` and `mct-mcp-server` into the folder `mct-cli` runs
   from, through the official installer. `mct-cli --version` (`-v`) shows
@@ -26,6 +44,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   manifests declaring a package; `build_context_pack` prints no source for
   an asset. No schema migration and no `reindex --force` needed: the next
   normal reindex adds the assets.
+- Markdown wikilinks resolve by frontmatter alias (issue #135, ADR-005).
+  A bare `[[Alpha]]` or `[[Alpha#Section]]` reaches the note that declares
+  `aliases: [Alpha]`, by exact, case-sensitive text. An alias shared by
+  several notes, or equal to another note's stem, is `ambiguous` and lists
+  every candidate. A `title` is never an alias, and path links ignore
+  aliases. Schema migration 11 adds the `symbol_aliases` table and resets
+  every `content_hash`, so the next normal reindex reparses everything
+  (no `--force` needed). A binary from before this change cannot open a
+  migrated index (`CONNECTION_CLOSED`): run `scripts/unix/reinstall.sh
+  --reindex`.
+- `website/`: the official landing page, an interactive 3D atlas of the
+  project's own index with a full-screen scroll tour of the MCP tools. It is
+  not part of the released binaries; `npm run preview` builds and serves it
+  locally (see `website/README.md`).
+
+### Changed
+
+- **Breaking:** the ten tools with a `format` argument (`list_symbols`,
+  `find_symbol`, `search_symbols`, `hybrid_search`, `find_references`,
+  `find_calls`, `find_callers`, `impact_analysis`, `find_dead_code`,
+  `build_context_pack`) and their `batch` sub-queries now default to TOON
+  when `format` is omitted or null. Pass `"format":"text"` for the previous
+  labelled text; consumers that parsed the old default output must do so.
+  Invalid values are still rejected.
+- New crate `mct-languages` holds the one `build_registry()` that
+  `mct-cli`, `mct-mcp-server` and `mct-eval` index with. Adding a language
+  now means one dependency and one `register` line there, instead of two
+  copies kept in sync by a parity test. `mct_mcp_server::registry::build_registry`
+  still works (re-export). No change to the shipped language set.
+- The reference manual moved from the hand-written `site/index.html` to a
+  Fumadocs site in `website/` (one MDX page per section, built-in search,
+  `llms.txt`), deployed to GitHub Pages by `.github/workflows/docs.yml`.
+
+### Fixed
+
+- Rust: a path in value position (`Arc::new(m::Parser)`, `Severity::Warning`,
+  `.any(char::is_control)`) is now a `references` relation with the same
+  module/type evidence as a call through that path, so `find_references`,
+  `impact_analysis` and `find_dead_code` see it. Run `reindex --force` once
+  so unchanged Rust files pick it up.
 
 ## [0.2.0] - 2026-10-09
 
@@ -193,9 +251,8 @@ CLI:
   0.1.0); no automatic migration — see the upgrade steps above.
 - **Breaking:** the Windows installer reads `MCT_INSTALL_DIR` (was
   `CCM_INSTALL_DIR`) and defaults to `%LOCALAPPDATA%\mct\bin`.
-- License: the project's own code and documentation are Apache-2.0 (0.1.0
-  declared `MIT OR Apache-2.0`). Third-party components keep their own
-  licenses; see `THIRD_PARTY_NOTICES.md`.
+- License: the project's own code and documentation are Apache-2.0.
+  Third-party components keep their own licenses; see `THIRD_PARTY_NOTICES.md`.
 - Relation queries page in the database instead of loading every relation,
   for both direct and multi-hop queries; multi-hop results report a lower
   bound when the total was not computed.

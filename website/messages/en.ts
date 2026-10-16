@@ -4,7 +4,8 @@ const en = {
   demoQueryLabel: "Choose a query",
   demoQuery0: "Where is the function that calculates an invoice's total?",
   demoQuery1: "When is an invoice due, and where does that deadline come from?",
-  demoQuery2: "How does the app decide if an invoice is paid, pending or overdue?",
+  demoQuery2:
+    "How does the app decide if an invoice is paid, pending or overdue?",
   demoQuery3: "Where are the customer's details added to a new invoice?",
   demoQuery4: "Where is a price formatted as money, and in which currency?",
   demoView: "Code view",
@@ -18,10 +19,8 @@ const en = {
     "The function and its dependency, with original line numbers. The rest stays out of the context.",
   demoDisclaimer:
     "Made-up example. The line counts only illustrate the selection; they are not measured savings.",
-  coordinate:
-    "CODE → MAP → ANSWER",
-  localFirst:
-    "ON YOUR COMPUTER. CONNECTED. PRECISE.",
+  coordinate: "CODE → MAP → ANSWER",
+  localFirst: "ON YOUR COMPUTER. CONNECTED. PRECISE.",
   fieldGuide: "FIELD GUIDE",
   skip: "Skip to content",
   nav: "Main navigation",
@@ -36,42 +35,26 @@ const en = {
   intro:
     "AI coding assistants often read whole files just to find one thing. mini-consumes-tokens builds a searchable map of your project on your own computer, so your assistant can ask for only the parts it needs.",
   readDocs: "Explore the documentation",
-  heroNote:
-    "Open source · Free · Runs on your computer",
+  heroNote: "Open source · Free · Runs on your computer",
   visibleLayers: "Visible layers",
-  sourcePreview:
-    "Chosen source code",
-  inspectFile:
-    "Explore file",
+  sourcePreview: "Chosen source code",
+  inspectFile: "Explore file",
   exampleProject: "THIS REPOSITORY",
   projectBrief:
     "This project as its own map sees it: the part that answers your assistant, the stored map and the part that builds it. Three files, six pieces of code and only the connections the map found.",
-  agentQuestion:
-    "THE ASSISTANT’S QUESTION",
-  query0:
-    "What answers my assistant's requests?",
-  query1:
-    "Where does the program read its settings?",
-  query2:
-    "What holds the stored map that every tool reads?",
-  query3:
-    "What happens when everything is scanned again?",
-  query4:
-    "What runs when only a few files change?",
-  query5:
-    "Is the map up to date and healthy?",
-  role0:
-    "Answer the assistant's requests",
-  role1:
-    "Load the settings",
-  role2:
-    "Keep the stored map",
-  role3:
-    "Scan the whole project",
-  role4:
-    "Scan only changed files",
-  role5:
-    "Report map health",
+  agentQuestion: "THE ASSISTANT’S QUESTION",
+  query0: "What answers my assistant's requests?",
+  query1: "Where does the program read its settings?",
+  query2: "What holds the stored map that every tool reads?",
+  query3: "What happens when everything is scanned again?",
+  query4: "What runs when only a few files change?",
+  query5: "Is the map up to date and healthy?",
+  role0: "Answer the assistant's requests",
+  role1: "Load the settings",
+  role2: "Keep the stored map",
+  role3: "Scan the whole project",
+  role4: "Scan only changed files",
+  role5: "Report map health",
   purpose0:
     "The part of the program that answers your assistant. It keeps the stored map and remembers recent answers so repeated questions are fast. main.rs starts it and gives it its settings.",
   purpose1:
@@ -101,16 +84,11 @@ const en = {
     "What is defined in this file or folder, and on which lines?",
   ask_get_file_skeleton:
     "What does this file look like without the inside of its functions?",
-  ask_find_symbol:
-    "Where is this function, class or variable defined?",
-  ask_find_callers:
-    "What calls this function?",
-  ask_find_calls:
-    "What does this function use, and where is each one defined?",
-  ask_find_references:
-    "Where is this used anywhere in the project?",
-  ask_search_symbols:
-    "I only know part of the name. What matches these words?",
+  ask_find_symbol: "Where is this function, class or variable defined?",
+  ask_find_callers: "What calls this function?",
+  ask_find_calls: "What does this function use, and where is each one defined?",
+  ask_find_references: "Where is this used anywhere in the project?",
+  ask_search_symbols: "I only know part of the name. What matches these words?",
   ask_hybrid_search:
     "I know what the code does, not its name. What matches by meaning? Without a language model installed, it matches by words only.",
   ask_impact_analysis:
@@ -134,34 +112,21 @@ const en = {
   atlas: "3D map of the code",
   illustration:
     "Pieces of code and connections from this project's own map, not a live view",
-  allSymbols:
-    "See all pieces of code",
-  hideSymbols:
-    "Hide all pieces of code",
-  allSymbolsTitle:
-    "Every piece of code in the three files",
-  symbolCount:
-    "{{count}} pieces of code",
+  allSymbols: "See all pieces of code",
+  hideSymbols: "Hide all pieces of code",
+  allSymbolsTitle: "Every piece of code in the three files",
+  symbolCount: "{{count}} pieces of code",
   graphAlt:
     "Source files become connected pieces of code. Choosing one shows where it is defined, what uses it and what it depends on, in a short focused summary.",
-  files:
-    "Your files",
-  symbols:
-    "Code map",
-  context:
-    "What the assistant gets",
-  select:
-    "Choose a piece of code to explore",
-  selected:
-    "Chosen piece of code",
-  definition:
-    "Where it is defined",
-  callers:
-    "Used by",
-  dependencies:
-    "Uses",
-  pack:
-    "Focused summary",
+  files: "Your files",
+  symbols: "Code map",
+  context: "What the assistant gets",
+  select: "Choose a piece of code to explore",
+  selected: "Chosen piece of code",
+  definition: "Where it is defined",
+  callers: "Used by",
+  dependencies: "Uses",
+  pack: "Focused summary",
   loading3d: "Loading the 3D map…",
   fallback:
     "The 3D view is unavailable on this device. You can still explore the source and context below.",
@@ -169,46 +134,36 @@ const en = {
   resetView: "Reset view",
   fullscreen: "Full screen",
   exitFullscreen: "Exit full screen",
-  tourWhatTitle:
-    "Your assistant asks the map, not the files.",
+  tourWhatTitle: "Your assistant asks the map, not the files.",
   tourWhatText:
     "mini-consumes-tokens scans your project and builds a map of its functions, types and methods, and of how they use each other. An AI assistant connected through MCP (a standard way to link tools to assistants) can then ask precise questions instead of reading whole files.",
-  tourHowTitle:
-    "Read, stored and served on your computer.",
+  tourHowTitle: "Read, stored and served on your computer.",
   tourOrientTitle: "Get your bearings.",
   tourLookupTitle: "Ask one precise question.",
-  tourCompositeTitle:
-    "Several questions, one request.",
-  tourAdvancedTitle:
-    "Work on big projects.",
-  tourServerTitle:
-    "A request reaches the server.",
+  tourCompositeTitle: "Several questions, one request.",
+  tourAdvancedTitle: "Work on big projects.",
+  tourServerTitle: "A request reaches the server.",
   tourServerText:
     "The server answers every request from your assistant. main.rs starts it with MctServer::new, which loads the settings through ServerOptions::from_env. It keeps the Index and lets one request use it at a time.",
-  tourIndexTitle:
-    "The stored map lives in one place.",
+  tourIndexTitle: "The stored map lives in one place.",
   tourIndexText:
     "Index holds the connection to the database and the project folder, and main.rs opens it with Index::open. Three of its methods hand the work to the scanner: reindex, reindex_paths and status.",
-  tourReindexTitle:
-    "A full scan walks the whole project.",
+  tourReindexTitle: "A full scan walks the whole project.",
   tourReindexText:
     "reindex works in four steps. Look: walk_entry_allowed, record_walk_failure. Read: index_file. Clean up: remove_missing_files, remove_missing_manifests. Note the time: touch_last_indexed_at.",
-  tourReindexPathsTitle:
-    "A change scans only its files.",
+  tourReindexPathsTitle: "A change scans only its files.",
   tourReindexPathsText:
     "reindex_paths uses the same four steps with ten helpers. Look: to_relative_slash_path, is_rules_file, walk_entry_allowed, record_walk_failure. Read: reindex, index_noting_created, record_read_failure. Clean up: remove_under_prefix, remove_renamed_away. Note the time: touch_last_indexed_at.",
   tourStatusTitle: "Health comes from the same database.",
   tourStatusText:
     "status counts files and pieces of code per language, failures and dependencies, and builds an IndexStatus report. Only Index::status calls it.",
-  tourToolsTitle:
-    "Eight tools that reach the stored map.",
+  tourToolsTitle: "Eight tools that reach the stored map.",
   tourToolsText:
     "Each of these tools in server.rs asks the stored map one thing. The number in brackets is the line where it does so.",
   tourMethodsTitle: "Eight Index methods behind them.",
   tourMethodsText:
     "The lib.rs side of the same requests: who asks for each one, or what it passes on to the scanner.",
-  spatialHint:
-    "Drag to rotate · Scroll to zoom · Choose a piece of code",
+  spatialHint: "Drag to rotate · Scroll to zoom · Choose a piece of code",
   mapNote: "One question. Its relevant neighborhood.",
   problemLabel: "01 / THE PROBLEM",
   problemTitle:
@@ -224,12 +179,10 @@ const en = {
     "A conceptual comparison, not a measurement of savings. Results depend on the project and the question.",
   howLabel: "02 / THE MECHANISM",
   howTitle: "From source to understanding.",
-  step1Title:
-    "Scan locally.",
+  step1Title: "Scan locally.",
   step1Text:
     "A reader goes through your code and finds its functions, types and how they connect. The result is saved in a small database inside your project.",
-  step2Title:
-    "Ask the map.",
+  step2Title: "Ask the map.",
   step2Text:
     "An AI assistant that supports MCP (a standard way to connect tools to assistants) asks where something is defined, what uses it and what it depends on, instead of scanning files again and again.",
   step3Title: "Bring the right context.",
@@ -243,8 +196,7 @@ const en = {
   changeTitle: "Trace a change",
   changeText:
     "Follow what uses what across the map. Check which parts and tests a change could affect.",
-  contextTitle:
-    "Give your assistant a focused summary",
+  contextTitle: "Give your assistant a focused summary",
   contextText:
     "Get a summary around one function or type, with its definition, dependencies and related code, in a single request.",
   extras:
@@ -252,16 +204,12 @@ const en = {
   audience:
     "For developers who use AI coding assistants that support MCP, in projects written in several languages. The command-line tool also works on its own.",
   startLabel: "04 / YOUR FIRST MAP",
-  startTitle:
-    "Start with your own project.",
+  startTitle: "Start with your own project.",
   startText:
     "Install the command-line tool and the server first, following the documentation. Then run these commands inside the project you want to scan.",
-  initLabel:
-    "Build the map of your project",
-  registerLabel:
-    "Connect your AI assistant",
-  statusLabel:
-    "Check the map is healthy",
+  initLabel: "Build the map of your project",
+  registerLabel: "Connect your AI assistant",
+  statusLabel: "Check the map is healthy",
   copy: "Copy command",
   copied: "Command copied",
   copyError: "Copy unavailable. Select the command and copy it manually.",
@@ -294,22 +242,19 @@ const en = {
   guide3: "Understand & extend",
   faqLabel: "A FEW GOOD QUESTIONS",
   faqTitle: "Before you start.",
-  faq1:
-    "Where is the map stored?",
+  faq1: "Where is the map stored?",
   answer1:
     "In your project, in a small local database (SQLite). Everything is scanned on your computer. Your AI assistant may send tool answers to its provider, depending on that assistant's settings.",
   faq2: "Does every assistant work with it?",
   answer2:
     "The assistant needs MCP support to use the tools. You can also use the command-line tool on its own to scan, check health and find code that seems unused.",
-  faq3:
-    "Does the map show everything my code does?",
+  faq3: "Does the map show everything my code does?",
   answer3:
     "No. It only understands the supported languages. Things decided only while the program runs may be missed, and “unused” code is a guess, not a certainty. The docs explain these limits.",
   faq4: "What happens when I edit a file?",
   answer4:
     "While the server is connected, it notices changed files and updates the map once you stop editing. You can also ask for a rescan or check health from the command line.",
-  faq5:
-    "How is this different from a normal text search?",
+  faq5: "How is this different from a normal text search?",
   answer5:
     "A text search returns the lines that match. The map returns where things are defined and how they connect: what uses a function, what it depends on and where it is mentioned, so your assistant reads less and understands more.",
   faq6: "Which languages are supported?",
@@ -330,11 +275,8 @@ const en = {
   footer: "Precise context starts with a better map.",
   license: "Apache 2.0 license",
   top: "Back to top",
-  principle1:
-    "Your code",
-  principle2:
-    "A small map",
-  principle3:
-    "Your AI assistant",
+  principle1: "Your code",
+  principle2: "A small map",
+  principle3: "Your AI assistant",
 };
 export default en;
