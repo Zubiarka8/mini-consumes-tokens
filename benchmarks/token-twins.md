@@ -583,3 +583,77 @@ Other observations:
 - The added work is one parameter set per member and one scan of the evidence
   per reported group, so a measurable cost is not expected. Under this load it
   could not be confirmed either way.
+## Evidence subgroups (2026-10-15)
+
+Predeclared evaluation protocol (fixed before inspecting results): a fresh
+index of the feature worktree, built by the new release CLI and read by both
+binaries; broad mode; every Python group with `--language python --min-lines 3
+--min-tokens 20`, and every Rust group with `--language rust --path crates` at
+default thresholds. Before = release CLI of the tree with aligned evidence, type
+evidence and splat roles; after = the same tree plus subgroups. Member rows and
+order must be identical. Every split group is inspected against its difference
+rows and, where unclear, the source, and judged meaningful when the separating
+items name a real difference in what the members reach, call, declare, which
+literal type they use, or how values flow. Counts only; no precision.
+
+The rule changed once during the work. The first version also separated by
+decorators and enclosing text and had no identifier-pattern item. Its Rust run
+(22 of 154 split) had two context-only splits of identical helpers (top level
+against `#[cfg(test)] mod`). The sibling labeled corpus
+(`score_duplicate_labels.py`, `--min-lines 5 --min-tokens 30`) then scored it
+10 of 14 exact partitions: three context cases labeled one family were split,
+and a not-one-to-one data-flow family was not. Context was removed and the
+identifier pattern added; the same scorer now reports 14 of 14. Because the
+change followed that score, the corpus figure is not independent validation.
+
+Results for the final rule. Membership and order are identical in both
+samples (member rows compared line by line).
+
+Python: 10 groups, 8 split. All are regression fixtures (the worktree has no
+application Python above the thresholds): `mixed.py` twice (two families; the
+`value * value` data flow), `scopes.py` (one-to-one against not), `trivial.py`
+twice, `evidence.py` three times (members and callees, a not-one-to-one
+pattern, and a shadowing pair, which splits by spelling as documented). Each
+matches its fixture's intent.
+
+Rust: 154 groups, 25 split, 129 single, 0 not evaluated.
+
+- Different targets, meaningful (17): the three MCP tool handlers
+  (`find_references` / `find_calls` / `find_callers`, server.rs:1973-2083) and
+  five test groups split by which of those tools they call; the three `*_bfs`
+  wrappers in mct-index; `children` against `named_children` in five
+  `visit_children` walkers (3 / 2); one `content_of` variant built with
+  `iter().filter_map()` against seven built with `first()` (1 / 7); `as_str`
+  against `clone` (2 / 2); `fixture_root` against `services_fixture_root`
+  (4 / 1); `symbols` against `relations`; `read` against `write` lock guards;
+  `search` against `hybrid`; the `*_impl` against `*_toon_impl` delegates; and
+  the `insert` / `put` fixture.
+- Test data, correct but weak for consolidation (6): four identifier-pattern
+  splits where a test repeats one expected value in one member and uses two in
+  the other (`SymbolKind::Field` twice against `Method` and `Field`;
+  `Extends`/`Implements` against `Imports` twice; `Struct` against
+  `Module`/`Method`; `find_symbol` twice against `find_symbol` and
+  `find_references`), and two literal-category splits (string against
+  character, number against string).
+- Spurious (2): six `new` constructors split three ways. `mct-lang-xaml`
+  initialises `import_targets` where the others have `relation_targets` (real),
+  but `mct-lang-html` lists the same fields in another order, so its singleton
+  reflects field order. And `parse_at` in `mct-lang-md` splits from three
+  `parse` helpers only because their declaration name equals the `.parse()`
+  method they call, which changes the spelling pattern.
+
+No group was split by renaming alone. These counts describe this sample only.
+
+Performance: `duplicate_analysis.py` unchanged. Raw observations for both rule
+versions: [subgroup results](token-twins-subgroups-results.toon). The host load
+average was 17-66 while other agents built the workspace, and timings swing by
+up to a factor of four between rounds (10,000 many-small: 1.04-9.23 s), so no
+time or RSS difference is attributed to the change. Final rule, 10,000
+functions, before / after then after / before: many-small 1.49 / 1.24 and
+1.04 / 1.06; few-large 0.64 / 0.74 and 0.82 / 0.83; unique 0.75 / 0.73 and
+0.68 / 0.91; large-group 0.63 / 0.64 and 2.43 / 1.04. Group counts are identical
+in every comparison. Output grows by 345 bytes in the header and about 195 bytes
+per reported group. The workloads differ only in names, so every group is
+`single`; the added work is one pass over each group's aligned slots (already
+kept for every candidate) before pagination. A quiet-host remeasurement is a
+follow-up.

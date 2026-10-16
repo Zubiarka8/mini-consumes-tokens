@@ -59,7 +59,7 @@ impl Texts {
         id
     }
 
-    fn get(&self, id: u32) -> &str {
+    pub(super) fn get(&self, id: u32) -> &str {
         usize::try_from(id)
             .ok()
             .and_then(|id| self.texts.get(id))
@@ -210,7 +210,7 @@ fn observe_types(column: &[Slot], texts: &Texts, evidence: &mut TypeEvidence) {
 
 /// The kind of one differing position. Roles come from the first member;
 /// members that disagree on the role make it a mixed-role difference.
-fn difference_kind(column: &[Slot]) -> DifferenceKind {
+pub(super) fn difference_kind(column: &[Slot]) -> DifferenceKind {
     let role = column[0].role;
     if column.iter().any(|slot| slot.literal != column[0].literal) {
         return DifferenceKind::MixedRole;
@@ -246,7 +246,7 @@ fn difference_kind(column: &[Slot]) -> DifferenceKind {
 }
 
 /// `text` cut to [`MAX_DIFFERENCE_TEXT_CHARS`] characters, `…` marking a cut.
-fn cut(text: &str) -> String {
+pub(super) fn cut(text: &str) -> String {
     let mut shown: String = text.chars().take(MAX_DIFFERENCE_TEXT_CHARS).collect();
     if text.chars().nth(MAX_DIFFERENCE_TEXT_CHARS).is_some() {
         shown.push('…');
@@ -420,7 +420,7 @@ pub(super) fn evaluate_priority(
     }
 }
 
-fn joined(items: &[String], separator: &str, empty: &str) -> String {
+pub(super) fn joined(items: &[String], separator: &str, empty: &str) -> String {
     if items.is_empty() {
         empty.to_string()
     } else {

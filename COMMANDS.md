@@ -414,6 +414,35 @@ Each group also has a `priority` block, computed before pagination:
   `total_groups` and pagination include demoted groups, and `demoted_groups`
   counts them.
 
+Each group also has a `subgroups` block, computed before pagination, that
+partitions its members by the evidence separating them. It is an extra view:
+the group's `members` table, totals, order and pagination do not change.
+- Two members share a subgroup when they agree on every separating item: the
+  text at each differing aligned `member`, `callee` and `type` position, the
+  category at each `literal-category` position, and their identifier pattern
+  (each spelling numbered by first use: equal patterns are exactly consistent
+  renamings, so `value * factor` and `value * value` differ). A `member`,
+  `callee` or `type` position is not separating when every member's text there
+  is a name that member declares or takes as a parameter (a called parameter, a
+  recursive call). Individual names, parameters, literal values, interpolated
+  strings, docstrings and mixed roles never separate, so a consistent renaming
+  never splits. Decorators and enclosing constructs stay in the `context`
+  block and never separate.
+- `status`: `single` (nothing separates the members), `split`, or
+  `not-evaluated` (aligned tokens missing for a member). `basis` lists the
+  separating kinds; `count` the subgroups; `separating_items` the separating
+  positions, plus one when identifier patterns differ.
+- `all_distinct: true` means every member is its own subgroup: no rows are
+  listed, because the member table already shows that partition.
+- Otherwise `rows` lists at most 8 subgroups, in order of their first member:
+  `id`, `size`, `members` (1-based positions in the group's member table, at
+  most 10), their `locations` (`path:start_line`), and `values`: the
+  subgroup's value at the first three separating items, as `kind=text`
+  (`identifier-pattern=#N` numbers patterns in member order).
+  `omitted_subgroups` counts the unlisted rest.
+- The header's `split_groups` counts split groups among all `total_groups`.
+
+
 Each reported group also has a `verdict` block, derived only from the blocks
 above by a fixed rule table (no score, weight or probability):
 - `level`: `SUSPICIOUS` when any rule fires, otherwise `REAL`. `FALSE_POSITIVE`
@@ -450,7 +479,8 @@ mct-cli --root . duplicates --normalization exact --min-lines 10 --min-tokens 80
 
 Design: [ADR-007](docs/01-architecture/adrs/007-duplicate-function-report.md),
 [comparison policies](docs/01-architecture/adrs/008-token-twins-comparison-policies.md),
-[aligned evidence](docs/01-architecture/adrs/009-duplicate-group-aligned-evidence.md).
+[aligned evidence](docs/01-architecture/adrs/009-duplicate-group-aligned-evidence.md),
+[evidence subgroups](docs/01-architecture/adrs/011-duplicate-subgroups.md).
 Reproducible measurements: [token twins evaluation](benchmarks/token-twins.md).
 
 <details>

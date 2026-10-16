@@ -42,6 +42,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `FALSE_POSITIVE`. The new `alignment.undeclared_name_positions` count makes
   renamed references to outside items (paths, enum variants, unit structs)
   visible. Verdicts never remove, split or reorder groups.
+  A `subgroups` block partitions each group's members by the evidence that
+  separates them (differing member, callee and type texts, literal categories
+  and non-equivalent identifier patterns; a consistent renaming never splits,
+  and context never separates), with a
+  `split_groups` header count. Membership, totals and pagination are unchanged;
+  see [ADR-011](docs/01-architecture/adrs/011-duplicate-subgroups.md).
 
 - `mct-mcp-server --reindex-delay <15s|30s|45s|1m|N s/m/ms|off>` updates the
   index once no relevant file has changed for the chosen time (every change

@@ -16,6 +16,7 @@ use anyhow::Context as _;
 use mct_index::{
     find_duplicate_groups, ContextEvidence, DuplicateGroup, DuplicateMember, DuplicateOptions,
     DuplicateReport, ExcludeSet, GroupEvidence, Index, SkipReason, SkippedCandidate,
+    SubgroupStatus,
 };
 use mct_languages::build_token_sources;
 
@@ -253,6 +254,15 @@ pub(crate) fn render_toon(report: &DuplicateReport) -> String {
          consistent renaming in the same context; no current rule emits FALSE_POSITIVE; \
          verdicts never remove or reorder groups; counts cover the reported groups only",
     );
+    field(
+        &mut out,
+        0,
+        "subgroups_scope",
+        "per group, members that agree on every differing member, callee and type text \
+         (names a member declares or takes as a parameter excluded), literal category and \
+         identifier pattern; decorators and enclosing constructs do not separate; an extra \
+         view, membership, totals and pagination are unchanged; not a verdict",
+    );
     number(
         &mut out,
         0,
@@ -271,6 +281,7 @@ pub(crate) fn render_toon(report: &DuplicateReport) -> String {
         "false_positive",
         report.verdict_counts.false_positive,
     );
+    number(&mut out, 0, "split_groups", report.split_groups);
     number(
         &mut out,
         0,
@@ -356,6 +367,7 @@ fn render_group(
     field(out, 6, "reason", &group.priority.reason);
     render_alignment(out, &group.evidence);
     render_context(out, &group.evidence.context);
+    render_subgroups(out, group);
     let _ = writeln!(
         out,
         "    members[{}]{{path,range,symbol,kind,language,lines,tokens,excerpt}}:",
@@ -484,6 +496,61 @@ fn render_context(out: &mut String, context: &ContextEvidence) {
     }
 }
 
+/// The evidence-based partition of the group's members. `members` are 1-based
+/// positions in the group's member table; `locations` name the same members.
+fn render_subgroups(out: &mut String, group: &DuplicateGroup) {
+    let subgroups = &group.subgroups;
+    out.push_str("    subgroups:\n");
+    field(out, 6, "status", subgroups.status.as_str());
+    let basis: Vec<String> = subgroups
+        .basis
+        .iter()
+        .map(|basis| basis.as_str().to_string())
+        .collect();
+    out.push_str("      ");
+    inline_array(out, "basis", &basis);
+    number(out, 6, "count", subgroups.count);
+    number(out, 6, "separating_items", subgroups.separating_items);
+    let _ = writeln!(out, "      all_distinct: {}", subgroups.all_distinct);
+    number(
+        out,
+        6,
+        "omitted_subgroups",
+        if subgroups.all_distinct || subgroups.status != SubgroupStatus::Split {
+            0
+        } else {
+            subgroups.count.saturating_sub(subgroups.subgroups.len())
+        },
+    );
+    let _ = writeln!(
+        out,
+        "      rows[{}]{{id,size,members,locations,values}}:",
+        subgroups.subgroups.len()
+    );
+    for row in &subgroups.subgroups {
+        let indices: Vec<String> = row
+            .members
+            .iter()
+            .map(|index| (index + 1).to_string())
+            .collect();
+        let locations: Vec<String> = row
+            .members
+            .iter()
+            .filter_map(|&index| group.members.get(index))
+            .map(|member| format!("{}:{}", member.path, member.start_line))
+            .collect();
+        let _ = writeln!(
+            out,
+            "        {},{},{},{},{}",
+            row.id,
+            row.size,
+            quote_if_needed(&indices.join(" ")),
+            quote_if_needed(&locations.join(" / ")),
+            quote_if_needed(&row.values.join("; "))
+        );
+    }
+}
+
 fn render_skipped(out: &mut String, skipped: &SkippedCandidate) {
     let range = match skipped.end_line {
         Some(end) => format!("{}-{end}", skipped.start_line),
@@ -572,8 +639,9 @@ mod tests {
 
     use mct_index::{
         AlignedDifference, CallShape, ContextAspect, ContextComparison, ContextStatus,
-        DifferenceKind, EvidenceWarning, GeneratedCodeHandling, GroupPriority, GroupVerdict,
-        IdentifierPattern, PriorityLevel, VerdictCounts, VerdictLevel, VerdictReason, WarningCode,
+        DifferenceKind, EvidenceWarning, GeneratedCodeHandling, GroupPriority, GroupSubgroups,
+        GroupVerdict, IdentifierPattern, PriorityLevel, Subgroup, SubgroupBasis, VerdictCounts,
+        VerdictLevel, VerdictReason, WarningCode,
     };
 
     use super::*;
@@ -597,6 +665,7 @@ mod tests {
             total_groups: 0,
             demoted_groups: 0,
             verdict_counts: VerdictCounts::default(),
+            split_groups: 0,
             index_syntax_errors: 0,
             index_read_failures: 0,
             has_indexing_record: false,
@@ -694,6 +763,17 @@ mod tests {
                     VerdictReason::DecoratorsDiffer,
                 ],
             },
+            subgroups: GroupSubgroups {
+                status: SubgroupStatus::Split,
+                basis: vec![
+                    SubgroupBasis::LiteralCategory,
+                    SubgroupBasis::IdentifierPattern,
+                ],
+                count: 2,
+                separating_items: 2,
+                all_distinct: true,
+                subgroups: Vec::new(),
+            },
         }];
         report
     }
@@ -768,6 +848,7 @@ alignment_not_evaluated[6]: binding and scope resolution,type compatibility,effe
 context_scope: \"per group, each member's decorators or outer attributes and enclosing constructs as text; compared, never resolved; a difference is a warning, not a verdict\"
 priority_scope: \"per group, whether every member's body is only flat calls, read from syntax; callee names are never considered; demote ranks such groups last, keep leaves the ranking order; no group is removed\"
 verdict_scope: \"per reported group, REAL, SUSPICIOUS or FALSE_POSITIVE from a fixed rule table over the alignment, types, context and priority evidence, with every rule that fired as a reason; heuristic explanations, not proof; REAL means no difference beyond a consistent renaming in the same context; no current rule emits FALSE_POSITIVE; verdicts never remove or reorder groups; counts cover the reported groups only\"
+subgroups_scope: \"per group, members that agree on every differing member, callee and type text (names a member declares or takes as a parameter excluded), literal category and identifier pattern; decorators and enclosing constructs do not separate; an extra view, membership, totals and pagination are unchanged; not a verdict\"
 candidates_analyzed: 0
 below_threshold: 0
 total_groups: 0
@@ -776,6 +857,7 @@ verdict_counts:
   real: 0
   suspicious: 0
   false_positive: 0
+split_groups: 0
 omitted_groups: 0
 total_skipped: 0
 skipped_by_reason:
@@ -842,6 +924,14 @@ groups[1]:
       aspects[2]{aspect,differs,values}:
         decorators,true,\"#[inline] / (none)\"
         enclosing,false,impl
+    subgroups:
+      status: split
+      basis[2]: literal-category,identifier-pattern
+      count: 2
+      separating_items: 2
+      all_distinct: true
+      omitted_subgroups: 0
+      rows[0]{id,size,members,locations,values}:
     members[2]{path,range,symbol,kind,language,lines,tokens,excerpt}:
       src/a.rs,10-20,load,function,rust,8,52,\"    fn load(name: &str, flag: bool) -> Result<u8, String> {\\n        let x = \\\"a,b\\\";\\n    }\"
       src/b.rs,3-13,read,function,rust,8,52,\"fn read() {\"
@@ -888,6 +978,47 @@ skipped[4]{path,range,symbol,language,reason,detail}:
         let b = out.find("src/b.rs,3-13").unwrap();
         let a = out.find("src/a.rs,10-20").unwrap();
         assert!(b < a, "members must follow the report's order: {out}");
+    }
+
+    #[test]
+    fn subgroup_rows_name_one_based_members_their_locations_and_omissions() {
+        let mut report = group_report();
+        report.split_groups = 1;
+        report.groups[0].subgroups = GroupSubgroups {
+            status: SubgroupStatus::Split,
+            basis: vec![SubgroupBasis::Callee],
+            count: 3,
+            separating_items: 1,
+            all_distinct: false,
+            subgroups: vec![
+                Subgroup {
+                    id: 1,
+                    size: 2,
+                    members: vec![0, 1],
+                    values: vec!["callee=load".into(), "member=a,b".into()],
+                },
+                Subgroup {
+                    id: 2,
+                    size: 1,
+                    members: vec![1],
+                    values: vec!["callee=read".into()],
+                },
+            ],
+        };
+        let out = render_toon(&report);
+        assert!(out.contains("split_groups: 1\n"), "{out}");
+        let expected = "    subgroups:
+      status: split
+      basis[1]: callee
+      count: 3
+      separating_items: 1
+      all_distinct: false
+      omitted_subgroups: 1
+      rows[2]{id,size,members,locations,values}:
+        1,2,1 2,\"src/a.rs:10 / src/b.rs:3\",\"callee=load; member=a,b\"
+        2,1,\"2\",\"src/b.rs:3\",callee=read
+";
+        assert!(out.contains(expected), "{out}");
     }
 
     #[test]
