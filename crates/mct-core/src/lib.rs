@@ -22,7 +22,10 @@ pub use registry::LanguageRegistry;
 pub use symbol::{
     Location, RelationKind, RelationTarget, SymbolId, SymbolKind, SymbolRecord, SymbolRelation,
 };
-pub use tokens::{LineRange, Token, TokenKind, TokenSource, TokenSourceRegistry, TokenizedFile};
+pub use tokens::{
+    BodyShape, CallableSpan, LineRange, LiteralCategory, Token, TokenKind, TokenRole, TokenSource,
+    TokenSourceRegistry, TokenizedFile,
+};
 
 /// Recursion-depth ceiling every `mct-lang-*` AST walker must enforce while
 /// descending into a node's children. Parsing runs over arbitrary,

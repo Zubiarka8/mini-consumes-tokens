@@ -20,8 +20,8 @@ pub enum TokenKind {
     /// A name: variable, function, type, field, label, lifetime, macro name.
     Identifier,
     /// A literal value: number, string, char, byte string, boolean or null
-    /// literal. One token per literal, even when the grammar splits it into
-    /// several nodes (string fragments, escapes, interpolations' delimiters).
+    /// literal. Ordinary literals are atomic; structural token sources may
+    /// emit literal fragments around interpolated expressions instead.
     Literal,
     /// An operator or structural punctuation (`+`, `->`, `{`, `;`, `,`, `::`).
     Punctuation,
@@ -42,10 +42,89 @@ impl TokenKind {
     }
 }
 
+/// Syntactic role of a token, read off its position in the syntax tree.
+///
+/// Roles describe syntax, never semantics: no binding, import, alias or type
+/// is resolved. A token source that cannot tell a role leaves
+/// [`TokenRole::Unclassified`], which analyses must treat as "unknown", not as
+/// "ordinary variable".
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum TokenRole {
+    /// No role rule applied: locals, references, paths, keywords, punctuation.
+    #[default]
+    Unclassified,
+    /// Name declared by a callable definition.
+    Declaration,
+    /// Name declared in a parameter list.
+    Parameter,
+    /// Name selected from another value: attribute, field, method or keyword
+    /// argument name.
+    Member,
+    /// Bare name in the callee position of a call or macro invocation.
+    Callee,
+    /// Name in an explicit type position (annotation or type identifier).
+    Type,
+    /// A literal, with its lexical category.
+    Literal(LiteralCategory),
+}
+
+impl TokenRole {
+    /// Stable kebab-case name for reports.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Unclassified => "unclassified",
+            Self::Declaration => "declaration",
+            Self::Parameter => "parameter",
+            Self::Member => "member",
+            Self::Callee => "callee",
+            Self::Type => "type",
+            Self::Literal(category) => category.as_str(),
+        }
+    }
+}
+
+/// Lexical category of a literal, decided by its grammar node kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LiteralCategory {
+    String,
+    /// A string containing executable interpolation (a Python f-string).
+    InterpolatedString,
+    /// A string that is a whole expression statement (a Python docstring):
+    /// its value is not used by the code around it.
+    Docstring,
+    Number,
+    Boolean,
+    Null,
+    Character,
+    /// A literal kind with no category entry, such as Python's `...`.
+    Other,
+}
+
+impl LiteralCategory {
+    /// Stable kebab-case name for reports.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::String => "string",
+            Self::InterpolatedString => "interpolated-string",
+            Self::Docstring => "docstring",
+            Self::Number => "number",
+            Self::Boolean => "boolean",
+            Self::Null => "null",
+            Self::Character => "character",
+            Self::Other => "other-literal",
+        }
+    }
+}
+
 /// One token of a source file. Comments and whitespace are never tokens.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
     pub kind: TokenKind,
+    /// Syntactic role; [`TokenRole::Unclassified`] when the source cannot tell.
+    pub role: TokenRole,
+    /// A recognized primitive spelling used as a complete direct annotation.
+    /// Names may be shadowed: this is lexical evidence, never a resolved type.
+    pub primitive_spelling: bool,
     /// The token's exact source text; empty for a block marker.
     pub text: String,
     /// 1-based line of the token's first byte (the same convention as
@@ -67,8 +146,49 @@ pub struct LineRange {
     pub end: u32,
 }
 
-/// A whole file's tokens, in source order, plus where the grammar could not
-/// make sense of the source.
+/// Exact callable node boundaries, independent of an index's line-based
+/// locations, plus the syntax around the callable that its span excludes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallableSpan {
+    pub name: String,
+    pub lines: LineRange,
+    pub bytes: std::ops::Range<usize>,
+    /// Decorators or outer attributes attached to the callable (`@cache`,
+    /// `#[inline]`), in source order, whitespace collapsed. Not resolved: an
+    /// imported alias and its original are different texts.
+    pub decorators: Vec<String>,
+    /// Enclosing constructs that the language's token source tracks, outermost
+    /// first, each a stable label prefixed by that construct's own decorators
+    /// or attributes (`class`, `#[cfg(test)] mod`, `if`, `try`). Empty for a
+    /// callable at the top level.
+    pub enclosing: Vec<String>,
+    /// Statement shape of the callable's own body; `None` when the token
+    /// source does not report one or the callable has no body.
+    pub body: Option<BodyShape>,
+}
+
+/// How many statements sit directly in a callable's body, and how many of
+/// them are a single flat call. Read off the syntax tree only: callee names
+/// are never looked at.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct BodyShape {
+    /// Direct statements of the body, a final expression included and
+    /// docstrings excluded.
+    pub statements: usize,
+    /// Of `statements`, those that are exactly one call (or macro invocation)
+    /// whose arguments contain no further call, closure, comprehension,
+    /// conditional or block, and no nested macro delimiters.
+    pub flat_calls: usize,
+}
+
+impl BodyShape {
+    /// A non-empty body made only of flat calls.
+    pub fn is_call_only(self) -> bool {
+        self.statements > 0 && self.flat_calls == self.statements
+    }
+}
+
+/// Tokens and optional exact callable boundaries from the same parse.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TokenizedFile {
     pub tokens: Vec<Token>,
@@ -76,6 +196,10 @@ pub struct TokenizedFile {
     /// inside them are unreliable; an analysis must not treat a span that
     /// overlaps one as correctly tokenized.
     pub error_lines: Vec<LineRange>,
+    /// `None` for legacy sources; `Some` promises exhaustive callable spans.
+    /// Attributes/decorators outside the callable node are excluded from the
+    /// span and reported in [`CallableSpan::decorators`] instead.
+    pub callables: Option<Vec<CallableSpan>>,
 }
 
 /// Produces the token stream of one language's source files.
@@ -98,6 +222,16 @@ pub trait TokenSource: Send + Sync {
     /// a file that cannot be tokenized at all (the grammar returns no tree);
     /// use [`ParseError::Syntax`] with `relative_path` and line `1`.
     fn tokenize(&self, relative_path: &str, source: &str) -> Result<TokenizedFile, ParseError>;
+
+    /// Structural analyses may retain expressions embedded in literals.
+    /// Sources without interpolated syntax can use the ordinary stream.
+    fn tokenize_structural(
+        &self,
+        relative_path: &str,
+        source: &str,
+    ) -> Result<TokenizedFile, ParseError> {
+        self.tokenize(relative_path, source)
+    }
 }
 
 /// Lookup from language id to its [`TokenSource`].
