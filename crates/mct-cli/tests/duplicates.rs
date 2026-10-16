@@ -1580,3 +1580,199 @@ fn primitive_spelling_conflicts_keep_compatibility_unknown_and_preserve_groups()
         );
     }
 }
+
+/// A project holding the partial-block corpus: two functions per language
+/// that share one run of statements but differ elsewhere, and one pair of
+/// whole-function copies per language.
+fn blocks_project(tag: &str) -> Project {
+    let project = Project::new(tag);
+    fs::write(
+        project.path().join("src/blocks.rs"),
+        include_str!("fixtures/duplicates/blocks.rs"),
+    )
+    .unwrap();
+    fs::write(
+        project.path().join("blocks.py"),
+        include_str!("fixtures/duplicates/blocks.py"),
+    )
+    .unwrap();
+    project.init();
+    project
+}
+
+fn blocks_report(project: &Project, extra: &[&str]) -> String {
+    let mut args: Vec<&dyn AsRef<std::ffi::OsStr>> =
+        vec![&"--root", &project.0, &"duplicates", &"--no-excerpts"];
+    for arg in extra {
+        args.push(arg);
+    }
+    let output = mct(&args);
+    assert!(output.status.success(), "{}", stderr(&output));
+    stdout(&output)
+}
+
+#[test]
+fn partial_blocks_report_a_shared_run_in_different_functions_but_not_whole_copies() {
+    let project = blocks_project("partial-blocks");
+    for policy in ["broad", "consistent"] {
+        let text = blocks_report(&project, &["--partial-blocks", "--normalization", policy]);
+        // The whole-function copies are groups; the shared runs are not.
+        assert!(text.contains("total_groups: 2\n"), "{policy}: {text}");
+        assert!(
+            text.contains("partial_block_count: 2\n"),
+            "{policy}: {text}"
+        );
+        let section = &text[text.find("partial_blocks[2]:\n").unwrap()..];
+        let expected = "\
+partial_blocks[2]:
+  - id: 1
+    language: rust
+    tokens: 68
+    lines: 11
+    occurrences[2]{path,start_line,end_line,function}:
+      src/blocks.rs,12,22,summarize_orders
+      src/blocks.rs,28,38,summarize_refunds
+  - id: 2
+    language: python
+    tokens: 47
+    lines: 9
+    occurrences[2]{path,start_line,end_line,function}:
+      blocks.py,14,22,load_orders
+      blocks.py,29,37,load_invoices
+skipped[0]";
+        assert!(section.starts_with(expected), "{policy}: {section}");
+        for twin in ["copy_left", "twin_left"] {
+            assert!(!section.contains(twin), "{policy}: {section}");
+        }
+        assert!(
+            text.contains("partial_blocks_budget:\n  min_tokens: 40\n  min_lines: 6\n"),
+            "{text}"
+        );
+        assert!(text.contains("  budget_exhausted: false\n"), "{text}");
+        assert!(text.contains("partial_blocks_warning: "), "{text}");
+        assert!(
+            text.contains("extraction feasibility (variables in/out, control flow, side effects) is not evaluated"),
+            "{text}"
+        );
+        // Repetition is now evaluated; only extractability is not.
+        assert!(!text.contains("partial-block repetition"), "{text}");
+        assert!(
+            text.contains("\"extractability of repeated partial blocks (variables in/out, control flow, side effects)\""),
+            "{text}"
+        );
+        assert!(!text.contains("extractable"), "{text}");
+    }
+    // Exact mode keeps names, so the copies are no longer groups and their
+    // bodies become partial blocks; the renamed loop variable shortens the
+    // Rust block and drops the Python one below the token minimum.
+    let text = blocks_report(&project, &["--partial-blocks", "--normalization", "exact"]);
+    assert!(text.contains("total_groups: 0\n"), "{text}");
+    assert!(text.contains("partial_block_count: 3\n"), "{text}");
+    assert!(
+        text.contains("      src/blocks.rs,14,21,summarize_orders\n      src/blocks.rs,30,37,summarize_refunds\n"),
+        "{text}"
+    );
+    assert!(!text.contains(",load_orders\n"), "{text}");
+}
+
+#[test]
+fn partial_blocks_are_off_by_default_and_leave_the_report_unchanged() {
+    let project = blocks_project("partial-blocks-off");
+    let text = blocks_report(&project, &[]);
+    assert!(!text.contains("partial_block"), "{text}");
+    assert!(
+        text.lines()
+            .any(|line| line.starts_with("alignment_not_evaluated[6]: ")
+                && line
+                    .split(',')
+                    .any(|item| item == "partial-block repetition")),
+        "{text}"
+    );
+    assert!(text.contains("total_groups: 2\n"), "{text}");
+    let on = blocks_report(&project, &["--partial-blocks"]);
+    // Groups are untouched by the search: the group section is identical.
+    let groups = |report: &str| {
+        let start = report.find("groups[").unwrap();
+        let end = report
+            .find("partial_blocks[")
+            .unwrap_or(report.find("skipped[").unwrap());
+        report[start..end].to_string()
+    };
+    assert_eq!(groups(&text), groups(&on));
+}
+
+#[test]
+fn exhausted_partial_block_budgets_are_named_in_the_header() {
+    let project = blocks_project("partial-blocks-budgets");
+    for (flag, value, exhausted, count) in [
+        ("--block-max-comparisons", "1", "max-comparisons", 0),
+        ("--block-max-blocks", "1", "max-blocks", 1),
+        ("--block-max-windows", "60", "max-windows", 0),
+    ] {
+        let text = blocks_report(&project, &["--partial-blocks", flag, value]);
+        assert!(
+            text.contains(&format!("  budget_exhausted: {exhausted}\n")),
+            "{flag}: {text}"
+        );
+        assert!(
+            text.contains(&format!("partial_block_count: {count}\n")),
+            "{flag}: {text}"
+        );
+    }
+    let first = blocks_report(&project, &["--partial-blocks", "--block-max-blocks", "1"]);
+    assert!(
+        first.contains("src/blocks.rs,12,22,summarize_orders"),
+        "{first}"
+    );
+}
+
+#[test]
+fn partial_block_thresholds_apply_and_output_is_deterministic() {
+    let project = blocks_project("partial-blocks-thresholds");
+    let strict = blocks_report(&project, &["--partial-blocks", "--block-min-tokens", "60"]);
+    assert!(strict.contains("partial_block_count: 1\n"), "{strict}");
+    assert!(strict.contains("  min_tokens: 60\n"), "{strict}");
+    let tall = blocks_report(&project, &["--partial-blocks", "--block-min-lines", "10"]);
+    assert!(tall.contains("partial_block_count: 1\n"), "{tall}");
+    let again = blocks_report(&project, &["--partial-blocks"]);
+    assert_eq!(again, blocks_report(&project, &["--partial-blocks"]));
+}
+
+#[test]
+fn block_budget_flags_require_partial_blocks() {
+    let project = Project::new("partial-blocks-requires");
+    project.init();
+    let output = mct(&[
+        &"--root",
+        &project.path(),
+        &"duplicates",
+        &"--block-min-tokens",
+        &"10",
+    ]);
+    assert!(!output.status.success());
+    assert!(
+        stderr(&output).contains("--partial-blocks"),
+        "{}",
+        stderr(&output)
+    );
+    let output = mct(&[
+        &"--root",
+        &project.path(),
+        &"duplicates",
+        &"--partial-blocks",
+        &"--block-max-windows",
+        &"0",
+    ]);
+    assert!(!output.status.success());
+    let help = stdout(&mct(&[&"duplicates", &"--help"]));
+    for flag in [
+        "--partial-blocks",
+        "--block-min-tokens",
+        "--block-min-lines",
+        "--block-max-windows",
+        "--block-max-comparisons",
+        "--block-max-blocks",
+    ] {
+        assert!(help.contains(flag), "{flag}: {help}");
+    }
+}
