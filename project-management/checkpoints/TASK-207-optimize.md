@@ -66,9 +66,9 @@ CI clippy ok; eval no regressions (accuracy 1.000, catalog ~9021 tokens).
   `measured`); nothing to merge.
 - Running the scorer's three `duplicates` invocations concurrently would cut roughly
   0.08 s; not done because the gain is within the observed noise.
-- `benchmarks/token-twins-types-report.md` is an unlinked F1.3 implementation report
-  ("changes remain uncommitted") whose tables duplicate `token-twins.md` § F1.3;
-  candidate for removal, needs the user's decision.
+- `benchmarks/token-twins-types-report.md` (stale F1.3 implementation report whose
+  tables duplicate `token-twins.md` § F1.3) was removed with the user's approval;
+  its one link now points to the copy kept in history at `90a3817`.
 - MCP: ERR-015 is open; the fix (`scripts/unix/reinstall.sh --reindex`) touches the
   primary checkout and was not run.
 
