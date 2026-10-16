@@ -1,0 +1,53 @@
+# Verdict slice: binary order before/after, then after/before (rev). Load average 37-72 during runs.
+run: perf-1000
+scope: synthetic Python fixtures; init excluded; warm median; per-process peak RSS
+functions: 1000
+runs: 5
+measurements[8]{scenario,binary,seconds,rss_bytes,output_bytes,groups}:
+  many-small,0,0.159837,15646720,239608,10
+  many-small,1,0.201949,15564800,241341,10
+  few-large,0,0.129758,19660800,245108,10
+  few-large,1,0.116203,19496960,246841,10
+  unique,0,0.136211,21954560,1695,0
+  unique,1,0.117076,20971520,2257,0
+  large-group,0,0.128201,20267008,236593,1
+  large-group,1,0.131831,20217856,237272,1
+run: perf-1000-rev
+scope: synthetic Python fixtures; init excluded; warm median; per-process peak RSS
+functions: 1000
+runs: 5
+measurements[8]{scenario,binary,seconds,rss_bytes,output_bytes,groups}:
+  many-small,0,0.247553,15564800,241341,10
+  many-small,1,0.164905,15613952,239608,10
+  few-large,0,0.099693,19529728,246841,10
+  few-large,1,0.101656,19546112,245108,10
+  unique,0,0.091377,20889600,2257,0
+  unique,1,0.092370,20938752,1695,0
+  large-group,0,0.139877,21676032,237272,1
+  large-group,1,0.095818,20332544,236593,1
+run: perf-10000
+scope: synthetic Python fixtures; init excluded; warm median; per-process peak RSS
+functions: 10000
+runs: 3
+measurements[8]{scenario,binary,seconds,rss_bytes,output_bytes,groups}:
+  many-small,0,1.788581,40943616,2345629,10
+  many-small,1,1.561355,39780352,2347362,10
+  few-large,0,0.864700,98369536,2430469,10
+  few-large,1,0.902150,98041856,2432202,10
+  unique,0,0.891803,112033792,1696,0
+  unique,1,4.743281,113377280,2258,0
+  large-group,0,1.424635,101761024,2421936,1
+  large-group,1,1.150664,101941248,2422615,1
+run: perf-10000-rev
+scope: synthetic Python fixtures; init excluded; warm median; per-process peak RSS
+functions: 10000
+runs: 3
+measurements[8]{scenario,binary,seconds,rss_bytes,output_bytes,groups}:
+  many-small,0,3.155297,40124416,2347362,10
+  many-small,1,2.315857,40091648,2345629,10
+  few-large,0,2.816733,101580800,2432202,10
+  few-large,1,3.296702,110723072,2430469,10
+  unique,0,3.170018,110346240,2258,0
+  unique,1,4.783099,110854144,1696,0
+  large-group,0,1.451081,102105088,2422615,1
+  large-group,1,1.613412,99762176,2421936,1
