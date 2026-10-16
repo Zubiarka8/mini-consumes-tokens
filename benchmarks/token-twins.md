@@ -769,3 +769,167 @@ recall 1.000, occurrence recall 1.000, no false positive of any kind
 tuned to the labels: this was the first run against them, after the design
 and the repository review above. Three labeled blocks are too few for a
 precision or recall estimate.
+## Labeled corpus for verdicts, subgroups and partial blocks
+
+Before this corpus there was no ground truth for the later phases: group
+verdicts, subgroup splits and partial-block repetition. The corpus and its
+scorer are independent of any implementation and target the shared report
+contract, so each phase can be scored as it lands.
+
+### Corpus
+
+[`token-twins-labels/`](token-twins-labels/) holds 15 small Python and Rust
+files written to look like application code (importers, billing, handlers,
+loaders, retry loops), not one-line toys. Each case is marked by a `# Case` or
+`// Case` comment next to its members. Nothing is compiled or executed. The
+labels are in [`labels.toon`](token-twins-labels/labels.toon).
+
+| Category | Cases | Labels |
+| --- | --- | --- |
+| Consistent renaming (incl. methods and 3-member groups) | 6 | REAL |
+| Literal or type differences (retry policies, bounds, integer widths) | 4 | SUSPICIOUS |
+| Mixed families that should split | 3 | SUSPICIOUS, partition `split` |
+| Different members, callees or data flow | 5 | FALSE_POSITIVE |
+| Call-only bodies (logging, metrics, tracing) | 5 | 2 REAL, 2 FALSE_POSITIVE, 1 ambiguous |
+| Decorator, attribute or enclosing-context differences | 6 | 3 REAL, 1 SUSPICIOUS, 1 FALSE_POSITIVE, 1 ambiguous |
+| API-convention builders and data-only tests | 2 | ambiguous |
+
+The totals are 31 group cases: 11 REAL, 8
+SUSPICIOUS, 8 FALSE_POSITIVE and 4 ambiguous, with 69 members. All 11 REAL cases
+carry the partition `single` and the 3 family cases carry `split`. The other 17
+are `unscored` for partitions. There are 3 expected partial blocks (two Python,
+one of them repeated three times across two files, and one Rust) with 7
+occurrences. There are 3 negative regions: two below-minimum timing snippets and
+one shape-only overlap between call-only groups. A further rule covers blocks
+inside a reported whole-function group.
+
+### Labeling protocol
+
+- Labels were written from reading the source, before any verdict, subgroup or
+  partial-block implementation was scored. The detector's evidence was not
+  consulted to choose a label.
+- `REAL`: one rule. Consolidation needs no parameter beyond names, or only wraps
+  a decorator or attribute around one shared body.
+- `SUSPICIOUS`: plausibly one rule, but merging needs parameters for differing
+  members, callees, types, literals or registration, or the group mixes
+  families.
+- `FALSE_POSITIVE`: the shape coincides, but the rules or effects differ.
+- `ambiguous`: reasonable reviewers disagree. Four cases carry this label:
+  API-convention builders, data-only tests, same-logger field logging and a
+  test oracle that re-implements production code. They are not forced into a
+  level.
+- Each case has a one-line rationale in `labels.toon`. Each member row gives
+  its path, function, inclusive lines, family letter and whether the `broad`,
+  `consistent` and `exact` policies are expected to group it.
+- Verdict labels describe the labeled member set under the reference policy
+  (`broad`) and analysis flags (`--min-lines 5 --min-tokens 30`). The corpus
+  uses lower thresholds than the defaults so that realistic short functions
+  qualify.
+
+### Matching rules
+
+- **Members**: same repository-relative path and start line. A case is
+  matched to the reported group that shares the most of its members. It is
+  `exact` only when the member sets are equal.
+- **Grouping baseline**: `exact_recall` is the number of labeled groups
+  reported with exactly their members, divided by the number of labeled groups
+  expected under that policy. The output also lists unexpected groups and
+  groups that the labels say must not form under that policy (`absent_violated`).
+- **Verdicts**: `verdict.level` per group. The confusion matrix has the
+  expected levels as rows and the predicted level as columns, plus `missing`
+  (no level), `not-grouped` and `membership-differs`. Ambiguous cases are
+  excluded from the matrix and tallied separately. `unsafe_real` counts
+  SUSPICIOUS or FALSE_POSITIVE cases called REAL.
+- **Subgroups**: the rows of the `subgroups` block are resolved to members. A
+  reference can be a 1-based member index (0-based if any reference is 0),
+  `path:start[-end]`, or a unique symbol name. A `subgroup` column in the
+  members table also works. `single` without rows means one subgroup. The
+  score is the exact-partition rate over the 14 scored cases. The result
+  notes a `status` that contradicts the resolved references.
+- **Partial blocks**: two occurrences match when they have the same path and a
+  line-range Jaccard of at least 0.5 (shared lines divided by union lines).
+  Each expected occurrence can be matched once. A reported block is a true
+  positive when all of its occurrences, at least two, match occurrences of
+  one labeled block.
+  - Precision is true positives divided by reported blocks.
+  - A labeled block is recalled when its matched occurrences cover all of its
+    occurrences. Occurrence recall is also reported.
+  - Every other block is classified as `below-minimum` or `shape-only` (each
+    occurrence overlaps that negative region), `covered-by-group` (each
+    occurrence lies inside members of one labeled case), or `unlabeled`.
+
+When a report has none of an aspect's fields, that aspect is
+`not-implemented`. The scorer reads TOON tolerantly. It accepts the contract's
+shapes and close variants: a scalar `verdict`, `partial_blocks` as a list or as
+an object holding the list, and occurrences given as `start_line`/`end_line`,
+`range` or `lines`. An aspect that fails to parse becomes `scorer-error` and
+the other aspects are still scored.
+
+### Running the scorer
+
+```sh
+cargo build --release -p mct-cli
+python3 benchmarks/score_duplicate_labels.py --binary target/release/mct-cli
+# options: --normalization consistent, --flags "--min-lines 5 --min-tokens 30",
+#          --partial-blocks-flag --partial-blocks (empty string: pass none),
+#          --grouping-modes broad,consistent, --report saved.toon (no binary run)
+```
+
+The scorer copies only the corpus `.py` and `.rs` files into a temporary
+project, then runs `init` and `duplicates --no-excerpts` once per grouping
+policy. The policy under evaluation also gets the partial-block flag. If the
+binary rejects that flag, it is rerun without it and the flag status is
+`rejected`. The scorer never writes inside the repository. Its output is TOON.
+
+### Baseline
+
+Raw output: [token-twins-labels-baseline.toon](token-twins-labels-baseline.toon).
+It was produced by the release CLI built from this branch before any Phase 2
+or Phase 3 work: the `ac525ca` base plus the uncommitted evidence slices
+described above.
+
+- Grouping: `broad` reports 31 groups, and all 31 labeled groups are exact
+  (recall 1.000), with no unexpected group.
+- `consistent` reports 29 groups, all exact (recall 1.000). The two
+  not-one-to-one FALSE_POSITIVE pairs are correctly absent, and
+  `skew_points` leaves its family case.
+- `exact` reports no groups, as labeled: every member has a different
+  declaration name.
+- Verdicts and subgroups are `not-implemented`.
+- Partial blocks are `not-implemented`: the binary rejects `--partial-blocks`.
+
+### Limitations
+
+- The corpus is small and constructed. Rates measure agreement with these
+  labels, not real-project precision or recall.
+- The labels are one maintainer-style judgment. The ambiguous set and the
+  rationales make that judgment reviewable; they do not remove it.
+- The partial-block minimum is assumed to equal the analysis thresholds. Every
+  expected block has at least 7 lines and 60 tokens, and every below-minimum
+  negative shares at most 3 lines. An implementation with a much larger
+  minimum would miss the expected blocks by design.
+- The line-overlap rule tolerates boundary drift of about a statement. It does
+  not distinguish token-level boundaries inside a line.
+- Verdict labels hold for `broad`. Under other policies, a case whose group
+  changes membership is reported as `membership-differs` instead of being
+  scored.
+- The corpus is indexed by the repository's own index like any other source.
+  A repository-wide `duplicates` run lists these groups among the fixtures.
+
+
+## Integrated candidate evaluation (2026-10-16)
+
+The combined verdict/subgroup/block implementation was scored with the unchanged
+31-case labeled corpus using the debug CLI (quality validation, not a timing
+benchmark). [Raw result](token-twins-labels-integrated.toon). Grouping matches
+31/31 broad cases and 29/29 consistent cases; all 31 expected exact absences
+hold. Verdict accuracy is 0.296 on 27 determinate cases: every case is
+SUSPICIOUS, including all 11 labeled REAL cases. No unsafe REAL is emitted,
+but the verdicts have limited discriminatory value. The known absence of local
+binding evidence remains a limitation; integration does not change its rules.
+Partial blocks match 3/3 labeled blocks with no labeled false positives; three
+examples cannot establish general precision. Subgroup results are not an
+independent holdout, because ADR-011 records tuning after the corpus was seen.
+The scorer now reads budget_exhausted from partial_blocks_budget as ADR-012
+specifies; two focused Python tests cover present and absent budget output.
+No performance benchmark was rerun in this integration.
