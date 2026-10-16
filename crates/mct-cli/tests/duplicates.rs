@@ -59,6 +59,684 @@ fn stderr(output: &Output) -> String {
     String::from_utf8_lossy(&output.stderr).into_owned()
 }
 
+#[test]
+fn exact_callable_boundaries_ignore_neighboring_syntax() {
+    let project = Project::new("byte-boundaries");
+    fs::write(
+        project.path().join("src/main.rs"),
+        include_str!("fixtures/duplicates/boundaries.rs"),
+    )
+    .unwrap();
+    project.init();
+    let output = mct(&[
+        &"--root",
+        &project.path(),
+        &"duplicates",
+        &"--min-lines",
+        &"1",
+        &"--min-tokens",
+        &"1",
+    ]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert!(
+        stdout(&output).contains("total_groups: 1\n"),
+        "{}",
+        stdout(&output)
+    );
+}
+
+#[test]
+fn normalization_quality_corpus_preserves_identifier_and_interpolation_structure() {
+    for (tag, source) in [
+        (
+            "identifiers",
+            include_str!("fixtures/duplicates/identifiers.py"),
+        ),
+        (
+            "interpolation",
+            include_str!("fixtures/duplicates/interpolation.py"),
+        ),
+        ("members", include_str!("fixtures/duplicates/members.py")),
+    ] {
+        let project = Project::new(tag);
+        fs::write(project.path().join("sample.py"), source).unwrap();
+        project.init();
+        for (policy, members, groups) in [("broad", 3, 1), ("consistent", 2, 1), ("exact", 0, 0)] {
+            let output = mct(&[
+                &"--root",
+                &project.path(),
+                &"duplicates",
+                &"--min-lines",
+                &"1",
+                &"--min-tokens",
+                &"1",
+                &"--normalization",
+                &policy,
+                &"--language",
+                &"python",
+            ]);
+            assert!(output.status.success(), "{}", stderr(&output));
+            let text = stdout(&output);
+            assert!(
+                text.contains(&format!("total_groups: {groups}\n")),
+                "{tag}/{policy}: {text}"
+            );
+            if members > 0 {
+                assert!(
+                    text.contains(&format!("member_count: {members}\n")),
+                    "{tag}/{policy}: {text}"
+                );
+            }
+            if policy == "consistent" {
+                let excluded = if tag == "interpolation" {
+                    "subtraction"
+                } else {
+                    "distinct"
+                };
+                assert!(
+                    !text.contains(&format!(",{excluded},function,")),
+                    "{tag}: {text}"
+                );
+                assert!(text.contains(",renamed,function,"), "{tag}: {text}");
+            }
+        }
+    }
+}
+
+/// The report text of the group whose members include `symbol`.
+fn group_of<'a>(report: &'a str, symbol: &str) -> &'a str {
+    let row = report
+        .find(&format!(",{symbol},function,"))
+        .unwrap_or_else(|| panic!("no member {symbol}: {report}"));
+    let start = report[..row].rfind("  - index: ").unwrap();
+    let end = report[row..]
+        .find("  - index: ")
+        .or_else(|| report[row..].find("skipped["))
+        .map_or(report.len(), |offset| row + offset);
+    &report[start..end]
+}
+
+fn evidence_report(project: &Project, policy: &str) -> String {
+    let output = mct(&[
+        &"--root",
+        &project.path(),
+        &"duplicates",
+        &"--min-lines",
+        &"1",
+        &"--min-tokens",
+        &"1",
+        &"--no-excerpts",
+        &"--normalization",
+        &policy,
+    ]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    stdout(&output)
+}
+
+#[test]
+fn splat_parameters_are_reported_apart_from_unpacking_targets_and_reads() {
+    let project = Project::new("splat");
+    fs::write(
+        project.path().join("splat.py"),
+        include_str!("fixtures/duplicates/splat.py"),
+    )
+    .unwrap();
+    project.init();
+    for policy in ["broad", "consistent"] {
+        let report = evidence_report(&project, policy);
+        assert!(report.contains("total_groups: 1\n"), "{report}");
+        let group = group_of(&report, "forward_a");
+        for expected in [
+            "identifier_pattern: one-to-one\n",
+            "        parameter: 2\n",
+            // The declared `*args` and `**kwargs` are parameters...
+            "        parameter,1,args / items,6 / 13\n",
+            "        parameter,1,kwargs / options,6 / 13\n",
+            // ...their later reads are not...
+            "        name,1,args / items,7 / 14\n",
+            "        name,2,kwargs / options,9 / 16\n",
+            // ...and neither is a `*rest` unpacking target.
+            "        name,3,rest / tail,7 / 14\n",
+            "      warnings[0]{code,detail}:\n",
+        ] {
+            assert!(
+                group.contains(expected),
+                "{policy}: {expected:?} in {group}"
+            );
+        }
+    }
+}
+
+#[test]
+fn aligned_evidence_reports_located_differences_without_changing_groups() {
+    let project = Project::new("evidence");
+    fs::write(
+        project.path().join("evidence.py"),
+        include_str!("fixtures/duplicates/evidence.py"),
+    )
+    .unwrap();
+    fs::write(
+        project.path().join("src/main.rs"),
+        include_str!("fixtures/duplicates/evidence.rs"),
+    )
+    .unwrap();
+    project.init();
+    let broad = evidence_report(&project, "broad");
+    assert!(
+        broad.contains("alignment_not_evaluated[5]: "),
+        "the report must name what it does not evaluate: {broad}"
+    );
+
+    // Consistent renaming: renamed parameters and locals, nothing to warn about.
+    for symbol in ["renamed_a", "same_types_a", "untyped_a"] {
+        let group = group_of(&broad, symbol);
+        assert!(
+            group.contains("identifier_pattern: one-to-one\n"),
+            "{group}"
+        );
+        assert!(group.contains("warnings[0]{code,detail}:\n"), "{group}");
+    }
+    let renamed = group_of(&broad, "renamed_a");
+    assert!(
+        renamed.contains("        parameter,1,count / size,5 / 10\n"),
+        "{renamed}"
+    );
+
+    // Broad groups `a*a` with `x*y`; the pattern check says why that is weak.
+    let pattern = group_of(&broad, "pattern_a");
+    assert!(
+        pattern.contains("identifier_pattern: not-one-to-one\n"),
+        "{pattern}"
+    );
+    assert!(
+        pattern.contains("identifier-pattern-differs,\"identifier spellings are not a consistent renaming: `a` in member 1 aligns with both `x` and `y` in member 2 (line 22)"),
+        "{pattern}"
+    );
+
+    // Different attributes, methods and call targets are reported apart from
+    // renamed locals, with their texts and lines, and no inferred domain.
+    let members = group_of(&broad, "members_a");
+    for expected in [
+        "        member: 2\n",
+        "        callee: 1\n",
+        "        member,1,email / path,28 / 34\n",
+        "        member,1,send / write,29 / 35\n",
+        "        callee,1,load / save,30 / 36\n",
+        "        name,1,user / config,28 / 34\n",
+        "member-names-differ,",
+        "callee-names-differ,",
+    ] {
+        assert!(members.contains(expected), "{expected}: {members}");
+    }
+
+    // Different explicit types are a warning, not a claimed incompatibility;
+    // equal or absent annotations produce none.
+    let typed = group_of(&broad, "typed_a");
+    assert!(
+        typed.contains("        type,2,int / str,39 / 45\n"),
+        "{typed}"
+    );
+    assert!(typed.contains("compatibility is not evaluated"), "{typed}");
+    assert!(
+        typed.contains("        literal-category,1,\"1 (number) / \\\"x\\\" (string)\",41 / 47\n"),
+        "{typed}"
+    );
+    for symbol in ["same_types_a", "untyped_a"] {
+        assert!(
+            !group_of(&broad, symbol).contains("type-names-differ"),
+            "{symbol}"
+        );
+    }
+
+    // Same category, different value: a value change with both originals.
+    let retries = group_of(&broad, "retries_a");
+    assert!(
+        retries.contains("        literal-value,1,3 / 5,74 / 79\n"),
+        "{retries}"
+    );
+    assert!(retries.contains("literal-values-differ,"), "{retries}");
+
+    // Broad keeps f-strings whole but no longer hides that they differ.
+    let interpolated = group_of(&broad, "fmt_a");
+    assert!(
+        interpolated.contains("interpolated-strings-differ,"),
+        "{interpolated}"
+    );
+    assert!(
+        interpolated.contains("f\\\"{order.total * order.rate + 1}\\\" / f\\\"{order.total}\\\""),
+        "{interpolated}"
+    );
+
+    // A docstring difference is listed but is not a warning.
+    let documented = group_of(&broad, "documented_a");
+    assert!(
+        documented.contains("        docstring: 1\n"),
+        "{documented}"
+    );
+    assert!(
+        documented.contains("warnings[0]{code,detail}:\n"),
+        "{documented}"
+    );
+
+    // Spelling, not binding: reusing `x` for two loops where the copy uses
+    // `y` and `z` is reported as not one-to-one (documented limitation).
+    let shadow = group_of(&broad, "shadow_a");
+    assert!(
+        shadow.contains("`x` in member 1 aligns with both `y` and `z` in member 2"),
+        "{shadow}"
+    );
+
+    // Rust roles: fields and methods are members, the bare call is a callee,
+    // `i64`/`String` are types.
+    let rust = group_of(&broad, "order_total");
+    for expected in [
+        "        member,1,total / label,10 / 16\n",
+        "        member,1,saturating_mul / repeat,10 / 16\n",
+        "        callee,1,audit / trace,11 / 17\n",
+        "        type,2,i64 / String,9 / 15\n",
+        "literal-categories-differ,",
+    ] {
+        assert!(rust.contains(expected), "{expected}: {rust}");
+    }
+
+    // Evidence never changes grouping: consistent mode still splits the
+    // pairs its policy separates, and still reports the evidence it keeps.
+    let consistent = evidence_report(&project, "consistent");
+    for split in ["pattern_a", "fmt_a", "shadow_a"] {
+        assert!(
+            !consistent.contains(&format!(",{split},function,")),
+            "{split}: {consistent}"
+        );
+    }
+    assert!(
+        group_of(&consistent, "members_a").contains("member-names-differ,"),
+        "{consistent}"
+    );
+}
+
+#[test]
+fn context_evidence_reports_decorators_and_enclosing_constructs_without_changing_groups() {
+    let project = Project::new("contexts");
+    fs::write(
+        project.path().join("contexts.py"),
+        include_str!("fixtures/duplicates/contexts.py"),
+    )
+    .unwrap();
+    fs::write(
+        project.path().join("src/main.rs"),
+        include_str!("fixtures/duplicates/contexts.rs"),
+    )
+    .unwrap();
+    project.init();
+    // `exact` keeps the differing names, so these pairs only form under the
+    // two normalizing policies.
+    for policy in ["broad", "consistent"] {
+        let report = evidence_report(&project, policy);
+        assert!(report.contains("context_scope: "), "{report}");
+
+        // The decorator and the enclosing `try`/`except` are warnings on a
+        // group that still forms; they never split it.
+        let cached = group_of(&report, "cached_total");
+        for expected in [
+            ",plain_total,function,",
+            "      status: differs\n",
+            "@functools.cache / (none)",
+            "        enclosing,false,(top level)\n",
+            "decorators-differ,",
+        ] {
+            assert!(cached.contains(expected), "{policy} {expected}: {cached}");
+        }
+        assert!(!cached.contains("enclosing-context-differs"), "{cached}");
+
+        let guarded = group_of(&report, "guarded_rate");
+        for expected in [
+            ",fallback_rate,function,",
+            "        enclosing,true,try / try > except\n",
+            "        decorators,false,(none)\n",
+            "enclosing-context-differs,",
+            "does not by itself make the repetition false",
+        ] {
+            assert!(guarded.contains(expected), "{policy} {expected}: {guarded}");
+        }
+
+        // Shared decorators are shown once and raise nothing.
+        let same = group_of(&report, "same_context_a");
+        assert!(same.contains("      status: same\n"), "{same}");
+        assert!(same.contains("        decorators,false,"), "{same}");
+        assert!(same.contains("warnings[0]{code,detail}:\n"), "{same}");
+
+        // Rust: a test module and an outer attribute are context, not body.
+        let module = group_of(&report, "production_sum");
+        assert!(module.contains(",helper_sum,function,"), "{module}");
+        assert!(
+            module.contains("(top level) / #[cfg(test)] mod"),
+            "{module}"
+        );
+        let inline = group_of(&report, "fast_max");
+        assert!(inline.contains(",slow_max,function,"), "{inline}");
+        assert!(inline.contains("#[inline] / (none)"), "{inline}");
+    }
+}
+
+fn trivial_report(project: &Project, extra: &[&str]) -> String {
+    let root = project.path();
+    let mut args: Vec<&dyn AsRef<std::ffi::OsStr>> = vec![
+        &"--root",
+        &root,
+        &"duplicates",
+        &"--min-lines",
+        &"1",
+        &"--min-tokens",
+        &"1",
+        &"--no-excerpts",
+    ];
+    for arg in extra {
+        args.push(arg);
+    }
+    let output = mct(&args);
+    assert!(output.status.success(), "{}", stderr(&output));
+    stdout(&output)
+}
+
+#[test]
+fn call_only_groups_are_demoted_by_shape_not_by_callee_name_and_never_removed() {
+    let project = Project::new("trivial");
+    fs::write(
+        project.path().join("trivial.py"),
+        include_str!("fixtures/duplicates/trivial.py"),
+    )
+    .unwrap();
+    fs::write(
+        project.path().join("src/main.rs"),
+        include_str!("fixtures/duplicates/trivial.rs"),
+    )
+    .unwrap();
+    project.init();
+    // `exact` keeps the differing callee names, so these pairs only form
+    // under the two normalizing policies.
+    for policy in ["broad", "consistent"] {
+        let report = trivial_report(&project, &["--normalization", policy]);
+        assert!(report.contains("  trivial_calls: demote\n"), "{report}");
+        assert!(report.contains("priority_scope: "), "{report}");
+        assert!(report.contains("demoted_groups: 2\n"), "{policy}: {report}");
+
+        // Only flat calls: demoted with its reason, whatever the callees are.
+        for (symbol, twin) in [("log_order", "audit_order"), ("trace_order", "emit_order")] {
+            let group = group_of(&report, symbol);
+            for expected in [
+                format!(",{twin},function,"),
+                "      level: demoted\n".to_string(),
+                "      call_shape: call-only\n".to_string(),
+                "(5 statements".to_string(),
+                "callee names are not considered".to_string(),
+            ] {
+                assert!(group.contains(&expected), "{policy} {expected}: {group}");
+            }
+        }
+        // Real logic around `print`/`log` calls is not demoted.
+        let logic = group_of(&report, "print_report");
+        assert!(logic.contains(",log_summary,function,"), "{logic}");
+        assert!(logic.contains("      level: normal\n"), "{logic}");
+        assert!(logic.contains("      call_shape: other\n"), "{logic}");
+        // Calls whose arguments hold another call are not flat.
+        let nested = group_of(&report, "store_order");
+        assert!(nested.contains(",cache_order,function,"), "{nested}");
+        assert!(nested.contains("      call_shape: other\n"), "{nested}");
+
+        // Demoted groups come after every normal group.
+        let first_demoted = report.find("      level: demoted\n").unwrap();
+        let last_normal = report.rfind("      level: normal\n").unwrap();
+        assert!(last_normal < first_demoted, "{policy}: {report}");
+    }
+
+    // Python alone: the call-only pair outweighs the logic pair (7 lines
+    // against 6), so `keep` restores it to the top and demotes nothing.
+    let python = ["--language", "python"];
+    let demoted = trivial_report(&project, &python);
+    let kept = trivial_report(
+        &project,
+        &[&python[..], &["--trivial-calls", "keep"]].concat(),
+    );
+    let order = |report: &str| {
+        let log = report.find(",log_order,function,").unwrap();
+        let logic = report.find(",print_report,function,").unwrap();
+        log < logic
+    };
+    assert!(!order(&demoted), "{demoted}");
+    assert!(order(&kept), "{kept}");
+    assert!(kept.contains("  trivial_calls: keep\n"), "{kept}");
+    assert!(kept.contains("demoted_groups: 0\n"), "{kept}");
+    let group = group_of(&kept, "log_order");
+    assert!(group.contains("      level: normal\n"), "{group}");
+    assert!(group.contains("      call_shape: call-only\n"), "{group}");
+    assert!(
+        group.contains("kept in rank order by the keep policy"),
+        "{group}"
+    );
+    // Both policies report the same groups.
+    assert_eq!(
+        demoted.matches("  - index: ").count(),
+        kept.matches("  - index: ").count()
+    );
+
+    let output = mct(&[
+        &"--root",
+        &project.path(),
+        &"duplicates",
+        &"--trivial-calls",
+        &"hide",
+    ]);
+    assert!(!output.status.success());
+    assert!(
+        stderr(&output).contains("expected demote or keep"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn coverage_and_pagination_are_independent_of_analysis_completeness() {
+    let project = Project::new("coverage-page");
+    fs::write(
+        project.path().join("sample.py"),
+        include_str!("fixtures/duplicates/identifiers.py"),
+    )
+    .unwrap();
+    fs::write(project.path().join("broken.py"), "def broken(:\n").unwrap();
+    project.init();
+    let output = mct(&[
+        &"--root",
+        &project.path(),
+        &"duplicates",
+        &"--min-lines",
+        &"1",
+        &"--min-tokens",
+        &"1",
+        &"--language",
+        &"python",
+        &"--limit",
+        &"0",
+        &"--no-excerpts",
+    ]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    let text = stdout(&output);
+    for expected in [
+        "status: complete\n",
+        "index_coverage: partial\n",
+        "index_syntax_errors: 1\n",
+        "total_groups: 1\n",
+        "omitted_groups: 1\n",
+        "groups[0]:\n",
+    ] {
+        assert!(text.contains(expected), "missing {expected}: {text}");
+    }
+}
+
+#[test]
+fn path_filter_runs_before_reading_stale_files_and_respects_directory_boundaries() {
+    let project = Project::new("path-filter");
+    fs::create_dir_all(project.path().join("src2")).unwrap();
+    fs::write(
+        project.path().join("src2/twins.py"),
+        include_str!("fixtures/duplicates/identifiers.py"),
+    )
+    .unwrap();
+    project.init();
+    fs::remove_file(project.path().join("src2/twins.py")).unwrap();
+    let output = mct(&[&"--root", &project.path(), &"duplicates", &"--path", &"src"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert!(
+        stdout(&output).contains("total_skipped: 0\n"),
+        "{}",
+        stdout(&output)
+    );
+}
+
+#[test]
+fn report_controls_preserve_totals_rank_positions_and_omit_excerpts() {
+    let project = Project::new("report-controls");
+    fs::write(project.path().join("sample.py"), "def a(x):\n    return x + x\ndef b(y):\n    return y + y\ndef c(x):\n    return x - x\ndef d(y):\n    return y - y\n").unwrap();
+    project.init();
+    let output = mct(&[
+        &"--root",
+        &project.path(),
+        &"duplicates",
+        &"--min-lines",
+        &"1",
+        &"--min-tokens",
+        &"1",
+        &"--language",
+        &"python",
+        &"--path",
+        &"./sample.py",
+        &"--normalization",
+        &"consistent",
+        &"--ranking",
+        &"tokens",
+        &"--limit",
+        &"1",
+        &"--offset",
+        &"1",
+        &"--no-excerpts",
+    ]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    let text = stdout(&output);
+    for expected in [
+        "total_groups: 2\n",
+        "omitted_groups: 1\n",
+        "groups[1]:\n",
+        "  - index: 2\n",
+        "consistent identifier spelling",
+        "excerpts: omitted\n",
+    ] {
+        assert!(text.contains(expected), "{expected}: {text}");
+    }
+    assert!(!text.contains("def c"), "{text}");
+    let root_filter = mct(&[
+        &"--root",
+        &project.path(),
+        &"duplicates",
+        &"--path",
+        &".",
+        &"--min-lines",
+        &"1",
+        &"--min-tokens",
+        &"1",
+    ]);
+    assert!(
+        stdout(&root_filter).contains("total_groups: 2\n"),
+        "{}",
+        stdout(&root_filter)
+    );
+}
+
+#[test]
+fn exact_mode_matches_equal_names_across_files_and_preserves_literal_text() {
+    for literal in ["1", "2"] {
+        let project = Project::new(&format!("exact-literal-{literal}"));
+        fs::write(
+            project.path().join("a.py"),
+            "def copy(x):\n    return x + 1\n",
+        )
+        .unwrap();
+        fs::write(
+            project.path().join("b.py"),
+            format!("def copy(x):\n    return x + {literal}\n"),
+        )
+        .unwrap();
+        project.init();
+        let output = mct(&[
+            &"--root",
+            &project.path(),
+            &"duplicates",
+            &"--min-lines",
+            &"1",
+            &"--min-tokens",
+            &"1",
+            &"--language",
+            &"python",
+            &"--normalization",
+            &"exact",
+        ]);
+        assert!(output.status.success(), "{}", stderr(&output));
+        let groups = if literal == "1" { 1 } else { 0 };
+        assert!(
+            stdout(&output).contains(&format!("total_groups: {groups}\n")),
+            "{}",
+            stdout(&output)
+        );
+    }
+}
+
+#[test]
+fn consistent_mode_compares_spellings_without_claiming_scope_resolution() {
+    let project = Project::new("identifier-scopes");
+    fs::write(
+        project.path().join("scopes.py"),
+        include_str!("fixtures/duplicates/scopes.py"),
+    )
+    .unwrap();
+    project.init();
+    let output = mct(&[
+        &"--root",
+        &project.path(),
+        &"duplicates",
+        &"--min-lines",
+        &"1",
+        &"--min-tokens",
+        &"20",
+        &"--normalization",
+        &"consistent",
+        &"--language",
+        &"python",
+    ]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    let text = stdout(&output);
+    assert!(
+        text.contains("total_groups: 1\n") && text.contains("member_count: 2\n"),
+        "{text}"
+    );
+    assert!(!text.contains(",distinct,function,"), "{text}");
+    // A shadowed parameter with another spelling is intentionally distinct,
+    // even though a binding-aware alpha-renamer could prove equivalence.
+}
+
+#[test]
+fn duplicate_analysis_does_not_modify_the_database() {
+    let project = Project::new("read-only");
+    project.init();
+    let database = project.path().join(".mct-index/index.sqlite3");
+    let before = fs::read(&database).unwrap();
+    let modified = fs::metadata(&database).unwrap().modified().unwrap();
+    let output = mct(&[&"--root", &project.path(), &"duplicates"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(fs::read(&database).unwrap(), before);
+    assert_eq!(
+        fs::metadata(&database).unwrap().modified().unwrap(),
+        modified
+    );
+}
+
 /// Asserts the fixed header and the empty tail of a report with no groups.
 fn assert_zero_group_report(text: &str, min_lines: &str, min_tokens: &str) {
     assert!(text.starts_with("notice: "), "{text}");
@@ -497,4 +1175,77 @@ fn a_file_edited_after_indexing_is_skipped_as_stale_not_grouped() {
         text.contains("src/b.rs,1-9,weight,rust,stale-location,"),
         "{text}"
     );
+}
+
+#[test]
+fn primitive_spelling_conflicts_keep_compatibility_unknown_and_preserve_groups() {
+    for (tag, filename, source) in [
+        (
+            "type-rust",
+            "main.rs",
+            include_str!("fixtures/duplicates/types.rs"),
+        ),
+        (
+            "type-python",
+            "main.py",
+            include_str!("fixtures/duplicates/types.py"),
+        ),
+    ] {
+        let project = Project::new(tag);
+        fs::write(project.path().join("src").join(filename), source).unwrap();
+        project.init();
+        for mode in ["broad", "consistent"] {
+            let output = mct(&[
+                &"--root",
+                &project.path(),
+                &"duplicates",
+                &"--min-lines",
+                &"1",
+                &"--min-tokens",
+                &"1",
+                &"--normalization",
+                &mode,
+            ]);
+            assert!(output.status.success(), "{}", stderr(&output));
+            let text = stdout(&output);
+            assert!(text.contains("total_groups: 2\n"), "{text}");
+            assert_eq!(text.matches("compatibility: unknown").count(), 2, "{text}");
+            assert_eq!(
+                text.matches("primitive_spelling_conflicts: 2").count(),
+                1,
+                "{text}"
+            );
+            assert_eq!(
+                text.matches("primitive_spelling_conflicts: 0").count(),
+                1,
+                "{text}"
+            );
+            assert!(text.contains("primitive-type-spellings-differ"), "{text}");
+            let conflict_row = if tag == "type-rust" {
+                "u32 / u64 / Alias (unknown),4 / 5 / 6"
+            } else {
+                "int / str / Custom (unknown),4 / 8 / 12"
+            };
+            assert!(text.contains(conflict_row), "{text}");
+            assert!(text.contains("Custom") || text.contains("Alias"), "{text}");
+            assert!(!text.contains("compatibility: incompatible"), "{text}");
+        }
+        let output = mct(&[
+            &"--root",
+            &project.path(),
+            &"duplicates",
+            &"--min-lines",
+            &"1",
+            &"--min-tokens",
+            &"1",
+            &"--normalization",
+            &"exact",
+        ]);
+        assert!(output.status.success(), "{}", stderr(&output));
+        assert!(
+            stdout(&output).contains("total_groups: 0\n"),
+            "{}",
+            stdout(&output)
+        );
+    }
 }
