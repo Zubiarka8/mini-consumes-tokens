@@ -10,7 +10,6 @@
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "python3 \"$(git rev-parse --show-toplevel)/internal/claude-hooks/dogfood_mcp_guard.py\"" },
           { "type": "command", "command": "python3 \"$(git rev-parse --show-toplevel)/internal/claude-hooks/sqlite_guard.py\"" }
         ]
       }

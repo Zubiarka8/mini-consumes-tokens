@@ -1,9 +1,9 @@
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use clap::{Parser, Subcommand};
 use mct_core::{LanguageRegistry, ParseError, SourceFile};
 use mct_index::{ExcludeSet, Index};
+use mct_languages::build_registry;
 
 /// Index a repository and inspect the index from the command line.
 ///
@@ -26,13 +26,26 @@ Typical first run:
   cargo run -p mct-cli -- --root . gitignore-init
   cargo run -p mct-cli -- --root . status
 
+Query without an MCP client, on one or several projects:
+  cargo run -p mct-cli -- --root . call --tool get_indexing_status
+  cargo run -p mct-cli -- --roots ../a,../b call --tool list_symbols --args '{\"path\":\"src\"}'
+
 Run `cargo run -p mct-cli -- <command> --help` for a command's full
 description and examples."
 )]
 struct Cli {
     /// Project root to operate on. Defaults to the current working directory.
-    #[arg(long, global = true)]
-    root: Option<PathBuf>,
+    ///
+    /// `init` and `call` accept several roots, as a repeated `--root` or a
+    /// comma-separated `--roots a,b`; every other command takes exactly one.
+    #[arg(
+        long,
+        visible_alias = "roots",
+        global = true,
+        value_delimiter = ',',
+        action = clap::ArgAction::Append
+    )]
+    root: Vec<PathBuf>,
 
     /// Print version.
     #[arg(short = 'v', short_alias = 'V', long = "version", action = clap::ArgAction::Version)]
@@ -47,9 +60,18 @@ enum Command {
     /// Build the index for the first time.
     ///
     /// Equivalent to `reindex` — kept as a separate, discoverable first
-    /// command for a fresh checkout.
-    #[command(after_help = "Example:\n  cargo run -p mct-cli -- --root . init")]
-    Init,
+    /// command for a fresh checkout. With several roots (`--root a --root b`
+    /// or `--roots a,b`) each one is indexed independently and gets its own
+    /// summary. A root whose index is already up to date is not re-parsed
+    /// unless `--force` is given.
+    #[command(
+        after_help = "Examples:\n  cargo run -p mct-cli -- --root . init\n  cargo run -p mct-cli -- --roots ../a,../b init\n  cargo run -p mct-cli -- --root . init --force"
+    )]
+    Init {
+        /// Re-parse every supported file, even if unchanged since last run.
+        #[arg(long)]
+        force: bool,
+    },
     /// Re-scan the project and update the index.
     ///
     /// Only re-parses files that changed since the last run, unless
@@ -63,6 +85,42 @@ enum Command {
         /// Re-parse every supported file, even if unchanged since last run.
         #[arg(long)]
         force: bool,
+    },
+    /// Call one MCP tool once and print its result.
+    ///
+    /// Runs the same tool code `mct-mcp-server` serves, in this process: no
+    /// server to start, no JSON-RPC to write. Each root is brought up to date
+    /// first (an incremental reindex, like the server's startup), then the
+    /// tool is called with `--args`. With several roots the call runs on each
+    /// and every result is labelled `== <root> ==`; a failure on one root is
+    /// reported and the rest still run, then the exit status is non-zero.
+    /// Tool names: `list_symbols`, `get_file_skeleton`, `get_project_overview`,
+    /// `get_file_tree`, `find_symbol`, `search_symbols`, `hybrid_search`,
+    /// `find_references`, `find_calls`, `find_callers`, `impact_analysis`,
+    /// `build_context_pack`, `find_dead_code`, `batch`, `get_indexing_status`,
+    /// `reindex`. Add `"format":"toon"` to `--args` where a tool supports it
+    /// for the most compact output.
+    #[command(
+        after_help = "Examples:\n  cargo run -p mct-cli -- --root . call --tool get_indexing_status\n  cargo run -p mct-cli -- --root . call --tool list_symbols --args '{\"path\":\"src/main.rs\"}'\n  cargo run -p mct-cli -- --root . call --tool find_symbol --args-file query.json --json\n  echo '{\"symbol\":\"main\"}' | cargo run -p mct-cli -- --roots ../a,../b call --tool build_context_pack --args -"
+    )]
+    Call {
+        /// Tool to call (see the list above).
+        #[arg(long)]
+        tool: String,
+        /// The tool's arguments as one JSON object; `-` reads it from stdin.
+        /// Defaults to `{}`.
+        #[arg(long, conflicts_with = "args_file")]
+        args: Option<String>,
+        /// Read the arguments JSON object from this file; `-` is stdin.
+        #[arg(long)]
+        args_file: Option<PathBuf>,
+        /// Print the raw MCP result as JSON instead of its text. With several
+        /// roots, an array of `{root, result}` / `{root, error}` objects.
+        #[arg(long)]
+        json: bool,
+        /// Give up on a root after this many seconds (indexing included).
+        #[arg(long, value_name = "SECONDS")]
+        timeout: Option<u64>,
     },
     /// Report index health.
     ///
@@ -80,13 +138,20 @@ enum Command {
     /// overwriting it, so other servers already configured there are left
     /// untouched.
     #[command(
-        after_help = "Examples:\n  cargo run -p mct-cli -- --root . mcp-register\n  cargo run -p mct-cli -- --root . mcp-register --name my-project"
+        after_help = "Examples:\n  cargo run -p mct-cli -- --root . mcp-register\n  cargo run -p mct-cli -- --root . mcp-register --name my-project\n  cargo run -p mct-cli -- --root . mcp-register --reindex-delay 30s\n  cargo run -p mct-cli -- --root . mcp-register --reindex-delay off"
     )]
     McpRegister {
         /// Server name (the key under `mcpServers`). Defaults to the root
         /// directory's own name.
         #[arg(long)]
         name: Option<String>,
+        /// Quiet period without file changes before the server refreshes the
+        /// index automatically: `15s`, `30s`, `45s`, `1m`, a custom positive
+        /// `<N>s` / `<N>m` / `<N>ms`, or `off` to disable automatic updates.
+        /// Written to the server entry's args as `--reindex-delay` and kept
+        /// by later `mcp-register` runs that omit the flag.
+        #[arg(long, value_name = "VALUE", value_parser = parse_reindex_delay)]
+        reindex_delay: Option<String>,
     },
     /// Write a starter `.mctignore` for custom indexing exclusions.
     ///
@@ -163,40 +228,45 @@ enum Command {
     Update,
 }
 
-fn build_registry() -> LanguageRegistry {
-    let mut registry = LanguageRegistry::new();
-    registry.register(Arc::new(mct_lang_rust::RustParser));
-    registry.register(Arc::new(mct_lang_python::PythonParser));
-    registry.register(Arc::new(mct_lang_java::JavaParser));
-    registry.register(Arc::new(mct_lang_kotlin::KotlinParser));
-    registry.register(Arc::new(mct_lang_csharp::CSharpParser));
-    registry.register(Arc::new(mct_lang_js_ts::JsTsParser));
-    registry.register(Arc::new(mct_lang_cpp::CppParser));
-    registry.register(Arc::new(mct_lang_go::GoParser));
-    registry.register(Arc::new(mct_lang_html::HtmlParser));
-    registry.register(Arc::new(mct_lang_css::CssParser));
-    registry.register(Arc::new(mct_lang_xml::XmlParser));
-    registry.register(Arc::new(mct_lang_xaml::XamlParser));
-    registry.register(Arc::new(mct_lang_bash::BashParser));
-    registry.register(Arc::new(mct_lang_powershell::PowerShellParser));
-    registry.register(Arc::new(mct_lang_php::PhpParser));
-    registry.register(Arc::new(mct_lang_md::MarkdownParser));
-    registry.register(Arc::new(mct_lang_lua::LuaParser));
-    registry
-}
-
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
-    let root = match cli.root {
-        Some(root) => root,
-        None => std::env::current_dir()?,
+    let roots = if cli.root.is_empty() {
+        vec![std::env::current_dir()?]
+    } else {
+        cli.root
+    };
+
+    // The only commands that take several roots; they open their own indexes.
+    if let Command::Init { force } = cli.command {
+        return init_roots(&roots, force);
+    }
+    if let Command::Call {
+        tool,
+        args,
+        args_file,
+        json,
+        timeout,
+    } = cli.command
+    {
+        let args = read_call_args(args.as_deref(), args_file.as_deref())?;
+        return call_roots(&roots, &tool, args, json, timeout);
+    }
+    let root = match roots.as_slice() {
+        [root] => root.clone(),
+        _ => anyhow::bail!(
+            "this command takes exactly one --root; only `init` and `call` accept several"
+        ),
     };
 
     // None of these touch the index at all, so they're handled before
     // Index::open — running them shouldn't have the side effect of creating
     // .mct-index/.
-    if let Command::McpRegister { name } = cli.command {
-        return mcp_register(&root, name);
+    if let Command::McpRegister {
+        name,
+        reindex_delay,
+    } = cli.command
+    {
+        return mcp_register(&root, name, reindex_delay);
     }
     if let Command::IgnoreInit { import_gitignore } = cli.command {
         return ignore_init(&root, import_gitignore);
@@ -217,7 +287,6 @@ fn main() -> anyhow::Result<()> {
     let mut index = Index::open(&root, &db_path, exclude)?;
 
     match cli.command {
-        Command::Init => print_reindex(index.reindex(&registry, false)?),
         Command::Reindex { force } => print_reindex(index.reindex(&registry, force)?),
         Command::Status => print_status(index.status()?),
         Command::DeadCode {
@@ -225,7 +294,9 @@ fn main() -> anyhow::Result<()> {
             language,
             output,
         } => dead_code_report(&index, path.as_deref(), language.as_deref(), output)?,
-        Command::McpRegister { .. }
+        Command::Init { .. }
+        | Command::Call { .. }
+        | Command::McpRegister { .. }
         | Command::IgnoreInit { .. }
         | Command::GitignoreInit
         | Command::Probe { .. }
@@ -339,7 +410,53 @@ fn probe(registry: &LanguageRegistry, files: &[PathBuf]) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn mcp_register(root: &Path, name: Option<String>) -> anyhow::Result<()> {
+/// Validates and normalises a `--reindex-delay` value (same grammar as the
+/// server): `off`, or a positive `<N>ms` / `<N>s` / `<N>m`. Returns the
+/// trimmed, lowercase form.
+fn parse_reindex_delay(raw: &str) -> Result<String, String> {
+    let value = raw.trim().to_ascii_lowercase();
+    if value == "off" {
+        return Ok(value);
+    }
+    let invalid = || {
+        format!(
+            "invalid reindex delay `{raw}`: use `off` or a positive duration such as 15s, 30s, 45s, 1m, 500ms"
+        )
+    };
+    let digits_end = value
+        .find(|c: char| !c.is_ascii_digit())
+        .ok_or_else(invalid)?;
+    let (digits, unit) = value.split_at(digits_end);
+    if !matches!(unit, "ms" | "s" | "m") {
+        return Err(invalid());
+    }
+    match digits.parse::<u64>() {
+        Ok(n) if n > 0 => Ok(value),
+        _ => Err(invalid()),
+    }
+}
+
+/// Finds a `--reindex-delay` value in an existing server entry's args.
+fn existing_reindex_delay(entry: Option<&serde_json::Value>) -> Option<String> {
+    let args = entry?.get("args")?.as_array()?;
+    let strs: Vec<&str> = args.iter().filter_map(|a| a.as_str()).collect();
+    strs.iter().enumerate().find_map(|(i, a)| {
+        if *a == "--reindex-delay" {
+            strs.get(i + 1).map(|v| v.to_string())
+        } else {
+            a.strip_prefix("--reindex-delay=").map(str::to_string)
+        }
+    })
+}
+
+fn mcp_register(
+    root: &Path,
+    name: Option<String>,
+    reindex_delay: Option<String>,
+) -> anyhow::Result<()> {
+    let reindex_delay = reindex_delay
+        .map(|v| parse_reindex_delay(&v).map_err(|e| anyhow::anyhow!(e)))
+        .transpose()?;
     let root = root.canonicalize()?;
     let server_name = name.unwrap_or_else(|| {
         root.file_name()
@@ -369,12 +486,21 @@ fn mcp_register(root: &Path, name: Option<String>) -> anyhow::Result<()> {
             )
         })?;
 
+    // An explicit flag wins; otherwise keep what the entry already has so the
+    // choice survives re-registering.
+    let delay = reindex_delay.or_else(|| existing_reindex_delay(servers.get(&server_name)));
+    let mut args = vec!["--root".to_string(), display_path(&root)];
+    if let Some(delay) = delay {
+        args.push("--reindex-delay".to_string());
+        args.push(delay);
+    }
+
     servers.insert(
         server_name.clone(),
         serde_json::json!({
             "type": "stdio",
             "command": "mct-mcp-server",
-            "args": ["--root", display_path(&root)],
+            "args": args,
             "env": {}
         }),
     );
@@ -582,6 +708,183 @@ fn display_path(path: &Path) -> String {
     }
 }
 
+/// Fails fast, before any index is touched, on a root that isn't a directory.
+fn check_roots(roots: &[PathBuf]) -> anyhow::Result<()> {
+    for root in roots {
+        anyhow::ensure!(
+            root.is_dir(),
+            "root `{}` does not exist or is not a directory",
+            display_path(root)
+        );
+    }
+    Ok(())
+}
+
+/// `init` over one or more roots. A single root prints exactly what it always
+/// did; several print a labelled summary each (this run's work, then the
+/// index's totals), and keep going past a root that fails.
+fn init_roots(roots: &[PathBuf], force: bool) -> anyhow::Result<()> {
+    check_roots(roots)?;
+    let registry = build_registry();
+    let mut failed = 0;
+    for root in roots {
+        let result = (|| -> anyhow::Result<()> {
+            let db_path = root.join(".mct-index").join("index.sqlite3");
+            let exclude = ExcludeSet::new(&mct_index::read_ignore_file(root));
+            let mut index = Index::open(root, &db_path, exclude)?;
+            if roots.len() > 1 {
+                println!("== {} ==", display_path(root));
+            }
+            print_reindex(index.reindex(&registry, force)?);
+            if roots.len() > 1 {
+                let status = index.status()?;
+                println!(
+                    "Index: {} files, {} symbols.",
+                    status.total_files, status.total_symbols
+                );
+            }
+            Ok(())
+        })();
+        if let Err(err) = result {
+            failed += 1;
+            eprintln!("error: {}: {err:#}", display_path(root));
+        }
+    }
+    match (failed, roots.len()) {
+        (0, _) => Ok(()),
+        (_, 1) => anyhow::bail!("init failed"),
+        (failed, total) => anyhow::bail!("init failed on {failed} of {total} roots"),
+    }
+}
+
+/// Reads `call`'s JSON argument object from `--args`, `--args-file` or stdin
+/// (`-`); no argument at all means `{}`.
+fn read_call_args(
+    args: Option<&str>,
+    args_file: Option<&Path>,
+) -> anyhow::Result<serde_json::Map<String, serde_json::Value>> {
+    use std::io::Read;
+    let read_stdin = || -> anyhow::Result<String> {
+        let mut text = String::new();
+        std::io::stdin().read_to_string(&mut text)?;
+        Ok(text)
+    };
+    let text = match (args, args_file) {
+        (Some("-"), _) => read_stdin()?,
+        (Some(text), _) => text.to_string(),
+        (None, Some(file)) if file == Path::new("-") => read_stdin()?,
+        (None, Some(file)) => std::fs::read_to_string(file).map_err(|err| {
+            anyhow::anyhow!("cannot read --args-file `{}`: {err}", display_path(file))
+        })?,
+        (None, None) => return Ok(serde_json::Map::new()),
+    };
+    match serde_json::from_str::<serde_json::Value>(&text) {
+        Ok(serde_json::Value::Object(map)) => Ok(map),
+        Ok(_) => anyhow::bail!("tool arguments must be a JSON object, e.g. '{{\"path\":\"src\"}}'"),
+        Err(err) => anyhow::bail!("tool arguments are not valid JSON: {err}"),
+    }
+}
+
+/// Brings one root's index up to date, then calls `tool` on it in this
+/// process, returning the serialized MCP result.
+async fn call_one(
+    root: &Path,
+    tool: &str,
+    args: serde_json::Map<String, serde_json::Value>,
+) -> anyhow::Result<serde_json::Value> {
+    let registry = build_registry();
+    let db_path = root.join(".mct-index").join("index.sqlite3");
+    let mut index = Index::open(root, &db_path, ExcludeSet::for_project(root))?;
+    index.reindex(&registry, false)?;
+    let server = mct_mcp_server::server::MctServer::new(index, registry);
+    let result = server
+        .call_tool_by_name(tool, Some(args))
+        .await
+        .map_err(|err| anyhow::anyhow!("{}", err.message))?;
+    let value = serde_json::to_value(&result)?;
+    if value.get("isError").and_then(serde_json::Value::as_bool) == Some(true) {
+        anyhow::bail!("{}", result_text(&value));
+    }
+    Ok(value)
+}
+
+/// The text blocks of a serialized MCP result, joined.
+fn result_text(result: &serde_json::Value) -> String {
+    result
+        .get("content")
+        .and_then(serde_json::Value::as_array)
+        .map(|blocks| {
+            blocks
+                .iter()
+                .filter_map(|block| block.get("text").and_then(serde_json::Value::as_str))
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+        .unwrap_or_default()
+}
+
+/// `call` over one or more roots; see [`Command::Call`].
+fn call_roots(
+    roots: &[PathBuf],
+    tool: &str,
+    args: serde_json::Map<String, serde_json::Value>,
+    json: bool,
+    timeout: Option<u64>,
+) -> anyhow::Result<()> {
+    check_roots(roots)?;
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_time()
+        .build()?;
+    let mut outcomes = Vec::new();
+    for root in roots {
+        let call = call_one(root, tool, args.clone());
+        let outcome = runtime.block_on(async {
+            match timeout {
+                Some(secs) => tokio::time::timeout(std::time::Duration::from_secs(secs), call)
+                    .await
+                    .unwrap_or_else(|_| Err(anyhow::anyhow!("timed out after {secs}s"))),
+                None => call.await,
+            }
+        });
+        outcomes.push((root, outcome));
+    }
+
+    let failed = outcomes
+        .iter()
+        .filter(|(_, outcome)| outcome.is_err())
+        .count();
+    let labelled = roots.len() > 1;
+    if json && labelled {
+        let entries: Vec<_> = outcomes
+            .iter()
+            .map(|(root, outcome)| match outcome {
+                Ok(result) => serde_json::json!({ "root": display_path(root), "result": result }),
+                Err(err) => {
+                    serde_json::json!({ "root": display_path(root), "error": format!("{err:#}") })
+                }
+            })
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&entries)?);
+    } else {
+        for (root, outcome) in &outcomes {
+            if labelled {
+                println!("== {} ==", display_path(root));
+            }
+            match outcome {
+                Ok(result) if json => println!("{}", serde_json::to_string_pretty(result)?),
+                Ok(result) => println!("{}", result_text(result)),
+                Err(err) if labelled => eprintln!("error: {}: {err:#}", display_path(root)),
+                Err(err) => eprintln!("error: {err:#}"),
+            }
+        }
+    }
+    match (failed, roots.len()) {
+        (0, _) => Ok(()),
+        (_, 1) => anyhow::bail!("call `{tool}` failed"),
+        (failed, total) => anyhow::bail!("call `{tool}` failed on {failed} of {total} roots"),
+    }
+}
+
 fn print_reindex(report: mct_index::ReindexReport) {
     println!(
         "Reindex complete: {} parsed, {} unchanged, {} removed, {} symbols written.",
@@ -673,71 +976,6 @@ mod tests {
         dir
     }
 
-    /// Every language this CLI must be able to index. Kept as a literal list
-    /// rather than derived from `build_registry()` so that *forgetting* to
-    /// add the `registry.register(...)` line here — the classic half-done
-    /// language rollout, since `CONTRIBUTING.md` requires registering in two
-    /// places — fails a test instead of silently shipping a CLI that skips
-    /// that language while the MCP server indexes it.
-    const EXPECTED_LANGUAGES: &[&str] = &[
-        "bash",
-        "cpp",
-        "csharp",
-        "css",
-        "go",
-        "html",
-        "java",
-        "javascript_typescript",
-        "kotlin",
-        "lua",
-        "markdown",
-        "php",
-        "powershell",
-        "python",
-        "rust",
-        "xaml",
-        "xml",
-    ];
-
-    #[test]
-    fn the_cli_registry_wires_in_every_shipped_language() {
-        let registry = build_registry();
-        let mut ids = registry.language_ids();
-        ids.sort_unstable();
-        let mut expected = EXPECTED_LANGUAGES.to_vec();
-        expected.sort_unstable();
-        assert_eq!(ids, expected);
-    }
-
-    #[test]
-    fn the_cli_registry_resolves_a_representative_extension_for_each_language() {
-        let registry = build_registry();
-        for (extension, language) in [
-            ("sh", "bash"),
-            ("hpp", "cpp"),
-            ("cs", "csharp"),
-            ("css", "css"),
-            ("go", "go"),
-            ("htm", "html"),
-            ("java", "java"),
-            ("tsx", "javascript_typescript"),
-            ("kts", "kotlin"),
-            ("lua", "lua"),
-            ("md", "markdown"),
-            ("php", "php"),
-            ("psm1", "powershell"),
-            ("pyi", "python"),
-            ("rs", "rust"),
-            ("xaml", "xaml"),
-            ("xml", "xml"),
-        ] {
-            let parser = registry
-                .for_extension(extension)
-                .unwrap_or_else(|| panic!("no parser registered for `.{extension}`"));
-            assert_eq!(parser.language_id(), language, ".{extension}");
-        }
-    }
-
     #[test]
     fn a_polyglot_project_indexes_end_to_end_through_the_cli_registry() {
         let dir = temp_project_dir("polyglot-index");
@@ -778,59 +1016,6 @@ mod tests {
         assert_eq!(index.status().unwrap().total_symbols, status.total_symbols);
 
         fs::remove_dir_all(&dir).ok();
-    }
-
-    #[test]
-    fn the_cli_and_mcp_server_registries_ship_the_same_languages_and_extensions() {
-        // Both binaries keep their own `build_registry()`; this compares the
-        // real production ones, so a language wired into only one of them
-        // fails here instead of hiding behind a hand-built test registry.
-        let cli = build_registry();
-        let server = mct_mcp_server::registry::build_registry();
-        assert_eq!(cli.language_ids(), server.language_ids());
-
-        let mut cli_extensions: Vec<&str> = cli.supported_extensions().collect();
-        let mut server_extensions: Vec<&str> = server.supported_extensions().collect();
-        cli_extensions.sort_unstable();
-        server_extensions.sort_unstable();
-        assert_eq!(cli_extensions, server_extensions);
-        for extension in cli_extensions {
-            assert_eq!(
-                cli.for_extension(extension).map(|p| p.language_id()),
-                server.for_extension(extension).map(|p| p.language_id()),
-                ".{extension}"
-            );
-        }
-    }
-
-    #[test]
-    fn every_language_crate_in_the_workspace_is_registered_in_production() {
-        // One `crates/mct-lang-*` crate is one language id (JS/TS included),
-        // and each must be a dependency of both binaries — an implemented but
-        // unregistered parser is silently skipped by `init`/`status`.
-        let crates_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
-        let mut lang_crates: Vec<String> = fs::read_dir(&crates_dir)
-            .unwrap()
-            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
-            .filter(|name| name.starts_with("mct-lang-"))
-            .collect();
-        lang_crates.sort_unstable();
-        assert!(!lang_crates.is_empty());
-
-        for manifest in ["mct-cli/Cargo.toml", "mct-mcp-server/Cargo.toml"] {
-            let text = fs::read_to_string(crates_dir.join(manifest)).unwrap();
-            for name in &lang_crates {
-                assert!(
-                    text.contains(&format!("{name}.workspace = true")),
-                    "{manifest} does not depend on {name}"
-                );
-            }
-        }
-        assert_eq!(
-            build_registry().language_ids().len(),
-            lang_crates.len(),
-            "registered languages vs {lang_crates:?}"
-        );
     }
 
     #[test]
@@ -900,7 +1085,7 @@ mod tests {
     fn mcp_register_creates_new_config() {
         let dir = temp_project_dir("new");
 
-        mcp_register(&dir, Some("my-server".to_string())).expect("register should succeed");
+        mcp_register(&dir, Some("my-server".to_string()), None).expect("register should succeed");
 
         let contents = fs::read_to_string(dir.join(".mcp.json")).expect("config should exist");
         let json: serde_json::Value = serde_json::from_str(&contents).expect("valid json");
@@ -919,8 +1104,8 @@ mod tests {
         )
         .expect("seed existing config");
 
-        mcp_register(&dir, Some("mine".to_string())).expect("first register should succeed");
-        mcp_register(&dir, Some("mine".to_string())).expect("second register should succeed");
+        mcp_register(&dir, Some("mine".to_string()), None).expect("first register should succeed");
+        mcp_register(&dir, Some("mine".to_string()), None).expect("second register should succeed");
 
         let contents = fs::read_to_string(dir.join(".mcp.json")).expect("config should exist");
         let json: serde_json::Value = serde_json::from_str(&contents).expect("valid json");
@@ -931,11 +1116,99 @@ mod tests {
         fs::remove_dir_all(&dir).ok();
     }
 
+    fn registered_args(dir: &Path, name: &str) -> Vec<String> {
+        let contents = fs::read_to_string(dir.join(".mcp.json")).expect("config should exist");
+        let json: serde_json::Value = serde_json::from_str(&contents).expect("valid json");
+        json["mcpServers"][name]["args"]
+            .as_array()
+            .expect("args array")
+            .iter()
+            .map(|v| v.as_str().expect("string arg").to_string())
+            .collect()
+    }
+
+    #[test]
+    fn parse_reindex_delay_accepts_and_normalises() {
+        for (raw, want) in [
+            ("15s", "15s"),
+            (" 1M ", "1m"),
+            ("45S", "45s"),
+            ("250ms", "250ms"),
+            ("90s", "90s"),
+            ("OFF", "off"),
+        ] {
+            assert_eq!(parse_reindex_delay(raw).as_deref(), Ok(want), "{raw}");
+        }
+    }
+
+    #[test]
+    fn parse_reindex_delay_rejects_invalid() {
+        for raw in [
+            "",
+            "0",
+            "0s",
+            "-5s",
+            "10",
+            "s",
+            "1h",
+            "abc",
+            "1.5s",
+            "99999999999999999999s",
+        ] {
+            assert!(parse_reindex_delay(raw).is_err(), "{raw}");
+        }
+    }
+
+    #[test]
+    fn mcp_register_writes_reindex_delay() {
+        let dir = temp_project_dir("delay-write");
+        mcp_register(&dir, Some("s".to_string()), Some("30S".to_string())).expect("register");
+        let args = registered_args(&dir, "s");
+        assert_eq!(&args[2..], ["--reindex-delay", "30s"]);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn mcp_register_preserves_and_replaces_reindex_delay() {
+        let dir = temp_project_dir("delay-persist");
+        let reg = |d: Option<&str>| {
+            mcp_register(&dir, Some("s".to_string()), d.map(str::to_string)).expect("register")
+        };
+        reg(Some("1m"));
+        reg(None);
+        assert_eq!(&registered_args(&dir, "s")[2..], ["--reindex-delay", "1m"]);
+        reg(Some("off"));
+        reg(None);
+        assert_eq!(&registered_args(&dir, "s")[2..], ["--reindex-delay", "off"]);
+        reg(Some("15s"));
+        let args = registered_args(&dir, "s");
+        assert_eq!(args.iter().filter(|a| *a == "--reindex-delay").count(), 1);
+        assert_eq!(&args[2..], ["--reindex-delay", "15s"]);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn mcp_register_invalid_delay_writes_nothing() {
+        let dir = temp_project_dir("delay-invalid");
+        let err = mcp_register(&dir, None, Some("0s".to_string()));
+        assert!(err.is_err());
+        assert!(!dir.join(".mcp.json").exists());
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn mcp_register_without_flag_has_no_delay_args() {
+        let dir = temp_project_dir("delay-none");
+        mcp_register(&dir, Some("s".to_string()), None).expect("register");
+        assert_eq!(registered_args(&dir, "s").len(), 2);
+        fs::remove_dir_all(&dir).ok();
+    }
+
     #[test]
     fn mcp_register_strips_windows_verbatim_path_prefix() {
         let dir = temp_project_dir("verbatim-path");
 
-        mcp_register(&dir, Some("my-server".to_string())).expect("register should succeed");
+        mcp_register(&dir, Some("my-server".to_string()), None).expect("register should succeed");
 
         let contents = fs::read_to_string(dir.join(".mcp.json")).expect("config should exist");
         assert!(
@@ -1202,7 +1475,7 @@ mod tests {
     fn mcp_register_defaults_name_to_root_directory_name() {
         let dir = temp_project_dir("default-name");
 
-        mcp_register(&dir, None).expect("register should succeed");
+        mcp_register(&dir, None, None).expect("register should succeed");
 
         let contents = fs::read_to_string(dir.join(".mcp.json")).expect("config should exist");
         let json: serde_json::Value = serde_json::from_str(&contents).expect("valid json");

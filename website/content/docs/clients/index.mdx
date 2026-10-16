@@ -23,7 +23,7 @@ description: Connect mct-mcp-server to the assistant you use.
 ## Rules that apply to every client
 
 - At launch the server opens (or creates) the index in `<root>/.mct-index/` and runs an **incremental** reindex. The first start on a fresh checkout parses the whole repo; later starts only re-parse changed files.
-- The server does not watch files. After a `git pull` or a branch switch, ask the agent to call `reindex`, or restart the client.
+- While running, the server watches for file changes and reindexes after a quiet period (1.5 seconds by default). After changes made while it was stopped, it catches up at startup. Set `--reindex-debounce-ms 0` to disable the watcher. See [Reindexing](/docs/managing).
 - Most clients only read their MCP config at startup: restart the client after adding or removing the server.
 
 Config formats were checked against each client's official docs, and they still change often. If a client rejects a file, check its current docs first.
