@@ -657,3 +657,115 @@ per reported group. The workloads differ only in names, so every group is
 `single`; the added work is one pass over each group's aligned slots (already
 kept for every candidate) before pagination. A quiet-host remeasurement is a
 follow-up.
+## Repeated partial blocks
+
+Design: [ADR-012](../docs/01-architecture/adrs/012-repeated-partial-blocks.md).
+`--partial-blocks` is opt-in; every number below that says "off" is the
+default report.
+
+Protocol, fixed before running: corpus is a copy of the worktree's `crates/`
+directory (tracked and untracked files, `target` excluded, so it includes the
+new `blocks.{py,rs}` fixtures), indexed with `mct-cli init`. (1) Feature off:
+the pre-feature release CLI and the new one must give byte-identical reports in
+`broad`, `consistent` and `exact`, and with `--min-lines 1 --min-tokens 1
+--ranking tokens --limit 5`. (2) Feature on, default budgets: report block
+counts, work counters and `budget_exhausted` per policy. (3) Manual review of
+the first 10 blocks of the default `broad` report: read the source of at least
+two occurrences (through the project's MCP `build_context_pack`) and classify
+each as useful (repeated logic worth a look), conventional (repetition by
+convention or test data) or artifact (the boundaries or the match are wrong).
+(4) Cost: `duplicate_analysis.py` at 1,000 (five runs) and 10,000 functions
+(three runs), feature off before/after (10,000 also in reversed order), feature
+on with defaults, and feature on with `--block-min-lines 1
+--block-min-tokens 20`; plus three timed runs on the repository corpus.
+
+### Results on this repository
+
+- Feature off: all four comparisons byte-identical (`broad` 372,989 bytes).
+- Feature on, default budgets, `broad`: 2,733 functions searched, 289,097
+  windows and 172,117 comparisons (1.4% and 0.9% of their budgets), and
+  `budget_exhausted: max-blocks`: 425 maximal blocks exist, the first 200 are
+  listed. The block budget is the one hit on this repository; windows and
+  comparisons are far from theirs. With `--block-max-blocks 100000`:
+  `broad` 425 blocks, `consistent` 388, `exact` 102, no budget exhausted.
+- All 425 `broad` blocks are Rust. Python under `crates` yields one block, the
+  `blocks.py` fixture: the remaining Python is test corpora whose functions do
+  not share runs of 40 tokens and 6 lines.
+- Occurrences per block (`broad`, before the overlap fix below): 280 blocks
+  with 2, 91 with 3, 48 with 4, the rest 5-13.
+
+Manual review, first 10 blocks of the default report:
+
+| # | Tokens / lines | Occurrences | Class and evidence |
+|---|---|---|---|
+| 1 | 252 / 29 | `parse` in cpp, python, rust `src/lib.rs` | Useful: parser setup, `first_error` check and module symbol, line-aligned from `let mut parser` to `push_symbol`. |
+| 2 | 234 / 28 | same plus css | Useful, but the same repetition as 1 minus its last line, listed because css adds a location. |
+| 3 | 223 / 26 | html, php, xaml `parse` | Useful: same setup, other tail. |
+| 4 | 205 / 25 | java, lua `parse` | Useful: same setup. |
+| 5 | 204 / 17 | three `a_second_reindex_skips_unchanged_files...` tests | Conventional: one test per language crate. |
+| 6 | 199 / 23 | js-ts, php `parse` | Useful: same setup. |
+| 7 | 190 / 19 | Python and Rust corpus tests | Conventional: tables of `(file, name, kind)` rows. |
+| 8 | 184 / 23 | java, lua, xml `parse` | Useful: same setup. |
+| 9 | 184 / 35 | two `omni_tools.rs` offset tests | Useful, low value: request, assert, paged request, assert; a helper could take the tool. `broad` equates `find_calls`/`find_references` and their argument structs. |
+| 10 | 182 / 35 | three `omni_tools.rs` depth tests | Useful, low value: same shape. |
+
+Every sampled boundary started and ended on a whole statement line in every
+occurrence; no artifact was found. Totals: 8 useful (2 of low value), 2
+conventional, 0 artifacts. Usability finding: six of the ten blocks are one
+repetition, the `parse` setup of the language crates, split by which crates
+share how much of the tail. A block that adds one location repeats the rest.
+Summarizing such families is a candidate follow-up.
+
+A first look at this sample, before the final rule, showed the corpus table of
+block 7 twice, shifted by one row (Python lines 37-55 against Rust 27-45 and
+28-46). Redundancy was then changed from "contained in a larger block" to
+"overlaps a larger block" in every occurrence; a unit regression reproduces the
+shift. That change removed 65 of 490 blocks. The table above is from the final
+binary. This is a ranked single-project sample, not a precision rate.
+
+### Cost
+
+Raw results: [token-twins-blocks-results.toon](token-twins-blocks-results.toon).
+Other agents were compiling throughout (load average 32-58), so the timings
+below are noisy; peak RSS is steadier.
+
+| Run | Seconds | Peak RSS MiB |
+|---|---|---|
+| Repository, off: before / after (3 runs each) | 0.79-0.96 / 0.79-0.93 | 34.0-35.6 / 34.2-35.7 |
+| Repository, `--partial-blocks` | 0.90-1.17 | 55.5-57.1 |
+| 1,000 functions, off before / after, many-small | 0.216 / 0.213 | 14.95 / 15.05 |
+| 10,000 functions, off before / after, few-large (two orders) | 0.988 / 1.157, 1.139 / 1.041 | 107.5 / 107.6, 107.9 / 106.9 |
+| 10,000, `--partial-blocks`, four scenarios | 1.46-3.89 | 42.2-108.4 |
+| 10,000, `--partial-blocks --block-min-lines 1 --block-min-tokens 20` | 1.56-3.93 | 96.6-174.5 |
+
+- Off: group membership, order and output bytes are identical in all
+  comparisons. Time differences change sign with order and are attributed to
+  load. RSS differs by at most about 1 MiB, except one 10,000 `unique` pair
+  (2.2 MiB, 0.7 MiB in the reversed order), within the unexplained variation
+  recorded in the sections above.
+- On, defaults: the generated functions have two-line bodies, below
+  `--block-min-lines 6`, so no stream is kept and peak RSS matches the off run.
+  Times vary from 1.46 to 3.89 s for the same work and are not attributed to
+  the change. A first round, before ineligible streams were dropped, kept every
+  function's stream and peaked 31 MiB higher at 10,000 many-small.
+- On, low thresholds: every function is searched. Peak RSS grows by about
+  57 MiB at 10,000 functions (streams of about 32 bytes per token plus the
+  window table). No block is reported: each group's members are whole-function
+  copies (excluded), and the `unique` functions differ within their only body
+  line, so no whole line repeats. These workloads therefore measure the search
+  cost, not block quality, and no budget is reached at their sizes.
+- Budget exhaustion is exercised by the unit and CLI tests (each budget) and by
+  this repository's default report (`max-blocks`).
+
+### Labeled corpus score
+
+The sibling evaluation task's scorer (`score_duplicate_labels.py`, labeled
+corpus of 31 cases, 3 labeled partial blocks, outside this worktree) was run
+once against the final release CLI with `--flags "--min-lines 5 --min-tokens 30"
+--partial-blocks-flag=--partial-blocks` (block thresholds at their defaults,
+40 tokens and 6 lines). Result: 3 reported, 3 true positives, precision 1.000,
+recall 1.000, occurrence recall 1.000, no false positive of any kind
+(below-minimum, shape-only, covered-by-group, unlabeled). The algorithm was not
+tuned to the labels: this was the first run against them, after the design
+and the repository review above. Three labeled blocks are too few for a
+precision or recall estimate.

@@ -43,6 +43,120 @@ pub struct DuplicateOptions {
     pub excerpts: bool,
     /// Where groups whose members only make flat calls are ranked.
     pub trivial_calls: TrivialCallPolicy,
+    /// Repeated partial-block search and its budgets; `None` (the default)
+    /// skips it and leaves the report exactly as without the feature.
+    pub partial_blocks: Option<PartialBlockBudget>,
+}
+
+/// Default minimum source tokens of a repeated partial block.
+pub const DEFAULT_BLOCK_MIN_TOKENS: usize = 40;
+/// Default minimum token-bearing lines of a repeated partial block, in every
+/// occurrence.
+pub const DEFAULT_BLOCK_MIN_LINES: usize = 6;
+/// Default most token windows hashed. Each costs 16 bytes of search memory,
+/// so the default bounds the window table to about 32 MB.
+pub const DEFAULT_BLOCK_MAX_WINDOWS: usize = 2_000_000;
+/// Default most token comparisons spent extending candidate blocks; bounds
+/// the search's running time deterministically instead of by wall clock.
+pub const DEFAULT_BLOCK_MAX_COMPARISONS: usize = 20_000_000;
+/// Default most partial blocks reported.
+pub const DEFAULT_BLOCK_MAX_BLOCKS: usize = 200;
+/// What the partial-block search leaves unevaluated; it replaces
+/// `partial-block repetition` in the report's not-evaluated list when the
+/// search runs.
+pub const PARTIAL_BLOCKS_NOT_EVALUATED: &str =
+    "extractability of repeated partial blocks (variables in/out, control flow, side effects)";
+
+/// Thresholds and budgets of the repeated partial-block search. Every budget
+/// is a deterministic count, so the same tree and options always stop at the
+/// same point; an exhausted budget is reported, never silent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PartialBlockBudget {
+    /// Minimum source tokens per block (block markers excluded).
+    pub min_tokens: usize,
+    /// Minimum token-bearing lines per block, in every occurrence.
+    pub min_lines: usize,
+    /// Most token windows hashed (memory bound).
+    pub max_windows: usize,
+    /// Most token comparisons spent extending candidate blocks (time bound).
+    pub max_comparisons: usize,
+    /// Most blocks reported, in report order.
+    pub max_blocks: usize,
+}
+
+impl Default for PartialBlockBudget {
+    fn default() -> Self {
+        Self {
+            min_tokens: DEFAULT_BLOCK_MIN_TOKENS,
+            min_lines: DEFAULT_BLOCK_MIN_LINES,
+            max_windows: DEFAULT_BLOCK_MAX_WINDOWS,
+            max_comparisons: DEFAULT_BLOCK_MAX_COMPARISONS,
+            max_blocks: DEFAULT_BLOCK_MAX_BLOCKS,
+        }
+    }
+}
+
+/// The budget that stopped the partial-block search first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BlockBudgetKind {
+    /// Functions after the cut-off were not searched at all.
+    MaxWindows,
+    /// Candidate blocks after the cut-off were not extended.
+    MaxComparisons,
+    /// More blocks were found than are listed.
+    MaxBlocks,
+}
+
+impl BlockBudgetKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::MaxWindows => "max-windows",
+            Self::MaxComparisons => "max-comparisons",
+            Self::MaxBlocks => "max-blocks",
+        }
+    }
+}
+
+/// Result of the repeated partial-block search.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct PartialBlockReport {
+    /// Functions whose token streams were searched (outermost callables that
+    /// meet the block thresholds, before any budget cut-off).
+    pub functions_searched: usize,
+    pub windows_used: usize,
+    pub comparisons_used: usize,
+    /// `None` when every budget sufficed.
+    pub budget_exhausted: Option<BlockBudgetKind>,
+    /// Ordered by tokens, then occurrence count (both descending), then the
+    /// first occurrence's path and start line; `id` follows this order.
+    pub blocks: Vec<PartialBlock>,
+}
+
+/// One repeated token sequence found in two or more different functions.
+/// It is evidence of repetition only: whether it could be extracted (values
+/// flowing in and out, control flow, side effects) is never evaluated.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PartialBlock {
+    /// 1-based position in the report.
+    pub id: usize,
+    pub language: String,
+    /// Source tokens, the same in every occurrence.
+    pub tokens: usize,
+    /// Smallest token-bearing line count among the occurrences.
+    pub lines: usize,
+    /// One per function, ordered by path and start line.
+    pub occurrences: Vec<BlockOccurrence>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BlockOccurrence {
+    pub path: String,
+    /// 1-based, inclusive.
+    pub start_line: u32,
+    /// 1-based, inclusive.
+    pub end_line: u32,
+    /// Innermost analyzed function or method containing the occurrence.
+    pub function: String,
 }
 
 impl Default for DuplicateOptions {
@@ -58,6 +172,7 @@ impl Default for DuplicateOptions {
             offset: 0,
             excerpts: true,
             trivial_calls: TrivialCallPolicy::Demote,
+            partial_blocks: None,
         }
     }
 }
@@ -205,6 +320,8 @@ pub struct DuplicateReport {
     /// source, sorted. Their symbols are not candidates and not skipped.
     pub unsupported_languages: Vec<String>,
     pub generated_code: GeneratedCodeHandling,
+    /// Present only when [`DuplicateOptions::partial_blocks`] is set.
+    pub partial_blocks: Option<PartialBlockReport>,
 }
 
 /// Two or more same-language members sharing one normalized token sequence.

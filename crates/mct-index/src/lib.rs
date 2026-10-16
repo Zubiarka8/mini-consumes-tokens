@@ -31,15 +31,19 @@ pub use dead_code::{
 };
 pub use dependency_graph::{DependencyEdge, DependencyGraph};
 pub use duplicates::{
-    find_duplicate_groups, AlignedDifference, CallShape, ContextAspect, ContextComparison,
-    ContextEvidence, ContextStatus, DifferenceKind, DuplicateGroup, DuplicateMember,
-    DuplicateOptions, DuplicateRanking, DuplicateReport, EvidenceWarning, GeneratedCodeHandling,
-    GroupEvidence, GroupPriority, GroupSubgroups, GroupVerdict, IdentifierPattern, Normalization,
-    PriorityLevel, SkipReason, SkippedCandidate, Subgroup, SubgroupBasis, SubgroupStatus,
-    TrivialCallPolicy, TypeEvidence, VerdictCounts, VerdictLevel, VerdictReason, WarningCode,
+    find_duplicate_groups, AlignedDifference, BlockBudgetKind, BlockOccurrence, CallShape,
+    ContextAspect, ContextComparison, ContextEvidence, ContextStatus, DifferenceKind,
+    DuplicateGroup, DuplicateMember, DuplicateOptions, DuplicateRanking, DuplicateReport,
+    EvidenceWarning, GeneratedCodeHandling, GroupEvidence, GroupPriority, GroupSubgroups,
+    GroupVerdict, IdentifierPattern, Normalization, PartialBlock, PartialBlockBudget,
+    PartialBlockReport, PriorityLevel, SkipReason, SkippedCandidate, Subgroup, SubgroupBasis,
+    SubgroupStatus, TrivialCallPolicy, TypeEvidence, VerdictCounts, VerdictLevel, VerdictReason,
+    WarningCode, DEFAULT_BLOCK_MAX_BLOCKS, DEFAULT_BLOCK_MAX_COMPARISONS,
+    DEFAULT_BLOCK_MAX_WINDOWS, DEFAULT_BLOCK_MIN_LINES, DEFAULT_BLOCK_MIN_TOKENS,
     DEFAULT_MIN_LINES, DEFAULT_MIN_TOKENS, DUPLICATE_KIND_ALLOWLIST, EVIDENCE_NOT_EVALUATED,
     MAX_DIFFERENCE_TEXT_CHARS, MAX_EXCERPT_LINES, MAX_EXCERPT_LINE_CHARS, MAX_LISTED_DIFFERENCES,
     MAX_LISTED_SUBGROUPS, MAX_LISTED_SUBGROUP_MEMBERS, MAX_SUBGROUP_VALUES,
+    PARTIAL_BLOCKS_NOT_EVALUATED,
 };
 pub use error::{IndexError, Result};
 pub use exclude::{

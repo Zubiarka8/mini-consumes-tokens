@@ -8,6 +8,7 @@ Unix wait4 reports each child's RSS independently, unlike cumulative RUSAGE_CHIL
 
 import argparse
 import os
+import shlex
 from pathlib import Path
 import statistics
 import subprocess
@@ -60,13 +61,20 @@ def main():
     parser.add_argument("binaries", nargs="+", type=Path)
     parser.add_argument("--functions", type=int, default=1000)
     parser.add_argument("--runs", type=int, default=3)
+    parser.add_argument("--extra-args", default="",
+                        help="extra duplicates flags for every binary, e.g. --partial-blocks")
     args = parser.parse_args()
     if args.functions < 4 or args.functions > 1_000_000 or args.runs < 1:
         parser.error("functions must be 4..1000000 and runs must be positive")
     binaries = [str(binary.resolve(strict=True)) for binary in args.binaries]
     print("scope: synthetic Python fixtures; init excluded; warm median; per-process peak RSS")
     print(f"functions: {args.functions}\nruns: {args.runs}")
-    print(f"measurements[{len(binaries) * 4}]{{scenario,binary,seconds,rss_bytes,output_bytes,groups}}:")
+    if args.extra_args:
+        print(f"extra_args: {args.extra_args}")
+    columns = "scenario,binary,seconds,rss_bytes,output_bytes,groups"
+    if args.extra_args:
+        columns += ",partial_blocks,budget_exhausted"
+    print(f"measurements[{len(binaries) * 4}]{{{columns}}}:")
     for scenario in ["many-small", "few-large", "unique", "large-group"]:
         with tempfile.TemporaryDirectory(prefix="mct-duplicate-benchmark-") as temporary:
             root = Path(temporary)
@@ -75,6 +83,7 @@ def main():
             baseline_members = None
             for position, binary in enumerate(binaries):
                 command = [binary, "--root", str(root), "duplicates", "--min-lines", "1", "--min-tokens", "1"]
+                command += shlex.split(args.extra_args)
                 # Large-group output measures member rendering, not merely analysis.
                 measured(command)
                 results = [measured(command) for _ in range(args.runs)]
@@ -86,8 +95,14 @@ def main():
                 elif members != baseline_members:
                     raise RuntimeError(f"{scenario}: group membership/order/counts changed")
                 groups = next(line.split(": ")[1] for line in results[0][3].splitlines() if line.startswith("total_groups:"))
+                extra = ""
+                if args.extra_args:
+                    header = dict(line.split(": ", 1) for line in results[0][3].splitlines()
+                                  if line.startswith(("partial_block_count:", "  budget_exhausted:")))
+                    extra = (f",{header.get('partial_block_count', '-')}"
+                             f",{header.get('  budget_exhausted', '-')}")
                 print(f"  {scenario},{position},{statistics.median(row[0] for row in results):.6f},"
-                      f"{int(statistics.median(row[1] for row in results))},{results[0][2]},{groups}", flush=True)
+                      f"{int(statistics.median(row[1] for row in results))},{results[0][2]},{groups}{extra}", flush=True)
 
 
 if __name__ == "__main__":

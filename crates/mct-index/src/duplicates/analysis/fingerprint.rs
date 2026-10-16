@@ -99,6 +99,71 @@ fn own_markers(tokens: &[&Token]) -> Vec<bool> {
     keep
 }
 
+/// The candidate's tokens as a partial-block stream: the same selection and
+/// markers as [`fingerprint`], but identifiers are never renumbered. Under
+/// `broad` and `consistent` every identifier is one id and every literal
+/// another; `consistent` also keeps each identifier's spelling, so blocks can
+/// be split by identifier pattern over the block rather than the function.
+/// `exact` keeps all text, as for whole functions.
+pub(super) fn block_tokens(
+    tokens: &[Token],
+    start: u32,
+    end: u32,
+    bytes: Option<&std::ops::Range<usize>>,
+    interner: &mut Interner,
+    normalization: super::super::Normalization,
+) -> Vec<super::blocks::BlockToken> {
+    use super::super::Normalization;
+    let selected: Vec<&Token> = within(tokens, start, end)
+        .filter(|token| {
+            bytes.is_none_or(|range| token.start_byte >= range.start && token.end_byte <= range.end)
+        })
+        .collect();
+    let keep = own_markers(&selected);
+    let mut stream = Vec::with_capacity(selected.len());
+    for (token, keep) in selected.into_iter().zip(keep) {
+        if !keep {
+            continue;
+        }
+        let id = match token.kind {
+            TokenKind::BlockStart => BLOCK_START,
+            TokenKind::BlockEnd => BLOCK_END,
+            TokenKind::Identifier if normalization != Normalization::Exact => IDENTIFIER,
+            TokenKind::Literal if normalization != Normalization::Exact => LITERAL,
+            _ => interner.id(token.kind, &token.text),
+        };
+        let spelling =
+            if normalization == Normalization::Consistent && token.kind == TokenKind::Identifier {
+                u32::try_from(interner.id(TokenKind::Identifier, &token.text))
+                    .unwrap_or(super::blocks::NO_SPELLING - 1)
+            } else {
+                super::blocks::NO_SPELLING
+            };
+        let bracket = match token.kind {
+            TokenKind::BlockStart => 1,
+            TokenKind::BlockEnd => -1,
+            TokenKind::Punctuation => match token.text.as_str() {
+                "(" | "[" | "{" => 1,
+                ")" | "]" | "}" => -1,
+                _ => 0,
+            },
+            _ => 0,
+        };
+        stream.push(super::blocks::BlockToken {
+            id: u64::try_from(id).unwrap_or(u64::MAX),
+            spelling,
+            marker: token.kind.is_block_marker(),
+            bracket,
+            line: token.line,
+            end_line: token.end_line,
+            line_first: false,
+            line_last: false,
+        });
+    }
+    super::blocks::mark_lines(&mut stream);
+    stream
+}
+
 /// Selects tokens inside the optional byte boundary and line range, then
 /// applies the requested identifier/literal policy. Keywords, punctuation and
 /// the candidate's paired block markers retain their structure.
