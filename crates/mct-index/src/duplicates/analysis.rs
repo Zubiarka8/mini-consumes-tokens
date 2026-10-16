@@ -10,6 +10,7 @@
 //! per-candidate failure becomes a [`SkippedCandidate`], and only a failing
 //! index query returns `Err`.
 
+mod blocks;
 mod evidence;
 mod file;
 mod fingerprint;
@@ -21,8 +22,9 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use mct_core::{LineRange, TokenSourceRegistry};
 
 use super::{
-    DuplicateGroup, DuplicateMember, DuplicateOptions, DuplicateReport, GeneratedCodeHandling,
-    GroupEvidence, GroupPriority, GroupSubgroups, GroupVerdict, PriorityLevel, SkipReason,
+    BlockOccurrence, DuplicateGroup, DuplicateMember, DuplicateOptions, DuplicateReport,
+    GeneratedCodeHandling, GroupEvidence, GroupPriority, GroupSubgroups, GroupVerdict,
+    PartialBlock, PartialBlockBudget, PartialBlockReport, PriorityLevel, SkipReason,
     SkippedCandidate, SubgroupStatus, VerdictCounts, VerdictLevel, DUPLICATE_KIND_ALLOWLIST,
     MAX_EXCERPT_LINES, MAX_EXCERPT_LINE_CHARS,
 };
@@ -102,6 +104,7 @@ pub(super) fn run(
         }
     }
 
+    let block_inputs = analysis.block_inputs.take();
     let (mut report, texts, mut inputs) = analysis.into_report(
         token_sources,
         unsupported.into_iter().map(str::to_string).collect(),
@@ -162,6 +165,15 @@ pub(super) fn run(
         .filter(|group| group.priority.level == PriorityLevel::Demoted)
         .count();
     report.total_groups = report.groups.len();
+    // Partial blocks see every reported group, before pagination.
+    if let (Some(budget), Some(block_inputs)) = (report.options.partial_blocks, block_inputs) {
+        report.partial_blocks = Some(find_partial_blocks(
+            block_inputs,
+            &report.groups,
+            budget,
+            report.options.normalization,
+        ));
+    }
     report.groups = report
         .groups
         .into_iter()
@@ -224,10 +236,40 @@ struct Analysis {
     members: Vec<Vec<DuplicateMember>>,
     /// Evidence input, parallel to `members`.
     inputs: Vec<Vec<MemberInput>>,
+    /// Partial-block input; `None` unless the search was requested.
+    block_inputs: Option<BlockInputs>,
+    /// Candidates of the file being analyzed that were tokenized.
+    file_functions: Vec<AnalyzedFunction>,
+}
+
+/// A tokenized candidate of one file, for nesting and occurrence naming.
+struct AnalyzedFunction {
+    name: String,
+    start: u32,
+    end: u32,
+    bytes: Option<std::ops::Range<usize>>,
+}
+
+/// One outermost function's partial-block stream.
+struct BlockStream {
+    language: String,
+    path: String,
+    start: u32,
+    end: u32,
+    tokens: Vec<blocks::BlockToken>,
+}
+
+#[derive(Default)]
+struct BlockInputs {
+    streams: Vec<BlockStream>,
+    /// Every tokenized candidate per path, `(start, end, name)`, to name the
+    /// innermost function around an occurrence.
+    functions: HashMap<String, Vec<(u32, u32, String)>>,
 }
 
 impl Analysis {
     fn new(options: DuplicateOptions) -> Self {
+        let block_inputs = options.partial_blocks.map(|_| BlockInputs::default());
         Self {
             options,
             interner: Interner::default(),
@@ -237,7 +279,71 @@ impl Analysis {
             buckets: HashMap::new(),
             members: Vec::new(),
             inputs: Vec::new(),
+            block_inputs,
+            file_functions: Vec::new(),
         }
+    }
+
+    /// Streams the outermost tokenized candidates of one file: a nested
+    /// function's tokens are already part of its enclosing function's.
+    fn collect_block_streams(&mut self, loaded: &file::LoadedFile, path: &str, language: &str) {
+        let functions = std::mem::take(&mut self.file_functions);
+        let Some(inputs) = self.block_inputs.as_mut() else {
+            return;
+        };
+        // Byte extents when the token source reports them, else lines.
+        let extent = |function: &AnalyzedFunction| match &function.bytes {
+            Some(bytes) => (bytes.start, bytes.end),
+            None => (function.start as usize, function.end as usize),
+        };
+        // By start, longest first: a function is nested exactly when an
+        // earlier one reaches at least as far. Equal extents keep the first.
+        let mut order: Vec<usize> = (0..functions.len()).collect();
+        order.sort_by_key(|&position| {
+            let (start, end) = extent(&functions[position]);
+            (start, std::cmp::Reverse(end), position)
+        });
+        let mut reach: Option<usize> = None;
+        for position in order {
+            let function = &functions[position];
+            let (_, end) = extent(function);
+            if reach.is_some_and(|reach| end <= reach) {
+                continue;
+            }
+            reach = Some(reach.map_or(end, |reach| reach.max(end)));
+            let tokens = fingerprint::block_tokens(
+                &loaded.tokens,
+                function.start,
+                function.end,
+                function.bytes.as_ref(),
+                &mut self.interner,
+                self.options.normalization,
+            );
+            // A function below the block thresholds can hold no block; not
+            // keeping its stream bounds memory to the functions searched.
+            let budget = self.options.partial_blocks.unwrap_or_default();
+            if blocks::source_tokens(&tokens) < budget.min_tokens.max(1)
+                || blocks::line_count(&tokens) < budget.min_lines.max(1)
+            {
+                continue;
+            }
+            inputs.streams.push(BlockStream {
+                language: language.to_string(),
+                path: path.to_string(),
+                start: function.start,
+                end: function.end,
+                tokens,
+            });
+        }
+        inputs
+            .functions
+            .entry(path.to_string())
+            .or_default()
+            .extend(
+                functions
+                    .into_iter()
+                    .map(|function| (function.start, function.end, function.name)),
+            );
     }
 
     fn skip(&mut self, candidate: &SymbolListEntry, reason: SkipReason, detail: String) {
@@ -266,6 +372,9 @@ impl Analysis {
                 }
                 Err((reason, detail)) => self.skip(candidate, reason, detail),
             }
+        }
+        if let Some(first) = candidates.first() {
+            self.collect_block_streams(loaded, &first.relative_path, &first.language);
         }
         // Once a bucket is a group, reuse this file's loaded source. Earlier
         // members in other files are fetched lazily after grouping.
@@ -324,6 +433,14 @@ impl Analysis {
             &candidate.name,
         );
         self.candidates_analyzed += 1;
+        if self.block_inputs.is_some() {
+            self.file_functions.push(AnalyzedFunction {
+                name: candidate.name.clone(),
+                start,
+                end,
+                bytes: span.map(|span| span.bytes.clone()),
+            });
+        }
         // A range without any token (blank or comment-only) has nothing to
         // compare, whatever the thresholds are.
         if fingerprint.token_count == 0
@@ -428,8 +545,147 @@ impl Analysis {
                 .collect(),
             unsupported_languages,
             generated_code: GeneratedCodeHandling::ConfiguredExclusionsOnly,
+            partial_blocks: None,
         };
         (report, self.interner.texts, inputs)
+    }
+}
+
+/// Runs the partial-block search over the collected streams and turns its
+/// spans into located occurrences. `groups` are every reported group, before
+/// pagination: a block whose every occurrence lies inside members of one
+/// group is already reported by that group.
+fn find_partial_blocks(
+    inputs: BlockInputs,
+    groups: &[DuplicateGroup],
+    budget: PartialBlockBudget,
+    normalization: super::Normalization,
+) -> PartialBlockReport {
+    let BlockInputs {
+        mut streams,
+        functions,
+    } = inputs;
+    streams.sort_by(|a, b| {
+        (&a.language, &a.path, a.start, a.end).cmp(&(&b.language, &b.path, b.start, b.end))
+    });
+    let mut languages: Vec<String> = streams.iter().map(|s| s.language.clone()).collect();
+    languages.dedup();
+    let search_streams: Vec<blocks::Stream> = streams
+        .iter_mut()
+        .map(|stream| blocks::Stream {
+            language: languages
+                .iter()
+                .position(|language| *language == stream.language)
+                .and_then(|position| u32::try_from(position).ok())
+                .unwrap_or(u32::MAX),
+            tokens: std::mem::take(&mut stream.tokens),
+        })
+        .collect();
+
+    let location = |span: &blocks::Span| -> (&str, u32, u32) {
+        // Markers are not source text: lines come from source tokens only.
+        let tokens = search_streams[span.stream]
+            .tokens
+            .get(span.start..span.end)
+            .unwrap_or_default();
+        let mut source = tokens.iter().filter(|token| !token.marker);
+        let first = source.next().map_or(0, |token| token.line);
+        let last = tokens
+            .iter()
+            .rev()
+            .find(|token| !token.marker)
+            .map_or(first, |token| token.end_line);
+        (streams[span.stream].path.as_str(), first, last)
+    };
+    // Group ids whose members contain a location, per path.
+    let mut members: HashMap<&str, Vec<(u32, u32, usize)>> = HashMap::new();
+    for (id, group) in groups.iter().enumerate() {
+        for member in &group.members {
+            members.entry(member.path.as_str()).or_default().push((
+                member.start_line,
+                member.end_line,
+                id,
+            ));
+        }
+    }
+    let groups_around = |span: &blocks::Span| -> BTreeSet<usize> {
+        let (path, first, last) = location(span);
+        members.get(path).map_or_else(BTreeSet::new, |ranges| {
+            ranges
+                .iter()
+                .filter(|(start, end, _)| *start <= first && last <= *end)
+                .map(|(_, _, id)| *id)
+                .collect()
+        })
+    };
+    let covered = |spans: &[blocks::Span]| {
+        let mut shared: Option<BTreeSet<usize>> = None;
+        for span in spans {
+            let around = groups_around(span);
+            shared = Some(match shared {
+                None => around,
+                Some(previous) => previous.intersection(&around).copied().collect(),
+            });
+            if shared.as_ref().is_some_and(BTreeSet::is_empty) {
+                return false;
+            }
+        }
+        shared.is_some_and(|shared| !shared.is_empty())
+    };
+    let outcome = blocks::find_blocks(
+        &search_streams,
+        budget,
+        normalization == super::Normalization::Consistent,
+        covered,
+        u64::MAX,
+    );
+
+    let blocks = outcome
+        .blocks
+        .iter()
+        .enumerate()
+        .map(|(position, block)| PartialBlock {
+            id: position + 1,
+            language: block
+                .spans
+                .first()
+                .map(|span| streams[span.stream].language.clone())
+                .unwrap_or_default(),
+            tokens: block.tokens,
+            lines: block.lines,
+            occurrences: block
+                .spans
+                .iter()
+                .map(|span| {
+                    let (path, start_line, end_line) = location(span);
+                    // The innermost tokenized function around the occurrence.
+                    let function = functions
+                        .get(path)
+                        .and_then(|ranges| {
+                            ranges
+                                .iter()
+                                .filter(|(start, end, _)| *start <= start_line && end_line <= *end)
+                                .min_by_key(|(start, end, name)| {
+                                    (end - start, *start, name.clone())
+                                })
+                        })
+                        .map_or_else(String::new, |(_, _, name)| name.clone());
+                    BlockOccurrence {
+                        path: path.to_string(),
+                        start_line,
+                        end_line,
+                        function,
+                    }
+                })
+                .collect(),
+        })
+        .collect();
+    PartialBlockReport {
+        functions_searched: outcome.functions_searched,
+        windows_used: outcome.windows_used,
+        comparisons_used: outcome.comparisons_used,
+        budget_exhausted: outcome.exhausted,
+        blocks,
     }
 }
 

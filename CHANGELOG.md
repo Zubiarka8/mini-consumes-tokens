@@ -48,6 +48,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and context never separates), with a
   `split_groups` header count. Membership, totals and pagination are unchanged;
   see [ADR-011](docs/01-architecture/adrs/011-duplicate-subgroups.md).
+  `--partial-blocks` (opt-in) also lists repeated token sequences shared by
+  different functions below the whole-function level, trimmed to whole lines
+  with balanced delimiters, maximal only, and left out when one reported group
+  already covers them. Deterministic budgets bound the search
+  (`--block-max-windows`, `--block-max-comparisons`, `--block-max-blocks`;
+  sizes via `--block-min-tokens`, `--block-min-lines`) and the header names
+  any exhausted budget. Extraction feasibility is not evaluated. Without the
+  flag the report is unchanged. See
+  [ADR-012](docs/01-architecture/adrs/012-repeated-partial-blocks.md).
 
 - `mct-mcp-server --reindex-delay <15s|30s|45s|1m|N s/m/ms|off>` updates the
   index once no relevant file has changed for the chosen time (every change

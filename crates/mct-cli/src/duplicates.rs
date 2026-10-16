@@ -15,8 +15,8 @@ use std::path::Path;
 use anyhow::Context as _;
 use mct_index::{
     find_duplicate_groups, ContextEvidence, DuplicateGroup, DuplicateMember, DuplicateOptions,
-    DuplicateReport, ExcludeSet, GroupEvidence, Index, SkipReason, SkippedCandidate,
-    SubgroupStatus,
+    DuplicateReport, ExcludeSet, GroupEvidence, Index, PartialBlockReport, SkipReason,
+    SkippedCandidate, SubgroupStatus,
 };
 use mct_languages::build_token_sources;
 
@@ -60,10 +60,39 @@ pub(crate) struct Args {
     /// keep the ranking order (keep). Never removes a group.
     #[arg(long, default_value = "demote")]
     trivial_calls: mct_index::TrivialCallPolicy,
+    /// Also report repeated token sequences shared by different functions
+    /// below the whole-function level (opt-in; bounded by the --block-*
+    /// budgets). Extraction feasibility is never evaluated.
+    #[arg(long)]
+    partial_blocks: bool,
+    /// Minimum source tokens per partial block.
+    #[arg(long, default_value_t = mct_index::DEFAULT_BLOCK_MIN_TOKENS, value_parser = parse_threshold, requires = "partial_blocks")]
+    block_min_tokens: usize,
+    /// Minimum token-bearing lines per partial block, in every occurrence.
+    #[arg(long, default_value_t = mct_index::DEFAULT_BLOCK_MIN_LINES, value_parser = parse_threshold, requires = "partial_blocks")]
+    block_min_lines: usize,
+    /// Most token windows hashed (memory budget, 16 bytes each).
+    #[arg(long, default_value_t = mct_index::DEFAULT_BLOCK_MAX_WINDOWS, value_parser = parse_threshold, requires = "partial_blocks")]
+    block_max_windows: usize,
+    /// Most token comparisons spent extending blocks (deterministic time budget).
+    #[arg(long, default_value_t = mct_index::DEFAULT_BLOCK_MAX_COMPARISONS, value_parser = parse_threshold, requires = "partial_blocks")]
+    block_max_comparisons: usize,
+    /// Most partial blocks reported.
+    #[arg(long, default_value_t = mct_index::DEFAULT_BLOCK_MAX_BLOCKS, value_parser = parse_threshold, requires = "partial_blocks")]
+    block_max_blocks: usize,
 }
 
 impl From<Args> for DuplicateOptions {
     fn from(args: Args) -> Self {
+        let partial_blocks = args
+            .partial_blocks
+            .then_some(mct_index::PartialBlockBudget {
+                min_tokens: args.block_min_tokens,
+                min_lines: args.block_min_lines,
+                max_windows: args.block_max_windows,
+                max_comparisons: args.block_max_comparisons,
+                max_blocks: args.block_max_blocks,
+            });
         Self {
             min_lines: args.min_lines,
             min_tokens: args.min_tokens,
@@ -75,9 +104,18 @@ impl From<Args> for DuplicateOptions {
             offset: args.offset,
             excerpts: !args.no_excerpts,
             trivial_calls: args.trivial_calls,
+            partial_blocks,
         }
     }
 }
+
+/// Header scope and warning of the partial-block section.
+const PARTIAL_BLOCKS_SCOPE: &str = "repeated token sequences shared by two or more different \
+functions under the selected normalization, trimmed to whole lines with balanced delimiters; \
+maximal blocks only; blocks lying only inside members of one reported group are left out; \
+repetition inside a single function is not reported";
+const PARTIAL_BLOCKS_WARNING: &str = "a repeated token sequence is not a proposal to extract it: \
+extraction feasibility (variables in/out, control flow, side effects) is not evaluated";
 
 /// Every skip reason, in the stable order the report lists them.
 const SKIP_REASONS: [SkipReason; 4] = [
@@ -224,9 +262,16 @@ pub(crate) fn render_toon(report: &DuplicateReport) -> String {
         "per group, the original identifier and literal tokens at aligned positions; \
          roles are syntactic and nothing is resolved; differences are evidence, not verdicts",
     );
+    // With the partial-block search on, block repetition is evaluated and
+    // only the blocks' extractability remains unevaluated.
     let not_evaluated: Vec<String> = mct_index::EVIDENCE_NOT_EVALUATED
         .iter()
-        .map(|item| (*item).to_string())
+        .map(|item| match *item {
+            "partial-block repetition" if report.partial_blocks.is_some() => {
+                mct_index::PARTIAL_BLOCKS_NOT_EVALUATED.to_string()
+            }
+            item => item.to_string(),
+        })
         .collect();
     inline_array(&mut out, "alignment_not_evaluated", &not_evaluated);
     field(
@@ -298,6 +343,9 @@ pub(crate) fn render_toon(report: &DuplicateReport) -> String {
             .count();
         number(&mut out, 2, reason.as_str(), count);
     }
+    if let Some(blocks) = &report.partial_blocks {
+        render_partial_blocks_header(&mut out, report, blocks);
+    }
 
     let _ = writeln!(out, "groups[{}]:", report.groups.len());
     for (position, group) in report.groups.iter().enumerate() {
@@ -311,6 +359,9 @@ pub(crate) fn render_toon(report: &DuplicateReport) -> String {
             group,
             report.options.normalization,
         );
+    }
+    if let Some(blocks) = &report.partial_blocks {
+        render_partial_blocks(&mut out, blocks);
     }
 
     let _ = writeln!(
@@ -551,6 +602,63 @@ fn render_subgroups(out: &mut String, group: &DuplicateGroup) {
     }
 }
 
+/// Scope, warning, budgets with their use, and the block count.
+fn render_partial_blocks_header(
+    out: &mut String,
+    report: &DuplicateReport,
+    blocks: &PartialBlockReport,
+) {
+    field(out, 0, "partial_blocks_scope", PARTIAL_BLOCKS_SCOPE);
+    field(out, 0, "partial_blocks_warning", PARTIAL_BLOCKS_WARNING);
+    out.push_str("partial_blocks_budget:\n");
+    if let Some(budget) = &report.options.partial_blocks {
+        number(out, 2, "min_tokens", budget.min_tokens);
+        number(out, 2, "min_lines", budget.min_lines);
+        number(out, 2, "max_windows", budget.max_windows);
+        number(out, 2, "max_comparisons", budget.max_comparisons);
+        number(out, 2, "max_blocks", budget.max_blocks);
+    }
+    number(out, 2, "functions_searched", blocks.functions_searched);
+    number(out, 2, "windows_used", blocks.windows_used);
+    number(out, 2, "comparisons_used", blocks.comparisons_used);
+    // A TOON boolean `false`, or the kebab-case name of the budget.
+    let _ = writeln!(
+        out,
+        "  budget_exhausted: {}",
+        blocks
+            .budget_exhausted
+            .map_or("false", |kind| kind.as_str())
+    );
+    number(out, 0, "partial_block_count", blocks.blocks.len());
+}
+
+/// One list item per block, with an occurrence row per function.
+fn render_partial_blocks(out: &mut String, blocks: &PartialBlockReport) {
+    let _ = writeln!(out, "partial_blocks[{}]:", blocks.blocks.len());
+    for block in &blocks.blocks {
+        out.push_str("  - ");
+        number_inline(out, "id", block.id);
+        field(out, 4, "language", &block.language);
+        number(out, 4, "tokens", block.tokens);
+        number(out, 4, "lines", block.lines);
+        let _ = writeln!(
+            out,
+            "    occurrences[{}]{{path,start_line,end_line,function}}:",
+            block.occurrences.len()
+        );
+        for occurrence in &block.occurrences {
+            let _ = writeln!(
+                out,
+                "      {},{},{},{}",
+                quote_if_needed(&occurrence.path),
+                occurrence.start_line,
+                occurrence.end_line,
+                quote_if_needed(&occurrence.function)
+            );
+        }
+    }
+}
+
 fn render_skipped(out: &mut String, skipped: &SkippedCandidate) {
     let range = match skipped.end_line {
         Some(end) => format!("{}-{end}", skipped.start_line),
@@ -678,6 +786,7 @@ mod tests {
             supported_languages: Vec::new(),
             unsupported_languages: Vec::new(),
             generated_code: GeneratedCodeHandling::ConfiguredExclusionsOnly,
+            partial_blocks: None,
         }
     }
 

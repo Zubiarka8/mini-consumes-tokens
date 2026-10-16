@@ -471,16 +471,45 @@ Evidence never changes grouping: no domain is inferred from names, type
 compatibility is not evaluated, and `alignment_not_evaluated` lists the
 remaining unevaluated criteria.
 
+`--partial-blocks` (off by default) also reports **repeated token sequences**
+shared by two or more different functions of one language, below the
+whole-function level, under the selected `--normalization`. Without the flag
+the report is unchanged. A block is a lead, not a refactoring proposal:
+extraction feasibility (values in/out, control flow, side effects) is not
+evaluated, and `alignment_not_evaluated` says so in place of
+`partial-block repetition`.
+- Blocks are trimmed to whole lines with balanced `()`, `[]`, `{}` and Python
+  block markers, and must have `--block-min-tokens` source tokens (default 40)
+  and `--block-min-lines` token-bearing lines in every occurrence (default 6).
+- Only maximal blocks are listed: a block whose every occurrence lies inside
+  members of one reported group is left out, and a shorter block is listed only
+  when one of its occurrences does not overlap a larger listed block.
+  Repetition inside a single function is not reported; each function shows
+  its first occurrence.
+- Budgets, all deterministic counts: `--block-max-windows` (default 2,000,000,
+  memory: 16 bytes per hashed window), `--block-max-comparisons` (default
+  20,000,000 token comparisons, time) and `--block-max-blocks` (default 200
+  listed blocks). The header's `partial_blocks_budget` shows each limit, its use
+  and `budget_exhausted`: `false` or the first budget hit (`max-windows`,
+  `max-comparisons`, `max-blocks`). An exhausted budget makes the block list
+  partial; groups stay complete. Each `--block-*` flag requires
+  `--partial-blocks`.
+- Output: `partial_block_count`, then a `partial_blocks` list after `groups`,
+  each with `id`, `language`, `tokens`, `lines` and
+  `occurrences{path,start_line,end_line,function}`, ordered by tokens, then
+  occurrence count, then first location.
+
 ```sh
 mct-cli --root . duplicates
 mct-cli --root . duplicates --normalization consistent --path crates --language rust --ranking tokens --limit 20 --no-excerpts
 mct-cli --root . duplicates --normalization exact --min-lines 10 --min-tokens 80
+mct-cli --root . duplicates --partial-blocks --limit 0 --block-max-blocks 50
 ```
 
 Design: [ADR-007](docs/01-architecture/adrs/007-duplicate-function-report.md),
 [comparison policies](docs/01-architecture/adrs/008-token-twins-comparison-policies.md),
 [aligned evidence](docs/01-architecture/adrs/009-duplicate-group-aligned-evidence.md),
-[evidence subgroups](docs/01-architecture/adrs/011-duplicate-subgroups.md).
+[evidence subgroups](docs/01-architecture/adrs/011-duplicate-subgroups.md). and [repeated partial blocks](docs/01-architecture/adrs/012-repeated-partial-blocks.md).
 Reproducible measurements: [token twins evaluation](benchmarks/token-twins.md).
 
 <details>
@@ -542,6 +571,34 @@ Options:
           Groups whose bodies are only flat calls: rank them last (demote) or keep the ranking order (keep). Never removes a group
 
           [default: demote]
+
+      --partial-blocks
+          Also report repeated token sequences shared by different functions below the whole-function level (opt-in; bounded by the --block-* budgets). Extraction feasibility is never evaluated
+
+      --block-min-tokens <BLOCK_MIN_TOKENS>
+          Minimum source tokens per partial block
+
+          [default: 40]
+
+      --block-min-lines <BLOCK_MIN_LINES>
+          Minimum token-bearing lines per partial block, in every occurrence
+
+          [default: 6]
+
+      --block-max-windows <BLOCK_MAX_WINDOWS>
+          Most token windows hashed (memory budget, 16 bytes each)
+
+          [default: 2000000]
+
+      --block-max-comparisons <BLOCK_MAX_COMPARISONS>
+          Most token comparisons spent extending blocks (deterministic time budget)
+
+          [default: 20000000]
+
+      --block-max-blocks <BLOCK_MAX_BLOCKS>
+          Most partial blocks reported
+
+          [default: 200]
 
   -h, --help
           Print help (see a summary with '-h')
