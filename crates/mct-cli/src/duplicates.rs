@@ -14,8 +14,8 @@ use std::path::Path;
 
 use anyhow::Context as _;
 use mct_index::{
-    find_duplicate_groups, DuplicateGroup, DuplicateMember, DuplicateOptions, DuplicateReport,
-    ExcludeSet, Index, SkipReason, SkippedCandidate,
+    find_duplicate_groups, ContextEvidence, DuplicateGroup, DuplicateMember, DuplicateOptions,
+    DuplicateReport, ExcludeSet, GroupEvidence, Index, SkipReason, SkippedCandidate,
 };
 use mct_languages::build_token_sources;
 
@@ -25,6 +25,58 @@ use crate::display_path;
 const NOTICE: &str = "Groups below are CANDIDATE duplicates for human review. \
 Identical normalized structure does not prove that the functions are redundant \
 or behave the same.";
+
+#[derive(clap::Args, Debug)]
+pub(crate) struct Args {
+    /// Minimum source-token-bearing lines per candidate.
+    #[arg(long, default_value_t = mct_index::DEFAULT_MIN_LINES, value_parser = parse_threshold)]
+    min_lines: usize,
+    /// Minimum source tokens per candidate.
+    #[arg(long, default_value_t = mct_index::DEFAULT_MIN_TOKENS, value_parser = parse_threshold)]
+    min_tokens: usize,
+    /// Comparison policy: broad, consistent identifier spelling, or exact token text.
+    #[arg(long, default_value = "broad")]
+    normalization: mct_index::Normalization,
+    /// Rank by lines times members, or tokens times additional copies (estimate).
+    #[arg(long, default_value = "lines")]
+    ranking: mct_index::DuplicateRanking,
+    /// Exact file or directory prefix, relative to the repository root.
+    #[arg(long)]
+    path: Option<String>,
+    /// Exact indexed language id.
+    #[arg(long)]
+    language: Option<String>,
+    /// Maximum groups to display; totals describe all filtered groups.
+    #[arg(long)]
+    limit: Option<usize>,
+    /// Skip this many ranked groups.
+    #[arg(long, default_value_t = 0)]
+    offset: usize,
+    /// Omit source excerpts.
+    #[arg(long)]
+    no_excerpts: bool,
+    /// Groups whose bodies are only flat calls: rank them last (demote) or
+    /// keep the ranking order (keep). Never removes a group.
+    #[arg(long, default_value = "demote")]
+    trivial_calls: mct_index::TrivialCallPolicy,
+}
+
+impl From<Args> for DuplicateOptions {
+    fn from(args: Args) -> Self {
+        Self {
+            min_lines: args.min_lines,
+            min_tokens: args.min_tokens,
+            normalization: args.normalization,
+            ranking: args.ranking,
+            path: args.path,
+            language: args.language,
+            limit: args.limit,
+            offset: args.offset,
+            excerpts: !args.no_excerpts,
+            trivial_calls: args.trivial_calls,
+        }
+    }
+}
 
 /// Every skip reason, in the stable order the report lists them.
 const SKIP_REASONS: [SkipReason; 4] = [
@@ -58,7 +110,7 @@ pub(crate) fn run(root: &Path, options: DuplicateOptions) -> anyhow::Result<()> 
         );
     }
     let exclude = ExcludeSet::new(&mct_index::read_ignore_file(root));
-    let index = Index::open(root, &db_path, exclude)
+    let index = Index::open_existing_read_only(root, &db_path, exclude)
         .with_context(|| format!("cannot open the index at {}", display_path(&db_path)))?;
     let report = find_duplicate_groups(&index, &build_token_sources(), options)
         .context("cannot query the index for duplicate candidates")?;
@@ -93,6 +145,65 @@ pub(crate) fn render_toon(report: &DuplicateReport) -> String {
     out.push_str("options:\n");
     number(&mut out, 2, "min_lines", report.options.min_lines);
     number(&mut out, 2, "min_tokens", report.options.min_tokens);
+    field(
+        &mut out,
+        2,
+        "normalization",
+        report.options.normalization.as_str(),
+    );
+    field(&mut out, 2, "ranking", report.options.ranking.as_str());
+    if let Some(path) = &report.options.path {
+        field(&mut out, 2, "path", path);
+    }
+    if let Some(language) = &report.options.language {
+        field(&mut out, 2, "language", language);
+    }
+    number(&mut out, 2, "offset", report.options.offset);
+    if let Some(limit) = report.options.limit {
+        number(&mut out, 2, "limit", limit);
+    }
+    field(
+        &mut out,
+        2,
+        "excerpts",
+        if report.options.excerpts {
+            "included"
+        } else {
+            "omitted"
+        },
+    );
+    field(
+        &mut out,
+        2,
+        "trivial_calls",
+        report.options.trivial_calls.as_str(),
+    );
+    let coverage = if report.index_syntax_errors > 0 || report.index_read_failures > 0 {
+        "partial"
+    } else if report.has_indexing_record {
+        "no-recorded-errors"
+    } else {
+        "unknown"
+    };
+    field(&mut out, 0, "index_coverage", coverage);
+    field(
+        &mut out,
+        0,
+        "coverage_scope",
+        "whole index at last indexing; new unindexed files are not discovered",
+    );
+    number(
+        &mut out,
+        0,
+        "index_syntax_errors",
+        report.index_syntax_errors,
+    );
+    number(
+        &mut out,
+        0,
+        "index_read_failures",
+        report.index_read_failures,
+    );
     inline_array(&mut out, "supported_languages", &report.supported_languages);
     inline_array(
         &mut out,
@@ -105,6 +216,33 @@ pub(crate) fn render_toon(report: &DuplicateReport) -> String {
         "generated_code",
         report.generated_code.description(),
     );
+    field(
+        &mut out,
+        0,
+        "alignment_scope",
+        "per group, the original identifier and literal tokens at aligned positions; \
+         roles are syntactic and nothing is resolved; differences are evidence, not verdicts",
+    );
+    let not_evaluated: Vec<String> = mct_index::EVIDENCE_NOT_EVALUATED
+        .iter()
+        .map(|item| (*item).to_string())
+        .collect();
+    inline_array(&mut out, "alignment_not_evaluated", &not_evaluated);
+    field(
+        &mut out,
+        0,
+        "context_scope",
+        "per group, each member's decorators or outer attributes and enclosing constructs \
+         as text; compared, never resolved; a difference is a warning, not a verdict",
+    );
+    field(
+        &mut out,
+        0,
+        "priority_scope",
+        "per group, whether every member's body is only flat calls, read from syntax; \
+         callee names are never considered; demote ranks such groups last, keep leaves \
+         the ranking order; no group is removed",
+    );
     number(
         &mut out,
         0,
@@ -112,7 +250,14 @@ pub(crate) fn render_toon(report: &DuplicateReport) -> String {
         report.candidates_analyzed,
     );
     number(&mut out, 0, "below_threshold", report.below_threshold);
-    number(&mut out, 0, "total_groups", report.groups.len());
+    number(&mut out, 0, "total_groups", report.total_groups);
+    number(&mut out, 0, "demoted_groups", report.demoted_groups);
+    number(
+        &mut out,
+        0,
+        "omitted_groups",
+        report.total_groups.saturating_sub(report.groups.len()),
+    );
     number(&mut out, 0, "total_skipped", report.skipped.len());
     out.push_str("skipped_by_reason:\n");
     for reason in SKIP_REASONS {
@@ -126,7 +271,16 @@ pub(crate) fn render_toon(report: &DuplicateReport) -> String {
 
     let _ = writeln!(out, "groups[{}]:", report.groups.len());
     for (position, group) in report.groups.iter().enumerate() {
-        render_group(&mut out, position + 1, group);
+        render_group(
+            &mut out,
+            report
+                .options
+                .offset
+                .saturating_add(position)
+                .saturating_add(1),
+            group,
+            report.options.normalization,
+        );
     }
 
     let _ = writeln!(
@@ -140,11 +294,24 @@ pub(crate) fn render_toon(report: &DuplicateReport) -> String {
     out
 }
 
-fn render_group(out: &mut String, index: usize, group: &DuplicateGroup) {
+fn render_group(
+    out: &mut String,
+    index: usize,
+    group: &DuplicateGroup,
+    normalization: mct_index::Normalization,
+) {
     let ranges: Vec<String> = group.members.iter().map(member_location).collect();
+    let policy = match normalization {
+        mct_index::Normalization::Broad => "identifiers -> $ID, literals -> $LIT",
+        mct_index::Normalization::Consistent => {
+            "consistent identifier spelling, literals -> $LIT, interpolation structure retained"
+        }
+        mct_index::Normalization::Exact => {
+            "exact token text, interpolation structure retained; trivia ignored"
+        }
+    };
     let evidence = format!(
-        "members share an identical normalized token sequence (identifiers -> $ID, \
-         literals -> $LIT); inspect {}",
+        "members share an identical normalized token sequence ({policy}); inspect {}",
         ranges.join(", ")
     );
     out.push_str("  - ");
@@ -154,6 +321,12 @@ fn render_group(out: &mut String, index: usize, group: &DuplicateGroup) {
     number(out, 4, "line_count", group.line_count);
     number(out, 4, "token_count", group.token_count);
     field(out, 4, "evidence", &evidence);
+    out.push_str("    priority:\n");
+    field(out, 6, "level", group.priority.level.as_str());
+    field(out, 6, "call_shape", group.priority.call_shape.as_str());
+    field(out, 6, "reason", &group.priority.reason);
+    render_alignment(out, &group.evidence);
+    render_context(out, &group.evidence.context);
     let _ = writeln!(
         out,
         "    members[{}]{{path,range,symbol,kind,language,lines,tokens,excerpt}}:",
@@ -171,6 +344,108 @@ fn render_group(out: &mut String, index: usize, group: &DuplicateGroup) {
             quote_if_needed(&member.excerpt.join("\n")),
         ];
         let _ = writeln!(out, "      {}", row.join(","));
+    }
+}
+
+/// The group's aligned evidence: identifier pattern, differing positions per
+/// kind, warnings, and the listed distinct differences. Per-member values and
+/// lines are joined with ` / ` in member order.
+fn render_alignment(out: &mut String, evidence: &GroupEvidence) {
+    out.push_str("    alignment:\n");
+    field(
+        out,
+        6,
+        "identifier_pattern",
+        evidence.identifier_pattern.as_str(),
+    );
+    out.push_str("      types:\n");
+    field(out, 8, "compatibility", "unknown");
+    number(
+        out,
+        8,
+        "compared_positions",
+        evidence.types.compared_positions,
+    );
+    number(
+        out,
+        8,
+        "primitive_spelling_conflicts",
+        evidence.types.primitive_spelling_conflicts,
+    );
+    let _ = writeln!(
+        out,
+        "        conflicts[{}]{{values,lines}}:",
+        evidence.types.conflicts.len()
+    );
+    for conflict in &evidence.types.conflicts {
+        let lines: Vec<String> = conflict.lines.iter().map(u32::to_string).collect();
+        let _ = writeln!(
+            out,
+            "          {},{}",
+            quote_if_needed(&conflict.values.join(" / ")),
+            quote_if_needed(&lines.join(" / "))
+        );
+    }
+    // An empty TOON object is its key with no nested fields.
+    out.push_str("      differing_positions:\n");
+    for (kind, count) in &evidence.differing_positions {
+        number(out, 8, kind.as_str(), *count);
+    }
+    number(
+        out,
+        6,
+        "distinct_differences",
+        evidence.distinct_differences,
+    );
+    let _ = writeln!(
+        out,
+        "      warnings[{}]{{code,detail}}:",
+        evidence.warnings.len()
+    );
+    for warning in &evidence.warnings {
+        let _ = writeln!(
+            out,
+            "        {},{}",
+            quote_if_needed(warning.code.as_str()),
+            quote_if_needed(&warning.detail)
+        );
+    }
+    let _ = writeln!(
+        out,
+        "      differences[{}]{{kind,occurrences,values,lines}}:",
+        evidence.differences.len()
+    );
+    for difference in &evidence.differences {
+        let lines: Vec<String> = difference.lines.iter().map(u32::to_string).collect();
+        let _ = writeln!(
+            out,
+            "        {},{},{},{}",
+            quote_if_needed(difference.kind.as_str()),
+            difference.occurrences,
+            quote_if_needed(&difference.values.join(" / ")),
+            quote_if_needed(&lines.join(" / "))
+        );
+    }
+}
+
+/// Decorators and enclosing constructs, apart from the aligned tokens: one row
+/// per aspect, with the shared value or the per-member values joined by ` / `.
+fn render_context(out: &mut String, context: &ContextEvidence) {
+    out.push_str("    context:\n");
+    field(out, 6, "status", context.status.as_str());
+    let _ = writeln!(
+        out,
+        "      aspects[{}]{{aspect,differs,values}}:",
+        context.aspects.len()
+    );
+    for aspect in &context.aspects {
+        let _ = writeln!(
+            out,
+            "        {},{},{}",
+            aspect.aspect.as_str(),
+            aspect.differs,
+            quote_if_needed(&aspect.values.join(" / "))
+        );
     }
 }
 
@@ -260,7 +535,11 @@ mod tests {
     // Test code: hand-built reports and string assertions, no repo input.
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-    use mct_index::GeneratedCodeHandling;
+    use mct_index::{
+        AlignedDifference, CallShape, ContextAspect, ContextComparison, ContextStatus,
+        DifferenceKind, EvidenceWarning, GeneratedCodeHandling, GroupPriority, IdentifierPattern,
+        PriorityLevel, WarningCode,
+    };
 
     use super::*;
 
@@ -280,6 +559,11 @@ mod tests {
 
     fn empty_report() -> DuplicateReport {
         DuplicateReport {
+            total_groups: 0,
+            demoted_groups: 0,
+            index_syntax_errors: 0,
+            index_read_failures: 0,
+            has_indexing_record: false,
             groups: Vec::new(),
             skipped: Vec::new(),
             complete: true,
@@ -294,6 +578,7 @@ mod tests {
 
     fn group_report() -> DuplicateReport {
         let mut report = empty_report();
+        report.total_groups = 1;
         report.supported_languages = vec!["python".to_string(), "rust".to_string()];
         report.unsupported_languages = vec!["go".to_string()];
         report.candidates_analyzed = 5;
@@ -316,6 +601,54 @@ mod tests {
             language: "rust".to_string(),
             line_count: 8,
             token_count: 52,
+            priority: GroupPriority {
+                level: PriorityLevel::Normal,
+                call_shape: CallShape::Other,
+                reason: "every member's body has a statement other than a single flat call"
+                    .to_string(),
+            },
+            evidence: GroupEvidence {
+                types: mct_index::TypeEvidence::default(),
+                identifier_pattern: IdentifierPattern::OneToOne,
+                differing_positions: vec![
+                    (DifferenceKind::Declaration, 1),
+                    (DifferenceKind::LiteralCategory, 1),
+                ],
+                distinct_differences: 2,
+                differences: vec![
+                    AlignedDifference {
+                        kind: DifferenceKind::Declaration,
+                        occurrences: 1,
+                        values: vec!["load".to_string(), "read".to_string()],
+                        lines: vec![10, 3],
+                    },
+                    AlignedDifference {
+                        kind: DifferenceKind::LiteralCategory,
+                        occurrences: 1,
+                        values: vec!["1 (number)".to_string(), "\"a,b\" (string)".to_string()],
+                        lines: vec![12, 5],
+                    },
+                ],
+                context: ContextEvidence {
+                    status: ContextStatus::Differs,
+                    aspects: vec![
+                        ContextComparison {
+                            aspect: ContextAspect::Decorators,
+                            differs: true,
+                            values: vec!["#[inline]".to_string(), "(none)".to_string()],
+                        },
+                        ContextComparison {
+                            aspect: ContextAspect::Enclosing,
+                            differs: false,
+                            values: vec!["impl".to_string()],
+                        },
+                    ],
+                },
+                warnings: vec![EvidenceWarning {
+                    code: WarningCode::LiteralCategoriesDiffer,
+                    detail: "1 aligned literals change category".to_string(),
+                }],
+            },
         }];
         report
     }
@@ -373,12 +706,27 @@ status: complete
 options:
   min_lines: 6
   min_tokens: 40
+  normalization: broad
+  ranking: lines
+  offset: 0
+  excerpts: included
+  trivial_calls: demote
+index_coverage: unknown
+coverage_scope: whole index at last indexing; new unindexed files are not discovered
+index_syntax_errors: 0
+index_read_failures: 0
 supported_languages[0]:
 unsupported_languages[0]:
 generated_code: generated code is excluded only by the project's configured exclusion rules; no generated-code marker is detected
+alignment_scope: \"per group, the original identifier and literal tokens at aligned positions; roles are syntactic and nothing is resolved; differences are evidence, not verdicts\"
+alignment_not_evaluated[5]: binding and scope resolution,type compatibility,effects of decorators and enclosing conditions,effects of calls in call-only bodies,partial-block repetition
+context_scope: \"per group, each member's decorators or outer attributes and enclosing constructs as text; compared, never resolved; a difference is a warning, not a verdict\"
+priority_scope: \"per group, whether every member's body is only flat calls, read from syntax; callee names are never considered; demote ranks such groups last, keep leaves the ranking order; no group is removed\"
 candidates_analyzed: 0
 below_threshold: 0
 total_groups: 0
+demoted_groups: 0
+omitted_groups: 0
 total_skipped: 0
 skipped_by_reason:
   read-error: 0
@@ -411,6 +759,31 @@ groups[1]:
     line_count: 8
     token_count: 52
     evidence: \"members share an identical normalized token sequence (identifiers -> $ID, literals -> $LIT); inspect src/a.rs:10-20, src/b.rs:3-13\"
+    priority:
+      level: normal
+      call_shape: other
+      reason: every member's body has a statement other than a single flat call
+    alignment:
+      identifier_pattern: one-to-one
+      types:
+        compatibility: unknown
+        compared_positions: 0
+        primitive_spelling_conflicts: 0
+        conflicts[0]{values,lines}:
+      differing_positions:
+        declaration: 1
+        literal-category: 1
+      distinct_differences: 2
+      warnings[1]{code,detail}:
+        literal-categories-differ,1 aligned literals change category
+      differences[2]{kind,occurrences,values,lines}:
+        declaration,1,load / read,10 / 3
+        literal-category,1,\"1 (number) / \\\"a,b\\\" (string)\",12 / 5
+    context:
+      status: differs
+      aspects[2]{aspect,differs,values}:
+        decorators,true,\"#[inline] / (none)\"
+        enclosing,false,impl
     members[2]{path,range,symbol,kind,language,lines,tokens,excerpt}:
       src/a.rs,10-20,load,function,rust,8,52,\"    fn load(name: &str, flag: bool) -> Result<u8, String> {\\n        let x = \\\"a,b\\\";\\n    }\"
       src/b.rs,3-13,read,function,rust,8,52,\"fn read() {\"

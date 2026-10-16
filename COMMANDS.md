@@ -215,9 +215,9 @@ Options:
 
       --root <ROOT>
           Project root to operate on. Defaults to the current working directory.
-          
+
           `init` and `call` accept several roots, as a repeated `--root` or a comma-separated `--roots a,b`; every other command takes exactly one.
-          
+
           [alias: --roots]
 
       --reindex-delay <VALUE>
@@ -333,12 +333,97 @@ Options:
 
 ### `duplicates` / `duplicates --min-lines <N> --min-tokens <N>`
 
-Prints, as TOON, groups of same-language functions and methods whose token sequences are identical once identifiers and literals are normalized (Type-2 clones). Every group is a candidate for human review, never proof of redundant or equivalent behavior. Rust and Python are analyzed; the report names the other indexed languages as unsupported. Runs on demand against the existing index and the current files, without reindexing or writing anything: a file edited since the last `reindex` is listed as skipped and the report is marked partial. Design and evaluation: [ADR-007](docs/01-architecture/adrs/007-duplicate-function-report.md).
+Reports candidate duplicate functions and methods in Rust and Python, as TOON.
+Groups are leads for human review, not proof of redundant or equivalent behavior.
+Run `init` or `reindex` first: analysis uses the existing index and checks current
+file hashes, without reindexing, migrating or changing indexed data.
+
+- `--normalization broad` (default) erases identifier names and literal values.
+- `--normalization consistent` preserves identifier repetition: `a+a` matches
+  `x+x`, but differs from `x+y`. It retains f-string interpolation structure.
+  It compares spellings, not resolved scopes; shadowing is not modelled.
+- `--normalization exact` retains emitted identifier/literal text, including
+  declaration names and f-string expressions. Trivia is ignored, including Rust
+  visibility. It can match equal functions in different scopes or files.
+- `--path` selects a relative file or directory; `--language` selects an indexed
+  language id. Filters apply before reading/tokenizing files.
+- `--ranking tokens` ranks by tokens times additional copies (an estimate);
+  `--ranking lines` retains the default line-based order.
+- `--limit`, `--offset` and `--no-excerpts` control output. Totals cover all groups
+  in the filtered scope. `omitted_groups` counts groups outside the output page.
+
+`status: complete` means no candidate failed analysis. Separately, `index_coverage`
+reports whole-index failures, even outside filters: `partial`, `unknown`, or
+`no-recorded-errors`. The last value does not discover new, unindexed files.
+Files edited/deleted since indexing are skipped and mark analysis partial.
+Unsupported languages are listed. Exact callable byte ranges exclude surrounding
+syntax and preceding decorators/attributes; ambiguous boundaries are skipped.
+
+Each group has an `alignment` block. Members share one normalized sequence, so
+their identifier and literal tokens are compared position by position:
+- `identifier_pattern`: `identical`, `one-to-one` (a consistent renaming) or
+  `not-one-to-one`, with an example. It compares spellings, not bindings, so
+  reusing one name for two shadowed variables can read as `not-one-to-one`.
+- `differing_positions` and `differences` list the original texts and lines per
+  member, in member order, separated by ` / `. Kinds come from syntactic roles:
+  `declaration`, `parameter`, `name` (no role), `member` (attribute, field,
+  method or keyword name), `callee`, `type`, `literal-value`,
+  `literal-category` (for example number versus string), `interpolated-string`,
+  `docstring`, `mixed-role`. At most 12 distinct differences are listed.
+- `warnings` explain differences worth a reviewer's attention: different
+  members, callees or type names, literal values or categories, interpolated
+  strings that broad compares whole, and a non-one-to-one identifier pattern.
+- `types` counts all aligned positions with a type role, including equal texts.
+  `compatibility` is always `unknown`. `primitive_spelling_conflicts` counts
+  positions containing distinct recognized primitive spellings; `conflicts`
+  lists at most 12 of them with per-member values and lines. Only complete direct
+  parameter, return and local annotations are recognized. Compound types,
+  qualified paths, generic arguments, unions, Optional, string annotations and
+  custom names stay unknown. An unknown member does not hide a conflict between
+  two other members; mixed roles are not compared. The warning is
+  `primitive-type-spellings-differ`. Names can be shadowed in both languages,
+  including Rust `type u32 = String`, so neither differing nor equal spellings
+  establish type compatibility. No group is removed, split or reordered.
+
+Each group also has a `context` block for what the compared spans exclude:
+- `status`: `same`, `differs`, or `not-evaluated` when a member's language
+  reports no callable context (with a `context-unavailable` warning).
+- `aspects`: `decorators` (Python decorators, Rust outer attributes, comments
+  removed) and `enclosing` (constructs around the callable, outermost first,
+  such as `@dataclass class`, `try > except` or `#[cfg(test)] mod`). Each row
+  shows the shared value, or one value per member separated by ` / `. `(none)`
+  and `(top level)` stand for an empty aspect.
+- A differing aspect adds a `decorators-differ` or `enclosing-context-differs`
+  warning. Labels name kinds only: conditions, context managers, class names and
+  impl targets are not compared.
+
+Each group also has a `priority` block, computed before pagination:
+- `call_shape`: `call-only` when every member's body is only flat calls (one
+  call or macro invocation per statement, whose arguments hold no further call,
+  closure, comprehension, conditional or block, and no nested macro
+  delimiters), `mixed` when only some members' are, `other`, or
+  `not-evaluated`. Callee names are never read: `print`, `log` or `assert` may
+  be redefined or matter.
+- `level` and `reason`: with `--trivial-calls demote` (the default) a call-only
+  group is `demoted` and ranked after every other group, keeping its relative
+  order; `--trivial-calls keep` leaves the ranking order. No group is removed:
+  `total_groups` and pagination include demoted groups, and `demoted_groups`
+  counts them.
+
+Evidence never changes grouping and is not a verdict: no domain is inferred from
+names, type compatibility is not evaluated, and `alignment_not_evaluated` lists
+the remaining unevaluated criteria.
 
 ```sh
 mct-cli --root . duplicates
-mct-cli --root . duplicates --min-lines 10 --min-tokens 80
+mct-cli --root . duplicates --normalization consistent --path crates --language rust --ranking tokens --limit 20 --no-excerpts
+mct-cli --root . duplicates --normalization exact --min-lines 10 --min-tokens 80
 ```
+
+Design: [ADR-007](docs/01-architecture/adrs/007-duplicate-function-report.md),
+[comparison policies](docs/01-architecture/adrs/008-token-twins-comparison-policies.md),
+[aligned evidence](docs/01-architecture/adrs/009-duplicate-group-aligned-evidence.md).
+Reproducible measurements: [token twins evaluation](benchmarks/token-twins.md).
 
 <details>
 <summary>Full output</summary>
@@ -346,13 +431,13 @@ mct-cli --root . duplicates --min-lines 10 --min-tokens 80
 ```
 Report candidate duplicate functions and methods, as TOON.
 
-Groups functions and methods of the same language whose token sequences are identical once identifiers and literals are normalized (Type-2 clones). Every group is a CANDIDATE for human review: matching structure does not prove the code is redundant or behaves the same. Runs on demand against the existing index and the current files; it never reindexes or writes anything, so run `init` or `reindex` first. Candidates that cannot be analyzed are listed as skipped and mark the report partial. Only languages with a token source are analyzed; the report names the rest.
+Groups functions and methods of the same language whose token sequences are identical once identifiers and literals are normalized (Type-2 clones). Every group is a CANDIDATE for human review: matching structure does not prove the code is redundant or behaves the same. Runs on demand against the existing index and the current files; it never reindexes or migrates the index, so run `init` or `reindex` first. Candidates that cannot be analyzed are listed as skipped and mark the report partial. Only languages with a token source are analyzed; the report names the rest.
 
 Usage: mct-cli duplicates [OPTIONS]
 
 Options:
-      --min-lines <N>
-          Minimum lines containing at least one token (comments and blank lines excluded) a function needs to be compared
+      --min-lines <MIN_LINES>
+          Minimum source-token-bearing lines per candidate
 
           [default: 6]
 
@@ -363,10 +448,42 @@ Options:
 
           [alias: --roots]
 
-      --min-tokens <N>
-          Minimum tokens (counted before normalization) a function needs to be compared
+      --min-tokens <MIN_TOKENS>
+          Minimum source tokens per candidate
 
           [default: 40]
+
+      --normalization <NORMALIZATION>
+          Comparison policy: broad, consistent identifier spelling, or exact token text
+
+          [default: broad]
+
+      --ranking <RANKING>
+          Rank by lines times members, or tokens times additional copies (estimate)
+
+          [default: lines]
+
+      --path <PATH>
+          Exact file or directory prefix, relative to the repository root
+
+      --language <LANGUAGE>
+          Exact indexed language id
+
+      --limit <LIMIT>
+          Maximum groups to display; totals describe all filtered groups
+
+      --offset <OFFSET>
+          Skip this many ranked groups
+
+          [default: 0]
+
+      --no-excerpts
+          Omit source excerpts
+
+      --trivial-calls <TRIVIAL_CALLS>
+          Groups whose bodies are only flat calls: rank them last (demote) or keep the ranking order (keep). Never removes a group
+
+          [default: demote]
 
   -h, --help
           Print help (see a summary with '-h')
