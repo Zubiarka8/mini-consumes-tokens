@@ -208,11 +208,13 @@ enum Command {
     /// structure does not prove the code is redundant or behaves the same.
     /// Runs on demand against the existing index and the current files; it
     /// never reindexes or migrates the index, so run `init` or `reindex` first.
+    /// Reuses an exact-input report cache in `.mct-index`; use `--no-cache` to
+    /// bypass it or `--output FILE` to save the TOON report.
     /// Candidates that cannot be analyzed are listed as skipped and mark the
     /// report partial. Only languages with a token source are analyzed; the
     /// report names the rest.
     #[command(
-        after_help = "Examples:\n  cargo run -p mct-cli -- --root . duplicates\n  cargo run -p mct-cli -- --root . duplicates --min-lines 10 --min-tokens 80"
+        after_help = "Examples:\n  cargo run -p mct-cli -- --root . duplicates\n  cargo run -p mct-cli -- --root . duplicates --min-lines 10 --min-tokens 80\n  cargo run -p mct-cli -- --root . duplicates --output duplicates.toon"
     )]
     Duplicates {
         #[command(flatten)]
@@ -300,10 +302,10 @@ fn main() -> anyhow::Result<()> {
     if let Command::Update = cli.command {
         return self_update();
     }
-    // Read-only like `status`, but it must not create an empty index for a
-    // project that was never indexed, so it checks for the database itself.
+    // Does not create or mutate the index; it may save its report cache beside
+    // the existing database, so it checks for the database before running.
     if let Command::Duplicates { options } = cli.command {
-        return duplicates::run(&root, options.into());
+        return duplicates::run(&root, options);
     }
 
     let db_path = root.join(".mct-index").join("index.sqlite3");
