@@ -179,6 +179,7 @@ pub async fn run(suite: &Suite, iterations: usize) -> Result<Report> {
             cache: mct_mcp_server::cache::CacheConfig::disabled(),
             embedder: None,
             shared_cache: None,
+            tool_attention: false,
         },
     );
     let catalog = serde_json::to_string(&server.tool_catalog())?;
@@ -219,6 +220,31 @@ pub async fn run(suite: &Suite, iterations: usize) -> Result<Report> {
     })
 }
 
+/// The tools with a `format` argument, whose default is TOON. The suite's
+/// scorers read the labelled text lines (`path:line`, `kind name`), so each
+/// case asks for `text` unless it sets `format` itself.
+const FORMAT_TOOLS: &[&str] = &[
+    "list_symbols",
+    "find_symbol",
+    "search_symbols",
+    "hybrid_search",
+    "find_references",
+    "find_calls",
+    "find_callers",
+    "impact_analysis",
+    "find_dead_code",
+    "build_context_pack",
+];
+
+fn with_text_format(tool: &str, args: Option<Map<String, Value>>) -> Map<String, Value> {
+    let mut args = args.unwrap_or_default();
+    if FORMAT_TOOLS.contains(&tool) {
+        args.entry("format")
+            .or_insert_with(|| Value::String("text".to_string()));
+    }
+    args
+}
+
 /// Calls `tool` by name. `batch` isn't reachable through
 /// [`MctServer::call_read_only_tool`] (a batch can't nest), so it is called
 /// directly.
@@ -228,9 +254,26 @@ async fn call(
     args: Option<Map<String, Value>>,
 ) -> Result<CallToolResult, rmcp::ErrorData> {
     if tool != "batch" {
-        return server.call_read_only_tool(tool, args).await;
+        return server
+            .call_read_only_tool(tool, Some(with_text_format(tool, args)))
+            .await;
     }
-    let args = serde_json::from_value(Value::Object(args.unwrap_or_default())).map_err(|err| {
+    let mut args = args.unwrap_or_default();
+    if let Some(Value::Array(queries)) = args.get_mut("queries") {
+        for query in queries {
+            let Some(query) = query.as_object_mut() else {
+                continue;
+            };
+            let tool = query.get("tool").and_then(Value::as_str).unwrap_or("");
+            let sub_args = match query.get("args") {
+                Some(Value::Object(map)) => Some(map.clone()),
+                _ => None,
+            };
+            let sub_args = with_text_format(tool, sub_args);
+            query.insert("args".to_string(), Value::Object(sub_args));
+        }
+    }
+    let args = serde_json::from_value(Value::Object(args)).map_err(|err| {
         rmcp::ErrorData::invalid_params(format!("invalid args for `batch`: {err}"), None)
     })?;
     server.batch(Parameters(args)).await

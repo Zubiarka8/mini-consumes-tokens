@@ -31,6 +31,7 @@ script names and flags wherever both exist:
 | `new-tool-check.sh <tool>` | The wiring checklist for a new MCP tool (`#[tool]` method, `tools.ttc`, `KNOWN_TOOL_NAMES`, `TOOL_CATEGORIES`, `batch` dispatch, tests, eval suite, README, CLAUDE.md, protocol spec) with what's still missing, then the catalog tests. `--no-tests` to skip them. |
 | `new-language-check.sh <suffix>` | The same for a new `crates/mct-lang-<suffix>` (CONTRIBUTING.md's checklist): `mct-core`/grammar dependencies, `LanguageParser` impl, workspace member and dependency, both `Cargo.toml`s and `build_registry`s, `tests/parse.rs` with a `ParseError::Syntax` case, fuzz harness and its CI matrix entry, README and `internal/checklist.md`. Then the crate's tests and mct-cli's registry tests. `--readme-name 'C++'` when README spells it differently, `--no-tests`. |
 | `token-report.sh` | Every token measurement in one screen: MCP tool vs grep+read per language (`token_benchmark`), JSON/TOON/text per response shape (`format_benchmark`), each composite tool vs separate calls (any `mct-mcp-server` test printing `% fewer`), and `mct-eval`'s catalog/response totals. `--markdown <file>` for a PR body, `--no-eval`. |
+| `reindex-delay-smoke.sh` | Smoke test for incremental indexing delay behavior. |
 | `corpus-report.sh <lang>` | One language's long-fixture corpus (issue #74): its `tests/corpus.rs` tests, then the `mct-corpus` report — files/lines/symbols/relations totals and relations name-matched across files, per-kind counts, the `internal/corpus-progress.md` cells, and heuristic checks for the usual parser bugs (file module ending past EOF, locals or nested bodies taken as symbols, relations outside their owner's range, members without a parent, odd names, a name that is both a method and a function, the most frequent callees not defined in the corpus). Replaces reading `expected.snap`. `--bless` regenerates the snapshot first, `--update-progress` rewrites the crate's counts and the summary line in the progress table. |
 | `ci-failures.sh [<run-id>]` | Why a CI run failed, in one screen: the jobs that failed and the first error lines of each (compiler errors, panics, failed assertions with the line after), instead of the full `gh run view --log-failed` output. Default: the latest failed run on the current branch. Full log in `target/script-logs/ci-failures.log`. Needs `gh`. |
 | `pr-status.sh <number>` | A pull request in a few lines: title and state, review decision, merge readiness, checks passed/failed/running with the first failing names, and the latest comment. Filtered by `gh`'s own `--jq`, so no jq install. Needs `gh`. |
@@ -93,3 +94,25 @@ success, 1 on a failed check, 2 on a usage error.
 `parse-probe.ps1` and `install-hooks.ps1` — one
 per script above, same flags, output lines, logs and exit codes. `branches-status`, `publish-branch` and `release` are unix-only for now. The
 differences are Windows ones, listed in `windows/README.md`.
+
+## Codex review scripts
+
+| Script | What it does |
+|---|---|
+| `codex/review/00-setup-dirs.sh` | Creates review output directories. |
+| `codex/review/01-validate-config.sh` | Validates the Codex multi-agent configuration. |
+| `codex/review/02-validate-agents.sh` | Validates the reviewer agent definitions. |
+| `codex/review/03-launch-native.sh` | Starts the native multi-agent review. |
+| `codex/review/04-launch-parallel.sh` | Starts the manual parallel review. |
+| `codex/review/05-aggregate.sh` | Combines individual reports. |
+| `codex/review/06-cleanup.sh` | Archives and cleans review output. |
+
+The review flow is read-only and writes reports under `.review-output/`. See
+`codex/review/README.md` for setup, roles, requirements and the full sequence.
+
+## Command helpers
+
+`./scripts/run.sh <subcommand>` dispatches common checks and reports, including
+`review`, `review-parallel` and `review-cleanup`. Run `./scripts/run.sh` for
+the full subcommand list. `./scripts/help.sh [category]` lists commands by
+category.

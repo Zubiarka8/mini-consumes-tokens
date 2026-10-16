@@ -5,6 +5,28 @@
 - **Integrated commit:** `a953dda70c0c0ff04d5434db5c450adcb78004e7`.
 - **Review fix:** `3a049de`. The commit adding this report is the final HEAD of the branch and the base for the next batch.
 
+## Status update (2026-10-13)
+
+This report is a snapshot of the local branch as it was. Since then the three
+deliveries landed on `main` through PR #91 (`41ae02a`), so the hashes below
+are the pre-merge ones and are not reachable from `main`. Their `main`
+equivalents are `f4bd23c` (exclusion reload), `11df400` (Lua registration),
+`0e5d352` (Rust value uses and test attributes) and `991299b` (review fix R1);
+this report itself landed as `f60d9d2`. The `codex/audit-integration-review`
+branch still exists on `origin`. Test counts in the evidence table (784/785)
+predate later work and are not current.
+
+Findings, rechecked against current code:
+
+| Finding | Current state |
+|---|---|
+| R1, R2 | Resolved (`991299b`). |
+| E1 | Still open: `ExcludeSet::reload` reads the file, compares under a read lock, then takes the write lock separately. |
+| E2 | Still open: `read_ignore_file` returns no patterns on any read error. The only change is that a non-`NotFound` error is now logged to stderr. |
+| RS1 | Still the documented F02 limitation (relations resolve by name). |
+| RS2 | Not rechecked. |
+| L1 | Not rechecked, except that `every_language_crate_in_the_workspace_is_registered_in_production` still exists in `mct-cli`. |
+
 ## Reviewed commits
 
 | Delivery | Commit | Merge on integration branch |

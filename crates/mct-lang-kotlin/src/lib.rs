@@ -21,8 +21,8 @@
 use std::borrow::Cow;
 
 use mct_core::{
-    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
-    SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
+    LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
+    SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::{first_error, location};
 use tree_sitter::{Node, ParseOptions, ParseState, Parser};
@@ -245,6 +245,7 @@ struct Walker<'a> {
     source: &'a str,
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
+    relation_targets: Vec<RelationTarget>,
     next_id: SymbolId,
 }
 
@@ -254,6 +255,7 @@ impl<'a> Walker<'a> {
             source,
             symbols: Vec::new(),
             relations: Vec::new(),
+            relation_targets: Vec::new(),
             next_id: 0,
         }
     }
@@ -450,6 +452,9 @@ impl<'a> Walker<'a> {
             "import" => {
                 let mut cursor = node.walk();
                 let named: Vec<Node> = node.named_children(&mut cursor).collect();
+                if let Some(path) = named.first() {
+                    self.push_type_import(owner, text(*path, self.source), location(node));
+                }
                 let imported = if named.len() >= 2 {
                     // `import a.b.Foo as Bar` — the alias is what call sites use.
                     Some(named[1])
@@ -494,7 +499,41 @@ impl<'a> Walker<'a> {
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
+            relation_targets: self.relation_targets,
             ..Default::default()
         }
+    }
+
+    /// `import a.b.Type [as T]` depends on the file declaring `Type`
+    /// (Kotlin convention names it `Type.kt`): an `Imports` relation to that
+    /// file's `Module` symbol, scoped to a path under the package segment
+    /// `b`. A file that holds the type under another name is still reached
+    /// through the plain name relation. Kotlin/JDK packages are external; a
+    /// lowercase last segment (a top-level function) or a wildcard names no
+    /// type and records nothing here.
+    fn push_type_import(&mut self, owner: SymbolId, path: &str, loc: Location) {
+        let segments: Vec<&str> = path
+            .split('.')
+            .map(|s| s.trim().trim_matches('`'))
+            .collect();
+        let Some(at) = segments
+            .iter()
+            .position(|s| s.starts_with(|c: char| c.is_ascii_uppercase()))
+        else {
+            return;
+        };
+        let external = matches!(segments.first(), Some(&"kotlin" | &"java" | &"javax"));
+        let relation = self.relations.len();
+        self.push_relation(owner, RelationKind::Imports, segments[at].to_string(), loc);
+        self.relation_targets.push(RelationTarget {
+            relation,
+            module: at
+                .checked_sub(1)
+                .map(|i| segments[i].to_string())
+                .filter(|m| !m.is_empty()),
+            kind: Some(SymbolKind::Module),
+            external,
+            ..Default::default()
+        });
     }
 }

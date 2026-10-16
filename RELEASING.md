@@ -25,7 +25,11 @@ tag list.
       `Cargo.lock` and the per-crate `crates/*/fuzz/Cargo.lock` files were
       refreshed with `cargo update --workspace` (only workspace packages
       should change).
-- [ ] The README version badge matches.
+- [ ] The README version badge matches (`release.sh bump` updates it). The
+      other version spots are manual, as listed under "Release version files"
+      in `rules.md`: the README sentence about the first version shipping
+      prebuilt archives and the `mct-cli --version` example output.
+      Then run `git grep` for the old version to confirm none remains.
 - [ ] `scripts/unix/check.sh` (or `scripts\windows\check.ps1`) is clean
       locally: fmt, tests, CI-equivalent clippy, `mct-eval`.
 - [ ] `python3 scripts/unix/tests/test_install.py` passes.
@@ -86,7 +90,7 @@ would build against the unpatched upstream crate.
 
 Until a `tree-sitter-md` release on crates.io contains both fixes (or the
 owner chooses another publishable, reviewed dependency), do **not** publish
-`mct-lang-md`, `mct-cli` or `mct-mcp-server`, and do not use `--no-verify` or
+`mct-lang-md`, `mct-languages`, `mct-cli` or `mct-mcp-server`, and do not use `--no-verify` or
 remove the patch to get around it. Publishing only the crates that do not
 depend on `mct-lang-md` is possible but gives users nothing installable, so
 the whole crates.io channel waits.
@@ -109,6 +113,8 @@ When the block is lifted:
    # Any order — they depend only on mct-core (and mct-tree-sitter):
    cargo publish -p mct-index
    cargo publish -p mct-lang-rust      # … and every other mct-lang-* crate
+   cargo publish -p mct-languages      # after all 17 mct-lang-* crates
+                                       # (mct-lang-md included)
    # Depend on everything above:
    cargo publish -p mct-mcp-server
    cargo publish -p mct-cli
