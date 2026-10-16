@@ -27,6 +27,56 @@ fn language_id_matches_the_parser() {
 }
 
 #[test]
+fn structural_strings_keep_interpolation_expressions_and_format_expressions() {
+    let source = "def format_value(value, width, precision):\n    return f\"{{escaped}} {value + value!r:{width}.{precision}f}\"\n";
+    let structural = PythonTokenSource
+        .tokenize_structural("sample.py", source)
+        .unwrap();
+    assert!(structural.error_lines.is_empty(), "{structural:?}");
+    for expected in ["+", "width", "precision", "!r"] {
+        assert!(
+            structural.tokens.iter().any(|token| token.text == expected),
+            "{expected}: {structural:?}"
+        );
+    }
+    assert_eq!(
+        tokenize(source)
+            .tokens
+            .iter()
+            .filter(|token| token.kind == Literal)
+            .count(),
+        1
+    );
+    for token in &structural.tokens {
+        assert_eq!(&source[token.start_byte..token.end_byte], token.text);
+    }
+}
+
+#[test]
+fn structural_plain_strings_stay_atomic_and_nested_strings_are_safe() {
+    let source = "def plain():\n    return 'escaped\\ntext'\n";
+    assert_eq!(
+        tokenize(source),
+        PythonTokenSource
+            .tokenize_structural("sample.py", source)
+            .unwrap()
+    );
+    for source in [
+        "x = f'{call(\"a\")}'\n",
+        "x = f'{value'\n",
+        "x = f'{value:{width}}'\n",
+    ] {
+        let first = PythonTokenSource
+            .tokenize_structural("sample.py", source)
+            .unwrap();
+        let second = PythonTokenSource
+            .tokenize_structural("sample.py", source)
+            .unwrap();
+        assert_eq!(first, second);
+    }
+}
+
+#[test]
 fn keywords_are_told_apart_from_identifiers() {
     let source =
         "async def add(self, x):\n    if x and not self.done:\n        return await x\n    pass\n";
@@ -279,4 +329,313 @@ fn pathologically_deep_nesting_does_not_overflow_the_stack() {
         .spawn(move || tokenize(&source).tokens.len())
         .unwrap();
     assert!(handle.join().unwrap() > 2 * depth);
+}
+
+fn roles(file: &TokenizedFile) -> Vec<(&str, mct_core::TokenRole)> {
+    file.tokens
+        .iter()
+        .filter(|token| matches!(token.kind, Identifier | Literal))
+        .map(|token| (token.text.as_str(), token.role))
+        .collect()
+}
+
+#[test]
+fn identifier_roles_are_syntactic_positions() {
+    use mct_core::TokenRole::{Callee, Declaration, Member, Parameter, Type, Unclassified};
+    let source = "\
+def load(user, limit: int, *rest, mode=None, flag: bool = True) -> Result:
+    local = user.email
+    send(local, retries=limit)
+    user.mailer.notify(local)
+    value: typing.Optional[int] = None
+    return lambda item: item
+";
+    let file = tokenize(source);
+    let roles = roles(&file);
+    for expected in [
+        ("load", Declaration),
+        ("user", Parameter),
+        ("limit", Parameter),
+        ("mode", Parameter),
+        ("flag", Parameter),
+        ("int", Type),
+        ("bool", Type),
+        ("Result", Type),
+        ("email", Member),
+        ("notify", Member),
+        ("retries", Member),
+        ("send", Callee),
+        ("typing", Type),
+        ("Optional", Type),
+        ("item", Parameter),
+        ("rest", Parameter),
+        // Locals and references are not classified.
+        ("local", Unclassified),
+        ("value", Unclassified),
+    ] {
+        assert!(roles.contains(&expected), "{expected:?} in {roles:?}");
+    }
+    // A later reference to a parameter is a reference, not a declaration.
+    assert!(roles.contains(&("user", Unclassified)), "{roles:?}");
+}
+
+/// Every role a name takes, in source order.
+fn roles_of(roles: &[(&str, mct_core::TokenRole)], name: &str) -> Vec<mct_core::TokenRole> {
+    roles
+        .iter()
+        .filter(|(text, _)| *text == name)
+        .map(|(_, role)| *role)
+        .collect()
+}
+
+#[test]
+fn splat_parameters_are_parameters_but_unpacking_and_splat_arguments_are_not() {
+    use mct_core::TokenRole::{Parameter, Unclassified};
+    let source = "\
+def forward(first, *args, key, **kwargs):
+    head, *tail = args
+    for *init, last in pairs:
+        pass
+    pick = lambda *xs, **kw: xs
+    return first(*args, **kwargs)
+
+
+def typed(*values: int, **named: str):
+    pass
+";
+    let structural = PythonTokenSource
+        .tokenize_structural("pkg/mod.py", source)
+        .unwrap();
+    for file in [tokenize(source), structural] {
+        let roles = roles(&file);
+        // Declared, then read, then splatted into a call.
+        assert_eq!(
+            roles_of(&roles, "args"),
+            [Parameter, Unclassified, Unclassified]
+        );
+        assert_eq!(roles_of(&roles, "kwargs"), [Parameter, Unclassified]);
+        assert_eq!(roles_of(&roles, "key"), [Parameter]);
+        assert_eq!(roles_of(&roles, "xs"), [Parameter, Unclassified]);
+        assert_eq!(roles_of(&roles, "kw"), [Parameter]);
+        assert_eq!(roles_of(&roles, "values"), [Parameter]);
+        assert_eq!(roles_of(&roles, "named"), [Parameter]);
+        // The same splat patterns as unpacking targets are locals.
+        for local in ["head", "tail", "init", "last"] {
+            assert_eq!(roles_of(&roles, local), [Unclassified], "{local}");
+        }
+    }
+}
+
+#[test]
+fn literal_categories_include_interpolation_and_docstrings_in_both_modes() {
+    use mct_core::LiteralCategory::{Docstring, InterpolatedString, Null, Number, String};
+    use mct_core::TokenRole::Literal as Lit;
+    let source = "\
+def f(x):
+    \"\"\"Doc.\"\"\"
+    a = f\"{x + 1}\"
+    b = \"plain\"
+    return 2 if a else None
+";
+    let broad = tokenize(source);
+    let roles = roles(&broad);
+    for expected in [
+        ("\"\"\"Doc.\"\"\"", Lit(Docstring)),
+        ("f\"{x + 1}\"", Lit(InterpolatedString)),
+        ("\"plain\"", Lit(String)),
+        ("2", Lit(Number)),
+        ("None", Lit(Null)),
+    ] {
+        assert!(roles.contains(&expected), "{expected:?} in {roles:?}");
+    }
+    // The structural stream expands the f-string; its fragments are strings
+    // and its expression keeps ordinary roles.
+    let structural = PythonTokenSource
+        .tokenize_structural("pkg/mod.py", source)
+        .unwrap();
+    let roles = self::roles(&structural);
+    assert!(
+        !roles
+            .iter()
+            .any(|(_, role)| *role == Lit(InterpolatedString)),
+        "{roles:?}"
+    );
+    assert!(roles.contains(&("1", Lit(Number))), "{roles:?}");
+}
+
+fn contexts(file: &TokenizedFile) -> Vec<(String, Vec<String>, Vec<String>)> {
+    file.callables
+        .as_ref()
+        .unwrap()
+        .iter()
+        .map(|span| {
+            (
+                span.name.clone(),
+                span.decorators.clone(),
+                span.enclosing.clone(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn callables_carry_decorators_and_enclosing_constructs() {
+    let source = "\
+@cache
+@app.route(
+    \"/x\",   # comment inside
+)
+def top(): pass
+
+try:
+    def guarded(): pass
+except ImportError:
+    def fallback(): pass
+
+@dataclass
+class Box:
+    def method(self):
+        def inner(): pass
+    if DEBUG:
+        def debug(self): pass
+    else:
+        with lock:
+            def locked(self): pass
+";
+    for file in [
+        tokenize(source),
+        PythonTokenSource
+            .tokenize_structural("pkg/mod.py", source)
+            .unwrap(),
+    ] {
+        let strings = |items: &[&str]| -> Vec<String> {
+            items.iter().map(|item| (*item).to_string()).collect()
+        };
+        assert_eq!(
+            contexts(&file),
+            [
+                (
+                    "top".to_string(),
+                    strings(&["@cache", "@app.route( \"/x\", )"]),
+                    strings(&[])
+                ),
+                ("guarded".to_string(), strings(&[]), strings(&["try"])),
+                (
+                    "fallback".to_string(),
+                    strings(&[]),
+                    strings(&["try", "except"])
+                ),
+                (
+                    "method".to_string(),
+                    strings(&[]),
+                    strings(&["@dataclass class"])
+                ),
+                (
+                    "inner".to_string(),
+                    strings(&[]),
+                    strings(&["@dataclass class", "function"])
+                ),
+                (
+                    "debug".to_string(),
+                    strings(&[]),
+                    strings(&["@dataclass class", "if"])
+                ),
+                (
+                    "locked".to_string(),
+                    strings(&[]),
+                    strings(&["@dataclass class", "if", "else", "with"])
+                ),
+            ]
+        );
+    }
+}
+
+fn body_shapes(file: &TokenizedFile) -> Vec<(String, Option<(usize, usize)>)> {
+    file.callables
+        .as_ref()
+        .unwrap()
+        .iter()
+        .map(|span| {
+            (
+                span.name.clone(),
+                span.body.map(|body| (body.statements, body.flat_calls)),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn body_shapes_count_flat_call_statements_without_reading_callee_names() {
+    let source = "\
+def logs(msg):
+    \"\"\"Docstring, not a statement.\"\"\"
+    log.info(msg)  # comment
+    print(f\"{msg!r} done\", sep=\"\")
+    assert_called(msg, *rest, key=VALUE)
+
+def nested(msg):
+    log.info(compute(msg))
+    log.info(f\"{compute(msg)}\")
+    print(lambda: msg)
+    print([m for m in msg])
+    print(a if msg else b)
+    log.info(msg).flush()
+
+def other(msg):
+    await_me = log.info(msg)
+    return print(msg)
+    await notify(msg)
+    if msg: print(msg)
+    pass
+
+def empty():
+    \"\"\"Only a docstring.\"\"\"
+";
+    for file in [
+        tokenize(source),
+        PythonTokenSource
+            .tokenize_structural("pkg/mod.py", source)
+            .unwrap(),
+    ] {
+        assert_eq!(
+            body_shapes(&file),
+            [
+                ("logs".to_string(), Some((3, 3))),
+                ("nested".to_string(), Some((6, 0))),
+                ("other".to_string(), Some((5, 0))),
+                ("empty".to_string(), Some((0, 0))),
+            ]
+        );
+    }
+}
+
+#[test]
+fn primitive_spellings_require_complete_direct_annotations() {
+    let source = r#"
+def sample(a: int, b: str = "", c: Optional[int] = None,
+           d: list[str] = [], e: int | str = 1, f: "int" = 1,
+           g: pkg.int = 1, h: (int) = 1, i: Custom = 1) -> bool:
+    local: float = 1.0
+    return True
+"#;
+    for file in [
+        tokenize(source),
+        PythonTokenSource
+            .tokenize_structural("t.py", source)
+            .unwrap(),
+    ] {
+        assert!(file.error_lines.is_empty(), "{:?}", file.error_lines);
+        let recognized: Vec<_> = file
+            .tokens
+            .iter()
+            .filter(|token| token.primitive_spelling)
+            .map(|token| token.text.as_str())
+            .collect();
+        assert_eq!(recognized, ["int", "str", "bool", "float"]);
+        assert!(file
+            .tokens
+            .iter()
+            .filter(|token| token.primitive_spelling)
+            .all(|token| token.role == mct_core::TokenRole::Type));
+    }
 }
