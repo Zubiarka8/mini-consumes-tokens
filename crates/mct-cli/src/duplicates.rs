@@ -243,6 +243,16 @@ pub(crate) fn render_toon(report: &DuplicateReport) -> String {
          callee names are never considered; demote ranks such groups last, keep leaves \
          the ranking order; no group is removed",
     );
+    field(
+        &mut out,
+        0,
+        "verdict_scope",
+        "per reported group, REAL, SUSPICIOUS or FALSE_POSITIVE from a fixed rule table over \
+         the alignment, types, context and priority evidence, with every rule that fired as a \
+         reason; heuristic explanations, not proof; REAL means no difference beyond a \
+         consistent renaming in the same context; no current rule emits FALSE_POSITIVE; \
+         verdicts never remove or reorder groups; counts cover the reported groups only",
+    );
     number(
         &mut out,
         0,
@@ -252,6 +262,15 @@ pub(crate) fn render_toon(report: &DuplicateReport) -> String {
     number(&mut out, 0, "below_threshold", report.below_threshold);
     number(&mut out, 0, "total_groups", report.total_groups);
     number(&mut out, 0, "demoted_groups", report.demoted_groups);
+    out.push_str("verdict_counts:\n");
+    number(&mut out, 2, "real", report.verdict_counts.real);
+    number(&mut out, 2, "suspicious", report.verdict_counts.suspicious);
+    number(
+        &mut out,
+        2,
+        "false_positive",
+        report.verdict_counts.false_positive,
+    );
     number(
         &mut out,
         0,
@@ -321,6 +340,16 @@ fn render_group(
     number(out, 4, "line_count", group.line_count);
     number(out, 4, "token_count", group.token_count);
     field(out, 4, "evidence", &evidence);
+    out.push_str("    verdict:\n");
+    field(out, 6, "level", group.verdict.level.as_str());
+    let reasons: Vec<String> = group
+        .verdict
+        .reasons
+        .iter()
+        .map(|reason| reason.as_str().to_string())
+        .collect();
+    out.push_str("      ");
+    inline_array(out, "reasons", &reasons);
     out.push_str("    priority:\n");
     field(out, 6, "level", group.priority.level.as_str());
     field(out, 6, "call_shape", group.priority.call_shape.as_str());
@@ -396,6 +425,12 @@ fn render_alignment(out: &mut String, evidence: &GroupEvidence) {
         6,
         "distinct_differences",
         evidence.distinct_differences,
+    );
+    number(
+        out,
+        6,
+        "undeclared_name_positions",
+        evidence.undeclared_name_positions,
     );
     let _ = writeln!(
         out,
@@ -537,8 +572,8 @@ mod tests {
 
     use mct_index::{
         AlignedDifference, CallShape, ContextAspect, ContextComparison, ContextStatus,
-        DifferenceKind, EvidenceWarning, GeneratedCodeHandling, GroupPriority, IdentifierPattern,
-        PriorityLevel, WarningCode,
+        DifferenceKind, EvidenceWarning, GeneratedCodeHandling, GroupPriority, GroupVerdict,
+        IdentifierPattern, PriorityLevel, VerdictCounts, VerdictLevel, VerdictReason, WarningCode,
     };
 
     use super::*;
@@ -561,6 +596,7 @@ mod tests {
         DuplicateReport {
             total_groups: 0,
             demoted_groups: 0,
+            verdict_counts: VerdictCounts::default(),
             index_syntax_errors: 0,
             index_read_failures: 0,
             has_indexing_record: false,
@@ -579,6 +615,7 @@ mod tests {
     fn group_report() -> DuplicateReport {
         let mut report = empty_report();
         report.total_groups = 1;
+        report.verdict_counts.suspicious = 1;
         report.supported_languages = vec!["python".to_string(), "rust".to_string()];
         report.unsupported_languages = vec!["go".to_string()];
         report.candidates_analyzed = 5;
@@ -615,6 +652,7 @@ mod tests {
                     (DifferenceKind::LiteralCategory, 1),
                 ],
                 distinct_differences: 2,
+                undeclared_name_positions: 0,
                 differences: vec![
                     AlignedDifference {
                         kind: DifferenceKind::Declaration,
@@ -648,6 +686,13 @@ mod tests {
                     code: WarningCode::LiteralCategoriesDiffer,
                     detail: "1 aligned literals change category".to_string(),
                 }],
+            },
+            verdict: GroupVerdict {
+                level: VerdictLevel::Suspicious,
+                reasons: vec![
+                    VerdictReason::LiteralCategoriesDiffer,
+                    VerdictReason::DecoratorsDiffer,
+                ],
             },
         }];
         report
@@ -719,13 +764,18 @@ supported_languages[0]:
 unsupported_languages[0]:
 generated_code: generated code is excluded only by the project's configured exclusion rules; no generated-code marker is detected
 alignment_scope: \"per group, the original identifier and literal tokens at aligned positions; roles are syntactic and nothing is resolved; differences are evidence, not verdicts\"
-alignment_not_evaluated[5]: binding and scope resolution,type compatibility,effects of decorators and enclosing conditions,effects of calls in call-only bodies,partial-block repetition
+alignment_not_evaluated[6]: binding and scope resolution,type compatibility,effects of decorators and enclosing conditions,effects of calls in call-only bodies,partial-block repetition,behavioral equivalence (verdicts are heuristic explanations and prove nothing)
 context_scope: \"per group, each member's decorators or outer attributes and enclosing constructs as text; compared, never resolved; a difference is a warning, not a verdict\"
 priority_scope: \"per group, whether every member's body is only flat calls, read from syntax; callee names are never considered; demote ranks such groups last, keep leaves the ranking order; no group is removed\"
+verdict_scope: \"per reported group, REAL, SUSPICIOUS or FALSE_POSITIVE from a fixed rule table over the alignment, types, context and priority evidence, with every rule that fired as a reason; heuristic explanations, not proof; REAL means no difference beyond a consistent renaming in the same context; no current rule emits FALSE_POSITIVE; verdicts never remove or reorder groups; counts cover the reported groups only\"
 candidates_analyzed: 0
 below_threshold: 0
 total_groups: 0
 demoted_groups: 0
+verdict_counts:
+  real: 0
+  suspicious: 0
+  false_positive: 0
 omitted_groups: 0
 total_skipped: 0
 skipped_by_reason:
@@ -751,6 +801,10 @@ skipped[0]{path,range,symbol,language,reason,detail}:
         assert!(out.contains("below_threshold: 2\n"), "{out}");
         assert!(out.contains("total_groups: 1\n"), "{out}");
         assert!(out.contains("total_skipped: 0\n"), "{out}");
+        assert!(
+            out.contains("verdict_counts:\n  real: 0\n  suspicious: 1\n  false_positive: 0\n"),
+            "{out}"
+        );
         let expected = "\
 groups[1]:
   - index: 1
@@ -759,6 +813,9 @@ groups[1]:
     line_count: 8
     token_count: 52
     evidence: \"members share an identical normalized token sequence (identifiers -> $ID, literals -> $LIT); inspect src/a.rs:10-20, src/b.rs:3-13\"
+    verdict:
+      level: SUSPICIOUS
+      reasons[2]: literal-categories-differ,decorators-differ
     priority:
       level: normal
       call_shape: other
@@ -774,6 +831,7 @@ groups[1]:
         declaration: 1
         literal-category: 1
       distinct_differences: 2
+      undeclared_name_positions: 0
       warnings[1]{code,detail}:
         literal-categories-differ,1 aligned literals change category
       differences[2]{kind,occurrences,values,lines}:

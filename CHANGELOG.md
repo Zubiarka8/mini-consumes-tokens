@@ -32,6 +32,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   parameters (typed or not, in functions and lambdas) are reported as
   `parameter` differences, while the same patterns as unpacking targets and
   splat arguments of a call stay plain `name` differences.
+  Each reported group now carries an explainable `verdict` (`REAL`,
+  `SUSPICIOUS` or `FALSE_POSITIVE`) with kebab-case reason codes, derived only
+  from that evidence by a fixed rule table (ADR-010). The header adds
+  `verdict_scope` and `verdict_counts` for the reported page. `REAL` requires
+  identical tokens or a renaming limited to the declaration name and the
+  members' own parameters, the same context, and bodies that are not only flat
+  calls. Any other difference or unknown is `SUSPICIOUS`. No current rule emits
+  `FALSE_POSITIVE`. The new `alignment.undeclared_name_positions` count makes
+  renamed references to outside items (paths, enum variants, unit structs)
+  visible. Verdicts never remove, split or reorder groups.
 
 - `mct-mcp-server --reindex-delay <15s|30s|45s|1m|N s/m/ms|off>` updates the
   index once no relevant file has changed for the chosen time (every change

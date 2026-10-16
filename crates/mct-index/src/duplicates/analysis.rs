@@ -13,6 +13,7 @@
 mod evidence;
 mod file;
 mod fingerprint;
+mod verdict;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -20,8 +21,9 @@ use mct_core::{LineRange, TokenSourceRegistry};
 
 use super::{
     DuplicateGroup, DuplicateMember, DuplicateOptions, DuplicateReport, GeneratedCodeHandling,
-    GroupEvidence, GroupPriority, PriorityLevel, SkipReason, SkippedCandidate,
-    DUPLICATE_KIND_ALLOWLIST, MAX_EXCERPT_LINES, MAX_EXCERPT_LINE_CHARS,
+    GroupEvidence, GroupPriority, GroupVerdict, PriorityLevel, SkipReason, SkippedCandidate,
+    VerdictCounts, VerdictLevel, DUPLICATE_KIND_ALLOWLIST, MAX_EXCERPT_LINES,
+    MAX_EXCERPT_LINE_CHARS,
 };
 use crate::{queries, Index, Result, SymbolListEntry};
 use evidence::{MemberContext, MemberInput, Texts};
@@ -183,6 +185,14 @@ pub(super) fn run(
         let (context, warnings) = evidence::evaluate_context(&contexts);
         group.evidence.context = context;
         group.evidence.warnings.extend(warnings);
+        // After all evidence: the verdict only reads it, never changes it.
+        group.verdict = verdict::classify(&group.evidence, &group.priority);
+        let count = match group.verdict.level {
+            VerdictLevel::Real => &mut report.verdict_counts.real,
+            VerdictLevel::Suspicious => &mut report.verdict_counts.suspicious,
+            VerdictLevel::FalsePositive => &mut report.verdict_counts.false_positive,
+        };
+        *count += 1;
     }
     report.has_indexing_record = index.conn.query_row(
         "SELECT EXISTS(SELECT 1 FROM index_meta WHERE key = 'last_indexed_at')",
@@ -391,6 +401,7 @@ impl Analysis {
         let report = DuplicateReport {
             total_groups,
             demoted_groups: 0,
+            verdict_counts: VerdictCounts::default(),
             index_syntax_errors: 0,
             index_read_failures: 0,
             has_indexing_record: false,
@@ -537,6 +548,7 @@ fn build_group(language: String, mut members: Vec<DuplicateMember>) -> Duplicate
         members,
         priority: GroupPriority::default(),
         evidence: GroupEvidence::default(),
+        verdict: GroupVerdict::default(),
     }
 }
 
