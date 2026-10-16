@@ -31,9 +31,13 @@ pub use dead_code::{
 };
 pub use dependency_graph::{DependencyEdge, DependencyGraph};
 pub use duplicates::{
-    find_duplicate_groups, DuplicateGroup, DuplicateMember, DuplicateOptions, DuplicateReport,
-    GeneratedCodeHandling, SkipReason, SkippedCandidate, DEFAULT_MIN_LINES, DEFAULT_MIN_TOKENS,
-    DUPLICATE_KIND_ALLOWLIST, MAX_EXCERPT_LINES, MAX_EXCERPT_LINE_CHARS,
+    find_duplicate_groups, AlignedDifference, CallShape, ContextAspect, ContextComparison,
+    ContextEvidence, ContextStatus, DifferenceKind, DuplicateGroup, DuplicateMember,
+    DuplicateOptions, DuplicateRanking, DuplicateReport, EvidenceWarning, GeneratedCodeHandling,
+    GroupEvidence, GroupPriority, IdentifierPattern, Normalization, PriorityLevel, SkipReason,
+    SkippedCandidate, TrivialCallPolicy, TypeEvidence, WarningCode, DEFAULT_MIN_LINES,
+    DEFAULT_MIN_TOKENS, DUPLICATE_KIND_ALLOWLIST, EVIDENCE_NOT_EVALUATED,
+    MAX_DIFFERENCE_TEXT_CHARS, MAX_EXCERPT_LINES, MAX_EXCERPT_LINE_CHARS, MAX_LISTED_DIFFERENCES,
 };
 pub use error::{IndexError, Result};
 pub use exclude::{
@@ -104,6 +108,32 @@ pub struct Index {
 }
 
 impl Index {
+    /// Opens an existing index without creating it, changing journal settings,
+    /// or migrating its schema. An incompatible schema is an explicit error.
+    pub fn open_existing_read_only(
+        root: &Path,
+        db_path: &Path,
+        exclude: ExcludeSet,
+    ) -> Result<Self> {
+        let root = root.canonicalize().map_err(|source| IndexError::Io {
+            path: root.display().to_string(),
+            source,
+        })?;
+        let conn =
+            Connection::open_with_flags(db_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+        if schema::migrations().pending_migrations(&conn)? != 0 {
+            return Err(IndexError::IncompatibleReadOnlySchema);
+        }
+        conn.set_prepared_statement_cache_capacity(STATEMENT_CACHE_CAPACITY);
+        search::register_functions(&conn)?;
+        Ok(Self {
+            conn,
+            root,
+            applied_exclusions: exclude.generation(),
+            exclude,
+        })
+    }
+
     /// Opens (creating if needed) the index database at `db_path` for the
     /// project rooted at `root`, applying pending migrations.
     pub fn open(root: &Path, db_path: &Path, exclude: ExcludeSet) -> Result<Self> {

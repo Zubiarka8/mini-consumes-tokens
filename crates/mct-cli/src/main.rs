@@ -326,6 +326,7 @@ fn main() -> anyhow::Result<()> {
         let options = mct_index::DuplicateOptions {
             min_lines,
             min_tokens,
+            ..Default::default()
         };
         return duplicates::run(&root, options);
     }
