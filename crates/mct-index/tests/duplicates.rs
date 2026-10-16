@@ -325,6 +325,7 @@ fn small() -> DuplicateOptions {
     DuplicateOptions {
         min_lines: 6,
         min_tokens: 20,
+        ..DuplicateOptions::default()
     }
 }
 
@@ -447,6 +448,7 @@ fn case_3_a_function_below_min_lines_is_not_grouped_or_skipped() {
     let report = fixture.run(DuplicateOptions {
         min_lines: 7,
         min_tokens: 1,
+        ..DuplicateOptions::default()
     });
     assert!(report.groups.is_empty());
     assert_eq!(report.candidates_analyzed, 2);
@@ -457,6 +459,7 @@ fn case_3_a_function_below_min_lines_is_not_grouped_or_skipped() {
     let report = fixture.run(DuplicateOptions {
         min_lines: 6,
         min_tokens: 1,
+        ..DuplicateOptions::default()
     });
     assert_eq!(report.groups.len(), 1);
     assert_eq!(report.below_threshold, 0);
@@ -471,6 +474,7 @@ fn case_4_a_function_below_min_tokens_is_not_grouped_or_skipped() {
     let report = fixture.run(DuplicateOptions {
         min_lines: 1,
         min_tokens: 31,
+        ..DuplicateOptions::default()
     });
     assert!(report.groups.is_empty());
     assert_eq!(report.below_threshold, 2);
@@ -480,6 +484,7 @@ fn case_4_a_function_below_min_tokens_is_not_grouped_or_skipped() {
     let report = fixture.run(DuplicateOptions {
         min_lines: 1,
         min_tokens: 30,
+        ..DuplicateOptions::default()
     });
     assert_eq!(report.groups.len(), 1);
 }
@@ -565,6 +570,7 @@ fn block_markers_separate_other_nesting_without_adding_tokens_or_lines() {
     let report = fixture.run(DuplicateOptions {
         min_lines: 8,
         min_tokens: 20,
+        ..DuplicateOptions::default()
     });
     assert!(report.groups.is_empty());
     assert_eq!(report.below_threshold, 3);
@@ -1063,6 +1069,7 @@ fn a_multi_line_literal_counts_every_line_it_spans() {
     let report = fixture.run(DuplicateOptions {
         min_lines: 7,
         min_tokens: 1,
+        ..DuplicateOptions::default()
     });
     assert_eq!(report.groups.len(), 1, "{report:#?}");
     // Lines 3 and 4 hold only literal text but still contain token bytes.
@@ -1073,6 +1080,7 @@ fn a_multi_line_literal_counts_every_line_it_spans() {
     let report = fixture.run(DuplicateOptions {
         min_lines: 8,
         min_tokens: 1,
+        ..DuplicateOptions::default()
     });
     assert!(report.groups.is_empty());
     assert_eq!(report.below_threshold, 2);
@@ -1092,4 +1100,38 @@ fn excerpts_are_bounded_in_lines_and_characters() {
     );
     assert_eq!(excerpt[0].chars().count(), MAX_EXCERPT_LINE_CHARS);
     assert_eq!(excerpt[1], "let x = 1 + y ;");
+}
+
+#[test]
+fn token_ranking_does_not_promote_a_long_docstring_over_more_repeated_code() {
+    let documented = |name: &str| {
+        format!(
+            "fn {name}\nlet a = <<\n{}>> ;\nreturn a ;\nend\n",
+            "documentation words\n".repeat(30)
+        )
+    };
+    let fixture = Fixture::new(&[
+        ("docs_a.dup", &documented("docs_a")),
+        ("docs_b.dup", &documented("docs_b")),
+        ("code_a.dup", &func("code_a", "x", "y", "1")),
+        ("code_b.dup", &func("code_b", "x", "y", "2")),
+    ]);
+    let options = DuplicateOptions {
+        min_lines: 1,
+        min_tokens: 1,
+        excerpts: false,
+        ..DuplicateOptions::default()
+    };
+    let by_lines = fixture.run(options.clone());
+    assert_eq!(by_lines.groups[0].members[0].symbol_name, "docs_a");
+    let by_tokens = fixture.run(DuplicateOptions {
+        ranking: mct_index::DuplicateRanking::Tokens,
+        ..options
+    });
+    assert_eq!(by_tokens.groups[0].members[0].symbol_name, "code_a");
+    assert!(by_tokens
+        .groups
+        .iter()
+        .flat_map(|group| &group.members)
+        .all(|member| member.excerpt.is_empty()));
 }

@@ -7,7 +7,7 @@ use std::io;
 use std::path::{Component, Path, PathBuf};
 
 use git2::{ObjectType, Oid};
-use mct_core::{LineRange, Token, TokenSource};
+use mct_core::{CallableSpan, LineRange, Token, TokenSource};
 
 use crate::{read_repository_file, SkipReason};
 
@@ -18,6 +18,7 @@ pub(super) struct LoadedFile {
     /// contiguous run found by binary search.
     pub(super) tokens: Vec<Token>,
     pub(super) error_lines: Vec<LineRange>,
+    pub(super) callables: Option<Vec<CallableSpan>>,
 }
 
 /// Why a whole file could not be analyzed; every candidate of the file is
@@ -55,7 +56,36 @@ pub(super) fn load(
     relative_path: &str,
     indexed_hash: Option<&str>,
     token_source: &dyn TokenSource,
+    structural: bool,
 ) -> Result<LoadedFile, FileFailure> {
+    let source = read_source(root, relative_path, indexed_hash)?;
+    let tokenized = if structural {
+        token_source.tokenize_structural(relative_path, &source)
+    } else {
+        token_source.tokenize(relative_path, &source)
+    }
+    .map_err(|error| FileFailure::new(SkipReason::ParseError, error.to_string()))?;
+
+    let mut callables = tokenized.callables;
+    if let Some(spans) = &mut callables {
+        spans.sort_by_key(|span| span.lines.start);
+    }
+    let mut tokens = tokenized.tokens;
+    tokens.sort_by_key(|token| (token.line, token.start_byte));
+    Ok(LoadedFile {
+        source,
+        tokens,
+        error_lines: tokenized.error_lines,
+        callables,
+    })
+}
+
+/// Reads and verifies the same content used during candidate analysis.
+pub(super) fn read_source(
+    root: &Path,
+    relative_path: &str,
+    indexed_hash: Option<&str>,
+) -> Result<String, FileFailure> {
     let absolute = resolve(root, relative_path)?;
     let bytes = read_repository_file(&absolute).map_err(|error| read_failure(&error))?;
 
@@ -76,17 +106,7 @@ pub(super) fn load(
 
     let source = String::from_utf8(bytes)
         .map_err(|_| FileFailure::new(SkipReason::ReadError, "file content is not valid UTF-8"))?;
-    let tokenized = token_source
-        .tokenize(relative_path, &source)
-        .map_err(|error| FileFailure::new(SkipReason::ParseError, error.to_string()))?;
-
-    let mut tokens = tokenized.tokens;
-    tokens.sort_by_key(|token| (token.line, token.start_byte));
-    Ok(LoadedFile {
-        source,
-        tokens,
-        error_lines: tokenized.error_lines,
-    })
+    Ok(source)
 }
 
 /// Joins a stored relative path onto `root` without ever leaving it: only
