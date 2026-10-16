@@ -177,6 +177,8 @@ pub struct DuplicateReport {
     pub total_groups: usize,
     /// Of `total_groups`, those ranked last by [`TrivialCallPolicy::Demote`].
     pub demoted_groups: usize,
+    /// Verdicts of the reported groups (`groups`), not of the whole total.
+    pub verdict_counts: VerdictCounts,
     /// Whole-index diagnostics, independent of candidate filters and output limits.
     pub index_syntax_errors: usize,
     pub index_read_failures: usize,
@@ -219,6 +221,120 @@ pub struct DuplicateGroup {
     /// Aligned comparison of the members' original tokens. Computed only for
     /// the reported page of groups.
     pub evidence: GroupEvidence,
+    /// Explainable verdict derived from `evidence` and `priority`. Computed
+    /// only for the reported page of groups, after `evidence`.
+    pub verdict: GroupVerdict,
+}
+
+/// One explainable verdict per reported group, derived only from the group's
+/// [`GroupEvidence`] and [`GroupPriority`] by a fixed rule table (ADR-010).
+///
+/// A heuristic explanation for review, not proof: `Real` does not prove that
+/// members behave the same, and no current rule claims `FalsePositive`. A
+/// verdict never removes, splits, reorders or filters a group.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct GroupVerdict {
+    pub level: VerdictLevel,
+    /// Every rule that fired, in [`VerdictReason`] order, without repeats.
+    /// For `Suspicious`, the differences the detector cannot judge; for
+    /// `Real`, what the evidence shows.
+    pub reasons: Vec<VerdictReason>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum VerdictLevel {
+    /// No difference beyond the declaration name and a consistent renaming of
+    /// the members' own parameters (and docstrings) in the same context, and
+    /// bodies that are not only flat calls.
+    Real,
+    /// At least one difference or unknown the detector cannot judge. Also the
+    /// value of a group whose verdict was not computed.
+    #[default]
+    Suspicious,
+    /// The evidence alone shows the members are not duplicates. Defined for
+    /// the output contract; no current rule emits it (see ADR-010).
+    FalsePositive,
+}
+
+impl VerdictLevel {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Real => "REAL",
+            Self::Suspicious => "SUSPICIOUS",
+            Self::FalsePositive => "FALSE_POSITIVE",
+        }
+    }
+}
+
+/// Why a verdict was given. Codes that name a difference match the
+/// corresponding [`WarningCode`] text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum VerdictReason {
+    // Supporting a `Real` verdict.
+    /// Every aligned identifier has the same text.
+    IdenticalTokens,
+    /// Identifiers differ only by a one-to-one renaming.
+    ConsistentRenaming,
+    /// Decorators and enclosing constructs are the same text.
+    SameContext,
+    /// Docstrings differ; listed, but not a reason for suspicion.
+    DocstringsDiffer,
+    // Making a verdict `Suspicious`.
+    AlignmentUnavailable,
+    IdentifierPatternDiffers,
+    /// A renamed `name` that is not a parameter of its own member: a renamed
+    /// local, or a reference to a different outside item.
+    UndeclaredNamesDiffer,
+    MixedRoleDifferences,
+    MemberNamesDiffer,
+    CalleeNamesDiffer,
+    TypeNamesDiffer,
+    PrimitiveTypeSpellingsDiffer,
+    LiteralCategoriesDiffer,
+    LiteralValuesDiffer,
+    InterpolatedStringsDiffer,
+    ContextUnavailable,
+    DecoratorsDiffer,
+    EnclosingContextDiffers,
+    CallOnlyBodies,
+    CallShapeMixed,
+    BodyShapeNotEvaluated,
+}
+
+impl VerdictReason {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::IdenticalTokens => "identical-tokens",
+            Self::ConsistentRenaming => "consistent-renaming",
+            Self::SameContext => "same-context",
+            Self::DocstringsDiffer => "docstrings-differ",
+            Self::AlignmentUnavailable => "alignment-unavailable",
+            Self::IdentifierPatternDiffers => "identifier-pattern-differs",
+            Self::UndeclaredNamesDiffer => "undeclared-names-differ",
+            Self::MixedRoleDifferences => "mixed-role-differences",
+            Self::MemberNamesDiffer => "member-names-differ",
+            Self::CalleeNamesDiffer => "callee-names-differ",
+            Self::TypeNamesDiffer => "type-names-differ",
+            Self::PrimitiveTypeSpellingsDiffer => "primitive-type-spellings-differ",
+            Self::LiteralCategoriesDiffer => "literal-categories-differ",
+            Self::LiteralValuesDiffer => "literal-values-differ",
+            Self::InterpolatedStringsDiffer => "interpolated-strings-differ",
+            Self::ContextUnavailable => "context-unavailable",
+            Self::DecoratorsDiffer => "decorators-differ",
+            Self::EnclosingContextDiffers => "enclosing-context-differs",
+            Self::CallOnlyBodies => "call-only-bodies",
+            Self::CallShapeMixed => "call-shape-mixed",
+            Self::BodyShapeNotEvaluated => "body-shape-not-evaluated",
+        }
+    }
+}
+
+/// Verdicts per level over the reported groups (the selected page).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct VerdictCounts {
+    pub real: usize,
+    pub suspicious: usize,
+    pub false_positive: usize,
 }
 
 /// Where a group is ranked and why. A demoted group is still reported in full.
@@ -282,6 +398,7 @@ pub const EVIDENCE_NOT_EVALUATED: &[&str] = &[
     "effects of decorators and enclosing conditions",
     "effects of calls in call-only bodies",
     "partial-block repetition",
+    "behavioral equivalence (verdicts are heuristic explanations and prove nothing)",
 ];
 
 /// What the members' original token text shows once their normalized
@@ -299,6 +416,12 @@ pub struct GroupEvidence {
     /// Distinct differences: positions with the same kind and per-member
     /// texts count once.
     pub distinct_differences: usize,
+    /// Differing `name` positions where at least one member's spelling is not
+    /// one of that member's own parameters. Such a name
+    /// may be a renamed local or a reference to a different outside item
+    /// (a path, constant, unit struct or function); bindings are not resolved,
+    /// so the two cannot be told apart.
+    pub undeclared_name_positions: usize,
     /// The first [`MAX_LISTED_DIFFERENCES`] distinct differences, in the first
     /// member's source order.
     pub differences: Vec<AlignedDifference>,

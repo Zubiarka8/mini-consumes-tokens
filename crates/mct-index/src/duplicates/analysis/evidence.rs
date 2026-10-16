@@ -3,7 +3,7 @@
 //! module compares the original text at each position. It never changes
 //! grouping and never infers meaning from a name.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use mct_core::{BodyShape, LiteralCategory, TokenRole};
 
@@ -86,6 +86,21 @@ pub(super) fn evaluate(members: &[&[Slot]], texts: &Texts) -> GroupEvidence {
     // Distinct differences by (kind, per-member texts), in first-seen order.
     let mut rows: Vec<AlignedDifference> = Vec::new();
     let mut seen: HashMap<(DifferenceKind, Vec<u32>), usize> = HashMap::new();
+    // Spellings each member binds itself: its parameters. Nothing else is
+    // known to be bound inside the member. Declaration names are left out: a
+    // path that repeats the member's own name (`queries::find_x` inside
+    // `fn find_x`) reaches another item.
+    let declared: Vec<HashSet<u32>> = members
+        .iter()
+        .map(|slots| {
+            slots
+                .iter()
+                .filter(|slot| !slot.literal && slot.role == TokenRole::Parameter)
+                .map(|slot| slot.text)
+                .collect()
+        })
+        .collect();
+    let mut undeclared_name_positions = 0;
     for i in 0..first.len() {
         let column: Vec<Slot> = members.iter().map(|slots| slots[i]).collect();
         observe_types(&column, texts, &mut types);
@@ -94,6 +109,14 @@ pub(super) fn evaluate(members: &[&[Slot]], texts: &Texts) -> GroupEvidence {
         }
         let kind = difference_kind(&column);
         *positions.entry(kind).or_default() += 1;
+        if kind == DifferenceKind::Name
+            && column
+                .iter()
+                .zip(&declared)
+                .any(|(slot, declared)| !declared.contains(&slot.text))
+        {
+            undeclared_name_positions += 1;
+        }
         let key = (kind, column.iter().map(|slot| slot.text).collect());
         if let Some(&row) = seen.get(&key) {
             rows[row].occurrences += 1;
@@ -131,6 +154,7 @@ pub(super) fn evaluate(members: &[&[Slot]], texts: &Texts) -> GroupEvidence {
         identifier_pattern: pattern,
         differing_positions,
         distinct_differences,
+        undeclared_name_positions,
         differences: rows,
         context: ContextEvidence::default(),
         types,
@@ -677,6 +701,51 @@ mod tests {
         assert_eq!(renamed.differences[0].values, ["x", "x", "p"]);
         assert_eq!(renamed.differences[0].lines, [1, 1, 1]);
         assert!(renamed.warnings.is_empty());
+    }
+
+    #[test]
+    fn renamed_names_count_as_undeclared_unless_each_member_declares_them() {
+        let mut texts = Texts::default();
+        let a = slots(
+            &mut texts,
+            &[
+                ("find_a", TokenRole::Declaration),
+                ("find_a", TokenRole::Unclassified),
+                ("x", TokenRole::Parameter),
+                ("x", TokenRole::Unclassified),
+                ("local", TokenRole::Unclassified),
+                ("Prefix", TokenRole::Unclassified),
+                ("same", TokenRole::Unclassified),
+            ],
+        );
+        let b = slots(
+            &mut texts,
+            &[
+                ("find_b", TokenRole::Declaration),
+                ("find_b", TokenRole::Unclassified),
+                ("y", TokenRole::Parameter),
+                ("y", TokenRole::Unclassified),
+                ("other", TokenRole::Unclassified),
+                ("Fuzzy", TokenRole::Unclassified),
+                ("same", TokenRole::Unclassified),
+            ],
+        );
+        let evidence = evaluate(&[&a, &b], &texts);
+        assert_eq!(evidence.identifier_pattern, IdentifierPattern::OneToOne);
+        assert_eq!(
+            evidence.differing_positions,
+            [
+                (DifferenceKind::Declaration, 1),
+                (DifferenceKind::Parameter, 1),
+                (DifferenceKind::Name, 4)
+            ]
+        );
+        // `x`/`y` are parameters of their own member. The local, the
+        // path-like reference and a path that repeats the member's own name
+        // are not, so they are not known renames.
+        assert_eq!(evidence.undeclared_name_positions, 3);
+        let identical = evaluate(&[&a, &a], &texts);
+        assert_eq!(identical.undeclared_name_positions, 0);
     }
 
     #[test]

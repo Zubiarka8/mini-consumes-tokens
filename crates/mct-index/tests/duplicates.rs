@@ -38,7 +38,7 @@ use mct_core::{
 };
 use mct_index::{
     find_duplicate_groups, DuplicateOptions, DuplicateReport, ExcludeSet, Index, SkipReason,
-    MAX_EXCERPT_LINES, MAX_EXCERPT_LINE_CHARS,
+    VerdictCounts, VerdictLevel, VerdictReason, MAX_EXCERPT_LINES, MAX_EXCERPT_LINE_CHARS,
 };
 
 // ---------------------------------------------------------------------------
@@ -425,6 +425,55 @@ fn case_1_same_structure_different_names_form_one_group() {
         fs::read_to_string(fixture.path("a.dup")).unwrap(),
         func("alpha", "x", "y", "1")
     );
+}
+
+/// A token source without callable spans or body shapes (the toy) can never
+/// support a `REAL` verdict, and counts follow the reported page.
+#[test]
+fn verdicts_need_context_and_body_shape_and_counts_follow_the_page() {
+    let fixture = Fixture::new(&[
+        ("a.dup", &func("alpha", "x", "y", "1")),
+        ("b.dup", &func("beta", "left", "right", "1")),
+        ("c.dup", &func_with("fn", "gamma", "x", "y", "1", 2)),
+        ("d.dup", &func_with("fn", "delta", "x", "y", "1", 2)),
+    ]);
+    let report = fixture.run(small());
+    assert_eq!(report.groups.len(), 2, "{report:#?}");
+    for group in &report.groups {
+        assert_eq!(group.verdict.level, VerdictLevel::Suspicious);
+        assert!(
+            group.verdict.reasons.ends_with(&[
+                VerdictReason::ContextUnavailable,
+                VerdictReason::BodyShapeNotEvaluated
+            ]),
+            "{:?}",
+            group.verdict
+        );
+    }
+    // The toy gives no token a role, not even the function names, so every
+    // renamed spelling is a name that no member is known to bind.
+    assert!(report.groups.iter().all(|group| group
+        .verdict
+        .reasons
+        .contains(&VerdictReason::UndeclaredNamesDiffer)));
+    assert_eq!(
+        report.verdict_counts,
+        VerdictCounts {
+            real: 0,
+            suspicious: 2,
+            false_positive: 0
+        }
+    );
+
+    let page = fixture.run(DuplicateOptions {
+        limit: Some(1),
+        offset: 1,
+        ..small()
+    });
+    assert_eq!((page.total_groups, page.groups.len()), (2, 1));
+    assert_eq!(page.verdict_counts.suspicious, 1);
+    // The verdict never changes membership or order.
+    assert_eq!(spans(&page)[0], spans(&report)[1]);
 }
 
 #[test]
