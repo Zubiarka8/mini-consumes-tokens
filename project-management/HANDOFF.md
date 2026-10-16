@@ -13,6 +13,11 @@ in their own branch. Next action: maintainer review of `feat/207-token-twins` ag
 `origin/main`; publish with `scripts/unix/publish-branch.sh` and open a PR only when the user
 approves. Worktree cleanup also needs the user's approval.
 
+2026-10-16: the Codex evaluation work (`0e10084`, `ba16cb2`) was optimized on this
+branch without behavior change (`5a9fdc2..fe68523`, ERR-015 record `fede724`);
+`check.sh` passed on `fede724`. Details, evidence and open decisions:
+[TASK-207-optimize](checkpoints/TASK-207-optimize.md).
+
 ## TASK-PM-001
 
 Previous agent: PM-01 / Codex
