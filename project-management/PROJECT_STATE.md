@@ -1,7 +1,7 @@
 # Project State
 
-Last update: 2026-10-15
-Updated by: Claude Code coordinator (issue #207)
+Last update: 2026-10-16
+Updated by: Claude Code (issue #207, Codex-work optimization)
 
 ## Active: issue #207 duplicate-function spike
 
@@ -9,6 +9,9 @@ TASK-207 in TASKS.md: REVIEW. `feat/207-token-twins` holds the contract, the thr
 worker branches, end-to-end tests, ADR-007 with the Stage 8 evaluation and docs; `check.sh`
 passed on `3ca021a`. Next action: maintainer review; push/PR only with the user's approval.
 Worker worktrees `mct-207-*` are kept until the user authorizes cleanup.
+2026-10-16: behavior-preserving cleanup of the Codex evaluation work; `check.sh`
+passed on `fede724` (1588 passed). See
+[TASK-207-optimize](checkpoints/TASK-207-optimize.md). ERR-015 (MCP schema mismatch) is open.
 
 ## Earlier state (2026-10-12, Codex recovery coordinator)
 
