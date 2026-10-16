@@ -49,6 +49,8 @@ def unquote(text):
     text = text.strip()
     if len(text) >= 2 and text[0] == '"' and text[-1] == '"':
         body, out, i = text[1:-1], [], 0
+        if "\\" not in body:
+            return body
         while i < len(body):
             char = body[i]
             if char == "\\" and i + 1 < len(body):
@@ -63,6 +65,8 @@ def unquote(text):
 
 
 def split_row(text, delimiter=","):
+    if '"' not in text:  # No quoted cell: every delimiter separates cells.
+        return [cell.strip() for cell in text.split(delimiter)]
     cells, current, quoted, i = [], [], False, 0
     while i < len(text):
         char = text[i]
