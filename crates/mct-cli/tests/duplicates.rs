@@ -207,6 +207,145 @@ fn splat_parameters_are_reported_apart_from_unpacking_targets_and_reads() {
     }
 }
 
+/// The `subgroups` block of one group's report text.
+fn subgroups_of(group: &str) -> &str {
+    let start = group
+        .find("    subgroups:\n")
+        .unwrap_or_else(|| panic!("no subgroups block: {group}"));
+    let end = group[start..]
+        .find("    members[")
+        .map_or(group.len(), |offset| start + offset);
+    &group[start..end]
+}
+
+#[test]
+fn mixed_groups_split_into_evidence_subgroups_without_changing_membership() {
+    let project = Project::new("mixed");
+    fs::write(
+        project.path().join("mixed.py"),
+        include_str!("fixtures/duplicates/mixed.py"),
+    )
+    .unwrap();
+    fs::write(
+        project.path().join("src/main.rs"),
+        include_str!("fixtures/duplicates/mixed.rs"),
+    )
+    .unwrap();
+    project.init();
+    for policy in ["broad", "consistent"] {
+        let report = evidence_report(&project, policy);
+        assert!(report.contains("subgroups_scope: "), "{report}");
+        let (groups, splits) = if policy == "broad" { (5, 3) } else { (5, 2) };
+        assert!(
+            report.contains(&format!("total_groups: {groups}\n")),
+            "{policy}: {report}"
+        );
+        assert!(
+            report.contains(&format!("split_groups: {splits}\n")),
+            "{policy}: {report}"
+        );
+
+        // A different data flow (`value * value`) separates by identifier
+        // pattern under broad; consistent already keeps it out of the group.
+        let flow = subgroups_of(group_of(&report, "scale_all"));
+        if policy == "broad" {
+            for expected in [
+                "      basis[1]: identifier-pattern\n",
+                "        1,2,1 2,",
+                ",identifier-pattern=#1\n",
+                "        2,1,\"3\",",
+                ",identifier-pattern=#2\n",
+            ] {
+                assert!(flow.contains(expected), "{expected:?}: {flow}");
+            }
+        } else {
+            assert!(flow.contains("      status: single\n"), "{flow}");
+            assert!(!report.contains(",square_all,function,"), "{report}");
+        }
+
+        // One structural group, two families: the group keeps all four
+        // members in path order and the subgroups only add a view.
+        let python = group_of(&report, "user_label");
+        assert!(python.contains("member_count: 4\n"), "{policy}: {python}");
+        let rows = python.find(",user_label,function,").unwrap();
+        for (symbol, previous) in [
+            ("order_label", "user_label"),
+            ("owner_label", "order_label"),
+            ("invoice_label", "owner_label"),
+        ] {
+            let at = python.find(&format!(",{symbol},function,")).unwrap();
+            let before = python.find(&format!(",{previous},function,")).unwrap();
+            assert!(rows <= before && before < at, "{policy}: {python}");
+        }
+        let expected = "    subgroups:
+      status: split
+      basis[2]: member,callee
+      count: 2
+      separating_items: 3
+      all_distinct: false
+      omitted_subgroups: 0
+      rows[2]{id,size,members,locations,values}:
+        1,2,1 3,\"mixed.py:7 / mixed.py:23\",member=user_id; callee=load_user; member=display_name
+        2,2,2 4,\"mixed.py:15 / mixed.py:31\",member=order_id; callee=load_order; member=total
+";
+        assert_eq!(subgroups_of(python), expected, "{policy}");
+
+        // Rust: the same split with an odd-sized family; a singleton
+        // subgroup is listed like any other.
+        let rust = group_of(&report, "user_title");
+        assert!(rust.contains("member_count: 3\n"), "{policy}: {rust}");
+        for expected in [
+            "      basis[2]: member,callee\n",
+            "      count: 2\n",
+            "      all_distinct: false\n",
+            "        1,2,1 3,\"src/main.rs:5 / src/main.rs:17\",member=user_id; callee=load_user; \
+             member=display_name\n",
+            "        2,1,\"2\",\"src/main.rs:11\",member=order_id; callee=load_order; member=total\n",
+        ] {
+            assert!(
+                subgroups_of(rust).contains(expected),
+                "{policy} {expected:?}: {rust}"
+            );
+        }
+
+        // Renaming only (a called parameter, a recursive call, renamed
+        // locals) never separates members.
+        for symbol in ["apply_each", "countdown"] {
+            let single = subgroups_of(group_of(&report, symbol));
+            for expected in [
+                "      status: single\n",
+                "      basis[0]:\n",
+                "      count: 1\n",
+                "      omitted_subgroups: 0\n",
+                "      rows[0]{id,size,members,locations,values}:\n",
+            ] {
+                assert!(single.contains(expected), "{policy} {symbol}: {single}");
+            }
+        }
+    }
+
+    // `split_groups` counts every group, like `total_groups`, not the page.
+    let output = mct(&[
+        &"--root",
+        &project.path(),
+        &"duplicates",
+        &"--min-lines",
+        &"1",
+        &"--min-tokens",
+        &"1",
+        &"--no-excerpts",
+        &"--limit",
+        &"1",
+        &"--offset",
+        &"2",
+    ]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    let page = stdout(&output);
+    for expected in ["total_groups: 5\n", "split_groups: 3\n", "groups[1]:\n"] {
+        assert!(page.contains(expected), "{expected:?}: {page}");
+    }
+}
+
 #[test]
 fn aligned_evidence_reports_located_differences_without_changing_groups() {
     let project = Project::new("evidence");
