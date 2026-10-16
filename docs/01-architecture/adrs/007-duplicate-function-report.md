@@ -1,5 +1,9 @@
 # ADR-007: On-demand duplicate function report
 
+> Updated by [ADR-008](008-token-twins-comparison-policies.md): exact callable
+> boundaries, opt-in normalization policies, coverage diagnostics and report
+> controls. The design/evaluation below records the original broad-mode spike.
+
 ## Status
 Proposed (spike, issue #207). The Stage 8 evaluation below is recorded; acceptance is pending maintainer review. Adds the `mct-cli duplicates` subcommand. No schema migration, no MCP tool, and no change to `LanguageParser`.
 
