@@ -220,3 +220,186 @@ fn pathologically_deep_nesting_does_not_overflow_the_stack() {
         .unwrap();
     assert!(handle.join().unwrap() > 2 * depth);
 }
+
+#[test]
+fn identifier_roles_and_literal_categories_are_syntactic_positions() {
+    use mct_core::LiteralCategory::{Boolean, Character, Number, String};
+    use mct_core::TokenRole::{
+        Callee, Declaration, Literal as Lit, Member, Parameter, Type, Unclassified,
+    };
+    let source = "\
+pub fn load(order: &Order, scale: i64) -> Vec<u8> {
+    let total = order.total.saturating_mul(scale);
+    let Point { x, .. } = audit(total);
+    println!(\"{}\", x);
+    let f = |item| item;
+    helpers::emit('c', true, 1.5)
+}
+";
+    let file = tokenize(source);
+    let roles: Vec<(&str, mct_core::TokenRole)> = file
+        .tokens
+        .iter()
+        .filter(|token| matches!(token.kind, Identifier | Literal))
+        .map(|token| (token.text.as_str(), token.role))
+        .collect();
+    for expected in [
+        ("load", Declaration),
+        ("order", Parameter),
+        ("scale", Parameter),
+        ("Order", Type),
+        ("i64", Type),
+        ("Vec", Type),
+        ("u8", Type),
+        ("Point", Type),
+        ("total", Member),
+        ("saturating_mul", Member),
+        ("x", Member),
+        ("audit", Callee),
+        ("println", Callee),
+        ("item", Parameter),
+        // Paths and locals are not classified.
+        ("helpers", Unclassified),
+        ("emit", Unclassified),
+        ("f", Unclassified),
+        ("\"{}\"", Lit(String)),
+        ("'c'", Lit(Character)),
+        ("true", Lit(Boolean)),
+        ("1.5", Lit(Number)),
+    ] {
+        assert!(roles.contains(&expected), "{expected:?} in {roles:?}");
+    }
+    assert!(roles.contains(&("total", Unclassified)), "{roles:?}");
+}
+
+#[test]
+fn callables_carry_outer_attributes_and_enclosing_constructs() {
+    let source = "\
+#[inline]
+/// docs between attributes
+#[must_use]
+pub fn top() -> u8 { 1 }
+
+#[cfg(test)]
+mod tests {
+    #![allow(dead_code)]
+    #[test]
+    fn case() {}
+}
+
+impl Point {
+    fn method(&self) {
+        let _ = || { fn in_closure() {} };
+    }
+}
+
+trait Shape { fn area(&self) -> f64; }
+";
+    let file = tokenize(source);
+    let spans = file.callables.unwrap();
+    let summary: Vec<(&str, Vec<&str>, Vec<&str>)> = spans
+        .iter()
+        .map(|span| {
+            (
+                span.name.as_str(),
+                span.decorators.iter().map(String::as_str).collect(),
+                span.enclosing.iter().map(String::as_str).collect(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        summary,
+        [
+            ("top", vec!["#[inline]", "#[must_use]"], vec![]),
+            ("case", vec!["#[test]"], vec!["#[cfg(test)] mod"]),
+            ("method", vec![], vec!["impl"]),
+            ("in_closure", vec![], vec!["impl", "fn", "closure"]),
+            ("area", vec![], vec!["trait"]),
+        ]
+    );
+}
+
+fn body_shapes(file: &TokenizedFile) -> Vec<(String, Option<(usize, usize)>)> {
+    file.callables
+        .as_ref()
+        .unwrap()
+        .iter()
+        .map(|span| {
+            (
+                span.name.clone(),
+                span.body.map(|body| (body.statements, body.flat_calls)),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn body_shapes_count_flat_call_statements_without_reading_callee_names() {
+    let source = "\
+fn flat(x: u8) {
+    // a comment
+    log(x);
+    self.items.push(x);
+    println!(\"{} {}\", x, \"y\");
+    #[allow(unused)]
+    assert_eq!(x, 1);
+    done(&x, Kind::A)
+}
+
+fn nested(x: u8) {
+    log(compute(x));
+    self.items().push(x);
+    println!(\"{}\", f(x));
+    run(|| x);
+    log(if x { 1 } else { 2 });
+    send(x)?;
+    send(x).await;
+}
+
+fn other(x: u8) -> u8 {
+    let y = log(x);
+    return log(y);
+}
+
+trait T {
+    fn signature(&self);
+}
+";
+    assert_eq!(
+        body_shapes(&tokenize(source)),
+        [
+            ("flat".to_string(), Some((5, 5))),
+            ("nested".to_string(), Some((7, 0))),
+            ("other".to_string(), Some((2, 0))),
+            ("signature".to_string(), None),
+        ]
+    );
+}
+
+#[test]
+fn primitive_spellings_require_complete_direct_annotations() {
+    let file = tokenize(
+        r#"
+type u32 = String;
+fn sample(a: u32, b: bool, c: Option<u8>, d: &str,
+          e: std::primitive::u16, f: String) -> usize {
+    let local: i64 = 1;
+    0
+}
+trait T { fn sample(x: char) -> f64; }
+"#,
+    );
+    assert!(file.error_lines.is_empty(), "{:?}", file.error_lines);
+    let recognized: Vec<_> = file
+        .tokens
+        .iter()
+        .filter(|token| token.primitive_spelling)
+        .map(|token| token.text.as_str())
+        .collect();
+    assert_eq!(recognized, ["u32", "bool", "usize", "i64", "char", "f64"]);
+    assert!(file
+        .tokens
+        .iter()
+        .filter(|token| token.primitive_spelling)
+        .all(|token| token.role == mct_core::TokenRole::Type));
+}

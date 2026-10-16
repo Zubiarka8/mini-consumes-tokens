@@ -192,6 +192,8 @@ impl TokenSource for Toy {
                     if word == ">>" {
                         out.tokens.push(Token {
                             kind: TokenKind::Literal,
+                            role: Default::default(),
+                            primitive_spelling: false,
                             text: source[from..end_byte].to_string(),
                             line: start_line,
                             end_line: line_no,
@@ -214,6 +216,8 @@ impl TokenSource for Toy {
                 if let Some(kind) = marker {
                     out.tokens.push(Token {
                         kind,
+                        role: Default::default(),
+                        primitive_spelling: false,
                         text: String::new(),
                         line: line_no,
                         end_line: line_no,
@@ -233,6 +237,8 @@ impl TokenSource for Toy {
                 };
                 out.tokens.push(Token {
                     kind,
+                    role: Default::default(),
+                    primitive_spelling: false,
                     text: word.to_string(),
                     line: line_no,
                     end_line: line_no,

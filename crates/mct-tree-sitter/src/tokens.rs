@@ -6,7 +6,10 @@
 //! expression over the source, so strings, comments and nesting are always
 //! decided by the grammar.
 
-use mct_core::{LineRange, ParseError, Token, TokenKind, TokenizedFile};
+use mct_core::{
+    BodyShape, CallableSpan, LineRange, LiteralCategory, ParseError, Token, TokenKind, TokenRole,
+    TokenizedFile,
+};
 use tree_sitter::{Language, Node, Parser, Tree};
 
 /// How one grammar's node kinds map to [`TokenKind`]s.
@@ -15,14 +18,19 @@ use tree_sitter::{Language, Node, Parser, Tree};
 /// letters and underscores is a keyword, any other leaf is punctuation.
 #[derive(Debug, Clone, Copy)]
 pub struct TokenClasses {
+    /// Callable nodes with a `name` field. Their exact ranges are returned.
+    pub callable_kinds: &'static [&'static str],
+    /// `(container, expression-child)` pairs. Expand a literal only when
+    /// a direct child has the expression kind; ordinary strings stay atomic.
+    pub expanded_literal_kinds: &'static [(&'static str, &'static str)],
     /// Kinds whose whole subtree is dropped: comments (a Rust doc comment has
     /// child nodes), other nodes with no lexical content, such as a Python
     /// line continuation, and nodes that do not change what code does, such
     /// as a Rust visibility.
     pub trivia_kinds: &'static [&'static str],
     /// Kinds that become exactly one [`TokenKind::Literal`] covering the
-    /// whole node, without looking at its children (a string with escape or
-    /// interpolation children is still one token).
+    /// whole node, unless `expanded_literal_kinds` opts its expression children
+    /// into structural traversal.
     pub literal_kinds: &'static [&'static str],
     /// Named leaf kinds that become [`TokenKind::Identifier`].
     pub identifier_kinds: &'static [&'static str],
@@ -35,6 +43,80 @@ pub struct TokenClasses {
     /// [`TokenKind::BlockEnd`]. Empty for a grammar whose blocks have
     /// delimiter tokens of their own (braces, `end`).
     pub block_kinds: &'static [&'static str],
+    /// `(literal kind, category)`. A literal kind without an entry is
+    /// [`LiteralCategory::Other`].
+    pub literal_categories: &'static [(&'static str, LiteralCategory)],
+    /// `(literal kind, child kind)`: such a literal with a direct child of that
+    /// kind is a [`LiteralCategory::InterpolatedString`], in every mode.
+    pub interpolated_literal_kinds: &'static [(&'static str, &'static str)],
+    /// Parent kinds that make a literal child a whole statement whose value is
+    /// unused ([`LiteralCategory::Docstring`]), such as Python's
+    /// `expression_statement`.
+    pub statement_literal_parents: &'static [&'static str],
+    /// `(identifier kind, role)`: kinds whose role the kind alone decides,
+    /// such as Rust's `type_identifier`. Checked first.
+    pub kind_roles: &'static [(&'static str, TokenRole)],
+    /// `(leaf kind, text)` recognized as primitive spellings by this language.
+    /// Recognition never resolves names or establishes type identity.
+    pub primitive_spellings: &'static [(&'static str, &'static str)],
+    /// `(parent kind, field)` sites where a complete annotation is supported.
+    pub annotation_sites: &'static [(&'static str, &'static str)],
+    /// Transparent single-child annotation wrappers, such as Python's `type`.
+    pub annotation_wrappers: &'static [&'static str],
+    /// Kinds whose whole subtree is a type position, such as Python's `type`:
+    /// an identifier inside one is a [`TokenRole::Type`]. Checked second.
+    pub type_kinds: &'static [&'static str],
+    /// `(parent kind, field name, role)` for an identifier leaf by its direct
+    /// parent; an empty field name matches any child. Checked last.
+    pub parent_roles: &'static [(&'static str, &'static str, TokenRole)],
+    /// Kinds that `parent_roles` looks through, such as Python's
+    /// `list_splat_pattern` around `*args`: an identifier whose direct parent
+    /// is one is matched against its grandparent instead, and only by
+    /// entries with an empty field name. The same kind under any other
+    /// grandparent (`a, *rest = x`) stays unclassified.
+    pub role_wrappers: &'static [&'static str],
+    /// Kinds of decorators or outer attributes (Python's `decorator`, Rust's
+    /// `attribute_item`). Such nodes, with only trivia between them, attach to
+    /// the next sibling node: a callable's become [`CallableSpan::decorators`],
+    /// an enclosing construct's prefix its context label.
+    pub decorator_kinds: &'static [&'static str],
+    /// `(kind, label)`: constructs reported in [`CallableSpan::enclosing`]
+    /// when they enclose a callable, such as `("class_definition", "class")`.
+    pub context_kinds: &'static [(&'static str, &'static str)],
+    /// Kinds that wrap one expression as a statement, such as
+    /// `expression_statement`. Body shapes look through them.
+    pub expression_statement_kinds: &'static [&'static str],
+    /// Call and macro-invocation kinds. Empty: no [`CallableSpan::body`] is
+    /// reported.
+    pub call_kinds: &'static [&'static str],
+    /// Kinds that make a call's arguments non-flat besides a nested call:
+    /// closures, comprehensions, conditionals, blocks, `await`, `?`.
+    pub non_flat_kinds: &'static [&'static str],
+    /// Delimited, unparsed argument kinds, such as Rust's macro `token_tree`.
+    /// One nested in another makes the call non-flat, since a call inside
+    /// it cannot be told apart from any other parenthesized tokens.
+    pub delimited_argument_kinds: &'static [&'static str],
+}
+
+/// A node being walked: its kind, its context label when it is a context kind,
+/// and decorators read among its children not yet attached to a sibling.
+struct Frame {
+    kind: &'static str,
+    context: Option<String>,
+    pending: Vec<String>,
+}
+
+/// Where the node being visited sits: its parent's and grandparent's kinds,
+/// its field in that parent, whether an ancestor is a type position, the
+/// decorators attached to it, and the nodes enclosing it.
+#[derive(Clone, Copy)]
+struct Place<'a> {
+    parent: Option<&'static str>,
+    grandparent: Option<&'static str>,
+    field: Option<&'static str>,
+    in_type: bool,
+    decorators: &'a [String],
+    enclosing: &'a [Frame],
 }
 
 /// Parses `source` with `language` and extracts its tokens.
@@ -81,17 +163,51 @@ pub fn tokenize_source(
 /// [`TokenizedFile::error_lines`], merged and sorted.
 pub fn tokenize_tree(tree: &Tree, source: &str, classes: &TokenClasses) -> TokenizedFile {
     let mut out = TokenizedFile::default();
+    if !classes.callable_kinds.is_empty() {
+        out.callables = Some(Vec::new());
+    }
     let mut cursor = tree.walk();
     // Depth of the `ERROR` node being descended into, so nested errors do not
     // add redundant ranges.
     let mut depth = 0usize;
     let mut error_depth: Option<usize> = None;
+    // The nodes descended into, innermost last, and how many of them are type
+    // positions: roles and contexts need the ancestors without `Node::parent`'s
+    // walk from the root.
+    let mut ancestors: Vec<Frame> = Vec::new();
+    let mut type_scopes = 0usize;
 
     'walk: loop {
         let node = cursor.node();
-        let descend = visit(node, source, classes, &mut out, &mut error_depth, depth);
+        let decorators = attach_decorators(node, source, classes, ancestors.last_mut());
+        let place = Place {
+            parent: ancestors.last().map(|frame| frame.kind),
+            grandparent: ancestors.iter().rev().nth(1).map(|frame| frame.kind),
+            field: cursor.field_name(),
+            in_type: type_scopes > 0,
+            decorators: &decorators,
+            enclosing: &ancestors,
+        };
+        let descend = visit(
+            node,
+            place,
+            source,
+            classes,
+            &mut out,
+            &mut error_depth,
+            depth,
+        );
         if descend && cursor.goto_first_child() {
             depth += 1;
+            let kind = node.kind();
+            ancestors.push(Frame {
+                kind,
+                context: context_label(kind, &decorators, classes),
+                pending: Vec::new(),
+            });
+            if classes.type_kinds.contains(&kind) {
+                type_scopes += 1;
+            }
             continue;
         }
         loop {
@@ -102,6 +218,12 @@ pub fn tokenize_tree(tree: &Tree, source: &str, classes: &TokenClasses) -> Token
                 break 'walk;
             }
             depth -= 1;
+            if ancestors
+                .pop()
+                .is_some_and(|frame| classes.type_kinds.contains(&frame.kind))
+            {
+                type_scopes = type_scopes.saturating_sub(1);
+            }
             // Every child of the parent has been walked: the parent ends here.
             // Only a node with children is descended into, so this closes
             // exactly the blocks `visit` opened.
@@ -122,6 +244,7 @@ pub fn tokenize_tree(tree: &Tree, source: &str, classes: &TokenClasses) -> Token
 /// Handles one node; returns whether its children still have to be walked.
 fn visit(
     node: Node,
+    place: Place,
     source: &str,
     classes: &TokenClasses,
     out: &mut TokenizedFile,
@@ -146,13 +269,38 @@ fn visit(
     }
 
     let kind = node.kind();
+    if classes.callable_kinds.contains(&kind) {
+        if let (Some(spans), Some(name)) =
+            (out.callables.as_mut(), node.child_by_field_name("name"))
+        {
+            if let Some(text) = source.get(name.byte_range()) {
+                spans.push(CallableSpan {
+                    name: text.to_string(),
+                    lines: line_range(node),
+                    bytes: node.byte_range(),
+                    decorators: place.decorators.to_vec(),
+                    enclosing: place
+                        .enclosing
+                        .iter()
+                        .filter_map(|frame| frame.context.clone())
+                        .collect(),
+                    body: body_shape(node, classes),
+                });
+            }
+        }
+    }
     if classes.trivia_kinds.contains(&kind) {
         record_skipped_errors(node, out);
         return false;
     }
-    if classes.literal_kinds.contains(&kind) {
+    let expands_literal = classes
+        .expanded_literal_kinds
+        .iter()
+        .any(|(container, expression)| kind == *container && has_child_kind(node, expression));
+    if classes.literal_kinds.contains(&kind) && !expands_literal {
         record_skipped_errors(node, out);
-        push_token(node, TokenKind::Literal, source, out);
+        let role = TokenRole::Literal(literal_category(node, place, classes));
+        push_token(node, TokenKind::Literal, role, source, out);
         return false;
     }
     if node.child_count() > 0 {
@@ -170,17 +318,245 @@ fn visit(
     if text.trim().is_empty() {
         return false;
     }
-    let token_kind = if node.is_named() && classes.identifier_kinds.contains(&kind) {
-        TokenKind::Identifier
-    } else if classes.keyword_kinds.contains(&kind)
+    if node.is_named() && classes.identifier_kinds.contains(&kind) {
+        let role = identifier_role(kind, place, classes);
+        push_token(node, TokenKind::Identifier, role, source, out);
+        if role == TokenRole::Type && primitive_spelling(node, text, classes) {
+            if let Some(token) = out.tokens.last_mut() {
+                token.primitive_spelling = true;
+            }
+        }
+        return false;
+    }
+    let token_kind = if classes.keyword_kinds.contains(&kind)
         || text.chars().all(|c| c.is_alphabetic() || c == '_')
     {
         TokenKind::Keyword
     } else {
         TokenKind::Punctuation
     };
-    push_token(node, token_kind, source, out);
+    push_token(node, token_kind, TokenRole::Unclassified, source, out);
     false
+}
+
+/// Decorators attach to the next sibling that is neither a decorator nor
+/// trivia. A decorator node is queued on its parent's frame and gets none;
+/// trivia keeps the queue; any other node takes it.
+fn attach_decorators(
+    node: Node,
+    source: &str,
+    classes: &TokenClasses,
+    parent: Option<&mut Frame>,
+) -> Vec<String> {
+    let Some(parent) = parent else {
+        return Vec::new();
+    };
+    let kind = node.kind();
+    if classes.decorator_kinds.contains(&kind) {
+        parent
+            .pending
+            .push(text_without_trivia(node, source, classes));
+        return Vec::new();
+    }
+    if classes.trivia_kinds.contains(&kind) {
+        return Vec::new();
+    }
+    std::mem::take(&mut parent.pending)
+}
+
+/// `node`'s source text without its descendant trivia subtrees, whitespace
+/// collapsed to single spaces. Iterative, like the main walk.
+fn text_without_trivia(node: Node, source: &str, classes: &TokenClasses) -> String {
+    let mut text = String::new();
+    let mut copied = node.start_byte();
+    let mut cursor = node.walk();
+    let mut depth = 0usize;
+    'walk: loop {
+        let current = cursor.node();
+        if depth > 0 && classes.trivia_kinds.contains(&current.kind()) {
+            text.push_str(source.get(copied..current.start_byte()).unwrap_or(""));
+            text.push(' ');
+            copied = current.end_byte();
+        } else if cursor.goto_first_child() {
+            depth += 1;
+            continue;
+        }
+        loop {
+            if depth > 0 && cursor.goto_next_sibling() {
+                break;
+            }
+            if depth == 0 || !cursor.goto_parent() {
+                break 'walk;
+            }
+            depth -= 1;
+        }
+    }
+    text.push_str(source.get(copied..node.end_byte()).unwrap_or(""));
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// `kind`'s context label, prefixed by its decorators, if it is a context kind.
+fn context_label(kind: &str, decorators: &[String], classes: &TokenClasses) -> Option<String> {
+    let (_, label) = classes.context_kinds.iter().find(|(k, _)| *k == kind)?;
+    Some(if decorators.is_empty() {
+        (*label).to_string()
+    } else {
+        format!("{} {label}", decorators.join(" "))
+    })
+}
+
+/// The statement shape of `callable`'s `body` field. Direct statements are
+/// its named children other than trivia and decorators; an expression
+/// statement is looked through, and a literal one (a docstring) is not
+/// counted.
+fn body_shape(callable: Node, classes: &TokenClasses) -> Option<BodyShape> {
+    if classes.call_kinds.is_empty() {
+        return None;
+    }
+    let body = callable.child_by_field_name("body")?;
+    let mut shape = BodyShape::default();
+    let mut cursor = body.walk();
+    for statement in body.named_children(&mut cursor) {
+        let kind = statement.kind();
+        if classes.trivia_kinds.contains(&kind) || classes.decorator_kinds.contains(&kind) {
+            continue;
+        }
+        let expression = if classes.expression_statement_kinds.contains(&kind) {
+            let mut inner = statement.walk();
+            let mut children = statement
+                .named_children(&mut inner)
+                .filter(|child| !classes.trivia_kinds.contains(&child.kind()));
+            match (children.next(), children.next()) {
+                (Some(only), None) => Some(only),
+                _ => None,
+            }
+        } else {
+            Some(statement)
+        };
+        if expression.is_some_and(|expression| {
+            classes.statement_literal_parents.contains(&kind)
+                && classes.literal_kinds.contains(&expression.kind())
+        }) {
+            continue;
+        }
+        shape.statements += 1;
+        if expression.is_some_and(|expression| is_flat_call(expression, classes)) {
+            shape.flat_calls += 1;
+        }
+    }
+    Some(shape)
+}
+
+/// Whether `node` is a call whose descendants hold no other call, no
+/// non-flat kind and no delimited argument nested in another. Iterative.
+fn is_flat_call(node: Node, classes: &TokenClasses) -> bool {
+    if !classes.call_kinds.contains(&node.kind()) {
+        return false;
+    }
+    let mut cursor = node.walk();
+    let mut depth = 0usize;
+    'walk: loop {
+        let current = cursor.node();
+        let kind = current.kind();
+        if depth > 0
+            && (classes.call_kinds.contains(&kind)
+                || classes.non_flat_kinds.contains(&kind)
+                || (classes.delimited_argument_kinds.contains(&kind)
+                    && classes
+                        .delimited_argument_kinds
+                        .iter()
+                        .any(|inner| has_child_kind(current, inner))))
+        {
+            return false;
+        }
+        if cursor.goto_first_child() {
+            depth += 1;
+            continue;
+        }
+        loop {
+            if depth > 0 && cursor.goto_next_sibling() {
+                break;
+            }
+            if depth == 0 || !cursor.goto_parent() {
+                break 'walk;
+            }
+            depth -= 1;
+        }
+    }
+    true
+}
+
+fn has_child_kind(node: Node, kind: &str) -> bool {
+    (0..node.child_count()).any(|i| node.child(i).is_some_and(|child| child.kind() == kind))
+}
+
+/// A literal's category: statement position first, then interpolation, then
+/// the kind table.
+fn literal_category(node: Node, place: Place, classes: &TokenClasses) -> LiteralCategory {
+    if place
+        .parent
+        .is_some_and(|parent| classes.statement_literal_parents.contains(&parent))
+    {
+        return LiteralCategory::Docstring;
+    }
+    let kind = node.kind();
+    if classes
+        .interpolated_literal_kinds
+        .iter()
+        .any(|(container, child)| kind == *container && has_child_kind(node, child))
+    {
+        return LiteralCategory::InterpolatedString;
+    }
+    classes
+        .literal_categories
+        .iter()
+        .find(|(literal, _)| *literal == kind)
+        .map_or(LiteralCategory::Other, |(_, category)| *category)
+}
+
+/// Recognized primitive spelling used as the whole annotation at a supported
+/// site. Looking through wrappers does not inspect generics or resolve names.
+fn primitive_spelling(node: Node, text: &str, classes: &TokenClasses) -> bool {
+    if !classes.primitive_spellings.contains(&(node.kind(), text)) {
+        return false;
+    }
+    let mut annotation = node;
+    while let Some(parent) = annotation.parent() {
+        if classes.annotation_wrappers.contains(&parent.kind()) && parent.named_child_count() == 1 {
+            annotation = parent;
+        } else {
+            break;
+        }
+    }
+    let Some(parent) = annotation.parent() else {
+        return false;
+    };
+    classes.annotation_sites.iter().any(|(kind, field)| {
+        parent.kind() == *kind && parent.child_by_field_name(field) == Some(annotation)
+    })
+}
+
+/// An identifier's syntactic role; no binding or type identity is resolved.
+fn identifier_role(kind: &str, place: Place, classes: &TokenClasses) -> TokenRole {
+    if let Some((_, role)) = classes.kind_roles.iter().find(|(k, _)| *k == kind) {
+        return *role;
+    }
+    if place.in_type {
+        return TokenRole::Type;
+    }
+    // Through a wrapper the wrapper's own field is unknown, so only entries
+    // that match any field can apply.
+    let (parent, field) = match place.parent {
+        Some(kind) if classes.role_wrappers.contains(&kind) => (place.grandparent, None),
+        parent => (parent, place.field),
+    };
+    classes
+        .parent_roles
+        .iter()
+        .find(|(kind, wanted, _)| {
+            parent == Some(*kind) && (wanted.is_empty() || field == Some(*wanted))
+        })
+        .map_or(TokenRole::Unclassified, |(_, _, role)| *role)
 }
 
 /// A node whose subtree is not walked may still hide syntax errors.
@@ -190,7 +566,7 @@ fn record_skipped_errors(node: Node, out: &mut TokenizedFile) {
     }
 }
 
-fn push_token(node: Node, kind: TokenKind, source: &str, out: &mut TokenizedFile) {
+fn push_token(node: Node, kind: TokenKind, role: TokenRole, source: &str, out: &mut TokenizedFile) {
     let Some(text) = source.get(node.start_byte()..node.end_byte()) else {
         out.error_lines.push(line_range(node));
         return;
@@ -198,6 +574,8 @@ fn push_token(node: Node, kind: TokenKind, source: &str, out: &mut TokenizedFile
     let range = line_range(node);
     out.tokens.push(Token {
         kind,
+        role,
+        primitive_spelling: false,
         text: text.to_string(),
         line: range.start,
         end_line: range.end,
@@ -218,6 +596,8 @@ fn push_block_marker(block: Node, kind: TokenKind, out: &mut TokenizedFile) {
     };
     out.tokens.push(Token {
         kind,
+        role: TokenRole::Unclassified,
+        primitive_spelling: false,
         text: String::new(),
         line,
         end_line: line,
@@ -268,11 +648,29 @@ mod tests {
     // Bash node kinds: `comment`, `string` (with `string_content` and
     // expansion children), `number`; commands and arguments are `word` leaves.
     const BASH: TokenClasses = TokenClasses {
+        callable_kinds: &[],
+        expanded_literal_kinds: &[],
         trivia_kinds: &["comment"],
         literal_kinds: &["string", "number"],
         identifier_kinds: &["variable_name", "word"],
         keyword_kinds: &[],
         block_kinds: &[],
+        literal_categories: &[("number", LiteralCategory::Number)],
+        interpolated_literal_kinds: &[("string", "expansion")],
+        statement_literal_parents: &[],
+        kind_roles: &[("variable_name", TokenRole::Parameter)],
+        primitive_spellings: &[],
+        annotation_sites: &[],
+        annotation_wrappers: &[],
+        type_kinds: &[],
+        parent_roles: &[("command_name", "", TokenRole::Callee)],
+        role_wrappers: &[],
+        decorator_kinds: &[],
+        context_kinds: &[],
+        expression_statement_kinds: &[],
+        call_kinds: &[],
+        non_flat_kinds: &[],
+        delimited_argument_kinds: &[],
     };
 
     fn bash(source: &str) -> TokenizedFile {
@@ -285,6 +683,41 @@ mod tests {
         block_kinds: &["compound_statement"],
         ..BASH
     };
+
+    #[test]
+    fn primitive_spelling_tables_require_a_type_role_and_the_annotation_field() {
+        let classes = TokenClasses {
+            kind_roles: &[("variable_name", TokenRole::Type)],
+            primitive_spellings: &[("variable_name", "x")],
+            annotation_sites: &[("variable_assignment", "name")],
+            ..BASH
+        };
+        let source = "x=1\necho $x\n";
+        let file =
+            tokenize_source(&tree_sitter_bash::LANGUAGE.into(), &classes, "t.sh", source).unwrap();
+        assert_eq!(
+            file.tokens
+                .iter()
+                .filter(|token| token.primitive_spelling)
+                .count(),
+            1
+        );
+        for classes in [
+            TokenClasses {
+                annotation_sites: &[("variable_assignment", "value")],
+                ..classes
+            },
+            TokenClasses {
+                kind_roles: &[],
+                ..classes
+            },
+        ] {
+            let file =
+                tokenize_source(&tree_sitter_bash::LANGUAGE.into(), &classes, "t.sh", source)
+                    .unwrap();
+            assert!(file.tokens.iter().all(|token| !token.primitive_spelling));
+        }
+    }
 
     #[test]
     fn block_kinds_are_bracketed_by_zero_width_markers_in_order() {
@@ -352,6 +785,187 @@ mod tests {
         assert!(tokens.contains(&(TokenKind::Identifier, "echo")));
         assert!(tokens.contains(&(TokenKind::Punctuation, ";")));
         assert!(tokens.contains(&(TokenKind::Punctuation, "[")));
+    }
+
+    /// The roles in `BASH` are arbitrary stand-ins; only the precedence and
+    /// table mechanics are under test here.
+    #[test]
+    fn roles_come_from_kind_parent_field_and_literal_tables() {
+        let file = bash("echo \"${x}\" \"plain\" 7 $y\n");
+        let roles: Vec<(&str, TokenRole)> = file
+            .tokens
+            .iter()
+            .map(|token| (token.text.as_str(), token.role))
+            .collect();
+        assert!(roles.contains(&("echo", TokenRole::Callee)), "{roles:?}");
+        assert!(roles.contains(&(
+            "\"${x}\"",
+            TokenRole::Literal(LiteralCategory::InterpolatedString)
+        )));
+        assert!(roles.contains(&("\"plain\"", TokenRole::Literal(LiteralCategory::Other))));
+        assert!(roles.contains(&("7", TokenRole::Literal(LiteralCategory::Number))));
+        assert!(roles.contains(&("y", TokenRole::Parameter)));
+        assert!(file
+            .tokens
+            .iter()
+            .filter(|token| !matches!(token.kind, TokenKind::Identifier | TokenKind::Literal))
+            .all(|token| token.role == TokenRole::Unclassified));
+    }
+
+    /// `$y` is a `variable_name` inside a `simple_expansion`: as a wrapper,
+    /// the expansion passes the lookup to its parent, but only to entries
+    /// without a field, since the wrapper's own field is not known.
+    #[test]
+    fn role_wrappers_resolve_against_the_grandparent_with_any_field_only() {
+        let wrapped = TokenClasses {
+            kind_roles: &[],
+            parent_roles: &[
+                ("command_name", "", TokenRole::Callee),
+                ("command", "", TokenRole::Member),
+                ("variable_assignment", "value", TokenRole::Type),
+            ],
+            role_wrappers: &["simple_expansion"],
+            ..BASH
+        };
+        let source = "echo $y\nx=$z\n";
+        let roles_with = |classes: &TokenClasses| -> Vec<(String, TokenRole)> {
+            tokenize_source(&tree_sitter_bash::LANGUAGE.into(), classes, "t.sh", source)
+                .unwrap()
+                .tokens
+                .into_iter()
+                .filter(|token| token.kind == TokenKind::Identifier)
+                .map(|token| (token.text, token.role))
+                .collect()
+        };
+        let roles = roles_with(&wrapped);
+        for expected in [
+            ("echo", TokenRole::Callee),
+            ("y", TokenRole::Member),
+            // The assignment entry needs the `value` field: not through a wrapper.
+            ("z", TokenRole::Unclassified),
+            ("x", TokenRole::Unclassified),
+        ] {
+            let expected = (expected.0.to_string(), expected.1);
+            assert!(roles.contains(&expected), "{expected:?} in {roles:?}");
+        }
+        let unwrapped = roles_with(&TokenClasses {
+            role_wrappers: &[],
+            ..wrapped
+        });
+        assert!(
+            unwrapped.contains(&("y".to_string(), TokenRole::Unclassified)),
+            "{unwrapped:?}"
+        );
+    }
+
+    /// Bash comments stand in for decorators and `if` for an enclosing
+    /// construct; only the attachment and nesting mechanics are under test.
+    #[test]
+    fn callables_carry_attached_decorators_and_enclosing_labels() {
+        let classes = TokenClasses {
+            callable_kinds: &["function_definition"],
+            decorator_kinds: &["comment"],
+            context_kinds: &[("if_statement", "if")],
+            ..BASH
+        };
+        let source = "\
+# around   it
+if true; then
+  # first
+  # second
+  f() { echo; }
+fi
+# lost
+echo x
+g() { echo; }
+";
+        let file =
+            tokenize_source(&tree_sitter_bash::LANGUAGE.into(), &classes, "t.sh", source).unwrap();
+        let spans = file.callables.unwrap();
+        let summary: Vec<(&str, &[String], &[String])> = spans
+            .iter()
+            .map(|span| {
+                (
+                    span.name.as_str(),
+                    span.decorators.as_slice(),
+                    span.enclosing.as_slice(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            summary,
+            [
+                (
+                    "f",
+                    &["# first".to_string(), "# second".to_string()][..],
+                    &["# around it if".to_string()][..]
+                ),
+                ("g", &[][..], &[][..]),
+            ]
+        );
+        // Decorator kinds still go through the ordinary token rules.
+        assert!(file.tokens.iter().all(|token| !token.text.starts_with('#')));
+    }
+
+    /// Bash commands stand in for calls, a command substitution for a non-flat
+    /// argument and a `{ }` group for a statement wrapper; only the counting
+    /// mechanics are under test.
+    #[test]
+    fn callables_report_how_many_body_statements_are_flat_calls() {
+        let classes = TokenClasses {
+            callable_kinds: &["function_definition"],
+            call_kinds: &["command"],
+            non_flat_kinds: &["command_substitution"],
+            ..BASH
+        };
+        let source = "\
+f() {
+  # a comment is not a statement
+  echo a
+  echo \"$x\" b
+}
+g() {
+  echo a
+  echo $(date)
+  x=1
+}
+h() { :; }
+";
+        let file =
+            tokenize_source(&tree_sitter_bash::LANGUAGE.into(), &classes, "t.sh", source).unwrap();
+        let shapes: Vec<(&str, Option<BodyShape>)> = file
+            .callables
+            .as_ref()
+            .unwrap()
+            .iter()
+            .map(|span| (span.name.as_str(), span.body))
+            .collect();
+        let shape = |statements, flat_calls| {
+            Some(BodyShape {
+                statements,
+                flat_calls,
+            })
+        };
+        assert_eq!(
+            shapes,
+            [("f", shape(2, 2)), ("g", shape(3, 1)), ("h", shape(1, 1))]
+        );
+        assert!(shapes[0].1.unwrap().is_call_only());
+        assert!(!shapes[1].1.unwrap().is_call_only());
+        assert!(!BodyShape::default().is_call_only());
+
+        // Without call kinds no shape is reported.
+        let without = TokenClasses {
+            callable_kinds: &["function_definition"],
+            ..BASH
+        };
+        let file =
+            tokenize_source(&tree_sitter_bash::LANGUAGE.into(), &without, "t.sh", source).unwrap();
+        assert!(file
+            .callables
+            .unwrap()
+            .iter()
+            .all(|span| span.body.is_none()));
     }
 
     #[test]
