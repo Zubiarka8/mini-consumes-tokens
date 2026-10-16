@@ -179,6 +179,8 @@ pub struct DuplicateReport {
     pub demoted_groups: usize,
     /// Verdicts of the reported groups (`groups`), not of the whole total.
     pub verdict_counts: VerdictCounts,
+    /// Of `total_groups`, those whose [`GroupSubgroups::status`] is split.
+    pub split_groups: usize,
     /// Whole-index diagnostics, independent of candidate filters and output limits.
     pub index_syntax_errors: usize,
     pub index_read_failures: usize,
@@ -224,6 +226,10 @@ pub struct DuplicateGroup {
     /// Explainable verdict derived from `evidence` and `priority`. Computed
     /// only for the reported page of groups, after `evidence`.
     pub verdict: GroupVerdict,
+    /// Members partitioned by the evidence that separates them. An extra view:
+    /// `members`, totals, order and pagination are unchanged. Computed for
+    /// every group.
+    pub subgroups: GroupSubgroups,
 }
 
 /// One explainable verdict per reported group, derived only from the group's
@@ -335,6 +341,101 @@ pub struct VerdictCounts {
     pub real: usize,
     pub suspicious: usize,
     pub false_positive: usize,
+}
+
+/// Most subgroup rows listed per group; [`GroupSubgroups::count`] covers all.
+pub const MAX_LISTED_SUBGROUPS: usize = 8;
+/// Most member indices listed per subgroup row; [`Subgroup::size`] covers all.
+pub const MAX_LISTED_SUBGROUP_MEMBERS: usize = 10;
+/// Most separating values shown per subgroup row.
+pub const MAX_SUBGROUP_VALUES: usize = 3;
+
+/// A deterministic partition of a group's members by equal evidence.
+///
+/// Two members share a subgroup exactly when they agree on every separating
+/// evidence item: the text at each differing aligned `member`, `callee` and
+/// `type` position, the literal category at each `literal-category` position,
+/// and their identifier pattern (each spelling numbered by first use, so two
+/// members have equal patterns exactly when one is a consistent renaming of
+/// the other). A `member`, `callee` or `type` position is not separating when
+/// every member's text there is also a name that member declares or takes as a
+/// parameter (renaming, recursion). Individual names, parameters, literal
+/// values, interpolated strings, docstrings, mixed roles, decorators and
+/// enclosing constructs never separate. Nothing is resolved or scored.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct GroupSubgroups {
+    pub status: SubgroupStatus,
+    /// Kinds of the separating items, in [`SubgroupBasis`] order; empty
+    /// unless split.
+    pub basis: Vec<SubgroupBasis>,
+    /// Number of subgroups: 1 when single, 0 when not evaluated.
+    pub count: usize,
+    /// Separating aligned positions, plus one when identifier patterns differ.
+    pub separating_items: usize,
+    /// Every member is its own subgroup; no row is listed because the member
+    /// list already shows the partition.
+    pub all_distinct: bool,
+    /// The first [`MAX_LISTED_SUBGROUPS`] subgroups, by first member; empty
+    /// when single, not evaluated or all distinct.
+    pub subgroups: Vec<Subgroup>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SubgroupStatus {
+    /// Aligned tokens are unavailable for at least one member.
+    #[default]
+    NotEvaluated,
+    /// No evidence separates the members.
+    Single,
+    /// At least two subgroups.
+    Split,
+}
+
+impl SubgroupStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::NotEvaluated => "not-evaluated",
+            Self::Single => "single",
+            Self::Split => "split",
+        }
+    }
+}
+
+/// An evidence kind that can separate members.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum SubgroupBasis {
+    Member,
+    Callee,
+    Type,
+    LiteralCategory,
+    IdentifierPattern,
+}
+
+impl SubgroupBasis {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Member => "member",
+            Self::Callee => "callee",
+            Self::Type => "type",
+            Self::LiteralCategory => "literal-category",
+            Self::IdentifierPattern => "identifier-pattern",
+        }
+    }
+}
+
+/// Members that agree on every separating item.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Subgroup {
+    /// 1-based, in order of each subgroup's first member.
+    pub id: usize,
+    pub size: usize,
+    /// 0-based indices into [`DuplicateGroup::members`], ascending; at most
+    /// [`MAX_LISTED_SUBGROUP_MEMBERS`].
+    pub members: Vec<usize>,
+    /// This subgroup's value at the first [`MAX_SUBGROUP_VALUES`] separating
+    /// items, as `kind=text`, texts cut to [`MAX_DIFFERENCE_TEXT_CHARS`]; an
+    /// identifier pattern shows as `identifier-pattern=#N`.
+    pub values: Vec<String>,
 }
 
 /// Where a group is ranked and why. A demoted group is still reported in full.

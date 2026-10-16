@@ -13,6 +13,7 @@
 mod evidence;
 mod file;
 mod fingerprint;
+mod subgroups;
 mod verdict;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -21,9 +22,9 @@ use mct_core::{LineRange, TokenSourceRegistry};
 
 use super::{
     DuplicateGroup, DuplicateMember, DuplicateOptions, DuplicateReport, GeneratedCodeHandling,
-    GroupEvidence, GroupPriority, GroupVerdict, PriorityLevel, SkipReason, SkippedCandidate,
-    VerdictCounts, VerdictLevel, DUPLICATE_KIND_ALLOWLIST, MAX_EXCERPT_LINES,
-    MAX_EXCERPT_LINE_CHARS,
+    GroupEvidence, GroupPriority, GroupSubgroups, GroupVerdict, PriorityLevel, SkipReason,
+    SkippedCandidate, SubgroupStatus, VerdictCounts, VerdictLevel, DUPLICATE_KIND_ALLOWLIST,
+    MAX_EXCERPT_LINES, MAX_EXCERPT_LINE_CHARS,
 };
 use crate::{queries, Index, Result, SymbolListEntry};
 use evidence::{MemberContext, MemberInput, Texts};
@@ -124,25 +125,33 @@ pub(super) fn run(
     if report.options.excerpts {
         hydrate_excerpts(index, &hashes, &mut report);
     }
-    // Priority needs every group, so it runs before pagination and after
-    // late excerpt failures have removed members.
+    // Priority and subgroups need every group, so they run before pagination
+    // and after late excerpt failures have removed members.
     for group in &mut report.groups {
-        let bodies: Vec<_> = group
+        let members: Vec<Option<&MemberInput>> = group
             .members
             .iter()
             .map(|member| {
-                inputs
-                    .get(&(
-                        member.path.clone(),
-                        member.start_line,
-                        member.end_line,
-                        member.symbol_name.clone(),
-                    ))
-                    .and_then(|input| input.body)
+                inputs.get(&(
+                    member.path.clone(),
+                    member.start_line,
+                    member.end_line,
+                    member.symbol_name.clone(),
+                ))
             })
             .collect();
+        let bodies: Vec<_> = members
+            .iter()
+            .map(|input| input.and_then(|input| input.body))
+            .collect();
         group.priority = evidence::evaluate_priority(&bodies, report.options.trivial_calls);
+        group.subgroups = subgroups::partition_inputs(&members, &texts);
     }
+    report.split_groups = report
+        .groups
+        .iter()
+        .filter(|group| group.subgroups.status == SubgroupStatus::Split)
+        .count();
     // Stable: demoted groups keep their ranking order among themselves.
     report
         .groups
@@ -402,6 +411,7 @@ impl Analysis {
             total_groups,
             demoted_groups: 0,
             verdict_counts: VerdictCounts::default(),
+            split_groups: 0,
             index_syntax_errors: 0,
             index_read_failures: 0,
             has_indexing_record: false,
@@ -549,6 +559,7 @@ fn build_group(language: String, mut members: Vec<DuplicateMember>) -> Duplicate
         priority: GroupPriority::default(),
         evidence: GroupEvidence::default(),
         verdict: GroupVerdict::default(),
+        subgroups: GroupSubgroups::default(),
     }
 }
 
