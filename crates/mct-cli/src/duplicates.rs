@@ -264,13 +264,13 @@ pub(crate) fn render_toon(report: &DuplicateReport) -> String {
     );
     // With the partial-block search on, block repetition is evaluated and
     // only the blocks' extractability remains unevaluated.
-    let not_evaluated: Vec<String> = mct_index::EVIDENCE_NOT_EVALUATED
+    let not_evaluated: Vec<&str> = mct_index::EVIDENCE_NOT_EVALUATED
         .iter()
         .map(|item| match *item {
             "partial-block repetition" if report.partial_blocks.is_some() => {
-                mct_index::PARTIAL_BLOCKS_NOT_EVALUATED.to_string()
+                mct_index::PARTIAL_BLOCKS_NOT_EVALUATED
             }
-            item => item.to_string(),
+            item => item,
         })
         .collect();
     inline_array(&mut out, "alignment_not_evaluated", &not_evaluated);
@@ -404,11 +404,11 @@ fn render_group(
     field(out, 4, "evidence", &evidence);
     out.push_str("    verdict:\n");
     field(out, 6, "level", group.verdict.level.as_str());
-    let reasons: Vec<String> = group
+    let reasons: Vec<&str> = group
         .verdict
         .reasons
         .iter()
-        .map(|reason| reason.as_str().to_string())
+        .map(|reason| reason.as_str())
         .collect();
     out.push_str("      ");
     inline_array(out, "reasons", &reasons);
@@ -470,12 +470,11 @@ fn render_alignment(out: &mut String, evidence: &GroupEvidence) {
         evidence.types.conflicts.len()
     );
     for conflict in &evidence.types.conflicts {
-        let lines: Vec<String> = conflict.lines.iter().map(u32::to_string).collect();
         let _ = writeln!(
             out,
             "          {},{}",
             quote_if_needed(&conflict.values.join(" / ")),
-            quote_if_needed(&lines.join(" / "))
+            quote_if_needed(&joined_lines(&conflict.lines))
         );
     }
     // An empty TOON object is its key with no nested fields.
@@ -514,16 +513,21 @@ fn render_alignment(out: &mut String, evidence: &GroupEvidence) {
         evidence.differences.len()
     );
     for difference in &evidence.differences {
-        let lines: Vec<String> = difference.lines.iter().map(u32::to_string).collect();
         let _ = writeln!(
             out,
             "        {},{},{},{}",
             quote_if_needed(difference.kind.as_str()),
             difference.occurrences,
             quote_if_needed(&difference.values.join(" / ")),
-            quote_if_needed(&lines.join(" / "))
+            quote_if_needed(&joined_lines(&difference.lines))
         );
     }
+}
+
+/// Per-member line numbers joined with ` / `, in member order.
+fn joined_lines(lines: &[u32]) -> String {
+    let lines: Vec<String> = lines.iter().map(u32::to_string).collect();
+    lines.join(" / ")
 }
 
 /// Decorators and enclosing constructs, apart from the aligned tokens: one row
@@ -553,11 +557,7 @@ fn render_subgroups(out: &mut String, group: &DuplicateGroup) {
     let subgroups = &group.subgroups;
     out.push_str("    subgroups:\n");
     field(out, 6, "status", subgroups.status.as_str());
-    let basis: Vec<String> = subgroups
-        .basis
-        .iter()
-        .map(|basis| basis.as_str().to_string())
-        .collect();
+    let basis: Vec<&str> = subgroups.basis.iter().map(|basis| basis.as_str()).collect();
     out.push_str("      ");
     inline_array(out, "basis", &basis);
     number(out, 6, "count", subgroups.count);
@@ -694,10 +694,13 @@ fn number_inline(out: &mut String, key: &str, value: usize) {
 }
 
 /// `key[N]: a,b,c`, or `key[0]:` when empty.
-fn inline_array(out: &mut String, key: &str, values: &[String]) {
+fn inline_array(out: &mut String, key: &str, values: &[impl AsRef<str>]) {
     let _ = write!(out, "{key}[{}]:", values.len());
     if !values.is_empty() {
-        let cells: Vec<String> = values.iter().map(|value| quote_if_needed(value)).collect();
+        let cells: Vec<String> = values
+            .iter()
+            .map(|value| quote_if_needed(value.as_ref()))
+            .collect();
         let _ = write!(out, " {}", cells.join(","));
     }
     out.push('\n');
