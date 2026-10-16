@@ -5,6 +5,8 @@ description: Tests in real browsers via Chrome DevTools MCP. Use when building o
 
 # Browser Testing with DevTools
 
+Use Chrome or Chrome DevTools MCP only when the user explicitly authorizes it in the current task. If they have not, do not open or control Chrome; use a non-browser alternative when possible. This repository's `AGENTS.md` provides the same rule. A request to inspect a website or interface does not by itself authorize browser automation.
+
 ## Overview
 
 Use Chrome DevTools MCP to give your agent eyes into the browser. This bridges the gap between static code analysis and live browser execution — the agent can see what the user sees, inspect the DOM, read console logs, analyze network requests, and capture performance data. Instead of guessing what's happening at runtime, verify it.
