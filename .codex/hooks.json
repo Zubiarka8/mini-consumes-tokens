@@ -2,6 +2,12 @@
   "hooks": {
     "PreToolUse": [
       {
+        "matcher": "Agent|Task",
+        "hooks": [
+          { "type": "command", "command": "python3 \"$(git rev-parse --show-toplevel)/internal/claude-hooks/agent_skills_guard.py\"" }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
           { "type": "command", "command": "python3 \"$(git rev-parse --show-toplevel)/internal/claude-hooks/dogfood_mcp_guard.py\"" },

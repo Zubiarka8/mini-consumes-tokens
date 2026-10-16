@@ -8,6 +8,7 @@ Two things happen on every launch:
      report `blocked` if it cannot get them, and name the skills it used.
 Worktrees created for agents get their skills from the post-checkout hook; this is the second line."""
 import json
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -32,10 +33,12 @@ def primary_checkout(cwd):
 
 
 def preamble(primary):
+    sync_script = shlex.quote(str(primary / "scripts" / "unix" / "sync-skills.sh"))
+    skills_dir = shlex.quote(str(primary / ".agents" / "skills"))
     return (
         f"{MARKER} Project rule, no exceptions. Before anything else, run `ls .claude/skills` in your working "
-        f"directory. If it is missing or empty, run `{primary}/scripts/unix/sync-skills.sh \"$PWD\"` (or, if that "
-        f"script is absent, copy `{primary}/.agents/skills` to `./.agents/skills` and link "
+        f"directory. If it is missing or empty, run `{sync_script} \"$PWD\"` (or, if that "
+        f"script is absent, copy `{skills_dir}` to `./.agents/skills` and link "
         f"`.claude/skills` -> `../.agents/skills`). Read the SKILL.md of every skill that fits your task and follow "
         "it. Use only project-local skills, never global ones. If you still cannot get the skills, stop and report "
         "status `blocked`. Your final report must list the local skills you used, or say that none fit.\n\n"
