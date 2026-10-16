@@ -1,0 +1,30 @@
+scorer: score_duplicate_labels/1
+labels: benchmarks/token-twins-labels/labels.toon
+cases: 31
+expected_partial_blocks: 3
+normalization: broad
+flags[4]: "--min-lines",5,"--min-tokens",30
+line_match_rule: "same path and line-range Jaccard >= 0.5 (shared lines / union lines), one-to-one per block; a reported block is a true positive when all its occurrences, at least two, match occurrences of one labeled block"
+member_match_rule: "same repository-relative path and start line; a case's group must contain exactly the labeled members for verdict scoring"
+binary: target/release/mct-cli
+run_status: ok
+report_status: complete
+partial_blocks_flag: "--partial-blocks"
+partial_blocks_flag_status: rejected
+grouping:
+  definition: exact_recall = labeled groups reported with exactly their members / labeled groups expected in that policy
+  modes[3]{normalization,reported_groups,expected_groups,exact,partial,missing,unexpected_groups,expected_absent,absent_violated,exact_recall}:
+    broad,31,31,31,0,0,0,0,0,1.000
+    consistent,29,29,29,0,0,0,2,0,1.000
+    exact,0,0,0,0,0,0,31,0,n/a
+  mismatches[0]{normalization,case,status,detail}:
+verdicts:
+  status: not-implemented
+  detail: no group `verdict` block and no `verdict_counts` header
+subgroups:
+  status: not-implemented
+  detail: no group `subgroups` block and no `split_groups` header
+partial_blocks:
+  status: not-implemented
+  flag: rejected
+  detail: no top-level `partial_blocks` section; the binary rejected the opt-in flag

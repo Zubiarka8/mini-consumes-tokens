@@ -107,6 +107,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   project's own index with a full-screen scroll tour of the MCP tools. It is
   not part of the released binaries; `npm run preview` builds and serves it
   locally (see `website/README.md`).
+- Labeled duplicate-report corpus (`benchmarks/token-twins-labels/`, 31
+  human-labeled Python/Rust groups and 3 partial blocks with negatives) and a
+  standard-library scorer (`benchmarks/score_duplicate_labels.py`) that reports
+  grouping recall, a verdict confusion matrix, exact subgroup partitions and
+  partial-block precision/recall, marking absent report fields
+  `not-implemented`. See [token twins evaluation](benchmarks/token-twins.md#labeled-corpus-for-verdicts-subgroups-and-partial-blocks).
 
 ### Changed
 
