@@ -10,6 +10,7 @@ mod literal;
 mod reference_path;
 mod registry;
 mod symbol;
+mod tokens;
 
 pub use error::ParseError;
 pub use literal::{
@@ -20,6 +21,10 @@ pub use reference_path::resolve_reference_path;
 pub use registry::LanguageRegistry;
 pub use symbol::{
     Location, RelationKind, RelationTarget, SymbolId, SymbolKind, SymbolRecord, SymbolRelation,
+};
+pub use tokens::{
+    BodyShape, CallableSpan, LineRange, LiteralCategory, Token, TokenKind, TokenRole, TokenSource,
+    TokenSourceRegistry, TokenizedFile,
 };
 
 /// Recursion-depth ceiling every `mct-lang-*` AST walker must enforce while
