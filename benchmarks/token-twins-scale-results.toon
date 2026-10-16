@@ -1,0 +1,12 @@
+scope: synthetic Python fixtures; init excluded; warm median; per-process peak RSS
+functions: 10000
+runs: 3
+measurements[8]{scenario,binary,seconds,rss_bytes,output_bytes,groups}:
+  many-small,0,1.391866,28475392,2179050,10
+  many-small,1,1.390556,28508160,2179307,10
+  few-large,0,0.749771,100597760,2235366,10
+  few-large,1,0.752660,100204544,2235623,10
+  unique,0,0.767813,115015680,647,0
+  unique,1,0.738567,113803264,904,0
+  large-group,0,0.724359,102023168,2232809,1
+  large-group,1,0.744688,101416960,2233066,1

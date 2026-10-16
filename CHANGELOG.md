@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `mct-cli duplicates` reports Rust/Python candidate copies with exact callable
+  boundaries, opt-in consistent-renaming and exact-token policies, f-string
+  expression comparison, path/language filters, token ranking, pagination and
+  optional excerpts. Index coverage diagnostics are separate from analysis
+  status; analysis opens existing indexes without migrating them. Broad
+  normalization remains the default. See [COMMANDS.md](COMMANDS.md#duplicates--duplicates---min-lines-n---min-tokens-n).
+  Each group also reports aligned evidence: per-member original identifier and
+  literal texts with lines, classified by syntactic role (member, callee, type,
+  parameter, literal category), plus warnings and an identifier-pattern check.
+  A separate `context` block compares each member's decorators or outer
+  attributes and enclosing constructs (`class`, `try`, `#[cfg(test)] mod`, ...)
+  and warns when they differ. A `priority` block marks groups whose members'
+  bodies are only flat calls, read from syntax and never from callee names;
+  `--trivial-calls demote` (default) ranks them last with the reason and a
+  `demoted_groups` count, and `--trivial-calls keep` keeps the ranking order.
+  Grouping is unchanged; no group is removed; the evidence is not a verdict.
+  Aligned `types` evidence counts conflicts between primitive spellings in
+  complete direct annotations, with bounded values and lines. Compatibility
+  remains `unknown`, including for shadowable builtin names; aliases, imports
+  and compound types are not resolved. Python `*args` and `**kwargs`
+  parameters (typed or not, in functions and lambdas) are reported as
+  `parameter` differences, while the same patterns as unpacking targets and
+  splat arguments of a call stay plain `name` differences.
+
 - `mct-mcp-server --reindex-delay <15s|30s|45s|1m|N s/m/ms|off>` updates the
   index once no relevant file has changed for the chosen time (every change
   restarts the wait, bursts collapse into one update, changes during an
@@ -58,6 +82,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   project's own index with a full-screen scroll tour of the MCP tools. It is
   not part of the released binaries; `npm run preview` builds and serves it
   locally (see `website/README.md`).
+- Labeled duplicate-report corpus (`benchmarks/token-twins-labels/`, 31
+  human-labeled Python/Rust groups and 3 partial blocks with negatives) and a
+  standard-library scorer (`benchmarks/score_duplicate_labels.py`) that reports
+  grouping recall, a verdict confusion matrix, exact subgroup partitions and
+  partial-block precision/recall, marking absent report fields
+  `not-implemented`. See [token twins evaluation](benchmarks/token-twins.md#labeled-corpus-for-verdicts-subgroups-and-partial-blocks).
 
 ### Changed
 

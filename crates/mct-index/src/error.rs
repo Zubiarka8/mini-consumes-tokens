@@ -3,6 +3,8 @@
 /// per-file parse failure — they need different remedies.
 #[derive(Debug, thiserror::Error)]
 pub enum IndexError {
+    #[error("index schema is incompatible with read-only analysis; run init or reindex with the matching mct-cli version first")]
+    IncompatibleReadOnlySchema,
     #[error("database error: {0}")]
     Database(#[from] rusqlite::Error),
 
