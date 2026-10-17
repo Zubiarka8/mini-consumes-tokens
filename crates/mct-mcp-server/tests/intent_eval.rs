@@ -11,8 +11,9 @@ use std::path::Path;
 use std::time::{Duration, Instant};
 
 use mct_index::{ExcludeSet, Index};
+use mct_mcp_server::cache::CacheConfig;
 use mct_mcp_server::intent::{self, Source, ToolVectors};
-use mct_mcp_server::server::MctServer;
+use mct_mcp_server::server::{MctServer, ServerOptions};
 use mct_mcp_server::toon::decode_table;
 use rmcp::model::Tool;
 
@@ -261,6 +262,122 @@ async fn rules_beat_the_full_catalog() {
         rules.top1()
     );
 }
+
+fn names(tools: &[Tool]) -> Vec<String> {
+    tools.iter().map(|t| t.name.to_string()).collect()
+}
+
+/// Issue #11, integrated: what `tools/list` carries per turn with Tool
+/// Attention on, against the full catalog every client gets today.
+#[tokio::test]
+async fn tool_attention_narrows_tools_list() {
+    let cases = cases();
+    let (full, _) = catalog_and_languages();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let server = MctServer::with_options(
+        Index::open_in_memory(&root, ExcludeSet::default()).unwrap(),
+        mct_mcp_server::registry::build_registry(),
+        ServerOptions {
+            cache: CacheConfig::disabled(),
+            embedder: None,
+            shared_cache: None,
+            tool_attention: true,
+        },
+    );
+    let tokens = |tools: &[Tool]| approx_tokens(&serde_json::to_string(tools).unwrap());
+
+    // Off (the default): no select_tools, and nothing else changes.
+    assert!(!names(&full).contains(&"select_tools".to_string()));
+    let mut on = names(&server.tool_catalog());
+    on.retain(|n| n != "select_tools");
+    assert_eq!(on, names(&full), "attention changes only select_tools");
+
+    let full_tokens = tokens(&full);
+    let initial = server.advertised_tools();
+    assert_eq!(names(&initial), ["select_tools"]);
+
+    let (mut turn_tokens, mut groups, mut hit, mut oracle_tokens) = (0, 0, 0, 0);
+    let mut fallbacks = Vec::new();
+    for case in &cases {
+        // Lower bound for any selector with full recall: `select_tools` plus
+        // the cheapest acceptable tool of each required group.
+        let mut oracle = initial.clone();
+        for group in &case.need {
+            let cheapest = full
+                .iter()
+                .filter(|t| group.iter().any(|n| n == t.name.as_ref()))
+                .min_by_key(|t| tokens(std::slice::from_ref(*t)))
+                .unwrap();
+            if !oracle.iter().any(|t| t.name == cheapest.name) {
+                oracle.push(cheapest.clone());
+            }
+        }
+        oracle_tokens += tokens(&oracle);
+
+        server.attend(&case.query).await.unwrap();
+        let listed = server.advertised_tools();
+        let listed_names = names(&listed);
+        turn_tokens += tokens(&listed);
+        if listed.len() == full.len() + 1 {
+            fallbacks.push(case.id.as_str());
+        }
+        assert!(
+            !case.forbid.iter().any(|f| listed_names.contains(f)),
+            "{}: a negated tool was listed",
+            case.id
+        );
+        for group in &case.need {
+            groups += 1;
+            if group.iter().any(|t| listed_names.contains(t)) {
+                hit += 1;
+            }
+        }
+    }
+    let per_turn = turn_tokens as f64 / cases.len() as f64;
+    let oracle = oracle_tokens as f64 / cases.len() as f64;
+    let reduction = |t: f64| 1.0 - t / full_tokens as f64;
+    let recall = hit as f64 / groups.max(1) as f64;
+    println!(
+        "attention[4]{{list,approx_tokens,reduction}}:\n  full_catalog,{full_tokens},0.000\n  \
+         initial,{},{:.3}\n  per_turn_mean,{per_turn:.1},{:.3}\n  oracle_mean,{oracle:.1},{:.3}\n\
+         recall {recall:.3} ({hit}/{groups}), fallbacks {}/{} {fallbacks:?}",
+        tokens(&initial),
+        reduction(tokens(&initial) as f64),
+        reduction(per_turn),
+        reduction(oracle),
+        fallbacks.len(),
+        cases.len()
+    );
+    assert!(
+        reduction(tokens(&initial) as f64) >= 0.90,
+        "#11's 90% target"
+    );
+    assert!(
+        reduction(per_turn) >= ATTENTION_TURN_GUARD,
+        "per-turn reduction"
+    );
+    assert!(recall >= RECALL_GUARD, "recall {recall}");
+
+    let off = MctServer::new(
+        Index::open_in_memory(&root, ExcludeSet::default()).unwrap(),
+        mct_mcp_server::registry::build_registry(),
+    );
+    assert!(off.attend("who calls parse").await.is_err());
+    // Off, `batch` treats it as any unknown name.
+    let args = serde_json::from_value(serde_json::json!({"queries": [{"tool": "select_tools"}]}));
+    let reply = off
+        .batch(rmcp::handler::server::wrapper::Parameters(args.unwrap()))
+        .await
+        .unwrap();
+    assert!(format!("{:?}", reply.content).contains("no tool named `select_tools`"));
+    assert!(server.attend("   ").await.is_err());
+}
+
+/// Regression guard at the first measured value (see
+/// benchmarks/intent-selection.md): 0.753 (0.754 before #17's annotations),
+/// held down by the 6/42 fallbacks that list the full catalog. The
+/// full-recall floor (`oracle_mean`) is 0.915.
+const ATTENTION_TURN_GUARD: f64 = 0.75;
 
 /// First held-out measurement: recall 42/42 groups, top-1 33/34.
 const RECALL_GUARD: f64 = 1.0;

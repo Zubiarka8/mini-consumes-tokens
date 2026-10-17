@@ -15,9 +15,9 @@
 //! definition. The original query always travels with the intent, so
 //! constraints the rules cannot represent are not lost.
 //!
-//! Not yet wired into a request path: the MCP server never sees the user's
-//! query before the model does. The consumer is the per-turn tool filter of
-//! issue #11 (Tool Attention), still to be built.
+//! Its consumer is Tool Attention (issue #11,
+//! [`crate::server::MctServer::attend`]): the `select_tools` tool hands the
+//! user's query to [`preselect`] and narrows `tools/list` to the result.
 
 use mct_index::{classify_query, Embedder, QueryIntent};
 use rmcp::model::Tool;
@@ -65,7 +65,7 @@ impl Action {
             Action::References => &["find_references"],
             Action::Impact => &["impact_analysis"],
             Action::Definition => &["find_symbol"],
-            Action::Search => &["hybrid_search", "search_symbols"],
+            Action::Search => &["hybrid_search_like", "search_symbols_like"],
             Action::List => &["list_symbols"],
             Action::Skeleton => &["get_file_skeleton"],
             Action::Overview => &["get_project_overview"],
@@ -118,7 +118,7 @@ impl Action {
 
 /// Tools offered when the request is only a code-shaped name: the action is
 /// unknown, so keep the plausible lookups instead of picking one.
-const LOOKUP_ALTERNATIVES: &[&str] = &["find_symbol", "search_symbols", "build_context_pack"];
+const LOOKUP_ALTERNATIVES: &[&str] = &["find_symbol", "search_symbols_like", "build_context_pack"];
 
 /// One requested action and the textual reference it applies to, if any.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1269,8 +1269,8 @@ mod tests {
             tool("find_symbol", &["name", "path", "language", "kind"]),
             tool("find_callers", &["function", "depth", "limit"]),
             tool("find_calls", &["function", "depth"]),
-            tool("hybrid_search", &["query", "top_k"]),
-            tool("search_symbols", &["query", "limit"]),
+            tool("hybrid_search_like", &["query", "top_k"]),
+            tool("search_symbols_like", &["query", "limit"]),
             tool("build_context_pack", &["symbol"]),
             tool("reindex", &[]),
         ]
@@ -1322,7 +1322,7 @@ mod tests {
         assert_eq!(p.source, Source::AmbiguousName);
         assert_eq!(
             names(&p),
-            ["find_symbol", "search_symbols", "build_context_pack"]
+            ["find_symbol", "search_symbols_like", "build_context_pack"]
         );
     }
 
@@ -1367,7 +1367,7 @@ mod tests {
         // "researching" is no rule word, but the fake embedder sees "search".
         let p = preselect("hmm, researching", LANGS, &cat, Some(&vectors));
         assert_eq!(p.source, Source::Embedding);
-        assert_eq!(names(&p), ["hybrid_search"]);
+        assert_eq!(names(&p), ["hybrid_search_like"]);
         // Rules still win when they match.
         let p = preselect("who calls parse_config", LANGS, &cat, Some(&vectors));
         assert_eq!(names(&p), ["find_callers"]);

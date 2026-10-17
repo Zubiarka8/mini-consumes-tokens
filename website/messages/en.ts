@@ -1,7 +1,13 @@
 const en = {
   demoBadge: "Illustrative example",
   demoTitle: "One query, less context.",
-  demoQuery: "Locate calculateTotal and its taxRate dependency.",
+  demoQueryLabel: "Choose a query",
+  demoQuery0: "Where is the function that calculates an invoice's total?",
+  demoQuery1: "When is an invoice due, and where does that deadline come from?",
+  demoQuery2:
+    "How does the app decide if an invoice is paid, pending or overdue?",
+  demoQuery3: "Where are the customer's details added to a new invoice?",
+  demoQuery4: "Where is a price formatted as money, and in which currency?",
   demoView: "Code view",
   demoFull: "Full file",
   demoRelevant: "Relevant context",
@@ -12,9 +18,9 @@ const en = {
   demoSelectionNote:
     "The function and its dependency, with original line numbers. The rest stays out of the context.",
   demoDisclaimer:
-    "Synthetic example. Line counts illustrate the selection; they are not measured token savings.",
-  coordinate: "SOURCE → SYMBOLS → CONTEXT",
-  localFirst: "LOCAL FIRST. RELATIONSHIP AWARE.",
+    "Made-up example. The line counts only illustrate the selection; they are not measured savings.",
+  coordinate: "CODE → MAP → ANSWER",
+  localFirst: "ON YOUR COMPUTER. CONNECTED. PRECISE.",
   fieldGuide: "FIELD GUIDE",
   skip: "Skip to content",
   nav: "Main navigation",
@@ -23,217 +29,254 @@ const en = {
   capabilities: "Capabilities",
   docs: "Documentation",
   github: "View on GitHub",
-  eyebrow: "A CODE ATLAS FOR YOUR AI AGENT",
+  eyebrow: "A MAP OF YOUR CODE FOR YOUR AI ASSISTANT",
   headline: "Less searching.",
   headlineAccent: "More understanding.",
   intro:
-    "Give your coding agent a map of your repository. mini-consumes-tokens turns source code into a local symbol graph, so your assistant can ask for the context that matters.",
+    "AI coding assistants often read whole files just to find one thing. mini-consumes-tokens builds a searchable map of your project on your own computer, so your assistant can ask for only the parts it needs.",
   readDocs: "Explore the documentation",
-  heroNote: "Open source · Rust CLI + MCP server",
+  heroNote: "Open source · Free · Runs on your computer",
   visibleLayers: "Visible layers",
-  layerSpacing: "Layer spacing",
-  sourcePreview: "Selected source code",
-  inspectFile: "Inspect file",
+  sourcePreview: "Chosen source code",
+  inspectFile: "Explore file",
   exampleProject: "THIS REPOSITORY",
   projectBrief:
-    "mini-consumes-tokens as its own index sees it: the MCP server, the index it holds and the indexer that fills it. Three files, six symbols and only the calls the index resolves.",
-  agentQuestion: "THE AGENT’S QUESTION",
-  query0: "What answers my assistant's tool calls?",
-  query1: "Where does the server read its settings?",
-  query2: "What owns the database every tool reads?",
-  query3: "What happens on a full reindex?",
+    "This project as its own map sees it: the part that answers your assistant, the stored map and the part that builds it. Three files, six pieces of code and only the connections the map found.",
+  agentQuestion: "THE ASSISTANT’S QUESTION",
+  query0: "What answers my assistant's requests?",
+  query1: "Where does the program read its settings?",
+  query2: "What holds the stored map that every tool reads?",
+  query3: "What happens when everything is scanned again?",
   query4: "What runs when only a few files change?",
-  query5: "Is the index healthy?",
-  role0: "Serve the MCP tools",
-  role1: "Configure the server",
-  role2: "Hold the index",
-  role3: "Index the whole project",
-  role4: "Index changed paths",
-  role5: "Report index health",
+  query5: "Is the map up to date and healthy?",
+  role0: "Answer the assistant's requests",
+  role1: "Load the settings",
+  role2: "Keep the stored map",
+  role3: "Scan the whole project",
+  role4: "Scan only changed files",
+  role5: "Report map health",
   purpose0:
-    "The MCP server keeps the index behind a mutex, with the language registry and a query cache. main.rs builds it with MctServer::new, which reads its options from the environment.",
+    "The part of the program that answers your assistant. It keeps the stored map and remembers recent answers so repeated questions are fast. main.rs starts it and gives it its settings.",
   purpose1:
-    "The server's options: the query cache, an optional embedder and a shared cache. from_env reads the cache settings from the MCT_CACHE* variables.",
+    "The server's settings: how recent answers are remembered and whether to search by meaning. from_env reads them when the program starts.",
   purpose2:
-    "Index wraps the SQLite connection and the project root. Its methods are what the server calls; reindex, reindex_paths and status hand the work to the indexer.",
+    "Holds the connection to the stored map (a small database) and the project folder. The server asks it for everything; when work has to be done, it passes it on to the scanner.",
   purpose3:
-    "Walks the project, indexes each supported file, removes the files and manifests that are gone and records when the run finished.",
+    "Walks through the whole project, stores what it finds in each supported file, removes files that no longer exist and notes when it finished.",
   purpose4:
-    "Updates only the paths it is given: created, changed, deleted or renamed. The project root or a changed ignore file falls back to a full reindex.",
+    "Updates only the files it is told about: created, changed, deleted or renamed. If the project folder itself or an ignore file changed, it scans everything again.",
   purpose5:
-    "Reads files and symbols per language, failures and manifest dependencies from the database and returns them as an IndexStatus.",
+    "Counts the files and pieces of code per language, lists any failures and returns a short health report.",
   tourHowText:
-    "Tree-sitter reads each supported file and extracts symbols and the relations between them. A SQLite database keeps that graph inside your project, and indexing runs on your machine. The MCP server answers your assistant's tool calls from that database. While it runs, it reindexes changed files in the background once edits have been quiet for 15 seconds.",
+    "A reader built on tree-sitter goes through each supported file and notes its functions, types and how they connect. That map is stored in a small database inside your project, and everything runs on your computer. The server answers your assistant from that database. While it runs, it updates changed files in the background once you stop editing for about 15 seconds.",
   tourOrientText:
-    "Start here when you don't know any names yet. These tools describe the layout and contents of a project without opening whole files.",
+    "Start here when you don't know any names yet. These tools describe what a project contains without opening whole files.",
   tourLookupText:
-    "Each tool answers one question and returns locations as path:line, not file contents.",
+    "Each tool answers one question and tells you where to look (file and line) without sending the file's contents.",
   tourCompositeText:
-    "Composite tools combine several lookups into one answer. Relation tools also accept depth, to follow callers of callers up to 32 hops, and offset, to page through long results.",
+    "These tools combine several lookups into one answer. The ones that follow connections can also go further, up to 32 steps, and show long results page by page.",
   tourAdvancedText:
-    "Group queries, load tool schemas only when needed and keep the index up to date.",
+    "Run several questions together, load tool details only when needed and keep the map up to date.",
   ask_get_file_tree: "Which folders and files does the project have?",
   ask_get_project_overview:
-    "What are the most important declarations in this file, folder or project?",
+    "What are the most important parts of this file, folder or project?",
   ask_list_symbols:
-    "What is defined in this file or folder, with kind and line range?",
+    "What is defined in this file or folder, and on which lines?",
   ask_get_file_skeleton:
-    "What does this file look like without its function bodies?",
-  ask_find_symbol: "Where is this symbol defined?",
-  ask_find_callers: "Who calls this function?",
-  ask_find_calls:
-    "What does this function call, and where is each callee defined?",
-  ask_find_references:
-    "Where is this symbol used at all: calls, imports, inheritance?",
-  ask_search_symbols:
-    "I only know part of the name. Which symbols match these words?",
+    "What does this file look like without the inside of its functions?",
+  ask_find_symbol: "Where is this function, class or variable defined?",
+  ask_find_callers: "What calls this function?",
+  ask_find_calls: "What does this function use, and where is each one defined?",
+  ask_find_references: "Where is this used anywhere in the project?",
+  ask_search_symbols: "I only know part of the name. What matches these words?",
   ask_hybrid_search:
-    "I know what the code does, not its name. What matches by meaning? Without an embedding model it ranks by words only.",
+    "I know what the code does, not its name. What matches by meaning? Without a language model installed, it matches by words only.",
   ask_impact_analysis:
-    "What could break if I change this? Its callers, every reference and the tests that look affected.",
+    "What could break if I change this? What uses it, where it is mentioned and which tests look affected.",
   ask_build_context_pack:
-    "Everything needed before editing this symbol: its definition, doc comment and source, plus each caller, callee, dependency and related test, listed once. It also saves reading the files.",
+    "Everything you need before editing something: its definition, comments and code, plus what uses it, what it uses and its tests, each listed once. It saves reading the files.",
   ask_find_dead_code:
-    "Which top-level symbols does nothing in the index reference? A heuristic starting point, not proof.",
+    "Which functions or classes does nothing else use? A starting point for cleanup, not proof.",
   ask_batch:
-    "Several known read-only queries in one call, each answer under its own header. reindex and nested batches are not allowed.",
+    "Several known read-only questions in one request, each answer under its own heading. It can't refresh the map or contain other batches.",
   ask_discover_tool_categories:
-    "Which tools exist? Names and one-line purposes, grouped, without input schemas.",
+    "Which tools exist? Names and a one-line purpose, grouped by topic.",
   ask_get_tool_schema:
-    "What is one tool's full input schema? Loaded only when the client needs it.",
+    "What exactly does one tool need in order to be used? Loaded only when it's needed.",
   ask_reindex:
-    "Refresh the index right now. force parses every file again, even unchanged ones.",
+    "Refresh the map right now. force re-reads every file, even unchanged ones.",
   ask_get_indexing_status:
-    "Is the index healthy? Files and symbols per language, last run and parse failures.",
+    "Is the map healthy? Files and pieces of code per language, the last run and any files that couldn't be read.",
   replaces: "In one call, instead of",
   toolsReference: "Read the MCP tools reference",
-  atlas: "Code atlas",
+  atlas: "3D map of the code",
   illustration:
-    "Symbols and resolved calls from this repository's own index, not a live view",
-  allSymbols: "See all symbols",
-  hideSymbols: "Hide all symbols",
-  allSymbolsTitle: "Every symbol in the three files",
-  symbolCount: "{{count}} symbols",
+    "Pieces of code and connections from this project's own map, not a live view",
+  allSymbols: "See all pieces of code",
+  hideSymbols: "Hide all pieces of code",
+  allSymbolsTitle: "Every piece of code in the three files",
+  symbolCount: "{{count}} pieces of code",
   graphAlt:
-    "Source files become connected symbols. Selecting a symbol reveals its definition, callers and dependencies in a focused context pack.",
-  files: "Source files",
-  symbols: "Symbol graph",
-  context: "Agent context",
-  select: "Choose a symbol to inspect",
-  selected: "Selected symbol",
-  definition: "Definition",
-  callers: "Called by",
-  dependencies: "Calls",
-  pack: "Focused context pack",
-  loading3d: "Loading the spatial atlas…",
+    "Source files become connected pieces of code. Choosing one shows where it is defined, what uses it and what it depends on, in a short focused summary.",
+  files: "Your files",
+  symbols: "Code map",
+  context: "What the assistant gets",
+  select: "Choose a piece of code to explore",
+  selected: "Chosen piece of code",
+  definition: "Where it is defined",
+  callers: "Used by",
+  dependencies: "Uses",
+  pack: "Focused summary",
+  loading3d: "Loading the 3D map…",
   fallback:
     "The 3D view is unavailable on this device. You can still explore the source and context below.",
-  rotate: "Rotate the atlas",
+  rotate: "Rotate the 3D map",
   resetView: "Reset view",
   fullscreen: "Full screen",
   exitFullscreen: "Exit full screen",
-  tourWhatTitle: "Your agent asks the map, not the files.",
+  tourWhatTitle: "Your assistant asks the map, not the files.",
   tourWhatText:
-    "mini-consumes-tokens indexes your repository into a graph of symbols (functions, types, methods) and the calls and imports between them. A coding assistant connected over MCP can then ask precise questions instead of reading whole files.",
-  tourHowTitle: "Parsed, stored and served on your machine.",
+    "mini-consumes-tokens scans your project and builds a map of its functions, types and methods, and of how they use each other. An AI assistant connected through MCP (a standard way to link tools to assistants) can then ask precise questions instead of reading whole files.",
+  tourHowTitle: "Read, stored and served on your computer.",
   tourOrientTitle: "Get your bearings.",
   tourLookupTitle: "Ask one precise question.",
-  tourCompositeTitle: "Several questions, one call.",
-  tourAdvancedTitle: "Work at scale.",
-  tourServerTitle: "A tool call reaches the server.",
+  tourCompositeTitle: "Several questions, one request.",
+  tourAdvancedTitle: "Work on big projects.",
+  tourServerTitle: "A request reaches the server.",
   tourServerText:
-    "MctServer answers every MCP tool. main.rs builds it with MctServer::new, which calls ServerOptions::from_env for the cache settings. It holds the Index behind a mutex.",
-  tourIndexTitle: "The index owns the database.",
+    "The server answers every request from your assistant. main.rs starts it with MctServer::new, which loads the settings through ServerOptions::from_env. It keeps the Index and lets one request use it at a time.",
+  tourIndexTitle: "The stored map lives in one place.",
   tourIndexText:
-    "Index wraps the SQLite connection and the project root, and main.rs opens it with Index::open. Three of its methods hand the work to the indexer: reindex, reindex_paths and status.",
-  tourReindexTitle: "A full reindex walks the project.",
+    "Index holds the connection to the database and the project folder, and main.rs opens it with Index::open. Three of its methods hand the work to the scanner: reindex, reindex_paths and status.",
+  tourReindexTitle: "A full scan walks the whole project.",
   tourReindexText:
-    "reindex runs in four steps. Walk: walk_entry_allowed, record_walk_failure. Index: index_file. Clean up: remove_missing_files, remove_missing_manifests. Record: touch_last_indexed_at.",
-  tourReindexPathsTitle: "A change reindexes only its paths.",
+    "reindex works in four steps. Look: walk_entry_allowed, record_walk_failure. Read: index_file. Clean up: remove_missing_files, remove_missing_manifests. Note the time: touch_last_indexed_at.",
+  tourReindexPathsTitle: "A change scans only its files.",
   tourReindexPathsText:
-    "reindex_paths groups its ten callees the same way. Walk: to_relative_slash_path, is_rules_file, walk_entry_allowed, record_walk_failure. Index: reindex, index_noting_created, record_read_failure. Clean up: remove_under_prefix, remove_renamed_away. Record: touch_last_indexed_at.",
+    "reindex_paths uses the same four steps with ten helpers. Look: to_relative_slash_path, is_rules_file, walk_entry_allowed, record_walk_failure. Read: reindex, index_noting_created, record_read_failure. Clean up: remove_under_prefix, remove_renamed_away. Note the time: touch_last_indexed_at.",
   tourStatusTitle: "Health comes from the same database.",
   tourStatusText:
-    "status reads files and symbols per language, failures and dependencies, and builds an IndexStatus. Only Index::status calls it.",
-  tourToolsTitle: "Eight tools that reach the index.",
+    "status counts files and pieces of code per language, failures and dependencies, and builds an IndexStatus report. Only Index::status calls it.",
+  tourToolsTitle: "Eight tools that reach the stored map.",
   tourToolsText:
-    "Each of these server.rs tools calls one Index method. The number in brackets is the line of that call.",
+    "Each of these tools in server.rs asks the stored map one thing. The number in brackets is the line where it does so.",
   tourMethodsTitle: "Eight Index methods behind them.",
   tourMethodsText:
-    "The lib.rs side of the same calls: who calls each method, or what it hands to the indexer.",
-  spatialHint: "Drag to orbit · Scroll to zoom · Select a symbol",
+    "The lib.rs side of the same requests: who asks for each one, or what it passes on to the scanner.",
+  spatialHint: "Drag to rotate · Scroll to zoom · Choose a piece of code",
   mapNote: "One question. Its relevant neighborhood.",
   problemLabel: "01 / THE PROBLEM",
-  problemTitle: "Your repository is connected. Your context should be, too.",
+  problemTitle:
+    "Your project is connected. Your assistant's context should be, too.",
   problemText:
-    "Reading whole files gives an assistant a lot of text, but not always the relationships it needs. Repeated searches make it harder to follow a change across the codebase.",
+    "Reading whole files gives an assistant a lot of text, but not always how the parts relate. Repeated searches make it harder to follow a change through the whole project.",
   before: "A pile of files",
   beforeText: "Open files. Search names. Piece together relationships.",
   after: "A map of the code",
-  afterText: "Locate a symbol. Follow its edges. Ask for focused context.",
+  afterText:
+    "Find a function. Follow its connections. Ask for a focused summary.",
   comparisonNote:
-    "A conceptual comparison, not a token benchmark. Results depend on the repository and the query.",
+    "A conceptual comparison, not a measurement of savings. Results depend on the project and the question.",
   howLabel: "02 / THE MECHANISM",
   howTitle: "From source to understanding.",
-  step1Title: "Index locally.",
+  step1Title: "Scan locally.",
   step1Text:
-    "Tree-sitter parses supported source into symbols and relationships. A SQLite database keeps the graph in your project.",
-  step2Title: "Ask the graph.",
+    "A reader goes through your code and finds its functions, types and how they connect. The result is saved in a small database inside your project.",
+  step2Title: "Ask the map.",
   step2Text:
-    "An MCP-capable assistant queries definitions, references, callers and dependencies instead of repeatedly scanning files.",
+    "An AI assistant that supports MCP (a standard way to connect tools to assistants) asks where something is defined, what uses it and what it depends on, instead of scanning files again and again.",
   step3Title: "Bring the right context.",
   step3Text:
-    "Context packs assemble a definition and its relevant neighborhood. Incremental indexing refreshes changed files as edits settle.",
+    "A focused summary gathers one piece of code and the parts connected to it. When you edit files, the map updates itself shortly after.",
   capabilitiesLabel: "03 / WHAT YOU CAN DO",
   capabilitiesTitle: "Follow the code.\nUnderstand the change.",
   discoverTitle: "Find your bearings",
   discoverText:
-    "Explore a project overview, file tree or file skeleton. Find symbols by name before diving into their source.",
+    "Get a project overview, a file tree or a file's outline. Find functions and types by name before opening their code.",
   changeTitle: "Trace a change",
   changeText:
-    "Follow callers, callees and references across the graph. Use impact analysis to inspect affected symbols and tests.",
-  contextTitle: "Give an agent a focused brief",
+    "Follow what uses what across the map. Check which parts and tests a change could affect.",
+  contextTitle: "Give your assistant a focused summary",
   contextText:
-    "Build a context pack around a symbol, with its definition, dependencies and related code in one query.",
+    "Get a summary around one function or type, with its definition, dependencies and related code, in a single request.",
   extras:
-    "Also available: candidate dead-code detection (a heuristic) and optional local semantic search, which requires a semantic build and an embedding model.",
+    "Also available: finding code that seems unused (a rough guess) and optional local search by meaning, which needs a special build and a small language model on your computer.",
   audience:
-    "For developers using MCP-capable coding assistants in repositories with multiple supported languages. The CLI also works on its own.",
+    "For developers who use AI coding assistants that support MCP, in projects written in several languages. The command-line tool also works on its own.",
   startLabel: "04 / YOUR FIRST MAP",
-  startTitle: "Start with your own repository.",
+  startTitle: "Start with your own project.",
   startText:
-    "Install the CLI and server first using the documentation. Then run these commands inside the project you want to index.",
-  initLabel: "Build the local index",
-  registerLabel: "Register an MCP client",
-  statusLabel: "Check indexing health",
+    "Install the command-line tool and the server first, following the documentation. Then run these commands inside the project you want to scan.",
+  initLabel: "Build the map of your project",
+  registerLabel: "Connect your AI assistant",
+  statusLabel: "Check the map is healthy",
   copy: "Copy command",
   copied: "Command copied",
   copyError: "Copy unavailable. Select the command and copy it manually.",
   reconnect:
-    "Reconnect your assistant after registration. Some clients, including Codex, need their own configuration format; follow the client guide.",
+    "Restart or reconnect your assistant after connecting it. Some assistants, like Codex, use their own settings format; follow their guide.",
+  promptingLabel: "05 / PROMPTING FOR AI",
+  promptingTitle: "Ask your assistant to do it for you.",
+  promptingText:
+    "Paste one of these prompts into your AI assistant. It will add the tool to your project, index the code and then use the map instead of reading every file.",
+  promptLabel1: "Add it to this project and index it",
+  prompt1:
+    "Add the mini-consumes-tokens MCP server (https://github.com/Zubiarka8/mini-consumes-tokens) to this project. First read the install guide at https://zubiarka8.github.io/mini-consumes-tokens/docs/installation/ and follow it to install the CLI. Then run `mct-cli --root . init` to build the index, `mct-cli --root . mcp-register`, and confirm with `mct-cli --root . status`. Do not guess the steps; use only the guide. Tell me when the index is ready.",
+  promptLabel2: "Find code without reading whole files",
+  prompt2:
+    "Before opening any file, use the mini-consumes-tokens tools (list_symbols, find_symbol, get_file_skeleton) to locate the code you need. Open a full file only when you must read its body.",
+  promptLabel3: "Check the impact before a change",
+  prompt3:
+    "I want to change <symbol>. Use impact_analysis from mini-consumes-tokens to list its callers, references and tests before you edit anything, then summarize the risk.",
+  promptLabel4: "Refresh the index",
+  prompt4:
+    "Reindex this project with mini-consumes-tokens and tell me whether the index is up to date.",
+  promptingNote:
+    "Replace <symbol> with the function or class you want to change. The assistant must already be connected to the MCP server.",
   docsLabel: "THE REFERENCE MANUAL",
   docsTitle: "A clear path from install to insight.",
   docsText:
-    "Installation, client setup, CLI commands, MCP tools, supported languages, architecture and internals. The existing reference manual is in English.",
+    "Installation, connecting assistants, commands, tools, supported languages and how it works inside. The manual is in English.",
   guide1: "Install & connect",
   guide2: "Query & explore",
   guide3: "Understand & extend",
   faqLabel: "A FEW GOOD QUESTIONS",
   faqTitle: "Before you start.",
-  faq1: "Where does the index live?",
+  faq1: "Where is the map stored?",
   answer1:
-    "In your project, in a local SQLite database. Indexing runs on your machine. Your connected AI client may send tool responses to its provider according to that client’s settings.",
+    "In your project, in a small local database (SQLite). Everything is scanned on your computer. Your AI assistant may send tool answers to its provider, depending on that assistant's settings.",
   faq2: "Does every assistant work with it?",
   answer2:
-    "The assistant needs MCP support to call the tools. You can use the CLI independently for indexing, health checks and candidate dead-code detection.",
-  faq3: "Is the graph a complete picture of my code?",
+    "The assistant needs MCP support to use the tools. You can also use the command-line tool on its own to scan, check health and find code that seems unused.",
+  faq3: "Does the map show everything my code does?",
   answer3:
-    "No. Extraction depends on supported languages and syntax. Dynamic behavior may not be resolved, and unused-code results are candidates, not proof. The docs explain these limits.",
+    "No. It only understands the supported languages. Things decided only while the program runs may be missed, and “unused” code is a guess, not a certainty. The docs explain these limits.",
   faq4: "What happens when I edit a file?",
   answer4:
-    "While the MCP server is connected, a background watcher updates changed files after edits settle. You can also request a reindex or check index health from the CLI.",
+    "While the server is connected, it notices changed files and updates the map once you stop editing. You can also ask for a rescan or check health from the command line.",
+  faq5: "How is this different from a normal text search?",
+  answer5:
+    "A text search returns the lines that match. The map returns where things are defined and how they connect: what uses a function, what it depends on and where it is mentioned, so your assistant reads less and understands more.",
+  faq6: "Which languages are supported?",
+  answer6:
+    "Each language has its own reader, built on tree-sitter (a popular code-parsing library). The documentation lists the supported languages, and adding one is a self-contained change.",
+  faq7: "Does it work on Windows, macOS and Linux?",
+  answer7:
+    "Yes. The same CLI and MCP server run on all three, and the project’s tests and checks run on each of them.",
+  faq8: "Can I exclude files or folders?",
+  answer8:
+    "Yes. Add paths to a .mctignore file to keep them out of the map. Build and dependency folders such as target and node_modules are already skipped.",
+  faq9: "Can it search by meaning, not just by name?",
+  answer9:
+    "Yes, with the optional build that adds search by meaning. It combines name matching with a small language model that runs on your computer, so you can ask what code does. Without that build, search uses names only.",
+  faq10: "Is it free to use?",
+  answer10:
+    "Yes. It is open source under the Apache 2.0 license, and you can read, run and extend the code on GitHub.",
   footer: "Precise context starts with a better map.",
   license: "Apache 2.0 license",
   top: "Back to top",
+  principle1: "Your code",
+  principle2: "A small map",
+  principle3: "Your AI assistant",
 };
 export default en;

@@ -11,8 +11,8 @@
 //! decision (see `checklist.md`).
 
 use mct_core::{
-    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
-    SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
+    LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
+    SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::{first_error, location};
 use tree_sitter::{Node, Parser};
@@ -114,6 +114,7 @@ struct Walker<'a> {
     source: &'a str,
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
+    relation_targets: Vec<RelationTarget>,
     next_id: SymbolId,
 }
 
@@ -123,6 +124,7 @@ impl<'a> Walker<'a> {
             source,
             symbols: Vec::new(),
             relations: Vec::new(),
+            relation_targets: Vec::new(),
             next_id: 0,
         }
     }
@@ -293,6 +295,7 @@ impl<'a> Walker<'a> {
                     if let Some(path_node) = spec.child_by_field_name("path") {
                         let raw = text(path_node, self.source);
                         let clean = raw.trim_matches(|c| c == '"' || c == '`').to_string();
+                        self.push_package_import(owner, &clean, location(spec));
                         self.push_relation(owner, RelationKind::Imports, clean, location(spec));
                     }
                 }
@@ -347,8 +350,60 @@ impl<'a> Walker<'a> {
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
+            relation_targets: self.relation_targets,
             ..Default::default()
         }
+    }
+
+    /// The directory name an import path ends in, skipping a `/vN` major-version
+    /// suffix. `None` for cgo (`C`), `unsafe`, empty paths and paths whose first
+    /// element has no dot (see `push_package_import`).
+    fn package_dir_name(import_path: &str) -> Option<String> {
+        if !import_path
+            .split('/')
+            .next()
+            .is_some_and(|root| root.contains('.'))
+        {
+            return None;
+        }
+        let mut segments = import_path.rsplit('/').filter(|s| !s.is_empty());
+        let mut last = segments.next()?;
+        let is_version = |s: &str| {
+            s.strip_prefix('v')
+                .is_some_and(|d| !d.is_empty() && d.bytes().all(|b| b.is_ascii_digit()))
+        };
+        if is_version(last) {
+            last = segments.next()?;
+        }
+        if matches!(last, "C" | "unsafe" | "." | "..") {
+            return None;
+        }
+        Some(last.to_string())
+    }
+
+    /// `import "a/b/pkg"` depends on the package declared in a directory
+    /// named `pkg` (the import path's last element): an `Imports` relation to
+    /// the `Module` symbol every file of that package declares by its
+    /// `package` clause. A package spanning several files therefore has
+    /// several candidates and stays ambiguous; the module path prefix is
+    /// unknown without `go.mod`, so only the last element is stated.
+    ///
+    /// Only domain-rooted paths (`example.com/...`) are recorded: a dotless
+    /// path is the standard library or a dotless local module, and a stdlib
+    /// name (`errors`, `encoding/json`) is also a common file stem, which
+    /// would resolve to the wrong local file.
+    fn push_package_import(&mut self, owner: SymbolId, import_path: &str, loc: Location) {
+        let Some(name) = Self::package_dir_name(import_path) else {
+            return;
+        };
+        let relation = self.relations.len();
+        self.push_relation(owner, RelationKind::Imports, name.clone(), loc);
+        self.relation_targets.push(RelationTarget {
+            relation,
+            module: Some(name),
+            kind: Some(SymbolKind::Module),
+            ..Default::default()
+        });
     }
 }
 

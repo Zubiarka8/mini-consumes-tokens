@@ -485,32 +485,8 @@
 .mechanism .eyebrow {
   color: var(--mineral);
 }
-.steps {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 48px;
-  margin-top: 54px;
-}
-.step-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-top: 1px solid #4b5a4e;
-  padding-top: 18px;
-  margin-bottom: 40px;
-  color: var(--mineral);
-}
 .step-number {
   font-size: 13px;
-}
-.steps h3 {
-  font-size: 24px;
-}
-.steps p {
-  font-size: 15px;
-  color: #abb9ad;
-  line-height: 1.8;
-  margin-bottom: 0;
 }
 .capabilities {
   display: grid;
@@ -609,30 +585,12 @@
   align-items: center;
 }
 .docs-art {
-  background: #dce6cf;
-  min-height: 330px;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: 44px;
-  border: 1px solid #b9c8ac;
-  position: relative;
-  color: #3c5b30;
+  min-width: 0;
 }
-.docs-art:after {
-  content: "";
-  position: absolute;
-  inset: 20px;
-  border: 1px solid #b9c8ac;
-  pointer-events: none;
-}
-.docs-art .mono {
-  font-size: 11px;
-  line-height: 1.8;
-  text-align: right;
-}
-.docs-art svg {
-  align-self: center;
+.docs-art-image {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 .guide-links {
   display: flex;
@@ -673,8 +631,11 @@
   font-size: 23px;
   color: #537440;
 }
-.faq details[open] summary span {
-  transform: rotate(45deg);
+.faq summary span::before {
+  content: "+";
+}
+.faq details[open] summary span::before {
+  content: "-";
 }
 .faq details p {
   font-size: 15px;
@@ -759,18 +720,11 @@
   .landing-header nav {
     gap: 20px;
   }
-  .steps {
-    gap: 28px;
-  }
   .hero-actions {
     gap: 12px;
   }
   .atlas-stages {
     font-size: 8px;
-  }
-  .docs-art {
-    padding: 32px;
-    min-height: 300px;
   }
 }
 @media (max-width: 767px) {
@@ -873,25 +827,11 @@
     grid-template-columns: 1fr;
     gap: 30px;
   }
-  .steps {
-    grid-template-columns: 1fr;
-    gap: 36px;
-    margin-top: 34px;
-  }
-  .step-head {
-    margin-bottom: 22px;
-  }
-  .steps h3 {
-    font-size: 23px;
-  }
   .cap-branch {
     display: none;
   }
   .cap-list article {
     gap: 18px;
-  }
-  .docs-art {
-    min-height: 200px;
   }
   .faq {
     padding-top: 40px;
@@ -1180,6 +1120,183 @@
   margin: 48px auto 0;
 }
 
+/* The page story: the scene sticks beside its stages, or above them on narrow screens. */
+.atlas-story {
+  list-style: none;
+  margin: 0;
+  padding: 0 28px;
+  border-left: 1px solid #354538;
+}
+.atlas-story-stage {
+  /* Fast start, long settle (landonorris's cubic-bezier(0.65, 0.05, 0, 1)). */
+  --settle: cubic-bezier(0.65, 0.05, 0, 1);
+  position: relative;
+  min-height: 60svh;
+  display: grid;
+  align-content: center;
+  gap: 12px;
+  padding: 40px 0 40px 16px;
+  border-top: 1px solid #354538;
+}
+.atlas-story-stage:first-child {
+  border-top: 0;
+}
+/* The active stage draws its accent bar and settles in; the others stay readable. */
+.atlas-story-stage::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  background: var(--mineral);
+  transform: scaleY(0);
+  transform-origin: top;
+  transition: transform 0.9s var(--settle);
+}
+.atlas-story-stage > * {
+  transform: translateY(14px);
+  transition:
+    transform 0.75s var(--settle),
+    color 0.6s var(--settle),
+    -webkit-text-stroke-color 0.6s var(--settle);
+}
+.atlas-story-stage > :nth-child(2) {
+  transition-delay: 70ms;
+}
+.atlas-story-stage > :nth-child(3) {
+  transition-delay: 140ms;
+}
+.atlas-story-stage .step-number {
+  color: #87988b;
+}
+.atlas-story-stage h3 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: #a3b1a6;
+}
+.atlas-story-stage p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: #8b9a8e;
+}
+.atlas-story-stage[aria-current="step"]::before {
+  transform: scaleY(1);
+}
+.atlas-story-stage[aria-current="step"] > * {
+  transform: none;
+}
+.atlas-story-stage[aria-current="step"] .step-number {
+  color: var(--mineral);
+}
+.atlas-story-stage[aria-current="step"] h3 {
+  color: var(--ivory);
+}
+.atlas-story-stage[aria-current="step"] p {
+  color: #abb9ad;
+}
+/* The label of the object under the pointer, or whose label is hovered. */
+.atlas .spatial-label[data-hover] {
+  color: var(--ivory);
+  border-color: var(--mineral);
+}
+/* Side by side only where the scene keeps the width its labels need. */
+@media (min-width: 1280px) {
+  .mechanism-atlas {
+    max-width: none;
+  }
+  .atlas:not(.atlas-expanded) .atlas-view {
+    display: grid;
+    /* The scene keeps its stacked size, so its labels stay as far apart. */
+    grid-template-columns: minmax(0, 880px) minmax(0, 1fr);
+  }
+  .atlas:not(.atlas-expanded) .atlas-view:has(> .atlas-fallback) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .atlas:not(.atlas-expanded) .atlas-space {
+    position: sticky;
+    /* Centred in the viewport: 295px is half the 880px scene's height. */
+    top: max(0px, calc(50svh - 295px));
+    align-self: start;
+    /* The camera frames the boards for this ratio; narrower would shrink them. */
+    max-height: 100svh;
+  }
+  /* Large screens: the story reads at display size, with outlined stage numerals. */
+  .atlas-story-stage {
+    gap: 16px;
+  }
+  .atlas-story-stage .step-number {
+    font-size: clamp(44px, 1.2rem + 2.4vw, 84px);
+    line-height: 1;
+    color: transparent;
+    -webkit-text-stroke: 1px #4f6453;
+  }
+  .atlas-story-stage[aria-current="step"] .step-number {
+    color: transparent;
+    -webkit-text-stroke-color: var(--mineral);
+  }
+  .atlas-story-stage h3 {
+    font-size: clamp(30px, 0.6rem + 1.9vw, 48px);
+    line-height: 1.12;
+    letter-spacing: -0.04em;
+    text-wrap: balance;
+  }
+  .atlas-story-stage p {
+    font-size: clamp(16px, 0.55rem + 0.6vw, 19px);
+    max-width: 34em;
+  }
+}
+/* Wider screens give the story column the room its larger type needs. */
+@media (min-width: 1440px) {
+  .mechanism > .shell {
+    width: min(1640px, calc(100% - 96px));
+  }
+  .mechanism h2 {
+    font-size: clamp(50px, 3.6vw, 76px);
+  }
+  .mechanism .eyebrow {
+    font-size: 13px;
+  }
+}
+@media (max-width: 1279px) {
+  /* A box of its own, so the scene stops sticking where the story ends. */
+  .atlas:not(.atlas-expanded) .atlas-view {
+    display: block;
+  }
+  .atlas:not(.atlas-expanded) .atlas-space {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    aspect-ratio: auto;
+    height: min(420px, 45svh);
+  }
+  /* The short scene shows only the selected labels, as on phones, and no hint. */
+  .atlas:not(.atlas-expanded) .spatial-label[aria-pressed="false"],
+  .atlas:not(.atlas-expanded) :is(.spatial-board-labels, .spatial-hint) {
+    display: none;
+  }
+  .atlas-story {
+    padding: 0 20px;
+    border-left: 0;
+  }
+  .atlas-story-stage {
+    min-height: 50svh;
+  }
+}
+@media (max-width: 767px) {
+  .atlas:not(.atlas-expanded) .atlas-space {
+    height: min(300px, 42svh);
+  }
+}
+/* A short landscape screen keeps the whole viewport for reading. */
+@media (max-width: 1279px) and (max-height: 559px) {
+  .atlas:not(.atlas-expanded) .atlas-space {
+    position: relative;
+    height: 300px;
+  }
+}
+
 /* The exploded atlas follows one selection from source to graph to context. */
 .atlas-toolbar {
   padding: 14px 18px;
@@ -1208,18 +1325,6 @@
 }
 .atlas-layer-toggles button[aria-pressed="false"] {
   color: #87988b;
-}
-.atlas-separation {
-  display: grid;
-  gap: 4px;
-  min-width: 120px;
-  font-size: 10px;
-  color: #b8c8b6;
-}
-.atlas-separation input {
-  width: 120px;
-  accent-color: var(--mineral);
-  min-height: 24px;
 }
 .atlas-space {
   aspect-ratio: 760/510;
@@ -1302,11 +1407,6 @@
   .atlas-layer-toggles button span {
     display: block;
     margin: 0 0 3px;
-  }
-  .atlas-separation {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
   }
   .atlas-source pre {
     font-size: 10px;
@@ -1636,4 +1736,103 @@
   .atlas-stage h3 {
     font-size: 20px;
   }
+}
+@media (prefers-reduced-motion: reduce) {
+  .atlas-story-stage > * {
+    transform: none;
+  }
+}
+/* The hint belongs to the first look; later stages hand the scene to the story. */
+.atlas .spatial-hint {
+  transition: opacity 0.6s ease;
+}
+.atlas[data-story-stage]:not([data-story-stage="0"]) .spatial-hint {
+  opacity: 0;
+}
+.demo-combo-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #b7d0d4;
+}
+.demo-combo {
+  display: flex;
+  align-items: stretch;
+  margin-bottom: 20px;
+  border: 1px solid #b7d0d4;
+  border-radius: 5px;
+}
+.demo-combo:focus-within {
+  border-color: #e7f3b0;
+}
+.demo-combo-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 12px;
+  background: transparent;
+  color: #f7faf8;
+  border: 0;
+  font: inherit;
+  font-size: 13px;
+  text-overflow: ellipsis;
+}
+.demo-combo-trigger {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  background: transparent;
+  color: #f7faf8;
+  border: 0;
+  border-left: 1px solid #b7d0d4;
+  cursor: pointer;
+}
+.demo-combo-layer {
+  z-index: 50;
+}
+.demo-combo-popup {
+  box-sizing: border-box;
+  width: var(--anchor-width);
+  max-height: min(var(--available-height), 280px);
+  overflow-y: auto;
+  padding: 4px;
+  background: #143e48;
+  color: #f7faf8;
+  border: 1px solid #b7d0d4;
+  border-radius: 6px;
+  box-shadow: 6px 6px 0 #dce1d5;
+}
+.demo-combo-item {
+  padding: 10px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1.45;
+  cursor: pointer;
+}
+.demo-combo-item[data-highlighted] {
+  background: #e7f3b0;
+  color: #143e48;
+}
+.demo-combo-item[data-selected] {
+  font-weight: 600;
+}
+.demo-combo-input {
+  cursor: pointer;
+}
+.demo-count > svg {
+  align-self: center;
+  color: #c0d5d8;
+}
+.getting-started .command-row span,
+.prompting .command-row span {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: #2f3f2a;
+  margin-bottom: 10px;
+}
+.prompting .command-row code {
+  font-size: 13px;
+  line-height: 1.55;
 }

@@ -183,6 +183,56 @@ fn an_ordinary_change_stays_incremental() {
 }
 
 #[test]
+fn applying_exclusion_changes_sweeps_a_new_rule_before_any_reindex() {
+    let (dir, mut index) = project();
+    assert!(
+        !index.apply_exclusion_changes(&registry()).unwrap(),
+        "unchanged rules need no sweep"
+    );
+
+    write_rules(&dir, "hidden.fake\n");
+    assert!(index.apply_exclusion_changes(&registry()).unwrap());
+    assert!(!is_indexed(&index), "a new rule must drop the file at once");
+    assert_eq!(index.find_symbol("helper").unwrap().len(), 1);
+    assert!(
+        !index.apply_exclusion_changes(&registry()).unwrap(),
+        "an applied rule is not applied twice"
+    );
+
+    write_rules(&dir, "# nothing excluded\n");
+    assert!(index.apply_exclusion_changes(&registry()).unwrap());
+    assert!(
+        is_indexed(&index),
+        "a removed rule must bring the file back"
+    );
+}
+
+/// The watcher reloads its clone of the rules before it takes the index to
+/// reindex. A query in between must not take the swapped-in rules for
+/// already applied: the stored rows still predate them.
+#[test]
+fn rules_reloaded_through_another_clone_are_still_swept() {
+    let dir = tempdir();
+    fs::write(
+        dir.join("hidden.fake"),
+        "audit_hidden_symbol calls helper\n",
+    )
+    .unwrap();
+    fs::write(dir.join("keep.fake"), "helper\n").unwrap();
+    let exclude = ExcludeSet::for_project(&dir);
+    let watcher_rules = exclude.clone();
+    let mut index = Index::open_in_memory(&dir, exclude).unwrap();
+    index.reindex(&registry(), false).unwrap();
+
+    write_rules(&dir, "hidden.fake\n");
+    assert!(watcher_rules.reload());
+    assert!(is_indexed(&index), "nothing has swept the rows yet");
+
+    assert!(index.apply_exclusion_changes(&registry()).unwrap());
+    assert!(!is_indexed(&index));
+}
+
+#[test]
 fn a_fixed_set_never_reloads_and_clones_share_reloaded_rules() {
     let dir = tempdir();
     write_rules(&dir, "hidden.fake\n");
@@ -200,4 +250,40 @@ fn a_fixed_set_never_reloads_and_clones_share_reloaded_rules() {
     assert!(clone.reload());
     assert!(!project.is_excluded("hidden.fake"));
     assert!(project.is_excluded("other.fake"));
+}
+
+#[cfg(unix)]
+#[test]
+fn an_explicit_exclusion_overrides_retention_under_an_unreadable_parent() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempdir();
+    let locked = dir.join("locked");
+    fs::create_dir(&locked).unwrap();
+    fs::write(
+        locked.join("hidden.fake"),
+        "audit_hidden_symbol calls helper\n",
+    )
+    .unwrap();
+    fs::write(dir.join("keep.fake"), "helper\n").unwrap();
+    let mut index = Index::open_in_memory(&dir, ExcludeSet::for_project(&dir)).unwrap();
+    index.reindex(&registry(), false).unwrap();
+    assert!(is_indexed(&index));
+
+    write_rules(&dir, "locked/hidden.fake\n");
+    let previous = fs::metadata(&locked).unwrap().permissions();
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o0)).unwrap();
+    if fs::read_dir(&locked).is_ok() {
+        fs::set_permissions(&locked, previous).unwrap();
+        eprintln!("permission-denial fixture unavailable to this privileged user");
+        return;
+    }
+    let result = index.apply_exclusion_changes(&registry());
+    fs::set_permissions(&locked, previous).unwrap();
+    assert!(result.unwrap());
+    assert!(
+        !is_indexed(&index),
+        "an unreadable parent must not retain an explicitly excluded file"
+    );
+    assert_eq!(index.find_symbol("helper").unwrap().len(), 1);
 }

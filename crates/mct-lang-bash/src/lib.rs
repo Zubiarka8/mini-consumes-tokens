@@ -26,8 +26,8 @@
 //!   unresolvable callee in `mct-lang-go`/`mct-lang-js-ts`.
 
 use mct_core::{
-    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
-    SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
+    LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
+    SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::{first_error, location};
 use tree_sitter::{Node, Parser};
@@ -55,7 +55,7 @@ impl LanguageParser for BashParser {
             .set_language(&tree_sitter_bash::LANGUAGE.into())
             .expect("tree-sitter-bash grammar is statically valid");
 
-        let tree = parser
+        let mut tree = parser
             .parse(&file.contents, None)
             .ok_or_else(|| ParseError::Syntax {
                 path: file.relative_path.clone(),
@@ -63,6 +63,18 @@ impl LanguageParser for BashParser {
                 message: "tree-sitter produced no parse tree".to_string(),
             })?;
 
+        // tree-sitter-bash rejects literal semicolons in double-quoted
+        // ${name:+word}. Reparse that precise grammar gap with same-width
+        // word characters, retaining original source for extraction.
+        if tree.root_node().has_error() {
+            if let Some(contents) =
+                quoted_alternative_parse_buffer(tree.root_node(), &file.contents)
+            {
+                if let Some(reparsed) = parser.parse(&contents, None) {
+                    tree = reparsed;
+                }
+            }
+        }
         let root = tree.root_node();
         if root.has_error() {
             let error_node = first_error(root).unwrap_or(root);
@@ -74,7 +86,7 @@ impl LanguageParser for BashParser {
         }
 
         let module_name = module_name_for(&file.relative_path);
-        let mut walker = Walker::new(&file.contents);
+        let mut walker = Walker::new(&file.contents, &file.relative_path);
         let mut module_location = location(root);
         // The root node of a file ending in a newline ends at column 0 of
         // the (empty) line after the last one; the file's last line is the
@@ -92,6 +104,49 @@ impl LanguageParser for BashParser {
         walker.visit_children(root, module_id, &module_name, module_id, 0);
         Ok(walker.finish())
     }
+}
+
+/// Only repairs the observed grammar gap. The reparsed tree must still pass
+/// the normal syntax check, including errors in nested command substitutions.
+fn quoted_alternative_parse_buffer(root: Node, source: &str) -> Option<String> {
+    let mut bytes = source.as_bytes().to_vec();
+    let mut changed = false;
+    let mut pending = vec![(root, 0)];
+    while let Some((node, depth)) = pending.pop() {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            continue;
+        }
+        if node.is_error() && text(node, source) == ";" {
+            let concatenation = node.parent()?;
+            let expansion = concatenation.parent()?;
+            let string = expansion.parent()?;
+            let mut cursor = expansion.walk();
+            let has_alternative = expansion
+                .children(&mut cursor)
+                .any(|child| child.kind() == ":+");
+            if concatenation.kind() == "concatenation"
+                && expansion.kind() == "expansion"
+                && string.kind() == "string"
+                && has_alternative
+                && expansion.child(0).is_some_and(|child| child.kind() == "${")
+                && expansion
+                    .child(expansion.child_count().saturating_sub(1))
+                    .is_some_and(|child| child.kind() == "}" && !child.is_missing())
+            {
+                if let Some(byte) = bytes.get_mut(node.start_byte()) {
+                    *byte = b'_';
+                    changed = true;
+                }
+            }
+        }
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            if child.has_error() {
+                pending.push((child, depth + 1));
+            }
+        }
+    }
+    changed.then(|| String::from_utf8(bytes).ok()).flatten()
 }
 
 fn module_name_for(relative_path: &str) -> String {
@@ -112,15 +167,20 @@ struct Walker<'a> {
     source: &'a str,
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
+    relation_targets: Vec<RelationTarget>,
+    /// This file's repository-relative path, the base of relative sources.
+    path: &'a str,
     next_id: SymbolId,
 }
 
 impl<'a> Walker<'a> {
-    fn new(source: &'a str) -> Self {
+    fn new(source: &'a str, path: &'a str) -> Self {
         Self {
             source,
+            path,
             symbols: Vec::new(),
             relations: Vec::new(),
+            relation_targets: Vec::new(),
             next_id: 0,
         }
     }
@@ -242,6 +302,7 @@ impl<'a> Walker<'a> {
                         match cmd_text {
                             "source" | "." => {
                                 if let Some(path) = first_argument_text(node, self.source) {
+                                    self.push_source_target(owner, &path, location(node));
                                     self.push_relation(
                                         owner,
                                         RelationKind::Imports,
@@ -286,8 +347,21 @@ impl<'a> Walker<'a> {
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
+            relation_targets: self.relation_targets,
             ..Default::default()
         }
+    }
+
+    /// `source dir/x.sh` depends on the file `x.sh`: an `Imports` relation
+    /// to its `Module` symbol (see [`source_target`] for what is proven).
+    fn push_source_target(&mut self, owner: SymbolId, spec: &str, loc: Location) {
+        let Some((name, target)) = source_target(self.path, spec) else {
+            return;
+        };
+        let relation = self.relations.len();
+        self.push_relation(owner, RelationKind::Imports, name, loc);
+        self.relation_targets
+            .push(RelationTarget { relation, ..target });
     }
 }
 
@@ -307,6 +381,85 @@ fn literal_word_child(command_name_node: Node) -> Option<Node> {
 
 /// The literal text of a `command`'s first `argument` field, quotes
 /// trimmed — used for `source`/`.`'s target path.
+/// Expressions that evaluate to the sourcing script's own directory.
+const SCRIPT_DIR_PREFIXES: [&str; 7] = [
+    "$(dirname \"$0\")",
+    "$(dirname $0)",
+    "$(dirname \"${BASH_SOURCE[0]}\")",
+    "$(dirname ${BASH_SOURCE[0]})",
+    "${BASH_SOURCE[0]%/*}",
+    "${BASH_SOURCE%/*}",
+    "${0%/*}",
+];
+
+/// The relation name and evidence for `source SPEC` written in `from_file`,
+/// or `None` when the file name proves nothing (not a `.sh`/`.bash` name, or
+/// a computed one).
+///
+/// - A literal relative path, or one after a script-directory idiom
+///   (`$(dirname "$0")/lib.sh`), is pinned to the exact file, read against the
+///   sourcing script's directory (a plain relative `source` is really
+///   resolved against the working directory and `PATH`; a mismatch leaves it
+///   unresolved).
+/// - A path through any other variable (`$LIB_DIR/log.sh`) proves only the
+///   file stem and, if literal, its parent directory.
+/// - An absolute or `~` path proves nothing about the repository.
+fn source_target(from_file: &str, spec: &str) -> Option<(String, RelationTarget)> {
+    let spec = spec.trim();
+    let file = spec.rsplit('/').next().unwrap_or(spec);
+    let stem = file
+        .strip_suffix(".bash")
+        .or_else(|| file.strip_suffix(".sh"))?;
+    if stem.is_empty() || file.contains(['$', '`', '*', '{', '(', ' ']) {
+        return None;
+    }
+    let module_kind = Some(SymbolKind::Module);
+    let script_relative = SCRIPT_DIR_PREFIXES
+        .iter()
+        .find_map(|prefix| spec.strip_prefix(prefix))
+        .filter(|rest| rest.starts_with('/'))
+        .map(|rest| format!(".{rest}"));
+    let literal = !spec.contains(['$', '`', '*', '{', '(', '~']) && !spec.starts_with('/');
+    let relative = script_relative.or_else(|| {
+        literal.then(|| {
+            if spec.starts_with("./") || spec.starts_with("../") {
+                spec.to_string()
+            } else {
+                format!("./{spec}")
+            }
+        })
+    });
+    if let Some(relative) = relative {
+        let resolved = mct_core::resolve_reference_path(from_file, &relative)?;
+        return Some((
+            stem.to_string(),
+            RelationTarget {
+                path: Some(resolved),
+                kind: module_kind,
+                ..Default::default()
+            },
+        ));
+    }
+    if spec.starts_with(['/', '~']) {
+        return None;
+    }
+    let dir = spec
+        .rsplit_once('/')
+        .map(|(dir, _)| dir)
+        .unwrap_or_default();
+    let parent = dir.rsplit('/').next().filter(|d| {
+        !d.is_empty() && !d.contains(['$', '`', '*', '{', '(', '~']) && *d != "." && *d != ".."
+    });
+    Some((
+        stem.to_string(),
+        RelationTarget {
+            module: parent.map(str::to_string),
+            kind: module_kind,
+            ..Default::default()
+        },
+    ))
+}
+
 fn first_argument_text(command_node: Node, source: &str) -> Option<String> {
     let arg = command_node.child_by_field_name("argument")?;
     let trimmed = text(arg, source).trim_matches(|c| c == '"' || c == '\'');
