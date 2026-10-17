@@ -7,7 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Deprecated
+
+- MCP tools `search_symbols` and `hybrid_search` are renamed
+  `search_symbols_like` and `hybrid_search_like`. The old names remain for one
+  version as deprecated aliases (same implementation) and will then be removed,
+  which will break clients that pin the old names. The catalog grows by about
+  1,900 tokens while both names are listed.
+
+### Changed
+
+- **Behaviour change:** the background reindex now waits 15 s (was 1.5 s) after
+  the last file change. Set it with `--reindex-debounce-ms` or the new
+  `MCT_REINDEX_DEBOUNCE_MS` (flag first, then variable); `0` still disables it.
+- Docs: the troubleshooting page is removed, `querying` and `tools` are
+  rewritten in plainer language, and a `development` page is added.
+
 ### Added
+
+- `find_references` takes an optional `sort`: `relevance` (default, output
+  unchanged) or `execution` (by hop, file and line; a static approximation, not
+  the real execution order).
 
 - `mct-cli duplicates` reports Rust/Python candidate copies with exact callable
   boundaries, opt-in consistent-renaming and exact-token policies, f-string

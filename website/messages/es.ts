@@ -69,7 +69,7 @@ const es: Record<keyof typeof en, string> = {
   purpose5:
     "Cuenta los archivos y las piezas de código por lenguaje, lista los fallos y devuelve un breve informe de salud.",
   tourHowText:
-    "Un lector basado en tree-sitter recorre cada archivo compatible y anota sus funciones, tipos y cómo se conectan. Ese mapa se guarda en una pequeña base de datos dentro de tu proyecto, y todo se ejecuta en tu equipo. El servidor responde a tu asistente con esa base. Mientras está activo, actualiza en segundo plano los archivos modificados cuando dejas de editar durante 1,5 segundos.",
+    "Un lector basado en tree-sitter recorre cada archivo compatible y anota sus funciones, tipos y cómo se conectan. Ese mapa se guarda en una pequeña base de datos dentro de tu proyecto, y todo se ejecuta en tu equipo. El servidor responde a tu asistente con esa base. Mientras está activo, actualiza en segundo plano los archivos modificados cuando dejas de editar durante unos 15 segundos.",
   tourOrientText:
     "Empieza aquí cuando aún no conoces ningún nombre. Estas herramientas describen qué contiene un proyecto sin abrir archivos completos.",
   tourLookupText:
@@ -239,7 +239,7 @@ const es: Record<keyof typeof en, string> = {
   docsLabel: "EL MANUAL DE REFERENCIA",
   docsTitle: "De la instalación a entender tu código.",
   docsText:
-    "Instalación, conexión de asistentes, comandos, herramientas, lenguajes compatibles, cómo funciona por dentro y resolución de problemas. El manual está en inglés.",
+    "Instalación, conexión de asistentes, comandos, herramientas, lenguajes compatibles y cómo funciona por dentro. El manual está en inglés.",
   guide1: "Instala y conecta",
   guide2: "Consulta y explora",
   guide3: "Comprende y amplía",
