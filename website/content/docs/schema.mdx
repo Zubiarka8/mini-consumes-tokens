@@ -13,11 +13,11 @@ The schema is defined in `crates/mct-index/src/schema.rs`. Every language shares
 files ──< symbols ──< relations          the code graph
   │          │
   │          ├── symbols_fts              name search   (find_symbol prefix)
-  │          ├── symbol_words_fts         word search   (search_symbols)
+  │          ├── symbol_words_fts         word search   (search_symbols_like)
   │          ├── symbol_aliases           declared alternate names (Markdown aliases)
-  │          └── symbol_embeddings        meaning search (hybrid_search)
+  │          └── symbol_embeddings        meaning search (hybrid_search_like)
   │
-  └──< literals ── literals_fts           exact-phrase prose search (hybrid_search "…")
+  └──< literals ── literals_fts           exact-phrase prose search (hybrid_search_like "…")
 
 relation_candidates   view: which symbols a relation may point to
 dependencies          libraries declared in manifests (Cargo.toml, package.json…)
@@ -111,9 +111,9 @@ These are filled by triggers when `symbols` or `literals` change. You never writ
 | Table | Used by | Contents |
 | --- | --- | --- |
 | `symbols_fts` | `find_symbol` with `match: prefix` | Symbol names, FTS5. |
-| `symbol_words_fts` | `search_symbols` | Each name split into lowercase words: `HTTPServer` → `http server httpserver`. The splitting is a Rust function (`mct_split_words`) registered by mini-consumes-tokens, so other tools can't insert into `symbols`. |
-| `symbol_embeddings` | `hybrid_search` | One vector per symbol (`symbol_id`, `model`, `vector` as little-endian f32). Filled lazily the first time it is needed. Deleted when a symbol is renamed. |
-| `literals` | `hybrid_search` with a `"quoted"` query | Rust string literals and Markdown paragraphs/table rows: `file_id`, `symbol_id` (the enclosing symbol, when available), `line`, `text`. |
+| `symbol_words_fts` | `search_symbols_like` | Each name split into lowercase words: `HTTPServer` → `http server httpserver`. The splitting is a Rust function (`mct_split_words`) registered by mini-consumes-tokens, so other tools can't insert into `symbols`. |
+| `symbol_embeddings` | `hybrid_search_like` | One vector per symbol (`symbol_id`, `model`, `vector` as little-endian f32). Filled lazily the first time it is needed. Deleted when a symbol is renamed. |
+| `literals` | `hybrid_search_like` with a `"quoted"` query | Rust string literals and Markdown paragraphs/table rows: `file_id`, `symbol_id` (the enclosing symbol, when available), `line`, `text`. |
 | `literals_fts` | same | Full-text index over `literals.text`. Accent-insensitive: `conexión` matches `conexion`. |
 
 ## Other tables
