@@ -42,6 +42,7 @@ Commands:
   ignore-init           Write a starter `.mctignore` for custom indexing exclusions
   gitignore-init        Keep the generated index out of git
   dead-code             Write a CSV report of dead-code candidates (heuristic: symbols with zero indexed references) — one row per candidate with its file, function name, kind, language, and start/end line
+  duplicates            Report candidate duplicate functions and methods, as TOON
   probe                 Parse files without indexing them and report, per file, either its symbol/relation counts or the first syntax error with its line
   update, -u, --update  Update mct-cli and mct-mcp-server to the latest GitHub release
   help                  Print this message or the help of the given subcommand(s)
@@ -214,9 +215,9 @@ Options:
 
       --root <ROOT>
           Project root to operate on. Defaults to the current working directory.
-          
+
           `init` and `call` accept several roots, as a repeated `--root` or a comma-separated `--roots a,b`; every other command takes exactly one.
-          
+
           [alias: --roots]
 
       --reindex-delay <VALUE>
@@ -326,6 +327,285 @@ Options:
       --language <LANGUAGE>  Exact language id to keep (e.g. `rust`, `python`, `go`)
       --output <OUTPUT>      Where to write the CSV report. Defaults to `<root>/.mct-index/dead-code-report.csv`
   -h, --help                 Print help
+```
+
+</details>
+
+### `duplicates` / `duplicates --min-lines <N> --min-tokens <N>`
+
+Reports candidate duplicate functions and methods in Rust and Python, as TOON.
+Groups are leads for human review, not proof of redundant or equivalent behavior.
+Run `init` or `reindex` first: analysis uses the existing index and checks current
+file hashes, without reindexing, migrating or changing indexed data.
+
+- `--normalization broad` (default) erases identifier names and literal values.
+- `--normalization consistent` preserves identifier repetition: `a+a` matches
+  `x+x`, but differs from `x+y`. It retains f-string interpolation structure.
+  It compares spellings, not resolved scopes; shadowing is not modelled.
+- `--normalization exact` retains emitted identifier/literal text, including
+  declaration names and f-string expressions. Trivia is ignored, including Rust
+  visibility. It can match equal functions in different scopes or files.
+- `--path` selects a relative file or directory; `--language` selects an indexed
+  language id. Filters apply before reading/tokenizing files.
+- `--ranking tokens` ranks by tokens times additional copies (an estimate);
+  `--ranking lines` retains the default line-based order.
+- `--limit`, `--offset` and `--no-excerpts` control output. Totals cover all groups
+  in the filtered scope. `omitted_groups` counts groups outside the output page.
+
+`status: complete` means no candidate failed analysis. Separately, `index_coverage`
+reports whole-index failures, even outside filters: `partial`, `unknown`, or
+`no-recorded-errors`. The last value does not discover new, unindexed files.
+Files edited/deleted since indexing are skipped and mark analysis partial.
+Unsupported languages are listed. Exact callable byte ranges exclude surrounding
+syntax and preceding decorators/attributes; ambiguous boundaries are skipped.
+
+Each group has an `alignment` block. Members share one normalized sequence, so
+their identifier and literal tokens are compared position by position:
+- `identifier_pattern`: `identical`, `one-to-one` (a consistent renaming) or
+  `not-one-to-one`, with an example. It compares spellings, not bindings, so
+  reusing one name for two shadowed variables can read as `not-one-to-one`.
+- `differing_positions` and `differences` list the original texts and lines per
+  member, in member order, separated by ` / `. Kinds come from syntactic roles:
+  `declaration`, `parameter`, `name` (no role), `member` (attribute, field,
+  method or keyword name), `callee`, `type`, `literal-value`,
+  `literal-category` (for example number versus string), `interpolated-string`,
+  `docstring`, `mixed-role`. At most 12 distinct differences are listed.
+- `undeclared_name_positions` counts differing `name` positions where some
+  member's spelling is not one of its own parameters: a renamed local, or a
+  reference to a different outside item (path, constant, unit struct, enum
+  variant, function). Bindings are not resolved, so the two are not told apart.
+- `warnings` explain differences worth a reviewer's attention: different
+  members, callees or type names, literal values or categories, interpolated
+  strings that broad compares whole, and a non-one-to-one identifier pattern.
+- `types` counts all aligned positions with a type role, including equal texts.
+  `compatibility` is always `unknown`. `primitive_spelling_conflicts` counts
+  positions containing distinct recognized primitive spellings; `conflicts`
+  lists at most 12 of them with per-member values and lines. Only complete direct
+  parameter, return and local annotations are recognized. Compound types,
+  qualified paths, generic arguments, unions, Optional, string annotations and
+  custom names stay unknown. An unknown member does not hide a conflict between
+  two other members; mixed roles are not compared. The warning is
+  `primitive-type-spellings-differ`. Names can be shadowed in both languages,
+  including Rust `type u32 = String`, so neither differing nor equal spellings
+  establish type compatibility. No group is removed, split or reordered.
+
+Each group also has a `context` block for what the compared spans exclude:
+- `status`: `same`, `differs`, or `not-evaluated` when a member's language
+  reports no callable context (with a `context-unavailable` warning).
+- `aspects`: `decorators` (Python decorators, Rust outer attributes, comments
+  removed) and `enclosing` (constructs around the callable, outermost first,
+  such as `@dataclass class`, `try > except` or `#[cfg(test)] mod`). Each row
+  shows the shared value, or one value per member separated by ` / `. `(none)`
+  and `(top level)` stand for an empty aspect.
+- A differing aspect adds a `decorators-differ` or `enclosing-context-differs`
+  warning. Labels name kinds only: conditions, context managers, class names and
+  impl targets are not compared.
+
+Each group also has a `priority` block, computed before pagination:
+- `call_shape`: `call-only` when every member's body is only flat calls (one
+  call or macro invocation per statement, whose arguments hold no further call,
+  closure, comprehension, conditional or block, and no nested macro
+  delimiters), `mixed` when only some members' are, `other`, or
+  `not-evaluated`. Callee names are never read: `print`, `log` or `assert` may
+  be redefined or matter.
+- `level` and `reason`: with `--trivial-calls demote` (the default) a call-only
+  group is `demoted` and ranked after every other group, keeping its relative
+  order; `--trivial-calls keep` leaves the ranking order. No group is removed:
+  `total_groups` and pagination include demoted groups, and `demoted_groups`
+  counts them.
+
+Each group also has a `subgroups` block, computed before pagination, that
+partitions its members by the evidence separating them. It is an extra view:
+the group's `members` table, totals, order and pagination do not change.
+- Two members share a subgroup when they agree on every separating item: the
+  text at each differing aligned `member`, `callee` and `type` position, the
+  category at each `literal-category` position, and their identifier pattern
+  (each spelling numbered by first use: equal patterns are exactly consistent
+  renamings, so `value * factor` and `value * value` differ). A `member`,
+  `callee` or `type` position is not separating when every member's text there
+  is a name that member declares or takes as a parameter (a called parameter, a
+  recursive call). Individual names, parameters, literal values, interpolated
+  strings, docstrings and mixed roles never separate, so a consistent renaming
+  never splits. Decorators and enclosing constructs stay in the `context`
+  block and never separate.
+- `status`: `single` (nothing separates the members), `split`, or
+  `not-evaluated` (aligned tokens missing for a member). `basis` lists the
+  separating kinds; `count` the subgroups; `separating_items` the separating
+  positions, plus one when identifier patterns differ.
+- `all_distinct: true` means every member is its own subgroup: no rows are
+  listed, because the member table already shows that partition.
+- Otherwise `rows` lists at most 8 subgroups, in order of their first member:
+  `id`, `size`, `members` (1-based positions in the group's member table, at
+  most 10), their `locations` (`path:start_line`), and `values`: the
+  subgroup's value at the first three separating items, as `kind=text`
+  (`identifier-pattern=#N` numbers patterns in member order).
+  `omitted_subgroups` counts the unlisted rest.
+- The header's `split_groups` counts split groups among all `total_groups`.
+
+
+Each reported group also has a `verdict` block, derived only from the blocks
+above by a fixed rule table (no score, weight or probability):
+- `level`: `SUSPICIOUS` when any rule fires, otherwise `REAL`. `FALSE_POSITIVE`
+  is part of the output contract, but no current rule emits it: no available
+  evidence alone shows that members are not duplicates.
+- `reasons`: every rule that fired, in a stable order. Suspicion reasons are
+  `alignment-unavailable`, `identifier-pattern-differs`,
+  `undeclared-names-differ`, `mixed-role-differences`, `member-names-differ`,
+  `callee-names-differ`, `type-names-differ`,
+  `primitive-type-spellings-differ`, `literal-categories-differ`,
+  `literal-values-differ`, `interpolated-strings-differ`,
+  `context-unavailable`, `decorators-differ`, `enclosing-context-differs`,
+  `call-only-bodies`, `call-shape-mixed` and `body-shape-not-evaluated`. A
+  `REAL` group lists `identical-tokens` or `consistent-renaming` (only the
+  declaration name and the members' own parameters differ), `same-context`,
+  and `docstrings-differ` when docstrings differ.
+- The header's `verdict_counts` (`real`, `suspicious`, `false_positive`) cover
+  the reported groups only, after `--limit`/`--offset`.
+
+Verdicts are heuristic explanations, not proof: `REAL` does not prove equal
+behavior (bindings, types and call effects are unresolved), and renamed locals
+are conservatively `SUSPICIOUS`. A verdict never removes, splits, reorders or
+filters a group; demotion and ranking are unchanged.
+
+Evidence never changes grouping: no domain is inferred from names, type
+compatibility is not evaluated, and `alignment_not_evaluated` lists the
+remaining unevaluated criteria.
+
+`--partial-blocks` (off by default) also reports **repeated token sequences**
+shared by two or more different functions of one language, below the
+whole-function level, under the selected `--normalization`. Without the flag
+the report is unchanged. A block is a lead, not a refactoring proposal:
+extraction feasibility (values in/out, control flow, side effects) is not
+evaluated, and `alignment_not_evaluated` says so in place of
+`partial-block repetition`.
+- Blocks are trimmed to whole lines with balanced `()`, `[]`, `{}` and Python
+  block markers, and must have `--block-min-tokens` source tokens (default 40)
+  and `--block-min-lines` token-bearing lines in every occurrence (default 6).
+- Only maximal blocks are listed: a block whose every occurrence lies inside
+  members of one reported group is left out, and a shorter block is listed only
+  when one of its occurrences does not overlap a larger listed block.
+  Repetition inside a single function is not reported; each function shows
+  its first occurrence.
+- Budgets, all deterministic counts: `--block-max-windows` (default 2,000,000,
+  memory: 16 bytes per hashed window), `--block-max-comparisons` (default
+  20,000,000 token comparisons, time) and `--block-max-blocks` (default 200
+  listed blocks). The header's `partial_blocks_budget` shows each limit, its use
+  and `budget_exhausted`: `false` or the first budget hit (`max-windows`,
+  `max-comparisons`, `max-blocks`). An exhausted budget makes the block list
+  partial; groups stay complete. Each `--block-*` flag requires
+  `--partial-blocks`.
+- Output: `partial_block_count`, then a `partial_blocks` list after `groups`,
+  each with `id`, `language`, `tokens`, `lines` and
+  `occurrences{path,start_line,end_line,function}`, ordered by tokens, then
+  occurrence count, then first location.
+
+```sh
+mct-cli --root . duplicates
+mct-cli --root . duplicates --normalization consistent --path crates --language rust --ranking tokens --limit 20 --no-excerpts
+mct-cli --root . duplicates --normalization exact --min-lines 10 --min-tokens 80
+mct-cli --root . duplicates --partial-blocks --limit 0 --block-max-blocks 50
+```
+
+Design: [ADR-007](docs/01-architecture/adrs/007-duplicate-function-report.md),
+[comparison policies](docs/01-architecture/adrs/008-token-twins-comparison-policies.md),
+[aligned evidence](docs/01-architecture/adrs/009-duplicate-group-aligned-evidence.md),
+[evidence subgroups](docs/01-architecture/adrs/011-duplicate-subgroups.md). and [repeated partial blocks](docs/01-architecture/adrs/012-repeated-partial-blocks.md).
+Reproducible measurements: [token twins evaluation](benchmarks/token-twins.md).
+
+<details>
+<summary>Full output</summary>
+
+```
+Report candidate duplicate functions and methods, as TOON.
+
+Groups functions and methods of the same language whose token sequences are identical once identifiers and literals are normalized (Type-2 clones). Every group is a CANDIDATE for human review: matching structure does not prove the code is redundant or behaves the same. Runs on demand against the existing index and the current files; it never reindexes or migrates the index, so run `init` or `reindex` first. Candidates that cannot be analyzed are listed as skipped and mark the report partial. Only languages with a token source are analyzed; the report names the rest.
+
+Usage: mct-cli duplicates [OPTIONS]
+
+Options:
+      --min-lines <MIN_LINES>
+          Minimum source-token-bearing lines per candidate
+
+          [default: 6]
+
+      --root <ROOT>
+          Project root to operate on. Defaults to the current working directory.
+
+          `init` and `call` accept several roots, as a repeated `--root` or a comma-separated `--roots a,b`; every other command takes exactly one.
+
+          [alias: --roots]
+
+      --min-tokens <MIN_TOKENS>
+          Minimum source tokens per candidate
+
+          [default: 40]
+
+      --normalization <NORMALIZATION>
+          Comparison policy: broad, consistent identifier spelling, or exact token text
+
+          [default: broad]
+
+      --ranking <RANKING>
+          Rank by lines times members, or tokens times additional copies (estimate)
+
+          [default: lines]
+
+      --path <PATH>
+          Exact file or directory prefix, relative to the repository root
+
+      --language <LANGUAGE>
+          Exact indexed language id
+
+      --limit <LIMIT>
+          Maximum groups to display; totals describe all filtered groups
+
+      --offset <OFFSET>
+          Skip this many ranked groups
+
+          [default: 0]
+
+      --no-excerpts
+          Omit source excerpts
+
+      --trivial-calls <TRIVIAL_CALLS>
+          Groups whose bodies are only flat calls: rank them last (demote) or keep the ranking order (keep). Never removes a group
+
+          [default: demote]
+
+      --partial-blocks
+          Also report repeated token sequences shared by different functions below the whole-function level (opt-in; bounded by the --block-* budgets). Extraction feasibility is never evaluated
+
+      --block-min-tokens <BLOCK_MIN_TOKENS>
+          Minimum source tokens per partial block
+
+          [default: 40]
+
+      --block-min-lines <BLOCK_MIN_LINES>
+          Minimum token-bearing lines per partial block, in every occurrence
+
+          [default: 6]
+
+      --block-max-windows <BLOCK_MAX_WINDOWS>
+          Most token windows hashed (memory budget, 16 bytes each)
+
+          [default: 2000000]
+
+      --block-max-comparisons <BLOCK_MAX_COMPARISONS>
+          Most token comparisons spent extending blocks (deterministic time budget)
+
+          [default: 20000000]
+
+      --block-max-blocks <BLOCK_MAX_BLOCKS>
+          Most partial blocks reported
+
+          [default: 200]
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+Examples:
+  cargo run -p mct-cli -- --root . duplicates
+  cargo run -p mct-cli -- --root . duplicates --min-lines 10 --min-tokens 80
 ```
 
 </details>

@@ -1,0 +1,147 @@
+scorer: score_duplicate_labels/1
+labels: benchmarks/token-twins-labels/labels.toon
+cases: 31
+expected_partial_blocks: 3
+normalization: broad
+flags[4]: "--min-lines",5,"--min-tokens",30
+line_match_rule: "same path and line-range Jaccard >= 0.5 (shared lines / union lines), one-to-one per block; a reported block is a true positive when all its occurrences, at least two, match occurrences of one labeled block"
+member_match_rule: "same repository-relative path and start line; a case's group must contain exactly the labeled members for verdict scoring"
+binary: mct-cli
+run_status: ok
+report_status: complete
+partial_blocks_flag: "--partial-blocks"
+partial_blocks_flag_status: accepted
+grouping:
+  definition: exact_recall = labeled groups reported with exactly their members / labeled groups expected in that policy
+  modes[3]{normalization,reported_groups,expected_groups,exact,partial,missing,unexpected_groups,expected_absent,absent_violated,exact_recall}:
+    broad,31,31,31,0,0,0,0,0,1.000
+    consistent,29,29,29,0,0,0,2,0,1.000
+    exact,0,0,0,0,0,0,31,0,n/a
+  mismatches[0]{normalization,case,status,detail}:
+verdicts:
+  status: scored
+  verdict_counts_header: present
+  determinate_cases: 27
+  scored_with_level: 27
+  accuracy: 0.296
+  unsafe_real: 0
+  real_called_false_positive: 0
+  matrix[3]{expected,REAL,SUSPICIOUS,FALSE_POSITIVE,missing,not-grouped,membership-differs}:
+    REAL,0,11,0,0,0,0
+    SUSPICIOUS,0,8,0,0,0,0
+    FALSE_POSITIVE,0,8,0,0,0,0
+  ambiguous[1]{expected,REAL,SUSPICIOUS,FALSE_POSITIVE,missing,not-grouped,membership-differs}:
+    ambiguous,0,4,0,0,0,0
+  per_level[3]{level,precision,recall}:
+    REAL,n/a,0.000
+    SUSPICIOUS,0.296,1.000
+    FALSE_POSITIVE,n/a,0.000
+  reasons[11]{reason,groups}:
+    call-only-bodies,5
+    callee-names-differ,2
+    decorators-differ,5
+    enclosing-context-differs,2
+    identifier-pattern-differs,3
+    interpolated-strings-differ,1
+    literal-values-differ,11
+    member-names-differ,8
+    primitive-type-spellings-differ,2
+    type-names-differ,4
+    undeclared-names-differ,15
+  cases[31]{case,expected,predicted,reasons}:
+    py-real-rows,REAL,SUSPICIOUS,undeclared-names-differ
+    py-real-methods,REAL,SUSPICIOUS,undeclared-names-differ
+    py-single-chunks,REAL,SUSPICIOUS,undeclared-names-differ
+    py-calls-identical,REAL,SUSPICIOUS,call-only-bodies
+    py-ctx-cache,REAL,SUSPICIOUS,decorators-differ
+    py-ctx-static,REAL,SUSPICIOUS,decorators-differ enclosing-context-differs
+    rs-real-checksum,REAL,SUSPICIOUS,undeclared-names-differ
+    rs-real-methods,REAL,SUSPICIOUS,undeclared-names-differ
+    rs-single-pairs,REAL,SUSPICIOUS,undeclared-names-differ
+    rs-calls-identical,REAL,SUSPICIOUS,call-only-bodies
+    rs-ctx-inline,REAL,SUSPICIOUS,decorators-differ
+    py-susp-retry,SUSPICIOUS,SUSPICIOUS,literal-values-differ interpolated-strings-differ
+    py-susp-types,SUSPICIOUS,SUSPICIOUS,type-names-differ primitive-type-spellings-differ literal-values-differ
+    py-split-members,SUSPICIOUS,SUSPICIOUS,undeclared-names-differ member-names-differ literal-values-differ
+    py-split-dataflow,SUSPICIOUS,SUSPICIOUS,identifier-pattern-differs undeclared-names-differ
+    py-ctx-routes,SUSPICIOUS,SUSPICIOUS,undeclared-names-differ decorators-differ
+    rs-susp-types,SUSPICIOUS,SUSPICIOUS,type-names-differ primitive-type-spellings-differ
+    rs-susp-retry,SUSPICIOUS,SUSPICIOUS,member-names-differ literal-values-differ
+    rs-split-sinks,SUSPICIOUS,SUSPICIOUS,undeclared-names-differ member-names-differ type-names-differ
+    py-fp-domains,FALSE_POSITIVE,SUSPICIOUS,member-names-differ
+    py-fp-effects,FALSE_POSITIVE,SUSPICIOUS,undeclared-names-differ member-names-differ callee-names-differ literal-values-differ
+    py-fp-dataflow,FALSE_POSITIVE,SUSPICIOUS,identifier-pattern-differs undeclared-names-differ
+    py-calls-sinks,FALSE_POSITIVE,SUSPICIOUS,member-names-differ literal-values-differ call-only-bodies
+    rs-fp-domains,FALSE_POSITIVE,SUSPICIOUS,undeclared-names-differ member-names-differ type-names-differ
+    rs-fp-dataflow,FALSE_POSITIVE,SUSPICIOUS,identifier-pattern-differs undeclared-names-differ
+    rs-calls-sinks,FALSE_POSITIVE,SUSPICIOUS,callee-names-differ literal-values-differ call-only-bodies
+    rs-ctx-platform,FALSE_POSITIVE,SUSPICIOUS,literal-values-differ decorators-differ
+    py-amb-builders,ambiguous,SUSPICIOUS,literal-values-differ
+    py-amb-tests,ambiguous,SUSPICIOUS,literal-values-differ
+    py-calls-fields,ambiguous,SUSPICIOUS,member-names-differ literal-values-differ call-only-bodies
+    rs-ctx-test-oracle,ambiguous,SUSPICIOUS,undeclared-names-differ enclosing-context-differs
+subgroups:
+  status: scored
+  split_groups_header: present
+  scored_cases: 14
+  exact_partitions: 14
+  exact_partition_rate: 1.000
+  status_counts[2]{status,groups}:
+    single,17
+    split,14
+  cases[31]{case,expected,predicted_status,result,detail}:
+    py-real-rows,single,single,exact,""
+    py-real-methods,single,single,exact,""
+    py-single-chunks,single,single,exact,""
+    py-calls-identical,single,single,exact,""
+    py-ctx-cache,single,single,exact,""
+    py-ctx-static,single,single,exact,""
+    rs-real-checksum,single,single,exact,""
+    rs-real-methods,single,single,exact,""
+    rs-single-pairs,single,single,exact,""
+    rs-calls-identical,single,single,exact,""
+    rs-ctx-inline,single,single,exact,""
+    py-susp-retry,unscored,single,unscored,""
+    py-susp-types,unscored,split,unscored,no member references could be resolved
+    py-split-members,split,split,exact,""
+    py-split-dataflow,split,split,exact,""
+    py-ctx-routes,unscored,single,unscored,""
+    rs-susp-types,unscored,split,unscored,no member references could be resolved
+    rs-susp-retry,unscored,split,unscored,no member references could be resolved
+    rs-split-sinks,split,split,exact,""
+    py-fp-domains,unscored,split,unscored,no member references could be resolved
+    py-fp-effects,unscored,split,unscored,no member references could be resolved
+    py-fp-dataflow,unscored,split,unscored,no member references could be resolved
+    py-calls-sinks,unscored,split,unscored,no member references could be resolved
+    rs-fp-domains,unscored,split,unscored,no member references could be resolved
+    rs-fp-dataflow,unscored,split,unscored,no member references could be resolved
+    rs-calls-sinks,unscored,split,unscored,no member references could be resolved
+    rs-ctx-platform,unscored,single,unscored,""
+    py-amb-builders,unscored,single,unscored,""
+    py-amb-tests,unscored,single,unscored,""
+    py-calls-fields,unscored,split,unscored,no member references could be resolved
+    rs-ctx-test-oracle,unscored,single,unscored,""
+partial_blocks:
+  status: scored
+  flag: accepted
+  header[3]{field,value}:
+    partial_blocks_budget,"{'min_tokens': '40', 'min_lines': '6', 'max_windows': '2000000', 'max_comparisons': '20000000', 'max_blocks': '200', 'functions_searched': '68', 'windows_used': '2323', 'comparisons_used': '2200', 'budget_exhausted': 'false'}"
+    budget_exhausted,false
+    partial_block_count,3
+  reported_blocks: 3
+  true_positives: 3
+  precision: 1.000
+  expected_blocks: 3
+  recalled_blocks: 3
+  recall: 1.000
+  occurrence_recall: 1.000
+  false_positive_kinds[4]{kind,blocks}:
+    below-minimum,0
+    shape-only,0
+    covered-by-group,0
+    unlabeled,0
+  missed[0]{block,matched_occurrences,expected_occurrences}:
+  blocks[3]{reported,result,label,occurrences}:
+    1,true-positive,pb-rs-parse,"rust/config.rs:13-25 rust/config.rs:34-46"
+    2,true-positive,pb-py-csv,"python/exports.py:11-17 python/exports.py:24-30 python/imports.py:14-20"
+    3,true-positive,pb-py-validate,"python/accounts.py:15-22 python/accounts.py:32-39"

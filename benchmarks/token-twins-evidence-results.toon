@@ -1,0 +1,24 @@
+scope: synthetic Python fixtures; init excluded; warm median; per-process peak RSS
+functions: 1000
+runs: 5
+measurements[8]{scenario,binary,seconds,rss_bytes,output_bytes,groups}:
+  many-small,0,0.181929,13959168,217286,10
+  many-small,1,0.193742,15122432,234873,10
+  few-large,0,0.114883,18513920,220930,10
+  few-large,1,0.125021,19611648,240373,10
+  unique,0,0.116138,19726336,903,0
+  unique,1,0.121361,21561344,1250,0
+  large-group,0,0.114768,18317312,218391,1
+  large-group,1,0.126105,20824064,235719,1
+scope: synthetic Python fixtures; init excluded; warm median; per-process peak RSS
+functions: 10000
+runs: 3
+measurements[8]{scenario,binary,seconds,rss_bytes,output_bytes,groups}:
+  many-small,0,1.446361,28459008,2179307,10
+  many-small,1,1.316860,36601856,2340894,10
+  few-large,0,0.741365,100188160,2235623,10
+  few-large,1,0.810855,107462656,2425734,10
+  unique,0,0.744475,113868800,904,0
+  unique,1,0.783681,119898112,1251,0
+  large-group,0,0.740831,101433344,2233066,1
+  large-group,1,0.808029,108494848,2421062,1

@@ -132,3 +132,37 @@ Status and fix commit:
 ```
 
 Results: APPROVED, CHANGES_REQUIRED, BLOCKED. APPROVED identifies a reviewed revision; it does not imply integration or user acceptance.
+
+## TASK-207 review (2026-10-15, coordinator)
+
+Revision: `feat/207-token-twins` at `3ca021a`, base `2705d64` (`origin/main`). Result: APPROVED
+by the coordinator for maintainer review; not integrated into main.
+
+- R207-1 (major, fixed): worker A's commit `a324710` embedded the output of the shell `id`
+  command (local account and group names) in an assertion message in
+  `crates/mct-languages/src/lib.rs`. Replaced by `{id}` and squashed into the same commit
+  before integration (now `d690c7b`); `git log -p bfbf4b3..HEAD` on the branch has no match.
+  The branch was never pushed. Worker A's checkpoint lists the pre-rewrite hashes.
+- R207-2 (minor, fixed): the coordinator's first real-grouping test expected two groups; a
+  Python docstring is a literal statement, so only one group is correct. Expectation fixed.
+- Checks on `3ca021a`: `scripts/unix/check.sh` fmt ok; tests 1476 passed, 0 failed, 24 ignored;
+  CI clippy (unwrap/expect/panic denied) no warnings; mct-eval no regressions.
+- Scope audit: no change to `schema.rs`, `indexer.rs`, `mct-mcp-server` or `LanguageParser`;
+  no TODO/FIXME/placeholder in the new code; no Cargo.toml/Cargo.lock change.
+- Stage 8 and the 20-group manual review: ADR-007 "Evaluation (Stage 8)".
+- R207-3 (major, fixed in `99f7058`): black-box testing found that two Python functions
+  differing only in whether a statement sits inside an `if` were grouped as clones, because
+  Python's indent/dedent tokens are hidden in the tree. Fixed with synthetic block markers,
+  restricted to the candidate's own blocks. Prove-it tests were written first and failed
+  before the fix. An intermediate version that kept every marker in the candidate's lines
+  lost two real pydantic-core groups; the re-measurement caught it, and a regression test
+  now covers it. Final reports are identical to Stage 8 on both projects. ADR-007 updated in
+  `bfb7ee7`, which also documents three further limitations found by the same testing.
+  check.sh on `bfb7ee7`: all checks passed (1488/0/24).
+- R207-4 (minor, fixed in `29b4c2e`): reviewing the live report for this repository found
+  Rust copies that differed only in visibility left ungrouped, because `pub` was a token.
+  Examples: `pub(super) fn push_symbol` in the JS/TS walker and `pub fn approx_tokens` in
+  mct-eval. Rust's `visibility_modifier` is now trivia. Tests were written first and failed
+  before the fix. Stage 8 re-measured: this repository 147 to 148 groups, pydantic-core 149 to
+  151. No group lost a member, and every added member was read and is a real copy. ADR-007
+  updated in `01fe107`. check.sh: all checks passed (1490/0/24).
