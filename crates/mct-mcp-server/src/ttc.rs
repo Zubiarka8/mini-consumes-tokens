@@ -29,13 +29,57 @@ pub struct TtcEntry {
     pub when: String,
     pub err: String,
     pub tags: String,
+    /// Contract (issue #17): what must hold before a call.
+    pub pre: String,
+    /// Contract: what a successful call returns.
+    pub post: String,
+    /// Contract: side effects, `<class>; <detail>`. Parsing guarantees the
+    /// class is valid, so `effect()` never fails on a parsed entry.
+    pub effects: String,
+}
+
+/// A tool's side-effect class, the first word of its `EFFECTS` line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Effect {
+    /// Touches nothing outside the server's own catalog.
+    None,
+    /// Reads the index or project files; may fill caches.
+    Read,
+    /// Changes persistent state (the index).
+    Write,
+}
+
+impl Effect {
+    fn parse(effects: &str) -> Option<Self> {
+        match effects.split(';').next().map(str::trim) {
+            Some("none") => Some(Self::None),
+            Some("read") => Some(Self::Read),
+            Some("write") => Some(Self::Write),
+            _ => None,
+        }
+    }
 }
 
 impl TtcEntry {
     /// Expands this entry into the compact description string installed as
-    /// the tool's live `rmcp` catalog description.
+    /// the tool's live `rmcp` catalog description. The contract stays out:
+    /// it is served on demand by `contract()`.
     pub fn expand(&self) -> String {
         format!("{} | NOT: {} | TAGS: {}", self.when, self.err, self.tags)
+    }
+
+    /// The contract block `get_tool_schema` appends.
+    pub fn contract(&self) -> String {
+        format!(
+            "PRE: {}\nPOST: {}\nEFFECTS: {}",
+            self.pre, self.post, self.effects
+        )
+    }
+
+    pub fn effect(&self) -> Effect {
+        // Unreachable fallback for a hand-built entry: treat it as a write,
+        // the class every runtime check refuses.
+        Effect::parse(&self.effects).unwrap_or(Effect::Write)
     }
 }
 
@@ -58,12 +102,13 @@ impl std::error::Error for TtcParseError {}
 /// Parses TTC source into a `tool name -> entry` map.
 ///
 /// Grammar: blocks are separated by one or more blank lines. Each block is
-/// a `TOOL <name>` header line followed by exactly one `WHEN `, one `ERR `
-/// and one `TAGS ` line, in any order. A line anywhere whose trimmed text
+/// a `TOOL <name>` header line followed by exactly one each of `WHEN `,
+/// `ERR `, `TAGS `, `PRE `, `POST ` and `EFFECTS ` lines, in any order. A line anywhere whose trimmed text
 /// starts with `#` is a comment and ignored, as is a blank line outside a
 /// block. Returns an error — never panics — on a missing/malformed header,
 /// an unrecognized line inside a block, a duplicate field within a block,
-/// a duplicate `TOOL` name across blocks, or a block missing a field.
+/// a duplicate `TOOL` name across blocks, a block missing a field, or an
+/// `EFFECTS` line whose class isn't `none`, `read` or `write`.
 pub fn parse(source: &str) -> Result<BTreeMap<String, TtcEntry>, TtcParseError> {
     let lines: Vec<&str> = source.lines().collect();
     let mut out = BTreeMap::new();
@@ -89,9 +134,9 @@ pub fn parse(source: &str) -> Result<BTreeMap<String, TtcEntry>, TtcParseError> 
             .to_string();
         i += 1;
 
-        let mut when: Option<String> = None;
-        let mut err: Option<String> = None;
-        let mut tags: Option<String> = None;
+        // Field keywords, in the order `TtcEntry`'s fields are filled.
+        const FIELDS: [&str; 6] = ["WHEN", "ERR", "TAGS", "PRE", "POST", "EFFECTS"];
+        let mut values: [Option<String>; 6] = Default::default();
 
         while i < lines.len() {
             let raw = lines[i];
@@ -104,53 +149,48 @@ pub fn parse(source: &str) -> Result<BTreeMap<String, TtcEntry>, TtcParseError> 
                 continue;
             }
             let line_no = i + 1;
-            if let Some(rest) = trimmed.strip_prefix("WHEN ") {
-                if when.replace(rest.trim().to_string()).is_some() {
-                    return Err(TtcParseError {
-                        line: line_no,
-                        message: format!("duplicate WHEN in tool `{name}`"),
-                    });
-                }
-            } else if let Some(rest) = trimmed.strip_prefix("ERR ") {
-                if err.replace(rest.trim().to_string()).is_some() {
-                    return Err(TtcParseError {
-                        line: line_no,
-                        message: format!("duplicate ERR in tool `{name}`"),
-                    });
-                }
-            } else if let Some(rest) = trimmed.strip_prefix("TAGS ") {
-                if tags.replace(rest.trim().to_string()).is_some() {
-                    return Err(TtcParseError {
-                        line: line_no,
-                        message: format!("duplicate TAGS in tool `{name}`"),
-                    });
-                }
-            } else {
+            let field = FIELDS.iter().enumerate().find_map(|(slot, key)| {
+                trimmed
+                    .strip_prefix(key)
+                    .and_then(|rest| rest.strip_prefix(' '))
+                    .map(|rest| (slot, *key, rest.trim().to_string()))
+            });
+            let Some((slot, key, value)) = field else {
                 return Err(TtcParseError {
                     line: line_no,
                     message: format!("unrecognized line in tool `{name}`: `{trimmed}`"),
+                });
+            };
+            if values[slot].replace(value).is_some() {
+                return Err(TtcParseError {
+                    line: line_no,
+                    message: format!("duplicate {key} in tool `{name}`"),
                 });
             }
             i += 1;
         }
 
-        let when = when.ok_or_else(|| TtcParseError {
+        let [when, err, tags, pre, post, effects] = values;
+        let missing = |key: &str| TtcParseError {
             line: header_line,
-            message: format!("tool `{name}` missing WHEN"),
-        })?;
-        let err = err.ok_or_else(|| TtcParseError {
-            line: header_line,
-            message: format!("tool `{name}` missing ERR"),
-        })?;
-        let tags = tags.ok_or_else(|| TtcParseError {
-            line: header_line,
-            message: format!("tool `{name}` missing TAGS"),
-        })?;
+            message: format!("tool `{name}` missing {key}"),
+        };
+        let entry = TtcEntry {
+            when: when.ok_or_else(|| missing("WHEN"))?,
+            err: err.ok_or_else(|| missing("ERR"))?,
+            tags: tags.ok_or_else(|| missing("TAGS"))?,
+            pre: pre.ok_or_else(|| missing("PRE"))?,
+            post: post.ok_or_else(|| missing("POST"))?,
+            effects: effects.ok_or_else(|| missing("EFFECTS"))?,
+        };
+        if Effect::parse(&entry.effects).is_none() {
+            return Err(TtcParseError {
+                line: header_line,
+                message: format!("tool `{name}` EFFECTS must start with none, read or write"),
+            });
+        }
 
-        if out
-            .insert(name.clone(), TtcEntry { when, err, tags })
-            .is_some()
-        {
+        if out.insert(name.clone(), entry).is_some() {
             return Err(TtcParseError {
                 line: header_line,
                 message: format!("duplicate TOOL block for `{name}`"),
@@ -175,6 +215,7 @@ pub const KNOWN_TOOL_NAMES: &[&str] = &[
     "hybrid_search_like",
     "search_symbols",
     "hybrid_search",
+    "semantic_search",
     "find_references",
     "find_calls",
     "find_callers",
@@ -185,10 +226,12 @@ pub const KNOWN_TOOL_NAMES: &[&str] = &[
     "get_file_skeleton",
     "get_project_overview",
     "find_dead_code",
+    "get_dependency_graph",
     "get_file_tree",
     "discover_tool_categories",
     "get_tool_schema",
     "batch",
+    "select_tools",
 ];
 
 #[cfg(test)]
@@ -203,18 +246,41 @@ mod tests {
 
     #[test]
     fn parses_a_single_well_formed_block() {
-        let src = "TOOL foo\nWHEN do the thing.\nERR not for the other thing.\nTAGS a, b\n";
+        let src = "TOOL foo\nWHEN do the thing.\nERR not for the other thing.\nTAGS a, b\nPRE p\nPOST q\nEFFECTS read; r\n";
         let parsed = parse(src).expect("valid TTC should parse");
         assert_eq!(parsed.len(), 1);
         let entry = &parsed["foo"];
         assert_eq!(entry.when, "do the thing.");
         assert_eq!(entry.err, "not for the other thing.");
         assert_eq!(entry.tags, "a, b");
+        assert_eq!(entry.pre, "p");
+        assert_eq!(entry.post, "q");
+        assert_eq!(entry.effects, "read; r");
+        assert_eq!(entry.effect(), Effect::Read);
+        assert_eq!(entry.contract(), "PRE: p\nPOST: q\nEFFECTS: read; r");
+    }
+
+    #[test]
+    fn missing_contract_field_is_an_error() {
+        let src = "TOOL foo\nWHEN a\nERR b\nTAGS c\nPRE p\nEFFECTS none\n";
+        let err = parse(src).expect_err("missing POST should error");
+        assert!(err.message.contains("missing POST"), "{}", err.message);
+    }
+
+    #[test]
+    fn unknown_effect_class_is_an_error() {
+        let src = "TOOL foo\nWHEN a\nERR b\nTAGS c\nPRE p\nPOST q\nEFFECTS mutate; x\n";
+        let err = parse(src).expect_err("unknown EFFECTS class should error");
+        assert!(
+            err.message.contains("none, read or write"),
+            "{}",
+            err.message
+        );
     }
 
     #[test]
     fn field_order_within_a_block_is_flexible() {
-        let src = "TOOL foo\nTAGS a\nERR nope\nWHEN yep\n";
+        let src = "TOOL foo\nEFFECTS none\nTAGS a\nPOST q\nERR nope\nPRE p\nWHEN yep\n";
         let parsed = parse(src).expect("any field order should parse");
         assert_eq!(parsed["foo"].when, "yep");
         assert_eq!(parsed["foo"].err, "nope");
@@ -223,14 +289,14 @@ mod tests {
 
     #[test]
     fn comment_and_blank_lines_are_ignored() {
-        let src = "# header comment\n\nTOOL foo\n# mid-block comment\nWHEN yep\nERR nope\nTAGS a\n\n# trailing\n";
+        let src = "# header comment\n\nTOOL foo\n# mid-block comment\nWHEN yep\nERR nope\nTAGS a\nPRE p\nPOST q\nEFFECTS none\n\n# trailing\n";
         let parsed = parse(src).expect("comments/blank lines should be ignored");
         assert_eq!(parsed.len(), 1);
     }
 
     #[test]
     fn multiple_blocks_parse_independently() {
-        let src = "TOOL foo\nWHEN a\nERR b\nTAGS c\n\nTOOL bar\nWHEN d\nERR e\nTAGS f\n";
+        let src = "TOOL foo\nWHEN a\nERR b\nTAGS c\nPRE p\nPOST q\nEFFECTS read\n\nTOOL bar\nWHEN d\nERR e\nTAGS f\nPRE p\nPOST q\nEFFECTS write\n";
         let parsed = parse(src).expect("multiple blocks should parse");
         assert_eq!(parsed.len(), 2);
         assert!(parsed.contains_key("foo"));
@@ -253,7 +319,7 @@ mod tests {
 
     #[test]
     fn duplicate_tool_name_across_blocks_is_an_error() {
-        let src = "TOOL foo\nWHEN a\nERR b\nTAGS c\n\nTOOL foo\nWHEN a\nERR b\nTAGS c\n";
+        let src = "TOOL foo\nWHEN a\nERR b\nTAGS c\nPRE p\nPOST q\nEFFECTS none\n\nTOOL foo\nWHEN a\nERR b\nTAGS c\nPRE p\nPOST q\nEFFECTS none\n";
         let err = parse(src).expect_err("duplicate TOOL block should error");
         assert!(err.message.contains("duplicate TOOL block"));
     }
@@ -290,6 +356,9 @@ mod tests {
             when: "do X".to_string(),
             err: "not Y".to_string(),
             tags: "x, y".to_string(),
+            pre: "p".to_string(),
+            post: "q".to_string(),
+            effects: "none".to_string(),
         };
         assert_eq!(entry.expand(), "do X | NOT: not Y | TAGS: x, y");
     }
@@ -324,6 +393,8 @@ mod tests {
             assert!(!entry.when.is_empty(), "`{name}` has an empty WHEN");
             assert!(!entry.err.is_empty(), "`{name}` has an empty ERR");
             assert!(!entry.tags.is_empty(), "`{name}` has an empty TAGS");
+            assert!(!entry.pre.is_empty(), "`{name}` has an empty PRE");
+            assert!(!entry.post.is_empty(), "`{name}` has an empty POST");
         }
     }
 }

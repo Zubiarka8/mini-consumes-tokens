@@ -13,8 +13,8 @@
 //! `tests/index_integration.rs` for the header/definition-split assertions.
 
 use mct_core::{
-    LanguageParser, Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolId,
-    SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
+    LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
+    SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use std::collections::HashSet;
 
@@ -63,7 +63,7 @@ impl LanguageParser for CppParser {
         }
 
         let module_name = module_name_for(&file.relative_path);
-        let mut walker = Walker::new(&file.contents);
+        let mut walker = Walker::new(&file.contents, &file.relative_path);
         let mut module_location = location(root);
         // The root node of a file ending in a newline ends at column 0 of
         // the (empty) line after the last one; the file's last line is the
@@ -172,6 +172,9 @@ struct Walker<'a> {
     source: &'a str,
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
+    relation_targets: Vec<RelationTarget>,
+    /// This file's repository-relative path, the base of quoted includes.
+    path: &'a str,
     next_id: SymbolId,
     /// Namespace names opened so far in this file (innermost segment), so
     /// an out-of-line `ns::fn()` definition is told apart from a
@@ -180,11 +183,13 @@ struct Walker<'a> {
 }
 
 impl<'a> Walker<'a> {
-    fn new(source: &'a str) -> Self {
+    fn new(source: &'a str, path: &'a str) -> Self {
         Self {
             source,
+            path,
             symbols: Vec::new(),
             relations: Vec::new(),
+            relation_targets: Vec::new(),
             next_id: 0,
             namespaces: HashSet::new(),
         }
@@ -419,6 +424,7 @@ impl<'a> Walker<'a> {
                     let name = if let Some(stripped) =
                         raw.strip_prefix('"').and_then(|s| s.strip_suffix('"'))
                     {
+                        self.push_include_target(ctx.owner, stripped, location(node));
                         stripped.to_string()
                     } else {
                         raw.trim_start_matches('<')
@@ -539,8 +545,35 @@ impl<'a> Walker<'a> {
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
+            relation_targets: self.relation_targets,
             ..Default::default()
         }
+    }
+
+    /// `#include "dir/x.h"` depends on the file `x.h` next to the including
+    /// file (the compiler tries that directory first): an `Imports` relation
+    /// to that file's `Module` symbol, pinned to its exact path so the
+    /// header is never confused with its same-named source file. A quoted
+    /// include found only through an include path (`-I`) resolves to no
+    /// file here and stays unresolved; an `<angle>` include proves nothing.
+    fn push_include_target(&mut self, owner: SymbolId, spec: &str, loc: Location) {
+        let Some(resolved) = mct_core::resolve_reference_path(self.path, &format!("./{spec}"))
+        else {
+            return;
+        };
+        let file = resolved.rsplit('/').next().unwrap_or(&resolved);
+        let name = module_name_for(file);
+        if name.is_empty() {
+            return;
+        }
+        let relation = self.relations.len();
+        self.push_relation(owner, RelationKind::Imports, name, loc);
+        self.relation_targets.push(RelationTarget {
+            relation,
+            path: Some(resolved),
+            kind: Some(SymbolKind::Module),
+            ..Default::default()
+        });
     }
 }
 

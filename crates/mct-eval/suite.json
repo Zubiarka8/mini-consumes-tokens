@@ -246,6 +246,14 @@
       "args": { "symbol": "run_tally" },
       "expect": ["function run_tally", "callee settle", "rustcore/tally.rs:L11-L13"],
       "absent": ["settle_totals", "accumulate_cents", "Uncertain relations", "[cpp]", "[go]"]
+    },
+    {
+      "name": "module dependency graph follows a resolved TypeScript import",
+      "category": "structure",
+      "tool": "get_dependency_graph",
+      "args": { "module": "frontend/apiClient.ts" },
+      "expect": ["frontend/apiClient.ts", "frontend/format.ts"],
+      "absent": ["backend/", "jvm/"]
     }
   ]
 }

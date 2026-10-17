@@ -23,6 +23,8 @@ NEXT_PUBLIC_BASE_PATH=/mini-consumes-tokens npm run preview
 # http://127.0.0.1:4173/mini-consumes-tokens/docs/
 ```
 
+`scripts/serve.sh` does both steps with that prefix and opens the page (it calls `open`, so it is macOS-only; `SKIP_BUILD=1` reuses the existing `out/`, `PORT` changes the port). `npm start` is an alias for `npm run preview`.
+
 The preview server serves only exported files; it does not hide missing routes with a SPA fallback. Use the same prefix for build and preview. All content remains local until the maintainer explicitly publishes it.
 
 ```sh

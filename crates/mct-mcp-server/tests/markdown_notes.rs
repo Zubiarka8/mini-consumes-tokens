@@ -89,7 +89,7 @@ async fn a_heading_pack_is_its_section_and_stops_at_the_next_sibling() {
     let out = call(
         &server,
         "build_context_pack",
-        json!({"symbol": "Shared", "path": "a/beta.md"}),
+        json!({"symbol": "Shared", "path": "a/beta.md", "format": "text"}),
     )
     .await;
     assert!(out.contains("alpha body"), "{out}");
@@ -108,7 +108,7 @@ async fn a_note_pack_is_the_note_with_its_links() {
     let out = call(
         &server,
         "build_context_pack",
-        json!({"symbol": "bare", "path": "bare.md"}),
+        json!({"symbol": "bare", "path": "bare.md", "format": "text"}),
     )
     .await;
     assert!(out.contains("Only text, no heading"), "{out}");
@@ -123,7 +123,7 @@ async fn a_note_pack_lists_only_the_notes_that_link_to_that_exact_path() {
         call(
             &server,
             "build_context_pack",
-            json!({"symbol": "beta", "path": path, "depth": 1}),
+            json!({"symbol": "beta", "path": path, "depth": 1, "format": "text"}),
         )
     };
     let first = pack("a/beta.md").await;
@@ -146,7 +146,12 @@ async fn a_note_pack_lists_only_the_notes_that_link_to_that_exact_path() {
 async fn references_flag_an_ambiguous_note_link_and_keep_raw_spelling() {
     let dir = vault(FILES);
     let server = server_for(&dir).await;
-    let out = call(&server, "find_references", json!({"symbol": "beta"})).await;
+    let out = call(
+        &server,
+        "find_references",
+        json!({"symbol": "beta", "format": "text"}),
+    )
+    .await;
     assert!(
         out.contains("bare.md:1:1 [markdown] bare --references--> beta (ambiguous among 2: a/beta.md:1, b/beta.md:1)"),
         "{out}"

@@ -1,7 +1,6 @@
 "use client";
 import {
   Component,
-  Fragment,
   lazy,
   Suspense,
   useCallback,
@@ -13,12 +12,12 @@ import {
 import { motion, useInView } from "motion/react";
 import { useTranslation } from "react-i18next";
 import Link from "next/link";
-import { ArrowUpRight, FileCode2, Maximize2, Minimize2 } from "lucide-react";
+import { ArrowUpRight, Maximize2, Minimize2 } from "lucide-react";
 
 import {
   examples,
-  files,
   layerKeys,
+  storyStages,
   tourStages,
   type AtlasLayers,
   type Cue,
@@ -47,8 +46,9 @@ export function Atlas() {
   const [selected, setSelected] = useState(0);
   const [expanded, setExpanded] = useState(false);
   const [activeStage, setActiveStage] = useState(0);
+  const [storyStage, setStoryStage] = useState(0);
   const [layers, setLayers] = useState<AtlasLayers>([true, true, true]);
-  const [separation, setSeparation] = useState(1.45);
+  const separation = 1.45;
   const [rotation, setRotation] = useState(0.2);
   const [reset, setReset] = useState(0);
   const [cue, setCue] = useState<Cue>({ key: "idle", id: 0 });
@@ -106,36 +106,52 @@ export function Atlas() {
       expandButton.current?.focus();
     };
   }, [expanded]);
-  // One observer marks the stage crossing the middle of the dialog.
+  // One observer marks the stage crossing the middle of the dialog in full screen, or
+  // the story stage crossing the middle of the viewport on the page.
   useEffect(() => {
-    const dialog = root.current;
-    if (!expanded || !dialog) return;
-    setActiveStage(0);
-    setDetails(false);
+    const atlas = root.current;
+    if (!atlas) return;
+    if (expanded) {
+      setActiveStage(0);
+      setDetails(false);
+    }
+    const setStage = expanded ? setActiveStage : setStoryStage;
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries)
           if (entry.isIntersecting)
-            setActiveStage(Number((entry.target as HTMLElement).dataset.stage));
+            setStage(Number((entry.target as HTMLElement).dataset.stage));
       },
-      { root: dialog, rootMargin: "-45% 0px -50% 0px" },
+      { root: expanded ? atlas : null, rootMargin: "-45% 0px -50% 0px" },
     );
-    dialog
-      .querySelectorAll(".atlas-stage")
+    atlas
+      .querySelectorAll(expanded ? ".atlas-stage" : ".atlas-story-stage")
       .forEach((stage) => observer.observe(stage));
     return () => observer.disconnect();
   }, [expanded]);
-  const stage = expanded ? tourStages[activeStage] : undefined;
+  const tourStage = expanded ? tourStages[activeStage] : undefined;
+  const story = storyStages[storyStage];
+  const stage = tourStage ?? story;
+  // A stage selects its symbol when it activates; leaving full screen keeps the
+  // selection made there, because the story stage itself has not changed.
   useEffect(() => {
-    if (stage?.symbol)
-      setSelected(examples.findIndex(({ name }) => name === stage.symbol));
-    // Each stage that reaches the middle of the dialog plays its cue once.
-    setCue(({ id }) => ({ key: stage?.key ?? "idle", id: id + 1 }));
+    if (tourStage?.symbol)
+      setSelected(examples.findIndex(({ name }) => name === tourStage.symbol));
+  }, [tourStage]);
+  useEffect(() => {
+    if (story.symbol)
+      setSelected(examples.findIndex(({ name }) => name === story.symbol));
+  }, [story]);
+  // Each stage that reaches the middle plays its cue once.
+  useEffect(() => {
+    setCue(({ id }) => ({ key: stage.key, id: id + 1 }));
   }, [stage]);
   useEffect(() => {
     if (details) firstSummary.current?.focus();
   }, [details]);
-  const inView = useInView(root);
+  // The scene, not the whole atlas: the story makes the atlas much taller than its scene.
+  const space = useRef<HTMLDivElement>(null);
+  const inView = useInView(space);
   useEffect(() => {
     const motionPreference = matchMedia("(prefers-reduced-motion: reduce)");
     const update = () => setReduced(motionPreference.matches);
@@ -164,7 +180,6 @@ export function Atlas() {
       setFailed(true);
     }
   }, [inView, spatial, failed]);
-  const item = examples[selected];
   const controls = (
     <div className="spatial-controls">
       {ready && (
@@ -207,36 +222,11 @@ export function Atlas() {
       className={`atlas${expanded ? " atlas-expanded" : ""}`}
       ref={root}
       data-scene={failed ? "failed" : ready ? "ready" : "loading"}
+      data-story-stage={expanded ? undefined : storyStage}
       role={expanded ? "dialog" : undefined}
       aria-modal={expanded ? true : undefined}
       aria-label={expanded ? t("atlas") : undefined}
     >
-      <div className="atlas-top">
-        <span>
-          <span className="status-dot" />
-          {t("atlas")}
-        </span>
-        <div className="atlas-top-actions">
-          <span className="mono">MCT / 001</span>
-        </div>
-      </div>
-      <div className="atlas-project">
-        <div>
-          <span className="pack-label">{t("exampleProject")}</span>
-          <strong>
-            mini-consumes-tokens <span>/ Rust</span>
-          </strong>
-        </div>
-        <p>{t("projectBrief")}</p>
-        <p className="atlas-project-flow">
-          {files.map(({ name }, i) => (
-            <Fragment key={name}>
-              {i > 0 && <span> → </span>}
-              {name}
-            </Fragment>
-          ))}
-        </p>
-      </div>
       <div className="atlas-toolbar">
         <div
           className="atlas-layer-toggles"
@@ -262,40 +252,34 @@ export function Atlas() {
             </button>
           ))}
         </div>
-        <label className="atlas-separation">
-          <span>{t("layerSpacing")}</span>
-          <input
-            type="range"
-            min="0.7"
-            max="1.65"
-            step="0.05"
-            value={separation}
-            onChange={(event) => setSeparation(Number(event.target.value))}
-          />
-        </label>
       </div>
       <div className="atlas-view">
-        <div className="atlas-space">
+        <div className="atlas-space" ref={space}>
           {!ready && !failed && (
             <p className="atlas-loading" role="status">
               {t("loading3d")}
             </p>
           )}
           {spatial && (
-            <div className="spatial-layer" data-testid="spatial-layer">
+            <div
+              className="spatial-layer"
+              data-testid="spatial-layer"
+              data-cue={cue.key}
+            >
               <SceneBoundary onFailure={sceneFailure}>
                 <Suspense fallback={null}>
                   <SpatialAtlas
                     selected={selected}
                     layers={layers}
-                    focusLayer={stage?.layer}
+                    focusLayer={stage.layer}
+                    view={tourStage ? undefined : story.view}
                     separation={separation}
                     cue={cue}
                     rotation={rotation}
                     reset={reset}
                     onSelect={setSelected}
                     onReady={sceneReady}
-                    active={inView && visible}
+                    active={(inView || expanded) && visible}
                     reduced={reduced}
                     onFailure={sceneFailure}
                   />
@@ -312,6 +296,23 @@ export function Atlas() {
         )}
         {/* .atlas-space hides beside the fallback, so the row follows it instead. */}
         {failed && controls}
+        {/* Full screen has its own tour, so the story lives only on the page. */}
+        {!expanded && (
+          <ol className="atlas-story">
+            {storyStages.map(({ key }, i) => (
+              <li
+                key={key}
+                className="atlas-story-stage"
+                data-stage={i}
+                aria-current={storyStage === i ? "step" : undefined}
+              >
+                <span className="step-number mono">0{i + 1}</span>
+                <h3>{t(`${key}Title`)}</h3>
+                <p>{t(`${key}Text`)}</p>
+              </li>
+            ))}
+          </ol>
+        )}
         {expanded && (
           <div className="atlas-tour" data-active-stage={activeStage}>
             {tourStages.map(({ key, icon: Icon, methods, tools, docs }, i) => (
@@ -417,74 +418,6 @@ export function Atlas() {
           </div>
         )}
       </div>
-      <div className="symbol-controls" role="group" aria-label={t("select")}>
-        {examples.map((node, i) => (
-          <button
-            key={node.name}
-            type="button"
-            aria-pressed={selected === i}
-            aria-label={node.name}
-            onClick={() => setSelected(i)}
-          >
-            <span className="atlas-file-name">
-              <FileCode2 size={16} aria-hidden="true" />
-              <span>{files[node.file].name}</span>
-            </span>
-            <span className="atlas-file-role">{t(`role${i}`)}</span>
-            <span className="atlas-file-symbol">{node.name}</span>
-          </button>
-        ))}
-      </div>
-      <div className="context-pack" aria-live="polite" aria-atomic="true">
-        <div className="atlas-query">
-          <span>{t("agentQuestion")}</span>
-          <p>{t(`query${selected}`)}</p>
-        </div>
-        <div className="pack-label">
-          <span>{t("pack")}</span>
-          <span aria-hidden="true">↗</span>
-        </div>
-        <motion.div key={item.name} initial={false} animate={{ opacity: 1 }}>
-          <strong>{item.name}</strong>
-          <p className="atlas-explanation">{t(`purpose${selected}`)}</p>
-          <dl>
-            <div>
-              <dt>{t("definition")}</dt>
-              <dd>
-                {files[item.file].path}:{item.line}
-              </dd>
-            </div>
-            <div>
-              <dt>{t("callers")}</dt>
-              <dd>{item.callers}</dd>
-            </div>
-            <div>
-              <dt>{t("dependencies")}</dt>
-              <dd>{item.calls}</dd>
-            </div>
-          </dl>
-          <div
-            className="atlas-source"
-            role="region"
-            aria-label={t("sourcePreview")}
-            tabIndex={0}
-          >
-            <pre>
-              <code>
-                {item.source.map((line, i) => (
-                  <span className="atlas-code-line" key={i}>
-                    <span className="atlas-line-number" aria-hidden="true">
-                      {item.line + i}
-                    </span>
-                    <span>{line}</span>
-                  </span>
-                ))}
-              </code>
-            </pre>
-          </div>
-        </motion.div>
-      </div>
-      <p className="atlas-caption">{t("illustration")}</p>
     </div>
   );
 }

@@ -7,7 +7,7 @@ description: Detect a new package manager's manifest, mark library calls as exte
 
 | Goal | Where | Example |
 | --- | --- | --- |
-| [List the libraries a project **declares**](#manifests) | `crates/mct-index/src/manifests.rs` | read `composer.json` for PHP |
+| [List the libraries a project **declares**](#manifests) | `crates/mct-index/src/manifests.rs` and `manifests/<ecosystem>.rs` | read `composer.json` for PHP |
 | [Mark calls **into** a library as external](#external-calls) | the language's parser | `std::collections::HashMap` is not in your repo |
 | [Understand a **framework's** patterns](#frameworks) | the language's parser and its corpus | React components, Django views |
 
@@ -17,12 +17,14 @@ To add a whole new language, see [Adding a language](/docs/extending) first.
 
 | What | File |
 | --- | --- |
-| Manifest detection and parsing | `crates/mct-index/src/manifests.rs` |
+| Manifest detection, dispatch and deduplication | `crates/mct-index/src/manifests.rs` |
+| One parser per format | `crates/mct-index/src/manifests/<ecosystem>.rs` (`rust.rs`, `javascript.rs`, `python.rs`, `go.rs`) |
 | Where manifests are picked out during indexing | `crates/mct-index/src/indexer.rs` (`manifest_language` call in `index_file`) |
 | Manifest tests | `manifests.rs` unit tests, `crates/mct-index/tests/manifests.rs` |
 | Stored dependencies | [`dependencies`](/docs/schema#dependencies) table |
 | `RelationTarget` (external, module, qualifier…) | `crates/mct-core/src/symbol.rs` |
 | Parsers that set it | `crates/mct-lang-<name>/src/lib.rs` |
+| Library-specific regression tests | `crates/mct-lang-<language>/src/libraries/<name>/mod.rs` (`#[cfg(test)]`) |
 | Framework coverage table | `CONTRIBUTING.md`, "Framework/library coverage" |
 
 ### Adding a library to the project itself
@@ -60,7 +62,7 @@ No schema change and no new MCP tool is needed: the new format appears in the ex
 
 ### Step by step: `composer.json` (PHP)
 
-All changes are in `crates/mct-index/src/manifests.rs`.
+Detection and dispatch stay in `crates/mct-index/src/manifests.rs`; the format parser goes in a new private module, `crates/mct-index/src/manifests/php.rs`, declared with `mod php;` in `manifests.rs`.
 
 **1. Recognize the file name.** The value is the language id of the ecosystem; use the id of an existing parser.
 
@@ -93,10 +95,10 @@ pub fn parse_manifest(file_name: &str, contents: &str) -> Vec<ManifestDependency
 
 **3. Write the parse function.** Read the main section first: if a name appears twice, the first one is kept. Invalid input returns an empty list. It must never panic, because the file comes from the repository being indexed.
 
-```rust
+```rust title="crates/mct-index/src/manifests/php.rs"
 /// `require` then `require-dev`. Platform entries (`php`, `ext-*`) are
 /// requirements on the runtime, not libraries, so they are skipped.
-fn parse_composer_json(contents: &str) -> Vec<ManifestDependency> {
+pub(super) fn parse_composer_json(contents: &str) -> Vec<ManifestDependency> {
     let Ok(doc) = serde_json::from_str::<serde_json::Value>(contents) else {
         return Vec::new();
     };
@@ -199,7 +201,7 @@ A framework is code written in a language that is already supported, so it is ha
 2. **Check whether existing kinds can express it.** Most patterns fit: a component is a `Function` or `Class`, a decorator registering a handler is a `References` relation, an import is `Imports`. If they fit, change only the parser:
    - find the node kinds with `to_sexp()` ([step 2 of Adding a language](/docs/extending#2-look-at-the-syntax-tree));
    - emit the symbol or relation in the walker;
-   - add a unit test in `tests/parse.rs`.
+   - add a unit test in `tests/parse.rs`, or a focused regression in `src/libraries/<name>/mod.rs` (one folder per library: `react`, `django`, `flask`, `bootstrap`, `tailwind`).
 3. **Add a corpus scenario** under `tests/corpus/project/<scenario>/`: a small app built with the framework. Name the framework and its exact version in a header comment (`react@18.3.1`). Test only the app's own code: never copy the framework's source into the repository.
 4. **Assert the new relations one by one** in `tests/corpus.rs` with `corpus().relation(...)`, then regenerate the snapshot:
 
