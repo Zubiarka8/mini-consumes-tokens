@@ -1,0 +1,69 @@
+scope: F1.3 primitive spelling evidence; same dirty base ac525ca
+before_sha256: 5e2a763321101bc75cd10508ca374102ca8b78495acd8496de47b3d008a75648
+before_binary_bytes: 31937664
+after_sha256: 0de8c129f5cfcadf9c3ddc5ac7726c657c1b034e29f3edf688b246e80caba6e2
+after_binary_bytes: 31939936
+initial_1000:
+  binary_order[2]: before,after
+  scope: synthetic Python fixtures; init excluded; warm median; per-process peak RSS
+  functions: 1000
+  runs: 5
+  measurements[8]{scenario,binary,seconds,rss_bytes,output_bytes,groups}:
+    many-small,0,0.224721,15597568,238108,10
+    many-small,1,0.224827,15679488,239608,10
+    few-large,0,0.136782,20643840,243608,10
+    few-large,1,0.135868,20660224,245108,10
+    unique,0,0.130849,20807680,1695,0
+    unique,1,0.129045,20824064,1695,0
+    large-group,0,0.134276,21037056,236443,1
+    large-group,1,0.144587,20168704,236593,1
+initial_10000:
+  binary_order[2]: before,after
+  scope: synthetic Python fixtures; init excluded; warm median; per-process peak RSS
+  functions: 10000
+  runs: 3
+  measurements[8]{scenario,binary,seconds,rss_bytes,output_bytes,groups}:
+    many-small,0,2.141984,40566784,2344129,10
+    many-small,1,2.231376,40894464,2345629,10
+    few-large,0,1.046131,98762752,2428969,10
+    few-large,1,1.020919,111001600,2430469,10
+    unique,0,0.835007,123420672,1696,0
+    unique,1,0.834419,123518976,1696,0
+    large-group,0,0.901621,99745792,2421786,1
+    large-group,1,0.941924,112312320,2421936,1
+reversed_1000:
+  binary_order[2]: after,before
+  scope: synthetic Python fixtures; init excluded; warm median; per-process peak RSS
+  functions: 1000
+  runs: 7
+  measurements[8]{scenario,binary,seconds,rss_bytes,output_bytes,groups}:
+    many-small,0,0.161111,15646720,239608,10
+    many-small,1,0.163206,15630336,238108,10
+    few-large,0,0.097684,19382272,245108,10
+    few-large,1,0.097080,19513344,243608,10
+    unique,0,0.096724,20774912,1695,0
+    unique,1,0.094203,20725760,1695,0
+    large-group,0,0.098468,20152320,236593,1
+    large-group,1,0.099176,20119552,236443,1
+reversed_10000:
+  binary_order[2]: after,before
+  scope: synthetic Python fixtures; init excluded; warm median; per-process peak RSS
+  functions: 10000
+  runs: 5
+  measurements[8]{scenario,binary,seconds,rss_bytes,output_bytes,groups}:
+    many-small,0,1.481780,39993344,2345629,10
+    many-small,1,1.523828,40009728,2344129,10
+    few-large,0,0.872680,110854144,2430469,10
+    few-large,1,1.125526,99893248,2428969,10
+    unique,0,0.829265,123551744,1696,0
+    unique,1,0.833919,110854144,1696,0
+    large-group,0,0.863865,112099328,2421936,1
+    large-group,1,0.878818,112099328,2421786,1
+annotated_few_large:
+  scope: synthetic Python few-large with complete primitive annotations; no fixture execution
+  runs: 5
+  measurements[4]{functions,binary,seconds,rss_bytes,output_bytes,groups,conflict_groups}:
+    1000,before,0.100377,19824640,281130,10,0
+    1000,after,0.102161,19972096,308312,10,10
+    10000,before,0.915666,115408896,2807827,10,0
+    10000,after,0.960262,116506624,3068345,10,10

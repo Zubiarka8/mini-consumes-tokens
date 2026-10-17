@@ -20,15 +20,18 @@ script names and flags wherever both exist:
 | `check.sh` | CI's checks locally: `cargo fmt --check`, `cargo test`, the CI clippy invocation (unwrap/expect/panic denied), the `mct-eval` quality gate. One line per step; on failure, only the unformatted files, the failing tests' panic messages, the lint headlines with their location, or the eval regressions. The status lines are also kept in `target/script-logs/check-summary.md` for `pr-body.sh`. `-p <crate>` for one crate (skips eval), `--only fmt\|test\|clippy\|eval`, `--no-eval`. |
 | `pr-body.sh [file]` | A PR description draft whose Verification section is copied from the last `check.sh` run and whose token figures come from the last `token-report.sh` run, so the numbers are not written from memory. Runs nothing. Warns when a log is from another commit than HEAD, from a dirty tree, or from a partial `check.sh` run. Default output: `target/script-logs/pr-body.md`. |
 | `branch-worktree.sh <branch> [base]` | A new branch in its own worktree, cut from `origin/main` (or `base`), in a sibling directory of this checkout. Fetches origin first, refuses an existing branch or path, and prints the directory to `cd` into. |
+| `sync-skills.sh [worktree]` | Makes every project-local skill available in a worktree: copies the skills missing from the primary checkout's `.agents/skills` (never overwrites or deletes, skips caches) and ensures `.claude/skills` points at them. `branch-worktree.sh` runs it automatically. |
+| `preview-branches.sh [--no-build] [--base-path P] [--port-start N] <branch>...` | Builds each branch's website with the deployment base path and serves it on its own free port (from 4700), after syncing skills and running `npm ci` when needed. Checks the page and its CSS answer 200 before printing the URL. `--stop` stops every preview it started. The branches need worktrees. |
 | `branches-status.sh [--all]` | What hasn't reached origin: local branches with commits missing from their upstream (or from every remote branch, when they have no upstream), diverged branches, worktrees with uncommitted changes, and stashes. Each branch line shows how many commits are new relative to `main`. Only `git fetch` touches the remote. `--all` lists every branch. |
 | `pr-conflicts.sh [--pr <number>] [--no-fetch]` | Fetches origin once, queries open PRs and CI once, and computes merges without changing the checkout. Reports conflicting files, overlap between PRs, divergence and PRs whose merged tree adds nothing to the base. Logs exact base/head revisions in `target/script-logs/pr-conflicts.json`. `--prepare <number> --worktree <new-path>` creates a new branch/worktree and starts a merge for manual review; it never commits, pushes or closes PRs. Python 3.9+ and authenticated `gh` required. Exit 0: no conflicts, 1: conflicts found (including a prepared conflicted merge), 2: usage/tool error. Windows: `scripts/windows/pr-conflicts.ps1`, same flags. |
 | `publish-branch.sh <branch> [--title <t>] [--dry-run]` | Pushes a local branch to origin and opens a PR against `main`. Fast-forward only: refuses when the push would need a force, and when the branch has nothing new relative to `main`. Pushes only when a PR is already open. Uses the branch's upstream name when it is on origin, otherwise the same name. The PR body lists the commits and ends with the Claude Code footer. Needs `gh`. `--dry-run` shows the plan without pushing. |
 | `release.sh bump <x.y.z\|patch\|minor\|major>`, `dry-run`, `publish` | The scriptable steps of `RELEASING.md`. `bump` sets every workspace and internal dependency version and the README badge, refreshes `Cargo.lock` and the fuzz lockfiles and commits (on `main`, on a new `release-<x.y.z>` branch). `dry-run` checks the dated CHANGELOG section, runs `check.sh` and the installer test, opens the PR with `publish-branch.sh` and waits for a manual Release run. `publish` checks `origin/main`'s version, CHANGELOG and CI, pushes the `v<x.y.z>` tag (this publishes the GitHub Release) and waits until the release has its five archives. Never runs `cargo publish`. Needs `gh`. |
 | `reinstall.sh` | `cargo install` of `mct-mcp-server` and `mct-cli` from this checkout, rebuilds `.mct-index/index.sqlite3` if its schema is newer than the checkout's, then runs `mcp-smoke.sh`. `--reindex` to always rebuild, `--semantic` for `--features semantic`, `--server-only`. Run it after switching branches or merging a server change, then `/mcp`. |
-| `mcp-smoke.sh` | Starts the server over stdio, sends `initialize` + `tools/list`, reports the tool count or the real startup error behind Claude Code's `CONNECTION_CLOSED`. `--dev` for a fresh `target/debug` build, `--expect <tool>` to assert a tool is listed, `--list`, `--bin <path>` and `--root <dir>` to test another binary or project. |
+| `mcp-smoke.sh` | Starts the server over stdio, sends `initialize` + `tools/list`, reports the tool count or the real startup error behind Claude Code's `CONNECTION_CLOSED`. `--dev` for a fresh `target/debug` build, `--expect <tool>` to assert a tool is listed, `--list`. |
 | `new-tool-check.sh <tool>` | The wiring checklist for a new MCP tool (`#[tool]` method, `tools.ttc`, `KNOWN_TOOL_NAMES`, `TOOL_CATEGORIES`, `batch` dispatch, tests, eval suite, README, CLAUDE.md, protocol spec) with what's still missing, then the catalog tests. `--no-tests` to skip them. |
-| `new-language-check.sh <suffix>` | The same for a new `crates/mct-lang-<suffix>` (CONTRIBUTING.md's checklist): `mct-core`/grammar dependencies, `LanguageParser` impl, workspace member and dependency, the `mct-languages` dependency and `build_registry` line, `tests/parse.rs` with a `ParseError::Syntax` case, fuzz harness and its CI matrix entry, README and `internal/checklist.md`. Then the crate's tests and the `mct-languages` registry tests. `--readme-name 'C++'` when README spells it differently, `--no-tests`. |
+| `new-language-check.sh <suffix>` | The same for a new `crates/mct-lang-<suffix>` (CONTRIBUTING.md's checklist): `mct-core`/grammar dependencies, `LanguageParser` impl, workspace member and dependency, both `Cargo.toml`s and `build_registry`s, `tests/parse.rs` with a `ParseError::Syntax` case, fuzz harness and its CI matrix entry, README and `internal/checklist.md`. Then the crate's tests and mct-cli's registry tests. `--readme-name 'C++'` when README spells it differently, `--no-tests`. |
 | `token-report.sh` | Every token measurement in one screen: MCP tool vs grep+read per language (`token_benchmark`), JSON/TOON/text per response shape (`format_benchmark`), each composite tool vs separate calls (any `mct-mcp-server` test printing `% fewer`), and `mct-eval`'s catalog/response totals. `--markdown <file>` for a PR body, `--no-eval`. |
+| `reindex-delay-smoke.sh` | Smoke test for incremental indexing delay behavior. |
 | `corpus-report.sh <lang>` | One language's long-fixture corpus (issue #74): its `tests/corpus.rs` tests, then the `mct-corpus` report — files/lines/symbols/relations totals and relations name-matched across files, per-kind counts, the `internal/corpus-progress.md` cells, and heuristic checks for the usual parser bugs (file module ending past EOF, locals or nested bodies taken as symbols, relations outside their owner's range, members without a parent, odd names, a name that is both a method and a function, the most frequent callees not defined in the corpus). Replaces reading `expected.snap`. `--bless` regenerates the snapshot first, `--update-progress` rewrites the crate's counts and the summary line in the progress table. |
 | `ci-failures.sh [<run-id>]` | Why a CI run failed, in one screen: the jobs that failed and the first error lines of each (compiler errors, panics, failed assertions with the line after), instead of the full `gh run view --log-failed` output. Default: the latest failed run on the current branch. Full log in `target/script-logs/ci-failures.log`. Needs `gh`. |
 | `pr-status.sh <number>` | A pull request in a few lines: title and state, review decision, merge readiness, checks passed/failed/running with the first failing names, and the latest comment. Filtered by `gh`'s own `--jq`, so no jq install. Needs `gh`. |
@@ -36,14 +39,7 @@ script names and flags wherever both exist:
 | `parse-probe.sh <files…>` | Parses each file with this project's parsers (`mct-cli probe`), nothing indexed: symbol/relation counts, or the first syntax error with its source line. For finding which construct a grammar rejects — one suspect snippet per file, all probed at once. |
 | `install-hooks.sh` | Installs the git hooks under `hooks/` (copied, so they survive checking out older branches; re-run to update, `--uninstall` to remove). Today one: `post-checkout`, which on a branch switch that changes the index schema's migration count rebuilds `.mct-index/index.sqlite3` if it's now newer than the installed binaries (the `CONNECTION_CLOSED` failure) and says how to serve the branch. Silent otherwise; `MCT_SKIP_HOOKS=1` skips it. |
 
-### Helper programs
-
-| File | What it does |
-|---|---|
-| `pr-conflicts.py` | The shared implementation behind `pr-conflicts.sh` and `pr-conflicts.ps1`; `--pr` can be repeated. Run through the wrappers. |
-| `usage-check.py` | Read-only: prints the Claude Code usage/billing keys cached in `~/.claude.json` as TOON. Local cache values, not live billing; confirm limits with `/usage`. |
-
-### Regression tests
+### Installer regression
 
 Run `python3 scripts/unix/tests/test_pr_conflicts.py` to verify conflict detection,
 redundant changes, stale-head rejection and isolated merge preparation using
@@ -93,10 +89,30 @@ success, 1 on a failed check, 2 on a usage error.
 
 ## windows/
 
-`check.ps1`, `pr-body.ps1`, `branch-worktree.ps1`, `pr-conflicts.ps1`,
-`reinstall.ps1`, `mcp-smoke.ps1`, `new-tool-check.ps1`,
+`check.ps1`, `reinstall.ps1`, `mcp-smoke.ps1`, `new-tool-check.ps1`,
 `new-language-check.ps1`, `token-report.ps1`, `corpus-report.ps1`,
-`ci-failures.ps1`, `pr-status.ps1`, `corpus-progress-check.ps1`,
 `parse-probe.ps1` and `install-hooks.ps1` — one
 per script above, same flags, output lines, logs and exit codes. `branches-status`, `publish-branch` and `release` are unix-only for now. The
 differences are Windows ones, listed in `windows/README.md`.
+
+## Codex review scripts
+
+| Script | What it does |
+|---|---|
+| `codex/review/00-setup-dirs.sh` | Creates review output directories. |
+| `codex/review/01-validate-config.sh` | Validates the Codex multi-agent configuration. |
+| `codex/review/02-validate-agents.sh` | Validates the reviewer agent definitions. |
+| `codex/review/03-launch-native.sh` | Starts the native multi-agent review. |
+| `codex/review/04-launch-parallel.sh` | Starts the manual parallel review. |
+| `codex/review/05-aggregate.sh` | Combines individual reports. |
+| `codex/review/06-cleanup.sh` | Archives and cleans review output. |
+
+The review flow is read-only and writes reports under `.review-output/`. See
+`codex/review/README.md` for setup, roles, requirements and the full sequence.
+
+## Command helpers
+
+`./scripts/run.sh <subcommand>` dispatches common checks and reports, including
+`review`, `review-parallel` and `review-cleanup`. Run `./scripts/run.sh` for
+the full subcommand list. `./scripts/help.sh [category]` lists commands by
+category.

@@ -1,0 +1,82 @@
+# Repeated partial blocks (ADR-012), 2026-10-15, macOS Apple Silicon, release CLIs.
+# Binary 0/1 in off runs: pre-feature baseline / feature build (rev file: reversed order).
+# Concurrent agent builds ran throughout: load average 32-58; timings are noisy.
+run: off-1k
+scope: synthetic Python fixtures; init excluded; warm median; per-process peak RSS
+functions: 1000
+runs: 5
+measurements[8]{scenario,binary,seconds,rss_bytes,output_bytes,groups}:
+  many-small,0,0.216416,15679488,239608,10
+  many-small,1,0.213378,15777792,239608,10
+  few-large,0,0.091850,19513344,245108,10
+  few-large,1,0.092092,19578880,245108,10
+  unique,0,0.124397,20955136,1695,0
+  unique,1,0.115482,21020672,1695,0
+  large-group,0,0.104914,20316160,236593,1
+  large-group,1,0.105787,20299776,236593,1
+run: off-10k
+scope: synthetic Python fixtures; init excluded; warm median; per-process peak RSS
+functions: 10000
+runs: 3
+measurements[8]{scenario,binary,seconds,rss_bytes,output_bytes,groups}:
+  many-small,0,1.959751,41041920,2345629,10
+  many-small,1,1.683166,41320448,2345629,10
+  few-large,0,0.988230,112754688,2430469,10
+  few-large,1,1.157131,112820224,2430469,10
+  unique,0,1.460994,121618432,1696,0
+  unique,1,0.951702,123944960,1696,0
+  large-group,0,0.844043,112115712,2421936,1
+  large-group,1,1.003151,112263168,2421936,1
+run: off-10k-rev
+scope: synthetic Python fixtures; init excluded; warm median; per-process peak RSS
+functions: 10000
+runs: 3
+measurements[8]{scenario,binary,seconds,rss_bytes,output_bytes,groups}:
+  many-small,0,1.845954,39993344,2345629,10
+  many-small,1,1.896478,40189952,2345629,10
+  few-large,0,1.041444,112082944,2430469,10
+  few-large,1,1.138546,113131520,2430469,10
+  unique,0,1.427779,123846656,1696,0
+  unique,1,1.234034,124583936,1696,0
+  large-group,0,1.388651,115212288,2421936,1
+  large-group,1,1.513149,115146752,2421936,1
+run: on-1k
+scope: synthetic Python fixtures; init excluded; warm median; per-process peak RSS
+functions: 1000
+runs: 5
+extra_args: --partial-blocks
+measurements[4]{scenario,binary,seconds,rss_bytes,output_bytes,groups,partial_blocks,budget_exhausted}:
+  many-small,0,0.222810,16334848,240418,10,0,false
+  few-large,0,0.160738,21004288,245918,10,0,false
+  unique,0,0.144372,22347776,2505,0,0,false
+  large-group,0,0.157178,20840448,237403,1,0,false
+run: on-10k
+scope: synthetic Python fixtures; init excluded; warm median; per-process peak RSS
+functions: 10000
+runs: 3
+extra_args: --partial-blocks
+measurements[4]{scenario,binary,seconds,rss_bytes,output_bytes,groups,partial_blocks,budget_exhausted}:
+  many-small,0,2.553700,44220416,2346439,10,0,false
+  few-large,0,1.460783,113410048,2431279,10,0,false
+  unique,0,3.750501,109936640,2506,0,0,false
+  large-group,0,3.892955,113704960,2422746,1,0,false
+run: stress-10k
+scope: synthetic Python fixtures; init excluded; warm median; per-process peak RSS
+functions: 10000
+runs: 3
+extra_args: --partial-blocks --block-min-lines 1 --block-min-tokens 20
+measurements[4]{scenario,binary,seconds,rss_bytes,output_bytes,groups,partial_blocks,budget_exhausted}:
+  many-small,0,3.934541,101269504,2346454,10,0,false
+  few-large,0,1.646891,172359680,2431294,10,0,false
+  unique,0,1.555117,182927360,2521,0,0,false
+  large-group,0,1.576086,169836544,2422761,1,0,false
+repository_runs[9]{run,seconds,rss_bytes}:
+  rb1,0.94,37289984
+  rb2,0.96,36143104
+  rb3,0.79,35667968
+  ra1,0.93,37175296
+  ra2,0.79,35880960
+  ra3,0.85,37404672
+  rp1,1.13,59916288
+  rp2,1.17,58179584
+  rp3,0.90,58163200

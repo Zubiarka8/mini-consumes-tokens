@@ -1,0 +1,52 @@
+# Python splat parameter roles: paired runs, 2026-10-15.
+# Initial order: binary 0 = before (F1.3 release), binary 1 = after.
+# Reversed order (after the '## reversed' line): binary 0 = after, binary 1 = before.
+scope: synthetic Python fixtures; init excluded; warm median; per-process peak RSS
+functions: 1000
+runs: 5
+measurements[8]{scenario,binary,seconds,rss_bytes,output_bytes,groups}:
+  many-small,0,0.114101,15663104,239608,10
+  many-small,1,0.111601,15646720,239608,10
+  few-large,0,0.073691,19464192,245108,10
+  few-large,1,0.074947,19513344,245108,10
+  unique,0,0.077728,21921792,1695,0
+  unique,1,0.059853,20938752,1695,0
+  large-group,0,0.051260,20152320,236593,1
+  large-group,1,0.048251,20316160,236593,1
+scope: synthetic Python fixtures; init excluded; warm median; per-process peak RSS
+functions: 10000
+runs: 3
+measurements[8]{scenario,binary,seconds,rss_bytes,output_bytes,groups}:
+  many-small,0,0.717440,39960576,2345629,10
+  many-small,1,0.701300,39862272,2345629,10
+  few-large,0,0.432180,110919680,2430469,10
+  few-large,1,0.437466,111230976,2430469,10
+  unique,0,0.420961,123502592,1696,0
+  unique,1,0.423330,110968832,1696,0
+  large-group,0,0.437223,112099328,2421936,1
+  large-group,1,0.446256,111968256,2421936,1
+## reversed
+scope: synthetic Python fixtures; init excluded; warm median; per-process peak RSS
+functions: 1000
+runs: 5
+measurements[8]{scenario,binary,seconds,rss_bytes,output_bytes,groups}:
+  many-small,0,0.074487,15597568,239608,10
+  many-small,1,0.073084,15663104,239608,10
+  few-large,0,0.048552,19513344,245108,10
+  few-large,1,0.047608,19415040,245108,10
+  unique,0,0.047301,20905984,1695,0
+  unique,1,0.045894,20742144,1695,0
+  large-group,0,0.048414,20316160,236593,1
+  large-group,1,0.047772,20152320,236593,1
+scope: synthetic Python fixtures; init excluded; warm median; per-process peak RSS
+functions: 10000
+runs: 3
+measurements[8]{scenario,binary,seconds,rss_bytes,output_bytes,groups}:
+  many-small,0,0.717325,39862272,2345629,10
+  many-small,1,0.693649,39976960,2345629,10
+  few-large,0,0.436909,110854144,2430469,10
+  few-large,1,0.433942,110755840,2430469,10
+  unique,0,0.425696,110968832,1696,0
+  unique,1,0.423169,123453440,1696,0
+  large-group,0,0.475624,112164864,2421936,1
+  large-group,1,0.447776,112279552,2421936,1
