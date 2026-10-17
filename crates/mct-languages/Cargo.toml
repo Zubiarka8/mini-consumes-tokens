@@ -1,0 +1,29 @@
+[package]
+name = "mct-languages"
+description = "The language set mini-consumes-tokens ships: one LanguageRegistry shared by mct-cli and mct-mcp-server."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["code-index", "tree-sitter"]
+categories = ["development-tools"]
+
+[dependencies]
+mct-core.workspace = true
+mct-lang-bash.workspace = true
+mct-lang-cpp.workspace = true
+mct-lang-csharp.workspace = true
+mct-lang-css.workspace = true
+mct-lang-go.workspace = true
+mct-lang-html.workspace = true
+mct-lang-java.workspace = true
+mct-lang-js-ts.workspace = true
+mct-lang-kotlin.workspace = true
+mct-lang-lua.workspace = true
+mct-lang-md.workspace = true
+mct-lang-php.workspace = true
+mct-lang-powershell.workspace = true
+mct-lang-python.workspace = true
+mct-lang-rust.workspace = true
+mct-lang-xaml.workspace = true
+mct-lang-xml.workspace = true

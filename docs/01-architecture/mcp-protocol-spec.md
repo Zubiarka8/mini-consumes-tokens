@@ -15,17 +15,21 @@
 | `find_calls` | atomic | What a function calls |
 | `find_callers` | atomic | What calls a function |
 | `impact_analysis` | composite | Full blast radius in one call |
+| `get_dependency_graph` | composite | Module-level import graph: nodes by hop, resolved import edges, cycles, external imports, optional DOT/Mermaid |
 | `build_context_pack` | composite | Definition + doc + capped source, and every caller/callee/dependency/test once, in one call |
 | `get_file_skeleton` | discovery | Top-level shape of one file, bodies collapsed |
 | `get_project_overview` | discovery | Compact hierarchical digest of a file/directory/crate/project |
 | `reindex` | maintenance | Force a re-scan |
 | `get_indexing_status` | maintenance | Index health report |
+| `select_tools` | meta | Tool Attention, only with `MCT_TOOL_ATTENTION=1`: narrow `tools/list` to one request's tools |
+
+`select_tools` accepts `query` (the user's request, verbatim). With `MCT_TOOL_ATTENTION=1` the server declares `tools.listChanged` and `tools/list` starts with `select_tools` alone. Each call runs `intent::preselect` on the query (word rules only; the full catalog when they find nothing), makes `select_tools` plus the picked tools the advertised set, sends `notifications/tools/list_changed`, and replies with the intent line, the tool names and argument hints. It never runs a tool. `tools/call` accepts every catalog tool whatever is advertised. Without the variable, `select_tools` is not registered and nothing else changes. `batch` refuses it (with the variable off it is an unknown tool there too).
 
 `find_references`/`find_calls`/`find_callers`/`impact_analysis` accept `depth` (multi-hop, default 1), `limit`, `offset`. `find_references` also accepts `sort`: `relevance` (default) or `execution` (by hop, file and line; a static approximation, not the real execution order).
 
 `get_project_overview` accepts `path` (optional, same matching semantics as `list_symbols` — omitted means the whole project root), `language`, `max_symbols_per_module` (default 8, caps top-level symbols surfaced per file), and `include_relations` (default true, whether to show each surfaced symbol's top callers). It composes `list_symbols` + `find_callers` internally — no new SQL, no new schema — ranking truncated modules by call fan-in.
 
-`build_context_pack` accepts `symbol` (exact name), `path`/`language` (pick the definition of an ambiguous name; callers and tests stay project-wide), `depth` (hops both ways, default 1), `limit` (related rows, default 30), `source_lines` (per definition, default 40, max 200) and `format` (`text`/`toon`). It composes `find_symbol` + `find_calls` + `find_callers` + `find_references` + the `impact_analysis` test heuristic, plus the new `Index::find_dependencies_scoped` (non-call relations a symbol makes), and reads each involved file at most once for doc comments and signatures. Example, `{"symbol": "place_order"}` on `crates/mct-mcp-server/tests/fixtures/context-pack-app`:
+`build_context_pack` accepts `symbol` (exact name), `path`/`language` (pick the definition of an ambiguous name; callers and tests stay project-wide), `depth` (hops both ways, default 1), `limit` (related rows, default 30), `source_lines` (per definition, default 40, max 200) and `format` (`toon` default, or `text`). It composes `find_symbol` + `find_calls` + `find_callers` + `find_references` + the `impact_analysis` test heuristic, plus the new `Index::find_dependencies_scoped` (non-call relations a symbol makes), and reads each involved file at most once for doc comments and signatures. Example, `{"symbol": "place_order"}` on `crates/mct-mcp-server/tests/fixtures/context-pack-app`:
 
 ```text
 Context pack for `place_order` (depth 1): 1 definition(s), 8 related symbol(s), 3 unresolved name(s)
@@ -50,6 +54,24 @@ Not resolved to an indexed definition (std/third-party/unknown): Ok, as_deref, l
 ```
 
 Relations are walked from the packed definitions' exact symbol rows. A callee or dependency is a related symbol only when its target is resolved to one definition ([[002-qualified-relation-resolution]]); an ambiguous one is listed under a separate `Uncertain relations` section with its first candidates (`callee run  ambiguous among 2: …`), never picked, and never followed by `depth`; a caller whose call is ambiguous is listed there too. Unresolved and external names go to the footer.
+
+`get_dependency_graph` accepts `module` (required; repo-relative file or directory), `depth` (hops, default 2, clamped to the project's maximum query depth), `limit` (standard), `format` (`toon` default, or `text`) and `export` (optional `dot` | `mermaid`). It is the module-level counterpart of `impact_analysis`: the unit is a file, and an edge `importer -> imported` exists only for a RESOLVED `Imports` relation. The answer carries the root, the nodes with their hop depth, the directed edges, the circular dependencies (one line per cycle, `none` otherwise), the external imports (unresolved or third-party, never edges), a `truncated` flag and, when `export` is set, the rendered graph. Cycles come from an iterative strongly-connected-component pass. Decision record: [ADR-006](adrs/006-dependency-graph-tool.md). Example, `{"module": "src/a.ts", "export": "mermaid"}` on a project where `a.ts` and `b.ts` import each other and `a.ts` also imports `lodash`:
+
+```text
+root: src/a.ts (depth 2)
+nodes[2]{path,hop}:
+  src/a.ts,0
+  src/b.ts,1
+edges[2]{from,to}:
+  src/a.ts,src/b.ts
+  src/b.ts,src/a.ts
+circular[1]: src/a.ts -> src/b.ts -> src/a.ts
+external[1]: lodash
+truncated: false
+graph LR
+  n0["src/a.ts"] --> n1["src/b.ts"]
+  n1 --> n0
+```
 
 Every relation tool (`find_references`/`find_calls`/`find_callers`/`impact_analysis`) still matches its input by name at hop 1, and each text line names its target: ` -> path:line in Parent` when resolved (`Lline` in the hit's own file), ` (ambiguous among N: …)` with the first candidates, ` (unresolved)` or ` (external)`; `format: toon` adds `resolution`, `candidates` and `targets` columns. With `path`/`language`, a hit proven to reach a same-named definition outside the scoped start is dropped. Hops past the first follow resolved edges only.
 

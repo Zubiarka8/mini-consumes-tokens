@@ -13,6 +13,44 @@
 
 ---
 
+## Status update — 2026-10-13
+
+> The sections below are the original 2026-09-18 analysis and are kept as
+> written (they describe `abcb478`, not today's code). This note records what
+> the code at `2641f50` says about each finding. Evidence comes from code
+> lookups through the project's own MCP index; no benchmark was re-run, so the
+> byte figures in §2–§6 are historical.
+
+| Finding | Status | Evidence (current code) |
+|---|---|---|
+| A4 exclude `.claude/` | **Shipped** | `DEFAULT_EXCLUDE_DIRS` (`crates/mct-index/src/exclude.rs`) lists `.claude`, `.claude-index`, `.ccm-index`; its comment cites the 65.9% measurement. |
+| A4 / C2 honor `.gitignore`, user exclusions | **Shipped, differently** | Configuration is `.mctignore` (`IGNORE_FILE_NAME`), reloaded without restart (`ExcludeSet::reload`, f4bd23c), with `!` re-includes (08a5558). `.gitignore` is imported only if the file contains the import directive (`GITIGNORE_IMPORT_DIRECTIVE`), not by default and not via `git2`. `.mct/config.toml` was not adopted. |
+| A2 overview default | **Shipped** | `include_relations` now documents "Defaults to false"; `format.rs` has `DEFAULT_BYTE_BUDGET = 24_000`. |
+| A5 shared byte budget | **Shipped** | `BudgetedList`, `budget_note`, `DEFAULT_BYTE_BUDGET` in `format.rs` (431d63d). |
+| A3 `get_indexing_status` dependencies | **Shipped** | Test `the_default_summarises_dependencies_to_one_line` in `format.rs`. |
+| A1 `tools/list` budget test | **Open** | `tests/tools_list.rs` checks the catalog and descriptions, not a byte ceiling. The tool set also grew (e.g. `build_context_pack`, `batch`, `discover_tool_categories`), so the 12,873 B baseline is outdated. |
+| B1 / B4 scope filters | **Shipped** | `FindSymbolArgs` and `FindCallersArgs` accept `path` and `language`. Relations are still resolved by name; ambiguous hits are labelled "ambiguous among N" (see the qualified-identity work, #97). |
+| B2 `to_symbol_id` | **Resolved by removal** | Migration `ALTER TABLE relations DROP COLUMN to_symbol_id` (16cc03e); test `relations_table_no_longer_has_a_to_symbol_id_column`. The design specs under `docs/superpowers/specs/` propose a new nullable exact id for qualified identity: not implemented as of this note (unverified). |
+| B3 FTS5 | **Shipped** | `find_symbol` has `match: exact\|prefix\|fuzzy` backed by `symbols_fts` (5444a1e; `find_symbol_fts` in `queries.rs`). |
+| B5 dot-directory heuristic | **Shipped** | `Index::path_is_directory` and `resolve_is_file` ask the filesystem; test `path_is_directory_uses_the_filesystem_not_the_dot_heuristic`. |
+| B6 test-name heuristic | **Shipped** | `looks_like_test_name(name, relative_path)` combines `path_looks_like_test` and `name_looks_like_test` (`dead_code.rs`). |
+| B7 / `ISSUES_PENDING` #1 | **Closed** | `is_top_level` and `FileShape` in `server.rs` (70b7561); `ISSUES_PENDING.md` marks #1 closed. Lua is registered (11df400). |
+| C1 pruning the walk | **Shipped (partly verified)** | `walk_entry_allowed` filters entries during the walk (`indexer.rs`). Whether `canonicalize()` now runs after the exclusion check was not inspected. |
+| C3 / C5 traversal and pagination | **Partly shipped** | `prepare_cached` is used in `queries.rs` (e.g. `symbols_by_ids`); relation pagination was bounded in dab02c9. `traversal.rs` itself was not re-inspected. |
+| C4 overview N+1 | **Shipped** | `Index::fan_in_counts` (aggregate query, 431d63d) is called from `get_project_overview`. |
+| C6 `idx_relations_kind` | **Changed** | The index name no longer appears in the migrations; the replacement composite index was not inspected (unverified). |
+| C7 connection pragmas | **Still open** | `Index::open` sets only `journal_mode=WAL` and `foreign_keys=ON`; no `synchronous`, checkpoint or `optimize` calls exist. |
+| C8 watcher scope | **Partly shipped** | `spawn_watcher` still watches the whole root recursively, but `background.rs` now batches events, retries, and reindexes only changed paths (`changed_paths`, `reindex_paths`, `MAX_INCREMENTAL_PATHS`). `target/` events are still received before filtering. |
+| D1 / D2 Markdown overview and note symbol | **Shipped** | `mct-lang-md` pushes one `Module` symbol per note (`push_note`), and `module` is in `OVERVIEW_KIND_ALLOWLIST` (cc030ab). Headings (`element`) are still not in the allowlist. |
+| D3 frontmatter | **Shipped** | `parse_frontmatter` and `push_frontmatter_relations` in `mct-lang-md`. |
+| D4 `get_note_context` | **Not implemented** | No such tool exists in the index. |
+
+Still-valid advice: §8 ("what not to do") and the §9 limitations. Open items
+worth scheduling: A1 budget test, C7 pragmas, C8 watcher pruning, and the
+unverified C1/C3/C6 details above.
+
+---
+
 ## 1. Method
 
 All figures are measured, not estimated. They were obtained by sending

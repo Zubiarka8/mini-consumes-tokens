@@ -5,8 +5,16 @@
 #   WHEN <one line: when an agent should reach for this tool>
 #   ERR  <one line: what NOT to use it for / caveats / failure modes>
 #   TAGS <comma-separated short keywords, for discovery/matching>
+#   PRE  <contract: what must hold before calling (required args, scope)>
+#   POST <contract: what a successful call returns>
+#   EFFECTS <none|read|write>; <what it touches>
 #
-# WHEN/ERR/TAGS may appear in any order after the TOOL line, but each must
+# PRE/POST/EFFECTS are the tool's contract (issue #17). They stay out of the
+# `description` (the catalog's byte budget); EFFECTS sets the MCP
+# readOnlyHint/destructiveHint annotations, `batch` refuses any tool whose
+# class isn't none/read, and get_tool_schema shows the full contract.
+#
+# Every field may appear in any order after the TOOL line, but each must
 # appear exactly once, on a single line (no wrapping/continuation). Lines
 # outside a block, and blank lines, are ignored as separators/comments —
 # except a line starting with `#`, which is a comment anywhere.
@@ -23,98 +31,182 @@ TOOL list_symbols
 WHEN symbols in a file or dir/crate prefix, before you know a name.
 ERR not for a known symbol's definition — use find_symbol.
 TAGS discovery, symbols, list, file, directory, crate
+PRE `path` non-blank, relative to the project root.
+POST symbols under that file or dir/crate prefix, capped by `limit`. TOON by default; `format`:`text` for plain text.
+EFFECTS read; index only.
 
 TOOL find_symbol
 WHEN locate a symbol's definition; exact/prefix/fuzzy match, any language.
 ERR not for callers/references — use find_callers/find_references.
 TAGS lookup, definition, location, exact, prefix, fuzzy
+PRE `name` non-blank.
+POST matching definitions with path:line, or a no-match note. TOON by default; `format`:`text` for plain text.
+EFFECTS read; index only.
 
 TOOL search_symbols_like
 WHEN unsure of a name: words/partial ident in any case style, BM25-ranked, exact first.
 ERR not exhaustive (use find_symbol/list_symbols); not relations (use find_references).
 TAGS search, ranked, words, camelCase, snake_case, partial
+PRE `query` non-blank.
+POST a ranked page (`offset`/`limit`), exact name first; optional snippets. TOON by default; `format`:`text` for plain text.
+EFFECTS read; index, project files for snippets, query cache.
 
 TOOL hybrid_search_like
 WHEN find code by meaning: search_symbols_like + embeddings, RRF-fused; alpha 0=lexical..1=semantic (auto if omitted); "quoted" query = exact phrase, lexical only, also lists string literals (error/log messages) holding it as path:line.
 ERR no model -> lexical only (noted); not exhaustive.
 TAGS semantic, embeddings, hybrid
+PRE `query` non-blank; `alpha` in 0..1 if given.
+POST a ranked page; first line notes a lexical-only fallback. TOON by default; `format`:`text` for plain text.
+EFFECTS read; index, project files, query cache; may download the embedding model once.
+
+TOOL semantic_search
+WHEN find code by meaning only: embedding cosine similarity, top_k hits with signature + score.
+ERR needs a --features semantic build; no name matching (use search_symbols/hybrid_search).
+TAGS semantic, embeddings, meaning, similarity
+PRE `query` non-blank; `top_k` clamped to 1..100.
+POST coverage line, then hits most similar first with path:line, signature, score; or an unavailable note.
+EFFECTS read; index, embeddings of changed symbols; may download the embedding model once.
 
 TOOL search_symbols
 WHEN deprecated, use search_symbols_like (same behavior).
 ERR removed next version.
 TAGS deprecated, alias
+PRE as search_symbols_like.
+POST as search_symbols_like.
+EFFECTS read; as search_symbols_like.
 
 TOOL hybrid_search
 WHEN deprecated, use hybrid_search_like (same behavior).
 ERR removed next version.
 TAGS deprecated, alias
+PRE as hybrid_search_like.
+POST as hybrid_search_like.
+EFFECTS read; as hybrid_search_like.
 
 TOOL find_references
 WHEN every reference to a symbol: calls, imports, extends/implements; sort=execution orders by hop, file, line.
 ERR sort=execution is a static approximation (index has no runtime order: branches/loops/callbacks not modelled); not just direct callers (use find_callers); not a definition lookup (use find_symbol).
 TAGS references, calls, imports, broad
+PRE `symbol` non-blank.
+POST every indexed reference with path:line, paged by `offset`/`limit`. TOON by default; `format`:`text` for plain text.
+EFFECTS read; index only.
 
 TOOL find_calls
 WHEN what a function/method calls — its callees.
 ERR not who calls it — use find_callers.
 TAGS callees, outgoing, calls
+PRE `function` non-blank.
+POST its indexed callees with path:line. TOON by default; `format`:`text` for plain text.
+EFFECTS read; index only.
 
 TOOL find_callers
 WHEN who directly calls a function/method.
 ERR not broader refs (use find_references); not full blast radius (use impact_analysis).
 TAGS callers, incoming, calls
+PRE `function` non-blank.
+POST its indexed direct callers with path:line. TOON by default; `format`:`text` for plain text.
+EFFECTS read; index only.
 
 TOOL impact_analysis
 WHEN full blast radius before changing/removing a symbol: callers+refs+likely tests.
 ERR not for just callers or just refs — cheaper via find_callers/find_references alone.
 TAGS impact, blast-radius, composite, tests
+PRE `symbol` non-blank.
+POST callers, references and likely tests, each section capped. TOON by default; `format`:`text` for plain text.
+EFFECTS read; index only.
 
 TOOL build_context_pack
 WHEN before working on a symbol: def+doc+source, callers/callees/deps/tests once each.
 ERR not blast radius (use impact_analysis); ambiguous name -> path/language.
 TAGS context, composite, tests, tokens-saving
+PRE `symbol` non-blank; `path`/`language` disambiguate.
+POST definitions with source, then each related symbol once; ambiguous callees apart. TOON by default; `format`:`text` for plain text.
+EFFECTS read; index, project files, query cache.
 
 TOOL reindex
 WHEN force an immediate refresh now; force=true bypasses the hash check.
 ERR no symbol data; already runs at startup and in the background.
 TAGS index, refresh, admin, force
+PRE none; `force` optional.
+POST a summary of files indexed, skipped and failed.
+EFFECTS write; rewrites .mct-index from project files; refused inside batch.
 
 TOOL get_indexing_status
 WHEN index health: files/symbols per language, last run, parse failures, deps.
 ERR no symbol data — use find_symbol.
 TAGS index, status, health, diagnostics
+PRE none.
+POST per-language counts, last run, parse failures.
+EFFECTS read; index only.
 
 TOOL get_file_skeleton
 WHEN a file's top-level shape, bodies collapsed to `// ...`.
 ERR single file only (use list_symbols for dirs); no real impl (use find_symbol then read).
 TAGS skeleton, shape, file, tokens-saving
+PRE `path` non-blank, one file inside the project root.
+POST top-level declarations, bodies collapsed.
+EFFECTS read; index and that file.
 
 TOOL get_project_overview
 WHEN get oriented in an unfamiliar file/dir/crate/project fast, ranked digest.
 ERR not a precise lookup (use find_symbol); not uncapped (use list_symbols).
 TAGS overview, digest, orientation, tokens-saving
+PRE none; `path` scopes it.
+POST a capped, ranked digest.
+EFFECTS read; index only.
 
 TOOL find_dead_code
 WHEN top-level symbols with zero indexed references — dead-code candidates.
 ERR heuristic only; verify with find_references/impact_analysis before deleting.
 TAGS dead-code, unused, cleanup, heuristic
+PRE none; `path`/`language` scope it.
+POST top-level symbols with zero indexed references. TOON by default; `format`:`text` for plain text.
+EFFECTS read; index only.
+
+TOOL get_dependency_graph
+WHEN module import graph, `depth` hops, cycles flagged; `export` dot|mermaid.
+ERR imports only (use find_calls); cycles limited to explored depth.
+TAGS dependencies, imports, graph, cycles
+PRE `module` repo-relative file or dir.
+POST nodes+depth, edges, cycles (or none), external imports. TOON by default; `format`:`text` for plain text.
+EFFECTS read; index only.
 
 TOOL get_file_tree
 WHEN plain directory/file layout before you know which file or crate to look at.
 ERR no symbol data — use list_symbols/get_project_overview for what's defined.
 TAGS layout, directory, tree, navigation, tokens-saving
+PRE none; `path` scopes it.
+POST a depth-limited directory tree.
+EFFECTS read; project directory listing.
 
 TOOL discover_tool_categories
 WHEN first call in a session — names+one-line purpose per tool, grouped, no schemas.
 ERR no input schemas here — call get_tool_schema per tool name before invoking it.
 TAGS discovery, catalog, categories, progressive, tokens-saving
+PRE none.
+POST every tool name and purpose, grouped.
+EFFECTS none; serves the static catalog.
 
 TOOL get_tool_schema
 WHEN full input schema+description for one tool named by discover_tool_categories.
 ERR not a symbol lookup; unknown tool name is an error, not a fuzzy match.
 TAGS discovery, schema, progressive, meta
+PRE `name` is a registered tool.
+POST its description, contract and input schema.
+EFFECTS none; serves the static catalog.
 
 TOOL batch
 WHEN several known read-only queries at once: [{tool,args}], one result per [n] header.
 ERR no reindex/nested batch; a failed query is reported inline, the rest still run.
 TAGS batch, multiple, tokens-saving, composite
+PRE 1..25 `queries`, each naming a read-only tool.
+POST one [n] section per query; failures inline. Sub-queries default to TOON like direct calls.
+EFFECTS read; runs read-only tools only, never a nested batch.
+
+TOOL select_tools
+WHEN first, with the user's request: narrows tools/list to the tools it needs.
+ERR picks, never runs; unclear request -> full list; all tools stay callable.
+TAGS attention, intent, selection, tokens-saving
+PRE `query` non-empty; only with MCT_TOOL_ATTENTION=1.
+POST the intent, the picked tool names and argument hints.
+EFFECTS write; replaces this session's advertised tools/list; refused inside batch.

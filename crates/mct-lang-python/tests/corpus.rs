@@ -8,6 +8,8 @@
 //! `web/` (issue #114) adds Flask and Django code in their usual syntax —
 //! route/admin/signal decorators, class-based views, model classes with an
 //! inner `Meta`, `urlpatterns` — importing from `library/`.
+//! Focused framework assertions live in `src/libraries/{django,flask}/`;
+//! this suite retains the shared corpus and index-integration checks.
 
 // Test code: an unwrap()/expect() here means a broken test precondition, and
 // panicking is the correct behavior — this is not production code parsing
@@ -235,129 +237,6 @@ fn cross_file_imports_and_calls_are_extracted() {
         "overdue_fee",
     );
     assert!(c.name_matched_relation_count() >= 100);
-}
-
-#[test]
-fn flask_routes_hooks_and_method_views() {
-    use RelationKind::{Calls, Extends, Imports, References};
-    use SymbolKind::{Class, Function, Method};
-    let c = corpus();
-    let path = "web/flask_app.py";
-    // `@bp.route(...)`, `@bp.get(...)`, `@bp.post(...)` reference the
-    // decorator's last name from the decorated function.
-    c.relation(path, "index", References, "route");
-    c.relation(path, "by_genre", References, "get");
-    c.relation(path, "logout", References, "post");
-    c.relation(path, "format_isbn", References, "app_template_filter");
-    // Stacked decorators each reference the function below them.
-    for decorator in ["post", "login_required", "staff_only"] {
-        c.relation(path, "return_copy", References, decorator);
-    }
-    // Routes, error handlers and hooks registered inside the app factory
-    // are nested functions, not methods, and keep their decorator.
-    for (name, decorator) in [
-        ("home", "route"),
-        ("not_found", "errorhandler"),
-        ("start_timer", "before_request"),
-        ("close_services", "teardown_appcontext"),
-        ("seed", "command"),
-    ] {
-        assert_eq!(c.symbol(path, name, Function).parent, None, "{name}");
-        c.relation(path, name, References, decorator);
-    }
-    // The decorator factory's inner function is a plain function too.
-    c.symbol(path, "checked", Function);
-    // `MethodView` subclasses: extends, HTTP verbs as methods.
-    c.relation(path, "LoanAPI", Extends, "MethodView");
-    assert_eq!(lines(path, "LoanAPI", Class), (209, Some(240)));
-    assert_eq!(parent(path, "delete", Method), Some("LoanAPI"));
-    c.relation(path, "register_api", Calls, "as_view");
-    c.relation(path, "register_api", Calls, "add_url_rule");
-    c.relation(path, "create_app", Calls, "register_blueprint");
-    // Cross-file into `library/`.
-    c.relation(path, "flask_app", Imports, "LendingService");
-    c.relation(path, "flask_app", Imports, "normalize_isbn");
-    c.relation(path, "detail", Calls, "normalize_isbn");
-    c.relation(path, "book_payload", Calls, "classify");
-    c.relation(path, "library_error", Calls, "error_response");
-}
-
-#[test]
-fn django_models_admin_views_signals_and_urls() {
-    use RelationKind::{Calls, Extends, Imports, References};
-    use SymbolKind::{Class, Method};
-    let c = corpus();
-    let app = "web/django_site/lending/";
-    let models = &format!("{app}models.py");
-    let admin = &format!("{app}admin.py");
-    let forms = &format!("{app}forms.py");
-    let views = &format!("{app}views.py");
-    let signals = &format!("{app}signals.py");
-    let urls = &format!("{app}urls.py");
-    // Models: dotted base, abstract base chain, inner `Meta` and choices.
-    c.relation(models, "TimeStampedModel", Extends, "Model");
-    c.relation(models, "BookRecord", Extends, "TimeStampedModel");
-    c.relation(models, "Status", Extends, "TextChoices");
-    assert_eq!(parent(models, "Status", Class), Some("CopyRecord"));
-    let metas = c.symbols_named("Meta");
-    for (path, owner) in [
-        (models, "TimeStampedModel"),
-        (models, "AuthorRecord"),
-        (models, "BookRecord"),
-        (models, "LoanRecord"),
-        (forms, "BookForm"),
-    ] {
-        assert!(
-            metas
-                .iter()
-                .any(|(p, s)| p == path && s.parent.as_deref() == Some(owner)),
-            "{owner}.Meta"
-        );
-    }
-    // Field declarations are calls owned by the model class.
-    c.relation(models, "BookRecord", Calls, "CharField");
-    c.relation(models, "BookRecord", Calls, "ManyToManyField");
-    c.relation(models, "BookRecord", Calls, "as_manager");
-    c.relation(models, "is_overdue", References, "property");
-    // Admin: class decorator, method decorators.
-    c.relation(admin, "BookAdmin", References, "register");
-    c.relation(admin, "BookAdmin", Extends, "ModelAdmin");
-    c.relation(admin, "copy_count", References, "display");
-    c.relation(admin, "mark_lost", References, "action");
-    assert_eq!(parent(admin, "mark_lost", Method), Some("BookAdmin"));
-    // Class-based views list every mixin as a base.
-    for base in [
-        "LoginRequiredMixin",
-        "PermissionRequiredMixin",
-        "CreateView",
-    ] {
-        c.relation(views, "BookCreateView", Extends, base);
-    }
-    assert_eq!(parent(views, "get_queryset", Method), Some("BookListView"));
-    // Function views under decorator stacks; signal receivers.
-    for decorator in ["login_required", "permission_required", "require_POST"] {
-        c.relation(views, "waive_fee", References, decorator);
-    }
-    c.relation(views, "overdue", References, "cache_page");
-    c.relation(signals, "mark_copy_on_loan", References, "receiver");
-    // `urlpatterns` and the pattern tuples are module-level calls.
-    for callee in ["path", "re_path", "include", "as_view"] {
-        c.relation(urls, "urls", Calls, callee);
-    }
-    // The app's modules import each other relatively…
-    c.relation(admin, "admin", Imports, "BookRecord");
-    c.relation(forms, "forms", Imports, "BookRecord");
-    c.relation(views, "views", Imports, "BookForm");
-    c.relation(signals, "signals", Imports, "LoanRecord");
-    c.relation(urls, "urls", Imports, "checkout");
-    c.relation(&format!("{app}apps.py"), "ready", Imports, "signals");
-    // …and call into `library/`.
-    c.relation(models, "models", Imports, "overdue_fee");
-    c.relation(models, "fee", Calls, "overdue_fee");
-    c.relation(models, "clean", Calls, "is_valid_isbn");
-    c.relation(forms, "clean_isbn", Calls, "normalize_isbn");
-    c.relation(views, "checkout", Calls, "build_services");
-    c.relation(signals, "audit_book_delete", Calls, "audit");
 }
 
 #[test]

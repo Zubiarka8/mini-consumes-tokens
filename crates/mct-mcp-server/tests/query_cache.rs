@@ -134,6 +134,7 @@ fn options(cache: CacheConfig, model: &str) -> ServerOptions {
             queries: query_vectors(),
         })),
         shared_cache: None,
+        tool_attention: false,
     }
 }
 
@@ -175,7 +176,7 @@ fn search_args(query: &str) -> SearchSymbolsArgs {
         limit: None,
         offset: None,
         snippet_lines: None,
-        format: None,
+        format: Some("text".to_string()),
         cache: None,
     }
 }
@@ -190,7 +191,7 @@ fn hybrid_args(query: &str) -> HybridSearchArgs {
         top_k: None,
         offset: None,
         snippet_lines: None,
-        format: None,
+        format: Some("text".to_string()),
         cache: None,
     }
 }

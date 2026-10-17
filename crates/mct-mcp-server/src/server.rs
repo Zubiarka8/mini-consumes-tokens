@@ -5,15 +5,17 @@ use mct_core::LanguageRegistry;
 use mct_index::Index;
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
-    model::{CallToolResult, ContentBlock},
+    model::{CallToolResult, ContentBlock, ToolAnnotations},
     model::{Implementation, InitializeResult, ProtocolVersion, ServerCapabilities},
-    tool, tool_handler, tool_router, ErrorData as McpError, ServerHandler,
+    service::RequestContext,
+    tool, tool_handler, tool_router, ErrorData as McpError, RoleServer, ServerHandler,
 };
 use tokio::sync::Mutex;
 
 use crate::cache::{self, CacheConfig, CacheStats, CachedResult, HitKind, QueryCache};
 use crate::embedder::SemanticModel;
 use crate::format;
+use crate::intent;
 use crate::toon::OutputFormat;
 use crate::ttc;
 
@@ -48,11 +50,12 @@ pub struct ListSymbolsArgs {
     /// raise it if you expect more hits and want them all in one call.
     #[serde(default)]
     pub limit: Option<usize>,
-    /// Response shape: `text` (default) is this server's existing
-    /// human/agent-skimmable plain text. `toon` renders the same data as a
-    /// compact TOON table (one header row of column names, then one row per
-    /// symbol, no repeated labels) — fewer tokens for a large result, at the
-    /// cost of the text version's per-kind grouping.
+    /// Response shape: `toon` (default; also used when omitted or null)
+    /// renders the data as a compact TOON table (one header row of column
+    /// names, then one row per symbol, no repeated labels) — fewer tokens
+    /// for a large result. `text` is this server's plain human/agent-skimmable
+    /// text, with per-kind grouping, kept as an explicit option. Any other
+    /// value is rejected.
     #[serde(default)]
     pub format: Option<String>,
 }
@@ -82,8 +85,8 @@ pub struct FindSymbolArgs {
     /// raise it if you expect more hits and want them all in one call.
     #[serde(default)]
     pub limit: Option<usize>,
-    /// Response shape: `text` (default) or `toon` (a compact table — see
-    /// `list_symbols`' `format` field for details).
+    /// Response shape: `toon` (default) or `text` (plain text, opt-in) — see
+    /// `list_symbols`' `format` field for details.
     #[serde(default)]
     pub format: Option<String>,
 }
@@ -127,8 +130,8 @@ pub struct SearchSymbolsArgs {
     /// to 50.
     #[serde(default)]
     pub snippet_lines: Option<usize>,
-    /// Response shape: `text` (default) or `toon` (a compact table — see
-    /// `list_symbols`' `format` field for details).
+    /// Response shape: `toon` (default) or `text` (plain text, opt-in) — see
+    /// `list_symbols`' `format` field for details.
     #[serde(default)]
     pub format: Option<String>,
     /// `false` skips the query cache for this call and always returns the
@@ -175,8 +178,8 @@ pub struct HybridSearchArgs {
     /// to 50.
     #[serde(default)]
     pub snippet_lines: Option<usize>,
-    /// Response shape: `text` (default) or `toon` (a compact table — see
-    /// `list_symbols`' `format` field for details).
+    /// Response shape: `toon` (default) or `text` (plain text, opt-in) — see
+    /// `list_symbols`' `format` field for details.
     #[serde(default)]
     pub format: Option<String>,
     /// `false` skips the query cache for this call and always returns the
@@ -184,6 +187,24 @@ pub struct HybridSearchArgs {
     /// "unchanged" reply. Omit it to use the cache.
     #[serde(default)]
     pub cache: Option<bool>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct SemanticSearchArgs {
+    /// What the code does, in plain words: `validate user authentication`,
+    /// `load config from disk`.
+    pub query: String,
+    /// Maximum number of hits, most similar first. Defaults to 10, clamped
+    /// to 100.
+    #[serde(default)]
+    pub top_k: Option<usize>,
+    /// Narrow to one file or directory/crate prefix (same matching as
+    /// list_symbols). Omit to search the whole project.
+    #[serde(default)]
+    pub path: Option<String>,
+    /// Narrow to one language id (e.g. `rust`). Omit for every language.
+    #[serde(default)]
+    pub language: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -219,8 +240,8 @@ pub struct FindReferencesArgs {
     /// callbacks and cross-file call order are not modelled).
     #[serde(default)]
     pub sort: Option<String>,
-    /// Response shape: `text` (default) or `toon` (a compact table — see
-    /// `list_symbols`' `format` field for details).
+    /// Response shape: `toon` (default) or `text` (plain text, opt-in) — see
+    /// `list_symbols`' `format` field for details.
     #[serde(default)]
     pub format: Option<String>,
 }
@@ -250,8 +271,8 @@ pub struct FindCallsArgs {
     /// paging through result sets larger than one `limit` page. Defaults to 0.
     #[serde(default)]
     pub offset: Option<usize>,
-    /// Response shape: `text` (default) or `toon` (a compact table — see
-    /// `list_symbols`' `format` field for details).
+    /// Response shape: `toon` (default) or `text` (plain text, opt-in) — see
+    /// `list_symbols`' `format` field for details.
     #[serde(default)]
     pub format: Option<String>,
 }
@@ -281,8 +302,8 @@ pub struct FindCallersArgs {
     /// paging through result sets larger than one `limit` page. Defaults to 0.
     #[serde(default)]
     pub offset: Option<usize>,
-    /// Response shape: `text` (default) or `toon` (a compact table — see
-    /// `list_symbols`' `format` field for details).
+    /// Response shape: `toon` (default) or `text` (plain text, opt-in) — see
+    /// `list_symbols`' `format` field for details.
     #[serde(default)]
     pub format: Option<String>,
 }
@@ -312,8 +333,8 @@ pub struct ImpactAnalysisArgs {
     /// independently to each section. Defaults to 0.
     #[serde(default)]
     pub offset: Option<usize>,
-    /// Response shape: `text` (default) or `toon` (a compact table per
-    /// section — see `list_symbols`' `format` field for details).
+    /// Response shape: `toon` (default; a compact table per section) or
+    /// `text` (plain text, opt-in) — see `list_symbols`' `format` field.
     #[serde(default)]
     pub format: Option<String>,
 }
@@ -445,8 +466,30 @@ pub struct FindDeadCodeArgs {
     /// paging through result sets larger than one `limit` page. Defaults to 0.
     #[serde(default)]
     pub offset: Option<usize>,
-    /// Response shape: `text` (default) or `toon` (a compact table — see
-    /// `list_symbols`' `format` field for details).
+    /// Response shape: `toon` (default) or `text` (plain text, opt-in) — see
+    /// `list_symbols`' `format` field for details.
+    #[serde(default)]
+    pub format: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct GetDependencyGraphArgs {
+    /// Repo-relative file or directory path (forward slashes) whose imports
+    /// to follow. A directory counts as one module.
+    pub module: String,
+    /// Import hops to follow from `module`. Defaults to 2; clamped to
+    /// `mct_core::MAX_QUERY_DEPTH`.
+    #[serde(default)]
+    pub depth: Option<u32>,
+    /// Maximum number of modules to return. Defaults to 50 when omitted;
+    /// the response says when the walk was cut short.
+    #[serde(default)]
+    pub limit: Option<usize>,
+    /// Also return the graph rendered as `dot` (Graphviz) or `mermaid`.
+    #[serde(default)]
+    pub export: Option<String>,
+    /// Response shape: `toon` (default) or `text` (plain text, opt-in) — see
+    /// `list_symbols`' `format` field for details.
     #[serde(default)]
     pub format: Option<String>,
 }
@@ -481,6 +524,16 @@ pub struct GetToolSchemaArgs {
     pub name: String,
 }
 
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct SelectToolsArgs {
+    /// The user's request, verbatim (e.g. `who calls parse_config, but don't
+    /// reindex`). Longer than `intent::MAX_QUERY_CHARS` is truncated.
+    pub query: String,
+}
+
+/// Env var opting into Tool Attention (issue #11): `1` turns it on.
+pub const TOOL_ATTENTION_ENV: &str = "MCT_TOOL_ATTENTION";
+
 /// Cap on sub-queries per `batch` call. Batching pays off by collapsing
 /// per-call envelopes; past a couple dozen queries the response itself is
 /// the cost, and an agent is better served by narrowing than by one giant
@@ -496,7 +549,7 @@ const BATCH_BYTE_BUDGET: usize = 2 * format::DEFAULT_BYTE_BUDGET;
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct BatchQuery {
     /// Name of the tool to run (e.g. `find_symbol`). Any read-only tool of
-    /// this server; `batch` itself and `reindex` are rejected.
+    /// this server; `batch` itself, `reindex` and `select_tools` are rejected.
     pub tool: String,
     /// That tool's arguments object, exactly as it would be passed to the
     /// tool directly (e.g. `{"name": "parse"}` for `find_symbol`). Omit for
@@ -551,7 +604,7 @@ pub struct BuildContextPackArgs {
     /// clamped to 1..=200.
     #[serde(default)]
     pub source_lines: Option<usize>,
-    /// `text` (default) or `toon` (related symbols as one table).
+    /// `toon` (default; related symbols as one table) or `text` (opt-in).
     #[serde(default)]
     pub format: Option<String>,
 }
@@ -580,6 +633,7 @@ const TOOL_CATEGORIES: &[(&str, &[&str])] = &[
             "hybrid_search_like",
             "search_symbols",
             "hybrid_search",
+            "semantic_search",
         ],
     ),
     (
@@ -590,6 +644,7 @@ const TOOL_CATEGORIES: &[(&str, &[&str])] = &[
             "find_references",
             "impact_analysis",
             "build_context_pack",
+            "get_dependency_graph",
         ],
     ),
     (
@@ -598,7 +653,12 @@ const TOOL_CATEGORIES: &[(&str, &[&str])] = &[
     ),
     (
         "meta",
-        &["discover_tool_categories", "get_tool_schema", "batch"],
+        &[
+            "discover_tool_categories",
+            "get_tool_schema",
+            "select_tools",
+            "batch",
+        ],
     ),
 ];
 
@@ -624,6 +684,10 @@ pub struct ServerOptions {
     pub embedder: Option<Box<dyn mct_index::Embedder>>,
     /// Share an existing cache instead of starting an empty one.
     pub shared_cache: Option<Arc<std::sync::Mutex<QueryCache>>>,
+    /// Tool Attention (issue #11): `tools/list` starts with `select_tools`
+    /// only and is narrowed per request. Off: the full catalog, no
+    /// `select_tools`.
+    pub tool_attention: bool,
 }
 
 impl ServerOptions {
@@ -634,6 +698,7 @@ impl ServerOptions {
             cache: CacheConfig::from_env(),
             embedder: None,
             shared_cache: None,
+            tool_attention: std::env::var(TOOL_ATTENTION_ENV).is_ok_and(|v| v == "1"),
         }
     }
 }
@@ -701,6 +766,11 @@ pub struct MctServer {
     // `tools/list`/`tools/call` from this field; the macro's default would
     // build a fresh, unpatched router.
     tool_router: ToolRouter<MctServer>,
+    /// With Tool Attention on, the tool names `tools/list` currently
+    /// advertises; `None` when it is off (the full catalog).
+    // ponytail: one set per server, i.e. per stdio session; key it by
+    // session if a multi-session transport is ever added.
+    attention: Option<Arc<std::sync::Mutex<Vec<String>>>>,
 }
 
 fn validate_name(raw: &str) -> Result<&str, McpError> {
@@ -745,12 +815,47 @@ fn parse_execution_sort(raw: Option<&str>) -> Result<bool, McpError> {
     }
 }
 
-/// Parses a tool's optional `format` argument (`text`, the default, or
-/// `toon` — see `crate::toon`). An unrecognized value is rejected the same
-/// way `parse_match_mode` rejects a typo'd `match`, rather than silently
-/// falling back to `text`.
+/// Parses a tool's optional `format` argument (`toon`, the default when it is
+/// omitted or null, or `text` — see `crate::toon`). An unrecognized value is
+/// rejected the same way `parse_match_mode` rejects a typo'd `match`, rather
+/// than silently falling back to the default.
 fn parse_output_format(raw: Option<&str>) -> Result<OutputFormat, McpError> {
     OutputFormat::parse(raw).map_err(|msg| McpError::invalid_params(msg, None))
+}
+
+/// Validates `get_dependency_graph`'s `module`: repo-relative, forward or
+/// back slashes, no absolute path and no `..` component. Returns it with
+/// forward slashes and without a leading `./` or trailing `/`.
+fn validate_module_path(raw: &str) -> Result<String, McpError> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(McpError::invalid_params("`module` must not be empty", None));
+    }
+    let normalized = trimmed.replace('\\', "/");
+    let is_windows_drive = normalized.as_bytes().get(1) == Some(&b':');
+    if normalized.starts_with('/') || is_windows_drive {
+        return Err(McpError::invalid_params(
+            format!("`module` must be relative to the project root, got `{trimmed}`"),
+            None,
+        ));
+    }
+    if normalized.split('/').any(|part| part == "..") {
+        return Err(McpError::invalid_params(
+            format!("`module` must not contain `..`, got `{trimmed}`"),
+            None,
+        ));
+    }
+    let cleaned: Vec<&str> = normalized
+        .split('/')
+        .filter(|part| !part.is_empty() && *part != ".")
+        .collect();
+    if cleaned.is_empty() {
+        return Err(McpError::invalid_params(
+            "`module` must name a file or directory",
+            None,
+        ));
+    }
+    Ok(cleaned.join("/"))
 }
 
 fn index_error(err: mct_index::IndexError) -> McpError {
@@ -779,7 +884,9 @@ fn file_tree_error(err: mct_index::IndexError) -> McpError {
 /// `WHEN | NOT: ERR | TAGS: tags` catalog text (see `crate::ttc`). Never
 /// panics: a TTC parse failure, or a `tools.ttc` entry naming a tool that
 /// isn't registered, is logged and otherwise ignored so the server still
-/// starts with its compiled-in fallback descriptions intact.
+/// starts with its compiled-in fallback descriptions intact. Each entry's
+/// `EFFECTS` class also sets the MCP `readOnlyHint`/`destructiveHint`
+/// annotations (issue #17); `batch` refuses any tool not marked read-only.
 fn apply_ttc_catalog(router: &mut ToolRouter<MctServer>, source: &str) {
     let entries = match ttc::parse(source) {
         Ok(entries) => entries,
@@ -793,7 +900,18 @@ fn apply_ttc_catalog(router: &mut ToolRouter<MctServer>, source: &str) {
     };
     for (name, entry) in &entries {
         match router.map.get_mut(name.as_str()) {
-            Some(route) => route.attr.description = Some(entry.expand().into()),
+            Some(route) => {
+                route.attr.description = Some(entry.expand().into());
+                // Only `reindex` (derived data) and `select_tools` (the
+                // advertised list) write — not destructive, which MCP
+                // otherwise assumes for a non-read-only tool.
+                route.attr.annotations = Some(match entry.effect() {
+                    ttc::Effect::None | ttc::Effect::Read => ToolAnnotations::new().read_only(true),
+                    ttc::Effect::Write => {
+                        ToolAnnotations::new().read_only(false).destructive(false)
+                    }
+                });
+            }
             None => {
                 tracing::warn!(tool = %name, "tools.ttc has an entry for an unregistered tool");
             }
@@ -897,6 +1015,20 @@ fn batch_params<T: serde::de::DeserializeOwned>(
     serde_json::from_value(serde_json::Value::Object(args.unwrap_or_default()))
         .map(Parameters)
         .map_err(|err| McpError::invalid_params(format!("invalid args for `{tool}`: {err}"), None))
+}
+
+/// Every tool's POST contract floor (issue #17): a successful call returns
+/// some text. Checked on every direct call and `batch` sub-query, so a tool
+/// that regresses to an empty answer fails loudly instead of leaving the
+/// agent to guess what nothing means.
+fn check_postcondition(tool: &str, result: &CallToolResult) -> Result<(), McpError> {
+    if result.is_error == Some(true) || !result_text(result).trim().is_empty() {
+        return Ok(());
+    }
+    Err(McpError::internal_error(
+        format!("`{tool}` broke its contract: a successful call returned no text"),
+        None,
+    ))
 }
 
 /// Every text block of a sub-query's result, joined — today each tool
@@ -1104,6 +1236,12 @@ impl MctServer {
     pub fn with_options(index: Index, registry: LanguageRegistry, options: ServerOptions) -> Self {
         let mut tool_router = Self::tool_router();
         apply_ttc_catalog(&mut tool_router, ttc::CATALOG_SOURCE);
+        if !options.tool_attention {
+            tool_router.remove_route("select_tools");
+        }
+        let attention = options
+            .tool_attention
+            .then(|| Arc::new(std::sync::Mutex::new(vec!["select_tools".to_string()])));
         let semantic = match options.embedder {
             Some(embedder) => SemanticModel::preloaded(embedder),
             None => SemanticModel::default(),
@@ -1118,6 +1256,7 @@ impl MctServer {
             semantic: Arc::new(semantic),
             cache,
             tool_router,
+            attention,
         }
     }
 
@@ -1281,6 +1420,58 @@ impl MctServer {
         self.tool_router.list_all()
     }
 
+    /// What `tools/list` returns now: the full catalog, or with Tool
+    /// Attention on, only the tools the last `select_tools` picked (plus
+    /// `select_tools` itself). Every catalog tool stays callable either way.
+    pub fn advertised_tools(&self) -> Vec<rmcp::model::Tool> {
+        let mut tools = self.tool_catalog();
+        if let Some(active) = &self.attention {
+            let active = active
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            tools.retain(|t| active.iter().any(|name| name == t.name.as_ref()));
+        }
+        tools
+    }
+
+    /// `select_tools` minus the `tools/list_changed` notification: picks the
+    /// tools for `query` and makes them the advertised set: the word rules of
+    /// `intent::preselect`, or the full catalog when they find nothing. No
+    /// embedding step: in benchmarks/intent-selection.md it lost a required
+    /// tool and guessed on requests no tool answers.
+    pub async fn attend(&self, query: &str) -> Result<CallToolResult, McpError> {
+        let Some(active) = &self.attention else {
+            return Err(McpError::invalid_params(
+                format!("Tool Attention is off — set {TOOL_ATTENTION_ENV}=1"),
+                None,
+            ));
+        };
+        let query = query.trim();
+        if query.is_empty() {
+            return Err(McpError::invalid_params("query must not be empty", None));
+        }
+        let catalog: Vec<rmcp::model::Tool> = self
+            .tool_catalog()
+            .into_iter()
+            .filter(|t| t.name != "select_tools")
+            .collect();
+        let languages = self.registry.language_ids();
+        let selection = intent::preselect(query, &languages, &catalog, None);
+        let mut names = vec!["select_tools".to_string()];
+        names.extend(selection.tools.iter().cloned());
+        *active
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = names;
+
+        let mut text = selection.intent.render(selection.source);
+        text.push_str(&format!("\ntools: {}", selection.tools.join(", ")));
+        for (name, args) in &selection.hints {
+            let args: Vec<String> = args.iter().map(|(k, v)| format!("{k}={v}")).collect();
+            text.push_str(&format!("\nhint {name}: {}", args.join(" ")));
+        }
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
     /// Shares this server's index handle with the background auto-reindex
     /// watcher (see `background::spawn_watcher`), without exposing the
     /// `index` field itself.
@@ -1306,6 +1497,38 @@ impl MctServer {
         self.run_batch_query(tool, args).await
     }
 
+    /// Applies an edit to the project's ignore files before a tool reads the
+    /// index ([`Index::apply_exclusion_changes`]): a path that `.mctignore`
+    /// (or an imported `.gitignore`) now excludes is never served from rows
+    /// stored before the edit, even with the watcher disabled or still
+    /// debouncing. Fails closed: if the reindex fails, so does the call. The
+    /// index lock is released before the tool runs, keeping the lock order
+    /// documented on [`MctServer::semantic_model`].
+    async fn apply_exclusion_changes(&self) -> Result<(), McpError> {
+        self.index
+            .lock()
+            .await
+            .apply_exclusion_changes(&self.registry)
+            .map(|_| ())
+            .map_err(index_error)
+    }
+
+    /// Calls any tool by name with a JSON argument object, through the same
+    /// method (and so the same validation, defaults and output) an MCP client
+    /// reaches over stdio. Used by `mct-cli call`; unlike a `batch`
+    /// sub-query it also accepts `reindex` and `batch` themselves.
+    pub async fn call_tool_by_name(
+        &self,
+        tool: &str,
+        args: Option<serde_json::Map<String, serde_json::Value>>,
+    ) -> Result<CallToolResult, McpError> {
+        match tool {
+            "reindex" => self.reindex(batch_params(tool, args)?).await,
+            "batch" => self.batch(batch_params(tool, args)?).await,
+            other => self.run_batch_query(other, args).await,
+        }
+    }
+
     /// Runs one `batch` sub-query through the same tool method a direct call
     /// would hit, so its validation, defaults and output are identical.
     /// `reindex` is refused (a batch stays read-only, and a mid-batch
@@ -1316,13 +1539,32 @@ impl MctServer {
         tool: &str,
         args: Option<serde_json::Map<String, serde_json::Value>>,
     ) -> Result<CallToolResult, McpError> {
-        match tool {
+        self.apply_exclusion_changes().await?;
+        if let Some(route) = self.tool_router.map.get(tool) {
+            let read_only = route
+                .attr
+                .annotations
+                .as_ref()
+                .and_then(|a| a.read_only_hint)
+                == Some(true);
+            if !read_only {
+                return Err(McpError::invalid_params(
+                    format!(
+                        "`{tool}` isn't allowed in a batch: its contract has write effects \
+                         (batches are read-only) — call it directly"
+                    ),
+                    None,
+                ));
+            }
+        }
+        let result = match tool {
             "list_symbols" => self.list_symbols(batch_params(tool, args)?).await,
             "find_symbol" => self.find_symbol(batch_params(tool, args)?).await,
             "search_symbols_like" => self.search_symbols_like(batch_params(tool, args)?).await,
             "hybrid_search_like" => self.hybrid_search_like(batch_params(tool, args)?).await,
             "search_symbols" => self.search_symbols(batch_params(tool, args)?).await,
             "hybrid_search" => self.hybrid_search(batch_params(tool, args)?).await,
+            "semantic_search" => self.semantic_search(batch_params(tool, args)?).await,
             "find_references" => self.find_references(batch_params(tool, args)?).await,
             "find_calls" => self.find_calls(batch_params(tool, args)?).await,
             "find_callers" => self.find_callers(batch_params(tool, args)?).await,
@@ -1333,14 +1575,11 @@ impl MctServer {
             "get_project_overview" => self.get_project_overview(batch_params(tool, args)?).await,
             "get_file_tree" => self.get_file_tree(batch_params(tool, args)?).await,
             "find_dead_code" => self.find_dead_code(batch_params(tool, args)?).await,
+            "get_dependency_graph" => self.get_dependency_graph(batch_params(tool, args)?).await,
             "discover_tool_categories" => self.discover_tool_categories().await,
             "get_tool_schema" => self.get_tool_schema(batch_params(tool, args)?).await,
             "batch" => Err(McpError::invalid_params(
                 "`batch` can't be nested inside a batch",
-                None,
-            )),
-            "reindex" => Err(McpError::invalid_params(
-                "`reindex` isn't allowed in a batch (batches are read-only) — call it directly",
                 None,
             )),
             other => Err(McpError::invalid_params(
@@ -1349,7 +1588,9 @@ impl MctServer {
                 ),
                 None,
             )),
-        }
+        }?;
+        check_postcondition(tool, &result)?;
+        Ok(result)
     }
 
     // Fallback only — the live description installed on this tool comes
@@ -1723,6 +1964,56 @@ impl MctServer {
         args: Parameters<HybridSearchArgs>,
     ) -> Result<CallToolResult, McpError> {
         self.hybrid_search_like(args).await
+    }
+
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Meaning-based symbol search by embedding similarity; see tools.ttc")]
+    pub async fn semantic_search(
+        &self,
+        Parameters(SemanticSearchArgs {
+            query,
+            top_k,
+            path,
+            language,
+        }): Parameters<SemanticSearchArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let query = validate_name(&query)?;
+        let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
+        let limit = top_k
+            .unwrap_or(SEARCH_DEFAULT_LIMIT)
+            .clamp(1, SEARCH_MAX_LIMIT);
+        // Same lock order as hybrid_search_like: model, pending symbols and query
+        // embedding with no lock held, then the index mutex for the scan.
+        // ponytail: no query cache here, unlike hybrid_search_like; add one if
+        // repeated identical queries show up in measurements.
+        let embedder = match self.semantic_model().await {
+            Ok(embedder) => embedder,
+            Err(reason) => {
+                return Ok(CallToolResult::success(vec![ContentBlock::text(format!(
+                    "semantic_search unavailable — {reason}; use search_symbols_like or hybrid_search_like"
+                ))]))
+            }
+        };
+        let failed =
+            |e: String| McpError::internal_error(format!("semantic_search failed: {e}"), None);
+        self.refresh_pending_unlocked(embedder.model_id())
+            .await
+            .map_err(failed)?;
+        let vector = self.embed_query_unlocked(query).await.map_err(failed)?;
+        let index = self.index.lock().await;
+        let hits = index
+            .semantic_search(&vector, embedder.model_id(), scope, limit)
+            .map_err(index_error)?;
+        let coverage = index
+            .embedding_coverage(embedder.model_id())
+            .map_err(index_error)?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(format!(
+            "semantic: {}/{} symbols embedded ({})\n{}",
+            coverage.embedded,
+            coverage.total,
+            embedder.model_id(),
+            format::semantic_hits(query, &hits)
+        ))]))
     }
 
     // Fallback only — see tools.ttc / MctServer::new.
@@ -2380,6 +2671,61 @@ impl MctServer {
     }
 
     // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Module import graph with cycles; see tools.ttc")]
+    pub async fn get_dependency_graph(
+        &self,
+        Parameters(GetDependencyGraphArgs {
+            module,
+            depth,
+            limit,
+            export,
+            format,
+        }): Parameters<GetDependencyGraphArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let module = validate_module_path(&module)?;
+        let depth = depth.unwrap_or(2).clamp(1, mct_core::MAX_QUERY_DEPTH);
+        let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
+        let output_format = parse_output_format(format.as_deref())?;
+        let export = match export.as_deref().map(str::trim).filter(|e| !e.is_empty()) {
+            None => None,
+            Some("dot") => Some("dot"),
+            Some("mermaid") => Some("mermaid"),
+            Some(other) => {
+                return Err(McpError::invalid_params(
+                    format!("export must be one of dot, mermaid — got `{other}`"),
+                    None,
+                ))
+            }
+        };
+
+        let graph = {
+            let index = self.index.lock().await;
+            index
+                .dependency_graph(&module, depth, limit)
+                .map_err(file_tree_error)?
+        };
+        let edges: Vec<(String, String)> = graph
+            .edges
+            .iter()
+            .map(|e| (e.from.clone(), e.to.clone()))
+            .collect();
+        let cycles = mct_index::find_cycles(&edges);
+        let rendered = export.map(|kind| {
+            let body = match kind {
+                "dot" => crate::graph_render::render_dot(&graph.root, &edges, &cycles),
+                _ => crate::graph_render::render_mermaid(&graph.root, &edges, &cycles),
+            };
+            (kind, body)
+        });
+        let export_arg = rendered.as_ref().map(|(k, b)| (*k, b.as_str()));
+        let text = match output_format {
+            OutputFormat::Text => format::dependency_graph(&graph, &cycles, export_arg),
+            OutputFormat::Toon => format::dependency_graph_toon(&graph, &cycles, export_arg),
+        };
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    // Fallback only — see tools.ttc / MctServer::new.
     #[tool(description = "List tool names/categories without schemas; see tools.ttc")]
     pub async fn discover_tool_categories(&self) -> Result<CallToolResult, McpError> {
         let catalog = self.tool_router.list_all();
@@ -2402,9 +2748,28 @@ impl MctServer {
                 None,
             )
         })?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(
-            format::tool_schema(tool),
-        )]))
+        let contract = ttc::parse(ttc::CATALOG_SOURCE)
+            .ok()
+            .and_then(|entries| entries.get(name).map(ttc::TtcEntry::contract))
+            .unwrap_or_else(|| "(contract unavailable)".to_string());
+        Ok(CallToolResult::success(vec![ContentBlock::text(format!(
+            "{}\nContract:\n{contract}\n",
+            format::tool_schema(tool)
+        ))]))
+    }
+
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Pick the tools for one user request; see tools.ttc")]
+    pub async fn select_tools(
+        &self,
+        Parameters(SelectToolsArgs { query }): Parameters<SelectToolsArgs>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let result = self.attend(&query).await?;
+        // Best effort: a client that ignores it still gets the names in the
+        // reply, and every tool stays callable.
+        let _ = context.peer.notify_tool_list_changed().await;
+        Ok(result)
     }
 
     // Fallback only — see tools.ttc / MctServer::new.
@@ -2458,12 +2823,52 @@ impl MctServer {
 // request and serves their fallback descriptions (issue #70).
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for MctServer {
+    async fn list_tools(
+        &self,
+        _request: Option<rmcp::model::PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<rmcp::model::ListToolsResult, McpError> {
+        Ok(rmcp::model::ListToolsResult {
+            tools: self.advertised_tools(),
+            ..Default::default()
+        })
+    }
+
+    // The macro's default `call_tool`, plus the POST contract check — and,
+    // first, the current ignore rules applied to the index.
+    async fn call_tool(
+        &self,
+        request: rmcp::model::CallToolRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<rmcp::model::CallToolResponse, McpError> {
+        self.apply_exclusion_changes().await?;
+        let tool = request.name.clone();
+        let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
+        let response = self.tool_router.call(call).await?;
+        if let rmcp::model::CallToolResponse::Complete(result) = &response {
+            check_postcondition(&tool, result)?;
+        }
+        Ok(response)
+    }
+
     fn get_info(&self) -> InitializeResult {
-        InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
+        let tools = ServerCapabilities::builder().enable_tools();
+        let (capabilities, attention) = if self.attention.is_some() {
+            (
+                tools.enable_tool_list_changed().build(),
+                "Tool Attention is on: tools/list starts with select_tools only. Call \
+                 select_tools with the user's request first; it narrows tools/list to the tools \
+                 that request needs and sends tools/list_changed. Every tool stays callable by \
+                 name. ",
+            )
+        } else {
+            (tools.build(), "")
+        };
+        InitializeResult::new(capabilities)
             .with_server_info(Implementation::from_build_env())
             .with_protocol_version(ProtocolVersion::V_2024_11_05)
-            .with_instructions(
-                "Indexes this repository's source code (any of the supported languages, including \
+            .with_instructions(format!(
+                "{attention}Indexes this repository's source code (any of the supported languages, including \
              polyglot repos) into a symbol graph. Prefer these tools over reading whole files \
              with grep or a file reader when you need to locate a definition or understand call \
              relationships — it costs far fewer tokens. list_symbols is the discovery tool: use \
@@ -2503,7 +2908,30 @@ impl ServerHandler for MctServer {
              (any tool above except reindex) in one call, each reported under its own header — \
              prefer it over several separate calls whenever you already know the queries you \
              need, since it drops the per-call overhead."
-                    .to_string(),
-            )
+            ))
+    }
+}
+
+#[cfg(test)]
+mod contract_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::*;
+
+    #[test]
+    fn postcondition_rejects_an_empty_success_only() {
+        let empty = CallToolResult::success(vec![ContentBlock::text("  ")]);
+        let err = check_postcondition("find_symbol", &empty).unwrap_err();
+        assert!(
+            err.message.contains("broke its contract"),
+            "{}",
+            err.message
+        );
+
+        assert!(
+            check_postcondition("t", &CallToolResult::success(vec![ContentBlock::text("x")]))
+                .is_ok()
+        );
+        assert!(check_postcondition("t", &CallToolResult::error(vec![])).is_ok());
     }
 }

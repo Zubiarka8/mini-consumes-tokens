@@ -86,3 +86,78 @@ fn syntax_error_is_reported_not_panicked() {
     });
     assert!(matches!(result, Err(mct_core::ParseError::Syntax { .. })));
 }
+
+#[test]
+fn quoted_alternative_accepts_literal_semicolons_and_preserves_locations() {
+    let parsed =
+        parse("warn() { echo ok; }\nvalue=\"${stale:+$stale; }${other:+$other; }check\"\nwarn\n");
+    let value = parsed
+        .symbols
+        .iter()
+        .find(|symbol| symbol.name == "value")
+        .unwrap();
+    assert_eq!(value.location.line, 2);
+    let warn_call = parsed
+        .relations
+        .iter()
+        .find(|relation| relation.to_name == "warn")
+        .unwrap();
+    assert_eq!(warn_call.location.line, 3);
+    assert_eq!(warn_call.location.column, 1);
+}
+
+#[test]
+fn pr_body_script_parses_without_execution() {
+    let parsed = parse(include_str!("../../../scripts/unix/pr-body.sh"));
+    assert!(parsed
+        .symbols
+        .iter()
+        .any(|symbol| symbol.name == "stamp_of"));
+    assert!(parsed
+        .relations
+        .iter()
+        .any(|relation| relation.to_name == "warn"));
+}
+
+#[test]
+fn quoted_alternative_preserves_nested_command_substitution_calls() {
+    let parsed = parse("value=\"${stale:+$(echo ok;) ; }check\"\n");
+    let call = parsed
+        .relations
+        .iter()
+        .find(|relation| relation.to_name == "echo")
+        .unwrap();
+    assert_eq!(call.location.line, 1);
+    assert_eq!(call.location.column, 19);
+}
+
+#[test]
+fn quoted_alternative_extracts_original_import_text() {
+    let parsed = parse("source \"${stale:+$stale; }lib.sh\"\n");
+    assert!(parsed.relations.iter().any(|relation| {
+        relation.kind == RelationKind::Imports && relation.to_name == "${stale:+$stale; }lib.sh"
+    }));
+}
+
+#[test]
+fn alternative_workaround_preserves_legitimate_syntax_errors() {
+    for source in [
+        "value=\"${stale:+$stale; }check\"\necho |\n",
+        "value=\"${stale:+$stale; }check\"\nfunction broken( {\n",
+        "value=\"${stale:+$(echo |) ; }check\"\n",
+        "value=\"${stale:+$stale; check\"\n",
+        "value=\"${stale:+$stale; }check\n",
+        "value=\"${:+$stale; }check\"\n",
+    ] {
+        assert!(
+            matches!(
+                BashParser.parse(&SourceFile {
+                    relative_path: "broken.sh".to_string(),
+                    contents: source.to_string(),
+                }),
+                Err(mct_core::ParseError::Syntax { .. })
+            ),
+            "invalid source was accepted: {source}"
+        );
+    }
+}

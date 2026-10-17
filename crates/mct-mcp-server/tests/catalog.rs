@@ -11,7 +11,7 @@
 use std::path::Path;
 
 use mct_index::{ExcludeSet, Index};
-use mct_mcp_server::server::MctServer;
+use mct_mcp_server::server::{MctServer, ServerOptions};
 use mct_mcp_server::ttc;
 
 fn fixture_root() -> std::path::PathBuf {
@@ -22,7 +22,11 @@ async fn build_server() -> MctServer {
     let registry = mct_mcp_server::registry::build_registry();
     let mut index = Index::open_in_memory(&fixture_root(), ExcludeSet::default()).unwrap();
     index.reindex(&registry, false).unwrap();
-    MctServer::new(index, registry)
+    // Tool Attention on: the only build that registers every known tool
+    // (`select_tools` is removed when it is off).
+    let mut options = ServerOptions::from_env();
+    options.tool_attention = true;
+    MctServer::with_options(index, registry, options)
 }
 
 #[tokio::test]
@@ -91,16 +95,18 @@ async fn the_full_catalogs_serialized_footprint_is_well_under_the_pre_ttc_size()
     // with `hybrid_search` (issue #61), then ~3334 bytes across 17 tools
     // with `batch` (issue #20), then ~3662 bytes across 18 tools with
     // `build_context_pack` (issue #27; `hybrid_search`'s exact-phrase wording
-    // had already taken the catalog to ~3470). The `search_symbols_like` /
-    // `hybrid_search_like` rename kept the old names as two short deprecated
-    // aliases (+~250 bytes across 20 tools) and `find_references` gained its
-    // `sort` note; drop the aliases' bytes again when they are removed. 4200
-    // is a regression guard with headroom, not a precise assertion — bump it
+    // had already taken the catalog to ~3470), then ~4103 bytes across 20
+    // tools with `semantic_search` and `select_tools` (issue #11). The
+    // `search_symbols_like` / `hybrid_search_like` rename kept the old names
+    // as two short deprecated aliases and `find_references` gained its `sort`
+    // note (~4662 bytes together), which moved the guard from 4300 to 4800; drop the aliases' bytes
+    // again when they are removed. It is a regression guard with headroom,
+    // not a precise assertion — bump it
     // (with a note here) rather than loosen it silently if a future tool
     // needs the room.
     assert!(
-        description_bytes < 4_200,
-        "tool catalog description bytes grew to {description_bytes}, expected well under 4200 \
+        description_bytes < 4_800,
+        "tool catalog description bytes grew to {description_bytes}, expected well under 4800 \
          (TTC's whole point is a compact catalog)"
     );
 }

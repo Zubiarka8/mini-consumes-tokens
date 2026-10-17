@@ -1,4 +1,4 @@
-# language=cpp files=5 symbols=423 relations=493 name_matched_across_files=150
+# language=cpp files=5 symbols=423 relations=500 name_matched_across_files=156
 
 == include/inventory/model.hpp (342 lines)
 S 1-342 module model
@@ -315,6 +315,7 @@ S 291-291 function inv::describe_error
 S 295-307 module std
 S 299-305 struct std::hash
 S 300-304 method hash::operator()
+R 6:1 imports storage -> model (name-matched: include/inventory/model.hpp)
 R 6:1 imports storage -> inventory/model.hpp
 R 8:1 imports storage -> filesystem
 R 9:1 imports storage -> functional
@@ -417,7 +418,9 @@ S 257-264 function cli::handlers
 S 266-273 function cli::make_context
 S 275-302 function cli::run
 S 306-308 function main
+R 7:1 imports main -> model (name-matched: include/inventory/model.hpp)
 R 7:1 imports main -> inventory/model.hpp
+R 8:1 imports main -> storage (name-matched: include/inventory/storage.hpp)
 R 8:1 imports main -> inventory/storage.hpp
 R 10:1 imports main -> cstdlib
 R 11:1 imports main -> iostream
@@ -606,7 +609,9 @@ S 291-294 struct Tier
 S 292-292 field Tier::from
 S 293-293 field Tier::unit
 S 304-307 function inv::service::make_service
+R 4:1 imports service -> model (name-matched: include/inventory/model.hpp)
 R 4:1 imports service -> inventory/model.hpp
+R 5:1 imports service -> storage (name-matched: include/inventory/storage.hpp)
 R 5:1 imports service -> inventory/storage.hpp
 R 7:1 imports service -> cmath
 R 8:1 imports service -> iostream
@@ -791,7 +796,9 @@ S 279-289 method StoreHealth::status_name
 S 291-294 method StoreHealth::degrade
 S 296-298 function inv::describe_error
 S 300-302 function inv_version_string
+R 4:1 imports storage -> storage
 R 4:1 imports storage -> inventory/storage.hpp
+R 5:1 imports storage -> model (name-matched: include/inventory/model.hpp)
 R 5:1 imports storage -> inventory/model.hpp
 R 7:1 imports storage -> cstdio
 R 8:1 imports storage -> fstream

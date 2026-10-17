@@ -76,7 +76,14 @@ fn find_callers_of_log_shows_both_call_sites() {
 #[test]
 fn find_references_finds_cross_file_call_from_run() {
     let index = open_indexed();
-    let refs = index.find_references("deploy").unwrap();
+    // `source ./deploy.sh` also references the `deploy` module (as an
+    // import); the call itself is the one `calls` hit.
+    let refs: Vec<_> = index
+        .find_references("deploy")
+        .unwrap()
+        .into_iter()
+        .filter(|r| r.kind == "calls")
+        .collect();
     assert_eq!(refs.len(), 1, "run.sh calls deploy once");
     assert_eq!(refs[0].relative_path, "run.sh");
 }

@@ -1,6 +1,6 @@
 {
   "suite": "omni-app",
-  "catalog_tokens": 9643,
+  "catalog_tokens": 10727,
   "cases": {
     "Bash callers across sourced files": {
       "score": 1.0,
@@ -106,6 +106,10 @@
       "score": 1.0,
       "reciprocal_rank": 1.0,
       "tokens": 164
+    },
+    "module dependency graph follows a resolved TypeScript import": {
+      "score": 1.0,
+      "tokens": 202
     },
     "overview of a JVM directory": {
       "score": 1.0,
