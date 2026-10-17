@@ -36,3 +36,23 @@ Record significant events only. Link to task, review, and decision details; omit
   advanced by fast-forward to the reviewed candidates. No main integration.
 - Reproduced the ignored relation_scale release measurement on base and candidate:
   both pass, 15.85 s versus 15.75 s; final alias checkpoint records direct evidence.
+
+## 2026-10-15 — Issue #207 dispatch
+
+- User confirmed on-demand scope, Rust + Python, local-only work and three agents.
+- Coordinator committed the interface contract `5efc8a7` and error records `e36b890`;
+  dispatched TASK-207-A/B/C in separate worktrees (PM-DEC-207).
+- Workers A, B and C completed; coordinator reviewed and merged them without conflicts,
+  scrubbed a local-account leak from worker A's unpublished history (REPORT R207-1), added
+  real-token end-to-end tests, ran Stage 8 on this repository and pydantic-core, finished
+  ADR-007 and docs. check.sh on `3ca021a`: all checks passed (1476/0/24).
+- Black-box testing of `mct-cli duplicates` on purpose-built fixtures found a Python
+  nesting false positive (REPORT R207-3). Fixed with prove-it tests first (`99f7058`), ADR-007
+  updated (`bfb7ee7`), Stage 8 re-measured with identical groups. check.sh on `bfb7ee7`:
+  all checks passed (1488/0/24). Still local only, nothing pushed.
+- Rust black-box fixture: all expected groups formed and no solo function grouped.
+  The live report on this repository showed visibility-only misses (REPORT R207-4). Fixed in
+  `29b4c2e` and recorded in ADR-007 (`01fe107`). check.sh: all checks passed (1490/0/24).
+  The issue-#207 fix commits had landed on a branch `test/auto-reindex-check` that
+  something else created at d500db5. `feat/207-token-twins` was fast-forwarded to them.
+  Still local only.

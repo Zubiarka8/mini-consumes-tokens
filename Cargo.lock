@@ -1359,6 +1359,7 @@ version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
+ "git2",
  "mct-core",
  "mct-index",
  "mct-lang-bash",

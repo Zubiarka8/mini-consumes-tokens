@@ -67,3 +67,26 @@
 - Successful `get_indexing_status` on the dirty tree based on `32f8a79ccfcd09c3d790e43edc284d7602e9737b`: timestamp 1791792386, 594 files and 12,370 symbols. The 16 malformed-corpus parse failures are expected (ERR-003); no other parse diagnostic was observed in this worktree.
 - Source lookup proceeded through local `build_context_pack` calls. A connected MCP with an unconfirmed root was not used for the code review.
 - Intentional malformed ignore-file and permission-denial fixtures belong to the synthetic regression tests; their diagnostics and reproduced privacy defects are recorded in `project-management/checkpoints/index-privacy-hygiene-review.md`.
+
+## 2026-10-15 — Issue #207 planning
+
+- ERR-013 and ERR-014 observed and resolved in the same session: two caller mistakes inside one `batch` call (a non-existent file path for `get_file_skeleton`, and `name` instead of `symbol` for `build_context_pack`). The other batch sub-queries succeeded; both lookups succeeded on retry with correct arguments. The user was notified. No server defect.
+
+
+## 2026-10-15 — Token twins improvement validation
+
+- ERR-016: the connected MCP index reports only 6 files and cannot locate `GroupEvidence` in the requested path. CLI-backed MCP queries with an explicit checkout root succeeded (1,188 files). Connected index coverage remains unverified; implementation exploration uses the project's CLI tool calls.
+- ERR-009 reproduced before F1.3 code changes: `scripts/unix/check.sh` exits 1 both inside and outside the sandbox on the dirty `ac525ca` tree. Each reports 1,306 passed, 3 failed, 23 ignored; the failing tests remain `watcher_reindexes_after_a_file_change_settles`, `watcher_applies_ignore_file_edits_without_a_restart` and `watcher_drops_a_deleted_file_and_follows_a_rename_incrementally`. Formatting, strict workspace Clippy and evaluation pass (accuracy 1.000). No watcher change or test weakening is included in F1.3.
+- ERR-009 after the F1.3 spelling-evidence increment: native `scripts/unix/check.sh` exits 1 with 1,312 passed, 3 failed, 23 ignored. The same three watcher assertions fail; fmt, strict workspace Clippy and evaluation pass (accuracy 1.000, catalog approximately 9,021 tokens). All newly reached detector tests pass. A workspace `--no-fail-fast` run is used to verify test binaries left unexecuted after the watcher failure.
+
+- ERR-015 observed and resolved: an old local release MCP server rejected the temporary tracked-crates index before initialize with `Attempt to migrate a database with a migration number that is too high`. Rebuilt the release server from the current branch; initialize, tools/list and get_indexing_status then succeeded. Only the 16 expected malformed fixtures were reported. The primary index was not changed.
+- ERR-009 reopened: full checks reported three background-watcher failures (1,287 passed, 3 failed, 23 ignored). Native focused rerun reproduced them, and an isolated unmodified `ac525ca` source build reproduced the same three failures outside the sandbox in an isolated release target (8 passed, 3 failed, 20.18 s). Previously resolved sandbox-specific evidence is retained; the current cause is unconfirmed and is not introduced by the token-twins changes.
+
+- ERR-009 baseline coverage extended: full native workspace --no-fail-fast reports
+  1,521 passed, 9 failed, 24 ignored. In addition to the three background_watcher
+  failures, a_saved_file_becomes_searchable_only_after_the_delay and all five
+  reindex_delay_timing cases fail. A native isolated reconstruction of the
+  pre-F1.3 dirty source, with mct-core, mct-tree-sitter, adapters, index and server
+  recompiled, reproduces all six additional failures (3 passed / 6 failed).
+  These are pre-existing failures; the root cause remains unconfirmed. No watcher
+  implementation or assertion was changed, skipped or weakened.

@@ -7,6 +7,7 @@
 #   scripts/unix/branch-worktree.sh <branch>            # from origin/main
 #   scripts/unix/branch-worktree.sh <branch> <base>     # from another ref
 #
+# Also makes every project-local skill available in the new worktree (sync-skills.sh).
 # Prints the directory to cd into. Exit status: 0 on success, 2 on usage or conflict.
 
 source "$(dirname "$0")/lib.sh"
@@ -24,6 +25,8 @@ path="$(dirname "$ROOT")/$(basename "$ROOT")-$(echo "$branch" | tr '/' '-')"
 git fetch origin --quiet || die "git fetch origin failed"
 git rev-parse --verify --quiet "$base" >/dev/null || die "unknown base: $base"
 git worktree add -b "$branch" "$path" "$base" >/dev/null || die "git worktree add failed"
+
+"$SCRIPTS_DIR/sync-skills.sh" "$path" || die "skills sync failed"
 
 echo "created branch $branch from $base"
 echo "cd \"$path\""

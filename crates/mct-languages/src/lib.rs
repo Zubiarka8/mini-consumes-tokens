@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use mct_core::LanguageRegistry;
+use mct_core::{LanguageRegistry, TokenSourceRegistry};
 
 pub fn build_registry() -> LanguageRegistry {
     let mut registry = LanguageRegistry::new();
@@ -29,6 +29,15 @@ pub fn build_registry() -> LanguageRegistry {
     registry
 }
 
+/// Token sources for on-demand analyses such as `mct-cli duplicates`. Only
+/// languages listed here are analyzed; the rest are reported as unsupported.
+pub fn build_token_sources() -> TokenSourceRegistry {
+    let mut registry = TokenSourceRegistry::new();
+    registry.register(Arc::new(mct_lang_rust::RustTokenSource));
+    registry.register(Arc::new(mct_lang_python::PythonTokenSource));
+    registry
+}
+
 #[cfg(test)]
 mod tests {
     // Test code: reads this repository's own crates/ directory, never
@@ -38,7 +47,7 @@ mod tests {
     use std::fs;
     use std::path::Path;
 
-    use super::build_registry;
+    use super::{build_registry, build_token_sources};
 
     #[test]
     fn every_language_crate_in_the_workspace_is_registered() {
@@ -98,5 +107,21 @@ mod tests {
         }
         // A new language needs its own pair above.
         assert_eq!(registry.language_ids().len(), pairs.len());
+    }
+
+    #[test]
+    fn token_sources_cover_rust_and_python_with_their_parsers_ids() {
+        let sources = build_token_sources();
+        assert_eq!(sources.language_ids(), ["python", "rust"]);
+        // A token source is selected by an indexed file's `language`, which
+        // is its parser's id.
+        let registry = build_registry();
+        for id in sources.language_ids() {
+            assert!(
+                registry.language_ids().contains(&id),
+                "token source {id} has no registered parser"
+            );
+            assert_eq!(sources.for_language(id).unwrap().language_id(), id);
+        }
     }
 }
