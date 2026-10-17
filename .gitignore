@@ -13,7 +13,8 @@
 .mcp.json
 
 # Session-local Claude Code state — not portable across contributors/machines
-.claude/
+.claude/*
+!.claude/skills
 # Pre-rename index directories, still present in older checkouts or created
 # by a stale globally-installed pre-rename binary
 .claude-index/
