@@ -1,11 +1,11 @@
 # Query cache (issue #16)
 
-`search_symbols` and `hybrid_search` keep an in-process cache of **rankings**:
+`search_symbols_like` and `hybrid_search_like` keep an in-process cache of **rankings**:
 which symbols a query resolved to, in which order. A repeated query that is
 still valid skips the ranking work and, when this session was already sent
 that exact response, is answered with one line instead of the full list.
 Implementation: `crates/mct-mcp-server/src/cache.rs`; wiring in
-`server.rs` (`search_symbols`, `hybrid_search`, `cached_reply`).
+`server.rs` (`search_symbols_like`, `hybrid_search_like`, `cached_reply`).
 
 Priorities, in order: correctness and freshness, then token reduction, then
 latency, then hit rate. A false hit is worse than a miss, so every doubt is a
@@ -15,12 +15,12 @@ miss.
 
 | | Exact | Semantic |
 |---|---|---|
-| Tools | `search_symbols`, `hybrid_search` | `hybrid_search` with a semantic side only (`alpha > 0`, a model available, not a `"quoted"` exact phrase) |
+| Tools | `search_symbols_like`, `hybrid_search_like` | `hybrid_search_like` with a semantic side only (`alpha > 0`, a model available, not a `"quoted"` exact phrase) |
 | Lookup | SHA-256 key → `HashMap` probe | cosine similarity of the query embedding against earlier queries cached under the same key minus the query text |
 | Match | identical normalised query (whitespace runs collapsed; case kept — it steers `alpha` routing) | similarity ≥ threshold (**0.95** by default) **and** best − second-best ≥ margin (**0.02**) |
 | Extra cost | none | none: the query embedding is the one the search needs anyway, reused on a miss |
 
-`search_symbols` is lexical by contract, so it never gets a semantic hit: two
+`search_symbols_like` is lexical by contract, so it never gets a semantic hit: two
 paraphrases can mean the same thing and still match different names.
 
 ### The exact key
@@ -31,7 +31,7 @@ SHA-256 over length-prefixed fields (so adjacent fields can't collide):
 - repository identity — the canonical project root;
 - tool name and tool cache version (`search_symbols/1`, `hybrid_search/1`);
 - normalised query;
-- ranking parameters: `path`, `language`, and for `hybrid_search` the
+- ranking parameters: `path`, `language`, and for `hybrid_search_like` the
   effective `alpha` (after clamping/auto-routing);
 - search configuration: `RRF_K`, `SEMANTIC_CANDIDATES`, `EXACT_PHRASE_BOOST`,
   `EMBEDDING_TEXT_VERSION`;
@@ -166,7 +166,7 @@ release build, 2026-09-28):
 
 | Path | Hits | Uncached → cached tokens | Reduction | Cache lookup p50 / p95 |
 |---|---|---|---|---|
-| Exact (`search_symbols` + lexical `hybrid_search`, 10 queries) | 20/20 | 3 628 → 360 | **90.1%** | 0.14 / 0.86 ms |
+| Exact (`search_symbols_like` + lexical `hybrid_search_like`, 10 queries) | 20/20 | 3 628 → 360 | **90.1%** | 0.14 / 0.86 ms |
 | Semantic, bag-of-words embedder (6 paraphrase pairs) | 6/6 | 1 672 → 129 | **92.3%** | 1.9 / 2.4 ms |
 | Semantic, `bge-small-en-v1.5` (`--features semantic`, same 6 pairs) | 6/6 | 1 668 → 129 | **92.3%** | 2.5 / 2.5 ms (+ query embedding: mean 6.8 ms) |
 
@@ -188,14 +188,14 @@ reference line is sent in full.
   `build_context_pack`…) are not cached; they are single indexed queries
   already.
 - **Latency gain is modest for lexical search** (already sub-millisecond on
-  this repo); the win there is tokens. For `hybrid_search` an exact hit also
+  this repo); the win there is tokens. For `hybrid_search_like` an exact hit also
   skips the query embedding.
 - **A reference reply assumes the agent still has the earlier response.** If
   its context was compacted, `cache: false` (or `MCT_CACHE_RESPONSE=full`)
   gets the full text.
 - **Unrelated changes cost one recomputation** per surviving entry (lexical
   ranking + stored-vector semantic ranking), and on a small repository every
-  file tends to be referenced by an unscoped `hybrid_search` result, so any
+  file tends to be referenced by an unscoped `hybrid_search_like` result, so any
   edit invalidates it.
 - **Semantic similarity is the model's.** The threshold and margin guard
   against loose matches, but whether two phrasings clear 0.95 is up to the

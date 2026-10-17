@@ -111,10 +111,10 @@ Dependencies are declared in two places:
 | `mct-tree-sitter` | `tree-sitter` | shared syntax-tree helpers |
 | `mct-lang-*` | `tree-sitter` + its own grammar (`tree-sitter-rust`, `tree-sitter-python`…) | parsing one language |
 | `mct-index` | `rusqlite` (bundled SQLite), `rusqlite_migration`, `git2`, `globset`, `walkdir`, `serde_json`, `toml` | database, migrations, file hashes, exclusions, walking the project, reading manifests |
-| `mct-mcp-server` | `rmcp`, `tokio`, `clap`, `notify` + `notify-debouncer-full`, `schemars`, `serde`, `tracing`; `fastembed` (optional) | MCP protocol, async runtime, flags, file watcher, tool schemas, logs; embeddings for `hybrid_search` |
+| `mct-mcp-server` | `rmcp`, `tokio`, `clap`, `notify` + `notify-debouncer-full`, `schemars`, `serde`, `tracing`; `fastembed` (optional) | MCP protocol, async runtime, flags, file watcher, tool schemas, logs; embeddings for `hybrid_search_like` |
 | `mct-cli` | `clap`, `serde_json`, `anyhow` | commands, writing `.mcp.json` |
 
-`fastembed` is only built with the `semantic` feature (`cargo install --path crates/mct-mcp-server --features semantic`). Without it, `hybrid_search` searches by words only.
+`fastembed` is only built with the `semantic` feature (`cargo install --path crates/mct-mcp-server --features semantic`). Without it, `hybrid_search_like` searches by words only.
 
 `vendor/tree-sitter-md/` is a patched copy of the Markdown grammar, with two memory-safety fixes not yet released upstream. The root `Cargo.toml` swaps it in through `[patch.crates-io]`; remove it once an upstream release contains both fixes.
 

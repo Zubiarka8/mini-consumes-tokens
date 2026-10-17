@@ -8,6 +8,9 @@
 |---|---|---|
 | `list_symbols` | discovery | List symbols under a file or directory/crate prefix |
 | `find_symbol` | atomic | Exact-name symbol lookup |
+| `search_symbols_like` | discovery | Ranked word search over symbol names |
+| `hybrid_search_like` | discovery | Word search fused with embedding similarity |
+| `search_symbols` / `hybrid_search` | deprecated aliases | Old names of the two tools above, kept for one version |
 | `find_references` | atomic | Every reference to a symbol |
 | `find_calls` | atomic | What a function calls |
 | `find_callers` | atomic | What calls a function |
@@ -22,7 +25,7 @@
 
 `select_tools` accepts `query` (the user's request, verbatim). With `MCT_TOOL_ATTENTION=1` the server declares `tools.listChanged` and `tools/list` starts with `select_tools` alone. Each call runs `intent::preselect` on the query (word rules only; the full catalog when they find nothing), makes `select_tools` plus the picked tools the advertised set, sends `notifications/tools/list_changed`, and replies with the intent line, the tool names and argument hints. It never runs a tool. `tools/call` accepts every catalog tool whatever is advertised. Without the variable, `select_tools` is not registered and nothing else changes. `batch` refuses it (with the variable off it is an unknown tool there too).
 
-`find_references`/`find_calls`/`find_callers`/`impact_analysis` accept `depth` (multi-hop, default 1), `limit`, `offset`.
+`find_references`/`find_calls`/`find_callers`/`impact_analysis` accept `depth` (multi-hop, default 1), `limit`, `offset`. `find_references` also accepts `sort`: `relevance` (default) or `execution` (by hop, file and line; a static approximation, not the real execution order).
 
 `get_project_overview` accepts `path` (optional, same matching semantics as `list_symbols` — omitted means the whole project root), `language`, `max_symbols_per_module` (default 8, caps top-level symbols surfaced per file), and `include_relations` (default true, whether to show each surfaced symbol's top callers). It composes `list_symbols` + `find_callers` internally — no new SQL, no new schema — ranking truncated modules by call fan-in.
 

@@ -1,6 +1,6 @@
 {
   "suite": "omni-app",
-  "catalog_tokens": 9021,
+  "catalog_tokens": 10727,
   "cases": {
     "Bash callers across sourced files": {
       "score": 1.0,
@@ -79,6 +79,11 @@
     "definition of a PowerShell function": {
       "score": 1.0,
       "tokens": 152
+    },
+    "deprecated search_symbols alias": {
+      "score": 1.0,
+      "reciprocal_rank": 1.0,
+      "tokens": 147
     },
     "direct blast radius of a constructor": {
       "score": 1.0,
