@@ -373,8 +373,9 @@ F1.3 native check.sh: formatting and strict workspace Clippy pass; mct-eval
 passes without regressions (accuracy 1.000). Tests stop at the three pre-existing
 ERR-009 watcher failures: 1,312 passed, 3 failed, 23 ignored. Before implementation
 the native baseline had the same failures (1,306 passed, 3 failed, 23 ignored).
-The fully green check.sh criterion is not met. See the
-[full F1.3 report](token-twins-types-report.md) for scope, status and follow-up.
+The fully green check.sh criterion is not met. The F1.3 implementation report
+(changes by crate, test list) was removed as superseded by this section; it is
+kept in history as `benchmarks/token-twins-types-report.md` at `90a3817`.
 
 Supplementary performance protocol, declared before running: reuse the unchanged
 `few-large` generator at 1,000 and 10,000 functions, then add complete direct
