@@ -90,3 +90,7 @@
   recompiled, reproduces all six additional failures (3 passed / 6 failed).
   These are pre-existing failures; the root cause remains unconfirmed. No watcher
   implementation or assertion was changed, skipped or weakened.
+
+## 2026-10-16 — #207 Codex-work optimization session
+
+- ERR-015 recurred and is OPEN again: the session's `mini-consumes-tokens` MCP server failed with `CONNECTION_CLOSED`. `scripts/unix/mcp-smoke.sh` in the primary checkout reported `migration error: ... Attempt to migrate a database with a migration number that is too high` from the installed `mct-mcp-server`. The user was notified. The reinstall/reindex fix was not applied because the session's brief excludes the primary checkout; exploration used `mct-cli call` with the `feat/207-token-twins` worktree as root and its own freshly built index. Resolution needs a reinstall from the intended checkout and a successful initialize.

@@ -1,14 +1,26 @@
 # Project State
 
-Last update: 2026-10-15
-Updated by: Claude Code coordinator (issue #207)
+Last update: 2026-10-18
+Updated by: Codex (post-integration PR preparation)
 
-## Active: issue #207 duplicate-function spike
+## Issue #207: feature integrated; follow-up changes in review
 
-TASK-207 in TASKS.md: REVIEW. `feat/207-token-twins` holds the contract, the three merged
-worker branches, end-to-end tests, ADR-007 with the Stage 8 evaluation and docs; `check.sh`
-passed on `3ca021a`. Next action: maintainer review; push/PR only with the user's approval.
-Worker worktrees `mct-207-*` are kept until the user authorizes cleanup.
+GitHub main at `4c3f155` includes the merge of PR #208 (`5c308d2`), including
+TASK-207 and its three worker implementations. Feature integration is complete;
+do not open another PR for the already-integrated spike. GitHub main was verified
+through the connector on 2026-10-18; CLI GitHub access still fails due DNS.
+Worker worktrees `mct-207-*` are retained; no cleanup was authorized.
+2026-10-16: behavior-preserving cleanup of the Codex evaluation work; `check.sh`
+passed on `fede724` (1588 passed). See
+[TASK-207-optimize](checkpoints/TASK-207-optimize.md). ERR-015 (MCP schema mismatch) is open.
+
+The user authorized separate follow-up PRs on 2026-10-18. Cleanup is isolated on
+`codex/207-postmerge-cleanup`; watcher tests, parser coverage, presentation research,
+and the project skill have separate candidate branches, based on current main.
+Cache/export was already integrated through PR #209 (`a7c81b9`) and is preserved;
+its JSON persistence and ADR-007 contract consistency need a separate follow-up.
+Publication uses the GitHub connector while CLI connectivity is unavailable.
+No main merge is authorized. Existing source worktrees and unrelated changes remain preserved.
 
 ## Earlier state (2026-10-12, Codex recovery coordinator)
 
