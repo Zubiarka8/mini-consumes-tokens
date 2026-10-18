@@ -28,6 +28,19 @@ impl Project {
         Self(dir)
     }
 
+    /// A new project holding `files` as `(relative path, source)` pairs, then
+    /// indexed. A `src/main.rs` entry replaces the default one.
+    fn indexed(tag: &str, files: &[(&str, &str)]) -> Self {
+        let project = Self::new(tag);
+        for (path, source) in files {
+            let path = project.0.join(path);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, source).unwrap();
+        }
+        project.init();
+        project
+    }
+
     fn path(&self) -> &Path {
         &self.0
     }
@@ -59,30 +72,32 @@ fn stderr(output: &Output) -> String {
     String::from_utf8_lossy(&output.stderr).into_owned()
 }
 
+/// The report of `duplicates` run on `project` with `args`; the run must succeed.
+fn duplicates(project: &Project, args: &[&str]) -> String {
+    let mut command: Vec<&dyn AsRef<std::ffi::OsStr>> = vec![&"--root", &project.0, &"duplicates"];
+    for arg in args {
+        command.push(arg);
+    }
+    let output = mct(&command);
+    assert!(
+        output.status.success(),
+        "duplicates failed: {}",
+        stderr(&output)
+    );
+    stdout(&output)
+}
+
 #[test]
 fn exact_callable_boundaries_ignore_neighboring_syntax() {
-    let project = Project::new("byte-boundaries");
-    fs::write(
-        project.path().join("src/main.rs"),
-        include_str!("fixtures/duplicates/boundaries.rs"),
-    )
-    .unwrap();
-    project.init();
-    let output = mct(&[
-        &"--root",
-        &project.path(),
-        &"duplicates",
-        &"--min-lines",
-        &"1",
-        &"--min-tokens",
-        &"1",
-    ]);
-    assert!(output.status.success(), "{}", stderr(&output));
-    assert!(
-        stdout(&output).contains("total_groups: 1\n"),
-        "{}",
-        stdout(&output)
+    let project = Project::indexed(
+        "byte-boundaries",
+        &[(
+            "src/main.rs",
+            include_str!("fixtures/duplicates/boundaries.rs"),
+        )],
     );
+    let text = duplicates(&project, &["--min-lines", "1", "--min-tokens", "1"]);
+    assert!(text.contains("total_groups: 1\n"), "{text}");
 }
 
 #[test]
@@ -132,25 +147,21 @@ fn normalization_quality_corpus_preserves_identifier_and_interpolation_structure
         ),
         ("members", include_str!("fixtures/duplicates/members.py")),
     ] {
-        let project = Project::new(tag);
-        fs::write(project.path().join("sample.py"), source).unwrap();
-        project.init();
+        let project = Project::indexed(tag, &[("sample.py", source)]);
         for (policy, members, groups) in [("broad", 3, 1), ("consistent", 2, 1), ("exact", 0, 0)] {
-            let output = mct(&[
-                &"--root",
-                &project.path(),
-                &"duplicates",
-                &"--min-lines",
-                &"1",
-                &"--min-tokens",
-                &"1",
-                &"--normalization",
-                &policy,
-                &"--language",
-                &"python",
-            ]);
-            assert!(output.status.success(), "{}", stderr(&output));
-            let text = stdout(&output);
+            let text = duplicates(
+                &project,
+                &[
+                    "--min-lines",
+                    "1",
+                    "--min-tokens",
+                    "1",
+                    "--normalization",
+                    policy,
+                    "--language",
+                    "python",
+                ],
+            );
             assert!(
                 text.contains(&format!("total_groups: {groups}\n")),
                 "{tag}/{policy}: {text}"
@@ -190,32 +201,22 @@ fn group_of<'a>(report: &'a str, symbol: &str) -> &'a str {
     &report[start..end]
 }
 
+/// Every function counts (thresholds of 1), excerpts omitted, then `extra`.
+fn trivial_report(project: &Project, extra: &[&str]) -> String {
+    let base = ["--min-lines", "1", "--min-tokens", "1", "--no-excerpts"];
+    duplicates(project, &[&base[..], extra].concat())
+}
+
 fn evidence_report(project: &Project, policy: &str) -> String {
-    let output = mct(&[
-        &"--root",
-        &project.path(),
-        &"duplicates",
-        &"--min-lines",
-        &"1",
-        &"--min-tokens",
-        &"1",
-        &"--no-excerpts",
-        &"--normalization",
-        &policy,
-    ]);
-    assert!(output.status.success(), "{}", stderr(&output));
-    stdout(&output)
+    trivial_report(project, &["--normalization", policy])
 }
 
 #[test]
 fn splat_parameters_are_reported_apart_from_unpacking_targets_and_reads() {
-    let project = Project::new("splat");
-    fs::write(
-        project.path().join("splat.py"),
-        include_str!("fixtures/duplicates/splat.py"),
-    )
-    .unwrap();
-    project.init();
+    let project = Project::indexed(
+        "splat",
+        &[("splat.py", include_str!("fixtures/duplicates/splat.py"))],
+    );
     for policy in ["broad", "consistent"] {
         let report = evidence_report(&project, policy);
         assert!(report.contains("total_groups: 1\n"), "{report}");
@@ -254,18 +255,13 @@ fn subgroups_of(group: &str) -> &str {
 
 #[test]
 fn mixed_groups_split_into_evidence_subgroups_without_changing_membership() {
-    let project = Project::new("mixed");
-    fs::write(
-        project.path().join("mixed.py"),
-        include_str!("fixtures/duplicates/mixed.py"),
-    )
-    .unwrap();
-    fs::write(
-        project.path().join("src/main.rs"),
-        include_str!("fixtures/duplicates/mixed.rs"),
-    )
-    .unwrap();
-    project.init();
+    let project = Project::indexed(
+        "mixed",
+        &[
+            ("mixed.py", include_str!("fixtures/duplicates/mixed.py")),
+            ("src/main.rs", include_str!("fixtures/duplicates/mixed.rs")),
+        ],
+    );
     for policy in ["broad", "consistent"] {
         let report = evidence_report(&project, policy);
         assert!(report.contains("subgroups_scope: "), "{report}");
@@ -359,22 +355,7 @@ fn mixed_groups_split_into_evidence_subgroups_without_changing_membership() {
     }
 
     // `split_groups` counts every group, like `total_groups`, not the page.
-    let output = mct(&[
-        &"--root",
-        &project.path(),
-        &"duplicates",
-        &"--min-lines",
-        &"1",
-        &"--min-tokens",
-        &"1",
-        &"--no-excerpts",
-        &"--limit",
-        &"1",
-        &"--offset",
-        &"2",
-    ]);
-    assert!(output.status.success(), "{}", stderr(&output));
-    let page = stdout(&output);
+    let page = trivial_report(&project, &["--limit", "1", "--offset", "2"]);
     for expected in ["total_groups: 5\n", "split_groups: 3\n", "groups[1]:\n"] {
         assert!(page.contains(expected), "{expected:?}: {page}");
     }
@@ -382,18 +363,19 @@ fn mixed_groups_split_into_evidence_subgroups_without_changing_membership() {
 
 #[test]
 fn aligned_evidence_reports_located_differences_without_changing_groups() {
-    let project = Project::new("evidence");
-    fs::write(
-        project.path().join("evidence.py"),
-        include_str!("fixtures/duplicates/evidence.py"),
-    )
-    .unwrap();
-    fs::write(
-        project.path().join("src/main.rs"),
-        include_str!("fixtures/duplicates/evidence.rs"),
-    )
-    .unwrap();
-    project.init();
+    let project = Project::indexed(
+        "evidence",
+        &[
+            (
+                "evidence.py",
+                include_str!("fixtures/duplicates/evidence.py"),
+            ),
+            (
+                "src/main.rs",
+                include_str!("fixtures/duplicates/evidence.rs"),
+            ),
+        ],
+    );
     let broad = evidence_report(&project, "broad");
     assert!(
         broad.contains("alignment_not_evaluated[6]: "),
@@ -529,18 +511,19 @@ fn aligned_evidence_reports_located_differences_without_changing_groups() {
 
 #[test]
 fn context_evidence_reports_decorators_and_enclosing_constructs_without_changing_groups() {
-    let project = Project::new("contexts");
-    fs::write(
-        project.path().join("contexts.py"),
-        include_str!("fixtures/duplicates/contexts.py"),
-    )
-    .unwrap();
-    fs::write(
-        project.path().join("src/main.rs"),
-        include_str!("fixtures/duplicates/contexts.rs"),
-    )
-    .unwrap();
-    project.init();
+    let project = Project::indexed(
+        "contexts",
+        &[
+            (
+                "contexts.py",
+                include_str!("fixtures/duplicates/contexts.py"),
+            ),
+            (
+                "src/main.rs",
+                include_str!("fixtures/duplicates/contexts.rs"),
+            ),
+        ],
+    );
     // `exact` keeps the differing names, so these pairs only form under the
     // two normalizing policies.
     for policy in ["broad", "consistent"] {
@@ -591,40 +574,18 @@ fn context_evidence_reports_decorators_and_enclosing_constructs_without_changing
     }
 }
 
-fn trivial_report(project: &Project, extra: &[&str]) -> String {
-    let root = project.path();
-    let mut args: Vec<&dyn AsRef<std::ffi::OsStr>> = vec![
-        &"--root",
-        &root,
-        &"duplicates",
-        &"--min-lines",
-        &"1",
-        &"--min-tokens",
-        &"1",
-        &"--no-excerpts",
-    ];
-    for arg in extra {
-        args.push(arg);
-    }
-    let output = mct(&args);
-    assert!(output.status.success(), "{}", stderr(&output));
-    stdout(&output)
-}
-
 #[test]
 fn call_only_groups_are_demoted_by_shape_not_by_callee_name_and_never_removed() {
-    let project = Project::new("trivial");
-    fs::write(
-        project.path().join("trivial.py"),
-        include_str!("fixtures/duplicates/trivial.py"),
-    )
-    .unwrap();
-    fs::write(
-        project.path().join("src/main.rs"),
-        include_str!("fixtures/duplicates/trivial.rs"),
-    )
-    .unwrap();
-    project.init();
+    let project = Project::indexed(
+        "trivial",
+        &[
+            ("trivial.py", include_str!("fixtures/duplicates/trivial.py")),
+            (
+                "src/main.rs",
+                include_str!("fixtures/duplicates/trivial.rs"),
+            ),
+        ],
+    );
     // `exact` keeps the differing callee names, so these pairs only form
     // under the two normalizing policies.
     for policy in ["broad", "consistent"] {
@@ -736,22 +697,25 @@ fn assert_counts_match_listed_groups(report: &str) {
 
 #[test]
 fn verdicts_explain_each_group_from_its_evidence_without_changing_groups() {
-    let project = Project::new("verdicts");
-    for name in ["evidence.py", "contexts.py", "trivial.py", "splat.py"] {
-        let source = match name {
-            "evidence.py" => include_str!("fixtures/duplicates/evidence.py"),
-            "contexts.py" => include_str!("fixtures/duplicates/contexts.py"),
-            "splat.py" => include_str!("fixtures/duplicates/splat.py"),
-            _ => include_str!("fixtures/duplicates/trivial.py"),
-        };
-        fs::write(project.path().join(name), source).unwrap();
-    }
-    fs::write(
-        project.path().join("src/main.rs"),
-        include_str!("fixtures/duplicates/evidence.rs"),
-    )
-    .unwrap();
-    project.init();
+    let project = Project::indexed(
+        "verdicts",
+        &[
+            (
+                "evidence.py",
+                include_str!("fixtures/duplicates/evidence.py"),
+            ),
+            (
+                "contexts.py",
+                include_str!("fixtures/duplicates/contexts.py"),
+            ),
+            ("trivial.py", include_str!("fixtures/duplicates/trivial.py")),
+            ("splat.py", include_str!("fixtures/duplicates/splat.py")),
+            (
+                "src/main.rs",
+                include_str!("fixtures/duplicates/evidence.rs"),
+            ),
+        ],
+    );
 
     let report = evidence_report(&project, "broad");
     assert!(report.contains("verdict_scope: "), "{report}");
@@ -876,11 +840,8 @@ fn verdicts_explain_each_group_from_its_evidence_without_changing_groups() {
 
 #[test]
 fn identical_copies_are_real_with_identical_tokens_in_every_policy() {
-    let project = Project::new("verdict-identical");
     let source = "def copy(items):\n    total = 0\n    for item in items:\n        total += item * 2\n    return total\n";
-    fs::write(project.path().join("a.py"), source).unwrap();
-    fs::write(project.path().join("b.py"), source).unwrap();
-    project.init();
+    let project = Project::indexed("verdict-identical", &[("a.py", source), ("b.py", source)]);
     for policy in ["broad", "consistent", "exact"] {
         let report = evidence_report(&project, policy);
         assert!(report.contains("total_groups: 1\n"), "{policy}: {report}");
@@ -901,30 +862,17 @@ fn identical_copies_are_real_with_identical_tokens_in_every_policy() {
 
 #[test]
 fn coverage_and_pagination_are_independent_of_analysis_completeness() {
-    let project = Project::new("coverage-page");
-    fs::write(
-        project.path().join("sample.py"),
-        include_str!("fixtures/duplicates/identifiers.py"),
-    )
-    .unwrap();
-    fs::write(project.path().join("broken.py"), "def broken(:\n").unwrap();
-    project.init();
-    let output = mct(&[
-        &"--root",
-        &project.path(),
-        &"duplicates",
-        &"--min-lines",
-        &"1",
-        &"--min-tokens",
-        &"1",
-        &"--language",
-        &"python",
-        &"--limit",
-        &"0",
-        &"--no-excerpts",
-    ]);
-    assert!(output.status.success(), "{}", stderr(&output));
-    let text = stdout(&output);
+    let project = Project::indexed(
+        "coverage-page",
+        &[
+            (
+                "sample.py",
+                include_str!("fixtures/duplicates/identifiers.py"),
+            ),
+            ("broken.py", "def broken(:\n"),
+        ],
+    );
+    let text = trivial_report(&project, &["--language", "python", "--limit", "0"]);
     for expected in [
         "status: complete\n",
         "index_coverage: partial\n",
@@ -939,53 +887,38 @@ fn coverage_and_pagination_are_independent_of_analysis_completeness() {
 
 #[test]
 fn path_filter_runs_before_reading_stale_files_and_respects_directory_boundaries() {
-    let project = Project::new("path-filter");
-    fs::create_dir_all(project.path().join("src2")).unwrap();
-    fs::write(
-        project.path().join("src2/twins.py"),
-        include_str!("fixtures/duplicates/identifiers.py"),
-    )
-    .unwrap();
-    project.init();
-    fs::remove_file(project.path().join("src2/twins.py")).unwrap();
-    let output = mct(&[&"--root", &project.path(), &"duplicates", &"--path", &"src"]);
-    assert!(output.status.success(), "{}", stderr(&output));
-    assert!(
-        stdout(&output).contains("total_skipped: 0\n"),
-        "{}",
-        stdout(&output)
+    let project = Project::indexed(
+        "path-filter",
+        &[(
+            "src2/twins.py",
+            include_str!("fixtures/duplicates/identifiers.py"),
+        )],
     );
+    fs::remove_file(project.path().join("src2/twins.py")).unwrap();
+    let text = duplicates(&project, &["--path", "src"]);
+    assert!(text.contains("total_skipped: 0\n"), "{text}");
 }
 
 #[test]
 fn report_controls_preserve_totals_rank_positions_and_omit_excerpts() {
-    let project = Project::new("report-controls");
-    fs::write(project.path().join("sample.py"), "def a(x):\n    return x + x\ndef b(y):\n    return y + y\ndef c(x):\n    return x - x\ndef d(y):\n    return y - y\n").unwrap();
-    project.init();
-    let output = mct(&[
-        &"--root",
-        &project.path(),
-        &"duplicates",
-        &"--min-lines",
-        &"1",
-        &"--min-tokens",
-        &"1",
-        &"--language",
-        &"python",
-        &"--path",
-        &"./sample.py",
-        &"--normalization",
-        &"consistent",
-        &"--ranking",
-        &"tokens",
-        &"--limit",
-        &"1",
-        &"--offset",
-        &"1",
-        &"--no-excerpts",
-    ]);
-    assert!(output.status.success(), "{}", stderr(&output));
-    let text = stdout(&output);
+    let project = Project::indexed("report-controls", &[("sample.py", "def a(x):\n    return x + x\ndef b(y):\n    return y + y\ndef c(x):\n    return x - x\ndef d(y):\n    return y - y\n")]);
+    let text = trivial_report(
+        &project,
+        &[
+            "--language",
+            "python",
+            "--path",
+            "./sample.py",
+            "--normalization",
+            "consistent",
+            "--ranking",
+            "tokens",
+            "--limit",
+            "1",
+            "--offset",
+            "1",
+        ],
+    );
     for expected in [
         "total_groups: 2\n",
         "omitted_groups: 1\n",
@@ -997,86 +930,63 @@ fn report_controls_preserve_totals_rank_positions_and_omit_excerpts() {
         assert!(text.contains(expected), "{expected}: {text}");
     }
     assert!(!text.contains("def c"), "{text}");
-    let root_filter = mct(&[
-        &"--root",
-        &project.path(),
-        &"duplicates",
-        &"--path",
-        &".",
-        &"--min-lines",
-        &"1",
-        &"--min-tokens",
-        &"1",
-    ]);
-    assert!(
-        stdout(&root_filter).contains("total_groups: 2\n"),
-        "{}",
-        stdout(&root_filter)
+    let root_filter = duplicates(
+        &project,
+        &["--path", ".", "--min-lines", "1", "--min-tokens", "1"],
     );
+    assert!(root_filter.contains("total_groups: 2\n"), "{root_filter}");
 }
 
 #[test]
 fn exact_mode_matches_equal_names_across_files_and_preserves_literal_text() {
     for literal in ["1", "2"] {
-        let project = Project::new(&format!("exact-literal-{literal}"));
-        fs::write(
-            project.path().join("a.py"),
-            "def copy(x):\n    return x + 1\n",
-        )
-        .unwrap();
-        fs::write(
-            project.path().join("b.py"),
-            format!("def copy(x):\n    return x + {literal}\n"),
-        )
-        .unwrap();
-        project.init();
-        let output = mct(&[
-            &"--root",
-            &project.path(),
-            &"duplicates",
-            &"--min-lines",
-            &"1",
-            &"--min-tokens",
-            &"1",
-            &"--language",
-            &"python",
-            &"--normalization",
-            &"exact",
-        ]);
-        assert!(output.status.success(), "{}", stderr(&output));
+        let project = Project::indexed(
+            &format!("exact-literal-{literal}"),
+            &[
+                ("a.py", "def copy(x):\n    return x + 1\n"),
+                ("b.py", &format!("def copy(x):\n    return x + {literal}\n")),
+            ],
+        );
+        let text = duplicates(
+            &project,
+            &[
+                "--min-lines",
+                "1",
+                "--min-tokens",
+                "1",
+                "--language",
+                "python",
+                "--normalization",
+                "exact",
+            ],
+        );
         let groups = if literal == "1" { 1 } else { 0 };
         assert!(
-            stdout(&output).contains(&format!("total_groups: {groups}\n")),
-            "{}",
-            stdout(&output)
+            text.contains(&format!("total_groups: {groups}\n")),
+            "{text}"
         );
     }
 }
 
 #[test]
 fn consistent_mode_compares_spellings_without_claiming_scope_resolution() {
-    let project = Project::new("identifier-scopes");
-    fs::write(
-        project.path().join("scopes.py"),
-        include_str!("fixtures/duplicates/scopes.py"),
-    )
-    .unwrap();
-    project.init();
-    let output = mct(&[
-        &"--root",
-        &project.path(),
-        &"duplicates",
-        &"--min-lines",
-        &"1",
-        &"--min-tokens",
-        &"20",
-        &"--normalization",
-        &"consistent",
-        &"--language",
-        &"python",
-    ]);
-    assert!(output.status.success(), "{}", stderr(&output));
-    let text = stdout(&output);
+    let project = Project::indexed(
+        "identifier-scopes",
+        &[("scopes.py", include_str!("fixtures/duplicates/scopes.py"))],
+    );
+    let text = duplicates(
+        &project,
+        &[
+            "--min-lines",
+            "1",
+            "--min-tokens",
+            "20",
+            "--normalization",
+            "consistent",
+            "--language",
+            "python",
+        ],
+    );
     assert!(
         text.contains("total_groups: 1\n") && text.contains("member_count: 2\n"),
         "{text}"
@@ -1093,8 +1003,7 @@ fn duplicate_analysis_does_not_modify_the_database() {
     let database = project.path().join(".mct-index/index.sqlite3");
     let before = fs::read(&database).unwrap();
     let modified = fs::metadata(&database).unwrap().modified().unwrap();
-    let output = mct(&[&"--root", &project.path(), &"duplicates"]);
-    assert!(output.status.success(), "{}", stderr(&output));
+    duplicates(&project, &[]);
     assert_eq!(fs::read(&database).unwrap(), before);
     assert_eq!(
         fs::metadata(&database).unwrap().modified().unwrap(),
@@ -1140,13 +1049,7 @@ fn duplicates_prints_a_valid_complete_report_with_default_thresholds() {
     let project = Project::new("defaults");
     project.init();
 
-    let output = mct(&[&"--root", &project.path(), &"duplicates"]);
-    assert!(
-        output.status.success(),
-        "duplicates failed: {}",
-        stderr(&output)
-    );
-    assert_zero_group_report(&stdout(&output), "6", "40");
+    assert_zero_group_report(&duplicates(&project, &[]), "6", "40");
 }
 
 #[test]
@@ -1154,21 +1057,8 @@ fn custom_thresholds_are_echoed_in_the_report() {
     let project = Project::new("custom");
     project.init();
 
-    let output = mct(&[
-        &"--root",
-        &project.path(),
-        &"duplicates",
-        &"--min-lines",
-        &"12",
-        &"--min-tokens",
-        &"90",
-    ]);
-    assert!(
-        output.status.success(),
-        "duplicates failed: {}",
-        stderr(&output)
-    );
-    assert_zero_group_report(&stdout(&output), "12", "90");
+    let text = duplicates(&project, &["--min-lines", "12", "--min-tokens", "90"]);
+    assert_zero_group_report(&text, "12", "90");
 }
 
 #[test]
@@ -1176,10 +1066,7 @@ fn the_output_is_identical_between_runs() {
     let project = Project::new("repeat");
     project.init();
 
-    let first = mct(&[&"--root", &project.path(), &"duplicates"]);
-    let second = mct(&[&"--root", &project.path(), &"duplicates"]);
-    assert!(first.status.success() && second.status.success());
-    assert_eq!(stdout(&first), stdout(&second));
+    assert_eq!(duplicates(&project, &[]), duplicates(&project, &[]));
 }
 
 #[test]
@@ -1333,30 +1220,19 @@ def shift(cells, delta):
 ";
 
 fn grouping_report(project: &Project) -> String {
-    let output = mct(&[
-        &"--root",
-        &project.path(),
-        &"duplicates",
-        &"--min-lines",
-        &"4",
-        &"--min-tokens",
-        &"20",
-    ]);
-    assert!(
-        output.status.success(),
-        "duplicates failed: {}",
-        stderr(&output)
-    );
-    stdout(&output)
+    duplicates(project, &["--min-lines", "4", "--min-tokens", "20"])
 }
 
 #[test]
 fn rust_and_python_twins_are_grouped_per_language_by_the_real_token_sources() {
-    let project = Project::new("twins");
-    fs::write(project.path().join("src/a.rs"), RUST_TWIN_A).unwrap();
-    fs::write(project.path().join("src/b.rs"), RUST_TWIN_B).unwrap();
-    fs::write(project.path().join("tools.py"), PYTHON_TWINS).unwrap();
-    project.init();
+    let project = Project::indexed(
+        "twins",
+        &[
+            ("src/a.rs", RUST_TWIN_A),
+            ("src/b.rs", RUST_TWIN_B),
+            ("tools.py", PYTHON_TWINS),
+        ],
+    );
 
     let text = grouping_report(&project);
     assert!(text.contains("\nstatus: complete\n"), "{text}");
@@ -1392,11 +1268,11 @@ fn rust_and_python_twins_are_grouped_per_language_by_the_real_token_sources() {
 
 #[test]
 fn python_twins_form_one_group_and_never_join_a_rust_group() {
-    let project = Project::new("python-twins");
     let python = PYTHON_TWINS.replace("    \"\"\"Shift every positive cell.\"\"\"\n", "");
-    fs::write(project.path().join("tools.py"), python).unwrap();
-    fs::write(project.path().join("src/a.rs"), RUST_TWIN_A).unwrap();
-    project.init();
+    let project = Project::indexed(
+        "python-twins",
+        &[("tools.py", &python), ("src/a.rs", RUST_TWIN_A)],
+    );
 
     let text = grouping_report(&project);
     assert!(text.contains("\ntotal_groups: 1\n"), "{text}");
@@ -1434,9 +1310,10 @@ def outside(flag, rows):
 
 #[test]
 fn python_functions_differing_only_in_block_nesting_do_not_group() {
-    let project = Project::new("python-indentation");
-    fs::write(project.path().join("tools.py"), PYTHON_INDENTATION_ONLY).unwrap();
-    project.init();
+    let project = Project::indexed(
+        "python-indentation",
+        &[("tools.py", PYTHON_INDENTATION_ONLY)],
+    );
 
     let text = grouping_report(&project);
     assert!(text.contains("\nstatus: complete\n"), "{text}");
@@ -1450,7 +1327,6 @@ fn python_functions_differing_only_in_block_nesting_do_not_group() {
 #[test]
 fn python_functions_with_the_same_nesting_but_other_layout_still_group() {
     // A one-line suite and an indented block are the same structure.
-    let project = Project::new("python-layout");
     let one_line = PYTHON_INDENTATION_ONLY
         .replace(
             "        if flag:\n            total = total + row\n        total",
@@ -1459,8 +1335,7 @@ fn python_functions_with_the_same_nesting_but_other_layout_still_group() {
         .replace("def inside", "def unused_inside")
         .replace("def outside", "def compact");
     let source = format!("{PYTHON_INDENTATION_ONLY}\n\n{one_line}");
-    fs::write(project.path().join("tools.py"), source).unwrap();
-    project.init();
+    let project = Project::indexed("python-layout", &[("tools.py", &source)]);
 
     let text = grouping_report(&project);
     assert!(text.contains("\ntotal_groups: 2\n"), "{text}");
@@ -1488,9 +1363,7 @@ fn the_first_and_last_methods_of_a_class_group_like_any_other() {
         )
     };
     let source = format!("class Box:\n{}\n{}", method("first"), method("last"));
-    let project = Project::new("python-class-edges");
-    fs::write(project.path().join("tools.py"), source).unwrap();
-    project.init();
+    let project = Project::indexed("python-class-edges", &[("tools.py", &source)]);
 
     let text = grouping_report(&project);
     assert!(text.contains("\ntotal_groups: 1\n"), "{text}");
@@ -1503,12 +1376,12 @@ fn the_first_and_last_methods_of_a_class_group_like_any_other() {
 #[test]
 fn rust_twins_that_differ_only_in_visibility_group() {
     // A private function copied elsewhere as `pub(super)` is still a copy.
-    let project = Project::new("rust-visibility");
     let private = RUST_TWIN_A.replace("pub fn total", "fn total");
     let restricted = RUST_TWIN_B.replace("pub fn weight", "pub(super) fn weight");
-    fs::write(project.path().join("src/a.rs"), private).unwrap();
-    fs::write(project.path().join("src/b.rs"), restricted).unwrap();
-    project.init();
+    let project = Project::indexed(
+        "rust-visibility",
+        &[("src/a.rs", &private), ("src/b.rs", &restricted)],
+    );
 
     let text = grouping_report(&project);
     assert!(text.contains("\nstatus: complete\n"), "{text}");
@@ -1522,10 +1395,10 @@ fn rust_twins_that_differ_only_in_visibility_group() {
 
 #[test]
 fn a_file_edited_after_indexing_is_skipped_as_stale_not_grouped() {
-    let project = Project::new("stale");
-    fs::write(project.path().join("src/a.rs"), RUST_TWIN_A).unwrap();
-    fs::write(project.path().join("src/b.rs"), RUST_TWIN_B).unwrap();
-    project.init();
+    let project = Project::indexed(
+        "stale",
+        &[("src/a.rs", RUST_TWIN_A), ("src/b.rs", RUST_TWIN_B)],
+    );
     fs::write(
         project.path().join("src/b.rs"),
         format!("// edited\n{RUST_TWIN_B}"),
@@ -1544,35 +1417,34 @@ fn a_file_edited_after_indexing_is_skipped_as_stale_not_grouped() {
 
 #[test]
 fn primitive_spelling_conflicts_keep_compatibility_unknown_and_preserve_groups() {
-    for (tag, filename, source) in [
+    for (tag, path, source) in [
         (
             "type-rust",
-            "main.rs",
+            "src/main.rs",
             include_str!("fixtures/duplicates/types.rs"),
         ),
         (
             "type-python",
-            "main.py",
+            "src/main.py",
             include_str!("fixtures/duplicates/types.py"),
         ),
     ] {
-        let project = Project::new(tag);
-        fs::write(project.path().join("src").join(filename), source).unwrap();
-        project.init();
+        let project = Project::indexed(tag, &[(path, source)]);
+        let report = |mode: &str| {
+            duplicates(
+                &project,
+                &[
+                    "--min-lines",
+                    "1",
+                    "--min-tokens",
+                    "1",
+                    "--normalization",
+                    mode,
+                ],
+            )
+        };
         for mode in ["broad", "consistent"] {
-            let output = mct(&[
-                &"--root",
-                &project.path(),
-                &"duplicates",
-                &"--min-lines",
-                &"1",
-                &"--min-tokens",
-                &"1",
-                &"--normalization",
-                &mode,
-            ]);
-            assert!(output.status.success(), "{}", stderr(&output));
-            let text = stdout(&output);
+            let text = report(mode);
             assert!(text.contains("total_groups: 2\n"), "{text}");
             assert_eq!(text.matches("compatibility: unknown").count(), 2, "{text}");
             assert_eq!(
@@ -1595,23 +1467,8 @@ fn primitive_spelling_conflicts_keep_compatibility_unknown_and_preserve_groups()
             assert!(text.contains("Custom") || text.contains("Alias"), "{text}");
             assert!(!text.contains("compatibility: incompatible"), "{text}");
         }
-        let output = mct(&[
-            &"--root",
-            &project.path(),
-            &"duplicates",
-            &"--min-lines",
-            &"1",
-            &"--min-tokens",
-            &"1",
-            &"--normalization",
-            &"exact",
-        ]);
-        assert!(output.status.success(), "{}", stderr(&output));
-        assert!(
-            stdout(&output).contains("total_groups: 0\n"),
-            "{}",
-            stdout(&output)
-        );
+        let exact = report("exact");
+        assert!(exact.contains("total_groups: 0\n"), "{exact}");
     }
 }
 
@@ -1619,30 +1476,20 @@ fn primitive_spelling_conflicts_keep_compatibility_unknown_and_preserve_groups()
 /// that share one run of statements but differ elsewhere, and one pair of
 /// whole-function copies per language.
 fn blocks_project(tag: &str) -> Project {
-    let project = Project::new(tag);
-    fs::write(
-        project.path().join("src/blocks.rs"),
-        include_str!("fixtures/duplicates/blocks.rs"),
+    Project::indexed(
+        tag,
+        &[
+            (
+                "src/blocks.rs",
+                include_str!("fixtures/duplicates/blocks.rs"),
+            ),
+            ("blocks.py", include_str!("fixtures/duplicates/blocks.py")),
+        ],
     )
-    .unwrap();
-    fs::write(
-        project.path().join("blocks.py"),
-        include_str!("fixtures/duplicates/blocks.py"),
-    )
-    .unwrap();
-    project.init();
-    project
 }
 
 fn blocks_report(project: &Project, extra: &[&str]) -> String {
-    let mut args: Vec<&dyn AsRef<std::ffi::OsStr>> =
-        vec![&"--root", &project.0, &"duplicates", &"--no-excerpts"];
-    for arg in extra {
-        args.push(arg);
-    }
-    let output = mct(&args);
-    assert!(output.status.success(), "{}", stderr(&output));
-    stdout(&output)
+    duplicates(project, &[&["--no-excerpts"][..], extra].concat())
 }
 
 #[test]

@@ -20,7 +20,6 @@ Output is TOON on stdout.
 """
 
 import argparse
-import os
 from pathlib import Path
 import re
 import shutil
@@ -50,6 +49,8 @@ def unquote(text):
     text = text.strip()
     if len(text) >= 2 and text[0] == '"' and text[-1] == '"':
         body, out, i = text[1:-1], [], 0
+        if "\\" not in body:
+            return body
         while i < len(body):
             char = body[i]
             if char == "\\" and i + 1 < len(body):
@@ -64,6 +65,8 @@ def unquote(text):
 
 
 def split_row(text, delimiter=","):
+    if '"' not in text:  # No quoted cell: every delimiter separates cells.
+        return [cell.strip() for cell in text.split(delimiter)]
     cells, current, quoted, i = [], [], False, 0
     while i < len(text):
         char = text[i]
@@ -725,12 +728,13 @@ def main():
     out.append(f"line_match_rule: {toon_value(f'same path and line-range Jaccard >= {LINE_JACCARD} (shared lines / union lines), one-to-one per block; a reported block is a true positive when all its occurrences, at least two, match occurrences of one labeled block')}")
     out.append("member_match_rule: \"same repository-relative path and start line; a case's group must contain exactly the labeled members for verdict scoring\"")
 
-    grouping_rows, mismatch_rows, primary_text, flag_status = [], [], None, "not-requested"
+    # The report scored for verdicts, subgroups and blocks, and its matched cases.
+    grouping_rows, mismatch_rows, report, matched, flag_status = [], [], None, None, "not-requested"
     if args.report:
         out.append(f"source: {toon_value('saved report ' + display_path(args.report))}")
-        primary_text = args.report.read_text(encoding="utf-8")
+        report = parse_toon(args.report.read_text(encoding="utf-8"))
         flag_status = "unknown (saved report)"
-        summary, mismatches, _ = grouping_scores(cases, report_groups(parse_toon(primary_text)), normalization)
+        summary, mismatches, matched = grouping_scores(cases, report_groups(report), normalization)
         grouping_rows.append(summary)
         mismatch_rows += mismatches
     else:
@@ -755,25 +759,24 @@ def main():
                     mismatch_rows.append({"normalization": mode, "case": "-", "status": "run-failed",
                                           "detail": error or ""})
                     continue
+                parsed = parse_toon(text)
+                summary, mismatches, rows = grouping_scores(cases, report_groups(parsed), mode)
                 if mode == normalization:
-                    primary_text, flag_status = text, status
-                summary, mismatches, _ = grouping_scores(cases, report_groups(parse_toon(text)), mode)
+                    report, matched, flag_status = parsed, rows, status
                 grouping_rows.append(summary)
                 mismatch_rows += mismatches
-    if primary_text is None:
+    if report is None:
         out.append("run_status: duplicates-failed")
         emit_aspect(out, "grouping", {"modes": grouping_rows, "mismatches": mismatch_rows},
                     {"modes": ["normalization", "reported_groups"],
                      "mismatches": ["normalization", "case", "status", "detail"]})
         print("\n".join(out))
         return 2
-    report = parse_toon(primary_text)
     out.append("run_status: ok")
     out.append(f"report_status: {toon_value(report.get('status', 'absent'))}")
     out.append(f"partial_blocks_flag: {toon_value(args.partial_blocks_flag or '(none)')}")
     out.append(f"partial_blocks_flag_status: {toon_value(flag_status)}")
 
-    _, _, matched = grouping_scores(cases, report_groups(report), normalization)
     group_fields = ["normalization", "reported_groups", "expected_groups", "exact", "partial", "missing",
                     "unexpected_groups", "expected_absent", "absent_violated", "exact_recall"]
     emit_aspect(out, "grouping", {"definition": "exact_recall = labeled groups reported with exactly their members / labeled groups expected in that policy",

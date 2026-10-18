@@ -25,6 +25,11 @@
 *.pdb
 *.exe
 
+# Python bytecode caches, written whenever a script under benchmarks/,
+# scripts/ or internal/ is run or imported
+__pycache__/
+*.pyc
+
 # Obsidian workspace state (per-user editor state, not vault content)
 .obsidian/
 

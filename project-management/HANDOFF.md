@@ -4,14 +4,25 @@ The coordinator records the current continuation here; workers checkpoint in the
 
 ## TASK-207
 
-Previous agent: Claude Code coordinator. Status: REVIEW (all workers completed and merged;
-check.sh passed on `3ca021a`; see TASKS.md and REPORT.md).
-Branch `feat/207-token-twins` (primary checkout); contract `5efc8a7`. Workers:
-`claude/207-a-token-sources`, `claude/207-b-duplicate-analysis`, `claude/207-c-cli-report`,
-each in a `mct-207-*` worktree, checkpoints at `project-management/checkpoints/TASK-207-{A,B,C}.md`
-in their own branch. Next action: maintainer review of `feat/207-token-twins` against
-`origin/main`; publish with `scripts/unix/publish-branch.sh` and open a PR only when the user
-approves. Worktree cleanup also needs the user's approval.
+Feature status: integrated through PR #208 (`5c308d2`), verified in GitHub main
+at `4c3f155` on 2026-10-18. The three worker implementations and the original CLI feature
+are already included; do not republish them as a new feature PR.
+
+2026-10-16: the Codex evaluation work (`0e10084`, `ba16cb2`) was optimized on this
+branch without behavior change (`5a9fdc2..fe68523`, ERR-015 record `fede724`);
+`check.sh` passed on `fede724`. Details, evidence and open decisions:
+[TASK-207-optimize](checkpoints/TASK-207-optimize.md).
+
+2026-10-18: the user authorized separate follow-up PRs. Codex preserved the dirty
+`feat/207-token-twins` worktree and prepared independent branches from current main:
+`codex/207-postmerge-cleanup`, `codex/macos-watcher-tests`,
+`codex/parser-symbol-coverage`, `codex/duplicate-report-research`, and
+`codex/reduce-duplication-skill`. Cache/export was already integrated in PR #209
+(`a7c81b9`), and is preserved. Its JSON persistence and ADR-007 contract consistency
+need a separate follow-up; do not silently remove the merged feature.
+GitHub CLI access fails due DNS; the connector works and supplied a verified main.
+Next action: complete validation and publish the independent review candidates
+through the connector. No main merge or worktree deletion is authorized.
 
 ## TASK-PM-001
 

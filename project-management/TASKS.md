@@ -240,8 +240,9 @@ read after retirement. SQLite guard remains active. No publication.
 
 ## TASK-207 — Duplicate-function spike (issue #207)
 
-Status: REVIEW (local only; not pushed, no PR). Coordinator: Claude Code (Opus) in the primary checkout on
-`feat/207-token-twins`. User-confirmed scope (2026-10-15): on demand only through
+Status: DONE for the original feature: GitHub main at `4c3f155` includes
+the merge of PR #208. Post-integration cleanup is a separate review candidate.
+Original coordinator: Claude Code on `feat/207-token-twins`. Initial scope (2026-10-15): on demand only through
 `mct-cli duplicates`; Rust and Python token sources; local work only, no push or PR.
 Contract commit: `5efc8a7` (TokenSource in mct-core, DuplicateReport types in
 mct-index, `build_token_sources` in mct-languages). Workers branch from the
@@ -251,7 +252,7 @@ files outside its scope, or the seven shared records.
 
 ### TASK-207-A — Rust and Python token sources
 
-Status: REVIEW, merged into `feat/207-token-twins` (`52c638a`). Branch `claude/207-a-token-sources`, worktree `mct-207-a-token-sources`.
+Status: DONE, integrated into main through PR #208 (worker merge `52c638a`). Branch `claude/207-a-token-sources`, worktree `mct-207-a-token-sources`.
 Scope: `crates/mct-tree-sitter/src/{lib.rs,tokens.rs}`, `crates/mct-lang-rust/src/{lib.rs,tokens.rs}`,
 `crates/mct-lang-rust/tests/tokens.rs`, the same three Python paths, `crates/mct-languages/src/lib.rs`.
 Acceptance: keyword/identifier/literal/punctuation classification from the tree-sitter
@@ -261,13 +262,13 @@ error/missing nodes reported as `error_lines`; bounded recursion, no panic;
 
 ### TASK-207-B — Duplicate analysis
 
-Status: REVIEW, merged (`ce70091`). Branch `claude/207-b-duplicate-analysis`, worktree `mct-207-b-duplicate-analysis`.
+Status: DONE, integrated into main through PR #208 (worker merge `ce70091`). Branch `claude/207-b-duplicate-analysis`, worktree `mct-207-b-duplicate-analysis`.
 Scope: `crates/mct-index/src/duplicates/**` (not `duplicates.rs`), `crates/mct-index/tests/duplicates.rs`.
 Acceptance: issue stages 3–5 and the Stage 7 cases with test-double parser and token source.
 
 ### TASK-207-C — CLI subcommand and ADR draft
 
-Status: REVIEW, merged (`3f70db8`). Branch `claude/207-c-cli-report`, worktree `mct-207-c-cli-report`.
+Status: DONE, integrated into main through PR #208 (worker merge `3f70db8`). Branch `claude/207-c-cli-report`, worktree `mct-207-c-cli-report`.
 Scope: `crates/mct-cli/src/main.rs`, `crates/mct-cli/src/duplicates.rs`, `crates/mct-cli/tests/duplicates.rs`,
 `docs/01-architecture/adrs/007-duplicate-function-report.md`.
 Acceptance: issue Stage 6 TOON report, deterministic rendering tests, ADR draft (Stage 9).
@@ -277,4 +278,8 @@ Acceptance: issue Stage 6 TOON report, deterministic rendering tests, ADR draft 
 Done: real-token end-to-end tests (`5d52704`), ADR-007 Stage 8 evaluation and manual
 review (`869425d`), README/COMMANDS docs (`3ca021a`). `scripts/unix/check.sh` on
 `3ca021a`: fmt ok, 1476 passed / 0 failed / 24 ignored, CI clippy ok, eval no regressions.
-Remaining: maintainer review, ADR acceptance, publication only with user approval.
+Original feature integration is verified by the local merge record for PR #208.
+On 2026-10-18 the user authorized separate follow-up PRs for cleanup, watcher tests,
+coverage documentation, presentation research, and the project skill. These are
+separate review candidates based on main verified through the GitHub connector.
+PR #209's already-merged cache/export behavior is preserved in the cleanup candidate.
