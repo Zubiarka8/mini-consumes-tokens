@@ -1,0 +1,5 @@
+interface:
+  display_name: Reduce code duplication
+  short_description: Reduce genuine duplication while preserving Rust crate boundaries, behavior, and this project's workflow.
+policy:
+  allow_implicit_invocation: false
