@@ -101,6 +101,40 @@ fn exact_callable_boundaries_ignore_neighboring_syntax() {
 }
 
 #[test]
+fn duplicate_report_cache_is_reused_and_invalidated_by_source_changes() {
+    let project = Project::new("report-cache");
+    project.init();
+    let first = mct(&[&"--root", &project.path(), &"duplicates"]);
+    assert!(first.status.success(), "{}", stderr(&first));
+    assert!(!stderr(&first).contains("reused cached report"));
+
+    let second = mct(&[&"--root", &project.path(), &"duplicates"]);
+    assert!(second.status.success(), "{}", stderr(&second));
+    assert!(stderr(&second).contains("reused cached report"));
+    assert_eq!(stdout(&first), stdout(&second));
+
+    fs::write(
+        project.path().join("src/main.rs"),
+        "fn alpha() { let changed = 1; }\n\nfn main() { alpha(); }\n",
+    )
+    .unwrap();
+    let changed = mct(&[&"--root", &project.path(), &"duplicates"]);
+    assert!(changed.status.success(), "{}", stderr(&changed));
+    assert!(!stderr(&changed).contains("reused cached report"));
+
+    let output_file = project.path().join("duplicates.toon");
+    let saved = mct(&[
+        &"--root",
+        &project.path(),
+        &"duplicates",
+        &"--output",
+        &output_file,
+    ]);
+    assert!(saved.status.success(), "{}", stderr(&saved));
+    assert_eq!(fs::read_to_string(output_file).unwrap(), stdout(&saved));
+}
+
+#[test]
 fn normalization_quality_corpus_preserves_identifier_and_interpolation_structure() {
     for (tag, source) in [
         (
