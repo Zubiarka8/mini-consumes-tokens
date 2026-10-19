@@ -72,7 +72,6 @@
 
 - ERR-013 and ERR-014 observed and resolved in the same session: two caller mistakes inside one `batch` call (a non-existent file path for `get_file_skeleton`, and `name` instead of `symbol` for `build_context_pack`). The other batch sub-queries succeeded; both lookups succeeded on retry with correct arguments. The user was notified. No server defect.
 
-
 ## 2026-10-15 — Token twins improvement validation
 
 - ERR-016: the connected MCP index reports only 6 files and cannot locate `GroupEvidence` in the requested path. CLI-backed MCP queries with an explicit checkout root succeeded (1,188 files). Connected index coverage remains unverified; implementation exploration uses the project's CLI tool calls.
@@ -95,6 +94,12 @@
 
 - ERR-015 recurred and is OPEN again: the session's `mini-consumes-tokens` MCP server failed with `CONNECTION_CLOSED`. `scripts/unix/mcp-smoke.sh` in the primary checkout reported `migration error: ... Attempt to migrate a database with a migration number that is too high` from the installed `mct-mcp-server`. The user was notified. The reinstall/reindex fix was not applied because the session's brief excludes the primary checkout; exploration used `mct-cli call` with the `feat/207-token-twins` worktree as root and its own freshly built index. Resolution needs a reinstall from the intended checkout and a successful initialize.
 
+## 2026-10-16 — Semantic proposal documentation review
+
+- ERR-017 OPEN: installed `mct-cli --root . status` on dirty `claude/semantic-model-eval` at `ac525cac1453f2b296588abe621d0e002ac96d66` reports `Error: migration error: rusqlite_migration error in migrations definition: Attempt to migrate a database with a migration number that is too high`. No reinstall, schema reset or direct database access. Local release MCP initialized and supplied status/context packs, so documentation review could continue; installed CLI recovery remains unverified. Related ERR-015 server instance remains resolved.
+- ERR-016 remains OPEN: connected MCP status is 6 files / 293 symbols at `1792140027`; explicit-root local release MCP reports 1,192 files / 19,548 symbols at `1792140247`. Connected scope is unsuitable for this review; reconnect/reconcile its root.
+- ERR-003 EXPECTED: local release status reports 16 malformed corpus fixtures and two malformed copies in the discarded PR snapshot under `prompt/`. No unexpected parse failures in the reported 18. Counts differ from the historical semantic benchmark and must not be treated as an identical corpus.
+
 ## 2026-10-18 — ERR-009 macOS watcher reproduction
 
 - Investigated the three recorded watcher failures in an isolated clone of `feat/207-token-twins` at `71ec6d0`. On Darwin 27, a direct `RecommendedWatcher` probe timed out after creating a file, showing no event reached the callback; temporary instrumentation confirmed that the watcher thread itself started and acquired the index.
@@ -105,6 +110,19 @@
 - Full candidate validation: `CARGO_NET_OFFLINE=true scripts/unix/check.sh` passes formatting, 1,588 tests (zero failed, 24 existing ignored), strict workspace Clippy, and evaluation with accuracy 1.000 and a catalog of approximately 9,021 tokens. Tests were not removed, ignored, or weakened by this change. At validation time, application to the original worktree was blocked because writes outside the runner's writable roots were rejected; no commit, push, or PR was created.
 - The user subsequently applied the patch to the original worktree. For separate PR preparation, the watcher change was copied into an isolated branch and rebased onto GitHub main `4c3f155`, without altering the source worktree. Full validation there passed formatting, 1,600 tests (zero failed, 24 existing ignored), strict workspace Clippy, and evaluation (accuracy 1.000, catalog approximately 10,727 tokens). Native FSEvents delivery remains open.
 - After PR #211 merged, its ERR-015 record was reconciled with ERR-009 on main `a38dcc5`. The combined tree passed `CARGO_NET_OFFLINE=true CARGO_TARGET_DIR=/private/tmp/mct-207-watcher-fix/target scripts/unix/check.sh`: formatting, 1,600 tests (zero failed, 24 existing ignored), strict Clippy, and evaluation with accuracy 1.000 and a catalog of approximately 10,727 tokens.
+
+## 2026-10-18 — Explicit source reindex
+
+- ERR-016 reconfirmed: connected `cargo_deps.get_indexing_status` reports 6 files / 293 symbols. Forced connected-MCP `reindex` completes but still covers only those 6 files; `build_context_pack(symbol="spawn_watcher", path="crates/mct-mcp-server/src/background.rs")` returns `No symbol named spawn_watcher found in the index`. Explicit-root `target/release/mct-cli --root . reindex --force` indexes the checkout successfully (1,206 parsed files, 19,660 symbols). It reports the 16 expected malformed corpus fixtures plus two malformed copies under `prompt/github/discarded/resolve-pr151-snapshot/` (ERR-003). The connected MCP root remains mismatched; use explicit-root CLI-backed lookups until it is reconnected.
+
+## 2026-10-18 — Concurrent-agent binaries and parser triage
+
+- Scope confirmed by the user: `claude/semantic-model-eval`, dirty `ac525ca`, where the discarded snapshot exists. The sibling `claude/semantic-model-eval-run` has no snapshot and is outside this investigation.
+- ERR-016 cause clarified: `cargo_deps.get_file_tree(depth=2)` shows the dependency corpus `smallvec-1.16.1`. Its six indexed files are not an incomplete project index; it is the wrong server for project-symbol lookups. Explicit-root isolated CLI/server operations succeed. Client reconnection remains pending.
+- ERR-017 reproduced for both installed tools: CLI status and installed-server smoke each exit 1 with `Attempt to migrate a database with a migration number that is too high`. Existing release and newly built isolated binaries open the same project index. Global installation was not changed.
+- ERR-018 opened: normal-target CLI build exits 101 with five errors referring to older core APIs, while those APIs exist in the source. Cargo check exits 0. CLI and server builds using a fresh target both exit 0 without a Rust source edit. Fresh CLI forced reindex and fresh-server initialize/status succeed. This verifies the isolated-build mitigation; the exact cache/writer mechanism is not established.
+- ERR-003 expected diagnostics: 18 observed (16 malformed corpus fixtures plus two byte-identical snapshot copies), rather than 28. Existing and newly built CLIs reproduce exclusion counts 18 → 16 → 0 on a disposable corpus while preserving the valid control; originals and project rules are unchanged. The focused malformed-contract test passes. Current `pr-body.sh` and `pr-status.ps1` also pass direct probes; historical minimized grammar repros were not rerun.
+- Temporary branch-guarded CLI/server launchers and a shell activation file were created outside the repository. Shell syntax and correct-root CLI status pass. Separate worktrees/indexes are recommended if agents edit different sources or schemas. The smoke script still selects the installed global server despite a PATH override, so the successful isolated-server test invoked its absolute path directly. Full evidence and alternatives: [investigation checkpoint](../project-management/checkpoints/index-parse-investigation-2026-10-18.md).
 
 ## 2026-10-19 — ERR-015 recurrence during the #207 closure
 
