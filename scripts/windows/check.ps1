@@ -8,6 +8,8 @@
 #
 # Usage:
 #   scripts\windows\check.ps1                  # everything, like CI's build-test job
+#   scripts\windows\check.ps1 --no-fail-fast   # run every test target after failures
+#   scripts\windows\check.ps1 --isolated-target # use this checkout's target cache
 #   scripts\windows\check.ps1 -p mct-index     # fmt + tests + clippy for one crate, no eval
 #   scripts\windows\check.ps1 --no-eval        # skip the mct-eval quality gate
 #   scripts\windows\check.ps1 --only clippy    # one step: fmt | test | clippy | eval
@@ -19,8 +21,22 @@ $ScriptArgs = $args
 $argv = @($args)
 . (Join-Path $PSScriptRoot 'lib.ps1')
 
+# MCT_CHECK_LOG_DIR / MCT_CHECK_SUMMARY: a directory / file inside this checkout,
+# relative to it or absolute.
+function Get-InsideRoot([string]$Path) {
+  if (-not [IO.Path]::IsPathRooted($Path)) { return $Path }
+  $prefix = $Root.TrimEnd('\') + '\'
+  if ($Path.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) { return $Path.Substring($prefix.Length) }
+  Stop-Usage "$Path is outside this checkout"
+}
+if ($env:MCT_CHECK_LOG_DIR) {
+  $LogDir = Get-InsideRoot $env:MCT_CHECK_LOG_DIR
+  [void](New-Item -ItemType Directory -Force -Path (Join-Path $Root $LogDir))
+}
+
 $package = ''
 $runFmt = $true; $runTest = $true; $runClippy = $true; $runEval = $true
+$noFailFast = $false; $isolatedTarget = $false
 for ($i = 0; $i -lt $argv.Count; $i++) {
   switch -CaseSensitive ($argv[$i]) {
     { $_ -in '-p', '--package' } {
@@ -28,6 +44,8 @@ for ($i = 0; $i -lt $argv.Count; $i++) {
       $package = $argv[$i]; $runEval = $false
     }
     '--no-eval' { $runEval = $false }
+    '--no-fail-fast' { $noFailFast = $true }
+    '--isolated-target' { $isolatedTarget = $true }
     '--only' {
       $i++; $runFmt = $false; $runTest = $false; $runClippy = $false; $runEval = $false
       switch -CaseSensitive ($(if ($i -lt $argv.Count) { $argv[$i] } else { '' })) {
@@ -43,9 +61,16 @@ for ($i = 0; $i -lt $argv.Count; $i++) {
   }
 }
 
+$previousTargetDir = $env:CARGO_TARGET_DIR
+if ($isolatedTarget) {
+  if ($env:MCT_CHECK_TARGET_DIR) { $targetDir = $env:MCT_CHECK_TARGET_DIR } else { $targetDir = 'target\review-check' }
+  if (-not [IO.Path]::IsPathRooted($targetDir)) { $targetDir = Join-Path $Root $targetDir }
+  $env:CARGO_TARGET_DIR = $targetDir
+}
+
 if ($package) { $scope = @('-p', $package) } else { $scope = @('--workspace') }
 $script:failed = 0
-$SummaryLog = "$LogDir/check-summary.md"
+if ($env:MCT_CHECK_SUMMARY) { $SummaryLog = Get-InsideRoot $env:MCT_CHECK_SUMMARY } else { $SummaryLog = "$LogDir/check-summary.md" }
 New-Log $SummaryLog
 
 # One status line: printed for the terminal and kept for the PR body.
@@ -75,7 +100,9 @@ function Step-Fmt {
 function Step-Test {
   $log = "$LogDir/check-test.log"
   New-Log $log
-  $status = Invoke-Logged $log 'cargo' (@('test') + $scope)
+  $testArgs = @('test') + $scope
+  if ($noFailFast) { $testArgs += '--no-fail-fast' }
+  $status = Invoke-Logged $log 'cargo' $testArgs
   $lines = Get-Lines $log
   $c = Get-TestCounts $lines
   $counts = '{0} passed, {1} failed, {2} ignored' -f $c.Passed, $c.Failed, $c.Ignored
@@ -182,4 +209,6 @@ if ($script:failed -eq 0) {
 } else {
   Say "some checks failed - full logs in $LogDir"
 }
+# A .ps1 runs in the caller's session: leave its environment as it was.
+$env:CARGO_TARGET_DIR = $previousTargetDir
 exit $script:failed
