@@ -302,8 +302,8 @@ export const tourStages: {
       { name: "find_callers", params: "function" },
       { name: "find_calls", params: "function" },
       { name: "find_references", params: "symbol" },
-      { name: "search_symbols", params: "query" },
-      { name: "hybrid_search", params: "query" },
+      { name: "search_symbols_like", params: "query" },
+      { name: "hybrid_search_like", params: "query" },
     ],
   },
   {

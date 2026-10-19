@@ -199,4 +199,4 @@ The file extension picks the language. The command exits with an error if any fi
 
 ## Exit codes
 
-`0` on success. Non-zero on an I/O, database or migration error, or when `probe` finds a failing file. A file that fails to parse during `init` or `reindex` is **not** an error: it is listed and the run continues. See [Troubleshooting](/docs/troubleshooting).
+`0` on success. Non-zero on an I/O, database or migration error, or when `probe` finds a failing file. A file that fails to parse during `init` or `reindex` is **not** an error: it is listed and the run continues. Use [`status`](#status) to inspect reported failures.

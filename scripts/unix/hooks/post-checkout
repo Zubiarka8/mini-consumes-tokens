@@ -13,8 +13,25 @@
 # Never fails the checkout. Skip it with MCT_SKIP_HOOKS=1.
 
 prev="${1:-}" next="${2:-}" branch_switch="${3:-0}"
-[ "$branch_switch" = 1 ] && [ "$prev" != "$next" ] || exit 0
+[ "$branch_switch" = 1 ] || exit 0
 [ -z "${MCT_SKIP_HOOKS:-}" ] || exit 0
+
+# Project-local skills: every new worktree (`git worktree add`, agent worktrees included)
+# must have them, even when cut from a commit that predates them. Copies only what is
+# missing from the primary checkout; never overwrites or deletes.
+primary="$(git worktree list --porcelain | sed -n 's/^worktree //p' | head -n1)"
+if [ -n "$primary" ] && [ -d "$primary/.agents/skills" ] && [ "$primary" != "$(pwd -P)" ]; then
+  mkdir -p .agents/skills .claude
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a --ignore-existing --exclude __pycache__ --exclude .DS_Store "$primary/.agents/skills/" .agents/skills/
+  else
+    cp -Rn "$primary/.agents/skills/." .agents/skills/
+  fi
+  { [ -e .claude/skills ] || [ -L .claude/skills ]; } || ln -s ../.agents/skills .claude/skills
+  echo "mct: project-local skills here: $(find .agents/skills -mindepth 2 -maxdepth 2 -name SKILL.md | wc -l | tr -d ' ')"
+fi
+
+[ "$prev" != "$next" ] || exit 0
 
 schema=crates/mct-index/src/schema.rs
 migrations() { git show "$1:$schema" 2>/dev/null | grep -c 'M::up(' || true; }

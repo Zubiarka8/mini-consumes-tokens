@@ -43,7 +43,7 @@ PRE `name` non-blank.
 POST matching definitions with path:line, or a no-match note. TOON by default; `format`:`text` for plain text.
 EFFECTS read; index only.
 
-TOOL search_symbols
+TOOL search_symbols_like
 WHEN unsure of a name: words/partial ident in any case style, BM25-ranked, exact first.
 ERR not exhaustive (use find_symbol/list_symbols); not relations (use find_references).
 TAGS search, ranked, words, camelCase, snake_case, partial
@@ -51,8 +51,8 @@ PRE `query` non-blank.
 POST a ranked page (`offset`/`limit`), exact name first; optional snippets. TOON by default; `format`:`text` for plain text.
 EFFECTS read; index, project files for snippets, query cache.
 
-TOOL hybrid_search
-WHEN find code by meaning: search_symbols + embeddings, RRF-fused; alpha 0=lexical..1=semantic (auto if omitted); "quoted" query = exact phrase, lexical only, also lists string literals (error/log messages) holding it as path:line.
+TOOL hybrid_search_like
+WHEN find code by meaning: search_symbols_like + embeddings, RRF-fused; alpha 0=lexical..1=semantic (auto if omitted); "quoted" query = exact phrase, lexical only, also lists string literals (error/log messages) holding it as path:line.
 ERR no model -> lexical only (noted); not exhaustive.
 TAGS semantic, embeddings, hybrid
 PRE `query` non-blank; `alpha` in 0..1 if given.
@@ -67,9 +67,25 @@ PRE `query` non-blank; `top_k` clamped to 1..100.
 POST coverage line, then hits most similar first with path:line, signature, score; or an unavailable note.
 EFFECTS read; index, embeddings of changed symbols; may download the embedding model once.
 
+TOOL search_symbols
+WHEN deprecated, use search_symbols_like (same behavior).
+ERR removed next version.
+TAGS deprecated, alias
+PRE as search_symbols_like.
+POST as search_symbols_like.
+EFFECTS read; as search_symbols_like.
+
+TOOL hybrid_search
+WHEN deprecated, use hybrid_search_like (same behavior).
+ERR removed next version.
+TAGS deprecated, alias
+PRE as hybrid_search_like.
+POST as hybrid_search_like.
+EFFECTS read; as hybrid_search_like.
+
 TOOL find_references
-WHEN every reference to a symbol: calls, imports, extends/implements.
-ERR not just direct callers (use find_callers); not a definition lookup (use find_symbol).
+WHEN every reference to a symbol: calls, imports, extends/implements; sort=execution orders by hop, file, line.
+ERR sort=execution is a static approximation (index has no runtime order: branches/loops/callbacks not modelled); not just direct callers (use find_callers); not a definition lookup (use find_symbol).
 TAGS references, calls, imports, broad
 PRE `symbol` non-blank.
 POST every indexed reference with path:line, paged by `offset`/`limit`. TOON by default; `format`:`text` for plain text.

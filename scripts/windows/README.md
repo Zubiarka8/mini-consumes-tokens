@@ -7,7 +7,8 @@ error). What each one does is in `../README.md`.
 
 | Script | Unix counterpart |
 |---|---|
-| `check.ps1 [-p <crate>] [--only fmt\|test\|clippy\|eval] [--no-eval]` | `check.sh` |
+| `check.ps1 [-p <crate>] [--only fmt\|test\|clippy\|eval] [--no-eval] [--no-fail-fast] [--isolated-target]` | `check.sh` |
+| `review-check.ps1 [check.ps1 options]` | `review-check.sh` |
 | `pr-body.ps1 [file]` | `pr-body.sh` |
 | `branch-worktree.ps1 <branch> [base]` | `branch-worktree.sh` |
 | `reinstall.ps1 [--reindex] [--semantic] [--server-only]` | `reinstall.sh` |
