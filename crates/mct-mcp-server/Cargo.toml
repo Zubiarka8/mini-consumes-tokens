@@ -42,3 +42,8 @@ semantic = ["dep:fastembed"]
 # in-memory duplex, to check what `tools/list` actually sends (issue #70).
 rmcp = { version = "3.4.1", features = ["client"] }
 tokio = { version = "1.53.1", features = ["io-util"] }
+
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+# Keep filesystem integration tests independent of FSEvents permissions and
+# availability; normal builds continue to use notify's recommended backend.
+notify = { version = "8.2.0", features = ["macos_kqueue"] }
