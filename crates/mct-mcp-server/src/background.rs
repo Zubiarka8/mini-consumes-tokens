@@ -297,6 +297,18 @@ pub fn spawn_watcher(
             let mut guard = index.blocking_lock();
             match state.apply(&mut *guard, &registry, changed) {
                 None => {}
+                // Some backends report the parent directory as well as the
+                // changed file. Keep reconciling it (it may hide new paths),
+                // but do not announce an index update for a hash-skipped scan.
+                Some(Ok((mode, report)))
+                    if report.files_parsed == 0 && report.files_removed == 0 =>
+                {
+                    tracing::debug!(
+                        mode,
+                        unchanged = report.files_unchanged,
+                        "filesystem event batch left indexed files unchanged"
+                    );
+                }
                 Some(Ok((mode, report))) => tracing::info!(
                     mode,
                     parsed = report.files_parsed,
