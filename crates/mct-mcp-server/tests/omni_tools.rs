@@ -352,6 +352,7 @@ async fn find_references_honours_depth_beyond_the_direct_hits() {
     let direct = content_of(
         &server
             .find_references(Parameters(FindReferencesArgs {
+                sort: None,
                 format: Some("text".to_string()),
                 path: None,
                 language: None,
@@ -372,6 +373,7 @@ async fn find_references_honours_depth_beyond_the_direct_hits() {
     let deep = content_of(
         &server
             .find_references(Parameters(FindReferencesArgs {
+                sort: None,
                 format: Some("text".to_string()),
                 path: None,
                 language: None,
@@ -393,6 +395,7 @@ async fn find_references_offset_pages_past_the_first_hit() {
     let all = content_of(
         &server
             .find_references(Parameters(FindReferencesArgs {
+                sort: None,
                 format: Some("text".to_string()),
                 path: None,
                 language: None,
@@ -409,6 +412,7 @@ async fn find_references_offset_pages_past_the_first_hit() {
     let page = content_of(
         &server
             .find_references(Parameters(FindReferencesArgs {
+                sort: None,
                 format: Some("text".to_string()),
                 path: None,
                 language: None,

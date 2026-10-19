@@ -1,6 +1,6 @@
 {
   "suite": "portfolio-3d-app",
-  "catalog_tokens": 9021,
+  "catalog_tokens": 10727,
   "cases": {
     "definition of a binary glTF asset": {
       "score": 1.0,

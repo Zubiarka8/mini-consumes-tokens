@@ -282,6 +282,9 @@ treats items 1–4 as required; item 5 is a warning:
 6. `docs/00-system/00-index.md` extension→crate table; update the parser
    overview or language-specific parser page if the language has meaningful
    limitations, special ownership rules, or security-sensitive behavior.
+   Add the language's inventory entries and checklist to
+   [symbol coverage](../02-crates/parsers/symbol-coverage.md), from a probe
+   of each construct, not from what the walker is meant to do.
 7. Any required file-extension/configuration lists elsewhere in the repo,
    such as ignore defaults or language-specific scripts; search for the
    extension and crate suffix before finishing. Avoid changing unrelated

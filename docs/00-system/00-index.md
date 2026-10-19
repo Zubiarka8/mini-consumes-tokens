@@ -10,6 +10,7 @@ Central map of this vault. Start here.
 - [[002-qualified-relation-resolution]] — ADR: how relation targets are resolved
 - [[mct-mcp-server]] — MCP server crate
 - [[overview]] — mandatory parser contract every `mct-lang-*` crate follows
+- [[symbol-coverage]] — what each parser indexes and which tools (search, dead code, duplicates, import graph…) work per language, with a checklist per language
 - [[mct-lang-php]] — PHP parser exception (security-relevant)
 - [[limits-spec]] — recursion/fuzzing/benchmark limits
 - [[sec-001-php-stack-overflow]] — security advisory

@@ -755,6 +755,41 @@ pub fn relation_page_hits(
     }
 }
 
+/// Orders relation hits by the closest static stand-in for "what runs
+/// first": graph hop, then file path, then line and column of the reference
+/// (so references inside one function come in source order). The index is
+/// static; this is not the real runtime order.
+pub fn order_by_execution(hits: &mut [RelationHit]) {
+    hits.sort_by(|a, b| {
+        (a.depth, &a.relative_path, a.line, a.column).cmp(&(
+            b.depth,
+            &b.relative_path,
+            b.line,
+            b.column,
+        ))
+    });
+}
+
+/// Sorts a fully loaded page with [`order_by_execution`] and cuts the
+/// requested window out of it, keeping the page metadata consistent.
+pub fn page_by_execution(
+    all: mct_index::RelationPage,
+    limit: usize,
+    offset: usize,
+) -> mct_index::RelationPage {
+    let mut hits = all.hits;
+    order_by_execution(&mut hits);
+    let has_more = all.has_more || hits.len() > offset.saturating_add(limit);
+    // The total is only known when the fetch itself was not cut short.
+    let total = (!all.has_more).then_some(hits.len());
+    mct_index::RelationPage {
+        hits: hits.into_iter().skip(offset).take(limit).collect(),
+        total,
+        has_more,
+        offset,
+    }
+}
+
 /// Each impact section is filtered before its own page is selected.
 pub fn impact_pages(
     symbol: &str,

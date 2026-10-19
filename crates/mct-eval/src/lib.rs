@@ -226,6 +226,8 @@ pub async fn run(suite: &Suite, iterations: usize) -> Result<Report> {
 const FORMAT_TOOLS: &[&str] = &[
     "list_symbols",
     "find_symbol",
+    "search_symbols_like",
+    "hybrid_search_like",
     "search_symbols",
     "hybrid_search",
     "find_references",
