@@ -1,16 +1,17 @@
 //! `mct-cli duplicates`: on-demand report of candidate structurally
 //! duplicated functions and methods (issue #207, Phase 0).
 //!
-//! Read-only: opens an existing index, runs the analysis from `mct-index`
-//! against the current files, and renders the [`DuplicateReport`] as TOON on
-//! stdout. It never reindexes and never writes anything. The renderer is local
+//! Opens an existing index, runs the analysis from `mct-index` against the
+//! current files, and renders the [`DuplicateReport`] as TOON on stdout (and
+//! optionally to a report file). It never reindexes. The renderer is local
 //! (not `mct_mcp_server::toon::encode_table`) because the report needs nested
 //! blocks and a stricter quoting rule: source excerpts keep their leading
 //! indentation and contain colons and brackets, which the shared table
 //! encoder leaves unquoted.
 
 use std::fmt::Write as _;
-use std::path::Path;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 use anyhow::Context as _;
 use mct_index::{
@@ -29,6 +30,12 @@ or behave the same.";
 
 #[derive(clap::Args, Debug)]
 pub(crate) struct Args {
+    /// Write the TOON report to this path (relative paths use the project root).
+    #[arg(long, value_name = "FILE")]
+    output: Option<PathBuf>,
+    /// Skip reading or writing the duplicate-report cache.
+    #[arg(long)]
+    no_cache: bool,
     /// Minimum source-token-bearing lines per candidate.
     #[arg(long, default_value_t = mct_index::DEFAULT_MIN_LINES, value_parser = parse_threshold)]
     min_lines: usize,
@@ -136,7 +143,7 @@ pub(crate) fn parse_threshold(raw: &str) -> Result<usize, String> {
 
 /// Opens the project's existing index (never creating one), analyzes it and
 /// prints the TOON report.
-pub(crate) fn run(root: &Path, options: DuplicateOptions) -> anyhow::Result<()> {
+pub(crate) fn run(root: &Path, args: Args) -> anyhow::Result<()> {
     if !root.is_dir() {
         anyhow::bail!("project root {} is not a directory", display_path(root));
     }
@@ -151,9 +158,121 @@ pub(crate) fn run(root: &Path, options: DuplicateOptions) -> anyhow::Result<()> 
     let exclude = ExcludeSet::new(&mct_index::read_ignore_file(root));
     let index = Index::open_existing_read_only(root, &db_path, exclude)
         .with_context(|| format!("cannot open the index at {}", display_path(&db_path)))?;
-    let report = find_duplicate_groups(&index, &build_token_sources(), options)
-        .context("cannot query the index for duplicate candidates")?;
-    print!("{}", render_toon(&report));
+    let output_path = args.output.clone();
+    let no_cache = args.no_cache;
+    let options = args.into();
+    let cache_path = root.join(".mct-index").join("duplicates-cache.json");
+    let key = if no_cache {
+        None
+    } else {
+        match cache_key(root, &db_path, &index, &options) {
+            Ok(key) => key,
+            Err(error) => {
+                eprintln!("warning: cannot fingerprint duplicate-report inputs: {error}");
+                None
+            }
+        }
+    };
+    let cached = key
+        .as_deref()
+        .and_then(|key| read_cached_report(&cache_path, key));
+    let output = if let Some(report) = cached {
+        eprintln!("duplicates: reused cached report");
+        report
+    } else {
+        let report = find_duplicate_groups(&index, &build_token_sources(), options)
+            .context("cannot query the index for duplicate candidates")?;
+        let rendered = render_toon(&report);
+        if let Some(key) = key.as_deref() {
+            if let Err(error) = write_cached_report(&cache_path, key, &rendered) {
+                eprintln!(
+                    "warning: cannot write duplicate-report cache at {}: {error}",
+                    display_path(&cache_path)
+                );
+            }
+        }
+        rendered
+    };
+    if let Some(path) = output_path {
+        let path = if path.is_absolute() {
+            path
+        } else {
+            root.join(path)
+        };
+        fs::write(&path, &output)
+            .with_context(|| format!("cannot write report to {}", display_path(&path)))?;
+    }
+    print!("{output}");
+    Ok(())
+}
+
+/// Fingerprints every indexed source's current bytes, not just the index's
+/// stored hashes: edits made since the last reindex must invalidate a hit.
+fn cache_key(
+    root: &Path,
+    db_path: &Path,
+    index: &Index,
+    options: &DuplicateOptions,
+) -> anyhow::Result<Option<String>> {
+    use git2::{ObjectType, Oid};
+
+    let canonical_root = root.canonicalize()?;
+    let mut sources = Vec::new();
+    for (path, indexed_hash) in index.file_hashes()? {
+        let absolute = root.join(&path);
+        let Ok(canonical_file) = absolute.canonicalize() else {
+            return Ok(None);
+        };
+        if !canonical_file.starts_with(&canonical_root) {
+            // Never let cache validation read a path outside the repository,
+            // even if an index database was modified by hand.
+            return Ok(None);
+        }
+        let Ok(bytes) = mct_index::read_repository_file(&canonical_file) else {
+            // An unreadable/missing file can change independently; don't cache
+            // reports containing a transient skip for it.
+            return Ok(None);
+        };
+        let current = Oid::hash_object(ObjectType::Blob, &bytes)?.to_string();
+        sources.push((path, indexed_hash, current));
+    }
+    let metadata = fs::metadata(db_path)?;
+    let modified = metadata
+        .modified()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let ignore =
+        [".mctignore", ".gitignore"].map(|name| fs::read(root.join(name)).unwrap_or_default());
+    let payload = serde_json::to_vec(&(
+        "duplicates-report-cache-v1",
+        env!("CARGO_PKG_VERSION"),
+        format!("{options:?}"),
+        metadata.len(),
+        modified,
+        ignore,
+        sources,
+    ))?;
+    Ok(Some(
+        Oid::hash_object(ObjectType::Blob, &payload)?.to_string(),
+    ))
+}
+
+fn read_cached_report(path: &Path, key: &str) -> Option<String> {
+    let value: serde_json::Value = serde_json::from_slice(&fs::read(path).ok()?).ok()?;
+    (value.get("key")?.as_str()? == key)
+        .then(|| value.get("report")?.as_str().map(str::to_owned))
+        .flatten()
+}
+
+fn write_cached_report(path: &Path, key: &str, report: &str) -> anyhow::Result<()> {
+    let temp = path.with_extension(format!("json.{}.tmp", std::process::id()));
+    let contents = serde_json::to_vec(&serde_json::json!({"key": key, "report": report}))?;
+    fs::write(&temp, contents)?;
+    if let Err(error) = fs::rename(&temp, path) {
+        let _ = fs::remove_file(&temp);
+        return Err(error.into());
+    }
     Ok(())
 }
 
