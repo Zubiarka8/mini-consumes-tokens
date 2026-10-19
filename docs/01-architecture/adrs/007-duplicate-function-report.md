@@ -3,6 +3,9 @@
 > Updated by [ADR-008](008-token-twins-comparison-policies.md): exact callable
 > boundaries, opt-in normalization policies, coverage diagnostics and report
 > controls. The design/evaluation below records the original broad-mode spike.
+> Amended by [Report cache and saved output](#report-cache-and-saved-output):
+> the CLI may write a report cache and a requested report file; the index itself
+> is still never written.
 
 ## Status
 Proposed (spike, issue #207). The Stage 8 evaluation below is recorded; acceptance is pending maintainer review. Adds the `mct-cli duplicates` subcommand. No schema migration, no MCP tool, and no change to `LanguageParser`.
@@ -17,7 +20,7 @@ Proposed (spike, issue #207). The Stage 8 evaluation below is recorded; acceptan
 ## Decision
 
 ### Shape
-- **On demand only.** `mct-cli --root <project> duplicates [--min-lines N] [--min-tokens N]` opens the existing index, analyzes the current files and prints a report. It never reindexes, never writes, and never creates an index for a project that has none. Defaults are 6 lines and 40 tokens.
+- **On demand only.** `mct-cli --root <project> duplicates [--min-lines N] [--min-tokens N]` opens the existing index, analyzes the current files and prints a report. It never reindexes, never writes to the index, and never creates an index for a project that has none. The only files it writes are the report cache and a report requested with `--output` (see [Report cache and saved output](#report-cache-and-saved-output)). Defaults are 6 lines and 40 tokens.
 - **Read-only analysis in `mct-index`.** `find_duplicate_groups(index, token_sources, options)` selects indexed `function` and `method` symbols, reads each file through `read_repository_file` and its limits, and returns a `DuplicateReport`. One candidate's failure becomes a skipped candidate, not an error. Only a failure to query the index fails the call.
 - **The report is TOON.** There is no JSON output. The header states that every group is a candidate for human review and that identical structure does not prove redundant or equivalent behavior. It carries complete or partial status, the options used, supported and unsupported languages, how generated code is handled, totals, skipped counts for every reason, and for every group the exact `path:start-end` ranges to inspect with a bounded excerpt per member.
 
@@ -47,10 +50,17 @@ Proposed (spike, issue #207). The Stage 8 evaluation below is recorded; acceptan
 ### Skipped candidates
 - A candidate is skipped, with a reason and a short detail but never file contents, when the file cannot be read within the repository limits (`read-error`), the token source fails or the candidate overlaps a syntax error (`parse-error`), the file changed since it was indexed (`stale-location`), or its indexed range is empty, inverted, missing its end or outside the file (`invalid-range`). Any skip marks the report partial. The CLI prints counts for all four reasons, including zero.
 
+### Report cache and saved output
+Added after the spike (PR #209); the cache file format was corrected to TOON later.
+- **`--output FILE`** writes the same TOON report that goes to stdout to a file; a relative path is resolved against the project root.
+- **Exact-input report cache.** A run stores its rendered report in `.mct-index/duplicates-cache.toon` and the next run prints it instead of analyzing again when its key matches. The key hashes the options, the CLI version, the index database's size and modification time, `.mctignore` and `.gitignore`, and the *current* bytes of every indexed file, read through the repository limits. Any indexed file that cannot be read, or resolves outside the repository, disables the cache for that run, so a transient skip is never reused. A hit is announced on stderr; stdout is identical to a fresh run. `--no-cache` neither reads nor writes the cache.
+- **The cache is a TOON document**: the report preceded by one `cache_key` field. Like the report, it is never JSON. A JSON cache left by an earlier version is deleted the next time the cache is written.
+- **This is not the persistence the issue forbade.** No group, fingerprint or token is stored in SQLite or reused across different inputs: a key that differs in any input byte misses and the analysis runs in full, so the cache can return only a report the current inputs would produce. Writing it never changes the index, and deleting it is always safe.
+
 ## Consequences
 - The first version answers "what is repeated in the languages we can tokenize" without a migration, a new MCP tool or a parser change, and it costs nothing at index time.
 - The analysis re-reads and re-tokenizes every candidate on each run. Its cost grows with the number of function and method symbols in the supported languages, not with the size of the whole repository. Measured runtime and memory are recorded in "Evaluation (Stage 8)".
-- Nothing is persisted, so no staleness bug and no migration can be introduced. The price is that an agent cannot ask for duplicates cheaply from inside a session.
+- No analysis state is persisted, so no staleness bug and no migration can be introduced; the report cache only repeats a report for byte-identical inputs. The price is that an agent cannot ask for duplicates cheaply from inside a session.
 - `mct-core` gains one trait and a few types; `mct-tree-sitter` gains one generic walker; each opted-in language crate gains a table and an `impl`. A language crate without a token source is untouched.
 - The report is a list of leads. Reading the ranges is what decides whether two functions should be merged.
 

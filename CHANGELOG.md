@@ -154,6 +154,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `mct-cli duplicates` stores its report cache as TOON
+  (`.mct-index/duplicates-cache.toon`, the report behind one `cache_key` field)
+  instead of JSON, and deletes a leftover `duplicates-cache.json`. The first
+  run after upgrading analyzes again. ADR-007 and COMMANDS.md now document the
+  cache, `--no-cache` and `--output`.
 - Rust: a path in value position (`Arc::new(m::Parser)`, `Severity::Warning`,
   `.any(char::is_control)`) is now a `references` relation with the same
   module/type evidence as a call through that path, so `find_references`,
