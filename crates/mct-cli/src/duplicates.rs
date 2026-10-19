@@ -161,7 +161,7 @@ pub(crate) fn run(root: &Path, args: Args) -> anyhow::Result<()> {
     let output_path = args.output.clone();
     let no_cache = args.no_cache;
     let options = args.into();
-    let cache_path = root.join(".mct-index").join("duplicates-cache.json");
+    let cache_path = root.join(".mct-index").join("duplicates-cache.toon");
     let key = if no_cache {
         None
     } else {
@@ -244,35 +244,44 @@ fn cache_key(
         .as_nanos();
     let ignore =
         [".mctignore", ".gitignore"].map(|name| fs::read(root.join(name)).unwrap_or_default());
-    let payload = serde_json::to_vec(&(
-        "duplicates-report-cache-v1",
-        env!("CARGO_PKG_VERSION"),
-        format!("{options:?}"),
-        metadata.len(),
-        modified,
-        ignore,
-        sources,
-    ))?;
+    // Only hashed, never stored: `Debug` quotes strings and brackets lists, so
+    // distinct inputs cannot run together.
+    let payload = format!(
+        "{:?}",
+        (
+            "duplicates-report-cache-v2",
+            env!("CARGO_PKG_VERSION"),
+            format!("{options:?}"),
+            metadata.len(),
+            modified,
+            ignore,
+            sources,
+        )
+    );
     Ok(Some(
-        Oid::hash_object(ObjectType::Blob, &payload)?.to_string(),
+        Oid::hash_object(ObjectType::Blob, payload.as_bytes())?.to_string(),
     ))
 }
 
+/// The cache file is the rendered TOON report with one leading `cache_key`
+/// field, so it stays a valid TOON document.
+const CACHE_KEY_FIELD: &str = "cache_key: ";
+
 fn read_cached_report(path: &Path, key: &str) -> Option<String> {
-    let value: serde_json::Value = serde_json::from_slice(&fs::read(path).ok()?).ok()?;
-    (value.get("key")?.as_str()? == key)
-        .then(|| value.get("report")?.as_str().map(str::to_owned))
-        .flatten()
+    let cached = fs::read_to_string(path).ok()?;
+    let (header, report) = cached.split_once('\n')?;
+    (header.strip_prefix(CACHE_KEY_FIELD)? == key).then(|| report.to_owned())
 }
 
 fn write_cached_report(path: &Path, key: &str, report: &str) -> anyhow::Result<()> {
-    let temp = path.with_extension(format!("json.{}.tmp", std::process::id()));
-    let contents = serde_json::to_vec(&serde_json::json!({"key": key, "report": report}))?;
-    fs::write(&temp, contents)?;
+    let temp = path.with_extension(format!("toon.{}.tmp", std::process::id()));
+    fs::write(&temp, format!("{CACHE_KEY_FIELD}{key}\n{report}"))?;
     if let Err(error) = fs::rename(&temp, path) {
         let _ = fs::remove_file(&temp);
         return Err(error.into());
     }
+    // Releases before this one kept the cache as JSON; nothing reads it now.
+    let _ = fs::remove_file(path.with_extension("json"));
     Ok(())
 }
 

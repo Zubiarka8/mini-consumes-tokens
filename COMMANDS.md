@@ -351,6 +351,13 @@ file hashes, without reindexing, migrating or changing indexed data.
   `--ranking lines` retains the default line-based order.
 - `--limit`, `--offset` and `--no-excerpts` control output. Totals cover all groups
   in the filtered scope. `omitted_groups` counts groups outside the output page.
+- `--output <FILE>` also writes the TOON report to a file (relative paths use the
+  project root); stdout is unchanged.
+- A repeat run reuses the last report when nothing it depends on changed: the
+  options, the binary version, the index database, `.mctignore`/`.gitignore` and
+  the current bytes of every indexed file. It is stored as
+  `.mct-index/duplicates-cache.toon` (the report behind one `cache_key` field)
+  and announced on stderr. `--no-cache` neither reads nor writes it.
 
 `status: complete` means no candidate failed analysis. Separately, `index_coverage`
 reports whole-index failures, even outside filters: `partial`, `unknown`, or
@@ -518,15 +525,13 @@ Reproducible measurements: [token twins evaluation](benchmarks/token-twins.md).
 ```
 Report candidate duplicate functions and methods, as TOON.
 
-Groups functions and methods of the same language whose token sequences are identical once identifiers and literals are normalized (Type-2 clones). Every group is a CANDIDATE for human review: matching structure does not prove the code is redundant or behaves the same. Runs on demand against the existing index and the current files; it never reindexes or migrates the index, so run `init` or `reindex` first. Candidates that cannot be analyzed are listed as skipped and mark the report partial. Only languages with a token source are analyzed; the report names the rest.
+Groups functions and methods of the same language whose token sequences are identical once identifiers and literals are normalized (Type-2 clones). Every group is a CANDIDATE for human review: matching structure does not prove the code is redundant or behaves the same. Runs on demand against the existing index and the current files; it never reindexes or migrates the index, so run `init` or `reindex` first. Reuses an exact-input report cache in `.mct-index`; use `--no-cache` to bypass it or `--output FILE` to save the TOON report. Candidates that cannot be analyzed are listed as skipped and mark the report partial. Only languages with a token source are analyzed; the report names the rest.
 
 Usage: mct-cli duplicates [OPTIONS]
 
 Options:
-      --min-lines <MIN_LINES>
-          Minimum source-token-bearing lines per candidate
-
-          [default: 6]
+      --output <FILE>
+          Write the TOON report to this path (relative paths use the project root)
 
       --root <ROOT>
           Project root to operate on. Defaults to the current working directory.
@@ -534,6 +539,14 @@ Options:
           `init` and `call` accept several roots, as a repeated `--root` or a comma-separated `--roots a,b`; every other command takes exactly one.
 
           [alias: --roots]
+
+      --no-cache
+          Skip reading or writing the duplicate-report cache
+
+      --min-lines <MIN_LINES>
+          Minimum source-token-bearing lines per candidate
+
+          [default: 6]
 
       --min-tokens <MIN_TOKENS>
           Minimum source tokens per candidate
@@ -606,6 +619,7 @@ Options:
 Examples:
   cargo run -p mct-cli -- --root . duplicates
   cargo run -p mct-cli -- --root . duplicates --min-lines 10 --min-tokens 80
+  cargo run -p mct-cli -- --root . duplicates --output duplicates.toon
 ```
 
 </details>
