@@ -56,3 +56,14 @@ Record significant events only. Link to task, review, and decision details; omit
   The issue-#207 fix commits had landed on a branch `test/auto-reindex-check` that
   something else created at d500db5. `feat/207-token-twins` was fast-forwarded to them.
   Still local only.
+
+## 2026-10-19 — Issue #207 closure
+
+- Audited every local branch against GitHub main `19e3733`. `feat/207-token-twins`'s eight
+  local commits reached main as `2987e8e` (#211); its worktree changes match main or are
+  older. `claude/207-p2-*` and `claude/207-p3-blocks` were integrated earlier; nothing of
+  #207 is left unpublished.
+- Remaining contract gap fixed on `fix/duplicates-cache-toon`: the report cache is TOON,
+  ADR-007 and COMMANDS.md document the cache, `--no-cache` and `--output`.
+- Records updated on `chore/close-207-records`, which closes #207. ERR-015 recurred
+  (recorded); worktrees were kept.

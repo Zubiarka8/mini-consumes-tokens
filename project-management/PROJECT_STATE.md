@@ -1,26 +1,31 @@
 # Project State
 
-Last update: 2026-10-18
-Updated by: Codex (post-integration PR preparation)
+Last update: 2026-10-19
+Updated by: Claude Code (issue #207 closure)
 
-## Issue #207: feature integrated; follow-up changes in review
+## Issue #207: delivered; last follow-up in review
 
-GitHub main at `4c3f155` includes the merge of PR #208 (`5c308d2`), including
-TASK-207 and its three worker implementations. Feature integration is complete;
-do not open another PR for the already-integrated spike. GitHub main was verified
-through the connector on 2026-10-18; CLI GitHub access still fails due DNS.
-Worker worktrees `mct-207-*` are retained; no cleanup was authorized.
-2026-10-16: behavior-preserving cleanup of the Codex evaluation work; `check.sh`
-passed on `fede724` (1588 passed). See
-[TASK-207-optimize](checkpoints/TASK-207-optimize.md). ERR-015 (MCP schema mismatch) is open.
+Everything issue #207 asked for is in GitHub main (`19e3733`, verified 2026-10-19
+with `gh`): the spike (PR #208, `5c308d2`), report cache and `--output` (PR #209,
+`a7c81b9`), the I1–I6 improvements and evidence, verdicts, subgroups, partial
+blocks and labeled evaluation (ADR-008–012), and the 2026-10-18 follow-ups:
+cleanup #211 (`a38dcc5`), macOS watcher tests #212 (`cff2f35`), symbol coverage
+#213/#216 (`7fded7b`, `19e3733`), presentation research #214 (`be8556f`) and the
+`reduce-duplication` skill #215 (`6346fba`).
 
-The user authorized separate follow-up PRs on 2026-10-18. Cleanup is isolated on
-`codex/207-postmerge-cleanup`; watcher tests, parser coverage, presentation research,
-and the project skill have separate candidate branches, based on current main.
-Cache/export was already integrated through PR #209 (`a7c81b9`) and is preserved;
-its JSON persistence and ADR-007 contract consistency need a separate follow-up.
-Publication uses the GitHub connector while CLI connectivity is unavailable.
-No main merge is authorized. Existing source worktrees and unrelated changes remain preserved.
+The only open follow-up is branch `fix/duplicates-cache-toon`: the report cache
+moves from JSON to TOON and ADR-007/COMMANDS.md document the cache, `--no-cache`
+and `--output`. This records branch closes #207 and should merge after it.
+
+`feat/207-token-twins` holds nothing unintegrated: its eight local commits reached
+main as `2987e8e` (#211) and its dirty worktree matches main or is older than it.
+Do not push or merge that branch; merging it conflicts and only reintroduces
+stale records. Worker worktrees `mct-207-*` remain; removal needs the user's
+approval. Deferred by design, each needing its own issue: default normalization
+change, more languages, an MCP tool, persisted fingerprints, Type-3 matching and
+the proposals in `benchmarks/token-twins-presentation.md`.
+ERR-009 (native FSEvents delivery) and ERR-015 (installed MCP server older than
+the primary index) remain OPEN.
 
 ## Earlier state (2026-10-12, Codex recovery coordinator)
 
