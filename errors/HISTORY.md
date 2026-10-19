@@ -127,3 +127,9 @@
 ## 2026-10-19 — ERR-015 recurrence during the #207 closure
 
 - ERR-015 recurred: the session's `mini-consumes-tokens` MCP server reported `CONNECTION_CLOSED`. `scripts/unix/mcp-smoke.sh` in the primary checkout (`claude/semantic-model-eval` at `ac525ca`, dirty) printed `migration error: ... Attempt to migrate a database with a migration number that is too high` from the installed server. Not fixed: `scripts/unix/reinstall.sh --reindex` rebuilds the primary checkout's index and was not requested. The session only compared Git state and needed no index query. Status stays OPEN.
+
+## 2026-10-19 — ERR-015, ERR-016 and ERR-017 resolved
+
+- Ran `scripts/unix/reinstall.sh --reindex` from the primary checkout on `main` (`83dff6d`): installed `mct-mcp-server` and `mct-cli` v0.2.0-326-g83dff6d, rebuilt the project index (1289 parsed, 21031 symbols) and `mcp-smoke.sh` printed `server ok` with 22 tools.
+- The user reconnected with `/mcp` (`Reconnected to mini-consumes-tokens`). `get_indexing_status` answered with 1289 files / 21031 symbols and 18 parse failures: the 16 malformed corpus fixtures plus two copies under `prompt/` (ERR-003, expected).
+- ERR-015 and ERR-017 (installed binary older than the index schema) and ERR-016 (connected server on the wrong corpus) are RESOLVED. ERR-018 stays OPEN: it concerns stale artifacts in the normal Cargo target, which this reinstall did not exercise.
