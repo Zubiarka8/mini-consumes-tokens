@@ -14,7 +14,7 @@ Use this page:
   For example, `find_symbol` never returns a Python module variable or a Go
   struct field, because those are not indexed;
 - when adding a language. The [language crate template](../../06-templates/lang-crate-base.md)
-  asks for a column here;
+  asks for inventory entries and a checklist here;
 - when changing a parser. Update the cells it changes in the same PR.
 
 Other coverage records, and what each is for:
@@ -33,8 +33,9 @@ this page when they change what a language parser emits.
 
 ## How this was checked
 
-Verified on 2026-10-17 against commit `71ec6d0` (branch `feat/207-token-twins`)
-with a debug build of the parsers. The review rebuilt `mct-cli` offline
+Initial fixtures from 2026-10-17 were rechecked on 2026-10-19 against parser
+sources at commit `71ec6d0` (branch `feat/207-token-twins`), using debug builds.
+The review rebuilt `mct-cli` offline
 against this checkout; all indexing used temporary roots outside it. For each language, a probe file wrote
 the checked constructs with distinctive names (`p_local`,
 `P_CONST`, `Circle::area`…). The probe was run through
@@ -44,21 +45,17 @@ read back. The review repeated the registry probe and cross-checked its
 counts with the rebuilt CLI; unverified forms remain `[?]`. Corpus snapshots
 are supporting examples, not proof of every syntax form.
 
-The features were checked with one small two-file project per language.
-Each project has a library file with:
-
-- a used helper function;
-- an unused function and an unused class;
-- a class with a method;
-- two copies of the same function under different names;
-- the string `"probe literal message"`.
-
-An entry file imports the library and calls the helper and the method.
+Feature probes use a small multi-file project per programming language:
+an imported helper, unused callables/types where applicable, duplicate functions,
+and `"probe literal message"`. The entry calls the helper and, where present, a
+method. Separate HTML/CSS and Markdown fixtures check selectors, note links,
+embeds and prose literals.
 The applicable tools below were run through `mct-cli call`, the same code
 the MCP server runs, plus `mct-cli duplicates`. The review repeated these
 checks in temporary projects. Python's duplicate fixture has 33 normalized
 tokens: it produces a group with `--min-tokens 20`, not with the default 40.
-Semantic inference and discovery/attention tools were not exercised.
+The tool catalog was checked with `discover_tool_categories`; semantic
+inference and attention-mode selection were not exercised.
 
 Implementation facts are defined and recounted in the
 [implementation inventory](#implementation-inventory). Source evidence is the
@@ -155,10 +152,10 @@ round to the nearest whole percent, with halves rounded up.
 
 ## Language by language
 
-The comparison matrices give a compact view; the [checklists](#checklist-by-language)
-define the scored checks and explain partial results. The syntax tables below
-map source forms to grammar nodes. A ✅ confirms the stated forms, not every
-possible use of the construct or complete semantic analysis.
+The [checklists](#checklist-by-language) are the canonical per-language
+comparison: they define scored checks and explain partial results. The syntax
+tables map source forms to grammar nodes. A ✅ confirms the stated forms, not
+every possible use of a construct or complete semantic analysis.
 
 | Cause | Meaning | What fixing it takes |
 |---|---|---|
@@ -173,8 +170,10 @@ possible use of the construct or complete semantic analysis.
 All paths below are relative to `crates/`. Grammar versions are the requirements
 in each crate's `Cargo.toml`, also checked against `Cargo.lock`. Parser lines
 count Rust source under `src/`, excluding `src/libraries/`. Test counts are
-`#[test]` declarations, including ignored tests, not a claim that they passed.
-Corpus counts include only `tests/corpus/project/`, excluding malformed inputs,
+actual `#[test]` declarations in `src/` and direct `tests/*.rs` files,
+including ignored tests. Fixture code, text inside strings and macro-generated
+tests are excluded; these counts do not claim that tests passed. Corpus counts
+include only `tests/corpus/project/`, excluding malformed inputs,
 snapshots and metadata. They were recounted for this review.
 
 | Language / crate | Grammar requirement | Id; extensions | Parser lines |
@@ -209,7 +208,7 @@ framework adapters. See [library support](../../01-architecture/library-support.
 
 | Language | Tests: parse / corpus / index / other | Ignored | Corpus: files / lines | Test-only libraries |
 |---|---|--:|---|---|
-| Rust | 25 / 7 / 9 / 31 (src/lib.rs: 5, src/tokens.rs: 1, tests/dead_code.rs: 4, tests/depgraph.rs: 3, tests/tokens.rs: 18) | 1 | 6 / 2,179 | — |
+| Rust | 23 / 7 / 9 / 26 (src/lib.rs: 3, tests/dead_code.rs: 4, tests/depgraph.rs: 3, tests/tokens.rs: 16) | 1 | 6 / 2,179 | — |
 | Python | 9 / 8 / 8 / 28 (src/libraries/django/mod.rs: 1, src/libraries/flask/mod.rs: 1, tests/depgraph.rs: 2, tests/tokens.rs: 24) | 0 | 15 / 2,765 | flask, django |
 | JS/TS | 10 / 12 / 8 / 5 (src/libraries/react/mod.rs: 3, tests/depgraph.rs: 2) | 0 | 7 / 2,193 | react |
 | Java | 11 / 11 / 4 / 3 (tests/depgraph.rs: 3) | 1 | 6 / 1,989 | — |
@@ -507,12 +506,12 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 
 | Gap | Cause | Detail |
 |---|---|---|
-| `define()` constants | By design | `define()` stays a call by the explicit [PHP decision](../../../crates/mct-lang-php/src/lib.rs#L28) |
+| `define()` constants | By design | `define()` stays a call by the explicit [PHP decision](../../../crates/mct-lang-php/src/lib.rs#L68) |
 | Global `$variables` | Not implemented | a top-level `assignment_expression` gives a symbol only for a closure value |
 | Anonymous classes (`new class {}`) | Not implemented | `anonymous_class` gives only the `extends`/`implements` relations, no symbols |
-| `namespace` as a symbol | By design | explicit file-module-only [PHP decision](../../../crates/mct-lang-php/src/lib.rs#L31) |
+| `namespace` as a symbol | By design | explicit file-module-only [PHP decision](../../../crates/mct-lang-php/src/lib.rs#L28) |
 | Trait as `trait`, `use Trait` as `implements` | By design | explicit [PHP mappings](../../../crates/mct-lang-php/src/lib.rs#L9), using the closest existing kinds |
-| Separate file/type import evidence | By design | [push_use_module_import](../../../crates/mct-lang-php/src/lib.rs#L754) explicitly adds the declaring type file alongside the symbol import; `use function` / `use const` skip that file relation |
+| Separate file/type import evidence | By design | [declaring-file decision](../../../crates/mct-lang-php/src/lib.rs#L755) explicitly adds the declaring type file alongside the symbol import; `use function` / `use const` skip that file relation |
 | Composer dependencies, PHP secret files | Not implemented | no `composer.json` reader; `wp-config.php` and `config/database.php` are not excluded (`internal/checklist.md` open decision 2) |
 
 ### Lua
@@ -555,7 +554,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Variables inside functions (`local`) | By design | explicit noise/scope decision in [crate docs](../../../crates/mct-lang-bash/src/lib.rs#L20) |
 | Commands through a variable (`$CMD arg`) | By design | explicit static-name decision in [crate docs](../../../crates/mct-lang-bash/src/lib.rs#L24) |
 | `coproc NAME { … }` | Grammar | truncates the enclosing function, issue #79 |
-| `;` inside `${a:+…}` | Grammar | tree-sitter-bash 0.25.1 rejects it (`errors/REGISTRY.md` ERR-001) |
+| Some quoted `${a:+…}` semicolon forms | Grammar | `"${name:+before;after}"` still fails. The ERR-001 form `"${stale:+$stale; }"` is accepted by the parser's [targeted recovery](../../../crates/mct-lang-bash/src/lib.rs#L111), preserving original text and locations |
 
 ### PowerShell
 
@@ -567,6 +566,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | top-level `$x = …`, `$script:x = …` | `assignment_expression` | `variable` (scope prefix stripped) |
 | `. .\lib.ps1`, `Import-Module X` | `command` | `imports` (path and stem) |
 | any literal command or cmdlet | `command`, `command_name`, `command_name_expr` | `calls` |
+| simple bare identifier comma lists (`Write-Output alpha,beta`) | `command_elements`, `generic_token` | accepted through [targeted recovery](../../../crates/mct-lang-powershell/src/lib.rs#L116); extraction retains original text and locations |
 
 #### Why the gaps exist
 
@@ -574,72 +574,8 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 |---|---|---|
 | Classes, methods, properties, `enum` | By design | explicit exclusion in [crate docs](../../../crates/mct-lang-powershell/src/lib.rs#L30) |
 | `$this.X = …` in a class becomes a variable `this` | Bug | seen in the probe: each such assignment adds a top-level `variable` named `this` |
-| `: base(…)` constructors, `??`, ternary, comma barewords | Grammar | tree-sitter-powershell 0.26.4 rejects them (`errors/REGISTRY.md` ERR-002, `corpus-progress.md`) |
+| `: base(…)` constructors, `??`, ternary | Grammar | tree-sitter-powershell 0.26.4 rejects these forms; simple bare identifier comma lists are recovered, not an unconditional gap (`errors/REGISTRY.md` ERR-002) |
 | Variables inside functions, computed import paths | By design | explicit static/scope limits in [crate docs](../../../crates/mct-lang-powershell/src/lib.rs#L16) |
-
-## Programming languages
-
-### Functions and methods
-
-| Construct | Rust | Python | JS/TS | Java | Kotlin | C# | C++ | Go | PHP | Lua | Bash | PowerShell |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| Top-level function | ✅ | ✅ | ✅ | — | ✅ | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Nested function (named, inside a function) | ⚠️ | ⚠️ | ⚠️ | — | ⚠️ | ⚠️ | — | — | ⚠️ | ⚠️ | ✅ | ✅ |
-| Lambda / closure assigned to a name | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | — | ⚠️ |
-| Method | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | ❌ |
-| Constructor | — | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | — | ✅ | — | — | ❌ |
-| Destructor / finalizer | ✅ | ✅ | — | — | — | ✅ | ✅ | — | ✅ | — | — | — |
-| Property accessors (get/set) | — | ⚠️ | ⚠️ | — | ✅ | ✅ | — | — | — | — | — | ❌ |
-| Operator overload | ✅ | ✅ | — | — | ✅ | ✅ | ✅ | — | — | [?] | — | — |
-| Abstract / pure virtual method | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | — | ✅ | — | — | — |
-| Overloads kept apart | — | — | ⚠️ | ✅ | ✅ | ✅ | ✅ | — | — | — | — | — |
-
-### Types and object-oriented programming
-
-| Construct | Rust | Python | JS/TS | Java | Kotlin | C# | C++ | Go | PHP | Lua | Bash | PowerShell |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| Class | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | ✅ | ⚠️ | — | ❌ |
-| Abstract class | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | ✅ | — | — | — |
-| Struct | ✅ | — | — | — | — | ✅ | ✅ | ✅ | — | — | — | — |
-| Union | ❌ | — | — | — | — | — | ⚠️ | — | — | — | — | — |
-| Interface / protocol | — | — | ✅ | ✅ | ✅ | ✅ | — | ✅ | ✅ | — | — | — |
-| Interface members | ✅ | — | ❌ | ✅ | ✅ | ✅ | — | ✅ | ✅ | — | — | — |
-| Trait / mixin | ✅ | — | ⚠️ | — | — | — | — | — | ✅ | — | — | — |
-| Enum | ✅ | ⚠️ | ✅ | ✅ | ⚠️ | ✅ | ✅ | — | ✅ | — | — | ❌ |
-| Enum members | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | — | ✅ | — | — | ❌ |
-| Record / data class | — | ⚠️ | — | ⚠️ | ✅ | ⚠️ | — | — | — | — | — | — |
-| Singleton / companion object | — | — | — | — | ⚠️ | — | — | — | — | — | — | — |
-| Nested / inner class | — | ✅ | [?] | ✅ | ✅ | ✅ | ✅ | — | — | — | — | — |
-| Anonymous class | — | — | ⚠️ | ⚠️ | ⚠️ | — | — | — | ❌ | — | — | — |
-| Partial class (several declarations) | — | — | — | — | — | ✅ | — | — | — | — | — | — |
-| Type alias | ✅ | ✅ | ✅ | — | ❌ | ⚠️ | ✅ | ✅ | — | — | — | — |
-| Module / namespace / package | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ |
-
-### Fields, constants and variables
-
-| Construct | Rust | Python | JS/TS | Java | Kotlin | C# | C++ | Go | PHP | Lua | Bash | PowerShell |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| Field / instance attribute | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | — | ❌ |
-| Constructor-promoted field | — | — | ❌ | — | ✅ | ❌ | — | — | ✅ | — | — | — |
-| Constant (module or global) | ✅ | ❌ | ❌ | ⚠️ | ❌ | ⚠️ | ⚠️ | ❌ | ✅ | — | ⚠️ | — |
-| Global / module-level variable | ⚠️ | ❌ | ❌ | — | ❌ | — | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ |
-| Local variable | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Parameter | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — | ❌ |
-| Macro | ❌ | — | — | — | — | — | ❌ | — | — | — | — | — |
-
-### Relations
-
-| Construct | Rust | Python | JS/TS | Java | Kotlin | C# | C++ | Go | PHP | Lua | Bash | PowerShell |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| Calls | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Constructor call (`new X()` / `X()`) | — | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | — | ✅ | — | — | — |
-| Super / base constructor call | — | ✅ | ❌ | ❌ | [?] | ❌ | ❌ | — | ✅ | — | — | — |
-| Imports | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Class extends class | — | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ | — | ✅ | ❌ | — | ❌ |
-| Implements interface / trait | ⚠️ | — | ✅ | ✅ | ✅ | ⚠️ | — | ❌ | ✅ | — | — | — |
-| Interface extends interface / supertrait | ❌ | — | ✅ | ❌ | ⚠️ | ✅ | — | ❌ | ✅ | — | — | — |
-| Struct embedding | — | — | — | — | — | — | — | ❌ | — | — | — | — |
-| Decorator / annotation / attribute | ❌ | ✅ | ❌ | ❌ | [?] | ✅ | — | — | ✅ | — | — | — |
 
 ## Markup and style languages
 
@@ -650,8 +586,8 @@ they index instead:
 |---|---|---|---|
 | HTML | file `module`; `element` for each element with an `id`, nested under the nearest identified ancestor | `imports` for `<link rel="stylesheet">` and `<script src>` (path and stem); `references` to `#id` and each `.class` of an identified element | elements with only a `class`; inline `<script>`/`<style>` content; event attributes (`onclick`); template syntax such as `{% %}`, which gives wrong names (see `internal/checklist.md`, open decision 4) |
 | CSS | file `module`; `rule` for each full selector and for each atom in it (`#header > .main` → `#header > .main`, `#header`, `.main`); nested rules resolved against their parent (`.parent .child`); rules inside `@media` | `imports` for `@import` (path and stem) | declarations and values; custom properties (`--brand`); `@keyframes`; pseudo-classes as atoms (`div.card:hover` → `div`, `.card`) |
-| XML | file `module`; `element` for each element with `id`, `name` or `Name` (in that order, exact case) | none, by design | unnamed elements, attributes, text |
-| XAML | file `module`; `element` for `x:Name` or `Name` | `references` from an event attribute (`Click="SaveBtn_Click"`) to the handler in the C# code-behind | `{Binding …}` values, other attributes |
+| XML | file `module`; `element` for each element with `id`, `name` or `Name` (in that order, exact case) | none, [by design](../../../crates/mct-lang-xml/src/lib.rs#L6) | unnamed elements, attributes, text |
+| XAML | file `module`; `element` for `x:Name` or `Name` | `references` from an event attribute (`Click="SaveBtn_Click"`) to the C# code-behind handler; `imports` for a relative `ResourceDictionary Source="Styles/Colors.xaml"`, pinned to the [target file](../../../crates/mct-lang-xaml/src/lib.rs#L330) | `{Binding …}` values; absolute, `pack:` and `;component` dictionary URIs; other attributes |
 | Markdown | note `module`; `element` for each heading, nested by level, with its section range and `level` | `references` for `[[WikiLink]]`, its `#anchor`, `#tags`, frontmatter `title`/`aliases`/`tags`; `imports` for `![[embed]]` | code spans and fenced code (deliberately); links inside tables (table text is still collected as literals) |
 
 ## Features by language
@@ -697,31 +633,6 @@ table:
   with the `semantic` feature, which was not tested here. Without it,
   `hybrid_search` falls back to lexical search and says so.
 
-### Search and lookup
-
-| Feature | Rust | Python | JS/TS | Java | Kotlin | C# | C++ | Go | PHP | Lua | Bash | PowerShell |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| Find a definition: `find_symbol`, `list_symbols`, `search_symbols` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Who calls / what is called: `find_callers`, `find_calls` | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Every use: `find_references` | ⚠️ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | ⚠️ | ✅ | ⚠️ | ✅ | ✅ |
-| Blast radius and context: `impact_analysis`, `build_context_pack` | ⚠️ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | ⚠️ | ✅ | ⚠️ | ✅ | ✅ |
-| Exact text in strings: `hybrid_search` with a `"quoted"` query | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-
-### Code quality
-
-| Feature | Rust | Python | JS/TS | Java | Kotlin | C# | C++ | Go | PHP | Lua | Bash | PowerShell |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| Dead code: `find_dead_code`, `mct-cli dead-code` | ⚠️ | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ⚠️ | ⚠️ | ✅ | ⚠️ | ✅ | ✅ |
-| Repeated code: `mct-cli duplicates` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-
-### Structure
-
-| Feature | Rust | Python | JS/TS | Java | Kotlin | C# | C++ | Go | PHP | Lua | Bash | PowerShell |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| Import graph: `get_dependency_graph` | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ⚠️ | ⚠️ | ✅ | ⚠️ | ⚠️ |
-| File outline: `get_file_skeleton` | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | ⚠️ |
-| Declared dependencies in `get_indexing_status` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
-
 ### Markup and style language features
 
 | Feature | HTML | CSS | XML | XAML | Markdown |
@@ -730,7 +641,7 @@ table:
 | `find_references` | ✅ | ✅ | — | ✅ | ✅ |
 | Dead code | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Repeated code | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Import graph | ⚠️ | ⚠️ | — | — | ⚠️ |
+| Import graph | ⚠️ | ⚠️ | — | ✅ | ⚠️ |
 | File outline | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ |
 | Exact text in strings | ❌ | ❌ | ❌ | ❌ | ✅ |
 
@@ -748,7 +659,7 @@ table:
 - **HTML, import graph:** `<link>`/`<script src>` edges; the resolved path is also listed as external.
 - **CSS, import graph:** the checked local `@import` resolves an edge, but its path also appears as an external import.
 - **XML, import graph:** no imports.
-- **XAML, import graph:** no imports.
+- **XAML, import graph:** relative `ResourceDictionary Source` paths resolve to dictionary-file edges; absolute, assembly (`pack:`/`;component`) and computed URIs are skipped.
 - **Markdown, import graph:** only `![[embeds]]` are edges; `[[links]]` are references, so linked notes are not in the graph.
 - **HTML/XML/XAML/CSS, file outline:** declaration-line fallback with `# ...`; the placeholder is not syntax for these languages and one-line bodies remain visible.
 - **Markdown, file outline:** top-level headings only.
@@ -757,13 +668,11 @@ table:
 ## Checklist by language
 
 `[x]` indexed or working, `[~]` partial, `[ ]` not indexed or not working,
-`[?]` not tested. Each item says what kind it gets, or what is missing.
-Constructs the language does not have are left out. The summary of each
-language is in [Language by language](#language-by-language).
+`[?]` not tested. Each item says what kind it gets, or what is missing. Constructs the language
+does not have are left out. The score summary above is the single source for
+percentages and denominators; these checklists provide the scored evidence.
 
 ### Rust checklist (`rust`)
-
-Constructs 60% (15.5 of 26). Features 80% (8 of 10).
 
 **Functions and methods**
 
@@ -823,8 +732,6 @@ Constructs 60% (15.5 of 26). Features 80% (8 of 10).
 - [x] Declared dependencies in `get_indexing_status`: `Cargo.toml`
 
 ### Python checklist (`python`)
-
-Constructs 68% (19 of 28). Features 85% (8.5 of 10).
 
 **Functions and methods**
 
@@ -886,8 +793,6 @@ Constructs 68% (19 of 28). Features 85% (8.5 of 10).
 - [x] Declared dependencies in `get_indexing_status`: `requirements.txt` only; not `pyproject.toml`
 
 ### JS/TS checklist (`javascript_typescript`)
-
-Constructs 61% (19.5 of 32). Features 80% (8 of 10).
 
 **Functions and methods**
 
@@ -955,8 +860,6 @@ Constructs 61% (19.5 of 32). Features 80% (8 of 10).
 
 ### Java checklist (`java`)
 
-Constructs 70% (19 of 27). Features 65% (6.5 of 10).
-
 **Functions and methods**
 
 - [ ] Lambda / closure assigned to a name: no symbol
@@ -1016,8 +919,6 @@ Constructs 70% (19 of 27). Features 65% (6.5 of 10).
 - [ ] Declared dependencies in `get_indexing_status`
 
 ### Kotlin checklist (`kotlin`)
-
-Constructs 70% (23 of 33). Features 65% (6.5 of 10).
 
 **Functions and methods**
 
@@ -1087,8 +988,6 @@ Constructs 70% (23 of 33). Features 65% (6.5 of 10).
 
 ### C# checklist (`csharp`)
 
-Constructs 76% (26 of 34). Features 55% (5.5 of 10).
-
 **Functions and methods**
 
 - [~] Nested function (named, inside a function): local function as `function` with no parent
@@ -1156,8 +1055,6 @@ Constructs 76% (26 of 34). Features 55% (5.5 of 10).
 
 ### C++ checklist (`cpp`)
 
-Constructs 77% (21.5 of 28). Features 50% (5 of 10).
-
 **Functions and methods**
 
 - [x] Top-level function: `function`, templates as plain functions
@@ -1219,8 +1116,6 @@ Constructs 77% (21.5 of 28). Features 50% (5 of 10).
 
 ### Go checklist (`go`)
 
-Constructs 47% (8.5 of 18). Features 60% (6 of 10).
-
 **Functions and methods**
 
 - [x] Top-level function: `function`, parent is the package
@@ -1271,8 +1166,6 @@ Constructs 47% (8.5 of 18). Features 60% (6 of 10).
 - [x] Declared dependencies in `get_indexing_status`: `go.mod`
 
 ### PHP checklist (`php`)
-
-Constructs 83% (25 of 30). Features 65% (6.5 of 10).
 
 **Functions and methods**
 
@@ -1337,8 +1230,6 @@ Constructs 83% (25 of 30). Features 65% (6.5 of 10).
 
 ### Lua checklist (`lua`)
 
-Constructs 54% (7 of 13). Features 50% (5 of 10).
-
 **Functions and methods**
 
 - [x] Top-level function: `function` and `local function`
@@ -1386,8 +1277,6 @@ Constructs 54% (7 of 13). Features 50% (5 of 10).
 
 ### Bash checklist (`bash`)
 
-Constructs 81% (6.5 of 8). Features 60% (6 of 10).
-
 **Functions and methods**
 
 - [x] Top-level function: both `f() {}` and `function f {}`
@@ -1428,8 +1317,6 @@ Constructs 81% (6.5 of 8). Features 60% (6 of 10).
 - [ ] Declared dependencies in `get_indexing_status`
 
 ### PowerShell checklist (`powershell`)
-
-Constructs 38% (6.5 of 17). Features 60% (6 of 10).
 
 **Functions and methods**
 
@@ -1606,17 +1493,18 @@ The [PHP parser note](mct-lang-php.md) documents its security exception.
 
 ## Keeping this page current
 
-- **New language:** add a column to each table and a checklist section. Mark
-  — for constructs the language does not have.
-- **Parser change:** update the cells and checklist items it changes, and
-  the score, in the same PR.
-- **Implementation change:** update the language's Implementation, Syntax
-  it recognizes and Why the gaps exist tables. A gap that is fixed leaves
+- **New language:** add implementation/verification inventory rows, syntax
+  and gap tables, and a checklist for a programming language; extend the markup
+  tables for a markup/style language. Omit inapplicable checklist constructs.
+- **Parser change:** update affected syntax/gap tables and checklist items,
+  then recalculate overall and area scores in the same PR.
+- **Implementation change:** update the inventory rows and affected syntax
+  and gap tables. A gap that is fixed leaves
   the table; a new decision moves a gap to "By design" with its source.
 - **Tool change:** a tool that gains or loses a language (a new token
   source for `duplicates`, literals collected by another parser, a language
   added to `BRACE_LANGUAGES`, a new manifest format) updates the feature
-  table, the checklists and the feature score.
+  support table, affected checklists or markup rows, and feature/area scores.
 - **Model change** (a new kind, relation or column): update
   [What the index can hold](#what-the-index-can-hold), then the cells that
   now become possible.
