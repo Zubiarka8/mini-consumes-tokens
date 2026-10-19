@@ -68,7 +68,7 @@ const en = {
   purpose5:
     "Counts the files and pieces of code per language, lists any failures and returns a short health report.",
   tourHowText:
-    "A reader built on tree-sitter goes through each supported file and notes its functions, types and how they connect. That map is stored in a small database inside your project, and everything runs on your computer. The server answers your assistant from that database. While it runs, it updates changed files in the background once you stop editing for about 1.5 seconds.",
+    "A reader built on tree-sitter goes through each supported file and notes its functions, types and how they connect. That map is stored in a small database inside your project, and everything runs on your computer. The server answers your assistant from that database. While it runs, it updates changed files in the background once you stop editing for about 15 seconds.",
   tourOrientText:
     "Start here when you don't know any names yet. These tools describe what a project contains without opening whole files.",
   tourLookupText:
@@ -236,7 +236,7 @@ const en = {
   docsLabel: "THE REFERENCE MANUAL",
   docsTitle: "A clear path from install to insight.",
   docsText:
-    "Installation, connecting assistants, commands, tools, supported languages, how it works inside and troubleshooting. The manual is in English.",
+    "Installation, connecting assistants, commands, tools, supported languages and how it works inside. The manual is in English.",
   guide1: "Install & connect",
   guide2: "Query & explore",
   guide3: "Understand & extend",

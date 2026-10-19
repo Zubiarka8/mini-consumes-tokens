@@ -351,6 +351,13 @@ file hashes, without reindexing, migrating or changing indexed data.
   `--ranking lines` retains the default line-based order.
 - `--limit`, `--offset` and `--no-excerpts` control output. Totals cover all groups
   in the filtered scope. `omitted_groups` counts groups outside the output page.
+- `--output <FILE>` also writes the TOON report to a file (relative paths use the
+  project root); stdout is unchanged.
+- A repeat run reuses the last report when nothing it depends on changed: the
+  options, the binary version, the index database, `.mctignore`/`.gitignore` and
+  the current bytes of every indexed file. It is stored as
+  `.mct-index/duplicates-cache.toon` (the report behind one `cache_key` field)
+  and announced on stderr. `--no-cache` neither reads nor writes it.
 
 `status: complete` means no candidate failed analysis. Separately, `index_coverage`
 reports whole-index failures, even outside filters: `partial`, `unknown`, or
@@ -518,15 +525,13 @@ Reproducible measurements: [token twins evaluation](benchmarks/token-twins.md).
 ```
 Report candidate duplicate functions and methods, as TOON.
 
-Groups functions and methods of the same language whose token sequences are identical once identifiers and literals are normalized (Type-2 clones). Every group is a CANDIDATE for human review: matching structure does not prove the code is redundant or behaves the same. Runs on demand against the existing index and the current files; it never reindexes or migrates the index, so run `init` or `reindex` first. Candidates that cannot be analyzed are listed as skipped and mark the report partial. Only languages with a token source are analyzed; the report names the rest.
+Groups functions and methods of the same language whose token sequences are identical once identifiers and literals are normalized (Type-2 clones). Every group is a CANDIDATE for human review: matching structure does not prove the code is redundant or behaves the same. Runs on demand against the existing index and the current files; it never reindexes or migrates the index, so run `init` or `reindex` first. Reuses an exact-input report cache in `.mct-index`; use `--no-cache` to bypass it or `--output FILE` to save the TOON report. Candidates that cannot be analyzed are listed as skipped and mark the report partial. Only languages with a token source are analyzed; the report names the rest.
 
 Usage: mct-cli duplicates [OPTIONS]
 
 Options:
-      --min-lines <MIN_LINES>
-          Minimum source-token-bearing lines per candidate
-
-          [default: 6]
+      --output <FILE>
+          Write the TOON report to this path (relative paths use the project root)
 
       --root <ROOT>
           Project root to operate on. Defaults to the current working directory.
@@ -534,6 +539,14 @@ Options:
           `init` and `call` accept several roots, as a repeated `--root` or a comma-separated `--roots a,b`; every other command takes exactly one.
 
           [alias: --roots]
+
+      --no-cache
+          Skip reading or writing the duplicate-report cache
+
+      --min-lines <MIN_LINES>
+          Minimum source-token-bearing lines per candidate
+
+          [default: 6]
 
       --min-tokens <MIN_TOKENS>
           Minimum source tokens per candidate
@@ -606,6 +619,7 @@ Options:
 Examples:
   cargo run -p mct-cli -- --root . duplicates
   cargo run -p mct-cli -- --root . duplicates --min-lines 10 --min-tokens 80
+  cargo run -p mct-cli -- --root . duplicates --output duplicates.toon
 ```
 
 </details>
@@ -702,7 +716,7 @@ How long the server waits **without any relevant file change** before it updates
 | `<N>s`, `<N>m`, `<N>ms` | Any custom positive duration, for example `90s` |
 | `off` | Disables automatic updates (same as `--reindex-debounce-ms 0`) |
 
-It conflicts with `--reindex-debounce-ms`; give only one. With neither, the wait is 1500 ms.
+It conflicts with `--reindex-debounce-ms`; give only one. With neither, `MCT_REINDEX_DEBOUNCE_MS` sets the wait; if the variable is absent or invalid, the default is 15000 ms (15 seconds). `--reindex-delay` overrides the variable.
 
 Behaviour (quiet-period semantics):
 
@@ -730,10 +744,10 @@ To set it for an MCP client, run `mct-cli --root . mcp-register --reindex-delay 
 
 ### `--reindex-debounce-ms <ms>`
 
-Milliseconds of quiet time required after the last detected file write before the background watcher auto-reindexes. Defaults to `1500`. Conflicts with [`--reindex-delay`](#--reindex-delay-value). Passing `0` disables the background watcher entirely (index only refreshes on startup or a manual `reindex`). Edits to the ignore rules are the exception: every tool call first checks `.mctignore` (and an imported `.gitignore`) and, if the rules changed, reindexes before answering.
+Milliseconds of quiet time required after the last detected file write before the background watcher auto-reindexes. Defaults to `15000` (15 seconds). Conflicts with [`--reindex-delay`](#--reindex-delay-value). Passing `0` disables the background watcher entirely (index only refreshes on startup or a manual `reindex`). Edits to the ignore rules are the exception: every tool call first checks `.mctignore` (and an imported `.gitignore`) and, if the rules changed, reindexes before answering. The `MCT_REINDEX_DEBOUNCE_MS` environment variable sets the same value; precedence is flag, then variable, then default, and `--reindex-delay` overrides the variable.
 
 ```sh
-mct-mcp-server --root /path/to/your/project --reindex-debounce-ms 3000
+mct-mcp-server --root /path/to/your/project --reindex-debounce-ms 5000
 ```
 
 ### `--rebuild-embeddings`
@@ -762,7 +776,7 @@ Options:
       --root <ROOT>
           Project root to index. Defaults to the current working directory
       --reindex-debounce-ms <REINDEX_DEBOUNCE_MS>
-          Milliseconds of quiet time required after the last detected file write before auto-reindexing (default 1500). 0 disables the background watcher entirely, restoring the previous startup-only behavior. Conflicts with --reindex-delay
+          Milliseconds of quiet time required after the last detected file write before auto-reindexing. 0 disables the background watcher entirely, restoring the previous startup-only behavior. Precedence: this flag, then the MCT_REINDEX_DEBOUNCE_MS environment variable, then the default of 15000 Conflicts with --reindex-delay.
       --reindex-delay <VALUE>
           Quiet time without file changes before the index updates itself. Presets: 15s, 30s, 45s, 1m. Custom: <N>s, <N>m or <N>ms (N > 0), e.g. 90s, 2m, 500ms. 'off' disables automatic updates. Conflicts with --reindex-debounce-ms
       --rebuild-embeddings
@@ -782,7 +796,7 @@ Examples:
 
 ## 3. MCP tools — what your AI assistant calls for you
 
-These aren't run by hand; they're the tools an MCP client (Claude Code, Cursor, etc.) calls once connected. Grouped the same way `discover_tool_categories` (§ 3.5) groups them. Most response-returning tools share three optional parameters, documented once here instead of per tool: `limit` (max results; default 50, except `search_symbols` and `hybrid_search` which default to 10 and clamp to 100 — the latter names it `top_k`), `offset` (skip this many results before applying `limit`, for paging; not offered by `list_symbols` or `find_symbol`), and `format` (`"text"`, the default human/agent-readable layout, or `"toon"`, a compact token-lean table — see the note at the end of this section).
+These aren't run by hand; they're the tools an MCP client (Claude Code, Cursor, etc.) calls once connected. Grouped the same way `discover_tool_categories` (§ 3.5) groups them. Most response-returning tools share three optional parameters, documented once here instead of per tool: `limit` (max results; default 50, except `search_symbols_like` and `hybrid_search_like` which default to 10 and clamp to 100 — the latter names it `top_k`), `offset` (skip this many results before applying `limit`, for paging; not offered by `list_symbols` or `find_symbol`), and `format` (`"toon"`, the default compact table, or `"text"`, the opt-in labelled layout — see the note at the end of this section).
 
 ### 3.1 Discovery — "what exists here, and what does it look like?"
 
@@ -798,9 +812,11 @@ These aren't run by hand; they're the tools an MCP client (Claude Code, Cursor, 
 
 **`find_symbol`** — finds the definition location(s) of a symbol by name, across every indexed language, including polyglot projects. `match` controls how `name` is matched: `exact` (default), `prefix`, or `fuzzy` (substring, case-insensitive — use this instead of guessing the exact name and re-querying). Does not find callers/references — use `find_callers`/`find_references` for that.
 
-**`search_symbols`** — for when you're unsure of the exact name: give words or a partial identifier in any case style (`parse request`, `parseReq`, `parse_request_body`) and get BM25-ranked hits, exact matches first. Each word prefix-matches a word of the symbol's name. Optional `path`, `language`, `limit` (default 10, max 100), `offset`, `snippet_lines` (source lines shown under each hit, default 0, max 50) and `cache` (`false` skips the query cache, which otherwise answers a repeated unchanged call with a one-line "unchanged"). Not exhaustive — use `find_symbol`/`list_symbols` for that.
+**`search_symbols_like`** — for when you're unsure of the exact name: give words or a partial identifier in any case style (`parse request`, `parseReq`, `parse_request_body`) and get BM25-ranked hits, exact matches first. Each word prefix-matches a word of the symbol's name. Optional `path`, `language`, `limit` (default 10, max 100), `offset`, `snippet_lines` (source lines shown under each hit, default 0, max 50) and `cache` (`false` skips the query cache, which otherwise answers a repeated unchanged call with a one-line "unchanged"). Not exhaustive — use `find_symbol`/`list_symbols` for that.
 
-**`hybrid_search`** — finds code by meaning: `search_symbols` fused with embedding similarity (RRF). `alpha` weights semantic against lexical (0 = lexical only, 1 = semantic only; omitted, the query's shape picks it). A `"double-quoted"` query is an exact phrase, lexical only, and also lists string literals (error/log messages) that hold it as `path:line`. Without an embedding model (build without `--features semantic`) it falls back to lexical only and says so. Takes the same `path`, `language`, `top_k`, `offset`, `snippet_lines`, `cache` and `format` options as `search_symbols`.
+**`hybrid_search_like`** — finds code by meaning: `search_symbols_like` fused with embedding similarity (RRF). `alpha` weights semantic against lexical (0 = lexical only, 1 = semantic only; omitted, the query's shape picks it). A `"double-quoted"` query is an exact phrase, lexical only, and also lists string literals (error/log messages) that hold it as `path:line`. Without an embedding model (build without `--features semantic`) it falls back to lexical only and says so. Takes the same `path`, `language`, `top_k`, `offset`, `snippet_lines`, `cache` and `format` options as `search_symbols_like`.
+
+`search_symbols` and `hybrid_search` remain deprecated aliases for one version, with the same behavior as their corresponding `*_like` tools.
 
 ### 3.3 Relations — "who touches this, and what does it touch?"
 
@@ -808,7 +824,7 @@ These aren't run by hand; they're the tools an MCP client (Claude Code, Cursor, 
 
 **`find_calls`** — every function/method a given function/method calls.
 
-**`find_references`** — every reference to a symbol: calls, imports, extends/implements — broader than `find_callers`/`find_calls`.
+**`find_references`** — every reference to a symbol: calls, imports, extends/implements — broader than `find_callers`/`find_calls`. Optional `sort` accepts `relevance` (default) or `execution` (graph hop, file, line and column, sorted before pagination). Execution order is a bounded static approximation, not runtime control flow.
 
 **`impact_analysis`** — the full blast radius of changing or removing a symbol in one call: combines `find_callers` + `find_references` + a heuristic check for affected tests, instead of three separate calls.
 
@@ -836,7 +852,7 @@ These aren't run by hand; they're the tools an MCP client (Claude Code, Cursor, 
 
 ### A note on `format`
 
-`list_symbols`, `find_symbol`, `search_symbols`, `hybrid_search`, `find_references`, `find_calls`, `find_callers`, `impact_analysis`, `find_dead_code`, and `build_context_pack` accept an optional `format` argument — `"toon"` (the default) or `"text"`. Omitting `format`, or sending `null` or a blank string, selects `toon`; any other value is rejected with `format must be one of text, toon`. `toon` renders the result's uniform rows (symbols, references, calls) as a compact TOON table (one header row of column names, then one row per hit, no repeated labels) — fewer tokens on a large result, at the cost of `list_symbols`' per-kind grouping. Pass `"format":"text"` for this server's labelled lines. `batch` sub-queries follow the same default, and `semantic_search` and the other tools without a `format` argument are unchanged. MCP arguments and the JSON-RPC envelope remain JSON.
+`list_symbols`, `find_symbol`, `search_symbols_like`, `hybrid_search_like`, `find_references`, `find_calls`, `find_callers`, `impact_analysis`, `find_dead_code`, `build_context_pack`, `get_dependency_graph`, and the two deprecated search aliases accept an optional `format` argument — `"toon"` (the default) or `"text"`. Omitting `format`, or sending `null` or a blank string, selects `toon`; any other value is rejected with `format must be one of text, toon`. `toon` renders the result's uniform rows (symbols, references, calls) as a compact TOON table (one header row of column names, then one row per hit, no repeated labels) — fewer tokens on a large result, at the cost of `list_symbols`' per-kind grouping. Pass `"format":"text"` for this server's labelled lines. `batch` sub-queries follow the same default, and `semantic_search` and the other tools without a `format` argument are unchanged. MCP arguments and the JSON-RPC envelope remain JSON.
 
 **Compatibility:** the default used to be `text`. A client or script that parsed the old default output must now pass `"format":"text"`.
 

@@ -467,15 +467,12 @@ mod batch_state {
         }
         let mut target = AlwaysFails;
         let mut state = BatchState::default();
-        let debounce = Duration::from_millis(1500);
+        let debounce = Duration::from_millis(1000);
         let mut delays = Vec::new();
         for _ in 0..8 {
             state.apply(&mut target, &registry, Changed::Rescan);
             delays.push(state.retry_delay(debounce).as_millis());
         }
-        assert_eq!(
-            delays,
-            [1500, 3000, 6000, 12000, 24000, 48000, 60000, 60000]
-        );
+        assert_eq!(delays, [1000, 2000, 4000, 8000, 16000, 32000, 60000, 60000]);
     }
 }
