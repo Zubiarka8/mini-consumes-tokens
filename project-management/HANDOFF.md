@@ -30,6 +30,11 @@ integrated and must not be pushed or merged.
 Next action: review and merge `fix/duplicates-cache-toon`, then the records PR.
 Removing the `mct-207-*` and `mct-207-token-twins` worktrees needs the user's approval.
 
+2026-10-16: the Codex evaluation work (`0e10084`, `ba16cb2`) was optimized on this
+branch without behavior change (`5a9fdc2..fe68523`, ERR-015 record `fede724`);
+`check.sh` passed on `fede724`. Details, evidence and open decisions:
+[TASK-207-optimize](checkpoints/TASK-207-optimize.md).
+
 ## TASK-PM-001
 
 Previous agent: PM-01 / Codex
