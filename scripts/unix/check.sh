@@ -9,6 +9,8 @@
 #
 # Usage:
 #   scripts/unix/check.sh                  # everything, like CI's build-test job
+#   scripts/unix/check.sh --no-fail-fast    # run every test target after failures
+#   scripts/unix/check.sh --isolated-target # use this checkout's target cache
 #   scripts/unix/check.sh -p mct-index     # fmt + tests + clippy for one crate, no eval
 #   scripts/unix/check.sh --no-eval        # skip the mct-eval quality gate
 #   scripts/unix/check.sh --only clippy    # one step: fmt | test | clippy | eval
@@ -17,12 +19,18 @@
 
 source "$(dirname "$0")/lib.sh"
 
+LOG_DIR="${MCT_CHECK_LOG_DIR:-$LOG_DIR}"
+mkdir -p "$LOG_DIR"
+
 package=""
 run_fmt=1 run_test=1 run_clippy=1 run_eval=1
+no_fail_fast=0 isolated_target=0
 while [ $# -gt 0 ]; do
   case "$1" in
     -p | --package) package="${2:?-p needs a crate name}"; run_eval=0; shift 2 ;;
     --no-eval) run_eval=0; shift ;;
+    --no-fail-fast) no_fail_fast=1; shift ;;
+    --isolated-target) isolated_target=1; shift ;;
     --only)
       run_fmt=0 run_test=0 run_clippy=0 run_eval=0
       case "${2:-}" in
@@ -30,14 +38,23 @@ while [ $# -gt 0 ]; do
         *) die "--only takes fmt, test, clippy or eval" ;;
       esac
       shift 2 ;;
-    -h | --help) sed -n '2,18p' "$SCRIPTS_DIR/$(basename "$0")" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h | --help) sed -n '2,20p' "$SCRIPTS_DIR/$(basename "$0")" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown argument: $1 (see --help)" ;;
   esac
 done
 
+if [ "$isolated_target" -eq 1 ]; then
+  CARGO_TARGET_DIR="${MCT_CHECK_TARGET_DIR:-$ROOT/target/review-check}"
+  case "$CARGO_TARGET_DIR" in
+    /*) ;;
+    *) CARGO_TARGET_DIR="$ROOT/$CARGO_TARGET_DIR" ;;
+  esac
+  export CARGO_TARGET_DIR
+fi
+
 if [ -n "$package" ]; then scope=(-p "$package"); else scope=(--workspace); fi
 failed=0
-summary="$LOG_DIR/check-summary.md"
+summary="${MCT_CHECK_SUMMARY:-$LOG_DIR/check-summary.md}"
 new_log "$summary"
 # One status line: printed for the terminal and kept for the PR body.
 say() { printf '%s\n' "$*" | tee -a "$summary"; }
@@ -60,7 +77,11 @@ step_fmt() {
 step_test() {
   local log="$LOG_DIR/check-test.log" status=0
   new_log "$log"
-  cargo test "${scope[@]}" >>"$log" 2>&1 || status=$?
+  if [ "$no_fail_fast" -eq 1 ]; then
+    cargo test "${scope[@]}" --no-fail-fast >>"$log" 2>&1 || status=$?
+  else
+    cargo test "${scope[@]}" >>"$log" 2>&1 || status=$?
+  fi
   local counts
   counts=$(awk '/^test result:/ {
       for (i = 1; i <= NF; i++) {
