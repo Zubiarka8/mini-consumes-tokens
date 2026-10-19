@@ -240,8 +240,9 @@ read after retirement. SQLite guard remains active. No publication.
 
 ## TASK-207 — Duplicate-function spike (issue #207)
 
-Status: DONE for the original feature: GitHub main at `4c3f155` includes
-the merge of PR #208. Post-integration cleanup is a separate review candidate.
+Status: DONE. Feature PR #208; follow-ups #209 and #211–#216 merged by main
+`19e3733`. Last follow-up `fix/duplicates-cache-toon` (TOON cache, ADR-007) is in
+review; the records PR that follows it closes issue #207.
 Original coordinator: Claude Code on `feat/207-token-twins`. Initial scope (2026-10-15): on demand only through
 `mct-cli duplicates`; Rust and Python token sources; local work only, no push or PR.
 Contract commit: `5efc8a7` (TokenSource in mct-core, DuplicateReport types in
@@ -283,3 +284,5 @@ On 2026-10-18 the user authorized separate follow-up PRs for cleanup, watcher te
 coverage documentation, presentation research, and the project skill. These are
 separate review candidates based on main verified through the GitHub connector.
 PR #209's already-merged cache/export behavior is preserved in the cleanup candidate.
+All five merged on 2026-10-18/19 (#211 `a38dcc5`, #212 `cff2f35`, #213 `7fded7b`,
+#214 `be8556f`, #215 `6346fba`, #216 `19e3733`).
