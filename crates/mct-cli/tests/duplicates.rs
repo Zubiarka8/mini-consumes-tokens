@@ -104,9 +104,19 @@ fn exact_callable_boundaries_ignore_neighboring_syntax() {
 fn duplicate_report_cache_is_reused_and_invalidated_by_source_changes() {
     let project = Project::new("report-cache");
     project.init();
+    // A cache left by a release that stored it as JSON.
+    let index_dir = project.path().join(".mct-index");
+    fs::write(index_dir.join("duplicates-cache.json"), "{}").unwrap();
     let first = mct(&[&"--root", &project.path(), &"duplicates"]);
     assert!(first.status.success(), "{}", stderr(&first));
     assert!(!stderr(&first).contains("reused cached report"));
+
+    // The cache is the TOON report behind one `cache_key` field; no JSON.
+    let cache = fs::read_to_string(index_dir.join("duplicates-cache.toon")).unwrap();
+    let (key_line, cached_report) = cache.split_once('\n').unwrap();
+    assert!(key_line.starts_with("cache_key: "), "{key_line}");
+    assert_eq!(cached_report, stdout(&first));
+    assert!(!index_dir.join("duplicates-cache.json").exists());
 
     let second = mct(&[&"--root", &project.path(), &"duplicates"]);
     assert!(second.status.success(), "{}", stderr(&second));
