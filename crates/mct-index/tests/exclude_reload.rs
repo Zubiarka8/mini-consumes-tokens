@@ -287,3 +287,24 @@ fn an_explicit_exclusion_overrides_retention_under_an_unreadable_parent() {
     );
     assert_eq!(index.find_symbol("helper").unwrap().len(), 1);
 }
+
+#[test]
+fn a_hook_failure_during_an_exclusion_reindex_waits_in_take_warnings() {
+    let dir = tempdir();
+    fs::write(dir.join("keep.fake"), "helper\n").unwrap();
+    fs::write(dir.join("drop.fake"), "dropped\n").unwrap();
+    let mut index = Index::open_in_memory(&dir, ExcludeSet::for_project(&dir)).unwrap();
+    index.reindex(&registry(), false).unwrap();
+    index.set_post_reindex_hook(Box::new(|_| {
+        Err(mct_index::IndexError::Hook("disk full".into()))
+    }));
+    assert!(index.take_warnings().is_empty());
+
+    write_rules(&dir, "drop.fake\n");
+    assert!(index.apply_exclusion_changes(&registry()).unwrap());
+
+    let warnings = index.take_warnings();
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert!(warnings[0].contains("disk full"), "{warnings:?}");
+    assert!(index.take_warnings().is_empty(), "taking must clear them");
+}
