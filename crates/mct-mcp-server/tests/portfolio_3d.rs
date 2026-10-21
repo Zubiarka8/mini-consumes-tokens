@@ -69,6 +69,8 @@ async fn an_asset_definition_is_packed_without_source() {
                 limit: None,
                 source_lines: None,
                 format: Some("text".to_string()),
+                detail: None,
+                max_tokens: None,
             }))
             .await
             .unwrap(),

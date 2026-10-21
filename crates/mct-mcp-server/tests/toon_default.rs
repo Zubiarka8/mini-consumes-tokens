@@ -229,6 +229,8 @@ async fn the_query_cache_never_replays_a_response_in_the_other_format() {
         snippet_lines: None,
         format: format.map(str::to_string),
         cache: None,
+        detail: None,
+        max_tokens: None,
     };
     let run = |format: Option<&str>| {
         let args = search(format);
