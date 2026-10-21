@@ -171,6 +171,8 @@ fn search_args(query: &str) -> SearchSymbolsArgs {
         snippet_lines: None,
         format: None,
         cache: None,
+        detail: None,
+        max_tokens: None,
     }
 }
 
@@ -185,6 +187,8 @@ fn hybrid_args(query: &str, alpha: f64) -> HybridSearchArgs {
         snippet_lines: None,
         format: None,
         cache: None,
+        detail: None,
+        max_tokens: None,
     }
 }
 

@@ -48,6 +48,8 @@ fn args(query: &str, alpha: Option<f64>) -> HybridSearchArgs {
         snippet_lines: None,
         format: Some("text".to_string()),
         cache: None,
+        detail: None,
+        max_tokens: None,
     }
 }
 
@@ -67,6 +69,8 @@ async fn lexical(server: &MctServer, query: &str) -> String {
                 snippet_lines: None,
                 format: Some("text".to_string()),
                 cache: None,
+                detail: None,
+                max_tokens: None,
             }))
             .await
             .unwrap(),

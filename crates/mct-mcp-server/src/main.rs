@@ -41,6 +41,11 @@ struct Args {
     /// build's model (`--features semantic`), then exit without serving.
     #[arg(long)]
     rebuild_embeddings: bool,
+
+    /// Do not regenerate the Obsidian vault in `.mct-index/obsidian/` after
+    /// each reindex.
+    #[arg(long)]
+    no_obsidian: bool,
 }
 
 /// Default quiet time before the background watcher reindexes, in milliseconds.
@@ -82,9 +87,15 @@ async fn main() -> anyhow::Result<()> {
     // it), reloaded when `.mctignore`/`.gitignore` change — no restart needed.
     let exclude = mct_index::ExcludeSet::for_project(&root);
     let mut index = mct_index::Index::open(&root, &db_path, exclude.clone())?;
+    if !args.no_obsidian {
+        mct_obsidian::register(&mut index);
+    }
 
     tracing::info!(root = %root.display(), "starting initial reindex");
     let report = index.reindex(&language_registry, false)?;
+    for warning in &report.warnings {
+        tracing::warn!(%warning, "post-reindex hook failed");
+    }
     tracing::info!(
         parsed = report.files_parsed,
         unchanged = report.files_unchanged,

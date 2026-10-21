@@ -40,6 +40,45 @@ enum ImportTarget {
 }
 
 impl Index {
+    /// Every uniquely resolved, direct file-to-file import in one query.
+    /// Multiple symbol-level import relations between the same pair of files
+    /// collapse to one edge; ambiguous and external imports are omitted.
+    pub fn direct_file_imports(&self) -> Result<Vec<DependencyEdge>> {
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT source.relative_path, MIN(target.relative_path)
+               FROM relations r
+               JOIN symbols caller ON caller.id = r.from_symbol_id
+               JOIN files source ON source.id = caller.file_id
+               JOIN relation_candidates c ON c.relation_id = r.id
+               JOIN symbols target_symbol ON target_symbol.id = c.symbol_id
+               JOIN files target ON target.id = target_symbol.file_id
+              WHERE r.kind = 'imports'
+                AND r.external = 0
+                AND r.member = 0
+              GROUP BY r.id, source.relative_path
+             HAVING COUNT(DISTINCT target.id) = 1
+              ORDER BY source.relative_path, MIN(target.relative_path)",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(DependencyEdge {
+                from: row.get(0)?,
+                to: row.get(1)?,
+                depth: 1,
+            })
+        })?;
+        let mut unique = BTreeSet::new();
+        for edge in rows {
+            let edge = edge?;
+            if edge.from != edge.to {
+                unique.insert((edge.from, edge.to));
+            }
+        }
+        Ok(unique
+            .into_iter()
+            .map(|(from, to)| DependencyEdge { from, to, depth: 1 })
+            .collect())
+    }
+
     /// Direct and transitive dependencies of the module at `module` (a file
     /// path, or a directory prefix treated as one module), up to `depth` hops.
     ///

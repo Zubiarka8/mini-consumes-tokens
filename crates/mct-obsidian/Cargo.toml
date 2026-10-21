@@ -1,0 +1,21 @@
+[package]
+name = "mct-obsidian"
+description = "Writes a hierarchical Obsidian code atlas from the mini-consumes-tokens SQLite index."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["mcp", "obsidian", "code-index", "markdown"]
+categories = ["development-tools"]
+
+[dependencies]
+# Read-only use: the vault is derived from the index's query API.
+mct-index.workspace = true
+# SHA-256 for the per-note hashes in the manifest; already in the lockfile.
+hmac-sha256 = "1.1.15"
+thiserror.workspace = true
+tempfile = "3.27.0"
+
+[dev-dependencies]
+serde_json = "1.0.151"
+mct-languages.workspace = true

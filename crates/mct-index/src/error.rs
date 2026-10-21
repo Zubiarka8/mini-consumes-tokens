@@ -29,6 +29,9 @@ pub enum IndexError {
 
     #[error("embedding error: {0}")]
     Embedding(String),
+
+    #[error("post-reindex hook failed: {0}")]
+    Hook(String),
 }
 
 pub type Result<T> = std::result::Result<T, IndexError>;

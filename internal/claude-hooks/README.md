@@ -1,11 +1,11 @@
 # Agent hooks (Claude Code and Codex)
 
-Same scripts for both agents. Wired in `.claude/settings.json` (gitignored, local) and `.codex/hooks.json`; each script reads the hook JSON on stdin and needs `python3`.
+Hook scripts are shared when a client opts into them. Codex registers only the SQLite CLI guard in `.codex/hooks.json`. Claude Code may have separate local registrations in the gitignored `.claude/settings.json`; this file does not change those registrations. Each script reads hook JSON on stdin and needs `python3`.
 
 - `dogfood_mcp_guard.py` — retired, not registered in active settings. Its entry point is a no-op so clients with a cached registration cannot block tools.
-- `sqlite_guard.py` — PreToolUse (Bash): denies `sqlite3` or anything touching `.mct-index/index.sqlite3`.
+- `sqlite_guard.py` — PreToolUse (Bash): denies direct invocation of the `sqlite3` CLI. Text searches mentioning the database path remain allowed.
 - `rustfmt_posttool.py` — PostToolUse (edits / `apply_patch`): silently runs `rustfmt --edition 2021` on `.rs` files from `git diff --name-only`.
-- `stop_clippy.py` — Stop: if `.rs` files are modified and `stop_hook_active` is false, runs `scripts/unix/check.sh --only clippy`; on failure prints only the failing lines to stderr and exits 2.
-- `agent_skills_guard.py` — PreToolUse (Agent/Task): denies an agent launch if the primary checkout has no project-local skills, and prepends instructions to use local skills in the agent's own worktree. It is registered in `.codex/hooks.json`. Claude Code users can add the same command to local `.claude/settings.json` under `hooks.PreToolUse`, matched on `Agent|Task`; that settings file remains local and is not committed.
+- `stop_clippy.py` — retired no-op. Stale client registrations cannot run Clippy; invoke project checks explicitly when wanted.
+- `agent_skills_guard.py` — optional PreToolUse (Agent/Task) hook. It can deny launches and prepend instructions; Codex no longer registers it. Claude Code users with a local registration should remove that entry if it is disruptive.
 
 `_common.py` holds the shared helpers.

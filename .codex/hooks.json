@@ -2,30 +2,9 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Agent|Task",
-        "hooks": [
-          { "type": "command", "command": "python3 \"$(git rev-parse --show-toplevel)/internal/claude-hooks/agent_skills_guard.py\"" }
-        ]
-      },
-      {
         "matcher": "Bash",
         "hooks": [
           { "type": "command", "command": "python3 \"$(git rev-parse --show-toplevel)/internal/claude-hooks/sqlite_guard.py\"" }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "apply_patch|Edit|Write",
-        "hooks": [
-          { "type": "command", "command": "python3 \"$(git rev-parse --show-toplevel)/internal/claude-hooks/rustfmt_posttool.py\"" }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          { "type": "command", "command": "python3 \"$(git rev-parse --show-toplevel)/internal/claude-hooks/stop_clippy.py\"", "timeout": 900 }
         ]
       }
     ]

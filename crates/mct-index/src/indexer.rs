@@ -55,6 +55,17 @@ pub struct ReindexReport {
     /// `symbols_removed` is the exact count. Same condition as above.
     pub removed_symbols: Vec<String>,
     pub issues: Vec<UnsupportedFile>,
+    /// Non-fatal problems after the index itself was updated, e.g. a failed
+    /// [`Index::set_post_reindex_hook`] callback. Empty on a clean run.
+    pub warnings: Vec<String>,
+}
+
+/// One row of the index's file table; see [`Index::indexed_files`].
+#[derive(Debug, Clone)]
+pub struct IndexedFile {
+    pub relative_path: String,
+    pub language: String,
+    pub content_hash: String,
 }
 
 #[derive(Debug, Clone)]

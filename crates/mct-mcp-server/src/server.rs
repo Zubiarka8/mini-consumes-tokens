@@ -16,6 +16,7 @@ use crate::cache::{self, CacheConfig, CacheStats, CachedResult, HitKind, QueryCa
 use crate::embedder::SemanticModel;
 use crate::format;
 use crate::intent;
+use crate::pack_budget::{self, PackRequest};
 use crate::toon::OutputFormat;
 use crate::ttc;
 
@@ -139,6 +140,14 @@ pub struct SearchSymbolsArgs {
     /// "unchanged" reply. Omit it to use the cache.
     #[serde(default)]
     pub cache: Option<bool>,
+    /// `overview` (location only), `summary` (+ first line) or `detailed`
+    /// (+ snippet). Omit for the plain page. Bypasses the query cache.
+    #[serde(default)]
+    pub detail: Option<String>,
+    /// Estimated token budget for the whole response (a heuristic, not a
+    /// model limit); least relevant hits are lowered, then dropped.
+    #[serde(default)]
+    pub max_tokens: Option<usize>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -187,6 +196,14 @@ pub struct HybridSearchArgs {
     /// "unchanged" reply. Omit it to use the cache.
     #[serde(default)]
     pub cache: Option<bool>,
+    /// `overview` (location only), `summary` (+ first line) or `detailed`
+    /// (+ snippet). Omit for the plain page. Bypasses the query cache.
+    #[serde(default)]
+    pub detail: Option<String>,
+    /// Estimated token budget for the whole response (a heuristic, not a
+    /// model limit); least relevant hits are lowered, then dropped.
+    #[serde(default)]
+    pub max_tokens: Option<usize>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -607,6 +624,13 @@ pub struct BuildContextPackArgs {
     /// `toon` (default; related symbols as one table) or `text` (opt-in).
     #[serde(default)]
     pub format: Option<String>,
+    /// `overview`, `summary` or `detailed` (default: the complete pack).
+    #[serde(default)]
+    pub detail: Option<String>,
+    /// Estimated token budget for the whole response (a heuristic, not a
+    /// model limit); least relevant parts are lowered, then dropped.
+    #[serde(default)]
+    pub max_tokens: Option<usize>,
 }
 
 /// Groups this server's registered tool names for `discover_tool_categories`.
@@ -1056,17 +1080,21 @@ pub struct ModuleDigest {
 
 /// One definition of the symbol a `build_context_pack` is built around: its
 /// location and its doc comment + source, already cut to `source_lines`.
+#[derive(Clone)]
 pub struct PackedDefinition {
     pub hit: mct_index::SymbolHit,
     pub snippet: String,
     /// Lines of the definition past the `source_lines` cut.
     pub hidden_lines: u32,
+    /// The definition's first line, for the `summary` detail level.
+    pub signature: Option<String>,
 }
 
 /// One symbol related to the packed one, listed once however many relations
 /// connect them: every role it plays (`callee`, `caller`, `test`, or a
 /// dependency's relation kind such as `imports`), the closest hop it was
 /// found at, and where it is defined.
+#[derive(Clone)]
 pub struct PackedRelated {
     pub name: String,
     pub roles: Vec<String>,
@@ -1079,6 +1107,7 @@ pub struct PackedRelated {
 
 /// A relation whose target the index could not prove: listed apart from the
 /// related symbols, and never followed further.
+#[derive(Clone)]
 pub struct UncertainRelated {
     pub name: String,
     pub roles: Vec<String>,
@@ -1093,6 +1122,7 @@ pub struct UncertainRelated {
 }
 
 /// Everything `build_context_pack` renders, deduplicated.
+#[derive(Clone)]
 pub struct ContextPack {
     pub symbol: String,
     pub depth: u32,
@@ -1505,12 +1535,12 @@ impl MctServer {
     /// index lock is released before the tool runs, keeping the lock order
     /// documented on [`MctServer::semantic_model`].
     async fn apply_exclusion_changes(&self) -> Result<(), McpError> {
-        self.index
-            .lock()
-            .await
-            .apply_exclusion_changes(&self.registry)
-            .map(|_| ())
-            .map_err(index_error)
+        let mut index = self.index.lock().await;
+        let result = index.apply_exclusion_changes(&self.registry);
+        for warning in index.take_warnings() {
+            tracing::warn!(%warning, "post-reindex hook failed");
+        }
+        result.map(|_| ()).map_err(index_error)
     }
 
     /// Calls any tool by name with a JSON argument object, through the same
@@ -1671,10 +1701,20 @@ impl MctServer {
             snippet_lines,
             format,
             cache,
+            detail,
+            max_tokens,
         }): Parameters<SearchSymbolsArgs>,
     ) -> Result<CallToolResult, McpError> {
         let query = validate_name(&query)?;
         let output_format = parse_output_format(format.as_deref())?;
+        let pack_request = PackRequest::parse(detail.as_deref(), max_tokens)
+            .map_err(|msg| McpError::invalid_params(msg, None))?;
+        // A budgeted page is rendered per call, never from or into the cache.
+        let cache = if pack_request.is_some() {
+            Some(false)
+        } else {
+            cache
+        };
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
         let limit = limit
             .unwrap_or(SEARCH_DEFAULT_LIMIT)
@@ -1712,6 +1752,26 @@ impl MctServer {
         } else {
             index.search_symbols(query, scope).map_err(index_error)?
         };
+        if let Some(request) = &pack_request {
+            let lines = snippet_lines.max(pack_budget::SEARCH_DETAILED_SNIPPET_LINES);
+            let snippets = page_snippets(&index, &hits, offset, limit, lines);
+            let text = if hits.is_empty() {
+                format::search_hits(query, &hits, offset, limit, &snippets)
+            } else {
+                pack_budget::render_search(
+                    query,
+                    &hits,
+                    &snippets,
+                    offset,
+                    limit,
+                    output_format,
+                    request,
+                    "",
+                    "",
+                )
+            };
+            return Ok(CallToolResult::success(vec![ContentBlock::text(text)]));
+        }
         let snippets = page_snippets(&index, &hits, offset, limit, snippet_lines);
         let render = |query: &str| match output_format {
             OutputFormat::Text => format::search_hits(query, &hits, offset, limit, &snippets),
@@ -1740,10 +1800,20 @@ impl MctServer {
             snippet_lines,
             format,
             cache,
+            detail,
+            max_tokens,
         }): Parameters<HybridSearchArgs>,
     ) -> Result<CallToolResult, McpError> {
         let query = validate_name(&query)?;
         let output_format = parse_output_format(format.as_deref())?;
+        let pack_request = PackRequest::parse(detail.as_deref(), max_tokens)
+            .map_err(|msg| McpError::invalid_params(msg, None))?;
+        // A budgeted page is rendered per call, never from or into the cache.
+        let cache = if pack_request.is_some() {
+            Some(false)
+        } else {
+            cache
+        };
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
         // A quoted query is an exact phrase: lexical only, whatever `alpha`.
         let (alpha, alpha_source) = match alpha.filter(|a| a.is_finite()) {
@@ -1916,6 +1986,47 @@ impl MctServer {
                 hits
             }
         };
+        if let Some(request) = &pack_request {
+            let literal_section = match mct_index::exact_phrase(query) {
+                Some(phrase) => {
+                    let literals = index.search_literals(phrase, scope).map_err(index_error)?;
+                    match output_format {
+                        OutputFormat::Text => {
+                            format::literal_hits(phrase, &literals, offset, limit)
+                        }
+                        OutputFormat::Toon => {
+                            format::literal_hits_toon(phrase, &literals, offset, limit)
+                        }
+                    }
+                }
+                None => String::new(),
+            };
+            let lines = snippet_lines.max(pack_budget::SEARCH_DETAILED_SNIPPET_LINES);
+            let snippets = page_snippets(&index, &hits, offset, limit, lines);
+            let text = if hits.is_empty() {
+                format::search_hits(query, &hits, offset, limit, &snippets)
+            } else {
+                pack_budget::render_search(
+                    query,
+                    &hits,
+                    &snippets,
+                    offset,
+                    limit,
+                    output_format,
+                    request,
+                    &format!("{note}\n"),
+                    &literal_section,
+                )
+            };
+            let text = if !hits.is_empty() {
+                text
+            } else if literal_section.is_empty() {
+                format!("{note}\n{text}")
+            } else {
+                format!("{note}\n{text}\n{literal_section}")
+            };
+            return Ok(CallToolResult::success(vec![ContentBlock::text(text)]));
+        }
         let snippets = page_snippets(&index, &hits, offset, limit, snippet_lines);
         let render = |query: &str| match output_format {
             OutputFormat::Text => format::search_hits(query, &hits, offset, limit, &snippets),
@@ -2214,10 +2325,14 @@ impl MctServer {
             limit,
             source_lines,
             format,
+            detail,
+            max_tokens,
         }): Parameters<BuildContextPackArgs>,
     ) -> Result<CallToolResult, McpError> {
         let symbol = validate_name(&symbol)?;
         let output_format = parse_output_format(format.as_deref())?;
+        let pack_request = PackRequest::parse(detail.as_deref(), max_tokens)
+            .map_err(|msg| McpError::invalid_params(msg, None))?;
         let path = optional_arg(path.as_ref());
         let language = optional_arg(language.as_ref());
         let depth = depth.unwrap_or(1).clamp(1, mct_core::MAX_QUERY_DEPTH);
@@ -2326,6 +2441,9 @@ impl MctServer {
             } else {
                 source_of(&hit.relative_path)
             };
+            let signature = source
+                .as_deref()
+                .and_then(|source| format::signature_line(source, hit.line));
             let (snippet, hidden_lines) = match source {
                 Some(source) => {
                     let start = format::leading_comment_start(&source, hit.line);
@@ -2348,6 +2466,7 @@ impl MctServer {
                 hit,
                 snippet,
                 hidden_lines,
+                signature,
             });
         }
 
@@ -2424,9 +2543,10 @@ impl MctServer {
             external: external.into_iter().collect(),
             unresolved: unresolved.into_iter().collect(),
         };
-        let text = match output_format {
-            OutputFormat::Text => format::context_pack(&pack, limit),
-            OutputFormat::Toon => format::context_pack_toon(&pack, limit),
+        let text = match (&pack_request, output_format) {
+            (Some(request), _) => pack_budget::render(&pack, limit, output_format, request),
+            (None, OutputFormat::Text) => format::context_pack(&pack, limit),
+            (None, OutputFormat::Toon) => format::context_pack_toon(&pack, limit),
         };
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
@@ -2439,6 +2559,9 @@ impl MctServer {
     ) -> Result<CallToolResult, McpError> {
         let mut index = self.index.lock().await;
         let report = index.reindex(&self.registry, force).map_err(index_error)?;
+        for warning in &report.warnings {
+            tracing::warn!(%warning, "post-reindex hook failed");
+        }
         Ok(CallToolResult::success(vec![ContentBlock::text(
             format::reindex_report(&report),
         )]))

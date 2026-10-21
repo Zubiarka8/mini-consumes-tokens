@@ -133,3 +133,13 @@
 - Ran `scripts/unix/reinstall.sh --reindex` from the primary checkout on `main` (`83dff6d`): installed `mct-mcp-server` and `mct-cli` v0.2.0-326-g83dff6d, rebuilt the project index (1289 parsed, 21031 symbols) and `mcp-smoke.sh` printed `server ok` with 22 tools.
 - The user reconnected with `/mcp` (`Reconnected to mini-consumes-tokens`). `get_indexing_status` answered with 1289 files / 21031 symbols and 18 parse failures: the 16 malformed corpus fixtures plus two copies under `prompt/` (ERR-003, expected).
 - ERR-015 and ERR-017 (installed binary older than the index schema) and ERR-016 (connected server on the wrong corpus) are RESOLVED. ERR-018 stays OPEN: it concerns stale artifacts in the normal Cargo target, which this reinstall did not exercise.
+
+## 2026-10-20 — ERR-019: zero tools after MCP startup timeout
+
+- User reports Codex CLI `mini-consumes-tokens: connected (0 tools)`. Client logs show initial reindex followed by `timed out handshaking with MCP server after 29.999999917s`, with catalog assembly reporting tools unavailable.
+- `scripts/unix/mcp-smoke.sh --root <empty temporary project> --expect get_indexing_status --list` succeeds: installed server advertises 22 tools. Installed CLI status opens the primary index (1303 files / 21237 symbols, timestamp 1792447378). The separate cargo-deps registration deliberately targets the smallvec fixture and is not primary-root coverage.
+- Local project configuration now sets startup_timeout_sec to 180. Configuration write required sandbox escalation and succeeded; TOML value verified. Session reconnection/primary tool availability not verified; ERR-019 stays OPEN. No schema changes or index rebuild.
+
+## 2026-10-20 — Local web follow-up
+
+ERR-019 RESOLVED: primary MCP search/context/status calls now succeed; get_indexing_status returns 1303 files/21257 symbols, timestamp 1792448999, confirming project root and restored tools. Existing 19 parse diagnostics preserved (18 malformed fixtures/copies and review-check.ps1:29). ERR-014 caller mistake recurred in three build_context_pack calls using name for run/DuplicateReport/DuplicateMember; diagnostic ``failed to deserialize parameters: missing field `symbol` ``. Each retry with symbol succeeded; remains RESOLVED.

@@ -65,6 +65,54 @@ async fn wait_until(mut condition: impl FnMut() -> bool) -> bool {
     }
 }
 
+/// A negative check ("nothing happens") cannot poll for its outcome, so it
+/// waits a multiple of the latency a real change just showed, never less
+/// than this floor and never more than `SETTLE_MARGIN`. The floor covers a
+/// probe taken while the machine was still quiet: loaded CI runners have shown
+/// notification lag beyond 5 s, so a shorter window could miss a late reindex.
+const QUIET_FLOOR: Duration = Duration::from_secs(5);
+const LATENCY_MULTIPLE: u32 = 10;
+
+fn unix_seconds() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64
+}
+
+/// How long a real change takes to reach the index on this machine right
+/// now (it scales with load, like the wait it sizes): a probe file in a
+/// scratch project with its own watcher, so the project under test is not
+/// disturbed.
+async fn watcher_latency() -> Duration {
+    let dir = tempdir();
+    fs::write(dir.join("lib.rs"), "pub fn one() {}\n").unwrap();
+    let registry = mct_mcp_server::registry::build_registry();
+    let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
+    index.reindex(&registry, false).unwrap();
+    let index = Arc::new(Mutex::new(index));
+    let _watcher = background::spawn_watcher(
+        Arc::clone(&index),
+        registry,
+        dir.clone(),
+        ExcludeSet::default(),
+        DEBOUNCE,
+    )
+    .unwrap();
+
+    let started = tokio::time::Instant::now();
+    fs::write(dir.join("probe.rs"), "pub fn probe_marker() {}\n").unwrap();
+    let seen = wait_until(|| {
+        index
+            .try_lock()
+            .map(|guard| !guard.find_symbol("probe_marker").unwrap().is_empty())
+            .unwrap_or(false)
+    })
+    .await;
+    assert!(seen, "the probe change never reached the index");
+    started.elapsed()
+}
+
 #[tokio::test]
 async fn watcher_reindexes_after_a_file_change_settles() {
     let dir = tempdir();
@@ -102,6 +150,8 @@ async fn watcher_reindexes_after_a_file_change_settles() {
 
 #[tokio::test]
 async fn a_change_under_an_excluded_path_does_not_trigger_a_reindex() {
+    let quiet_window =
+        (watcher_latency().await * LATENCY_MULTIPLE).clamp(QUIET_FLOOR, SETTLE_MARGIN);
     let dir = tempdir();
     fs::write(dir.join("lib.rs"), "pub fn one() {}\n").unwrap();
     fs::create_dir_all(dir.join("node_modules")).unwrap();
@@ -110,6 +160,14 @@ async fn a_change_under_an_excluded_path_does_not_trigger_a_reindex() {
     let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
     index.reindex(&registry, false).unwrap();
     let last_indexed_before = index.status().unwrap().last_indexed_at;
+    // `last_indexed_at` has one-second resolution: a reindex in the same
+    // second as the setup would leave it unchanged and go unnoticed. Let the
+    // clock move on first, so any reindex from here on is visible.
+    let setup_second = last_indexed_before.unwrap();
+    assert!(
+        wait_until(|| unix_seconds() > setup_second).await,
+        "the clock did not advance past the setup second"
+    );
 
     let index = Arc::new(Mutex::new(index));
     let _watcher = background::spawn_watcher(
@@ -125,7 +183,7 @@ async fn a_change_under_an_excluded_path_does_not_trigger_a_reindex() {
     // — a change only here must never trigger a reindex, or writing the
     // index's own `.mct-index/` database back to itself would loop forever.
     fs::write(dir.join("node_modules/x.js"), "function ignored() {}\n").unwrap();
-    tokio::time::sleep(SETTLE_MARGIN).await;
+    tokio::time::sleep(quiet_window).await;
 
     let last_indexed_after = index.lock().await.status().unwrap().last_indexed_at;
     assert_eq!(

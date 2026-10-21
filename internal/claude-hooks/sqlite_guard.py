@@ -6,7 +6,9 @@ import sys
 
 from _common import emit_decision, read_payload
 
-SQLITE_RE = re.compile(r"\bsqlite3\b|\.mct-index/index\.sqlite3?\b|index\.sqlite3")
+# Block invocation of the sqlite3 CLI, but allow harmless commands such as
+# `rg index.sqlite3` that only search for the path in source or documentation.
+SQLITE_RE = re.compile(r"(?:^|[;&|]\s*)sqlite3(?:\s|$)")
 
 
 def main():

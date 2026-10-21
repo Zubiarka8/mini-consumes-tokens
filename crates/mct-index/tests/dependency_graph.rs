@@ -209,3 +209,39 @@ fn an_unknown_module_yields_an_empty_graph_naming_the_root() {
     assert!(g.nodes.is_empty() && g.edges.is_empty() && g.external.is_empty());
     assert!(!g.truncated);
 }
+
+#[test]
+fn bulk_navigation_reads_sqlite_without_source_files_and_preserves_ambiguity() {
+    let index = index_of(&[
+        ("from.a", "def Shared\ndef start imports Shared\ndef start2 imports Unique path=target.a\ndef again imports Unique path=target.a\ndef ext imports Unique ext\n"),
+        ("target.a", "def Shared\ndef Unique\n"),
+        ("other.a", "def Shared\n"),
+        ("empty.a", ""),
+    ]);
+    let snapshot = index.navigation_snapshot().unwrap();
+    assert_eq!(snapshot.files.len(), 4);
+    assert_eq!(snapshot.symbols.len(), 8);
+    assert_eq!(
+        snapshot.imports,
+        vec![DependencyEdge {
+            from: "from.a".into(),
+            to: "target.a".into(),
+            depth: 1
+        }]
+    );
+    // The bulk API must not enumerate disk or lose stale indexed files.
+    fs::remove_file(index.root().join("target.a")).unwrap();
+    let again = index.navigation_snapshot().unwrap();
+    assert_eq!(again.files.len(), snapshot.files.len());
+    assert_eq!(again.symbols.len(), snapshot.symbols.len());
+    assert_eq!(again.imports, snapshot.imports);
+}
+
+#[test]
+fn a_same_file_candidate_must_not_turn_an_ambiguous_import_into_an_edge() {
+    let index = index_of(&[
+        ("source.a", "def Shared\ndef start imports Shared\n"),
+        ("target.a", "def Shared\n"),
+    ]);
+    assert!(index.direct_file_imports().unwrap().is_empty());
+}

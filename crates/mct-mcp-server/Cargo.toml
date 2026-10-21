@@ -16,6 +16,7 @@ hmac-sha256 = "1.1.15"
 mct-core.workspace = true
 mct-index.workspace = true
 mct-languages.workspace = true
+mct-obsidian.workspace = true
 clap = { version = "4.6.6", features = ["derive"] }
 notify = "8.2.0"
 notify-debouncer-full = "0.7.0"
