@@ -1359,7 +1359,10 @@ version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
+ "form_urlencoded",
+ "getrandom 0.3.4",
  "git2",
+ "hmac-sha256",
  "mct-core",
  "mct-index",
  "mct-lang-bash",
@@ -1378,7 +1381,9 @@ dependencies = [
  "mct-lang-xml",
  "mct-languages",
  "mct-mcp-server",
+ "mct-obsidian",
  "serde_json",
+ "tempfile",
  "tokio",
  "walkdir",
 ]
@@ -1670,6 +1675,7 @@ dependencies = [
  "mct-core",
  "mct-index",
  "mct-languages",
+ "mct-obsidian",
  "notify",
  "notify-debouncer-full",
  "rmcp",
@@ -1679,6 +1685,18 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "mct-obsidian"
+version = "0.2.0"
+dependencies = [
+ "hmac-sha256",
+ "mct-index",
+ "mct-languages",
+ "serde_json",
+ "tempfile",
+ "thiserror",
 ]
 
 [[package]]

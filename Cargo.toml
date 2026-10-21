@@ -26,6 +26,7 @@ members = [
     "crates/mct-eval",
     "crates/mct-corpus",
     "crates/mct-tree-sitter",
+    "crates/mct-obsidian",
 ]
 # A patched dependency, not a member: see [patch.crates-io] below.
 exclude = ["vendor/tree-sitter-md"]
@@ -57,6 +58,7 @@ mct-lang-xaml = { path = "crates/mct-lang-xaml", version = "0.2.0" }
 mct-lang-bash = { path = "crates/mct-lang-bash", version = "0.2.0" }
 mct-lang-powershell = { path = "crates/mct-lang-powershell", version = "0.2.0" }
 mct-lang-php = { path = "crates/mct-lang-php", version = "0.2.0" }
+mct-obsidian = { path = "crates/mct-obsidian", version = "0.2.0" }
 mct-lang-md = { path = "crates/mct-lang-md", version = "0.2.0" }
 mct-lang-kotlin = { path = "crates/mct-lang-kotlin", version = "0.2.0" }
 mct-lang-lua = { path = "crates/mct-lang-lua", version = "0.2.0" }

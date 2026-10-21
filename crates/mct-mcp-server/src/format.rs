@@ -1724,6 +1724,9 @@ pub fn reindex_report(report: &ReindexReport) -> String {
         "Reindex complete: {} parsed, {} unchanged, {} removed, {} symbols written.\n",
         report.files_parsed, report.files_unchanged, report.files_removed, report.symbols_written
     );
+    for warning in &report.warnings {
+        out.push_str(&format!("warning: {warning}\n"));
+    }
     if !report.issues.is_empty() {
         out.push_str(&format!("{} issue(s):\n", report.issues.len()));
         for issue in &report.issues {
