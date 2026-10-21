@@ -4,6 +4,7 @@
 //! language's grammar.
 
 mod assets;
+mod context_budget;
 mod cycles;
 mod dead_code;
 mod dependency_graph;
@@ -23,6 +24,10 @@ mod traversal;
 
 pub use assets::{
     read_glb_json_chunk, AssetError, ASSET_EXTENSIONS, ASSET_LANGUAGE, MAX_GLTF_JSON_BYTES,
+};
+pub use context_budget::{
+    select, Basis, BudgetError, Candidate, ContextBudget, DetailLevel, EstimatedCounter, Evidence,
+    SelectedRow, Selection, TokenCount, TokenCounter, MAX_BUDGET_RESULTS, MAX_BUDGET_TOKENS,
 };
 pub use cycles::find_cycles;
 pub use dead_code::{
