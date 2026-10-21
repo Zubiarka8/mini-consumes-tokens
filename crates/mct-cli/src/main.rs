@@ -6,6 +6,7 @@ use mct_index::{ExcludeSet, Index};
 use mct_languages::build_registry;
 
 mod duplicates;
+mod ignore_preset;
 
 /// Index a repository and inspect the index from the command line.
 ///
@@ -176,8 +177,8 @@ enum Command {
     /// Writes a starter `.mctignore` at the project root, if one doesn't
     /// already exist. Lets a project exclude extra files/directories from
     /// indexing (e.g. `docs/`, `*.md`) on top of the built-in exclusions,
-    /// without touching git. Without `--import-gitignore`, an existing file
-    /// is left untouched.
+    /// without touching git. An existing file is left untouched unless
+    /// `--import-gitignore` or `--generated` is requested.
     #[command(
         after_help = "Examples:\n  cargo run -p mct-cli -- --root . ignore-init\n  cargo run -p mct-cli -- --root . ignore-init --import-gitignore"
     )]
@@ -186,10 +187,14 @@ enum Command {
         /// `.gitignore` excludes is excluded from indexing too. On a fresh
         /// file this is baked into the generated content; on an existing
         /// one, the directive is appended if it isn't already there —
-        /// otherwise this is the one case `ignore-init` updates a file
-        /// instead of leaving it alone.
+        /// existing patterns are preserved. `--generated` can also update
+        /// this file with an optional preset.
         #[arg(long)]
         import_gitignore: bool,
+        /// Add editable exclusions for venv, caches, bin, obj, build and dist.
+        /// Applies at any depth; bin may contain real source, so review the rules.
+        #[arg(long)]
+        generated: bool,
     },
     /// Keep the generated index out of git.
     ///
@@ -306,7 +311,14 @@ fn main() -> anyhow::Result<()> {
     {
         return mcp_register(&root, name, reindex_delay);
     }
-    if let Command::IgnoreInit { import_gitignore } = cli.command {
+    if let Command::IgnoreInit {
+        import_gitignore,
+        generated,
+    } = cli.command
+    {
+        if generated {
+            return ignore_preset::run(&root, import_gitignore);
+        }
         return ignore_init(&root, import_gitignore);
     }
     if let Command::GitignoreInit = cli.command {
