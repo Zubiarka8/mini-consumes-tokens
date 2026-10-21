@@ -52,8 +52,8 @@ pub use exclude::{
 };
 pub use file_tree::FileTreeNode;
 pub use indexer::{
-    DependencyInfo, IndexStatus, LanguageCoverage, ManifestDependencies, ReindexReport,
-    UnsupportedFile, UnsupportedKind,
+    DependencyInfo, IndexStatus, IndexedFile, LanguageCoverage, ManifestDependencies,
+    ReindexReport, UnsupportedFile, UnsupportedKind,
 };
 pub use queries::{
     CandidateRef, QueryScope, RelationDirection, RelationHit, RelationPage, Resolution, SymbolHit,
@@ -100,6 +100,19 @@ fn bfs_budget(depth: u32, limit: usize, offset: usize) -> usize {
 /// at every level (§C3 of `investigacion.md`).
 const STATEMENT_CACHE_CAPACITY: usize = 64;
 
+/// A callback run against the freshly updated index after a successful
+/// reindex. Its failure never fails the reindex; it becomes a
+/// [`ReindexReport::warnings`] entry.
+pub type PostReindexHook = Box<dyn Fn(&Index) -> Result<()> + Send>;
+
+/// Navigation metadata read in one consistent SQLite snapshot, without source bodies.
+#[derive(Debug)]
+pub struct NavigationSnapshot {
+    pub files: Vec<IndexedFile>,
+    pub symbols: Vec<SymbolListEntry>,
+    pub imports: Vec<DependencyEdge>,
+}
+
 /// One open connection to a project's `.mct-index/index.sqlite3`.
 pub struct Index {
     conn: Connection,
@@ -111,6 +124,12 @@ pub struct Index {
     /// the set's current generation, rows of paths its rules now exclude may
     /// still be stored ([`Index::apply_exclusion_changes`]).
     applied_exclusions: u64,
+    /// Runs after every successful [`Index::reindex`] and
+    /// [`Index::reindex_paths`]; see [`Index::set_post_reindex_hook`].
+    post_reindex: Option<PostReindexHook>,
+    /// Hook failures from reindexes whose report never reaches the caller
+    /// ([`Index::apply_exclusion_changes`]); see [`Index::take_warnings`].
+    pending_warnings: Vec<String>,
 }
 
 impl Index {
@@ -137,6 +156,8 @@ impl Index {
             root,
             applied_exclusions: exclude.generation(),
             exclude,
+            post_reindex: None,
+            pending_warnings: Vec::new(),
         })
     }
 
@@ -164,6 +185,8 @@ impl Index {
             root,
             applied_exclusions: exclude.generation(),
             exclude,
+            post_reindex: None,
+            pending_warnings: Vec::new(),
         })
     }
 
@@ -184,6 +207,8 @@ impl Index {
             root,
             applied_exclusions: exclude.generation(),
             exclude,
+            post_reindex: None,
+            pending_warnings: Vec::new(),
         })
     }
 
@@ -236,7 +261,26 @@ impl Index {
     /// First re-reads the project's ignore files ([`ExcludeSet::reload`]), so
     /// a rule added or removed since the index was opened applies to this run.
     pub fn reindex(&mut self, registry: &LanguageRegistry, force: bool) -> Result<ReindexReport> {
-        indexer::reindex(self, registry, force)
+        let mut report = indexer::reindex(self, registry, force)?;
+        self.run_post_reindex_hook(&mut report);
+        Ok(report)
+    }
+
+    /// Registers `hook` to run after every successful [`Index::reindex`] and
+    /// [`Index::reindex_paths`], replacing any earlier one. This crate knows
+    /// nothing about what the hook does (e.g. writing derived views of the
+    /// index); an `Err` from it is recorded in [`ReindexReport::warnings`]
+    /// and the reindex still succeeds. Per connection, not stored.
+    pub fn set_post_reindex_hook(&mut self, hook: PostReindexHook) {
+        self.post_reindex = Some(hook);
+    }
+
+    fn run_post_reindex_hook(&self, report: &mut ReindexReport) {
+        if let Some(hook) = &self.post_reindex {
+            if let Err(err) = hook(self) {
+                report.warnings.push(err.to_string());
+            }
+        }
     }
 
     /// Turns on (or off) naming the symbols each [`Index::reindex`] and
@@ -268,8 +312,19 @@ impl Index {
         if self.exclude.generation() == self.applied_exclusions {
             return Ok(false);
         }
-        indexer::reindex(self, registry, false)?;
+        let mut report = indexer::reindex(self, registry, false)?;
+        // No report reaches the caller here, so a hook failure waits for
+        // [`Index::take_warnings`]; the next successful reindex runs the hook
+        // again.
+        self.run_post_reindex_hook(&mut report);
+        self.pending_warnings.append(&mut report.warnings);
         Ok(true)
+    }
+
+    /// Hands over, and forgets, the hook failures that
+    /// [`Index::apply_exclusion_changes`] could not report.
+    pub fn take_warnings(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.pending_warnings)
     }
 
     /// Incremental [`Index::reindex`]: updates the index for `paths` only
@@ -282,7 +337,9 @@ impl Index {
         registry: &LanguageRegistry,
         paths: &[PathBuf],
     ) -> Result<ReindexReport> {
-        indexer::reindex_paths(self, registry, paths)
+        let mut report = indexer::reindex_paths(self, registry, paths)?;
+        self.run_post_reindex_hook(&mut report);
+        Ok(report)
     }
 
     pub fn status(&self) -> Result<IndexStatus> {
@@ -454,6 +511,70 @@ impl Index {
             "SELECT relative_path, content_hash FROM files ORDER BY relative_path",
         )?;
         let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
+    /// Bulk navigation metadata from one read transaction. The number of
+    /// queries is independent of the number of files and directories.
+    /// Current exclusions also hide stale rows before the next reindex.
+    pub fn navigation_snapshot(&self) -> Result<NavigationSnapshot> {
+        self.exclude.try_reload()?;
+        let transaction = self.conn.unchecked_transaction()?;
+        let mut files = self.indexed_files()?;
+        let mut symbols = {
+            let mut statement = self.conn.prepare_cached(
+                "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.end_line, s.parent, s.level
+                 FROM symbols s JOIN files f ON f.id = s.file_id
+                 ORDER BY f.relative_path, s.line, s.name, s.kind, s.parent, s.id",
+            )?;
+            let rows = statement
+                .query_map([], |row| {
+                    Ok(SymbolListEntry {
+                        name: row.get(0)?,
+                        kind: row.get(1)?,
+                        language: row.get(2)?,
+                        relative_path: row.get(3)?,
+                        line: row.get(4)?,
+                        end_line: row.get(5)?,
+                        parent: row.get(6)?,
+                        level: row.get(7)?,
+                    })
+                })?
+                .collect::<std::result::Result<Vec<_>, _>>()?;
+            rows
+        };
+        let mut imports = self.direct_file_imports()?;
+        transaction.commit()?;
+        files.retain(|file| !self.exclude.is_excluded(&file.relative_path));
+        let visible: std::collections::HashSet<_> = files
+            .iter()
+            .map(|file| file.relative_path.as_str())
+            .collect();
+        symbols.retain(|symbol| visible.contains(symbol.relative_path.as_str()));
+        imports.retain(|edge| {
+            visible.contains(edge.from.as_str()) && visible.contains(edge.to.as_str())
+        });
+        Ok(NavigationSnapshot {
+            files,
+            symbols,
+            imports,
+        })
+    }
+
+    /// Every indexed file's path, language and content hash, sorted by path.
+    /// Unlike [`Index::file_hashes`] it also names the language, so a file
+    /// with no symbols still has one.
+    pub fn indexed_files(&self) -> Result<Vec<IndexedFile>> {
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT relative_path, language, content_hash FROM files ORDER BY relative_path",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(IndexedFile {
+                relative_path: row.get(0)?,
+                language: row.get(1)?,
+                content_hash: row.get(2)?,
+            })
+        })?;
         Ok(rows.collect::<std::result::Result<_, _>>()?)
     }
 
