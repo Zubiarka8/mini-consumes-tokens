@@ -7,6 +7,7 @@ use mct_languages::build_registry;
 
 mod duplicates;
 mod ignore_preset;
+mod web;
 
 /// Index a repository and inspect the index from the command line.
 ///
@@ -105,6 +106,20 @@ enum Command {
     /// hand. It does not reindex, so run `init` or `reindex` first.
     #[command(after_help = "Example:\n  cargo run -p mct-cli -- --root . obsidian")]
     Obsidian,
+    /// Serve a local website with linked atlas and duplicate-code views.
+    ///
+    /// Uses the existing index without reindexing. Regenerates the Obsidian
+    /// vault unless disabled. Prints a private localhost URL; keep this
+    /// command running and press Ctrl-C to stop. Restart after reindexing
+    /// to see updated results. No browser is opened automatically.
+    Web {
+        /// Local port (0 selects a free port). Always binds 127.0.0.1.
+        #[arg(long, default_value_t = 0)]
+        port: u16,
+        /// Do not regenerate the Obsidian vault; the web atlas still works.
+        #[arg(long)]
+        no_obsidian: bool,
+    },
     /// Call one MCP tool once and print its result.
     ///
     /// Runs the same tool code `mct-mcp-server` serves, in this process: no
@@ -335,6 +350,9 @@ fn main() -> anyhow::Result<()> {
     if let Command::Duplicates { options } = cli.command {
         return duplicates::run(&root, options);
     }
+    if let Command::Web { port, no_obsidian } = cli.command {
+        return web::run(&root, port, no_obsidian);
+    }
 
     let db_path = root.join(".mct-index").join("index.sqlite3");
     let registry = build_registry();
@@ -367,6 +385,7 @@ fn main() -> anyhow::Result<()> {
         | Command::GitignoreInit
         | Command::Probe { .. }
         | Command::Duplicates { .. }
+        | Command::Web { .. }
         | Command::Update => {
             unreachable!("returned above")
         }

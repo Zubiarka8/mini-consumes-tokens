@@ -503,7 +503,7 @@ pub(crate) fn render_toon(report: &DuplicateReport) -> String {
     out
 }
 
-fn render_group(
+pub(super) fn render_group(
     out: &mut String,
     index: usize,
     group: &DuplicateGroup,
