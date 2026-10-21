@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `build_context_pack`, `search_symbols_like` and `hybrid_search_like` (and
+  their deprecated aliases) take optional `detail` (`overview`, `summary`,
+  `detailed`) and `max_tokens`, an **estimated** budget over the whole
+  response (not a model limit). Over budget, the least relevant rows lose detail
+  and then are dropped; a `Budget:` footer, present only when it carries
+  information, says `complete` or `partial`, what was lowered or dropped, how
+  to continue (`next: offset=N`) and what the higher levels cost. Omitting both
+  arguments leaves output unchanged. See ADR-016 and
+  `benchmarks/context-budget.md`. Rust code building `BuildContextPackArgs`,
+  `SearchSymbolsArgs` or `HybridSearchArgs` by struct literal must add the two
+  fields.
+- `examples/retrieval_eval.rs` and `tests/retrieval_quality.rs`: labelled
+  retrieval cases (recall, silent misses, calls and estimated tokens per
+  strategy); `examples/token_calibration.rs`: optional comparison of the
+  estimate with the model's `count_tokens` endpoint.
+
+- `examples/adaptive_eval.rs`, `examples/catalog_report.rs`,
+  `tests/extended_eval.rs`: a 57-case labelled set (Dev/Eval split), an offline
+  simulation of adaptive level selection (not integrated; see
+  `benchmarks/adaptive-detail.md`) and a per-tool catalog size report.
+  `detail`/`max_tokens` add about 523 estimated tokens to the catalog (+3.7%),
+  all in schema properties of three tools.
+
 ### Deprecated
 
 - MCP tools `search_symbols` and `hybrid_search` are renamed
@@ -17,6 +42,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- CLI init, reindex and manual Obsidian generation share project-aware
+  `.mctignore` reloads with MCP and the web. Unreadable direct/imported rules
+  fail closed instead of silently dropping exclusions; regression tests cover
+  matching SQLite/vault paths, re-inclusions and stale-note/import cleanup.
 - **Behaviour change:** the background reindex now waits 15 s (was 1.5 s) after
   the last file change. Set it with `--reindex-debounce-ms` or the new
   `MCT_REINDEX_DEBOUNCE_MS` (flag first, then variable); `0` still disables it.
@@ -25,6 +54,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Duplicate review in the local web: mark a group as a false positive or not
+  relevant, hide it from active results, and restore it from Discarded. Local
+  TOON preferences survive restarts and bind to member identities/source hashes,
+  not group ranks; changed source resurfaces for review. Protected POST forms,
+  atomic publication and a writer lock preserve prior state on save failures.
+  Raw CLI/TOON analysis and SQLite remain unchanged. See ADR-015.
+- `ignore-init --generated` adds an editable, idempotent preset for virtual
+  environments, caches and bin/obj/build/dist output at any depth. Existing
+  user overrides retain priority; ambiguous names such as bin remain opt-in.
+  Navigation snapshots filter excluded stale rows and reject unreadable project
+  rules, keeping file/symbol/import views aligned with current exclusions.
+
+- `mct-cli web` serves one local website linking the SQLite metadata atlas and
+  duplicate-code review. Includes directory navigation, path/symbol filtering,
+  pagination, file/group cross-links and full TOON evidence/downloads. Opens
+  the existing index read-only; optionally regenerates the Obsidian vault
+  (default, warning on failure; `--no-obsidian` skips it). Supports `--port`,
+  loopback binding, a private random URL, Host/Origin checks and bounded HTTP
+  requests. No automatic browser launch, raw file serving or index/source mutation endpoint. Review preferences use a
+  dedicated protected POST endpoint.
+  Restart after reindexing to refresh the startup snapshot. See ADR-014.
+
+- Obsidian vault: `init`, `reindex` and the MCP server's background refresh now
+  also write `.mct-index/obsidian/` (a root index, directory maps and per-source-file
+  notes listing imports and symbols; source text is not copied). New
+  `mct-cli obsidian` rebuilds it by hand; `--no-obsidian` on `init`, `reindex`
+  and `mct-mcp-server` skips it. A failed write is a warning, not a failed
+  reindex. New crate `mct-obsidian`; `mct-index` gains a generic post-reindex
+  hook (`Index::set_post_reindex_hook`), `ReindexReport::warnings` and
+  `Index::indexed_files`; hook failures during an exclusion-driven reindex are
+  handed over by `Index::take_warnings` and logged by the server. `init` and
+  `reindex` print the vault location. Bounded notes (100 symbols / 50 imports)
+  and paginated maps use stable safe names and relative links. Publication
+  preserves unmanaged files, checks on-disk hashes, and rolls back rename
+  failures; symlinks and ownership conflicts fail closed. Three bulk queries
+  read navigation metadata in a consistent snapshot without schema changes.
+  MCP reindex responses include hook warnings. See ADR-013.
 - `find_references` takes an optional `sort`: `relevance` (default, output
   unchanged) or `execution` (by hop, file and line; a static approximation, not
   the real execution order).

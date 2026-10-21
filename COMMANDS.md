@@ -41,6 +41,8 @@ Commands:
   mcp-register          Write (or update) `.mcp.json` so an MCP client can launch this server
   ignore-init           Write a starter `.mctignore` for custom indexing exclusions
   gitignore-init        Keep the generated index out of git
+  obsidian              Regenerate the Obsidian vault from the existing index
+  web                   Serve a local website with linked atlas and duplicate-code views
   dead-code             Write a CSV report of dead-code candidates (heuristic: symbols with zero indexed references) — one row per candidate with its file, function name, kind, language, and start/end line
   duplicates            Report candidate duplicate functions and methods, as TOON
   probe                 Parse files without indexing them and report, per file, either its symbol/relation counts or the first syntax error with its line
@@ -95,7 +97,10 @@ Builds the index for the first time. Identical to `reindex`; it exists separatel
 
 ```sh
 mct-cli --root . init
+mct-cli --root . init --no-obsidian
 ```
+
+Also writes the [Obsidian vault](#obsidian) in `.mct-index/obsidian/`; `--no-obsidian` skips it.
 
 <details>
 <summary>Full output</summary>
@@ -108,6 +113,12 @@ Equivalent to `reindex` — kept as a separate, discoverable first command for a
 Usage: mct-cli init [OPTIONS]
 
 Options:
+      --force
+          Re-parse every supported file, even if unchanged since last run
+
+      --no-obsidian
+          Do not write the Obsidian vault in `.mct-index/obsidian/`
+
       --root <ROOT>
           Project root to operate on. Defaults to the current working directory
 
@@ -127,7 +138,10 @@ Re-scans the project, re-reading only files that changed since the last scan. `-
 ```sh
 mct-cli --root . reindex
 mct-cli --root . reindex --force
+mct-cli --root . reindex --no-obsidian
 ```
+
+After a successful reindex the [Obsidian vault](#obsidian) in `.mct-index/obsidian/` is brought up to date; `--no-obsidian` skips that. It prints the vault location. If the vault cannot be written, the reindex still succeeds and prints a `warning:` line to stderr.
 
 <details>
 <summary>Full output</summary>
@@ -142,6 +156,9 @@ Usage: mct-cli reindex [OPTIONS]
 Options:
       --force
           Re-parse every supported file, even if unchanged since last run
+
+      --no-obsidian
+          Do not write the Obsidian vault in `.mct-index/obsidian/`
 
       --root <ROOT>
           Project root to operate on. Defaults to the current working directory
@@ -239,7 +256,7 @@ Examples:
 
 Writes a starter `.mctignore` at the project root (if one doesn't already exist) — a `.gitignore`-style file to exclude extra files/directories (e.g. `docs/`, `*.md`) from indexing, on top of the built-in exclusions. A `!pattern` line re-includes what an earlier line excluded (e.g. `*.md` then `!docs/readme.md`; last match wins, nothing inside an excluded directory, never a built-in exclusion). Edit it, then `reindex --force` to apply. A running `mct-mcp-server` applies an edit to `.mctignore` (or to an imported `.gitignore`) before its next tool call, even with the watcher disabled: no tool serves a newly excluded path from rows indexed before the edit. If an existing rule file cannot be read (including invalid UTF-8), the server retains the previous rules and rejects the tool call until the file is readable again; a missing rule file still removes its opt-in rules.
 
-`--import-gitignore` activates `@import-gitignore`: everything the project's own `.gitignore` excludes is excluded from indexing too (read as if its lines, `!` re-includes included, stood where the directive does). On a fresh file it's baked into the generated content; on an existing one, the directive is appended if it isn't already there — the one case `ignore-init` updates a file instead of leaving it alone, and only because the flag asked for it. Idempotent either way.
+`--import-gitignore` activates `@import-gitignore`: everything the project's own `.gitignore` excludes is excluded from indexing too (read as if its lines, `!` re-includes included, stood where the directive does). On a fresh file it's baked into the generated content; on an existing one, the directive is appended if it isn't already there — one explicitly requested update to an existing file, and only because the flag asked for it. Idempotent either way. `--generated` is another explicit opt-in update, described below.
 
 ```sh
 mct-cli --root . ignore-init
@@ -252,16 +269,23 @@ mct-cli --root . ignore-init --import-gitignore
 ```
 Write a starter `.mctignore` for custom indexing exclusions.
 
-Writes a starter `.mctignore` at the project root, if one doesn't already exist. Lets a project exclude extra files/directories from indexing (e.g. `docs/`, `*.md`) on top of the built-in exclusions, without touching git. Without `--import-gitignore`, an existing file is left untouched.
+Writes a starter `.mctignore` at the project root, if one doesn't already exist. Lets a project exclude extra files/directories from indexing (e.g. `docs/`, `*.md`) on top of the built-in exclusions, without touching git. An existing file is left untouched unless `--import-gitignore` or `--generated` is requested.
 
 Usage: mct-cli ignore-init [OPTIONS]
 
 Options:
       --import-gitignore
-          Activate `@import-gitignore`, so everything the project's `.gitignore` excludes is excluded from indexing too. On a fresh file this is baked into the generated content; on an existing one, the directive is appended if it isn't already there — otherwise this is the one case `ignore-init` updates a file instead of leaving it alone
+          Activate `@import-gitignore`, so everything the project's `.gitignore` excludes is excluded from indexing too. On a fresh file this is baked into the generated content; on an existing one, the directive is appended if it isn't already there — existing patterns are preserved. `--generated` can also update this file with an optional preset
 
       --root <ROOT>
-          Project root to operate on. Defaults to the current working directory
+          Project root to operate on. Defaults to the current working directory.
+
+          `init` and `call` accept several roots, as a repeated `--root` or a comma-separated `--roots a,b`; every other command takes exactly one.
+
+          [alias: --roots]
+
+      --generated
+          Add editable exclusions for venv, caches, bin, obj, build and dist. Applies at any depth; bin may contain real source, so review the rules
 
   -h, --help
           Print help (see a summary with '-h')
@@ -272,6 +296,35 @@ Examples:
 ```
 
 </details>
+
+#### Generated-directory preset
+
+```sh
+mct-cli --root . ignore-init --generated --import-gitignore
+mct-cli --root . reindex
+mct-cli --root . web
+```
+
+`--generated` adds editable `.mctignore` rules for `venv/`, `.venv/`,
+`__pycache__/`, `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/`, `.tox/`,
+`.nox/`, `bin/`, `obj/`, `build/` and `dist/` at any depth. It works on a new
+or existing file, preserves existing text and later user overrides, and is
+idempotent. It does not change `.gitignore`, create an index or delete files.
+
+This is opt-in: directories such as `bin/`, `build/` and `dist/` can contain
+real project source. Remove unwanted rules or add a later `!src/bin/` (including
+its directory) to retain a known source tree. Bare `bin/` applies at any depth;
+`project/bin/` scopes it to that project, relative to the root. Built-in security
+exclusions still cannot be overridden. Symlinked ignore files (and hard-linked files on Unix) are
+refused by this preset; the updated regular file is published through a temporary
+file without truncating the original on a failed write.
+
+After applying the rules, reindex to remove previously indexed rows and regenerate
+the vault, then restart the website. The public navigation snapshot and the web
+analysis already filter newly excluded stale rows, so excluded files, symbols and
+import links are not exposed by a new web session while awaiting that reindex.
+Unreadable project rules prevent that session from starting. The current browser
+session still uses its startup snapshot and must be restarted after rule changes.
 
 ### `gitignore-init`
 
@@ -303,6 +356,133 @@ Example:
 ```
 
 </details>
+
+### `obsidian`
+
+Regenerates the Obsidian vault from the existing SQLite index, without reindexing. The vault is `.mct-index/obsidian/`: `index.md` links to directory maps, each directory map links to source-file notes, and each source-file note lists its imports and indexed symbols (kind, name, lines, parent). Markdown files are listed like any other source file, with their headings as symbols; binary assets are left out. Source contents are not copied, so the vault stays compact and code excerpts continue to come from MCP context tools. In Obsidian choose "Open folder as vault" on that folder. `init`, `reindex` and the MCP server's background refresh already keep it current; unchanged generated notes are reused. The folder is regenerable and already covered by `.mct-index/` in `.gitignore`; Obsidian's own `.obsidian/` settings inside it are preserved.
+
+```sh
+mct-cli --root . obsidian
+```
+
+The vault shares the project-root `.mctignore` with SQLite indexing, including
+re-inclusions and opt-in `@import-gitignore`; it has no separate ignore file.
+Run `mct-cli --root . reindex` after changing rules to synchronize database rows
+and generated notes/links. Manual `obsidian` hides newly excluded stale rows,
+but cannot add files that have not been indexed. Unreadable or invalid-UTF-8
+rule files stop these operations and preserve the last generated vault.
+
+The generated format is deterministic: file frontmatter includes `title`,
+`path`, `language`, `content_hash`, and `symbol_count`. Names use a sanitized,
+bounded ASCII path label and a stable SHA-256 suffix. Relative Markdown links
+connect notes to their directory map and resolved local imports. Each file
+lists at most 100 symbols and 50 unique imports, with omitted counts; maps
+paginate after 100 entries. Display labels cap at 160 characters (symbols)
+and 240 (links); precise source paths stay in frontmatter. These bounds are
+not token estimates. Use SQLite/FTS search first, then retrieve specific
+locations with existing context tools; relation links are secondary navigation,
+never automatic graph expansion. MCP retains its existing deduplication and
+response budget; the vault is never queried as an alternative source.
+
+`.manifest.toon` owns only generated notes. Renames and deletions remove obsolete
+owned notes; personal notes and `.obsidian/` are preserved. Modified generated
+notes, unmanaged filename collisions, corrupt manifests and symlinks cause an
+error rather than overwriting content. Move conflicting personal content out
+of generated paths before retrying. Manual `obsidian` returns a nonzero exit on
+failure; automatic generation reports a warning and preserves the successful
+SQLite reindex. `--no-obsidian` leaves an existing atlas untouched.
+
+Publication stages the complete tree in a unique sibling directory and uses
+two renames with rollback; it is not crash-atomic and does not promise power-loss
+durability. After a process crash, check for a retained `.mct-obsidian-*` sibling
+and recover its `previous` vault if needed. Remove `obsidian.lock` only after
+confirming no generator is active, then regenerate. Evals, corpus and library
+consumers do not register the hook. See [ADR-013](docs/01-architecture/adrs/013-obsidian-vault-location.md).
+
+### `web` / `web --port <port> --no-obsidian`
+
+Serve one local website for the code atlas and duplicate-code analysis:
+
+```sh
+mct-cli --root . web
+mct-cli --root . web --port 8787
+mct-cli --root . web --no-obsidian
+```
+
+The command prints a private `http://127.0.0.1:<port>/<random-key>/` URL. Open
+that URL in your browser and keep the command running; Ctrl-C stops it. Port `0`
+(the default) selects an available port. No browser opens automatically.
+
+- **Overview:** shared navigation and counts for both views.
+- **Atlas:** hierarchical directories and files; search paths and indexed symbol
+  names. Each file shows its language, hash, symbols with exact source lines,
+  resolved imports and importers. Every relation links to the other file.
+- **Duplicates:** search candidate groups by path or symbol; inspect verdicts,
+  priority, excerpts, alignment and subgroup evidence. Each member links to its
+  atlas file. Each atlas file links back to its duplicate groups. Group IDs are
+  positions within this startup snapshot, not stable cross-run identifiers.
+- **Complete navigation:** directory/file/relation/member lists paginate at 100
+  entries; duplicate lists at 20 groups. All results remain reachable. Download
+  the full existing TOON analysis for every skipped candidate and diagnostic.
+
+An existing index is required. The command opens SQLite read-only and never
+reindexes, migrates, changes exclusions or installs MCP hooks. Metadata comes
+from the public bulk navigation API; duplicate analysis uses the same typed API,
+source validation and default thresholds/policy as `duplicates` (6 lines,
+40 tokens, broad normalization, trivial calls demoted, no partial-block search).
+It computes the typed report at startup rather than parsing the CLI's TOON cache.
+Unsupported languages, skipped candidates and index failures are visible.
+
+By default `web` also regenerates `.mct-index/obsidian/` through `mct-obsidian`.
+A failed write prints a warning and leaves the website usable. `--no-obsidian`
+leaves that folder untouched while keeping the web atlas available. The web
+atlas always comes from SQLite, so edited personal notes and `.obsidian/`
+configuration are never served. Code excerpts appear only in duplicate review;
+the atlas has metadata only. No graph expansion or source-context budget change.
+
+Pages are a fixed startup snapshot held in memory; browser reload does not rerun
+analysis. After changes, run `reindex` and restart `web`. The only HTTP mutation is a protected duplicate-review preference action. There
+is no reindex/refresh, source edit, arbitrary file serving or external resource. The server
+binds only IPv4 loopback, requires the generated URL key, checks Host and Origin,
+rejects cross-site requests and applies a restrictive content policy. Requests
+use a 16 KiB header limit, a 4 KiB review-form limit and a 2-second read
+deadline, one request per connection. Keep the private
+URL local; another process running as your user remains within the trust boundary.
+Only this process's rendered views are available, never the SQLite file or vault
+contents as a directory listing. See [ADR-014](docs/01-architecture/adrs/014-local-project-web.md).
+
+#### Dismiss duplicate findings / false positives
+
+Each group in the web list and its detail page has **Move to discarded**, with
+**False positive** or **Other / not relevant** as the reason. The group immediately
+leaves the active list. **Discarded** has the same search and pagination, plus
+**Restore to active**. Atlas and overview counts show active groups; the raw CLI
+analysis and TOON download keep every group and their original verdicts.
+
+Decisions persist in `.mct-index/duplicate-reviews.toon`, an optional local user
+preference file, not a second code index. Keys hash the normalization policy,
+sorted member paths/names/kinds/line ranges and indexed source-file hashes. A
+ranking/member-order change does not attach a decision to a different group.
+Changing a member file (even an unrelated comment), its path, membership or the
+normalization policy conservatively makes the group active again after reindex
+and restart. Old decisions are retained, so reverting to the original content can
+restore its prior review state. Only currently detected groups appear in either
+view. No source file, SQLite row, raw verdict or Obsidian note is deleted.
+
+Only `POST review` can change preferences. It requires the private URL, an exact
+same-origin Origin, a per-session CSRF nonce and a bounded form. GET/HEAD never
+change state. Writes reload under a per-project exclusive lock, merge other
+writers' decisions and atomically replace the TOON file before changing the
+visible state. A failed save leaves the group visible and reports an error.
+Malformed, oversized or symlinked state is refused, never overwritten. Unix
+also rejects hard-linked state; publication replaces the file entry on every platform.
+Concurrent editing/renaming of the state directory outside the tool is unsupported.
+
+Preferences update immediately in the current web process; other already-running
+processes see them on their next save or restart. A crash may leave
+`duplicate-reviews.lock`; remove it only after confirming no writer is active.
+Atomic replacement is not a promise of power-loss durability. No bulk purge or
+source-deletion operation is provided. See [ADR-015](docs/01-architecture/adrs/015-duplicate-review-decisions.md).
 
 ### `dead-code` / `dead-code --path <path> --language <lang> --output <file>`
 
@@ -750,6 +930,14 @@ Milliseconds of quiet time required after the last detected file write before th
 mct-mcp-server --root /path/to/your/project --reindex-debounce-ms 5000
 ```
 
+### `--no-obsidian`
+
+Stops the server from regenerating the Obsidian vault in `.mct-index/obsidian/` after each reindex (see [`obsidian`](#obsidian)).
+
+```sh
+mct-mcp-server --root /path/to/your/project --no-obsidian
+```
+
 ### `--rebuild-embeddings`
 
 Reindexes, drops every stored embedding, re-embeds every symbol with the build's model (needs a build with `--features semantic`), then exits without serving.
@@ -812,9 +1000,9 @@ These aren't run by hand; they're the tools an MCP client (Claude Code, Cursor, 
 
 **`find_symbol`** — finds the definition location(s) of a symbol by name, across every indexed language, including polyglot projects. `match` controls how `name` is matched: `exact` (default), `prefix`, or `fuzzy` (substring, case-insensitive — use this instead of guessing the exact name and re-querying). Does not find callers/references — use `find_callers`/`find_references` for that.
 
-**`search_symbols_like`** — for when you're unsure of the exact name: give words or a partial identifier in any case style (`parse request`, `parseReq`, `parse_request_body`) and get BM25-ranked hits, exact matches first. Each word prefix-matches a word of the symbol's name. Optional `path`, `language`, `limit` (default 10, max 100), `offset`, `snippet_lines` (source lines shown under each hit, default 0, max 50) and `cache` (`false` skips the query cache, which otherwise answers a repeated unchanged call with a one-line "unchanged"). Not exhaustive — use `find_symbol`/`list_symbols` for that.
+**`search_symbols_like`** — for when you're unsure of the exact name: give words or a partial identifier in any case style (`parse request`, `parseReq`, `parse_request_body`) and get BM25-ranked hits, exact matches first. Each word prefix-matches a word of the symbol's name. Optional `path`, `language`, `limit` (default 10, max 100), `offset`, `snippet_lines` (source lines shown under each hit, default 0, max 50) and `cache` (`false` skips the query cache, which otherwise answers a repeated unchanged call with a one-line "unchanged"). Not exhaustive — use `find_symbol`/`list_symbols` for that. Optional `detail` (`overview`, `summary`, `detailed`) and `max_tokens` (an *estimated* token budget for the whole response, 1–1,000,000; not a model limit) return a lower-detail page that fits it, flag what was lowered or cut, and name the `offset` that continues; a budgeted call bypasses the query cache.
 
-**`hybrid_search_like`** — finds code by meaning: `search_symbols_like` fused with embedding similarity (RRF). `alpha` weights semantic against lexical (0 = lexical only, 1 = semantic only; omitted, the query's shape picks it). A `"double-quoted"` query is an exact phrase, lexical only, and also lists string literals (error/log messages) that hold it as `path:line`. Without an embedding model (build without `--features semantic`) it falls back to lexical only and says so. Takes the same `path`, `language`, `top_k`, `offset`, `snippet_lines`, `cache` and `format` options as `search_symbols_like`.
+**`hybrid_search_like`** — finds code by meaning: `search_symbols_like` fused with embedding similarity (RRF). `alpha` weights semantic against lexical (0 = lexical only, 1 = semantic only; omitted, the query's shape picks it). A `"double-quoted"` query is an exact phrase, lexical only, and also lists string literals (error/log messages) that hold it as `path:line`. Without an embedding model (build without `--features semantic`) it falls back to lexical only and says so. Takes the same `path`, `language`, `top_k`, `offset`, `snippet_lines`, `cache`, `format`, `detail` and `max_tokens` options as `search_symbols_like`; with a budget the first-line note and the string-literal section count toward it and are never cut.
 
 `search_symbols` and `hybrid_search` remain deprecated aliases for one version, with the same behavior as their corresponding `*_like` tools.
 
@@ -828,7 +1016,7 @@ These aren't run by hand; they're the tools an MCP client (Claude Code, Cursor, 
 
 **`impact_analysis`** — the full blast radius of changing or removing a symbol in one call: combines `find_callers` + `find_references` + a heuristic check for affected tests, instead of three separate calls.
 
-**`build_context_pack`** — the composite for working on one symbol: its definition with doc comment and capped source (`source_lines`, default 40, 1–200), plus every caller, callee, dependency and related test listed once with its signature — one call in place of `find_symbol` + `find_calls` + `find_callers` + `impact_analysis` + reading the files. Takes the exact `symbol` name; `path`/`language` pick the definition when the name is ambiguous, `depth` (default 1) sets the call-graph hops in both directions, `limit` (default 30) caps the related symbols listed.
+**`build_context_pack`** — the composite for working on one symbol: its definition with doc comment and capped source (`source_lines`, default 40, 1–200), plus every caller, callee, dependency and related test listed once with its signature — one call in place of `find_symbol` + `find_calls` + `find_callers` + `impact_analysis` + reading the files. Takes the exact `symbol` name; `path`/`language` pick the definition when the name is ambiguous, `depth` (default 1) sets the call-graph hops in both directions, `limit` (default 30) caps the related symbols listed. Optional `detail` (`overview`: locations only; `summary`: signatures; `detailed`: the default output) and `max_tokens` (an *estimated* budget for the whole response; not a model limit): over budget the least relevant rows lose detail and then are dropped, and a `Budget:` footer says what was lowered, what exists (`avail:`), the cost of the levels above and, when a row was cut, what showing everything would cost (`full=`).
 
 `find_callers`, `find_calls`, `find_references` and `impact_analysis` accept `depth` (how many relation-graph hops to walk beyond the direct hit; default 1 is today's direct-hit behavior, raising it also includes hits-of-hits, each tagged with its hop number, clamped to a hard maximum) — reach for `depth` before manually chaining calls to walk the graph further out.
 
