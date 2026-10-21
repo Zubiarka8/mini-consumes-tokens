@@ -12,3 +12,8 @@ scripts/windows/hooks/* text eol=lf
 # Corpus fixtures are compared by line number; a CRLF checkout on Windows made
 # the XML fixture fail to parse (syntax error at its processing instruction).
 crates/mct-lang-xml/tests/corpus/** text eol=lf
+
+# Vault snapshot and its fixture notes are compared byte for byte; a CRLF
+# checkout on Windows must not change the rendered output.
+crates/mct-obsidian/tests/snapshots/* text eol=lf
+crates/mct-lang-md/tests/fixtures/vault/** text eol=lf
