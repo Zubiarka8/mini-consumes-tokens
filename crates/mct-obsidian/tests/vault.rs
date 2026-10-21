@@ -229,7 +229,9 @@ fn the_markdown_fixture_vault_matches_its_snapshot() {
         fs::create_dir_all(&snapshots).unwrap();
         fs::write(&expected, &rendered).unwrap();
     }
-    assert_eq!(rendered, fs::read_to_string(&expected).unwrap());
+    // A Windows checkout may convert the snapshot to CRLF; the vault is always LF.
+    let expected = fs::read_to_string(&expected).unwrap().replace("\r\n", "\n");
+    assert_eq!(rendered, expected);
     fs::remove_dir_all(&dir).ok();
 }
 
