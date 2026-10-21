@@ -45,6 +45,8 @@ fn args(query: &str) -> SearchSymbolsArgs {
         snippet_lines: None,
         format: Some("text".to_string()),
         cache: None,
+        detail: None,
+        max_tokens: None,
     }
 }
 
@@ -187,6 +189,8 @@ fn hybrid_args(query: &str) -> HybridSearchArgs {
         snippet_lines: None,
         format: None,
         cache: Some(false),
+        detail: None,
+        max_tokens: None,
     }
 }
 
