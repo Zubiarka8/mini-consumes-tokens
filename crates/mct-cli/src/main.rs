@@ -73,6 +73,9 @@ enum Command {
         /// Re-parse every supported file, even if unchanged since last run.
         #[arg(long)]
         force: bool,
+        /// Do not write the Obsidian vault in `.mct-index/obsidian/`.
+        #[arg(long)]
+        no_obsidian: bool,
     },
     /// Re-scan the project and update the index.
     ///
@@ -87,7 +90,20 @@ enum Command {
         /// Re-parse every supported file, even if unchanged since last run.
         #[arg(long)]
         force: bool,
+        /// Do not write the Obsidian vault in `.mct-index/obsidian/`.
+        #[arg(long)]
+        no_obsidian: bool,
     },
+    /// Regenerate the Obsidian vault from the existing index.
+    ///
+    /// Writes `.mct-index/obsidian/`: a directory map, one source-file note
+    /// per indexed file and an entry index. Source content is not copied.
+    /// Open that folder in Obsidian
+    /// with "Open folder as vault". `init` and `reindex` already do this
+    /// (unless given `--no-obsidian`); use this command to rebuild it by
+    /// hand. It does not reindex, so run `init` or `reindex` first.
+    #[command(after_help = "Example:\n  cargo run -p mct-cli -- --root . obsidian")]
+    Obsidian,
     /// Call one MCP tool once and print its result.
     ///
     /// Runs the same tool code `mct-mcp-server` serves, in this process: no
@@ -259,8 +275,8 @@ fn main() -> anyhow::Result<()> {
     };
 
     // The only commands that take several roots; they open their own indexes.
-    if let Command::Init { force } = cli.command {
-        return init_roots(&roots, force);
+    if let Command::Init { force, no_obsidian } = cli.command {
+        return init_roots(&roots, force, no_obsidian);
     }
     if let Command::Call {
         tool,
@@ -310,11 +326,22 @@ fn main() -> anyhow::Result<()> {
 
     let db_path = root.join(".mct-index").join("index.sqlite3");
     let registry = build_registry();
-    let exclude = ExcludeSet::new(&mct_index::read_ignore_file(&root));
+    let exclude = ExcludeSet::for_project(&root);
     let mut index = Index::open(&root, &db_path, exclude)?;
 
     match cli.command {
-        Command::Reindex { force } => print_reindex(index.reindex(&registry, force)?),
+        Command::Reindex { force, no_obsidian } => {
+            if !no_obsidian {
+                mct_obsidian::register(&mut index);
+            }
+            let report = index.reindex(&registry, force)?;
+            let vault_ok = !no_obsidian && report.warnings.is_empty();
+            print_reindex(report);
+            if vault_ok {
+                print_vault_location(index.root());
+            }
+        }
+        Command::Obsidian => obsidian_vault(&index)?,
         Command::Status => print_status(index.status()?),
         Command::DeadCode {
             path,
@@ -751,19 +778,27 @@ fn check_roots(roots: &[PathBuf]) -> anyhow::Result<()> {
 /// `init` over one or more roots. A single root prints exactly what it always
 /// did; several print a labelled summary each (this run's work, then the
 /// index's totals), and keep going past a root that fails.
-fn init_roots(roots: &[PathBuf], force: bool) -> anyhow::Result<()> {
+fn init_roots(roots: &[PathBuf], force: bool, no_obsidian: bool) -> anyhow::Result<()> {
     check_roots(roots)?;
     let registry = build_registry();
     let mut failed = 0;
     for root in roots {
         let result = (|| -> anyhow::Result<()> {
             let db_path = root.join(".mct-index").join("index.sqlite3");
-            let exclude = ExcludeSet::new(&mct_index::read_ignore_file(root));
+            let exclude = ExcludeSet::for_project(root);
             let mut index = Index::open(root, &db_path, exclude)?;
+            if !no_obsidian {
+                mct_obsidian::register(&mut index);
+            }
             if roots.len() > 1 {
                 println!("== {} ==", display_path(root));
             }
-            print_reindex(index.reindex(&registry, force)?);
+            let report = index.reindex(&registry, force)?;
+            let vault_ok = !no_obsidian && report.warnings.is_empty();
+            print_reindex(report);
+            if vault_ok {
+                print_vault_location(index.root());
+            }
             if roots.len() > 1 {
                 let status = index.status()?;
                 println!(
@@ -913,11 +948,35 @@ fn call_roots(
     }
 }
 
+/// `obsidian`: rebuilds the vault from the index as it is.
+fn obsidian_vault(index: &Index) -> anyhow::Result<()> {
+    let out = mct_obsidian::vault_dir(index.root());
+    let report = mct_obsidian::write_vault(index, &out)?;
+    println!(
+        "Obsidian vault at {}: {} written, {} unchanged, {} removed.",
+        display_path(&out),
+        report.notes_written,
+        report.notes_unchanged,
+        report.notes_removed
+    );
+    Ok(())
+}
+
+fn print_vault_location(root: &Path) {
+    println!(
+        "Obsidian vault: {}",
+        display_path(&mct_obsidian::vault_dir(root))
+    );
+}
+
 fn print_reindex(report: mct_index::ReindexReport) {
     println!(
         "Reindex complete: {} parsed, {} unchanged, {} removed, {} symbols written.",
         report.files_parsed, report.files_unchanged, report.files_removed, report.symbols_written
     );
+    for warning in &report.warnings {
+        eprintln!("warning: {warning}");
+    }
     if !report.issues.is_empty() {
         println!("{} issue(s):", report.issues.len());
         for issue in &report.issues {
@@ -1495,6 +1554,92 @@ mod tests {
         assert!(probe(&registry, std::slice::from_ref(&good)).is_ok());
         let err = probe(&registry, &[good, bad]).expect_err("bad.py fails");
         assert!(err.to_string().contains("1 of 2"), "{err}");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn init_writes_the_obsidian_vault_and_no_obsidian_skips_it() {
+        let with = temp_project_dir("obsidian-init");
+        fs::write(with.join("lib.rs"), "pub fn add() {}\n").unwrap();
+        init_roots(std::slice::from_ref(&with), false, false).unwrap();
+        let vault = with.join(".mct-index").join("obsidian");
+        assert!(vault.join("index.md").is_file());
+        assert!(fs::read_to_string(vault.join("index.md"))
+            .unwrap()
+            .contains("lib.rs"));
+        assert!(mct_obsidian::Manifest::load(&vault)
+            .unwrap()
+            .notes
+            .keys()
+            .any(|p| p.starts_with("files/")));
+
+        let without = temp_project_dir("obsidian-init-off");
+        fs::write(without.join("lib.rs"), "pub fn add() {}\n").unwrap();
+        init_roots(std::slice::from_ref(&without), false, true).unwrap();
+        assert!(!without.join(".mct-index").join("obsidian").exists());
+        assert!(without.join(".mct-index").exists());
+
+        fs::remove_dir_all(&with).ok();
+        fs::remove_dir_all(&without).ok();
+    }
+
+    #[test]
+    fn a_reindex_updates_the_index_note_and_drops_deleted_files() {
+        let dir = temp_project_dir("obsidian-reindex");
+        fs::write(dir.join("a.rs"), "pub fn a() {}\n").unwrap();
+        fs::write(dir.join("b.rs"), "pub fn b() {}\n").unwrap();
+        let registry = build_registry();
+        let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
+        mct_obsidian::register(&mut index);
+        index.reindex(&registry, false).unwrap();
+        let vault = mct_obsidian::vault_dir(&dir);
+        let find_note = |source: &str| {
+            mct_obsidian::Manifest::load(&vault)
+                .unwrap()
+                .notes
+                .keys()
+                .find(|p| {
+                    p.starts_with("files/")
+                        && fs::read_to_string(vault.join(p))
+                            .unwrap()
+                            .contains(&format!("path: \"{source}\""))
+                })
+                .map(|p| vault.join(p))
+                .unwrap()
+        };
+        let note = find_note("b.rs");
+        assert!(note.is_file());
+
+        fs::write(dir.join("a.rs"), "pub fn a() {}\npub fn a2() {}\n").unwrap();
+        fs::remove_file(dir.join("b.rs")).unwrap();
+        index.reindex(&registry, false).unwrap();
+
+        let text = fs::read_to_string(find_note("a.rs")).unwrap();
+        assert!(text.contains("`a2`"), "{text}");
+        assert!(!note.exists());
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_vault_write_failure_is_a_warning_not_a_failed_reindex() {
+        let dir = temp_project_dir("obsidian-failure");
+        fs::write(dir.join("a.rs"), "pub fn a() {}\n").unwrap();
+        // A plain file where the vault directory belongs makes the write fail.
+        fs::create_dir_all(dir.join(".mct-index")).unwrap();
+        fs::write(dir.join(".mct-index").join("obsidian"), "in the way").unwrap();
+        let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
+        mct_obsidian::register(&mut index);
+
+        let report = index.reindex(&build_registry(), false).unwrap();
+        assert_eq!(report.files_parsed, 1);
+        assert_eq!(report.warnings.len(), 1, "{:?}", report.warnings);
+        assert!(
+            report.warnings[0].contains("not a directory"),
+            "{:?}",
+            report.warnings
+        );
 
         fs::remove_dir_all(&dir).ok();
     }

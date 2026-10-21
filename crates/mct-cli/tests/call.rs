@@ -332,3 +332,39 @@ fn several_roots_are_rejected_by_single_root_commands() {
         stderr(&output)
     );
 }
+
+#[test]
+fn obsidian_flags_manual_command_and_warning_exit_status() {
+    let project = Project::new("obsidian", "atlas_entry");
+    let root = project.path();
+    let vault = root.join(".mct-index/obsidian");
+    let output = mct(&[&"--root", &root, &"init", &"--no-obsidian"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert!(!vault.exists());
+    let output = mct(&[&"--root", &root, &"reindex", &"--no-obsidian"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert!(!vault.exists());
+    let output = mct(&[&"--root", &root, &"obsidian"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert!(vault.join("index.md").is_file());
+    assert!(stdout(&output).contains("written"));
+    let before = fs::read(vault.join("index.md")).unwrap();
+    fs::write(root.join("src/new.rs"), "pub fn newly_added() {}\n").unwrap();
+    let output = mct(&[&"--root", &root, &"reindex", &"--no-obsidian"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(fs::read(vault.join("index.md")).unwrap(), before);
+    let output = mct(&[&"--root", &root, &"reindex"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert!(stdout(&output).contains("Obsidian vault:"));
+    // A user edit must be protected and reported without failing indexing.
+    fs::write(vault.join("index.md"), "user edit").unwrap();
+    let output = mct(&[&"--root", &root, &"reindex"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert!(stderr(&output).contains("warning:"));
+    let output = mct(&[&"--root", &root, &"obsidian"]);
+    assert!(!output.status.success());
+    assert_eq!(
+        fs::read_to_string(vault.join("index.md")).unwrap(),
+        "user edit"
+    );
+}

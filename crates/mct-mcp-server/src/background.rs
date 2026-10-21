@@ -295,7 +295,13 @@ pub fn spawn_watcher(
                 continue; // don't take the index lock for nothing
             }
             let mut guard = index.blocking_lock();
-            match state.apply(&mut *guard, &registry, changed) {
+            let outcome = state.apply(&mut *guard, &registry, changed);
+            if let Some(Ok((_, report))) = &outcome {
+                for warning in &report.warnings {
+                    tracing::warn!(%warning, "post-reindex hook failed");
+                }
+            }
+            match outcome {
                 None => {}
                 // Some backends report the parent directory as well as the
                 // changed file. Keep reconciling it (it may hide new paths),

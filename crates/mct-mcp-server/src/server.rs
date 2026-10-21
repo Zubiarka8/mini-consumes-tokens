@@ -1505,12 +1505,12 @@ impl MctServer {
     /// index lock is released before the tool runs, keeping the lock order
     /// documented on [`MctServer::semantic_model`].
     async fn apply_exclusion_changes(&self) -> Result<(), McpError> {
-        self.index
-            .lock()
-            .await
-            .apply_exclusion_changes(&self.registry)
-            .map(|_| ())
-            .map_err(index_error)
+        let mut index = self.index.lock().await;
+        let result = index.apply_exclusion_changes(&self.registry);
+        for warning in index.take_warnings() {
+            tracing::warn!(%warning, "post-reindex hook failed");
+        }
+        result.map(|_| ()).map_err(index_error)
     }
 
     /// Calls any tool by name with a JSON argument object, through the same

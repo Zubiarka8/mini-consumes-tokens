@@ -14,6 +14,7 @@ mct-core.workspace = true
 mct-index.workspace = true
 mct-languages.workspace = true
 mct-mcp-server = { path = "../mct-mcp-server" }
+mct-obsidian.workspace = true
 tokio = { version = "1.53.1", features = ["rt", "time"] }
 clap = { version = "4.6.6", features = ["derive"] }
 git2 = { version = "0.21.0", default-features = false }
