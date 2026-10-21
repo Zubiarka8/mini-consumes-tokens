@@ -1380,6 +1380,7 @@ dependencies = [
  "mct-mcp-server",
  "mct-obsidian",
  "serde_json",
+ "tempfile",
  "tokio",
  "walkdir",
 ]
