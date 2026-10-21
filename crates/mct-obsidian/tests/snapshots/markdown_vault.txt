@@ -1,0 +1,16 @@
+# `Code atlas`
+
+7 source files and 35 symbols. Generated from the SQLite index; source text is not copied.
+
+## Directories
+
+- [daily](directories/daily_6f31304cdfd0a3a6362bffbc6dc4f33ecb20221b84f79cf0137b7dc0f5d3a616.md)
+- [notes](directories/notes_ab5aa97074c454a0632057e704220d9a6678fbf773a0a5806fc09b8173b07309.md)
+
+## Files
+
+- [index.md](files/index.md_a48746cae70c44e7e105b594aad338ddd105c93c1cb445a40ba6aab785ba69e5.md) · `markdown` · 10 symbols
+- [orphan.md](files/orphan.md_4b4335067ac8da2b90daf7bcb0b0f7eff6ea86fa746695f84e95fc8438a74285.md) · `markdown` · 1 symbol
+
+Page 1 of 1; 4 entries total.
+
