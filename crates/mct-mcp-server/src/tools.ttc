@@ -47,7 +47,7 @@ TOOL search_symbols_like
 WHEN unsure of a name: words/partial ident in any case style, BM25-ranked, exact first.
 ERR not exhaustive (use find_symbol/list_symbols); not relations (use find_references).
 TAGS search, ranked, words, camelCase, snake_case, partial
-PRE `query` non-blank.
+PRE `query` non-blank; optional `detail` overview|summary|detailed, `max_tokens` (estimated).
 POST a ranked page (`offset`/`limit`), exact name first; optional snippets. TOON by default; `format`:`text` for plain text.
 EFFECTS read; index, project files for snippets, query cache.
 
@@ -55,7 +55,7 @@ TOOL hybrid_search_like
 WHEN find code by meaning: search_symbols_like + embeddings, RRF-fused; alpha 0=lexical..1=semantic (auto if omitted); "quoted" query = exact phrase, lexical only, also lists string literals (error/log messages) holding it as path:line.
 ERR no model -> lexical only (noted); not exhaustive.
 TAGS semantic, embeddings, hybrid
-PRE `query` non-blank; `alpha` in 0..1 if given.
+PRE `query` non-blank; `alpha` in 0..1 if given; optional `detail`, `max_tokens` (estimated) as in search_symbols_like.
 POST a ranked page; first line notes a lexical-only fallback. TOON by default; `format`:`text` for plain text.
 EFFECTS read; index, project files, query cache; may download the embedding model once.
 
@@ -119,7 +119,7 @@ TOOL build_context_pack
 WHEN before working on a symbol: def+doc+source, callers/callees/deps/tests once each.
 ERR not blast radius (use impact_analysis); ambiguous name -> path/language.
 TAGS context, composite, tests, tokens-saving
-PRE `symbol` non-blank; `path`/`language` disambiguate.
+PRE `symbol` non-blank; `path`/`language` disambiguate; optional `detail` overview|summary|detailed, `max_tokens` (estimated).
 POST definitions with source, then each related symbol once; ambiguous callees apart. TOON by default; `format`:`text` for plain text.
 EFFECTS read; index, project files, query cache.
 

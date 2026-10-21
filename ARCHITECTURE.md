@@ -79,6 +79,7 @@ Around those, the rest of the tools cover:
 - **Searching when you don't know the exact name** — by the words of a name, or by what the code does (the "by meaning" search needs an optional build with a local embedding model)
 - **Orientation** — a project overview digest and a plain directory tree
 - **Working on one symbol** — a single "context pack" with its definition, callers, callees and tests
+- **Asking for less, or for a size** — the pack and the searches can answer at a coarser level of detail, or inside an *estimated* size budget. When the budget is too small they lower the least relevant results first, drop them last, and say plainly what was cut and how to get the rest (the estimate is a rule of thumb, not the real count of any AI model)
 - **Cleanup hints** — candidate dead code (a heuristic, not a certainty)
 - **Batching** — up to 25 read-only lookups in one call
 - **Tool discovery** — list the tools by category, then fetch one tool's full schema only when needed
