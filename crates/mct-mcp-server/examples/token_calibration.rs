@@ -95,13 +95,15 @@ async fn main() {
     let mut overhead = 0u64;
     let mut measured = key.is_some();
     if let Some(key) = &key {
-        use std::os::unix::fs::OpenOptionsExt;
-        let mut file = std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
-            .open(&headers)
-            .unwrap();
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        // Owner-only on Unix; Windows has no mode bits and uses the profile ACL.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        let mut file = options.open(&headers).unwrap();
         write!(
             file,
             "x-api-key: {key}\nanthropic-version: 2023-06-01\ncontent-type: application/json\n"
