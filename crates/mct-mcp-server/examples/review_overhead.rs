@@ -93,7 +93,13 @@ fn percentiles(samples: &mut [u128]) -> (u128, u128) {
     (at(0.50), at(0.95))
 }
 
+/// Runs `run` untimed a few times first (cold caches, lazy allocation), then
+/// `iterations` times; returns p50 and p95 in microseconds.
 fn timed<T>(iterations: usize, mut run: impl FnMut() -> T) -> (u128, u128) {
+    const WARMUP: usize = 5;
+    for _ in 0..WARMUP {
+        std::hint::black_box(run());
+    }
     let mut samples = Vec::with_capacity(iterations);
     for _ in 0..iterations {
         let started = Instant::now();
@@ -242,6 +248,19 @@ fn write_store(dir: &Path, format: &str, rows: usize, findings: &[FindingKeys]) 
     }
 }
 
+/// Reads the store files without parsing them: the I/O part of `load`.
+fn read_store_bytes(dir: &Path) -> usize {
+    [
+        "review-decisions.toon",
+        "reviews.toon",
+        "duplicate-reviews.toon",
+    ]
+    .iter()
+    .filter_map(|name| std::fs::read(dir.join(".mct-index").join(name)).ok())
+    .map(|bytes| bytes.len())
+    .sum()
+}
+
 fn store_bytes(dir: &Path) -> u64 {
     [
         "review-decisions.toon",
@@ -339,6 +358,12 @@ async fn main() {
         let hashes = index.file_hashes().unwrap();
         mct_index::reviews::dead_code_findings(&scan.symbols, &scan.candidates, &hashes)
     });
+    // The same work split into its two parts, so the cost can be attributed.
+    let (hashes_p50, _) = timed(options.iterations, || index.file_hashes().unwrap());
+    let hashes = index.file_hashes().unwrap();
+    let (identities_p50, _) = timed(options.iterations, || {
+        mct_index::reviews::dead_code_findings(&scan.symbols, &scan.candidates, &hashes)
+    });
     let server = MctServer::new(index, mct_mcp_server::registry::build_registry());
 
     println!("# Review overhead\n");
@@ -405,13 +430,14 @@ async fn main() {
     println!(
         "Dead-code scan (already part of `find_dead_code`): p50 {scan_p50} µs. \
          Review keys on top of it for all {} candidates (file hashes + identities): \
-         p50 {keys_p50} µs, p95 {keys_p95} µs.\n",
+         p50 {keys_p50} µs, p95 {keys_p95} µs. Of that: file hashes query p50 \
+         {hashes_p50} µs, identities p50 {identities_p50} µs.\n",
         findings.len()
     );
     println!(
-        "| format | rows | file bytes | load p50 µs | load p95 µs | resolve p50 µs | hidden |"
+        "| format | rows | file bytes | read p50 µs | load p50 µs | load p95 µs | resolve p50 µs | hidden |"
     );
-    println!("|---|---|---|---|---|---|---|");
+    println!("|---|---|---|---|---|---|---|---|");
     let dir = tempfile_dir("stores");
     for format in FORMATS {
         for rows in ROW_COUNTS {
@@ -423,10 +449,11 @@ async fn main() {
                 .iter()
                 .filter(|r| r.visibility() == Visibility::Suppressed)
                 .count();
+            let (read_p50, _) = timed(options.iterations, || read_store_bytes(&dir));
             let (load_p50, load_p95) = timed(options.iterations, || Reviews::load(&dir));
             let (resolve_p50, _) = timed(options.iterations, || reviews.resolve(&findings));
             println!(
-                "| {format} | {rows} | {} | {load_p50} | {load_p95} | {resolve_p50} | {hidden} |",
+                "| {format} | {rows} | {} | {read_p50} | {load_p50} | {load_p95} | {resolve_p50} | {hidden} |",
                 store_bytes(&dir)
             );
         }
