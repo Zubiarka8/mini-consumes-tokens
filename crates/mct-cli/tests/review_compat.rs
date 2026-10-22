@@ -525,7 +525,8 @@ fn each_lock_blocks_only_its_own_writer() {
     let new = Web::start(&new_binary(), root.1.as_path(), true);
     let old = Web::start(&old_binary(), root.1.as_path(), false);
     let lock = root.1.as_path().join(".mct-index/review-decisions.lock");
-    std::fs::write(&lock, "held").unwrap();
+    let held = std::fs::File::create(&lock).unwrap();
+    held.try_lock().unwrap();
     assert_eq!(
         old.decide(&old.keys("duplicate")[0], Some("confirmed")),
         200
@@ -534,7 +535,7 @@ fn each_lock_blocks_only_its_own_writer() {
         new.decide(&new.keys("dead-code")[0], Some("confirmed")),
         503
     );
-    std::fs::remove_file(&lock).unwrap();
+    drop(held);
     let legacy_lock = root.1.as_path().join(".mct-index/duplicate-reviews.lock");
     std::fs::write(&legacy_lock, "held").unwrap();
     assert_eq!(

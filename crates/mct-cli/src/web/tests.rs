@@ -543,11 +543,10 @@ fn a_failed_review_save_is_reported_and_changes_nothing() {
     let root = project();
     let server = Server::start(root.path(), true);
     let key = server.site.borrow().review_keys[0].clone();
-    fs::write(
-        root.path().join(".mct-index/review-decisions.lock"),
-        "another writer",
-    )
-    .unwrap();
+    // Another writer is alive and holds the OS lock until the end of the test.
+    let other_writer =
+        fs::File::create(root.path().join(".mct-index/review-decisions.lock")).unwrap();
+    other_writer.try_lock().unwrap();
     let response = server.decide(&key, Some("dismissed"), "reason");
     assert!(
         response.starts_with("HTTP/1.1 503")
@@ -562,10 +561,11 @@ fn a_failed_review_save_is_reported_and_changes_nothing() {
     for name in ["review-decisions.toon", "duplicate-reviews.toon"] {
         assert!(!root.path().join(".mct-index").join(name).exists());
     }
-    assert_eq!(
-        fs::read_to_string(root.path().join(".mct-index/review-decisions.lock")).unwrap(),
-        "another writer",
-        "another writer's lock is never removed"
+    drop(other_writer);
+    let response = server.decide(&key, Some("dismissed"), "reason");
+    assert!(
+        response.starts_with("HTTP/1.1 200"),
+        "the save succeeds once the other writer is gone: {response}"
     );
 }
 

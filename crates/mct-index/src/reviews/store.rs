@@ -32,15 +32,8 @@ const MAX_BYTES: u64 = 32 * 1024 * 1024;
 pub enum ReviewError {
     #[error("review files are read-only until this is fixed: {0}")]
     Degraded(String),
-    #[error(
-        "another writer holds {path} (written {age_secs} s ago by {holder}); \
-         remove it only if no mct-cli web process is running"
-    )]
-    Locked {
-        path: String,
-        holder: String,
-        age_secs: u64,
-    },
+    #[error("another writer is saving review decisions ({path}); try again when it has finished")]
+    Locked { path: String },
     #[error("the review changed since it was displayed; reload to see the current state")]
     Conflict,
     #[error("invalid review request: {0}")]
@@ -262,7 +255,8 @@ impl Reviews {
     }
 
     /// Temporary files left by an interrupted save. They never hold the only
-    /// copy of anything and are not removed automatically.
+    /// copy of anything. Loading never removes them; the next save does, under
+    /// the writer lock.
     pub fn leftover_temporary_files(&self) -> usize {
         self.leftover_temporary_files
     }
@@ -315,6 +309,8 @@ impl Reviews {
                 problem.reason
             )));
         }
+        // Holding the lock, no live writer can be using a temporary file.
+        remove_abandoned_temporaries(&self.directory);
         let resolver = Resolver::new(&current.sources, findings);
         let resolution = resolver.resolve(finding);
         if resolution.revision() != change.expected_revision {
@@ -435,20 +431,52 @@ fn publish(directory: &Path, name: &str, text: &str) -> Result<(), ReviewError> 
     Ok(())
 }
 
-fn count_temporary_files(directory: &Path) -> usize {
-    let prefix = format!("{CANONICAL_FILE}.");
-    fs::read_dir(directory)
-        .map(|entries| {
-            entries
-                .filter_map(Result::ok)
-                .filter(|entry| {
-                    let name = entry.file_name();
-                    let name = name.to_string_lossy();
-                    name.starts_with(&prefix) && name.ends_with(TEMPORARY_SUFFIX)
-                })
-                .count()
+/// `review-decisions.toon.<target>.<pid>.<nanos>.<attempt>.tmp`, the names
+/// [`Temporary::create`] gives to the files this module publishes.
+fn is_own_temporary(name: &str) -> bool {
+    let Some(rest) = name
+        .strip_prefix(CANONICAL_FILE)
+        .and_then(|rest| rest.strip_prefix('.'))
+        .and_then(|rest| rest.strip_suffix(TEMPORARY_SUFFIX))
+    else {
+        return false;
+    };
+    let mut parts = rest.rsplitn(4, '.');
+    let (Some(attempt), Some(nanos), Some(pid), Some(target)) =
+        (parts.next(), parts.next(), parts.next(), parts.next())
+    else {
+        return false;
+    };
+    let digits = |text: &str| !text.is_empty() && text.bytes().all(|byte| byte.is_ascii_digit());
+    [CANONICAL_FILE, PREVIOUS_FILE].contains(&target)
+        && [attempt, nanos, pid].into_iter().all(digits)
+}
+
+/// Regular files in `directory` that an interrupted save of this module left.
+fn temporary_files(directory: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = fs::read_dir(directory) else {
+        return Vec::new();
+    };
+    entries
+        .filter_map(Result::ok)
+        .filter(|entry| {
+            entry.file_name().to_str().is_some_and(is_own_temporary)
+                && entry.file_type().is_ok_and(|kind| kind.is_file())
         })
-        .unwrap_or(0)
+        .map(|entry| entry.path())
+        .collect()
+}
+
+fn count_temporary_files(directory: &Path) -> usize {
+    temporary_files(directory).len()
+}
+
+/// Removes what killed saves left behind. Best effort: a file that cannot be
+/// removed stays, is counted on the next load, and hides nothing.
+fn remove_abandoned_temporaries(directory: &Path) {
+    for path in temporary_files(directory) {
+        let _ = fs::remove_file(path);
+    }
 }
 
 /// A temporary file removed on drop unless it was renamed into place.
@@ -500,43 +528,33 @@ impl Drop for Temporary {
     }
 }
 
-/// The exclusive writer lock. Never removed unless this process created it.
+/// The exclusive writer lock: an advisory lock the operating system holds on
+/// `review-decisions.lock` while this value lives. The kernel releases it when
+/// the holder exits, however it exits, so a killed writer cannot block the
+/// next one. The file itself is never removed: deleting a locked file would
+/// let two writers lock different files under the same name.
+///
+/// If the platform cannot lock the file, the save fails with an I/O error.
 struct Lock {
-    path: PathBuf,
+    _file: fs::File,
 }
 
 impl Lock {
     fn acquire(directory: &Path) -> Result<Self, ReviewError> {
         let path = directory.join(LOCK_FILE);
         safe_path(&path).map_err(ReviewError::Degraded)?;
-        match OpenOptions::new().write(true).create_new(true).open(&path) {
-            Ok(mut file) => {
-                // Best effort: the holder is only shown in an error message.
-                let _ = write!(file, "pid {}", std::process::id());
-                Ok(Self { path })
-            }
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                let holder = fs::read_to_string(&path)
-                    .map(|text| text.chars().take(64).collect())
-                    .unwrap_or_default();
-                let age_secs = fs::metadata(&path)
-                    .and_then(|metadata| metadata.modified())
-                    .ok()
-                    .and_then(|modified| modified.elapsed().ok())
-                    .map_or(0, |age| age.as_secs());
-                Err(ReviewError::Locked {
-                    path: path.display().to_string(),
-                    holder,
-                    age_secs,
-                })
-            }
-            Err(error) => Err(io_error(&path)(error)),
+        let file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(&path)
+            .map_err(io_error(&path))?;
+        match file.try_lock() {
+            Ok(()) => Ok(Self { _file: file }),
+            Err(fs::TryLockError::WouldBlock) => Err(ReviewError::Locked {
+                path: path.display().to_string(),
+            }),
+            Err(fs::TryLockError::Error(error)) => Err(io_error(&path)(error)),
         }
-    }
-}
-
-impl Drop for Lock {
-    fn drop(&mut self) {
-        let _ = fs::remove_file(&self.path);
     }
 }
