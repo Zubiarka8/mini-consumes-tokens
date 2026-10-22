@@ -65,7 +65,11 @@ pub(super) fn facet<'a>(values: impl IntoIterator<Item = &'a str>) -> Value {
     Value::Array(pairs.into_iter().map(|(k, n)| json!([k, n])).collect())
 }
 
-pub(super) fn page_bounds(params: &Params, total: usize, default_size: usize) -> (usize, usize, usize) {
+pub(super) fn page_bounds(
+    params: &Params,
+    total: usize,
+    default_size: usize,
+) -> (usize, usize, usize) {
     let size = uint(params, "size", default_size).clamp(1, 200);
     let last = total.saturating_sub(1) / size;
     let page = uint(params, "page", 0).min(last);

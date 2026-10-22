@@ -92,7 +92,6 @@ fn project() -> tempfile::TempDir {
     root
 }
 
-
 impl Server {
     fn body(response: &str) -> &str {
         response.split_once("\r\n\r\n").map_or("", |(_, body)| body)
@@ -107,7 +106,8 @@ impl Server {
     }
     fn decide(&self, key: &str, state: Option<&str>, note: &str) -> String {
         let csrf = self.site.borrow().csrf.clone();
-        let body = serde_json::json!({ "csrf": csrf, "key": key, "state": state, "note": note }).to_string();
+        let body = serde_json::json!({ "csrf": csrf, "key": key, "state": state, "note": note })
+            .to_string();
         self.post_review(&body, "Origin: http://127.0.0.1:8787\r\n")
     }
 }
@@ -119,15 +119,47 @@ fn dashboard_serves_static_app_and_a_read_only_json_api() {
     let original = fs::read(&database).unwrap();
     let server = Server::start(root.path(), true);
     let page = server.get("");
-    assert!(page.starts_with("HTTP/1.1 200") && page.contains("text/html"), "{page}");
+    assert!(
+        page.starts_with("HTTP/1.1 200") && page.contains("text/html"),
+        "{page}"
+    );
     assert!(page.contains("type=\"module\"") && page.contains("lang=\"es\""));
-    for header in ["script-src 'self'", "default-src 'none'", "Cache-Control: no-store", "frame-ancestors 'none'"] {
+    for header in [
+        "script-src 'self'",
+        "default-src 'none'",
+        "Cache-Control: no-store",
+        "frame-ancestors 'none'",
+    ] {
         assert!(page.contains(header), "{header}");
     }
     assert!(!page.contains("unsafe-inline") && !page.contains("unsafe-eval"));
     assert!(server.get("app.css").contains("text/css"));
-    for module in ["main", "core", "i18n", "components", "charts", "code", "graph", "markdown", "palette", "page-dashboard", "page-symbols", "page-findings", "page-search", "page-deps", "page-stats", "page-notes", "page-workspace", "page-settings"] {
-        assert!(server.get(&format!("js/{module}.js")).contains("text/javascript"), "{module}");
+    for module in [
+        "main",
+        "core",
+        "i18n",
+        "components",
+        "charts",
+        "code",
+        "graph",
+        "markdown",
+        "palette",
+        "page-dashboard",
+        "page-symbols",
+        "page-findings",
+        "page-search",
+        "page-deps",
+        "page-stats",
+        "page-notes",
+        "page-workspace",
+        "page-settings",
+    ] {
+        assert!(
+            server
+                .get(&format!("js/{module}.js"))
+                .contains("text/javascript"),
+            "{module}"
+        );
     }
 
     let meta = server.json("api/meta");
@@ -147,10 +179,16 @@ fn dashboard_serves_static_app_and_a_read_only_json_api() {
     assert_eq!(item["duplicateGroups"], 1);
     assert_eq!(item["deadCandidate"], true);
     let detail = server.json(&format!("api/symbol?id={}", item["id"]));
-    assert!(detail["code"]["lines"][0].as_str().unwrap().contains("pub fn alpha"));
+    assert!(detail["code"]["lines"][0]
+        .as_str()
+        .unwrap()
+        .contains("pub fn alpha"));
     assert_eq!(detail["duplicates"].as_array().unwrap().len(), 1);
     assert!(detail["dead"].is_object());
-    assert_eq!(server.json("api/files")["files"].as_array().unwrap().len(), 2);
+    assert_eq!(
+        server.json("api/files")["files"].as_array().unwrap().len(),
+        2
+    );
 
     let findings = server.json("api/findings");
     assert_eq!(findings["total"], 3);
@@ -160,7 +198,10 @@ fn dashboard_serves_static_app_and_a_read_only_json_api() {
     assert_eq!(group["state"], "unreviewed");
     assert_eq!(group["verdict"], "real");
     assert_eq!(group["scope"], "cross-file");
-    assert!(group["similarity"].is_null(), "no invented similarity score");
+    assert!(
+        group["similarity"].is_null(),
+        "no invented similarity score"
+    );
     let key = group["key"].as_str().unwrap();
     let finding = server.json(&format!("api/finding?key={key}"));
     assert_eq!(finding["members"].as_array().unwrap().len(), 2);
@@ -168,19 +209,38 @@ fn dashboard_serves_static_app_and_a_read_only_json_api() {
     let dead = server.json("api/findings?type=dead-code&q=beta");
     assert_eq!(dead["items"][0]["confidence"], "unknown");
     assert!(dead["items"][0]["severity"].is_null());
-    let dead_detail = server.json(&format!("api/finding?key={}", dead["items"][0]["key"].as_str().unwrap()));
-    assert!(dead_detail["detail"]["code"]["lines"][0].as_str().unwrap().contains("beta"));
+    let dead_detail = server.json(&format!(
+        "api/finding?key={}",
+        dead["items"][0]["key"].as_str().unwrap()
+    ));
+    assert!(dead_detail["detail"]["code"]["lines"][0]
+        .as_str()
+        .unwrap()
+        .contains("beta"));
 
     let search = server.json("api/search?q=alpha");
     assert_eq!(search["semantic"], false);
     assert_eq!(search["groups"]["symbols"]["items"][0]["path"], "src/a.rs");
     assert!(search["groups"]["duplicates"]["total"].as_u64().unwrap() >= 1);
-    assert_eq!(server.json("api/search?q=").get("groups").unwrap().as_object().unwrap().len(), 0);
+    assert_eq!(
+        server
+            .json("api/search?q=")
+            .get("groups")
+            .unwrap()
+            .as_object()
+            .unwrap()
+            .len(),
+        0
+    );
     let deps = server.json("api/dependencies?level=file");
     assert_eq!(deps["edgeKinds"][0], "imports");
     let stats = server.json("api/stats");
     assert!(stats["measurements"]["tokens"].is_null());
-    assert!(stats["measurements"]["apiLatency"].as_array().unwrap().iter().any(|row| row["route"] == "symbols"));
+    assert!(stats["measurements"]["apiLatency"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|row| row["route"] == "symbols"));
     assert_eq!(original, fs::read(database).unwrap());
     assert!(!root.path().join(".mct-index/obsidian").exists());
 }
@@ -192,7 +252,14 @@ fn source_previews_only_read_indexed_files_inside_the_project() {
     let server = Server::start(root.path(), true);
     let source = server.json("api/source?path=src%2Fa.rs&start=1&end=2");
     assert_eq!(source["lines"].as_array().unwrap().len(), 2);
-    for path in ["secret.txt", "..%2Fsecret.txt", "%2Fetc%2Fpasswd", ".mct-index%2Findex.sqlite3", "src%2Fmissing.rs", "src"] {
+    for path in [
+        "secret.txt",
+        "..%2Fsecret.txt",
+        "%2Fetc%2Fpasswd",
+        ".mct-index%2Findex.sqlite3",
+        "src%2Fmissing.rs",
+        "src",
+    ] {
         let response = server.get(&format!("api/source?path={path}"));
         assert!(response.starts_with("HTTP/1.1 404"), "{path}: {response}");
         assert!(!response.contains("TOP SECRET"));
@@ -205,7 +272,9 @@ fn source_previews_only_read_indexed_files_inside_the_project() {
 fn api_lists_are_bounded_paged_and_filterable() {
     let root = tempfile::tempdir().unwrap();
     fs::create_dir(root.path().join("src")).unwrap();
-    let source: String = (0..120).map(|id| format!("pub fn symbol_{id}() {{}}\n")).collect();
+    let source: String = (0..120)
+        .map(|id| format!("pub fn symbol_{id}() {{}}\n"))
+        .collect();
     fs::write(root.path().join("src/many.rs"), source).unwrap();
     index(root.path());
     let server = Server::start(root.path(), true);
@@ -215,12 +284,31 @@ fn api_lists_are_bounded_paged_and_filterable() {
     let last = server.json("api/symbols?size=50&page=99&kind=function");
     assert_eq!(last["page"], 2, "out-of-range pages clamp to the last page");
     assert_eq!(last["items"].as_array().unwrap().len(), 20);
-    assert_eq!(server.json("api/symbols?size=9999")["items"].as_array().unwrap().len(), 121.min(200));
-    assert_eq!(server.json("api/symbols?q=SYMBOL_11&kind=function")["total"], 11);
+    assert_eq!(
+        server.json("api/symbols?size=9999")["items"]
+            .as_array()
+            .unwrap()
+            .len(),
+        121
+    );
+    assert_eq!(
+        server.json("api/symbols?q=SYMBOL_11&kind=function")["total"],
+        11
+    );
     assert_eq!(server.json("api/symbols?kind=class")["total"], 0);
-    assert_eq!(server.json("api/symbols?language=rust&dir=src&kind=function")["total"], 120);
-    assert_eq!(server.json("api/symbols?dir=sr")["total"], 0, "directory filters match whole path segments");
-    assert_eq!(server.json("api/symbols?finding=dead-code&sort=refs&order=desc")["total"], 120);
+    assert_eq!(
+        server.json("api/symbols?language=rust&dir=src&kind=function")["total"],
+        120
+    );
+    assert_eq!(
+        server.json("api/symbols?dir=sr")["total"],
+        0,
+        "directory filters match whole path segments"
+    );
+    assert_eq!(
+        server.json("api/symbols?finding=dead-code&sort=refs&order=desc")["total"],
+        120
+    );
 }
 
 #[test]
@@ -247,26 +335,41 @@ fn http_rejects_cross_site_requests_traversal_and_unmanaged_files() {
     assert!(hostile.contains("application/json") && hostile.starts_with("HTTP/1.1 200"));
     for (headers, status) in [("Host: evil.example", 421), ("Host: 127.0.0.1:1", 421)] {
         assert!(server
-            .raw(&format!("GET {} HTTP/1.1\r\n{headers}\r\n\r\n", server.prefix))
+            .raw(&format!(
+                "GET {} HTTP/1.1\r\n{headers}\r\n\r\n",
+                server.prefix
+            ))
             .starts_with(&format!("HTTP/1.1 {status}")));
     }
     let host = format!("Host: {}", server.address);
     for header in ["Origin: https://example.com", "Sec-Fetch-Site: cross-site"] {
         assert!(server
-            .raw(&format!("GET {} HTTP/1.1\r\n{host}\r\n{header}\r\n\r\n", server.prefix))
+            .raw(&format!(
+                "GET {} HTTP/1.1\r\n{host}\r\n{header}\r\n\r\n",
+                server.prefix
+            ))
             .starts_with("HTTP/1.1 403"));
     }
     assert!(server
         .raw(&format!("GET / HTTP/1.1\r\n{host}\r\n\r\n"))
         .starts_with("HTTP/1.1 404"));
     assert!(server
-        .raw(&format!("POST {} HTTP/1.1\r\n{host}\r\n\r\n", server.prefix))
+        .raw(&format!(
+            "POST {} HTTP/1.1\r\n{host}\r\n\r\n",
+            server.prefix
+        ))
         .starts_with("HTTP/1.1 405"));
-    let head = server.raw(&format!("HEAD {} HTTP/1.1\r\n{host}\r\n\r\n", server.prefix));
+    let head = server.raw(&format!(
+        "HEAD {} HTTP/1.1\r\n{host}\r\n\r\n",
+        server.prefix
+    ));
     assert!(head.starts_with("HTTP/1.1 200") && head.ends_with("\r\n\r\n"));
     let huge = "a".repeat(17_000);
     assert!(server
-        .raw(&format!("GET {} HTTP/1.1\r\n{host}\r\nX-Large: {huge}\r\n\r\n", server.prefix))
+        .raw(&format!(
+            "GET {} HTTP/1.1\r\n{host}\r\nX-Large: {huge}\r\n\r\n",
+            server.prefix
+        ))
         .starts_with("HTTP/1.1 431"));
 }
 
@@ -274,7 +377,15 @@ fn http_rejects_cross_site_requests_traversal_and_unmanaged_files() {
 fn generated_responses_have_exact_lengths() {
     let root = project();
     let server = Server::start(root.path(), true);
-    for path in ["", "app.css", "js/main.js", "api/meta", "api/summary", "api/findings", "api/dependencies"] {
+    for path in [
+        "",
+        "app.css",
+        "js/main.js",
+        "api/meta",
+        "api/summary",
+        "api/findings",
+        "api/dependencies",
+    ] {
         let response = server.get(path);
         let (head, body) = response.split_once("\r\n\r\n").unwrap();
         let length: usize = head
@@ -291,7 +402,9 @@ fn generated_responses_have_exact_lengths() {
 fn incomplete_headers_and_timeouts_are_bounded_without_rendering_content() {
     let root = project();
     let server = Server::start(root.path(), true);
-    assert!(server.raw("GET /secret/ HTTP/1.1\r\n").starts_with("HTTP/1.1 400"));
+    assert!(server
+        .raw("GET /secret/ HTTP/1.1\r\n")
+        .starts_with("HTTP/1.1 400"));
     let mut wire = Wire {
         input: Cursor::new(Vec::new()),
         output: Vec::new(),
@@ -317,23 +430,55 @@ fn review_decisions_persist_reopen_and_keep_an_audit_trail() {
     assert_eq!(saved["state"], "false-positive");
     assert_eq!(saved["history"].as_array().unwrap().len(), 1);
     let listed = server.json("api/findings?type=duplicate&state=false-positive");
-    assert_eq!(listed["total"], 1, "false positives stay listed and recoverable");
+    assert_eq!(
+        listed["total"], 1,
+        "false positives stay listed and recoverable"
+    );
     assert_eq!(listed["items"][0]["note"], "generated twin");
-    assert_eq!(server.json("api/summary")["findings"]["states"]["false-positive"], 1);
-    assert_eq!(server.json("api/summary")["recent"][0]["to"], "false-positive");
+    assert_eq!(
+        server.json("api/summary")["findings"]["states"]["false-positive"],
+        1
+    );
+    assert_eq!(
+        server.json("api/summary")["recent"][0]["to"],
+        "false-positive"
+    );
     let reopened = server.decide(&key, None, "code changed");
     assert!(reopened.starts_with("HTTP/1.1 200"));
     let after = server.json(&format!("api/finding?key={key}"));
     assert_eq!(after["state"], "unreviewed");
-    assert_eq!(after["history"].as_array().unwrap().len(), 2, "reopening never erases history");
-    assert_eq!(before.split_once("\r\n\r\n").unwrap().1.contains("unreviewed"), true);
+    assert_eq!(
+        after["history"].as_array().unwrap().len(),
+        2,
+        "reopening never erases history"
+    );
+    assert!(before
+        .split_once("\r\n\r\n")
+        .unwrap()
+        .1
+        .contains("unreviewed"));
     // A new process sees the same decisions and the same dead-code identity.
     let dead_key = server.site.borrow().dead[0].key.clone();
-    assert!(server.decide(&dead_key, Some("in-review"), "").starts_with("HTTP/1.1 200"));
+    assert!(server
+        .decide(&dead_key, Some("in-review"), "")
+        .starts_with("HTTP/1.1 200"));
     let restarted = Server::start(root.path(), true);
-    assert_eq!(restarted.json("api/findings?type=dead-code&state=in-review")["total"], 1);
-    assert_eq!(restarted.json(&format!("api/finding?key={key}"))["history"].as_array().unwrap().len(), 2);
-    assert_eq!(original, fs::read(database).unwrap(), "reviews never touch the index");
+    assert_eq!(
+        restarted.json("api/findings?type=dead-code&state=in-review")["total"],
+        1
+    );
+    assert_eq!(
+        restarted.json(&format!("api/finding?key={key}"))["history"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert_eq!(
+        original,
+        fs::read(database).unwrap(),
+        "reviews never touch the index"
+    );
 }
 
 #[test]
@@ -345,11 +490,20 @@ fn review_posts_require_origin_csrf_valid_state_and_current_identity() {
     let origin = "Origin: http://127.0.0.1:8787\r\n";
     let body = |value: serde_json::Value| value.to_string();
     let good = serde_json::json!({ "csrf": csrf, "key": key, "state": "confirmed" });
-    assert!(server.post_review(&body(good.clone()), "").starts_with("HTTP/1.1 403"), "origin is mandatory");
-    assert!(server.post_review(&body(good.clone()), "Origin: https://evil.example\r\n").starts_with("HTTP/1.1 403"));
+    assert!(
+        server
+            .post_review(&body(good.clone()), "")
+            .starts_with("HTTP/1.1 403"),
+        "origin is mandatory"
+    );
+    assert!(server
+        .post_review(&body(good.clone()), "Origin: https://evil.example\r\n")
+        .starts_with("HTTP/1.1 403"));
     let mut wrong = good.clone();
     wrong["csrf"] = "nope".into();
-    assert!(server.post_review(&body(wrong), origin).starts_with("HTTP/1.1 403"));
+    assert!(server
+        .post_review(&body(wrong), origin)
+        .starts_with("HTTP/1.1 403"));
     for (patch, status) in [
         (serde_json::json!({ "key": "f".repeat(64) }), 404),
         (serde_json::json!({ "key": "../../etc/passwd" }), 404),
@@ -363,12 +517,19 @@ fn review_posts_require_origin_csrf_valid_state_and_current_identity() {
             value[field] = content.clone();
         }
         let response = server.post_review(&body(value), origin);
-        assert!(response.starts_with(&format!("HTTP/1.1 {status}")), "{patch}: {response}");
+        assert!(
+            response.starts_with(&format!("HTTP/1.1 {status}")),
+            "{patch}: {response}"
+        );
     }
-    assert!(server.post_review("{not json", origin).starts_with("HTTP/1.1 400"));
+    assert!(server
+        .post_review("{not json", origin)
+        .starts_with("HTTP/1.1 400"));
     let form = server.raw(&format!("POST /secret/api/review HTTP/1.1\r\nHost: 127.0.0.1:8787\r\n{origin}Content-Type: application/x-www-form-urlencoded\r\nContent-Length: 1\r\n\r\nx"));
     assert!(form.starts_with("HTTP/1.1 400"));
-    assert!(server.post_review(&body(good), origin).starts_with("HTTP/1.1 200"));
+    assert!(server
+        .post_review(&body(good), origin)
+        .starts_with("HTTP/1.1 200"));
     let wrong_path = server.raw(&format!("POST /secret/review HTTP/1.1\r\nHost: 127.0.0.1:8787\r\n{origin}Content-Type: application/json\r\nContent-Length: 2\r\n\r\n{{}}"));
     assert!(wrong_path.starts_with("HTTP/1.1 405"));
 }
@@ -378,11 +539,24 @@ fn a_failed_review_save_is_reported_and_changes_nothing() {
     let root = project();
     let server = Server::start(root.path(), true);
     let key = server.site.borrow().review_keys[0].clone();
-    fs::write(root.path().join(".mct-index/duplicate-reviews.lock"), "another writer").unwrap();
+    fs::write(
+        root.path().join(".mct-index/duplicate-reviews.lock"),
+        "another writer",
+    )
+    .unwrap();
     let response = server.decide(&key, Some("dismissed"), "reason");
-    assert!(response.starts_with("HTTP/1.1 500") && response.contains("No changes were applied"), "{response}");
-    assert_eq!(server.json("api/findings?type=duplicate")["items"][0]["state"], "unreviewed");
-    assert!(!root.path().join(".mct-index/duplicate-reviews.toon").exists());
+    assert!(
+        response.starts_with("HTTP/1.1 500") && response.contains("No changes were applied"),
+        "{response}"
+    );
+    assert_eq!(
+        server.json("api/findings?type=duplicate")["items"][0]["state"],
+        "unreviewed"
+    );
+    assert!(!root
+        .path()
+        .join(".mct-index/duplicate-reviews.toon")
+        .exists());
 }
 
 #[test]
@@ -390,16 +564,29 @@ fn review_identity_follows_group_members_and_file_content() {
     let root = project();
     let before = Server::start(root.path(), true);
     let key = before.site.borrow().review_keys[0].clone();
-    let dead = before.site.borrow().dead.iter().map(|d| d.key.clone()).collect::<Vec<_>>();
+    let dead = before
+        .site
+        .borrow()
+        .dead
+        .iter()
+        .map(|d| d.key.clone())
+        .collect::<Vec<_>>();
     assert_eq!(dead.len(), 2);
     assert!(dead.iter().all(|k| *k != key));
-    assert_eq!(Server::start(root.path(), true).site.borrow().review_keys[0], key, "keys are stable between runs");
+    assert_eq!(
+        Server::start(root.path(), true).site.borrow().review_keys[0],
+        key,
+        "keys are stable between runs"
+    );
     let file = root.path().join("src/b.rs");
     let text = fs::read_to_string(&file).unwrap();
     fs::write(&file, text.replace("total += 8;", "total += 9;")).unwrap();
     index(root.path());
     let changed = Server::start(root.path(), true);
-    assert!(changed.site.borrow().review_keys.is_empty() || changed.site.borrow().review_keys[0] != key, "changed code is a new finding");
+    assert!(
+        changed.site.borrow().review_keys.is_empty() || changed.site.borrow().review_keys[0] != key,
+        "changed code is a new finding"
+    );
 }
 
 #[test]
@@ -409,24 +596,41 @@ fn obsidian_notes_are_served_read_only_with_verified_links() {
         let server = Server::start(root.path(), false);
         let notes = server.json("api/notes");
         assert!(notes["total"].as_u64().unwrap() >= 3, "{notes}");
-        let file_note = notes["items"].as_array().unwrap().iter().find(|n| n["codePath"] == "src/a.rs").unwrap();
+        let file_note = notes["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|n| n["codePath"] == "src/a.rs")
+            .unwrap();
         let path = file_note["path"].as_str().unwrap().replace('/', "%2F");
         let detail = server.json(&format!("api/note?path={path}"));
         assert!(detail["body"].as_str().unwrap().contains("# `src/a.rs`"));
         assert_eq!(detail["codePath"], "src/a.rs");
-        assert!(detail["symbols"].as_array().unwrap().iter().any(|s| s["name"] == "alpha"));
+        assert!(detail["symbols"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|s| s["name"] == "alpha"));
         assert!(!detail["backlinkList"].as_array().unwrap().is_empty());
         let graph = server.json("api/notes-graph");
         assert!(!graph["edges"].as_array().unwrap().is_empty());
         assert_eq!(graph["edgeKinds"][0], "markdown-link");
         for path in ["..%2F..%2Fsecret.txt", "%2Fetc%2Fpasswd", "missing.md"] {
-            assert!(server.get(&format!("api/note?path={path}")).starts_with("HTTP/1.1 404"), "{path}");
+            assert!(
+                server
+                    .get(&format!("api/note?path={path}"))
+                    .starts_with("HTTP/1.1 404"),
+                "{path}"
+            );
         }
     }
     let note = root.path().join(".mct-index/obsidian/index.md");
     fs::write(&note, "Personal edited map").unwrap();
     let server = Server::start(root.path(), false);
-    assert!(server.json("api/meta")["warning"].as_str().unwrap().contains("Cannot regenerate the Obsidian vault"));
+    assert!(server.json("api/meta")["warning"]
+        .as_str()
+        .unwrap()
+        .contains("Cannot regenerate the Obsidian vault"));
     assert_eq!(fs::read_to_string(note).unwrap(), "Personal edited map");
 }
 
@@ -439,42 +643,83 @@ fn snapshot_refresh_is_explicit() {
     index(root.path());
     let server = Server::start(root.path(), true);
     let deps = server.json("api/dependencies?level=file");
-    assert!(deps["edges"].as_array().unwrap().iter().any(|e| e["from"] == "src/a.rs" && e["to"] == "src/b.rs"), "{deps}");
+    assert!(
+        deps["edges"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|e| e["from"] == "src/a.rs" && e["to"] == "src/b.rs"),
+        "{deps}"
+    );
     let symbol = server.json("api/symbols?q=alpha")["items"][0]["id"].clone();
     let detail = server.json(&format!("api/symbol?id={symbol}"));
     assert_eq!(detail["imports"][0], "src/b.rs");
     fs::write(&file, format!("{original}\npub fn newly_indexed() {{}}\n")).unwrap();
     index(root.path());
     assert_eq!(server.json("api/symbols?q=newly_indexed")["total"], 0);
-    assert_eq!(Server::start(root.path(), true).json("api/symbols?q=newly_indexed")["total"], 1);
+    assert_eq!(
+        Server::start(root.path(), true).json("api/symbols?q=newly_indexed")["total"],
+        1
+    );
 }
 
 #[test]
 fn current_ignore_rules_hide_stale_index_rows_from_the_api_and_the_vault() {
     let root = project();
     let file = root.path().join("src/a.rs");
-    fs::write(&file, format!("use crate::b::beta;\n{}", fs::read_to_string(&file).unwrap())).unwrap();
+    fs::write(
+        &file,
+        format!(
+            "use crate::b::beta;\n{}",
+            fs::read_to_string(&file).unwrap()
+        ),
+    )
+    .unwrap();
     index(root.path());
     fs::write(root.path().join(".mctignore"), "src/b.rs\n").unwrap();
     fs::remove_file(root.path().join("src/b.rs")).unwrap();
     let server = Server::start(root.path(), false);
     {
         let site = server.site.borrow();
-        assert!(!site.navigation.files.iter().any(|file| file.relative_path == "src/b.rs"));
-        assert!(!site.navigation.symbols.iter().any(|symbol| symbol.relative_path == "src/b.rs"));
+        assert!(!site
+            .navigation
+            .files
+            .iter()
+            .any(|file| file.relative_path == "src/b.rs"));
+        assert!(!site
+            .navigation
+            .symbols
+            .iter()
+            .any(|symbol| symbol.relative_path == "src/b.rs"));
         assert!(site.navigation.imports.is_empty());
         assert!(site.duplicates.groups.is_empty() && site.duplicates.skipped.is_empty());
     }
     assert!(!server.get("api/files").contains("src/b.rs"));
-    assert!(server.get("api/source?path=src%2Fb.rs").starts_with("HTTP/1.1 404"));
+    assert!(server
+        .get("api/source?path=src%2Fb.rs")
+        .starts_with("HTTP/1.1 404"));
     let root_path = root.path().canonicalize().unwrap();
     let database = root_path.join(".mct-index/index.sqlite3");
-    let raw = mct_index::Index::open_existing_read_only(&root_path, &database, mct_index::ExcludeSet::default()).unwrap();
-    assert!(raw.indexed_files().unwrap().iter().any(|file| file.relative_path == "src/b.rs"));
+    let raw = mct_index::Index::open_existing_read_only(
+        &root_path,
+        &database,
+        mct_index::ExcludeSet::default(),
+    )
+    .unwrap();
+    assert!(raw
+        .indexed_files()
+        .unwrap()
+        .iter()
+        .any(|file| file.relative_path == "src/b.rs"));
     let vault = mct_obsidian::vault_dir(&root_path);
     for note in mct_obsidian::Manifest::load(&vault).unwrap().notes.keys() {
-        assert!(!fs::read_to_string(vault.join(note)).unwrap().contains("src/b.rs"));
+        assert!(!fs::read_to_string(vault.join(note))
+            .unwrap()
+            .contains("src/b.rs"));
     }
     fs::write(root_path.join(".mctignore"), [0xff, 0xfe]).unwrap();
-    assert!(Site::load(&root_path, true).is_err(), "unreadable rules must fail closed");
+    assert!(
+        Site::load(&root_path, true).is_err(),
+        "unreadable rules must fail closed"
+    );
 }
