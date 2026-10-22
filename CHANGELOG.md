@@ -30,6 +30,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   checked before every save, and the previous file is kept as
   `review-decisions.toon.prev`. An unreadable review file no longer stops
   `mct-cli web`: it starts read-only and hides nothing.
+- Review storage is canonical: decisions are saved only to
+  `review-decisions.toon` (version 3, Unix milliseconds). Binaries built before
+  this change do not see decisions saved here, and this version does not see
+  decisions they save later: reading is one-way, and the output of default
+  commands is unchanged. A writer killed mid-save no longer blocks later saves:
+  the operating system releases the lock, and the next save removes the
+  temporary files the killed save left. See
+  `docs/01-architecture/adrs/019-shared-review-decisions.md`.
 
 ### Added
 

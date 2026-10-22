@@ -39,6 +39,14 @@ checks, strict CSP) is unchanged.
   dashboard starts read-only, hides nothing and names the file; to recover, fix
   or move that file aside (or restore `review-decisions.toon.prev`), then
   restart. Design: `docs/superpowers/specs/2026-10-22-shared-review-decisions-design.md`.
+  Compatibility, stated separately: default outputs of older binaries are
+  unchanged (identical bytes); this dashboard reads the older review files but
+  writes only `review-decisions.toon`, so binaries built before this change do
+  not see its decisions, and it does not see decisions they save later
+  (one-way reading, not bidirectional interoperability). A writer killed during
+  a save does not block the next one: the lock is an operating-system lock, and
+  the next save removes the temporary files the killed save left
+  (`docs/01-architecture/adrs/019-shared-review-decisions.md`).
 - `web/app/*` is an ES-module front end embedded with `include_str!`: hash
   routing (`#/page?query`, filters live in the URL), a DOM builder that never
   uses `innerHTML`, inline SVG charts, a bounded force-directed graph, an LCS
