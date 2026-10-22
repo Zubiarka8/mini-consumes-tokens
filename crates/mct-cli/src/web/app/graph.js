@@ -11,7 +11,7 @@ const MAX_TICKS = 220;
  * Returns {el, select(id), fit(), destroy()}. `onSelect(node)` fires on click/Enter.
  */
 export function graphView({ nodes, edges, onSelect, directed = true, label }) {
-  const width = 900, height = 560;
+  const narrow = window.innerWidth < 700, width = narrow ? 400 : 900, height = narrow ? 600 : 560;
   const byId = new Map(nodes.map((node, i) => [node.id, { ...node, x: width / 2 + Math.cos(i) * 180 * Math.sqrt((i + 1) / nodes.length), y: height / 2 + Math.sin(i) * 140 * Math.sqrt((i + 1) / nodes.length), vx: 0, vy: 0, r: node.radius || 9 }]));
   const links = edges.map((edge) => ({ ...edge, s: byId.get(edge.from), t: byId.get(edge.to) })).filter((edge) => edge.s && edge.t);
   const list = [...byId.values()];
