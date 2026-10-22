@@ -106,7 +106,7 @@ enum Command {
     /// hand. It does not reindex, so run `init` or `reindex` first.
     #[command(after_help = "Example:\n  cargo run -p mct-cli -- --root . obsidian")]
     Obsidian,
-    /// Serve a local website with linked atlas and duplicate-code views.
+    /// Serve the local project dashboard (code, duplicates, dead code, reviews, dependencies, notes).
     ///
     /// Uses the existing index without reindexing. Regenerates the Obsidian
     /// vault unless disabled. Prints a private localhost URL; keep this
@@ -116,7 +116,7 @@ enum Command {
         /// Local port (0 selects a free port). Always binds 127.0.0.1.
         #[arg(long, default_value_t = 0)]
         port: u16,
-        /// Do not regenerate the Obsidian vault; the web atlas still works.
+        /// Do not regenerate the Obsidian vault; the dashboard still works.
         #[arg(long)]
         no_obsidian: bool,
     },

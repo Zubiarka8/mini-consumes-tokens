@@ -199,20 +199,20 @@ export async function render({ root, page, params: initial }) {
     if (cfg.type === "duplicate") return [
       { key: "verdict", label: t("col.verdict"), sortable: true, render: (r) => badge(t(`dup.verdict.${r.verdict}`), r.verdict === "real" ? "success" : "warning") },
       { key: "title", label: t("col.symbols"), sortable: true, render: (r) => h("span", { class: "name" }, h("span", { class: "ellipsis" }, r.title), r.memberCount > 2 && badge(`+${r.memberCount - 2}`)) },
-      { key: "path", label: t("col.files"), sortable: true, render: (r) => h("span", { class: "path" }, [...new Set(r.members.map((m) => m.path))].slice(0, 2).join("  ↔  ")), cls: "hide-sm" },
+      { key: "path", label: t("col.files"), sortable: true, render: (r) => [...new Set(r.members.map((m) => m.path))].slice(0, 2).map((path) => h("span", { class: "path", title: path }, path)), cls: "hide-sm" },
       { key: "language", label: t("code.col.language"), sortable: true, render: (r) => badge(r.language), cls: "hide-sm" },
       { key: "lines", label: t("col.lines"), sortable: true, num: true, render: (r) => r.lines, cls: "hide-sm" },
       { key: "method", label: t("dup.method"), render: () => t("dup.methodShort"), cls: "hide-sm" }, common.state, common.actions];
     if (cfg.type === "dead-code") return [
       { key: "title", label: t("col.symbol"), sortable: true, render: (r) => h("span", { class: "name" }, h("span", { class: "ellipsis" }, r.title)) },
       { key: "kind", label: t("code.col.kind"), sortable: true, render: (r) => r.kind, cls: "hide-sm" },
-      { key: "path", label: t("col.file"), sortable: true, render: (r) => h("span", { class: "path" }, `${r.path}:${r.line}`) },
+      { key: "path", label: t("col.file"), sortable: true, render: (r) => h("span", { class: "path", title: r.path }, `${r.path}:${r.line}`) },
       { key: "refs", label: t("col.refs"), num: true, render: (r) => r.refs, cls: "hide-sm" },
       { key: "confidence", label: t("col.confidence"), render: () => badge(t("dead.confidenceUnknown")), cls: "hide-sm" }, common.state, common.actions];
     return [
       { key: "title", label: t("col.finding"), sortable: true, render: (r) => h("span", { class: "name" }, h("span", { class: "ellipsis" }, r.title)) },
       { key: "type", label: t("col.type"), sortable: true, render: (r) => badge(t(r.type === "duplicate" ? "common.duplicate" : "common.deadCode"), r.type === "duplicate" ? "warning" : "danger") },
-      { key: "path", label: t("col.location"), sortable: true, render: (r) => h("span", { class: "path" }, location(r)), cls: "hide-sm" },
+      { key: "path", label: t("col.location"), sortable: true, render: (r) => h("span", { class: "path", title: location(r) }, location(r)), cls: "hide-sm" },
       common.state, common.updated, common.actions];
   }
 
@@ -257,6 +257,7 @@ export async function render({ root, page, params: initial }) {
   async function showMain(item, params = q()) {
     const side = item?.type === "duplicate" && params.get("view") === "side";
     results.hidden = side; tabsHost.hidden = side; chipsHost.hidden = side;
+    root.querySelector(".workbench")?.classList.toggle("compare-mode", side);
     clear(main);
     if (!side) return;
     const [a, b] = item.members;

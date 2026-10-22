@@ -36,7 +36,7 @@ function computeNotices(meta, summary) {
 function applyStatus() {
   const [tone, label] = indexingState(ctx.meta);
   clear(status).append(h("span", { class: `dot ${tone}` }), h("span", {}, t(label)),
-    ctx.meta.indexing.lastIndexedAt && h("span", { class: "muted hide-md", title: dateTime(ctx.meta.indexing.lastIndexedAt) }, `· ${ago(ctx.meta.indexing.lastIndexedAt)}`));
+    ctx.meta.indexing.lastIndexedAt && h("span", { class: "muted hide-lg", title: dateTime(ctx.meta.indexing.lastIndexedAt) }, `· ${ago(ctx.meta.indexing.lastIndexedAt)}`));
   status.title = t("status.tooltip");
   bell.querySelector(".count")?.remove();
   if (notices.length) bell.append(h("span", { class: "count", style: { position: "absolute", top: "4px", right: "4px", background: "var(--danger)", color: "#fff", borderRadius: "999px", fontSize: "10px", padding: "0 5px" } }, notices.length));
@@ -71,7 +71,7 @@ function buildShell() {
   const search = createGlobalSearch({ commands: () => [...pageCommands(), { title: t("palette.toggleTheme"), icon: "sun", run: cycleTheme }, { title: t("palette.toggleSidebar"), icon: "panel", run: toggleSidebar }, { title: t("palette.workspace"), icon: "layers", run: () => go("espacio") }] });
   ctx.search = search;
   const toggleSidebar = () => { shell.classList.toggle("collapsed"); store.set("sidebar-collapsed", shell.classList.contains("collapsed")); };
-  const themeButton = h("button", { class: "icon-btn", "aria-label": t("theme.label"), title: t("theme.label"), onclick: cycleTheme }, icon("sun"));
+  const themeButton = h("button", { class: "icon-btn", "aria-label": t("theme.label"), title: t("theme.label"), onclick: cycleTheme }, icon("moon"));
   const refresh = h("button", { class: "icon-btn hide-sm", "aria-label": t("header.refresh"), title: t("header.refresh"), onclick: async () => { await boot(true); toast(t("header.refreshed"), "ok", 7000); } }, icon("refresh"));
   shell = h("div", { class: `shell ${collapsed ? "collapsed" : ""}` },
     h("aside", { class: "sidebar" },
@@ -83,12 +83,12 @@ function buildShell() {
     h("header", { class: "header" },
       h("div", { class: "header-left" },
         h("button", { class: "icon-btn menu-btn", "aria-label": t("nav.open"), onclick: () => shell.classList.add("open") }, icon("menu")),
-        h("div", { class: "project hide-sm" }, h("span", { id: "project-name" }), h("small", { class: "hide-md" }, t("header.repo"))),
-        h("a", { class: "status-pill hide-md", href: hrefTo("espacio"), title: t("header.workspaceTip") }, icon("layers", 14), t("header.workspaceCode"))),
+        h("div", { class: "project hide-sm" }, h("span", { id: "project-name" }), h("small", { class: "hide-lg" }, t("header.repo"))),
+        h("a", { class: "status-pill hide-lg", href: hrefTo("espacio"), title: t("header.workspaceTip") }, icon("layers", 14), t("header.workspaceCode"))),
       h("div", { class: "header-center" }, search.el),
       h("div", { class: "header-right" }, status, refresh, bell, themeButton,
         h("a", { class: "icon-btn hide-sm", href: hrefTo("configuracion"), "aria-label": t("nav.configuracion"), title: t("nav.configuracion") }, icon("gear")),
-        h("span", { class: "status-pill hide-md", title: t("header.localTip") }, icon("lock", 13), t("header.local")))),
+        h("span", { class: "status-pill hide-lg", title: t("header.localTip") }, icon("lock", 13), t("header.local")))),
     h("div", { class: "scrim", onclick: () => shell.classList.remove("open") }),
     (main = h("main", { class: "main", id: "contenido" })));
   clear(app).append(shell, h("div", { class: "toasts", "aria-live": "polite" }));

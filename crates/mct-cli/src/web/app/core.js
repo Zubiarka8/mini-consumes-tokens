@@ -1,6 +1,13 @@
 // Shared runtime: DOM builder, API client, routing state, formatting, dialogs, toasts.
 import { t } from "./i18n.js";
 
+// Element.append behaves like h(): arrays are flattened and null/undefined/false are skipped,
+// so conditional children can be passed everywhere without printing "null" or "[object …]".
+const nativeAppend = Element.prototype.append;
+Element.prototype.append = function append(...nodes) {
+  return nativeAppend.apply(this, nodes.flat(Infinity).filter((node) => node !== null && node !== undefined && node !== false));
+};
+
 const SVG_NS = "http://www.w3.org/2000/svg";
 const BOOLEAN_PROPS = new Set(["disabled", "checked", "hidden", "selected", "open", "readOnly", "required"]);
 
