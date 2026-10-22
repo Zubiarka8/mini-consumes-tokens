@@ -152,21 +152,27 @@ pub fn dead_code_findings(
     file_hashes: &[(String, String)],
 ) -> Vec<FindingKeys> {
     let hashes = hash_map(file_hashes);
+    fn name_of(entry: &SymbolListEntry) -> (&str, &str, &str, &str) {
+        (
+            entry.relative_path.as_str(),
+            entry.kind.as_str(),
+            entry.parent.as_deref().unwrap_or(""),
+            entry.name.as_str(),
+        )
+    }
     let parent = |entry: &SymbolListEntry| entry.parent.clone().unwrap_or_default();
 
     // `dead-id-v2`: the ordinal among all symbols of the file with the same
     // kind, parent and name, so a sibling gaining a reference shifts nothing.
-    let mut by_name: BTreeMap<(&str, &str, String, &str), Vec<usize>> = BTreeMap::new();
+    // Only names that some candidate has are counted.
+    let mut by_name: HashMap<(&str, &str, &str, &str), Vec<usize>> = candidates
+        .iter()
+        .map(|id| (name_of(&symbols[*id]), Vec::new()))
+        .collect();
     for (id, entry) in symbols.iter().enumerate() {
-        by_name
-            .entry((
-                &entry.relative_path,
-                &entry.kind,
-                parent(entry),
-                &entry.name,
-            ))
-            .or_default()
-            .push(id);
+        if let Some(ids) = by_name.get_mut(&name_of(entry)) {
+            ids.push(id);
+        }
     }
     let mut ordinal = vec![0_usize; symbols.len()];
     for ids in by_name.values_mut() {

@@ -87,7 +87,6 @@ pub struct Change {
 pub struct Reviews {
     directory: PathBuf,
     sources: Sources,
-    canonical_bytes: Option<String>,
     read: Vec<(Format, PathBuf)>,
     problems: Vec<SourceProblem>,
     leftover_temporary_files: usize,
@@ -170,7 +169,6 @@ impl Reviews {
         let mut reviews = Reviews {
             directory: directory.to_path_buf(),
             sources: Sources::default(),
-            canonical_bytes: None,
             read: Vec::new(),
             problems: Vec::new(),
             leftover_temporary_files: count_temporary_files(directory),
@@ -189,7 +187,6 @@ impl Reviews {
             Ok(Some(text)) => match parse_canonical(&text) {
                 Ok(canonical) => {
                     reviews.sources.canonical = canonical;
-                    reviews.canonical_bytes = Some(text);
                     reviews.read.push((Format::C3, path));
                 }
                 Err(error) => problem(path, error.to_string()),
@@ -228,7 +225,6 @@ impl Reviews {
         if !reviews.problems.is_empty() {
             // Nothing from a partial read may hide a finding.
             reviews.sources = Sources::default();
-            reviews.canonical_bytes = None;
         }
         reviews
     }
@@ -348,13 +344,15 @@ impl Reviews {
             return Err(ReviewError::Full("the file would exceed 32 MiB"));
         }
         verify_append(&current.sources.canonical, &text, &row)?;
-        if let Some(previous) = &current.canonical_bytes {
-            publish(&self.directory, PREVIOUS_FILE, previous)?;
+        // Only writers holding the lock change this file, so these are the
+        // bytes `current` was parsed from.
+        let canonical = self.directory.join(CANONICAL_FILE);
+        if let Some(previous) = read_source(&canonical).map_err(ReviewError::Degraded)? {
+            publish(&self.directory, PREVIOUS_FILE, &previous)?;
         }
         publish(&self.directory, CANONICAL_FILE, &text)?;
         let mut saved = current;
         saved.sources.canonical = next;
-        saved.canonical_bytes = Some(text);
         if !saved.read.iter().any(|(format, _)| *format == Format::C3) {
             saved
                 .read
