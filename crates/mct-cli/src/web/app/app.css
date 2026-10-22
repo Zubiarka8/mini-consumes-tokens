@@ -372,7 +372,8 @@ dialog .dlg footer { display: flex; justify-content: flex-end; gap: 8px; }
   .page { padding: 16px 12px 32px; }
   h1 { font-size: 22px; }
   .header .hide-sm { display: none; }
-  .gsearch select { display: none; }
+  .gsearch select, .gsearch kbd, .gsearch .kbd { display: none; }
+    .header-right { gap: 2px; }
   .grid.metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .t .hide-sm { display: none; }
   .bar-row { grid-template-columns: 80px 1fr 52px; }
@@ -382,7 +383,8 @@ dialog .dlg footer { display: flex; justify-content: flex-end; gap: 8px; }
 .donut-label { font-size: 11px; fill: var(--text-2) !important; }
 
 #project-name { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; }
-.gsearch { min-width: 300px; }
+@media (max-width: 640px) { #project-name { max-width: 90px; } }
+.gsearch { min-width: min(300px, 100%); }
 @media (max-width: 1540px) { .header .hide-lg { display: none; } }
 
 .t td .path { display: block; max-width: 30ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

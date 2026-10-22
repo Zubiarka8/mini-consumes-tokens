@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `mct-cli web` is now a complete local dashboard: a read-only JSON API over
+  the startup snapshot and an embedded, dependency-free front end (Spanish UI,
+  dark and light themes, responsive, keyboard accessible) with Dashboard,
+  indexed code, duplicates with side-by-side compare, dead code, search,
+  dependency graph, reviews, statistics, Obsidian notes, unified workspace and
+  settings. Review decisions gain notes and append-only history (store v2,
+  v1 files upgrade in place). Server-rendered pages and the form `POST review`
+  are replaced by `POST api/review` (JSON). Features the index cannot back
+  (history, semantic search, tokens, confidence) are shown as unavailable. See
+  `docs/01-architecture/web-dashboard.md`.
+
 ### Added
 
 - `build_context_pack`, `search_symbols_like` and `hybrid_search_like` (and
