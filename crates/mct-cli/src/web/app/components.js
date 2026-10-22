@@ -62,8 +62,12 @@ export const STATES = {
   "false-positive": { label: "state.falsePositive", tone: "primary", color: "var(--primary)" },
   resolved: { label: "state.resolved", tone: "success", color: "var(--success)" },
   dismissed: { label: "state.dismissed", tone: "", color: "var(--text-3)" },
+  // Derived by the server, never stored: a decision about earlier code, and a
+  // finding marked resolved that the detector still finds unchanged.
+  "needs-reevaluation": { label: "state.needsReevaluation", tone: "warning", color: "var(--warning)" },
+  "resolved-but-detected": { label: "state.resolvedButDetected", tone: "info", color: "var(--info)" },
 };
-export const STATE_ORDER = ["unreviewed", "in-review", "confirmed", "false-positive", "resolved", "dismissed"];
+export const STATE_ORDER = ["unreviewed", "needs-reevaluation", "in-review", "confirmed", "resolved-but-detected", "false-positive", "resolved", "dismissed"];
 export const stateLabel = (state) => t(STATES[state]?.label || state);
 
 export const badge = (text, tone = "", iconName = null) => h("span", { class: `badge ${tone}` }, iconName && icon(iconName, 12), text);

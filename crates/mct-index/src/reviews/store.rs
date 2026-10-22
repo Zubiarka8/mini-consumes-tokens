@@ -268,8 +268,9 @@ impl Reviews {
     }
 
     /// Records `change` for `findings[target]` in `review-decisions.toon`.
-    /// On success `self` holds the files as they are now on disk; on any
-    /// error nothing was written and `self` is unchanged.
+    /// On success, and on [`ReviewError::Conflict`], `self` holds the files
+    /// as they are now on disk; on any error nothing was written, and on
+    /// errors other than a conflict `self` is unchanged.
     pub fn save(
         &mut self,
         findings: &[FindingKeys],
@@ -299,6 +300,8 @@ impl Reviews {
         let resolver = Resolver::new(&current.sources, findings);
         let resolution = resolver.resolve(finding);
         if resolution.revision() != change.expected_revision {
+            // Nothing is written, but the caller now sees the newer state.
+            *self = current;
             return Err(ReviewError::Conflict);
         }
         let unchanged = resolution.state() == change.state
