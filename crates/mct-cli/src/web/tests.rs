@@ -105,10 +105,10 @@ fn local_web_links_both_views_and_keeps_the_index_read_only() {
     assert!(
         overview.contains("default-src 'none'") && overview.contains("Cache-Control: no-store")
     );
-    assert!(server.get("atlas").contains("atlas?dir=src"));
+    assert!(server.get("atlas").contains("atlas?dir=src&amp;q="));
     let atlas = server.get("atlas?dir=src");
     assert!(atlas.contains("file?path=src%2Fa.rs"), "{atlas}");
-    assert!(atlas.contains("src/b.rs"));
+    assert!(atlas.contains("file?path=src%2Fb.rs"));
     let file = server.get("file?path=src%2Fa.rs");
     assert!(file.contains("alpha") && file.contains("duplicates?path=src%2Fa.rs"));
     assert!(file.contains("src/a.rs:1"));
@@ -235,7 +235,7 @@ fn atlas_pagination_and_encoded_paths_keep_every_entry_accessible() {
     assert!(first.contains("file?path=src%2Fa+%26+%C3%BC.rs"));
     assert!(!first.contains("outside.rs"));
     let second = server.get("atlas?dir=src&page=1");
-    assert!(second.contains("src/file_100.rs") && second.contains("Page 2 of 2"));
+    assert!(second.contains("file_100.rs") && second.contains("Page 2 of 2"));
     let first = server.get("file?path=src%2Fa+%26+%C3%BC.rs");
     assert!(first.contains("symbol_0") && first.contains("src/a &amp; ü.rs"));
     assert!(!first.contains("<code>symbol_204</code>"));
@@ -243,7 +243,8 @@ fn atlas_pagination_and_encoded_paths_keep_every_entry_accessible() {
     assert!(last.contains("<code>symbol_204</code>"), "{last}");
     assert!(last.contains("Page 3 of 3"));
     let searched = server.get("atlas?q=symbol_204");
-    assert!(searched.contains("atlas?dir=src"));
+    assert!(searched.contains("1 matching file ") && searched.contains("matches symbol_204"));
+    assert!(searched.contains("file?path=src%2Fa+%26+%C3%BC.rs"));
     let searched = server.get("atlas?dir=src&q=symbol_204");
     assert!(searched.contains("file?path=src%2Fa+%26+%C3%BC.rs"));
     assert!(!searched.contains("file_100.rs"));
@@ -275,6 +276,9 @@ fn generated_navigation_has_no_broken_links_and_wire_lengths_are_exact() {
         }
         for value in body.split("href=\"").skip(1) {
             let href = value.split('"').next().unwrap().replace("&amp;", "&");
+            if href.starts_with('#') {
+                continue;
+            }
             let target = if href == "./" { "".to_string() } else { href };
             assert!(!target.contains("://"), "no external resources");
             pending.push(target);
@@ -349,27 +353,27 @@ fn dismiss_and_restore_persist_without_mutating_the_analysis_or_index() {
     let server = Server::start(root.path(), true);
     let raw = server.get("duplicates.toon");
     let key = server.site.borrow().review_keys[0].clone();
-    assert!(server.get("duplicates").contains("Move to discarded"));
+    assert!(server.get("duplicates").contains("Discard group"));
     let response = server.post(&key, "false-positive");
     assert!(response.starts_with("HTTP/1.1 303") && response.contains("Location: duplicates\r\n"));
     let active = server.get("duplicates");
     assert!(
         !active.contains("group?id=0")
-            && active.contains("Active (0)")
+            && active.contains("To review (0)")
             && active.contains("Discarded (1)")
     );
     let discarded = server.get("duplicates?view=discarded");
     assert!(
         discarded.contains("group?id=0")
             && discarded.contains("False positive")
-            && discarded.contains("Restore to active")
+            && discarded.contains("Restore to review")
     );
     assert_eq!(server.get("duplicates.toon"), raw);
     let restarted = Server::start(root.path(), true);
     assert!(!restarted.get("duplicates").contains("group?id=0"));
     assert!(restarted
         .get("file?path=src%2Fa.rs")
-        .contains("Duplicate groups</a> (0)"));
+        .contains("Duplicate groups containing this file</a> (0)"));
     assert!(restarted.post(&key, "restore").starts_with("HTTP/1.1 303"));
     assert!(restarted.get("duplicates").contains("group?id=0"));
     assert!(!Server::start(root.path(), true)
@@ -571,9 +575,38 @@ fn review_state_is_applied_before_group_pagination_in_both_views() {
         assert!(server.post(key, "dismissed").starts_with("HTTP/1.1 303"));
     }
     let active = server.get("duplicates");
-    assert!(active.contains("Active (19)") && active.contains("Page 1 of 1"));
+    assert!(active.contains("To review (19)") && active.contains("Page 1 of 1"));
     assert!(!active.contains("group?id=0"));
     let discarded = server.get("duplicates?view=discarded");
     assert!(discarded.contains("Discarded (6)") && discarded.contains("group?id=0"));
-    assert!(discarded.contains("Restore to active"));
+    assert!(discarded.contains("Restore to review"));
+}
+
+#[test]
+fn filters_are_explained_and_survive_review_actions() {
+    let root = project();
+    let server = Server::start(root.path(), true);
+    let found = server.get("atlas?q=BETA");
+    assert!(found.contains("1 matching file ") && found.contains("Clear search"));
+    assert!(found.contains("file?path=src%2Fb.rs") && !found.contains("file?path=src%2Fa.rs"));
+    assert!(server
+        .get("atlas?q=nothing-here")
+        .contains("No file or symbol matches"));
+    let key = server.site.borrow().review_keys[0].clone();
+    let filtered = server.get("duplicates?q=alpha");
+    assert!(filtered.contains("Clear all filters") && filtered.contains("aria-current=\"page\""));
+    assert!(filtered.contains("name=\"back\" value=\"q=alpha&amp;view=active\""));
+    let body = form_urlencoded::Serializer::new(String::new())
+        .extend_pairs([
+            ("csrf", server.site.borrow().csrf.clone()),
+            ("key", key),
+            ("action", "dismissed".to_string()),
+            ("back", "q=alpha&view=active&evil=1".to_string()),
+        ])
+        .finish();
+    let response = server.form(&body, "Origin: http://127.0.0.1:8787\r\n");
+    assert!(
+        response.contains("Location: duplicates?q=alpha&view=active\r\n"),
+        "{response}"
+    );
 }

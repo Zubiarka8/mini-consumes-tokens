@@ -10,10 +10,23 @@ pub(super) struct Response {
     pub status: u16,
     pub content_type: &'static str,
     pub body: String,
-    pub location: Option<&'static str>,
+    pub location: Option<String>,
 }
 
 impl Response {
+    pub fn ok(content_type: &'static str, body: String) -> Self {
+        Self {
+            status: 200,
+            location: None,
+            content_type,
+            body,
+        }
+    }
+
+    pub fn html(body: String) -> Self {
+        Self::ok("text/html; charset=utf-8", body)
+    }
+
     pub fn error(status: u16) -> Self {
         Self {
             status,
@@ -53,22 +66,88 @@ fn link(route: &str, path: &str, label: &str) -> String {
     )
 }
 
-fn page(title: &str, site: &Site, body: &str) -> Response {
+/// Fills `{{name}}` slots in one pass, so inserted values are never re-scanned for slots.
+/// Callers pass values already HTML-escaped.
+fn fill(template: &str, values: &[(&str, &str)]) -> String {
+    let mut out = String::with_capacity(template.len());
+    let mut rest = template;
+    while let Some(start) = rest.find("{{") {
+        out.push_str(&rest[..start]);
+        let tail = &rest[start + 2..];
+        let end = tail.find("}}").unwrap_or(tail.len());
+        let name = &tail[..end];
+        if let Some((_, value)) = values.iter().find(|(key, _)| *key == name) {
+            out.push_str(value);
+        }
+        rest = tail.get(end + 2..).unwrap_or("");
+    }
+    out.push_str(rest);
+    out
+}
+
+/// `current` is the header section this page belongs to: "overview", "files" or "duplicates".
+fn page(title: &str, current: &str, site: &Site, body: &str) -> Response {
+    let mark = |section: &str| {
+        if section == current {
+            " aria-current=\"page\""
+        } else {
+            ""
+        }
+    };
     let warning = site
         .warning
         .as_deref()
         .map(|warning| format!("<p class=\"warning\">{}</p>", escape(warning)))
         .unwrap_or_default();
-    Response {
-        status: 200,
-        location: None,
-        content_type: "text/html; charset=utf-8",
-        body: format!(
-            r#"<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} · {project}</title><link rel="stylesheet" href="style.css"></head><body><header><a class="brand" href="./">MCT / {project}</a><nav aria-label="Project views"><a href="./">Overview</a><a href="atlas">Atlas</a><a href="duplicates">Duplicates</a></nav></header><main>{warning}<h1>{title}</h1>{body}</main><footer>Local snapshot · {time} (Unix seconds). Reindex and restart this command to refresh. SQLite supplies navigation; duplicate analysis checks current source files.</footer></body></html>"#,
-            title = escape(title),
-            project = escape(&site.project),
-            time = site.generated
-        ),
+    Response::html(fill(
+        include_str!("templates/page.html"),
+        &[
+            ("title", &escape(title)),
+            ("current_overview", mark("overview")),
+            ("current_files", mark("files")),
+            ("current_duplicates", mark("duplicates")),
+            ("project", &escape(&site.project)),
+            ("warning", &warning),
+            ("body", body),
+            ("time", &site.generated.to_string()),
+        ],
+    ))
+}
+
+fn text<'a>(params: &'a BTreeMap<String, String>, key: &str) -> &'a str {
+    params.get(key).map_or("", String::as_str)
+}
+
+/// Case-insensitive substring test; `query` must already be lowercase.
+fn contains(haystack: &str, query: &str) -> bool {
+    haystack.to_lowercase().contains(query)
+}
+
+/// Query string that restores the duplicate list filters after a review action.
+pub(super) fn filter_query(path: &str, q: &str, view: &str) -> String {
+    let fields = [("path", path), ("q", q), ("view", view)];
+    form_urlencoded::Serializer::new(String::new())
+        .extend_pairs(fields.into_iter().filter(|(_, value)| !value.is_empty()))
+        .finish()
+}
+
+/// Where a review action returns to: the list the user was filtering, else the plain list.
+pub(super) fn review_location(back: &str, restored: bool) -> String {
+    let (mut path, mut q, mut view) = (String::new(), String::new(), String::new());
+    for (key, value) in form_urlencoded::parse(back.as_bytes()) {
+        match key.as_ref() {
+            "path" => path = value.into_owned(),
+            "q" => q = value.into_owned(),
+            "view" if matches!(value.as_ref(), "active" | "discarded") => view = value.into_owned(),
+            _ => {}
+        }
+    }
+    if restored && view.is_empty() {
+        view = "discarded".to_string();
+    }
+    match filter_query(&path, &q, &view) {
+        query if query.is_empty() => "duplicates".to_string(),
+        query => format!("duplicates?{query}"),
     }
 }
 
@@ -126,154 +205,281 @@ pub(super) fn route(site: &Site, target: &str) -> Response {
     }
     match route {
         "" => overview(site),
-        "style.css" => Response {
-            status: 200,
-            location: None,
-            content_type: "text/css; charset=utf-8",
-            body: include_str!("style.css").to_string(),
-        },
+        "style.css" => Response::ok(
+            "text/css; charset=utf-8",
+            include_str!("style.css").to_string(),
+        ),
         "atlas" => atlas(site, &params),
         "file" => file(site, &params),
         "duplicates" => duplicates(site, &params),
         "group" => group(site, &params),
-        "duplicates.toon" => Response {
-            status: 200,
-            location: None,
-            content_type: "text/plain; charset=utf-8",
-            body: crate::duplicates::render_toon(&site.duplicates),
-        },
+        "duplicates.toon" => Response::ok(
+            "text/plain; charset=utf-8",
+            crate::duplicates::render_toon(&site.duplicates),
+        ),
         _ => Response::error(404),
     }
 }
 
 fn overview(site: &Site) -> Response {
-    let mut body = format!(
-        r#"<p class="intro">Explore the project, then follow a file into its duplicate candidates.</p><section class="cards"><a class="card" href="atlas"><span class="eyebrow">PROJECT MAP</span><strong>{} files</strong><span>Directories, symbols and resolved imports →</span></a><a class="card" href="duplicates"><span class="eyebrow">CODE REVIEW</span><strong>{} active duplicate groups</strong><span>Candidate groups, verdicts and source locations →</span></a></section><section><h2>Obsidian vault</h2><p>The same index supplies the metadata atlas in <code>.mct-index/obsidian/</code>. Open that folder as a vault in Obsidian. File bodies are retrieved on demand through the existing context tools.</p></section>"#,
-        site.navigation.files.len(),
-        site.duplicates
-            .groups
-            .iter()
-            .enumerate()
-            .filter(|(id, _)| !site.dismissed(*id))
-            .count()
+    let body = fill(
+        include_str!("templates/overview.html"),
+        &[
+            ("files", &site.navigation.files.len().to_string()),
+            ("groups", &site.active_total().to_string()),
+        ],
     );
-    diagnostics(site, &mut body);
-    page("Project explorer", site, &body)
+    page("Project explorer", "overview", site, &body)
 }
 
-fn search_form(route: &str, q: &str, hidden: &[(&str, &str)], label: &str) -> String {
-    let mut out = format!(
-        r#"<form action="{route}" method="get"><label for="q">{label}</label><div class="search"><input id="q" name="q" value="{}" type="search"><button>Search</button></div>"#,
-        escape(q)
-    );
-    for (key, value) in hidden {
-        let _ = write!(
-            out,
-            "<input type=\"hidden\" name=\"{}\" value=\"{}\">",
-            escape(key),
-            escape(value)
-        );
-    }
-    out.push_str("</form>");
-    out
+fn hidden_input(name: &str, value: &str) -> String {
+    format!(
+        "<input type=\"hidden\" name=\"{}\" value=\"{}\">",
+        escape(name),
+        escape(value)
+    )
 }
 
-fn atlas(site: &Site, params: &BTreeMap<String, String>) -> Response {
-    let q = params.get("q").map(String::as_str).unwrap_or("");
-    let directory = params.get("dir").map(String::as_str).unwrap_or("");
-    let prefix = if directory.is_empty() {
+/// Path prefix that selects the contents of `directory` ("" is the project root).
+fn dir_prefix(directory: &str) -> String {
+    if directory.is_empty() {
         String::new()
     } else {
         format!("{directory}/")
-    };
-    let query = q.to_lowercase();
-    // Group the immediate children once; paging counts directories and files.
-    let mut children: BTreeMap<String, bool> = BTreeMap::new();
+    }
+}
+
+fn search_form(
+    route: &str,
+    q: &str,
+    hidden: &[(&str, &str)],
+    label: &str,
+    placeholder: &str,
+) -> String {
+    let hidden: String = hidden
+        .iter()
+        .map(|(name, value)| hidden_input(name, value))
+        .collect();
+    fill(
+        include_str!("templates/search_form.html"),
+        &[
+            ("route", route),
+            ("label", label),
+            ("q", &escape(q)),
+            ("placeholder", &escape(placeholder)),
+            ("hidden", &hidden),
+        ],
+    )
+}
+
+struct Entry {
+    path: String,
+    label: String,
+    directory: bool,
+    note: String,
+}
+
+/// Immediate children of `directory`: folders first, then files.
+fn browse_entries(site: &Site, directory: &str) -> Vec<Entry> {
+    let prefix = dir_prefix(directory);
+    let mut children: BTreeMap<&str, bool> = BTreeMap::new();
     for file in &site.navigation.files {
         let Some(rest) = file.relative_path.strip_prefix(&prefix) else {
             continue;
         };
-        let matches = query.is_empty()
-            || file.relative_path.to_lowercase().contains(&query)
-            || site
+        match rest.split_once('/') {
+            Some((name, _)) => children.insert(name, true),
+            None => children.insert(rest, false),
+        };
+    }
+    let mut entries: Vec<_> = children
+        .into_iter()
+        .map(|(name, directory)| {
+            let path = format!("{prefix}{name}");
+            let note = if directory {
+                let files = site
+                    .navigation
+                    .files
+                    .iter()
+                    .filter(|file| file.relative_path.starts_with(&format!("{path}/")))
+                    .count();
+                format!("folder · {}", plural(files, "file"))
+            } else {
+                file_note(site, &path)
+            };
+            Entry {
+                path,
+                label: name.to_string(),
+                directory,
+                note,
+            }
+        })
+        .collect();
+    entries.sort_by_key(|entry| !entry.directory);
+    entries
+}
+
+fn plural(count: usize, noun: &str) -> String {
+    format!("{count} {noun}{}", if count == 1 { "" } else { "s" })
+}
+
+fn file_note(site: &Site, path: &str) -> String {
+    format!(
+        "{} · {}",
+        plural(site.symbols.get(path).map_or(0, Vec::len), "symbol"),
+        plural(site.active_groups(path), "duplicate group")
+    )
+}
+
+/// Files under `directory` whose path or symbol names contain `query` (lowercase).
+fn search_entries(site: &Site, directory: &str, query: &str) -> Vec<Entry> {
+    let prefix = dir_prefix(directory);
+    site.navigation
+        .files
+        .iter()
+        .filter(|file| file.relative_path.starts_with(&prefix))
+        .filter_map(|file| {
+            let path = &file.relative_path;
+            let mut names: Vec<&str> = site
                 .symbols
-                .get(&file.relative_path)
+                .get(path)
                 .into_iter()
                 .flatten()
-                .any(|id| {
-                    site.navigation.symbols[*id]
-                        .name
-                        .to_lowercase()
-                        .contains(&query)
-                });
-        if !matches {
-            continue;
+                .map(|id| site.navigation.symbols[*id].name.as_str())
+                .filter(|name| contains(name, query))
+                .collect();
+            names.dedup();
+            if names.is_empty() && !contains(path, query) {
+                return None;
+            }
+            let matched = if names.is_empty() {
+                String::new()
+            } else {
+                let shown: Vec<_> = names.iter().take(3).copied().collect();
+                let more = names.len() - shown.len();
+                let more = if more > 0 {
+                    format!(" +{more}")
+                } else {
+                    String::new()
+                };
+                format!("matches {}{more} · ", shown.join(", "))
+            };
+            Some(Entry {
+                path: path.clone(),
+                label: path.clone(),
+                directory: false,
+                note: format!("{matched}{}", file_note(site, path)),
+            })
+        })
+        .collect()
+}
+
+fn breadcrumbs(directory: &str, q: &str) -> String {
+    let mut out = format!(
+        "<nav class=\"crumbs\" aria-label=\"Folder\"><a href=\"{}\">Project root</a>",
+        href("atlas", &[("q", q)])
+    );
+    let mut path = String::new();
+    for part in directory.split('/').filter(|part| !part.is_empty()) {
+        if !path.is_empty() {
+            path.push('/');
         }
-        let (name, is_dir) = rest
-            .split_once('/')
-            .map_or((rest, false), |(dir, _)| (dir, true));
-        children.insert(format!("{prefix}{name}"), is_dir);
+        path.push_str(part);
+        let _ = write!(
+            out,
+            " / <a href=\"{}\">{}</a>",
+            href("atlas", &[("dir", &path), ("q", q)]),
+            escape(part)
+        );
     }
-    let mut body = search_form(
+    out.push_str("</nav>");
+    out
+}
+
+fn atlas(site: &Site, params: &BTreeMap<String, String>) -> Response {
+    let q = text(params, "q").trim();
+    let directory = text(params, "dir");
+    let query = q.to_lowercase();
+    let scope = if directory.is_empty() {
+        "the whole project".to_string()
+    } else {
+        format!("<code>{}</code>", escape(directory))
+    };
+    let mut body = format!(
+        "<p class=\"hint\">Browse folders, or search to list every file whose path or symbol (function, class…) name contains your text. Searching covers {scope}.</p>"
+    );
+    body.push_str(&search_form(
         "atlas",
         q,
         &[("dir", directory)],
-        "Filter paths and indexed symbol names",
-    );
-    let _ = write!(
-        body,
-        "<h2>{}</h2><p><a href=\"atlas\">Project root</a>",
-        if directory.is_empty() {
-            "/".to_string()
-        } else {
-            escape(directory)
-        }
-    );
-    if !directory.is_empty() {
-        let parent = directory.rsplit_once('/').map_or("", |(parent, _)| parent);
+        "Search files and symbols",
+        "e.g. parse_request or src/web",
+    ));
+    body.push_str(&breadcrumbs(directory, q));
+    let entries = if query.is_empty() {
+        browse_entries(site, directory)
+    } else {
+        search_entries(site, directory, &query)
+    };
+    if !query.is_empty() {
         let _ = write!(
             body,
-            " · <a href=\"{}\">Parent directory</a>",
-            href("atlas", &[("dir", parent), ("q", q)])
+            "<p class=\"result-count\">{} matching {} for “{}” in {scope}. <a href=\"{}\">Clear search</a>",
+            entries.len(),
+            if entries.len() == 1 { "file" } else { "files" },
+            escape(q),
+            href("atlas", &[("dir", directory)])
         );
+        if !directory.is_empty() {
+            let _ = write!(
+                body,
+                " · <a href=\"{}\">Search the whole project</a>",
+                href("atlas", &[("q", q)])
+            );
+        }
+        body.push_str("</p>");
     }
-    body.push_str("</p><ul class=\"entries\">");
+    body.push_str("<ul class=\"entries\">");
     let (start, pagination) = pager(
         "atlas",
         &[("dir", directory), ("q", q)],
         "page",
         number(params, "page").unwrap_or(0),
-        children.len(),
+        entries.len(),
         PAGE_SIZE,
     );
-    for (path, directory) in children.iter().skip(start).take(PAGE_SIZE) {
-        if *directory {
-            let _ = write!(
+    for entry in entries.iter().skip(start).take(PAGE_SIZE) {
+        let name = escape(&entry.label);
+        let _ = if entry.directory {
+            write!(
                 body,
-                "<li><a href=\"{}\">{}/</a><span>directory</span></li>",
-                href("atlas", &[("dir", path), ("q", q)]),
-                escape(path)
-            );
+                "<li><a href=\"{}\">{name}/</a><span>{}</span></li>",
+                href("atlas", &[("dir", &entry.path), ("q", q)]),
+                escape(&entry.note)
+            )
         } else {
-            let count = site.symbols.get(path).map_or(0, Vec::len);
-            let groups = site.active_groups(path);
-            let _ = write!(
+            write!(
                 body,
-                "<li>{}<span>{count} symbols · {groups} groups</span></li>",
-                link("file", path, path)
-            );
-        }
+                "<li>{}<span>{}</span></li>",
+                link("file", &entry.path, &entry.label),
+                escape(&entry.note)
+            )
+        };
     }
-    if children.is_empty() {
-        body.push_str("<li>No matching entries.</li>");
+    if entries.is_empty() {
+        body.push_str(if query.is_empty() {
+            "<li class=\"empty\">This folder has no indexed files.</li>"
+        } else {
+            "<li class=\"empty\">No file or symbol matches. Check the spelling, try a shorter word, or clear the search.</li>"
+        });
     }
     body.push_str("</ul>");
     body.push_str(&pagination);
-    page("Code atlas", site, &body)
+    page("Project files", "files", site, &body)
 }
 
 fn file(site: &Site, params: &BTreeMap<String, String>) -> Response {
-    let path = params.get("path").map(String::as_str).unwrap_or("");
+    let path = text(params, "path");
     let Ok(id) = site
         .navigation
         .files
@@ -284,8 +490,8 @@ fn file(site: &Site, params: &BTreeMap<String, String>) -> Response {
     let file = &site.navigation.files[id];
     let directory = path.rsplit_once('/').map_or("", |(parent, _)| parent);
     let count = site.active_groups(path);
-    let mut body = format!("<p class=\"actions\"><a href=\"{}\">Directory map</a> · {} ({count})</p><dl><dt>Path</dt><dd><code>{}</code></dd><dt>Language</dt><dd>{}</dd><dt>Content hash</dt><dd><code>{}</code></dd></dl><p>Metadata only. Retrieve source snippets at these exact locations with the MCP context tools.</p><h2>Symbols</h2><ul>",
-        href("atlas", &[("dir", directory)]), link("duplicates", path, "Duplicate groups"), escape(path), escape(&file.language), escape(&file.content_hash));
+    let mut body = format!("<p><a href=\"{}\">← Back to folder</a> · {} ({count})</p><dl><dt>Path</dt><dd><code>{}</code></dd><dt>Language</dt><dd>{}</dd><dt>Content hash</dt><dd><code>{}</code></dd></dl><p>Metadata only. Retrieve source snippets at these exact locations with the MCP context tools.</p><h2>Symbols</h2><ul>",
+        href("atlas", &[("dir", directory)]), link("duplicates", path, "Duplicate groups containing this file"), escape(path), escape(&file.language), escape(&file.content_hash));
     let ids = site
         .symbols
         .get(path)
@@ -345,31 +551,43 @@ fn file(site: &Site, params: &BTreeMap<String, String>) -> Response {
         body.push_str("</ul>");
         body.push_str(&pagination);
     }
-    page(path, site, &body)
+    page(path, "files", site, &body)
 }
 
-fn diagnostics(site: &Site, body: &mut String) {
+fn diagnostics(site: &Site) -> String {
     let report = &site.duplicates;
-    let _ = write!(body, "<p class=\"notice\">Duplicate groups are candidates for human review, not proof of redundant or equivalent behavior. Policy: {} · minimum {} lines / {} tokens. {} candidates analyzed; {} skipped. Index diagnostics: {} syntax errors / {} read failures.</p>",
+    let mut out = String::new();
+    if !report.complete || !report.has_indexing_record {
+        out.push_str("<p class=\"warning\">Partial or unverified analysis: some candidates may be missing. See the complete TOON report for skipped candidates and indexing state.</p>");
+    }
+    let _ = write!(out, "<details><summary>How these groups were found</summary><p>Groups are candidates for human review, not proof of redundant or equivalent behavior. Policy: {} · minimum {} lines / {} tokens. {} candidates analyzed; {} skipped. Index diagnostics: {} syntax errors / {} read failures.</p>",
         report.options.normalization.as_str(), report.options.min_lines, report.options.min_tokens,
         report.candidates_analyzed, report.skipped.len(), report.index_syntax_errors, report.index_read_failures);
-    if !report.complete || !report.has_indexing_record {
-        body.push_str("<p class=\"warning\">Partial or unverified analysis: some candidates may be missing. See the complete TOON report for skipped candidates and indexing state.</p>");
-    }
     if !report.unsupported_languages.is_empty() {
         let _ = write!(
-            body,
+            out,
             "<p>Languages without duplicate token support: {}.</p>",
             escape(&report.unsupported_languages.join(", "))
         );
     }
-    body.push_str("<p><a href=\"duplicates.toon\" download=\"duplicates.toon\">Download full raw duplicate analysis (TOON, includes dismissed groups)</a></p>");
+    out.push_str("<p><a href=\"duplicates.toon\" download=\"duplicates.toon\">Download full raw analysis (TOON, includes discarded groups)</a></p></details>");
+    out
+}
+
+fn group_stats(group: &mct_index::DuplicateGroup) -> String {
+    format!(
+        "{} · {} members · {} lines · {} tokens",
+        escape(&group.language),
+        group.members.len(),
+        group.line_count,
+        group.token_count
+    )
 }
 
 fn duplicates(site: &Site, params: &BTreeMap<String, String>) -> Response {
-    let path = params.get("path").map(String::as_str).unwrap_or("");
-    let q = params.get("q").map(String::as_str).unwrap_or("");
-    let view = params.get("view").map(String::as_str).unwrap_or("active");
+    let path = text(params, "path");
+    let q = text(params, "q").trim();
+    let view = params.get("view").map_or("active", String::as_str);
     if !matches!(view, "active" | "discarded") {
         return Response::error(400);
     }
@@ -384,8 +602,7 @@ fn duplicates(site: &Site, params: &BTreeMap<String, String>) -> Response {
             (path.is_empty() || group.members.iter().any(|member| member.path == path))
                 && (query.is_empty()
                     || group.members.iter().any(|member| {
-                        member.path.to_lowercase().contains(&query)
-                            || member.symbol_name.to_lowercase().contains(&query)
+                        contains(&member.path, &query) || contains(&member.symbol_name, &query)
                     }))
         })
         .collect();
@@ -398,23 +615,55 @@ fn duplicates(site: &Site, params: &BTreeMap<String, String>) -> Response {
         .into_iter()
         .filter(|(id, _)| site.dismissed(*id) == discarded)
         .collect();
-    let mut body = format!("<nav aria-label=\"Review status\"><a href=\"{}\">Active ({})</a><a href=\"{}\">Discarded ({dismissed})</a></nav><p>Dismiss unwanted groups as false positives or for another reason. You can restore them from Discarded. Changed code is reviewed again.</p>",
-        href("duplicates", &[("path", path), ("q", q), ("view", "active")]), total - dismissed,
-        href("duplicates", &[("path", path), ("q", q), ("view", "discarded")]));
+    let tab = |label: &str, target: &str, count: usize| {
+        let current = if target == view {
+            " aria-current=\"page\""
+        } else {
+            ""
+        };
+        format!(
+            "<a class=\"tab\" href=\"{}\"{current}>{label} ({count})</a>",
+            href("duplicates", &[("path", path), ("q", q), ("view", target)])
+        )
+    };
+    let mut body = format!(
+        "<p class=\"hint\">Each group is code that appears in several places. Review it, then discard it if it is not a real problem; you can restore it later. Changed code is reviewed again.</p><nav class=\"tabs\" aria-label=\"Review status\">{}{}</nav>",
+        tab("To review", "active", total - dismissed),
+        tab("Discarded", "discarded", dismissed)
+    );
     body.push_str(&search_form(
         "duplicates",
         q,
         &[("path", path), ("view", view)],
-        "Filter candidate paths and symbol names",
+        "Filter groups by file path or symbol name",
+        "e.g. parse or src/web",
     ));
-    if !path.is_empty() {
+    if !path.is_empty() || !q.is_empty() {
+        body.push_str("<p class=\"result-count\">Filters:");
+        if !path.is_empty() {
+            let _ = write!(
+                body,
+                " file {} <a href=\"{}\">(remove)</a>",
+                link("file", path, path),
+                href("duplicates", &[("q", q), ("view", view)])
+            );
+        }
+        if !q.is_empty() {
+            let _ = write!(
+                body,
+                " text “{}” <a href=\"{}\">(remove)</a>",
+                escape(q),
+                href("duplicates", &[("path", path), ("view", view)])
+            );
+        }
         let _ = write!(
             body,
-            "<p>File: {} · <a href=\"duplicates\">All groups</a></p>",
-            link("file", path, path)
+            " · <a href=\"{}\">Clear all filters</a></p>",
+            href("duplicates", &[("view", view)])
         );
     }
-    diagnostics(site, &mut body);
+    body.push_str(&diagnostics(site));
+    let back = filter_query(path, q, view);
     let (start, pagination) = pager(
         "duplicates",
         &[("path", path), ("q", q), ("view", view)],
@@ -424,7 +673,7 @@ fn duplicates(site: &Site, params: &BTreeMap<String, String>) -> Response {
         GROUP_PAGE_SIZE,
     );
     for (id, group) in matches.iter().skip(start).take(GROUP_PAGE_SIZE) {
-        let _ = write!(body, "<article><h2><a href=\"group?id={id}\">Group {}</a> <span class=\"badge\">{}</span></h2><p>{} · {} members · {} lines · {} tokens</p><ul>", id + 1, escape(group.verdict.level.as_str()), escape(&group.language), group.members.len(), group.line_count, group.token_count);
+        let _ = write!(body, "<article><h2><a href=\"group?id={id}\">Group {}</a> <span class=\"badge\">{}</span></h2><p>{}</p><ul>", id + 1, escape(group.verdict.level.as_str()), group_stats(group));
         for member in group.members.iter().take(6) {
             let _ = write!(
                 body,
@@ -445,32 +694,59 @@ fn duplicates(site: &Site, params: &BTreeMap<String, String>) -> Response {
                 group.members.len() - 6
             );
         }
-        body.push_str(&review_form(site, *id));
+        body.push_str(&review_form(site, *id, &back));
         body.push_str("</article>");
     }
     if matches.is_empty() {
-        body.push_str("<p>No matching duplicate groups.</p>");
+        body.push_str(if !path.is_empty() || !q.is_empty() {
+            "<p class=\"empty\">No groups match these filters. Remove a filter above, or check the other tab.</p>"
+        } else if discarded {
+            "<p class=\"empty\">Nothing has been discarded yet.</p>"
+        } else {
+            "<p class=\"empty\">No duplicate groups to review.</p>"
+        });
     }
     body.push_str(&pagination);
     page(
         if discarded {
-            "Discarded duplicate candidates"
+            "Discarded duplicate groups"
         } else {
-            "Duplicate candidates"
+            "Duplicate groups to review"
         },
+        "duplicates",
         site,
         &body,
     )
 }
 
-fn review_form(site: &Site, id: usize) -> String {
+/// `back` is the filter query of the list the form sits on; empty on the group page.
+fn review_form(site: &Site, id: usize, back: &str) -> String {
     let key = &site.review_keys[id];
     let controls = if let Some(reason) = site.reviews.reason(key) {
-        format!("<p class=\"muted\">Review decision: {}</p><button name=\"action\" value=\"restore\">Restore to active</button>", reason.label())
+        fill(
+            include_str!("templates/review_restore.html"),
+            &[("reason", reason.label())],
+        )
     } else {
-        format!("<label for=\"review-reason-{id}\">Dismiss reason</label><select id=\"review-reason-{id}\" name=\"action\"><option value=\"false-positive\">False positive</option><option value=\"dismissed\">Other / not relevant</option></select><button>Move to discarded</button>")
+        fill(
+            include_str!("templates/review_discard.html"),
+            &[("id", &id.to_string())],
+        )
     };
-    format!("<form action=\"review\" method=\"post\" class=\"review\"><input type=\"hidden\" name=\"csrf\" value=\"{}\"><input type=\"hidden\" name=\"key\" value=\"{}\">{controls}</form>", escape(&site.csrf), escape(key))
+    let back = if back.is_empty() {
+        String::new()
+    } else {
+        hidden_input("back", back)
+    };
+    fill(
+        include_str!("templates/review_form.html"),
+        &[
+            ("csrf", &escape(&site.csrf)),
+            ("key", &escape(key)),
+            ("back", &back),
+            ("controls", &controls),
+        ],
+    )
 }
 
 fn group(site: &Site, params: &BTreeMap<String, String>) -> Response {
@@ -478,7 +754,7 @@ fn group(site: &Site, params: &BTreeMap<String, String>) -> Response {
     let Some(group) = site.duplicates.groups.get(id) else {
         return Response::error(404);
     };
-    let mut body = format!("<p><a href=\"duplicates\">All groups</a></p><p>{} · {} members · {} lines · {} tokens</p><h2>Review signals</h2><p>Verdict: <strong>{}</strong></p><ul>", escape(&group.language), group.members.len(), group.line_count, group.token_count, escape(group.verdict.level.as_str()));
+    let mut body = format!("<p><a href=\"duplicates\">← All groups</a></p><p>{}</p><h2>Review signals</h2><p>Verdict: <strong>{}</strong></p><ul>", group_stats(group), escape(group.verdict.level.as_str()));
     for reason in &group.verdict.reasons {
         let _ = write!(body, "<li>{}</li>", escape(reason.as_str()));
     }
@@ -488,7 +764,7 @@ fn group(site: &Site, params: &BTreeMap<String, String>) -> Response {
         escape(group.priority.level.as_str()),
         escape(&group.priority.reason)
     );
-    body.push_str(&review_form(site, id));
+    body.push_str(&review_form(site, id, ""));
     let id_text = id.to_string();
     let (start, pagination) = pager(
         "group",
@@ -522,5 +798,10 @@ fn group(site: &Site, params: &BTreeMap<String, String>) -> Response {
     );
     body.push_str(&escape(&evidence));
     body.push_str("</pre></details>");
-    page(&format!("Duplicate group {}", id + 1), site, &body)
+    page(
+        &format!("Duplicate group {}", id + 1),
+        "duplicates",
+        site,
+        &body,
+    )
 }
