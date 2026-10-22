@@ -1425,6 +1425,7 @@ dependencies = [
  "globset",
  "hmac-sha256",
  "mct-core",
+ "memchr",
  "rusqlite",
  "rusqlite_migration",
  "serde_json",

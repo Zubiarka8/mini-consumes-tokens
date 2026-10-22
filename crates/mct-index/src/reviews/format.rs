@@ -8,6 +8,8 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
+use memchr::memchr;
+
 use super::{Kind, State};
 
 pub(super) const MAX_ROWS: usize = 100_000;
@@ -72,23 +74,38 @@ fn decode(note: &str) -> String {
         .unwrap_or_default()
 }
 
-/// The lines of a file, numbered from 1.
+/// The lines of a file, numbered from 1. Splits exactly as `str::lines` does:
+/// a line ends at `\n`, one `\r` before it is dropped, and a final newline
+/// does not start an empty line.
 struct Lines<'a> {
-    lines: std::iter::Enumerate<std::str::Lines<'a>>,
+    rest: &'a str,
     last: usize,
 }
 
 impl<'a> Lines<'a> {
     fn new(content: &'a str) -> Self {
         Self {
-            lines: content.lines().enumerate(),
+            rest: content,
             last: 0,
         }
     }
 
     fn next(&mut self) -> Option<(usize, &'a str)> {
-        let (index, line) = self.lines.next()?;
-        self.last = index + 1;
+        if self.rest.is_empty() {
+            return None;
+        }
+        let (line, rest) = match memchr(b'\n', self.rest.as_bytes()) {
+            Some(end) => {
+                let line = &self.rest[..end];
+                (
+                    line.strip_suffix('\r').unwrap_or(line),
+                    &self.rest[end + 1..],
+                )
+            }
+            None => (self.rest, ""),
+        };
+        self.rest = rest;
+        self.last += 1;
         Some((self.last, line))
     }
 
@@ -168,15 +185,20 @@ pub(super) struct Canonical {
 /// Splits a `C3` row into exactly `N` fields; the last one is a note, which
 /// is URL-encoded and so never contains a comma.
 fn fields<const N: usize>(number: usize, text: &str) -> Parsed<[&str; N]> {
-    let mut parts = text.split(',');
     let mut out = [""; N];
+    // The text after the last comma seen so far; `None` once the last field
+    // has been taken. Same split as `str::split(',')`, with a SIMD search.
+    let mut rest = Some(text);
     for slot in &mut out {
-        *slot = match parts.next() {
-            Some(part) => part,
-            None => return fail(number, "wrong number of fields"),
+        let Some(part) = rest else {
+            return fail(number, "wrong number of fields");
+        };
+        (*slot, rest) = match memchr(b',', part.as_bytes()) {
+            Some(end) => (&part[..end], Some(&part[end + 1..])),
+            None => (part, None),
         };
     }
-    match parts.next() {
+    match rest {
         Some(_) => fail(number, "wrong number of fields"),
         None => Ok(out),
     }

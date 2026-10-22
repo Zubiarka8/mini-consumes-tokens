@@ -163,6 +163,32 @@ fn canonical_files_round_trip_byte_for_byte() {
 }
 
 #[test]
+fn line_endings_and_field_counts_follow_the_strict_rules() {
+    let key = hex('a');
+    let row = format!("  dead-code,{key},{key},confirmed,1,");
+    let text = format!(
+        "version: 3\nreviews[1]{{kind,identity,fingerprint,state,updated,note}}:\n{row}\nhistory[0]{{kind,identity,fingerprint,from,to,at,note}}:\n"
+    );
+    let parsed = parse_canonical(&text).unwrap();
+    // Windows line endings read as the same file.
+    assert_eq!(
+        parse_canonical(&text.replace('\n', "\r\n")).unwrap(),
+        parsed
+    );
+    // A missing final newline is accepted, as `str::lines` accepts it.
+    assert_eq!(parse_canonical(text.trim_end()).unwrap(), parsed);
+    // A row with too few or too many fields is refused, on its own line.
+    for bad in [
+        format!("  dead-code,{key},{key},confirmed,1"),
+        format!("  dead-code,{key},{key},confirmed,1,,"),
+    ] {
+        let broken = text.replace(&row, &bad);
+        let error = parse_canonical(&broken).unwrap_err();
+        assert_eq!((error.line, error.reason), (3, "wrong number of fields"));
+    }
+}
+
+#[test]
 fn malformed_files_degrade_the_whole_store_with_line_and_reason() {
     let key = hex('a');
     let cases: Vec<(&str, String)> = vec![
