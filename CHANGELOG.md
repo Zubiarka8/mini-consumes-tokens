@@ -38,6 +38,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the operating system releases the lock, and the next save removes the
   temporary files the killed save left. See
   `docs/01-architecture/adrs/019-shared-review-decisions.md`.
+- Review decisions load faster and use less memory: a store of 100,000 rows
+  loads in about 41 ms instead of about 52 ms, and one load peaks at about
+  52 MiB above a run with no store instead of about 94 MiB. The store is read
+  one line at a time, and lines and fields are split with `memchr`, which the
+  lock file already contained as a transitive dependency. Default outputs are
+  unchanged. See `benchmarks/review-decisions.md`.
 
 ### Added
 
@@ -68,6 +74,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `benchmarks/adaptive-detail.md`) and a per-tool catalog size report.
   `detail`/`max_tokens` add about 523 estimated tokens to the catalog (+3.7%),
   all in schema properties of three tools.
+
+### Fixed
+
+- A finding whose stored content hash is empty is treated as unknown content.
+  The literal-search migration clears every hash until the next reindex, and a
+  file that is not reindexed keeps the empty value. A decision saved in that
+  state could hide a finding whose content was not known; such a finding is
+  never hidden now and shows as needing review.
 
 ### Deprecated
 
