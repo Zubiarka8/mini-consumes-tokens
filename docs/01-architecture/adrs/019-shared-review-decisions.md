@@ -28,7 +28,8 @@ person had already rejected.
   Legacy seconds are multiplied by 1000 when read; they are never reinterpreted.
 - A finding is hidden only by a `false-positive` or `dismissed` decision whose
   identity and exact code fingerprint both match. Changed code shows as
-  `needs-reevaluation`. A finding without a content hash is never hidden.
+  `needs-reevaluation`. A finding without a content hash is never hidden; an
+  empty stored hash counts as no hash.
 - Conflicts are resolved by a fixed total order: latest time first, then the
   outcome that keeps the finding visible, then the newer format
   (`C3` > `B2` > `A2` > `A1`). An ambiguous legacy key decides nothing.
@@ -71,8 +72,10 @@ person had already rejected.
   when the flag is set, so a review decision is never stale.
 - A store is capped at 32 MiB. At about 170 bytes per row this is roughly
   190,000 rows in total; a save beyond it is refused, nothing is dropped.
-- Loading 100,000 canonical rows costs about 100 ms and about 98 MB of peak
-  memory, above the design targets. Measurements and the candidate fixes are in
+- With 100,000 canonical rows a query adds about 43 ms (load about 41 ms and
+  resolution about 2.5 ms) and about 54 MB of peak memory (about 52 MiB), within
+  the design targets of 50 ms and 64 MiB. The store is read line by line, so the
+  file text is never held whole. Measurements are in
   `benchmarks/review-decisions.md`.
 
 ## Alternatives rejected

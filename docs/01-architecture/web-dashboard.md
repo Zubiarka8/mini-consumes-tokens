@@ -70,6 +70,11 @@ checks, strict CSP) is unchanged.
   shape and bounds, source safety, HTTP security, review persistence/CSRF.
 - Browser checks with headless Chrome for Testing: each page in dark/light at
   1440, 1024 and 390 px, command palette, compare view.
+- Review checks in a real browser, on scratch projects only: a finding whose
+  stored content hash is empty is never hidden by a decision saved from the
+  page, and a decision written by the older B2 binary is shown as decided, or
+  as `needs-reevaluation` once the code has changed. Results are in
+  `benchmarks/review-decisions.md`.
 
 ## Known limits
 

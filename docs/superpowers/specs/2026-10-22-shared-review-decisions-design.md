@@ -186,7 +186,10 @@ suppression still needs the exact fingerprint.
 
 A finding whose file has no content hash in the index gets a fingerprint over
 an empty hash (as `B2` does) and is marked as having unknown content: no
-decision ever suppresses it, and it has no `A1`/`A2` key.
+decision ever suppresses it, and it has no `A1`/`A2` key. An empty stored hash
+counts as no hash: the schema migration that adds literal search clears every
+stored hash until the next reindex, and a file that is not reindexed keeps
+the empty value.
 
 `dead-id-v2` removes the ordinal shift described in §2.1. Computing it needs
 the symbols of the candidates' files. `find_dead_code_candidates` already loads
@@ -848,5 +851,10 @@ Recorded while implementing P0–P2 and P4 on `feature/shared-review-decisions`.
 | Web store | kept the `C3` bytes for `.prev` | re-reads them under the lock | halves the memory of a loaded store |
 | Live harness | `M0`, `MA`, `MB` binaries | `MA` (`e68aec9`) only | `M0` drives a form API and nonce, not built yet; `MB` per D16 stays fixture-based |
 | Capacity | 100,000 rows per table | the 32 MiB file bound binds first, near 190,000 rows in total | about 170 bytes per `C3` row |
+| Row identity | identity kept in the row and in the map key | the map key only | one allocation and 64 bytes less per row; the 100,000-row peak fell by about 11 MB |
+| Line and field split | `str::lines`, `str::split(',')` | `memchr`, with the same split rules | the parser's search was the largest cost in the profile; 100,000-row load 47 → 40 ms |
+| Reading a store | whole file read, then parsed | one line at a time, at most 32 MiB + 1 byte | the file text (33.5 MB at 100,000 rows) is no longer held; the 100,000-row peak is about 52 MiB over no store |
+| Empty stored hash | a known, empty hash | no hash: unknown content, never hidden | found by scenario B in the browser: a decision hid a finding whose content was unknown |
 
-Measured gates: `benchmarks/review-decisions.md`.
+Measured gates, final build `cccb522`: `benchmarks/review-decisions.md`. All
+gates are met; the 2% default-latency verdict has about ±1% resolution.
