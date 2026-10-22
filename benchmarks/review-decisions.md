@@ -124,3 +124,24 @@ binary 32-byte keys, and the per-file parse cache that §7.9 reserves for a
 long-running MCP server. Capacity finding: at about 170 bytes per `C3` row,
 the 32 MiB file bound, not the 100,000-row bound, limits a store to roughly
 190,000 rows in total; a save beyond it is refused, nothing is dropped.
+
+## After P2 and P4 (web and CLI wired; MCP unchanged)
+
+Same environment and dataset; 50 iterations, machine otherwise idle.
+
+| format | p50 µs | p95 µs | bytes | EstimatedCounter | SHA-256 |
+|---|---|---|---|---|---|
+| toon | 39421 | 47903 | 4387 | 1714 | `92c7c8d17a5ae9405ec56672dd5e76b96c0ba16a16f3ce80d61d152c52380386` |
+| text | 39256 | 41149 | 2508 | 749 | `dcb1bf9f878a417c31371f850147ebafd34046768c673180e7bd58f38e77b0a6` |
+
+Response and catalog SHA-256 values are identical to the baseline. p50 is
++0.6% (TOON) and +2.6% (text) against the baseline run; across the five runs
+made on this machine the default p50 ranged from 38.3 to 40.2 ms, so the
+difference is within run-to-run noise, and the default `find_dead_code` path
+runs the same code as at the base (`find_dead_code_candidates` keeps its
+filter; only its predicate moved into a shared function).
+
+Review keys: p50 3989 µs. `C3` load at 1,000 rows 881 µs, at 100,000 rows
+98535 µs; all three formats at 100,000 rows 293871 µs. The gate results of
+the P1 section are unchanged: 1,000 rows ≈ +5.0 ms (at the 5 ms gate),
+100,000 rows and memory still miss.
