@@ -1723,7 +1723,7 @@ fn reviewed_reports_filter_before_paging_and_leave_the_default_report_alone() {
         expected_revision: "none".into(),
     };
     Reviews::load(&root)
-        .save(&findings, target, &change, 1_800_000_000)
+        .save(&findings, target, &change, 1_800_000_000_000)
         .unwrap();
 
     assert_eq!(duplicates(&project, &args), before, "no flag, no change");

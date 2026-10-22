@@ -1620,7 +1620,7 @@ mod tests {
             expected_revision: "none".into(),
         };
         Reviews::load(&dir)
-            .save(&findings, target, &change, 1_800_000_000)
+            .save(&findings, target, &change, 1_800_000_000_000)
             .unwrap();
 
         assert_eq!(report(None), before, "no flag, no change");

@@ -148,7 +148,7 @@ pub(super) fn summary(site: &Site) -> Value {
             state => state.value(),
         };
         *per_day
-            .entry(event.at / DAY)
+            .entry(event.at / 1000 / DAY)
             .or_default()
             .entry(to)
             .or_default() += 1;
@@ -158,7 +158,7 @@ pub(super) fn summary(site: &Site) -> Value {
         .take(RECENT_EVENTS)
         .map(|(key, event)| {
             json!({
-                "at": (event.at > 0).then_some(event.at),
+                "at": (event.at > 0).then_some(event.at / 1000),
                 "to": event.to.value(),
                 "note": event.note,
                 "finding": finding_label(site, key),

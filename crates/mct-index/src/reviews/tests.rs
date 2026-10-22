@@ -6,7 +6,10 @@ use std::path::Path;
 use super::format::{parse_canonical, render_canonical, Canonical, Event, Row};
 use super::*;
 
-const NOW: u64 = 1_800_000_000;
+/// Unix seconds, as the older formats store times.
+const NOW_SECS: u64 = 1_800_000_000;
+/// Unix milliseconds, as `C3` stores them and `save` takes them.
+const NOW: u64 = NOW_SECS * 1000;
 
 fn hex(c: char) -> String {
     c.to_string().repeat(64)
@@ -262,7 +265,7 @@ fn every_legacy_format_resolves_with_its_state_time_and_note() {
     let winner = r.winner.clone().unwrap();
     assert_eq!(
         (winner.state, winner.at, winner.format),
-        (State::Dismissed, 40, Format::A2)
+        (State::Dismissed, 40_000, Format::A2)
     );
     assert_eq!(winner.note, "kept for now, see #12");
 
@@ -276,7 +279,7 @@ fn every_legacy_format_resolves_with_its_state_time_and_note() {
     let winner = r.winner.clone().unwrap();
     assert_eq!(
         (winner.state, winner.at, winner.format),
-        (State::Dismissed, 50, Format::B2)
+        (State::Dismissed, 50_000, Format::B2)
     );
     assert_eq!(winner.note, "generated, keep");
     assert_eq!(r.visibility(), Visibility::Suppressed);
@@ -360,7 +363,7 @@ fn a2_restores_are_tombstones_and_inconsistent_keys_decide_nothing() {
     );
     let r = resolve_one(root.path(), &dup());
     let winner = r.winner.clone().unwrap();
-    assert_eq!((winner.state, winner.at), (State::Unreviewed, 20));
+    assert_eq!((winner.state, winner.at), (State::Unreviewed, 20_000));
     assert_eq!(r.state(), State::Unreviewed);
     let other = finding(Kind::Duplicate, '2', 'e', 'b', 'c');
     let reviews = Reviews::load(root.path());
@@ -409,7 +412,7 @@ fn equal_times_prefer_the_visible_outcome_then_the_newest_format() {
     write(
         root.path(),
         "review-decisions.toon",
-        &canonical(&[(Kind::Duplicate, '1', 'f', State::FalsePositive, 50)]),
+        &canonical(&[(Kind::Duplicate, '1', 'f', State::FalsePositive, 50_000)]),
     );
     write(
         root.path(),
@@ -425,7 +428,7 @@ fn equal_times_prefer_the_visible_outcome_then_the_newest_format() {
     write(
         root.path(),
         "review-decisions.toon",
-        &canonical(&[(Kind::Duplicate, '1', 'f', State::Confirmed, 50)]),
+        &canonical(&[(Kind::Duplicate, '1', 'f', State::Confirmed, 50_000)]),
     );
     let r = resolve_one(root.path(), &dup());
     assert_eq!(
@@ -436,7 +439,7 @@ fn equal_times_prefer_the_visible_outcome_then_the_newest_format() {
     write(
         root.path(),
         "review-decisions.toon",
-        &canonical(&[(Kind::Duplicate, '1', 'f', State::Dismissed, 50)]),
+        &canonical(&[(Kind::Duplicate, '1', 'f', State::Dismissed, 50_000)]),
     );
     write(
         root.path(),
@@ -478,7 +481,7 @@ fn resolution_does_not_depend_on_the_order_of_findings() {
         root.path(),
         "review-decisions.toon",
         &canonical(&[
-            (Kind::Duplicate, '1', 'f', State::InReview, 9),
+            (Kind::Duplicate, '1', 'f', State::InReview, 9_000),
             (Kind::DeadCode, '3', 'e', State::Dismissed, 4),
         ]),
     );
@@ -504,7 +507,7 @@ fn a_canonical_tombstone_beats_older_legacy_decisions_and_loses_to_newer_ones() 
     write(
         root.path(),
         "review-decisions.toon",
-        &canonical(&[(Kind::Duplicate, '1', 'e', State::Unreviewed, 60)]),
+        &canonical(&[(Kind::Duplicate, '1', 'e', State::Unreviewed, 60_000)]),
     );
     write(
         root.path(),
@@ -554,9 +557,9 @@ fn history_is_the_union_of_every_source_in_time_order() {
     assert_eq!(
         summary,
         vec![
-            (Format::B2, State::Unreviewed, State::Confirmed, 5),
-            (Format::A2, State::Unreviewed, State::Dismissed, 10),
-            (Format::C3, State::Dismissed, State::InReview, 11),
+            (Format::B2, State::Unreviewed, State::Confirmed, 5_000),
+            (Format::A2, State::Unreviewed, State::Dismissed, 10_000),
+            (Format::C3, State::Dismissed, State::InReview, 10_001),
         ]
     );
 }
@@ -575,7 +578,7 @@ fn saving_writes_only_the_canonical_file_and_keeps_legacy_bytes() {
     write(root.path(), "reviews.toon", &draft_text);
     let mut reviews = Reviews::load(root.path());
     let revision = reviews.resolve(&[dup()])[0].revision();
-    assert_eq!(revision, "a2:dismissed:10");
+    assert_eq!(revision, "a2:dismissed:10000");
     reviews
         .save(&[dup()], 0, &change(State::Unreviewed, &revision), NOW)
         .unwrap();
@@ -634,7 +637,7 @@ fn a_new_decision_is_always_later_than_everything_recorded() {
     write(
         root.path(),
         "duplicate-reviews.toon",
-        &legacy_v2(&[('a', "dismissed", NOW + 10_000, "")], &[]),
+        &legacy_v2(&[('a', "dismissed", NOW_SECS + 10_000, "")], &[]),
     );
     let mut reviews = Reviews::load(root.path());
     assert_eq!(reviews.diagnostics(&[dup()], NOW).future_times, 1);
@@ -644,7 +647,7 @@ fn a_new_decision_is_always_later_than_everything_recorded() {
         .unwrap();
     let r = reviews.resolve(&[dup()]).remove(0);
     assert_eq!(r.state(), State::InReview);
-    assert_eq!(r.winner.unwrap().at, NOW + 10_001);
+    assert_eq!(r.winner.unwrap().at, (NOW_SECS + 10_000) * 1000 + 1);
     let revision = reviews.resolve(&[dup()])[0].revision();
     reviews
         .save(&[dup()], 0, &change(State::Confirmed, &revision), NOW - 5)
@@ -970,4 +973,27 @@ fn a_file_without_a_content_hash_has_unknown_content() {
     let findings = dead_code_findings(&symbols, &[0], &hashes());
     assert!(!findings[0].content_known);
     assert!(findings[0].legacy_key.is_none());
+}
+
+#[test]
+fn rapid_saves_do_not_push_the_clock_ahead_of_a_later_old_binary_decision() {
+    let root = project();
+    let mut reviews = Reviews::load(root.path());
+    for round in 0..50 {
+        let state = [State::InReview, State::Confirmed][round % 2];
+        let revision = reviews.resolve(&[dup()])[0].revision();
+        reviews
+            .save(&[dup()], 0, &change(state, &revision), NOW)
+            .unwrap();
+    }
+    // Logical time moved 49 ms past the clock, not 49 seconds.
+    let latest = reviews.resolve(&[dup()]).remove(0).winner.unwrap().at;
+    assert_eq!(latest, NOW + 49);
+    // An old binary decides one second later: the later decision wins.
+    write(
+        root.path(),
+        "duplicate-reviews.toon",
+        &legacy_v2(&[('a', "dismissed", NOW_SECS + 1, "")], &[]),
+    );
+    assert_eq!(resolve_one(root.path(), &dup()).state(), State::Dismissed);
 }

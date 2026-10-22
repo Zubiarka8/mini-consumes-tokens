@@ -109,7 +109,7 @@ fn safe_path(path: &Path) -> Result<(), String> {
                     {
                         use std::os::unix::fs::MetadataExt;
                         if metadata.nlink() != 1 {
-                            return Err("refusing hard-linked review state".into());
+                            return Err(HARD_LINK.into());
                         }
                     }
                 } else if !metadata.is_dir() {
@@ -134,9 +134,26 @@ fn open(path: &Path) -> std::io::Result<fs::File> {
     opened
 }
 
+const HARD_LINK: &str = "refusing hard-linked review state";
+
+/// `safe_path`, retried briefly when the file looks hard-linked: a writer's
+/// atomic rename can expose a second link for an instant (observed on
+/// macOS). A real hard link stays and is still refused.
+fn safe_source(path: &Path) -> Result<(), String> {
+    for _ in 0..5 {
+        match safe_path(path) {
+            Err(reason) if reason == HARD_LINK => {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            other => return other,
+        }
+    }
+    safe_path(path)
+}
+
 /// The file's text, `None` when it does not exist.
 fn read_source(path: &Path) -> Result<Option<String>, String> {
-    safe_path(path)?;
+    safe_source(path)?;
     let file = match open(path) {
         Ok(file) => file,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
@@ -267,7 +284,8 @@ impl Reviews {
         Resolver::new(&self.sources, findings).diagnostics(findings, now)
     }
 
-    /// Records `change` for `findings[target]` in `review-decisions.toon`.
+    /// Records `change` for `findings[target]` in `review-decisions.toon`,
+    /// `now` being Unix milliseconds from the server clock.
     /// On success, and on [`ReviewError::Conflict`], `self` holds the files
     /// as they are now on disk; on any error nothing was written, and on
     /// errors other than a conflict `self` is unchanged.
