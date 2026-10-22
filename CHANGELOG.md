@@ -19,8 +19,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   are replaced by `POST api/review` (JSON). Features the index cannot back
   (history, semantic search, tokens, confidence) are shown as unavailable. See
   `docs/01-architecture/web-dashboard.md`.
+- Review decisions move to one shared module (`mct_index::reviews`) and a new
+  file, `.mct-index/review-decisions.toon`, the only one written. Decisions in
+  `duplicate-reviews.toon` (v1 and v2) and the dashboard draft's
+  `reviews.toon` keep applying and those files are no longer rewritten, so
+  older binaries keep working on them. A decision about code that changed
+  shows as "needs re-evaluation" instead of hiding the finding; a resolved
+  finding that is still detected shows as such. Saves are rejected (409) when
+  another process changed the decision meanwhile, history is append-only and
+  checked before every save, and the previous file is kept as
+  `review-decisions.toon.prev`. An unreadable review file no longer stops
+  `mct-cli web`: it starts read-only and hides nothing.
 
 ### Added
+
+- `mct-cli dead-code --reviewed show|hide|only` and
+  `mct-cli duplicates --reviewed show|hide|only` apply the web dashboard's
+  review decisions (filtering before paging). Without the flag no review
+  file is read and both reports are unchanged.
 
 - `build_context_pack`, `search_symbols_like` and `hybrid_search_like` (and
   their deprecated aliases) take optional `detail` (`overview`, `summary`,

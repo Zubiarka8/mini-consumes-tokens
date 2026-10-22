@@ -27,11 +27,18 @@ checks, strict CSP) is unchanged.
   `files`, `symbols`, `symbol`, `source`, `findings`, `finding`, `search`,
   `dependencies`, `notes`, `note`, `notes-graph`. Lists page with a bounded
   `limit`; source ranges are bounded and validated against the indexed file.
-- `POST api/review` is the only mutation (JSON, CSRF nonce, same-origin).
-  `web/reviews.rs` stores state, note and append-only history in
-  `.mct-index/duplicate-reviews.toon` (v2; v1 files are upgraded). Finding keys
-  are HMAC-SHA256 over path, name, kind, lines and file content hash, so a
-  decision follows the code, not a list position.
+- `POST api/review` is the only mutation (JSON, CSRF nonce, same-origin, and
+  the `revision` the page showed: a decision changed meanwhile by another
+  process returns 409 with the current review). `web/reviews.rs` is a thin
+  adapter over `mct_index::reviews`, shared with `mct-cli dead-code`/
+  `duplicates --reviewed`. It writes only `.mct-index/review-decisions.toon`
+  and still applies decisions from `duplicate-reviews.toon` (v1 and v2) and the
+  earlier `reviews.toon`, which it never rewrites. Finding keys are an identity
+  that survives edits plus a fingerprint of the exact code: changed code shows
+  as `needs-reevaluation`, never hidden. If a review file cannot be read the
+  dashboard starts read-only, hides nothing and names the file; to recover, fix
+  or move that file aside (or restore `review-decisions.toon.prev`), then
+  restart. Design: `docs/superpowers/specs/2026-10-22-shared-review-decisions-design.md`.
 - `web/app/*` is an ES-module front end embedded with `include_str!`: hash
   routing (`#/page?query`, filters live in the URL), a DOM builder that never
   uses `innerHTML`, inline SVG charts, a bounded force-directed graph, an LCS
