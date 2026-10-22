@@ -134,6 +134,12 @@ impl Site {
             .is_some_and(|key| self.reviews.reason(key).is_some())
     }
 
+    fn active_total(&self) -> usize {
+        (0..self.duplicates.groups.len())
+            .filter(|id| !self.dismissed(*id))
+            .count()
+    }
+
     fn active_groups(&self, path: &str) -> usize {
         self.groups
             .get(path)
@@ -156,7 +162,7 @@ impl Site {
         if fields.get("csrf") != Some(&self.csrf) {
             return render::Response::error(403);
         }
-        if fields.len() != 3 {
+        if fields.len() != 3 + usize::from(fields.contains_key("back")) {
             return render::Response::error(400);
         }
         let Some(key) = fields
@@ -165,14 +171,16 @@ impl Site {
         else {
             return render::Response::error(404);
         };
-        let (reason, location) = match fields.get("action").map(String::as_str) {
-            Some("restore") => (None, "duplicates?view=discarded"),
+        let (reason, restored) = match fields.get("action").map(String::as_str) {
+            Some("restore") => (None, true),
             Some(action) => match reviews::Reason::parse(action) {
-                Some(reason) => (Some(reason), "duplicates"),
+                Some(reason) => (Some(reason), false),
                 None => return render::Response::error(400),
             },
             None => return render::Response::error(400),
         };
+        let back = fields.get("back").map_or("", String::as_str);
+        let location = render::review_location(back, restored);
         if let Err(error) = self.reviews.update(key, reason) {
             eprintln!("warning: cannot save duplicate review: {error:#}");
             let mut response = render::Response::error(500);
@@ -207,7 +215,7 @@ pub(super) fn run(root: &Path, port: u16, no_obsidian: bool) -> anyhow::Result<(
     let token = random_key()?;
     let mut site = Site::load(root, no_obsidian)?;
     println!("Local project web: http://127.0.0.1:{port}/{token}/");
-    println!("Atlas and duplicates are linked. Snapshot: {}. Restart after reindexing; Ctrl-C stops the server.", site.generated);
+    println!("Files and duplicates are linked. Snapshot: {}. Restart after reindexing; Ctrl-C stops the server.", site.generated);
     std::io::stdout().flush()?;
     for connection in listener.incoming() {
         match connection {
