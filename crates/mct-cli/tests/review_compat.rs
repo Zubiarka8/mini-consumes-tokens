@@ -186,7 +186,7 @@ fn read(root: &Path, name: &str) -> Option<String> {
 /// binaries are all kept; each binary still reads its own file; a rollback
 /// and a re-upgrade lose nothing, and the latest decision wins.
 #[test]
-#[ignore = "needs MCT_COMPAT_MA; run scripts/unix/review-compat.sh"]
+#[ignore = "not a bug: needs an older binary in MCT_COMPAT_MA; run scripts/unix/review-compat.sh"]
 fn alternating_old_and_new_saves_are_all_kept() {
     let root = project("alternating");
     let new = Web::start(&new_binary(), root.1.as_path(), true);
@@ -232,7 +232,7 @@ fn alternating_old_and_new_saves_are_all_kept() {
 /// CW-2: the new dashboard refuses to overwrite a decision the old one made
 /// after the page was loaded, then restores it from the current revision.
 #[test]
-#[ignore = "needs MCT_COMPAT_MA; run scripts/unix/review-compat.sh"]
+#[ignore = "not a bug: needs an older binary in MCT_COMPAT_MA; run scripts/unix/review-compat.sh"]
 fn a_restore_over_an_old_binary_decision_needs_the_current_revision() {
     let root = project("restore");
     let new = Web::start(&new_binary(), root.1.as_path(), true);
@@ -275,7 +275,7 @@ fn a_restore_over_an_old_binary_decision_needs_the_current_revision() {
 /// CW-5: two new dashboards saving the same finding from the same view:
 /// exactly one wins, the other gets 409, and history grows by one.
 #[test]
-#[ignore = "needs MCT_COMPAT_MA; run scripts/unix/review-compat.sh"]
+#[ignore = "not a bug: needs an older binary in MCT_COMPAT_MA; run scripts/unix/review-compat.sh"]
 fn two_new_writers_from_the_same_view_conflict_instead_of_overwriting() {
     let root = project("two-new");
     let first = Web::start(&new_binary(), root.1.as_path(), true);
@@ -301,7 +301,7 @@ fn two_new_writers_from_the_same_view_conflict_instead_of_overwriting() {
 /// The two writers use disjoint states, so every acknowledged save changes
 /// the state its writer sees and appends one history row.
 #[test]
-#[ignore = "needs MCT_COMPAT_MA; run scripts/unix/review-compat.sh"]
+#[ignore = "not a bug: needs an older binary in MCT_COMPAT_MA; run scripts/unix/review-compat.sh"]
 fn concurrent_old_and_new_writers_never_expose_a_partial_file() {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
@@ -377,7 +377,7 @@ fn concurrent_old_and_new_writers_never_expose_a_partial_file() {
 
 /// CW-7: each binary's lock blocks only its own writer.
 #[test]
-#[ignore = "needs MCT_COMPAT_MA; run scripts/unix/review-compat.sh"]
+#[ignore = "not a bug: needs an older binary in MCT_COMPAT_MA; run scripts/unix/review-compat.sh"]
 fn each_lock_blocks_only_its_own_writer() {
     let root = project("locks");
     let new = Web::start(&new_binary(), root.1.as_path(), true);
