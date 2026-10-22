@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{title}} · {{project}}</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <a class="skip" href="#content">Skip to content</a>
+  <header>
+    <a class="brand" href="./">MCT / {{project}}</a>
+    <nav aria-label="Project views">
+      <a href="./"{{current_overview}}>Overview</a>
+      <a href="atlas"{{current_files}}>Files</a>
+      <a href="duplicates"{{current_duplicates}}>Duplicates</a>
+    </nav>
+  </header>
+  <main id="content">
+    {{warning}}
+    <h1>{{title}}</h1>
+    {{body}}
+  </main>
+  <footer>
+    Snapshot taken at Unix time {{time}}. After reindexing, restart <code>mct-cli web</code> to refresh.
+  </footer>
+</body>
+</html>
