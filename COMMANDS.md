@@ -42,7 +42,7 @@ Commands:
   ignore-init           Write a starter `.mctignore` for custom indexing exclusions
   gitignore-init        Keep the generated index out of git
   obsidian              Regenerate the Obsidian vault from the existing index
-  web                   Serve a local website with linked atlas and duplicate-code views
+  web                   Serve the local project dashboard (atlas, duplicates, dead code, search, dependencies)
   dead-code             Write a CSV report of dead-code candidates (heuristic: symbols with zero indexed references) — one row per candidate with its file, function name, kind, language, and start/end line
   duplicates            Report candidate duplicate functions and methods, as TOON
   probe                 Parse files without indexing them and report, per file, either its symbol/relation counts or the first syntax error with its line
@@ -401,7 +401,7 @@ consumers do not register the hook. See [ADR-013](docs/01-architecture/adrs/013-
 
 ### `web` / `web --port <port> --no-obsidian`
 
-Serve one local website for the code atlas and duplicate-code analysis:
+Serve the local project dashboard (code atlas, duplicate and dead-code review, search, dependencies, notes):
 
 ```sh
 mct-cli --root . web
@@ -413,17 +413,25 @@ The command prints a private `http://127.0.0.1:<port>/<random-key>/` URL. Open
 that URL in your browser and keep the command running; Ctrl-C stops it. Port `0`
 (the default) selects an available port. No browser opens automatically.
 
-- **Overview:** shared navigation and counts for both views.
-- **Atlas:** hierarchical directories and files; search paths and indexed symbol
-  names. Each file shows its language, hash, symbols with exact source lines,
-  resolved imports and importers. Every relation links to the other file.
-- **Duplicates:** search candidate groups by path or symbol; inspect verdicts,
-  priority, excerpts, alignment and subgroup evidence. Each member links to its
-  atlas file. Each atlas file links back to its duplicate groups. Group IDs are
-  positions within this startup snapshot, not stable cross-run identifiers.
-- **Complete navigation:** directory/file/relation/member lists paginate at 100
-  entries; duplicate lists at 20 groups. All results remain reachable. Download
-  the full existing TOON analysis for every skipped candidate and diagnostic.
+- **Dashboard:** counts, review-state chart, language bars, project health and
+  recent activity. Metrics the index does not record (history, tokens,
+  confidence, reviewers) are shown as unavailable, never invented.
+- **Indexed code:** files and symbols with filters, a source preview and the
+  resolved imports/importers of each file.
+- **Duplicates / Dead code / Reviews:** filterable lists with a side-by-side
+  compare view (aligned diff, synced panes, whitespace/comment/identifier
+  normalization), a review panel (state and note) and per-finding history.
+- **Search:** keyword search over code, symbols, files, duplicates, dead code,
+  Obsidian notes and dependencies; saved and recent searches stay in the
+  browser. Semantic search is not offered.
+- **Dependencies, Statistics, Obsidian, Unified workspace, Settings:** import
+  graph (tree and table views), charts, a safe Markdown note reader and
+  diagnostics. The UI is Spanish (Spain) with an i18n-ready string table, dark
+  and light themes, keyboard navigation and a responsive layout.
+- **Complete navigation:** lists page at 20-100 entries and every filter lives
+  in the URL, so views can be bookmarked. Group IDs are positions within this
+  startup snapshot, not stable cross-run identifiers; review decisions use
+  stable content keys.
 
 An existing index is required. The command opens SQLite read-only and never
 reindexes, migrates, changes exclusions or installs MCP hooks. Metadata comes
@@ -437,8 +445,7 @@ By default `web` also regenerates `.mct-index/obsidian/` through `mct-obsidian`.
 A failed write prints a warning and leaves the website usable. `--no-obsidian`
 leaves that folder untouched while keeping the web atlas available. The web
 atlas always comes from SQLite, so edited personal notes and `.obsidian/`
-configuration are never served. Code excerpts appear only in duplicate review;
-the atlas has metadata only. No graph expansion or source-context budget change.
+configuration are never served. Code excerpts appear only in review and the source preview. No graph expansion or source-context budget change.
 
 Pages are a fixed startup snapshot held in memory; browser reload does not rerun
 analysis. After changes, run `reindex` and restart `web`. The only HTTP mutation is a protected duplicate-review preference action. There
@@ -469,8 +476,8 @@ and restart. Old decisions are retained, so reverting to the original content ca
 restore its prior review state. Only currently detected groups appear in either
 view. No source file, SQLite row, raw verdict or Obsidian note is deleted.
 
-Only `POST review` can change preferences. It requires the private URL, an exact
-same-origin Origin, a per-session CSRF nonce and a bounded form. GET/HEAD never
+Only `POST api/review` can change preferences. It requires the private URL, an exact
+same-origin Origin, a per-session CSRF nonce and a bounded JSON body (state, optional note; history is append-only). GET/HEAD never
 change state. Writes reload under a per-project exclusive lock, merge other
 writers' decisions and atomically replace the TOON file before changing the
 visible state. A failed save leaves the group visible and reports an error.
