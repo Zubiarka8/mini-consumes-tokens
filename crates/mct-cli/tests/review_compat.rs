@@ -72,36 +72,43 @@ struct Web {
     sends_revision: bool,
 }
 
+/// Starts `mct-cli web` in `root` and returns the process, its port and its
+/// URL key.
+fn spawn(binary: &Path, root: &Path) -> (Child, u16, String) {
+    let mut child = Command::new(binary)
+        .arg("--root")
+        .arg(root)
+        .args(["web", "--port", "0", "--no-obsidian"])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+    let started = Instant::now();
+    let url = loop {
+        assert!(
+            started.elapsed() < Duration::from_secs(60),
+            "web did not start"
+        );
+        let line = lines
+            .next()
+            .expect("web exited before printing its URL")
+            .unwrap();
+        if let Some(url) = line.strip_prefix("Local project web: http://127.0.0.1:") {
+            break url.to_string();
+        }
+    };
+    let (port, token) = url.trim_end_matches('/').split_once('/').unwrap();
+    (child, port.parse().unwrap(), token.to_string())
+}
+
 impl Web {
     fn start(binary: &Path, root: &Path, sends_revision: bool) -> Self {
-        let mut child = Command::new(binary)
-            .arg("--root")
-            .arg(root)
-            .args(["web", "--port", "0", "--no-obsidian"])
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
-        let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
-        let started = Instant::now();
-        let url = loop {
-            assert!(
-                started.elapsed() < Duration::from_secs(60),
-                "web did not start"
-            );
-            let line = lines
-                .next()
-                .expect("web exited before printing its URL")
-                .unwrap();
-            if let Some(url) = line.strip_prefix("Local project web: http://127.0.0.1:") {
-                break url.to_string();
-            }
-        };
-        let (port, token) = url.trim_end_matches('/').split_once('/').unwrap();
+        let (child, port, token) = spawn(binary, root);
         let mut web = Self {
             child,
-            port: port.parse().unwrap(),
-            token: token.to_string(),
+            port,
+            token,
             csrf: String::new(),
             sends_revision,
         };
@@ -180,6 +187,141 @@ impl Drop for Web {
 
 fn read(root: &Path, name: &str) -> Option<String> {
     std::fs::read_to_string(root.join(".mct-index").join(name)).ok()
+}
+
+/// The server built from `6a426df`, the last form-based dashboard (`M0`).
+fn m0_binary() -> PathBuf {
+    PathBuf::from(
+        std::env::var_os("MCT_COMPAT_M0")
+            .expect("MCT_COMPAT_M0 must name an mct-cli built from 6a426df"),
+    )
+}
+
+/// The unmerged dashboard draft (`B2`): writes `reviews.toon` version 2.
+fn b2_binary() -> PathBuf {
+    PathBuf::from(
+        std::env::var_os("MCT_COMPAT_B2").expect("MCT_COMPAT_B2 must name the B2 mct-cli"),
+    )
+}
+
+/// Kills the server when dropped, so a failed assertion leaves none running.
+struct Stop(Child);
+
+impl Drop for Stop {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+/// One request with a form body; returns the status and the body text.
+fn raw(port: u16, token: &str, method: &str, path: &str, body: &str) -> (u16, String) {
+    let mut stream = TcpStream::connect(("127.0.0.1", port)).unwrap();
+    stream
+        .set_read_timeout(Some(Duration::from_secs(30)))
+        .unwrap();
+    write!(
+        stream,
+        "{method} /{token}/{path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nOrigin: http://127.0.0.1:{port}\r\n\
+         Content-Type: application/x-www-form-urlencoded\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    )
+    .unwrap();
+    let mut response = String::new();
+    stream.read_to_string(&mut response).unwrap();
+    let status = response[9..12].parse().unwrap();
+    let body = response
+        .split_once("\r\n\r\n")
+        .map_or(String::new(), |(_, body)| body.to_string());
+    (status, body)
+}
+
+/// The value of the hidden form field `name` in `html`.
+fn hidden_field(html: &str, name: &str) -> String {
+    let marker = format!("name=\"{name}\" value=\"");
+    let (_, rest) = html
+        .split_once(&marker)
+        .unwrap_or_else(|| panic!("no `{name}` field in the page"));
+    rest.split('"').next().unwrap().to_string()
+}
+
+/// CM0-1: a duplicate decision posted through the form dashboard of `6a426df`
+/// (`duplicate-reviews.toon` version 1) is shown as decided by the new binary.
+#[test]
+#[ignore = "not a bug: needs the M0 binary in MCT_COMPAT_M0; see scripts/unix/review-compat.sh"]
+fn a_form_decision_from_m0_is_read_by_the_new_binary() {
+    let root = project("m0");
+    let (child, port, token) = spawn(&m0_binary(), root.1.as_path());
+    let server = Stop(child);
+    let (status, page) = raw(port, &token, "GET", "group?id=0", "");
+    assert_eq!(status, 200, "{page}");
+    let (csrf, key) = (hidden_field(&page, "csrf"), hidden_field(&page, "key"));
+    let (status, reply) = raw(
+        port,
+        &token,
+        "POST",
+        "review",
+        &format!("csrf={csrf}&key={key}&action=false-positive"),
+    );
+    assert!(
+        matches!(status, 200 | 302 | 303),
+        "M0 refused: {status} {reply}"
+    );
+    drop(server);
+    assert!(read(root.1.as_path(), "duplicate-reviews.toon")
+        .unwrap()
+        .starts_with("version: 1\n"));
+
+    let new = Web::start(&new_binary(), root.1.as_path(), true);
+    let keys = new.keys("duplicate");
+    assert_eq!(keys.len(), 1, "one duplicate group in the fixture");
+    assert_eq!(new.state(&keys[0]), "false-positive");
+}
+
+/// CB2-1: a dead-code decision written by the B2 draft (`reviews.toon`
+/// version 2, draft identities) is applied by the new binary to the same
+/// candidate, found by its name and path.
+#[test]
+#[ignore = "not a bug: needs the B2 binary in MCT_COMPAT_B2; see scripts/unix/review-compat.sh"]
+fn a_draft_decision_from_b2_is_read_by_the_new_binary() {
+    let root = project("b2");
+    let (child, port, token) = spawn(&b2_binary(), root.1.as_path());
+    let server = Stop(child);
+    let (status, page) = raw(port, &token, "GET", "muerto", "");
+    assert_eq!(status, 200, "{page}");
+    let (csrf, identity) = (hidden_field(&page, "csrf"), hidden_field(&page, "id"));
+    let (status, reply) = raw(
+        port,
+        &token,
+        "POST",
+        "review",
+        &format!("csrf={csrf}&kind=dead&id={identity}&action=false_positive"),
+    );
+    assert!(
+        matches!(status, 200 | 302 | 303),
+        "B2 refused: {status} {reply}"
+    );
+    drop(server);
+    assert!(read(root.1.as_path(), "reviews.toon")
+        .unwrap()
+        .starts_with("version: 2\n"));
+
+    // One decision was written, so exactly one candidate is shown as decided.
+    let new = Web::start(&new_binary(), root.1.as_path(), true);
+    let states: Vec<String> = new.get("api/findings?type=dead-code&size=100")["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| row["state"].as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(
+        states
+            .iter()
+            .filter(|state| *state == "false-positive")
+            .count(),
+        1,
+        "{states:?}"
+    );
 }
 
 /// CW-1, CR-5, CR-6: alternating saves on different findings by both
