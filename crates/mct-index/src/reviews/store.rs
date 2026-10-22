@@ -1,0 +1,523 @@
+//! Discovery, bounded reads and the atomic write of review files.
+//!
+//! Reading never fails: a file that exists but cannot be read makes the
+//! whole store degraded, which hides nothing and refuses every write.
+//! Writing touches only `review-decisions.toon`, under an exclusive lock,
+//! through a synced temporary file and an atomic rename, after checking that
+//! the new file keeps every earlier row and history event.
+
+use std::fs::{self, OpenOptions};
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
+use std::time::SystemTime;
+
+use super::format::{
+    parse_canonical, parse_draft, parse_legacy, render_canonical, valid_note, Canonical, Event,
+    Row, MAX_ROWS, NEWER_FORMAT,
+};
+use super::resolve::{Resolver, Sources};
+use super::{Diagnostics, FindingKeys, Format, HistoryEvent, Resolution, State};
+
+/// The only review file this module writes.
+pub const CANONICAL_FILE: &str = "review-decisions.toon";
+const DRAFT_FILE: &str = "reviews.toon";
+const LEGACY_FILE: &str = "duplicate-reviews.toon";
+const LOCK_FILE: &str = "review-decisions.lock";
+/// The canonical file as it was before the last save.
+const PREVIOUS_FILE: &str = "review-decisions.toon.prev";
+const TEMPORARY_SUFFIX: &str = ".tmp";
+const MAX_BYTES: u64 = 32 * 1024 * 1024;
+
+#[derive(Debug, thiserror::Error)]
+pub enum ReviewError {
+    #[error("review files are read-only until this is fixed: {0}")]
+    Degraded(String),
+    #[error(
+        "another writer holds {path} (written {age_secs} s ago by {holder}); \
+         remove it only if no mct-cli web process is running"
+    )]
+    Locked {
+        path: String,
+        holder: String,
+        age_secs: u64,
+    },
+    #[error("the review changed since it was displayed; reload to see the current state")]
+    Conflict,
+    #[error("invalid review request: {0}")]
+    Invalid(&'static str),
+    #[error("review file is full: {0}; nothing was dropped or written")]
+    Full(&'static str),
+    #[error("review write rejected by its safety check: {0}")]
+    Invariant(&'static str),
+    #[error("review file I/O error at {path}: {source}")]
+    Io {
+        path: String,
+        source: std::io::Error,
+    },
+}
+
+fn io_error(path: &Path) -> impl FnOnce(std::io::Error) -> ReviewError + '_ {
+    move |source| ReviewError::Io {
+        path: path.display().to_string(),
+        source,
+    }
+}
+
+/// A review file that exists but cannot be used.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SourceProblem {
+    pub path: PathBuf,
+    pub reason: String,
+    /// The canonical file was written by a newer version.
+    pub newer_format: bool,
+}
+
+/// A decision requested by a person.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Change {
+    /// `Unreviewed` restores the finding.
+    pub state: State,
+    pub note: String,
+    /// [`Resolution::revision`] as the person saw it.
+    pub expected_revision: String,
+}
+
+/// Every review source of one project, read once.
+#[derive(Clone, Debug)]
+pub struct Reviews {
+    directory: PathBuf,
+    sources: Sources,
+    canonical_bytes: Option<String>,
+    read: Vec<(Format, PathBuf)>,
+    problems: Vec<SourceProblem>,
+    leftover_temporary_files: usize,
+}
+
+/// Refuses symlinked ancestors, non-regular files and (on Unix) hard links,
+/// so review state is never read or replaced through another path.
+fn safe_path(path: &Path) -> Result<(), String> {
+    for ancestor in path.ancestors() {
+        match fs::symlink_metadata(ancestor) {
+            Ok(metadata) => {
+                if metadata.file_type().is_symlink() {
+                    return Err("refusing review state through a symlink".into());
+                }
+                if ancestor == path {
+                    if !metadata.is_file() {
+                        return Err("review state is not a regular file".into());
+                    }
+                    #[cfg(unix)]
+                    {
+                        use std::os::unix::fs::MetadataExt;
+                        if metadata.nlink() != 1 {
+                            return Err("refusing hard-linked review state".into());
+                        }
+                    }
+                } else if !metadata.is_dir() {
+                    return Err("review ancestor is not a directory".into());
+                }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
+            Err(error) => return Err(error.to_string()),
+        }
+    }
+    Ok(())
+}
+
+fn open(path: &Path) -> std::io::Result<fs::File> {
+    let opened = fs::File::open(path);
+    // A reader racing a rename on Windows can see a sharing violation once.
+    #[cfg(windows)]
+    if matches!(&opened, Err(error) if error.raw_os_error() == Some(32)) {
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        return fs::File::open(path);
+    }
+    opened
+}
+
+/// The file's text, `None` when it does not exist.
+fn read_source(path: &Path) -> Result<Option<String>, String> {
+    safe_path(path)?;
+    let file = match open(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.to_string()),
+    };
+    let mut content = String::new();
+    file.take(MAX_BYTES + 1)
+        .read_to_string(&mut content)
+        .map_err(|error| error.to_string())?;
+    if content.len() as u64 > MAX_BYTES {
+        return Err("file is larger than 32 MiB".into());
+    }
+    if content.is_empty() {
+        return Err("file is empty".into());
+    }
+    Ok(Some(content))
+}
+
+impl Reviews {
+    /// Reads every review file under `<root>/.mct-index`. Never fails: see
+    /// [`Reviews::is_degraded`].
+    pub fn load(root: &Path) -> Reviews {
+        // Links above the project root are the user's choice; from the root
+        // down, every component is checked by `safe_path`.
+        let root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+        Self::load_directory(&root.join(".mct-index"))
+    }
+
+    fn load_directory(directory: &Path) -> Reviews {
+        let mut reviews = Reviews {
+            directory: directory.to_path_buf(),
+            sources: Sources::default(),
+            canonical_bytes: None,
+            read: Vec::new(),
+            problems: Vec::new(),
+            leftover_temporary_files: count_temporary_files(directory),
+        };
+        let mut problem = |path: PathBuf, reason: String| {
+            let newer_format = reason.ends_with(NEWER_FORMAT);
+            reviews.problems.push(SourceProblem {
+                path,
+                reason,
+                newer_format,
+            });
+        };
+        let path = directory.join(CANONICAL_FILE);
+        match read_source(&path) {
+            Ok(None) => (),
+            Ok(Some(text)) => match parse_canonical(&text) {
+                Ok(canonical) => {
+                    reviews.sources.canonical = canonical;
+                    reviews.canonical_bytes = Some(text);
+                    reviews.read.push((Format::C3, path));
+                }
+                Err(error) => problem(path, error.to_string()),
+            },
+            Err(reason) => problem(path, reason),
+        }
+        let path = directory.join(DRAFT_FILE);
+        match read_source(&path) {
+            Ok(None) => (),
+            Ok(Some(text)) => match parse_draft(&text) {
+                Ok(draft) => {
+                    reviews.sources.draft = draft;
+                    reviews.read.push((Format::B2, path));
+                }
+                Err(error) => problem(path, error.to_string()),
+            },
+            Err(reason) => problem(path, reason),
+        }
+        let path = directory.join(LEGACY_FILE);
+        match read_source(&path) {
+            Ok(None) => (),
+            Ok(Some(text)) => match parse_legacy(&text) {
+                Ok(legacy) => {
+                    let format = if legacy.version == 1 {
+                        Format::A1
+                    } else {
+                        Format::A2
+                    };
+                    reviews.sources.legacy = legacy;
+                    reviews.read.push((format, path));
+                }
+                Err(error) => problem(path, error.to_string()),
+            },
+            Err(reason) => problem(path, reason),
+        }
+        if !reviews.problems.is_empty() {
+            // Nothing from a partial read may hide a finding.
+            reviews.sources = Sources::default();
+            reviews.canonical_bytes = None;
+        }
+        reviews
+    }
+
+    /// True when a present file cannot be read: nothing is hidden, no state
+    /// is reported and every save is refused until a person fixes the file.
+    pub fn is_degraded(&self) -> bool {
+        !self.problems.is_empty()
+    }
+
+    pub fn problems(&self) -> &[SourceProblem] {
+        &self.problems
+    }
+
+    /// The files that were read, with their format.
+    pub fn sources(&self) -> &[(Format, PathBuf)] {
+        &self.read
+    }
+
+    /// Temporary files left by an interrupted save. They never hold the only
+    /// copy of anything and are not removed automatically.
+    pub fn leftover_temporary_files(&self) -> usize {
+        self.leftover_temporary_files
+    }
+
+    /// The resolution of each finding, in order. `findings` must be every
+    /// current finding of the scope, so ambiguous legacy keys are detected.
+    pub fn resolve(&self, findings: &[FindingKeys]) -> Vec<Resolution> {
+        let resolver = Resolver::new(&self.sources, findings);
+        findings.iter().map(|f| resolver.resolve(f)).collect()
+    }
+
+    /// The history of each finding, in order, oldest event first.
+    pub fn histories(&self, findings: &[FindingKeys]) -> Vec<Vec<HistoryEvent>> {
+        let resolver = Resolver::new(&self.sources, findings);
+        findings.iter().map(|f| resolver.history(f)).collect()
+    }
+
+    pub fn diagnostics(&self, findings: &[FindingKeys], now: u64) -> Diagnostics {
+        Resolver::new(&self.sources, findings).diagnostics(findings, now)
+    }
+
+    /// Records `change` for `findings[target]` in `review-decisions.toon`.
+    /// On success `self` holds the files as they are now on disk; on any
+    /// error nothing was written and `self` is unchanged.
+    pub fn save(
+        &mut self,
+        findings: &[FindingKeys],
+        target: usize,
+        change: &Change,
+        now: u64,
+    ) -> Result<(), ReviewError> {
+        let finding = findings
+            .get(target)
+            .ok_or(ReviewError::Invalid("unknown finding"))?;
+        if !valid_note(&change.note) {
+            return Err(ReviewError::Invalid(
+                "notes have at most 500 characters and no control characters",
+            ));
+        }
+        let _lock = Lock::acquire(&self.directory)?;
+        // Re-read under the lock: other writers must not be overwritten, and
+        // the person's view must still be current.
+        let current = Self::load_directory(&self.directory);
+        if let Some(problem) = current.problems.first() {
+            return Err(ReviewError::Degraded(format!(
+                "{}: {}",
+                problem.path.display(),
+                problem.reason
+            )));
+        }
+        let resolver = Resolver::new(&current.sources, findings);
+        let resolution = resolver.resolve(finding);
+        if resolution.revision() != change.expected_revision {
+            return Err(ReviewError::Conflict);
+        }
+        let unchanged = resolution.state() == change.state
+            && (change.state == State::Unreviewed || !resolution.needs_reevaluation());
+        if unchanged {
+            *self = current;
+            return Ok(());
+        }
+        // Logical time: the new decision is always the latest one for this
+        // finding, even if the clock went back or a row has a future time.
+        let at = match resolver.latest_time(finding).checked_add(1) {
+            Some(after) => after.max(now),
+            None => return Err(ReviewError::Full("the latest review time is the maximum")),
+        };
+        let mut next = current.sources.canonical.clone();
+        let key = (finding.kind, finding.identity.clone());
+        let row = Row {
+            kind: finding.kind,
+            identity: finding.identity.clone(),
+            fingerprint: finding.fingerprint.clone(),
+            state: change.state,
+            updated: at,
+            note: change.note.clone(),
+        };
+        next.reviews.insert(key, row.clone());
+        next.history.push(Event {
+            kind: finding.kind,
+            identity: finding.identity.clone(),
+            fingerprint: finding.fingerprint.clone(),
+            from: resolution.state(),
+            to: change.state,
+            at,
+            note: change.note.clone(),
+        });
+        if next.reviews.len() > MAX_ROWS {
+            return Err(ReviewError::Full("too many reviews"));
+        }
+        if next.history.len() > MAX_ROWS {
+            return Err(ReviewError::Full("review history is full"));
+        }
+        let text = render_canonical(&next);
+        if text.len() as u64 > MAX_BYTES {
+            return Err(ReviewError::Full("the file would exceed 32 MiB"));
+        }
+        verify_append(&current.sources.canonical, &text, &row)?;
+        if let Some(previous) = &current.canonical_bytes {
+            publish(&self.directory, PREVIOUS_FILE, previous)?;
+        }
+        publish(&self.directory, CANONICAL_FILE, &text)?;
+        let mut saved = current;
+        saved.sources.canonical = next;
+        saved.canonical_bytes = Some(text);
+        if !saved.read.iter().any(|(format, _)| *format == Format::C3) {
+            saved
+                .read
+                .insert(0, (Format::C3, self.directory.join(CANONICAL_FILE)));
+        }
+        *self = saved;
+        Ok(())
+    }
+}
+
+/// The new file must parse, keep every earlier history event in order with
+/// exactly one appended, and keep every earlier current row except the one
+/// being saved, which must be exactly `row`.
+fn verify_append(before: &Canonical, text: &str, row: &Row) -> Result<(), ReviewError> {
+    let after =
+        parse_canonical(text).map_err(|_| ReviewError::Invariant("the new file does not parse"))?;
+    if after.history.len() != before.history.len() + 1
+        || after.history[..before.history.len()] != before.history[..]
+    {
+        return Err(ReviewError::Invariant("history would not be append-only"));
+    }
+    let key = (row.kind, row.identity.clone());
+    if after.reviews.get(&key) != Some(row) {
+        return Err(ReviewError::Invariant(
+            "the saved decision does not round-trip",
+        ));
+    }
+    let others_kept = before
+        .reviews
+        .iter()
+        .filter(|(other, _)| **other != key)
+        .all(|(other, kept)| after.reviews.get(other) == Some(kept));
+    let expected_len = before.reviews.len() + usize::from(!before.reviews.contains_key(&key));
+    if !others_kept || after.reviews.len() != expected_len {
+        return Err(ReviewError::Invariant("other decisions would change"));
+    }
+    Ok(())
+}
+
+/// Atomically replaces `directory/name` with `text`: a new temporary file in
+/// the same directory, synced, then renamed over the target.
+fn publish(directory: &Path, name: &str, text: &str) -> Result<(), ReviewError> {
+    let target = directory.join(name);
+    safe_path(&target).map_err(ReviewError::Degraded)?;
+    let temporary = Temporary::create(directory, name)?;
+    {
+        let mut file = &temporary.file;
+        file.write_all(text.as_bytes())
+            .and_then(|()| file.sync_all())
+            .map_err(io_error(&temporary.path))?;
+    }
+    safe_path(&target).map_err(ReviewError::Degraded)?;
+    fs::rename(&temporary.path, &target).map_err(io_error(&target))?;
+    temporary.persisted();
+    #[cfg(unix)]
+    fs::File::open(directory)
+        .and_then(|dir| dir.sync_all())
+        .map_err(io_error(directory))?;
+    Ok(())
+}
+
+fn count_temporary_files(directory: &Path) -> usize {
+    let prefix = format!("{CANONICAL_FILE}.");
+    fs::read_dir(directory)
+        .map(|entries| {
+            entries
+                .filter_map(Result::ok)
+                .filter(|entry| {
+                    let name = entry.file_name();
+                    let name = name.to_string_lossy();
+                    name.starts_with(&prefix) && name.ends_with(TEMPORARY_SUFFIX)
+                })
+                .count()
+        })
+        .unwrap_or(0)
+}
+
+/// A temporary file removed on drop unless it was renamed into place.
+struct Temporary {
+    path: PathBuf,
+    file: fs::File,
+    keep: bool,
+}
+
+impl Temporary {
+    fn create(directory: &Path, name: &str) -> Result<Self, ReviewError> {
+        let nanos = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map_or(0, |elapsed| elapsed.subsec_nanos());
+        for attempt in 0..16_u32 {
+            // Named after the canonical file even for `.prev`, so leftovers of
+            // every kind are found by one pattern.
+            let path = directory.join(format!(
+                "{CANONICAL_FILE}.{name}.{}.{nanos}.{attempt}{TEMPORARY_SUFFIX}",
+                std::process::id()
+            ));
+            match OpenOptions::new().write(true).create_new(true).open(&path) {
+                Ok(file) => {
+                    return Ok(Self {
+                        path,
+                        file,
+                        keep: false,
+                    })
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(io_error(&path)(error)),
+            }
+        }
+        Err(ReviewError::Invariant(
+            "cannot create a unique temporary file",
+        ))
+    }
+
+    fn persisted(mut self) {
+        self.keep = true;
+    }
+}
+
+impl Drop for Temporary {
+    fn drop(&mut self) {
+        if !self.keep {
+            let _ = fs::remove_file(&self.path);
+        }
+    }
+}
+
+/// The exclusive writer lock. Never removed unless this process created it.
+struct Lock {
+    path: PathBuf,
+}
+
+impl Lock {
+    fn acquire(directory: &Path) -> Result<Self, ReviewError> {
+        let path = directory.join(LOCK_FILE);
+        safe_path(&path).map_err(ReviewError::Degraded)?;
+        match OpenOptions::new().write(true).create_new(true).open(&path) {
+            Ok(mut file) => {
+                // Best effort: the holder is only shown in an error message.
+                let _ = write!(file, "pid {}", std::process::id());
+                Ok(Self { path })
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                let holder = fs::read_to_string(&path)
+                    .map(|text| text.chars().take(64).collect())
+                    .unwrap_or_default();
+                let age_secs = fs::metadata(&path)
+                    .and_then(|metadata| metadata.modified())
+                    .ok()
+                    .and_then(|modified| modified.elapsed().ok())
+                    .map_or(0, |age| age.as_secs());
+                Err(ReviewError::Locked {
+                    path: path.display().to_string(),
+                    holder,
+                    age_secs,
+                })
+            }
+            Err(error) => Err(io_error(&path)(error)),
+        }
+    }
+}
+
+impl Drop for Lock {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.path);
+    }
+}

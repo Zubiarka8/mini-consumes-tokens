@@ -723,3 +723,31 @@ fn current_ignore_rules_hide_stale_index_rows_from_the_api_and_the_vault() {
         "unreadable rules must fail closed"
     );
 }
+
+/// The shared review module must reproduce, byte for byte, the keys this
+/// dashboard stored in `duplicate-reviews.toon`, or saved decisions stop
+/// matching.
+#[test]
+fn shared_review_keys_reproduce_the_stored_legacy_keys() {
+    let root = project();
+    let server = Server::start(root.path(), true);
+    let site = server.site.borrow();
+    let hashes = site.index.file_hashes().unwrap();
+    let duplicates = mct_index::reviews::duplicate_findings(
+        &site.duplicates.groups,
+        site.duplicates.options.normalization,
+        &hashes,
+    );
+    assert!(!duplicates.is_empty());
+    let legacy: Vec<_> = duplicates
+        .iter()
+        .map(|f| f.legacy_key.clone().unwrap())
+        .collect();
+    assert_eq!(legacy, site.review_keys);
+    let scan = mct_index::scan_dead_code(&site.index, None, None).unwrap();
+    let dead = mct_index::reviews::dead_code_findings(&scan.symbols, &scan.candidates, &hashes);
+    let legacy: Vec<_> = dead.iter().map(|f| f.legacy_key.clone().unwrap()).collect();
+    let stored: Vec<_> = site.dead.iter().map(|d| d.key.clone()).collect();
+    assert!(!stored.is_empty());
+    assert_eq!(legacy, stored);
+}
