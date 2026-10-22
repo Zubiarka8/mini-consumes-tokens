@@ -47,9 +47,13 @@ const HEX_DIGITS: &[u8; 16] = b"0123456789abcdef";
 /// Path, symbol name, symbol kind, start line and end line of a member.
 type MemberRange<'a> = (&'a str, &'a str, &'a str, u32, u32);
 
+/// The known content hashes by path. An empty hash is no hash: the schema
+/// migration that adds literal search empties every stored hash until the next
+/// reindex, and that content must stay unknown.
 fn hash_map(file_hashes: &[(String, String)]) -> HashMap<&str, &str> {
     file_hashes
         .iter()
+        .filter(|(_, hash)| !hash.is_empty())
         .map(|(path, hash)| (path.as_str(), hash.as_str()))
         .collect()
 }
