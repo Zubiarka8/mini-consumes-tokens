@@ -273,11 +273,16 @@ pub(super) fn dependencies(site: &Site, params: &Params) -> Value {
             seen
         }
         _ => {
+            // Nodes in a cycle come first, so cutting the graph never hides the
+            // cycles the page announces; the rest follow by how connected they are.
             let mut ranked: Vec<&String> = members.keys().collect();
             ranked.sort_by_key(|node| {
-                std::cmp::Reverse(
-                    out_degree.get(node.as_str()).unwrap_or(&0)
-                        + in_degree.get(node.as_str()).unwrap_or(&0),
+                (
+                    !in_cycle.contains(node.as_str()),
+                    std::cmp::Reverse(
+                        out_degree.get(node.as_str()).unwrap_or(&0)
+                            + in_degree.get(node.as_str()).unwrap_or(&0),
+                    ),
                 )
             });
             ranked.into_iter().take(MAX_NODES).cloned().collect()
