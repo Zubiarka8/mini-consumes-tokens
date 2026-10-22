@@ -420,8 +420,9 @@ fn atlas(site: &Site, params: &BTreeMap<String, String>) -> Response {
     if !query.is_empty() {
         let _ = write!(
             body,
-            "<p class=\"result-count\">{} matching files for “{}” in {scope}. <a href=\"{}\">Clear search</a>",
+            "<p class=\"result-count\">{} matching {} for “{}” in {scope}. <a href=\"{}\">Clear search</a>",
             entries.len(),
+            if entries.len() == 1 { "file" } else { "files" },
             escape(q),
             href("atlas", &[("dir", directory)])
         );
@@ -462,7 +463,11 @@ fn atlas(site: &Site, params: &BTreeMap<String, String>) -> Response {
         };
     }
     if entries.is_empty() {
-        body.push_str("<li>No matching entries.</li>");
+        body.push_str(if query.is_empty() {
+            "<li class=\"empty\">This folder has no indexed files.</li>"
+        } else {
+            "<li class=\"empty\">No file or symbol matches. Check the spelling, try a shorter word, or clear the search.</li>"
+        });
     }
     body.push_str("</ul>");
     body.push_str(&pagination);
@@ -689,7 +694,13 @@ fn duplicates(site: &Site, params: &BTreeMap<String, String>) -> Response {
         body.push_str("</article>");
     }
     if matches.is_empty() {
-        body.push_str("<p>No matching duplicate groups.</p>");
+        body.push_str(if !path.is_empty() || !q.is_empty() {
+            "<p class=\"empty\">No groups match these filters. Remove a filter above, or check the other tab.</p>"
+        } else if discarded {
+            "<p class=\"empty\">Nothing has been discarded yet.</p>"
+        } else {
+            "<p class=\"empty\">No duplicate groups to review.</p>"
+        });
     }
     body.push_str(&pagination);
     page(

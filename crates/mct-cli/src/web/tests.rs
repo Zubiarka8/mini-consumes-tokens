@@ -243,7 +243,7 @@ fn atlas_pagination_and_encoded_paths_keep_every_entry_accessible() {
     assert!(last.contains("<code>symbol_204</code>"), "{last}");
     assert!(last.contains("Page 3 of 3"));
     let searched = server.get("atlas?q=symbol_204");
-    assert!(searched.contains("1 matching files") && searched.contains("matches symbol_204"));
+    assert!(searched.contains("1 matching file ") && searched.contains("matches symbol_204"));
     assert!(searched.contains("file?path=src%2Fa+%26+%C3%BC.rs"));
     let searched = server.get("atlas?dir=src&q=symbol_204");
     assert!(searched.contains("file?path=src%2Fa+%26+%C3%BC.rs"));
@@ -587,11 +587,11 @@ fn filters_are_explained_and_survive_review_actions() {
     let root = project();
     let server = Server::start(root.path(), true);
     let found = server.get("atlas?q=BETA");
-    assert!(found.contains("1 matching files") && found.contains("Clear search"));
+    assert!(found.contains("1 matching file ") && found.contains("Clear search"));
     assert!(found.contains("file?path=src%2Fb.rs") && !found.contains("file?path=src%2Fa.rs"));
     assert!(server
         .get("atlas?q=nothing-here")
-        .contains("No matching entries."));
+        .contains("No file or symbol matches"));
     let key = server.site.borrow().review_keys[0].clone();
     let filtered = server.get("duplicates?q=alpha");
     assert!(filtered.contains("Clear all filters") && filtered.contains("aria-current=\"page\""));

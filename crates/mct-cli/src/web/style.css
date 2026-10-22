@@ -341,3 +341,8 @@ header nav a[aria-current="page"] {
   background: var(--surface);
   z-index: 1;
 }
+
+.empty {
+  color: var(--muted);
+  padding: 16px 0;
+}
