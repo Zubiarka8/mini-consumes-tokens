@@ -7,13 +7,13 @@
 //! the new file keeps every earlier row and history event.
 
 use std::fs::{self, OpenOptions};
-use std::io::{Read, Write};
+use std::io::{BufReader, Read, Take, Write};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use super::format::{
-    parse_canonical, parse_draft, parse_legacy, render_canonical, valid_note, Canonical, Event,
-    Row, MAX_ROWS, NEWER_FORMAT,
+    parse_canonical, read_canonical, read_draft, read_legacy, render_canonical, valid_note,
+    Canonical, Event, FormatError, Row, MAX_ROWS, NEWER_FORMAT,
 };
 use super::resolve::{Resolver, Sources};
 use super::{Diagnostics, FindingKeys, Format, HistoryEvent, Kind, Resolution, State};
@@ -144,7 +144,14 @@ fn safe_source(path: &Path) -> Result<(), String> {
     safe_path(path)
 }
 
-/// The file's text, `None` when it does not exist.
+const TOO_LARGE: &str = "file is larger than 32 MiB";
+
+/// A review file being parsed line by line. At most `MAX_BYTES + 1` bytes are
+/// ever taken from it.
+type Source = BufReader<Take<fs::File>>;
+
+/// The file's text, `None` when it does not exist. Used where the whole text
+/// is needed, to back up the canonical file before it is replaced.
 fn read_source(path: &Path) -> Result<Option<String>, String> {
     safe_source(path)?;
     let file = match open(path) {
@@ -157,12 +164,39 @@ fn read_source(path: &Path) -> Result<Option<String>, String> {
         .read_to_string(&mut content)
         .map_err(|error| error.to_string())?;
     if content.len() as u64 > MAX_BYTES {
-        return Err("file is larger than 32 MiB".into());
+        return Err(TOO_LARGE.into());
     }
     if content.is_empty() {
         return Err("file is empty".into());
     }
     Ok(Some(content))
+}
+
+/// The file at `path`, opened for parsing; `None` when it does not exist.
+fn open_source(path: &Path) -> Result<Option<Source>, String> {
+    safe_source(path)?;
+    let file = match open(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.to_string()),
+    };
+    let length = file.metadata().map_err(|error| error.to_string())?.len();
+    if length == 0 {
+        return Err("file is empty".into());
+    }
+    if length > MAX_BYTES {
+        return Err(TOO_LARGE.into());
+    }
+    Ok(Some(BufReader::new(file.take(MAX_BYTES + 1))))
+}
+
+/// The parse result, or why the file cannot be used. A file that grew past the
+/// limit while it was read is refused as too large, not parsed as a prefix.
+fn finish<T>(source: &Source, parsed: Result<T, FormatError>) -> Result<T, String> {
+    if source.get_ref().limit() == 0 {
+        return Err(TOO_LARGE.into());
+    }
+    parsed.map_err(|error| error.to_string())
 }
 
 impl Reviews {
@@ -192,44 +226,53 @@ impl Reviews {
             });
         };
         let path = directory.join(CANONICAL_FILE);
-        match read_source(&path) {
+        match open_source(&path) {
             Ok(None) => (),
-            Ok(Some(text)) => match parse_canonical(&text) {
-                Ok(canonical) => {
-                    reviews.sources.canonical = canonical;
-                    reviews.read.push((Format::C3, path));
+            Ok(Some(mut source)) => {
+                let parsed = read_canonical(&mut source);
+                match finish(&source, parsed) {
+                    Ok(canonical) => {
+                        reviews.sources.canonical = canonical;
+                        reviews.read.push((Format::C3, path));
+                    }
+                    Err(reason) => problem(path, reason),
                 }
-                Err(error) => problem(path, error.to_string()),
-            },
+            }
             Err(reason) => problem(path, reason),
         }
         let path = directory.join(DRAFT_FILE);
-        match read_source(&path) {
+        match open_source(&path) {
             Ok(None) => (),
-            Ok(Some(text)) => match parse_draft(&text) {
-                Ok(draft) => {
-                    reviews.sources.draft = draft;
-                    reviews.read.push((Format::B2, path));
+            Ok(Some(mut source)) => {
+                let parsed = read_draft(&mut source);
+                match finish(&source, parsed) {
+                    Ok(draft) => {
+                        reviews.sources.draft = draft;
+                        reviews.read.push((Format::B2, path));
+                    }
+                    Err(reason) => problem(path, reason),
                 }
-                Err(error) => problem(path, error.to_string()),
-            },
+            }
             Err(reason) => problem(path, reason),
         }
         let path = directory.join(LEGACY_FILE);
-        match read_source(&path) {
+        match open_source(&path) {
             Ok(None) => (),
-            Ok(Some(text)) => match parse_legacy(&text) {
-                Ok(legacy) => {
-                    let format = if legacy.version == 1 {
-                        Format::A1
-                    } else {
-                        Format::A2
-                    };
-                    reviews.sources.legacy = legacy;
-                    reviews.read.push((format, path));
+            Ok(Some(mut source)) => {
+                let parsed = read_legacy(&mut source);
+                match finish(&source, parsed) {
+                    Ok(legacy) => {
+                        let format = if legacy.version == 1 {
+                            Format::A1
+                        } else {
+                            Format::A2
+                        };
+                        reviews.sources.legacy = legacy;
+                        reviews.read.push((format, path));
+                    }
+                    Err(reason) => problem(path, reason),
                 }
-                Err(error) => problem(path, error.to_string()),
-            },
+            }
             Err(reason) => problem(path, reason),
         }
         if !reviews.problems.is_empty() {

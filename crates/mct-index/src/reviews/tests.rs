@@ -246,6 +246,25 @@ fn oversized_files_are_rejected_before_parsing() {
     assert!(reviews.problems()[0].reason.contains("32 MiB"));
 }
 
+#[test]
+fn a_line_that_is_not_utf8_degrades_the_store_on_its_line() {
+    let root = project();
+    let mut bytes = canonical(&[(Kind::Duplicate, '1', 'f', State::Dismissed, 5)]).into_bytes();
+    bytes.extend_from_slice(b"\xff\n");
+    fs::write(root.path().join(".mct-index/review-decisions.toon"), bytes).unwrap();
+    let reviews = Reviews::load(root.path());
+    assert!(reviews.is_degraded());
+    assert!(
+        reviews.problems()[0]
+            .reason
+            .starts_with("line 5: unreadable line"),
+        "{:?}",
+        reviews.problems()
+    );
+    // Nothing is hidden from a partly read file.
+    assert_eq!(reviews.resolve(&[dup()]).remove(0), Resolution::default());
+}
+
 #[cfg(unix)]
 #[test]
 fn symlinks_and_hard_links_are_never_followed() {

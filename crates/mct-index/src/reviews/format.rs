@@ -7,6 +7,7 @@
 
 use std::collections::BTreeMap;
 use std::fmt;
+use std::io::BufRead;
 
 use memchr::memchr;
 
@@ -74,45 +75,51 @@ fn decode(note: &str) -> String {
         .unwrap_or_default()
 }
 
-/// The lines of a file, numbered from 1. Splits exactly as `str::lines` does:
-/// a line ends at `\n`, one `\r` before it is dropped, and a final newline
-/// does not start an empty line.
-struct Lines<'a> {
-    rest: &'a str,
+/// The lines of a file, numbered from 1, read one at a time so that the whole
+/// file never sits in memory. Splits exactly as `str::lines` does: a line ends
+/// at `\n`, one `\r` before it is dropped, and a final newline does not start
+/// an empty line.
+struct Lines<R> {
+    source: R,
+    line: String,
     last: usize,
 }
 
-impl<'a> Lines<'a> {
-    fn new(content: &'a str) -> Self {
+impl<R: BufRead> Lines<R> {
+    fn new(source: R) -> Self {
         Self {
-            rest: content,
+            source,
+            line: String::new(),
             last: 0,
         }
     }
 
-    fn next(&mut self) -> Option<(usize, &'a str)> {
-        if self.rest.is_empty() {
-            return None;
+    /// The next line, or `None` at the end. A line that cannot be read, such
+    /// as one that is not UTF-8, is an error on that line.
+    fn next(&mut self) -> Parsed<Option<(usize, &str)>> {
+        self.line.clear();
+        let read = self.source.read_line(&mut self.line);
+        let read = read.map_err(|_| FormatError {
+            line: self.last + 1,
+            reason: "unreadable line",
+        })?;
+        if read == 0 {
+            return Ok(None);
         }
-        let (line, rest) = match memchr(b'\n', self.rest.as_bytes()) {
-            Some(end) => {
-                let line = &self.rest[..end];
-                (
-                    line.strip_suffix('\r').unwrap_or(line),
-                    &self.rest[end + 1..],
-                )
+        if self.line.ends_with('\n') {
+            self.line.pop();
+            if self.line.ends_with('\r') {
+                self.line.pop();
             }
-            None => (self.rest, ""),
-        };
-        self.rest = rest;
+        }
         self.last += 1;
-        Some((self.last, line))
+        Ok(Some((self.last, &self.line)))
     }
 
     /// The next line, or an error on the line after the last one.
-    fn require(&mut self, reason: &'static str) -> Parsed<(usize, &'a str)> {
+    fn require(&mut self, reason: &'static str) -> Parsed<(usize, &str)> {
         let after = self.last + 1;
-        self.next().ok_or(FormatError {
+        self.next()?.ok_or(FormatError {
             line: after,
             reason,
         })
@@ -239,8 +246,13 @@ fn note(number: usize, encoded: &str) -> Parsed<String> {
 }
 
 pub(super) fn parse_canonical(content: &str) -> Parsed<Canonical> {
-    let mut lines = Lines::new(content);
-    match lines.next() {
+    read_canonical(content.as_bytes())
+}
+
+/// Parses a `C3` file as it is read, one line at a time.
+pub(super) fn read_canonical(source: impl BufRead) -> Parsed<Canonical> {
+    let mut lines = Lines::new(source);
+    match lines.next()? {
         Some((_, "version: 3")) => (),
         Some((number, text)) => {
             let newer = text
@@ -303,7 +315,7 @@ pub(super) fn parse_canonical(content: &str) -> Parsed<Canonical> {
             note: note(number, encoded)?,
         });
     }
-    if let Some((number, _)) = lines.next() {
+    if let Some((number, _)) = lines.next()? {
         return fail(number, "unexpected data after the history table");
     }
     Ok(Canonical { reviews, history })
@@ -376,7 +388,11 @@ fn clean_reason(raw: &str) -> String {
     text
 }
 
-fn draft_table(lines: &mut Lines<'_>, name: &str, limit: usize) -> Parsed<Vec<DraftRow>> {
+fn draft_table<R: BufRead>(
+    lines: &mut Lines<R>,
+    name: &str,
+    limit: usize,
+) -> Parsed<Vec<DraftRow>> {
     let count = header(lines.require("missing table")?, name, B2_HEADER, limit)?;
     let mut rows = Vec::with_capacity(count.min(4096));
     for _ in 0..count {
@@ -422,16 +438,14 @@ fn draft_table(lines: &mut Lines<'_>, name: &str, limit: usize) -> Parsed<Vec<Dr
     Ok(rows)
 }
 
-pub(super) fn parse_draft(content: &str) -> Parsed<Draft> {
-    let mut lines = Lines::new(content);
-    check(
-        lines.next().map(|(_, text)| text) == Some("version: 2"),
-        1,
-        "unsupported format",
-    )?;
+/// Parses a `B2` draft as it is read, one line at a time.
+pub(super) fn read_draft(source: impl BufRead) -> Parsed<Draft> {
+    let mut lines = Lines::new(source);
+    let first = lines.next()?.map(|(_, text)| text);
+    check(first == Some("version: 2"), 1, "unsupported format")?;
     let current = draft_table(&mut lines, "reviews", MAX_ROWS)?;
     let history = draft_table(&mut lines, "history", B2_MAX_HISTORY)?;
-    if let Some((number, _)) = lines.next() {
+    if let Some((number, _)) = lines.next()? {
         return fail(number, "unexpected data after the history table");
     }
     let mut reviews = BTreeMap::new();
@@ -491,16 +505,18 @@ fn legacy_optional_state(number: usize, text: &str) -> Parsed<State> {
     }
 }
 
-pub(super) fn parse_legacy(content: &str) -> Parsed<Legacy> {
-    let mut lines = Lines::new(content);
-    match lines.next().map(|(_, text)| text) {
+/// Parses an `A1` or `A2` file as it is read, one line at a time.
+pub(super) fn read_legacy(source: impl BufRead) -> Parsed<Legacy> {
+    let mut lines = Lines::new(source);
+    let version = lines.next()?.map(|(_, text)| text);
+    match version {
         Some("version: 1") => parse_legacy_v1(&mut lines),
         Some("version: 2") => parse_legacy_v2(&mut lines),
         _ => fail(1, "unsupported format"),
     }
 }
 
-fn parse_legacy_v1(lines: &mut Lines<'_>) -> Parsed<Legacy> {
+fn parse_legacy_v1<R: BufRead>(lines: &mut Lines<R>) -> Parsed<Legacy> {
     let count = header(
         lines.require("missing reviews table")?,
         "reviews",
@@ -508,7 +524,7 @@ fn parse_legacy_v1(lines: &mut Lines<'_>) -> Parsed<Legacy> {
         MAX_ROWS,
     )?;
     let mut entries = BTreeMap::new();
-    while let Some(line) = lines.next() {
+    while let Some(line) = lines.next()? {
         let (number, text) = row(line)?;
         let Some((key, reason)) = text.split_once(',') else {
             return fail(number, "invalid row");
@@ -533,7 +549,7 @@ fn parse_legacy_v1(lines: &mut Lines<'_>) -> Parsed<Legacy> {
     })
 }
 
-fn parse_legacy_v2(lines: &mut Lines<'_>) -> Parsed<Legacy> {
+fn parse_legacy_v2<R: BufRead>(lines: &mut Lines<R>) -> Parsed<Legacy> {
     let count = header(
         lines.require("missing reviews table")?,
         "reviews",
@@ -568,7 +584,7 @@ fn parse_legacy_v2(lines: &mut Lines<'_>) -> Parsed<Legacy> {
         MAX_ROWS,
     )?;
     let mut history = Vec::new();
-    while let Some(line) = lines.next() {
+    while let Some(line) = lines.next()? {
         let (number, text) = row(line)?;
         let mut parts = text.splitn(5, ',');
         let (Some(key), Some(from), Some(to), Some(at), Some(note)) = (
