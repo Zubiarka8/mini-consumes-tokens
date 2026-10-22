@@ -13,9 +13,10 @@ use crate::web::Site;
 const MEMBER_PREVIEW: usize = 6;
 const UNREVIEWED: &str = "unreviewed";
 
-/// A time of 0 means the source recorded none (`A1`).
+/// Review times are milliseconds; the API, like the rest of it, uses Unix
+/// seconds. A time of 0 means the source recorded none (`A1`).
 fn known_time(at: u64) -> Option<u64> {
-    (at > 0).then_some(at)
+    (at > 0).then_some(at / 1000)
 }
 
 fn event_json(event: &HistoryEvent) -> Value {
