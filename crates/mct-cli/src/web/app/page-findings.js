@@ -5,9 +5,12 @@ import { icon, pageHead, tabsBar, dataTable, pager, badge, stateBadge, STATE_ORD
 import { codeBlock, openSource, compareView, normalizer } from "./code.js";
 import { t } from "./i18n.js";
 
+// Everything that still needs a person: also findings whose code changed
+// after a decision, and resolved findings the detector still reports.
+const ACTIONABLE = ["unreviewed", "needs-reevaluation", "in-review", "confirmed", "resolved-but-detected"];
 const CONFIG = {
-  duplicados: { type: "duplicate", title: "dup.title", subtitle: "dup.subtitle", defaultStates: ["unreviewed", "in-review", "confirmed"], views: true },
-  "codigo-muerto": { type: "dead-code", title: "dead.title", subtitle: "dead.subtitle", defaultStates: ["unreviewed", "in-review", "confirmed"] },
+  duplicados: { type: "duplicate", title: "dup.title", subtitle: "dup.subtitle", defaultStates: ACTIONABLE, views: true },
+  "codigo-muerto": { type: "dead-code", title: "dead.title", subtitle: "dead.subtitle", defaultStates: ACTIONABLE },
   revisiones: { type: "", title: "rev.title", subtitle: "rev.subtitle", defaultStates: null, tabs: true },
 };
 const BUILTIN_PRESETS = [
@@ -20,6 +23,8 @@ const ACTIONS = {
   unreviewed: ["in-review", "confirmed", "false-positive", "dismissed"],
   "in-review": ["confirmed", "false-positive", "dismissed", "resolved"],
   confirmed: ["resolved", "reopen"], "false-positive": ["reopen"], resolved: ["reopen"], dismissed: ["reopen"],
+  "needs-reevaluation": ["in-review", "confirmed", "false-positive", "dismissed", "reopen"],
+  "resolved-but-detected": ["in-review", "confirmed", "resolved", "reopen"],
 };
 const ACTION_STYLE = { "in-review": "", confirmed: "danger", "false-positive": "warn", dismissed: "", resolved: "primary", reopen: "" };
 
@@ -38,15 +43,21 @@ export function reviewPanel(item, onChange) {
       if (!ok) return;
     }
     try {
-      const saved = await review(item.key, target === "reopen" ? null : target, note);
+      const saved = await review(item.key, target === "reopen" ? null : target, note, item.revision);
       toast(t("review.saved", { state: stateLabel(saved.state) }), "ok");
       onChange(saved);
-    } catch (error) { toast(t("review.failed", { message: error.message }), "err"); }
+    } catch (error) {
+      if (error.status === 409 && error.body?.key) {
+        toast(t("review.conflict"), "err");
+        onChange(error.body);
+      } else toast(t("review.failed", { message: error.message }), "err");
+    }
   };
-  const actions = (ACTIONS[item.state] || []).map((target) => h("button", { class: `btn sm ${ACTION_STYLE[target]}`, onclick: () => apply(target) }, t(`review.action.${target}`)));
+  const actions = item.readOnly ? [] : (ACTIONS[item.state] || []).map((target) => h("button", { class: `btn sm ${ACTION_STYLE[target]}`, onclick: () => apply(target) }, t(`review.action.${target}`)));
   return h("div", { class: "section" }, h("h4", {}, t("review.title")),
     h("div", { class: "row", style: { marginBottom: "8px" } }, stateBadge(item.state), item.updated ? h("span", { class: "muted small" }, `${t("review.updated")} ${ago(item.updated)}`) : null),
-    h("label", { class: "field" }, t("review.noteOptional"), noteField),
+    item.state === "needs-reevaluation" ? h("p", { class: "muted small" }, t("review.previous", { state: stateLabel(item.previousState) })) : null,
+    item.readOnly ? h("p", { class: "small" }, t("review.readOnly")) : h("label", { class: "field" }, t("review.noteOptional"), noteField),
     h("div", { class: "row", style: { marginTop: "8px" } }, actions),
     h("p", { class: "muted small", style: { marginTop: "8px" } }, t("review.reviewerNote")));
 }
@@ -54,7 +65,7 @@ export function reviewPanel(item, onChange) {
 export function historyList(history) {
   if (!history?.length) return h("p", { class: "muted" }, t("review.noHistory"));
   return h("ol", { class: "timeline" }, [...history].reverse().map((event) => h("li", {},
-    h("div", {}, stateBadge(event.from), " → ", stateBadge(event.to)), h("div", { class: "muted small" }, dateTime(event.at)), event.note && h("div", {}, `“${event.note}”`))));
+    h("div", {}, stateBadge(event.from), " → ", stateBadge(event.to)), h("div", { class: "muted small" }, event.at ? dateTime(event.at) : t("review.unknownTime")), event.note && h("div", {}, `“${event.note}”`))));
 }
 
 function duplicateDetail(item, onChange, setView) {

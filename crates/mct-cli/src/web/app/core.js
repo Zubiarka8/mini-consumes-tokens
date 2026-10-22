@@ -48,7 +48,7 @@ export const store = {
 
 // ---------- API ----------
 export class ApiError extends Error {
-  constructor(status, message) { super(message); this.status = status; }
+  constructor(status, message, body = null) { super(message); this.status = status; this.body = body; }
 }
 
 const pending = new Map();
@@ -78,15 +78,16 @@ export const isAbort = (error) => error?.name === "AbortError";
 let csrf = "";
 export const setCsrf = (value) => { csrf = value; };
 
-/** Records (or clears, with state = null) a review decision. */
-export async function review(key, state, note = "") {
+/** Records (or clears, with state = null) a review decision based on the
+ *  `revision` the page showed. A 409 error carries the current review in `body`. */
+export async function review(key, state, note = "", revision = "none") {
   const response = await fetch("api/review", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ csrf, key, state, note }),
+    body: JSON.stringify({ csrf, key, state, note, revision }),
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new ApiError(response.status, body.error || response.statusText);
+  if (!response.ok) throw new ApiError(response.status, body.error || response.statusText, body);
   return body;
 }
 

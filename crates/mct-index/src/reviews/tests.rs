@@ -602,6 +602,8 @@ fn a_stale_revision_is_rejected_without_writing() {
         .unwrap_err();
     assert!(matches!(error, ReviewError::Conflict), "{error}");
     assert_eq!(read(root.path(), "review-decisions.toon").unwrap(), saved);
+    // The rejected writer now sees the other writer's decision.
+    assert_eq!(second.resolve(&[dup()])[0].state(), State::Confirmed);
 }
 
 #[test]

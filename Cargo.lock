@@ -1362,7 +1362,6 @@ dependencies = [
  "form_urlencoded",
  "getrandom 0.3.4",
  "git2",
- "hmac-sha256",
  "mct-core",
  "mct-index",
  "mct-lang-bash",

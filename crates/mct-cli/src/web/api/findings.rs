@@ -5,39 +5,53 @@
 
 use serde_json::{json, Value};
 
+use mct_index::reviews::{HistoryEvent, Resolution};
+
 use super::{code, contains_ci, csv, facet, page_bounds, text, Params};
-use crate::web::reviews::{Event, State};
 use crate::web::Site;
 
 const MEMBER_PREVIEW: usize = 6;
 const UNREVIEWED: &str = "unreviewed";
 
-fn state_name(state: Option<State>) -> &'static str {
-    state.map_or(UNREVIEWED, State::value)
+/// A time of 0 means the source recorded none (`A1`).
+fn known_time(at: u64) -> Option<u64> {
+    (at > 0).then_some(at)
 }
 
-fn event_json(event: &Event) -> Value {
+fn event_json(event: &HistoryEvent) -> Value {
     json!({
-        "from": state_name(event.from),
-        "to": state_name(event.to),
-        "at": event.at,
+        "from": event.from.value(),
+        "to": event.to.value(),
+        "at": known_time(event.at),
         "note": event.note,
+        "source": event.format.value(),
     })
 }
 
+/// `state` is what the page shows: a stored state, `needs-reevaluation` or
+/// `resolved-but-detected`; `previousState` is the stored one behind it.
 fn review_fields(site: &Site, key: &str) -> Value {
-    let review = site.reviews.get(key);
+    let resolution = site.reviews.resolution(key);
+    let winner = resolution.and_then(|resolution| resolution.winner.as_ref());
     json!({
         "key": key,
-        "state": state_name(review.map(|review| review.state)),
-        "note": review.map_or("", |review| review.note.as_str()),
-        "updated": review.map(|review| review.updated),
+        "state": resolution.map_or(UNREVIEWED, Resolution::label),
+        "previousState": resolution.map_or(UNREVIEWED, |resolution| resolution.state().value()),
+        "note": winner.map_or("", |winner| winner.note.as_str()),
+        "updated": winner.and_then(|winner| known_time(winner.at)),
+        "source": winner.map(|winner| winner.format.value()),
+        "revision": resolution.map_or_else(|| "none".to_string(), Resolution::revision),
+        "readOnly": site.reviews.read_only_reason().is_some(),
     })
+}
+
+fn history_json(site: &Site, key: &str) -> Value {
+    site.reviews.history(key).iter().map(event_json).collect()
 }
 
 pub(in crate::web) fn review_json(site: &Site, key: &str) -> Value {
     let mut value = review_fields(site, key);
-    value["history"] = site.reviews.history(key).map(event_json).collect();
+    value["history"] = history_json(site, key);
     value
 }
 
@@ -239,7 +253,7 @@ pub(super) fn detail(site: &Site, params: &Params) -> Result<Value, (u16, &'stat
             site.duplicates.options.normalization,
         );
         row["analysis"] = json!(analysis);
-        row["history"] = site.reviews.history(key).map(event_json).collect();
+        row["history"] = history_json(site, key);
         return Ok(row);
     }
     let index = site
@@ -253,6 +267,6 @@ pub(super) fn detail(site: &Site, params: &Params) -> Result<Value, (u16, &'stat
     params.insert("id".into(), symbol_id.to_string());
     row["detail"] = code::symbol(site, &params)?;
     row["method"] = json!({ "kind": "no-indexed-reference-by-name" });
-    row["history"] = site.reviews.history(key).map(event_json).collect();
+    row["history"] = history_json(site, key);
     Ok(row)
 }

@@ -104,9 +104,11 @@ impl Server {
     fn post_review(&self, body: &str, headers: &str) -> String {
         self.raw(&format!("POST /secret/api/review HTTP/1.1\r\nHost: 127.0.0.1:8787\r\n{headers}Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}", body.len()))
     }
+    /// Posts a decision based on the revision the API shows right now.
     fn decide(&self, key: &str, state: Option<&str>, note: &str) -> String {
         let csrf = self.site.borrow().csrf.clone();
-        let body = serde_json::json!({ "csrf": csrf, "key": key, "state": state, "note": note })
+        let revision = self.json(&format!("api/finding?key={key}"))["revision"].clone();
+        let body = serde_json::json!({ "csrf": csrf, "key": key, "state": state, "note": note, "revision": revision })
             .to_string();
         self.post_review(&body, "Origin: http://127.0.0.1:8787\r\n")
     }
@@ -489,7 +491,8 @@ fn review_posts_require_origin_csrf_valid_state_and_current_identity() {
     let csrf = server.site.borrow().csrf.clone();
     let origin = "Origin: http://127.0.0.1:8787\r\n";
     let body = |value: serde_json::Value| value.to_string();
-    let good = serde_json::json!({ "csrf": csrf, "key": key, "state": "confirmed" });
+    let good =
+        serde_json::json!({ "csrf": csrf, "key": key, "state": "confirmed", "revision": "none" });
     assert!(
         server
             .post_review(&body(good.clone()), "")
@@ -510,7 +513,8 @@ fn review_posts_require_origin_csrf_valid_state_and_current_identity() {
         (serde_json::json!({ "state": "deleted" }), 400),
         (serde_json::json!({ "state": 7 }), 400),
         (serde_json::json!({ "extra": true }), 400),
-        (serde_json::json!({ "note": "x".repeat(501) }), 500),
+        (serde_json::json!({ "revision": null }), 400),
+        (serde_json::json!({ "note": "x".repeat(501) }), 400),
     ] {
         let mut value = good.clone();
         for (field, content) in patch.as_object().unwrap() {
@@ -540,23 +544,29 @@ fn a_failed_review_save_is_reported_and_changes_nothing() {
     let server = Server::start(root.path(), true);
     let key = server.site.borrow().review_keys[0].clone();
     fs::write(
-        root.path().join(".mct-index/duplicate-reviews.lock"),
+        root.path().join(".mct-index/review-decisions.lock"),
         "another writer",
     )
     .unwrap();
     let response = server.decide(&key, Some("dismissed"), "reason");
     assert!(
-        response.starts_with("HTTP/1.1 500") && response.contains("No changes were applied"),
+        response.starts_with("HTTP/1.1 503")
+            && response.contains("No changes were applied")
+            && response.contains("review-decisions.lock"),
         "{response}"
     );
     assert_eq!(
         server.json("api/findings?type=duplicate")["items"][0]["state"],
         "unreviewed"
     );
-    assert!(!root
-        .path()
-        .join(".mct-index/duplicate-reviews.toon")
-        .exists());
+    for name in ["review-decisions.toon", "duplicate-reviews.toon"] {
+        assert!(!root.path().join(".mct-index").join(name).exists());
+    }
+    assert_eq!(
+        fs::read_to_string(root.path().join(".mct-index/review-decisions.lock")).unwrap(),
+        "another writer",
+        "another writer's lock is never removed"
+    );
 }
 
 #[test]
@@ -564,6 +574,9 @@ fn review_identity_follows_group_members_and_file_content() {
     let root = project();
     let before = Server::start(root.path(), true);
     let key = before.site.borrow().review_keys[0].clone();
+    assert!(before
+        .decide(&key, Some("false-positive"), "")
+        .starts_with("HTTP/1.1 200"));
     let dead = before
         .site
         .borrow()
@@ -583,10 +596,15 @@ fn review_identity_follows_group_members_and_file_content() {
     fs::write(&file, text.replace("total += 8;", "total += 9;")).unwrap();
     index(root.path());
     let changed = Server::start(root.path(), true);
-    assert!(
-        changed.site.borrow().review_keys.is_empty() || changed.site.borrow().review_keys[0] != key,
-        "changed code is a new finding"
+    // Same members, changed code: the same finding, shown again until
+    // someone decides about the new code.
+    assert_eq!(
+        changed.site.borrow().review_keys,
+        std::slice::from_ref(&key)
     );
+    let row = changed.json(&format!("api/finding?key={key}"));
+    assert_eq!(row["state"], "needs-reevaluation");
+    assert_eq!(row["previousState"], "false-positive");
 }
 
 #[test]
@@ -724,30 +742,102 @@ fn current_ignore_rules_hide_stale_index_rows_from_the_api_and_the_vault() {
     );
 }
 
-/// The shared review module must reproduce, byte for byte, the keys this
-/// dashboard stored in `duplicate-reviews.toon`, or saved decisions stop
-/// matching.
+/// Keys that the `origin/main` dashboard (`e68aec9`, `web/reviews.rs`
+/// `group_keys` and `dead_code_key`) stored for `project()` in
+/// `duplicate-reviews.toon`; recorded from that code in commit `ac76568`,
+/// where a test compared both implementations on this fixture.
+const A2_DUPLICATE_KEY: &str = "34e41d67068c03d6043f89c14aedf32dacf3a9c4e2ef3026d50eb80fe0ed203c";
+const A2_DEAD_KEYS: [&str; 2] = [
+    "eea049a05a956f2b447d711fc7228f1ebbb0c659c9a784c857afea59c14161d0",
+    "b1b7bafd8ab725fa534b16291e0bdf0ff404344890f18e1ee5df6d019e4f546e",
+];
+
 #[test]
-fn shared_review_keys_reproduce_the_stored_legacy_keys() {
+fn legacy_decisions_apply_and_their_file_is_never_rewritten() {
     let root = project();
-    let server = Server::start(root.path(), true);
-    let site = server.site.borrow();
-    let hashes = site.index.file_hashes().unwrap();
-    let duplicates = mct_index::reviews::duplicate_findings(
-        &site.duplicates.groups,
-        site.duplicates.options.normalization,
-        &hashes,
+    let legacy = format!(
+        "version: 2\nreviews[2]{{key,state,updated,note}}:\n  {A2_DUPLICATE_KEY},dismissed,100,generated%2C+kept\n  {},false-positive,100,\nhistory[2]{{key,from,to,at,note}}:\n  {A2_DUPLICATE_KEY},none,dismissed,100,generated%2C+kept\n  {},none,false-positive,100,\n",
+        A2_DEAD_KEYS[0], A2_DEAD_KEYS[0]
     );
-    assert!(!duplicates.is_empty());
-    let legacy: Vec<_> = duplicates
+    let path = root.path().join(".mct-index/duplicate-reviews.toon");
+    fs::write(&path, &legacy).unwrap();
+    let server = Server::start(root.path(), true);
+    let group = server.json("api/findings?type=duplicate")["items"][0].clone();
+    assert_eq!(group["state"], "dismissed");
+    assert_eq!(group["note"], "generated, kept");
+    assert_eq!(group["source"], "a2");
+    let states: Vec<String> = server.json("api/findings?type=dead-code")["items"]
+        .as_array()
+        .unwrap()
         .iter()
-        .map(|f| f.legacy_key.clone().unwrap())
+        .map(|row| row["state"].as_str().unwrap().to_string())
         .collect();
-    assert_eq!(legacy, site.review_keys);
-    let scan = mct_index::scan_dead_code(&site.index, None, None).unwrap();
-    let dead = mct_index::reviews::dead_code_findings(&scan.symbols, &scan.candidates, &hashes);
-    let legacy: Vec<_> = dead.iter().map(|f| f.legacy_key.clone().unwrap()).collect();
-    let stored: Vec<_> = site.dead.iter().map(|d| d.key.clone()).collect();
-    assert!(!stored.is_empty());
-    assert_eq!(legacy, stored);
+    assert!(states.contains(&"false-positive".to_string()), "{states:?}");
+    let key = group["key"].as_str().unwrap().to_string();
+    assert!(server
+        .decide(&key, None, "back to the queue")
+        .starts_with("HTTP/1.1 200"));
+    assert_eq!(fs::read_to_string(&path).unwrap(), legacy);
+    assert!(root
+        .path()
+        .join(".mct-index/review-decisions.toon")
+        .exists());
+    let restarted = Server::start(root.path(), true);
+    let group = restarted.json(&format!("api/finding?key={key}"));
+    assert_eq!(group["state"], "unreviewed");
+    let sources: Vec<&str> = group["history"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|event| event["source"].as_str().unwrap())
+        .collect();
+    assert_eq!(sources, ["a2", "c3"], "history keeps both files' events");
+}
+
+#[test]
+fn a_stale_view_is_rejected_with_the_current_review() {
+    let root = project();
+    let first = Server::start(root.path(), true);
+    let second = Server::start(root.path(), true);
+    let key = first.site.borrow().review_keys[0].clone();
+    let shown = second.json(&format!("api/finding?key={key}"))["revision"].clone();
+    assert!(first
+        .decide(&key, Some("dismissed"), "")
+        .starts_with("HTTP/1.1 200"));
+    let csrf = second.site.borrow().csrf.clone();
+    let body =
+        serde_json::json!({ "csrf": csrf, "key": key, "state": "confirmed", "revision": shown })
+            .to_string();
+    let response = second.post_review(&body, "Origin: http://127.0.0.1:8787\r\n");
+    assert!(response.starts_with("HTTP/1.1 409"), "{response}");
+    let current: serde_json::Value = serde_json::from_str(Server::body(&response)).unwrap();
+    assert_eq!(current["state"], "dismissed");
+    assert_eq!(
+        Server::start(root.path(), true).json(&format!("api/finding?key={key}"))["state"],
+        "dismissed"
+    );
+}
+
+#[test]
+fn an_unreadable_review_file_makes_reviews_read_only_and_hides_nothing() {
+    let root = project();
+    let key = Server::start(root.path(), true).site.borrow().review_keys[0].clone();
+    let server = Server::start(root.path(), true);
+    assert!(server
+        .decide(&key, Some("dismissed"), "")
+        .starts_with("HTTP/1.1 200"));
+    let draft = root.path().join(".mct-index/reviews.toon");
+    fs::write(&draft, "version: 2\ntruncated").unwrap();
+    let degraded = Server::start(root.path(), true);
+    let meta = degraded.json("api/meta");
+    assert!(meta["reviewsReadOnly"]
+        .as_str()
+        .unwrap()
+        .contains("reviews.toon"));
+    let row = degraded.json(&format!("api/finding?key={key}"));
+    assert_eq!(row["state"], "unreviewed", "nothing is hidden");
+    assert_eq!(row["readOnly"], true);
+    let response = degraded.decide(&key, Some("confirmed"), "");
+    assert!(response.starts_with("HTTP/1.1 503"), "{response}");
+    assert_eq!(fs::read_to_string(&draft).unwrap(), "version: 2\ntruncated");
 }
