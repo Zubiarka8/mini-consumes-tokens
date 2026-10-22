@@ -1075,6 +1075,18 @@ fn a_file_without_a_content_hash_has_unknown_content() {
 }
 
 #[test]
+fn an_empty_content_hash_is_unknown_content() {
+    // The schema migration that adds literal search empties every stored
+    // hash, so that the next reindex hashes each file again. Until then the
+    // content is unknown, and a finding must not be hidden by a decision.
+    let symbols = vec![symbol("c.rs", "parse", "function", 1, 3)];
+    let empty = vec![("c.rs".to_string(), String::new())];
+    let findings = dead_code_findings(&symbols, &[0], &empty);
+    assert!(!findings[0].content_known);
+    assert!(findings[0].legacy_key.is_none());
+}
+
+#[test]
 fn rapid_saves_do_not_push_the_clock_ahead_of_a_later_old_binary_decision() {
     let root = project();
     let mut reviews = Reviews::load(root.path());
