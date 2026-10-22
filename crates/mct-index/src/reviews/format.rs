@@ -63,6 +63,9 @@ fn encode(note: &str) -> String {
 }
 
 fn decode(note: &str) -> String {
+    if note.is_empty() {
+        return String::new();
+    }
     form_urlencoded::parse(format!("n={note}").as_bytes())
         .next()
         .map(|(_, value)| value.into_owned())
@@ -162,10 +165,17 @@ pub(super) struct Canonical {
 /// Splits a `C3` row into exactly `N` fields; the last one is a note, which
 /// is URL-encoded and so never contains a comma.
 fn fields<const N: usize>(number: usize, text: &str) -> Parsed<[&str; N]> {
-    let parts: Vec<&str> = text.split(',').collect();
-    match <[&str; N]>::try_from(parts) {
-        Ok(parts) => Ok(parts),
-        Err(_) => fail(number, "wrong number of fields"),
+    let mut parts = text.split(',');
+    let mut out = [""; N];
+    for slot in &mut out {
+        *slot = match parts.next() {
+            Some(part) => part,
+            None => return fail(number, "wrong number of fields"),
+        };
+    }
+    match parts.next() {
+        Some(_) => fail(number, "wrong number of fields"),
+        None => Ok(out),
     }
 }
 
@@ -190,6 +200,9 @@ fn state(number: usize, text: &str) -> Parsed<State> {
 }
 
 fn note(number: usize, encoded: &str) -> Parsed<String> {
+    if encoded.is_empty() {
+        return Ok(String::new());
+    }
     let note = decode(encoded);
     // Canonical encoding only, so a file always renders back byte for byte.
     check(
@@ -232,16 +245,17 @@ pub(super) fn parse_canonical(content: &str) -> Parsed<Canonical> {
         let [kind, identity, fingerprint, state_text, updated, encoded] =
             fields::<6>(number, text)?;
         let kind = keys(number, kind, identity, fingerprint)?;
+        let identity = identity.to_string();
         let row = Row {
             kind,
-            identity: identity.to_string(),
+            identity: identity.clone(),
             fingerprint: fingerprint.to_string(),
             state: state(number, state_text)?,
             updated: time(number, updated)?,
             note: note(number, encoded)?,
         };
         check(
-            reviews.insert((kind, identity.to_string()), row).is_none(),
+            reviews.insert((kind, identity), row).is_none(),
             number,
             "duplicate review",
         )?;
