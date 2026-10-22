@@ -33,11 +33,16 @@ pub(super) fn digest(fields: &[&str]) -> String {
         bytes.extend_from_slice(&(value.len() as u64).to_le_bytes());
         bytes.extend_from_slice(value.as_bytes());
     }
-    hmac_sha256::Hash::hash(&bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
+    let hash = hmac_sha256::Hash::hash(&bytes);
+    let mut hex = String::with_capacity(2 * hash.len());
+    for byte in hash {
+        hex.push(char::from(HEX_DIGITS[usize::from(byte >> 4)]));
+        hex.push(char::from(HEX_DIGITS[usize::from(byte & 0x0f)]));
+    }
+    hex
 }
+
+const HEX_DIGITS: &[u8; 16] = b"0123456789abcdef";
 
 /// Path, symbol name, symbol kind, start line and end line of a member.
 type MemberRange<'a> = (&'a str, &'a str, &'a str, u32, u32);
