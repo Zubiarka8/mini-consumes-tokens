@@ -159,26 +159,32 @@ impl<'a> Resolver<'a> {
                 .entry((finding.kind, finding.draft_identity.as_str()))
                 .or_default() += 1;
         }
-        let mut draft_history: HashMap<(Kind, &str), Vec<usize>> = HashMap::new();
+        // History positions, kept only for current findings: a store holds
+        // far more rows than one scope has findings.
+        let mut draft_history: HashMap<(Kind, &str), Vec<usize>> =
+            draft_seen.keys().map(|key| (*key, Vec::new())).collect();
         for (position, row) in sources.draft.history.iter().enumerate() {
-            draft_history
-                .entry((row.kind, row.identity.as_str()))
-                .or_default()
-                .push(position);
+            if let Some(positions) = draft_history.get_mut(&(row.kind, row.identity.as_str())) {
+                positions.push(position);
+            }
         }
-        let mut legacy_history: HashMap<&str, Vec<usize>> = HashMap::new();
+        let mut legacy_history: HashMap<&str, Vec<usize>> =
+            legacy_seen.keys().map(|key| (*key, Vec::new())).collect();
         for (position, event) in sources.legacy.history.iter().enumerate() {
-            legacy_history
-                .entry(event.key.as_str())
-                .or_default()
-                .push(position);
+            if let Some(positions) = legacy_history.get_mut(event.key.as_str()) {
+                positions.push(position);
+            }
         }
-        let mut canonical_history: HashMap<(Kind, &str), Vec<usize>> = HashMap::new();
+        let mut canonical_history: HashMap<(Kind, &str), Vec<usize>> = findings
+            .iter()
+            .map(|f| ((f.kind, f.identity.as_str()), Vec::new()))
+            .collect();
         for (position, event) in sources.canonical.history.iter().enumerate() {
-            canonical_history
-                .entry((event.kind, event.identity.as_str()))
-                .or_default()
-                .push(position);
+            if let Some(positions) =
+                canonical_history.get_mut(&(event.kind, event.identity.as_str()))
+            {
+                positions.push(position);
+            }
         }
         Self {
             sources,
@@ -402,14 +408,15 @@ impl<'a> Resolver<'a> {
                 .keys()
                 .filter(|key| !legacy.contains(key.as_str()))
                 .count();
-        let inconsistent = self
-            .legacy_history
+        // Every key of the file, not only current findings' keys.
+        let mut last_event: HashMap<&str, State> = HashMap::new();
+        for event in &sources.legacy.history {
+            last_event.insert(event.key.as_str(), event.to);
+        }
+        let inconsistent = last_event
             .iter()
-            .filter(|(key, positions)| {
-                !sources.legacy.entries.contains_key(**key)
-                    && positions
-                        .last()
-                        .is_some_and(|last| sources.legacy.history[*last].to != State::Unreviewed)
+            .filter(|(key, to)| {
+                !sources.legacy.entries.contains_key(**key) && **to != State::Unreviewed
             })
             .count();
         let limit = now.saturating_add(FUTURE_SLACK_SECS);
