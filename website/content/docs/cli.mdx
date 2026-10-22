@@ -23,6 +23,8 @@ The index always lives in `<root>/.mct-index/index.sqlite3`. The path can't be c
 | --- | --- | --- |
 | [`init`](#init) | Build the index for the first time | writes |
 | [`reindex`](#reindex) | Update the index after changes | writes |
+| [`web`](#web) | Browse the linked atlas and duplicate-code review on localhost | reads |
+| [`obsidian`](#obsidian) | Regenerate the metadata vault | reads |
 | [`status`](#status) | Show what is indexed and what failed | reads |
 | [`mcp-register`](#mcp-register) | Add the server to `.mcp.json` | no |
 | [`ignore-init`](#ignore-init) | Create a starter `.mctignore` | no |
@@ -66,6 +68,51 @@ mct-cli --root . reindex --force   # parse every file again
 | `--force` | Parse every supported file again, even if it hasn't changed. Only needed after upgrading mini-consumes-tokens or if the index looks wrong. |
 
 The output is the same as `init`. See [Reindexing](/docs/managing) for when you need it.
+
+## `web` [#web]
+
+```bash
+mct-cli --root . web
+mct-cli --root . web --port 8787 --no-obsidian
+```
+
+Open the printed private localhost URL. One website contains the directory/file
+atlas and duplicate-code analysis, with links in both directions. Search paths
+and symbol names, follow resolved imports, and inspect duplicate groups with
+verdicts, source locations and full alignment evidence. Lists paginate; the full
+duplicate report is also available as a TOON download. Atlas pages contain
+metadata only.
+
+Use **Move to discarded** on a group and choose **False positive** or
+**Other / not relevant**. **Discarded** provides **Restore to active**. Decisions
+persist across restarts; changed member files or group membership require review
+again. The raw TOON report and CLI analysis retain every group. Review actions
+never delete source or change the SQLite index.
+
+An existing index is required. SQLite opens read-only, and duplicate analysis
+uses current source files with the existing default policy. The Obsidian vault
+is regenerated unless `--no-obsidian` is given; a vault write failure is a warning
+and the website remains available. Browser reload uses the startup snapshot:
+reindex and restart the command to refresh. Keep the command running; Ctrl-C
+stops it. Port 0 chooses a free port. No browser launches automatically.
+
+Only rendered views are served over IPv4 loopback with a private random URL,
+Host/Origin checks and request bounds. Only protected duplicate-review POST
+forms can write local review preferences; index/source writes are unavailable. Personal vault notes,
+Obsidian settings and the SQLite database are never served.
+
+## `obsidian` [#obsidian]
+
+```bash
+mct-cli --root . obsidian
+```
+
+Regenerate `.mct-index/obsidian/` from existing SQLite metadata. Open that folder
+as a vault in Obsidian. File notes contain paths, hashes, language, bounded symbol
+lists and resolved import links, without code or Markdown bodies. Generated
+notes use a manifest; personal notes and `.obsidian/` settings are preserved.
+`init`, `reindex` and the MCP server also regenerate it; `--no-obsidian` opts out.
+The atlas is also navigable through the local `web` command above.
 
 ## `status` [#status]
 
@@ -151,6 +198,21 @@ mct-cli --root . ignore-init --import-gitignore
 | `--import-gitignore` | Also skip everything your `.gitignore` skips. Turns on the `@import-gitignore` line. |
 
 If `.mctignore` already exists it is left alone. The one exception: with `--import-gitignore`, the `@import-gitignore` line is appended if it is missing.
+
+### Generated environments and build output
+
+```bash
+mct-cli --root . ignore-init --generated --import-gitignore
+mct-cli --root . reindex
+```
+
+Adds editable rules for `venv`, `.venv`, Python caches, `bin`, `obj`, `build`
+and `dist` at any depth. Existing text and later user overrides are preserved;
+running it again adds no duplicates. This preset is opt-in because `bin` can
+contain project source. Remove unwanted rules or add a later `!src/bin/` to keep
+a source directory. Reindex and restart the website after changes. Nothing is
+deleted from disk; these are the existing `.mctignore` rules shared by indexing,
+MCP, duplicate analysis, atlas generation and web navigation.
 
 ## `gitignore-init` [#gitignore-init]
 
