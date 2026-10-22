@@ -6,8 +6,8 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::time::{Duration, Instant};
 
-use super::render::Response;
-use super::{render, Site};
+use super::response::Response;
+use super::{api, assets, Site};
 
 const MAX_HEADERS: usize = 16 * 1024;
 const MAX_BODY: usize = 4096;
@@ -37,7 +37,6 @@ pub(super) fn serve_connection(
     let (response, head) = receive(stream, port, token, site)?;
     let reason = match response.status {
         200 => "OK",
-        303 => "See Other",
         400 => "Bad Request",
         403 => "Forbidden",
         404 => "Not Found",
@@ -49,10 +48,7 @@ pub(super) fn serve_connection(
         500 => "Internal Server Error",
         _ => "Error",
     };
-    write!(stream, "HTTP/1.1 {} {reason}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\nCache-Control: no-store\r\nReferrer-Policy: no-referrer\r\nX-Content-Type-Options: nosniff\r\nX-Frame-Options: DENY\r\nCross-Origin-Resource-Policy: same-origin\r\nContent-Security-Policy: default-src 'none'; style-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'\r\nAllow: GET, HEAD, POST\r\n", response.status, response.content_type, response.body.len())?;
-    if let Some(location) = response.location {
-        write!(stream, "Location: {location}\r\n")?;
-    }
+    write!(stream, "HTTP/1.1 {} {reason}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\nCache-Control: no-store\r\nReferrer-Policy: no-referrer\r\nX-Content-Type-Options: nosniff\r\nX-Frame-Options: DENY\r\nCross-Origin-Resource-Policy: same-origin\r\nContent-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; font-src 'self'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'\r\nAllow: GET, HEAD, POST\r\n", response.status, response.content_type, response.body.len())?;
     stream.write_all(b"\r\n")?;
     if !head {
         stream.write_all(response.body.as_bytes())?;
@@ -132,7 +128,7 @@ fn receive(
                         Err(_) => Response::error(400),
                     }
                 } else {
-                    render::route(site, &request.target)
+                    route(site, &request.target)
                 };
                 return Ok((response, request.head));
             }
@@ -195,13 +191,13 @@ fn validate(headers: &str, port: u16, token: &str) -> Result<Request, u16> {
     let target = target.strip_prefix(&format!("/{token}/")).ok_or(404_u16)?;
     let post = method == "POST";
     let length = if post {
-        if target != "review" {
+        if target != "api/review" {
             return Err(405);
         }
         if fields.get("origin").copied() != Some(format!("http://{host}").as_str()) {
             return Err(403);
         }
-        if fields.get("content-type").copied() != Some("application/x-www-form-urlencoded") {
+        if fields.get("content-type").copied() != Some("application/json") {
             return Err(400);
         }
         let length: usize = fields
@@ -230,6 +226,24 @@ fn validate(headers: &str, port: u16, token: &str) -> Result<Request, u16> {
     })
 }
 
+/// Static dashboard files and the JSON API; nothing maps to a filesystem path.
+fn route(site: &Site, target: &str) -> Response {
+    let (path, query) = target.split_once('?').unwrap_or((target, ""));
+    let mut params = api::Params::new();
+    for (key, value) in form_urlencoded::parse(query.as_bytes()) {
+        if params
+            .insert(key.into_owned(), value.into_owned())
+            .is_some()
+        {
+            return Response::error(400);
+        }
+    }
+    if let Some(response) = assets::serve(path) {
+        return response;
+    }
+    api::route(site, path, &params).unwrap_or_else(|| Response::error(404))
+}
+
 #[cfg(test)]
 fn validated_target(request: &str, port: u16, token: &str) -> Result<String, u16> {
     validate(request, port, token).map(|request| request.target)
@@ -242,10 +256,10 @@ mod tests {
 
     #[test]
     fn capability_host_origin_and_body_rules_are_enforced() {
-        let valid = "GET /secret/atlas?dir=src HTTP/1.1\r\nHost: 127.0.0.1:1234\r\n\r\n";
+        let valid = "GET /secret/api/files?dir=src HTTP/1.1\r\nHost: 127.0.0.1:1234\r\n\r\n";
         assert_eq!(
             validated_target(valid, 1234, "secret"),
-            Ok("atlas?dir=src".to_string())
+            Ok("api/files?dir=src".to_string())
         );
         for (request, status) in [
             (valid.replace("/secret/", "/wrong/"), 404),
