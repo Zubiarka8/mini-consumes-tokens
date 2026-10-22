@@ -380,9 +380,11 @@ Writes made through the new web never tie with what that web showed, because of
 1. Validate the kind, 64-hex identity and fingerprint, the state, the note
    (at most 500 characters, no control characters), and the expected revision
    sent by the page (§7.10).
-2. Create `.mct-index/review-decisions.lock` with `create_new`, recording the
-   process id and start time. On failure, report the path and the lock's age.
-   Never remove someone else's lock automatically (R14).
+2. Open `.mct-index/review-decisions.lock` and take an exclusive advisory lock
+   with `File::try_lock`. The kernel releases it when the holder exits, however
+   it exits, so no lock file has to be removed. If another live writer holds
+   it, refuse with `Locked` and the path. If the platform cannot lock the file,
+   refuse with an I/O error. The file is never deleted (see §7.7a).
 3. Under the lock, re-run Step 1 for every source and resolve the finding. If
    any source is unreadable, abort (D14).
 4. If the resolved revision differs from the expected revision, abort with a
@@ -400,12 +402,33 @@ Writes made through the new web never tie with what that web showed, because of
 9. If D15 is approved, publish the previous `C3` bytes to
    `review-decisions.toon.prev` (temporary file, `sync_all`, rename).
 10. Write the new bytes to a temporary file
-    `review-decisions.toon.<pid>.<random>.tmp` created with `create_new`.
+    `review-decisions.toon.<target>.<pid>.<nanos>.<attempt>.tmp` created with
+    `create_new` (`<target>` is `review-decisions.toon` or `…toon.prev`).
     Call `sync_all`, re-check `safe_path`, atomically rename it over
     `review-decisions.toon`, sync the parent directory on Unix, then update
     the in-memory view. A guard removes this process's temporary file on every
     error path.
-11. Release the lock in `Drop`.
+11. Release the lock by dropping the file handle.
+
+### 7.7a Crash recovery, locking and temporary files
+
+- **Locking.** A killed writer releases its lock with its process. A lock
+  file left behind blocks nothing (CR-16; `review_crash.rs` leaves one in 149
+  of 150 kills and every save still succeeds). The lock is advisory: it
+  serializes writers that use this protocol, and nothing else. On network
+  file systems that do not support `flock`-style locks, the save fails
+  closed with an I/O error instead of proceeding unlocked.
+- **Temporary files.** A killed save can leave a `…tmp` file holding a
+  partial copy of the store (up to 32 MiB). Only a save removes them, and
+  only while holding the lock, so no live writer can be using one. A removal
+  deletes regular files whose name matches the grammar of step 10 exactly, for
+  the two targets `review-decisions.toon` and `review-decisions.toon.prev`.
+  Nothing else is removed: not `.prev`, not directories, not symbolic links,
+  not files with other names. Loading (and therefore web startup) never
+  removes anything. A removal that fails is ignored; the file is counted by
+  the next load and hides nothing.
+- **Backup.** `.prev` is the bytes of the canonical file before the last save.
+  Recovery by hand (restoring `.prev`) is unchanged.
 
 The web stops writing `duplicate-reviews.toon` (D9). Legacy files are read
 under this lock only for consistency of this process's own view: old binaries
@@ -724,7 +747,8 @@ Example `crates/mct-mcp-server/examples/review_overhead.rs`, run with
 
 ## 14. Documentation impact
 
-New ADR (next free number at integration, D8), partly superseding ADR-015 and
+New ADR-019 (decision D8; ADR-017 and ADR-018 are claimed by uncommitted
+drafts, so 019 is the first free number), partly superseding ADR-015 and
 recording why ADR-018's `B2` format is read but not written. Update
 `docs/01-architecture/web-dashboard.md` (today it says v1 files are upgraded),
 `COMMANDS.md`, `README.md`, `rules.md` tool table (`find_dead_code` row),
