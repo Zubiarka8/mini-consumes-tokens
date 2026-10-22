@@ -1,6 +1,6 @@
 // 02 · Código indexado: file tree and filters | symbol table | symbol inspector
 import { h, clear, api, isAbort, patchQuery, onQuery, parseHash, listParam, fmt, copy, hrefTo, go, forget } from "./core.js";
-import { icon, pageHead, tabsBar, dataTable, pager, kindIcon, kindGroup, kindGroups, badge, searchBox, selectBox, filterGroup, activeChips, noResults,
+import { icon, pageHead, tabsBar, segmented, dataTable, pager, kindIcon, kindGroup, kindGroups, badge, searchBox, selectBox, filterGroup, activeChips, noResults,
   emptyState, loading, errorBox, buildTree, treeView, drawerButton, note, stateBadge } from "./components.js";
 import { codeBlock, openSource } from "./code.js";
 import { t } from "./i18n.js";
@@ -17,6 +17,7 @@ export async function render({ root, params: initial }) {
   const filtersHost = h("div", {});
   const tabsHost = h("div", {});
   const chipsHost = h("div", {});
+  const quickHost = h("div", { class: "quick-filters" });
   const drawer = { current: null };
   let facets = { kind: [], language: [], ext: [] };
   let selectedId = null;
@@ -64,6 +65,21 @@ export async function render({ root, params: initial }) {
       tabs: [{ id: "all", label: t("code.tab.all"), count: total }, ...groups.map((g) => ({ id: g.id, label: t(`code.tab.${g.id}`), count: counts[g.id] }))] }));
   }
 
+  // Always-visible filters: the same query parameters as the side panel, one click away.
+  function drawQuick(params) {
+    const pick = (key, label, all, options) => {
+      const selected = listParam(params, key);
+      const choices = [["", selected.length > 1 ? t("quick.several", { n: selected.length }) : all], ...options.map(([value]) => [value, value])];
+      return h("label", { class: "quick-select" }, h("span", { class: "muted small" }, label),
+        selectBox({ label, value: selected.length === 1 ? selected[0] : "", options: choices, onChange: (v) => patchQuery({ [key]: v ? [v] : null }) }));
+    };
+    clear(quickHost).append(
+      segmented({ label: t("filters.findings"), value: params.get("finding") || "any", options: FINDINGS.map((id) => [id, t(`quick.finding.${id}`)]), onSelect: (v) => patchQuery({ finding: v === "any" ? null : v }) }),
+      segmented({ label: t("filters.references"), value: params.get("refs") || "any", options: Object.keys(REFS).map((id) => [id, t(`quick.refs.${id}`)]), onSelect: (v) => patchQuery({ refs: v === "any" ? null : v }) }),
+      pick("language", t("filters.language"), t("quick.allLanguages"), facets.language),
+      pick("ext", t("filters.extension"), t("quick.allExtensions"), facets.ext.filter(([value]) => value).map(([value]) => [value])));
+  }
+
   function drawChips(params) {
     const chips = [];
     const add = (key, label, value) => chips.push({ label, remove: () => patchQuery({ [key]: value }) });
@@ -81,7 +97,7 @@ export async function render({ root, params: initial }) {
     try {
       const data = await api("symbols", query, "symbols");
       facets = data.facets;
-      drawTabs(params); drawFilters(params);
+      drawTabs(params); drawQuick(params); drawFilters(params);
       clear(results);
       if (!data.total) { results.append(noResults({ onClear: clearAll })); return; }
       results.append(
@@ -142,7 +158,7 @@ export async function render({ root, params: initial }) {
 
   const layout = h("div", { class: "workbench" }, h("aside", { class: "filters-col" }, filtersHost), h("div", {}, h("div", { class: "toolbar" },
     searchBox({ value: initial.get("q") || "", placeholder: t("code.searchPlaceholder"), label: t("code.searchPlaceholder"), onInput: (v) => patchQuery({ q: v }) }),
-    drawerButton(() => drawer.current)), chipsHost, tabsHost, results), inspector);
+    drawerButton(() => drawer.current)), chipsHost, quickHost, tabsHost, results), inspector);
   drawer.current = layout.querySelector("aside");
   root.append(pageHead(t("code.title"), t("code.subtitle")), layout);
   const last = initial.get("sel");

@@ -181,6 +181,8 @@ label.field { display: grid; gap: 4px; font-size: 12px; color: var(--text-2); }
 .seg button { border: 0; background: transparent; padding: 6px 13px; cursor: pointer; color: var(--text-2); font-weight: 500; }
 .seg button[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); }
 .seg button:focus-visible { outline-offset: -2px; }
+.quick-filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
+.quick-select { display: inline-flex; align-items: center; gap: 6px; }
 
 /* ---------- surfaces ---------- */
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; min-width: 0; }
