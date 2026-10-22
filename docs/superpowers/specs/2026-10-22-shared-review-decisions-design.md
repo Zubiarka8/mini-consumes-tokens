@@ -175,8 +175,18 @@ Every hash is SHA-256 over length-prefixed fields (the existing framing), as
 
 | Kind | Identity | Fingerprint | Legacy keys, computed only to read legacy sources |
 |---|---|---|---|
-| duplicate | `duplicate-id-v1`: language and the sorted `(path, symbol name, symbol kind)` of every member (same as `B2`) | the ADR-015 key: normalization, language, sorted members with line range and file content hash | `A1`/`A2` key = fingerprint; `B2` identity = identity |
+| duplicate | `duplicate-id-v2`: language, the sorted `(path, symbol name, symbol kind)` of every member, and the ordinal among current groups with the same members, ordered by their sorted member line ranges | the ADR-015 key: normalization, language, sorted members with line range and file content hash | `A1`/`A2` key = fingerprint; `B2` identity = `duplicate-id-v1` (the same fields without the ordinal) |
 | dead code | `dead-id-v2`: language, path, symbol kind, parent, name and the ordinal among **all indexed symbols** of that file with the same `(kind, parent, name)`, ordered by start line | `dead-fp-v1`: file content hash, start line, end line (same as `B2`) | `A2` key = `dead_code_key` (path, name, kind, start line, file content hash); `B2` identity = `dead-id-v1` (ordinal among candidates, recomputed over the same candidate list) |
+
+The ordinal in `duplicate-id-v2` was added during implementation: partial-block
+groups (ADR-012) between the same symbols have the same members, so
+`duplicate-id-v1` alone can name two current groups. An ordinal shift can only
+produce `needs-reevaluation` or no decision, never a suppression, because
+suppression still needs the exact fingerprint.
+
+A finding whose file has no content hash in the index gets a fingerprint over
+an empty hash (as `B2` does) and is marked as having unknown content: no
+decision ever suppresses it, and it has no `A1`/`A2` key.
 
 `dead-id-v2` removes the ordinal shift described in §2.1. Computing it needs
 the symbols of the candidates' files. `find_dead_code_candidates` already loads
@@ -298,8 +308,11 @@ counted. If the code returns (for example after a revert), they match again.
   for any of them. The count goes to the diagnostics.
 - **Inconsistent `A2` key**: history mentions the key, there is no current
   entry, and the last event is not `to = none`. No candidate; counted.
-- `C3` cannot be ambiguous: `(kind, identity)` is unique by construction, and
-  `dead-id-v2` includes the ordinal.
+- `C3` cannot be ambiguous: `(kind, identity)` is unique in the file, and both
+  `duplicate-id-v2` and `dead-id-v2` include an ordinal, so no two current
+  findings share an identity.
+- `B2`'s `duplicate-id-v1` has no ordinal: if it names more than one current
+  group, it is ambiguous under the rule above.
 
 #### 7.6.2 Deterministic conflict resolution
 
