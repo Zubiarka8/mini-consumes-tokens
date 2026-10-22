@@ -35,8 +35,8 @@ export function donut({ segments, centerLabel, size = 170, label }) {
     return arc;
   }) : [svg("circle", { cx: 80, cy: 80, r, fill: "none", stroke: "var(--border)", "stroke-width": 22 })];
   const chart = svg("svg", { viewBox: "0 0 160 160", width: size, height: size, role: "img", "aria-label": label }, arcs,
-    svg("text", { x: 80, y: 80, "text-anchor": "middle", style: "font-size:24px;font-weight:700;fill:var(--text)" }, fmt(total)),
-    svg("text", { x: 80, y: 98, "text-anchor": "middle", style: "font-size:11px;fill:var(--text-2)" }, centerLabel || t("charts.total")));
+    svg("text", { x: 80, y: 80, "text-anchor": "middle", class: "donut-total" }, fmt(total)),
+    svg("text", { x: 80, y: 98, "text-anchor": "middle", class: "donut-label" }, centerLabel || t("charts.total")));
   const legend = h("ul", { style: { listStyle: "none", margin: 0, padding: 0, display: "grid", gap: "6px", fontSize: "13px" } },
     segments.map((s) => h("li", { class: "row", style: { justifyContent: "space-between", gap: "14px" } },
       h("span", {}, h("i", { class: "sparkdot", style: { background: s.color } }), s.name),

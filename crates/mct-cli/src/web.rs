@@ -170,9 +170,11 @@ impl Site {
             duplicates_ms,
             dead_code_ms,
         };
+        let canonical_root = root.canonicalize()?;
+        let project = project_name(&canonical_root);
         Ok(Self {
             index,
-            root: root.canonicalize()?,
+            root: canonical_root,
             navigation,
             symbols,
             imports,
@@ -189,11 +191,7 @@ impl Site {
             dead_by_symbol,
             timings,
             latency: RefCell::default(),
-            project: root
-                .file_name()
-                .unwrap_or(root.as_os_str())
-                .to_string_lossy()
-                .into_owned(),
+            project,
             generated: now_unix(),
             warning,
             csrf,
@@ -236,6 +234,13 @@ impl Site {
         }
         response::Response::json(&api::review_json(self, &key))
     }
+}
+
+fn project_name(root: &Path) -> String {
+    root.file_name()
+        .unwrap_or(root.as_os_str())
+        .to_string_lossy()
+        .into_owned()
 }
 
 fn now_unix() -> u64 {
