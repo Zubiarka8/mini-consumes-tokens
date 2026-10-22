@@ -5,7 +5,8 @@ use std::time::UNIX_EPOCH;
 
 use serde_json::{json, Value};
 
-use crate::web::reviews::State;
+use mct_index::reviews::{Resolution, State};
+
 use crate::web::Site;
 
 const DAY: u64 = 86_400;
@@ -46,6 +47,9 @@ pub(super) fn meta(site: &Site) -> Value {
         "generated": site.generated,
         "csrf": site.csrf,
         "warning": site.warning,
+        // Set when a review file cannot be read: nothing is hidden and
+        // review actions are disabled until a person fixes the file.
+        "reviewsReadOnly": site.reviews.read_only_reason(),
         "indexing": {
             "state": state,
             "lastIndexedAt": indexed_at,
@@ -125,17 +129,24 @@ pub(super) fn summary(site: &Site) -> Value {
         .map(|key| ("duplicate", key))
         .chain(site.dead.iter().map(|d| ("dead-code", &d.key)));
     for (kind, key) in all_keys {
-        let state = site.reviews.state(key).map_or("unreviewed", State::value);
+        let state = site
+            .reviews
+            .resolution(key)
+            .map_or("unreviewed", Resolution::label);
         *states.entry(state).or_default() += 1;
         *by_type.entry(kind).or_default().entry(state).or_default() += 1;
     }
 
-    // Review decisions per day, from the audit history (the only history that exists).
+    // Review decisions per day, from the audit history (the only history
+    // that exists). Events without a time (version 1 files) have no day.
     let mut per_day: BTreeMap<u64, BTreeMap<&'static str, usize>> = BTreeMap::new();
-    let mut events: Vec<_> = site.reviews.events().iter().collect();
-    events.sort_by_key(|event| std::cmp::Reverse(event.at));
-    for event in &events {
-        let to = event.to.map_or("reopened", State::value);
+    let mut events: Vec<_> = site.reviews.events().collect();
+    events.sort_by_key(|(_, event)| std::cmp::Reverse(event.at));
+    for (_, event) in events.iter().filter(|(_, event)| event.at > 0) {
+        let to = match event.to {
+            State::Unreviewed => "reopened",
+            state => state.value(),
+        };
         *per_day
             .entry(event.at / DAY)
             .or_default()
@@ -145,12 +156,12 @@ pub(super) fn summary(site: &Site) -> Value {
     let recent: Vec<Value> = events
         .iter()
         .take(RECENT_EVENTS)
-        .map(|event| {
+        .map(|(key, event)| {
             json!({
-                "at": event.at,
-                "to": event.to.map_or("unreviewed", State::value),
+                "at": (event.at > 0).then_some(event.at),
+                "to": event.to.value(),
                 "note": event.note,
-                "finding": finding_label(site, &event.key),
+                "finding": finding_label(site, key),
             })
         })
         .collect();

@@ -25,6 +25,7 @@ function indexingState(meta) {
 function computeNotices(meta, summary) {
   const list = [];
   if (meta.warning) list.push({ tone: "warn", text: meta.warning });
+  if (meta.reviewsReadOnly) list.push({ tone: "bad", text: t("notice.reviewsReadOnly", { reason: meta.reviewsReadOnly }) });
   if (meta.indexing.staleFiles > 0) list.push({ tone: "warn", text: t("notice.stale", { n: meta.indexing.staleFiles }) });
   if (meta.indexing.readFailures > 0) list.push({ tone: "bad", text: t("notice.readFailures", { n: meta.indexing.readFailures }) });
   if (meta.indexing.syntaxErrors > 0) list.push({ tone: "info", text: t("notice.syntaxErrors", { n: meta.indexing.syntaxErrors }) });
