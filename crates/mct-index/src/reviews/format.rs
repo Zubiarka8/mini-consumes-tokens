@@ -133,10 +133,11 @@ fn time(number: usize, text: &str) -> Parsed<u64> {
 
 // ---------- C3: review-decisions.toon, version 3 ----------
 
+/// One current decision. Its identity is the key in [`Canonical::reviews`],
+/// stored once.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct Row {
     pub kind: Kind,
-    pub identity: String,
     pub fingerprint: String,
     pub state: State,
     /// Unix milliseconds.
@@ -247,17 +248,15 @@ pub(super) fn parse_canonical(content: &str) -> Parsed<Canonical> {
         let [kind, identity, fingerprint, state_text, updated, encoded] =
             fields::<6>(number, text)?;
         let kind = keys(number, kind, identity, fingerprint)?;
-        let identity = identity.to_string();
         let row = Row {
             kind,
-            identity: identity.clone(),
             fingerprint: fingerprint.to_string(),
             state: state(number, state_text)?,
             updated: time(number, updated)?,
             note: note(number, encoded)?,
         };
         check(
-            reviews.insert((kind, identity), row).is_none(),
+            reviews.insert((kind, identity.to_string()), row).is_none(),
             number,
             "duplicate review",
         )?;
@@ -290,11 +289,11 @@ pub(super) fn parse_canonical(content: &str) -> Parsed<Canonical> {
 
 pub(super) fn render_canonical(store: &Canonical) -> String {
     let mut out = format!("version: 3\nreviews[{}]{C3_REVIEWS}\n", store.reviews.len());
-    for row in store.reviews.values() {
+    for ((_, identity), row) in &store.reviews {
         out.push_str(&format!(
             "  {},{},{},{},{},{}\n",
             row.kind.value(),
-            row.identity,
+            identity,
             row.fingerprint,
             row.state.value(),
             row.updated,

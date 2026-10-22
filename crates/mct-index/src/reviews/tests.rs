@@ -58,7 +58,6 @@ fn canonical(rows: &[(Kind, char, char, State, u64)]) -> String {
             (*kind, hex(*identity)),
             Row {
                 kind: *kind,
-                identity: hex(*identity),
                 fingerprint: hex(*fingerprint),
                 state: *state,
                 updated: *at,
@@ -138,7 +137,6 @@ fn canonical_files_round_trip_byte_for_byte() {
         (Kind::DeadCode, hex('1')),
         Row {
             kind: Kind::DeadCode,
-            identity: hex('1'),
             fingerprint: hex('2'),
             state: State::FalsePositive,
             updated: 7,
