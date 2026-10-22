@@ -1,37 +1,67 @@
 //! Local read-only views over public index APIs. No directory is served.
 
+mod api;
+mod assets;
 mod http;
-mod render;
+mod obsidian;
+mod response;
 mod reviews;
 #[cfg(test)]
 mod tests;
 
-use std::collections::BTreeMap;
+use std::cell::RefCell;
+use std::collections::{BTreeMap, HashMap};
 use std::io::Write;
 use std::net::{Ipv4Addr, TcpListener};
-use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::path::{Path, PathBuf};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::Context;
 use mct_index::{DuplicateOptions, DuplicateReport, ExcludeSet, Index, NavigationSnapshot};
 
+struct DeadCandidate {
+    /// Index into `navigation.symbols`.
+    symbol: usize,
+    key: String,
+}
+
+#[derive(Default)]
+struct Timings {
+    load_ms: u128,
+    duplicates_ms: u128,
+    dead_code_ms: u128,
+}
+
 struct Site {
+    index: Index,
+    root: PathBuf,
     navigation: NavigationSnapshot,
     symbols: BTreeMap<String, Vec<usize>>,
     imports: BTreeMap<String, Vec<String>>,
     importers: BTreeMap<String, Vec<String>>,
     groups: BTreeMap<String, Vec<usize>>,
     duplicates: DuplicateReport,
+    review_keys: Vec<String>,
+    dead: Vec<DeadCandidate>,
+    references: HashMap<String, usize>,
+    reviews: reviews::Reviews,
+    vault: obsidian::Vault,
+    vault_dir: PathBuf,
+    /// Duplicate group ids per symbol id, and the dead-code candidate index per symbol id.
+    symbol_groups: HashMap<usize, Vec<usize>>,
+    dead_by_symbol: HashMap<usize, usize>,
+    timings: Timings,
+    /// Measured server-side latency of every API route, in microseconds.
+    latency: RefCell<BTreeMap<&'static str, Vec<u64>>>,
     project: String,
     generated: u64,
     warning: Option<String>,
-    reviews: reviews::Reviews,
-    review_keys: Vec<String>,
     csrf: String,
 }
 
 impl Site {
     fn load(root: &Path, no_obsidian: bool) -> anyhow::Result<Self> {
+        let started = Instant::now();
         let database = root.join(".mct-index/index.sqlite3");
         anyhow::ensure!(
             database.is_file(),
@@ -89,11 +119,13 @@ impl Site {
             paths.dedup();
         }
         eprintln!("web: analyzing duplicate candidates with the existing default policy…");
+        let duplicates_started = Instant::now();
         let duplicates = mct_index::find_duplicate_groups(
             &index,
             &mct_languages::build_token_sources(),
             DuplicateOptions::default(),
         )?;
+        let duplicates_ms = duplicates_started.elapsed().as_millis();
         let mut groups: BTreeMap<String, Vec<usize>> = BTreeMap::new();
         let review_keys = reviews::group_keys(
             &duplicates.groups,
@@ -108,92 +140,133 @@ impl Site {
                 }
             }
         }
+        let dead_started = Instant::now();
+        let dead = dead_candidates(&index, &navigation)?;
+        let dead_code_ms = dead_started.elapsed().as_millis();
+        let references = index.reference_counts()?;
+        let vault_dir = mct_obsidian::vault_dir(root);
+        let vault = obsidian::scan(&vault_dir);
+        let mut symbol_groups: HashMap<usize, Vec<usize>> = HashMap::new();
+        for (id, group) in duplicates.groups.iter().enumerate() {
+            for member in &group.members {
+                for symbol in symbols.get(&member.path).into_iter().flatten() {
+                    let candidate = &navigation.symbols[*symbol];
+                    let inside = (member.start_line..=member.end_line).contains(&candidate.line);
+                    let entry = symbol_groups.entry(*symbol).or_default();
+                    if inside && candidate.name == member.symbol_name && entry.last() != Some(&id) {
+                        entry.push(id);
+                    }
+                }
+            }
+        }
+        symbol_groups.retain(|_, ids| !ids.is_empty());
+        let dead_by_symbol = dead
+            .iter()
+            .enumerate()
+            .map(|(index, candidate)| (candidate.symbol, index))
+            .collect();
+        let timings = Timings {
+            load_ms: started.elapsed().as_millis(),
+            duplicates_ms,
+            dead_code_ms,
+        };
         Ok(Self {
+            index,
+            root: root.canonicalize()?,
             navigation,
             symbols,
             imports,
             importers,
             groups,
             duplicates,
+            review_keys,
+            dead,
+            references,
+            reviews,
+            vault,
+            vault_dir,
+            symbol_groups,
+            dead_by_symbol,
+            timings,
+            latency: RefCell::default(),
             project: root
                 .file_name()
                 .unwrap_or(root.as_os_str())
                 .to_string_lossy()
                 .into_owned(),
-            generated: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
+            generated: now_unix(),
             warning,
-            reviews,
-            review_keys,
             csrf,
         })
     }
 
-    fn dismissed(&self, id: usize) -> bool {
-        self.review_keys
-            .get(id)
-            .is_some_and(|key| self.reviews.reason(key).is_some())
-    }
-
-    fn active_total(&self) -> usize {
-        (0..self.duplicates.groups.len())
-            .filter(|id| !self.dismissed(*id))
-            .count()
-    }
-
-    fn active_groups(&self, path: &str) -> usize {
-        self.groups
-            .get(path)
-            .into_iter()
-            .flatten()
-            .filter(|id| !self.dismissed(**id))
-            .count()
-    }
-
-    fn review(&mut self, body: &str) -> render::Response {
-        let mut fields = BTreeMap::new();
-        for (key, value) in form_urlencoded::parse(body.as_bytes()) {
-            if fields
-                .insert(key.into_owned(), value.into_owned())
-                .is_some()
-            {
-                return render::Response::error(400);
-            }
-        }
-        if fields.get("csrf") != Some(&self.csrf) {
-            return render::Response::error(403);
-        }
-        if fields.len() != 3 + usize::from(fields.contains_key("back")) {
-            return render::Response::error(400);
-        }
-        let Some(key) = fields
-            .get("key")
-            .filter(|key| self.review_keys.contains(key))
-        else {
-            return render::Response::error(404);
+    /// Applies one review decision sent as a JSON body (`csrf`, `key`, `state`, `note`).
+    fn review(&mut self, body: &str) -> response::Response {
+        let Ok(serde_json::Value::Object(fields)) = serde_json::from_str(body) else {
+            return response::Response::failure(400, "invalid JSON body");
         };
-        let (reason, restored) = match fields.get("action").map(String::as_str) {
-            Some("restore") => (None, true),
-            Some(action) => match reviews::Reason::parse(action) {
-                Some(reason) => (Some(reason), false),
-                None => return render::Response::error(400),
+        if fields.get("csrf").and_then(|v| v.as_str()) != Some(self.csrf.as_str()) {
+            return response::Response::error(403);
+        }
+        if fields.keys().any(|k| !["csrf", "key", "state", "note"].contains(&k.as_str())) {
+            return response::Response::failure(400, "unknown field");
+        }
+        let Some(key) = fields.get("key").and_then(|v| v.as_str()) else {
+            return response::Response::failure(400, "missing key");
+        };
+        if !self.review_keys.iter().any(|k| k == key) && !self.dead.iter().any(|d| d.key == key) {
+            return response::Response::error(404);
+        }
+        let state = match fields.get("state") {
+            None | Some(serde_json::Value::Null) => None,
+            Some(serde_json::Value::String(value)) => match reviews::State::parse(value) {
+                Some(state) => Some(state),
+                None => return response::Response::failure(400, "unknown state"),
             },
-            None => return render::Response::error(400),
+            Some(_) => return response::Response::failure(400, "invalid state"),
         };
-        let back = fields.get("back").map_or("", String::as_str);
-        let location = render::review_location(back, restored);
-        if let Err(error) = self.reviews.update(key, reason) {
-            eprintln!("warning: cannot save duplicate review: {error:#}");
-            let mut response = render::Response::error(500);
-            response.body = "Could not save the review. No changes were applied. Check the terminal diagnostics and retry.\n".to_string();
-            return response;
+        let note = fields.get("note").and_then(|v| v.as_str()).unwrap_or("");
+        let key = key.to_string();
+        if let Err(error) = self.reviews.update(&key, state, note.trim(), now_unix()) {
+            eprintln!("warning: cannot save review: {error:#}");
+            return response::Response::failure(
+                500,
+                "Could not save the review. No changes were applied.",
+            );
         }
-        render::Response {
-            status: 303,
-            content_type: "text/plain; charset=utf-8",
-            body: String::new(),
-            location: Some(location),
+        response::Response::json(&api::review_json(self, &key))
+    }
+}
+
+fn now_unix() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |elapsed| elapsed.as_secs())
+}
+
+/// Dead-code candidates from the shared heuristic, mapped to snapshot symbols.
+fn dead_candidates(
+    index: &Index,
+    navigation: &NavigationSnapshot,
+) -> anyhow::Result<Vec<DeadCandidate>> {
+    let mut by_location: HashMap<(&str, &str, u32), usize> = HashMap::new();
+    for (id, symbol) in navigation.symbols.iter().enumerate() {
+        by_location.insert((&symbol.relative_path, &symbol.name, symbol.line), id);
+    }
+    let mut dead = Vec::new();
+    for entry in mct_index::find_dead_code_candidates(index, None, None)? {
+        let Some(&symbol) = by_location.get(&(
+            entry.relative_path.as_str(),
+            entry.name.as_str(),
+            entry.line,
+        )) else {
+            continue;
+        };
+        if let Some(key) = reviews::dead_code_key(&navigation.symbols[symbol], navigation) {
+            dead.push(DeadCandidate { symbol, key });
         }
     }
+    Ok(dead)
 }
 
 fn random_key() -> anyhow::Result<String> {
@@ -215,7 +288,7 @@ pub(super) fn run(root: &Path, port: u16, no_obsidian: bool) -> anyhow::Result<(
     let token = random_key()?;
     let mut site = Site::load(root, no_obsidian)?;
     println!("Local project web: http://127.0.0.1:{port}/{token}/");
-    println!("Files and duplicates are linked. Snapshot: {}. Restart after reindexing; Ctrl-C stops the server.", site.generated);
+    println!("Dashboard ready. Snapshot: {}. Restart after reindexing; Ctrl-C stops the server.", site.generated);
     std::io::stdout().flush()?;
     for connection in listener.incoming() {
         match connection {
