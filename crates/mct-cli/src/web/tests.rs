@@ -314,6 +314,51 @@ fn api_lists_are_bounded_paged_and_filterable() {
 }
 
 #[test]
+fn symbol_facets_count_what_the_other_filters_leave() {
+    let root = tempfile::tempdir().unwrap();
+    fs::create_dir(root.path().join("src")).unwrap();
+    let source: String = (0..20)
+        .map(|id| format!("pub fn symbol_{id}() {{}}\n"))
+        .collect();
+    fs::write(root.path().join("src/many.rs"), source).unwrap();
+    index(root.path());
+    let server = Server::start(root.path(), true);
+    let count = |facets: &serde_json::Value, name: &str| {
+        facets
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row[0] == name)
+            .map_or(0, |row| row[1].as_u64().unwrap())
+    };
+    let all = server.json("api/symbols?size=1");
+    assert_eq!(count(&all["facets"]["kind"], "function"), 20);
+    // Dead-code candidates: the counts follow the filter, not just the total.
+    let dead = server.json("api/symbols?size=1&finding=dead-code");
+    assert_eq!(count(&dead["facets"]["kind"], "function"), 20);
+    assert_eq!(dead["total"], count(&dead["facets"]["language"], "rust"));
+    // No duplicates in this project: every facet is empty, not left at 20.
+    let none = server.json("api/symbols?size=1&finding=duplicate");
+    assert_eq!(none["total"], 0);
+    for facet in ["kind", "language", "ext"] {
+        assert!(
+            none["facets"][facet].as_array().unwrap().is_empty(),
+            "{facet}"
+        );
+    }
+    // A facet ignores its own filter, so the other choices stay listed.
+    let only_functions = server.json("api/symbols?size=1&kind=function");
+    assert_eq!(
+        count(&only_functions["facets"]["kind"], "function"),
+        count(&all["facets"]["kind"], "function")
+    );
+    assert_eq!(
+        only_functions["facets"]["kind"].as_array().unwrap().len(),
+        all["facets"]["kind"].as_array().unwrap().len()
+    );
+}
+
+#[test]
 fn http_rejects_cross_site_requests_traversal_and_unmanaged_files() {
     let root = project();
     let server = Server::start(root.path(), true);
