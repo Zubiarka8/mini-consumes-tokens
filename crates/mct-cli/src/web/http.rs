@@ -1,4 +1,4 @@
-//! Bounded HTTP/1.1: GET/HEAD views and same-origin POST review preferences.
+//! Bounded HTTP/1.1: GET/HEAD views and same-origin POST of review decisions and the reload action.
 //! No request path is translated to a filesystem path.
 
 use std::collections::BTreeMap;
@@ -6,6 +6,7 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::time::{Duration, Instant};
 
+use super::i18n::Lang;
 use super::render::Response;
 use super::{render, Site};
 
@@ -49,9 +50,12 @@ pub(super) fn serve_connection(
         500 => "Internal Server Error",
         _ => "Error",
     };
-    write!(stream, "HTTP/1.1 {} {reason}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\nCache-Control: no-store\r\nReferrer-Policy: no-referrer\r\nX-Content-Type-Options: nosniff\r\nX-Frame-Options: DENY\r\nCross-Origin-Resource-Policy: same-origin\r\nContent-Security-Policy: default-src 'none'; style-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'\r\nAllow: GET, HEAD, POST\r\n", response.status, response.content_type, response.body.len())?;
-    if let Some(location) = response.location {
+    write!(stream, "HTTP/1.1 {} {reason}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\nCache-Control: no-store\r\nReferrer-Policy: no-referrer\r\nX-Content-Type-Options: nosniff\r\nX-Frame-Options: DENY\r\nCross-Origin-Resource-Policy: same-origin\r\nContent-Security-Policy: default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'\r\nAllow: GET, HEAD, POST\r\n", response.status, response.content_type, response.body.len())?;
+    if let Some(location) = &response.location {
         write!(stream, "Location: {location}\r\n")?;
+    }
+    if let Some(lang) = response.set_lang {
+        write!(stream, "Set-Cookie: mct_lang={}; Path=/{token}/; Max-Age=31536000; SameSite=Strict; HttpOnly\r\n", lang.code())?;
     }
     stream.write_all(b"\r\n")?;
     if !head {
@@ -65,6 +69,7 @@ struct Request {
     post: bool,
     head: bool,
     length: usize,
+    lang: Lang,
 }
 
 fn receive(
@@ -128,11 +133,11 @@ fn receive(
             if bytes.len() == expected {
                 let response = if request.post {
                     match std::str::from_utf8(&bytes[*end..]) {
-                        Ok(body) => site.review(body),
+                        Ok(body) => site.post(&request.target, body, request.lang),
                         Err(_) => Response::error(400),
                     }
                 } else {
-                    render::route(site, &request.target)
+                    render::route(site, &request.target, request.lang)
                 };
                 return Ok((response, request.head));
             }
@@ -195,7 +200,7 @@ fn validate(headers: &str, port: u16, token: &str) -> Result<Request, u16> {
     let target = target.strip_prefix(&format!("/{token}/")).ok_or(404_u16)?;
     let post = method == "POST";
     let length = if post {
-        if target != "review" {
+        if !matches!(target, "review" | "reload" | "lang") {
             return Err(405);
         }
         if fields.get("origin").copied() != Some(format!("http://{host}").as_str()) {
@@ -222,8 +227,13 @@ fn validate(headers: &str, port: u16, token: &str) -> Result<Request, u16> {
         }
         0
     };
+    let lang = Lang::from_headers(
+        fields.get("cookie").copied(),
+        fields.get("accept-language").copied(),
+    );
     Ok(Request {
         target: target.to_string(),
+        lang,
         post,
         head: method == "HEAD",
         length,

@@ -106,12 +106,13 @@ enum Command {
     /// hand. It does not reindex, so run `init` or `reindex` first.
     #[command(after_help = "Example:\n  cargo run -p mct-cli -- --root . obsidian")]
     Obsidian,
-    /// Serve a local website with linked atlas and duplicate-code views.
+    /// Serve the local dashboard: duplicate code, dead code, Obsidian and reviews.
     ///
     /// Uses the existing index without reindexing. Regenerates the Obsidian
     /// vault unless disabled. Prints a private localhost URL; keep this
-    /// command running and press Ctrl-C to stop. Restart after reindexing
-    /// to see updated results. No browser is opened automatically.
+    /// command running and press Ctrl-C to stop. After reindexing, use
+    /// "Recargar análisis" on the Estado page. No browser is opened
+    /// automatically.
     Web {
         /// Local port (0 selects a free port). Always binds 127.0.0.1.
         #[arg(long, default_value_t = 0)]

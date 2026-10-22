@@ -1,16 +1,22 @@
+//! Shared page shell, helpers and the route table. Views live in `view_*.rs`.
+
 use std::collections::BTreeMap;
-use std::fmt::Write as _;
+use std::fmt::{Display, Write as _};
 
-use super::Site;
+use super::i18n::{t, tf, Lang};
+use super::reviews::{Kind, State};
+use super::{view_dead, view_duplicates, view_obsidian, view_reviews, view_status, Site};
 
-const PAGE_SIZE: usize = 100;
-const GROUP_PAGE_SIZE: usize = 20;
+pub(super) const PAGE_SIZE: usize = 100;
+pub(super) const GROUP_PAGE_SIZE: usize = 20;
 
 pub(super) struct Response {
     pub status: u16,
     pub content_type: &'static str,
     pub body: String,
-    pub location: Option<&'static str>,
+    pub location: Option<String>,
+    /// Remember this interface language in the browser (the `mct_lang` cookie).
+    pub set_lang: Option<Lang>,
 }
 
 impl Response {
@@ -18,83 +24,275 @@ impl Response {
         Self {
             status,
             location: None,
+            set_lang: None,
             content_type: "text/plain; charset=utf-8",
-            body: format!("Request rejected ({status}).\n"),
+            body: format!("Request rejected / Solicitud rechazada ({status}).\n"),
+        }
+    }
+    pub fn redirect(location: String) -> Self {
+        Self {
+            status: 303,
+            content_type: "text/plain; charset=utf-8",
+            body: String::new(),
+            location: Some(location),
+            set_lang: None,
+        }
+    }
+    pub fn text(content_type: &'static str, body: String) -> Self {
+        Self {
+            status: 200,
+            location: None,
+            set_lang: None,
+            content_type,
+            body,
         }
     }
 }
 
-pub(super) fn escape(value: &str) -> String {
-    value
-        .chars()
-        .map(|ch| match ch {
-            '&' => "&amp;".to_string(),
-            '<' => "&lt;".to_string(),
-            '>' => "&gt;".to_string(),
-            '"' => "&quot;".to_string(),
-            '\'' => "&#39;".to_string(),
-            _ => ch.to_string(),
-        })
-        .collect()
+/// One request: the immutable snapshot, validated query parameters, the
+/// interface language and the relative target (the `next` of review forms).
+pub(super) struct Req<'a> {
+    pub site: &'a Site,
+    pub params: BTreeMap<String, String>,
+    pub target: &'a str,
+    pub lang: Lang,
 }
 
-fn href(route: &str, params: &[(&str, &str)]) -> String {
+impl Req<'_> {
+    pub fn param(&self, key: &str) -> &str {
+        self.params.get(key).map_or("", String::as_str)
+    }
+    pub fn number(&self, key: &str) -> usize {
+        self.params
+            .get(key)
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(0)
+    }
+    pub fn t(&self, spanish: &'static str) -> &'static str {
+        t(self.lang, spanish)
+    }
+    pub fn tf(&self, spanish: &'static str, args: &[&dyn Display]) -> String {
+        tf(self.lang, spanish, args)
+    }
+}
+
+pub(super) fn escape(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for ch in value.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&#39;"),
+            _ => out.push(ch),
+        }
+    }
+    out
+}
+
+/// A relative URL with a query, already HTML-escaped for use in an attribute.
+pub(super) fn href(route: &str, params: &[(&str, &str)]) -> String {
+    let params: Vec<_> = params
+        .iter()
+        .filter(|(_, value)| !value.is_empty())
+        .collect();
+    if params.is_empty() {
+        return escape(route);
+    }
     let query = form_urlencoded::Serializer::new(String::new())
-        .extend_pairs(params.iter().copied())
+        .extend_pairs(params.iter().map(|pair| **pair))
         .finish();
     escape(&format!("{route}?{query}"))
 }
 
-fn link(route: &str, path: &str, label: &str) -> String {
+pub(super) fn link(route: &str, params: &[(&str, &str)], label: &str) -> String {
+    format!("<a href=\"{}\">{}</a>", href(route, params), escape(label))
+}
+
+/// A redirect target a form may carry: a known route and a tame query.
+pub(super) fn safe_next(next: &str) -> Option<String> {
+    let (route, query) = next.split_once('?').unwrap_or((next, ""));
+    let allowed = [
+        "duplicados",
+        "duplicado",
+        "muerto",
+        "simbolo",
+        "revisiones",
+        "archivo",
+        "obsidian",
+        "explorar",
+        "estado",
+        "ajustes",
+        "notas",
+        "nota",
+        "grafo",
+    ];
+    (allowed.contains(&route)
+        && next.len() <= 400
+        && query
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b"=&%+-_.~".contains(&byte)))
+    .then(|| next.to_string())
+}
+
+/// `1 700 000 000` as `2023-11-14 22:13 UTC`.
+pub(super) fn utc(seconds: u64) -> String {
+    let days = (seconds / 86_400) as i64;
+    let rest = seconds % 86_400;
+    // Civil date from days since 1970-01-01 (Howard Hinnant's algorithm).
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let day_of_era = z.rem_euclid(146_097);
+    let year_of_era =
+        (day_of_era - day_of_era / 1460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let month_part = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * month_part + 2) / 5 + 1;
+    let month = if month_part < 10 {
+        month_part + 3
+    } else {
+        month_part - 9
+    };
+    let year = year_of_era + era * 400 + i64::from(month <= 2);
     format!(
-        "<a href=\"{}\">{}</a>",
-        href(route, &[("path", path)]),
-        escape(label)
+        "{year:04}-{month:02}-{day:02} {:02}:{:02} UTC",
+        rest / 3600,
+        rest % 3600 / 60
     )
 }
 
-fn page(title: &str, site: &Site, body: &str) -> Response {
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum Section {
+    Duplicates,
+    Dead,
+    Obsidian,
+    Reviews,
+    Status,
+    Settings,
+}
+
+pub(super) fn page(req: &Req<'_>, title: &str, active: Section, body: &str) -> Response {
+    let site = req.site;
+    let counts = site.counts();
     let warning = site
         .warning
-        .as_deref()
-        .map(|warning| format!("<p class=\"warning\">{}</p>", escape(warning)))
+        .as_ref()
+        .map(|error| {
+            format!(
+                "<p class=\"warning\" role=\"alert\">{}</p>",
+                req.tf(
+                    "No se pudo regenerar la bóveda de Obsidian: {0}",
+                    &[&escape(error)]
+                )
+            )
+        })
         .unwrap_or_default();
-    Response {
-        status: 200,
-        location: None,
-        content_type: "text/html; charset=utf-8",
-        body: format!(
-            r#"<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} · {project}</title><link rel="stylesheet" href="style.css"></head><body><header><a class="brand" href="./">MCT / {project}</a><nav aria-label="Project views"><a href="./">Overview</a><a href="atlas">Atlas</a><a href="duplicates">Duplicates</a></nav></header><main>{warning}<h1>{title}</h1>{body}</main><footer>Local snapshot · {time} (Unix seconds). Reindex and restart this command to refresh. SQLite supplies navigation; duplicate analysis checks current source files.</footer></body></html>"#,
+    let item = |section: Section, route: &str, label: &str, count: usize, class: &str| {
+        let current = if section == active {
+            " aria-current=\"page\""
+        } else {
+            ""
+        };
+        let badge = if count > 0 {
+            format!(
+                " <span class=\"count {class}\" title=\"{}\">{count}</span>",
+                req.t("Pendientes")
+            )
+        } else {
+            String::new()
+        };
+        format!("<a href=\"{route}\"{current}>{label}{badge}</a>")
+    };
+    let main = [
+        item(
+            Section::Duplicates,
+            "duplicados",
+            req.t("Código duplicado"),
+            counts.duplicates_pending,
+            "",
+        ),
+        item(
+            Section::Dead,
+            "muerto",
+            req.t("Código muerto"),
+            counts.dead_pending,
+            "",
+        ),
+        item(Section::Obsidian, "obsidian", "Obsidian", 0, ""),
+        item(
+            Section::Reviews,
+            "revisiones",
+            req.t("Revisiones"),
+            counts.reevaluate,
+            "count-warn",
+        ),
+    ]
+    .concat();
+    let aux = [
+        item(Section::Status, "estado", req.t("Estado"), 0, ""),
+        item(Section::Settings, "ajustes", req.t("Ajustes"), 0, ""),
+    ]
+    .concat();
+    let next = escape(&safe_next(req.target).unwrap_or_default());
+    let mut switch = format!(
+        "<form action=\"lang\" method=\"post\" class=\"lang\" aria-label=\"{}\"><input type=\"hidden\" name=\"csrf\" value=\"{}\"><input type=\"hidden\" name=\"next\" value=\"{next}\">",
+        req.t("Idioma de la interfaz"),
+        escape(&site.csrf)
+    );
+    for (code, label) in [("es", "ES"), ("en", "EN")] {
+        let current = if code == req.lang.code() {
+            " aria-current=\"true\""
+        } else {
+            ""
+        };
+        let _ = write!(
+            switch,
+            "<button name=\"lang\" value=\"{code}\" class=\"secondary\" lang=\"{code}\"{current}>{label}</button>"
+        );
+    }
+    switch.push_str("</form>");
+    Response::text(
+        "text/html; charset=utf-8",
+        format!(
+            r##"<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark light"><title>{title} · {project}</title><link rel="stylesheet" href="style.css"><script src="app.js" defer></script></head><body><a class="skip" href="#contenido">{skip}</a><header class="top"><a class="brand" href="duplicados">MCT <span>{project}</span></a><nav aria-label="{sections}">{main}</nav><nav class="aux" aria-label="{project_label}">{aux}</nav>{switch}</header><main id="contenido">{warning}<h1>{title}</h1>{body}</main><footer>{footer}</footer></body></html>"##,
+            lang = req.lang.code(),
             title = escape(title),
             project = escape(&site.project),
-            time = site.generated
+            skip = req.t("Saltar al contenido"),
+            sections = req.t("Secciones"),
+            project_label = req.t("Proyecto"),
+            footer = req.tf(
+                "Instantánea local de {0}. Tras reindexar, usa «Recargar análisis» en Estado. Las decisiones de revisión se guardan en <code>.mct-index/reviews.toon</code>.",
+                &[&utc(site.generated)]
+            ),
         ),
-    }
+    )
 }
 
-fn number(params: &BTreeMap<String, String>, key: &str) -> Result<usize, ()> {
-    params
-        .get(key)
-        .map_or(Ok(0), |value| value.parse().map_err(|_| ()))
-}
-
-fn pager(
+pub(super) fn pager(
+    req: &Req<'_>,
     route: &str,
     params: &[(&str, &str)],
     key: &str,
-    requested: usize,
     total: usize,
     size: usize,
 ) -> (usize, String) {
     let pages = total.div_ceil(size).max(1);
-    let current = requested.min(pages - 1);
+    let current = req.number(key).min(pages - 1);
     let mut out = format!(
-        "<p class=\"pagination\">Page {} of {pages} · {total} items",
-        current + 1
+        "<p class=\"pagination\">{}",
+        req.tf(
+            "Página {0} de {1} · {2} elementos",
+            &[&(current + 1), &pages, &total]
+        )
     );
     for (label, next) in [
-        ("Previous", current.checked_sub(1)),
-        ("Next", (current + 1 < pages).then_some(current + 1)),
+        (req.t("Anterior"), current.checked_sub(1)),
+        (
+            req.t("Siguiente"),
+            (current + 1 < pages).then_some(current + 1),
+        ),
     ] {
         if let Some(next) = next {
             let next = next.to_string();
@@ -107,7 +305,179 @@ fn pager(
     (current * size, out)
 }
 
-pub(super) fn route(site: &Site, target: &str) -> Response {
+/// `<select>` with a fixed list of `(value, label)`; `selected` is matched exactly.
+pub(super) fn select(
+    name: &str,
+    label: &str,
+    options: &[(&str, String)],
+    selected: &str,
+) -> String {
+    let mut out = format!("<label>{}<select name=\"{}\">", escape(label), escape(name));
+    for (value, text) in options {
+        let mark = if *value == selected { " selected" } else { "" };
+        let _ = write!(
+            out,
+            "<option value=\"{}\"{mark}>{}</option>",
+            escape(value),
+            escape(text)
+        );
+    }
+    out.push_str("</select></label>");
+    out
+}
+
+pub(super) fn text_input(name: &str, label: &str, value: &str, placeholder: &str) -> String {
+    format!(
+        "<label>{}<input name=\"{}\" value=\"{}\" placeholder=\"{}\" type=\"search\"></label>",
+        escape(label),
+        escape(name),
+        escape(value),
+        escape(placeholder)
+    )
+}
+
+/// Status tab values, in display order.
+pub(super) const STATUS_TABS: [&str; 6] = [
+    "pending",
+    "reevaluate",
+    "confirmed",
+    "false_positive",
+    "ignored",
+    "all",
+];
+
+fn tab_label(lang: Lang, tab: &str) -> &'static str {
+    match tab {
+        "pending" => t(lang, "Pendientes"),
+        "reevaluate" => t(lang, "Para reevaluar"),
+        "confirmed" => t(lang, "Confirmados"),
+        "false_positive" => t(lang, "Falsos positivos"),
+        "ignored" => t(lang, "Ignorados"),
+        _ => t(lang, "Todos"),
+    }
+}
+
+pub(super) fn status_matches(filter: &str, state: &State) -> bool {
+    match (filter, state) {
+        ("all", _)
+        | ("pending", State::Pending)
+        | ("reevaluate", State::NeedsReevaluation { .. }) => true,
+        (wanted, State::Decided { status, .. }) => status.value() == wanted,
+        _ => false,
+    }
+}
+
+/// Counts per [`STATUS_TABS`] entry.
+pub(super) fn status_counts<'a>(states: impl Iterator<Item = &'a State>) -> [usize; 6] {
+    let mut counts = [0; 6];
+    for state in states {
+        for (slot, tab) in STATUS_TABS.iter().enumerate() {
+            if status_matches(tab, state) {
+                counts[slot] += 1;
+            }
+        }
+    }
+    counts
+}
+
+pub(super) fn status_tabs(
+    req: &Req<'_>,
+    route: &str,
+    base: &[(&str, &str)],
+    active: &str,
+    counts: &[usize; 6],
+) -> String {
+    let mut out = format!(
+        "<nav class=\"tabs\" aria-label=\"{}\">",
+        req.t("Estado de la revisión")
+    );
+    for (slot, tab) in STATUS_TABS.iter().enumerate() {
+        let mut params = base.to_vec();
+        params.push(("status", tab));
+        let current = if *tab == active {
+            " aria-current=\"page\""
+        } else {
+            ""
+        };
+        let _ = write!(
+            out,
+            "<a href=\"{}\"{current}>{} <span class=\"count\">{}</span></a>",
+            href(route, &params),
+            tab_label(req.lang, tab),
+            counts[slot]
+        );
+    }
+    out.push_str("</nav>");
+    out
+}
+
+pub(super) fn state_chip(req: &Req<'_>, state: &State) -> String {
+    match state {
+        State::Pending => format!(
+            "<span class=\"chip chip-pending\">{}</span>",
+            req.t("Pendiente de revisar")
+        ),
+        State::Decided { status, at, .. } => format!(
+            "<span class=\"chip chip-{}\">{}</span> <span class=\"muted\">{}</span>",
+            status.value(),
+            status.label(req.lang),
+            at.map_or_else(|| req.t("(decisión anterior, sin fecha)").to_string(), utc)
+        ),
+        State::NeedsReevaluation { status, at, .. } => format!(
+            "<span class=\"chip chip-reeval\">{}</span> <span class=\"muted\">{}</span>",
+            req.t("Reevaluar"),
+            req.tf(
+                "El código cambió desde «{0}» ({1})",
+                &[&status.label(req.lang), &utc(*at)]
+            )
+        ),
+    }
+}
+
+/// Decision form shared by duplicate, dead-code and review pages.
+pub(super) fn review_form(req: &Req<'_>, kind: Kind, identity: &str, state: &State) -> String {
+    let mut out = format!(
+        "<form action=\"review\" method=\"post\" class=\"review\"><input type=\"hidden\" name=\"csrf\" value=\"{}\"><input type=\"hidden\" name=\"kind\" value=\"{}\"><input type=\"hidden\" name=\"id\" value=\"{}\"><input type=\"hidden\" name=\"next\" value=\"{}\">",
+        escape(&req.site.csrf),
+        kind.value(),
+        escape(identity),
+        escape(&safe_next(req.target).unwrap_or_default())
+    );
+    match state {
+        State::Pending | State::NeedsReevaluation { .. } => {
+            let _ = write!(
+                out,
+                "<input class=\"reason\" name=\"reason\" maxlength=\"500\" placeholder=\"{}\" aria-label=\"{}\"><button name=\"action\" value=\"confirmed\" title=\"{}\">{}</button><button name=\"action\" value=\"false_positive\" title=\"{}\" class=\"secondary\">{}</button><button name=\"action\" value=\"ignored\" title=\"{}\" class=\"secondary\">{}</button>",
+                req.t("Motivo (opcional)"),
+                req.t("Motivo de la decisión"),
+                req.t("Es un problema real"),
+                req.t("Confirmar hallazgo"),
+                req.t("El detector se equivoca"),
+                req.t("Falso positivo"),
+                req.t("Es real, pero se acepta a propósito"),
+                req.t("Ignorar a propósito"),
+            );
+        }
+        State::Decided { reason, .. } => {
+            if !reason.is_empty() {
+                let _ = write!(
+                    out,
+                    "<span class=\"muted\">{}</span>",
+                    req.tf("Motivo: {0}", &[&escape(reason)])
+                );
+            }
+            let _ = write!(
+                out,
+                "<button name=\"action\" value=\"restore\" class=\"secondary\">{}</button>",
+                req.t("Restaurar a pendiente")
+            );
+        }
+    }
+    out.push_str("</form>");
+    out
+}
+
+pub(super) fn route(site: &Site, target: &str, lang: Lang) -> Response {
     let (route, query) = target.split_once('?').unwrap_or((target, ""));
     let mut params = BTreeMap::new();
     for (key, value) in form_urlencoded::parse(query.as_bytes()) {
@@ -118,409 +488,93 @@ pub(super) fn route(site: &Site, target: &str) -> Response {
             return Response::error(400);
         }
     }
-    if ["page", "sp", "ip", "rp", "id"]
+    if ["page", "ip", "rp", "sp", "a", "b", "context"]
         .iter()
-        .any(|key| number(&params, key).is_err())
+        .any(|key| {
+            params
+                .get(*key)
+                .is_some_and(|value| value.parse::<usize>().is_err())
+        })
     {
         return Response::error(400);
     }
+    let req = Req {
+        site,
+        params,
+        target,
+        lang,
+    };
+    let legacy = |new: &str| {
+        Response::redirect(if query.is_empty() {
+            new.to_string()
+        } else {
+            format!("{new}?{query}")
+        })
+    };
     match route {
-        "" => overview(site),
-        "style.css" => Response {
-            status: 200,
-            location: None,
-            content_type: "text/css; charset=utf-8",
-            body: include_str!("style.css").to_string(),
-        },
-        "atlas" => atlas(site, &params),
-        "file" => file(site, &params),
-        "duplicates" => duplicates(site, &params),
-        "group" => group(site, &params),
-        "duplicates.toon" => Response {
-            status: 200,
-            location: None,
-            content_type: "text/plain; charset=utf-8",
-            body: crate::duplicates::render_toon(&site.duplicates),
-        },
+        "" => Response::redirect("duplicados".to_string()),
+        "style.css" => Response::text("text/css; charset=utf-8", include_str!("style.css").into()),
+        "app.js" => Response::text(
+            "text/javascript; charset=utf-8",
+            include_str!("app.js").into(),
+        ),
+        "duplicados" => view_duplicates::list(&req),
+        "duplicado" => view_duplicates::detail(&req),
+        "duplicados.toon" => Response::text(
+            "text/plain; charset=utf-8",
+            crate::duplicates::render_toon(&site.duplicates),
+        ),
+        "muerto" => view_dead::list(&req),
+        "simbolo" => view_dead::detail(&req),
+        "obsidian" => view_obsidian::dashboard(&req),
+        "explorar" => view_obsidian::explorer(&req),
+        "archivo" => view_obsidian::file(&req),
+        "notas" => view_obsidian::notes(&req),
+        "nota" => view_obsidian::note(&req),
+        "grafo" => view_obsidian::graph(&req),
+        "revisiones" => view_reviews::list(&req),
+        "estado" => view_status::status(&req),
+        "ajustes" => view_status::settings(&req),
+        // Links from before ADR-018 keep working.
+        "duplicates" | "group" => Response::redirect("duplicados".to_string()),
+        "atlas" => legacy("explorar"),
+        "file" => legacy("archivo"),
         _ => Response::error(404),
     }
 }
 
-fn overview(site: &Site) -> Response {
-    let mut body = format!(
-        r#"<p class="intro">Explore the project, then follow a file into its duplicate candidates.</p><section class="cards"><a class="card" href="atlas"><span class="eyebrow">PROJECT MAP</span><strong>{} files</strong><span>Directories, symbols and resolved imports →</span></a><a class="card" href="duplicates"><span class="eyebrow">CODE REVIEW</span><strong>{} active duplicate groups</strong><span>Candidate groups, verdicts and source locations →</span></a></section><section><h2>Obsidian vault</h2><p>The same index supplies the metadata atlas in <code>.mct-index/obsidian/</code>. Open that folder as a vault in Obsidian. File bodies are retrieved on demand through the existing context tools.</p></section>"#,
-        site.navigation.files.len(),
-        site.duplicates
-            .groups
-            .iter()
-            .enumerate()
-            .filter(|(id, _)| !site.dismissed(*id))
-            .count()
-    );
-    diagnostics(site, &mut body);
-    page("Project explorer", site, &body)
-}
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+    use super::*;
 
-fn search_form(route: &str, q: &str, hidden: &[(&str, &str)], label: &str) -> String {
-    let mut out = format!(
-        r#"<form action="{route}" method="get"><label for="q">{label}</label><div class="search"><input id="q" name="q" value="{}" type="search"><button>Search</button></div>"#,
-        escape(q)
-    );
-    for (key, value) in hidden {
-        let _ = write!(
-            out,
-            "<input type=\"hidden\" name=\"{}\" value=\"{}\">",
-            escape(key),
-            escape(value)
-        );
+    #[test]
+    fn dates_are_formatted_in_utc() {
+        assert_eq!(utc(0), "1970-01-01 00:00 UTC");
+        assert_eq!(utc(1_700_000_000), "2023-11-14 22:13 UTC");
+        assert_eq!(utc(951_782_400 + 3600 * 5 + 60 * 7), "2000-02-29 05:07 UTC");
     }
-    out.push_str("</form>");
-    out
-}
 
-fn atlas(site: &Site, params: &BTreeMap<String, String>) -> Response {
-    let q = params.get("q").map(String::as_str).unwrap_or("");
-    let directory = params.get("dir").map(String::as_str).unwrap_or("");
-    let prefix = if directory.is_empty() {
-        String::new()
-    } else {
-        format!("{directory}/")
-    };
-    let query = q.to_lowercase();
-    // Group the immediate children once; paging counts directories and files.
-    let mut children: BTreeMap<String, bool> = BTreeMap::new();
-    for file in &site.navigation.files {
-        let Some(rest) = file.relative_path.strip_prefix(&prefix) else {
-            continue;
-        };
-        let matches = query.is_empty()
-            || file.relative_path.to_lowercase().contains(&query)
-            || site
-                .symbols
-                .get(&file.relative_path)
-                .into_iter()
-                .flatten()
-                .any(|id| {
-                    site.navigation.symbols[*id]
-                        .name
-                        .to_lowercase()
-                        .contains(&query)
-                });
-        if !matches {
-            continue;
+    #[test]
+    fn next_targets_are_known_routes_with_tame_queries() {
+        for ok in [
+            "duplicados",
+            "muerto?lang=rust&q=a%20b",
+            "duplicado?k=abc",
+            "estado",
+        ] {
+            assert_eq!(safe_next(ok).as_deref(), Some(ok));
         }
-        let (name, is_dir) = rest
-            .split_once('/')
-            .map_or((rest, false), |(dir, _)| (dir, true));
-        children.insert(format!("{prefix}{name}"), is_dir);
-    }
-    let mut body = search_form(
-        "atlas",
-        q,
-        &[("dir", directory)],
-        "Filter paths and indexed symbol names",
-    );
-    let _ = write!(
-        body,
-        "<h2>{}</h2><p><a href=\"atlas\">Project root</a>",
-        if directory.is_empty() {
-            "/".to_string()
-        } else {
-            escape(directory)
-        }
-    );
-    if !directory.is_empty() {
-        let parent = directory.rsplit_once('/').map_or("", |(parent, _)| parent);
-        let _ = write!(
-            body,
-            " · <a href=\"{}\">Parent directory</a>",
-            href("atlas", &[("dir", parent), ("q", q)])
-        );
-    }
-    body.push_str("</p><ul class=\"entries\">");
-    let (start, pagination) = pager(
-        "atlas",
-        &[("dir", directory), ("q", q)],
-        "page",
-        number(params, "page").unwrap_or(0),
-        children.len(),
-        PAGE_SIZE,
-    );
-    for (path, directory) in children.iter().skip(start).take(PAGE_SIZE) {
-        if *directory {
-            let _ = write!(
-                body,
-                "<li><a href=\"{}\">{}/</a><span>directory</span></li>",
-                href("atlas", &[("dir", path), ("q", q)]),
-                escape(path)
-            );
-        } else {
-            let count = site.symbols.get(path).map_or(0, Vec::len);
-            let groups = site.active_groups(path);
-            let _ = write!(
-                body,
-                "<li>{}<span>{count} symbols · {groups} groups</span></li>",
-                link("file", path, path)
-            );
+        for bad in [
+            "//evil.example",
+            "https://evil.example",
+            "style.css",
+            "duplicados?x=<script>",
+            "duplicados\r\nSet-Cookie: a=b",
+            "/duplicados",
+            "..%2f",
+        ] {
+            assert_eq!(safe_next(bad), None, "{bad}");
         }
     }
-    if children.is_empty() {
-        body.push_str("<li>No matching entries.</li>");
-    }
-    body.push_str("</ul>");
-    body.push_str(&pagination);
-    page("Code atlas", site, &body)
-}
-
-fn file(site: &Site, params: &BTreeMap<String, String>) -> Response {
-    let path = params.get("path").map(String::as_str).unwrap_or("");
-    let Ok(id) = site
-        .navigation
-        .files
-        .binary_search_by(|file| file.relative_path.as_str().cmp(path))
-    else {
-        return Response::error(404);
-    };
-    let file = &site.navigation.files[id];
-    let directory = path.rsplit_once('/').map_or("", |(parent, _)| parent);
-    let count = site.active_groups(path);
-    let mut body = format!("<p class=\"actions\"><a href=\"{}\">Directory map</a> · {} ({count})</p><dl><dt>Path</dt><dd><code>{}</code></dd><dt>Language</dt><dd>{}</dd><dt>Content hash</dt><dd><code>{}</code></dd></dl><p>Metadata only. Retrieve source snippets at these exact locations with the MCP context tools.</p><h2>Symbols</h2><ul>",
-        href("atlas", &[("dir", directory)]), link("duplicates", path, "Duplicate groups"), escape(path), escape(&file.language), escape(&file.content_hash));
-    let ids = site
-        .symbols
-        .get(path)
-        .map(Vec::as_slice)
-        .unwrap_or_default();
-    let ip = number(params, "ip").unwrap_or(0).to_string();
-    let rp = number(params, "rp").unwrap_or(0).to_string();
-    let sp = number(params, "sp").unwrap_or(0).to_string();
-    let (start, pagination) = pager(
-        "file",
-        &[("path", path), ("ip", &ip), ("rp", &rp)],
-        "sp",
-        number(params, "sp").unwrap_or(0),
-        ids.len(),
-        PAGE_SIZE,
-    );
-    for id in ids.iter().skip(start).take(PAGE_SIZE) {
-        let symbol = &site.navigation.symbols[*id];
-        let _ = write!(
-            body,
-            "<li id=\"symbol-{}\"><code>{}</code> <span class=\"muted\">{} · {}:{}{}</span></li>",
-            id,
-            escape(&symbol.name),
-            escape(&symbol.kind),
-            escape(path),
-            symbol.line,
-            symbol
-                .end_line
-                .map(|line| format!("–{line}"))
-                .unwrap_or_default()
-        );
-    }
-    body.push_str("</ul>");
-    body.push_str(&pagination);
-    for (title, key, paths) in [
-        ("Resolved imports", "ip", &site.imports),
-        ("Imported by", "rp", &site.importers),
-    ] {
-        let items = paths.get(path).map(Vec::as_slice).unwrap_or_default();
-        let other = if key == "ip" {
-            ("rp", rp.as_str())
-        } else {
-            ("ip", ip.as_str())
-        };
-        let (start, pagination) = pager(
-            "file",
-            &[("path", path), ("sp", &sp), other],
-            key,
-            number(params, key).unwrap_or(0),
-            items.len(),
-            PAGE_SIZE,
-        );
-        let _ = write!(body, "<h2>{title}</h2><ul>");
-        for target in items.iter().skip(start).take(PAGE_SIZE) {
-            let _ = write!(body, "<li>{}</li>", link("file", target, target));
-        }
-        body.push_str("</ul>");
-        body.push_str(&pagination);
-    }
-    page(path, site, &body)
-}
-
-fn diagnostics(site: &Site, body: &mut String) {
-    let report = &site.duplicates;
-    let _ = write!(body, "<p class=\"notice\">Duplicate groups are candidates for human review, not proof of redundant or equivalent behavior. Policy: {} · minimum {} lines / {} tokens. {} candidates analyzed; {} skipped. Index diagnostics: {} syntax errors / {} read failures.</p>",
-        report.options.normalization.as_str(), report.options.min_lines, report.options.min_tokens,
-        report.candidates_analyzed, report.skipped.len(), report.index_syntax_errors, report.index_read_failures);
-    if !report.complete || !report.has_indexing_record {
-        body.push_str("<p class=\"warning\">Partial or unverified analysis: some candidates may be missing. See the complete TOON report for skipped candidates and indexing state.</p>");
-    }
-    if !report.unsupported_languages.is_empty() {
-        let _ = write!(
-            body,
-            "<p>Languages without duplicate token support: {}.</p>",
-            escape(&report.unsupported_languages.join(", "))
-        );
-    }
-    body.push_str("<p><a href=\"duplicates.toon\" download=\"duplicates.toon\">Download full raw duplicate analysis (TOON, includes dismissed groups)</a></p>");
-}
-
-fn duplicates(site: &Site, params: &BTreeMap<String, String>) -> Response {
-    let path = params.get("path").map(String::as_str).unwrap_or("");
-    let q = params.get("q").map(String::as_str).unwrap_or("");
-    let view = params.get("view").map(String::as_str).unwrap_or("active");
-    if !matches!(view, "active" | "discarded") {
-        return Response::error(400);
-    }
-    let discarded = view == "discarded";
-    let query = q.to_lowercase();
-    let filtered: Vec<_> = site
-        .duplicates
-        .groups
-        .iter()
-        .enumerate()
-        .filter(|(_, group)| {
-            (path.is_empty() || group.members.iter().any(|member| member.path == path))
-                && (query.is_empty()
-                    || group.members.iter().any(|member| {
-                        member.path.to_lowercase().contains(&query)
-                            || member.symbol_name.to_lowercase().contains(&query)
-                    }))
-        })
-        .collect();
-    let dismissed = filtered
-        .iter()
-        .filter(|(id, _)| site.dismissed(*id))
-        .count();
-    let total = filtered.len();
-    let matches: Vec<_> = filtered
-        .into_iter()
-        .filter(|(id, _)| site.dismissed(*id) == discarded)
-        .collect();
-    let mut body = format!("<nav aria-label=\"Review status\"><a href=\"{}\">Active ({})</a><a href=\"{}\">Discarded ({dismissed})</a></nav><p>Dismiss unwanted groups as false positives or for another reason. You can restore them from Discarded. Changed code is reviewed again.</p>",
-        href("duplicates", &[("path", path), ("q", q), ("view", "active")]), total - dismissed,
-        href("duplicates", &[("path", path), ("q", q), ("view", "discarded")]));
-    body.push_str(&search_form(
-        "duplicates",
-        q,
-        &[("path", path), ("view", view)],
-        "Filter candidate paths and symbol names",
-    ));
-    if !path.is_empty() {
-        let _ = write!(
-            body,
-            "<p>File: {} · <a href=\"duplicates\">All groups</a></p>",
-            link("file", path, path)
-        );
-    }
-    diagnostics(site, &mut body);
-    let (start, pagination) = pager(
-        "duplicates",
-        &[("path", path), ("q", q), ("view", view)],
-        "page",
-        number(params, "page").unwrap_or(0),
-        matches.len(),
-        GROUP_PAGE_SIZE,
-    );
-    for (id, group) in matches.iter().skip(start).take(GROUP_PAGE_SIZE) {
-        let _ = write!(body, "<article><h2><a href=\"group?id={id}\">Group {}</a> <span class=\"badge\">{}</span></h2><p>{} · {} members · {} lines · {} tokens</p><ul>", id + 1, escape(group.verdict.level.as_str()), escape(&group.language), group.members.len(), group.line_count, group.token_count);
-        for member in group.members.iter().take(6) {
-            let _ = write!(
-                body,
-                "<li>{} · <code>{}</code></li>",
-                link(
-                    "file",
-                    &member.path,
-                    &format!("{}:{}–{}", member.path, member.start_line, member.end_line)
-                ),
-                escape(&member.symbol_name)
-            );
-        }
-        body.push_str("</ul>");
-        if group.members.len() > 6 {
-            let _ = write!(
-                body,
-                "<p>{} more members on the group page.</p>",
-                group.members.len() - 6
-            );
-        }
-        body.push_str(&review_form(site, *id));
-        body.push_str("</article>");
-    }
-    if matches.is_empty() {
-        body.push_str("<p>No matching duplicate groups.</p>");
-    }
-    body.push_str(&pagination);
-    page(
-        if discarded {
-            "Discarded duplicate candidates"
-        } else {
-            "Duplicate candidates"
-        },
-        site,
-        &body,
-    )
-}
-
-fn review_form(site: &Site, id: usize) -> String {
-    let key = &site.review_keys[id];
-    let controls = if let Some(reason) = site.reviews.reason(key) {
-        format!("<p class=\"muted\">Review decision: {}</p><button name=\"action\" value=\"restore\">Restore to active</button>", reason.label())
-    } else {
-        format!("<label for=\"review-reason-{id}\">Dismiss reason</label><select id=\"review-reason-{id}\" name=\"action\"><option value=\"false-positive\">False positive</option><option value=\"dismissed\">Other / not relevant</option></select><button>Move to discarded</button>")
-    };
-    format!("<form action=\"review\" method=\"post\" class=\"review\"><input type=\"hidden\" name=\"csrf\" value=\"{}\"><input type=\"hidden\" name=\"key\" value=\"{}\">{controls}</form>", escape(&site.csrf), escape(key))
-}
-
-fn group(site: &Site, params: &BTreeMap<String, String>) -> Response {
-    let id = number(params, "id").unwrap_or(0);
-    let Some(group) = site.duplicates.groups.get(id) else {
-        return Response::error(404);
-    };
-    let mut body = format!("<p><a href=\"duplicates\">All groups</a></p><p>{} · {} members · {} lines · {} tokens</p><h2>Review signals</h2><p>Verdict: <strong>{}</strong></p><ul>", escape(&group.language), group.members.len(), group.line_count, group.token_count, escape(group.verdict.level.as_str()));
-    for reason in &group.verdict.reasons {
-        let _ = write!(body, "<li>{}</li>", escape(reason.as_str()));
-    }
-    let _ = write!(
-        body,
-        "</ul><p>Priority: {} · {}</p><h2>Members</h2>",
-        escape(group.priority.level.as_str()),
-        escape(&group.priority.reason)
-    );
-    body.push_str(&review_form(site, id));
-    let id_text = id.to_string();
-    let (start, pagination) = pager(
-        "group",
-        &[("id", &id_text)],
-        "page",
-        number(params, "page").unwrap_or(0),
-        group.members.len(),
-        PAGE_SIZE,
-    );
-    for member in group.members.iter().skip(start).take(PAGE_SIZE) {
-        let _ = write!(
-            body,
-            "<article><h3>{}</h3><p>{} · {}:{}</p><p>{}</p><pre>{}</pre></article>",
-            escape(&member.symbol_name),
-            escape(&member.symbol_kind),
-            escape(&member.path),
-            member.start_line,
-            link("file", &member.path, "Open in atlas"),
-            escape(&member.excerpt.join("\n"))
-        );
-    }
-    body.push_str(&pagination);
-    body.push_str("<details><summary>Full alignment, subgroups and analysis (TOON)</summary><pre>");
-    // Reuse the established renderer instead of inventing a second evidence schema.
-    let mut evidence = String::new();
-    crate::duplicates::render_group(
-        &mut evidence,
-        id + 1,
-        group,
-        site.duplicates.options.normalization,
-    );
-    body.push_str(&escape(&evidence));
-    body.push_str("</pre></details>");
-    page(&format!("Duplicate group {}", id + 1), site, &body)
 }
