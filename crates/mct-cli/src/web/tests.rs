@@ -1,4 +1,4 @@
-//! Public index APIs plus full HTTP wire parsing/response tests, without sockets.
+//! Dashboard API, static assets and full HTTP wire parsing/response tests, without sockets.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use super::{http, Site};
 use std::fs;
@@ -92,58 +92,223 @@ fn project() -> tempfile::TempDir {
     root
 }
 
+impl Server {
+    fn body(response: &str) -> &str {
+        response.split_once("\r\n\r\n").map_or("", |(_, body)| body)
+    }
+    fn json(&self, path: &str) -> serde_json::Value {
+        let response = self.get(path);
+        assert!(response.starts_with("HTTP/1.1 200"), "{path}: {response}");
+        serde_json::from_str(Self::body(&response)).unwrap()
+    }
+    fn post_review(&self, body: &str, headers: &str) -> String {
+        self.raw(&format!("POST /secret/api/review HTTP/1.1\r\nHost: 127.0.0.1:8787\r\n{headers}Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}", body.len()))
+    }
+    fn decide(&self, key: &str, state: Option<&str>, note: &str) -> String {
+        let csrf = self.site.borrow().csrf.clone();
+        let body = serde_json::json!({ "csrf": csrf, "key": key, "state": state, "note": note })
+            .to_string();
+        self.post_review(&body, "Origin: http://127.0.0.1:8787\r\n")
+    }
+}
+
 #[test]
-fn local_web_links_both_views_and_keeps_the_index_read_only() {
+fn dashboard_serves_static_app_and_a_read_only_json_api() {
     let root = project();
     let database = root.path().join(".mct-index/index.sqlite3");
     let original = fs::read(&database).unwrap();
     let server = Server::start(root.path(), true);
-    assert_eq!(server.address, "127.0.0.1:8787");
-    let overview = server.get("");
-    assert!(overview.starts_with("HTTP/1.1 200"), "{overview}");
-    assert!(overview.contains("href=\"atlas\"") && overview.contains("href=\"duplicates\""));
+    let page = server.get("");
     assert!(
-        overview.contains("default-src 'none'") && overview.contains("Cache-Control: no-store")
+        page.starts_with("HTTP/1.1 200") && page.contains("text/html"),
+        "{page}"
     );
-    assert!(server.get("atlas").contains("atlas?dir=src&amp;q="));
-    let atlas = server.get("atlas?dir=src");
-    assert!(atlas.contains("file?path=src%2Fa.rs"), "{atlas}");
-    assert!(atlas.contains("file?path=src%2Fb.rs"));
-    let file = server.get("file?path=src%2Fa.rs");
-    assert!(file.contains("alpha") && file.contains("duplicates?path=src%2Fa.rs"));
-    assert!(file.contains("src/a.rs:1"));
+    assert!(page.contains("type=\"module\"") && page.contains("lang=\"es\""));
+    for header in [
+        "script-src 'self'",
+        "default-src 'none'",
+        "Cache-Control: no-store",
+        "frame-ancestors 'none'",
+    ] {
+        assert!(page.contains(header), "{header}");
+    }
+    assert!(!page.contains("unsafe-inline") && !page.contains("unsafe-eval"));
+    assert!(server.get("app.css").contains("text/css"));
+    for module in [
+        "main",
+        "core",
+        "i18n",
+        "components",
+        "charts",
+        "code",
+        "graph",
+        "markdown",
+        "palette",
+        "page-dashboard",
+        "page-symbols",
+        "page-findings",
+        "page-search",
+        "page-deps",
+        "page-stats",
+        "page-notes",
+        "page-workspace",
+        "page-settings",
+    ] {
+        assert!(
+            server
+                .get(&format!("js/{module}.js"))
+                .contains("text/javascript"),
+            "{module}"
+        );
+    }
+
+    let meta = server.json("api/meta");
+    assert_eq!(meta["capabilities"]["search"]["semantic"], false);
+    assert_eq!(meta["capabilities"]["history"], false);
+    assert_eq!(meta["indexing"]["state"], "ready");
+    let summary = server.json("api/summary");
+    assert_eq!(summary["files"], 2);
+    assert_eq!(summary["duplicates"]["groups"], 1);
+    assert_eq!(summary["deadCode"]["candidates"], 2);
+    assert!(summary["lastIndexDurationMs"].is_null() && summary["history"].is_null());
+
+    let symbols = server.json("api/symbols?q=alpha");
+    assert_eq!(symbols["total"], 1);
+    let item = &symbols["items"][0];
+    assert_eq!(item["path"], "src/a.rs");
+    assert_eq!(item["duplicateGroups"], 1);
+    assert_eq!(item["deadCandidate"], true);
+    let detail = server.json(&format!("api/symbol?id={}", item["id"]));
+    assert!(detail["code"]["lines"][0]
+        .as_str()
+        .unwrap()
+        .contains("pub fn alpha"));
+    assert_eq!(detail["duplicates"].as_array().unwrap().len(), 1);
+    assert!(detail["dead"].is_object());
+    assert_eq!(
+        server.json("api/files")["files"].as_array().unwrap().len(),
+        2
+    );
+
+    let findings = server.json("api/findings");
+    assert_eq!(findings["total"], 3);
+    let duplicates = server.json("api/findings?type=duplicate");
+    assert_eq!(duplicates["total"], 1);
+    let group = &duplicates["items"][0];
+    assert_eq!(group["state"], "unreviewed");
+    assert_eq!(group["verdict"], "real");
+    assert_eq!(group["scope"], "cross-file");
     assert!(
-        !file.contains("total +="),
-        "atlas must contain metadata only"
+        group["similarity"].is_null(),
+        "no invented similarity score"
     );
-    let duplicates = server.get("duplicates?path=src%2Fa.rs");
-    assert!(duplicates.contains("Group 1"), "{duplicates}");
-    assert!(duplicates.contains("file?path=src%2Fb.rs"));
-    let group = server.get("group?id=0");
-    assert!(group.contains("Open in atlas") && group.contains("Full alignment"));
-    let toon = server.get("duplicates.toon");
-    assert!(toon.contains("text/plain") && toon.contains("members[2]"));
-    assert!(server.get("style.css").contains("text/css"));
+    let key = group["key"].as_str().unwrap();
+    let finding = server.json(&format!("api/finding?key={key}"));
+    assert_eq!(finding["members"].as_array().unwrap().len(), 2);
+    assert!(finding["analysis"].as_str().unwrap().contains("alpha"));
+    let dead = server.json("api/findings?type=dead-code&q=beta");
+    assert_eq!(dead["items"][0]["confidence"], "unknown");
+    assert!(dead["items"][0]["severity"].is_null());
+    let dead_detail = server.json(&format!(
+        "api/finding?key={}",
+        dead["items"][0]["key"].as_str().unwrap()
+    ));
+    assert!(dead_detail["detail"]["code"]["lines"][0]
+        .as_str()
+        .unwrap()
+        .contains("beta"));
+
+    let search = server.json("api/search?q=alpha");
+    assert_eq!(search["semantic"], false);
+    assert_eq!(search["groups"]["symbols"]["items"][0]["path"], "src/a.rs");
+    assert!(search["groups"]["duplicates"]["total"].as_u64().unwrap() >= 1);
+    assert_eq!(
+        server
+            .json("api/search?q=")
+            .get("groups")
+            .unwrap()
+            .as_object()
+            .unwrap()
+            .len(),
+        0
+    );
+    let deps = server.json("api/dependencies?level=file");
+    assert_eq!(deps["edgeKinds"][0], "imports");
+    let stats = server.json("api/stats");
+    assert!(stats["measurements"]["tokens"].is_null());
+    assert!(stats["measurements"]["apiLatency"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|row| row["route"] == "symbols"));
     assert_eq!(original, fs::read(database).unwrap());
     assert!(!root.path().join(".mct-index/obsidian").exists());
 }
 
 #[test]
-fn web_regenerates_obsidian_and_survives_a_vault_conflict() {
+fn source_previews_only_read_indexed_files_inside_the_project() {
     let root = project();
-    {
-        let server = Server::start(root.path(), false);
-        assert!(server.get("").contains("200 OK"));
-        assert!(root.path().join(".mct-index/obsidian/index.md").is_file());
+    fs::write(root.path().join("secret.txt"), "TOP SECRET\n").unwrap();
+    let server = Server::start(root.path(), true);
+    let source = server.json("api/source?path=src%2Fa.rs&start=1&end=2");
+    assert_eq!(source["lines"].as_array().unwrap().len(), 2);
+    for path in [
+        "secret.txt",
+        "..%2Fsecret.txt",
+        "%2Fetc%2Fpasswd",
+        ".mct-index%2Findex.sqlite3",
+        "src%2Fmissing.rs",
+        "src",
+    ] {
+        let response = server.get(&format!("api/source?path={path}"));
+        assert!(response.starts_with("HTTP/1.1 404"), "{path}: {response}");
+        assert!(!response.contains("TOP SECRET"));
     }
-    let note = root.path().join(".mct-index/obsidian/index.md");
-    fs::write(&note, "Personal edited map").unwrap();
-    let server = Server::start(root.path(), false);
-    assert!(server
-        .get("")
-        .contains("Cannot regenerate the Obsidian vault"));
-    assert!(server.get("atlas").contains("200 OK"));
-    assert_eq!(fs::read_to_string(note).unwrap(), "Personal edited map");
+    let huge = server.json("api/source?path=src%2Fa.rs&start=1&end=99999");
+    assert!(huge["lines"].as_array().unwrap().len() <= 400);
+}
+
+#[test]
+fn api_lists_are_bounded_paged_and_filterable() {
+    let root = tempfile::tempdir().unwrap();
+    fs::create_dir(root.path().join("src")).unwrap();
+    let source: String = (0..120)
+        .map(|id| format!("pub fn symbol_{id}() {{}}\n"))
+        .collect();
+    fs::write(root.path().join("src/many.rs"), source).unwrap();
+    index(root.path());
+    let server = Server::start(root.path(), true);
+    let first = server.json("api/symbols?size=50&kind=function");
+    assert_eq!(first["total"], 120);
+    assert_eq!(first["items"].as_array().unwrap().len(), 50);
+    let last = server.json("api/symbols?size=50&page=99&kind=function");
+    assert_eq!(last["page"], 2, "out-of-range pages clamp to the last page");
+    assert_eq!(last["items"].as_array().unwrap().len(), 20);
+    assert_eq!(
+        server.json("api/symbols?size=9999")["items"]
+            .as_array()
+            .unwrap()
+            .len(),
+        121
+    );
+    assert_eq!(
+        server.json("api/symbols?q=SYMBOL_11&kind=function")["total"],
+        11
+    );
+    assert_eq!(server.json("api/symbols?kind=class")["total"], 0);
+    assert_eq!(
+        server.json("api/symbols?language=rust&dir=src&kind=function")["total"],
+        120
+    );
+    assert_eq!(
+        server.json("api/symbols?dir=sr")["total"],
+        0,
+        "directory filters match whole path segments"
+    );
+    assert_eq!(
+        server.json("api/symbols?finding=dead-code&sort=refs&order=desc")["total"],
+        120
+    );
 }
 
 #[test]
@@ -155,21 +320,19 @@ fn http_rejects_cross_site_requests_traversal_and_unmanaged_files() {
         "%2e%2e/index.sqlite3",
         "obsidian/.obsidian/config",
         ".mct-index/index.sqlite3",
-        "file?path=..%2Fsecret",
+        "api/unknown",
+        "api",
+        "js/../app.css",
+        "js/missing.js",
         "missing",
     ] {
         assert!(server.get(path).starts_with("HTTP/1.1 404"), "{path}");
     }
-    assert!(server.get("atlas?page=oops").starts_with("HTTP/1.1 400"));
-    assert!(server
-        .get("atlas?page=1&page=2")
-        .starts_with("HTTP/1.1 400"));
-    assert!(server
-        .get("file?path=%3Cscript%3E")
-        .starts_with("HTTP/1.1 404"));
-    let injected = server.get("atlas?q=%22%3E%3Cscript%3Ealert%281%29%3C%2Fscript%3E");
-    assert!(!injected.contains("<script>"));
-    assert!(injected.contains("&lt;script&gt;"));
+    for path in ["api/symbols?page=1&page=2", "api/symbols?q=a&q=b"] {
+        assert!(server.get(path).starts_with("HTTP/1.1 400"), "{path}");
+    }
+    let hostile = server.get("api/symbols?q=%22%3E%3Cscript%3Ealert%281%29%3C%2Fscript%3E");
+    assert!(hostile.contains("application/json") && hostile.starts_with("HTTP/1.1 200"));
     for (headers, status) in [("Host: evil.example", 421), ("Host: 127.0.0.1:1", 421)] {
         assert!(server
             .raw(&format!(
@@ -211,81 +374,28 @@ fn http_rejects_cross_site_requests_traversal_and_unmanaged_files() {
 }
 
 #[test]
-fn atlas_pagination_and_encoded_paths_keep_every_entry_accessible() {
-    let root = tempfile::tempdir().unwrap();
-    fs::create_dir(root.path().join("src")).unwrap();
-    let filename = "src/a & ü.rs";
-    let source: String = (0..205)
-        .map(|id| format!("pub fn symbol_{id}() {{}}\n"))
-        .collect();
-    fs::write(root.path().join(filename), source).unwrap();
-    for id in 0..101 {
-        fs::write(
-            root.path().join(format!("src/file_{id:03}.rs")),
-            "pub fn tiny() {}\n",
-        )
-        .unwrap();
-    }
-    fs::create_dir(root.path().join("src2")).unwrap();
-    fs::write(root.path().join("src2/outside.rs"), "pub fn outside() {}\n").unwrap();
-    index(root.path());
-    let server = Server::start(root.path(), true);
-    let first = server.get("atlas?dir=src");
-    assert!(first.contains("Page 1 of 2") && first.contains("102 items"));
-    assert!(first.contains("file?path=src%2Fa+%26+%C3%BC.rs"));
-    assert!(!first.contains("outside.rs"));
-    let second = server.get("atlas?dir=src&page=1");
-    assert!(second.contains("file_100.rs") && second.contains("Page 2 of 2"));
-    let first = server.get("file?path=src%2Fa+%26+%C3%BC.rs");
-    assert!(first.contains("symbol_0") && first.contains("src/a &amp; ü.rs"));
-    assert!(!first.contains("<code>symbol_204</code>"));
-    let last = server.get("file?path=src%2Fa+%26+%C3%BC.rs&sp=2");
-    assert!(last.contains("<code>symbol_204</code>"), "{last}");
-    assert!(last.contains("Page 3 of 3"));
-    let searched = server.get("atlas?q=symbol_204");
-    assert!(searched.contains("1 matching file ") && searched.contains("matches symbol_204"));
-    assert!(searched.contains("file?path=src%2Fa+%26+%C3%BC.rs"));
-    let searched = server.get("atlas?dir=src&q=symbol_204");
-    assert!(searched.contains("file?path=src%2Fa+%26+%C3%BC.rs"));
-    assert!(!searched.contains("file_100.rs"));
-}
-
-#[test]
-fn generated_navigation_has_no_broken_links_and_wire_lengths_are_exact() {
+fn generated_responses_have_exact_lengths() {
     let root = project();
     let server = Server::start(root.path(), true);
-    let mut pending = vec![String::new()];
-    let mut visited = std::collections::BTreeSet::new();
-    while let Some(target) = pending.pop() {
-        if !visited.insert(target.clone()) {
-            continue;
-        }
-        assert!(visited.len() < 100, "unexpected navigation expansion");
-        let response = server.get(&target);
-        assert!(response.starts_with("HTTP/1.1 200"), "{target}: {response}");
-        let (headers, body) = response.split_once("\r\n\r\n").unwrap();
-        let length: usize = headers
+    for path in [
+        "",
+        "app.css",
+        "js/main.js",
+        "api/meta",
+        "api/summary",
+        "api/findings",
+        "api/dependencies",
+    ] {
+        let response = server.get(path);
+        let (head, body) = response.split_once("\r\n\r\n").unwrap();
+        let length: usize = head
             .lines()
             .find_map(|line| line.strip_prefix("Content-Length: "))
             .unwrap()
             .parse()
             .unwrap();
-        assert_eq!(length, body.len());
-        if !headers.contains("text/html") {
-            continue;
-        }
-        for value in body.split("href=\"").skip(1) {
-            let href = value.split('"').next().unwrap().replace("&amp;", "&");
-            if href.starts_with('#') {
-                continue;
-            }
-            let target = if href == "./" { "".to_string() } else { href };
-            assert!(!target.contains("://"), "no external resources");
-            pending.push(target);
-        }
+        assert_eq!(length, body.len(), "{path}");
     }
-    assert!(visited.iter().any(|target| target.starts_with("group?")));
-    assert!(visited.contains("file?path=src%2Fb.rs"));
 }
 
 #[test]
@@ -307,174 +417,125 @@ fn incomplete_headers_and_timeouts_are_bounded_without_rendering_content() {
 }
 
 #[test]
-fn file_relations_link_in_both_directions_and_snapshot_refresh_is_explicit() {
-    let root = project();
-    let file = root.path().join("src/a.rs");
-    let original = fs::read_to_string(&file).unwrap();
-    fs::write(&file, format!("use crate::b::beta;\n{original}")).unwrap();
-    index(root.path());
-    let server = Server::start(root.path(), true);
-    assert!(server
-        .get("file?path=src%2Fa.rs")
-        .contains("<h2>Resolved imports</h2><ul><li><a href=\"file?path=src%2Fb.rs\""));
-    assert!(server
-        .get("file?path=src%2Fb.rs")
-        .contains("<h2>Imported by</h2><ul><li><a href=\"file?path=src%2Fa.rs\""));
-    fs::write(&file, format!("{original}\npub fn newly_indexed() {{}}\n")).unwrap();
-    index(root.path());
-    assert!(!server.get("file?path=src%2Fa.rs").contains("newly_indexed"));
-    let refreshed = Server::start(root.path(), true);
-    assert!(refreshed
-        .get("file?path=src%2Fa.rs")
-        .contains("newly_indexed"));
-}
-
-impl Server {
-    fn post(&self, key: &str, action: &str) -> String {
-        let body = form_urlencoded::Serializer::new(String::new())
-            .extend_pairs([
-                ("csrf", self.site.borrow().csrf.as_str()),
-                ("key", key),
-                ("action", action),
-            ])
-            .finish();
-        self.form(&body, "Origin: http://127.0.0.1:8787\r\n")
-    }
-    fn form(&self, body: &str, headers: &str) -> String {
-        self.raw(&format!("POST /secret/review HTTP/1.1\r\nHost: 127.0.0.1:8787\r\n{headers}Content-Type: application/x-www-form-urlencoded\r\nContent-Length: {}\r\n\r\n{body}", body.len()))
-    }
-}
-
-#[test]
-fn dismiss_and_restore_persist_without_mutating_the_analysis_or_index() {
+fn review_decisions_persist_reopen_and_keep_an_audit_trail() {
     let root = project();
     let database = root.path().join(".mct-index/index.sqlite3");
     let original = fs::read(&database).unwrap();
     let server = Server::start(root.path(), true);
-    let raw = server.get("duplicates.toon");
     let key = server.site.borrow().review_keys[0].clone();
-    assert!(server.get("duplicates").contains("Discard group"));
-    let response = server.post(&key, "false-positive");
-    assert!(response.starts_with("HTTP/1.1 303") && response.contains("Location: duplicates\r\n"));
-    let active = server.get("duplicates");
-    assert!(
-        !active.contains("group?id=0")
-            && active.contains("To review (0)")
-            && active.contains("Discarded (1)")
+    let before = server.get("api/findings?type=duplicate");
+    let response = server.decide(&key, Some("false-positive"), "generated twin");
+    assert!(response.starts_with("HTTP/1.1 200"), "{response}");
+    let saved: serde_json::Value = serde_json::from_str(Server::body(&response)).unwrap();
+    assert_eq!(saved["state"], "false-positive");
+    assert_eq!(saved["history"].as_array().unwrap().len(), 1);
+    let listed = server.json("api/findings?type=duplicate&state=false-positive");
+    assert_eq!(
+        listed["total"], 1,
+        "false positives stay listed and recoverable"
     );
-    let discarded = server.get("duplicates?view=discarded");
-    assert!(
-        discarded.contains("group?id=0")
-            && discarded.contains("False positive")
-            && discarded.contains("Restore to review")
+    assert_eq!(listed["items"][0]["note"], "generated twin");
+    assert_eq!(
+        server.json("api/summary")["findings"]["states"]["false-positive"],
+        1
     );
-    assert_eq!(server.get("duplicates.toon"), raw);
+    assert_eq!(
+        server.json("api/summary")["recent"][0]["to"],
+        "false-positive"
+    );
+    let reopened = server.decide(&key, None, "code changed");
+    assert!(reopened.starts_with("HTTP/1.1 200"));
+    let after = server.json(&format!("api/finding?key={key}"));
+    assert_eq!(after["state"], "unreviewed");
+    assert_eq!(
+        after["history"].as_array().unwrap().len(),
+        2,
+        "reopening never erases history"
+    );
+    assert!(before
+        .split_once("\r\n\r\n")
+        .unwrap()
+        .1
+        .contains("unreviewed"));
+    // A new process sees the same decisions and the same dead-code identity.
+    let dead_key = server.site.borrow().dead[0].key.clone();
+    assert!(server
+        .decide(&dead_key, Some("in-review"), "")
+        .starts_with("HTTP/1.1 200"));
     let restarted = Server::start(root.path(), true);
-    assert!(!restarted.get("duplicates").contains("group?id=0"));
-    assert!(restarted
-        .get("file?path=src%2Fa.rs")
-        .contains("Duplicate groups containing this file</a> (0)"));
-    assert!(restarted.post(&key, "restore").starts_with("HTTP/1.1 303"));
-    assert!(restarted.get("duplicates").contains("group?id=0"));
-    assert!(!Server::start(root.path(), true)
-        .get("duplicates?view=discarded")
-        .contains("group?id=0"));
-    assert_eq!(fs::read(database).unwrap(), original);
+    assert_eq!(
+        restarted.json("api/findings?type=dead-code&state=in-review")["total"],
+        1
+    );
+    assert_eq!(
+        restarted.json(&format!("api/finding?key={key}"))["history"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert_eq!(
+        original,
+        fs::read(database).unwrap(),
+        "reviews never touch the index"
+    );
 }
 
 #[test]
-fn review_identity_ignores_rank_but_changes_with_code_or_group_members() {
-    let root = project();
-    let server = Server::start(root.path(), true);
-    let key = server.site.borrow().review_keys[0].clone();
-    assert!(server.post(&key, "dismissed").starts_with("HTTP/1.1 303"));
-    {
-        let site = server.site.borrow();
-        let mut group = site.duplicates.groups[0].clone();
-        group.members.reverse();
-        assert_eq!(
-            super::reviews::group_keys(
-                &[group.clone()],
-                &site.navigation,
-                site.duplicates.options.normalization
-            )
-            .unwrap()[0],
-            key
-        );
-        group.members.pop();
-        assert_ne!(
-            super::reviews::group_keys(
-                &[group],
-                &site.navigation,
-                site.duplicates.options.normalization
-            )
-            .unwrap()[0],
-            key
-        );
-    }
-    let file = root.path().join("src/a.rs");
-    fs::write(
-        &file,
-        format!(
-            "{}\n// changed source\n",
-            fs::read_to_string(&file).unwrap()
-        ),
-    )
-    .unwrap();
-    index(root.path());
-    let changed = Server::start(root.path(), true);
-    assert_ne!(changed.site.borrow().review_keys[0], key);
-    assert!(changed.get("duplicates").contains("group?id=0"));
-}
-
-#[test]
-fn review_posts_require_origin_csrf_valid_action_and_current_group_identity() {
+fn review_posts_require_origin_csrf_valid_state_and_current_identity() {
     let root = project();
     let server = Server::start(root.path(), true);
     let key = server.site.borrow().review_keys[0].clone();
     let csrf = server.site.borrow().csrf.clone();
-    let body = format!("csrf={csrf}&key={key}&action=false-positive");
-    assert!(server.form(&body, "").starts_with("HTTP/1.1 403"));
+    let origin = "Origin: http://127.0.0.1:8787\r\n";
+    let body = |value: serde_json::Value| value.to_string();
+    let good = serde_json::json!({ "csrf": csrf, "key": key, "state": "confirmed" });
+    assert!(
+        server
+            .post_review(&body(good.clone()), "")
+            .starts_with("HTTP/1.1 403"),
+        "origin is mandatory"
+    );
     assert!(server
-        .form(&body, "Origin: https://evil.example\r\n")
+        .post_review(&body(good.clone()), "Origin: https://evil.example\r\n")
         .starts_with("HTTP/1.1 403"));
+    let mut wrong = good.clone();
+    wrong["csrf"] = "nope".into();
     assert!(server
-        .form(
-            &body.replace(&csrf, "bad"),
-            "Origin: http://127.0.0.1:8787\r\n"
-        )
+        .post_review(&body(wrong), origin)
         .starts_with("HTTP/1.1 403"));
+    for (patch, status) in [
+        (serde_json::json!({ "key": "f".repeat(64) }), 404),
+        (serde_json::json!({ "key": "../../etc/passwd" }), 404),
+        (serde_json::json!({ "state": "deleted" }), 400),
+        (serde_json::json!({ "state": 7 }), 400),
+        (serde_json::json!({ "extra": true }), 400),
+        (serde_json::json!({ "note": "x".repeat(501) }), 500),
+    ] {
+        let mut value = good.clone();
+        for (field, content) in patch.as_object().unwrap() {
+            value[field] = content.clone();
+        }
+        let response = server.post_review(&body(value), origin);
+        assert!(
+            response.starts_with(&format!("HTTP/1.1 {status}")),
+            "{patch}: {response}"
+        );
+    }
     assert!(server
-        .post(&"0".repeat(64), "false-positive")
-        .starts_with("HTTP/1.1 404"));
-    assert!(server
-        .post(&key, "erase-source")
+        .post_review("{not json", origin)
         .starts_with("HTTP/1.1 400"));
+    let form = server.raw(&format!("POST /secret/api/review HTTP/1.1\r\nHost: 127.0.0.1:8787\r\n{origin}Content-Type: application/x-www-form-urlencoded\r\nContent-Length: 1\r\n\r\nx"));
+    assert!(form.starts_with("HTTP/1.1 400"));
     assert!(server
-        .form(
-            &(body.clone() + "&action=restore"),
-            "Origin: http://127.0.0.1:8787\r\n"
-        )
-        .starts_with("HTTP/1.1 400"));
-    assert!(server
-        .get(&format!("review?{body}"))
-        .starts_with("HTTP/1.1 404"));
-    assert!(server
-        .get("duplicates?view=unknown")
-        .starts_with("HTTP/1.1 400"));
-    let huge = "a".repeat(4097);
-    assert!(server
-        .form(&huge, "Origin: http://127.0.0.1:8787\r\n")
-        .starts_with("HTTP/1.1 413"));
-    assert!(!root
-        .path()
-        .join(".mct-index/duplicate-reviews.toon")
-        .exists());
-    assert!(server.get("duplicates").contains("group?id=0"));
+        .post_review(&body(good), origin)
+        .starts_with("HTTP/1.1 200"));
+    let wrong_path = server.raw(&format!("POST /secret/review HTTP/1.1\r\nHost: 127.0.0.1:8787\r\n{origin}Content-Type: application/json\r\nContent-Length: 2\r\n\r\n{{}}"));
+    assert!(wrong_path.starts_with("HTTP/1.1 405"));
 }
 
 #[test]
-fn a_failed_review_save_is_visible_and_does_not_hide_the_group() {
+fn a_failed_review_save_is_reported_and_changes_nothing() {
     let root = project();
     let server = Server::start(root.path(), true);
     let key = server.site.borrow().review_keys[0].clone();
@@ -483,9 +544,15 @@ fn a_failed_review_save_is_visible_and_does_not_hide_the_group() {
         "another writer",
     )
     .unwrap();
-    let response = server.post(&key, "false-positive");
-    assert!(response.starts_with("HTTP/1.1 500") && response.contains("No changes were applied"));
-    assert!(server.get("duplicates").contains("group?id=0"));
+    let response = server.decide(&key, Some("dismissed"), "reason");
+    assert!(
+        response.starts_with("HTTP/1.1 500") && response.contains("No changes were applied"),
+        "{response}"
+    );
+    assert_eq!(
+        server.json("api/findings?type=duplicate")["items"][0]["state"],
+        "unreviewed"
+    );
     assert!(!root
         .path()
         .join(".mct-index/duplicate-reviews.toon")
@@ -493,7 +560,111 @@ fn a_failed_review_save_is_visible_and_does_not_hide_the_group() {
 }
 
 #[test]
-fn current_ignore_rules_hide_stale_index_rows_from_both_web_views_and_the_vault() {
+fn review_identity_follows_group_members_and_file_content() {
+    let root = project();
+    let before = Server::start(root.path(), true);
+    let key = before.site.borrow().review_keys[0].clone();
+    let dead = before
+        .site
+        .borrow()
+        .dead
+        .iter()
+        .map(|d| d.key.clone())
+        .collect::<Vec<_>>();
+    assert_eq!(dead.len(), 2);
+    assert!(dead.iter().all(|k| *k != key));
+    assert_eq!(
+        Server::start(root.path(), true).site.borrow().review_keys[0],
+        key,
+        "keys are stable between runs"
+    );
+    let file = root.path().join("src/b.rs");
+    let text = fs::read_to_string(&file).unwrap();
+    fs::write(&file, text.replace("total += 8;", "total += 9;")).unwrap();
+    index(root.path());
+    let changed = Server::start(root.path(), true);
+    assert!(
+        changed.site.borrow().review_keys.is_empty() || changed.site.borrow().review_keys[0] != key,
+        "changed code is a new finding"
+    );
+}
+
+#[test]
+fn obsidian_notes_are_served_read_only_with_verified_links() {
+    let root = project();
+    {
+        let server = Server::start(root.path(), false);
+        let notes = server.json("api/notes");
+        assert!(notes["total"].as_u64().unwrap() >= 3, "{notes}");
+        let file_note = notes["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|n| n["codePath"] == "src/a.rs")
+            .unwrap();
+        let path = file_note["path"].as_str().unwrap().replace('/', "%2F");
+        let detail = server.json(&format!("api/note?path={path}"));
+        assert!(detail["body"].as_str().unwrap().contains("# `src/a.rs`"));
+        assert_eq!(detail["codePath"], "src/a.rs");
+        assert!(detail["symbols"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|s| s["name"] == "alpha"));
+        assert!(!detail["backlinkList"].as_array().unwrap().is_empty());
+        let graph = server.json("api/notes-graph");
+        assert!(!graph["edges"].as_array().unwrap().is_empty());
+        assert_eq!(graph["edgeKinds"][0], "markdown-link");
+        for path in ["..%2F..%2Fsecret.txt", "%2Fetc%2Fpasswd", "missing.md"] {
+            assert!(
+                server
+                    .get(&format!("api/note?path={path}"))
+                    .starts_with("HTTP/1.1 404"),
+                "{path}"
+            );
+        }
+    }
+    let note = root.path().join(".mct-index/obsidian/index.md");
+    fs::write(&note, "Personal edited map").unwrap();
+    let server = Server::start(root.path(), false);
+    assert!(server.json("api/meta")["warning"]
+        .as_str()
+        .unwrap()
+        .contains("Cannot regenerate the Obsidian vault"));
+    assert_eq!(fs::read_to_string(note).unwrap(), "Personal edited map");
+}
+
+#[test]
+fn snapshot_refresh_is_explicit() {
+    let root = project();
+    let file = root.path().join("src/a.rs");
+    let original = fs::read_to_string(&file).unwrap();
+    fs::write(&file, format!("use crate::b::beta;\n{original}")).unwrap();
+    index(root.path());
+    let server = Server::start(root.path(), true);
+    let deps = server.json("api/dependencies?level=file");
+    assert!(
+        deps["edges"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|e| e["from"] == "src/a.rs" && e["to"] == "src/b.rs"),
+        "{deps}"
+    );
+    let symbol = server.json("api/symbols?q=alpha")["items"][0]["id"].clone();
+    let detail = server.json(&format!("api/symbol?id={symbol}"));
+    assert_eq!(detail["imports"][0], "src/b.rs");
+    fs::write(&file, format!("{original}\npub fn newly_indexed() {{}}\n")).unwrap();
+    index(root.path());
+    assert_eq!(server.json("api/symbols?q=newly_indexed")["total"], 0);
+    assert_eq!(
+        Server::start(root.path(), true).json("api/symbols?q=newly_indexed")["total"],
+        1
+    );
+}
+
+#[test]
+fn current_ignore_rules_hide_stale_index_rows_from_the_api_and_the_vault() {
     let root = project();
     let file = root.path().join("src/a.rs");
     fs::write(
@@ -508,23 +679,24 @@ fn current_ignore_rules_hide_stale_index_rows_from_both_web_views_and_the_vault(
     fs::write(root.path().join(".mctignore"), "src/b.rs\n").unwrap();
     fs::remove_file(root.path().join("src/b.rs")).unwrap();
     let server = Server::start(root.path(), false);
-    let site = server.site.borrow();
-    assert!(!site
-        .navigation
-        .files
-        .iter()
-        .any(|file| file.relative_path == "src/b.rs"));
-    assert!(!site
-        .navigation
-        .symbols
-        .iter()
-        .any(|symbol| symbol.relative_path == "src/b.rs"));
-    assert!(site.navigation.imports.is_empty());
-    assert!(site.duplicates.groups.is_empty() && site.duplicates.skipped.is_empty());
-    drop(site);
-    assert!(!server.get("atlas?dir=src").contains("src/b.rs"));
+    {
+        let site = server.site.borrow();
+        assert!(!site
+            .navigation
+            .files
+            .iter()
+            .any(|file| file.relative_path == "src/b.rs"));
+        assert!(!site
+            .navigation
+            .symbols
+            .iter()
+            .any(|symbol| symbol.relative_path == "src/b.rs"));
+        assert!(site.navigation.imports.is_empty());
+        assert!(site.duplicates.groups.is_empty() && site.duplicates.skipped.is_empty());
+    }
+    assert!(!server.get("api/files").contains("src/b.rs"));
     assert!(server
-        .get("file?path=src%2Fb.rs")
+        .get("api/source?path=src%2Fb.rs")
         .starts_with("HTTP/1.1 404"));
     let root_path = root.path().canonicalize().unwrap();
     let database = root_path.join(".mct-index/index.sqlite3");
@@ -549,64 +721,5 @@ fn current_ignore_rules_hide_stale_index_rows_from_both_web_views_and_the_vault(
     assert!(
         Site::load(&root_path, true).is_err(),
         "unreadable rules must fail closed"
-    );
-}
-
-#[test]
-fn review_state_is_applied_before_group_pagination_in_both_views() {
-    let root = tempfile::tempdir().unwrap();
-    for side in ["left", "right"] {
-        let mut source = String::new();
-        for count in 8..33 {
-            source.push_str(&format!(
-                "pub fn {side}_{count}(mut value: i64) -> i64 {{\n"
-            ));
-            source.push_str(&"value += 1;\n".repeat(count));
-            source.push_str("value\n}\n");
-        }
-        fs::write(root.path().join(format!("{side}.rs")), source).unwrap();
-    }
-    index(root.path());
-    let server = Server::start(root.path(), true);
-    let keys = server.site.borrow().review_keys.clone();
-    assert_eq!(keys.len(), 25);
-    assert!(server.get("duplicates").contains("Page 1 of 2"));
-    for key in keys.iter().take(6) {
-        assert!(server.post(key, "dismissed").starts_with("HTTP/1.1 303"));
-    }
-    let active = server.get("duplicates");
-    assert!(active.contains("To review (19)") && active.contains("Page 1 of 1"));
-    assert!(!active.contains("group?id=0"));
-    let discarded = server.get("duplicates?view=discarded");
-    assert!(discarded.contains("Discarded (6)") && discarded.contains("group?id=0"));
-    assert!(discarded.contains("Restore to review"));
-}
-
-#[test]
-fn filters_are_explained_and_survive_review_actions() {
-    let root = project();
-    let server = Server::start(root.path(), true);
-    let found = server.get("atlas?q=BETA");
-    assert!(found.contains("1 matching file ") && found.contains("Clear search"));
-    assert!(found.contains("file?path=src%2Fb.rs") && !found.contains("file?path=src%2Fa.rs"));
-    assert!(server
-        .get("atlas?q=nothing-here")
-        .contains("No file or symbol matches"));
-    let key = server.site.borrow().review_keys[0].clone();
-    let filtered = server.get("duplicates?q=alpha");
-    assert!(filtered.contains("Clear all filters") && filtered.contains("aria-current=\"page\""));
-    assert!(filtered.contains("name=\"back\" value=\"q=alpha&amp;view=active\""));
-    let body = form_urlencoded::Serializer::new(String::new())
-        .extend_pairs([
-            ("csrf", server.site.borrow().csrf.clone()),
-            ("key", key),
-            ("action", "dismissed".to_string()),
-            ("back", "q=alpha&view=active&evil=1".to_string()),
-        ])
-        .finish();
-    let response = server.form(&body, "Origin: http://127.0.0.1:8787\r\n");
-    assert!(
-        response.contains("Location: duplicates?q=alpha&view=active\r\n"),
-        "{response}"
     );
 }
