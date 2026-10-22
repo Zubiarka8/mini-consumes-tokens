@@ -38,6 +38,28 @@ person had already rejected.
 - Any unreadable review file puts the store in degraded mode: nothing is
   hidden and every save is refused until the file is fixed or moved aside.
 
+### Locking and crash recovery (protocol change, CR-16)
+
+- The writer lock is an operating-system advisory lock (`File::try_lock`) on
+  `.mct-index/review-decisions.lock`. The kernel releases it when the holder
+  exits, however it exits. A killed writer therefore never blocks the next one.
+- The lock file is never removed. The earlier protocol created it with
+  `create_new` and removed it on drop, so a killed writer left it behind and
+  every later save was refused until a person deleted it (observed in 135 to
+  136 of 150 kills). That protocol is replaced; no release of `mct-cli` shipped
+  it.
+- A live writer makes the save fail with `Locked`, naming the path. Nothing is
+  written, and nobody has to remove a file by hand.
+- A save removes the temporary files that killed saves left, while holding the
+  lock. Only regular files named exactly as this module creates them, for the
+  canonical file and its backup, are removed. `.prev`, directories, links and
+  unknown names are kept. Loading never removes files. A removal that fails is
+  ignored and the file is counted by the next load. Limitations: a temporary
+  file is up to 32 MiB. One save runs at a time, so a kill leaves at most one
+  such file, and the next save removes it.
+- Old binaries are not part of this protocol: `duplicate-reviews.lock` and
+  `reviews.lock` belong to them and are untouched.
+
 ## Consequences
 
 - Dashboard decisions written to `review-decisions.toon` are not visible to
