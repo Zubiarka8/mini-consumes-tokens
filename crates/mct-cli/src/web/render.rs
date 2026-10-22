@@ -303,7 +303,7 @@ fn browse_entries(site: &Site, directory: &str) -> Vec<Entry> {
                     .iter()
                     .filter(|file| file.relative_path.starts_with(&format!("{path}/")))
                     .count();
-                format!("folder · {files} files")
+                format!("folder · {}", plural(files, "file"))
             } else {
                 file_note(site, &path)
             };
@@ -319,11 +319,15 @@ fn browse_entries(site: &Site, directory: &str) -> Vec<Entry> {
     entries
 }
 
+fn plural(count: usize, noun: &str) -> String {
+    format!("{count} {noun}{}", if count == 1 { "" } else { "s" })
+}
+
 fn file_note(site: &Site, path: &str) -> String {
     format!(
-        "{} symbols · {} duplicate groups",
-        site.symbols.get(path).map_or(0, Vec::len),
-        site.active_groups(path)
+        "{} · {}",
+        plural(site.symbols.get(path).map_or(0, Vec::len), "symbol"),
+        plural(site.active_groups(path), "duplicate group")
     )
 }
 
