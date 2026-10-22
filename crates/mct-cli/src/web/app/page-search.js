@@ -89,7 +89,7 @@ export async function render({ root, params: initial, summary }) {
     clear(results);
     if (scope === "all") {
       let any = false;
-      for (const id of SCOPES.slice(1)) {
+      for (const id of ["symbols", "files", "code", "duplicates", "deadCode", "obsidian", "dependencies"]) {
         const g = groups[id];
         if (!g?.items.length) continue;
         any = true;

@@ -1,5 +1,5 @@
 // 07 · Dependencias: graph | tree | table over verified import edges
-import { h, clear, api, isAbort, patchQuery, onQuery, parseHash, listParam, fmt, hrefTo, forget } from "./core.js";
+import { h, append, clear, api, isAbort, patchQuery, onQuery, parseHash, listParam, fmt, hrefTo, forget } from "./core.js";
 import { icon, pageHead, segmented, badge, dataTable, filterGroup, note, loading, errorBox, emptyState, selectBox, drawerButton, activeChips } from "./components.js";
 import { graphView } from "./graph.js";
 import { t } from "./i18n.js";
@@ -60,12 +60,13 @@ export async function render({ root, params: initial, summary }) {
     if (!nodes.length) { host.append(emptyState({ title: t("deps.emptyTitle"), text: t("deps.emptyText"), iconName: "graph" })); return; }
     const focus = data.focus;
     const side = h("div", { class: "inspector-col sticky", hidden: true });
+    const frame = h("div", { class: "workbench nofilter", style: { gap: "12px" } });
     graph?.destroy();
     graph = graphView({ label: t("deps.graphLabel"), directed: true,
       nodes: nodes.map((n) => ({ ...n, color: nodeColor(n, focus), radius: 7 + Math.min(12, Math.sqrt(n.importers + n.imports)), title: `${n.id} · ${t("deps.out")} ${n.imports} · ${t("deps.in")} ${n.importers}` })),
-      edges, onSelect: (node) => { side.hidden = false; clear(side).append(inspector(node, edges)); } });
-    host.append(h("div", { class: "workbench nofilter inspect", style: { gap: "12px" } }, h("div", {}, graph.el, h("div", { class: "legend", style: { marginTop: "10px" } },
-      [["var(--primary)", t("deps.legend.focus")], ["var(--info)", t("deps.legend.entry")], ["var(--success)", t("deps.legend.used")], ["var(--text-3)", t("deps.legend.unused")], ["var(--danger)", t("deps.legend.cycle")]].map(([c, l]) => h("span", {}, h("i", { style: { background: c } }), l)))), side));
+      edges, onSelect: (node) => { side.hidden = false; frame.classList.add("inspect"); clear(side).append(inspector(node, edges)); } });
+    host.append(append(frame, [h("div", {}, graph.el, h("div", { class: "legend", style: { marginTop: "10px" } },
+      [["var(--primary)", t("deps.legend.focus")], ["var(--info)", t("deps.legend.entry")], ["var(--success)", t("deps.legend.used")], ["var(--text-3)", t("deps.legend.unused")], ["var(--danger)", t("deps.legend.cycle")]].map(([c, l]) => h("span", {}, h("i", { style: { background: c } }), l)))), side]));
   }
 
   function drawTree(params) {

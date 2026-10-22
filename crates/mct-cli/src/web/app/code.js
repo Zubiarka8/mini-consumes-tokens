@@ -10,7 +10,7 @@ echo fi then done esac local select begin end module require`.split(/\s+/));
 const HASH_LANGS = new Set(["python", "bash", "powershell", "ruby", "yaml", "toml", "markdown"]);
 const DASH_LANGS = new Set(["lua", "sql"]);
 
-/** Tokenizes one line; `state.block` carries /* … */ comments across lines. */
+// Tokenizes one line; `state.block` carries multi-line block comments across lines.
 function tokenize(line, language, state) {
   const out = [];
   const hash = HASH_LANGS.has(language), dash = DASH_LANGS.has(language);

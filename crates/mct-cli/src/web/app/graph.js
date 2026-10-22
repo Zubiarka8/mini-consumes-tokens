@@ -21,9 +21,11 @@ export function graphView({ nodes, edges, onSelect, directed = true, label }) {
   const root = svg("g", {});
   const marker = svg("marker", { id: "arrow", viewBox: "0 0 10 10", refX: 16, refY: 5, markerWidth: 6, markerHeight: 6, orient: "auto-start-reverse" }, svg("path", { d: "M0 0L10 5L0 10z", fill: "var(--text-3)" }));
   const edgeEls = links.map((edge) => svg("line", { class: "gedge", "stroke-width": Math.min(4, 1 + Math.log2(1 + (edge.weight || 1))), "marker-end": directed ? "url(#arrow)" : null, style: edge.color ? `stroke:${edge.color}` : undefined }));
+  const radii = list.map((node) => node.r).sort((a, b) => b - a);
+  const labelMin = list.length <= 60 ? 0 : radii[Math.min(radii.length - 1, 24)];
   const nodeEls = new Map(list.map((node) => {
     const el = svg("g", { class: "gnode", tabindex: 0, role: "button", "aria-label": node.label },
-      svg("circle", { r: node.r, fill: node.color || "var(--primary)", stroke: "var(--bg)", "stroke-width": 2 }), svg("text", { x: node.r + 4, y: 4 }, node.label.length > 26 ? `${node.label.slice(0, 25)}…` : node.label), svg("title", {}, node.title || node.label));
+      svg("circle", { r: node.r, fill: node.color || "var(--primary)", stroke: "var(--bg)", "stroke-width": 2 }), svg("text", { x: node.r + 4, y: 4, class: node.r >= labelMin ? "" : "faint-label" }, node.label.length > 26 ? `${node.label.slice(0, 25)}…` : node.label), svg("title", {}, node.title || node.label));
     el.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); choose(node.id); } });
     el.addEventListener("pointerdown", (event) => { event.stopPropagation(); dragging = { node, moved: false, id: event.pointerId }; el.setPointerCapture(event.pointerId); });
     el.addEventListener("pointermove", (event) => {
@@ -58,13 +60,13 @@ export function graphView({ nodes, edges, onSelect, directed = true, label }) {
     for (let i = 0; i < list.length; i += 1) for (let j = i + 1; j < list.length; j += 1) {
       const a = list[i], b = list[j];
       let dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy || 0.01;
-      const force = 2600 / d2, d = Math.sqrt(d2);
+      const force = 9000 / d2, d = Math.sqrt(d2);
       dx /= d; dy /= d;
       a.vx += dx * force; a.vy += dy * force; b.vx -= dx * force; b.vy -= dy * force;
     }
     for (const edge of links) {
       const dx = edge.t.x - edge.s.x, dy = edge.t.y - edge.s.y, d = Math.sqrt(dx * dx + dy * dy) || 0.01;
-      const force = (d - 90) * 0.04;
+      const force = (d - 130) * 0.04;
       edge.s.vx += (dx / d) * force; edge.s.vy += (dy / d) * force; edge.t.vx -= (dx / d) * force; edge.t.vy -= (dy / d) * force;
     }
     for (const node of list) {
