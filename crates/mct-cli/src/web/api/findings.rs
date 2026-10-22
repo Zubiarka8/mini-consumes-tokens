@@ -48,8 +48,10 @@ fn top_directory(path: &str) -> &str {
 pub(super) fn duplicate_row(site: &Site, id: usize) -> Value {
     let group = &site.duplicates.groups[id];
     let key = &site.review_keys[id];
-    let paths: std::collections::BTreeSet<&str> = group.members.iter().map(|m| m.path.as_str()).collect();
-    let modules: std::collections::BTreeSet<&str> = paths.iter().map(|p| top_directory(p)).collect();
+    let paths: std::collections::BTreeSet<&str> =
+        group.members.iter().map(|m| m.path.as_str()).collect();
+    let modules: std::collections::BTreeSet<&str> =
+        paths.iter().map(|p| top_directory(p)).collect();
     let scope = if paths.len() == 1 {
         "same-file"
     } else if modules.len() == 1 {
@@ -68,14 +70,25 @@ pub(super) fn duplicate_row(site: &Site, id: usize) -> Value {
     row["type"] = json!("duplicate");
     row["rank"] = json!(id);
     row["group"] = json!(id);
-    row["title"] = json!(group.members.iter().take(2).map(|m| m.symbol_name.as_str()).collect::<Vec<_>>().join(" ≈ "));
+    row["title"] = json!(group
+        .members
+        .iter()
+        .take(2)
+        .map(|m| m.symbol_name.as_str())
+        .collect::<Vec<_>>()
+        .join(" ≈ "));
     row["language"] = json!(group.language);
     row["path"] = json!(first.path);
     row["line"] = json!(first.start_line);
     row["kind"] = json!(first.symbol_kind);
     row["lines"] = json!(group.line_count);
     row["tokens"] = json!(group.token_count);
-    row["verdict"] = json!(group.verdict.level.as_str().to_lowercase().replace('_', "-"));
+    row["verdict"] = json!(group
+        .verdict
+        .level
+        .as_str()
+        .to_lowercase()
+        .replace('_', "-"));
     row["priority"] = json!(group.priority.level.as_str());
     row["scope"] = json!(scope);
     row["memberCount"] = json!(group.members.len());
@@ -105,7 +118,11 @@ pub(super) fn dead_row(site: &Site, index: usize) -> Value {
 }
 
 fn haystack(row: &Value) -> String {
-    let mut text = format!("{} {}", row["title"].as_str().unwrap_or(""), row["path"].as_str().unwrap_or(""));
+    let mut text = format!(
+        "{} {}",
+        row["title"].as_str().unwrap_or(""),
+        row["path"].as_str().unwrap_or("")
+    );
     for member in row["members"].as_array().into_iter().flatten() {
         text.push(' ');
         text.push_str(member["name"].as_str().unwrap_or(""));
@@ -123,7 +140,15 @@ fn sort_key(row: &Value, field: &str) -> (i64, String) {
     }
 }
 
-const FILTER_FIELDS: [&str; 7] = ["type", "state", "language", "kind", "verdict", "scope", "confidence"];
+const FILTER_FIELDS: [&str; 7] = [
+    "type",
+    "state",
+    "language",
+    "kind",
+    "verdict",
+    "scope",
+    "confidence",
+];
 
 pub(super) fn list(site: &Site, params: &Params) -> Value {
     let wanted = text(params, "type");
@@ -138,7 +163,11 @@ pub(super) fn list(site: &Site, params: &Params) -> Value {
     let dir = text(params, "dir").trim_end_matches('/');
     rows.retain(|row| {
         let path = row["path"].as_str().unwrap_or("");
-        (dir.is_empty() || path == dir || path.strip_prefix(dir).is_some_and(|rest| rest.starts_with('/')))
+        (dir.is_empty()
+            || path == dir
+            || path
+                .strip_prefix(dir)
+                .is_some_and(|rest| rest.starts_with('/')))
             && contains_ci(&haystack(row), query)
     });
     let facets: serde_json::Map<String, Value> = FILTER_FIELDS
@@ -160,7 +189,11 @@ pub(super) fn list(site: &Site, params: &Params) -> Value {
         "" => "rank",
         other => other,
     };
-    rows.sort_by(|a, b| sort_key(a, sort).cmp(&sort_key(b, sort)).then(sort_key(a, "rank").cmp(&sort_key(b, "rank"))));
+    rows.sort_by(|a, b| {
+        sort_key(a, sort)
+            .cmp(&sort_key(b, sort))
+            .then(sort_key(a, "rank").cmp(&sort_key(b, "rank")))
+    });
     if text(params, "order") == "desc" {
         rows.reverse();
     }
@@ -172,7 +205,11 @@ pub(super) fn list(site: &Site, params: &Params) -> Value {
 
 pub(super) fn detail(site: &Site, params: &Params) -> Result<Value, (u16, &'static str)> {
     let key = text(params, "key");
-    if let Some(id) = site.review_keys.iter().position(|candidate| candidate == key) {
+    if let Some(id) = site
+        .review_keys
+        .iter()
+        .position(|candidate| candidate == key)
+    {
         let group = &site.duplicates.groups[id];
         let mut row = duplicate_row(site, id);
         row["members"] = group
@@ -183,14 +220,24 @@ pub(super) fn detail(site: &Site, params: &Params) -> Result<Value, (u16, &'stat
                         "kind": m.symbol_kind, "lines": m.line_count, "tokens": m.token_count, "excerpt": m.excerpt })
             })
             .collect();
-        row["reasons"] = group.verdict.reasons.iter().map(|reason| reason.as_str()).collect();
+        row["reasons"] = group
+            .verdict
+            .reasons
+            .iter()
+            .map(|reason| reason.as_str())
+            .collect();
         row["priorityReason"] = json!(group.priority.reason);
         row["method"] = json!({
             "kind": "token-sequence",
             "normalization": site.duplicates.options.normalization.as_str(),
         });
         let mut analysis = String::new();
-        crate::duplicates::render_group(&mut analysis, id + 1, group, site.duplicates.options.normalization);
+        crate::duplicates::render_group(
+            &mut analysis,
+            id + 1,
+            group,
+            site.duplicates.options.normalization,
+        );
         row["analysis"] = json!(analysis);
         row["history"] = site.reviews.history(key).map(event_json).collect();
         return Ok(row);

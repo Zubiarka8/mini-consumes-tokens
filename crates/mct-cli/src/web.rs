@@ -206,7 +206,10 @@ impl Site {
         if fields.get("csrf").and_then(|v| v.as_str()) != Some(self.csrf.as_str()) {
             return response::Response::error(403);
         }
-        if fields.keys().any(|k| !["csrf", "key", "state", "note"].contains(&k.as_str())) {
+        if fields
+            .keys()
+            .any(|k| !["csrf", "key", "state", "note"].contains(&k.as_str()))
+        {
             return response::Response::failure(400, "unknown field");
         }
         let Some(key) = fields.get("key").and_then(|v| v.as_str()) else {
@@ -293,7 +296,10 @@ pub(super) fn run(root: &Path, port: u16, no_obsidian: bool) -> anyhow::Result<(
     let token = random_key()?;
     let mut site = Site::load(root, no_obsidian)?;
     println!("Local project web: http://127.0.0.1:{port}/{token}/");
-    println!("Dashboard ready. Snapshot: {}. Restart after reindexing; Ctrl-C stops the server.", site.generated);
+    println!(
+        "Dashboard ready. Snapshot: {}. Restart after reindexing; Ctrl-C stops the server.",
+        site.generated
+    );
     std::io::stdout().flush()?;
     for connection in listener.incoming() {
         match connection {

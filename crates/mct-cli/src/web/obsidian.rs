@@ -49,7 +49,7 @@ pub(super) struct Vault {
     pub truncated: bool,
 }
 
-fn collect(dir: &Path, base: &Path, depth: usize, out: &mut Vec<PathBuf>) {
+fn collect(dir: &Path, depth: usize, out: &mut Vec<PathBuf>) {
     if depth > MAX_DEPTH {
         return;
     }
@@ -65,7 +65,7 @@ fn collect(dir: &Path, base: &Path, depth: usize, out: &mut Vec<PathBuf>) {
             continue;
         };
         if kind.is_dir() && !name.starts_with('.') {
-            collect(&entry.path(), base, depth + 1, out);
+            collect(&entry.path(), depth + 1, out);
         } else if kind.is_file() && name.ends_with(".md") && out.len() < MAX_NOTES {
             out.push(entry.path());
         }
@@ -225,7 +225,7 @@ fn title_of(frontmatter: &[(String, String)], body: &str, path: &str) -> String 
 
 pub(super) fn scan(vault: &Path) -> Vault {
     let mut files = Vec::new();
-    collect(vault, vault, 0, &mut files);
+    collect(vault, 0, &mut files);
     let truncated = files.len() >= MAX_NOTES;
     let mut parsed = Vec::new();
     for file in &files {
@@ -272,7 +272,9 @@ pub(super) fn scan(vault: &Path) -> Vault {
     for path in &known {
         let stem = path.rsplit('/').next().unwrap_or(path);
         let stem = stem.strip_suffix(".md").unwrap_or(stem);
-        by_stem.entry(stem.to_string()).or_insert_with(|| path.clone());
+        by_stem
+            .entry(stem.to_string())
+            .or_insert_with(|| path.clone());
     }
     let mut backlinks: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut notes = Vec::new();

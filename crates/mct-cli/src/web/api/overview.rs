@@ -75,9 +75,19 @@ pub(super) fn meta(site: &Site) -> Value {
 }
 
 fn finding_label(site: &Site, key: &str) -> Value {
-    if let Some(id) = site.review_keys.iter().position(|candidate| candidate == key) {
+    if let Some(id) = site
+        .review_keys
+        .iter()
+        .position(|candidate| candidate == key)
+    {
         let group = &site.duplicates.groups[id];
-        let title = group.members.iter().take(2).map(|m| m.symbol_name.as_str()).collect::<Vec<_>>().join(" ≈ ");
+        let title = group
+            .members
+            .iter()
+            .take(2)
+            .map(|m| m.symbol_name.as_str())
+            .collect::<Vec<_>>()
+            .join(" ≈ ");
         return json!({ "type": "duplicate", "title": title, "path": group.members[0].path });
     }
     site.dead
@@ -123,10 +133,14 @@ pub(super) fn summary(site: &Site) -> Value {
     // Review decisions per day, from the audit history (the only history that exists).
     let mut per_day: BTreeMap<u64, BTreeMap<&'static str, usize>> = BTreeMap::new();
     let mut events: Vec<_> = site.reviews.events().iter().collect();
-    events.sort_by(|a, b| b.at.cmp(&a.at));
+    events.sort_by_key(|event| std::cmp::Reverse(event.at));
     for event in &events {
         let to = event.to.map_or("reopened", State::value);
-        *per_day.entry(event.at / DAY).or_default().entry(to).or_default() += 1;
+        *per_day
+            .entry(event.at / DAY)
+            .or_default()
+            .entry(to)
+            .or_default() += 1;
     }
     let recent: Vec<Value> = events
         .iter()

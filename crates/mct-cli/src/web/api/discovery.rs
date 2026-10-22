@@ -15,14 +15,10 @@ const MAX_NODES: usize = 150;
 const MAX_EXTERNAL: usize = 200;
 
 fn symbol_id(site: &Site, path: &str, name: &str, line: u32) -> Option<usize> {
-    site.symbols
-        .get(path)?
-        .iter()
-        .copied()
-        .find(|id| {
-            let symbol = &site.navigation.symbols[*id];
-            symbol.name == name && symbol.line == line
-        })
+    site.symbols.get(path)?.iter().copied().find(|id| {
+        let symbol = &site.navigation.symbols[*id];
+        symbol.name == name && symbol.line == line
+    })
 }
 
 fn group(total: usize, items: Vec<Value>, limit: usize) -> Value {
@@ -38,7 +34,11 @@ pub(super) fn search(site: &Site, params: &Params) -> Value {
     };
     let languages = csv(params, "language");
     let kinds = csv(params, "kind");
-    let limit = if scope == "all" { GROUP_LIMIT_ALL } else { GROUP_LIMIT_SCOPE };
+    let limit = if scope == "all" {
+        GROUP_LIMIT_ALL
+    } else {
+        GROUP_LIMIT_SCOPE
+    };
     let wants = |name: &str| scope == "all" || scope == name;
     let language_ok = |language: &str| languages.is_empty() || languages.contains(&language);
     let mut groups = serde_json::Map::new();
@@ -49,12 +49,37 @@ pub(super) fn search(site: &Site, params: &Params) -> Value {
     if wants("symbols") {
         let mut seen = BTreeSet::new();
         let mut items = Vec::new();
-        let hits = site.index.search_symbols(query, QueryScope::default()).unwrap_or_default();
-        let exact = site.navigation.symbols.iter().filter(|s| contains_ci(&s.name, query));
+        let hits = site
+            .index
+            .search_symbols(query, QueryScope::default())
+            .unwrap_or_default();
+        let exact = site
+            .navigation
+            .symbols
+            .iter()
+            .filter(|s| contains_ci(&s.name, query));
         let candidates = hits
             .iter()
-            .map(|h| (h.name.as_str(), h.kind.as_str(), h.language.as_str(), h.relative_path.as_str(), h.line, h.parent.as_deref()))
-            .chain(exact.map(|s| (s.name.as_str(), s.kind.as_str(), s.language.as_str(), s.relative_path.as_str(), s.line, s.parent.as_deref())));
+            .map(|h| {
+                (
+                    h.name.as_str(),
+                    h.kind.as_str(),
+                    h.language.as_str(),
+                    h.relative_path.as_str(),
+                    h.line,
+                    h.parent.as_deref(),
+                )
+            })
+            .chain(exact.map(|s| {
+                (
+                    s.name.as_str(),
+                    s.kind.as_str(),
+                    s.language.as_str(),
+                    s.relative_path.as_str(),
+                    s.line,
+                    s.parent.as_deref(),
+                )
+            }));
         for (name, kind, language, path, line, parent) in candidates {
             if !language_ok(language) || !(kinds.is_empty() || kinds.contains(&kind)) {
                 continue;
@@ -90,7 +115,10 @@ pub(super) fn search(site: &Site, params: &Params) -> Value {
         if wants("dependencies") {
             let linked: Vec<Value> = items
                 .into_iter()
-                .filter(|item| item["imports"].as_u64().unwrap_or(0) + item["importedBy"].as_u64().unwrap_or(0) > 0)
+                .filter(|item| {
+                    item["imports"].as_u64().unwrap_or(0) + item["importedBy"].as_u64().unwrap_or(0)
+                        > 0
+                })
                 .map(|mut item| {
                     item["type"] = json!("dependency");
                     item
@@ -112,7 +140,10 @@ pub(super) fn search(site: &Site, params: &Params) -> Value {
         groups.insert("code".into(), group(items.len(), items, limit));
     }
     if wants("duplicates") || wants("deadCode") {
-        let rows = super::findings::list(site, &Params::from([("size".into(), "200".into()), ("q".into(), query.into())]));
+        let rows = super::findings::list(
+            site,
+            &Params::from([("size".into(), "200".into()), ("q".into(), query.into())]),
+        );
         let rows = rows["items"].as_array().cloned().unwrap_or_default();
         for (name, kind) in [("duplicates", "duplicate"), ("deadCode", "dead-code")] {
             if wants(name) {
@@ -142,10 +173,14 @@ pub(super) fn search(site: &Site, params: &Params) -> Value {
                     .flatten()
                     .and_then(|text| {
                         let (_, body) = crate::web::obsidian::split_frontmatter(&text);
-                        body.lines().find(|line| contains_ci(line, query)).map(|line| line.trim().to_string())
+                        body.lines()
+                            .find(|line| contains_ci(line, query))
+                            .map(|line| line.trim().to_string())
                     });
-                (in_meta || body_hit.is_some()).then(|| json!({ "type": "note", "title": note.title, "path": note.path,
-                    "snippet": body_hit.unwrap_or_else(|| note.path.clone()), "tags": note.tags }))
+                (in_meta || body_hit.is_some()).then(|| {
+                    json!({ "type": "note", "title": note.title, "path": note.path,
+                    "snippet": body_hit.unwrap_or_else(|| note.path.clone()), "tags": note.tags })
+                })
             })
             .collect();
         groups.insert("obsidian".into(), group(items.len(), items, limit));
@@ -165,11 +200,21 @@ fn module_of(path: &str, depth: usize) -> String {
 }
 
 pub(super) fn dependencies(site: &Site, params: &Params) -> Value {
-    let level = if text(params, "level") == "file" { "file" } else { "dir" };
+    let level = if text(params, "level") == "file" {
+        "file"
+    } else {
+        "dir"
+    };
     let depth = uint(params, "group", 2).clamp(1, 6);
     let hops = uint(params, "depth", 2).clamp(1, 6);
     let focus = text(params, "focus");
-    let node_of = |path: &str| if level == "file" { path.to_string() } else { module_of(path, depth) };
+    let node_of = |path: &str| {
+        if level == "file" {
+            path.to_string()
+        } else {
+            module_of(path, depth)
+        }
+    };
     let languages = csv(params, "language");
     let file_language: BTreeMap<&str, &str> = site
         .navigation
@@ -212,8 +257,14 @@ pub(super) fn dependencies(site: &Site, params: &Params) -> Value {
                 if distance == hops {
                     continue;
                 }
-                for ((from, to), _) in &weights {
-                    let next = if *from == node { to } else if *to == node { from } else { continue };
+                for (from, to) in weights.keys() {
+                    let next = if *from == node {
+                        to
+                    } else if *to == node {
+                        from
+                    } else {
+                        continue;
+                    };
                     if seen.len() < MAX_NODES && seen.insert(next.clone()) {
                         queue.push_back((next.clone(), distance + 1));
                     }
@@ -224,7 +275,10 @@ pub(super) fn dependencies(site: &Site, params: &Params) -> Value {
         _ => {
             let mut ranked: Vec<&String> = members.keys().collect();
             ranked.sort_by_key(|node| {
-                std::cmp::Reverse(out_degree.get(node.as_str()).unwrap_or(&0) + in_degree.get(node.as_str()).unwrap_or(&0))
+                std::cmp::Reverse(
+                    out_degree.get(node.as_str()).unwrap_or(&0)
+                        + in_degree.get(node.as_str()).unwrap_or(&0),
+                )
             });
             ranked.into_iter().take(MAX_NODES).cloned().collect()
         }
@@ -240,7 +294,10 @@ pub(super) fn dependencies(site: &Site, params: &Params) -> Value {
                 "importers": importers, "cycle": in_cycle.contains(node), "unused": importers == 0 })
         })
         .collect();
-    let shown: BTreeSet<&str> = nodes.iter().filter_map(|node| node["id"].as_str()).collect();
+    let shown: BTreeSet<&str> = nodes
+        .iter()
+        .filter_map(|node| node["id"].as_str())
+        .collect();
     let edges: Vec<Value> = weights
         .iter()
         .filter(|((from, to), _)| shown.contains(from.as_str()) && shown.contains(to.as_str()))

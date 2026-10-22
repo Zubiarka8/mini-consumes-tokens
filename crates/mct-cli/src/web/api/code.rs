@@ -65,7 +65,8 @@ pub(super) fn symbols(site: &Site, params: &Params) -> Value {
                     .relative_path
                     .strip_prefix(dir)
                     .is_some_and(|rest| rest.starts_with('/'));
-            in_dir && (contains_ci(&symbol.name, query) || contains_ci(&symbol.relative_path, query))
+            in_dir
+                && (contains_ci(&symbol.name, query) || contains_ci(&symbol.relative_path, query))
         })
         .collect();
     let facets = json!({
@@ -90,7 +91,8 @@ pub(super) fn symbols(site: &Site, params: &Params) -> Value {
                         site.symbol_groups.contains_key(id) || site.dead_by_symbol.contains_key(id)
                     }
                     "none" => {
-                        !site.symbol_groups.contains_key(id) && !site.dead_by_symbol.contains_key(id)
+                        !site.symbol_groups.contains_key(id)
+                            && !site.dead_by_symbol.contains_key(id)
                     }
                     _ => true,
                 }
@@ -108,7 +110,10 @@ pub(super) fn symbols(site: &Site, params: &Params) -> Value {
         let order = match sort {
             "kind" => x.kind.cmp(&y.kind),
             "language" => x.language.cmp(&y.language),
-            "path" => x.relative_path.cmp(&y.relative_path).then(x.line.cmp(&y.line)),
+            "path" => x
+                .relative_path
+                .cmp(&y.relative_path)
+                .then(x.line.cmp(&y.line)),
             "line" => x.line.cmp(&y.line),
             "refs" => refs_of(a).cmp(&refs_of(b)),
             _ => x.name.to_lowercase().cmp(&y.name.to_lowercase()),
@@ -119,14 +124,27 @@ pub(super) fn symbols(site: &Site, params: &Params) -> Value {
         ids.reverse();
     }
     let (page, size, start) = page_bounds(params, ids.len(), 50);
-    let items: Vec<Value> = ids.iter().skip(start).take(size).map(|id| symbol_row(site, *id)).collect();
+    let items: Vec<Value> = ids
+        .iter()
+        .skip(start)
+        .take(size)
+        .map(|id| symbol_row(site, *id))
+        .collect();
     json!({ "total": ids.len(), "page": page, "size": size, "items": items, "facets": facets })
 }
 
 /// Reads `start..=end` (1-based) of an indexed file. Only paths present in the
 /// snapshot are readable and symlinks leaving the project are refused.
-pub(super) fn read_lines(site: &Site, path: &str, start: usize, end: usize) -> Option<(Vec<String>, bool)> {
-    site.navigation.files.binary_search_by(|file| file.relative_path.as_str().cmp(path)).ok()?;
+pub(super) fn read_lines(
+    site: &Site,
+    path: &str,
+    start: usize,
+    end: usize,
+) -> Option<(Vec<String>, bool)> {
+    site.navigation
+        .files
+        .binary_search_by(|file| file.relative_path.as_str().cmp(path))
+        .ok()?;
     let full = site.root.join(path);
     let canonical = full.canonicalize().ok()?;
     if !canonical.starts_with(&site.root) {
@@ -150,20 +168,29 @@ pub(super) fn source(site: &Site, params: &Params) -> Result<Value, (u16, &'stat
     let path = text(params, "path");
     let start = uint(params, "start", 1);
     let end = uint(params, "end", start + 79);
-    let (lines, truncated) = read_lines(site, path, start, end).ok_or((404, "source not available"))?;
+    let (lines, truncated) =
+        read_lines(site, path, start, end).ok_or((404, "source not available"))?;
     let language = site
         .navigation
         .files
         .iter()
         .find(|file| file.relative_path == path)
         .map(|file| file.language.as_str());
-    Ok(json!({ "path": path, "start": start.max(1), "lines": lines, "truncated": truncated, "language": language }))
+    Ok(
+        json!({ "path": path, "start": start.max(1), "lines": lines, "truncated": truncated, "language": language }),
+    )
 }
 
 pub(super) fn symbol(site: &Site, params: &Params) -> Result<Value, (u16, &'static str)> {
     let id = uint(params, "id", usize::MAX);
-    let symbol = site.navigation.symbols.get(id).ok_or((404, "unknown symbol"))?;
-    let end = symbol.end_line.map_or(symbol.line as usize + 39, |end| end as usize);
+    let symbol = site
+        .navigation
+        .symbols
+        .get(id)
+        .ok_or((404, "unknown symbol"))?;
+    let end = symbol
+        .end_line
+        .map_or(symbol.line as usize + 39, |end| end as usize);
     let code = read_lines(site, &symbol.relative_path, symbol.line as usize, end);
     let references: Vec<Value> = site
         .index
@@ -195,7 +222,10 @@ pub(super) fn symbol(site: &Site, params: &Params) -> Result<Value, (u16, &'stat
         .flatten()
         .map(|group| findings::duplicate_row(site, *group))
         .collect();
-    let dead = site.dead_by_symbol.get(&id).map(|index| findings::dead_row(site, *index));
+    let dead = site
+        .dead_by_symbol
+        .get(&id)
+        .map(|index| findings::dead_row(site, *index));
     let notes: Vec<Value> = site
         .vault
         .notes
