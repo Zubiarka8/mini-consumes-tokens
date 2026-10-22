@@ -243,7 +243,7 @@ impl Site {
         let key = key.to_string();
         match self
             .reviews
-            .update(&key, state, note.trim(), revision, now_unix())
+            .update(&key, state, note.trim(), revision, now_unix_millis())
         {
             Ok(()) => response::Response::json(&api::review_json(self, &key)),
             Err(ReviewError::Conflict) => {
@@ -280,6 +280,15 @@ fn now_unix() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |elapsed| elapsed.as_secs())
+}
+
+/// Review decisions are timed in milliseconds (`review-decisions.toon`).
+fn now_unix_millis() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |elapsed| {
+            u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX)
+        })
 }
 
 /// Dead-code candidates from the shared heuristic, mapped to snapshot

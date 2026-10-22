@@ -11,8 +11,15 @@ use std::collections::{HashMap, HashSet};
 use super::format::{Canonical, Draft, Legacy};
 use super::{FindingKeys, Format, Kind, State, Visibility};
 
-/// Rows more than this many seconds after "now" are reported as future times.
-const FUTURE_SLACK_SECS: u64 = 300;
+/// Rows more than five minutes after "now" are reported as future times.
+const FUTURE_SLACK_MILLIS: u64 = 300_000;
+
+/// Every time here is Unix milliseconds. `C3` stores milliseconds; the older
+/// formats store seconds, which count from the start of their second, so a
+/// decision made later in the same second by the new code wins.
+fn millis(seconds: u64) -> u64 {
+    seconds.saturating_mul(1000)
+}
 
 /// The parsed sources; an absent file is an empty source.
 #[derive(Clone, Debug, Default)]
@@ -26,7 +33,7 @@ pub(super) struct Sources {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Candidate {
     pub state: State,
-    /// Unix seconds; 0 when the source has no time (`A1`).
+    /// Unix milliseconds; 0 when the source has no time (`A1`).
     pub at: u64,
     pub note: String,
     pub format: Format,
@@ -116,6 +123,7 @@ pub struct HistoryEvent {
     pub format: Format,
     pub from: State,
     pub to: State,
+    /// Unix milliseconds; 0 when the source has no time.
     pub at: u64,
     pub note: String,
 }
@@ -242,7 +250,7 @@ impl<'a> Resolver<'a> {
             {
                 candidates.push(Candidate {
                     state: row.state,
-                    at: row.at,
+                    at: millis(row.at),
                     note: row.reason.clone(),
                     format: Format::B2,
                     fingerprint_matches: known && row.fingerprint == finding.fingerprint,
@@ -269,7 +277,7 @@ impl<'a> Resolver<'a> {
         if let Some(entry) = legacy.entries.get(key) {
             return Some(Candidate {
                 state: entry.state,
-                at: entry.updated,
+                at: millis(entry.updated),
                 note: entry.note.clone(),
                 format,
                 fingerprint_matches: true,
@@ -279,7 +287,7 @@ impl<'a> Resolver<'a> {
         let event = &legacy.history[last];
         (event.to == State::Unreviewed).then(|| Candidate {
             state: State::Unreviewed,
-            at: event.at,
+            at: millis(event.at),
             note: event.note.clone(),
             format,
             fingerprint_matches: true,
@@ -336,7 +344,7 @@ impl<'a> Resolver<'a> {
                         format: Format::B2,
                         from,
                         to: row.state,
-                        at: row.at,
+                        at: millis(row.at),
                         note: row.reason.clone(),
                     },
                     position,
@@ -353,7 +361,7 @@ impl<'a> Resolver<'a> {
                             format: Format::A2,
                             from: event.from,
                             to: event.to,
-                            at: event.at,
+                            at: millis(event.at),
                             note: event.note.clone(),
                         },
                         position,
@@ -419,17 +427,23 @@ impl<'a> Resolver<'a> {
                 !sources.legacy.entries.contains_key(**key) && **to != State::Unreviewed
             })
             .count();
-        let limit = now.saturating_add(FUTURE_SLACK_SECS);
+        let limit = now.saturating_add(FUTURE_SLACK_MILLIS);
         let future_times = sources
             .canonical
             .reviews
             .values()
             .map(|row| row.updated)
             .chain(sources.canonical.history.iter().map(|event| event.at))
-            .chain(sources.draft.reviews.values().map(|row| row.at))
-            .chain(sources.draft.history.iter().map(|row| row.at))
-            .chain(sources.legacy.entries.values().map(|entry| entry.updated))
-            .chain(sources.legacy.history.iter().map(|event| event.at))
+            .chain(sources.draft.reviews.values().map(|row| millis(row.at)))
+            .chain(sources.draft.history.iter().map(|row| millis(row.at)))
+            .chain(
+                sources
+                    .legacy
+                    .entries
+                    .values()
+                    .map(|entry| millis(entry.updated)),
+            )
+            .chain(sources.legacy.history.iter().map(|event| millis(event.at)))
             .filter(|at| *at > limit)
             .count();
         let mut conflicts = 0;

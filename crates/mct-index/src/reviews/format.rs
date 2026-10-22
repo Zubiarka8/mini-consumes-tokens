@@ -139,6 +139,7 @@ pub(super) struct Row {
     pub identity: String,
     pub fingerprint: String,
     pub state: State,
+    /// Unix milliseconds.
     pub updated: u64,
     pub note: String,
 }
@@ -150,6 +151,7 @@ pub(super) struct Event {
     pub fingerprint: String,
     pub from: State,
     pub to: State,
+    /// Unix milliseconds.
     pub at: u64,
     pub note: String,
 }
@@ -324,6 +326,7 @@ pub(super) struct DraftRow {
     pub fingerprint: String,
     /// `pending` maps to `Unreviewed`: a restore tombstone.
     pub state: State,
+    /// Unix seconds.
     pub at: u64,
     pub reason: String,
 }
@@ -427,7 +430,7 @@ pub(super) fn parse_draft(content: &str) -> Parsed<Draft> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct LegacyEntry {
     pub state: State,
-    /// 0 for version 1 rows, which have no time.
+    /// Unix seconds; 0 for version 1 rows, which have no time.
     pub updated: u64,
     pub note: String,
 }
@@ -438,6 +441,7 @@ pub(super) struct LegacyEvent {
     /// `none` maps to `Unreviewed`.
     pub from: State,
     pub to: State,
+    /// Unix seconds.
     pub at: u64,
     pub note: String,
 }
