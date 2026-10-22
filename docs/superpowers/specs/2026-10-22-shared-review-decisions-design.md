@@ -237,8 +237,9 @@ history[n]{kind,identity,fingerprint,from,to,at,note}:
 ```
 
 - `kind` is `duplicate` or `dead-code`; `(kind, identity)` is unique in `reviews`.
-- `updated` and `at` are decimal Unix seconds (`u64`), assigned by §7.7, never
-  taken from a request.
+- `updated` and `at` are decimal Unix **milliseconds** (`u64`), assigned by
+  §7.7, never taken from a request (changed from seconds during
+  implementation, §17).
 - Notes are form-urlencoded (as `A2`), so a row never contains a raw comma,
   colon, quote or newline.
 - `history` is append-only. When a save would exceed a bound it is rejected
@@ -336,12 +337,12 @@ Writes made through the new web never tie with what that web showed, because of
 
 #### 7.6.3 Timestamps, precision and clock skew
 
-- **Precision**: seconds, in every format. `C3` keeps seconds so its times
-  compare directly with `A2` and `B2`. Within one source there is one current
-  row per finding, so no sub-second order is needed there. History order
-  within a file is its append order, which is authoritative.
+- **Precision**: `C3` stores milliseconds; `A2` and `B2` store seconds, which
+  are compared as the first millisecond of their second. Within one source
+  there is one current row per finding. History order within a file is its
+  append order, which is authoritative.
 - **Logical time on write** (D12): a new `C3` row gets
-  `t = max(now, t_seen + 1)`, where `t_seen` is the greatest time of any
+  `t = max(now, t_seen + 1)` in milliseconds, where `t_seen` is the greatest time of any
   candidate *or history row* of that finding, in any source. The latest
   action therefore always wins and each finding's history is strictly
   increasing, even if the clock went backwards or a legacy row holds a
@@ -488,9 +489,9 @@ argument unchanged.
 **CLI.** `dead-code --reviewed show|hide|only` adds a `review_state` CSV column
 only when the flag is given. `duplicates --reviewed show|hide|only` filters
 groups the same way. Without the flag, behavior and the report cache key are
-unchanged. With the flag, the cache key also includes the mode and the length
-and SHA-256 of each present source, so a new decision invalidates the cached
-filtered report (D4).
+unchanged. With the flag, the report cache is neither read nor written, so a
+new decision can never be hidden behind a cached report (D4; simpler than the
+cache key first planned, §17).
 
 ## 8. Compatibility
 
@@ -808,3 +809,20 @@ two small crates in the MCP build but splits the format between two crates.
 14. `scripts/unix/check.sh` is green on the integrated tree.
 15. The documents in §14 are updated; the primary checkout's uncommitted work is
     untouched.
+
+## 17. Implementation notes and deviations
+
+Recorded while implementing P0–P2 and P4 on `feature/shared-review-decisions`.
+
+| Topic | Planned | Implemented | Why |
+|---|---|---|---|
+| Duplicate identity | `duplicate-id-v1` | `duplicate-id-v2` with an ordinal (§7.2) | groups split from one member set share `duplicate-id-v1` |
+| `C3` time unit | seconds | milliseconds; legacy seconds compare as the start of their second | with seconds, the logical clock ran one second ahead per quick save; 50 saves put it 50 s ahead, and a later old-binary decision lost (found by CW-1) |
+| Hard-link check on read | refuse at once | retried for up to 50 ms, then refused | a reader saw `duplicate-reviews.toon` with two links while the old binary renamed it into place (found by CW-6, macOS) |
+| `duplicates --reviewed` cache | cache key includes review files | cache bypassed | simpler and cannot serve a stale filtered report |
+| `D7` dependencies | `hmac-sha256`, `tempfile` | `hmac-sha256`, `form_urlencoded`; `tempfile` only for tests; `mct-cli` no longer needs `hmac-sha256` | verified in §15.1 |
+| Web store | kept the `C3` bytes for `.prev` | re-reads them under the lock | halves the memory of a loaded store |
+| Live harness | `M0`, `MA`, `MB` binaries | `MA` (`e68aec9`) only | `M0` drives a form API and nonce, not built yet; `MB` per D16 stays fixture-based |
+| Capacity | 100,000 rows per table | the 32 MiB file bound binds first, near 190,000 rows in total | about 170 bytes per `C3` row |
+
+Measured gates: `benchmarks/review-decisions.md`.
