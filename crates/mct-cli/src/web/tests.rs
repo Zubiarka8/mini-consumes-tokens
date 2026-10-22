@@ -248,6 +248,39 @@ fn dashboard_serves_static_app_and_a_read_only_json_api() {
 }
 
 #[test]
+fn a_truncated_dependency_graph_still_shows_every_file_in_a_cycle() {
+    let root = tempfile::tempdir().unwrap();
+    // 160 files that import three hubs outrank a two-file cycle by degree, so a
+    // graph cut at 150 nodes would drop the cycle if it only ranked by degree.
+    for hub in 1..=3 {
+        fs::write(root.path().join(format!("hub{hub}.py")), "X = 1\n").unwrap();
+    }
+    for id in 0..160 {
+        fs::write(
+            root.path().join(format!("m{id:03}.py")),
+            "import hub1\nimport hub2\nimport hub3\n",
+        )
+        .unwrap();
+    }
+    fs::write(root.path().join("z_cycle_a.py"), "import z_cycle_b\n").unwrap();
+    fs::write(root.path().join("z_cycle_b.py"), "import z_cycle_a\n").unwrap();
+    index(root.path());
+    let server = Server::start(root.path(), true);
+    let deps = server.json("api/dependencies?level=file");
+    assert_eq!(deps["truncated"], true);
+    assert_eq!(deps["nodes"].as_array().unwrap().len(), 150);
+    assert_eq!(deps["cycles"].as_array().unwrap().len(), 1);
+    let in_cycle: Vec<&str> = deps["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|node| node["cycle"] == true)
+        .map(|node| node["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(in_cycle, ["z_cycle_a.py", "z_cycle_b.py"]);
+}
+
+#[test]
 fn source_previews_only_read_indexed_files_inside_the_project() {
     let root = project();
     fs::write(root.path().join("secret.txt"), "TOP SECRET\n").unwrap();

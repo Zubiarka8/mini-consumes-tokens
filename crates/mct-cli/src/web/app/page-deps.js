@@ -110,7 +110,15 @@ export async function render({ root, params: initial, summary }) {
       data = await api("dependencies", queryFor(params), "deps");
       clear(host);
       if (data.truncated) host.append(note(t("deps.truncated", { shown: data.nodes.length, total: data.totalNodes }), "warn", "alert"), h("div", { style: { height: "10px" } }));
-      if (data.cycles.length) host.append(note(t("deps.cycles", { n: data.cycles.length }), "warn", "alert"), h("div", { style: { height: "10px" } }));
+      if (data.cycles.length) {
+        // The count is for the whole project, so the banner offers the way to see every cycle at once.
+        const only = (params.get("only") || "").split(",").filter(Boolean);
+        const showing = only.length === 1 && only[0] === "cycles" && !params.get("focus");
+        const toggle = showing
+          ? h("button", { class: "btn sm", onclick: () => patchQuery({ only: null }) }, t("deps.showAll"))
+          : h("button", { class: "btn sm", onclick: () => patchQuery({ focus: null, only: "cycles", view: null }) }, t("deps.showCycles", { n: data.cycles.length }));
+        host.append(note(h("span", { class: "row" }, t("deps.cycles", { n: data.cycles.length }), toggle), "warn", "alert"), h("div", { style: { height: "10px" } }));
+      }
       if (view === "tree") drawTree(params); else if (view === "table") drawTable(params); else drawGraph(params);
     } catch (error) { if (!isAbort(error)) clear(host).append(errorBox(error, () => refresh(params))); }
   }
