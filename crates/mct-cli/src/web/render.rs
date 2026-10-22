@@ -66,17 +66,40 @@ fn link(route: &str, path: &str, label: &str) -> String {
     )
 }
 
+/// Fills `{{name}}` slots in one pass, so inserted values are never re-scanned for slots.
+/// Callers pass values already HTML-escaped.
+fn fill(template: &str, values: &[(&str, &str)]) -> String {
+    let mut out = String::with_capacity(template.len());
+    let mut rest = template;
+    while let Some(start) = rest.find("{{") {
+        out.push_str(&rest[..start]);
+        let tail = &rest[start + 2..];
+        let end = tail.find("}}").unwrap_or(tail.len());
+        let name = &tail[..end];
+        if let Some((_, value)) = values.iter().find(|(key, _)| *key == name) {
+            out.push_str(value);
+        }
+        rest = tail.get(end + 2..).unwrap_or("");
+    }
+    out.push_str(rest);
+    out
+}
+
 fn page(title: &str, site: &Site, body: &str) -> Response {
     let warning = site
         .warning
         .as_deref()
         .map(|warning| format!("<p class=\"warning\">{}</p>", escape(warning)))
         .unwrap_or_default();
-    Response::html(format!(
-        r#"<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} · {project}</title><link rel="stylesheet" href="style.css"></head><body><header><a class="brand" href="./">MCT / {project}</a><nav aria-label="Project views"><a href="./">Overview</a><a href="atlas">Files</a><a href="duplicates">Duplicates</a></nav></header><main>{warning}<h1>{title}</h1>{body}</main><footer>Snapshot taken at Unix time {time}. After reindexing, restart <code>mct-cli web</code> to refresh.</footer></body></html>"#,
-        title = escape(title),
-        project = escape(&site.project),
-        time = site.generated
+    Response::html(fill(
+        include_str!("templates/page.html"),
+        &[
+            ("title", &escape(title)),
+            ("project", &escape(&site.project)),
+            ("warning", &warning),
+            ("body", body),
+            ("time", &site.generated.to_string()),
+        ],
     ))
 }
 
@@ -188,10 +211,12 @@ pub(super) fn route(site: &Site, target: &str) -> Response {
 }
 
 fn overview(site: &Site) -> Response {
-    let body = format!(
-        r#"<p class="intro">Browse the indexed files of this project, or review code that appears more than once.</p><section class="cards"><a class="card" href="atlas"><span class="eyebrow">FILES</span><strong>{} files</strong><span>Folders, symbols and imports of every file →</span></a><a class="card" href="duplicates"><span class="eyebrow">DUPLICATES</span><strong>{} groups to review</strong><span>Similar code found in several places →</span></a></section><section><h2>Obsidian vault</h2><p>The same index also writes a notes vault to <code>.mct-index/obsidian/</code>. Open that folder as a vault in Obsidian. File bodies are fetched on demand through the context tools.</p></section>"#,
-        site.navigation.files.len(),
-        site.active_total()
+    let body = fill(
+        include_str!("templates/overview.html"),
+        &[
+            ("files", &site.navigation.files.len().to_string()),
+            ("groups", &site.active_total().to_string()),
+        ],
     );
     page("Project explorer", site, &body)
 }
@@ -203,21 +228,26 @@ fn search_form(
     label: &str,
     placeholder: &str,
 ) -> String {
-    let mut out = format!(
-        r#"<form action="{route}" method="get"><label for="q">{label}</label><div class="search"><input id="q" name="q" value="{}" type="search" placeholder="{}"><button>Search</button></div>"#,
-        escape(q),
-        escape(placeholder)
-    );
-    for (key, value) in hidden {
-        let _ = write!(
-            out,
-            "<input type=\"hidden\" name=\"{}\" value=\"{}\">",
-            escape(key),
-            escape(value)
-        );
-    }
-    out.push_str("</form>");
-    out
+    let hidden: String = hidden
+        .iter()
+        .map(|(key, value)| {
+            format!(
+                "<input type=\"hidden\" name=\"{}\" value=\"{}\">",
+                escape(key),
+                escape(value)
+            )
+        })
+        .collect();
+    fill(
+        include_str!("templates/search_form.html"),
+        &[
+            ("route", route),
+            ("label", label),
+            ("q", &escape(q)),
+            ("placeholder", &escape(placeholder)),
+            ("hidden", &hidden),
+        ],
+    )
 }
 
 struct Entry {
@@ -663,9 +693,15 @@ fn duplicates(site: &Site, params: &BTreeMap<String, String>) -> Response {
 fn review_form(site: &Site, id: usize, back: &str) -> String {
     let key = &site.review_keys[id];
     let controls = if let Some(reason) = site.reviews.reason(key) {
-        format!("<p class=\"muted\">Review decision: {}</p><button name=\"action\" value=\"restore\">Restore to review</button>", reason.label())
+        fill(
+            include_str!("templates/review_restore.html"),
+            &[("reason", reason.label())],
+        )
     } else {
-        format!("<label for=\"review-reason-{id}\">Discard reason</label><select id=\"review-reason-{id}\" name=\"action\"><option value=\"false-positive\">False positive</option><option value=\"dismissed\">Other / not relevant</option></select><button>Discard group</button>")
+        fill(
+            include_str!("templates/review_discard.html"),
+            &[("id", &id.to_string())],
+        )
     };
     let back = if back.is_empty() {
         String::new()
@@ -675,7 +711,15 @@ fn review_form(site: &Site, id: usize, back: &str) -> String {
             escape(back)
         )
     };
-    format!("<form action=\"review\" method=\"post\" class=\"review\"><input type=\"hidden\" name=\"csrf\" value=\"{}\"><input type=\"hidden\" name=\"key\" value=\"{}\">{back}{controls}</form>", escape(&site.csrf), escape(key))
+    fill(
+        include_str!("templates/review_form.html"),
+        &[
+            ("csrf", &escape(&site.csrf)),
+            ("key", &escape(key)),
+            ("back", &back),
+            ("controls", &controls),
+        ],
+    )
 }
 
 fn group(site: &Site, params: &BTreeMap<String, String>) -> Response {
