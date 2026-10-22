@@ -58,6 +58,7 @@ export async function render({ root, params: initial }) {
 
   function drawTabs(params) {
     const present = new Set(facets.kind.map(([kind]) => kindGroup(kind)));
+    if (params.get("tab")) present.add(params.get("tab")); // the open tab stays, even when the filters leave it empty
     const groups = kindGroups().filter((group) => present.has(group.id));
     const counts = Object.fromEntries(groups.map((g) => [g.id, facets.kind.filter(([k]) => kindGroup(k) === g.id).reduce((n, [, c]) => n + c, 0)]));
     const total = facets.kind.reduce((n, [, c]) => n + c, 0);
