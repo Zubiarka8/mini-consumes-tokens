@@ -16,7 +16,7 @@ use super::format::{
     Row, MAX_ROWS, NEWER_FORMAT,
 };
 use super::resolve::{Resolver, Sources};
-use super::{Diagnostics, FindingKeys, Format, HistoryEvent, Resolution, State};
+use super::{Diagnostics, FindingKeys, Format, HistoryEvent, Kind, Resolution, State};
 
 /// The only review file this module writes.
 pub const CANONICAL_FILE: &str = "review-decisions.toon";
@@ -334,13 +334,12 @@ impl Reviews {
         let key = (finding.kind, finding.identity.clone());
         let row = Row {
             kind: finding.kind,
-            identity: finding.identity.clone(),
             fingerprint: finding.fingerprint.clone(),
             state: change.state,
             updated: at,
             note: change.note.clone(),
         };
-        next.reviews.insert(key, row.clone());
+        next.reviews.insert(key.clone(), row.clone());
         next.history.push(Event {
             kind: finding.kind,
             identity: finding.identity.clone(),
@@ -360,7 +359,7 @@ impl Reviews {
         if text.len() as u64 > MAX_BYTES {
             return Err(ReviewError::Full("the file would exceed 32 MiB"));
         }
-        verify_append(&current.sources.canonical, &text, &row)?;
+        verify_append(&current.sources.canonical, &text, &key, &row)?;
         // Only writers holding the lock change this file, so these are the
         // bytes `current` was parsed from.
         let canonical = self.directory.join(CANONICAL_FILE);
@@ -382,8 +381,13 @@ impl Reviews {
 
 /// The new file must parse, keep every earlier history event in order with
 /// exactly one appended, and keep every earlier current row except the one
-/// being saved, which must be exactly `row`.
-fn verify_append(before: &Canonical, text: &str, row: &Row) -> Result<(), ReviewError> {
+/// being saved, which must be exactly `row` under `key`.
+fn verify_append(
+    before: &Canonical,
+    text: &str,
+    key: &(Kind, String),
+    row: &Row,
+) -> Result<(), ReviewError> {
     let after =
         parse_canonical(text).map_err(|_| ReviewError::Invariant("the new file does not parse"))?;
     if after.history.len() != before.history.len() + 1
@@ -391,8 +395,7 @@ fn verify_append(before: &Canonical, text: &str, row: &Row) -> Result<(), Review
     {
         return Err(ReviewError::Invariant("history would not be append-only"));
     }
-    let key = (row.kind, row.identity.clone());
-    if after.reviews.get(&key) != Some(row) {
+    if after.reviews.get(key) != Some(row) {
         return Err(ReviewError::Invariant(
             "the saved decision does not round-trip",
         ));
@@ -400,9 +403,9 @@ fn verify_append(before: &Canonical, text: &str, row: &Row) -> Result<(), Review
     let others_kept = before
         .reviews
         .iter()
-        .filter(|(other, _)| **other != key)
+        .filter(|(other, _)| *other != key)
         .all(|(other, kept)| after.reviews.get(other) == Some(kept));
-    let expected_len = before.reviews.len() + usize::from(!before.reviews.contains_key(&key));
+    let expected_len = before.reviews.len() + usize::from(!before.reviews.contains_key(key));
     if !others_kept || after.reviews.len() != expected_len {
         return Err(ReviewError::Invariant("other decisions would change"));
     }
