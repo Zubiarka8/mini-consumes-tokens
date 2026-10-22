@@ -59,7 +59,9 @@ fn parse_optional_state(value: &str) -> anyhow::Result<Option<State>> {
     if value == "none" {
         return Ok(None);
     }
-    State::parse(value).map(Some).context("invalid review state")
+    State::parse(value)
+        .map(Some)
+        .context("invalid review state")
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

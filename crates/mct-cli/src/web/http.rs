@@ -231,7 +231,10 @@ fn route(site: &Site, target: &str) -> Response {
     let (path, query) = target.split_once('?').unwrap_or((target, ""));
     let mut params = api::Params::new();
     for (key, value) in form_urlencoded::parse(query.as_bytes()) {
-        if params.insert(key.into_owned(), value.into_owned()).is_some() {
+        if params
+            .insert(key.into_owned(), value.into_owned())
+            .is_some()
+        {
             return Response::error(400);
         }
     }
