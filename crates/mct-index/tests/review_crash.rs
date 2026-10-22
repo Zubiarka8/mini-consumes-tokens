@@ -2,7 +2,9 @@
 //! decisions in a loop and is killed with SIGKILL at varying moments, so the
 //! kills land between saves, inside a save and after a save. After every kill
 //! the store must load without problems, hold every save the writer
-//! acknowledged, and report every temporary file a kill left behind.
+//! acknowledged, and report every temporary file a kill left behind. The next
+//! save must succeed at once, and must remove those temporary files: a killed
+//! writer never blocks the next one.
 //!
 //! The writer is this same test binary, started again with environment
 //! variables and the test name `writer`. The variables are unset in normal
@@ -13,6 +15,7 @@
 // Test code: an unwrap()/expect() here means a broken test precondition.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -45,8 +48,36 @@ fn finding() -> FindingKeys {
     }
 }
 
-/// The writer process: saves until it is killed, appending one line per save
-/// that returned. Run only by `review_store_survives_killed_writers`.
+/// Saves one decision that changes the state, then acknowledges it.
+fn save_and_acknowledge(reviews: &mut Reviews, acks: &mut File) {
+    let findings = [finding()];
+    // Repeating the current state writes nothing, so always change it: a
+    // restarted writer must not repeat the last state of its predecessor.
+    let state = if reviews.resolve(&findings)[0].state() == State::InReview {
+        State::Confirmed
+    } else {
+        State::InReview
+    };
+    let revision = reviews.resolve(&findings)[0].revision();
+    let change = Change {
+        state,
+        note: String::new(),
+        expected_revision: revision,
+    };
+    reviews.save(&findings, 0, &change, now_ms()).expect("save");
+    acks.write_all(b"saved\n").unwrap();
+}
+
+fn open_acks(acks: &Path) -> File {
+    OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(acks)
+        .unwrap()
+}
+
+/// The writer process: saves until it is killed. Run only by
+/// `review_store_survives_killed_writers`.
 #[test]
 fn writer() {
     let (Some(root), Some(acks)) = (std::env::var_os(WRITER_ROOT), std::env::var_os(WRITER_ACKS))
@@ -54,28 +85,9 @@ fn writer() {
         return;
     };
     let mut reviews = Reviews::load(Path::new(&root));
-    let findings = [finding()];
-    let mut acks = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(acks)
-        .unwrap();
+    let mut acks = open_acks(Path::new(&acks));
     loop {
-        // Repeating the current state writes nothing, so always change it: a
-        // restarted writer must not repeat the last state of its predecessor.
-        let state = if reviews.resolve(&findings)[0].state() == State::InReview {
-            State::Confirmed
-        } else {
-            State::InReview
-        };
-        let revision = reviews.resolve(&findings)[0].revision();
-        let change = Change {
-            state,
-            note: String::new(),
-            expected_revision: revision,
-        };
-        reviews.save(&findings, 0, &change, now_ms()).expect("save");
-        acks.write_all(b"saved\n").unwrap();
+        save_and_acknowledge(&mut reviews, &mut acks);
     }
 }
 
@@ -123,19 +135,15 @@ fn review_store_survives_killed_writers() {
     let lock = store.join("review-decisions.lock");
 
     let mut interrupted_saves = 0;
-    let mut stale_locks = 0;
+    let mut lock_files_left = 0;
     for run in 0..KILLS {
-        // A kill never removes the lock; the message tells the person to remove
-        // it by hand. The test does that, and counts how often it was needed.
-        if lock.exists() {
-            stale_locks += 1;
-            std::fs::remove_file(&lock).unwrap();
-        }
         // Delays from 3 ms to about 60 ms, so the kills move across the save loop.
         let delay = Duration::from_micros(3_000 + ((run * 7_919) % 57_000) as u64);
         run_and_kill(&root, &acks, delay);
+        // The lock file stays after a kill, but the kernel released its lock.
+        lock_files_left += usize::from(lock.exists());
 
-        let reviews = Reviews::load(&root);
+        let mut reviews = Reviews::load(&root);
         assert!(
             !reviews.is_degraded(),
             "run {run}: {:?}",
@@ -162,18 +170,19 @@ fn review_store_survives_killed_writers() {
             assert!(backup.starts_with("version: 3\n"), "run {run}");
             assert!(backup.ends_with('\n'), "run {run}: a torn backup");
         }
+
+        // The next writer is never blocked, and its save removes the leftovers.
+        save_and_acknowledge(&mut reviews, &mut open_acks(&acks));
+        assert_eq!(temporary_files(&store), 0, "run {run}: leftovers removed");
     }
     eprintln!(
         "{KILLS} kills, {} saves acknowledged: {interrupted_saves} left a temporary file, \
-         {stale_locks} left a lock that had to be removed by hand",
+         {lock_files_left} left the lock file, which blocked nothing",
         acknowledged(&acks)
     );
     assert!(interrupted_saves > 0, "no kill landed inside a save");
 
-    // The store still accepts saves once the stale lock is gone.
-    if lock.exists() {
-        std::fs::remove_file(&lock).unwrap();
-    }
+    // The store still accepts saves after all the crashes.
     let mut reviews = Reviews::load(&root);
     let revision = reviews.resolve(&[finding()])[0].revision();
     let change = Change {

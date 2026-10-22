@@ -587,7 +587,6 @@ fn saving_writes_only_the_canonical_file_and_keeps_legacy_bytes() {
     assert!(read(root.path(), "review-decisions.toon")
         .unwrap()
         .starts_with("version: 3\n"));
-    assert!(read(root.path(), "review-decisions.lock").is_none());
     assert_eq!(resolve_one(root.path(), &dup()).state(), State::Unreviewed);
 }
 
@@ -719,20 +718,77 @@ fn repeating_the_state_writes_nothing_but_re_deciding_changed_code_does() {
 }
 
 #[test]
-fn a_held_lock_refuses_the_save_and_is_left_alone() {
+fn a_live_lock_refuses_the_save_and_is_released_when_dropped() {
     let root = project();
-    write(root.path(), "review-decisions.lock", "pid 1");
+    let holder = fs::File::create(root.path().join(".mct-index/review-decisions.lock")).unwrap();
+    holder.try_lock().unwrap();
     let mut reviews = Reviews::load(root.path());
     let error = reviews
         .save(&[dup()], 0, &change(State::Dismissed, "none"), NOW)
         .unwrap_err();
-    let ReviewError::Locked { holder, .. } = &error else {
-        panic!("{error}");
-    };
-    assert_eq!(holder, "pid 1");
+    assert!(matches!(error, ReviewError::Locked { .. }), "{error}");
     assert!(error.to_string().contains("review-decisions.lock"));
-    assert_eq!(read(root.path(), "review-decisions.lock").unwrap(), "pid 1");
     assert!(read(root.path(), "review-decisions.toon").is_none());
+    drop(holder);
+    reviews
+        .save(&[dup()], 0, &change(State::Dismissed, "none"), NOW)
+        .expect("the lock is free once its holder is gone");
+}
+
+#[test]
+fn a_lock_file_left_by_a_killed_writer_does_not_block_saves() {
+    let root = project();
+    // The file survives a crash; nothing holds it any more.
+    write(root.path(), "review-decisions.lock", "pid 1");
+    let mut reviews = Reviews::load(root.path());
+    reviews
+        .save(&[dup()], 0, &change(State::Dismissed, "none"), NOW)
+        .expect("a killed writer must not block the next one");
+    assert_eq!(resolve_one(root.path(), &dup()).state(), State::Dismissed);
+}
+
+#[test]
+fn a_save_removes_only_the_temporary_files_this_storage_created() {
+    let root = project();
+    let own = "review-decisions.toon.review-decisions.toon.1.2.0.tmp";
+    let own_backup = "review-decisions.toon.review-decisions.toon.prev.1.2.0.tmp";
+    write(root.path(), own, "version: 3\npartial");
+    write(root.path(), own_backup, "version: 3\npartial");
+    let others = [
+        "review-decisions.toon.notes.tmp",
+        "review-decisions.toon.evil.1.2.0.tmp",
+        "review-decisions.toon.prev",
+    ];
+    for name in others {
+        write(root.path(), name, "kept");
+    }
+    let mut reviews = Reviews::load(root.path());
+    assert_eq!(reviews.leftover_temporary_files(), 2);
+    reviews
+        .save(&[dup()], 0, &change(State::Dismissed, "none"), NOW)
+        .unwrap();
+    assert!(read(root.path(), own).is_none());
+    assert!(read(root.path(), own_backup).is_none());
+    for name in others {
+        assert_eq!(read(root.path(), name).unwrap(), "kept", "{name}");
+    }
+    assert_eq!(Reviews::load(root.path()).leftover_temporary_files(), 0);
+}
+
+#[test]
+fn a_temporary_name_that_cannot_be_removed_does_not_fail_the_save() {
+    let root = project();
+    let directory = root
+        .path()
+        .join(".mct-index/review-decisions.toon.review-decisions.toon.1.2.0.tmp");
+    fs::create_dir_all(&directory).unwrap();
+    let mut reviews = Reviews::load(root.path());
+    assert_eq!(reviews.leftover_temporary_files(), 0, "only files count");
+    reviews
+        .save(&[dup()], 0, &change(State::Dismissed, "none"), NOW)
+        .expect("the save succeeds");
+    assert!(directory.is_dir());
+    assert_eq!(resolve_one(root.path(), &dup()).state(), State::Dismissed);
 }
 
 #[test]
