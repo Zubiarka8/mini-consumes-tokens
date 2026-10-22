@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `mct-cli web` is now a Spanish dashboard (ADR-018): Código duplicado
+  (default, side-by-side comparison with the detector's evidence), Código
+  muerto (heuristic candidates, never presented as proven), Obsidian (real
+  per-language statistics, folder tree, file pages, note viewer, graph),
+  Revisiones and Estado (with an explicit "Recargar análisis"). Decisions
+  (confirmed / false positive / ignored on purpose, with reason and history)
+  are shared by both finding kinds in `.mct-index/reviews.toon`; a changed
+  file marks the decision "needs re-evaluation" instead of hiding it. The
+  ADR-015 `duplicate-reviews.toon` is still honoured and never rewritten.
+  Old `atlas`/`file`/`duplicates` URLs redirect. The page now allows one
+  first-party script (`script-src 'self'`); every page works without it.
+  The dashboard is available in Spanish and English (ES/EN buttons, browser
+  cookie, then `Accept-Language`).
+- `benchmarks/real-repos.md` and the `real_repos` example: a reproducible
+  benchmark of `detail` / `max_tokens` over click, cobra, ripgrep and the
+  Obsidian help vault (pinned commits, estimated tokens only), with the
+  catalog cost and compact instructions for choosing a detail level.
 - `build_context_pack`, `search_symbols_like` and `hybrid_search_like` (and
   their deprecated aliases) take optional `detail` (`overview`, `summary`,
   `detailed`) and `max_tokens`, an **estimated** budget over the whole
