@@ -7,6 +7,7 @@ use mct_languages::build_registry;
 
 mod duplicates;
 mod ignore_preset;
+mod reviewed;
 mod web;
 
 /// Index a repository and inspect the index from the command line.
@@ -235,6 +236,10 @@ enum Command {
         /// `<root>/.mct-index/dead-code-report.csv`.
         #[arg(long)]
         output: Option<PathBuf>,
+        /// Apply review decisions from the web dashboard and add a
+        /// `review_state` column. Omit for the unreviewed report.
+        #[arg(long, value_enum)]
+        reviewed: Option<reviewed::Reviewed>,
     },
     /// Report candidate duplicate functions and methods, as TOON.
     ///
@@ -377,7 +382,14 @@ fn main() -> anyhow::Result<()> {
             path,
             language,
             output,
-        } => dead_code_report(&index, path.as_deref(), language.as_deref(), output)?,
+            reviewed,
+        } => dead_code_report(
+            &index,
+            path.as_deref(),
+            language.as_deref(),
+            output,
+            reviewed,
+        )?,
         Command::Init { .. }
         | Command::Call { .. }
         | Command::McpRegister { .. }
@@ -720,14 +732,40 @@ fn gitignore_init(root: &Path) -> anyhow::Result<()> {
 /// Writes `mct_index::find_dead_code_candidates`'s result to a CSV file: one
 /// row per candidate with the project root, its file, name, kind, language,
 /// and start/end line — the same fields stored in `SymbolListEntry`, the
-/// table this heuristic scan filters down.
+/// table this heuristic scan filters down. With `reviewed`, review decisions
+/// filter the rows and a `review_state` column is added.
 fn dead_code_report(
     index: &Index,
     path: Option<&str>,
     language: Option<&str>,
     output: Option<PathBuf>,
+    reviewed: Option<reviewed::Reviewed>,
 ) -> anyhow::Result<()> {
-    let candidates = mct_index::find_dead_code_candidates(index, path, language)?;
+    let scan;
+    let unreviewed;
+    // (candidate, review state); the state is set only with `reviewed`.
+    let mut rows: Vec<(&mct_index::SymbolListEntry, Option<&str>)> = Vec::new();
+    let mut hidden = None;
+    if let Some(mode) = reviewed {
+        scan = mct_index::scan_dead_code(index, path, language)?;
+        let findings = mct_index::reviews::dead_code_findings(
+            &scan.symbols,
+            &scan.candidates,
+            &index.file_hashes()?,
+        );
+        let resolutions = reviewed::load(index.root()).resolve(&findings);
+        for (&id, resolution) in scan.candidates.iter().zip(&resolutions) {
+            if mode.keeps(resolution) {
+                rows.push((&scan.symbols[id], Some(resolution.label())));
+            }
+        }
+        if mode == reviewed::Reviewed::Hide {
+            hidden = reviewed::hidden_summary(&resolutions);
+        }
+    } else {
+        unreviewed = mct_index::find_dead_code_candidates(index, path, language)?;
+        rows.extend(unreviewed.iter().map(|candidate| (candidate, None)));
+    }
     let output =
         output.unwrap_or_else(|| index.root().join(".mct-index").join("dead-code-report.csv"));
     if let Some(parent) = output.parent() {
@@ -735,8 +773,13 @@ fn dead_code_report(
     }
 
     let root = display_path(index.root());
-    let mut csv = String::from("project_root,file,function,kind,language,start_line,end_line\n");
-    for candidate in &candidates {
+    let mut csv = String::from("project_root,file,function,kind,language,start_line,end_line");
+    csv.push_str(if reviewed.is_some() {
+        ",review_state\n"
+    } else {
+        "\n"
+    });
+    for (candidate, state) in &rows {
         csv.push_str(&csv_field(&root));
         csv.push(',');
         csv.push_str(&csv_field(&candidate.relative_path));
@@ -752,13 +795,20 @@ fn dead_code_report(
         if let Some(end_line) = candidate.end_line {
             csv.push_str(&end_line.to_string());
         }
+        if let Some(state) = state {
+            csv.push(',');
+            csv.push_str(state);
+        }
         csv.push('\n');
     }
 
     std::fs::write(&output, csv)?;
+    let hidden = hidden.map_or(String::new(), |summary| {
+        format!("; {summary}, `--reviewed only` lists them")
+    });
     println!(
-        "Wrote {} dead-code candidate(s) to {}",
-        candidates.len(),
+        "Wrote {} dead-code candidate(s) to {}{hidden}",
+        rows.len(),
         display_path(&output)
     );
     Ok(())
@@ -1532,6 +1582,73 @@ mod tests {
     }
 
     #[test]
+    fn dead_code_report_applies_review_decisions_only_when_asked() {
+        use mct_index::reviews::{Change, Reviews, State};
+        use reviewed::Reviewed;
+
+        let dir = temp_project_dir("dead-code-reviewed");
+        fs::write(
+            dir.join("lib.rs"),
+            "pub fn first() {}\npub fn second() {}\npub fn third() {}\n",
+        )
+        .unwrap();
+        let db_path = dir.join(".mct-index").join("index.sqlite3");
+        let mut index = Index::open(&dir, &db_path, ExcludeSet::default()).unwrap();
+        index.reindex(&build_registry(), false).unwrap();
+        let report = |mode: Option<Reviewed>| {
+            let output = dir.join("report.csv");
+            dead_code_report(&index, None, None, Some(output.clone()), mode).unwrap();
+            fs::read_to_string(output).unwrap()
+        };
+        let before = report(None);
+
+        // Dismiss `second` the way the web does.
+        let scan = mct_index::scan_dead_code(&index, None, None).unwrap();
+        let findings = mct_index::reviews::dead_code_findings(
+            &scan.symbols,
+            &scan.candidates,
+            &index.file_hashes().unwrap(),
+        );
+        let target = scan
+            .candidates
+            .iter()
+            .position(|id| scan.symbols[*id].name == "second")
+            .unwrap();
+        let change = Change {
+            state: State::Dismissed,
+            note: "kept for the plugin API".into(),
+            expected_revision: "none".into(),
+        };
+        Reviews::load(&dir)
+            .save(&findings, target, &change, 1_800_000_000)
+            .unwrap();
+
+        assert_eq!(report(None), before, "no flag, no change");
+        let shown = report(Some(Reviewed::Show));
+        assert!(shown.starts_with(
+            "project_root,file,function,kind,language,start_line,end_line,review_state\n"
+        ));
+        assert!(
+            shown.contains(",second,function,rust,2,2,dismissed\n"),
+            "{shown}"
+        );
+        assert!(
+            shown.contains(",first,function,rust,1,1,unreviewed\n"),
+            "{shown}"
+        );
+        let hidden = report(Some(Reviewed::Hide));
+        assert!(!hidden.contains(",second,"), "{hidden}");
+        assert_eq!(hidden.lines().count(), 3);
+        let only = report(Some(Reviewed::Only));
+        assert_eq!(only.lines().count(), 2, "{only}");
+
+        // An unreadable review file hides nothing.
+        fs::write(dir.join(".mct-index/reviews.toon"), "version: 2\nbroken").unwrap();
+        assert_eq!(report(Some(Reviewed::Hide)).lines().count(), 4);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
     fn dead_code_report_writes_a_csv_row_for_an_unreferenced_function() {
         let dir = temp_project_dir("dead-code-report");
         fs::write(
@@ -1546,7 +1663,8 @@ mod tests {
         index.reindex(&registry, false).unwrap();
 
         let output = dir.join("report.csv");
-        dead_code_report(&index, None, None, Some(output.clone())).expect("report should succeed");
+        dead_code_report(&index, None, None, Some(output.clone()), None)
+            .expect("report should succeed");
 
         let contents = fs::read_to_string(&output).expect("report should exist");
         let mut lines = contents.lines();

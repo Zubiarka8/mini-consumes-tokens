@@ -87,6 +87,11 @@ pub(crate) struct Args {
     /// Most partial blocks reported.
     #[arg(long, default_value_t = mct_index::DEFAULT_BLOCK_MAX_BLOCKS, value_parser = parse_threshold, requires = "partial_blocks")]
     block_max_blocks: usize,
+    /// Apply review decisions from the web dashboard before paging, and list
+    /// each shown group's review state. Bypasses the report cache. Omit for
+    /// the unreviewed report.
+    #[arg(long, value_enum)]
+    reviewed: Option<crate::reviewed::Reviewed>,
 }
 
 impl From<Args> for DuplicateOptions {
@@ -160,6 +165,10 @@ pub(crate) fn run(root: &Path, args: Args) -> anyhow::Result<()> {
         .with_context(|| format!("cannot open the index at {}", display_path(&db_path)))?;
     let output_path = args.output.clone();
     let no_cache = args.no_cache;
+    if let Some(mode) = args.reviewed {
+        let output = reviewed_report(root, &index, args.into(), mode)?;
+        return write_report(root, output_path, &output);
+    }
     let options = args.into();
     let cache_path = root.join(".mct-index").join("duplicates-cache.toon");
     let key = if no_cache {
@@ -193,17 +202,101 @@ pub(crate) fn run(root: &Path, args: Args) -> anyhow::Result<()> {
         }
         rendered
     };
+    write_report(root, output_path, &output)
+}
+
+fn write_report(root: &Path, output_path: Option<PathBuf>, output: &str) -> anyhow::Result<()> {
     if let Some(path) = output_path {
         let path = if path.is_absolute() {
             path
         } else {
             root.join(path)
         };
-        fs::write(&path, &output)
+        fs::write(&path, output)
             .with_context(|| format!("cannot write report to {}", display_path(&path)))?;
     }
     print!("{output}");
     Ok(())
+}
+
+/// The report with review decisions applied before paging: the analysis
+/// runs over every group, `mode` keeps some, and the requested page is cut
+/// from those. Totals describe the kept groups; partial blocks still see
+/// every group, as without the flag.
+fn reviewed_report(
+    root: &Path,
+    index: &Index,
+    mut options: DuplicateOptions,
+    mode: crate::reviewed::Reviewed,
+) -> anyhow::Result<String> {
+    use mct_index::{PriorityLevel, VerdictCounts, VerdictLevel};
+
+    let (offset, limit) = (options.offset, options.limit);
+    options.offset = 0;
+    options.limit = None;
+    let mut report = find_duplicate_groups(index, &build_token_sources(), options)
+        .context("cannot query the index for duplicate candidates")?;
+    let findings = mct_index::reviews::duplicate_findings(
+        &report.groups,
+        report.options.normalization,
+        &index.file_hashes()?,
+    );
+    let resolutions = crate::reviewed::load(root).resolve(&findings);
+    let hidden = crate::reviewed::hidden_summary(&resolutions);
+    let kept: Vec<(DuplicateGroup, &'static str)> = std::mem::take(&mut report.groups)
+        .into_iter()
+        .zip(&resolutions)
+        .filter(|(_, resolution)| mode.keeps(resolution))
+        .map(|(group, resolution)| (group, resolution.label()))
+        .collect();
+    report.total_groups = kept.len();
+    report.split_groups = kept
+        .iter()
+        .filter(|(group, _)| group.subgroups.status == SubgroupStatus::Split)
+        .count();
+    report.demoted_groups = kept
+        .iter()
+        .filter(|(group, _)| group.priority.level == PriorityLevel::Demoted)
+        .count();
+    let page: Vec<(DuplicateGroup, &str)> = kept
+        .into_iter()
+        .skip(offset)
+        .take(limit.unwrap_or(usize::MAX))
+        .collect();
+    report.verdict_counts = VerdictCounts::default();
+    for (group, _) in &page {
+        *match group.verdict.level {
+            VerdictLevel::Real => &mut report.verdict_counts.real,
+            VerdictLevel::Suspicious => &mut report.verdict_counts.suspicious,
+            VerdictLevel::FalsePositive => &mut report.verdict_counts.false_positive,
+        } += 1;
+    }
+    report.options.offset = offset;
+    report.options.limit = limit;
+    let states: Vec<&str> = page.iter().map(|(_, state)| *state).collect();
+    report.groups = page.into_iter().map(|(group, _)| group).collect();
+
+    let mut out = render_toon(&report);
+    let mode_name = match mode {
+        crate::reviewed::Reviewed::Show => "show",
+        crate::reviewed::Reviewed::Hide => "hide",
+        crate::reviewed::Reviewed::Only => "only",
+    };
+    field(&mut out, 0, "reviewed", mode_name);
+    if let Some(summary) = hidden.filter(|_| mode == crate::reviewed::Reviewed::Hide) {
+        field(
+            &mut out,
+            0,
+            "hidden_by_review",
+            &format!("{summary}; --reviewed only lists them"),
+        );
+    }
+    // One row per shown group, numbered as the report numbers them.
+    let _ = writeln!(out, "review_states[{}]{{group,state}}:", states.len());
+    for (position, state) in states.iter().enumerate() {
+        let _ = writeln!(out, "  {},{state}", offset + position + 1);
+    }
+    Ok(out)
 }
 
 /// Fingerprints every indexed source's current bytes, not just the index's
