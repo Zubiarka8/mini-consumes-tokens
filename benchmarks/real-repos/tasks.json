@@ -1,0 +1,90 @@
+{
+  "_comment": "Ground truth for benchmarks/real-repos.md. Evidence strings were chosen by grep over the pinned checkouts, not from MCT output. `evidence`: every string must appear in the answers for the task to be satisfied. `forbid`: strings that must not appear (wrong definition).",
+  "repos": [
+    {
+      "name": "click",
+      "url": "https://github.com/pallets/click",
+      "commit": "2247b35ea1c47c727d7a06e51fa280e12a863ff6",
+      "root": "click",
+      "language": "Python",
+      "tasks": [
+        {"id": "click-locate", "kind": "locate", "tool": "search_symbols_like",
+         "args": {"query": "resolve command", "path": "src/click"},
+         "evidence": ["resolve_command", "src/click/core.py"]},
+        {"id": "click-pack-caller-other-file", "kind": "pack", "tool": "build_context_pack",
+         "args": {"symbol": "make_context", "path": "src/click/core.py"},
+         "evidence": ["src/click/core.py", "shell_completion.py"]},
+        {"id": "click-pack-resolve", "kind": "pack", "tool": "build_context_pack",
+         "args": {"symbol": "resolve_command", "path": "src/click/core.py"},
+         "evidence": ["src/click/core.py", "shell_completion.py"]},
+        {"id": "click-markdown-section", "kind": "markdown", "tool": "search_symbols_like",
+         "args": {"query": "shell completion", "path": "docs"},
+         "evidence": ["shell-completion.md"]}
+      ]
+    },
+    {
+      "name": "cobra",
+      "url": "https://github.com/spf13/cobra",
+      "commit": "adbc8813901bba65827259daa8e22ff94ec1f30e",
+      "root": "cobra",
+      "language": "Go",
+      "tasks": [
+        {"id": "cobra-locate", "kind": "locate", "tool": "search_symbols_like",
+         "args": {"query": "ExecuteC"},
+         "evidence": ["ExecuteC", "command.go"]},
+        {"id": "cobra-pack-test-caller", "kind": "pack", "tool": "build_context_pack",
+         "args": {"symbol": "ExecuteC", "path": "command.go"},
+         "evidence": ["command.go", "command_test.go"]},
+        {"id": "cobra-pack-validate", "kind": "pack", "tool": "build_context_pack",
+         "args": {"symbol": "ValidateArgs", "path": "command.go"},
+         "evidence": ["command.go", "execute"]},
+        {"id": "cobra-markdown-section", "kind": "markdown", "tool": "search_symbols_like",
+         "args": {"query": "shell completions"},
+         "evidence": ["site/content/completions"]}
+      ]
+    },
+    {
+      "name": "ripgrep",
+      "url": "https://github.com/BurntSushi/ripgrep",
+      "commit": "3fce3b5bb0236da2df6d99672afb8a719642eca7",
+      "root": "ripgrep",
+      "language": "Rust",
+      "tasks": [
+        {"id": "rg-locate", "kind": "locate", "tool": "search_symbols_like",
+         "args": {"query": "walk builder"},
+         "evidence": ["walk_builder", "crates/core/flags/hiargs.rs"]},
+        {"id": "rg-pack-caller", "kind": "pack", "tool": "build_context_pack",
+         "args": {"symbol": "search_parallel", "path": "crates/core/main.rs"},
+         "evidence": ["crates/core/main.rs"]},
+        {"id": "rg-pack-ambiguous", "kind": "pack", "tool": "build_context_pack",
+         "args": {"symbol": "matcher", "path": "crates/core/flags/hiargs.rs"},
+         "evidence": ["crates/core/flags/hiargs.rs"],
+         "forbid": ["crates/cli/src/decompress.rs"]},
+        {"id": "rg-hybrid-locate", "kind": "locate", "tool": "hybrid_search_like",
+         "args": {"query": "build ignore matchers for directory walk"},
+         "evidence": ["build_matchers", "crates/ignore/src/walk.rs"]}
+      ]
+    },
+    {
+      "name": "obsidian-help",
+      "url": "https://github.com/obsidianmd/obsidian-help",
+      "commit": "cd6c9f3c7d5492bbbec94e8f403572b84eeb325b",
+      "root": "obsidian-help/en",
+      "language": "Markdown (Obsidian vault, WikiLinks)",
+      "tasks": [
+        {"id": "obs-locate-heading", "kind": "locate", "tool": "search_symbols_like",
+         "args": {"query": "foldable callouts"},
+         "evidence": ["Foldable callouts", "Callouts.md"]},
+        {"id": "obs-pack-section", "kind": "markdown", "tool": "build_context_pack",
+         "args": {"symbol": "Foldable callouts", "path": "Editing and formatting/Callouts.md"},
+         "evidence": ["Callouts.md"]},
+        {"id": "obs-pack-wikilink", "kind": "wikilink", "tool": "build_context_pack",
+         "args": {"symbol": "Basic formatting syntax", "path": "Editing and formatting/Basic formatting syntax.md"},
+         "evidence": ["Basic formatting syntax.md", "Advanced formatting syntax"]},
+        {"id": "obs-locate-ambiguous", "kind": "locate", "tool": "search_symbols_like",
+         "args": {"query": "internal links"},
+         "evidence": ["Internal links.md"]}
+      ]
+    }
+  ]
+}

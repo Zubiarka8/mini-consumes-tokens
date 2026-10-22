@@ -121,3 +121,5 @@ What it shows, and what it does not:
 Catalog growth, the fixed cost of a budgeted page (37 estimated tokens), the
 57-case extended set and the adaptive-selection simulation are in
 `benchmarks/adaptive-detail.md`.
+
+Real repositories and an Obsidian vault: `benchmarks/real-repos.md`.
