@@ -320,3 +320,24 @@ details {
 form+form {
   margin-top: 16px;
 }
+
+/* Navigation state and keyboard access */
+header nav a[aria-current="page"] {
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 8px;
+}
+
+.skip {
+  position: absolute;
+  left: -9999px;
+}
+
+.skip:focus {
+  left: 16px;
+  top: 8px;
+  padding: 8px 12px;
+  background: var(--surface);
+  z-index: 1;
+}

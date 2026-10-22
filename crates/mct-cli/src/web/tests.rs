@@ -276,6 +276,9 @@ fn generated_navigation_has_no_broken_links_and_wire_lengths_are_exact() {
         }
         for value in body.split("href=\"").skip(1) {
             let href = value.split('"').next().unwrap().replace("&amp;", "&");
+            if href.starts_with('#') {
+                continue;
+            }
             let target = if href == "./" { "".to_string() } else { href };
             assert!(!target.contains("://"), "no external resources");
             pending.push(target);

@@ -85,7 +85,15 @@ fn fill(template: &str, values: &[(&str, &str)]) -> String {
     out
 }
 
-fn page(title: &str, site: &Site, body: &str) -> Response {
+/// `current` is the header section this page belongs to: "overview", "files" or "duplicates".
+fn page(title: &str, current: &str, site: &Site, body: &str) -> Response {
+    let mark = |section: &str| {
+        if section == current {
+            " aria-current=\"page\""
+        } else {
+            ""
+        }
+    };
     let warning = site
         .warning
         .as_deref()
@@ -95,6 +103,9 @@ fn page(title: &str, site: &Site, body: &str) -> Response {
         include_str!("templates/page.html"),
         &[
             ("title", &escape(title)),
+            ("current_overview", mark("overview")),
+            ("current_files", mark("files")),
+            ("current_duplicates", mark("duplicates")),
             ("project", &escape(&site.project)),
             ("warning", &warning),
             ("body", body),
@@ -218,7 +229,24 @@ fn overview(site: &Site) -> Response {
             ("groups", &site.active_total().to_string()),
         ],
     );
-    page("Project explorer", site, &body)
+    page("Project explorer", "overview", site, &body)
+}
+
+fn hidden_input(name: &str, value: &str) -> String {
+    format!(
+        "<input type=\"hidden\" name=\"{}\" value=\"{}\">",
+        escape(name),
+        escape(value)
+    )
+}
+
+/// Path prefix that selects the contents of `directory` ("" is the project root).
+fn dir_prefix(directory: &str) -> String {
+    if directory.is_empty() {
+        String::new()
+    } else {
+        format!("{directory}/")
+    }
 }
 
 fn search_form(
@@ -230,13 +258,7 @@ fn search_form(
 ) -> String {
     let hidden: String = hidden
         .iter()
-        .map(|(key, value)| {
-            format!(
-                "<input type=\"hidden\" name=\"{}\" value=\"{}\">",
-                escape(key),
-                escape(value)
-            )
-        })
+        .map(|(name, value)| hidden_input(name, value))
         .collect();
     fill(
         include_str!("templates/search_form.html"),
@@ -259,11 +281,7 @@ struct Entry {
 
 /// Immediate children of `directory`: folders first, then files.
 fn browse_entries(site: &Site, directory: &str) -> Vec<Entry> {
-    let prefix = if directory.is_empty() {
-        String::new()
-    } else {
-        format!("{directory}/")
-    };
+    let prefix = dir_prefix(directory);
     let mut children: BTreeMap<&str, bool> = BTreeMap::new();
     for file in &site.navigation.files {
         let Some(rest) = file.relative_path.strip_prefix(&prefix) else {
@@ -311,11 +329,7 @@ fn file_note(site: &Site, path: &str) -> String {
 
 /// Files under `directory` whose path or symbol names contain `query` (lowercase).
 fn search_entries(site: &Site, directory: &str, query: &str) -> Vec<Entry> {
-    let prefix = if directory.is_empty() {
-        String::new()
-    } else {
-        format!("{directory}/")
-    };
+    let prefix = dir_prefix(directory);
     site.navigation
         .files
         .iter()
@@ -452,7 +466,7 @@ fn atlas(site: &Site, params: &BTreeMap<String, String>) -> Response {
     }
     body.push_str("</ul>");
     body.push_str(&pagination);
-    page("Project files", site, &body)
+    page("Project files", "files", site, &body)
 }
 
 fn file(site: &Site, params: &BTreeMap<String, String>) -> Response {
@@ -528,7 +542,7 @@ fn file(site: &Site, params: &BTreeMap<String, String>) -> Response {
         body.push_str("</ul>");
         body.push_str(&pagination);
     }
-    page(path, site, &body)
+    page(path, "files", site, &body)
 }
 
 fn diagnostics(site: &Site) -> String {
@@ -684,6 +698,7 @@ fn duplicates(site: &Site, params: &BTreeMap<String, String>) -> Response {
         } else {
             "Duplicate groups to review"
         },
+        "duplicates",
         site,
         &body,
     )
@@ -706,10 +721,7 @@ fn review_form(site: &Site, id: usize, back: &str) -> String {
     let back = if back.is_empty() {
         String::new()
     } else {
-        format!(
-            "<input type=\"hidden\" name=\"back\" value=\"{}\">",
-            escape(back)
-        )
+        hidden_input("back", back)
     };
     fill(
         include_str!("templates/review_form.html"),
@@ -771,5 +783,10 @@ fn group(site: &Site, params: &BTreeMap<String, String>) -> Response {
     );
     body.push_str(&escape(&evidence));
     body.push_str("</pre></details>");
-    page(&format!("Duplicate group {}", id + 1), site, &body)
+    page(
+        &format!("Duplicate group {}", id + 1),
+        "duplicates",
+        site,
+        &body,
+    )
 }
