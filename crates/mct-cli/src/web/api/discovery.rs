@@ -11,7 +11,11 @@ use crate::web::Site;
 
 const GROUP_LIMIT_ALL: usize = 8;
 const GROUP_LIMIT_SCOPE: usize = 100;
-const MAX_NODES: usize = 150;
+/// With no query the search lists everything, so the groups are wider.
+const GROUP_LIMIT_ALL_EMPTY: usize = 50;
+const GROUP_LIMIT_SCOPE_EMPTY: usize = 2000;
+/// Safety cap for the graph; `all=1` lifts it.
+const MAX_NODES: usize = 5000;
 const MAX_EXTERNAL: usize = 200;
 
 fn symbol_id(site: &Site, path: &str, name: &str, line: u32) -> Option<usize> {
@@ -34,25 +38,27 @@ pub(super) fn search(site: &Site, params: &Params) -> Value {
     };
     let languages = csv(params, "language");
     let kinds = csv(params, "kind");
-    let limit = if scope == "all" {
-        GROUP_LIMIT_ALL
-    } else {
-        GROUP_LIMIT_SCOPE
+    let browsing = query.is_empty();
+    let limit = match (scope == "all", browsing) {
+        (true, false) => GROUP_LIMIT_ALL,
+        (true, true) => GROUP_LIMIT_ALL_EMPTY,
+        (false, false) => GROUP_LIMIT_SCOPE,
+        (false, true) => GROUP_LIMIT_SCOPE_EMPTY,
     };
     let wants = |name: &str| scope == "all" || scope == name;
     let language_ok = |language: &str| languages.is_empty() || languages.contains(&language);
     let mut groups = serde_json::Map::new();
-    if query.is_empty() {
-        return json!({ "query": query, "mode": "keyword", "semantic": false, "tookMs": 0, "groups": groups });
-    }
 
     if wants("symbols") {
         let mut seen = BTreeSet::new();
         let mut items = Vec::new();
-        let hits = site
-            .index
-            .search_symbols(query, QueryScope::default())
-            .unwrap_or_default();
+        let hits = if browsing {
+            Vec::new()
+        } else {
+            site.index
+                .search_symbols(query, QueryScope::default())
+                .unwrap_or_default()
+        };
         let exact = site
             .navigation
             .symbols
@@ -127,7 +133,8 @@ pub(super) fn search(site: &Site, params: &Params) -> Value {
             groups.insert("dependencies".into(), group(linked.len(), linked, limit));
         }
     }
-    if wants("code") {
+    // Literal search needs something to look for, so it stays out of the empty listing.
+    if wants("code") && !browsing {
         let scope = QueryScope::default();
         let hits = site.index.search_literals(query, scope).unwrap_or_default();
         let items: Vec<Value> = hits
@@ -139,24 +146,35 @@ pub(super) fn search(site: &Site, params: &Params) -> Value {
             .collect();
         groups.insert("code".into(), group(items.len(), items, limit));
     }
-    if wants("duplicates") || wants("deadCode") {
-        let rows = super::findings::list(
-            site,
-            &Params::from([("size".into(), "200".into()), ("q".into(), query.into())]),
-        );
-        let rows = rows["items"].as_array().cloned().unwrap_or_default();
-        for (name, kind) in [("duplicates", "duplicate"), ("deadCode", "dead-code")] {
-            if wants(name) {
-                let items: Vec<Value> = rows
-                    .iter()
-                    .filter(|row| row["type"] == kind && language_ok(row["language"].as_str().unwrap_or("")))
-                    .map(|row| json!({ "type": kind, "title": row["title"], "path": row["path"], "line": row["line"],
-                        "language": row["language"], "key": row["key"], "state": row["state"],
-                        "snippet": row["path"] }))
-                    .collect();
-                groups.insert(name.into(), group(items.len(), items, limit));
-            }
+    for (name, kind) in [("duplicates", "duplicate"), ("deadCode", "dead-code")] {
+        if !wants(name) {
+            continue;
         }
+        // Asked per type so one type's findings never use up the other's page.
+        let listed = super::findings::list(
+            site,
+            &Params::from([
+                ("size".into(), "200".into()),
+                ("q".into(), query.into()),
+                ("type".into(), kind.into()),
+            ]),
+        );
+        let items: Vec<Value> = listed["items"]
+            .as_array()
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+            .iter()
+            .filter(|row| language_ok(row["language"].as_str().unwrap_or("")))
+            .map(|row| json!({ "type": kind, "title": row["title"], "path": row["path"], "line": row["line"],
+                "language": row["language"], "key": row["key"], "state": row["state"],
+                "snippet": row["path"] }))
+            .collect();
+        let total = if languages.is_empty() {
+            listed["total"].as_u64().map_or(items.len(), |n| n as usize)
+        } else {
+            items.len()
+        };
+        groups.insert(name.into(), group(total, items, limit));
     }
     if wants("obsidian") {
         let search_bodies = site.vault.notes.len() <= 500;
@@ -208,6 +226,11 @@ pub(super) fn dependencies(site: &Site, params: &Params) -> Value {
     let depth = uint(params, "group", 2).clamp(1, 6);
     let hops = uint(params, "depth", 2).clamp(1, 6);
     let focus = text(params, "focus");
+    let max_nodes = if text(params, "all") == "1" {
+        usize::MAX
+    } else {
+        uint(params, "limit", MAX_NODES).max(1)
+    };
     let node_of = |path: &str| {
         if level == "file" {
             path.to_string()
@@ -265,7 +288,7 @@ pub(super) fn dependencies(site: &Site, params: &Params) -> Value {
                     } else {
                         continue;
                     };
-                    if seen.len() < MAX_NODES && seen.insert(next.clone()) {
+                    if seen.len() < max_nodes && seen.insert(next.clone()) {
                         queue.push_back((next.clone(), distance + 1));
                     }
                 }
@@ -285,7 +308,7 @@ pub(super) fn dependencies(site: &Site, params: &Params) -> Value {
                     ),
                 )
             });
-            ranked.into_iter().take(MAX_NODES).cloned().collect()
+            ranked.into_iter().take(max_nodes).cloned().collect()
         }
     };
     let nodes: Vec<Value> = selected
@@ -328,7 +351,7 @@ pub(super) fn dependencies(site: &Site, params: &Params) -> Value {
     json!({
         "level": level, "group": depth, "focus": focus_node, "hops": hops,
         "totalNodes": members.len(), "totalEdges": weights.len(),
-        "truncated": selected.len() >= MAX_NODES && members.len() > MAX_NODES,
+        "truncated": members.len() > max_nodes,
         "nodes": nodes, "edges": edges,
         "cycles": cycles.iter().take(50).collect::<Vec<_>>(),
         "external": external,

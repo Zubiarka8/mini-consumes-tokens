@@ -12,7 +12,7 @@ export async function render({ root, params: initial, summary }) {
   const drawer = { current: null };
   let graph = null, data = null;
   const q = () => parseHash().params;
-  const queryFor = (params) => ({ level: params.get("level") || "dir", group: params.get("group") || 2, focus: params.get("focus") || "", depth: params.get("depth") || 2, language: listParam(params, "language") });
+  const queryFor = (params) => ({ level: params.get("level") || "dir", group: params.get("group") || 2, focus: params.get("focus") || "", depth: params.get("depth") || 2, language: listParam(params, "language"), all: params.get("all") || "" });
   const clearAll = () => { forget("dependencias"); patchQuery({ level: null, group: null, focus: null, depth: null, only: null, language: null }); };
 
   function drawFilters(params) {
@@ -111,7 +111,7 @@ export async function render({ root, params: initial, summary }) {
       data = await api("dependencies", queryFor(params), "deps");
       clear(host);
       const onlyCycles = (params.get("only") || "").split(",").filter(Boolean).join() === "cycles" && !params.get("focus");
-      if (data.truncated && !onlyCycles) host.append(note(t("deps.truncated", { shown: data.nodes.length, total: data.totalNodes }), "warn", "alert"), h("div", { style: { height: "10px" } }));
+      if (data.truncated && !onlyCycles) host.append(note(t("deps.truncated", { shown: data.nodes.length, total: data.totalNodes }), "warn", "alert"), h("button", { class: "btn sm", style: { marginTop: "8px" }, onclick: () => patchQuery({ all: 1 }) }, t("graph.showAll", { n: fmt(data.totalNodes) })), h("div", { style: { height: "10px" } }));
       if (data.cycles.length) {
         // The count is for the whole project, so the banner offers the way to see every cycle at once.
         const only = (params.get("only") || "").split(",").filter(Boolean);

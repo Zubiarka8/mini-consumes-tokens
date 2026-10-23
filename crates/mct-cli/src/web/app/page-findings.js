@@ -2,6 +2,7 @@
 import { h, clear, api, isAbort, patchQuery, onQuery, parseHash, listParam, fmt, ago, hrefTo, review, toast, confirmDialog, noteDialog, copy, forget, store, dateTime } from "./core.js";
 import { icon, pageHead, tabsBar, dataTable, pager, badge, stateBadge, STATE_ORDER, stateLabel, searchBox, filterGroup, activeChips, noResults, loading, errorBox, note,
   drawerButton, segmented, emptyState } from "./components.js";
+import { hasKey } from "./i18n.js";
 import { codeBlock, openSource, compareView, normalizer } from "./code.js";
 import { t } from "./i18n.js";
 import { duplicateText, deadText, duplicateTemplate, deadTemplate, listText, memberLabel } from "./ai.js";
@@ -20,13 +21,11 @@ const BUILTIN_PRESETS = [
   { id: "b-fp", name: "preset.recentFp", query: "state=false-positive&sort=updated&order=desc" },
   { id: "b-pending", name: "preset.pending", query: "state=unreviewed,in-review" },
 ];
-const ACTIONS = {
-  unreviewed: ["in-review", "confirmed", "false-positive", "dismissed"],
-  "in-review": ["confirmed", "false-positive", "dismissed", "resolved"],
-  confirmed: ["resolved", "reopen"], "false-positive": ["reopen"], resolved: ["reopen"], dismissed: ["reopen"],
-  "needs-reevaluation": ["in-review", "confirmed", "false-positive", "dismissed", "reopen"],
-  "resolved-but-detected": ["in-review", "confirmed", "resolved", "reopen"],
-};
+// Any decision can be replaced by any other at any time; the server keeps every change in the history.
+const DECISIONS = ["in-review", "confirmed", "false-positive", "dismissed", "resolved"];
+const DECIDED = ["confirmed", "false-positive", "resolved", "dismissed"];
+const actionsFor = (state) => [...DECISIONS.filter((d) => d !== state), ...(state === "unreviewed" ? [] : ["reopen"])];
+const actionLabel = (target, type) => (hasKey(`review.action.${target}.${type}`) ? t(`review.action.${target}.${type}`) : t(`review.action.${target}`));
 const ACTION_STYLE = { "in-review": "", confirmed: "danger", "false-positive": "warn", dismissed: "", resolved: "primary", reopen: "" };
 
 export const findingHref = (item) => hrefTo(item.type === "duplicate" ? "duplicados" : "codigo-muerto", { key: item.key });
@@ -43,9 +42,13 @@ export function reviewPanel(item, onChange) {
       const ok = await confirmDialog({ title: t("review.fpTitle"), body: t("review.fpBody"), confirm: t("review.markFp") });
       if (!ok) return;
     }
+    if (DECIDED.includes(item.state) && target !== "dismissed" && target !== "false-positive") {
+      const ok = await confirmDialog({ title: t("review.changeTitle"), body: t("review.changeBody", { from: stateLabel(item.state, item.type), to: target === "reopen" ? t("state.unreviewed") : stateLabel(target, item.type) }), confirm: t("review.changeConfirm") });
+      if (!ok) return;
+    }
     try {
       const saved = await review(item.key, target === "reopen" ? null : target, note, item.revision);
-      toast(t("review.saved", { state: stateLabel(saved.state) }), "ok");
+      toast(t("review.saved", { state: stateLabel(saved.state, item.type) }), "ok");
       onChange(saved);
     } catch (error) {
       if (error.status === 409 && error.body?.key) {
@@ -54,25 +57,27 @@ export function reviewPanel(item, onChange) {
       } else toast(t("review.failed", { message: error.message }), "err");
     }
   };
-  const actions = item.readOnly ? [] : (ACTIONS[item.state] || []).map((target) => h("button", { class: `btn sm ${ACTION_STYLE[target]}`, onclick: () => apply(target) }, t(`review.action.${target}`)));
+  const actions = item.readOnly ? [] : actionsFor(item.state).map((target) => h("button", { class: `btn sm ${ACTION_STYLE[target]}`, onclick: () => apply(target) }, actionLabel(target, item.type)));
   return h("div", { class: "section" }, h("h4", {}, t("review.title")),
-    h("div", { class: "row", style: { marginBottom: "8px" } }, stateBadge(item.state), item.updated ? h("span", { class: "muted small" }, `${t("review.updated")} ${ago(item.updated)}`) : null),
-    item.state === "needs-reevaluation" ? h("p", { class: "muted small" }, t("review.previous", { state: stateLabel(item.previousState) })) : null,
+    h("p", { class: "muted small", style: { margin: "0 0 4px" } }, t("review.current")),
+    h("div", { class: "row", style: { marginBottom: "8px" } }, stateBadge(item.state, item.type), item.updated ? h("span", { class: "muted small" }, `${t("review.updated")} ${ago(item.updated)}`) : null),
+    item.state === "needs-reevaluation" ? h("p", { class: "muted small" }, t("review.previous", { state: stateLabel(item.previousState, item.type) })) : null,
     item.readOnly ? h("p", { class: "small" }, t("review.readOnly")) : h("label", { class: "field" }, t("review.noteOptional"), noteField),
-    h("div", { class: "row", style: { marginTop: "8px" } }, actions),
+    actions.length ? h("p", { class: "muted small", style: { margin: "10px 0 4px" } }, DECIDED.includes(item.state) ? t("review.change") : t("review.decide")) : null,
+    h("div", { class: "row" }, actions),
     h("p", { class: "muted small", style: { marginTop: "8px" } }, t("review.reviewerNote")));
 }
 
-export function historyList(history) {
+export function historyList(history, type) {
   if (!history?.length) return h("p", { class: "muted" }, t("review.noHistory"));
   return h("ol", { class: "timeline" }, [...history].reverse().map((event) => h("li", {},
-    h("div", {}, stateBadge(event.from), " → ", stateBadge(event.to)), h("div", { class: "muted small" }, event.at ? dateTime(event.at) : t("review.unknownTime")), event.note && h("div", {}, `“${event.note}”`))));
+    h("div", {}, stateBadge(event.from, type), " → ", stateBadge(event.to, type)), h("div", { class: "muted small" }, event.at ? dateTime(event.at) : t("review.unknownTime")), event.note && h("div", {}, `“${event.note}”`))));
 }
 
 function duplicateDetail(item, onChange, setView) {
   const members = item.members;
   return h("div", { class: "card inspector" },
-    h("header", {}, h("div", {}, h("h3", {}, item.title), h("div", { class: "row", style: { marginTop: "6px" } }, badge(item.language), stateBadge(item.state), badge(t(`dup.verdict.${item.verdict}`), item.verdict === "real" ? "success" : "warning"))),
+    h("header", {}, h("div", {}, h("h3", {}, item.title), h("div", { class: "row", style: { marginTop: "6px" } }, badge(item.language), stateBadge(item.state, item.type), badge(t(`dup.verdict.${item.verdict}`), item.verdict === "real" ? "success" : "warning"))),
       h("button", { class: "icon-btn", "aria-label": t("common.close"), onclick: () => patchQuery({ key: null, view: null }) }, icon("x"))),
     note(t("dup.caution"), "warn", "alert"),
     h("div", { class: "row", style: { margin: "10px 0" } }, h("button", { class: "btn primary sm", onclick: () => setView("side") }, icon("split", 14), t("dup.compare")),
@@ -93,7 +98,7 @@ function duplicateDetail(item, onChange, setView) {
         h("div", { class: "mono muted small" }, `${m.path}:${m.start}–${m.end}`),
         codeBlock({ lines: m.excerpt, start: m.start, language: item.language, maxHeight: "140px", label: m.name })))),
     reviewPanel(item, onChange),
-    h("div", { class: "section" }, h("h4", {}, t("review.history")), historyList(item.history)),
+    h("div", { class: "section" }, h("h4", {}, t("review.history")), historyList(item.history, item.type)),
     item.analysis && h("details", { class: "section" }, h("summary", {}, t("dup.technical")), h("pre", { class: "mono", style: { whiteSpace: "pre-wrap", overflow: "auto", maxHeight: "300px" } }, item.analysis)));
 }
 
@@ -101,7 +106,7 @@ function deadDetail(item, onChange) {
   const d = item.detail;
   const s = d.symbol;
   return h("div", { class: "card inspector" },
-    h("header", {}, h("div", {}, h("h3", {}, item.title), h("div", { class: "row", style: { marginTop: "6px" } }, badge(item.kind), badge(item.language), stateBadge(item.state), badge(t("dead.confidenceUnknown"), ""))),
+    h("header", {}, h("div", {}, h("h3", {}, item.title), h("div", { class: "row", style: { marginTop: "6px" } }, badge(item.kind), badge(item.language), stateBadge(item.state, item.type), badge(t("dead.confidenceUnknown"), ""))),
       h("button", { class: "icon-btn", "aria-label": t("common.close"), onclick: () => patchQuery({ key: null }) }, icon("x"))),
     note(t("dead.caution"), "warn", "alert"),
     h("dl", { class: "kv", style: { margin: "10px 0" } }, h("dt", {}, t("dead.definition")), h("dd", { class: "mono" }, `${s.path}:${s.line}${s.endLine ? `–${s.endLine}` : ""}`),
@@ -119,7 +124,7 @@ function deadDetail(item, onChange) {
       d.importedBy.slice(0, 6).map((p) => h("div", { class: "mono small" }, p))),
     h("div", { class: "section" }, h("h4", {}, t("code.notes")), d.notes.length ? d.notes.map((n) => h("p", {}, h("a", { href: hrefTo("obsidian", { note: n.path }) }, n.title))) : h("p", { class: "muted" }, t("code.noNotes"))),
     reviewPanel(item, onChange),
-    h("div", { class: "section" }, h("h4", {}, t("review.history")), historyList(item.history)),
+    h("div", { class: "section" }, h("h4", {}, t("review.history")), historyList(item.history, item.type)),
     h("p", { class: "muted small" }, t("dead.neverDelete")));
 }
 
@@ -168,7 +173,7 @@ export async function render({ root, page, params: initial }) {
   function drawFilters(params) {
     const states = effectiveStates(params);
     const groups = [
-      { id: "state", label: t("filters.state"), options: STATE_ORDER.map((s) => ({ value: s, label: stateLabel(s), count: (facets.state || []).find(([v]) => v === s)?.[1] || 0 })), selected: states, onChange: (v) => patchQuery({ state: v.length ? v : "all" }) },
+      { id: "state", label: t("filters.state"), options: STATE_ORDER.map((s) => ({ value: s, label: stateLabel(s, cfg.type), count: (facets.state || []).find(([v]) => v === s)?.[1] || 0 })), selected: states, onChange: (v) => patchQuery({ state: v.length ? v : "all" }) },
       cfg.type === "duplicate" && { id: "verdict", label: t("filters.verdict"), options: opts("verdict", (v) => t(`dup.verdict.${v}`)), selected: listParam(params, "verdict"), onChange: (v) => patchQuery({ verdict: v }) },
       cfg.type === "duplicate" && { id: "scope", label: t("filters.scope"), options: opts("scope", (v) => t(`dup.scope.${v}`)), selected: listParam(params, "scope"), onChange: (v) => patchQuery({ scope: v }) },
       { id: "language", label: t("filters.language"), options: opts("language"), selected: listParam(params, "language"), onChange: (v) => patchQuery({ language: v }) },
@@ -189,7 +194,7 @@ export async function render({ root, page, params: initial }) {
     const total = (facets.state || []).reduce((n, [, c]) => n + c, 0);
     const active = states.length === 1 ? states[0] : states.length === 0 ? "all" : "";
     clear(tabsHost).append(tabsBar({ label: t("rev.tabs"), active, onSelect: (id) => patchQuery({ state: id === "all" ? null : id }),
-      tabs: [{ id: "all", label: t("rev.tab.all"), count: total }, ...STATE_ORDER.map((s) => ({ id: s, label: stateLabel(s), count: count(s) }))] }));
+      tabs: [{ id: "all", label: t("rev.tab.all"), count: total }, ...STATE_ORDER.map((s) => ({ id: s, label: stateLabel(s, cfg.type), count: count(s) }))] }));
   }
 
   function drawChips(params) {
@@ -206,7 +211,7 @@ export async function render({ root, page, params: initial }) {
   const location = (r) => (r.type === "duplicate" ? r.members.map((m) => `${m.path}:${m.start}`).slice(0, 2).join("  ↔  ") : `${r.path}:${r.line}`);
   function columns() {
     const common = {
-      state: { key: "state", label: t("col.state"), sortable: true, render: (r) => stateBadge(r.state) },
+      state: { key: "state", label: t("col.state"), sortable: true, render: (r) => stateBadge(r.state, r.type) },
       updated: { key: "updated", label: t("col.updated"), sortable: true, render: (r) => (r.updated ? ago(r.updated) : "—"), cls: "hide-sm" },
       actions: { key: "actions", label: t("col.actions"), render: (r) => h("span", { class: "row", style: { gap: "4px" } },
         r.type === "duplicate" && h("button", { class: "btn sm", "aria-label": `${t("dup.compare")}: ${r.title}`, onclick: () => patchQuery({ key: r.key, view: "side" }) }, icon("split", 14), t("dup.compareShort")),
