@@ -2,7 +2,8 @@
 import { h, clear, api, setCsrf, store, parseHash, hrefTo, go, PAGES, applyTheme, ago, dateTime, toast, fmt } from "./core.js";
 import { icon, loading, errorBox } from "./components.js";
 import { createGlobalSearch, pageCommands } from "./palette.js";
-import { t } from "./i18n.js";
+import { openIssues } from "./issues.js";
+import { t, getLang, setLang, LANGUAGES } from "./i18n.js";
 
 const PAGE_MODULES = {
   panel: () => import("./page-dashboard.js"), codigo: () => import("./page-symbols.js"), duplicados: () => import("./page-findings.js"),
@@ -22,12 +23,16 @@ function indexingState(meta) {
   return map[meta.indexing.state] || map.unknown;
 }
 
+const bootLabel = document.querySelector("#app .loading span");
+if (bootLabel) bootLabel.textContent = t("common.loading");
+
 function computeNotices(meta, summary) {
   const list = [];
   if (meta.warning) list.push({ tone: "warn", text: meta.warning });
+  if (meta.reviewsReadOnly) list.push({ tone: "bad", text: t("notice.reviewsReadOnly", { reason: meta.reviewsReadOnly }) });
   if (meta.indexing.staleFiles > 0) list.push({ tone: "warn", text: t("notice.stale", { n: meta.indexing.staleFiles }) });
-  if (meta.indexing.readFailures > 0) list.push({ tone: "bad", text: t("notice.readFailures", { n: meta.indexing.readFailures }) });
-  if (meta.indexing.syntaxErrors > 0) list.push({ tone: "info", text: t("notice.syntaxErrors", { n: meta.indexing.syntaxErrors }) });
+  if (meta.indexing.readFailures > 0) list.push({ tone: "bad", text: t("notice.readFailures", { n: meta.indexing.readFailures }), action: () => openIssues("read", meta.indexing.readIssues || []) });
+  if (meta.indexing.syntaxErrors > 0) list.push({ tone: "info", text: t("notice.syntaxErrors", { n: meta.indexing.syntaxErrors }), action: () => openIssues("syntax", meta.indexing.syntaxIssues || []) });
   if (summary && !summary.duplicates.complete) list.push({ tone: "warn", text: t("notice.incomplete", { n: summary.duplicates.skipped }) });
   if (meta.vault.truncated) list.push({ tone: "info", text: t("notice.vaultTruncated") });
   return list;
@@ -36,7 +41,7 @@ function computeNotices(meta, summary) {
 function applyStatus() {
   const [tone, label] = indexingState(ctx.meta);
   clear(status).append(h("span", { class: `dot ${tone}` }), h("span", {}, t(label)),
-    ctx.meta.indexing.lastIndexedAt && h("span", { class: "muted hide-lg", title: dateTime(ctx.meta.indexing.lastIndexedAt) }, `· ${ago(ctx.meta.indexing.lastIndexedAt)}`));
+    ctx.meta.indexing.lastIndexedAt && h("span", { class: "muted hide-sm", title: dateTime(ctx.meta.indexing.lastIndexedAt) }, `· ${ago(ctx.meta.indexing.lastIndexedAt)}`));
   status.title = t("status.tooltip");
   bell.querySelector(".count")?.remove();
   if (notices.length) bell.append(h("span", { class: "count", style: { position: "absolute", top: "4px", right: "4px", background: "var(--danger)", color: "#fff", borderRadius: "999px", fontSize: "10px", padding: "0 5px" } }, notices.length));
@@ -57,22 +62,55 @@ function notificationsMenu() {
   if (existing) { existing.remove(); return; }
   const menu = h("div", { class: "menu notices", role: "menu", style: { right: "60px", top: "56px", minWidth: "300px", padding: "10px" } },
     h("strong", {}, t("notice.title")),
-    notices.length ? notices.map((n) => h("p", { class: `banner ${n.tone === "bad" ? "bad" : n.tone === "warn" ? "warn" : ""}`, style: { marginTop: "8px" } }, n.text)) : h("p", { class: "muted", style: { marginTop: "8px" } }, t("notice.none")));
+    notices.length ? notices.map((n) => h("p", { class: `banner ${n.tone === "bad" ? "bad" : n.tone === "warn" ? "warn" : ""}`, style: { marginTop: "8px" } }, n.text, n.action && [" ", h("button", { class: "btn sm", onclick: () => { menu.remove(); n.action(); } }, t("issues.view"))])) : h("p", { class: "muted", style: { marginTop: "8px" } }, t("notice.none")));
   document.querySelector(".header").append(menu);
   const away = (event) => { if (!menu.contains(event.target) && !bell.contains(event.target)) { menu.remove(); document.removeEventListener("click", away); } };
   setTimeout(() => document.addEventListener("click", away), 0);
 }
 
+const closeOnOutside = (menu, opener) => {
+  const away = (event) => { if (event.type === "keydown" ? event.key === "Escape" : !menu.contains(event.target) && !opener.contains(event.target)) { menu.remove(); document.removeEventListener("click", away); document.removeEventListener("keydown", away); } };
+  setTimeout(() => { document.addEventListener("click", away); document.addEventListener("keydown", away); }, 0);
+};
+
+/** A header button that opens a short list to pick one option; picking closes it. */
+function choiceMenu(button, label, options, current, onSelect) {
+  const existing = document.querySelector(".pop.choice");
+  existing?.remove();
+  if (existing?.dataset.for === label) return;
+  const header = document.querySelector(".header");
+  const right = header.getBoundingClientRect().right - button.getBoundingClientRect().right;
+  const menu = h("div", { class: "pop choice", role: "listbox", "aria-label": label, "data-for": label, style: { top: "56px", right: `${Math.max(8, right)}px` } },
+    options.map(([id, text, iconName]) => h("button", { class: "choice-item", role: "option", "aria-selected": String(id === current), onclick: () => { menu.remove(); onSelect(id); } },
+      iconName && icon(iconName, 16), h("span", {}, text), id === current && icon("check", 14))));
+  header.append(menu);
+  menu.querySelector("[aria-selected=true]")?.focus();
+  closeOnOutside(menu, button);
+}
+
+function languageButton() {
+  const button = h("button", { class: "btn sm choice-btn", "aria-haspopup": "listbox", "aria-label": t("header.language"), title: t("header.language"),
+    onclick: () => choiceMenu(button, t("header.language"), LANGUAGES, getLang(), setLang) }, getLang().toUpperCase(), icon("down", 12));
+  return button;
+}
+
+function themeButton() {
+  const current = () => store.get("theme", "dark");
+  const button = h("button", { class: "icon-btn", "aria-haspopup": "listbox", "aria-label": t("theme.label"), title: t("theme.label"),
+    onclick: () => choiceMenu(button, t("theme.label"), THEMES.map(([id, key, iconName]) => [id, t(key), iconName]), current(), (id) => { setTheme(id); button.replaceChildren(icon(THEMES.find(([theme]) => theme === id)[2])); }) },
+    icon(THEMES.find(([theme]) => theme === current())[2]));
+  return button;
+}
+
 function buildShell() {
+  document.querySelector(".skip").textContent = t("common.skip");
   const collapsed = store.get("sidebar-collapsed", false);
   nav = h("nav", { class: "nav", "aria-label": t("nav.label") });
   status = h("span", { class: "status-pill", role: "status" });
   bell = h("button", { class: "icon-btn", style: { position: "relative" }, "aria-label": t("notice.title"), onclick: notificationsMenu }, icon("bell"));
-  const search = createGlobalSearch({ commands: () => [...pageCommands(), { title: t("palette.toggleTheme"), icon: "sun", run: cycleTheme }, { title: t("palette.toggleSidebar"), icon: "panel", run: toggleSidebar }, { title: t("palette.workspace"), icon: "layers", run: () => go("espacio") }] });
+  const search = createGlobalSearch({ commands: () => [...pageCommands(), { title: t("palette.toggleTheme"), icon: "sun", run: cycleTheme }, { title: t("palette.toggleSidebar"), icon: "panel", run: toggleSidebar }, { title: t("palette.workspace"), icon: "layers", run: () => go("espacio") }, { title: t("header.refresh"), icon: "refresh", run: async () => { await boot(true); toast(t("header.refreshed"), "ok", 7000); } }] });
   ctx.search = search;
   const toggleSidebar = () => { shell.classList.toggle("collapsed"); store.set("sidebar-collapsed", shell.classList.contains("collapsed")); };
-  const themeButton = h("button", { class: "icon-btn", "aria-label": t("theme.label"), title: t("theme.label"), onclick: cycleTheme }, icon("moon"));
-  const refresh = h("button", { class: "icon-btn hide-sm", "aria-label": t("header.refresh"), title: t("header.refresh"), onclick: async () => { await boot(true); toast(t("header.refreshed"), "ok", 7000); } }, icon("refresh"));
   shell = h("div", { class: `shell ${collapsed ? "collapsed" : ""}` },
     h("aside", { class: "sidebar" },
       h("a", { class: "brand", href: hrefTo("panel") }, h("span", { class: "logo" }, icon("bolt", 17)), h("span", {}, "MCT")),
@@ -83,12 +121,9 @@ function buildShell() {
     h("header", { class: "header" },
       h("div", { class: "header-left" },
         h("button", { class: "icon-btn menu-btn", "aria-label": t("nav.open"), onclick: () => shell.classList.add("open") }, icon("menu")),
-        h("div", { class: "project hide-sm" }, h("span", { id: "project-name" }), h("small", { class: "hide-lg" }, t("header.repo"))),
-        h("a", { class: "status-pill hide-lg", href: hrefTo("espacio"), title: t("header.workspaceTip") }, icon("layers", 14), t("header.workspaceCode"))),
+        h("div", { class: "project hide-sm", title: t("header.repo") }, h("span", { id: "project-name" }))),
       h("div", { class: "header-center" }, search.el),
-      h("div", { class: "header-right" }, status, refresh, bell, themeButton,
-        h("a", { class: "icon-btn hide-sm", href: hrefTo("configuracion"), "aria-label": t("nav.configuracion"), title: t("nav.configuracion") }, icon("gear")),
-        h("span", { class: "status-pill hide-lg", title: t("header.localTip") }, icon("lock", 13), t("header.local")))),
+      h("div", { class: "header-right" }, status, bell, languageButton(), themeButton())),
     h("div", { class: "scrim", onclick: () => shell.classList.remove("open") }),
     (main = h("main", { class: "main", id: "contenido" })));
   clear(app).append(shell, h("div", { class: "toasts", "aria-live": "polite" }));

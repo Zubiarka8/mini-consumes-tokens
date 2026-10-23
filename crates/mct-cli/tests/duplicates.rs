@@ -1667,3 +1667,86 @@ fn block_budget_flags_require_partial_blocks() {
         assert!(help.contains(flag), "{flag}: {help}");
     }
 }
+
+#[test]
+fn reviewed_reports_filter_before_paging_and_leave_the_default_report_alone() {
+    use mct_index::reviews::{Change, Reviews, State};
+
+    let body = "(value: i64) -> i64 {\n    let mut total = value;\n    total += 1;\n    total *= 2;\n    total -= 4;\n    if total > 12 { total -= 3; }\n    total\n}\n";
+    let other = "(items: &[i64]) -> usize {\n    let mut count = 0;\n    for item in items {\n        if *item > 3 { count += 1; }\n        if *item < -3 { count += 2; }\n    }\n    count\n}\n";
+    let project = Project::indexed(
+        "reviewed",
+        &[
+            (
+                "src/a.rs",
+                &format!("pub fn alpha{body}\npub fn count_a{other}"),
+            ),
+            (
+                "src/b.rs",
+                &format!("pub fn beta{body}\npub fn count_b{other}"),
+            ),
+        ],
+    );
+    let args = ["--no-cache", "--min-lines", "3", "--min-tokens", "10"];
+    let before = duplicates(&project, &args);
+    assert!(before.contains("total_groups: 2\n"), "{before}");
+
+    // Dismiss the group of `alpha` the way the web dashboard does.
+    let root = project.path().canonicalize().unwrap();
+    let index = mct_index::Index::open_existing_read_only(
+        &root,
+        &root.join(".mct-index/index.sqlite3"),
+        mct_index::ExcludeSet::default(),
+    )
+    .unwrap();
+    let options = mct_index::DuplicateOptions {
+        min_lines: 3,
+        min_tokens: 10,
+        ..mct_index::DuplicateOptions::default()
+    };
+    let report =
+        mct_index::find_duplicate_groups(&index, &mct_languages::build_token_sources(), options)
+            .unwrap();
+    let findings = mct_index::reviews::duplicate_findings(
+        &report.groups,
+        report.options.normalization,
+        &index.file_hashes().unwrap(),
+    );
+    let target = report
+        .groups
+        .iter()
+        .position(|group| group.members.iter().any(|m| m.symbol_name == "alpha"))
+        .unwrap();
+    let change = Change {
+        state: State::Dismissed,
+        note: String::new(),
+        expected_revision: "none".into(),
+    };
+    Reviews::load(&root)
+        .save(&findings, target, &change, 1_800_000_000_000)
+        .unwrap();
+
+    assert_eq!(duplicates(&project, &args), before, "no flag, no change");
+    let hidden = duplicates(
+        &project,
+        &[&args[..], &["--reviewed", "hide", "--limit", "1"]].concat(),
+    );
+    assert!(hidden.contains("total_groups: 1\n"), "{hidden}");
+    assert!(!hidden.contains("alpha"), "{hidden}");
+    assert!(
+        hidden.contains("hidden_by_review: \"1 hidden by review"),
+        "{hidden}"
+    );
+    assert!(
+        hidden.contains("review_states[1]{group,state}:\n  1,unreviewed\n"),
+        "{hidden}"
+    );
+    let only = duplicates(&project, &[&args[..], &["--reviewed", "only"]].concat());
+    assert!(
+        only.contains("total_groups: 1\n") && only.contains("alpha"),
+        "{only}"
+    );
+    assert!(only.contains("  1,dismissed\n"), "{only}");
+    let shown = duplicates(&project, &[&args[..], &["--reviewed", "show"]].concat());
+    assert!(shown.contains("total_groups: 2\n"), "{shown}");
+}

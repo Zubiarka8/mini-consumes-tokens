@@ -47,6 +47,13 @@ fn symbol_row(site: &Site, id: usize) -> Value {
     })
 }
 
+#[derive(Clone, Copy, PartialEq)]
+enum Dimension {
+    Kind,
+    Language,
+    Extension,
+}
+
 pub(super) fn symbols(site: &Site, params: &Params) -> Value {
     let query = text(params, "q");
     let dir = text(params, "dir").trim_end_matches('/');
@@ -69,35 +76,38 @@ pub(super) fn symbols(site: &Site, params: &Params) -> Value {
                 && (contains_ci(&symbol.name, query) || contains_ci(&symbol.relative_path, query))
         })
         .collect();
-    let facets = json!({
-        "kind": facet(base.iter().map(|id| site.navigation.symbols[*id].kind.as_str())),
-        "language": facet(base.iter().map(|id| site.navigation.symbols[*id].language.as_str())),
-        "ext": facet(base.iter().map(|id| extension(&site.navigation.symbols[*id].relative_path))),
-    });
-    let mut ids: Vec<usize> = base
-        .into_iter()
-        .filter(|id| {
-            let symbol = &site.navigation.symbols[*id];
-            let refs = site.references.get(&symbol.name).copied().unwrap_or(0);
-            (kinds.is_empty() || kinds.contains(&symbol.kind.as_str()))
-                && (languages.is_empty() || languages.contains(&symbol.language.as_str()))
-                && (extensions.is_empty() || extensions.contains(&extension(&symbol.relative_path)))
-                && refs >= min_refs
-                && refs <= max_refs
-                && match finding {
-                    "duplicate" => site.symbol_groups.contains_key(id),
-                    "dead-code" => site.dead_by_symbol.contains_key(id),
-                    "any" => {
-                        site.symbol_groups.contains_key(id) || site.dead_by_symbol.contains_key(id)
-                    }
-                    "none" => {
-                        !site.symbol_groups.contains_key(id)
-                            && !site.dead_by_symbol.contains_key(id)
-                    }
-                    _ => true,
+    // A facet counts what the other filters leave, not its own: choosing a
+    // kind keeps the other kinds listed with their counts under that choice.
+    let keep = |id: usize, skip: Option<Dimension>| {
+        let symbol = &site.navigation.symbols[id];
+        let refs = site.references.get(&symbol.name).copied().unwrap_or(0);
+        (skip == Some(Dimension::Kind) || kinds.is_empty() || kinds.contains(&symbol.kind.as_str()))
+            && (skip == Some(Dimension::Language)
+                || languages.is_empty()
+                || languages.contains(&symbol.language.as_str()))
+            && (skip == Some(Dimension::Extension)
+                || extensions.is_empty()
+                || extensions.contains(&extension(&symbol.relative_path)))
+            && refs >= min_refs
+            && refs <= max_refs
+            && match finding {
+                "duplicate" => site.symbol_groups.contains_key(&id),
+                "dead-code" => site.dead_by_symbol.contains_key(&id),
+                "any" => {
+                    site.symbol_groups.contains_key(&id) || site.dead_by_symbol.contains_key(&id)
                 }
-        })
-        .collect();
+                "none" => {
+                    !site.symbol_groups.contains_key(&id) && !site.dead_by_symbol.contains_key(&id)
+                }
+                _ => true,
+            }
+    };
+    let facets = json!({
+        "kind": facet(base.iter().filter(|id| keep(**id, Some(Dimension::Kind))).map(|id| site.navigation.symbols[*id].kind.as_str())),
+        "language": facet(base.iter().filter(|id| keep(**id, Some(Dimension::Language))).map(|id| site.navigation.symbols[*id].language.as_str())),
+        "ext": facet(base.iter().filter(|id| keep(**id, Some(Dimension::Extension))).map(|id| extension(&site.navigation.symbols[*id].relative_path))),
+    });
+    let mut ids: Vec<usize> = base.into_iter().filter(|id| keep(*id, None)).collect();
     let sort = text(params, "sort");
     let refs_of = |id: &usize| {
         site.references

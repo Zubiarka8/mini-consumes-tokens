@@ -16,6 +16,7 @@ mod indexer;
 mod manifests;
 mod queries;
 mod read_limits;
+pub mod reviews;
 mod schema;
 mod search;
 mod semantic;
@@ -31,8 +32,8 @@ pub use context_budget::{
 };
 pub use cycles::find_cycles;
 pub use dead_code::{
-    find_dead_code_candidates, looks_like_test_name, DEAD_CODE_ENTRY_POINT_NAMES,
-    DEAD_CODE_KIND_ALLOWLIST,
+    find_dead_code_candidates, looks_like_test_name, scan_dead_code, DeadCodeScan,
+    DEAD_CODE_ENTRY_POINT_NAMES, DEAD_CODE_KIND_ALLOWLIST,
 };
 pub use dependency_graph::{DependencyEdge, DependencyGraph};
 pub use duplicates::{

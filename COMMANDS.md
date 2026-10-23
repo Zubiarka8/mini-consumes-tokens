@@ -495,9 +495,18 @@ source-deletion operation is provided. See [ADR-015](docs/01-architecture/adrs/0
 
 Writes a CSV report of dead-code candidates (heuristic: symbols with zero indexed references) to `.mct-index/dead-code-report.csv` — one row per candidate with its file, function name, kind, language, and start/end line. Optionally narrowed to a file/directory/crate and/or language, and written to a custom path instead of the default.
 
+`--reviewed show|hide|only` applies the review decisions made in `mct-cli web`
+and adds a `review_state` column: `show` keeps every row, `hide` leaves out
+false positives and dismissed candidates whose code is unchanged (and says how
+many), `only` lists just those. A decision about code that changed since shows
+as `needs-reevaluation` and is never hidden. Without the flag no review file is
+read and the report is unchanged. If a review file cannot be read, a warning
+goes to stderr and nothing is hidden.
+
 ```sh
 mct-cli --root . dead-code
 mct-cli --root . dead-code --path src/services --language python --output dead-code.csv
+mct-cli --root . dead-code --reviewed hide
 ```
 
 <details>
@@ -510,10 +519,11 @@ Usage: mct-cli dead-code [OPTIONS]
 
 Options:
       --path <PATH>          File, directory, or crate prefix to scan — same matching semantics as `list_symbols`. Omit for the whole project
-      --root <ROOT>          Project root to operate on. Defaults to the current working directory
+      --root <ROOT>          Project root to operate on. Defaults to the current working directory [alias: --roots]
       --language <LANGUAGE>  Exact language id to keep (e.g. `rust`, `python`, `go`)
       --output <OUTPUT>      Where to write the CSV report. Defaults to `<root>/.mct-index/dead-code-report.csv`
-  -h, --help                 Print help
+      --reviewed <REVIEWED>  Apply review decisions from the web dashboard and add a `review_state` column. Omit for the unreviewed report [possible values: show, hide, only]
+  -h, --help                 Print help (see more with '--help')
 ```
 
 </details>
@@ -698,7 +708,16 @@ mct-cli --root . duplicates
 mct-cli --root . duplicates --normalization consistent --path crates --language rust --ranking tokens --limit 20 --no-excerpts
 mct-cli --root . duplicates --normalization exact --min-lines 10 --min-tokens 80
 mct-cli --root . duplicates --partial-blocks --limit 0 --block-max-blocks 50
+mct-cli --root . duplicates --reviewed hide --limit 20
 ```
+
+`--reviewed show|hide|only` applies the web dashboard's review decisions to
+the groups before paging: `total_groups`, `split_groups`, `demoted_groups` and
+the verdict counts describe the kept groups, a `reviewed` field names the mode,
+`hide` adds `hidden_by_review`, and a final `review_states[n]{group,state}`
+table gives each shown group's state. The analysis then runs over every group
+and the report cache is not used. Partial blocks still consider every group.
+Without the flag the report and its cache are unchanged.
 
 Design: [ADR-007](docs/01-architecture/adrs/007-duplicate-function-report.md),
 [comparison policies](docs/01-architecture/adrs/008-token-twins-comparison-policies.md),
@@ -799,6 +818,14 @@ Options:
           Most partial blocks reported
 
           [default: 200]
+
+      --reviewed <REVIEWED>
+          Apply review decisions from the web dashboard before paging, and list each shown group's review state. Bypasses the report cache. Omit for the unreviewed report
+
+          Possible values:
+          - show: Every finding, with its review state
+          - hide: Only findings that still need a person: false positives and dismissed findings whose code is unchanged are left out
+          - only: Only the findings `hide` leaves out
 
   -h, --help
           Print help (see a summary with '-h')

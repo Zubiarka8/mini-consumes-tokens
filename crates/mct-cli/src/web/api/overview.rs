@@ -5,11 +5,49 @@ use std::time::UNIX_EPOCH;
 
 use serde_json::{json, Value};
 
-use crate::web::reviews::State;
+use mct_index::reviews::{Resolution, State};
+use mct_index::UnsupportedFile;
+
 use crate::web::Site;
 
 const DAY: u64 = 86_400;
 const RECENT_EVENTS: usize = 8;
+
+/// One row per file the indexer reported: where it is, the line the parser stopped at and the
+/// innermost indexed symbol that line falls in. `detail` is `line N: message` for a syntax error.
+fn issue_rows(site: &Site, issues: &[UnsupportedFile]) -> Vec<Value> {
+    let mut rows: Vec<Value> = issues
+        .iter()
+        .map(|issue| {
+            let (line, message) = issue
+                .detail
+                .strip_prefix("line ")
+                .and_then(|rest| rest.split_once(": "))
+                .and_then(|(number, message)| Some((number.parse::<u32>().ok()?, message)))
+                .map_or((None, issue.detail.as_str()), |(line, message)| (Some(line), message));
+            let path = issue.relative_path.as_str();
+            let language = site
+                .navigation
+                .files
+                .binary_search_by(|file| file.relative_path.as_str().cmp(path))
+                .ok()
+                .map(|index| site.navigation.files[index].language.as_str());
+            let symbol = line.and_then(|line| {
+                site.symbols
+                    .get(path)?
+                    .iter()
+                    .map(|id| &site.navigation.symbols[*id])
+                    .filter(|symbol| symbol.line <= line && line <= symbol.end_line.unwrap_or(symbol.line))
+                    .min_by_key(|symbol| symbol.end_line.unwrap_or(symbol.line) - symbol.line)
+                    .map(|symbol| json!({ "name": symbol.name, "kind": symbol.kind, "line": symbol.line, "endLine": symbol.end_line }))
+            });
+            json!({ "path": path, "name": path.rsplit('/').next().unwrap_or(path), "line": line,
+                    "message": message, "language": language, "symbol": symbol })
+        })
+        .collect();
+    rows.sort_by(|a, b| a["path"].as_str().cmp(&b["path"].as_str()));
+    rows
+}
 
 /// Number of indexed files modified after the last index run (bounded stat calls).
 fn stale_files(site: &Site, indexed_at: Option<i64>) -> Option<usize> {
@@ -46,12 +84,17 @@ pub(super) fn meta(site: &Site) -> Value {
         "generated": site.generated,
         "csrf": site.csrf,
         "warning": site.warning,
+        // Set when a review file cannot be read: nothing is hidden and
+        // review actions are disabled until a person fixes the file.
+        "reviewsReadOnly": site.reviews.read_only_reason(),
         "indexing": {
             "state": state,
             "lastIndexedAt": indexed_at,
             "staleFiles": stale,
             "syntaxErrors": status.as_ref().map(|s| s.syntax_errors.len()),
             "readFailures": status.as_ref().map(|s| s.read_failures.len()),
+            "syntaxIssues": status.as_ref().map(|s| issue_rows(site, &s.syntax_errors)),
+            "readIssues": status.as_ref().map(|s| issue_rows(site, &s.read_failures)),
         },
         "vault": { "notes": site.vault.notes.len(), "truncated": site.vault.truncated },
         // What the backend can really do. `false`/`null` entries are shown as
@@ -125,19 +168,26 @@ pub(super) fn summary(site: &Site) -> Value {
         .map(|key| ("duplicate", key))
         .chain(site.dead.iter().map(|d| ("dead-code", &d.key)));
     for (kind, key) in all_keys {
-        let state = site.reviews.state(key).map_or("unreviewed", State::value);
+        let state = site
+            .reviews
+            .resolution(key)
+            .map_or("unreviewed", Resolution::label);
         *states.entry(state).or_default() += 1;
         *by_type.entry(kind).or_default().entry(state).or_default() += 1;
     }
 
-    // Review decisions per day, from the audit history (the only history that exists).
+    // Review decisions per day, from the audit history (the only history
+    // that exists). Events without a time (version 1 files) have no day.
     let mut per_day: BTreeMap<u64, BTreeMap<&'static str, usize>> = BTreeMap::new();
-    let mut events: Vec<_> = site.reviews.events().iter().collect();
-    events.sort_by_key(|event| std::cmp::Reverse(event.at));
-    for event in &events {
-        let to = event.to.map_or("reopened", State::value);
+    let mut events: Vec<_> = site.reviews.events().collect();
+    events.sort_by_key(|(_, event)| std::cmp::Reverse(event.at));
+    for (_, event) in events.iter().filter(|(_, event)| event.at > 0) {
+        let to = match event.to {
+            State::Unreviewed => "reopened",
+            state => state.value(),
+        };
         *per_day
-            .entry(event.at / DAY)
+            .entry(event.at / 1000 / DAY)
             .or_default()
             .entry(to)
             .or_default() += 1;
@@ -145,12 +195,12 @@ pub(super) fn summary(site: &Site) -> Value {
     let recent: Vec<Value> = events
         .iter()
         .take(RECENT_EVENTS)
-        .map(|event| {
+        .map(|(key, event)| {
             json!({
-                "at": event.at,
-                "to": event.to.map_or("unreviewed", State::value),
+                "at": (event.at > 0).then_some(event.at / 1000),
+                "to": event.to.value(),
                 "note": event.note,
-                "finding": finding_label(site, &event.key),
+                "finding": finding_label(site, key),
             })
         })
         .collect();

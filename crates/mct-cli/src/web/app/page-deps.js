@@ -1,8 +1,9 @@
 // 07 · Dependencias: graph | tree | table over verified import edges
-import { h, append, clear, api, isAbort, patchQuery, onQuery, parseHash, listParam, fmt, hrefTo, forget } from "./core.js";
+import { h, append, clear, api, isAbort, patchQuery, onQuery, parseHash, listParam, fmt, hrefTo, forget, copy } from "./core.js";
 import { icon, pageHead, segmented, badge, dataTable, filterGroup, note, loading, errorBox, emptyState, selectBox, drawerButton, activeChips } from "./components.js";
 import { graphView } from "./graph.js";
 import { t } from "./i18n.js";
+import { listText } from "./ai.js";
 
 const nodeColor = (node, focus) => (node.id === focus ? "var(--primary)" : node.cycle ? "var(--danger)" : node.unused ? "var(--text-3)" : node.importers > 0 ? "var(--success)" : "var(--info)");
 
@@ -11,7 +12,7 @@ export async function render({ root, params: initial, summary }) {
   const drawer = { current: null };
   let graph = null, data = null;
   const q = () => parseHash().params;
-  const queryFor = (params) => ({ level: params.get("level") || "dir", group: params.get("group") || 2, focus: params.get("focus") || "", depth: params.get("depth") || 2, language: listParam(params, "language") });
+  const queryFor = (params) => ({ level: params.get("level") || "dir", group: params.get("group") || 2, focus: params.get("focus") || "", depth: params.get("depth") || 2, language: listParam(params, "language"), all: params.get("all") || "" });
   const clearAll = () => { forget("dependencias"); patchQuery({ level: null, group: null, focus: null, depth: null, only: null, language: null }); };
 
   function drawFilters(params) {
@@ -109,8 +110,19 @@ export async function render({ root, params: initial, summary }) {
     try {
       data = await api("dependencies", queryFor(params), "deps");
       clear(host);
-      if (data.truncated) host.append(note(t("deps.truncated", { shown: data.nodes.length, total: data.totalNodes }), "warn", "alert"), h("div", { style: { height: "10px" } }));
-      if (data.cycles.length) host.append(note(t("deps.cycles", { n: data.cycles.length }), "warn", "alert"), h("div", { style: { height: "10px" } }));
+      const onlyCycles = (params.get("only") || "").split(",").filter(Boolean).join() === "cycles" && !params.get("focus");
+      if (data.truncated && !onlyCycles) host.append(note(t("deps.truncated", { shown: data.nodes.length, total: data.totalNodes }), "warn", "alert"), h("button", { class: "btn sm", style: { marginTop: "8px" }, onclick: () => patchQuery({ all: 1 }) }, t("graph.showAll", { n: fmt(data.totalNodes) })), h("div", { style: { height: "10px" } }));
+      if (data.cycles.length) {
+        // The count is for the whole project, so the banner offers the way to see every cycle at once.
+        const only = (params.get("only") || "").split(",").filter(Boolean);
+        const showing = only.length === 1 && only[0] === "cycles" && !params.get("focus");
+        const toggle = showing
+          ? h("button", { class: "btn sm", onclick: () => patchQuery({ only: null }) }, t("deps.showAll"))
+          : h("button", { class: "btn sm", onclick: () => patchQuery({ focus: null, only: "cycles", view: null }) }, t("deps.showCycles", { n: data.cycles.length }));
+        host.append(note(h("span", { class: "row" }, t("deps.cycles", { n: data.cycles.length }), showing && t("deps.cyclesFiles", { files: data.nodes.length }), toggle), "warn", "alert"), h("div", { style: { height: "10px" } }));
+      }
+      host.append(h("div", { class: "row", style: { justifyContent: "flex-end", margin: "0 0 8px" } },
+        h("button", { class: "btn sm", onclick: () => copy(listText({ title: t("deps.title"), total: data.totalNodes, columns: [(r) => r.id, (r) => `imports ${r.imports}`, (r) => `importers ${r.importers}`, (r) => (r.cycle ? "cycle" : "")], rows: data.nodes, idKey: "id" }), t("ai.listCopied")) }, icon("copy", 14), t("ai.copyList"))));
       if (view === "tree") drawTree(params); else if (view === "table") drawTable(params); else drawGraph(params);
     } catch (error) { if (!isAbort(error)) clear(host).append(errorBox(error, () => refresh(params))); }
   }

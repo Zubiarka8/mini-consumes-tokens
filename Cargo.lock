@@ -1362,7 +1362,6 @@ dependencies = [
  "form_urlencoded",
  "getrandom 0.3.4",
  "git2",
- "hmac-sha256",
  "mct-core",
  "mct-index",
  "mct-lang-bash",
@@ -1421,12 +1420,16 @@ dependencies = [
 name = "mct-index"
 version = "0.2.0"
 dependencies = [
+ "form_urlencoded",
  "git2",
  "globset",
+ "hmac-sha256",
  "mct-core",
+ "memchr",
  "rusqlite",
  "rusqlite_migration",
  "serde_json",
+ "tempfile",
  "thiserror",
  "toml",
  "walkdir",
