@@ -52,3 +52,22 @@
   .workbench.compare-mode, .workbench.compare-mode.inspect, .workbench.compare-mode.nofilter.inspect { grid-template-columns: minmax(0, 1fr); }
 }
 .workbench.compare-mode > .inspector-col { display: none; }
+
+/* ---------- Actions, second take: segmented group, tooltips, hover reveal ---------- */
+.t td.sticky-end > .row { gap: 0; padding: 2px; border: 1px solid var(--border); border-radius: 10px; background: var(--elevated); width: max-content; margin-left: auto; }
+.t td.sticky-end .btn.sm { border: 0; border-radius: 8px; background: transparent; position: relative; color: var(--text-2); }
+.t td.sticky-end .btn.sm:hover, .t td.sticky-end .btn.sm:focus-visible { background: var(--primary-soft); color: var(--text); }
+.t td.sticky-end .btn.sm:last-child:not(:only-child) { margin-left: 2px; }
+.t td.sticky-end .btn.sm:last-child:not(:only-child):hover { background: rgba(240, 82, 82, 0.15); color: var(--danger); border: 0; }
+.t td.sticky-end .btn.sm[aria-label]:hover::after, .t td.sticky-end .btn.sm[aria-label]:focus-visible::after {
+  content: attr(aria-label); position: absolute; right: 0; bottom: calc(100% + 6px); z-index: 20; padding: 5px 9px; border-radius: 8px;
+  background: var(--bg); color: var(--text); border: 1px solid var(--border); box-shadow: var(--shadow); font-size: 12px; font-weight: 500; white-space: nowrap; pointer-events: none; }
+@media (hover: hover) and (min-width: 1025px) {
+  .t td.sticky-end > .row { opacity: 0.35; transition: opacity 0.12s; }
+  .t tbody tr:hover td.sticky-end > .row, .t tbody tr[aria-selected="true"] td.sticky-end > .row, .t td.sticky-end > .row:focus-within { opacity: 1; }
+}
+.t tbody tr:first-child td.sticky-end .btn.sm[aria-label]:hover::after { bottom: auto; top: calc(100% + 6px); }
+
+/* Decision bar pinned to the bottom of the detail panel */
+.inspector-col.sticky > .inspector { position: relative; }
+.inspector .section > .btn:not(.primary) { position: sticky; bottom: 8px; z-index: 5; box-shadow: 0 6px 18px -6px rgba(0, 0, 0, 0.6); background: var(--surface); width: 100%; justify-content: center; padding-block: 10px; }
