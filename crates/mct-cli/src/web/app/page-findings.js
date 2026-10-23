@@ -1,8 +1,7 @@
 // 03 · Duplicados, 05 · Código muerto and 07 · Revisiones share one findings workbench.
 import { h, clear, api, isAbort, patchQuery, onQuery, parseHash, listParam, fmt, ago, hrefTo, review, toast, confirmDialog, noteDialog, copy, forget, store, dateTime } from "./core.js";
 import { icon, pageHead, tabsBar, dataTable, pager, badge, stateBadge, STATE_ORDER, stateLabel, searchBox, filterGroup, activeChips, noResults, loading, errorBox, note,
-  drawerButton, segmented, emptyState } from "./components.js";
-import { hasKey } from "./i18n.js";
+  drawerButton, segmented, emptyState, selectBox } from "./components.js";
 import { codeBlock, openSource, compareView, normalizer } from "./code.js";
 import { t } from "./i18n.js";
 import { duplicateText, deadText, duplicateTemplate, deadTemplate, listText, memberLabel } from "./ai.js";
@@ -25,8 +24,6 @@ const BUILTIN_PRESETS = [
 const DECISIONS = ["in-review", "confirmed", "false-positive", "dismissed", "resolved"];
 const DECIDED = ["confirmed", "false-positive", "resolved", "dismissed"];
 const actionsFor = (state) => [...DECISIONS.filter((d) => d !== state), ...(state === "unreviewed" ? [] : ["reopen"])];
-const actionLabel = (target, type) => (hasKey(`review.action.${target}.${type}`) ? t(`review.action.${target}.${type}`) : t(`review.action.${target}`));
-const ACTION_STYLE = { "in-review": "", confirmed: "danger", "false-positive": "warn", dismissed: "", resolved: "primary", reopen: "" };
 
 export const findingHref = (item) => hrefTo(item.type === "duplicate" ? "duplicados" : "codigo-muerto", { key: item.key });
 
@@ -57,13 +54,15 @@ export function reviewPanel(item, onChange) {
       } else toast(t("review.failed", { message: error.message }), "err");
     }
   };
-  const actions = item.readOnly ? [] : actionsFor(item.state).map((target) => h("button", { class: `btn sm ${ACTION_STYLE[target]}`, onclick: () => apply(target) }, actionLabel(target, item.type)));
+  // One list with every other decision; picking one applies it (after any confirmation) and the list resets.
+  const picker = item.readOnly ? null : selectBox({ label: t("review.change"), cls: "wide", value: "",
+    options: [["", t("review.choose")], ...actionsFor(item.state).map((target) => [target, target === "reopen" ? t("review.reopenOption") : stateLabel(target, item.type)])],
+    onChange: (target) => { if (target) apply(target).finally(() => { picker.value = ""; }); } });
   return h("div", { class: "section" }, h("h4", {}, t("review.title")),
     h("div", { class: "decision-now" }, h("span", { class: "muted small" }, t("review.current")), stateBadge(item.state, item.type), item.updated ? h("span", { class: "muted small" }, `${t("review.updated")} ${ago(item.updated)}`) : null),
     item.state === "needs-reevaluation" ? h("p", { class: "muted small" }, t("review.previous", { state: stateLabel(item.previousState, item.type) })) : null,
     item.readOnly ? h("p", { class: "small" }, t("review.readOnly")) : h("label", { class: "field" }, t("review.noteOptional"), noteField),
-    actions.length ? h("p", { class: "muted small", style: { margin: "10px 0 6px" } }, DECIDED.includes(item.state) ? t("review.change") : t("review.decide")) : null,
-    h("div", { class: "decisions" }, actions),
+    picker ? h("label", { class: "field", style: { marginTop: "10px" } }, DECIDED.includes(item.state) ? t("review.change") : t("review.decide"), picker) : null,
     h("p", { class: "muted small", style: { marginTop: "8px" } }, t("review.reviewerNote")));
 }
 

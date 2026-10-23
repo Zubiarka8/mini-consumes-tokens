@@ -420,3 +420,4 @@ dialog .dlg footer { display: flex; justify-content: flex-end; gap: 8px; }
 .choice-btn { gap: 4px; }
 
 .btn svg { flex-shrink: 0; }
+.inspector .field .select { width: 100%; }
