@@ -1,7 +1,7 @@
 // 10 · Configuración: theme, local server facts, backend capability matrix, local data
 import { h, clear, store, applyTheme, toast, confirmDialog, dateTime, forget } from "./core.js";
 import { icon, pageHead, badge, note } from "./components.js";
-import { t } from "./i18n.js";
+import { t, getLang, setLang, LANGUAGES } from "./i18n.js";
 
 const CAPABILITIES = [
   ["symbols", () => true], ["duplicates", (c) => c.duplicates], ["deadCode", (c) => c.deadCode], ["reviews", (c) => c.reviews], ["history", (c) => c.history],
@@ -20,7 +20,7 @@ export function render({ root, meta }) {
       h("section", { class: "card" }, h("h2", {}, t("settings.appearance")),
         h("div", { role: "radiogroup", "aria-label": t("theme.label"), class: "stack" }, [["dark", "theme.dark"], ["light", "theme.light"], ["system", "theme.system"]].map(([id, label]) =>
           h("label", { class: "opt" }, h("input", { type: "radio", name: "theme", checked: theme === id, onchange: () => { store.set("theme", id); applyTheme(id); } }), t(label)))),
-        h("label", { class: "field", style: { marginTop: "12px" } }, t("settings.language"), h("select", { class: "select", disabled: true }, h("option", {}, "Español (España)"))),
+        h("label", { class: "field", style: { marginTop: "12px" } }, t("settings.language"), h("select", { class: "select", onchange: (event) => setLang(event.target.value) }, LANGUAGES.map(([id, label]) => h("option", { value: id, selected: id === getLang() }, label)))),
         h("p", { class: "muted small" }, t("settings.languageNote"))),
       h("section", { class: "card" }, h("h2", {}, t("settings.server")),
         h("dl", { class: "kv" }, h("dt", {}, t("header.repo")), h("dd", {}, meta.project), h("dt", {}, t("settings.snapshot")), h("dd", {}, dateTime(meta.generated)),

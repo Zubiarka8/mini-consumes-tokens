@@ -2,6 +2,7 @@
 import { h, fmt, ago, shortDate, hrefTo, store } from "./core.js";
 import { icon, pageHead, metricCard, selectBox, stateBadge, STATES, STATE_ORDER, stateLabel, emptyState, badge } from "./components.js";
 import { lineChart, donut, hbars } from "./charts.js";
+import { openIssues } from "./issues.js";
 import { t } from "./i18n.js";
 
 const DAY = 86400;
@@ -62,8 +63,8 @@ export function render({ root, summary, meta }) {
             h("dt", {}, t("dash.healthIndex")), h("dd", {}, badge(t(`status.${meta.indexing.state}`), meta.indexing.state === "ready" ? "success" : meta.indexing.state === "failed" ? "danger" : "warning")),
             h("dt", {}, t("dash.healthCoverage")), h("dd", {}, summary.duplicates.complete ? t("dash.coverageFull") : t("dash.coveragePartial", { n: summary.duplicates.skipped })),
             h("dt", {}, t("dash.healthPending")), h("dd", {}, h("a", { href: hrefTo("revisiones", { state: "unreviewed,in-review" }) }, fmt(pending))),
-            h("dt", {}, t("dash.healthFailed")), h("dd", {}, fmt(summary.health.readFailures)),
-            h("dt", {}, t("dash.healthSyntax")), h("dd", {}, fmt(summary.health.syntaxErrors))),
+            h("dt", {}, t("dash.healthFailed")), h("dd", {}, summary.health.readFailures > 0 ? h("button", { class: "btn sm", onclick: () => openIssues("read", meta.indexing.readIssues || []) }, fmt(summary.health.readFailures)) : fmt(summary.health.readFailures)),
+            h("dt", {}, t("dash.healthSyntax")), h("dd", {}, summary.health.syntaxErrors > 0 ? h("button", { class: "btn sm", onclick: () => openIssues("syntax", meta.indexing.syntaxIssues || []) }, fmt(summary.health.syntaxErrors)) : fmt(summary.health.syntaxErrors))),
           h("p", { class: "muted small", style: { marginTop: "12px" } }, t("dash.noScore")))));
   };
   root.append(pageHead(t("dash.title"), t("dash.subtitle"), [
