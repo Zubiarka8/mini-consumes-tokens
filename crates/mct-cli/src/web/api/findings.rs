@@ -218,6 +218,9 @@ pub(super) fn list(site: &Site, params: &Params) -> Value {
     json!({ "total": total, "page": page, "size": size, "items": items, "facets": facets })
 }
 
+/// Lines of member code sent with one duplicate group; members past it fall back to `excerpt`.
+const MEMBER_CODE_BUDGET: usize = 1500;
+
 pub(super) fn detail(site: &Site, params: &Params) -> Result<Value, (u16, &'static str)> {
     let key = text(params, "key");
     if let Some(id) = site
@@ -227,12 +230,18 @@ pub(super) fn detail(site: &Site, params: &Params) -> Result<Value, (u16, &'stat
     {
         let group = &site.duplicates.groups[id];
         let mut row = duplicate_row(site, id);
+        let mut budget = MEMBER_CODE_BUDGET;
         row["members"] = group
             .members
             .iter()
             .map(|m| {
+                // The full body, so an assistant can compare the copies; `excerpt` is only the start.
+                let body = code::read_lines(site, &m.path, m.start_line as usize, m.end_line as usize)
+                    .filter(|(lines, _)| lines.len() <= budget);
+                budget -= body.as_ref().map_or(0, |(lines, _)| lines.len());
                 json!({ "path": m.path, "start": m.start_line, "end": m.end_line, "name": m.symbol_name,
-                        "kind": m.symbol_kind, "lines": m.line_count, "tokens": m.token_count, "excerpt": m.excerpt })
+                        "kind": m.symbol_kind, "lines": m.line_count, "tokens": m.token_count, "excerpt": m.excerpt,
+                        "code": body.as_ref().map(|(lines, _)| lines), "codeTruncated": body.as_ref().is_some_and(|(_, cut)| *cut) })
             })
             .collect();
         row["reasons"] = group
