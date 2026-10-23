@@ -19,9 +19,14 @@ export function deadText(item) {
   return out.join("\n");
 }
 
-export function symbolText(s, code) {
+export function symbolText(s, data) {
   const out = [`Symbol — ${s.parent ? `${s.parent}::` : ""}${s.name} (${s.kind})`, `id: ${s.id}`, `${s.path}:${range(s.line, s.endLine)}`, `language: ${s.language} · references: ${s.refs}`];
-  if (code) out.push("", fence(code.lines, s.language));
+  for (const group of data.duplicates || []) {
+    const others = group.members.filter((m) => !(m.path === s.path && m.start === s.line));
+    out.push("", `Duplicated in ${others.length} other places (group ${group.key}, ${group.verdict}, ${group.lines} lines):`, ...others.map((m) => `- ${memberLabel(m)}`));
+  }
+  if (data.dead) out.push("", `Dead-code candidate (key ${data.dead.key}): no known references, heuristic, verify before deleting`);
+  if (data.code) out.push("", fence(data.code.lines, s.language));
   return out.join("\n");
 }
 
