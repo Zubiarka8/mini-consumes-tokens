@@ -30,6 +30,40 @@ export function symbolText(s, data) {
   return out.join("\n");
 }
 
+// "Plantilla para IA": the same evidence as the copy buttons, preceded by a task and its rules, so the
+// text can be pasted into an assistant as it is. Nothing here asks the assistant to change files unprompted.
+const RULES = ["Rules:", "- The indexer is a heuristic: its verdicts and counts are hints, not proof. Check the code yourself.", "- Paths and line numbers are exact. Read the files before judging.", "- Do not edit anything. Answer first and wait for my confirmation."];
+const template = (task, steps, evidence) => [`# Task: ${task}`, "", ...steps.map((step, index) => `${index + 1}. ${step}`), "", ...RULES, "", "## Evidence", "", evidence].join("\n");
+
+export const duplicateTemplate = (item) => template(`decide whether this duplicate-code group should be merged`, [
+  "Read every copy listed below and compare them line by line.",
+  "Say whether it is real duplication worth removing, or a false positive (tests, generated code, parallel implementations that should stay separate).",
+  "If it is real, propose one shared function or module: its name, the file it belongs in, and each copy that must call it.",
+  "Answer with: verdict (merge / keep / unsure), up to 5 lines of reasoning, and the proposed change.",
+], duplicateText(item));
+
+export const deadTemplate = (item) => template(`check whether this dead-code candidate can be deleted`, [
+  "Search the whole repository for the symbol name, including tests, macros, re-exports, string and reflection uses and other languages.",
+  "The indexer found no references by name, which misses dynamic or public-API uses. Say what could still be using it.",
+  "Answer with: verdict (delete / keep / unsure), the evidence you found, and the exact lines to remove if delete.",
+], deadText(item));
+
+export function symbolTemplate(s, data) {
+  if (data.duplicates?.length) return template(`decide whether this symbol's duplicated code should be merged`, [
+    "Read this symbol and every other copy listed under 'Duplicated in', and compare them.",
+    "Say whether it is real duplication or a false positive, and if real, propose one shared function with the call sites to change.",
+    "Answer with: verdict (merge / keep / unsure), up to 5 lines of reasoning, and the proposed change.",
+  ], symbolText(s, data));
+  if (data.dead) return template(`check whether this symbol can be deleted`, [
+    "Search the whole repository for the name, including tests, macros, re-exports and dynamic uses.",
+    "Answer with: verdict (delete / keep / unsure), the evidence you found, and the exact lines to remove if delete.",
+  ], symbolText(s, data));
+  return template(`explain this symbol and its impact`, [
+    "Explain what it does and who depends on it. 'references' counts matches by name, so same-named symbols share a number.",
+    "List what could break if its behaviour changed.",
+  ], symbolText(s, data));
+}
+
 // One line per row, then the ids on their own line so they can be pasted into a query.
 export function listText({ title, total, columns, rows, idKey }) {
   const head = `${title} — ${rows.length} of ${total} rows (this page)`;

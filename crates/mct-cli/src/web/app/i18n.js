@@ -110,7 +110,7 @@ const es = {
   // deps
   "deps.title": "Dependencias", "deps.subtitle": "Relaciones de importación verificadas entre módulos y archivos.", "deps.views": "Vista", "deps.view.graph": "Grafo", "deps.view.tree": "Árbol", "deps.view.table": "Tabla",
   "deps.level": "Nivel", "deps.levelDir": "Módulos", "deps.levelFile": "Archivos", "deps.group": "Agrupar por", "deps.groupN": "{n} niveles de carpeta", "deps.focusGroup": "Módulo seleccionado", "deps.noFocus": "Pulsa un nodo y elige «Enfocar» para ver solo su entorno.",
-  "ai.copy": "Copiar para IA", "ai.copied": "Copiado para IA", "ai.copyList": "Copiar lista", "ai.listCopied": "Lista copiada con sus identificadores", "ai.copyCode": "Copiar código", "ai.codeCopied": "Código copiado", "deps.cyclesFiles": "{files} nodos implicados.",
+  "ai.copy": "Copiar para IA", "ai.copied": "Copiado para IA", "ai.copyList": "Copiar lista", "ai.listCopied": "Lista copiada con sus identificadores", "ai.template": "Plantilla para IA", "ai.templateCopied": "Plantilla copiada: pégala en la IA", "ai.copyCode": "Copiar código", "ai.codeCopied": "Código copiado", "deps.cyclesFiles": "{files} nodos implicados.",
   "deps.showCycles": "Ver los {n} ciclos", "deps.showAll": "Ver todo el grafo",
   "deps.depth": "Profundidad", "deps.clearFocus": "Quitar foco", "deps.show": "Mostrar", "deps.onlyCycles": "Solo ciclos", "deps.onlyUnused": "Solo sin uso (nadie los importa)",
   "deps.unsupported": "Solo hay aristas de importación. Las llamadas y referencias entre símbolos no se dibujan aquí porque no se han verificado a nivel de archivo.",
