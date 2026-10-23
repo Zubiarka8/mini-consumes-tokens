@@ -1,6 +1,6 @@
 // Application shell: sidebar, header, global search, theme, notifications and page routing.
 import { h, clear, api, setCsrf, store, parseHash, hrefTo, go, PAGES, applyTheme, ago, dateTime, toast, fmt } from "./core.js";
-import { icon, loading, errorBox } from "./components.js";
+import { icon, loading, errorBox, segmented } from "./components.js";
 import { createGlobalSearch, pageCommands } from "./palette.js";
 import { openIssues } from "./issues.js";
 import { t, getLang, setLang, LANGUAGES } from "./i18n.js";
@@ -16,7 +16,7 @@ const THEMES = [["dark", "theme.dark", "moon"], ["light", "theme.light", "sun"],
 const app = document.getElementById("app");
 const ctx = { meta: null, summary: null, refresh: () => boot(true) };
 let cleanup = null;
-let shell, main, nav, status, bell, notices = [];
+let shell, main, nav, status, bell, prefsButton, notices = [];
 
 function indexingState(meta) {
   const map = { ready: ["ok", "status.ready"], stale: ["warn", "status.stale"], failed: ["bad", "status.failed"], unknown: ["info", "status.unknown"] };
@@ -41,7 +41,7 @@ function computeNotices(meta, summary) {
 function applyStatus() {
   const [tone, label] = indexingState(ctx.meta);
   clear(status).append(h("span", { class: `dot ${tone}` }), h("span", {}, t(label)),
-    ctx.meta.indexing.lastIndexedAt && h("span", { class: "muted hide-lg", title: dateTime(ctx.meta.indexing.lastIndexedAt) }, `· ${ago(ctx.meta.indexing.lastIndexedAt)}`));
+    ctx.meta.indexing.lastIndexedAt && h("span", { class: "muted hide-sm", title: dateTime(ctx.meta.indexing.lastIndexedAt) }, `· ${ago(ctx.meta.indexing.lastIndexedAt)}`));
   status.title = t("status.tooltip");
   bell.querySelector(".count")?.remove();
   if (notices.length) bell.append(h("span", { class: "count", style: { position: "absolute", top: "4px", right: "4px", background: "var(--danger)", color: "#fff", borderRadius: "999px", fontSize: "10px", padding: "0 5px" } }, notices.length));
@@ -68,8 +68,27 @@ function notificationsMenu() {
   setTimeout(() => document.addEventListener("click", away), 0);
 }
 
-const languageSelect = () => h("select", { class: "select lang-select", "aria-label": t("header.language"), title: t("header.language"), onchange: (event) => setLang(event.target.value) },
-  LANGUAGES.map(([id, label]) => h("option", { value: id, selected: id === getLang(), title: label }, id.toUpperCase())));
+const closeOnOutside = (menu, opener) => {
+  const away = (event) => { if (event.type === "keydown" ? event.key === "Escape" : !menu.contains(event.target) && !opener.contains(event.target)) { menu.remove(); document.removeEventListener("click", away); document.removeEventListener("keydown", away); } };
+  setTimeout(() => { document.addEventListener("click", away); document.addEventListener("keydown", away); }, 0);
+};
+
+/** Language, theme, refresh and settings in one place, so the header keeps only what changes: status and notices. */
+function preferencesMenu() {
+  const existing = document.querySelector(".pop.prefs");
+  if (existing) { existing.remove(); return; }
+  const section = (label, control) => h("div", { class: "pop-sec" }, h("span", { class: "muted small" }, label), control);
+  const menu = h("div", { class: "pop prefs", role: "dialog", "aria-label": t("prefs.title"), style: { right: "12px", top: "56px", width: "min(92vw, 300px)" } },
+    h("strong", {}, t("prefs.title")),
+    section(t("settings.language"), segmented({ label: t("header.language"), value: getLang(), options: LANGUAGES, onSelect: setLang })),
+    section(t("prefs.theme"), segmented({ label: t("theme.label"), value: store.get("theme", "dark"), options: THEMES.map(([id, key]) => [id, t(key)]), onSelect: (id) => { setTheme(id); menu.remove(); preferencesMenu(); } })),
+    h("div", { class: "pop-sec" },
+      h("button", { class: "btn ghost", onclick: async () => { menu.remove(); await boot(true); toast(t("header.refreshed"), "ok", 7000); } }, icon("refresh", 16), t("header.refresh")),
+      h("a", { class: "btn ghost", href: hrefTo("configuracion"), onclick: () => menu.remove() }, icon("gear", 16), t("nav.configuracion"))),
+    h("p", { class: "muted small pop-note" }, icon("lock", 12), " ", t("header.localTip")));
+  document.querySelector(".header").append(menu);
+  closeOnOutside(menu, prefsButton);
+}
 
 function buildShell() {
   document.querySelector(".skip").textContent = t("common.skip");
@@ -80,8 +99,7 @@ function buildShell() {
   const search = createGlobalSearch({ commands: () => [...pageCommands(), { title: t("palette.toggleTheme"), icon: "sun", run: cycleTheme }, { title: t("palette.toggleSidebar"), icon: "panel", run: toggleSidebar }, { title: t("palette.workspace"), icon: "layers", run: () => go("espacio") }] });
   ctx.search = search;
   const toggleSidebar = () => { shell.classList.toggle("collapsed"); store.set("sidebar-collapsed", shell.classList.contains("collapsed")); };
-  const themeButton = h("button", { class: "icon-btn", "aria-label": t("theme.label"), title: t("theme.label"), onclick: cycleTheme }, icon("moon"));
-  const refresh = h("button", { class: "icon-btn hide-sm", "aria-label": t("header.refresh"), title: t("header.refresh"), onclick: async () => { await boot(true); toast(t("header.refreshed"), "ok", 7000); } }, icon("refresh"));
+  prefsButton = h("button", { class: "icon-btn", "aria-label": t("prefs.title"), title: t("prefs.title"), onclick: preferencesMenu }, icon("gear"));
   shell = h("div", { class: `shell ${collapsed ? "collapsed" : ""}` },
     h("aside", { class: "sidebar" },
       h("a", { class: "brand", href: hrefTo("panel") }, h("span", { class: "logo" }, icon("bolt", 17)), h("span", {}, "MCT")),
@@ -92,12 +110,9 @@ function buildShell() {
     h("header", { class: "header" },
       h("div", { class: "header-left" },
         h("button", { class: "icon-btn menu-btn", "aria-label": t("nav.open"), onclick: () => shell.classList.add("open") }, icon("menu")),
-        h("div", { class: "project hide-sm" }, h("span", { id: "project-name" }), h("small", { class: "hide-lg" }, t("header.repo"))),
-        h("a", { class: "status-pill hide-lg", href: hrefTo("espacio"), title: t("header.workspaceTip") }, icon("layers", 14), t("header.workspaceCode"))),
+        h("div", { class: "project hide-sm", title: t("header.repo") }, h("span", { id: "project-name" }))),
       h("div", { class: "header-center" }, search.el),
-      h("div", { class: "header-right" }, status, refresh, bell, languageSelect(), themeButton,
-        h("a", { class: "icon-btn hide-sm", href: hrefTo("configuracion"), "aria-label": t("nav.configuracion"), title: t("nav.configuracion") }, icon("gear")),
-        h("span", { class: "status-pill hide-lg", title: t("header.localTip") }, icon("lock", 13), t("header.local")))),
+      h("div", { class: "header-right" }, status, bell, prefsButton)),
     h("div", { class: "scrim", onclick: () => shell.classList.remove("open") }),
     (main = h("main", { class: "main", id: "contenido" })));
   clear(app).append(shell, h("div", { class: "toasts", "aria-live": "polite" }));
