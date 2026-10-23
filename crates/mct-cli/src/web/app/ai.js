@@ -5,10 +5,17 @@ const fence = (lines, language) => ["```" + (language || ""), ...(lines || []), 
 /** `path:start-end (name)`: where one copy lives and which function or method it is. */
 export const memberLabel = (m) => `${m.path}:${range(m.start, m.end)}${m.name ? ` (${m.name})` : ""}`;
 
+/** The whole body when the server sent it; otherwise the short excerpt, with a note saying what is missing. */
+function memberBody(m, language) {
+  if (m.code && !m.codeTruncated) return fence(m.code, language);
+  const why = m.code ? "body cut at the size limit" : "body not included (size budget); only the start is shown";
+  return [fence(m.code || m.excerpt, language), `(${why}: read the rest at ${m.path}:${range(m.start, m.end)})`].join("\n");
+}
+
 export function duplicateText(item) {
   const out = [`Duplicate code group — ${item.title}`, `key: ${item.key}`, `language: ${item.language} · verdict: ${item.verdict} · ${item.lines} lines, ${item.tokens} tokens · state: ${item.state}`, "",
     `The same code appears in ${item.members.length} places:`, ...item.members.map((m) => `- ${memberLabel(m)}`), ""];
-  item.members.forEach((m, index) => out.push(`### Member ${index + 1}: ${m.name}`, `${m.path}:${range(m.start, m.end)}`, fence(m.excerpt, item.language), ""));
+  item.members.forEach((m, index) => out.push(`### Copy ${index + 1} of ${item.members.length}: ${memberLabel(m)}`, memberBody(m, item.language), ""));
   return out.join("\n").trimEnd();
 }
 
