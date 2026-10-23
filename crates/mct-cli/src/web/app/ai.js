@@ -5,18 +5,44 @@ const fence = (lines, language) => ["```" + (language || ""), ...(lines || []), 
 /** `path:start-end (name)`: where one copy lives and which function or method it is. */
 export const memberLabel = (m) => `${m.path}:${range(m.start, m.end)}${m.name ? ` (${m.name})` : ""}`;
 
-/** The whole body when the server sent it; otherwise the short excerpt, with a note saying what is missing. */
-function memberBody(m, language) {
-  if (m.code && !m.codeTruncated) return fence(m.code, language);
-  const why = m.code ? "body cut at the size limit" : "body not included (size budget); only the start is shown";
-  return [fence(m.code || m.excerpt, language), `(${why}: read the rest at ${m.path}:${range(m.start, m.end)})`].join("\n");
+const whole = (m) => (m.code && !m.codeTruncated ? m.code : null);
+
+/** The lines of `other` that differ from `base` as `line n: old → new`; null when the shapes differ too much to compare by line. */
+function lineChanges(base, other) {
+  if (base.length !== other.length) return null;
+  const changes = [];
+  base.forEach((line, index) => { if (line !== other[index]) changes.push(`  line ${index + 1}: \`${line.trim()}\` → \`${other[index].trim()}\``); });
+  return changes;
+}
+
+/** Copies with the same body are printed once with all their locations; a variant says only what differs. */
+function copySections(item) {
+  const variants = new Map(), partial = [];
+  for (const m of item.members) {
+    const body = whole(m);
+    if (!body) { partial.push(m); continue; }
+    const key = body.join("\n");
+    if (!variants.has(key)) variants.set(key, { body, members: [] });
+    variants.get(key).members.push(m);
+  }
+  const out = [], list = [...variants.values()];
+  list.forEach((variant, index) => {
+    const count = variant.members.length, places = variant.members.map((m) => `- ${memberLabel(m)}`);
+    if (index === 0) out.push(`### Code${count > 1 ? ` (identical in ${count} copies)` : ""}`, ...places, fence(variant.body, item.language), "");
+    else {
+      const changes = lineChanges(list[0].body, variant.body);
+      out.push(`### Variant${count > 1 ? ` (identical in ${count} copies)` : ""} — ${changes ? "differs from the code above in:" : "different code:"}`, ...places,
+        ...(changes ? changes : [fence(variant.body, item.language)]), "");
+    }
+  });
+  partial.forEach((m) => out.push(`### ${memberLabel(m)} — ${m.code ? "body cut at the size limit" : "body not included (size budget)"}; only the start is shown, read the rest at ${m.path}:${range(m.start, m.end)}`, fence(m.code || m.excerpt, item.language), ""));
+  return out;
 }
 
 export function duplicateText(item) {
   const out = [`Duplicate code group — ${item.title}`, `key: ${item.key}`, `language: ${item.language} · verdict: ${item.verdict} · ${item.lines} lines, ${item.tokens} tokens · state: ${item.state}`, "",
-    `The same code appears in ${item.members.length} places:`, ...item.members.map((m) => `- ${memberLabel(m)}`), ""];
-  item.members.forEach((m, index) => out.push(`### Copy ${index + 1} of ${item.members.length}: ${memberLabel(m)}`, memberBody(m, item.language), ""));
-  return out.join("\n").trimEnd();
+    `The same code appears in ${item.members.length} places.`, ""];
+  return [...out, ...copySections(item)].join("\n").trimEnd();
 }
 
 export function deadText(item) {
