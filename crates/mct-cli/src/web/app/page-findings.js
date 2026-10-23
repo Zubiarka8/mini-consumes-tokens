@@ -4,7 +4,7 @@ import { icon, pageHead, tabsBar, dataTable, pager, badge, stateBadge, STATE_ORD
   drawerButton, segmented, emptyState } from "./components.js";
 import { codeBlock, openSource, compareView, normalizer } from "./code.js";
 import { t } from "./i18n.js";
-import { duplicateText, deadText, listText, memberLabel } from "./ai.js";
+import { duplicateText, deadText, duplicateTemplate, deadTemplate, listText, memberLabel } from "./ai.js";
 
 // Everything that still needs a person: also findings whose code changed
 // after a decision, and resolved findings the detector still reports.
@@ -76,7 +76,8 @@ function duplicateDetail(item, onChange, setView) {
       h("button", { class: "icon-btn", "aria-label": t("common.close"), onclick: () => patchQuery({ key: null, view: null }) }, icon("x"))),
     note(t("dup.caution"), "warn", "alert"),
     h("div", { class: "row", style: { margin: "10px 0" } }, h("button", { class: "btn primary sm", onclick: () => setView("side") }, icon("split", 14), t("dup.compare")),
-      h("button", { class: "btn sm", onclick: () => copy(duplicateText(item), t("ai.copied")) }, icon("copy", 14), t("ai.copy"))),
+      h("button", { class: "btn sm", onclick: () => copy(duplicateText(item), t("ai.copied")) }, icon("copy", 14), t("ai.copy")),
+      h("button", { class: "btn sm", onclick: () => copy(duplicateTemplate(item), t("ai.templateCopied")) }, icon("copy", 14), t("ai.template"))),
     h("div", { class: "section" }, h("h4", {}, t("dup.evidence")),
       h("dl", { class: "kv" },
         h("dt", {}, t("dup.method")), h("dd", {}, t("dup.methodTokens", { mode: item.method?.normalization || "—" })),
@@ -108,7 +109,8 @@ function deadDetail(item, onChange) {
     h("div", { class: "row", style: { marginBottom: "10px" } },
       h("button", { class: "btn sm", onclick: () => openSource({ path: s.path, line: s.line, language: s.language }) }, icon("external", 14), t("code.openSource")),
       h("button", { class: "btn sm", onclick: () => copy(`${s.path}:${s.line}${s.endLine ? `-${s.endLine}` : ""}`, t("common.pathCopied")) }, icon("copy", 14), t("code.copyPath")),
-      h("button", { class: "btn sm", onclick: () => copy(deadText(item), t("ai.copied")) }, icon("copy", 14), t("ai.copy"))),
+      h("button", { class: "btn sm", onclick: () => copy(deadText(item), t("ai.copied")) }, icon("copy", 14), t("ai.copy")),
+      h("button", { class: "btn sm", onclick: () => copy(deadTemplate(item), t("ai.templateCopied")) }, icon("copy", 14), t("ai.template"))),
     d.code ? codeBlock({ lines: d.code.lines, start: d.code.start, language: s.language, maxHeight: "240px", label: t("code.preview") }) : null,
     h("div", { class: "section" }, h("h4", {}, t("dead.why")), h("p", {}, t("dead.whyText", { name: item.title }))),
     h("div", { class: "section" }, h("h4", {}, t("dead.limits")), h("ul", { style: { margin: 0, paddingLeft: "18px" } }, ["byName", "dynamic", "macros", "ffi", "public", "tests", "generated", "config"].map((k) => h("li", {}, t(`dead.limit.${k}`))))),
