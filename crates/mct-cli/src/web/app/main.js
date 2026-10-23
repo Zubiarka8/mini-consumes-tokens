@@ -2,7 +2,8 @@
 import { h, clear, api, setCsrf, store, parseHash, hrefTo, go, PAGES, applyTheme, ago, dateTime, toast, fmt } from "./core.js";
 import { icon, loading, errorBox } from "./components.js";
 import { createGlobalSearch, pageCommands } from "./palette.js";
-import { t } from "./i18n.js";
+import { openIssues } from "./issues.js";
+import { t, getLang, setLang, LANGUAGES } from "./i18n.js";
 
 const PAGE_MODULES = {
   panel: () => import("./page-dashboard.js"), codigo: () => import("./page-symbols.js"), duplicados: () => import("./page-findings.js"),
@@ -22,13 +23,16 @@ function indexingState(meta) {
   return map[meta.indexing.state] || map.unknown;
 }
 
+const bootLabel = document.querySelector("#app .loading span");
+if (bootLabel) bootLabel.textContent = t("common.loading");
+
 function computeNotices(meta, summary) {
   const list = [];
   if (meta.warning) list.push({ tone: "warn", text: meta.warning });
   if (meta.reviewsReadOnly) list.push({ tone: "bad", text: t("notice.reviewsReadOnly", { reason: meta.reviewsReadOnly }) });
   if (meta.indexing.staleFiles > 0) list.push({ tone: "warn", text: t("notice.stale", { n: meta.indexing.staleFiles }) });
-  if (meta.indexing.readFailures > 0) list.push({ tone: "bad", text: t("notice.readFailures", { n: meta.indexing.readFailures }) });
-  if (meta.indexing.syntaxErrors > 0) list.push({ tone: "info", text: t("notice.syntaxErrors", { n: meta.indexing.syntaxErrors }) });
+  if (meta.indexing.readFailures > 0) list.push({ tone: "bad", text: t("notice.readFailures", { n: meta.indexing.readFailures }), action: () => openIssues("read", meta.indexing.readIssues || []) });
+  if (meta.indexing.syntaxErrors > 0) list.push({ tone: "info", text: t("notice.syntaxErrors", { n: meta.indexing.syntaxErrors }), action: () => openIssues("syntax", meta.indexing.syntaxIssues || []) });
   if (summary && !summary.duplicates.complete) list.push({ tone: "warn", text: t("notice.incomplete", { n: summary.duplicates.skipped }) });
   if (meta.vault.truncated) list.push({ tone: "info", text: t("notice.vaultTruncated") });
   return list;
@@ -58,13 +62,17 @@ function notificationsMenu() {
   if (existing) { existing.remove(); return; }
   const menu = h("div", { class: "menu notices", role: "menu", style: { right: "60px", top: "56px", minWidth: "300px", padding: "10px" } },
     h("strong", {}, t("notice.title")),
-    notices.length ? notices.map((n) => h("p", { class: `banner ${n.tone === "bad" ? "bad" : n.tone === "warn" ? "warn" : ""}`, style: { marginTop: "8px" } }, n.text)) : h("p", { class: "muted", style: { marginTop: "8px" } }, t("notice.none")));
+    notices.length ? notices.map((n) => h("p", { class: `banner ${n.tone === "bad" ? "bad" : n.tone === "warn" ? "warn" : ""}`, style: { marginTop: "8px" } }, n.text, n.action && [" ", h("button", { class: "btn sm", onclick: () => { menu.remove(); n.action(); } }, t("issues.view"))])) : h("p", { class: "muted", style: { marginTop: "8px" } }, t("notice.none")));
   document.querySelector(".header").append(menu);
   const away = (event) => { if (!menu.contains(event.target) && !bell.contains(event.target)) { menu.remove(); document.removeEventListener("click", away); } };
   setTimeout(() => document.addEventListener("click", away), 0);
 }
 
+const languageSelect = () => h("select", { class: "select lang-select", "aria-label": t("header.language"), title: t("header.language"), onchange: (event) => setLang(event.target.value) },
+  LANGUAGES.map(([id, label]) => h("option", { value: id, selected: id === getLang(), title: label }, id.toUpperCase())));
+
 function buildShell() {
+  document.querySelector(".skip").textContent = t("common.skip");
   const collapsed = store.get("sidebar-collapsed", false);
   nav = h("nav", { class: "nav", "aria-label": t("nav.label") });
   status = h("span", { class: "status-pill", role: "status" });
@@ -87,7 +95,7 @@ function buildShell() {
         h("div", { class: "project hide-sm" }, h("span", { id: "project-name" }), h("small", { class: "hide-lg" }, t("header.repo"))),
         h("a", { class: "status-pill hide-lg", href: hrefTo("espacio"), title: t("header.workspaceTip") }, icon("layers", 14), t("header.workspaceCode"))),
       h("div", { class: "header-center" }, search.el),
-      h("div", { class: "header-right" }, status, refresh, bell, themeButton,
+      h("div", { class: "header-right" }, status, refresh, bell, languageSelect(), themeButton,
         h("a", { class: "icon-btn hide-sm", href: hrefTo("configuracion"), "aria-label": t("nav.configuracion"), title: t("nav.configuracion") }, icon("gear")),
         h("span", { class: "status-pill hide-lg", title: t("header.localTip") }, icon("lock", 13), t("header.local")))),
     h("div", { class: "scrim", onclick: () => shell.classList.remove("open") }),
