@@ -61,9 +61,11 @@ fn state_json(root: &Path) -> Result<Value, String> {
 }
 
 /// Writes `content` to `.mctignore` through a temporary file in the same directory.
-fn write_atomically(root: &Path, content: &str) -> std::io::Result<()> {
-    let target = root.join(IGNORE_FILE_NAME);
-    let temporary = root.join(format!("{IGNORE_FILE_NAME}.{}.tmp", std::process::id()));
+pub(super) fn write_atomically(target: &Path, content: &str) -> std::io::Result<()> {
+    let name = target
+        .file_name()
+        .map_or_else(String::new, |name| name.to_string_lossy().into_owned());
+    let temporary = target.with_file_name(format!("{name}.{}.tmp", std::process::id()));
     let result = (|| {
         let mut file = fs::OpenOptions::new()
             .write(true)
@@ -71,10 +73,10 @@ fn write_atomically(root: &Path, content: &str) -> std::io::Result<()> {
             .open(&temporary)?;
         file.write_all(content.as_bytes())?;
         file.sync_all()?;
-        if let Ok(existing) = fs::metadata(&target) {
+        if let Ok(existing) = fs::metadata(target) {
             let _ = fs::set_permissions(&temporary, existing.permissions());
         }
-        fs::rename(&temporary, &target)
+        fs::rename(&temporary, target)
     })();
     if result.is_err() {
         let _ = fs::remove_file(&temporary);
@@ -140,7 +142,7 @@ impl Site {
         if !text.is_empty() && !text.ends_with('\n') {
             text.push('\n');
         }
-        if let Err(error) = write_atomically(&self.root, &text) {
+        if let Err(error) = write_atomically(&self.root.join(IGNORE_FILE_NAME), &text) {
             eprintln!("warning: cannot save {IGNORE_FILE_NAME}: {error}");
             return Response::failure(500, "Could not save .mctignore. No changes were applied.");
         }

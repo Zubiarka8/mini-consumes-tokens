@@ -178,6 +178,7 @@ pub(super) fn detail(site: &Site, params: &Params) -> Result<Value, (u16, &'stat
     row["symbols"] = Value::Array(symbols);
     row["duplicateKeys"] = json!(duplicate_keys);
     row["deadCodeKeys"] = json!(dead_keys);
+    row["comment"] = crate::web::note_comments::get(&site.root, &note.path);
     row["relationSource"] = json!("front matter `path`, verified against the index");
     Ok(row)
 }

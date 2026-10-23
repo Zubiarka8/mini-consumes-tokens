@@ -121,7 +121,7 @@ export function createBackend(snapshot) {
     return { ...finding(new URLSearchParams({ key: row.key })), readOnly: false };
   }
 
-  const noteByPath = new Map(snapshot.notes.map((note) => [note.path, note]));
+  const comments = new Map();
   function notes(params) {
     const query = text(params, "q");
     const folders = csv(params, "folder");
@@ -195,13 +195,25 @@ export function createBackend(snapshot) {
     return { path, start, lines: slice, truncated: end - start + 1 > 1500, language };
   }
 
+  function comment(body) {
+    if (!snapshot.noteDetails[body.path]) return { status: 404, error: "unknown note" };
+    const value = String(body.text ?? "").replace(/\r\n/g, "\n");
+    if (value.length > 8 * 1024) return { status: 413, error: "The comment is too long to save." };
+    if (!value.trim()) comments.delete(body.path);
+    else comments.set(body.path, { text: value, updated: Math.floor(Date.now() / 1000) });
+    return { path: body.path, comment: comments.get(body.path) ?? null };
+  }
+
   const routes = {
     meta: () => snapshot.meta,
     summary,
     stats: () => ({ ...summary(), measurements: null }),
     findings, finding, notes, graph, source,
     "notes-graph": graph,
-    note: (params) => snapshot.noteDetails[text(params, "path")] || UNAVAILABLE,
+    note: (params) => {
+      const detail = snapshot.noteDetails[text(params, "path")];
+      return detail ? { ...detail, comment: comments.get(detail.path) ?? null } : UNAVAILABLE;
+    },
     ignore: () => ({ path: ".mctignore", exists: false, content: "", template: "", directive: "@import-gitignore", command: "", importsGitignore: false, gitignorePresent: false, maxBytes: 0 }),
   };
 
@@ -212,6 +224,7 @@ export function createBackend(snapshot) {
     if (!parsed.pathname.includes("/api/")) return null;
     if (method === "POST") {
       if (name === "review") return respond(review(JSON.parse(bodyText || "{}")));
+      if (name === "comment") return respond(comment(JSON.parse(bodyText || "{}")));
       return respond({ status: 403, error: "Saving is disabled in the demo." });
     }
     const route = routes[name];
