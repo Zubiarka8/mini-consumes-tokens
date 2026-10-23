@@ -19,7 +19,7 @@ function resultCard(item, query) {
       item.snippet && item.snippet !== item.path && h("div", { class: "muted ellipsis" }, highlight(item.snippet, query))),
     h("div", { class: "row hide-sm", style: { justifyContent: "flex-end" } },
       h("span", { class: "badge" }, t(`search.type.${item.type}`)), item.language && badge(item.language),
-      item.state && stateBadge(item.state), item.refs !== undefined && badge(t("search.refs", { n: item.refs })),
+      item.state && stateBadge(item.state, item.type), item.refs !== undefined && badge(t("search.refs", { n: item.refs })),
       (item.tags || []).slice(0, 2).map((tag) => badge(`#${tag}`, "primary"))),
     h("div", { class: "row" },
       item.path && item.line && h("button", { class: "btn sm", "aria-label": `${t("code.viewSource")}: ${item.title}`, onclick: () => openSource({ path: item.path, line: item.line, language: item.language }) }, icon("code", 14)),
@@ -62,8 +62,7 @@ export async function render({ root, params: initial, summary }) {
     const values = [...listParam(params, "language"), ...listParam(params, "kind")];
     clear(chipsHost).append(activeChips(values.map((value) => ({ label: value, remove: () => patchQuery({ language: listParam(params, "language").filter((v) => v !== value), kind: listParam(params, "kind").filter((v) => v !== value) }) })), clearFilters) || "");
     clear(tabsHost); clear(meta);
-    if (!query) { drawIdle(); return; }
-    clear(results).append(loading(t("search.searching")));
+    clear(results).append(loading(t(query ? "search.searching" : "search.loadingAll")));
     const filters = { q: query, language: listParam(params, "language"), kind: listParam(params, "kind") };
     try {
       const [all, scoped] = await Promise.all([api("search", { ...filters, scope: "all" }, "search-all"), scope === "all" ? null : api("search", { ...filters, scope }, "search-scope")]);
@@ -76,6 +75,7 @@ export async function render({ root, params: initial, summary }) {
         h("div", { class: "row" }, selectBox({ label: t("search.sort"), value: sortMode, options: [["relevance", t("search.sort.relevance")], ["path", t("search.sort.path")], ["title", t("search.sort.title")]], onChange: (v) => { sortMode = v; drawResults(params, scope, groups); } }),
           h("button", { class: "btn sm", onclick: () => { const saved = store.get("saved-searches", []); if (!saved.includes(query)) { saved.unshift(query); store.set("saved-searches", saved.slice(0, 12)); } toast(t("search.savedOk"), "ok"); } }, icon("star", 14), t("search.save")))));
       drawResults(params, scope, groups);
+      if (!query) results.prepend(...idleLists());
     } catch (error) { if (!isAbort(error)) clear(results).append(errorBox(error, () => run(params))); }
   }
 
@@ -85,7 +85,7 @@ export async function render({ root, params: initial, summary }) {
   }
 
   function drawResults(params, scope, groups) {
-    const query = params.get("q");
+    const query = params.get("q") || "";
     clear(results);
     if (scope === "all") {
       let any = false;
@@ -110,14 +110,12 @@ export async function render({ root, params: initial, summary }) {
     if ((groups[scope]?.total || 0) > items.length) results.append(note(t("search.capped", { n: items.length }), "", "info"));
   }
 
-  function drawIdle() {
-    clear(results);
+  function idleLists() {
     const recent = store.get("recent-searches", []), saved = store.get("saved-searches", []);
     const list = (title, values, removable) => (values.length ? h("section", { class: "card", style: { marginBottom: "12px" } }, h("h2", {}, title),
       h("div", { class: "chips" }, values.map((v) => h("span", { class: "chip" }, h("button", { style: { width: "auto", padding: "0 4px" }, onclick: () => { input.value = v; submit(); } }, v),
         removable && h("button", { "aria-label": t("search.removeSaved", { q: v }), onclick: () => { store.set("saved-searches", saved.filter((x) => x !== v)); run(); } }, icon("x", 11)))))) : null);
-    results.append(note(t("search.mode"), "", "info"), h("div", { style: { height: "12px" } }), list(t("search.recent"), recent, false), list(t("search.savedTitle"), saved, true),
-      !recent.length && !saved.length && emptyState({ title: t("search.startTitle"), text: t("search.startText"), iconName: "search" }));
+    return [list(t("search.recent"), recent, false), list(t("search.savedTitle"), saved, true)].filter(Boolean);
   }
 
   const layout = h("div", { class: "workbench" }, h("aside", { class: "filters-col" }, filtersHost), h("div", {}, bar, h("div", { class: "toolbar" }, drawerButton(() => drawer.current)), chipsHost, tabsHost, meta, results));

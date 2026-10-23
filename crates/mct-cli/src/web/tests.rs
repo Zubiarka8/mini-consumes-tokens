@@ -227,15 +227,14 @@ fn dashboard_serves_static_app_and_a_read_only_json_api() {
     assert_eq!(search["semantic"], false);
     assert_eq!(search["groups"]["symbols"]["items"][0]["path"], "src/a.rs");
     assert!(search["groups"]["duplicates"]["total"].as_u64().unwrap() >= 1);
+    // With no query the search lists everything instead of nothing; literal text needs a query.
+    let everything = server.json("api/search?q=");
+    assert!(everything["groups"]["symbols"]["total"].as_u64().unwrap() >= 1);
+    assert!(everything["groups"]["files"]["total"].as_u64().unwrap() >= 1);
+    assert!(everything["groups"].get("code").is_none());
     assert_eq!(
-        server
-            .json("api/search?q=")
-            .get("groups")
-            .unwrap()
-            .as_object()
-            .unwrap()
-            .len(),
-        0
+        server.json("api/dependencies?level=file&all=1")["truncated"],
+        false
     );
     let deps = server.json("api/dependencies?level=file");
     assert_eq!(deps["edgeKinds"][0], "imports");
@@ -269,9 +268,12 @@ fn a_truncated_dependency_graph_still_shows_every_file_in_a_cycle() {
     fs::write(root.path().join("z_cycle_b.py"), "import z_cycle_a\n").unwrap();
     index(root.path());
     let server = Server::start(root.path(), true);
-    let deps = server.json("api/dependencies?level=file");
+    let deps = server.json("api/dependencies?level=file&limit=150");
     assert_eq!(deps["truncated"], true);
     assert_eq!(deps["nodes"].as_array().unwrap().len(), 150);
+    let all = server.json("api/dependencies?level=file&all=1");
+    assert_eq!(all["truncated"], false);
+    assert_eq!(all["nodes"].as_array().unwrap().len(), 165);
     assert_eq!(deps["cycles"].as_array().unwrap().len(), 1);
     let in_cycle: Vec<&str> = deps["nodes"]
         .as_array()

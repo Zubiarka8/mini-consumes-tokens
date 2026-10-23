@@ -1,6 +1,6 @@
 // Reusable UI pieces: icons, badges, metric cards, tables, filters, pagination, states.
 import { h, clear, fmt, debounce } from "./core.js";
-import { t } from "./i18n.js";
+import { t, hasKey } from "./i18n.js";
 
 const dot = (x, y, r = 2) => `M${x - r} ${y}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`;
 const ICONS = {
@@ -68,10 +68,21 @@ export const STATES = {
   "resolved-but-detected": { label: "state.resolvedButDetected", tone: "info", color: "var(--info)" },
 };
 export const STATE_ORDER = ["unreviewed", "needs-reevaluation", "in-review", "confirmed", "resolved-but-detected", "false-positive", "resolved", "dismissed"];
-export const stateLabel = (state) => t(STATES[state]?.label || state);
+/**
+ * Without `type` the generic label ("Confirmado"); with "duplicate" or "dead-code" the label says
+ * what was decided ("Duplicado confirmado", "Falso positivo: sí se usa").
+ */
+export const stateLabel = (state, type) => {
+  const generic = STATES[state]?.label || state;
+  if (type === "duplicate" || type === "dead-code") {
+    const key = `ctx.${type}.${state}`;
+    if (hasKey(key)) return t(key);
+  }
+  return t(generic);
+};
 
 export const badge = (text, tone = "", iconName = null) => h("span", { class: `badge ${tone}` }, iconName && icon(iconName, 12), text);
-export const stateBadge = (state) => badge(stateLabel(state), STATES[state]?.tone || "");
+export const stateBadge = (state, type) => badge(stateLabel(state, type), STATES[state]?.tone || "");
 
 const KIND_GROUPS = [
   ["function", ["function", "method", "constructor"], "func", "info"],
