@@ -1,4 +1,4 @@
-//! Bounded HTTP/1.1: GET/HEAD views and same-origin POST review preferences.
+//! Bounded HTTP/1.1: GET/HEAD views and same-origin POST review decisions and `.mctignore` edits.
 //! No request path is translated to a filesystem path.
 
 use std::collections::BTreeMap;
@@ -7,10 +7,12 @@ use std::net::TcpStream;
 use std::time::{Duration, Instant};
 
 use super::response::Response;
-use super::{api, assets, Site};
+use super::{api, assets, ignore_file, Site};
 
 const MAX_HEADERS: usize = 16 * 1024;
 const MAX_BODY: usize = 4096;
+/// A `.mctignore` of `MAX_IGNORE_BYTES`, even if every byte is JSON-escaped.
+const MAX_IGNORE_BODY: usize = 6 * ignore_file::MAX_IGNORE_BYTES + 1024;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
 
 pub(super) trait Connection: Read + Write {
@@ -124,6 +126,7 @@ fn receive(
             if bytes.len() == expected {
                 let response = if request.post {
                     match std::str::from_utf8(&bytes[*end..]) {
+                        Ok(body) if request.target == "api/ignore" => site.ignore(body),
                         Ok(body) => site.review(body),
                         Err(_) => Response::error(400),
                     }
@@ -191,7 +194,7 @@ fn validate(headers: &str, port: u16, token: &str) -> Result<Request, u16> {
     let target = target.strip_prefix(&format!("/{token}/")).ok_or(404_u16)?;
     let post = method == "POST";
     let length = if post {
-        if target != "api/review" {
+        if !matches!(target, "api/review" | "api/ignore") {
             return Err(405);
         }
         if fields.get("origin").copied() != Some(format!("http://{host}").as_str()) {
@@ -205,7 +208,12 @@ fn validate(headers: &str, port: u16, token: &str) -> Result<Request, u16> {
             .ok_or(400_u16)?
             .parse()
             .map_err(|_| 400_u16)?;
-        if length > MAX_BODY {
+        let limit = if target == "api/ignore" {
+            MAX_IGNORE_BODY
+        } else {
+            MAX_BODY
+        };
+        if length > limit {
             return Err(413);
         }
         length

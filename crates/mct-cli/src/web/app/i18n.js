@@ -3,6 +3,11 @@
 import { en } from "./i18n-en.js";
 
 const es = {
+  "dup.leftMember": "Fragmento izquierdo",
+  "dup.rightMember": "Fragmento derecho",
+  "code.symbolDetails": "Detalles del símbolo",
+  "common.showMore": "Mostrar más",
+
   "common.loading": "Cargando…", "common.errorTitle": "No se han podido cargar los datos", "common.retry": "Reintentar", "common.close": "Cerrar", "common.cancel": "Cancelar",
   "common.confirm": "Confirmar", "common.save": "Guardar", "common.delete": "Eliminar", "common.copied": "Copiado al portapapeles", "common.copyFailed": "No se ha podido copiar",
   "common.pathCopied": "Ruta copiada", "common.copyPath": "Copiar ruta", "common.duplicate": "Duplicado", "common.deadCode": "Código muerto", "common.finding": "Hallazgo", "common.noData": "Sin datos", "common.skip": "Saltar al contenido",
@@ -83,7 +88,7 @@ const es = {
   "dead.limit.byName": "Las referencias se comparan por nombre, no por resolución semántica.", "dead.limit.dynamic": "No detecta despacho dinámico ni reflexión.", "dead.limit.macros": "No expande macros ni código generado.", "dead.limit.ffi": "No ve usos desde FFI u otros lenguajes.",
   "dead.limit.public": "Una API pública puede usarse desde fuera del repositorio.", "dead.limit.tests": "Los usos en pruebas no se distinguen de otros usos.", "dead.limit.generated": "El código generado puede no estar indexado.", "dead.limit.config": "No ve usos por configuración en tiempo de ejecución ni puntos de entrada de plugins.",
   "dead.deps": "Dependencias del archivo", "dead.imports": "Importa {n} archivos · lo importan {m}", "dead.neverDelete": "Acción destructiva no disponible: este panel solo registra decisiones de revisión.",
-  "dead.unsupported": "No disponibles: severidad, confianza calculada, visibilidad, fecha de modificación, símbolos expuestos y uso solo en tests; el análisis no los calcula.",
+  "dead.unsupported": "La confianza se estima con la zona, la visibilidad y el nombre del símbolo; no es una prueba. No disponibles: severidad, fecha de modificación y uso solo en tests.",
   "rev.title": "Revisiones", "rev.subtitle": "Decide qué hacer con cada hallazgo y conserva un historial auditable.", "rev.tabs": "Estados de revisión", "rev.tab.all": "Todos",
   "rev.unsupported": "No disponibles: severidad, confianza y revisor asignado. Los falsos positivos nunca se borran: puedes filtrarlos o reabrirlos.",
   "find.searchPlaceholder": "Buscar por símbolo o ruta…",
@@ -156,7 +161,14 @@ const es = {
   // settings
   "settings.title": "Configuración", "settings.subtitle": "Apariencia, estado del servidor local y capacidades reales del backend.", "settings.appearance": "Apariencia", "settings.language": "Idioma", "settings.languageNote": "El idioma se guarda en este navegador.",
   "settings.server": "Servidor local", "settings.snapshot": "Instantánea", "settings.lastIndexed": "Última indexación", "settings.binding": "Dirección", "settings.reviewsFile": "Archivo de revisiones", "settings.vault": "Vault de Obsidian", "settings.vaultNotes": "{n} notas",
-  "settings.readOnly": "El panel escucha solo en 127.0.0.1, con una clave privada en la URL. Es de solo lectura salvo las decisiones de revisión.", "settings.capabilities": "Capacidades del backend", "settings.capabilitiesNote": "Lo que no está disponible no se simula en la interfaz.",
+  "dead.confidence.high": "Alta", "dead.confidence.medium": "Media", "dead.confidence.low": "Baja", "dead.zone.source": "Código fuente", "dead.zone.tests": "Tests", "dead.zone.benchmarks": "Benchmarks", "dead.zone.examples": "Ejemplos", "dead.zone.website": "Web", "dead.visibility.public": "Pública", "dead.visibility.internal": "Interna", "dead.visibility.private": "Privada", "dead.visibility.unknown": "Desconocida", "dead.zone": "Zona", "dead.visibility": "Visibilidad",
+  "filters.zone": "Zona", "filters.confidence": "Confianza", "col.zone": "Zona", "filters.zoneOnly": "Solo código fuente", "review.ignored": "Ignorado", "review.ignoreNow": "Ignorar",
+  "ignore.title": "Exclusiones de indexado (.mctignore)", "ignore.intro": "Patrones extra que se quedan fuera del índice, además de las exclusiones integradas (secretos, node_modules, target, .git…). Nunca pueden ampliarse más allá de ellas.",
+  "ignore.gitignoreTip": "Para excluir también todo lo que ya excluye .gitignore, basta una línea que sea exactamente {directive} (sin # delante). Escribirla aquí a mano funciona igual que ejecutar `{command}`: ese comando solo añade esa línea.",
+  "ignore.importOn": "Importa .gitignore", "ignore.importOff": "No importa .gitignore", "ignore.noGitignore": "No hay .gitignore en la raíz: la directiva no hace nada hasta que exista.", "ignore.noFile": "Aún no existe .mctignore; se creará al guardar.",
+  "ignore.fieldLabel": "Contenido de .mctignore", "ignore.toggleOn": "Importar .gitignore", "ignore.toggleOff": "Dejar de importar .gitignore", "ignore.template": "Usar plantilla", "ignore.revert": "Descartar cambios", "ignore.save": "Guardar .mctignore",
+  "ignore.saved": ".mctignore guardado", "ignore.dirty": "Cambios sin guardar", "ignore.reindex": "Los cambios se aplican en el próximo reindexado: ejecuta `mct-cli --root <proyecto> reindex --force` y reinicia el panel.", "ignore.conflict": ".mctignore cambió en disco mientras lo editabas. No se guardó nada; se muestra el contenido actual.", "ignore.loadFailed": "No se pudo leer .mctignore.", "ignore.size": "{n} de {max} bytes",
+  "settings.readOnly": "El panel escucha solo en 127.0.0.1, con una clave privada en la URL. Es de solo lectura salvo las decisiones de revisión y el archivo .mctignore.", "settings.capabilities": "Capacidades del backend", "settings.capabilitiesNote": "Lo que no está disponible no se simula en la interfaz.",
   "settings.capability": "Capacidad", "settings.status": "Estado", "settings.detail": "Detalle", "settings.localData": "Datos locales del navegador", "settings.localDataText": "Filtros recordados, {n} filtros guardados, búsquedas recientes y guardadas.", "settings.reset": "Restablecer",
   "settings.resetTitle": "Restablecer datos locales", "settings.resetBody": "Se borrarán filtros, búsquedas y filtros guardados de este navegador. Las decisiones de revisión no se tocan.", "settings.resetDone": "Datos locales restablecidos", "settings.shortcuts": "Atajos de teclado",
   "settings.sc.search": "Abrir la búsqueda global", "settings.sc.slash": "Enfocar la búsqueda", "settings.sc.list": "Moverse por listas y tablas", "settings.sc.esc": "Cerrar o limpiar",

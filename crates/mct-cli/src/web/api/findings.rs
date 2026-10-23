@@ -126,8 +126,10 @@ pub(super) fn dead_row(site: &Site, index: usize) -> Value {
     row["kind"] = json!(symbol.kind);
     row["parent"] = json!(symbol.parent);
     row["refs"] = json!(0);
-    // The heuristic has no confidence or severity model: say so, do not guess.
-    row["confidence"] = json!("unknown");
+    // Zone, visibility and confidence come from `dead_assessment`; the heuristic has no severity.
+    row["zone"] = json!(candidate.assessment.zone);
+    row["visibility"] = json!(candidate.assessment.visibility);
+    row["confidence"] = json!(candidate.assessment.confidence);
     row["severity"] = Value::Null;
     row
 }
@@ -155,7 +157,7 @@ fn sort_key(row: &Value, field: &str) -> (i64, String) {
     }
 }
 
-const FILTER_FIELDS: [&str; 7] = [
+const FILTER_FIELDS: [&str; 8] = [
     "type",
     "state",
     "language",
@@ -163,6 +165,7 @@ const FILTER_FIELDS: [&str; 7] = [
     "verdict",
     "scope",
     "confidence",
+    "zone",
 ];
 
 pub(super) fn list(site: &Site, params: &Params) -> Value {
@@ -177,13 +180,26 @@ pub(super) fn list(site: &Site, params: &Params) -> Value {
     let query = text(params, "q");
     let dir = text(params, "dir").trim_end_matches('/');
     rows.retain(|row| {
-        let path = row["path"].as_str().unwrap_or("");
-        (dir.is_empty()
-            || path == dir
-            || path
-                .strip_prefix(dir)
-                .is_some_and(|rest| rest.starts_with('/')))
-            && contains_ci(&haystack(row), query)
+        let matches_path = |path: &str| {
+            dir.is_empty()
+                || path == dir
+                || path
+                    .strip_prefix(dir)
+                    .is_some_and(|rest| rest.starts_with('/'))
+        };
+        if let Some(id) = row["group"].as_u64() {
+            // The JSON members are only a preview. Filtering must use the full
+            // group without changing its identity, count or pagination unit.
+            let members = &site.duplicates.groups[id as usize].members;
+            members.iter().any(|member| matches_path(&member.path))
+                && (query.is_empty()
+                    || contains_ci(&haystack(row), query)
+                    || members.iter().any(|member| {
+                        contains_ci(&member.symbol_name, query) || contains_ci(&member.path, query)
+                    }))
+        } else {
+            matches_path(row["path"].as_str().unwrap_or("")) && contains_ci(&haystack(row), query)
+        }
     });
     let facets: serde_json::Map<String, Value> = FILTER_FIELDS
         .iter()

@@ -87,6 +87,7 @@ pub(super) fn meta(site: &Site) -> Value {
         // Set when a review file cannot be read: nothing is hidden and
         // review actions are disabled until a person fixes the file.
         "reviewsReadOnly": site.reviews.read_only_reason(),
+        "reviewsFile": format!(".mct-index/{}", mct_index::reviews::CANONICAL_FILE),
         "indexing": {
             "state": state,
             "lastIndexedAt": indexed_at,
@@ -131,14 +132,14 @@ fn finding_label(site: &Site, key: &str) -> Value {
             .map(|m| m.symbol_name.as_str())
             .collect::<Vec<_>>()
             .join(" ≈ ");
-        return json!({ "type": "duplicate", "title": title, "path": group.members[0].path });
+        return json!({ "key": key, "type": "duplicate", "title": title, "path": group.members[0].path });
     }
     site.dead
         .iter()
         .find(|candidate| candidate.key == key)
         .map(|candidate| {
             let symbol = &site.navigation.symbols[candidate.symbol];
-            json!({ "type": "dead-code", "title": symbol.name, "path": symbol.relative_path })
+            json!({ "key": key, "type": "dead-code", "title": symbol.name, "path": symbol.relative_path })
         })
         .unwrap_or(Value::Null)
 }
