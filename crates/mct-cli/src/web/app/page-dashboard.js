@@ -55,7 +55,7 @@ export function render({ root, summary, meta }) {
         h("section", { class: "card" }, h("h2", {}, t("dash.recent")),
           h("ul", { class: "timeline" },
             lastIndexed && h("li", {}, h("strong", {}, t("dash.scanDone")), h("div", { class: "muted small" }, ago(lastIndexed))),
-            recent.map((event) => h("li", {}, h("div", {}, stateBadge(event.to), " ", event.finding ? h("a", { href: hrefTo(event.finding.type === "duplicate" ? "duplicados" : "codigo-muerto", { key: "" }) }, event.finding.title) : t("common.finding")),
+            recent.map((event) => h("li", {}, h("div", {}, stateBadge(event.to, event.finding?.type), " ", event.finding ? h("a", { href: hrefTo(event.finding.type === "duplicate" ? "duplicados" : "codigo-muerto", { key: "" }) }, event.finding.title) : t("common.finding")),
               h("div", { class: "muted small" }, `${eventText(event)} · ${event.at ? ago(event.at) : t("review.unknownTime")}`))),
             !lastIndexed && !recent.length && h("li", { class: "muted" }, t("dash.noActivity")))),
         h("section", { class: "card" }, h("h2", {}, t("dash.health")),
