@@ -110,8 +110,9 @@ const es = {
   // deps
   "deps.title": "Dependencias", "deps.subtitle": "Relaciones de importación verificadas entre módulos y archivos.", "deps.views": "Vista", "deps.view.graph": "Grafo", "deps.view.tree": "Árbol", "deps.view.table": "Tabla",
   "deps.level": "Nivel", "deps.levelDir": "Módulos", "deps.levelFile": "Archivos", "deps.group": "Agrupar por", "deps.groupN": "{n} niveles de carpeta", "deps.focusGroup": "Módulo seleccionado", "deps.noFocus": "Pulsa un nodo y elige «Enfocar» para ver solo su entorno.",
-  "deps.depth": "Profundidad", "deps.clearFocus": "Quitar foco", "deps.show": "Mostrar", "deps.onlyCycles": "Solo ciclos", "deps.onlyUnused": "Solo sin uso (nadie los importa)",
+  "ai.copy": "Copiar para IA", "ai.copied": "Copiado para IA", "ai.copyList": "Copiar lista", "ai.listCopied": "Lista copiada con sus identificadores", "ai.copyCode": "Copiar código", "ai.codeCopied": "Código copiado", "deps.cyclesFiles": "{files} nodos implicados.",
   "deps.showCycles": "Ver los {n} ciclos", "deps.showAll": "Ver todo el grafo",
+  "deps.depth": "Profundidad", "deps.clearFocus": "Quitar foco", "deps.show": "Mostrar", "deps.onlyCycles": "Solo ciclos", "deps.onlyUnused": "Solo sin uso (nadie los importa)",
   "deps.unsupported": "Solo hay aristas de importación. Las llamadas y referencias entre símbolos no se dibujan aquí porque no se han verificado a nivel de archivo.",
   "deps.cycle": "Ciclo", "deps.unused": "Sin uso", "deps.files": "Archivos", "deps.out": "Importa", "deps.in": "Importado por", "deps.focus": "Enfocar", "deps.expand": "Expandir vecinos", "deps.openFile": "Abrir archivo", "deps.openSymbols": "Ver símbolos",
   "deps.incoming": "Entrantes ({n})", "deps.outgoing": "Salientes ({n})", "deps.none": "Ninguna", "deps.emptyTitle": "No hay nodos que mostrar", "deps.emptyText": "Cambia los filtros o el nivel de agrupación.", "deps.graphLabel": "Grafo de dependencias",
