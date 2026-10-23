@@ -1,14 +1,16 @@
-// Spanish (Spain) strings. Every user-visible text goes through t(key, vars) so a
-// second locale only needs another dictionary with the same keys.
+// Spanish (Spain) strings. Every user-visible text goes through t(key, vars); a locale is another
+// dictionary with the same keys (English is in i18n-en.js). A key missing from a locale falls back to Spanish.
+import { en } from "./i18n-en.js";
+
 const es = {
   "common.loading": "Cargando…", "common.errorTitle": "No se han podido cargar los datos", "common.retry": "Reintentar", "common.close": "Cerrar", "common.cancel": "Cancelar",
   "common.confirm": "Confirmar", "common.save": "Guardar", "common.delete": "Eliminar", "common.copied": "Copiado al portapapeles", "common.copyFailed": "No se ha podido copiar",
-  "common.pathCopied": "Ruta copiada", "common.copyPath": "Copiar ruta", "common.duplicate": "Duplicado", "common.deadCode": "Código muerto", "common.finding": "Hallazgo", "common.noData": "Sin datos",
+  "common.pathCopied": "Ruta copiada", "common.copyPath": "Copiar ruta", "common.duplicate": "Duplicado", "common.deadCode": "Código muerto", "common.finding": "Hallazgo", "common.noData": "Sin datos", "common.skip": "Saltar al contenido",
   "nav.label": "Navegación principal", "nav.open": "Abrir navegación", "nav.panel": "Dashboard", "nav.codigo": "Código indexado", "nav.duplicados": "Duplicados", "nav.muerto": "Código muerto",
   "nav.busqueda": "Búsqueda", "nav.dependencias": "Dependencias", "nav.revisiones": "Revisiones", "nav.estadisticas": "Estadísticas", "nav.obsidian": "Obsidian", "nav.configuracion": "Configuración",
   "sidebar.collapse": "Contraer menú",
   "header.repo": "Repositorio activo", "header.workspace": "Workspace unificado", "header.workspaceCode": "Workspace: Código", "header.workspaceTip": "Abrir el workspace de código unificado",
-  "header.refresh": "Refrescar datos", "header.refreshed": "Datos recargados. Para reindexar, ejecuta «mct-cli reindex» y reinicia este servidor.", "header.local": "Local", "header.localTip": "Servidor local en 127.0.0.1; nada sale de tu equipo",
+  "header.language": "Idioma", "lang.es": "Español", "lang.en": "English", "header.refresh": "Refrescar datos", "header.refreshed": "Datos recargados. Para reindexar, ejecuta «mct-cli reindex» y reinicia este servidor.", "header.local": "Local", "header.localTip": "Servidor local en 127.0.0.1; nada sale de tu equipo",
   "status.ready": "Listo", "status.stale": "Desactualizado", "status.failed": "Fallido", "status.unknown": "Sin registro", "status.indexing": "Indexando", "status.paused": "Pausado",
   "status.tooltip": "Estado del índice según la última indexación registrada y los archivos modificados desde entonces. Este panel no ejecuta el indexador.",
   "notice.title": "Notificaciones", "notice.none": "No hay avisos.", "notice.stale": "{n} archivos se han modificado después de la última indexación. Ejecuta «mct-cli reindex».",
@@ -110,7 +112,10 @@ const es = {
   // deps
   "deps.title": "Dependencias", "deps.subtitle": "Relaciones de importación verificadas entre módulos y archivos.", "deps.views": "Vista", "deps.view.graph": "Grafo", "deps.view.tree": "Árbol", "deps.view.table": "Tabla",
   "deps.level": "Nivel", "deps.levelDir": "Módulos", "deps.levelFile": "Archivos", "deps.group": "Agrupar por", "deps.groupN": "{n} niveles de carpeta", "deps.focusGroup": "Módulo seleccionado", "deps.noFocus": "Pulsa un nodo y elige «Enfocar» para ver solo su entorno.",
-  "ai.copy.duplicate": "Copiar duplicado para IA", "ai.copy.dead": "Copiar código muerto para IA", "ai.template.duplicate": "Plantilla duplicado para IA", "ai.template.dead": "Plantilla código muerto para IA", "ai.copied": "Copiado para IA", "ai.copyList": "Copiar lista", "ai.listCopied": "Lista copiada con sus identificadores", "ai.templateCopied": "Plantilla copiada: pégala en la IA", "ai.copyCode": "Copiar código", "ai.codeCopied": "Código copiado", "deps.cyclesFiles": "{files} nodos implicados.",
+  "ai.copy.duplicate": "Copiar duplicado para IA", "ai.copy.dead": "Copiar código muerto para IA", "ai.template.duplicate": "Plantilla duplicado para IA", "ai.template.dead": "Plantilla código muerto para IA", "ai.copied": "Copiado para IA", "ai.copyList": "Copiar lista", "ai.listCopied": "Lista copiada con sus identificadores", "ai.templateCopied": "Plantilla copiada: pégala en la IA", "issues.view": "Ver archivos", "issues.file": "Archivo", "issues.line": "Línea", "issues.inside": "Dentro de", "issues.message": "Detalle", "issues.open": "Abrir en la línea", "issues.copyList": "Copiar lista para IA", "issues.copied": "Lista copiada", "issues.syntaxMessage": "Error de sintaxis",
+  "issues.syntaxTitle": "{n} archivos con errores de sintaxis", "issues.syntaxNote": "El analizador se detuvo en la línea indicada; el resto del archivo se ha indexado de forma parcial. «Dentro de» es el símbolo indexado más pequeño que contiene esa línea.",
+  "issues.readTitle": "{n} archivos que no se han podido leer", "issues.readNote": "Se siguen sirviendo los datos de la última lectura correcta, que pueden estar desactualizados.",
+  "ai.copyCode": "Copiar código", "ai.codeCopied": "Código copiado", "deps.cyclesFiles": "{files} nodos implicados.",
   "deps.showCycles": "Ver los {n} ciclos", "deps.showAll": "Ver todo el grafo",
   "deps.depth": "Profundidad", "deps.clearFocus": "Quitar foco", "deps.show": "Mostrar", "deps.onlyCycles": "Solo ciclos", "deps.onlyUnused": "Solo sin uso (nadie los importa)",
   "deps.unsupported": "Solo hay aristas de importación. Las llamadas y referencias entre símbolos no se dibujan aquí porque no se han verificado a nivel de archivo.",
@@ -147,7 +152,7 @@ const es = {
   "ws.title": "Workspace unificado", "ws.subtitle": "Código, hallazgos, referencias y notas de un archivo en un solo lugar.", "ws.explorer": "Explorador", "ws.pickTitle": "Elige un archivo", "ws.pickText": "Selecciona un archivo del explorador.", "ws.tabs": "Secciones del archivo",
   "ws.code": "Código", "ws.findings": "Hallazgos", "ws.refs": "Referencias", "ws.notes": "Notas", "ws.noFindings": "Sin hallazgos en este archivo", "ws.refsNote": "Relaciones de importación entre archivos.", "ws.summary": "Resumen", "ws.outline": "Esquema",
   // settings
-  "settings.title": "Configuración", "settings.subtitle": "Apariencia, estado del servidor local y capacidades reales del backend.", "settings.appearance": "Apariencia", "settings.language": "Idioma", "settings.languageNote": "La interfaz está preparada para más idiomas; por ahora solo español.",
+  "settings.title": "Configuración", "settings.subtitle": "Apariencia, estado del servidor local y capacidades reales del backend.", "settings.appearance": "Apariencia", "settings.language": "Idioma", "settings.languageNote": "El idioma se guarda en este navegador.",
   "settings.server": "Servidor local", "settings.snapshot": "Instantánea", "settings.lastIndexed": "Última indexación", "settings.binding": "Dirección", "settings.reviewsFile": "Archivo de revisiones", "settings.vault": "Vault de Obsidian", "settings.vaultNotes": "{n} notas",
   "settings.readOnly": "El panel escucha solo en 127.0.0.1, con una clave privada en la URL. Es de solo lectura salvo las decisiones de revisión.", "settings.capabilities": "Capacidades del backend", "settings.capabilitiesNote": "Lo que no está disponible no se simula en la interfaz.",
   "settings.capability": "Capacidad", "settings.status": "Estado", "settings.detail": "Detalle", "settings.localData": "Datos locales del navegador", "settings.localDataText": "Filtros recordados, {n} filtros guardados, búsquedas recientes y guardadas.", "settings.reset": "Restablecer",
@@ -163,10 +168,26 @@ const es = {
   "cap.severity": "Severidad", "cap.severity.note": "No se calcula.", "cap.reviewers": "Revisores asignados", "cap.reviewers.note": "No hay usuarios en el servidor local.",
 };
 
-/** Looks up `key`; `{name}` placeholders are replaced from `vars`. Missing keys return the key itself. */
+const dictionaries = { es, en };
+export const LANGUAGES = [["es", "Español"], ["en", "English"]];
+const KEY = "mct-lang";
+
+let current = "es";
+try { const saved = localStorage.getItem(KEY); if (saved in dictionaries) current = saved; } catch { /* storage blocked: stay on Spanish */ }
+document.documentElement.lang = current;
+
+export const getLang = () => current;
+/** Saves the language and reloads, so every label, date and number is built again in it. */
+export function setLang(lang) {
+  if (!(lang in dictionaries) || lang === current) return;
+  try { localStorage.setItem(KEY, lang); } catch { /* storage blocked: the choice lasts until reload */ }
+  location.reload();
+}
+
+/** Looks up `key`; `{name}` placeholders are replaced from `vars`. Missing keys fall back to Spanish, then to the key. */
 export function t(key, vars) {
-  const text = es[key];
+  const text = dictionaries[current][key] ?? es[key];
   if (text === undefined) { console.warn(`i18n: missing key ${key}`); return key; }
   return vars ? text.replace(/\{(\w+)\}/g, (_, name) => (name in vars ? vars[name] : `{${name}}`)) : text;
 }
-export const dictionary = es;
+export const dictionary = dictionaries[current];

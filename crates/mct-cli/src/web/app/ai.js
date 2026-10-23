@@ -103,3 +103,8 @@ export function listText({ title, total, columns, rows, idKey }) {
   const body = rows.map((r) => columns.map((c) => c(r)).join(" | "));
   return [head, ...body, "", `${idKey}s: ${rows.map((r) => r[idKey]).join(",")}`].join("\n");
 }
+
+/** One line per file the indexer could not fully handle: `path:line (inside symbol) — message`. */
+export function issuesText(title, rows) {
+  return [title, ...rows.map((r) => `${r.path}${r.line ? `:${r.line}` : ""}${r.symbol ? ` (inside ${r.symbol.name}, ${r.symbol.kind} ${r.symbol.line}-${r.symbol.endLine ?? r.symbol.line})` : ""} — ${r.message}`)].join("\n");
+}

@@ -148,6 +148,8 @@ fn dashboard_serves_static_app_and_a_read_only_json_api() {
         "palette",
         "page-dashboard",
         "ai",
+        "i18n-en",
+        "issues",
         "page-symbols",
         "page-findings",
         "page-search",
