@@ -149,8 +149,12 @@ export function selectBox({ options, value, onChange, label, cls = "" }) {
 
 export function searchBox({ value = "", placeholder, label, onInput }) {
   const input = h("input", { class: "input wide", type: "search", value, placeholder, "aria-label": label, autocomplete: "off" });
-  input.addEventListener("input", debounce(() => onInput(input.value), 250));
-  return h("div", { class: "grow" }, icon("search", 16), input);
+  const notify = debounce(() => onInput(input.value), 250);
+  input.addEventListener("input", notify);
+  const box = h("div", { class: "grow" }, icon("search", 16), input);
+  box.sync = (value) => { notify.cancel(); if (input.value !== value) input.value = value; };
+  box.destroy = () => { notify.cancel(); input.removeEventListener("input", notify); };
+  return box;
 }
 
 // ---------- filters ----------
@@ -295,4 +299,20 @@ export async function load(host, loader, draw) {
     if (error?.name === "AbortError") return;
     clear(host).append(errorBox(error, () => load(host, loader, draw)));
   }
+}
+
+/** Reveal a bounded batch without removing the focused Show more control. */
+export function pagedLinks(items, renderItem, size = 30) {
+  const list = h("div", {}), status = h("span", { class: "muted small", role: "status" });
+  let shown = 0;
+  const more = h("button", { class: "btn sm", onclick: () => reveal() }, t("common.showMore"));
+  function reveal() {
+    const end = Math.min(items.length, shown + size);
+    list.append(items.slice(shown, end).map(renderItem));
+    shown = end;
+    status.textContent = `${fmt(shown)} / ${fmt(items.length)}`;
+    more.disabled = shown === items.length;
+  }
+  reveal();
+  return h("div", {}, list, items.length > size && h("div", { class: "row", style: { marginTop: "8px" } }, more, status));
 }
