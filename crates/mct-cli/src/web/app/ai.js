@@ -19,13 +19,14 @@ export function deadText(item) {
   return out.join("\n");
 }
 
-export function symbolText(s, data) {
+/** `kind` picks the finding the text is about: "duplicate" or "dead". */
+export function symbolText(s, data, kind) {
   const out = [`Symbol — ${s.parent ? `${s.parent}::` : ""}${s.name} (${s.kind})`, `id: ${s.id}`, `${s.path}:${range(s.line, s.endLine)}`, `language: ${s.language} · references: ${s.refs}`];
-  for (const group of data.duplicates || []) {
+  if (kind === "duplicate") for (const group of data.duplicates || []) {
     const others = group.members.filter((m) => !(m.path === s.path && m.start === s.line));
     out.push("", `Duplicated in ${others.length} other places (group ${group.key}, ${group.verdict}, ${group.lines} lines):`, ...others.map((m) => `- ${memberLabel(m)}`));
   }
-  if (data.dead) out.push("", `Dead-code candidate (key ${data.dead.key}): no known references, heuristic, verify before deleting`);
+  if (kind === "dead" && data.dead) out.push("", `Dead-code candidate (key ${data.dead.key}): no known references, heuristic, verify before deleting`);
   if (data.code) out.push("", fence(data.code.lines, s.language));
   return out.join("\n");
 }
@@ -48,20 +49,19 @@ export const deadTemplate = (item) => template(`check whether this dead-code can
   "Answer with: verdict (delete / keep / unsure), the evidence you found, and the exact lines to remove if delete.",
 ], deadText(item));
 
-export function symbolTemplate(s, data) {
-  if (data.duplicates?.length) return template(`decide whether this symbol's duplicated code should be merged`, [
+/** The findings a symbol carries; one with none has nothing to ask an assistant about. */
+export const findingKinds = (data) => [data.duplicates?.length && "duplicate", data.dead && "dead"].filter(Boolean);
+
+export function symbolTemplate(s, data, kind) {
+  if (kind === "duplicate") return template(`decide whether this symbol's duplicated code should be merged`, [
     "Read this symbol and every other copy listed under 'Duplicated in', and compare them.",
     "Say whether it is real duplication or a false positive, and if real, propose one shared function with the call sites to change.",
     "Answer with: verdict (merge / keep / unsure), up to 5 lines of reasoning, and the proposed change.",
-  ], symbolText(s, data));
-  if (data.dead) return template(`check whether this symbol can be deleted`, [
+  ], symbolText(s, data, kind));
+  return template(`check whether this symbol can be deleted`, [
     "Search the whole repository for the name, including tests, macros, re-exports and dynamic uses.",
     "Answer with: verdict (delete / keep / unsure), the evidence you found, and the exact lines to remove if delete.",
-  ], symbolText(s, data));
-  return template(`explain this symbol and its impact`, [
-    "Explain what it does and who depends on it. 'references' counts matches by name, so same-named symbols share a number.",
-    "List what could break if its behaviour changed.",
-  ], symbolText(s, data));
+  ], symbolText(s, data, kind));
 }
 
 // One line per row, then the ids on their own line so they can be pasted into a query.
