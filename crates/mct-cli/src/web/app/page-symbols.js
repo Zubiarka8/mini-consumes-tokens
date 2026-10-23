@@ -143,7 +143,7 @@ export async function render({ root, params: initial }) {
         h("div", { class: "row", style: { margin: "12px 0" } },
           h("button", { class: "btn sm", onclick: () => copy(`${s.path}:${s.line}`, t("common.pathCopied")) }, icon("copy", 14), t("code.copyPath")),
           h("button", { class: "btn sm", onclick: () => copy(s.parent ? `${s.parent}::${s.name}` : s.name, t("code.idCopied")) }, t("code.copyId")),
-          h("button", { class: "btn sm", onclick: () => copy(symbolText(s, data.code), t("ai.copied")) }, icon("copy", 14), t("ai.copy")),
+          h("button", { class: "btn sm", onclick: () => copy(symbolText(s, data), t("ai.copied")) }, icon("copy", 14), t("ai.copy")),
           h("button", { class: "btn sm", onclick: () => openSource({ path: s.path, line: s.line, language: s.language }) }, icon("external", 14), t("code.openSource")),
           h("a", { class: "btn sm", href: hrefTo("dependencias", { level: "file", focus: s.path }) }, icon("graph", 14), t("code.viewDeps"))),
         data.code ? codeBlock({ lines: data.code.lines, start: data.code.start, language: s.language, maxHeight: "260px", label: t("code.preview") }) : note(t("code.noPreview"), "warn", "alert"),
