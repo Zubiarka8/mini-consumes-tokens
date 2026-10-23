@@ -1,6 +1,6 @@
 // Application shell: sidebar, header, global search, theme, notifications and page routing.
 import { h, clear, api, setCsrf, store, parseHash, hrefTo, go, PAGES, applyTheme, ago, dateTime, toast, fmt } from "./core.js";
-import { icon, loading, errorBox, segmented } from "./components.js";
+import { icon, loading, errorBox } from "./components.js";
 import { createGlobalSearch, pageCommands } from "./palette.js";
 import { openIssues } from "./issues.js";
 import { t, getLang, setLang, LANGUAGES } from "./i18n.js";
@@ -16,7 +16,7 @@ const THEMES = [["dark", "theme.dark", "moon"], ["light", "theme.light", "sun"],
 const app = document.getElementById("app");
 const ctx = { meta: null, summary: null, refresh: () => boot(true) };
 let cleanup = null;
-let shell, main, nav, status, bell, prefsButton, notices = [];
+let shell, main, nav, status, bell, notices = [];
 
 function indexingState(meta) {
   const map = { ready: ["ok", "status.ready"], stale: ["warn", "status.stale"], failed: ["bad", "status.failed"], unknown: ["info", "status.unknown"] };
@@ -73,21 +73,33 @@ const closeOnOutside = (menu, opener) => {
   setTimeout(() => { document.addEventListener("click", away); document.addEventListener("keydown", away); }, 0);
 };
 
-/** Language, theme, refresh and settings in one place, so the header keeps only what changes: status and notices. */
-function preferencesMenu() {
-  const existing = document.querySelector(".pop.prefs");
-  if (existing) { existing.remove(); return; }
-  const section = (label, control) => h("div", { class: "pop-sec" }, h("span", { class: "muted small" }, label), control);
-  const menu = h("div", { class: "pop prefs", role: "dialog", "aria-label": t("prefs.title"), style: { right: "12px", top: "56px", width: "min(92vw, 300px)" } },
-    h("strong", {}, t("prefs.title")),
-    section(t("settings.language"), segmented({ label: t("header.language"), value: getLang(), options: LANGUAGES, onSelect: setLang })),
-    section(t("prefs.theme"), segmented({ label: t("theme.label"), value: store.get("theme", "dark"), options: THEMES.map(([id, key]) => [id, t(key)]), onSelect: (id) => { setTheme(id); menu.remove(); preferencesMenu(); } })),
-    h("div", { class: "pop-sec" },
-      h("button", { class: "btn ghost", onclick: async () => { menu.remove(); await boot(true); toast(t("header.refreshed"), "ok", 7000); } }, icon("refresh", 16), t("header.refresh")),
-      h("a", { class: "btn ghost", href: hrefTo("configuracion"), onclick: () => menu.remove() }, icon("gear", 16), t("nav.configuracion"))),
-    h("p", { class: "muted small pop-note" }, icon("lock", 12), " ", t("header.localTip")));
-  document.querySelector(".header").append(menu);
-  closeOnOutside(menu, prefsButton);
+/** A header button that opens a short list to pick one option; picking closes it. */
+function choiceMenu(button, label, options, current, onSelect) {
+  const existing = document.querySelector(".pop.choice");
+  existing?.remove();
+  if (existing?.dataset.for === label) return;
+  const header = document.querySelector(".header");
+  const right = header.getBoundingClientRect().right - button.getBoundingClientRect().right;
+  const menu = h("div", { class: "pop choice", role: "listbox", "aria-label": label, "data-for": label, style: { top: "56px", right: `${Math.max(8, right)}px` } },
+    options.map(([id, text, iconName]) => h("button", { class: "choice-item", role: "option", "aria-selected": String(id === current), onclick: () => { menu.remove(); onSelect(id); } },
+      iconName && icon(iconName, 16), h("span", {}, text), id === current && icon("check", 14))));
+  header.append(menu);
+  menu.querySelector("[aria-selected=true]")?.focus();
+  closeOnOutside(menu, button);
+}
+
+function languageButton() {
+  const button = h("button", { class: "btn sm choice-btn", "aria-haspopup": "listbox", "aria-label": t("header.language"), title: t("header.language"),
+    onclick: () => choiceMenu(button, t("header.language"), LANGUAGES, getLang(), setLang) }, getLang().toUpperCase(), icon("down", 12));
+  return button;
+}
+
+function themeButton() {
+  const current = () => store.get("theme", "dark");
+  const button = h("button", { class: "icon-btn", "aria-haspopup": "listbox", "aria-label": t("theme.label"), title: t("theme.label"),
+    onclick: () => choiceMenu(button, t("theme.label"), THEMES.map(([id, key, iconName]) => [id, t(key), iconName]), current(), (id) => { setTheme(id); button.replaceChildren(icon(THEMES.find(([theme]) => theme === id)[2])); }) },
+    icon(THEMES.find(([theme]) => theme === current())[2]));
+  return button;
 }
 
 function buildShell() {
@@ -96,10 +108,9 @@ function buildShell() {
   nav = h("nav", { class: "nav", "aria-label": t("nav.label") });
   status = h("span", { class: "status-pill", role: "status" });
   bell = h("button", { class: "icon-btn", style: { position: "relative" }, "aria-label": t("notice.title"), onclick: notificationsMenu }, icon("bell"));
-  const search = createGlobalSearch({ commands: () => [...pageCommands(), { title: t("palette.toggleTheme"), icon: "sun", run: cycleTheme }, { title: t("palette.toggleSidebar"), icon: "panel", run: toggleSidebar }, { title: t("palette.workspace"), icon: "layers", run: () => go("espacio") }] });
+  const search = createGlobalSearch({ commands: () => [...pageCommands(), { title: t("palette.toggleTheme"), icon: "sun", run: cycleTheme }, { title: t("palette.toggleSidebar"), icon: "panel", run: toggleSidebar }, { title: t("palette.workspace"), icon: "layers", run: () => go("espacio") }, { title: t("header.refresh"), icon: "refresh", run: async () => { await boot(true); toast(t("header.refreshed"), "ok", 7000); } }] });
   ctx.search = search;
   const toggleSidebar = () => { shell.classList.toggle("collapsed"); store.set("sidebar-collapsed", shell.classList.contains("collapsed")); };
-  prefsButton = h("button", { class: "icon-btn", "aria-label": t("prefs.title"), title: t("prefs.title"), onclick: preferencesMenu }, icon("gear"));
   shell = h("div", { class: `shell ${collapsed ? "collapsed" : ""}` },
     h("aside", { class: "sidebar" },
       h("a", { class: "brand", href: hrefTo("panel") }, h("span", { class: "logo" }, icon("bolt", 17)), h("span", {}, "MCT")),
@@ -112,7 +123,7 @@ function buildShell() {
         h("button", { class: "icon-btn menu-btn", "aria-label": t("nav.open"), onclick: () => shell.classList.add("open") }, icon("menu")),
         h("div", { class: "project hide-sm", title: t("header.repo") }, h("span", { id: "project-name" }))),
       h("div", { class: "header-center" }, search.el),
-      h("div", { class: "header-right" }, status, bell, prefsButton)),
+      h("div", { class: "header-right" }, status, bell, languageButton(), themeButton())),
     h("div", { class: "scrim", onclick: () => shell.classList.remove("open") }),
     (main = h("main", { class: "main", id: "contenido" })));
   clear(app).append(shell, h("div", { class: "toasts", "aria-live": "polite" }));
