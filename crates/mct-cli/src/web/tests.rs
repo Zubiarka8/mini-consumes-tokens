@@ -147,6 +147,7 @@ fn dashboard_serves_static_app_and_a_read_only_json_api() {
         "markdown",
         "palette",
         "page-dashboard",
+        "ai",
         "page-symbols",
         "page-findings",
         "page-search",

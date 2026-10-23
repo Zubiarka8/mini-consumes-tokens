@@ -389,7 +389,7 @@ dialog .dlg footer { display: flex; justify-content: flex-end; gap: 8px; }
 .gsearch { min-width: min(300px, 100%); }
 @media (max-width: 1540px) { .header .hide-lg { display: none; } }
 
-.t td .path { display: block; max-width: 30ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.t td .path { display: block; max-width: 46ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .t td .ellipsis { max-width: 36ch; }
 
 @media (min-width: 1025px) and (max-width: 1700px) { .workbench.inspect .hide-insp { display: none; } }

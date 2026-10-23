@@ -4,6 +4,7 @@ import { icon, pageHead, tabsBar, dataTable, pager, badge, stateBadge, STATE_ORD
   drawerButton, segmented, emptyState } from "./components.js";
 import { codeBlock, openSource, compareView, normalizer } from "./code.js";
 import { t } from "./i18n.js";
+import { duplicateText, deadText, listText, memberLabel } from "./ai.js";
 
 // Everything that still needs a person: also findings whose code changed
 // after a decision, and resolved findings the detector still reports.
@@ -74,7 +75,8 @@ function duplicateDetail(item, onChange, setView) {
     h("header", {}, h("div", {}, h("h3", {}, item.title), h("div", { class: "row", style: { marginTop: "6px" } }, badge(item.language), stateBadge(item.state), badge(t(`dup.verdict.${item.verdict}`), item.verdict === "real" ? "success" : "warning"))),
       h("button", { class: "icon-btn", "aria-label": t("common.close"), onclick: () => patchQuery({ key: null, view: null }) }, icon("x"))),
     note(t("dup.caution"), "warn", "alert"),
-    h("div", { class: "row", style: { margin: "10px 0" } }, h("button", { class: "btn primary sm", onclick: () => setView("side") }, icon("split", 14), t("dup.compare"))),
+    h("div", { class: "row", style: { margin: "10px 0" } }, h("button", { class: "btn primary sm", onclick: () => setView("side") }, icon("split", 14), t("dup.compare")),
+      h("button", { class: "btn sm", onclick: () => copy(duplicateText(item), t("ai.copied")) }, icon("copy", 14), t("ai.copy"))),
     h("div", { class: "section" }, h("h4", {}, t("dup.evidence")),
       h("dl", { class: "kv" },
         h("dt", {}, t("dup.method")), h("dd", {}, t("dup.methodTokens", { mode: item.method?.normalization || "—" })),
@@ -86,7 +88,7 @@ function duplicateDetail(item, onChange, setView) {
       h("p", { class: "muted small" }, t("dup.noSimilarity"))),
     h("div", { class: "section" }, h("h4", {}, t("dup.members", { n: members.length })),
       members.map((m) => h("div", { style: { marginBottom: "10px" } },
-        h("div", { class: "row spread" }, h("strong", {}, m.name), h("button", { class: "btn ghost sm", onclick: () => openSource({ path: m.path, line: m.start, language: item.language }) }, icon("external", 13), t("code.openSource"))),
+        h("div", { class: "row spread" }, h("strong", {}, m.name), h("span", { class: "row" }, h("button", { class: "btn ghost sm", onclick: () => copy(`${m.path}:${m.start}-${m.end}\n${m.excerpt.join("\n")}`, t("ai.codeCopied")) }, icon("copy", 13), t("ai.copyCode")), h("button", { class: "btn ghost sm", onclick: () => openSource({ path: m.path, line: m.start, language: item.language }) }, icon("external", 13), t("code.openSource")))),
         h("div", { class: "mono muted small" }, `${m.path}:${m.start}–${m.end}`),
         codeBlock({ lines: m.excerpt, start: m.start, language: item.language, maxHeight: "140px", label: m.name })))),
     reviewPanel(item, onChange),
@@ -105,7 +107,8 @@ function deadDetail(item, onChange) {
       h("dt", {}, t("dead.knownRefs")), h("dd", {}, "0"), h("dt", {}, t("dup.method")), h("dd", {}, t("dead.method"))),
     h("div", { class: "row", style: { marginBottom: "10px" } },
       h("button", { class: "btn sm", onclick: () => openSource({ path: s.path, line: s.line, language: s.language }) }, icon("external", 14), t("code.openSource")),
-      h("button", { class: "btn sm", onclick: () => copy(`${s.path}:${s.line}`, t("common.pathCopied")) }, icon("copy", 14), t("code.copyPath"))),
+      h("button", { class: "btn sm", onclick: () => copy(`${s.path}:${s.line}${s.endLine ? `-${s.endLine}` : ""}`, t("common.pathCopied")) }, icon("copy", 14), t("code.copyPath")),
+      h("button", { class: "btn sm", onclick: () => copy(deadText(item), t("ai.copied")) }, icon("copy", 14), t("ai.copy"))),
     d.code ? codeBlock({ lines: d.code.lines, start: d.code.start, language: s.language, maxHeight: "240px", label: t("code.preview") }) : null,
     h("div", { class: "section" }, h("h4", {}, t("dead.why")), h("p", {}, t("dead.whyText", { name: item.title }))),
     h("div", { class: "section" }, h("h4", {}, t("dead.limits")), h("ul", { style: { margin: 0, paddingLeft: "18px" } }, ["byName", "dynamic", "macros", "ffi", "public", "tests", "generated", "config"].map((k) => h("li", {}, t(`dead.limit.${k}`))))),
@@ -210,7 +213,7 @@ export async function render({ root, page, params: initial }) {
     if (cfg.type === "duplicate") return [
       { key: "verdict", label: t("col.verdict"), sortable: true, render: (r) => badge(t(`dup.verdict.${r.verdict}`), r.verdict === "real" ? "success" : "warning") },
       { key: "title", label: t("col.symbols"), sortable: true, render: (r) => h("span", { class: "name" }, h("span", { class: "ellipsis" }, r.title), r.memberCount > 2 && badge(`+${r.memberCount - 2}`)) },
-      { key: "path", label: t("col.files"), sortable: true, render: (r) => [...new Set(r.members.map((m) => m.path))].slice(0, 2).map((path) => h("span", { class: "path", title: path }, path)), cls: "hide-sm" },
+      { key: "path", label: t("col.files"), sortable: true, render: (r) => [...r.members.slice(0, 4).map((m) => h("span", { class: "path", title: memberLabel(m) }, memberLabel(m))), r.members.length > 4 && h("span", { class: "muted small" }, `+${r.members.length - 4}`)], cls: "hide-sm" },
       { key: "language", label: t("code.col.language"), sortable: true, render: (r) => badge(r.language), cls: "hide-sm" },
       { key: "lines", label: t("col.lines"), sortable: true, num: true, render: (r) => r.lines, cls: "hide-sm" },
       { key: "method", label: t("dup.method"), render: () => t("dup.methodShort"), cls: "hide-sm" }, common.state, common.actions];
@@ -241,6 +244,9 @@ export async function render({ root, page, params: initial }) {
         return;
       }
       if (cfg.type === "duplicate") results.append(h("p", { class: "muted", style: { margin: "0 0 8px" } }, t("dup.found", { n: fmt(data.total) })));
+      const listColumns = cfg.type === "duplicate" ? [(r) => r.key, (r) => r.title, (r) => r.members.map(memberLabel).join(" ↔ ")] : [(r) => r.key, (r) => r.title, (r) => r.type || cfg.type, (r) => `${r.path || ""}${r.line ? `:${r.line}` : ""}`];
+      results.append(h("div", { class: "row", style: { justifyContent: "flex-end", margin: "0 0 8px" } },
+        h("button", { class: "btn sm", onclick: () => copy(listText({ title: t(cfg.title), total: data.total, columns: listColumns, rows: data.items, idKey: "key" }), t("ai.listCopied")) }, icon("copy", 14), t("ai.copyList"))));
       results.append(dataTable({ caption: t(cfg.title), rows: data.items, rowKey: (r) => r.key, selected, sort: query.sort, order: query.order,
         onSort: (sort, order) => patchQuery({ sort, order }), onSelect: (row) => patchQuery({ key: row.key }), columns: columns() }),
         pager({ page: data.page, size: data.size, total: data.total, onPage: (page) => patchQuery({ page }) }));

@@ -23,6 +23,7 @@ pub(super) fn serve(path: &str) -> Option<Response> {
         "js/i18n.js" => (JS, app!("i18n.js")),
         "js/components.js" => (JS, app!("components.js")),
         "js/charts.js" => (JS, app!("charts.js")),
+        "js/ai.js" => (JS, app!("ai.js")),
         "js/code.js" => (JS, app!("code.js")),
         "js/graph.js" => (JS, app!("graph.js")),
         "js/markdown.js" => (JS, app!("markdown.js")),
