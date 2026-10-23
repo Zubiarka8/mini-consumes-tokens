@@ -53,6 +53,11 @@ export class ApiError extends Error {
 
 const pending = new Map();
 
+export function cancelApi(key) {
+  pending.get(key)?.abort();
+  pending.delete(key);
+}
+
 /** Fetches `api/<path>`; a newer call with the same `key` aborts the stale one. */
 export async function api(path, params = {}, key = null) {
   const query = new URLSearchParams();
@@ -61,16 +66,20 @@ export async function api(path, params = {}, key = null) {
     if (text === "" || text === null || text === undefined || text === false) continue;
     query.set(name, String(text));
   }
-  let signal;
-  if (key) { pending.get(key)?.abort(); const controller = new AbortController(); pending.set(key, controller); signal = controller.signal; }
+  let controller;
+  if (key) { cancelApi(key); controller = new AbortController(); pending.set(key, controller); }
   const suffix = query.toString();
-  const response = await fetch(`api/${path}${suffix ? `?${suffix}` : ""}`, { signal, headers: { Accept: "application/json" } });
-  if (!response.ok) {
-    let message = response.statusText;
-    try { message = (await response.json()).error || message; } catch { /* plain text error */ }
-    throw new ApiError(response.status, message);
+  try {
+    const response = await fetch(`api/${path}${suffix ? `?${suffix}` : ""}`, { signal: controller?.signal, headers: { Accept: "application/json" } });
+    if (!response.ok) {
+      let message = response.statusText;
+      try { message = (await response.json()).error || message; } catch { /* plain text error */ }
+      throw new ApiError(response.status, message);
+    }
+    return await response.json();
+  } finally {
+    if (controller && pending.get(key) === controller) pending.delete(key);
   }
-  return response.json();
 }
 
 export const isAbort = (error) => error?.name === "AbortError";
@@ -85,6 +94,18 @@ export async function review(key, state, note = "", revision = "none") {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ csrf, key, state, note, revision }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new ApiError(response.status, body.error || response.statusText, body);
+  return body;
+}
+
+/** Replaces .mctignore. `base` is the text the page loaded; a 409 error carries the current state in `body`. */
+export async function saveIgnore(content, base) {
+  const response = await fetch("api/ignore", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ csrf, content, base }),
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new ApiError(response.status, body.error || response.statusText, body);
@@ -149,7 +170,7 @@ export const listParam = (params, key) => (params.get(key) || "").split(",").fil
 // ---------- formatting ----------
 const LOCALE = getLang() === "en" ? "en-GB" : "es-ES";
 const number = new Intl.NumberFormat(LOCALE);
-export const fmt = (value) => (value === null || value === undefined ? "—" : number.format(value));
+export const fmt = (value, options) => (value === null || value === undefined ? "—" : (options ? new Intl.NumberFormat(LOCALE, options) : number).format(value));
 export function bytes(value) {
   if (value === null || value === undefined) return "—";
   const units = ["B", "KB", "MB", "GB"];
@@ -220,7 +241,7 @@ export function confirmDialog({ title, body, confirm = t("common.confirm"), dang
 /** Asks for an optional/required note. Resolves the note string, or null when cancelled. */
 export function noteDialog({ title, body, required = false, confirm = t("common.save"), initial = "" }) {
   return openDialog((close) => {
-    const field = h("textarea", { class: "input wide", rows: 3, maxlength: 500, "aria-label": t("review.noteLabel"), value: initial });
+    const field = h("textarea", { class: "input wide", rows: 9, maxlength: 500, "aria-label": t("review.noteLabel"), value: initial });
     const submit = h("button", { class: "btn primary", disabled: required && !initial.trim(), onclick: () => close(field.value.trim()) }, confirm);
     field.addEventListener("input", () => { submit.disabled = required && !field.value.trim(); });
     return h("div", { class: "dlg" }, h("h2", {}, title), body && h("p", { class: "muted" }, body),

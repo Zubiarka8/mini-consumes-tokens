@@ -2,7 +2,9 @@
 
 mod api;
 mod assets;
+mod dead_assessment;
 mod http;
+mod ignore_file;
 mod obsidian;
 mod response;
 mod reviews;
@@ -23,6 +25,7 @@ struct DeadCandidate {
     /// Index into `navigation.symbols`.
     symbol: usize,
     key: String,
+    assessment: dead_assessment::Assessment,
 }
 
 #[derive(Default)]
@@ -142,7 +145,7 @@ impl Site {
             }
         }
         let dead_started = Instant::now();
-        let (dead, dead_findings) = dead_candidates(&index, &navigation, &file_hashes)?;
+        let (dead, dead_findings) = dead_candidates(root, &index, &navigation, &file_hashes)?;
         let dead_code_ms = dead_started.elapsed().as_millis();
         findings.extend(dead_findings);
         let reviews = reviews::Reviews::load(root, findings);
@@ -294,6 +297,7 @@ fn now_unix_millis() -> u64 {
 /// Dead-code candidates from the shared heuristic, mapped to snapshot
 /// symbols, with their review keys.
 fn dead_candidates(
+    root: &Path,
     index: &Index,
     navigation: &NavigationSnapshot,
     file_hashes: &[(String, String)],
@@ -306,6 +310,7 @@ fn dead_candidates(
     let keys = mct_index::reviews::dead_code_findings(&scan.symbols, &scan.candidates, file_hashes);
     let mut dead = Vec::new();
     let mut findings = Vec::new();
+    let mut assessor = dead_assessment::Assessor::new(root);
     for (&id, keys) in scan.candidates.iter().zip(keys) {
         let entry = &scan.symbols[id];
         // Candidates outside the snapshot (excluded files) are not shown.
@@ -316,9 +321,17 @@ fn dead_candidates(
         )) else {
             continue;
         };
+        let located = &navigation.symbols[symbol];
         dead.push(DeadCandidate {
             symbol,
             key: keys.identity.clone(),
+            assessment: assessor.assess(
+                &located.relative_path,
+                &located.language,
+                &located.name,
+                &located.kind,
+                located.line,
+            ),
         });
         findings.push(keys);
     }

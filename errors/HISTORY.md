@@ -143,3 +143,7 @@
 ## 2026-10-20 — Local web follow-up
 
 ERR-019 RESOLVED: primary MCP search/context/status calls now succeed; get_indexing_status returns 1303 files/21257 symbols, timestamp 1792448999, confirming project root and restored tools. Existing 19 parse diagnostics preserved (18 malformed fixtures/copies and review-check.ps1:29). ERR-014 caller mistake recurred in three build_context_pack calls using name for run/DuplicateReport/DuplicateMember; diagnostic ``failed to deserialize parameters: missing field `symbol` ``. Each retry with symbol succeeded; remains RESOLVED.
+
+## 2026-10-23 — Parse diagnostics seen from the dashboard worktree
+
+mct-cli init on the dashboard-remediation worktree reported 17 syntax errors: 16 intentionally malformed corpus fixtures under `crates/mct-lang-*/tests/corpus/malformed/` (expected, not defects) and `scripts/windows/review-check.ps1:29`. The script is the ERR-002 grammar limitation (comma-separated barewords in `Remove-Item Env:A, Env:B`); `mct-cli probe` reproduces `line 29: syntax error`. ERR-002 now lists both scripts; status unchanged (KNOWN_LIMITATION, upstream grammar). Nothing closed.
