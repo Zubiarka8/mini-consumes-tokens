@@ -11,7 +11,9 @@
     "test:resources": "node scripts/check-resources.mjs",
     "test:browser": "playwright test",
     "format:check": "prettier --check \"components/landing/**/*.{ts,tsx}\" \"messages/*.ts\" \"app/(home)/page.tsx\" \"app/(home)/layout.tsx\" \"app/(home)/landing.css\" \"scripts/*.mjs\" \"tests/*.ts\" playwright.config.ts",
-    "test:export": "node scripts/check-export.mjs"
+    "test:export": "node scripts/check-export.mjs",
+    "build:demo": "node scripts/build-demo.mjs",
+    "prebuild": "node scripts/build-demo.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

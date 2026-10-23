@@ -36,3 +36,12 @@ npm run test:browser
 Browser checks use Playwright WebKit exclusively. Install that engine with `npx playwright install webkit` when needed. No Chrome/Chromium runner is configured.
 
 See [VALIDATION.md](VALIDATION.md) for check results, screenshot evidence and known upstream warnings.
+
+## Live demo
+
+`/demo/` is the real dashboard (`crates/mct-cli/src/web/app`, copied untouched by
+`scripts/build-demo.mjs`) running on a frozen snapshot, with `demo/backend.js`
+answering the `api/...` calls in the browser. Review decisions stay in memory.
+
+Refresh the snapshot after reindexing: start `mct-cli web` on the project, then
+`node scripts/export-demo-snapshot.mjs <dashboard-url> <project-root>`.
