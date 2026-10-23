@@ -10,7 +10,7 @@ const es = {
   "nav.busqueda": "Búsqueda", "nav.dependencias": "Dependencias", "nav.revisiones": "Revisiones", "nav.estadisticas": "Estadísticas", "nav.obsidian": "Obsidian", "nav.configuracion": "Configuración",
   "sidebar.collapse": "Contraer menú",
   "header.repo": "Repositorio activo", "header.workspace": "Workspace unificado", "header.workspaceCode": "Workspace: Código", "header.workspaceTip": "Abrir el workspace de código unificado",
-  "prefs.title": "Preferencias", "prefs.theme": "Tema", "header.language": "Idioma", "lang.es": "Español", "lang.en": "English", "header.refresh": "Refrescar datos", "header.refreshed": "Datos recargados. Para reindexar, ejecuta «mct-cli reindex» y reinicia este servidor.", "header.local": "Local", "header.localTip": "Servidor local en 127.0.0.1; nada sale de tu equipo",
+  "header.language": "Idioma", "lang.es": "Español", "lang.en": "English", "header.refresh": "Refrescar datos", "header.refreshed": "Datos recargados. Para reindexar, ejecuta «mct-cli reindex» y reinicia este servidor.", "header.local": "Local", "header.localTip": "Servidor local en 127.0.0.1; nada sale de tu equipo",
   "status.ready": "Listo", "status.stale": "Desactualizado", "status.failed": "Fallido", "status.unknown": "Sin registro", "status.indexing": "Indexando", "status.paused": "Pausado",
   "status.tooltip": "Estado del índice según la última indexación registrada y los archivos modificados desde entonces. Este panel no ejecuta el indexador.",
   "notice.title": "Notificaciones", "notice.none": "No hay avisos.", "notice.stale": "{n} archivos se han modificado después de la última indexación. Ejecuta «mct-cli reindex».",
