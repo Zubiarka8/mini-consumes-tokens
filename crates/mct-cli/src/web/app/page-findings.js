@@ -59,20 +59,23 @@ export function reviewPanel(item, onChange) {
   };
   const actions = item.readOnly ? [] : actionsFor(item.state).map((target) => h("button", { class: `btn sm ${ACTION_STYLE[target]}`, onclick: () => apply(target) }, actionLabel(target, item.type)));
   return h("div", { class: "section" }, h("h4", {}, t("review.title")),
-    h("p", { class: "muted small", style: { margin: "0 0 4px" } }, t("review.current")),
-    h("div", { class: "row", style: { marginBottom: "8px" } }, stateBadge(item.state, item.type), item.updated ? h("span", { class: "muted small" }, `${t("review.updated")} ${ago(item.updated)}`) : null),
+    h("div", { class: "decision-now" }, h("span", { class: "muted small" }, t("review.current")), stateBadge(item.state, item.type), item.updated ? h("span", { class: "muted small" }, `${t("review.updated")} ${ago(item.updated)}`) : null),
     item.state === "needs-reevaluation" ? h("p", { class: "muted small" }, t("review.previous", { state: stateLabel(item.previousState, item.type) })) : null,
     item.readOnly ? h("p", { class: "small" }, t("review.readOnly")) : h("label", { class: "field" }, t("review.noteOptional"), noteField),
-    actions.length ? h("p", { class: "muted small", style: { margin: "10px 0 4px" } }, DECIDED.includes(item.state) ? t("review.change") : t("review.decide")) : null,
-    h("div", { class: "row" }, actions),
+    actions.length ? h("p", { class: "muted small", style: { margin: "10px 0 6px" } }, DECIDED.includes(item.state) ? t("review.change") : t("review.decide")) : null,
+    h("div", { class: "decisions" }, actions),
     h("p", { class: "muted small", style: { marginTop: "8px" } }, t("review.reviewerNote")));
 }
 
-export function historyList(history, type) {
+export function historyList(history) {
   if (!history?.length) return h("p", { class: "muted" }, t("review.noHistory"));
+  // Short generic labels keep each step on one line; the type is already clear from the page.
   return h("ol", { class: "timeline" }, [...history].reverse().map((event) => h("li", {},
-    h("div", {}, stateBadge(event.from, type), " → ", stateBadge(event.to, type)), h("div", { class: "muted small" }, event.at ? dateTime(event.at) : t("review.unknownTime")), event.note && h("div", {}, `“${event.note}”`))));
+    h("div", { class: "step" }, stateBadge(event.from), h("span", { "aria-hidden": "true" }, "→"), stateBadge(event.to)), h("div", { class: "muted small" }, event.at ? dateTime(event.at) : t("review.unknownTime")), event.note && h("div", {}, `“${event.note}”`))));
 }
+
+/** Collapsed by default: the current decision matters more than how it got there. */
+const historySection = (item) => h("details", { class: "section history" }, h("summary", {}, `${t("review.history")} (${item.history?.length || 0})`), historyList(item.history));
 
 function duplicateDetail(item, onChange, setView) {
   const members = item.members;
@@ -80,9 +83,11 @@ function duplicateDetail(item, onChange, setView) {
     h("header", {}, h("div", {}, h("h3", {}, item.title), h("div", { class: "row", style: { marginTop: "6px" } }, badge(item.language), stateBadge(item.state, item.type), badge(t(`dup.verdict.${item.verdict}`), item.verdict === "real" ? "success" : "warning"))),
       h("button", { class: "icon-btn", "aria-label": t("common.close"), onclick: () => patchQuery({ key: null, view: null }) }, icon("x"))),
     note(t("dup.caution"), "warn", "alert"),
-    h("div", { class: "row", style: { margin: "10px 0" } }, h("button", { class: "btn primary sm", onclick: () => setView("side") }, icon("split", 14), t("dup.compare")),
+    h("div", { class: "actions" }, h("button", { class: "btn primary sm", onclick: () => setView("side") }, icon("split", 14), t("dup.compare")),
       h("button", { class: "btn sm", onclick: () => copy(duplicateText(item), t("ai.copied")) }, icon("copy", 14), t("ai.copy.duplicate")),
       h("button", { class: "btn sm", onclick: () => copy(duplicateTemplate(item), t("ai.templateCopied")) }, icon("copy", 14), t("ai.template.duplicate"))),
+    reviewPanel(item, onChange),
+    historySection(item),
     h("div", { class: "section" }, h("h4", {}, t("dup.evidence")),
       h("dl", { class: "kv" },
         h("dt", {}, t("dup.method")), h("dd", {}, t("dup.methodTokens", { mode: item.method?.normalization || "—" })),
@@ -97,8 +102,6 @@ function duplicateDetail(item, onChange, setView) {
         h("div", { class: "row spread" }, h("strong", {}, m.name), h("span", { class: "row" }, h("button", { class: "btn ghost sm", onclick: () => copy(`${m.path}:${m.start}-${m.end}\n${(m.code || m.excerpt).join("\n")}`, t("ai.codeCopied")) }, icon("copy", 13), t("ai.copyCode")), h("button", { class: "btn ghost sm", onclick: () => openSource({ path: m.path, line: m.start, language: item.language }) }, icon("external", 13), t("code.openSource")))),
         h("div", { class: "mono muted small" }, `${m.path}:${m.start}–${m.end}`),
         codeBlock({ lines: m.excerpt, start: m.start, language: item.language, maxHeight: "140px", label: m.name })))),
-    reviewPanel(item, onChange),
-    h("div", { class: "section" }, h("h4", {}, t("review.history")), historyList(item.history, item.type)),
     item.analysis && h("details", { class: "section" }, h("summary", {}, t("dup.technical")), h("pre", { class: "mono", style: { whiteSpace: "pre-wrap", overflow: "auto", maxHeight: "300px" } }, item.analysis)));
 }
 
@@ -111,11 +114,13 @@ function deadDetail(item, onChange) {
     note(t("dead.caution"), "warn", "alert"),
     h("dl", { class: "kv", style: { margin: "10px 0" } }, h("dt", {}, t("dead.definition")), h("dd", { class: "mono" }, `${s.path}:${s.line}${s.endLine ? `–${s.endLine}` : ""}`),
       h("dt", {}, t("dead.knownRefs")), h("dd", {}, "0"), h("dt", {}, t("dup.method")), h("dd", {}, t("dead.method"))),
-    h("div", { class: "row", style: { marginBottom: "10px" } },
+    h("div", { class: "actions" },
       h("button", { class: "btn sm", onclick: () => openSource({ path: s.path, line: s.line, language: s.language }) }, icon("external", 14), t("code.openSource")),
       h("button", { class: "btn sm", onclick: () => copy(`${s.path}:${s.line}${s.endLine ? `-${s.endLine}` : ""}`, t("common.pathCopied")) }, icon("copy", 14), t("code.copyPath")),
       h("button", { class: "btn sm", onclick: () => copy(deadText(item), t("ai.copied")) }, icon("copy", 14), t("ai.copy.dead")),
       h("button", { class: "btn sm", onclick: () => copy(deadTemplate(item), t("ai.templateCopied")) }, icon("copy", 14), t("ai.template.dead"))),
+    reviewPanel(item, onChange),
+    historySection(item),
     d.code ? codeBlock({ lines: d.code.lines, start: d.code.start, language: s.language, maxHeight: "240px", label: t("code.preview") }) : null,
     h("div", { class: "section" }, h("h4", {}, t("dead.why")), h("p", {}, t("dead.whyText", { name: item.title }))),
     h("div", { class: "section" }, h("h4", {}, t("dead.limits")), h("ul", { style: { margin: 0, paddingLeft: "18px" } }, ["byName", "dynamic", "macros", "ffi", "public", "tests", "generated", "config"].map((k) => h("li", {}, t(`dead.limit.${k}`))))),
@@ -123,8 +128,6 @@ function deadDetail(item, onChange) {
       h("p", { class: "muted" }, t("dead.imports", { n: d.imports.length, m: d.importedBy.length })),
       d.importedBy.slice(0, 6).map((p) => h("div", { class: "mono small" }, p))),
     h("div", { class: "section" }, h("h4", {}, t("code.notes")), d.notes.length ? d.notes.map((n) => h("p", {}, h("a", { href: hrefTo("obsidian", { note: n.path }) }, n.title))) : h("p", { class: "muted" }, t("code.noNotes"))),
-    reviewPanel(item, onChange),
-    h("div", { class: "section" }, h("h4", {}, t("review.history")), historyList(item.history, item.type)),
     h("p", { class: "muted small" }, t("dead.neverDelete")));
 }
 
@@ -173,7 +176,7 @@ export async function render({ root, page, params: initial }) {
   function drawFilters(params) {
     const states = effectiveStates(params);
     const groups = [
-      { id: "state", label: t("filters.state"), options: STATE_ORDER.map((s) => ({ value: s, label: stateLabel(s, cfg.type), count: (facets.state || []).find(([v]) => v === s)?.[1] || 0 })), selected: states, onChange: (v) => patchQuery({ state: v.length ? v : "all" }) },
+      { id: "state", label: t("filters.state"), options: STATE_ORDER.map((s) => ({ value: s, label: stateLabel(s), count: (facets.state || []).find(([v]) => v === s)?.[1] || 0 })), selected: states, onChange: (v) => patchQuery({ state: v.length ? v : "all" }) },
       cfg.type === "duplicate" && { id: "verdict", label: t("filters.verdict"), options: opts("verdict", (v) => t(`dup.verdict.${v}`)), selected: listParam(params, "verdict"), onChange: (v) => patchQuery({ verdict: v }) },
       cfg.type === "duplicate" && { id: "scope", label: t("filters.scope"), options: opts("scope", (v) => t(`dup.scope.${v}`)), selected: listParam(params, "scope"), onChange: (v) => patchQuery({ scope: v }) },
       { id: "language", label: t("filters.language"), options: opts("language"), selected: listParam(params, "language"), onChange: (v) => patchQuery({ language: v }) },
@@ -194,7 +197,7 @@ export async function render({ root, page, params: initial }) {
     const total = (facets.state || []).reduce((n, [, c]) => n + c, 0);
     const active = states.length === 1 ? states[0] : states.length === 0 ? "all" : "";
     clear(tabsHost).append(tabsBar({ label: t("rev.tabs"), active, onSelect: (id) => patchQuery({ state: id === "all" ? null : id }),
-      tabs: [{ id: "all", label: t("rev.tab.all"), count: total }, ...STATE_ORDER.map((s) => ({ id: s, label: stateLabel(s, cfg.type), count: count(s) }))] }));
+      tabs: [{ id: "all", label: t("rev.tab.all"), count: total }, ...STATE_ORDER.map((s) => ({ id: s, label: stateLabel(s), count: count(s) }))] }));
   }
 
   function drawChips(params) {
