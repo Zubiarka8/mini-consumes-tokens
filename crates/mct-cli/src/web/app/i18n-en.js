@@ -8,7 +8,7 @@ export const en = {
   "sidebar.collapse": "Collapse menu",
   "header.repo": "Active repository", "header.workspace": "Unified workspace", "header.workspaceCode": "Workspace: Code", "header.workspaceTip": "Open the unified code workspace",
   "header.refresh": "Refresh data", "header.refreshed": "Data reloaded. To reindex, run “mct-cli reindex” and restart this server.", "header.local": "Local", "header.localTip": "Local server on 127.0.0.1; nothing leaves your machine",
-  "header.language": "Language", "lang.es": "Español", "lang.en": "English",
+  "prefs.title": "Preferences", "prefs.theme": "Theme", "header.language": "Language", "lang.es": "Español", "lang.en": "English",
   "status.ready": "Ready", "status.stale": "Out of date", "status.failed": "Failed", "status.unknown": "No record", "status.indexing": "Indexing", "status.paused": "Paused",
   "status.tooltip": "Index state according to the last recorded indexing run and the files modified since. This panel does not run the indexer.",
   "notice.title": "Notifications", "notice.none": "No notices.", "notice.stale": "{n} files changed after the last indexing run. Run “mct-cli reindex”.",
