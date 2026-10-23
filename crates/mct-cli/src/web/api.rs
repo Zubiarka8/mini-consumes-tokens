@@ -94,6 +94,7 @@ pub(super) fn route(site: &Site, route: &str, params: &Params) -> Option<Respons
         "notes" => ("notes", Ok(notes::list(site, params))),
         "note" => ("note", notes::detail(site, params)),
         "notes-graph" => ("notes-graph", Ok(notes::graph(site, params))),
+        "ignore" => ("ignore", site.ignore_state()),
         _ => return None,
     };
     let micros = u64::try_from(started.elapsed().as_micros()).unwrap_or(u64::MAX);

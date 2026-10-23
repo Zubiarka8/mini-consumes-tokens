@@ -212,7 +212,8 @@ fn dashboard_serves_static_app_and_a_read_only_json_api() {
     assert_eq!(finding["members"].as_array().unwrap().len(), 2);
     assert!(finding["analysis"].as_str().unwrap().contains("alpha"));
     let dead = server.json("api/findings?type=dead-code&q=beta");
-    assert_eq!(dead["items"][0]["confidence"], "unknown");
+    assert!(["high", "medium", "low"].contains(&dead["items"][0]["confidence"].as_str().unwrap()));
+    assert_eq!(dead["items"][0]["zone"], "source");
     assert!(dead["items"][0]["severity"].is_null());
     let dead_detail = server.json(&format!(
         "api/finding?key={}",
@@ -923,4 +924,172 @@ fn an_unreadable_review_file_makes_reviews_read_only_and_hides_nothing() {
     let response = degraded.decide(&key, Some("confirmed"), "");
     assert!(response.starts_with("HTTP/1.1 503"), "{response}");
     assert_eq!(fs::read_to_string(&draft).unwrap(), "version: 2\ntruncated");
+}
+
+#[test]
+fn duplicate_filters_match_every_member_without_splitting_groups() {
+    let root = project();
+    let source = fs::read_to_string(root.path().join("src/a.rs")).unwrap();
+    for id in 0..8 {
+        let dir = root.path().join(format!("module_{id}"));
+        fs::create_dir(&dir).unwrap();
+        fs::write(
+            dir.join("member.rs"),
+            source.replace("alpha", &format!("member_{id}")),
+        )
+        .unwrap();
+    }
+    index(root.path());
+    let server = Server::start(root.path(), true);
+    let all = server.json("api/findings?type=duplicate&size=1");
+    let row = &all["items"][0];
+    let key = row["key"].as_str().unwrap();
+    assert_eq!(row["members"].as_array().unwrap().len(), 6);
+    let detail = server.json(&format!("api/finding?key={key}"));
+    let members = detail["members"].as_array().unwrap();
+    assert_eq!(members.len(), 10);
+    for member in members {
+        let path = member["path"].as_str().unwrap();
+        for filter in [path, path.split('/').next().unwrap()] {
+            let filtered = server.json(&format!("api/findings?type=duplicate&dir={filter}&size=1"));
+            assert_eq!(filtered["total"], 1, "{filter}");
+            assert_eq!(
+                filtered["items"][0], *row,
+                "group identity and counts: {filter}"
+            );
+        }
+        let name = member["name"].as_str().unwrap();
+        assert_eq!(
+            server.json(&format!("api/findings?type=duplicate&q={name}"))["total"],
+            1
+        );
+    }
+    assert_eq!(
+        server.json("api/findings?type=duplicate&dir=module")["total"],
+        0
+    );
+    assert_eq!(
+        server.json("api/findings?type=duplicate&dir=missing.rs")["total"],
+        0
+    );
+}
+
+#[test]
+fn recent_activity_retains_finding_identity_and_meta_names_the_canonical_review_file() {
+    let root = project();
+    let server = Server::start(root.path(), true);
+    assert_eq!(
+        server.json("api/meta")["reviewsFile"],
+        ".mct-index/review-decisions.toon"
+    );
+    for kind in ["duplicate", "dead-code"] {
+        let list = server.json(&format!("api/findings?type={kind}"));
+        let key = list["items"][0]["key"].as_str().unwrap();
+        assert!(server
+            .decide(key, Some("confirmed"), "dashboard regression")
+            .starts_with("HTTP/1.1 200"));
+        let summary = server.json("api/summary");
+        let event = summary["recent"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|event| event["finding"]["key"] == key)
+            .unwrap();
+        assert_eq!(event["finding"]["type"], kind);
+        assert_eq!(server.json(&format!("api/finding?key={key}"))["key"], key);
+    }
+}
+
+fn post_ignore(server: &Server, body: &serde_json::Value, headers: &str) -> String {
+    let body = body.to_string();
+    server.raw(&format!("POST /secret/api/ignore HTTP/1.1\r\nHost: 127.0.0.1:8787\r\n{headers}Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}", body.len()))
+}
+
+#[test]
+fn mctignore_is_read_and_saved_with_origin_csrf_conflict_and_limit_checks() {
+    let root = project();
+    let server = Server::start(root.path(), true);
+    let file = root.path().join(".mctignore");
+    let csrf = server.site.borrow().csrf.clone();
+    let origin = "Origin: http://127.0.0.1:8787\r\n";
+
+    let state = server.json("api/ignore");
+    assert_eq!(state["exists"], false);
+    assert_eq!(state["importsGitignore"], false);
+    assert_eq!(state["directive"], "@import-gitignore");
+    assert!(state["template"]
+        .as_str()
+        .unwrap()
+        .contains("@import-gitignore"));
+
+    let save = |content: &str, base: &str| {
+        post_ignore(
+            &server,
+            &serde_json::json!({ "csrf": csrf, "content": content, "base": base }),
+            origin,
+        )
+    };
+    let denied = post_ignore(
+        &server,
+        &serde_json::json!({ "csrf": "nope", "content": "x", "base": "" }),
+        origin,
+    );
+    assert!(denied.starts_with("HTTP/1.1 403"), "{denied}");
+    let no_origin = post_ignore(
+        &server,
+        &serde_json::json!({ "csrf": csrf, "content": "x", "base": "" }),
+        "",
+    );
+    assert!(no_origin.starts_with("HTTP/1.1 403"), "{no_origin}");
+    assert!(!file.exists());
+
+    let saved = save("docs/\r\n@import-gitignore", "");
+    assert!(saved.starts_with("HTTP/1.1 200"), "{saved}");
+    assert_eq!(
+        fs::read_to_string(&file).unwrap(),
+        "docs/\n@import-gitignore\n"
+    );
+    let state = server.json("api/ignore");
+    assert_eq!(state["exists"], true);
+    assert_eq!(state["importsGitignore"], true);
+
+    let commented = save("# @import-gitignore\n", "docs/\n@import-gitignore\n");
+    assert!(commented.starts_with("HTTP/1.1 200"), "{commented}");
+    assert_eq!(server.json("api/ignore")["importsGitignore"], false);
+
+    let stale = save("*.md\n", "something older");
+    assert!(stale.starts_with("HTTP/1.1 409"), "{stale}");
+    assert_eq!(fs::read_to_string(&file).unwrap(), "# @import-gitignore\n");
+
+    for (body, status) in [
+        (
+            serde_json::json!({ "csrf": csrf, "content": "a\u{0}b", "base": "# @import-gitignore\n" }),
+            "400",
+        ),
+        (
+            serde_json::json!({ "csrf": csrf, "content": "x".repeat(70_000), "base": "# @import-gitignore\n" }),
+            "413",
+        ),
+        (
+            serde_json::json!({ "csrf": csrf, "content": "x", "base": "# @import-gitignore\n", "path": "../x" }),
+            "400",
+        ),
+        (
+            serde_json::json!({ "csrf": csrf, "content": 7, "base": "" }),
+            "400",
+        ),
+    ] {
+        let response = post_ignore(&server, &body, origin);
+        assert!(
+            response.starts_with(&format!("HTTP/1.1 {status}")),
+            "{status}: {response}"
+        );
+    }
+    assert_eq!(fs::read_to_string(&file).unwrap(), "# @import-gitignore\n");
+    let leftovers: Vec<_> = fs::read_dir(root.path())
+        .unwrap()
+        .filter_map(|entry| entry.ok()?.file_name().into_string().ok())
+        .filter(|name| name.ends_with(".tmp"))
+        .collect();
+    assert!(leftovers.is_empty(), "{leftovers:?}");
 }
