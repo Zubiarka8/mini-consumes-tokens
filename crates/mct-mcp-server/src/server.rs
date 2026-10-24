@@ -2781,6 +2781,19 @@ impl MctServer {
         // distinction that actually matters for this tool.
         let candidates =
             mct_index::find_dead_code_candidates(&index, path, language).map_err(index_error)?;
+        let reviews =
+            mct_index::review_state::ReviewSnapshot::load(index.root()).map_err(|error| {
+                McpError::internal_error(
+                    format!("cannot read saved review decisions: {error}"),
+                    None,
+                )
+            })?;
+        let candidates = if reviews.has_decisions() {
+            let navigation = index.navigation_snapshot().map_err(index_error)?;
+            reviews.filter_dead(index.root(), &navigation, candidates)
+        } else {
+            candidates
+        };
 
         let text = match output_format {
             OutputFormat::Text => {

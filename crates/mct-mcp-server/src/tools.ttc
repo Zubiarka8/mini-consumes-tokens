@@ -160,8 +160,8 @@ WHEN top-level symbols with zero indexed references — dead-code candidates.
 ERR heuristic only; verify with find_references/impact_analysis before deleting.
 TAGS dead-code, unused, cleanup, heuristic
 PRE none; `path`/`language` scope it.
-POST top-level symbols with zero indexed references. TOON by default; `format`:`text` for plain text.
-EFFECTS read; index only.
+POST top-level symbols with zero indexed references. TOON by default; `format`:`text` for plain text. Omits unchanged dashboard false positives and ignored findings before pagination.
+EFFECTS read; index and saved review decisions.
 
 TOOL get_dependency_graph
 WHEN module import graph, `depth` hops, cycles flagged; `export` dot|mermaid.
