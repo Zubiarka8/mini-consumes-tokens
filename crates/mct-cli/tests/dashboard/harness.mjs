@@ -15,8 +15,12 @@ export function harness({ hash = '#/duplicados', compact = false, reduced = fals
   Object.defineProperty(window.HTMLSelectElement.prototype, 'value', {
     configurable: true,
     get() { return selectValue.get.call(this); },
+    // Select only the match: linkedom's `selected = false` on any option also clears the selected one,
+    // so deselecting the options after the match would undo it.
     set(value) {
-      for (const option of this.options) option.selected = option.value === String(value);
+      const match = [...this.options].find(option => option.value === String(value));
+      if (match) match.selected = true;
+      else for (const option of this.options) option.removeAttribute('selected');
     },
   });
   let active = document.body;
