@@ -93,3 +93,13 @@ ERR-003 observation, 2026-10-18: 18 current malformed-file diagnostics are repro
 ERR-019 verification, 2026-10-20: the primary MCP now answers search_symbols, build_context_pack and get_indexing_status: 1303 files / 21257 symbols, timestamp 1792448999. Correct-root tool discovery/query recovery verified. Nineteen parse diagnostics remain pre-existing: eighteen intentionally malformed fixtures/copies and scripts/windows/review-check.ps1:29.
 
 ERR-014 recurrence, 2026-10-20 (RESOLVED caller error): three primary build_context_pack calls supplied name instead of symbol (run, DuplicateReport, DuplicateMember); exact diagnostic: ``failed to deserialize parameters: missing field `symbol` ``. Retried all three with symbol and the same paths; all succeeded. No server defect or code change.
+
+ERR-014 recurrence, 2026-10-24 (RESOLVED caller error): `build_context_pack` for `SymbolListEntry` used `name` instead of `symbol`; exact diagnostic: ``failed to deserialize parameters: missing field `symbol` ``. Retrying with `symbol: SymbolListEntry`, `source_lines: 25`, `format: toon` succeeded and returned its definition. Source lookup was briefly delayed; no server defect.
+
+## Dashboard audit observation — 2026-10-24
+
+| ID | Status | Location / scope | Observed behavior and impact | Evidence / next action |
+| --- | --- | --- | --- | --- |
+| ERR-020 | OPEN | `crates/mct-cli/src/web/spa/spa.css:1` | Project parser rejects the generated dashboard CSS: `syntax error`; stylesheet is absent from source symbol coverage. This is a parser rejection, not evidence that browser styling fails. | MCP get_indexing_status reports 1008 files / 17502 symbols, timestamp 1792854060 and 18 diagnostics. `mct-cli --root . probe crates/mct-cli/src/web/spa/spa.css scripts/windows/review-check.ps1` reproduces the CSS line-1 rejection and PowerShell line-29 rejection (exit 1). Minimize the CSS construct before classifying grammar support or creating a parser fix. No exclusions added. |
+
+ERR-003/known parse observation, 2026-10-24: the other 17 diagnostics are the 16 deliberate malformed fixtures and the previously observed `scripts/windows/review-check.ps1:29: syntax error`. The latter reproduces with the same direct probe; no new fix or resolution is claimed. Caller initially used an unsupported `parse-probe` CLI subcommand (exit 2), checked CLI help and reran the supported `probe` command. This was not a failed MCP request.

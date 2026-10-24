@@ -143,3 +143,11 @@
 ## 2026-10-20 — Local web follow-up
 
 ERR-019 RESOLVED: primary MCP search/context/status calls now succeed; get_indexing_status returns 1303 files/21257 symbols, timestamp 1792448999, confirming project root and restored tools. Existing 19 parse diagnostics preserved (18 malformed fixtures/copies and review-check.ps1:29). ERR-014 caller mistake recurred in three build_context_pack calls using name for run/DuplicateReport/DuplicateMember; diagnostic ``failed to deserialize parameters: missing field `symbol` ``. Each retry with symbol succeeded; remains RESOLVED.
+
+## 2026-10-24 — Dashboard fingerprint work
+
+ERR-014 caller mistake recurred: `build_context_pack(name: SymbolListEntry)` returned ``failed to deserialize parameters: missing field `symbol` ``. Retried using `symbol`; context retrieval succeeded. Remains RESOLVED.
+
+## 2026-10-24 — Adversarial dashboard audit index observation
+
+get_indexing_status reports 1008 files / 17502 symbols at timestamp 1792854060 with 18 parse diagnostics: 16 intentionally malformed fixtures, the previously observed review-check.ps1:29 rejection, and generated web/spa/spa.css:1. Direct project CLI probe reproduces the CSS and PowerShell `syntax error` diagnostics (exit 1); ERR-020 opened for untriaged CSS coverage. No source exclusion or parser fix. An initial unsupported parse-probe CLI command was corrected to probe after checking help.
