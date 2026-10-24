@@ -17,17 +17,22 @@ export function graphView({ nodes, edges, onSelect, directed = true, label }) {
   const list = [...byId.values()];
   // Repulsion is O(n²) per tick, so big graphs get fewer ticks to stay responsive.
   const MAX_TICKS = list.length <= 600 ? BASE_TICKS : Math.max(30, Math.round(BASE_TICKS * (600 / list.length) ** 2));
+  const PAIR_BUDGET = 1_000_000;
+  const PAIR_QUANTUM = 1024;
+  const FRAME_BUDGET_MS = 6;
   const view = { x: 0, y: 0, k: 1 };
   let selected = null, ticks = 0, raf = 0, dragging = null;
+  let pairI = 0, pairJ = 1, tickStarted = false;
+  const visibleLabels = list.length <= 60
+    ? new Set(list.map((node) => node.id))
+    : new Set([...list].sort((a, b) => b.r - a.r || String(a.id).localeCompare(String(b.id))).slice(0, 25).map((node) => node.id));
 
   const root = svg("g", {});
   const marker = svg("marker", { id: "arrow", viewBox: "0 0 10 10", refX: 16, refY: 5, markerWidth: 6, markerHeight: 6, orient: "auto-start-reverse" }, svg("path", { d: "M0 0L10 5L0 10z", fill: "var(--text-3)" }));
   const edgeEls = links.map((edge) => svg("line", { class: "gedge", "stroke-width": Math.min(4, 1 + Math.log2(1 + (edge.weight || 1))), "marker-end": directed ? "url(#arrow)" : null, style: edge.color ? `stroke:${edge.color}` : undefined }));
-  const radii = list.map((node) => node.r).sort((a, b) => b - a);
-  const labelMin = list.length <= 60 ? 0 : radii[Math.min(radii.length - 1, 24)];
   const nodeEls = new Map(list.map((node) => {
     const el = svg("g", { class: "gnode", tabindex: 0, role: "button", "aria-label": node.label },
-      svg("circle", { r: node.r, fill: node.color || "var(--primary)", stroke: "var(--bg)", "stroke-width": 2 }), svg("text", { x: node.r + 4, y: 4, class: node.r >= labelMin ? "" : "faint-label" }, node.label.length > 26 ? `${node.label.slice(0, 25)}…` : node.label), svg("title", {}, node.title || node.label));
+      svg("circle", { r: node.r, fill: node.color || "var(--primary)", stroke: "var(--bg)", "stroke-width": 2 }), svg("text", { x: node.r + 4, y: 4, class: visibleLabels.has(node.id) ? "" : "faint-label" }, node.label.length > 26 ? `${node.label.slice(0, 25)}…` : node.label), svg("title", {}, node.title || node.label));
     el.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); choose(node.id); } });
     el.addEventListener("pointerdown", (event) => { event.stopPropagation(); dragging = { node, moved: false, id: event.pointerId }; el.setPointerCapture(event.pointerId); });
     el.addEventListener("pointermove", (event) => {
@@ -56,16 +61,12 @@ export function graphView({ nodes, edges, onSelect, directed = true, label }) {
     links.forEach((edge, i) => { const e = edgeEls[i]; e.setAttribute("x1", edge.s.x); e.setAttribute("y1", edge.s.y); e.setAttribute("x2", edge.t.x); e.setAttribute("y2", edge.t.y); });
     list.forEach((node) => nodeEls.get(node.id).setAttribute("transform", `translate(${node.x} ${node.y})`));
   }
-  function step() {
+  function beginTick() {
+    for (const node of list) { node.vx = 0; node.vy = 0; }
+    pairI = 0; pairJ = 1; tickStarted = true;
+  }
+  function applyTickForces() {
     const cool = 1 - ticks / MAX_TICKS;
-    for (const a of list) { a.vx = 0; a.vy = 0; }
-    for (let i = 0; i < list.length; i += 1) for (let j = i + 1; j < list.length; j += 1) {
-      const a = list[i], b = list[j];
-      let dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy || 0.01;
-      const force = 9000 / d2, d = Math.sqrt(d2);
-      dx /= d; dy /= d;
-      a.vx += dx * force; a.vy += dy * force; b.vx -= dx * force; b.vy -= dy * force;
-    }
     for (const edge of links) {
       const dx = edge.t.x - edge.s.x, dy = edge.t.y - edge.s.y, d = Math.sqrt(dx * dx + dy * dy) || 0.01;
       const force = (d - 130) * 0.04;
@@ -80,8 +81,29 @@ export function graphView({ nodes, edges, onSelect, directed = true, label }) {
   function run() {
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
     const frame = () => {
-      const batch = reduce ? MAX_TICKS : list.length > 1500 ? 1 : 4;
-      for (let i = 0; i < batch && ticks < MAX_TICKS; i += 1) { step(); ticks += 1; }
+      const deadline = performance.now() + FRAME_BUDGET_MS;
+      const tickLimit = reduce ? MAX_TICKS : list.length > 1500 ? 1 : 4;
+      let completed = 0, pairs = 0;
+      while (ticks < MAX_TICKS && completed < tickLimit && performance.now() < deadline) {
+        if (!tickStarted) beginTick();
+        while (pairI < list.length - 1 && pairs < PAIR_BUDGET && performance.now() < deadline) {
+          const quantumEnd = Math.min(PAIR_BUDGET, pairs + PAIR_QUANTUM);
+          while (pairI < list.length - 1 && pairs < quantumEnd) {
+            const a = list[pairI], b = list[pairJ];
+            let dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy || 0.01;
+            const force = 9000 / d2, d = Math.sqrt(d2);
+            dx /= d; dy /= d;
+            a.vx += dx * force; a.vy += dy * force; b.vx -= dx * force; b.vy -= dy * force;
+            pairs += 1;
+            pairJ += 1;
+            if (pairJ >= list.length) { pairI += 1; pairJ = pairI + 1; }
+          }
+        }
+        if (pairI >= list.length - 1) {
+          applyTickForces();
+          ticks += 1; completed += 1; tickStarted = false;
+        } else break;
+      }
       paint();
       if (ticks < MAX_TICKS) raf = requestAnimationFrame(frame); else fit();
     };
