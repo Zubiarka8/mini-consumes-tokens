@@ -1,5 +1,10 @@
 // English strings. Same keys as the Spanish dictionary in i18n.js; a key missing here falls back to Spanish.
 export const en = {
+  "dup.leftMember": "Left fragment",
+  "dup.rightMember": "Right fragment",
+  "code.symbolDetails": "Symbol details",
+  "common.showMore": "Show more",
+
   "common.loading": "Loading…", "common.errorTitle": "The data could not be loaded", "common.retry": "Retry", "common.close": "Close", "common.cancel": "Cancel",
   "common.confirm": "Confirm", "common.save": "Save", "common.delete": "Delete", "common.copied": "Copied to the clipboard", "common.copyFailed": "Could not copy",
   "common.pathCopied": "Path copied", "common.copyPath": "Copy path", "common.duplicate": "Duplicate", "common.deadCode": "Dead code", "common.finding": "Finding", "common.noData": "No data", "common.skip": "Skip to content",
@@ -81,7 +86,7 @@ export const en = {
   "dead.limit.byName": "References are compared by name, not by semantic resolution.", "dead.limit.dynamic": "It does not detect dynamic dispatch or reflection.", "dead.limit.macros": "It does not expand macros or generated code.", "dead.limit.ffi": "It does not see uses from FFI or other languages.",
   "dead.limit.public": "A public API may be used from outside the repository.", "dead.limit.tests": "Uses in tests are not told apart from other uses.", "dead.limit.generated": "Generated code may not be indexed.", "dead.limit.config": "It does not see uses through runtime configuration or plugin entry points.",
   "dead.deps": "File dependencies", "dead.imports": "Imports {n} files · imported by {m}", "dead.neverDelete": "Destructive action not available: this panel only records review decisions.",
-  "dead.unsupported": "Not available: severity, computed confidence, visibility, modification date, exposed symbols and test-only use; the analysis does not compute them.",
+  "dead.unsupported": "Confidence is estimated from the zone, visibility and name of the symbol; it is not proof. Not available: severity, modification date and test-only use.",
   "rev.title": "Reviews", "rev.subtitle": "Decide what to do with each finding and keep an auditable history.", "rev.tabs": "Review states", "rev.tab.all": "All",
   "rev.unsupported": "Not available: severity, confidence and assigned reviewer. False positives are never deleted: you can filter or reopen them.",
   "find.searchPlaceholder": "Search by symbol or path…",
@@ -154,7 +159,14 @@ export const en = {
   // settings
   "settings.title": "Settings", "settings.subtitle": "Appearance, local server state and the real capabilities of the backend.", "settings.appearance": "Appearance", "settings.language": "Language", "settings.languageNote": "The language is saved in this browser.",
   "settings.server": "Local server", "settings.snapshot": "Snapshot", "settings.lastIndexed": "Last indexing run", "settings.binding": "Address", "settings.reviewsFile": "Reviews file", "settings.vault": "Obsidian vault", "settings.vaultNotes": "{n} notes",
-  "settings.readOnly": "The panel listens only on 127.0.0.1, with a private key in the URL. It is read-only except for review decisions.", "settings.capabilities": "Backend capabilities", "settings.capabilitiesNote": "What is not available is not simulated in the interface.",
+  "dead.confidence.high": "High", "dead.confidence.medium": "Medium", "dead.confidence.low": "Low", "dead.zone.source": "Source code", "dead.zone.tests": "Tests", "dead.zone.benchmarks": "Benchmarks", "dead.zone.examples": "Examples", "dead.zone.website": "Website", "dead.visibility.public": "Public", "dead.visibility.internal": "Internal", "dead.visibility.private": "Private", "dead.visibility.unknown": "Unknown", "dead.zone": "Zone", "dead.visibility": "Visibility",
+  "filters.zone": "Zone", "filters.confidence": "Confidence", "col.zone": "Zone", "filters.zoneOnly": "Source code only", "review.ignored": "Ignored", "review.ignoreNow": "Ignore",
+  "ignore.title": "Indexing exclusions (.mctignore)", "ignore.intro": "Extra patterns kept out of the index, on top of the built-in exclusions (secrets, node_modules, target, .git…). They can never widen past those.",
+  "ignore.gitignoreTip": "To also exclude everything .gitignore already excludes, a line that is exactly {directive} (no # in front) is enough. Typing it here by hand works the same as running `{command}`: that command only adds this line.",
+  "ignore.importOn": "Imports .gitignore", "ignore.importOff": "Does not import .gitignore", "ignore.noGitignore": "There is no .gitignore at the project root: the directive does nothing until one exists.", "ignore.noFile": ".mctignore does not exist yet; it is created on save.",
+  "ignore.fieldLabel": "Contents of .mctignore", "ignore.toggleOn": "Import .gitignore", "ignore.toggleOff": "Stop importing .gitignore", "ignore.template": "Use template", "ignore.revert": "Discard changes", "ignore.save": "Save .mctignore",
+  "ignore.saved": ".mctignore saved", "ignore.dirty": "Unsaved changes", "ignore.reindex": "Changes apply on the next reindex: run `mct-cli --root <project> reindex --force` and restart the dashboard.", "ignore.conflict": ".mctignore changed on disk while you were editing. Nothing was saved; the current content is shown.", "ignore.loadFailed": "Could not read .mctignore.", "ignore.size": "{n} of {max} bytes",
+  "settings.readOnly": "The panel listens only on 127.0.0.1, with a private key in the URL. It is read-only except for review decisions and the .mctignore file.", "settings.capabilities": "Backend capabilities", "settings.capabilitiesNote": "What is not available is not simulated in the interface.",
   "settings.capability": "Capability", "settings.status": "Status", "settings.detail": "Detail", "settings.localData": "Local browser data", "settings.localDataText": "Remembered filters, {n} saved filters, recent and saved searches.", "settings.reset": "Reset",
   "settings.resetTitle": "Reset local data", "settings.resetBody": "Filters, searches and saved filters will be erased from this browser. Review decisions are not touched.", "settings.resetDone": "Local data reset", "settings.shortcuts": "Keyboard shortcuts",
   "settings.sc.search": "Open the global search", "settings.sc.slash": "Focus the search", "settings.sc.list": "Move through lists and tables", "settings.sc.esc": "Close or clear",
