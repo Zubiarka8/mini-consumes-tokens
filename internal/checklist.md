@@ -1,6 +1,6 @@
 # mini-consumes-tokens — checklist
 
-> **Status note (2026-10-13 docs audit).** Most entries below are a dated history of past sessions and keep the numbers, names and counts of that time (for example "seven tools", "204 tests", `codebase-context-mcp`, `MANUAL.md`, `LICENSE-MIT`). Current verified state: 17 languages registered in both `mct-mcp-server` and `mct-cli` (Rust, Python, Lua, Java, C#, JS/TS, C++, Go, HTML, CSS, XML, XAML, Bash, PowerShell, PHP, Kotlin, Markdown); 18 MCP tools (see `discover_tool_categories`); workspace version 0.2.0, Apache-2.0; `MANUAL.md`/`MANUAL.html` no longer exist (see `README.md`, `COMMANDS.md`, `ARCHITECTURE.md`). Test counts and CI run results below were not re-run in this audit.
+> **Status note (2026-10-13 docs audit).** Most entries below are a dated history of past sessions and keep the numbers, names and counts of that time (for example "seven tools", "204 tests", `codebase-context-mcp`, `MANUAL.md`, the old license file name). Current verified state: 17 languages registered in both `mct-mcp-server` and `mct-cli` (Rust, Python, Lua, Java, C#, JS/TS, C++, Go, HTML, CSS, XML, XAML, Bash, PowerShell, PHP, Kotlin, Markdown); 18 MCP tools (see `discover_tool_categories`); workspace version 0.2.0, Apache-2.0; `MANUAL.md`/`MANUAL.html` no longer exist (see `README.md`, `COMMANDS.md`, `ARCHITECTURE.md`). Test counts and CI run results below were not re-run in this audit.
 
 ## TODO/FIXME/HACK/XXX/BUG/OPTIMIZE count
 
