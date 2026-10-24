@@ -181,3 +181,71 @@ test('recent activity links carry the finding identity and include findings outs
   assert.equal(params.get('key'), 'duplicate:key');
   assert.equal(params.get('state'), 'all');
 });
+
+// Dead code gets the comparison's layout: the list gives way to one pane with the
+// candidate's lines marked and a few context lines around them.
+const deadFinding = {
+  key: 'dead-test', type: 'dead-code', title: 'unused_helper', kind: 'function', language: 'rust', state: 'unreviewed', revision: 'none',
+  confidence: 'high', zone: 'source', visibility: 'private', path: 'src/lib.rs', line: 10, history: [],
+  detail: { symbol: { path: 'src/lib.rs', line: 10, endLine: 12, language: 'rust' }, code: null, imports: [], importedBy: [], notes: [] },
+};
+function deadApi(requests) {
+  return async (url) => {
+    const route = url.pathname.split('/').at(-1);
+    if (route === 'findings') return { items: [deadFinding], total: 1, all: 1, size: 25, page: 0, facets: {} };
+    if (route === 'finding') return deadFinding;
+    if (route === 'source') {
+      requests.push(url);
+      const start = Number(url.searchParams.get('start')), end = Number(url.searchParams.get('end'));
+      return { start, lines: Array.from({ length: end - start + 1 }, (_, n) => `line ${start + n}`), truncated: false, language: 'rust' };
+    }
+    return defaultApi(url);
+  };
+}
+
+test('a dead-code candidate opens in the code view with its own lines marked', async () => {
+  const requests = [];
+  const query = 'key=dead-test&view=code';
+  const env = harness({ hash: `#/codigo-muerto?${query}`, fetch: deadApi(requests) });
+  const { render } = await env.load('page-findings.js');
+  const cleanup = await render({ root: env.root, page: 'codigo-muerto', params: new URLSearchParams(query) });
+  await settle(); await settle();
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].searchParams.get('start'), '7', 'three context lines before the symbol');
+  assert.equal(requests[0].searchParams.get('end'), '15');
+  assert.equal(env.root.querySelectorAll('.compare.single .pane').length, 1);
+  assert.equal(env.root.querySelector('.workbench').classList.contains('compare-mode'), true);
+  const marked = [...env.root.querySelectorAll('.compare .ln.del')].map(row => row.firstChild.textContent);
+  assert.deepEqual(marked, ['10', '11', '12']);
+  assert.match(env.root.textContent, /Lines with no known references \(3\)/);
+  const context = env.root.querySelector('select[aria-label="Surrounding context"]');
+  context.value = '10'; context.dispatchEvent(env.event('change'));
+  await settle(); await settle();
+  assert.equal(new URLSearchParams(env.location.hash.split('?')[1]).get('context'), '10');
+  assert.equal(requests.at(-1).searchParams.get('start'), '1', 'context never starts before line 1');
+  assert.equal(requests.at(-1).searchParams.get('end'), '22');
+  assert.equal(env.root.querySelectorAll('.compare .ln').length, 22);
+  assert.equal(env.root.querySelectorAll('.compare .ln.del').length, 3);
+  findButton(env.root, 'Back to the list').dispatchEvent(env.event('click'));
+  await settle();
+  assert.equal(new URLSearchParams(env.location.hash.split('?')[1]).get('view'), null);
+  assert.equal(env.root.querySelector('.compare'), null);
+  cleanup();
+});
+
+test('the dead-code list row opens the code view instead of a dialog', async () => {
+  const requests = [];
+  const env = harness({ hash: '#/codigo-muerto', fetch: deadApi(requests) });
+  const { render } = await env.load('page-findings.js');
+  const cleanup = await render({ root: env.root, page: 'codigo-muerto', params: new URLSearchParams() });
+  await settle();
+  const view = [...env.root.querySelectorAll('button')].find(el => el.getAttribute('aria-label') === 'View code of: unused_helper');
+  view.dispatchEvent(env.event('click'));
+  await settle(); await settle();
+  const params = new URLSearchParams(env.location.hash.split('?')[1]);
+  assert.equal(params.get('key'), 'dead-test');
+  assert.equal(params.get('view'), 'code');
+  assert.equal(env.root.querySelector('dialog'), null);
+  assert.equal(env.root.querySelectorAll('.compare.single .pane').length, 1);
+  cleanup();
+});
