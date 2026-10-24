@@ -603,19 +603,32 @@ impl Store {
         {
             return Ok(());
         }
-        if status != Status::Pending {
-            let active: bool = transaction.query_row(
+        // Active decisions and retained restored rows are bounded separately,
+        // with the limits that every reader of this store enforces (the
+        // dashboard and `mct_index::review_state`). Restored rows never use
+        // the active quota, yet cannot grow until the store is unreadable.
+        // Only a transition into a category is checked, so editing a row that
+        // is already in it is always allowed.
+        let (same_category, total_sql, diagnostic) = if status == Status::Pending {
+            (
+                "SELECT EXISTS(SELECT 1 FROM reviews WHERE kind = ?1 AND identity = ?2 AND status = 'pending')",
+                "SELECT count(*) FROM reviews WHERE status = 'pending'",
+                "too many restored reviews; delete decisions without a current finding first",
+            )
+        } else {
+            (
                 "SELECT EXISTS(SELECT 1 FROM reviews WHERE kind = ?1 AND identity = ?2 AND status <> 'pending')",
-                params![kind.value(), identity], |row| row.get(0),
-            )?;
-            if !active {
-                let total: i64 = transaction.query_row(
-                    "SELECT count(*) FROM reviews WHERE status <> 'pending'",
-                    [],
-                    |row| row.get(0),
-                )?;
-                ensure!(total < MAX_REVIEWS as i64, "too many reviews");
-            }
+                "SELECT count(*) FROM reviews WHERE status <> 'pending'",
+                "too many reviews",
+            )
+        };
+        let already: bool =
+            transaction.query_row(same_category, params![kind.value(), identity], |row| {
+                row.get(0)
+            })?;
+        if !already {
+            let total: i64 = transaction.query_row(total_sql, [], |row| row.get(0))?;
+            ensure!(total < MAX_REVIEWS as i64, "{diagnostic}");
         }
         let values = params![
             kind.value(),
@@ -1808,6 +1821,42 @@ mod tests {
                 4
             )
             .is_err());
+    }
+
+    /// Retained restored rows have their own bound, equal to the one every
+    /// reader enforces, so a restore fails cleanly instead of making the
+    /// store unreadable for the dashboard and the AI-facing filters.
+    #[test]
+    fn restored_rows_have_their_own_bound_and_existing_ones_stay_restorable() {
+        let (_root, path) = project();
+        let mut store = Store::open(&path).unwrap();
+        store.conn.execute(
+            "WITH RECURSIVE n(value) AS (SELECT 1 UNION ALL SELECT value + 1 FROM n WHERE value < ?1)
+             INSERT INTO reviews(kind, identity, fingerprint, status, decided_at, reason)
+             SELECT 'dead', printf('%064x', value), ?2, 'pending', 1, '' FROM n",
+            params![MAX_REVIEWS as i64, id('f')],
+        ).unwrap();
+        let identity = id('e');
+        store
+            .set((Kind::Dead, &identity, &id('f')), Status::Ignored, "", 2)
+            .unwrap();
+        let error = store
+            .set((Kind::Dead, &identity, &id('f')), Status::Pending, "", 3)
+            .unwrap_err();
+        assert!(error.to_string().contains("restored"), "{error:#}");
+        assert_eq!(store.decisions().unwrap().len(), 1, "nothing changed");
+        assert_eq!(store.history(Kind::Dead, &identity).unwrap().len(), 1);
+        // Restoring an already restored row adds no row and stays allowed.
+        let existing = format!("{:064x}", 1);
+        store
+            .set((Kind::Dead, &existing, &id('f')), Status::Pending, "", 4)
+            .unwrap();
+        // Deleting a retained row frees room for the next restore.
+        assert!(store.delete_decision(Kind::Dead, &existing).unwrap());
+        store
+            .set((Kind::Dead, &identity, &id('f')), Status::Pending, "", 5)
+            .unwrap();
+        assert!(store.decisions().unwrap().is_empty());
     }
 
     #[test]

@@ -477,9 +477,12 @@ fn finding(req: &Req<'_>) -> Response {
     }))
 }
 
+/// Per-file duplicate labels are working notes, not finding verdicts (AUD-04).
+const FILE_LABEL_SCOPE: &str = "file_label";
+
 fn file_review_json(row: &store::FileReview) -> Value {
     json!({
-        "path": row.path, "status": row.status.value(),
+        "path": row.path, "status": row.status.value(), "scope": FILE_LABEL_SCOPE,
         "note": row.note, "updated_at": row.updated_at,
     })
 }
@@ -616,7 +619,14 @@ pub(super) fn write(site: &mut Site, route: &str, body: &str) -> Response {
             "expected_revision",
         ],
         "api/review/delete" => &["kind", "id", "expected_revision"],
-        "api/file-review" => &["id", "path", "status", "note", "expected_revision"],
+        "api/file-review" => &[
+            "id",
+            "path",
+            "status",
+            "note",
+            "expected_revision",
+            "fingerprint",
+        ],
         "api/comment" => &["kind", "id", "body"],
         "api/comment/update" => &["comment_id", "body"],
         "api/comment/delete" => &["comment_id"],
@@ -624,6 +634,12 @@ pub(super) fn write(site: &mut Site, route: &str, body: &str) -> Response {
     };
     if fields.keys().any(|key| !allowed.contains(&key.as_str())) {
         return Response::error(400);
+    }
+    // Every write, decisions, labels, deletions and comments alike, is
+    // refused while the served snapshot no longer matches the index on disk:
+    // the editor must reload what changed before anything is saved (AUD-01).
+    if index_stamp(&site.root) != site.index_stamp {
+        return Response::error(409);
     }
     let text = |key: &str| fields.get(key).and_then(Value::as_str);
     let comment_id = || fields.get("comment_id").and_then(Value::as_i64);
@@ -639,9 +655,6 @@ pub(super) fn write(site: &mut Site, route: &str, body: &str) -> Response {
     };
     match route {
         "api/review/delete" => {
-            if index_stamp(&site.root) != site.index_stamp {
-                return Response::error(409);
-            }
             let (Some(kind), Some(identity)) = (text("kind").and_then(Kind::parse), text("id"))
             else {
                 return Response::error(400);
@@ -705,9 +718,6 @@ pub(super) fn write(site: &mut Site, route: &str, body: &str) -> Response {
             )
         }
         "api/file-review" => {
-            if index_stamp(&site.root) != site.index_stamp {
-                return Response::error(409);
-            }
             let Some(revision) = expected_revision() else {
                 return Response::error(400);
             };
@@ -736,10 +746,31 @@ pub(super) fn write(site: &mut Site, route: &str, body: &str) -> Response {
             {
                 return Response::error(404);
             }
+            // Optional: the group content the editor labelled must still be
+            // the current, verified content.
+            if let Some(expected) = fields.get("fingerprint") {
+                let Some(expected) = expected.as_str() else {
+                    return Response::error(400);
+                };
+                if let Err(response) =
+                    site.reviewed_fingerprint(Kind::Duplicate, identity, expected)
+                {
+                    return response;
+                }
+            }
             saved(
                 site.reviews
                     .set_file_review_checked(identity, path, status, note, now(), revision)
-                    .map(|()| json_response(&json!({"path": path, "status": status.value(),"revision":site.reviews.file_revision(identity,path).unwrap_or(0),"finding_revision":site.reviews.decision_revision(Kind::Duplicate,identity).unwrap_or(0)}))),
+                    .map(|()| {
+                        // A file label is a working note on one copy; it never
+                        // changes the group verdict, reported here unchanged.
+                        json_response(&json!({
+                            "path": path, "status": status.value(), "scope": FILE_LABEL_SCOPE,
+                            "finding_state": state_json(&site.duplicate_state(group)),
+                            "revision": site.reviews.file_revision(identity, path).unwrap_or(0),
+                            "finding_revision": site.reviews.decision_revision(Kind::Duplicate, identity).unwrap_or(0),
+                        }))
+                    }),
             )
         }
         "api/comment" => {

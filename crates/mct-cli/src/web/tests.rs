@@ -2223,3 +2223,7 @@ fn blank_snapshot_explicitly_restarts_a_bounded_read() {
         .get("api/dead?snapshot=&offset=0&limit=1")
         .starts_with("HTTP/1.1 200"));
 }
+
+/// Decision-write audit regressions; a child module so they reuse this harness.
+#[path = "tests_decisions.rs"]
+mod decisions;
