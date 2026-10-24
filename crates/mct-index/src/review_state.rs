@@ -12,10 +12,14 @@ use std::path::Path;
 use anyhow::{ensure, Context};
 use rusqlite::{Connection, OpenFlags};
 
+use crate::dead_identity::resolve_dead_identities;
 use crate::review_keys::{self, Fingerprints};
 use crate::{DuplicateGroup, NavigationSnapshot, Normalization, SymbolListEntry};
 
 const MAX_ROWS: usize = 100_000;
+/// Placeholder fingerprint of an annotation-only finding, as the dashboard
+/// store reports it; it never matches real content.
+const NO_FINGERPRINT: &str = "0000000000000000000000000000000000000000000000000000000000000000";
 const MAX_BYTES: u64 = 32 * 1024 * 1024;
 const HEADER: &str = "{kind,identity,fingerprint,status,at,reason}:";
 
@@ -32,6 +36,10 @@ pub struct ReviewSnapshot {
     legacy_duplicates: BTreeSet<String>,
     deleted: BTreeSet<(String, String)>,
     dead_aliases: BTreeMap<String, (String, String)>,
+    /// Every retained dead-code identity with its stored fingerprint, exactly
+    /// the set the dashboard store lists: decisions (restored rows included),
+    /// then history and annotation-only identities that are not archived.
+    retained_dead: BTreeMap<String, String>,
 }
 
 impl ReviewSnapshot {
@@ -45,7 +53,9 @@ impl ReviewSnapshot {
             ..Self::default()
         };
         if !path.exists() {
-            state.decisions = read_toon(&dir.join("reviews.toon"))?;
+            let (decisions, history) = read_toon(&dir.join("reviews.toon"))?;
+            state.decisions = decisions;
+            state.retain_dead(history, &BTreeMap::new());
             return Ok(state);
         }
         let mut conn = Connection::open_with_flags(
@@ -59,8 +69,9 @@ impl ReviewSnapshot {
             [],
             |row| row.get(0),
         )?;
+        let mut toon_history = BTreeMap::new();
         if !imported {
-            state.decisions = read_toon(&dir.join("reviews.toon"))?;
+            (state.decisions, toon_history) = read_toon(&dir.join("reviews.toon"))?;
         }
         // Restoring a decision does not consume the active-decision quota.
         // Bound both categories independently so retained Pending tombstones
@@ -106,17 +117,31 @@ impl ReviewSnapshot {
             }
         }
         let mut query = transaction.prepare(
-            "SELECT key, value FROM meta WHERE key LIKE 'review_deleted:%' OR key LIKE 'dead_base:%' OR key LIKE 'dead_fingerprint:%' LIMIT 600001",
+            "SELECT key, value FROM meta WHERE key LIKE 'review_deleted:%' OR key LIKE 'review_archived:%' OR key LIKE 'dead_base:%' OR key LIKE 'dead_fingerprint:%' LIMIT ?1",
         )?;
-        let rows = query.query_map([], |row| {
+        let rows = query.query_map([MAX_ROWS as i64 * 8 + 1], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
         })?;
         let mut bases = BTreeMap::new();
         let mut fingerprints = BTreeMap::new();
+        let mut archived = BTreeMap::new();
         for (count, row) in rows.enumerate() {
-            ensure!(count < MAX_ROWS * 6, "too much dashboard identity metadata");
+            ensure!(count < MAX_ROWS * 8, "too much dashboard identity metadata");
             let (key, value) = row?;
-            if let Some(key) = key.strip_prefix("review_deleted:") {
+            if let Some(key) = key.strip_prefix("review_archived:") {
+                let (kind, identity) = key.split_once(':').context("invalid archive key")?;
+                ensure!(
+                    valid_kind(kind) && valid_key(identity),
+                    "invalid archive key"
+                );
+                ensure!(
+                    matches!(value.as_str(), "0" | "1"),
+                    "invalid archive marker"
+                );
+                if kind == "dead" {
+                    archived.insert(identity.to_string(), value == "1");
+                }
+            } else if let Some(key) = key.strip_prefix("review_deleted:") {
                 let (kind, identity) = key.split_once(':').context("invalid deletion key")?;
                 ensure!(
                     valid_kind(kind) && valid_key(identity),
@@ -151,8 +176,34 @@ impl ReviewSnapshot {
             }
         }
         drop(query);
+        let history = retained_annotations(&transaction, toon_history)?;
         transaction.commit()?;
+        state.retain_dead(history, &archived);
         Ok(state)
+    }
+
+    /// Mirrors the dashboard store's retained-finding rule for dead code: a
+    /// current row's fingerprint wins, else the newest history fingerprint,
+    /// else the annotation placeholder; explicitly archived identities, and
+    /// deleted ones not reopened by a later annotation, are left out.
+    fn retain_dead(
+        &mut self,
+        history: BTreeMap<String, String>,
+        archived: &BTreeMap<String, bool>,
+    ) {
+        let mut retained = history;
+        for ((kind, identity), decision) in &self.decisions {
+            if kind == "dead" {
+                retained.insert(identity.clone(), decision.fingerprint.clone());
+            }
+        }
+        retained.retain(|identity, _| match archived.get(identity) {
+            Some(archived) => !archived,
+            None => !self
+                .deleted
+                .contains(&("dead".to_string(), identity.clone())),
+        });
+        self.retained_dead = retained;
     }
 
     /// Whether rendered report caches must be bypassed to resolve live decisions.
@@ -160,36 +211,22 @@ impl ReviewSnapshot {
         !self.decisions.is_empty() || !self.legacy_duplicates.is_empty() || !self.deleted.is_empty()
     }
 
-    /// Saved dead-symbol origin bindings, for identity-preserving callers.
-    pub fn dead_aliases(&self) -> &BTreeMap<String, (String, String)> {
-        &self.dead_aliases
-    }
-
-    /// Find one uniquely matching saved dead identity. The caller must also
-    /// establish that only one current candidate has this (base, fingerprint).
-    /// `None` signals ambiguous saved evidence and must never suppress a hit.
-    pub fn resolve_dead_identity(
+    /// Identity and fingerprint of each dead-code candidate, in input order,
+    /// from its default ordinal keys (`Fingerprints::dead_keys`). The dashboard
+    /// and every AI-facing output resolve identities only here, so a saved
+    /// decision is attributed to the same symbol everywhere. An ambiguous or
+    /// unverifiable candidate gets an empty fingerprint.
+    pub fn resolve_dead(
         &self,
-        base: &str,
-        default: &str,
-        fingerprint: &str,
-    ) -> Option<String> {
-        let mut matching = self
-            .dead_aliases
-            .iter()
-            .filter(|(identity, (saved_base, saved_fp))| {
-                saved_base == base
-                    && saved_fp == fingerprint
-                    && self
-                        .decisions
-                        .contains_key(&("dead".into(), (*identity).clone()))
-                    && !self.deleted.contains(&("dead".into(), (*identity).clone()))
-            });
-        match (matching.next(), matching.next()) {
-            (Some((identity, _)), None) => Some(identity.clone()),
-            (None, _) => Some(default.to_string()),
-            _ => None,
-        }
+        entries: &[SymbolListEntry],
+        default_keys: &[(String, String)],
+    ) -> Vec<(String, String)> {
+        resolve_dead_identities(
+            entries,
+            default_keys,
+            &self.dead_aliases,
+            &self.retained_dead,
+        )
     }
 
     /// Suppress only an unchanged, explicitly discarded finding. Pending,
@@ -224,31 +261,13 @@ impl ReviewSnapshot {
         entries: Vec<SymbolListEntry>,
     ) -> Vec<SymbolListEntry> {
         let legacy = review_keys::legacy_dead_keys(&entries, navigation);
-        let keys = Fingerprints::new(root, navigation).dead_keys(&entries, navigation);
-        let mut counts = BTreeMap::new();
-        for (entry, (_, fingerprint)) in entries.iter().zip(&keys) {
-            *counts
-                .entry((review_keys::dead_base_identity(entry), fingerprint.clone()))
-                .or_insert(0usize) += 1;
-        }
+        let defaults = Fingerprints::new(root, navigation).dead_keys(&entries, navigation);
+        let keys = self.resolve_dead(&entries, &defaults);
         entries
             .into_iter()
             .zip(keys)
             .zip(legacy)
             .filter_map(|((entry, (identity, fingerprint)), (_, old))| {
-                let base = review_keys::dead_base_identity(&entry);
-                if counts
-                    .get(&(base.clone(), fingerprint.clone()))
-                    .copied()
-                    .unwrap_or(0)
-                    != 1
-                {
-                    return Some(entry);
-                }
-                let Some(identity) = self.resolve_dead_identity(&base, &identity, &fingerprint)
-                else {
-                    return Some(entry);
-                };
                 (!self.suppresses("dead", &identity, &fingerprint, &old)).then_some(entry)
             })
             .collect()
@@ -372,9 +391,15 @@ fn read_legacy(path: &Path) -> anyhow::Result<BTreeSet<String>> {
     ensure!(keys.len() == count, "duplicate review count mismatch");
     Ok(keys)
 }
-fn read_toon(path: &Path) -> anyhow::Result<BTreeMap<(String, String), Decision>> {
+/// Current decisions plus the newest history fingerprint of each dead identity.
+type ToonState = (
+    BTreeMap<(String, String), Decision>,
+    BTreeMap<String, String>,
+);
+
+fn read_toon(path: &Path) -> anyhow::Result<ToonState> {
     let Some(text) = read_text(path)? else {
-        return Ok(BTreeMap::new());
+        return Ok(Default::default());
     };
     let mut lines = text.lines();
     ensure!(
@@ -382,6 +407,7 @@ fn read_toon(path: &Path) -> anyhow::Result<BTreeMap<(String, String), Decision>
         "unsupported review format"
     );
     let mut decisions = BTreeMap::new();
+    let mut history = BTreeMap::new();
     for (table, limit) in [("reviews", MAX_ROWS), ("history", 50_000)] {
         let count: usize = lines
             .next()
@@ -416,11 +442,61 @@ fn read_toon(path: &Path) -> anyhow::Result<BTreeMap<(String, String), Decision>
                         .is_none(),
                     "duplicate review key"
                 );
+            } else if fields[0] == "dead" {
+                history.insert(fields[1].to_string(), fields[2].to_string());
             }
         }
     }
     ensure!(lines.next().is_none(), "unexpected review data");
-    Ok(decisions)
+    Ok((decisions, history))
+}
+
+/// Newest history fingerprint of each dead identity, then annotation-only
+/// identities, as the dashboard store would list them. `toon_history` is the
+/// not-yet-imported legacy history, which an import appends last.
+fn retained_annotations(
+    transaction: &rusqlite::Transaction<'_>,
+    toon_history: BTreeMap<String, String>,
+) -> anyhow::Result<BTreeMap<String, String>> {
+    let mut tables = transaction.prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('review_history', 'comments')",
+    )?;
+    let tables = tables
+        .query_map([], |row| row.get::<_, String>(0))?
+        .collect::<Result<BTreeSet<_>, _>>()?;
+    let mut retained = BTreeMap::new();
+    if tables.contains("review_history") {
+        let mut query = transaction.prepare(
+            "SELECT identity, fingerprint FROM review_history WHERE kind = 'dead' ORDER BY id LIMIT ?1",
+        )?;
+        let rows = query.query_map([MAX_ROWS as i64 + 1], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+        for (count, row) in rows.enumerate() {
+            ensure!(count < MAX_ROWS, "too much dashboard review history");
+            let (identity, fingerprint) = row?;
+            ensure!(
+                valid_key(&identity) && valid_key(&fingerprint),
+                "invalid review history row"
+            );
+            retained.insert(identity, fingerprint);
+        }
+    }
+    retained.extend(toon_history);
+    if tables.contains("comments") {
+        let mut query = transaction
+            .prepare("SELECT DISTINCT identity FROM comments WHERE kind = 'dead' LIMIT ?1")?;
+        let rows = query.query_map([MAX_ROWS as i64 + 1], |row| row.get::<_, String>(0))?;
+        for (count, row) in rows.enumerate() {
+            ensure!(count < MAX_ROWS, "too many dashboard annotations");
+            let identity = row?;
+            ensure!(valid_key(&identity), "invalid annotation identity");
+            retained
+                .entry(identity)
+                .or_insert_with(|| NO_FINGERPRINT.to_string());
+        }
+    }
+    Ok(retained)
 }
 
 #[cfg(test)]
@@ -696,5 +772,67 @@ mod tests {
                 .len(),
             2
         );
+    }
+
+    #[test]
+    fn retained_history_follows_the_store_archive_rule_and_makes_matches_ambiguous() {
+        let project = Project::new();
+        let conn = project.db();
+        conn.execute_batch(
+            "CREATE TABLE review_history(id INTEGER PRIMARY KEY AUTOINCREMENT,kind TEXT,identity TEXT,fingerprint TEXT);
+             CREATE TABLE comments(id INTEGER PRIMARY KEY AUTOINCREMENT,kind TEXT,identity TEXT);",
+        )
+        .unwrap();
+        let text = "def twin():\n    return 2\n";
+        fs::write(project.0.join("a.py"), text).unwrap();
+        let nav = navigation(text);
+        let current = entry(1);
+        let fp = Fingerprints::new(&project.0, &nav)
+            .dead_keys(std::slice::from_ref(&current), &nav)
+            .remove(0)
+            .1;
+        let (reviewed, older) = (
+            review_keys::dead_identity_at(&current, 0),
+            review_keys::dead_identity_at(&current, 1),
+        );
+        row(&conn, "dead", &reviewed, &fp, "false_positive");
+        conn.execute(
+            "INSERT INTO review_history(kind,identity,fingerprint) VALUES ('dead',?1,?2)",
+            rusqlite::params![older, fp],
+        )
+        .unwrap();
+        // An annotation-only identity carries no content and changes nothing.
+        conn.execute(
+            "INSERT INTO comments(kind,identity) VALUES ('dead',?1)",
+            [review_keys::dead_identity_at(&current, 2)],
+        )
+        .unwrap();
+        let set = |key: &str, value: Option<&str>| {
+            let key = format!("{key}:dead:{older}");
+            conn.execute("DELETE FROM meta WHERE key = ?1", [&key])
+                .unwrap();
+            if let Some(value) = value {
+                conn.execute(
+                    "INSERT INTO meta VALUES (?1,?2)",
+                    rusqlite::params![key, value],
+                )
+                .unwrap();
+            }
+        };
+        let visible = || {
+            ReviewSnapshot::load(&project.0)
+                .unwrap()
+                .filter_dead(&project.0, &nav, vec![current.clone()])
+                .len()
+        };
+        assert_eq!(visible(), 1, "a retained twin with the same content");
+        set("review_deleted", Some("1"));
+        assert_eq!(visible(), 0, "deleted and never reopened");
+        set("review_archived", Some("1"));
+        assert_eq!(visible(), 0, "explicitly archived");
+        set("review_archived", Some("0"));
+        assert_eq!(visible(), 1, "reopened by a later annotation");
+        set("review_archived", Some("2"));
+        assert!(ReviewSnapshot::load(&project.0).is_err());
     }
 }

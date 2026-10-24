@@ -229,6 +229,10 @@ enum Command {
     /// Write a CSV report of dead-code candidates (heuristic: symbols with
     /// zero indexed references) — one row per candidate with its file,
     /// function name, kind, language, and start/end line.
+    ///
+    /// Omits unchanged candidates saved as false positive or ignored in the
+    /// `web` dashboard; pending, confirmed, edited and ambiguous ones stay.
+    /// `--include-reviewed` writes the raw candidates for diagnostics.
     DeadCode {
         /// File, directory, or crate prefix to scan — same matching
         /// semantics as `list_symbols`. Omit for the whole project.
@@ -253,8 +257,11 @@ enum Command {
     /// structure does not prove the code is redundant or behaves the same.
     /// Runs on demand against the existing index and the current files; it
     /// never reindexes or migrates the index, so run `init` or `reindex` first.
-    /// Reuses an exact-input report cache in `.mct-index`; use `--no-cache` to
-    /// bypass it or `--output FILE` to save the TOON report.
+    /// Omits unchanged groups saved as false positive or ignored in the `web`
+    /// dashboard before counting and paging; `--include-reviewed` keeps them.
+    /// Reuses an exact-input report cache in `.mct-index` only while no
+    /// dashboard review state exists; use `--no-cache` to bypass it or
+    /// `--output FILE` to save the TOON report.
     /// Candidates that cannot be analyzed are listed as skipped and mark the
     /// report partial. Only languages with a token source are analyzed; the
     /// report names the rest.

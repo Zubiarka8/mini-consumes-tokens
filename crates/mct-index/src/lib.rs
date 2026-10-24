@@ -7,6 +7,7 @@ mod assets;
 mod context_budget;
 mod cycles;
 mod dead_code;
+pub mod dead_identity;
 mod dependency_graph;
 mod duplicates;
 mod error;

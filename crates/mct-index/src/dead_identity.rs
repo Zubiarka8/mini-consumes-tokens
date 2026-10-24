@@ -3,13 +3,16 @@
 //! The detector's legacy ordinal remains the default for a new symbol. Saved
 //! provenance can preserve an existing identity only within the same semantic
 //! base and when the match is unique. Duplicate text is deliberately unreviewable.
+//!
+//! The dashboard and the AI-facing outputs (MCP `find_dead_code`, CLI
+//! `dead-code`) resolve identities only through this function, with the same
+//! saved inputs read by [`crate::review_state::ReviewSnapshot`], so they cannot
+//! disagree about which saved decision a current symbol carries.
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use mct_index::review_keys::{dead_base_identity, dead_identity_at};
-use mct_index::SymbolListEntry;
-
-use super::reviews::{Kind, Record};
+use crate::review_keys::{dead_base_identity, dead_identity_at};
+use crate::SymbolListEntry;
 
 /// Bound recovery work for pre-provenance decisions. Anything beyond these
 /// limits keeps its old record and is presented as fresh/uncertain work rather
@@ -19,16 +22,21 @@ const LEGACY_LOOKUP_BUDGET: usize = 65_536;
 
 /// Returns identity/fingerprint pairs in the same order as `entries`.
 ///
-/// `aliases` is retained provenance keyed by saved identity, containing the
-/// language/path/kind/parent/name base hash and last verified content fingerprint.
-/// The current stored record, when present, is authoritative for its fingerprint.
-/// A body edit retains a known identity only for an otherwise unambiguous base;
-/// its different fingerprint then triggers normal reevaluation in the store.
-pub(super) fn resolve_dead_identities(
+/// `default_keys` are the ordinal identities and content fingerprints of
+/// [`crate::review_keys::Fingerprints::dead_keys`] for `entries`. `aliases` is
+/// retained provenance keyed by saved identity, containing the
+/// language/path/kind/parent/name base hash and last verified content
+/// fingerprint. `retained` maps every retained dead-code identity (decisions,
+/// restored rows, history and annotations) to its stored fingerprint; it is
+/// authoritative over an alias fingerprint. A body edit retains a known
+/// identity only for an otherwise unambiguous base; its different fingerprint
+/// then triggers normal reevaluation. An ambiguous or unreadable candidate gets
+/// an empty fingerprint, which can never match or validate a decision.
+pub fn resolve_dead_identities(
     entries: &[SymbolListEntry],
     default_keys: &[(String, String)],
     aliases: &BTreeMap<String, (String, String)>,
-    stored: &[Record],
+    retained: &BTreeMap<String, String>,
 ) -> Vec<(String, String)> {
     let mut groups: BTreeMap<String, Vec<usize>> = BTreeMap::new();
     for (index, entry) in entries.iter().enumerate() {
@@ -37,35 +45,30 @@ pub(super) fn resolve_dead_identities(
             .or_default()
             .push(index);
     }
-    let mut records = BTreeMap::new();
-    for record in stored.iter().filter(|record| record.kind == Kind::Dead) {
-        let previous = records.entry(record.identity.clone()).or_insert(record);
-        if record.at > previous.at {
-            *previous = record;
-        }
+    // Callers list candidates in different orders; resolve each family in
+    // source order so every caller assigns the same identities.
+    for indices in groups.values_mut() {
+        indices.sort_by_key(|index| (entries[*index].line, entries[*index].end_line, *index));
     }
     let mut known = aliases.clone();
     for (identity, (_, fingerprint)) in &mut known {
-        if let Some(record) = records.get(identity) {
-            *fingerprint = record.fingerprint.clone();
+        if let Some(stored) = retained.get(identity) {
+            fingerprint.clone_from(stored);
         }
     }
 
     // Most legacy decisions still occupy their original ordinal. Recognize
     // those directly, then spend a fixed budget recovering displaced siblings.
-    let mut unbound: BTreeSet<String> = records
+    let mut unbound: BTreeSet<&String> = retained
         .keys()
         .filter(|identity| !known.contains_key(*identity))
-        .cloned()
         .collect();
     for (base, indices) in &groups {
-        let mut ordered = indices.clone();
-        ordered.sort_by_key(|index| entries[*index].line);
-        for (ordinal, index) in ordered.into_iter().enumerate() {
-            let identity = dead_identity_at(&entries[index], ordinal);
+        for (ordinal, index) in indices.iter().enumerate() {
+            let identity = dead_identity_at(&entries[*index], ordinal);
             if unbound.remove(&identity) {
-                if let Some(record) = records.get(&identity) {
-                    known.insert(identity, (base.clone(), record.fingerprint.clone()));
+                if let Some(stored) = retained.get(&identity) {
+                    known.insert(identity, (base.clone(), stored.clone()));
                 }
             }
         }
@@ -82,8 +85,8 @@ pub(super) fn resolve_dead_identities(
             remaining_lookups -= 1;
             let identity = dead_identity_at(&entries[*index], ordinal);
             if unbound.remove(&identity) {
-                if let Some(record) = records.get(&identity) {
-                    known.insert(identity, (base.clone(), record.fingerprint.clone()));
+                if let Some(stored) = retained.get(&identity) {
+                    known.insert(identity, (base.clone(), stored.clone()));
                 }
             }
         }
@@ -92,7 +95,7 @@ pub(super) fn resolve_dead_identities(
     // Reserve all saved/bound identities before assigning any fresh symbol.
     // Otherwise a newly inserted first sibling could steal the saved ordinal
     // needed by an unchanged sibling processed later in the input.
-    let reserved: BTreeSet<_> = known.keys().chain(records.keys()).cloned().collect();
+    let reserved: BTreeSet<_> = known.keys().chain(retained.keys()).cloned().collect();
     let mut known_by_base: BTreeMap<&str, Vec<(&String, &String)>> = BTreeMap::new();
     for (identity, (base, fingerprint)) in &known {
         known_by_base
@@ -206,7 +209,6 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::*;
-    use crate::web::reviews::Status;
 
     fn entry(line: u32) -> SymbolListEntry {
         SymbolListEntry {
@@ -225,15 +227,10 @@ mod tests {
         character.to_string().repeat(64)
     }
 
-    fn record(identity: &str, fingerprint: &str) -> Record {
-        Record {
-            kind: Kind::Dead,
-            identity: identity.into(),
-            fingerprint: fingerprint.into(),
-            status: Status::FalsePositive,
-            at: 1,
-            reason: "reviewed".into(),
-        }
+    fn retained(rows: &[(&String, &String)]) -> BTreeMap<String, String> {
+        rows.iter()
+            .map(|(identity, fingerprint)| ((*identity).clone(), (*fingerprint).clone()))
+            .collect()
     }
 
     #[test]
@@ -244,9 +241,13 @@ mod tests {
         let aliases =
             BTreeMap::from([(saved_id.clone(), (dead_base_identity(&symbol), fp.clone()))]);
         let default = vec![(dead_identity_at(&symbol, 0), fp.clone())];
-        let saved = record(&saved_id, &fp);
         assert_eq!(
-            resolve_dead_identities(&[symbol], &default, &aliases, &[saved]),
+            resolve_dead_identities(
+                &[symbol],
+                &default,
+                &aliases,
+                &retained(&[(&saved_id, &fp)])
+            ),
             vec![(saved_id, fp)]
         );
     }
@@ -262,7 +263,7 @@ mod tests {
             std::slice::from_ref(&symbol),
             &[(dead_identity_at(&symbol, 0), changed.clone())],
             &aliases,
-            &[record(&saved_id, &old)],
+            &retained(&[(&saved_id, &old)]),
         );
         assert_eq!(result, vec![(saved_id, changed)]);
         assert_ne!(
@@ -286,12 +287,41 @@ mod tests {
             &[first, second],
             &defaults,
             &aliases,
-            &[record(&saved_id, &old)],
+            &retained(&[(&saved_id, &old)]),
         );
         assert_eq!(result[1], (saved_id.clone(), old));
         assert_ne!(result[0].0, saved_id);
         assert_ne!(result[0].0, result[1].0);
         assert_eq!(result[0].1, new);
+    }
+
+    #[test]
+    fn input_order_does_not_change_the_resolved_identities() {
+        let (first, second) = (entry(1), entry(5));
+        let saved_id = dead_identity_at(&first, 0);
+        let (old, new) = (content('a'), content('b'));
+        let aliases =
+            BTreeMap::from([(saved_id.clone(), (dead_base_identity(&first), old.clone()))]);
+        let stored = retained(&[(&saved_id, &old)]);
+        let forward = resolve_dead_identities(
+            &[first.clone(), second.clone()],
+            &[
+                (dead_identity_at(&first, 0), new.clone()),
+                (dead_identity_at(&second, 1), old.clone()),
+            ],
+            &aliases,
+            &stored,
+        );
+        let backward = resolve_dead_identities(
+            &[second.clone(), first.clone()],
+            &[
+                (dead_identity_at(&second, 1), old),
+                (dead_identity_at(&first, 0), new),
+            ],
+            &aliases,
+            &stored,
+        );
+        assert_eq!(forward, vec![backward[1].clone(), backward[0].clone()]);
     }
 
     #[test]
@@ -309,7 +339,7 @@ mod tests {
             &[first, second],
             &defaults,
             &aliases,
-            &[record(&saved_id, &fp)],
+            &retained(&[(&saved_id, &fp)]),
         );
         assert_ne!(result[0].0, result[1].0);
         assert!(result
@@ -331,7 +361,7 @@ mod tests {
             &[symbol],
             &[(first_id.clone(), fp.clone())],
             &aliases,
-            &[record(&first_id, &fp), record(&second_id, &fp)],
+            &retained(&[(&first_id, &fp), (&second_id, &fp)]),
         );
         assert_ne!(result[0].0, first_id);
         assert_ne!(result[0].0, second_id);
@@ -347,7 +377,7 @@ mod tests {
             std::slice::from_ref(&symbol),
             &[(dead_identity_at(&symbol, 0), fp.clone())],
             &BTreeMap::new(),
-            &[record(&old_id, &fp)],
+            &retained(&[(&old_id, &fp)]),
         );
         assert_eq!(result, vec![(old_id, fp)]);
     }
@@ -366,10 +396,7 @@ mod tests {
             &[symbol],
             &[(first_id.clone(), fp.clone())],
             &aliases,
-            &[
-                record(&first_id, &content('a')),
-                record(&second_id, &content('b')),
-            ],
+            &retained(&[(&first_id, &content('a')), (&second_id, &content('b'))]),
         );
         assert_ne!(result[0].0, first_id);
         assert_ne!(result[0].0, second_id);
@@ -391,7 +418,7 @@ mod tests {
             &[first, second],
             &defaults,
             &aliases,
-            &[record(&saved_id, &fp)],
+            &retained(&[(&saved_id, &fp)]),
         );
         assert!(result.iter().all(|(_, fingerprint)| fingerprint.is_empty()));
     }

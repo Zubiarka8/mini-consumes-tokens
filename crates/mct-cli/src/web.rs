@@ -2,7 +2,6 @@
 //! Source previews and notes are read on demand from files the index lists.
 
 mod api;
-mod dead_identity;
 mod http;
 mod i18n;
 mod markdown;
@@ -14,6 +13,8 @@ mod stats;
 mod store;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_identity;
 mod view_dead;
 mod view_duplicates;
 mod view_obsidian;
@@ -230,14 +231,10 @@ impl Site {
         });
         let old_dead_keys = reviews::legacy_dead_keys(&entries, &navigation);
         let default_dead_keys = fingerprints.dead_keys(&entries, &navigation);
-        let saved_findings = reviews.stored_findings()?;
+        // The very reader MCP and CLI use, after the store's one-time import:
+        // the dashboard and AI outputs attribute saved decisions identically.
         let saved_snapshot = mct_index::review_state::ReviewSnapshot::load(root)?;
-        let resolved_dead_keys = dead_identity::resolve_dead_identities(
-            &entries,
-            &default_dead_keys,
-            saved_snapshot.dead_aliases(),
-            &saved_findings,
-        );
+        let resolved_dead_keys = saved_snapshot.resolve_dead(&entries, &default_dead_keys);
         let dead: Vec<Dead> = resolved_dead_keys
             .into_iter()
             .zip(entries)

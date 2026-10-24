@@ -92,3 +92,32 @@ async fn unchanged_dismissals_are_filtered_before_limit_and_offset_but_edits_ret
     .unwrap();
     assert!(output(index(&project.0), 0).await.contains("discarded"));
 }
+
+#[tokio::test]
+async fn invalid_saved_review_state_fails_instead_of_hiding_or_leaking_findings() {
+    let project = Project::new();
+    fs::write(
+        project.0.join(".mct-index/reviews.toon"),
+        "version: 2\nnot a review table\n",
+    )
+    .unwrap();
+    let server = MctServer::new(
+        index(&project.0),
+        mct_mcp_server::registry::build_registry(),
+    );
+    let error = server
+        .find_dead_code(Parameters(FindDeadCodeArgs {
+            path: None,
+            language: None,
+            limit: None,
+            offset: None,
+            format: None,
+        }))
+        .await
+        .unwrap_err();
+    assert!(
+        error.message.contains("cannot read saved review decisions"),
+        "{}",
+        error.message
+    );
+}
