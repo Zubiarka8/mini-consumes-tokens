@@ -68,7 +68,6 @@ impl Site {
             "no index found; run `mct-cli init` first"
         );
         let index = Index::open_existing_read_only(root, &database, ExcludeSet::for_project(root))?;
-        let reviews = reviews::Reviews::load(root)?;
         let csrf = random_key()?;
         let warning = if no_obsidian {
             None
@@ -127,11 +126,13 @@ impl Site {
         )?;
         let duplicates_ms = duplicates_started.elapsed().as_millis();
         let mut groups: BTreeMap<String, Vec<usize>> = BTreeMap::new();
-        let review_keys = reviews::group_keys(
+        let file_hashes = index.file_hashes()?;
+        let mut findings = mct_index::reviews::duplicate_findings(
             &duplicates.groups,
-            &navigation,
             duplicates.options.normalization,
-        )?;
+            &file_hashes,
+        );
+        let review_keys = findings.iter().map(|f| f.identity.clone()).collect();
         for (id, group) in duplicates.groups.iter().enumerate() {
             for member in &group.members {
                 let ids = groups.entry(member.path.clone()).or_default();
@@ -141,8 +142,13 @@ impl Site {
             }
         }
         let dead_started = Instant::now();
-        let dead = dead_candidates(&index, &navigation)?;
+        let (dead, dead_findings) = dead_candidates(&index, &navigation, &file_hashes)?;
         let dead_code_ms = dead_started.elapsed().as_millis();
+        findings.extend(dead_findings);
+        let reviews = reviews::Reviews::load(root, findings);
+        if let Some(reason) = reviews.read_only_reason() {
+            eprintln!("warning: review decisions are read-only until this is fixed: {reason}");
+        }
         let references = index.reference_counts()?;
         let vault_dir = mct_obsidian::vault_dir(root);
         let vault = obsidian::scan(&vault_dir);
@@ -198,8 +204,12 @@ impl Site {
         })
     }
 
-    /// Applies one review decision sent as a JSON body (`csrf`, `key`, `state`, `note`).
+    /// Applies one review decision sent as a JSON body (`csrf`, `key`,
+    /// `state`, `note`, `revision`). `revision` is the one the page showed:
+    /// if the decision changed since, nothing is saved and 409 returns the
+    /// current review.
     fn review(&mut self, body: &str) -> response::Response {
+        use mct_index::reviews::{ReviewError, State};
         let Ok(serde_json::Value::Object(fields)) = serde_json::from_str(body) else {
             return response::Response::failure(400, "invalid JSON body");
         };
@@ -208,34 +218,54 @@ impl Site {
         }
         if fields
             .keys()
-            .any(|k| !["csrf", "key", "state", "note"].contains(&k.as_str()))
+            .any(|k| !["csrf", "key", "state", "note", "revision"].contains(&k.as_str()))
         {
             return response::Response::failure(400, "unknown field");
         }
         let Some(key) = fields.get("key").and_then(|v| v.as_str()) else {
             return response::Response::failure(400, "missing key");
         };
-        if !self.review_keys.iter().any(|k| k == key) && !self.dead.iter().any(|d| d.key == key) {
+        if !self.reviews.contains(key) {
             return response::Response::error(404);
         }
         let state = match fields.get("state") {
-            None | Some(serde_json::Value::Null) => None,
-            Some(serde_json::Value::String(value)) => match reviews::State::parse(value) {
-                Some(state) => Some(state),
+            None | Some(serde_json::Value::Null) => State::Unreviewed,
+            Some(serde_json::Value::String(value)) => match State::parse(value) {
+                Some(state) => state,
                 None => return response::Response::failure(400, "unknown state"),
             },
             Some(_) => return response::Response::failure(400, "invalid state"),
         };
+        let Some(revision) = fields.get("revision").and_then(|v| v.as_str()) else {
+            return response::Response::failure(400, "missing revision");
+        };
         let note = fields.get("note").and_then(|v| v.as_str()).unwrap_or("");
         let key = key.to_string();
-        if let Err(error) = self.reviews.update(&key, state, note.trim(), now_unix()) {
-            eprintln!("warning: cannot save review: {error:#}");
-            return response::Response::failure(
-                500,
-                "Could not save the review. No changes were applied.",
-            );
+        match self
+            .reviews
+            .update(&key, state, note.trim(), revision, now_unix_millis())
+        {
+            Ok(()) => response::Response::json(&api::review_json(self, &key)),
+            Err(ReviewError::Conflict) => {
+                let mut current = api::review_json(self, &key);
+                current["error"] = "This finding was reviewed elsewhere meanwhile. \
+                                    Nothing was saved; its current state is shown."
+                    .into();
+                response::Response::json(&current).with_status(409)
+            }
+            Err(error) => {
+                eprintln!("warning: cannot save review: {error}");
+                let status = match error {
+                    ReviewError::Invalid(_) => 400,
+                    ReviewError::Degraded(_) | ReviewError::Locked { .. } => 503,
+                    _ => 500,
+                };
+                response::Response::failure(
+                    status,
+                    &format!("Could not save the review. No changes were applied. {error}"),
+                )
+            }
         }
-        response::Response::json(&api::review_json(self, &key))
     }
 }
 
@@ -252,17 +282,33 @@ fn now_unix() -> u64 {
         .map_or(0, |elapsed| elapsed.as_secs())
 }
 
-/// Dead-code candidates from the shared heuristic, mapped to snapshot symbols.
+/// Review decisions are timed in milliseconds (`review-decisions.toon`).
+fn now_unix_millis() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |elapsed| {
+            u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX)
+        })
+}
+
+/// Dead-code candidates from the shared heuristic, mapped to snapshot
+/// symbols, with their review keys.
 fn dead_candidates(
     index: &Index,
     navigation: &NavigationSnapshot,
-) -> anyhow::Result<Vec<DeadCandidate>> {
+    file_hashes: &[(String, String)],
+) -> anyhow::Result<(Vec<DeadCandidate>, Vec<mct_index::reviews::FindingKeys>)> {
     let mut by_location: HashMap<(&str, &str, u32), usize> = HashMap::new();
     for (id, symbol) in navigation.symbols.iter().enumerate() {
         by_location.insert((&symbol.relative_path, &symbol.name, symbol.line), id);
     }
+    let scan = mct_index::scan_dead_code(index, None, None)?;
+    let keys = mct_index::reviews::dead_code_findings(&scan.symbols, &scan.candidates, file_hashes);
     let mut dead = Vec::new();
-    for entry in mct_index::find_dead_code_candidates(index, None, None)? {
+    let mut findings = Vec::new();
+    for (&id, keys) in scan.candidates.iter().zip(keys) {
+        let entry = &scan.symbols[id];
+        // Candidates outside the snapshot (excluded files) are not shown.
         let Some(&symbol) = by_location.get(&(
             entry.relative_path.as_str(),
             entry.name.as_str(),
@@ -270,11 +316,13 @@ fn dead_candidates(
         )) else {
             continue;
         };
-        if let Some(key) = reviews::dead_code_key(&navigation.symbols[symbol], navigation) {
-            dead.push(DeadCandidate { symbol, key });
-        }
+        dead.push(DeadCandidate {
+            symbol,
+            key: keys.identity.clone(),
+        });
+        findings.push(keys);
     }
-    Ok(dead)
+    Ok((dead, findings))
 }
 
 fn random_key() -> anyhow::Result<String> {

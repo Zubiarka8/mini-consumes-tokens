@@ -1,13 +1,17 @@
 // 03 · Duplicados, 05 · Código muerto and 07 · Revisiones share one findings workbench.
 import { h, clear, api, isAbort, patchQuery, onQuery, parseHash, listParam, fmt, ago, hrefTo, review, toast, confirmDialog, noteDialog, copy, forget, store, dateTime } from "./core.js";
 import { icon, pageHead, tabsBar, dataTable, pager, badge, stateBadge, STATE_ORDER, stateLabel, searchBox, filterGroup, activeChips, noResults, loading, errorBox, note,
-  drawerButton, segmented, emptyState } from "./components.js";
+  drawerButton, segmented, emptyState, selectBox } from "./components.js";
 import { codeBlock, openSource, compareView, normalizer } from "./code.js";
 import { t } from "./i18n.js";
+import { duplicateText, deadText, duplicateTemplate, deadTemplate, listText, memberLabel } from "./ai.js";
 
+// Everything that still needs a person: also findings whose code changed
+// after a decision, and resolved findings the detector still reports.
+const ACTIONABLE = ["unreviewed", "needs-reevaluation", "in-review", "confirmed", "resolved-but-detected"];
 const CONFIG = {
-  duplicados: { type: "duplicate", title: "dup.title", subtitle: "dup.subtitle", defaultStates: ["unreviewed", "in-review", "confirmed"], views: true },
-  "codigo-muerto": { type: "dead-code", title: "dead.title", subtitle: "dead.subtitle", defaultStates: ["unreviewed", "in-review", "confirmed"] },
+  duplicados: { type: "duplicate", title: "dup.title", subtitle: "dup.subtitle", defaultStates: ACTIONABLE, views: true },
+  "codigo-muerto": { type: "dead-code", title: "dead.title", subtitle: "dead.subtitle", defaultStates: ACTIONABLE },
   revisiones: { type: "", title: "rev.title", subtitle: "rev.subtitle", defaultStates: null, tabs: true },
 };
 const BUILTIN_PRESETS = [
@@ -16,12 +20,10 @@ const BUILTIN_PRESETS = [
   { id: "b-fp", name: "preset.recentFp", query: "state=false-positive&sort=updated&order=desc" },
   { id: "b-pending", name: "preset.pending", query: "state=unreviewed,in-review" },
 ];
-const ACTIONS = {
-  unreviewed: ["in-review", "confirmed", "false-positive", "dismissed"],
-  "in-review": ["confirmed", "false-positive", "dismissed", "resolved"],
-  confirmed: ["resolved", "reopen"], "false-positive": ["reopen"], resolved: ["reopen"], dismissed: ["reopen"],
-};
-const ACTION_STYLE = { "in-review": "", confirmed: "danger", "false-positive": "warn", dismissed: "", resolved: "primary", reopen: "" };
+// Any decision can be replaced by any other at any time; the server keeps every change in the history.
+const DECISIONS = ["in-review", "confirmed", "false-positive", "dismissed", "resolved"];
+const DECIDED = ["confirmed", "false-positive", "resolved", "dismissed"];
+const actionsFor = (state) => [...DECISIONS.filter((d) => d !== state), ...(state === "unreviewed" ? [] : ["reopen"])];
 
 export const findingHref = (item) => hrefTo(item.type === "duplicate" ? "duplicados" : "codigo-muerto", { key: item.key });
 
@@ -37,33 +39,54 @@ export function reviewPanel(item, onChange) {
       const ok = await confirmDialog({ title: t("review.fpTitle"), body: t("review.fpBody"), confirm: t("review.markFp") });
       if (!ok) return;
     }
+    if (DECIDED.includes(item.state) && target !== "dismissed" && target !== "false-positive") {
+      const ok = await confirmDialog({ title: t("review.changeTitle"), body: t("review.changeBody", { from: stateLabel(item.state, item.type), to: target === "reopen" ? t("state.unreviewed") : stateLabel(target, item.type) }), confirm: t("review.changeConfirm") });
+      if (!ok) return;
+    }
     try {
-      const saved = await review(item.key, target === "reopen" ? null : target, note);
-      toast(t("review.saved", { state: stateLabel(saved.state) }), "ok");
+      const saved = await review(item.key, target === "reopen" ? null : target, note, item.revision);
+      toast(t("review.saved", { state: stateLabel(saved.state, item.type) }), "ok");
       onChange(saved);
-    } catch (error) { toast(t("review.failed", { message: error.message }), "err"); }
+    } catch (error) {
+      if (error.status === 409 && error.body?.key) {
+        toast(t("review.conflict"), "err");
+        onChange(error.body);
+      } else toast(t("review.failed", { message: error.message }), "err");
+    }
   };
-  const actions = (ACTIONS[item.state] || []).map((target) => h("button", { class: `btn sm ${ACTION_STYLE[target]}`, onclick: () => apply(target) }, t(`review.action.${target}`)));
+  // One list with every other decision; picking one applies it (after any confirmation) and the list resets.
+  const picker = item.readOnly ? null : selectBox({ label: t("review.change"), cls: "wide", value: "",
+    options: [["", t("review.choose")], ...actionsFor(item.state).map((target) => [target, target === "reopen" ? t("review.reopenOption") : stateLabel(target, item.type)])],
+    onChange: (target) => { if (target) apply(target).finally(() => { picker.value = ""; }); } });
   return h("div", { class: "section" }, h("h4", {}, t("review.title")),
-    h("div", { class: "row", style: { marginBottom: "8px" } }, stateBadge(item.state), item.updated ? h("span", { class: "muted small" }, `${t("review.updated")} ${ago(item.updated)}`) : null),
-    h("label", { class: "field" }, t("review.noteOptional"), noteField),
-    h("div", { class: "row", style: { marginTop: "8px" } }, actions),
+    h("div", { class: "decision-now" }, h("span", { class: "muted small" }, t("review.current")), stateBadge(item.state, item.type), item.updated ? h("span", { class: "muted small" }, `${t("review.updated")} ${ago(item.updated)}`) : null),
+    item.state === "needs-reevaluation" ? h("p", { class: "muted small" }, t("review.previous", { state: stateLabel(item.previousState, item.type) })) : null,
+    item.readOnly ? h("p", { class: "small" }, t("review.readOnly")) : h("label", { class: "field" }, t("review.noteOptional"), noteField),
+    picker ? h("label", { class: "field", style: { marginTop: "10px" } }, DECIDED.includes(item.state) ? t("review.change") : t("review.decide"), picker) : null,
     h("p", { class: "muted small", style: { marginTop: "8px" } }, t("review.reviewerNote")));
 }
 
 export function historyList(history) {
   if (!history?.length) return h("p", { class: "muted" }, t("review.noHistory"));
+  // Short generic labels keep each step on one line; the type is already clear from the page.
   return h("ol", { class: "timeline" }, [...history].reverse().map((event) => h("li", {},
-    h("div", {}, stateBadge(event.from), " → ", stateBadge(event.to)), h("div", { class: "muted small" }, dateTime(event.at)), event.note && h("div", {}, `“${event.note}”`))));
+    h("div", { class: "step" }, stateBadge(event.from), h("span", { "aria-hidden": "true" }, "→"), stateBadge(event.to)), h("div", { class: "muted small" }, event.at ? dateTime(event.at) : t("review.unknownTime")), event.note && h("div", {}, `“${event.note}”`))));
 }
+
+/** Collapsed by default: the current decision matters more than how it got there. */
+const historySection = (item) => h("details", { class: "section history" }, h("summary", {}, `${t("review.history")} (${item.history?.length || 0})`), historyList(item.history));
 
 function duplicateDetail(item, onChange, setView) {
   const members = item.members;
   return h("div", { class: "card inspector" },
-    h("header", {}, h("div", {}, h("h3", {}, item.title), h("div", { class: "row", style: { marginTop: "6px" } }, badge(item.language), stateBadge(item.state), badge(t(`dup.verdict.${item.verdict}`), item.verdict === "real" ? "success" : "warning"))),
+    h("header", {}, h("div", {}, h("h3", {}, item.title), h("div", { class: "row", style: { marginTop: "6px" } }, badge(item.language), stateBadge(item.state, item.type), badge(t(`dup.verdict.${item.verdict}`), item.verdict === "real" ? "success" : "warning"))),
       h("button", { class: "icon-btn", "aria-label": t("common.close"), onclick: () => patchQuery({ key: null, view: null }) }, icon("x"))),
     note(t("dup.caution"), "warn", "alert"),
-    h("div", { class: "row", style: { margin: "10px 0" } }, h("button", { class: "btn primary sm", onclick: () => setView("side") }, icon("split", 14), t("dup.compare"))),
+    h("div", { class: "actions" }, h("button", { class: "btn primary sm", onclick: () => setView("side") }, icon("split", 14), t("dup.compare")),
+      h("button", { class: "btn sm", onclick: () => copy(duplicateText(item), t("ai.copied")) }, icon("copy", 14), t("ai.copy.duplicate")),
+      h("button", { class: "btn sm", onclick: () => copy(duplicateTemplate(item), t("ai.templateCopied")) }, icon("copy", 14), t("ai.template.duplicate"))),
+    reviewPanel(item, onChange),
+    historySection(item),
     h("div", { class: "section" }, h("h4", {}, t("dup.evidence")),
       h("dl", { class: "kv" },
         h("dt", {}, t("dup.method")), h("dd", {}, t("dup.methodTokens", { mode: item.method?.normalization || "—" })),
@@ -75,11 +98,9 @@ function duplicateDetail(item, onChange, setView) {
       h("p", { class: "muted small" }, t("dup.noSimilarity"))),
     h("div", { class: "section" }, h("h4", {}, t("dup.members", { n: members.length })),
       members.map((m) => h("div", { style: { marginBottom: "10px" } },
-        h("div", { class: "row spread" }, h("strong", {}, m.name), h("button", { class: "btn ghost sm", onclick: () => openSource({ path: m.path, line: m.start, language: item.language }) }, icon("external", 13), t("code.openSource"))),
+        h("div", { class: "row spread" }, h("strong", {}, m.name), h("span", { class: "row" }, h("button", { class: "btn ghost sm", onclick: () => copy(`${m.path}:${m.start}-${m.end}\n${(m.code || m.excerpt).join("\n")}`, t("ai.codeCopied")) }, icon("copy", 13), t("ai.copyCode")), h("button", { class: "btn ghost sm", onclick: () => openSource({ path: m.path, line: m.start, language: item.language }) }, icon("external", 13), t("code.openSource")))),
         h("div", { class: "mono muted small" }, `${m.path}:${m.start}–${m.end}`),
         codeBlock({ lines: m.excerpt, start: m.start, language: item.language, maxHeight: "140px", label: m.name })))),
-    reviewPanel(item, onChange),
-    h("div", { class: "section" }, h("h4", {}, t("review.history")), historyList(item.history)),
     item.analysis && h("details", { class: "section" }, h("summary", {}, t("dup.technical")), h("pre", { class: "mono", style: { whiteSpace: "pre-wrap", overflow: "auto", maxHeight: "300px" } }, item.analysis)));
 }
 
@@ -87,14 +108,18 @@ function deadDetail(item, onChange) {
   const d = item.detail;
   const s = d.symbol;
   return h("div", { class: "card inspector" },
-    h("header", {}, h("div", {}, h("h3", {}, item.title), h("div", { class: "row", style: { marginTop: "6px" } }, badge(item.kind), badge(item.language), stateBadge(item.state), badge(t("dead.confidenceUnknown"), ""))),
+    h("header", {}, h("div", {}, h("h3", {}, item.title), h("div", { class: "row", style: { marginTop: "6px" } }, badge(item.kind), badge(item.language), stateBadge(item.state, item.type), badge(t("dead.confidenceUnknown"), ""))),
       h("button", { class: "icon-btn", "aria-label": t("common.close"), onclick: () => patchQuery({ key: null }) }, icon("x"))),
     note(t("dead.caution"), "warn", "alert"),
     h("dl", { class: "kv", style: { margin: "10px 0" } }, h("dt", {}, t("dead.definition")), h("dd", { class: "mono" }, `${s.path}:${s.line}${s.endLine ? `–${s.endLine}` : ""}`),
       h("dt", {}, t("dead.knownRefs")), h("dd", {}, "0"), h("dt", {}, t("dup.method")), h("dd", {}, t("dead.method"))),
-    h("div", { class: "row", style: { marginBottom: "10px" } },
+    h("div", { class: "actions" },
       h("button", { class: "btn sm", onclick: () => openSource({ path: s.path, line: s.line, language: s.language }) }, icon("external", 14), t("code.openSource")),
-      h("button", { class: "btn sm", onclick: () => copy(`${s.path}:${s.line}`, t("common.pathCopied")) }, icon("copy", 14), t("code.copyPath"))),
+      h("button", { class: "btn sm", onclick: () => copy(`${s.path}:${s.line}${s.endLine ? `-${s.endLine}` : ""}`, t("common.pathCopied")) }, icon("copy", 14), t("code.copyPath")),
+      h("button", { class: "btn sm", onclick: () => copy(deadText(item), t("ai.copied")) }, icon("copy", 14), t("ai.copy.dead")),
+      h("button", { class: "btn sm", onclick: () => copy(deadTemplate(item), t("ai.templateCopied")) }, icon("copy", 14), t("ai.template.dead"))),
+    reviewPanel(item, onChange),
+    historySection(item),
     d.code ? codeBlock({ lines: d.code.lines, start: d.code.start, language: s.language, maxHeight: "240px", label: t("code.preview") }) : null,
     h("div", { class: "section" }, h("h4", {}, t("dead.why")), h("p", {}, t("dead.whyText", { name: item.title }))),
     h("div", { class: "section" }, h("h4", {}, t("dead.limits")), h("ul", { style: { margin: 0, paddingLeft: "18px" } }, ["byName", "dynamic", "macros", "ffi", "public", "tests", "generated", "config"].map((k) => h("li", {}, t(`dead.limit.${k}`))))),
@@ -102,8 +127,6 @@ function deadDetail(item, onChange) {
       h("p", { class: "muted" }, t("dead.imports", { n: d.imports.length, m: d.importedBy.length })),
       d.importedBy.slice(0, 6).map((p) => h("div", { class: "mono small" }, p))),
     h("div", { class: "section" }, h("h4", {}, t("code.notes")), d.notes.length ? d.notes.map((n) => h("p", {}, h("a", { href: hrefTo("obsidian", { note: n.path }) }, n.title))) : h("p", { class: "muted" }, t("code.noNotes"))),
-    reviewPanel(item, onChange),
-    h("div", { class: "section" }, h("h4", {}, t("review.history")), historyList(item.history)),
     h("p", { class: "muted small" }, t("dead.neverDelete")));
 }
 
@@ -190,7 +213,7 @@ export async function render({ root, page, params: initial }) {
   const location = (r) => (r.type === "duplicate" ? r.members.map((m) => `${m.path}:${m.start}`).slice(0, 2).join("  ↔  ") : `${r.path}:${r.line}`);
   function columns() {
     const common = {
-      state: { key: "state", label: t("col.state"), sortable: true, render: (r) => stateBadge(r.state) },
+      state: { key: "state", label: t("col.state"), sortable: true, render: (r) => stateBadge(r.state, r.type) },
       updated: { key: "updated", label: t("col.updated"), sortable: true, render: (r) => (r.updated ? ago(r.updated) : "—"), cls: "hide-sm" },
       actions: { key: "actions", label: t("col.actions"), render: (r) => h("span", { class: "row", style: { gap: "4px" } },
         r.type === "duplicate" && h("button", { class: "btn sm", "aria-label": `${t("dup.compare")}: ${r.title}`, onclick: () => patchQuery({ key: r.key, view: "side" }) }, icon("split", 14), t("dup.compareShort")),
@@ -199,7 +222,7 @@ export async function render({ root, page, params: initial }) {
     if (cfg.type === "duplicate") return [
       { key: "verdict", label: t("col.verdict"), sortable: true, render: (r) => badge(t(`dup.verdict.${r.verdict}`), r.verdict === "real" ? "success" : "warning") },
       { key: "title", label: t("col.symbols"), sortable: true, render: (r) => h("span", { class: "name" }, h("span", { class: "ellipsis" }, r.title), r.memberCount > 2 && badge(`+${r.memberCount - 2}`)) },
-      { key: "path", label: t("col.files"), sortable: true, render: (r) => [...new Set(r.members.map((m) => m.path))].slice(0, 2).map((path) => h("span", { class: "path", title: path }, path)), cls: "hide-sm" },
+      { key: "path", label: t("col.files"), sortable: true, render: (r) => [...r.members.slice(0, 4).map((m) => h("span", { class: "path", title: memberLabel(m) }, memberLabel(m))), r.members.length > 4 && h("span", { class: "muted small" }, `+${r.members.length - 4}`)], cls: "hide-sm" },
       { key: "language", label: t("code.col.language"), sortable: true, render: (r) => badge(r.language), cls: "hide-sm" },
       { key: "lines", label: t("col.lines"), sortable: true, num: true, render: (r) => r.lines, cls: "hide-sm" },
       { key: "method", label: t("dup.method"), render: () => t("dup.methodShort"), cls: "hide-sm" }, common.state, common.actions];
@@ -230,6 +253,9 @@ export async function render({ root, page, params: initial }) {
         return;
       }
       if (cfg.type === "duplicate") results.append(h("p", { class: "muted", style: { margin: "0 0 8px" } }, t("dup.found", { n: fmt(data.total) })));
+      const listColumns = cfg.type === "duplicate" ? [(r) => r.key, (r) => r.title, (r) => r.members.map(memberLabel).join(" ↔ ")] : [(r) => r.key, (r) => r.title, (r) => r.type || cfg.type, (r) => `${r.path || ""}${r.line ? `:${r.line}` : ""}`];
+      results.append(h("div", { class: "row", style: { justifyContent: "flex-end", margin: "0 0 8px" } },
+        h("button", { class: "btn sm", onclick: () => copy(listText({ title: t(cfg.title), total: data.total, columns: listColumns, rows: data.items, idKey: "key" }), t("ai.listCopied")) }, icon("copy", 14), t("ai.copyList"))));
       results.append(dataTable({ caption: t(cfg.title), rows: data.items, rowKey: (r) => r.key, selected, sort: query.sort, order: query.order,
         onSort: (sort, order) => patchQuery({ sort, order }), onSelect: (row) => patchQuery({ key: row.key }), columns: columns() }),
         pager({ page: data.page, size: data.size, total: data.total, onPage: (page) => patchQuery({ page }) }));

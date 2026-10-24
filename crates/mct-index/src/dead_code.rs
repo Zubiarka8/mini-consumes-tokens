@@ -2,6 +2,8 @@
 //! `find_dead_code` tool and `mct-cli`'s `dead-code` subcommand so the two
 //! never drift apart on what counts as "unreferenced".
 
+use std::collections::HashMap;
+
 use crate::{Index, Result, SymbolListEntry};
 
 /// Symbol kinds a dead-code scan considers as candidates. Deliberately
@@ -108,11 +110,47 @@ pub fn find_dead_code_candidates(
 
     Ok(all_entries
         .into_iter()
-        .filter(|e| DEAD_CODE_KIND_ALLOWLIST.contains(&e.kind.as_str()))
-        .filter(|e| !DEAD_CODE_ENTRY_POINT_NAMES.contains(&e.name.as_str()))
-        .filter(|e| !looks_like_test_name(&e.name, &e.relative_path))
-        .filter(|e| !reference_counts.contains_key(e.name.as_str()))
+        .filter(|e| is_candidate(e, &reference_counts))
         .collect())
+}
+
+fn is_candidate(entry: &SymbolListEntry, reference_counts: &HashMap<String, usize>) -> bool {
+    DEAD_CODE_KIND_ALLOWLIST.contains(&entry.kind.as_str())
+        && !DEAD_CODE_ENTRY_POINT_NAMES.contains(&entry.name.as_str())
+        && !looks_like_test_name(&entry.name, &entry.relative_path)
+        && !reference_counts.contains_key(entry.name.as_str())
+}
+
+/// Every symbol in scope, and which of them are dead-code candidates.
+#[derive(Clone, Debug, Default)]
+pub struct DeadCodeScan {
+    /// Every indexed symbol under the scope; a scope always covers whole
+    /// files, so this holds every symbol of each candidate's file.
+    pub symbols: Vec<SymbolListEntry>,
+    /// Indices into `symbols`, ascending: the same candidates, in the same
+    /// order, as [`find_dead_code_candidates`].
+    pub candidates: Vec<usize>,
+}
+
+/// [`find_dead_code_candidates`] plus the symbols review identities need
+/// (`reviews::dead_code_findings`), from the same single query.
+pub fn scan_dead_code(
+    index: &Index,
+    path: Option<&str>,
+    language: Option<&str>,
+) -> Result<DeadCodeScan> {
+    let symbols = index.list_symbols_all(path, language)?;
+    let reference_counts = index.reference_counts()?;
+    let candidates = symbols
+        .iter()
+        .enumerate()
+        .filter(|(_, entry)| is_candidate(entry, &reference_counts))
+        .map(|(id, _)| id)
+        .collect();
+    Ok(DeadCodeScan {
+        symbols,
+        candidates,
+    })
 }
 
 #[cfg(test)]

@@ -104,9 +104,11 @@ impl Server {
     fn post_review(&self, body: &str, headers: &str) -> String {
         self.raw(&format!("POST /secret/api/review HTTP/1.1\r\nHost: 127.0.0.1:8787\r\n{headers}Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}", body.len()))
     }
+    /// Posts a decision based on the revision the API shows right now.
     fn decide(&self, key: &str, state: Option<&str>, note: &str) -> String {
         let csrf = self.site.borrow().csrf.clone();
-        let body = serde_json::json!({ "csrf": csrf, "key": key, "state": state, "note": note })
+        let revision = self.json(&format!("api/finding?key={key}"))["revision"].clone();
+        let body = serde_json::json!({ "csrf": csrf, "key": key, "state": state, "note": note, "revision": revision })
             .to_string();
         self.post_review(&body, "Origin: http://127.0.0.1:8787\r\n")
     }
@@ -145,6 +147,9 @@ fn dashboard_serves_static_app_and_a_read_only_json_api() {
         "markdown",
         "palette",
         "page-dashboard",
+        "ai",
+        "i18n-en",
+        "issues",
         "page-symbols",
         "page-findings",
         "page-search",
@@ -222,15 +227,14 @@ fn dashboard_serves_static_app_and_a_read_only_json_api() {
     assert_eq!(search["semantic"], false);
     assert_eq!(search["groups"]["symbols"]["items"][0]["path"], "src/a.rs");
     assert!(search["groups"]["duplicates"]["total"].as_u64().unwrap() >= 1);
+    // With no query the search lists everything instead of nothing; literal text needs a query.
+    let everything = server.json("api/search?q=");
+    assert!(everything["groups"]["symbols"]["total"].as_u64().unwrap() >= 1);
+    assert!(everything["groups"]["files"]["total"].as_u64().unwrap() >= 1);
+    assert!(everything["groups"].get("code").is_none());
     assert_eq!(
-        server
-            .json("api/search?q=")
-            .get("groups")
-            .unwrap()
-            .as_object()
-            .unwrap()
-            .len(),
-        0
+        server.json("api/dependencies?level=file&all=1")["truncated"],
+        false
     );
     let deps = server.json("api/dependencies?level=file");
     assert_eq!(deps["edgeKinds"][0], "imports");
@@ -243,6 +247,42 @@ fn dashboard_serves_static_app_and_a_read_only_json_api() {
         .any(|row| row["route"] == "symbols"));
     assert_eq!(original, fs::read(database).unwrap());
     assert!(!root.path().join(".mct-index/obsidian").exists());
+}
+
+#[test]
+fn a_truncated_dependency_graph_still_shows_every_file_in_a_cycle() {
+    let root = tempfile::tempdir().unwrap();
+    // 160 files that import three hubs outrank a two-file cycle by degree, so a
+    // graph cut at 150 nodes would drop the cycle if it only ranked by degree.
+    for hub in 1..=3 {
+        fs::write(root.path().join(format!("hub{hub}.py")), "X = 1\n").unwrap();
+    }
+    for id in 0..160 {
+        fs::write(
+            root.path().join(format!("m{id:03}.py")),
+            "import hub1\nimport hub2\nimport hub3\n",
+        )
+        .unwrap();
+    }
+    fs::write(root.path().join("z_cycle_a.py"), "import z_cycle_b\n").unwrap();
+    fs::write(root.path().join("z_cycle_b.py"), "import z_cycle_a\n").unwrap();
+    index(root.path());
+    let server = Server::start(root.path(), true);
+    let deps = server.json("api/dependencies?level=file&limit=150");
+    assert_eq!(deps["truncated"], true);
+    assert_eq!(deps["nodes"].as_array().unwrap().len(), 150);
+    let all = server.json("api/dependencies?level=file&all=1");
+    assert_eq!(all["truncated"], false);
+    assert_eq!(all["nodes"].as_array().unwrap().len(), 165);
+    assert_eq!(deps["cycles"].as_array().unwrap().len(), 1);
+    let in_cycle: Vec<&str> = deps["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|node| node["cycle"] == true)
+        .map(|node| node["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(in_cycle, ["z_cycle_a.py", "z_cycle_b.py"]);
 }
 
 #[test]
@@ -308,6 +348,51 @@ fn api_lists_are_bounded_paged_and_filterable() {
     assert_eq!(
         server.json("api/symbols?finding=dead-code&sort=refs&order=desc")["total"],
         120
+    );
+}
+
+#[test]
+fn symbol_facets_count_what_the_other_filters_leave() {
+    let root = tempfile::tempdir().unwrap();
+    fs::create_dir(root.path().join("src")).unwrap();
+    let source: String = (0..20)
+        .map(|id| format!("pub fn symbol_{id}() {{}}\n"))
+        .collect();
+    fs::write(root.path().join("src/many.rs"), source).unwrap();
+    index(root.path());
+    let server = Server::start(root.path(), true);
+    let count = |facets: &serde_json::Value, name: &str| {
+        facets
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row[0] == name)
+            .map_or(0, |row| row[1].as_u64().unwrap())
+    };
+    let all = server.json("api/symbols?size=1");
+    assert_eq!(count(&all["facets"]["kind"], "function"), 20);
+    // Dead-code candidates: the counts follow the filter, not just the total.
+    let dead = server.json("api/symbols?size=1&finding=dead-code");
+    assert_eq!(count(&dead["facets"]["kind"], "function"), 20);
+    assert_eq!(dead["total"], count(&dead["facets"]["language"], "rust"));
+    // No duplicates in this project: every facet is empty, not left at 20.
+    let none = server.json("api/symbols?size=1&finding=duplicate");
+    assert_eq!(none["total"], 0);
+    for facet in ["kind", "language", "ext"] {
+        assert!(
+            none["facets"][facet].as_array().unwrap().is_empty(),
+            "{facet}"
+        );
+    }
+    // A facet ignores its own filter, so the other choices stay listed.
+    let only_functions = server.json("api/symbols?size=1&kind=function");
+    assert_eq!(
+        count(&only_functions["facets"]["kind"], "function"),
+        count(&all["facets"]["kind"], "function")
+    );
+    assert_eq!(
+        only_functions["facets"]["kind"].as_array().unwrap().len(),
+        all["facets"]["kind"].as_array().unwrap().len()
     );
 }
 
@@ -489,7 +574,8 @@ fn review_posts_require_origin_csrf_valid_state_and_current_identity() {
     let csrf = server.site.borrow().csrf.clone();
     let origin = "Origin: http://127.0.0.1:8787\r\n";
     let body = |value: serde_json::Value| value.to_string();
-    let good = serde_json::json!({ "csrf": csrf, "key": key, "state": "confirmed" });
+    let good =
+        serde_json::json!({ "csrf": csrf, "key": key, "state": "confirmed", "revision": "none" });
     assert!(
         server
             .post_review(&body(good.clone()), "")
@@ -510,7 +596,8 @@ fn review_posts_require_origin_csrf_valid_state_and_current_identity() {
         (serde_json::json!({ "state": "deleted" }), 400),
         (serde_json::json!({ "state": 7 }), 400),
         (serde_json::json!({ "extra": true }), 400),
-        (serde_json::json!({ "note": "x".repeat(501) }), 500),
+        (serde_json::json!({ "revision": null }), 400),
+        (serde_json::json!({ "note": "x".repeat(501) }), 400),
     ] {
         let mut value = good.clone();
         for (field, content) in patch.as_object().unwrap() {
@@ -539,24 +626,30 @@ fn a_failed_review_save_is_reported_and_changes_nothing() {
     let root = project();
     let server = Server::start(root.path(), true);
     let key = server.site.borrow().review_keys[0].clone();
-    fs::write(
-        root.path().join(".mct-index/duplicate-reviews.lock"),
-        "another writer",
-    )
-    .unwrap();
+    // Another writer is alive and holds the OS lock until the end of the test.
+    let other_writer =
+        fs::File::create(root.path().join(".mct-index/review-decisions.lock")).unwrap();
+    other_writer.try_lock().unwrap();
     let response = server.decide(&key, Some("dismissed"), "reason");
     assert!(
-        response.starts_with("HTTP/1.1 500") && response.contains("No changes were applied"),
+        response.starts_with("HTTP/1.1 503")
+            && response.contains("No changes were applied")
+            && response.contains("review-decisions.lock"),
         "{response}"
     );
     assert_eq!(
         server.json("api/findings?type=duplicate")["items"][0]["state"],
         "unreviewed"
     );
-    assert!(!root
-        .path()
-        .join(".mct-index/duplicate-reviews.toon")
-        .exists());
+    for name in ["review-decisions.toon", "duplicate-reviews.toon"] {
+        assert!(!root.path().join(".mct-index").join(name).exists());
+    }
+    drop(other_writer);
+    let response = server.decide(&key, Some("dismissed"), "reason");
+    assert!(
+        response.starts_with("HTTP/1.1 200"),
+        "the save succeeds once the other writer is gone: {response}"
+    );
 }
 
 #[test]
@@ -564,6 +657,9 @@ fn review_identity_follows_group_members_and_file_content() {
     let root = project();
     let before = Server::start(root.path(), true);
     let key = before.site.borrow().review_keys[0].clone();
+    assert!(before
+        .decide(&key, Some("false-positive"), "")
+        .starts_with("HTTP/1.1 200"));
     let dead = before
         .site
         .borrow()
@@ -583,10 +679,15 @@ fn review_identity_follows_group_members_and_file_content() {
     fs::write(&file, text.replace("total += 8;", "total += 9;")).unwrap();
     index(root.path());
     let changed = Server::start(root.path(), true);
-    assert!(
-        changed.site.borrow().review_keys.is_empty() || changed.site.borrow().review_keys[0] != key,
-        "changed code is a new finding"
+    // Same members, changed code: the same finding, shown again until
+    // someone decides about the new code.
+    assert_eq!(
+        changed.site.borrow().review_keys,
+        std::slice::from_ref(&key)
     );
+    let row = changed.json(&format!("api/finding?key={key}"));
+    assert_eq!(row["state"], "needs-reevaluation");
+    assert_eq!(row["previousState"], "false-positive");
 }
 
 #[test]
@@ -722,4 +823,104 @@ fn current_ignore_rules_hide_stale_index_rows_from_the_api_and_the_vault() {
         Site::load(&root_path, true).is_err(),
         "unreadable rules must fail closed"
     );
+}
+
+/// Keys that the `origin/main` dashboard (`e68aec9`, `web/reviews.rs`
+/// `group_keys` and `dead_code_key`) stored for `project()` in
+/// `duplicate-reviews.toon`; recorded from that code in commit `ac76568`,
+/// where a test compared both implementations on this fixture.
+const A2_DUPLICATE_KEY: &str = "34e41d67068c03d6043f89c14aedf32dacf3a9c4e2ef3026d50eb80fe0ed203c";
+const A2_DEAD_KEYS: [&str; 2] = [
+    "eea049a05a956f2b447d711fc7228f1ebbb0c659c9a784c857afea59c14161d0",
+    "b1b7bafd8ab725fa534b16291e0bdf0ff404344890f18e1ee5df6d019e4f546e",
+];
+
+#[test]
+fn legacy_decisions_apply_and_their_file_is_never_rewritten() {
+    let root = project();
+    let legacy = format!(
+        "version: 2\nreviews[2]{{key,state,updated,note}}:\n  {A2_DUPLICATE_KEY},dismissed,100,generated%2C+kept\n  {},false-positive,100,\nhistory[2]{{key,from,to,at,note}}:\n  {A2_DUPLICATE_KEY},none,dismissed,100,generated%2C+kept\n  {},none,false-positive,100,\n",
+        A2_DEAD_KEYS[0], A2_DEAD_KEYS[0]
+    );
+    let path = root.path().join(".mct-index/duplicate-reviews.toon");
+    fs::write(&path, &legacy).unwrap();
+    let server = Server::start(root.path(), true);
+    let group = server.json("api/findings?type=duplicate")["items"][0].clone();
+    assert_eq!(group["state"], "dismissed");
+    assert_eq!(group["note"], "generated, kept");
+    assert_eq!(group["source"], "a2");
+    let states: Vec<String> = server.json("api/findings?type=dead-code")["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| row["state"].as_str().unwrap().to_string())
+        .collect();
+    assert!(states.contains(&"false-positive".to_string()), "{states:?}");
+    let key = group["key"].as_str().unwrap().to_string();
+    assert!(server
+        .decide(&key, None, "back to the queue")
+        .starts_with("HTTP/1.1 200"));
+    assert_eq!(fs::read_to_string(&path).unwrap(), legacy);
+    assert!(root
+        .path()
+        .join(".mct-index/review-decisions.toon")
+        .exists());
+    let restarted = Server::start(root.path(), true);
+    let group = restarted.json(&format!("api/finding?key={key}"));
+    assert_eq!(group["state"], "unreviewed");
+    let sources: Vec<&str> = group["history"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|event| event["source"].as_str().unwrap())
+        .collect();
+    assert_eq!(sources, ["a2", "c3"], "history keeps both files' events");
+}
+
+#[test]
+fn a_stale_view_is_rejected_with_the_current_review() {
+    let root = project();
+    let first = Server::start(root.path(), true);
+    let second = Server::start(root.path(), true);
+    let key = first.site.borrow().review_keys[0].clone();
+    let shown = second.json(&format!("api/finding?key={key}"))["revision"].clone();
+    assert!(first
+        .decide(&key, Some("dismissed"), "")
+        .starts_with("HTTP/1.1 200"));
+    let csrf = second.site.borrow().csrf.clone();
+    let body =
+        serde_json::json!({ "csrf": csrf, "key": key, "state": "confirmed", "revision": shown })
+            .to_string();
+    let response = second.post_review(&body, "Origin: http://127.0.0.1:8787\r\n");
+    assert!(response.starts_with("HTTP/1.1 409"), "{response}");
+    let current: serde_json::Value = serde_json::from_str(Server::body(&response)).unwrap();
+    assert_eq!(current["state"], "dismissed");
+    assert_eq!(
+        Server::start(root.path(), true).json(&format!("api/finding?key={key}"))["state"],
+        "dismissed"
+    );
+}
+
+#[test]
+fn an_unreadable_review_file_makes_reviews_read_only_and_hides_nothing() {
+    let root = project();
+    let key = Server::start(root.path(), true).site.borrow().review_keys[0].clone();
+    let server = Server::start(root.path(), true);
+    assert!(server
+        .decide(&key, Some("dismissed"), "")
+        .starts_with("HTTP/1.1 200"));
+    let draft = root.path().join(".mct-index/reviews.toon");
+    fs::write(&draft, "version: 2\ntruncated").unwrap();
+    let degraded = Server::start(root.path(), true);
+    let meta = degraded.json("api/meta");
+    assert!(meta["reviewsReadOnly"]
+        .as_str()
+        .unwrap()
+        .contains("reviews.toon"));
+    let row = degraded.json(&format!("api/finding?key={key}"));
+    assert_eq!(row["state"], "unreviewed", "nothing is hidden");
+    assert_eq!(row["readOnly"], true);
+    let response = degraded.decide(&key, Some("confirmed"), "");
+    assert!(response.starts_with("HTTP/1.1 503"), "{response}");
+    assert_eq!(fs::read_to_string(&draft).unwrap(), "version: 2\ntruncated");
 }
