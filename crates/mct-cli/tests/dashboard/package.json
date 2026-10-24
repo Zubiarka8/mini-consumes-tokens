@@ -1,0 +1,11 @@
+{
+  "devDependencies": {
+    "linkedom": "0.18.9"
+  },
+  "name": "mct-dashboard-regressions",
+  "private": true,
+  "scripts": {
+    "test": "node --experimental-vm-modules --test *.test.mjs",
+    "benchmark": "node --experimental-vm-modules benchmark.mjs"
+  }
+}

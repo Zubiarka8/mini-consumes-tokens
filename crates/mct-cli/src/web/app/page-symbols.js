@@ -1,5 +1,5 @@
 // 02 · Código indexado: file tree and filters | symbol table | symbol inspector
-import { h, clear, api, isAbort, patchQuery, onQuery, parseHash, listParam, fmt, copy, hrefTo, go, forget } from "./core.js";
+import { h, clear, api, cancelApi, isAbort, patchQuery, onQuery, parseHash, listParam, fmt, copy, hrefTo, go, forget } from "./core.js";
 import { symbolText, symbolTemplate, findingKinds, listText } from "./ai.js";
 import { icon, pageHead, tabsBar, segmented, dataTable, pager, kindIcon, kindGroup, kindGroups, badge, searchBox, selectBox, filterGroup, activeChips, noResults,
   emptyState, loading, errorBox, buildTree, treeView, drawerButton, note, stateBadge } from "./components.js";
@@ -21,7 +21,36 @@ export async function render({ root, params: initial }) {
   const quickHost = h("div", { class: "quick-filters" });
   const drawer = { current: null };
   let facets = { kind: [], language: [], ext: [] };
-  let selectedId = null;
+  let selectedId = null, origin = null, originKey = null, disposed = false;
+  const compact = matchMedia("(max-width: 1280px)");
+  const slot = document.createComment("symbol inspector");
+  const dialog = h("dialog", { class: "symbol-dialog", "aria-label": t("code.symbolDetails"), oncancel: (event) => { event.preventDefault(); patchQuery({ sel: null }); } });
+  document.body.append(dialog);
+  const closeModal = (restore = true) => {
+    if (!dialog.open) return;
+    dialog.close();
+    slot.after(inspector);
+    if (restore) {
+      const target = origin?.isConnected && origin !== document.body
+        ? origin
+        : [...root.querySelectorAll("tbody tr")].find((row) => row.dataset.key === originKey);
+      target?.focus();
+    }
+  };
+  const positionInspector = () => {
+    if (selectedId === null) { closeModal(); return; }
+    if (compact.matches) {
+      if (!dialog.open) {
+        const active = document.activeElement;
+        originKey = String(selectedId);
+        origin = active?.matches?.("tbody tr") ? active : [...root.querySelectorAll("tbody tr")].find((row) => row.dataset.key === originKey) || active;
+        dialog.append(inspector);
+        dialog.showModal();
+        (inspector.querySelector("button") || dialog).focus();
+      }
+    } else closeModal();
+  };
+  compact.addEventListener("change", positionInspector);
 
   const q = () => parseHash().params;
   const queryFor = (params) => {
@@ -125,12 +154,15 @@ export async function render({ root, params: initial }) {
 
   async function showSymbol(id) {
     selectedId = id;
-    if (id === null) { inspector.hidden = true; root.querySelector(".workbench")?.classList.remove("inspect"); return; }
+    cancelApi("symbol");
+    if (id === null) { closeModal(); inspector.hidden = true; root.querySelector(".workbench")?.classList.remove("inspect"); return; }
     root.querySelector(".workbench")?.classList.add("inspect");
     inspector.hidden = false;
-    clear(inspector).append(h("div", { class: "card inspector" }, loading()));
+    clear(inspector).append(h("div", { class: "card inspector" }, h("button", { class: "btn", onclick: () => patchQuery({ sel: null }) }, t("common.close")), loading()));
+    positionInspector();
     try {
       const data = await api("symbol", { id }, "symbol");
+      if (disposed || selectedId !== id) return;
       const s = data.symbol;
       const select = (row) => patchQuery({ sel: row.id });
       clear(inspector).append(h("div", { class: "card inspector" },
@@ -160,12 +192,20 @@ export async function render({ root, params: initial }) {
           data.dead ? h("p", {}, badge(t("common.deadCode"), "danger"), " ", h("a", { href: hrefTo("codigo-muerto", { key: data.dead.key }) }, t("code.seeDead")), " ", stateBadge(data.dead.state)) : h("p", { class: "muted" }, t("code.noDead"))),
         h("div", { class: "section" }, h("h4", {}, t("code.notes")),
           data.notes.length ? data.notes.map((n) => h("p", {}, h("a", { href: hrefTo("obsidian", { note: n.path }) }, n.title))) : h("p", { class: "muted" }, t("code.noNotes")))));
-    } catch (error) { clear(inspector).append(h("div", { class: "card inspector" }, errorBox(error))); }
+      if (dialog.open) inspector.querySelector("button")?.focus();
+    } catch (error) {
+      if (!isAbort(error) && !disposed && selectedId === id) {
+        clear(inspector).append(h("div", { class: "card inspector" }, h("button", { class: "btn", onclick: () => patchQuery({ sel: null }) }, t("common.close")), errorBox(error, () => showSymbol(id))));
+        if (dialog.open) inspector.querySelector("button")?.focus();
+      }
+    }
   }
 
+  const search = searchBox({ value: initial.get("q") || "", placeholder: t("code.searchPlaceholder"), label: t("code.searchPlaceholder"), onInput: (v) => patchQuery({ q: v }) });
   const layout = h("div", { class: "workbench" }, h("aside", { class: "filters-col" }, filtersHost), h("div", {}, h("div", { class: "toolbar" },
-    searchBox({ value: initial.get("q") || "", placeholder: t("code.searchPlaceholder"), label: t("code.searchPlaceholder"), onInput: (v) => patchQuery({ q: v }) }),
+    search,
     drawerButton(() => drawer.current)), chipsHost, quickHost, tabsHost, results), inspector);
+  inspector.before(slot);
   drawer.current = layout.querySelector("aside");
   root.append(pageHead(t("code.title"), t("code.subtitle")), layout);
   const last = initial.get("sel");
@@ -175,10 +215,11 @@ export async function render({ root, params: initial }) {
   const stable = (params) => [...params].filter(([key]) => key !== "sel").join("&");
   let lastQuery = stable(initial);
   const off = onQuery((params) => {
+    search.sync(params.get("q") || "");
     const sel = params.get("sel");
     if ((sel === null ? null : Number(sel)) !== selectedId) showSymbol(sel === null ? null : Number(sel));
     root.querySelectorAll("tbody tr").forEach((row) => row.setAttribute("aria-selected", String(row.dataset.key === sel)));
     if (stable(params) !== lastQuery) { lastQuery = stable(params); refresh(params); }
   });
-  return () => off();
+  return () => { disposed = true; off(); cancelApi("symbol"); cancelApi("symbols"); closeModal(false); dialog.remove(); compact.removeEventListener("change", positionInspector); search.destroy(); };
 }
