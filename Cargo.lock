@@ -1421,8 +1421,10 @@ dependencies = [
 name = "mct-index"
 version = "0.2.0"
 dependencies = [
+ "anyhow",
  "git2",
  "globset",
+ "hmac-sha256",
  "mct-core",
  "rusqlite",
  "rusqlite_migration",

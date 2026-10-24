@@ -9,6 +9,8 @@ keywords = ["mcp", "sqlite", "code-index", "tree-sitter"]
 categories = ["development-tools", "database"]
 
 [dependencies]
+anyhow = "1.0.104"
+hmac-sha256 = "1.1.15"
 mct-core.workspace = true
 # default-features off: we only read local repo state (no clone/fetch/push), so
 # skip the ssh/https transports and their system OpenSSL/libssh2 dependency —

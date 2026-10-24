@@ -16,6 +16,8 @@ mod indexer;
 mod manifests;
 mod queries;
 mod read_limits;
+pub mod review_keys;
+pub mod review_state;
 mod schema;
 mod search;
 mod semantic;
