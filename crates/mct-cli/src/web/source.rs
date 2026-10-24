@@ -39,6 +39,38 @@ fn resolve(root: &Path, relative: &str) -> Option<PathBuf> {
     (metadata.is_file() && metadata.len() <= MAX_FILE_BYTES).then_some(path)
 }
 
+pub(super) use mct_index::review_keys::indexed_text;
+
+/// A bounded source page from exactly the indexed revision, never a stale
+/// range applied to newly edited content.
+pub(super) fn indexed_excerpt(
+    root: &Path,
+    relative: &str,
+    hash: &str,
+    start: u32,
+    end: u32,
+) -> Option<Excerpt> {
+    if start == 0 || end < start {
+        return None;
+    }
+    let content = indexed_text(root, relative, hash)?;
+    let wanted = (end - start + 1) as usize;
+    let lines: Vec<String> = content
+        .lines()
+        .skip((start - 1) as usize)
+        .take(wanted.min(MAX_PREVIEW_LINES))
+        .map(str::to_string)
+        .collect();
+    if lines.len() != wanted.min(MAX_PREVIEW_LINES) {
+        return None;
+    }
+    Some(Excerpt {
+        first: start,
+        lines,
+        truncated: wanted > MAX_PREVIEW_LINES,
+    })
+}
+
 /// Up to `max` bytes of a regular file below `root`, decoded lossily at a cut
 /// edge. Same path rules as [`excerpt`].
 pub(super) fn read_text(root: &Path, relative: &str, max: usize) -> Option<String> {

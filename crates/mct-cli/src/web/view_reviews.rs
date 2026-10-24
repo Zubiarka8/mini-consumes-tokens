@@ -91,7 +91,11 @@ pub(super) fn list(req: &Req<'_>) -> Response {
         .collect();
     let obsolete: Vec<_> = site
         .reviews
-        .decisions()
+        .stored_findings()
+        .unwrap_or_else(|error| {
+            eprintln!("warning: cannot read review decisions: {error:#}");
+            Vec::new()
+        })
         .into_iter()
         .filter(|record| !current.contains(&(record.kind, record.identity.as_str())))
         .collect();
@@ -178,7 +182,7 @@ pub(super) fn list(req: &Req<'_>) -> Response {
         for record in list.iter().skip(start).take(PAGE) {
             let _ = write!(
                 body,
-                "<li><span class=\"badge\">{}</span> <span class=\"chip chip-{}\">{}</span> <span class=\"muted\">{} · {}</span>{}</li>",
+                "<li><span class=\"badge\">{}</span> <span class=\"chip chip-{}\">{}</span> <span class=\"muted\">{} · {}</span>{}<form action=\"review/delete\" method=\"post\"><input type=\"hidden\" name=\"csrf\" value=\"{}\"><input type=\"hidden\" name=\"kind\" value=\"{}\"><input type=\"hidden\" name=\"id\" value=\"{}\"><input type=\"hidden\" name=\"expected_revision\" value=\"{}\"><button>{}</button></form></li>",
                 record.kind.label(req.lang),
                 record.status.value(),
                 record.status.label(req.lang),
@@ -188,7 +192,8 @@ pub(super) fn list(req: &Req<'_>) -> Response {
                     String::new()
                 } else {
                     format!(" — {}", escape(&record.reason))
-                }
+                },
+                escape(&site.csrf), record.kind.value(), record.identity, site.reviews.decision_revision(record.kind,&record.identity).unwrap_or(0), req.t("Borrar decisión")
             );
         }
         if list.is_empty() {

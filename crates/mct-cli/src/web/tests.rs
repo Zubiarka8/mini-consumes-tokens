@@ -1,7 +1,7 @@
 //! Public index APIs plus full HTTP wire parsing/response tests, without sockets.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use super::reviews::{self, Kind, State, Status};
-use super::{http, Site};
+use super::{http, store, Site};
 use std::fs;
 use std::io::{Cursor, Read, Write};
 use std::path::Path;
@@ -71,9 +71,71 @@ impl Server {
     fn form(&self, route: &str, body: &str, headers: &str) -> String {
         self.raw(&format!("POST /secret/{route} HTTP/1.1\r\nHost: 127.0.0.1:8787\r\n{headers}Content-Type: application/x-www-form-urlencoded\r\nContent-Length: {}\r\n\r\n{body}", body.len()))
     }
+    fn json_post(&self, route: &str, body: &str, headers: &str) -> String {
+        self.raw(&format!("POST /secret/{route} HTTP/1.1\r\nHost: 127.0.0.1:8787\r\n{headers}Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}", body.len()))
+    }
+    /// A JSON write with the same-origin header and the CSRF token.
+    fn write(&self, route: &str, body: &serde_json::Value) -> String {
+        let csrf = self.site.borrow().csrf.clone();
+        let mut body = body.clone();
+        if let Some(fields) = body.as_object_mut() {
+            let site = self.site.borrow();
+            let identity = fields
+                .get("id")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            if matches!(route, "api/review" | "api/review/delete") {
+                if let Some(kind) = fields
+                    .get("kind")
+                    .and_then(serde_json::Value::as_str)
+                    .and_then(Kind::parse)
+                {
+                    fields.entry("expected_revision").or_insert_with(|| {
+                        serde_json::json!(site
+                            .reviews
+                            .decision_revision(kind, &identity)
+                            .unwrap_or(0))
+                    });
+                    if route == "api/review" {
+                        fields.entry("fingerprint").or_insert_with(|| {
+                            serde_json::json!(site
+                                .fingerprint_of(kind, &identity)
+                                .unwrap_or_default())
+                        });
+                    }
+                }
+            } else if route == "api/file-review" {
+                let path = fields
+                    .get("path")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or_default()
+                    .to_string();
+                fields.entry("expected_revision").or_insert_with(|| {
+                    serde_json::json!(site.reviews.file_revision(&identity, &path).unwrap_or(0))
+                });
+            }
+        }
+        self.json_post(
+            route,
+            &body.to_string(),
+            &format!("Origin: http://127.0.0.1:8787\r\nX-CSRF-Token: {csrf}\r\n"),
+        )
+    }
     fn review_body(&self, kind: &str, id: &str, action: &str, extra: &[(&str, &str)]) -> String {
         let csrf = self.site.borrow().csrf.clone();
+        let site = self.site.borrow();
+        let parsed_kind = Kind::parse(kind);
+        let fingerprint = parsed_kind
+            .and_then(|k| site.fingerprint_of(k, id))
+            .unwrap_or_default();
+        let revision = parsed_kind
+            .and_then(|k| site.reviews.decision_revision(k, id).ok())
+            .unwrap_or(0)
+            .to_string();
         let mut pairs = vec![
+            ("fingerprint", fingerprint.as_str()),
+            ("expected_revision", revision.as_str()),
             ("csrf", csrf.as_str()),
             ("kind", kind),
             ("id", id),
@@ -131,8 +193,31 @@ fn project() -> tempfile::TempDir {
     root
 }
 
-fn reviews_file(root: &Path) -> std::path::PathBuf {
-    root.join(".mct-index/reviews.toon")
+fn open_store(root: &Path) -> store::Store {
+    store::Store::open(&root.canonicalize().unwrap()).unwrap()
+}
+
+/// Decisions persisted in the dashboard database, newest first.
+fn saved_decisions(root: &Path) -> Vec<reviews::Record> {
+    open_store(root).decisions().unwrap()
+}
+
+/// Makes every new decision fail to save, as a full disk or a locked file would.
+fn block_review_writes(root: &Path) {
+    rusqlite::Connection::open(root.join(".mct-index/dashboard.sqlite3"))
+        .unwrap()
+        .execute_batch(
+            "CREATE TRIGGER block_reviews BEFORE INSERT ON reviews \
+             BEGIN SELECT RAISE(ABORT, 'blocked'); END;",
+        )
+        .unwrap();
+}
+
+fn unblock_review_writes(root: &Path) {
+    rusqlite::Connection::open(root.join(".mct-index/dashboard.sqlite3"))
+        .unwrap()
+        .execute_batch("DROP TRIGGER block_reviews;")
+        .unwrap();
 }
 
 #[test]
@@ -165,7 +250,7 @@ fn the_default_page_is_duplicates_and_the_header_has_the_four_sections_in_order(
     assert!(server.get("app.js").contains("text/javascript"));
     assert_eq!(original, fs::read(database).unwrap());
     assert!(!root.path().join(".mct-index/obsidian").exists());
-    assert!(!reviews_file(root.path()).exists());
+    assert!(saved_decisions(root.path()).is_empty());
 }
 
 #[test]
@@ -590,9 +675,9 @@ fn duplicate_decisions_persist_restore_and_never_touch_the_index() {
     assert!(Server::start(root.path(), true)
         .get("duplicados")
         .contains(&format!("duplicado?k={id}")));
-    let history = reviews::Reviews::load(&root.path().canonicalize().unwrap()).unwrap();
+    let history = open_store(root.path());
     assert_eq!(
-        history.history(Kind::Duplicate, &id).len(),
+        history.history(Kind::Duplicate, &id).unwrap().len(),
         2,
         "restore keeps the earlier decision"
     );
@@ -600,7 +685,7 @@ fn duplicate_decisions_persist_restore_and_never_touch_the_index() {
 }
 
 #[test]
-fn a_changed_file_asks_for_reevaluation_instead_of_hiding_or_forgetting_the_decision() {
+fn a_changed_duplicate_body_asks_for_reevaluation_instead_of_hiding_the_decision() {
     let root = project();
     let server = Server::start(root.path(), true);
     let id = server.duplicate_id(0);
@@ -610,10 +695,9 @@ fn a_changed_file_asks_for_reevaluation_instead_of_hiding_or_forgetting_the_deci
     let file = root.path().join("src/a.rs");
     fs::write(
         &file,
-        format!(
-            "{}\n// changed source\n",
-            fs::read_to_string(&file).unwrap()
-        ),
+        fs::read_to_string(&file)
+            .unwrap()
+            .replace("total += 8", "total += 9"),
     )
     .unwrap();
     index(root.path());
@@ -650,7 +734,7 @@ fn a_changed_file_asks_for_reevaluation_instead_of_hiding_or_forgetting_the_deci
         &file,
         fs::read_to_string(&file)
             .unwrap()
-            .replace("\n// changed source\n", ""),
+            .replace("total += 9", "total += 8"),
     )
     .unwrap();
     index(root.path());
@@ -664,7 +748,16 @@ fn a_changed_file_asks_for_reevaluation_instead_of_hiding_or_forgetting_the_deci
             ..
         }
     ));
-    // A new decision on the changed code replaces the stale one and keeps both in the history.
+    // A new decision requires a current snapshot of the changed code.
+    fs::write(
+        &file,
+        fs::read_to_string(&file)
+            .unwrap()
+            .replace("total += 8", "total += 9"),
+    )
+    .unwrap();
+    index(root.path());
+    let changed = Server::start(root.path(), true);
     assert!(changed
         .review("duplicate", &id, "confirmed", "")
         .starts_with("HTTP/1.1 303"));
@@ -675,8 +768,8 @@ fn a_changed_file_asks_for_reevaluation_instead_of_hiding_or_forgetting_the_deci
             ..
         }
     ));
-    let history = reviews::Reviews::load(&root.path().canonicalize().unwrap()).unwrap();
-    assert_eq!(history.history(Kind::Duplicate, &id).len(), 2);
+    let history = open_store(root.path());
+    assert_eq!(history.history(Kind::Duplicate, &id).unwrap().len(), 2);
 }
 
 #[test]
@@ -686,8 +779,13 @@ fn adr_015_decisions_are_honoured_and_the_old_file_is_never_rewritten() {
     let key = fingerprint_like_adr_015(&server.site.borrow(), 0);
     assert_eq!(
         key,
-        server.site.borrow().duplicate_keys[0].fingerprint,
-        "the fingerprint is the ADR-015 key"
+        reviews::legacy_group_keys(
+            &server.site.borrow().duplicates.groups,
+            &server.site.borrow().navigation,
+            server.site.borrow().duplicates.options.normalization
+        )
+        .unwrap()[0],
+        "the legacy fingerprint remains the ADR-015 key"
     );
     let legacy = root.path().join(".mct-index/duplicate-reviews.toon");
     let content = format!("version: 1\nreviews[1]{{key,reason}}:\n  {key},dismissed\n");
@@ -778,7 +876,7 @@ fn dead_code_candidates_are_listed_honestly_and_reviewed_like_duplicates() {
             .iter()
             .position(|d| d.identity == id)
             .map(|i| moved.site.borrow().dead_state(i)),
-        Some(State::NeedsReevaluation { .. })
+        Some(State::Decided { .. })
     ));
     assert!(moved
         .review("dead", &id, "restore", "")
@@ -837,7 +935,7 @@ fn review_posts_require_origin_csrf_valid_action_and_current_finding() {
         .form("review", &huge, origin)
         .starts_with("HTTP/1.1 413"));
     assert!(
-        !reviews_file(root.path()).exists(),
+        saved_decisions(root.path()).is_empty(),
         "nothing was written by rejected requests"
     );
     // `next` can only name a known page.
@@ -876,9 +974,10 @@ fn review_posts_require_origin_csrf_valid_action_and_current_finding() {
             &format!("{long}\r\nSet-Cookie: a=b")
         )
         .starts_with("HTTP/1.1 303"));
-    let saved = fs::read_to_string(reviews_file(root.path())).unwrap();
-    assert!(saved.lines().all(|line| !line.starts_with("Set-Cookie")));
-    assert!(saved.contains(&"x".repeat(500)) && !saved.contains(&"x".repeat(501)));
+    let saved = saved_decisions(root.path());
+    assert_eq!(saved.len(), 1);
+    assert_eq!(saved[0].reason, "x".repeat(500));
+    assert!(!saved[0].reason.contains('\n'));
 }
 
 #[test]
@@ -886,11 +985,7 @@ fn a_failed_review_save_is_visible_and_does_not_change_the_page() {
     let root = project();
     let server = Server::start(root.path(), true);
     let id = server.duplicate_id(0);
-    fs::write(
-        root.path().join(".mct-index/reviews.lock"),
-        "another writer",
-    )
-    .unwrap();
+    block_review_writes(root.path());
     let response = server.review("duplicate", &id, "false_positive", "");
     assert!(
         response.starts_with("HTTP/1.1 500") && response.contains("No se aplicó ningún cambio"),
@@ -899,7 +994,7 @@ fn a_failed_review_save_is_visible_and_does_not_change_the_page() {
     assert!(server
         .get("duplicados")
         .contains(&format!("duplicado?k={id}")));
-    assert!(!reviews_file(root.path()).exists());
+    assert!(saved_decisions(root.path()).is_empty());
 }
 
 #[test]
@@ -1064,9 +1159,10 @@ fn settings_and_status_describe_the_project_without_changing_it() {
     );
     let settings = server.get("ajustes");
     assert!(
-        settings.contains(".mct-index/reviews.toon") && settings.contains("duplicate-reviews.toon")
+        settings.contains(".mct-index/dashboard.sqlite3")
+            && settings.contains("duplicate-reviews.toon")
     );
-    assert!(!reviews_file(root.path()).exists());
+    assert!(saved_decisions(root.path()).is_empty());
 }
 
 impl Server {
@@ -1199,8 +1295,7 @@ fn every_page_is_fully_translated_in_english_and_review_messages_follow() {
     assert!(server
         .form("review", &body, origin)
         .starts_with("HTTP/1.1 400"));
-    let lock = root.path().join(".mct-index/reviews.lock");
-    fs::write(&lock, "x").unwrap();
+    block_review_writes(root.path());
     let failed = server.form(
         "review",
         &server.review_body("dead", &id, "ignored", &[]),
@@ -1210,7 +1305,7 @@ fn every_page_is_fully_translated_in_english_and_review_messages_follow() {
         failed.starts_with("HTTP/1.1 500") && failed.contains("No change was applied"),
         "{failed}"
     );
-    fs::remove_file(lock).unwrap();
+    unblock_review_writes(root.path());
     assert!(server
         .form(
             "review",
@@ -1231,4 +1326,900 @@ fn every_page_is_fully_translated_in_english_and_review_messages_follow() {
     assert!(server
         .get("muerto?status=ignored")
         .contains("Ignorado a propósito"));
+}
+
+fn api_json(response: &str) -> serde_json::Value {
+    assert!(response.starts_with("HTTP/1.1 200"), "{response}");
+    assert!(response.contains("Content-Type: application/json"));
+    assert!(response.contains("Cache-Control: no-store"));
+    let (_, body) = response.split_once("\r\n\r\n").unwrap();
+    serde_json::from_str(body).unwrap()
+}
+
+#[test]
+fn the_json_api_reports_the_snapshot_findings_and_their_review_state() {
+    let root = project();
+    let server = Server::start(root.path(), true);
+    let id = server.duplicate_id(0);
+
+    let summary = api_json(&server.get("api/summary"));
+    assert_eq!(summary["files"], 2);
+    assert!(summary["duplicate_groups"].as_u64().unwrap() >= 1);
+    assert_eq!(
+        summary["duplicates_pending"], summary["duplicate_groups"],
+        "nothing is decided yet"
+    );
+
+    let list = api_json(&server.get("api/duplicates?limit=1"));
+    assert_eq!(list["limit"], 1);
+    assert_eq!(list["items"].as_array().unwrap().len(), 1);
+    assert_eq!(list["items"][0]["identity"], id);
+    assert_eq!(list["items"][0]["state"]["status"], "pending");
+    assert!(!list["items"][0]["members"].as_array().unwrap().is_empty());
+
+    assert!(server
+        .review("duplicate", &id, "confirmed", "same code")
+        .starts_with("HTTP/1.1 303"));
+    let list = api_json(&server.get("api/duplicates"));
+    assert_eq!(list["items"][0]["state"]["status"], "confirmed");
+    assert_eq!(list["items"][0]["state"]["reason"], "same code");
+    let reviews = api_json(&server.get("api/reviews"));
+    assert_eq!(reviews["total"], 1);
+    assert_eq!(reviews["items"][0]["current"], true);
+
+    let finding = api_json(&server.get(&format!("api/finding?kind=duplicate&id={id}")));
+    assert_eq!(finding["history"].as_array().unwrap().len(), 1);
+    assert!(finding["comments"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn the_spa_shell_and_its_assets_are_embedded_and_free_of_inline_code() {
+    let root = project();
+    let server = Server::start(root.path(), true);
+    let csrf = server.site.borrow().csrf.clone();
+    let shell = server.get("app");
+    assert!(shell.starts_with("HTTP/1.1 200"), "{shell}");
+    assert!(shell.contains("text/html"));
+    assert!(shell.contains(&format!("name=\"csrf-token\" content=\"{csrf}\"")));
+    assert!(shell.contains("<symbol id=\"i-copy\""));
+    for placeholder in ["__CSRF__", "__SPRITE__"] {
+        assert!(!shell.contains(placeholder), "{placeholder}");
+    }
+    // The CSP forbids inline script and style, so the shell must not need them.
+    let (_, body) = shell.split_once("\r\n\r\n").unwrap();
+    assert!(body.contains("src=\"spa.js\"") && body.contains("src=\"alpine.js\""));
+    assert!(!body.contains("<script>") && !body.contains("<style"));
+    assert!(!body.contains(" style=") && !body.contains("javascript:"));
+    assert!(!body.contains("https://") && !body.contains("http://"));
+
+    assert!(server.get("spa.css").contains("text/css"));
+    assert!(server.get("spa.js").contains("text/javascript"));
+    let alpine = server.get("alpine.js");
+    assert!(alpine.contains("text/javascript") && alpine.len() > 10_000);
+}
+
+#[test]
+fn the_json_api_serves_notes_note_and_graph_only_when_the_vault_exists() {
+    let root = project();
+    let off = Server::start(root.path(), true);
+    let notes = api_json(&off.get("api/notes"));
+    assert_eq!(notes["enabled"], false);
+    assert_eq!(notes["total"], 0);
+    assert!(off.get("api/note?n=index.md").starts_with("HTTP/1.1 404"));
+    assert!(off.get("api/notes?kind=bogus").starts_with("HTTP/1.1 400"));
+
+    let on = Server::start(root.path(), false);
+    let notes = api_json(&on.get("api/notes?limit=500"));
+    assert_eq!(notes["enabled"], true);
+    let items = notes["items"].as_array().unwrap();
+    assert!(!items.is_empty());
+    let name = items[0]["name"].as_str().unwrap().to_string();
+    let note = api_json(&on.get(&format!("api/note?n={name}")));
+    assert_eq!(note["name"], name);
+    assert!(!note["text"].as_str().unwrap().is_empty());
+    let graph = api_json(&on.get("api/graph"));
+    assert!(!graph["nodes"].as_array().unwrap().is_empty());
+    let count = graph["nodes"].as_array().unwrap().len() as u64;
+    for edge in graph["edges"].as_array().unwrap() {
+        assert!(edge[0].as_u64().unwrap() < count && edge[1].as_u64().unwrap() < count);
+    }
+    let focused = api_json(&on.get(&format!("api/graph?n={name}")));
+    assert!(focused["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|node| node["focus"] == true));
+    assert!(on.get("api/graph?n=missing.md").starts_with("HTTP/1.1 404"));
+    let summary = api_json(&on.get("api/summary"));
+    assert!(summary["notes"].as_u64().unwrap() > 0);
+}
+
+#[test]
+fn the_json_api_rejects_bad_parameters_unknown_findings_and_unknown_routes() {
+    let root = project();
+    let server = Server::start(root.path(), true);
+    for (path, status) in [
+        ("api/duplicates?offset=x", "400"),
+        ("api/dead?limit=-1", "400"),
+        ("api/finding?kind=bogus&id=a", "400"),
+        ("api/finding?kind=dead&id=zz", "400"),
+        (
+            &format!("api/finding?kind=dead&id={}", "a".repeat(64)),
+            "404",
+        ),
+        ("api/nothing", "404"),
+    ] {
+        assert!(
+            server.get(path).starts_with(&format!("HTTP/1.1 {status}")),
+            "{path}"
+        );
+    }
+    // Writes are not part of M3: the API accepts no POST.
+    let post = server.form("api/summary", "x=1", "Origin: http://127.0.0.1:8787\r\n");
+    assert!(post.starts_with("HTTP/1.1 405"), "{post}");
+    // A huge limit is clamped, not honoured.
+    assert_eq!(api_json(&server.get("api/dead?limit=999999"))["limit"], 200);
+}
+
+#[test]
+fn the_version_token_moves_on_reviews_and_the_snapshot_follows_a_changed_index() {
+    let root = project();
+    let server = Server::start(root.path(), true);
+    let first = api_json(&server.get("api/version"));
+    assert_eq!(first["stale"], false);
+    assert!(first["rebuild_ms"].is_u64());
+    let id = server.duplicate_id(0);
+    assert!(server
+        .review("duplicate", &id, "ignored", "")
+        .starts_with("HTTP/1.1 303"));
+    let after_review = api_json(&server.get("api/version"));
+    assert_ne!(first["token"], after_review["token"]);
+
+    // Another indexing run: the index file's time moves forward.
+    let database = root.path().join(".mct-index/index.sqlite3");
+    fs::OpenOptions::new()
+        .write(true)
+        .open(&database)
+        .unwrap()
+        .set_modified(std::time::SystemTime::now() + Duration::from_secs(30))
+        .unwrap();
+    let stale = api_json(&server.get("api/version"));
+    assert_eq!(stale["stale"], true);
+    assert_ne!(after_review["token"], stale["token"]);
+
+    // `api/version` never rebuilds; the next data read does, after the interval.
+    std::thread::sleep(Duration::from_millis(2200));
+    // The rebuild runs on a worker thread: the read that starts it is answered
+    // from the old snapshot, and a later read swaps the new one in.
+    api_json(&server.get("api/summary"));
+    let mut fresh = api_json(&server.get("api/version"));
+    for _ in 0..300 {
+        if fresh["stale"] == false {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+        api_json(&server.get("api/summary"));
+        fresh = api_json(&server.get("api/version"));
+    }
+    assert_eq!(fresh["stale"], false);
+    assert_eq!(fresh["rebuilding"], false);
+    assert_ne!(stale["token"], fresh["token"]);
+}
+
+#[test]
+fn json_writes_save_reviews_and_comments_and_show_up_in_the_reads() {
+    let root = project();
+    let server = Server::start(root.path(), true);
+    let id = server.duplicate_id(0);
+    let before = api_json(&server.get("api/version"));
+
+    let decided = server.write(
+        "api/review",
+        &serde_json::json!({"kind": "duplicate", "id": id, "action": "ignored", "reason": "generated"}),
+    );
+    assert!(decided.starts_with("HTTP/1.1 200"), "{decided}");
+    assert_eq!(api_json(&decided)["state"]["status"], "ignored");
+    let listed = api_json(&server.get("api/duplicates"));
+    let item = listed["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|item| item["identity"] == id.as_str())
+        .unwrap();
+    assert_eq!(item["state"]["reason"], "generated");
+    assert_ne!(
+        before["token"],
+        api_json(&server.get("api/version"))["token"]
+    );
+
+    let restored = server.write(
+        "api/review",
+        &serde_json::json!({"kind": "duplicate", "id": id, "action": "restore"}),
+    );
+    assert_eq!(api_json(&restored)["state"]["status"], "pending");
+
+    let added = api_json(&server.write(
+        "api/comment",
+        &serde_json::json!({"kind": "duplicate", "id": id, "body": "first\nsecond"}),
+    ));
+    let comment_id = added["comment_id"].as_i64().unwrap();
+    let finding = api_json(&server.get(&format!("api/finding?kind=duplicate&id={id}")));
+    assert_eq!(finding["comments"][0]["body"], "first\nsecond");
+    assert!(finding["history"].as_array().unwrap().len() >= 2);
+
+    let edited = server.write(
+        "api/comment/update",
+        &serde_json::json!({"comment_id": comment_id, "body": "edited"}),
+    );
+    assert!(edited.starts_with("HTTP/1.1 200"), "{edited}");
+    let finding = api_json(&server.get(&format!("api/finding?kind=duplicate&id={id}")));
+    assert_eq!(finding["comments"][0]["body"], "edited");
+
+    let removed = server.write(
+        "api/comment/delete",
+        &serde_json::json!({"comment_id": comment_id}),
+    );
+    assert!(removed.starts_with("HTTP/1.1 200"), "{removed}");
+    let finding = api_json(&server.get(&format!("api/finding?kind=duplicate&id={id}")));
+    assert!(finding["comments"].as_array().unwrap().is_empty());
+    // The same comment cannot be deleted or edited twice.
+    for (route, body) in [
+        (
+            "api/comment/delete",
+            serde_json::json!({"comment_id": comment_id}),
+        ),
+        (
+            "api/comment/update",
+            serde_json::json!({"comment_id": comment_id, "body": "x"}),
+        ),
+    ] {
+        assert!(server.write(route, &body).starts_with("HTTP/1.1 404"));
+    }
+}
+
+#[test]
+fn file_reviews_are_saved_per_member_and_reject_strangers_and_bad_input() {
+    let root = project();
+    let server = Server::start(root.path(), true);
+    let id = server.duplicate_id(0);
+    let finding = api_json(&server.get(&format!("api/finding?kind=duplicate&id={id}")));
+    assert!(finding["files"].as_array().unwrap().is_empty());
+    let listed = api_json(&server.get("api/duplicates"));
+    let item = listed["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|item| item["identity"] == id.as_str())
+        .unwrap();
+    let path = item["members"][0]["path"].as_str().unwrap().to_owned();
+
+    let saved = server.write(
+        "api/file-review",
+        &serde_json::json!({"id": id, "path": path, "status": "in_review", "note": "check\nlater"}),
+    );
+    assert!(saved.starts_with("HTTP/1.1 200"), "{saved}");
+    assert_eq!(api_json(&saved)["status"], "in_review");
+    let finding = api_json(&server.get(&format!("api/finding?kind=duplicate&id={id}")));
+    assert_eq!(finding["files"][0]["path"], path.as_str());
+    assert_eq!(finding["files"][0]["status"], "in_review");
+    assert_eq!(finding["files"][0]["note"], "check\nlater");
+
+    let rejected = [
+        serde_json::json!({"id": id, "path": path, "status": "bogus"}),
+        serde_json::json!({"id": id, "path": path, "status": "accepted", "extra": 1}),
+        serde_json::json!({"id": id, "path": path, "status": "accepted", "note": "x".repeat(2001)}),
+        serde_json::json!({"id": "nothex", "path": path, "status": "accepted"}),
+    ];
+    for body in rejected {
+        let response = server.write("api/file-review", &body);
+        assert!(response.starts_with("HTTP/1.1 400"), "{body}: {response}");
+    }
+    for stranger_path in ["not/a/member.rs", ""] {
+        let stranger = server.write(
+            "api/file-review",
+            &serde_json::json!({"id": id, "path": stranger_path, "status": "accepted"}),
+        );
+        assert!(stranger.starts_with("HTTP/1.1 404"), "{stranger}");
+    }
+    let unknown = server.write(
+        "api/file-review",
+        &serde_json::json!({"id": "0".repeat(64), "path": path, "status": "accepted"}),
+    );
+    assert!(unknown.starts_with("HTTP/1.1 404"), "{unknown}");
+
+    // Back to "pending" with no note removes the row.
+    let cleared = server.write(
+        "api/file-review",
+        &serde_json::json!({"id": id, "path": path, "status": "pending", "note": ""}),
+    );
+    assert!(cleared.starts_with("HTTP/1.1 200"), "{cleared}");
+    let finding = api_json(&server.get(&format!("api/finding?kind=duplicate&id={id}")));
+    assert!(finding["files"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn json_writes_require_origin_csrf_json_size_and_valid_bodies() {
+    let root = project();
+    let server = Server::start(root.path(), true);
+    let id = server.duplicate_id(0);
+    let good = serde_json::json!({"kind": "duplicate", "id": id, "action": "ignored"}).to_string();
+    let csrf = server.site.borrow().csrf.clone();
+    let origin = "Origin: http://127.0.0.1:8787\r\n";
+    let token = format!("X-CSRF-Token: {csrf}\r\n");
+    let status = |response: String| response.lines().next().unwrap().to_string();
+
+    // Transport rules.
+    for (headers, expected) in [
+        (token.clone(), "403"),
+        (origin.to_string(), "403"),
+        (format!("{origin}X-CSRF-Token: wrong\r\n"), "403"),
+        (format!("Origin: http://evil.example\r\n{token}"), "403"),
+        (
+            format!("{origin}Sec-Fetch-Site: cross-site\r\n{token}"),
+            "403",
+        ),
+    ] {
+        let response = server.json_post("api/review", &good, &headers);
+        assert!(status(response).contains(expected), "{headers}");
+    }
+    let form_type = server.raw(&format!(
+        "POST /secret/api/review HTTP/1.1\r\nHost: 127.0.0.1:8787\r\n{origin}{token}Content-Type: application/x-www-form-urlencoded\r\nContent-Length: {}\r\n\r\n{good}",
+        good.len()
+    ));
+    assert!(status(form_type).contains("400"));
+    let big = format!("{{\"body\":\"{}\"}}", "x".repeat(9000));
+    assert!(
+        status(server.json_post("api/comment", &big, &format!("{origin}{token}"))).contains("413")
+    );
+    assert!(
+        status(server.json_post("api/other", "{}", &format!("{origin}{token}"))).contains("405")
+    );
+    // The form route still rejects a JSON content type.
+    assert!(status(server.json_post("review", &good, origin)).contains("400"));
+
+    // Body rules.
+    let post = |route: &str, body: serde_json::Value| status(server.write(route, &body));
+    let bad_id = "z".repeat(64);
+    let unknown = "a".repeat(64);
+    for (route, body, expected) in [
+        (
+            "api/review",
+            serde_json::json!({"kind": "duplicate", "id": id, "action": "pending"}),
+            "400",
+        ),
+        (
+            "api/review",
+            serde_json::json!({"kind": "duplicate", "id": id, "action": "ignored", "extra": 1}),
+            "400",
+        ),
+        (
+            "api/review",
+            serde_json::json!({"kind": "duplicate", "id": id, "action": "ignored", "reason": 5}),
+            "400",
+        ),
+        (
+            "api/review",
+            serde_json::json!({"kind": "nope", "id": id, "action": "ignored"}),
+            "400",
+        ),
+        (
+            "api/review",
+            serde_json::json!({"kind": "duplicate", "id": bad_id, "action": "ignored"}),
+            "400",
+        ),
+        (
+            "api/review",
+            serde_json::json!({"kind": "duplicate", "id": unknown, "action": "ignored"}),
+            "404",
+        ),
+        ("api/review", serde_json::json!([1]), "400"),
+        (
+            "api/comment",
+            serde_json::json!({"kind": "duplicate", "id": id, "body": "  "}),
+            "400",
+        ),
+        (
+            "api/comment",
+            serde_json::json!({"kind": "duplicate", "id": id, "body": "x".repeat(2001)}),
+            "400",
+        ),
+        (
+            "api/comment",
+            serde_json::json!({"kind": "duplicate", "id": unknown, "body": "hi"}),
+            "404",
+        ),
+        (
+            "api/comment/update",
+            serde_json::json!({"comment_id": "1", "body": "hi"}),
+            "400",
+        ),
+        (
+            "api/comment/update",
+            serde_json::json!({"comment_id": 999, "body": "hi"}),
+            "404",
+        ),
+        (
+            "api/comment/delete",
+            serde_json::json!({"comment_id": 1, "body": "hi"}),
+            "400",
+        ),
+    ] {
+        let line = post(route, body.clone());
+        assert!(line.contains(expected), "{route} {body}: {line}");
+    }
+    assert!(
+        status(server.json_post("api/review", "not json", &format!("{origin}{token}")))
+            .contains("400")
+    );
+    // Nothing above changed any state.
+    let finding = api_json(&server.get(&format!("api/finding?kind=duplicate&id={id}")));
+    assert!(finding["history"].as_array().unwrap().is_empty());
+    assert!(finding["comments"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn decisions_survive_unrelated_edits_and_moves_but_symbol_edits_need_review() {
+    let root = project();
+    let initial = Server::start(root.path(), true);
+    let dup = initial.duplicate_id(0);
+    let dead = initial.dead_id("alpha");
+    initial.review("duplicate", &dup, "ignored", "keep");
+    initial.review("dead", &dead, "false_positive", "public API");
+    let file = root.path().join("src/a.rs");
+    let original = fs::read_to_string(&file).unwrap();
+    for text in [
+        format!("{original}\n// unrelated edit\n"),
+        format!("// moved\n\n{original}"),
+    ] {
+        fs::write(&file, text).unwrap();
+        index(root.path());
+        let moved = Server::start(root.path(), true);
+        assert_eq!(moved.duplicate_id(0), dup);
+        assert_eq!(moved.dead_id("alpha"), dead);
+        assert!(matches!(
+            moved.site.borrow().duplicate_state(0),
+            State::Decided { .. }
+        ));
+        let site = moved.site.borrow();
+        assert!(matches!(
+            site.dead_state(site.dead_ids[&dead]),
+            State::Decided { .. }
+        ));
+    }
+    fs::write(&file, original.replace("total += 8", "total += 9")).unwrap();
+    index(root.path());
+    let changed = Server::start(root.path(), true);
+    let site = changed.site.borrow();
+    assert!(matches!(
+        site.duplicate_state(0),
+        State::NeedsReevaluation { .. }
+    ));
+    assert!(matches!(
+        site.dead_state(site.dead_ids[&dead]),
+        State::NeedsReevaluation { .. }
+    ));
+}
+
+#[test]
+fn unindexed_source_and_missing_files_never_validate_a_saved_decision() {
+    let root = project();
+    let server = Server::start(root.path(), true);
+    let id = server.dead_id("alpha");
+    server.review("dead", &id, "ignored", "");
+    let file = root.path().join("src/a.rs");
+    fs::write(&file, "// different unindexed source\n").unwrap();
+    let stale = Server::start(root.path(), true);
+    let site = stale.site.borrow();
+    assert!(matches!(
+        site.dead_state(site.dead_ids[&id]),
+        State::NeedsReevaluation { .. }
+    ));
+    drop(site);
+    fs::remove_file(&file).unwrap();
+    let missing = Server::start(root.path(), true);
+    let site = missing.site.borrow();
+    assert!(matches!(
+        site.dead_state(site.dead_ids[&id]),
+        State::NeedsReevaluation { .. }
+    ));
+}
+
+#[test]
+fn orphan_decisions_are_kept_until_explicit_protected_deletion() {
+    let root = project();
+    let server = Server::start(root.path(), true);
+    let id = server.dead_id("alpha");
+    server.review("dead", &id, "ignored", "keep until deleted");
+    let body = serde_json::json!({"kind": "dead", "id": id});
+    assert!(server
+        .write("api/review/delete", &body)
+        .starts_with("HTTP/1.1 400"));
+    fs::remove_file(root.path().join("src/a.rs")).unwrap();
+    index(root.path());
+    let orphan = Server::start(root.path(), true);
+    let list = orphan.get("revisiones?status=obsolete");
+    assert!(list.contains("review/delete") && list.contains("keep until deleted"));
+    assert_eq!(saved_decisions(root.path()).len(), 1);
+    assert!(orphan
+        .json_post(
+            "api/review/delete",
+            &body.to_string(),
+            "Origin: http://127.0.0.1:8787\r\n"
+        )
+        .starts_with("HTTP/1.1 403"));
+    assert_eq!(saved_decisions(root.path()).len(), 1);
+    assert!(orphan
+        .write("api/review/delete", &body)
+        .starts_with("HTTP/1.1 200"));
+    assert!(saved_decisions(root.path()).is_empty());
+    assert_eq!(
+        open_store(root.path())
+            .history(Kind::Dead, &id)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert!(orphan
+        .write("api/review/delete", &body)
+        .starts_with("HTTP/1.1 404"));
+}
+
+#[test]
+fn site_upgrades_proven_toon_fingerprints_and_rechecks_unproven_ones() {
+    for edited in [false, true] {
+        let root = project();
+        let initial = Server::start(root.path(), true);
+        let site = initial.site.borrow();
+        let dup = site.duplicate_keys[0].identity.clone();
+        let dead = initial.dead_id("alpha");
+        let entry = site.dead[site.dead_ids[&dead]].entry.clone();
+        let old_dead = reviews::legacy_dead_keys(&[entry], &site.navigation)
+            .remove(0)
+            .1;
+        let old_dup = fingerprint_like_adr_015(&site, 0);
+        fs::write(root.path().join(".mct-index/reviews.toon"), format!(
+            "version: 2\nreviews[2]{{kind,identity,fingerprint,status,at,reason}}:\n  dead,{dead},{old_dead},false_positive,7,API\n  duplicate,{dup},{old_dup},ignored,8,keep\nhistory[0]{{kind,identity,fingerprint,status,at,reason}}:\n"
+        )).unwrap();
+        drop(site);
+        if edited {
+            let file = root.path().join("src/a.rs");
+            fs::write(
+                &file,
+                fs::read_to_string(&file)
+                    .unwrap()
+                    .replace("total += 8", "total += 9"),
+            )
+            .unwrap();
+            index(root.path());
+        }
+        let loaded = Server::start(root.path(), true);
+        let site = loaded.site.borrow();
+        for state in [
+            site.duplicate_state(site.duplicate_ids[&dup]),
+            site.dead_state(site.dead_ids[&dead]),
+        ] {
+            if edited {
+                assert!(matches!(state, State::NeedsReevaluation { .. }));
+            } else {
+                assert!(matches!(state, State::Decided { .. }));
+            }
+        }
+        assert!(
+            site.reviews.history(Kind::Dead, &dead).unwrap().is_empty(),
+            "format upgrades add no human decisions"
+        );
+    }
+}
+
+#[test]
+fn stale_orphan_views_cannot_delete_a_reappearing_finding() {
+    let root = project();
+    let initial = Server::start(root.path(), true);
+    let id = initial.dead_id("alpha");
+    initial.review("dead", &id, "ignored", "keep");
+    let file = root.path().join("src/a.rs");
+    let original = fs::read_to_string(&file).unwrap();
+    fs::remove_file(&file).unwrap();
+    index(root.path());
+    let orphan = Server::start(root.path(), true);
+    fs::write(&file, original).unwrap();
+    index(root.path());
+    assert!(orphan
+        .write(
+            "api/review/delete",
+            &serde_json::json!({"kind": "dead", "id": id})
+        )
+        .starts_with("HTTP/1.1 409"));
+    assert_eq!(saved_decisions(root.path()).len(), 1);
+}
+
+#[test]
+fn server_rendered_orphan_delete_uses_the_existing_csrf_gate() {
+    let root = project();
+    let initial = Server::start(root.path(), true);
+    let id = initial.dead_id("alpha");
+    initial.review("dead", &id, "ignored", "keep");
+    fs::remove_file(root.path().join("src/a.rs")).unwrap();
+    index(root.path());
+    let orphan = Server::start(root.path(), true);
+    let csrf = orphan.site.borrow().csrf.clone();
+    let body = form_urlencoded::Serializer::new(String::new())
+        .extend_pairs([
+            ("csrf", csrf.as_str()),
+            ("kind", "dead"),
+            ("id", id.as_str()),
+            ("expected_revision", "1"),
+        ])
+        .finish();
+    assert!(orphan
+        .form(
+            "review/delete",
+            &body.replace(&csrf, "wrong"),
+            "Origin: http://127.0.0.1:8787\r\n"
+        )
+        .starts_with("HTTP/1.1 403"));
+    assert_eq!(saved_decisions(root.path()).len(), 1);
+    assert!(orphan
+        .form("review/delete", &body, "Origin: http://127.0.0.1:8787\r\n")
+        .starts_with("HTTP/1.1 303"));
+    assert!(saved_decisions(root.path()).is_empty());
+}
+
+#[test]
+fn stale_form_and_api_decisions_cannot_validate_unseen_code() {
+    let root = project();
+    let server = Server::start(root.path(), true);
+    let id = server.dead_id("alpha");
+    let body = server.review_body("dead", &id, "false_positive", &[]);
+    let item = api_json(&server.get("api/dead"))["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|v| v["identity"] == id)
+        .unwrap()
+        .clone();
+    let payload = serde_json::json!({"kind":"dead","id":id,"action":"false_positive","fingerprint":item["fingerprint"],"expected_revision":item["revision"]});
+    let file = root.path().join("src/a.rs");
+    fs::write(
+        &file,
+        fs::read_to_string(&file)
+            .unwrap()
+            .replace("total += 8", "total += 9"),
+    )
+    .unwrap();
+    index(root.path());
+    let csrf = server.site.borrow().csrf.clone();
+    assert!(server
+        .form(
+            "reload",
+            &format!("csrf={csrf}"),
+            "Origin: http://127.0.0.1:8787\r\n"
+        )
+        .starts_with("HTTP/1.1 303"));
+    assert!(server
+        .form("review", &body, "Origin: http://127.0.0.1:8787\r\n")
+        .starts_with("HTTP/1.1 409"));
+    assert!(server
+        .write("api/review", &payload)
+        .starts_with("HTTP/1.1 409"));
+    assert!(saved_decisions(root.path()).is_empty());
+    assert!(server
+        .review("dead", &id, "false_positive", "")
+        .starts_with("HTTP/1.1 303"));
+}
+
+#[test]
+fn duplicate_editor_submissions_conflict_and_unindexed_edits_block_decisions() {
+    let root = project();
+    let server = Server::start(root.path(), true);
+    let id = server.duplicate_id(0);
+    let old = server.review_body("duplicate", &id, "ignored", &[]);
+    assert!(server
+        .review("duplicate", &id, "confirmed", "")
+        .starts_with("HTTP/1.1 303"));
+    assert!(server
+        .form("review", &old, "Origin: http://127.0.0.1:8787\r\n")
+        .starts_with("HTTP/1.1 409"));
+    let before = saved_decisions(root.path());
+    fs::write(root.path().join("src/a.rs"), "// source not indexed yet\n").unwrap();
+    assert!(server
+        .review("duplicate", &id, "ignored", "")
+        .starts_with("HTTP/1.1 409"));
+    assert_eq!(saved_decisions(root.path()), before);
+}
+
+#[test]
+fn finding_lists_are_bounded_filtered_and_pinned_to_a_review_generation() {
+    let root = tempfile::tempdir().unwrap();
+    let text: String = (0..330)
+        .map(|n| format!("pub fn item_{n:03}() {{}}\n"))
+        .collect();
+    fs::write(root.path().join("bulk.rs"), text).unwrap();
+    index(root.path());
+    let server = Server::start(root.path(), true);
+    let first = api_json(&server.get("api/dead?limit=50"));
+    assert_eq!(first["total"], 330);
+    assert_eq!(first["items"].as_array().unwrap().len(), 50);
+    let token = first["snapshot"].as_str().unwrap();
+    let query = api_json(&server.get(&format!("api/dead?limit=50&q=item_2&snapshot={token}")));
+    assert_eq!(query["total"], 100);
+    let id = first["items"][0]["identity"].as_str().unwrap();
+    assert!(server
+        .review("dead", id, "false_positive", "")
+        .starts_with("HTTP/1.1 303"));
+    assert!(server
+        .get(&format!("api/dead?offset=50&snapshot={token}"))
+        .starts_with("HTTP/1.1 409"));
+    let filtered = api_json(&server.get("api/dead?status=false_positive&limit=50"));
+    assert_eq!(filtered["total"], 1);
+    assert_eq!(filtered["counts"]["all"], 330);
+    assert_eq!(filtered["items"][0]["identity"], id);
+    assert!(server
+        .get("api/dead?status=not_a_status")
+        .starts_with("HTTP/1.1 400"));
+}
+
+#[test]
+fn retained_pending_orphan_annotations_are_visible_and_archivable() {
+    let root = project();
+    let server = Server::start(root.path(), true);
+    let id = server.dead_id("alpha");
+    server.review("dead", &id, "ignored", "");
+    server.review("dead", &id, "restore", "");
+    assert!(server
+        .write(
+            "api/comment",
+            &serde_json::json!({"kind":"dead","id":id,"body":"retained note"})
+        )
+        .starts_with("HTTP/1.1 200"));
+    fs::remove_file(root.path().join("src/a.rs")).unwrap();
+    index(root.path());
+    let orphan = Server::start(root.path(), true);
+    let listing = api_json(&orphan.get("api/reviews?status=orphan"));
+    assert_eq!(listing["total"], 1);
+    let detail = api_json(&orphan.get(&format!("api/finding?kind=dead&id={id}")));
+    assert_eq!(detail["current"], false);
+    assert_eq!(detail["comments"][0]["body"], "retained note");
+    assert!(orphan
+        .write(
+            "api/review/delete",
+            &serde_json::json!({"kind":"dead","id":id})
+        )
+        .starts_with("HTTP/1.1 200"));
+    assert_eq!(
+        api_json(&orphan.get("api/reviews?status=orphan"))["total"],
+        0
+    );
+    assert_eq!(
+        open_store(root.path())
+            .comments(Kind::Dead, &id)
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn full_duplicate_source_is_bounded_explicitly_and_can_be_paged_to_the_end() {
+    let root = tempfile::tempdir().unwrap();
+    let body: String = (0..505).map(|n| format!("    total += {n};\n")).collect();
+    for name in ["alpha", "beta"] {
+        let formatted = if name == "alpha" {
+            body.clone()
+        } else {
+            (0..505)
+                .map(|n| format!("total += {n};{}", if n % 50 == 49 { "\n" } else { " " }))
+                .collect()
+        };
+        fs::write(
+            root.path().join(format!("{name}.rs")),
+            format!("pub fn {name}(mut total:i64)->i64 {{\n{formatted}total\n}}\n"),
+        )
+        .unwrap();
+    }
+    index(root.path());
+    let server = Server::start(root.path(), true);
+    let id = server.duplicate_id(0);
+    let first = api_json(&server.get(&format!("api/duplicates?id={id}&full=1")));
+    let member = &first["items"][0]["members"][0];
+    assert_eq!(member["excerpt"].as_array().unwrap().len(), 400);
+    assert_eq!(member["excerpt_truncated"], true);
+    assert_eq!(member["source_next_offset"], 400);
+    let token = first["snapshot"].as_str().unwrap();
+    let last = api_json(&server.get(&format!(
+        "api/duplicates?id={id}&full=1&source_offset=400&snapshot={token}"
+    )));
+    let tail = &last["items"][0]["members"][0];
+    assert!(tail["source_next_offset"].is_null());
+    assert_eq!(tail["excerpt_first"], 401);
+    let shorter = &last["items"][0]["members"][1];
+    assert_eq!(
+        shorter["excerpt_available"], true,
+        "a finished shorter member is not an unreadable file"
+    );
+    assert!(shorter["excerpt"].as_array().unwrap().is_empty());
+    assert!(tail["excerpt"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|line| line.as_str().unwrap().contains("total += 504")));
+}
+
+#[test]
+fn saved_dead_decisions_survive_sibling_removal_and_are_shared_with_ai_queries() {
+    for with_provenance in [false, true] {
+        let root = tempfile::tempdir().unwrap();
+        let file = root.path().join("twins.py");
+        fs::write(
+            &file,
+            "def twin():\n    return 1\n\ndef twin():\n    return 2\n",
+        )
+        .unwrap();
+        index(root.path());
+        let server = Server::start(root.path(), true);
+        let (id, fp) = {
+            let site = server.site.borrow();
+            let twin = site
+                .dead
+                .iter()
+                .filter(|d| d.entry.name == "twin")
+                .nth(1)
+                .unwrap();
+            (twin.identity.clone(), twin.fingerprint.clone())
+        };
+        if with_provenance {
+            assert!(server
+                .review("dead", &id, "false_positive", "last definition")
+                .starts_with("HTTP/1.1 303"));
+        } else {
+            open_store(root.path())
+                .set(
+                    (Kind::Dead, &id, &fp),
+                    Status::FalsePositive,
+                    "last definition",
+                    1,
+                )
+                .unwrap();
+        }
+        fs::write(&file, "def twin():\n    return 2\n").unwrap();
+        index(root.path());
+        let moved = Server::start(root.path(), true);
+        assert_eq!(moved.dead_id("twin"), id);
+        assert!(matches!(
+            moved.site.borrow().dead_state(0),
+            State::Decided {
+                status: Status::FalsePositive,
+                ..
+            }
+        ));
+        let path = root.path().canonicalize().unwrap();
+        let idx = mct_index::Index::open_existing_read_only(
+            &path,
+            &path.join(".mct-index/index.sqlite3"),
+            mct_index::ExcludeSet::default(),
+        )
+        .unwrap();
+        let candidates = mct_index::find_dead_code_candidates(&idx, None, None).unwrap();
+        let navigation = idx.navigation_snapshot().unwrap();
+        let saved = mct_index::review_state::ReviewSnapshot::load(&path).unwrap();
+        assert!(saved.filter_dead(&path, &navigation, candidates).is_empty());
+        drop(idx);
+        fs::write(&file, "def twin():\n    return 3\n").unwrap();
+        index(root.path());
+        let changed = Server::start(root.path(), true);
+        assert_eq!(changed.dead_id("twin"), id);
+        assert!(matches!(
+            changed.site.borrow().dead_state(0),
+            State::NeedsReevaluation { .. }
+        ));
+    }
+}
+
+#[test]
+fn blank_snapshot_explicitly_restarts_a_bounded_read() {
+    let root = project();
+    let server = Server::start(root.path(), true);
+    assert!(server
+        .get("api/dead?snapshot=&offset=0&limit=1")
+        .starts_with("HTTP/1.1 200"));
 }

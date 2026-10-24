@@ -114,12 +114,17 @@ enum Command {
     /// "Recargar análisis" on the Estado page. No browser is opened
     /// automatically.
     Web {
-        /// Local port (0 selects a free port). Always binds 127.0.0.1.
-        #[arg(long, default_value_t = 0)]
+        /// Local port (0 selects a free port). Always binds 127.0.0.1. A fixed
+        /// default keeps the link the same between runs.
+        #[arg(long, default_value_t = 8787)]
         port: u16,
         /// Do not regenerate the Obsidian vault; the web atlas still works.
         #[arg(long)]
         no_obsidian: bool,
+        /// Generate a new private link instead of reusing the saved one
+        /// (`.mct-index/web-token`). Old links stop working.
+        #[arg(long)]
+        rotate_token: bool,
     },
     /// Call one MCP tool once and print its result.
     ///
@@ -236,6 +241,9 @@ enum Command {
         /// `<root>/.mct-index/dead-code-report.csv`.
         #[arg(long)]
         output: Option<PathBuf>,
+        /// Include unchanged findings explicitly discarded in the dashboard.
+        #[arg(long)]
+        include_reviewed: bool,
     },
     /// Report candidate duplicate functions and methods, as TOON.
     ///
@@ -351,8 +359,13 @@ fn main() -> anyhow::Result<()> {
     if let Command::Duplicates { options } = cli.command {
         return duplicates::run(&root, options);
     }
-    if let Command::Web { port, no_obsidian } = cli.command {
-        return web::run(&root, port, no_obsidian);
+    if let Command::Web {
+        port,
+        no_obsidian,
+        rotate_token,
+    } = cli.command
+    {
+        return web::run(&root, port, no_obsidian, rotate_token);
     }
 
     let db_path = root.join(".mct-index").join("index.sqlite3");
@@ -378,7 +391,14 @@ fn main() -> anyhow::Result<()> {
             path,
             language,
             output,
-        } => dead_code_report(&index, path.as_deref(), language.as_deref(), output)?,
+            include_reviewed,
+        } => dead_code_report(
+            &index,
+            path.as_deref(),
+            language.as_deref(),
+            output,
+            include_reviewed,
+        )?,
         Command::Init { .. }
         | Command::Call { .. }
         | Command::McpRegister { .. }
@@ -727,8 +747,19 @@ fn dead_code_report(
     path: Option<&str>,
     language: Option<&str>,
     output: Option<PathBuf>,
+    include_reviewed: bool,
 ) -> anyhow::Result<()> {
     let candidates = mct_index::find_dead_code_candidates(index, path, language)?;
+    let candidates = if include_reviewed {
+        candidates
+    } else {
+        let reviews = mct_index::review_state::ReviewSnapshot::load(index.root())?;
+        if reviews.has_decisions() {
+            reviews.filter_dead(index.root(), &index.navigation_snapshot()?, candidates)
+        } else {
+            candidates
+        }
+    };
     let output =
         output.unwrap_or_else(|| index.root().join(".mct-index").join("dead-code-report.csv"));
     if let Some(parent) = output.parent() {
@@ -1547,7 +1578,8 @@ mod tests {
         index.reindex(&registry, false).unwrap();
 
         let output = dir.join("report.csv");
-        dead_code_report(&index, None, None, Some(output.clone())).expect("report should succeed");
+        dead_code_report(&index, None, None, Some(output.clone()), false)
+            .expect("report should succeed");
 
         let contents = fs::read_to_string(&output).expect("report should exist");
         let mut lines = contents.lines();

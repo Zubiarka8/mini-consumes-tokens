@@ -141,24 +141,24 @@ pub(super) fn list(req: &Req<'_>) -> Response {
             req.t("No hay candidatos con estos filtros.")
         );
     } else {
-        let _ = write!(body, "<div class=\"table-wrap\"><table class=\"findings\"><thead><tr><th>{}</th><th>{}</th><th>{}</th><th>{}</th><th>{}</th><th>{}</th></tr></thead><tbody>",
-            req.t("Símbolo"), req.t("Tipo"), req.t("Lenguaje"), req.t("Ubicación"), req.t("Estado"), req.t("Decisión"));
+        body.push_str("<ul class=\"tiles\">");
         for (id, state) in shown.iter().skip(start).take(PAGE) {
             let dead = &site.dead[*id];
             let entry = &dead.entry;
             let end = entry.end_line.unwrap_or(entry.line);
             let _ = write!(
                 body,
-                "<tr data-search=\"{}\"><td><a href=\"{}\"><code>{}</code></a>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                "<li class=\"tile\" data-search=\"{}\"><div class=\"tile-head\"><span class=\"badge kind\">{}</span><span class=\"badge\">{}</span>{}</div><h3 class=\"tile-name\"><a href=\"{}\"><code>{}</code></a>{}</h3><p class=\"tile-path\">{}</p>{}</li>",
                 escape(&format!("{} {}", entry.name, entry.relative_path).to_lowercase()),
+                escape(&kind_label(req.lang, &entry.kind)),
+                escape(&entry.language),
+                state_chip(req, state),
                 href("simbolo", &[("k", &dead.identity)]),
                 escape(&entry.name),
                 entry.parent.as_deref().map_or(String::new(), |p| format!(
                     " <span class=\"muted\">{}</span>",
                     req.tf("en {0}", &[&escape(p)])
                 )),
-                escape(&kind_label(req.lang, &entry.kind)),
-                escape(&entry.language),
                 link(
                     "archivo",
                     &[
@@ -168,11 +168,10 @@ pub(super) fn list(req: &Req<'_>) -> Response {
                     ],
                     &format!("{}:{}", entry.relative_path, entry.line)
                 ),
-                state_chip(req, state),
                 review_form(req, Kind::Dead, &dead.identity, state),
             );
         }
-        body.push_str("</tbody></table></div>");
+        body.push_str("</ul>");
     }
     body.push_str(&pagination);
     page(req, req.t("Código muerto"), Section::Dead, &body)

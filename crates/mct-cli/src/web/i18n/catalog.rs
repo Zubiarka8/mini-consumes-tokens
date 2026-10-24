@@ -34,8 +34,8 @@ pub(super) const ENTRIES: &[(&str, &str)] = &[
     ("Restaurar a pendiente", "Restore to pending"),
     ("No se pudo regenerar la bóveda de Obsidian: {0}", "Could not regenerate the Obsidian vault: {0}"),
     (
-        "Instantánea local de {0}. Tras reindexar, usa «Recargar análisis» en Estado. Las decisiones de revisión se guardan en <code>.mct-index/reviews.toon</code>.",
-        "Local snapshot from {0}. After reindexing, use “Reload analysis” on the Status page. Review decisions are saved in <code>.mct-index/reviews.toon</code>.",
+        "Instantánea local de {0}. Tras reindexar, usa «Recargar análisis» en Estado. Las decisiones de revisión se guardan en <code>.mct-index/dashboard.sqlite3</code>.",
+        "Local snapshot from {0}. After reindexing, use “Reload analysis” on the Status page. Review decisions are saved in <code>.mct-index/dashboard.sqlite3</code>.",
     ),
     ("Página {0} de {1} · {2} elementos", "Page {0} of {1} · {2} items"),
     ("El código cambió desde «{0}» ({1})", "The code changed since “{0}” ({1})"),
@@ -97,7 +97,6 @@ pub(super) const ENTRIES: &[(&str, &str)] = &[
     ("Símbolo", "Symbol"),
     ("Tipo", "Type"),
     ("Ubicación", "Location"),
-    ("Decisión", "Decision"),
     ("← Todos los candidatos", "← All candidates"),
     ("Por qué se marcó", "Why it was flagged"),
     ("Referencias conocidas", "Known references"),
@@ -431,6 +430,7 @@ pub(super) const ENTRIES: &[(&str, &str)] = &[
     ),
     ("{0} enlaces", "{0} links"),
     ("Todas las decisiones", "All decisions"),
+    ("Borrar decisión", "Delete decision"),
     ("Sin hallazgo actual", "No current finding"),
     (
         "Todas las decisiones que has tomado sobre código duplicado y código muerto. Un <strong>falso positivo</strong> es un error del detector; <strong>ignorar</strong> es aceptar a conciencia un problema real. Las decisiones sobreviven a recargas, reinicios y reindexados mientras el hallazgo siga existiendo.",
@@ -491,8 +491,8 @@ pub(super) const ENTRIES: &[(&str, &str)] = &[
     ),
     ("Decisiones", "Decisions"),
     (
-        "<code>.mct-index/reviews.toon</code> (con historial). El archivo anterior <code>.mct-index/duplicate-reviews.toon</code> se sigue leyendo y no se modifica.",
-        "<code>.mct-index/reviews.toon</code> (with history). The older file <code>.mct-index/duplicate-reviews.toon</code> is still read and never modified.",
+        "<code>.mct-index/dashboard.sqlite3</code> (con historial). Los archivos anteriores <code>.mct-index/reviews.toon</code> y <code>.mct-index/duplicate-reviews.toon</code> se importan o leen y no se modifican.",
+        "<code>.mct-index/dashboard.sqlite3</code> (with history). The older files <code>.mct-index/reviews.toon</code> and <code>.mct-index/duplicate-reviews.toon</code> are imported or read and never modified.",
     ),
     ("Bóveda", "Vault"),
     ("Detector de duplicados", "Duplicate detector"),

@@ -600,7 +600,14 @@ pub(super) fn detail(req: &Req<'_>) -> Response {
 
 /// Decision history of one finding, newest first.
 pub(super) fn history_html(req: &Req<'_>, kind: Kind, identity: &str) -> String {
-    let history = req.site.reviews.history(kind, identity);
+    let history = req
+        .site
+        .reviews
+        .history(kind, identity)
+        .unwrap_or_else(|error| {
+            eprintln!("warning: cannot read review history: {error:#}");
+            Vec::new()
+        });
     if history.is_empty() {
         return format!(
             "<h2>{}</h2><p class=\"muted\">{}</p>",

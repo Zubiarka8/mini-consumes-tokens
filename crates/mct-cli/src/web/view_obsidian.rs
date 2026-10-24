@@ -355,21 +355,20 @@ pub(super) fn explorer(req: &Req<'_>) -> Response {
             bucket_filter.label(req.lang),
             shown.len()
         );
-        let _ = write!(body, "<div class=\"table-wrap\"><table><thead><tr><th>{}</th><th>{}</th><th>{}</th><th>{}</th></tr></thead><tbody>",
-            req.t("Símbolo"), req.t("Tipo"), req.t("Lenguaje"), req.t("Ubicación"));
+        body.push_str("<ul class=\"tiles\">");
         for symbol in shown.iter().skip(start).take(PAGE_SIZE) {
             let end = symbol.end_line.unwrap_or(symbol.line);
             let _ = write!(
                 body,
-                "<tr data-search=\"{}\"><td><code>{}</code>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                "<li class=\"tile\" data-search=\"{}\"><div class=\"tile-head\"><span class=\"badge kind\">{}</span><span class=\"badge\">{}</span></div><h3 class=\"tile-name\"><code>{}</code>{}</h3><p class=\"tile-path\">{}</p></li>",
                 escape(&format!("{} {}", symbol.name, symbol.relative_path).to_lowercase()),
+                escape(&symbol.kind),
+                escape(&symbol.language),
                 escape(&symbol.name),
                 symbol.parent.as_deref().map_or(String::new(), |p| format!(
                     " <span class=\"muted\">{}</span>",
                     req.tf("en {0}", &[&escape(p)])
                 )),
-                escape(&symbol.kind),
-                escape(&symbol.language),
                 link(
                     "archivo",
                     &[
@@ -384,11 +383,11 @@ pub(super) fn explorer(req: &Req<'_>) -> Response {
         if shown.is_empty() {
             let _ = write!(
                 body,
-                "<tr><td colspan=\"4\" class=\"empty\">{}</td></tr>",
+                "<li class=\"empty\">{}</li>",
                 req.t("No hay símbolos con estos filtros.")
             );
         }
-        body.push_str("</tbody></table></div>");
+        body.push_str("</ul>");
         body.push_str(&pagination);
     } else {
         let mut children: BTreeMap<String, Child> = BTreeMap::new();
@@ -889,26 +888,9 @@ pub(super) fn note(req: &Req<'_>) -> Response {
     page(req, &note.title, Section::Obsidian, &body)
 }
 
-pub(super) fn graph(req: &Req<'_>) -> Response {
-    let site = req.site;
-    let notes = &site.notes;
-    let mut body = subnav(req, "grafo");
-    if notes.list.is_empty() {
-        let _ = write!(
-            body,
-            "<p class=\"empty\">{}</p>",
-            req.t("La bóveda de Obsidian no está generada, así que no hay grafo.")
-        );
-        return page(req, req.t("Grafo de notas"), Section::Obsidian, &body);
-    }
-    let focus = if req.param("n").is_empty() {
-        None
-    } else {
-        notes.get(req.param("n"))
-    };
-    if !req.param("n").is_empty() && focus.is_none() {
-        return Response::error(404);
-    }
+/// The notes a graph shows: the most connected ones, or the two-hop
+/// neighbourhood of `focus`; never more than [`MAX_GRAPH_NODES`].
+pub(super) fn graph_nodes(notes: &super::notes::Notes, focus: Option<usize>) -> Vec<usize> {
     let degree = |id: usize| notes.list[id].links.len() + notes.backlinks[id].len();
     let mut nodes: Vec<usize> = Vec::new();
     match focus {
@@ -933,6 +915,31 @@ pub(super) fn graph(req: &Req<'_>) -> Response {
             nodes.truncate(MAX_GRAPH_NODES);
         }
     }
+    nodes
+}
+
+pub(super) fn graph(req: &Req<'_>) -> Response {
+    let site = req.site;
+    let notes = &site.notes;
+    let mut body = subnav(req, "grafo");
+    if notes.list.is_empty() {
+        let _ = write!(
+            body,
+            "<p class=\"empty\">{}</p>",
+            req.t("La bóveda de Obsidian no está generada, así que no hay grafo.")
+        );
+        return page(req, req.t("Grafo de notas"), Section::Obsidian, &body);
+    }
+    let focus = if req.param("n").is_empty() {
+        None
+    } else {
+        notes.get(req.param("n"))
+    };
+    if !req.param("n").is_empty() && focus.is_none() {
+        return Response::error(404);
+    }
+    let degree = |id: usize| notes.list[id].links.len() + notes.backlinks[id].len();
+    let nodes = graph_nodes(notes, focus);
     let index: BTreeMap<usize, usize> = nodes.iter().enumerate().map(|(i, id)| (*id, i)).collect();
     let mut edges = Vec::new();
     for id in &nodes {

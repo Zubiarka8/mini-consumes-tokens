@@ -263,7 +263,7 @@ pub(super) fn page(req: &Req<'_>, title: &str, active: Section, body: &str) -> R
             sections = req.t("Secciones"),
             project_label = req.t("Proyecto"),
             footer = req.tf(
-                "Instantánea local de {0}. Tras reindexar, usa «Recargar análisis» en Estado. Las decisiones de revisión se guardan en <code>.mct-index/reviews.toon</code>.",
+                "Instantánea local de {0}. Tras reindexar, usa «Recargar análisis» en Estado. Las decisiones de revisión se guardan en <code>.mct-index/dashboard.sqlite3</code>.",
                 &[&utc(site.generated)]
             ),
         ),
@@ -443,6 +443,12 @@ pub(super) fn review_form(req: &Req<'_>, kind: Kind, identity: &str, state: &Sta
         escape(identity),
         escape(&safe_next(req.target).unwrap_or_default())
     );
+    let fingerprint = req.site.fingerprint_of(kind, identity).unwrap_or_default();
+    let revision = match req.site.reviews.decision_revision(kind, identity) {
+        Ok(revision) => revision,
+        Err(_) => return String::new(),
+    };
+    let _ = write!(out,"<input type=\"hidden\" name=\"fingerprint\" value=\"{}\"><input type=\"hidden\" name=\"expected_revision\" value=\"{revision}\">",escape(&fingerprint));
     match state {
         State::Pending | State::NeedsReevaluation { .. } => {
             let _ = write!(
@@ -518,6 +524,25 @@ pub(super) fn route(site: &Site, target: &str, lang: Lang) -> Response {
             "text/javascript; charset=utf-8",
             include_str!("app.js").into(),
         ),
+        // ADR-019 SPA: a shell plus fixed, embedded assets (no CDN, no inline code).
+        "app" => Response::text(
+            "text/html; charset=utf-8",
+            include_str!("spa/index.html")
+                .replace("__CSRF__", &site.csrf)
+                .replace("__SPRITE__", include_str!("spa/sprite.svg")),
+        ),
+        "spa.css" => Response::text(
+            "text/css; charset=utf-8",
+            include_str!("spa/spa.css").into(),
+        ),
+        "spa.js" => Response::text(
+            "text/javascript; charset=utf-8",
+            include_str!("spa/spa.js").into(),
+        ),
+        "alpine.js" => Response::text(
+            "text/javascript; charset=utf-8",
+            include_str!("spa/vendor/alpine.js").into(),
+        ),
         "duplicados" => view_duplicates::list(&req),
         "duplicado" => view_duplicates::detail(&req),
         "duplicados.toon" => Response::text(
@@ -535,6 +560,7 @@ pub(super) fn route(site: &Site, target: &str, lang: Lang) -> Response {
         "revisiones" => view_reviews::list(&req),
         "estado" => view_status::status(&req),
         "ajustes" => view_status::settings(&req),
+        api if api.starts_with("api/") => super::api::route(&req, &api["api/".len()..]),
         // Links from before ADR-018 keep working.
         "duplicates" | "group" => Response::redirect("duplicados".to_string()),
         "atlas" => legacy("explorar"),

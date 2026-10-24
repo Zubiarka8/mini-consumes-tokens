@@ -1,4 +1,5 @@
-//! Bounded HTTP/1.1: GET/HEAD views and same-origin POST of review decisions and the reload action.
+//! Bounded HTTP/1.1: GET/HEAD views, same-origin form POSTs (review, reload,
+//! language) and same-origin JSON POSTs under `api/` (CSRF token in a header).
 //! No request path is translated to a filesystem path.
 
 use std::collections::BTreeMap;
@@ -12,6 +13,7 @@ use super::{render, Site};
 
 const MAX_HEADERS: usize = 16 * 1024;
 const MAX_BODY: usize = 4096;
+const MAX_JSON_BODY: usize = 8 * 1024;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
 
 pub(super) trait Connection: Read + Write {
@@ -44,6 +46,7 @@ pub(super) fn serve_connection(
         404 => "Not Found",
         405 => "Method Not Allowed",
         408 => "Request Timeout",
+        409 => "Conflict",
         413 => "Content Too Large",
         421 => "Misdirected Request",
         431 => "Request Header Fields Too Large",
@@ -70,6 +73,8 @@ struct Request {
     head: bool,
     length: usize,
     lang: Lang,
+    /// Value of `X-CSRF-Token`, required for JSON writes.
+    csrf: Option<String>,
 }
 
 fn receive(
@@ -133,10 +138,21 @@ fn receive(
             if bytes.len() == expected {
                 let response = if request.post {
                     match std::str::from_utf8(&bytes[*end..]) {
+                        Ok(body) if request.target.starts_with("api/") => {
+                            if request.csrf.as_deref() == Some(site.csrf.as_str()) {
+                                super::api::write(site, &request.target, body)
+                            } else {
+                                Response::error(403)
+                            }
+                        }
                         Ok(body) => site.post(&request.target, body, request.lang),
                         Err(_) => Response::error(400),
                     }
                 } else {
+                    let route = request.target.split('?').next().unwrap_or_default();
+                    if super::api::wants_fresh_snapshot(route) {
+                        site.refresh_if_stale();
+                    }
                     render::route(site, &request.target, request.lang)
                 };
                 return Ok((response, request.head));
@@ -199,14 +215,22 @@ fn validate(headers: &str, port: u16, token: &str) -> Result<Request, u16> {
     }
     let target = target.strip_prefix(&format!("/{token}/")).ok_or(404_u16)?;
     let post = method == "POST";
+    let json = target.starts_with("api/");
     let length = if post {
-        if !matches!(target, "review" | "reload" | "lang") {
+        if !(json && super::api::WRITE_ROUTES.contains(&target)
+            || matches!(target, "review" | "review/delete" | "reload" | "lang"))
+        {
             return Err(405);
         }
         if fields.get("origin").copied() != Some(format!("http://{host}").as_str()) {
             return Err(403);
         }
-        if fields.get("content-type").copied() != Some("application/x-www-form-urlencoded") {
+        let expected = if json {
+            "application/json"
+        } else {
+            "application/x-www-form-urlencoded"
+        };
+        if fields.get("content-type").copied() != Some(expected) {
             return Err(400);
         }
         let length: usize = fields
@@ -214,7 +238,7 @@ fn validate(headers: &str, port: u16, token: &str) -> Result<Request, u16> {
             .ok_or(400_u16)?
             .parse()
             .map_err(|_| 400_u16)?;
-        if length > MAX_BODY {
+        if length > if json { MAX_JSON_BODY } else { MAX_BODY } {
             return Err(413);
         }
         length
@@ -234,6 +258,7 @@ fn validate(headers: &str, port: u16, token: &str) -> Result<Request, u16> {
     Ok(Request {
         target: target.to_string(),
         lang,
+        csrf: fields.get("x-csrf-token").map(|token| (*token).to_string()),
         post,
         head: method == "HEAD",
         length,

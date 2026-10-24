@@ -1382,6 +1382,8 @@ dependencies = [
  "mct-languages",
  "mct-mcp-server",
  "mct-obsidian",
+ "rusqlite",
+ "rusqlite_migration",
  "serde_json",
  "tempfile",
  "tokio",

@@ -36,6 +36,9 @@ pub(crate) struct Args {
     /// Skip reading or writing the duplicate-report cache.
     #[arg(long)]
     no_cache: bool,
+    /// Include unchanged findings explicitly discarded in the dashboard.
+    #[arg(long)]
+    include_reviewed: bool,
     /// Minimum source-token-bearing lines per candidate.
     #[arg(long, default_value_t = mct_index::DEFAULT_MIN_LINES, value_parser = parse_threshold)]
     min_lines: usize,
@@ -159,8 +162,19 @@ pub(crate) fn run(root: &Path, args: Args) -> anyhow::Result<()> {
     let index = Index::open_existing_read_only(root, &db_path, exclude)
         .with_context(|| format!("cannot open the index at {}", display_path(&db_path)))?;
     let output_path = args.output.clone();
-    let no_cache = args.no_cache;
-    let options = args.into();
+    let include_reviewed = args.include_reviewed;
+    let reviews = if include_reviewed {
+        None
+    } else {
+        Some(mct_index::review_state::ReviewSnapshot::load(index.root())?)
+    };
+    // Rendered caches contain raw findings. Never let them bypass current
+    // user decisions, even if only the dashboard database changed.
+    let apply_reviews = reviews
+        .as_ref()
+        .is_some_and(|reviews| reviews.has_decisions());
+    let no_cache = args.no_cache || apply_reviews;
+    let options: DuplicateOptions = args.into();
     let cache_path = root.join(".mct-index").join("duplicates-cache.toon");
     let key = if no_cache {
         None
@@ -180,8 +194,56 @@ pub(crate) fn run(root: &Path, args: Args) -> anyhow::Result<()> {
         eprintln!("duplicates: reused cached report");
         report
     } else {
-        let report = find_duplicate_groups(&index, &build_token_sources(), options)
+        let mut analysis_options = options.clone();
+        if apply_reviews {
+            analysis_options.offset = 0;
+            analysis_options.limit = None;
+        }
+        let mut report = find_duplicate_groups(&index, &build_token_sources(), analysis_options)
             .context("cannot query the index for duplicate candidates")?;
+        if let Some(reviews) = reviews.as_ref().filter(|_| apply_reviews) {
+            let navigation = index.navigation_snapshot()?;
+            let visible = reviews.duplicate_visibility(
+                index.root(),
+                &navigation,
+                &report.groups,
+                report.options.normalization,
+            )?;
+            report.groups = report
+                .groups
+                .into_iter()
+                .zip(visible)
+                .filter_map(|(group, visible)| visible.then_some(group))
+                .collect();
+            report.total_groups = report.groups.len();
+            report.demoted_groups = report
+                .groups
+                .iter()
+                .filter(|group| group.priority.level == mct_index::PriorityLevel::Demoted)
+                .count();
+            report.split_groups = report
+                .groups
+                .iter()
+                .filter(|group| group.subgroups.status.as_str() == "split")
+                .count();
+            report.groups = report
+                .groups
+                .into_iter()
+                .skip(options.offset)
+                .take(options.limit.unwrap_or(usize::MAX))
+                .collect();
+            report.verdict_counts = mct_index::VerdictCounts::default();
+            for group in &report.groups {
+                match group.verdict.level {
+                    mct_index::VerdictLevel::Real => report.verdict_counts.real += 1,
+                    mct_index::VerdictLevel::Suspicious => report.verdict_counts.suspicious += 1,
+                    mct_index::VerdictLevel::FalsePositive => {
+                        report.verdict_counts.false_positive += 1
+                    }
+                }
+            }
+            report.options = options;
+        }
         let rendered = render_toon(&report);
         if let Some(key) = key.as_deref() {
             if let Err(error) = write_cached_report(&cache_path, key, &rendered) {

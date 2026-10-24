@@ -152,7 +152,7 @@ pub(super) fn settings(req: &Req<'_>) -> Response {
         req.t("Índice"),
         req.t("<code>.mct-index/index.sqlite3</code> (solo lectura)"),
         req.t("Decisiones"),
-        req.t("<code>.mct-index/reviews.toon</code> (con historial). El archivo anterior <code>.mct-index/duplicate-reviews.toon</code> se sigue leyendo y no se modifica."),
+        req.t("<code>.mct-index/dashboard.sqlite3</code> (con historial). Los archivos anteriores <code>.mct-index/reviews.toon</code> y <code>.mct-index/duplicate-reviews.toon</code> se importan o leen y no se modifican."),
         req.t("Bóveda"),
     );
     let _ = write!(
