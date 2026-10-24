@@ -7,21 +7,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Dashboard review writes reject stale code and concurrent edits using content
+  fingerprints and atomic revisions. Draft notes and finding decisions survive
+  file navigation, polling, in-flight saves and conflicts.
+- MCP dead-code results and CLI dead-code/duplicate reports respect still-valid
+  dashboard dismissals before pagination. Copied AI prompts retain decision
+  context; CLI `--include-reviewed` exposes raw candidates for diagnostics.
+- Same-name dead symbols retain proven decisions when earlier siblings disappear.
+  Orphan cleanup includes restored decisions and annotations; explicit deletion
+  cannot resurrect a legacy dismissal.
+- Dashboard lists use bounded filtered pages pinned to one snapshot. Long source
+  comparisons expose truncation and provide source-page navigation.
+
+- Dashboard review decisions now follow symbol/block text: unrelated file edits
+  and line moves keep decisions, while changed text or unverifiable source asks
+  for reevaluation. Proven legacy fingerprints migrate once without losing their
+  status, reason, time or history (ADR-019 D10).
+- On Unix, the dashboard database is created and reopened with mode `0600`.
+
 ### Added
 
+- Dashboard orphan decisions have an explicit Delete decision button in the SPA
+  and server-rendered review view. No reindex or reload deletes them automatically;
+  deleting a decision retains history and annotations (ADR-019 D11).
+
+- The `mct-cli web` single-page dashboard has a home page and opens every
+  duplicate in its own browser tab as a code-editor view (ADR-019): filters
+  (all / matching / different lines), search, wrap, font size, copy, previous
+  and next duplicate, and closable file tabs that show the parent directory of
+  each file and share the free width.
+  Each pane has a minimum width and the side panels can be hidden so open
+  files get more room; files can be reopened from the list, shown alone or all
+  at once (toolbar buttons "Close all" / "Open all" next to the code search),
+  and carry their A/B/C tag (A–Z, then AA, AB…). Each pane shows verified source chunks
+  (`api/duplicates?id=…&full=1`) with truncation markers and navigation,
+  beyond the detector's short excerpt. A "Copy template" button beside Save copies, without showing
+  it, an AI prompt listing every file with its line range and the task for
+  duplicate or dead code. Lines are wrapped by default (full-width row
+  backgrounds when unwrapped) and coloured against the active file, so a line
+  is red only if it differs from it; the legend is larger and the red is a
+  clearer red in both themes. Finding decisions are editable alongside
+  separate file working labels; comments and history remain available in the API.
 - `mct-cli web` is now a Spanish dashboard (ADR-018): Código duplicado
   (default, side-by-side comparison with the detector's evidence), Código
   muerto (heuristic candidates, never presented as proven), Obsidian (real
   per-language statistics, folder tree, file pages, note viewer, graph),
   Revisiones and Estado (with an explicit "Recargar análisis"). Decisions
   (confirmed / false positive / ignored on purpose, with reason and history)
-  are shared by both finding kinds in `.mct-index/reviews.toon`; a changed
-  file marks the decision "needs re-evaluation" instead of hiding it. The
+  are shared by both finding kinds in `.mct-index/dashboard.sqlite3`; changed
+  symbol/block text marks the decision "needs re-evaluation" instead of hiding it. The
   ADR-015 `duplicate-reviews.toon` is still honoured and never rewritten.
   Old `atlas`/`file`/`duplicates` URLs redirect. The page now allows one
   first-party script (`script-src 'self'`); every page works without it.
   The dashboard is available in Spanish and English (ES/EN buttons, browser
   cookie, then `Accept-Language`).
+- `mct-cli web` serves a single-page dashboard at `<url>app` (ADR-019) over a
+  JSON `/api/*` that it polls every 2 s, so a reindex shows without restarting.
+  Review decisions, their history and new free-text comments (add, edit,
+  delete) are stored in `.mct-index/dashboard.sqlite3`, a database separate
+  from the read-only index; `reviews.toon` is imported once and left untouched.
+  Views: duplicates (side-by-side comparison), dead code, Obsidian (statistics,
+  notes, backlinks, graph). The duplicates view lists the member files, shows
+  them side by side (shared lines in yellow, differing lines in red, a
+  similarity badge per file) and has a per-file review panel: unreviewed,
+  accepted, rejected, in review or ignored, plus a note (table `file_reviews`,
+  `POST api/file-review`). The UI is Tailwind and the Alpine CSP build,
+  precompiled and embedded (`scripts/unix/build-dashboard-assets.sh`), so the
+  CSP stays `script-src 'self'; style-src 'self'`. The ADR-018 server-rendered
+  pages remain as the no-JavaScript fallback.
 - `benchmarks/real-repos.md` and the `real_repos` example: a reproducible
   benchmark of `detail` / `max_tokens` over click, cobra, ripgrep and the
   Obsidian help vault (pinned commits, estimated tokens only), with the

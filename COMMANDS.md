@@ -42,7 +42,7 @@ Commands:
   ignore-init           Write a starter `.mctignore` for custom indexing exclusions
   gitignore-init        Keep the generated index out of git
   obsidian              Regenerate the Obsidian vault from the existing index
-  web                   Serve a local website with linked atlas and duplicate-code views
+  web                   Serve the local dashboard (duplicates, dead code, Obsidian, reviews, comments)
   dead-code             Write a CSV report of dead-code candidates (heuristic: symbols with zero indexed references) — one row per candidate with its file, function name, kind, language, and start/end line
   duplicates            Report candidate duplicate functions and methods, as TOON
   probe                 Parse files without indexing them and report, per file, either its symbol/relation counts or the first syntax error with its line
@@ -401,7 +401,7 @@ consumers do not register the hook. See [ADR-013](docs/01-architecture/adrs/013-
 
 ### `web` / `web --port <port> --no-obsidian`
 
-Serve one local website for the code atlas and duplicate-code analysis:
+Serve the local dashboard for duplicate code, dead code and the Obsidian notes:
 
 ```sh
 mct-cli --root . web
@@ -409,81 +409,103 @@ mct-cli --root . web --port 8787
 mct-cli --root . web --no-obsidian
 ```
 
+The default port is 8787 and the private key is saved in `.mct-index/web-token`
+(mode 0600, git-ignored), so the URL stays the same between runs. Use
+`--rotate-token` to issue a new key; old links then stop working.
+
 The command prints a private `http://127.0.0.1:<port>/<random-key>/` URL. Open
 that URL in your browser and keep the command running; Ctrl-C stops it. Port `0`
 (the default) selects an available port. No browser opens automatically.
 
-- **Overview:** shared navigation and counts for both views.
-- **Atlas:** hierarchical directories and files; search paths and indexed symbol
-  names. Each file shows its language, hash, symbols with exact source lines,
-  resolved imports and importers. Every relation links to the other file.
-- **Duplicates:** search candidate groups by path or symbol; inspect verdicts,
-  priority, excerpts, alignment and subgroup evidence. Each member links to its
-  atlas file. Each atlas file links back to its duplicate groups. Group IDs are
-  positions within this startup snapshot, not stable cross-run identifiers.
-- **Complete navigation:** directory/file/relation/member lists paginate at 100
-  entries; duplicate lists at 20 groups. All results remain reachable. Download
-  the full existing TOON analysis for every skipped candidate and diagnostic.
+Two interfaces share the same private URL and the same data:
 
-An existing index is required. The command opens SQLite read-only and never
-reindexes, migrates, changes exclusions or installs MCP hooks. Metadata comes
-from the public bulk navigation API; duplicate analysis uses the same typed API,
-source validation and default thresholds/policy as `duplicates` (6 lines,
-40 tokens, broad normalization, trivial calls demoted, no partial-block search).
-It computes the typed report at startup rather than parsing the CLI's TOON cache.
-Unsupported languages, skipped candidates and index failures are visible.
+- **`<url>app`:** the single-page dashboard (ADR-019): duplicates with a
+  side-by-side comparison, dead-code candidates (heuristic, never presented as
+  proven), Obsidian (statistics, note list, note detail with links and backlinks,
+  focus graph) and review history. It refreshes by polling `api/version` every
+  2 seconds, so a reindex shows up without restarting the command.
+- **`<url>`:** the server-rendered pages of ADR-018 (Spanish/English). They work
+  without JavaScript and stay available as the fallback.
+
+What you can do in the dashboard:
+
+- **Review a finding:** mark a duplicate group or dead-code candidate as
+  confirmed, false positive or ignored on purpose, with a reason. Every change is
+  kept in a history, and **Restore** returns the finding to pending. A finding
+  whose symbol/block text changed is marked "needs re-evaluation" instead of
+  being hidden. Unrelated edits and line moves preserve the decision.
+- **Comment:** add, edit and delete free-text comments (up to 2,000 bytes, 500 per
+  finding) on any finding.
+- **Browse:** lists are paged and searchable by path, symbol or note text.
+
+Where state lives:
+
+- `.mct-index/index.sqlite3` is derived data. `web` opens it read-only and never
+  reindexes, migrates it or changes exclusions.
+- `.mct-index/dashboard.sqlite3` holds your decisions, their history and your
+  comments. It survives any reindex or index rebuild because rows are keyed by the
+  finding's stable identity, never by an index row id. It is created on first use.
+- Besides the decision on the whole group, each member file of a duplicate group
+  has its own status (unreviewed, accepted, rejected, in review, ignored) and note,
+  keyed by the group's identity and the file path. Setting a file back to
+  unreviewed with an empty note removes its row.
+- On first open, an existing `.mct-index/reviews.toon` is imported once and left
+  untouched; the older `duplicate-reviews.toon` is still read and never rewritten.
+
+Only the indexed project is served; there is no project switcher. An existing
+index is required. Duplicate analysis uses the same typed API, thresholds and
+policy as `duplicates` (6 lines, 40 tokens, broad normalization, trivial calls
+demoted, no partial-block search). After a reindex the analysis snapshot is
+rebuilt on a worker thread, at most every 2 seconds; until it finishes the
+previous snapshot keeps being served and `api/version` reports `rebuilding`. On a
+large repository the rebuild can take several seconds.
 
 By default `web` also regenerates `.mct-index/obsidian/` through `mct-obsidian`.
 A failed write prints a warning and leaves the website usable. `--no-obsidian`
-leaves that folder untouched while keeping the web atlas available. The web
-atlas always comes from SQLite, so edited personal notes and `.obsidian/`
-configuration are never served. Code excerpts appear only in duplicate review;
-the atlas has metadata only. No graph expansion or source-context budget change.
+leaves that folder untouched and hides the Obsidian view. The dashboard always
+reads notes from SQLite, so edited personal notes and `.obsidian/` configuration
+are never served.
 
-Pages are a fixed startup snapshot held in memory; browser reload does not rerun
-analysis. After changes, run `reindex` and restart `web`. The only HTTP mutation is a protected duplicate-review preference action. There
-is no reindex/refresh, source edit, arbitrary file serving or external resource. The server
-binds only IPv4 loopback, requires the generated URL key, checks Host and Origin,
-rejects cross-site requests and applies a restrictive content policy. Requests
-use a 16 KiB header limit, a 4 KiB review-form limit and a 2-second read
-deadline, one request per connection. Keep the private
-URL local; another process running as your user remains within the trust boundary.
-Only this process's rendered views are available, never the SQLite file or vault
-contents as a directory listing. See [ADR-014](docs/01-architecture/adrs/014-local-project-web.md).
+Security: the server binds only IPv4 loopback and requires the generated URL key.
+It checks Host and Origin, rejects cross-site requests and sends a CSP with
+`script-src 'self'; style-src 'self'` (no inline code, no `unsafe-eval`, no
+external origin: Tailwind, Alpine and the icons are precompiled and embedded).
+JSON writes (`POST api/review`, `api/file-review`, `api/comment`, `api/comment/update`,
+`api/comment/delete`, `api/review/delete`) require `Content-Type: application/json`, an exact
+same-origin `Origin`, the per-session CSRF token in the `X-CSRF-Token` header and
+a body of at most 8 KiB. Requests use a 16 KiB header limit and a 2-second read
+deadline, one request per connection; responses are `Cache-Control: no-store`.
+Keep the private URL local; another process running as your user remains within
+the trust boundary. See [ADR-014](docs/01-architecture/adrs/014-local-project-web.md),
+[ADR-018](docs/01-architecture/adrs/018-web-dashboard.md) and
+[ADR-019](docs/01-architecture/adrs/019-dashboard-sqlite-store.md).
 
-#### Dismiss duplicate findings / false positives
+Finding and orphan lists support `q`, `status`, `offset`, `limit` and `snapshot`.
+The SPA requests 50 results at a time; the API caps each page at 200. A stale
+snapshot returns 409 so the client can restart without mixing generations.
+`api/reviews?status=orphan` includes retained restored decisions and annotations;
+`api/finding` permits read-only inspection of those orphan identities.
+`api/duplicates?id=...&full=1&source_offset=0&source_limit=400` returns a bounded
+source chunk with availability/truncation and next-offset metadata.
 
-Each group in the web list and its detail page has **Move to discarded**, with
-**False positive** or **Other / not relevant** as the reason. The group immediately
-leaves the active list. **Discarded** has the same search and pagination, plus
-**Restore to active**. Atlas and overview counts show active groups; the raw CLI
-analysis and TOON download keep every group and their original verdicts.
+Decision writes require the displayed `fingerprint` and `expected_revision`;
+file-label writes and `POST api/review/delete` require `expected_revision`.
+HTTP 409 preserves the existing decision when the editor is stale. Finding
+verdicts and per-file working labels are separate controls. Unsaved SPA drafts
+remain in their tab during navigation and conflicts; they are not durable backups.
 
-Decisions persist in `.mct-index/duplicate-reviews.toon`, an optional local user
-preference file, not a second code index. Keys hash the normalization policy,
-sorted member paths/names/kinds/line ranges and indexed source-file hashes. A
-ranking/member-order change does not attach a decision to a different group.
-Changing a member file (even an unrelated comment), its path, membership or the
-normalization policy conservatively makes the group active again after reindex
-and restart. Old decisions are retained, so reverting to the original content can
-restore its prior review state. Only currently detected groups appear in either
-view. No source file, SQLite row, raw verdict or Obsidian note is deleted.
+MCP `find_dead_code` and CLI `dead-code`/`duplicates` omit unchanged false positives
+and deliberately ignored findings before paginating their reports. Changed or
+uncertain findings remain visible. Use CLI `--include-reviewed` for raw diagnostic
+candidates. Reindexing does not delete decisions from `dashboard.sqlite3`.
 
-Only `POST review` can change preferences. It requires the private URL, an exact
-same-origin Origin, a per-session CSRF nonce and a bounded form. GET/HEAD never
-change state. Writes reload under a per-project exclusive lock, merge other
-writers' decisions and atomically replace the TOON file before changing the
-visible state. A failed save leaves the group visible and reports an error.
-Malformed, oversized or symlinked state is refused, never overwritten. Unix
-also rejects hard-linked state; publication replaces the file entry on every platform.
-Concurrent editing/renaming of the state directory outside the tool is unsupported.
+SPA regression checks: `node --test crates/mct-cli/tests/dashboard_spa.cjs`.
 
-Preferences update immediately in the current web process; other already-running
-processes see them on their next save or restart. A crash may leave
-`duplicate-reviews.lock`; remove it only after confirming no writer is active.
-Atomic replacement is not a promise of power-loss durability. No bulk purge or
-source-deletion operation is provided. See [ADR-015](docs/01-architecture/adrs/015-duplicate-review-decisions.md).
+Rebuilding the precompiled assets (only needed when editing the dashboard UI, not
+to build `mct-cli`): `scripts/unix/build-dashboard-assets.sh`.
 
+Decisions and comments are never written to the source files, the index or the
+Obsidian vault, and no bulk purge or source-deletion operation exists.
 ### `dead-code` / `dead-code --path <path> --language <lang> --output <file>`
 
 Writes a CSV report of dead-code candidates (heuristic: symbols with zero indexed references) to `.mct-index/dead-code-report.csv` — one row per candidate with its file, function name, kind, language, and start/end line. Optionally narrowed to a file/directory/crate and/or language, and written to a custom path instead of the default.
