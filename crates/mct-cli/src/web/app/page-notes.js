@@ -88,7 +88,7 @@ export async function render({ root, params: initial }) {
     clear(listHost).append(loading());
     graph?.destroy();
     try {
-      const data = await api("notes-graph", { folder: listParam(params, "folder"), tag: listParam(params, "tag"), focus: params.get("focus") || "", depth: params.get("depth") || 2, orphans: params.get("orphans") || "" }, "ngraph");
+      const data = await api("notes-graph", { folder: listParam(params, "folder"), tag: listParam(params, "tag"), focus: params.get("focus") || "", depth: params.get("depth") || 2, orphans: params.get("orphans") || "", all: params.get("all") || "" }, "ngraph");
       clear(listHost);
       const search = h("input", { class: "input", type: "search", placeholder: t("obs.graphSearch"), "aria-label": t("obs.graphSearch"), list: "ngraph-nodes" });
       const dl = h("datalist", { id: "ngraph-nodes" }, data.nodes.map((n) => h("option", { value: n.label })));
@@ -97,7 +97,7 @@ export async function render({ root, params: initial }) {
         h("label", { class: "field", style: { gridAutoFlow: "column", alignItems: "center" } }, t("obs.orphans"), selectBox({ label: t("obs.orphans"), value: params.get("orphans") || "", options: [["", t("obs.orphans.all")], ["hide", t("obs.orphans.hide")], ["only", t("obs.orphans.only")]], onChange: (x) => patchQuery({ orphans: x }) })),
         params.get("focus") && h("button", { class: "btn sm", onclick: () => patchQuery({ focus: null }) }, t("obs.clearFocus")),
         params.get("focus") && h("label", { class: "field", style: { gridAutoFlow: "column", alignItems: "center" } }, t("deps.depth"), h("input", { type: "range", min: 1, max: 6, value: params.get("depth") || 2, onchange: (e) => patchQuery({ depth: e.target.value }) }))));
-      if (data.truncated) listHost.append(note(t("obs.graphTruncated", { n: data.nodes.length, total: data.total }), "warn", "alert"));
+      if (data.truncated) listHost.append(note(t("obs.graphTruncated", { n: data.nodes.length, total: data.total }), "warn", "alert"), h("button", { class: "btn sm", style: { margin: "8px 0" }, onclick: () => patchQuery({ all: 1 }) }, t("graph.showAll", { n: fmt(data.total) })));
       if (!data.nodes.length) { listHost.append(emptyState({ iconName: "graph", title: t("obs.noGraph"), text: t("obs.noGraphText") })); return; }
       graph = graphView({ label: t("obs.graphLabel"), directed: false, nodes: data.nodes.map((n) => ({ ...n, color: n.id === selected ? "var(--primary)" : n.orphan ? "var(--text-3)" : n.hasCode ? "var(--accent)" : "var(--primary)", radius: 6 + Math.min(10, n.degree), title: `${n.label} · ${n.folder}` })), edges: data.edges,
         onSelect: (node) => patchQuery({ note: node.id }) });

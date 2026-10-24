@@ -4,7 +4,7 @@ import { icon } from "./components.js";
 import { t } from "./i18n.js";
 
 const svg = (tag, attrs, ...kids) => h(`svg:${tag}`, attrs, ...kids);
-const MAX_TICKS = 220;
+const BASE_TICKS = 220;
 
 /**
  * nodes: [{id,label,color,radius,...}], edges: [{from,to,color?}].
@@ -15,6 +15,8 @@ export function graphView({ nodes, edges, onSelect, directed = true, label }) {
   const byId = new Map(nodes.map((node, i) => [node.id, { ...node, x: width / 2 + Math.cos(i) * 180 * Math.sqrt((i + 1) / nodes.length), y: height / 2 + Math.sin(i) * 140 * Math.sqrt((i + 1) / nodes.length), vx: 0, vy: 0, r: node.radius || 9 }]));
   const links = edges.map((edge) => ({ ...edge, s: byId.get(edge.from), t: byId.get(edge.to) })).filter((edge) => edge.s && edge.t);
   const list = [...byId.values()];
+  // Repulsion is O(n²) per tick, so big graphs get fewer ticks to stay responsive.
+  const MAX_TICKS = list.length <= 600 ? BASE_TICKS : Math.max(30, Math.round(BASE_TICKS * (600 / list.length) ** 2));
   const view = { x: 0, y: 0, k: 1 };
   let selected = null, ticks = 0, raf = 0, dragging = null;
 
@@ -78,7 +80,7 @@ export function graphView({ nodes, edges, onSelect, directed = true, label }) {
   function run() {
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
     const frame = () => {
-      const batch = reduce ? MAX_TICKS : 4;
+      const batch = reduce ? MAX_TICKS : list.length > 1500 ? 1 : 4;
       for (let i = 0; i < batch && ticks < MAX_TICKS; i += 1) { step(); ticks += 1; }
       paint();
       if (ticks < MAX_TICKS) raf = requestAnimationFrame(frame); else fit();

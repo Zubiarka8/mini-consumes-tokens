@@ -12,7 +12,8 @@ use crate::web::obsidian::{self, Note};
 use crate::web::Site;
 
 const DAY: u64 = 86_400;
-const MAX_GRAPH_NODES: usize = 400;
+/// Safety cap for the graph; `all=1` lifts it.
+const MAX_GRAPH_NODES: usize = 5000;
 const MAX_SYMBOLS: usize = 30;
 
 fn folder(note: &Note) -> &str {
@@ -187,6 +188,11 @@ pub(super) fn graph(site: &Site, params: &Params) -> Value {
     let focus = text(params, "focus");
     let hops = uint(params, "depth", 2).clamp(1, 6);
     let orphans = text(params, "orphans");
+    let max_nodes = if text(params, "all") == "1" {
+        usize::MAX
+    } else {
+        MAX_GRAPH_NODES
+    };
     let by_path: BTreeMap<&str, &Note> = site
         .vault
         .notes
@@ -213,7 +219,7 @@ pub(super) fn graph(site: &Site, params: &Params) -> Value {
             let outgoing = by_path.get(path).into_iter().flat_map(|n| n.links.iter());
             let incoming = site.vault.backlinks.get(path).into_iter().flatten();
             for next in outgoing.chain(incoming) {
-                if seen.len() < MAX_GRAPH_NODES
+                if seen.len() < max_nodes
                     && by_path.get(next.as_str()).is_some_and(eligible)
                     && seen.insert(next)
                 {
@@ -227,7 +233,7 @@ pub(super) fn graph(site: &Site, params: &Params) -> Value {
         notes.sort_by_key(|note| std::cmp::Reverse(degree(note)));
         notes
             .into_iter()
-            .take(MAX_GRAPH_NODES)
+            .take(max_nodes)
             .map(|n| n.path.as_str())
             .collect()
     };
@@ -248,5 +254,5 @@ pub(super) fn graph(site: &Site, params: &Params) -> Value {
         })
         .collect();
     json!({ "nodes": nodes, "edges": edges, "total": site.vault.notes.len(),
-            "truncated": selected.len() >= MAX_GRAPH_NODES, "edgeKinds": ["markdown-link"] })
+            "truncated": site.vault.notes.len() > max_nodes, "edgeKinds": ["markdown-link"] })
 }

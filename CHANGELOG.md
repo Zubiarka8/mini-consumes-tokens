@@ -19,8 +19,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   are replaced by `POST api/review` (JSON). Features the index cannot back
   (history, semantic search, tokens, confidence) are shown as unavailable. See
   `docs/01-architecture/web-dashboard.md`.
+- Review decisions move to one shared module (`mct_index::reviews`) and a new
+  file, `.mct-index/review-decisions.toon`, the only one written. Decisions in
+  `duplicate-reviews.toon` (v1 and v2) and the dashboard draft's
+  `reviews.toon` keep applying and those files are no longer rewritten, so
+  older binaries keep working on them. A decision about code that changed
+  shows as "needs re-evaluation" instead of hiding the finding; a resolved
+  finding that is still detected shows as such. Saves are rejected (409) when
+  another process changed the decision meanwhile, history is append-only and
+  checked before every save, and the previous file is kept as
+  `review-decisions.toon.prev`. An unreadable review file no longer stops
+  `mct-cli web`: it starts read-only and hides nothing.
+- Review storage is canonical: decisions are saved only to
+  `review-decisions.toon` (version 3, Unix milliseconds). Binaries built before
+  this change do not see decisions saved here, and this version does not see
+  decisions they save later: reading is one-way, and the output of default
+  commands is unchanged. A writer killed mid-save no longer blocks later saves:
+  the operating system releases the lock, and the next save removes the
+  temporary files the killed save left. See
+  `docs/01-architecture/adrs/019-shared-review-decisions.md`.
+- Review decisions load faster and use less memory: a store of 100,000 rows
+  loads in about 41 ms instead of about 52 ms, and one load peaks at about
+  52 MiB above a run with no store instead of about 94 MiB. The store is read
+  one line at a time, and lines and fields are split with `memchr`, which the
+  lock file already contained as a transitive dependency. Default outputs are
+  unchanged. See `benchmarks/review-decisions.md`.
 
 ### Added
+
+- `mct-cli dead-code --reviewed show|hide|only` and
+  `mct-cli duplicates --reviewed show|hide|only` apply the web dashboard's
+  review decisions (filtering before paging). Without the flag no review
+  file is read and both reports are unchanged.
 
 - `build_context_pack`, `search_symbols_like` and `hybrid_search_like` (and
   their deprecated aliases) take optional `detail` (`overview`, `summary`,
@@ -44,6 +74,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `benchmarks/adaptive-detail.md`) and a per-tool catalog size report.
   `detail`/`max_tokens` add about 523 estimated tokens to the catalog (+3.7%),
   all in schema properties of three tools.
+
+### Fixed
+
+- A finding whose stored content hash is empty is treated as unknown content.
+  The literal-search migration clears every hash until the next reindex, and a
+  file that is not reindexed keeps the empty value. A decision saved in that
+  state could hide a finding whose content was not known; such a finding is
+  never hidden now and shows as needing review.
 
 ### Deprecated
 
