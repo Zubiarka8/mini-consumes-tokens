@@ -151,3 +151,7 @@ ERR-014 caller mistake recurred: `build_context_pack(name: SymbolListEntry)` ret
 ## 2026-10-24 — Adversarial dashboard audit index observation
 
 get_indexing_status reports 1008 files / 17502 symbols at timestamp 1792854060 with 18 parse diagnostics: 16 intentionally malformed fixtures, the previously observed review-check.ps1:29 rejection, and generated web/spa/spa.css:1. Direct project CLI probe reproduces the CSS and PowerShell `syntax error` diagnostics (exit 1); ERR-020 opened for untriaged CSS coverage. No source exclusion or parser fix. An initial unsupported parse-probe CLI command was corrected to probe after checking help.
+
+## 2026-10-24 — Dead-code editor work
+
+ERR-011 class caller mistake: `find_callers` (inside `batch`) was called with `name: "cautions"` instead of the required `function`; diagnostic: ``invalid args for `find_callers`: missing field `function` ``. Retried as `find_callers(function: "cautions", path: "crates/mct-cli")`: succeeded (one resolved caller, `detail` in `view_dead.rs`). Caller argument error; no server defect. Remains RESOLVED.
