@@ -31,7 +31,7 @@ impl Response {
         Self::json(&serde_json::json!({ "error": message })).with_status(status)
     }
 
-    fn with_status(mut self, status: u16) -> Self {
+    pub fn with_status(mut self, status: u16) -> Self {
         self.status = status;
         self
     }

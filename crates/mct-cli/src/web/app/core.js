@@ -1,5 +1,5 @@
 // Shared runtime: DOM builder, API client, routing state, formatting, dialogs, toasts.
-import { t } from "./i18n.js";
+import { t, getLang } from "./i18n.js";
 
 // Element.append behaves like h(): arrays are flattened and null/undefined/false are skipped,
 // so conditional children can be passed everywhere without printing "null" or "[object …]".
@@ -48,7 +48,7 @@ export const store = {
 
 // ---------- API ----------
 export class ApiError extends Error {
-  constructor(status, message) { super(message); this.status = status; }
+  constructor(status, message, body = null) { super(message); this.status = status; this.body = body; }
 }
 
 const pending = new Map();
@@ -78,15 +78,16 @@ export const isAbort = (error) => error?.name === "AbortError";
 let csrf = "";
 export const setCsrf = (value) => { csrf = value; };
 
-/** Records (or clears, with state = null) a review decision. */
-export async function review(key, state, note = "") {
+/** Records (or clears, with state = null) a review decision based on the
+ *  `revision` the page showed. A 409 error carries the current review in `body`. */
+export async function review(key, state, note = "", revision = "none") {
   const response = await fetch("api/review", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ csrf, key, state, note }),
+    body: JSON.stringify({ csrf, key, state, note, revision }),
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new ApiError(response.status, body.error || response.statusText);
+  if (!response.ok) throw new ApiError(response.status, body.error || response.statusText, body);
   return body;
 }
 
@@ -146,21 +147,22 @@ export function patchQuery(patch) {
 export const listParam = (params, key) => (params.get(key) || "").split(",").filter(Boolean);
 
 // ---------- formatting ----------
-const number = new Intl.NumberFormat("es-ES");
+const LOCALE = getLang() === "en" ? "en-GB" : "es-ES";
+const number = new Intl.NumberFormat(LOCALE);
 export const fmt = (value) => (value === null || value === undefined ? "—" : number.format(value));
 export function bytes(value) {
   if (value === null || value === undefined) return "—";
   const units = ["B", "KB", "MB", "GB"];
   let size = value, unit = 0;
   while (size >= 1024 && unit < units.length - 1) { size /= 1024; unit += 1; }
-  return `${size.toLocaleString("es-ES", { maximumFractionDigits: unit ? 1 : 0 })} ${units[unit]}`;
+  return `${size.toLocaleString(LOCALE, { maximumFractionDigits: unit ? 1 : 0 })} ${units[unit]}`;
 }
 export function duration(ms) {
   if (ms === null || ms === undefined) return "—";
   if (ms < 1000) return `${fmt(ms)} ms`;
-  return `${(ms / 1000).toLocaleString("es-ES", { maximumFractionDigits: 1 })} s`;
+  return `${(ms / 1000).toLocaleString(LOCALE, { maximumFractionDigits: 1 })} s`;
 }
-const relative = new Intl.RelativeTimeFormat("es", { numeric: "auto" });
+const relative = new Intl.RelativeTimeFormat(getLang(), { numeric: "auto" });
 export function ago(unixSeconds) {
   if (!unixSeconds) return "—";
   const diff = unixSeconds - Date.now() / 1000;
@@ -168,8 +170,8 @@ export function ago(unixSeconds) {
   for (const [limit, unit, size] of steps) if (Math.abs(diff) < limit) return relative.format(Math.round(diff / size), unit);
   return "";
 }
-export const dateTime = (unix) => (unix ? new Date(unix * 1000).toLocaleString("es-ES", { dateStyle: "medium", timeStyle: "short" }) : "—");
-export const shortDate = (unix) => new Date(unix * 1000).toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+export const dateTime = (unix) => (unix ? new Date(unix * 1000).toLocaleString(LOCALE, { dateStyle: "medium", timeStyle: "short" }) : "—");
+export const shortDate = (unix) => new Date(unix * 1000).toLocaleDateString(LOCALE, { day: "numeric", month: "short" });
 export const basename = (path) => path.split("/").pop();
 
 /** Splits `text` around case-insensitive `query` matches and wraps them in <mark>. */

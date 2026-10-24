@@ -1,6 +1,7 @@
 // 02 · Código indexado: file tree and filters | symbol table | symbol inspector
 import { h, clear, api, isAbort, patchQuery, onQuery, parseHash, listParam, fmt, copy, hrefTo, go, forget } from "./core.js";
-import { icon, pageHead, tabsBar, dataTable, pager, kindIcon, kindGroup, kindGroups, badge, searchBox, selectBox, filterGroup, activeChips, noResults,
+import { symbolText, symbolTemplate, findingKinds, listText } from "./ai.js";
+import { icon, pageHead, tabsBar, segmented, dataTable, pager, kindIcon, kindGroup, kindGroups, badge, searchBox, selectBox, filterGroup, activeChips, noResults,
   emptyState, loading, errorBox, buildTree, treeView, drawerButton, note, stateBadge } from "./components.js";
 import { codeBlock, openSource } from "./code.js";
 import { t } from "./i18n.js";
@@ -17,6 +18,7 @@ export async function render({ root, params: initial }) {
   const filtersHost = h("div", {});
   const tabsHost = h("div", {});
   const chipsHost = h("div", {});
+  const quickHost = h("div", { class: "quick-filters" });
   const drawer = { current: null };
   let facets = { kind: [], language: [], ext: [] };
   let selectedId = null;
@@ -57,11 +59,27 @@ export async function render({ root, params: initial }) {
 
   function drawTabs(params) {
     const present = new Set(facets.kind.map(([kind]) => kindGroup(kind)));
+    if (params.get("tab")) present.add(params.get("tab")); // the open tab stays, even when the filters leave it empty
     const groups = kindGroups().filter((group) => present.has(group.id));
     const counts = Object.fromEntries(groups.map((g) => [g.id, facets.kind.filter(([k]) => kindGroup(k) === g.id).reduce((n, [, c]) => n + c, 0)]));
     const total = facets.kind.reduce((n, [, c]) => n + c, 0);
     clear(tabsHost).append(tabsBar({ label: t("code.kinds"), active: params.get("tab") || "all", onSelect: (id) => patchQuery({ tab: id === "all" ? null : id }),
       tabs: [{ id: "all", label: t("code.tab.all"), count: total }, ...groups.map((g) => ({ id: g.id, label: t(`code.tab.${g.id}`), count: counts[g.id] }))] }));
+  }
+
+  // Always-visible filters: the same query parameters as the side panel, one click away.
+  function drawQuick(params) {
+    const pick = (key, label, all, options) => {
+      const selected = listParam(params, key);
+      const choices = [["", selected.length > 1 ? t("quick.several", { n: selected.length }) : all], ...options.map(([value]) => [value, value])];
+      return h("label", { class: "quick-select" }, h("span", { class: "muted small" }, label),
+        selectBox({ label, value: selected.length === 1 ? selected[0] : "", options: choices, onChange: (v) => patchQuery({ [key]: v ? [v] : null }) }));
+    };
+    clear(quickHost).append(
+      segmented({ label: t("filters.findings"), value: params.get("finding") || "any", options: FINDINGS.map((id) => [id, t(`quick.finding.${id}`)]), onSelect: (v) => patchQuery({ finding: v === "any" ? null : v }) }),
+      segmented({ label: t("filters.references"), value: params.get("refs") || "any", options: Object.keys(REFS).map((id) => [id, t(`quick.refs.${id}`)]), onSelect: (v) => patchQuery({ refs: v === "any" ? null : v }) }),
+      pick("language", t("filters.language"), t("quick.allLanguages"), facets.language),
+      pick("ext", t("filters.extension"), t("quick.allExtensions"), facets.ext.filter(([value]) => value).map(([value]) => [value])));
   }
 
   function drawChips(params) {
@@ -81,9 +99,11 @@ export async function render({ root, params: initial }) {
     try {
       const data = await api("symbols", query, "symbols");
       facets = data.facets;
-      drawTabs(params); drawFilters(params);
+      drawTabs(params); drawQuick(params); drawFilters(params);
       clear(results);
       if (!data.total) { results.append(noResults({ onClear: clearAll })); return; }
+      results.append(h("div", { class: "row", style: { justifyContent: "flex-end", margin: "0 0 8px" } },
+        h("button", { class: "btn sm", onclick: () => copy(listText({ title: t("code.tableCaption"), total: data.total, columns: [(r) => r.id, (r) => r.name, (r) => r.kind, (r) => `${r.path}:${r.line}${r.endLine ? `-${r.endLine}` : ""}`], rows: data.items, idKey: "id" }), t("ai.listCopied")) }, icon("copy", 14), t("ai.copyList"))));
       results.append(
         dataTable({
           caption: t("code.tableCaption"), rows: data.items, rowKey: (r) => String(r.id), selected: selectedId === null ? null : String(selectedId), sort: query.sort, order: query.order,
@@ -123,6 +143,9 @@ export async function render({ root, params: initial }) {
         h("div", { class: "row", style: { margin: "12px 0" } },
           h("button", { class: "btn sm", onclick: () => copy(`${s.path}:${s.line}`, t("common.pathCopied")) }, icon("copy", 14), t("code.copyPath")),
           h("button", { class: "btn sm", onclick: () => copy(s.parent ? `${s.parent}::${s.name}` : s.name, t("code.idCopied")) }, t("code.copyId")),
+          ...findingKinds(data).flatMap((kind) => [
+            h("button", { class: "btn sm", onclick: () => copy(symbolText(s, data, kind), t("ai.copied")) }, icon("copy", 14), t(`ai.copy.${kind}`)),
+            h("button", { class: "btn sm", onclick: () => copy(symbolTemplate(s, data, kind), t("ai.templateCopied")) }, icon("copy", 14), t(`ai.template.${kind}`))]),
           h("button", { class: "btn sm", onclick: () => openSource({ path: s.path, line: s.line, language: s.language }) }, icon("external", 14), t("code.openSource")),
           h("a", { class: "btn sm", href: hrefTo("dependencias", { level: "file", focus: s.path }) }, icon("graph", 14), t("code.viewDeps"))),
         data.code ? codeBlock({ lines: data.code.lines, start: data.code.start, language: s.language, maxHeight: "260px", label: t("code.preview") }) : note(t("code.noPreview"), "warn", "alert"),
@@ -142,7 +165,7 @@ export async function render({ root, params: initial }) {
 
   const layout = h("div", { class: "workbench" }, h("aside", { class: "filters-col" }, filtersHost), h("div", {}, h("div", { class: "toolbar" },
     searchBox({ value: initial.get("q") || "", placeholder: t("code.searchPlaceholder"), label: t("code.searchPlaceholder"), onInput: (v) => patchQuery({ q: v }) }),
-    drawerButton(() => drawer.current)), chipsHost, tabsHost, results), inspector);
+    drawerButton(() => drawer.current)), chipsHost, quickHost, tabsHost, results), inspector);
   drawer.current = layout.querySelector("aside");
   root.append(pageHead(t("code.title"), t("code.subtitle")), layout);
   const last = initial.get("sel");
