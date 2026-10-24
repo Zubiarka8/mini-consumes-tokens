@@ -21,6 +21,8 @@ const I18N = {
     inspectOrphan: 'Ver historial y notas', orphanDetails: 'Historial y notas guardadas',
     sourcePrevious: 'Fragmento anterior', sourceNext: 'Fragmento siguiente', sourcePartial: 'Vista parcial del código: usa los controles para revisar el resto.',
     sourceUnavailable: 'No se pudo verificar o leer este fragmento. Reindexa y vuelve a cargar.',
+    pageRestarted: 'Los resultados cambiaron mientras navegabas: la lista vuelve a la primera página.',
+    copiedPartial: 'Copiado solo el fragmento visible: el código continúa en otros fragmentos.',
     pDecision: 'Decisión guardada', pFingerprint: 'Huella del código', pScope: 'Alcance de esta petición',
     pResolved: 'El hallazgo ya está descartado. Conserva la decisión y no repitas la investigación, salvo que el código o su contexto hayan cambiado.',
     pNeedsReview: 'Reevalúa la decisión anterior sobre esta versión del código. Explica qué cambió antes de proponer modificaciones.',
@@ -36,7 +38,7 @@ const I18N = {
     files: 'Archivos', similarity: 'Líneas coincidentes con las demás', legendSame: 'Línea idéntica', legendRen: 'Misma línea con otros nombres', legendDiff: 'Línea distinta',
     fileReview: 'Revisión por fichero', file: 'Archivo', fileStatus: 'Estado del archivo', fileNote: 'Notas',
     fileNoteHint: 'Notas sobre este archivo…', dupWord: 'Duplicado', ofWord: 'de', filesWord: 'archivos',
-    fPending: 'Sin revisar', fAccepted: 'Conservar esta copia', fRejected: 'Proponer retirar esta copia', fInReview: 'En revisión', fIgnored: 'Ignorarlo',
+    fPending: 'Sin revisar', fAccepted: 'Conservar esta copia', fRejected: 'Proponer retirar esta copia', fInReview: 'En revisión', fIgnored: 'Ignorar esta copia',
     navOrphans: 'Huérfanos', orphanHint: 'Decisiones cuyo hallazgo ya no aparece. Solo se borran al pulsar Borrar.', deleteDecision: 'Borrar decisión', noOrphans: 'No hay decisiones huérfanas.', navHome: 'Inicio', helloTitle: '¡Hola mundo!', helloSub: 'Panel de MCT: elige una sección para empezar.',
     openHint: 'Pulsa un duplicado para abrirlo en una pestaña nueva, como un editor de código.',
     openTab: 'Abrir en pestaña nueva', backToList: 'Volver a la lista', editorTitle: 'Editor de duplicado',
@@ -50,6 +52,7 @@ const I18N = {
     pDupIntro: 'Contexto: el análisis de MCT ha detectado código duplicado ({n} archivos, {lines} líneas, {tokens} tokens, lenguaje {lang}).',
     pDeadIntro: 'Contexto: el análisis de MCT marca `{name}` ({kind}, {lang}{parent}) como posible código muerto: no tiene referencias indexadas.',
     pWhere: 'Ubicaciones:', pNotes: 'Notas de revisión:', pTask: 'Qué hay que hacer:',
+    pFileLabels: 'Etiquetas de trabajo por copia (no son decisiones sobre el hallazgo):',
     pDupTask: [
       'Abre cada ubicación y compara los fragmentos línea a línea.',
       'Decide si es duplicación real (misma lógica) o solo un parecido (falso positivo) y explica por qué.',
@@ -81,6 +84,8 @@ const I18N = {
     inspectOrphan: 'View history and notes', orphanDetails: 'Saved history and notes',
     sourcePrevious: 'Previous source chunk', sourceNext: 'Next source chunk', sourcePartial: 'Partial source view: use the controls to inspect the remaining code.',
     sourceUnavailable: 'This source chunk could not be verified or read. Reindex and reload.',
+    pageRestarted: 'The results changed while you were paging: the list restarted from the first page.',
+    copiedPartial: 'Copied only the visible chunk: the code continues in other chunks.',
     pDecision: 'Saved decision', pFingerprint: 'Source fingerprint', pScope: 'Scope of this request',
     pResolved: 'This finding is already dismissed. Preserve the decision and do not repeat the investigation unless its code or context changed.',
     pNeedsReview: 'Reevaluate the earlier decision against this source version. Explain what changed before proposing edits.',
@@ -96,7 +101,7 @@ const I18N = {
     files: 'Files', similarity: 'Lines shared with the others', legendSame: 'Identical line', legendRen: 'Same line, other names', legendDiff: 'Different line',
     fileReview: 'File review', file: 'File', fileStatus: 'File status', fileNote: 'Notes',
     fileNoteHint: 'Notes about this file…', dupWord: 'Duplicate', ofWord: 'of', filesWord: 'files',
-    fPending: 'Not reviewed', fAccepted: 'Keep this copy', fRejected: 'Propose removing this copy', fInReview: 'In review', fIgnored: 'Ignore it',
+    fPending: 'Not reviewed', fAccepted: 'Keep this copy', fRejected: 'Propose removing this copy', fInReview: 'In review', fIgnored: 'Ignore this copy',
     navOrphans: 'Orphans', orphanHint: 'Decisions with no current finding. Only the Delete button removes them.', deleteDecision: 'Delete decision', noOrphans: 'No orphan decisions.', navHome: 'Home', helloTitle: 'Hello world!', helloSub: 'MCT dashboard: pick a section to get started.',
     openHint: 'Click a duplicate to open it in a new tab, like a code editor.',
     openTab: 'Open in a new tab', backToList: 'Back to the list', editorTitle: 'Duplicate editor',
@@ -110,6 +115,7 @@ const I18N = {
     pDupIntro: 'Context: the MCT analysis found duplicate code ({n} files, {lines} lines, {tokens} tokens, language {lang}).',
     pDeadIntro: 'Context: the MCT analysis flags `{name}` ({kind}, {lang}{parent}) as possible dead code: it has no indexed references.',
     pWhere: 'Locations:', pNotes: 'Review notes:', pTask: 'What to do:',
+    pFileLabels: 'Per-copy working labels (not decisions on the finding):',
     pDupTask: [
       'Open each location and compare the snippets line by line.',
       'Decide whether it is real duplication (same logic) or just a resemblance (false positive), and explain why.',
@@ -475,11 +481,13 @@ document.addEventListener('alpine:init', () => {
       this.pageLoading = true;
       try {
         let data;
+        let restarted = false;
         try { data = await getPage(route, params); }
         catch (error) {
           if (error.status !== 409) throw error;
           // Start a new page instead of appending rows from another generation.
           data = await getPage(route, { ...params, offset: 0, snapshot: '' });
+          restarted = true;
         }
         if (request !== this.pageRequest || view !== this.view) return;
         if (data.total > 0 && data.offset >= data.total) {
@@ -493,12 +501,13 @@ document.addEventListener('alpine:init', () => {
         if (view === 'orphans') {
           this.orphans = data.items.map((item) => ({
             ...item, key: `${item.kind}:${item.identity}`,
-            label: `${this.t(item.kind === 'dead' ? 'navDead' : 'navDup')} · ${item.identity.slice(0, 12)}`,
+            label: `${this.t(item.kind === 'dead' ? 'navDead' : 'navDup')} · ${item.identity.slice(0, 12)} · ${this.t(item.status)}`,
             when: this.fmt(item.at),
           }));
         } else if (view === 'dup') this.dups = data.items;
         else this.deads = data.items;
         this.rebuildLists();
+        if (restarted) this.flash(this.t('pageRestarted'));
       } catch (error) {
         if (request === this.pageRequest) this.flash(this.t(error.status === 409 ? 'conflict' : 'errLoad'));
       } finally { if (request === this.pageRequest) this.pageLoading = false; }
@@ -640,7 +649,7 @@ document.addEventListener('alpine:init', () => {
       const text = excerptLines(item.members[pane.idx]).join('\n');
       try {
         await navigator.clipboard.writeText(text);
-        this.flash(this.t('copied'));
+        this.flash(this.t(this.sourcePartial ? 'copiedPartial' : 'copied'));
       } catch (_) {
         this.flash(this.t('errSave'));
       }
@@ -790,6 +799,7 @@ document.addEventListener('alpine:init', () => {
       this.drafts[this.activeDraftKey] = {
         ...existing, note: this.fileNote, status: this.fileStatus,
         expected_revision: existing.expected_revision === undefined ? this.fileRevision : existing.expected_revision,
+        fingerprint: existing.fingerprint === undefined ? this.groupFingerprint() : existing.fingerprint,
         generation: existing.generation || ++this.draftSequence,
       };
     },
@@ -800,7 +810,8 @@ document.addEventListener('alpine:init', () => {
       const found = member ? (this.detail.files || []).find((row) => row.path === member.path) : null;
       this.activeDraftKey = member ? this.fileKey(this.sel, member.path) : '';
       const draft = this.drafts[this.activeDraftKey];
-      if (draft && this.detail.identity === this.sel && draft.expected_revision !== (found ? found.revision : 0)) draft.conflict = true;
+      if (draft && this.detail.identity === this.sel
+        && (draft.expected_revision !== (found ? found.revision : 0) || (draft.fingerprint || '') !== (this.detail.fingerprint || ''))) draft.conflict = true;
       this.fileStatus = draft ? draft.status : (found ? found.status : 'pending');
       this.fileNote = draft ? draft.note : (found ? found.note : '');
       this.fileRevision = draft ? draft.expected_revision : (found ? found.revision : 0);
@@ -856,8 +867,14 @@ document.addEventListener('alpine:init', () => {
       this.drafts[key] = {
         note: this.fileNote, status: this.fileStatus, generation: ++this.draftSequence,
         expected_revision: prior ? prior.expected_revision : (found ? found.revision : 0),
+        fingerprint: prior ? prior.fingerprint : this.groupFingerprint(),
         conflict: prior ? prior.conflict : false,
       };
+    },
+    // The group fingerprint the editor is showing; a label is tied to it.
+    groupFingerprint() {
+      const base = this.detail.identity === this.sel ? this.detail : (this.selItem || {});
+      return base.fingerprint || '';
     },
     discardFileDraft() {
       delete this.drafts[this.activeDraftKey]; this.fileDirty = false; this.fileConflict = false;
@@ -874,13 +891,24 @@ document.addEventListener('alpine:init', () => {
       const sent = { ...this.drafts[key] };
       this.savingFiles[key] = true;
       try {
-        const response = await postJson('api/file-review', {
-          id, path: member.path, status: sent.status, note: sent.note.trim(), expected_revision: sent.expected_revision,
-        });
+        const body = { id, path: member.path, status: sent.status, note: sent.note.trim(), expected_revision: sent.expected_revision };
+        // Ambiguous groups have no fingerprint; their labels stay unbound.
+        if (sent.fingerprint) body.fingerprint = sent.fingerprint;
+        const response = await postJson('api/file-review', body);
         this.pageSnapshot = '';
+        // A label save also advances the group's decision revision. Follow it
+        // only when this save was the sole change; anything else is a conflict.
+        const decision = this.findingDrafts[`duplicate:${id}`];
+        if (decision && Number.isInteger(response.finding_revision)
+          && response.finding_revision === decision.expected_revision + 1) {
+          decision.expected_revision = response.finding_revision;
+          if (this.activeReviewKey === `duplicate:${id}`) this.reviewRevision = decision.expected_revision;
+        }
         const current = this.drafts[key];
         if (current && current.generation === sent.generation) delete this.drafts[key];
-        else if (current) current.expected_revision = response.revision;
+        // Later typing now builds on the revision just saved; the next sync
+        // flags a conflict again only if someone else wrote after it.
+        else if (current) Object.assign(current, { expected_revision: response.revision, conflict: false });
         if (id === this.sel && this.findingKind === 'duplicate') {
           // Stop the old form from recreating the just-saved draft during sync.
           if (this.activeDraftKey === key && !this.drafts[key]) this.fileDirty = false;
@@ -952,7 +980,7 @@ document.addEventListener('alpine:init', () => {
         this.pageSnapshot = '';
         const current = this.findingDrafts[key];
         if (current && current.generation === sent.generation) delete this.findingDrafts[key];
-        else if (current) current.expected_revision = response.revision;
+        else if (current) Object.assign(current, { expected_revision: response.revision, conflict: false });
         if (id === this.sel && kind === this.findingKind) {
           if (!this.findingDrafts[key]) this.reviewDirty = false;
           await this.loadDetail();
@@ -975,7 +1003,7 @@ document.addEventListener('alpine:init', () => {
       if (file) {
         const member = this.selItem && this.selItem.members ? this.selItem.members[this.fileSelIdx] : null;
         const found = member && this.detail.files.find((row) => row.path === member.path);
-        file.expected_revision = found ? found.revision : 0; file.conflict = false;
+        file.expected_revision = found ? found.revision : 0; file.fingerprint = this.detail.fingerprint || ''; file.conflict = false;
       }
       const decision = this.findingDrafts[this.activeReviewKey];
       if (decision) {
@@ -1087,7 +1115,7 @@ document.addEventListener('alpine:init', () => {
       const intro = fill(this.t('pDupIntro'), {
         n: item.members.length, lines: item.line_count, tokens: item.token_count, lang: item.language,
       });
-      return this.composePrompt(intro, where, [...this.findingContext(item), ...notes], this.findingTasks(item, this.t('pDupTask')));
+      return this.composePrompt(intro, where, this.findingContext(item), this.findingTasks(item, this.t('pDupTask')), notes);
     },
     deadPrompt(item) {
       const end = item.end_line ? `–${item.end_line}` : '';
@@ -1107,9 +1135,10 @@ document.addEventListener('alpine:init', () => {
     findingTasks(item, tasks) {
       return ['false_positive', 'ignored'].includes((item.state || {}).status) ? [this.t('pResolved')] : tasks;
     },
-    composePrompt(intro, where, notes, tasks) {
+    composePrompt(intro, where, notes, tasks, labels = []) {
       const parts = [intro, '', this.t('pWhere'), ...where];
       if (notes.length) parts.push('', this.t('pNotes'), ...notes);
+      if (labels.length) parts.push('', this.t('pFileLabels'), ...labels);
       parts.push('', this.t('pTask'), ...tasks.map((task, n) => `${n + 1}. ${task}`));
       return parts.join('\n');
     },

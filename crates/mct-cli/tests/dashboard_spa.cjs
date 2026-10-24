@@ -26,7 +26,7 @@ function harness(respond = async () => ({})) {
   };
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../src/web/spa/spa.js'), 'utf8'), context);
-  return { app: factory(), requests };
+  return { app: factory(), requests, context };
 }
 
 const state = { status: 'pending' };
@@ -223,4 +223,316 @@ test('orphaned selection retains its drafts without presenting an editable live 
   assert.equal(app.missing, true);
   assert.equal(app.reviewSaveDisabled, true);
   assert.equal(app.drafts['duplicate:group:a.rs'].note, 'draft before source removal');
+});
+
+// ---- client/server contract, drafts, pagination and source paging --------
+
+function listPage(items, extra = {}) {
+  return { items, total: items.length, offset: 0, limit: 50, snapshot: 's1',
+    counts: { all: items.length, pending: items.length, confirmed: 0, false_positive: 0, ignored: 0, needs_reevaluation: 0 }, ...extra };
+}
+
+// Every name the template binds must exist on the component, every label in
+// both languages, so a renamed method or key cannot silently blank the UI.
+test('index.html bindings and translated labels all resolve on the component', () => {
+  const { app } = harness();
+  const html = fs.readFileSync(path.join(__dirname, '../src/web/spa/index.html'), 'utf8');
+  const loopVars = new Set();
+  const sources = [];
+  for (const [, expr] of html.matchAll(/\sx-for="([^"]+)"/g)) {
+    const [vars, source] = expr.split(' in ');
+    vars.replace(/[()\s]/g, '').split(',').forEach(name => loopVars.add(name));
+    sources.push(source.trim());
+  }
+  const exprs = [...html.matchAll(/\s(x-text|x-show|x-model|:[\w-]+|@[\w.-]+)="([^"]+)"/g)];
+  assert.ok(exprs.length > 100, 'the template parser found the bindings');
+  const missing = [];
+  for (const [, attribute, expr] of [...exprs, ...sources.map(s => [null, 'x-for', s])]) {
+    const root = expr.split('.')[0];
+    if (loopVars.has(root)) continue;
+    if (root === 'L') {
+      for (const lang of ['es', 'en']) {
+        app.lang = lang;
+        if (typeof app.L[expr.slice(2)] !== 'string') missing.push(`${lang}:${expr}`);
+      }
+      continue;
+    }
+    if (!(root in app)) missing.push(`${attribute}=${expr}`);
+    else if (attribute.startsWith('@') && typeof app[root] !== 'function') missing.push(`${attribute}=${expr} is not a method`);
+  }
+  assert.deepEqual(missing, []);
+});
+
+test('both languages define the same labels, including every status label the code looks up', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../src/web/spa/spa.js'), 'utf8');
+  const { app } = harness();
+  app.lang = 'es'; const es = Object.keys(app.L).sort();
+  app.lang = 'en'; const en = Object.keys(app.L).sort();
+  assert.deepEqual(es, en);
+  const used = new Set([...source.matchAll(/this\.t\('(\w+)'\)/g)].map(m => m[1]));
+  ['pending', 'confirmed', 'false_positive', 'ignored', 'needs_reevaluation', 'restore',
+    'fPending', 'fAccepted', 'fRejected', 'fInReview', 'fIgnored'].forEach(key => used.add(key));
+  assert.deepEqual([...used].filter(key => !es.includes(key)), []);
+});
+
+// AUD-09: the initial load is one summary, one version and one bounded page.
+test('reload reads one bounded page instead of preloading every finding', async () => {
+  const { app, requests } = harness(async ({ url }) => {
+    if (url.pathname === '/api/summary') return { project: 'p', snapshot_at: 1, duplicates_pending: 330 };
+    if (url.pathname === '/api/version') return { token: 't1', rebuilding: false };
+    return listPage(Array.from({ length: 50 }, (_, n) => group(String(n))), { total: 330 });
+  });
+  app.view = 'dup';
+  await app.reloadAll();
+  assert.deepEqual(requests.map(r => r.url.pathname), ['/api/summary', '/api/version', '/api/duplicates']);
+  assert.equal(requests[2].url.searchParams.get('limit'), '50');
+  assert.equal(app.rows.length, 50);
+  assert.equal(app.listCount, '1–50 / 330');
+  assert.equal(app.nextDisabled, false);
+});
+
+// AUD-08: a reindex between pages invalidates the pinned snapshot; the list
+// restarts from a fresh first page and tells the user why.
+test('a stale page restarts from the first page of the new generation and says so', async () => {
+  const fresh = Array.from({ length: 50 }, (_, n) => group(`new-${n}`));
+  const { app, requests } = harness(async ({ url }) => {
+    if (url.searchParams.get('snapshot') === 'old') return { status: 409 };
+    return listPage(fresh, { total: 350, snapshot: 'new' });
+  });
+  app.view = 'dup'; app.pageSnapshot = 'old'; app.pageTotal = 330; app.pageOffset = 0;
+  app.dups = Array.from({ length: 50 }, (_, n) => group(`old-${n}`));
+  await app.nextPage();
+  assert.equal(requests[0].url.searchParams.get('offset'), '50');
+  assert.equal(requests[0].url.searchParams.get('snapshot'), 'old');
+  assert.equal(requests[1].url.searchParams.get('offset'), '0');
+  assert.equal(requests[1].url.searchParams.get('snapshot'), '');
+  assert.equal(app.pageSnapshot, 'new');
+  assert.equal(app.pageOffset, 0);
+  assert.ok(app.dups.every(item => item.identity.startsWith('new-')), 'no row from the old generation survives');
+  assert.equal(app.toast, app.t('pageRestarted'));
+});
+
+// AUD-06: a save that is in flight must not discard later typing, even when a
+// poll reload observes the saved revision before the save response arrives.
+test('a poll during an in-flight file save does not leave a false conflict on the newer draft', async () => {
+  const saving = deferred();
+  let saved = false;
+  const { app } = harness(async ({ url }) => {
+    if (url.pathname === '/api/file-review') { saved = true; return saving.promise; }
+    if (url.pathname === '/api/summary') return { project: 'p' };
+    if (url.pathname === '/api/version') return { token: 't2', rebuilding: false };
+    if (url.pathname === '/api/finding') return detail('group', [{ path: 'a.rs', note: 'first draft', status: 'accepted', revision: saved ? 2 : 1 }]);
+    return listPage([group()]);
+  });
+  selectGroup(app, group(), [{ path: 'a.rs', note: '', status: 'accepted', revision: 1 }]);
+  app.markDirty({ target: { value: 'first draft' } });
+  const pending = app.saveFile();
+  app.markDirty({ target: { value: 'later typing' } });
+  await app.reloadAll();
+  saving.resolve({ revision: 2 });
+  await pending;
+  assert.equal(app.fileNote, 'later typing');
+  assert.equal(app.fileDirty, true);
+  assert.equal(app.drafts['duplicate:group:a.rs'].expected_revision, 2);
+  assert.equal(app.fileConflict, false);
+});
+
+test('typing during an in-flight finding decision save keeps the newer reason', async () => {
+  const saving = deferred();
+  const { app, requests } = harness(async ({ url }) => {
+    if (url.pathname === '/api/review') return saving.promise;
+    if (url.pathname === '/api/finding') return { ...detail(), revision: 2, state: { status: 'false_positive', reason: 'first' } };
+    return listPage([group()]);
+  });
+  selectGroup(app);
+  app.setReviewAction({ currentTarget: { dataset: { v: 'false_positive' } } });
+  app.markReviewDirty({ target: { value: 'first' } });
+  const pending = app.saveReview();
+  app.markReviewDirty({ target: { value: 'first, and a later thought' } });
+  saving.resolve({ state: { status: 'false_positive', reason: 'first' }, revision: 2 });
+  await pending;
+  assert.equal(requests[0].body.reason, 'first');
+  assert.equal(requests[0].body.expected_revision, 1);
+  assert.equal(app.reviewReason, 'first, and a later thought');
+  assert.equal(app.reviewDirty, true);
+  assert.equal(app.reviewConflict, false);
+  assert.equal(app.findingDrafts['duplicate:group'].expected_revision, 2);
+});
+
+// AUD-07: drafts survive a poll reload and a round trip through another view.
+test('unsaved drafts survive a poll reload and switching views', async () => {
+  const dead = { identity: 'dead-1', fingerprint: 'fp-dead', revision: 0, name: 'entry', kind: 'function', language: 'rust',
+    path: 'a.rs', line: 1, end_line: 2, parent: null, state };
+  const { app } = harness(async ({ url }) => {
+    if (url.pathname === '/api/summary') return { project: 'p' };
+    if (url.pathname === '/api/version') return { token: 't3', rebuilding: false };
+    if (url.pathname === '/api/finding') return { identity: 'dead-1', kind: 'dead', current: true, fingerprint: 'fp-dead', revision: 0, state, files: [], history: [], comments: [] };
+    if (url.pathname === '/api/dead') return listPage([dead]);
+    return listPage([group()]);
+  });
+  app.view = 'dead'; await app.loadPage(true);
+  app.select({ currentTarget: { dataset: { v: 'dead-1' } } });
+  await app.loadDetail();
+  app.setReviewAction({ currentTarget: { dataset: { v: 'false_positive' } } });
+  app.markReviewDirty({ target: { value: 'called from a build script' } });
+  await app.reloadAll();
+  assert.equal(app.reviewReason, 'called from a build script');
+  await app.go({ currentTarget: { dataset: { v: 'dup' } } });
+  await app.go({ currentTarget: { dataset: { v: 'dead' } } });
+  app.select({ currentTarget: { dataset: { v: 'dead-1' } } });
+  await app.loadDetail();
+  assert.equal(app.reviewReason, 'called from a build script');
+  assert.equal(app.reviewAction, 'false_positive');
+  assert.equal(app.reviewDirty, true);
+  assert.equal(app.reviewConflict, false);
+});
+
+// AUD-03: the copied prompt carries effective state, reason, fingerprint and
+// a scoped task, and separates per-copy working labels from the decision.
+test('a re-evaluation prompt names the previous decision, its reason and the new fingerprint', () => {
+  const { app } = harness();
+  const item = { name: 'entry', kind: 'function', language: 'rust', path: 'a.rs', line: 3, end_line: 9, fingerprint: 'fp-new',
+    state: { status: 'needs_reevaluation', previous: 'false_positive', reason: 'reflection entry point' } };
+  const prompt = app.deadPrompt(item);
+  assert.match(prompt, /Saved decision: Re-evaluate \(False positive\) — reflection entry point/);
+  assert.match(prompt, /Source fingerprint: fp-new/);
+  assert.match(prompt, /Reevaluate the earlier decision/);
+  assert.match(prompt, /a\.rs:3–9/);
+  assert.match(prompt, /Look for uses the index cannot see/, 'a re-evaluation still carries the investigation steps');
+});
+
+test('a duplicate prompt reports the group decision apart from per-copy working labels', () => {
+  const { app } = harness();
+  const item = group(); item.state = { status: 'confirmed', reason: 'same parser loop' };
+  app.detail = detail('group', [{ path: 'b.rs', status: 'rejected', note: 'older copy', revision: 1 }]);
+  const prompt = app.dupPrompt(item, ['A', 'B']);
+  assert.match(prompt, /Saved decision: Confirmed — same parser loop/);
+  assert.match(prompt, /Source fingerprint: fp-v2/);
+  assert.match(prompt, /Review only this finding/);
+  const labels = prompt.indexOf(app.t('pFileLabels'));
+  assert.ok(labels > prompt.indexOf('Saved decision'), 'working labels follow the decision under their own heading');
+  assert.ok(prompt.indexOf('B: Propose removing this copy — older copy') > labels);
+  assert.match(prompt, /extract the shared logic/);
+});
+
+// AUD-04: a per-copy label is a file-review write only; it never posts a
+// finding decision and never changes the group's effective state.
+test('a rejected copy label saves only a file review and leaves the group decision alone', async () => {
+  const { app, requests } = harness(async ({ url }) => {
+    if (url.pathname === '/api/file-review') return { data: { path: 'b.rs', status: 'rejected', revision: 1 } };
+    if (url.pathname === '/api/finding') return detail('group', [{ path: 'b.rs', status: 'rejected', note: '', revision: 1 }]);
+    return listPage([group()]);
+  });
+  selectGroup(app);
+  app.pickFile({ currentTarget: { dataset: { v: '1' } } });
+  app.setFileStatus({ currentTarget: { dataset: { v: 'rejected' } } });
+  await app.saveFile();
+  assert.equal(requests[0].url.pathname, '/api/file-review');
+  assert.deepEqual(Object.keys(requests[0].body).sort(), ['expected_revision', 'fingerprint', 'id', 'note', 'path', 'status']);
+  assert.equal(requests[0].body.fingerprint, 'fp-v2', 'the label is tied to the code the editor showed');
+  assert.ok(!requests.some(r => r.url.pathname === '/api/review'));
+  assert.equal(app.selItem.state.status, 'pending');
+  assert.equal(app.reviewStateText, app.t('pending'));
+  assert.match(app.t('fileHint'), /do not dismiss the finding/);
+  assert.equal(app.fileRows[1].chip, app.t('fRejected'));
+});
+
+// AUD-13: source chunks walk forward and back, and copying a partial view says so.
+test('source paging walks back to the first chunk and copying a partial chunk is flagged', async () => {
+  let copied = '';
+  const { app, requests, context } = harness(async ({ url }) => {
+    const offset = Number(url.searchParams.get('source_offset'));
+    const item = group();
+    item.members.forEach(member => Object.assign(member, {
+      excerpt: [`line ${offset + 1}`], excerpt_first: 1 + offset, excerpt_truncated: true,
+      source_next_offset: offset === 0 ? 400 : null,
+    }));
+    return listPage([item]);
+  });
+  selectGroup(app);
+  await app.loadFullCode('group');
+  await app.nextSource();
+  assert.equal(app.sourceNextDisabled, true);
+  await app.previousSource();
+  assert.equal(requests[2].url.searchParams.get('source_offset'), '0');
+  assert.equal(app.panes[0].rows[0].n, 1);
+  assert.equal(app.sourcePreviousDisabled, true);
+  context.navigator.clipboard = { writeText: async (text) => { copied = text; } };
+  await app.copyCode();
+  assert.equal(copied, 'line 1');
+  assert.equal(app.toast, app.t('copiedPartial'));
+});
+
+test('an unreadable member is reported instead of shown as complete code', async () => {
+  const { app } = harness(async () => {
+    const item = group();
+    Object.assign(item.members[1], { excerpt: [], excerpt_available: false, excerpt_truncated: true, source_next_offset: null });
+    return listPage([item]);
+  });
+  selectGroup(app);
+  assert.equal(await app.loadFullCode('group'), false);
+  assert.equal(app.sourceUnavailable, true);
+  assert.equal(app.sourcePartial, true);
+});
+
+test('orphan rows show their saved status and date', async () => {
+  const row = { identity: 'a'.repeat(64), kind: 'dead', status: 'ignored', revision: 2, reason: 'kept', at: 1, current: false, state: { status: 'ignored' } };
+  const { app } = harness(async () => ({ data: listPage([row]) }));
+  app.view = 'orphans'; await app.loadPage(true);
+  assert.match(app.orphans[0].label, /Ignored/);
+  assert.ok(app.orphans[0].when.length > 0);
+});
+
+// Saving a label advances the group's decision revision (store contract).
+// A pending decision draft follows that bump only when this save caused it.
+test('an own label save keeps a pending decision draft current without hiding foreign writes', async () => {
+  for (const [findingRevision, conflict] of [[2, false], [3, true]]) {
+    const { app, requests } = harness(async ({ url }) => {
+      if (url.pathname === '/api/file-review') return { data: { path: 'a.rs', status: 'accepted', revision: 1, finding_revision: findingRevision, scope: 'file_label', finding_state: state } };
+      if (url.pathname === '/api/finding') return { ...detail('group', [{ path: 'a.rs', status: 'accepted', note: '', revision: 1, scope: 'file_label' }]), revision: findingRevision };
+      if (url.pathname === '/api/review') return { status: 409 };
+      return listPage([group()]);
+    });
+    selectGroup(app);
+    app.setReviewAction({ currentTarget: { dataset: { v: 'confirmed' } } });
+    app.markReviewDirty({ target: { value: 'same loop' } });
+    app.setFileStatus({ currentTarget: { dataset: { v: 'accepted' } } });
+    await app.saveFile();
+    assert.equal(app.reviewConflict, conflict, `finding_revision ${findingRevision}`);
+    assert.equal(app.reviewReason, 'same loop');
+    await app.saveReview();
+    const sent = requests.find(r => r.url.pathname === '/api/review');
+    assert.equal(sent.body.expected_revision, conflict ? 1 : 2);
+  }
+});
+
+test('a label drafted on code that has since changed conflicts and keeps its fingerprint', async () => {
+  const changed = { ...detail(), fingerprint: 'fp-v3', revision: 1 };
+  const { app, requests } = harness(async ({ url }) => {
+    if (url.pathname === '/api/finding') return changed;
+    if (url.pathname === '/api/file-review') return { status: 409 };
+    const item = group(); item.fingerprint = 'fp-v3'; return listPage([item]);
+  });
+  selectGroup(app);
+  app.markDirty({ target: { value: 'checked the old body' } });
+  await app.loadDetail();
+  assert.equal(app.fileConflict, true);
+  assert.equal(app.fileNote, 'checked the old body');
+  await app.saveFile();
+  const sent = requests.find(r => r.url.pathname === '/api/file-review');
+  assert.equal(sent.body.fingerprint, 'fp-v2');
+  await app.reviewLatest();
+  assert.equal(app.drafts['duplicate:group:a.rs'].fingerprint, 'fp-v3');
+  assert.equal(app.fileConflict, false);
+});
+
+test('labels on an ambiguous group are sent without a fingerprint', async () => {
+  const { app, requests } = harness(async ({ url }) => url.pathname === '/api/file-review'
+    ? { data: { revision: 1, finding_revision: 1 } } : { ...detail(), fingerprint: '' });
+  const item = group(); item.fingerprint = '';
+  app.view = 'dup'; app.editor = true; app.sel = item.identity; app.dups = [item]; app.selItem = item;
+  app.detail = { ...detail(), fingerprint: '' }; app.syncFile(); app.syncReview(); app.rebuildDetail();
+  app.markDirty({ target: { value: 'note' } });
+  await app.saveFile();
+  assert.equal('fingerprint' in requests[0].body, false);
 });

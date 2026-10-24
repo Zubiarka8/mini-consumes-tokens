@@ -15,6 +15,8 @@ mod store;
 mod tests;
 #[cfg(test)]
 mod tests_identity;
+#[cfg(test)]
+mod tests_lists;
 mod view_dead;
 mod view_duplicates;
 mod view_obsidian;

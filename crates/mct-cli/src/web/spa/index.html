@@ -67,7 +67,7 @@
     <p x-show="noOrphans" x-text="L.noOrphans"></p>
     <template x-for="row in orphans" :key="row.key">
       <article class="rounded-xl border border-line bg-panel p-4">
-        <p x-text="row.label"></p><p x-text="row.reason"></p>
+        <p x-text="row.label"></p><p class="text-mute" x-text="row.when"></p><p x-text="row.reason"></p>
         <button type="button" :data-v="row.key" @click="inspectOrphan" class="rounded-md border border-line px-3 py-2" x-text="L.inspectOrphan"></button>
         <button type="button" :data-v="row.key" @click="deleteOrphan" class="rounded-md border border-line px-3 py-2" x-text="L.deleteDecision"></button>
       </article>

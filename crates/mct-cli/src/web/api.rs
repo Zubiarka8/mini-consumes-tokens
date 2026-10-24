@@ -68,22 +68,45 @@ fn snapshot(site: &Site) -> anyhow::Result<String> {
     ))
 }
 
-fn pinned_snapshot(req: &Req<'_>) -> Result<String, Response> {
+/// What a pinned read must not see change underneath it.
+#[derive(Clone, Copy)]
+enum Pin {
+    /// Paged lists: the analysis and every review write (status filters and
+    /// counts depend on both).
+    Everything,
+    /// Source chunks: only the analysis. A review saved meanwhile cannot
+    /// change indexed source, so it must not invalidate the code being read.
+    Analysis,
+}
+
+/// The analysis part of a snapshot token, `<index stamp>.<generated>`.
+fn analysis_generation(token: &str) -> &str {
+    token.rsplitn(3, '.').nth(2).unwrap_or(token)
+}
+
+fn same_generation(pin: Pin, wanted: &str, current: &str) -> bool {
+    match pin {
+        Pin::Everything => wanted == current,
+        Pin::Analysis => analysis_generation(wanted) == analysis_generation(current),
+    }
+}
+
+fn pinned_snapshot(req: &Req<'_>, pin: Pin) -> Result<String, Response> {
     let token = snapshot(req.site).map_err(|_| Response::error(500))?;
     if req
         .params
         .get("snapshot")
         .filter(|wanted| !wanted.is_empty())
-        .is_some_and(|wanted| wanted != &token)
+        .is_some_and(|wanted| !same_generation(pin, wanted, &token))
     {
         return Err(Response::error(409));
     }
     Ok(token)
 }
 
-fn stable_response(site: &Site, token: &str, value: Value) -> Response {
+fn stable_response(site: &Site, token: &str, pin: Pin, value: Value) -> Response {
     match snapshot(site) {
-        Ok(current) if current == token => json_response(&value),
+        Ok(current) if same_generation(pin, token, &current) => json_response(&value),
         Ok(_) => Response::error(409),
         Err(_) => Response::error(500),
     }
@@ -190,15 +213,16 @@ fn page(req: &Req<'_>) -> Result<(usize, usize), Response> {
 
 fn duplicates(req: &Req<'_>) -> Response {
     let site = req.site;
-    let token = match pinned_snapshot(req) {
+    let only = req.params.get("id").map(String::as_str);
+    let full = only.is_some() && req.param("full") == "1";
+    let pin = if full { Pin::Analysis } else { Pin::Everything };
+    let token = match pinned_snapshot(req, pin) {
         Ok(token) => token,
         Err(response) => return response,
     };
     if !valid_filter(req.param("status")) {
         return Response::error(400);
     }
-    let only = req.params.get("id").map(String::as_str);
-    let full = only.is_some() && req.param("full") == "1";
     let (offset, limit) = match page(req) {
         Ok(page) => page,
         Err(response) => return response,
@@ -274,13 +298,14 @@ fn duplicates(req: &Req<'_>) -> Response {
     stable_response(
         site,
         &token,
+        pin,
         json!({"total":filtered.len(),"offset":offset,"limit":limit,"snapshot":token,"counts":counts,"items":items}),
     )
 }
 
 fn dead(req: &Req<'_>) -> Response {
     let site = req.site;
-    let token = match pinned_snapshot(req) {
+    let token = match pinned_snapshot(req, Pin::Everything) {
         Ok(token) => token,
         Err(response) => return response,
     };
@@ -326,6 +351,7 @@ fn dead(req: &Req<'_>) -> Response {
     stable_response(
         site,
         &token,
+        Pin::Everything,
         json!({"total":filtered.len(),"offset":offset,"limit":limit,"snapshot":token,"counts":counts,"items":items}),
     )
 }
@@ -333,7 +359,7 @@ fn dead(req: &Req<'_>) -> Response {
 /// Stored findings, including retained annotations on restored/orphan identities.
 fn reviews(req: &Req<'_>) -> Response {
     let site = req.site;
-    let token = match pinned_snapshot(req) {
+    let token = match pinned_snapshot(req, Pin::Everything) {
         Ok(token) => token,
         Err(response) => return response,
     };
@@ -413,6 +439,7 @@ fn reviews(req: &Req<'_>) -> Response {
     stable_response(
         site,
         &token,
+        Pin::Everything,
         json!({"total":filtered.len(),"offset":offset,"limit":limit,"snapshot":token,"counts":counts,"items":items}),
     )
 }
