@@ -508,7 +508,7 @@ Decisions and comments are never written to the source files, the index or the
 Obsidian vault, and no bulk purge or source-deletion operation exists.
 ### `dead-code` / `dead-code --path <path> --language <lang> --output <file>`
 
-Writes a CSV report of dead-code candidates (heuristic: symbols with zero indexed references) to `.mct-index/dead-code-report.csv` — one row per candidate with its file, function name, kind, language, and start/end line. Optionally narrowed to a file/directory/crate and/or language, and written to a custom path instead of the default.
+Writes a CSV report of dead-code candidates (heuristic: symbols with zero indexed references) to `.mct-index/dead-code-report.csv` — one row per candidate with its file, function name, kind, language, and start/end line. Optionally narrowed to a file/directory/crate and/or language, and written to a custom path instead of the default. Omits unchanged candidates saved as false positive or ignored in the `web` dashboard; `--include-reviewed` writes the raw candidates.
 
 ```sh
 mct-cli --root . dead-code
@@ -519,16 +519,34 @@ mct-cli --root . dead-code --path src/services --language python --output dead-c
 <summary>Full output</summary>
 
 ```
-Write a CSV report of dead-code candidates (heuristic: symbols with zero indexed references) — one row per candidate with its file, function name, kind, language, and start/end line
+Write a CSV report of dead-code candidates (heuristic: symbols with zero indexed references) — one row per candidate with its file, function name, kind, language, and start/end line.
+
+Omits unchanged candidates saved as false positive or ignored in the `web` dashboard; pending, confirmed, edited and ambiguous ones stay. `--include-reviewed` writes the raw candidates for diagnostics.
 
 Usage: mct-cli dead-code [OPTIONS]
 
 Options:
-      --path <PATH>          File, directory, or crate prefix to scan — same matching semantics as `list_symbols`. Omit for the whole project
-      --root <ROOT>          Project root to operate on. Defaults to the current working directory
-      --language <LANGUAGE>  Exact language id to keep (e.g. `rust`, `python`, `go`)
-      --output <OUTPUT>      Where to write the CSV report. Defaults to `<root>/.mct-index/dead-code-report.csv`
-  -h, --help                 Print help
+      --path <PATH>
+          File, directory, or crate prefix to scan — same matching semantics as `list_symbols`. Omit for the whole project
+
+      --root <ROOT>
+          Project root to operate on. Defaults to the current working directory.
+
+          `init` and `call` accept several roots, as a repeated `--root` or a comma-separated `--roots a,b`; every other command takes exactly one.
+
+          [alias: --roots]
+
+      --language <LANGUAGE>
+          Exact language id to keep (e.g. `rust`, `python`, `go`)
+
+      --output <OUTPUT>
+          Where to write the CSV report. Defaults to `<root>/.mct-index/dead-code-report.csv`
+
+      --include-reviewed
+          Include unchanged findings explicitly discarded in the dashboard
+
+  -h, --help
+          Print help (see a summary with '-h')
 ```
 
 </details>
@@ -727,7 +745,7 @@ Reproducible measurements: [token twins evaluation](benchmarks/token-twins.md).
 ```
 Report candidate duplicate functions and methods, as TOON.
 
-Groups functions and methods of the same language whose token sequences are identical once identifiers and literals are normalized (Type-2 clones). Every group is a CANDIDATE for human review: matching structure does not prove the code is redundant or behaves the same. Runs on demand against the existing index and the current files; it never reindexes or migrates the index, so run `init` or `reindex` first. Reuses an exact-input report cache in `.mct-index`; use `--no-cache` to bypass it or `--output FILE` to save the TOON report. Candidates that cannot be analyzed are listed as skipped and mark the report partial. Only languages with a token source are analyzed; the report names the rest.
+Groups functions and methods of the same language whose token sequences are identical once identifiers and literals are normalized (Type-2 clones). Every group is a CANDIDATE for human review: matching structure does not prove the code is redundant or behaves the same. Runs on demand against the existing index and the current files; it never reindexes or migrates the index, so run `init` or `reindex` first. Omits unchanged groups saved as false positive or ignored in the `web` dashboard before counting and paging; `--include-reviewed` keeps them. Reuses an exact-input report cache in `.mct-index` only while no dashboard review state exists; use `--no-cache` to bypass it or `--output FILE` to save the TOON report. Candidates that cannot be analyzed are listed as skipped and mark the report partial. Only languages with a token source are analyzed; the report names the rest.
 
 Usage: mct-cli duplicates [OPTIONS]
 
@@ -744,6 +762,9 @@ Options:
 
       --no-cache
           Skip reading or writing the duplicate-report cache
+
+      --include-reviewed
+          Include unchanged findings explicitly discarded in the dashboard
 
       --min-lines <MIN_LINES>
           Minimum source-token-bearing lines per candidate

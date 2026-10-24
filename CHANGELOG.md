@@ -20,6 +20,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cannot resurrect a legacy dismissal.
 - Dashboard lists use bounded filtered pages pinned to one snapshot. Long source
   comparisons expose truncation and provide source-page navigation.
+- Dashboard comment writes are now refused with 409 on a stale snapshot, like
+  every other review write. Per-file duplicate labels are marked
+  `scope: file_label`, can carry the group fingerprint, and never change the
+  group verdict; the copy label reads "Ignore this copy". Restored Pending rows
+  have their own 100,000-row bound matching the AI-facing reader.
+- MCP `find_dead_code`, CLI `dead-code` and the dashboard resolve same-name
+  dead-code identities through one shared resolver and the same saved inputs, so
+  a decision saved before identity provenance existed, or a retained sibling
+  reopened by a note, can no longer make AI outputs disagree with the dashboard.
+- The SPA keeps a pending decision draft current after its own file-label save,
+  no longer reports a false conflict after a poll during an in-flight save, says
+  when a list restarted because results changed, and flags partial source copies.
+  Full-source chunk reads are no longer invalidated by unrelated review writes.
+  Duplicate AI prompts list per-copy working labels apart from the finding
+  decision; orphan rows show their saved status and date.
 
 - Dashboard review decisions now follow symbol/block text: unrelated file edits
   and line moves keep decisions, while changed text or unverifiable source asks

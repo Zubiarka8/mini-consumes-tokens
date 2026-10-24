@@ -170,6 +170,18 @@ returns HTTP 409 without replacing the decision. Revisions are checked atomicall
 inside the same `BEGIN IMMEDIATE` transaction as the mutation, and increase
 monotonically across delete/recreate. Comments and file-label changes also advance
 the finding revision so an old orphan-delete request cannot archive newer notes.
+Every dashboard write (decisions, file labels, orphan deletions and comments) is
+refused with 409 while the served snapshot is older than the index on disk; the
+check runs once for every JSON write route.
+
+Per-file duplicate labels are working notes. `api/finding` `files[]` entries and
+`api/file-review` responses carry `scope: "file_label"`, and the latter also
+returns the unchanged `finding_state`; a group is dismissed only by a finding
+decision. `api/file-review` accepts an optional `fingerprint` (the group the
+editor saw): a mismatch or unverifiable source returns 409. The fingerprint is
+checked but not stored, and file labels still have no history. After its own
+label save the SPA adopts the returned `finding_revision` for a pending decision
+draft only when it is exactly one step ahead, so a foreign write still conflicts.
 
 Version and deletion metadata use the existing `meta` table, requiring no index
 or dashboard schema change. Keys include `review_revision:<kind>:<identity>`,
@@ -177,7 +189,9 @@ or dashboard schema change. Keys include `review_revision:<kind>:<identity>`,
 `review_archived:<kind>:<identity>`. Explicit deletion persistently suppresses
 legacy fallback while retaining history/annotations. New annotations can make
 retained state discoverable again without reinstating an old legacy verdict.
-Restored Pending rows do not consume the active-decision quota.
+Restored Pending rows do not consume the active-decision quota; active and
+restored rows are each bounded at 100,000, matching the AI-facing reader, and
+the bound is checked only when a row moves into a category.
 
 The SPA retains file and finding drafts by identity/path. Saving a captured draft
 clears only that draft generation; typing during its request survives. Navigation
@@ -192,8 +206,12 @@ Finding and orphan lists use server-side `q`/`status` filtering and bounded
 `offset`/`limit` pages (SPA page size 50; API maximum 200). Responses include counts
 and a `snapshot` token that pins analysis plus user-state generation. A stale
 requested token returns 409; the client restarts the page instead of appending
-another generation. The browser loads the visible page rather than preloading
-all findings after every version change.
+another generation and tells the user the results restarted. The browser loads
+the visible page rather than preloading all findings after every version change.
+Full-source chunk reads (`duplicates?id=...&full=1`) are pinned only to the
+analysis generation (`<index stamp>.<generated>`): a review write cannot change
+indexed source, so it does not invalidate a chunk being read. Copying a partial
+chunk says that only the visible chunk was copied.
 
 `api/duplicates?id=...&full=1` returns a bounded source chunk, not a promise of
 unbounded source: `source_offset` is relative to each member, `source_limit` is
@@ -221,9 +239,14 @@ unverifiable and cannot inherit a valid dismissal.
 Pre-provenance decisions use bounded ordinal recovery (256 ordinals per base,
 65,536 total recovery lookups); outside that bound they remain conservative new
 or reevaluation work rather than receiving an unproven dismissal. Bindings are
-written only when their fingerprint still matches the saved decision. The
-read-only AI path uses the same provenance to avoid returning an unchanged
-previously discarded sibling.
+written only when their fingerprint still matches the saved decision.
+Identities are resolved only by `mct_index::dead_identity::resolve_dead_identities`,
+fed by the same `ReviewSnapshot` inputs for the dashboard and for MCP/CLI:
+identity bindings plus every retained dead identity (decision rows, else the
+newest history fingerprint, else annotation-only identities, minus archived or
+deleted-and-not-reopened ones). Each same-name family is resolved in source
+order, so a pre-provenance decision is recovered identically before any
+dashboard load, and ambiguous matches stay uncertain everywhere.
 
 Adding a member to a duplicate group still creates a different group identity.
 A verdict on A+B must not automatically dismiss the new A+C/B+C relationships.
