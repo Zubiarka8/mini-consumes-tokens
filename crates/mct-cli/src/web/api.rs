@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 use super::render::{Req, Response};
 use super::reviews::{self, Kind, Record, State};
 use super::stats::Bucket;
-use super::{index_stamp, now, source, store, view_obsidian, Site};
+use super::{index_stamp, now, source, store, view_dead, view_obsidian, Site};
 
 const DEFAULT_LIMIT: usize = 50;
 const MAX_LIMIT: usize = 200;
@@ -211,6 +211,19 @@ fn page(req: &Req<'_>) -> Result<(usize, usize), Response> {
     ))
 }
 
+/// `source_offset` (default 0) and `source_limit` (default and maximum 400)
+/// of a full-source request; both must be plain numbers.
+fn source_page(req: &Req<'_>) -> Result<(u32, u32), Response> {
+    let number = |key: &str, default: u32| match req.params.get(key) {
+        None => Ok(default),
+        Some(value) => value.parse::<u32>().map_err(|_| Response::error(400)),
+    };
+    Ok((
+        number("source_offset", 0)?,
+        number("source_limit", 400)?.clamp(1, 400),
+    ))
+}
+
 fn duplicates(req: &Req<'_>) -> Response {
     let site = req.site;
     let only = req.params.get("id").map(String::as_str);
@@ -227,17 +240,9 @@ fn duplicates(req: &Req<'_>) -> Response {
         Ok(page) => page,
         Err(response) => return response,
     };
-    let parse_source = |key: &str, default: u32| match req.params.get(key) {
-        None => Ok(default),
-        Some(value) => value.parse::<u32>().map_err(|_| Response::error(400)),
-    };
-    let source_offset = match parse_source("source_offset", 0) {
-        Ok(n) => n,
-        Err(r) => return r,
-    };
-    let source_limit = match parse_source("source_limit", 400) {
-        Ok(n) => n.clamp(1, 400),
-        Err(r) => return r,
+    let (source_offset, source_limit) = match source_page(req) {
+        Ok(page) => page,
+        Err(response) => return response,
     };
     let query = req.param("q").to_lowercase();
     let candidates: Vec<_> = site
@@ -303,9 +308,15 @@ fn duplicates(req: &Req<'_>) -> Response {
     )
 }
 
+/// Dead-code candidates. With `id` and `full=1`, the one candidate also carries
+/// a page of its source plus a few context lines, verified against the indexed
+/// revision like a duplicate's full source.
 fn dead(req: &Req<'_>) -> Response {
     let site = req.site;
-    let token = match pinned_snapshot(req, Pin::Everything) {
+    let only = req.params.get("id").map(String::as_str);
+    let full = only.is_some() && req.param("full") == "1";
+    let pin = if full { Pin::Analysis } else { Pin::Everything };
+    let token = match pinned_snapshot(req, pin) {
         Ok(token) => token,
         Err(response) => return response,
     };
@@ -316,25 +327,30 @@ fn dead(req: &Req<'_>) -> Response {
         Ok(page) => page,
         Err(response) => return response,
     };
+    let (source_offset, source_limit) = match source_page(req) {
+        Ok(page) => page,
+        Err(response) => return response,
+    };
     let query = req.param("q").to_lowercase();
     let candidates: Vec<_> = site
         .dead
         .iter()
         .enumerate()
         .filter(|(_, d)| {
-            query.is_empty()
-                || [
-                    &d.entry.name,
-                    &d.entry.relative_path,
-                    &d.entry.kind,
-                    &d.entry.language,
-                ]
-                .iter()
-                .any(|v| v.to_lowercase().contains(&query))
-                || d.entry
-                    .parent
-                    .as_ref()
-                    .is_some_and(|p| p.to_lowercase().contains(&query))
+            only.is_none_or(|wanted| d.identity == wanted)
+                && (query.is_empty()
+                    || [
+                        &d.entry.name,
+                        &d.entry.relative_path,
+                        &d.entry.kind,
+                        &d.entry.language,
+                    ]
+                    .iter()
+                    .any(|v| v.to_lowercase().contains(&query))
+                    || d.entry
+                        .parent
+                        .as_ref()
+                        .is_some_and(|p| p.to_lowercase().contains(&query)))
         })
         .map(|(id, d)| (d, site.dead_state(id)))
         .collect();
@@ -343,15 +359,44 @@ fn dead(req: &Req<'_>) -> Response {
         .iter()
         .filter(|(_, state)| matches_status(state, req.param("status")))
         .collect();
-    let items:Vec<Value> = filtered.iter().skip(offset).take(limit).map(|(d,state)| json!({
-        "identity":d.identity,"fingerprint":d.fingerprint,"revision":site.reviews.decision_revision(Kind::Dead,&d.identity).unwrap_or(0),
-        "name":d.entry.name,"kind":d.entry.kind,"language":d.entry.language,"path":d.entry.relative_path,
-        "line":d.entry.line,"end_line":d.entry.end_line,"parent":d.entry.parent,"state":state_json(state),
-    })).collect();
+    let items:Vec<Value> = filtered.iter().skip(offset).take(limit).map(|(d,state)| {
+        let entry = &d.entry;
+        let end = entry.end_line.unwrap_or(entry.line).max(entry.line);
+        let mut item = json!({
+            "identity":d.identity,"fingerprint":d.fingerprint,"revision":site.reviews.decision_revision(Kind::Dead,&d.identity).unwrap_or(0),
+            "name":entry.name,"kind":entry.kind,"language":entry.language,"path":entry.relative_path,
+            "line":entry.line,"end_line":entry.end_line,"parent":entry.parent,"state":state_json(state),
+            "line_count":end - entry.line + 1,
+            "cautions":view_dead::caution_codes(&entry.language,&entry.relative_path,&entry.kind),
+        });
+        if full {
+            let window = site.navigation.files.iter().find(|f| f.relative_path == entry.relative_path)
+                .and_then(|file| source::indexed_window(&site.root, &entry.relative_path, &file.content_hash,
+                    (entry.line, end), (source_offset, source_limit)));
+            let total = window.as_ref().map_or(0, |w| w.last - w.first + 1);
+            let returned = window.as_ref().map_or(0, |w| w.lines.len() as u32);
+            let next = source_offset.saturating_add(returned);
+            let next_offset = (returned > 0 && next < total).then_some(next);
+            if let Value::Object(map) = &mut item {
+                map.extend([
+                    ("excerpt".to_string(), json!(window.as_ref().map_or(&Vec::new(), |w| &w.lines))),
+                    ("excerpt_first".to_string(), json!(window.as_ref().map_or(entry.line, |w| w.page_first))),
+                    ("window_first".to_string(), json!(window.as_ref().map(|w| w.first))),
+                    ("window_last".to_string(), json!(window.as_ref().map(|w| w.last))),
+                    ("excerpt_available".to_string(), json!(window.is_some())),
+                    ("excerpt_truncated".to_string(), json!(source_offset > 0 || next_offset.is_some())),
+                    ("source_offset".to_string(), json!(source_offset)),
+                    ("source_next_offset".to_string(), json!(next_offset)),
+                    ("source_total".to_string(), json!(total)),
+                ]);
+            }
+        }
+        item
+    }).collect();
     stable_response(
         site,
         &token,
-        Pin::Everything,
+        pin,
         json!({"total":filtered.len(),"offset":offset,"limit":limit,"snapshot":token,"counts":counts,"items":items}),
     )
 }

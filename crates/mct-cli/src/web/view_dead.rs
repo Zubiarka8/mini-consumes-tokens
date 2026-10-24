@@ -30,15 +30,16 @@ fn kind_label(lang: Lang, kind: &str) -> String {
     }
 }
 
-/// Reasons to doubt a candidate, from rules on its language and path. These are
-/// reminders of what static analysis cannot see, not detector output.
-fn cautions(lang: Lang, language: &str, path: &str, kind: &str) -> Vec<&'static str> {
+/// Reasons to doubt a candidate, from rules on its language and path, as stable
+/// codes the dashboard translates. These are reminders of what static analysis
+/// cannot see, not detector output.
+pub(super) fn caution_codes(language: &str, path: &str, kind: &str) -> Vec<&'static str> {
     let mut out = Vec::new();
     if matches!(
         language,
         "python" | "javascript" | "typescript" | "php" | "ruby" | "lua" | "bash" | "powershell"
     ) {
-        out.push(t(lang, "Lenguaje dinámico: puede usarse por nombre en tiempo de ejecución (reflexión, getattr, importaciones dinámicas)."));
+        out.push("dynamic");
     }
     let file = path.rsplit('/').next().unwrap_or(path);
     if matches!(
@@ -48,13 +49,25 @@ fn cautions(lang: Lang, language: &str, path: &str, kind: &str) -> Vec<&'static 
         || path.contains("/examples/")
         || path.starts_with("examples/")
     {
-        out.push(t(lang, "Archivo de entrada o de exportación: puede formar parte de una API pública o de un punto de entrada."));
+        out.push("entry");
     }
     if matches!(kind, "class" | "interface" | "trait" | "struct" | "enum") {
-        out.push(t(lang, "Un tipo puede usarse solo por herencia, serialización o inyección de dependencias, que el índice no resuelve."));
+        out.push("type");
     }
-    out.push(t(lang, "Código generado, referencias desde otros lenguajes o desde otros repositorios tampoco se ven en el índice."));
+    out.push("unseen");
     out
+}
+
+fn cautions(lang: Lang, language: &str, path: &str, kind: &str) -> Vec<&'static str> {
+    caution_codes(language, path, kind)
+        .into_iter()
+        .map(|code| match code {
+            "dynamic" => t(lang, "Lenguaje dinámico: puede usarse por nombre en tiempo de ejecución (reflexión, getattr, importaciones dinámicas)."),
+            "entry" => t(lang, "Archivo de entrada o de exportación: puede formar parte de una API pública o de un punto de entrada."),
+            "type" => t(lang, "Un tipo puede usarse solo por herencia, serialización o inyección de dependencias, que el índice no resuelve."),
+            _ => t(lang, "Código generado, referencias desde otros lenguajes o desde otros repositorios tampoco se ven en el índice."),
+        })
+        .collect()
 }
 
 pub(super) fn list(req: &Req<'_>) -> Response {

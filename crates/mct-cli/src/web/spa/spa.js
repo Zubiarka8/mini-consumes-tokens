@@ -48,6 +48,19 @@ const I18N = {
     closeTab: 'Cerrar pestaña', closeFile: 'Cerrar archivo', notFound: 'Este duplicado ya no existe en el índice.',
     soloFile: 'Solo este archivo', openAll: 'Abrir todos', closeAll: 'Cerrar todo', noneOpen: 'No hay archivos abiertos: elige uno de la lista o pulsa «Abrir todos».', toggleFiles: 'Lista de archivos', toggleAside: 'Panel lateral',
     activeFile: 'Archivo activo',
+    openHintDead: 'Pulsa un candidato para abrirlo en una pestaña nueva, como un editor de código.',
+    editorTitleDead: 'Editor de código muerto', prevDead: 'Candidato anterior', nextDead: 'Candidato siguiente',
+    notFoundDead: 'Este candidato ya no existe en el índice.', deadWord: 'Código muerto',
+    showSymbol: 'Símbolo', showContext: 'Contexto', symbol: 'Símbolo', kind: 'Tipo', language: 'Lenguaje',
+    parent: 'Dentro de', location: 'Ubicación', noRefs: 'Sin referencias', noRefsTitle: 'Ninguna relación indexada apunta a este nombre',
+    legendDead: 'Línea del símbolo sin referencias', legendCtx: 'Contexto alrededor (±3 líneas)',
+    beforeDelete: 'Antes de borrarlo', pCautions: 'Lo que este análisis no ve:',
+    caution: {
+      dynamic: 'Lenguaje dinámico: puede usarse por nombre en tiempo de ejecución (reflexión, getattr, importaciones dinámicas).',
+      entry: 'Archivo de entrada o de exportación: puede formar parte de una API pública o de un punto de entrada.',
+      type: 'Un tipo puede usarse solo por herencia, serialización o inyección de dependencias, que el índice no resuelve.',
+      unseen: 'Código generado, referencias desde otros lenguajes o desde otros repositorios tampoco se ven en el índice.',
+    },
     aiTitle: 'Plantilla para IA', aiCopy: 'Copiar plantilla', aiHint: 'Pégala en tu asistente: lleva ubicaciones, líneas y la tarea.',
     pDupIntro: 'Contexto: el análisis de MCT ha detectado código duplicado ({n} archivos, {lines} líneas, {tokens} tokens, lenguaje {lang}).',
     pDeadIntro: 'Contexto: el análisis de MCT marca `{name}` ({kind}, {lang}{parent}) como posible código muerto: no tiene referencias indexadas.',
@@ -111,6 +124,19 @@ const I18N = {
     closeTab: 'Close tab', closeFile: 'Close file', notFound: 'This duplicate is no longer in the index.',
     soloFile: 'Only this file', openAll: 'Open all', closeAll: 'Close all', noneOpen: 'No files open: pick one from the list or press “Open all”.', toggleFiles: 'File list', toggleAside: 'Side panel',
     activeFile: 'Active file',
+    openHintDead: 'Click a candidate to open it in a new tab, like a code editor.',
+    editorTitleDead: 'Dead code editor', prevDead: 'Previous candidate', nextDead: 'Next candidate',
+    notFoundDead: 'This candidate is no longer in the index.', deadWord: 'Dead code',
+    showSymbol: 'Symbol', showContext: 'Context', symbol: 'Symbol', kind: 'Kind', language: 'Language',
+    parent: 'Inside', location: 'Location', noRefs: 'No references', noRefsTitle: 'No indexed relation points at this name',
+    legendDead: 'Unreferenced symbol line', legendCtx: 'Surrounding context (±3 lines)',
+    beforeDelete: 'Before deleting it', pCautions: 'What this analysis cannot see:',
+    caution: {
+      dynamic: 'Dynamic language: it may be used by name at run time (reflection, getattr, dynamic imports).',
+      entry: 'Entry or export file: it may be part of a public API or an entry point.',
+      type: 'A type may be used only through inheritance, serialization or dependency injection, which the index does not resolve.',
+      unseen: 'Generated code and references from other languages or other repositories are not visible in the index either.',
+    },
     aiTitle: 'AI prompt template', aiCopy: 'Copy template', aiHint: 'Paste it into your assistant: it carries locations, lines and the task.',
     pDupIntro: 'Context: the MCT analysis found duplicate code ({n} files, {lines} lines, {tokens} tokens, language {lang}).',
     pDeadIntro: 'Context: the MCT analysis flags `{name}` ({kind}, {lang}{parent}) as possible dead code: it has no indexed references.',
@@ -134,8 +160,8 @@ const I18N = {
 
 // A line with every identifier masked (string literals kept), to spot renamed twins.
 const shapeOf = (line) => line.replace(/("[^"]*"|'[^']*')|[A-Za-z_]\w*/g, (m, quoted) => quoted || 'ID');
-const CODE_FILTERS =['all', 'same', 'diff'];
-const CODE_FILTER_KEY = { all: 'showAll', same: 'showSame', diff: 'showDiff' };
+const CODE_FILTERS = { dup: ['all', 'same', 'diff'], dead: ['all', 'symbol', 'context'] };
+const CODE_FILTER_KEY = { all: 'showAll', same: 'showSame', diff: 'showDiff', symbol: 'showSymbol', context: 'showContext' };
 const FONT_MIN = 10;
 const FONT_MAX = 20;
 
@@ -349,9 +375,10 @@ document.addEventListener('alpine:init', () => {
     tabs: [],
     closed: [],
     fileStatuses: [],
-    dupFooter: '',
+    editorFooter: '',
+    legend: [],
     panes: [],
-    deadInfo: { name: '', where: '', meta: '' },
+    deadInfo: { facts: [], cautions: [] },
     activeFile: { tag: '', base: '', dir: '', tagCls: '' },
     // obsidian
     cards: [],
@@ -375,12 +402,12 @@ document.addEventListener('alpine:init', () => {
       const id = query.get('id') || '';
       if (query.get('view') === 'editor' && /^[\w.-]{1,128}$/.test(id)) {
         this.editor = true;
-        this.view = 'dup';
+        this.view = query.get('kind') === 'dead' ? 'dead' : 'dup';
         this.sel = id;
         this.pageOffset = Math.max(0, Number(query.get('offset')) || 0);
         this.query = query.get('q') || '';
         this.filter = query.get('status') || 'all';
-        document.title = `${this.t('editorTitle')} · MCT`;
+        document.title = `${this.editorTitle} · MCT`;
       }
       this.reloadAll();
       setInterval(() => this.poll(), POLL_MS);
@@ -395,8 +422,14 @@ document.addEventListener('alpine:init', () => {
     get L() { return I18N[this.lang]; },
     get fileSelIdx() { return Number(this.fileIdx) || 0; },
     get noRows() { return this.rows.length === 0; },
-    get noSel() { return !this.editor && (this.sel === '' || this.view === 'dup'); },
-    get pickText() { return this.view === 'dup' ? this.t('openHint') : this.t('pick'); },
+    get noSel() { return !this.editor; },
+    get pickText() { return this.t(this.view === 'dup' ? 'openHint' : 'openHintDead'); },
+    get isDup() { return this.view === 'dup'; },
+    get isDead() { return this.view === 'dead'; },
+    get editorTitle() { return this.t(this.isDead ? 'editorTitleDead' : 'editorTitle'); },
+    get prevLabel() { return this.t(this.isDead ? 'prevDead' : 'prevDup'); },
+    get nextLabel() { return this.t(this.isDead ? 'nextDead' : 'nextDup'); },
+    get notFoundText() { return this.t(this.isDead ? 'notFoundDead' : 'notFound'); },
     get showOrphans() { return this.view === 'orphans'; },
     get noOrphans() { return this.orphans.length === 0; },
     get hasOrphanInfo() { return this.orphanInfoRows.length > 0; },
@@ -404,7 +437,7 @@ document.addEventListener('alpine:init', () => {
     get nextDisabled() { return this.pageLoading || this.pageOffset + PAGE >= this.pageTotal; },
     get sourcePreviousDisabled() { return this.sourceLoading || this.sourceOffset === 0; },
     get sourceNextDisabled() { return this.sourceLoading || !this.sourceHasNext; },
-    get showReview() { return Boolean(this.selItem) && (this.showDead || this.showDup); },
+    get showReview() { return Boolean(this.selItem) && this.showEditor; },
     get reviewSaveDisabled() { return this.reviewSaving || !this.reviewFingerprint; },
     get hasConflict() { return this.reviewConflict || this.fileConflict; },
     get hasDrafts() { return this.fileDirty || this.reviewDirty || Object.keys(this.drafts).length > 0 || Object.keys(this.findingDrafts).length > 0; },
@@ -416,7 +449,7 @@ document.addEventListener('alpine:init', () => {
     get filesBtnCls() { return this.showFiles ? FILTER_ON : FILTER_OFF; },
     get asideBtnCls() { return this.showAside ? FILTER_ON : FILTER_OFF; },
     get hasClosed() { return this.closed.length > 0; },
-    get canCloseAll() { return this.tabs.length > 0; },
+    get canCloseAll() { return this.isDup && this.tabs.length > 0; },
     get noneOpen() { return this.tabs.length === 0 && this.closed.length > 0; },
     get showToolbar() { return this.editor && !this.missing; },
     get showMain() { return this.findings && !this.gone; },
@@ -436,8 +469,8 @@ document.addEventListener('alpine:init', () => {
     get project() { return this.summary ? this.summary.project : ''; },
     get snapshotAt() { return this.summary ? this.fmt(this.summary.snapshot_at) : ''; },
     get findings() { return this.view === 'dup' || this.view === 'dead'; },
-    get showDup() { return Boolean(this.selItem) && this.view === 'dup' && this.editor; },
-    get showDead() { return Boolean(this.selItem) && this.view === 'dead'; },
+    // Duplicates and dead code share the editor tab; only a few panels differ.
+    get showEditor() { return Boolean(this.selItem) && this.findings && this.editor; },
     get listTitle() { return this.view === 'dup' ? this.t('dupTitle') : this.t('deadTitle'); },
     isView(name) { return this.view === name; },
 
@@ -646,7 +679,7 @@ document.addEventListener('alpine:init', () => {
       const pane = this.panes[this.fileSelIdx];
       const item = this.selItem;
       if (!pane || !item) return;
-      const text = excerptLines(item.members[pane.idx]).join('\n');
+      const text = (this.isDup ? excerptLines(item.members[pane.idx]) : pane.rows.filter((r) => r.own).map((r) => r.s)).join('\n');
       try {
         await navigator.clipboard.writeText(text);
         this.flash(this.t(this.sourcePartial ? 'copiedPartial' : 'copied'));
@@ -658,18 +691,19 @@ document.addEventListener('alpine:init', () => {
     nextDup() { this.stepDup(1); },
     async stepDup(delta) {
       this.stashFileDraft(); this.stashReviewDraft();
-      let at = this.dups.findIndex((d) => d.identity === this.sel);
-      let next = this.dups[at + delta];
+      let at = this.items().findIndex((d) => d.identity === this.sel);
+      let next = this.items()[at + delta];
       if (!next) {
         const offset = this.pageOffset + (delta > 0 ? PAGE : -PAGE);
         if (offset < 0 || offset >= this.pageTotal) return;
         this.pageOffset = offset;
         await this.loadPage();
-        next = delta > 0 ? this.dups[0] : this.dups[this.dups.length - 1];
+        const page = this.items();
+        next = delta > 0 ? page[0] : page[page.length - 1];
       }
       if (!next) return;
       this.openFinding(next.identity);
-      window.history.replaceState(null, '', `app?view=editor&id=${encodeURIComponent(next.identity)}&offset=${this.pageOffset}`);
+      window.history.replaceState(null, '', `app?view=editor&kind=${this.view}&id=${encodeURIComponent(next.identity)}&offset=${this.pageOffset}`);
       await this.loadDetail();
     },
     closeTab() {
@@ -703,8 +737,8 @@ document.addEventListener('alpine:init', () => {
     // ---- detail / review ----------------------------------------------
     select(event) {
       const id = dataOf(event);
-      if (this.view === 'dup' && !this.editor) {
-        const query = new URLSearchParams({ view: 'editor', id, offset: this.pageOffset, q: this.query, status: this.filter });
+      if (!this.editor) {
+        const query = new URLSearchParams({ view: 'editor', kind: this.view, id, offset: this.pageOffset, q: this.query, status: this.filter });
         const tab = window.open(`app?${query}`, '_blank');
         if (tab) tab.opener = null;
         else window.location.href = `app?${query}`;
@@ -730,17 +764,20 @@ document.addEventListener('alpine:init', () => {
       const params = { id, full: 1, source_offset: this.sourceOffset, source_limit: SOURCE_PAGE };
       if (this.pageSnapshot) params.snapshot = this.pageSnapshot;
       try {
-        const data = await getPage('api/duplicates', params);
+        const data = await getPage(this.isDup ? 'api/duplicates' : 'api/dead', params);
         if (request !== this.sourceRequest || this.sel !== id) return false;
         const full = data.items[0];
         if (!full) { this.missing = true; return false; }
-        const at = this.dups.findIndex((item) => item.identity === id);
-        if (at >= 0) this.dups[at] = full;
+        const list = this.items();
+        const at = list.findIndex((item) => item.identity === id);
+        if (at >= 0) list[at] = full;
         this.selItem = full;
         this.missing = false;
-        this.sourceHasNext = full.members.some((m) => m.source_next_offset !== null && m.source_next_offset !== undefined);
-        this.sourcePartial = this.sourceOffset > 0 || full.members.some((m) => m.excerpt_truncated);
-        this.sourceUnavailable = full.members.some((m) => m.excerpt_available === false);
+        // A duplicate pages every copy at once; a dead candidate is one window.
+        const parts = this.isDup ? full.members : [full];
+        this.sourceHasNext = parts.some((m) => m.source_next_offset !== null && m.source_next_offset !== undefined);
+        this.sourcePartial = this.sourceOffset > 0 || parts.some((m) => m.excerpt_truncated);
+        this.sourceUnavailable = parts.some((m) => m.excerpt_available === false);
         this.rebuildDetail();
         return !this.sourceUnavailable;
       } catch (error) {
@@ -784,7 +821,7 @@ document.addEventListener('alpine:init', () => {
           this.selItem.revision = data.revision;
           this.selItem.fingerprint = data.fingerprint;
         }
-        if (kind === 'duplicate' && !await this.loadFullCode(id)) return false;
+        if (this.editor && !await this.loadFullCode(id)) return false;
         if (request !== this.detailRequest || id !== this.sel) return false;
         this.syncFile();
         this.syncReview();
@@ -1080,30 +1117,68 @@ document.addEventListener('alpine:init', () => {
           return {
             idx, tag: tags[idx], path: m.path, rows, empty: rows.length === 0,
             lines: `${m.start_line}–${m.end_line} · ${m.line_count} ${this.t('lines')}`,
-            similarity: `${total ? Math.round((same * 100) / total) : 0}%`,
+            similarity: `${total ? Math.round((same * 100) / total) : 0}%`, simCls: 'bg-ok/15 text-ok', simTitle: this.t('similarity'),
             cls: idx === picked ? 'border-brand ring-1 ring-brand' : 'border-line',
             tagCls: idx === picked ? 'bg-brand text-white' : 'bg-line text-mute',
             multi: item.members.length - closed.length > 1,
           };
         }).filter((p) => !closed.includes(p.idx));
         this.promptText = this.dupPrompt(item, tags);
-        this.codeFilters = CODE_FILTERS.map((key) => ({
-          key, label: this.t(CODE_FILTER_KEY[key]), cls: key === this.codeFilter ? FILTER_ON : FILTER_OFF,
-        }));
-        this.dupFooter = `${this.t('dupWord')} #${this.pageOffset + Math.max(0, this.dups.findIndex((d) => d.identity === item.identity)) + 1} ${this.t('ofWord')} ${this.pageTotal} ·${item.line_count} ${this.t('lines')} · ${item.members.length} ${this.t('filesWord')}`;
+        this.editorFooter = `${this.t('dupWord')} #${this.findingNumber(item)} ${this.t('ofWord')} ${this.pageTotal} · ${item.line_count} ${this.t('lines')} · ${item.members.length} ${this.t('filesWord')}`;
+        this.legend = [['sw-same', 'legendSame'], ['sw-ren', 'legendRen'], ['sw-diff', 'legendDiff']];
         this.fileStatuses = Object.keys(FILE_STATUS).map((key) => ({
           key, label: this.t(FILE_STATUS[key]), on: key === this.fileStatus,
           cls: key === this.fileStatus ? FILTER_ON : FILTER_OFF,
           dot: key === this.fileStatus ? 'bg-current' : '',
         }));
-      } else {
-        this.deadInfo = {
-          name: item.name,
-          where: `${item.path}:${item.line}${item.end_line ? `–${item.end_line}` : ''}`,
-          meta: [item.kind, item.language, item.parent].filter(Boolean).join(' · '),
-        };
-        this.promptText = this.deadPrompt(item);
-      }
+      } else this.rebuildDead(item);
+      this.legend = this.legend.map(([cls, key]) => ({ key, cls, label: this.t(key) }));
+      this.codeFilters = CODE_FILTERS[this.view].map((key) => ({
+        key, label: this.t(CODE_FILTER_KEY[key]), cls: key === this.codeFilter ? FILTER_ON : FILTER_OFF,
+      }));
+    },
+    // Position of a finding in the whole filtered list, 1-based.
+    findingNumber(item) {
+      return this.pageOffset + Math.max(0, this.items().findIndex((d) => d.identity === item.identity)) + 1;
+    },
+    // A dead candidate in the editor: one pane, its own lines marked, the context dimmed.
+    rebuildDead(item) {
+      const end = Math.max(item.end_line || item.line, item.line);
+      const tag = item.kind;
+      const mode = this.codeFilter;
+      const needle = this.codeQuery.trim().toLowerCase();
+      const rows = [];
+      excerptLines(item).forEach((s, n) => {
+        const at = (item.excerpt_first || item.line) + n;
+        const own = at >= item.line && at <= end;
+        if (mode === 'symbol' && !own) return;
+        if (mode === 'context' && own) return;
+        if (needle && !s.toLowerCase().includes(needle)) return;
+        rows.push({ n: at, s, own, cls: own ? 'row-dead' : 'opacity-50' });
+      });
+      const where = `${item.path}:${item.line}${end > item.line ? `–${end}` : ''}`;
+      const file = {
+        idx: 0, path: item.path, base: baseName(item.path), dir: dirOf(item.path), tag, closable: false,
+        tabCls: 'border-brand border-t-2 bg-panel text-ink', tagCls: 'bg-brand text-white',
+      };
+      this.fileRows = [];
+      this.tabs = [file];
+      this.panes = this.selItem.excerpt === undefined ? [] : [{
+        ...file, rows, empty: rows.length === 0, multi: false,
+        lines: `${item.line}–${end} · ${item.line_count || end - item.line + 1} ${this.t('lines')}`,
+        similarity: this.t('noRefs'), simCls: 'bg-bad/15 text-bad', simTitle: this.t('noRefsTitle'),
+        cls: 'border-brand ring-1 ring-brand',
+      }];
+      this.deadInfo = {
+        facts: [
+          ['symbol', item.name], ['kind', item.kind], ['language', item.language],
+          ['parent', item.parent || ''], ['location', where],
+        ].filter(([, value]) => value).map(([key, value]) => ({ key, label: this.t(key), value })),
+        cautions: (item.cautions || []).map((code) => this.L.caution[code] || code),
+      };
+      this.editorFooter = `${this.t('deadWord')} #${this.findingNumber(item)} ${this.t('ofWord')} ${this.pageTotal} · ${item.line_count || end - item.line + 1} ${this.t('lines')} · ${item.kind}`;
+      this.legend = [['sw-diff', 'legendDead'], ['bg-line', 'legendCtx']];
+      this.promptText = this.deadPrompt(item);
     },
     // Copy-paste brief for an AI assistant: where the code is and what to do with it.
     dupPrompt(item, tags) {
@@ -1122,7 +1197,8 @@ document.addEventListener('alpine:init', () => {
       const intro = fill(this.t('pDeadIntro'), {
         name: item.name, kind: item.kind, lang: item.language, parent: item.parent ? `, ${item.parent}` : '',
       });
-      return this.composePrompt(intro, [`- ${item.path}:${item.line}${end}`], this.findingContext(item), this.findingTasks(item, this.t('pDeadTask')));
+      const cautions = (item.cautions || []).map((code) => `- ${this.L.caution[code] || code}`);
+      return this.composePrompt(intro, [`- ${item.path}:${item.line}${end}`], this.findingContext(item), this.findingTasks(item, this.t('pDeadTask')), cautions, 'pCautions');
     },
     findingContext(item) {
       const state = item.state || { status: 'pending' };
@@ -1135,10 +1211,10 @@ document.addEventListener('alpine:init', () => {
     findingTasks(item, tasks) {
       return ['false_positive', 'ignored'].includes((item.state || {}).status) ? [this.t('pResolved')] : tasks;
     },
-    composePrompt(intro, where, notes, tasks, labels = []) {
+    composePrompt(intro, where, notes, tasks, labels = [], labelsTitle = 'pFileLabels') {
       const parts = [intro, '', this.t('pWhere'), ...where];
       if (notes.length) parts.push('', this.t('pNotes'), ...notes);
-      if (labels.length) parts.push('', this.t('pFileLabels'), ...labels);
+      if (labels.length) parts.push('', this.t(labelsTitle), ...labels);
       parts.push('', this.t('pTask'), ...tasks.map((task, n) => `${n + 1}. ${task}`));
       return parts.join('\n');
     },

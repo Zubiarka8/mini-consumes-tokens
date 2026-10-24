@@ -20,7 +20,7 @@
       <span class="grid h-7 w-7 place-items-center rounded-lg bg-brand text-white"><svg class="icon"><use href="#i-scan-search"></use></svg></span>
       MCT Dashboard
     </div>
-    <span class="rounded-md bg-brand/15 px-2 py-1 font-medium text-brand" x-show="editor" x-text="L.editorTitle"></span>
+    <span class="rounded-md bg-brand/15 px-2 py-1 font-medium text-brand" x-show="editor" x-text="editorTitle"></span>
     <nav class="flex gap-1" aria-label="Secciones" x-show="listMode">
       <template x-for="n in nav" :key="n.view">
         <button type="button" :data-v="n.view" @click="go" class="flex items-center gap-2 rounded-lg px-3 py-2 transition hover:text-ink" :class="n.cls">
@@ -83,11 +83,11 @@
     </article>
   </section>
 
-  <!-- Editor tab: toolbar for one duplicate -->
+  <!-- Editor tab: toolbar for one duplicate or dead-code candidate -->
   <div class="flex flex-wrap items-center gap-2 border-b border-line bg-panel px-4 py-2" x-show="showToolbar">
-    <button type="button" @click="prevDup" class="rounded-md border border-line p-1.5 hover:bg-panel2" :aria-label="L.prevDup" :title="L.prevDup"><svg class="icon"><use href="#i-chevron-left"></use></svg></button>
-    <button type="button" @click="nextDup" class="rounded-md border border-line p-1.5 hover:bg-panel2" :aria-label="L.nextDup" :title="L.nextDup"><svg class="icon"><use href="#i-chevron-right"></use></svg></button>
-    <span class="mr-2 font-medium" x-text="dupFooter"></span>
+    <button type="button" @click="prevDup" class="rounded-md border border-line p-1.5 hover:bg-panel2" :aria-label="prevLabel" :title="prevLabel"><svg class="icon"><use href="#i-chevron-left"></use></svg></button>
+    <button type="button" @click="nextDup" class="rounded-md border border-line p-1.5 hover:bg-panel2" :aria-label="nextLabel" :title="nextLabel"><svg class="icon"><use href="#i-chevron-right"></use></svg></button>
+    <span class="mr-2 font-medium" x-text="editorFooter"></span>
     <span class="text-mute" x-text="L.show"></span>
     <template x-for="f in codeFilters" :key="f.key">
       <button type="button" :data-v="f.key" @click="setCodeFilter" class="rounded-full border px-2.5 py-1 text-[11px] transition" :class="f.cls" x-text="f.label"></button>
@@ -105,7 +105,7 @@
       <button type="button" @click="closeTab" class="flex items-center gap-1 rounded-md border border-line px-2 py-1.5 hover:bg-panel2"><svg class="icon"><use href="#i-x"></use></svg><span x-text="L.closeTab"></span></button>
     </div>
   </div>
-  <p class="p-8 text-center text-mute" x-show="gone" x-text="L.notFound"></p>
+  <p class="p-8 text-center text-mute" x-show="gone" x-text="notFoundText"></p>
 
   <!-- Duplicates and dead code share one layout: list | detail + review -->
   <main class="grid flex-1 gap-3 p-3 lg:min-h-0" :class="mainCls" x-show="showMain">
@@ -167,11 +167,20 @@
         </div>
       </form>
 
-      <div class="space-y-3" x-show="showDup">
+      <div class="space-y-3" x-show="showEditor">
         <div class="grid gap-3" :class="editorCols">
           <div class="rounded-xl border border-line bg-panel p-3 xl:self-start" x-show="showFiles">
-            <h2 class="mb-2 font-semibold" x-text="L.files"></h2>
-            <ul class="space-y-1.5">
+            <h2 class="mb-2 font-semibold" x-show="isDup" x-text="L.files"></h2>
+            <h2 class="mb-2 font-semibold" x-show="isDead" x-text="L.symbol"></h2>
+            <dl class="space-y-1.5" x-show="isDead">
+              <template x-for="f in deadInfo.facts" :key="f.key">
+                <div class="rounded-lg border border-line px-2 py-1.5">
+                  <dt class="text-[10px] uppercase tracking-wide text-mute" x-text="f.label"></dt>
+                  <dd class="break-all font-mono text-[12px] font-medium" x-text="f.value"></dd>
+                </div>
+              </template>
+            </dl>
+            <ul class="space-y-1.5" x-show="isDup">
               <template x-for="f in fileRows" :key="f.idx">
                 <li>
                   <button type="button" :data-v="f.idx" @click="pickFile" class="w-full rounded-lg border px-2 py-1.5 text-left transition hover:bg-panel2" :class="f.cls">
@@ -215,7 +224,7 @@
                       <p class="flex items-center gap-1.5 truncate font-medium"><b class="rounded px-1.5 text-[10px]" :class="p.tagCls" x-text="p.tag"></b> <span class="truncate font-mono" :title="p.path" x-text="p.path"></span></p>
                       <p class="text-[11px] text-mute" x-text="p.lines"></p>
                     </div>
-                    <span class="rounded bg-ok/15 px-1.5 py-0.5 text-[11px] font-medium text-ok" :title="L.similarity" x-text="p.similarity"></span>
+                    <span class="rounded px-1.5 py-0.5 text-[11px] font-medium" :class="p.simCls" :title="p.simTitle" x-text="p.similarity"></span>
                     <button type="button" :data-v="p.idx" @click="soloFile" x-show="p.multi" class="rounded p-1 text-mute hover:bg-panel2 hover:text-ink" :aria-label="L.soloFile" :title="L.soloFile"><svg class="icon"><use href="#i-maximize-2"></use></svg></button>
                   </header>
                   <div class="code-box scroll-thin max-h-[calc(100vh-18rem)] min-h-[16rem] overflow-auto bg-bg/60 py-2 font-mono leading-6">
@@ -230,15 +239,25 @@
               </template>
             </div>
             <div class="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-line bg-panel px-4 py-3 text-base text-mute">
-              <span class="font-semibold text-ink" x-text="dupFooter"></span>
-              <span class="flex items-center gap-2"><i class="sw-same h-4 w-4 rounded"></i><span x-text="L.legendSame"></span></span>
-              <span class="flex items-center gap-2"><i class="sw-ren h-4 w-4 rounded"></i><span x-text="L.legendRen"></span></span>
-              <span class="flex items-center gap-2"><i class="sw-diff h-4 w-4 rounded"></i><span x-text="L.legendDiff"></span></span>
+              <span class="font-semibold text-ink" x-text="editorFooter"></span>
+              <template x-for="l in legend" :key="l.key">
+                <span class="flex items-center gap-2"><i class="h-4 w-4 rounded" :class="l.cls"></i><span x-text="l.label"></span></span>
+              </template>
             </div>
           </div>
 
           <aside class="space-y-3 xl:self-start" x-show="showAside">
-          <form class="space-y-3 rounded-xl border border-line bg-panel p-3" @submit.prevent="saveFile">
+          <div class="space-y-3 rounded-xl border border-line bg-panel p-3" x-show="isDead">
+            <h2 class="flex items-center gap-2 font-semibold"><svg class="icon text-warn"><use href="#i-triangle-alert"></use></svg><span x-text="L.beforeDelete"></span></h2>
+            <p class="rounded-lg bg-info/10 p-3 text-mute" x-text="L.deadHint"></p>
+            <ul class="space-y-1.5">
+              <template x-for="(c, n) in deadInfo.cautions" :key="n">
+                <li class="rounded-lg border border-line px-2 py-1.5 text-[12px] text-mute" x-text="c"></li>
+              </template>
+            </ul>
+            <button type="button" @click="copyPrompt" class="flex items-center gap-1 rounded-md border border-brand px-3 py-1.5 font-medium text-brand hover:bg-brand/10" :title="L.aiHint"><svg class="icon"><use href="#i-sparkles"></use></svg><span x-text="L.aiCopy"></span></button>
+          </div>
+          <form class="space-y-3 rounded-xl border border-line bg-panel p-3" x-show="isDup" @submit.prevent="saveFile">
             <h2 class="font-semibold" x-text="L.fileReview"></h2>
             <p class="text-mute" x-text="L.fileHint"></p>
             <div class="flex items-center gap-2 rounded-lg border border-brand bg-brand/10 px-2 py-1.5" :title="L.activeFile">
@@ -275,17 +294,6 @@
         </div>
       </div>
 
-      <div class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_340px]" x-show="showDead">
-        <div class="rounded-xl border border-line bg-panel p-4">
-          <h2 class="font-mono text-lg font-semibold" x-text="deadInfo.name"></h2>
-          <p class="font-mono text-info" x-text="deadInfo.where"></p>
-          <p class="mt-2 text-mute" x-text="deadInfo.meta"></p>
-          <p class="mt-3 rounded-lg bg-info/10 p-3 text-mute" x-text="L.deadHint"></p>
-        </div>
-        <div class="space-y-2 rounded-xl border border-line bg-panel p-3 xl:self-start">
-          <button type="button" @click="copyPrompt" class="flex items-center gap-1 rounded-md border border-brand px-3 py-1.5 font-medium text-brand hover:bg-brand/10" :title="L.aiHint"><svg class="icon"><use href="#i-sparkles"></use></svg><span x-text="L.aiCopy"></span></button>
-        </div>
-      </div>
     </section>
   </main>
 

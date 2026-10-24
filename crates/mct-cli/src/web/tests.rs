@@ -2146,6 +2146,56 @@ fn full_duplicate_source_is_bounded_explicitly_and_can_be_paged_to_the_end() {
 }
 
 #[test]
+fn a_dead_candidate_in_full_carries_its_verified_source_window_in_pages() {
+    let root = project();
+    let file = root.path().join("src/a.rs");
+    fs::write(
+        &file,
+        format!("// a\n// b\n// c\n// d\npub fn alpha{BODY}// e\n"),
+    )
+    .unwrap();
+    index(root.path());
+    let server = Server::start(root.path(), true);
+    let id = server.dead_id("alpha");
+    let list = api_json(&server.get("api/dead"));
+    let listed = &list["items"].as_array().unwrap()[0];
+    assert!(listed.get("excerpt").is_none(), "the list stays light");
+    assert_eq!(listed["line_count"], 9);
+    assert!(listed["cautions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|code| code == "unseen"));
+    let one = api_json(&server.get(&format!("api/dead?id={id}&full=1")));
+    assert_eq!(one["total"], 1);
+    let item = &one["items"][0];
+    assert_eq!(
+        (item["window_first"].clone(), item["window_last"].clone()),
+        (2.into(), 14.into())
+    );
+    assert_eq!(item["excerpt_first"], 2);
+    assert_eq!(item["excerpt"].as_array().unwrap().len(), 13);
+    assert_eq!(item["excerpt"][3], "pub fn alpha(value: i64) -> i64 {");
+    assert!(item["source_next_offset"].is_null());
+    let token = one["snapshot"].as_str().unwrap();
+    let paged = api_json(&server.get(&format!(
+        "api/dead?id={id}&full=1&source_offset=0&source_limit=5&snapshot={token}"
+    )));
+    assert_eq!(paged["items"][0]["source_next_offset"], 5);
+    assert_eq!(paged["items"][0]["excerpt_truncated"], true);
+    fs::write(&file, "pub fn alpha() {}\n").unwrap();
+    let stale = api_json(&server.get(&format!("api/dead?id={id}&full=1")));
+    assert_eq!(
+        stale["items"][0]["excerpt_available"], false,
+        "never a stale range on new content"
+    );
+    assert!(stale["items"][0]["excerpt"].as_array().unwrap().is_empty());
+    assert!(server
+        .get(&format!("api/dead?id={id}&full=1&source_limit=many"))
+        .starts_with("HTTP/1.1 400"));
+}
+
+#[test]
 fn saved_dead_decisions_survive_sibling_removal_and_are_shared_with_ai_queries() {
     for with_provenance in [false, true] {
         let root = tempfile::tempdir().unwrap();

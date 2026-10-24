@@ -7,10 +7,11 @@
   --brand: 139 92 246; --ok: 34 197 94; --warn: 245 158 11; --bad: 239 68 68; --info: 59 130 246;
   --same: 245 158 11 / 0.16; --diff: 185 28 28 / 0.38; --same-solid: 217 150 30; --diff-solid: 185 28 28;
   --ren: 56 140 246 / 0.22; --ren-solid: 56 140 246;
+  --dead: 239 68 68 / 0.13;
   color-scheme: dark;
 }
 html.light {
-  --same: 217 150 30 / 0.20; --diff: 220 38 38 / 0.24; --same-solid: 217 150 30; --diff-solid: 220 38 38;
+  --same: 217 150 30 / 0.20; --diff: 220 38 38 / 0.24; --dead: 220 38 38 / 0.09; --same-solid: 217 150 30; --diff-solid: 220 38 38;
   --bg: 243 245 250; --panel: 255 255 255; --panel2: 240 243 250; --line: 215 222 236; --ink: 20 27 45; --mute: 100 114 140;
   --brand: 109 62 220; --ok: 22 150 70; --warn: 200 120 0; --bad: 210 40 40; --info: 30 100 220;
   color-scheme: light;
@@ -20,6 +21,8 @@ body { background: rgb(var(--bg)); color: rgb(var(--ink)); }
 .row-same { background: rgb(var(--same)); }
 .row-diff { background: rgb(var(--diff)); box-shadow: inset 3px 0 0 rgb(var(--diff-solid)); }
 .row-ren { background: rgb(var(--ren)); box-shadow: inset 3px 0 0 rgb(var(--ren-solid)); }
+/* a dead-code candidate's own lines: long blocks, so a light tint and the red edge */
+.row-dead { background: rgb(var(--dead)); box-shadow: inset 3px 0 0 rgb(var(--diff-solid)); }
 .sw-ren { background: rgb(var(--ren-solid)); }
 .sw-same { background: rgb(var(--same-solid)); }
 .sw-diff { background: rgb(var(--diff-solid)); }

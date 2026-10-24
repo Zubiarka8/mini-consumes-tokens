@@ -71,6 +71,60 @@ pub(super) fn indexed_excerpt(
     })
 }
 
+/// Lines shown on each side of a dead-code candidate, so it reads in context.
+pub(super) const WINDOW_CONTEXT: u32 = 3;
+
+/// One page of a symbol's window: its lines plus [`WINDOW_CONTEXT`] lines on each
+/// side, clamped to the file.
+pub(super) struct Window {
+    /// 1-based first and last line of the whole window.
+    pub first: u32,
+    pub last: u32,
+    /// 1-based number of the first returned line.
+    pub page_first: u32,
+    pub lines: Vec<String>,
+}
+
+/// A page (`offset`/`limit` lines into the window) of `start..=end` with its
+/// context, from exactly the indexed revision. An offset past the window
+/// returns no lines; a symbol range the file no longer has returns `None`.
+pub(super) fn indexed_window(
+    root: &Path,
+    relative: &str,
+    hash: &str,
+    (start, end): (u32, u32),
+    (offset, limit): (u32, u32),
+) -> Option<Window> {
+    if start == 0 || end < start {
+        return None;
+    }
+    let content = indexed_text(root, relative, hash)?;
+    let count = u32::try_from(content.lines().count()).ok()?;
+    if end > count {
+        return None;
+    }
+    let first = start.saturating_sub(WINDOW_CONTEXT).max(1);
+    let last = end.saturating_add(WINDOW_CONTEXT).min(count);
+    let page_first = first.saturating_add(offset);
+    let left = if page_first > last {
+        0
+    } else {
+        last - page_first + 1
+    };
+    let lines = content
+        .lines()
+        .skip((page_first - 1) as usize)
+        .take(left.min(limit) as usize)
+        .map(|line| line.trim_end_matches('\r').to_string())
+        .collect();
+    Some(Window {
+        first,
+        last,
+        page_first,
+        lines,
+    })
+}
+
 /// Up to `max` bytes of a regular file below `root`, decoded lossily at a cut
 /// edge. Same path rules as [`excerpt`].
 pub(super) fn read_text(root: &Path, relative: &str, max: usize) -> Option<String> {
@@ -135,6 +189,30 @@ mod tests {
         assert_eq!(long.lines.len(), MAX_PREVIEW_LINES);
         assert!(long.truncated);
         assert!(excerpt(&root, "src/a.rs", 900, 910).is_none());
+    }
+
+    #[test]
+    fn a_window_adds_clamped_context_and_pages_from_the_indexed_revision() {
+        let root = tempfile::tempdir().unwrap();
+        let root = root.path().canonicalize().unwrap();
+        let text: String = (1..=20).map(|n| format!("line {n}\r\n")).collect();
+        std::fs::write(root.join("a.rs"), &text).unwrap();
+        let hash = git2::Oid::hash_object(git2::ObjectType::Blob, text.as_bytes())
+            .unwrap()
+            .to_string();
+        let middle = indexed_window(&root, "a.rs", &hash, (8, 10), (0, 400)).unwrap();
+        assert_eq!((middle.first, middle.last, middle.page_first), (5, 13, 5));
+        assert_eq!(middle.lines.first().unwrap(), "line 5");
+        assert_eq!(middle.lines.len(), 9);
+        let edges = indexed_window(&root, "a.rs", &hash, (2, 19), (0, 400)).unwrap();
+        assert_eq!((edges.first, edges.last), (1, 20));
+        let page = indexed_window(&root, "a.rs", &hash, (2, 19), (5, 4)).unwrap();
+        assert_eq!(page.page_first, 6);
+        assert_eq!(page.lines, ["line 6", "line 7", "line 8", "line 9"]);
+        let past = indexed_window(&root, "a.rs", &hash, (2, 19), (40, 4)).unwrap();
+        assert!(past.lines.is_empty());
+        assert!(indexed_window(&root, "a.rs", &hash, (19, 25), (0, 400)).is_none());
+        assert!(indexed_window(&root, "a.rs", "stale", (8, 10), (0, 400)).is_none());
     }
 
     #[test]

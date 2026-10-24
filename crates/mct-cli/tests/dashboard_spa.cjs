@@ -370,7 +370,7 @@ test('unsaved drafts survive a poll reload and switching views', async () => {
     if (url.pathname === '/api/dead') return listPage([dead]);
     return listPage([group()]);
   });
-  app.view = 'dead'; await app.loadPage(true);
+  app.view = 'dead'; app.editor = true; await app.loadPage(true);
   app.select({ currentTarget: { dataset: { v: 'dead-1' } } });
   await app.loadDetail();
   app.setReviewAction({ currentTarget: { dataset: { v: 'false_positive' } } });
@@ -385,6 +385,57 @@ test('unsaved drafts survive a poll reload and switching views', async () => {
   assert.equal(app.reviewAction, 'false_positive');
   assert.equal(app.reviewDirty, true);
   assert.equal(app.reviewConflict, false);
+});
+
+// The dead-code editor mirrors the duplicate one: its own tab, one pane with the
+// symbol's lines marked and the context dimmed, and the analysis caveats.
+function deadFull() {
+  return { identity: 'dead-1', fingerprint: 'fp-dead', revision: 0, name: 'entry', kind: 'function', language: 'python',
+    path: 'pkg/a.py', line: 3, end_line: 4, parent: null, state, line_count: 2, cautions: ['dynamic', 'unseen'],
+    excerpt: ['import os', '', 'def entry():', '    return 1', '', 'x = 2'], excerpt_first: 1,
+    window_first: 1, window_last: 6, excerpt_available: true, excerpt_truncated: false, source_next_offset: null };
+}
+
+test('a dead candidate opens in its own editor tab like a duplicate', () => {
+  const opened = [];
+  const { app, context } = harness();
+  context.window = { open: (url) => { opened.push(url); return {}; }, location: {} };
+  app.view = 'dead'; app.deads = [deadFull()];
+  app.select({ currentTarget: { dataset: { v: 'dead-1' } } });
+  assert.equal(opened.length, 1);
+  const query = new URL(opened[0], 'http://test/').searchParams;
+  assert.equal(query.get('view'), 'editor');
+  assert.equal(query.get('kind'), 'dead');
+  assert.equal(query.get('id'), 'dead-1');
+  assert.equal(app.sel, '', 'the list itself keeps no selection');
+});
+
+test('the dead editor loads the source window and marks only the symbol lines', async () => {
+  const { app, requests } = harness(async ({ url }) => {
+    if (url.pathname === '/api/finding') return { identity: 'dead-1', kind: 'dead', current: true, fingerprint: 'fp-dead', revision: 0, state, files: [], history: [], comments: [] };
+    return listPage([deadFull()]);
+  });
+  app.view = 'dead'; app.editor = true; app.deads = [deadFull()]; app.pageTotal = 1;
+  app.openFinding('dead-1');
+  assert.equal(await app.loadDetail(), true);
+  const full = requests.find((r) => r.url.pathname === '/api/dead');
+  assert.equal(full.url.searchParams.get('id'), 'dead-1');
+  assert.equal(full.url.searchParams.get('full'), '1');
+  assert.equal(app.panes.length, 1);
+  const own = app.panes[0].rows.filter((r) => r.cls === 'row-dead').map((r) => r.n);
+  assert.deepEqual(Array.from(own), [3, 4]);
+  assert.equal(app.panes[0].rows.length, 6);
+  assert.equal(app.tabs.length, 1);
+  assert.equal(app.canCloseAll, false, 'one pane cannot be closed');
+  assert.match(app.editorFooter, /^Dead code #1 of 1 · 2 lines · function$/);
+  assert.deepEqual(Array.from(app.legend, (l) => l.key), ['legendDead', 'legendCtx']);
+  assert.equal(app.deadInfo.cautions.length, 2);
+  assert.match(app.deadInfo.cautions[0], /Dynamic language/);
+  app.setCodeFilter({ currentTarget: { dataset: { v: 'symbol' } } });
+  assert.deepEqual(Array.from(app.panes[0].rows, (r) => r.n), [3, 4]);
+  app.setCodeFilter({ currentTarget: { dataset: { v: 'context' } } });
+  assert.deepEqual(Array.from(app.panes[0].rows, (r) => r.n), [1, 2, 5, 6]);
+  assert.match(app.promptText, /What this analysis cannot see:\n- Dynamic language/);
 });
 
 // AUD-03: the copied prompt carries effective state, reason, fingerprint and
