@@ -1,5 +1,11 @@
 # Changelog
 
+
+- Coordinate compatible SQLite clients with per-database OS-backed access and
+  index-writer locks; fail fast on competing index runs, preserve concurrent
+  dashboard saves/readers/online backups, and exclude connected clients from
+  migrations. Legacy executables still require an authorized controlled rollout.
+
 All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
@@ -7,7 +13,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Add read-only MCP `find_duplicate_code` (#233): existing whole-function
+  detector, verified group-review suppression before pagination, compact member
+  references, published generation and explicit estimated-budget truncation.
+  Individual copy labels remain independent; source bodies/notes are omitted.
+
+- Add opt-in one-shot dashboard backup maintenance for OS schedulers, source-bound
+  scheduling state, verified managed retention/quota, backup health discovery and
+  no-clobber isolated restoration. Production scheduling/cutover remains manual.
+
+
+### Security
+
+- Raise the Tokio minimum to 1.53.3 (RUSTSEC-2026-0386, unsound `AsyncFd`
+  constructors in 1.53.1). Lockfile-only: move the uncompiled, yanked
+  `yoke-derive` 0.8.3 to 0.8.4. `cargo audit` now reports no vulnerabilities;
+  the `paste` maintenance warning (RUSTSEC-2024-0436) remains.
+
 ### Fixed
+
+- Give expired watcher deadlines priority over queued notifications so continuous event noise cannot starve reconciliation or the maximum batch age.
+
+- Initialize the dashboard copy-warning binding before asynchronous loading so
+  Alpine's CSP build does not report an undefined expression during startup.
+
+- Duplicate copies in the same file keep independent working labels and notes.
+  Dashboard migration 4 preserves legacy labels; saved labels warn when their
+  verified code changes, without changing the group decision.
 
 - Dashboard review writes reject stale code and concurrent edits using content
   fingerprints and atomic revisions. Draft notes and finding decisions survive
@@ -43,6 +75,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - On Unix, the dashboard database is created and reopened with mode `0600`.
 
 ### Added
+
+- Manual `dashboard-backup` and `dashboard-backup-verify` commands create
+  consistent, integrity/schema-checked user-state snapshots and rehearse restore
+  in an isolated database. Completed backups include a SHA-256 TOON manifest.
+  No automatic retention, scheduler or production replacement is performed.
 
 - Dashboard orphan decisions have an explicit Delete decision button in the SPA
   and server-rendered review view. No reindex or reload deletes them automatically;

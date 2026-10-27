@@ -1,0 +1,26 @@
+{
+  "suite": "duplicate-app",
+  "catalog_tokens": 11969,
+  "cases": {
+    "Python duplicate group path scope": {
+      "score": 1.0,
+      "tokens": 305
+    },
+    "Rust duplicate group language scope": {
+      "score": 1.0,
+      "tokens": 305
+    },
+    "deterministic bounded duplicate discovery page": {
+      "score": 1.0,
+      "tokens": 309
+    },
+    "nonexistent scope is absence not suppression": {
+      "score": 1.0,
+      "tokens": 206
+    },
+    "two independent same-language duplicate groups": {
+      "score": 1.0,
+      "tokens": 397
+    }
+  }
+}

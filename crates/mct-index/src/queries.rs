@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use rusqlite::Connection;
 
@@ -607,6 +607,29 @@ pub fn reference_counts(conn: &Connection) -> Result<HashMap<String, usize>> {
         counts.insert(name, count);
     }
     Ok(counts)
+}
+
+/// Names referenced within each parser language. A same-name reference in an
+/// unrelated language is not evidence that a candidate is used. Explicit parser
+/// target languages (for example XAML code-behind) take precedence. This remains
+/// conservative within a language; it does not infer FFI or dynamic dispatch.
+pub(crate) fn referenced_names_by_language(
+    conn: &Connection,
+) -> Result<HashMap<String, HashSet<String>>> {
+    let mut query = conn.prepare_cached(
+        "SELECT DISTINCT COALESCE(r.target_language, f.language), r.to_name FROM relations r
+         JOIN symbols caller ON caller.id = r.from_symbol_id
+         JOIN files f ON f.id = caller.file_id",
+    )?;
+    let rows = query.query_map([], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    })?;
+    let mut names: HashMap<String, HashSet<String>> = HashMap::new();
+    for row in rows {
+        let (language, name) = row?;
+        names.entry(language).or_default().insert(name);
+    }
+    Ok(names)
 }
 
 /// `predicate` is a static SQL fragment chosen by the caller (never built from

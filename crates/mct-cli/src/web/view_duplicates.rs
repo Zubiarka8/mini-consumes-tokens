@@ -240,7 +240,7 @@ pub(super) fn list(req: &Req<'_>) -> Response {
         let data = &site.duplicates.groups[*id];
         let _ = write!(
             body,
-            "<article class=\"finding\" data-search=\"{}\"><h2><a href=\"{}\">{}</a> <span class=\"badge\">{}</span> <span class=\"badge\">{}</span></h2><p class=\"meta\">{} <span class=\"muted\">{}</span></p><ul class=\"members\">",
+            "<article class=\"finding\" data-search=\"{}\"><h2><a href=\"{}\" target=\"_blank\" rel=\"noopener\" title=\"{}\">{}</a> <span class=\"badge\">{}</span> <span class=\"badge\">{}</span></h2><p class=\"meta\">{} <span class=\"muted\">{}</span> · <a href=\"{}\">{}</a></p><ul class=\"members\">",
             escape(
                 &data
                     .members
@@ -250,7 +250,17 @@ pub(super) fn list(req: &Req<'_>) -> Response {
                     .join(" ")
                     .to_lowercase()
             ),
-            href("duplicado", &[("k", &group.identity)]),
+            // the group opens in the side-by-side editor, in its own tab
+            href(
+                "app",
+                &[
+                    ("view", "editor"),
+                    ("kind", "dup"),
+                    ("id", &group.identity),
+                    ("lang", req.lang.code())
+                ]
+            ),
+            req.t("Abrir el editor del duplicado en una pestaña nueva"),
             req.tf("Grupo {0}", &[&(id + 1)]),
             escape(&data.language),
             verdict_label(req.lang, data.verdict.level),
@@ -259,6 +269,8 @@ pub(super) fn list(req: &Req<'_>) -> Response {
                 &[&data.members.len(), &data.line_count, &data.token_count]
             ),
             req.t("(medidos por el detector, normalizados)"),
+            href("duplicado", &[("k", &group.identity)]),
+            req.t("Ficha del grupo"),
         );
         for member in data.members.iter().take(4) {
             let _ = write!(

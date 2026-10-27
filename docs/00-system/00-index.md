@@ -7,6 +7,9 @@ Central map of this vault. Start here.
 - [[glossary]] — terms used across this vault
 - [[mcp-protocol-spec]] — MCP tool contract
 - [[001-sqlite-storage]] — ADR: why SQLite
+- [Storage reliability audit](../01-architecture/storage-reliability-audit.md) — dated verified architecture and risks
+- [Storage reliability SDD](../01-architecture/storage-reliability-spec.md) — target requirements, phased delivery and recovery
+- [Documentation inventory](../01-architecture/storage-documentation-inventory.md) — purpose, audience, update conditions and relationships
 - [[002-qualified-relation-resolution]] — ADR: how relation targets are resolved
 - [[mct-mcp-server]] — MCP server crate
 - [[overview]] — mandatory parser contract every `mct-lang-*` crate follows

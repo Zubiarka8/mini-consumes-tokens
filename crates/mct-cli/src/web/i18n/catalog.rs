@@ -280,6 +280,11 @@ pub(super) const ENTRIES: &[(&str, &str)] = &[
     ),
     ("Archivo: {0}", "File: {0}"),
     ("Grupo {0}", "Group {0}"),
+    (
+        "Abrir el editor del duplicado en una pestaña nueva",
+        "Open the duplicate editor in a new tab",
+    ),
+    ("Ficha del grupo", "Group details"),
     ("{0} miembros · {1} líneas · {2} tokens", "{0} members · {1} lines · {2} tokens"),
     ("y {0} más en el detalle", "and {0} more in the detail view"),
     ("{0} líneas con código · {1} tokens", "{0} code lines · {1} tokens"),

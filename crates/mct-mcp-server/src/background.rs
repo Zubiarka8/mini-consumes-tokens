@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 
 use mct_core::LanguageRegistry;
 use mct_index::{ExcludeSet, Index, ReindexReport};
-use notify::{EventKind, RecursiveMode};
+use notify::{EventKind, RecursiveMode, Watcher};
 use notify_debouncer_full::{new_debouncer, Debouncer, RecommendedCache};
 use tokio::sync::Mutex;
 
@@ -68,14 +68,17 @@ pub fn changed_paths(
     if rules_file_touched && exclude.reload() {
         return Changed::Rescan;
     }
-    let mut paths: Vec<PathBuf> = changes()
-        .filter(|path| {
-            relative_slash_path(root, path).is_some_and(|rel| !exclude.is_excluded(&rel))
-        })
-        .cloned()
-        .collect();
+    let mut unique = std::collections::HashSet::new();
+    for path in changes().filter(|path| {
+        relative_slash_path(root, path).is_some_and(|rel| !exclude.is_excluded(&rel))
+    }) {
+        unique.insert(path.clone());
+        if unique.len() > MAX_INCREMENTAL_PATHS {
+            return Changed::Rescan;
+        }
+    }
+    let mut paths: Vec<PathBuf> = unique.into_iter().collect();
     paths.sort();
-    paths.dedup();
     match paths.len() {
         0 => Changed::Nothing,
         n if n > MAX_INCREMENTAL_PATHS => Changed::Rescan,
@@ -194,6 +197,28 @@ pub fn merge_changed(pending: Changed, new: Changed) -> Changed {
 /// the watcher thread adds the rest of the configured delay as a quiet period
 /// that every relevant batch restarts.
 const MAX_COALESCE: Duration = Duration::from_millis(500);
+/// Continuous filesystem activity must not postpone indexing forever.
+const MAX_BATCH_AGE: Duration = Duration::from_secs(30);
+/// Reconcile missed notifications even when the watcher is otherwise idle.
+pub const DEFAULT_RECONCILIATION_INTERVAL: Duration = Duration::from_secs(300);
+
+fn batch_deadline(now: Instant, quiet: Duration, started: Instant) -> Instant {
+    (now + quiet).min(started + MAX_BATCH_AGE)
+}
+
+fn receive_before_deadline(
+    rx: &mpsc::Receiver<Changed>,
+    now: Instant,
+    deadline: Instant,
+) -> Result<Changed, mpsc::RecvTimeoutError> {
+    // recv_timeout(0) still consumes a ready message. Under continuous noise,
+    // that can indefinitely postpone reconciliation or the maximum batch age.
+    if now >= deadline {
+        Err(mpsc::RecvTimeoutError::Timeout)
+    } else {
+        rx.recv_timeout(deadline.duration_since(now))
+    }
+}
 
 /// Watches `root` recursively and, once no relevant change has arrived for
 /// `debounce` (every new relevant change restarts the wait; a burst becomes
@@ -225,12 +250,62 @@ pub fn spawn_watcher(
     exclude: ExcludeSet,
     debounce: Duration,
 ) -> notify::Result<Debouncer<notify::RecommendedWatcher, RecommendedCache>> {
-    let (tx, rx) = mpsc::channel();
+    spawn_watcher_with_reconciliation(
+        index,
+        registry,
+        root,
+        exclude,
+        debounce,
+        DEFAULT_RECONCILIATION_INTERVAL,
+    )
+}
+
+/// Starts event-driven indexing with bounded event delivery and idle
+/// reconciliation. The interval must be non-zero.
+pub fn spawn_watcher_with_reconciliation(
+    index: Arc<Mutex<Index>>,
+    registry: LanguageRegistry,
+    root: PathBuf,
+    exclude: ExcludeSet,
+    debounce: Duration,
+    reconciliation_interval: Duration,
+) -> notify::Result<Debouncer<notify::RecommendedWatcher, RecommendedCache>> {
+    let reconciliation_interval = if reconciliation_interval.is_zero() {
+        DEFAULT_RECONCILIATION_INTERVAL
+    } else {
+        reconciliation_interval
+    };
+    let (tx, rx) = mpsc::sync_channel(1);
     let coalesce = debounce.min(MAX_COALESCE);
     // Total latency after the last change stays ~`debounce`.
     let quiet = debounce - coalesce;
-    let mut debouncer = new_debouncer(coalesce, None, tx)?;
+    let callback_root = root.clone();
+    let callback_exclude = exclude.clone();
+    let handler = move |result: notify_debouncer_full::DebounceEventResult| {
+        let changed = match result {
+            Ok(events) => changed_paths(&events, &callback_root, &callback_exclude),
+            Err(errors) => {
+                tracing::warn!(
+                    count = errors.len(),
+                    "filesystem watcher reported errors; scheduling reconciliation"
+                );
+                Changed::Rescan
+            }
+        };
+        match tx.try_send(changed) {
+            Ok(()) => {}
+            Err(mpsc::TrySendError::Full(_)) => {
+                // Backpressure is bounded to one item. Once the in-flight
+                // batch is consumed, force a full walk to cover every event
+                // coalesced while indexing was busy.
+                let _ = tx.send(Changed::Rescan);
+            }
+            Err(mpsc::TrySendError::Disconnected(_)) => {}
+        }
+    };
+    let mut debouncer = new_debouncer(coalesce, None, handler)?;
     debouncer.watch(&root, RecursiveMode::Recursive)?;
+    tracing::info!(backend = ?notify::RecommendedWatcher::kind(), "filesystem watcher started");
 
     std::thread::spawn(move || {
         // Only the watcher asks for it: the initial index would pay a trigger
@@ -241,56 +316,49 @@ pub fn spawn_watcher(
         let mut state = BatchState::default();
         let mut pending = Changed::Nothing;
         let mut deadline = Instant::now();
+        let mut batch_started: Option<Instant> = None;
+        let mut reconcile_at = Instant::now() + reconciliation_interval;
+        let mut watcher_disconnected = false;
         loop {
-            let received = if pending != Changed::Nothing {
-                match rx.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
-                    Ok(result) => Some(result),
-                    Err(mpsc::RecvTimeoutError::Timeout) => None,
-                    Err(mpsc::RecvTimeoutError::Disconnected) => break,
-                }
+            let now = Instant::now();
+            let wait_until = if pending != Changed::Nothing {
+                deadline
             } else if state.rescan_pending() {
-                match rx.recv_timeout(state.retry_delay(debounce)) {
-                    Ok(result) => Some(result),
-                    Err(mpsc::RecvTimeoutError::Timeout) => None,
-                    Err(mpsc::RecvTimeoutError::Disconnected) => break,
-                }
+                reconcile_at.min(now + state.retry_delay(debounce))
             } else {
-                match rx.recv() {
-                    Ok(result) => Some(result),
-                    Err(_) => break,
-                }
+                reconcile_at
             };
-            if let Some(result) = received {
-                let batch = match result {
-                    Ok(events) => {
-                        tracing::debug!(
-                            count = events.len(),
-                            ?events,
-                            "watcher received a debounced batch"
-                        );
-                        changed_paths(&events, &root, &exclude)
+            let received = receive_before_deadline(&rx, now, wait_until);
+            match received {
+                Ok(batch) => {
+                    if batch != Changed::Nothing {
+                        let started = *batch_started.get_or_insert_with(Instant::now);
+                        pending =
+                            merge_changed(std::mem::replace(&mut pending, Changed::Nothing), batch);
+                        deadline = batch_deadline(Instant::now(), quiet, started);
                     }
-                    Err(errors) => {
-                        for err in errors {
-                            tracing::warn!(error = %err, "file watcher error; will keep watching");
-                        }
-                        // Events may have been lost: only a full walk is sure
-                        // to catch whatever they described.
-                        Changed::Rescan
+                    if pending != Changed::Nothing && !quiet.is_zero() && Instant::now() < deadline
+                    {
+                        continue; // still inside the quiet period
                     }
-                };
-                if batch != Changed::Nothing {
-                    pending =
-                        merge_changed(std::mem::replace(&mut pending, Changed::Nothing), batch);
-                    deadline = Instant::now() + quiet;
                 }
-                if pending != Changed::Nothing && !quiet.is_zero() {
-                    continue; // still inside the quiet period
+                Err(mpsc::RecvTimeoutError::Timeout) => {
+                    if pending == Changed::Nothing
+                        && (state.rescan_pending() || Instant::now() >= reconcile_at)
+                    {
+                        pending = Changed::Rescan;
+                    }
+                }
+                Err(mpsc::RecvTimeoutError::Disconnected) => {
+                    tracing::warn!("filesystem watcher event channel disconnected; performing one final reconciliation");
+                    pending = Changed::Rescan;
+                    watcher_disconnected = true;
                 }
             }
             // Quiet period over (or a retry of an owed full walk is due).
             // Anything arriving while the update runs waits in the channel.
             let changed = std::mem::replace(&mut pending, Changed::Nothing);
+            batch_started = None;
             if changed == Changed::Nothing && !state.rescan_pending() {
                 continue; // don't take the index lock for nothing
             }
@@ -330,6 +398,10 @@ pub fn spawn_watcher(
                     "auto-reindex failed; a full reindex will retry it"
                 ),
             }
+            reconcile_at = Instant::now() + reconciliation_interval;
+            if watcher_disconnected {
+                break;
+            }
         }
     });
 
@@ -340,8 +412,52 @@ pub fn spawn_watcher(
 mod tests {
     use super::*;
 
+    #[test]
+    fn expired_deadline_precedes_queued_irrelevant_notifications() {
+        let (tx, rx) = mpsc::sync_channel(1);
+        assert!(tx.send(Changed::Nothing).is_ok());
+        let due = Instant::now();
+        assert_eq!(
+            receive_before_deadline(&rx, due, due),
+            Err(mpsc::RecvTimeoutError::Timeout)
+        );
+        // The queued event is preserved for the next batch after reconciliation.
+        assert_eq!(rx.try_recv(), Ok(Changed::Nothing));
+    }
+
+    #[test]
+    fn future_deadline_accepts_ready_changes_and_reports_disconnection() {
+        let (tx, rx) = mpsc::sync_channel(1);
+        assert!(tx.send(paths(&["/a"])).is_ok());
+        let now = Instant::now();
+        let deadline = now + Duration::from_secs(1);
+        assert_eq!(
+            receive_before_deadline(&rx, now, deadline),
+            Ok(paths(&["/a"]))
+        );
+        drop(tx);
+        assert_eq!(
+            receive_before_deadline(&rx, now, deadline),
+            Err(mpsc::RecvTimeoutError::Disconnected)
+        );
+    }
+
     fn paths(names: &[&str]) -> Changed {
         Changed::Paths(names.iter().map(PathBuf::from).collect())
+    }
+
+    #[test]
+    fn continuous_batches_are_capped_by_the_first_event_time() {
+        let started = Instant::now();
+        let latest = started + Duration::from_secs(29);
+        assert_eq!(
+            batch_deadline(latest, Duration::from_secs(15), started),
+            started + MAX_BATCH_AGE
+        );
+        assert_eq!(
+            batch_deadline(started, Duration::from_secs(15), started),
+            started + Duration::from_secs(15)
+        );
     }
 
     #[test]

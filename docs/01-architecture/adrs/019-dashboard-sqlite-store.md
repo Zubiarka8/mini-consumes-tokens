@@ -69,15 +69,50 @@ The interface prototype (`prototype/codeinsight/index.html`, Tailwind + Alpine +
 - All assets are embedded with `include_str!`/`include_bytes!` and served from fixed routes. No Node toolchain is needed to build `mct-cli`.
 - The server-rendered pages of ADR-018 stay available during the migration; they are removed only when the SPA covers every view (decision at M6).
 
-### D8. Per-file review of a duplicate group (store version 2)
+### D8. Per-copy working labels (store versions 2 and 4)
 
-A duplicate group spans several files, and a reviewer often has a different opinion about each one ("this copy is the original", "this one must go"). The group-level decision of D5 cannot say that, so the store gains a second, finer layer. It does not replace the group decision.
+A duplicate group can contain several copies in one file. Each copy has its own
+working status and note, independent of the group decision. Neither a label save
+nor its informational code-change warning changes the group verdict or moves it
+to `needs_reevaluation`.
 
-- Table `file_reviews(identity, path, status, note, updated_at)`, primary key `(identity, path)`, added by a second migration (`user_version` 2). `identity` is the ADR-018 group identity; `path` is the member's repository-relative path. There is no fingerprint column: a per-file status is a working label, not a finding decision, so it survives edits to the code and never moves the group to `needs_reevaluation`.
-- `status` is one of `pending` (Sin revisar), `accepted` (Aceptar duplicado), `rejected` (Rechazar duplicado), `in_review` (En revisión) and `ignored` (Ignorarlo). `note` is free multi-line text of at most 2,000 bytes. `CHECK` constraints repeat the Rust validation; at most 20,000 rows.
-- Saving `pending` with an empty note deletes the row, so "no row" and "Sin revisar" are the same state and the table only holds files somebody touched.
-- API: `GET api/finding` gains `files: [{path, status, note, updated_at}]`; `POST api/file-review` takes exactly `{id, path, status, note?}`. It goes through the same gate as the other writes (D6) and answers 404 when the group is unknown or the path is not a member of that group, so the table cannot collect rows for arbitrary paths.
-- SPA: the duplicates view lists the group's files with a status chip, shows every member side by side (lines present in all members in yellow, lines that differ in red, plus the share of matching lines as a badge), and has a "Revisión por fichero" panel with a file selector, the five statuses and a note. The footer shows `Duplicado #n · líneas · archivos`.
+- Migration 4 rebuilds `file_reviews` with primary key `(identity, path,
+  member_key)` and adds `member_base` and nullable `code_hash`. All version-2/3
+  rows, statuses, notes and timestamps survive with empty member keys and null
+  hashes. These legacy path labels apply to each copy until a concrete override
+  is saved; an explicit pending/empty override masks the inherited label. A
+  pending/empty concrete row without inheritance is deleted. Retained legacy
+  and unmatched copy rows remain available through `retained_files`.
+- A server-generated opaque key hashes the member's path/name/kind/indexed
+  parent plus an ordinal for same-base siblings. Line numbers locate indexed
+  parents but never enter persistent keys. Unique verified content matches
+  preserve sibling keys through moves; a single-member family retains its key
+  after a body edit. Indistinguishable siblings retain visible slots with an
+  uncertainty warning. Unmatched ambiguous labels remain retained instead of
+  silently attaching to another body. No labels transfer between group identities.
+- The server computes `code_hash` from the complete indexed range after verifying
+  current source against the indexed file. The browser cannot supply a hash.
+  A differing saved hash produces `code_changed`; unavailable or ambiguous
+  association produces `code_unavailable`. Legacy null hashes never claim a
+  code change. Restoring the original body clears the change warning.
+- `GET api/duplicates` provides each member's `member_key`. `GET api/finding`
+  provides member descriptors (including revisions for unlabeled/cleared copies)
+  and effective `files` rows with key, status, note, revision, inheritance and
+  warning flags. `POST api/file-review` accepts the key with path and
+  `expected_revision`, verifies membership (404), and refuses unverifiable code
+  (409). The legacy path-only write is supported only for a unique path and
+  cannot overwrite concrete copy labels (409).
+- Copy revisions are checked and advanced inside `BEGIN IMMEDIATE`, including
+  delete/recreate, independently for each copy; inherited copies initially use
+  their legacy path revision. The unchanged 20,000-row bound includes retained
+  and override rows and is checked atomically. Older binaries refuse schema 4
+  rather than downgrading it. Parent lookup is built once per snapshot; effective
+  labels and revisions are fetched once per group and joined in memory.
+- Status remains one of `pending`, `accepted`, `rejected`, `in_review`, `ignored`;
+  notes retain the 2,000-byte limit and SQL constraints. The SPA uses copy keys
+  for labels, drafts and saves, and shows “Código cambiado, revisar” (English:
+  “Code changed, review needed”) in Files, the right panel, all-copy status and the AI
+  prompt. Finding history and existing group identity/orphan behavior are unchanged.
 
 ### D9. Editor ergonomics (M8)
 
@@ -253,6 +288,26 @@ A verdict on A+B must not automatically dismiss the new A+C/B+C relationships.
 This remains an intentional conservative limitation rather than a claim that
 all group-membership changes preserve a verdict.
 
+### D16. Phase 5 coherent analysis and review stability
+
+One SQLite read snapshot covers each dashboard analysis build: navigation,
+status, duplicate candidates and dead candidates use the same committed index
+generation. Release it before fingerprint upgrades, provenance writes and note
+loading. CLI dead/duplicate reports pin their analysis and suppression inputs
+similarly; MCP already pins each operation. The analysis APIs also pin a read
+when no caller transaction exists. WAL permits independent indexing commits;
+separate requests/pages still follow their documented snapshot-token rules.
+
+Regression acceptance explicitly repeats forced full, unchanged full and
+path-scoped reindexing after real dashboard decisions. Valid false positives
+stay suppressed in CLI/MCP and retain dashboard decisions/history/comments.
+Whitespace/comments inside reviewed blocks require reevaluation; movement and
+unrelated text do not. Renames/membership changes cannot inherit old decisions.
+Restored original content can reactivate a still-current stored decision; this
+is not an arbitrary historical undo mechanism. Copy rejection and its notes stay
+independent of group suppression. No migration, new identity namespace or new
+suppression store is introduced. See the Phase 5 SDD and verification record.
+
 ## 3. Consequences
 
 Positive: transactional writes with no whole-file rewrite, safe concurrent writers, queryable history and comments, no change to the index or its read-only guarantee, a path to 1 to 5 s live updates, and the reviews survive any reindex.
@@ -276,3 +331,50 @@ Negative: a new dependency pair in `mct-cli` (`rusqlite` with the bundled engine
 The WebKit end-to-end run for D10/D11 is blocked in this execution environment: an elevated direct server launch returns `cannot bind the localhost web port: Operation not permitted`, and WebKit itself exits with `Abort trap: 6` when launched through an in-memory HTTP bridge. Browser attempts were stopped after the user reported the failures. Focused in-memory HTTP tests exercise the lifecycle; browser verification remains pending.
 
 Snapshot rebuild time on large repositories and with the Obsidian vault enabled (D3), the SPA at wide viewports and in browsers other than the built-in one (the layout was checked narrow only), and the default `busy_timeout` interplay with a long `mct-cli reindex` (the dashboard database is separate, so a reindex cannot hold its lock, but this has not been exercised end to end).
+
+
+### D17 — Coherent saved and effective finding details (Phase 6)
+
+Keep schema4 and existing State/ReviewSnapshot authority. Add saved_decision,
+effective_decision, review_validity, source_verified and actionable to existing
+finding detail responses. Preserve existing status fields for clients. Orphans
+retain saved rows without pretending they have a currently applicable verdict.
+Reverify currently applicable dashboard decisions against source; cached analysis
+alone cannot prove unchanged source before watcher reconciliation.
+
+Use a deferred SQLite WAL read snapshot per detail response rather than a writer
+lock or additional persistence system. Pin before the first state read and retain
+through revisions, history, comments and copy data. Other writers remain available;
+old revision saves conflict. Avoid reconstructing current decisions from historical
+rows. Costs: one short read transaction and bounded source verification for
+applicable decisions; exact timings and platform gaps belong to the verification
+record. Extensive frontend changes and unbounded audit retention are out of scope.
+
+
+### D18 — Compare-and-swap comment mutations and explicit annotation scope (Phase 7)
+
+Use the existing owning finding revision rather than timestamps or a new
+comment-version column. An IMMEDIATE transaction verifies kind/identity/id,
+compares the supplied revision, changes the comment and advances the aggregate
+revision once. Missing or mismatched association:404; stale token:409; legacy
+requests without owner/token:400. Creation is an atomic bounded append. This
+intentionally conflicts on unrelated finding annotation changes; per-comment
+versions would reduce conflicts but require migration and more public state.
+No unsafe edit/delete fallback is exposed to old clients. Legacy executables
+that ignore these checks remain an explicit deployment limitation.
+
+Keep comment drafts in tab memory, separately keyed from copy notes and finding
+decisions. Polling never rebases a draft; explicit latest-version acknowledgement
+can rebase only if the comment still exists. Deleted comments cannot be recreated
+by an old edit. Typing during a save survives. Comment creation has no idempotency
+key: after a lost response, inspect the list before manually retrying. Never retry
+append automatically. No persistent browser-restart drafts or complete immutable
+comment audit history is introduced. UI names group comments separately from
+individual-copy notes; both use the existing persistent database.
+
+Read applicability must not treat an unrelated index commit as proof that source
+changed. Read verification checks identity/content against indexed source hashes;
+write verification additionally requires the current index stamp. Reuse the
+existing throttled asynchronous refresh for rendered analysis reads, never
+rebuild synchronously in the request thread. Stale-generation observability and
+conservative rejection of changed/unreadable source remain intact.

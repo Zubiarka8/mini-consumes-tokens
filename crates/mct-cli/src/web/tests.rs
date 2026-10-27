@@ -285,6 +285,10 @@ fn every_page_renders_and_every_link_resolves() {
         assert!(visited.len() < 200, "unexpected navigation expansion");
         let response = server.get(&target);
         assert!(response.starts_with("HTTP/1.1 200"), "{target}: {response}");
+        // the editor app is a template rendered in the browser, not a page to crawl
+        if target.starts_with("app?") {
+            continue;
+        }
         let (headers, body) = response.split_once("\r\n\r\n").unwrap();
         let length: usize = headers
             .lines()
@@ -311,6 +315,7 @@ fn every_page_renders_and_every_link_resolves() {
     }
     for needle in [
         "duplicado?k=",
+        "app?view=editor&kind=dup&id=",
         "muerto",
         "obsidian",
         "explorar",
@@ -652,6 +657,10 @@ fn duplicate_decisions_persist_restore_and_never_touch_the_index() {
     assert!(
         listed.contains(&format!("duplicado?k={id}")) && listed.contains("Restaurar a pendiente")
     );
+    // Each group opens the side-by-side editor in its own tab.
+    assert!(listed.contains(&format!(
+        "<a href=\"app?view=editor&amp;kind=dup&amp;id={id}&amp;lang=es\" target=\"_blank\" rel=\"noopener\""
+    )));
     assert!(listed.contains("es un patrón de plantilla"));
     let detail = server.get(&format!("duplicado?k={id}"));
     assert!(detail.contains("Historial de decisiones") && detail.contains("Falso positivo"));
@@ -1259,6 +1268,9 @@ fn every_page_is_fully_translated_in_english_and_review_messages_follow() {
         assert!(visited.len() < 200);
         let response = server.get_with(&target, en);
         assert!(response.starts_with("HTTP/1.1 200"), "{target}: {response}");
+        if target.starts_with("app?") {
+            continue;
+        }
         let (headers, body) = response.split_once("\r\n\r\n").unwrap();
         if !headers.contains("text/html") {
             continue;
@@ -1549,7 +1561,7 @@ fn json_writes_save_reviews_and_comments_and_show_up_in_the_reads() {
 
     let edited = server.write(
         "api/comment/update",
-        &serde_json::json!({"comment_id": comment_id, "body": "edited"}),
+        &serde_json::json!({"kind":"duplicate", "id":id, "expected_revision":finding["revision"], "comment_id": comment_id, "body": "edited"}),
     );
     assert!(edited.starts_with("HTTP/1.1 200"), "{edited}");
     let finding = api_json(&server.get(&format!("api/finding?kind=duplicate&id={id}")));
@@ -1557,7 +1569,7 @@ fn json_writes_save_reviews_and_comments_and_show_up_in_the_reads() {
 
     let removed = server.write(
         "api/comment/delete",
-        &serde_json::json!({"comment_id": comment_id}),
+        &serde_json::json!({"kind":"duplicate", "id":id, "expected_revision":finding["revision"], "comment_id": comment_id}),
     );
     assert!(removed.starts_with("HTTP/1.1 200"), "{removed}");
     let finding = api_json(&server.get(&format!("api/finding?kind=duplicate&id={id}")));
@@ -1566,11 +1578,11 @@ fn json_writes_save_reviews_and_comments_and_show_up_in_the_reads() {
     for (route, body) in [
         (
             "api/comment/delete",
-            serde_json::json!({"comment_id": comment_id}),
+            serde_json::json!({"kind":"duplicate", "id":id, "expected_revision":finding["revision"], "comment_id": comment_id}),
         ),
         (
             "api/comment/update",
-            serde_json::json!({"comment_id": comment_id, "body": "x"}),
+            serde_json::json!({"kind":"duplicate", "id":id, "expected_revision":finding["revision"], "comment_id": comment_id, "body": "x"}),
         ),
     ] {
         assert!(server.write(route, &body).starts_with("HTTP/1.1 404"));
@@ -1735,7 +1747,7 @@ fn json_writes_require_origin_csrf_json_size_and_valid_bodies() {
         ),
         (
             "api/comment/update",
-            serde_json::json!({"comment_id": 999, "body": "hi"}),
+            serde_json::json!({"kind":"duplicate", "id":id, "expected_revision":0, "comment_id": 999, "body": "hi"}),
             "404",
         ),
         (
@@ -1798,6 +1810,77 @@ fn decisions_survive_unrelated_edits_and_moves_but_symbol_edits_need_review() {
         site.dead_state(site.dead_ids[&dead]),
         State::NeedsReevaluation { .. }
     ));
+}
+
+#[test]
+fn api_reindex_preserves_false_positives_comments_and_independent_copy_notes() {
+    let root = project();
+    let server = Server::start(root.path(), true);
+    let group = server.duplicate_id(0);
+    let dead = server.dead_id("alpha");
+    let listed = api_json(&server.get("api/duplicates"));
+    let path = listed["items"][0]["members"][0]["path"].as_str().unwrap();
+    let rejected = server.write(
+        "api/file-review",
+        &serde_json::json!({"id":group,"path":path,"status":"rejected","note":"keep independent copy rationale"}),
+    );
+    assert!(rejected.starts_with("HTTP/1.1 200"), "{rejected}");
+    assert_eq!(
+        api_json(&server.get("api/duplicates"))["counts"]["pending"],
+        1
+    );
+    for (kind, id) in [("duplicate", &group), ("dead", &dead)] {
+        assert!(server
+            .review(kind, id, "false_positive", "intentional API")
+            .starts_with("HTTP/1.1 303"));
+        let response = server.write(
+            "api/comment",
+            &serde_json::json!({"kind":kind,"id":id,"body":"persistent rationale"}),
+        );
+        assert!(response.starts_with("HTTP/1.1 200"), "{response}");
+    }
+    let details = |server: &Server, kind: &str, id: &str| {
+        api_json(&server.get(&format!("api/finding?kind={kind}&id={id}")))
+    };
+    let group_before = details(&server, "duplicate", &group);
+    let dead_before = details(&server, "dead", &dead);
+    for _ in 0..2 {
+        index(root.path());
+        let refreshed = Server::start(root.path(), true);
+        for (kind, id, before) in [
+            ("duplicate", &group, &group_before),
+            ("dead", &dead, &dead_before),
+        ] {
+            let after = details(&refreshed, kind, id);
+            for field in [
+                "identity",
+                "fingerprint",
+                "state",
+                "revision",
+                "history",
+                "comments",
+                "files",
+            ] {
+                assert_eq!(after[field], before[field], "{kind} {field}");
+            }
+            assert_eq!(after["state"]["status"], "false_positive");
+            assert_eq!(after["comments"][0]["body"], "persistent rationale");
+        }
+        assert_eq!(
+            api_json(&refreshed.get("api/duplicates?status=pending"))["total"],
+            0
+        );
+        assert_eq!(
+            api_json(&refreshed.get("api/duplicates?status=all"))["total"],
+            1
+        );
+        let detail = details(&refreshed, "duplicate", &group);
+        assert_eq!(detail["files"][0]["status"], "rejected");
+        assert_eq!(
+            detail["files"][0]["note"],
+            "keep independent copy rationale"
+        );
+    }
 }
 
 #[test]
@@ -2277,3 +2360,9 @@ fn blank_snapshot_explicitly_restarts_a_bounded_read() {
 /// Decision-write audit regressions; a child module so they reuse this harness.
 #[path = "tests_decisions.rs"]
 mod decisions;
+
+#[path = "tests_copy_labels.rs"]
+mod copy_labels;
+
+#[path = "tests_dashboard_lifecycle.rs"]
+mod dashboard_lifecycle;

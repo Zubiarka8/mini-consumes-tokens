@@ -78,6 +78,25 @@ CREATE TABLE file_reviews(
 ) STRICT;
 ";
 
+/// Version 4: concrete copy overrides plus lossless legacy path-wide labels.
+const SCHEMA_COPY_REVIEWS: &str = "
+ALTER TABLE file_reviews RENAME TO file_reviews_v3;
+CREATE TABLE file_reviews(
+    identity TEXT NOT NULL CHECK (length(identity) = 64),
+    path TEXT NOT NULL CHECK (length(CAST(path AS BLOB)) BETWEEN 1 AND 1024),
+    member_key TEXT NOT NULL DEFAULT '' CHECK (length(member_key) IN (0, 64)),
+    member_base TEXT NOT NULL DEFAULT '' CHECK (length(member_base) IN (0, 64)),
+    code_hash TEXT CHECK (code_hash IS NULL OR length(code_hash) = 64),
+    status TEXT NOT NULL CHECK (status IN ('pending', 'accepted', 'rejected', 'in_review', 'ignored')),
+    note TEXT NOT NULL CHECK (length(CAST(note AS BLOB)) <= 2000),
+    updated_at INTEGER NOT NULL CHECK (updated_at >= 0),
+    PRIMARY KEY (identity, path, member_key)
+) STRICT;
+INSERT INTO file_reviews(identity, path, status, note, updated_at)
+SELECT identity, path, status, note, updated_at FROM file_reviews_v3;
+DROP TABLE file_reviews_v3;
+";
+
 const MAX_FILE_REVIEWS: i64 = 20_000;
 
 /// Review state of one file inside a duplicate group.
@@ -116,6 +135,9 @@ impl FileStatus {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct FileReview {
     pub path: String,
+    pub member_key: String,
+    pub member_base: String,
+    pub code_hash: Option<String>,
     pub status: FileStatus,
     pub note: String,
     pub updated_at: u64,
@@ -133,6 +155,7 @@ pub(super) struct Comment {
 
 pub(super) struct Store {
     conn: Connection,
+    _access: mct_index::coordination::DatabaseAccess,
     /// ADR-015 decisions, read once and never rewritten.
     legacy: BTreeMap<String, LegacyReason>,
     /// Commits made through this connection, which `data_version` ignores.
@@ -167,6 +190,30 @@ fn review_revision_key(kind: Kind, identity: &str) -> String {
 
 fn file_revision_key(identity: &str, path: &str) -> String {
     format!("file_revision:{identity}:{path}")
+}
+
+fn copy_revision_key(identity: &str, member: &str) -> String {
+    format!("copy_revision_v1:{identity}:{member}")
+}
+
+/// Legacy revisions seed concrete revisions, including clear/recreate cycles.
+fn copy_revision(
+    conn: &Connection,
+    identity: &str,
+    path: &str,
+    member: &str,
+) -> anyhow::Result<u64> {
+    let key = copy_revision_key(identity, member);
+    let exists: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM meta WHERE key = ?1)",
+        [&key],
+        |r| r.get(0),
+    )?;
+    if exists {
+        revision(conn, &key)
+    } else {
+        revision(conn, &file_revision_key(identity, path))
+    }
 }
 
 fn deleted_key(kind: Kind, identity: &str) -> String {
@@ -285,7 +332,9 @@ impl Store {
             file.set_permissions(fs::Permissions::from_mode(0o600))?;
         }
         drop(file);
-        let mut conn = Connection::open(&path).context("cannot open the dashboard database")?;
+        let (mut conn, access) =
+            mct_index::coordination::DatabaseAccess::open(&path, &migrations())?;
+        let _writer = access.writer(mct_index::coordination::DEFAULT_TIMEOUT)?;
         conn.busy_timeout(BUSY_TIMEOUT)?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "synchronous", "NORMAL")?;
@@ -295,6 +344,7 @@ impl Store {
         let legacy = reviews::read_legacy(&dir.join("duplicate-reviews.toon"))?;
         Ok(Self {
             conn,
+            _access: access,
             legacy,
             writes: 0,
             legacy_aliases: BTreeMap::new(),
@@ -463,33 +513,44 @@ impl Store {
         contains_stored(&self.conn, kind, identity)
     }
 
-    pub fn state(&self, kind: Kind, identity: &str, fingerprint: &str) -> anyhow::Result<State> {
-        let row = self
-            .conn
+    /// Pins composite detail reads to one WAL snapshot without reserving a writer.
+    /// Dropping the guard ends the read on success and on every early return.
+    pub fn read_snapshot(&self) -> anyhow::Result<rusqlite::Transaction<'_>> {
+        let tx = self.conn.unchecked_transaction()?;
+        // BEGIN DEFERRED alone does not establish a snapshot until the first read.
+        tx.query_row("SELECT EXISTS(SELECT 1 FROM meta)", [], |row| {
+            row.get::<_, bool>(0)
+        })?;
+        Ok(tx)
+    }
+
+    /// The current saved row, including explicit Pending resets and orphans.
+    /// Historical rows are deliberately not replayed as a current decision.
+    pub fn saved_decision(&self, kind: Kind, identity: &str) -> anyhow::Result<Option<Record>> {
+        self.conn
             .prepare_cached(
-                "SELECT fingerprint, status, decided_at, reason FROM reviews
-                 WHERE kind = ?1 AND identity = ?2",
+                "SELECT kind, identity, fingerprint, status, decided_at, reason FROM reviews
+             WHERE kind = ?1 AND identity = ?2",
             )?
-            .query_row(params![kind.value(), identity], |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, i64>(2)?,
-                    row.get::<_, String>(3)?,
-                ))
-            })
-            .map(Some)
-            .or_else(|error| match error {
-                rusqlite::Error::QueryReturnedNoRows => Ok(None),
-                other => Err(other),
-            })?;
+            .query_row(params![kind.value(), identity], raw)
+            .optional()?
+            .map(record)
+            .transpose()
+    }
+
+    pub fn state(&self, kind: Kind, identity: &str, fingerprint: &str) -> anyhow::Result<State> {
+        let row = self.saved_decision(kind, identity)?;
         Ok(match row {
-            Some((stored, status, at, reason)) => {
-                let status = Status::parse(&status).context("invalid stored status")?;
-                let at = u64::try_from(at)?;
+            Some(Record {
+                fingerprint: stored,
+                status,
+                at,
+                reason,
+                ..
+            }) => {
                 if status == Status::Pending {
                     State::Pending
-                } else if stored == fingerprint {
+                } else if valid_key(fingerprint) && stored == fingerprint {
                     State::Decided {
                         status,
                         at: Some(at),
@@ -729,66 +790,64 @@ impl Store {
         Ok(id)
     }
 
-    /// Returns `false` when the comment does not exist.
-    pub fn update_comment(&mut self, id: i64, body: &str, now: u64) -> anyhow::Result<bool> {
+    /// Compare the owning finding revision and comment association under the
+    /// write transaction. Missing or differently owned comments are not modified.
+    pub fn update_comment(
+        &mut self,
+        id: i64,
+        owner: (Kind, &str, u64),
+        body: &str,
+        now: u64,
+    ) -> anyhow::Result<bool> {
         let body = clean_comment(body)?;
-        let now = i64::try_from(now)?;
-        let transaction = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let owner: Option<(String, String)> = transaction
-            .query_row(
-                "SELECT kind, identity FROM comments WHERE id = ?1",
-                [id],
-                |row| Ok((row.get(0)?, row.get(1)?)),
-            )
-            .optional()?;
-        let changed = transaction.execute(
-            "UPDATE comments SET body = ?1, updated_at = ?2 WHERE id = ?3",
-            params![body, now, id],
-        )?;
-        if let Some((kind, identity)) = owner {
-            annotation_changed(
-                &transaction,
-                Kind::parse(&kind).context("invalid stored kind")?,
-                &identity,
-            )?;
-        }
-        transaction.commit()?;
-        self.writes += 1;
-        Ok(changed == 1)
+        self.mutate_comment(id, owner, Some((&body, i64::try_from(now)?)))
     }
 
-    /// Returns `false` when the comment does not exist.
-    pub fn delete_comment(&mut self, id: i64) -> anyhow::Result<bool> {
+    pub fn delete_comment(&mut self, id: i64, owner: (Kind, &str, u64)) -> anyhow::Result<bool> {
+        self.mutate_comment(id, owner, None)
+    }
+
+    fn mutate_comment(
+        &mut self,
+        id: i64,
+        (kind, identity, expected): (Kind, &str, u64),
+        edit: Option<(&str, i64)>,
+    ) -> anyhow::Result<bool> {
+        ensure!(valid_key(identity), "invalid review key");
         let transaction = self
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let owner: Option<(String, String)> = transaction
-            .query_row(
-                "SELECT kind, identity FROM comments WHERE id = ?1",
-                [id],
-                |row| Ok((row.get(0)?, row.get(1)?)),
-            )
-            .optional()?;
-        let changed = transaction.execute("DELETE FROM comments WHERE id = ?1", [id])?;
-        if let Some((kind, identity)) = owner {
-            annotation_changed(
-                &transaction,
-                Kind::parse(&kind).context("invalid stored kind")?,
-                &identity,
-            )?;
+        let exists: bool = transaction.query_row(
+            "SELECT EXISTS(SELECT 1 FROM comments WHERE id = ?1 AND kind = ?2 AND identity = ?3)",
+            params![id, kind.value(), identity],
+            |row| row.get(0),
+        )?;
+        if !exists {
+            return Ok(false);
         }
+        check_revision(
+            &transaction,
+            &review_revision_key(kind, identity),
+            Some(expected),
+        )?;
+        match edit {
+            Some((body, now)) => transaction.execute(
+                "UPDATE comments SET body = ?1, updated_at = ?2 WHERE id = ?3",
+                params![body, now, id],
+            )?,
+            None => transaction.execute("DELETE FROM comments WHERE id = ?1", [id])?,
+        };
+        annotation_changed(&transaction, kind, identity)?;
         transaction.commit()?;
         self.writes += 1;
-        Ok(changed == 1)
+        Ok(true)
     }
 
     /// File reviews of one duplicate group, by path.
     pub fn file_reviews(&self, identity: &str) -> anyhow::Result<Vec<FileReview>> {
         let mut statement = self.conn.prepare_cached(
-            "SELECT path, status, note, updated_at FROM file_reviews
-             WHERE identity = ?1 ORDER BY path",
+            "SELECT path, status, note, updated_at, member_key, member_base, code_hash FROM file_reviews
+             WHERE identity = ?1 ORDER BY path, member_key",
         )?;
         let rows = statement
             .query_map([identity], |row| {
@@ -797,18 +856,26 @@ impl Store {
                     row.get::<_, String>(1)?,
                     row.get::<_, String>(2)?,
                     row.get::<_, i64>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, Option<String>>(6)?,
                 ))
             })?
             .collect::<Result<Vec<_>, _>>()?;
         rows.into_iter()
-            .map(|(path, status, note, at)| {
-                Ok(FileReview {
-                    path,
-                    status: FileStatus::parse(&status).context("invalid stored file status")?,
-                    note,
-                    updated_at: u64::try_from(at)?,
-                })
-            })
+            .map(
+                |(path, status, note, at, member_key, member_base, code_hash)| {
+                    Ok(FileReview {
+                        path,
+                        member_key,
+                        member_base,
+                        code_hash,
+                        status: FileStatus::parse(&status).context("invalid stored file status")?,
+                        note,
+                        updated_at: u64::try_from(at)?,
+                    })
+                },
+            )
             .collect()
     }
 
@@ -822,7 +889,7 @@ impl Store {
         note: &str,
         now: u64,
     ) -> anyhow::Result<()> {
-        self.set_file_review_inner(identity, path, status, note, now, None)
+        self.set_file_review_inner(identity, path, status, note, now, (None, None))
     }
 
     pub fn set_file_review_checked(
@@ -834,7 +901,33 @@ impl Store {
         now: u64,
         expected_revision: u64,
     ) -> anyhow::Result<()> {
-        self.set_file_review_inner(identity, path, status, note, now, Some(expected_revision))
+        self.set_file_review_inner(
+            identity,
+            path,
+            status,
+            note,
+            now,
+            (Some(expected_revision), None),
+        )
+    }
+
+    pub fn set_verified_file_review(
+        &mut self,
+        identity: &str,
+        path: &str,
+        status: FileStatus,
+        note: &str,
+        now: u64,
+        verification: (u64, &str),
+    ) -> anyhow::Result<()> {
+        self.set_file_review_inner(
+            identity,
+            path,
+            status,
+            note,
+            now,
+            (Some(verification.0), Some(verification.1)),
+        )
     }
 
     fn set_file_review_inner(
@@ -844,8 +937,10 @@ impl Store {
         status: FileStatus,
         note: &str,
         now: u64,
-        expected_revision: Option<u64>,
+        verification: (Option<u64>, Option<&str>),
     ) -> anyhow::Result<()> {
+        let (expected_revision, code_hash) = verification;
+        ensure!(code_hash.is_none_or(valid_key), "invalid copy hash");
         ensure!(valid_key(identity), "invalid review key");
         ensure!(
             !path.is_empty() && path.len() <= 1024 && !path.chars().any(char::is_control),
@@ -858,6 +953,16 @@ impl Store {
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let key = file_revision_key(identity, path);
         check_revision(&transaction, &key, expected_revision)?;
+        let concrete: bool = transaction.query_row(
+            "SELECT EXISTS(SELECT 1 FROM file_reviews WHERE identity = ?1 AND path = ?2 AND member_key != '')",
+            params![identity, path], |r| r.get(0))?;
+        if concrete {
+            return Err(Conflict {
+                expected: expected_revision.unwrap_or(0),
+                actual: revision(&transaction, &key)?.saturating_add(1),
+            }
+            .into());
+        }
         if status == FileStatus::Pending && note.is_empty() {
             transaction.execute(
                 "DELETE FROM file_reviews WHERE identity = ?1 AND path = ?2",
@@ -876,17 +981,111 @@ impl Store {
                 ensure!(total < MAX_FILE_REVIEWS, "too many file reviews");
             }
             transaction.execute(
-                "INSERT INTO file_reviews(identity, path, status, note, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5)
-                 ON CONFLICT(identity, path) DO UPDATE SET
+                "INSERT INTO file_reviews(identity, path, status, note, updated_at, code_hash)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                 ON CONFLICT(identity, path, member_key) DO UPDATE SET
                     status = excluded.status, note = excluded.note,
-                    updated_at = excluded.updated_at",
-                params![identity, path, status.value(), note, now],
+                    updated_at = excluded.updated_at, code_hash = excluded.code_hash",
+                params![identity, path, status.value(), note, now, code_hash],
             )?;
         }
         advance_revision(&transaction, &key)?;
         annotation_changed(&transaction, Kind::Duplicate, identity)?;
         transaction.commit()?;
+        self.writes += 1;
+        Ok(())
+    }
+
+    /// One bounded lookup of all copy/path revision metadata for a group.
+    pub fn file_revisions(&self, identity: &str) -> anyhow::Result<BTreeMap<String, u64>> {
+        ensure!(valid_key(identity), "invalid review key");
+        let mut statement = self
+            .conn
+            .prepare("SELECT key, value FROM meta WHERE key GLOB ?1 OR key GLOB ?2")?;
+        let rows = statement.query_map(
+            params![
+                format!("copy_revision_v1:{identity}:*"),
+                format!("file_revision:{identity}:*")
+            ],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        )?;
+        rows.map(|row| {
+            let (key, value) = row?;
+            Ok((key, value.parse().context("invalid copy revision")?))
+        })
+        .collect()
+    }
+
+    pub fn revision_from(
+        revisions: &BTreeMap<String, u64>,
+        identity: &str,
+        path: &str,
+        member: &str,
+    ) -> u64 {
+        revisions
+            .get(&copy_revision_key(identity, member))
+            .or_else(|| revisions.get(&file_revision_key(identity, path)))
+            .copied()
+            .unwrap_or(0)
+    }
+
+    pub fn member_revision(&self, identity: &str, path: &str, member: &str) -> anyhow::Result<u64> {
+        copy_revision(&self.conn, identity, path, member)
+    }
+
+    /// Atomically save one copy. Pending overrides hide an inherited legacy label.
+    pub fn set_member_review(
+        &mut self,
+        identity: &str,
+        row: &FileReview,
+        expected: u64,
+    ) -> anyhow::Result<()> {
+        ensure!(
+            valid_key(identity) && valid_key(&row.member_key) && valid_key(&row.member_base),
+            "invalid copy key"
+        );
+        ensure!(
+            !row.path.is_empty()
+                && row.path.len() <= 1024
+                && !row.path.chars().any(char::is_control),
+            "invalid file path"
+        );
+        ensure!(
+            row.code_hash.as_deref().is_some_and(valid_key),
+            "unverified copy code"
+        );
+        let note = clean_note(&row.note)?;
+        let at = i64::try_from(row.updated_at)?;
+        let tx = self
+            .conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let actual = copy_revision(&tx, identity, &row.path, &row.member_key)?;
+        if actual != expected {
+            return Err(Conflict { expected, actual }.into());
+        }
+        let legacy: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM file_reviews WHERE identity = ?1 AND path = ?2 AND member_key = '')", params![identity, row.path], |r| r.get(0))?;
+        if row.status == FileStatus::Pending && note.is_empty() && !legacy {
+            tx.execute(
+                "DELETE FROM file_reviews WHERE identity = ?1 AND path = ?2 AND member_key = ?3",
+                params![identity, row.path, row.member_key],
+            )?;
+        } else {
+            let exists: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM file_reviews WHERE identity = ?1 AND path = ?2 AND member_key = ?3)", params![identity, row.path, row.member_key], |r| r.get(0))?;
+            if !exists {
+                let total: i64 =
+                    tx.query_row("SELECT count(*) FROM file_reviews", [], |r| r.get(0))?;
+                ensure!(total < MAX_FILE_REVIEWS, "too many file reviews");
+            }
+            tx.execute("INSERT INTO file_reviews(identity, path, member_key, member_base, code_hash, status, note, updated_at)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+                ON CONFLICT(identity, path, member_key) DO UPDATE SET member_base = excluded.member_base, code_hash = excluded.code_hash,
+                status = excluded.status, note = excluded.note, updated_at = excluded.updated_at",
+                params![identity, row.path, row.member_key, row.member_base, row.code_hash, row.status.value(), note, at])?;
+        }
+        let next = actual.checked_add(1).context("copy revision exhausted")?;
+        tx.execute("INSERT INTO meta(key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value", params![copy_revision_key(identity, &row.member_key), next.to_string()])?;
+        annotation_changed(&tx, Kind::Duplicate, identity)?;
+        tx.commit()?;
         self.writes += 1;
         Ok(())
     }
@@ -905,13 +1104,57 @@ impl Store {
     }
 }
 
+fn migrations() -> Migrations<'static> {
+    Migrations::new(vec![M::up(SCHEMA), M::up(SCHEMA_FILE_REVIEWS), M::up(
+        "ALTER TABLE reviews ADD COLUMN fingerprint_version INTEGER NOT NULL DEFAULT 1 CHECK(fingerprint_version IN (1, 2));"
+    ), M::up(SCHEMA_COPY_REVIEWS)])
+}
+
+/// Backup preflight must never migrate or import the source database.
+pub(super) fn validate_backup_schema(conn: &Connection) -> anyhow::Result<i64> {
+    ensure!(
+        migrations().pending_migrations(conn)? == 0,
+        "backup requires the current dashboard schema; no migration was attempted"
+    );
+    for (table, columns) in [
+        ("meta", "key, value"),
+        (
+            "reviews",
+            "kind, identity, fingerprint, status, decided_at, reason, fingerprint_version",
+        ),
+        (
+            "review_history",
+            "id, kind, identity, fingerprint, status, decided_at, reason",
+        ),
+        (
+            "comments",
+            "id, kind, identity, body, created_at, updated_at",
+        ),
+        (
+            "file_reviews",
+            "identity, path, member_key, member_base, code_hash, status, note, updated_at",
+        ),
+    ] {
+        let actual: String = conn.query_row(
+            "SELECT type FROM sqlite_schema WHERE name = ?1",
+            [table],
+            |row| row.get(0),
+        )?;
+        ensure!(
+            actual == "table",
+            "dashboard schema contains an unexpected object"
+        );
+        // Table/column names are fixed program constants, never user input.
+        conn.prepare(&format!("SELECT {columns} FROM {table} LIMIT 0"))?;
+    }
+    Ok(conn.pragma_query_value(None, "user_version", |row| row.get(0))?)
+}
+
 /// Two processes opening a fresh database can both see version 0 and race; the
 /// loser fails inside its own transaction, so it retries and finds the schema
 /// already in place.
 fn migrate(conn: &mut Connection) -> anyhow::Result<()> {
-    let migrations = Migrations::new(vec![M::up(SCHEMA), M::up(SCHEMA_FILE_REVIEWS), M::up(
-        "ALTER TABLE reviews ADD COLUMN fingerprint_version INTEGER NOT NULL DEFAULT 1 CHECK(fingerprint_version IN (1, 2));"
-    )]);
+    let migrations = migrations();
     let mut attempts = 0;
     loop {
         match migrations.to_latest(conn) {
@@ -1327,7 +1570,9 @@ mod tests {
         );
         assert_eq!(list[0].body, "line 1\nline 2");
         assert_eq!((list[0].created_at, list[0].updated_at), (3, 3));
-        assert!(store.update_comment(first, "edited", 9).unwrap());
+        assert!(store
+            .update_comment(first, (Kind::Dead, &identity, 2), "edited", 9)
+            .unwrap());
         let list = store.comments(Kind::Dead, &identity).unwrap();
         assert_eq!(
             (
@@ -1337,9 +1582,15 @@ mod tests {
             ),
             ("edited", 3, 9)
         );
-        assert!(store.delete_comment(second).unwrap());
-        assert!(!store.delete_comment(second).unwrap());
-        assert!(!store.update_comment(second, "gone", 1).unwrap());
+        assert!(store
+            .delete_comment(second, (Kind::Dead, &identity, 3))
+            .unwrap());
+        assert!(!store
+            .delete_comment(second, (Kind::Dead, &identity, 3))
+            .unwrap());
+        assert!(!store
+            .update_comment(second, (Kind::Dead, &identity, 3), "gone", 1)
+            .unwrap());
         assert_eq!(store.comments(Kind::Dead, &identity).unwrap().len(), 1);
         assert!(store.add_comment(Kind::Dead, &identity, "   ", 1).is_err());
         assert!(store
@@ -1926,3 +2177,7 @@ mod tests {
             .is_err());
     }
 }
+
+#[cfg(test)]
+#[path = "store_copy_tests.rs"]
+mod copy_tests;

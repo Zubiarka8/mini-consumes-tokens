@@ -824,12 +824,13 @@ async fn find_dead_code_excludes_entry_points_and_test_files() {
             .await
             .unwrap(),
     );
-    // `compute` is imported and called from `test_compute.py`; `helper` is
-    // called from `compute`. Neither is a dead-code candidate.
-    assert!(
-        text.starts_with("No dead-code candidates found"),
-        "got: {text}"
-    );
+    // The Python import does not prove an FFI binding to Rust's `compute`.
+    // Keep it as an uncertain candidate, while the real Rust call to `helper`
+    // and the entry/test exclusions remain effective.
+    assert!(text.contains("function compute"), "got: {text}");
+    assert!(!text.contains("function helper"), "got: {text}");
+    assert!(!text.contains("function main"), "got: {text}");
+    assert!(!text.contains("function test_compute"), "got: {text}");
 }
 
 fn references_args(

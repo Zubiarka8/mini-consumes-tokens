@@ -20,7 +20,12 @@ A parser that can prove more fills `RelationTarget`: a type/container name in `q
 
 ## Consequences
 - Rust records `Type::f`, `Self::f`, `self.f()` (impl type), same-file free-function and `self::f` calls (`path`), `m::f`/`m::Type::f` module paths (`module`, so `rand::random()` never reaches a local `random`), `x.f()` receiver calls (`member`) and `std`/`core`/`alloc` paths (external); a bare `crate::f`/`super::f` stays unqualified; HTML id/class references target `css`; XAML handlers target `csharp` in the `.xaml.cs` code-behind. Other parsers are unqualified until enriched: same-language unique names resolve, the rest are ambiguous or unresolved.
-- `fan_in_counts`, `reference_counts` (`find_dead_code`, `get_project_overview`) still count by name.
+- `fan_in_counts` and public `reference_counts` remain aggregate name counts.
+  Phase 5 dead-code candidate detection partitions references by
+  `COALESCE(target_language, source language)`, preserving explicit cross-language
+  evidence without letting unrelated language homonyms hide candidates. Within
+  that language it remains a conservative name heuristic, not reachability. No
+  schema or relation-resolution view changes are needed.
 - No receiver-type inference (even from a typed parameter, so `store.insert()` is uncertain), overload selection or `use`-import binding of bare calls yet.
 
 #adr #architecture

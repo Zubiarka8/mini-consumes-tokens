@@ -592,3 +592,41 @@ fn full_duplicate_source_pages_cover_every_line_exactly_once() {
         );
     }
 }
+
+#[test]
+fn full_duplicate_source_carries_the_lines_around_each_copy() {
+    let root = tempfile::tempdir().unwrap();
+    fs::create_dir(root.path().join("src")).unwrap();
+    let header: String = (1..=9).map(|n| format!("// header {n}\n")).collect();
+    let a = format!("{header}pub fn alpha{BODY}// after 1\n// after 2\n");
+    fs::write(root.path().join("src/a.rs"), &a).unwrap();
+    fs::write(root.path().join("src/b.rs"), format!("pub fn beta{BODY}")).unwrap();
+    index(root.path());
+    let mut api = Api::start(root.path());
+    let list = api.get("api/duplicates");
+    let id = list["items"][0]["identity"].as_str().unwrap().to_string();
+
+    // A list preview reads no source around the copies.
+    for member in list["items"][0]["members"].as_array().unwrap() {
+        assert!(member["context_before"].as_array().unwrap().is_empty());
+        assert!(member["file_lines"].is_null());
+    }
+
+    let full = api.get(&format!("api/duplicates?id={id}&full=1"));
+    let members = full["items"][0]["members"].as_array().unwrap();
+    let alpha = members.iter().find(|m| m["path"] == "src/a.rs").unwrap();
+    let beta = members.iter().find(|m| m["path"] == "src/b.rs").unwrap();
+    let lines: Vec<&str> = a.lines().collect();
+    let start = alpha["start_line"].as_u64().unwrap() as usize;
+    let end = alpha["end_line"].as_u64().unwrap() as usize;
+    let context = super::source::DUPLICATE_CONTEXT as usize;
+    assert_eq!(alpha["file_lines"], lines.len());
+    assert_eq!(
+        alpha["context_before"],
+        json!(lines[start - 1 - context..start - 1])
+    );
+    // Clamped to the file: fewer lines below than the context asks for.
+    assert_eq!(alpha["context_after"], json!(lines[end..]));
+    assert_eq!(beta["start_line"], 1);
+    assert!(beta["context_before"].as_array().unwrap().is_empty());
+}

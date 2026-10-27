@@ -1,5 +1,23 @@
 # Project State
 
+## TASK-STORAGE-RELIABILITY — 2026-10-25
+
+Current owner: Codex, single agent. Base b61cc7ce971fdc46a61259af95af7fac823ae352,
+primary feature/dead-code-editor checkout with all pre-existing work preserved.
+Status: Phase 4 implementation validated locally; operational and performance acceptance pending.
+Overall storage reliability remains PARTIALLY DONE; no integration/publication authorization.
+Authoritative scope, limitations, checks and continuation:
+[storage reliability checkpoint](checkpoints/storage-reliability.md).
+Design: [SDD](../docs/01-architecture/storage-reliability-spec.md).
+No worker was dispatched. Whole-system acceptance and production cutover remain
+pending; earlier records below retain their historical task context.
+
+Phase 4 scope: idle filesystem reconciliation, one-transaction index generation
+publication, source mutation detection and MCP snapshot consistency. The
+checkpoint and verification document are authoritative for actual code, tests,
+and remaining acceptance; previous task records remain historical evidence.
+
+
 Last update: 2026-10-19
 Updated by: Claude Code (issue #207 closure)
 

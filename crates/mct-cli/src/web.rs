@@ -2,9 +2,14 @@
 //! Source previews and notes are read on demand from files the index lists.
 
 mod api;
+pub(crate) mod backup;
+pub(crate) mod backup_manager;
+#[cfg(test)]
+mod coordination_bench;
 mod http;
 mod i18n;
 mod markdown;
+mod member_reviews;
 mod notes;
 mod render;
 mod reviews;
@@ -42,6 +47,7 @@ use reviews::{Kind, State};
 struct Duplicate {
     identity: String,
     fingerprint: String,
+    members: Vec<member_reviews::Member>,
 }
 
 /// A dead-code candidate with its review keys.
@@ -125,6 +131,7 @@ impl Site {
         // starts later, so a commit after this stamp only makes the snapshot
         // look stale, never fresher than it is.
         let index_stamp = index_stamp(root);
+        let snapshot = index.read_snapshot()?;
         let mut reviews = store::Store::open(root)?;
         let csrf = random_key()?;
         let warning = if no_obsidian {
@@ -197,8 +204,13 @@ impl Site {
             .map(|(identity, fingerprint)| Duplicate {
                 identity,
                 fingerprint,
+                members: Vec::new(),
             })
             .collect();
+        let parents = member_reviews::ParentNames::new(&navigation);
+        for (key, group) in duplicate_keys.iter_mut().zip(&duplicates.groups) {
+            key.members = member_reviews::indexed(group, &parents, &mut fingerprints);
+        }
         // A partial-block detector can emit several groups with one identity.
         // Never let a decision on one block validate another block implicitly.
         let mut identity_counts = HashMap::new();
@@ -246,6 +258,7 @@ impl Site {
                 fingerprint,
             })
             .collect();
+        drop(snapshot);
         let migrations: Vec<_> = duplicate_keys
             .iter()
             .zip(old_fingerprints)
@@ -355,13 +368,24 @@ impl Site {
         identity: &str,
         expected: &str,
     ) -> Result<String, render::Response> {
+        if index_stamp(&self.root) != self.index_stamp {
+            return Err(render::Response::error(409));
+        }
+        self.verified_source_fingerprint(kind, identity, expected)
+    }
+
+    // Read applicability depends on verified source content, not whether an
+    // unrelated index commit changed the stamp. Writes still require that stamp.
+    fn verified_source_fingerprint(
+        &self,
+        kind: Kind,
+        identity: &str,
+        expected: &str,
+    ) -> Result<String, render::Response> {
         let current = self
             .fingerprint_of(kind, identity)
             .ok_or_else(|| render::Response::error(404))?;
-        if !reviews::valid_key(expected)
-            || current != expected
-            || index_stamp(&self.root) != self.index_stamp
-        {
+        if !reviews::valid_key(expected) || current != expected {
             return Err(render::Response::error(409));
         }
         let mut fingerprints = reviews::Fingerprints::new(&self.root, &self.navigation);
@@ -405,12 +429,26 @@ impl Site {
     /// A store read error must not take the whole page down: the finding is
     /// shown as pending and the cause is logged.
     fn state_or_pending(&self, kind: Kind, identity: &str, fingerprint: &str) -> State {
-        self.reviews
+        let state = self
+            .reviews
             .state(kind, identity, fingerprint)
-            .unwrap_or_else(|error| {
-                eprintln!("warning: cannot read review state: {error:#}");
-                State::Pending
-            })
+            .and_then(|state| {
+                if matches!(state, State::Decided { .. })
+                    && self
+                        .verified_source_fingerprint(kind, identity, fingerprint)
+                        .is_err()
+                {
+                    // A previously loaded fingerprint is not current source proof.
+                    // Reevaluate applicability without changing the saved decision.
+                    self.reviews.state(kind, identity, "")
+                } else {
+                    Ok(state)
+                }
+            });
+        state.unwrap_or_else(|error| {
+            eprintln!("warning: cannot read review state: {error:#}");
+            State::Pending
+        })
     }
 
     /// Findings that are neither decided nor waiting for a new look.

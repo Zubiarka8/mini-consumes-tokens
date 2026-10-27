@@ -61,6 +61,35 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Command {
+    /// Create a verified dashboard snapshot without reindexing or migrating it.
+    DashboardBackup {
+        /// Private destination directory; defaults to .mct-index/backups.
+        #[arg(long)]
+        destination: Option<PathBuf>,
+    },
+    /// Validate a backup and rehearse restoration in a disposable database.
+    DashboardBackupVerify {
+        /// Completed backup directory printed by dashboard-backup.
+        #[arg(long)]
+        backup: PathBuf,
+    },
+    /// One maintenance tick for cron, launchd or Task Scheduler; disabled by default.
+    DashboardBackupManage {
+        #[command(flatten)]
+        policy: web::backup_manager::Policy,
+    },
+    /// Verify and list recovery candidates and maintenance health as TOON.
+    DashboardBackupStatus {
+        #[command(flatten)]
+        policy: web::backup_manager::Policy,
+    },
+    /// Restore into a NEW isolated directory; never replace the active database.
+    DashboardBackupRestore {
+        #[arg(long)]
+        backup: PathBuf,
+        #[arg(long)]
+        destination: PathBuf,
+    },
     /// Build the index for the first time.
     ///
     /// Equivalent to `reindex` — kept as a separate, discoverable first
@@ -335,6 +364,33 @@ fn main() -> anyhow::Result<()> {
     // None of these touch the index at all, so they're handled before
     // Index::open — running them shouldn't have the side effect of creating
     // .mct-index/.
+    if let Command::DashboardBackup { destination } = &cli.command {
+        let bundle = web::backup::create(&root, destination.as_deref())?;
+        println!("Verified dashboard backup: {}", bundle.display());
+        return Ok(());
+    }
+    if let Command::DashboardBackupVerify { backup } = &cli.command {
+        web::backup::verify_restore(backup)?;
+        println!("Backup integrity, schema, digest and isolated restoration verified.");
+        return Ok(());
+    }
+    match &cli.command {
+        Command::DashboardBackupManage { policy } => {
+            return web::backup_manager::run(&root, policy, false)
+        }
+        Command::DashboardBackupStatus { policy } => {
+            return web::backup_manager::run(&root, policy, true)
+        }
+        Command::DashboardBackupRestore {
+            backup,
+            destination,
+        } => {
+            web::backup::restore_into(backup, destination)?;
+            println!("Isolated restoration verified; production database was not replaced.");
+            return Ok(());
+        }
+        _ => (),
+    }
     if let Command::McpRegister {
         name,
         reindex_delay,
@@ -407,6 +463,11 @@ fn main() -> anyhow::Result<()> {
             include_reviewed,
         )?,
         Command::Init { .. }
+        | Command::DashboardBackup { .. }
+        | Command::DashboardBackupVerify { .. }
+        | Command::DashboardBackupManage { .. }
+        | Command::DashboardBackupStatus { .. }
+        | Command::DashboardBackupRestore { .. }
         | Command::Call { .. }
         | Command::McpRegister { .. }
         | Command::IgnoreInit { .. }
@@ -756,6 +817,7 @@ fn dead_code_report(
     output: Option<PathBuf>,
     include_reviewed: bool,
 ) -> anyhow::Result<()> {
+    let snapshot = index.read_snapshot()?;
     let candidates = mct_index::find_dead_code_candidates(index, path, language)?;
     let candidates = if include_reviewed {
         candidates
@@ -767,6 +829,7 @@ fn dead_code_report(
             candidates
         }
     };
+    drop(snapshot);
     let output =
         output.unwrap_or_else(|| index.root().join(".mct-index").join("dead-code-report.csv"));
     if let Some(parent) = output.parent() {
