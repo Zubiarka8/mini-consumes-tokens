@@ -14,6 +14,7 @@ mct-core.workspace = true
 # skip the ssh/https transports and their system OpenSSL/libssh2 dependency —
 # keeps the build self-contained and identical across Linux/macOS/Windows.
 git2 = { version = "0.21.0", default-features = false }
+anyhow = "1.0.104"
 globset = "0.4.20"
 # Review keys (SHA-256) and review notes (form encoding); both are already
 # built for mct-cli, which wrote these formats first.
