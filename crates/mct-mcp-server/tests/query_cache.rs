@@ -580,8 +580,8 @@ async fn an_unrelated_change_keeps_the_entry_after_revalidation() {
     let lexical = search(&server, search_args("invoice")).await;
     assert!(is_reference(&lexical), "got: {lexical}");
     let semantic = hybrid(&server, scoped()).await;
-    assert!(is_reference(&semantic), "got: {semantic}");
     let stats = server.cache_stats();
+    assert!(is_reference(&semantic), "got: {semantic}; {stats:?}");
     assert_eq!(
         (
             stats.exact_hit,
@@ -629,18 +629,22 @@ async fn a_hit_never_shows_stale_source() {
         before.contains("format!(\"inv-{customer}\")"),
         "got: {before}"
     );
-    // The file changes on disk but the index hasn't caught up yet: the
-    // ranking is still valid (a hit), the source shown must be today's.
+    // The ranking is still valid (a hit), but its ranges cannot be applied
+    // to an unindexed source revision, even when the line count is unchanged.
     let path = root.join("src/billing.rs");
     let source = std::fs::read_to_string(&path).unwrap();
     std::fs::write(&path, source.replace("inv-", "INV-")).unwrap();
     let after = search(&server, with_snippet()).await;
     assert_eq!(server.cache_stats().exact_hit, 1);
-    assert!(
-        after.contains("format!(\"INV-{customer}\")"),
-        "got: {after}"
-    );
+    assert!(after.contains("function create_invoice"), "got: {after}");
+    assert!(!after.contains("format!("), "got: {after}");
     assert!(!after.contains("\"inv-"), "got: {after}");
+    reindex(&server).await;
+    let refreshed = search(&server, with_snippet()).await;
+    assert!(
+        refreshed.contains("format!(\"INV-{customer}\")"),
+        "got: {refreshed}"
+    );
 }
 
 #[tokio::test]
