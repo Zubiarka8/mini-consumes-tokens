@@ -41,7 +41,7 @@ fn review_fields(site: &Site, key: &str) -> Value {
         "note": winner.map_or("", |winner| winner.note.as_str()),
         "updated": winner.and_then(|winner| known_time(winner.at)),
         "source": winner.map(|winner| winner.format.value()),
-        "revision": resolution.map_or_else(|| "none".to_string(), Resolution::revision),
+        "revision": site.reviews.revision(key),
         "readOnly": site.reviews.read_only_reason().is_some(),
     })
 }
@@ -54,6 +54,26 @@ pub(in crate::web) fn review_json(site: &Site, key: &str) -> Value {
     let mut value = review_fields(site, key);
     value["history"] = history_json(site, key);
     value
+}
+
+pub(in crate::web) fn review_sources_current(site: &Site, key: &str) -> bool {
+    if let Some(id) = site
+        .review_keys
+        .iter()
+        .position(|candidate| candidate == key)
+    {
+        return site.duplicates.groups[id]
+            .members
+            .iter()
+            .all(|member| code::read_lines(site, &member.path, 1, 1).is_some());
+    }
+    site.dead
+        .iter()
+        .find(|candidate| candidate.key == key)
+        .is_some_and(|candidate| {
+            let symbol = &site.navigation.symbols[candidate.symbol];
+            code::read_lines(site, &symbol.relative_path, 1, 1).is_some()
+        })
 }
 
 fn top_directory(path: &str) -> &str {
