@@ -535,3 +535,6 @@ Most MCP connections talk over "stdio" â€” a program's normal input and output â
 The original code and documentation in this project are licensed under the [Apache License 2.0](LICENSE). Third-party components retain their own licenses; see [Third-Party Notices](THIRD_PARTY_NOTICES.md).
 
 For the complete command/flag/tool-parameter reference, see [COMMANDS.md](COMMANDS.md). For the internal design, see [ARCHITECTURE.md](ARCHITECTURE.md). For contributing, including how to add a new language, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+MCP source snippets and skeletons require bytes matching the indexed revision;
+reindex after edits to retrieve source with current line ranges.
