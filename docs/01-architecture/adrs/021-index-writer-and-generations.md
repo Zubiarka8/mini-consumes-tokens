@@ -98,3 +98,12 @@ reindexes, checking changed review fingerprints, current symbols/source and
 duplicate membership. `mct-index/tests/writer_coordination.rs` covers writer
 exclusion and release, reader/maintenance barriers, independent databases,
 contention without publication, recovery, and linked lockfile refusal.
+
+### Dashboard snapshot boundary
+
+`Site::load` holds one read snapshot from navigation through duplicate detection,
+review fingerprints, dead-code candidates and reference counts. A concurrent
+writer can publish while that reader finishes; the next dashboard reload follows
+the new generation. The deterministic dashboard regression publishes between
+navigation and the remaining queries, proving both consistency and next-request
+visibility without sleeps.

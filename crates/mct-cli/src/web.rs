@@ -83,6 +83,16 @@ struct Site {
 
 impl Site {
     fn load(root: &Path, no_obsidian: bool) -> anyhow::Result<Self> {
+        Self::load_snapshot(root, no_obsidian, || {})
+    }
+
+    // The callback lets integration tests publish between the navigation query
+    // and the remaining queries, without timing-dependent threads or sleeps.
+    fn load_snapshot(
+        root: &Path,
+        no_obsidian: bool,
+        after_navigation: impl FnOnce(),
+    ) -> anyhow::Result<Self> {
         let started = Instant::now();
         let stamp = IndexStamp::of(root);
         let database = root.join(".mct-index/index.sqlite3");
@@ -102,7 +112,10 @@ impl Site {
         if let Some(warning) = &warning {
             eprintln!("warning: {warning}");
         }
+        // Navigation, candidates and review hashes must describe one generation.
+        let snapshot = index.read_snapshot()?;
         let mut navigation = index.navigation_snapshot()?;
+        after_navigation();
         navigation.files.retain(|file| file.language != "asset");
         navigation
             .files
@@ -173,6 +186,7 @@ impl Site {
             eprintln!("warning: review decisions are read-only until this is fixed: {reason}");
         }
         let references = index.reference_counts()?;
+        drop(snapshot);
         let vault_dir = mct_obsidian::vault_dir(root);
         let vault = obsidian::scan(&vault_dir);
         let mut symbol_groups: HashMap<usize, Vec<usize>> = HashMap::new();
