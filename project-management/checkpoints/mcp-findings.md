@@ -90,3 +90,93 @@ add the new duplicate handler's outer snapshot and live external-reindex test.
 reader/maintenance barriers, release/recovery and linked lockfile refusal.
 Retain the existing TOON whole-file identity contract; the backup provenance
 rebinding depends on an incompatible store and is not transplanted.
+
+## Phase D/E verification in progress
+
+Phase C full gate: 1824 passed / 0 failed / 30 ignored; fmt, CI Clippy and eval
+passed (catalog 12033). Merge f806746 preserves #234 history; 63771fc fixes the
+fuzz lock; 43e77a9 adds source regression coverage and documentation.
+Current branch: feature/mcp-live-reindex, base 43e77a9.
+
+The live external-reindex test passed on the inherited #234 implementation:
+MCP sees updated symbols/source and duplicate groups without restart; dismissed
+duplicate/dead-code findings reappear as needs-reevaluation after an edit, and
+cached rankings do not keep the old name after a second publication. This is
+coverage of existing behavior, not an artificially failing new feature test.
+An outer snapshot now extends duplicate detection's internal snapshot through
+its review-hash query, closing the multi-query generation boundary.
+writer_coordination: 5 passed. The source revisions and generation tests use
+real indexes and stores, not mocks. No new tests were disabled or ignored.
+
+Identity comparison: dead-id-v2 already uses all same-named symbols, not only
+candidates, to assign ordinals; existing tests cover reference changes and line
+insertion. The backup resolver depends on retained provenance in a SQLite-only
+store. No such store or fingerprint-policy change was introduced. Inserting or
+removing same-named siblings can still change ordinals under the existing TOON
+contract; whole-file fingerprints prevent silent suppression after those edits.
+
+Next: complete focused crate and full workspace gates, review the final diff,
+then preserve the delivery report and branch bundle. Safari and GitHub remain
+blocked by the recorded environment restrictions.
+
+## Context checkpoint requested by user
+
+Current checkout: mct-plan5 (isolated local clone); primary checkout source is
+untouched. Current branch: feature/mcp-live-reindex. HEAD: 43e77a9.
+No remote publication or main integration. No worker dispatched.
+
+Completed locally:
+- 8d06959: duplicate partial-member continuation and fallback review_store fix.
+- 4b0d012: review-aware dead-code MCP query, six tests, ADR-023, docs and baselines.
+- f806746: merge #234 (10ee064) with review-aware dead-code snapshot preserved.
+- 63771fc: fuzz lockfile synchronized with #234's anyhow dependency.
+- 43e77a9: six source revision regressions and ADR-024/docs.
+
+Uncommitted D/E slice: duplicate handler outer read snapshot; new live_reindex
+integration test (external writer, changed dismissals -> needs-reevaluation,
+new symbols/source and stale ranking invalidation); five writer_coordination
+tests; ADR-021 integration notes, protocol table and changelog/checkpoint.
+Focused gates passed: mct-mcp-server 414 passed / 0 failed / 1 ignored;
+mct-index 434 passed / 0 failed / 1 ignored; both fmt and CI Clippy passed.
+The live test assertions were then strengthened (actual source and typed symbol
+row rather than query-name presence); live_reindex passed again. Full check.sh
+is currently running; do not mutate source until it completes. Expected next
+step: collect its result, commit the D/E slice on the current branch.
+
+Additional confirmed review concern to investigate next (not implemented yet):
+Site::load in crates/mct-cli/src/web.rs loads navigation and subsequent queries
+without one outer read snapshot, so an external publication can mix generations
+in the cached dashboard state. Add a deterministic regression with a publication
+between navigation and reference queries; only then pin that load's SQL reads
+using #234's read_snapshot. Keep this in a separate fix/web-findings-generation
+branch after the current D/E commit. Existing web wire tests need no sockets.
+A private load helper with a no-op production callback can provide deterministic
+interleaving without sleeps; a draft test/patch script exists only as local
+scratch, and must be reviewed before use. Browser verification remains separate.
+
+Environment blockers:
+- GitHub api.github.com denied by network policy, including escalation.
+- Original .git metadata writes denied including escalation: use this clone.
+- Owned fixture server bind on 18811 denied (Operation not permitted), including
+  approved escalation. Safari is available and existing pages were read, but
+  the requested end-to-end browser flow has NOT been verified. Existing services
+  and review data were preserved. No UI/dashboard asset changes yet.
+
+Remaining delivery: finish D/E gate+commit; investigate/fix dashboard load race
+with regression and focused/full checks; update seven coordination records and
+final English report/PR drafts; preserve branches in a Git bundle. Publication,
+remote CI and Safari acceptance remain pending access. No backup PR closure,
+SQLite review store port, website/, LICENSE, errors/, tasks/plan.md or phase H.
+
+All test counts are actual script output; no new test was ignored or disabled.
+Last completed full gate (C): 1824 passed / 0 failed / 30 ignored, fmt/Clippy/eval
+passed. Both catalog baselines: 12033 tokens; omni dead-code response baseline
+402 -> 845 for explicit review metadata. Catalog limit remains 4800 bytes.
+
+### Latest verified state before compaction
+
+The D/E full check has completed: 1830 passed, 0 failed, 30 ignored; fmt,
+CI Clippy and evaluation passed (catalog 12033). No check process remains
+pending. The D/E slice is being committed on feature/mcp-live-reindex; resolve
+its latest HEAD through Git. Next action is the separate dashboard load race
+regression described above, followed by delivery records and report.
