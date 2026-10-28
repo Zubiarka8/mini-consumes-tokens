@@ -756,7 +756,7 @@ fn dead_code_report(
         let resolutions = reviewed::load(index.root()).resolve(&findings);
         for (&id, resolution) in scan.candidates.iter().zip(&resolutions) {
             if mode.keeps(resolution) {
-                rows.push((&scan.symbols[id], Some(resolution.label())));
+                rows.push((&scan.symbols[id], Some(resolution.effective_label())));
             }
         }
         if mode == reviewed::Reviewed::Hide {
