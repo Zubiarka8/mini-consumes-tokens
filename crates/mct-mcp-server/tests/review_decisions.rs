@@ -144,6 +144,26 @@ async fn an_edit_and_a_degraded_store_never_hide_candidates() {
     assert!(text.contains("actionable: 3"), "{text}");
 }
 #[tokio::test]
+async fn a_broken_legacy_file_keeps_the_decision_visible_but_holds_the_suppression() {
+    let p = Project::new();
+    p.decide(State::FalsePositive);
+    let healthy = query(&p.server(), json!({})).await;
+    assert!(healthy.contains("suppressed: 1"), "{healthy}");
+    assert!(healthy.contains("review_store: ok"), "{healthy}");
+    fs::write(p.0.join(".mct-index/reviews.toon"), "version: 2\ntruncated").unwrap();
+    let held = query(&p.server(), json!({})).await;
+    assert!(held.contains("review_store: degraded"), "{held}");
+    assert!(held.contains("suppressed: 0"), "{held}");
+    assert!(held.contains("actionable: 3"), "{held}");
+    assert!(held.contains(",alpha,"), "{held}");
+    assert!(held.contains("needs-reevaluation"), "{held}");
+    assert!(!held.contains("false-positive"), "{held}");
+    fs::remove_file(p.0.join(".mct-index/reviews.toon")).unwrap();
+    let repaired = query(&p.server(), json!({})).await;
+    assert!(repaired.contains("suppressed: 1"), "{repaired}");
+    assert!(repaired.contains("review_store: ok"), "{repaired}");
+}
+#[tokio::test]
 async fn empty_and_suppressed_are_distinct_and_offset_overflow_is_safe() {
     let p = Project::new();
     let server = p.server();
