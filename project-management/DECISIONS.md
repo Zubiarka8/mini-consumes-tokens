@@ -69,3 +69,11 @@ measurements follow integration, because they need all three parts.
 Alternatives considered: one agent per issue stage (stages 2–5 share one module);
 a fourth agent for Go and JS/TS (out of the confirmed Rust + Python scope); two agents
 (token and analysis work would share an owner and serialize).
+
+## TASK-MCP-FINDINGS — 2026-10-28
+
+Keep shared TOON decisions and whole-file fingerprints. Reuse #234's source
+verification and generation implementation rather than porting the incompatible
+SQLite review store. Keep the original checkout and backup branches intact.
+Architecture: ADR-021–024; reasons and limitations: [delivery report](deliveries/mcp-findings.md).
+User authorized draft publication, not main merge or phase-H refactoring.

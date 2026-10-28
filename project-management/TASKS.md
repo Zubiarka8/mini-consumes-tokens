@@ -286,3 +286,12 @@ separate review candidates based on main verified through the GitHub connector.
 PR #209's already-merged cache/export behavior is preserved in the cleanup candidate.
 All five merged on 2026-10-18/19 (#211 `a38dcc5`, #212 `cff2f35`, #213 `7fded7b`,
 #214 `be8556f`, #215 `6346fba`, #216 `19e3733`).
+
+## TASK-MCP-FINDINGS — 2026-10-28
+
+Status: REVIEW locally; browser and remote acceptance blocked. Owner: Codex
+coordinator, single writer/reviewer. Initial base: `2d6273ca01ead94f9db39169fed58ee2eaf91f66`.
+Worktree: `mct-plan5`; coordination: `docs/mcp-findings-delivery`. Scope, per-branch
+bases, dependencies, acceptance, exclusions and evidence: [delivery report](deliveries/mcp-findings.md).
+Code candidate `bf91ccf`: full gate 1831 passed / 0 failed / 30 ignored; fmt, CI
+Clippy and evaluation passed. No integration or independent approval claimed.

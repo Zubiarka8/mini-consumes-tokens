@@ -1,6 +1,13 @@
 # Handoff
 
-The coordinator records the current continuation here; workers checkpoint in their own task branch. See [checkpoint requirements](../PROJECT_MANAGER.md#checkpoints-and-handoffs).
+## TASK-MCP-FINDINGS — 2026-10-28
+
+Local code candidate `bf91ccf`; coordination branch `docs/mcp-findings-delivery`
+in isolated clone `mct-plan5`. No source writer/check process remains active.
+Next: publish the reviewed draft stack, check exact-head CI and complete Safari
+acceptance when the fixture server can bind. Branch/base mapping, command
+results, exclusions and resume procedure: [delivery report](deliveries/mcp-findings.md).
+Retain all unintegrated branches and the verified recovery bundle.
 
 ## TASK-207
 

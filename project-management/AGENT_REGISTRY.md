@@ -63,3 +63,10 @@ The interrupted Claude alias worktree is preserved, including untracked
 Recovery candidate refs imported into the original repository. Original branches
 `claude/md-alias-135` and `claude/css-nesting-115` now point to the reviewed
 candidates; previous writer probe and local hook settings are preserved.
+
+## TASK-MCP-FINDINGS — 2026-10-28
+
+Codex coordinator owns isolated clone `mct-plan5` and branch
+`docs/mcp-findings-delivery`. Lifecycle: review; no worker or second writer.
+Base `2d6273c`; latest code `bf91ccf`. Primary checkout preserved. Candidate
+branches and blocked acceptance are tracked in the [delivery report](deliveries/mcp-findings.md).

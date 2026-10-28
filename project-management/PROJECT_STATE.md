@@ -1,5 +1,15 @@
 # Project State
 
+## TASK-MCP-FINDINGS — 2026-10-28
+
+Last update: 2026-10-28 by Codex coordinator. Local implementation is REVIEW;
+complete acceptance remains blocked by owned-server startup and remote access.
+Latest code: `bf91ccf`; full gate 1831/0/30, fmt/Clippy/evaluation passed.
+Authoritative scope, branch/base mapping, risks and next action: [delivery report](deliveries/mcp-findings.md).
+No main integration; primary checkout and historical task records preserved.
+
+## Historical state (preserved)
+
 Last update: 2026-10-19
 Updated by: Claude Code (issue #207 closure)
 

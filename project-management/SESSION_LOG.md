@@ -67,3 +67,11 @@ Record significant events only. Link to task, review, and decision details; omit
   ADR-007 and COMMANDS.md document the cache, `--no-cache` and `--output`.
 - Records updated on `chore/close-207-records`, which closes #207. ERR-015 recurred
   (recorded); worktrees were kept.
+
+## TASK-MCP-FINDINGS — 2026-10-28
+
+Completed duplicate continuation, review-aware dead-code MCP, #234 source/
+generation integration and lock synchronization, live-reader/writer tests, and
+the dashboard snapshot race fix `bf91ccf`. Final full gate: 1831/0/30.
+Preserved primary work and all backup branches. Prepared the draft PR stack
+and durable delivery records; acceptance blockers: [delivery report](deliveries/mcp-findings.md).

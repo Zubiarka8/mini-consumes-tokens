@@ -1,5 +1,13 @@
 # Review Report
 
+## TASK-MCP-FINDINGS — 2026-10-28
+
+Result: BLOCKED for complete acceptance; local code reviewed with no remaining
+required code finding. A-001/A-002/D-001/F-001 are fixed; precise causes and
+evidence: [delivery report](deliveries/mcp-findings.md). Final Rust gate on `bf91ccf`: 1831 passed / 0 failed /
+30 ignored, fmt/CI Clippy/evaluation passed. Safari, publication and remote CI
+require the separate evidence documented there. No merge approval claimed.
+
 ## Four-task recovery review — 2026-10-12
 
 Base: a3e10b0f450a93107061152feb862a1d242820a1. Combined code tree: ddbc17b.
