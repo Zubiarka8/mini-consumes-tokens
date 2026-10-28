@@ -22,7 +22,7 @@ Base 2641f50, branch claude/docs-readme.
 | checklist.md | "7 tools (6-8 limit)" | 18 tools now | marked superseded |
 | checklist.md | "eight languages" (open decision 1) | 17 | fixed |
 | checklist.md | crate list in "General deliverable" | missing kotlin, md, tree-sitter, corpus, eval (24 crates) | added |
-| checklist.md | `LICENSE-MIT` | file is `LICENSE` (Apache-2.0) | fixed |
+| checklist.md | old license file name | file is `LICENSE` (Apache-2.0) | fixed |
 | checklist.md | README documents crates.io install | README documents two paths; crates.io blocked (RELEASING.md §4) | fixed |
 | checklist.md | language table broken by blank lines before Bash and PHP rows | rendering | blank lines removed |
 | checklist.md | duplicated items (5.1-5.7 cleanup, Bash/PowerShell) | duplicate text | duplicates removed |
