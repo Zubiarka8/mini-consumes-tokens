@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `mct-cli web` follows a reindex: when the index file is republished the
+  next request reloads the snapshot (duplicates, dead code and decisions), so
+  the dashboard no longer needs a restart. The page's CSRF token stays valid.
 - `mct-cli web` is now a complete local dashboard: a read-only JSON API over
   the startup snapshot and an embedded, dependency-free front end (Spanish UI,
   dark and light themes, responsive, keyboard accessible) with Dashboard,

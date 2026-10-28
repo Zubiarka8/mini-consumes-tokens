@@ -111,8 +111,8 @@ enum Command {
     ///
     /// Uses the existing index without reindexing. Regenerates the Obsidian
     /// vault unless disabled. Prints a private localhost URL; keep this
-    /// command running and press Ctrl-C to stop. Restart after reindexing
-    /// to see updated results. No browser is opened automatically.
+    /// command running and press Ctrl-C to stop. A reindex is picked up on
+    /// the next request, no restart needed. No browser is opened automatically.
     Web {
         /// Local port (0 selects a free port). Always binds 127.0.0.1.
         #[arg(long, default_value_t = 0)]
