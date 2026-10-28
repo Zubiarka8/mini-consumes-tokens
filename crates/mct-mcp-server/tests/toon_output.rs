@@ -283,6 +283,8 @@ async fn find_dead_code_toon_round_trips() {
     let toon = content_of(
         &server
             .find_dead_code(Parameters(FindDeadCodeArgs {
+                include_reviewed: None,
+                max_tokens: None,
                 format: Some("toon".to_string()),
                 path: None,
                 language: None,
