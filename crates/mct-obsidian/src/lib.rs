@@ -273,12 +273,26 @@ pub fn write_vault(index: &Index, out: &Path) -> Result<VaultReport> {
     manifest::publish(out, &build_notes(index)?)
 }
 
+/// Held by the post-reindex hook while it publishes the vault. A process that
+/// is about to exit takes it first, so it never stops in the middle of a
+/// publication and leaves the writer lock (`<vault>.lock`) behind.
+pub type PublishGuard = std::sync::Arc<std::sync::Mutex<()>>;
+
 /// Registers the hook that regenerates the project's vault after every
 /// successful reindex of `index`. A failure is reported as a warning on the
 /// reindex, never as its error.
 pub fn register(index: &mut Index) {
+    register_guarded(index, PublishGuard::default());
+}
+
+/// [`register`], publishing only while holding `guard`. The hook waits for the
+/// guard instead of failing, so an exiting process that holds it simply wins.
+pub fn register_guarded(index: &mut Index, guard: PublishGuard) {
     let out = vault_dir(index.root());
     index.set_post_reindex_hook(Box::new(move |index| {
+        // A poisoned guard only means another publisher panicked; the writer
+        // lock itself is released by its Drop, so publishing is still safe.
+        let _publishing = guard.lock().unwrap_or_else(|e| e.into_inner());
         write_vault(index, &out)
             .map(|_| ())
             .map_err(|err| IndexError::Hook(err.to_string()))
