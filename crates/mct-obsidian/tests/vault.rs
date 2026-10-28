@@ -348,3 +348,40 @@ fn rename_updates_import_links_and_keeps_unrelated_note_mtime() {
     assert_eq!(fs::metadata(stable).unwrap().modified().unwrap(), modified);
     fs::remove_dir_all(&dir).ok();
 }
+
+/// ERR-022: a process that exits must be able to wait for a publication to end
+/// instead of stopping it halfway and leaving `<vault>.lock` behind.
+#[test]
+fn the_hook_publishes_only_while_it_holds_the_guard() {
+    let dir = project("guard");
+    fs::write(dir.join("lib.rs"), "pub fn add() {}\n").unwrap();
+    let guard = mct_obsidian::PublishGuard::default();
+    let mut index = open(&dir);
+    mct_obsidian::register_guarded(&mut index, guard.clone());
+
+    // An exiting process holds the guard: the hook must not start publishing.
+    let exiting = guard.lock().unwrap();
+    let worker = std::thread::spawn(move || {
+        reindex(&mut index);
+    });
+    // The hook is blocked, so there is nothing to observe but absence; poll a
+    // bounded number of times only to give a wrongly unguarded hook the chance
+    // to show itself (the assertion below is what fails then).
+    for _ in 0..50 {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let out = vault_dir(&dir);
+    let lock = out.with_file_name(format!(
+        "{}.lock",
+        out.file_name().unwrap().to_string_lossy()
+    ));
+    assert!(
+        !out.exists() && !lock.exists(),
+        "published without the guard"
+    );
+
+    drop(exiting);
+    worker.join().unwrap();
+    assert!(out.join(MANIFEST_FILE).is_file());
+    assert!(!lock.exists(), "the writer lock must be released");
+}
