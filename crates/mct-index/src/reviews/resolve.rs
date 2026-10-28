@@ -42,7 +42,7 @@ pub struct Candidate {
 }
 
 impl Candidate {
-    fn suppresses(&self) -> bool {
+    pub(super) fn suppresses(&self) -> bool {
         self.fingerprint_matches && self.state.suppresses()
     }
 
@@ -60,6 +60,9 @@ pub struct Resolution {
     pub winner: Option<Candidate>,
     /// A losing candidate held a different state.
     pub conflict: bool,
+    /// The winner would hide the finding, but a review file that could not be
+    /// read may hold a later decision, so the finding stays actionable.
+    pub held: bool,
 }
 
 impl Resolution {
@@ -81,7 +84,7 @@ impl Resolution {
 
     pub fn visibility(&self) -> Visibility {
         match &self.winner {
-            Some(winner) if winner.suppresses() => Visibility::Suppressed,
+            Some(winner) if winner.suppresses() && !self.held => Visibility::Suppressed,
             _ => Visibility::Actionable,
         }
     }
@@ -97,6 +100,17 @@ impl Resolution {
             "resolved-but-detected"
         } else {
             self.state().value()
+        }
+    }
+
+    /// The label every consumer shows (web list and counters, CLI, MCP): a held
+    /// decision is `needs-reevaluation` (its stored state stays in `state()`
+    /// and `label()`), so no surface prints a state that takes no effect.
+    pub fn effective_label(&self) -> &'static str {
+        if self.held {
+            "needs-reevaluation"
+        } else {
+            self.label()
         }
     }
 
@@ -305,6 +319,7 @@ impl<'a> Resolver<'a> {
         Resolution {
             winner: Some(winner),
             conflict,
+            held: false,
         }
     }
 
