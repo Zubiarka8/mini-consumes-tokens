@@ -300,6 +300,12 @@ impl Site {
             return response::Response::failure(400, "missing revision");
         };
         let note = fields.get("note").and_then(|v| v.as_str()).unwrap_or("");
+        if !api::review_sources_current(self, key) {
+            return response::Response::failure(
+                409,
+                "The source changed or is unavailable. Reindex before saving the review.",
+            );
+        }
         let key = key.to_string();
         match self
             .reviews
@@ -308,7 +314,7 @@ impl Site {
             Ok(()) => response::Response::json(&api::review_json(self, &key)),
             Err(ReviewError::Conflict) => {
                 let mut current = api::review_json(self, &key);
-                current["error"] = "This finding was reviewed elsewhere meanwhile. \
+                current["error"] = "This finding or its review changed meanwhile. \
                                     Nothing was saved; its current state is shown."
                     .into();
                 response::Response::json(&current).with_status(409)

@@ -597,8 +597,9 @@ fn review_posts_require_origin_csrf_valid_state_and_current_identity() {
     let csrf = server.site.borrow().csrf.clone();
     let origin = "Origin: http://127.0.0.1:8787\r\n";
     let body = |value: serde_json::Value| value.to_string();
+    let revision = server.json(&format!("api/finding?key={key}"))["revision"].clone();
     let good =
-        serde_json::json!({ "csrf": csrf, "key": key, "state": "confirmed", "revision": "none" });
+        serde_json::json!({ "csrf": csrf, "key": key, "state": "confirmed", "revision": revision });
     assert!(
         server
             .post_review(&body(good.clone()), "")
@@ -902,6 +903,72 @@ fn legacy_decisions_apply_and_their_file_is_never_rewritten() {
         .map(|event| event["source"].as_str().unwrap())
         .collect();
     assert_eq!(sources, ["a2", "c3"], "history keeps both files' events");
+}
+
+#[test]
+fn review_rejects_changed_source_for_dead_code_and_duplicates() {
+    let root = project();
+    let server = Server::start(root.path(), true);
+    let duplicate = server.site.borrow().review_keys[0].clone();
+    let dead = server
+        .site
+        .borrow()
+        .dead
+        .iter()
+        .find(|candidate| {
+            let site = server.site.borrow();
+            site.navigation.symbols[candidate.symbol].name == "alpha"
+        })
+        .unwrap()
+        .key
+        .clone();
+    let requests: Vec<_> = [&duplicate, &dead].into_iter().map(|key| {
+        let revision = server.json(&format!("api/finding?key={key}"))["revision"].clone();
+        serde_json::json!({ "csrf": server.site.borrow().csrf, "key": key, "state": "false-positive", "revision": revision }).to_string()
+    }).collect();
+    fs::write(root.path().join("src/a.rs"), "pub fn alpha() {}\n").unwrap();
+    for body in requests {
+        let response = server.post_review(&body, "Origin: http://127.0.0.1:8787\r\n");
+        assert!(response.starts_with("HTTP/1.1 409"), "{response}");
+    }
+    assert!(!root
+        .path()
+        .join(".mct-index/review-decisions.toon")
+        .exists());
+}
+
+#[test]
+fn review_rejects_an_old_finding_after_reindex() {
+    let root = project();
+    let server = Server::start(root.path(), true);
+    let keys = {
+        let site = server.site.borrow();
+        vec![
+            site.review_keys[0].clone(),
+            site.dead
+                .iter()
+                .find(|candidate| site.navigation.symbols[candidate.symbol].name == "alpha")
+                .unwrap()
+                .key
+                .clone(),
+        ]
+    };
+    let bodies: Vec<_> = keys.iter().map(|key| {
+        let revision = server.json(&format!("api/finding?key={key}"))["revision"].clone();
+        serde_json::json!({ "csrf": server.site.borrow().csrf, "key": key, "state": "false-positive", "revision": revision }).to_string()
+    }).collect();
+    let path = root.path().join("src/a.rs");
+    let original = fs::read_to_string(&path).unwrap();
+    fs::write(&path, format!("\n{original}")).unwrap();
+    index(root.path());
+    for body in bodies {
+        let response = server.post_review(&body, "Origin: http://127.0.0.1:8787\r\n");
+        assert!(response.starts_with("HTTP/1.1 409"), "{response}");
+    }
+    assert!(!root
+        .path()
+        .join(".mct-index/review-decisions.toon")
+        .exists());
 }
 
 #[test]
