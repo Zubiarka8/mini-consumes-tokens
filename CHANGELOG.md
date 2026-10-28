@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `mct-cli web` pins navigation, findings, review hashes and reference counts
+  to one index generation while loading, including during an external reindex.
+
 - `mct-cli web` follows a reindex: when the index file is republished the
   next request reloads the snapshot (duplicates, dead code and decisions), so
   the dashboard no longer needs a restart. The page's CSRF token stays valid.
