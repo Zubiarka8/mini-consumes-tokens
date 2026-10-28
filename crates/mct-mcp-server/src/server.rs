@@ -489,6 +489,10 @@ pub struct FindDeadCodeArgs {
     /// `list_symbols`' `format` field for details.
     #[serde(default)]
     pub format: Option<String>,
+    /// Also show candidates hidden by matching review decisions (default false).
+    pub include_reviewed: Option<bool>,
+    /// Estimated response budget, 512..16000 (default 4000).
+    pub max_tokens: Option<usize>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -889,7 +893,7 @@ fn validate_module_path(raw: &str) -> Result<String, McpError> {
     Ok(cleaned.join("/"))
 }
 
-fn index_error(err: mct_index::IndexError) -> McpError {
+pub(crate) fn index_error(err: mct_index::IndexError) -> McpError {
     McpError::internal_error(err.to_string(), None)
 }
 
@@ -2763,41 +2767,11 @@ impl MctServer {
     #[tool(description = "Heuristic dead-code candidates; see tools.ttc")]
     pub async fn find_dead_code(
         &self,
-        Parameters(FindDeadCodeArgs {
-            path,
-            language,
-            limit,
-            offset,
-            format,
-        }): Parameters<FindDeadCodeArgs>,
+        Parameters(args): Parameters<FindDeadCodeArgs>,
     ) -> Result<CallToolResult, McpError> {
-        let path = path.as_deref().map(str::trim).filter(|p| !p.is_empty());
-        let language = language.as_deref().map(str::trim).filter(|l| !l.is_empty());
-        let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
-        let offset = offset.unwrap_or(0);
-        let output_format = parse_output_format(format.as_deref())?;
-
+        let output_format = parse_output_format(args.format.as_deref())?;
         let index = self.index.lock().await;
-        // Deliberately not filtered on `parent.is_none()` the way
-        // `get_project_overview`'s digest is: a `LanguageParser` uses `parent`
-        // for more than "nested inside another declaration" — e.g.
-        // `mct-lang-go` sets every top-level function's `parent` to its
-        // enclosing package name, not `None`. Filtering on it here would
-        // silently exclude every Go (and similarly-modeled) top-level
-        // function from consideration. `mct_index::DEAD_CODE_KIND_ALLOWLIST`
-        // already excludes `method`/`module`/`field`, which is the
-        // distinction that actually matters for this tool.
-        let candidates =
-            mct_index::find_dead_code_candidates(&index, path, language).map_err(index_error)?;
-
-        let text = match output_format {
-            OutputFormat::Text => {
-                format::find_dead_code(path.unwrap_or("."), &candidates, offset, limit)
-            }
-            OutputFormat::Toon => {
-                format::find_dead_code_toon(path.unwrap_or("."), &candidates, offset, limit)
-            }
-        };
+        let text = crate::dead_query::run(&index, args, output_format == OutputFormat::Toon)?;
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 

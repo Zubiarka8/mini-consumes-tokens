@@ -112,6 +112,8 @@ fn timed<T>(iterations: usize, mut run: impl FnMut() -> T) -> (u128, u128) {
 async fn dead_code_call(server: &MctServer, format: &str) -> String {
     let result = server
         .find_dead_code(Parameters(FindDeadCodeArgs {
+            include_reviewed: None,
+            max_tokens: None,
             path: None,
             language: None,
             limit: None,

@@ -151,7 +151,7 @@ Once it's connected and healthy, prefer it over grep/reading whole files:
 - About to work on X, want its code + callers/callees/tests in one go -> build_context_pack
 - Exploring a file/folder before knowing a name -> list_symbols,
   get_file_skeleton, get_project_overview, get_file_tree
-- Candidate unused code -> find_dead_code
+- Candidate unused code -> find_dead_code (shared TOON reviews; `include_reviewed` shows hidden candidates)
 - Duplicate code, skipping groups a person already rejected -> find_duplicate_code
 - Several of the above at once, queries already known -> batch
 

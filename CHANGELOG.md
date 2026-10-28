@@ -50,6 +50,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- MCP `find_dead_code` applies shared TOON review decisions before pagination;
+  optional `include_reviewed` exposes hidden candidates, and responses report
+  review labels, counts, store health and budgeted continuation.
+
 - MCP `find_duplicate_code`: read-only, review-aware duplicate candidates. It
   reads the shared review decisions (ADR-019), so a group a person marked
   `false-positive` or `dismissed` is filtered before `limit`/`offset` while its

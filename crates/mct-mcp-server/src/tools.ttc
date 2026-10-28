@@ -159,9 +159,9 @@ TOOL find_dead_code
 WHEN top-level symbols with zero indexed references — dead-code candidates.
 ERR heuristic only; verify with find_references/impact_analysis before deleting.
 TAGS dead-code, unused, cleanup, heuristic
-PRE none; `path`/`language` scope it.
-POST top-level symbols with zero indexed references. TOON by default; `format`:`text` for plain text.
-EFFECTS read; index only.
+PRE optional include_reviewed; max_tokens 512..16000; path/language scope it.
+POST review-aware candidates, counts, store health, continuation; TOON or text.
+EFFECTS read; index and TOON reviews.
 
 TOOL find_duplicate_code
 WHEN review-aware duplicate groups, compact references.
