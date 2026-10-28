@@ -15,6 +15,7 @@
 | `find_calls` | atomic | What a function calls |
 | `find_callers` | atomic | What calls a function |
 | `impact_analysis` | composite | Full blast radius in one call |
+| `find_duplicate_code` | analysis | Review-aware whole-function duplicate candidates; compact bounded references ([ADR-022](adrs/022-mcp-duplicate-findings.md)) |
 | `get_dependency_graph` | composite | Module-level import graph: nodes by hop, resolved import edges, cycles, external imports, optional DOT/Mermaid |
 | `build_context_pack` | composite | Definition + doc + capped source, and every caller/callee/dependency/test once, in one call |
 | `get_file_skeleton` | discovery | Top-level shape of one file, bodies collapsed |

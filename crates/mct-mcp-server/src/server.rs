@@ -13,6 +13,8 @@ use rmcp::{
 use tokio::sync::Mutex;
 
 use crate::cache::{self, CacheConfig, CacheStats, CachedResult, HitKind, QueryCache};
+use crate::duplicate_query;
+pub use crate::duplicate_query::FindDuplicateCodeArgs;
 use crate::embedder::SemanticModel;
 use crate::format;
 use crate::intent;
@@ -673,7 +675,12 @@ const TOOL_CATEGORIES: &[(&str, &[&str])] = &[
     ),
     (
         "maintenance",
-        &["reindex", "get_indexing_status", "find_dead_code"],
+        &[
+            "reindex",
+            "get_indexing_status",
+            "find_dead_code",
+            "find_duplicate_code",
+        ],
     ),
     (
         "meta",
@@ -1605,6 +1612,7 @@ impl MctServer {
             "get_project_overview" => self.get_project_overview(batch_params(tool, args)?).await,
             "get_file_tree" => self.get_file_tree(batch_params(tool, args)?).await,
             "find_dead_code" => self.find_dead_code(batch_params(tool, args)?).await,
+            "find_duplicate_code" => self.find_duplicate_code(batch_params(tool, args)?).await,
             "get_dependency_graph" => self.get_dependency_graph(batch_params(tool, args)?).await,
             "discover_tool_categories" => self.discover_tool_categories().await,
             "get_tool_schema" => self.get_tool_schema(batch_params(tool, args)?).await,
@@ -2793,6 +2801,20 @@ impl MctServer {
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
+    /// Read-only whole-function duplicate candidates, hidden or shown by the
+    /// shared review decisions.
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Review-aware duplicate candidates; see tools.ttc")]
+    pub async fn find_duplicate_code(
+        &self,
+        Parameters(args): Parameters<FindDuplicateCodeArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        args.validate()?;
+        let index = self.index.lock().await;
+        let text = duplicate_query::run(&index, args)?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
     // Fallback only — see tools.ttc / MctServer::new.
     #[tool(description = "Module import graph with cycles; see tools.ttc")]
     pub async fn get_dependency_graph(
@@ -3014,7 +3036,9 @@ impl ServerHandler for MctServer {
              filesystem, not what's defined in it. find_dead_code reports top-level symbols \
              with zero indexed references anywhere in the project — a heuristic starting point \
              for cleanup, not a certainty; sanity-check a hit with find_references or \
-             impact_analysis before deleting anything. build_context_pack is the composite \
+             impact_analysis before deleting anything. find_duplicate_code returns compact \
+             duplicate candidates, filtering groups hidden by a review decision before \
+             pagination. build_context_pack is the composite \
              for working on one symbol: its definition with doc comment and capped source, \
              plus every caller, callee, dependency and related test listed once with its \
              signature — one call in place of find_symbol + find_calls + find_callers + \
