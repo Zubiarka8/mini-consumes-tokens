@@ -18,7 +18,7 @@ use serde_json::{json, Value};
 use super::response::Response;
 use super::Site;
 
-pub(super) use findings::review_json;
+pub(super) use findings::{review_json, review_sources_current};
 
 pub(super) type Params = BTreeMap<String, String>;
 

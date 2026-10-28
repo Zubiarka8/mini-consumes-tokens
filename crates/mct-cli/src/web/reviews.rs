@@ -53,6 +53,19 @@ impl Reviews {
         self.by_key.get(key).map(|index| &self.resolutions[*index])
     }
 
+    pub fn revision(&self, key: &str) -> String {
+        self.by_key.get(key).map_or_else(
+            || "none".to_string(),
+            |index| {
+                format!(
+                    "{}|{}",
+                    self.findings[*index].fingerprint,
+                    self.resolutions[*index].revision()
+                )
+            },
+        )
+    }
+
     /// Oldest first.
     pub fn history(&self, key: &str) -> &[HistoryEvent] {
         self.by_key
@@ -97,6 +110,12 @@ impl Reviews {
             .by_key
             .get(key)
             .ok_or(ReviewError::Invalid("unknown finding"))?;
+        let Some((fingerprint, revision)) = revision.split_once('|') else {
+            return Err(ReviewError::Conflict);
+        };
+        if fingerprint != self.findings[target].fingerprint {
+            return Err(ReviewError::Conflict);
+        }
         let change = Change {
             state,
             note: note.to_string(),
