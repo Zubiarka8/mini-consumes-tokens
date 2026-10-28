@@ -63,3 +63,30 @@ works, but starting the owned fixture server on 18811 was denied (Operation not
 permitted), including the approved escalated retry. No existing review data was
 modified. Full Safari acceptance remains pending. The existing 18810 service
 was not stopped.
+
+## Phase C integration in progress
+
+Phase B full gate passed: 1804 passed / 0 failed / 31 ignored, fmt, CI
+Clippy and evaluation passed (catalog 12033). Commit: 4b0d012.
+Current branch: feature/mcp-source-revisions. Pending merge of dependency
+10ee064f45903552f0e662f6891f34ec3ba06a6b (#234), with conflict resolved by
+retaining the review-aware dead-code handler and pinning its read snapshot.
+The source helper, generation/cache and watcher implementation are inherited
+from that identified dependency, not newly duplicated here.
+
+Source regressions: before dependency integration, 3 passed / 3 failed
+(stale snippets, related signatures and cached source). After integration,
+source_revision: 6 passed. Final MCP crate gate: 413 passed, 0 failed, 1 ignored;
+fmt and CI Clippy passed. index_generations: 7 passed. Full gate in progress.
+
+The fuzz lock failed cargo metadata --offline --locked after #234 because
+anyhow was missing. Cargo metadata --offline added only anyhow 1.0.104 and
+its mct-index dependency entry; the identical --locked check then passed.
+The #246-only diff remains unchanged for that lockfile.
+
+Remaining: complete C full gate and record the dependency merge separately;
+add the new duplicate handler's outer snapshot and live external-reindex test.
+#234 has no writer_coordination.rs: add focused tests for writer exclusion,
+reader/maintenance barriers, release/recovery and linked lockfile refusal.
+Retain the existing TOON whole-file identity contract; the backup provenance
+rebinding depends on an incompatible store and is not transplanted.
