@@ -673,6 +673,12 @@ impl QueryCache {
         digest: &Digest,
         rerank: &mut Rerank<'_>,
     ) -> Result<Vec<SymbolHit>, Rejection> {
+        // Cache validation performs several SQLite reads. Fence them with the
+        // atomically committed run sequence so a publication between those
+        // statements cannot produce a mixed-generation cache decision.
+        let generation = index
+            .published_generation()
+            .map_err(|_| Rejection::RepositoryMismatch)?;
         self.repo
             .refresh(index)
             .ok_or(Rejection::RepositoryMismatch)?;
@@ -684,18 +690,27 @@ impl QueryCache {
         if fingerprint(index, &self.repo.files, &entry.hits)? != entry.fingerprint {
             return Err(Rejection::FingerprintMismatch);
         }
-        if entry.repo_state == self.repo.state {
-            return Ok(entry.hits.clone());
-        }
-        // 4: something else changed — does the ranking still come out the same?
-        let fresh =
-            rerank(&entry.query, entry.vector.as_deref()).ok_or(Rejection::RepositoryMismatch)?;
-        if !same_ranking(&fresh, &entry.hits) {
-            return Err(Rejection::RepositoryMismatch);
-        }
-        let state = self.repo.state;
-        if let Some(entry) = self.entries.get_mut(digest) {
-            entry.repo_state = state;
+        let fresh = if entry.repo_state == self.repo.state {
+            entry.hits.clone()
+        } else {
+            // 4: something else changed — does the ranking still come out the same?
+            let fresh = rerank(&entry.query, entry.vector.as_deref())
+                .ok_or(Rejection::RepositoryMismatch)?;
+            if !same_ranking(&fresh, &entry.hits) {
+                return Err(Rejection::RepositoryMismatch);
+            }
+            let state = self.repo.state;
+            if let Some(entry) = self.entries.get_mut(digest) {
+                entry.repo_state = state;
+            }
+            fresh
+        };
+        if index
+            .published_generation()
+            .map_err(|_| Rejection::RepositoryMismatch)?
+            != generation
+        {
+            return Err(Rejection::Stale);
         }
         Ok(fresh)
     }
