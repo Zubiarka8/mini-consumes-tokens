@@ -1750,3 +1750,60 @@ fn reviewed_reports_filter_before_paging_and_leave_the_default_report_alone() {
     let shown = duplicates(&project, &[&args[..], &["--reviewed", "show"]].concat());
     assert!(shown.contains("total_groups: 2\n"), "{shown}");
 }
+
+#[test]
+fn a_held_decision_is_reported_as_needs_reevaluation_and_never_hidden() {
+    use mct_index::reviews::{Change, Reviews, State};
+
+    let body = "(value: i64) -> i64 {\n    let mut total = value;\n    total += 1;\n    total *= 2;\n    total -= 4;\n    if total > 12 { total -= 3; }\n    total\n}\n";
+    let project = Project::indexed(
+        "reviewed-held",
+        &[
+            ("src/a.rs", &format!("pub fn alpha{body}")),
+            ("src/b.rs", &format!("pub fn beta{body}")),
+        ],
+    );
+    let args = ["--no-cache", "--min-lines", "3", "--min-tokens", "10"];
+    let root = project.path().canonicalize().unwrap();
+    let index = mct_index::Index::open_existing_read_only(
+        &root,
+        &root.join(".mct-index/index.sqlite3"),
+        mct_index::ExcludeSet::default(),
+    )
+    .unwrap();
+    let options = mct_index::DuplicateOptions {
+        min_lines: 3,
+        min_tokens: 10,
+        ..mct_index::DuplicateOptions::default()
+    };
+    let report =
+        mct_index::find_duplicate_groups(&index, &mct_languages::build_token_sources(), options)
+            .unwrap();
+    let findings = mct_index::reviews::duplicate_findings(
+        &report.groups,
+        report.options.normalization,
+        &index.file_hashes().unwrap(),
+    );
+    let change = Change {
+        state: State::Dismissed,
+        note: String::new(),
+        expected_revision: "none".into(),
+    };
+    Reviews::load(&root)
+        .save(&findings, 0, &change, 1_800_000_000_000)
+        .unwrap();
+    let hidden = duplicates(&project, &[&args[..], &["--reviewed", "hide"]].concat());
+    assert!(hidden.contains("total_groups: 0\n"), "{hidden}");
+
+    // A truncated draft file holds the decision: it must stop suppressing,
+    // and the CLI must say so instead of printing the stored `dismissed`.
+    std::fs::write(
+        root.join(".mct-index/reviews.toon"),
+        "version: 2\ntruncated",
+    )
+    .unwrap();
+    let hidden = duplicates(&project, &[&args[..], &["--reviewed", "hide"]].concat());
+    assert!(hidden.contains("total_groups: 1\n"), "{hidden}");
+    assert!(hidden.contains("  1,needs-reevaluation\n"), "{hidden}");
+    assert!(!hidden.contains("dismissed"), "{hidden}");
+}

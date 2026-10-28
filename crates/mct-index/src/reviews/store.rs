@@ -15,7 +15,7 @@ use super::format::{
     parse_canonical, read_canonical, read_draft, read_legacy, render_canonical, valid_note,
     Canonical, Event, FormatError, Row, MAX_ROWS, NEWER_FORMAT,
 };
-use super::resolve::{Resolver, Sources};
+use super::resolve::{Candidate, Resolver, Sources};
 use super::{Diagnostics, FindingKeys, Format, HistoryEvent, Kind, Resolution, State};
 
 /// The only review file this module writes.
@@ -275,15 +275,24 @@ impl Reviews {
             }
             Err(reason) => problem(path, reason),
         }
-        if !reviews.problems.is_empty() {
-            // Nothing from a partial read may hide a finding.
+        if reviews
+            .problems
+            .iter()
+            .any(|p| p.path == directory.join(CANONICAL_FILE))
+        {
+            // Without the canonical file nothing may apply: it holds the
+            // decisions that override the older files.
             reviews.sources = Sources::default();
         }
+        // A broken older file only loses its own rows. The rows that were
+        // read stay visible, but `resolve` holds every suppression (see
+        // `Resolution::held`) because the unread file may hold a later one.
         reviews
     }
 
-    /// True when a present file cannot be read: nothing is hidden, no state
-    /// is reported and every save is refused until a person fixes the file.
+    /// True when a present file cannot be read: nothing is hidden and every
+    /// save is refused until a person fixes the file. The decisions that were
+    /// read are still reported unless the canonical file is the broken one.
     pub fn is_degraded(&self) -> bool {
         !self.problems.is_empty()
     }
@@ -308,7 +317,19 @@ impl Reviews {
     /// current finding of the scope, so ambiguous legacy keys are detected.
     pub fn resolve(&self, findings: &[FindingKeys]) -> Vec<Resolution> {
         let resolver = Resolver::new(&self.sources, findings);
-        findings.iter().map(|f| resolver.resolve(f)).collect()
+        let withheld = self.is_degraded();
+        findings
+            .iter()
+            .map(|f| {
+                let mut resolution = resolver.resolve(f);
+                resolution.held = withheld
+                    && resolution
+                        .winner
+                        .as_ref()
+                        .is_some_and(Candidate::suppresses);
+                resolution
+            })
+            .collect()
     }
 
     /// The history of each finding, in order, oldest event first.

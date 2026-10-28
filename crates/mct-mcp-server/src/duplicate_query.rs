@@ -142,7 +142,7 @@ pub(crate) fn run(index: &Index, args: FindDuplicateCodeArgs) -> Result<String, 
         .map(|((group, finding), resolution): (_, &Resolution)| Row {
             group,
             identity: &finding.identity,
-            label: resolution.label(),
+            label: resolution.effective_label(),
             actionable: resolution.visibility() == Visibility::Actionable,
         })
         .collect();

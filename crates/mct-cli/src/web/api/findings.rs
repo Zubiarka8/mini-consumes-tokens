@@ -34,15 +34,21 @@ fn event_json(event: &HistoryEvent) -> Value {
 fn review_fields(site: &Site, key: &str) -> Value {
     let resolution = site.reviews.resolution(key);
     let winner = resolution.and_then(|resolution| resolution.winner.as_ref());
+    // A held decision takes no effect, so the page lists it as actionable
+    // (the default filters hide `dismissed` and `false-positive`).
+    let held = resolution.is_some_and(|resolution| resolution.held);
     json!({
         "key": key,
-        "state": resolution.map_or(UNREVIEWED, Resolution::label),
+        "state": resolution.map_or(UNREVIEWED, Resolution::effective_label),
         "previousState": resolution.map_or(UNREVIEWED, |resolution| resolution.state().value()),
         "note": winner.map_or("", |winner| winner.note.as_str()),
         "updated": winner.and_then(|winner| known_time(winner.at)),
         "source": winner.map(|winner| winner.format.value()),
         "revision": site.reviews.revision(key),
         "readOnly": site.reviews.read_only_reason().is_some(),
+        // The decision would hide the finding, but an unreadable review file
+        // may hold a later one, so it is shown without taking effect.
+        "held": held,
     })
 }
 

@@ -73,7 +73,7 @@ pub(crate) fn run(index: &Index, args: FindDeadCodeArgs, toon: bool) -> Result<S
                     entry.line.to_string(),
                     entry.end_line.map(|n| n.to_string()).unwrap_or_default(),
                     findings[*id].identity.clone(),
-                    resolutions[*id].label().into(),
+                    resolutions[*id].effective_label().into(),
                     (resolutions[*id].visibility() == Visibility::Actionable).to_string(),
                 ]
             })

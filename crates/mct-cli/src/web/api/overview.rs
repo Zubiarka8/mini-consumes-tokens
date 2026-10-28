@@ -172,7 +172,7 @@ pub(super) fn summary(site: &Site) -> Value {
         let state = site
             .reviews
             .resolution(key)
-            .map_or("unreviewed", Resolution::label);
+            .map_or("unreviewed", Resolution::effective_label);
         *states.entry(state).or_default() += 1;
         *by_type.entry(kind).or_default().entry(state).or_default() += 1;
     }

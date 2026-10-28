@@ -501,7 +501,10 @@ false positives and dismissed candidates whose code is unchanged (and says how
 many), `only` lists just those. A decision about code that changed since shows
 as `needs-reevaluation` and is never hidden. Without the flag no review file is
 read and the report is unchanged. If a review file cannot be read, a warning
-goes to stderr and nothing is hidden.
+goes to stderr and nothing is hidden; a decision kept from a readable file while
+another source is unreadable also shows as `needs-reevaluation` and hides nothing
+(the CLI, MCP and web list report this effective state; the web API keeps the
+stored one in `previousState`).
 
 ```sh
 mct-cli --root . dead-code
