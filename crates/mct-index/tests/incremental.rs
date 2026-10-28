@@ -652,17 +652,27 @@ fn a_directory_renamed_by_its_new_path_only_drops_its_old_manifest_and_issues() 
 }
 
 #[test]
-#[ignore = "known bug, also in a full reindex: the syntax error stays (PR #90 second review)"]
 fn a_broken_file_turned_binary_drops_its_syntax_error() {
-    let root = project();
-    let mut index = indexed(&root);
-    let path = write(&root, "src/util.fake", "not fn\n");
-    index
-        .reindex_paths(&registry(), std::slice::from_ref(&path))
-        .unwrap();
-    fs::write(&path, [0xff, 0xfe, 0x00, 0x66]).unwrap();
-    index
-        .reindex_paths(&registry(), std::slice::from_ref(&path))
-        .unwrap();
-    assert_matches_full(&index, &root);
+    for full in [false, true] {
+        let root = project();
+        let mut index = indexed(&root);
+        let path = write(&root, "src/util.fake", "not fn\n");
+        let unrelated = write(&root, "src/other.fake", "also invalid\n");
+        index
+            .reindex_paths(&registry(), &[path.clone(), unrelated])
+            .unwrap();
+        assert_eq!(index.status().unwrap().syntax_errors.len(), 2);
+        fs::write(&path, [0xff, 0xfe, 0x00, 0x66]).unwrap();
+        if full {
+            index.reindex(&registry(), true).unwrap();
+        } else {
+            index
+                .reindex_paths(&registry(), std::slice::from_ref(&path))
+                .unwrap();
+        }
+        let errors = index.status().unwrap().syntax_errors;
+        assert_eq!(errors.len(), 1, "retain unrelated diagnostics");
+        assert_eq!(errors[0].relative_path, "src/other.fake");
+        assert_matches_full(&index, &root);
+    }
 }

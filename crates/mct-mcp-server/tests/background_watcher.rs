@@ -149,6 +149,39 @@ async fn watcher_reindexes_after_a_file_change_settles() {
 }
 
 #[tokio::test]
+async fn idle_periodic_reconciliation_finds_a_change_made_before_watch_start() {
+    let dir = tempdir();
+    fs::write(dir.join("one.rs"), "pub fn one() {}\n").unwrap();
+    let registry = mct_mcp_server::registry::build_registry();
+    let mut opened = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
+    opened.reindex(&registry, false).unwrap();
+
+    // The change predates the watcher, so no native event can report it.
+    fs::write(dir.join("two.rs"), "pub fn two_after_gap() {}\n").unwrap();
+    let index = Arc::new(Mutex::new(opened));
+    let _watcher = background::spawn_watcher_with_reconciliation(
+        Arc::clone(&index),
+        registry,
+        dir.clone(),
+        ExcludeSet::default(),
+        Duration::from_millis(10),
+        Duration::from_millis(100),
+    )
+    .unwrap();
+
+    assert!(
+        wait_until(|| {
+            index.try_lock().is_ok_and(|guard| {
+                guard
+                    .find_symbol("two_after_gap")
+                    .is_ok_and(|symbols| !symbols.is_empty())
+            })
+        })
+        .await
+    );
+}
+
+#[tokio::test]
 async fn a_change_under_an_excluded_path_does_not_trigger_a_reindex() {
     let quiet_window =
         (watcher_latency().await * LATENCY_MULTIPLE).clamp(QUIET_FLOOR, SETTLE_MARGIN);
