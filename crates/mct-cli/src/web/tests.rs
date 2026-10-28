@@ -1093,3 +1093,59 @@ fn mctignore_is_read_and_saved_with_origin_csrf_conflict_and_limit_checks() {
         .collect();
     assert!(leftovers.is_empty(), "{leftovers:?}");
 }
+
+fn post_comment(server: &Server, body: &serde_json::Value, headers: &str) -> String {
+    let body = body.to_string();
+    server.raw(&format!("POST /secret/api/comment HTTP/1.1\r\nHost: 127.0.0.1:8787\r\n{headers}Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}", body.len()))
+}
+
+#[test]
+fn note_comments_are_saved_beside_the_index_with_origin_csrf_and_limit_checks() {
+    let root = project();
+    let server = Server::start(root.path(), false);
+    let csrf = server.site.borrow().csrf.clone();
+    let origin = "Origin: http://127.0.0.1:8787\r\n";
+    let notes = server.json("api/notes");
+    let path = notes["items"][0]["path"].as_str().unwrap().to_string();
+    let url = format!("api/note?path={}", path.replace('/', "%2F"));
+    assert!(server.json(&url)["comment"].is_null());
+    let file = root.path().join(".mct-index/note-comments.json");
+
+    let post = |body: serde_json::Value, headers: &str| post_comment(&server, &body, headers);
+    let denied = post(
+        serde_json::json!({ "csrf": "nope", "path": path, "text": "x" }),
+        origin,
+    );
+    assert!(denied.starts_with("HTTP/1.1 403"), "{denied}");
+    let no_origin = post(
+        serde_json::json!({ "csrf": csrf, "path": path, "text": "x" }),
+        "",
+    );
+    assert!(no_origin.starts_with("HTTP/1.1 403"), "{no_origin}");
+    let unknown = post(
+        serde_json::json!({ "csrf": csrf, "path": "nope.md", "text": "x" }),
+        origin,
+    );
+    assert!(unknown.starts_with("HTTP/1.1 404"), "{unknown}");
+    let too_long = post(
+        serde_json::json!({ "csrf": csrf, "path": path, "text": "x".repeat(8 * 1024 + 1) }),
+        origin,
+    );
+    assert!(too_long.starts_with("HTTP/1.1 413"), "{too_long}");
+    assert!(!file.exists());
+
+    let saved = post(
+        serde_json::json!({ "csrf": csrf, "path": path, "text": "check this\r\nlater" }),
+        origin,
+    );
+    assert!(saved.starts_with("HTTP/1.1 200"), "{saved}");
+    assert_eq!(server.json(&url)["comment"]["text"], "check this\nlater");
+    assert!(file.is_file());
+
+    let cleared = post(
+        serde_json::json!({ "csrf": csrf, "path": path, "text": "  " }),
+        origin,
+    );
+    assert!(cleared.starts_with("HTTP/1.1 200"), "{cleared}");
+    assert!(server.json(&url)["comment"].is_null());
+}

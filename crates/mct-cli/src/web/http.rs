@@ -7,12 +7,14 @@ use std::net::TcpStream;
 use std::time::{Duration, Instant};
 
 use super::response::Response;
-use super::{api, assets, ignore_file, Site};
+use super::{api, assets, ignore_file, note_comments, Site};
 
 const MAX_HEADERS: usize = 16 * 1024;
 const MAX_BODY: usize = 4096;
 /// A `.mctignore` of `MAX_IGNORE_BYTES`, even if every byte is JSON-escaped.
 const MAX_IGNORE_BODY: usize = 6 * ignore_file::MAX_IGNORE_BYTES + 1024;
+/// A note comment of `MAX_COMMENT_BYTES`, even if every byte is JSON-escaped, plus the path.
+const MAX_COMMENT_BODY: usize = 6 * note_comments::MAX_COMMENT_BYTES + 2048;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
 
 pub(super) trait Connection: Read + Write {
@@ -127,6 +129,7 @@ fn receive(
                 let response = if request.post {
                     match std::str::from_utf8(&bytes[*end..]) {
                         Ok(body) if request.target == "api/ignore" => site.ignore(body),
+                        Ok(body) if request.target == "api/comment" => site.comment(body),
                         Ok(body) => site.review(body),
                         Err(_) => Response::error(400),
                     }
@@ -194,7 +197,7 @@ fn validate(headers: &str, port: u16, token: &str) -> Result<Request, u16> {
     let target = target.strip_prefix(&format!("/{token}/")).ok_or(404_u16)?;
     let post = method == "POST";
     let length = if post {
-        if !matches!(target, "api/review" | "api/ignore") {
+        if !matches!(target, "api/review" | "api/ignore" | "api/comment") {
             return Err(405);
         }
         if fields.get("origin").copied() != Some(format!("http://{host}").as_str()) {
@@ -208,10 +211,10 @@ fn validate(headers: &str, port: u16, token: &str) -> Result<Request, u16> {
             .ok_or(400_u16)?
             .parse()
             .map_err(|_| 400_u16)?;
-        let limit = if target == "api/ignore" {
-            MAX_IGNORE_BODY
-        } else {
-            MAX_BODY
+        let limit = match target {
+            "api/ignore" => MAX_IGNORE_BODY,
+            "api/comment" => MAX_COMMENT_BODY,
+            _ => MAX_BODY,
         };
         if length > limit {
             return Err(413);

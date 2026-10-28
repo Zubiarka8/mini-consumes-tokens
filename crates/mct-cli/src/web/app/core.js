@@ -112,6 +112,18 @@ export async function saveIgnore(content, base) {
   return body;
 }
 
+/** Saves (or, with empty text, removes) the personal comment of one Obsidian note. */
+export async function saveComment(path, text) {
+  const response = await fetch("api/comment", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ csrf, path, text }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new ApiError(response.status, body.error || response.statusText, body);
+  return body.comment;
+}
+
 // ---------- routing: #/page?query ----------
 export const PAGES = [
   { id: "panel", icon: "dashboard", label: "nav.panel" },

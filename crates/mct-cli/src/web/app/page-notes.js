@@ -1,5 +1,5 @@
 // 09 · Obsidian: independent knowledge workspace (notes | list | viewer), read-only
-import { h, clear, api, cancelApi, isAbort, patchQuery, onQuery, parseHash, listParam, fmt, ago, copy, hrefTo, forget, basename, toast } from "./core.js";
+import { h, clear, api, cancelApi, isAbort, patchQuery, onQuery, parseHash, listParam, fmt, ago, copy, hrefTo, forget, basename, toast, saveComment } from "./core.js";
 import { icon, pageHead, pagedLinks, tabsBar, badge, pager, searchBox, filterGroup, activeChips, noResults, loading, errorBox, note, emptyState, drawerButton, selectBox, dataTable } from "./components.js";
 import { renderMarkdown } from "./markdown.js";
 import { graphView } from "./graph.js";
@@ -113,6 +113,31 @@ export async function render({ root, params: initial }) {
     } catch (error) { if (!isAbort(error) && generation === graphGeneration) clear(listHost).append(errorBox(error, () => drawGraph(q()))); }
   }
 
+  /** A personal comment saved beside the index; the generated note is never modified. */
+  function commentSection(n) {
+    const saved = n.comment?.text || "";
+    const field = h("textarea", { class: "input wide", rows: 5, maxlength: 8000, "aria-label": t("obs.comment.title"), placeholder: t("obs.comment.placeholder") });
+    field.value = saved;
+    const status = h("span", { class: "muted small", role: "status" }, n.comment?.updated ? t("obs.comment.updated", { when: ago(n.comment.updated) }) : "");
+    const button = h("button", { class: "btn primary sm", disabled: true }, icon("check", 14), t("obs.comment.save"));
+    let current = saved;
+    field.addEventListener("input", () => { button.disabled = field.value === current; status.textContent = button.disabled ? "" : t("obs.comment.dirty"); });
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      try {
+        const comment = await saveComment(n.path, field.value);
+        current = comment?.text || "";
+        field.value = current;
+        status.textContent = comment ? t("obs.comment.updated", { when: ago(comment.updated) }) : "";
+        toast(t(comment ? "obs.comment.saved" : "obs.comment.removed"), "ok");
+      } catch (error) {
+        button.disabled = false;
+        toast(error.message, "err", 8000);
+      }
+    });
+    return h("div", { class: "section" }, h("h4", {}, t("obs.comment.title")), h("p", { class: "muted small" }, t("obs.comment.hint")), field, h("div", { class: "row", style: { marginTop: "8px" } }, button, status));
+  }
+
   async function showNote(path) {
     selected = path;
     cancelApi("note");
@@ -136,6 +161,7 @@ export async function render({ root, params: initial }) {
         n.tags.length > 0 && h("div", { class: "chips", style: { marginBottom: "10px" } }, n.tags.map((tag) => h("button", { class: "tag", onclick: () => patchQuery({ view: null, tag }) }, `#${tag}`))),
         n.frontmatter.length > 0 && h("details", { class: "section", open: true }, h("summary", {}, t("obs.frontmatter")), h("dl", { class: "kv", style: { marginTop: "8px" } }, n.frontmatter.map(([k, v]) => [h("dt", {}, k), h("dd", { class: "mono small" }, v)]))),
         h("div", { class: "section" }, renderMarkdown(n.body, { onNote: open, onTag: (tag) => patchQuery({ view: null, tag }) })),
+        commentSection(n),
         h("div", { class: "section" }, h("h4", {}, t("obs.links", { n: n.linksTo.length })), n.linksTo.length ? pagedLinks(n.linksTo, (l) => h("div", {}, h("button", { class: "btn ghost sm", onclick: () => patchQuery({ note: l.path }) }, l.title || l.path))) : h("p", { class: "muted" }, t("obs.none"))),
         h("div", { class: "section" }, h("h4", {}, t("obs.backlinks", { n: n.backlinkList.length })), n.backlinkList.length ? pagedLinks(n.backlinkList, (l) => h("div", {}, h("button", { class: "btn ghost sm", onclick: () => patchQuery({ note: l.path }) }, l.title || l.path))) : h("p", { class: "muted" }, t("obs.none")),
           h("button", { class: "btn sm", style: { marginTop: "6px" }, onclick: () => patchQuery({ view: "grafo", focus: n.path }) }, icon("graph", 14), t("obs.showInGraph"))),

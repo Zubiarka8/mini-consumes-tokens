@@ -5,6 +5,7 @@ mod assets;
 mod dead_assessment;
 mod http;
 mod ignore_file;
+mod note_comments;
 mod obsidian;
 mod response;
 mod reviews;
