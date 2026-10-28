@@ -90,6 +90,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- MCP duplicate findings now pin detection and review hashes to the same published
+  index generation, including while another process reindexes the repository.
+
 - MCP source retrieval verifies the indexed revision before applying line ranges:
   stale snippets/signatures are omitted and stale skeleton requests ask for reindex.
 

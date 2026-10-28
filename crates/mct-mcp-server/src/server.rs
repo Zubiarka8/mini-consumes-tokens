@@ -2826,6 +2826,8 @@ impl MctServer {
     ) -> Result<CallToolResult, McpError> {
         args.validate()?;
         let index = self.index.lock().await;
+        // Keep detection and the hashes used by review fingerprints in one generation.
+        let _snapshot = index.read_snapshot().map_err(index_error)?;
         let text = duplicate_query::run(&index, args)?;
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
