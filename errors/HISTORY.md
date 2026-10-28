@@ -147,3 +147,7 @@ ERR-019 RESOLVED: primary MCP search/context/status calls now succeed; get_index
 ## 2026-10-23 — Parse diagnostics seen from the dashboard worktree
 
 mct-cli init on the dashboard-remediation worktree reported 17 syntax errors: 16 intentionally malformed corpus fixtures under `crates/mct-lang-*/tests/corpus/malformed/` (expected, not defects) and `scripts/windows/review-check.ps1:29`. The script is the ERR-002 grammar limitation (comma-separated barewords in `Remove-Item Env:A, Env:B`); `mct-cli probe` reproduces `line 29: syntax error`. ERR-002 now lists both scripts; status unchanged (KNOWN_LIMITATION, upstream grammar). Nothing closed.
+
+## 2026-10-28 — ERR-022: resolved (serve first, index in the background)
+
+#256 (`03bc1a8`) makes `mct-mcp-server` answer `initialize`/`tools/list` immediately and index in a background task. Verified after merge with the installed binaries rebuilt from main `28d04de`: `scripts/unix/mcp-smoke.sh` ok (23 tools); on a cold 9288-file root `initialize` took 0.04 s, tool calls returned `index_state: indexing` while the index was built (20 s wait per call) and answered at 53.8 s; a real Claude Code client connected at once and saw the same states. Evidence: `tmp/reports/session19/` (`drive-cold.out`, `drive-big.out`, `real-client.out`, `real-client-2.out`). The 2026-10-26/27 observations and the ERR-020/ERR-021 rows are on other branches (#239, #241) and are not copied here.
