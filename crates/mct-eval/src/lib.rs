@@ -47,7 +47,11 @@ pub fn default_baseline_path() -> PathBuf {
 
 /// Every checked-in suite, next to this crate's manifest. Each has its own
 /// baseline ([`baseline_path_for`]) and fixture.
-pub const SUITES: &[&str] = &["suite.json", "suite-portfolio-3d.json"];
+pub const SUITES: &[&str] = &[
+    "suite.json",
+    "suite-portfolio-3d.json",
+    "suite-duplicates.json",
+];
 
 /// The baseline of the suite at `suite`: `suite<rest>` →
 /// `baseline<rest>` in the same directory (`suite-portfolio-3d.json` →
