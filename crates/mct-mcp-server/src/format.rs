@@ -2659,6 +2659,8 @@ mod index_status_tests {
             total_files: 2,
             total_symbols: 10,
             last_indexed_at: Some(1_700_000_000),
+            published_generation: 0,
+            last_full_reconciled_at: None,
             unsupported_languages: vec!["lua".to_string()],
             syntax_errors: Vec::new(),
             read_failures: Vec::new(),
