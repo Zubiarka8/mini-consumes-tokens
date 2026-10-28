@@ -82,6 +82,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   file that is not reindexed keeps the empty value. A decision saved in that
   state could hide a finding whose content was not known; such a finding is
   never hidden now and shows as needing review.
+- `mct-cli web` no longer serves source lines from a file that changed after it
+  was indexed. `api/source` answers 409 ("this file changed since it was
+  indexed; reindex and restart the dashboard") instead of marking the
+  snapshot's line numbers on the new text, so the dead-code and duplicate code
+  views cannot highlight the wrong lines. Other endpoints that embed source
+  omit it for such a file.
 
 ### Deprecated
 

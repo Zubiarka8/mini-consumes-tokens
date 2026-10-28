@@ -143,24 +143,40 @@ pub(super) fn symbols(site: &Site, params: &Params) -> Value {
     json!({ "total": ids.len(), "page": page, "size": size, "items": items, "facets": facets })
 }
 
+/// Why the lines of an indexed file are not served.
+pub(super) enum Unavailable {
+    /// Not in the snapshot, outside the project, or unreadable.
+    Missing,
+    /// On disk it no longer matches the content the index parsed, so the
+    /// snapshot's line numbers would point into different text.
+    Changed,
+}
+
 /// Reads `start..=end` (1-based) of an indexed file. Only paths present in the
-/// snapshot are readable and symlinks leaving the project are refused.
-pub(super) fn read_lines(
+/// snapshot are readable, symlinks leaving the project are refused, and the
+/// file must still hash to what the index saw.
+pub(super) fn read_indexed_lines(
     site: &Site,
     path: &str,
     start: usize,
     end: usize,
-) -> Option<(Vec<String>, bool)> {
-    site.navigation
+) -> Result<(Vec<String>, bool), Unavailable> {
+    let position = site
+        .navigation
         .files
         .binary_search_by(|file| file.relative_path.as_str().cmp(path))
-        .ok()?;
+        .map_err(|_| Unavailable::Missing)?;
     let full = site.root.join(path);
-    let canonical = full.canonicalize().ok()?;
+    let canonical = full.canonicalize().map_err(|_| Unavailable::Missing)?;
     if !canonical.starts_with(&site.root) {
-        return None;
+        return Err(Unavailable::Missing);
     }
-    let bytes = mct_index::read_repository_file(&canonical).ok()?;
+    let bytes = mct_index::read_repository_file(&canonical).map_err(|_| Unavailable::Missing)?;
+    let hash =
+        git2::Oid::hash_object(git2::ObjectType::Blob, &bytes).map_err(|_| Unavailable::Missing)?;
+    if hash.to_string() != site.navigation.files[position].content_hash {
+        return Err(Unavailable::Changed);
+    }
     let content = String::from_utf8_lossy(&bytes);
     let start = start.max(1);
     let end = end.max(start).min(start + MAX_SOURCE_LINES - 1);
@@ -171,7 +187,17 @@ pub(super) fn read_lines(
         .take(end - start + 1)
         .map(str::to_string)
         .collect();
-    Some((lines, end < total && end - start + 1 == MAX_SOURCE_LINES))
+    Ok((lines, end < total && end - start + 1 == MAX_SOURCE_LINES))
+}
+
+/// [`read_indexed_lines`] for callers that treat a changed file like a missing one.
+pub(super) fn read_lines(
+    site: &Site,
+    path: &str,
+    start: usize,
+    end: usize,
+) -> Option<(Vec<String>, bool)> {
+    read_indexed_lines(site, path, start, end).ok()
 }
 
 pub(super) fn source(site: &Site, params: &Params) -> Result<Value, (u16, &'static str)> {
@@ -179,7 +205,13 @@ pub(super) fn source(site: &Site, params: &Params) -> Result<Value, (u16, &'stat
     let start = uint(params, "start", 1);
     let end = uint(params, "end", start + 79);
     let (lines, truncated) =
-        read_lines(site, path, start, end).ok_or((404, "source not available"))?;
+        read_indexed_lines(site, path, start, end).map_err(|why| match why {
+            Unavailable::Missing => (404, "source not available"),
+            Unavailable::Changed => (
+                409,
+                "this file changed since it was indexed; reindex and restart the dashboard",
+            ),
+        })?;
     let language = site
         .navigation
         .files
