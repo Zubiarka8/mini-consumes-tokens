@@ -8,12 +8,14 @@
 // production policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use std::collections::VecDeque;
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde_json::{json, Value};
@@ -42,6 +44,8 @@ struct StdioServer {
     stdin: ChildStdin,
     lines: Receiver<String>,
     next_id: u64,
+    diagnostics: Arc<Mutex<VecDeque<String>>>,
+    stderr_reader: Option<std::thread::JoinHandle<()>>,
 }
 
 impl StdioServer {
@@ -52,11 +56,23 @@ impl StdioServer {
             .args(extra_args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            .stderr(Stdio::piped())
             .spawn()
             .unwrap();
         let stdin = child.stdin.take().unwrap();
         let stdout = child.stdout.take().unwrap();
+        let stderr = child.stderr.take().unwrap();
+        let diagnostics = Arc::new(Mutex::new(VecDeque::new()));
+        let captured = diagnostics.clone();
+        let stderr_reader = std::thread::spawn(move || {
+            for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+                let mut tail = captured.lock().unwrap();
+                if tail.len() == 64 {
+                    tail.pop_front();
+                }
+                tail.push_back(line.chars().take(2048).collect());
+            }
+        });
         let (tx, lines) = mpsc::channel();
         std::thread::spawn(move || {
             for line in BufReader::new(stdout).lines().map_while(Result::ok) {
@@ -70,6 +86,8 @@ impl StdioServer {
             stdin,
             lines,
             next_id: 0,
+            diagnostics,
+            stderr_reader: Some(stderr_reader),
         };
         let init = server.request(
             "initialize",
@@ -124,6 +142,17 @@ impl Drop for StdioServer {
     fn drop(&mut self) {
         let _ = self.child.kill();
         let _ = self.child.wait();
+        if let Some(reader) = self.stderr_reader.take() {
+            let _ = reader.join();
+        }
+        if std::thread::panicking() {
+            eprintln!("isolated server stderr (last 64 lines):");
+            // A second panic here would abort and lose these diagnostics.
+            let tail = self.diagnostics.lock().unwrap_or_else(|e| e.into_inner());
+            for line in tail.iter() {
+                eprintln!("{line}");
+            }
+        }
     }
 }
 
