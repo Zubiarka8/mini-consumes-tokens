@@ -905,6 +905,11 @@ pub fn find_duplicate_groups(
     token_sources: &TokenSourceRegistry,
     mut options: DuplicateOptions,
 ) -> Result<DuplicateReport> {
+    let _snapshot = if index.conn.is_autocommit() {
+        Some(index.read_snapshot()?)
+    } else {
+        None
+    };
     if let Some(path) = &options.path {
         use std::path::{Component, Path};
         let mut parts = Vec::new();
