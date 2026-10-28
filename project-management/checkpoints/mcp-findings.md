@@ -2,7 +2,7 @@
 
 Owner: Codex, single writer, isolated checkout `mct-plan5`.
 Base: 2d6273ca01ead94f9db39169fed58ee2eaf91f66 (#246).
-Status: IN_PROGRESS. No main integration authorized.
+Status: DELIVERED (slices merged as #246-#254 on 2026-10-28); Safari acceptance is not recorded. No further main integration is authorized by this record.
 
 ## Reviewed plan and acceptance
 
@@ -200,3 +200,31 @@ Safari acceptance remains BLOCKED: the newly built owned fixture server on port
 web port: Operation not permitted (os error 1)`. Safari was available, but no
 server for this revision could be reached. Other fixtures were preserved and
 are not counted as acceptance. No own server is running.
+
+### Delivery preparation — 2026-10-28
+
+Code candidate bf91ccf; coordination branch docs/mcp-findings-delivery. See
+../deliveries/mcp-findings.md for the complete base/head mapping, checks and
+Safari acceptance procedure. Seven shared records now reference this delivery.
+English PR bodies are prepared, with draft stacked bases. Publication/remote CI
+will be attempted next; no remote result is claimed before confirmation.
+
+### Official Safari MCP registration
+
+User explicitly requested adding the Safari connector. Registered the built-in
+Apple safaridriver --mcp with Codex; configuration reports enabled stdio. Safari
+27.0 installed, remote automation/external agents already enabled (observed in
+Safari Developer settings); no permission checkbox changed. Driver exits 1
+without output before initialize, with and without elevation. Thus registered
+but runtime protocol connection is not verified. No third-party package or
+Chrome used. Native app control remains available.
+
+### Final remote delivery attempt — 2026-10-28 (historical: superseded by the merges)
+
+GitHub CLI rejected api.github.com by allowlist policy, normal and escalated.
+Git ls-remote rejected github.com by the same policy, normal and escalated.
+No remote branch, PR number or CI result can be verified; no upload performed.
+Draft bodies and publication mapping are complete. A syntax-checked local
+publication script preserves draft bases and fast-forward-only pushes for the
+next permitted host/session. Overall task remains REVIEW/BLOCKED for acceptance,
+not DONE. Code bf91ccf unchanged; final docs validated separately.
