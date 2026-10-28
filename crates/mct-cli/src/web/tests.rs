@@ -310,6 +310,28 @@ fn source_previews_only_read_indexed_files_inside_the_project() {
 }
 
 #[test]
+fn source_previews_refuse_a_file_changed_since_it_was_indexed() {
+    let root = project();
+    let server = Server::start(root.path(), true);
+    let before = server.json("api/source?path=src%2Fa.rs&start=1&end=2");
+    assert_eq!(before["lines"].as_array().unwrap().len(), 2);
+    fs::write(
+        root.path().join("src/a.rs"),
+        "// one line added\npub fn alpha() {}\n",
+    )
+    .unwrap();
+    let response = server.get("api/source?path=src%2Fa.rs&start=1&end=2");
+    assert!(response.starts_with("HTTP/1.1 409"), "{response}");
+    assert!(
+        response.contains("changed since it was indexed"),
+        "{response}"
+    );
+    assert!(!response.contains("one line added"));
+    let untouched = server.json("api/source?path=src%2Fb.rs&start=1&end=2");
+    assert_eq!(untouched["lines"].as_array().unwrap().len(), 2);
+}
+
+#[test]
 fn api_lists_are_bounded_paged_and_filterable() {
     let root = tempfile::tempdir().unwrap();
     fs::create_dir(root.path().join("src")).unwrap();
