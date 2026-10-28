@@ -79,3 +79,17 @@ Every relation tool (`find_references`/`find_calls`/`find_callers`/`impact_analy
 See [[mct-mcp-server]] for the crate that implements this, [[glossary]] for term definitions.
 
 #architecture #mcp
+
+### Review-aware MCP dead-code findings
+
+`find_dead_code` reads the shared TOON review decisions. Only a matching
+`false-positive` or `dismissed` decision hides a candidate; filtering occurs
+before `limit` (default 50) and `offset`. Optional `include_reviewed: true`
+shows hidden rows with `actionable: false`. Both formats report `status`
+(`no_candidates`, `all_suppressed`, `candidates`), `detected`, `actionable`,
+`suppressed`, `review_store` (`ok` or `degraded`), `returned`, `truncated` and
+`next_offset`. Unreadable stores hide nothing. Rows expose identity and review
+label, never private notes or history. `max_tokens` is an estimated output
+budget, 512..16000 (default 4000); it bounds the response, not analysis work.
+Restart pagination after a reindex or a review change. Existing `path`,
+`language`, `limit`, `offset` and `format` parameters retain their defaults.
