@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use std::time::Duration;
 
 use mct_core::LanguageRegistry;
 use mct_index::Index;
@@ -19,6 +20,7 @@ use crate::embedder::SemanticModel;
 use crate::format;
 use crate::intent;
 use crate::pack_budget::{self, PackRequest};
+use crate::readiness::{self, IndexState, Readiness};
 use crate::toon::OutputFormat;
 use crate::ttc;
 
@@ -29,6 +31,27 @@ use crate::ttc;
 /// a single response to a size that rivals the `grep` output this project
 /// exists to replace.
 const DEFAULT_RESULT_LIMIT: usize = 50;
+
+/// Tools that answer without reading the index (or, for
+/// `get_indexing_status`, report the startup state themselves), so they work
+/// while the startup indexing is still running. `batch` takes no lock of its
+/// own: each sub-query is gated individually, so a batch of index-free
+/// queries answers during indexing and the rest report their own state.
+fn is_index_free(tool: &str) -> bool {
+    matches!(
+        tool,
+        "get_indexing_status"
+            | "discover_tool_categories"
+            | "get_tool_schema"
+            | "select_tools"
+            | "batch"
+    )
+}
+
+/// How long a tool call waits for the startup indexing to finish before it
+/// answers that the index is not ready yet. Well under the typical client
+/// request timeout, so the caller gets a clear reply instead of a timeout.
+pub const DEFAULT_READY_WAIT: Duration = Duration::from_secs(20);
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct ListSymbolsArgs {
@@ -790,6 +813,8 @@ fn reference_reply(kind: &HitKind) -> String {
 #[derive(Clone)]
 pub struct MctServer {
     index: Arc<Mutex<Index>>,
+    readiness: Readiness,
+    ready_wait: Duration,
     /// The index's project root, kept here so the embedding model can be
     /// loaded without taking the index mutex (`Index::root` is immutable).
     root: std::path::PathBuf,
@@ -1298,6 +1323,8 @@ impl MctServer {
             .shared_cache
             .unwrap_or_else(|| Arc::new(std::sync::Mutex::new(QueryCache::new(options.cache))));
         Self {
+            readiness: Readiness::ready(),
+            ready_wait: DEFAULT_READY_WAIT,
             root: index.root().to_path_buf(),
             index: Arc::new(Mutex::new(index)),
             registry,
@@ -1545,6 +1572,45 @@ impl MctServer {
         self.run_batch_query(tool, args).await
     }
 
+    /// Shared state of the startup indexing; `mct-mcp-server` marks it while
+    /// it indexes in the background. A server built around an already-indexed
+    /// index starts `Ready`.
+    pub fn readiness(&self) -> Readiness {
+        self.readiness.clone()
+    }
+
+    /// How long a tool call waits for startup indexing before it reports that
+    /// the index is not ready (default [`DEFAULT_READY_WAIT`]).
+    pub fn with_ready_wait(mut self, wait: Duration) -> Self {
+        self.ready_wait = wait;
+        self
+    }
+
+    /// `Some(error result)` when `tool` cannot be answered from the index yet.
+    /// `get_indexing_status` is answered by its own method, which never touches
+    /// the index lock while it is held by the startup indexing; `reindex`
+    /// is the way out of a failed startup, so it is let through then.
+    async fn not_ready_result(&self, tool: &str, wait: Duration) -> Option<CallToolResult> {
+        if is_index_free(tool) {
+            return None;
+        }
+        let state = self.readiness.settled(wait).await;
+        if tool == "reindex" && matches!(state, IndexState::Failed(_)) {
+            return None;
+        }
+        readiness::refusal(&state).map(|text| CallToolResult::error(vec![ContentBlock::text(text)]))
+    }
+
+    /// [`Self::apply_exclusion_changes`] for a tool about to run. While the
+    /// startup indexing holds the index lock, a tool that does not read the
+    /// index must not wait for it.
+    async fn sync_exclusions_for(&self, tool: &str) -> Result<(), McpError> {
+        if is_index_free(tool) && self.readiness.state() != IndexState::Ready {
+            return Ok(());
+        }
+        self.apply_exclusion_changes().await
+    }
+
     /// Applies an edit to the project's ignore files before a tool reads the
     /// index ([`Index::apply_exclusion_changes`]): a path that `.mctignore`
     /// (or an imported `.gitignore`) now excludes is never served from rows
@@ -1587,7 +1653,21 @@ impl MctServer {
         tool: &str,
         args: Option<serde_json::Map<String, serde_json::Value>>,
     ) -> Result<CallToolResult, McpError> {
-        self.apply_exclusion_changes().await?;
+        self.run_batch_query_waiting(tool, args, self.ready_wait)
+            .await
+    }
+
+    /// [`Self::run_batch_query`] waiting at most `wait` for startup indexing.
+    async fn run_batch_query_waiting(
+        &self,
+        tool: &str,
+        args: Option<serde_json::Map<String, serde_json::Value>>,
+        wait: Duration,
+    ) -> Result<CallToolResult, McpError> {
+        if let Some(refused) = self.not_ready_result(tool, wait).await {
+            return Ok(refused);
+        }
+        self.sync_exclusions_for(tool).await?;
         if let Some(route) = self.tool_router.map.get(tool) {
             let read_only = route
                 .attr
@@ -2607,6 +2687,8 @@ impl MctServer {
     ) -> Result<CallToolResult, McpError> {
         let mut index = self.index.lock().await;
         let report = index.reindex(&self.registry, force).map_err(index_error)?;
+        // A successful full reindex also recovers a failed startup.
+        self.readiness.mark_ready();
         for warning in &report.warnings {
             tracing::warn!(%warning, "post-reindex hook failed");
         }
@@ -2624,6 +2706,11 @@ impl MctServer {
             dependency,
         }): Parameters<GetIndexingStatusArgs>,
     ) -> Result<CallToolResult, McpError> {
+        // While startup indexing holds the index lock, say so instead of
+        // waiting for it (and never report a half-built index as healthy).
+        if let Some(text) = readiness::refusal(&self.readiness.state()) {
+            return Ok(CallToolResult::success(vec![ContentBlock::text(text)]));
+        }
         let index = self.index.lock().await;
         let _snapshot = index.read_snapshot().map_err(index_error)?;
         let status = index.status().map_err(index_error)?;
@@ -2962,12 +3049,21 @@ impl MctServer {
         // by at most one sub-result (itself capped by DEFAULT_BYTE_BUDGET).
         let mut outcomes = Vec::with_capacity(queries.len());
         let mut rendered = 0usize;
+        // A sub-query waits for startup indexing; once one has waited in vain
+        // the rest answer at once instead of each waiting the full time again.
+        let mut wait = self.ready_wait;
         for BatchQuery { tool, args } in queries {
             let tool = tool.trim().to_string();
             let outcome = if rendered >= BATCH_BYTE_BUDGET {
                 format::BatchOutcome::Skipped
             } else {
-                match self.run_batch_query(&tool, args).await {
+                let outcome = self.run_batch_query_waiting(&tool, args, wait).await;
+                // Only a query that needed the index and still could not be
+                // answered proves that waiting longer is pointless.
+                if !is_index_free(&tool) && self.readiness.state() != IndexState::Ready {
+                    wait = Duration::ZERO;
+                }
+                match outcome {
                     Ok(result) => format::BatchOutcome::Ok(result_text(&result)),
                     Err(err) => format::BatchOutcome::Err(err.message.to_string()),
                 }
@@ -3004,8 +3100,11 @@ impl ServerHandler for MctServer {
         request: rmcp::model::CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<rmcp::model::CallToolResponse, McpError> {
-        self.apply_exclusion_changes().await?;
         let tool = request.name.clone();
+        if let Some(refused) = self.not_ready_result(&tool, self.ready_wait).await {
+            return Ok(rmcp::model::CallToolResponse::Complete(refused));
+        }
+        self.sync_exclusions_for(&tool).await?;
         let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
         let response = self.tool_router.call(call).await?;
         if let rmcp::model::CallToolResponse::Complete(result) = &response {
