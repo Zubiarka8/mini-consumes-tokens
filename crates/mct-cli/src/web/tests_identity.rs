@@ -110,6 +110,21 @@ fn mcp_dead(root: &Path, offset: usize, limit: usize) -> String {
     crate::result_text(&value)
 }
 
+/// The real MCP `find_duplicate_code` tool, dispatched through the CLI client.
+fn mcp_duplicates(root: &Path) -> String {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .build()
+        .unwrap();
+    let value = runtime
+        .block_on(crate::call_one(
+            root,
+            "find_duplicate_code",
+            serde_json::Map::new(),
+        ))
+        .unwrap();
+    crate::result_text(&value)
+}
+
 /// Names reported by the CLI dead-code CSV.
 fn cli_dead(root: &Path, include_reviewed: bool) -> Vec<String> {
     let index = mct_index::Index::open_existing_read_only(
@@ -178,7 +193,12 @@ fn dashboard_dismissals_reach_mcp_and_cli_before_pagination_and_only_while_uncha
     let mut site = load(&root);
     decide(&mut site, Kind::Dead, &beta, "ignored");
     assert!(cli_dead(&root, false).is_empty());
-    assert!(mcp_dead(&root, 0, 10).starts_with("No dead-code candidates"));
+    let suppressed = mcp_dead(&root, 0, 10);
+    assert!(suppressed.starts_with("No actionable dead-code candidates"));
+    assert!(
+        suppressed.contains("2 candidate(s) suppressed by valid saved review decisions"),
+        "{suppressed}"
+    );
     let mut site = load(&root);
     decide(&mut site, Kind::Dead, &beta, "restore");
     assert_eq!(cli_dead(&root, false), ["beta"]);
@@ -314,7 +334,12 @@ fn a_pre_provenance_decision_on_a_surviving_twin_is_shared_by_dashboard_and_ai()
     // The AI outputs are asked first, before any dashboard load can record
     // provenance: both must resolve the same surviving identity.
     assert!(cli_dead(&root, false).is_empty());
-    assert!(mcp_dead(&root, 0, 10).starts_with("No dead-code candidates"));
+    let suppressed = mcp_dead(&root, 0, 10);
+    assert!(suppressed.starts_with("No actionable dead-code candidates"));
+    assert!(
+        suppressed.contains("1 candidate(s) suppressed by valid saved review decisions"),
+        "{suppressed}"
+    );
     let site = load(&root);
     assert_eq!(dead_id(&site, "twin", 0), id);
     assert!(decided(&dead_states(&site, "twin")[0]));
@@ -440,4 +465,573 @@ fn retained_annotations_keep_ai_outputs_as_uncertain_as_the_dashboard() {
         .all(|state| !decided(state)));
     assert_eq!(cli_dead(&root, false), ["twin"]);
     assert!(mcp_dead(&root, 0, 10).starts_with("1 dead-code candidate(s)"));
+}
+
+#[test]
+fn review_once_survives_full_incremental_and_line_movement_without_rewriting_history() {
+    let dir = two_duplicates_project();
+    let root = root(&dir);
+    let mut site = load(&root);
+    let dead = dead_id(&site, "alpha", 0);
+    let group = site.duplicate_keys[0].identity.clone();
+    decide(&mut site, Kind::Dead, &dead, "false_positive");
+    decide(&mut site, Kind::Duplicate, &group, "false_positive");
+    site.reviews
+        .add_comment(Kind::Dead, &dead, "public API rationale", 42)
+        .unwrap();
+    site.reviews
+        .add_comment(Kind::Duplicate, &group, "intentional copies", 43)
+        .unwrap();
+    let decisions = site.reviews.decisions().unwrap();
+    let dead_history = site.reviews.history(Kind::Dead, &dead).unwrap();
+    let group_history = site.reviews.history(Kind::Duplicate, &group).unwrap();
+    drop(site);
+
+    let mut writer = mct_index::Index::open(
+        &root,
+        &root.join(".mct-index/index.sqlite3"),
+        mct_index::ExcludeSet::default(),
+    )
+    .unwrap();
+    let registry = mct_languages::build_registry();
+    // Full forced parsing, unchanged full scan, then unchanged path reconciliation.
+    for round in 0..3 {
+        match round {
+            0 => writer.reindex(&registry, true).unwrap(),
+            1 => writer.reindex(&registry, false).unwrap(),
+            _ => writer
+                .reindex_paths(&registry, &[PathBuf::from("src/a.rs")])
+                .unwrap(),
+        };
+        let site = load(&root);
+        assert_eq!(dead_id(&site, "alpha", 0), dead);
+        assert_eq!(site.duplicate_keys[0].identity, group);
+        assert!(decided(&site.dead_state(site.dead_ids[&dead])));
+        assert!(decided(&site.duplicate_state(0)));
+        assert_eq!(site.reviews.decisions().unwrap(), decisions);
+        assert_eq!(
+            site.reviews.history(Kind::Dead, &dead).unwrap(),
+            dead_history
+        );
+        assert_eq!(
+            site.reviews.history(Kind::Duplicate, &group).unwrap(),
+            group_history
+        );
+        assert_eq!(
+            site.reviews.comments(Kind::Dead, &dead).unwrap()[0].body,
+            "public API rationale"
+        );
+        assert_eq!(
+            site.reviews.comments(Kind::Duplicate, &group).unwrap()[0].body,
+            "intentional copies"
+        );
+        assert_eq!(cli_dead(&root, false), ["beta"]);
+        assert!(!mcp_dead(&root, 0, 20).contains("alpha"));
+        assert!(cli_duplicates(&root, &[]).contains("total_groups: 0"));
+    }
+    drop(writer);
+    // Metamorphic property: arbitrary amounts of text outside reviewed ranges
+    // do not change either identity or decision validity.
+    for padding in [1, 3, 11] {
+        fs::write(
+            root.join("src/a.rs"),
+            format!(
+                "{}pub fn alpha{BODY}\n// unrelated footer\n",
+                "// moved\n".repeat(padding)
+            ),
+        )
+        .unwrap();
+        reindex(&root);
+        let site = load(&root);
+        assert_eq!(dead_id(&site, "alpha", 0), dead);
+        assert_eq!(site.duplicate_keys[0].identity, group);
+        assert!(decided(&site.dead_state(site.dead_ids[&dead])));
+        assert!(decided(&site.duplicate_state(0)));
+        assert_eq!(site.reviews.decisions().unwrap(), decisions);
+        assert!(cli_duplicates(&root, &[]).contains("total_groups: 0"));
+        assert_eq!(cli_dead(&root, false), ["beta"]);
+    }
+}
+
+#[test]
+fn exact_block_changes_require_review_and_content_reverts_reactivate_only_the_saved_decision() {
+    let dir = two_duplicates_project();
+    let root = root(&dir);
+    let mut site = load(&root);
+    let dead = dead_id(&site, "alpha", 0);
+    let group = site.duplicate_keys[0].identity.clone();
+    decide(&mut site, Kind::Dead, &dead, "false_positive");
+    decide(&mut site, Kind::Duplicate, &group, "ignored");
+    let decisions = site.reviews.decisions().unwrap();
+    drop(site);
+    let original = format!("pub fn alpha{BODY}");
+    // Structural normalization still detects the group; exact reviewed text
+    // changed, even if only whitespace or a comment changed.
+    for changed in [
+        original.replace(" let mut total", "  let mut total"),
+        original.replace(
+            " let mut total",
+            " // reviewed block changed\n let mut total",
+        ),
+        original.replace("total += 8", "total += 9"),
+    ] {
+        fs::write(root.join("src/a.rs"), changed).unwrap();
+        reindex(&root);
+        let site = load(&root);
+        assert_eq!(dead_id(&site, "alpha", 0), dead);
+        assert_eq!(site.duplicate_keys[0].identity, group);
+        assert!(matches!(
+            site.dead_state(site.dead_ids[&dead]),
+            State::NeedsReevaluation { .. }
+        ));
+        assert!(matches!(
+            site.duplicate_state(0),
+            State::NeedsReevaluation { .. }
+        ));
+        assert_eq!(site.reviews.decisions().unwrap(), decisions);
+        assert_eq!(cli_dead(&root, false), ["alpha", "beta"]);
+        assert!(mcp_dead(&root, 0, 20).contains("alpha"));
+        assert!(cli_duplicates(&root, &[]).contains("total_groups: 1"));
+    }
+    fs::write(root.join("src/a.rs"), &original).unwrap();
+    reindex(&root);
+    assert_eq!(cli_dead(&root, false), ["beta"]);
+    assert!(cli_duplicates(&root, &[]).contains("total_groups: 0"));
+    let site = load(&root);
+    assert_eq!(site.reviews.decisions().unwrap(), decisions);
+}
+
+#[test]
+fn renames_and_disappearance_preserve_orphans_without_transferring_their_decisions() {
+    for rename_symbol in [false, true] {
+        let dir = two_duplicates_project();
+        let root = root(&dir);
+        let mut site = load(&root);
+        let dead = dead_id(&site, "alpha", 0);
+        let group = site.duplicate_keys[0].identity.clone();
+        decide(&mut site, Kind::Dead, &dead, "false_positive");
+        decide(&mut site, Kind::Duplicate, &group, "false_positive");
+        let decisions = site.reviews.decisions().unwrap();
+        drop(site);
+        let file = root.join("src/a.rs");
+        let original = fs::read_to_string(&file).unwrap();
+        let renamed = root.join("src/renamed.rs");
+        let name = if rename_symbol {
+            fs::write(&file, original.replace("alpha", "renamed")).unwrap();
+            "renamed"
+        } else {
+            fs::rename(&file, &renamed).unwrap();
+            "alpha"
+        };
+        reindex(&root);
+        let site = load(&root);
+        assert_ne!(dead_id(&site, name, 0), dead);
+        assert_ne!(site.duplicate_keys[0].identity, group);
+        assert_eq!(site.duplicate_state(0), State::Pending);
+        assert_eq!(dead_states(&site, name), [State::Pending]);
+        assert_eq!(site.reviews.decisions().unwrap(), decisions);
+        assert!(cli_dead(&root, false).contains(&name.to_string()));
+        assert!(cli_duplicates(&root, &[]).contains("total_groups: 1"));
+        assert!(mcp_dead(&root, 0, 20).contains(name));
+        let moved_duplicate = mcp_duplicates(&root);
+        assert!(
+            moved_duplicate.contains("actionable: 1"),
+            "{moved_duplicate}"
+        );
+        assert!(
+            moved_duplicate.contains("status: groups"),
+            "{moved_duplicate}"
+        );
+        drop(site);
+        if !rename_symbol {
+            fs::remove_file(&renamed).unwrap();
+        } else {
+            fs::remove_file(&file).unwrap();
+        }
+        reindex(&root);
+        let site = load(&root);
+        assert!(site.fingerprint_of(Kind::Dead, &dead).is_none());
+        assert!(site.fingerprint_of(Kind::Duplicate, &group).is_none());
+        assert_eq!(site.reviews.decisions().unwrap(), decisions);
+        assert!(!mcp_dead(&root, 0, 20).contains(name));
+        assert!(mcp_duplicates(&root).contains("status: no_groups"));
+        drop(site);
+        fs::write(&file, original).unwrap();
+        reindex(&root);
+        assert_eq!(cli_dead(&root, false), ["beta"]);
+        assert!(cli_duplicates(&root, &[]).contains("total_groups: 0"));
+        assert!(!mcp_dead(&root, 0, 20).contains("alpha"));
+        assert!(mcp_duplicates(&root).contains("status: all_suppressed"));
+        assert_eq!(load(&root).reviews.decisions().unwrap(), decisions);
+    }
+}
+
+#[test]
+fn sqlite_reviews_do_not_follow_directory_moves_and_reactivate_only_on_exact_restoration() {
+    let dir = two_duplicates_project();
+    let root = root(&dir);
+    let first_path = root.join("src/a.rs");
+    let second_path = root.join("src/b.rs");
+    let first_source = fs::read(&first_path).unwrap();
+    let second_source = fs::read(&second_path).unwrap();
+    let mut site = load(&root);
+    let dead = dead_id(&site, "alpha", 0);
+    let duplicate = site.duplicate_keys[0].identity.clone();
+    decide(&mut site, Kind::Dead, &dead, "false_positive");
+    decide(&mut site, Kind::Duplicate, &duplicate, "ignored");
+    let decisions = site.reviews.decisions().unwrap();
+    let dead_history = site.reviews.history(Kind::Dead, &dead).unwrap();
+    let duplicate_history = site.reviews.history(Kind::Duplicate, &duplicate).unwrap();
+    drop(site);
+
+    fs::rename(root.join("src"), root.join("moved")).unwrap();
+    reindex(&root);
+    let moved = load(&root);
+    let moved_dead = dead_id(&moved, "alpha", 0);
+    let moved_duplicate = moved.duplicate_keys[0].identity.clone();
+    assert_ne!(moved_dead, dead);
+    assert_ne!(moved_duplicate, duplicate);
+    assert_eq!(dead_states(&moved, "alpha"), [State::Pending]);
+    assert_eq!(moved.duplicate_state(0), State::Pending);
+    assert_eq!(moved.reviews.decisions().unwrap(), decisions);
+    assert_eq!(
+        moved.reviews.history(Kind::Dead, &dead).unwrap(),
+        dead_history
+    );
+    assert_eq!(
+        moved.reviews.history(Kind::Duplicate, &duplicate).unwrap(),
+        duplicate_history
+    );
+    drop(moved);
+    assert!(mcp_dead(&root, 0, 20).contains("alpha"));
+    let duplicate_result = mcp_duplicates(&root);
+    assert!(
+        duplicate_result.contains(&moved_duplicate),
+        "{duplicate_result}"
+    );
+    assert!(
+        duplicate_result.contains("actionable: 1"),
+        "{duplicate_result}"
+    );
+    assert!(!duplicate_result.contains(&duplicate), "{duplicate_result}");
+
+    fs::remove_dir_all(root.join("moved")).unwrap();
+    reindex(&root);
+    assert!(!mcp_dead(&root, 0, 20).contains("alpha"));
+    assert!(mcp_duplicates(&root).contains("status: no_groups"));
+    let deleted = load(&root);
+    assert_eq!(deleted.reviews.decisions().unwrap(), decisions);
+    assert_eq!(
+        deleted.reviews.history(Kind::Dead, &dead).unwrap(),
+        dead_history
+    );
+    assert_eq!(
+        deleted
+            .reviews
+            .history(Kind::Duplicate, &duplicate)
+            .unwrap(),
+        duplicate_history
+    );
+    drop(deleted);
+
+    fs::create_dir(root.join("src")).unwrap();
+    fs::write(&first_path, first_source).unwrap();
+    fs::write(&second_path, second_source).unwrap();
+    reindex(&root);
+    let restored = load(&root);
+    assert_eq!(dead_id(&restored, "alpha", 0), dead);
+    assert_eq!(restored.duplicate_keys[0].identity, duplicate);
+    assert!(decided(&restored.dead_state(restored.dead_ids[&dead])));
+    assert!(decided(&restored.duplicate_state(0)));
+    assert_eq!(restored.reviews.decisions().unwrap(), decisions);
+    assert_eq!(
+        restored.reviews.history(Kind::Dead, &dead).unwrap(),
+        dead_history
+    );
+    assert_eq!(
+        restored
+            .reviews
+            .history(Kind::Duplicate, &duplicate)
+            .unwrap(),
+        duplicate_history
+    );
+    drop(restored);
+    let dead_result = mcp_dead(&root, 0, 20);
+    assert!(!dead_result.contains("alpha"), "{dead_result}");
+    assert!(
+        dead_result.contains("beta"),
+        "unreviewed finding must stay visible: {dead_result}"
+    );
+    assert!(mcp_duplicates(&root).contains("status: all_suppressed"));
+}
+
+#[test]
+fn reordered_same_name_symbols_keep_only_the_fingerprint_matched_decision() {
+    let (_dir, root) = twins_project();
+    let mut site = load(&root);
+    let reviewed_id = dead_id(&site, "twin", 1);
+    let reviewed_fingerprint = site.fingerprint_of(Kind::Dead, &reviewed_id).unwrap();
+    decide(&mut site, Kind::Dead, &reviewed_id, "false_positive");
+    let decisions = site.reviews.decisions().unwrap();
+    drop(site);
+
+    // Put the reviewed body first so its ordinal changes from one to zero.
+    fs::write(
+        root.join("twins.py"),
+        format!("{SURVIVOR}\ndef twin():\n    return 1\n"),
+    )
+    .unwrap();
+    reindex(&root);
+    let reordered = load(&root);
+    assert_eq!(dead_id(&reordered, "twin", 0), reviewed_id);
+    assert_eq!(
+        reordered
+            .fingerprint_of(Kind::Dead, &reviewed_id)
+            .as_deref(),
+        Some(reviewed_fingerprint.as_str())
+    );
+    let states = dead_states(&reordered, "twin");
+    assert!(decided(&states[0]));
+    assert_eq!(states[1], State::Pending);
+    assert_eq!(reordered.reviews.decisions().unwrap(), decisions);
+    drop(reordered);
+    let visible = mcp_dead(&root, 0, 10);
+    assert!(visible.starts_with("1 dead-code candidate(s)"), "{visible}");
+    assert!(
+        visible.contains("function,twin,twins.py,4,5"),
+        "the unreviewed return-1 twin must remain actionable after reordering: {visible}"
+    );
+
+    // Editing that exact body invalidates the same identity's old fingerprint.
+    fs::write(
+        root.join("twins.py"),
+        "def twin():\n    return 3\n\ndef twin():\n    return 1\n",
+    )
+    .unwrap();
+    reindex(&root);
+    let changed = load(&root);
+    assert!(dead_states(&changed, "twin")
+        .iter()
+        .all(|state| !decided(state)));
+    assert_eq!(changed.reviews.decisions().unwrap(), decisions);
+    drop(changed);
+    let visible = mcp_dead(&root, 0, 10);
+    assert!(visible.starts_with("2 dead-code candidate(s)"), "{visible}");
+    assert!(visible.contains("function,twin,twins.py,1,2"), "{visible}");
+    assert!(visible.contains("function,twin,twins.py,4,5"), "{visible}");
+}
+
+#[test]
+fn materially_changed_restoration_keeps_old_reviews_historical_and_actionable() {
+    let dir = two_duplicates_project();
+    let root = root(&dir);
+    let mut site = load(&root);
+    let dead = dead_id(&site, "alpha", 0);
+    let duplicate = site.duplicate_keys[0].identity.clone();
+    decide(&mut site, Kind::Dead, &dead, "false_positive");
+    decide(&mut site, Kind::Duplicate, &duplicate, "ignored");
+    let decisions = site.reviews.decisions().unwrap();
+    let original_a = fs::read_to_string(root.join("src/a.rs")).unwrap();
+    let original_b = fs::read_to_string(root.join("src/b.rs")).unwrap();
+    drop(site);
+
+    fs::remove_file(root.join("src/a.rs")).unwrap();
+    fs::remove_file(root.join("src/b.rs")).unwrap();
+    reindex(&root);
+    assert!(mcp_dead(&root, 0, 10).starts_with("No dead-code candidates"));
+    let deleted_duplicates = mcp_duplicates(&root);
+    assert!(
+        deleted_duplicates.contains("status: no_groups"),
+        "{deleted_duplicates}"
+    );
+    assert_eq!(load(&root).reviews.decisions().unwrap(), decisions);
+
+    fs::write(
+        root.join("src/a.rs"),
+        original_a.replace("total += 8", "total += 9"),
+    )
+    .unwrap();
+    fs::write(
+        root.join("src/b.rs"),
+        original_b.replace("total += 8", "total += 9"),
+    )
+    .unwrap();
+    reindex(&root);
+
+    let restored = load(&root);
+    assert_eq!(dead_id(&restored, "alpha", 0), dead);
+    assert_eq!(restored.duplicate_keys[0].identity, duplicate);
+    assert_eq!(restored.reviews.decisions().unwrap(), decisions);
+    assert!(matches!(
+        restored.dead_state(restored.dead_ids[&dead]),
+        State::NeedsReevaluation { .. }
+    ));
+    assert!(matches!(
+        restored.duplicate_state(0),
+        State::NeedsReevaluation { .. }
+    ));
+    let dead_output = mcp_dead(&root, 0, 10);
+    assert!(dead_output.contains("alpha"), "{dead_output}");
+    assert!(mcp_duplicates(&root).contains("actionable: 1"));
+}
+
+/// The same visibility matrix must hold after a real unchanged reindex. A
+/// confirmed problem remains actionable; it is not an accepted-copy status.
+#[test]
+fn every_finding_decision_has_the_same_visibility_after_reindex_on_all_consumers() {
+    let dir = two_duplicates_project();
+    let root = root(&dir);
+    let mut site = load(&root);
+    let dead = dead_id(&site, "alpha", 0);
+    let group = site.duplicate_keys[0].identity.clone();
+    let mut checked = 0;
+    for (action, suppressed) in [
+        ("false_positive", true),
+        ("confirmed", false),
+        ("ignored", true),
+        ("restore", false),
+    ] {
+        // MCP initialization can publish refreshed derived metadata. Reload the
+        // editor snapshot before each next explicit user action.
+        site = load(&root);
+        decide(&mut site, Kind::Dead, &dead, action);
+        decide(&mut site, Kind::Duplicate, &group, action);
+        let stored = site.reviews.decisions().unwrap();
+        drop(site);
+        reindex(&root);
+        site = load(&root);
+        assert_eq!(dead_id(&site, "alpha", 0), dead);
+        assert_eq!(site.duplicate_keys[0].identity, group);
+        assert_eq!(site.reviews.decisions().unwrap(), stored);
+        assert_eq!(
+            !cli_dead(&root, false).contains(&"alpha".into()),
+            suppressed
+        );
+        assert_eq!(!mcp_dead(&root, 0, 20).contains("alpha"), suppressed);
+        assert_eq!(
+            cli_duplicates(&root, &[]).contains("total_groups: 0"),
+            suppressed
+        );
+        site = load(&root);
+        let visible = !matches!(
+            site.dead_state(site.dead_ids[&dead]),
+            State::Decided {
+                status: Status::FalsePositive | Status::Ignored,
+                ..
+            }
+        );
+        assert_eq!(visible, !suppressed);
+        checked += 2;
+    }
+    assert_eq!(checked, 8);
+    assert_eq!(site.reviews.history(Kind::Dead, &dead).unwrap().len(), 4);
+    assert_eq!(
+        site.reviews.history(Kind::Duplicate, &group).unwrap().len(),
+        4
+    );
+}
+
+/// Reproducible Phase 8.1 fixture benchmark. This compares the existing CLI
+/// discovery fallback with MCP discovery, not two equivalent MCP workflows.
+#[test]
+#[ignore = "not a bug: manual timing and token report; run with --ignored --nocapture"]
+fn duplicate_mcp_workflow_benchmark() {
+    use mct_index::{EstimatedCounter, TokenCounter};
+    use std::time::Instant;
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .build()
+        .unwrap();
+    for groups in [1, 10, 50] {
+        let dir = tempfile::tempdir().unwrap();
+        let root = root(&dir);
+        for g in 0..groups {
+            let body = BODY.replace(
+                "total += 8;",
+                &format!("{}total += 8;", "total *= 3;\n".repeat(g)),
+            );
+            for c in 0..2 {
+                fs::write(
+                    root.join(format!("g{g}c{c}.rs")),
+                    format!("pub fn f{g}_{c}{body}"),
+                )
+                .unwrap();
+            }
+        }
+        reindex(&root);
+        let index = mct_index::Index::open_existing_read_only(
+            &root,
+            &root.join(".mct-index/index.sqlite3"),
+            mct_index::ExcludeSet::default(),
+        )
+        .unwrap();
+        let server = mct_mcp_server::server::MctServer::new(index, mct_languages::build_registry());
+        let catalog = server.tool_catalog();
+        let old = catalog
+            .iter()
+            .filter(|t| t.name != "find_duplicate_code")
+            .cloned()
+            .collect::<Vec<_>>();
+        let before_tokens = EstimatedCounter
+            .count(&serde_json::to_string(&old).unwrap())
+            .value;
+        let after_tokens = EstimatedCounter
+            .count(&serde_json::to_string(&catalog).unwrap())
+            .value;
+        let call = || {
+            runtime
+                .block_on(
+                    server.call_read_only_tool(
+                        "find_duplicate_code",
+                        Some(
+                            serde_json::json!({"limit":100,"max_tokens":16000})
+                                .as_object()
+                                .unwrap()
+                                .clone(),
+                        ),
+                    ),
+                )
+                .unwrap()
+        };
+        call(); // warm-up, excluded
+        cli_duplicates(&root, &["--no-cache"]); // warm-up, excluded
+        let mut mcp_times = Vec::new();
+        let mut cli_times = Vec::new();
+        let mut mcp_response = String::new();
+        let mut cli_response = String::new();
+        for _ in 0..11 {
+            let start = Instant::now();
+            let result = call();
+            mcp_times.push(start.elapsed().as_secs_f64() * 1000.0);
+            mcp_response = result.content[0].as_text().unwrap().text.clone();
+            let start = Instant::now();
+            cli_response = cli_duplicates(&root, &["--no-cache"]);
+            cli_times.push(start.elapsed().as_secs_f64() * 1000.0);
+        }
+        fn stats(mut samples: Vec<f64>) -> (f64, f64, f64) {
+            samples.sort_by(f64::total_cmp);
+            let mean = samples.iter().sum::<f64>() / samples.len() as f64;
+            let variance =
+                samples.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / samples.len() as f64;
+            (
+                samples[samples.len() / 2],
+                samples[(samples.len() * 95).div_ceil(100) - 1],
+                variance,
+            )
+        }
+        let (mp50, mp95, mvar) = stats(mcp_times);
+        let (cp50, cp95, cvar) = stats(cli_times);
+        let mt = EstimatedCounter.count(&mcp_response).value;
+        let ct = EstimatedCounter.count(&cli_response).value;
+        let returned = mcp_response
+            .lines()
+            .find_map(|l| l.strip_prefix("returned: "))
+            .unwrap();
+        assert!(cli_response.contains(&format!("total_groups: {groups}")));
+        assert!(mcp_response.contains(&format!("detected: {groups}")));
+        println!(
+            "phase81 groups={groups} copies=2 n=11 mcp_returned={returned} mcp_p50_ms={mp50:.3} mcp_p95_ms={mp95:.3} mcp_variance={mvar:.3} cli_p50_ms={cp50:.3} cli_p95_ms={cp95:.3} cli_variance={cvar:.3} response_tokens_mcp={mt} response_tokens_cli={ct} catalog_before={before_tokens} catalog_after={after_tokens} total_mcp={} total_cli_assisted={} calls_mcp=1 calls_cli_assisted=1",
+            after_tokens + mt,
+            before_tokens + ct
+        );
+    }
 }

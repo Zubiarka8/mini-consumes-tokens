@@ -2,34 +2,55 @@
 @tailwind components;
 @tailwind utilities;
 
+/* One palette, two themes: slate neutrals, indigo brand, amber for matching
+   code, rose for differences. Every color is an RGB triple so Tailwind can
+   add its own alpha. */
 :root {
-  --bg: 9 13 24; --panel: 15 22 38; --panel2: 20 29 49; --line: 34 46 72; --ink: 226 232 244; --mute: 130 144 172;
-  --brand: 139 92 246; --ok: 34 197 94; --warn: 245 158 11; --bad: 239 68 68; --info: 59 130 246;
-  --same: 245 158 11 / 0.16; --diff: 185 28 28 / 0.38; --same-solid: 217 150 30; --diff-solid: 185 28 28;
-  --ren: 56 140 246 / 0.22; --ren-solid: 56 140 246;
-  --dead: 239 68 68 / 0.13;
+  --bg: 11 15 25; --panel: 17 22 35; --panel2: 26 32 48; --line: 42 50 70; --ink: 226 232 240; --mute: 148 163 184;
+  --brand: 129 140 248; --on-brand: 15 17 35; --accent: 165 180 252;
+  --ok: 52 211 153; --warn: 251 191 36; --bad: 251 113 133; --info: 56 189 248;
+  --same: 245 158 11 / 0.14; --same-solid: 245 158 11;
+  --diff: 244 63 94 / 0.20; --diff-solid: 251 113 133;
+  --mark: 251 113 133; --on-mark: 30 10 16;
+  --hit: 129 140 248;
+  --dead: 244 63 94 / 0.13;
   color-scheme: dark;
 }
 html.light {
-  --same: 217 150 30 / 0.20; --diff: 220 38 38 / 0.24; --dead: 220 38 38 / 0.09; --same-solid: 217 150 30; --diff-solid: 220 38 38;
-  --bg: 243 245 250; --panel: 255 255 255; --panel2: 240 243 250; --line: 215 222 236; --ink: 20 27 45; --mute: 100 114 140;
-  --brand: 109 62 220; --ok: 22 150 70; --warn: 200 120 0; --bad: 210 40 40; --info: 30 100 220;
+  --bg: 248 250 252; --panel: 255 255 255; --panel2: 241 245 249; --line: 226 232 240; --ink: 15 23 42; --mute: 100 116 139;
+  --brand: 79 70 229; --on-brand: 255 255 255; --accent: 67 56 202;
+  --ok: 5 150 105; --warn: 180 83 9; --bad: 225 29 72; --info: 2 132 199;
+  --same: 252 211 77 / 0.30; --same-solid: 245 158 11;
+  --diff: 251 113 133 / 0.24; --diff-solid: 225 29 72;
+  --mark: 225 29 72; --on-mark: 255 255 255;
+  --hit: 79 70 229;
+  --dead: 225 29 72 / 0.09;
   color-scheme: light;
 }
 body { background: rgb(var(--bg)); color: rgb(var(--ink)); }
 .code-row { white-space: pre; }
 .row-same { background: rgb(var(--same)); }
 .row-diff { background: rgb(var(--diff)); box-shadow: inset 3px 0 0 rgb(var(--diff-solid)); }
-.row-ren { background: rgb(var(--ren)); box-shadow: inset 3px 0 0 rgb(var(--ren-solid)); }
+/* a line holding the search text */
+.row-hit { box-shadow: inset 0 0 0 1px rgb(var(--hit)); }
+.row-diff.row-hit { box-shadow: inset 3px 0 0 rgb(var(--diff-solid)), inset 0 0 0 1px rgb(var(--hit)); }
+/* the words that differ from the compared copy; the shadow pads without moving text */
+.tok-diff { background: rgb(var(--mark)); color: rgb(var(--on-mark)); border-radius: 3px; box-shadow: 0 0 0 1px rgb(var(--mark)); }
 /* a dead-code candidate's own lines: long blocks, so a light tint and the red edge */
 .row-dead { background: rgb(var(--dead)); box-shadow: inset 3px 0 0 rgb(var(--diff-solid)); }
-.sw-ren { background: rgb(var(--ren-solid)); }
 .sw-same { background: rgb(var(--same-solid)); }
 .sw-diff { background: rgb(var(--diff-solid)); }
 .code-box { font-size: var(--code-fs, 12px); }
 .icon { width: 1em; height: 1em; flex-shrink: 0; }
+.radio { accent-color: rgb(var(--brand)); }
 .scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
 .scroll-thin::-webkit-scrollbar-thumb { background: rgb(var(--line)); border-radius: 8px; }
 [x-cloak] { display: none !important; }
 
 .page-controls button:disabled { opacity: .45; cursor: default; }
+
+/* Native keyboard focus is visible on every dashboard control. */
+:where(button, input, textarea, select, summary, a):focus-visible {
+  outline: 2px solid rgb(var(--brand));
+  outline-offset: 2px;
+}

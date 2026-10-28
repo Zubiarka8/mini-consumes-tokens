@@ -5,6 +5,7 @@
 
 mod assets;
 mod context_budget;
+pub mod coordination;
 mod cycles;
 mod dead_code;
 pub mod dead_identity;
@@ -80,7 +81,7 @@ use queries::ResolvedScope;
 use std::path::{Path, PathBuf};
 
 use mct_core::LanguageRegistry;
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 
 /// Early-stop budget for a `find_*_bfs` walk. At `depth <= 1` the walk is a
 /// single query identical to the plain single-hop method, which has always
@@ -121,9 +122,37 @@ pub struct NavigationSnapshot {
     pub imports: Vec<DependencyEdge>,
 }
 
+/// Pins all SQLite reads made through an [`Index`] to one committed state.
+/// The first metadata read establishes the WAL snapshot; dropping this guard
+/// ends the transaction without writing.
+pub struct IndexReadSnapshot<'a> {
+    _transaction: rusqlite::Transaction<'a>,
+    generation: u64,
+}
+
+impl IndexReadSnapshot<'_> {
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
+}
+
+pub(crate) fn parse_published_generation(value: Option<String>) -> Result<u64> {
+    match value {
+        None => Ok(0),
+        Some(value) => value
+            .parse::<i64>()
+            .ok()
+            .filter(|generation| *generation >= 0)
+            .map(|generation| generation as u64)
+            .ok_or(IndexError::InvalidGenerationMetadata(value)),
+    }
+}
+
 /// One open connection to a project's `.mct-index/index.sqlite3`.
 pub struct Index {
     conn: Connection,
+    // Declared after conn: SQLite closes before shared ownership releases.
+    access: Option<coordination::DatabaseAccess>,
     /// Canonicalized project root — every relative path stored in the
     /// database is validated against this to reject path traversal.
     root: PathBuf,
@@ -152,6 +181,8 @@ impl Index {
             path: root.display().to_string(),
             source,
         })?;
+        let access = coordination::DatabaseAccess::shared(db_path, coordination::DEFAULT_TIMEOUT)
+            .map_err(|e| IndexError::Coordination(e.to_string()))?;
         let conn =
             Connection::open_with_flags(db_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
         if schema::migrations().pending_migrations(&conn)? != 0 {
@@ -161,6 +192,7 @@ impl Index {
         search::register_functions(&conn)?;
         Ok(Self {
             conn,
+            access: Some(access),
             root,
             applied_exclusions: exclude.generation(),
             exclude,
@@ -182,14 +214,17 @@ impl Index {
                 source,
             })?;
         }
-        let mut conn = Connection::open(db_path)?;
+        let (conn, access) = coordination::DatabaseAccess::open_with_setup(
+            db_path,
+            &schema::migrations(),
+            search::register_functions,
+        )
+        .map_err(|e| IndexError::Coordination(e.to_string()))?;
         conn.set_prepared_statement_cache_capacity(STATEMENT_CACHE_CAPACITY);
-        conn.pragma_update(None, "journal_mode", "WAL")?;
-        conn.pragma_update(None, "foreign_keys", "ON")?;
         search::register_functions(&conn)?;
-        schema::migrations().to_latest(&mut conn)?;
         Ok(Self {
             conn,
+            access: Some(access),
             root,
             applied_exclusions: exclude.generation(),
             exclude,
@@ -212,12 +247,24 @@ impl Index {
         schema::migrations().to_latest(&mut conn)?;
         Ok(Self {
             conn,
+            access: None,
             root,
             applied_exclusions: exclude.generation(),
             exclude,
             post_reindex: None,
             pending_warnings: Vec::new(),
         })
+    }
+
+    fn writer_guard(&self) -> Result<Option<coordination::Guard>> {
+        self.access
+            .as_ref()
+            .map(|access| {
+                access
+                    .writer(std::time::Duration::ZERO)
+                    .map_err(|e| IndexError::Coordination(e.to_string()))
+            })
+            .transpose()
     }
 
     pub fn root(&self) -> &Path {
@@ -269,7 +316,9 @@ impl Index {
     /// First re-reads the project's ignore files ([`ExcludeSet::reload`]), so
     /// a rule added or removed since the index was opened applies to this run.
     pub fn reindex(&mut self, registry: &LanguageRegistry, force: bool) -> Result<ReindexReport> {
+        let guard = self.writer_guard()?;
         let mut report = indexer::reindex(self, registry, force)?;
+        drop(guard);
         self.run_post_reindex_hook(&mut report);
         Ok(report)
     }
@@ -320,7 +369,9 @@ impl Index {
         if self.exclude.generation() == self.applied_exclusions {
             return Ok(false);
         }
+        let guard = self.writer_guard()?;
         let mut report = indexer::reindex(self, registry, false)?;
+        drop(guard);
         // No report reaches the caller here, so a hook failure waits for
         // [`Index::take_warnings`]; the next successful reindex runs the hook
         // again.
@@ -345,13 +396,46 @@ impl Index {
         registry: &LanguageRegistry,
         paths: &[PathBuf],
     ) -> Result<ReindexReport> {
+        let guard = self.writer_guard()?;
         let mut report = indexer::reindex_paths(self, registry, paths)?;
+        drop(guard);
         self.run_post_reindex_hook(&mut report);
         Ok(report)
     }
 
     pub fn status(&self) -> Result<IndexStatus> {
         indexer::status(self)
+    }
+
+    /// Returns the last atomically published reindex generation. Existing
+    /// indexes without the key are generation zero until their next run.
+    pub fn published_generation(&self) -> Result<u64> {
+        let value: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT value FROM index_meta WHERE key = 'published_generation'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?;
+        parse_published_generation(value)
+    }
+
+    /// Pins a multi-query operation to one committed generation. This is
+    /// read-only and keeps WAL readers available to an indexing writer.
+    pub fn read_snapshot(&self) -> Result<IndexReadSnapshot<'_>> {
+        let transaction = self.conn.unchecked_transaction()?;
+        let value: Option<String> = transaction
+            .query_row(
+                "SELECT value FROM index_meta WHERE key = 'published_generation'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?;
+        Ok(IndexReadSnapshot {
+            _transaction: transaction,
+            generation: parse_published_generation(value)?,
+        })
     }
 
     pub fn find_symbol(&self, name: &str) -> Result<Vec<SymbolHit>> {
@@ -393,6 +477,7 @@ impl Index {
     /// after the first call — only symbols the last reindex added or
     /// rewrote are pending.
     pub fn refresh_embeddings(&self, embedder: &dyn Embedder) -> Result<usize> {
+        let _guard = self.writer_guard()?;
         semantic::refresh_embeddings(&self.conn, &self.root, embedder)
     }
 
@@ -411,6 +496,7 @@ impl Index {
         batch: usize,
         vectors: Vec<Vec<f32>>,
     ) -> Result<usize> {
+        let _guard = self.writer_guard()?;
         semantic::commit_embedding_batch(&self.conn, pending, batch, vectors)
     }
 
@@ -421,6 +507,7 @@ impl Index {
 
     /// Drops every stored vector; the next refresh re-embeds every symbol.
     pub fn clear_embeddings(&self) -> Result<()> {
+        let _guard = self.writer_guard()?;
         semantic::clear_embeddings(&self.conn)
     }
 
@@ -522,12 +609,35 @@ impl Index {
         Ok(rows.collect::<std::result::Result<_, _>>()?)
     }
 
+    /// Whether these exact source bytes match this file's indexed revision.
+    /// Callers applying indexed ranges must hold a read snapshot across the
+    /// symbol lookup and this check, then render these same bytes, not reread.
+    /// Missing index rows are unverifiable and therefore never match.
+    pub fn source_matches_index(&self, relative_path: &str, bytes: &[u8]) -> Result<bool> {
+        let mut stmt = self
+            .conn
+            .prepare_cached("SELECT content_hash FROM files WHERE relative_path = ?1")?;
+        let expected: Option<String> = stmt
+            .query_row([relative_path], |row| row.get(0))
+            .optional()?;
+        let actual = git2::Oid::hash_object(git2::ObjectType::Blob, bytes)?;
+        Ok(expected.as_deref() == Some(actual.to_string().as_str()))
+    }
+
     /// Bulk navigation metadata from one read transaction. The number of
     /// queries is independent of the number of files and directories.
     /// Current exclusions also hide stale rows before the next reindex.
     pub fn navigation_snapshot(&self) -> Result<NavigationSnapshot> {
         self.exclude.try_reload()?;
-        let transaction = self.conn.unchecked_transaction()?;
+        // A caller may already have pinned a wider read operation with
+        // `read_snapshot`. Reuse that transaction instead of attempting a
+        // nested BEGIN; standalone callers still get this method's original
+        // atomic read boundary.
+        let transaction = if self.conn.is_autocommit() {
+            Some(self.conn.unchecked_transaction()?)
+        } else {
+            None
+        };
         let mut files = self.indexed_files()?;
         let mut symbols = {
             let mut statement = self.conn.prepare_cached(
@@ -552,7 +662,9 @@ impl Index {
             rows
         };
         let mut imports = self.direct_file_imports()?;
-        transaction.commit()?;
+        if let Some(transaction) = transaction {
+            transaction.commit()?;
+        }
         files.retain(|file| !self.exclude.is_excluded(&file.relative_path));
         let visible: std::collections::HashSet<_> = files
             .iter()
@@ -746,8 +858,7 @@ impl Index {
     }
 
     /// Total reference counts for every referenced name, across every
-    /// relation kind — the whole-project data `find_dead_code` filters
-    /// candidate symbols against. A name absent from the map has zero
+    /// relation kind, without language partitioning. A name absent from the map has zero
     /// references of any kind anywhere in the index.
     pub fn reference_counts(&self) -> Result<std::collections::HashMap<String, usize>> {
         queries::reference_counts(&self.conn)
@@ -1023,5 +1134,20 @@ impl Index {
         let depth = depth.clamp(1, mct_core::MAX_QUERY_DEPTH);
         let relative_start = path.map(str::trim).filter(|p| !p.is_empty()).unwrap_or(".");
         file_tree::file_tree(&self.root, &self.exclude, relative_start, depth)
+    }
+}
+
+#[cfg(test)]
+mod generation_metadata_tests {
+    use super::parse_published_generation;
+
+    #[test]
+    fn missing_generation_is_legacy_zero_but_invalid_values_fail_closed() {
+        assert!(parse_published_generation(None).is_ok_and(|generation| generation == 0));
+        assert!(
+            parse_published_generation(Some("12".into())).is_ok_and(|generation| generation == 12)
+        );
+        assert!(parse_published_generation(Some("-1".into())).is_err());
+        assert!(parse_published_generation(Some("broken".into())).is_err());
     }
 }

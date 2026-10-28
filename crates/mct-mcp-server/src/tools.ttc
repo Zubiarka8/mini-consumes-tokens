@@ -160,7 +160,7 @@ WHEN top-level symbols with zero indexed references — dead-code candidates.
 ERR heuristic only; verify with find_references/impact_analysis before deleting.
 TAGS dead-code, unused, cleanup, heuristic
 PRE none; `path`/`language` scope it.
-POST top-level symbols with zero indexed references. TOON by default; `format`:`text` for plain text. Omits only unchanged findings saved as false positive/ignored in the dashboard, before counts and pagination; pending, confirmed, edited or ambiguous ones stay.
+POST top-level symbols with zero indexed references. TOON by default; `format`:`text` for plain text. Omits only unchanged findings saved as false positive/ignored in the dashboard, before counts and pagination; pending, confirmed, edited or ambiguous ones stay. Reports how many validly reviewed candidates were suppressed, including when none remain actionable.
 EFFECTS read; index and saved review decisions (invalid review state fails the call).
 
 TOOL get_dependency_graph
@@ -210,3 +210,11 @@ TAGS attention, intent, selection, tokens-saving
 PRE `query` non-empty; only with MCT_TOOL_ATTENTION=1.
 POST the intent, the picked tool names and argument hints.
 EFFECTS write; replaces this session's advertised tools/list; refused inside batch.
+
+TOOL find_duplicate_code
+WHEN Review-aware duplicate groups, compact references.
+ERR Heuristic; no partial blocks; pages not pinned.
+TAGS duplicates
+PRE Existing index; root-relative path; limit 1..100; max_tokens 512..16000 estimated; positive thresholds.
+POST Candidate groups from one index snapshot; valid group reviews filtered before pagination; counts distinguish suppression from absence; explicit truncation and next_offset. No notes or source bodies.
+EFFECTS read; reads existing index, source files and independent review snapshot; no cache or review writes.

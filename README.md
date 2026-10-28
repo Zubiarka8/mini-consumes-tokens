@@ -23,7 +23,7 @@ A few things that make this different from a typical single-purpose plugin:
 - **It understands 17 programming and markup languages at once**, including projects that mix several languages together.
 - **It isn't tied to one editor or assistant.** It speaks a common protocol called **MCP** (Model Context Protocol) — think of it as a shared language that lets an AI assistant ask a tool for information directly, the same way different apps on your phone can all talk to the same calendar. Any MCP-capable assistant can connect to it.
 - **It also works as a plain command-line tool**, for anyone who just wants to check the health of the index or rebuild it by hand, with no AI assistant involved at all.
-- **23 MCP tools (2 of them deprecated aliases), grouped by purpose** (`select_tools` only with `MCT_TOOL_ATTENTION=1`) (discovery, lookup, relations, maintenance, meta) — from a single symbol lookup, a ranked search by partial name or an optional search by meaning, to a one-shot "what would this change affect" blast-radius report, a one-call context pack for the symbol you're about to work on, a module-level dependency graph (who imports whom, cycles, Mermaid/DOT export), plus a project-wide overview and a plain directory tree for getting oriented before you know which file you need.
+- **24 MCP tools (2 of them deprecated aliases), grouped by purpose** (`select_tools` only with `MCT_TOOL_ATTENTION=1`) (discovery, lookup, relations, maintenance, meta) — from a single symbol lookup, a ranked search by partial name or an optional search by meaning, to a one-shot "what would this change affect" blast-radius report, a one-call context pack for the symbol you're about to work on, a module-level dependency graph (who imports whom, cycles, Mermaid/DOT export), plus a project-wide overview and a plain directory tree for getting oriented before you know which file you need.
 - **Progressive tool discovery**: an MCP client can ask for a cheap one-line-per-tool catalog first (`discover_tool_categories`) and fetch a tool's full input schema only when it actually needs it (`get_tool_schema`), instead of always loading every schema up front.
 - **Tool Attention (opt-in, `MCT_TOOL_ATTENTION=1`)**: `tools/list` starts with `select_tools` alone (~98% fewer catalog tokens). The client calls it with the user's request; the server narrows `tools/list` to the tools that request needs and sends `tools/list_changed`. An unclear request keeps the full list, and every tool stays callable by name. Figures in [`benchmarks/intent-selection.md`](benchmarks/intent-selection.md#tool-attention-issue-11).
 - **Multi-hop relation queries**: `find_references`, `find_calls`, `find_callers`, and `impact_analysis` can walk multiple hops through the call/reference graph in one call (`depth`) and page through large result sets (`offset`), instead of chaining single-hop calls by hand.
@@ -152,6 +152,7 @@ Once it's connected and healthy, prefer it over grep/reading whole files:
 - Exploring a file/folder before knowing a name -> list_symbols,
   get_file_skeleton, get_project_overview, get_file_tree
 - Candidate unused code -> find_dead_code
+- Review-aware duplicate groups -> find_duplicate_code (compact references; existing detector; valid group dismissals filtered before pagination)
 - Several of the above at once, queries already known -> batch
 
 Still read/edit files normally for everything else (writing code, checking
@@ -282,7 +283,7 @@ All of these launch the same program (`mct-mcp-server`) — only the configurati
 mct-cli --root . mcp-register --name mini-consumes-tokens
 ```
 
-To make the server update the index only after a quiet period without file changes (for example 30 seconds), add `--reindex-delay 30s` to `mcp-register` (or to the server's `args`); `off` disables automatic updates. Details and examples: [COMMANDS.md](COMMANDS.md#--reindex-delay-value).
+To make the server update the index only after a quiet period without file changes (for example 30 seconds), add `--reindex-delay 30s` to `mcp-register` (or to the server's `args`); `off` disables automatic updates. While watching, a five-minute periodic reconciliation also catches changes missed by the operating system. Details and examples: [COMMANDS.md](COMMANDS.md#--reindex-delay-value) and [reconciliation settings](COMMANDS.md#--reconcile-interval-seconds-seconds).
 
 **Claude Code** has built-in, first-class support. From your project folder:
 
@@ -476,6 +477,7 @@ The handful of commands you'll actually type by hand. For the full technical ref
 | Find candidate unused code                         | `mct-cli --root . dead-code`               |
 | Browse the code as linked notes in Obsidian        | open `.mct-index/obsidian/` as a vault (`mct-cli --root . obsidian` rebuilds it) |
 | Review duplicates and dead code, browse project statistics and notes locally | `mct-cli --root . web` |
+| Back up saved dashboard work manually | `mct-cli --root . dashboard-backup` |
 | Find candidate duplicated functions (Rust, Python) | `mct-cli --root . duplicates`              |
 | See which version is installed                     | `mct-cli --version` (or `-v`)              |
 | Update to the latest release                       | `mct-cli update` (or `-u` / `--update`)    |
@@ -501,7 +503,12 @@ No — `mct-cli status`/`reindex`/`dead-code` work standalone from the command l
 Then this project can't connect to it directly — MCP (§ 1) is what lets an assistant call these tools. You can still use `mct-cli` by hand.
 
 **What happens if I delete the index by accident?**
-Nothing is lost — it's entirely derived from your source code and gets rebuilt the next time you run `init`/`reindex`, or the next time your assistant connects.
+The derived `index.sqlite3` can be rebuilt from source with `init`/`reindex`.
+Keep the `.mct-index` directory: it also contains `dashboard.sqlite3`, whose
+reviews, notes and comments cannot be reconstructed from code. Create consistent
+snapshots with `dashboard-backup` and check them with `dashboard-backup-verify`;
+see [backup and isolated verification](COMMANDS.md#dashboard-backup-and-isolated-verification).
+Backup scheduling and retention are not automatic in this version.
 
 **Does it work on a project that mixes several languages?**
 Yes — the same index covers all 17 supported languages (§ 1) in one project, including files that reference each other across languages.
@@ -530,6 +537,8 @@ Most MCP connections talk over "stdio" — a program's normal input and output �
 ---
 
 ## License
+
+Copyright 2026 Arkaitz Zubizarreta and mini-consumes-tokens contributors.
 
 The original code and documentation in this project are licensed under the [Apache License 2.0](LICENSE). Third-party components retain their own licenses; see [Third-Party Notices](THIRD_PARTY_NOTICES.md).
 

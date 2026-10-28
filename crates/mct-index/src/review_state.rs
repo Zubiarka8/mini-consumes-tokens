@@ -16,6 +16,9 @@ use crate::dead_identity::resolve_dead_identities;
 use crate::review_keys::{self, Fingerprints};
 use crate::{DuplicateGroup, NavigationSnapshot, Normalization, SymbolListEntry};
 
+/// Highest dashboard migration understood by effective-review readers.
+pub const SUPPORTED_SCHEMA_VERSION: i64 = 4;
+
 const MAX_ROWS: usize = 100_000;
 /// Placeholder fingerprint of an annotation-only finding, as the dashboard
 /// store reports it; it never matches real content.
@@ -27,6 +30,18 @@ const HEADER: &str = "{kind,identity,fingerprint,status,at,reason}:";
 struct Decision {
     fingerprint: String,
     status: String,
+}
+
+/// Current group-level interpretation; copy workflow labels never enter this model.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DuplicateReviewState {
+    pub identity: String,
+    pub saved_decision: String,
+    pub effective_decision: String,
+    /// unreviewed, valid, changed, unavailable, or ambiguous.
+    pub validity: &'static str,
+    pub source_verified: bool,
+    pub actionable: bool,
 }
 
 /// A consistent read of the saved decisions, not a second analysis index.
@@ -58,11 +73,20 @@ impl ReviewSnapshot {
             state.retain_dead(history, &BTreeMap::new());
             return Ok(state);
         }
+        let _access = crate::coordination::DatabaseAccess::shared(
+            &path,
+            crate::coordination::DEFAULT_TIMEOUT,
+        )?;
         let mut conn = Connection::open_with_flags(
             path,
             OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
         )?;
         conn.busy_timeout(std::time::Duration::from_secs(2))?;
+        let version: i64 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
+        anyhow::ensure!(
+            version <= SUPPORTED_SCHEMA_VERSION,
+            "dashboard schema is newer than this reader supports"
+        );
         let transaction = conn.transaction()?;
         let imported: bool = transaction.query_row(
             "SELECT EXISTS(SELECT 1 FROM meta WHERE key = 'reviews_toon_imported')",
@@ -281,20 +305,72 @@ impl ReviewSnapshot {
         groups: &[DuplicateGroup],
         normalization: Normalization,
     ) -> anyhow::Result<Vec<bool>> {
+        Ok(self
+            .duplicate_states(root, navigation, groups, normalization)?
+            .into_iter()
+            .map(|state| state.actionable)
+            .collect())
+    }
+
+    /// Resolve diagnostics and suppression together for every output surface.
+    /// Historical values are read only; ambiguous/unverifiable matches stay actionable.
+    pub fn duplicate_states(
+        &self,
+        root: &Path,
+        navigation: &NavigationSnapshot,
+        groups: &[DuplicateGroup],
+        normalization: Normalization,
+    ) -> anyhow::Result<Vec<DuplicateReviewState>> {
         let ids = review_keys::group_identities(groups);
         let legacy = review_keys::legacy_group_keys(groups, navigation, normalization)?;
         let fingerprints = Fingerprints::new(root, navigation).group_keys(groups, normalization);
         let mut counts = BTreeMap::new();
         for id in &ids {
-            *counts.entry(id).or_insert(0usize) += 1;
+            *counts.entry(id.clone()).or_insert(0usize) += 1;
         }
         Ok(ids
-            .iter()
+            .into_iter()
             .zip(fingerprints)
             .zip(legacy)
             .map(|((identity, fingerprint), old)| {
-                counts.get(identity).copied().unwrap_or(0) != 1
-                    || !self.suppresses("duplicate", identity, &fingerprint, &old)
+                let key = ("duplicate".to_string(), identity.clone());
+                let deleted = self.deleted.contains(&key);
+                let decision = self.decisions.get(&key).filter(|_| !deleted);
+                let legacy =
+                    !deleted && decision.is_none() && self.legacy_duplicates.contains(&old);
+                let ambiguous = counts.get(&identity).copied().unwrap_or(0) != 1;
+                let source_verified = valid_key(&fingerprint);
+                let saved = decision.map(|d| d.status.as_str()).unwrap_or(if legacy {
+                    "false_positive"
+                } else {
+                    "pending"
+                });
+                let valid = !ambiguous
+                    && source_verified
+                    && (decision
+                        .is_some_and(|d| d.fingerprint == fingerprint || d.fingerprint == old)
+                        || legacy);
+                let validity = if ambiguous {
+                    "ambiguous"
+                } else if !source_verified {
+                    "unavailable"
+                } else if valid {
+                    "valid"
+                } else if decision.is_some() {
+                    "changed"
+                } else {
+                    "unreviewed"
+                };
+                let actionable =
+                    ambiguous || !self.suppresses("duplicate", &identity, &fingerprint, &old);
+                DuplicateReviewState {
+                    identity,
+                    saved_decision: saved.into(),
+                    effective_decision: if valid { saved } else { "pending" }.into(),
+                    validity,
+                    source_verified,
+                    actionable,
+                }
             })
             .collect())
     }

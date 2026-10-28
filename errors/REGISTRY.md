@@ -1,5 +1,19 @@
 # Error registry
 
+Latest follow-up observation (2026-10-25): `get_indexing_status({})` on
+`feature/dead-code-editor`, HEAD `b61cc7ce971fdc46a61259af95af7fac823ae352`
+with existing local changes, reports 1,056 files / 18,475 symbols, index timestamp
+`1792966895`. The 18 diagnostics are the same categories recorded on 2026-10-24:
+16 deliberately malformed corpus fixtures (ERR-003, EXPECTED),
+`scripts/windows/review-check.ps1: line 29: syntax error` (previously observed;
+cause not established here), and
+`crates/mct-cli/src/web/spa/spa.css: line 1: syntax error` (ERR-020, OPEN).
+The status call succeeded; source coverage excludes those rejected files. No new
+probe, exclusion, parser fix, or resolution is claimed. Continue ERR-020 with
+the existing minimized-reproduction next step; the scoped dashboard queries
+succeeded. These observations do not establish index freshness against every
+uncommitted byte.
+
 Last observation: 2026-10-10. Checkout HEAD: `dab3059995beaaaf7cd56e0d52db124e207aae55` (`claude/library-onboarding-audit`, clean tree).
 Evidence: `mct-cli --root . reindex --force` then `mct-cli --root . status` on that checkout, with no `.mctignore`; index timestamp `1791636301` (550 files, 11,501 symbols). Same 18 diagnostics as the initial snapshot at `1791629091`.
 
@@ -100,6 +114,222 @@ ERR-014 recurrence, 2026-10-24 (RESOLVED caller error): `build_context_pack` for
 
 | ID | Status | Location / scope | Observed behavior and impact | Evidence / next action |
 | --- | --- | --- | --- | --- |
-| ERR-020 | OPEN | `crates/mct-cli/src/web/spa/spa.css:1` | Project parser rejects the generated dashboard CSS: `syntax error`; stylesheet is absent from source symbol coverage. This is a parser rejection, not evidence that browser styling fails. | MCP get_indexing_status reports 1008 files / 17502 symbols, timestamp 1792854060 and 18 diagnostics. `mct-cli --root . probe crates/mct-cli/src/web/spa/spa.css scripts/windows/review-check.ps1` reproduces the CSS line-1 rejection and PowerShell line-29 rejection (exit 1). Minimize the CSS construct before classifying grammar support or creating a parser fix. No exclusions added. |
+| ERR-020 | OPEN | `crates/mct-cli/src/web/spa/spa.css:1` | Project parser rejects the generated dashboard CSS: `syntax error`; stylesheet is absent from source symbol coverage. This is a parser rejection, not evidence that browser styling fails. | Latest MCP `get_indexing_status({})` on 2026-10-25: 1,056 files / 18,475 symbols, timestamp `1792966895`; same CSS line-1 and PowerShell line-29 rejections among 18 diagnostics. Earlier CLI probe reproduced both. Minimize the CSS construct before classifying grammar support or creating a parser fix. No exclusions added. |
+| ERR-021 | RESOLVED | MCP `build_context_pack` invocation | Caller guessed symbols `with_index` and `lookup`, which are not indexed; diagnostics: `No symbol named `with_index` found in the index — try search_symbols for a partial name.` and `No symbol named `lookup` found in the index — try search_symbols for a partial name.` Those lookups did not run. | First/last observed 2026-10-25 during Phase 4 audit on dirty `feature/dead-code-editor`, HEAD `b61cc7ce971fdc46a61259af95af7fac823ae352`. Retried with `list_symbols` on `cache.rs`, then `build_context_pack` for `lookup_exact`, `validate`, and `check`: succeeded. Caller name-guess error; no source defect inferred. |
+| ERR-022 | OPEN | Claude Code session startup, primary mini-consumes-tokens registration (installed `mct-mcp-server`) | Client reported `MCP server mini-consumes-tokens connection timed out after 30000ms` (CONNECT_TIMEOUT); MCP tools unavailable for the whole session. Source lookup fell back to this project's `mct-cli call`, as rules.md permits. | Observed 2026-10-26 on dirty feature/dead-code-editor, HEAD b61cc7c. At that time at least eight long-running `mct-mcp-server --root <primary>` processes from other sessions were alive, and the installed binary dates from 2026-10-19, older than the candidate. `mct-cli call --tool get_indexing_status` on the same root succeeded in about 3.1 s (1069 files / 18614 symbols, published generation 1, timestamp 1793007675; the same 18 parse diagnostics), so the index itself opens. Cause not established: possibly startup reindex/lock contention or the older installed binary (compare ERR-019). The installed connector was deliberately not restarted or reinstalled during Phase 9.1. 2026-10-26 independent audit reproduced the mechanism: the server answers `initialize` only after its startup indexing. On the primary root, with seven installed-binary servers alive and host load average 22-39, `initialize` took 100.7 s and 96.7 s (installed binary) and 136.3 s (candidate 839b5c85); `scripts/unix/mcp-smoke.sh` succeeded (22 tools) after 78.5 s. On an isolated 2000-file fixture with no other server, the candidate took 57.6 s cold, 14.1 s unchanged and 22.6 s with half the files changed offline. Both exceed or approach the 30 s client limit, so this is a startup-ordering defect aggravated by contention, not an index fault. Next: answer `initialize` before startup indexing (report readiness via `get_indexing_status`), retire duplicate installed-binary servers, then reverify with `scripts/unix/mcp-smoke.sh`. No index deletion or tool filtering. Recurred 2026-10-27 (last observed) on the same branch and HEAD b61cc7c: a Claude Code session again reported `connection timed out after 30000ms` (CONNECT_TIMEOUT), with only two `mct-mcp-server` processes alive and load average 3-5, so heavy contention is not required to exceed the 30 s limit. The installed binary still dates from 2026-10-19. That session needed no index query (native dashboard acceptance on a disposable fixture) and did not restart or reinstall the connector. |
+
+2026-10-25 Phase 8 audit follow-up: caller-side MCP name guesses (`duplicate`,
+`duplicate_report`, `run_duplicates`, `reviewed_duplicate_groups`,
+`find_dead_code_filters_valid_false_positives`, and a path-scoped
+`build_context_pack` symbol) returned “No symbol named … found in the index”.
+The calls were corrected by querying the catalog and searching indexed names;
+`DuplicateGroup`, `find_duplicate_groups`, `duplicate_visibility`, and the
+actual `run` entry points were found. Caller discovery misses, no server defect.
 
 ERR-003/known parse observation, 2026-10-24: the other 17 diagnostics are the 16 deliberate malformed fixtures and the previously observed `scripts/windows/review-check.ps1:29: syntax error`. The latter reproduces with the same direct probe; no new fix or resolution is claimed. Caller initially used an unsupported `parse-probe` CLI subcommand (exit 2), checked CLI help and reran the supported `probe` command. This was not a failed MCP request.
+
+2026-10-25 copy-label implementation startup: get_indexing_status({}) succeeded (1025 files, 17886 symbols, timestamp 1792915721). Same 18 parse diagnostics: 16 expected malformed fixtures (ERR-003), `scripts/windows/review-check.ps1: line 29: syntax error`, and `crates/mct-cli/src/web/spa/spa.css: line 1: syntax error` (ERR-020 OPEN). No new parser probe or resolution.
+
+
+2026-10-25 database lifecycle planning: get_indexing_status({}) succeeded on dirty
+feature/dead-code-editor, HEAD b61cc7ce971fdc46a61259af95af7fac823ae352: 1031 files,
+17987 symbols, index timestamp1792917470. Same18 diagnostics: 16 expected malformed
+fixtures (ERR-003), scripts/windows/review-check.ps1: line29: syntax error, and
+crates/mct-cli/src/web/spa/spa.css: line1: syntax error (ERR-020 OPEN).
+No new reproduction or resolution; source context batches succeeded.
+
+
+2026-10-25 editor bulk controls implementation: get_indexing_status({}) succeeded
+with 1032 files, 18001 symbols, timestamp1792917879. The same18 diagnostics
+persist:16 intentional malformed fixtures (ERR-003 EXPECTED),
+`scripts/windows/review-check.ps1: line 29: syntax error`, and
+`crates/mct-cli/src/web/spa/spa.css: line 1: syntax error` (ERR-020 OPEN).
+Scoped context queries succeeded. No parser fix or resolution claimed.
+
+
+2026-10-25 dashboard reliability audit: get_indexing_status({}) succeeded at
+feature/dead-code-editor b61cc7ce971fdc46a61259af95af7fac823ae352 with local work:
+1034 files, 18019 symbols, index timestamp 1792921220. The same 18 diagnostics
+remain: 16 expected malformed fixtures (ERR-003),
+`scripts/windows/review-check.ps1: line 29: syntax error` and
+`crates/mct-cli/src/web/spa/spa.css: line 1: syntax error` (ERR-020 OPEN).
+Context/skeleton queries succeeded. No primary reindex, parser fix or resolution
+is claimed; those diagnostics do not establish browser styling failure.
+
+
+2026-10-25 dashboard delivery follow-up: get_indexing_status({format: "toon"})
+succeeded on dirty feature/dead-code-editor at b61cc7ce971fdc46a61259af95af7fac823ae352:
+1035 files, 18043 symbols, index timestamp 1792925238. Same 18 diagnostics:
+16 deliberate malformed fixtures (ERR-003 EXPECTED),
+`scripts/windows/review-check.ps1: line 29: syntax error` and
+`crates/mct-cli/src/web/spa/spa.css: line 1: syntax error` (ERR-020 OPEN).
+Scoped build_context_pack(run, web.rs) succeeded. No new parser probe, primary
+reindex or resolution claimed. Official asset generation now succeeds; this does
+not resolve the generated CSS parser rejection or prove browser rendering.
+
+
+2026-10-25 native acceptance recheck: get_indexing_status({}) succeeded on dirty
+feature/dead-code-editor at b61cc7ce971fdc46a61259af95af7fac823ae352: 1036 files,
+18059 symbols, index timestamp 1792925556. Same 18 diagnostics: 16 deliberately
+malformed fixtures (ERR-003 EXPECTED), scripts/windows/review-check.ps1: line 29:
+syntax error, and crates/mct-cli/src/web/spa/spa.css: line 1: syntax error
+(ERR-020 OPEN). Scoped context/search queries succeeded. No parser probe,
+manual primary reindex, parser fix or resolution claimed; runtime socket EPERM
+is an independent environmental observation, not attributed to these diagnostics.
+
+2026-10-25 runtime/hook investigation: get_indexing_status({}) succeeded on dirty
+feature/dead-code-editor at b61cc7ce971fdc46a61259af95af7fac823ae352: 1036 files,
+18072 symbols, index timestamp 1792926155. Same 18 diagnostics: 16 deliberate
+malformed fixtures (ERR-003 EXPECTED), scripts/windows/review-check.ps1: line 29:
+syntax error, and crates/mct-cli/src/web/spa/spa.css: line 1: syntax error
+(ERR-020 OPEN). get_file_skeleton(sqlite_guard.py) and scoped
+build_context_pack(main, sqlite_guard.py) succeeded. No parser fix/reindex claimed.
+Independent socket EPERM remains an environment issue, not a failed MCP request.
+Effective sandbox_check network denial, hook checks and native Terminal access
+denial are documented in lifecycle section 15. Exact inherited policy unresolved;
+no security controls or hooks changed.
+
+
+2026-10-25 storage reliability audit: `get_indexing_status({})` succeeded on
+b61cc7ce971fdc46a61259af95af7fac823ae352 plus existing local changes: 1,036 files,
+18,081 symbols, index timestamp 1792929587. Same eighteen diagnostics: sixteen
+intentional malformed corpus fixtures (ERR-003 EXPECTED),
+`scripts/windows/review-check.ps1: line 29: syntax error`, and
+`crates/mct-cli/src/web/spa/spa.css: line 1: syntax error` (ERR-020 OPEN).
+Scoped context packs and batch lookups succeeded. No parser probe, primary
+reindex, exclusion change or resolution claimed. Existing classifications remain;
+next parser action is the existing minimized CSS/PowerShell investigation.
+
+
+2026-10-25 writer-coordination audit: project MCP get_indexing_status reported
+1,045 files /18,183 symbols, timestamp1792931650. Same18 parse diagnostics:
+16 intentional malformed fixtures (ERR-003), scripts/windows/review-check.ps1:
+line29 syntax error and generated web/spa/spa.css:line1 syntax error (ERR-020).
+No parser correction claimed. One caller lookup requested nonexistent
+crates/mct-index/tests/read_only.rs: `was not found under the indexed project root`;
+no source defect inferred; use the actual indexed test paths instead.
+
+2026-10-25 Phase 3 audit: get_indexing_status({}) succeeded, 1049 files,
+18240 symbols, timestamp1792935229. Same18 diagnostics as writer phase:16
+intentional malformed fixtures(ERR-003), scripts/windows/review-check.ps1 line29
+syntax error and web/spa/spa.css line1 syntax error(ERR-020). No parser fix or
+primary reindex claimed. Scoped skeleton queries succeeded.
+
+
+2026-10-25 Phase 5 audit: get_indexing_status({format: "toon"}) succeeded: 1053 files, 18374 symbols, timestamp 1792940148. Same 18 diagnostics: 16 malformed corpus fixtures (ERR-003 EXPECTED), scripts/windows/review-check.ps1 line 29 and generated web/spa/spa.css line 1 (ERR-020 OPEN). Three batch build_context_pack calls incorrectly used name instead of symbol: `invalid args for `build_context_pack`: missing field `symbol`` (ERR-021 caller error). Retrying with symbol succeeded. No parser correction or production reindex claimed.
+
+Phase6 re-observation (2026-10-25): ERR-003/020 unchanged in status with the
+same18 indexed diagnostics; ERR-021 three absent-name context lookups resolved
+by symbol discovery and actual-name calls. See HISTORY; no server/parser fix.
+
+
+2026-10-25 Phase7: get_indexing_status({}) succeeded with1055files/18429symbols,
+timestamp1792964470. Same18 diagnostics:16 intentional malformed corpus fixtures
+(ERR-003 EXPECTED), scripts/windows/review-check.ps1:line29 syntax error and
+web/spa/spa.css:line1 syntax error(ERR-020 OPEN). Scoped discovery/context
+lookups succeeded. No parser fix, forced primary reindex or production action.
+
+Phase7 dashboard follow-up: native Safari exposed rendered false-positive
+reevaluation after unchanged reindex, distinct from MCP/parser diagnostics.
+Same-server HTTP regression reproduced it; source-only read applicability
+with unchanged strict write freshness corrected it. Final native candidate
+2c0468eb... verified unchanged FP1/reevaluate0, then modified body FP0/
+reevaluate1. Detailed evidence in storage-reliability-verification.md Phase7.
+
+2026-10-26 Phase 8.1: ERR-021 caller error re-observed: build_context_pack used
+query instead of required symbol (`failed to deserialize parameters: missing
+field `symbol``). Corrected symbol/path requests succeeded for find_dead_code,
+find_duplicate_groups and duplicate_visibility. No server defect inferred.
+get_indexing_status succeeded:1060files/18543symbols, timestamp1792997392,
+same18diagnostics (16 intentional malformed fixtures ERR-003; PowerShell
+review-check.ps1:29 and generated SPA CSS:1 ERR-020 OPEN). No forced primary
+reindex or parser fix. An absent stale_snapshot symbol lookup was nonfatal;
+call_one context identified the actual fixture issue: that CLI wrapper reindexes
+before dispatch. Read-only MCP regression now calls the read-only dispatcher.
+
+2026-10-26 Phase9: get_indexing_status({}) succeeded:1063files/18565symbols, timestamp1792999842. Same18 parse diagnostics:16 intentionally malformed fixtures ERR-003 EXPECTED, scripts/windows/review-check.ps1 line29 syntax error and crates/mct-cli/src/web/spa/spa.css line1 syntax error ERR-020 OPEN. No parser correction or forced primary reindex. Connected catalog lacks local find_duplicate_code; use newly built isolated process for acceptance, do not restart installed services.
+
+2026-10-26 Phase9 browser hardening: Safari's inspector reproduced Alpine CSP errors for `activeFile.warning` before asynchronous finding load. Initial activeFile omitted warning; loaded rows supplied it. A new Node regression failed (`undefined !== ''`) before the one-property initialization fix. Security policy unchanged; no eval/inline workaround. Fresh embedded binary/native recheck pending. Also a real stale POST api/comment/update returned409 (27.9ms), retained draft A and saved newer B; native AX evidence redacted.
+
+## Phase 9 acceptance findings (2026-10-26)
+
+| ID | Status | Scope | Evidence / next action |
+| --- | --- | --- | --- |
+| QA-001 | OPEN (local correction tested) | Alpine CSP bootstrap | Native Safari logs `Alpine is unable to interpret ... activeFile.warning`; default activeFile omitted warning. New Node test failed undefined-versus-empty before adding warning initialization, then43frontend tests passed. Rebuilt native recheck pending; no CSP relaxation. |
+| QA-002 | OPEN | Native watcher delivery/timing acceptance | First official check:1958passed/1failed/27ignored; reindex_delay_e2e::a_saved_file_becomes_searchable_only_after_the_delay exceeded30s. Isolated same target4/4passed. Root cause not established; do not increase timeout or hide the failure. Final full rerun pending. |
+| QA-003 | BLOCKED | Current dependency audit / asset regeneration | npm tailwindcss@3.4.17 registry GET403 after official build and escalated retry. Fresh RustSec fetch failed after escalation; cached4b587f00 dated2026-10-21 reports no vulnerabilities and paste1.0.15 unmaintained via optional fastembed/tokenizers. Fresh audit remains release gate. |
+
+ERR-021 Phase9 discovery recurrence: guessed `open_connection` in store.rs was absent; no source defect inferred. Main/background symbol discovery and exact context calls succeeded. Profiling harness initially assumed a directory page contained all functions plus modules, causing a fixture assertion; corrected to query renamed file and indexed-file count. This was not an MCP/server failure.
+
+Phase9 final: QA-002 final full retry1959/0/27 PASS; initial failure remains open, linked to ERR-009 native watcher acceptance without assuming identical cause. Existing kqueue test backend is not proof of productionFSEvents. QA-00143Node tests pass/new embedded CLI built; corrected native run still pending. QA-003 fresh audit/assets remain blocked. No parser/legacy/production acceptance closure.
+
+2026-10-26 Phase9.1: status retains known parse limitations; absent
+spawn_background_indexer lookup was a caller discovery miss, resolved with
+list_symbols and spawn_watcher_with_reconciliation (ERR-021). No parser fix.
+QA-00210bounded repetitions4/4eachPASS, historical failure remains OPEN.
+New QA-004: expired receive timeout still consumes queued Changed::Nothing,
+confirmed deterministic regression red (Ok(Nothing) versus Err(Timeout)).
+Deadline priority correction and two unit tests PASS; unrelated to QA-002 until
+evidence links them. Capture bounded subprocess stderr on future failures.
+Production-only build logs backend=Fsevent; native harness failed to observe
+first create within8s with reconciliation600s. This is FAIL in this environment,
+not proof of backend-wide corruption or a kqueue result. Preserve ERR-009.
+Official npm registry403 persists after escalation; offline official build
+returns ENOTCACHED for @alpinejs/csp metadata despite tarballs in cache.
+Fresh audit in writable target also fails network after escalation. No integrity
+checks, permissions or registry configuration were bypassed.
+
+Phase9.1 native operator evidence (current session, supplied by owner): normal
+MCP SHA25685df433b32305cd375b7f473f8e79a4dc14d5c06d69ed1cdc504839b04efa843,
+macOS27.0ARM64, backend=Fsevent at2026-10-26T08:55:03Z. All10create/modify/
+rename/delete rounds and64file burst PASS, failures0, reconciliation600s.
+104observations,median2.144ms,p95151.056ms,variance4052.247ms²; observations
+include already-absent/unchanged lookups, not104independent event latencies.
+No fallback within the8s observation bounds. This establishes native delivery
+for this fixture; agent-side missing events remain environment-specific evidence
+and QA-002 is not closed by this success alone. Separately the agent's exact
+Fsevent build51a1f6df... with supported60s interval recovers a new file at
+60024.849ms (n=1). Initial interval1s harness run was rejected before MCP
+startup; corrected validation honors the CLI minimum60, no product limit change.
+
+Phase9.1 new full-check failure retained:1960passed/1failed/27ignored;
+index_generations::source_edit_during_parse_aborts_instead_of_publishing_stale_bytes
+found0old_a symbols instead of1. Isolated rerun passed. Test fixture allocator
+used only SystemTime and create_dir_all: forced repeated nonce reproduces shared
+DB paths deterministically. Fixed fixture allocation with process/atomic serial
+and atomic create_dir; added repeated-clock regression and seed assertions.
+All7generation tests and20repetitions pass. This removes a demonstrated fixture
+isolation flaw, but the original run did not log the root, so its exact cause
+is not proven. Keep incident QA-005 OPEN pending final evidence/risk review.
+Clippy's two unwrap diagnostics in new test setup corrected with assert(is_ok);
+no production panic allowance added. Final rerun recorded separately.
+
+Phase9.1 QA-002 reproduction now diagnosed for the second run: child stderr
+backend=Fsevent at09:01:10Z. Normal builds replaced sharedtarget/debug MCP
+while compiled integration tests were running.1961/1/27,Clippy/evalPASS.
+Coordinator corrects validation isolation with a separate target directory.
+Original Phase9 incident lacks backend logs and remains unproven. Preserve
+this failure; nativeTerminalFSEventsPASS and agentfallbackPASS are distinct.
+
+
+## Rust-first Batch 1 — 2026-10-27
+
+Local working-tree verification on `feature/dead-code-editor`, base `b61cc7c`.
+These statuses concern disposable fixtures and current source, not an installed
+server or a refreshed production index. See
+[Rust functional coverage](../docs/01-architecture/rust-functional-coverage.md).
+
+| ID | Status | Scope | Evidence and next action |
+| --- | --- | --- | --- |
+| ERR-023 | RESOLVED | D1 MCP source attribution, local source | A context pack applied old `alpha` ranges to `pub fn unrelated()` and used `pub fn different()` as the related `beta` signature. The regression failed before the exact-byte indexed-hash guard and passes after it. Stale search/context source is omitted; skeleton requests reindexing. No installed-binary verification claimed. |
+| ERR-024 | RESOLVED | D7 binary conversion diagnostic, local source | Enabled `a_broken_file_turned_binary_drops_its_syntax_error` first failed with an obsolete `src/util.fake` error. Full/path regression now clears it while retaining the other file's syntax error and matching a fresh index. No production reconciliation performed. |
+| ERR-025 | OPEN | D3 Rust macro methods | Explicit ignored `a_method_call_inside_a_macro_token_tree_leaves_a_relation` fails: actual `[]`, expected lines `[4, 5]`. Token-tree accessor guard omits the methods. Separate Rust extractor batch required; preserve receiver ambiguity. |
+| ERR-026 | KNOWN_LIMITATION | Rust same-name dead-code false negative | Isolated project has `used::helper` and uncalled `unused::helper`. `find_calls(function=main)` targets only `src/used.rs:1`; `find_dead_code` reports no candidates. Name/language aggregation hides the other function. Separate labeled detector regression and conservative identity-resolution design required; not review-state loss. |
+| ERR-027 | RESOLVED (local MCP configuration) | Codex `cargo-deps` MCP root | Configured root `vendor/mct-pilot/smallvec-1.16.1` no longer exists; using the Cargo registry cache directly fails because MCP cannot create `.mct-index` there (`Operation not permitted`). | Repointed ignored local Codex config to `/private/tmp/mct-cargo-deps/smallvec-1.16.1`, a writable copy of cached `smallvec 1.16.1`. Verified MCP `initialize`, `tools/list` (22 tools), and `get_indexing_status` (5 files / 291 symbols). The temporary copy must be recreated if `/private/tmp` is cleared. |
+
+ERR-021 caller-error recurrence: the new context fixture initially used `name`
+instead of `symbol` (invalid args for build_context_pack: missing field symbol). An isolated CLI probe initially passed `symbol` rather than
+`function` to `find_calls` (invalid args for find_calls: missing field function). Corrected calls succeeded. Two initial CLI probes also omitted
+`--tool` and were rejected by Clap before MCP invocation. These are fixture/
+caller mistakes, not production defects. The new D8 fixture initially assumed
+incorrect end lines; corrected from actual source/output to L1-L9/L1-L11.

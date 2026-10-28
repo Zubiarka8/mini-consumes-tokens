@@ -15,13 +15,14 @@
 
 <div class="flex min-h-screen flex-col lg:h-screen lg:overflow-hidden">
 
-  <header class="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-line bg-panel px-4 py-2">
-    <div class="flex items-center gap-2 font-semibold">
-      <span class="grid h-7 w-7 place-items-center rounded-lg bg-brand text-white"><svg class="icon"><use href="#i-scan-search"></use></svg></span>
-      MCT Dashboard
+  <header class="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-panel px-4 py-2 xl:flex-nowrap">
+    <div class="flex min-w-0 items-center gap-3">
+      <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand text-onbrand"><svg class="icon h-[18px] w-[18px]"><use href="#i-box"></use></svg></span>
+      <span class="truncate text-[15px] font-semibold" x-text="brandName"></span>
+      <span class="hidden h-5 w-px bg-line sm:block"></span>
+      <span class="hidden truncate font-mono text-[12px] text-mute sm:block" x-text="crumb"></span>
     </div>
-    <span class="rounded-md bg-brand/15 px-2 py-1 font-medium text-brand" x-show="editor" x-text="editorTitle"></span>
-    <nav class="flex gap-1" aria-label="Secciones" x-show="listMode">
+    <nav class="flex shrink-0 gap-1" :aria-label="L.sections" x-show="listMode">
       <template x-for="n in nav" :key="n.view">
         <button type="button" :data-v="n.view" @click="go" class="flex items-center gap-2 rounded-lg px-3 py-2 transition hover:text-ink" :class="n.cls">
           <svg class="icon"><use :href="n.icon"></use></svg><span x-text="n.label"></span>
@@ -29,14 +30,65 @@
         </button>
       </template>
     </nav>
-    <div class="ml-auto flex flex-wrap items-center gap-4 text-mute">
-      <span><span x-text="L.project"></span>: <span class="text-ink" x-text="project"></span></span>
-      <span><span x-text="L.snapshot"></span>: <span class="text-ink" x-text="snapshotAt"></span></span>
-      <span class="flex items-center gap-1 text-warn" x-show="busy" role="status"><svg class="icon"><use href="#i-refresh-cw"></use></svg><span x-text="L.updating"></span></span>
-      <span class="flex items-center gap-1 text-bad" x-show="offline" role="alert"><svg class="icon"><use href="#i-triangle-alert"></use></svg><span x-text="L.offline"></span></span>
-      <button type="button" @click="toggleLang" class="flex items-center gap-1 rounded-md border border-line px-2 py-1 text-ink hover:bg-panel2"><svg class="icon"><use href="#i-globe"></use></svg><span x-text="langName"></span></button>
-      <button type="button" @click="toggleTheme" class="flex items-center gap-1 rounded-md border border-line px-2 py-1 text-ink hover:bg-panel2" :aria-label="L.theme">
-        <svg class="icon" x-show="dark"><use href="#i-moon"></use></svg><svg class="icon" x-show="light"><use href="#i-sun"></use></svg><span x-text="themeName"></span></button>
+    <div class="order-last flex w-full flex-wrap items-center gap-2 md:order-none md:mx-auto md:w-auto md:min-w-[14rem] md:flex-1" x-show="showSearch">
+    <label class="relative min-w-0 flex-1 md:max-w-xl">
+      <svg class="icon pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mute"><use href="#i-search"></use></svg>
+      <input type="search" :value="searchValue" @input="headerSearch" :placeholder="L.searchAll" :aria-label="L.searchAll" class="w-full rounded-lg border border-line bg-panel2 py-2 pl-9 pr-3 outline-none transition focus:border-brand focus:bg-panel">
+    </label>
+    <div class="flex shrink-0 items-center gap-2" x-show="showDupEditor" role="group" :aria-label="L.editorOptions">
+      <button type="button" @click="openAll" class="whitespace-nowrap rounded-md border border-line px-2.5 py-2 transition hover:bg-panel2" x-text="L.openAll"></button>
+      <button type="button" @click="closeAll" class="whitespace-nowrap rounded-md border border-line px-2.5 py-2 transition hover:bg-panel2" x-text="L.closeAll"></button>
+    </div>
+    </div>
+    <div class="ml-auto flex shrink-0 items-center gap-1 text-mute">
+      <span class="mr-2 flex items-center gap-1 text-warn" x-show="busy" role="status"><svg class="icon"><use href="#i-refresh-cw"></use></svg><span x-text="L.updating"></span></span>
+      <span class="mr-2 flex items-center gap-1 text-bad" x-show="offline" role="alert"><svg class="icon"><use href="#i-triangle-alert"></use></svg><span x-text="L.offline"></span></span>
+      <button type="button" @click="toggleTheme" class="grid h-9 w-9 place-items-center rounded-lg text-ink transition hover:bg-panel2" :aria-label="themeLabel" :title="themeLabel">
+        <svg class="icon h-[18px] w-[18px]" x-show="light"><use href="#i-sun"></use></svg><svg class="icon h-[18px] w-[18px]" x-show="dark"><use href="#i-moon"></use></svg></button>
+      <button type="button" @click="toggleBookmark" x-show="showDupEditor" class="grid h-9 w-9 place-items-center rounded-lg transition hover:bg-panel2" :class="bookmarkCls" :aria-pressed="bookmarkPressed" :aria-label="bookmarkLabel" :title="bookmarkLabel">
+        <svg class="icon h-[18px] w-[18px]" x-show="notBookmarked"><use href="#i-bookmark"></use></svg><svg class="icon h-[18px] w-[18px]" x-show="bookmarked"><use href="#i-bookmark-check"></use></svg></button>
+      <div class="relative" @click.outside="closeSettings">
+        <button type="button" @click="toggleSettings" class="grid h-9 w-9 place-items-center rounded-lg text-ink transition hover:bg-panel2" aria-haspopup="true" :aria-expanded="settingsExpanded" :aria-label="L.settings" :title="L.settings">
+          <svg class="icon h-[18px] w-[18px]"><use href="#i-settings"></use></svg></button>
+        <div x-show="settingsOpen" class="absolute right-0 top-full z-30 mt-2 w-72 space-y-3 rounded-xl border border-line bg-panel p-3 text-ink shadow-2xl" role="dialog" :aria-label="L.settings">
+          <p class="text-[12px] text-mute" x-text="L.reindexHint"></p>
+          <dl class="space-y-1 text-[12px]">
+            <div class="flex justify-between gap-3"><dt class="text-mute" x-text="L.project"></dt><dd class="truncate font-medium" x-text="project"></dd></div>
+            <div class="flex justify-between gap-3"><dt class="text-mute" x-text="L.snapshot"></dt><dd class="truncate font-medium" x-text="snapshotAt"></dd></div>
+          </dl>
+          <div class="flex items-center justify-between gap-3 border-t border-line pt-3">
+            <span class="text-mute" x-text="L.uiLanguage"></span>
+            <button type="button" @click="toggleLang" class="flex items-center gap-1.5 rounded-md border border-line px-2 py-1 hover:bg-panel2"><svg class="icon"><use href="#i-globe"></use></svg><span x-text="langName"></span></button>
+          </div>
+          <div class="space-y-3 border-t border-line pt-3" x-show="showDupEditor">
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-mute" x-text="L.editorOptions"></p>
+            <div class="flex flex-wrap items-center gap-1.5">
+              <span class="mr-1 text-mute" x-text="L.show"></span>
+              <template x-for="f in codeFilters" :key="f.key">
+                <button type="button" :data-v="f.key" @click="setCodeFilter" class="rounded-full border px-2.5 py-1 text-[11px] transition" :class="f.cls" x-text="f.label"></button>
+              </template>
+            </div>
+            <template x-for="s in switches" :key="s.key">
+              <button type="button" role="switch" :aria-checked="s.on" :data-v="s.key" @click="flipSwitch" class="flex w-full items-center justify-between gap-3 text-left">
+                <span x-text="s.label"></span>
+                <span class="relative h-5 w-9 shrink-0 rounded-full transition" :class="s.track"><span class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all" :class="s.knob"></span></span>
+              </button>
+            </template>
+            <div class="flex items-center justify-between gap-3">
+              <span x-text="L.fontSize"></span>
+              <span class="flex items-center gap-1">
+                <button type="button" @click="fontDown" class="rounded-md border border-line p-1.5 hover:bg-panel2" :aria-label="L.fontDown" :title="L.fontDown"><svg class="icon"><use href="#i-minus"></use></svg></button>
+                <span class="w-10 text-center font-mono text-[12px]" x-text="fontLabel"></span>
+                <button type="button" @click="fontUp" class="rounded-md border border-line p-1.5 hover:bg-panel2" :aria-label="L.fontUp" :title="L.fontUp"><svg class="icon"><use href="#i-plus"></use></svg></button>
+              </span>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" @click="openAll" x-show="hasClosed" class="flex items-center gap-1 rounded-md border border-line px-2 py-1.5 hover:bg-panel2"><svg class="icon"><use href="#i-copy"></use></svg><span x-text="L.openAll"></span></button>
+              <button type="button" @click="copyCode" class="flex items-center gap-1 rounded-md border border-line px-2 py-1.5 hover:bg-panel2"><svg class="icon"><use href="#i-clipboard-copy"></use></svg><span x-text="L.copyCode"></span></button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -45,7 +97,7 @@
   <!-- Home: the dashboard index -->
   <section class="flex-1 space-y-6 overflow-y-auto p-6 scroll-thin" x-show="showHome">
     <div class="flex items-center gap-4">
-      <span class="grid h-14 w-14 place-items-center rounded-2xl bg-brand text-white"><svg class="icon h-7 w-7"><use href="#i-scan-search"></use></svg></span>
+      <span class="grid h-14 w-14 place-items-center rounded-2xl bg-brand text-onbrand"><svg class="icon h-7 w-7"><use href="#i-scan-search"></use></svg></span>
       <div><h1 class="text-3xl font-bold" x-text="L.helloTitle"></h1><p class="text-mute" x-text="L.helloSub"></p></div>
     </div>
     <div class="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
@@ -54,7 +106,7 @@
     <div class="grid gap-3 md:grid-cols-3">
       <template x-for="n in homeLinks" :key="n.view">
         <button type="button" :data-v="n.view" @click="go" class="flex items-center gap-3 rounded-xl border border-line bg-panel p-4 text-left transition hover:border-brand hover:bg-panel2">
-          <span class="grid h-10 w-10 place-items-center rounded-lg bg-brand/15 text-brand"><svg class="icon h-5 w-5"><use :href="n.icon"></use></svg></span>
+          <span class="grid h-10 w-10 place-items-center rounded-lg bg-brand/15 text-accent"><svg class="icon h-5 w-5"><use :href="n.icon"></use></svg></span>
           <span><span class="block font-semibold" x-text="n.label"></span><span class="block text-[11px] text-mute" x-text="n.hint"></span></span>
         </button>
       </template>
@@ -83,7 +135,7 @@
     </article>
   </section>
 
-  <!-- Editor tab: toolbar for one duplicate or dead-code candidate -->
+  <!-- Editor tab: toolbar for one dead-code candidate (duplicates have their own layout below) -->
   <div class="flex flex-wrap items-center gap-2 border-b border-line bg-panel px-4 py-2" x-show="showToolbar">
     <button type="button" @click="prevDup" class="rounded-md border border-line p-1.5 hover:bg-panel2" :aria-label="prevLabel" :title="prevLabel"><svg class="icon"><use href="#i-chevron-left"></use></svg></button>
     <button type="button" @click="nextDup" class="rounded-md border border-line p-1.5 hover:bg-panel2" :aria-label="nextLabel" :title="nextLabel"><svg class="icon"><use href="#i-chevron-right"></use></svg></button>
@@ -108,11 +160,12 @@
   <p class="p-8 text-center text-mute" x-show="gone" x-text="notFoundText"></p>
 
   <!-- Duplicates and dead code share one layout: list | detail + review -->
-  <main class="grid flex-1 gap-3 p-3 lg:min-h-0" :class="mainCls" x-show="showMain">
+  <!-- x-if, not x-show: each editor binds fields only its own view-model has -->
+  <template x-if="showMain">
+  <main class="grid flex-1 gap-3 p-3 lg:min-h-0" :class="mainCls">
     <aside class="flex min-h-[320px] flex-col rounded-xl border border-line bg-panel lg:min-h-0" x-show="listMode">
       <div class="space-y-2 border-b border-line p-3">
         <h1 class="flex items-center gap-2 text-base font-semibold"><span x-text="listTitle"></span><span class="text-[11px] font-normal text-mute" x-text="listCount"></span></h1>
-        <input type="search" x-model="query" @input="refilter" :placeholder="L.filter" :aria-label="L.filter" class="w-full rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-brand">
         <div class="flex flex-wrap gap-1.5">
           <template x-for="f in filters" :key="f.key">
             <button type="button" :data-v="f.key" @click="setFilter" class="rounded-full border px-2.5 py-1 text-[11px] transition" :class="f.cls" x-text="f.label"></button>
@@ -124,12 +177,12 @@
           <li>
             <button type="button" :data-v="row.identity" @click="select" class="w-full rounded-lg border p-2.5 text-left transition hover:bg-panel2" :class="row.cls">
               <span class="flex items-center gap-2">
-                <span class="rounded bg-brand/15 px-1.5 py-0.5 text-[10px] text-brand" x-text="row.badge"></span>
+                <span class="rounded bg-brand/15 px-1.5 py-0.5 text-[10px] text-accent" x-text="row.badge"></span>
                 <span class="rounded bg-panel2 px-1.5 py-0.5 text-[10px] text-mute" x-text="row.language"></span>
                 <span class="ml-auto rounded px-1.5 py-0.5 text-[10px] font-medium" :class="row.chipCls" x-text="row.chip"></span>
               </span>
               <span class="mt-1 block truncate font-mono font-medium" x-text="row.title"></span>
-              <span class="block truncate font-mono text-[11px] text-info" x-text="row.sub"></span>
+              <span class="flex items-center gap-1"><span class="min-w-0 truncate font-mono text-[11px] text-info" x-text="row.sub"></span><svg class="icon ml-auto text-accent" x-show="row.marked" :aria-label="L.markedRow"><use href="#i-bookmark-check"></use></svg></span>
               <span class="block text-[11px] text-mute" x-text="row.meta"></span>
             </button>
           </li>
@@ -152,7 +205,7 @@
         <fieldset class="flex flex-wrap gap-2">
           <legend class="text-mute" x-text="L.findingReview"></legend>
           <template x-for="choice in reviewChoices" :key="choice.key">
-            <button type="button" :data-v="choice.key" @click="setReviewAction" role="radio" :aria-checked="choice.on" class="rounded-md border px-3 py-2" :class="choice.cls" x-text="choice.label"></button>
+            <button type="button" :data-v="choice.key" @click="setReviewAction" :aria-pressed="choice.on" class="rounded-md border px-3 py-2" :class="choice.cls" x-text="choice.label"></button>
           </template>
         </fieldset>
         <label class="block text-mute"><span x-text="L.findingReason"></span>
@@ -161,7 +214,7 @@
         <p class="text-warn" x-show="reviewDirty" x-text="L.retainedDraft"></p>
         <p class="text-warn" x-show="hasConflict" x-text="L.conflict"></p>
         <div class="flex flex-wrap gap-2">
-          <button type="submit" :disabled="reviewSaveDisabled" class="rounded-md bg-brand px-3 py-1.5 font-medium text-white" x-text="L.reviewSave"></button>
+          <button type="submit" :disabled="reviewSaveDisabled" class="rounded-md bg-brand px-3 py-1.5 font-medium text-onbrand" x-text="L.reviewSave"></button>
           <button type="button" @click="discardReviewDraft" x-show="reviewDirty" class="rounded-md border border-line px-3 py-2" x-text="L.discardDraft"></button>
           <button type="button" @click="reviewLatest" x-show="hasConflict" class="rounded-md border border-line px-3 py-2" x-text="L.reviewLatest"></button>
         </div>
@@ -170,7 +223,6 @@
       <div class="space-y-3" x-show="showEditor">
         <div class="grid gap-3" :class="editorCols">
           <div class="rounded-xl border border-line bg-panel p-3 xl:self-start" x-show="showFiles">
-            <h2 class="mb-2 font-semibold" x-show="isDup" x-text="L.files"></h2>
             <h2 class="mb-2 font-semibold" x-show="isDead" x-text="L.symbol"></h2>
             <dl class="space-y-1.5" x-show="isDead">
               <template x-for="f in deadInfo.facts" :key="f.key">
@@ -180,20 +232,6 @@
                 </div>
               </template>
             </dl>
-            <ul class="space-y-1.5" x-show="isDup">
-              <template x-for="f in fileRows" :key="f.idx">
-                <li>
-                  <button type="button" :data-v="f.idx" @click="pickFile" class="w-full rounded-lg border px-2 py-1.5 text-left transition hover:bg-panel2" :class="f.cls">
-                    <span class="flex items-center gap-1.5">
-                      <b class="rounded px-1.5 text-[10px]" :class="f.tagCls" x-text="f.tag"></b>
-                      <span class="min-w-0 truncate font-mono text-[12px] font-medium" :title="f.path" x-text="f.base"></span>
-                    </span>
-                    <span class="block truncate font-mono text-[10px] text-mute" :title="f.path" x-text="f.dir"></span>
-                    <span class="mt-0.5 inline-block rounded px-1.5 py-0.5 text-[10px] font-medium" :class="f.chipCls" x-text="f.chip"></span>
-                  </button>
-                </li>
-              </template>
-            </ul>
           </div>
 
           <div class="min-w-0 space-y-3">
@@ -255,51 +293,231 @@
                 <li class="rounded-lg border border-line px-2 py-1.5 text-[12px] text-mute" x-text="c"></li>
               </template>
             </ul>
-            <button type="button" @click="copyPrompt" class="flex items-center gap-1 rounded-md border border-brand px-3 py-1.5 font-medium text-brand hover:bg-brand/10" :title="L.aiHint"><svg class="icon"><use href="#i-sparkles"></use></svg><span x-text="L.aiCopy"></span></button>
+            <button type="button" @click="copyPrompt" class="flex items-center gap-1 rounded-md border border-brand px-3 py-1.5 font-medium text-accent hover:bg-brand/10" :title="L.aiHint"><svg class="icon"><use href="#i-sparkles"></use></svg><span x-text="L.aiCopy"></span></button>
           </div>
-          <form class="space-y-3 rounded-xl border border-line bg-panel p-3" x-show="isDup" @submit.prevent="saveFile">
-            <h2 class="font-semibold" x-text="L.fileReview"></h2>
-            <p class="text-mute" x-text="L.fileHint"></p>
-            <div class="flex items-center gap-2 rounded-lg border border-brand bg-brand/10 px-2 py-1.5" :title="L.activeFile">
-              <b class="rounded px-1.5 text-[11px]" :class="activeFile.tagCls" x-text="activeFile.tag"></b>
-              <span class="min-w-0"><span class="block truncate font-mono text-[12px] font-medium" x-text="activeFile.base"></span><span class="block truncate font-mono text-[10px] text-mute" x-text="activeFile.dir"></span></span>
-            </div>
-            <label class="block text-mute"><span x-text="L.file"></span>
-              <select x-model="fileIdx" @change="changeFile" class="mt-1 w-full rounded-md border border-line bg-panel2 px-2 py-1.5 font-mono text-[12px] text-ink outline-none focus:border-brand">
-                <template x-for="f in fileRows" :key="f.idx">
-                  <option :value="f.idx" x-text="f.label"></option>
-                </template>
-              </select></label>
-            <fieldset>
-              <legend class="mb-1 text-mute" x-text="L.fileStatus"></legend>
-              <div class="space-y-1">
-                <template x-for="s in fileStatuses" :key="s.key">
-                  <button type="button" :data-v="s.key" @click="setFileStatus" role="radio" :aria-checked="s.on" class="flex w-full items-center gap-2 rounded-md border px-2 py-1.5 text-left text-[12px] transition hover:bg-panel2" :class="s.cls">
-                    <span class="h-3 w-3 shrink-0 rounded-full border border-current" :class="s.dot"></span><span x-text="s.label"></span>
-                  </button>
-                </template>
-              </div>
-            </fieldset>
-            <label class="block text-mute"><span x-text="L.fileNote"></span>
-              <textarea x-model="fileNote" @input="markDirty" rows="12" maxlength="2000" :placeholder="L.fileNoteHint" class="mt-1 w-full rounded-md border border-line bg-panel2 p-2 text-ink outline-none focus:border-brand"></textarea></label>
-            <p class="text-warn" x-show="fileDirty" x-text="L.retainedDraft"></p>
-            <p class="text-warn" x-show="fileConflict" x-text="L.conflict"></p>
-            <div class="flex flex-wrap items-center gap-2">
-              <button type="submit" class="rounded-md bg-brand px-3 py-1.5 font-medium text-white" x-text="L.save"></button>
-              <button type="button" @click="discardFileDraft" x-show="fileDirty" class="rounded-md border border-line px-3 py-2" x-text="L.discardDraft"></button>
-              <button type="button" @click="copyPrompt" class="flex items-center gap-1 rounded-md border border-brand px-3 py-1.5 font-medium text-brand hover:bg-brand/10" :title="L.aiHint"><svg class="icon"><use href="#i-sparkles"></use></svg><span x-text="L.aiCopy"></span></button>
-            </div>
-          </form>
           </aside>
         </div>
       </div>
 
     </section>
   </main>
+  </template>
+
+  <!-- Duplicate editor: files | every copy side by side | per-file review -->
+  <template x-if="showDupEditor">
+  <div class="grid flex-1 lg:min-h-0" :class="dupCols">
+    <aside class="flex flex-col border-b border-line bg-panel lg:min-h-0 lg:border-b-0 lg:border-r" x-show="showFiles" :aria-label="L.files">
+      <h2 class="px-4 pb-2 pt-3 text-[14px] font-semibold" x-text="L.files"></h2>
+      <ul class="scroll-thin max-h-48 space-y-0.5 overflow-y-auto px-2 lg:max-h-none lg:min-h-0 lg:flex-1">
+        <template x-for="f in fileRows" :key="f.idx">
+          <li>
+            <button type="button" :data-v="f.idx" @click="pickFile" class="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition" :class="f.navCls" :title="f.navTitle" :aria-current="f.current">
+              <span class="grid h-6 min-w-6 shrink-0 place-items-center rounded-md px-1 font-mono text-[11px] font-bold" :class="f.tagCls" x-text="f.tag"></span>
+              <span class="min-w-0 flex-1"><span class="block truncate font-mono text-[12px]" x-text="f.base"></span><span class="block truncate font-mono text-[10px] text-mute" x-show="f.twin" x-text="f.dir"></span></span>
+              <svg class="icon shrink-0 text-mute" x-show="f.shut"><use href="#i-eye-off"></use></svg>
+              <span class="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium" :class="f.chipCls" x-text="f.shortChip"></span>
+              <span class="rounded-full bg-warn/15 px-1.5 py-0.5 text-[10px] text-warn" x-show="f.warning" x-text="f.warning"></span>
+            </button>
+          </li>
+        </template>
+      </ul>
+      <div class="border-t border-line p-3">
+        <button type="button" @click="closeTab" class="flex w-full items-center justify-center gap-2 rounded-lg border border-line px-3 py-2 font-medium transition hover:bg-panel2"><svg class="icon"><use href="#i-arrow-left"></use></svg><span x-text="L.back"></span></button>
+      </div>
+    </aside>
+
+    <section class="flex min-w-0 flex-col lg:min-h-0" :aria-label="L.dupTitle">
+      <nav class="page-controls flex flex-wrap items-center gap-2 border-b border-line bg-panel px-3 py-2" x-show="sourceNotice" :aria-label="L.sourcePartial">
+        <button type="button" @click="previousSource" :disabled="sourcePreviousDisabled" class="rounded-md border border-line px-2.5 py-1" x-text="L.sourcePrevious"></button>
+        <button type="button" @click="nextSource" :disabled="sourceNextDisabled" class="rounded-md border border-line px-2.5 py-1" x-text="L.sourceNext"></button>
+        <span class="text-warn" x-show="sourcePartial" x-text="L.sourcePartial"></span>
+        <span class="text-bad" x-show="sourceUnavailable" x-text="L.sourceUnavailable"></span>
+      </nav>
+      <p class="m-3 rounded-xl border border-dashed border-line p-8 text-center text-mute" x-show="noneOpen" x-text="L.noneOpen"></p>
+      <div class="scroll-thin flex min-h-0 flex-1 gap-2 overflow-x-auto bg-bg p-2">
+        <template x-for="p in panes" :key="p.idx">
+          <article class="flex min-w-[15rem] flex-1 flex-col overflow-hidden rounded-lg border border-line bg-panel" :class="p.cls">
+            <header class="flex items-start gap-1 border-b border-line px-3 py-2">
+              <button type="button" :data-v="p.idx" @click="pickFile" class="min-w-0 flex-1 text-left" :title="p.path">
+                <span class="flex min-w-0 items-center gap-1.5"><span class="grid h-5 min-w-5 shrink-0 place-items-center rounded px-1 font-mono text-[10.5px] font-bold" :class="p.tagCls" x-text="p.tag"></span><span class="truncate font-mono text-[12.5px] font-semibold" x-text="p.shortPath"></span></span>
+                <span class="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-mute">
+                  <span x-text="p.fileLines" :title="p.lines"></span>
+                  <span class="rounded-full bg-brand/15 px-2 py-0.5 font-medium text-accent" x-show="p.showSim" :title="p.simTitle" x-text="p.similarity"></span>
+                </span>
+              </button>
+              <button type="button" :data-v="p.idx" @click="closeFile" x-show="p.multi" class="rounded-md p-1 text-mute transition hover:bg-bad/15 hover:text-bad" :aria-label="L.closeFile" :title="L.closeFile"><svg class="icon"><use href="#i-x"></use></svg></button>
+            </header>
+            <div class="code-box code-sync scroll-thin max-h-[70vh] min-h-[16rem] flex-1 overflow-auto py-1 font-mono leading-6 lg:max-h-none lg:min-h-0">
+              <div :class="boxCls">
+                <template x-for="r in p.rows" :key="r.k">
+                  <div class="code-row flex" :class="r.cls"><span class="w-11 shrink-0 select-none pr-2.5 text-right text-mute/70" x-text="r.n"></span><span class="min-w-0 pr-3" :class="wrapCls"><template x-for="(w, i) in r.parts" :key="i"><span :class="w.cls" x-text="w.t"></span></template></span></div>
+                </template>
+              </div>
+              <p class="px-3 py-2 text-mute" x-show="p.empty" x-text="L.noMatch"></p>
+            </div>
+          </article>
+        </template>
+      </div>
+    </section>
+
+    <aside class="scroll-thin space-y-5 overflow-y-auto border-t border-line bg-panel p-4 lg:min-h-0 lg:border-l lg:border-t-0" x-show="showAside" :aria-label="L.fileReview">
+      <form class="space-y-4" @submit.prevent="saveFile">
+        <h2 class="text-[15px] font-semibold" x-text="L.fileReview"></h2>
+        <p class="text-[12px] text-mute" x-text="L.fileHint"></p>
+        <p class="text-[12px] text-mute" x-text="L.draftHint"></p>
+        <label class="block">
+          <span class="mb-1 block font-medium" x-text="L.selectFile"></span>
+          <select @change="changeFile" class="w-full rounded-lg border border-line bg-panel2 px-2.5 py-2 font-mono text-[12px] outline-none focus:border-brand">
+            <template x-for="f in fileRows" :key="f.idx">
+              <option :value="f.idx" :selected="f.selected" x-text="f.label"></option>
+            </template>
+          </select>
+        </label>
+        <div>
+          <p class="flex items-start gap-1.5"><span class="grid h-5 min-w-5 shrink-0 place-items-center rounded bg-brand px-1 font-mono text-[10.5px] font-bold text-onbrand" x-text="activeFile.tag"></span><span class="break-all font-mono text-[12.5px] font-semibold" x-text="activeFile.path"></span></p>
+          <p class="text-mute" x-text="activeFile.range"></p>
+          <p class="rounded-md bg-warn/15 px-2 py-1 text-warn" x-show="activeFile.warning" x-text="activeFile.warning"></p>
+        </div>
+        <fieldset class="space-y-1">
+          <legend class="mb-1.5 font-medium" x-text="L.fileStatus"></legend>
+          <template x-for="s in fileStatuses" :key="s.key">
+            <label class="flex cursor-pointer items-center gap-2.5 rounded-md px-1.5 py-1 transition hover:bg-panel2">
+              <input type="radio" name="file-status" class="radio h-4 w-4" :value="s.key" :checked="s.on" @change="fileStatusChanged">
+              <span x-text="s.label"></span>
+            </label>
+          </template>
+          <p class="pt-1 text-[12px] text-mute" x-text="L.statusHint"></p>
+        </fieldset>
+        <label class="block">
+          <span class="mb-1 block font-medium" x-text="L.fileNote"></span>
+          <textarea :value="fileNote" @input="markDirty" rows="3" maxlength="2000" :placeholder="L.fileNoteHint" class="w-full rounded-lg border border-line bg-panel2 p-2.5 outline-none focus:border-brand"></textarea>
+        </label>
+        <p class="text-warn" x-show="fileDirty" x-text="L.retainedDraft"></p>
+        <p class="text-warn" x-show="fileConflict" x-text="L.conflict"></p>
+        <div class="space-y-2">
+          <button type="submit" class="w-full rounded-lg bg-brand px-3 py-2 font-semibold text-onbrand transition hover:opacity-90" x-text="L.save"></button>
+          <button type="button" @click="reviewLatest" x-show="fileConflict" class="w-full rounded-lg border border-line px-3 py-2 transition hover:bg-panel2" x-text="L.reviewLatest"></button>
+          <button type="button" @click="discardFileDraft" x-show="fileDirty" class="w-full rounded-lg border border-line px-3 py-2 transition hover:bg-panel2" x-text="L.discardDraft"></button>
+          <button type="button" @click="openTemplate" class="flex w-full items-center justify-center gap-2 rounded-lg border border-ink/30 px-3 py-2 font-semibold transition hover:bg-panel2" :title="L.aiHint"><svg class="icon"><use href="#i-sparkles"></use></svg><span x-text="L.createTemplate"></span></button>
+        </div>
+      </form>
+
+      <section class="space-y-2">
+        <h3 class="font-semibold" x-text="L.allFiles"></h3>
+        <ul class="space-y-0.5">
+          <template x-for="f in fileRows" :key="f.idx">
+            <li>
+              <button type="button" :data-v="f.idx" @click="pickFile" class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition" :class="f.stateRowCls" :title="f.path">
+                <span class="grid h-5 min-w-5 shrink-0 place-items-center rounded px-1 font-mono text-[10.5px] font-bold" :class="f.tagCls" x-text="f.tag"></span>
+                <span class="min-w-0 flex-1"><span class="block truncate font-mono text-[12px]" x-text="f.base"></span><span class="block truncate font-mono text-[10px] text-mute" x-show="f.twin" x-text="f.dir"></span></span>
+                <span class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium" :class="f.chipCls" x-text="f.shortChip"></span>
+              <span class="rounded-full bg-warn/15 px-1.5 py-0.5 text-[10px] text-warn" x-show="f.warning" x-text="f.warning"></span>
+              </button>
+            </li>
+          </template>
+        </ul>
+      </section>
+
+      <details class="group rounded-lg border border-line">
+        <summary class="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 font-semibold">
+          <span x-text="L.findingReview"></span>
+          <span class="flex items-center gap-1"><span class="rounded-full px-2 py-0.5 text-[11px] font-medium" :class="reviewChipCls" x-text="reviewStateText"></span><svg class="icon text-mute transition group-open:rotate-180"><use href="#i-chevron-down"></use></svg></span>
+        </summary>
+        <form class="space-y-2 border-t border-line p-3" @submit.prevent="saveReview">
+          <p class="text-[12px] text-mute" x-text="L.findingHint"></p>
+          <div class="flex flex-wrap gap-1.5" role="group" :aria-label="L.findingReview">
+            <template x-for="choice in reviewChoices" :key="choice.key">
+              <button type="button" :data-v="choice.key" @click="setReviewAction" :aria-pressed="choice.on" class="rounded-md border px-2.5 py-1.5 text-[12px]" :class="choice.cls" x-text="choice.label"></button>
+            </template>
+          </div>
+          <label class="block text-mute"><span x-text="L.findingReason"></span>
+            <textarea :value="reviewReason" @input="markReviewDirty" rows="2" maxlength="500" class="mt-1 w-full rounded-lg border border-line bg-panel2 p-2 text-ink outline-none focus:border-brand"></textarea>
+          </label>
+          <p class="text-warn" x-show="reviewDirty" x-text="L.retainedDraft"></p>
+          <p class="text-warn" x-show="reviewConflict" x-text="L.conflict"></p>
+          <div class="flex flex-wrap gap-2">
+            <button type="submit" :disabled="reviewSaveDisabled" class="rounded-lg bg-brand px-3 py-1.5 font-medium text-onbrand" x-text="L.reviewSave"></button>
+            <button type="button" @click="discardReviewDraft" x-show="reviewDirty" class="rounded-lg border border-line px-3 py-1.5" x-text="L.discardDraft"></button>
+            <button type="button" @click="reviewLatest" x-show="hasConflict" class="rounded-lg border border-line px-3 py-1.5" x-text="L.reviewLatest"></button>
+          </div>
+        </form>
+      </details>
+    </aside>
+  </div>
+  </template>
+
+  <!-- Shared finding annotations: separate from individual-copy labels. -->
+  <section x-show="showReview" class="scroll-thin max-h-[320px] shrink-0 space-y-2 overflow-y-auto border-t border-line bg-panel p-3" :aria-label="commentsHeading">
+    <details>
+      <summary class="cursor-pointer font-semibold" x-text="commentsHeading"></summary>
+      <p class="text-mute" x-text="L.commentScope"></p>
+      <dl class="mt-2 flex flex-wrap gap-3">
+        <template x-for="d in decisionRows" :key="d.key"><div><dt class="text-mute" x-text="d.label"></dt><dd x-text="d.value"></dd></div></template>
+      </dl>
+      <p role="status" class="text-warn" x-text="validityText"></p>
+      <ul class="space-y-2">
+        <template x-for="c in commentRows" :key="c.key">
+          <li class="rounded-md border border-line p-2">
+            <p class="whitespace-pre-wrap break-all" x-text="c.body"></p>
+            <button type="button" :data-v="c.id" @click="editComment" class="rounded-md border border-line px-3 py-2" x-text="L.commentEdit"></button>
+          </li>
+        </template>
+      </ul>
+      <form @submit.prevent="saveComment" class="mt-2 space-y-2">
+        <button type="button" @click="newComment" class="rounded-md border border-line px-3 py-2" x-text="L.commentNew"></button>
+        <label class="block"><span x-text="L.commentText"></span>
+          <textarea :value="commentBody" @input="markCommentDirty" rows="2" maxlength="2000" class="mt-1 w-full rounded-md border border-line bg-panel2 p-2 text-ink"></textarea>
+        </label>
+        <p role="status" class="text-warn" x-show="commentDirty" x-text="L.retainedDraft"></p>
+        <p role="alert" class="text-warn" x-show="commentConflict" x-text="L.conflict"></p>
+        <p role="alert" class="text-warn" x-show="commentUnavailable" x-text="L.commentMissing"></p>
+        <div class="flex flex-wrap gap-2">
+          <button type="submit" :disabled="commentSaveDisabled" class="rounded-md bg-brand px-3 py-2 text-onbrand" x-text="L.save"></button>
+          <button type="button" @click="deleteComment" x-show="commentSelected" :disabled="commentDeleteDisabled" class="rounded-md border border-line px-3 py-2" x-text="L.commentDelete"></button>
+          <button type="button" @click="commentLatest" x-show="commentConflict" class="rounded-md border border-line px-3 py-2" x-text="L.commentLatest"></button>
+          <button type="button" @click="discardCommentDraft" x-show="commentDirty" class="rounded-md border border-line px-3 py-2" x-text="L.discardDraft"></button>
+        </div>
+        <p class="text-mute" x-text="L.draftHint"></p>
+      </form>
+    </details>
+  </section>
+
+  <footer class="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line bg-panel px-4 py-2" x-show="showDupEditor">
+    <span class="flex items-center gap-1">
+      <button type="button" @click="prevDup" class="rounded-md p-1 text-mute transition hover:bg-panel2 hover:text-ink" :aria-label="prevLabel" :title="prevLabel"><svg class="icon"><use href="#i-chevron-left"></use></svg></button>
+      <svg class="icon text-mute"><use href="#i-copy"></use></svg>
+      <b class="ml-1" x-text="footer.title"></b><span class="text-mute" x-text="footer.of"></span>
+      <button type="button" @click="nextDup" class="rounded-md p-1 text-mute transition hover:bg-panel2 hover:text-ink" :aria-label="nextLabel" :title="nextLabel"><svg class="icon"><use href="#i-chevron-right"></use></svg></button>
+    </span>
+    <span class="h-4 w-px bg-line"></span><span x-text="footer.lines"></span>
+    <span class="h-4 w-px bg-line"></span><span x-text="footer.files"></span>
+    <span class="flex flex-wrap items-center gap-x-5 gap-y-1 sm:ml-6">
+      <template x-for="l in legend" :key="l.key">
+        <span class="flex items-center gap-2"><i class="h-3.5 w-3.5 rounded" :class="l.cls"></i><span x-text="l.label"></span></span>
+      </template>
+    </span>
+    <span class="ml-auto text-mute" x-show="hitText" x-text="hitText"></span>
+  </footer>
+
+  <!-- "Create template": the AI brief, editable before copying -->
+  <div class="fixed inset-0 z-40 grid place-items-center bg-black/50 p-4" x-show="templateOpen" @click.self="closeTemplate" @keydown.escape.window="closeTemplate">
+    <div class="w-full max-w-2xl space-y-3 rounded-xl border border-line bg-panel p-4 shadow-2xl" role="dialog" aria-modal="true" :aria-label="L.aiTitle">
+      <div class="flex items-start gap-3">
+        <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand/15 text-accent"><svg class="icon h-[18px] w-[18px]"><use href="#i-sparkles"></use></svg></span>
+        <div class="min-w-0 flex-1"><h2 class="text-[15px] font-semibold" x-text="L.aiTitle"></h2><p class="text-mute" x-text="L.templateHint"></p></div>
+        <button type="button" @click="closeTemplate" class="rounded-md p-1 text-mute hover:bg-panel2 hover:text-ink" :aria-label="L.close"><svg class="icon"><use href="#i-x"></use></svg></button>
+      </div>
+      <textarea x-ref="template" :value="templateText" @input="editTemplate" rows="16" class="scroll-thin w-full rounded-lg border border-line bg-panel2 p-3 font-mono text-[12px] leading-5 outline-none focus:border-brand"></textarea>
+      <div class="flex justify-end gap-2">
+        <button type="button" @click="closeTemplate" class="rounded-lg border border-line px-3 py-2 hover:bg-panel2" x-text="L.close"></button>
+        <button type="button" @click="copyTemplate" class="flex items-center gap-2 rounded-lg bg-brand px-3 py-2 font-semibold text-onbrand hover:opacity-90"><svg class="icon"><use href="#i-clipboard-copy"></use></svg><span x-text="L.aiCopy"></span></button>
+      </div>
+    </div>
+  </div>
 
   <!-- Obsidian -->
   <section class="flex-1 space-y-3 overflow-y-auto p-3 scroll-thin" x-show="showObs">
-    <div class="flex items-center gap-3"><span class="grid h-10 w-10 place-items-center rounded-xl bg-brand/20 text-brand"><svg class="icon h-5 w-5"><use href="#i-network"></use></svg></span>
+    <div class="flex items-center gap-3"><span class="grid h-10 w-10 place-items-center rounded-xl bg-brand/20 text-accent"><svg class="icon h-5 w-5"><use href="#i-network"></use></svg></span>
       <div><h1 class="text-lg font-semibold" x-text="L.obsTitle"></h1><p class="text-mute" x-text="L.obsSub"></p></div></div>
     <div class="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
       <template x-for="s in cards" :key="s.label"><div class="rounded-xl border border-line bg-panel p-3"><div class="text-2xl font-bold" x-text="s.value"></div><div class="text-[11px] uppercase tracking-wide text-mute" x-text="s.label"></div></div></template>
@@ -320,7 +538,7 @@
         <ul class="scroll-thin max-h-[320px] flex-1 space-y-1.5 overflow-y-auto p-2">
           <template x-for="n in noteRows" :key="n.name">
             <li><button type="button" :data-v="n.name" @click="openNote" class="w-full rounded-lg border p-2.5 text-left hover:bg-panel2" :class="n.cls">
-              <span class="flex items-center gap-2"><span class="rounded bg-brand/15 px-1.5 py-0.5 text-[10px] text-brand" x-text="n.kind"></span><span class="ml-auto text-[11px] text-mute" x-text="n.links"></span></span>
+              <span class="flex items-center gap-2"><span class="rounded bg-brand/15 px-1.5 py-0.5 text-[10px] text-accent" x-text="n.kind"></span><span class="ml-auto text-[11px] text-mute" x-text="n.links"></span></span>
               <span class="mt-1 block truncate font-medium" x-text="n.title"></span><span class="block truncate font-mono text-[11px] text-info" x-text="n.name"></span></button></li>
           </template>
         </ul>

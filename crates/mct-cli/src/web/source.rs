@@ -71,6 +71,52 @@ pub(super) fn indexed_excerpt(
     })
 }
 
+/// Lines shown above and below each copy of a duplicate in the editor.
+pub(super) const DUPLICATE_CONTEXT: u32 = 6;
+
+/// The code around one copy of a duplicate, from exactly the indexed revision.
+pub(super) struct Surroundings {
+    /// Up to `context` lines right before `start`, in file order.
+    pub before: Vec<String>,
+    /// Up to `context` lines right after `end`.
+    pub after: Vec<String>,
+    /// Number of lines in the whole file.
+    pub file_lines: u32,
+}
+
+/// The lines around `start..=end`, clamped to the file; `None` when the file
+/// changed since indexing or no longer has that range.
+pub(super) fn indexed_surroundings(
+    root: &Path,
+    relative: &str,
+    hash: &str,
+    (start, end): (u32, u32),
+    context: u32,
+) -> Option<Surroundings> {
+    if start == 0 || end < start {
+        return None;
+    }
+    let content = indexed_text(root, relative, hash)?;
+    let lines: Vec<&str> = content.lines().collect();
+    let file_lines = u32::try_from(lines.len()).ok()?;
+    if end > file_lines {
+        return None;
+    }
+    let clean = |range: &[&str]| -> Vec<String> {
+        range
+            .iter()
+            .map(|line| line.trim_end_matches('\r').to_string())
+            .collect()
+    };
+    let first = start.saturating_sub(context).max(1);
+    let last = end.saturating_add(context).min(file_lines);
+    Some(Surroundings {
+        before: clean(&lines[(first - 1) as usize..(start - 1) as usize]),
+        after: clean(&lines[end as usize..last as usize]),
+        file_lines,
+    })
+}
+
 /// Lines shown on each side of a dead-code candidate, so it reads in context.
 pub(super) const WINDOW_CONTEXT: u32 = 3;
 

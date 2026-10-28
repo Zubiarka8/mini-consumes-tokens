@@ -161,6 +161,7 @@ pub(crate) fn run(root: &Path, args: Args) -> anyhow::Result<()> {
     let exclude = ExcludeSet::new(&mct_index::read_ignore_file(root));
     let index = Index::open_existing_read_only(root, &db_path, exclude)
         .with_context(|| format!("cannot open the index at {}", display_path(&db_path)))?;
+    let snapshot = index.read_snapshot()?;
     let output_path = args.output.clone();
     let include_reviewed = args.include_reviewed;
     let reviews = if include_reviewed {
@@ -255,6 +256,7 @@ pub(crate) fn run(root: &Path, args: Args) -> anyhow::Result<()> {
         }
         rendered
     };
+    drop(snapshot);
     if let Some(path) = output_path {
         let path = if path.is_absolute() {
             path

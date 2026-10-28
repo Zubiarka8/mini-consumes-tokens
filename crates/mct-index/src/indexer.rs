@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -98,6 +99,10 @@ pub struct IndexStatus {
     pub total_files: usize,
     pub total_symbols: usize,
     pub last_indexed_at: Option<i64>,
+    /// Monotonic completed-run sequence. Legacy indexes without the key report 0.
+    pub published_generation: u64,
+    /// Most recent full walk that completed without an unreadable path.
+    pub last_full_reconciled_at: Option<i64>,
     /// Target languages seen in the repo with no plugin registered yet.
     pub unsupported_languages: Vec<String>,
     pub syntax_errors: Vec<UnsupportedFile>,
@@ -109,6 +114,14 @@ pub struct IndexStatus {
 }
 
 pub fn reindex(
+    index: &mut Index,
+    registry: &LanguageRegistry,
+    force: bool,
+) -> Result<ReindexReport> {
+    atomic_run(index, |index| reindex_inner(index, registry, force))
+}
+
+fn reindex_inner(
     index: &mut Index,
     registry: &LanguageRegistry,
     force: bool,
@@ -159,11 +172,35 @@ pub fn reindex(
 
     report.files_removed = remove_missing_files(index, &seen_paths, &unreadable)?;
     remove_missing_manifests(index, &seen_manifest_paths, &unreadable)?;
-    touch_last_indexed_at(index)?;
+    touch_last_indexed_at(index, unreadable.is_empty())?;
     index.applied_exclusions = generation;
     symbol_changes::finish(&index.conn, &mut report)?;
 
     Ok(report)
+}
+
+/// Publishes a complete reindex run with one SQLite commit. A panic is caught
+/// only long enough to roll back the transaction, then resumed unchanged.
+/// Process termination also leaves SQLite to roll the open transaction back.
+fn atomic_run<T>(index: &mut Index, operation: impl FnOnce(&mut Index) -> Result<T>) -> Result<T> {
+    index.conn.execute_batch("BEGIN IMMEDIATE")?;
+    match catch_unwind(AssertUnwindSafe(|| operation(index))) {
+        Ok(Ok(value)) => match index.conn.execute_batch("COMMIT") {
+            Ok(()) => Ok(value),
+            Err(error) => {
+                let _ = index.conn.execute_batch("ROLLBACK");
+                Err(error.into())
+            }
+        },
+        Ok(Err(error)) => match index.conn.execute_batch("ROLLBACK") {
+            Ok(()) => Err(error),
+            Err(rollback_error) => Err(rollback_error.into()),
+        },
+        Err(payload) => {
+            let _ = index.conn.execute_batch("ROLLBACK");
+            resume_unwind(payload)
+        }
+    }
 }
 
 /// What [`index_file`] found at a path, for the stale-row sweeps.
@@ -404,6 +441,11 @@ fn index_file(
         // binary file with a matching extension — nothing to parse, and
         // nothing from an earlier text version of it may stay indexed
         Err(_) => {
+            index.conn.execute(
+                "DELETE FROM index_issues
+                 WHERE relative_path = ?1 AND issue_kind = 'syntax_error'",
+                params![relative_path],
+            )?;
             if existing.is_some() {
                 index.conn.execute(
                     "DELETE FROM files WHERE relative_path = ?1",
@@ -419,7 +461,19 @@ fn index_file(
         contents,
     };
 
-    match registry.parse(&source) {
+    let parsed = registry.parse(&source);
+    // Parsing can be expensive and the working tree is mutable. Verify the
+    // exact bytes again before writing this file into the run so an edit made
+    // during either a successful or failed parse cannot be published as current.
+    let current_hash = crate::read_repository_file(&canonical)
+        .ok()
+        .and_then(|bytes| Oid::hash_object(ObjectType::Blob, &bytes).ok())
+        .map(|oid| oid.to_string());
+    if current_hash.as_deref() != Some(content_hash.as_str()) {
+        return Err(crate::IndexError::SourceChangedDuringIndex(relative_path));
+    }
+
+    match parsed {
         Ok(parsed) => {
             let language = parser.language_id();
             let symbols_written =
@@ -435,13 +489,16 @@ fn index_file(
             // index matches a fresh full index of the broken file — an issue,
             // no symbols — and a later fix or revert is re-parsed, not
             // hash-skipped against the stale row.
-            let tx = index.conn.transaction()?;
-            tx.execute(
+            index.conn.execute(
                 "DELETE FROM files WHERE relative_path = ?1",
                 params![relative_path],
             )?;
-            record_issue(&tx, &relative_path, UnsupportedKind::SyntaxError, &detail)?;
-            tx.commit()?;
+            record_issue(
+                &index.conn,
+                &relative_path,
+                UnsupportedKind::SyntaxError,
+                &detail,
+            )?;
             report.issues.push(UnsupportedFile {
                 relative_path: relative_path.clone(),
                 kind: UnsupportedKind::SyntaxError,
@@ -575,10 +632,17 @@ pub fn reindex_paths(
     registry: &LanguageRegistry,
     paths: &[PathBuf],
 ) -> Result<ReindexReport> {
+    atomic_run(index, |index| reindex_paths_inner(index, registry, paths))
+}
+
+fn reindex_paths_inner(
+    index: &mut Index,
+    registry: &LanguageRegistry,
+    paths: &[PathBuf],
+) -> Result<ReindexReport> {
     let mut report = ReindexReport::default();
     let root = index.root.clone();
     let exclude = index.exclude.clone();
-    symbol_changes::begin(&index.conn)?;
     // Paths this batch indexed for the first time.
     let mut created = Vec::new();
 
@@ -601,8 +665,10 @@ pub fn reindex_paths(
         to_relative_slash_path(&root, p).is_some_and(|rel| ExcludeSet::is_rules_file(&rel))
     });
     if rules_file_changed && exclude.reload() {
-        return reindex(index, registry, false);
+        return reindex_inner(index, registry, false);
     }
+
+    symbol_changes::begin(&index.conn)?;
 
     for absolute in unique {
         // Judged as written, not canonicalized: a deleted path can't be.
@@ -610,7 +676,7 @@ pub fn reindex_paths(
             continue;
         };
         if relative_path.is_empty() {
-            return reindex(index, registry, false);
+            return reindex_inner(index, registry, false);
         }
         if exclude.is_excluded(&relative_path) {
             continue;
@@ -698,7 +764,7 @@ pub fn reindex_paths(
     if !created.is_empty() {
         report.files_removed += remove_renamed_away(index, &created)?;
     }
-    touch_last_indexed_at(index)?;
+    touch_last_indexed_at(index, false)?;
     symbol_changes::finish(&index.conn, &mut report)?;
     Ok(report)
 }
@@ -860,7 +926,7 @@ fn remove_renamed_away(index: &mut Index, created: &[String]) -> Result<usize> {
     old_dirs.dedup();
     let old_dirs: Vec<String> = old_dirs.into_iter().map(str::to_owned).collect();
 
-    let tx = index.conn.transaction()?;
+    let tx = &index.conn;
     let mut removed = 0;
     for path in vanished {
         for (table, column) in PATH_TABLES {
@@ -873,7 +939,6 @@ fn remove_renamed_away(index: &mut Index, created: &[String]) -> Result<usize> {
             }
         }
     }
-    tx.commit()?;
     for dir in &old_dirs {
         removed += remove_under_prefix(index, dir, &[], &[], &[])?;
     }
@@ -932,7 +997,7 @@ fn remove_under_prefix(
     // never input.
     let prefix = format!("{relative_path}/");
     let prefix_end = format!("{relative_path}0");
-    let tx = index.conn.transaction()?;
+    let tx = &index.conn;
     let mut removed = 0;
     for (table, column, keep) in [
         ("files", "relative_path", &keep),
@@ -958,7 +1023,6 @@ fn remove_under_prefix(
             }
         }
     }
-    tx.commit()?;
     Ok(removed)
 }
 
@@ -977,7 +1041,7 @@ fn write_manifest_dependencies(
     language: &str,
     deps: &[manifests::ManifestDependency],
 ) -> Result<()> {
-    let tx = index.conn.transaction()?;
+    let tx = &index.conn;
     tx.execute(
         "DELETE FROM dependencies WHERE manifest_path = ?1",
         params![manifest_path],
@@ -988,7 +1052,6 @@ fn write_manifest_dependencies(
             params![manifest_path, language, dep.name, dep.version],
         )?;
     }
-    tx.commit()?;
     Ok(())
 }
 
@@ -997,7 +1060,7 @@ fn remove_missing_manifests(
     seen_manifest_paths: &[String],
     unreadable: &[String],
 ) -> Result<()> {
-    let tx = index.conn.transaction()?;
+    let tx = &index.conn;
     let seen: std::collections::HashSet<&str> =
         seen_manifest_paths.iter().map(String::as_str).collect();
 
@@ -1017,7 +1080,6 @@ fn remove_missing_manifests(
         }
     }
 
-    tx.commit()?;
     Ok(())
 }
 
@@ -1029,7 +1091,7 @@ fn write_parsed_file(
     parsed: &mct_core::ParsedFile,
 ) -> Result<usize> {
     let now = unix_now();
-    let tx = index.conn.transaction()?;
+    let tx = &index.conn;
 
     let file_id: i64 = {
         tx.execute(
@@ -1139,7 +1201,6 @@ fn write_parsed_file(
     }
 
     let count = parsed.symbols.len();
-    tx.commit()?;
     Ok(count)
 }
 
@@ -1171,7 +1232,7 @@ fn remove_missing_files(
     seen_paths: &[String],
     unreadable: &[String],
 ) -> Result<usize> {
-    let tx = index.conn.transaction()?;
+    let tx = &index.conn;
     let seen: std::collections::HashSet<&str> = seen_paths.iter().map(String::as_str).collect();
 
     let mut stmt = tx.prepare("SELECT relative_path FROM files")?;
@@ -1208,7 +1269,6 @@ fn remove_missing_files(
         }
     }
 
-    tx.commit()?;
     Ok(removed)
 }
 
@@ -1234,13 +1294,30 @@ fn record_issue(
     Ok(())
 }
 
-fn touch_last_indexed_at(index: &mut Index) -> Result<()> {
+fn touch_last_indexed_at(index: &mut Index, full_reconciliation: bool) -> Result<()> {
+    if index.published_generation()? >= i64::MAX as u64 {
+        return Err(crate::IndexError::InvalidGenerationMetadata(
+            "generation counter exhausted".to_string(),
+        ));
+    }
     let now = unix_now().to_string();
     index.conn.execute(
         "INSERT INTO index_meta (key, value) VALUES ('last_indexed_at', ?1)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value",
         params![now],
     )?;
+    index.conn.execute(
+        "INSERT INTO index_meta (key, value) VALUES ('published_generation', '1')
+         ON CONFLICT(key) DO UPDATE SET value = CAST(index_meta.value AS INTEGER) + 1",
+        [],
+    )?;
+    if full_reconciliation {
+        index.conn.execute(
+            "INSERT INTO index_meta (key, value) VALUES ('last_full_reconciled_at', ?1)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            params![now],
+        )?;
+    }
     Ok(())
 }
 
@@ -1271,6 +1348,22 @@ pub fn status(index: &Index) -> Result<IndexStatus> {
         .conn
         .query_row(
             "SELECT value FROM index_meta WHERE key = 'last_indexed_at'",
+            [],
+            |row| row.get(0),
+        )
+        .optional()?;
+    let published_generation: Option<String> = index
+        .conn
+        .query_row(
+            "SELECT value FROM index_meta WHERE key = 'published_generation'",
+            [],
+            |row| row.get(0),
+        )
+        .optional()?;
+    let last_full_reconciled_at: Option<String> = index
+        .conn
+        .query_row(
+            "SELECT value FROM index_meta WHERE key = 'last_full_reconciled_at'",
             [],
             |row| row.get(0),
         )
@@ -1343,6 +1436,8 @@ pub fn status(index: &Index) -> Result<IndexStatus> {
         total_files: total_files as usize,
         total_symbols: total_symbols as usize,
         last_indexed_at: last_indexed_at.and_then(|v| v.parse().ok()),
+        published_generation: crate::parse_published_generation(published_generation)?,
+        last_full_reconciled_at: last_full_reconciled_at.and_then(|v| v.parse().ok()),
         unsupported_languages,
         syntax_errors,
         read_failures,

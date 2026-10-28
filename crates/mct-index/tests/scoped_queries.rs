@@ -149,6 +149,26 @@ fn open(dir: &Path) -> Index {
     index
 }
 
+#[test]
+fn dead_candidates_respect_explicit_target_language_and_unqualified_language_boundaries() {
+    let dir = tempdir();
+    write(&dir, "target.fake", "fn target\n");
+    write(&dir, "target.other", "fn target\n");
+    for (callee, expected_language) in [("target", "fake"), ("fake:target", "other")] {
+        write(
+            &dir,
+            "caller.other",
+            &format!("fn consumer calls {callee}\n"),
+        );
+        let index = open(&dir);
+        let candidates = mct_index::find_dead_code_candidates(&index, None, None).unwrap();
+        let targets: Vec<_> = candidates.iter().filter(|c| c.name == "target").collect();
+        assert_eq!(targets.len(), 1, "callee: {callee}");
+        assert_eq!(targets[0].language, expected_language, "callee: {callee}");
+    }
+    fs::remove_dir_all(dir).unwrap();
+}
+
 /// Four callers of `target`, spread over two directories, two languages and a
 /// dot-prefixed directory — every axis a `QueryScope` can narrow on.
 fn scoped_index() -> (PathBuf, Index) {

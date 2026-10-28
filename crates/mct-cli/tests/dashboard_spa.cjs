@@ -30,6 +30,14 @@ function harness(respond = async () => ({})) {
 }
 
 const state = { status: 'pending' };
+test('CSP warning binding exists before the first asynchronous finding load', () => {
+  const { app } = harness();
+  // Alpine CSP resolves dotted bindings during bootstrap, before rebuildDetail
+  // replaces activeFile with a loaded copy. An absent key throws in the browser.
+  assert.equal(app.activeFile.warning, '');
+  selectGroup(app);
+  assert.equal(app.activeFile.warning, '');
+});
 function group(id = 'group') {
   return { identity: id, fingerprint: 'fp-v2', revision: 1, language: 'rust', line_count: 3, token_count: 25, state,
     members: ['a.rs', 'b.rs'].map(path => ({ path, symbol: path, start_line: 1, end_line: 3, line_count: 3,
@@ -146,6 +154,72 @@ test('finding decision sends the reviewed fingerprint and revision', async () =>
   assert.equal(requests[0].body.expected_revision, 1);
   assert.equal(app.reviewDirty, true); assert.equal(app.reviewConflict, true);
   assert.equal(app.reviewReason, 'entry point');
+});
+
+for (const view of ['dup', 'dead']) {
+  for (const action of ['false_positive', 'ignored', 'restore']) {
+    test(`${view} ${action} refreshes the filtered queue before the next poll`, async () => {
+      const item = view === 'dup' ? group() : {
+        identity: 'group', fingerprint: 'fp-v2', revision: 1, name: 'entry',
+        kind: 'function', language: 'rust', path: 'a.rs', line: 1, end_line: 3, state,
+      };
+      const effective = action === 'restore' ? 'pending' : action;
+      const updated = { ...item, revision: 2, state: { status: effective } };
+      let saved = false;
+      const route = view === 'dup' ? '/api/duplicates' : '/api/dead';
+      const { app, requests } = harness(async ({ url }) => {
+        if (url.pathname === '/api/review') { saved = true; return { revision: 2 }; }
+        if (url.pathname === '/api/finding') return { ...detail(), state: updated.state, revision: 2 };
+        if (url.pathname === route) {
+          if (url.searchParams.get('full') === '1') return listPage([updated]);
+          assert.equal(saved, true);
+          assert.equal(url.searchParams.get('status'), 'pending');
+          assert.equal(url.searchParams.has('snapshot'), false);
+          return listPage(effective === 'pending' ? [updated] : [], { counts: { pending: effective === 'pending' ? 1 : 0 } });
+        }
+        throw new Error(`Unexpected request: ${url}`);
+      });
+      selectGroup(app);
+      app.view = view;
+      app.selItem = item;
+      if (view === 'dead') { app.deads = [item]; app.dups = []; }
+      app.syncReview();
+      app.filter = 'pending'; app.pageSnapshot = 'before-save';
+      app.setReviewAction({ currentTarget: { dataset: { v: action } } });
+      await app.saveReview();
+      assert.ok(requests.some(({ url }) => url.pathname === route && !url.searchParams.has('full')),
+        'saving must refresh the queue without a poll');
+      assert.equal(app.items().length, effective === 'pending' ? 1 : 0);
+      assert.equal(app.pageCounts.pending, effective === 'pending' ? 1 : 0);
+      assert.equal(app.reviewStateText, app.t(effective));
+      assert.equal(app.reviewDirty, false);
+      // DASH-002: a dismissed finding has left the empty queue, so no ordinal.
+      const word = app.t(view === 'dup' ? 'dupWord' : 'deadWord');
+      if (effective === 'pending') assert.match(app.editorFooter, new RegExp(`^${word} #1 of 1 · `));
+      else {
+        assert.doesNotMatch(app.editorFooter, /#\d/);
+        assert.match(app.editorFooter, new RegExp(`^${word} \\(not in this list · list empty\\) · `));
+      }
+    });
+  }
+}
+
+// DASH-002: the editor position is the finding's place in the filtered queue,
+// never an invented "#1" once it has left that queue.
+test('editor position follows the filtered queue for kept and removed selections', () => {
+  const { app } = harness();
+  const kept = group('kept');
+  selectGroup(app, kept);
+  app.dups = [group('first'), kept, group('last')]; app.pageOffset = 50; app.pageTotal = 53;
+  app.rebuildDetail();
+  assert.match(app.editorFooter, /^Duplicate #52 of 53 · /);
+  assert.equal(app.footer.title, 'Duplicate #52');
+  app.dups = [group('first'), group('last')]; app.pageTotal = 52;
+  app.rebuildDetail();
+  assert.match(app.editorFooter, /^Duplicate \(not in this list · 52 left\) · /);
+  assert.equal(app.footer.title, 'Duplicate');
+  app.lang = 'es'; app.rebuildDetail();
+  assert.match(app.editorFooter, /^Duplicado \(fuera de esta lista · quedan 52\) · /);
 });
 
 test('prompts retain effective decision, reason and source fingerprint', () => {
@@ -396,6 +470,23 @@ function deadFull() {
     window_first: 1, window_last: 6, excerpt_available: true, excerpt_truncated: false, source_next_offset: null };
 }
 
+// DASH-003: the list template reads the same row fields in both views, so a
+// field missing on dead-code rows makes Alpine warn "row.marked is not defined".
+test('list rows define every field the row template reads, in both views', () => {
+  const { app } = harness();
+  const html = fs.readFileSync(path.join(__dirname, '../src/web/spa/index.html'), 'utf8');
+  const block = html.match(/x-for="row in rows"[\s\S]*?<\/template>/)[0];
+  const fields = [...new Set([...block.matchAll(/\brow\.(\w+)/g)].map(([, name]) => name))];
+  assert.ok(fields.includes('marked'), 'the template still shows the bookmark mark');
+  for (const [view, item] of [['dup', group('g')], ['dead', deadFull()]]) {
+    app.view = view;
+    const row = app.rowOf(item);
+    assert.deepEqual(fields.filter((name) => !(name in row)), [], `${view} row`);
+  }
+  app.view = 'dead';
+  assert.equal(app.rowOf(deadFull()).marked, false);
+});
+
 test('a dead candidate opens in its own editor tab like a duplicate', () => {
   const opened = [];
   const { app, context } = harness();
@@ -586,4 +677,131 @@ test('labels on an ambiguous group are sent without a fingerprint', async () => 
   app.markDirty({ target: { value: 'note' } });
   await app.saveFile();
   assert.equal('fingerprint' in requests[0].body, false);
+});
+
+test('a copy conflict can be reconciled explicitly without discarding its note', async () => {
+  let saving = 0;
+  const { app, requests } = harness(async ({ url }) => {
+    if (url.pathname === '/api/file-review') {
+      saving += 1;
+      return saving === 1 ? { status: 409 } : { revision: 3, finding_revision: 3 };
+    }
+    if (url.pathname === '/api/finding') return detail('group', [{ path: 'a.rs', status: 'accepted', note: 'other tab', revision: saving > 1 ? 3 : 2 }]);
+    return listPage([group()]);
+  });
+  selectGroup(app, group(), [{ path: 'a.rs', status: 'accepted', note: '', revision: 1 }]);
+  app.markDirty({ target: { value: 'my retained note' } });
+  await app.saveFile();
+  assert.equal(app.fileConflict, true);
+  assert.equal(app.fileNote, 'my retained note');
+  await app.loadDetail();
+  assert.equal(app.drafts['duplicate:group:a.rs'].expected_revision, 1, 'refresh does not acknowledge a foreign revision');
+  await app.reviewLatest();
+  assert.equal(app.fileNote, 'my retained note');
+  assert.equal(app.fileDirty, true);
+  assert.equal(app.fileConflict, false);
+  assert.equal(app.drafts['duplicate:group:a.rs'].expected_revision, 2);
+  assert.equal(requests.filter(request => request.body).length, 1, 'acknowledging the latest version never saves');
+  await app.saveFile();
+  const writes = requests.filter(request => request.body);
+  assert.equal(writes[1].body.expected_revision, 2);
+  assert.equal(writes[1].body.note, 'my retained note');
+  const html = fs.readFileSync(path.join(__dirname, '../src/web/spa/index.html'), 'utf8');
+  const copyForm = html.slice(html.indexOf('@submit.prevent="saveFile"'), html.indexOf('<h3 class="font-semibold" x-text="L.allFiles"'));
+  assert.match(copyForm, /@click="reviewLatest" x-show="fileConflict"/);
+  assert.match(copyForm, /x-text="L.fileHint"/);
+  assert.match(copyForm, /x-text="L.draftHint"/);
+});
+
+test('comment conflict preserves text and token across refresh, collapse and finding navigation', async () => {
+  const { app, requests } = harness(async () => ({ status: 409 }));
+  selectGroup(app);
+  app.detail.comments = [{ id: 7, body: 'saved' }]; app.syncComments();
+  app.editComment({ currentTarget: { dataset: { v: '7' } } });
+  app.markCommentDirty({ target: { value: 'tab B draft' } });
+  await app.saveComment();
+  assert.equal(requests[0].body.expected_revision, 1);
+  assert.equal(requests[0].body.kind, 'duplicate');
+  assert.equal(requests[0].body.id, 'group');
+  assert.equal(app.commentConflict, true);
+  app.detail.revision = 2; app.detail.comments[0].body = 'tab A saved'; app.syncComments();
+  const writes = requests.length;
+  app.closeAll(); app.openAll();
+  assert.equal(requests.length, writes);
+  assert.equal(app.commentBody, 'tab B draft');
+  assert.equal(app.commentDrafts[app.commentKey].expected_revision, 1);
+  app.openFinding('other'); app.openFinding('group');
+  app.detail = detail(); app.detail.comments = [{ id: 7, body: 'tab A saved' }]; app.detail.revision = 2;
+  app.editComment({ currentTarget: { dataset: { v: '7' } } });
+  assert.equal(app.commentBody, 'tab B draft'); assert.equal(app.commentConflict, true);
+});
+
+test('stale comment deletion preserves its draft and deleted comment is unavailable', async () => {
+  let status = 409;
+  const { app, requests } = harness(async () => ({ status }));
+  selectGroup(app); app.detail.comments = [{ id: 7, body: 'saved' }]; app.syncComments();
+  app.editComment({ currentTarget: { dataset: { v: '7' } } });
+  app.markCommentDirty({ target: { value: 'retain before deleting' } });
+  await app.deleteComment();
+  assert.equal(requests[0].url.pathname, '/api/comment/delete');
+  assert.equal(requests[0].body.expected_revision, 1); assert.equal('body' in requests[0].body, false);
+  assert.equal(app.commentBody, 'retain before deleting'); assert.equal(app.commentConflict, true);
+  status = 404; await app.saveComment();
+  assert.equal(app.commentUnavailable, true); assert.equal(app.commentSaveDisabled, true);
+  const before = requests.length; await app.saveComment(); assert.equal(requests.length, before);
+  app.detail.comments = []; app.syncComments();
+  assert.equal(app.commentBody, 'retain before deleting'); assert.equal(app.commentUnavailable, true);
+});
+
+test('typing during comment edit keeps newer draft with own committed revision', async () => {
+  const saving = deferred();
+  const { app, requests } = harness(async ({ url }) => {
+    if (url.pathname === '/api/comment/update') return saving.promise;
+    if (url.pathname === '/api/finding') return { ...detail(), revision: 2, comments: [{ id: 7, body: 'sent' }] };
+    return { items: [group()], snapshot: 's2' };
+  });
+  selectGroup(app); app.detail.comments = [{ id: 7, body: 'saved' }]; app.syncComments();
+  app.editComment({ currentTarget: { dataset: { v: '7' } } });
+  app.markCommentDirty({ target: { value: 'sent' } });
+  const pending = app.saveComment(); await app.saveComment(); // duplicate submission is blocked
+  app.markCommentDirty({ target: { value: 'later typing' } });
+  saving.resolve({ revision: 2 }); await pending;
+  assert.equal(requests.filter(r => r.body).length, 1);
+  assert.equal(app.commentBody, 'later typing'); assert.equal(app.commentDirty, true);
+  assert.equal(app.commentDrafts[app.commentKey].expected_revision, 2);
+  assert.equal(app.commentConflict, false);
+});
+
+test('new comment typed during append stays a separate new draft', async () => {
+  const saving = deferred();
+  const { app } = harness(async ({ url }) => url.pathname === '/api/comment' ? saving.promise
+    : url.pathname === '/api/finding' ? { ...detail(), revision: 2, comments: [{ id: 8, body: 'sent' }] } : { items: [group()] });
+  selectGroup(app); app.syncComments();
+  app.markCommentDirty({ target: { value: 'sent' } }); const pending = app.saveComment();
+  app.markCommentDirty({ target: { value: 'another note' } });
+  saving.resolve({ comment_id: 8 }); await pending;
+  assert.equal(app.commentId, null); assert.equal(app.commentBody, 'another note'); assert.equal(app.commentDirty, true);
+});
+
+test('explicit comment reconciliation loads latest but never recreates deleted comment', async () => {
+  const { app } = harness(); selectGroup(app);
+  app.detail.comments = [{ id: 7, body: 'saved' }]; app.syncComments();
+  app.editComment({ currentTarget: { dataset: { v: '7' } } });
+  app.markCommentDirty({ target: { value: 'draft' } });
+  app.reloadAll = async () => { app.detail.revision = 5; app.detail.comments[0].body = 'newer'; app.syncComments(); };
+  await app.commentLatest();
+  assert.equal(app.commentBody, 'draft'); assert.equal(app.commentDrafts[app.commentKey].expected_revision, 5);
+  assert.equal(app.commentConflict, false);
+  app.reloadAll = async () => { app.detail.revision = 6; app.detail.comments = []; app.syncComments(); };
+  await app.commentLatest(); assert.equal(app.commentUnavailable, true);
+  assert.equal(app.commentDrafts[app.commentKey].expected_revision, 5);
+});
+
+test('decision diagnostics distinguish saved false positive from ineffective unavailable source', () => {
+  const { app } = harness(); selectGroup(app);
+  app.detail.saved_decision = { status: 'false_positive' };
+  app.detail.effective_decision = null; app.detail.review_validity = 'unavailable'; app.syncComments();
+  assert.equal(app.decisionRows[0].value, app.t('false_positive'));
+  assert.equal(app.decisionRows[1].value, app.t('noDecision'));
+  assert.equal(app.validityText, app.t('validity_unavailable'));
 });

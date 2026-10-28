@@ -199,6 +199,24 @@ corpus snapshot gained 73 such references (enum variants, `u32::MAX`,
 
 ## Known limitations tracked without an ignored test
 
+### Phase 5 paired dead-code query measurement
+
+`benchmark_language_aware_dead_candidates` in
+`crates/mct-cli/tests/review_decisions.rs` is intentionally ignored in ordinary
+CI: it emits a 51-sample paired debug timing comparison, not a timing gate.
+Run explicitly with `cargo test -p mct-cli --test review_decisions
+benchmark_language_aware_dead_candidates -- --ignored --nocapture` on an idle
+host. Its synthetic precision/recall applies only to the labeled homonym fixture;
+broader dead-code accuracy, release profiling and platform acceptance remain open.
+
+### Opt-in performance measurement
+
+`coordination_fixture_benchmark`
+(`crates/mct-cli/src/web/coordination_bench.rs`) is deliberately ignored in the
+correctness suite. Run it explicitly with `--ignored --exact --nocapture` on
+both the baseline and candidate; it measures latency without timing assertions.
+This is a manual measurement, not an unresolved correctness failure.
+
 Listed in `CHANGELOG.md` (0.2.0, "Known limitations") and tracked in GitHub
 issues. They have no `#[ignore]`d test, so the ledger check does not require
 them here; they are recorded so this file does not look complete when it is not.
@@ -214,3 +232,10 @@ queried.
   partially indexed: issue #51.
 - Fuzzing closes specific crash classes but is not a claim that the parsers are
   free of vulnerabilities: issue #22.
+
+Phase8.1 manual report (not a product bug):
+`duplicate_mcp_workflow_benchmark` in CLI web/tests_identity.rs is explicitly
+ignored with `not a bug` because it emits machine-dependent timing/payload
+measurements. It was executed manually in this phase; reproduce using the
+command in storage-reliability-verification.md. Correctness regressions for
+this capability run normally and are not ignored.

@@ -117,3 +117,74 @@ The review flow is read-only and writes reports under `.review-output/`. See
 `review`, `review-parallel` and `review-cleanup`. Run `./scripts/run.sh` for
 the full subcommand list. `./scripts/help.sh [category]` lists commands by
 category.
+
+
+## Phase 9 isolated acceptance
+
+After `cargo build --locked -p mct-cli -p mct-mcp-server`, run
+`python3 scripts/phase9-profile.py --bin-dir target/debug --samples 5`.
+It creates and removes only its own temporary fixtures, drives CLI indexing and
+real JSON-RPC MCP stdio, verifies no-change/incremental/rename/delete behavior,
+and prints TOON timing/size/estimated transport-token evidence. Paths supplied
+through --bin-dir identify the tested candidate; hashes are included. Python 3
+is required; use `py -3` on Windows. Resource counters are aggregate child-process
+CPU, maximum child RSS (OS units identified) and block operations, not measured
+physical bytes or per-request CPU. Initial indexing has one sample per fixture.
+
+For native browser acceptance, run
+`python3 scripts/phase9-native-dashboard.py --bin-dir target/debug` in a native
+Terminal/PowerShell. Keep its private URL secret; open it manually in Safari or
+another explicitly authorized browser. The launcher only stops its own child
+and removes its own temporary fixture on exit. Do not put real notes there.
+Keep it running until desktop/tablet/375px, keyboard/focus/live announcements,
+drafts, two-tab review/comment409 and network evidence have been recorded.
+See storage-reliability-verification.md Phase9 for the gate matrix. Neither
+script touches the primary project's databases or installed servers. These
+portable Python scripts need no duplicated Unix/PowerShell implementation.
+
+### Phase 9.1 native watcher acceptance
+
+Run `cargo build --locked -p mct-mcp-server --bin mct-mcp-server` separately
+from tests, then `python3 scripts/phase91-watcher.py --bin-dir target/debug`.
+The default10rounds exercise creation/modification/rename/deletion followed by
+a64file burst. MCP queries poll within an8second bound; reconciliation600s
+is deliberately outside that bound to test native notifications. The exact
+child logs the selected backend and its executable digest. A failure prints
+only the disposable fixture's bounded diagnostic tail. No production index
+or installed service is used. On Windows pass the same target/debug directory;
+the script selects the .exe automatically.
+
+Run again with `--reconcile-seconds 60 --fallback-only` to test hybrid recovery where native
+notifications may be absent (one observation, up to68seconds). That result must not be described as pure native
+event delivery. Its `recovery_path` line reports `event` when the file appeared
+within the8second event bound and `reconciliation` only when it appeared later;
+an `event` result proves native delivery, not the fallback. macOS Cargo tests unify a kqueue dev-feature; a normal build
+and runtime backend diagnostic are required to distinguish FSEvents. Keep
+FAIL results even when fallback or later retries pass. This is a short bounded
+acceptance workload, not long-duration soak/overflow/cancellation coverage.
+
+### Phase 9.1 dashboard HTTP delivery
+
+`python3 scripts/phase91-http-assets.py --bin-dir target/debug` serves a
+disposable fixture with that `mct-cli`, then checks that `spa.css`, `spa.js` and
+`alpine.js` are byte-identical to the checkout's sources, that the shell inlines
+the sprite and substitutes its CSRF value, and that the security headers are
+present. It also checks that a wrong link token gets 404 and that a JSON write
+without the CSRF header, or with a foreign Origin, gets 403. It prints the link
+with its token redacted and stops only its own server. Output is TOON; any
+mismatch exits 1. This is HTTP evidence, not browser rendering or accessibility
+acceptance.
+
+Keep normal candidate builds and test artifacts in separate target directories.
+For the full gate use:
+
+```sh
+MCT_CHECK_TARGET_DIR=target/phase91-isolated \
+MCT_CHECK_LOG_DIR=target/phase91-isolated-logs \
+scripts/unix/check.sh --isolated-target --no-fail-fast
+```
+
+Leave native normal builds in target/debug. Do not override the check target back to target
+while normal builds run: Cargo's compilation lock does not prevent a normal
+build replacing CARGO_BIN_EXE while already-running integration tests spawn it.
+This can select FSEvents instead of the macOS test's kqueue backend.

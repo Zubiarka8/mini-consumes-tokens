@@ -1511,7 +1511,24 @@ pub fn context_pack_toon(pack: &crate::server::ContextPack, limit: usize) -> Str
 /// Carries a fixed caveat: this is a heuristic over indexed relations, not
 /// real export/dynamic-dispatch analysis (see the tool's own description).
 pub fn find_dead_code(path: &str, hits: &[SymbolListEntry], offset: usize, limit: usize) -> String {
+    find_dead_code_with_suppressed(path, hits, offset, limit, 0)
+}
+
+/// Renders actionable candidates and the number removed by verified saved
+/// review decisions. Suppressed rows are counted before output pagination.
+pub fn find_dead_code_with_suppressed(
+    path: &str,
+    hits: &[SymbolListEntry],
+    offset: usize,
+    limit: usize,
+    suppressed: usize,
+) -> String {
     if hits.is_empty() {
+        if suppressed > 0 {
+            return format!(
+                "No actionable dead-code candidates found under `{path}`; {suppressed} candidate(s) suppressed by valid saved review decisions."
+            );
+        }
         return format!("No dead-code candidates found under `{path}`.");
     }
     let total = hits.len();
@@ -1531,11 +1548,12 @@ pub fn find_dead_code(path: &str, hits: &[SymbolListEntry], offset: usize, limit
         }
     }
     format!(
-        "{total} dead-code candidate(s) under `{path}`{}:\n\
-         (heuristic: zero indexed references found for this name anywhere in the project — \
-         does not account for dynamic dispatch, reflection, or a genuinely public API with no \
+        "{total} dead-code candidate(s) under `{path}`{}{}:\n\
+         (heuristic: zero indexed references found for this name in its target language — \
+         does not account for dynamic dispatch, reflection, FFI, or a genuinely public API with no \
          in-repo caller yet; verify before deleting)\n\n{}",
         list_note(total, offset, shown.len(), &body),
+        suppression_note(suppressed),
         body.body
     )
 }
@@ -1549,7 +1567,25 @@ pub fn find_dead_code_toon(
     offset: usize,
     limit: usize,
 ) -> String {
+    find_dead_code_toon_with_suppressed(path, hits, offset, limit, 0)
+}
+
+/// TOON rendering with the count of valid review decisions applied before
+/// pagination. This keeps the wire schema unchanged while distinguishing an
+/// empty analysis result from a fully reviewed result.
+pub fn find_dead_code_toon_with_suppressed(
+    path: &str,
+    hits: &[SymbolListEntry],
+    offset: usize,
+    limit: usize,
+    suppressed: usize,
+) -> String {
     if hits.is_empty() {
+        if suppressed > 0 {
+            return format!(
+                "No actionable dead-code candidates found under `{path}`; {suppressed} candidate(s) suppressed by valid saved review decisions."
+            );
+        }
         return format!("No dead-code candidates found under `{path}`.");
     }
     let total = hits.len();
@@ -1567,17 +1603,26 @@ pub fn find_dead_code_toon(
         })
         .collect();
     format!(
-        "{total} dead-code candidate(s) under `{path}`{}:\n\
-         (heuristic: zero indexed references found for this name anywhere in the project — \
-         does not account for dynamic dispatch, reflection, or a genuinely public API with no \
+        "{total} dead-code candidate(s) under `{path}`{}{}:\n\
+         (heuristic: zero indexed references found for this name in its target language — \
+         does not account for dynamic dispatch, reflection, FFI, or a genuinely public API with no \
          in-repo caller yet; verify before deleting)\n\n{}",
         truncation_note(total, offset, shown.len()),
+        suppression_note(suppressed),
         encode_table(
             "candidates",
             &["kind", "name", "path", "line", "end_line"],
             &rows
         )
     )
+}
+
+fn suppression_note(suppressed: usize) -> String {
+    if suppressed == 0 {
+        String::new()
+    } else {
+        format!("; {suppressed} suppressed by valid saved review decisions")
+    }
 }
 
 /// Most external (unresolved) imports `get_dependency_graph` lists.
@@ -1824,6 +1869,16 @@ pub fn index_status(status: &IndexStatus, verbose_dependencies: bool) -> String 
     match status.last_indexed_at {
         Some(ts) => out.push_str(&format!("Last indexed at unix timestamp {ts}.\n")),
         None => out.push_str("Never indexed yet.\n"),
+    }
+    out.push_str(&format!(
+        "Published index generation {}.\n",
+        status.published_generation
+    ));
+    match status.last_full_reconciled_at {
+        Some(ts) => out.push_str(&format!(
+            "Last successful full reconciliation at unix timestamp {ts}.\n"
+        )),
+        None => out.push_str("No successful full reconciliation recorded yet.\n"),
     }
     if status.languages.is_empty() {
         out.push_str("No languages indexed yet.\n");
@@ -2659,6 +2714,8 @@ mod index_status_tests {
             total_files: 2,
             total_symbols: 10,
             last_indexed_at: Some(1_700_000_000),
+            published_generation: 4,
+            last_full_reconciled_at: Some(1_700_000_000),
             unsupported_languages: vec!["lua".to_string()],
             syntax_errors: Vec::new(),
             read_failures: Vec::new(),
@@ -2735,6 +2792,8 @@ mod index_status_tests {
             head(&summary),
             "2 files indexed, 10 symbols total.\n\
              Last indexed at unix timestamp 1700000000.\n\
+             Published index generation 4.\n\
+             Last successful full reconciliation at unix timestamp 1700000000.\n\
              Coverage by language:\n\
              \x20 rust: 2 files, 10 symbols\n\
              Languages seen but not yet supported: lua\n"
@@ -2896,6 +2955,18 @@ mod dead_code_tests {
     fn no_candidates_says_so_instead_of_an_empty_body() {
         assert_eq!(
             find_dead_code("src", &[], 0, 50),
+            "No dead-code candidates found under `src`."
+        );
+    }
+
+    #[test]
+    fn toon_distinguishes_empty_analysis_from_review_suppression() {
+        assert_eq!(
+            find_dead_code_toon_with_suppressed("src", &[], 0, 50, 2),
+            "No actionable dead-code candidates found under `src`; 2 candidate(s) suppressed by valid saved review decisions."
+        );
+        assert_eq!(
+            find_dead_code_toon_with_suppressed("src", &[], 0, 50, 0),
             "No dead-code candidates found under `src`."
         );
     }

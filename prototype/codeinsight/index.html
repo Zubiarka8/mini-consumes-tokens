@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="es" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CodeInsight Local · Código duplicado</title>
+<script src="https://cdn.tailwindcss.com/3.4.16"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          bg: 'rgb(var(--bg) / <alpha-value>)',
+          panel: 'rgb(var(--panel) / <alpha-value>)',
+          panel2: 'rgb(var(--panel2) / <alpha-value>)',
+          line: 'rgb(var(--line) / <alpha-value>)',
+          ink: 'rgb(var(--ink) / <alpha-value>)',
+          mute: 'rgb(var(--mute) / <alpha-value>)',
+          brand: 'rgb(var(--brand) / <alpha-value>)',
+          ok: 'rgb(var(--ok) / <alpha-value>)',
+          warn: 'rgb(var(--warn) / <alpha-value>)',
+          bad: 'rgb(var(--bad) / <alpha-value>)',
+          info: 'rgb(var(--info) / <alpha-value>)'
+        },
+        fontFamily: {
+          sans: ['Inter', 'system-ui', 'sans-serif'],
+          mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace']
+        }
+      }
+    }
+  };
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root { --bg:9 13 24; --panel:15 22 38; --panel2:20 29 49; --line:34 46 72; --ink:226 232 244; --mute:130 144 172;
+          --brand:139 92 246; --ok:34 197 94; --warn:245 158 11; --bad:239 68 68; --info:59 130 246; }
+  html.light { --bg:243 245 250; --panel:255 255 255; --panel2:240 243 250; --line:215 222 236; --ink:20 27 45; --mute:100 114 140;
+               --brand:109 62 220; --ok:22 150 70; --warn:200 120 0; --bad:210 40 40; --info:30 100 220; }
+  body { background: rgb(var(--bg)); color: rgb(var(--ink)); }
+  .code-row { white-space: pre; }
+  .scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+  .scroll-thin::-webkit-scrollbar-thumb { background: rgb(var(--line)); border-radius: 8px; }
+  .tok-k { color: #c792ea; } .tok-s { color: #a5d6a7; } .tok-c { color: #6b7a99; font-style: italic; } .tok-f { color: #82aaff; }
+  html.light .tok-k { color: #7c3aed; } html.light .tok-s { color: #15803d; } html.light .tok-f { color: #1d4ed8; }
+  [x-cloak] { display: none !important; }
+</style>
+</head>
+<body class="font-sans text-[13px] antialiased" x-data="app()" x-cloak @keydown.window.escape="menu = null">
+
+<div class="flex min-h-screen flex-col lg:h-screen lg:overflow-hidden">
+
+  <!-- Top bar -->
+  <header class="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-line bg-panel px-4 py-2">
+    <div class="flex items-center gap-2 font-semibold">
+      <span class="grid h-7 w-7 place-items-center rounded-lg bg-brand text-white"><i data-lucide="scan-search" class="h-4 w-4"></i></span>
+      CodeInsight Local <span class="rounded bg-panel2 px-1.5 py-0.5 text-[10px] text-mute">v0.1.0</span>
+    </div>
+    <nav class="flex gap-1">
+      <template x-for="n in nav" :key="n.label">
+        <a href="#" @click.prevent="view = n.v" class="flex items-center gap-2 rounded-lg px-3 py-2 text-mute transition hover:text-ink"
+           :class="view === n.v && 'bg-brand/15 text-brand'"><i :data-lucide="n.icon" class="h-4 w-4"></i><span x-text="n.label"></span></a>
+      </template>
+    </nav>
+    <div class="ml-auto flex flex-wrap items-center gap-4 text-mute">
+      <span class="flex items-center gap-2">Proyecto: <span class="text-ink">mini-consumes-tokens</span></span>
+      <span>Commit: <code class="font-mono text-ink">a1b2c3d</code></span>
+      <span>Último análisis: <span class="text-ink">12 abr 2025, 16:42</span></span>
+      <button class="flex items-center gap-1 rounded-md border border-line px-2 py-1 text-ink hover:bg-panel2"><i data-lucide="globe" class="h-4 w-4"></i>Español</button>
+      <button @click="toggleTheme()" class="flex items-center gap-1 rounded-md border border-line px-2 py-1 text-ink hover:bg-panel2" :aria-label="dark ? 'Modo claro' : 'Modo oscuro'">
+        <i :data-lucide="dark ? 'moon' : 'sun'" class="h-4 w-4"></i><span x-text="dark ? 'Oscuro' : 'Claro'"></span></button>
+      <button class="flex items-center gap-1 text-ink hover:text-brand"><i data-lucide="settings" class="h-4 w-4"></i>Ajustes</button>
+    </div>
+  </header>
+
+  <!-- Obsidian view -->
+  <section x-show="view === 'obsidian'" class="flex-1 space-y-3 overflow-y-auto p-3 scroll-thin">
+    <div class="flex items-center gap-3"><span class="grid h-10 w-10 place-items-center rounded-xl bg-brand/20 text-brand"><i data-lucide="network" class="h-5 w-5"></i></span>
+      <div><h1 class="text-lg font-semibold">Obsidian · Mapa de relaciones</h1><p class="text-mute">Notas generadas a partir del índice de símbolos del proyecto.</p></div></div>
+    <div class="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
+      <template x-for="s in vault" :key="s.l"><div class="rounded-xl border border-line bg-panel p-3"><div class="text-2xl font-bold" x-text="s.v"></div><div class="text-[11px] uppercase tracking-wide text-mute" x-text="s.l"></div></div></template>
+    </div>
+    <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div class="rounded-xl border border-line bg-panel">
+        <div class="flex items-center justify-between border-b border-line px-3 py-2"><h2 class="font-semibold">Grafo de notas</h2><span class="text-[11px] text-mute">Pasa el ratón sobre un nodo · clic para abrir la nota</span></div>
+        <div class="relative h-[460px]"><canvas id="graph" class="h-full w-full"></canvas>
+          <div x-show="gHover" class="pointer-events-none absolute left-3 top-3 rounded-md bg-ink px-2 py-1 font-mono text-[11px] text-bg" x-text="gHover"></div></div>
+      </div>
+      <div class="flex flex-col rounded-xl border border-line bg-panel">
+        <div class="border-b border-line p-3"><input x-model="noteQ" type="search" placeholder="Buscar nota o símbolo…" class="w-full rounded-md border border-line bg-panel2 px-3 py-2 outline-none focus:border-brand"></div>
+        <ul class="scroll-thin max-h-[400px] flex-1 space-y-1.5 overflow-y-auto p-2">
+          <template x-for="n in notes.filter(n => (n.name + n.path).toLowerCase().includes(noteQ.toLowerCase()))" :key="n.name">
+            <li class="rounded-lg border border-line p-2.5 hover:bg-panel2"><div class="flex items-center gap-2"><span class="rounded bg-brand/15 px-1.5 py-0.5 text-[10px] text-brand" x-text="n.kind"></span><span class="rounded bg-panel2 px-1.5 py-0.5 text-[10px] text-mute" x-text="n.lang"></span><span class="ml-auto text-[11px] text-mute" x-text="n.links + ' enlaces'"></span></div>
+              <p class="mt-1 font-mono font-medium" x-text="n.name"></p><p class="truncate font-mono text-[11px] text-info" x-text="n.path"></p></li></template>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Dead code view -->
+  <section x-show="view === 'dead'" class="flex-1 space-y-3 overflow-y-auto p-3 scroll-thin">
+    <div class="flex flex-wrap items-center gap-3"><span class="grid h-10 w-10 place-items-center rounded-xl bg-bad/20 text-bad"><i data-lucide="file-x" class="h-5 w-5"></i></span>
+      <div><h1 class="text-lg font-semibold">Código muerto</h1><p class="text-mute">Símbolos sin referencias en el índice. Revisa cada uno antes de borrar.</p></div>
+      <input x-model="deadQ" type="search" placeholder="Filtrar por nombre o ruta…" class="ml-auto w-full rounded-md border border-line bg-panel px-3 py-2 outline-none focus:border-brand sm:w-72"></div>
+    <div class="flex flex-wrap gap-2">
+      <template x-for="f in ['Todos', ...deadStates]" :key="f"><button @click="deadF = f" class="rounded-full border px-3 py-1.5 transition" :class="deadF === f ? 'border-brand bg-brand/15 text-brand' : 'border-line text-mute hover:text-ink'" x-text="f + ' · ' + (f === 'Todos' ? dead.length : dead.filter(d => d.state === f).length)"></button></template>
+    </div>
+    <ul class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <template x-for="d in deadList" :key="d.name">
+        <li class="rounded-xl border border-line bg-panel p-4">
+          <div class="mb-2 flex flex-wrap items-center gap-2"><span class="rounded bg-brand/15 px-2 py-0.5 text-[11px] text-brand" x-text="d.kind"></span><span class="rounded bg-panel2 px-2 py-0.5 text-[11px] text-mute" x-text="d.lang"></span>
+            <span class="ml-auto rounded px-2 py-0.5 text-[11px] font-medium" :class="deadChip(d.state)" x-text="d.state"></span></div>
+          <h3 class="font-mono text-base font-semibold" x-text="d.name"></h3>
+          <p class="mt-0.5 truncate font-mono text-[12px] text-mute" x-text="d.path"></p>
+          <div class="mt-3 grid grid-cols-3 gap-1.5 text-[12px] font-medium">
+            <button @click="d.state = 'Confirmado'" class="rounded-md bg-bad/15 py-1.5 text-bad hover:bg-bad/25">Confirmar</button>
+            <button @click="d.state = 'Falso positivo'" class="rounded-md bg-ok/15 py-1.5 text-ok hover:bg-ok/25">Falso positivo</button>
+            <button @click="d.state = 'Ignorado'" class="rounded-md bg-mute/15 py-1.5 text-mute hover:bg-mute/25">Ignorar</button></div>
+        </li>
+      </template>
+    </ul>
+    <p x-show="!deadList.length" class="rounded-xl border border-dashed border-line p-8 text-center text-mute">Nada coincide con el filtro.</p>
+  </section>
+
+  <div x-show="view === 'dup'" class="flex flex-1 flex-col lg:min-h-0">
+  <!-- Title row -->
+  <div class="flex flex-wrap items-center gap-4 border-b border-line px-4 py-3">
+    <span class="grid h-10 w-10 place-items-center rounded-xl bg-brand/20 text-brand"><i data-lucide="copy" class="h-5 w-5"></i></span>
+    <div class="min-w-0">
+      <h1 class="flex flex-wrap items-center gap-2 text-lg font-semibold">Código duplicado <i data-lucide="chevron-right" class="h-4 w-4 text-mute"></i> DUP-017 <i data-lucide="chevron-right" class="h-4 w-4 text-mute"></i> Vista completa</h1>
+      <p class="text-mute">Grupo de código con contenido muy similar en <b class="text-ink" x-text="occ.length"></b> apariciones · Archivos grandes (320–540 líneas) · Similitud media: <b class="text-bad" x-text="avg + '%'"></b></p>
+    </div>
+    <div class="ml-auto flex flex-wrap items-center gap-2">
+      <div class="relative">
+        <button @click="menu = menu === 'status' ? null : 'status'" class="flex items-center gap-2 rounded-lg px-3 py-2 font-medium" :class="chip(group.status)">
+          <i data-lucide="eye" class="h-4 w-4"></i><span x-text="group.status"></span><i data-lucide="chevron-down" class="h-4 w-4"></i></button>
+        <div x-show="menu === 'status'" @click.outside="menu = null" class="absolute right-0 z-20 mt-1 w-44 rounded-lg border border-line bg-panel p-1 shadow-xl">
+          <template x-for="s in statuses" :key="s"><button @click="group.status = s; menu = null; log('Estado del grupo → ' + s)" class="block w-full rounded px-3 py-2 text-left hover:bg-panel2" x-text="s"></button></template>
+        </div>
+      </div>
+      <button class="flex items-center gap-2 rounded-lg border border-line px-3 py-2 hover:bg-panel2"><i data-lucide="arrow-left" class="h-4 w-4"></i>Volver al listado</button>
+      <button class="flex items-center gap-2 rounded-lg border border-line px-3 py-2 hover:bg-panel2"><i data-lucide="share-2" class="h-4 w-4"></i>Ver en el grafo</button>
+      <button class="flex items-center gap-2 rounded-lg border border-line px-3 py-2 hover:bg-panel2"><i data-lucide="square-arrow-out-up-right" class="h-4 w-4"></i>Abrir en el editor</button>
+    </div>
+  </div>
+
+  <!-- Workspace -->
+  <main class="grid flex-1 gap-3 p-3 lg:min-h-0 lg:grid-cols-[290px_minmax(0,1fr)] xl:grid-cols-[290px_minmax(0,1fr)_340px]">
+
+    <!-- Left: occurrences + matrix -->
+    <aside class="flex flex-col gap-3 lg:min-h-0">
+      <section class="flex min-h-0 flex-1 flex-col rounded-xl border border-line bg-panel">
+        <div class="flex items-center justify-between px-3 py-2.5">
+          <h2 class="font-semibold">Apariciones del grupo (<span x-text="occ.length"></span>)</h2>
+          <select x-model="order" class="rounded-md border border-line bg-panel2 px-2 py-1 text-mute">
+            <option value="id">Orden: índice</option><option value="sim">Orden: similitud</option></select>
+        </div>
+        <ul class="scroll-thin min-h-0 flex-1 space-y-1.5 overflow-y-auto px-2 pb-2">
+          <template x-for="o in sorted" :key="o.id">
+            <li>
+              <button @click="pick(o.id, $event.shiftKey)" class="flex w-full items-start gap-3 rounded-lg border p-2.5 text-left transition hover:bg-panel2"
+                      :class="o.id === a ? 'border-brand bg-brand/10' : (o.id === b ? 'border-info bg-info/10' : 'border-line')">
+                <span class="mt-1 w-6 shrink-0 text-center text-base font-semibold" x-text="'#' + o.id"></span>
+                <span class="min-w-0 flex-1">
+                  <span class="block truncate font-mono text-info" x-text="o.path"></span>
+                  <span class="block font-medium" x-text="o.fn + '()'"></span>
+                  <span class="block text-mute" x-text="'Líneas: ' + o.from + '–' + (o.from + 22) + ' (' + o.size + ')'"></span>
+                </span>
+                <span class="flex shrink-0 flex-col items-end gap-1.5">
+                  <span class="font-semibold" :class="o.sim >= 97 ? 'text-bad' : 'text-warn'" x-text="o.sim + '%'"></span>
+                  <span class="rounded px-2 py-0.5 text-[11px] font-medium" :class="chip(o.status)" x-text="o.status"></span>
+                </span>
+              </button>
+            </li>
+          </template>
+        </ul>
+        <p class="border-t border-line px-3 py-2 text-[11px] text-mute">Clic = aparición A · Shift+clic = aparición B</p>
+      </section>
+
+      <section class="rounded-xl border border-line bg-panel p-3">
+        <h2 class="mb-2 font-semibold">Matriz de similitud</h2>
+        <div class="grid grid-cols-8 gap-[3px] text-center text-[11px]">
+          <div></div>
+          <template x-for="o in occ" :key="'h' + o.id"><div class="py-1 text-mute" x-text="'#' + o.id"></div></template>
+          <template x-for="r in occ" :key="'r' + r.id">
+            <div class="contents">
+              <div class="py-1.5 pr-1 text-right text-mute" x-text="'#' + r.id"></div>
+              <template x-for="c in occ" :key="r.id + '-' + c.id">
+                <button @click="a = r.id; b = c.id" :disabled="r.id === c.id" class="rounded py-1.5 font-medium transition hover:ring-2 hover:ring-brand"
+                        :style="cell(r.id, c.id)" :title="'#' + r.id + ' ↔ #' + c.id" x-text="r.id === c.id ? '—' : sim(r.id, c.id) + '%'"></button>
+              </template>
+            </div>
+          </template>
+        </div>
+      </section>
+    </aside>
+
+    <!-- Center: compare -->
+    <section class="flex flex-col gap-3 lg:min-h-0 lg:overflow-y-auto scroll-thin">
+      <div class="rounded-xl border border-line bg-panel p-3">
+        <div class="mb-2 flex items-center justify-between"><h2 class="font-semibold">Seleccionar ocurrencia para comparar</h2>
+          <button @click="a = 1; b = 4" class="text-mute hover:text-ink" aria-label="Restablecer"><i data-lucide="rotate-ccw" class="h-4 w-4"></i></button></div>
+        <div class="scroll-thin flex gap-2 overflow-x-auto pb-1">
+          <template x-for="o in occ" :key="o.id">
+            <button @click="pick(o.id, $event.shiftKey)" class="min-w-[112px] flex-1 rounded-lg border px-3 py-2 text-left transition hover:bg-panel2"
+                    :class="o.id === a ? 'border-brand bg-brand/10' : (o.id === b ? 'border-info bg-info/10' : 'border-line')">
+              <span class="flex items-center justify-between"><b x-text="'#' + o.id"></b><span class="font-semibold text-bad" x-text="o.sim + '%'"></span></span>
+              <span class="block truncate font-medium" x-text="o.file"></span>
+              <span class="block text-mute" x-text="o.from + '-' + (o.from + 22)"></span>
+            </button>
+          </template>
+        </div>
+        <div class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-line pt-3">
+          <span class="text-mute">Comparación:</span>
+          <span class="rounded-md border border-line bg-panel2 px-2 py-1 font-mono" x-text="'#' + a + ' ' + A.file + '  ↔  #' + b + ' ' + B.file"></span>
+          <span class="text-mute">Vista:</span>
+          <div class="flex overflow-hidden rounded-md border border-line" role="group">
+            <template x-for="m in ['2 columnas','Unificada']" :key="m">
+              <button @click="mode = m" class="px-3 py-1 transition" :class="mode === m ? 'bg-brand text-white' : 'hover:bg-panel2'" x-text="m"></button></template>
+          </div>
+          <label class="flex cursor-pointer items-center gap-2"><input type="checkbox" x-model="sync" class="peer sr-only">
+            <span class="h-5 w-9 rounded-full bg-line p-0.5 transition peer-checked:bg-brand"><span class="block h-4 w-4 rounded-full bg-white transition" :class="sync && 'translate-x-4'"></span></span>Sincronizar scroll</label>
+          <label class="flex cursor-pointer items-center gap-2"><input type="checkbox" x-model="onlyDiff" class="accent-violet-500">Mostrar solo diferencias</label>
+          <label class="flex cursor-pointer items-center gap-2"><input type="checkbox" x-model="fold" class="accent-violet-500">Plegar bloques idénticos</label>
+          <div class="ml-auto flex items-center gap-3 text-[11px] text-mute">
+            <span class="flex items-center gap-1"><i class="h-2.5 w-2.5 rounded-sm bg-warn/60"></i>Cambio</span>
+            <span class="flex items-center gap-1"><i class="h-2.5 w-2.5 rounded-sm bg-bad/60"></i>Clave</span>
+            <span class="flex items-center gap-1"><i class="h-2.5 w-2.5 rounded-sm bg-ok/60"></i>Equivalente</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid gap-3" :class="mode === '2 columnas' ? 'md:grid-cols-2' : ''">
+        <template x-for="(side, si) in (mode === '2 columnas' ? [0, 1] : [0])" :key="si + mode">
+          <article class="overflow-hidden rounded-xl border border-line bg-panel">
+            <header class="flex flex-wrap items-center gap-3 border-b border-line px-3 py-2">
+              <span class="grid h-8 w-8 place-items-center rounded-md text-[11px] font-bold text-white" :class="(si ? B : A).lang === 'rs' ? 'bg-orange-500' : 'bg-info'" x-text="(si ? B : A).lang.toUpperCase()"></span>
+              <div class="min-w-0 flex-1">
+                <p class="truncate font-medium"><span x-text="'#' + (si ? b : a)"></span> <span class="font-mono" x-text="(si ? B : A).path"></span></p>
+                <p class="text-[11px] text-mute" x-text="'Líneas ' + (si ? B : A).from + '–' + ((si ? B : A).from + 22) + ' de ' + (si ? B : A).size + ' · Función: ' + (si ? B : A).fn"></p>
+              </div>
+              <button @click="copy(si ? B : A)" class="flex items-center gap-1 rounded-md border border-line px-2 py-1 hover:bg-panel2"><i data-lucide="copy" class="h-3.5 w-3.5"></i>Copiar</button>
+              <span class="font-semibold text-bad" x-text="(si ? B : A).sim + '%'"></span>
+              <span class="rounded px-2 py-0.5 text-[11px] font-medium" :class="chip((si ? B : A).status)" x-text="(si ? B : A).status"></span>
+            </header>
+            <div :id="'pane' + si" @scroll="onScroll(si, $event.target)" class="scroll-thin h-[380px] overflow-auto bg-bg/60 py-2 font-mono text-[12.5px] leading-6">
+              <template x-for="(r, ri) in rows(si ? B : A)" :key="ri">
+                <div class="code-row flex px-1" :class="r.fold ? 'text-mute italic bg-panel2/60' : rowCls(r.t)">
+                  <span class="w-10 shrink-0 select-none pr-3 text-right text-mute/70" x-text="r.fold ? '' : r.n"></span>
+                  <span x-show="!r.fold" x-html="hl(r.s)"></span>
+                  <span x-show="r.fold" x-text="'⋯ ' + r.count + ' líneas idénticas'"></span>
+                </div>
+              </template>
+            </div>
+          </article>
+        </template>
+      </div>
+
+      <!-- Bottom tabs -->
+      <section class="rounded-xl border border-line bg-panel">
+        <div class="flex gap-1 overflow-x-auto border-b border-line p-1.5">
+          <template x-for="t in ['Resumen del grupo','Mapa de coincidencias','Diferencias por bloques','Archivos y módulos','Contexto del proyecto']" :key="t">
+            <button @click="btab = t" class="whitespace-nowrap rounded-md px-3 py-1.5 transition" :class="btab === t ? 'bg-brand/15 text-brand' : 'text-mute hover:text-ink'" x-text="t"></button></template>
+        </div>
+        <div class="grid gap-4 p-4 md:grid-cols-[1.3fr_1fr_1fr]" x-show="btab === 'Resumen del grupo'">
+          <div>
+            <h3 class="mb-3 font-semibold">Información general</h3>
+            <div class="grid grid-cols-3 gap-3 sm:grid-cols-5">
+              <template x-for="s in stats" :key="s.l"><div><div class="text-xl font-bold" :class="s.c" x-text="s.v"></div><div class="text-[11px] leading-tight text-mute" x-text="s.l"></div></div></template>
+            </div>
+            <p class="mt-4 flex gap-2 rounded-lg bg-info/10 p-3 text-mute"><i data-lucide="info" class="mt-0.5 h-4 w-4 shrink-0 text-info"></i>Este grupo contiene la misma lógica de normalización de rutas en 7 archivos de diferentes módulos. Requiere revisión humana para decidir si se puede extraer una implementación común o si debe mantenerse por separado.</p>
+          </div>
+          <div>
+            <h3 class="mb-3 font-semibold">Distribución por módulo</h3>
+            <ul class="space-y-2">
+              <template x-for="m in modules" :key="m.n"><li class="flex items-center gap-2"><i class="h-2.5 w-2.5 rounded-sm" :style="'background:' + m.c"></i><span class="w-16" x-text="m.n"></span>
+                <span class="h-1.5 flex-1 rounded-full bg-line"><i class="block h-full rounded-full" :style="'width:' + m.v * 25 + '%;background:' + m.c"></i></span><span class="w-16 text-right text-mute" x-text="m.v + ' (' + Math.round(m.v / 7 * 100) + '%)'"></span></li></template>
+            </ul>
+          </div>
+          <div>
+            <h3 class="mb-3 font-semibold">Tamaño de los archivos</h3>
+            <ul class="space-y-2">
+              <template x-for="o in occ" :key="o.id"><li class="flex items-center gap-2 text-[12px]"><span class="w-5 text-mute" x-text="'#' + o.id"></span><span class="w-16 truncate" x-text="o.file"></span>
+                <span class="h-1.5 flex-1 rounded-full bg-line"><i class="block h-full rounded-full bg-info" :style="'width:' + o.size / 5.4 + '%'"></i></span><span class="w-16 text-right text-mute" x-text="o.size + ' líneas'"></span></li></template>
+            </ul>
+          </div>
+        </div>
+        <p x-show="btab !== 'Resumen del grupo'" class="p-6 text-mute" x-text="btab + ' — vista pendiente de implementar en esta demo.'"></p>
+      </section>
+    </section>
+
+    <!-- Right: review -->
+    <aside class="flex flex-col gap-3 lg:min-h-0 lg:overflow-y-auto scroll-thin md:col-span-2 xl:col-span-1">
+      <div class="rounded-xl border border-line bg-panel">
+        <div class="flex gap-1 border-b border-line p-1.5">
+          <template x-for="t in rtabs" :key="t.k"><button @click="rtab = t.k" class="flex-1 whitespace-nowrap rounded-md px-2 py-1.5 transition" :class="rtab === t.k ? 'bg-brand/15 text-brand' : 'text-mute hover:text-ink'" x-text="t.k + ' (' + t.n() + ')'"></button></template>
+        </div>
+
+        <div class="space-y-4 p-4" x-show="rtab === 'Evidencias'">
+          <div>
+            <h3 class="mb-2 font-semibold">Estado y decisión</h3>
+            <div class="grid grid-cols-2 gap-3">
+              <label class="text-mute">Estado actual
+                <select x-model="A.status" @change="log('#' + a + ' → ' + A.status)" class="mt-1 w-full rounded-md border border-line bg-panel2 px-2 py-2 text-ink"><template x-for="s in statuses" :key="s"><option x-text="s"></option></template></select></label>
+              <label class="text-mute">Decisión
+                <select x-model="decision" @change="log('Decisión → ' + decision)" class="mt-1 w-full rounded-md border border-line bg-panel2 px-2 py-2 text-ink">
+                  <option>Pendiente de decidir</option><option>Extraer a utilidad común</option><option>Mantener duplicado</option><option>Eliminar duplicado</option></select></label>
+            </div>
+          </div>
+          <div><h3 class="mb-1 font-semibold">Resumen del hallazgo</h3>
+            <p class="leading-relaxed text-mute">Se encontró una implementación muy similar de normalización de rutas en 7 archivos de diferentes módulos. La lógica, estructura y validaciones coinciden en un 91–100%. Parece ser la misma funcionalidad copiada con pequeñas variaciones de sintaxis y nombres de variables.</p></div>
+          <div><h3 class="mb-2 font-semibold">Evidencias principales</h3>
+            <ol class="space-y-2"><template x-for="(e, i) in evidence" :key="i"><li class="flex items-center gap-3"><span class="grid h-5 w-5 place-items-center rounded bg-panel2 text-[11px] text-mute" x-text="i + 1"></span><span x-text="e"></span></li></template></ol></div>
+        </div>
+
+        <div class="space-y-3 p-4" x-show="rtab === 'Historial'"><template x-for="h in history" :key="h"><p class="flex gap-2 text-mute"><i data-lucide="history" class="mt-0.5 h-4 w-4 shrink-0"></i><span x-text="h"></span></p></template></div>
+        <ul class="space-y-2 p-4 font-mono" x-show="rtab === 'Referencias'"><template x-for="o in occ" :key="o.id"><li class="text-info" x-text="o.path + ':' + o.from"></li></template></ul>
+
+        <div class="space-y-3 p-4" :class="rtab === 'Comentarios' || rtab === 'Evidencias' ? '' : 'hidden'">
+          <div class="flex items-center justify-between border-t border-line pt-3"><h3 class="font-semibold">Comentarios (<span x-text="comments.length"></span>)</h3>
+            <button @click="adding = !adding" class="flex items-center gap-1 rounded-md border border-brand/40 px-2 py-1 text-brand hover:bg-brand/10"><i data-lucide="message-square-plus" class="h-3.5 w-3.5"></i>Añadir comentario</button></div>
+          <form x-show="adding" @submit.prevent="addComment()" class="space-y-2">
+            <textarea x-model="draft" rows="3" placeholder="Escribe tu comentario…" class="w-full rounded-md border border-line bg-panel2 p-2 text-ink outline-none focus:border-brand"></textarea>
+            <button class="rounded-md bg-brand px-3 py-1.5 font-medium text-white disabled:opacity-40" :disabled="!draft.trim()">Publicar</button></form>
+          <template x-for="c in comments" :key="c.t">
+            <div class="rounded-lg bg-panel2/60 p-3"><div class="mb-1 flex items-center gap-2"><span class="grid h-6 w-6 place-items-center rounded-full bg-brand text-[10px] font-bold text-white" x-text="c.who.split(' ').map(w => w[0]).join('')"></span><b x-text="c.who"></b><span class="text-mute" x-text="c.when"></span><span class="rounded bg-info/20 px-1.5 text-[10px] text-info" x-text="c.role"></span></div>
+              <p class="leading-relaxed text-mute" x-text="c.text"></p></div>
+          </template>
+        </div>
+      </div>
+
+      <details class="rounded-xl border border-line bg-panel p-4" open>
+        <summary class="flex cursor-pointer items-center gap-2 font-semibold"><i data-lucide="sparkles" class="h-4 w-4 text-brand"></i>Generar prompt de revisión</summary>
+        <p class="mt-1 text-mute">Genera un resumen del grupo para revisarlo con un asistente.</p>
+        <button @click="makePrompt()" class="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-brand py-2.5 font-semibold text-white transition hover:brightness-110"><i data-lucide="wand-sparkles" class="h-4 w-4"></i>Generar prompt de revisión</button>
+        <textarea x-show="prompt" x-model="prompt" rows="6" readonly class="scroll-thin mt-3 w-full rounded-md border border-line bg-panel2 p-2 font-mono text-[11px] text-mute"></textarea>
+      </details>
+    </aside>
+  </main>
+  </div>
+</div>
+
+<div x-show="toast" x-transition class="fixed bottom-4 left-1/2 -translate-x-1/2 rounded-lg bg-ink px-4 py-2 text-bg shadow-xl" role="status" x-text="toast"></div>
+
+<script>
+const SRC = {
+  rs: [
+    '=|pub fn normaliza_path(path: &str) -> bool {', '=|    if path.is_empty() {', '=|        return false;', '=|    }',
+    '~|    let normalized = path.replace("\\\\", "/");', '!|    if normalized.contains("..") {', '!|        return false;', '=|    }',
+    '~|    let invalid = [\'"\', \'?\', \'*\', \'<\', \'>\', \'|\', \':\'];', '+|    if normalized.chars().any(|c| invalid.contains(&c)) {', '=|        return false;', '=|    }',
+    '=|    // normalizar separadores y evitar rutas padre', '=|    let mut parts = Vec::new();', '=|    for part in normalized.split(\'/\') {', '=|        match part {',
+    '=|            "" | "." => continue,', '=|            ".." => { parts.pop(); }', '=|            p => parts.push(p),', '=|        }', '=|    }', '=|    !parts.is_empty()', '=|}'],
+  ts: [
+    '=|export function normaliza_path(path: string): boolean {', '=|  if (path.isEmpty()) {', '=|    return false;', '=|  }',
+    '~|  const normalized = path.replace("\\\\", "/");', '!|  if (normalized.includes("..")) {', '!|    return false;', '=|  }',
+    '~|  const invalid = [\'"\', \'?\', \'*\', \'<\', \'>\', \'|\', \':\'];', '+|  if (normalized.split(\'\').some(c => invalid.includes(c))) {', '=|    return false;', '=|  }',
+    '=|  // normalizar separadores y evitar rutas padre', '=|  const parts: string[] = [];', '=|  for (const part of normalized.split(\'/\')) {', '=|    switch (part) {',
+    '=|      case "": case ".": continue;', '=|      case "..": parts.pop(); break;', '=|      default: parts.push(part);', '=|    }', '=|  }', '=|  return parts.length > 0;', '=|}']
+};
+const parse = lines => lines.map(l => ({ t: l[0], s: l.slice(2) }));
+const PARSED = { rs: parse(SRC.rs), ts: parse(SRC.ts) };
+
+const MATRIX = [
+  [0, 98, 97, 96, 95, 93, 91], [98, 0, 96, 95, 94, 92, 90], [97, 96, 0, 94, 94, 91, 90], [96, 95, 94, 0, 93, 90, 88],
+  [95, 94, 94, 93, 0, 89, 87], [93, 92, 91, 90, 89, 0, 86], [91, 90, 90, 88, 87, 86, 0]];
+
+function app() {
+  return {
+    dark: true, menu: null, order: 'id', a: 1, b: 4, mode: '2 columnas', sync: true, onlyDiff: false, fold: true,
+    btab: 'Resumen del grupo', rtab: 'Evidencias', adding: false, draft: '', toast: '', prompt: '', decision: 'Pendiente de decidir', _lock: false,
+    group: { status: 'En revisión' },
+    statuses: ['Pendiente', 'En revisión', 'Confirmado', 'Ignorado'],
+    view: 'dup', noteQ: '', deadQ: '', deadF: 'Todos', gHover: '',
+    nav: [{ label: 'Obsidian · Mapa de relaciones', icon: 'network', v: 'obsidian' }, { label: 'Código muerto', icon: 'file-x', v: 'dead' }, { label: 'Código duplicado', icon: 'copy', v: 'dup' }],
+    vault: [{ v: 988, l: 'Archivos' }, { v: 439, l: 'Directorios' }, { v: 17, l: 'Lenguajes' }, { v: '3 988', l: 'Funciones' }, { v: '3 107', l: 'Métodos' }, { v: 407, l: 'Clases' }, { v: 666, l: 'Tipos' }, { v: '1 428', l: 'Notas' }],
+    notes: [
+      { kind: 'Función', lang: 'rust', name: 'normaliza_path', path: 'crates/core/src/utils.rs:12', links: 14 }, { kind: 'Función', lang: 'rust', name: 'calcula_hash', path: 'crates/storage/src/fs.rs:224', links: 9 },
+      { kind: 'Clase', lang: 'rust', name: 'IndexStore', path: 'crates/storage/src/index.rs:30', links: 31 }, { kind: 'Método', lang: 'rust', name: 'IndexStore::reindex', path: 'crates/storage/src/index.rs:88', links: 12 },
+      { kind: 'Tipo', lang: 'rust', name: 'SymbolKind', path: 'crates/core/src/symbol.rs:8', links: 40 }, { kind: 'Función', lang: 'python', name: 'score_verdicts', path: 'benchmarks/score_duplicate_labels.py:379', links: 3 },
+      { kind: 'Función', lang: 'rust', name: 'build_query', path: 'crates/indexer/src/config.rs:90', links: 6 }, { kind: 'Función', lang: 'rust', name: 'log_error', path: 'crates/indexer/src/helpers.rs:31', links: 22 }],
+    dead: [
+      { kind: 'Función', lang: 'python', name: 'score_verdicts', path: 'benchmarks/score_duplicate_labels.py:379', state: 'Pendiente' },
+      { kind: 'Función', lang: 'rust', name: 'format_size', path: 'crates/infra/src/fs.rs:77', state: 'Pendiente' },
+      { kind: 'Método', lang: 'rust', name: 'Config::legacy_path', path: 'crates/indexer/src/config.rs:140', state: 'Confirmado' },
+      { kind: 'Clase', lang: 'typescript', name: 'OldGraphView', path: 'website/components/graph.ts:12', state: 'Pendiente' },
+      { kind: 'Función', lang: 'rust', name: 'dump_tokens', path: 'crates/core/src/debug.rs:55', state: 'Falso positivo' },
+      { kind: 'Tipo', lang: 'rust', name: 'UnusedAlias', path: 'crates/core/src/types.rs:4', state: 'Ignorado' }],
+    deadStates: ['Pendiente', 'Confirmado', 'Falso positivo', 'Ignorado'],
+    get deadList() { const q = this.deadQ.toLowerCase(); return this.dead.filter(d => (this.deadF === 'Todos' || d.state === this.deadF) && (d.name + d.path).toLowerCase().includes(q)); },
+    deadChip(s) { return { 'Pendiente': 'bg-warn/15 text-warn', 'Confirmado': 'bg-bad/15 text-bad', 'Falso positivo': 'bg-ok/15 text-ok', 'Ignorado': 'bg-mute/15 text-mute' }[s]; },
+    drawGraph() {
+      const cv = document.getElementById('graph'); if (!cv || !cv.clientWidth) return;
+      const dpr = devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight; cv.width = w * dpr; cv.height = h * dpr;
+      const ctx = cv.getContext('2d'); ctx.scale(dpr, dpr);
+      let s = 7; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+      const N = 140, nodes = Array.from({ length: N }, (_, i) => ({ x: w / 2 + (rnd() - .5) * w * .6, y: h / 2 + (rnd() - .5) * h * .6, r: 3 + rnd() * 6, t: this.notes[i % this.notes.length].name + (i >= 8 ? '_' + i : '') }));
+      const edges = nodes.map((_, i) => [i, i < 8 ? (i + 1) % 8 : Math.floor(rnd() * 8)]);
+      for (let k = 0; k < 220; k++) {
+        nodes.forEach((p, i) => { nodes.forEach((q, j) => { if (i < j) { const dx = p.x - q.x, dy = p.y - q.y, d2 = dx * dx + dy * dy + 1, f = 900 / d2; p.x += dx * f; p.y += dy * f; q.x -= dx * f; q.y -= dy * f; } }); p.x += (w / 2 - p.x) * .01; p.y += (h / 2 - p.y) * .01; });
+        edges.forEach(([i, j]) => { const p = nodes[i], q = nodes[j], dx = q.x - p.x, dy = q.y - p.y, d = Math.hypot(dx, dy) + .1, f = (d - 50) * .02; p.x += dx / d * f; p.y += dy / d * f; q.x -= dx / d * f; q.y -= dy / d * f; });
+      }
+      const cs = getComputedStyle(document.documentElement), col = n => `rgb(${cs.getPropertyValue(n).trim()})`;
+      const paint = hot => {
+        ctx.clearRect(0, 0, w, h); ctx.strokeStyle = col('--line'); ctx.beginPath();
+        edges.forEach(([i, j]) => { ctx.moveTo(nodes[i].x, nodes[i].y); ctx.lineTo(nodes[j].x, nodes[j].y); }); ctx.stroke();
+        nodes.forEach(p => { ctx.fillStyle = p === hot ? col('--warn') : col('--brand'); ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill(); });
+      };
+      paint(null);
+      cv.onmousemove = e => { const b = cv.getBoundingClientRect(), x = e.clientX - b.left, y = e.clientY - b.top; const hit = nodes.find(p => Math.hypot(p.x - x, p.y - y) < p.r + 3); this.gHover = hit ? hit.t : ''; cv.style.cursor = hit ? 'pointer' : 'default'; paint(hit); };
+      cv.onclick = () => { if (this.gHover) { this.noteQ = this.gHover.split('_')[0]; } };
+    },
+    occ: [
+      { id: 1, path: 'crates/core/src/utils.rs', file: 'utils.rs', fn: 'normaliza_path', from: 12, size: 540, sim: 100, lang: 'rs', status: 'En revisión' },
+      { id: 2, path: 'crates/cli/src/paths.rs', file: 'paths.rs', fn: 'normaliza_path', from: 45, size: 512, sim: 98, lang: 'rs', status: 'Pendiente' },
+      { id: 3, path: 'crates/storage/src/fs.rs', file: 'fs.rs', fn: 'calcula_hash', from: 224, size: 498, sim: 97, lang: 'rs', status: 'Confirmado' },
+      { id: 4, path: 'crates/cli/src/paths.ts', file: 'paths.ts', fn: 'normaliza_path', from: 18, size: 431, sim: 96, lang: 'ts', status: 'En revisión' },
+      { id: 5, path: 'crates/infra/src/fs.rs', file: 'fs.rs', fn: 'format_size', from: 77, size: 420, sim: 95, lang: 'rs', status: 'Pendiente' },
+      { id: 6, path: 'crates/indexer/src/config.rs', file: 'config.rs', fn: 'build_query', from: 90, size: 382, sim: 93, lang: 'rs', status: 'Ignorado' },
+      { id: 7, path: 'crates/indexer/src/helpers.rs', file: 'helpers.rs', fn: 'log_error', from: 31, size: 320, sim: 91, lang: 'rs', status: 'Pendiente' }],
+    evidence: ['Misma estructura de validación de ruta vacía', 'Reemplazo de separadores \\ → /', 'Verificación de rutas padre («..»)', 'Lista idéntica de caracteres inválidos', 'Misma lógica de construcción de componentes'],
+    modules: [{ n: 'core', v: 1, c: '#3b82f6' }, { n: 'cli', v: 2, c: '#06b6d4' }, { n: 'storage', v: 1, c: '#22c55e' }, { n: 'infra', v: 1, c: '#f59e0b' }, { n: 'indexer', v: 2, c: '#a855f7' }],
+    stats: [{ v: 7, l: 'Apariciones en el grupo', c: 'text-brand' }, { v: '96%', l: 'Similitud media', c: 'text-warn' }, { v: 128, l: 'Bloques idénticos', c: 'text-ok' }, { v: 34, l: 'Bloques similares', c: 'text-info' }, { v: 12, l: 'Diferencias clave', c: 'text-bad' }],
+    comments: [{ who: 'Ana Torres', when: 'hace 2 horas', role: 'Analista', t: 1, text: 'Parece la misma función copiada entre módulos core y cli. Las diferencias son solo de sintaxis (Rust vs TypeScript) y nombres de variables. Necesita revisión del equipo para decidir si se extrae a una utilidad común.' }],
+    history: ['12 abr 16:42 · Análisis completado: 7 apariciones detectadas', '12 abr 16:44 · Ana Torres marcó el grupo «En revisión»', '12 abr 17:02 · #3 marcado como «Confirmado»'],
+    rtabs: [{ k: 'Evidencias', n: () => 6 }, { k: 'Comentarios', n: function () { return 3; } }, { k: 'Historial', n: () => 4 }, { k: 'Referencias', n: () => 4 }],
+
+    get A() { return this.occ.find(o => o.id === this.a); },
+    get B() { return this.occ.find(o => o.id === this.b); },
+    get avg() { return Math.round(this.occ.reduce((s, o) => s + o.sim, 0) / this.occ.length); },
+    get sorted() { return [...this.occ].sort((x, y) => this.order === 'sim' ? y.sim - x.sim : x.id - y.id); },
+
+    init() {
+      this.$watch('view', v => { if (v === 'obsidian') this.$nextTick(() => this.drawGraph()); });
+      this.$watch('dark', () => this.view === 'obsidian' && this.$nextTick(() => this.drawGraph()));
+      this.rtabs[1].n = () => this.comments.length;
+      this.rtabs[2].n = () => this.history.length;
+      let q; new MutationObserver(() => { cancelAnimationFrame(q); q = requestAnimationFrame(() => window.lucide && lucide.createIcons()); })
+        .observe(document.body, { childList: true, subtree: true });
+      window.addEventListener('load', () => lucide.createIcons());
+    },
+    pick(id, second) { if (second) { this.b = id; } else { if (id === this.b) { this.b = this.a; } this.a = id; } },
+    sim(x, y) { return MATRIX[x - 1][y - 1]; },
+    cell(x, y) {
+      if (x === y) return 'color:rgb(var(--mute));background:rgb(var(--panel2))';
+      const v = this.sim(x, y), t = (v - 86) / 14;
+      return `background:hsl(${Math.round(8 + t * 22)} 70% ${Math.round(30 + t * 10)}%);color:#fff;${x === this.a && y === this.b ? 'outline:2px solid rgb(var(--brand))' : ''}`;
+    },
+    chip(s) {
+      return { 'Pendiente': 'bg-warn/15 text-warn border border-warn/40', 'En revisión': 'bg-brand/15 text-brand border border-brand/40',
+               'Confirmado': 'bg-ok/15 text-ok border border-ok/40', 'Ignorado': 'bg-mute/15 text-mute border border-mute/40' }[s];
+    },
+    rowCls(t) { return { '~': 'bg-warn/20', '!': 'bg-bad/25', '+': 'bg-ok/20', '=': '' }[t]; },
+    rows(o) {
+      let out = [], run = [];
+      const flush = () => {
+        if (run.length > 3 && this.fold && !this.onlyDiff) { out.push(run[0], { fold: true, count: run.length - 2 }, run[run.length - 1]); }
+        else if (!this.onlyDiff) { out.push(...run); }
+        run = [];
+      };
+      PARSED[o.lang].forEach((l, i) => {
+        const row = { ...l, n: o.from + i };
+        if (l.t === '=') { run.push(row); } else { flush(); out.push(row); }
+      });
+      flush();
+      return out;
+    },
+    hl(s) {
+      const esc = (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return esc.replace(/(\/\/.*$)|("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')|\b(pub|fn|let|mut|if|return|for|in|match|const|export|function|switch|case|default|break|continue|boolean|string|bool)\b|\b([a-z_]+)(?=\()/g,
+        (m, c, str, k, f) => c ? `<span class="tok-c">${c}</span>` : str ? `<span class="tok-s">${str}</span>` : k ? `<span class="tok-k">${k}</span>` : `<span class="tok-f">${f}</span>`);
+    },
+    onScroll(i, el) {
+      if (!this.sync || this._lock) return;
+      const other = document.getElementById('pane' + (1 - i)); if (!other) return;
+      this._lock = true; other.scrollTop = el.scrollTop; other.scrollLeft = el.scrollLeft;
+      requestAnimationFrame(() => (this._lock = false));
+    },
+    copy(o) {
+      const txt = PARSED[o.lang].map(l => l.s).join('\n');
+      (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => this.say('Código copiado'), () => this.say('No se pudo copiar'));
+    },
+    say(m) { this.toast = m; clearTimeout(this._t); this._t = setTimeout(() => (this.toast = ''), 1800); },
+    log(m) { this.history.unshift('Ahora · ' + m); },
+    addComment() { this.comments.unshift({ who: 'Tú', when: 'ahora', role: 'Revisor', t: Date.now(), text: this.draft.trim() }); this.draft = ''; this.adding = false; this.log('Comentario añadido'); },
+    makePrompt() {
+      this.prompt = `Revisa el grupo de duplicados DUP-017 (${this.occ.length} apariciones, similitud media ${this.avg}%).\n` +
+        this.occ.map(o => `#${o.id} ${o.path}:${o.from} ${o.fn}() — ${o.sim}%`).join('\n') +
+        `\n\nDecide si conviene extraer una utilidad común o mantener las copias, y justifica la respuesta.`;
+      this.say('Prompt generado');
+    },
+    toggleTheme() { this.dark = !this.dark; document.documentElement.classList.toggle('light', !this.dark); document.documentElement.classList.toggle('dark', this.dark); }
+  };
+}
+</script>
+<script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+</body>
+</html>
