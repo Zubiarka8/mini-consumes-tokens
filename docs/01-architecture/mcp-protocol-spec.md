@@ -15,6 +15,7 @@
 | `find_calls` | atomic | What a function calls |
 | `find_callers` | atomic | What calls a function |
 | `impact_analysis` | composite | Full blast radius in one call |
+| `find_dead_code` | analysis | Review-aware candidates with zero indexed references; TOON or text ([ADR-023](adrs/023-mcp-dead-code-reviews.md)) |
 | `find_duplicate_code` | analysis | Review-aware whole-function duplicate candidates; compact bounded references ([ADR-022](adrs/022-mcp-duplicate-findings.md)) |
 | `get_dependency_graph` | composite | Module-level import graph: nodes by hop, resolved import edges, cycles, external imports, optional DOT/Mermaid |
 | `build_context_pack` | composite | Definition + doc + capped source, and every caller/callee/dependency/test once, in one call |
@@ -102,3 +103,10 @@ supply no search snippets or context-pack signatures/source. Metadata remains
 queryable. `get_file_skeleton` rejects stale revisions with a reindex instruction.
 Restoring the indexed bytes or reindexing restores source retrieval; cached
 rankings do not bypass the byte check. Reads retain existing size/path limits.
+
+### Live index generations
+
+A running MCP server observes externally published reindexes without restart.
+Both finding handlers resolve candidates and indexed review fingerprints within
+one read snapshot. Generation changes invalidate incompatible cached rankings;
+pagination is not pinned across requests, so restart paging after a reindex.

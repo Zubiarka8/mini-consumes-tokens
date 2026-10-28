@@ -85,3 +85,16 @@ Index mutations fail fast on writer contention; callers receive an actionable
 error and the existing watcher retry/backoff can retry. This avoids sleeping
 inside an MCP process-local Index mutex while another process scans. Opens and
 maintenance use bounded five-second acquisitions (not an end-to-end deadline).
+
+## Finding-query integration
+
+Both MCP finding handlers pin the whole request: candidate detection and the
+indexed hashes used to resolve review decisions describe one published
+generation. The detector's internal snapshot alone ends before the caller
+fetches hashes and therefore cannot provide this guarantee by itself.
+
+`tests/live_reindex.rs` keeps a server and its cache alive across external
+reindexes, checking changed review fingerprints, current symbols/source and
+duplicate membership. `mct-index/tests/writer_coordination.rs` covers writer
+exclusion and release, reader/maintenance barriers, independent databases,
+contention without publication, recovery, and linked lockfile refusal.
