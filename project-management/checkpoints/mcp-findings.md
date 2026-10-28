@@ -180,3 +180,23 @@ CI Clippy and evaluation passed (catalog 12033). No check process remains
 pending. The D/E slice is being committed on feature/mcp-live-reindex; resolve
 its latest HEAD through Git. Next action is the separate dashboard load race
 regression described above, followed by delivery records and report.
+
+### Dashboard race closure — 2026-10-28
+
+Branch `fix/web-findings-generation`, base `1022c54`. A deterministic external
+publication between navigation and reference queries reproduced generation mixing
+(0 passed / 1 failed: alpha unexpectedly acquired a reference). Holding
+`Index::read_snapshot` across the load fixes it (1 passed / 0 failed). The same
+test confirms next-request visibility after the guard drops. No UI asset change
+or unrelated refactor. Focused and full gates are pending below.
+
+Dashboard gate results: `scripts/unix/check.sh -p mct-cli`: 129 passed / 0 failed /
+7 ignored, fmt and CI Clippy passed. `scripts/unix/check.sh`: 1831 passed /
+0 failed / 30 ignored, fmt/CI Clippy/evaluation passed, accuracy 1.000, catalog
+12033. `cargo build --locked -p mct-cli` passed. No test disabled or weakened.
+
+Safari acceptance remains BLOCKED: the newly built owned fixture server on port
+18811 failed both normal and escalated startup with `cannot bind the localhost
+web port: Operation not permitted (os error 1)`. Safari was available, but no
+server for this revision could be reached. Other fixtures were preserved and
+are not counted as acceptance. No own server is running.

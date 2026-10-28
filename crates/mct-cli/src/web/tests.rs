@@ -1119,3 +1119,33 @@ fn mctignore_is_read_and_saved_with_origin_csrf_conflict_and_limit_checks() {
         .collect();
     assert!(leftovers.is_empty(), "{leftovers:?}");
 }
+
+#[test]
+fn dashboard_snapshot_never_mixes_navigation_and_references_across_reindex() {
+    let root = project();
+    let mut site = Site::load_snapshot(root.path(), true, || {
+        fs::write(
+            root.path().join("src/caller.rs"),
+            "pub fn caller() { alpha(1); }\n",
+        )
+        .unwrap();
+        index(root.path());
+    })
+    .unwrap();
+    // Navigation was read before the external publication: every other cached
+    // query must describe that same generation, where alpha was unreferenced.
+    assert!(!site.navigation.symbols.iter().any(|s| s.name == "caller"));
+    assert!(!site.references.contains_key("alpha"));
+    assert!(site
+        .dead
+        .iter()
+        .any(|candidate| site.navigation.symbols[candidate.symbol].name == "alpha"));
+    // The next request follows the new generation after the read guard drops.
+    site.follow_reindex();
+    assert!(site.navigation.symbols.iter().any(|s| s.name == "caller"));
+    assert!(site.references.contains_key("alpha"));
+    assert!(!site
+        .dead
+        .iter()
+        .any(|candidate| site.navigation.symbols[candidate.symbol].name == "alpha"));
+}
