@@ -100,7 +100,7 @@ struct Row<'a> {
     actionable: bool,
 }
 
-/// The caller holds the server's index mutex.
+/// The caller holds the server's index mutex and read snapshot.
 pub(crate) fn run(index: &Index, args: FindDuplicateCodeArgs) -> Result<String, McpError> {
     args.validate()?;
     let options = DuplicateOptions {
