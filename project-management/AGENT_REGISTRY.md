@@ -1,5 +1,17 @@
 # Agent Registry
 
+## TASK-STORAGE-RELIABILITY — 2026-10-25
+
+Current owner: Codex, single agent. Base b61cc7ce971fdc46a61259af95af7fac823ae352,
+primary feature/dead-code-editor checkout with pre-existing work preserved.
+Status: REVIEW for the manual backup slice; overall PARTIALLY DONE. No integration/publication authorization.
+Authoritative scope, limitations, checks and continuation:
+[storage reliability checkpoint](checkpoints/storage-reliability.md).
+Design: [SDD](../docs/01-architecture/storage-reliability-spec.md).
+No worker was dispatched. Whole-system acceptance and production cutover remain
+pending; earlier records below retain their historical task context.
+
+
 Last update: 2026-10-10. The coordinator is the only writer. Resolve local absolute worktree paths with `git worktree list --porcelain`; keep public records portable.
 
 | Agent | Provider | Task | Branch | Worktree name | Base | Status |

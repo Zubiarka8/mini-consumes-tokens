@@ -195,7 +195,9 @@ impl<'a> Fingerprints<'a> {
         }
     }
 
-    fn text_hash(&mut self, path: &str, start: u32, end: u32) -> Option<String> {
+    /// Hash the complete indexed line range, caching each verified file once.
+    /// Returns None for unavailable, stale, oversized or invalid source/ranges.
+    pub fn text_hash(&mut self, path: &str, start: u32, end: u32) -> Option<String> {
         if start == 0 || end < start {
             return None;
         }

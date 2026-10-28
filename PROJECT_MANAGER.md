@@ -61,24 +61,56 @@ Agent states are `planned`, `active`, `waiting`, `blocked`, `review`, `completed
 
 ## Bounded delegation
 
+### Required prompt structure
+
+New or revised task prompts must contain exactly these four top-level section
+markers, in this order, on separate lines: `[ROL]`, `[CONTEXTO]`, `[TAREA]`,
+`[ENTREGA]`. Keep these user-required markers verbatim; write repository prose in
+English and preserve required UI strings and external identifiers.
+
+- `[ROL]`: executor, responsibility, and who reviews the result; do not imply that
+  another agent was started.
+- `[CONTEXTO]`: relevant rules and state, branch, existing work, source references,
+  and known behavior. Distinguish reported facts from verified evidence.
+- `[TAREA]`: objective, current phase, ordered work, scope, exclusions, acceptance
+  criteria, checks, and safeguards. Preserve any explicit approval gate.
+- `[ENTREGA]`: the required report, command evidence, acceptance results,
+  assumptions, unresolved issues, and exact continuation step.
+
+Use subordinate headings inside these sections as needed. Keep existing task
+requirements when restructuring; do not silently authorize implementation,
+commits, browser control, delegation, or publication. Apply this format to future
+prompts and to the existing prompts explicitly selected by the user; do not
+reformat the historical prompt collection automatically.
+
 Use the supported dispatch route and client options described in `rules.md`. Do not invent cross-client messaging, sessions, permissions, billing caps, or completion notifications. A process result or persisted checkpoint is a deliverable; a missing final message is not evidence that no work happened.
 
 A worker brief contains:
 
 ```text
+[ROL]
+EXECUTOR / RESPONSIBILITY / REVIEWER:
+MODEL / EFFORT / AUTHORIZED LIMITS:
+
+[CONTEXTO]
 TASK ID:
-OBJECTIVE:
 BRANCH / WORKTREE NAME:
 BASE COMMIT:
-ALLOWED WRITE SCOPE:
-DO NOT MODIFY:
 DEPENDENCIES:
 RELEVANT CONTEXT AND RULE LINKS:
+EXISTING WORK TO PRESERVE:
+
+[TAREA]
+OBJECTIVE / CURRENT PHASE / APPROVAL GATE:
+ALLOWED WRITE SCOPE / ORDERED TASKS:
+DO NOT MODIFY / SAFEGUARDS:
 ACCEPTANCE CRITERIA:
 REQUIRED CHECKS:
-MODEL / EFFORT / AUTHORIZED LIMITS:
+
+[ENTREGA]
 CHECKPOINT PATH AND FREQUENCY:
-DELIVERABLE: status, commit, changed paths, check results, risks, remaining work
+DELIVERABLE: status, authorized commit or uncommitted paths, checks and command
+output, acceptance results, risks, assumptions, unverified items, remaining work
 ```
 
 Send the specific requirement, relevant context pack/snippets/diff, and links. Do not dump the whole repository, roadmap, reports, operational history, or conversation. Use one provider by default; duplicate work only for justified independent review, deliberate comparison, difficult diagnosis, or critical risk.

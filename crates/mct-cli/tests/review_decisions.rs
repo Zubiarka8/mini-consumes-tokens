@@ -182,3 +182,103 @@ fn sqlite_only_changes_invalidate_dismissals_without_reindexing_or_toon_writes()
     assert!(project.run(&["duplicates"]).contains("total_groups: 1"));
     assert!(!project.0.join(".mct-index/reviews.toon").exists());
 }
+
+#[test]
+fn references_in_another_language_do_not_hide_an_unrelated_homonym() {
+    let project = Project::new();
+    fs::write(
+        project.0.join("src/consumer.py"),
+        "def alpha():\n    return 1\n\nalpha()\n",
+    )
+    .unwrap();
+    project.run(&["reindex", "--no-obsidian"]);
+    let index = project.index();
+    let candidates = mct_index::find_dead_code_candidates(&index, None, None).unwrap();
+    assert!(candidates
+        .iter()
+        .any(|c| c.name == "alpha" && c.language == "rust"));
+    assert!(!candidates
+        .iter()
+        .any(|c| c.name == "alpha" && c.language == "python"));
+    // Filtering candidates by language must not change reference semantics.
+    let rust = mct_index::find_dead_code_candidates(&index, None, Some("rust")).unwrap();
+    assert!(rust.iter().any(|c| c.name == "alpha"));
+}
+
+/// Paired query benchmark, deliberately opt-in rather than a timing gate.
+#[test]
+#[ignore = "not a bug: manual paired benchmark; emits TOON measurements"]
+fn benchmark_language_aware_dead_candidates() {
+    use std::time::Instant;
+    let project = Project::new();
+    let mut rust = String::new();
+    let mut python = String::new();
+    let mut calls = String::new();
+    for i in 0..100 {
+        rust.push_str(&format!("fn unused_{i:03}() {{}}\nfn used_{i:03}() {{}}\n"));
+        calls.push_str(&format!("used_{i:03}();\n"));
+        python.push_str(&format!(
+            "def unused_{i:03}():\n    pass\nunused_{i:03}()\n"
+        ));
+    }
+    rust.push_str(&format!("fn main() {{\n{calls}}}\n"));
+    fs::write(project.0.join("src/a.rs"), rust).unwrap();
+    fs::write(project.0.join("src/b.rs"), "").unwrap();
+    fs::write(project.0.join("src/consumer.py"), python).unwrap();
+    project.run(&["reindex", "--no-obsidian"]);
+    let index = project.index();
+    let _snapshot = index.read_snapshot().unwrap();
+    // Exact pre-change candidate algorithm, for this fixture's non-test files.
+    let baseline = || {
+        let entries = index.list_symbols_all(None, None).unwrap();
+        let references = index.reference_counts().unwrap();
+        entries
+            .into_iter()
+            .filter(|e| {
+                mct_index::DEAD_CODE_KIND_ALLOWLIST.contains(&e.kind.as_str())
+                    && !mct_index::DEAD_CODE_ENTRY_POINT_NAMES.contains(&e.name.as_str())
+                    && !references.contains_key(&e.name)
+            })
+            .collect::<Vec<_>>()
+    };
+    let current = || mct_index::find_dead_code_candidates(&index, None, None).unwrap();
+    assert_eq!(baseline().len(), 0, "old cross-language false negatives");
+    let candidates = current();
+    assert_eq!(candidates.len(), 100);
+    assert!(candidates
+        .iter()
+        .all(|c| c.language == "rust" && c.name.starts_with("unused_")));
+    let mut old_times = Vec::new();
+    let mut new_times = Vec::new();
+    for sample in 0..51 {
+        for before in if sample % 2 == 0 {
+            [true, false]
+        } else {
+            [false, true]
+        } {
+            let start = Instant::now();
+            std::hint::black_box(if before { baseline() } else { current() });
+            let micros = start.elapsed().as_secs_f64() * 1_000_000.0;
+            if before {
+                old_times.push(micros);
+            } else {
+                new_times.push(micros);
+            }
+        }
+    }
+    println!(
+        "fixture: 100 unused Rust functions, 100 called Rust functions, 100 called Python homonyms"
+    );
+    println!("profile: debug\nunit: microseconds\nsamples: 51\nmetrics[2]{{algorithm,median,p95,variance}}:");
+    for (label, mut samples) in [("name-only", old_times), ("target-language", new_times)] {
+        samples.sort_by(f64::total_cmp);
+        let mean = samples.iter().sum::<f64>() / samples.len() as f64;
+        let variance =
+            samples.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / samples.len() as f64;
+        println!(
+            "  {label},{:.3},{:.3},{variance:.3}",
+            samples[25], samples[48]
+        );
+    }
+    println!("synthetic_dead_recall_before: 0.000\nsynthetic_dead_recall_after: 1.000\nsynthetic_dead_precision_after: 1.000");
+}

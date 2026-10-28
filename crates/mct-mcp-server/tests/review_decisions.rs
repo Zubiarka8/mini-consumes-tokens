@@ -77,6 +77,10 @@ async fn unchanged_dismissals_are_filtered_before_limit_and_offset_but_edits_ret
         visible.contains("1 dead-code candidate(s)") && visible.contains("pending"),
         "{visible}"
     );
+    assert!(
+        visible.contains("1 suppressed by valid saved review decisions"),
+        "{visible}"
+    );
     assert!(!visible.contains("discarded"), "{visible}");
     assert!(!output(index(&project.0), 1).await.contains("  function"));
     fs::write(
@@ -90,7 +94,46 @@ async fn unchanged_dismissals_are_filtered_before_limit_and_offset_but_edits_ret
         "pub fn discarded() { let changed = 1; }\npub fn pending() {}\n",
     )
     .unwrap();
-    assert!(output(index(&project.0), 0).await.contains("discarded"));
+    let changed = output(index(&project.0), 0).await;
+    assert!(changed.contains("discarded"), "{changed}");
+    assert!(
+        !changed.contains("suppressed by valid saved review decisions"),
+        "{changed}"
+    );
+}
+
+#[tokio::test]
+async fn fully_suppressed_candidates_are_distinguished_from_no_findings() {
+    let project = Project::new();
+    let original = index(&project.0);
+    let navigation = original.navigation_snapshot().unwrap();
+    let candidates = mct_index::find_dead_code_candidates(&original, None, None).unwrap();
+    let keys = Fingerprints::new(&project.0, &navigation).dead_keys(&candidates, &navigation);
+    let reviews = candidates
+        .iter()
+        .zip(keys)
+        .filter(|(candidate, _)| candidate.name == "discarded" || candidate.name == "pending")
+        .map(|(_, (identity, fingerprint))| {
+            format!("  dead,{identity},{fingerprint},false_positive,7,reviewed\n")
+        })
+        .collect::<String>();
+    fs::write(
+        project.0.join(".mct-index/reviews.toon"),
+        format!(
+            "version: 2\nreviews[2]{{kind,identity,fingerprint,status,at,reason}}:\n{reviews}history[0]{{kind,identity,fingerprint,status,at,reason}}:\n"
+        ),
+    )
+    .unwrap();
+
+    let visible = output(original, 0).await;
+    assert!(
+        visible.contains("No actionable dead-code candidates"),
+        "{visible}"
+    );
+    assert!(
+        visible.contains("2 candidate(s) suppressed by valid saved review decisions"),
+        "{visible}"
+    );
 }
 
 #[tokio::test]

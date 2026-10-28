@@ -27,3 +27,9 @@ panel-left
 panel-right
 maximize-2
 sparkles
+box
+file-code
+arrow-left
+bookmark
+bookmark-check
+eye-off

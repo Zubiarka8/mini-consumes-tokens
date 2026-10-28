@@ -56,6 +56,15 @@ Because each language gets its own separate, self-contained plugin, adding suppo
 
 ### 3. The local database
 
+The analysis described here lives in `.mct-index/index.sqlite3`. Dashboard
+reviews, notes, comments and revision metadata live separately in
+`.mct-index/dashboard.sqlite3` and must survive reindexing. The directory itself
+is not disposable. Manual `dashboard-backup` and `dashboard-backup-verify`
+commands snapshot user data and rehearse restoration in isolation; scheduling,
+retention and production cutover remain pending. See the
+[verified reliability audit](docs/01-architecture/storage-reliability-audit.md)
+and [phased SDD](docs/01-architecture/storage-reliability-spec.md).
+
 Whatever language wrote the code, the result always lands in the same single local file, using one shared layout — not a different storage scheme for every language. That's what makes a question like "who calls this function" work identically no matter what language answered it: one set of logic to maintain, not seventeen separate ones. The layout evolves through a numbered series of migrations (11 as of this writing), so an index created by an older version is upgraded in place.
 
 This database also keeps track of what's changed since the last time it looked, using the same kind of fingerprinting that version control (Git) already relies on — so re-scanning a project after a small change only looks at what's actually different, not the whole project from scratch. And by default, it deliberately skips over anything that looks like a secret (password files, API keys, credential files, and similar), so those never end up copied into the index.

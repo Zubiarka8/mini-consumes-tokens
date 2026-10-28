@@ -12,6 +12,9 @@ module.exports = {
         ink: 'rgb(var(--ink) / <alpha-value>)',
         mute: 'rgb(var(--mute) / <alpha-value>)',
         brand: 'rgb(var(--brand) / <alpha-value>)',
+        // readable text on the brand fill, and the brand as text on panels
+        onbrand: 'rgb(var(--on-brand) / <alpha-value>)',
+        accent: 'rgb(var(--accent) / <alpha-value>)',
         ok: 'rgb(var(--ok) / <alpha-value>)',
         warn: 'rgb(var(--warn) / <alpha-value>)',
         bad: 'rgb(var(--bad) / <alpha-value>)',

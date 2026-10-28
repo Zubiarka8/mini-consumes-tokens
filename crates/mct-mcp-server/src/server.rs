@@ -13,6 +13,7 @@ use rmcp::{
 use tokio::sync::Mutex;
 
 use crate::cache::{self, CacheConfig, CacheStats, CachedResult, HitKind, QueryCache};
+pub use crate::duplicate_query::FindDuplicateCodeArgs;
 use crate::embedder::SemanticModel;
 use crate::format;
 use crate::intent;
@@ -673,7 +674,12 @@ const TOOL_CATEGORIES: &[(&str, &[&str])] = &[
     ),
     (
         "maintenance",
-        &["reindex", "get_indexing_status", "find_dead_code"],
+        &[
+            "reindex",
+            "get_indexing_status",
+            "find_dead_code",
+            "find_duplicate_code",
+        ],
     ),
     (
         "meta",
@@ -957,9 +963,9 @@ fn query_scope<'a>(path: Option<&'a str>, language: Option<&'a str>) -> mct_inde
     mct_index::QueryScope { path, language }
 }
 
-/// Reads `relative_path`'s contents off disk, for tools (currently only
-/// `get_file_skeleton`) that need the file's actual source text rather than
-/// just its indexed symbol metadata. Rejects anything that canonicalizes
+/// Reads source only when its exact bytes match the indexed revision. Callers
+/// hold the index read snapshot while looking up ranges and reading source.
+/// Rejects anything that canonicalizes
 /// outside the project root — the same traversal guard `Index`'s own
 /// reindex walk uses — so a path like `../../etc/passwd` is refused rather
 /// than read.
@@ -977,14 +983,21 @@ fn read_source_file(index: &Index, relative_path: &str) -> Result<String, McpErr
             None,
         ));
     }
-    mct_index::read_repository_file(&canonical)
-        .and_then(|bytes| {
-            String::from_utf8(bytes)
-                .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))
-        })
-        .map_err(|source| {
-            McpError::internal_error(format!("failed to read `{relative_path}`: {source}"), None)
-        })
+    let bytes = mct_index::read_repository_file(&canonical).map_err(|source| {
+        McpError::internal_error(format!("failed to read `{relative_path}`: {source}"), None)
+    })?;
+    if !index
+        .source_matches_index(relative_path, &bytes)
+        .map_err(index_error)?
+    {
+        return Err(McpError::invalid_params(
+            format!("source revision for `{relative_path}` is stale or not indexed; reindex before requesting source ranges"),
+            None,
+        ));
+    }
+    String::from_utf8(bytes).map_err(|source| {
+        McpError::internal_error(format!("failed to read `{relative_path}`: {source}"), None)
+    })
 }
 
 /// Source snippets for the `offset`/`limit` page of a ranked search result
@@ -1605,6 +1618,7 @@ impl MctServer {
             "get_project_overview" => self.get_project_overview(batch_params(tool, args)?).await,
             "get_file_tree" => self.get_file_tree(batch_params(tool, args)?).await,
             "find_dead_code" => self.find_dead_code(batch_params(tool, args)?).await,
+            "find_duplicate_code" => self.find_duplicate_code(batch_params(tool, args)?).await,
             "get_dependency_graph" => self.get_dependency_graph(batch_params(tool, args)?).await,
             "discover_tool_categories" => self.discover_tool_categories().await,
             "get_tool_schema" => self.get_tool_schema(batch_params(tool, args)?).await,
@@ -1641,6 +1655,7 @@ impl MctServer {
         let language = optional_arg(language.as_ref());
         let output_format = parse_output_format(format.as_deref())?;
         let index = self.index.lock().await;
+        let _snapshot = index.read_snapshot().map_err(index_error)?;
         // Asks the index the same file-vs-directory question it resolves
         // internally, so the formatter knows whether to print each entry's
         // `relative_path` (needed once a directory/crate spans several
@@ -1677,6 +1692,7 @@ impl MctServer {
         let output_format = parse_output_format(format.as_deref())?;
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
         let index = self.index.lock().await;
+        let _snapshot = index.read_snapshot().map_err(index_error)?;
         let hits = index
             .find_symbol_matching_scoped(name, mode, scope)
             .map_err(index_error)?;
@@ -1722,6 +1738,7 @@ impl MctServer {
         let offset = offset.unwrap_or(0);
         let snippet_lines = snippet_lines.unwrap_or(0).min(SEARCH_MAX_SNIPPET_LINES);
         let index = self.index.lock().await;
+        let _snapshot = index.read_snapshot().map_err(index_error)?;
         let cache_on = self.cache_on(cache);
         let mut hit = None;
         let hits = if cache_on {
@@ -1861,12 +1878,20 @@ impl MctServer {
         };
         let normalized = cache::normalize_query(query);
         let mut hit = None;
+        let mut cache_generation = None;
         if cache_on {
+            let before = index.published_generation().map_err(index_error)?;
             let mut rerank =
                 |q: &str, v: Option<&[f32]>| rerank_hits(&index, embedder, alpha, scope, q, v);
             hit = self
                 .cache_guard()
                 .lookup_exact(&index, &key, &normalized, &mut rerank);
+            let after = index.published_generation().map_err(index_error)?;
+            if hit.is_some() && before == after {
+                cache_generation = Some(after);
+            } else if before != after {
+                hit = None;
+            }
         }
 
         // A miss needs the query's vector (for the semantic cache and for the
@@ -1882,11 +1907,18 @@ impl MctServer {
             // The semantic cache path: never for an exact phrase (its words
             // must match literally), only with a model to embed the query.
             if let (Ok(vector), true) = (&vector, semantic_cache) {
+                let before = index.published_generation().map_err(index_error)?;
                 let mut guard = self.cache_guard();
                 guard.record_embedding(start.elapsed());
                 let mut rerank =
                     |q: &str, v: Option<&[f32]>| rerank_hits(&index, embedder, alpha, scope, q, v);
                 hit = guard.lookup_semantic(&index, &key, &normalized, vector, &mut rerank);
+                let after = index.published_generation().map_err(index_error)?;
+                if hit.is_some() && before == after {
+                    cache_generation = Some(after);
+                } else if before != after {
+                    hit = None;
+                }
             }
             query_vector = Some(vector);
         }
@@ -1895,7 +1927,7 @@ impl MctServer {
         // (the model is never loaded), no model in this build or it failed to
         // load, or embedding the pending symbols failed. Each case is named
         // in the output's first line instead of erroring.
-        let (ranked_with, note) = match model {
+        let (ranked_with, mut note) = match model {
             None => (
                 None,
                 format!("hybrid: alpha 0{alpha_source}, lexical ranking only"),
@@ -1917,23 +1949,28 @@ impl MctServer {
                 };
                 match refreshed {
                     Err(e) => (None, format!("hybrid: lexical ranking only — {e}")),
-                    Ok(_) => {
-                        let coverage = index
-                            .embedding_coverage(embedder.model_id())
-                            .map_err(index_error)?;
-                        (
-                            Some(embedder),
-                            format!(
-                                "hybrid: alpha {alpha:.2}{alpha_source}, {}/{} symbols embedded ({})",
-                                coverage.embedded,
-                                coverage.total,
-                                embedder.model_id()
-                            ),
-                        )
-                    }
+                    Ok(_) => (Some(embedder), String::new()),
                 }
             }
         };
+        let _snapshot = index.read_snapshot().map_err(index_error)?;
+        // Cache candidates are validated inside the snapshot where they were
+        // found. If another process published while model work was in flight,
+        // do not use a cached ranking from the earlier generation.
+        if hit.is_some() && cache_generation != Some(_snapshot.generation()) {
+            hit = None;
+        }
+        if let Some(embedder) = ranked_with {
+            let coverage = index
+                .embedding_coverage(embedder.model_id())
+                .map_err(index_error)?;
+            note = format!(
+                "hybrid: alpha {alpha:.2}{alpha_source}, {}/{} symbols embedded ({})",
+                coverage.embedded,
+                coverage.total,
+                embedder.model_id()
+            );
+        }
         let hits: Vec<mct_index::SymbolHit> = match &hit {
             Some(found) => found.hits.clone(),
             None => {
@@ -2112,6 +2149,7 @@ impl MctServer {
             .map_err(failed)?;
         let vector = self.embed_query_unlocked(query).await.map_err(failed)?;
         let index = self.index.lock().await;
+        let _snapshot = index.read_snapshot().map_err(index_error)?;
         let hits = index
             .semantic_search(&vector, embedder.model_id(), scope, limit)
             .map_err(index_error)?;
@@ -2149,6 +2187,7 @@ impl MctServer {
         let output_format = parse_output_format(format.as_deref())?;
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
         let index = self.index.lock().await;
+        let _snapshot = index.read_snapshot().map_err(index_error)?;
         let hits = if by_execution {
             // Sorting must see the whole set, not one page of it: fetch up
             // to EXECUTION_SORT_MAX_HITS, order, then cut the page.
@@ -2202,6 +2241,7 @@ impl MctServer {
         let output_format = parse_output_format(format.as_deref())?;
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
         let index = self.index.lock().await;
+        let _snapshot = index.read_snapshot().map_err(index_error)?;
         let hits = index
             .relation_page(
                 function,
@@ -2240,6 +2280,7 @@ impl MctServer {
         let output_format = parse_output_format(format.as_deref())?;
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
         let index = self.index.lock().await;
+        let _snapshot = index.read_snapshot().map_err(index_error)?;
         let hits = index
             .relation_page(
                 function,
@@ -2280,6 +2321,7 @@ impl MctServer {
         let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
         let (callers, references, tests) = {
             let index = self.index.lock().await;
+            let _snapshot = index.read_snapshot().map_err(index_error)?;
             let callers = index
                 .relation_page(
                     symbol,
@@ -2341,6 +2383,7 @@ impl MctServer {
             .unwrap_or(CONTEXT_PACK_DEFAULT_SOURCE_LINES)
             .clamp(1, CONTEXT_PACK_MAX_SOURCE_LINES);
         let index = self.index.lock().await;
+        let _snapshot = index.read_snapshot().map_err(index_error)?;
 
         let definitions = without_modules(
             index
@@ -2577,6 +2620,7 @@ impl MctServer {
         }): Parameters<GetIndexingStatusArgs>,
     ) -> Result<CallToolResult, McpError> {
         let index = self.index.lock().await;
+        let _snapshot = index.read_snapshot().map_err(index_error)?;
         let status = index.status().map_err(index_error)?;
         let mut text = format::index_status(&status, verbose_dependencies);
         if let Some(name) = optional_arg(dependency.as_ref()) {
@@ -2608,6 +2652,7 @@ impl MctServer {
     ) -> Result<CallToolResult, McpError> {
         let path = validate_name(&path)?;
         let index = self.index.lock().await;
+        let _snapshot = index.read_snapshot().map_err(index_error)?;
         if index.path_is_directory(path) {
             return Err(McpError::invalid_params(
                 "get_file_skeleton takes a single file path, not a directory/crate prefix — use list_symbols first if you don't know which file you need",
@@ -2652,6 +2697,7 @@ impl MctServer {
         let include_relations = include_relations.unwrap_or(false);
 
         let index = self.index.lock().await;
+        let _snapshot = index.read_snapshot().map_err(index_error)?;
         let all_entries = list_symbols_for_overview(&index, path, language)?;
 
         // `list_symbols_for_overview`'s entries are already ordered by
@@ -2745,6 +2791,7 @@ impl MctServer {
         let path = path.as_deref().map(str::trim).filter(|p| !p.is_empty());
         let depth = depth.unwrap_or(3).max(1);
         let index = self.index.lock().await;
+        let _snapshot = index.read_snapshot().map_err(index_error)?;
         let tree = index.file_tree(path, depth).map_err(file_tree_error)?;
         Ok(CallToolResult::success(vec![ContentBlock::text(
             format::file_tree(path.unwrap_or("."), &tree, depth),
@@ -2770,6 +2817,7 @@ impl MctServer {
         let output_format = parse_output_format(format.as_deref())?;
 
         let index = self.index.lock().await;
+        let _snapshot = index.read_snapshot().map_err(index_error)?;
         // Deliberately not filtered on `parent.is_none()` the way
         // `get_project_overview`'s digest is: a `LanguageParser` uses `parent`
         // for more than "nested inside another declaration" — e.g.
@@ -2788,21 +2836,44 @@ impl MctServer {
                     None,
                 )
             })?;
-        let candidates = if reviews.has_decisions() {
+        let (candidates, suppressed) = if reviews.has_decisions() {
             let navigation = index.navigation_snapshot().map_err(index_error)?;
-            reviews.filter_dead(index.root(), &navigation, candidates)
+            let total = candidates.len();
+            let visible = reviews.filter_dead(index.root(), &navigation, candidates);
+            let suppressed = total.saturating_sub(visible.len());
+            (visible, suppressed)
         } else {
-            candidates
+            (candidates, 0)
         };
 
         let text = match output_format {
-            OutputFormat::Text => {
-                format::find_dead_code(path.unwrap_or("."), &candidates, offset, limit)
-            }
-            OutputFormat::Toon => {
-                format::find_dead_code_toon(path.unwrap_or("."), &candidates, offset, limit)
-            }
+            OutputFormat::Text => format::find_dead_code_with_suppressed(
+                path.unwrap_or("."),
+                &candidates,
+                offset,
+                limit,
+                suppressed,
+            ),
+            OutputFormat::Toon => format::find_dead_code_toon_with_suppressed(
+                path.unwrap_or("."),
+                &candidates,
+                offset,
+                limit,
+                suppressed,
+            ),
         };
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    /// Read-only whole-function duplicate candidates, using the shared detector.
+    #[tool(description = "Review-aware duplicate candidates; see tools.ttc")]
+    pub async fn find_duplicate_code(
+        &self,
+        Parameters(args): Parameters<FindDuplicateCodeArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        args.validate()?;
+        let index = self.index.lock().await;
+        let text = crate::duplicate_query::run(&index, args)?;
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
@@ -2836,6 +2907,7 @@ impl MctServer {
 
         let graph = {
             let index = self.index.lock().await;
+            let _snapshot = index.read_snapshot().map_err(index_error)?;
             index
                 .dependency_graph(&module, depth, limit)
                 .map_err(file_tree_error)?
@@ -3027,7 +3099,9 @@ impl ServerHandler for MctServer {
              filesystem, not what's defined in it. find_dead_code reports top-level symbols \
              with zero indexed references anywhere in the project — a heuristic starting point \
              for cleanup, not a certainty; sanity-check a hit with find_references or \
-             impact_analysis before deleting anything. build_context_pack is the composite \
+             impact_analysis before deleting anything. find_duplicate_code returns compact \
+             duplicate candidates, filtering valid group dismissals before pagination. \
+             Matching structure does not prove redundant behavior. build_context_pack is the composite \
              for working on one symbol: its definition with doc comment and capped source, \
              plus every caller, callee, dependency and related test listed once with its \
              signature — one call in place of find_symbol + find_calls + find_callers + \

@@ -7,15 +7,20 @@ use serde_json::{json, Value};
 use super::render::{Req, Response};
 use super::reviews::{self, Kind, Record, State};
 use super::stats::Bucket;
-use super::{index_stamp, now, source, store, view_dead, view_obsidian, Site};
+use super::{index_stamp, member_reviews, now, source, store, view_dead, view_obsidian, Site};
 
 const DEFAULT_LIMIT: usize = 50;
 const MAX_LIMIT: usize = 200;
 
-/// `api/version` only reports staleness; every other API read may rebuild the
-/// snapshot first (see `Site::refresh_if_stale`).
+/// Refresh analysis-bearing reads, including rendered pages. Assets and version
+/// polling do not trigger analysis. Reuse `Site::refresh_if_stale`; POSTs retain
+/// their stale-snapshot guard instead of silently rebasing writes.
 pub(super) fn wants_fresh_snapshot(route: &str) -> bool {
-    route.starts_with("api/") && route != "api/version"
+    (route.starts_with("api/") && route != "api/version")
+        || matches!(
+            route,
+            "duplicados" | "duplicado" | "muerto" | "simbolo" | "revisiones" | "estado"
+        )
 }
 
 pub(super) fn route(req: &Req<'_>, route: &str) -> Response {
@@ -266,14 +271,16 @@ fn duplicates(req: &Req<'_>) -> Response {
         .iter()
         .filter(|(_, _, state)| matches_status(state, req.param("status")))
         .collect();
-    let items: Vec<Value> = filtered.iter().skip(offset).take(limit).map(|(id, group, state)| {
+    let items: anyhow::Result<Vec<Value>> = filtered.iter().skip(offset).take(limit).map(|(id, group, state)| {
         let key = &site.duplicate_keys[*id];
-        let members: Vec<Value> = group.members.iter().map(|member| {
+        let saved = site.reviews.file_reviews(&key.identity)?;
+        let copies = member_reviews::resolve(&key.members, &saved);
+        let members: Vec<Value> = group.members.iter().zip(&copies).map(|(member, copy)| {
             let total = member.end_line.saturating_sub(member.start_line).saturating_add(1);
             let requested = member.start_line.checked_add(source_offset).filter(|_| source_offset < total);
+            let hash = site.navigation.files.iter().find(|f| f.relative_path == member.path).map(|f| f.content_hash.as_str());
             let excerpt = if full {
-                requested.and_then(|first| {
-                    let hash = site.navigation.files.iter().find(|f| f.relative_path == member.path)?.content_hash.as_str();
+                requested.zip(hash).and_then(|(first, hash)| {
                     source::indexed_excerpt(&site.root, &member.path, hash, first,
                         first.saturating_add(source_limit - 1).min(member.end_line))
                 })
@@ -284,8 +291,16 @@ fn duplicates(req: &Req<'_>) -> Response {
             let next_offset = (full && available && next < total && returned > 0).then_some(next);
             let empty = Vec::new();
             let excerpt_lines = if full { excerpt.as_ref().map_or(&empty, |found| &found.lines) } else { &member.excerpt };
+            // The editor shows each copy in its file: the lines above it on the
+            // first chunk, the lines below it on the last one.
+            let around = if full && excerpt.is_some() {
+                hash.and_then(|hash| source::indexed_surroundings(&site.root, &member.path, hash,
+                    (member.start_line, member.end_line), source::DUPLICATE_CONTEXT))
+            } else { None };
+            let context_before = around.as_ref().filter(|_| source_offset == 0).map_or(&empty, |found| &found.before);
+            let context_after = around.as_ref().filter(|_| next_offset.is_none()).map_or(&empty, |found| &found.after);
             json!({
-                "path": member.path, "start_line": member.start_line, "end_line": member.end_line,
+                "path": member.path, "member_key": copy.key, "start_line": member.start_line, "end_line": member.end_line,
                 "symbol": member.symbol_name, "kind": member.symbol_kind,
                 "line_count": member.line_count, "token_count": member.token_count,
                 "excerpt": excerpt_lines,
@@ -293,13 +308,22 @@ fn duplicates(req: &Req<'_>) -> Response {
                 "excerpt_available": !full || available,
                 "excerpt_truncated": if full { source_offset > 0 || next_offset.is_some() || (!available && source_offset < total) } else { true },
                 "source_offset": source_offset, "source_next_offset": next_offset, "source_total": total,
+                "context_before": context_before, "context_after": context_after,
+                "file_lines": around.as_ref().map(|found| found.file_lines),
             })
         }).collect();
-        json!({"identity":key.identity,"fingerprint":key.fingerprint,
+        Ok(json!({"identity":key.identity,"fingerprint":key.fingerprint,
             "revision":site.reviews.decision_revision(Kind::Duplicate,&key.identity).unwrap_or(0),
             "language":group.language,"line_count":group.line_count,"token_count":group.token_count,
-            "members":members,"state":state_json(state)})
+            "members":members,"state":state_json(state)}))
     }).collect();
+    let items = match items {
+        Ok(items) => items,
+        Err(error) => {
+            eprintln!("warning: cannot read copy labels: {error:#}");
+            return Response::error(500);
+        }
+    };
     stable_response(
         site,
         &token,
@@ -497,6 +521,11 @@ fn finding(req: &Req<'_>) -> Response {
     if !super::reviews::valid_key(identity) {
         return Response::error(400);
     }
+    // State and its optimistic revision must come from the same committed read.
+    let _review_snapshot = match req.site.reviews.read_snapshot() {
+        Ok(snapshot) => snapshot,
+        Err(_) => return Response::error(500),
+    };
     let known = match kind {
         Kind::Duplicate => req.site.duplicate_ids.contains_key(identity),
         Kind::Dead => req.site.dead_ids.contains_key(identity),
@@ -511,9 +540,50 @@ fn finding(req: &Req<'_>) -> Response {
         return Response::error(404);
     }
     let fingerprint = req.site.fingerprint_of(kind, identity);
-    let state = fingerprint.as_ref().map_or(State::Pending, |fp| {
-        req.site.state_or_pending(kind, identity, fp)
+    // A cached analysis fingerprint is not evidence that source is still readable
+    // or matches the indexed revision. Reuse the write path's verification.
+    let verified = fingerprint.as_ref().is_some_and(|fp| {
+        req.site
+            .verified_source_fingerprint(kind, identity, fp)
+            .is_ok()
     });
+    let saved_decision = match req.site.reviews.saved_decision(kind, identity) {
+        Ok(record) => record,
+        Err(_) => return Response::error(500),
+    };
+    let state = if known {
+        match req.site.reviews.state(
+            kind,
+            identity,
+            fingerprint.as_deref().filter(|_| verified).unwrap_or(""),
+        ) {
+            Ok(state) => state,
+            Err(_) => return Response::error(500),
+        }
+    } else {
+        State::Pending
+    };
+    let effective_decision = match &state {
+        State::Decided { status, .. } => Some(status.value()),
+        _ => None,
+    };
+    let review_validity = if !known {
+        "not_current"
+    } else if saved_decision
+        .as_ref()
+        .is_some_and(|r| r.status == reviews::Status::Pending)
+    {
+        "reset"
+    } else if saved_decision.is_none() && matches!(state, State::Pending) {
+        "not_reviewed"
+    } else if !verified {
+        "unavailable"
+    } else if matches!(state, State::NeedsReevaluation { .. }) {
+        "changed"
+    } else {
+        "unchanged"
+    };
+    let actionable = known && !matches!(effective_decision, Some("false_positive" | "ignored"));
     let revision = match req.site.reviews.decision_revision(kind, identity) {
         Ok(r) => r,
         Err(_) => return Response::error(500),
@@ -534,13 +604,21 @@ fn finding(req: &Req<'_>) -> Response {
             return Response::error(500);
         }
     };
+    let (members, effective) = match copy_details(req.site, identity, &files) {
+        Ok(value) => value,
+        Err(error) => {
+            eprintln!("warning: cannot read copy details: {error:#}");
+            return Response::error(500);
+        }
+    };
     json_response(&json!({
         "kind": kind.value(), "identity": identity, "current":known,
         "fingerprint":fingerprint,"state":state_json(&state),"revision":revision,
-        "files": files.iter().map(|row| {
-            let mut value = file_review_json(row);
-            value["revision"] = json!(req.site.reviews.file_revision(identity,&row.path).unwrap_or(0)); value
-        }).collect::<Vec<_>>(),
+        "saved_decision":saved_decision.as_ref().map(record_json),
+        "effective_decision":effective_decision, "review_validity":review_validity,
+        "actionable":actionable, "source_verified":verified,
+        "members": members, "files": effective,
+        "retained_files": files.iter().map(file_review_json).collect::<Vec<_>>(),
         "history": history.iter().map(record_json).collect::<Vec<_>>(),
         "comments": comments.iter().map(|comment| json!({
             "id": comment.id, "body": comment.body,
@@ -554,9 +632,59 @@ const FILE_LABEL_SCOPE: &str = "file_label";
 
 fn file_review_json(row: &store::FileReview) -> Value {
     json!({
-        "path": row.path, "status": row.status.value(), "scope": FILE_LABEL_SCOPE,
+        "path": row.path, "member_key": row.member_key, "status": row.status.value(), "scope": FILE_LABEL_SCOPE,
         "note": row.note, "updated_at": row.updated_at,
     })
+}
+
+/// Saved labels stay sparse; descriptors also carry revisions for cleared copies.
+fn copy_details(
+    site: &Site,
+    identity: &str,
+    saved: &[store::FileReview],
+) -> anyhow::Result<(Vec<Value>, Vec<Value>)> {
+    let Some(&group) = site.duplicate_ids.get(identity) else {
+        return Ok((Vec::new(), saved.iter().map(file_review_json).collect()));
+    };
+    let mut fingerprints = reviews::Fingerprints::new(&site.root, &site.navigation);
+    let mut current = site.duplicate_keys[group].members.clone();
+    for (copy, member) in current
+        .iter_mut()
+        .zip(&site.duplicates.groups[group].members)
+    {
+        copy.hash = fingerprints.text_hash(&member.path, member.start_line, member.end_line);
+    }
+    let copies = member_reviews::resolve(&current, saved);
+    let revisions = site.reviews.file_revisions(identity)?;
+    let concrete: std::collections::BTreeMap<_, _> = saved
+        .iter()
+        .map(|row| ((row.path.as_str(), row.member_key.as_str()), row))
+        .collect();
+    let mut members = Vec::new();
+    let mut files = Vec::new();
+    for (copy, member) in copies.iter().zip(&site.duplicates.groups[group].members) {
+        let revision = store::Store::revision_from(&revisions, identity, &member.path, &copy.key);
+        let row = concrete
+            .get(&(member.path.as_str(), copy.key.as_str()))
+            .or_else(|| concrete.get(&(member.path.as_str(), "")))
+            .copied();
+        let changed = row
+            .and_then(|row| row.code_hash.as_ref())
+            .zip(copy.hash.as_ref())
+            .is_some_and(|(old, current)| old != current);
+        let unavailable = copy.hash.is_none() || copy.uncertain;
+        members.push(json!({"member_key":copy.key, "path":member.path, "revision":revision}));
+        if let Some(row) = row {
+            let mut value = file_review_json(row);
+            value["member_key"] = json!(copy.key);
+            value["revision"] = json!(revision);
+            value["code_changed"] = json!(changed);
+            value["code_unavailable"] = json!(unavailable);
+            value["inherited"] = json!(row.member_key.is_empty());
+            files.push(value);
+        }
+    }
+    Ok((members, files))
 }
 
 fn note_kind(name: &str) -> &'static str {
@@ -692,6 +820,7 @@ pub(super) fn write(site: &mut Site, route: &str, body: &str) -> Response {
         ],
         "api/review/delete" => &["kind", "id", "expected_revision"],
         "api/file-review" => &[
+            "member_key",
             "id",
             "path",
             "status",
@@ -700,8 +829,8 @@ pub(super) fn write(site: &mut Site, route: &str, body: &str) -> Response {
             "fingerprint",
         ],
         "api/comment" => &["kind", "id", "body"],
-        "api/comment/update" => &["comment_id", "body"],
-        "api/comment/delete" => &["comment_id"],
+        "api/comment/update" => &["kind", "id", "comment_id", "body", "expected_revision"],
+        "api/comment/delete" => &["kind", "id", "comment_id", "expected_revision"],
         _ => return Response::error(404),
     };
     if fields.keys().any(|key| !allowed.contains(&key.as_str())) {
@@ -810,14 +939,38 @@ pub(super) fn write(site: &mut Site, route: &str, body: &str) -> Response {
             let Some(group) = site.duplicate_ids.get(identity).copied() else {
                 return Response::error(404);
             };
-            // Only files that are members of this group can be labelled.
-            if !site.duplicates.groups[group]
+            if fields
+                .get("member_key")
+                .is_some_and(|value| !value.is_string())
+            {
+                return Response::error(400);
+            }
+            let rows = match site.reviews.file_reviews(identity) {
+                Ok(rows) => rows,
+                Err(error) => {
+                    eprintln!("warning: cannot read copy labels: {error:#}");
+                    return Response::error(500);
+                }
+            };
+            let copies = member_reviews::resolve(&site.duplicate_keys[group].members, &rows);
+            let matches: Vec<_> = site.duplicates.groups[group]
                 .members
                 .iter()
-                .any(|member| member.path == path)
-            {
-                return Response::error(404);
-            }
+                .zip(&copies)
+                .filter(|(member, copy)| {
+                    member.path == path && text("member_key").is_none_or(|key| copy.key == key)
+                })
+                .collect();
+            let (member, copy) = match matches.as_slice() {
+                [] => return Response::error(404),
+                [one] => *one,
+                _ => return Response::error(409),
+            };
+            let mut fingerprints = reviews::Fingerprints::new(&site.root, &site.navigation);
+            let Some(hash) = fingerprints.text_hash(path, member.start_line, member.end_line)
+            else {
+                return Response::error(409);
+            };
             // Optional: the group content the editor labelled must still be
             // the current, verified content.
             if let Some(expected) = fields.get("fingerprint") {
@@ -830,20 +983,41 @@ pub(super) fn write(site: &mut Site, route: &str, body: &str) -> Response {
                     return response;
                 }
             }
-            saved(
-                site.reviews
-                    .set_file_review_checked(identity, path, status, note, now(), revision)
-                    .map(|()| {
-                        // A file label is a working note on one copy; it never
-                        // changes the group verdict, reported here unchanged.
-                        json_response(&json!({
-                            "path": path, "status": status.value(), "scope": FILE_LABEL_SCOPE,
-                            "finding_state": state_json(&site.duplicate_state(group)),
-                            "revision": site.reviews.file_revision(identity, path).unwrap_or(0),
-                            "finding_revision": site.reviews.decision_revision(Kind::Duplicate, identity).unwrap_or(0),
-                        }))
-                    }),
-            )
+            saved((|| {
+                let revision = if text("member_key").is_some() {
+                    site.reviews.set_member_review(
+                        identity,
+                        &store::FileReview {
+                            path: path.to_string(),
+                            member_key: copy.key.clone(),
+                            member_base: copy.base.clone(),
+                            code_hash: Some(hash),
+                            status,
+                            note: note.to_string(),
+                            updated_at: now(),
+                        },
+                        revision,
+                    )?;
+                    site.reviews.member_revision(identity, path, &copy.key)?
+                } else {
+                    // Retain the unique-path contract for older clients/tests.
+                    site.reviews.set_verified_file_review(
+                        identity,
+                        path,
+                        status,
+                        note,
+                        now(),
+                        (revision, &hash),
+                    )?;
+                    site.reviews.file_revision(identity, path)?
+                };
+                Ok(json_response(&json!({
+                    "path":path, "member_key":copy.key, "status":status.value(), "scope":FILE_LABEL_SCOPE,
+                    "code_changed":false, "revision":revision,
+                    "finding_state":state_json(&site.duplicate_state(group)),
+                    "finding_revision":site.reviews.decision_revision(Kind::Duplicate, identity)?,
+                })))
+            })())
         }
         "api/comment" => {
             let (Some(kind), Some(identity), Some(body)) =
@@ -863,32 +1037,40 @@ pub(super) fn write(site: &mut Site, route: &str, body: &str) -> Response {
                     .map(|id| json_response(&json!({"comment_id": id}))),
             )
         }
-        "api/comment/update" => {
-            let (Some(id), Some(body)) = (comment_id(), text("body")) else {
+        "api/comment/update" | "api/comment/delete" => {
+            let (Some(id), Some(kind), Some(identity), Some(revision)) = (
+                comment_id(),
+                text("kind").and_then(Kind::parse),
+                text("id"),
+                expected_revision(),
+            ) else {
                 return Response::error(400);
             };
-            if store::clean_comment(body).is_err() {
+            if id <= 0 || !reviews::valid_key(identity) {
                 return Response::error(400);
             }
-            saved(site.reviews.update_comment(id, body, now()).map(|found| {
-                if found {
-                    json_response(&json!({"comment_id": id}))
-                } else {
-                    Response::error(404)
+            let result = if route == "api/comment/update" {
+                let Some(body) = text("body") else {
+                    return Response::error(400);
+                };
+                if store::clean_comment(body).is_err() {
+                    return Response::error(400);
                 }
-            }))
-        }
-        _ => {
-            let Some(id) = comment_id() else {
-                return Response::error(400);
+                site.reviews
+                    .update_comment(id, (kind, identity, revision), body, now())
+            } else {
+                site.reviews.delete_comment(id, (kind, identity, revision))
             };
-            saved(site.reviews.delete_comment(id).map(|found| {
+            saved(result.map(|found| {
                 if found {
-                    json_response(&json!({"comment_id": id}))
+                    json_response(
+                        &json!({"comment_id": id, "revision": revision.saturating_add(1)}),
+                    )
                 } else {
                     Response::error(404)
                 }
             }))
         }
+        _ => Response::error(404),
     }
 }

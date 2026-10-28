@@ -8,6 +8,31 @@ All `mct-cli` commands accept a global `--root <path>` naming the project to ope
 
 ## 1. `mct-cli` — the human-facing command line
 
+### Dashboard backup and isolated verification
+
+`dashboard-backup [--destination <directory>]` snapshots the existing current-schema
+`.mct-index/dashboard.sqlite3` through SQLite Online Backup, including committed
+WAL data. It never opens the analysis index, migrates/imports the source, or
+overwrites a previous backup. Default destination: `.mct-index/backups`.
+The destination's parent must exist; Unix destination directories must be private
+(0700). Custom directories inside source must be under `.mct-index`.
+
+`dashboard-backup-verify --backup <completed-directory>` checks the completion
+manifest, SHA-256, size, schema, SQLite integrity and foreign keys, then restores
+into a disposable private database and validates it again. It never replaces live
+user data. The successful command does not persist a last-verified-restore marker.
+
+Both commands accept one root. This first slice is manual: no automatic scheduler,
+retention or production restore command is shipped. Each manual snapshot is
+limited to 256 MiB; copy retries stop after a 60-second deadline checked between
+SQLite steps. Integrity checks and filesystem operations can take longer.
+Keep completed snapshots confidential and monitor space: repeated manual runs
+accumulate backups until the operator removes them. A directory without a valid
+`manifest.toon` is incomplete, even if its database file exists.
+
+See [the reliability SDD](docs/01-architecture/storage-reliability-spec.md) for
+recovery scenarios, proposed automation policy and production cutover prerequisites.
+
 ### `--root <path>` (global flag)
 
 Names the project to operate on. Accepted by every subcommand below; defaults to the current working directory when omitted.
@@ -508,7 +533,13 @@ Decisions and comments are never written to the source files, the index or the
 Obsidian vault, and no bulk purge or source-deletion operation exists.
 ### `dead-code` / `dead-code --path <path> --language <lang> --output <file>`
 
-Writes a CSV report of dead-code candidates (heuristic: symbols with zero indexed references) to `.mct-index/dead-code-report.csv` — one row per candidate with its file, function name, kind, language, and start/end line. Optionally narrowed to a file/directory/crate and/or language, and written to a custom path instead of the default. Omits unchanged candidates saved as false positive or ignored in the `web` dashboard; `--include-reviewed` writes the raw candidates.
+Writes a CSV report of dead-code candidates (heuristic: symbols with zero indexed references in their target language) to `.mct-index/dead-code-report.csv` — one row per candidate with its file, function name, kind, language, and start/end line. Optionally narrowed to a file/directory/crate and/or language, and written to a custom path instead of the default. Omits unchanged candidates saved as false positive or ignored in the `web` dashboard; `--include-reviewed` writes the raw candidates.
+
+References use the parser's explicit target language when supplied, otherwise
+its source language. An unrelated Python homonym cannot hide an unused Rust
+function; explicit cross-language references remain supported. Same-language
+homonyms, reflection, FFI and public API usage outside the project remain
+heuristic limitations. Each report uses one committed analysis snapshot.
 
 ```sh
 mct-cli --root . dead-code
@@ -973,6 +1004,26 @@ Milliseconds of quiet time required after the last detected file write before th
 mct-mcp-server --root /path/to/your/project --reindex-debounce-ms 5000
 ```
 
+### `--reconcile-interval-seconds <seconds>`
+
+While the automatic watcher is active, a full hash reconciliation runs after
+this many idle seconds even when the operating system delivered no event. The
+default is 300 seconds; values below 60 are rejected. The equivalent
+`MCT_REINDEX_RECONCILE_SECS` environment variable is used when the flag is
+absent, with invalid values falling back to the default. The flag takes
+precedence. `--reindex-delay off` or `--reindex-debounce-ms 0` disables the
+watcher and its periodic reconciliation; manual `reindex` remains available.
+Missed intervals coalesce into one scan. Continuous event bursts are dispatched
+within 30 seconds; a saturated bounded event queue requests a full scan.
+
+```sh
+mct-mcp-server --root /path/to/your/project --reconcile-interval-seconds 600
+```
+
+To pass this setting through an MCP client, add
+`"--reconcile-interval-seconds", "600"` to that server entry's `args` in
+`.mcp.json`. The command does not install or modify an operating-system task.
+
 ### `--no-obsidian`
 
 Stops the server from regenerating the Obsidian vault in `.mct-index/obsidian/` after each reindex (see [`obsidian`](#obsidian)).
@@ -1090,3 +1141,139 @@ These aren't run by hand; they're the tools an MCP client (Claude Code, Cursor, 
 ---
 
 For installation, connecting to your assistant, uninstalling, and troubleshooting, see [README.md](README.md).
+
+
+## Cooperative database ownership
+
+Compatible MCT processes share a database access barrier. Index mutations acquire
+an additional fail-fast writer lock; contention returns an actionable error and
+makes no partial run start. Retry the command when the active run finishes;
+watcher failures retain the existing retry/backoff behavior. Ordinary queries
+and online dashboard backups do not acquire the exclusive writer gate.
+
+Startup/initialization and migration use bounded five-second lock acquisitions.
+A schema upgrade requires every participating connection to that database to
+close first; retry with the matching binary after an explicitly authorized
+client shutdown. Multiple current-schema MCP/dashboard processes can coexist.
+The dashboard keeps SQLite's existing revisions, conflict responses and busy
+handling. Separate projects and the two databases use independent locks.
+
+Persistent `index.sqlite3.access.lock` / `index.sqlite3.writer.lock` and their
+dashboard equivalents are ownership rendezvous files, not stale PID files.
+Never delete them to resolve contention. OS locks release on close/crash.
+Readers may create a private access lock beside an existing database and need
+permission to open it. Use owner-controlled local directories; network/shared
+filesystems and hostile replacement are unsupported. The Rust locking API
+requires Rust1.89 or newer (below the currently pinned CI toolchain1.96).
+
+Old executables and direct SQLite tools do not obey this protocol. Before any
+production rollout, inventory actual loaded executable versions and roots,
+verify a user-data backup, obtain authorization to close incompatible clients,
+then restart only compatible clients. An application lock alone is no evidence
+that an old process stopped. No production restore command or automatic shutdown
+is introduced. See [ADR-021](docs/01-architecture/adrs/021-index-writer-and-generations.md)
+and the existing recovery runbook for exclusive offline cutover requirements.
+
+### Managed dashboard backups (opt-in)
+
+`dashboard-backup-manage` is one maintenance tick, suitable for cron, launchd or
+Windows Task Scheduler. It does nothing unless `--enabled` is supplied. Install
+the external trigger explicitly as the same local user, typically once a minute;
+use absolute executable/root/destination paths and identical flags in every tick.
+No scheduler is installed by MCT. A trigger after sleep/restart creates one missed
+backup, not a burst. Monitoring must check exit status and stderr, not file count.
+
+```sh
+mct-cli --root /path/to/project dashboard-backup-manage --enabled
+mct-cli --root /path/to/project dashboard-backup-status --enabled
+mct-cli dashboard-backup-verify --backup /private/backups/dashboard-EXAMPLE
+mct-cli dashboard-backup-restore --backup /private/backups/dashboard-EXAMPLE --destination /private/new-isolated-restore
+```
+
+Policy flags (supply the same to manage/status): `--destination` defaults to
+`.mct-index/backups`; `--interval-seconds 86400`, `--max-count 7`,
+`--max-age-seconds 2592000` (zero disables age expiration), `--max-bytes 1073741824`,
+`--min-verified 2`, `--verify-seconds 604800`. Intervals must be at least60s,
+minimum at least1 and maximum count at least the minimum. Defaults are conservative
+starting limits, not measured capacity guarantees. Status describes the supplied
+invocation policy; it cannot prove that the OS scheduler is installed/enabled.
+With scheduling disabled, next_due_if_enabled is hypothetical. Preserve policy
+configuration with the OS task; TOON state stores attempt/success/verification,
+retry deadline, failure count and lifecycle across restarts.
+
+State/snapshot/retention are serialized per private destination with persistent
+OS lock files. Never delete lock files to resolve contention. Busy means retry
+at a later tick. Separate projects need separate destinations; managed state
+refuses another canonical source. Moving a project changes that identity: inspect
+old backups and choose a new destination, rather than editing ownership markers.
+Backups inside a project must stay under `.mct-index`; never expose the destination
+through a web directory server or MCP source root. External destinations need a
+private existing parent. Windows requires verified owner-only ACLs. Network/shared
+filesystems and hostile same-owner mutations remain unsupported.
+
+A new snapshot is restored/checked privately before final manifest publication.
+State reconciles a completed attempt after restart. Incomplete output, unknown
+files and corrupt candidates are retained for operator inspection. No recursive
+cleanup is performed. A regular `preserve` file inside a bundle pins it; remove
+that marker only after inspecting it. Retention deletes only old verified managed
+bundles containing exactly database/manifest/receipt. Manual backups have no
+managed receipt and are never deleted. It protects the newest managed point and
+minimum count; minimum is a deletion floor, not a promise before enough runs occur.
+Count, age and byte constraints may conflict: the command reports a conflict and
+retains protected data. A new backup can exceed quota temporarily before cleanup;
+if the destination is already over quota, further creation is refused. Unknown
+files/incomplete bundles count toward storage. Nested/oversized/linked layouts
+fail closed. Resolve conflicts by increasing capacity/limits or separately
+reviewing files; never remove the last recovery point to satisfy a quota.
+
+Status performs full verification and lists basename, age, size, validity,
+completeness, ownership, minimum readiness, retention satisfaction and failure
+state. No verified point belonging to this source gives a CRITICAL nonzero result;
+manual candidates remain listed for explicit operator association. It can be
+expensive for many/large backups; invoke status on demand, not every minute.
+Periodic verification failures skip retention. Creation failures retain older
+points; retry delay doubles from5min to1h. Disk-full injection tests cover error
+handling, not actual filesystem capacity reservation or power-loss durability.
+
+#### Controlled recovery
+
+1. List/status, then explicitly verify a chosen bundle. Confirm source/project
+   identity and expected snapshot time; SHA-256 detects changes, not authenticity.
+2. Restore into a NEW isolated directory. This checks schema/integrity/FKs and
+   every table's values/types against the snapshot, preserving notes/comments.
+   Failure can leave a new incomplete export directory; inspect it separately.
+3. Compare expected review counts/content/time with operator records. This is
+   snapshot recovery, not arbitrary point-in-time recovery or unsaved-draft rescue.
+4. Production cutover is NOT implemented by these commands. Obtain authorization;
+   inventory and stop/upgrade all legacy/external writers and all participating
+   readers, prevent restarts, acquire exclusive dashboard maintenance, and make
+   a precautionary consistent snapshot of current state where feasible.
+5. Keep the original DB and its WAL/SHM together in an operator-controlled rollback
+   location. Never mix old sidecars with the restored DB. Publish the validated
+   standalone candidate only under verified exclusive ownership using an OS-tested
+   replacement procedure; permissions/ACL and parent directory durability matter.
+6. Reopen only compatible binaries, run integrity/FK/schema checks and inspect
+   expected user records. Record the tested candidate/time and acceptance. Rollback
+   requires another authorized exclusive cutover; post-cutover saves do not merge
+   automatically and may be lost. There is no shipped turnkey production swap.
+
+For shutdown, disable future OS ticks and let the current one finish. A forced
+termination is recoverable via manifest/state reconciliation; no signal-driven
+production restore or automatic deletion occurs. Copy phases have60s monotonic
+deadlines; integrity checks and OS filesystem calls have no hard realtime bound.
+
+### MCP duplicate discovery (#233)
+
+`find_duplicate_code` is read-only. All inputs are optional: `path`, `language`,
+`normalization` (`broad` default / `consistent` / `exact`), `min_lines` (6),
+`min_tokens` (40), `limit` (10;1..100), `offset` (0), `include_reviewed` (false),
+`max_tokens` (4000;512..16000 estimated). It returns compact TOON group/member
+references, not source bodies or notes. Valid group dismissals are filtered
+before pagination; copy statuses do not suppress a group. Suppression counts
+and coverage distinguish hidden findings from absent/incomplete analysis.
+
+`next_offset` pages are not pinned across requests: restart on a generation
+change. Member truncation is explicit; retry the same offset with a larger
+budget for more members. See MCP Protocol Spec Phase 8.1 for the full contract.
+Existing `mct-cli call find_duplicate_code` can dispatch it, but that CLI wrapper
+intentionally refreshes the index first; the MCP query itself does not reindex.

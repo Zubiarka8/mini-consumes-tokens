@@ -93,7 +93,7 @@ pub fn looks_like_test_name(name: &str, relative_path: &str) -> bool {
 /// prefix, matching [`Index::list_symbols`]'s semantics — omit for the whole
 /// project), optionally narrowed to one `language`: symbols whose kind is in
 /// [`DEAD_CODE_KIND_ALLOWLIST`], that aren't a known entry point, don't look
-/// like a test, and have zero indexed references anywhere in the project.
+/// like a test, and have zero indexed references in their parser language.
 ///
 /// Heuristic over indexed relations, not real export/dynamic-dispatch
 /// analysis — a symbol only referenced via reflection, an FFI boundary, or a
@@ -103,15 +103,24 @@ pub fn find_dead_code_candidates(
     path: Option<&str>,
     language: Option<&str>,
 ) -> Result<Vec<SymbolListEntry>> {
+    let _snapshot = if index.conn.is_autocommit() {
+        Some(index.read_snapshot()?)
+    } else {
+        None
+    };
     let all_entries = index.list_symbols_all(path, language)?;
-    let reference_counts = index.reference_counts()?;
+    let references = crate::queries::referenced_names_by_language(&index.conn)?;
 
     Ok(all_entries
         .into_iter()
         .filter(|e| DEAD_CODE_KIND_ALLOWLIST.contains(&e.kind.as_str()))
         .filter(|e| !DEAD_CODE_ENTRY_POINT_NAMES.contains(&e.name.as_str()))
         .filter(|e| !looks_like_test_name(&e.name, &e.relative_path))
-        .filter(|e| !reference_counts.contains_key(e.name.as_str()))
+        .filter(|e| {
+            !references
+                .get(&e.language)
+                .is_some_and(|names| names.contains(&e.name))
+        })
         .collect())
 }
 
