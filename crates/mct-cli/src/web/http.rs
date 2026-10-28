@@ -43,6 +43,7 @@ pub(super) fn serve_connection(
         403 => "Forbidden",
         404 => "Not Found",
         405 => "Method Not Allowed",
+        409 => "Conflict",
         408 => "Request Timeout",
         413 => "Content Too Large",
         421 => "Misdirected Request",
