@@ -1,0 +1,11 @@
+{
+  "name": "duplicate-app",
+  "fixture": "tests/fixtures/duplicate-app",
+  "cases": [
+    {"name":"two independent same-language duplicate groups","category":"duplicates","tool":"find_duplicate_code","args":{},"expect":["detected: 2","actionable: 2","duplicate_alpha","duplicate_beta","duplicate_first","duplicate_second","coverage_complete: true"],"absent":["distinct_control","all_suppressed"]},
+    {"name":"Rust duplicate group language scope","category":"duplicates","tool":"find_duplicate_code","args":{"language":"rust"},"expect":["detected: 1","duplicate_alpha","duplicate_beta"],"absent":["duplicate_first","duplicate_second"]},
+    {"name":"Python duplicate group path scope","category":"duplicates","tool":"find_duplicate_code","args":{"path":"python"},"expect":["detected: 1","duplicate_first","duplicate_second"],"absent":["duplicate_alpha","duplicate_beta"]},
+    {"name":"deterministic bounded duplicate discovery page","category":"duplicates","tool":"find_duplicate_code","args":{"limit":1,"offset":0},"expect":["detected: 2","returned: 1","truncated: true","next_offset: 1"],"absent":[]},
+    {"name":"nonexistent scope is absence not suppression","category":"duplicates","tool":"find_duplicate_code","args":{"path":"absent"},"expect":["status: no_groups","detected: 0","suppressed: 0"],"absent":["all_suppressed"]}
+  ]
+}
