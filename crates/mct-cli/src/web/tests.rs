@@ -1012,11 +1012,71 @@ fn an_unreadable_review_file_makes_reviews_read_only_and_hides_nothing() {
         .unwrap()
         .contains("reviews.toon"));
     let row = degraded.json(&format!("api/finding?key={key}"));
-    assert_eq!(row["state"], "unreviewed", "nothing is hidden");
+    // The valid decision stays visible, flagged as held; nothing is hidden.
+    assert_eq!(row["state"], "needs-reevaluation");
+    assert_eq!(row["previousState"], "dismissed");
+    assert_eq!(row["held"], true);
     assert_eq!(row["readOnly"], true);
     let response = degraded.decide(&key, Some("confirmed"), "");
     assert!(response.starts_with("HTTP/1.1 503"), "{response}");
     assert_eq!(fs::read_to_string(&draft).unwrap(), "version: 2\ntruncated");
+}
+
+#[test]
+fn a_held_decision_stays_in_the_default_actionable_lists() {
+    let root = project();
+    let key = Server::start(root.path(), true).site.borrow().review_keys[0].clone();
+    let server = Server::start(root.path(), true);
+    assert!(server
+        .decide(&key, Some("dismissed"), "")
+        .starts_with("HTTP/1.1 200"));
+    // The pages ask for these states by default (`ACTIONABLE` in page-findings.js).
+    let actionable =
+        "state=unreviewed,needs-reevaluation,in-review,confirmed,resolved-but-detected";
+    let keys = |server: &Server| -> Vec<String> {
+        server.json(&format!("api/findings?{actionable}"))["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|row| row["key"].as_str().map(str::to_owned))
+            .collect()
+    };
+    assert!(
+        !keys(&server).contains(&key),
+        "a healthy dismissal hides it"
+    );
+    fs::write(
+        root.path().join(".mct-index/reviews.toon"),
+        "version: 2\ntruncated",
+    )
+    .unwrap();
+    let degraded = Server::start(root.path(), true);
+    assert!(
+        keys(&degraded).contains(&key),
+        "a held dismissal must stay in the actionable list"
+    );
+}
+
+#[test]
+fn stats_count_a_held_decision_as_the_state_the_list_reports() {
+    let root = project();
+    let key = Server::start(root.path(), true).site.borrow().review_keys[0].clone();
+    let server = Server::start(root.path(), true);
+    assert!(server
+        .decide(&key, Some("dismissed"), "")
+        .starts_with("HTTP/1.1 200"));
+    let states = |server: &Server| server.json("api/stats")["findings"]["states"].clone();
+    assert_eq!(states(&server)["dismissed"], 1, "a healthy dismissal");
+    fs::write(
+        root.path().join(".mct-index/reviews.toon"),
+        "version: 2\ntruncated",
+    )
+    .unwrap();
+    let degraded = states(&Server::start(root.path(), true));
+    // The list reports the held row as `needs-reevaluation`; the counters
+    // must agree with it instead of still counting it as dismissed.
+    assert_eq!(degraded["needs-reevaluation"], 1, "{degraded}");
+    assert!(degraded["dismissed"].is_null(), "{degraded}");
 }
 
 #[test]

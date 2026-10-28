@@ -10,8 +10,11 @@
 //! findings against all of them (`resolve`), so nothing is ever converted.
 //!
 //! A decision hides a finding only when it matches the finding's identity
-//! *and* its exact code fingerprint; when any present file cannot be read,
-//! nothing is hidden and nothing is written. Design and rationale:
+//! *and* its exact code fingerprint. When any present file cannot be read,
+//! nothing is hidden and nothing is written. If the canonical file is the
+//! unreadable one, no source applies. If only an older file is unreadable, the
+//! canonical decisions are still reported but held (`Resolution::held`): the
+//! unread file may hold a later decision. Design and rationale:
 //! `docs/superpowers/specs/2026-10-22-shared-review-decisions-design.md`.
 
 mod format;
