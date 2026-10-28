@@ -36,6 +36,7 @@ pub(super) fn serve_connection(
     site: &mut Site,
 ) -> std::io::Result<()> {
     stream.write_timeout(REQUEST_TIMEOUT)?;
+    site.follow_reindex();
     let (response, head) = receive(stream, port, token, site)?;
     let reason = match response.status {
         200 => "OK",

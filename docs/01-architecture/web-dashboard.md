@@ -78,5 +78,5 @@ checks, strict CSP) is unchanged.
 
 ## Known limits
 
-Single snapshot per process (restart after `reindex`); review history is local
+The snapshot reloads on the next request after a `reindex` (decisions and the page's CSRF token are kept); review history is local
 to the project; keyword search only; the graph shows verified import edges only.
