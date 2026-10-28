@@ -2,8 +2,9 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use clap::Parser;
+use mct_mcp_server::readiness::{IndexState, Readiness};
 use mct_mcp_server::reindex_delay::{parse_reindex_delay_arg, ReindexDelay};
-use mct_mcp_server::{background, registry, server, session_compat};
+use mct_mcp_server::{background, registry, server, session_compat, shutdown};
 use rmcp::{transport::stdio, ServiceExt};
 
 /// mini-consumes-tokens: MCP server exposing an AST-derived symbol graph of
@@ -103,25 +104,13 @@ async fn main() -> anyhow::Result<()> {
     // it), reloaded when `.mctignore`/`.gitignore` change — no restart needed.
     let exclude = mct_index::ExcludeSet::for_project(&root);
     let mut index = mct_index::Index::open(&root, &db_path, exclude.clone())?;
+    let publish_guard = mct_obsidian::PublishGuard::default();
     if !args.no_obsidian {
-        mct_obsidian::register(&mut index);
+        mct_obsidian::register_guarded(&mut index, publish_guard.clone());
     }
-
-    tracing::info!(root = %root.display(), "starting initial reindex");
-    let report = index.reindex(&language_registry, false)?;
-    for warning in &report.warnings {
-        tracing::warn!(%warning, "post-reindex hook failed");
-    }
-    tracing::info!(
-        parsed = report.files_parsed,
-        unchanged = report.files_unchanged,
-        removed = report.files_removed,
-        symbols = report.symbols_written,
-        issues = report.issues.len(),
-        "initial reindex complete"
-    );
 
     if args.rebuild_embeddings {
+        log_initial_reindex(index.reindex(&language_registry, false)?);
         let model = mct_mcp_server::embedder::SemanticModel::default();
         let embedder = model
             .get(index.root())
@@ -153,24 +142,24 @@ async fn main() -> anyhow::Result<()> {
         args.reconcile_interval_seconds,
         std::env::var(RECONCILE_INTERVAL_ENV).ok().as_deref(),
     ));
-    let _watcher = if let Some(debounce) = debounce {
-        match background::spawn_watcher_with_reconciliation(
-            server.index_handle(),
-            server.registry_handle(),
+
+    // `initialize` must be answered within the client's start-up timeout, which
+    // a large first index exceeds. Serve first and index in the background;
+    // tool calls report the state until the index is complete (see
+    // `mct_mcp_server::readiness`).
+    let readiness = server.readiness();
+    readiness.begin_indexing();
+    let startup = tokio::spawn(startup_index(
+        server.index_handle(),
+        server.registry_handle(),
+        readiness.clone(),
+        WatcherSettings {
             watch_root,
             exclude,
             debounce,
             reconcile_interval,
-        ) {
-            Ok(watcher) => Some(watcher),
-            Err(err) => {
-                tracing::warn!(error = %err, "failed to start auto-reindex watcher; continuing without it");
-                None
-            }
-        }
-    } else {
-        None
-    };
+        },
+    ));
 
     let service = session_compat::SessionCompat::new(server)
         .serve(stdio())
@@ -178,7 +167,94 @@ async fn main() -> anyhow::Result<()> {
         .inspect_err(|e| tracing::error!("serving error: {e:?}"))?;
 
     service.waiting().await?;
+    if matches!(readiness.state(), IndexState::Indexing { .. }) {
+        // Waiting for the blocking indexing would keep the process alive long
+        // after the client left. SQLite rolls the unfinished transaction back;
+        // a vault publication already under way is let finish so its writer
+        // lock is released (see `mct_mcp_server::shutdown`).
+        tracing::warn!("client disconnected during startup indexing; exiting");
+        shutdown::exit_when_not_publishing(&publish_guard, || std::process::exit(0));
+    }
+    startup.abort();
     Ok(())
+}
+
+struct WatcherSettings {
+    watch_root: PathBuf,
+    exclude: mct_index::ExcludeSet,
+    debounce: Option<Duration>,
+    reconcile_interval: Duration,
+}
+
+fn log_initial_reindex(report: mct_index::ReindexReport) {
+    for warning in &report.warnings {
+        tracing::warn!(%warning, "post-reindex hook failed");
+    }
+    tracing::info!(
+        parsed = report.files_parsed,
+        unchanged = report.files_unchanged,
+        removed = report.files_removed,
+        symbols = report.symbols_written,
+        issues = report.issues.len(),
+        "initial reindex complete"
+    );
+}
+
+/// Runs the initial reindex off the async runtime, publishes the outcome on
+/// `readiness`, and once the index is ready (after a failed start: when `reindex`
+/// recovers it) starts the auto-reindex watcher (after the
+/// initial index, which should not pay for symbol-change tracking). The
+/// watcher lives as long as this task, i.e. the process.
+async fn startup_index(
+    index: std::sync::Arc<tokio::sync::Mutex<mct_index::Index>>,
+    registry: mct_core::LanguageRegistry,
+    readiness: Readiness,
+    watcher: WatcherSettings,
+) {
+    tracing::info!("starting initial reindex");
+    let outcome = tokio::task::spawn_blocking({
+        let index = index.clone();
+        let registry = registry.clone();
+        move || index.blocking_lock().reindex(&registry, false)
+    })
+    .await;
+    match outcome {
+        Ok(Ok(report)) => {
+            log_initial_reindex(report);
+            readiness.mark_ready();
+        }
+        Ok(Err(err)) => {
+            tracing::error!(error = %err, "initial reindex failed; tools report it until `reindex` succeeds");
+            readiness.mark_failed(err.to_string());
+            // The watcher starts once the `reindex` tool has recovered the index.
+            readiness.until_ready().await;
+        }
+        Err(join) => {
+            tracing::error!(error = %join, "initial reindex task failed");
+            readiness.mark_failed(format!("indexing task failed: {join}"));
+            readiness.until_ready().await;
+        }
+    }
+
+    let Some(debounce) = watcher.debounce else {
+        return;
+    };
+    let _watcher = match background::spawn_watcher_with_reconciliation(
+        index,
+        registry,
+        watcher.watch_root,
+        watcher.exclude,
+        debounce,
+        watcher.reconcile_interval,
+    ) {
+        Ok(watcher) => watcher,
+        Err(err) => {
+            tracing::warn!(error = %err, "failed to start auto-reindex watcher; continuing without it");
+            return;
+        }
+    };
+    // Dropping the watcher would stop it: keep it for the process's lifetime.
+    std::future::pending::<()>().await;
 }
 
 #[cfg(test)]
