@@ -152,6 +152,7 @@ Once it's connected and healthy, prefer it over grep/reading whole files:
 - Exploring a file/folder before knowing a name -> list_symbols,
   get_file_skeleton, get_project_overview, get_file_tree
 - Candidate unused code -> find_dead_code
+- Duplicate code, skipping groups a person already rejected -> find_duplicate_code
 - Several of the above at once, queries already known -> batch
 
 Still read/edit files normally for everything else (writing code, checking

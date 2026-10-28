@@ -50,6 +50,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- MCP `find_duplicate_code`: read-only, review-aware duplicate candidates. It
+  reads the shared review decisions (ADR-019), so a group a person marked
+  `false-positive` or `dismissed` is filtered before `limit`/`offset` while its
+  code is unchanged, and `include_reviewed` shows it. Compact bounded output
+  with explicit truncation; `review_store: degraded` when a review file cannot
+  be read. See ADR-022 and `COMMANDS.md`.
 - `mct-cli dead-code --reviewed show|hide|only` and
   `mct-cli duplicates --reviewed show|hide|only` apply the web dashboard's
   review decisions (filtering before paging). Without the flag no review
