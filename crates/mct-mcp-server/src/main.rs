@@ -25,6 +25,11 @@ struct Args {
     #[arg(long, conflicts_with = "reindex_delay")]
     reindex_debounce_ms: Option<u64>,
 
+    /// Seconds between full reconciliation scans while the filesystem watcher
+    /// is active (default 300; minimum 60). Invalid environment values use the default.
+    #[arg(long, value_parser = clap::value_parser!(u64).range(60..))]
+    reconcile_interval_seconds: Option<u64>,
+
     /// Quiet time without file changes before the index updates itself.
     /// Presets: 15s, 30s, 45s, 1m. Custom: <N>s, <N>m or <N>ms (N > 0), e.g.
     /// 90s, 2m, 500ms. 'off' disables automatic updates. Conflicts with
@@ -53,6 +58,8 @@ const DEFAULT_REINDEX_DEBOUNCE_MS: u64 = 15_000;
 
 /// Environment variable that sets the quiet time when the flag is absent.
 const REINDEX_DEBOUNCE_ENV: &str = "MCT_REINDEX_DEBOUNCE_MS";
+const RECONCILE_INTERVAL_ENV: &str = "MCT_REINDEX_RECONCILE_SECS";
+const DEFAULT_RECONCILE_INTERVAL_SECS: u64 = 300;
 
 /// Resolves the reindex debounce: flag > environment value > default. An
 /// environment value that is not a non-negative integer is ignored, so a typo
@@ -60,6 +67,15 @@ const REINDEX_DEBOUNCE_ENV: &str = "MCT_REINDEX_DEBOUNCE_MS";
 fn resolve_reindex_debounce_ms(flag: Option<u64>, env_value: Option<&str>) -> u64 {
     flag.or_else(|| env_value.and_then(|v| v.trim().parse().ok()))
         .unwrap_or(DEFAULT_REINDEX_DEBOUNCE_MS)
+}
+
+fn resolve_reconcile_interval_seconds(flag: Option<u64>, env_value: Option<&str>) -> u64 {
+    flag.or_else(|| {
+        env_value
+            .and_then(|v| v.trim().parse::<u64>().ok())
+            .filter(|value| *value >= 60)
+    })
+    .unwrap_or(DEFAULT_RECONCILE_INTERVAL_SECS)
 }
 
 #[tokio::main]
@@ -133,13 +149,18 @@ async fn main() -> anyhow::Result<()> {
             ms => Some(Duration::from_millis(ms)),
         },
     };
+    let reconcile_interval = Duration::from_secs(resolve_reconcile_interval_seconds(
+        args.reconcile_interval_seconds,
+        std::env::var(RECONCILE_INTERVAL_ENV).ok().as_deref(),
+    ));
     let _watcher = if let Some(debounce) = debounce {
-        match background::spawn_watcher(
+        match background::spawn_watcher_with_reconciliation(
             server.index_handle(),
             server.registry_handle(),
             watch_root,
             exclude,
             debounce,
+            reconcile_interval,
         ) {
             Ok(watcher) => Some(watcher),
             Err(err) => {
@@ -195,5 +216,17 @@ mod tests {
         assert_eq!(resolve_reindex_debounce_ms(None, Some("fast")), 15_000);
         assert_eq!(resolve_reindex_debounce_ms(None, Some("-1")), 15_000);
         assert_eq!(resolve_reindex_debounce_ms(None, Some("")), 15_000);
+    }
+
+    #[test]
+    fn reconciliation_interval_uses_flag_then_valid_environment_then_default() {
+        assert_eq!(resolve_reconcile_interval_seconds(None, None), 300);
+        assert_eq!(resolve_reconcile_interval_seconds(None, Some("600")), 600);
+        assert_eq!(
+            resolve_reconcile_interval_seconds(Some(120), Some("600")),
+            120
+        );
+        assert_eq!(resolve_reconcile_interval_seconds(None, Some("59")), 300);
+        assert_eq!(resolve_reconcile_interval_seconds(None, Some("bad")), 300);
     }
 }
