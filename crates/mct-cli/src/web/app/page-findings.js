@@ -23,6 +23,8 @@ const BUILTIN_PRESETS = [
 // Any decision can be replaced by any other at any time; the server keeps every change in the history.
 const DECISIONS = ["in-review", "confirmed", "false-positive", "dismissed", "resolved"];
 const DECIDED = ["confirmed", "false-positive", "resolved", "dismissed"];
+// Lines shown around a dead-code candidate in its code view; 3 when the URL names none.
+const CONTEXT_CHOICES = [0, 3, 10, 25];
 const actionsFor = (state) => [...DECISIONS.filter((d) => d !== state), ...(state === "unreviewed" ? [] : ["reopen"])];
 
 /** One-click ignore: no dialog and no reason. The finding stays in the history and can be reopened. */
@@ -114,7 +116,7 @@ function duplicateDetail(item, onChange, setView) {
     item.analysis && h("details", { class: "section" }, h("summary", {}, t("dup.technical")), h("pre", { class: "mono", style: { whiteSpace: "pre-wrap", overflow: "auto", maxHeight: "300px" } }, item.analysis)));
 }
 
-function deadDetail(item, onChange) {
+function deadDetail(item, onChange, setView) {
   const d = item.detail;
   const s = d.symbol;
   return h("div", { class: "card inspector" },
@@ -124,6 +126,7 @@ function deadDetail(item, onChange) {
     h("dl", { class: "kv", style: { margin: "10px 0" } }, h("dt", {}, t("dead.definition")), h("dd", { class: "mono" }, `${s.path}:${s.line}${s.endLine ? `–${s.endLine}` : ""}`),
       h("dt", {}, t("dead.zone")), h("dd", {}, t(`dead.zone.${item.zone}`)), h("dt", {}, t("dead.visibility")), h("dd", {}, t(`dead.visibility.${item.visibility}`)), h("dt", {}, t("dead.knownRefs")), h("dd", {}, "0"), h("dt", {}, t("dup.method")), h("dd", {}, t("dead.method"))),
     h("div", { class: "actions" },
+      h("button", { class: "btn primary sm", onclick: () => setView("code") }, icon("code", 14), t("dead.openCode")),
       h("button", { class: "btn sm", onclick: () => openSource({ path: s.path, line: s.line, language: s.language }) }, icon("external", 14), t("code.openSource")),
       h("button", { class: "btn sm", onclick: () => copy(`${s.path}:${s.line}${s.endLine ? `-${s.endLine}` : ""}`, t("common.pathCopied")) }, icon("copy", 14), t("code.copyPath")),
       h("button", { class: "btn sm", onclick: () => copy(deadText(item), t("ai.copied")) }, icon("copy", 14), t("ai.copy.dead")),
@@ -238,7 +241,7 @@ export async function render({ root, page, params: initial }) {
       updated: { key: "updated", label: t("col.updated"), sortable: true, render: (r) => (r.updated ? ago(r.updated) : "—"), cls: "hide-sm" },
       actions: { key: "actions", label: t("col.actions"), cls: "sticky-end", render: (r) => h("span", { class: "row", style: { gap: "4px" } },
         r.type === "duplicate" && h("button", { class: "btn sm", "aria-label": `${t("dup.compare")}: ${r.title}`, onclick: () => patchQuery({ key: r.key, view: "side" }) }, icon("split", 14), t("dup.compareShort")),
-        r.path && h("button", { class: "btn sm", "aria-label": `${t("code.viewSource")}: ${r.title}`, onclick: () => openSource({ path: r.path, line: r.line, language: r.language }) }, icon("code", 14), t("code.view")),
+        r.type === "dead-code" && h("button", { class: "btn sm", "aria-label": `${t("code.viewSource")}: ${r.title}`, onclick: () => patchQuery({ key: r.key, view: "code" }) }, icon("code", 14), t("code.view")),
         !r.readOnly && r.state !== "dismissed" && h("button", { class: "btn sm", "aria-label": `${t("review.ignoreNow")}: ${r.title}`, onclick: () => ignoreFinding(r, () => refresh()) }, icon("x", 14), t("review.ignoreNow"))) },
     };
     if (cfg.type === "duplicate") return [
@@ -290,7 +293,7 @@ export async function render({ root, page, params: initial }) {
     stopComparison();
     cancelApi("finding");
     root.querySelectorAll("tbody tr").forEach((row) => row.setAttribute("aria-selected", String(row.dataset.key === key)));
-    view = params.get("view") === "side" ? "side" : "list";
+    view = viewOf(params);
     const bench = root.querySelector(".workbench");
     if (!key) { inspector.hidden = true; bench?.classList.remove("inspect"); showMain(null); return; }
     inspector.hidden = false; bench?.classList.add("inspect");
@@ -300,10 +303,14 @@ export async function render({ root, page, params: initial }) {
       if (selected !== key) return;
       currentItem = item;
       const changed = () => { refresh(q()); showDetail(key, q()); };
-      clear(inspector).append(item.type === "duplicate" ? duplicateDetail(item, changed, (v) => patchQuery({ view: v === "side" ? "side" : null, key })) : deadDetail(item, changed));
+      const setView = (v) => patchQuery({ view: v === "side" || v === "code" ? v : null, key });
+      clear(inspector).append(item.type === "duplicate" ? duplicateDetail(item, changed, setView) : deadDetail(item, changed, setView));
       showMain(item, params);
     } catch (error) { if (!isAbort(error) && selected === key) { clear(inspector).append(h("div", { class: "card inspector" }, errorBox(error, () => showDetail(key, q())))); showMain(null); } }
   }
+
+  // The main area shows the list, a duplicate comparison ("side") or a dead-code candidate's code ("code").
+  const viewOf = (params) => (["side", "code"].includes(params.get("view")) ? params.get("view") : "list");
 
   // ----- side-by-side comparison (duplicates) -----
   const compareState = { ignoreSpace: false, ignoreComments: false, normalizeIds: false };
@@ -311,14 +318,17 @@ export async function render({ root, page, params: initial }) {
     comparisonGeneration++;
     cancelApi("comparison-left");
     cancelApi("comparison-right");
+    cancelApi("dead-code-source");
   }
   async function showMain(item, params = q()) {
     stopComparison();
     const generation = comparisonGeneration;
     const side = item?.type === "duplicate" && params.get("view") === "side";
-    results.hidden = side; tabsHost.hidden = side; chipsHost.hidden = side;
-    root.querySelector(".workbench")?.classList.toggle("compare-mode", side);
+    const code = item?.type === "dead-code" && params.get("view") === "code";
+    results.hidden = side || code; tabsHost.hidden = side || code; chipsHost.hidden = side || code;
+    root.querySelector(".workbench")?.classList.toggle("compare-mode", side || code);
     clear(main);
+    if (code) return showDeadCode(item, params, generation);
     if (!side) return;
     const validIndex = (name, fallback) => {
       const raw = params.get(name), index = raw === null ? fallback : Number(raw);
@@ -357,24 +367,60 @@ export async function render({ root, page, params: initial }) {
     } catch (error) { if (!isAbort(error) && generation === comparisonGeneration) { cancelApi("comparison-left"); cancelApi("comparison-right"); clear(body).append(errorBox(error, () => showMain(item, q()))); } }
   }
 
+  // ----- code view (dead code): the comparison layout with one pane and the symbol marked -----
+  async function showDeadCode(item, params, generation) {
+    const s = item.detail.symbol;
+    const end = Math.max(s.endLine || s.line, s.line);
+    const asked = params.get("context") === null ? 3 : Number(params.get("context"));
+    const context = CONTEXT_CHOICES.includes(asked) ? asked : 3;
+    const body = h("div", {}, loading());
+    main.append(h("div", { class: "row wrap", style: { marginBottom: "10px" } },
+      h("button", { class: "btn", onclick: () => patchQuery({ view: null, context: null }) }, icon("left", 14), t("dup.backToList")),
+      h("label", { class: "field grow" }, t("dead.context"),
+        selectBox({ label: t("dead.context"), value: String(context),
+          options: CONTEXT_CHOICES.map((n) => [String(n), n ? t("dead.contextLines", { n }) : t("dead.contextNone")]),
+          onChange: (value) => patchQuery({ context: value }) }))), body);
+    try {
+      const source = await api("source", { path: s.path, start: Math.max(1, s.line - context), end: end + context }, "dead-code-source");
+      if (generation !== comparisonGeneration) return;
+      const start = source.start || Math.max(1, s.line - context);
+      const marks = {};
+      for (let n = s.line; n <= end; n += 1) marks[n] = "del";
+      const own = source.lines.slice(s.line - start, end - start + 1);
+      clear(body).append(
+        h("div", { class: "row spread", style: { marginBottom: "10px" } },
+          h("div", { class: "row" }, h("h2", {}, t("dead.codeTitle")), badge(t(`dead.confidence.${item.confidence}`), item.confidence === "high" ? "danger" : item.confidence === "medium" ? "warning" : "")),
+          h("div", { class: "row" },
+            h("button", { class: "btn sm", onclick: () => copy(`${s.path}:${s.line}-${end}\n${own.join("\n")}`, t("ai.codeCopied")) }, icon("copy", 14), t("ai.copyCode")),
+            h("button", { class: "btn sm", onclick: () => openSource({ path: s.path, line: s.line, language: s.language }) }, icon("external", 14), t("code.openSource")))),
+        h("p", { class: "muted small", style: { marginBottom: "8px" } }, t("dead.codeViewOnly")),
+        h("div", { class: "compare single" },
+          h("div", { class: "pane" }, h("h4", {}, h("span", { class: "mono ellipsis" }, s.path), h("span", { class: "muted" }, `${item.title} · ${item.kind}`)),
+            codeBlock({ lines: source.lines, start, language: source.language || s.language, marks, label: `${t("compare.code")}: ${s.path}` }))),
+        source.truncated ? note(t("dead.codeTruncated"), "", "info") : null,
+        h("div", { class: "card", style: { marginTop: "12px" } }, h("h3", {}, t("dead.unreferenced", { n: end - s.line + 1 })),
+          h("p", { class: "muted" }, t("dead.whyText", { name: item.title }))));
+    } catch (error) { if (!isAbort(error) && generation === comparisonGeneration) { cancelApi("dead-code-source"); clear(body).append(errorBox(error, () => showMain(item, q()))); } }
+  }
+
   const search = searchBox({ value: initial.get("q") || "", placeholder: t("find.searchPlaceholder"), label: t("find.searchPlaceholder"), onInput: (v) => patchQuery({ q: v }) });
   const layout = h("div", { class: "workbench" }, h("aside", { class: "filters-col" }, filtersHost), h("div", {},
     h("div", { class: "toolbar" }, search, drawerButton(() => drawer.current)),
     chipsHost, tabsHost, results, main), inspector);
   drawer.current = layout.querySelector("aside");
   root.append(pageHead(t(cfg.title), t(cfg.subtitle)), layout);
-  const stable = (params) => [...params].filter(([k]) => !["key", "view", "left", "right"].includes(k)).join("&");
+  const stable = (params) => [...params].filter(([k]) => !["key", "view", "left", "right", "context"].includes(k)).join("&");
   lastQuery = stable(initial);
   selected = initial.get("key");
   await refresh(initial);
   if (selected) showDetail(selected, initial);
-  let lastPair = `${initial.get("left")}:${initial.get("right")}`;
+  const pairOf = (params) => `${params.get("left")}:${params.get("right")}:${params.get("context")}`;
+  let lastPair = pairOf(initial);
   const off = onQuery((params) => {
     search.sync(params.get("q") || "");
     const key = params.get("key");
-    const viewParam = params.get("view");
-    const pair = `${params.get("left")}:${params.get("right")}`;
-    if (key !== selected || (viewParam === "side") !== (view === "side")) showDetail(key, params);
+    const pair = pairOf(params);
+    if (key !== selected || viewOf(params) !== view) showDetail(key, params);
     else if (pair !== lastPair && currentItem) showMain(currentItem, params);
     lastPair = pair;
     if (stable(params) !== lastQuery) { lastQuery = stable(params); refresh(params); }
