@@ -128,7 +128,7 @@ printed by that process in Safari. Keep the dashboard open throughout:
 
 ## Remote delivery and acceptance
 
-Publication and CI are pending the final GitHub attempt recorded in the checkpoint.
+Publication and CI are BLOCKED by the final GitHub attempt recorded in the checkpoint.
 Previously, api.github.com was denied by the network policy even with escalation.
 Do not infer PR/CI state from stale clone tracking refs. The existing publication
 script only creates non-draft PRs against main; it cannot preserve this requested
@@ -151,3 +151,18 @@ MCP initialize can respond. Registration is complete; an operational protocol
 connection is not verified. Reconnect the client after registration and inspect
 its MCP startup diagnostic on a host where the driver can launch. Native Safari
 UI control works but does not replace this missing protocol/server evidence.
+
+### Final remote attempt — 2026-10-28
+
+`gh pr view 246 --repo Zubiarka8/mini-consumes-tokens` was rejected with
+`Network access to "api.github.com" was blocked: domain is not on the allowlist
+for the current sandbox mode.` Normal and escalated calls give the same result.
+`git ls-remote --heads origin` for the candidate branches was likewise rejected
+for `github.com`, including escalation. No branch push, PR creation/update or CI
+run is claimed. The six reviewed draft bodies and a local publication script are
+preserved for resumption; no credentials or network controls were changed.
+
+All six candidates, including the coordination branch, are preserved in a Git
+bundle outside the checkout. Verify its branch heads before importing; it retains
+the complete reachable history so recovery does not depend on shared object
+alternates. Keep the checkout until remote delivery and acceptance are verified.

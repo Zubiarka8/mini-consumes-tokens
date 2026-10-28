@@ -4,7 +4,8 @@
 
 Local code candidate `bf91ccf`; coordination branch `docs/mcp-findings-delivery`
 in isolated clone `mct-plan5`. No source writer/check process remains active.
-Next: publish the reviewed draft stack, check exact-head CI and complete Safari
+Next: reconnect the registered official Safari MCP; restore permitted GitHub
+access, publish the reviewed draft stack, check exact-head CI and complete Safari
 acceptance when the fixture server can bind. Branch/base mapping, command
 results, exclusions and resume procedure: [delivery report](deliveries/mcp-findings.md).
 Retain all unintegrated branches and the verified recovery bundle.

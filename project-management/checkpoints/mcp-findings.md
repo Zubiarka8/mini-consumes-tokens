@@ -218,3 +218,13 @@ Safari Developer settings); no permission checkbox changed. Driver exits 1
 without output before initialize, with and without elevation. Thus registered
 but runtime protocol connection is not verified. No third-party package or
 Chrome used. Native app control remains available.
+
+### Final remote delivery attempt — 2026-10-28
+
+GitHub CLI rejected api.github.com by allowlist policy, normal and escalated.
+Git ls-remote rejected github.com by the same policy, normal and escalated.
+No remote branch, PR number or CI result can be verified; no upload performed.
+Draft bodies and publication mapping are complete. A syntax-checked local
+publication script preserves draft bases and fast-forward-only pushes for the
+next permitted host/session. Overall task remains REVIEW/BLOCKED for acceptance,
+not DONE. Code bf91ccf unchanged; final docs validated separately.
