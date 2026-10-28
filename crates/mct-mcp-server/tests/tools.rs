@@ -789,6 +789,8 @@ async fn find_dead_code_flags_an_uncalled_function_but_not_called_ones_or_method
     let text = content_of(
         &server
             .find_dead_code(Parameters(FindDeadCodeArgs {
+                include_reviewed: None,
+                max_tokens: None,
                 format: Some("text".to_string()),
                 path: None,
                 language: None,
@@ -815,6 +817,8 @@ async fn find_dead_code_excludes_entry_points_and_test_files() {
     let text = content_of(
         &server
             .find_dead_code(Parameters(FindDeadCodeArgs {
+                include_reviewed: None,
+                max_tokens: None,
                 format: Some("text".to_string()),
                 path: None,
                 language: None,

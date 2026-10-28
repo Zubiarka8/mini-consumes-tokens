@@ -36,3 +36,30 @@ this is an acknowledged cost, not changed in this slice.
 
 Next: finish the full gate, commit the duplicate correction, then branch for
 review-aware dead-code findings.
+
+## Phase B progress
+
+Phase A full gate passed: 1798 passed / 0 failed / 31 ignored, fmt, CI
+Clippy and evaluation passed (catalog 11939). Commit: 8d06959.
+Branch: feature/mcp-dead-code-reviews; base: 8d06959.
+Four initial tests failed on the old implementation, then passed with TOON
+resolution. Two further tests cover restoration/all-suppressed and budgeting.
+The compatibility gate exposed TOON leaking into text output; fixed and both
+review_decisions (6) and toon_default (6) passed. Final crate gate: 402 passed,
+0 failed, 1 ignored; fmt and CI Clippy passed. Full gate in progress.
+
+Baselines regenerated using mct-eval: catalog 11939 -> 12033 in both suites;
+omni-app unreferenced-symbol response 402 -> 845 tokens, reflecting explicit
+identities and review metadata. No quality score was changed.
+
+Plan correction: #234 already implements MCP source-byte verification as well
+as generations/watcher reconciliation. Port the source tests before integrating
+that dependency, then adapt the new finding handlers to its snapshots rather
+than duplicating production helpers. Inspect the fuzz lock after integration:
+#234 adds anyhow to mct-index but does not update its separate fuzz lockfile.
+
+UI limitation: Safari is available; existing dashboard read-only observation
+works, but starting the owned fixture server on 18811 was denied (Operation not
+permitted), including the approved escalated retry. No existing review data was
+modified. Full Safari acceptance remains pending. The existing 18810 service
+was not stopped.
