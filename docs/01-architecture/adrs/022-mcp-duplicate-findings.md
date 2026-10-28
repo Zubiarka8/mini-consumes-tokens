@@ -36,7 +36,8 @@ decision cannot create a second suppression engine.
   512..16000, root-relative `path` without traversal) and an estimated token
   budget. Counts come before pagination, and truncation is explicit
   (`truncated`, `next_offset`, `members_omitted`): a group whose members were
-  cut can be retried with a larger budget.
+  cut sets `next_offset` to that same group and instructs the caller to
+  increase `max_tokens` before retrying.
 - Paging is deterministic for one index state. It is not pinned across
   reindexes, so a caller restarts paging when the index changes.
 

@@ -256,15 +256,16 @@ fn render(
             .map(|(reason, count)| vec![reason.to_string(), count.to_string()])
             .collect::<Vec<_>>(),
     );
-    let footer = |returned: usize, truncated: bool| {
-        let next = offset.saturating_add(returned);
+    let footer = |returned: usize, truncated: bool, partial: bool| {
+        let next = offset.saturating_add(returned.saturating_sub(usize::from(partial)));
         let next = if next < eligible.len() {
             next.to_string()
         } else {
             "none".to_string()
         };
         format!(
-            "returned: {returned}\ntruncated: {truncated}\nnext_offset: {next}\nbudget_basis: estimated\n"
+            "returned: {returned}\ntruncated: {truncated}\nnext_offset: {next}\nbudget_basis: estimated\n{}",
+            if partial { "reason: members omitted; retry next_offset and increase max_tokens\n" } else { "" }
         )
     };
     let mut body = String::new();
@@ -278,7 +279,7 @@ fn render(
             // Count the whole output of each trial, footer included.
             let trial = format!(
                 "{header}{diagnostics}{body}{part}{}",
-                footer(returned + 1, false)
+                footer(returned + 1, true, count < row.group.members.len())
             );
             if EstimatedCounter.count(&trial).value <= budget {
                 body.push_str(&part);
@@ -299,12 +300,15 @@ fn render(
         }
     }
     let truncated = member_truncation || offset.saturating_add(returned) < eligible.len();
-    let result = format!("{header}{diagnostics}{body}{}", footer(returned, truncated));
+    let result = format!(
+        "{header}{diagnostics}{body}{}",
+        footer(returned, truncated, member_truncation)
+    );
     // The metadata alone can exceed a very small budget. Keep the totals and
     // an explicit continuation rather than silently cutting a table.
     if EstimatedCounter.count(&result).value > budget {
         return format!(
-            "notice: Candidate duplicates; not proof of redundant behavior.\nstatus: {status}\ndetected: {}\nactionable: {actionable}\nsuppressed: {suppressed}\ncoverage_complete: {coverage}\ntruncated: true\nreturned: 0\nnext_offset: {offset}\nbudget_basis: estimated\nreason: metadata exceeds estimated budget; increase max_tokens\n",
+            "notice: Candidate duplicates; not proof of redundant behavior.\nstatus: {status}\ndetected: {}\nactionable: {actionable}\nsuppressed: {suppressed}\nreview_store: {review_store}\ncoverage_complete: {coverage}\ntruncated: true\nreturned: 0\nnext_offset: {offset}\nbudget_basis: estimated\nreason: metadata exceeds estimated budget; increase max_tokens\n",
             report.total_groups
         );
     }

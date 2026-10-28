@@ -86,6 +86,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- MCP duplicate queries retain a continuation offset for partially returned
+  groups and tell clients to increase the budget; degraded-store metadata is
+  retained when metadata exceeds the budget.
+
 - A finding whose stored content hash is empty is treated as unknown content.
   The literal-search migration clears every hash until the next reindex, and a
   file that is not reindexed keeps the empty value. A decision saved in that
