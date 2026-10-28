@@ -1420,6 +1420,7 @@ dependencies = [
 name = "mct-index"
 version = "0.2.0"
 dependencies = [
+ "anyhow",
  "form_urlencoded",
  "git2",
  "globset",
