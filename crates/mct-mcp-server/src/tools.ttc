@@ -163,6 +163,14 @@ PRE none; `path`/`language` scope it.
 POST top-level symbols with zero indexed references. TOON by default; `format`:`text` for plain text.
 EFFECTS read; index only.
 
+TOOL find_duplicate_code
+WHEN review-aware duplicate groups, compact references.
+ERR heuristic, not proof of redundancy.
+TAGS duplicates, cleanup, review
+PRE root-relative `path`; `limit` 1..100; `max_tokens` 512..16000.
+POST groups hidden by a matching review decision are filtered before paging; counts, truncation, `next_offset`.
+EFFECTS read; index, source, reviews.
+
 TOOL get_dependency_graph
 WHEN module import graph, `depth` hops, cycles flagged; `export` dot|mermaid.
 ERR imports only (use find_calls); cycles limited to explored depth.

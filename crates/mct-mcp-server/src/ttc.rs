@@ -226,6 +226,7 @@ pub const KNOWN_TOOL_NAMES: &[&str] = &[
     "get_file_skeleton",
     "get_project_overview",
     "find_dead_code",
+    "find_duplicate_code",
     "get_dependency_graph",
     "get_file_tree",
     "discover_tool_categories",
