@@ -35,9 +35,28 @@ struct Timings {
     dead_code_ms: u128,
 }
 
+/// What identifies one published state of the index file: a reindex changes
+/// the modification time or the length of the database or its write-ahead log.
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+struct IndexStamp([Option<(SystemTime, u64)>; 2]);
+
+impl IndexStamp {
+    fn of(root: &Path) -> Self {
+        let database = root.join(".mct-index/index.sqlite3");
+        let wal = root.join(".mct-index/index.sqlite3-wal");
+        let read = |path: &Path| {
+            let meta = std::fs::metadata(path).ok()?;
+            Some((meta.modified().ok()?, meta.len()))
+        };
+        Self([read(&database), read(&wal)])
+    }
+}
+
 struct Site {
     index: Index,
     root: PathBuf,
+    no_obsidian: bool,
+    stamp: IndexStamp,
     navigation: NavigationSnapshot,
     symbols: BTreeMap<String, Vec<usize>>,
     imports: BTreeMap<String, Vec<String>>,
@@ -65,6 +84,7 @@ struct Site {
 impl Site {
     fn load(root: &Path, no_obsidian: bool) -> anyhow::Result<Self> {
         let started = Instant::now();
+        let stamp = IndexStamp::of(root);
         let database = root.join(".mct-index/index.sqlite3");
         anyhow::ensure!(
             database.is_file(),
@@ -184,6 +204,8 @@ impl Site {
         Ok(Self {
             index,
             root: canonical_root,
+            no_obsidian,
+            stamp,
             navigation,
             symbols,
             imports,
@@ -205,6 +227,27 @@ impl Site {
             warning,
             csrf,
         })
+    }
+
+    /// Reloads the snapshot when the index was republished since it was read,
+    /// keeping the CSRF token so an open page can still save decisions. A
+    /// failed reload keeps the previous snapshot; the next reindex retries.
+    fn follow_reindex(&mut self) {
+        let stamp = IndexStamp::of(&self.root);
+        if stamp == self.stamp {
+            return;
+        }
+        match Site::load(&self.root, self.no_obsidian) {
+            Ok(mut fresh) => {
+                fresh.csrf = std::mem::take(&mut self.csrf);
+                fresh.latency = std::mem::take(&mut self.latency);
+                *self = fresh;
+            }
+            Err(error) => {
+                eprintln!("warning: cannot reload the reindexed snapshot: {error:#}");
+                self.stamp = stamp;
+            }
+        }
     }
 
     /// Applies one review decision sent as a JSON body (`csrf`, `key`,
@@ -358,7 +401,7 @@ pub(super) fn run(root: &Path, port: u16, no_obsidian: bool) -> anyhow::Result<(
     let mut site = Site::load(root, no_obsidian)?;
     println!("Local project web: http://127.0.0.1:{port}/{token}/");
     println!(
-        "Dashboard ready. Snapshot: {}. Restart after reindexing; Ctrl-C stops the server.",
+        "Dashboard ready. Snapshot: {}. A reindex is picked up on the next request; Ctrl-C stops the server.",
         site.generated
     );
     std::io::stdout().flush()?;

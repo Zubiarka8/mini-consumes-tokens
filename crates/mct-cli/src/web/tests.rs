@@ -759,7 +759,7 @@ fn obsidian_notes_are_served_read_only_with_verified_links() {
 }
 
 #[test]
-fn snapshot_refresh_is_explicit() {
+fn the_dashboard_follows_a_reindex_without_a_restart() {
     let root = project();
     let file = root.path().join("src/a.rs");
     let original = fs::read_to_string(&file).unwrap();
@@ -775,15 +775,19 @@ fn snapshot_refresh_is_explicit() {
             .any(|e| e["from"] == "src/a.rs" && e["to"] == "src/b.rs"),
         "{deps}"
     );
+    let csrf = server.site.borrow().csrf.clone();
     let symbol = server.json("api/symbols?q=alpha")["items"][0]["id"].clone();
     let detail = server.json(&format!("api/symbol?id={symbol}"));
     assert_eq!(detail["imports"][0], "src/b.rs");
     fs::write(&file, format!("{original}\npub fn newly_indexed() {{}}\n")).unwrap();
     index(root.path());
-    assert_eq!(server.json("api/symbols?q=newly_indexed")["total"], 0);
+    assert_eq!(server.json("api/symbols?q=newly_indexed")["total"], 1);
+    let page = server.get("");
+    assert!(page.starts_with("HTTP/1.1 200"), "{page}");
     assert_eq!(
-        Server::start(root.path(), true).json("api/symbols?q=newly_indexed")["total"],
-        1
+        server.site.borrow().csrf,
+        csrf,
+        "a reload keeps the page's CSRF token valid"
     );
 }
 

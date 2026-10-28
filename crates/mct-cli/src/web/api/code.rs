@@ -209,7 +209,7 @@ pub(super) fn source(site: &Site, params: &Params) -> Result<Value, (u16, &'stat
             Unavailable::Missing => (404, "source not available"),
             Unavailable::Changed => (
                 409,
-                "this file changed since it was indexed; reindex and restart the dashboard",
+                "this file changed since it was indexed; reindex to refresh the dashboard",
             ),
         })?;
     let language = site
