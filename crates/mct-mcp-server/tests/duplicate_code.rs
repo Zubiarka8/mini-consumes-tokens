@@ -302,6 +302,11 @@ async fn a_small_budget_never_silently_drops_members() {
     assert!(text.contains("truncated: true"), "{text}");
     assert!(text.contains("members_omitted:"), "{text}");
     assert!(!text.contains("members_omitted: 0"), "{text}");
+    assert!(
+        text.contains("next_offset: 0"),
+        "omitted members must be recoverable: {text}"
+    );
+    assert!(text.contains("increase max_tokens"), "{text}");
 }
 
 #[tokio::test]
