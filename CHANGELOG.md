@@ -90,6 +90,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- MCP source retrieval verifies the indexed revision before applying line ranges:
+  stale snippets/signatures are omitted and stale skeleton requests ask for reindex.
+
 - MCP duplicate queries retain a continuation offset for partially returned
   groups and tell clients to increase the budget; degraded-store metadata is
   retained when metadata exceeds the budget.

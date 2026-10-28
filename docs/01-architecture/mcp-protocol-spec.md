@@ -93,3 +93,12 @@ label, never private notes or history. `max_tokens` is an estimated output
 budget, 512..16000 (default 4000); it bounds the response, not analysis work.
 Restart pagination after a reindex or a review change. Existing `path`,
 `language`, `limit`, `offset` and `format` parameters retain their defaults.
+
+### Source revision verification
+
+MCP source consumers compare the bytes read with the indexed Git blob hash
+before using indexed line ranges. Changed, deleted, binary or unindexed files
+supply no search snippets or context-pack signatures/source. Metadata remains
+queryable. `get_file_skeleton` rejects stale revisions with a reindex instruction.
+Restoring the indexed bytes or reindexing restores source retrieval; cached
+rankings do not bypass the byte check. Reads retain existing size/path limits.
