@@ -219,9 +219,18 @@ fn malformed_files_degrade_the_whole_store_with_line_and_reason() {
         let problem = &reviews.problems()[0];
         assert!(problem.path.ends_with(name), "{problem:?}");
         assert!(!problem.reason.is_empty());
-        // Nothing hides, even the valid canonical decision.
         let resolution = reviews.resolve(&[dup()]).remove(0);
-        assert_eq!(resolution, Resolution::default(), "{name}: {text}");
+        // Nothing hides in either case.
+        assert_eq!(resolution.visibility(), Visibility::Actionable, "{name}");
+        if name == "review-decisions.toon" {
+            // Without the canonical file no source applies at all.
+            assert_eq!(resolution, Resolution::default(), "{name}: {text}");
+        } else {
+            // A broken older file loses only its own rows: the valid
+            // canonical decision is still reported, but held.
+            assert_eq!(resolution.state(), State::Dismissed, "{name}");
+            assert!(resolution.held, "{name}");
+        }
     }
 }
 
@@ -953,6 +962,7 @@ fn labels_and_visibility_follow_the_policy_table() {
             fingerprint_matches,
         }),
         conflict: false,
+        held: false,
     };
     let cases = [
         (Resolution::default(), "unreviewed", Visibility::Actionable),
@@ -1064,6 +1074,43 @@ fn identical_files_at_two_paths_have_different_identities() {
     let findings = dead_code_findings(&symbols, &[0, 1], &hashes);
     assert_ne!(findings[0].identity, findings[1].identity);
     assert_ne!(findings[0].legacy_key, findings[1].legacy_key);
+}
+
+/// A decision suppresses only a finding with the identity and the fingerprint it
+/// was made for. Whatever shifts the ordinal of a same-named twin, the reviewed
+/// finding's key pair must not reappear on another, unreviewed symbol.
+#[test]
+fn a_homonym_added_above_never_inherits_the_decision_of_its_twin() {
+    let before = vec![
+        symbol("a.rs", "parse", "function", 1, 3),
+        symbol("a.rs", "parse", "function", 10, 12),
+    ];
+    let reviewed = dead_code_findings(&before, &[0, 1], &hashes())[1].clone();
+
+    // A third `parse` is added at the top: the file's content changes, and the
+    // old second twin is now the third.
+    let after = vec![
+        symbol("a.rs", "parse", "function", 1, 3),
+        symbol("a.rs", "parse", "function", 5, 7),
+        symbol("a.rs", "parse", "function", 14, 16),
+    ];
+    let changed = vec![("a.rs".to_string(), "h1-edited".to_string())];
+    for finding in dead_code_findings(&after, &[0, 1, 2], &changed) {
+        assert!(
+            finding.identity != reviewed.identity || finding.fingerprint != reviewed.fingerprint,
+            "a decision for the old twin would hide an unreviewed symbol"
+        );
+    }
+}
+
+#[test]
+fn a_symbol_moved_to_another_file_is_a_new_finding() {
+    let before = vec![symbol("a.rs", "parse", "function", 1, 3)];
+    let reviewed = dead_code_findings(&before, &[0], &hashes())[0].clone();
+    let moved = vec![symbol("b.rs", "parse", "function", 1, 3)];
+    let after = dead_code_findings(&moved, &[0], &hashes());
+    assert_ne!(after[0].identity, reviewed.identity);
+    assert_ne!(after[0].legacy_key, reviewed.legacy_key);
 }
 
 #[test]

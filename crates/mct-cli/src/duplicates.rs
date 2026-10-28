@@ -247,7 +247,7 @@ fn reviewed_report(
         .into_iter()
         .zip(&resolutions)
         .filter(|(_, resolution)| mode.keeps(resolution))
-        .map(|(group, resolution)| (group, resolution.label()))
+        .map(|(group, resolution)| (group, resolution.effective_label()))
         .collect();
     report.total_groups = kept.len();
     report.split_groups = kept
