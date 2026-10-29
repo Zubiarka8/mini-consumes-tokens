@@ -1,0 +1,5 @@
+# Formatting for the embedded dashboard (HTML, CSS, JS). Run it from crates/mct-cli/tests/dashboard:
+#   npm run format        rewrite the files
+#   npm run format:check  fail if any file is not formatted
+printWidth = 110
+htmlWhitespaceSensitivity = "ignore"
