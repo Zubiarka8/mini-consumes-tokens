@@ -1,6 +1,6 @@
 // 08 · Workspace de código unificado: explorer | source | everything known about the file
 import { h, clear, api, isAbort, patchQuery, onQuery, parseHash, fmt, hrefTo, copy } from "./core.js";
-import { icon, pageHead, tabsBar, badge, stateBadge, buildTree, treeView, loading, errorBox, emptyState, kindIcon, note } from "./components.js";
+import { icon, pageHead, tabsBar, badge, stateBadge, buildTree, treeView, loading, errorBox, emptyState, kindIcon, note, drawerButton } from "./components.js";
 import { codeBlock } from "./code.js";
 import { findingHref } from "./page-findings.js";
 import { t } from "./i18n.js";
@@ -20,7 +20,7 @@ export async function render({ root, params: initial }) {
     const parts = (path || "").split("/");
     parts.pop();
     parts.reduce((acc, part) => { const next = acc ? `${acc}/${part}` : part; expanded.add(next); return next; }, "");
-    clear(explorer).append(h("h2", { style: { marginBottom: "8px" } }, t("ws.explorer")), treeView({ root: tree, current: path, expanded, onSelect: (p, dir) => { if (dir) drawExplorer(path); else patchQuery({ file: p, line: null, tab: null }); } }));
+    clear(explorer).append(h("div", { class: "head" }, h("h2", {}, t("ws.explorer")), h("button", { class: "icon-btn only-mobile", "aria-label": t("common.close"), onclick: () => explorerColumn.classList.remove("open") }, icon("x"))), treeView({ root: tree, current: path, expanded, onSelect: (p, dir) => { if (dir) drawExplorer(path); else patchQuery({ file: p, line: null, tab: null }); } }));
   }
 
   async function show(params) {
@@ -59,7 +59,9 @@ export async function render({ root, params: initial }) {
     } catch (error) { if (!isAbort(error)) { clear(center).append(errorBox(error, () => show(params))); clear(side); } }
   }
 
-  root.append(pageHead(t("ws.title"), t("ws.subtitle")), h("div", { class: "workbench inspect", style: { gridTemplateColumns: "minmax(220px,280px) minmax(0,1fr) minmax(280px,360px)" } }, h("aside", { class: "filters-col" }, explorer), center, side));
+  // Below 1025 px the explorer becomes a drawer, like the filters of the other pages.
+  const explorerColumn = h("aside", { class: "filters-col" }, explorer);
+  root.append(pageHead(t("ws.title"), t("ws.subtitle")), h("div", { class: "workbench inspect workspace" }, explorerColumn, h("div", {}, h("div", { class: "toolbar" }, drawerButton(() => explorerColumn, t("ws.explorer"))), center), side));
   await show(initial);
   const off = onQuery((params) => { if (params.get("file") !== current || params.get("tab") !== (tab === "code" ? null : tab) || params.get("line")) show(params); });
   return () => off();

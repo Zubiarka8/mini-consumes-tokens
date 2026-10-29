@@ -169,7 +169,8 @@ export const listParam = (params, key) => (params.get(key) || "").split(",").fil
 
 // ---------- formatting ----------
 const LOCALE = getLang() === "en" ? "en-GB" : "es-ES";
-const number = new Intl.NumberFormat(LOCALE);
+// "always" so 1406 reads 1.406 like 18.097: Spanish skips the separator for four digits by default.
+const number = new Intl.NumberFormat(LOCALE, { useGrouping: "always" });
 export const fmt = (value, options) => (value === null || value === undefined ? "—" : (options ? new Intl.NumberFormat(LOCALE, options) : number).format(value));
 export function bytes(value) {
   if (value === null || value === undefined) return "—";
@@ -229,8 +230,8 @@ function openDialog(build, { wide = false } = {}) {
   });
 }
 
-/** Resolves true/false. Use for every action that is hard to undo. */
-export function confirmDialog({ title, body, confirm = t("common.confirm"), danger = false }) {
+/** Resolves true/false. Use for every action that is hard to undo; `confirm` must name the action ("Eliminar filtros guardados"), never a bare "Confirmar". */
+export function confirmDialog({ title, body, confirm, danger = false }) {
   return openDialog((close) => h("div", { class: "dlg" },
     h("h2", {}, title), h("p", { class: "muted" }, body),
     h("footer", {},
@@ -263,4 +264,5 @@ export function debounce(fn, ms) {
 export function applyTheme(choice) {
   const dark = matchMedia("(prefers-color-scheme: dark)").matches;
   document.documentElement.dataset.theme = choice === "system" ? (dark ? "dark" : "light") : choice;
+  document.dispatchEvent(new CustomEvent("mct-theme", { detail: choice }));
 }

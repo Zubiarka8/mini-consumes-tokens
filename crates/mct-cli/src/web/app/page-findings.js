@@ -26,6 +26,8 @@ const DECIDED = ["confirmed", "false-positive", "resolved", "dismissed"];
 // Lines shown around a dead-code candidate in its code view; 3 when the URL names none.
 const CONTEXT_CHOICES = [0, 3, 10, 25];
 const actionsFor = (state) => [...DECISIONS.filter((d) => d !== state), ...(state === "unreviewed" ? [] : ["reopen"])];
+/** Button text that names both the decision and what it is about ("Confirmar duplicado"). */
+const actionLabel = (target, type) => t(`review.action.${target}.${type}`);
 
 /** One-click ignore: no dialog and no reason. The finding stays in the history and can be reopened. */
 export async function ignoreFinding(item, onChange) {
@@ -47,11 +49,11 @@ export function reviewPanel(item, onChange) {
   const apply = async (target) => {
     let note = noteField.value.trim();
     if (target === "false-positive") {
-      const ok = await confirmDialog({ title: t("review.fpTitle"), body: t("review.fpBody"), confirm: t("review.markFp") });
+      const ok = await confirmDialog({ title: t("review.fpTitle"), body: t("review.fpBody"), confirm: actionLabel("false-positive", item.type), danger: false });
       if (!ok) return;
     }
     if (DECIDED.includes(item.state) && target !== "dismissed" && target !== "false-positive") {
-      const ok = await confirmDialog({ title: t("review.changeTitle"), body: t("review.changeBody", { from: stateLabel(item.state, item.type), to: target === "reopen" ? t("state.unreviewed") : stateLabel(target, item.type) }), confirm: t("review.changeConfirm") });
+      const ok = await confirmDialog({ title: t("review.changeTitle"), body: t("review.changeBody", { from: stateLabel(item.state, item.type), to: target === "reopen" ? t("state.unreviewed") : stateLabel(target, item.type) }), confirm: actionLabel(target, item.type) });
       if (!ok) return;
     }
     try {
@@ -65,16 +67,14 @@ export function reviewPanel(item, onChange) {
       } else toast(t("review.failed", { message: error.message }), "err");
     }
   };
-  // One list with every other decision; picking one applies it (after any confirmation) and the list resets.
-  const picker = item.readOnly ? null : selectBox({ label: t("review.change"), cls: "wide", value: "",
-    options: [["", t("review.choose")], ...actionsFor(item.state).map((target) => [target, target === "reopen" ? t("review.reopenOption") : stateLabel(target, item.type)])],
-    onChange: (target) => { if (target) apply(target).finally(() => { picker.value = ""; }); } });
+  // One button per available decision, each naming the decision and the kind of finding it applies to.
+  const decisions = item.readOnly ? null : h("div", { class: "stack", style: { gap: "6px" } },
+    actionsFor(item.state).map((target) => h("button", { class: "btn", style: { justifyContent: "flex-start" }, onclick: () => apply(target) }, actionLabel(target, item.type))));
   return h("div", { class: "section" }, h("h4", {}, t("review.title")),
     h("div", { class: "decision-now" }, h("span", { class: "muted small" }, t("review.current")), stateBadge(item.state, item.type), item.updated ? h("span", { class: "muted small" }, `${t("review.updated")} ${ago(item.updated)}`) : null),
     item.state === "needs-reevaluation" ? h("p", { class: "muted small" }, t("review.previous", { state: stateLabel(item.previousState, item.type) })) : null,
     item.readOnly ? h("p", { class: "small" }, t("review.readOnly")) : h("label", { class: "field" }, t("review.noteOptional"), noteField),
-    item.readOnly || item.state === "dismissed" ? null : h("button", { class: "btn", style: { marginTop: "10px" }, onclick: () => ignoreFinding({ ...item, note: noteField.value.trim() }, onChange) }, icon("x", 14), t("review.ignoreNow")),
-    picker ? h("label", { class: "field", style: { marginTop: "10px" } }, DECIDED.includes(item.state) ? t("review.change") : t("review.decide"), picker) : null,
+    decisions ? h("div", { class: "field", style: { marginTop: "10px" } }, h("span", {}, DECIDED.includes(item.state) ? t("review.change") : t("review.decide")), decisions) : null,
     h("p", { class: "muted small", style: { marginTop: "8px" } }, t("review.reviewerNote")));
 }
 
@@ -104,15 +104,15 @@ function duplicateDetail(item, onChange, setView) {
         h("dt", {}, t("dup.method")), h("dd", {}, t("dup.methodTokens", { mode: item.method?.normalization || "—" })),
         h("dt", {}, t("dup.verdictLabel")), h("dd", {}, t(`dup.verdict.${item.verdict}`)),
         h("dt", {}, t("dup.size")), h("dd", {}, t("dup.sizeValue", { lines: item.lines, tokens: item.tokens })),
-        h("dt", {}, t("dup.priority")), h("dd", {}, `${t(`dup.priority.${item.priority}`)}${item.priorityReason ? ` — ${item.priorityReason}` : ""}`),
+        h("dt", {}, t("dup.priority")), h("dd", {}, t(`dup.priority.${item.priority}`), item.priorityReason && [" — ", h("span", { lang: "en" }, item.priorityReason)]),
         h("dt", {}, t("dup.scope")), h("dd", {}, t(`dup.scope.${item.scope}`))),
       h("ul", { style: { margin: "8px 0 0", paddingLeft: "18px" } }, (item.reasons || []).map((reason) => h("li", {}, t(`dup.reason.${reason}`)))),
       h("p", { class: "muted small" }, t("dup.noSimilarity"))),
     h("div", { class: "section" }, h("h4", {}, t("dup.members", { n: members.length })),
       members.map((m) => h("div", { style: { marginBottom: "10px" } },
-        h("div", { class: "row spread" }, h("strong", {}, m.name), h("span", { class: "row" }, h("button", { class: "btn ghost sm", onclick: () => copy(`${m.path}:${m.start}-${m.end}\n${(m.code || m.excerpt).join("\n")}`, t("ai.codeCopied")) }, icon("copy", 13), t("ai.copyCode")), h("button", { class: "btn ghost sm", onclick: () => openSource({ path: m.path, line: m.start, language: item.language }) }, icon("external", 13), t("code.openSource")))),
+        h("div", { class: "row spread" }, h("strong", {}, m.name), h("span", { class: "row" }, h("button", { class: "btn ghost sm", "aria-label": `${t("ai.copyCode")}: ${m.name}`, onclick: () => copy(`${m.path}:${m.start}-${m.end}\n${(m.code || m.excerpt).join("\n")}`, t("ai.codeCopied")) }, icon("copy", 13), t("ai.copyCode")), h("button", { class: "btn ghost sm", "aria-label": `${t("code.openSource")}: ${m.name}`, onclick: () => openSource({ path: m.path, line: m.start, language: item.language }) }, icon("external", 13), t("code.openSource")))),
         h("div", { class: "mono muted small" }, `${m.path}:${m.start}–${m.end}`),
-        codeBlock({ lines: m.excerpt, start: m.start, language: item.language, maxHeight: "140px", label: m.name })))),
+        codeBlock({ lines: m.excerpt, start: m.start, language: item.language, maxHeight: "140px", label: `${m.name} — ${m.path}:${m.start}` })))),
     item.analysis && h("details", { class: "section" }, h("summary", {}, t("dup.technical")), h("pre", { class: "mono", style: { whiteSpace: "pre-wrap", overflow: "auto", maxHeight: "300px" } }, item.analysis)));
 }
 
@@ -182,10 +182,10 @@ export async function render({ root, page, params: initial }) {
       [...BUILTIN_PRESETS.map((p) => ({ ...p, name: t(p.name), builtin: true })), ...mine].map((p) => h("div", { class: "row spread", style: { padding: "2px 0" } },
         h("button", { class: "btn ghost sm ellipsis", onclick: () => applyPreset(p.query) }, p.name),
         !p.builtin && h("span", { class: "row", style: { gap: "2px" } },
-          h("button", { class: "icon-btn", style: { width: "28px", height: "28px" }, "aria-label": t("preset.rename", { name: p.name }), onclick: async () => { const name = await noteDialog({ title: t("preset.renameTitle"), required: true, initial: p.name }); if (name) { store.set("presets", presets().map((x) => (x.id === p.id ? { ...x, name } : x))); drawFilters(q()); } } }, icon("edit", 14)),
-          h("button", { class: "icon-btn", style: { width: "28px", height: "28px" }, "aria-label": t("preset.delete", { name: p.name }), onclick: async () => { if (await confirmDialog({ title: t("preset.deleteTitle"), body: p.name, confirm: t("common.delete"), danger: true })) { store.set("presets", presets().filter((x) => x.id !== p.id)); drawFilters(q()); } } }, icon("trash", 14))))),
+          h("button", { class: "icon-btn", style: { width: "28px", height: "28px" }, "aria-label": t("preset.rename", { name: p.name }), onclick: async () => { const name = await noteDialog({ title: t("preset.renameTitle"), required: true, initial: p.name, confirm: t("preset.renameConfirm") }); if (name) { store.set("presets", presets().map((x) => (x.id === p.id ? { ...x, name } : x))); drawFilters(q()); } } }, icon("edit", 14)),
+          h("button", { class: "icon-btn", style: { width: "28px", height: "28px" }, "aria-label": t("preset.delete", { name: p.name }), onclick: async () => { if (await confirmDialog({ title: t("preset.deleteTitle"), body: p.name, confirm: t("preset.deleteConfirm"), danger: true })) { store.set("presets", presets().filter((x) => x.id !== p.id)); drawFilters(q()); } } }, icon("trash", 14))))),
       h("button", { class: "btn sm", style: { marginTop: "6px" }, onclick: async () => {
-        const name = await noteDialog({ title: t("preset.saveTitle"), body: t("preset.saveBody"), required: true, confirm: t("common.save") });
+        const name = await noteDialog({ title: t("preset.saveTitle"), body: t("preset.saveBody"), required: true, confirm: t("preset.saveConfirm") });
         if (!name) return;
         store.set("presets", [...presets(), { id: `p${Date.now()}`, name, query: q().toString() }]);
         toast(t("preset.saved"), "ok"); drawFilters(q());
@@ -242,7 +242,7 @@ export async function render({ root, page, params: initial }) {
       actions: { key: "actions", label: t("col.actions"), cls: "sticky-end", render: (r) => h("span", { class: "row", style: { gap: "4px" } },
         r.type === "duplicate" && h("button", { class: "btn sm", "aria-label": `${t("dup.compare")}: ${r.title}`, onclick: () => patchQuery({ key: r.key, view: "side" }) }, icon("split", 14), t("dup.compareShort")),
         r.type === "dead-code" && h("button", { class: "btn sm", "aria-label": `${t("code.viewSource")}: ${r.title}`, onclick: () => patchQuery({ key: r.key, view: "code" }) }, icon("code", 14), t("code.view")),
-        !r.readOnly && r.state !== "dismissed" && h("button", { class: "btn sm", "aria-label": `${t("review.ignoreNow")}: ${r.title}`, onclick: () => ignoreFinding(r, () => refresh()) }, icon("x", 14), t("review.ignoreNow"))) },
+        !r.readOnly && r.state !== "dismissed" && h("button", { class: "btn sm", "aria-label": `${actionLabel("dismissed", r.type)}: ${r.title}`, onclick: () => ignoreFinding(r, () => refresh()) }, icon("x", 14), actionLabel("dismissed", r.type))) },
     };
     if (cfg.type === "duplicate") return [
       { key: "verdict", label: t("col.verdict"), sortable: true, render: (r) => badge(t(`dup.verdict.${r.verdict}`), r.verdict === "real" ? "success" : "warning") },
@@ -358,8 +358,8 @@ export async function render({ root, page, params: initial }) {
             h("div", { class: "row", role: "group", "aria-label": t("dup.ignoreDiffs") }, h("span", { class: "muted small" }, t("dup.ignoreDiffs")), box("ignoreSpace", t("dup.ignoreSpace")), box("ignoreComments", t("dup.ignoreComments")), box("normalizeIds", t("dup.normalizeIds")))),
           h("p", { class: "muted small", style: { marginBottom: "8px" } }, t("dup.viewOnly")),
           h("div", { class: "compare" },
-            h("div", { class: "pane" }, h("h4", {}, h("span", { class: "mono ellipsis" }, a.path), h("span", { class: "muted" }, a.name)), view.a),
-            h("div", { class: "pane" }, h("h4", {}, h("span", { class: "mono ellipsis" }, b.path), h("span", { class: "muted" }, b.name)), view.b)),
+            h("div", { class: "pane" }, h("h3", {}, h("span", { class: "mono ellipsis" }, a.path), h("span", { class: "muted" }, a.name)), view.a),
+            h("div", { class: "pane" }, h("h3", {}, h("span", { class: "mono ellipsis" }, b.path), h("span", { class: "muted" }, b.name)), view.b)),
           h("div", { class: "card", style: { marginTop: "12px" } }, h("h3", {}, t("dup.diffs", { n: view.changes })), h("p", { class: "muted" }, view.changes ? t("dup.diffsText") : t("dup.noDiffs")),
             null));
       };
@@ -395,7 +395,7 @@ export async function render({ root, page, params: initial }) {
             h("button", { class: "btn sm", onclick: () => openSource({ path: s.path, line: s.line, language: s.language }) }, icon("external", 14), t("code.openSource")))),
         h("p", { class: "muted small", style: { marginBottom: "8px" } }, t("dead.codeViewOnly")),
         h("div", { class: "compare single" },
-          h("div", { class: "pane" }, h("h4", {}, h("span", { class: "mono ellipsis" }, s.path), h("span", { class: "muted" }, `${item.title} · ${item.kind}`)),
+          h("div", { class: "pane" }, h("h3", {}, h("span", { class: "mono ellipsis" }, s.path), h("span", { class: "muted" }, `${item.title} · ${item.kind}`)),
             codeBlock({ lines: source.lines, start, language: source.language || s.language, marks, label: `${t("compare.code")}: ${s.path}` }))),
         source.truncated ? note(t("dead.codeTruncated"), "", "info") : null,
         h("div", { class: "card", style: { marginTop: "12px" } }, h("h3", {}, t("dead.unreferenced", { n: end - s.line + 1 })),

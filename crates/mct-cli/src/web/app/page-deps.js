@@ -81,7 +81,7 @@ export async function render({ root, params: initial, summary }) {
       if (!kids.length || depth >= 5) return h("li", { style: { padding: "2px 0" } }, label);
       return h("li", {}, h("details", { open: depth < 1 }, h("summary", {}, label), h("ul", { class: "tree" }, kids.map((k) => branch(k, new Set([...path, id]), depth + 1)))));
     };
-    host.append(h("div", { class: "card" }, roots.length ? h("ul", { class: "tree", role: "tree", "aria-label": t("deps.treeLabel") }, roots.map((r) => branch(r, new Set(), 0))) : emptyState({ title: t("deps.emptyTitle"), text: t("deps.emptyText") })), note(t("deps.treeNote"), "", "info"));
+    host.append(h("div", { class: "card" }, roots.length ? h("ul", { class: "tree", "aria-label": t("deps.treeLabel") }, roots.map((r) => branch(r, new Set(), 0))) : emptyState({ title: t("deps.emptyTitle"), text: t("deps.emptyText") })), note(t("deps.treeNote"), "", "info"));
   }
 
   function drawTable(params) {

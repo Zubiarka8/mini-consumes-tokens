@@ -13,6 +13,7 @@
   --success: #22c55e;
   --warning: #f59e0b;
   --danger: #f87171;
+  --on-danger: #1f0707;
   --info: #60a5fa;
   --success-soft: rgba(34, 197, 94, 0.16);
   --warning-soft: rgba(245, 158, 11, 0.16);
@@ -56,6 +57,7 @@
   --success: #166534;
   --warning: #92400e;
   --danger: #b91c1c;
+  --on-danger: #ffffff;
   --info: #1d4ed8;
   --success-soft: rgba(21, 128, 61, 0.12);
   --warning-soft: rgba(180, 83, 9, 0.12);
@@ -73,8 +75,8 @@
   --shadow: 0 6px 20px rgba(15, 23, 42, 0.12);
   --focus: #6d28d9;
   --tok-keyword: #6d28d9;
-  --tok-string: #15803d;
-  --tok-number: #b45309;
+  --tok-string: #166534;
+  --tok-number: #9a3412;
   --tok-comment: #475569;
   --tok-type: #0369a1;
   --tok-fn: #92400e;
@@ -115,6 +117,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .nav a:hover { background: var(--hover); color: var(--text); text-decoration: none; }
 .nav a[aria-current="page"] { background: var(--primary-soft); color: var(--text); box-shadow: inset 2px 0 0 var(--primary); }
 .nav a[aria-current="page"] svg { color: var(--primary); }
+.bell-count { position: absolute; top: 4px; right: 4px; background: var(--danger); color: var(--on-danger); border-radius: 999px; font-size: 11px; padding: 0 5px; }
 .nav .count { margin-left: auto; font-size: 11px; color: var(--text-3); }
 .nav-foot { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
 .collapsed .nav a span, .collapsed .brand span, .collapsed .nav .count, .collapsed .nav-foot .label { display: none; }
@@ -223,6 +226,7 @@ label.field { display: grid; gap: 4px; font-size: 12px; color: var(--text-2); }
 /* ---------- layout with filters + inspector ---------- */
 .workbench { display: grid; gap: 16px; grid-template-columns: minmax(220px, 260px) minmax(0, 1fr); align-items: start; }
 .workbench.inspect { grid-template-columns: minmax(220px, 260px) minmax(0, 1fr) minmax(340px, 480px); }
+.workbench.workspace { grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(280px, 360px); }
 .workbench.nofilter { grid-template-columns: minmax(0, 1fr); }
 .workbench.nofilter.inspect { grid-template-columns: minmax(0, 1fr) minmax(340px, 480px); }
 .workbench > .sticky { position: sticky; top: 12px; max-height: calc(100vh - var(--header-h) - 28px); overflow-y: auto; }
@@ -303,7 +307,7 @@ table.t { width: 100%; border-collapse: collapse; }
 .tk-k { color: var(--tok-keyword); } .tk-s { color: var(--tok-string); } .tk-n { color: var(--tok-number); }
 .tk-c { color: var(--tok-comment); font-style: italic; } .tk-t { color: var(--tok-type); } .tk-f { color: var(--tok-fn); }
 .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.compare .pane h4 { display: flex; gap: 8px; align-items: center; padding: 8px 10px; background: var(--elevated); border: 1px solid var(--border); border-radius: var(--radius-sm) var(--radius-sm) 0 0; border-bottom: 0; font-size: 13px; }
+.compare .pane h3 { display: flex; gap: 8px; align-items: center; padding: 8px 10px; background: var(--elevated); border: 1px solid var(--border); border-radius: var(--radius-sm) var(--radius-sm) 0 0; border-bottom: 0; font-size: 13px; }
 .compare .code { border-radius: 0 0 var(--radius-sm) var(--radius-sm); max-height: 60vh; }
 .compare.single { grid-template-columns: minmax(0, 1fr); }
 .sim { display: inline-grid; place-items: center; min-width: 56px; padding: 3px 8px; border-radius: 6px; font-weight: 700; }
@@ -343,7 +347,7 @@ table.t { width: 100%; border-collapse: collapse; }
 :root:not([data-theme="light"]) .tag { color: #c4b5fd; }
 .note-card { display: flex; gap: 10px; padding: 10px; border-radius: var(--radius-sm); cursor: pointer; border: 1px solid transparent; text-align: left; width: 100%; background: transparent; }
 .note-card:hover { background: var(--hover); }
-.note-card[aria-selected="true"] { background: var(--primary-soft); border-color: var(--primary); }
+.note-card[aria-current="true"] { background: var(--primary-soft); border-color: var(--primary); }
 
 /* ---------- overlays ---------- */
 dialog { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); padding: 0; box-shadow: var(--shadow); max-width: min(92vw, 560px); width: 100%; }

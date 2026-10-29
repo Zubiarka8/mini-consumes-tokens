@@ -11,9 +11,9 @@ const PAGE_SIZE = 20;
 
 function resultCard(item, query) {
   const where = item.path ? `${item.path}${item.line ? `:${item.line}` : ""}` : "";
-  return h("article", { class: "card", style: { display: "flex", gap: "14px", alignItems: "center", marginBottom: "10px" } },
+  return h("article", { class: "card", style: { display: "flex", flexWrap: "wrap", gap: "14px", alignItems: "center", marginBottom: "10px" } },
     item.kind ? kindIcon(item.kind) : h("span", { class: "kind-ico tone-primary" }, icon(TYPE_ICON[item.type] || "file", 16)),
-    h("div", { style: { minWidth: 0, flex: 1 } },
+    h("div", { style: { minWidth: 0, flex: "1 1 180px" } },
       h("h3", { class: "ellipsis" }, highlight(item.title, query)),
       where && h("div", { class: "mono muted small ellipsis" }, highlight(where, query)),
       item.snippet && item.snippet !== item.path && h("div", { class: "muted ellipsis" }, highlight(item.snippet, query))),
@@ -22,7 +22,7 @@ function resultCard(item, query) {
       item.state && stateBadge(item.state, item.type), item.refs !== undefined && badge(t("search.refs", { n: item.refs })),
       (item.tags || []).slice(0, 2).map((tag) => badge(`#${tag}`, "primary"))),
     h("div", { class: "row" },
-      item.path && item.line && h("button", { class: "btn sm", "aria-label": `${t("code.viewSource")}: ${item.title}`, onclick: () => openSource({ path: item.path, line: item.line, language: item.language }) }, icon("code", 14)),
+      item.path && item.line && h("button", { class: "btn sm", "aria-label": `${t("code.viewSource")}: ${item.title}`, onclick: () => openSource({ path: item.path, line: item.line, language: item.language }) }, icon("code", 14), t("code.view")),
       h("a", { class: "btn sm primary", href: targetOf(item) }, t("search.open"))));
 }
 
@@ -72,8 +72,10 @@ export async function render({ root, params: initial, summary }) {
       const total = Object.values(all.groups).reduce((n, g) => n + g.total, 0);
       clear(meta).append(h("div", { class: "row spread", style: { marginBottom: "10px" } },
         h("span", { class: "muted", role: "status" }, t("search.summary", { n: fmt(scope === "all" ? total : all.groups[scope]?.total || 0), ms: all.tookMs })),
-        h("div", { class: "row" }, selectBox({ label: t("search.sort"), value: sortMode, options: [["relevance", t("search.sort.relevance")], ["path", t("search.sort.path")], ["title", t("search.sort.title")]], onChange: (v) => { sortMode = v; drawResults(params, scope, groups); } }),
-          h("button", { class: "btn sm", onclick: () => { const saved = store.get("saved-searches", []); if (!saved.includes(query)) { saved.unshift(query); store.set("saved-searches", saved.slice(0, 12)); } toast(t("search.savedOk"), "ok"); } }, icon("star", 14), t("search.save")))));
+        h("div", { class: "row" },
+          // Sorting only applies inside one category; "Todo" always groups by category.
+          scope !== "all" && h("label", { class: "row small muted" }, t("search.sort"), selectBox({ label: t("search.sort"), value: sortMode, options: [["relevance", t("search.sort.relevance")], ["path", t("search.sort.path")], ["title", t("search.sort.title")]], onChange: (v) => { sortMode = v; drawResults(params, scope, groups); } })),
+          query && h("button", { class: "btn sm", onclick: () => { const saved = store.get("saved-searches", []); if (!saved.includes(query)) { saved.unshift(query); store.set("saved-searches", saved.slice(0, 12)); } toast(t("search.savedOk"), "ok"); } }, icon("star", 14), t("search.save")))));
       drawResults(params, scope, groups);
       if (!query) results.prepend(...idleLists());
     } catch (error) { if (!isAbort(error)) clear(results).append(errorBox(error, () => run(params))); }
@@ -118,7 +120,7 @@ export async function render({ root, params: initial, summary }) {
     return [list(t("search.recent"), recent, false), list(t("search.savedTitle"), saved, true)].filter(Boolean);
   }
 
-  const layout = h("div", { class: "workbench" }, h("aside", { class: "filters-col" }, filtersHost), h("div", {}, bar, h("div", { class: "toolbar" }, drawerButton(() => drawer.current)), chipsHost, tabsHost, meta, results));
+  const layout = h("div", { class: "workbench" }, h("aside", { class: "filters-col" }, filtersHost), h("div", {}, bar, h("p", { class: "muted small", style: { margin: "-4px 0 12px" } }, t("search.mode")), h("div", { class: "toolbar" }, drawerButton(() => drawer.current)), chipsHost, tabsHost, meta, results));
   drawer.current = layout.querySelector("aside");
   root.append(pageHead(t("search.title"), t("search.subtitle")), layout);
   await run(initial);

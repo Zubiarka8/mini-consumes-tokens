@@ -1,6 +1,6 @@
 // 01 · Resumen del proyecto
 import { h, fmt, ago, shortDate, hrefTo, store } from "./core.js";
-import { icon, pageHead, metricCard, selectBox, stateBadge, STATES, STATE_ORDER, stateLabel, emptyState, badge } from "./components.js";
+import { pageHead, metricCard, selectBox, stateBadge, STATES, STATE_ORDER, stateLabel, emptyState, badge } from "./components.js";
 import { lineChart, donut, hbars } from "./charts.js";
 import { openIssues } from "./issues.js";
 import { t } from "./i18n.js";
@@ -27,6 +27,11 @@ function eventText(event) {
 
 export function render({ root, summary, meta }) {
   let range = store.get("dash-range", 30);
+  // Only the chart is redrawn when the period changes, so the picker keeps keyboard focus.
+  const chartHost = h("div", {});
+  const drawChart = () => chartHost.replaceChildren(activityChart(summary, range));
+  const rangePicker = h("label", { class: "row small muted" }, t("dash.range"), selectBox({ label: t("dash.range"), value: String(range),
+    options: [["7", t("dash.last7")], ["30", t("dash.last30")], ["90", t("dash.last90")]], onChange: (value) => { range = Number(value); store.set("dash-range", range); drawChart(); } }));
   const body = h("div", { class: "stack" });
   const draw = () => {
     const states = summary.findings.states;
@@ -39,7 +44,6 @@ export function render({ root, summary, meta }) {
       { icon: "check", tone: "info", label: t("dash.pending"), value: fmt(pending), href: hrefTo("revisiones", { state: "unreviewed,in-review" }) },
       { icon: "checkCircle", tone: "primary", label: t("dash.falsePositives"), value: fmt(states["false-positive"] || 0), href: hrefTo("revisiones", { state: "false-positive" }) },
       { icon: "note", tone: "success", label: t("dash.notes"), value: fmt(summary.notes), href: hrefTo("obsidian", "") },
-      { icon: "clock", tone: "accent", label: t("dash.indexDuration"), value: "—", hint: t("dash.indexDurationHint"), href: hrefTo("estadisticas", "") },
     ];
     const segments = STATE_ORDER.map((state) => ({ name: stateLabel(state), value: states[state] || 0, color: STATES[state].color }));
     const lastIndexed = meta.indexing.lastIndexedAt;
@@ -47,8 +51,10 @@ export function render({ root, summary, meta }) {
     body.replaceChildren(
       h("div", { class: "grid metrics" }, cards.map(metricCard)),
       h("div", { class: "grid two" },
-        h("section", { class: "card" }, h("h2", {}, t("dash.activityTitle")),
-          h("p", { class: "muted small", style: { marginBottom: "8px" } }, t("dash.activityNote")), activityChart(summary, range)),
+        h("section", { class: "card" },
+          h("div", { class: "row spread" }, h("h2", {}, t("dash.activityTitle")),
+            rangePicker),
+          h("p", { class: "muted small", style: { marginBottom: "8px" } }, t("dash.activityNote")), chartHost),
         h("section", { class: "card" }, h("h2", {}, t("dash.reviewState")), summary.findings.total ? donut({ segments, centerLabel: t("dash.findings"), label: t("dash.reviewState") }) : emptyState({ title: t("dash.noFindings"), iconName: "check" }))),
       h("div", { class: "grid three" },
         h("section", { class: "card" }, h("h2", {}, t("dash.languages")), summary.languages.length ? hbars({ rows: summary.languages.slice(0, 8).map((l) => ({ name: l.language, value: l.symbols })), label: t("dash.languages") }) : emptyState({ title: t("common.noData") })),
@@ -67,9 +73,7 @@ export function render({ root, summary, meta }) {
             h("dt", {}, t("dash.healthSyntax")), h("dd", {}, summary.health.syntaxErrors > 0 ? h("button", { class: "btn sm", onclick: () => openIssues("syntax", meta.indexing.syntaxIssues || []) }, fmt(summary.health.syntaxErrors)) : fmt(summary.health.syntaxErrors))),
           h("p", { class: "muted small", style: { marginTop: "12px" } }, t("dash.noScore")))));
   };
-  root.append(pageHead(t("dash.title"), t("dash.subtitle"), [
-    selectBox({ label: t("header.repo"), value: "repo", options: [["repo", meta.project]], onChange: () => {}, cls: "hide-sm" }),
-    selectBox({ label: t("dash.range"), value: String(range), options: [["7", t("dash.last7")], ["30", t("dash.last30")], ["90", t("dash.last90")]], onChange: (v) => { range = Number(v); store.set("dash-range", range); draw(); } }),
-  ]), body);
+  root.append(pageHead(t("dash.title"), t("dash.subtitle")), body);
   draw();
+  drawChart();
 }

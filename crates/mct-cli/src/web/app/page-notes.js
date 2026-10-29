@@ -51,7 +51,7 @@ export async function render({ root, params: initial }) {
     clear(chipsHost).append(activeChips(chips, clearAll) || "");
   }
 
-  const noteCard = (n) => h("button", { class: "note-card", "data-path": n.path, "aria-selected": String(n.path === selected), onclick: () => patchQuery({ note: n.path }) },
+  const noteCard = (n) => h("button", { class: "note-card", "data-path": n.path, "aria-current": String(n.path === selected), onclick: () => patchQuery({ note: n.path }) },
     h("span", { class: "kind-ico tone-primary" }, icon("note", 15)),
     h("span", { style: { minWidth: 0, flex: 1 } }, h("strong", { class: "ellipsis", style: { display: "block" } }, n.title), h("span", { class: "muted small ellipsis", style: { display: "block" } }, n.path),
       h("span", { class: "row", style: { gap: "4px", marginTop: "4px" } }, n.tags.slice(0, 3).map((tag) => badge(`#${tag}`, "primary")), n.symbolCount != null && badge(t("obs.symbols", { n: n.symbolCount }), "info"), n.backlinks > 0 && badge(t("obs.backlinksN", { n: n.backlinks }), "accent"))),
@@ -116,7 +116,7 @@ export async function render({ root, params: initial }) {
   async function showNote(path) {
     selected = path;
     cancelApi("note");
-    root.querySelectorAll(".note-card").forEach((el) => el.setAttribute("aria-selected", "false"));
+    root.querySelectorAll(".note-card").forEach((el) => el.setAttribute("aria-current", "false"));
     if (!path) { clear(viewer).append(h("div", { class: "card inspector" }, emptyState({ iconName: "note", title: t("obs.pickTitle"), text: t("obs.pickText") }))); return; }
     clear(viewer).append(h("div", { class: "card inspector" }, loading()));
     try {
@@ -130,9 +130,7 @@ export async function render({ root, params: initial }) {
       clear(viewer).append(h("div", { class: "card inspector" },
         h("header", {}, h("div", {}, h("h3", {}, n.title), h("div", { class: "mono muted small" }, n.path)), h("button", { class: "icon-btn", "aria-label": t("common.close"), onclick: () => patchQuery({ note: null }) }, icon("x"))),
         h("div", { class: "row", style: { marginBottom: "10px" } },
-          h("div", { class: "seg", role: "group", "aria-label": t("obs.mode") }, h("button", { "aria-pressed": "true" }, t("obs.preview")), h("button", { disabled: true, title: t("obs.editDisabled"), "aria-pressed": "false" }, t("obs.edit"))),
-          h("button", { class: "btn sm", onclick: () => copy(n.path, t("common.pathCopied")) }, icon("copy", 14), t("common.copyPath")), h("button", { class: "btn sm", onclick: () => copy(mdLink, t("obs.linkCopied")) }, icon("link", 14), t("obs.copyLink")),
-          h("button", { class: "btn sm", disabled: true, title: t("obs.openDisabled") }, icon("external", 14), t("obs.openObsidian"))),
+          h("button", { class: "btn sm", onclick: () => copy(n.path, t("common.pathCopied")) }, icon("copy", 14), t("common.copyPath")), h("button", { class: "btn sm", onclick: () => copy(mdLink, t("obs.linkCopied")) }, icon("link", 14), t("obs.copyLink"))),
         n.tags.length > 0 && h("div", { class: "chips", style: { marginBottom: "10px" } }, n.tags.map((tag) => h("button", { class: "tag", onclick: () => patchQuery({ view: null, tag }) }, `#${tag}`))),
         n.frontmatter.length > 0 && h("details", { class: "section", open: true }, h("summary", {}, t("obs.frontmatter")), h("dl", { class: "kv", style: { marginTop: "8px" } }, n.frontmatter.map(([k, v]) => [h("dt", {}, k), h("dd", { class: "mono small" }, v)]))),
         h("div", { class: "section" }, renderMarkdown(n.body, { onNote: open, onTag: (tag) => patchQuery({ view: null, tag }) })),
@@ -163,7 +161,7 @@ export async function render({ root, params: initial }) {
     search.sync(params.get("q") || "");
     const sel = params.get("note");
     if (sel !== selected) { showNote(sel); if (graph && sel) graph.select(sel); }
-    root.querySelectorAll(".note-card").forEach((el) => el.setAttribute("aria-selected", String(el.dataset.path === sel)));
+    root.querySelectorAll(".note-card").forEach((el) => el.setAttribute("aria-current", String(el.dataset.path === sel)));
     if (stable(params) !== lastQuery) { lastQuery = stable(params); drawChips(params); drawList(params); }
   });
   return () => { listGeneration += 1; graphGeneration += 1; off(); graph?.destroy(); cancelApi("notes"); cancelApi("ngraph"); cancelApi("facets"); cancelApi("note"); search.destroy(); };
