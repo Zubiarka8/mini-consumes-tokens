@@ -1,6 +1,8 @@
-//! The dashboard front end, embedded in the binary. There is no build step and
-//! no third-party code: plain ES modules and one stylesheet, served from the
-//! same origin so the page can keep a strict `script-src 'self'` policy.
+//! The dashboard front end, embedded in the binary and served from the same
+//! origin so the page can keep a strict `script-src 'self'` policy. The shell
+//! and its pages are plain ES modules with no build step; the open finding's
+//! review workspace is a React bundle that `crates/mct-cli/web-ui` compiles
+//! into `review-dist/`, committed so that building the binary needs no Node.
 
 use super::response::Response;
 
@@ -39,6 +41,9 @@ pub(super) fn serve(path: &str) -> Option<Response> {
         "js/page-notes.js" => (JS, app!("page-notes.js")),
         "js/page-workspace.js" => (JS, app!("page-workspace.js")),
         "js/page-settings.js" => (JS, app!("page-settings.js")),
+        // Loaded only when a finding is opened (page-findings.js).
+        "js/review.js" => (JS, include_str!("review-dist/review.js")),
+        "review.css" => (CSS, include_str!("review-dist/review.css")),
         _ => return None,
     };
     Some(Response::ok(kind, body.to_string()))

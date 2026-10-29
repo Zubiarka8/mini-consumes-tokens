@@ -39,6 +39,7 @@ fn review_fields(site: &Site, key: &str) -> Value {
     let held = resolution.is_some_and(|resolution| resolution.held);
     json!({
         "key": key,
+        "number": site.numbers.get(key),
         "state": resolution.map_or(UNREVIEWED, Resolution::effective_label),
         "previousState": resolution.map_or(UNREVIEWED, |resolution| resolution.state().value()),
         "note": winner.map_or("", |winner| winner.note.as_str()),
@@ -161,8 +162,10 @@ pub(super) fn dead_row(site: &Site, index: usize) -> Value {
 }
 
 fn haystack(row: &Value) -> String {
+    // `#12` finds the finding a person saw numbered 12.
     let mut text = format!(
-        "{} {}",
+        "#{} {} {}",
+        row["number"],
         row["title"].as_str().unwrap_or(""),
         row["path"].as_str().unwrap_or("")
     );
@@ -263,8 +266,21 @@ pub(super) fn list(site: &Site, params: &Params) -> Value {
 /// Lines of distinct member code sent with one duplicate group; members past it fall back to `excerpt`.
 const MEMBER_CODE_BUDGET: usize = 1500;
 
+/// A finding is addressed by its review key, or by `type` and its readable `number`.
 pub(super) fn detail(site: &Site, params: &Params) -> Result<Value, (u16, &'static str)> {
-    let key = text(params, "key");
+    let key = match text(params, "key") {
+        "" => {
+            let kind = mct_index::reviews::Kind::parse(text(params, "type"))
+                .ok_or((400, "missing key or type"))?;
+            let number = text(params, "number")
+                .parse::<u64>()
+                .map_err(|_| (400, "invalid number"))?;
+            site.numbers
+                .key(kind, number)
+                .ok_or((404, "unknown finding"))?
+        }
+        key => key,
+    };
     if let Some(id) = site
         .review_keys
         .iter()
@@ -299,6 +315,20 @@ pub(super) fn detail(site: &Site, params: &Params) -> Result<Value, (u16, &'stat
             .map(|reason| reason.as_str())
             .collect();
         row["priorityReason"] = json!(group.priority.reason);
+        // What the detector itself found different, so the comparison marks
+        // its lines instead of guessing with a text diff. Values and lines
+        // follow the member order; only the first differences are listed.
+        let evidence = &group.evidence;
+        row["evidence"] = json!({
+            "identifierPattern": evidence.identifier_pattern.as_str(),
+            "distinct": evidence.distinct_differences,
+            "differences": evidence.differences.iter().map(|difference| json!({
+                "kind": difference.kind.as_str(),
+                "values": difference.values,
+                "lines": difference.lines,
+            })).collect::<Vec<_>>(),
+            "warnings": evidence.warnings.iter().map(|warning| warning.code.as_str()).collect::<Vec<_>>(),
+        });
         row["method"] = json!({
             "kind": "token-sequence",
             "normalization": site.duplicates.options.normalization.as_str(),

@@ -1,65 +1,249 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { harness, settle, finding, defaultApi } from './harness.mjs';
+import { harness, settle, finding, defaultApi, list } from './harness.mjs';
 
 const findButton = (root, text) => [...root.querySelectorAll('button')].find(el => el.textContent.trim() === text);
-async function findings(fetch = defaultApi, query = 'key=duplicate-test&view=side') {
-  const env = harness({ hash: `#/duplicados?${query}`, fetch });
+// `shell`: the page sits inside the app shell, whose sidebar an open finding folds.
+async function findings(fetch = defaultApi, query = 'key=duplicate-test', { shell = false, page = 'duplicados' } = {}) {
+  const env = harness({ hash: `#/${page}?${query}`, fetch });
+  if (shell) {
+    env.shell = env.document.createElement('div');
+    env.shell.className = 'shell';
+    env.root.replaceWith(env.shell);
+    env.shell.append(env.root);
+  }
   const { render } = await env.load('page-findings.js');
-  env.cleanup = await render({ root: env.root, page: 'duplicados', params: new URLSearchParams(query) });
-  await settle();
+  env.cleanup = await render({ root: env.root, page, params: new URLSearchParams(query) });
+  await settle(); await settle();
+  env.mounts = (await env.load('review.js')).mounts;
   return env;
 }
+const urlParams = (env) => new URLSearchParams(env.location.hash.split('?')[1]);
+const shown = (env, selector) => !env.root.querySelector(selector).hidden;
 
-test('same-file comparison completes independent source requests and selects arbitrary members', async () => {
-  const requests = [];
-  const env = await findings(async (url, options) => { if (url.pathname.endsWith('/source')) { requests.push({ url, signal: options.signal }); await settle(); } return defaultApi(url); });
+// The open finding is review.js (the React workspace, tested with Vitest in web-ui); these
+// tests check the page's side: when it mounts, what it hands over, and what the URL becomes.
+test('an open duplicate gives the list way to one mounted workspace, with its stylesheet', async () => {
+  const env = await findings();
+  assert.equal(env.mounts.length, 1);
+  const { props } = env.mounts[0];
+  assert.equal(props.item.key, 'duplicate-test');
+  assert.equal(props.file, 0);
+  assert.equal(env.root.querySelector('.review-stub').textContent, 'alpha ≈ beta');
+  assert.equal(shown(env, '.review-host'), true);
+  assert.equal(shown(env, '.workbench'), false);
+  assert.equal(shown(env, '.page-head'), false);
+  assert.equal(env.document.querySelectorAll('link[data-review-css]').length, 1);
+  assert.equal(env.document.querySelector('link[data-review-css]').getAttribute('href'), 'review.css');
+  env.cleanup();
+  assert.equal(env.mounts[0].unmounted, true, 'leaving the page unmounts the workspace');
+});
+
+// Duplicados and Código muerto: a filter bar (state, files, search, order, more filters) over blocks.
+test('a stacked list shows each finding as a block and filters from its bar', async () => {
+  const numbered = { ...finding, number: 4 };
+  const facets = { state: [['unreviewed', 1]], scope: [['same-file', 1]] };
+  const env = await findings((url) => (url.pathname.endsWith('/findings') ? list([numbered], facets) : defaultApi(url)), '');
+  const block = env.root.querySelector('.stack-row');
+  assert.equal(block.querySelector('.stack-no').textContent, '#4');
+  assert.equal(block.querySelector('.stack-title').textContent, 'alpha ≈ beta');
+  assert.equal(block.querySelector('.stack-where').textContent, '2 files');
+  assert.match(block.querySelector('.pill').textContent, /Unreviewed/);
+  const [state, files, sort] = [...env.root.querySelectorAll('.stack-bar select')];
+  assert.equal(state.value, 'pending');
+  assert.equal(files.value, 'all');
+  assert.equal(sort.value, 'rank:asc');
+  state.value = 'all'; state.dispatchEvent(env.event('change'));
+  files.value = 'same-file'; files.dispatchEvent(env.event('change'));
+  sort.value = 'lines:desc'; sort.dispatchEvent(env.event('change'));
   await settle();
-  assert.equal(requests.length, 2);
-  assert.equal(requests[0].url.searchParams.get('path'), requests[1].url.searchParams.get('path'));
-  assert.notEqual(requests[0].signal, requests[1].signal);
-  assert.ok(requests.every(r => !r.signal.aborted));
-  assert.equal(env.root.querySelectorAll('.compare .pane').length, 2);
-  const right = env.root.querySelector('select[aria-label="Right fragment"]');
-  right.value = '2'; right.dispatchEvent(env.event('change'));
-  await settle(); await settle();
-  assert.equal(new URLSearchParams(env.location.hash.split('?')[1]).get('right'), '2');
-  assert.match(env.root.querySelector('.compare').textContent, /other.cpp/);
+  const params = urlParams(env);
+  assert.deepEqual([params.get('state'), params.get('scope'), params.get('sort'), params.get('order')], ['all', 'same-file', 'lines', 'desc']);
+  const panel = env.root.querySelector('aside.filters-col');
+  [...env.root.querySelectorAll('.stack-bar button')].find(el => el.textContent === 'More filters').click();
+  assert.equal(panel.classList.contains('open'), true);
+  panel.dispatchEvent(env.event('keydown', { key: 'Escape' }));
+  assert.equal(panel.classList.contains('open'), false);
   env.cleanup();
 });
 
-test('failure retains Back, pair and retry; retry fetches the same selected fragments', async () => {
-  let fail = true;
-  const starts = [];
-  const env = await findings((url) => {
-    if (url.pathname.endsWith('/source')) { starts.push(url.searchParams.get('start')); if (fail) return new Response('{"error":"fixture failure"}', { status: 500 }); }
-    return defaultApi(url);
-  }, 'key=duplicate-test&view=side&left=1&right=2');
-  assert.ok(findButton(env.root, 'Back to the list'));
-  assert.ok(findButton(env.root, 'Retry'));
-  assert.equal(env.root.querySelector('select[aria-label="Left fragment"]').value, '1');
-  fail = false; findButton(env.root, 'Retry').click(); await settle();
-  assert.deepEqual(starts, ['5', '9', '5', '9']);
-  assert.equal(env.root.querySelectorAll('.compare .pane').length, 2);
-  env.cleanup();
-});
-
-test('pair switches and teardown cancel obsolete comparisons without an AbortError screen', async () => {
-  const pending = [];
-  const env = await findings((url, { signal }) => {
-    if (!url.pathname.endsWith('/source')) return defaultApi(url);
-    return new Promise((resolve, reject) => { pending.push({ signal, resolve: () => resolve(defaultApi(url)) }); signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError'))); });
-  });
+test('leaving with a finding open, the menu link comes back to the list with its filters', async () => {
+  const env = await findings(defaultApi, 'state=all');
   const core = await env.load('core.js');
-  core.patchQuery({ right: '2' }); await settle();
-  assert.equal(pending.length, 4);
-  assert.ok(pending.slice(0, 2).every(r => r.signal.aborted));
-  pending.slice(2).forEach(r => r.resolve()); await settle();
-  assert.doesNotMatch(env.root.textContent, /Aborted|operation was aborted/);
-  assert.match(env.root.querySelector('.compare').textContent, /other.cpp/);
-  core.patchQuery({ right: '1' }); await settle();
+  core.patchQuery({ n: 3, file: 1 }); await settle();
+  assert.equal(env.location.hash, '#/duplicados?state=all&n=3&file=1');
+  assert.equal(core.hrefTo('duplicados'), '#/duplicados?state=all');
   env.cleanup();
-  assert.ok(pending.slice(4).every(r => r.signal.aborted));
+});
+
+// The workspace belongs to Duplicados and Código muerto: Revisiones sends a finding to its own page.
+test('Revisiones never mounts the workspace: an old link moves to the finding on its own page', async () => {
+  const env = await findings(defaultApi, 'key=duplicate-test', { shell: true, page: 'revisiones' });
+  assert.equal(env.mounts.length, 0);
+  assert.equal(env.root.querySelector('.review-host').hidden, true);
+  assert.equal(env.shell.classList.contains('collapsed'), false);
+  assert.equal(env.location.hash, '#/duplicados?key=duplicate-test');
+  assert.equal((await env.load('core.js')).hrefTo('revisiones'), '#/revisiones', 'the menu link opens the list again');
+  env.cleanup();
+});
+
+test('a Revisiones row opens the finding on its own page', async () => {
+  const numbered = { ...finding, number: 4 };
+  const fetch = (url) => (url.pathname.endsWith('/findings') ? list([numbered]) : defaultApi(url));
+  const env = await findings(fetch, '', { page: 'revisiones' });
+  env.root.querySelector('tbody tr').click();
+  await settle();
+  assert.equal(env.location.hash, '#/duplicados?n=4');
+  assert.equal(env.mounts.length, 0);
+  env.cleanup();
+});
+
+test('choosing a file goes to the URL and the mounted workspace, without fetching the finding again', async () => {
+  const lookups = [];
+  const env = await findings((url) => { if (url.pathname.endsWith('/finding')) lookups.push(url); return defaultApi(url); });
+  env.mounts[0].props.onSelectFile(2); await settle();
+  assert.equal(urlParams(env).get('file'), '2');
+  assert.equal(env.mounts.length, 1);
+  assert.equal(env.mounts[0].props.file, 2);
+  // Older comparison links named the file `left`; an index out of range falls back to the first.
+  const core = await env.load('core.js');
+  core.patchQuery({ file: null, left: '1' }); await settle();
+  assert.equal(env.mounts[0].props.file, 1);
+  core.patchQuery({ left: null, file: '9' }); await settle();
+  assert.equal(env.mounts[0].props.file, 0);
+  assert.equal(lookups.length, 1);
+  env.cleanup();
+});
+
+test('a numbered finding opens from its number and is selected in the list', async () => {
+  const lookups = [];
+  const numbered = { ...finding, number: 7 };
+  const env = await findings((url) => {
+    const route = url.pathname.split('/').at(-1);
+    if (route === 'findings') return { items: [numbered], total: 1, all: 1, size: 25, page: 0, facets: {} };
+    if (route === 'finding') { lookups.push(Object.fromEntries(url.searchParams)); return numbered; }
+    return defaultApi(url);
+  }, 'n=7');
+  assert.deepEqual(lookups, [{ type: 'duplicate', number: '7' }]);
+  assert.equal(env.root.querySelector('.stack-row .stack-no').textContent, '#7');
+  assert.equal(env.root.querySelector('.stack-row').classList.contains('current'), true);
+  assert.equal(env.mounts[0].props.item.number, 7);
+  env.root.querySelector('.stack-row .stack-open').dispatchEvent(env.event('click'));
+  await settle(); await settle();
+  assert.equal(lookups.length, 1, 'the open finding is not fetched again');
+  assert.equal(env.mounts.length, 1);
+  assert.equal(urlParams(env).get('n'), '7');
+  assert.equal(urlParams(env).get('key'), null);
+  env.cleanup();
+});
+
+test('Back clears the finding from the URL, unmounts the workspace and shows the list again', async () => {
+  const env = await findings(defaultApi, 'key=duplicate-test&view=side&file=1');
+  env.mounts[0].props.onBack(); await settle();
+  for (const name of ['key', 'n', 'view', 'file', 'left', 'right', 'context']) assert.equal(urlParams(env).get(name), null, name);
+  assert.equal(env.mounts[0].unmounted, true);
+  assert.equal(shown(env, '.review-host'), false);
+  assert.equal(shown(env, '.workbench'), true);
+  assert.equal(shown(env, '.page-head'), true);
+  env.cleanup();
+});
+
+test('an open finding folds the shell sidebar, and Back unfolds only what it folded', async () => {
+  const env = await findings(defaultApi, 'key=duplicate-test', { shell: true });
+  assert.equal(env.shell.classList.contains('collapsed'), true);
+  env.mounts[0].props.onBack(); await settle();
+  assert.equal(env.shell.classList.contains('collapsed'), false);
+  // Folded by the person beforehand: it stays folded.
+  const core = await env.load('core.js');
+  core.patchQuery({ key: 'duplicate-test' }); await settle(); await settle();
+  env.mounts.at(-1).props.onBack(); await settle();
+  env.shell.classList.add('collapsed');
+  core.patchQuery({ key: 'duplicate-test' }); await settle(); await settle();
+  env.mounts.at(-1).props.onBack(); await settle();
+  assert.equal(env.shell.classList.contains('collapsed'), true);
+  env.cleanup();
+});
+
+test('a saved decision shows at once, then the list and the finding are fetched again', async () => {
+  const calls = { findings: 0, finding: 0 };
+  const env = await findings((url) => {
+    const route = url.pathname.split('/').at(-1);
+    if (route in calls) calls[route] += 1;
+    return defaultApi(url);
+  });
+  const before = { ...calls };
+  env.mounts[0].props.onSaved({ key: 'duplicate-test', state: 'confirmed', note: 'checked', revision: 'r1' });
+  assert.equal(env.mounts[0].props.item.state, 'confirmed');
+  assert.equal(env.mounts[0].props.item.note, 'checked');
+  await settle(); await settle();
+  assert.equal(calls.findings, before.findings + 1);
+  assert.equal(calls.finding, before.finding + 1);
+  assert.equal(env.mounts.length, 1, 'the workspace stays mounted, with its drafts');
+  env.cleanup();
+});
+
+test('the state in the list opens the other decisions and saves the pick for the whole group', async () => {
+  const saved = [];
+  const env = await findings((url, options) => {
+    if (url.pathname.endsWith('/review')) {
+      saved.push(JSON.parse(options.body));
+      return { key: 'duplicate-test', state: 'confirmed', revision: 'r1' };
+    }
+    return defaultApi(url);
+  }, '');
+  const button = env.root.querySelector('.stack-row .state-btn');
+  assert.equal(button.getAttribute('aria-haspopup'), 'menu');
+  assert.equal(button.getAttribute('aria-expanded'), 'false');
+  button.dispatchEvent(env.event('click'));
+  const menu = env.document.querySelector('.state-menu');
+  assert.equal(button.getAttribute('aria-expanded'), 'true');
+  assert.match(menu.querySelector('.state-menu-note').textContent, /all 3 files in the group/);
+  const items = [...menu.querySelectorAll('[role=menuitem]')];
+  assert.equal(items.length, 5, 'every decision but the current one; an unreviewed finding has nothing to reopen');
+  assert.equal(env.document.activeElement, items[0]);
+  items[1].dispatchEvent(env.event('click'));
+  await settle(); await settle();
+  assert.equal(env.document.querySelector('.state-menu'), null, 'picking closes the menu');
+  assert.equal(saved.length, 1);
+  assert.deepEqual([saved[0].key, saved[0].state, saved[0].revision], ['duplicate-test', 'confirmed', 'none']);
+  env.cleanup();
+});
+
+test('the bridge reaches the source and review APIs', async () => {
+  const requests = [];
+  const env = await findings((url, options) => {
+    if (/\/(source|review)$/.test(url.pathname)) requests.push({ url, options });
+    if (url.pathname.endsWith('/review')) return { key: 'duplicate-test', state: 'confirmed', revision: 'r2' };
+    return defaultApi(url);
+  });
+  const { bridge } = env.mounts[0].props;
+  const source = await bridge.source({ path: 'src/same.cpp', start: 1, end: 3 }, 'review-member-0');
+  assert.deepEqual(source.lines, ['line 1']);
+  assert.equal(requests[0].url.searchParams.get('path'), 'src/same.cpp');
+  const saved = await bridge.save('duplicate-test', 'confirmed', 'note', 'none');
+  assert.equal(saved.revision, 'r2');
+  assert.equal(requests[1].options.method, 'POST');
+  assert.deepEqual(
+    (({ key, state, note, revision }) => ({ key, state, note, revision }))(JSON.parse(requests[1].options.body)),
+    { key: 'duplicate-test', state: 'confirmed', note: 'note', revision: 'none' },
+  );
+  assert.equal(bridge.t('dup.backToList'), 'Back to the list');
+  env.cleanup();
+});
+
+test('a finding that fails to load keeps Back and Retry, and Retry mounts the workspace', async () => {
+  let fail = true;
+  const env = await findings((url) => {
+    if (url.pathname.endsWith('/finding') && fail) return new Response('{"error":"fixture failure"}', { status: 500 });
+    return defaultApi(url);
+  });
+  assert.equal(env.mounts.length, 0);
+  assert.ok(findButton(env.root, 'Back to the list'));
+  fail = false;
+  findButton(env.root, 'Retry').click(); await settle(); await settle();
+  assert.equal(env.mounts.length, 1);
+  assert.equal(env.root.querySelector('.review-host').textContent.includes('fixture failure'), false);
+  env.cleanup();
 });
 
 test('API cleanup cannot erase a newer operation; explicit cancellation remains effective through JSON decoding', async () => {
@@ -182,8 +366,7 @@ test('recent activity links carry the finding identity and include findings outs
   assert.equal(params.get('state'), 'all');
 });
 
-// Dead code gets the comparison's layout: the list gives way to one pane with the
-// candidate's lines marked and a few context lines around them.
+// A dead-code candidate opens in the same workspace; its context lines come from the URL.
 const deadFinding = {
   key: 'dead-test', type: 'dead-code', title: 'unused_helper', kind: 'function', language: 'rust', state: 'unreviewed', revision: 'none',
   confidence: 'high', zone: 'source', visibility: 'private', path: 'src/lib.rs', line: 10, history: [],
@@ -194,58 +377,51 @@ function deadApi(requests) {
     const route = url.pathname.split('/').at(-1);
     if (route === 'findings') return { items: [deadFinding], total: 1, all: 1, size: 25, page: 0, facets: {} };
     if (route === 'finding') return deadFinding;
-    if (route === 'source') {
-      requests.push(url);
-      const start = Number(url.searchParams.get('start')), end = Number(url.searchParams.get('end'));
-      return { start, lines: Array.from({ length: end - start + 1 }, (_, n) => `line ${start + n}`), truncated: false, language: 'rust' };
-    }
+    if (route === 'source') requests.push(url);
     return defaultApi(url);
   };
 }
-
-test('a dead-code candidate opens in the code view with its own lines marked', async () => {
+async function deadPage(query) {
   const requests = [];
-  const query = 'key=dead-test&view=code';
   const env = harness({ hash: `#/codigo-muerto?${query}`, fetch: deadApi(requests) });
   const { render } = await env.load('page-findings.js');
-  const cleanup = await render({ root: env.root, page: 'codigo-muerto', params: new URLSearchParams(query) });
+  env.cleanup = await render({ root: env.root, page: 'codigo-muerto', params: new URLSearchParams(query) });
   await settle(); await settle();
-  assert.equal(requests.length, 1);
-  assert.equal(requests[0].searchParams.get('start'), '7', 'three context lines before the symbol');
-  assert.equal(requests[0].searchParams.get('end'), '15');
-  assert.equal(env.root.querySelectorAll('.compare.single .pane').length, 1);
-  assert.equal(env.root.querySelector('.workbench').classList.contains('compare-mode'), true);
-  const marked = [...env.root.querySelectorAll('.compare .ln.del')].map(row => row.firstChild.textContent);
-  assert.deepEqual(marked, ['10', '11', '12']);
-  assert.match(env.root.textContent, /Lines with no known references \(3\)/);
-  const context = env.root.querySelector('select[aria-label="Surrounding context"]');
-  context.value = '10'; context.dispatchEvent(env.event('change'));
-  await settle(); await settle();
-  assert.equal(new URLSearchParams(env.location.hash.split('?')[1]).get('context'), '10');
-  assert.equal(requests.at(-1).searchParams.get('start'), '1', 'context never starts before line 1');
-  assert.equal(requests.at(-1).searchParams.get('end'), '22');
-  assert.equal(env.root.querySelectorAll('.compare .ln').length, 22);
-  assert.equal(env.root.querySelectorAll('.compare .ln.del').length, 3);
-  findButton(env.root, 'Back to the list').dispatchEvent(env.event('click'));
-  await settle();
-  assert.equal(new URLSearchParams(env.location.hash.split('?')[1]).get('view'), null);
-  assert.equal(env.root.querySelector('.compare'), null);
-  cleanup();
+  env.mounts = (await env.load('review.js')).mounts;
+  env.requests = requests;
+  return env;
+}
+
+test('a dead-code candidate mounts the workspace with the context lines its URL names', async () => {
+  const env = await deadPage('key=dead-test&view=code&context=10');
+  assert.equal(env.mounts.length, 1);
+  assert.equal(env.mounts[0].props.item.type, 'dead-code');
+  assert.equal(env.mounts[0].props.context, 10);
+  // The workspace loads the code itself; the page does not.
+  assert.equal(env.requests.length, 0);
+  env.mounts[0].props.onContext(25); await settle();
+  assert.equal(urlParams(env).get('context'), '25');
+  assert.equal(env.mounts[0].props.context, 25);
+  assert.equal(env.mounts.length, 1);
+  env.cleanup();
 });
 
-test('the dead-code list row opens the code view instead of a dialog', async () => {
-  const requests = [];
-  const env = harness({ hash: '#/codigo-muerto', fetch: deadApi(requests) });
-  const { render } = await env.load('page-findings.js');
-  const cleanup = await render({ root: env.root, page: 'codigo-muerto', params: new URLSearchParams() });
-  await settle();
-  const view = [...env.root.querySelectorAll('button')].find(el => el.getAttribute('aria-label') === 'View code of: unused_helper');
-  view.dispatchEvent(env.event('click'));
+test('a dead-code link without context gets three lines', async () => {
+  const env = await deadPage('key=dead-test');
+  assert.equal(env.mounts[0].props.context, 3);
+  env.cleanup();
+});
+
+test('the dead-code list row opens the workspace instead of a dialog', async () => {
+  const env = await deadPage('');
+  assert.equal(env.mounts.length, 0);
+  const block = env.root.querySelector('.stack-row .stack-open');
+  assert.match(block.textContent, /unused_helper/);
+  block.dispatchEvent(env.event('click'));
   await settle(); await settle();
-  const params = new URLSearchParams(env.location.hash.split('?')[1]);
-  assert.equal(params.get('key'), 'dead-test');
-  assert.equal(params.get('view'), 'code');
+  assert.equal(urlParams(env).get('key'), 'dead-test');
+  assert.equal(urlParams(env).get('view'), null);
   assert.equal(env.root.querySelector('dialog'), null);
-  assert.equal(env.root.querySelectorAll('.compare.single .pane').length, 1);
-  cleanup();
+  assert.equal(env.mounts.length, 1);
+  env.cleanup();
 });
