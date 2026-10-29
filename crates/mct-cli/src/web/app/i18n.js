@@ -778,6 +778,14 @@ const es = {
   "ws.subtitle":
     "Árbol de archivos indexados y visor de código, con hallazgos, referencias y notas de cada archivo.",
   "ws.explorer": "Explorador",
+  "ws.ignore": "Ver y editar .mctignore",
+  "ws.ignoreHint": "Muestra el .mctignore del proyecto y permite modificarlo",
+  "ws.gitignore": "Ver y editar .gitignore",
+  "ws.gitignoreHint": "Muestra el .gitignore del proyecto y permite modificarlo",
+  "ws.copyFilePath": "Copiar fichero",
+  "ws.copyFolderPath": "Copiar carpeta",
+  "ws.copyParentPath": "Copiar su carpeta",
+  "ws.copiedPath": "Ruta copiada",
   "ws.pickTitle": "Elige un archivo",
   "ws.pickText": "Selecciona un archivo del explorador.",
   "ws.tabs": "Secciones del archivo",
@@ -842,13 +850,27 @@ const es = {
   "ignore.saved": ".mctignore guardado",
   "ignore.dirty": "Cambios sin guardar",
   "ignore.reindex":
-    "Los cambios se aplican en el próximo reindexado: ejecuta `mct-cli --root <proyecto> reindex --force`; el panel lo recoge en la siguiente petición.",
+    "Al guardar, el panel reindexa solo en unos segundos y la página se actualiza; no hace falta ejecutar nada.",
+  "ignore.waiting":
+    "Guardado. Espera hasta un minuto: el panel reindexa por su cuenta y esta página se actualizará sola al terminar.",
+  "gitignore.title": "Exclusiones de git (.gitignore)",
+  "gitignore.intro":
+    "Lo que git deja fuera del repositorio. Es el fichero del proyecto: guardarlo lo modifica en tu árbol de trabajo, y aparecerá como cambio en git.",
+  "gitignore.tip":
+    "Si .mctignore tiene la línea @import-gitignore, el índice también deja fuera lo que excluye este fichero.",
+  "gitignore.noFile": "Aún no existe .gitignore; se creará al guardar.",
+  "gitignore.fieldLabel": "Contenido de .gitignore",
+  "gitignore.save": "Guardar .gitignore",
+  "gitignore.saved": ".gitignore guardado",
+  "gitignore.conflict":
+    ".gitignore cambió en disco mientras lo editabas. No se guardó nada; se muestra el contenido actual.",
+  "gitignore.loadFailed": "No se pudo leer .gitignore.",
   "ignore.conflict":
     ".mctignore cambió en disco mientras lo editabas. No se guardó nada; se muestra el contenido actual.",
   "ignore.loadFailed": "No se pudo leer .mctignore.",
   "ignore.size": "{n} de {max} bytes",
   "settings.readOnly":
-    "El panel escucha solo en 127.0.0.1, sin secretos en la URL (se rechazan las peticiones de otros sitios). Es de solo lectura salvo las decisiones de revisión y el archivo .mctignore.",
+    "El panel escucha solo en 127.0.0.1, sin secretos en la URL (se rechazan las peticiones de otros sitios). Es de solo lectura salvo las decisiones de revisión y los archivos .mctignore y .gitignore.",
   "settings.capabilities": "Capacidades del backend",
   "settings.capabilitiesNote": "Lo que no está disponible no se simula en la interfaz.",
   "settings.capability": "Capacidad",

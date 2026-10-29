@@ -310,13 +310,6 @@ export function render({ root, summary, meta }) {
   root.append(
     pageHead(t("dash.title"), t("dash.subtitle"), [
       selectBox({
-        label: t("header.repo"),
-        value: "repo",
-        options: [["repo", meta.project]],
-        onChange: () => {},
-        cls: "hide-sm",
-      }),
-      selectBox({
         label: t("dash.range"),
         value: String(range),
         options: [

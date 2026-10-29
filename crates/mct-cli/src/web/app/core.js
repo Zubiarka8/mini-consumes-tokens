@@ -134,12 +134,12 @@ export async function review(key, state, note = "", revision = "none") {
   return body;
 }
 
-/** Replaces .mctignore. `base` is the text the page loaded; a 409 error carries the current state in `body`. */
-export async function saveIgnore(content, base) {
+/** Replaces .mctignore, or .gitignore with `file: "gitignore"`. `base` is the text the page loaded; a 409 error carries the current state in `body`. */
+export async function saveIgnore(content, base, file = "mctignore") {
   const response = await fetch("api/ignore", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ csrf, content, base }),
+    body: JSON.stringify({ csrf, content, base, file }),
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new ApiError(response.status, body.error || response.statusText, body);

@@ -222,7 +222,7 @@ textarea {
   padding: 0 4px;
   font-weight: 700;
   font-size: 14.5px;
-  color: var(--on-topbar);
+  color: var(--text);
   white-space: nowrap;
 }
 .brand:hover {
@@ -232,10 +232,10 @@ textarea {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: var(--on-topbar);
+  background: var(--primary);
   display: grid;
   place-items: center;
-  color: var(--topbar);
+  color: var(--on-primary);
   flex: none;
 }
 .nav {
@@ -316,9 +316,9 @@ textarea {
   align-items: center;
   gap: 12px;
   padding: 0 12px 0 10px;
-  border-bottom: 1px solid var(--topbar-border);
-  background: var(--topbar);
-  color: var(--on-topbar);
+  border-bottom: 1px solid var(--border);
+  background: var(--sidebar);
+  color: var(--text);
   position: relative;
   z-index: 25;
   min-width: 0;
@@ -343,32 +343,20 @@ textarea {
   min-width: 0;
 }
 .header .icon-btn {
-  color: var(--on-topbar);
+  color: var(--text);
 }
 .header .icon-btn:hover {
-  background: rgba(0, 0, 0, 0.08);
-  color: var(--on-topbar);
+  background: var(--hover);
+  color: var(--text);
 }
 .header .btn {
-  background: rgba(255, 255, 255, 0.35);
-  border-color: rgba(0, 0, 0, 0.35);
-  color: var(--on-topbar);
+  background: var(--surface);
+  border-color: var(--control-border);
+  color: var(--text);
 }
 .header .btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.6);
-  border-color: rgba(0, 0, 0, 0.45);
-}
-.project {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  font-weight: 400;
-  color: var(--on-topbar);
-  min-width: 0;
-}
-.project .host {
-  opacity: 0.8;
-  font-size: 12px;
+  background: var(--hover);
+  border-color: var(--control-border);
 }
 .status-pill {
   display: inline-flex;
@@ -377,9 +365,9 @@ textarea {
   padding: 2px 10px;
   border-radius: 999px;
   font-size: 12px;
-  background: rgba(255, 255, 255, 0.45);
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  color: var(--on-topbar);
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  color: var(--text);
   white-space: nowrap;
 }
 .status-pill .muted {
@@ -735,6 +723,12 @@ textarea.input:focus {
 }
 .select {
   padding-right: 6px;
+}
+/* The native list ignores the inherited colours and stays white, so dark text-on-dark became unreadable. */
+.select option,
+.select optgroup {
+  background: var(--elevated);
+  color: var(--text);
 }
 .page-tools .select {
   max-width: 100%;
@@ -1583,16 +1577,22 @@ table.t {
 .tree button.node:hover {
   background: var(--hover);
 }
+/* The chosen file and every folder on its way down from the root are green, so the full path reads at a glance. */
+.tree button.node[aria-current="true"],
+.tree button.node.on-path {
+  background: var(--success-soft);
+  color: var(--success);
+}
 .tree button.node[aria-current="true"] {
-  background: var(--primary-soft);
-  color: var(--primary-ink);
+  font-weight: 600;
 }
 .tree svg {
   color: var(--text-2);
   flex: none;
 }
-.tree button.node[aria-current="true"] svg {
-  color: var(--primary-ink);
+.tree button.node[aria-current="true"] svg,
+.tree button.node.on-path svg {
+  color: var(--success);
 }
 .tree button.node:focus-visible {
   outline: 2px solid var(--focus);
@@ -2088,8 +2088,7 @@ dialog .dlg footer {
     padding: 0 12px;
     gap: 8px;
   }
-  .header .hide-md,
-  .project small {
+  .header .hide-md {
     display: none;
   }
   .workbench,
@@ -2169,19 +2168,6 @@ dialog .dlg footer {
   fill: var(--text-2) !important;
 }
 
-#project-name {
-  max-width: 260px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  display: inline-block;
-  opacity: 0.85;
-}
-@media (max-width: 640px) {
-  #project-name {
-    max-width: 90px;
-  }
-}
 /* Below this width the logo alone stands for the app, leaving room for the project and search. */
 @media (max-width: 1280px) {
   .brand-name {
@@ -2629,7 +2615,34 @@ dialog .dlg footer {
   background: var(--info-soft);
   color: var(--info);
 }
+.pill.danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.pill.primary {
+  background: var(--primary-soft);
+  color: var(--primary-ink);
+}
 .pill.muted {
+  color: var(--text-3);
+}
+/* One colour per review state in the menu, the same tones as the badges and pills. */
+.choice-item.tone-success {
+  color: var(--success);
+}
+.choice-item.tone-warning {
+  color: var(--warning);
+}
+.choice-item.tone-danger {
+  color: var(--danger);
+}
+.choice-item.tone-info {
+  color: var(--info);
+}
+.choice-item.tone-primary {
+  color: var(--primary-ink);
+}
+.choice-item.tone-muted {
   color: var(--text-3);
 }
 /* The state as a button: the badge or pill stays as it was, with a chevron saying it opens. */
@@ -2724,6 +2737,8 @@ dialog .dlg footer {
   padding: 6px;
   min-width: 170px;
   background: var(--surface);
+  /* The menu lives inside the yellow header, whose dark ink it would otherwise inherit. */
+  color: var(--text);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow);

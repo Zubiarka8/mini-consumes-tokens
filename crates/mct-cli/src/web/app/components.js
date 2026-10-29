@@ -1,5 +1,5 @@
 // Reusable UI pieces: icons, badges, metric cards, tables, filters, pagination, states.
-import { h, clear, fmt, debounce } from "./core.js";
+import { h, clear, fmt, debounce, copy } from "./core.js";
 import { t, hasKey } from "./i18n.js";
 
 const dot = (x, y, r = 2) => `M${x - r} ${y}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`;
@@ -639,6 +639,69 @@ export function buildTree(files) {
   return root;
 }
 
+/** Opens a small menu of `[label, action]` rows where the pointer is; it closes on any click, Escape or scroll. */
+function contextMenu(event, label, rows) {
+  event.preventDefault();
+  document.querySelector(".context-menu")?.remove();
+  const close = () => {
+    menu.remove();
+    document.removeEventListener("click", away, true);
+    document.removeEventListener("keydown", keys);
+    window.removeEventListener("scroll", close, true);
+    window.removeEventListener("resize", close);
+  };
+  const away = (click) => {
+    if (!menu.contains(click.target)) close();
+  };
+  const keys = (key) => {
+    if (key.key === "Escape") close();
+  };
+  const menu = h(
+    "div",
+    {
+      class: "pop context-menu",
+      role: "menu",
+      "aria-label": label,
+      style: { position: "fixed", top: `${event.clientY}px`, left: `${event.clientX}px` },
+    },
+    rows.map(([text, action]) =>
+      h(
+        "button",
+        {
+          class: "choice-item",
+          role: "menuitem",
+          onclick: () => {
+            close();
+            action();
+          },
+        },
+        icon("copy", 15),
+        h("span", {}, text),
+      ),
+    ),
+  );
+  document.body.append(menu);
+  // Never past the right or bottom edge.
+  const size = menu.getBoundingClientRect();
+  menu.style.left = `${Math.max(8, Math.min(event.clientX, window.innerWidth - size.width - 8))}px`;
+  menu.style.top = `${Math.max(8, Math.min(event.clientY, window.innerHeight - size.height - 8))}px`;
+  menu.querySelector("[role=menuitem]").focus();
+  document.addEventListener("click", away, true);
+  document.addEventListener("keydown", keys);
+  window.addEventListener("scroll", close, true);
+  window.addEventListener("resize", close);
+}
+
+/** Right-click rows to copy a tree entry's path from the project root; a file also offers its folder. */
+function pathMenu(event, path, isDir) {
+  const rows = [[t(isDir ? "ws.copyFolderPath" : "ws.copyFilePath"), () => copy(path, t("ws.copiedPath"))]];
+  if (!isDir) {
+    const folder = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : ".";
+    rows.push([t("ws.copyParentPath"), () => copy(folder, t("ws.copiedPath"))]);
+  }
+  contextMenu(event, path, rows);
+}
+
 export function treeView({ root, current, onSelect, expanded = new Set() }) {
   const render = (node, depth) => {
     const list = h("ul", { role: depth === 0 ? "tree" : "group", class: depth === 0 ? "tree" : "" });
@@ -648,9 +711,10 @@ export function treeView({ root, current, onSelect, expanded = new Set() }) {
       const button = h(
         "button",
         {
-          class: "node",
+          class: current?.startsWith(`${dir.path}/`) ? "node on-path" : "node",
           "aria-current": String(current === dir.path),
           title: dir.path,
+          oncontextmenu: (event) => pathMenu(event, dir.path, true),
           onclick: () => {
             if (expanded.has(dir.path)) expanded.delete(dir.path);
             else expanded.add(dir.path);
@@ -677,6 +741,7 @@ export function treeView({ root, current, onSelect, expanded = new Set() }) {
               class: "node",
               "aria-current": String(current === file.path),
               title: file.path,
+              oncontextmenu: (event) => pathMenu(event, file.path, false),
               onclick: () => onSelect(file.path, false),
             },
             h("span", { class: "tree-spacer" }),
