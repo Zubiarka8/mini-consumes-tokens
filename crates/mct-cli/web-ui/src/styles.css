@@ -1,0 +1,123 @@
+/*
+ * Tailwind's theme and utilities only: no preflight, because the rest of the
+ * dashboard is styled by app.css. Both are imported without a cascade layer,
+ * so app.css element rules (h2, button, p…) cannot override a utility.
+ * Every colour is one of app.css's variables, so the light, dark and system
+ * themes need nothing here.
+ */
+@import "tailwindcss/theme.css";
+@import "tailwindcss/utilities.css";
+@import "sonner/dist/styles.css";
+
+@source "./";
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-elevated: var(--elevated);
+  --color-fg: var(--text);
+  --color-fg-2: var(--text-2);
+  --color-line: var(--border);
+  --color-control: var(--control-border);
+  --color-hover: var(--hover);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-ink: var(--primary-ink);
+  --color-on-primary: var(--on-primary);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-code: var(--code-bg);
+  --color-diff: var(--diff-del);
+  /* The finding's own lines and the selection: the shell's yellow, softened for text on top. */
+  --color-match: color-mix(in srgb, var(--topbar) 30%, transparent);
+  --color-topbar: var(--topbar);
+  --color-focus: var(--focus);
+  --font-sans: var(--font);
+  --font-mono: var(--mono);
+  --radius-ui: var(--radius);
+}
+
+/* Token colours of the code viewer, shared with app.css's code blocks. */
+.rw-code .tk-k {
+  color: var(--tok-keyword);
+}
+.rw-code .tk-s {
+  color: var(--tok-string);
+}
+.rw-code .tk-n {
+  color: var(--tok-number);
+}
+.rw-code .tk-c {
+  color: var(--tok-comment);
+  font-style: italic;
+}
+.rw-code .tk-t {
+  color: var(--tok-type);
+}
+.rw-code .tk-f {
+  color: var(--tok-fn);
+}
+
+/* A differing value inside its line, boxed. */
+.rw-code .rw-word {
+  background: var(--diff-del);
+  color: inherit;
+  outline: 1px solid var(--danger);
+  border-radius: 2px;
+  padding: 0;
+}
+
+/* A line jumped to from the differences list, outlined for a moment (not colour alone). */
+.rw-code [data-flash] {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+  background: var(--primary-soft);
+}
+
+/* The resize handle: a thin line that thickens on hover and keyboard focus. */
+.rw-separator {
+  position: relative;
+  flex: 0 0 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  cursor: col-resize;
+}
+.rw-separator::before {
+  content: "";
+  width: 1px;
+  height: 100%;
+  background: var(--border);
+  transition: background-color 120ms, width 120ms;
+}
+.rw-separator:hover::before,
+.rw-separator[data-separator="active"]::before,
+.rw-separator:focus-visible::before {
+  width: 3px;
+  background: var(--focus);
+}
+.rw-separator:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus) inset;
+  border-radius: 2px;
+}
+
+[data-sonner-toaster] {
+  --normal-bg: var(--elevated);
+  --normal-border: var(--border);
+  --normal-text: var(--text);
+  font-family: var(--font);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rw-separator::before {
+    transition: none;
+  }
+}

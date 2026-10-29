@@ -155,3 +155,11 @@ mct-cli init on the dashboard-remediation worktree reported 17 syntax errors: 16
 ## 2026-10-29 — find_callers caller-argument mistake (caller error, no server defect)
 
 `find_callers` was called with `symbol: "random_key"` instead of the required `function`; exact diagnostic: ``failed to deserialize parameters: missing field `function` ``. Retried with `function`: succeeded. Same class as ERR-011/ERR-014 (wrong parameter name); no server change. Also observed: the connected server indexes the primary checkout, so symbol lookups reflect that tree, not a separate worktree such as `feature/stable-local-web-url`.
+
+## 2026-10-29 — cargo-deps scope mismatch recurrence and argument mistakes (ERR-016, ERR-014)
+
+During the dashboard UI work on `feature/localhost-ui-improvements` (base `166af91`), the connected `cargo-deps` server indexed a 5-file / 291-symbol dependency corpus instead of the project; `get_file_tree(path="crates/mct-cli/src/web", depth=1)` returned ``I/O error at crates/mct-cli/src/web: No such file or directory (os error 2)``. Worked around with the worktree's `./target/debug/mct-cli --root . call`, which answered all queries. Separately, `build_context_pack` and `find_references` were first called with `name` instead of `symbol` (caller error); the retries with `symbol` succeeded.
+
+## 2026-10-29 — worktree-rooted MCP not connected; stdio probe works (ERR-016, ERR-014)
+
+While adding a clickable state menu to the findings list, the session-connected `cargo-deps` server again indexed the 5-file corpus (see ERR-016). Queried the worktree through `mct-mcp-server --root <worktree>` over stdio instead: `find_references` located every render site of `stateBadge`, `ignoreFinding` and `confirmDialog`. One caller mistake (`name` instead of `symbol`, ERR-014), retried successfully. `mct-cli call --tool <name>` is the simpler route for next time.
