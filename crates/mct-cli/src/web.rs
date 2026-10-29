@@ -2,6 +2,7 @@
 
 mod api;
 mod assets;
+mod autoreindex;
 mod dead_assessment;
 mod http;
 mod ignore_file;
@@ -427,8 +428,10 @@ pub(super) fn run(root: &Path, port: Option<u16>, no_obsidian: bool) -> anyhow::
     let port = listener.local_addr()?.port();
     let mut site = Site::load(root, no_obsidian)?;
     println!("Local project web: {}", dashboard_url(port));
+    // Kept for the server's lifetime: dropping it would stop the watch.
+    let _autoreindex = autoreindex::start(root, no_obsidian);
     println!(
-        "Dashboard ready. Snapshot: {}. A reindex is picked up on the next request; Ctrl-C stops the server.",
+        "Dashboard ready. Snapshot: {}. Saved files and .mctignore edits are reindexed automatically and picked up on the next request; Ctrl-C stops the server.",
         site.generated
     );
     std::io::stdout().flush()?;

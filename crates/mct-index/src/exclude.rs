@@ -32,10 +32,10 @@ pub const IGNORE_FILE_TEMPLATE: &str = "\
 # Built-in exclusions can never be re-included.
 #
 # To also exclude everything the project's own .gitignore excludes (so
-# nothing kept out of git ends up in the index either), add this exact line
-# on its own (uncomment it below). Its lines, \"!\" included, are read as if
-# written where the directive stands.
-# @import-gitignore
+# nothing kept out of git ends up in the index either), keep this exact line
+# on its own (it is on by default; comment it out to turn it off). Its lines,
+# \"!\" included, are read as if written where the directive stands.
+@import-gitignore
 #
 # Examples (uncomment to use):
 # *.md
