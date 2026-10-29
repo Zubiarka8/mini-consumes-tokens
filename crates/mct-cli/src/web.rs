@@ -5,6 +5,7 @@ mod assets;
 mod dead_assessment;
 mod http;
 mod ignore_file;
+mod numbers;
 mod obsidian;
 mod port;
 mod response;
@@ -63,6 +64,8 @@ struct Site {
     groups: BTreeMap<String, Vec<usize>>,
     duplicates: DuplicateReport,
     review_keys: Vec<String>,
+    /// Readable number of each finding, by review key.
+    numbers: numbers::Numbers,
     dead: Vec<DeadCandidate>,
     references: HashMap<String, usize>,
     reviews: reviews::Reviews,
@@ -180,6 +183,7 @@ impl Site {
         let (dead, dead_findings) = dead_candidates(root, &index, &navigation, &file_hashes)?;
         let dead_code_ms = dead_started.elapsed().as_millis();
         findings.extend(dead_findings);
+        let numbers = numbers::Numbers::load(root, &findings);
         let reviews = reviews::Reviews::load(root, findings);
         if let Some(reason) = reviews.read_only_reason() {
             eprintln!("warning: review decisions are read-only until this is fixed: {reason}");
@@ -226,6 +230,7 @@ impl Site {
             groups,
             duplicates,
             review_keys,
+            numbers,
             dead,
             references,
             reviews,
