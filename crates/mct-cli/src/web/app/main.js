@@ -60,7 +60,7 @@ function renderNav() {
 function notificationsMenu() {
   const existing = document.querySelector(".menu.notices");
   if (existing) { existing.remove(); return; }
-  const menu = h("div", { class: "menu notices", role: "menu", style: { right: "60px", top: "56px", minWidth: "300px", padding: "10px" } },
+  const menu = h("div", { class: "menu notices", role: "group", "aria-label": t("notice.title"), style: { right: "60px", top: "56px", minWidth: "300px", padding: "10px" } },
     h("strong", {}, t("notice.title")),
     notices.length ? notices.map((n) => h("p", { class: `banner ${n.tone === "bad" ? "bad" : n.tone === "warn" ? "warn" : ""}`, style: { marginTop: "8px" } }, n.text, n.action && [" ", h("button", { class: "btn sm", onclick: () => { menu.remove(); n.action(); } }, t("issues.view"))])) : h("p", { class: "muted", style: { marginTop: "8px" } }, t("notice.none")));
   document.querySelector(".header").append(menu);

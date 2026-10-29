@@ -75,8 +75,8 @@
   --shadow: 0 6px 20px rgba(15, 23, 42, 0.12);
   --focus: #6d28d9;
   --tok-keyword: #6d28d9;
-  --tok-string: #15803d;
-  --tok-number: #b45309;
+  --tok-string: #166534;
+  --tok-number: #9a3412;
   --tok-comment: #475569;
   --tok-type: #0369a1;
   --tok-fn: #92400e;
@@ -307,7 +307,7 @@ table.t { width: 100%; border-collapse: collapse; }
 .tk-k { color: var(--tok-keyword); } .tk-s { color: var(--tok-string); } .tk-n { color: var(--tok-number); }
 .tk-c { color: var(--tok-comment); font-style: italic; } .tk-t { color: var(--tok-type); } .tk-f { color: var(--tok-fn); }
 .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.compare .pane h4 { display: flex; gap: 8px; align-items: center; padding: 8px 10px; background: var(--elevated); border: 1px solid var(--border); border-radius: var(--radius-sm) var(--radius-sm) 0 0; border-bottom: 0; font-size: 13px; }
+.compare .pane h3 { display: flex; gap: 8px; align-items: center; padding: 8px 10px; background: var(--elevated); border: 1px solid var(--border); border-radius: var(--radius-sm) var(--radius-sm) 0 0; border-bottom: 0; font-size: 13px; }
 .compare .code { border-radius: 0 0 var(--radius-sm) var(--radius-sm); max-height: 60vh; }
 .compare.single { grid-template-columns: minmax(0, 1fr); }
 .sim { display: inline-grid; place-items: center; min-width: 56px; padding: 3px 8px; border-radius: 6px; font-weight: 700; }

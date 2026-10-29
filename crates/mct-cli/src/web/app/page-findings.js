@@ -112,7 +112,7 @@ function duplicateDetail(item, onChange, setView) {
       members.map((m) => h("div", { style: { marginBottom: "10px" } },
         h("div", { class: "row spread" }, h("strong", {}, m.name), h("span", { class: "row" }, h("button", { class: "btn ghost sm", "aria-label": `${t("ai.copyCode")}: ${m.name}`, onclick: () => copy(`${m.path}:${m.start}-${m.end}\n${(m.code || m.excerpt).join("\n")}`, t("ai.codeCopied")) }, icon("copy", 13), t("ai.copyCode")), h("button", { class: "btn ghost sm", "aria-label": `${t("code.openSource")}: ${m.name}`, onclick: () => openSource({ path: m.path, line: m.start, language: item.language }) }, icon("external", 13), t("code.openSource")))),
         h("div", { class: "mono muted small" }, `${m.path}:${m.start}–${m.end}`),
-        codeBlock({ lines: m.excerpt, start: m.start, language: item.language, maxHeight: "140px", label: m.name })))),
+        codeBlock({ lines: m.excerpt, start: m.start, language: item.language, maxHeight: "140px", label: `${m.name} — ${m.path}:${m.start}` })))),
     item.analysis && h("details", { class: "section" }, h("summary", {}, t("dup.technical")), h("pre", { class: "mono", style: { whiteSpace: "pre-wrap", overflow: "auto", maxHeight: "300px" } }, item.analysis)));
 }
 
@@ -358,8 +358,8 @@ export async function render({ root, page, params: initial }) {
             h("div", { class: "row", role: "group", "aria-label": t("dup.ignoreDiffs") }, h("span", { class: "muted small" }, t("dup.ignoreDiffs")), box("ignoreSpace", t("dup.ignoreSpace")), box("ignoreComments", t("dup.ignoreComments")), box("normalizeIds", t("dup.normalizeIds")))),
           h("p", { class: "muted small", style: { marginBottom: "8px" } }, t("dup.viewOnly")),
           h("div", { class: "compare" },
-            h("div", { class: "pane" }, h("h4", {}, h("span", { class: "mono ellipsis" }, a.path), h("span", { class: "muted" }, a.name)), view.a),
-            h("div", { class: "pane" }, h("h4", {}, h("span", { class: "mono ellipsis" }, b.path), h("span", { class: "muted" }, b.name)), view.b)),
+            h("div", { class: "pane" }, h("h3", {}, h("span", { class: "mono ellipsis" }, a.path), h("span", { class: "muted" }, a.name)), view.a),
+            h("div", { class: "pane" }, h("h3", {}, h("span", { class: "mono ellipsis" }, b.path), h("span", { class: "muted" }, b.name)), view.b)),
           h("div", { class: "card", style: { marginTop: "12px" } }, h("h3", {}, t("dup.diffs", { n: view.changes })), h("p", { class: "muted" }, view.changes ? t("dup.diffsText") : t("dup.noDiffs")),
             null));
       };
@@ -395,7 +395,7 @@ export async function render({ root, page, params: initial }) {
             h("button", { class: "btn sm", onclick: () => openSource({ path: s.path, line: s.line, language: s.language }) }, icon("external", 14), t("code.openSource")))),
         h("p", { class: "muted small", style: { marginBottom: "8px" } }, t("dead.codeViewOnly")),
         h("div", { class: "compare single" },
-          h("div", { class: "pane" }, h("h4", {}, h("span", { class: "mono ellipsis" }, s.path), h("span", { class: "muted" }, `${item.title} · ${item.kind}`)),
+          h("div", { class: "pane" }, h("h3", {}, h("span", { class: "mono ellipsis" }, s.path), h("span", { class: "muted" }, `${item.title} · ${item.kind}`)),
             codeBlock({ lines: source.lines, start, language: source.language || s.language, marks, label: `${t("compare.code")}: ${s.path}` }))),
         source.truncated ? note(t("dead.codeTruncated"), "", "info") : null,
         h("div", { class: "card", style: { marginTop: "12px" } }, h("h3", {}, t("dead.unreferenced", { n: end - s.line + 1 })),
