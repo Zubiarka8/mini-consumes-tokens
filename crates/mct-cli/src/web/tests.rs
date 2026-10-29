@@ -147,6 +147,7 @@ fn dashboard_serves_static_app_and_a_read_only_json_api() {
         "graph",
         "markdown",
         "palette",
+        "ignore-card",
         "page-dashboard",
         "ai",
         "i18n-en",
@@ -934,6 +935,27 @@ fn obsidian_notes_are_served_read_only_with_verified_links() {
 }
 
 #[test]
+fn the_dashboard_reindexes_a_saved_file_on_its_own() {
+    let root = project();
+    let path = root.path().canonicalize().unwrap();
+    let _watch = super::autoreindex::start(&path, true).expect("the watcher starts");
+    let server = Server::start(root.path(), true);
+    assert_eq!(server.json("api/symbols?q=saved_later")["total"], 0);
+    let file = path.join("src/a.rs");
+    let original = fs::read_to_string(&file).unwrap();
+    fs::write(&file, format!("{original}\npub fn saved_later() {{}}\n")).unwrap();
+    // The watcher waits for the save to settle, then reindexes; no manual `reindex`.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    while server.json("api/symbols?q=saved_later")["total"] != 1 {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the saved file was never reindexed"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(250));
+    }
+}
+
+#[test]
 fn the_dashboard_follows_a_reindex_without_a_restart() {
     let root = project();
     let file = root.path().join("src/a.rs");
@@ -1419,6 +1441,78 @@ fn mctignore_is_read_and_saved_with_origin_csrf_conflict_and_limit_checks() {
         .filter(|name| name.ends_with(".tmp"))
         .collect();
     assert!(leftovers.is_empty(), "{leftovers:?}");
+}
+
+#[test]
+fn a_new_mctignore_always_carries_the_import_directive_active() {
+    let root = project();
+    let server = Server::start(root.path(), true);
+    let file = root.path().join(".mctignore");
+    let csrf = server.site.borrow().csrf.clone();
+    let origin = "Origin: http://127.0.0.1:8787\r\n";
+    let save = |content: &str, base: &str| {
+        post_ignore(
+            &server,
+            &serde_json::json!({ "csrf": csrf, "content": content, "base": base }),
+            origin,
+        )
+    };
+
+    let created = save("docs/", "");
+    assert!(created.starts_with("HTTP/1.1 200"), "{created}");
+    assert_eq!(
+        fs::read_to_string(&file).unwrap(),
+        "docs/\n\n@import-gitignore\n"
+    );
+    assert_eq!(server.json("api/ignore")["importsGitignore"], true);
+
+    // An existing file is never given the line again once someone removed it.
+    let edited = save("docs/\n", "docs/\n\n@import-gitignore\n");
+    assert!(edited.starts_with("HTTP/1.1 200"), "{edited}");
+    assert_eq!(fs::read_to_string(&file).unwrap(), "docs/\n");
+}
+
+#[test]
+fn gitignore_is_read_and_saved_like_mctignore_and_never_mixed_up_with_it() {
+    let root = project();
+    let server = Server::start(root.path(), true);
+    let csrf = server.site.borrow().csrf.clone();
+    let origin = "Origin: http://127.0.0.1:8787\r\n";
+    let git = root.path().join(".gitignore");
+    let mct = root.path().join(".mctignore");
+    fs::write(&git, "target/\n").unwrap();
+
+    let state = server.json("api/ignore?file=gitignore");
+    assert_eq!(state["file"], "gitignore");
+    assert_eq!(state["path"], ".gitignore");
+    assert_eq!(state["content"], "target/\n");
+    assert_eq!(state["template"], "");
+    assert_eq!(state["importsGitignore"], false);
+    // Without `file` the answer is still .mctignore.
+    assert_eq!(server.json("api/ignore")["file"], "mctignore");
+
+    let save = |content: &str, base: &str, file: &str| {
+        post_ignore(
+            &server,
+            &serde_json::json!({ "csrf": csrf, "content": content, "base": base, "file": file }),
+            origin,
+        )
+    };
+    let saved = save("target/\r\n*.log", "target/\n", "gitignore");
+    assert!(saved.starts_with("HTTP/1.1 200"), "{saved}");
+    assert_eq!(fs::read_to_string(&git).unwrap(), "target/\n*.log\n");
+    assert!(!mct.exists(), "saving .gitignore never creates .mctignore");
+
+    let stale = save("x\n", "something older", "gitignore");
+    assert!(stale.starts_with("HTTP/1.1 409"), "{stale}");
+    assert_eq!(fs::read_to_string(&git).unwrap(), "target/\n*.log\n");
+
+    // The file is chosen from a fixed list, never by path.
+    let unknown = save("x\n", "", "../x");
+    assert!(unknown.starts_with("HTTP/1.1 400"), "{unknown}");
+    assert!(server
+        .get("api/ignore?file=../x")
+        .starts_with("HTTP/1.1 400"));
 }
 
 #[test]
