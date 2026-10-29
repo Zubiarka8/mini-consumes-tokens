@@ -767,6 +767,14 @@ export const en = {
   "ws.title": "Files",
   "ws.subtitle": "The indexed file tree and a code viewer, with each file's findings, references and notes.",
   "ws.explorer": "Explorer",
+  "ws.ignore": "View and edit .mctignore",
+  "ws.ignoreHint": "Shows the project's .mctignore and lets you change it",
+  "ws.gitignore": "View and edit .gitignore",
+  "ws.gitignoreHint": "Shows the project's .gitignore and lets you change it",
+  "ws.copyFilePath": "Copy file",
+  "ws.copyFolderPath": "Copy folder",
+  "ws.copyParentPath": "Copy its folder",
+  "ws.copiedPath": "Path copied",
   "ws.pickTitle": "Pick a file",
   "ws.pickText": "Select a file from the explorer.",
   "ws.tabs": "File sections",
@@ -832,13 +840,27 @@ export const en = {
   "ignore.saved": ".mctignore saved",
   "ignore.dirty": "Unsaved changes",
   "ignore.reindex":
-    "Changes apply on the next reindex: run `mct-cli --root <project> reindex --force`; the dashboard picks it up on the next request.",
+    "After saving, the dashboard reindexes by itself within a few seconds and the page updates; there is nothing to run.",
+  "ignore.waiting":
+    "Saved. Wait up to a minute: the dashboard reindexes by itself and this page updates on its own when it finishes.",
+  "gitignore.title": "Git exclusions (.gitignore)",
+  "gitignore.intro":
+    "What git keeps out of the repository. It is the project's own file: saving it changes your working tree, and it will show up as a change in git.",
+  "gitignore.tip":
+    "If .mctignore has the line @import-gitignore, the index also leaves out what this file excludes.",
+  "gitignore.noFile": ".gitignore does not exist yet; it is created on save.",
+  "gitignore.fieldLabel": "Contents of .gitignore",
+  "gitignore.save": "Save .gitignore",
+  "gitignore.saved": ".gitignore saved",
+  "gitignore.conflict":
+    ".gitignore changed on disk while you were editing. Nothing was saved; the current content is shown.",
+  "gitignore.loadFailed": "Could not read .gitignore.",
   "ignore.conflict":
     ".mctignore changed on disk while you were editing. Nothing was saved; the current content is shown.",
   "ignore.loadFailed": "Could not read .mctignore.",
   "ignore.size": "{n} of {max} bytes",
   "settings.readOnly":
-    "The panel listens only on 127.0.0.1, with no secret in the URL (requests from other sites are refused). It is read-only except for review decisions and the .mctignore file.",
+    "The panel listens only on 127.0.0.1, with no secret in the URL (requests from other sites are refused). It is read-only except for review decisions and the .mctignore and .gitignore files.",
   "settings.capabilities": "Backend capabilities",
   "settings.capabilitiesNote": "What is not available is not simulated in the interface.",
   "settings.capability": "Capability",

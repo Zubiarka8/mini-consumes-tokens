@@ -32,6 +32,7 @@ pub(super) fn serve(path: &str) -> Option<Response> {
         "js/graph.js" => (JS, app!("graph.js")),
         "js/markdown.js" => (JS, app!("markdown.js")),
         "js/palette.js" => (JS, app!("palette.js")),
+        "js/ignore-card.js" => (JS, app!("ignore-card.js")),
         "js/page-dashboard.js" => (JS, app!("page-dashboard.js")),
         "js/page-symbols.js" => (JS, app!("page-symbols.js")),
         "js/page-findings.js" => (JS, app!("page-findings.js")),
