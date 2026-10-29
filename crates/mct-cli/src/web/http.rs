@@ -32,12 +32,11 @@ impl Connection for TcpStream {
 pub(super) fn serve_connection(
     stream: &mut impl Connection,
     port: u16,
-    token: &str,
     site: &mut Site,
 ) -> std::io::Result<()> {
     stream.write_timeout(REQUEST_TIMEOUT)?;
     site.follow_reindex();
-    let (response, head) = receive(stream, port, token, site)?;
+    let (response, head) = receive(stream, port, site)?;
     let reason = match response.status {
         200 => "OK",
         400 => "Bad Request",
@@ -70,7 +69,6 @@ struct Request {
 fn receive(
     stream: &mut impl Connection,
     port: u16,
-    token: &str,
     site: &mut Site,
 ) -> std::io::Result<(Response, bool)> {
     let deadline = Instant::now() + REQUEST_TIMEOUT;
@@ -111,7 +109,7 @@ fn receive(
                     Ok(value) => value,
                     Err(_) => return Ok((Response::error(400), head)),
                 };
-                let request = match validate(headers, port, token) {
+                let request = match validate(headers, port) {
                     Ok(request) => request,
                     Err(status) => return Ok((Response::error(status), head)),
                 };
@@ -141,7 +139,7 @@ fn receive(
     }
 }
 
-fn validate(headers: &str, port: u16, token: &str) -> Result<Request, u16> {
+fn validate(headers: &str, port: u16) -> Result<Request, u16> {
     let (headers, body) = headers.split_once("\r\n\r\n").ok_or(400_u16)?;
     if !body.is_empty() {
         return Err(400);
@@ -193,7 +191,7 @@ fn validate(headers: &str, port: u16, token: &str) -> Result<Request, u16> {
     if fields.contains_key("transfer-encoding") {
         return Err(400);
     }
-    let target = target.strip_prefix(&format!("/{token}/")).ok_or(404_u16)?;
+    let target = target.strip_prefix('/').ok_or(404_u16)?;
     let post = method == "POST";
     let length = if post {
         if !matches!(target, "api/review" | "api/ignore") {
@@ -255,8 +253,8 @@ fn route(site: &Site, target: &str) -> Response {
 }
 
 #[cfg(test)]
-fn validated_target(request: &str, port: u16, token: &str) -> Result<String, u16> {
-    validate(request, port, token).map(|request| request.target)
+fn validated_target(request: &str, port: u16) -> Result<String, u16> {
+    validate(request, port).map(|request| request.target)
 }
 
 #[cfg(test)]
@@ -265,14 +263,24 @@ mod tests {
     use super::*;
 
     #[test]
-    fn capability_host_origin_and_body_rules_are_enforced() {
-        let valid = "GET /secret/api/files?dir=src HTTP/1.1\r\nHost: 127.0.0.1:1234\r\n\r\n";
+    fn host_origin_and_body_rules_are_enforced_without_a_url_key() {
+        let valid = "GET /api/files?dir=src HTTP/1.1\r\nHost: 127.0.0.1:1234\r\n\r\n";
         assert_eq!(
-            validated_target(valid, 1234, "secret"),
+            validated_target(valid, 1234),
             Ok("api/files?dir=src".to_string())
         );
         for (request, status) in [
-            (valid.replace("/secret/", "/wrong/"), 404),
+            (valid.replace("GET /api", "GET api"), 404),
+            (valid.replace("127.0.0.1:1234", "localhost"), 421),
+            (
+                valid.replace("127.0.0.1:1234", "127.0.0.1:1234.evil.example"),
+                421,
+            ),
+            (valid.replace("127.0.0.1:1234", "[::1]:1234"), 421),
+            (
+                valid.replace("\r\n\r\n", "\r\nOrigin: http://localhost:1234\r\n\r\n"),
+                403,
+            ),
             (valid.replace("127.0.0.1:1234", "evil.example:1234"), 421),
             (
                 valid.replace("\r\n\r\n", "\r\nOrigin: https://evil.example\r\n\r\n"),
@@ -298,12 +306,9 @@ mod tests {
             (valid.replace("Host:", " Host:"), 400),
             (valid.replace("HTTP/1.1", "HTTP/1.0"), 400),
         ] {
-            assert_eq!(
-                validated_target(&request, 1234, "secret"),
-                Err(status),
-                "{request}"
-            );
+            assert_eq!(validated_target(&request, 1234), Err(status), "{request}");
         }
-        assert!(validated_target(&valid.replace("GET", "HEAD"), 1234, "secret").is_ok());
+        assert!(validated_target(&valid.replace("GET", "HEAD"), 1234).is_ok());
+        assert!(validated_target(&valid.replace("127.0.0.1", "localhost"), 1234).is_ok());
     }
 }

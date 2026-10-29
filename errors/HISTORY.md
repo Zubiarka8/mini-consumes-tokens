@@ -151,3 +151,7 @@ mct-cli init on the dashboard-remediation worktree reported 17 syntax errors: 16
 ## 2026-10-28 — ERR-022: resolved (serve first, index in the background)
 
 #256 (`03bc1a8`) makes `mct-mcp-server` answer `initialize`/`tools/list` immediately and index in a background task. Verified after merge with the installed binaries rebuilt from main `28d04de`: `scripts/unix/mcp-smoke.sh` ok (23 tools); on a cold 9288-file root `initialize` took 0.04 s, tool calls returned `index_state: indexing` while the index was built (20 s wait per call) and answered at 53.8 s; a real Claude Code client connected at once and saw the same states. Evidence: `tmp/reports/session19/` (`drive-cold.out`, `drive-big.out`, `real-client.out`, `real-client-2.out`). The 2026-10-26/27 observations and the ERR-020/ERR-021 rows are on other branches (#239, #241) and are not copied here.
+
+## 2026-10-29 — find_callers caller-argument mistake (caller error, no server defect)
+
+`find_callers` was called with `symbol: "random_key"` instead of the required `function`; exact diagnostic: ``failed to deserialize parameters: missing field `function` ``. Retried with `function`: succeeded. Same class as ERR-011/ERR-014 (wrong parameter name); no server change. Also observed: the connected server indexes the primary checkout, so symbol lookups reflect that tree, not a separate worktree such as `feature/stable-local-web-url`.

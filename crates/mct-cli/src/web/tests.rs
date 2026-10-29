@@ -49,7 +49,7 @@ impl Server {
         Self {
             site: std::cell::RefCell::new(Site::load(&root, no_obsidian).unwrap()),
             address: "127.0.0.1:8787",
-            prefix: "/secret/",
+            prefix: "/",
         }
     }
     fn raw(&self, request: &str) -> String {
@@ -58,7 +58,7 @@ impl Server {
             output: Vec::new(),
             timeout: false,
         };
-        http::serve_connection(&mut wire, 8787, "secret", &mut self.site.borrow_mut()).unwrap();
+        http::serve_connection(&mut wire, 8787, &mut self.site.borrow_mut()).unwrap();
         String::from_utf8(wire.output).unwrap()
     }
     fn get(&self, path: &str) -> String {
@@ -102,7 +102,7 @@ impl Server {
         serde_json::from_str(Self::body(&response)).unwrap()
     }
     fn post_review(&self, body: &str, headers: &str) -> String {
-        self.raw(&format!("POST /secret/api/review HTTP/1.1\r\nHost: 127.0.0.1:8787\r\n{headers}Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}", body.len()))
+        self.raw(&format!("POST /api/review HTTP/1.1\r\nHost: 127.0.0.1:8787\r\n{headers}Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}", body.len()))
     }
     /// Posts a decision based on the revision the API shows right now.
     fn decide(&self, key: &str, state: Option<&str>, note: &str) -> String {
@@ -459,7 +459,7 @@ fn http_rejects_cross_site_requests_traversal_and_unmanaged_files() {
             .starts_with("HTTP/1.1 403"));
     }
     assert!(server
-        .raw(&format!("GET / HTTP/1.1\r\n{host}\r\n\r\n"))
+        .raw(&format!("GET api/meta HTTP/1.1\r\n{host}\r\n\r\n"))
         .starts_with("HTTP/1.1 404"));
     assert!(server
         .raw(&format!(
@@ -510,15 +510,13 @@ fn generated_responses_have_exact_lengths() {
 fn incomplete_headers_and_timeouts_are_bounded_without_rendering_content() {
     let root = project();
     let server = Server::start(root.path(), true);
-    assert!(server
-        .raw("GET /secret/ HTTP/1.1\r\n")
-        .starts_with("HTTP/1.1 400"));
+    assert!(server.raw("GET / HTTP/1.1\r\n").starts_with("HTTP/1.1 400"));
     let mut wire = Wire {
         input: Cursor::new(Vec::new()),
         output: Vec::new(),
         timeout: true,
     };
-    http::serve_connection(&mut wire, 8787, "secret", &mut server.site.borrow_mut()).unwrap();
+    http::serve_connection(&mut wire, 8787, &mut server.site.borrow_mut()).unwrap();
     let response = String::from_utf8(wire.output).unwrap();
     assert!(response.starts_with("HTTP/1.1 408"));
     assert!(!response.contains("alpha"));
@@ -636,12 +634,12 @@ fn review_posts_require_origin_csrf_valid_state_and_current_identity() {
     assert!(server
         .post_review("{not json", origin)
         .starts_with("HTTP/1.1 400"));
-    let form = server.raw(&format!("POST /secret/api/review HTTP/1.1\r\nHost: 127.0.0.1:8787\r\n{origin}Content-Type: application/x-www-form-urlencoded\r\nContent-Length: 1\r\n\r\nx"));
+    let form = server.raw(&format!("POST /api/review HTTP/1.1\r\nHost: 127.0.0.1:8787\r\n{origin}Content-Type: application/x-www-form-urlencoded\r\nContent-Length: 1\r\n\r\nx"));
     assert!(form.starts_with("HTTP/1.1 400"));
     assert!(server
         .post_review(&body(good), origin)
         .starts_with("HTTP/1.1 200"));
-    let wrong_path = server.raw(&format!("POST /secret/review HTTP/1.1\r\nHost: 127.0.0.1:8787\r\n{origin}Content-Type: application/json\r\nContent-Length: 2\r\n\r\n{{}}"));
+    let wrong_path = server.raw(&format!("POST /review HTTP/1.1\r\nHost: 127.0.0.1:8787\r\n{origin}Content-Type: application/json\r\nContent-Length: 2\r\n\r\n{{}}"));
     assert!(wrong_path.starts_with("HTTP/1.1 405"));
 }
 
@@ -1155,7 +1153,7 @@ fn recent_activity_retains_finding_identity_and_meta_names_the_canonical_review_
 
 fn post_ignore(server: &Server, body: &serde_json::Value, headers: &str) -> String {
     let body = body.to_string();
-    server.raw(&format!("POST /secret/api/ignore HTTP/1.1\r\nHost: 127.0.0.1:8787\r\n{headers}Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}", body.len()))
+    server.raw(&format!("POST /api/ignore HTTP/1.1\r\nHost: 127.0.0.1:8787\r\n{headers}Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}", body.len()))
 }
 
 #[test]
@@ -1275,4 +1273,60 @@ fn dashboard_snapshot_never_mixes_navigation_and_references_across_reindex() {
         .dead
         .iter()
         .any(|candidate| site.navigation.symbols[candidate.symbol].name == "alpha"));
+}
+
+#[test]
+fn the_dashboard_url_carries_no_key_and_the_root_needs_none() {
+    assert_eq!(super::dashboard_url(8787), "http://localhost:8787/");
+    let root = project();
+    let server = Server::start(root.path(), true);
+    let page = server.get("");
+    assert!(page.starts_with("HTTP/1.1 200"), "{page}");
+    assert!(Server::body(&page).contains("<html"));
+    assert!(server.json("api/meta").is_object());
+}
+
+#[test]
+fn mutations_are_refused_for_foreign_hosts_origins_and_missing_csrf() {
+    let root = project();
+    let server = Server::start(root.path(), true);
+    let csrf = server.site.borrow().csrf.clone();
+    let body = serde_json::json!({ "csrf": csrf, "key": "k", "state": "confirmed", "revision": 0 })
+        .to_string();
+    let post = |host: &str, extra: &str, body: &str| {
+        server.raw(&format!("POST /api/review HTTP/1.1\r\nHost: {host}\r\n{extra}Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}", body.len()))
+    };
+    // DNS rebinding: the attacker's name resolves to 127.0.0.1 but the Host header says so.
+    assert!(post(
+        "rebind.evil.example:8787",
+        "Origin: http://rebind.evil.example:8787\r\n",
+        &body
+    )
+    .starts_with("HTTP/1.1 421"));
+    // Another site posting from the user's browser.
+    assert!(
+        post("localhost:8787", "Origin: https://evil.example\r\n", &body)
+            .starts_with("HTTP/1.1 403")
+    );
+    assert!(post(
+        "localhost:8787",
+        "Origin: http://localhost:8787\r\nSec-Fetch-Site: cross-site\r\n",
+        &body
+    )
+    .starts_with("HTTP/1.1 403"));
+    // No Origin at all (a non-browser client that is not replaying a page).
+    assert!(post("localhost:8787", "", &body).starts_with("HTTP/1.1 403"));
+    // Right origin, but without the page's CSRF token.
+    let no_csrf =
+        serde_json::json!({ "key": "k", "state": "confirmed", "revision": 0 }).to_string();
+    let response = post(
+        "localhost:8787",
+        "Origin: http://localhost:8787\r\n",
+        &no_csrf,
+    );
+    assert!(response.starts_with("HTTP/1.1 403"), "{response}");
+    // The same rules guard the .mctignore editor.
+    let ignore = serde_json::json!({ "csrf": csrf, "content": "x", "base": "" }).to_string();
+    let response = server.raw(&format!("POST /api/ignore HTTP/1.1\r\nHost: evil.example:8787\r\nOrigin: http://evil.example:8787\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{ignore}", ignore.len()));
+    assert!(response.starts_with("HTTP/1.1 421"), "{response}");
 }

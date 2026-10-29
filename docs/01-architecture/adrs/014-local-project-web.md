@@ -32,8 +32,11 @@ or Markdown bodies. Existing bounded duplicate excerpts remain in review pages.
 is a visible warning while the site remains usable. The site never reads user
 notes as an alternative source. `web --no-obsidian` still exposes the SQLite atlas.
 
-The HTTP server binds IPv4 loopback only, defaults to an OS-selected free port,
-and prints a fresh 256-bit OS-random capability path. Exact Host/Origin checks,
+The HTTP server binds IPv4 loopback only, reuses the port remembered in
+`.mct-index/web-port` (first `8787`, else an OS-selected free port) and prints
+`http://localhost:<port>/` with no capability key. Update: the former 256-bit URL key was
+removed so the address is stable; it also stopped other local processes, which is now
+an accepted limitation. Exact Host/Origin checks,
 Fetch Metadata checks, HTML/URL escaping, CSP, no-store/no-referrer and no framing
 protect the private views. HTTP/1.1 GET/HEAD serve views. ADR-015 adds one protected POST endpoint for
 review preferences. Headers are bounded to 16 KiB, review forms to 4 KiB, and
