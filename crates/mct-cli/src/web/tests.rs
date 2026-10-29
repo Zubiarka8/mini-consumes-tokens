@@ -1,6 +1,7 @@
 //! Dashboard API, static assets and full HTTP wire parsing/response tests, without sockets.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use super::{http, Site};
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::{Cursor, Read, Write};
 use std::path::Path;
@@ -146,6 +147,7 @@ fn dashboard_serves_static_app_and_a_read_only_json_api() {
         "graph",
         "markdown",
         "palette",
+        "ignore-card",
         "page-dashboard",
         "ai",
         "i18n-en",
@@ -713,6 +715,181 @@ fn review_identity_follows_group_members_and_file_content() {
 }
 
 #[test]
+fn review_workspace_bundle_is_served_from_the_binary() {
+    let root = project();
+    let server = Server::start(root.path(), true);
+    let script = server.get("js/review.js");
+    assert!(script.starts_with("HTTP/1.1 200"), "{script}");
+    assert!(script.contains("Content-Type: text/javascript"));
+    assert!(script.contains("mountReview"));
+    let style = server.get("review.css");
+    assert!(style.starts_with("HTTP/1.1 200") && style.contains("Content-Type: text/css"));
+    // Nothing that needs the network, and the toasts' rules ship in the
+    // stylesheet: the build removes sonner's injected <style>, which
+    // `style-src 'self'` would block.
+    let (script, style) = (Server::body(&script), Server::body(&style));
+    for remote in [
+        "import(\"http",
+        "fetch(\"http",
+        "import(`http",
+        "fetch(`http",
+    ] {
+        assert!(!script.contains(remote), "{remote}");
+    }
+    assert!(!style.contains("url(http") && !style.contains("@import"));
+    let toaster = "[data-sonner-toaster][dir=ltr]";
+    assert!(style.contains(toaster) && !script.contains(toaster));
+}
+
+#[test]
+fn duplicate_detail_lists_the_detector_differences() {
+    let root = project();
+    let file = root.path().join("src/b.rs");
+    let text = fs::read_to_string(&file).unwrap();
+    fs::write(&file, text.replace("total += 8;", "total += 9;")).unwrap();
+    index(root.path());
+    let server = Server::start(root.path(), true);
+    let key = server.site.borrow().review_keys[0].clone();
+    let detail = server.json(&format!("api/finding?key={key}"));
+    let evidence = &detail["evidence"];
+    // Values and lines follow the member order (src/a.rs, then src/b.rs).
+    let literal = evidence["differences"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|difference| difference["kind"] == "literal-value")
+        .expect("the changed literal is a listed difference");
+    assert_eq!(literal["values"], serde_json::json!(["8", "9"]));
+    assert_eq!(literal["lines"], serde_json::json!([7, 7]));
+    assert!(evidence["distinct"].as_u64().unwrap() >= 1);
+    assert!(evidence["warnings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|warning| warning == "literal-values-differ"));
+}
+
+/// `key → number` of every listed finding of `kind`.
+fn numbers_of(list: &serde_json::Value, kind: &str) -> BTreeMap<String, u64> {
+    list["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|item| item["type"] == kind)
+        .map(|item| {
+            (
+                item["key"].as_str().unwrap().to_string(),
+                item["number"].as_u64().unwrap(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn finding_numbers_are_readable_stable_and_never_reused() {
+    let root = project();
+    let first = Server::start(root.path(), true);
+    let all = first.json("api/findings?state=&size=100");
+    let duplicates = numbers_of(&all, "duplicate");
+    let dead = numbers_of(&all, "dead-code");
+    assert_eq!(duplicates.values().copied().collect::<Vec<_>>(), [1]);
+    let mut dead_numbers: Vec<u64> = dead.values().copied().collect();
+    dead_numbers.sort_unstable();
+    assert_eq!(dead_numbers, [1, 2], "each kind counts on its own");
+    assert!(root.path().join(".mct-index/finding-numbers.tsv").is_file());
+
+    // Sorting, filtering and the detail view never renumber.
+    let sorted = first.json("api/findings?state=&size=100&sort=title&order=desc&q=beta");
+    assert!(!sorted["items"].as_array().unwrap().is_empty());
+    for item in sorted["items"].as_array().unwrap() {
+        let key = item["key"].as_str().unwrap();
+        let expected = duplicates.get(key).or_else(|| dead.get(key)).unwrap();
+        assert_eq!(item["number"].as_u64(), Some(*expected));
+    }
+    let (group, number) = duplicates.iter().next().unwrap();
+    assert_eq!(
+        first.json(&format!("api/finding?key={group}"))["number"].as_u64(),
+        Some(*number)
+    );
+    // The page URL can name a finding by its number instead of its key.
+    assert_eq!(
+        first.json("api/finding?type=duplicate&number=1")["key"],
+        group.as_str()
+    );
+    assert!(first
+        .get("api/finding?type=duplicate&number=9")
+        .starts_with("HTTP/1.1 404"));
+    assert!(first
+        .decide(group, Some("false-positive"), "kept")
+        .starts_with("HTTP/1.1 200"));
+
+    // Reopening the dashboard keeps every number.
+    let reopened = Server::start(root.path(), true).json("api/findings?state=&size=100");
+    assert_eq!(numbers_of(&reopened, "duplicate"), duplicates);
+    assert_eq!(numbers_of(&reopened, "dead-code"), dead);
+
+    // A third copy makes a different group: it takes the next number, and
+    // the decision of #1 does not move to it.
+    let body = fs::read_to_string(root.path().join("src/a.rs")).unwrap();
+    fs::write(root.path().join("src/c.rs"), body.replace("alpha", "gamma")).unwrap();
+    index(root.path());
+    let grown_server = Server::start(root.path(), true);
+    assert!(
+        grown_server
+            .get("api/finding?type=duplicate&number=1")
+            .starts_with("HTTP/1.1 404"),
+        "a finding that is gone keeps its number but has no page"
+    );
+    let grown = grown_server.json("api/findings?state=&size=100");
+    let grown_duplicates = numbers_of(&grown, "duplicate");
+    assert_eq!(grown_duplicates.values().copied().collect::<Vec<_>>(), [2]);
+    let grown_group = grown_duplicates.keys().next().unwrap();
+    let grown_row = grown["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|item| item["key"] == grown_group.as_str())
+        .unwrap();
+    assert_eq!(grown_row["state"], "unreviewed");
+    let grown_dead = numbers_of(&grown, "dead-code");
+    for (key, number) in &dead {
+        assert_eq!(grown_dead.get(key), Some(number));
+    }
+    assert!(grown_dead.values().any(|number| *number == 3));
+
+    // When the first group is detected again it gets #1 and its decision back.
+    fs::remove_file(root.path().join("src/c.rs")).unwrap();
+    index(root.path());
+    let back = Server::start(root.path(), true);
+    let back_list = back.json("api/findings?state=&size=100");
+    assert_eq!(numbers_of(&back_list, "duplicate"), duplicates);
+    let row = back.json(&format!("api/finding?key={group}"));
+    assert_eq!(row["number"].as_u64(), Some(1));
+    assert_eq!(row["state"], "false-positive");
+    assert_eq!(row["note"], "kept");
+}
+
+#[test]
+fn a_damaged_number_file_is_never_rewritten() {
+    let root = project();
+    let path = root.path().join(".mct-index/finding-numbers.tsv");
+    fs::write(&path, "duplicate\tnot-a-number\tabc\n").unwrap();
+    let list = Server::start(root.path(), true).json("api/findings?state=&size=100");
+    assert_eq!(
+        numbers_of(&list, "duplicate")
+            .values()
+            .copied()
+            .collect::<Vec<_>>(),
+        [1],
+        "numbers still work for this run"
+    );
+    assert_eq!(
+        fs::read_to_string(&path).unwrap(),
+        "duplicate\tnot-a-number\tabc\n"
+    );
+}
+
+#[test]
 fn obsidian_notes_are_served_read_only_with_verified_links() {
     let root = project();
     {
@@ -755,6 +932,27 @@ fn obsidian_notes_are_served_read_only_with_verified_links() {
         .unwrap()
         .contains("Cannot regenerate the Obsidian vault"));
     assert_eq!(fs::read_to_string(note).unwrap(), "Personal edited map");
+}
+
+#[test]
+fn the_dashboard_reindexes_a_saved_file_on_its_own() {
+    let root = project();
+    let path = root.path().canonicalize().unwrap();
+    let _watch = super::autoreindex::start(&path, true).expect("the watcher starts");
+    let server = Server::start(root.path(), true);
+    assert_eq!(server.json("api/symbols?q=saved_later")["total"], 0);
+    let file = path.join("src/a.rs");
+    let original = fs::read_to_string(&file).unwrap();
+    fs::write(&file, format!("{original}\npub fn saved_later() {{}}\n")).unwrap();
+    // The watcher waits for the save to settle, then reindexes; no manual `reindex`.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    while server.json("api/symbols?q=saved_later")["total"] != 1 {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the saved file was never reindexed"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(250));
+    }
 }
 
 #[test]
@@ -1243,6 +1441,78 @@ fn mctignore_is_read_and_saved_with_origin_csrf_conflict_and_limit_checks() {
         .filter(|name| name.ends_with(".tmp"))
         .collect();
     assert!(leftovers.is_empty(), "{leftovers:?}");
+}
+
+#[test]
+fn a_new_mctignore_always_carries_the_import_directive_active() {
+    let root = project();
+    let server = Server::start(root.path(), true);
+    let file = root.path().join(".mctignore");
+    let csrf = server.site.borrow().csrf.clone();
+    let origin = "Origin: http://127.0.0.1:8787\r\n";
+    let save = |content: &str, base: &str| {
+        post_ignore(
+            &server,
+            &serde_json::json!({ "csrf": csrf, "content": content, "base": base }),
+            origin,
+        )
+    };
+
+    let created = save("docs/", "");
+    assert!(created.starts_with("HTTP/1.1 200"), "{created}");
+    assert_eq!(
+        fs::read_to_string(&file).unwrap(),
+        "docs/\n\n@import-gitignore\n"
+    );
+    assert_eq!(server.json("api/ignore")["importsGitignore"], true);
+
+    // An existing file is never given the line again once someone removed it.
+    let edited = save("docs/\n", "docs/\n\n@import-gitignore\n");
+    assert!(edited.starts_with("HTTP/1.1 200"), "{edited}");
+    assert_eq!(fs::read_to_string(&file).unwrap(), "docs/\n");
+}
+
+#[test]
+fn gitignore_is_read_and_saved_like_mctignore_and_never_mixed_up_with_it() {
+    let root = project();
+    let server = Server::start(root.path(), true);
+    let csrf = server.site.borrow().csrf.clone();
+    let origin = "Origin: http://127.0.0.1:8787\r\n";
+    let git = root.path().join(".gitignore");
+    let mct = root.path().join(".mctignore");
+    fs::write(&git, "target/\n").unwrap();
+
+    let state = server.json("api/ignore?file=gitignore");
+    assert_eq!(state["file"], "gitignore");
+    assert_eq!(state["path"], ".gitignore");
+    assert_eq!(state["content"], "target/\n");
+    assert_eq!(state["template"], "");
+    assert_eq!(state["importsGitignore"], false);
+    // Without `file` the answer is still .mctignore.
+    assert_eq!(server.json("api/ignore")["file"], "mctignore");
+
+    let save = |content: &str, base: &str, file: &str| {
+        post_ignore(
+            &server,
+            &serde_json::json!({ "csrf": csrf, "content": content, "base": base, "file": file }),
+            origin,
+        )
+    };
+    let saved = save("target/\r\n*.log", "target/\n", "gitignore");
+    assert!(saved.starts_with("HTTP/1.1 200"), "{saved}");
+    assert_eq!(fs::read_to_string(&git).unwrap(), "target/\n*.log\n");
+    assert!(!mct.exists(), "saving .gitignore never creates .mctignore");
+
+    let stale = save("x\n", "something older", "gitignore");
+    assert!(stale.starts_with("HTTP/1.1 409"), "{stale}");
+    assert_eq!(fs::read_to_string(&git).unwrap(), "target/\n*.log\n");
+
+    // The file is chosen from a fixed list, never by path.
+    let unknown = save("x\n", "", "../x");
+    assert!(unknown.starts_with("HTTP/1.1 400"), "{unknown}");
+    assert!(server
+        .get("api/ignore?file=../x")
+        .starts_with("HTTP/1.1 400"));
 }
 
 #[test]

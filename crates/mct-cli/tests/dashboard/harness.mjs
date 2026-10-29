@@ -5,6 +5,8 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const appPath = resolve(dirname(fileURLToPath(import.meta.url)), '../../src/web/app');
+// review.js is the built React workspace (web-ui); the page's contract with it runs against a stub.
+const reviewStub = resolve(dirname(fileURLToPath(import.meta.url)), 'review-stub.mjs');
 export const settle = () => new Promise(resolve => setTimeout(resolve, 10));
 
 /** DOM contract tests, not a layout engine or native accessibility implementation. */
@@ -28,7 +30,7 @@ export function harness({ hash = '#/duplicados', compact = false, reduced = fals
   window.HTMLElement.prototype.focus = function () { active = this; };
   window.HTMLElement.prototype.showModal = function () { this.open = true; this.focus(); };
   window.HTMLElement.prototype.close = function () { this.open = false; };
-  const location = { hash, reload() {} }, storage = new Map([['mct-lang', lang]]), frames = new Map();
+  const location = { hash, reload() {}, replace(value) { this.hash = value; } }, storage = new Map([['mct-lang', lang]]), frames = new Map();
   let frameId = 0;
   const media = new Map();
   const matchMedia = query => {
@@ -40,9 +42,11 @@ export function harness({ hash = '#/duplicados', compact = false, reduced = fals
     }
     return media.get(query);
   };
-  const context = createContext({ document, window: { innerWidth: compact ? 375 : 1440 },
+  // Popups position themselves from their opener's box; there is no layout here, so every box is the same.
+  window.HTMLElement.prototype.getBoundingClientRect = () => ({ top: 100, bottom: 120, left: 100, right: 200, width: 100, height: 20 });
+  const context = createContext({ document, window: { innerWidth: compact ? 375 : 1440, innerHeight: 900, addEventListener() {}, removeEventListener() {} },
     Element: window.Element, Node: window.Node, Event: window.Event, console,
-    URL, URLSearchParams, Response, AbortController, DOMException, Intl, Date, Math, performance,
+    URL, URLSearchParams, TextEncoder, Response, AbortController, DOMException, Intl, Date, Math, performance,
     location, history: { replaceState: (_, __, value) => { location.hash = value; } },
     localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) },
     navigator: { clipboard: { writeText: async () => {} } }, matchMedia,
@@ -56,16 +60,21 @@ export function harness({ hash = '#/duplicados', compact = false, reduced = fals
     } });
   const modules = new Map();
   function moduleAt(path) {
-    const sourcePath = path.endsWith('/graph.js') && process.env.MCT_GRAPH_SOURCE ? process.env.MCT_GRAPH_SOURCE : path;
-    if (!modules.has(path)) modules.set(path, new SourceTextModule(readFileSync(sourcePath, 'utf8'), { context, identifier: path }));
+    const sourcePath = path.endsWith('/graph.js') && process.env.MCT_GRAPH_SOURCE ? process.env.MCT_GRAPH_SOURCE
+      : path === resolve(appPath, 'review.js') ? reviewStub : path;
+    if (!modules.has(path)) modules.set(path, new SourceTextModule(readFileSync(sourcePath, 'utf8'),
+      { context, identifier: path, importModuleDynamically: (specifier, importer) => ready(resolve(dirname(importer.identifier), specifier)) }));
     return modules.get(path);
+  }
+  async function ready(path) {
+    const module = moduleAt(path);
+    if (module.status === 'unlinked') await module.link((specifier, importer) => moduleAt(resolve(dirname(importer.identifier), specifier)));
+    if (module.status === 'linked') await module.evaluate();
+    return module;
   }
   return { document, window, location, frames, media, context,
     async load(name) {
-      const module = moduleAt(resolve(appPath, name));
-      if (module.status === 'unlinked') await module.link((specifier, importer) => moduleAt(resolve(dirname(importer.identifier), specifier)));
-      if (module.status === 'linked') await module.evaluate();
-      return module.namespace;
+      return (await ready(resolve(appPath, name))).namespace;
     },
     root: document.getElementById('root'),
     event: (type, fields = {}) => Object.assign(new window.Event(type, { bubbles: true, cancelable: true }), fields) };

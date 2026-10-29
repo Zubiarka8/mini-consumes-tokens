@@ -1,5 +1,5 @@
 // Reusable UI pieces: icons, badges, metric cards, tables, filters, pagination, states.
-import { h, clear, fmt, debounce } from "./core.js";
+import { h, clear, fmt, debounce, copy } from "./core.js";
 import { t, hasKey } from "./i18n.js";
 
 const dot = (x, y, r = 2) => `M${x - r} ${y}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`;
@@ -12,15 +12,39 @@ const ICONS = {
   graph: [dot(6, 6), dot(18, 6), dot(12, 18), "M7.5 7.5l3.5 8", "M16.5 7.5l-3.5 8", "M8 6h8"],
   check: ["M20 6L9 17l-5-5"],
   checkCircle: ["M22 11.1V12a10 10 0 1 1-5.9-9.1", "M22 4L12 14l-3-3"],
+  circle: [dot(12, 12, 9)],
+  minusCircle: [dot(12, 12, 9), "M8 12h8"],
   chart: ["M3 3v18h18", "M7 15l4-4 3 3 5-6"],
   note: ["M4 4h12a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3z", "M4 17a3 3 0 0 1 3-3h12"],
-  gear: ["M4 6h8", "M18 6h2", "M4 12h2", "M12 12h8", "M4 18h10", "M20 18h0", dot(15, 6, 2), dot(9, 12, 2), dot(17, 18, 2)],
+  gear: [
+    "M4 6h8",
+    "M18 6h2",
+    "M4 12h2",
+    "M12 12h8",
+    "M4 18h10",
+    "M20 18h0",
+    dot(15, 6, 2),
+    dot(9, 12, 2),
+    dot(17, 18, 2),
+  ],
   refresh: ["M21 12a9 9 0 1 1-3-6.7L21 8", "M21 3v5h-5"],
   bell: ["M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9", "M13.7 21a2 2 0 0 1-3.4 0"],
-  sun: [dot(12, 12, 4), "M12 2v2", "M12 20v2", "M4.9 4.9l1.4 1.4", "M17.7 17.7l1.4 1.4", "M2 12h2", "M20 12h2", "M4.9 19.1l1.4-1.4", "M17.7 6.3l1.4-1.4"],
+  sun: [
+    dot(12, 12, 4),
+    "M12 2v2",
+    "M12 20v2",
+    "M4.9 4.9l1.4 1.4",
+    "M17.7 17.7l1.4 1.4",
+    "M2 12h2",
+    "M20 12h2",
+    "M4.9 19.1l1.4-1.4",
+    "M17.7 6.3l1.4-1.4",
+  ],
   moon: ["M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"],
   x: ["M18 6L6 18", "M6 6l12 12"],
-  down: ["M6 9l6 6 6-6"], right: ["M9 6l6 6-6 6"], left: ["M15 6l-6 6 6 6"],
+  down: ["M6 9l6 6 6-6"],
+  right: ["M9 6l6 6-6 6"],
+  left: ["M15 6l-6 6 6 6"],
   folder: ["M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"],
   file: ["M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z", "M14 3v5h5"],
   menu: ["M3 6h18", "M3 12h18", "M3 18h18"],
@@ -47,11 +71,27 @@ const ICONS = {
   bolt: ["M13 2L4 14h7l-1 8 9-12h-7z"],
   list: ["M8 6h13", "M8 12h13", "M8 18h13", "M3 6h.01", "M3 12h.01", "M3 18h.01"],
   split: ["M3 4h18v16H3z", "M12 4v16"],
+  unused: [dot(12, 12, 9), "M5.6 5.6l12.8 12.8"],
+  more: [dot(5, 12, 1), dot(12, 12, 1), dot(19, 12, 1)],
 };
 
 export function icon(name, size = 18) {
-  return h("svg:svg", { viewBox: "0 0 24 24", width: size, height: size, fill: "none", stroke: "currentColor", "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true", focusable: "false" },
-    (ICONS[name] || ICONS.file).map((d) => h("svg:path", { d })));
+  return h(
+    "svg:svg",
+    {
+      viewBox: "0 0 24 24",
+      width: size,
+      height: size,
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-width": 2,
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+      "aria-hidden": "true",
+      focusable: "false",
+    },
+    (ICONS[name] || ICONS.file).map((d) => h("svg:path", { d })),
+  );
 }
 
 // ---------- review states and symbol kinds ----------
@@ -67,7 +107,16 @@ export const STATES = {
   "needs-reevaluation": { label: "state.needsReevaluation", tone: "warning", color: "var(--warning)" },
   "resolved-but-detected": { label: "state.resolvedButDetected", tone: "info", color: "var(--info)" },
 };
-export const STATE_ORDER = ["unreviewed", "needs-reevaluation", "in-review", "confirmed", "resolved-but-detected", "false-positive", "resolved", "dismissed"];
+export const STATE_ORDER = [
+  "unreviewed",
+  "needs-reevaluation",
+  "in-review",
+  "confirmed",
+  "resolved-but-detected",
+  "false-positive",
+  "resolved",
+  "dismissed",
+];
 /**
  * Without `type` the generic label ("Confirmado"); with "duplicate" or "dead-code" the label says
  * what was decided ("Duplicado confirmado", "Falso positivo: sí se usa").
@@ -81,7 +130,8 @@ export const stateLabel = (state, type) => {
   return t(generic);
 };
 
-export const badge = (text, tone = "", iconName = null) => h("span", { class: `badge ${tone}` }, iconName && icon(iconName, 12), text);
+export const badge = (text, tone = "", iconName = null) =>
+  h("span", { class: `badge ${tone}` }, iconName && icon(iconName, 12), text);
 export const stateBadge = (state, type) => badge(stateLabel(state, type), STATES[state]?.tone || "");
 
 const KIND_GROUPS = [
@@ -97,69 +147,217 @@ export const kindGroup = (kind) => KIND_GROUPS.find(([, kinds]) => kinds.include
 export const kindGroups = () => KIND_GROUPS.map(([id, kinds]) => ({ id, kinds }));
 export function kindIcon(kind) {
   const entry = KIND_GROUPS.find(([, kinds]) => kinds.includes(kind));
-  return h("span", { class: `kind-ico tone-${entry?.[3] || "info"}`, title: kind }, icon(entry?.[2] || "file", 15));
+  return h(
+    "span",
+    { class: `kind-ico tone-${entry?.[3] || "info"}`, title: kind },
+    icon(entry?.[2] || "file", 15),
+  );
 }
 
 // ---------- structure ----------
 export function pageHead(title, subtitle, tools) {
-  return h("div", { class: "page-head" }, h("div", {}, h("h1", { id: "page-title", tabindex: -1 }, title), subtitle && h("p", {}, subtitle)), tools && h("div", { class: "page-tools" }, tools));
+  return h(
+    "div",
+    { class: "page-head" },
+    h("div", {}, h("h1", { id: "page-title", tabindex: -1 }, title), subtitle && h("p", {}, subtitle)),
+    tools && h("div", { class: "page-tools" }, tools),
+  );
 }
 
+/** Without `icon` the value leads and `tone` colours the card itself (the overview's figures). */
 export function metricCard({ icon: name, tone = "primary", label, value, hint, href, onclick }) {
-  const body = [h("span", { class: `ico tone-${tone}` }, icon(name, 20)), h("span", {}, h("div", { class: "v" }, value), h("div", { class: "l" }, label), hint && h("div", { class: "hint" }, hint))];
-  return href ? h("a", { class: "card metric", href }, body) : onclick ? h("button", { class: "card metric", onclick }, body) : h("div", { class: "card metric", style: { cursor: "default" } }, body);
+  const body = [
+    name && h("span", { class: `ico tone-${tone}` }, icon(name, 20)),
+    h(
+      "span",
+      {},
+      h("div", { class: "v" }, value),
+      h("div", { class: "l" }, label),
+      hint && h("div", { class: "hint" }, hint),
+    ),
+  ];
+  const cls = `card metric ${name ? "" : `plain tone-card-${tone}`}`;
+  if (href) return h("a", { class: cls, href }, body);
+  if (onclick) return h("button", { class: cls, onclick }, body);
+  return h("div", { class: `${cls} static` }, body);
 }
 
-export const loading = (text = t("common.loading")) => h("div", { class: "loading", role: "status" }, h("div", { class: "spinner" }), text);
+/**
+ * Editor-like tabs: [{ icon, label, active, onSelect, onClose }]. Used by the shell (page and open item)
+ * and by code panes (the open file). A tab without `onSelect` is a plain label.
+ */
+export function docTabs({ tabs, label, cls = "" }) {
+  return h(
+    "div",
+    { class: `doc-tabs ${cls}`, role: "list", "aria-label": label },
+    tabs.map((tab) =>
+      h(
+        "div",
+        { class: "doc-tab", role: "listitem", "aria-current": tab.active ? "true" : null },
+        tab.onSelect
+          ? h(
+              "button",
+              { class: "doc-tab-main", onclick: tab.onSelect },
+              tab.icon && icon(tab.icon, 14),
+              h("span", { class: "ellipsis" }, tab.label),
+            )
+          : h(
+              "span",
+              { class: "doc-tab-main" },
+              tab.icon && icon(tab.icon, 14),
+              h("span", { class: "ellipsis" }, tab.label),
+            ),
+        tab.onClose &&
+          h(
+            "button",
+            {
+              class: "doc-tab-close",
+              "aria-label": t("tabs.close", { name: tab.label }),
+              onclick: tab.onClose,
+            },
+            icon("x", 12),
+          ),
+      ),
+    ),
+  );
+}
+
+/** A file path as `a › b › file.ts`. */
+export const breadcrumb = (path) =>
+  h(
+    "nav",
+    { class: "crumbs mono", "aria-label": t("tabs.path") },
+    path
+      .split("/")
+      .map((part, index, parts) => [
+        index > 0 && h("span", { class: "sep", "aria-hidden": "true" }, "›"),
+        h("span", { "aria-current": index === parts.length - 1 ? "page" : null }, part),
+      ]),
+  );
+
+export const loading = (text = t("common.loading")) =>
+  h("div", { class: "loading", role: "status" }, h("div", { class: "spinner" }), text);
 
 export function errorBox(error, retry) {
-  return h("div", { class: "banner bad", role: "alert" }, icon("alert"), h("div", { class: "stack" },
-    h("strong", {}, t("common.errorTitle")), h("span", {}, error?.message || String(error)),
-    retry && h("div", {}, h("button", { class: "btn sm", onclick: retry }, t("common.retry")))));
+  return h(
+    "div",
+    { class: "banner bad", role: "alert" },
+    icon("alert"),
+    h(
+      "div",
+      { class: "stack" },
+      h("strong", {}, t("common.errorTitle")),
+      h("span", {}, error?.message || String(error)),
+      retry && h("div", {}, h("button", { class: "btn sm", onclick: retry }, t("common.retry"))),
+    ),
+  );
 }
 
 export function emptyState({ title, text, actions = [], iconName = "search" }) {
-  return h("div", { class: "empty" }, icon(iconName, 32), h("h3", {}, title), text && h("p", {}, text), actions.length > 0 && h("div", { class: "actions" }, actions));
+  return h(
+    "div",
+    { class: "empty" },
+    icon(iconName, 32),
+    h("h3", {}, title),
+    text && h("p", {}, text),
+    actions.length > 0 && h("div", { class: "actions" }, actions),
+  );
 }
 
-export const note = (text, tone = "", iconName = "info") => h("div", { class: `banner ${tone}` }, icon(iconName), h("div", {}, text));
+export const note = (text, tone = "", iconName = "info") =>
+  h("div", { class: `banner ${tone}` }, icon(iconName), h("div", {}, text));
 
 export function tabsBar({ tabs, active, onSelect, label }) {
-  const bar = h("div", { class: "tabs", role: "tablist", "aria-label": label },
-    tabs.map((tab) => h("button", { class: "tab", role: "tab", "aria-selected": String(tab.id === active), tabindex: tab.id === active ? 0 : -1, onclick: () => onSelect(tab.id) },
-      tab.label, tab.count !== undefined && tab.count !== null && h("span", { class: "n" }, fmt(tab.count)))));
+  const bar = h(
+    "div",
+    { class: "tabs", role: "tablist", "aria-label": label },
+    tabs.map((tab) =>
+      h(
+        "button",
+        {
+          class: "tab",
+          role: "tab",
+          "aria-selected": String(tab.id === active),
+          tabindex: tab.id === active ? 0 : -1,
+          onclick: () => onSelect(tab.id),
+        },
+        tab.label,
+        tab.count !== undefined && tab.count !== null && h("span", { class: "n" }, fmt(tab.count)),
+      ),
+    ),
+  );
   bar.addEventListener("keydown", (event) => {
     if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
     const buttons = [...bar.querySelectorAll("[role=tab]")];
-    const next = buttons[(buttons.indexOf(document.activeElement) + (event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length];
-    next?.focus(); next?.click();
+    const next =
+      buttons[
+        (buttons.indexOf(document.activeElement) + (event.key === "ArrowRight" ? 1 : -1) + buttons.length) %
+          buttons.length
+      ];
+    next?.focus();
+    next?.click();
   });
   return bar;
 }
 
 export function segmented({ options, value, onSelect, label }) {
-  return h("div", { class: "seg", role: "group", "aria-label": label },
-    options.map(([id, text]) => h("button", { "aria-pressed": String(id === value), onclick: () => onSelect(id) }, text)));
+  return h(
+    "div",
+    { class: "seg", role: "group", "aria-label": label },
+    options.map(([id, text]) =>
+      h("button", { "aria-pressed": String(id === value), onclick: () => onSelect(id) }, text),
+    ),
+  );
 }
 
 export function selectBox({ options, value, onChange, label, cls = "" }) {
-  return h("select", { class: `select ${cls}`, "aria-label": label, onchange: (event) => onChange(event.target.value) },
-    options.map(([id, text]) => h("option", { value: id, selected: id === value }, text)));
+  return h(
+    "select",
+    { class: `select ${cls}`, "aria-label": label, onchange: (event) => onChange(event.target.value) },
+    options.map(([id, text]) => h("option", { value: id, selected: id === value }, text)),
+  );
 }
 
 export function searchBox({ value = "", placeholder, label, onInput }) {
-  const input = h("input", { class: "input wide", type: "search", value, placeholder, "aria-label": label, autocomplete: "off" });
+  const input = h("input", {
+    class: "input wide",
+    type: "search",
+    value,
+    placeholder,
+    "aria-label": label,
+    autocomplete: "off",
+  });
   const notify = debounce(() => onInput(input.value), 250);
   input.addEventListener("input", notify);
   const box = h("div", { class: "grow" }, icon("search", 16), input);
-  box.sync = (value) => { notify.cancel(); if (input.value !== value) input.value = value; };
-  box.destroy = () => { notify.cancel(); input.removeEventListener("input", notify); };
+  box.sync = (value) => {
+    notify.cancel();
+    if (input.value !== value) input.value = value;
+  };
+  box.destroy = () => {
+    notify.cancel();
+    input.removeEventListener("input", notify);
+  };
   return box;
 }
 
 // ---------- filters ----------
-export function filterGroup({ id, label, options, selected, onChange, search = false, limit = 8, open = true }) {
-  const query = h("input", { class: "input wide", type: "search", placeholder: t("filters.searchOptions"), "aria-label": `${t("filters.searchOptions")}: ${label}` });
+export function filterGroup({
+  id,
+  label,
+  options,
+  selected,
+  onChange,
+  search = false,
+  limit = 8,
+  open = true,
+}) {
+  const query = h("input", {
+    class: "input wide",
+    type: "search",
+    placeholder: t("filters.searchOptions"),
+    "aria-label": `${t("filters.searchOptions")}: ${label}`,
+  });
   const list = h("div", { role: "group", "aria-label": label });
   let expanded = false;
   const draw = () => {
@@ -167,83 +365,252 @@ export function filterGroup({ id, label, options, selected, onChange, search = f
     const needle = query.value.trim().toLowerCase();
     const shown = options.filter((option) => !needle || String(option.label).toLowerCase().includes(needle));
     for (const option of expanded || needle ? shown : shown.slice(0, limit)) {
-      const checkbox = h("input", { type: "checkbox", checked: selected.includes(option.value), onchange: (event) => {
-        onChange(event.target.checked ? [...selected, option.value] : selected.filter((value) => value !== option.value));
-      } });
-      list.append(h("label", { class: "opt" }, checkbox, h("span", { class: "ellipsis" }, option.label), option.count !== undefined && h("span", { class: "n" }, fmt(option.count))));
+      const checkbox = h("input", {
+        type: "checkbox",
+        checked: selected.includes(option.value),
+        onchange: (event) => {
+          onChange(
+            event.target.checked
+              ? [...selected, option.value]
+              : selected.filter((value) => value !== option.value),
+          );
+        },
+      });
+      list.append(
+        h(
+          "label",
+          { class: "opt" },
+          checkbox,
+          h("span", { class: "ellipsis" }, option.label),
+          option.count !== undefined && h("span", { class: "n" }, fmt(option.count)),
+        ),
+      );
     }
-    if (!needle && shown.length > limit) list.append(h("button", { class: "btn ghost sm", onclick: () => { expanded = !expanded; draw(); } }, expanded ? t("filters.fewer") : t("filters.more", { n: shown.length - limit })));
+    if (!needle && shown.length > limit)
+      list.append(
+        h(
+          "button",
+          {
+            class: "btn ghost sm",
+            onclick: () => {
+              expanded = !expanded;
+              draw();
+            },
+          },
+          expanded ? t("filters.fewer") : t("filters.more", { n: shown.length - limit }),
+        ),
+      );
     if (!shown.length) list.append(h("p", { class: "muted small" }, t("filters.noOptions")));
   };
   query.addEventListener("input", draw);
   draw();
-  return h("details", { class: "fgroup", open, "data-group": id }, h("summary", {}, label), search && options.length > limit ? h("div", { style: { margin: "6px 0" } }, query) : null, list);
+  return h(
+    "details",
+    { class: "fgroup", open, "data-group": id },
+    h("summary", {}, label),
+    search && options.length > limit ? h("div", { class: "my-2" }, query) : null,
+    list,
+  );
 }
 
 export function filterPanel({ groups, extra = [], onClear, active = 0, drawerRef }) {
-  const aside = h("aside", { class: "filters-col", "aria-label": t("filters.title") },
-    h("div", { class: "card filters" },
-      h("div", { class: "head" }, h("h2", {}, t("filters.title")), h("div", { class: "row" },
-        h("button", { class: "btn ghost sm", disabled: active === 0, onclick: onClear }, t("filters.clear")),
-        h("button", { class: "icon-btn only-mobile", "aria-label": t("common.close"), onclick: () => aside.classList.remove("open") }, icon("x")))),
-      groups.map((group) => filterGroup(group)), extra,
-      h("p", { class: "logic" }, t("filters.logic"))));
+  const aside = h(
+    "aside",
+    { class: "filters-col", "aria-label": t("filters.title") },
+    h(
+      "div",
+      { class: "card filters" },
+      h(
+        "div",
+        { class: "head" },
+        h("h2", {}, t("filters.title")),
+        h(
+          "div",
+          { class: "row" },
+          h(
+            "button",
+            { class: "btn ghost sm", disabled: active === 0, onclick: onClear },
+            t("filters.clear"),
+          ),
+          h(
+            "button",
+            {
+              class: "icon-btn only-mobile",
+              "aria-label": t("common.close"),
+              onclick: () => aside.classList.remove("open"),
+            },
+            icon("x"),
+          ),
+        ),
+      ),
+      groups.map((group) => filterGroup(group)),
+      extra,
+      h("p", { class: "logic" }, t("filters.logic")),
+    ),
+  );
   if (drawerRef) drawerRef.current = aside;
   return aside;
 }
 
-export const drawerButton = (getAside) => h("button", { class: "btn drawer-btn", onclick: () => getAside()?.classList.add("open") }, icon("filter", 16), t("filters.title"));
+export const drawerButton = (getAside) =>
+  h(
+    "button",
+    { class: "btn drawer-btn", onclick: () => getAside()?.classList.add("open") },
+    icon("filter", 16),
+    t("filters.title"),
+  );
 
 export function activeChips(chips, onClearAll) {
   if (!chips.length) return null;
-  return h("div", { class: "chips", style: { marginBottom: "10px" }, "aria-label": t("filters.active") },
-    chips.map((chip) => h("span", { class: "chip primary" }, chip.label,
-      h("button", { "aria-label": t("filters.remove", { name: chip.label }), onclick: chip.remove }, icon("x", 11)))),
-    h("button", { class: "btn ghost sm", onclick: onClearAll }, t("filters.clearAll")));
+  return h(
+    "div",
+    { class: "chips mb-3", "aria-label": t("filters.active") },
+    chips.map((chip) =>
+      h(
+        "span",
+        { class: "chip primary" },
+        chip.label,
+        h(
+          "button",
+          { "aria-label": t("filters.remove", { name: chip.label }), onclick: chip.remove },
+          icon("x", 11),
+        ),
+      ),
+    ),
+    h("button", { class: "btn ghost sm", onclick: onClearAll }, t("filters.clearAll")),
+  );
 }
 
 export function noResults({ onClear, extra = [] }) {
-  return emptyState({ title: t("filters.noResults"), actions: [h("button", { class: "btn primary", onclick: onClear }, t("filters.clearAll")), ...extra] });
+  return emptyState({
+    title: t("filters.noResults"),
+    actions: [h("button", { class: "btn primary", onclick: onClear }, t("filters.clearAll")), ...extra],
+  });
 }
 
 // ---------- table + pager ----------
+const SORT_ARROW = { ascending: " ↑", descending: " ↓" };
+// Arrow keys move between table rows.
+const ROW_STEP = { ArrowDown: "nextElementSibling", ArrowUp: "previousElementSibling" };
+
 export function dataTable({ columns, rows, rowKey, selected, onSelect, sort, order, onSort, caption }) {
-  const head = h("tr", {}, columns.map((column) => {
-    const sorted = sort === column.key;
-    const label = column.sortable ? h("button", { onclick: () => onSort(column.key, sorted && order === "asc" ? "desc" : "asc") }, column.label, sorted ? (order === "asc" ? " ↑" : " ↓") : "") : column.label;
-    return h("th", { scope: "col", class: `${column.num ? "num" : ""} ${column.cls || ""}`, "aria-sort": sorted ? (order === "asc" ? "ascending" : "descending") : null }, label);
-  }));
-  const body = h("tbody", {}, rows.map((row, index) => {
-    const key = rowKey(row);
-    const tr = h("tr", { tabindex: index === 0 || key === selected ? 0 : -1, "aria-selected": String(key === selected), "data-key": key,
-      onclick: (event) => { if (!event.target.closest("a, button, input")) onSelect?.(row); } },
-      columns.map((column) => h("td", { class: `${column.num ? "num" : ""} ${column.cls || ""}` }, column.render(row))));
-    tr.addEventListener("keydown", (event) => {
-      const sibling = event.key === "ArrowDown" ? tr.nextElementSibling : event.key === "ArrowUp" ? tr.previousElementSibling : null;
-      if (sibling) { event.preventDefault(); tr.tabIndex = -1; sibling.tabIndex = 0; sibling.focus(); }
-      else if ((event.key === "Enter" || event.key === " ") && event.target === tr) { event.preventDefault(); onSelect?.(row); }
-    });
-    return tr;
-  }));
-  return h("div", { class: "table-wrap" }, h("table", { class: "t" }, caption && h("caption", { class: "sr-only" }, caption), h("thead", {}, head), body));
+  const head = h(
+    "tr",
+    {},
+    columns.map((column) => {
+      const sorted = sort === column.key;
+      let direction = null;
+      if (sorted) direction = order === "asc" ? "ascending" : "descending";
+      const label = column.sortable
+        ? h(
+            "button",
+            { onclick: () => onSort(column.key, direction === "ascending" ? "desc" : "asc") },
+            column.label,
+            SORT_ARROW[direction] || "",
+          )
+        : column.label;
+      return h(
+        "th",
+        {
+          scope: "col",
+          class: `${column.num ? "num" : ""} ${column.cls || ""}`,
+          "aria-sort": direction,
+        },
+        label,
+      );
+    }),
+  );
+  const body = h(
+    "tbody",
+    {},
+    rows.map((row, index) => {
+      const key = rowKey(row);
+      const tr = h(
+        "tr",
+        {
+          tabindex: index === 0 || key === selected ? 0 : -1,
+          "aria-selected": String(key === selected),
+          "data-key": key,
+          onclick: (event) => {
+            if (!event.target.closest("a, button, input")) onSelect?.(row);
+          },
+        },
+        columns.map((column) =>
+          h("td", { class: `${column.num ? "num" : ""} ${column.cls || ""}` }, column.render(row)),
+        ),
+      );
+      tr.addEventListener("keydown", (event) => {
+        const step = ROW_STEP[event.key];
+        const sibling = step ? tr[step] : null;
+        if (sibling) {
+          event.preventDefault();
+          tr.tabIndex = -1;
+          sibling.tabIndex = 0;
+          sibling.focus();
+        } else if ((event.key === "Enter" || event.key === " ") && event.target === tr) {
+          event.preventDefault();
+          onSelect?.(row);
+        }
+      });
+      return tr;
+    }),
+  );
+  return h(
+    "div",
+    { class: "table-wrap" },
+    h(
+      "table",
+      { class: "t" },
+      caption && h("caption", { class: "sr-only" }, caption),
+      h("thead", {}, head),
+      body,
+    ),
+  );
 }
 
 export function pager({ page, size, total, onPage }) {
   const pages = Math.max(1, Math.ceil(total / size));
   if (total === 0) return null;
-  const first = page * size + 1, last = Math.min(total, (page + 1) * size);
+  const first = page * size + 1;
+  const last = Math.min(total, (page + 1) * size);
   const numbers = new Set([0, pages - 1, page - 1, page, page + 1].filter((n) => n >= 0 && n < pages));
   const buttons = [];
   let previous = -1;
   for (const n of [...numbers].sort((a, b) => a - b)) {
     if (n - previous > 1) buttons.push(h("span", { "aria-hidden": "true" }, "…"));
-    buttons.push(h("button", { "aria-current": n === page ? "page" : null, "aria-label": t("pager.page", { n: n + 1 }), onclick: () => onPage(n) }, n + 1));
+    buttons.push(
+      h(
+        "button",
+        {
+          "aria-current": n === page ? "page" : null,
+          "aria-label": t("pager.page", { n: n + 1 }),
+          onclick: () => onPage(n),
+        },
+        n + 1,
+      ),
+    );
     previous = n;
   }
-  return h("nav", { class: "pager", "aria-label": t("pager.label") },
+  return h(
+    "nav",
+    { class: "pager", "aria-label": t("pager.label") },
     h("span", {}, t("pager.showing", { first: fmt(first), last: fmt(last), total: fmt(total) })),
-    h("div", { class: "pages" }, h("button", { disabled: page === 0, "aria-label": t("pager.prev"), onclick: () => onPage(page - 1) }, "‹"), buttons,
-      h("button", { disabled: page >= pages - 1, "aria-label": t("pager.next"), onclick: () => onPage(page + 1) }, "›")));
+    h(
+      "div",
+      { class: "pages" },
+      h(
+        "button",
+        { disabled: page === 0, "aria-label": t("pager.prev"), onclick: () => onPage(page - 1) },
+        "‹",
+      ),
+      buttons,
+      h(
+        "button",
+        { disabled: page >= pages - 1, "aria-label": t("pager.next"), onclick: () => onPage(page + 1) },
+        "›",
+      ),
+    ),
+  );
 }
 
 // ---------- file tree ----------
@@ -256,7 +623,14 @@ export function buildTree(files) {
     node.count += 1;
     for (let index = 0; index < parts.length - 1; index += 1) {
       const name = parts[index];
-      if (!node.dirs.has(name)) node.dirs.set(name, { name, path: parts.slice(0, index + 1).join("/"), dirs: new Map(), files: [], count: 0 });
+      if (!node.dirs.has(name))
+        node.dirs.set(name, {
+          name,
+          path: parts.slice(0, index + 1).join("/"),
+          dirs: new Map(),
+          files: [],
+          count: 0,
+        });
       node = node.dirs.get(name);
       node.count += 1;
     }
@@ -265,23 +639,118 @@ export function buildTree(files) {
   return root;
 }
 
+/** Opens a small menu of `[label, action]` rows where the pointer is; it closes on any click, Escape or scroll. */
+function contextMenu(event, label, rows) {
+  event.preventDefault();
+  document.querySelector(".context-menu")?.remove();
+  const close = () => {
+    menu.remove();
+    document.removeEventListener("click", away, true);
+    document.removeEventListener("keydown", keys);
+    window.removeEventListener("scroll", close, true);
+    window.removeEventListener("resize", close);
+  };
+  const away = (click) => {
+    if (!menu.contains(click.target)) close();
+  };
+  const keys = (key) => {
+    if (key.key === "Escape") close();
+  };
+  const menu = h(
+    "div",
+    {
+      class: "pop context-menu",
+      role: "menu",
+      "aria-label": label,
+      style: { position: "fixed", top: `${event.clientY}px`, left: `${event.clientX}px` },
+    },
+    rows.map(([text, action]) =>
+      h(
+        "button",
+        {
+          class: "choice-item",
+          role: "menuitem",
+          onclick: () => {
+            close();
+            action();
+          },
+        },
+        icon("copy", 15),
+        h("span", {}, text),
+      ),
+    ),
+  );
+  document.body.append(menu);
+  // Never past the right or bottom edge.
+  const size = menu.getBoundingClientRect();
+  menu.style.left = `${Math.max(8, Math.min(event.clientX, window.innerWidth - size.width - 8))}px`;
+  menu.style.top = `${Math.max(8, Math.min(event.clientY, window.innerHeight - size.height - 8))}px`;
+  menu.querySelector("[role=menuitem]").focus();
+  document.addEventListener("click", away, true);
+  document.addEventListener("keydown", keys);
+  window.addEventListener("scroll", close, true);
+  window.addEventListener("resize", close);
+}
+
+/** Right-click rows to copy a tree entry's path from the project root; a file also offers its folder. */
+function pathMenu(event, path, isDir) {
+  const rows = [[t(isDir ? "ws.copyFolderPath" : "ws.copyFilePath"), () => copy(path, t("ws.copiedPath"))]];
+  if (!isDir) {
+    const folder = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : ".";
+    rows.push([t("ws.copyParentPath"), () => copy(folder, t("ws.copiedPath"))]);
+  }
+  contextMenu(event, path, rows);
+}
+
 export function treeView({ root, current, onSelect, expanded = new Set() }) {
   const render = (node, depth) => {
     const list = h("ul", { role: depth === 0 ? "tree" : "group", class: depth === 0 ? "tree" : "" });
     for (const dir of [...node.dirs.values()].sort((a, b) => a.name.localeCompare(b.name))) {
       const open = expanded.has(dir.path) || (depth === 0 && node.dirs.size <= 3);
       const item = h("li", { role: "treeitem", "aria-expanded": String(open) });
-      const button = h("button", { class: "node", "aria-current": String(current === dir.path), title: dir.path, onclick: () => {
-        if (expanded.has(dir.path)) expanded.delete(dir.path); else expanded.add(dir.path);
-        onSelect(dir.path, true);
-      } }, icon(open ? "down" : "right", 13), icon("folder", 14), h("span", { class: "ellipsis" }, dir.name), h("span", { class: "n" }, fmt(dir.count)));
+      const button = h(
+        "button",
+        {
+          class: current?.startsWith(`${dir.path}/`) ? "node on-path" : "node",
+          "aria-current": String(current === dir.path),
+          title: dir.path,
+          oncontextmenu: (event) => pathMenu(event, dir.path, true),
+          onclick: () => {
+            if (expanded.has(dir.path)) expanded.delete(dir.path);
+            else expanded.add(dir.path);
+            onSelect(dir.path, true);
+          },
+        },
+        icon(open ? "down" : "right", 13),
+        icon("folder", 14),
+        h("span", { class: "ellipsis" }, dir.name),
+        h("span", { class: "n" }, fmt(dir.count)),
+      );
       item.append(button);
       if (open) item.append(render(dir, depth + 1));
       list.append(item);
     }
     for (const file of node.files.sort((a, b) => a.name.localeCompare(b.name)).slice(0, 300)) {
-      list.append(h("li", { role: "treeitem" }, h("button", { class: "node", "aria-current": String(current === file.path), title: file.path, onclick: () => onSelect(file.path, false) },
-        h("span", { style: { width: "13px" } }), icon("file", 14), h("span", { class: "ellipsis" }, file.name), h("span", { class: "n" }, fmt(file.symbols)))));
+      list.append(
+        h(
+          "li",
+          { role: "treeitem" },
+          h(
+            "button",
+            {
+              class: "node",
+              "aria-current": String(current === file.path),
+              title: file.path,
+              oncontextmenu: (event) => pathMenu(event, file.path, false),
+              onclick: () => onSelect(file.path, false),
+            },
+            h("span", { class: "tree-spacer" }),
+            icon("file", 14),
+            h("span", { class: "ellipsis" }, file.name),
+            h("span", { class: "n" }, fmt(file.symbols)),
+          ),
+        ),
+      );
     }
     return list;
   };
@@ -303,7 +772,8 @@ export async function load(host, loader, draw) {
 
 /** Reveal a bounded batch without removing the focused Show more control. */
 export function pagedLinks(items, renderItem, size = 30) {
-  const list = h("div", {}), status = h("span", { class: "muted small", role: "status" });
+  const list = h("div", {});
+  const status = h("span", { class: "muted small", role: "status" });
   let shown = 0;
   const more = h("button", { class: "btn sm", onclick: () => reveal() }, t("common.showMore"));
   function reveal() {
@@ -314,5 +784,5 @@ export function pagedLinks(items, renderItem, size = 30) {
     more.disabled = shown === items.length;
   }
   reveal();
-  return h("div", {}, list, items.length > size && h("div", { class: "row", style: { marginTop: "8px" } }, more, status));
+  return h("div", {}, list, items.length > size && h("div", { class: "row mt-2" }, more, status));
 }

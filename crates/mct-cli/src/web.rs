@@ -2,9 +2,11 @@
 
 mod api;
 mod assets;
+mod autoreindex;
 mod dead_assessment;
 mod http;
 mod ignore_file;
+mod numbers;
 mod obsidian;
 mod port;
 mod response;
@@ -63,6 +65,8 @@ struct Site {
     groups: BTreeMap<String, Vec<usize>>,
     duplicates: DuplicateReport,
     review_keys: Vec<String>,
+    /// Readable number of each finding, by review key.
+    numbers: numbers::Numbers,
     dead: Vec<DeadCandidate>,
     references: HashMap<String, usize>,
     reviews: reviews::Reviews,
@@ -180,6 +184,7 @@ impl Site {
         let (dead, dead_findings) = dead_candidates(root, &index, &navigation, &file_hashes)?;
         let dead_code_ms = dead_started.elapsed().as_millis();
         findings.extend(dead_findings);
+        let numbers = numbers::Numbers::load(root, &findings);
         let reviews = reviews::Reviews::load(root, findings);
         if let Some(reason) = reviews.read_only_reason() {
             eprintln!("warning: review decisions are read-only until this is fixed: {reason}");
@@ -226,6 +231,7 @@ impl Site {
             groups,
             duplicates,
             review_keys,
+            numbers,
             dead,
             references,
             reviews,
@@ -422,8 +428,10 @@ pub(super) fn run(root: &Path, port: Option<u16>, no_obsidian: bool) -> anyhow::
     let port = listener.local_addr()?.port();
     let mut site = Site::load(root, no_obsidian)?;
     println!("Local project web: {}", dashboard_url(port));
+    // Kept for the server's lifetime: dropping it would stop the watch.
+    let _autoreindex = autoreindex::start(root, no_obsidian);
     println!(
-        "Dashboard ready. Snapshot: {}. A reindex is picked up on the next request; Ctrl-C stops the server.",
+        "Dashboard ready. Snapshot: {}. Saved files and .mctignore edits are reindexed automatically and picked up on the next request; Ctrl-C stops the server.",
         site.generated
     );
     std::io::stdout().flush()?;
