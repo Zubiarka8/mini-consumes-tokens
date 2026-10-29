@@ -110,13 +110,23 @@ enum Command {
     /// Serve the local project dashboard (code, duplicates, dead code, reviews, dependencies, notes).
     ///
     /// Uses the existing index without reindexing. Regenerates the Obsidian
-    /// vault unless disabled. Prints a private localhost URL; keep this
-    /// command running and press Ctrl-C to stop. A reindex is picked up on
-    /// the next request, no restart needed. No browser is opened automatically.
+    /// vault unless disabled. Prints a stable `http://localhost:<port>/` URL
+    /// with no key in it; keep this command running and press Ctrl-C to stop.
+    /// A reindex is picked up on the next request, no restart needed. No
+    /// browser is opened automatically.
+    ///
+    /// The port is remembered per project in `.mct-index/web-port` and reused
+    /// while it is free (first run: 8787). If it is busy, a free port is chosen
+    /// and remembered instead. Always binds 127.0.0.1 only; requests with a
+    /// foreign Host or Origin are refused.
+    #[command(
+        after_help = "Examples:\n  mct-cli web\n  mct-cli --root ../app web --no-obsidian\n  mct-cli web --port 9000   # explicit: fails if busy, never remembered"
+    )]
     Web {
-        /// Local port (0 selects a free port). Always binds 127.0.0.1.
-        #[arg(long, default_value_t = 0)]
-        port: u16,
+        /// Use exactly this port (0 = any free port). Fails if it is busy and
+        /// is not remembered. Omit it to reuse the project's remembered port.
+        #[arg(long)]
+        port: Option<u16>,
         /// Do not regenerate the Obsidian vault; the dashboard still works.
         #[arg(long)]
         no_obsidian: bool,
