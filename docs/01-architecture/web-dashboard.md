@@ -10,8 +10,10 @@ checks, strict CSP) is unchanged.
 - A professional, local-first dashboard over the existing index: Dashboard,
   indexed code, duplicates (with side-by-side compare), dead code, search,
   dependencies, reviews, statistics, Obsidian notes, unified workspace, settings.
-- Spanish (Spain) UI with all strings in one table (`app/i18n.js`) so other
-  locales can be added without touching components.
+- Spanish (Spain) and English UI with all strings in one table per locale
+  (`app/i18n.js`, `app/i18n-en.js`) so other locales can be added without
+  touching components. Every button names its action and its subject
+  ("Confirmar duplicado", "Ignorar código muerto"), never a bare "Confirmar".
 - Never invent data. Anything the index does not record is marked unavailable
   through `meta.capabilities` (history, semantic search, call graph, reindex,
   tokens, similarity, confidence, severity, reviewers are all `false`).
@@ -67,7 +69,9 @@ checks, strict CSP) is unchanged.
 ## Testing
 
 - `cargo test -p mct-cli web` (wire-level tests, no sockets): assets, API
-  shape and bounds, source safety, HTTP security, review persistence/CSRF.
+  shape and bounds, source safety, HTTP security, review persistence/CSRF, and
+  the dictionaries (`app/i18n.js` and `app/i18n-en.js` define the same keys,
+  every `t("key")` exists, no key is dead text).
 - Browser checks with headless Chrome for Testing: each page in dark/light at
   1440, 1024 and 390 px, command palette, compare view.
 - Review checks in a real browser, on scratch projects only: a finding whose

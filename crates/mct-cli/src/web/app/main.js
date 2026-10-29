@@ -64,8 +64,7 @@ function notificationsMenu() {
     h("strong", {}, t("notice.title")),
     notices.length ? notices.map((n) => h("p", { class: `banner ${n.tone === "bad" ? "bad" : n.tone === "warn" ? "warn" : ""}`, style: { marginTop: "8px" } }, n.text, n.action && [" ", h("button", { class: "btn sm", onclick: () => { menu.remove(); n.action(); } }, t("issues.view"))])) : h("p", { class: "muted", style: { marginTop: "8px" } }, t("notice.none")));
   document.querySelector(".header").append(menu);
-  const away = (event) => { if (!menu.contains(event.target) && !bell.contains(event.target)) { menu.remove(); document.removeEventListener("click", away); } };
-  setTimeout(() => document.addEventListener("click", away), 0);
+  closeOnOutside(menu, bell);
 }
 
 const closeOnOutside = (menu, opener) => {
@@ -97,8 +96,10 @@ function languageButton() {
 function themeButton() {
   const current = () => store.get("theme", "dark");
   const button = h("button", { class: "icon-btn", "aria-haspopup": "listbox", "aria-label": t("theme.label"), title: t("theme.label"),
-    onclick: () => choiceMenu(button, t("theme.label"), THEMES.map(([id, key, iconName]) => [id, t(key), iconName]), current(), (id) => { setTheme(id); button.replaceChildren(icon(THEMES.find(([theme]) => theme === id)[2])); }) },
+    onclick: () => choiceMenu(button, t("theme.label"), THEMES.map(([id, key, iconName]) => [id, t(key), iconName]), current(), setTheme) },
     icon(THEMES.find(([theme]) => theme === current())[2]));
+  // The theme can also change from Settings or the command palette, so follow every change.
+  document.addEventListener("mct-theme", () => button.replaceChildren(icon(THEMES.find(([theme]) => theme === current())[2])));
   return button;
 }
 
@@ -107,7 +108,7 @@ function buildShell() {
   const collapsed = store.get("sidebar-collapsed", false);
   nav = h("nav", { class: "nav", "aria-label": t("nav.label") });
   status = h("span", { class: "status-pill", role: "status" });
-  bell = h("button", { class: "icon-btn", style: { position: "relative" }, "aria-label": t("notice.title"), onclick: notificationsMenu }, icon("bell"));
+  bell = h("button", { class: "icon-btn", style: { position: "relative" }, "aria-label": t("notice.title"), title: t("notice.title"), onclick: notificationsMenu }, icon("bell"));
   const search = createGlobalSearch({ commands: () => [...pageCommands(), { title: t("palette.toggleTheme"), icon: "sun", run: cycleTheme }, { title: t("palette.toggleSidebar"), icon: "panel", run: toggleSidebar }, { title: t("palette.workspace"), icon: "layers", run: () => go("espacio") }, { title: t("header.refresh"), icon: "refresh", run: async () => { await boot(true); toast(t("header.refreshed"), "ok", 7000); } }] });
   ctx.search = search;
   const toggleSidebar = () => { shell.classList.toggle("collapsed"); store.set("sidebar-collapsed", shell.classList.contains("collapsed")); };

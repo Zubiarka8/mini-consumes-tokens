@@ -1330,3 +1330,94 @@ fn mutations_are_refused_for_foreign_hosts_origins_and_missing_csrf() {
     let response = server.raw(&format!("POST /api/ignore HTTP/1.1\r\nHost: evil.example:8787\r\nOrigin: http://evil.example:8787\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{ignore}", ignore.len()));
     assert!(response.starts_with("HTTP/1.1 421"), "{response}");
 }
+
+/// Every `"key": "text"` entry of an i18n dictionary source.
+fn dictionary_keys(source: &str) -> std::collections::BTreeSet<String> {
+    let is_key = |key: &str| {
+        !key.is_empty()
+            && key
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-'))
+    };
+    source
+        .match_indices("\": \"")
+        .filter_map(|(end, _)| {
+            let start = source[..end].rfind('"')? + 1;
+            is_key(&source[start..end]).then(|| source[start..end].to_string())
+        })
+        .collect()
+}
+
+#[test]
+fn dashboard_dictionaries_match_and_every_key_is_used() {
+    let spanish_source = include_str!("app/i18n.js");
+    let spanish = dictionary_keys(spanish_source.split("const dictionaries").next().unwrap());
+    let english = dictionary_keys(include_str!("app/i18n-en.js"));
+    assert_eq!(
+        spanish.symmetric_difference(&english).collect::<Vec<_>>(),
+        Vec::<&String>::new(),
+        "i18n.js and i18n-en.js must define the same keys"
+    );
+
+    let code = [
+        include_str!("app/main.js"),
+        include_str!("app/core.js"),
+        include_str!("app/components.js"),
+        include_str!("app/charts.js"),
+        include_str!("app/code.js"),
+        include_str!("app/graph.js"),
+        include_str!("app/markdown.js"),
+        include_str!("app/palette.js"),
+        include_str!("app/ai.js"),
+        include_str!("app/issues.js"),
+        include_str!("app/page-dashboard.js"),
+        include_str!("app/page-symbols.js"),
+        include_str!("app/page-findings.js"),
+        include_str!("app/page-search.js"),
+        include_str!("app/page-deps.js"),
+        include_str!("app/page-stats.js"),
+        include_str!("app/page-notes.js"),
+        include_str!("app/page-workspace.js"),
+        include_str!("app/page-settings.js"),
+    ]
+    .join("\n");
+
+    // A key read as t("key") must exist.
+    let missing: Vec<&str> = code
+        .match_indices("t(\"")
+        .filter(|(at, _)| !code[..*at].ends_with(|c: char| c.is_alphanumeric() || c == '_'))
+        .filter_map(|(at, _)| {
+            let rest = &code[at + 3..];
+            Some(&rest[..rest.find('"')?])
+        })
+        .filter(|key| !spanish.contains(*key))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "t() keys without a dictionary entry: {missing:?}"
+    );
+
+    // A key must be written somewhere as a quoted literal or live under a template prefix
+    // such as `review.action.${target}.${type}`; anything else is dead text.
+    let prefixes: Vec<&str> = code
+        .match_indices("${")
+        .filter_map(|(at, _)| {
+            let start = code[..at].rfind('`')? + 1;
+            let prefix = &code[start..at];
+            (!prefix.is_empty()
+                && prefix
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-')))
+            .then_some(prefix)
+        })
+        .collect();
+    let unused: Vec<&String> = spanish
+        .iter()
+        .filter(|key| !code.contains(&format!("\"{key}\"")))
+        .filter(|key| !prefixes.iter().any(|prefix| key.starts_with(prefix)))
+        .collect();
+    assert!(
+        unused.is_empty(),
+        "dictionary keys nothing uses: {unused:?}"
+    );
+}
