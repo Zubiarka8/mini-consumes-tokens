@@ -409,9 +409,36 @@ mct-cli --root . web --port 8787
 mct-cli --root . web --no-obsidian
 ```
 
-The command prints a private `http://127.0.0.1:<port>/<random-key>/` URL. Open
-that URL in your browser and keep the command running; Ctrl-C stops it. Port `0`
-(the default) selects an available port. No browser opens automatically.
+The command prints a stable `http://localhost:<port>/` URL with no key in it, so
+it can be bookmarked. Keep the command running; Ctrl-C stops it. No browser opens
+automatically.
+
+**Port.** The project root is the current directory unless `--root` is given. The
+port is remembered per project root in `<root>/.mct-index/web-port` (a plain
+number; the folder is git-ignored and derived, so deleting it only forgets the port).
+
+- First run: `8787` if free, otherwise a free port chosen by the system.
+- Later runs: the remembered port while it is free. If it is busy, a free port is
+  chosen, used and remembered instead.
+- The port is bound once and the same listener is used, so no other process can take
+  it between the check and the use.
+- `--port <port>` is an explicit choice: it is used exactly, never remembered, and a
+  busy port is an error (`port N on 127.0.0.1 is unavailable ...`), not a silent change.
+  `--port 0` takes any free port.
+- Each project keeps its own file, so several projects get different ports (the
+  first to start gets `8787`). Two instances on the same root: the second finds the
+  port busy, takes another and remembers that one, so the next single start uses it.
+
+**Security without a key.** The server binds `127.0.0.1` only. Protection against
+other websites relies on the `Host` check (only `localhost:<port>` and
+`127.0.0.1:<port>`, which stops DNS rebinding), `Origin` and `Sec-Fetch-Site`
+checks, a per-session CSRF token and exact same-origin `Origin` plus
+`application/json` for every POST, and a restrictive content policy. Limitation:
+the old URL key also kept out other *local* processes; now any process (or other
+user) on the same machine that can reach `127.0.0.1:<port>` can read the dashboard
+and, with a valid `Origin` and CSRF token it fetches from the API, change review
+decisions or `.mctignore`. Use `mct-cli web` only on a machine you trust; on a
+shared machine prefer an explicit `--port` while the dashboard is needed, then stop it.
 
 - **Dashboard:** counts, review-state chart, language bars, project health and
   recent activity. Metrics the index does not record (history, tokens,
@@ -450,11 +477,11 @@ configuration are never served. Code excerpts appear only in review and the sour
 Pages are a fixed startup snapshot held in memory; browser reload does not rerun
 analysis. After changes, run `reindex` and restart `web`. The only HTTP mutation is a protected duplicate-review preference action. There
 is no reindex/refresh, source edit, arbitrary file serving or external resource. The server
-binds only IPv4 loopback, requires the generated URL key, checks Host and Origin,
+binds only IPv4 loopback, checks Host and Origin,
 rejects cross-site requests and applies a restrictive content policy. Requests
 use a 16 KiB header limit, a 4 KiB review-form limit and a 2-second read
-deadline, one request per connection. Keep the private
-URL local; another process running as your user remains within the trust boundary.
+deadline, one request per connection. Another process on the same machine can reach the port
+(there is no URL key); see the security notes above.
 Only this process's rendered views are available, never the SQLite file or vault
 contents as a directory listing. See [ADR-014](docs/01-architecture/adrs/014-local-project-web.md).
 

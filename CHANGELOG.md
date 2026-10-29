@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `mct-cli web` now serves a stable `http://localhost:<port>/` URL with no key.
+  The port is remembered per project in `.mct-index/web-port` and reused while
+  free (first run `8787`); a busy remembered port is replaced by a free one.
+  `--port <port>` is exact and never remembered. Host, Origin, Fetch Metadata and
+  CSRF checks are unchanged; the URL key no longer keeps out other local processes.
 - `mct-cli web` pins navigation, findings, review hashes and reference counts
   to one index generation while loading, including during an external reindex.
 

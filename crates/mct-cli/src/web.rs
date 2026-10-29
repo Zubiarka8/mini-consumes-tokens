@@ -6,6 +6,7 @@ mod dead_assessment;
 mod http;
 mod ignore_file;
 mod obsidian;
+mod port;
 mod response;
 mod reviews;
 #[cfg(test)]
@@ -14,11 +15,9 @@ mod tests;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
 use std::io::Write;
-use std::net::{Ipv4Addr, TcpListener};
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-use anyhow::Context;
 use mct_index::{DuplicateOptions, DuplicateReport, ExcludeSet, Index, NavigationSnapshot};
 
 struct DeadCandidate {
@@ -408,18 +407,21 @@ fn random_key() -> anyhow::Result<String> {
     Ok(random.iter().map(|byte| format!("{byte:02x}")).collect())
 }
 
-pub(super) fn run(root: &Path, port: u16, no_obsidian: bool) -> anyhow::Result<()> {
+/// The address to open: a readable name and no key; access control is the Host/Origin/CSRF checks.
+fn dashboard_url(port: u16) -> String {
+    format!("http://localhost:{port}/")
+}
+
+pub(super) fn run(root: &Path, port: Option<u16>, no_obsidian: bool) -> anyhow::Result<()> {
     anyhow::ensure!(
         root.join(".mct-index/index.sqlite3").is_file(),
         "no index found; run `mct-cli init` first"
     );
     // Bind first: a conflicting port must not regenerate anything.
-    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, port))
-        .context("cannot bind the localhost web port")?;
+    let listener = port::bind(root, port, port::PREFERRED_PORT)?;
     let port = listener.local_addr()?.port();
-    let token = random_key()?;
     let mut site = Site::load(root, no_obsidian)?;
-    println!("Local project web: http://127.0.0.1:{port}/{token}/");
+    println!("Local project web: {}", dashboard_url(port));
     println!(
         "Dashboard ready. Snapshot: {}. A reindex is picked up on the next request; Ctrl-C stops the server.",
         site.generated
@@ -429,7 +431,7 @@ pub(super) fn run(root: &Path, port: u16, no_obsidian: bool) -> anyhow::Result<(
         match connection {
             Ok(mut stream) => {
                 // One bounded request per connection; only review preferences are mutable.
-                if let Err(error) = http::serve_connection(&mut stream, port, &token, &mut site) {
+                if let Err(error) = http::serve_connection(&mut stream, port, &mut site) {
                     eprintln!("warning: local web request failed: {error}");
                 }
             }
