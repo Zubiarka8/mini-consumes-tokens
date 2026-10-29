@@ -223,6 +223,7 @@ label.field { display: grid; gap: 4px; font-size: 12px; color: var(--text-2); }
 /* ---------- layout with filters + inspector ---------- */
 .workbench { display: grid; gap: 16px; grid-template-columns: minmax(220px, 260px) minmax(0, 1fr); align-items: start; }
 .workbench.inspect { grid-template-columns: minmax(220px, 260px) minmax(0, 1fr) minmax(340px, 480px); }
+.workbench.workspace { grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(280px, 360px); }
 .workbench.nofilter { grid-template-columns: minmax(0, 1fr); }
 .workbench.nofilter.inspect { grid-template-columns: minmax(0, 1fr) minmax(340px, 480px); }
 .workbench > .sticky { position: sticky; top: 12px; max-height: calc(100vh - var(--header-h) - 28px); overflow-y: auto; }

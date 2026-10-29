@@ -192,7 +192,7 @@ export function filterPanel({ groups, extra = [], onClear, active = 0, drawerRef
   return aside;
 }
 
-export const drawerButton = (getAside) => h("button", { class: "btn drawer-btn", onclick: () => getAside()?.classList.add("open") }, icon("filter", 16), t("filters.title"));
+export const drawerButton = (getAside, label = t("filters.title")) => h("button", { class: "btn drawer-btn", onclick: () => getAside()?.classList.add("open") }, icon("filter", 16), label);
 
 export function activeChips(chips, onClearAll) {
   if (!chips.length) return null;

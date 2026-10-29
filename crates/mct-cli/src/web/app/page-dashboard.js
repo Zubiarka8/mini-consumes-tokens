@@ -27,6 +27,11 @@ function eventText(event) {
 
 export function render({ root, summary, meta }) {
   let range = store.get("dash-range", 30);
+  // Only the chart is redrawn when the period changes, so the picker keeps keyboard focus.
+  const chartHost = h("div", {});
+  const drawChart = () => chartHost.replaceChildren(activityChart(summary, range));
+  const rangePicker = h("label", { class: "row small muted" }, t("dash.range"), selectBox({ label: t("dash.range"), value: String(range),
+    options: [["7", t("dash.last7")], ["30", t("dash.last30")], ["90", t("dash.last90")]], onChange: (value) => { range = Number(value); store.set("dash-range", range); drawChart(); } }));
   const body = h("div", { class: "stack" });
   const draw = () => {
     const states = summary.findings.states;
@@ -48,8 +53,8 @@ export function render({ root, summary, meta }) {
       h("div", { class: "grid two" },
         h("section", { class: "card" },
           h("div", { class: "row spread" }, h("h2", {}, t("dash.activityTitle")),
-            h("label", { class: "row small muted" }, t("dash.range"), selectBox({ label: t("dash.range"), value: String(range), options: [["7", t("dash.last7")], ["30", t("dash.last30")], ["90", t("dash.last90")]], onChange: (v) => { range = Number(v); store.set("dash-range", range); draw(); } }))),
-          h("p", { class: "muted small", style: { marginBottom: "8px" } }, t("dash.activityNote")), activityChart(summary, range)),
+            rangePicker),
+          h("p", { class: "muted small", style: { marginBottom: "8px" } }, t("dash.activityNote")), chartHost),
         h("section", { class: "card" }, h("h2", {}, t("dash.reviewState")), summary.findings.total ? donut({ segments, centerLabel: t("dash.findings"), label: t("dash.reviewState") }) : emptyState({ title: t("dash.noFindings"), iconName: "check" }))),
       h("div", { class: "grid three" },
         h("section", { class: "card" }, h("h2", {}, t("dash.languages")), summary.languages.length ? hbars({ rows: summary.languages.slice(0, 8).map((l) => ({ name: l.language, value: l.symbols })), label: t("dash.languages") }) : emptyState({ title: t("common.noData") })),
@@ -70,4 +75,5 @@ export function render({ root, summary, meta }) {
   };
   root.append(pageHead(t("dash.title"), t("dash.subtitle")), body);
   draw();
+  drawChart();
 }

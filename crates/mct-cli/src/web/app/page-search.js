@@ -11,9 +11,9 @@ const PAGE_SIZE = 20;
 
 function resultCard(item, query) {
   const where = item.path ? `${item.path}${item.line ? `:${item.line}` : ""}` : "";
-  return h("article", { class: "card", style: { display: "flex", gap: "14px", alignItems: "center", marginBottom: "10px" } },
+  return h("article", { class: "card", style: { display: "flex", flexWrap: "wrap", gap: "14px", alignItems: "center", marginBottom: "10px" } },
     item.kind ? kindIcon(item.kind) : h("span", { class: "kind-ico tone-primary" }, icon(TYPE_ICON[item.type] || "file", 16)),
-    h("div", { style: { minWidth: 0, flex: 1 } },
+    h("div", { style: { minWidth: 0, flex: "1 1 180px" } },
       h("h3", { class: "ellipsis" }, highlight(item.title, query)),
       where && h("div", { class: "mono muted small ellipsis" }, highlight(where, query)),
       item.snippet && item.snippet !== item.path && h("div", { class: "muted ellipsis" }, highlight(item.snippet, query))),

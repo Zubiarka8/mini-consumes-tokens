@@ -133,7 +133,7 @@ export const en = {
   "deps.treeNote": "The tree follows outgoing imports; cycles are cut when a node repeats.", "deps.tableCaption": "Dependency nodes", "deps.col.name": "Node", "deps.external": "Declared external packages", "deps.externalNote": "Dependencies declared in the project manifests; they are not linked into the graph.",
   "deps.packages": "{n} packages", "deps.truncated": "Showing {shown} of {total} nodes (the most connected).", "graph.showAll": "Show all ({n})", "deps.cycles": "There are {n} import cycles in the project.",
   // stats
-  "stats.title": "Statistics and performance", "stats.subtitle": "Only real measurements from this server; what is not measured is marked.", "stats.remeasure": "Measure again", "stats.load": "Snapshot load", "stats.loadHint": "Open the index and analyze",
+  "stats.title": "Statistics and performance", "stats.subtitle": "Only real measurements from this server; what is not measured is marked.", "stats.remeasure": "Refresh statistics", "stats.load": "Snapshot load", "stats.loadHint": "Open the index and analyze",
   "stats.dupTime": "Duplicate analysis", "stats.deadTime": "Dead-code analysis", "stats.dbSize": "Database size", "stats.searchLatency": "Search latency (median)", "stats.samples": "{n} samples", "stats.noSamples": "No samples yet",
   "stats.notMeasured": "Not measured", "stats.incremental": "Incremental indexing", "stats.tokens": "Token usage", "stats.mcpSize": "MCP response size", "stats.memory": "Memory",
   "stats.reason.noJobs": "The panel does not run or record indexing runs", "stats.reason.tokens": "Needs a reproducible benchmark", "stats.reason.mcp": "Measured in the MCP server, not here", "stats.reason.memory": "No reliable measurement",
