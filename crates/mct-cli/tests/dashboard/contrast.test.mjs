@@ -46,7 +46,7 @@ for (const [themeName, tokens] of [['dark', dark], ['light', light]]) {
       assert.ok(ratio(tokens.focus, background) >= 3, `${themeName}: focus outline on ${background}`);
     }
     for (const background of [tokens.primary, tokens['primary-hover']]) assert.ok(ratio('#ffffff', background) >= 4.5, `${themeName}: button label on ${background}`);
-    const primaryInk = themeName === 'dark' ? '#c4b5fd' : tokens.primary;
+    const primaryInk = tokens['primary-ink'];
     const primarySoft = composite(tokens['primary-soft'], tokens.elevated);
     assert.ok(ratio(primaryInk, primarySoft) >= 4.5, `${themeName}: primary badge`);
     for (const name of stateColors) {
