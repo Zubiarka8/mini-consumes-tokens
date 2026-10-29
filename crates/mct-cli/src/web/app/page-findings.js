@@ -31,6 +31,7 @@ import {
   pager,
   badge,
   stateBadge,
+  STATES,
   STATE_ORDER,
   stateLabel,
   searchBox,
@@ -217,7 +218,8 @@ function stateMenu(item, face, onChange) {
         h(
           "button",
           {
-            class: "choice-item",
+            // Each state keeps its own colour; reopening returns to "unreviewed", so it takes that one.
+            class: `choice-item tone-${STATES[target === "reopen" ? "unreviewed" : target]?.tone || "muted"}`,
             role: "menuitem",
             onclick: () => {
               close();
@@ -274,8 +276,8 @@ const verdictBadge = (verdict) =>
   badge(t(`dup.verdict.${verdict}`), verdict === "real" ? "success" : "warning");
 
 const statePill = (state) => {
-  const [name, tone] = STATE_PILL[state] || ["circle", ""];
-  return h("span", { class: `pill ${tone}` }, icon(name, 15), stateLabel(state));
+  const [name] = STATE_PILL[state] || ["circle"];
+  return h("span", { class: `pill ${STATES[state]?.tone || "muted"}` }, icon(name, 15), stateLabel(state));
 };
 
 /** A labelled select for the filter bar; `set` redraws its options in place, so focus stays. */

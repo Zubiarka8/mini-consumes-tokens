@@ -46,7 +46,7 @@ export function harness({ hash = '#/duplicados', compact = false, reduced = fals
   window.HTMLElement.prototype.getBoundingClientRect = () => ({ top: 100, bottom: 120, left: 100, right: 200, width: 100, height: 20 });
   const context = createContext({ document, window: { innerWidth: compact ? 375 : 1440, innerHeight: 900, addEventListener() {}, removeEventListener() {} },
     Element: window.Element, Node: window.Node, Event: window.Event, console,
-    URL, URLSearchParams, Response, AbortController, DOMException, Intl, Date, Math, performance,
+    URL, URLSearchParams, TextEncoder, Response, AbortController, DOMException, Intl, Date, Math, performance,
     location, history: { replaceState: (_, __, value) => { location.hash = value; } },
     localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) },
     navigator: { clipboard: { writeText: async () => {} } }, matchMedia,

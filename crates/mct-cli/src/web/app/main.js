@@ -356,12 +356,6 @@ function buildShell() {
           h("span", { class: "logo" }, icon("bolt", 15)),
           h("span", { class: "brand-name" }, t("app.name")),
         ),
-        h(
-          "div",
-          { class: "project hide-sm", title: t("header.repo") },
-          h("span", { id: "project-name" }),
-          h("span", { class: "host hide-md" }, location.host),
-        ),
       ),
       h("div", { class: "header-center" }, search.el),
       h("div", { class: "header-right" }, status, bell, languageButton(), themeButton()),
@@ -424,7 +418,6 @@ async function boot(refresh = false) {
       buildShell();
       booted = true;
     }
-    document.getElementById("project-name").textContent = meta.project;
     applyStatus();
     renderNav();
     if (refresh) await route();
@@ -452,16 +445,26 @@ addEventListener("hashchange", () => {
   if (booted) route();
 });
 
-// A reindex (by the MCP server or the CLI) lands while the page is open: the header's status
-// follows it every 30 s and whenever the tab comes back into view.
-const STATUS_EVERY_MS = 30_000;
+// A reindex (the dashboard's own watcher, the MCP server or the CLI) lands while the page is open:
+// the status follows it every few seconds and whenever the tab comes back into view, and the page
+// is drawn again with the new index, so nothing has to be reloaded by hand.
+const STATUS_EVERY_MS = 5_000;
+let reloadPending = false;
+// Drawing the page again would discard text being typed (.mctignore, a review note, a search).
+const typing = () => document.activeElement?.matches?.("textarea, input:not([type=radio], [type=checkbox])");
 async function followStatus() {
   if (!booted || document.hidden) return;
   try {
+    const before = ctx.meta?.generated;
     ctx.meta = await api("meta");
     setCsrf(ctx.meta.csrf);
     notices = computeNotices(ctx.meta, ctx.summary);
     applyStatus();
+    if (ctx.meta.generated !== before) reloadPending = true;
+    if (reloadPending && !typing()) {
+      reloadPending = false;
+      await boot(true);
+    }
   } catch {
     // The header keeps what it showed; the next check tries again.
   }

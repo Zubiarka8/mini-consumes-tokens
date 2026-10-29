@@ -18,9 +18,13 @@ import {
 } from "./components.js";
 import { codeBlock } from "./code.js";
 import { findingHref, findingNumber } from "./page-findings.js";
+import { ignoreCard } from "./ignore-card.js";
 import { t } from "./i18n.js";
 
 const CHUNK = 300;
+// The rule files the explorer can open in place of the code viewer, by their `view` in the URL.
+const RULE_VIEWS = { ignore: "mctignore", gitignore: "gitignore" };
+const ruleView = (params) => (Object.hasOwn(RULE_VIEWS, params.get("view")) ? params.get("view") : null);
 
 export async function render({ root, params: initial }) {
   const files = (await api("files")).files;
@@ -35,15 +39,20 @@ export async function render({ root, params: initial }) {
   const side = h("div", { class: "inspector-col sticky" });
   let current = null;
   let tab = "code";
+  // "ignore" or "gitignore" swaps the code viewer for that rule file's editor; the file stays selected underneath.
+  let view = null;
 
-  function drawExplorer(path) {
-    const parts = (path || "").split("/");
-    parts.pop();
-    parts.reduce((acc, part) => {
-      const next = acc ? `${acc}/${part}` : part;
-      expanded.add(next);
-      return next;
-    }, "");
+  // `reveal` opens the folders holding the file; toggling a folder redraws without it, so it can close.
+  function drawExplorer(path, reveal = true) {
+    if (reveal) {
+      const parts = (path || "").split("/");
+      parts.pop();
+      parts.reduce((acc, part) => {
+        const next = acc ? `${acc}/${part}` : part;
+        expanded.add(next);
+        return next;
+      }, "");
+    }
     clear(explorer).append(
       h(
         "div",
@@ -59,17 +68,31 @@ export async function render({ root, params: initial }) {
           icon("x"),
         ),
       ),
+      ...["ignore", "gitignore"].map((id) =>
+        h(
+          "button",
+          {
+            class: "btn sm w-full justify-start mb-2",
+            type: "button",
+            "aria-pressed": String(view === id),
+            title: t(`ws.${id}Hint`),
+            onclick: () => patchQuery({ view: view === id ? null : id }),
+          },
+          icon("filter", 14),
+          t(`ws.${id}`),
+        ),
+      ),
       treeView({
         root: tree,
         current: path,
         expanded,
         onSelect: (p, dir) => {
           if (dir) {
-            drawExplorer(path);
+            drawExplorer(path, false);
             return;
           }
           drawer.classList.remove("open");
-          patchQuery({ file: p, line: null, tab: null });
+          patchQuery({ file: p, line: null, tab: null, view: null });
         },
       }),
     );
@@ -78,7 +101,14 @@ export async function render({ root, params: initial }) {
   async function show(params) {
     const file = params.get("file");
     tab = params.get("tab") || "code";
+    view = ruleView(params);
     drawExplorer(file);
+    if (view) {
+      current = file;
+      clear(center).append(ignoreCard(RULE_VIEWS[view]));
+      clear(side);
+      return;
+    }
     if (!file) {
       clear(center).append(
         emptyState({ iconName: "layers", title: t("ws.pickTitle"), text: t("ws.pickText") }),
@@ -318,6 +348,7 @@ export async function render({ root, params: initial }) {
   await show(initial);
   const off = onQuery((params) => {
     if (
+      ruleView(params) !== view ||
       params.get("file") !== current ||
       params.get("tab") !== (tab === "code" ? null : tab) ||
       params.get("line")

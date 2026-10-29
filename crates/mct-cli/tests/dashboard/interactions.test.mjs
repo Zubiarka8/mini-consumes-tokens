@@ -425,3 +425,98 @@ test('the dead-code list row opens the workspace instead of a dialog', async () 
   assert.equal(env.mounts.length, 1);
   env.cleanup();
 });
+
+// Archivos can show and edit the project's .mctignore without leaving the page.
+test('the explorer opens the .mctignore editor in place of the viewer, and closes it again', async () => {
+  const ignore = { content: 'target/\n', exists: true, directive: '#import .gitignore', template: '', command: 'mct', maxBytes: 4096, gitignorePresent: true };
+  const env = harness({ hash: '#/espacio', fetch: async (url) => (url.pathname.split('/').at(-1) === 'ignore' ? ignore : defaultApi(url)) });
+  const { render } = await env.load('page-workspace.js');
+  env.cleanup = await render({ root: env.root, params: new URLSearchParams('') });
+  await settle();
+  const toggle = [...env.root.querySelectorAll('.explorer button')].find(el => el.textContent.includes('.mctignore'));
+  assert.equal(toggle.getAttribute('aria-pressed'), 'false');
+  assert.equal(env.root.querySelector('textarea'), null);
+  toggle.dispatchEvent(env.event('click'));
+  await settle(); await settle();
+  assert.equal(urlParams(env).get('view'), 'ignore');
+  assert.equal(env.root.querySelector('textarea').value, 'target/\n');
+  const open = [...env.root.querySelectorAll('.explorer button')].find(el => el.textContent.includes('.mctignore'));
+  assert.equal(open.getAttribute('aria-pressed'), 'true');
+  open.dispatchEvent(env.event('click'));
+  await settle(); await settle();
+  assert.equal(urlParams(env).get('view'), null);
+  assert.equal(env.root.querySelector('textarea'), null);
+  env.cleanup();
+});
+
+test('the explorer opens .gitignore with the same editor, but without the .mctignore-only options', async () => {
+  const requests = [];
+  const files = { mctignore: 'docs/\n', gitignore: 'target/\n' };
+  const fetch = async (url, options) => {
+    if (url.pathname.split('/').at(-1) !== 'ignore') return defaultApi(url);
+    if (options?.method === 'POST') {
+      const { content } = JSON.parse(options.body);
+      files.gitignore = content;
+      return { file: 'gitignore', content, exists: true, directive: '@import-gitignore', template: 'starter', command: 'mct', maxBytes: 4096, gitignorePresent: true };
+    }
+    const file = url.searchParams.get('file');
+    requests.push(file);
+    return { file, content: files[file], exists: true, directive: '@import-gitignore', template: 'starter', command: 'mct', maxBytes: 4096, gitignorePresent: true };
+  };
+  const env = harness({ hash: '#/espacio', fetch });
+  const { render } = await env.load('page-workspace.js');
+  env.cleanup = await render({ root: env.root, params: new URLSearchParams('') });
+  await settle();
+  const button = (text) => [...env.root.querySelectorAll('.explorer button')].find(el => el.textContent.includes(text));
+  button('.gitignore').dispatchEvent(env.event('click'));
+  await settle(); await settle();
+  assert.equal(urlParams(env).get('view'), 'gitignore');
+  assert.deepEqual(requests, ['gitignore']);
+  assert.equal(env.root.querySelector('textarea').value, 'target/\n');
+  assert.equal(button('.gitignore').getAttribute('aria-pressed'), 'true');
+  assert.equal(button('.mctignore').getAttribute('aria-pressed'), 'false');
+  // Save and discard stay; the import toggle and the starter template are .mctignore's own.
+  const card = [...env.root.querySelectorAll('section.card button')].map(el => el.textContent.trim());
+  assert.deepEqual(card, ['Save .gitignore', 'Discard changes']);
+  // Saving says to wait: the dashboard reindexes on its own and the page redraws when it is done.
+  const status = () => env.root.querySelector('section.card [role=status]');
+  assert.equal(status().textContent, '');
+  const area = env.root.querySelector('textarea');
+  area.value = 'target/\n*.log\n';
+  area.dispatchEvent(env.event('input'));
+  env.root.querySelector('section.card .btn.primary').dispatchEvent(env.event('click'));
+  await settle(); await settle();
+  assert.match(status().textContent, /Wait up to a minute/);
+  area.value = 'target/\n';
+  area.dispatchEvent(env.event('input'));
+  assert.equal(status().textContent, '', 'editing again clears it');
+  button('.mctignore').dispatchEvent(env.event('click'));
+  await settle(); await settle();
+  assert.equal(urlParams(env).get('view'), 'ignore');
+  assert.equal(env.root.querySelector('textarea').value, 'docs/\n');
+  env.cleanup();
+});
+
+test('right-click in the explorer copies the path from the project root of a folder, a file and the folder holding it', async () => {
+  const copied = [];
+  const fetch = async (url) => (url.pathname.split('/').at(-1) === 'files' ? { files: [['src/a.rs', 'rust', 1]] } : defaultApi(url));
+  const env = harness({ hash: '#/espacio', fetch });
+  env.context.navigator.clipboard.writeText = async (text) => { copied.push(text); };
+  const { render } = await env.load('page-workspace.js');
+  env.cleanup = await render({ root: env.root, params: new URLSearchParams('') });
+  await settle();
+  const node = (title) => [...env.root.querySelectorAll('.tree button.node')].find(el => el.title === title);
+  const pick = async (title, index) => {
+    node(title).dispatchEvent(env.event('contextmenu', { clientX: 5, clientY: 5 }));
+    const items = [...env.document.querySelectorAll('.context-menu [role=menuitem]')];
+    items[index].dispatchEvent(env.event('click'));
+    await settle();
+    assert.equal(env.document.querySelector('.context-menu'), null, 'choosing closes the menu');
+    return items.length;
+  };
+  assert.equal(await pick('src', 0), 1);
+  assert.equal(await pick('src/a.rs', 0), 2);
+  assert.equal(await pick('src/a.rs', 1), 2);
+  assert.deepEqual(copied, ['src', 'src/a.rs', 'src']);
+  env.cleanup();
+});
