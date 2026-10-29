@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ("Confirmar duplicado", "Ignorar código muerto"), the placeholder project
   picker, the empty "indexing duration" card and the disabled Obsidian
   edit/open buttons are gone, numbers group consistently (1.406), search sort
-  and save appear only where they work, a favicon stops the 404, the workspace explorer opens as a drawer on narrow screens, and a test
+  and save appear only where they work, a favicon stops the 404, the bell counter meets contrast in the dark theme, note cards use a valid ARIA attribute, the sidebar landmark is labelled, the workspace explorer opens as a drawer on narrow screens, and a test
   keeps both dictionaries in sync and free of dead keys.
 - `mct-cli web` now serves a stable `http://localhost:<port>/` URL with no key.
   The port is remembered per project in `.mct-index/web-port` and reused while

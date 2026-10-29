@@ -10,7 +10,7 @@ export const en = {
   "common.pathCopied": "Path copied", "common.copyPath": "Copy path", "common.duplicate": "Duplicate", "common.deadCode": "Dead code", "common.finding": "Finding", "common.noData": "No data", "common.skip": "Skip to content",
   "nav.label": "Main navigation", "nav.open": "Open navigation", "nav.panel": "Dashboard", "nav.codigo": "Indexed code", "nav.duplicados": "Duplicates", "nav.muerto": "Dead code",
   "nav.busqueda": "Search", "nav.dependencias": "Dependencies", "nav.revisiones": "Reviews", "nav.estadisticas": "Statistics", "nav.obsidian": "Obsidian", "nav.configuracion": "Settings",
-  "sidebar.collapse": "Collapse menu",
+  "sidebar.label": "Sidebar", "sidebar.collapse": "Collapse menu",
   "header.repo": "Active repository", "header.workspace": "File detail", 
   "header.refresh": "Refresh data", "header.refreshed": "Data reloaded. To reindex, run “mct-cli reindex” and restart this server.", 
   "header.language": "Language", 

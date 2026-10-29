@@ -44,7 +44,7 @@ function applyStatus() {
     ctx.meta.indexing.lastIndexedAt && h("span", { class: "muted hide-sm", title: dateTime(ctx.meta.indexing.lastIndexedAt) }, `· ${ago(ctx.meta.indexing.lastIndexedAt)}`));
   status.title = t("status.tooltip");
   bell.querySelector(".count")?.remove();
-  if (notices.length) bell.append(h("span", { class: "count", style: { position: "absolute", top: "4px", right: "4px", background: "var(--danger)", color: "#fff", borderRadius: "999px", fontSize: "10px", padding: "0 5px" } }, notices.length));
+  if (notices.length) bell.append(h("span", { class: "count bell-count" }, notices.length));
 }
 
 function setTheme(choice) { store.set("theme", choice); applyTheme(choice); }
@@ -113,7 +113,7 @@ function buildShell() {
   ctx.search = search;
   const toggleSidebar = () => { shell.classList.toggle("collapsed"); store.set("sidebar-collapsed", shell.classList.contains("collapsed")); };
   shell = h("div", { class: `shell ${collapsed ? "collapsed" : ""}` },
-    h("aside", { class: "sidebar" },
+    h("aside", { class: "sidebar", "aria-label": t("sidebar.label") },
       h("a", { class: "brand", href: hrefTo("panel") }, h("span", { class: "logo" }, icon("bolt", 17)), h("span", {}, "MCT")),
       nav,
       h("div", { class: "nav-foot" },

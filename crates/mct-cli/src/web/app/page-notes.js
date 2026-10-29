@@ -51,7 +51,7 @@ export async function render({ root, params: initial }) {
     clear(chipsHost).append(activeChips(chips, clearAll) || "");
   }
 
-  const noteCard = (n) => h("button", { class: "note-card", "data-path": n.path, "aria-selected": String(n.path === selected), onclick: () => patchQuery({ note: n.path }) },
+  const noteCard = (n) => h("button", { class: "note-card", "data-path": n.path, "aria-current": String(n.path === selected), onclick: () => patchQuery({ note: n.path }) },
     h("span", { class: "kind-ico tone-primary" }, icon("note", 15)),
     h("span", { style: { minWidth: 0, flex: 1 } }, h("strong", { class: "ellipsis", style: { display: "block" } }, n.title), h("span", { class: "muted small ellipsis", style: { display: "block" } }, n.path),
       h("span", { class: "row", style: { gap: "4px", marginTop: "4px" } }, n.tags.slice(0, 3).map((tag) => badge(`#${tag}`, "primary")), n.symbolCount != null && badge(t("obs.symbols", { n: n.symbolCount }), "info"), n.backlinks > 0 && badge(t("obs.backlinksN", { n: n.backlinks }), "accent"))),
@@ -116,7 +116,7 @@ export async function render({ root, params: initial }) {
   async function showNote(path) {
     selected = path;
     cancelApi("note");
-    root.querySelectorAll(".note-card").forEach((el) => el.setAttribute("aria-selected", "false"));
+    root.querySelectorAll(".note-card").forEach((el) => el.setAttribute("aria-current", "false"));
     if (!path) { clear(viewer).append(h("div", { class: "card inspector" }, emptyState({ iconName: "note", title: t("obs.pickTitle"), text: t("obs.pickText") }))); return; }
     clear(viewer).append(h("div", { class: "card inspector" }, loading()));
     try {
@@ -161,7 +161,7 @@ export async function render({ root, params: initial }) {
     search.sync(params.get("q") || "");
     const sel = params.get("note");
     if (sel !== selected) { showNote(sel); if (graph && sel) graph.select(sel); }
-    root.querySelectorAll(".note-card").forEach((el) => el.setAttribute("aria-selected", String(el.dataset.path === sel)));
+    root.querySelectorAll(".note-card").forEach((el) => el.setAttribute("aria-current", String(el.dataset.path === sel)));
     if (stable(params) !== lastQuery) { lastQuery = stable(params); drawChips(params); drawList(params); }
   });
   return () => { listGeneration += 1; graphGeneration += 1; off(); graph?.destroy(); cancelApi("notes"); cancelApi("ngraph"); cancelApi("facets"); cancelApi("note"); search.destroy(); };

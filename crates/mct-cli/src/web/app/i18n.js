@@ -13,7 +13,7 @@ const es = {
   "common.pathCopied": "Ruta copiada", "common.copyPath": "Copiar ruta", "common.duplicate": "Duplicado", "common.deadCode": "Código muerto", "common.finding": "Hallazgo", "common.noData": "Sin datos", "common.skip": "Saltar al contenido",
   "nav.label": "Navegación principal", "nav.open": "Abrir navegación", "nav.panel": "Dashboard", "nav.codigo": "Código indexado", "nav.duplicados": "Duplicados", "nav.muerto": "Código muerto",
   "nav.busqueda": "Búsqueda", "nav.dependencias": "Dependencias", "nav.revisiones": "Revisiones", "nav.estadisticas": "Estadísticas", "nav.obsidian": "Obsidian", "nav.configuracion": "Configuración",
-  "sidebar.collapse": "Contraer menú",
+  "sidebar.label": "Barra lateral", "sidebar.collapse": "Contraer menú",
   "header.repo": "Repositorio activo", "header.workspace": "Archivo en detalle", 
   "header.language": "Idioma", "header.refresh": "Refrescar datos", "header.refreshed": "Datos recargados. Para reindexar, ejecuta «mct-cli reindex» y reinicia este servidor.", 
   "status.ready": "Listo", "status.stale": "Desactualizado", "status.failed": "Fallido", "status.unknown": "Sin registro", "status.indexing": "Indexando", "status.paused": "Pausado",
