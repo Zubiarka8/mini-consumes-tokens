@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-30
+
+### Upgrading from 0.2.0
+
+- MCP tools that accept `format` now return TOON by default. Pass `format: text` if your client parses the previous text output.
+- Schema migration 11 reparses indexed files. Older binaries cannot open a migrated index; reinstall the current binaries and reindex before using them.
+- Review decisions are saved to the shared version 3 store. Older binaries do not see newly saved decisions; avoid switching between versions when reviewing findings.
+
+### Added
+
+- The official website now includes the project logo and a light, dark, or system theme selector.
+
 ### Changed
 
 - `mct-cli web` now serves a stable `http://localhost:<port>/` URL with no key.
@@ -25,8 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dark and light themes, responsive, keyboard accessible) with Dashboard,
   indexed code, duplicates with side-by-side compare, dead code, search,
   dependency graph, reviews, statistics, Obsidian notes, unified workspace and
-  settings. Review decisions gain notes and append-only history (store v2,
-  v1 files upgrade in place). Server-rendered pages and the form `POST review`
+  settings. Review decisions gain notes and append-only history. Server-rendered pages and the form `POST review`
   are replaced by `POST api/review` (JSON). Features the index cannot back
   (history, semantic search, tokens, confidence) are shown as unavailable. See
   `docs/01-architecture/web-dashboard.md`.
@@ -154,16 +165,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Navigation snapshots filter excluded stale rows and reject unreadable project
   rules, keeping file/symbol/import views aligned with current exclusions.
 
-- `mct-cli web` serves one local website linking the SQLite metadata atlas and
-  duplicate-code review. Includes directory navigation, path/symbol filtering,
-  pagination, file/group cross-links and full TOON evidence/downloads. Opens
-  the existing index read-only; optionally regenerates the Obsidian vault
-  (default, warning on failure; `--no-obsidian` skips it). Supports `--port`,
-  loopback binding, a private random URL, Host/Origin checks and bounded HTTP
-  requests. No automatic browser launch, raw file serving or index/source mutation endpoint. Review preferences use a
-  dedicated protected POST endpoint.
-  Restart after reindexing to refresh the startup snapshot. See ADR-014.
-
 - Obsidian vault: `init`, `reindex` and the MCP server's background refresh now
   also write `.mct-index/obsidian/` (a root index, directory maps and per-source-file
   notes listing imports and symbols; source text is not copied). New
@@ -277,10 +278,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (no `--force` needed). A binary from before this change cannot open a
   migrated index (`CONNECTION_CLOSED`): run `scripts/unix/reinstall.sh
   --reindex`.
-- `website/`: the official landing page, an interactive 3D atlas of the
-  project's own index with a full-screen scroll tour of the MCP tools. It is
-  not part of the released binaries; `npm run preview` builds and serves it
-  locally (see `website/README.md`).
+- `website/`: the official landing page and documentation. The site is not
+  part of the released binaries (see `website/README.md`).
 - Labeled duplicate-report corpus (`benchmarks/token-twins-labels/`, 31
   human-labeled Python/Rust groups and 3 partial blocks with negatives) and a
   standard-library scorer (`benchmarks/score_duplicate_labels.py`) that reports
