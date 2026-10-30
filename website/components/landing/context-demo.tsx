@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Combobox } from "@base-ui/react/combobox";
 import { ArrowRight, ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -90,6 +90,7 @@ function buildLines(query: number) {
 
 export function ContextDemo() {
   const { t } = useTranslation();
+  const queryId = useId();
   const [focused, setFocused] = useState(false);
   const [query, setQuery] = useState("0");
   const lines = buildLines(Number(query));
@@ -108,11 +109,15 @@ export function ContextDemo() {
           openOnInputClick
           itemToStringLabel={(id) => t(`demoQuery${id}`)}
         >
-          <Combobox.Label className="demo-combo-label">
+          <label className="demo-combo-label" htmlFor={queryId}>
             {t("demoQueryLabel")}
-          </Combobox.Label>
+          </label>
           <Combobox.InputGroup className="demo-combo">
-            <Combobox.Input className="demo-combo-input" readOnly />
+            <Combobox.Input
+              id={queryId}
+              className="demo-combo-input"
+              readOnly
+            />
             <Combobox.Trigger
               className="demo-combo-trigger"
               aria-label={t("demoQueryLabel")}

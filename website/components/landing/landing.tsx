@@ -10,12 +10,15 @@ import {
 } from "lucide-react";
 import { MotionConfig, motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
+import { useTheme } from "fumadocs-ui/provider/base";
+import { useSyncExternalStore } from "react";
 import { basePath } from "@/lib/shared";
 import { localeKey } from "./locale";
 import { ContextDemo } from "./context-demo";
 import { Atlas } from "./atlas";
 import { CopyCommand, setupCommands } from "./copy-command";
 const repository = "https://github.com/Zubiarka8/mini-consumes-tokens";
+const subscribe = () => () => {};
 function DocsLink({
   children,
   className = "atlas-button",
@@ -32,6 +35,12 @@ function DocsLink({
 }
 export function Landing() {
   const { t, i18n } = useTranslation();
+  const { theme, setTheme } = useTheme();
+  const mounted = useSyncExternalStore(
+    subscribe,
+    () => true,
+    () => false,
+  );
   const reduced = useReducedMotion();
   function changeLanguage(language: string) {
     void i18n.changeLanguage(language);
@@ -49,7 +58,12 @@ export function Landing() {
         </a>
         <header className="landing-header shell">
           <Link href="/" className="brand" aria-label="mini-consumes-tokens">
-            <Network size={26} strokeWidth={1.4} aria-hidden />
+            <img
+              src={`${basePath}/img/logo.png`}
+              alt=""
+              width={40}
+              height={40}
+            />
             <span>mini-consumes-tokens</span>
           </Link>
           <nav aria-label={t("nav")}>
@@ -57,6 +71,18 @@ export function Landing() {
             <a href="#capabilities">{t("capabilities")}</a>
           </nav>
           <div className="header-actions">
+            <label className="theme-control">
+              <span className="sr-only">{t("theme")}</span>
+              <select
+                aria-label={t("theme")}
+                value={mounted ? theme : "system"}
+                onChange={(event) => setTheme(event.target.value)}
+              >
+                <option value="system">{t("themeSystem")}</option>
+                <option value="light">{t("themeLight")}</option>
+                <option value="dark">{t("themeDark")}</option>
+              </select>
+            </label>
             <label className="locale-control">
               <span className="sr-only">{t("language")}</span>
               <select
@@ -296,7 +322,12 @@ export function Landing() {
         </main>
         <footer className="landing-footer shell">
           <div>
-            <Network size={24} aria-hidden />
+            <img
+              src={`${basePath}/img/logo.png`}
+              alt=""
+              width={40}
+              height={40}
+            />
             <p>{t("footer")}</p>
           </div>
           <div>
