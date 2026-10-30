@@ -139,13 +139,17 @@
   gap: 25px;
   font-size: 13px;
 }
-.locale-control select {
+.locale-control select,
+.theme-control select {
   appearance: auto;
   background: transparent;
   color: var(--ink);
   border: 0;
   min-height: 44px;
   max-width: 120px;
+}
+.theme-control select {
+  max-width: 110px;
 }
 .header-docs {
   display: flex;
@@ -615,6 +619,7 @@
 }
 .faq summary {
   display: flex;
+  color: var(--ink);
   align-items: center;
   justify-content: space-between;
   gap: 20px;
@@ -766,7 +771,8 @@
   .header-docs svg {
     width: 14px;
   }
-  .locale-control select {
+  .locale-control select,
+  .theme-control select {
     font-size: 11px;
     max-width: 100px;
   }
@@ -871,6 +877,7 @@
   }
   .header-actions {
     gap: 4px;
+    flex-wrap: wrap;
   }
   .brand {
     font-size: 12px;
@@ -891,6 +898,100 @@
   .context-pack dl {
     font-size: 9px;
   }
+}
+
+/* The documentation and landing page share Fumadocs' persisted theme. */
+.dark .landing {
+  --rule: #484b49;
+  background: #151616;
+  color: #eef2e8;
+}
+.dark .landing-header,
+.dark .landing-footer {
+  border-color: var(--rule);
+}
+.dark .locale-control select,
+.dark .theme-control select {
+  color: #eef2e8;
+  color-scheme: dark;
+}
+.dark .landing h1 span,
+.dark .tiny-cross,
+.dark .cap-branch,
+.dark .cap-number,
+.dark .cap-list code,
+.dark .faq summary span {
+  color: #b0d897;
+}
+.dark .landing a:hover {
+  color: #c3e8ac;
+}
+.dark .hero-actions .atlas-button {
+  background: #b0d897;
+  border-color: #b0d897;
+  color: #151616;
+}
+.dark .hero-actions .atlas-button:hover {
+  background: #c3e8ac;
+  border-color: #c3e8ac;
+  color: #151616;
+}
+.dark .hero-actions .text-link {
+  padding: 14px 22px;
+  border: 1px solid #a4b1a4;
+  color: #eef2e8;
+}
+.dark .hero-actions .text-link:hover {
+  background: #303631;
+  border-color: #c3e8ac;
+  color: #c3e8ac;
+}
+.dark .body-copy,
+.dark .hero-intro,
+.dark .hero-note,
+.dark .hero-coordinate,
+.dark .principle-bar p,
+.dark .comparison-row p,
+.dark .caption,
+.dark .cap-list p,
+.dark .faq details p,
+.dark .landing-footer,
+.dark .command-row > p {
+  color: #c1cfc2;
+}
+.dark .principle-bar,
+.dark .getting-started {
+  background: #222423;
+}
+.dark .comparison-row {
+  border-color: #555956;
+}
+.dark .comparison-after {
+  background: #292d2b;
+}
+.dark .faq summary {
+  color: #eef2e8;
+}
+.dark .faq details {
+  border-color: #788f78;
+}
+.dark .getting-started .command-row span,
+.dark .prompting .command-row span,
+.dark .command-row span {
+  color: #c1d6bb;
+}
+.dark .command-row {
+  border-color: #555956;
+}
+.dark .command-row button {
+  color: inherit;
+  border-color: #788f78;
+}
+.dark .command-row button:hover {
+  background: #363a37;
+}
+.dark .context-demo {
+  box-shadow: 8px 8px 0 #383c39;
 }
 @media (prefers-reduced-motion: reduce) {
   .landing * {
