@@ -1,0 +1,1 @@
+return { sides = 4 }
