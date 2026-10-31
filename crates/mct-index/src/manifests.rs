@@ -15,11 +15,13 @@
 
 mod go;
 mod javascript;
+pub(crate) mod lua;
 mod python;
 mod rust;
 
 use go::parse_go_mod;
 use javascript::parse_package_json;
+use lua::parse_rockspec;
 use python::parse_requirements_txt;
 use rust::parse_cargo_toml;
 
@@ -37,8 +39,15 @@ pub fn manifest_language(file_name: &str) -> Option<&'static str> {
         "package.json" => Some("javascript_typescript"),
         "requirements.txt" => Some("python"),
         "go.mod" => Some("go"),
+        name if is_rockspec(name) => Some("lua"),
         _ => None,
     }
+}
+
+/// A LuaRocks manifest is named `<package>-<version>-<revision>.rockspec`, so
+/// it is recognized by its extension rather than by an exact file name.
+pub(crate) fn is_rockspec(file_name: &str) -> bool {
+    file_name.ends_with(".rockspec") && file_name.len() > ".rockspec".len()
 }
 
 /// One entry per dependency name: a name declared in several sections
@@ -54,8 +63,14 @@ pub fn parse_manifest(file_name: &str, contents: &str) -> Vec<ManifestDependency
         "package.json" => parse_package_json(contents),
         "requirements.txt" => parse_requirements_txt(contents),
         "go.mod" => parse_go_mod(contents),
+        name if is_rockspec(name) => parse_rockspec(contents),
         _ => Vec::new(),
     };
+    dedupe_by_name(deps)
+}
+
+/// The first entry of each name, in order.
+pub(crate) fn dedupe_by_name(deps: Vec<ManifestDependency>) -> Vec<ManifestDependency> {
     let mut seen = std::collections::HashSet::new();
     deps.into_iter()
         .filter(|d| seen.insert(d.name.clone()))
@@ -173,6 +188,53 @@ mod tests {
             .iter()
             .any(|d| d.name == "github.com/single/dep" && d.version.as_deref() == Some("v2.0.0")));
         assert_eq!(deps.len(), 3);
+    }
+
+    #[test]
+    fn rockspec_reads_dependency_tables_and_skips_the_interpreter() {
+        let deps = parse_manifest(
+            "demo-1.0-1.rockspec",
+            r#"
+package = "demo"
+version = "1.0-1"
+external_dependencies = {
+   OPENSSL = { header = "openssl/ssl.h" },
+}
+dependencies = {
+   "lua >= 5.1, < 5.5",
+   "luasocket ~> 3.0",  -- network
+   'lpeg',
+}
+build_dependencies = { "luarocks-build-rust-mlua >= 0.2" }
+test_dependencies = {
+   "busted 2.1.1",
+}
+"#,
+        );
+        assert!(deps
+            .iter()
+            .any(|d| d.name == "luasocket" && d.version.as_deref() == Some("~> 3.0")));
+        assert!(deps.iter().any(|d| d.name == "lpeg" && d.version.is_none()));
+        assert!(deps.iter().any(
+            |d| d.name == "luarocks-build-rust-mlua" && d.version.as_deref() == Some(">= 0.2")
+        ));
+        assert!(deps
+            .iter()
+            .any(|d| d.name == "busted" && d.version.as_deref() == Some("2.1.1")));
+        assert_eq!(
+            deps.len(),
+            4,
+            "`lua` and external headers are not packages: {deps:?}"
+        );
+        assert_eq!(manifest_language("demo-1.0-1.rockspec"), Some("lua"));
+        assert_eq!(manifest_language(".rockspec"), None);
+    }
+
+    #[test]
+    fn malformed_rockspec_returns_empty_not_panic() {
+        assert!(parse_manifest("x-1-1.rockspec", "dependencies = { \"unterminated").is_empty());
+        assert!(parse_manifest("x-1-1.rockspec", "dependencies = ").is_empty());
+        assert!(parse_manifest("x-1-1.rockspec", "").is_empty());
     }
 
     #[test]

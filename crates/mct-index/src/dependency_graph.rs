@@ -93,6 +93,17 @@ impl Index {
         depth: u32,
         limit: usize,
     ) -> Result<DependencyGraph> {
+        Ok(self.walk_dependency_graph(module, depth, limit)?.0)
+    }
+
+    /// The walk behind [`Index::dependency_graph`], which also returns, for
+    /// each external import name, the files that import it.
+    pub(crate) fn walk_dependency_graph(
+        &self,
+        module: &str,
+        depth: u32,
+        limit: usize,
+    ) -> Result<(DependencyGraph, BTreeMap<String, BTreeSet<String>>)> {
         let root = module.trim().replace('\\', "/");
         let root = root.trim_end_matches('/').to_string();
         let mut graph = DependencyGraph {
@@ -101,7 +112,7 @@ impl Index {
         };
         let root_files = self.module_files(&root)?;
         if root_files.is_empty() {
-            return Ok(graph);
+            return Ok((graph, BTreeMap::new()));
         }
         let depth = depth.clamp(1, MAX_QUERY_DEPTH);
         let limit = limit.max(1);
@@ -117,7 +128,7 @@ impl Index {
         let mut visited: BTreeMap<String, u32> = BTreeMap::new();
         visited.insert(root.clone(), 0);
         graph.nodes.push(root.clone());
-        let mut external = BTreeSet::new();
+        let mut external: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
         let mut frontier = vec![root.clone()];
 
         for hop in 1..=depth {
@@ -139,7 +150,7 @@ impl Index {
                                 }
                             }
                             ImportTarget::External(name) => {
-                                external.insert(name);
+                                external.entry(name).or_default().insert(file.clone());
                             }
                             ImportTarget::Ambiguous => {}
                         }
@@ -178,8 +189,8 @@ impl Index {
         graph
             .edges
             .sort_by(|a, b| (a.depth, &a.from, &a.to).cmp(&(b.depth, &b.from, &b.to)));
-        graph.external = external.into_iter().collect();
-        Ok(graph)
+        graph.external = external.keys().cloned().collect();
+        Ok((graph, external))
     }
 
     /// Indexed files making up the module `path`: the file itself, or every
