@@ -17,7 +17,7 @@ use mct_lang_lua::LuaParser;
 mct_corpus::standard_tests!(LuaParser);
 
 use RelationKind::{Calls, Imports};
-use SymbolKind::{Function, Method, Module};
+use SymbolKind::{Class, Function, Method, Module};
 
 fn parent<'a>(path: &str, name: &str, kind: SymbolKind) -> Option<&'a str> {
     corpus().symbol(path, name, kind).parent.as_deref()
@@ -25,8 +25,9 @@ fn parent<'a>(path: &str, name: &str, kind: SymbolKind) -> Option<&'a str> {
 
 #[test]
 fn table_modules_and_their_functions_are_extracted() {
-    // `local M = {}` and `local Money = {}` are modules.
-    assert_eq!(parent("money.lua", "Money", Module), None);
+    // `local M = {}` is a module; `local Money = {}` with `Money.__index =
+    // Money` is a class.
+    assert_eq!(parent("money.lua", "Money", Class), None);
     assert_eq!(parent("ratelimit.lua", "_M", Module), None);
     // `function M.of()` and `function Money:plus()` are methods of the table.
     assert_eq!(parent("money.lua", "of", Method), Some("M"));
