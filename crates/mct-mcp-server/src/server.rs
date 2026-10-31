@@ -2715,8 +2715,17 @@ impl MctServer {
         let _snapshot = index.read_snapshot().map_err(index_error)?;
         let status = index.status().map_err(index_error)?;
         let mut text = format::index_status(&status, verbose_dependencies);
-        if let Some(name) = optional_arg(dependency.as_ref()) {
+        let dependency_name = optional_arg(dependency.as_ref());
+        if let Some(name) = dependency_name {
             text.push_str(&format::dependency_declarations(&status, name));
+        }
+        // The installed/pinned side of a rockspec is read from disk, so it is
+        // only paid for when dependencies were asked for.
+        if verbose_dependencies || dependency_name.is_some() {
+            let report = index
+                .rockspec_report(dependency_name)
+                .map_err(index_error)?;
+            text.push_str(&format::rockspec_report(&report));
         }
         // The query cache's counters, once it has answered anything — an idle
         // or disabled cache leaves the report as it always was.
@@ -2947,11 +2956,11 @@ impl MctServer {
             }
         };
 
-        let graph = {
+        let (graph, origins) = {
             let index = self.index.lock().await;
             let _snapshot = index.read_snapshot().map_err(index_error)?;
             index
-                .dependency_graph(&module, depth, limit)
+                .dependency_graph_with_origins(&module, depth, limit)
                 .map_err(file_tree_error)?
         };
         let edges: Vec<(String, String)> = graph
@@ -2972,6 +2981,7 @@ impl MctServer {
             OutputFormat::Text => format::dependency_graph(&graph, &cycles, export_arg),
             OutputFormat::Toon => format::dependency_graph_toon(&graph, &cycles, export_arg),
         };
+        let text = format!("{text}{}", format::external_origins(&origins));
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 

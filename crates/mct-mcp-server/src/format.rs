@@ -1602,6 +1602,311 @@ fn printable(text: &str) -> String {
         .collect()
 }
 
+/// Untrusted text (names, constraints, paths and reasons read from rockspecs
+/// and trees) made safe for one line of output: control characters become
+/// `?` and the length is capped.
+fn lr_clean(text: &str) -> String {
+    const CAP: usize = 160;
+    let mut out: String = printable(text).chars().take(CAP).collect();
+    if text.chars().count() > CAP {
+        out.push('…');
+    }
+    out
+}
+
+fn lr_source(status: &mct_index::luarocks::SourceStatus) -> String {
+    use mct_index::luarocks::SourceStatus as S;
+    match status {
+        S::Read => "read".into(),
+        S::Missing => "not present".into(),
+        S::Unreadable(why) => format!("unreadable ({})", lr_clean(why)),
+        S::TooLarge => "too large to read".into(),
+        S::Corrupt(why) => format!("not usable ({})", lr_clean(why)),
+        S::NotInspected => "not inspected".into(),
+    }
+}
+
+fn lr_completeness(c: &mct_index::luarocks::Completeness) -> String {
+    use mct_index::luarocks::Completeness as C;
+    match c {
+        C::Complete => "complete".into(),
+        C::Incomplete(why) => format!("INCOMPLETE ({})", lr_clean(why)),
+        C::Unreadable(why) => format!("UNREADABLE ({})", lr_clean(why)),
+    }
+}
+
+fn lr_versions(versions: &[mct_index::luarocks::InstalledVersion]) -> String {
+    versions
+        .iter()
+        .map(|v| {
+            format!(
+                "{} (lua {}, {})",
+                lr_clean(&v.version),
+                lr_clean(&v.lua),
+                lr_clean(&v.tree)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// Renders the LuaRocks detail that `get_indexing_status` appends when
+/// dependencies are requested: declared, installed and pinned, per rockspec.
+pub fn rockspec_report(report: &mct_index::luarocks::RockspecReport) -> String {
+    use mct_index::luarocks::{Installed, Pin, Presence, Satisfaction};
+    if report.rockspecs.is_empty() {
+        return String::new();
+    }
+    let mut out = String::from(
+        "LuaRocks detail (read statically; nothing is executed, installed or fetched):\n",
+    );
+    for spec in &report.rockspecs {
+        let title = match (&spec.package, &spec.version) {
+            (Some(p), Some(v)) => format!("{} {}", lr_clean(p), lr_clean(v)),
+            (Some(p), None) => lr_clean(p),
+            _ => "package unknown".to_string(),
+        };
+        out.push_str(&format!(
+            "  {} ({title}) - declarations {}\n",
+            lr_clean(&spec.path),
+            lr_completeness(&spec.completeness)
+        ));
+        for section in &spec.sections {
+            if section.completeness != mct_index::luarocks::Completeness::Complete {
+                out.push_str(&format!(
+                    "    section {}: {}\n",
+                    section.section,
+                    lr_completeness(&section.completeness)
+                ));
+            }
+        }
+        if let Some(why) = &spec.last_read_failure {
+            out.push_str(&format!(
+                "    possibly stale: the rockspec could not be read on the last run ({}); \
+                 the data below is from an earlier read\n",
+                lr_clean(why)
+            ));
+        }
+        if spec.stores.is_empty() {
+            out.push_str("    trees: no project-local LuaRocks tree found\n");
+        }
+        for store in &spec.stores {
+            out.push_str(&format!(
+                "    tree {} (lua {}): {}\n",
+                lr_clean(&store.tree),
+                lr_clean(&store.lua),
+                lr_source(&store.status)
+            ));
+        }
+        out.push_str(&format!("    lockfile: {}\n", lr_source(&spec.lockfile)));
+        for note in &spec.notes {
+            out.push_str(&format!("    note: {}\n", lr_clean(note)));
+        }
+        for dep in &spec.dependencies {
+            let constraint = match (&dep.constraint, dep.constraint_recognised) {
+                (Some(c), true) => format!(" {}", lr_clean(c)),
+                (Some(c), false) => format!(" {} (constraint not recognised)", lr_clean(c)),
+                (None, _) => String::new(),
+            };
+            let platform = dep
+                .platform
+                .as_ref()
+                .map(|p| {
+                    format!(
+                        " [declared under platform `{}`; not evaluated]",
+                        lr_clean(p)
+                    )
+                })
+                .unwrap_or_default();
+            out.push_str(&format!(
+                "    [{}] {}{constraint}{platform}\n",
+                lr_clean(&dep.scope),
+                lr_clean(&dep.name)
+            ));
+            let installed = match &dep.installed {
+                Installed::Unknown(why) => format!("unknown ({})", lr_clean(why)),
+                Installed::NotFound => {
+                    "not found in the project-local trees (user and system trees not inspected)"
+                        .into()
+                }
+                Installed::Found { versions, complete } => format!(
+                    "{}{}",
+                    lr_versions(versions),
+                    if *complete {
+                        ""
+                    } else {
+                        " (incomplete: other sources unread)"
+                    }
+                ),
+            };
+            let satisfied = match &dep.satisfaction {
+                Satisfaction::Unknown(why) => format!("unknown ({})", lr_clean(why)),
+                Satisfaction::NotInstalled => "no installed version".into(),
+                Satisfaction::Satisfied(v) => format!("met by {}", v.join(", ")),
+                Satisfaction::Unsatisfied(v) => format!("not met by {}", v.join(", ")),
+            };
+            let pinned = match &dep.pin {
+                Pin::NoLockfile => "no lockfile".into(),
+                Pin::Unknown(why) => format!("unknown ({})", lr_clean(why)),
+                Pin::NotPinned => "not pinned".into(),
+                Pin::Pinned {
+                    version,
+                    installed,
+                    satisfies,
+                } => format!(
+                    "{}; installed: {}; meets constraint: {}",
+                    lr_clean(version),
+                    match installed {
+                        Presence::Yes => "yes",
+                        Presence::No => "no",
+                        Presence::Unknown => "unknown",
+                    },
+                    match satisfies {
+                        Some(true) => "yes",
+                        Some(false) => "no",
+                        None => "unknown",
+                    }
+                ),
+            };
+            out.push_str(&format!(
+                "        installed: {installed}\n        constraint: {satisfied}\n        pinned: {pinned}\n"
+            ));
+        }
+        for module in &spec.modules {
+            let target = match (&module.path, module.native) {
+                (Some(p), true) => format!("{} (native)", lr_clean(p)),
+                (Some(p), false) => lr_clean(p),
+                (None, _) => "no file named".to_string(),
+            };
+            let source = if module.source == "build.install.lua" {
+                " [build.install.lua: interpretation validated only for LuaRocks 3.13.0, build type none]"
+            } else {
+                ""
+            };
+            let platform = module
+                .platform
+                .as_ref()
+                .map(|p| format!(" [platform `{}`; not evaluated]", lr_clean(p)))
+                .unwrap_or_default();
+            out.push_str(&format!(
+                "    module {} -> {target}{source}{platform}\n",
+                lr_clean(&module.name)
+            ));
+        }
+    }
+    out.push_str(
+        "  Resolution note: LuaRocks picks the effective version at run time (loader context, tree order, highest version); \
+         this report only says what is declared, installed beside the project, pinned and compatible.\n",
+    );
+    out
+}
+
+/// Renders where each external Lua import comes from, appended to
+/// `get_dependency_graph`'s output.
+pub fn external_origins(origins: &[mct_index::luarocks::ExternalOrigin]) -> String {
+    use mct_index::luarocks::Declaration;
+    if origins.is_empty() {
+        return String::new();
+    }
+    let mut out =
+        String::from("external import origins (Lua; LuaRocks metadata read statically):\n");
+    for origin in origins {
+        let importers = origin
+            .importers
+            .iter()
+            .take(3)
+            .map(|f| lr_clean(f))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let more = origin.importers.len().saturating_sub(3);
+        out.push_str(&format!(
+            "  {} (imported by {importers}{})\n",
+            lr_clean(&origin.name),
+            if more > 0 {
+                format!(" and {more} more")
+            } else {
+                String::new()
+            }
+        ));
+        if origin.rockspecs.is_empty() {
+            out.push_str("    no rockspec covers the importing file(s): origin unknown\n");
+        }
+        for spec in &origin.rockspecs {
+            out.push_str(&format!("    {}:\n", lr_clean(&spec.rockspec)));
+            for module in &spec.project_modules {
+                let target = module.path.as_deref().map(lr_clean).unwrap_or_default();
+                out.push_str(&format!(
+                    "      project module `{}` -> {target}{} (from {})\n",
+                    lr_clean(&module.name),
+                    if module.native { " (native)" } else { "" },
+                    lr_clean(&module.source)
+                ));
+            }
+            for provider in &spec.providers {
+                let declaration = match &provider.declaration {
+                    Declaration::Declared {
+                        scopes,
+                        constraints,
+                    } => format!(
+                        "declared [{}]{}",
+                        scopes.join(", "),
+                        if constraints.is_empty() {
+                            String::new()
+                        } else {
+                            format!(
+                                " {}",
+                                constraints
+                                    .iter()
+                                    .map(|c| lr_clean(c))
+                                    .collect::<Vec<_>>()
+                                    .join("; ")
+                            )
+                        }
+                    ),
+                    Declaration::DeclaredUnderPlatform { platforms } => format!(
+                        "declared only under platform(s) {} (not evaluated)",
+                        platforms
+                            .iter()
+                            .map(|p| lr_clean(p))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ),
+                    Declaration::Undeclared => "installed but NOT declared by this rockspec".into(),
+                    Declaration::Unproven(why) => {
+                        format!("declaration unproven ({})", lr_clean(why))
+                    }
+                };
+                out.push_str(&format!(
+                    "      provided by rock {} {} via `{}` - {declaration}\n",
+                    lr_clean(&provider.rock),
+                    lr_versions(&provider.versions),
+                    lr_clean(&provider.via)
+                ));
+            }
+            let found = spec.providers.len() + spec.project_modules.len();
+            out.push_str(&match (found, spec.complete) {
+                (1, true) => "      sole candidate; every relevant source was read\n".to_string(),
+                (0, _) => format!(
+                    "      origin unknown: {}\n",
+                    lr_clean(spec.reason.as_deref().unwrap_or("no source names it"))
+                ),
+                (n, true) => format!("      {n} candidates; every relevant source was read\n"),
+                (n, false) => format!(
+                    "      {n} known candidate(s); INCOMPLETE ({}), so others may exist\n",
+                    lr_clean(spec.reason.as_deref().unwrap_or("a source was unread"))
+                ),
+            });
+            if !spec.unmapped_declared.is_empty() {
+                out.push_str(&format!(
+                    "      declared rocks whose module lists are unknown (any may provide it): {}\n",
+                    spec.unmapped_declared.iter().map(|n| lr_clean(n)).collect::<Vec<_>>().join(", ")
+                ));
+            }
+        }
+    }
+    out
+}
+
 /// Header and trailing sections shared by both renderings of
 /// `get_dependency_graph`: the `circular dependencies` verdict, the capped
 /// external imports, the truncation flag and the optional export.

@@ -9,11 +9,15 @@ Library support has three independent responsibilities: detect declared packages
 | Recognize dependency manifests and deduplicate package names | [`manifests.rs`](../../crates/mct-index/src/manifests.rs) | Private format modules under [`manifests/`](../../crates/mct-index/src/manifests) |
 | Read JS/TS packages from `package.json` | `manifests::parse_manifest` | [`manifests/javascript.rs`](../../crates/mct-index/src/manifests/javascript.rs) |
 | Read Python packages from `requirements.txt` | `manifests::parse_manifest` | [`manifests/python.rs`](../../crates/mct-index/src/manifests/python.rs) |
+| Analyse LuaRocks rockspecs (scopes, constraints, platform tables, module maps) without executing them | `manifests::lua::analyse` | [`manifests/lua/`](../../crates/mct-index/src/manifests/lua): `data.rs` (Lua-data reader), `rockspec.rs`, `tree.rs` (tree `manifest`, `luarocks.lock`), `version.rs` |
+| Report declared, installed and pinned LuaRocks state and import origins | `mct_index::luarocks` | [`luarocks.rs`](../../crates/mct-index/src/luarocks.rs), shown only by the MCP tools `get_indexing_status` and `get_dependency_graph` |
 | Select a JS/TS/TSX grammar and validate syntax | [`mct-lang-js-ts/src/lib.rs`](../../crates/mct-lang-js-ts/src/lib.rs) | The public `JsTsParser`; source traversal in [`walker.rs`](../../crates/mct-lang-js-ts/src/walker.rs) |
 | Extract JS/TS imports and CommonJS require paths | `walker::Walker` | [`walker/imports.rs`](../../crates/mct-lang-js-ts/src/walker/imports.rs) |
 | Extract JS/TS exports and CommonJS assignments | `walker::Walker` | [`walker/exports.rs`](../../crates/mct-lang-js-ts/src/walker/exports.rs) |
 | Extract Python source symbols and relations | [`mct-lang-python/src/lib.rs`](../../crates/mct-lang-python/src/lib.rs) | `PythonParser` and its AST walker |
 | Extract CSS selectors and imports | [`mct-lang-css/src/lib.rs`](../../crates/mct-lang-css/src/lib.rs) | `CssParser` and its selector helpers |
+
+A rockspec is Lua code and is never run: the reader folds exact constants and stops at anything else, marking every section `incomplete`. The indexer writes the full detail to `rockspec_items` and, from the same analysis in the same transaction, the name/version projection in `dependencies` that every ecosystem shares. Installed trees and `luarocks.lock` are read at query time, through the exclusion rules, root containment and size caps; an unreadable source makes an answer unknown or incomplete, never absent. See [issue #267](https://github.com/Zubiarka8/mini-consumes-tokens/issues/267).
 
 Rust and Go manifests have their own private `manifests/rust.rs` and `manifests/go.rs` modules. The indexer owns persistence; format modules return `ManifestDependency` values and do not access SQLite. Language parsers implement `LanguageParser` and do not read package manifests or install packages. All JS/TS traversal modules share one private walker state; module boundaries do not change symbol ownership or extraction order.
 
