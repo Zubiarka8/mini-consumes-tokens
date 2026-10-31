@@ -341,8 +341,9 @@ fn an_index_from_before_assets_gains_them_on_a_normal_reindex() {
     };
     let before = version(&conn);
     // ADR-003 D7: no web/3D phase adds a migration. Bump only with a new
-    // ADR: 11 is ADR-005's `symbol_aliases` migration (issue #135).
-    assert_eq!(before, 11);
+    // ADR or an approved issue: 11 is ADR-005's `symbol_aliases` migration
+    // (issue #135), 12 is `rockspec_items` (issue #267).
+    assert_eq!(before, 12);
     drop(conn);
 
     let mut index = Index::open(&dir, &db, ExcludeSet::default()).unwrap();
