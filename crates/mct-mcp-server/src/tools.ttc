@@ -136,7 +136,7 @@ WHEN index health: files/symbols per language, last run, parse failures, deps.
 ERR no symbol data — use find_symbol.
 TAGS index, status, health, diagnostics
 PRE none.
-POST per-language counts, last run, parse failures.
+POST per-language counts, last run, parse failures; with `verbose_dependencies` or `dependency`, rockspec declared/installed/pinned detail.
 EFFECTS read; index only.
 
 TOOL get_file_skeleton
@@ -176,7 +176,7 @@ WHEN module import graph, `depth` hops, cycles flagged; `export` dot|mermaid.
 ERR imports only (use find_calls); cycles limited to explored depth.
 TAGS dependencies, imports, graph, cycles
 PRE `module` repo-relative file or dir.
-POST nodes+depth, edges, cycles (or none), external imports. TOON by default; `format`:`text` for plain text.
+POST nodes+depth, edges, cycles (or none), external imports, Lua import origins (rock, rockspec or unknown). TOON by default; `format`:`text` for plain text.
 EFFECTS read; index only.
 
 TOOL get_file_tree
