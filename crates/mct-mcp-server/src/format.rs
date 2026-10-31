@@ -1593,6 +1593,15 @@ fn cycle_line(cycle: &[String]) -> String {
     parts.join(" -> ")
 }
 
+/// Manifest text (names, versions, paths) made safe for one line of output:
+/// a control character, including a newline, could otherwise forge lines or
+/// terminal escapes from a hostile manifest.
+fn printable(text: &str) -> String {
+    text.chars()
+        .map(|c| if c.is_control() { '?' } else { c })
+        .collect()
+}
+
 /// Header and trailing sections shared by both renderings of
 /// `get_dependency_graph`: the `circular dependencies` verdict, the capped
 /// external imports, the truncation flag and the optional export.
@@ -1866,14 +1875,18 @@ pub fn index_status(status: &IndexStatus, verbose_dependencies: bool) -> String 
             for manifest in &status.dependencies {
                 out.push_str(&format!(
                     "  {} ({}, {} dep(s)):\n",
-                    manifest.manifest_path,
+                    printable(&manifest.manifest_path),
                     manifest.language,
                     manifest.dependencies.len()
                 ));
                 for dep in &manifest.dependencies {
                     match &dep.version {
-                        Some(version) => out.push_str(&format!("    {} {}\n", dep.name, version)),
-                        None => out.push_str(&format!("    {}\n", dep.name)),
+                        Some(version) => out.push_str(&format!(
+                            "    {} {}\n",
+                            printable(&dep.name),
+                            printable(version)
+                        )),
+                        None => out.push_str(&format!("    {}\n", printable(&dep.name))),
                     }
                 }
             }
@@ -1915,12 +1928,15 @@ pub fn dependency_declarations(status: &IndexStatus, name: &str) -> String {
                 .filter(|dep| dep.name == name)
                 .map(move |dep| match &dep.version {
                     Some(version) => format!(
-                        "  {} ({}): {version}\n",
-                        manifest.manifest_path, manifest.language
+                        "  {} ({}): {}\n",
+                        printable(&manifest.manifest_path),
+                        manifest.language,
+                        printable(version)
                     ),
                     None => format!(
                         "  {} ({}): no version\n",
-                        manifest.manifest_path, manifest.language
+                        printable(&manifest.manifest_path),
+                        manifest.language
                     ),
                 })
         })
