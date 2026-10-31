@@ -36,8 +36,8 @@ described in [[architecture/overview#Bounded contexts]].
 | Mikel           | SRE                | [[operations/runbook]]        |
 | Nerea           | Product            | Roadmap, carriers             |
 
-Links inside table cells are documentation for humans: the indexer does not
-read tables, so the cells above create no relation.
+Links inside table cells are indexed as relations from this section,
+and the cells above link to the architecture overview and runbook.
 
 ### Rituals
 
