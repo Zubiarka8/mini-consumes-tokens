@@ -1,11 +1,11 @@
 ---
 title: MCP tools
-description: "The MCP tools the server gives your AI client, grouped by what they answer: 19 listed by default, 20 defined."
+description: "The MCP tools the server gives your AI client, grouped by what they answer: 23 listed by default, 24 defined."
 ---
 
 Your AI client calls these tools itself; you don't type them. This page tells you what each one answers, so you know what to ask for and can read the results.
 
-The server defines **20** tools. By default **19** are available and listed in `tools/list`; the twentieth, [`select_tools`](#select_tools), is available only when the `MCT_TOOL_ATTENTION=1` environment variable is set. With that variable set, the initial list is `select_tools` alone, and the tools listed afterwards depend on each request you pass to it. Tools that are available but not listed stay callable by name.
+The server defines **24** tools. By default **23** are available and listed in `tools/list`; the opt-in tool, [`select_tools`](#select_tools), is available only when the `MCT_TOOL_ATTENTION=1` environment variable is set. With that variable set, the initial list is `select_tools` alone, and the tools listed afterwards depend on each request you pass to it. Tools that are available but not listed stay callable by name.
 
 ## Which tool for which question
 
@@ -22,21 +22,26 @@ The server defines **20** tools. By default **19** are available and listed in `
 | Where is `X` used at all (calls, imports, inheritance)? | [`find_references`](#find_references) |
 | What breaks if I change `X`? | [`impact_analysis`](#impact_analysis) |
 | Everything I need to work on `X`, in one call | [`build_context_pack`](#build_context_pack) |
-| What code is never used? | [`find_dead_code`](#find_dead_code) |
+| What code may be unused? | [`find_dead_code`](#find_dead_code) |
+| What functions may be duplicates? | [`find_duplicate_code`](#find_duplicate_code) |
+| What does a module import, and are there cycles? | [`get_dependency_graph`](#get_dependency_graph) |
 | Is the index up to date? | [`get_indexing_status`](#get_indexing_status), [`reindex`](#reindex) |
 | Several of the above at once | [`batch`](#batch) |
 | Show only the tools one request needs (opt-in) | [`select_tools`](#select_tools) |
 
 ## Parameters most tools share
 
+These parameters are available on some tools, not every tool. Required fields,
+defaults and limits vary; use `get_tool_schema` for the exact contract.
+
 | Parameter | Meaning | Default |
 | --- | --- | --- |
-| `path` | Limit to one file (exact path) or a folder (a path with no extension, used as a prefix). Paths are relative to the project root, with `/` on every OS. | whole project |
+| `path` | Limit to one file (exact path) or a folder (a path with no extension, used as a prefix). Paths are relative to the project root, with `/` on every OS. Some tools require a path. | varies by tool |
 | `language` | Limit to one language id: `rust`, `python`, `go`, `javascript_typescript`… | every language |
-| `limit` | Maximum results. | 50 (10 for the search tools) |
+| `limit` | Maximum results. Search tools may use `top_k` instead. | varies by tool |
 | `offset` | Skip this many results first, to page. | 0 |
-| `depth` | How many hops to follow in the call/reference graph. `1` = direct only; `2` adds callers of callers, and so on. Max 32. | 1 |
-| `format` | `toon` for a compact table that costs fewer tokens on big results, or `text` for plain labelled text. Omitting it or sending `null` gives `toon`; any other value is rejected. Changed from `text`: a client that parsed the old default output must now pass `"format":"text"`. | `toon` |
+| `depth` | How many hops to follow in the call/reference graph. `1` = direct only; `2` adds callers of callers, and so on. Max 32. | 1 for call/reference queries; 2 for `get_dependency_graph` |
+| `format` | `toon` for a compact table that costs fewer tokens on big results, or `text` for plain labelled text. Omitting it, sending `null`, or sending a blank string gives `toon`; unrecognized values are rejected. Changed from `text`: a client that parsed the old default output must now pass `"format":"text"`. | `toon` |
 
 Names are matched **exactly** (case-sensitive) unless the tool says otherwise. An empty name is rejected.
 
@@ -93,6 +98,7 @@ Formerly `search_symbols`, still available as a deprecated alias for one version
 Ranked search by words when you know part of a function or type name. `parse request`, `parseReq` and `parse_request` all find `parse_request_body`, because names are split at camelCase, snake_case and kebab-case boundaries. Exact matches come first.
 
 - `query` (required), `path`, `language`, `limit` (default 10, max 100), `offset`, `snippet_lines` (source lines to show per hit, max 50), `format`, `cache`.
+- `detail` (`overview`, `summary`, `detailed`) and `max_tokens` (an estimated response budget) can reduce the level of detail and, if needed, the number of hits. Explicit detail or a budget bypasses the query cache.
 
 ### `hybrid_search_like` [#hybrid_search_like]
 
@@ -103,6 +109,7 @@ Search for functionality by describing its behavior in plain language. For examp
 - `query` (required). Put it in double quotes (`"parse request"`) for an exact phrase; quoted queries use lexical matching regardless of `alpha` and also list indexed prose literals containing the phrase. These include Rust string literals and Markdown paragraphs and table rows. Markdown headings are symbols; frontmatter and code blocks are excluded from prose literals. A literal must contain at least eight characters and two words containing letters, and suspected secrets are filtered out.
 - `alpha`: `0` = words only, `1` = meaning only. If you omit it, it is picked from the query: 0.1 for an identifier, 0.75 for a plain sentence, 0.5 otherwise.
 - `top_k` (default 10, max 100), `offset`, `path`, `language`, `snippet_lines`, `format`, `cache`.
+- `detail` and `max_tokens` control the response level and estimated budget as for `search_symbols_like`; explicit detail or a budget bypasses the query cache.
 - Quoted exact-phrase searches are lexical and work without the optional semantic feature. Other searches use embeddings when the server was built with `--features semantic`; without that feature, the tool falls back to words only and says so. The default model is downloaded on first use; `MCT_EMBEDDING_MODEL` selects another model.
 - Set `cache: false` on a query to skip cached replies and always get the full result.
 
@@ -166,6 +173,7 @@ Likely affected tests:
 Use it when you are about to edit one symbol and want everything around it in one call: its definition with the doc comment and source, and every caller, callee, dependency and related test, each listed once with its signature. It replaces `find_symbol` + `find_calls` + `find_callers` + `impact_analysis` + reading the files.
 
 - `symbol` (required), `path` and `language` (to pick one definition when the name is ambiguous), `depth`, `limit` (default 30), `source_lines` (default 40, max 200), `format`.
+- `detail` (`overview`, `summary`, `detailed`) and `max_tokens` select the level of detail and an estimated response budget. When the budget is tight, the response can lower detail or omit rows and reports what was cut.
 - Related symbols merge their roles into one entry. File-level importers and unresolved callee names appear in footers; ambiguous callees are listed separately as uncertain instead of being guessed.
 
 ## Maintenance
@@ -174,13 +182,23 @@ Use it when you are about to edit one symbol and want everything around it in on
 
 Top-level symbols that nothing in the index references. Use it when you are cleaning up unused code. A starting point for clean-up, not proof: check a hit with `find_references` before deleting it. The same scan is available as [`mct-cli dead-code`](/docs/cli#dead-code).
 
-- `path`, `language`, `limit`, `offset`, `format`.
+- `path`, `language`, `limit`, `offset`, `format`, `include_reviewed` (default `false`) and `max_tokens` (estimated response budget, 512–16000; default 4000). Matching false-positive or dismissed reviews hide candidates before pagination; `include_reviewed` shows them as non-actionable. Counts and store health distinguish no candidates from suppressed candidates.
+
+### `find_duplicate_code` [#find_duplicate_code]
+
+Returns review-aware candidate duplicate function groups. Matching structure is not proof that code is redundant. Optional `path`, `language`, `normalization`, `min_lines`, `min_tokens`, `limit`, `offset`, `include_reviewed` and `max_tokens` control the report. Defaults are `broad` normalization, 6 token-bearing lines, 40 tokens, 10 groups and a 4,000-token estimated budget; `limit` accepts 1–100 and `max_tokens` accepts 512–16,000. Matching reviewed groups are suppressed before pagination unless requested.
+
+### `get_dependency_graph` [#get_dependency_graph]
+
+Returns a module-level import graph with resolved edges, cycles and external imports. `module` is a required project-relative file or directory; optional `depth` (default 2), `limit` (default 50), `format` and `export` (`dot` or `mermaid`) control the result.
 
 ### `get_indexing_status` [#get_indexing_status]
 
 Use it to check that the index is healthy: files and symbols per language, last run, files that failed to parse, unsupported languages and dependencies. The same as [`mct-cli status`](/docs/cli#status).
 
-- `verbose_dependencies` (default `false`; list every dependency instead of a one-line summary).
+- `verbose_dependencies` (default `false`; list every dependency instead of a one-line summary); `dependency` (an exact package name; list manifests that declare it).
+
+When either parameter is set and the project has `*.rockspec` files, the response also carries a LuaRocks detail section: per rockspec, each declared entry with its scope, constraint and platform, set against what the project-local `lua_modules` trees list and what `luarocks.lock` pins, plus the rockspec's `build.modules` and `build.install.lua` maps. Everything is read statically; nothing is installed, executed or fetched. "Not found" means not found in the project-local trees, and an unreadable, oversized, corrupt or excluded tree or lockfile is reported as incomplete or unknown, never as absent. [`get_dependency_graph`](#get_dependency_graph) also marks where each Lua `require` comes from: a rock, a rockspec declaration or unknown.
 
 ### `reindex` [#reindex]
 
@@ -204,7 +222,7 @@ These discovery tools are optional. By default the standard MCP `tools/list` han
 
 ### `batch` [#batch]
 
-Use it when you already know several queries to run: it runs up to 25 read-only queries in one call. Each result comes under its own `[n] tool` header, and a failing query doesn't stop the others. `reindex`, `select_tools` and `batch` itself are not allowed inside.
+Use it when you already know several queries to run: pass them as `queries`, a list of `{ tool, args }` objects. It runs up to 25 read-only queries in one call. Each result comes under its own `[n] tool` header, and a failing query doesn't stop the others. `reindex`, `select_tools` and `batch` itself are not allowed inside.
 
 ```json
 {

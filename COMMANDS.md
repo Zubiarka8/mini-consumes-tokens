@@ -1048,7 +1048,7 @@ Examples:
 
 ## 3. MCP tools — what your AI assistant calls for you
 
-These aren't run by hand; they're the tools an MCP client (Claude Code, Cursor, etc.) calls once connected. Grouped the same way `discover_tool_categories` (§ 3.5) groups them. Most response-returning tools share three optional parameters, documented once here instead of per tool: `limit` (max results; default 50, except `search_symbols_like` and `hybrid_search_like` which default to 10 and clamp to 100 — the latter names it `top_k`), `offset` (skip this many results before applying `limit`, for paging; not offered by `list_symbols` or `find_symbol`), and `format` (`"toon"`, the default compact table, or `"text"`, the opt-in labelled layout — see the note at the end of this section).
+These aren't run by hand; they're the tools an MCP client (Claude Code, Cursor, etc.) calls once connected. Many support a result `limit`, an `offset` for paging, or a response `format`. Availability, defaults and limits vary by tool: use `get_tool_schema` for the exact contract. Where supported, `format` selects `"toon"` (the default compact table) or `"text"` (the opt-in labelled layout); see the note at the end of this section.
 
 ### 3.1 Discovery — "what exists here, and what does it look like?"
 
@@ -1068,13 +1068,15 @@ These aren't run by hand; they're the tools an MCP client (Claude Code, Cursor, 
 
 **`hybrid_search_like`** — finds code by meaning: `search_symbols_like` fused with embedding similarity (RRF). `alpha` weights semantic against lexical (0 = lexical only, 1 = semantic only; omitted, the query's shape picks it). A `"double-quoted"` query is an exact phrase, lexical only, and also lists string literals (error/log messages) that hold it as `path:line`. Without an embedding model (build without `--features semantic`) it falls back to lexical only and says so. Takes the same `path`, `language`, `top_k`, `offset`, `snippet_lines`, `cache`, `format`, `detail` and `max_tokens` options as `search_symbols_like`; with a budget the first-line note and the string-literal section count toward it and are never cut.
 
+**`semantic_search`** — embedding similarity without lexical name matching. It takes a nonblank `query`, optional `path` and `language`, and `top_k` (default 10, clamped to 1–100). Results include signatures and similarity scores. It requires a semantic-enabled build; the embedding model may be downloaded on first use.
+
 `search_symbols` and `hybrid_search` remain deprecated aliases for one version, with the same behavior as their corresponding `*_like` tools.
 
 ### 3.3 Relations — "who touches this, and what does it touch?"
 
-**`find_callers`** — every direct caller of a function/method.
+**`find_callers`** — every direct caller of a function/method. Required `function` is the exact name.
 
-**`find_calls`** — every function/method a given function/method calls.
+**`find_calls`** — every function/method a given function/method calls. Required `function` is the exact name.
 
 **`find_references`** — every reference to a symbol: calls, imports, extends/implements — broader than `find_callers`/`find_calls`. Optional `sort` accepts `relevance` (default) or `execution` (graph hop, file, line and column, sorted before pagination). Execution order is a bounded static approximation, not runtime control flow.
 
@@ -1090,7 +1092,9 @@ These aren't run by hand; they're the tools an MCP client (Claude Code, Cursor, 
 
 **`get_indexing_status`** — reports index health: coverage per language, last indexed time, unsupported languages seen, files that failed to parse. `verbose_dependencies` (default false) lists every manifest's dependencies individually instead of a one-line summary; `dependency` (an exact package name, e.g. `three`) also lists each manifest that declares it, with its version. When either is set and the project has `*.rockspec` files, the response also carries a **LuaRocks detail** section (issue #267): per rockspec, every declared entry with scope, constraint and platform, set against what the project-local `lua_modules` trees list (`lib/luarocks/rocks-<lua>/manifest`) and what `luarocks.lock` pins, plus the rockspec's `build.modules` and `build.install.lua` maps. Everything is read statically: nothing is installed, executed or fetched. "Not found" means not found in the project-local trees (user and system trees are never inspected); an unreadable, oversized, corrupt or excluded tree or lockfile is reported as incomplete or unknown, never as absent; a rockspec containing code is `INCOMPLETE` in every section. Platform entries are shown as declared under a platform, never as active. The report says what is declared, installed, pinned and compatible; it does not predict the version LuaRocks would load at run time. `build.install.lua` is interpreted as validated only for LuaRocks 3.13.0 with build type `none`.
 
-**`get_dependency_graph`** (Lua addition) — each external import made by a `.lua` file in the walk also gets an origin: the rockspecs whose directory contains the importer are listed separately (never merged), each with the project module that maps it, the installed rock that lists it and whether that rock is declared (`declared`, `declared only under platform`, `installed but NOT declared`, or `declaration unproven` when the rockspec's declarations were not read completely), or `origin unknown` with the declared rocks whose module lists could not be read. A sole candidate is claimed only when every relevant source was read.
+**`get_dependency_graph`** — follows a repo-relative `module` file or directory's import graph, reporting nodes, edges, cycles and external imports. `depth` defaults to 2 and is clamped to the maximum query depth; `limit` defaults to 50 modules, and `export` optionally renders `dot` or `mermaid`. It covers imports, not function calls, and cycle detection is limited to the explored graph.
+
+Lua addition: each external import made by a `.lua` file in the walk also gets an origin: the rockspecs whose directory contains the importer are listed separately (never merged), each with the project module that maps it, the installed rock that lists it and whether that rock is declared (`declared`, `declared only under platform`, `installed but NOT declared`, or `declaration unproven` when the rockspec's declarations were not read completely), or `origin unknown` with the declared rocks whose module lists could not be read. A sole candidate is claimed only when every relevant source was read.
 
 **`find_dead_code`** — candidate unused functions/classes/structs/enums/traits/interfaces/type-aliases: a heuristic based on zero indexed references, not true visibility analysis. A starting point for cleanup, not a certainty — sanity-check a hit with `find_references` or `impact_analysis` before deleting anything.
 
@@ -1102,7 +1106,7 @@ These aren't run by hand; they're the tools an MCP client (Claude Code, Cursor, 
 
 **`get_tool_schema`** — returns one named tool's full input schema and description on demand, once `discover_tool_categories` (or this document) has told you which tool you need.
 
-**`batch`** — runs 1 to 25 read-only queries in one call (`queries`: a list of `{tool, args}`, each `args` exactly as the tool would take it directly). Each result is reported under its own `[n] tool` header; a failing query is reported inline and the rest still run. `reindex` and nested `batch` are rejected. Use it whenever you already know the queries you need, to drop the per-call overhead.
+**`batch`** — runs 1 to 25 read-only queries in one call (`queries`: a list of `{tool, args}`, each `args` exactly as the tool would take it directly). Each result is reported under its own `[n] tool` header; a failing query is reported inline and the rest still run. `reindex`, `select_tools` and nested `batch` are rejected. Use it whenever you already know the queries you need, to drop the per-call overhead.
 
 **`select_tools`** — opt-in (`MCT_TOOL_ATTENTION=1`); not listed otherwise. With it set, `tools/list` starts with this tool alone. Call it with `query` (the user's request): the server narrows `tools/list` to the tools that request needs and sends `tools/list_changed`. An unclear request keeps the full list, and every tool stays callable by name. Figures: [`benchmarks/intent-selection.md`](benchmarks/intent-selection.md).
 

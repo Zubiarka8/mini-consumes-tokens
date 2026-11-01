@@ -1,7 +1,7 @@
 # Backlog
 
 ## Deferred from `mct-lang-md` Phase 2
-See spec `docs/superpowers/specs/2026-09-17-obsidian-docs-vault-and-md-parser-design.md`.
+See spec `docs/design/2026-09-17-obsidian-docs-vault-and-md-parser-design.md`.
 - Anchor-aware resolution of `[[Page#Heading]]` against the target file's real heading symbol.
 - Tags/links inside list items, blockquotes, tables.
 - Code-span exclusion for `#tag`/`[[...]]` (needs an inline-grammar reparse).
@@ -12,7 +12,7 @@ See spec `docs/superpowers/specs/2026-09-17-obsidian-docs-vault-and-md-parser-de
 - **Agent-maintained Obsidian session note.** At the close of a task, the agent appends a short note (decisions made, why, what's left) to a per-session or per-topic page in this vault, so the next session starts by reading one note instead of reconstructing context from `git log`/conversation history. Doesn't touch `crates/` or the MCP tool surface — pure docs workflow, no cross-cutting constraint.
 
 ## Web / 3D portfolio support (by priority)
-Prompts per item: [web-3d-prompts](web-3d-prompts.md). P0 must land first.
+P0 must land first.
 - [x] **P0 Foundation design:** ADR-003 (asset ingestion, kinds, asset path resolution, embedded languages, MCP surface, shared fixture, migration) + issue draft.
 - [x] **P0b Foundation implementation:** core changes from [ADR-003](../01-architecture/adrs/003-web-3d-indexing.md):
   - D1: `mct-index` asset pre-pass (`glb gltf png jpg jpeg webp ktx2 hdr exr` → `files` row with `language = "asset"` + one `asset` symbol). Images stat-only. glTF JSON ≤ 8 MiB. `.glb` JSON-chunk reader that never reads BIN. Bad input → `syntax_error` issue. Fuzz target.

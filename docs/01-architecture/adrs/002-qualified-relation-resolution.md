@@ -1,7 +1,7 @@
 # ADR-002: Qualified relation resolution
 
 ## Status
-Accepted — first slice of issue #97 (design: `docs/superpowers/specs/2026-10-01-qualified-relation-identity-design.md`). Issue #98 (Markdown note identity) builds on this contract.
+Accepted — first slice of issue #97 (design: `docs/design/2026-10-01-qualified-relation-identity-design.md`). Issue #98 (Markdown note identity) builds on this contract.
 
 ## Context
 Relations stored only `to_name`, and every query and walk joined on it, so `A::run` reached `B::run` and a Rust `Ok(..)` was shown as a C# `Ok` method (F02). The old `to_symbol_id` column picked an arbitrary same-named row and was dropped for that reason.

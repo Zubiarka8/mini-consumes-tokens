@@ -23,10 +23,12 @@ This guide uses `<name>` for the language id (`zig`) and `<Name>` for the type p
 | --- | --- |
 | `id` | A number unique **inside this file** (0, 1, 2…). Relations point to it. |
 | `name` | The name as written: `load_config`. |
-| `kind` | One of `Function`, `Method`, `Class`, `Struct`, `Interface`, `Enum`, `Trait`, `TypeAlias`, `Module`, `Variable`, `Constant`, `Field` (plus `Element` and `Rule` for HTML/CSS). Map your language's constructs onto these. |
+| `kind` | One of `Function`, `Method`, `Class`, `Struct`, `Interface`, `Enum`, `Trait`, `TypeAlias`, `Module`, `Variable`, `Constant`, `Field` (plus `Element` and `Rule` for HTML/CSS). Map your language's constructs onto these. The shared enum also contains `Asset`, `ModelNode`, `Material`, `Animation` and `Finding`; `Asset` is produced by the indexer. |
 | `location` | 1-based `line` and `column`, `byte_len`, and `end_line` (the last line of the definition, so tools can show its source). |
 | `parent` | Name of the enclosing symbol (the class of a method), or `None`. |
 | `level` | Leave `None`. Only Markdown uses it, for heading levels. |
+
+`ParsedFile` also carries optional `symbol_aliases` declared by the parser.
 
 **`relations`**: one `SymbolRelation` per use of a name.
 

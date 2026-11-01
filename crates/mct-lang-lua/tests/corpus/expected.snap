@@ -1,39 +1,85 @@
-# language=lua files=5 symbols=163 relations=375 name_matched_across_files=49
+# language=lua files=5 symbols=410 relations=375 name_matched_across_files=58
 
 == gateway/ratelimit.lua (302 lines)
 S 1-302 module ratelimit
 S 11-11 module _M
+S 11-11 field _M::_VERSION
 S 13-16 module DEFAULT_LIMITS
 S 18-21 module PARTNER_LIMITS
-S 23-23 module Limiter
+S 23-23 class Limiter
 S 30-35 function classify
 S 37-43 function limits_for
+S 38-38 variable limits_for::partner
 S 45-47 function bucket_key
 S 49-58 function decode_bucket
+S 53-53 variable decode_bucket::bucket
 S 60-65 function refill
+S 61-61 variable refill::elapsed
 S 72-85 method _M::new
+S 74-74 variable new::dict
 S 89-119 method Limiter::take
+S 90-90 variable take::class
+S 91-91 variable take::limits
+S 92-92 variable take::key
+S 93-93 variable take::lock
+S 93-93 variable take::lock_err
+S 97-97 variable take::elapsed
+S 97-97 variable take::err
+S 103-103 variable take::now
+S 104-104 variable take::bucket
+S 105-105 variable take::allowed
+S 117-117 variable take::retry_after
 S 122-128 method Limiter::remaining
+S 123-123 variable remaining::class
+S 124-124 variable remaining::limits
+S 125-125 variable remaining::now
+S 126-126 variable remaining::bucket
 S 130-134 method Limiter::reset
+S 131-131 variable reset::class
 S 136-138 method Limiter::stats
 S 146-151 function client_id_of
 S 154-165 function reject
 S 168-183 method _M::access
+S 169-169 variable access::ctx
+S 170-170 variable access::client_id
+S 171-171 variable access::method
+S 172-172 variable access::ok
+S 172-172 variable access::retry_after
+S 177-177 variable access::remaining
+S 177-177 variable access::capacity
 S 186-193 method _M::describe
-S 202-202 module Concurrency
+S 187-187 variable describe::out
+S 188-188 variable describe::class
+S 189-189 variable describe::limits
+S 202-202 class Concurrency
 S 205-211 method _M::new_concurrency
+S 206-206 variable new_concurrency::dict
 S 213-215 function inflight_key
 S 217-230 method Concurrency::enter
+S 218-218 variable enter::key
+S 219-219 variable enter::count
+S 219-219 variable enter::err
 S 232-242 method Concurrency::leave
+S 233-233 variable leave::client_id
+S 237-237 variable leave::count
 S 244-246 method Concurrency::reset
 S 248-250 method Concurrency::in_flight
 S 253-260 method _M::access_all
+S 254-254 variable access_all::ok
+S 254-254 variable access_all::current
+S 262-262 field _M::Concurrency
 S 269-283 method _M::fake_dict
+S 270-270 variable fake_dict::store
+S 271-271 variable fake_dict::dict
 S 272-274 method dict::get
 S 275-278 method dict::set
 S 279-281 method dict::delete
 S 286-297 method _M::fake_clock
+S 287-287 variable fake_clock::now
+S 288-292 variable fake_clock::clock
 S 293-295 method clock::advance
+S 299-299 field _M::classify
+S 300-300 field _M::limits_for
 R 8:15 imports ratelimit -> safe
 R 8:15 imports ratelimit -> cjson.safe
 R 9:18 imports ratelimit -> lock
@@ -41,7 +87,7 @@ R 9:18 imports ratelimit -> resty.lock
 R 53:24 calls decode_bucket -> decode
 R 61:24 calls refill -> max (name-matched: warehouse/money.lua)
 R 62:24 calls refill -> min
-R 78:10 calls _M::new -> setmetatable
+R 78:10 calls _M::new -> setmetatable (name-matched: warehouse/money.lua)
 R 90:17 calls Limiter::take -> classify
 R 91:18 calls Limiter::take -> limits_for
 R 92:15 calls Limiter::take -> bucket_key
@@ -64,7 +110,7 @@ R 126:18 calls Limiter::remaining -> refill
 R 126:25 calls Limiter::remaining -> decode_bucket
 R 126:49 calls Limiter::remaining -> get
 R 126:53 calls Limiter::remaining -> bucket_key
-R 127:15 calls Limiter::remaining -> floor
+R 127:15 calls Limiter::remaining -> floor (name-matched: warehouse/money.lua)
 R 131:16 calls Limiter::reset -> pairs
 R 132:15 calls Limiter::reset -> delete
 R 132:22 calls Limiter::reset -> bucket_key
@@ -80,7 +126,7 @@ R 177:39 calls _M::access -> remaining
 R 181:12 calls _M::access -> reject
 R 188:16 calls _M::describe -> pairs
 R 189:20 calls _M::describe -> limits_for
-R 210:10 calls _M::new_concurrency -> setmetatable
+R 210:10 calls _M::new_concurrency -> setmetatable (name-matched: warehouse/money.lua)
 R 218:15 calls Concurrency::enter -> inflight_key
 R 219:32 calls Concurrency::enter -> incr
 R 221:9 calls Concurrency::enter -> log (name-matched: gateway/router.lua)
@@ -98,44 +144,87 @@ R 254:41 calls _M::access_all -> client_id_of
 R 256:9 calls _M::access_all -> log (name-matched: gateway/router.lua)
 R 257:12 calls _M::access_all -> reject
 R 259:13 calls _M::access_all -> access
-R 288:17 calls _M::fake_clock -> setmetatable
+R 288:17 calls _M::fake_clock -> setmetatable (name-matched: warehouse/money.lua)
 
 == gateway/router.lua (300 lines)
 S 1-300 module router
-S 15-15 module Router
+S 15-15 class Router
 S 18-18 module M
+S 20-20 variable UPSTREAM
+S 21-21 variable LARGE_ORDER
 S 27-35 function respond
 S 37-40 function problem
 S 46-63 function proxy
+S 47-47 variable proxy::client
+S 49-57 variable proxy::res
+S 49-57 variable proxy::err
 S 69-71 method M::new
 S 74-82 method Router::add
+S 75-75 variable add::names
+S 76-79 variable add::lua_pattern
 S 84-98 method Router::match
+S 85-85 variable match::_
+S 85-85 variable match::route
+S 87-87 variable match::captures
+S 89-89 variable match::params
+S 90-90 variable match::i
+S 90-90 variable match::name
 S 100-106 method Router::dispatch
+S 101-101 variable dispatch::handler
+S 101-101 variable dispatch::params
 S 114-126 function cache
+S 116-123 variable stock_cache
+S 117-117 variable cache::client
+S 118-118 variable cache::res
+S 118-118 variable cache::err
 S 128-161 module handlers
 S 129-135 method handlers::get_stock
+S 130-130 variable get_stock::free
+S 130-130 variable get_stock::err
 S 137-151 method handlers::place_order
+S 139-139 variable place_order::o
+S 139-139 variable place_order::err
+S 143-143 variable place_order::shortfalls
 S 153-155 method handlers::get_order
 S 157-160 method handlers::cancel_order
 S 164-166 method handlers::get_limits
 S 170-172 method handlers::preflight
 S 175-177 method handlers::health
 S 183-186 module ALLOWED_ORIGINS
+S 184-184 field ALLOWED_ORIGINS::https://backoffice.example.com
+S 185-185 field ALLOWED_ORIGINS::https://partners.example.com
 S 189-204 function cors
+S 191-191 variable cors::origin
 S 207-215 function max_body
+S 209-209 variable max_body::length
 S 218-225 function require_tenant
 S 228-235 function chain
+S 229-229 variable chain::fns
+S 230-230 variable chain::handler
+S 231-231 variable chain::i
+S 237-237 field M::chain
 S 245-257 function build
+S 246-246 variable build::r
 S 260-268 method M::handle
+S 261-261 variable router
+S 263-263 variable handle::limiter
 S 271-280 method M::log
+S 272-272 variable log::status
+S 273-273 variable log::level
 S 284-295 method M::quote_preview
+S 285-285 variable quote_preview::subtotals
+S 286-286 variable quote_preview::i
+S 286-286 variable quote_preview::line
+S 289-289 variable quote_preview::net
+S 297-297 field M::Router
+S 298-298 field M::handlers
 R 8:15 imports router -> safe
 R 8:15 imports router -> cjson.safe
 R 9:14 imports router -> http
 R 9:14 imports router -> resty.http
 R 10:15 imports router -> money (name-matched: warehouse/money.lua)
 R 10:15 imports router -> warehouse.money
-R 11:15 imports router -> order (name-matched: warehouse/order.lua)
+R 11:15 imports router -> order (name-matched: warehouse/inventory.lua)
 R 11:15 imports router -> warehouse.order
 R 12:19 imports router -> inventory (name-matched: warehouse/inventory.lua)
 R 12:19 imports router -> warehouse.inventory
@@ -154,7 +243,7 @@ R 49:27 calls proxy -> request_uri
 R 59:9 calls proxy -> log
 R 60:12 calls proxy -> problem
 R 62:10 calls proxy -> respond
-R 70:10 calls M::new -> setmetatable
+R 70:10 calls M::new -> setmetatable (name-matched: warehouse/money.lua)
 R 76:38 calls Router::add -> gsub
 R 85:19 calls Router::match -> ipairs
 R 87:31 calls Router::match -> match
@@ -235,29 +324,91 @@ R 293:19 calls M::quote_preview -> gross (name-matched: warehouse/money.lua)
 == warehouse/inventory.lua (302 lines)
 S 1-302 module inventory
 S 10-10 module M
-S 14-14 module Cache
+S 12-12 variable DEFAULT_TTL
+S 14-14 class Cache
 S 22-32 method M::parse_location
+S 23-23 variable parse_location::zone
+S 23-23 variable parse_location::aisle
+S 23-23 variable parse_location::level
 S 34-39 method M::format_location
 S 41-52 function compare_locations
 S 55-59 method M::picking_route
+S 56-56 variable picking_route::route
 S 66-68 method M::new_cache
 S 70-72 method Cache::key
 S 74-90 method Cache::get
+S 75-75 variable get::raw
+S 81-81 variable get::levels
+S 81-81 variable get::err
+S 85-85 variable get::ok
+S 85-85 variable get::set_err
 S 92-98 method Cache::invalidate
 S 100-110 method Cache::available
+S 101-101 variable available::levels
+S 101-101 variable available::err
+S 105-105 variable available::total
+S 106-106 variable available::_
+S 106-106 variable available::level
 S 112-119 method Cache::stats
+S 113-113 variable stats::total
+S 114-114 variable stats::ratio
 S 127-138 method M::check_order
+S 128-128 variable check_order::shortfalls
+S 129-129 variable check_order::_
+S 129-129 variable check_order::line
+S 130-130 variable check_order::free
+S 130-130 variable check_order::err
 S 141-153 method M::out_of_stock_problem
+S 142-142 variable out_of_stock_problem::parts
+S 143-143 variable out_of_stock_problem::i
+S 143-143 variable out_of_stock_problem::s
 S 162-186 method M::start_refresher
+S 164-172 variable start_refresher::refresh_batch
+S 166-166 variable start_refresher::_
+S 166-166 variable start_refresher::sku
 S 173-180 function tick
+S 177-177 variable tick::_
+S 181-181 variable start_refresher::ok
+S 181-181 variable start_refresher::err
 S 192-194 method M::difference
 S 196-205 method M::describe_count
+S 197-197 variable describe_count::where
+S 198-198 variable describe_count::diff
 S 208-220 method M::partition_for_review
+S 210-210 variable partition_for_review::review
+S 210-210 variable partition_for_review::fine
+S 211-211 variable partition_for_review::_
+S 211-211 variable partition_for_review::count
+S 212-212 variable partition_for_review::diff
 S 227-236 method M::expiring_soon
+S 229-229 variable expiring_soon::soon
+S 230-230 variable expiring_soon::_
+S 230-230 variable expiring_soon::r
 S 239-242 method M::payment_overdue
 S 245-265 method M::pick_tasks
+S 246-246 variable pick_tasks::by_zone
+S 247-247 variable pick_tasks::_
+S 247-247 variable pick_tasks::order
+S 248-248 variable pick_tasks::_
+S 248-248 variable pick_tasks::line
+S 249-249 variable pick_tasks::best
+S 250-250 variable pick_tasks::_
+S 250-250 variable pick_tasks::level
+S 251-251 variable pick_tasks::free
+S 257-257 variable pick_tasks::loc
+S 258-258 variable pick_tasks::zone
 S 269-298 method M::validate_transfer
-R 7:19 imports inventory -> order (name-matched: warehouse/order.lua)
+S 270-270 variable validate_transfer::from
+S 270-270 variable validate_transfer::from_err
+S 274-274 variable validate_transfer::to
+S 274-274 variable validate_transfer::to_err
+S 281-281 variable validate_transfer::quantity
+S 285-285 variable validate_transfer::levels
+S 285-285 variable validate_transfer::err
+S 289-289 variable validate_transfer::_
+S 289-289 variable validate_transfer::level
+S 300-300 field M::Cache
+R 7:19 imports inventory -> order
 R 7:19 imports inventory -> warehouse.order
 R 8:15 imports inventory -> safe
 R 8:15 imports inventory -> cjson.safe
@@ -270,7 +421,7 @@ R 36:19 calls M::format_location -> format (name-matched: warehouse/money.lua)
 R 38:17 calls M::format_location -> format (name-matched: warehouse/money.lua)
 R 56:19 calls M::picking_route -> unpack
 R 57:9 calls M::picking_route -> sort
-R 67:10 calls M::new_cache -> setmetatable
+R 67:10 calls M::new_cache -> setmetatable (name-matched: warehouse/money.lua)
 R 75:25 calls Cache::get -> get
 R 75:34 calls Cache::get -> key
 R 78:18 calls Cache::get -> decode
@@ -303,7 +454,7 @@ R 198:18 calls M::describe_count -> difference
 R 211:19 calls M::partition_for_review -> ipairs
 R 212:20 calls M::partition_for_review -> difference
 R 213:13 calls M::partition_for_review -> abs
-R 228:20 calls M::expiring_soon -> now
+R 228:20 calls M::expiring_soon -> now (name-matched: gateway/ratelimit.lua)
 R 230:15 calls M::expiring_soon -> ipairs
 R 247:19 calls M::pick_tasks -> ipairs
 R 248:20 calls M::pick_tasks -> ipairs
@@ -321,18 +472,34 @@ R 289:19 calls M::validate_transfer -> ipairs
 == warehouse/money.lua (321 lines)
 S 1-321 module money
 S 8-8 module M
+S 10-10 variable floor
+S 11-11 variable format
+S 12-12 variable setmetatable
 S 15-20 module M::SCALE
+S 16-16 field M.SCALE::EUR
+S 17-17 field M.SCALE::USD
+S 18-18 field M.SCALE::GBP
+S 19-19 field M.SCALE::JPY
 S 22-27 module M::SYMBOLS
-S 29-29 module Money
+S 23-23 field M.SYMBOLS::EUR
+S 24-24 field M.SYMBOLS::USD
+S 25-25 field M.SYMBOLS::GBP
+S 26-26 field M.SYMBOLS::JPY
+S 29-29 class Money
 S 33-35 function raise
 S 37-39 function is_money
 S 41-46 function require_currency
 S 48-55 function require_same
 S 58-70 method M::round_half_even
+S 59-59 variable round_half_even::f
+S 60-60 variable round_half_even::diff
 S 77-83 method M::of_minor
 S 86-93 method M::of
+S 88-88 variable of::value
 S 95-97 method M::zero
 S 100-109 method M::parse
+S 101-101 variable parse::a
+S 101-101 variable parse::b
 S 112-114 method M::from_json
 S 120-122 method Money::amount
 S 124-126 method Money::is_zero
@@ -343,9 +510,26 @@ S 142-144 method Money::times
 S 146-148 method Money::percent
 S 150-152 method Money::negate
 S 155-168 method Money::split
+S 157-157 variable split::share
+S 158-158 variable split::remainder
+S 159-159 variable split::shares
+S 160-160 variable split::i
+S 161-161 variable split::extra
 S 171-193 method Money::allocate
+S 172-172 variable allocate::total
+S 173-173 variable allocate::_
+S 173-173 variable allocate::w
+S 178-178 variable allocate::shares
+S 178-178 variable allocate::given
+S 179-179 variable allocate::i
+S 179-179 variable allocate::w
+S 183-183 variable allocate::i
+S 189-189 variable allocate::k
+S 189-189 variable allocate::minor
 S 195-200 method Money::max
 S 202-209 method Money::format
+S 203-203 variable format::scale
+S 204-204 variable format::text
 S 211-213 method Money::to_json
 S 219-221 method Money::__add
 S 223-225 method Money::__sub
@@ -356,11 +540,23 @@ S 242-245 method Money::__lt
 S 247-250 method Money::__le
 S 252-254 method Money::__tostring
 S 261-267 method M::sum
+S 262-262 variable sum::total
+S 263-263 variable sum::_
+S 263-263 variable sum::amount
 S 270-272 method M::vat
 S 274-276 method M::gross
 S 279-288 method M::distribute_discount
+S 283-283 variable distribute_discount::weights
+S 284-284 variable distribute_discount::i
+S 284-284 variable distribute_discount::subtotal
 S 291-301 method M::convert
+S 295-295 variable convert::from_rate
+S 296-296 variable convert::to_rate
 S 305-316 method M::protect
+S 307-307 variable protect::ok
+S 307-307 variable protect::result
+S 318-318 field M::Money
+S 319-319 field M::is_money
 R 34:3 calls raise -> error
 R 38:10 calls is_money -> getmetatable
 R 43:5 calls require_currency -> raise
@@ -437,25 +633,60 @@ R 314:5 calls M::protect -> error
 
 == warehouse/order.lua (300 lines)
 S 1-300 module order
-S 10-10 module Order
+S 10-10 class Order
 S 13-13 module M
 S 19-27 module M::STATES
+S 20-20 field M.STATES::NEW
+S 21-21 field M.STATES::RESERVED
+S 22-22 field M.STATES::PAID
+S 23-23 field M.STATES::PICKED
+S 24-24 field M.STATES::SHIPPED
+S 25-25 field M.STATES::INVOICED
+S 26-26 field M.STATES::CANCELLED
+S 29-29 variable S
 S 31-39 module NEXT
 S 41-44 method M::can_move_to
+S 42-42 variable can_move_to::allowed
 S 46-48 method M::is_terminal
 S 55-65 function new_line
+S 59-59 variable new_line::quantity
+S 63-63 variable new_line::price
 S 67-69 function subtotal
+S 71-71 field M::subtotal
 S 78-101 method M::new
+S 79-79 variable new::currency
+S 80-88 variable new::self
+S 89-89 variable new::i
+S 89-89 variable new::raw
+S 90-90 variable new::line
+S 90-90 variable new::err
 S 103-109 method Order::total
+S 104-104 variable total::subtotals
+S 105-105 variable total::i
+S 105-105 variable total::line
 S 111-113 method Order::is_large
 S 115-119 method Order::record
+S 116-116 variable record::event
 S 121-127 method Order::move_to
 S 129-135 method Order::reserve
+S 130-130 variable reserve::ok
+S 130-130 variable reserve::err
 S 137-146 method Order::pay
+S 141-141 variable pay::ok
+S 141-141 variable pay::err
 S 148-155 method Order::ship
+S 149-149 variable ship::ok
+S 149-149 variable ship::err
 S 157-163 method Order::cancel
+S 158-158 variable cancel::ok
+S 158-158 variable cancel::err
 S 166-171 method Order::drain
+S 167-167 variable drain::_
+S 167-167 variable drain::event
 S 173-187 method Order::to_json
+S 174-174 variable to_json::lines
+S 175-175 variable to_json::i
+S 175-175 variable to_json::line
 S 193-209 module describers
 S 194-196 method describers::placed
 S 197-199 method describers::reserved
@@ -463,15 +694,31 @@ S 200-202 method describers::paid
 S 203-205 method describers::shipped
 S 206-208 method describers::cancelled
 S 212-218 method M::describe
+S 213-213 variable describe::describer
 S 221-223 method M::sse_frame
 S 229-235 method M::count_by_state
+S 230-230 variable count_by_state::counts
+S 231-231 variable count_by_state::_
+S 231-231 variable count_by_state::order
 S 237-247 method M::largest
+S 238-238 variable largest::sorted
+S 242-242 variable largest::top
+S 243-243 variable largest::i
 S 250-265 method M::packing_slip
 S 252-254 function rule
 S 255-257 function row
+S 258-258 variable packing_slip::out
+S 259-259 variable packing_slip::_
+S 259-259 variable packing_slip::line
 S 269-276 method M::next_number
+S 271-271 variable next_number::seq
+S 271-271 variable next_number::err
 S 278-280 method M::is_order_number
 S 284-298 method M::from_request_body
+S 285-285 variable from_request_body::request
+S 285-285 variable from_request_body::decode_err
+S 293-293 variable from_request_body::order
+S 293-293 variable from_request_body::err
 R 7:15 imports order -> money (name-matched: warehouse/money.lua)
 R 7:15 imports order -> warehouse.money
 R 8:15 imports order -> safe
@@ -480,11 +727,11 @@ R 47:10 calls M::is_terminal -> next
 R 56:6 calls new_line -> type
 R 56:47 calls new_line -> match (name-matched: gateway/router.lua)
 R 59:20 calls new_line -> tonumber
-R 60:56 calls new_line -> floor
+R 60:56 calls new_line -> floor (name-matched: warehouse/money.lua)
 R 63:42 calls new_line -> from_json (name-matched: warehouse/money.lua)
 R 63:77 calls new_line -> zero (name-matched: warehouse/money.lua)
 R 68:26 calls subtotal -> times (name-matched: warehouse/money.lua)
-R 80:16 calls M::new -> setmetatable
+R 80:16 calls M::new -> setmetatable (name-matched: warehouse/money.lua)
 R 89:17 calls M::new -> ipairs
 R 90:23 calls M::new -> new_line
 R 99:8 calls M::new -> record
@@ -492,7 +739,7 @@ R 105:18 calls Order::total -> ipairs
 R 106:20 calls Order::total -> subtotal
 R 108:16 calls Order::total -> sum (name-matched: warehouse/money.lua)
 R 112:15 calls Order::is_large -> total
-R 116:68 calls Order::record -> now
+R 116:68 calls Order::record -> now (name-matched: gateway/ratelimit.lua)
 R 122:12 calls Order::move_to -> can_move_to
 R 123:24 calls Order::move_to -> format (name-matched: warehouse/money.lua)
 R 130:24 calls Order::reserve -> move_to

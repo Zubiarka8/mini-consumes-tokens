@@ -66,7 +66,7 @@
 - ERR-012 observed and resolved: local MCP initialization in `feat/index-privacy-hygiene` failed inside the filesystem sandbox with `Error: database error: unable to open database file`, `Error code 14: unable to open database file`. Notified the user; retried with authorized filesystem access, using the project's own server binary and the same worktree root.
 - Successful `get_indexing_status` on the dirty tree based on `32f8a79ccfcd09c3d790e43edc284d7602e9737b`: timestamp 1791792386, 594 files and 12,370 symbols. The 16 malformed-corpus parse failures are expected (ERR-003); no other parse diagnostic was observed in this worktree.
 - Source lookup proceeded through local `build_context_pack` calls. A connected MCP with an unconfirmed root was not used for the code review.
-- Intentional malformed ignore-file and permission-denial fixtures belong to the synthetic regression tests; their diagnostics and reproduced privacy defects are recorded in `project-management/checkpoints/index-privacy-hygiene-review.md`.
+- Intentional malformed ignore-file and permission-denial fixtures belong to the synthetic regression tests; their diagnostics and reproduced privacy defects were recorded in a checkpoint that has since been removed.
 
 ## 2026-10-15 — Issue #207 planning
 
@@ -109,7 +109,7 @@
 - An independent notify 8.2.0 probe reproduced `backend: Fsevent` followed by `Error: Timeout`; selecting kqueue produced `backend: Kqueue` and `received: Create(File)`. ERR-009 stays OPEN for native FSEvents delivery in this host. No default production backend was changed, and passing kqueue tests do not establish FSEvents runtime coverage.
 - Full candidate validation: `CARGO_NET_OFFLINE=true scripts/unix/check.sh` passes formatting, 1,588 tests (zero failed, 24 existing ignored), strict workspace Clippy, and evaluation with accuracy 1.000 and a catalog of approximately 9,021 tokens. Tests were not removed, ignored, or weakened by this change. At validation time, application to the original worktree was blocked because writes outside the runner's writable roots were rejected; no commit, push, or PR was created.
 - The user subsequently applied the patch to the original worktree. For separate PR preparation, the watcher change was copied into an isolated branch and rebased onto GitHub main `4c3f155`, without altering the source worktree. Full validation there passed formatting, 1,600 tests (zero failed, 24 existing ignored), strict workspace Clippy, and evaluation (accuracy 1.000, catalog approximately 10,727 tokens). Native FSEvents delivery remains open.
-- After PR #211 merged, its ERR-015 record was reconciled with ERR-009 on main `a38dcc5`. The combined tree passed `CARGO_NET_OFFLINE=true CARGO_TARGET_DIR=/private/tmp/mct-207-watcher-fix/target scripts/unix/check.sh`: formatting, 1,600 tests (zero failed, 24 existing ignored), strict Clippy, and evaluation with accuracy 1.000 and a catalog of approximately 10,727 tokens.
+- After PR #211 merged, its ERR-015 record was reconciled with ERR-009 on main `a38dcc5`. The combined tree passed `CARGO_NET_OFFLINE=true scripts/unix/check.sh` with `CARGO_TARGET_DIR` set to a temporary directory: formatting, 1,600 tests (zero failed, 24 existing ignored), strict Clippy, and evaluation with accuracy 1.000 and a catalog of approximately 10,727 tokens.
 
 ## 2026-10-18 — Explicit source reindex
 
@@ -122,7 +122,7 @@
 - ERR-017 reproduced for both installed tools: CLI status and installed-server smoke each exit 1 with `Attempt to migrate a database with a migration number that is too high`. Existing release and newly built isolated binaries open the same project index. Global installation was not changed.
 - ERR-018 opened: normal-target CLI build exits 101 with five errors referring to older core APIs, while those APIs exist in the source. Cargo check exits 0. CLI and server builds using a fresh target both exit 0 without a Rust source edit. Fresh CLI forced reindex and fresh-server initialize/status succeed. This verifies the isolated-build mitigation; the exact cache/writer mechanism is not established.
 - ERR-003 expected diagnostics: 18 observed (16 malformed corpus fixtures plus two byte-identical snapshot copies), rather than 28. Existing and newly built CLIs reproduce exclusion counts 18 → 16 → 0 on a disposable corpus while preserving the valid control; originals and project rules are unchanged. The focused malformed-contract test passes. Current `pr-body.sh` and `pr-status.ps1` also pass direct probes; historical minimized grammar repros were not rerun.
-- Temporary branch-guarded CLI/server launchers and a shell activation file were created outside the repository. Shell syntax and correct-root CLI status pass. Separate worktrees/indexes are recommended if agents edit different sources or schemas. The smoke script still selects the installed global server despite a PATH override, so the successful isolated-server test invoked its absolute path directly. Full evidence and alternatives: [investigation checkpoint](../project-management/checkpoints/index-parse-investigation-2026-10-18.md).
+- Temporary branch-guarded CLI/server launchers and a shell activation file were created outside the repository. Shell syntax and correct-root CLI status pass. Separate worktrees/indexes are recommended if agents edit different sources or schemas. The smoke script still selects the installed global server despite a PATH override, so the successful isolated-server test invoked its absolute path directly. The investigation checkpoint holding the full evidence has since been removed.
 
 ## 2026-10-19 — ERR-015 recurrence during the #207 closure
 
@@ -163,3 +163,32 @@ During the dashboard UI work on `feature/localhost-ui-improvements` (base `166af
 ## 2026-10-29 — worktree-rooted MCP not connected; stdio probe works (ERR-016, ERR-014)
 
 While adding a clickable state menu to the findings list, the session-connected `cargo-deps` server again indexed the 5-file corpus (see ERR-016). Queried the worktree through `mct-mcp-server --root <worktree>` over stdio instead: `find_references` located every render site of `stateBadge`, `ignoreFinding` and `confirmDialog`. One caller mistake (`name` instead of `symbol`, ERR-014), retried successfully. `mct-cli call --tool <name>` is the simpler route for next time.
+
+## 2026-10-30 — Index status observations
+
+2026-10-30: `get_indexing_status` (no arguments), branch `feat/mct-indexing-language-audit`, base `59231f0` with local changes, timestamp `1793393687`, reported 16 expected ERR-003 malformed fixtures and open ERR-002 (`scripts/windows/review-check.ps1: line 29: syntax error`) and ERR-023 (`crates/mct-cli/web-ui/src/styles.css: line 12: syntax error`). Neither correction is verified.
+
+2026-10-30: `get_indexing_status` (no arguments), branch `feat/mct-indexing-language-audit`, base `59231f0` with local changes, timestamp `1793393489`, reported 16 expected ERR-003 malformed fixtures and the same open ERR-002 (`scripts/windows/review-check.ps1: line 29: syntax error`) and ERR-023 (`crates/mct-cli/web-ui/src/styles.css: line 12: syntax error`). Neither correction is verified.
+
+2026-10-30: `get_indexing_status` (no arguments), branch `feat/mct-indexing-language-audit`, base `59231f0` with local changes, timestamp `1793393225`, reported 16 expected ERR-003 malformed fixtures and the same open ERR-002 (`scripts/windows/review-check.ps1: line 29: syntax error`) and ERR-023 (`crates/mct-cli/web-ui/src/styles.css: line 12: syntax error`). Neither correction is verified.
+
+2026-10-30: `get_indexing_status` (no arguments), branch `feat/mct-indexing-language-audit`, base `59231f0` with local changes, timestamp `1793393075`, reported 16 expected ERR-003 malformed fixtures and the same open ERR-002 (`scripts/windows/review-check.ps1: line 29: syntax error`) and ERR-023 (`crates/mct-cli/web-ui/src/styles.css: line 12: syntax error`). The observation does not verify a correction.
+
+2026-10-30: `get_indexing_status` (no arguments) on `feat/mct-indexing-language-audit`, base `59231f0` with local changes, reported timestamp `1793392955` and the same 16 expected ERR-003 fixture failures and two open ordinary-file failures: ERR-002 (`scripts/windows/review-check.ps1: line 29: syntax error`) and ERR-023 (`crates/mct-cli/web-ui/src/styles.css: line 12: syntax error`). No fix is verified by this observation.
+
+2026-10-30: `get_indexing_status` (no arguments) on `feat/mct-indexing-language-audit`, base `59231f0` with local changes, reported index timestamp `1793392495`: 16 expected ERR-003 malformed fixtures, ERR-002 (`scripts/windows/review-check.ps1: line 29: syntax error`) and ERR-023 (`crates/mct-cli/web-ui/src/styles.css: line 12: syntax error`). The latter two remain open; this observation does not establish their cause or verify a fix.
+
+2026-10-30: `get_indexing_status` on `feat/mct-index-audit` (base `59231f0`, dirty; index timestamp `1793392076`) reported 16 expected ERR-003 fixture failures, the existing ERR-002 PowerShell diagnostic at `scripts/windows/review-check.ps1:29`, and `crates/mct-cli/web-ui/src/styles.css: line 12: syntax error` (new ERR-023). `scripts/unix/parse-probe.sh` reproduced both ordinary-file failures at `Remove-Item Env:MCT_CHECK_LOG_DIR, Env:MCT_CHECK_SUMMARY -ErrorAction SilentlyContinue` and `@source "./";` respectively; CSS cause remains unverified.
+
+## 2026-11-01 — ERR-013 and ERR-014 recurrences
+
+`get_file_skeleton` failed for `crates/mct-mcp-server/src/context_budget.rs`
+with `` `crates/mct-mcp-server/src/context_budget.rs` was not found under the indexed project root ``.
+The corrected path, `crates/mct-index/src/context_budget.rs`, succeeded.
+The connected index reported 1,216 files, timestamp `1793545149`, and 20
+parse diagnostics. This was a caller path mistake, not a server defect.
+
+The same session requested `get_tool_schema(name: "select_tools")` while the
+opt-in tool was absent from discovery. The diagnostic was ``no tool named
+`select_tools` — call discover_tool_categories for the full list``. Schemas
+for advertised tools succeeded; this is a caller mistake (ERR-014).

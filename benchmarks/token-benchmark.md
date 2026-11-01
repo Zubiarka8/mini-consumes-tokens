@@ -1,5 +1,15 @@
 # Token benchmark: MCP tools vs. Read/Grep/Glob
 
+**Partial remeasurement (2026-11-01):** `cargo run --offline -p mct-cli
+--example token_benchmark` completed on the current dirty Lua branch. For the
+XML `worker` definition query it reported 71 MCP characters versus 289 for
+grep plus read (75.4% reduction), rather than the historical 72.0% below.
+This run covers the fixtures in that example, not the separate Lua harness
+or other benchmarks. Empty MCP results in the table are not evidence that a
+query produced a useful answer.
+
+> **Measurement status (documentation audit, 2026-11-01):** the figures below are historical results recorded when this file was written. They were not remeasured against the current checkout; rerun the method described here before quoting them as current.
+
 Methodology (`crates/mct-cli/examples/token_benchmark.rs`, run via `cargo run -p mct-cli --example token_benchmark`):
 
 - **MCP**: the exact formatted text an MCP tool call (`find_symbol`/`find_callers`/`find_references`) would return, measured in characters.
@@ -73,7 +83,7 @@ New fixture (`invoice.py`/`logger.py`/`main.py`), same shape as the Rust one abo
 
 ## Lua (`crates/mct-lang-lua/tests/fixtures/inventory-app`)
 
-Reused the existing `inventory-app` fixture and its proven query terms (same ones `index_integration.rs` already asserts on). `mct-lang-lua` is deliberately **not** a `mct-cli` dependency (see its `Cargo.toml` description — it's an architecture-validation exercise outside the project's original language scope, not wired into the production `mct-cli`/`mct-mcp-server` registries), so this row was produced by a separate, self-contained harness — `crates/mct-lang-lua/examples/token_benchmark_lua.rs` — that duplicates the exact same `mcp_chars`/`grep_then_read_chars` measurement code rather than adding Lua to `mct-cli`. Run via `cargo run -p mct-lang-lua --example token_benchmark_lua` (named `_lua` to avoid an example-binary filename collision with `mct-cli`'s own `token_benchmark` example).
+The original measurement reused the `inventory-app` fixture and its proven query terms. At the time, Lua was not wired into the production registry, so this row used the separate harness `crates/mct-lang-lua/examples/token_benchmark_lua.rs`, with the same `mcp_chars`/`grep_then_read_chars` measurement code. Lua is now registered; the historical row was not remeasured after that change. The original harness can be run via `cargo run -p mct-lang-lua --example token_benchmark_lua`.
 
 | Query | MCP chars | MCP ~tokens | Grep+Read chars | Grep+Read ~tokens | Reduction |
 |---|---|---|---|---|---|
