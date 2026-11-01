@@ -100,7 +100,7 @@ Matches each relation to the symbols it may point to. It is computed on every re
 
 | Result | Meaning |
 | --- | --- |
-| one candidate | **resolved**: the relation points to that symbol |
+| one candidate | **resolved**, unless it is an untyped member call, which remains ambiguous |
 | several | **ambiguous**: all are kept, none is picked |
 | none | **unresolved**, or **external** when `external = 1` |
 
@@ -126,7 +126,7 @@ Libraries declared in manifest files. See [Adding library support](/docs/librari
 | --- | --- | --- |
 | `id` | integer | Primary key. |
 | `manifest_path` | text | Path of the manifest, e.g. `crates/foo/Cargo.toml`. |
-| `language` | text | Ecosystem: `rust`, `javascript_typescript`, `python`, `go`. |
+| `language` | text | Ecosystem: `rust`, `javascript_typescript`, `python`, `go` (and `lua` for LuaRocks rockspecs). |
 | `name` | text | Library name. Unique per manifest. |
 | `version` | text | Version as written (`^18.3.1`, `>=2.0,<3.0`). `NULL` for path, git or workspace dependencies. |
 
@@ -162,6 +162,7 @@ Key/value pairs, for example `last_indexed_at`.
 | 9 | relation evidence columns and `relation_candidates` |
 | 10 | `target_kind`, `target_module` |
 | 11 | `symbol_aliases`, and `relation_candidates` also matching by alias |
+| 12 | `rockspec_items`: full LuaRocks rockspec detail (issue #267). Additive: the table is empty after the upgrade and is filled by the next reindex, because rockspecs are re-read on every reindex. |
 
 A migration that changes what gets extracted sets every `content_hash` to `''`, so the next reindex parses every file again. You don't need `--force`.
 

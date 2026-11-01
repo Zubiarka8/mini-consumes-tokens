@@ -10,6 +10,7 @@
 | `find_symbol` | atomic | Exact-name symbol lookup |
 | `search_symbols_like` | discovery | Ranked word search over symbol names |
 | `hybrid_search_like` | discovery | Word search fused with embedding similarity |
+| `semantic_search` | lookup | Embedding-only similarity search |
 | `search_symbols` / `hybrid_search` | deprecated aliases | Old names of the two tools above, kept for one version |
 | `find_references` | atomic | Every reference to a symbol |
 | `find_calls` | atomic | What a function calls |
@@ -21,15 +22,19 @@
 | `build_context_pack` | composite | Definition + doc + capped source, and every caller/callee/dependency/test once, in one call |
 | `get_file_skeleton` | discovery | Top-level shape of one file, bodies collapsed |
 | `get_project_overview` | discovery | Compact hierarchical digest of a file/directory/crate/project |
+| `get_file_tree` | discovery | File and directory tree |
 | `reindex` | maintenance | Force a re-scan |
 | `get_indexing_status` | maintenance | Index health report |
+| `discover_tool_categories` | meta | List tool names and purposes by category |
+| `get_tool_schema` | meta | Retrieve one tool schema |
+| `batch` | meta | Run several read-only queries |
 | `select_tools` | meta | Tool Attention, only with `MCT_TOOL_ATTENTION=1`: narrow `tools/list` to one request's tools |
 
 `select_tools` accepts `query` (the user's request, verbatim). With `MCT_TOOL_ATTENTION=1` the server declares `tools.listChanged` and `tools/list` starts with `select_tools` alone. Each call runs `intent::preselect` on the query (word rules only; the full catalog when they find nothing), makes `select_tools` plus the picked tools the advertised set, sends `notifications/tools/list_changed`, and replies with the intent line, the tool names and argument hints. It never runs a tool. `tools/call` accepts every catalog tool whatever is advertised. Without the variable, `select_tools` is not registered and nothing else changes. `batch` refuses it (with the variable off it is an unknown tool there too).
 
 `find_references`/`find_calls`/`find_callers`/`impact_analysis` accept `depth` (multi-hop, default 1), `limit`, `offset`. `find_references` also accepts `sort`: `relevance` (default) or `execution` (by hop, file and line; a static approximation, not the real execution order).
 
-`get_project_overview` accepts `path` (optional, same matching semantics as `list_symbols` — omitted means the whole project root), `language`, `max_symbols_per_module` (default 8, caps top-level symbols surfaced per file), and `include_relations` (default true, whether to show each surfaced symbol's top callers). It composes `list_symbols` + `find_callers` internally — no new SQL, no new schema — ranking truncated modules by call fan-in.
+`get_project_overview` accepts `path` (optional, same matching semantics as `list_symbols` — omitted means the whole project root), `language`, `max_symbols_per_module` (default 8, caps top-level symbols surfaced per file), and `include_relations` (default false, whether to show each surfaced symbol's top callers). It composes `list_symbols` + `find_callers` internally — no new SQL, no new schema — ranking truncated modules by call fan-in.
 
 `build_context_pack` accepts `symbol` (exact name), `path`/`language` (pick the definition of an ambiguous name; callers and tests stay project-wide), `depth` (hops both ways, default 1), `limit` (related rows, default 30), `source_lines` (per definition, default 40, max 200) and `format` (`toon` default, or `text`). It composes `find_symbol` + `find_calls` + `find_callers` + `find_references` + the `impact_analysis` test heuristic, plus the new `Index::find_dependencies_scoped` (non-call relations a symbol makes), and reads each involved file at most once for doc comments and signatures. Example, `{"symbol": "place_order"}` on `crates/mct-mcp-server/tests/fixtures/context-pack-app`:
 
