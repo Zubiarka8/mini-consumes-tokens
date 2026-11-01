@@ -163,3 +163,32 @@ During the dashboard UI work on `feature/localhost-ui-improvements` (base `166af
 ## 2026-10-29 — worktree-rooted MCP not connected; stdio probe works (ERR-016, ERR-014)
 
 While adding a clickable state menu to the findings list, the session-connected `cargo-deps` server again indexed the 5-file corpus (see ERR-016). Queried the worktree through `mct-mcp-server --root <worktree>` over stdio instead: `find_references` located every render site of `stateBadge`, `ignoreFinding` and `confirmDialog`. One caller mistake (`name` instead of `symbol`, ERR-014), retried successfully. `mct-cli call --tool <name>` is the simpler route for next time.
+
+## 2026-10-30 — Index status observations
+
+2026-10-30: `get_indexing_status` (no arguments), branch `feat/mct-indexing-language-audit`, base `59231f0` with local changes, timestamp `1793393687`, reported 16 expected ERR-003 malformed fixtures and open ERR-002 (`scripts/windows/review-check.ps1: line 29: syntax error`) and ERR-023 (`crates/mct-cli/web-ui/src/styles.css: line 12: syntax error`). Neither correction is verified.
+
+2026-10-30: `get_indexing_status` (no arguments), branch `feat/mct-indexing-language-audit`, base `59231f0` with local changes, timestamp `1793393489`, reported 16 expected ERR-003 malformed fixtures and the same open ERR-002 (`scripts/windows/review-check.ps1: line 29: syntax error`) and ERR-023 (`crates/mct-cli/web-ui/src/styles.css: line 12: syntax error`). Neither correction is verified.
+
+2026-10-30: `get_indexing_status` (no arguments), branch `feat/mct-indexing-language-audit`, base `59231f0` with local changes, timestamp `1793393225`, reported 16 expected ERR-003 malformed fixtures and the same open ERR-002 (`scripts/windows/review-check.ps1: line 29: syntax error`) and ERR-023 (`crates/mct-cli/web-ui/src/styles.css: line 12: syntax error`). Neither correction is verified.
+
+2026-10-30: `get_indexing_status` (no arguments), branch `feat/mct-indexing-language-audit`, base `59231f0` with local changes, timestamp `1793393075`, reported 16 expected ERR-003 malformed fixtures and the same open ERR-002 (`scripts/windows/review-check.ps1: line 29: syntax error`) and ERR-023 (`crates/mct-cli/web-ui/src/styles.css: line 12: syntax error`). The observation does not verify a correction.
+
+2026-10-30: `get_indexing_status` (no arguments) on `feat/mct-indexing-language-audit`, base `59231f0` with local changes, reported timestamp `1793392955` and the same 16 expected ERR-003 fixture failures and two open ordinary-file failures: ERR-002 (`scripts/windows/review-check.ps1: line 29: syntax error`) and ERR-023 (`crates/mct-cli/web-ui/src/styles.css: line 12: syntax error`). No fix is verified by this observation.
+
+2026-10-30: `get_indexing_status` (no arguments) on `feat/mct-indexing-language-audit`, base `59231f0` with local changes, reported index timestamp `1793392495`: 16 expected ERR-003 malformed fixtures, ERR-002 (`scripts/windows/review-check.ps1: line 29: syntax error`) and ERR-023 (`crates/mct-cli/web-ui/src/styles.css: line 12: syntax error`). The latter two remain open; this observation does not establish their cause or verify a fix.
+
+2026-10-30: `get_indexing_status` on `feat/mct-index-audit` (base `59231f0`, dirty; index timestamp `1793392076`) reported 16 expected ERR-003 fixture failures, the existing ERR-002 PowerShell diagnostic at `scripts/windows/review-check.ps1:29`, and `crates/mct-cli/web-ui/src/styles.css: line 12: syntax error` (new ERR-023). `scripts/unix/parse-probe.sh` reproduced both ordinary-file failures at `Remove-Item Env:MCT_CHECK_LOG_DIR, Env:MCT_CHECK_SUMMARY -ErrorAction SilentlyContinue` and `@source "./";` respectively; CSS cause remains unverified.
+
+## 2026-11-01 — ERR-013 and ERR-014 recurrences
+
+`get_file_skeleton` failed for `crates/mct-mcp-server/src/context_budget.rs`
+with `` `crates/mct-mcp-server/src/context_budget.rs` was not found under the indexed project root ``.
+The corrected path, `crates/mct-index/src/context_budget.rs`, succeeded.
+The connected index reported 1,216 files, timestamp `1793545149`, and 20
+parse diagnostics. This was a caller path mistake, not a server defect.
+
+The same session requested `get_tool_schema(name: "select_tools")` while the
+opt-in tool was absent from discovery. The diagnostic was ``no tool named
+`select_tools` — call discover_tool_categories for the full list``. Schemas
+for advertised tools succeeded; this is a caller mistake (ERR-014).
