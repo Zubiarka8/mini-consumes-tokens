@@ -2,7 +2,8 @@
 
 ## Status
 
-Proposed, pending maintainer acceptance (issue #207, Phase 3). Extends
+Proposed; maintainer acceptance is not recorded in this document. Partial-block
+analysis was integrated into `main` after the issue #207 Phase 3 work. Extends
 [ADR-008](008-token-twins-comparison-policies.md) and
 [ADR-009](009-duplicate-group-aligned-evidence.md) without changing their
 groups. ADR-010 (verdicts) and ADR-011 (subgroups) are written in parallel;
