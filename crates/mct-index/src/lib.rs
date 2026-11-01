@@ -14,6 +14,7 @@ mod error;
 mod exclude;
 mod file_tree;
 mod indexer;
+pub mod luarocks;
 mod manifests;
 mod queries;
 mod read_limits;
