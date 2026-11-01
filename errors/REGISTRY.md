@@ -1,5 +1,25 @@
 # Error registry
 
+## Observation on 2026-10-30
+
+Latest `get_indexing_status` (no arguments) on `feat/mct-indexing-language-audit`, base `59231f0` with local changes: timestamp `1793393687`, 1,014 files, 21,050 symbols and the same 18 diagnostics. ERR-002 and ERR-023 remain open; 16 malformed fixtures are expected (ERR-003).
+
+Latest `get_indexing_status` (no arguments) on `feat/mct-indexing-language-audit`, base `59231f0` with local changes: timestamp `1793393489`, 1,014 files, 21,048 symbols and the same 18 diagnostics. ERR-002 and ERR-023 remain open; 16 malformed fixtures are expected (ERR-003).
+
+Latest `get_indexing_status` (no arguments) on `feat/mct-indexing-language-audit`, base `59231f0` with local changes: timestamp `1793393225`, 1,014 files, 21,048 symbols and the same 18 diagnostics. ERR-002 and ERR-023 remain open; 16 malformed fixtures are expected (ERR-003).
+
+Latest `get_indexing_status` (no arguments) on `feat/mct-indexing-language-audit`, base `59231f0` with local changes: timestamp `1793393075`, 1,012 files, 21,039 symbols and the same 18 diagnostics. ERR-002 and ERR-023 remain open; 16 malformed fixtures are expected (ERR-003).
+
+Latest `get_indexing_status` (no arguments) on `feat/mct-indexing-language-audit`, base `59231f0` with local changes: timestamp `1793392955`, 1,012 files, 21,036 symbols and the same 18 diagnostics. ERR-002 and ERR-023 remain open; 16 malformed fixtures are expected (ERR-003).
+
+On `feat/mct-indexing-language-audit` at base `59231f0` with local changes, `get_indexing_status` (no arguments) returned index timestamp `1793392495`, 1,012 files, 21,036 symbols and the same 18 diagnostics described below. ERR-002 and ERR-023 remain open; the other 16 are expected malformed fixtures. This observation does not establish the cause of either ordinary-file failure.
+
+`get_indexing_status` (no arguments) on branch `feat/mct-index-audit`, base `59231f0` with local edits, returned index timestamp `1793392076`, 1,012 files and 21,034 symbols. The snapshot can predate local edits. It reports 16 intentionally malformed fixtures (ERR-003), `scripts/windows/review-check.ps1: line 29: syntax error` (ERR-002), and the following additional diagnostic:
+
+| ID | Status | Location / scope | Observation and impact | Next action |
+| --- | --- | --- | --- | --- |
+| ERR-023 | OPEN | `crates/mct-cli/web-ui/src/styles.css:12` | `line 12: syntax error` reported by `get_indexing_status`; the file is absent from the usable parsed index. `scripts/unix/parse-probe.sh` reproduced the rejection at `@source "./";`. Validity and cause are not yet established. | Investigate the syntax and grammar before classifying. |
+
 Last observation: 2026-10-10. Checkout HEAD: `dab3059995beaaaf7cd56e0d52db124e207aae55` (`claude/library-onboarding-audit`, clean tree).
 Evidence: `mct-cli --root . reindex --force` then `mct-cli --root . status` on that checkout, with no `.mctignore`; index timestamp `1791636301` (550 files, 11,501 symbols). Same 18 diagnostics as the initial snapshot at `1791629091`.
 
