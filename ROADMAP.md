@@ -2,6 +2,8 @@
 
 > **Historical document with a status table.** The candidate text below is frozen at commit `9ca9ab5` (2026-09-13, pre-0.2.0). The table that follows records what has happened since, verified against the code, `CHANGELOG.md` and git history on 2026-10-13 (base `2641f50`). `CHANGELOG.md` remains the source of truth for what is released.
 
+> **Note, 2026-11-01:** the tool counts in the table below (row 7: 19, or 20 with `select_tools`) are those of 2026-10-13. The catalog in `crates/mct-mcp-server/src/tools.ttc` now has 23 tools by default and 24 with the opt-in `select_tools`.
+
 ## Status as of 2026-10-13
 
 | # | Candidate | Status | Evidence |
@@ -19,7 +21,7 @@
 | 11 | Token-savings observability | Open | Measurements remain in `benchmarks/` (token, agent, intent, semantic-runtime, quality-eval). No `stats` subcommand or savings tool. `scripts` has a read-only usage-check for Claude Code billing keys (a dev script, not a product feature). |
 | 12 | Minor debt | Mostly stale | `README.md` no longer contains the stale "planned" or "seven languages" wording. Tag `v0.2.0` exists and 0.2.0 is dated 2026-10-09 in the CHANGELOG; whether the GitHub Release is published was not verified. Crates are deliberately not on crates.io because of the vendored `tree-sitter-md` patch. Rust/Python integration fixtures and benchmarks: not re-checked. |
 
-Shipped since this document was written and not listed above: `mct-cli update` and `scripts/unix/release.sh` (Unreleased), the Web/3D asset foundation of ADR-003 (Unreleased, `docs/05-backlog/roadmap.md`), the Markdown note graph, `.mctignore` with `!` re-includes, the background file watcher, `mct-eval`, a per-language fuzzing and corpus suite, and intent extraction with catalog tool preselection (issue #19). Open product bugs are tracked in `ISSUES_PENDING.md`; the live web/3D backlog is `docs/05-backlog/roadmap.md`.
+Shipped since this document was written and not listed above: `mct-cli update` and `scripts/unix/release.sh` (Unreleased), the Web/3D asset foundation of ADR-003 (Unreleased, `docs/05-backlog/roadmap.md`), the Markdown note graph, `.mctignore` with `!` re-includes, the background file watcher, `mct-eval`, a per-language fuzzing and corpus suite, and intent extraction with catalog tool preselection (issue #19). The live web/3D backlog is `docs/05-backlog/roadmap.md`.
 
 Analysis and planning only; no product code was written to produce this
 document. It is based on a full review of `checklist.md`, `CHANGELOG.md`,
