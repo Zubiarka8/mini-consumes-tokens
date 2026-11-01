@@ -18,7 +18,7 @@ To add a whole new language, see [Adding a language](/docs/extending) first.
 | What | File |
 | --- | --- |
 | Manifest detection, dispatch and deduplication | `crates/mct-index/src/manifests.rs` |
-| One parser per format | `crates/mct-index/src/manifests/<ecosystem>.rs` (`rust.rs`, `javascript.rs`, `python.rs`, `go.rs`) |
+| One parser per format | `crates/mct-index/src/manifests/<ecosystem>.rs` (`rust.rs`, `javascript.rs`, `python.rs`, `go.rs`; `lua.rs` and `lua/` for LuaRocks rockspecs on the unreleased Lua branch) |
 | Where manifests are picked out during indexing | `crates/mct-index/src/indexer.rs` (`manifest_language` call in `index_file`) |
 | Manifest tests | `manifests.rs` unit tests, `crates/mct-index/tests/manifests.rs` |
 | Stored dependencies | [`dependencies`](/docs/schema#dependencies) table |
@@ -49,6 +49,7 @@ While indexing, every file whose **name** is a known manifest is read and its de
 | `package.json` | `javascript_typescript` | `dependencies`, `devDependencies`, `peerDependencies`, `optionalDependencies` |
 | `requirements.txt` | `python` | one requirement per line; `-r`, `-e` and other options are skipped |
 | `go.mod` | `go` | `require` block and single-line `require`; `go.sum` is not read |
+| `*.rockspec` | `lua` | LuaRocks dependency declarations and additional rockspec analysis; unreleased Lua branch only |
 
 Only direct dependencies are recorded, never lock files. The version is kept as written (`^18.3.1`, `>=2.0,<3.0`), and is empty for path, git and workspace dependencies. Manifests inside excluded folders (`node_modules/`, `vendor/`…) are ignored.
 
@@ -56,7 +57,7 @@ Maven and Gradle are left out on purpose: Gradle build files are code (Groovy or
 
 ### How it works
 
-A manifest never goes through a language parser. In `indexer.rs`, each file's name is checked first with `manifests::manifest_language`; if it matches, `manifests::parse_manifest` reads it and the file is not indexed as source code. Manifests are read again on every reindex, because they are few and small.
+A manifest never goes through a language parser. In `indexer.rs`, each file's name is checked first with `manifests::manifest_language`; if it matches, the manifest handler reads it and the file is not indexed as source code. On the unreleased Lua branch, rockspecs use a separate analysis path; the other formats use `manifests::parse_manifest`. Manifests are read again on every reindex, because they are few and small.
 
 No schema change and no new MCP tool is needed: the new format appears in the existing `dependencies` table and in `status`.
 
@@ -69,10 +70,7 @@ Detection and dispatch stay in `crates/mct-index/src/manifests.rs`; the format p
 ```rust title="crates/mct-index/src/manifests.rs"
 pub fn manifest_language(file_name: &str) -> Option<&'static str> {
     match file_name {
-        "Cargo.toml" => Some("rust"),
-        "package.json" => Some("javascript_typescript"),
-        "requirements.txt" => Some("python"),
-        "go.mod" => Some("go"),
+        // Existing formats and the Lua branch's rockspec case...
         "composer.json" => Some("php"), // new
         _ => None,
     }
