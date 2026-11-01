@@ -63,7 +63,7 @@ The background reindex waits until files have been quiet for a set time, in mill
 | Default | `15000` | Good for most projects. |
 | Calm | `60000` | Big repos, or tools that rewrite many files. |
 
-Set it with the `--reindex-debounce-ms <ms>` flag or the `MCT_REINDEX_DEBOUNCE_MS` environment variable. The flag wins over the variable, and the variable wins over the default. A value that is not a whole number is ignored and the default is used.
+Set it with the `--reindex-debounce-ms <ms>` flag or the `MCT_REINDEX_DEBOUNCE_MS` environment variable. Alternatively, use `--reindex-delay 15s`, `--reindex-delay 1m`, or `--reindex-delay off`; it conflicts with `--reindex-debounce-ms`. `mct-cli mcp-register --reindex-delay <value>` writes the choice to server arguments and preserves it on later registrations. The flag wins over the variable, and the variable wins over the default. A value that is not a whole number is ignored and the default is used.
 
 <Tabs items={['Claude Code', 'Codex', 'Cursor, Gemini, Copilot']}>
 <Tab value="Claude Code">

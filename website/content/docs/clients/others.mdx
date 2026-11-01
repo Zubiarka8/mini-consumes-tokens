@@ -7,7 +7,7 @@ Every client launches the same binary: `command` = `mct-mcp-server`, `args` = `[
 
 ## Antigravity (Google) [#reg-antigravity]
 
-Antigravity's IDE and CLI share one config at `~/.gemini/config/mcp_config.json`, root key `"mcpServers"`, same stdio shape as Gemini CLI and Cursor:
+Antigravity's IDE and CLI use `~/.gemini/config/mcp_config.json` for global servers and also support a workspace file at `.agents/mcp_config.json`. The root key is `"mcpServers"`, with the same stdio shape as Gemini CLI and Cursor. See [Antigravity MCP configuration](https://antigravity.google/docs/mcp):
 
 ```json
 {
@@ -59,12 +59,12 @@ Reach the file without hand-navigating the filesystem: Claude menu (macOS menu b
 ```
 
 <Callout type="warn">
-Cascade caps tool count at **100 total, across every connected server**. This server's [tools](/docs/tools) (19 listed by default; with `MCT_TOOL_ATTENTION=1` it first lists only `select_tools`) are nowhere near that limit alone, but on a config with many other servers already registered, individual tools can be toggled off per-server (unlike Cursor, which only toggles whole servers) to stay under the cap.
+Cascade caps tool count at **100 total, across every connected server**. This server's [tools](/docs/tools) (23 listed by default; with `MCT_TOOL_ATTENTION=1` it first lists only `select_tools`) are nowhere near that limit alone, but on a config with many other servers already registered, individual tools can be toggled off per-server (unlike Cursor, which only toggles whole servers) to stay under the cap.
 </Callout>
 
 ## Zed editor [#reg-zed]
 
-Zed has no dedicated MCP config file — entries go under the `"context_servers"` key in Zed's own `settings.json` (open it with the **zed: open settings** command), alongside every other editor setting:
+Zed stores custom servers under the `"context_servers"` key in its `settings.json`, alongside other editor settings. Use **Settings → AI → MCP Servers → Add Server → Add Local Server**, or open the settings file with **zed: open settings file** and add:
 
 ```json
 {
@@ -97,11 +97,13 @@ No `"type"` or `"source"` field is required for a manually-configured stdio serv
 }
 ```
 
-`disabled`/`autoApprove` are Cline additions on top of the common shape — omit both and the server is enabled with no tools auto-approved, same as every other client here.
+`disabled` and `autoApprove` are Cline-specific fields; the example enables the server without auto-approving tools.
+
+The separate Cline CLI uses `~/.cline/data/settings/cline_mcp_settings.json` by default and offers `cline mcp` to manage servers. See [Cline's MCP guide](https://docs.cline.bot/mcp/mcp-overview) for its override and current options.
 
 ## Continue.dev [#reg-continue]
 
-`config.yaml` (global `~/.continue/config.yaml`, or a project's `.continue/config.yaml`) — **YAML, and `mcpServers` is a list, not a keyed object** like every other client in this section:
+Add this fragment to `config.yaml` (global `~/.continue/config.yaml`, or a project's `.continue/config.yaml`) — **YAML, and `mcpServers` is a list, not a keyed object** like every other client in this section:
 
 ```yaml
 mcpServers:
@@ -113,7 +115,7 @@ mcpServers:
 ```
 
 <Callout type="warn">
-The older `config.json` format is deprecated in favor of `config.yaml`. Separately, Continue also reads standalone files under `.continue/mcpServers/` — and will accept a `claude_desktop_config.json`\-shaped (keyed-object) JSON file dropped in that directory as-is, without conversion to the list form above.
+The older `config.json` format is deprecated in favor of `config.yaml`. Standalone YAML files under `.continue/mcpServers/` require `name`, `version` and `schema` metadata; the fragment above is not a complete standalone file. Continue also accepts a `claude_desktop_config.json`\-shaped (keyed-object) JSON file in that directory without conversion to the list form above. See [Continue's MCP guide](https://docs.continue.dev/customize/deep-dives/mcp).
 </Callout>
 
 ## JetBrains AI Assistant / Junie [#reg-jetbrains-junie]
@@ -139,7 +141,7 @@ Two separate MCP surfaces inside JetBrains IDEs (IntelliJ, PyCharm, WebStorm, Ri
 
 ## Warp terminal [#reg-warp]
 
-`~/.warp/.mcp.json` (global) or `.warp/.mcp.json` (project), or the same JSON pasted into **Settings → Agents → MCP Servers**. Root key `"mcpServers"`, identical stdio shape to Claude Desktop's — no new format to document:
+`~/.warp/.mcp.json` (global) or `.warp/.mcp.json` (project), or the same JSON pasted into **Settings → Agents → MCP Servers**. Warp also supports `~/.agents/.mcp.json` and project-local `.agents/.mcp.json` on versions with that feature. Project-scoped servers require approval before they start; see [Warp's MCP guide](https://docs.warp.dev/guides/external-tools/using-mcp-servers-with-warp). Root key `"mcpServers"`, identical stdio shape to Claude Desktop's:
 
 ```json
 {
@@ -154,7 +156,10 @@ Two separate MCP surfaces inside JetBrains IDEs (IntelliJ, PyCharm, WebStorm, Ri
 
 ## OpenHands [#reg-openhands]
 
-`config.toml`, under an `[mcp]` table with `stdio_servers` as an **array of inline tables** — TOML, but a different shape from Codex CLI's one-table-per-server style in [Codex CLI (OpenAI)](/docs/clients/codex):
+Some OpenHands installations use a `config.toml` with `stdio_servers` under
+an `[mcp]` table. Configuration paths and supported settings can vary by
+OpenHands version and deployment; check the documentation for your installation
+before using this example:
 
 ```toml
 [mcp]
@@ -163,11 +168,16 @@ stdio_servers = [
 ]
 ```
 
-`name` is required alongside `command`/`args` here, unlike Codex where the server's name is the TOML table key itself. Servers can also be added from OpenHands' own Settings UI instead of hand-editing `config.toml`.
+The current [OpenHands settings API](https://docs.openhands.dev/api-reference/store-settings)
+documents `mcp_config.stdio_servers` entries with `name`, `command`, and `args`.
+That API format is not the TOML example above. The documentation checked here
+does not establish that every current OpenHands distribution reads this TOML
+file or where it is located; use your installation's settings interface or
+configuration guide.
 
 ## Any other MCP client [#reg-other-clients]
 
 The pattern generalizes: point `command` at `mct-mcp-server` (full path if it isn't on the client's `PATH`) and pass `--root <absolute-path-to-repo>` via `args`. Two gotchas apply regardless of client:
 
 1.  **`--root` must be absolute.** A relative path resolves against whatever working directory the client happens to spawn the process from — often not the repo root, and not consistent across clients.
-2.  **No client here changes the file-watching behavior described in [Managing the index day to day](/docs/managing).** `mct-mcp-server` only reindexes at its own startup; after a `git pull` or branch switch, ask the agent to call `reindex`, or restart the server.
+2.  **No client here changes the file-watching behavior described in [Managing the index day to day](/docs/managing).** `mct-mcp-server` reindexes at startup and watches for changes while running, unless the watcher is disabled. After a `git pull` or branch switch, allow the watcher to settle or request `reindex` explicitly.

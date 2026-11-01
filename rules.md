@@ -20,7 +20,7 @@ Shared rules for Codex, Claude Code, and any agent working in this repository. T
 
 ## Project coordination
 
-Read [PROJECT_MANAGER.md](PROJECT_MANAGER.md) at the start of a substantial work session. It defines task ownership, branch isolation, durable checkpoints, review, integration, and recovery. This file remains authoritative for architecture, technical restrictions, model selection, effort, billing, and client commands. Use only project-local skills unless the user explicitly authorizes another scope.
+This file is authoritative for architecture, technical restrictions, model selection, effort, billing, and client commands. Use only project-local skills unless the user explicitly authorizes another scope.
 
 Write all repository content in English: file and branch names, documentation, code, comments, task records, commit messages, PRs, and issues. Preserve required external identifiers and literal fixture data when translation would change behavior.
 
@@ -78,7 +78,7 @@ For the requested ChatGPT/Codex-led, Claude Code-worker pattern:
 
 ### Handoff checkpoints
 
-Use the durable records and recovery protocol in [PROJECT_MANAGER.md](PROJECT_MANAGER.md#checkpoints-and-handoffs). The coordinator maintains `project-management/`; workers checkpoint their assigned task in their own branch and return the commit, report, and remaining work. Ignored `target/agent-handoffs/` files may hold temporary process output, but must never be the only copy of essential project state. A hard stop may prevent a final checkpoint; recover from the latest persisted record and inspect Git before continuing.
+Workers checkpoint their assigned task in their own branch and return the commit, report, and remaining work. Ignored `target/agent-handoffs/` files may hold temporary process output, but must never be the only copy of essential project state. A hard stop may prevent a final checkpoint; recover from the latest persisted record and inspect Git before continuing.
 
 The coordinator may wait for a bounded worker without sending periodic prompts. Claude Code's automatic subscription-reset waiting is limited to supported interactive sessions; background sessions and `claude -p` runs cannot use that menu. A worker that can still report must return `blocked` when it cannot continue. Never assume an API-billed process can wait for a subscription reset. Providers cannot message unrelated chats without an exposed, authorized handoff route.
 
@@ -103,7 +103,7 @@ When a request is blocked, first read the client's message and usage/status disp
 | A billing cap or paid-credit prompt appears | Stop before accepting charges, enabling credits/overage, using an API key, or increasing an organization cap. Continue only after explicit user authorization. |
 | The error type is unclear or the session/process ended without a report | Preserve all work. Record `blocked` or `failed`, the exact error, worktree/branch, completed changes, checks, and the next safe action in the checkpoint. The coordinator inspects the diff before retrying. |
 
-If ChatGPT/Codex is coordinating Claude Code and ChatGPT/Codex reaches a limit while Claude is working, Claude may finish only its assigned worker task and write its checkpoint/report. The coordinator resumes after its own context is compacted or its usage resets, then inspects and integrates the report. If Claude reaches its limit while waiting for ChatGPT/Codex, leave Claude's session and checkpoint intact; the coordinator can continue only after Claude is available again, or through a fallback already authorized by the user. Changing the coordinator role requires explicit user authorization; follow the recovery protocol in `PROJECT_MANAGER.md`. Neither side should poll with repeated model requests or start unapproved paid usage just to send a “task finished” message.
+If ChatGPT/Codex is coordinating Claude Code and ChatGPT/Codex reaches a limit while Claude is working, Claude may finish only its assigned worker task and write its checkpoint/report. The coordinator resumes after its own context is compacted or its usage resets, then inspects and integrates the report. If Claude reaches its limit while waiting for ChatGPT/Codex, leave Claude's session and checkpoint intact; the coordinator can continue only after Claude is available again, or through a fallback already authorized by the user. Changing the coordinator role requires explicit user authorization. Neither side should poll with repeated model requests or start unapproved paid usage just to send a “task finished” message.
 
 ### Command and capability selection
 
@@ -143,9 +143,9 @@ An MCP server (`mct-mcp-server`) and CLI (`mct-cli`) that index a code repositor
 | What does an unfamiliar file/directory/crate/project look like as a whole? | `get_project_overview` — capped hierarchical digest (modules, key symbols, top callers) in one call; coarser, so switch to the two above once you know the file |
 | What's the directory/file layout, before you know which file or crate to look at? | `get_file_tree` — plain directory tree (no symbol data), depth-limited, pruned of the same noise dirs (`target`, `node_modules`, `.git`) reindexing skips |
 | Where is X defined? | `find_symbol` |
-| Exact name unknown — words or a partial identifier in any style (`parse request`, `parseReq`, `http server`)? | `search_symbols` — BM25-ranked FTS5 match over each name split at camelCase/snake_case/kebab-case/acronym boundaries, exact name always first; default `limit` 10 (max 100), `offset`, optional `snippet_lines`; optional `detail` `overview|summary|detailed` + `max_tokens` (estimated budget for the whole response, not a model limit; cut pages say `next: offset=N`, budgeted calls bypass the cache). Not exhaustive — graph tools stay the source of truth for relations |
-| Only know what the code *does*, not words of its name (`load settings from disk`)? | `hybrid_search` — `search_symbols` fused with local-embedding similarity by weighted Reciprocal Rank Fusion; `alpha` 0 = lexical only … 1 = semantic only (omitted → routed by query shape: 0.1 identifier / 0.75 prose / 0.5 otherwise), `top_k` 10 (max 100), `offset`, `snippet_lines`, optional `detail` + `max_tokens` as in `search_symbols`. Its lexical side also expands dev-verb synonyms and resolves `Type::member` / `module.fn` qualifiers. A `"double-quoted"` query is an exact phrase: lexical only whatever `alpha`, its words consecutive and in order (no prefix/synonym/any-word matching), a literal name match boosted to #1, plus a second section listing prose string literals (error/log messages) holding the phrase as `path:line in <kind> <name> "text"` — case/diacritic-insensitive, currently extracted by `mct-lang-rust` (string literals) and `mct-lang-md` (paragraphs and table rows) only. Needs a `--features semantic` build of `mct-mcp-server` (`bge-small-en-v1.5` by default, `MCT_EMBEDDING_MODEL` to switch; downloaded on first use into `.mct-index/models`); otherwise it returns the lexical ranking and says so on its first line |
-| Search by meaning only, with a cosine-similarity score and signature per hit? | `semantic_search` — the `top_k` (10, max 100) symbols nearest the query embedding, no lexical side; `path`/`language` narrow it. Same `--features semantic` model and stored vectors as `hybrid_search`; `mct-mcp-server --rebuild-embeddings` re-embeds everything and exits |
+| Exact name unknown — words or a partial identifier in any style (`parse request`, `parseReq`, `http server`)? | `search_symbols_like` — BM25-ranked FTS5 match over each name split at camelCase/snake_case/kebab-case/acronym boundaries, exact name always first; default `limit` 10 (max 100), `offset`, optional `snippet_lines`; optional `detail` `overview|summary|detailed` + `max_tokens` (estimated budget for the whole response, not a model limit; cut pages say `next: offset=N`, budgeted calls bypass the cache). Not exhaustive — graph tools stay the source of truth for relations |
+| Only know what the code *does*, not words of its name (`load settings from disk`)? | `hybrid_search_like` — `search_symbols_like` fused with local-embedding similarity by weighted Reciprocal Rank Fusion; `alpha` 0 = lexical only … 1 = semantic only (omitted → routed by query shape: 0.1 identifier / 0.75 prose / 0.5 otherwise), `top_k` 10 (max 100), `offset`, `snippet_lines`, optional `detail` + `max_tokens` as in `search_symbols_like`. Its lexical side also expands dev-verb synonyms and resolves `Type::member` / `module.fn` qualifiers. A `"double-quoted"` query is an exact phrase: lexical only whatever `alpha`, its words consecutive and in order (no prefix/synonym/any-word matching), a literal name match boosted to #1, plus a second section listing prose string literals (error/log messages) holding the phrase as `path:line in <kind> <name> "text"` — case/diacritic-insensitive, currently extracted by `mct-lang-rust` (string literals) and `mct-lang-md` (paragraphs and table rows) only. Needs a `--features semantic` build of `mct-mcp-server` (`bge-small-en-v1.5` by default, `MCT_EMBEDDING_MODEL` to switch; downloaded on first use into `.mct-index/models`); otherwise it returns the lexical ranking and says so on its first line |
+| Search by meaning only, with a cosine-similarity score and signature per hit? | `semantic_search` — the `top_k` (10, max 100) symbols nearest the query embedding, no lexical side; `path`/`language` narrow it. Same `--features semantic` model and stored vectors as `hybrid_search_like`; `mct-mcp-server --rebuild-embeddings` re-embeds everything and exits |
 | Who calls X directly? | `find_callers` |
 | What does X call? | `find_calls` |
 | Every reference to X (calls, imports, extends/implements) | `find_references` |
@@ -159,8 +159,8 @@ An MCP server (`mct-mcp-server`) and CLI (`mct-cli`) that index a code repositor
 
 `find_references`/`find_calls`/`find_callers`/`impact_analysis` also take `depth` (multi-hop BFS beyond the direct hit, default 1, clamped to 32) and `offset` (pagination past `limit`) — reach for `depth` before manually chaining calls to walk the relation graph further out.
 
-**Markdown literal search:** use `hybrid_search` with a double-quoted phrase;
-`search_symbols` only searches symbols, even with quotes. Paragraphs and pipe-table
+**Markdown literal search:** use `hybrid_search_like` with a double-quoted phrase;
+`search_symbols_like` only searches symbols, even with quotes. Paragraphs and pipe-table
 headers/body rows retain their Markdown source text with whitespace collapsed.
 Headings remain symbols; frontmatter and code blocks are excluded from literals.
 The shared prose filter requires at least eight characters and two whitespace-separated
@@ -193,7 +193,7 @@ When giving the user Git or GitHub commands to copy and paste, make them runnabl
 
 ```sh
 cargo build --workspace --all-targets                              # build everything
-cargo test --workspace                                              # run all 222+ tests
+cargo test --workspace                                              # run workspace tests
 cargo test -p mct-lang-go                                            # run one crate's tests
 cargo test -p mct-lang-go idiomatic_syntax                           # run one test by name
 cargo clippy --workspace --all-targets --all-features -- -D warnings # lint (CI-gating, zero warnings)
@@ -245,7 +245,7 @@ For library/framework work, follow the [implementation map](docs/01-architecture
 
 Organize library-specific extraction and focused parser regressions under `crates/mct-lang-<language>/src/libraries/<name>/`, using English names. Keep common grammar and traversal shared. A test-only library module must use `#[cfg(test)]` and document its actual scope; do not imply production support from a folder's existence. Keep corpus fixtures, snapshots and index integration under `tests/` and preserve their paths during organizational refactors.
 
-**The plugin boundary is the whole design.** `mct-core` defines `LanguageParser` (`language_id()`, `file_extensions()`, `parse()`) and `LanguageRegistry` (extension → parser lookup), and knows nothing about tree-sitter, SQLite, or MCP. Each `crates/mct-lang-*` crate implements that trait for one language via its own tree-sitter grammar. `mct-index` and `mct-mcp-server` never match on language names or extensions directly — everything routes through the registry.
+**The plugin boundary is the whole design.** `mct-core` defines `LanguageParser` (`language_id()`, `file_extensions()`, `parse()`) and `LanguageRegistry` (extension → parser lookup), and knows nothing about tree-sitter, SQLite, or MCP. Each `crates/mct-lang-*` crate implements that trait for one language via its own tree-sitter grammar. Source-language parser selection routes through the registry; dependency manifests and other non-source inputs have their own filename routing in `mct-index`.
 
 ```
 mct-core     LanguageParser trait, SymbolRecord/SymbolRelation model, LanguageRegistry
@@ -254,7 +254,7 @@ mct-index    SQLite schema/migrations (a single schema for every language — a 
              Knows no language's grammar.
 mct-lang-*   One crate per language, each a LanguageParser impl over its tree-sitter grammar
 mct-languages  The shipped language set: the one build_registry() every binary indexes with
-mct-mcp-server  MCP tools over stdio (rmcp): list_symbols/find_symbol/search_symbols/hybrid_search/semantic_search/find_references/
+mct-mcp-server  MCP tools over stdio (rmcp): list_symbols/find_symbol/search_symbols_like/hybrid_search_like/semantic_search/find_references/
                 find_calls/find_callers/impact_analysis/get_dependency_graph/build_context_pack/find_dead_code/reindex/
                 get_indexing_status/get_file_skeleton/get_project_overview/get_file_tree/batch
 mct-cli      init/reindex/status/mcp-register subcommands for manual/scripted use

@@ -1,5 +1,7 @@
 # Review decisions: overhead benchmark
 
+> **Measurement status (documentation audit, 2026-11-01):** the figures below are historical results recorded when this file was written. They were not remeasured against the current checkout; rerun the method described here before quoting them as current.
+
 Measures what shared review decisions cost, in parts that are never added
 together:
 
@@ -12,7 +14,7 @@ together:
 - **memory**: peak resident memory of one load, in its own process;
 - **CLI**: `duplicates` with the cache and with `--reviewed`.
 
-Design: `docs/superpowers/specs/2026-10-22-shared-review-decisions-design.md`
+Design: `docs/design/2026-10-22-shared-review-decisions-design.md`
 (§12); the decision is recorded in ADR-019.
 
 ## Gates (§12), final build `cccb522`

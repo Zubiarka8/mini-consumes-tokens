@@ -32,7 +32,7 @@ To add a whole new language, see [Adding a language](/docs/extending) first.
 The section above is about the libraries **your indexed project** uses. To add a Rust library to **mini-consumes-tokens**, for example a parsing crate for a new manifest format:
 
 1. Check first whether a library already in use covers it. `mct-index` already has `serde_json` (JSON) and `toml` (TOML); see [Where the libraries are](/docs/architecture#libraries).
-2. Used by one crate only: add it to that crate's `Cargo.toml` with an exact version, e.g. `quick-xml = "X.Y.Z"` (the current version from crates.io).
+2. Used by one crate only: add it to that crate's `Cargo.toml` with a suitable version requirement, e.g. `quick-xml = "X.Y.Z"` (the current version from crates.io). Cargo treats this example as a caret requirement; `Cargo.lock` records the resolved version.
 3. Used by several crates: add it once to `[workspace.dependencies]` in the root `Cargo.toml`, and use `quick-xml.workspace = true` in each crate.
 4. Prefer libraries that need no system packages (no OpenSSL, no C libraries to install), so the build stays the same on Linux, macOS and Windows.
 5. Run `cargo test --workspace`. CI's `cargo-audit` job checks the new library for known vulnerabilities.

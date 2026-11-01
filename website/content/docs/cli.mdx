@@ -11,7 +11,7 @@ mct-cli [--root <PATH>] <COMMAND> [OPTIONS]
 
 | Option | Meaning |
 | --- | --- |
-| `--root <PATH>` | Project to work on. Defaults to the current directory. Works before or after the command. |
+| `--root <PATH>` | Project to work on. Defaults to the current directory. For `init` and `call`, repeat the flag or use `--roots a,b` for multiple projects. |
 | `-v`, `--version` | Print the version. |
 | `-h`, `--help` | Print help. `mct-cli <command> --help` shows a command's own help and examples. |
 
@@ -23,14 +23,19 @@ The index always lives in `<root>/.mct-index/index.sqlite3`. The path can't be c
 | --- | --- | --- |
 | [`init`](#init) | Build the index for the first time | writes |
 | [`reindex`](#reindex) | Update the index after changes | writes |
-| [`status`](#status) | Show what is indexed and what failed | reads |
+| [`status`](#status) | Show what is indexed and what failed | opens; may create or migrate |
 | [`mcp-register`](#mcp-register) | Add the server to `.mcp.json` | no |
 | [`ignore-init`](#ignore-init) | Create a starter `.mctignore` | no |
 | [`gitignore-init`](#gitignore-init) | Add `.mct-index/` to `.gitignore` | no |
 | [`dead-code`](#dead-code) | Write a CSV of possibly unused symbols | reads |
 | [`probe`](#probe) | Parse files without indexing them, to debug a parser | no |
+| `obsidian` | Regenerate the vault from an existing index | opens; may migrate |
+| `web` | Serve the local dashboard | reads existing index |
+| `call` | Reindex and call an MCP tool once | writes |
+| `duplicates` | Report candidate duplicate functions | reads existing index |
+| `update` | Update the binaries from the latest release | no |
 
-Commands marked "no" never create `.mct-index/`.
+Commands marked "no" never create `.mct-index/`. Run `mct-cli <command> --help` for the full options of each command.
 
 ## `init` [#init]
 
@@ -43,6 +48,8 @@ mct-cli --root . init
 ```text
 Reindex complete: 155 parsed, 0 unchanged, 0 removed, 1272 symbols written.
 ```
+
+By default `init` and `reindex` also generate `.mct-index/obsidian/`; pass `--no-obsidian` to skip it. When generation succeeds without warnings, output includes `Obsidian vault: …`.
 
 If some files could not be indexed, a list follows. A file that fails to parse doesn't stop the run; it is reported and skipped:
 
@@ -69,7 +76,7 @@ The output is the same as `init`. See [Reindexing](/docs/managing) for when you 
 
 ## `status` [#status]
 
-Shows the state of the index. It never changes anything.
+Shows the state of the index. Opening it can create an empty index or apply pending schema migrations; `status` does not reindex project files.
 
 ```bash
 mct-cli --root . status
@@ -119,6 +126,7 @@ Registered `my-project` in /abs/path/to/project/.mcp.json
 | Option | Meaning |
 | --- | --- |
 | `--name <NAME>` | Key under `mcpServers`. Defaults to the project folder's name. |
+| `--reindex-delay <VALUE>` | Set the watcher delay, e.g. `15s`, `1m` or `off`. Saved in server arguments and preserved on later registrations that omit it. |
 
 It writes this entry, with the absolute project path:
 
@@ -149,8 +157,9 @@ mct-cli --root . ignore-init --import-gitignore
 | Option | Meaning |
 | --- | --- |
 | `--import-gitignore` | Also skip everything your `.gitignore` skips. Turns on the `@import-gitignore` line. |
+| `--generated` | Add an editable preset for generated directories and caches; review it because `bin` can contain source. |
 
-If `.mctignore` already exists it is left alone. The one exception: with `--import-gitignore`, the `@import-gitignore` line is appended if it is missing.
+If `.mctignore` already exists it is left alone. The `--import-gitignore` and `--generated` options can update an existing file.
 
 ## `gitignore-init` [#gitignore-init]
 
@@ -178,6 +187,7 @@ mct-cli --root . dead-code --path src/api --language python --output dead.csv
 | `--path <PATH>` | File or folder to scan. Defaults to the whole project. |
 | `--language <ID>` | Only one language, for example `rust` or `python`. |
 | `--output <FILE>` | Where to write the CSV. Defaults to `.mct-index/dead-code-report.csv`. |
+| `--reviewed <VALUE>` | Apply review decisions using `show`, `hide` or `only` and include a `review_state` column. |
 
 Columns: `project_root,file,function,kind,language,start_line,end_line`.
 
