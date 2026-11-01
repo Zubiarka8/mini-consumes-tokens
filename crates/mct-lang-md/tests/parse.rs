@@ -353,9 +353,57 @@ fn a_wikilink_in_a_blockquote_is_scanned_like_any_paragraph() {
 }
 
 #[test]
-fn a_wikilink_in_a_table_cell_is_not_scanned() {
-    let parsed = parse("# A\n\n| h |\n| - |\n| [[Cell]] |\n");
-    assert!(parsed.relations.is_empty(), "{:?}", parsed.relations);
+fn table_links_and_tags_are_scanned_but_code_is_ignored() {
+    let parsed =
+        parse("# A\n\n| [[Header]] |\n| - |\n| [[Cell]] ![[Embed]] #topic `[[Ignored]]` |\n");
+    for name in ["Header", "Cell", "tag:topic"] {
+        assert!(
+            parsed.relations.iter().any(|r| r.to_name == name),
+            "{name}: {:?}",
+            parsed.relations
+        );
+    }
+    assert!(!parsed.relations.iter().any(|r| r.to_name == "Ignored"));
+    assert!(parsed
+        .relations
+        .iter()
+        .any(|r| r.to_name == "Embed" && r.kind == mct_core::RelationKind::Imports));
+}
+
+#[test]
+fn table_wikilink_with_escaped_alias_resolves_the_note_name() {
+    let parsed = parse("# A\n\n| Link |\n| --- |\n| [[Target\\|display]] |\n");
+    assert!(
+        parsed.relations.iter().any(|r| r.to_name == "Target"),
+        "{:?}",
+        parsed.relations
+    );
+}
+
+#[test]
+fn escaped_wikilink_opening_is_not_a_relation() {
+    let parsed = parse(r"\[[Ignored]] and \\[[Visible]]");
+    assert!(!parsed.relations.iter().any(|r| r.to_name == "Ignored"));
+    assert!(parsed.relations.iter().any(|r| r.to_name == "Visible"));
+}
+
+#[test]
+fn escaped_embed_marker_keeps_a_plain_wikilink() {
+    let parsed = parse(r"\![[Target]]");
+    assert!(parsed
+        .relations
+        .iter()
+        .any(|r| { r.to_name == "Target" && r.kind == mct_core::RelationKind::References }));
+    assert!(!parsed
+        .relations
+        .iter()
+        .any(|r| { r.to_name == "Target" && r.kind == mct_core::RelationKind::Imports }));
+}
+
+#[test]
+fn escaped_backticks_do_not_hide_wikilinks() {
+    let parsed = parse(r"\`[[Visible]]\`");
+    assert!(parsed.relations.iter().any(|r| r.to_name == "Visible"));
 }
 
 fn relation<'a>(

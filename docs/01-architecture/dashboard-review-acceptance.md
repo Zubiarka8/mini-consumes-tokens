@@ -5,6 +5,16 @@ Status: **accepted for the local dashboard, within the limits listed under
 [Not covered](#not-covered)** (2026-10-28). This records what was run and what
 it showed. It makes no claim about releases, deployment or other platforms.
 
+**Later implementation note (2026-11-01):** The results and limitations below
+describe the build under test, not the current checkout. The dashboard now
+starts background reindexing when its watcher is available and reloads its
+snapshot after a published index change; its localhost URL no longer contains
+a capability key. The MCP finding tools also use shared review decisions. See
+[[web-dashboard]], [ADR-022](adrs/022-mcp-duplicate-findings.md) and
+[ADR-023](adrs/023-mcp-dead-code-reviews.md). These changes have not been
+revalidated by rerunning the historical acceptance suite, whose scripts were
+outside the repository.
+
 It covers the duplicate-code and dead-code review pages of `mct-cli web` and the
 decision store behind them, described in
 [ADR-019](adrs/019-shared-review-decisions.md). It replaces the earlier acceptance

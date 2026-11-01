@@ -5,6 +5,14 @@
 Accepted for the local implementation, 2026-10-20. Supersedes ADR-014's original
 HTTP read-only restriction for the review-preference endpoint only.
 
+**Later implementation update (2026-11-01):** This record describes the
+original duplicate-review design. [ADR-019](019-shared-review-decisions.md)
+partly supersedes it with a shared canonical decision store; the original
+duplicate-review file remains a read-only compatibility input. The current
+dashboard also uses a URL without a capability key and can refresh its index
+snapshot; see [ADR-014](014-local-project-web.md) and [[web-dashboard]].
+These changes are described for the current checkout, not as a release claim.
+
 ## Context
 
 People need to remove irrelevant groups or false positives from their normal
