@@ -340,7 +340,15 @@ fn index_file(
         match crate::read_repository_file(&canonical) {
             Ok(bytes) => {
                 clear_read_failure(index, &relative_path)?;
-                if let Ok(contents) = String::from_utf8(bytes) {
+                if manifests::is_rockspec(file_name) {
+                    // Invalid UTF-8 is recorded, not skipped: skipping would
+                    // leave the previous analysis standing as if current.
+                    let analysis = match String::from_utf8(bytes) {
+                        Ok(contents) => manifests::lua::analyse(&contents),
+                        Err(_) => manifests::lua::Analysis::unreadable("not valid UTF-8"),
+                    };
+                    write_rockspec(index, &relative_path, language, &analysis)?;
+                } else if let Ok(contents) = String::from_utf8(bytes) {
                     let deps = manifests::parse_manifest(file_name, &contents);
                     write_manifest_dependencies(index, &relative_path, language, &deps)?;
                 }
@@ -769,13 +777,14 @@ fn reindex_paths_inner(
     Ok(report)
 }
 
-/// Whether any `files`, `index_issues` or `dependencies` row exists for
+/// Whether any `files`, `index_issues`, `dependencies` or `rockspec_items` row exists for
 /// exactly `relative_path`.
 fn has_rows(index: &Index, relative_path: &str) -> Result<bool> {
     Ok(index.conn.query_row(
         "SELECT EXISTS(SELECT 1 FROM files WHERE relative_path = ?1)
              OR EXISTS(SELECT 1 FROM index_issues WHERE relative_path = ?1)
-             OR EXISTS(SELECT 1 FROM dependencies WHERE manifest_path = ?1)",
+             OR EXISTS(SELECT 1 FROM dependencies WHERE manifest_path = ?1)
+             OR EXISTS(SELECT 1 FROM rockspec_items WHERE manifest_path = ?1)",
         params![relative_path],
         |row| row.get(0),
     )?)
@@ -814,10 +823,11 @@ fn index_noting_created(
     Ok(seen)
 }
 
-const PATH_TABLES: [(&str, &str); 3] = [
+const PATH_TABLES: [(&str, &str); 4] = [
     ("files", "relative_path"),
     ("index_issues", "relative_path"),
     ("dependencies", "manifest_path"),
+    ("rockspec_items", "manifest_path"),
 ];
 
 /// The old end of a rename that was reported by its new path only — which
@@ -978,7 +988,7 @@ fn children_sql(table: &str, column: &str, at_root: bool) -> String {
     }
 }
 
-/// Drops every `files`, `index_issues` and `dependencies` row for
+/// Drops every `files`, `index_issues`, `dependencies` and `rockspec_items` row for
 /// `relative_path` itself or for anything under it as a directory, except
 /// the paths in `keep`/`keep_manifests` and everything at or under an
 /// `unreadable` path (see [`is_retained`]). Returns how many `files` rows went.
@@ -1003,6 +1013,7 @@ fn remove_under_prefix(
         ("files", "relative_path", &keep),
         ("index_issues", "relative_path", &keep),
         ("dependencies", "manifest_path", &keep_manifests),
+        ("rockspec_items", "manifest_path", &keep_manifests),
     ] {
         let stored: Vec<String> = {
             let mut stmt = tx.prepare(&under_prefix_sql(table, column))?;
@@ -1055,6 +1066,49 @@ fn write_manifest_dependencies(
     Ok(())
 }
 
+/// Writes a rockspec's analysis: the detail rows and, from the same analysis
+/// in the same transaction, the name/version summary other consumers read.
+/// Both are replaced together so they cannot disagree.
+fn write_rockspec(
+    index: &mut Index,
+    manifest_path: &str,
+    language: &str,
+    analysis: &manifests::lua::Analysis,
+) -> Result<()> {
+    let summary = manifests::dedupe_by_name(analysis.projection());
+    write_manifest_dependencies(index, manifest_path, language, &summary)?;
+    let tx = &index.conn;
+    tx.execute(
+        "DELETE FROM rockspec_items WHERE manifest_path = ?1",
+        params![manifest_path],
+    )?;
+    let mut insert = tx.prepare_cached(
+        "INSERT INTO rockspec_items
+            (manifest_path, position, kind, section, scope, platform, namespace, name,
+             version_constraint, path, native, source, state, detail)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+    )?;
+    for (position, item) in analysis.items.iter().enumerate() {
+        insert.execute(params![
+            manifest_path,
+            position as i64,
+            item.kind,
+            item.section,
+            item.scope,
+            item.platform,
+            item.namespace,
+            item.name,
+            item.constraint,
+            item.path,
+            item.native,
+            item.source,
+            item.state,
+            item.detail,
+        ])?;
+    }
+    Ok(())
+}
+
 fn remove_missing_manifests(
     index: &mut Index,
     seen_manifest_paths: &[String],
@@ -1064,7 +1118,12 @@ fn remove_missing_manifests(
     let seen: std::collections::HashSet<&str> =
         seen_manifest_paths.iter().map(String::as_str).collect();
 
-    let mut stmt = tx.prepare("SELECT DISTINCT manifest_path FROM dependencies")?;
+    // The union: a rockspec that declares nothing has no `dependencies` row
+    // but still has detail rows, and must be swept like any other manifest.
+    let mut stmt = tx.prepare(
+        "SELECT manifest_path FROM dependencies
+         UNION SELECT manifest_path FROM rockspec_items",
+    )?;
     let stored: Vec<String> = stmt
         .query_map([], |row| row.get(0))?
         .collect::<rusqlite::Result<_>>()?;
@@ -1075,6 +1134,10 @@ fn remove_missing_manifests(
         {
             tx.execute(
                 "DELETE FROM dependencies WHERE manifest_path = ?1",
+                params![path],
+            )?;
+            tx.execute(
+                "DELETE FROM rockspec_items WHERE manifest_path = ?1",
                 params![path],
             )?;
         }
@@ -1509,7 +1572,7 @@ fn walk_entry_allowed(root: &Path, entry: &walkdir::DirEntry, exclude: &ExcludeS
     }
 }
 
-fn to_relative_slash_path(root: &Path, canonical: &Path) -> Option<String> {
+pub(crate) fn to_relative_slash_path(root: &Path, canonical: &Path) -> Option<String> {
     let rel = canonical.strip_prefix(root).ok()?;
     let mut parts = Vec::new();
     for component in rel.components() {
@@ -1555,6 +1618,7 @@ mod prefix_query_tests {
             ("files", "relative_path"),
             ("index_issues", "relative_path"),
             ("dependencies", "manifest_path"),
+            ("rockspec_items", "manifest_path"),
         ] {
             let sql = format!("EXPLAIN QUERY PLAN {}", under_prefix_sql(table, column));
             let mut stmt = index.conn.prepare(&sql).unwrap();

@@ -21,6 +21,16 @@ pub fn read_repository_file(path: &Path) -> io::Result<Vec<u8>> {
     read_with_limit(path, limit)
 }
 
+/// Like [`read_repository_file`], but never reads more than `cap` bytes:
+/// for files whose legitimate size is far below the global limit.
+pub(crate) fn read_repository_file_capped(path: &Path, cap: u64) -> io::Result<Vec<u8>> {
+    let global = match std::env::var(MAX_FILE_BYTES_ENV) {
+        Ok(raw) => raw.parse::<u64>().ok().filter(|n| *n > 0).unwrap_or(cap),
+        Err(_) => DEFAULT_MAX_FILE_BYTES,
+    };
+    read_with_limit(path, cap.min(global))
+}
+
 fn read_with_limit(path: &Path, limit: u64) -> io::Result<Vec<u8>> {
     let metadata = std::fs::metadata(path)?;
     if !metadata.is_file() {

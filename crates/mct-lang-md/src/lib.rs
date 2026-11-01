@@ -144,6 +144,10 @@ struct WikiLink {
     heading: Option<String>,
 }
 
+fn is_escaped(text: &str, at: usize) -> bool {
+    text[..at].bytes().rev().take_while(|&b| b == b'\\').count() % 2 == 1
+}
+
 /// Extracts `[[WikiLink]]` and `![[Embed]]` links from raw text. A `|alias`
 /// display suffix is stripped before splitting on the first `#`. A candidate
 /// span that itself contains a nested `[[` is rejected as malformed and
@@ -155,6 +159,10 @@ fn scan_wikilinks(text: &str) -> Vec<WikiLink> {
     while let Some(start) = text[i..].find("[[") {
         let open_at = i + start;
         let open = open_at + 2;
+        if is_escaped(text, open_at) {
+            i = open;
+            continue;
+        }
         let Some(rel_end) = text[open..].find("]]") else {
             break;
         };
@@ -164,14 +172,20 @@ fn scan_wikilinks(text: &str) -> Vec<WikiLink> {
             i = open;
             continue;
         }
-        let identity = raw.split('|').next().unwrap_or("").trim();
+        let identity = match raw.split_once('|') {
+            Some((note, _)) => note.strip_suffix('\\').unwrap_or(note),
+            None => raw,
+        }
+        .trim();
         if !identity.is_empty() {
             let (note, heading) = match identity.split_once('#') {
                 Some((note, heading)) => (note, Some(heading)),
                 None => (identity, None),
             };
             links.push(WikiLink {
-                embed: text[..open_at].ends_with('!'),
+                embed: open_at > 0
+                    && text.as_bytes()[open_at - 1] == b'!'
+                    && !is_escaped(text, open_at - 1),
                 note: strip_md_extension(note.trim()),
                 heading: heading.and_then(anchor_heading),
             });
@@ -271,6 +285,10 @@ fn mask_code_spans(text: &str) -> String {
             continue;
         }
         let run = chars[i..].iter().take_while(|c| **c == '`').count();
+        if chars[..i].iter().rev().take_while(|&&c| c == '\\').count() % 2 == 1 {
+            i += run;
+            continue;
+        }
         let mut j = i + run;
         let mut close = None;
         while j < chars.len() {
@@ -681,9 +699,8 @@ impl<'a> Walker<'a> {
         }
     }
 
-    /// Scans every `paragraph` under `node` (list items and blockquotes wrap
-    /// theirs; table cells and code blocks hold none) as owned by `owner`,
-    /// and keeps each paragraph and table row as a prose literal.
+    /// Scans paragraphs and table cells as owned by `owner`, and keeps each
+    /// paragraph and table row as a prose literal.
     fn scan_paragraphs(&mut self, node: Node, owner: SymbolId, depth: u32) {
         if depth >= MAX_TRAVERSAL_DEPTH {
             return;
@@ -699,6 +716,12 @@ impl<'a> Walker<'a> {
                 self.literals.push(text, row + 1);
                 if kind == "paragraph" {
                     self.push_relations_from_text(owner, text, location(node));
+                } else {
+                    let mut cursor = node.walk();
+                    for cell in node.named_children(&mut cursor) {
+                        let text = cell.utf8_text(self.source.as_bytes()).unwrap_or_default();
+                        self.push_relations_from_text(owner, text, location(cell));
+                    }
                 }
             }
             return;
