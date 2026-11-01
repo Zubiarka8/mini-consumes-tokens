@@ -4,6 +4,10 @@ title: "Querying the database directly"
 
 The index at `.mct-index/index.sqlite3` is meant to be read through the MCP tools and `mct-cli`. If the `sqlite3` command-line tool is installed, you can also run your own queries with `sqlite3 .mct-index/index.sqlite3 "SELECT ..."`. Treat the file as read-only.
 
+These examples are for users inspecting their own indexes. Contributors and
+agents working on this repository must follow its `rules.md`, which requires
+using project tools rather than external SQLite tools for the project index.
+
 ## Queries that use only the main tables
 
 These use the `files`, `symbols`, `relations` and `index_issues` tables, and only columns listed in `crates/mct-index/src/schema.rs` and [Database schema](/docs/schema). The table and column names were checked against that schema; the queries themselves were not run, because `mct-cli` has no command that executes SQL.

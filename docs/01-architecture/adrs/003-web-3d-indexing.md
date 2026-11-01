@@ -1,7 +1,7 @@
 # ADR-003: Web / 3D portfolio indexing foundation
 
 ## Status
-Accepted (2026-10-10). Issue: [#165](https://github.com/Zubiarka8/mini-consumes-tokens/issues/165). Covers the seven items under "Web / 3D portfolio support" in the [roadmap](../../05-backlog/roadmap.md#web--3d-portfolio-support-by-priority); prompts in [web-3d-prompts](../../05-backlog/web-3d-prompts.md). Builds on [ADR-002](002-qualified-relation-resolution.md) (`RelationTarget` resolution).
+Accepted (2026-10-10). Issue: [#165](https://github.com/Zubiarka8/mini-consumes-tokens/issues/165). Covers the seven items under "Web / 3D portfolio support" in the [roadmap](../../05-backlog/roadmap.md#web--3d-portfolio-support-by-priority). Builds on [ADR-002](002-qualified-relation-resolution.md) (`RelationTarget` resolution).
 
 ## Context
 - `SourceFile.contents` is `String`. `index_file` drops a non-UTF-8 file before any parser, and a file with no registered extension gets no `files` row, so a `.glb`, `.png` or `.hdr` has no node for a relation to resolve to.
@@ -26,7 +26,7 @@ Accepted (2026-10-10). Issue: [#165](https://github.com/Zubiarka8/mini-consumes-
 - `.gltf` is read in full only when the file is ≤ **8 MiB** (the JSON cap).
 - `.glb`: read the 12-byte header and the first 8-byte chunk header. Require magic `glTF`, version 2, chunk type `JSON`, and a chunk length ≤ 8 MiB that also fits the file. Then read exactly that chunk and trim trailing `0x20` padding. The BIN chunk is never read.
 - A malformed, truncated, over-cap or non-UTF-8 JSON keeps the `asset` symbol and records a `syntax_error` issue with a detail such as `glb: JSON chunk 9437184 B exceeds 8388608 B cap`. No new `issue_kind` string, so older binaries can read it.
-- glTF JSON → symbols (P4) is `crates/mct-index/src/gltf.rs`, serde_json over the text above. Like `package.json`, it is a data format, not a language. Caps: at most **10,000** glTF symbols per file (scenes + nodes + materials + animations), with the rest dropped silently, as the 500-literal cap does. The node hierarchy is walked to `mct_core::MAX_TRAVERSAL_DEPTH` (256) with a visited set, so a child cycle terminates.
+- glTF JSON → symbols (P4) was planned as `crates/mct-index/src/gltf.rs` and is implemented in `crates/mct-index/src/assets.rs` (there is no `gltf.rs`), serde_json over the text above. Like `package.json`, it is a data format, not a language. Caps: at most **10,000** glTF symbols per file (scenes + nodes + materials + animations), with the rest dropped silently, as the 500-literal cap does. The node hierarchy is walked to `mct_core::MAX_TRAVERSAL_DEPTH` (256) with a visited set, so a child cycle terminates.
 
 *Why:* this follows a precedent that already exists. It changes no trait and no schema. Assets become ordinary resolvable symbols, and a big `.glb` costs one stat plus a bounded prefix read.
 
@@ -127,7 +127,7 @@ Each phase that needs `--force` states it in CHANGELOG, as the Markdown literal 
 | P1 | new `mct-lang-astro`; `mct-lang-js-ts` (public dialect entry, if needed); registration in `mct-mcp-server` + `mct-cli`; fixture; eval | no |
 | P2 | `mct-lang-js-ts`; fixture; eval | no |
 | P3 | `mct-mcp-server` tests; fixture | no |
-| P4 | `mct-index` (`gltf.rs`, fuzz target); fixture; eval | no |
+| P4 | `mct-index` (`assets.rs`, formerly planned as `gltf.rs`; fuzz target); fixture; eval | no |
 | P5 | `mct-lang-js-ts`, `mct-lang-astro`; fixture; eval | no |
 | P6 | `mct-mcp-server`, `mct-index` (queries); eval | no |
 | P7 | `mct-lang-js-ts`, `mct-lang-astro` (template `class`); `mct-mcp-server` (one description line); fixture | no |

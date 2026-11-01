@@ -8,7 +8,7 @@ Two layers decide what gets indexed:
 1. **Built-in exclusions.** Always on, can't be turned off. They keep secrets and build output out of the index.
 2. **`.mctignore`.** Optional. Your own extra rules, in a file at the project root.
 
-A file is also skipped when no parser handles its extension; `status` lists those under "Languages seen but not yet supported".
+Files without a registered parser are skipped. `status` reports the known pending languages; other unrecognized extensions are not listed.
 
 ## Built-in exclusions
 

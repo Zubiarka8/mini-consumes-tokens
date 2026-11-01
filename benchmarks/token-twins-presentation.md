@@ -4,6 +4,8 @@ Research for issue #207: how the `duplicates` report should show repeated code t
 person reading it and to an AI agent consuming it. Nothing here changes the command;
 every proposal below is a candidate for a follow-up issue.
 
+> **Status (documentation audit, 2026-11-01):** this is a dated research record. File paths it names that do not exist in the current tree (for example `crates/mct-cli/src/serve.rs`, `reports.rs`, `dead_code_html.rs`, `crates/mct-index/src/duplicates/template.rs`, `progress.rs`) belong to the `feat/207-token-twins` branch at `71ec6d0` or to proposals, not to the current code. Its figures were not remeasured.
+
 Measured on `feat/207-token-twins` at `71ec6d0`, release `mct-cli`, this repository,
 default options (`broad`, `--min-lines 6`, `--min-tokens 40`): 183 groups, 545 members.
 Token counts use the project heuristic `mct_eval::approx_tokens` (a word run is one

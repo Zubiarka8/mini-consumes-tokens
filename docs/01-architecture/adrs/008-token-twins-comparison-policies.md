@@ -2,7 +2,9 @@
 
 ## Status
 
-Implemented on the issue #207 feature branch; maintainer acceptance pending.
+Proposed; maintainer acceptance is not recorded in this document. The
+duplicate-analysis implementation was integrated into `main` after the
+issue #207 feature work.
 Extends [ADR-007](007-duplicate-function-report.md) and supersedes its line-only
 candidate selection and single-policy limitations. Its historical evaluation is
 retained and does not describe the new policies.
