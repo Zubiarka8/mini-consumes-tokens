@@ -35,14 +35,19 @@ See their upstream model cards:
 The project-local skills in `.agents/skills/` include material from these repositories:
 
 - Skills sourced from [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) are licensed under the MIT License. Copyright (c) 2025 Addy Osmani.
-- `code-review-skill`, sourced from [awesome-skills/code-review-skill](https://github.com/awesome-skills/code-review-skill), is licensed under the MIT License. Copyright (c) 2025 awesome-skills.
+- An earlier version of this notice attributed `code-review-skill` to [awesome-skills/code-review-skill](https://github.com/awesome-skills/code-review-skill), under the MIT License, copyright (c) 2025 awesome-skills. No corresponding import or lock entry has been identified; this attribution is retained pending provenance review rather than treated as evidence of an import.
+- `skills-lock.json` records `extract-design` as sourced from [Manavarya09/design-extract](https://github.com/Manavarya09/design-extract). The upstream repository's [license](https://github.com/Manavarya09/design-extract/blob/main/LICENSE), checked 2026-11-01, is MIT, copyright (c) 2024 Manavarya Singh. The lock does not record an upstream revision, so the license at import time has not been verified.
+- The local skill `reduce-duplication` declares `license: CC0-1.0` in its own front matter. Its upstream source is not recorded in this repository.
+- Other local skills (for example `frontend-ui-engineering`, `browser-testing-with-devtools`, `performance-optimization`, `spec-driven-development`, `improve-prompt`, `interview-me`, `react-three-fiber`, `ui-ux-pro-max`, `claude-prompt-pm`) are not in `skills-lock.json` and have no recorded upstream source or license; add their origin here when it is established.
 
-The following MIT License applies to both sources:
+The following MIT License text is included for the MIT sources identified above;
+the original import revision and other unrecorded skill licenses still require verification:
 
 ## MIT License
 
 Copyright (c) 2025 Addy Osmani
 Copyright (c) 2025 awesome-skills
+Copyright (c) 2024 Manavarya Singh
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
