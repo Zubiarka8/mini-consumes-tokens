@@ -100,7 +100,7 @@ Matches each relation to the symbols it may point to. It is computed on every re
 
 | Result | Meaning |
 | --- | --- |
-| one candidate | **resolved**: the relation points to that symbol |
+| one candidate | **resolved**, unless it is an untyped member call, which remains ambiguous |
 | several | **ambiguous**: all are kept, none is picked |
 | none | **unresolved**, or **external** when `external = 1` |
 

@@ -108,21 +108,20 @@ Existing documents, not proposed replacements:
 
 | Path | Purpose / audience | Update trigger / relationship |
 | --- | --- | --- |
-| rules.md, AGENTS.md, PROJECT_MANAGER.md | Contributor rules and coordination | Workflow changes; AGENTS points to rules |
+| rules.md, AGENTS.md | Contributor rules | Workflow changes; AGENTS points to rules |
 | README.md, COMMANDS.md, CONTRIBUTING.md | User entry, CLI, contribution | Public behavior or contributor commands |
 | .github/workflows/ci.yml | CI maintainers | Required checks change; agent directory excluded from reads |
 | docs/01-architecture/web-dashboard.md | Dashboard maintainers | Architecture, acceptance and test commands |
 | docs/01-architecture/adrs/019-shared-review-decisions.md | Architecture reviewers | Review storage contract changes |
-| docs/superpowers/specs/2026-10-22-shared-review-decisions-design.md | Implementers | Review API/store changes; no redesign here |
+| docs/design/2026-10-22-shared-review-decisions-design.md | Implementers | Review API/store changes; no redesign here |
 | crates/mct-cli/src/web/tests.rs | Maintainers; executable acceptance | Wire/API/security behavior changes |
 | crates/mct-cli/examples/ | Benchmark/tool examples | No dashboard-specific Markdown found |
 | benchmarks/review-decisions.md | Performance/review maintainers | Reproduced review measurements |
 | website/package.json, website/tests/ | Public Next.js site maintainers | Separate product; reuse installed test tooling only |
 | .agents/skills/spec-driven-development/SKILL.md | Local agent SDD workflow | Skill changes; no global skills used |
-| project-management/ | Shared historical coordination | Canonical personal state remains outside tracked docs |
 
-This specification is new. A single companion remediation report will hold actual
-results and outstanding findings. Existing API tests cover shape/bounds/security
+This specification is new. A companion remediation report held the actual
+results and outstanding findings; it has since been removed. Existing API tests cover shape/bounds/security
 and review persistence, but do not execute frontend focus/cancellation/layout.
 The dashboard has no frontend bundler, linter or TypeScript build; ES modules are
 embedded by Rust `include_str!`. The separate website uses Next.js/TypeScript and

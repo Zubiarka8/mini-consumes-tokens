@@ -1,6 +1,6 @@
 # mct-lang-md Phase 2 (WikiLink/Tag Relations) Implementation Plan
 
-> **Status: historical.** Implemented in PR #2; the checkboxes below were never ticked and are kept as written. Unsplit `#Heading` anchors were superseded by Phase 3 (PR #6). The "silently skipped" orphan links (now owned by a per-file note `module` symbol) and the "no new field" constraint (`RelationTarget` gained `kind`/`module`) were superseded by the note graph in `docs/superpowers/specs/2026-10-01-markdown-note-graph-design.md` (issue #98, PR #101); the heading `level` field came with PR #44.
+> **Status: historical.** Implemented in PR #2; the checkboxes below were never ticked and are kept as written. Unsplit `#Heading` anchors were superseded by Phase 3 (PR #6). The "silently skipped" orphan links (now owned by a per-file note `module` symbol) and the "no new field" constraint (`RelationTarget` gained `kind`/`module`) were superseded by the note graph in `docs/design/2026-10-01-markdown-note-graph-design.md` (issue #98, PR #101); the heading `level` field came with PR #44.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -10,7 +10,7 @@
 
 **Tech Stack:** Rust, `tree-sitter-md` (block grammar only, already a dependency). No new crates.
 
-**Spec:** `docs/superpowers/specs/2026-09-17-obsidian-docs-vault-and-md-parser-design.md` (Part 2 and Decisions 1–5)
+**Spec:** `docs/design/2026-09-17-obsidian-docs-vault-and-md-parser-design.md` (Part 2 and Decisions 1–5)
 
 ## Global Constraints
 
@@ -665,7 +665,7 @@ with:
 //! in a `paragraph` block are indexed as `RelationKind::References`
 //! relations from the enclosing heading symbol (a `#tag` target is
 //! `tag:<name>`, since `mct-core::SymbolRecord` has no attribute field — see
-//! `docs/superpowers/specs/2026-09-17-obsidian-docs-vault-and-md-parser-design.md`).
+//! `docs/design/2026-09-17-obsidian-docs-vault-and-md-parser-design.md`).
 //! A `|alias` suffix on a WikiLink is stripped; a `#Heading` anchor is kept
 //! verbatim as part of the target. A link/tag with no enclosing heading (text
 //! before the first heading, or in a heading-less file) is silently skipped.

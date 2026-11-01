@@ -1,5 +1,15 @@
 # Adaptive detail selection: extended evaluation and offline simulation
 
+> **Measurement status (documentation audit, 2026-11-01):** the tables below are historical results. The simulation was rerun as described next; catalog and other figures remain historical.
+
+**Simulation rerun (2026-11-01):** `cargo run --offline -p mct-mcp-server
+--example adaptive_eval --release` completed on the dirty Lua branch. For all
+57 cases, satisfaction counts and estimated token totals matched the historical
+table below (for example, default 56/57 and 16,579 tokens; query-only auto
+57/57 and 14,077 tokens). Timings differed: default p50/p95 294/7,648 µs and
+auto 1,276/15,117 µs in this run. Catalog measurements and model-billed tokens
+were not rerun or measured by this command.
+
 Figures are heuristic tokens (`EstimatedCounter`, and `chars/4` where shown),
 over `text` output. Neither is a tokenizer; billed tokens are not measured; the
 calibration against the model's `count_tokens` is still pending (no key).

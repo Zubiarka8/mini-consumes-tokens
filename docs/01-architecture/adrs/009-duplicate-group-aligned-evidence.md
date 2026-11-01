@@ -2,8 +2,9 @@
 
 ## Status
 
-Evidence increments implemented on the issue #207 feature branch;
-maintainer acceptance pending. Extends [ADR-008](008-token-twins-comparison-policies.md)
+Proposed; maintainer acceptance is not recorded in this document. Duplicate
+evidence analysis was integrated into `main` after the issue #207 feature
+work. Extends [ADR-008](008-token-twins-comparison-policies.md)
 without changing its grouping policies.
 
 ## Context
