@@ -1,5 +1,7 @@
 # Agent benchmark: Claude Code with and without the MCP server
 
+> **Measurement status (documentation audit, 2026-11-01):** the figures below are historical results recorded when this file was written. They were not remeasured against the current checkout; rerun the method described here before quoting them as current.
+
 `token-benchmark.md` and `quality-eval.md` measure single tool responses, in characters or approximate tokens. This benchmark measures what a session really costs. Claude Code runs the same task end to end with and without `mct-mcp-server`, and the token usage and cost come from Claude Code's own accounting. The main metric is **cost per correctly completed task**: a cheap run that gets the answer wrong does not count as a saving.
 
 Harness: `benchmarks/agent/agent_bench.py` (Python stdlib only). Tasks: `benchmarks/agent/tasks.json`.

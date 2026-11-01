@@ -1,6 +1,6 @@
 # mct-lang-php
 
-The crate CI's fuzzer first caught the unbounded-recursion class of bug in — see [[sec-001-php-stack-overflow]].
+The crate's CI fuzzer first caught an unbounded-recursion bug; see [[sec-001-php-stack-overflow]].
 
 ## Special behaviors
 - `self::`/`parent::`/`static::`/`Class::foo()` scoped calls: the scope is ignored, only `name` is registered as `Calls`.

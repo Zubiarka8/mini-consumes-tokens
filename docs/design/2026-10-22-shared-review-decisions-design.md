@@ -2,13 +2,22 @@
 
 Date: 2026-10-22
 
-Status: proposal, not implemented. Base: `origin/main` at
-`e68aec9c77db0726f0127bf5e0822eff9a1ea13b` (verified after `git fetch`).
-Approved: D1, D2, D4, D5, D6, D8. D3 is approved at design level; the GitHub
-issue it requires (`rules.md`, Architecture) is drafted but not published.
-D7 and D9 were re-validated (§15.1, §15.2) and wait for approval, as do the
-decisions added in this revision (D11–D18). Implementation must not start
-before the blocking decisions in §15 are approved.
+Status: implemented for the local build; this document is the design as
+written on 2026-10-22. The decision is recorded in
+[ADR-019](../01-architecture/adrs/019-shared-review-decisions.md), the code is
+in `crates/mct-index/src/reviews/`, and the measured gates are in
+`benchmarks/review-decisions.md` (final build `cccb522`). Where §17 or ADR-019
+differs from §1–16, they prevail: §17 lists the deviations found while
+implementing. The "pending" entries in §15 are the state of 2026-10-22 and were
+not updated afterwards.
+
+Status when written (2026-10-22): proposal, not implemented. Base:
+`origin/main` at `e68aec9c77db0726f0127bf5e0822eff9a1ea13b` (verified after
+`git fetch`). Approved: D1, D2, D4, D5, D6, D8. D3 was approved at design level;
+the GitHub issue it requires (`rules.md`, Architecture) was drafted but not
+published. D7 and D9 were re-validated (§15.1, §15.2) and waited for approval,
+as did the decisions added in that revision (D11–D18). Implementation was not to
+start before the blocking decisions in §15 were approved.
 
 ## 1. Goal
 

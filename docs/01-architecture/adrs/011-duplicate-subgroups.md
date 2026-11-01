@@ -2,8 +2,9 @@
 
 ## Status
 
-Proposed; pending maintainer acceptance. Implemented on the issue #207 feature
-branch (Phase 2, part 2). Extends [ADR-009](009-duplicate-group-aligned-evidence.md)
+Proposed; maintainer acceptance is not recorded in this document. Duplicate
+subgroup analysis was integrated into `main` after the issue #207 feature work
+(Phase 2, part 2). Extends [ADR-009](009-duplicate-group-aligned-evidence.md)
 without changing grouping, membership, ordering or pagination. Verdicts are
 decided separately in ADR-010; this record neither depends on nor defines them.
 

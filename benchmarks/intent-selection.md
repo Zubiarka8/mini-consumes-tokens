@@ -1,5 +1,14 @@
 # Intent extraction and tool preselection (issue #19)
 
+> **Measurement status (documentation audit, 2026-11-01):** the tables below are historical results. The Tool Attention subset was rerun as described next; other selector results remain historical.
+
+**Partial rerun (2026-11-01):** `cargo test --offline -p mct-mcp-server
+--test intent_eval tool_attention -- --nocapture` passed on the dirty Lua
+branch. It reported full catalog 12,033 approximate tokens, initial catalog
+200 (98.3% reduction), mean per turn 2,630.3 (78.1% reduction), and recall
+41/41 with 6/42 fallbacks. These figures use the current catalog; the other
+historical selectors and embedding comparison below were not rerun.
+
 ## Evaluation set and scoring
 
 Fixed before any extraction rule or threshold was written:

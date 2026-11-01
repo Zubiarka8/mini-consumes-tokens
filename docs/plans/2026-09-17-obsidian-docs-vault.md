@@ -10,7 +10,7 @@
 
 **Status:** PR #6 delivered anchor-aware resolution; PR #101 superseded the orphan-link behavior and “no new field” constraint. The `level` field remains attributed to PR #44 (unverified).
 
-**Spec:** `docs/superpowers/specs/2026-09-17-obsidian-docs-vault-and-md-parser-design.md` (Part 1 and Decision 6)
+**Spec:** `docs/design/2026-09-17-obsidian-docs-vault-and-md-parser-design.md` (Part 1 and Decision 6)
 
 ## Global Constraints
 
@@ -305,7 +305,7 @@ git commit -m "docs: add performance/limits spec and SEC-001 advisory"
 # Backlog
 
 ## Deferred from `mct-lang-md` Phase 2
-See spec `docs/superpowers/specs/2026-09-17-obsidian-docs-vault-and-md-parser-design.md`.
+See spec `docs/design/2026-09-17-obsidian-docs-vault-and-md-parser-design.md`.
 - Anchor-aware resolution of `[[Page#Heading]]` against the target file's real heading symbol.
 - Tags/links inside list items, blockquotes, tables.
 - Code-span exclusion for `#tag`/`[[...]]` (needs an inline-grammar reparse).

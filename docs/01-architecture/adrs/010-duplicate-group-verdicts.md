@@ -2,7 +2,8 @@
 
 ## Status
 
-Proposed on the issue #207 feature branch, pending maintainer acceptance.
+Proposed; maintainer acceptance is not recorded in this document. Duplicate
+verdict analysis was integrated into `main` after the issue #207 feature work.
 Builds on [ADR-009](009-duplicate-group-aligned-evidence.md) without changing
 grouping, membership, ranking, demotion or pagination.
 

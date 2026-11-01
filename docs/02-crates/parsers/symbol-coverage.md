@@ -1,5 +1,11 @@
 # Symbol coverage by language
 
+> **Measurement status:** The coverage inventory, scores and examples below
+> describe the parser probes at commit `71ec6d0` on 2026-10-19. They have not
+> been fully rechecked against the current working tree, including unreleased
+> branch changes. Confirm a specific construct against current parser tests
+> before relying on an individual cell.
+
 What each `mct-lang-*` parser puts in the index, construct by construct:
 functions, methods, classes and the rest of object-oriented programming,
 fields, constants, global and local variables, and the relations between
