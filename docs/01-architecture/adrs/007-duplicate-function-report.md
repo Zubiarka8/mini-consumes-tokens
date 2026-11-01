@@ -6,6 +6,8 @@
 > Amended by [Report cache and saved output](#report-cache-and-saved-output):
 > the CLI may write a report cache and a requested report file; the index itself
 > is still never written.
+> Later, [ADR-022](022-mcp-duplicate-findings.md) added a review-aware MCP
+> duplicate-finding tool; the no-MCP restriction below describes this spike.
 
 ## Status
 Proposed (spike, issue #207). The Stage 8 evaluation below is recorded; acceptance is pending maintainer review. Adds the `mct-cli duplicates` subcommand. No schema migration, no MCP tool, and no change to `LanguageParser`.

@@ -1,5 +1,13 @@
 # React Review Workspace Implementation Plan
 
+**Status:** The React package and generated assets were added in commit
+`95efb91`; the unchecked tasks below have not all been verified as complete.
+In particular, the proposed ADR-025 does not exist. Do not
+treat this plan as proof that the workspace is integrated or accepted; verify
+the remaining tasks before writing an ADR or marking them complete.
+
+Checked 2026-11-01: `crates/mct-cli/web-ui/` has `package.json`, `vite.config.ts`, `tsconfig.json`, a `README.md`, and `src/` with the workspace components and their `*.test.tsx` files; `src/web/review-dist/` and `crates/mct-cli/tests/dashboard/review-stub.mjs` exist. The proposed `scripts/unix/build-dashboard.sh` and Windows counterpart do not exist; use the `web-ui/` package commands documented in its README. The frontend and dashboard test suites each passed 33 tests. All 17 task checkboxes stay unchecked because each acceptance criterion, including Safari checks, has not been verified.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the open-finding views of the local dashboard (duplicate comparison, dead-code code view, review inspector) with a compact, resizable React workspace, served from the Rust binary with no Node at run time.
@@ -55,7 +63,7 @@
 **Files:**
 - Create: `crates/mct-cli/web-ui/{package.json,package-lock.json,vite.config.ts,tsconfig.json,src/main.tsx,src/styles.css}`
 - Create: `crates/mct-cli/src/web/review-dist/{review.js,review.css}` (generated, committed)
-- Create: `scripts/unix/build-dashboard.sh`, `scripts/windows/build-dashboard.ps1`
+- Proposed originally: `scripts/unix/build-dashboard.sh`, `scripts/windows/build-dashboard.ps1` (not created; use the package commands in `web-ui/README.md`)
 - Modify: `crates/mct-cli/src/web/assets.rs`, `.gitattributes`
 - Test: `crates/mct-cli/src/web/tests.rs`
 
@@ -65,7 +73,7 @@
 - [ ] Test `review_bundle_is_served_same_origin`: both paths answer 200 with JS/CSS types and the bundle contains no `http://`/`https://` URL loads (`import(`/`src=`) and no `<style` injection.
 - [ ] Vite: entry `src/main.tsx`, fixed names `review.js`/`review.css`, one chunk, `outDir ../src/web/review-dist`, production `NODE_ENV`.
 - [ ] Tailwind v4: import `theme.css` and `utilities.css` only (no preflight, unlayered so app.css element rules cannot override utilities); colours map to the existing CSS variables, so themes need no new tokens.
-- [ ] Scripts run `npm ci`, `npm test`, `npm run build`; the same flags exist in both OS folders.
+- [ ] Verify the documented package commands (`npm ci`, `npm test`, `npm run build`) on supported platforms; the originally proposed wrapper scripts were not created.
 
 ### Task 3: Bridge from the vanilla findings page
 

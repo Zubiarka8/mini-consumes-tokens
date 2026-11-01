@@ -2,8 +2,8 @@
 
 Specification and design notes for the local dashboard. It supersedes the
 server-rendered pages described in [ADR-014](adrs/014-local-project-web.md);
-the security model of that ADR (loopback only, private URL key, Host/Origin
-checks, strict CSP) is unchanged.
+the current server uses loopback binding, Host/Origin checks, CSRF protection
+and a strict CSP. Its localhost URL does not contain a private key.
 
 ## Goals and non-goals
 
@@ -20,14 +20,14 @@ checks, strict CSP) is unchanged.
 
 ## Architecture
 
-- `web.rs` builds an immutable in-memory `Site` snapshot at startup (navigation,
+- `web.rs` builds an in-memory `Site` snapshot at startup and reloads it on a subsequent request after a published reindex (navigation,
   duplicate report, dead-code candidates, reference counts, Obsidian scan) and
   serves it over a single-threaded HTTP/1.1 loop on `127.0.0.1`.
 - `web/api/*` exposes read-only JSON endpoints: `meta`, `summary`, `stats`,
   `files`, `symbols`, `symbol`, `source`, `findings`, `finding`, `search`,
   `dependencies`, `notes`, `note`, `notes-graph`. Lists page with a bounded
   `limit`; source ranges are bounded and validated against the indexed file.
-- `POST api/review` is the only mutation (JSON, CSRF nonce, same-origin, and
+- `POST api/review` saves review decisions (JSON, CSRF nonce, same-origin, and
   the `revision` the page showed: a decision changed meanwhile by another
   process returns 409 with the current review). `web/reviews.rs` is a thin
   adapter over `mct_index::reviews`, shared with `mct-cli dead-code`/
@@ -38,7 +38,7 @@ checks, strict CSP) is unchanged.
   as `needs-reevaluation`, never hidden. If a review file cannot be read the
   dashboard starts read-only, hides nothing and names the file; to recover, fix
   or move that file aside (or restore `review-decisions.toon.prev`), then
-  restart. Design: `docs/superpowers/specs/2026-10-22-shared-review-decisions-design.md`.
+  restart. Design: `docs/design/2026-10-22-shared-review-decisions-design.md`.
   Compatibility, stated separately: default outputs of older binaries are
   unchanged (identical bytes); this dashboard reads the older review files but
   writes only `review-decisions.toon`, so binaries built before this change do
@@ -47,6 +47,7 @@ checks, strict CSP) is unchanged.
   a save does not block the next one: the lock is an operating-system lock, and
   the next save removes the temporary files the killed save left
   (`docs/01-architecture/adrs/019-shared-review-decisions.md`).
+- `POST api/ignore` updates project ignore rules with same-origin and CSRF checks.
 - `web/app/*` is an ES-module front end embedded with `include_str!`: hash
   routing (`#/page?query`, filters live in the URL), a DOM builder that never
   uses `innerHTML`, inline SVG charts, a bounded force-directed graph, an LCS
