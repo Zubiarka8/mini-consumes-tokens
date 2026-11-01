@@ -4,6 +4,14 @@
 
 Accepted for the local implementation, 2026-10-20. Publication is separate.
 
+**Later implementation update (2026-11-01):** The decision and consequences
+below record the original design. In the current checkout, the dashboard starts
+a background watcher and reindex, then reloads its snapshot after a published
+index change. If the watcher cannot start, the dashboard still serves with
+automatic reindexing disabled. The dashboard also supports protected
+`.mctignore` edits. See [[web-dashboard]] for the current behavior; this update
+does not assert that these changes have been released.
+
 ## Context
 
 People need to move from project structure to duplicate groups and back without

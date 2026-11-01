@@ -15,7 +15,7 @@
 //! unreadable one, no source applies. If only an older file is unreadable, the
 //! canonical decisions are still reported but held (`Resolution::held`): the
 //! unread file may hold a later decision. Design and rationale:
-//! `docs/superpowers/specs/2026-10-22-shared-review-decisions-design.md`.
+//! `docs/design/2026-10-22-shared-review-decisions-design.md`.
 
 mod format;
 mod identity;

@@ -26,9 +26,8 @@ tag list.
       refreshed with `cargo update --workspace` (only workspace packages
       should change).
 - [ ] The README version badge matches (`release.sh bump` updates it). The
-      other version spots are manual, as listed under "Release version files"
-      in `rules.md`: the README sentence about the first version shipping
-      prebuilt archives and the `mct-cli --version` example output.
+      other version spots are manual: review the README release information and
+      the `mct-cli --version` example output.
       Then run `git grep` for the old version to confirm none remains.
 - [ ] `scripts/unix/check.sh` (or `scripts\windows\check.ps1`) is clean
       locally: fmt, tests, CI-equivalent clippy, `mct-eval`.
@@ -54,11 +53,11 @@ a manual install against it if you want to check one end to end.
 
 ## 3. Tag and push (publishes the GitHub Release)
 
-Only after the owner has approved the candidate commit:
+Only after the owner has approved the candidate commit, replace `X.Y.Z` with the workspace version:
 
 ```sh
-git tag -a v0.2.0 -m "v0.2.0"
-git push origin v0.2.0
+git tag -a vX.Y.Z -m "vX.Y.Z"
+git push origin vX.Y.Z
 ```
 
 The workflow refuses a tag that does not equal `v` + the workspace version.

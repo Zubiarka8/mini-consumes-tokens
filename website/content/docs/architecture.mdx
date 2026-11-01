@@ -42,6 +42,7 @@ Each `mct-lang-*` crate lives in `crates/mct-lang-<name>/` and has its own tree-
 | `mct-index` | SQLite schema and migrations, the reindex algorithm, every query | any language grammar |
 | `mct-mcp-server` | MCP server over stdio (`rmcp`): tool definitions and output formatting | — |
 | `mct-languages` | `build_registry`: the one list of language parsers, used by the CLI, the server and `mct-eval` | SQLite, MCP |
+| `mct-obsidian` | Generates the project vault from the index | — |
 | `mct-cli` | `init`, `reindex`, `status`, `mcp-register` and other commands ([CLI](/docs/cli)) | — |
 
 Two more crates are internal and never published: `mct-corpus` (test harness shared by every language crate's corpus tests) and `mct-eval` (accuracy, latency and token-cost evaluation of the MCP tools against a checked-in baseline).
@@ -86,6 +87,7 @@ mini-consumes-tokens/
 │   ├── mct-languages/            the one language registry (build_registry)
 │   ├── mct-mcp-server/           MCP server binary
 │   ├── mct-cli/                  CLI binary
+│   ├── mct-obsidian/             generated vault
 │   ├── mct-lang-js-ts/           one folder per language:
 │   ├── mct-lang-python/            src/lib.rs     the parser
 │   ├── mct-lang-css/               Cargo.toml     its grammar library (tree-sitter-…)
@@ -103,7 +105,7 @@ Third-party libraries (`tree-sitter-python`, `rusqlite`, `rmcp`…) are **not** 
 Dependencies are declared in two places:
 
 - **Root `Cargo.toml`, `[workspace.dependencies]`:** every internal `mct-*` crate, plus the libraries shared by several crates (`tree-sitter`, `thiserror`). A crate uses them with `name.workspace = true`, so their version is set once.
-- **Each crate's own `Cargo.toml`:** the libraries only that crate needs, with an exact version.
+- **Each crate's own `Cargo.toml`:** the libraries only that crate needs, with version requirements; `Cargo.lock` pins the resolved versions.
 
 | Crate | Main libraries | What for |
 | --- | --- | --- |
@@ -112,7 +114,7 @@ Dependencies are declared in two places:
 | `mct-lang-*` | `tree-sitter` + its own grammar (`tree-sitter-rust`, `tree-sitter-python`…) | parsing one language |
 | `mct-index` | `rusqlite` (bundled SQLite), `rusqlite_migration`, `git2`, `globset`, `walkdir`, `serde_json`, `toml` | database, migrations, file hashes, exclusions, walking the project, reading manifests |
 | `mct-mcp-server` | `rmcp`, `tokio`, `clap`, `notify` + `notify-debouncer-full`, `schemars`, `serde`, `tracing`; `fastembed` (optional) | MCP protocol, async runtime, flags, file watcher, tool schemas, logs; embeddings for `hybrid_search_like` |
-| `mct-cli` | `clap`, `serde_json`, `anyhow` | commands, writing `.mcp.json` |
+| `mct-cli` | `clap`, `serde_json`, `anyhow`, `tokio`, `git2`, `form_urlencoded`, `getrandom` and `mct-obsidian` | commands, dashboard, configuration and vault |
 
 `fastembed` is only built with the `semantic` feature (`cargo install --path crates/mct-mcp-server --features semantic`). Without it, `hybrid_search_like` searches by words only.
 

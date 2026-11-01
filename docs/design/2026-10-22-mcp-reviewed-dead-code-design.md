@@ -2,9 +2,16 @@
 
 Date: 2026-10-22
 
-Status: specification for review. **Implementation is blocked** until the owner
-authorizes P3 explicitly. Nothing in `crates/mct-mcp-server/src` changes with
-this document.
+Status: historical proposal, superseded by the implemented design in
+[ADR-023](../01-architecture/adrs/023-mcp-dead-code-reviews.md). The
+proposal below was blocked when written; it is not the current MCP contract.
+The implementation reads review decisions by default, hides matching dismissed
+and false-positive findings, and offers `include_reviewed` and `max_tokens`.
+It does not implement the proposed `reviewed: show|hide|only` argument or the
+proposed byte-identical default response. See the
+[MCP protocol specification](../01-architecture/mcp-protocol-spec.md) for
+the current behavior. The original requirements and approval gate below are
+retained as historical context, not evidence that every proposed gate passed.
 
 Inputs: GitHub issue #228 (an input, not proof; its performance figures are
 stale), `2026-10-22-shared-review-decisions-design.md` (§7.4, §7.8, §7.11, D3),
