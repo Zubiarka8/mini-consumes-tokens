@@ -1,0 +1,41 @@
+commands = {}
+dependencies = {
+   demo = {
+      ["1.0-1"] = {
+         {
+            constraints = {
+               {
+                  op = ">=",
+                  version = {
+                     5, 1, string = "5.1"
+                  }
+               }
+            },
+            name = "lua"
+         }
+      }
+   }
+}
+modules = {
+   ["demo.pkg"] = {
+      "demo/1.0-1"
+   },
+   demo_other = {
+      "demo/1.0-1"
+   }
+}
+repository = {
+   demo = {
+      ["1.0-1"] = {
+         {
+            arch = "installed",
+            commands = {},
+            dependencies = {},
+            modules = {
+               ["demo.pkg"] = "demo/pkg.lua",
+               demo_other = "demo_other.lua"
+            }
+         }
+      }
+   }
+}

@@ -198,6 +198,8 @@ Use it to check that the index is healthy: files and symbols per language, last 
 
 - `verbose_dependencies` (default `false`; list every dependency instead of a one-line summary); `dependency` (an exact package name; list manifests that declare it).
 
+When either parameter is set and the project has `*.rockspec` files, the response also carries a LuaRocks detail section: per rockspec, each declared entry with its scope, constraint and platform, set against what the project-local `lua_modules` trees list and what `luarocks.lock` pins, plus the rockspec's `build.modules` and `build.install.lua` maps. Everything is read statically; nothing is installed, executed or fetched. "Not found" means not found in the project-local trees, and an unreadable, oversized, corrupt or excluded tree or lockfile is reported as incomplete or unknown, never as absent. [`get_dependency_graph`](#get_dependency_graph) also marks where each Lua `require` comes from: a rock, a rockspec declaration or unknown.
+
 ### `reindex` [#reindex]
 
 Use it to update the index right now, for example after a big change you want to query immediately. You rarely need it: the server indexes at startup and again in the background a moment after files change. See [Reindexing](/docs/managing).

@@ -403,6 +403,51 @@ fn a_title_does_not_join_an_alias_match() {
 }
 
 #[test]
+fn table_relations_follow_create_edit_and_delete() {
+    let mut v = Vault::new(&[("target.md", "# Target\n")]);
+    v.write("src.md", "# Section\n\n| Link |\n| --- |\n| [[target]] |\n");
+    v.index
+        .reindex_paths(&v.registry, &[v.dir.join("src.md")])
+        .unwrap();
+    assert_eq!(
+        v.outcome("src.md", "target"),
+        "resolved target.md:module:target"
+    );
+    v.write("src.md", "# Section\n\n| Link |\n| --- |\n| [[other]] |\n");
+    v.index
+        .reindex_paths(&v.registry, &[v.dir.join("src.md")])
+        .unwrap();
+    assert!(v.link("src.md", "target").is_empty());
+    assert_eq!(v.link("src.md", "other").len(), 1);
+    fs::remove_file(v.dir.join("src.md")).unwrap();
+    v.index
+        .reindex_paths(&v.registry, &[v.dir.join("src.md")])
+        .unwrap();
+    assert!(v.link("src.md", "other").is_empty());
+}
+
+#[test]
+fn escaping_a_wikilink_removes_its_indexed_relation() {
+    let mut v = Vault::new(&[("target.md", "# Target\n"), ("src.md", "[[target]]\n")]);
+    assert_eq!(v.link("src.md", "target").len(), 1);
+    v.write("src.md", "\\[[target]]\n");
+    v.index
+        .reindex_paths(&v.registry, &[v.dir.join("src.md")])
+        .unwrap();
+    assert!(v.link("src.md", "target").is_empty());
+    v.write("src.md", "\\`[[target]]\\`\n");
+    v.index
+        .reindex_paths(&v.registry, &[v.dir.join("src.md")])
+        .unwrap();
+    assert_eq!(v.link("src.md", "target").len(), 1);
+    fs::remove_file(v.dir.join("src.md")).unwrap();
+    v.index
+        .reindex_paths(&v.registry, &[v.dir.join("src.md")])
+        .unwrap();
+    assert!(v.link("src.md", "target").is_empty());
+}
+
+#[test]
 fn incremental_and_full_reindex_agree() {
     let mut v = Vault::new(&[
         (

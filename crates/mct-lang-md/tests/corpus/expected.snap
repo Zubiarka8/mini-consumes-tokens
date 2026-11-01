@@ -1,4 +1,4 @@
-# language=markdown files=6 symbols=260 relations=338 name_matched_across_files=229
+# language=markdown files=6 symbols=260 relations=340 name_matched_across_files=231
 
 == api/reference.md (300 lines)
 S 1-300 module reference
@@ -444,6 +444,8 @@ R 12:1 references Warehouse engineering handbook -> glossary (name-matched: glos
 R 12:1 references Warehouse engineering handbook -> tag:home
 R 24:1 references Warehouse engineering handbook::Who we are -> overview (name-matched: architecture/overview.md)
 R 24:1 references Warehouse engineering handbook::Who we are -> Bounded contexts (name-matched: architecture/overview.md)
+R 33:42 references Who we are::Team members -> overview (name-matched: architecture/overview.md)
+R 36:42 references Who we are::Team members -> runbook (name-matched: operations/runbook.md)
 R 45:3 references Who we are::Rituals -> Planning
 R 46:3 references Who we are::Rituals -> runbook (name-matched: operations/runbook.md)
 R 46:3 references Who we are::Rituals -> Post-incident review (name-matched: operations/runbook.md)

@@ -217,7 +217,7 @@ fn frontmatter_and_inline_tags_are_tag_references() {
 }
 
 #[test]
-fn code_tables_and_look_alikes_are_not_links_or_tags() {
+fn code_and_look_alikes_are_not_links_or_tags() {
     let c = corpus();
     let targets: Vec<_> = c.relations().into_iter().map(|r| r.to).collect();
     for absent in [
@@ -233,9 +233,7 @@ fn code_tables_and_look_alikes_are_not_links_or_tags() {
     ] {
         assert!(!targets.contains(&absent), "{absent} was extracted");
     }
-    // Table cells are not scanned: the team table links the overview, but
-    // its section has no relation.
-    assert!(!c.has_relation("Team members", References, "overview"));
+    assert!(c.has_relation("Team members", References, "overview"));
 }
 
 #[test]
