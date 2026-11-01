@@ -385,6 +385,37 @@ pub fn migrations() -> Migrations<'static> {
             UPDATE files SET content_hash = '';
             "#,
         ),
+        // LuaRocks detail (issue #267): everything a rockspec declares, kept
+        // apart from `dependencies`, which stays the one-row-per-name summary
+        // every ecosystem shares (and which CLI and web read). One row per
+        // entry in declaration order: repeated names, scopes, constraints,
+        // platform tables and module maps all survive, and each section
+        // records whether it was read completely. Purely additive: an
+        // existing index gets the table empty and fills it on the next
+        // reindex, which re-reads every manifest.
+        M::up(
+            r#"
+            CREATE TABLE rockspec_items (
+                id                 INTEGER PRIMARY KEY,
+                manifest_path      TEXT NOT NULL,
+                position           INTEGER NOT NULL,
+                kind               TEXT NOT NULL,
+                section            TEXT,
+                scope              TEXT,
+                platform           TEXT,
+                namespace          TEXT,
+                name               TEXT NOT NULL,
+                version_constraint TEXT,
+                path               TEXT,
+                native             INTEGER NOT NULL DEFAULT 0,
+                source             TEXT,
+                state              TEXT NOT NULL,
+                detail             TEXT,
+                UNIQUE(manifest_path, position)
+            );
+            CREATE INDEX idx_rockspec_items_name ON rockspec_items(name);
+            "#,
+        ),
     ])
 }
 
