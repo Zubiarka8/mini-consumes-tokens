@@ -6,7 +6,7 @@
 //! The token-reduction test re-creates the JSON-RPC exchanges an agent would
 //! otherwise make by hand — the individual lookups plus reading every file
 //! they point at — and compares them to the one pack, measured with the same
-//! approximate tokenizer `examples/format_benchmark.rs` uses. Run with
+//! approximate tokenizer as `tests/common/tokens.rs`. Run with
 //! `--nocapture` to see the numbers and the pack itself.
 
 // Test code: an unwrap()/expect() here means a broken test precondition, and
@@ -21,6 +21,10 @@ use mct_index::{ExcludeSet, Index};
 use mct_mcp_server::server::MctServer;
 use rmcp::model::CallToolResult;
 use serde_json::{json, Value};
+
+#[path = "common/tokens.rs"]
+mod tokens;
+use tokens::approx_tokens;
 
 fn fixture(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -58,27 +62,6 @@ async fn call(server: &MctServer, tool: &str, args: &Value) -> CallToolResult {
 
 async fn pack(server: &MctServer, args: Value) -> String {
     content_of(&call(server, "build_context_pack", &args).await)
-}
-
-/// Same heuristic as `examples/format_benchmark.rs::approx_tokens`: a run of
-/// alphanumerics/`_` is one token, every other non-whitespace char is one.
-fn approx_tokens(s: &str) -> usize {
-    let mut tokens = 0usize;
-    let mut in_word = false;
-    for c in s.chars() {
-        if c.is_alphanumeric() || c == '_' {
-            if !in_word {
-                tokens += 1;
-                in_word = true;
-            }
-        } else {
-            in_word = false;
-            if !c.is_whitespace() {
-                tokens += 1;
-            }
-        }
-    }
-    tokens
 }
 
 /// One `tools/call` round trip as it crosses the stdio transport.

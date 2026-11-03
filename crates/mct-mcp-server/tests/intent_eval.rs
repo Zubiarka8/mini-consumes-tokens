@@ -17,6 +17,10 @@ use mct_mcp_server::server::{MctServer, ServerOptions};
 use mct_mcp_server::toon::decode_table;
 use rmcp::model::Tool;
 
+#[path = "common/tokens.rs"]
+mod tokens;
+use tokens::approx_tokens;
+
 struct Case {
     id: String,
     query: String,
@@ -54,28 +58,6 @@ fn catalog_and_languages() -> (Vec<Tool>, Vec<&'static str>) {
     let languages = registry.language_ids();
     let index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
     (MctServer::new(index, registry).tool_catalog(), languages)
-}
-
-/// Same heuristic as `mct_eval::approx_tokens` / `tests/batch.rs`: a run of
-/// alphanumerics/`_` is one token, every other non-whitespace char is one.
-/// Approximate — no model tokenizer is a dependency of this workspace.
-fn approx_tokens(s: &str) -> usize {
-    let mut tokens = 0usize;
-    let mut in_word = false;
-    for c in s.chars() {
-        if c.is_alphanumeric() || c == '_' {
-            if !in_word {
-                tokens += 1;
-                in_word = true;
-            }
-        } else {
-            in_word = false;
-            if !c.is_whitespace() {
-                tokens += 1;
-            }
-        }
-    }
-    tokens
 }
 
 /// What one selector delivers for one query.
