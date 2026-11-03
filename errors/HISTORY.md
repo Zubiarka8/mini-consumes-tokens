@@ -192,3 +192,23 @@ The same session requested `get_tool_schema(name: "select_tools")` while the
 opt-in tool was absent from discovery. The diagnostic was ``no tool named
 `select_tools` — call discover_tool_categories for the full list``. Schemas
 for advertised tools succeeded; this is a caller mistake (ERR-014).
+
+## 2026-11-03 — index observation on `refactor/optimization`
+
+`mct-cli --root . init` / `status` (worktree-built `mct-cli 0.3.0`, isolated target dir) on `refactor/optimization`, HEAD `63cef7c` (clean tree), index timestamp `1793714591`: 972 files, 21,140 symbols, 18 parse diagnostics. Sixteen are the expected ERR-003 malformed fixtures under `crates/mct-lang-*/tests/corpus/malformed/`. The other two are the open/known entries ERR-002 (`scripts/windows/review-check.ps1: line 29: syntax error`) and ERR-023 (`crates/mct-cli/web-ui/src/styles.css: line 12: syntax error`). `scripts/unix/parse-probe.sh` reproduced both at `Remove-Item Env:MCT_CHECK_LOG_DIR, Env:MCT_CHECK_SUMMARY -ErrorAction SilentlyContinue` and `@source "./";`; ERR-003 was reproduced for `broken_service.rs` only (the other fixtures were not individually probed). No cause or fix is established by this observation.
+
+The MCP servers connected to the session at this time were started with the primary checkout as root, not this worktree (scope mismatch, ERR-016 class); the investigation used the CLI in-process instead.
+
+## 2026-11-03 — find_callers argument mistake on `refactor/optimization`
+
+`mct-cli --root . call --tool batch` ran six read-only queries. Two `find_callers`
+sub-queries passed `name`; each reported ``invalid args for `find_callers`:
+missing field `function` ``, inline, without failing the other four (ERR-014,
+caller mistake). Both were retried with `function` and succeeded. The batch used
+the worktree-built `mct-cli 0.3.0`; the index timestamp is the one recorded in the
+index observation above.
+
+A POST to the web review endpoint from a script without an `Origin` header got
+`403 Request rejected`; with the dashboard's own origin it returned 200. This is
+the CSRF/Origin guard working as designed, observed against a disposable project,
+not the real campaign data.
