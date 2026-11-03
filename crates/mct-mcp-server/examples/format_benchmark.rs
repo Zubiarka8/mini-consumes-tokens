@@ -22,9 +22,13 @@
 //! like, which is the comparison the project's TOON-adoption decision is
 //! actually about.
 
+#[path = "../tests/common/tokens.rs"]
+mod tokens;
+
 use mct_index::{RelationHit, SymbolListEntry};
 use mct_mcp_server::{format, toon::encode_table};
 use serde::Serialize;
+use tokens::approx_tokens;
 
 #[derive(Serialize)]
 struct SymbolRow {
@@ -47,31 +51,6 @@ struct RelationRow {
     kind: String,
     to: String,
     depth: u32,
-}
-
-/// A crude token-count approximation: every run of alphanumeric/`_`
-/// characters counts as one token, and every other non-whitespace character
-/// (punctuation — `{`, `"`, `,`, `:`, `[`, `]`, `-`, `>` ...) counts as its
-/// own token. This mirrors how BPE tokenizers tend to split JSON/TOON
-/// punctuation into single-character tokens while keeping identifiers
-/// mostly whole, without pulling in a real tokenizer dependency.
-fn approx_tokens(s: &str) -> usize {
-    let mut tokens = 0usize;
-    let mut in_word = false;
-    for c in s.chars() {
-        if c.is_alphanumeric() || c == '_' {
-            if !in_word {
-                tokens += 1;
-                in_word = true;
-            }
-        } else {
-            in_word = false;
-            if !c.is_whitespace() {
-                tokens += 1;
-            }
-        }
-    }
-    tokens
 }
 
 fn report(scenario: &str, toon: &str, json: &str) {
