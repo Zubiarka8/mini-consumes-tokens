@@ -389,7 +389,7 @@ fn is_hit_line(line: &str) -> bool {
             })
 }
 
-/// Same heuristic as `mct-mcp-server/tests/batch.rs::approx_tokens`: a run of
+/// Same heuristic as `mct-mcp-server/tests/common/tokens.rs::approx_tokens`: a run of
 /// alphanumerics/`_` is one token, every other non-whitespace char is one.
 pub fn approx_tokens(s: &str) -> usize {
     let mut tokens = 0usize;
