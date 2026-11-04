@@ -18,17 +18,21 @@ fn user_version(database: &std::path::Path) -> i64 {
         .unwrap()
 }
 
-/// Rewinds a synthetic test database one migration, to the state an index had
-/// before `rockspec_items` existed. Assumes `rockspec_items` is the newest
-/// migration, which the final assertions of the test check rather than trust.
+/// Rewinds a synthetic test database to the state an index had before
+/// `rockspec_items` existed (schema version 11). Migrations added after it
+/// (the module-shadowing view and `symbol_entry_points`) are undone too, so the
+/// upgrade replays them; the final assertions check that the latest version is
+/// reached rather than trusting this rewind.
 fn rewind_before_rockspec_items(database: &std::path::Path, latest: i64) {
+    assert!(
+        latest > 12,
+        "the rewind expects rockspec_items to be applied"
+    );
     let connection = rusqlite::Connection::open(database).unwrap();
     connection
-        .execute_batch("DROP TABLE rockspec_items;")
+        .execute_batch("DROP TABLE rockspec_items; DROP TABLE symbol_entry_points;")
         .unwrap();
-    connection
-        .pragma_update(None, "user_version", latest - 1)
-        .unwrap();
+    connection.pragma_update(None, "user_version", 11).unwrap();
 }
 
 #[test]

@@ -13,12 +13,14 @@
 //! root's own manifest, itself scanned as its own file) — recorded as
 //! `None`, not skipped.
 
+mod composer;
 mod go;
 mod javascript;
 pub(crate) mod lua;
 mod python;
 mod rust;
 
+use composer::parse_composer_json;
 use go::parse_go_mod;
 use javascript::parse_package_json;
 use lua::parse_rockspec;
@@ -40,6 +42,7 @@ pub fn manifest_language(file_name: &str) -> Option<&'static str> {
         "requirements.txt" => Some("python"),
         "go.mod" => Some("go"),
         name if is_rockspec(name) => Some("lua"),
+        "composer.json" => Some("php"),
         _ => None,
     }
 }
@@ -64,6 +67,7 @@ pub fn parse_manifest(file_name: &str, contents: &str) -> Vec<ManifestDependency
         "requirements.txt" => parse_requirements_txt(contents),
         "go.mod" => parse_go_mod(contents),
         name if is_rockspec(name) => parse_rockspec(contents),
+        "composer.json" => parse_composer_json(contents),
         _ => Vec::new(),
     };
     dedupe_by_name(deps)
@@ -277,6 +281,36 @@ test_dependencies = {
             .len(),
             1
         );
+    }
+
+    #[test]
+    fn composer_json_reads_packages_and_skips_platform_requirements() {
+        let deps = parse_manifest(
+            "composer.json",
+            r#"{
+                "require": {
+                    "php": "^8.2",
+                    "ext-mbstring": "*",
+                    "laravel/framework": "^12.0",
+                    "laravel/tinker": "^2.10"
+                },
+                "require-dev": { "phpunit/phpunit": "^11.5", "laravel/framework": "^11.0" },
+                "autoload": { "psr-4": { "App\\": "app/" } }
+            }"#,
+        );
+        let names: Vec<_> = deps.iter().map(|d| d.name.as_str()).collect();
+        assert_eq!(
+            names,
+            ["laravel/framework", "laravel/tinker", "phpunit/phpunit"]
+        );
+        // The primary section wins for a name declared twice.
+        assert_eq!(deps[0].version.as_deref(), Some("^12.0"));
+        assert_eq!(manifest_language("composer.json"), Some("php"));
+    }
+
+    #[test]
+    fn composer_lock_is_not_a_manifest() {
+        assert_eq!(manifest_language("composer.lock"), None);
     }
 
     #[test]
