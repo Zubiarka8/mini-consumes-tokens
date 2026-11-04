@@ -626,6 +626,17 @@ export async function render({ root, params: initial }) {
                     h("a", { href: hrefTo("duplicados", { key: d.key }) }, d.title),
                     " ",
                     stateBadge(d.state),
+                    " ",
+                    h(
+                      "button",
+                      {
+                        class: "icon-btn sm",
+                        "aria-label": `${t("ai.copy.duplicate")}: ${d.title}`,
+                        title: t("ai.copy.duplicate"),
+                        onclick: () => copy(symbolBrief(s, data, "duplicate", d), t("ai.copied")),
+                      },
+                      icon("copy", 14),
+                    ),
                   ),
                 )
               : h("p", { class: "muted" }, t("code.noDupes")),
