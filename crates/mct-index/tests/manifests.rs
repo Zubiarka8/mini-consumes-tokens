@@ -47,6 +47,32 @@ fn cargo_toml_dependencies_appear_in_status() {
 }
 
 #[test]
+fn composer_json_dependencies_appear_in_status_under_php() {
+    let dir = tempdir();
+    fs::write(
+        dir.join("composer.json"),
+        r#"{"require":{"php":"^8.2","laravel/framework":"^12.0"},"require-dev":{"phpunit/phpunit":"^11.5"}}"#,
+    )
+    .unwrap();
+
+    let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
+    index.reindex(&empty_registry(), false).unwrap();
+
+    let status = index.status().unwrap();
+    let [manifest] = status.dependencies.as_slice() else {
+        panic!("one manifest expected: {:?}", status.dependencies);
+    };
+    assert_eq!(manifest.manifest_path, "composer.json");
+    assert_eq!(manifest.language, "php");
+    let names: Vec<_> = manifest
+        .dependencies
+        .iter()
+        .map(|d| d.name.as_str())
+        .collect();
+    assert_eq!(names, ["laravel/framework", "phpunit/phpunit"]);
+}
+
+#[test]
 fn a_crate_in_both_dependencies_and_dev_dependencies_does_not_fail_the_reindex() {
     // A very common Cargo.toml shape (e.g. `tokio` with extra test features
     // under `[dev-dependencies]`). It used to hit the `dependencies` table's
