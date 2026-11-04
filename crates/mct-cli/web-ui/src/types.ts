@@ -87,6 +87,7 @@ export interface DeadFinding extends Review {
   confidence: string;
   zone: string;
   visibility: string;
+  possibleEntryPoints?: string[];
   detail: {
     symbol: DeadSymbol;
     imports: string[];

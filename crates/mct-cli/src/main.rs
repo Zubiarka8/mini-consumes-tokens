@@ -751,13 +751,12 @@ fn dead_code_report(
     output: Option<PathBuf>,
     reviewed: Option<reviewed::Reviewed>,
 ) -> anyhow::Result<()> {
-    let scan;
-    let unreviewed;
-    // (candidate, review state); the state is set only with `reviewed`.
-    let mut rows: Vec<(&mct_index::SymbolListEntry, Option<&str>)> = Vec::new();
+    let scan = mct_index::scan_dead_code(index, path, language)?;
+    // (symbol index in `scan.symbols`, review state); the state is set only
+    // with `reviewed`.
+    let mut rows: Vec<(usize, Option<&str>)> = Vec::new();
     let mut hidden = None;
     if let Some(mode) = reviewed {
-        scan = mct_index::scan_dead_code(index, path, language)?;
         let findings = mct_index::reviews::dead_code_findings(
             &scan.symbols,
             &scan.candidates,
@@ -766,15 +765,14 @@ fn dead_code_report(
         let resolutions = reviewed::load(index.root()).resolve(&findings);
         for (&id, resolution) in scan.candidates.iter().zip(&resolutions) {
             if mode.keeps(resolution) {
-                rows.push((&scan.symbols[id], Some(resolution.effective_label())));
+                rows.push((id, Some(resolution.effective_label())));
             }
         }
         if mode == reviewed::Reviewed::Hide {
             hidden = reviewed::hidden_summary(&resolutions);
         }
     } else {
-        unreviewed = mct_index::find_dead_code_candidates(index, path, language)?;
-        rows.extend(unreviewed.iter().map(|candidate| (candidate, None)));
+        rows.extend(scan.candidates.iter().map(|&id| (id, None)));
     }
     let output =
         output.unwrap_or_else(|| index.root().join(".mct-index").join("dead-code-report.csv"));
@@ -784,12 +782,20 @@ fn dead_code_report(
 
     let root = display_path(index.root());
     let mut csv = String::from("project_root,file,function,kind,language,start_line,end_line");
-    csv.push_str(if reviewed.is_some() {
-        ",review_state\n"
-    } else {
-        "\n"
-    });
-    for (candidate, state) in &rows {
+    if reviewed.is_some() {
+        csv.push_str(",review_state");
+    }
+    // Present only when a candidate has a possible entry point, so a project
+    // without framework conventions gets the columns it always had.
+    let with_possible = rows
+        .iter()
+        .any(|(id, _)| !scan.possible_entry_points(*id).is_empty());
+    if with_possible {
+        csv.push_str(",possible_entry_point");
+    }
+    csv.push('\n');
+    for (id, state) in &rows {
+        let candidate = &scan.symbols[*id];
         csv.push_str(&csv_field(&root));
         csv.push(',');
         csv.push_str(&csv_field(&candidate.relative_path));
@@ -808,6 +814,15 @@ fn dead_code_report(
         if let Some(state) = state {
             csv.push(',');
             csv.push_str(state);
+        }
+        if with_possible {
+            let notes: Vec<String> = scan
+                .possible_entry_points(*id)
+                .iter()
+                .map(mct_index::EntryPointNote::describe)
+                .collect();
+            csv.push(',');
+            csv.push_str(&csv_field(&notes.join(" | ")));
         }
         csv.push('\n');
     }
@@ -1699,6 +1714,53 @@ mod tests {
         );
 
         fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn dead_code_report_adds_the_possible_entry_point_column_only_when_a_candidate_has_one() {
+        let listener = "<?php\nnamespace App\\Listeners;\nuse App\\Events\\OrderPlaced;\n\
+class NotifyWarehouse\n{\n    public function handle(OrderPlaced $event): void {}\n}\n";
+        let report = |name: &str, composer: &str| {
+            let dir = temp_project_dir(name);
+            fs::write(dir.join("composer.json"), composer).unwrap();
+            fs::create_dir_all(dir.join("app/Listeners")).unwrap();
+            fs::write(dir.join("app/Listeners/NotifyWarehouse.php"), listener).unwrap();
+            let db_path = dir.join(".mct-index").join("index.sqlite3");
+            let mut index = Index::open(&dir, &db_path, ExcludeSet::default()).unwrap();
+            index.reindex(&build_registry(), false).unwrap();
+            let output = dir.join("report.csv");
+            dead_code_report(&index, None, None, Some(output.clone()), None).unwrap();
+            let contents = fs::read_to_string(&output).unwrap();
+            fs::remove_dir_all(&dir).ok();
+            contents
+        };
+
+        let laravel = report(
+            "dead-code-laravel",
+            r#"{ "require": { "laravel/framework": "^12.0" } }"#,
+        );
+        let mut lines = laravel.lines();
+        assert_eq!(
+            lines.next().unwrap(),
+            "project_root,file,function,kind,language,start_line,end_line,possible_entry_point"
+        );
+        let row = lines.find(|l| l.contains(",NotifyWarehouse,")).unwrap();
+        assert!(
+            row.contains("possible entry point (laravel, event-listener-discovery)"),
+            "{row}"
+        );
+        assert!(row.contains("Not proven"), "{row}");
+
+        let plain = report(
+            "dead-code-not-laravel",
+            r#"{ "require": { "symfony/console": "^7.0" } }"#,
+        );
+        assert_eq!(
+            plain.lines().next().unwrap(),
+            "project_root,file,function,kind,language,start_line,end_line"
+        );
+        assert!(plain.contains(",NotifyWarehouse,"), "{plain}");
+        assert!(!plain.contains("possible entry point"), "{plain}");
     }
 
     #[test]
