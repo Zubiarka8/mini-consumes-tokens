@@ -20,7 +20,7 @@ Shared rules for Codex, Claude Code, and any agent working in this repository. T
 
 ## Project coordination
 
-This file is authoritative for architecture, technical restrictions, model selection, effort, billing, and client commands. Use only project-local skills unless the user explicitly authorizes another scope.
+This file is authoritative for architecture, technical restrictions, model selection, effort, billing, and client commands. Use relevant project-local or globally available skills when they add value to the task.
 
 Write all repository content in English: file and branch names, documentation, code, comments, task records, commit messages, PRs, and issues. Preserve required external identifiers and literal fixture data when translation would change behavior.
 

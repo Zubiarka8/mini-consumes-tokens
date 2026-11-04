@@ -1,5 +1,17 @@
 # Error registry
 
+## Observation on 2026-11-04
+
+On checkout `b186d5f` (`feat/lua-indexing-improvements`), `get_indexing_status` returned timestamp `1793785852`, 1,208 files, 46,919 symbols and the same 20 parse diagnostics as 2026-11-03: 16 expected malformed fixtures (ERR-003), ERR-002, ERR-023, and two generated CSS failures (ERR-024). `find_duplicate_code(normalization: consistent)` was queried for each of the 17 `crates/mct-lang-*` paths. Its results remain incomplete (`coverage_complete: false`, `index_errors: 20`); no unexpected diagnostic beyond the already recorded set was reported.
+
+## Observation on 2026-11-03
+
+On clean checkout `b186d5f`, `get_indexing_status` reported timestamp `1793713596`, 1,208 files, 46,917 symbols and 20 parse failures: 16 expected malformed fixtures (ERR-003), `scripts/windows/review-check.ps1: line 29: syntax error` (ERR-002), `crates/mct-cli/web-ui/src/styles.css: line 12: syntax error` (ERR-023), and the two generated CSS files below. The index snapshot may predate the checkout. `find_duplicate_code(normalization: consistent, limit: 5)` reported `coverage_complete: false`, `skipped: 9`, and `index_errors: 20`, so its 190 candidates are not a complete inventory.
+
+| ID | Status | Location / scope | Evidence and impact | Next action |
+| --- | --- | --- | --- | --- |
+| ERR-024 | OPEN | `website/out/_next/static/css/c9ebb3826c88707c.css` and `website/.next/static/css/c9ebb3826c88707c.css` | First and last observed 2026-11-03. `get_indexing_status` reports `line 1: syntax error` for each generated CSS file; `scripts/unix/parse-probe.sh` reproduced four failures, including these two and ERR-002/ERR-023. The generated files are absent from the parsed index. The precise rejected syntax and cause are unverified. | Investigate the grammar and index scope; verify a refreshed index before closing. |
+
 ## Observation on 2026-10-30
 
 Latest `get_indexing_status` (no arguments) on `feat/mct-indexing-language-audit`, base `59231f0` with local changes: timestamp `1793393687`, 1,014 files, 21,050 symbols and the same 18 diagnostics. ERR-002 and ERR-023 remain open; 16 malformed fixtures are expected (ERR-003).

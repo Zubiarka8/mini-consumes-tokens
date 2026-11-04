@@ -3,22 +3,16 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::path::Path;
 use std::sync::Arc;
 
 use mct_core::LanguageRegistry;
 use mct_index::{ExcludeSet, Index, Resolution};
 use mct_lang_lua::LuaParser;
 
-fn open_indexed() -> Index {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/depgraph");
-    let mut registry = LanguageRegistry::new();
-    registry.register(Arc::new(LuaParser));
-    let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
-    let report = index.reindex(&registry, false).unwrap();
-    assert!(report.issues.is_empty(), "{:?}", report.issues);
-    index
-}
+#[path = "common/mod.rs"]
+mod common;
+
+use common::open_indexed;
 
 fn import_hits(index: &Index, to: &str) -> Vec<(Resolution, Option<String>)> {
     index
@@ -37,7 +31,7 @@ fn import_hits(index: &Index, to: &str) -> Vec<(Resolution, Option<String>)> {
 
 #[test]
 fn require_resolves_to_the_file_under_the_named_package() {
-    let index = open_indexed();
+    let index = open_indexed("depgraph");
     // `lib/user.lua` shares the stem; the `models` segment picks the file.
     assert!(import_hits(&index, "user").contains(&(
         Resolution::Resolved,
@@ -49,7 +43,7 @@ fn require_resolves_to_the_file_under_the_named_package() {
 
 #[test]
 fn require_resolves_a_package_to_its_init_file() {
-    let index = open_indexed();
+    let index = open_indexed("depgraph");
     assert!(import_hits(&index, "shapes").contains(&(
         Resolution::Resolved,
         Some("app/shapes/init.lua".to_string())
@@ -58,7 +52,7 @@ fn require_resolves_a_package_to_its_init_file() {
 
 #[test]
 fn dofile_and_loadfile_stay_unresolved_because_the_working_directory_is_unknown() {
-    let index = open_indexed();
+    let index = open_indexed("depgraph");
     // `lib/util.lua` exists, but dofile/loadfile resolve against the process
     // working directory, which nothing in the source proves. The literal is
     // recorded as written and no file is picked.
@@ -77,7 +71,7 @@ fn dofile_and_loadfile_stay_unresolved_because_the_working_directory_is_unknown(
 
 #[test]
 fn a_third_party_module_matches_nothing_local() {
-    let index = open_indexed();
+    let index = open_indexed("depgraph");
     assert!(import_hits(&index, "cjson")
         .iter()
         .all(|(r, _)| *r == Resolution::Unresolved));
