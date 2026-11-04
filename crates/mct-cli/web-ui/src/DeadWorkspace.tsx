@@ -172,6 +172,16 @@ export function DeadWorkspace(props: WorkspaceProps & { item: DeadFinding }) {
               <dt className="text-fg-2">{t("dead.visibility")}</dt>
               <dd className="m-0">{t(`dead.visibility.${item.visibility}`)}</dd>
             </dl>
+            {item.possibleEntryPoints?.length ? (
+              <>
+                <h4 className="m-0 mt-3 text-xs font-semibold">{t("dead.possibleEntry")}</h4>
+                <ul className="m-0 pl-4">
+                  {item.possibleEntryPoints.map((note) => (
+                    <li key={note}>{note}</li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
             <h4 className="m-0 mt-3 text-xs font-semibold">{t("dead.limits")}</h4>
             <ul className="m-0 pl-4">
               {LIMITS.map((limit) => (

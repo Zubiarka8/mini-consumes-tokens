@@ -1,5 +1,16 @@
 use rusqlite_migration::{Migrations, M};
 
+/// The clause of migration 13 (ADR-026). A macro so the migration and its
+/// enumeration test (`schema/module_shadow_tests.rs`) share one literal.
+macro_rules! shadowed_module_predicate {
+    () => {
+        "AND NOT (s.kind = 'module' AND r.kind <> 'imports' AND r.target_kind IS NULL
+                       AND EXISTS (SELECT 1 FROM symbols o
+                                   WHERE o.file_id = s.file_id AND o.name = s.name
+                                     AND o.parent IS s.parent AND o.kind <> 'module'))"
+    };
+}
+
 /// Versioned schema migrations, applied in order by [`crate::Index::open`].
 /// One schema for every language: symbols/relations carry a `language`
 /// column rather than living in per-language tables, so adding a language
@@ -416,8 +427,92 @@ pub fn migrations() -> Migrations<'static> {
             CREATE INDEX idx_rockspec_items_name ON rockspec_items(name);
             "#,
         ),
+        // A file's `module` symbol shares its stem with the type declared in
+        // it (PHP, Java, C#, TS), so a reference that no syntax pins to a
+        // kind listed both and read as `ambiguous among 2` (issue #272, ADR-026).
+        // The module is dropped from such a relation only when the same file
+        // declares a same-named, same-parent symbol that is not a module:
+        // that symbol satisfies every predicate the module did, so the
+        // relation keeps a candidate. Every file is reparsed, as in the
+        // earlier view changes.
+        M::up(concat!(
+            r#"
+            DROP VIEW relation_candidates;
+            "#,
+            r#"CREATE VIEW relation_candidates AS
+                SELECT r.id AS relation_id, s.id AS symbol_id
+                FROM relations r
+                JOIN symbols caller ON caller.id = r.from_symbol_id
+                JOIN files cf ON cf.id = caller.file_id
+                JOIN symbols s ON s.id IN (
+                    SELECT id FROM symbols WHERE name = r.to_name
+                    UNION ALL
+                    SELECT symbol_id FROM symbol_aliases
+                    WHERE alias = r.to_name AND r.target_kind = 'module'
+                      AND r.target_path IS NULL
+                )
+                CROSS JOIN files sf ON sf.id = s.file_id
+                WHERE r.targets_parsed = 1
+                  AND r.to_name IN (SELECT s.name
+                                    UNION ALL
+                                    SELECT alias FROM symbol_aliases
+                                    WHERE symbol_id = s.id)
+                  AND r.external = 0
+                  AND sf.language = COALESCE(r.target_language, cf.language)
+                  AND (r.qualifier IS NULL
+                       OR s.parent = r.qualifier
+                       OR substr(s.parent, 1, length(r.qualifier) + 1) = r.qualifier || '<')
+                  AND (r.target_path IS NULL OR sf.relative_path = r.target_path)
+                  AND (r.module IS NULL
+                       OR s.parent = r.module
+                       OR instr('/' || replace(sf.relative_path, '-', '_'), '/' || r.module || '/') > 0
+                       OR instr('/' || replace(sf.relative_path, '-', '_'), '/' || r.module || '.') > 0)
+                  AND (r.member = 0 OR s.kind = 'method')
+                  AND (r.target_kind IS NULL OR s.kind = r.target_kind)
+                  AND (r.target_module IS NULL
+                       OR EXISTS (SELECT 1 FROM symbols m
+                                  WHERE m.file_id = s.file_id AND m.kind = 'module'
+                                    AND (m.name = r.target_module
+                                         OR EXISTS (SELECT 1 FROM symbol_aliases a
+                                                    WHERE a.symbol_id = m.id
+                                                      AND a.alias = r.target_module))))
+                  AND NOT (r.kind = 'calls' AND s.kind = 'module')
+                  "#,
+            shadowed_module_predicate!(),
+            r#";
+
+            UPDATE files SET content_hash = '';
+            "#,
+        )),
+        // Possible framework entry points (issue #273, ADR-027). A parser may
+        // declare that a framework could load a symbol by convention although
+        // no source line names it; the rows belong to the symbol, so a
+        // reparse or deletion of the declaring file replaces or removes them
+        // through the cascade. The optional requirement (a manifest and the
+        // package it must declare) is applied when a hint is read, against
+        // `dependencies`, so a change to the manifest alone changes what is
+        // shown. Every file is reparsed to declare its hints.
+        M::up(
+            r#"
+            CREATE TABLE symbol_entry_points (
+                symbol_id          INTEGER NOT NULL REFERENCES symbols(id) ON DELETE CASCADE,
+                framework          TEXT NOT NULL,
+                rule               TEXT NOT NULL,
+                evidence           TEXT NOT NULL,
+                requires_manifest  TEXT,
+                requires_package   TEXT,
+                requires_min_major INTEGER,
+                PRIMARY KEY (symbol_id, framework, rule)
+            );
+
+            UPDATE files SET content_hash = '';
+            "#,
+        ),
     ])
 }
+
+#[cfg(test)]
+mod module_shadow_tests;
 
 #[cfg(test)]
 mod tests {

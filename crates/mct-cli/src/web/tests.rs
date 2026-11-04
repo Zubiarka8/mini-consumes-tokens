@@ -384,6 +384,41 @@ fn api_lists_are_bounded_paged_and_filterable() {
 }
 
 #[test]
+fn a_dead_code_finding_lists_a_possible_entry_point_only_when_the_index_has_one() {
+    let listener = "<?php\nnamespace App\\Listeners;\nuse App\\Events\\OrderPlaced;\n\
+class NotifyWarehouse\n{\n    public function handle(OrderPlaced $event): void {}\n}\n";
+    let findings = |composer: &str| {
+        let root = tempfile::tempdir().unwrap();
+        fs::write(root.path().join("composer.json"), composer).unwrap();
+        fs::create_dir_all(root.path().join("app/Listeners")).unwrap();
+        fs::write(
+            root.path().join("app/Listeners/NotifyWarehouse.php"),
+            listener,
+        )
+        .unwrap();
+        index(root.path());
+        let server = Server::start(root.path(), true);
+        server.json("api/findings?type=dead-code&q=NotifyWarehouse")
+    };
+
+    let laravel = findings(r#"{ "require": { "laravel/framework": "^12.0" } }"#);
+    let notes = laravel["items"][0]["possibleEntryPoints"]
+        .as_array()
+        .unwrap();
+    assert_eq!(notes.len(), 1, "{laravel}");
+    let note = notes[0].as_str().unwrap();
+    assert!(note.contains("event-listener-discovery"), "{note}");
+    assert!(note.contains("Not proven"), "{note}");
+
+    let plain = findings(r#"{ "require": { "symfony/console": "^7.0" } }"#);
+    assert_eq!(plain["total"], 1, "{plain}");
+    assert!(
+        plain["items"][0].get("possibleEntryPoints").is_none(),
+        "{plain}"
+    );
+}
+
+#[test]
 fn symbol_facets_count_what_the_other_filters_leave() {
     let root = tempfile::tempdir().unwrap();
     fs::create_dir(root.path().join("src")).unwrap();

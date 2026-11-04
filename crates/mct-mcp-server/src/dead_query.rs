@@ -62,11 +62,25 @@ pub(crate) fn run(index: &Index, args: FindDeadCodeArgs, toon: bool) -> Result<S
         let next = offset.saturating_add(returned);
         let truncated = next < eligible_count;
         let footer = format!("returned: {returned}\ntruncated: {truncated}\nnext_offset: {}\nbudget_basis: estimated\n", if truncated {next.to_string()} else {"none".to_string()});
-        let rows: Vec<_> = page
+        // The column exists only when a candidate on this page has a hint, so
+        // a project without framework conventions gets today's output.
+        let possible: Vec<String> = page
             .iter()
             .map(|id| {
+                scan.possible_entry_points(scan.candidates[*id])
+                    .iter()
+                    .map(mct_index::EntryPointNote::describe)
+                    .collect::<Vec<_>>()
+                    .join(" | ")
+            })
+            .collect();
+        let with_possible = possible.iter().any(|note| !note.is_empty());
+        let rows: Vec<_> = page
+            .iter()
+            .zip(&possible)
+            .map(|(id, possible)| {
                 let entry = &scan.symbols[scan.candidates[*id]];
-                vec![
+                let mut row = vec![
                     entry.kind.clone(),
                     entry.name.clone(),
                     entry.relative_path.clone(),
@@ -75,9 +89,26 @@ pub(crate) fn run(index: &Index, args: FindDeadCodeArgs, toon: bool) -> Result<S
                     findings[*id].identity.clone(),
                     resolutions[*id].effective_label().into(),
                     (resolutions[*id].visibility() == Visibility::Actionable).to_string(),
-                ]
+                ];
+                if with_possible {
+                    row.push(possible.clone());
+                }
+                row
             })
             .collect();
+        let mut columns = vec![
+            "kind",
+            "name",
+            "path",
+            "line",
+            "end_line",
+            "id",
+            "review",
+            "actionable",
+        ];
+        if with_possible {
+            columns.push("possible_entry_point");
+        }
         let body = if toon {
             format!(
                 "{}\n{}{}{}",
@@ -91,20 +122,7 @@ pub(crate) fn run(index: &Index, args: FindDeadCodeArgs, toon: bool) -> Result<S
                 },
                 header,
                 footer,
-                encode_table(
-                    "candidates",
-                    &[
-                        "kind",
-                        "name",
-                        "path",
-                        "line",
-                        "end_line",
-                        "id",
-                        "review",
-                        "actionable"
-                    ],
-                    &rows
-                )
+                encode_table("candidates", &columns, &rows)
             )
         } else {
             let hits: Vec<_> = page
@@ -117,10 +135,16 @@ pub(crate) fn run(index: &Index, args: FindDeadCodeArgs, toon: bool) -> Result<S
                 header,
                 footer,
                 rows.iter()
-                    .map(|row| format!(
-                        "review: {} {} {} actionable: {}\n",
-                        row[5], row[1], row[6], row[7]
-                    ))
+                    .map(|row| {
+                        let mut line = format!(
+                            "review: {} {} {} actionable: {}\n",
+                            row[5], row[1], row[6], row[7]
+                        );
+                        if let Some(note) = row.get(8).filter(|note| !note.is_empty()) {
+                            line.push_str(&format!("{}: {note}\n", row[1]));
+                        }
+                        line
+                    })
                     .collect::<String>()
             )
         };

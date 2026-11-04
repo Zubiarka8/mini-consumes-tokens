@@ -739,6 +739,7 @@ impl<'a> Walker<'a> {
             relation_targets: self.relation_targets,
             literals: self.literals.finish(),
             symbol_aliases: self.symbol_aliases,
+            ..ParsedFile::default()
         }
     }
 }

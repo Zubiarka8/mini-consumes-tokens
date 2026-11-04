@@ -1,6 +1,7 @@
 //! File-level `Imports` evidence: a PHP `use` names the `Module` of the file
-//! declaring the type (PSR-4) and an `include` with a literal path is pinned
-//! to the exact file.
+//! that declares the type in the imported namespace, wherever Composer maps
+//! that file, and an `include` with a literal path is pinned to the exact
+//! file.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -43,11 +44,17 @@ fn resolved(file: &str) -> (Resolution, Option<String>) {
 }
 
 #[test]
-fn use_resolves_to_the_file_under_the_namespace_directory() {
+fn use_resolves_to_the_file_declaring_the_imported_namespace() {
     let index = open_indexed();
-    // `src/User.php` also holds a `User` module; the `Models` segment picks
-    // the right one.
+    // `src/User.php` also holds a `User` module, in another namespace.
     assert!(import_hits(&index, "User").contains(&resolved("src/Models/User.php")));
+    // `App\Account` sits directly in the namespace root (`app/`), so no
+    // directory is named after its namespace segment, and a same-named
+    // class lives in another namespace.
+    assert_eq!(
+        import_hits(&index, "Account"),
+        vec![resolved("app/Account.php")]
+    );
     // Group use, with and without alias, names the real type's file.
     assert!(import_hits(&index, "Post").contains(&resolved("src/Models/Post.php")));
     assert!(import_hits(&index, "Tag").contains(&resolved("src/Models/Tag.php")));
@@ -61,7 +68,7 @@ fn literal_includes_are_pinned_to_their_file() {
 }
 
 #[test]
-fn function_use_and_computed_includes_add_no_module_relation() {
+fn function_use_and_computed_includes_do_not_target_a_module() {
     use mct_core::{LanguageParser, SourceFile};
     let parsed = PhpParser
         .parse(&SourceFile {
@@ -71,5 +78,13 @@ fn function_use_and_computed_includes_add_no_module_relation() {
                     .into(),
         })
         .unwrap();
-    assert!(parsed.relation_targets.is_empty());
+    // A function or constant import targets that symbol kind in its
+    // namespace; a computed include records nothing and an absolute one
+    // only its literal spelling, with no target.
+    assert_eq!(parsed.relations.len(), 3, "{:?}", parsed.relations);
+    assert_eq!(parsed.relation_targets.len(), 2);
+    assert!(parsed
+        .relation_targets
+        .iter()
+        .all(|t| t.kind != Some(mct_core::SymbolKind::Module)));
 }

@@ -34,7 +34,7 @@ pub use context_budget::{
 };
 pub use cycles::find_cycles;
 pub use dead_code::{
-    find_dead_code_candidates, looks_like_test_name, scan_dead_code, DeadCodeScan,
+    find_dead_code_candidates, looks_like_test_name, scan_dead_code, DeadCodeScan, EntryPointNote,
     DEAD_CODE_ENTRY_POINT_NAMES, DEAD_CODE_KIND_ALLOWLIST,
 };
 pub use dependency_graph::{DependencyEdge, DependencyGraph};

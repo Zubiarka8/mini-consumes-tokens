@@ -433,6 +433,7 @@ const es = {
   "dead.why": "Por qué se ha detectado",
   "dead.whyText":
     "No hay llamadas, imports ni referencias indexadas a «{name}» en el proyecto. Las funciones main y el código de pruebas se excluyen.",
+  "dead.possibleEntry": "Posible punto de entrada del framework (sin probar)",
   "dead.limits": "Limitaciones del análisis",
   "dead.context": "Contexto alrededor",
   "dead.contextNone": "Sin contexto",
