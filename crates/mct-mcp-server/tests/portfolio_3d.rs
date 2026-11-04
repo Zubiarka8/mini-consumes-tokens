@@ -13,21 +13,16 @@ use mct_mcp_server::server::{
 };
 use rmcp::handler::server::wrapper::Parameters;
 
+#[path = "common/content.rs"]
+mod content;
+use content::content_of;
+
 async fn build_server() -> MctServer {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/portfolio-3d-app");
     let registry = mct_mcp_server::registry::build_registry();
     let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
     index.reindex(&registry, false).unwrap();
     MctServer::new(index, registry)
-}
-
-fn content_of(result: &rmcp::model::CallToolResult) -> String {
-    result
-        .content
-        .first()
-        .and_then(|block| block.as_text())
-        .map(|t| t.text.clone())
-        .unwrap_or_default()
 }
 
 #[tokio::test]

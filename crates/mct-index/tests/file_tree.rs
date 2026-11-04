@@ -8,6 +8,10 @@ use std::fs;
 
 use mct_index::{ExcludeSet, Index, IndexError};
 
+#[path = "common/unique.rs"]
+mod unique;
+use unique::uuid_like;
+
 #[test]
 fn lists_files_and_directories_sorted_dirs_first() {
     let dir = tempdir();
@@ -129,15 +133,4 @@ fn tempdir() -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!("mct-index-file-tree-test-{}", uuid_like()));
     fs::create_dir_all(&dir).unwrap();
     dir
-}
-
-fn uuid_like() -> u64 {
-    use std::sync::atomic::{AtomicU64, Ordering};
-    use std::time::{SystemTime, UNIX_EPOCH};
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos() as u64;
-    nanos.wrapping_add(COUNTER.fetch_add(1, Ordering::Relaxed))
 }
