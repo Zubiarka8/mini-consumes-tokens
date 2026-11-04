@@ -7,12 +7,7 @@ use mct_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
 use mct_lang_csharp::CSharpParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
-    CSharpParser
-        .parse(&SourceFile {
-            relative_path: "Calculator.cs".to_string(),
-            contents: src.to_string(),
-        })
-        .expect("valid C# source should parse")
+    mct_corpus::parse_source(&CSharpParser, "Calculator.cs", "C#", src)
 }
 
 #[test]

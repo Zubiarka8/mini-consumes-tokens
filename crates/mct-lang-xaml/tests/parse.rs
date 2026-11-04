@@ -7,12 +7,7 @@ use mct_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
 use mct_lang_xaml::XamlParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
-    XamlParser
-        .parse(&SourceFile {
-            relative_path: "MainWindow.xaml".to_string(),
-            contents: src.to_string(),
-        })
-        .expect("valid XAML source should parse")
+    mct_corpus::parse_source(&XamlParser, "MainWindow.xaml", "XAML", src)
 }
 
 #[test]

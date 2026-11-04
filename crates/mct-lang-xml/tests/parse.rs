@@ -7,12 +7,7 @@ use mct_core::{LanguageParser, SourceFile, SymbolKind};
 use mct_lang_xml::XmlParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
-    XmlParser
-        .parse(&SourceFile {
-            relative_path: "config.xml".to_string(),
-            contents: src.to_string(),
-        })
-        .expect("valid XML source should parse")
+    mct_corpus::parse_source(&XmlParser, "config.xml", "XML", src)
 }
 
 #[test]
