@@ -17,7 +17,7 @@ use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, SourceFile, SymbolId, SymbolKind,
     SymbolRecord, MAX_TRAVERSAL_DEPTH,
 };
-use mct_tree_sitter::{first_error, location};
+use mct_tree_sitter::{find_named_child, first_error, location, module_location};
 use tree_sitter::{Node, Parser};
 
 pub struct XmlParser;
@@ -76,18 +76,6 @@ fn module_name_for(relative_path: &str) -> String {
         .unwrap_or(relative_path)
         .trim_end_matches(".xml")
         .to_string()
-}
-
-/// The file-level module's location: the root node of a file ending in a
-/// newline ends at column 0 of the row *after* the last line, which would
-/// put the module one line past the end of the file.
-fn module_location(root: Node) -> Location {
-    let mut loc = location(root);
-    let end = root.end_position();
-    if end.column == 0 && end.row > root.start_position().row {
-        loc.end_line = Some(end.row as u32);
-    }
-    loc
 }
 
 fn text<'a>(node: Node, source: &'a str) -> &'a str {
@@ -156,7 +144,8 @@ impl<'a> Walker<'a> {
         }
         match node.kind() {
             "element" => {
-                let tag = find_child(node, "STag").or_else(|| find_child(node, "EmptyElemTag"));
+                let tag = find_named_child(node, "STag")
+                    .or_else(|| find_named_child(node, "EmptyElemTag"));
                 let Some(tag) = tag else {
                     self.visit_children(node, parent_name, depth + 1);
                     return;
@@ -181,7 +170,7 @@ impl<'a> Walker<'a> {
                     None => parent_name,
                 };
 
-                if let Some(content) = find_child(node, "content") {
+                if let Some(content) = find_named_child(node, "content") {
                     self.visit_children(content, new_parent, depth + 1);
                 }
             }
@@ -198,14 +187,6 @@ impl<'a> Walker<'a> {
     }
 }
 
-fn find_child<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
-    let mut cursor = node.walk();
-    let found = node
-        .named_children(&mut cursor)
-        .find(|child| child.kind() == kind);
-    found
-}
-
 /// `(exact-case attribute name, unquoted value)` pairs for an `STag`/
 /// `EmptyElemTag`. XML attribute names are case-sensitive by spec — `id`,
 /// `name`, and `Name` are three distinct lookups, not one folded to lowercase.
@@ -216,8 +197,9 @@ fn collect_attributes(tag: Node, source: &str) -> Vec<(String, String)> {
         if attribute.kind() != "Attribute" {
             continue;
         }
-        let name = find_child(attribute, "Name").map(|n| text(n, source).to_string());
-        let value = find_child(attribute, "AttValue").map(|n| unquote(text(n, source)).to_string());
+        let name = find_named_child(attribute, "Name").map(|n| text(n, source).to_string());
+        let value =
+            find_named_child(attribute, "AttValue").map(|n| unquote(text(n, source)).to_string());
         if let (Some(name), Some(value)) = (name, value) {
             out.push((name, value));
         }

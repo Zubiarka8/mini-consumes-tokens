@@ -18,7 +18,7 @@ use mct_core::{
 };
 use std::collections::HashSet;
 
-use mct_tree_sitter::{first_error, location};
+use mct_tree_sitter::{find_child, first_error, location};
 use tree_sitter::{Node, Parser};
 
 pub struct CppParser;
@@ -575,12 +575,6 @@ impl<'a> Walker<'a> {
             ..Default::default()
         });
     }
-}
-
-fn find_child<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
-    let mut cursor = node.walk();
-    let children: Vec<Node> = node.children(&mut cursor).collect();
-    children.into_iter().find(|n| n.kind() == kind)
 }
 
 /// Descends through declarator wrappers (`int* foo()` → `pointer_declarator`

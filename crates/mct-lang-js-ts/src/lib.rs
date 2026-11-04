@@ -35,9 +35,9 @@
 //! both can appear in the same file (a common real-world interop pattern),
 //! and neither requires knowing up front which module system a file uses.
 
-use mct_core::{LanguageParser, Location, ParseError, ParsedFile, SourceFile, SymbolKind};
-use mct_tree_sitter::{first_error, location};
-use tree_sitter::{Node, Parser};
+use mct_core::{LanguageParser, ParseError, ParsedFile, SourceFile, SymbolKind};
+use mct_tree_sitter::{first_error, module_location};
+use tree_sitter::Parser;
 
 mod walker;
 
@@ -111,16 +111,4 @@ fn module_name_for(relative_path: &str) -> String {
         }
     }
     file_name.to_string()
-}
-
-/// The file-level module's location: the root node of a file ending in a
-/// newline ends at column 0 of the row *after* the last line, which would
-/// put the module one line past the end of the file.
-fn module_location(root: Node) -> Location {
-    let mut loc = location(root);
-    let end = root.end_position();
-    if end.column == 0 && end.row > root.start_position().row {
-        loc.end_line = Some(end.row as u32);
-    }
-    loc
 }
