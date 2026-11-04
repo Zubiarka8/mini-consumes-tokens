@@ -12,6 +12,8 @@ use crate::web::Site;
 
 const DAY: u64 = 86_400;
 const RECENT_EVENTS: usize = 8;
+/// Review states of a finding that still needs a decision (as `Resolution::effective_label` names them).
+const PENDING_STATES: [&str; 3] = ["unreviewed", "in-review", "needs-reevaluation"];
 
 /// One row per file the indexer reported: where it is, the line the parser stopped at and the
 /// innermost indexed symbol that line falls in. `detail` is `line N: message` for a syntax error.
@@ -177,6 +179,21 @@ pub(super) fn summary(site: &Site) -> Value {
         *by_type.entry(kind).or_default().entry(state).or_default() += 1;
     }
 
+    // The one definition of "still needs a decision" the dashboard shows; the page only displays it.
+    let pending = |kind: &str| -> usize {
+        PENDING_STATES
+            .iter()
+            .map(|state| {
+                by_type
+                    .get(kind)
+                    .and_then(|c| c.get(state))
+                    .copied()
+                    .unwrap_or(0)
+            })
+            .sum()
+    };
+    let (pending_duplicates, pending_dead) = (pending("duplicate"), pending("dead-code"));
+
     // Review decisions per day, from the audit history (the only history
     // that exists). Events without a time (version 1 files) have no day.
     let mut per_day: BTreeMap<u64, BTreeMap<&'static str, usize>> = BTreeMap::new();
@@ -214,7 +231,8 @@ pub(super) fn summary(site: &Site) -> Value {
         "duplicates": { "groups": site.duplicates.groups.len(), "total": site.duplicates.total_groups,
                         "complete": site.duplicates.complete, "skipped": site.duplicates.skipped.len() },
         "deadCode": { "candidates": site.dead.len() },
-        "findings": { "total": total_findings, "states": states, "byType": by_type },
+        "findings": { "total": total_findings, "states": states, "byType": by_type,
+                      "pending": { "duplicate": pending_duplicates, "dead-code": pending_dead } },
         "notes": site.vault.notes.len(),
         "reviewActivity": per_day.iter().map(|(day, counts)| json!({ "day": day * DAY, "counts": counts })).collect::<Vec<_>>(),
         "recent": recent,
@@ -223,7 +241,7 @@ pub(super) fn summary(site: &Site) -> Value {
             "syntaxErrors": status.as_ref().map(|s| s.syntax_errors.len()),
             "readFailures": status.as_ref().map(|s| s.read_failures.len()),
             "duplicateAnalysisComplete": site.duplicates.complete,
-            "pendingReviews": states.get("unreviewed").copied().unwrap_or(0) + states.get("in-review").copied().unwrap_or(0),
+            "pendingReviews": pending_duplicates + pending_dead,
         },
         // No indexing job history is stored, so no last-run duration exists.
         "lastIndexDurationMs": null,

@@ -112,6 +112,46 @@ const STATE_PILL = {
   resolved: ["checkCircle", "info"],
   dismissed: ["minusCircle", "muted"],
 };
+/** The AI template of a finding row: the list only carries a preview, so the whole finding is fetched first. */
+async function copyFindingBrief(row) {
+  try {
+    const item = await api("finding", { key: row.key });
+    await copy(row.type === "duplicate" ? duplicateBrief(item) : deadBrief(item), t("ai.copied"));
+  } catch (error) {
+    if (!isAbort(error)) toast(t("common.copyFailed"), "err");
+  }
+}
+const copyBriefButton = (row, cls) => {
+  const label = t(row.type === "duplicate" ? "ai.copy.duplicate" : "ai.copy.dead");
+  return h(
+    "button",
+    {
+      class: `${cls} copy-brief`,
+      "aria-label": `${label}: ${row.title}`,
+      title: label,
+      onclick: () => copyFindingBrief(row),
+    },
+    icon("copy", 14),
+    h("span", { class: "btn-label" }, t("ai.copyTemplate")),
+  );
+};
+/** Files a duplicate group spans: the server counts the whole group, `members` is only a preview. */
+const filesOf = (r) => r.fileCount ?? new Set(r.members.map((m) => m.path)).size;
+/** Every fragment the row carries, one per line, and how many the preview leaves out. */
+const fragmentLines = (r) => {
+  const hidden = (r.memberCount || 0) - r.members.length;
+  return [...r.members.map(memberLabel), ...(hidden > 0 ? [t("dup.moreFragments", { n: hidden })] : [])];
+};
+const fragmentsTitle = (r) => fragmentLines(r).join("\n");
+/** Where a stacked row's finding lives, in a panel that hover and keyboard focus both reveal (a native title does neither well). */
+const filesPanel = (r) =>
+  h(
+    "span",
+    { class: "files-pop", role: "tooltip", id: `files-${r.key}` },
+    ...(r.type === "duplicate" ? fragmentLines(r) : [`${r.path}:${r.line}`]).map((line) =>
+      h("span", { class: "files-pop-line" }, line),
+    ),
+  );
 const CONFIDENCE_TONE = { high: "danger", medium: "warning" };
 const confidenceBadge = (confidence) =>
   badge(t(`dead.confidence.${confidence}`), CONFIDENCE_TONE[confidence] || "");
@@ -704,6 +744,7 @@ export async function render({ root, page, params: initial }) {
                 icon("split", 14),
                 t("dup.compareShort"),
               ),
+            copyBriefButton(r, "btn sm"),
             r.type === "dead-code" &&
               h(
                 "button",
@@ -760,8 +801,8 @@ export async function render({ root, page, params: initial }) {
           render: (r) =>
             h(
               "span",
-              { title: r.members.map(memberLabel).join("\n") },
-              h("span", {}, t("dup.filesCount", { n: new Set(r.members.map((m) => m.path)).size })),
+              { title: fragmentsTitle(r) },
+              h("span", {}, t("dup.filesCount", { n: filesOf(r) })),
               h("span", { class: "path" }, r.members[0] ? r.members[0].path : ""),
             ),
           cls: "hide-sm",
@@ -923,7 +964,7 @@ export async function render({ root, page, params: initial }) {
             "button",
             {
               class: "stack-open",
-              title: r.type === "duplicate" ? r.members.map(memberLabel).join("\n") : `${r.path}:${r.line}`,
+              "aria-describedby": `files-${r.key}`,
               onclick: () => open(r),
             },
             h("span", { class: "stack-no" }, r.number ? `#${r.number}` : "—"),
@@ -933,10 +974,11 @@ export async function render({ root, page, params: initial }) {
               { class: "stack-where" },
               // A candidate names its file, whose full path is in the block's tooltip.
               r.type === "duplicate"
-                ? t("dup.filesCount", { n: new Set(r.members.map((m) => m.path)).size })
+                ? t("dup.filesCount", { n: filesOf(r) })
                 : `${basename(r.path)}:${r.line}`,
             ),
           ),
+          filesPanel(r),
           h(
             "span",
             { class: "stack-state", title: stateLabel(r.state, r.type) },
@@ -946,18 +988,7 @@ export async function render({ root, page, params: initial }) {
               () => refresh(),
             ),
           ),
-          !r.readOnly && r.state !== "dismissed"
-            ? h(
-                "button",
-                {
-                  class: "icon-btn sm",
-                  "aria-label": `${t("review.ignoreNow")}: ${r.title}`,
-                  title: t("review.ignoreNow"),
-                  onclick: () => ignoreFinding(r, () => refresh()),
-                },
-                icon("x", 14),
-              )
-            : h("span", {}),
+          copyBriefButton(r, "btn sm"),
         ),
       ),
     );

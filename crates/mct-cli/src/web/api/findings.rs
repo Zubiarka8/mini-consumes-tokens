@@ -134,6 +134,8 @@ pub(super) fn duplicate_row(site: &Site, id: usize) -> Value {
     row["priority"] = json!(group.priority.level.as_str());
     row["scope"] = json!(scope);
     row["memberCount"] = json!(group.members.len());
+    // Over the whole group: `members` below is only a preview, so a count taken from it is wrong.
+    row["fileCount"] = json!(paths.len());
     row["members"] = Value::Array(members);
     row
 }

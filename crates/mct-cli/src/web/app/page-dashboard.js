@@ -58,10 +58,8 @@ function eventText(event) {
 const CHECK_ICON = { ok: "check", info: "info" };
 const INDEX_TONE = { ready: "success", failed: "danger" };
 
-// Findings that still need a decision, as the Duplicates and Unused code pages count them by default.
-const PENDING_STATES = ["unreviewed", "in-review", "needs-reevaluation"];
-const pendingOf = (byType, type) =>
-  PENDING_STATES.reduce((n, state) => n + (byType?.[type]?.[state] || 0), 0);
+// Findings that still need a decision: counted once by the server (`findings.pending`), only shown here.
+const pendingOf = (summary, type) => summary.findings.pending?.[type] || 0;
 
 /** Each analysis with its real outcome: the index, the two detectors, the import graph and the vault. */
 function analysisState(summary, meta) {
@@ -100,7 +98,6 @@ function analysisState(summary, meta) {
 }
 
 function pendingList(summary, meta) {
-  const byType = summary.findings.byType;
   const syntax = summary.health?.syntaxErrors || 0;
   // A link to the list, or a button when the details open in a dialog.
   const row = (count, tone, label, target) => {
@@ -114,8 +111,8 @@ function pendingList(summary, meta) {
   return h(
     "ul",
     { class: "count-list" },
-    row(pendingOf(byType, "duplicate"), "danger", t("dash.pendingDuplicates"), hrefTo("duplicados", "")),
-    row(pendingOf(byType, "dead-code"), "warning", t("dash.pendingDead"), hrefTo("codigo-muerto", "")),
+    row(pendingOf(summary, "duplicate"), "danger", t("dash.pendingDuplicates"), hrefTo("duplicados", "")),
+    row(pendingOf(summary, "dead-code"), "warning", t("dash.pendingDead"), hrefTo("codigo-muerto", "")),
     row(syntax, "info", t("dash.pendingSyntax"), () =>
       openIssues("syntax", meta.indexing.syntaxIssues || []),
     ),
@@ -127,7 +124,6 @@ export function render({ root, summary, meta }) {
   const body = h("div", { class: "stack" });
   const draw = () => {
     const states = summary.findings.states;
-    const pending = (states.unreviewed || 0) + (states["in-review"] || 0);
     const functions = (summary.kinds || [])
       .filter((k) => kindGroup(k.kind) === "function")
       .reduce((n, k) => n + k.count, 0);
@@ -272,7 +268,11 @@ export function render({ root, summary, meta }) {
             h(
               "dd",
               {},
-              h("a", { href: hrefTo("revisiones", { state: "unreviewed,in-review" }) }, fmt(pending)),
+              h(
+                "a",
+                { href: hrefTo("revisiones", { state: "unreviewed,in-review,needs-reevaluation" }) },
+                fmt(summary.health.pendingReviews || 0),
+              ),
             ),
             h("dt", {}, t("dash.healthFailed")),
             h(
