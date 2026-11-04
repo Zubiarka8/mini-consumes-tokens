@@ -55,6 +55,18 @@ describe("duplicate workspace", () => {
     expect(bar).toHaveTextContent("rw.diffLegend");
   });
 
+  test("the bottom bar counts files, not fragments: two copies in one file are one file", () => {
+    const item = duplicate();
+    item.members[1] = { ...item.members[1], path: item.members[0].path };
+    show(item);
+    expect(screen.getByRole("contentinfo", { name: "rw.statusBar" })).toHaveTextContent("dup.meta(files=2,");
+  });
+
+  test("the bottom bar uses the file count of the whole group when the server sends it", () => {
+    show(duplicate({ fileCount: 13 }));
+    expect(screen.getByRole("contentinfo", { name: "rw.statusBar" })).toHaveTextContent("dup.meta(files=13,");
+  });
+
   test("choosing a file in the list or a column header asks the page to select it", async () => {
     const user = userEvent.setup();
     const props = show();

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { harness, settle, finding, defaultApi, list } from './harness.mjs';
+import { harness, settle, finding, defaultApi, list, symbolDetail } from './harness.mjs';
 
 const findButton = (root, text) => [...root.querySelectorAll('button')].find(el => el.textContent.trim() === text);
 // `shell`: the page sits inside the app shell, whose sidebar an open finding folds.
@@ -426,6 +426,22 @@ test('the dead-code list row opens the workspace instead of a dialog', async () 
   env.cleanup();
 });
 
+test('each dead-code row copies the AI template of its candidate and confirms it', async () => {
+  const copied = [];
+  const env = await deadPage('');
+  env.context.navigator.clipboard.writeText = async (text) => { copied.push(text); };
+  const toasts = env.document.createElement('div'); toasts.className = 'toasts'; env.document.body.append(toasts);
+  const button = env.root.querySelector('.stack-row button[aria-label="Copy unused code for AI: unused_helper"]');
+  assert.ok(button, 'the row has the button');
+  assert.equal(button.textContent.trim(), 'Copy AI template', 'the button says what it copies');
+  button.click(); await settle();
+  assert.equal(copied.length, 1);
+  assert.match(copied[0], /# Task: check whether this dead-code candidate can be deleted/);
+  assert.match(copied[0], /src\/lib\.rs:10-12/);
+  assert.match(env.document.querySelector('.toasts [role=status]').textContent, /Copied with context/);
+  env.cleanup();
+});
+
 // Archivos can show and edit the project's .mctignore without leaving the page.
 test('the explorer opens the .mctignore editor in place of the viewer, and closes it again', async () => {
   const ignore = { content: 'target/\n', exists: true, directive: '#import .gitignore', template: '', command: 'mct', maxBytes: 4096, gitignorePresent: true };
@@ -518,5 +534,101 @@ test('right-click in the explorer copies the path from the project root of a fol
   assert.equal(await pick('src/a.rs', 0), 2);
   assert.equal(await pick('src/a.rs', 1), 2);
   assert.deepEqual(copied, ['src', 'src/a.rs', 'src']);
+  env.cleanup();
+});
+
+test('a duplicate row counts the files of the whole group, not of the members the list previews', async () => {
+  const row = { ...finding, memberCount: 13, fileCount: 13 };
+  const env = await findings(url => (url.pathname.endsWith('/findings') ? list([row]) : defaultApi(url)), '');
+  await settle();
+  assert.match(env.root.textContent, /13 files/);
+  assert.doesNotMatch(env.root.textContent, /\b2 files/);
+  const pop = env.root.querySelector('.stack-row .files-pop');
+  assert.ok(pop, 'the row lists its fragments in its own panel');
+  assert.match(pop.textContent, /and 10 more fragments/, 'the panel says how many fragments the preview leaves out');
+  env.cleanup();
+});
+
+test('a stacked row lists its files in a panel that hover and focus reveal, not in a native title', async () => {
+  const row = { ...finding, memberCount: 2, fileCount: 2 };
+  const env = await findings(url => (url.pathname.endsWith('/findings') ? list([row]) : defaultApi(url)), '');
+  await settle();
+  const open = env.root.querySelector('.stack-row .stack-open');
+  const pop = env.root.querySelector('.stack-row .files-pop');
+  assert.ok(pop, 'the panel exists');
+  assert.equal(pop.getAttribute('role'), 'tooltip');
+  assert.equal(open.getAttribute('aria-describedby'), pop.id, 'the button is described by the panel');
+  assert.equal(open.hasAttribute('title'), false, 'no native tooltip on the row');
+  const lines = [...pop.querySelectorAll('.files-pop-line')].map(el => el.textContent);
+  assert.equal(lines.length, row.members.length);
+  for (const member of row.members) assert.ok(lines.some(line => line.startsWith(member.path)), member.path);
+  env.cleanup();
+});
+
+test('a dead-code row names the full path of its candidate in the same panel', async () => {
+  const env = await deadPage('');
+  const open = env.root.querySelector('.stack-row .stack-open');
+  const pop = env.root.querySelector('.stack-row .files-pop');
+  assert.ok(pop, 'the panel exists');
+  assert.equal(pop.textContent.trim(), 'src/lib.rs:10');
+  assert.equal(open.getAttribute('aria-describedby'), pop.id);
+  assert.equal(open.hasAttribute('title'), false);
+  env.cleanup();
+});
+
+test('each duplicate group of a symbol has its own copy-for-AI button that confirms the copy', async () => {
+  const copied = [];
+  const group = { ...finding, memberCount: 3 };
+  const fetch = url => (url.pathname.endsWith('/symbol') ? { ...symbolDetail, duplicates: [group, { ...group, key: 'second', title: 'alpha ≈ delta' }] } : defaultApi(url));
+  const env = harness({ hash: '#/codigo?sel=1', fetch });
+  env.context.navigator.clipboard.writeText = async (text) => { copied.push(text); };
+  const toasts = env.document.createElement('div'); toasts.className = 'toasts'; env.document.body.append(toasts);
+  const { render } = await env.load('page-symbols.js');
+  const cleanup = await render({ root: env.root, params: new URLSearchParams('sel=1') });
+  await settle();
+  const buttons = [...env.root.querySelectorAll('button[aria-label^="Copy duplicate for AI:"]')];
+  assert.deepEqual(buttons.map(b => b.getAttribute('aria-label')), ['Copy duplicate for AI: alpha ≈ beta', 'Copy duplicate for AI: alpha ≈ delta']);
+  buttons[1].click(); await settle();
+  assert.equal(copied.length, 1);
+  assert.match(copied[0], /Duplicate group second:/);
+  assert.doesNotMatch(copied[0], /Duplicate group duplicate-test:/, 'only the chosen group is copied');
+  assert.match(env.document.querySelector('.toasts [role=status]').textContent, /Copied with context/);
+  cleanup();
+});
+
+test('the dashboard shows the server\'s pending count, which includes findings that need re-evaluation', async () => {
+  const env = harness({ hash: '#/panel' });
+  const { render } = await env.load('page-dashboard.js');
+  render({ root: env.root,
+    summary: { symbols: 0, files: 0, duplicates: { groups: 5, complete: true, skipped: 0 }, deadCode: { candidates: 2 },
+      findings: { total: 7, states: { unreviewed: 2, 'in-review': 1, 'needs-reevaluation': 3, resolved: 1 },
+        pending: { duplicate: 4, 'dead-code': 2 } },
+      notes: 0, languages: [], reviewActivity: [], recent: [], health: { readFailures: 0, syntaxErrors: 0, pendingReviews: 6 } },
+    meta: { project: 'fixture', indexing: { state: 'ready', lastIndexedAt: null } },
+  });
+  const counts = [...env.root.querySelectorAll('.count-box')].map(el => el.textContent.trim());
+  assert.deepEqual(counts.slice(0, 2), ['4', '2']);
+  const health = [...env.root.querySelectorAll('dt')].find(el => el.textContent === 'Pending reviews');
+  const pending = health ? health.nextElementSibling : null;
+  assert.ok(pending, 'the health row is shown');
+  assert.equal(pending.textContent.trim(), '6');
+  assert.match(pending.querySelector('a').getAttribute('href'), /needs-reevaluation/);
+});
+
+test('each duplicate row copies the AI template of its whole group and confirms it', async () => {
+  const copied = [];
+  const full = { ...finding, memberCount: 3, members: finding.members.map(m => ({ ...m, code: m.excerpt })) };
+  const fetch = url => (url.pathname.endsWith('/findings') ? list([{ ...finding, members: finding.members.slice(0, 1), memberCount: 3 }]) : url.pathname.endsWith('/finding') ? full : defaultApi(url));
+  const env = await findings(fetch, '');
+  env.context.navigator.clipboard.writeText = async (text) => { copied.push(text); };
+  const toasts = env.document.createElement('div'); toasts.className = 'toasts'; env.document.body.append(toasts);
+  await settle();
+  const button = env.root.querySelector('button[aria-label="Copy duplicate for AI: alpha ≈ beta"]');
+  assert.ok(button, 'the row has the button');
+  button.click(); await settle();
+  assert.equal(copied.length, 1);
+  assert.match(copied[0], /# Task: decide whether this duplicate-code group should be merged/);
+  assert.match(copied[0], /3 copies in 2 files/, 'the brief uses the full group, not the preview');
+  assert.match(env.document.querySelector('.toasts [role=status]').textContent, /Copied with context/);
   env.cleanup();
 });
