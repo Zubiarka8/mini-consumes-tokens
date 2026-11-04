@@ -503,9 +503,12 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `case` in an enum | `enum_case` | `field` |
 | `$f = function () {}`, `fn() =>` | `assignment_expression` | `function` |
 | `extends`, `implements`, `use Trait;` | `base_clause`, `class_interface_clause`, `use_declaration` | `extends`, `implements` |
-| `use A\B;` | `namespace_use_declaration` | `imports` (last segment, emitted twice) |
+| `use A\B;` | `namespace_use_declaration` | one `imports` per clause, named after the imported class (an alias is not used), with its namespace as evidence |
 | `require`/`include` with a literal path | `binary_expression`, function call | `imports` (path and stem) |
-| `f()`, `$o->m()`, `A::m()`, `new X()` | `function_call_expression`, `member_call_expression`, `scoped_call_expression`, `object_creation_expression` | `calls` |
+| `f()`, `$o->m()`, `A::m()`, `new X()` | `function_call_expression`, `member_call_expression`, `scoped_call_expression`, `object_creation_expression` | `calls` (static calls qualified by their class and namespace) |
+| type hints, `catch`, `instanceof`, `X::class`, `X::CONST` | `named_type`, `binary_expression`, `class_constant_access_expression`, `scoped_property_access_expression` | `references` |
+| Laravel routes, `view()`, `withRouting()` | `scoped_call_expression`, `function_call_expression` | `calls` to controller methods, `imports` of `*.blade.php` and route files (see [library support](../../01-architecture/library-support.md#laravel)) |
+| `*.blade.php` | Blade directive and `<x-…>` scan | `imports` / `references` of templates and classes |
 | `#[Attribute]` | `attribute` | `references` |
 
 #### Why the gaps exist
@@ -514,11 +517,12 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 |---|---|---|
 | `define()` constants | By design | `define()` stays a call by the explicit [PHP decision](../../../crates/mct-lang-php/src/lib.rs#L68) |
 | Global `$variables` | Not implemented | a top-level `assignment_expression` gives a symbol only for a closure value |
-| Anonymous classes (`new class {}`) | Not implemented | `anonymous_class` gives only the `extends`/`implements` relations, no symbols |
+| Anonymous classes (`new class {}`) | Partly | `anonymous_class` gives only the `extends`/`implements` relations, no symbols; the one exception is an anonymous Laravel `Migration`, whose `up`/`down` methods are indexed under the migration file's module |
 | `namespace` as a symbol | By design | explicit file-module-only [PHP decision](../../../crates/mct-lang-php/src/lib.rs#L28) |
 | Trait as `trait`, `use Trait` as `implements` | By design | explicit [PHP mappings](../../../crates/mct-lang-php/src/lib.rs#L9), using the closest existing kinds |
-| Separate file/type import evidence | By design | [declaring-file decision](../../../crates/mct-lang-php/src/lib.rs#L755) explicitly adds the declaring type file alongside the symbol import; `use function` / `use const` skip that file relation |
-| Composer dependencies, PHP secret files | Not implemented | no `composer.json` reader; `wp-config.php` and `config/database.php` are not excluded (`internal/checklist.md` open decision 2) |
+| Class imports target the declaring file | By design | a class `use` names the file `Module` that declares the class in the imported namespace; `use function` / `use const` target that function or constant instead |
+| Composer autoload map, `composer.lock` | Not needed / not read | `composer.json` `require`/`require-dev` are listed as dependencies; classes resolve through their declared namespace, so `autoload.psr-4` is not consulted and `composer.lock` is not read |
+| PHP secret files | Not implemented | `wp-config.php` and `config/database.php` are not excluded (`internal/checklist.md` open decision 2) |
 
 ### Lua
 
@@ -1192,7 +1196,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Trait / mixin: `trait`, its properties and methods too
 - [x] Enum: `enum`
 - [x] Enum members: `case` as `field`
-- [ ] Anonymous class: `new class {}` gives no class or member symbols
+- [~] Anonymous class: `new class {}` gives no class or member symbols, except an anonymous Laravel `Migration` (`up`/`down` as methods of the file module)
 - [~] Module / namespace / package: file `module`; `namespace` is deliberately not a symbol
 
 **Fields, constants and variables**
@@ -1393,7 +1397,7 @@ the other documents.
 4. **Rust:** `impl Trait for T` records `implements Trait` from the file
    module, not from `T`. Asking what implements the trait gives the file,
    not the type.
-5. **Java and PHP:** the checked `import`/`use` lines emit duplicate target names.
+5. **Java and PHP:** the checked `import`/`use` lines emit duplicate target names (PHP no longer does: one `imports` per `use` clause).
    They are not necessarily identical relations: their `RelationTarget` evidence
    can distinguish file imports from symbol imports. In the Kotlin fixture
    an additional import stays unresolved and
@@ -1444,8 +1448,9 @@ the other documents.
    `record`, `enum`, `delegate`, events, operators, indexers, destructors
    and local functions have no symbol, and attributes no relation. All of
    them are indexed now.
-3. `internal/corpus-progress.md`, PHP row: says `new Foo()` and `#[…]`
-   attributes have no relation. They give `calls Foo` and `references`.
+3. `internal/corpus-progress.md`, PHP row: said `new Foo()` and `#[…]`
+   attributes have no relation. They give `calls Foo` and `references`; the row
+   was corrected with the namespace-aware PHP extraction.
 4. `internal/checklist.md`, Kotlin row: says no integration test or fuzz
    harness was added. [`lang-crate-base.md`](../../06-templates/lang-crate-base.md)
    says every crate has a fuzz harness now. The status note at the top of

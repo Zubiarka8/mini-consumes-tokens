@@ -78,6 +78,43 @@ pub struct ParsedFile {
     /// Alternate lookup names declared for exact local symbol identities.
     /// Empty for parsers that do not extract aliases; never inferred from references.
     pub symbol_aliases: Vec<SymbolAlias>,
+    /// Symbols a framework may load by convention although no source line
+    /// names them (see [`EntryPointHint`]). Empty for parsers that know no
+    /// such convention.
+    pub entry_points: Vec<EntryPointHint>,
+}
+
+/// Parser-declared evidence that a framework **may** load a symbol by
+/// convention, with nothing in the source naming it: the symbol stays a
+/// dead-code candidate and is reported next to this hint. It is possible,
+/// never proven: discovery can be configured away or decided at run time.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EntryPointHint {
+    /// A symbol of the same parsed file.
+    pub symbol: SymbolId,
+    /// The framework whose convention this is (`"laravel"`).
+    pub framework: String,
+    /// The convention (`"event-listener-discovery"`).
+    pub rule: String,
+    /// What in the source matches the convention, as a short sentence for a
+    /// person (`"handle(OrderPlaced) in app/Listeners"`).
+    pub evidence: String,
+    /// The project fact that makes the convention apply at all, checked
+    /// against the stored dependencies when the hint is shown. `None` means
+    /// the source alone is enough.
+    pub requires: Option<PackageRequirement>,
+}
+
+/// A package a project manifest must declare for a convention to apply.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageRequirement {
+    /// Project-relative path of the manifest (`"apps/shop/composer.json"`).
+    pub manifest_path: String,
+    /// The package name as the manifest writes it (`"laravel/framework"`).
+    pub package: String,
+    /// The lowest major version for which the convention was checked.
+    /// A declared constraint whose major cannot be read still counts.
+    pub min_major: u32,
 }
 
 /// A parser-declared alias of one symbol in its own parsed file.

@@ -428,6 +428,7 @@ export const en = {
   "dead.why": "Why it was detected",
   "dead.whyText":
     "There are no indexed calls, imports or references to “{name}” in the project. Main functions and test code are excluded.",
+  "dead.possibleEntry": "Possible framework entry point (not proven)",
   "dead.limits": "Limits of the analysis",
   "dead.context": "Surrounding context",
   "dead.contextNone": "No context",

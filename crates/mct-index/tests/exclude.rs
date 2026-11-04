@@ -49,6 +49,55 @@ fn php_composer_vendor_directory_is_excluded() {
     assert!(!set.is_excluded("src/Invoice.php"));
 }
 
+/// `storage/framework` and `bootstrap/cache` are Laravel's generated
+/// directories, but a path alone cannot say that a project is a Laravel
+/// application, so no built-in rule hides them: code under those names in
+/// another stack, or in a Laravel app below the root, must stay indexed.
+#[test]
+fn laravel_directory_names_are_not_excluded_by_default() {
+    let set = ExcludeSet::default();
+    assert!(!set.is_excluded("storage/framework/views/5f1a0c.php"));
+    assert!(!set.is_excluded("bootstrap/cache/services.php"));
+    assert!(!set.is_excluded("src/bootstrap/cache/CacheManager.ts"));
+    assert!(!set.is_excluded("packages/ui/storage/framework/Store.java"));
+    assert!(!set.is_excluded("apps/shop/storage/framework/views/5f1a0c.php"));
+    assert!(!set.is_excluded("bootstrap/app.php"));
+}
+
+fn project_with_mctignore(lines: &str) -> (tempfile::TempDir, ExcludeSet) {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join(".mctignore"), lines).unwrap();
+    let set = ExcludeSet::for_project(root.path());
+    (root, set)
+}
+
+/// The documented way to keep a Laravel application's generated files out.
+#[test]
+fn a_mctignore_excludes_laravel_generated_directories_at_the_root() {
+    let (_root, set) = project_with_mctignore("storage/framework/\nbootstrap/cache/\n");
+    assert!(set.is_excluded("storage/framework/views/5f1a0c.php"));
+    assert!(set.is_excluded("storage/framework/cache/data/ab/entry"));
+    assert!(set.is_excluded("bootstrap/cache/services.php"));
+    // Source next to them stays indexed.
+    assert!(!set.is_excluded("bootstrap/app.php"));
+    assert!(!set.is_excluded("bootstrap/providers.php"));
+    assert!(!set.is_excluded("storage/app/Report.php"));
+    assert!(!set.is_excluded("app/Cache/Repository.php"));
+    // Anchored: the same names elsewhere are another project's code.
+    assert!(!set.is_excluded("src/bootstrap/cache/CacheManager.ts"));
+}
+
+/// A monorepo lists each Laravel application's own directories.
+#[test]
+fn a_mctignore_excludes_the_generated_directories_of_a_laravel_app_in_a_monorepo() {
+    let (_root, set) =
+        project_with_mctignore("apps/shop/storage/framework/\napps/shop/bootstrap/cache/\n");
+    assert!(set.is_excluded("apps/shop/storage/framework/views/5f1a0c.php"));
+    assert!(set.is_excluded("apps/shop/bootstrap/cache/services.php"));
+    assert!(!set.is_excluded("apps/shop/bootstrap/app.php"));
+    assert!(!set.is_excluded("apps/admin/storage/framework/Store.php"));
+}
+
 #[test]
 fn go_viper_style_secret_patterns_are_excluded() {
     let set = ExcludeSet::default();
