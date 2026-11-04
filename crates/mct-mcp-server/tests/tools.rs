@@ -8,14 +8,21 @@
 // untrusted repo content (see crates/mct-mcp-server/src/ for that policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+#[path = "common/server.rs"]
+mod server_fixture;
+use server_fixture::build_server_at;
+
 use std::path::Path;
 
-use mct_index::{ExcludeSet, Index};
 use mct_mcp_server::server::{
     FindCallersArgs, FindCallsArgs, FindDeadCodeArgs, FindReferencesArgs, FindSymbolArgs,
     GetFileSkeletonArgs, GetProjectOverviewArgs, ImpactAnalysisArgs, ListSymbolsArgs, MctServer,
 };
 use rmcp::handler::server::wrapper::Parameters;
+
+#[path = "common/content.rs"]
+mod content;
+use content::content_of;
 
 fn fixture_root() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/compute-app")
@@ -44,24 +51,8 @@ fn mct_lang_go_root() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../mct-lang-go")
 }
 
-fn content_of(result: &rmcp::model::CallToolResult) -> String {
-    result
-        .content
-        .first()
-        .and_then(|block| block.as_text())
-        .map(|t| t.text.clone())
-        .unwrap_or_default()
-}
-
 async fn build_server() -> MctServer {
     build_server_at(&fixture_root()).await
-}
-
-async fn build_server_at(root: &std::path::Path) -> MctServer {
-    let registry = mct_mcp_server::registry::build_registry();
-    let mut index = Index::open_in_memory(root, ExcludeSet::default()).unwrap();
-    index.reindex(&registry, false).unwrap();
-    MctServer::new(index, registry)
 }
 
 #[tokio::test]

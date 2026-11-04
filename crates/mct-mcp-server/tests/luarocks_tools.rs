@@ -14,6 +14,10 @@ use mct_index::{ExcludeSet, Index};
 use mct_mcp_server::server::{GetDependencyGraphArgs, GetIndexingStatusArgs, MctServer};
 use rmcp::handler::server::wrapper::Parameters;
 
+#[path = "common/content.rs"]
+mod content;
+use content::content_of;
+
 const REAL_TREE: &str = include_str!(
     "../../mct-index/tests/fixtures/luarocks/real-tree/lib/luarocks/rocks-5.5/manifest"
 );
@@ -42,15 +46,6 @@ fn tempdir() -> TempDir {
     ));
     fs::create_dir_all(&dir).unwrap();
     TempDir(dir)
-}
-
-fn content_of(result: &rmcp::model::CallToolResult) -> String {
-    result
-        .content
-        .first()
-        .and_then(|block| block.as_text())
-        .map(|t| t.text.clone())
-        .unwrap_or_default()
 }
 
 fn write(root: &Path, path: &str, contents: &str) {
