@@ -216,7 +216,10 @@ fn cross_file_imports_and_calls_are_extracted() {
     c.relation("Domain.php", "Domain", Imports, "Assert");
     c.relation("Domain.php", "Domain", Imports, "days_between");
     c.relation("Domain.php", "Domain", Imports, "DATE_FORMAT");
-    c.relation("Domain.php", "Domain", Imports, "Invalid");
+    // An aliased import names the class it imports, not the local alias:
+    // no other file uses `Invalid`, so only the real name can resolve.
+    c.relation("Domain.php", "Domain", Imports, "ValidationException");
+    assert!(!c.has_relation("Domain", Imports, "Invalid"));
     // `require_once 'x.php'` with a literal path; a computed one is skipped.
     c.relation("console.php", "console", Imports, "Support.php");
     c.relation("console.php", "console", Imports, "Reports.php");
@@ -263,5 +266,24 @@ fn index_answers_cross_file_queries() {
             calls.iter().any(|h| h.to_name == callee),
             "borrow should call {callee}"
         );
+    }
+}
+
+/// Issue #272: a type reference to an interface. The file's module and the interface declared in it share
+/// a name, and no syntax pins the kind of this reference, so it used to read
+/// `ambiguous among 2` although there is one target.
+#[test]
+fn a_type_reference_resolves_to_the_interface_not_to_its_file_module() {
+    let index = corpus().index();
+    let hits: Vec<_> = index
+        .find_references("Repository")
+        .unwrap()
+        .into_iter()
+        .filter(|h| h.kind == "references")
+        .collect();
+    assert!(!hits.is_empty(), "the corpus no longer holds this relation");
+    for hit in &hits {
+        assert_eq!(hit.resolution, mct_index::Resolution::Resolved, "{hit:?}");
+        assert_eq!(hit.candidate_count, 1, "{hit:?}");
     }
 }

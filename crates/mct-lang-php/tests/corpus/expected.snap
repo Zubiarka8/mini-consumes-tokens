@@ -1,4 +1,4 @@
-# language=php files=6 symbols=418 relations=890 name_matched_across_files=411
+# language=php files=6 symbols=418 relations=1040 name_matched_across_files=488
 
 == library/Domain.php (492 lines)
 S 1-492 module Domain
@@ -113,22 +113,13 @@ S 487-487 field MemberUpgraded::member
 S 488-488 field MemberUpgraded::from
 S 489-489 field MemberUpgraded::to
 R 13:5 imports Domain -> DateTimeImmutable
-R 13:5 imports Domain -> DateTimeImmutable
-R 14:5 imports Domain -> JsonSerializable
 R 14:5 imports Domain -> JsonSerializable
 R 15:20 imports Domain -> Arrayable (name-matched: library/Support.php)
-R 15:20 imports Domain -> Arrayable (name-matched: library/Support.php)
-R 15:31 imports Domain -> Assert (name-matched: library/Support.php)
 R 15:31 imports Domain -> Assert (name-matched: library/Support.php)
 R 15:39 imports Domain -> BookUnavailable (name-matched: library/Support.php)
-R 15:39 imports Domain -> BookUnavailable (name-matched: library/Support.php)
-R 15:56 imports Domain -> Clock (name-matched: library/Support.php)
 R 15:56 imports Domain -> Clock (name-matched: library/Support.php)
 R 15:63 imports Domain -> HasEvents (name-matched: library/Support.php)
-R 15:63 imports Domain -> HasEvents (name-matched: library/Support.php)
 R 15:74 imports Domain -> Identifiable (name-matched: library/Support.php)
-R 15:74 imports Domain -> Identifiable (name-matched: library/Support.php)
-R 16:5 imports Domain -> Invalid
 R 16:5 imports Domain -> ValidationException (name-matched: library/Support.php)
 R 17:29 imports Domain -> days_between (name-matched: library/Support.php)
 R 17:43 imports Domain -> money_format_cents (name-matched: library/Support.php)
@@ -152,7 +143,7 @@ R 135:13 calls Isbn::parse -> strlen
 R 136:29 calls Isbn::parse -> upgrade
 R 138:13 calls Isbn::parse -> strlen
 R 138:46 calls Isbn::parse -> checksumMatches
-R 139:23 calls Isbn::parse -> Invalid
+R 139:23 calls Isbn::parse -> ValidationException (name-matched: library/Support.php)
 R 146:25 calls Isbn::upgrade -> substr
 R 147:30 calls Isbn::upgrade -> checkDigit
 R 153:18 calls Isbn::checkDigit -> str_split
@@ -167,55 +158,89 @@ R 172:13 calls Isbn::formatted -> substr
 R 178:23 calls Isbn::__toString -> formatted
 R 182:40 implements Money -> Stringable
 R 197:16 calls Money::add -> assertSameCurrency
-R 214:23 calls Money::assertSameCurrency -> Invalid
+R 214:23 calls Money::assertSameCurrency -> ValidationException (name-matched: library/Support.php)
 R 220:16 calls Money::__toString -> money_format_cents (name-matched: library/Support.php)
 R 228:34 implements Entity -> Identifiable (name-matched: library/Support.php)
 R 228:48 implements Entity -> Arrayable (name-matched: library/Support.php)
 R 228:59 implements Entity -> JsonSerializable
 R 230:9 implements Entity -> HasEvents (name-matched: library/Support.php)
 R 242:29 calls Entity::withId -> positive (name-matched: library/Support.php)
+R 242:21 references Entity::withId -> Assert (name-matched: library/Support.php)
 R 248:45 calls Entity::jsonSerialize -> toArray
 R 254:20 extends Book -> Entity
+R 260:26 references Book::__construct -> Isbn
+R 263:17 references Book::__construct -> Genre
+R 263:32 references Book::__construct -> Genre
 R 266:17 calls Book::__construct -> notBlank (name-matched: library/Support.php)
+R 266:9 references Book::__construct -> Assert (name-matched: library/Support.php)
 R 267:17 calls Book::__construct -> positive (name-matched: library/Support.php)
+R 267:9 references Book::__construct -> Assert (name-matched: library/Support.php)
+R 270:29 references Book::isbn -> Isbn
+R 280:30 references Book::genre -> Genre
 R 292:20 calls Book::reserveCopy -> availableCopies
 R 294:19 calls Book::reserveCopy -> withContext (name-matched: library/Support.php)
 R 293:24 calls Book::reserveCopy -> BookUnavailable (name-matched: library/Support.php)
 R 301:25 calls Book::returnCopy -> max
 R 306:34 calls Book::addCopies -> positive (name-matched: library/Support.php)
+R 306:26 references Book::addCopies -> Assert (name-matched: library/Support.php)
 R 312:36 calls Book::toArray -> formatted
 R 314:26 calls Book::toArray -> implode
 R 315:38 calls Book::toArray -> label
 R 316:35 calls Book::toArray -> availableCopies
 R 321:22 extends Member -> Entity
+R 328:17 references Member::__construct -> MembershipTier
+R 328:40 references Member::__construct -> MembershipTier
 R 330:32 calls Member::__construct -> email
+R 330:24 references Member::__construct -> Assert (name-matched: library/Support.php)
+R 343:29 references Member::tier -> MembershipTier
 R 350:42 calls Member::canBorrow -> loanLimit
 R 355:30 calls Member::upgrade -> next
 R 359:16 calls Member::upgrade -> recordEvent (name-matched: library/Support.php)
 R 359:32 calls Member::upgrade -> MemberUpgraded
 R 369:36 calls Member::toArray -> label
 R 374:20 extends Loan -> Entity
+R 376:14 references Loan -> DateTimeImmutable
+R 381:26 references Loan::__construct -> Book
+R 382:26 references Loan::__construct -> Member
+R 383:26 references Loan::__construct -> DateTimeImmutable
+R 384:17 references Loan::__construct -> DateTimeImmutable
 R 386:16 calls Loan::__construct -> recordEvent (name-matched: library/Support.php)
 R 386:32 calls Loan::__construct -> BookBorrowed
+R 389:34 references Loan::start -> Book
+R 389:46 references Loan::start -> Member
+R 389:62 references Loan::start -> Clock (name-matched: library/Support.php)
 R 391:24 calls Loan::start -> now (name-matched: library/Support.php)
 R 392:16 calls Loan::start -> reserveCopy
 R 393:53 calls Loan::start -> modify
 R 393:60 calls Loan::start -> sprintf
 R 393:96 calls Loan::start -> loanDays
 R 393:87 calls Loan::start -> genre
+R 396:29 references Loan::book -> Book
+R 401:31 references Loan::member -> Member
+R 406:30 references Loan::dueAt -> DateTimeImmutable
+R 411:28 references Loan::status -> Clock (name-matched: library/Support.php)
+R 411:43 references Loan::status -> LoanStatus
+R 414:28 references Loan::status -> LoanStatus
+R 415:43 references Loan::status -> LoanStatus
 R 416:21 calls Loan::status -> now (name-matched: library/Support.php)
+R 416:45 references Loan::status -> LoanStatus
+R 417:24 references Loan::status -> LoanStatus
+R 421:33 references Loan::daysOverdue -> Clock (name-matched: library/Support.php)
 R 423:45 calls Loan::daysOverdue -> now (name-matched: library/Support.php)
 R 424:16 calls Loan::daysOverdue -> max
 R 424:23 calls Loan::daysOverdue -> days_between (name-matched: library/Support.php)
+R 427:27 references Loan::renew -> Clock (name-matched: library/Support.php)
 R 429:20 calls Loan::renew -> status
-R 430:23 calls Loan::renew -> Invalid
+R 429:39 references Loan::renew -> LoanStatus
+R 430:23 calls Loan::renew -> ValidationException (name-matched: library/Support.php)
 R 433:38 calls Loan::renew -> modify
 R 433:45 calls Loan::renew -> sprintf
 R 433:87 calls Loan::renew -> loanDays
 R 433:78 calls Loan::renew -> genre
+R 436:27 references Loan::close -> Clock (name-matched: library/Support.php)
 R 438:37 calls Loan::close -> isOpen
 R 438:21 calls Loan::close -> status
-R 439:23 calls Loan::close -> Invalid
+R 439:23 calls Loan::close -> ValidationException (name-matched: library/Support.php)
 R 441:37 calls Loan::close -> now (name-matched: library/Support.php)
 R 442:22 calls Loan::close -> returnCopy
 R 443:16 calls Loan::close -> recordEvent (name-matched: library/Support.php)
@@ -226,6 +251,11 @@ R 455:40 calls Loan::toArray -> email
 R 456:46 calls Loan::toArray -> format (name-matched: library/Reports.php)
 R 457:36 calls Loan::toArray -> format (name-matched: library/Reports.php)
 R 458:47 calls Loan::toArray -> format (name-matched: library/Reports.php)
+R 470:49 references BookBorrowed::__construct -> Loan
+R 478:25 references BookReturned::__construct -> Loan
+R 487:25 references MemberUpgraded::__construct -> Member
+R 488:25 references MemberUpgraded::__construct -> MembershipTier
+R 489:25 references MemberUpgraded::__construct -> MembershipTier
 
 == library/Reports.php (375 lines)
 S 1-375 module Reports
@@ -284,26 +314,15 @@ S 348-358 method ReportBuilder::build
 S 360-363 method ReportBuilder::render
 S 366-374 method ReportBuilder::export
 R 13:5 imports Reports -> InvalidArgumentException
-R 13:5 imports Reports -> InvalidArgumentException
-R 14:5 imports Reports -> Book (name-matched: library/Domain.php)
 R 14:5 imports Reports -> Book (name-matched: library/Domain.php)
 R 15:5 imports Reports -> Genre (name-matched: library/Domain.php)
-R 15:5 imports Reports -> Genre (name-matched: library/Domain.php)
-R 16:5 imports Reports -> Loan (name-matched: library/Domain.php)
 R 16:5 imports Reports -> Loan (name-matched: library/Domain.php)
 R 17:5 imports Reports -> BookRepository (name-matched: library/Repository.php)
-R 17:5 imports Reports -> BookRepository (name-matched: library/Repository.php)
-R 18:5 imports Reports -> LoanRepository (name-matched: library/Repository.php)
 R 18:5 imports Reports -> LoanRepository (name-matched: library/Repository.php)
 R 19:5 imports Reports -> MemberRepository (name-matched: library/Repository.php)
-R 19:5 imports Reports -> MemberRepository (name-matched: library/Repository.php)
-R 20:5 imports Reports -> FineCalculator (name-matched: library/Services.php)
 R 20:5 imports Reports -> FineCalculator (name-matched: library/Services.php)
 R 21:20 imports Reports -> Arrayable (name-matched: library/Support.php)
-R 21:20 imports Reports -> Arrayable (name-matched: library/Support.php)
 R 21:31 imports Reports -> Clock (name-matched: library/Support.php)
-R 21:31 imports Reports -> Clock (name-matched: library/Support.php)
-R 21:38 imports Reports -> Collection (name-matched: library/Support.php)
 R 21:38 imports Reports -> Collection (name-matched: library/Support.php)
 R 23:5 imports Reports -> money_format_cents (name-matched: library/Support.php)
 R 24:5 imports Reports -> str_limit (name-matched: library/Support.php)
@@ -317,11 +336,13 @@ R 56:70 calls Report::addRow -> implode
 R 58:25 calls Report::addRow -> array_intersect_key
 R 58:51 calls Report::addRow -> array_flip
 R 80:9 calls Report::sortBy -> usort
+R 109:28 references Formatter::format -> Report
 R 114:41 implements TextFormatter -> Formatter
 R 120:13 calls TextFormatter::cell -> is_bool
 R 121:13 calls TextFormatter::cell -> is_float
 R 121:33 calls TextFormatter::cell -> number_format
 R 122:24 calls TextFormatter::cell -> str_limit (name-matched: library/Support.php)
+R 127:31 references TextFormatter::widths -> Report
 R 129:19 calls TextFormatter::widths -> array_combine
 R 129:51 calls TextFormatter::widths -> array_map
 R 130:27 calls TextFormatter::widths -> rows
@@ -329,6 +350,7 @@ R 132:36 calls TextFormatter::widths -> max
 R 132:58 calls TextFormatter::widths -> mb_strlen
 R 132:75 calls TextFormatter::widths -> cell
 R 139:36 extends TableFormatter -> TextFormatter
+R 141:28 references TableFormatter::format -> Report
 R 143:26 calls TableFormatter::format -> widths
 R 144:53 calls pad -> str_pad
 R 146:19 calls TableFormatter::format -> strtoupper
@@ -345,6 +367,7 @@ R 154:30 calls TableFormatter::format -> implode
 R 156:27 calls TableFormatter::format -> notes
 R 159:16 calls TableFormatter::format -> implode
 R 168:37 implements CsvFormatter -> Formatter
+R 174:28 references CsvFormatter::format -> Report
 R 176:19 calls CsvFormatter::format -> fopen
 R 177:9 calls CsvFormatter::format -> fputcsv
 R 178:27 calls CsvFormatter::format -> rows
@@ -354,6 +377,7 @@ R 181:9 calls CsvFormatter::format -> rewind
 R 182:16 calls CsvFormatter::format -> stream_get_contents
 R 183:9 calls CsvFormatter::format -> fclose
 R 193:39 extends MarkdownFormatter -> TextFormatter
+R 195:28 references MarkdownFormatter::format -> Report
 R 197:26 calls MarkdownFormatter::format -> implode
 R 198:23 calls MarkdownFormatter::format -> str_repeat
 R 198:44 calls MarkdownFormatter::format -> count (name-matched: library/Repository.php)
@@ -364,7 +388,9 @@ R 200:54 calls MarkdownFormatter::format -> array_map
 R 200:71 calls MarkdownFormatter::format -> cell
 R 201:22 calls MarkdownFormatter::format -> rows
 R 223:38 implements JsonFormatter -> Formatter
+R 225:28 references JsonFormatter::format -> Report
 R 227:16 calls JsonFormatter::format -> json_encode
+R 236:39 references formatter_for -> Formatter
 R 238:19 calls formatter_for -> strtolower
 R 239:31 calls formatter_for -> TableFormatter
 R 240:22 calls formatter_for -> CsvFormatter
@@ -373,12 +399,20 @@ R 242:33 calls formatter_for -> MarkdownFormatter
 R 243:23 calls formatter_for -> JsonFormatter
 R 244:30 calls formatter_for -> InvalidArgumentException
 R 250:34 calls percent -> sprintf
+R 260:26 references ReportBuilder::__construct -> BookRepository (name-matched: library/Repository.php)
+R 261:26 references ReportBuilder::__construct -> MemberRepository (name-matched: library/Repository.php)
+R 262:26 references ReportBuilder::__construct -> LoanRepository (name-matched: library/Repository.php)
+R 263:26 references ReportBuilder::__construct -> FineCalculator (name-matched: library/Services.php)
+R 264:26 references ReportBuilder::__construct -> Clock (name-matched: library/Support.php)
+R 268:61 references ReportBuilder::report -> Report
 R 270:20 calls ReportBuilder::report -> Report
 R 270:66 calls ReportBuilder::report -> format
 R 270:59 calls ReportBuilder::report -> now (name-matched: library/Support.php)
+R 273:34 references ReportBuilder::inventory -> Report
 R 275:26 calls ReportBuilder::inventory -> report
 R 276:30 calls ReportBuilder::inventory -> each (name-matched: library/Support.php)
 R 276:23 calls ReportBuilder::inventory -> all (name-matched: library/Repository.php)
+R 276:45 references ReportBuilder::inventory -> Book (name-matched: library/Domain.php)
 R 277:22 calls ReportBuilder::inventory -> addRow
 R 278:42 calls ReportBuilder::inventory -> formatted (name-matched: library/Domain.php)
 R 278:34 calls ReportBuilder::inventory -> isbn (name-matched: library/Domain.php)
@@ -391,6 +425,7 @@ R 282:42 calls ReportBuilder::inventory -> forBook (name-matched: library/Reposi
 R 285:18 calls ReportBuilder::inventory -> addNote
 R 285:58 calls ReportBuilder::inventory -> count (name-matched: library/Repository.php)
 R 286:25 calls ReportBuilder::inventory -> sortBy
+R 289:32 references ReportBuilder::overdue -> Report
 R 291:26 calls ReportBuilder::overdue -> report
 R 293:32 calls ReportBuilder::overdue -> overdue
 R 294:35 calls ReportBuilder::overdue -> fineFor (name-matched: library/Services.php)
@@ -398,6 +433,7 @@ R 296:22 calls ReportBuilder::overdue -> addRow
 R 296:36 calls ReportBuilder::overdue -> overdueRow
 R 298:25 calls ReportBuilder::overdue -> addNote
 R 298:42 calls ReportBuilder::overdue -> money_format_cents (name-matched: library/Support.php)
+R 301:33 references ReportBuilder::overdueRow -> Loan (name-matched: library/Domain.php)
 R 304:42 calls ReportBuilder::overdueRow -> email (name-matched: library/Domain.php)
 R 304:32 calls ReportBuilder::overdueRow -> member (name-matched: library/Domain.php)
 R 305:39 calls ReportBuilder::overdueRow -> title
@@ -406,6 +442,7 @@ R 306:38 calls ReportBuilder::overdueRow -> format
 R 306:29 calls ReportBuilder::overdueRow -> dueAt (name-matched: library/Domain.php)
 R 307:30 calls ReportBuilder::overdueRow -> daysOverdue (name-matched: library/Domain.php)
 R 308:23 calls ReportBuilder::overdueRow -> money_format_cents (name-matched: library/Support.php)
+R 312:52 references ReportBuilder::topBorrowers -> Report
 R 314:26 calls ReportBuilder::topBorrowers -> report
 R 315:33 calls ReportBuilder::topBorrowers -> borrowCounts (name-matched: library/Repository.php)
 R 316:16 calls ReportBuilder::topBorrowers -> array_sum
@@ -416,22 +453,27 @@ R 322:38 calls ReportBuilder::topBorrowers -> name (name-matched: library/Domain
 R 323:44 calls ReportBuilder::topBorrowers -> label (name-matched: library/Domain.php)
 R 323:36 calls ReportBuilder::topBorrowers -> tier (name-matched: library/Domain.php)
 R 325:28 calls ReportBuilder::topBorrowers -> percent
+R 331:31 references ReportBuilder::genres -> Report
 R 333:26 calls ReportBuilder::genres -> report
 R 334:40 calls ReportBuilder::genres -> groupBy (name-matched: library/Support.php)
 R 334:33 calls ReportBuilder::genres -> all (name-matched: library/Repository.php)
+R 334:59 references ReportBuilder::genres -> Book (name-matched: library/Domain.php)
 R 334:75 calls ReportBuilder::genres -> genre (name-matched: library/Domain.php)
 R 335:38 calls ReportBuilder::genres -> count (name-matched: library/Repository.php)
 R 336:25 calls ReportBuilder::genres -> cases
+R 336:18 references ReportBuilder::genres -> Genre (name-matched: library/Domain.php)
 R 337:53 calls ReportBuilder::genres -> Collection (name-matched: library/Support.php)
 R 338:22 calls ReportBuilder::genres -> addRow
 R 339:36 calls ReportBuilder::genres -> label (name-matched: library/Domain.php)
 R 340:38 calls ReportBuilder::genres -> count (name-matched: library/Repository.php)
 R 341:42 calls ReportBuilder::genres -> sum (name-matched: library/Support.php)
+R 341:50 references ReportBuilder::genres -> Book (name-matched: library/Domain.php)
 R 341:89 calls ReportBuilder::genres -> count (name-matched: library/Repository.php)
 R 341:76 calls ReportBuilder::genres -> forBook (name-matched: library/Repository.php)
 R 342:28 calls ReportBuilder::genres -> percent
 R 342:45 calls ReportBuilder::genres -> count (name-matched: library/Repository.php)
 R 345:25 calls ReportBuilder::genres -> sortBy
+R 348:42 references ReportBuilder::build -> Report
 R 351:35 calls ReportBuilder::build -> inventory
 R 352:33 calls ReportBuilder::build -> overdue
 R 353:38 calls ReportBuilder::build -> topBorrowers
@@ -504,42 +546,39 @@ S 341-357 method JsonFileStore::load
 S 359-373 method JsonFileStore::save
 S 375-390 method JsonFileStore::hydrate
 R 13:5 imports Repository -> Generator
-R 13:5 imports Repository -> Generator
-R 14:5 imports Repository -> Book (name-matched: library/Domain.php)
 R 14:5 imports Repository -> Book (name-matched: library/Domain.php)
 R 15:5 imports Repository -> Entity (name-matched: library/Domain.php)
-R 15:5 imports Repository -> Entity (name-matched: library/Domain.php)
-R 16:5 imports Repository -> Genre (name-matched: library/Domain.php)
 R 16:5 imports Repository -> Genre (name-matched: library/Domain.php)
 R 17:5 imports Repository -> Isbn (name-matched: library/Domain.php)
-R 17:5 imports Repository -> Isbn (name-matched: library/Domain.php)
-R 18:5 imports Repository -> Loan (name-matched: library/Domain.php)
 R 18:5 imports Repository -> Loan (name-matched: library/Domain.php)
 R 19:5 imports Repository -> LoanStatus (name-matched: library/Domain.php)
-R 19:5 imports Repository -> LoanStatus (name-matched: library/Domain.php)
-R 20:5 imports Repository -> Member (name-matched: library/Domain.php)
 R 20:5 imports Repository -> Member (name-matched: library/Domain.php)
 R 21:5 imports Repository -> MembershipTier (name-matched: library/Domain.php)
-R 21:5 imports Repository -> MembershipTier (name-matched: library/Domain.php)
-R 22:5 imports Repository -> Clock (name-matched: library/Support.php)
 R 22:5 imports Repository -> Clock (name-matched: library/Support.php)
 R 23:5 imports Repository -> Collection (name-matched: library/Support.php)
-R 23:5 imports Repository -> Collection (name-matched: library/Support.php)
-R 24:5 imports Repository -> Loggable (name-matched: library/Support.php)
 R 24:5 imports Repository -> Loggable (name-matched: library/Support.php)
 R 25:5 imports Repository -> NotFoundException (name-matched: library/Support.php)
-R 25:5 imports Repository -> NotFoundException (name-matched: library/Support.php)
-R 26:5 imports Repository -> ShelfException (name-matched: library/Support.php)
 R 26:5 imports Repository -> ShelfException (name-matched: library/Support.php)
 R 28:5 imports Repository -> slugify (name-matched: library/Support.php)
 R 29:5 imports Repository -> str_limit (name-matched: library/Support.php)
 R 38:31 extends Repository -> Countable
+R 40:37 references Repository::find -> Entity (name-matched: library/Domain.php)
+R 42:35 references Repository::get -> Entity (name-matched: library/Domain.php)
+R 44:26 references Repository::save -> Entity (name-matched: library/Domain.php)
+R 44:43 references Repository::save -> Entity (name-matched: library/Domain.php)
+R 48:28 references Repository::all -> Collection (name-matched: library/Support.php)
 R 51:30 extends Searchable -> Repository
+R 55:61 references Searchable::search -> Collection (name-matched: library/Support.php)
 R 62:46 implements InMemoryRepository -> Repository
 R 64:9 implements InMemoryRepository -> Loggable (name-matched: library/Support.php)
+R 76:37 references InMemoryRepository::find -> Entity (name-matched: library/Domain.php)
+R 81:35 references InMemoryRepository::get -> Entity (name-matched: library/Domain.php)
 R 83:23 calls InMemoryRepository::get -> find
 R 83:61 calls InMemoryRepository::get -> entity (name-matched: library/Support.php)
+R 83:42 references InMemoryRepository::get -> NotFoundException (name-matched: library/Support.php)
 R 83:75 calls InMemoryRepository::get -> entityName
+R 86:26 references InMemoryRepository::save -> Entity (name-matched: library/Domain.php)
+R 86:43 references InMemoryRepository::save -> Entity (name-matched: library/Domain.php)
 R 88:24 calls InMemoryRepository::save -> getId (name-matched: library/Domain.php)
 R 90:32 calls InMemoryRepository::save -> withId (name-matched: library/Domain.php)
 R 91:20 calls InMemoryRepository::save -> log (name-matched: library/Support.php)
@@ -550,21 +589,38 @@ R 93:31 calls InMemoryRepository::save -> getId (name-matched: library/Domain.ph
 R 102:16 calls InMemoryRepository::remove -> get
 R 104:16 calls InMemoryRepository::remove -> log (name-matched: library/Support.php)
 R 104:37 calls InMemoryRepository::remove -> entityName
+R 107:28 references InMemoryRepository::all -> Collection (name-matched: library/Support.php)
 R 109:28 calls InMemoryRepository::all -> of (name-matched: library/Support.php)
+R 109:16 references InMemoryRepository::all -> Collection (name-matched: library/Support.php)
 R 114:16 calls InMemoryRepository::count -> count
+R 123:52 references InMemoryRepository::where -> Generator
+R 132:58 references InMemoryRepository::firstWhere -> Entity (name-matched: library/Domain.php)
 R 134:25 calls InMemoryRepository::firstWhere -> where
 R 145:36 extends BookRepository -> InMemoryRepository
 R 145:66 implements BookRepository -> Searchable
+R 152:28 references BookRepository::byIsbn -> Isbn (name-matched: library/Domain.php)
+R 152:48 references BookRepository::byIsbn -> Book (name-matched: library/Domain.php)
+R 154:34 references BookRepository::byIsbn -> Isbn (name-matched: library/Domain.php)
 R 154:55 calls BookRepository::byIsbn -> parse (name-matched: library/Domain.php)
+R 154:49 references BookRepository::byIsbn -> Isbn (name-matched: library/Domain.php)
 R 155:24 calls BookRepository::byIsbn -> firstWhere
+R 155:39 references BookRepository::byIsbn -> Book (name-matched: library/Domain.php)
 R 155:55 calls BookRepository::byIsbn -> isbn (name-matched: library/Domain.php)
+R 156:31 references BookRepository::byIsbn -> Book (name-matched: library/Domain.php)
 R 157:38 calls BookRepository::byIsbn -> entity (name-matched: library/Support.php)
+R 157:19 references BookRepository::byIsbn -> NotFoundException (name-matched: library/Support.php)
 R 157:60 calls BookRepository::byIsbn -> formatted (name-matched: library/Domain.php)
+R 163:29 references BookRepository::byGenre -> Genre (name-matched: library/Domain.php)
+R 163:44 references BookRepository::byGenre -> Generator
 R 165:27 calls BookRepository::byGenre -> where
+R 165:44 references BookRepository::byGenre -> Book (name-matched: library/Domain.php)
 R 165:60 calls BookRepository::byGenre -> genre (name-matched: library/Domain.php)
+R 168:34 references BookRepository::available -> Collection (name-matched: library/Support.php)
 R 170:30 calls BookRepository::available -> filter (name-matched: library/Support.php)
 R 170:23 calls BookRepository::available -> all
+R 170:48 references BookRepository::available -> Book (name-matched: library/Domain.php)
 R 170:64 calls BookRepository::available -> availableCopies (name-matched: library/Domain.php)
+R 173:61 references BookRepository::search -> Collection (name-matched: library/Support.php)
 R 175:13 calls BookRepository::search -> mb_strlen
 R 175:23 calls BookRepository::search -> trim
 R 176:24 calls BookRepository::search -> Collection (name-matched: library/Support.php)
@@ -573,41 +629,68 @@ R 182:15 calls BookRepository::search -> take (name-matched: library/Support.php
 R 181:15 calls BookRepository::search -> sortBy (name-matched: library/Reports.php)
 R 180:15 calls BookRepository::search -> filter (name-matched: library/Support.php)
 R 179:23 calls BookRepository::search -> all
+R 180:33 references BookRepository::search -> Book (name-matched: library/Domain.php)
 R 180:45 calls BookRepository::search -> str_contains
 R 180:58 calls BookRepository::search -> slugify (name-matched: library/Support.php)
 R 180:70 calls BookRepository::search -> title (name-matched: library/Domain.php)
+R 181:33 references BookRepository::search -> Book (name-matched: library/Domain.php)
 R 181:49 calls BookRepository::search -> title (name-matched: library/Domain.php)
 R 186:38 extends MemberRepository -> InMemoryRepository
+R 193:45 references MemberRepository::byEmail -> Member (name-matched: library/Domain.php)
 R 195:18 calls MemberRepository::byEmail -> strtolower
 R 196:26 calls MemberRepository::byEmail -> firstWhere
+R 196:48 references MemberRepository::byEmail -> Member (name-matched: library/Domain.php)
 R 196:66 calls MemberRepository::byEmail -> email (name-matched: library/Domain.php)
+R 197:35 references MemberRepository::byEmail -> Member (name-matched: library/Domain.php)
 R 199:40 calls MemberRepository::byEmail -> entity (name-matched: library/Support.php)
+R 199:21 references MemberRepository::byEmail -> NotFoundException (name-matched: library/Support.php)
 R 205:20 calls MemberRepository::exists -> byEmail
+R 207:18 references MemberRepository::exists -> NotFoundException (name-matched: library/Support.php)
 R 216:34 calls MemberRepository::countByTier -> cases
+R 216:18 references MemberRepository::countByTier -> MembershipTier (name-matched: library/Domain.php)
 R 217:28 calls MemberRepository::countByTier -> label (name-matched: library/Domain.php)
 R 217:39 calls MemberRepository::countByTier -> iterator_count
 R 218:24 calls MemberRepository::countByTier -> where
+R 218:41 references MemberRepository::countByTier -> Member (name-matched: library/Domain.php)
 R 218:59 calls MemberRepository::countByTier -> tier (name-matched: library/Domain.php)
 R 225:36 extends LoanRepository -> InMemoryRepository
+R 232:29 references LoanRepository::openFor -> Member (name-matched: library/Domain.php)
+R 232:45 references LoanRepository::openFor -> Clock (name-matched: library/Support.php)
+R 232:60 references LoanRepository::openFor -> Collection (name-matched: library/Support.php)
 R 234:28 calls LoanRepository::openFor -> of (name-matched: library/Support.php)
+R 234:16 references LoanRepository::openFor -> Collection (name-matched: library/Support.php)
 R 234:38 calls LoanRepository::openFor -> where
+R 235:24 references LoanRepository::openFor -> Loan (name-matched: library/Domain.php)
 R 235:40 calls LoanRepository::openFor -> member (name-matched: library/Domain.php)
 R 235:84 calls LoanRepository::openFor -> isOpen (name-matched: library/Domain.php)
 R 235:68 calls LoanRepository::openFor -> status (name-matched: library/Domain.php)
+R 239:29 references LoanRepository::overdue -> Clock (name-matched: library/Support.php)
+R 239:44 references LoanRepository::overdue -> Collection (name-matched: library/Support.php)
 R 243:13 calls LoanRepository::overdue -> sortBy (name-matched: library/Reports.php)
 R 241:28 calls LoanRepository::overdue -> of (name-matched: library/Support.php)
+R 241:16 references LoanRepository::overdue -> Collection (name-matched: library/Support.php)
 R 241:38 calls LoanRepository::overdue -> where
+R 242:24 references LoanRepository::overdue -> Loan (name-matched: library/Domain.php)
 R 242:40 calls LoanRepository::overdue -> status (name-matched: library/Domain.php)
+R 242:59 references LoanRepository::overdue -> LoanStatus (name-matched: library/Domain.php)
+R 243:31 references LoanRepository::overdue -> Loan (name-matched: library/Domain.php)
 R 243:47 calls LoanRepository::overdue -> daysOverdue (name-matched: library/Domain.php)
+R 246:29 references LoanRepository::forBook -> Book (name-matched: library/Domain.php)
+R 246:42 references LoanRepository::forBook -> Collection (name-matched: library/Support.php)
 R 248:28 calls LoanRepository::forBook -> of (name-matched: library/Support.php)
+R 248:16 references LoanRepository::forBook -> Collection (name-matched: library/Support.php)
 R 248:38 calls LoanRepository::forBook -> where
+R 248:55 references LoanRepository::forBook -> Loan (name-matched: library/Domain.php)
 R 248:71 calls LoanRepository::forBook -> book (name-matched: library/Domain.php)
 R 256:39 calls LoanRepository::borrowCounts -> email (name-matched: library/Domain.php)
 R 256:29 calls LoanRepository::borrowCounts -> member (name-matched: library/Domain.php)
 R 259:9 calls LoanRepository::borrowCounts -> arsort
+R 278:29 references UnitOfWork::persist -> Repository
+R 278:53 references UnitOfWork::persist -> Entity (name-matched: library/Domain.php)
 R 292:23 calls UnitOfWork::commit -> ShelfException (name-matched: library/Support.php)
 R 298:41 calls UnitOfWork::commit -> save
 R 300:13 calls UnitOfWork::commit -> array_map
+R 301:18 references UnitOfWork::commit -> ShelfException (name-matched: library/Support.php)
 R 302:20 calls UnitOfWork::commit -> rollback
 R 315:18 calls UnitOfWork::rollback -> array_reverse
 R 316:17 calls UnitOfWork::rollback -> isset
@@ -622,6 +705,8 @@ R 350:17 calls JsonFileStore::load -> json_decode
 R 354:19 calls JsonFileStore::load -> withContext (name-matched: library/Support.php)
 R 353:19 calls JsonFileStore::load -> withContext (name-matched: library/Support.php)
 R 352:24 calls JsonFileStore::load -> ShelfException (name-matched: library/Support.php)
+R 359:26 references JsonFileStore::save -> BookRepository
+R 359:49 references JsonFileStore::save -> MemberRepository
 R 363:39 calls JsonFileStore::save -> toArray (name-matched: library/Domain.php)
 R 363:32 calls JsonFileStore::save -> all
 R 364:43 calls JsonFileStore::save -> toArray (name-matched: library/Domain.php)
@@ -631,15 +716,20 @@ R 368:18 calls JsonFileStore::save -> file_put_contents
 R 369:34 calls JsonFileStore::save -> rename
 R 370:23 calls JsonFileStore::save -> ShelfException (name-matched: library/Support.php)
 R 370:68 calls JsonFileStore::save -> str_limit (name-matched: library/Support.php)
+R 375:29 references JsonFileStore::hydrate -> BookRepository
+R 375:52 references JsonFileStore::hydrate -> MemberRepository
 R 377:24 calls JsonFileStore::hydrate -> load
 R 379:21 calls JsonFileStore::hydrate -> save
 R 379:30 calls JsonFileStore::hydrate -> Book (name-matched: library/Domain.php)
 R 380:23 calls JsonFileStore::hydrate -> parse (name-matched: library/Domain.php)
+R 380:17 references JsonFileStore::hydrate -> Isbn (name-matched: library/Domain.php)
 R 382:17 calls JsonFileStore::hydrate -> explode
 R 383:24 calls JsonFileStore::hydrate -> fromLabel (name-matched: library/Domain.php)
+R 383:17 references JsonFileStore::hydrate -> Genre (name-matched: library/Domain.php)
 R 384:17 calls JsonFileStore::hydrate -> max
 R 388:23 calls JsonFileStore::hydrate -> save
 R 388:32 calls JsonFileStore::hydrate -> Member (name-matched: library/Domain.php)
+R 388:68 references JsonFileStore::hydrate -> MembershipTier (name-matched: library/Domain.php)
 
 == library/Services.php (378 lines)
 S 1-378 module Services
@@ -698,52 +788,38 @@ S 322-325 method NotificationService::queue
 S 328-332 method NotificationService::flush
 S 339-378 function wire_services
 R 13:19 imports Services -> Book (name-matched: library/Domain.php)
-R 13:19 imports Services -> Book (name-matched: library/Domain.php)
-R 13:25 imports Services -> BookBorrowed (name-matched: library/Domain.php)
 R 13:25 imports Services -> BookBorrowed (name-matched: library/Domain.php)
 R 13:39 imports Services -> BookReturned (name-matched: library/Domain.php)
-R 13:39 imports Services -> BookReturned (name-matched: library/Domain.php)
-R 13:53 imports Services -> Loan (name-matched: library/Domain.php)
 R 13:53 imports Services -> Loan (name-matched: library/Domain.php)
 R 13:59 imports Services -> LoanStatus (name-matched: library/Domain.php)
-R 13:59 imports Services -> LoanStatus (name-matched: library/Domain.php)
-R 13:71 imports Services -> Member (name-matched: library/Domain.php)
 R 13:71 imports Services -> Member (name-matched: library/Domain.php)
 R 13:79 imports Services -> MemberUpgraded (name-matched: library/Domain.php)
-R 13:79 imports Services -> MemberUpgraded (name-matched: library/Domain.php)
-R 13:95 imports Services -> Money (name-matched: library/Domain.php)
 R 13:95 imports Services -> Money (name-matched: library/Domain.php)
 R 14:24 imports Services -> BookRepository (name-matched: library/Repository.php)
-R 14:24 imports Services -> BookRepository (name-matched: library/Repository.php)
-R 14:40 imports Services -> LoanRepository (name-matched: library/Repository.php)
 R 14:40 imports Services -> LoanRepository (name-matched: library/Repository.php)
 R 14:56 imports Services -> MemberRepository (name-matched: library/Repository.php)
-R 14:56 imports Services -> MemberRepository (name-matched: library/Repository.php)
-R 14:74 imports Services -> UnitOfWork (name-matched: library/Repository.php)
 R 14:74 imports Services -> UnitOfWork (name-matched: library/Repository.php)
 R 15:20 imports Services -> Clock (name-matched: library/Support.php)
-R 15:20 imports Services -> Clock (name-matched: library/Support.php)
-R 15:27 imports Services -> Collection (name-matched: library/Support.php)
 R 15:27 imports Services -> Collection (name-matched: library/Support.php)
 R 15:39 imports Services -> LoanLimitExceeded (name-matched: library/Support.php)
-R 15:39 imports Services -> LoanLimitExceeded (name-matched: library/Support.php)
-R 15:58 imports Services -> NotFoundException (name-matched: library/Support.php)
 R 15:58 imports Services -> NotFoundException (name-matched: library/Support.php)
 R 15:77 imports Services -> SystemClock (name-matched: library/Support.php)
-R 15:77 imports Services -> SystemClock (name-matched: library/Support.php)
 R 16:5 imports Services -> Auditable (name-matched: library/Support.php)
-R 16:5 imports Services -> Auditable (name-matched: library/Support.php)
-R 17:5 imports Services -> ShelfException (name-matched: library/Support.php)
 R 17:5 imports Services -> ShelfException (name-matched: library/Support.php)
 R 19:5 imports Services -> money_format_cents (name-matched: library/Support.php)
 R 20:5 imports Services -> retry (name-matched: library/Support.php)
+R 44:31 references EventDispatcher::subscribe -> EventListener
 R 47:20 calls EventDispatcher::subscribe -> listen
 R 64:20 calls EventDispatcher::dispatchAll -> dispatch
 R 73:20 calls EventDispatcher::dispatchedCount -> count (name-matched: library/Repository.php)
 R 75:16 calls EventDispatcher::dispatchedCount -> count (name-matched: library/Repository.php)
 R 75:22 calls EventDispatcher::dispatchedCount -> array_filter
+R 88:50 references FineCalculator::__construct -> Clock (name-matched: library/Support.php)
 R 88:69 calls FineCalculator::__construct -> SystemClock (name-matched: library/Support.php)
+R 92:29 references FineCalculator::fineFor -> Loan (name-matched: library/Domain.php)
+R 92:42 references FineCalculator::fineFor -> Money (name-matched: library/Domain.php)
 R 94:20 calls FineCalculator::fineFor -> status (name-matched: library/Domain.php)
+R 94:45 references FineCalculator::fineFor -> LoanStatus (name-matched: library/Domain.php)
 R 95:24 calls FineCalculator::fineFor -> Money (name-matched: library/Domain.php)
 R 97:24 calls FineCalculator::fineFor -> daysOverdue (name-matched: library/Domain.php)
 R 98:44 calls FineCalculator::fineFor -> finePerDay (name-matched: library/Domain.php)
@@ -751,26 +827,43 @@ R 98:36 calls FineCalculator::fineFor -> tier (name-matched: library/Domain.php)
 R 98:26 calls FineCalculator::fineFor -> member (name-matched: library/Domain.php)
 R 99:20 calls FineCalculator::fineFor -> Money (name-matched: library/Domain.php)
 R 99:26 calls FineCalculator::fineFor -> min
+R 102:30 references FineCalculator::totalFor -> Member (name-matched: library/Domain.php)
+R 102:46 references FineCalculator::totalFor -> LoanRepository (name-matched: library/Repository.php)
+R 102:70 references FineCalculator::totalFor -> Money (name-matched: library/Domain.php)
 R 106:15 calls FineCalculator::totalFor -> reduce (name-matched: library/Support.php)
 R 105:15 calls FineCalculator::totalFor -> filter (name-matched: library/Support.php)
 R 104:24 calls FineCalculator::totalFor -> all (name-matched: library/Repository.php)
+R 105:33 references FineCalculator::totalFor -> Loan (name-matched: library/Domain.php)
 R 105:49 calls FineCalculator::totalFor -> member (name-matched: library/Domain.php)
+R 106:26 references FineCalculator::totalFor -> Money (name-matched: library/Domain.php)
+R 106:38 references FineCalculator::totalFor -> Loan (name-matched: library/Domain.php)
 R 106:56 calls FineCalculator::totalFor -> add (name-matched: library/Domain.php)
 R 106:67 calls FineCalculator::totalFor -> fineFor
 R 106:88 calls FineCalculator::totalFor -> zero (name-matched: library/Domain.php)
+R 106:81 references FineCalculator::totalFor -> Money (name-matched: library/Domain.php)
+R 109:30 references FineCalculator::describe -> Loan (name-matched: library/Domain.php)
 R 111:24 calls FineCalculator::describe -> fineFor
 R 112:23 calls FineCalculator::describe -> isZero (name-matched: library/Domain.php)
 R 114:15 calls FineCalculator::describe -> sprintf
 R 114:44 calls FineCalculator::describe -> money_format_cents (name-matched: library/Support.php)
 R 114:85 calls FineCalculator::describe -> daysOverdue (name-matched: library/Domain.php)
 R 124:9 implements LendingService -> Auditable (name-matched: library/Support.php)
+R 126:14 references LendingService -> EventDispatcher
+R 129:26 references LendingService::__construct -> BookRepository (name-matched: library/Repository.php)
+R 130:26 references LendingService::__construct -> MemberRepository (name-matched: library/Repository.php)
+R 131:26 references LendingService::__construct -> LoanRepository (name-matched: library/Repository.php)
+R 132:26 references LendingService::__construct -> FineCalculator
+R 133:26 references LendingService::__construct -> Clock (name-matched: library/Support.php)
 R 133:45 calls LendingService::__construct -> SystemClock (name-matched: library/Support.php)
+R 137:31 references LendingService::setEvents -> EventDispatcher
+R 142:58 references LendingService::borrow -> Loan (name-matched: library/Domain.php)
 R 144:35 calls LendingService::borrow -> byEmail (name-matched: library/Repository.php)
 R 145:31 calls LendingService::borrow -> byIsbn (name-matched: library/Repository.php)
 R 147:63 calls LendingService::borrow -> count (name-matched: library/Repository.php)
 R 147:31 calls LendingService::borrow -> openFor (name-matched: library/Repository.php)
 R 148:23 calls LendingService::borrow -> canBorrow (name-matched: library/Domain.php)
 R 149:38 calls LendingService::borrow -> forMember (name-matched: library/Support.php)
+R 149:19 references LendingService::borrow -> LoanLimitExceeded (name-matched: library/Support.php)
 R 149:57 calls LendingService::borrow -> email (name-matched: library/Domain.php)
 R 149:83 calls LendingService::borrow -> loanLimit (name-matched: library/Domain.php)
 R 149:75 calls LendingService::borrow -> tier (name-matched: library/Domain.php)
@@ -781,6 +874,7 @@ R 152:24 calls LendingService::borrow -> ShelfException (name-matched: library/S
 R 153:50 calls LendingService::borrow -> email (name-matched: library/Domain.php)
 R 156:20 calls LendingService::borrow -> UnitOfWork (name-matched: library/Repository.php)
 R 157:23 calls LendingService::borrow -> start (name-matched: library/Domain.php)
+R 157:17 references LendingService::borrow -> Loan (name-matched: library/Domain.php)
 R 158:15 calls LendingService::borrow -> persist (name-matched: library/Repository.php)
 R 159:15 calls LendingService::borrow -> persist (name-matched: library/Repository.php)
 R 160:15 calls LendingService::borrow -> afterCommit (name-matched: library/Repository.php)
@@ -789,39 +883,53 @@ R 161:26 calls LendingService::borrow -> commit (name-matched: library/Repositor
 R 163:16 calls LendingService::borrow -> audit (name-matched: library/Support.php)
 R 163:38 calls LendingService::borrow -> isbn (name-matched: library/Domain.php)
 R 163:59 calls LendingService::borrow -> email (name-matched: library/Domain.php)
+R 167:44 references LendingService::giveBack -> Money (name-matched: library/Domain.php)
 R 169:31 calls LendingService::giveBack -> get (name-matched: library/Repository.php)
+R 170:31 references LendingService::giveBack -> Loan (name-matched: library/Domain.php)
 R 171:38 calls LendingService::giveBack -> entity (name-matched: library/Support.php)
+R 171:19 references LendingService::giveBack -> NotFoundException (name-matched: library/Support.php)
 R 173:16 calls LendingService::giveBack -> close (name-matched: library/Domain.php)
 R 174:23 calls LendingService::giveBack -> save (name-matched: library/Repository.php)
 R 175:16 calls LendingService::giveBack -> publish
 R 176:31 calls LendingService::giveBack -> fineFor
 R 177:16 calls LendingService::giveBack -> audit (name-matched: library/Support.php)
 R 177:22 calls LendingService::giveBack -> sprintf
+R 181:41 references LendingService::renew -> Loan (name-matched: library/Domain.php)
 R 183:16 calls LendingService::renew -> retry (name-matched: library/Support.php)
+R 183:64 references LendingService::renew -> Loan (name-matched: library/Domain.php)
 R 184:35 calls LendingService::renew -> get (name-matched: library/Repository.php)
 R 185:20 calls LendingService::renew -> renew
 R 186:20 calls LendingService::renew -> log (name-matched: library/Support.php)
 R 187:34 calls LendingService::renew -> save (name-matched: library/Repository.php)
+R 191:46 references LendingService::reportLost -> Money (name-matched: library/Domain.php)
 R 193:31 calls LendingService::reportLost -> get (name-matched: library/Repository.php)
 R 194:16 calls LendingService::reportLost -> markLost (name-matched: library/Domain.php)
 R 195:23 calls LendingService::reportLost -> save (name-matched: library/Repository.php)
 R 196:30 calls LendingService::reportLost -> fineFor
+R 200:32 references LendingService::overdue -> Collection (name-matched: library/Support.php)
 R 202:30 calls LendingService::overdue -> overdue
 R 207:31 calls LendingService::availability -> byIsbn (name-matched: library/Repository.php)
 R 208:32 calls LendingService::availability -> forBook (name-matched: library/Repository.php)
 R 212:15 calls LendingService::availability -> first (name-matched: library/Support.php)
 R 211:15 calls LendingService::availability -> sortBy (name-matched: library/Reports.php)
 R 210:15 calls LendingService::availability -> filter (name-matched: library/Support.php)
+R 210:26 references LendingService::availability -> Loan (name-matched: library/Domain.php)
 R 210:64 calls LendingService::availability -> isOpen (name-matched: library/Domain.php)
 R 210:42 calls LendingService::availability -> status (name-matched: library/Domain.php)
+R 211:33 references LendingService::availability -> Loan (name-matched: library/Domain.php)
 R 211:49 calls LendingService::availability -> dueAt (name-matched: library/Domain.php)
 R 214:20 calls LendingService::availability -> availableCopies (name-matched: library/Domain.php)
 R 214:45 calls LendingService::availability -> sprintf
 R 214:76 calls LendingService::availability -> availableCopies (name-matched: library/Domain.php)
 R 215:61 calls LendingService::availability -> format (name-matched: library/Reports.php)
 R 215:52 calls LendingService::availability -> dueAt (name-matched: library/Domain.php)
+R 220:30 references LendingService::publish -> Loan (name-matched: library/Domain.php)
 R 222:25 calls LendingService::publish -> dispatchAll
 R 222:44 calls LendingService::publish -> releaseEvents (name-matched: library/Support.php)
+R 233:26 references MembershipService::__construct -> MemberRepository (name-matched: library/Repository.php)
+R 234:26 references MembershipService::__construct -> LoanRepository (name-matched: library/Repository.php)
+R 235:26 references MembershipService::__construct -> EventDispatcher
+R 239:60 references MembershipService::register -> Member (name-matched: library/Domain.php)
 R 241:29 calls MembershipService::register -> exists (name-matched: library/Repository.php)
 R 242:23 calls MembershipService::register -> ShelfException (name-matched: library/Support.php)
 R 244:32 calls MembershipService::register -> save (name-matched: library/Repository.php)
@@ -833,10 +941,16 @@ R 257:33 calls MembershipService::upgradeFrequentBorrowers -> save (name-matched
 R 258:32 calls MembershipService::upgradeFrequentBorrowers -> dispatchAll
 R 258:53 calls MembershipService::upgradeFrequentBorrowers -> releaseEvents (name-matched: library/Support.php)
 R 270:44 implements NotificationService -> EventListener
+R 276:26 references NotificationService::__construct -> FineCalculator
+R 284:31 references NotificationService::__invoke -> BookBorrowed (name-matched: library/Domain.php)
 R 284:54 calls NotificationService::__invoke -> confirmLoan
+R 285:31 references NotificationService::__invoke -> BookReturned (name-matched: library/Domain.php)
 R 285:54 calls NotificationService::__invoke -> thankForReturn
+R 286:31 references NotificationService::__invoke -> MemberUpgraded (name-matched: library/Domain.php)
 R 286:56 calls NotificationService::__invoke -> congratulate
+R 291:35 references NotificationService::remindOverdue -> Collection (name-matched: library/Support.php)
 R 293:17 calls NotificationService::remindOverdue -> each (name-matched: library/Support.php)
+R 293:32 references NotificationService::remindOverdue -> Loan (name-matched: library/Domain.php)
 R 294:20 calls NotificationService::remindOverdue -> queue
 R 295:34 calls NotificationService::remindOverdue -> email (name-matched: library/Domain.php)
 R 295:24 calls NotificationService::remindOverdue -> member (name-matched: library/Domain.php)
@@ -845,6 +959,7 @@ R 296:63 calls NotificationService::remindOverdue -> title (name-matched: librar
 R 296:55 calls NotificationService::remindOverdue -> book (name-matched: library/Domain.php)
 R 296:86 calls NotificationService::remindOverdue -> describe
 R 299:24 calls NotificationService::remindOverdue -> count (name-matched: library/Repository.php)
+R 302:34 references NotificationService::confirmLoan -> Loan (name-matched: library/Domain.php)
 R 304:16 calls NotificationService::confirmLoan -> queue
 R 304:39 calls NotificationService::confirmLoan -> email (name-matched: library/Domain.php)
 R 304:29 calls NotificationService::confirmLoan -> member (name-matched: library/Domain.php)
@@ -853,27 +968,38 @@ R 306:28 calls NotificationService::confirmLoan -> title (name-matched: library/
 R 306:20 calls NotificationService::confirmLoan -> book (name-matched: library/Domain.php)
 R 307:29 calls NotificationService::confirmLoan -> format (name-matched: library/Reports.php)
 R 307:20 calls NotificationService::confirmLoan -> dueAt (name-matched: library/Domain.php)
+R 311:37 references NotificationService::thankForReturn -> Loan (name-matched: library/Domain.php)
 R 314:16 calls NotificationService::thankForReturn -> queue
 R 314:39 calls NotificationService::thankForReturn -> email (name-matched: library/Domain.php)
 R 314:29 calls NotificationService::thankForReturn -> member (name-matched: library/Domain.php)
 R 314:88 calls NotificationService::thankForReturn -> title (name-matched: library/Domain.php)
 R 314:80 calls NotificationService::thankForReturn -> book (name-matched: library/Domain.php)
+R 317:35 references NotificationService::congratulate -> Member (name-matched: library/Domain.php)
 R 319:16 calls NotificationService::congratulate -> queue
 R 319:31 calls NotificationService::congratulate -> email (name-matched: library/Domain.php)
 R 319:70 calls NotificationService::congratulate -> label (name-matched: library/Domain.php)
 R 319:62 calls NotificationService::congratulate -> tier (name-matched: library/Domain.php)
 R 319:90 calls NotificationService::congratulate -> name (name-matched: library/Domain.php)
+R 339:24 references wire_services -> BookRepository (name-matched: library/Repository.php)
+R 339:47 references wire_services -> MemberRepository (name-matched: library/Repository.php)
+R 339:74 references wire_services -> LoanRepository (name-matched: library/Repository.php)
+R 339:97 references wire_services -> Clock (name-matched: library/Support.php)
 R 341:19 calls wire_services -> EventDispatcher
 R 342:18 calls wire_services -> FineCalculator
 R 343:21 calls wire_services -> NotificationService
 R 344:14 calls wire_services -> subscribe
+R 344:35 references wire_services -> BookBorrowed (name-matched: library/Domain.php)
+R 344:56 references wire_services -> BookReturned (name-matched: library/Domain.php)
+R 344:77 references wire_services -> MemberUpgraded (name-matched: library/Domain.php)
 R 346:46 references wire_services -> EventListener
+R 349:54 references wire_services -> Clock (name-matched: library/Support.php)
 R 356:20 calls wire_services -> stamp
 R 361:13 calls wire_services -> error_log
 R 361:23 calls wire_services -> sprintf
 R 361:79 calls wire_services -> format (name-matched: library/Reports.php)
 R 361:72 calls wire_services -> now (name-matched: library/Support.php)
 R 364:14 calls wire_services -> listen
+R 364:21 references wire_services -> BookReturned (name-matched: library/Domain.php)
 R 366:20 calls wire_services -> LendingService
 R 367:15 calls wire_services -> setEvents
 R 368:15 calls wire_services -> setLogger (name-matched: library/Support.php)
@@ -966,28 +1092,21 @@ S 450-453 method FrozenClock::now
 S 455-458 method FrozenClock::advance
 S 461-465 function days_between
 R 14:5 imports Support -> Attribute
-R 14:5 imports Support -> Attribute
-R 15:5 imports Support -> Closure
 R 15:5 imports Support -> Closure
 R 16:5 imports Support -> Countable
-R 16:5 imports Support -> Countable
-R 17:5 imports Support -> DateInterval
 R 17:5 imports Support -> DateInterval
 R 18:5 imports Support -> DateTimeImmutable
-R 18:5 imports Support -> DateTimeImmutable
-R 19:5 imports Support -> DateTimeZone
 R 19:5 imports Support -> DateTimeZone
 R 20:5 imports Support -> IteratorAggregate
-R 20:5 imports Support -> IteratorAggregate
 R 21:5 imports Support -> RuntimeException
-R 21:5 imports Support -> RuntimeException
-R 22:5 imports Support -> Traversable
 R 22:5 imports Support -> Traversable
 R 32:3 references ErrorCode -> Attribute
+R 32:13 references ErrorCode -> Attribute
 R 42:3 references ShelfException -> ErrorCode
 R 43:30 extends ShelfException -> RuntimeException
 R 61:54 calls ShelfException::code -> getAttributes
 R 61:29 calls ShelfException::code -> ReflectionClass
+R 61:68 references ShelfException::code -> ErrorCode
 R 65:32 calls ShelfException::code -> newInstance
 R 69:3 references NotFoundException -> ErrorCode
 R 70:33 extends NotFoundException -> ShelfException
@@ -1017,6 +1136,7 @@ R 157:18 calls str_limit -> mb_substr
 R 157:47 calls str_limit -> mb_strlen
 R 176:14 calls env -> getenv
 R 180:19 calls env -> strtolower
+R 194:14 references retry -> ShelfException
 R 199:13 calls retry -> usleep
 R 209:13 calls Assert::notBlank -> trim
 R 210:23 calls Assert::notBlank -> ValidationException
@@ -1029,7 +1149,9 @@ R 235:23 calls Assert::inRange -> ValidationException
 R 236:27 calls Assert::inRange -> sprintf
 R 276:16 calls HasEvents::log -> recordEvent
 R 276:32 calls HasEvents::log -> LogEntry
+R 282:14 references Loggable -> Closure
 R 286:34 calls Loggable::setLogger -> fromCallable
+R 286:25 references Loggable::setLogger -> Closure
 R 291:25 calls Loggable::log -> __invoke (name-matched: library/Services.php)
 R 291:34 calls Loggable::log -> sprintf
 R 297:9 implements Auditable -> HasEvents
@@ -1039,6 +1161,7 @@ R 305:16 calls Auditable::audit -> eventLog
 R 324:29 implements Collection -> IteratorAggregate
 R 324:48 implements Collection -> Countable
 R 324:59 implements Collection -> Arrayable
+R 333:45 references Collection::of -> Traversable
 R 333:59 calls Collection::of -> iterator_to_array
 R 333:94 calls Collection::of -> array_values
 R 338:27 calls Collection::map -> array_map
@@ -1052,15 +1175,24 @@ R 388:27 calls Collection::take -> array_slice
 R 388:56 calls Collection::take -> min
 R 393:9 calls Collection::each -> array_walk
 R 403:16 calls Collection::count -> count
+R 406:37 references Collection::getIterator -> Generator
 R 413:16 calls Collection::toArray -> array_map
+R 414:51 references Collection::toArray -> Arrayable
 R 414:70 calls Collection::toArray -> toArray
+R 426:28 references Clock::now -> DateTimeImmutable
 R 429:36 implements SystemClock -> Clock
+R 431:50 references SystemClock::__construct -> DateTimeZone
 R 431:75 calls SystemClock::__construct -> DateTimeZone
+R 435:28 references SystemClock::now -> DateTimeImmutable
 R 437:20 calls SystemClock::now -> DateTimeImmutable
 R 441:36 implements FrozenClock -> Clock
+R 443:13 references FrozenClock -> DateTimeImmutable
 R 447:26 calls FrozenClock::__construct -> DateTimeImmutable
+R 450:28 references FrozenClock::now -> DateTimeImmutable
 R 457:34 calls FrozenClock::advance -> add (name-matched: library/Domain.php)
 R 457:42 calls FrozenClock::advance -> DateInterval
+R 461:23 references days_between -> DateTimeImmutable
+R 461:48 references days_between -> DateTimeImmutable
 R 463:20 calls days_between -> diff
 
 == library/console.php (362 lines)
@@ -1129,44 +1261,24 @@ R 18:1 imports console -> Services (name-matched: library/Services.php)
 R 19:1 imports console -> Reports (name-matched: library/Reports.php)
 R 19:1 imports console -> Reports.php
 R 21:5 imports console -> Attribute
-R 21:5 imports console -> Attribute
-R 22:5 imports console -> ReflectionClass
 R 22:5 imports console -> ReflectionClass
 R 23:19 imports console -> Book (name-matched: library/Domain.php)
-R 23:19 imports console -> Book (name-matched: library/Domain.php)
-R 23:25 imports console -> Genre (name-matched: library/Domain.php)
 R 23:25 imports console -> Genre (name-matched: library/Domain.php)
 R 23:32 imports console -> Isbn (name-matched: library/Domain.php)
-R 23:32 imports console -> Isbn (name-matched: library/Domain.php)
-R 23:38 imports console -> Member (name-matched: library/Domain.php)
 R 23:38 imports console -> Member (name-matched: library/Domain.php)
 R 23:46 imports console -> MembershipTier (name-matched: library/Domain.php)
-R 23:46 imports console -> MembershipTier (name-matched: library/Domain.php)
-R 24:24 imports console -> BookRepository (name-matched: library/Repository.php)
 R 24:24 imports console -> BookRepository (name-matched: library/Repository.php)
 R 24:40 imports console -> JsonFileStore (name-matched: library/Repository.php)
-R 24:40 imports console -> JsonFileStore (name-matched: library/Repository.php)
-R 24:55 imports console -> LoanRepository (name-matched: library/Repository.php)
 R 24:55 imports console -> LoanRepository (name-matched: library/Repository.php)
 R 24:71 imports console -> MemberRepository (name-matched: library/Repository.php)
-R 24:71 imports console -> MemberRepository (name-matched: library/Repository.php)
-R 25:5 imports console -> ReportBuilder (name-matched: library/Reports.php)
 R 25:5 imports console -> ReportBuilder (name-matched: library/Reports.php)
 R 26:5 imports console -> LendingService (name-matched: library/Services.php)
-R 26:5 imports console -> LendingService (name-matched: library/Services.php)
-R 27:5 imports console -> MembershipService (name-matched: library/Services.php)
 R 27:5 imports console -> MembershipService (name-matched: library/Services.php)
 R 28:5 imports console -> NotificationService (name-matched: library/Services.php)
-R 28:5 imports console -> NotificationService (name-matched: library/Services.php)
-R 29:20 imports console -> Clock (name-matched: library/Support.php)
 R 29:20 imports console -> Clock (name-matched: library/Support.php)
 R 29:27 imports console -> FrozenClock (name-matched: library/Support.php)
-R 29:27 imports console -> FrozenClock (name-matched: library/Support.php)
-R 29:40 imports console -> ShelfException (name-matched: library/Support.php)
 R 29:40 imports console -> ShelfException (name-matched: library/Support.php)
 R 29:56 imports console -> SystemClock (name-matched: library/Support.php)
-R 29:56 imports console -> SystemClock (name-matched: library/Support.php)
-R 29:69 imports console -> ValidationException (name-matched: library/Support.php)
 R 29:69 imports console -> ValidationException (name-matched: library/Support.php)
 R 31:5 imports console -> formatter_for (name-matched: library/Reports.php)
 R 32:5 imports console -> wire_services (name-matched: library/Services.php)
@@ -1175,6 +1287,7 @@ R 34:5 imports console -> VERSION (name-matched: library/Repository.php)
 R 36:1 calls console -> define
 R 36:28 calls console -> microtime
 R 42:3 references AsCommand -> Attribute
+R 42:13 references AsCommand -> Attribute
 R 64:9 calls Output::line -> fwrite
 R 69:9 calls Output::error -> fwrite
 R 69:31 calls Output::error -> color
@@ -1185,14 +1298,22 @@ R 98:35 calls Input::__construct -> array_pad
 R 98:45 calls Input::__construct -> explode
 R 98:58 calls Input::__construct -> substr
 R 110:54 calls Input::argument -> ValidationException (name-matched: library/Support.php)
+R 128:38 references Container::set -> Closure
 R 135:77 calls Container::get -> ShelfException (name-matched: library/Support.php)
+R 145:52 references Command::__construct -> Container
+R 145:93 references Command::__construct -> Output
+R 149:34 references Command::run -> Input
+R 151:33 references Command::metadata -> AsCommand
 R 153:52 calls Command::metadata -> getAttributes
 R 153:27 calls Command::metadata -> ReflectionClass
+R 153:66 references Command::metadata -> AsCommand
 R 154:29 calls Command::metadata -> newInstance
 R 154:50 calls Command::metadata -> AsCommand
+R 157:35 references Command::lending -> LendingService (name-matched: library/Services.php)
 R 159:34 calls Command::lending -> get
 R 163:3 references BorrowCommand -> AsCommand
 R 164:35 extends BorrowCommand -> Command
+R 166:25 references BorrowCommand::run -> Input
 R 168:35 calls BorrowCommand::run -> borrow (name-matched: library/Services.php)
 R 168:24 calls BorrowCommand::run -> lending
 R 168:50 calls BorrowCommand::run -> argument
@@ -1206,6 +1327,7 @@ R 173:29 calls BorrowCommand::run -> format
 R 173:20 calls BorrowCommand::run -> dueAt (name-matched: library/Domain.php)
 R 179:3 references ReturnCommand -> AsCommand
 R 180:35 extends ReturnCommand -> Command
+R 182:25 references ReturnCommand::run -> Input
 R 184:35 calls ReturnCommand::run -> giveBack (name-matched: library/Services.php)
 R 184:24 calls ReturnCommand::run -> lending
 R 184:58 calls ReturnCommand::run -> argument
@@ -1213,16 +1335,20 @@ R 185:21 calls ReturnCommand::run -> line
 R 185:33 calls ReturnCommand::run -> isZero (name-matched: library/Domain.php)
 R 190:3 references ReportCommand -> AsCommand
 R 191:35 extends ReportCommand -> Command
+R 193:25 references ReportCommand::run -> Input
 R 195:38 calls ReportCommand::run -> get
 R 196:9 calls ReportCommand::run -> assert
+R 196:36 references ReportCommand::run -> ReportBuilder (name-matched: library/Reports.php)
 R 197:27 calls ReportCommand::run -> option
 R 198:21 calls ReportCommand::run -> line
 R 198:36 calls ReportCommand::run -> render (name-matched: library/Reports.php)
 R 198:51 calls ReportCommand::run -> argument
 R 203:3 references RemindCommand -> AsCommand
 R 204:35 extends RemindCommand -> Command
+R 206:25 references RemindCommand::run -> Input
 R 208:39 calls RemindCommand::run -> get
 R 209:9 calls RemindCommand::run -> assert
+R 209:37 references RemindCommand::run -> NotificationService (name-matched: library/Services.php)
 R 210:29 calls RemindCommand::run -> remindOverdue (name-matched: library/Services.php)
 R 210:61 calls RemindCommand::run -> overdue (name-matched: library/Reports.php)
 R 210:50 calls RemindCommand::run -> lending
@@ -1232,20 +1358,28 @@ R 212:42 calls RemindCommand::run -> color
 R 214:21 calls RemindCommand::run -> line
 R 219:3 references UpgradeCommand -> AsCommand
 R 220:36 extends UpgradeCommand -> Command
+R 222:25 references UpgradeCommand::run -> Input
 R 224:41 calls UpgradeCommand::run -> get
 R 225:9 calls UpgradeCommand::run -> assert
+R 225:39 references UpgradeCommand::run -> MembershipService (name-matched: library/Services.php)
 R 226:36 calls UpgradeCommand::run -> option
 R 227:21 calls UpgradeCommand::run -> line
 R 227:26 calls UpgradeCommand::run -> sprintf
 R 227:71 calls UpgradeCommand::run -> upgradeFrequentBorrowers (name-matched: library/Services.php)
 R 232:3 references HelpCommand -> AsCommand
 R 233:33 extends HelpCommand -> Command
+R 236:33 references HelpCommand::__construct -> Container
+R 236:55 references HelpCommand::__construct -> Output
 R 238:17 calls HelpCommand::__construct -> __construct
+R 241:25 references HelpCommand::run -> Input
 R 243:21 calls HelpCommand::run -> line
 R 244:21 calls HelpCommand::run -> line
 R 246:25 calls HelpCommand::run -> line
 R 246:30 calls HelpCommand::run -> sprintf
 R 246:69 calls HelpCommand::run -> metadata
+R 261:50 references Application::__construct -> Container
+R 261:89 references Application::__construct -> Output
+R 265:30 references Application::register -> Command
 R 268:31 calls Application::register -> metadata
 R 278:22 calls Application::run -> Input
 R 278:28 calls Application::run -> array_slice
@@ -1253,20 +1387,33 @@ R 280:50 calls Application::run -> HelpCommand
 R 282:30 calls Application::run -> run
 R 282:38 calls Application::run -> Input
 R 282:44 calls Application::run -> array_slice
+R 283:18 references Application::run -> ValidationException (name-matched: library/Support.php)
 R 284:25 calls Application::run -> error
 R 284:35 calls Application::run -> first (name-matched: library/Support.php)
 R 284:50 calls Application::run -> getMessage
+R 286:18 references Application::run -> ShelfException (name-matched: library/Support.php)
 R 287:25 calls Application::run -> error
 R 287:31 calls Application::run -> sprintf
 R 287:54 calls Application::run -> code (name-matched: library/Support.php)
 R 287:66 calls Application::run -> getMessage
+R 293:15 references seed -> BookRepository (name-matched: library/Repository.php)
+R 293:38 references seed -> MemberRepository (name-matched: library/Repository.php)
+R 296:101 references seed -> Genre (name-matched: library/Domain.php)
+R 297:67 references seed -> Genre (name-matched: library/Domain.php)
+R 298:76 references seed -> Genre (name-matched: library/Domain.php)
+R 299:59 references seed -> Genre (name-matched: library/Domain.php)
 R 302:17 calls seed -> save (name-matched: library/Repository.php)
 R 302:26 calls seed -> Book (name-matched: library/Domain.php)
 R 302:37 calls seed -> parse (name-matched: library/Domain.php)
+R 302:31 references seed -> Isbn (name-matched: library/Domain.php)
 R 304:15 calls seed -> save (name-matched: library/Repository.php)
 R 304:24 calls seed -> Member (name-matched: library/Domain.php)
+R 304:66 references seed -> MembershipTier (name-matched: library/Domain.php)
 R 305:15 calls seed -> save (name-matched: library/Repository.php)
 R 305:24 calls seed -> Member (name-matched: library/Domain.php)
+R 308:20 references bootstrap -> Clock (name-matched: library/Support.php)
+R 308:34 references bootstrap -> Output
+R 308:48 references bootstrap -> Application
 R 310:22 calls bootstrap -> Container
 R 311:17 calls bootstrap -> set
 R 311:50 calls bootstrap -> BookRepository (name-matched: library/Repository.php)
@@ -1275,13 +1422,16 @@ R 312:52 calls bootstrap -> MemberRepository (name-matched: library/Repository.p
 R 313:17 calls bootstrap -> set
 R 313:50 calls bootstrap -> LoanRepository (name-matched: library/Repository.php)
 R 314:17 calls bootstrap -> set
+R 314:44 references bootstrap -> Container
 R 314:70 calls bootstrap -> wire_services (name-matched: library/Services.php)
 R 315:13 calls bootstrap -> get
 R 316:13 calls bootstrap -> get
 R 317:13 calls bootstrap -> get
 R 321:21 calls bootstrap -> set
+R 321:41 references bootstrap -> Container
 R 321:62 calls bootstrap -> get
 R 323:17 calls bootstrap -> set
+R 323:43 references bootstrap -> Container
 R 323:64 calls bootstrap -> ReportBuilder (name-matched: library/Reports.php)
 R 324:13 calls bootstrap -> get
 R 325:13 calls bootstrap -> get
