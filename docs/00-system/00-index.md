@@ -22,6 +22,7 @@ Central map of this vault. Start here.
 - [[014-local-project-web]] — ADR: one local website for atlas and duplicate review
 - [[015-duplicate-review-decisions]] — ADR: reversible review decisions for duplicate groups
 - [[016-context-budget]] — ADR: estimated token budget and progressive detail
+- ADR numbers 017, 018 and 020 are unused: 017 and 018 were reserved by drafts that never merged (see [[019-shared-review-decisions]]).
 - [[019-shared-review-decisions]] — ADR: shared review decisions across dashboard, CLI and MCP
 - [[021-index-writer-and-generations]] — ADR: project writer ownership and explicit index completion
 - [[022-mcp-duplicate-findings]] — ADR: review-aware duplicate findings over MCP
