@@ -59,7 +59,7 @@ use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
     SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
-use mct_tree_sitter::{first_error, location};
+use mct_tree_sitter::{find_named_child, first_error, location};
 use std::collections::HashSet;
 use tree_sitter::{Node, Parser};
 
@@ -374,15 +374,7 @@ impl<'a> Walker<'a> {
         to_name: String,
         loc: Location,
     ) {
-        if to_name.is_empty() {
-            return;
-        }
-        self.relations.push(SymbolRelation {
-            from,
-            kind,
-            to_name,
-            location: loc,
-        });
+        mct_tree_sitter::push_relation(&mut self.relations, from, kind, to_name, loc);
     }
 
     fn visit_children(&mut self, node: Node, owner: SymbolId, depth: u32, parents: Parents) {
@@ -426,7 +418,7 @@ impl<'a> Walker<'a> {
     /// Indexes every selector of `rule_set` and returns what its nested
     /// rules resolve against (see [`Parents`]).
     fn index_rule_set(&mut self, rule_set: Node, parents: Parents, depth: u32) -> Inner {
-        let Some(selectors) = find_child(rule_set, "selectors") else {
+        let Some(selectors) = find_named_child(rule_set, "selectors") else {
             return match parents {
                 Parents::Unexpanded => Inner::Unexpanded,
                 _ => Inner::Unresolved,
@@ -615,14 +607,6 @@ impl<'a> Walker<'a> {
             self.push_symbol(name, SymbolKind::Rule, loc);
         }
     }
-}
-
-fn find_child<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
-    let mut cursor = node.walk();
-    let found = node
-        .named_children(&mut cursor)
-        .find(|child| child.kind() == kind);
-    found
 }
 
 /// Decodes CSS escapes the way CSS Syntax 3 §4.3.7 does, so escaped
@@ -854,12 +838,12 @@ fn import_target(node: Node, source: &str) -> Option<String> {
     for child in node.named_children(&mut cursor) {
         match child.kind() {
             "string_value" => {
-                if let Some(content) = find_child(child, "string_content") {
+                if let Some(content) = find_named_child(child, "string_content") {
                     return Some(text(content, source).to_string());
                 }
             }
             "call_expression" => {
-                if let Some(args) = find_child(child, "arguments") {
+                if let Some(args) = find_named_child(child, "arguments") {
                     let mut acur = args.walk();
                     for arg in args.named_children(&mut acur) {
                         if let Some(target) = import_target_value(arg, source) {
@@ -877,7 +861,9 @@ fn import_target(node: Node, source: &str) -> Option<String> {
 
 fn import_target_value(node: Node, source: &str) -> Option<String> {
     match node.kind() {
-        "string_value" => find_child(node, "string_content").map(|c| text(c, source).to_string()),
+        "string_value" => {
+            find_named_child(node, "string_content").map(|c| text(c, source).to_string())
+        }
         "plain_value" => Some(text(node, source).to_string()),
         _ => None,
     }

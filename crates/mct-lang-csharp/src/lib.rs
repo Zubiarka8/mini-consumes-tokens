@@ -4,7 +4,7 @@ use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
     SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
-use mct_tree_sitter::{first_error, location};
+use mct_tree_sitter::{find_child, first_error, location};
 use tree_sitter::{Node, Parser};
 
 pub struct CSharpParser;
@@ -110,17 +110,14 @@ impl<'a> Walker<'a> {
         location: Location,
         parent: Option<String>,
     ) -> SymbolId {
-        let id = self.next_id;
-        self.next_id += 1;
-        self.symbols.push(SymbolRecord {
-            id,
+        mct_tree_sitter::push_symbol(
+            &mut self.symbols,
+            &mut self.next_id,
             name,
             kind,
             location,
             parent,
-            level: None,
-        });
-        id
+        )
     }
 
     fn push_relation(
@@ -130,15 +127,7 @@ impl<'a> Walker<'a> {
         to_name: String,
         loc: Location,
     ) {
-        if to_name.is_empty() {
-            return;
-        }
-        self.relations.push(SymbolRelation {
-            from,
-            kind,
-            to_name,
-            location: loc,
-        });
+        mct_tree_sitter::push_relation(&mut self.relations, from, kind, to_name, loc);
     }
 
     fn field_text(&self, node: Node, field: &str) -> String {
@@ -531,12 +520,6 @@ impl<'a> Walker<'a> {
             ..Default::default()
         });
     }
-}
-
-fn find_child<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
-    let mut cursor = node.walk();
-    let children: Vec<Node> = node.children(&mut cursor).collect();
-    children.into_iter().find(|n| n.kind() == kind)
 }
 
 /// The method/member name being invoked: a bare `identifier`, a generic

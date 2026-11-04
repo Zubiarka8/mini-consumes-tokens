@@ -7,12 +7,7 @@ use mct_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
 use mct_lang_go::GoParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
-    GoParser
-        .parse(&SourceFile {
-            relative_path: "calc.go".to_string(),
-            contents: src.to_string(),
-        })
-        .expect("valid Go source should parse")
+    mct_corpus::parse_source(&GoParser, "calc.go", "Go", src)
 }
 
 #[test]

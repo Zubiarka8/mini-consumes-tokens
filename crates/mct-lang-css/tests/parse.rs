@@ -7,12 +7,7 @@ use mct_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
 use mct_lang_css::CssParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
-    CssParser
-        .parse(&SourceFile {
-            relative_path: "style.css".to_string(),
-            contents: src.to_string(),
-        })
-        .expect("valid CSS source should parse")
+    mct_corpus::parse_source(&CssParser, "style.css", "CSS", src)
 }
 
 #[test]

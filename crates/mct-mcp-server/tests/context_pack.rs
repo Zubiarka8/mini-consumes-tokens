@@ -14,10 +14,13 @@
 // untrusted repo content (see crates/mct-mcp-server/src/ for that policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+#[path = "common/server.rs"]
+mod server_fixture;
+use server_fixture::build_server_at as build_server;
+
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use mct_index::{ExcludeSet, Index};
 use mct_mcp_server::server::MctServer;
 use rmcp::model::CallToolResult;
 use serde_json::{json, Value};
@@ -40,13 +43,6 @@ fn content_of(result: &CallToolResult) -> String {
         .map(|t| t.text.clone())
         .collect::<Vec<_>>()
         .join("\n")
-}
-
-async fn build_server(root: &Path) -> MctServer {
-    let registry = mct_mcp_server::registry::build_registry();
-    let mut index = Index::open_in_memory(root, ExcludeSet::default()).unwrap();
-    index.reindex(&registry, false).unwrap();
-    MctServer::new(index, registry)
 }
 
 async fn call(server: &MctServer, tool: &str, args: &Value) -> CallToolResult {

@@ -47,6 +47,45 @@ use mct_core::{
 };
 use mct_index::{ExcludeSet, Index};
 
+/// Parses `src` as the file `relative_path` with `parser`, for a language
+/// crate's `tests/parse.rs`. `language` only words the failure message.
+pub fn parse_source(
+    parser: &dyn LanguageParser,
+    relative_path: &str,
+    language: &str,
+    src: &str,
+) -> ParsedFile {
+    parser
+        .parse(&SourceFile {
+            relative_path: relative_path.to_string(),
+            contents: src.to_string(),
+        })
+        .unwrap_or_else(|_| panic!("valid {language} source should parse"))
+}
+
+/// Indexes the fixture project at `root` in memory with only `parser`
+/// registered, for a language crate's `tests/index_integration.rs`. Asserts
+/// that exactly `expected_files` files parsed without issues; `files` names
+/// them in the failure message.
+pub fn open_indexed(
+    root: &Path,
+    parser: Arc<dyn LanguageParser>,
+    expected_files: usize,
+    files: &str,
+) -> Index {
+    let mut registry = LanguageRegistry::new();
+    registry.register(parser);
+    let mut index = Index::open_in_memory(root, ExcludeSet::default()).unwrap();
+    let report = index.reindex(&registry, false).unwrap();
+    assert_eq!(report.files_parsed, expected_files, "{files}");
+    assert!(
+        report.issues.is_empty(),
+        "no parse issues expected: {:?}",
+        report.issues
+    );
+    index
+}
+
 /// Defines `fn corpus() -> &'static Corpus` for `$parser` (loaded once per
 /// test binary) plus one `#[test]` per shared check. Invoke it at the top
 /// level of a crate's `tests/corpus.rs`.

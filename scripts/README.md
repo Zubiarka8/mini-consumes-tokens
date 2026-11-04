@@ -94,7 +94,7 @@ success, 1 on a failed check, 2 on a usage error.
 `check.ps1`, `reinstall.ps1`, `mcp-smoke.ps1`, `new-tool-check.ps1`,
 `new-language-check.ps1`, `token-report.ps1`, `corpus-report.ps1`,
 `parse-probe.ps1` and `install-hooks.ps1` — one
-per script above, same flags, output lines, logs and exit codes. `branches-status`, `publish-branch` and `release` are unix-only for now. The
+per script above, same flags, output lines, logs and exit codes. `branches-status`, `preview-branches`, `publish-branch`, `reindex-delay-smoke`, `release`, `review-compat` and `sync-skills` are unix-only for now. The
 differences are Windows ones, listed in `windows/README.md`.
 
 ## Codex review scripts

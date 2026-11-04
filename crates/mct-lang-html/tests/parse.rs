@@ -7,12 +7,7 @@ use mct_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
 use mct_lang_html::HtmlParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
-    HtmlParser
-        .parse(&SourceFile {
-            relative_path: "index.html".to_string(),
-            contents: src.to_string(),
-        })
-        .expect("valid HTML source should parse")
+    mct_corpus::parse_source(&HtmlParser, "index.html", "HTML", src)
 }
 
 #[test]

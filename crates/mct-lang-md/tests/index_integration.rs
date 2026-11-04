@@ -31,18 +31,12 @@ fn fixture_root() -> PathBuf {
 }
 
 fn open_indexed() -> Index {
-    let root = fixture_root();
-    let mut registry = LanguageRegistry::new();
-    registry.register(Arc::new(MarkdownParser));
-    let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
-    let report = index.reindex(&registry, false).unwrap();
-    assert_eq!(report.files_parsed, 1, "architecture.md");
-    assert!(
-        report.issues.is_empty(),
-        "no parse issues expected: {:?}",
-        report.issues
-    );
-    index
+    mct_corpus::open_indexed(
+        &fixture_root(),
+        Arc::new(MarkdownParser),
+        1,
+        "architecture.md",
+    )
 }
 
 #[test]
