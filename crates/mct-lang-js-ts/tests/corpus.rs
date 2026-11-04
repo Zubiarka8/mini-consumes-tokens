@@ -231,3 +231,22 @@ fn index_answers_cross_file_queries() {
         .iter()
         .any(|r| r.relative_path == "src/ui/OrderTable.tsx" && r.kind == "references"));
 }
+
+/// Issue #272: a component named in JSX. The file's module and the function declared in it share
+/// a name, and no syntax pins the kind of this reference, so it used to read
+/// `ambiguous among 2` although there is one target.
+#[test]
+fn a_component_reference_resolves_to_the_function_not_to_its_file_module() {
+    let index = corpus().index();
+    let hits: Vec<_> = index
+        .find_references("OrderTable")
+        .unwrap()
+        .into_iter()
+        .filter(|h| h.kind == "references")
+        .collect();
+    assert!(!hits.is_empty(), "the corpus no longer holds this relation");
+    for hit in &hits {
+        assert_eq!(hit.resolution, mct_index::Resolution::Resolved, "{hit:?}");
+        assert_eq!(hit.candidate_count, 1, "{hit:?}");
+    }
+}
