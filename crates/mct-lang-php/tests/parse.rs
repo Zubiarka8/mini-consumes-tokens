@@ -190,8 +190,8 @@ fn use_and_require_are_imports() {
     assert!(imports.contains(&"User"));
     assert!(imports.contains(&"Order"));
     assert!(
-        imports.contains(&"Inv"),
-        "aliased import is recorded under its alias"
+        imports.contains(&"Invoice") && !imports.contains(&"Inv"),
+        "an aliased import names the imported class, not the file-local alias"
     );
     assert!(imports.contains(&"bootstrap.php"));
     assert!(
@@ -248,4 +248,333 @@ fn deeply_nested_expression_does_not_stack_overflow() {
         result.is_ok(),
         "deeply nested input must not crash the parser, even if truncated"
     );
+}
+
+// --- Namespace-aware evidence -------------------------------------------
+
+use mct_core::RelationTarget;
+
+/// The `RelationTarget` attached to the first relation of `kind` to `to`.
+fn target_of<'a>(
+    parsed: &'a ParsedFile,
+    kind: RelationKind,
+    to: &str,
+) -> Option<&'a RelationTarget> {
+    let index = parsed
+        .relations
+        .iter()
+        .position(|r| r.kind == kind && r.to_name == to)?;
+    parsed.relation_targets.iter().find(|t| t.relation == index)
+}
+
+fn module_aliases(parsed: &ParsedFile) -> Vec<&str> {
+    parsed
+        .symbol_aliases
+        .iter()
+        .map(|a| a.name.as_str())
+        .collect()
+}
+
+#[test]
+fn the_module_answers_to_its_namespaces_and_declared_types() {
+    let parsed = parse("<?php\nnamespace App\\Models;\nclass User {}\ninterface Owned {}\n");
+    let aliases = module_aliases(&parsed);
+    assert!(aliases.contains(&"\\App\\Models"), "{aliases:?}");
+    assert!(
+        aliases.contains(&"User") && aliases.contains(&"Owned"),
+        "{aliases:?}"
+    );
+    assert!(parsed.symbol_aliases.iter().all(|a| a.symbol == 0));
+}
+
+#[test]
+fn a_file_without_a_namespace_is_in_the_global_one() {
+    let parsed = parse("<?php\nclass Plain {}\n");
+    assert!(module_aliases(&parsed).contains(&"\\"));
+}
+
+#[test]
+fn a_braced_namespace_block_ends_with_its_brace() {
+    let parsed = parse(
+        "<?php\nnamespace A { class One extends Base {} }\nnamespace { class Two extends Base {} }\n",
+    );
+    let aliases = module_aliases(&parsed);
+    assert!(
+        aliases.contains(&"\\A") && aliases.contains(&"\\"),
+        "{aliases:?}"
+    );
+    let bases: Vec<_> = parsed
+        .relation_targets
+        .iter()
+        .filter_map(|t| t.target_module.as_deref())
+        .collect();
+    assert_eq!(bases, ["\\A", "\\"]);
+}
+
+#[test]
+fn extends_and_implements_carry_the_namespace_they_resolve_to() {
+    let parsed = parse(
+        "<?php\nnamespace App\\Http;\nuse Illuminate\\Routing\\Controller as Base;\nclass C extends Base implements \\Countable, Contracts\\Thing {}\n",
+    );
+    let namespace = |kind, to| {
+        target_of(&parsed, kind, to)
+            .and_then(|t| t.target_module.as_deref())
+            .map(str::to_string)
+    };
+    // The alias resolves to the imported class, under its real name.
+    assert_eq!(
+        namespace(RelationKind::Extends, "Controller").as_deref(),
+        Some("\\Illuminate\\Routing")
+    );
+    assert_eq!(
+        namespace(RelationKind::Implements, "Countable").as_deref(),
+        Some("\\")
+    );
+    assert_eq!(
+        namespace(RelationKind::Implements, "Thing").as_deref(),
+        Some("\\App\\Http\\Contracts")
+    );
+}
+
+#[test]
+fn type_declarations_are_references_from_the_declaring_function() {
+    let parsed = parse(
+        "<?php\nnamespace App;\nuse App\\Models\\Order;\nclass S {\n  private ?Customer $c;\n  public function f(Order|int $o, self $s, string $n): Receipt { try {} catch (Boom | \\RuntimeException $e) {} }\n}\n",
+    );
+    let references = |to: &str| {
+        let owner = parsed
+            .relations
+            .iter()
+            .find(|r| r.kind == RelationKind::References && r.to_name == to)
+            .map(|r| r.from);
+        owner
+            .and_then(|id| parsed.symbols.iter().find(|s| s.id == id))
+            .map(|s| s.name.as_str())
+    };
+    assert_eq!(references("Order"), Some("f"));
+    assert_eq!(references("Receipt"), Some("f"));
+    assert_eq!(references("Boom"), Some("f"));
+    assert_eq!(references("RuntimeException"), Some("f"));
+    // A property type belongs to the class.
+    assert_eq!(references("Customer"), Some("S"));
+    // Built-in and relative types name no declaration.
+    for builtin in ["int", "string", "self"] {
+        assert_eq!(references(builtin), None, "{builtin}");
+    }
+    assert_eq!(
+        target_of(&parsed, RelationKind::References, "Customer")
+            .and_then(|t| t.target_module.as_deref()),
+        Some("\\App")
+    );
+}
+
+#[test]
+fn class_constants_instanceof_and_static_access_reference_the_class() {
+    let parsed = parse(
+        "<?php\nnamespace App;\nuse Lib\\Post;\nfunction f($x) { $a = Post::class; $b = Post::STATUS; $c = Post::$registry; return $x instanceof Post; }\n",
+    );
+    let count = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::References && r.to_name == "Post")
+        .count();
+    assert_eq!(count, 4);
+    assert!(parsed
+        .relation_targets
+        .iter()
+        .all(|t| t.target_module.as_deref() == Some("\\Lib")));
+}
+
+#[test]
+fn a_static_call_is_qualified_by_the_class_it_names() {
+    let parsed = parse(
+        "<?php\nnamespace App;\nuse Lib\\Post;\nclass S extends Base {\n  function f() { Post::find(1); self::a(); static::b(); parent::c(); $k::d(); }\n}\n",
+    );
+    let qualifier = |to: &str| {
+        target_of(&parsed, RelationKind::Calls, to)
+            .map(|t| (t.qualifier.clone(), t.target_module.clone(), t.member))
+    };
+    assert_eq!(
+        qualifier("find"),
+        Some((Some("Post".into()), Some("\\Lib".into()), false))
+    );
+    assert_eq!(
+        qualifier("a"),
+        Some((Some("S".into()), Some("\\App".into()), false))
+    );
+    assert_eq!(qualifier("b"), qualifier("a"));
+    assert_eq!(
+        qualifier("c"),
+        Some((Some("Base".into()), Some("\\App".into()), false))
+    );
+    // `$k::d()`: the class is a runtime value, so only "some method".
+    assert_eq!(qualifier("d"), Some((None, None, true)));
+}
+
+#[test]
+fn this_is_qualified_in_a_class_but_not_in_a_trait_or_anonymous_class() {
+    let parsed = parse(
+        "<?php\nclass K { function f() { $this->own(); $o->other(); } }\ntrait T { function g() { $this->mixed(); } }\nfunction h() { return new class { function i() { $this->anon(); } }; }\n",
+    );
+    let target = |to| target_of(&parsed, RelationKind::Calls, to).unwrap();
+    assert_eq!(target("own").qualifier.as_deref(), Some("K"));
+    assert!(!target("own").member);
+    // Another receiver's class is unknown.
+    assert!(target("other").member && target("other").qualifier.is_none());
+    // A trait's `$this` is whichever class uses it; an anonymous class has no name.
+    assert!(target("mixed").member && target("mixed").qualifier.is_none());
+    assert!(target("anon").member && target("anon").qualifier.is_none());
+}
+
+#[test]
+fn a_function_call_is_qualified_only_when_its_namespace_is_known() {
+    let parsed = parse(
+        "<?php\nnamespace App;\nuse function Lib\\helper;\nfunction f() { helper(); strlen('x'); \\Other\\run(); $dynamic(); }\n",
+    );
+    let namespace =
+        |to| target_of(&parsed, RelationKind::Calls, to).and_then(|t| t.target_module.clone());
+    assert_eq!(namespace("helper").as_deref(), Some("\\Lib"));
+    assert_eq!(namespace("run").as_deref(), Some("\\Other"));
+    // `strlen` may be `App\strlen` or the global one: nothing is claimed.
+    assert_eq!(namespace("strlen"), None);
+    // `$dynamic()` has no static name.
+    assert!(parsed.relations.iter().all(|r| r.to_name != "dynamic"));
+}
+
+#[test]
+fn dynamic_class_names_record_no_relation() {
+    let parsed = parse(
+        "<?php\nfunction f($class, $m) { new $class(); $class::make(); $o->$m(); new static; new self; }\n",
+    );
+    let names: Vec<_> = parsed
+        .relations
+        .iter()
+        .map(|r| r.to_name.as_str())
+        .collect();
+    assert_eq!(names, ["make"], "{names:?}");
+}
+
+// --- Laravel routes -------------------------------------------------------
+
+fn calls_with_qualifier(parsed: &ParsedFile) -> Vec<(String, Option<String>)> {
+    parsed
+        .relations
+        .iter()
+        .enumerate()
+        .filter(|(_, r)| r.kind == RelationKind::Calls)
+        .map(|(i, r)| {
+            let qualifier = parsed
+                .relation_targets
+                .iter()
+                .find(|t| t.relation == i)
+                .and_then(|t| t.qualifier.clone());
+            (r.to_name.clone(), qualifier)
+        })
+        // The builder calls themselves, not the actions they route to.
+        .filter(|(name, _)| {
+            !matches!(
+                name.as_str(),
+                "resource"
+                    | "apiResource"
+                    | "singleton"
+                    | "apiSingleton"
+                    | "softDeletableResources"
+                    | "creatable"
+                    | "destroyable"
+                    | "only"
+                    | "except"
+                    | "controller"
+                    | "group"
+                    | "prefix"
+            )
+        })
+        .collect()
+}
+
+const ROUTE_HEAD: &str = "<?php\nuse App\\Http\\Controllers\\PhotoController as Photos;\nuse Illuminate\\Support\\Facades\\Route;\n";
+
+#[test]
+fn a_resource_route_lists_its_conventional_methods() {
+    let parsed = parse(&format!("{ROUTE_HEAD}Route::resource('p', Photos::class);\nRoute::apiResource('q', Photos::class)->except('destroy');\n"));
+    let calls = calls_with_qualifier(&parsed);
+    let methods = |count: std::ops::Range<usize>| -> Vec<&str> {
+        calls[count].iter().map(|(m, _)| m.as_str()).collect()
+    };
+    assert_eq!(
+        methods(0..7),
+        ["index", "create", "store", "show", "edit", "update", "destroy"]
+    );
+    assert_eq!(methods(7..11), ["index", "store", "show", "update"]);
+    assert!(calls
+        .iter()
+        .all(|(_, q)| q.as_deref() == Some("PhotoController")));
+}
+
+#[test]
+fn a_resource_with_a_computed_method_list_records_no_action() {
+    let parsed = parse(&format!("{ROUTE_HEAD}Route::resource('p', Photos::class)->only($methods);\nRoute::resource('p', Photos::class)->only(['a', $b]);\n"));
+    assert!(calls_with_qualifier(&parsed).is_empty());
+}
+
+#[test]
+fn only_the_route_facade_defines_routes() {
+    // `Route` in a namespaced file without the facade import is some other class.
+    let parsed = parse("<?php\nnamespace App;\nRoute::get('/', [A::class, 'x']);\n");
+    assert!(calls_with_qualifier(&parsed)
+        .iter()
+        .all(|(m, _)| m == "get"));
+    // An aliased import of the facade still is the facade.
+    let aliased = parse(
+        "<?php\nuse Illuminate\\Support\\Facades\\Route as R;\nR::get('/', [A::class, 'x']);\n",
+    );
+    assert!(calls_with_qualifier(&aliased).contains(&("x".to_string(), Some("A".to_string()))));
+}
+
+#[test]
+fn string_actions_outside_a_controller_group_are_not_guessed() {
+    let parsed = parse("<?php\nRoute::get('/a', 'Legacy@index');\nRoute::get('/b', 'index');\nRoute::get('/c', fn () => 1);\n");
+    let gets = vec![("get".to_string(), Some("Route".to_string())); 3];
+    assert_eq!(calls_with_qualifier(&parsed), gets);
+}
+
+#[test]
+fn a_controller_group_binds_string_actions_only_inside_its_closure() {
+    let parsed = parse(&format!(
+        "{ROUTE_HEAD}Route::prefix('x')->controller(Photos::class)->group(function () {{ Route::get('/a', 'show'); }});\nRoute::get('/b', 'show');\n"
+    ));
+    let bound: Vec<_> = calls_with_qualifier(&parsed)
+        .into_iter()
+        .filter(|(m, _)| m == "show")
+        .collect();
+    assert_eq!(
+        bound,
+        [("show".to_string(), Some("PhotoController".to_string()))]
+    );
+}
+
+#[test]
+fn a_migration_extending_something_else_keeps_its_members_unindexed() {
+    let parsed = parse("<?php\nreturn new class extends Other { public function up() {} };\n");
+    assert!(parsed.symbols.iter().all(|s| s.name != "up"));
+}
+
+#[test]
+fn singleton_resources_route_their_own_methods() {
+    let parsed = parse(&format!(
+        "{ROUTE_HEAD}Route::singleton('a', Photos::class);\nRoute::apiSingleton('b', Photos::class)->creatable();\nRoute::singleton('c', Photos::class)->destroyable();\nRoute::softDeletableResources(['p' => Photos::class]);\n"
+    ));
+    let methods: Vec<_> = calls_with_qualifier(&parsed)
+        .into_iter()
+        .map(|(m, _)| m)
+        .collect();
+    let expected = [
+        &["show", "edit", "update"][..],
+        &["show", "update", "store", "destroy"],
+        &["show", "edit", "update", "destroy"],
+        &[
+            "index", "create", "store", "show", "edit", "update", "destroy",
+        ],
+    ]
+    .concat();
+    assert_eq!(methods, expected);
 }
