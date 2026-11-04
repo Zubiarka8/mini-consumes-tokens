@@ -212,3 +212,23 @@ A POST to the web review endpoint from a script without an `Origin` header got
 `403 Request rejected`; with the dashboard's own origin it returned 200. This is
 the CSRF/Origin guard working as designed, observed against a disposable project,
 not the real campaign data.
+
+## 2026-11-03 — optimization campaign, block 1, on `refactor/optimization`
+
+`get_indexing_status` (no arguments) over the MCP server connected to this worktree, HEAD `15f8f74` (clean tree at the time), index timestamp `1793741969`: 973 files, 21,144 symbols, 18 parse diagnostics. Sixteen are the expected ERR-003 malformed fixtures; the other two are ERR-002 (`scripts/windows/review-check.ps1: line 29`) and ERR-023 (`crates/mct-cli/web-ui/src/styles.css: line 12`). Status unchanged; these files were not re-probed in this session.
+
+New records:
+
+- ERR-024 (OPEN): `mct-cli --root . status` failed with a database coordination timeout while the MCP server and a web dashboard held the same worktree index. Reproduced on a second attempt later the same day; not tested with the other clients idle.
+- ERR-025 (KNOWN_LIMITATION, documented by design): five module-qualified calls inside macro arguments in `crates/mct-mcp-server/src/server.rs` are not indexed, so their five `format.rs` targets appear as dead-code candidates with no references. Verified by reading each call site (all five inside macro arguments); scope limited to these five.
+- ERR-026 (OPEN, classification pending): ten Rust types with zero indexed references have usages in the source. Positions not analysed.
+
+Separately, the sixth zero-reference function of `format.rs`, `find_dead_code_toon`, has no occurrence in `crates/**/*.rs`; it is tracked in the campaign record (OPT-M01) as inconclusive, not as an error.
+
+## 2026-11-04 — ERR-025 scope delimited (campaign B5)
+
+A disposable crate with eight callees, each called from one position, showed that `find_callers` misses every call written inside a macro invocation's arguments (`format!`, `vec!`, `assert_eq!`, `println!`, user `macro_rules!`) and finds plain and `let` calls. ERR-025's scope widened from "these five calls" to "calls inside macro arguments, qualified or not". Rust parser only; no code changed.
+
+## 2026-11-04 — ERR-026 position probe (campaign B5)
+
+A disposable crate with one struct per usage position showed that Rust type positions (parameter, return, field, generic argument, struct literal, `let` annotation, `impl` and trait-`impl` targets) produce no references and the types appear in `find_dead_code`; only a path expression produced one. Classification left OPEN pending the document-or-fix decision.
