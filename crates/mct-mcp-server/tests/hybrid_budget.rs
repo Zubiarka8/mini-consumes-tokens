@@ -4,21 +4,18 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+#[path = "common/server.rs"]
+mod server_fixture;
+use server_fixture::build_server_at as server_at;
+
 use std::path::{Path, PathBuf};
 
-use mct_index::{EstimatedCounter, ExcludeSet, Index, TokenCounter};
+use mct_index::{EstimatedCounter, TokenCounter};
 use mct_mcp_server::server::MctServer;
 use serde_json::{json, Value};
 
 fn fixture() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/context-pack-app")
-}
-
-async fn server_at(root: &Path) -> MctServer {
-    let registry = mct_mcp_server::registry::build_registry();
-    let mut index = Index::open_in_memory(root, ExcludeSet::default()).unwrap();
-    index.reindex(&registry, false).unwrap();
-    MctServer::new(index, registry)
 }
 
 async fn try_call(server: &MctServer, tool: &str, args: Value) -> Result<String, String> {

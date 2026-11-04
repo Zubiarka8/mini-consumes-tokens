@@ -15,17 +15,12 @@ use mct_index::{ExcludeSet, Index};
 use mct_mcp_server::server::{GetToolSchemaArgs, MctServer};
 use rmcp::handler::server::wrapper::Parameters;
 
+#[path = "common/content.rs"]
+mod content;
+use content::content_of;
+
 fn fixture_root() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/compute-app")
-}
-
-fn content_of(result: &rmcp::model::CallToolResult) -> String {
-    result
-        .content
-        .first()
-        .and_then(|block| block.as_text())
-        .map(|t| t.text.clone())
-        .unwrap_or_default()
 }
 
 async fn build_server() -> MctServer {

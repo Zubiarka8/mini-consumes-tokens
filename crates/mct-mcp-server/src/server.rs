@@ -319,6 +319,19 @@ pub struct FindCallsArgs {
     pub format: Option<String>,
 }
 
+/// The fields `FindCallsArgs` and `FindCallersArgs` share, handed to
+/// `MctServer::relation_tool`. The two public structs stay separate because
+/// their field docs are the tools' published input schemas.
+struct RelationRequest {
+    function: String,
+    path: Option<String>,
+    language: Option<String>,
+    limit: Option<usize>,
+    depth: Option<u32>,
+    offset: Option<usize>,
+    format: Option<String>,
+}
+
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct FindCallersArgs {
     /// Exact name of the function/method whose callers you want.
@@ -2320,29 +2333,21 @@ impl MctServer {
             format,
         }): Parameters<FindCallsArgs>,
     ) -> Result<CallToolResult, McpError> {
-        let function = validate_name(&function)?;
-        let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
-        let offset = offset.unwrap_or(0);
-        let output_format = parse_output_format(format.as_deref())?;
-        let scope = query_scope(optional_arg(path.as_ref()), optional_arg(language.as_ref()));
-        let index = self.index.lock().await;
-        let _snapshot = index.read_snapshot().map_err(index_error)?;
-        let hits = index
-            .relation_page(
-                function,
-                mct_index::RelationDirection::Calls,
-                depth.unwrap_or(1),
-                (limit, offset),
-                scope,
-            )
-            .map_err(index_error)?;
-        let text = format::relation_page_hits(
+        let request = RelationRequest {
             function,
+            path,
+            language,
+            limit,
+            depth,
+            offset,
+            format,
+        };
+        self.relation_tool(
+            request,
+            mct_index::RelationDirection::Calls,
             "call(s) made by this function",
-            &hits,
-            output_format == OutputFormat::Toon,
-        );
-        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+        )
+        .await
     }
 
     // Fallback only — see tools.ttc / MctServer::new.
@@ -2359,6 +2364,42 @@ impl MctServer {
             format,
         }): Parameters<FindCallersArgs>,
     ) -> Result<CallToolResult, McpError> {
+        let request = RelationRequest {
+            function,
+            path,
+            language,
+            limit,
+            depth,
+            offset,
+            format,
+        };
+        self.relation_tool(
+            request,
+            mct_index::RelationDirection::Callers,
+            "caller(s) of this function",
+        )
+        .await
+    }
+
+    /// The pipeline `find_calls` and `find_callers` share: validate the
+    /// arguments, page the relation graph in `direction`, and render the hits
+    /// under `label`. One copy keeps the two tools' defaults, validation order
+    /// and errors identical.
+    async fn relation_tool(
+        &self,
+        request: RelationRequest,
+        direction: mct_index::RelationDirection,
+        label: &str,
+    ) -> Result<CallToolResult, McpError> {
+        let RelationRequest {
+            function,
+            path,
+            language,
+            limit,
+            depth,
+            offset,
+            format,
+        } = request;
         let function = validate_name(&function)?;
         let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
         let offset = offset.unwrap_or(0);
@@ -2369,18 +2410,14 @@ impl MctServer {
         let hits = index
             .relation_page(
                 function,
-                mct_index::RelationDirection::Callers,
+                direction,
                 depth.unwrap_or(1),
                 (limit, offset),
                 scope,
             )
             .map_err(index_error)?;
-        let text = format::relation_page_hits(
-            function,
-            "caller(s) of this function",
-            &hits,
-            output_format == OutputFormat::Toon,
-        );
+        let text =
+            format::relation_page_hits(function, label, &hits, output_format == OutputFormat::Toon);
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 

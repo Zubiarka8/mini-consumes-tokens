@@ -230,6 +230,28 @@ pub(crate) fn symbol_hit(row: &rusqlite::Row<'_>) -> rusqlite::Result<SymbolHit>
     })
 }
 
+/// Runs a symbol lookup whose SQL `head` (SELECT … WHERE, with `?1` as the
+/// match condition) takes `first` as its only bound value, then narrows it
+/// to `scope` and orders the hits by path and line.
+fn symbol_hits_in_scope(
+    conn: &Connection,
+    head: &str,
+    first: String,
+    scope: ResolvedScope<'_>,
+) -> Result<Vec<SymbolHit>> {
+    let mut sql = String::from(head);
+    let mut bound: BoundValues = vec![Box::new(first)];
+    push_scope(&mut sql, &mut bound, scope);
+    sql.push_str(" ORDER BY f.relative_path, s.line");
+
+    let mut stmt = conn.prepare_cached(&sql)?;
+    let params: Vec<&dyn rusqlite::ToSql> = bound.iter().map(|b| b.as_ref()).collect();
+    let rows = stmt
+        .query_map(params.as_slice(), symbol_hit)?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(rows)
+}
+
 /// Symbol definitions named `name`, narrowed to `scope`.
 ///
 /// All symbol names are search parameters bound via placeholders (`?1`), never
@@ -241,21 +263,14 @@ pub fn find_symbol_scoped(
     name: &str,
     scope: ResolvedScope<'_>,
 ) -> Result<Vec<SymbolHit>> {
-    let mut sql = String::from(
+    symbol_hits_in_scope(
+        conn,
         "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line, s.level, s.id
          FROM symbols s JOIN files f ON f.id = s.file_id
          WHERE s.name = ?1",
-    );
-    let mut bound: BoundValues = vec![Box::new(name.to_string())];
-    push_scope(&mut sql, &mut bound, scope);
-    sql.push_str(" ORDER BY f.relative_path, s.line");
-
-    let mut stmt = conn.prepare_cached(&sql)?;
-    let params: Vec<&dyn rusqlite::ToSql> = bound.iter().map(|b| b.as_ref()).collect();
-    let rows = stmt
-        .query_map(params.as_slice(), symbol_hit)?
-        .collect::<rusqlite::Result<_>>()?;
-    Ok(rows)
+        name.to_string(),
+        scope,
+    )
 }
 
 /// Every symbol defined in any of `paths` (exact relative paths), ordered by
@@ -351,23 +366,16 @@ fn find_symbol_fts(
     fts_query: &str,
     scope: ResolvedScope<'_>,
 ) -> Result<Vec<SymbolHit>> {
-    let mut sql = String::from(
+    symbol_hits_in_scope(
+        conn,
         "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line, s.level, s.id
          FROM symbols_fts
          JOIN symbols s ON s.id = symbols_fts.rowid
          JOIN files f ON f.id = s.file_id
          WHERE symbols_fts MATCH ?1",
-    );
-    let mut bound: BoundValues = vec![Box::new(fts_query.to_string())];
-    push_scope(&mut sql, &mut bound, scope);
-    sql.push_str(" ORDER BY f.relative_path, s.line");
-
-    let mut stmt = conn.prepare_cached(&sql)?;
-    let params: Vec<&dyn rusqlite::ToSql> = bound.iter().map(|b| b.as_ref()).collect();
-    let rows = stmt
-        .query_map(params.as_slice(), symbol_hit)?
-        .collect::<rusqlite::Result<_>>()?;
-    Ok(rows)
+        fts_query.to_string(),
+        scope,
+    )
 }
 
 /// Case-insensitive substring match on `symbols.name` directly — see
@@ -384,21 +392,14 @@ fn find_symbol_like(
         .replace('%', "\\%")
         .replace('_', "\\_");
     let pattern = format!("%{escaped}%");
-    let mut sql = String::from(
+    symbol_hits_in_scope(
+        conn,
         "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column, s.parent, s.end_line, s.level, s.id
          FROM symbols s JOIN files f ON f.id = s.file_id
          WHERE s.name LIKE ?1 ESCAPE '\\'",
-    );
-    let mut bound: BoundValues = vec![Box::new(pattern)];
-    push_scope(&mut sql, &mut bound, scope);
-    sql.push_str(" ORDER BY f.relative_path, s.line");
-
-    let mut stmt = conn.prepare_cached(&sql)?;
-    let params: Vec<&dyn rusqlite::ToSql> = bound.iter().map(|b| b.as_ref()).collect();
-    let rows = stmt
-        .query_map(params.as_slice(), symbol_hit)?
-        .collect::<rusqlite::Result<_>>()?;
-    Ok(rows)
+        pattern,
+        scope,
+    )
 }
 
 /// Lists symbol definitions discovered under `path`, with no name known in
