@@ -218,8 +218,8 @@ export function deadBrief(item) {
 export const findingKinds = (data) =>
   [data.duplicates?.length && "duplicate", data.dead && "dead"].filter(Boolean);
 
-/** A symbol's brief about one of its findings; `kind` is "duplicate" or "dead". */
-export function symbolBrief(s, data, kind) {
+/** A symbol's brief about one of its findings; `kind` is "duplicate" or "dead". `only` limits a duplicate brief to one of its groups. */
+export function symbolBrief(s, data, kind, only) {
   const where = `${s.path}:${range(s.line, s.endLine)}`;
   const name = `${s.parent ? `${s.parent}::` : ""}${s.name}`;
   const code = data.code ? [fence(data.code.lines, s.language)] : [`Not included: read ${where}.`];
@@ -228,8 +228,11 @@ export function symbolBrief(s, data, kind) {
     `- Known references: ${s.refs}`,
   ];
   if (kind === "duplicate") {
-    const groups = data.duplicates || [];
+    const groups = only ? [only] : data.duplicates || [];
     const others = (group) => group.members.filter((m) => !(m.path === s.path && m.start === s.line));
+    // `members` is a preview of the group: the count comes from the group, the listing says what it leaves out.
+    const copies = (group) => Math.max((group.memberCount ?? group.members.length) - 1, 0);
+    const unlisted = (group) => copies(group) - others(group).length;
     return brief({
       task: "decide whether this symbol's duplicated code should be merged",
       context: [
@@ -239,14 +242,16 @@ export function symbolBrief(s, data, kind) {
         ...symbolLines,
         ...groups.map(
           (group) =>
-            `- Duplicate group ${group.key}: ${group.verdict}, ${group.lines} lines, ${others(group).length} other copies`,
+            `- Duplicate group ${group.key}: ${group.verdict}, ${group.lines} lines, ${copies(group)} other copies`,
         ),
       ],
       files: [
         `- ${where} — this symbol`,
-        ...groups.flatMap((group) =>
-          others(group).map((m) => `- ${memberLabel(m)} — copy (group ${group.key})`),
-        ),
+        ...groups.flatMap((group) => [
+          ...others(group).map((m) => `- ${memberLabel(m)} — copy (group ${group.key})`),
+          unlisted(group) > 0 &&
+            `- … ${unlisted(group)} more ${unlisted(group) === 1 ? "copy" : "copies"} in group ${group.key} not listed here; open the finding to see them`,
+        ]),
       ],
       code,
       validations: DUPLICATE_VALIDATIONS,

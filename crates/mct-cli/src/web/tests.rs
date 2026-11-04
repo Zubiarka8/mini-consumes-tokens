@@ -177,6 +177,10 @@ fn dashboard_serves_static_app_and_a_read_only_json_api() {
     assert_eq!(summary["files"], 2);
     assert_eq!(summary["duplicates"]["groups"], 1);
     assert_eq!(summary["deadCode"]["candidates"], 2);
+    // "Pending" is counted once, by the server; the page only shows it.
+    assert_eq!(summary["findings"]["pending"]["duplicate"], 1);
+    assert_eq!(summary["findings"]["pending"]["dead-code"], 2);
+    assert_eq!(summary["health"]["pendingReviews"], 3);
     assert!(summary["lastIndexDurationMs"].is_null() && summary["history"].is_null());
 
     let symbols = server.json("api/symbols?q=alpha");
@@ -205,6 +209,9 @@ fn dashboard_serves_static_app_and_a_read_only_json_api() {
     assert_eq!(group["state"], "unreviewed");
     assert_eq!(group["verdict"], "real");
     assert_eq!(group["scope"], "cross-file");
+    // Counted over the whole group, because `members` is only a preview.
+    assert_eq!(group["memberCount"], 2);
+    assert_eq!(group["fileCount"], 2);
     assert!(
         group["similarity"].is_null(),
         "no invented similarity score"

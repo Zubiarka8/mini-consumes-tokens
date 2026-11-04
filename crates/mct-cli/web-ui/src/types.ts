@@ -64,6 +64,8 @@ export interface DuplicateFinding extends Review {
   lines: number;
   tokens: number;
   members: Member[];
+  /** Files the whole group spans, counted by the server. */
+  fileCount?: number;
   reasons?: string[];
   method?: { normalization?: string };
   analysis?: string;

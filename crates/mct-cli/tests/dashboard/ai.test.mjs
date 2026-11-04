@@ -59,3 +59,19 @@ test('a symbol brief names the symbol, its other copies and the same report', as
   assert.match(text, /- other\.cpp:9-11 \(gamma\) — copy \(group duplicate-test\)/);
   assert.doesNotMatch(text, /src\/same\.cpp:1-3 \(alpha\) — copy/, 'the symbol is not listed as its own copy');
 });
+
+test('a symbol brief for one group names only that group and counts its copies over the whole group', async () => {
+  const { symbolBrief } = await ai();
+  const s = { id: 1, name: 'alpha', path: 'src/same.cpp', line: 1, endLine: 3, kind: 'function', language: 'cpp', refs: 2 };
+  const other = { ...finding, key: 'other-group', members: [finding.members[0], finding.members[2]], memberCount: 2 };
+  // The server sends a preview of the members; the group really has 13.
+  const big = { ...finding, memberCount: 13 };
+  const data = { duplicates: [big, other], code: { lines: ['int alpha() {'] } };
+  const one = symbolBrief(s, data, 'duplicate', big);
+  assert.ok(inOrder(one), one);
+  assert.match(one, /Duplicate group duplicate-test: real, 3 lines, 12 other copies/);
+  assert.match(one, /… 10 more copies in group duplicate-test not listed here/);
+  assert.doesNotMatch(one, /other-group/);
+  const all = symbolBrief(s, data, 'duplicate');
+  assert.match(all, /Duplicate group other-group: real, 3 lines, 1 other copies/);
+});

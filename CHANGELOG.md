@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Dashboard: a duplicate group's file count is counted over the whole group (`fileCount` in `api/findings`), not over the six members the list previews; the review workspace counts files, not fragments.
+- Dashboard: the pending-review figures come from the server (`findings.pending`, `health.pendingReviews`) with one definition (unreviewed, in review, needs re-evaluation) instead of two different sums in the page.
+
+### Added
+
+- Dashboard: each duplicate group in a symbol's detail has its own "Copy duplicate for AI" button.
+- Dashboard: every duplicate and unused-code row has a visible "Copy AI template" button that copies the finding's brief.
+
+### Changed
+
+- Dashboard: the stacked finding rows list their files in a panel shown on hover and keyboard focus, instead of a native tooltip, and no longer carry the ignore button (still in the table).
+
 ## [0.3.0] - 2026-10-30
 
 ### Upgrading from 0.2.0
