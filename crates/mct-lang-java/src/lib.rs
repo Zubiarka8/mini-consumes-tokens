@@ -8,7 +8,7 @@ use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
     SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
-use mct_tree_sitter::{first_error, location};
+use mct_tree_sitter::{first_error, location, module_location};
 use tree_sitter::{Node, Parser};
 
 pub struct JavaParser;
@@ -68,18 +68,6 @@ fn module_name_for(relative_path: &str) -> String {
         .unwrap_or(relative_path)
         .trim_end_matches(".java")
         .to_string()
-}
-
-/// The file-level module's location: the root node of a file ending in a
-/// newline ends at column 0 of the row *after* the last line, which would
-/// put the module one line past the end of the file.
-fn module_location(root: Node) -> Location {
-    let mut loc = location(root);
-    let end = root.end_position();
-    if end.column == 0 && end.row > root.start_position().row {
-        loc.end_line = Some(end.row as u32);
-    }
-    loc
 }
 
 fn text<'a>(node: Node, source: &'a str) -> &'a str {

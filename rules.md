@@ -252,12 +252,19 @@ mct-core     LanguageParser trait, SymbolRecord/SymbolRelation model, LanguageRe
 mct-index    SQLite schema/migrations (a single schema for every language — a `language`
              column on `files`, not per-language tables), reindex orchestration, queries.
              Knows no language's grammar.
+mct-tree-sitter  Grammar-neutral tree-sitter helpers shared by the mct-lang-* crates (first error,
+             node locations, child lookup); knows no language and no SQLite/MCP
 mct-lang-*   One crate per language, each a LanguageParser impl over its tree-sitter grammar
 mct-languages  The shipped language set: the one build_registry() every binary indexes with
 mct-mcp-server  MCP tools over stdio (rmcp): list_symbols/find_symbol/search_symbols_like/hybrid_search_like/semantic_search/find_references/
                 find_calls/find_callers/impact_analysis/get_dependency_graph/build_context_pack/find_dead_code/reindex/
-                get_indexing_status/get_file_skeleton/get_project_overview/get_file_tree/batch
-mct-cli      init/reindex/status/mcp-register subcommands for manual/scripted use
+                find_duplicate_code/get_indexing_status/get_file_skeleton/get_project_overview/get_file_tree/batch/
+                discover_tool_categories/get_tool_schema (+ deprecated aliases search_symbols/hybrid_search;
+                select_tools only with MCT_TOOL_ATTENTION=1); the authoritative list is docs/01-architecture/mcp-protocol-spec.md
+mct-obsidian Writes the Obsidian code atlas from the index; used by mct-cli and mct-mcp-server
+mct-cli      Subcommands for manual/scripted use (init, reindex, status, call, web, obsidian, dead-code,
+             duplicates, mcp-register, ...; `mct-cli --help` is authoritative) and the local web dashboard
+mct-corpus   Test-only long-fixture corpus harness shared by the mct-lang-* crates; not published
 mct-eval     Quality evaluation of the MCP tools against a fixture suite and a checked-in
              baseline (issue #21); dev-only, not published
 ```

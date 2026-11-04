@@ -21,7 +21,7 @@ use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
     SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
-use mct_tree_sitter::{first_error, location};
+use mct_tree_sitter::{find_named_child, first_error, location, module_location};
 use tree_sitter::{Node, Parser};
 
 pub struct HtmlParser;
@@ -100,18 +100,6 @@ fn module_name_for(relative_path: &str) -> String {
         .trim_end_matches(".html")
         .trim_end_matches(".htm")
         .to_string()
-}
-
-/// The file-level module's location: the root node of a file ending in a
-/// newline ends at column 0 of the row *after* the last line, which would
-/// put the module one line past the end of the file.
-fn module_location(root: Node) -> Location {
-    let mut loc = location(root);
-    let end = root.end_position();
-    if end.column == 0 && end.row > root.start_position().row {
-        loc.end_line = Some(end.row as u32);
-    }
-    loc
 }
 
 fn text<'a>(node: Node, source: &'a str) -> &'a str {
@@ -215,7 +203,7 @@ impl<'a> Walker<'a> {
                 }
             }
             "script_element" | "style_element" => {
-                if let Some(tag) = find_child(node, "start_tag") {
+                if let Some(tag) = find_named_child(node, "start_tag") {
                     self.handle_tag(node, tag, owner, parent_name);
                 }
                 // Raw content (JS/CSS text) is not parsed here — see module doc.
@@ -355,14 +343,6 @@ fn asset_module(spec: &str) -> Option<(String, &'static str)> {
     (!stem.is_empty()).then(|| (stem.to_string(), language))
 }
 
-fn find_child<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
-    let mut cursor = node.walk();
-    let found = node
-        .named_children(&mut cursor)
-        .find(|child| child.kind() == kind);
-    found
-}
-
 fn find_tag(node: Node) -> Option<Node> {
     let mut cursor = node.walk();
     let found = node
@@ -372,7 +352,7 @@ fn find_tag(node: Node) -> Option<Node> {
 }
 
 fn tag_name_of(tag: Node, source: &str) -> String {
-    find_child(tag, "tag_name")
+    find_named_child(tag, "tag_name")
         .map(|n| text(n, source).to_string())
         .unwrap_or_default()
 }
@@ -397,7 +377,7 @@ fn collect_attributes<'a>(tag: Node<'a>, source: &str) -> Vec<(String, String, N
                 "attribute_name" => name = text(part, source).to_string(),
                 "attribute_value" => value = text(part, source).to_string(),
                 "quoted_attribute_value" => {
-                    if let Some(inner) = find_child(part, "attribute_value") {
+                    if let Some(inner) = find_named_child(part, "attribute_value") {
                         value = text(inner, source).to_string();
                     }
                 }

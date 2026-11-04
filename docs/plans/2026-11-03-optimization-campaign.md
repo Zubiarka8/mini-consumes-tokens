@@ -233,3 +233,10 @@ Proposals needing the user's decision (not implemented, outside the stated limit
 3. `mct-eval` baseline: the full check reported improvements; **not rewritten** per instruction. Differences to review are in "Block 1 verification".
 
 Not done or partial: B6 (field-by-field contract comparison), B8 (disposable-instance behavior), B10 (no measurements), B11/B12 (needs advisory fetch), `mct-cli status` retry (ERR-024), definitive classification of the remaining ~150 duplicate groups.
+
+## Phase 2 on `mct-lang-*` (branch `refactor/lang-shared-ts-helpers`)
+
+- **Done:** `module_location`, `find_child` and `find_named_child` moved to `mct-tree-sitter` (13 crates, about 107 lines fewer). `find_child` had two semantics (all children vs named children), kept as two helpers. `mct-lang-kotlin::module_location(source)` is a different function and stays.
+- **Kept, documented in `docs/02-crates/parsers/overview.md`:** `push_symbol`/`push_relation` (a forwarding wrapper saves about 4 lines per crate), `unquote`, `visit_children`, `new`, per-crate test helpers.
+- **Docs:** `rules.md` architecture block now lists `mct-tree-sitter`, `mct-obsidian`, `mct-corpus`, the full tool set and the CLI subcommands (L02, L03); ADR-015 marked partly superseded; ADR number gaps noted in the index.
+- **Check:** `scripts/unix/check.sh`: fmt ok, 1990 passed, 0 failed, 31 ignored, clippy none, eval no regressions. Test `get_project_overview_truncates_a_real_crates_module_and_reports_the_overflow` counted `mct-lang-go/src/lib.rs` symbols and was updated from 10 to 9.

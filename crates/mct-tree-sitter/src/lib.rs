@@ -56,6 +56,36 @@ pub fn location(node: Node) -> Location {
     }
 }
 
+/// The span of a whole-file module node. A grammar's root node can end at
+/// column 0 of the line after the last token; the module then ends on the
+/// previous line, so `end_line` is the root's end row (already 1-based
+/// there) instead of its end row plus one.
+pub fn module_location(root: Node) -> Location {
+    let mut loc = location(root);
+    let end = root.end_position();
+    if end.column == 0 && end.row > root.start_position().row {
+        loc.end_line = Some(end.row as u32);
+    }
+    loc
+}
+
+/// The first child of `node`, named or anonymous, whose kind is `kind`.
+pub fn find_child<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
+    let mut cursor = node.walk();
+    let children: Vec<Node> = node.children(&mut cursor).collect();
+    children.into_iter().find(|n| n.kind() == kind)
+}
+
+/// The first named child of `node` whose kind is `kind`; anonymous tokens
+/// such as punctuation are skipped.
+pub fn find_named_child<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
+    let mut cursor = node.walk();
+    let found = node
+        .named_children(&mut cursor)
+        .find(|child| child.kind() == kind);
+    found
+}
+
 /// `contents` with every byte outside the `keep` byte ranges replaced by a
 /// space, except `\n` and `\r`. The result has the same byte length and
 /// line breaks, so a sub-parser's lines and byte columns over it are the
@@ -138,5 +168,26 @@ mod tests {
         // A range starting mid-char keeps no partial char.
         assert_eq!(mask("é!", &[1..3]), "  !");
         assert_eq!(mask("aé", &[1..2]), "aé".replace('a', " "));
+    }
+
+    #[test]
+    fn module_location_ends_on_the_last_line_with_content() {
+        let tree = parse_bash("echo ok\n");
+        let root = tree.root_node();
+        assert_eq!(module_location(root).end_line, Some(1));
+        assert_eq!(location(root).end_line, Some(2));
+    }
+
+    #[test]
+    fn find_child_sees_anonymous_tokens_and_find_named_child_does_not() {
+        let tree = parse_bash("(echo ok)\n");
+        let subshell = tree
+            .root_node()
+            .named_child(0)
+            .expect("the file has a subshell");
+        assert_eq!(subshell.kind(), "subshell");
+        assert!(find_child(subshell, "(").is_some());
+        assert!(find_named_child(subshell, "(").is_none());
+        assert!(find_named_child(subshell, "command").is_some());
     }
 }

@@ -4,6 +4,8 @@
 
 Accepted for the local implementation, 2026-10-20. Supersedes ADR-014's original
 HTTP read-only restriction for the review-preference endpoint only.
+Partly superseded by [ADR-019](019-shared-review-decisions.md): the
+duplicate-group decision file is no longer written.
 
 **Later implementation update (2026-11-01):** This record describes the
 original duplicate-review design. [ADR-019](019-shared-review-decisions.md)
