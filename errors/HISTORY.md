@@ -1,5 +1,13 @@
 # Error history
 
+## 2026-11-04 — Language crate duplicate review
+
+On `b186d5f`, `get_indexing_status` returned timestamp `1793785852`, 1,208 files, 46,919 symbols and the same 20 known parse diagnostics recorded on 2026-11-03 (16 expected ERR-003 fixtures, ERR-002, ERR-023 and two ERR-024 generated CSS files). `find_duplicate_code(normalization: consistent)` was queried separately for all 17 `mct-lang-*` crates; every response retained `coverage_complete: false` and `index_errors: 20`. Candidate groups appeared in C++, CSS, HTML, JS/TS, Lua, Markdown, Python, Rust, XAML and XML. Most were paired or repeated regression tests; the Lua `open_indexed` setup was the clear shared helper and has been consolidated in `tests/common/mod.rs`. No parse error was newly observed.
+
+## 2026-11-03 — Duplicate search coverage and parse diagnostics
+
+On clean checkout `b186d5f`, `find_duplicate_code(normalization: consistent, limit: 5)` reported 190 candidates, `coverage_complete: false`, `skipped: 9`, and `index_errors: 20`. `get_indexing_status` returned timestamp `1793713596`, 1,208 files and 46,917 symbols: 16 expected ERR-003 fixtures, ERR-002, ERR-023, and two generated CSS failures recorded as ERR-024. `scripts/unix/parse-probe.sh` reproduced `syntax error` for all four ordinary/generated files (exit 1). The snapshot may predate the checkout; no fix or root cause for ERR-024 is established.
+
 ## 2026-10-10 — Initial inventory
 
 - Evidence: `get_indexing_status` called twice with the same result; 556 indexed files, 11,205 symbols, 18 parse failures, index timestamp `1791629091`.
