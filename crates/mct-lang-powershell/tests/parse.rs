@@ -7,12 +7,7 @@ use mct_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
 use mct_lang_powershell::PowerShellParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
-    PowerShellParser
-        .parse(&SourceFile {
-            relative_path: "Deploy.ps1".to_string(),
-            contents: src.to_string(),
-        })
-        .expect("valid PowerShell source should parse")
+    mct_corpus::parse_source(&PowerShellParser, "Deploy.ps1", "PowerShell", src)
 }
 
 #[test]

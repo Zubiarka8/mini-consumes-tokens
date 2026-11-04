@@ -74,7 +74,7 @@ use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
     SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
-use mct_tree_sitter::{first_error, location};
+use mct_tree_sitter::{find_child, first_error, location, module_location};
 use tree_sitter::{Node, Parser};
 
 pub struct PhpParser;
@@ -136,26 +136,8 @@ fn module_name_for(relative_path: &str) -> String {
         .to_string()
 }
 
-/// The file-level module's location: the root node of a file ending in a
-/// newline ends at column 0 of the row *after* the last line, which would
-/// put the module one line past the end of the file.
-fn module_location(root: Node) -> Location {
-    let mut loc = location(root);
-    let end = root.end_position();
-    if end.column == 0 && end.row > root.start_position().row {
-        loc.end_line = Some(end.row as u32);
-    }
-    loc
-}
-
 fn text<'a>(node: Node, source: &'a str) -> &'a str {
     node.utf8_text(source.as_bytes()).unwrap_or_default()
-}
-
-fn find_child<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
-    let mut cursor = node.walk();
-    let children: Vec<Node> = node.children(&mut cursor).collect();
-    children.into_iter().find(|n| n.kind() == kind)
 }
 
 /// The bare identifier inside a `variable_name` node (its one required
@@ -212,17 +194,14 @@ impl<'a> Walker<'a> {
         location: Location,
         parent: Option<String>,
     ) -> SymbolId {
-        let id = self.next_id;
-        self.next_id += 1;
-        self.symbols.push(SymbolRecord {
-            id,
+        mct_tree_sitter::push_symbol(
+            &mut self.symbols,
+            &mut self.next_id,
             name,
             kind,
             location,
             parent,
-            level: None,
-        });
-        id
+        )
     }
 
     fn push_relation(
@@ -232,15 +211,7 @@ impl<'a> Walker<'a> {
         to_name: String,
         loc: Location,
     ) {
-        if to_name.is_empty() {
-            return;
-        }
-        self.relations.push(SymbolRelation {
-            from,
-            kind,
-            to_name,
-            location: loc,
-        });
+        mct_tree_sitter::push_relation(&mut self.relations, from, kind, to_name, loc);
     }
 
     /// `owner` is the innermost enclosing function/method/module (calls,

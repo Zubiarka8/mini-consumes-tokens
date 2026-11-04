@@ -21,12 +21,16 @@
 //! `EstimatedCounter`, and the `mct-eval` word/punctuation count that its
 //! `catalog_tokens` baseline uses.
 
+#[path = "../tests/common/tokens.rs"]
+mod tokens;
+
 use std::path::Path;
 
 use mct_index::{EstimatedCounter, ExcludeSet, Index, TokenCounter};
 use mct_mcp_server::server::MctServer;
 use rmcp::model::Tool;
 use serde_json::Value;
+use tokens::approx_tokens;
 
 const TOUCHED: [&str; 3] = [
     "search_symbols_like",
@@ -50,25 +54,6 @@ const PRE: [(&str, &str); 3] = [
     ),
 ];
 
-fn eval_tokens(s: &str) -> usize {
-    let mut tokens = 0usize;
-    let mut in_word = false;
-    for c in s.chars() {
-        if c.is_alphanumeric() || c == '_' {
-            if !in_word {
-                tokens += 1;
-                in_word = true;
-            }
-        } else {
-            in_word = false;
-            if !c.is_whitespace() {
-                tokens += 1;
-            }
-        }
-    }
-    tokens
-}
-
 #[derive(Clone, Copy, Default)]
 struct Size {
     chars4: usize,
@@ -81,7 +66,7 @@ impl Size {
         Size {
             chars4: text.chars().count().div_ceil(4),
             estimated: EstimatedCounter.count(text).value,
-            eval: eval_tokens(text),
+            eval: approx_tokens(text),
         }
     }
     fn add(self, o: Size) -> Size {
