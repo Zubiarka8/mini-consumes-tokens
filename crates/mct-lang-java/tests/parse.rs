@@ -7,12 +7,7 @@ use mct_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
 use mct_lang_java::JavaParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
-    JavaParser
-        .parse(&SourceFile {
-            relative_path: "Calculator.java".to_string(),
-            contents: src.to_string(),
-        })
-        .expect("valid Java source should parse")
+    mct_corpus::parse_source(&JavaParser, "Calculator.java", "Java", src)
 }
 
 #[test]

@@ -7,12 +7,7 @@ use mct_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
 use mct_lang_bash::BashParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
-    BashParser
-        .parse(&SourceFile {
-            relative_path: "deploy.sh".to_string(),
-            contents: src.to_string(),
-        })
-        .expect("valid bash source should parse")
+    mct_corpus::parse_source(&BashParser, "deploy.sh", "bash", src)
 }
 
 #[test]

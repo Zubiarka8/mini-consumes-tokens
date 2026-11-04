@@ -7,12 +7,7 @@ use mct_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
 use mct_lang_md::MarkdownParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
-    MarkdownParser
-        .parse(&SourceFile {
-            relative_path: "doc.md".to_string(),
-            contents: src.to_string(),
-        })
-        .expect("valid Markdown source should parse")
+    mct_corpus::parse_source(&MarkdownParser, "doc.md", "Markdown", src)
 }
 
 #[test]

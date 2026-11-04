@@ -7,12 +7,7 @@ use mct_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
 use mct_lang_kotlin::KotlinParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
-    KotlinParser
-        .parse(&SourceFile {
-            relative_path: "Invoice.kt".to_string(),
-            contents: src.to_string(),
-        })
-        .expect("valid Kotlin source should parse")
+    mct_corpus::parse_source(&KotlinParser, "Invoice.kt", "Kotlin", src)
 }
 
 #[test]
