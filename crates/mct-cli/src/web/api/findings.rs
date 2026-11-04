@@ -160,6 +160,11 @@ pub(super) fn dead_row(site: &Site, index: usize) -> Value {
     row["visibility"] = json!(candidate.assessment.visibility);
     row["confidence"] = json!(candidate.assessment.confidence);
     row["severity"] = Value::Null;
+    // Only when the index has one, so a project without framework
+    // conventions gets the row it always had.
+    if !candidate.possible_entry_points.is_empty() {
+        row["possibleEntryPoints"] = json!(candidate.possible_entry_points);
+    }
     row
 }
 

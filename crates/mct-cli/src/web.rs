@@ -27,6 +27,9 @@ struct DeadCandidate {
     symbol: usize,
     key: String,
     assessment: dead_assessment::Assessment,
+    /// What the index knows of a framework possibly loading it (never a
+    /// claim that it does); empty for almost every candidate.
+    possible_entry_points: Vec<String>,
 }
 
 #[derive(Default)]
@@ -393,6 +396,11 @@ fn dead_candidates(
         dead.push(DeadCandidate {
             symbol,
             key: keys.identity.clone(),
+            possible_entry_points: scan
+                .possible_entry_points(id)
+                .iter()
+                .map(mct_index::EntryPointNote::describe)
+                .collect(),
             assessment: assessor.assess(
                 &located.relative_path,
                 &located.language,
