@@ -4,7 +4,9 @@
 //! here instead of there. Every helper was identical in each plugin before
 //! it moved here (finding F08).
 
-use mct_core::{Location, MAX_TRAVERSAL_DEPTH};
+use mct_core::{
+    Location, RelationKind, SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
+};
 use std::ops::Range;
 use tree_sitter::Node;
 
@@ -84,6 +86,50 @@ pub fn find_named_child<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
         .named_children(&mut cursor)
         .find(|child| child.kind() == kind);
     found
+}
+
+/// Appends a symbol to `symbols` with the id `*next_id`, advances `*next_id`
+/// by one and returns the new id. The counter is explicit, not derived from
+/// `symbols.len()`, so a walker keeps control of its own id sequence.
+pub fn push_symbol(
+    symbols: &mut Vec<SymbolRecord>,
+    next_id: &mut SymbolId,
+    name: String,
+    kind: SymbolKind,
+    location: Location,
+    parent: Option<String>,
+) -> SymbolId {
+    let id = *next_id;
+    *next_id += 1;
+    symbols.push(SymbolRecord {
+        id,
+        name,
+        kind,
+        location,
+        parent,
+        level: None,
+    });
+    id
+}
+
+/// Appends a relation from `from` to `to_name` to `relations`; an empty
+/// `to_name` has nothing to resolve and is dropped.
+pub fn push_relation(
+    relations: &mut Vec<SymbolRelation>,
+    from: SymbolId,
+    kind: RelationKind,
+    to_name: String,
+    location: Location,
+) {
+    if to_name.is_empty() {
+        return;
+    }
+    relations.push(SymbolRelation {
+        from,
+        kind,
+        to_name,
+        location,
+    });
 }
 
 /// `contents` with every byte outside the `keep` byte ranges replaced by a
@@ -189,5 +235,53 @@ mod tests {
         assert!(find_child(subshell, "(").is_some());
         assert!(find_named_child(subshell, "(").is_none());
         assert!(find_named_child(subshell, "command").is_some());
+    }
+
+    #[test]
+    fn push_symbol_assigns_sequential_ids_from_the_explicit_counter() {
+        let loc = Location {
+            line: 1,
+            column: 1,
+            byte_len: 0,
+            end_line: Some(1),
+        };
+        let mut symbols = Vec::new();
+        // A counter that does not match `symbols.len()` is honoured.
+        let mut next_id: SymbolId = 5;
+        let first = push_symbol(
+            &mut symbols,
+            &mut next_id,
+            "a".into(),
+            SymbolKind::Module,
+            loc,
+            None,
+        );
+        let second = push_symbol(
+            &mut symbols,
+            &mut next_id,
+            "b".into(),
+            SymbolKind::Function,
+            loc,
+            Some("a".into()),
+        );
+        assert_eq!((first, second, next_id), (5, 6, 7));
+        assert_eq!(symbols[1].parent.as_deref(), Some("a"));
+        assert_eq!(symbols[1].level, None);
+    }
+
+    #[test]
+    fn push_relation_drops_an_empty_target_name() {
+        let loc = Location {
+            line: 1,
+            column: 1,
+            byte_len: 0,
+            end_line: Some(1),
+        };
+        let mut relations = Vec::new();
+        push_relation(&mut relations, 0, RelationKind::Calls, String::new(), loc);
+        assert!(relations.is_empty());
+        push_relation(&mut relations, 0, RelationKind::Calls, "f".into(), loc);
+        assert_eq!(relations.len(), 1);
+        assert_eq!(relations[0].to_name, "f");
     }
 }

@@ -374,15 +374,7 @@ impl<'a> Walker<'a> {
         to_name: String,
         loc: Location,
     ) {
-        if to_name.is_empty() {
-            return;
-        }
-        self.relations.push(SymbolRelation {
-            from,
-            kind,
-            to_name,
-            location: loc,
-        });
+        mct_tree_sitter::push_relation(&mut self.relations, from, kind, to_name, loc);
     }
 
     fn visit_children(&mut self, node: Node, owner: SymbolId, depth: u32, parents: Parents) {

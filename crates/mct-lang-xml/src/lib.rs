@@ -118,17 +118,14 @@ impl<'a> Walker<'a> {
         location: Location,
         parent: Option<String>,
     ) -> SymbolId {
-        let id = self.next_id;
-        self.next_id += 1;
-        self.symbols.push(SymbolRecord {
-            id,
+        mct_tree_sitter::push_symbol(
+            &mut self.symbols,
+            &mut self.next_id,
             name,
             kind,
             location,
             parent,
-            level: None,
-        });
-        id
+        )
     }
 
     fn visit_children(&mut self, node: Node, parent_name: Option<String>, depth: u32) {
