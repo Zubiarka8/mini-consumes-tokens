@@ -413,45 +413,6 @@ export function filterGroup({
   );
 }
 
-export function filterPanel({ groups, extra = [], onClear, active = 0, drawerRef }) {
-  const aside = h(
-    "aside",
-    { class: "filters-col", "aria-label": t("filters.title") },
-    h(
-      "div",
-      { class: "card filters" },
-      h(
-        "div",
-        { class: "head" },
-        h("h2", {}, t("filters.title")),
-        h(
-          "div",
-          { class: "row" },
-          h(
-            "button",
-            { class: "btn ghost sm", disabled: active === 0, onclick: onClear },
-            t("filters.clear"),
-          ),
-          h(
-            "button",
-            {
-              class: "icon-btn only-mobile",
-              "aria-label": t("common.close"),
-              onclick: () => aside.classList.remove("open"),
-            },
-            icon("x"),
-          ),
-        ),
-      ),
-      groups.map((group) => filterGroup(group)),
-      extra,
-      h("p", { class: "logic" }, t("filters.logic")),
-    ),
-  );
-  if (drawerRef) drawerRef.current = aside;
-  return aside;
-}
-
 export const drawerButton = (getAside) =>
   h(
     "button",

@@ -8,9 +8,12 @@
 // untrusted repo content (see crates/mct-mcp-server/src/ for that policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::path::{Path, PathBuf};
+#[path = "common/server.rs"]
+mod server_fixture;
+use server_fixture::build_server_at as server;
 
-use mct_index::{ExcludeSet, Index};
+use std::path::PathBuf;
+
 use mct_mcp_server::server::MctServer;
 use serde_json::{json, Value};
 
@@ -53,13 +56,6 @@ fn fixture() -> PathBuf {
         std::fs::write(file, contents).unwrap();
     }
     root
-}
-
-async fn server(root: &Path) -> MctServer {
-    let registry = mct_mcp_server::registry::build_registry();
-    let mut index = Index::open_in_memory(root, ExcludeSet::default()).unwrap();
-    index.reindex(&registry, false).unwrap();
-    MctServer::new(index, registry)
 }
 
 async fn call(server: &MctServer, tool: &str, args: Value) -> String {
