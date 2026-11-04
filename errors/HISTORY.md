@@ -232,3 +232,24 @@ A disposable crate with eight callees, each called from one position, showed tha
 ## 2026-11-04 — ERR-026 position probe (campaign B5)
 
 A disposable crate with one struct per usage position showed that Rust type positions (parameter, return, field, generic argument, struct literal, `let` annotation, `impl` and trait-`impl` targets) produce no references and the types appear in `find_dead_code`; only a path expression produced one. Classification left OPEN pending the document-or-fix decision.
+## 2026-10-31 — PHP and Laravel audit (ERR-027, ERR-028, ERR-029)
+
+Auditing PHP support on `feat/php-indexing-improvements` (base `59231f0`), with the branch's `mct-cli` and disposable Laravel-shaped projects (not the primary index, which belongs to the Lua branch):
+
+- ERR-027 (new, fixed in the branch): a Latin-1 `.php` file was silently missing from the index; the indexer now records it as a parse issue (any language). Verified on the disposable project and by `non_utf8_sources.rs`.
+- ERR-028 (new, open): `list_symbols` with an empty `path` returns `symbol name must not be empty`.
+- ERR-029 (new, known limitation): unpinned type references to a class whose file module has the same name read as ambiguous between the two; needs a resolver-view change, hence an issue.
+- Caller mistakes, no server defect: positional tool name for `mct-cli call` (use `--tool`), and `find_callers` with `symbol` instead of `function`.
+- Generated Laravel files (`storage/framework/`, `bootstrap/cache/`) were being indexed; they are now excluded by default (not a registry entry: a missing default, not a failure).
+
+## 2026-10-31 — PHP and Laravel review, second pass (ERR-030, ERR-031)
+
+- ERR-030 (new, fixed in the branch): the Laravel generated-directory exclusions I added earlier were built-in, any-depth and not overridable, so they could hide hand-written code in other stacks. A root-anchored, overridable default was tried and dropped as well (a path cannot prove a Laravel application); the built-in rule is removed and `.mctignore` usage is documented and tested. The earlier line of this file saying they are "excluded by default" is superseded.
+- ERR-031 (new, known limitation): conventionally discovered listeners stay `find_dead_code` candidates; explicitly registered ones do not. Needs an issue.
+- ERR-029: measured across the 17 corpus indexes; the `Module` is never the sole candidate, and also shares relations in Java and JS/TS.
+- `mct-eval` re-run on the final state: exit 0, no failing row.
+
+## 2026-10-31 — PHP and Laravel, possible entry points (ERR-031)
+
+- ERR-031 (resolved on the branch, issue #273): `find_dead_code`, the CSV report and the dashboard now mark a conventionally discovered Laravel listener as a possible entry point instead of leaving it indistinguishable from unreferenced code. The earlier "known limitation" line above is superseded; the candidate itself is unchanged.
+- Schema version is now 14 (migration 13 for #272, 14 for #273); `assets.rs` pin updated.

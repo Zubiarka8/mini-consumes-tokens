@@ -8,6 +8,7 @@ Library support has three independent responsibilities: detect declared packages
 | --- | --- | --- |
 | Recognize dependency manifests and deduplicate package names | [`manifests.rs`](../../crates/mct-index/src/manifests.rs) | Private format modules under [`manifests/`](../../crates/mct-index/src/manifests) |
 | Read JS/TS packages from `package.json` | `manifests::parse_manifest` | [`manifests/javascript.rs`](../../crates/mct-index/src/manifests/javascript.rs) |
+| Read PHP packages from `composer.json` (`require`, `require-dev`) | `manifests::parse_manifest` | [`manifests/composer.rs`](../../crates/mct-index/src/manifests/composer.rs) |
 | Read Python packages from `requirements.txt` | `manifests::parse_manifest` | [`manifests/python.rs`](../../crates/mct-index/src/manifests/python.rs) |
 | Analyse LuaRocks rockspecs (scopes, constraints, platform tables, module maps) without executing them | `manifests::lua::analyse` | [`manifests/lua/`](../../crates/mct-index/src/manifests/lua): `data.rs` (Lua-data reader), `rockspec.rs`, `tree.rs` (tree `manifest`, `luarocks.lock`), `version.rs` |
 | Report declared, installed and pinned LuaRocks state and import origins | `mct_index::luarocks` | [`luarocks.rs`](../../crates/mct-index/src/luarocks.rs), shown only by the MCP tools `get_indexing_status` and `get_dependency_graph` |
@@ -15,6 +16,7 @@ Library support has three independent responsibilities: detect declared packages
 | Extract JS/TS imports and CommonJS require paths | `walker::Walker` | [`walker/imports.rs`](../../crates/mct-lang-js-ts/src/walker/imports.rs) |
 | Extract JS/TS exports and CommonJS assignments | `walker::Walker` | [`walker/exports.rs`](../../crates/mct-lang-js-ts/src/walker/exports.rs) |
 | Extract Python source symbols and relations | [`mct-lang-python/src/lib.rs`](../../crates/mct-lang-python/src/lib.rs) | `PythonParser` and its AST walker |
+| Extract PHP symbols, namespace-aware relations and Laravel routes, views, Blade and migrations | [`mct-lang-php/src/lib.rs`](../../crates/mct-lang-php/src/lib.rs) | `PhpParser`, [`names.rs`](../../crates/mct-lang-php/src/names.rs) and [`libraries/laravel/`](../../crates/mct-lang-php/src/libraries/laravel) |
 | Extract CSS selectors and imports | [`mct-lang-css/src/lib.rs`](../../crates/mct-lang-css/src/lib.rs) | `CssParser` and its selector helpers |
 
 A rockspec is Lua code and is never run: the reader folds exact constants and stops at anything else, marking every section `incomplete`. The indexer writes the full detail to `rockspec_items` and, from the same analysis in the same transaction, the name/version projection in `dependencies` that every ecosystem shares. Installed trees and `luarocks.lock` are read at query time, through the exclusion rules, root containment and size caps; an unreadable source makes an answer unknown or incomplete, never absent. See [issue #267](https://github.com/Zubiarka8/mini-consumes-tokens/issues/267).
@@ -31,6 +33,38 @@ The authoritative framework coverage table is in [CONTRIBUTING.md](../../CONTRIB
 - Declared versions are kept as written. There is no package installation, lockfile dependency resolution, or automatic external-source indexing. `node_modules/` and `vendor/` are built-in exclusions.
 
 The Python corpus directory `project/library/` models a lending library (books, members and loans); it is application-domain code, not a directory of third-party packages. Fixture directories describe realistic applications and should retain their import relationships when moved or renamed.
+
+## Laravel
+
+Verified against the official documentation of Laravel 11, 12 and 13 (13.x released 2026-03-17, PHP 8.3+; checked 2026-10-31: directory structure, `bootstrap/app.php`/`routes/`, controllers and resource routing, event discovery). The 13.x pages show the same skeleton and the same routing, controller and resource syntax as 12; its additions (`#[Middleware]`/`#[Authorize]` controller attributes, `softDeletableResources`, `Queue::route`) are read by the generic attribute and `::class` references, plus `softDeletableResources`. No Laravel 13 application was run or cloned: the claim is documentation-level. The tests use a skeleton written from that documentation (`crates/mct-lang-php/tests/fixtures/laravel-app`), not a project cloned from a real application.
+
+| Pattern | Recorded as | Where to query it |
+| --- | --- | --- |
+| `Route::get/post/put/patch/delete/options/any/match/fallback(…, [Controller::class, 'm'])` | `calls` from the route file to `Controller::m` | `find_callers m` |
+| `Route::get('/', Controller::class)` (invokable) | `calls` to `Controller::__invoke` | `find_callers __invoke` |
+| `Route::controller(C::class)->group(fn)` with `Route::get('/x', 'm')` inside | `calls` to `C::m` | `find_callers m` |
+| `Route::resource/apiResource/singleton/apiSingleton(…, C::class)` and `resources/apiResources/softDeletableResources([…])`, with literal `only`/`except` and `creatable()`/`destroyable()` | `calls` to each remaining conventional method | `find_callers index` … |
+| `bootstrap/app.php` `withRouting(web: __DIR__.'/../routes/web.php', …)` | `imports` of the route files | `get_dependency_graph` |
+| `view('a.b')`, `View::make`, `Route::view` | `imports` of `resources/views/a/b.blade.php` (under the application root derived from the file's own path) | `get_dependency_graph`, `find_references` |
+| Blade `@extends/@include/@includeIf/@includeWhen/@includeUnless/@includeFirst/@each/@component` with literals | `imports` of the template | `get_dependency_graph` |
+| Blade `<x-name>` | `references` to class `App\View\Components\Name` and to `components/name.blade.php` | `find_references Name`, and `find_references name.blade` for the anonymous template (a Blade file's module is named with its `.blade` suffix) |
+| Blade `@inject`, `@use` | `references` / `imports` of the class | `find_references` |
+| `return new class extends Migration { up/down }` | `up`/`down` as methods of the migration file's module | `list_symbols` |
+| Providers in `bootstrap/providers.php`, `Model::class` in relations/policies/middleware lists, type-hinted controller parameters and listener `handle(Event $e)` | generic PHP `references` (no Laravel logic needed) | `find_references` |
+
+Not determinable from source, so left unrecorded rather than guessed: string actions (`'Controller@method'`), route middleware aliases, policy/listener/job auto-discovery, `route('name')`/`config('a.b')`/`__('key')` lookups, model table names and relationship kinds, container bindings made with closures, package-namespaced views (`pkg::view`), `@php` blocks and `{{ }}` expressions, `Route` registered through a variable (`$router->get`), a resource whose `only`/`except` list is computed, and a renamed application root namespace for `<x-…>` classes. A `View::composer` or a view built from a computed name is unknown. A listener the framework finds by convention alone (a `handle(OrderPlaced $e)` method in `app/Listeners`) has no reference in the source, so `find_dead_code` keeps reporting it as a candidate. When the project's own `composer.json` declares `laravel/framework` 11 or later, the candidate also carries a `possible entry point (laravel, event-listener-discovery)` note ([ADR-027](adrs/027-possible-entry-points.md)): a possibility, never a claim that Laravel loads it, because discovery can be configured with `withEvents`, cached with `event:cache`, or opted out of at run time. One named in source (`Event::listen(OrderPlaced::class, AuditOrder::class)`) is referenced and not reported. Directories set with `withEvents`, a monorepo application without its own `composer.json`, policies and commands get no note.
+
+`composer.json` `require`/`require-dev` are listed by `get_indexing_status` (for example `laravel/framework ^12.0`). Nothing is excluded for being Laravel's. `storage/framework/` (compiled Blade views, sessions, cache) and `bootstrap/cache/` (cached config, routes, events) are generated, but a path cannot say that a project is a Laravel application: the same names hold hand-written code in other stacks, and in a monorepo each application has its own. So they are indexed unless the project lists them in `.mctignore`, relative to the project root:
+
+```text
+storage/framework/
+bootstrap/cache/
+# a Laravel application below the root: repeat the lines with its prefix
+apps/shop/storage/framework/
+apps/shop/bootstrap/cache/
+```
+
+Without those lines a compiled view such as `storage/framework/views/0a1b2c.php` is indexed as a PHP file and files the view's code a second time. `storage/app`, `storage/logs` and the rest of `bootstrap/` are ordinary source.
 
 ## Library directory layout
 

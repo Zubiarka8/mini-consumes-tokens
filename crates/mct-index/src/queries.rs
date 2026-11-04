@@ -587,6 +587,60 @@ pub fn fan_in_counts(conn: &Connection) -> Result<HashMap<String, usize>> {
     Ok(counts)
 }
 
+/// A stored entry-point hint with the dependency version its requirement is
+/// checked against (`None` when the manifest does not declare the package).
+#[derive(Debug, Clone)]
+pub(crate) struct EntryPointRow {
+    pub relative_path: String,
+    pub name: String,
+    pub kind: String,
+    pub parent: Option<String>,
+    pub line: u32,
+    pub framework: String,
+    pub rule: String,
+    pub evidence: String,
+    /// `(package, min_major)` when the hint carries a requirement.
+    pub requires: Option<(String, u32)>,
+    /// Whether the required manifest declares the required package.
+    pub declared: bool,
+    /// The declared version constraint, as the manifest writes it.
+    pub declared_version: Option<String>,
+}
+
+pub(crate) fn entry_point_rows(conn: &Connection) -> Result<Vec<EntryPointRow>> {
+    let mut stmt = conn.prepare_cached(
+        "SELECT f.relative_path, s.name, s.kind, s.parent, s.line,
+                e.framework, e.rule, e.evidence,
+                e.requires_package, e.requires_min_major,
+                d.id IS NOT NULL, d.version
+         FROM symbol_entry_points e
+         JOIN symbols s ON s.id = e.symbol_id
+         JOIN files f ON f.id = s.file_id
+         LEFT JOIN dependencies d
+                ON d.manifest_path = e.requires_manifest AND d.name = e.requires_package
+         ORDER BY f.relative_path, s.line, e.framework, e.rule",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        let package: Option<String> = row.get(8)?;
+        let min_major: Option<u32> = row.get(9)?;
+        Ok(EntryPointRow {
+            relative_path: row.get(0)?,
+            name: row.get(1)?,
+            kind: row.get(2)?,
+            parent: row.get(3)?,
+            line: row.get(4)?,
+            framework: row.get(5)?,
+            rule: row.get(6)?,
+            evidence: row.get(7)?,
+            requires: package.map(|p| (p, min_major.unwrap_or(0))),
+            declared: row.get(10)?,
+            declared_version: row.get(11)?,
+        })
+    })?;
+    rows.collect::<std::result::Result<Vec<_>, _>>()
+        .map_err(Into::into)
+}
+
 /// Total reference counts for every referenced name, across *every* relation
 /// kind (calls/imports/extends/implements/plain references) — the whole-
 /// project fan-in `find_dead_code` needs to tell "zero references anywhere"
