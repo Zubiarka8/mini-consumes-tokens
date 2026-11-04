@@ -7,12 +7,7 @@ use mct_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
 use mct_lang_lua::LuaParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
-    LuaParser
-        .parse(&SourceFile {
-            relative_path: "module.lua".to_string(),
-            contents: src.to_string(),
-        })
-        .expect("valid Lua source should parse")
+    mct_corpus::parse_source(&LuaParser, "module.lua", "Lua", src)
 }
 
 #[test]

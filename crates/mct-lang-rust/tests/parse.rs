@@ -7,12 +7,7 @@ use mct_core::{LanguageParser, RelationKind, RelationTarget, SourceFile, SymbolK
 use mct_lang_rust::RustParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
-    RustParser
-        .parse(&SourceFile {
-            relative_path: "src/lib.rs".to_string(),
-            contents: src.to_string(),
-        })
-        .expect("valid Rust source should parse")
+    mct_corpus::parse_source(&RustParser, "src/lib.rs", "Rust", src)
 }
 
 #[test]
