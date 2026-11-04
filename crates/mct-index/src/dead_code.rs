@@ -121,6 +121,28 @@ fn is_candidate(entry: &SymbolListEntry, reference_counts: &HashMap<String, usiz
         && !reference_counts.contains_key(entry.name.as_str())
 }
 
+/// Why a dead-code candidate might still be loaded: a framework convention
+/// its source matches, with nothing in the source naming the symbol. A
+/// possibility, never a finding that the framework loads it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EntryPointNote {
+    pub framework: String,
+    pub rule: String,
+    pub evidence: String,
+}
+
+impl EntryPointNote {
+    /// The one wording every consumer shows, so none of them can drift into
+    /// claiming more than the index knows.
+    pub fn describe(&self) -> String {
+        format!(
+            "possible entry point ({}, {}): {}; nothing in the source references it and \
+             the framework may load it by convention. Not proven.",
+            self.framework, self.rule, self.evidence
+        )
+    }
+}
+
 /// Every symbol in scope, and which of them are dead-code candidates.
 #[derive(Clone, Debug, Default)]
 pub struct DeadCodeScan {
@@ -130,6 +152,88 @@ pub struct DeadCodeScan {
     /// Indices into `symbols`, ascending: the same candidates, in the same
     /// order, as [`find_dead_code_candidates`].
     pub candidates: Vec<usize>,
+    /// Possible entry points of the candidates, by index into `symbols`.
+    /// Empty unless a parser declared hints whose project requirement holds.
+    pub entry_points: HashMap<usize, Vec<EntryPointNote>>,
+}
+
+impl DeadCodeScan {
+    /// The possible entry points of the candidate at `symbols[symbol]`.
+    pub fn possible_entry_points(&self, symbol: usize) -> &[EntryPointNote] {
+        self.entry_points.get(&symbol).map_or(&[], Vec::as_slice)
+    }
+}
+
+/// The first run of digits of a version constraint (`^12.0` -> 12).
+fn declared_major(constraint: &str) -> Option<u32> {
+    let digits: String = constraint
+        .chars()
+        .skip_while(|c| !c.is_ascii_digit())
+        .take_while(char::is_ascii_digit)
+        .collect();
+    digits.parse().ok()
+}
+
+/// Whether the project fact a hint requires holds: the manifest declares the
+/// package, and its constraint does not name a major below the lowest checked
+/// one. A constraint whose major cannot be read (`*`, `dev-main`) still
+/// counts, because the hint is only ever a possibility.
+fn requirement_holds(row: &crate::queries::EntryPointRow) -> bool {
+    let Some((_, min_major)) = &row.requires else {
+        return true;
+    };
+    if !row.declared {
+        return false;
+    }
+    match row.declared_version.as_deref().and_then(declared_major) {
+        Some(major) => major >= *min_major,
+        None => true,
+    }
+}
+
+fn entry_point_notes(
+    index: &Index,
+    symbols: &[SymbolListEntry],
+    candidates: &[usize],
+) -> Result<HashMap<usize, Vec<EntryPointNote>>> {
+    let rows = crate::queries::entry_point_rows(&index.conn)?;
+    if rows.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let candidate_of: HashMap<(&str, &str, &str, Option<&str>, u32), usize> = candidates
+        .iter()
+        .map(|&id| {
+            let s = &symbols[id];
+            (
+                (
+                    s.relative_path.as_str(),
+                    s.name.as_str(),
+                    s.kind.as_str(),
+                    s.parent.as_deref(),
+                    s.line,
+                ),
+                id,
+            )
+        })
+        .collect();
+    let mut notes: HashMap<usize, Vec<EntryPointNote>> = HashMap::new();
+    for row in rows.iter().filter(|row| requirement_holds(row)) {
+        let key = (
+            row.relative_path.as_str(),
+            row.name.as_str(),
+            row.kind.as_str(),
+            row.parent.as_deref(),
+            row.line,
+        );
+        if let Some(&id) = candidate_of.get(&key) {
+            notes.entry(id).or_default().push(EntryPointNote {
+                framework: row.framework.clone(),
+                rule: row.rule.clone(),
+                evidence: row.evidence.clone(),
+            });
+        }
+    }
+    Ok(notes)
 }
 
 /// [`find_dead_code_candidates`] plus the symbols review identities need
@@ -141,21 +245,32 @@ pub fn scan_dead_code(
 ) -> Result<DeadCodeScan> {
     let symbols = index.list_symbols_all(path, language)?;
     let reference_counts = index.reference_counts()?;
-    let candidates = symbols
+    let candidates: Vec<usize> = symbols
         .iter()
         .enumerate()
         .filter(|(_, entry)| is_candidate(entry, &reference_counts))
         .map(|(id, _)| id)
         .collect();
+    let entry_points = entry_point_notes(index, &symbols, &candidates)?;
     Ok(DeadCodeScan {
         symbols,
         candidates,
+        entry_points,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_declared_major_is_the_first_number_of_the_constraint() {
+        assert_eq!(declared_major("^12.0"), Some(12));
+        assert_eq!(declared_major(">=10.0 <13"), Some(10));
+        assert_eq!(declared_major("~11.3.1"), Some(11));
+        assert_eq!(declared_major("*"), None);
+        assert_eq!(declared_major("dev-main"), None);
+    }
 
     #[test]
     fn a_name_merely_starting_with_test_in_a_source_file_is_not_a_test() {

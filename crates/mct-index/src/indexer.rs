@@ -446,9 +446,8 @@ fn index_file(
 
     let contents = match String::from_utf8(bytes) {
         Ok(s) => s,
-        // binary file with a matching extension — nothing to parse, and
-        // nothing from an earlier text version of it may stay indexed
-        Err(_) => {
+        Err(e) => {
+            // Nothing from an earlier readable version may stay indexed.
             index.conn.execute(
                 "DELETE FROM index_issues
                  WHERE relative_path = ?1 AND issue_kind = 'syntax_error'",
@@ -460,6 +459,35 @@ fn index_file(
                     params![relative_path],
                 )?;
             }
+            // A NUL byte means a binary file that merely has a source
+            // extension: nothing to parse, nothing to report. Any other
+            // invalid UTF-8 is text in another encoding (Latin-1 PHP, a
+            // Windows-1252 script): the file cannot be parsed, which the
+            // status must say rather than silently omit its symbols.
+            if e.as_bytes().contains(&0) {
+                return Ok(Seen::Source(relative_path));
+            }
+            let offset = e.utf8_error().valid_up_to();
+            let line = e.as_bytes()[..offset]
+                .iter()
+                .filter(|b| **b == b'\n')
+                .count()
+                + 1;
+            let detail = format!(
+                "line {line}: not valid UTF-8 (first invalid byte at offset {offset}); \
+                 re-save the file as UTF-8 to index it"
+            );
+            record_issue(
+                &index.conn,
+                &relative_path,
+                UnsupportedKind::SyntaxError,
+                &detail,
+            )?;
+            report.issues.push(UnsupportedFile {
+                relative_path: relative_path.clone(),
+                kind: UnsupportedKind::SyntaxError,
+                detail,
+            });
             return Ok(Seen::Source(relative_path));
         }
     };
@@ -1215,6 +1243,31 @@ fn write_parsed_file(
         tx.execute(
             "INSERT OR IGNORE INTO symbol_aliases (symbol_id, alias) VALUES (?1, ?2)",
             params![symbol_id, alias.name],
+        )?;
+    }
+
+    for hint in &parsed.entry_points {
+        let Some(&symbol_id) = id_map.get(&hint.symbol) else {
+            continue; // Ignore hints about nonexistent local symbols.
+        };
+        if hint.framework.is_empty() || hint.rule.is_empty() || hint.evidence.is_empty() {
+            continue;
+        }
+        let requires = hint.requires.as_ref();
+        tx.execute(
+            "INSERT OR IGNORE INTO symbol_entry_points
+                 (symbol_id, framework, rule, evidence,
+                  requires_manifest, requires_package, requires_min_major)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                symbol_id,
+                hint.framework,
+                hint.rule,
+                hint.evidence,
+                requires.map(|r| r.manifest_path.as_str()),
+                requires.map(|r| r.package.as_str()),
+                requires.map(|r| r.min_major),
+            ],
         )?;
     }
 
