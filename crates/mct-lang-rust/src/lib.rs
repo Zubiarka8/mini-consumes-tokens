@@ -798,7 +798,7 @@ impl<'a> Walker<'a> {
             let mut cursor = args.walk();
             for child in args.named_children(&mut cursor) {
                 if child.kind() == "identifier"
-                    && !child.next_sibling().is_some_and(|n| n.kind() == "::")
+                    && child.next_sibling().is_none_or(|n| n.kind() != "::")
                 {
                     self.push_relation(
                         owner,
