@@ -13,6 +13,7 @@ error). What each one does is in `../README.md`.
 | `branch-worktree.ps1 <branch> [base]` | `branch-worktree.sh` |
 | `reinstall.ps1 [--reindex] [--semantic] [--server-only]` | `reinstall.sh` |
 | `mcp-smoke.ps1 [--dev] [--expect T] [--list] [--bin P --root D]` | `mcp-smoke.sh` |
+| `web.ps1 [--dev] [--port N] [--no-obsidian] [--no-open] [--root D]` | `web.sh` |
 | `new-tool-check.ps1 <tool> [--no-tests]` | `new-tool-check.sh` |
 | `new-language-check.ps1 <suffix> [--readme-name N] [--no-tests]` | `new-language-check.sh` |
 | `token-report.ps1 [--no-eval] [--markdown F]` | `token-report.sh` |
