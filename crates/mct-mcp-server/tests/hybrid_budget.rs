@@ -97,7 +97,7 @@ async fn the_levels_apply_to_hybrid_hits_and_cost_less_when_lower() {
         async move {
             hybrid(
                 server,
-                json!({ "query": "order", "alpha": 0.0, "format": "text", "top_k": 12, "detail": detail }),
+                json!({ "query": "place_order", "alpha": 0.0, "format": "text", "top_k": 12, "detail": detail }),
             )
             .await
         }

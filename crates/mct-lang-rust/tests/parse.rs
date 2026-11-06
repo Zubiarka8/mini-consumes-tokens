@@ -11,6 +11,162 @@ fn parse(src: &str) -> mct_core::ParsedFile {
 }
 
 #[test]
+fn indexes_nested_bindings_macros_and_attributes() {
+    let parsed = parse(
+        r#"
+        macro_rules! audit_macro { ($x:expr) => { $x } }
+        #[derive(Clone)]
+        struct Widget;
+        trait Parent<T> {}
+        trait Child: crate::Parent<u8> {}
+        fn outer(input: i32) {
+            fn nested() {}
+            let local_value = input;
+            let assigned = |x: i32| nested();
+            audit_macro!(local_value);
+        }
+    "#,
+    );
+    for (name, kind, parent) in [
+        ("nested", SymbolKind::Function, Some("outer")),
+        ("input", SymbolKind::Variable, Some("outer")),
+        ("local_value", SymbolKind::Variable, Some("outer")),
+        ("assigned", SymbolKind::Function, Some("outer")),
+        ("audit_macro", SymbolKind::Function, None),
+    ] {
+        assert!(
+            parsed
+                .symbols
+                .iter()
+                .any(|s| s.name == name && s.kind == kind && s.parent.as_deref() == parent),
+            "missing {name}: {:?}",
+            parsed.symbols
+        );
+    }
+    for (from, kind, target) in [
+        ("outer", RelationKind::Calls, "audit_macro"),
+        ("assigned", RelationKind::Calls, "nested"),
+        ("Widget", RelationKind::References, "Clone"),
+        ("Child", RelationKind::Extends, "Parent"),
+    ] {
+        let owner = parsed
+            .symbols
+            .iter()
+            .find(|s| s.name == from)
+            .expect("owner");
+        assert!(
+            parsed
+                .relations
+                .iter()
+                .any(|r| r.from == owner.id && r.kind == kind && r.to_name == target),
+            "missing {from} -> {target}: {:?}",
+            parsed.relations
+        );
+    }
+}
+
+#[test]
+fn destructuring_indexes_bindings_without_indexing_pattern_constructors() {
+    let parsed = parse(
+        r#"
+        fn outer(input: Option<(i32, i32)>) {
+            let Some((first, second)) = input else { return; };
+            let call = |arg| arg + first;
+        }
+    "#,
+    );
+    for (name, parent) in [
+        ("input", "outer"),
+        ("first", "outer"),
+        ("second", "outer"),
+        ("arg", "call"),
+    ] {
+        assert!(
+            parsed.symbols.iter().any(|s| s.name == name
+                && s.kind == SymbolKind::Variable
+                && s.parent.as_deref() == Some(parent)),
+            "missing {name}"
+        );
+    }
+    assert!(!parsed.symbols.iter().any(|s| s.name == "Some"));
+}
+
+#[test]
+fn attribute_references_keep_terminal_names_and_ignore_configuration() {
+    let parsed = parse(
+        r#"
+        #[allow(dead_code)]
+        #[custom::mark]
+        #[derive(Clone, custom::Copy)]
+        struct Widget;
+    "#,
+    );
+    let widget = parsed.symbols.iter().find(|s| s.name == "Widget").unwrap();
+    let names: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.from == widget.id && r.kind == RelationKind::References)
+        .map(|r| r.to_name.as_str())
+        .collect();
+    assert_eq!(names, ["mark", "Clone", "Copy"]);
+}
+
+#[test]
+fn indexes_rust_data_declarations_and_supertraits() {
+    let parsed = parse(
+        r#"
+        struct Inner;
+        struct Widget { value: i32, inner: Inner }
+        union RawValue { integer: i32, float: f32 }
+        enum Color { Red, Rgb(u8, u8, u8) }
+        struct Pair(Inner, i32);
+        static COUNT: i32 = 1;
+        const LIMIT: i32 = 2;
+        trait Parent {}
+        trait Child: Parent {}
+    "#,
+    );
+    for (name, kind, parent) in [
+        ("RawValue", SymbolKind::Struct, None),
+        ("value", SymbolKind::Field, Some("Widget")),
+        ("inner", SymbolKind::Field, Some("Widget")),
+        ("integer", SymbolKind::Field, Some("RawValue")),
+        ("Red", SymbolKind::Constant, Some("Color")),
+        ("Rgb", SymbolKind::Constant, Some("Color")),
+        ("0", SymbolKind::Field, Some("Pair")),
+        ("1", SymbolKind::Field, Some("Pair")),
+        ("COUNT", SymbolKind::Variable, None),
+        ("LIMIT", SymbolKind::Constant, None),
+    ] {
+        assert!(
+            parsed
+                .symbols
+                .iter()
+                .any(|s| s.name == name && s.kind == kind && s.parent.as_deref() == parent),
+            "missing {name}"
+        );
+    }
+    let child = parsed
+        .symbols
+        .iter()
+        .find(|s| s.name == "Child")
+        .expect("trait");
+    assert!(parsed
+        .relations
+        .iter()
+        .any(|r| r.from == child.id && r.kind == RelationKind::Extends && r.to_name == "Parent"));
+    let inner = parsed
+        .symbols
+        .iter()
+        .find(|s| s.name == "inner")
+        .expect("field");
+    assert!(parsed
+        .relations
+        .iter()
+        .any(|r| r.from == inner.id && r.kind == RelationKind::References && r.to_name == "Inner"));
+}
+
+#[test]
 fn extracts_function_and_call() {
     let parsed = parse(
         r#"
@@ -227,7 +383,6 @@ fn a_same_file_function_inside_a_macro_token_tree_is_a_reference_not_a_call() {
 }
 
 #[test]
-#[ignore = "known bug, not filed yet: a method call inside a macro's token tree leaves no relation, so find_callers/find_references/impact_analysis miss it (benchmarks/agent-benchmark.md)"]
 fn a_method_call_inside_a_macro_token_tree_leaves_a_relation() {
     // The shape of the former CLI/MCP-server registry parity test.
     let parsed = parse(

@@ -93,7 +93,7 @@ pub struct EmbeddingCoverage {
 /// Version of the [`embedding_text`] format. Part of the stored `model` tag
 /// (see [`vector_space`]), so changing how the text is synthesised re-embeds
 /// every symbol instead of mixing vectors of two different formats.
-pub const EMBEDDING_TEXT_VERSION: &str = "ctx2";
+pub const EMBEDDING_TEXT_VERSION: &str = "ctx3";
 
 /// Caps on the synthesised text, so one symbol stays far below the model's
 /// token window (256 word pieces for MiniLM-class models) and a batch pads
@@ -462,9 +462,16 @@ pub fn snapshot_pending_embeddings(
             .unwrap_or_default();
         let lines: Vec<&str> = source.lines().collect();
         for p in file_rows {
-            let signature = signature_at(&lines, p.line, p.end_line);
+            // A local or parameter can share a line with its enclosing
+            // function. That line describes the function, not the binding.
+            let local_binding = p.kind == "variable" && p.parent.is_some();
+            let signature = if local_binding {
+                None
+            } else {
+                signature_at(&lines, p.line, p.end_line)
+            };
             // A heading-like symbol (Markdown) has no doc comment above it.
-            let doc = if p.has_level {
+            let doc = if p.has_level || local_binding {
                 None
             } else {
                 doc_at(&lines, p.line)
