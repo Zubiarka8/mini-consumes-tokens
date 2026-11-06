@@ -77,7 +77,7 @@ const EXPECTED_COVERAGE: &[(&str, usize, usize)] = &[
     ("php", 2, 7),
     ("powershell", 2, 5),
     ("python", 2, 7),
-    ("rust", 4, 14),
+    ("rust", 4, 21),
     ("xaml", 1, 4),
     ("xml", 1, 4),
 ];
