@@ -33,11 +33,11 @@ fn types_traits_and_aliases_are_extracted_with_kinds() {
         ("model.rs", "StockRecord", SymbolKind::TypeAlias),
         ("model.rs", "Catalog", SymbolKind::TypeAlias),
         ("model.rs", "MAX_NAME_LEN", SymbolKind::Constant),
-        ("model.rs", "SKU_PREFIX", SymbolKind::Constant),
+        ("model.rs", "SKU_PREFIX", SymbolKind::Variable),
         ("model.rs", "dimensions", SymbolKind::Module),
         ("errors.rs", "InventoryError", SymbolKind::Enum),
         ("errors.rs", "Result", SymbolKind::TypeAlias),
-        ("errors.rs", "AUDIT", SymbolKind::Constant),
+        ("errors.rs", "AUDIT", SymbolKind::Variable),
         ("storage.rs", "Repository", SymbolKind::Trait),
         ("storage.rs", "MemoryRepository", SymbolKind::Struct),
         ("service.rs", "BoxFuture", SymbolKind::TypeAlias),
@@ -86,7 +86,7 @@ fn methods_hang_off_their_impl_type_including_generic_ones() {
 fn nested_functions_are_not_methods_of_the_enclosing_impl() {
     let c = corpus();
     let walk = c.symbol("report.rs", "walk", SymbolKind::Function);
-    assert_eq!(walk.parent, None);
+    assert_eq!(walk.parent.as_deref(), Some("body"));
     assert_eq!(
         lines("report.rs", "walk", SymbolKind::Function),
         (269, Some(274))

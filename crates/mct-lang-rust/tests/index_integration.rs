@@ -67,7 +67,18 @@ fn list_symbols_reports_every_definition_in_the_struct_file_as_rust() {
     let names: Vec<_> = entries.iter().map(|e| e.name.as_str()).collect();
     assert_eq!(
         names,
-        vec!["invoice", "Invoice", "new", "add_item", "add_item_with_tax"]
+        vec![
+            "invoice",
+            "Invoice",
+            "total",
+            "new",
+            "add_item",
+            "price",
+            "add_item_with_tax",
+            "price",
+            "tax_rate",
+            "taxed"
+        ]
     );
     assert!(
         entries.iter().all(|e| e.language == "rust"),
@@ -97,7 +108,7 @@ fn status_reports_full_rust_coverage() {
         .find(|l| l.language == "rust")
         .unwrap();
     assert_eq!(rust.file_count, 3);
-    assert_eq!(rust.symbol_count, 11);
+    assert_eq!(rust.symbol_count, 18);
     assert_eq!(status.languages.len(), 1, "the fixture is single-language");
     assert!(status.unsupported_languages.is_empty());
     assert!(status.syntax_errors.is_empty());

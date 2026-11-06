@@ -99,6 +99,7 @@ struct Walker<'a> {
     /// this file — the only names a bare identifier is resolved against when
     /// it's used as a value rather than called (see the `identifier` arm).
     free_fns: HashSet<String>,
+    macros: HashSet<String>,
     /// Names bound as locals (parameters, `let`/`for`/`match`/closure
     /// patterns) in the function currently being walked: a bare identifier
     /// with one of these names is the local, never the same-named function.
@@ -120,6 +121,7 @@ impl<'a> Walker<'a> {
             literals: LiteralCollector::default(),
             next_id: 0,
             free_fns: HashSet::new(),
+            macros: HashSet::new(),
             bound: HashSet::new(),
             relation_targets: Vec::new(),
             self_type: None,
@@ -184,10 +186,12 @@ impl<'a> Walker<'a> {
     /// unreferenced function even though nothing in the repo calls it.
     fn visit_children(&mut self, node: Node, owner: SymbolId, impl_type: Option<&str>, depth: u32) {
         let mut harness_attribute: Option<Location> = None;
+        let mut attributes = Vec::new();
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             match child.kind() {
                 "attribute_item" => {
+                    attributes.push(child);
                     if is_harness_attribute(child, self.source) {
                         harness_attribute = Some(location(child));
                     }
@@ -204,7 +208,20 @@ impl<'a> Walker<'a> {
                 }
                 _ => harness_attribute = None,
             }
+            let before = self.symbols.len();
             self.visit(child, owner, impl_type, depth + 1);
+            if !matches!(
+                child.kind(),
+                "attribute_item" | "line_comment" | "block_comment"
+            ) {
+                if let Some(target) = self.symbols.get(before).map(|s| s.id) {
+                    for attribute in attributes.drain(..) {
+                        self.visit_attribute_references(attribute, target);
+                    }
+                } else {
+                    attributes.clear();
+                }
+            }
         }
     }
 
@@ -227,8 +244,10 @@ impl<'a> Walker<'a> {
                 } else {
                     SymbolKind::Function
                 };
-                let id =
-                    self.push_symbol(name, kind, location(node), impl_type.map(str::to_string));
+                let parent = impl_type
+                    .map(str::to_string)
+                    .or_else(|| self.callable_owner(owner));
+                let id = self.push_symbol(name, kind, location(node), parent);
                 // Locals are per function: a nested `fn` starts from an empty
                 // scope (it can't see its parent's locals) and the parent's
                 // scope is restored once it's done.
@@ -282,6 +301,19 @@ impl<'a> Walker<'a> {
                         && child
                             .prev_sibling()
                             .is_some_and(|p| matches!(p.kind(), "." | "::"));
+                    if after_accessor
+                        && child.prev_sibling().is_some_and(|p| p.kind() == ".")
+                        && child.next_named_sibling().is_some_and(|n| {
+                            n.kind() == "token_tree" && text(n, self.source).starts_with('(')
+                        })
+                    {
+                        self.push_relation(
+                            owner,
+                            RelationKind::References,
+                            text(child, self.source).to_string(),
+                            location(child),
+                        );
+                    }
                     if !after_accessor {
                         self.visit(child, owner, impl_type, depth + 1);
                     }
@@ -289,6 +321,18 @@ impl<'a> Walker<'a> {
             }
             // The macro's own name (`vec`, `params`) is not a value use.
             "macro_invocation" => {
+                if let Some(mac) = node.child_by_field_name("macro") {
+                    if let Some((name, name_node)) = call_target(mac, self.source) {
+                        if self.macros.contains(&name) {
+                            self.push_relation(
+                                owner,
+                                RelationKind::Calls,
+                                name,
+                                location(name_node),
+                            );
+                        }
+                    }
+                }
                 let mut cursor = node.walk();
                 for child in node.children(&mut cursor) {
                     if child.kind() == "token_tree" {
@@ -296,11 +340,113 @@ impl<'a> Walker<'a> {
                     }
                 }
             }
-            "struct_item" => {
-                self.push_named(node, SymbolKind::Struct, None);
+            "macro_definition" => {
+                if let Some(name) = node.child_by_field_name("name") {
+                    self.macros.insert(text(name, self.source).to_string());
+                }
+                self.push_named(node, SymbolKind::Function, self.callable_owner(owner));
+            }
+            "parameter" => {
+                if let Some(pattern) = node.child_by_field_name("pattern") {
+                    self.push_bindings(pattern, owner, SymbolKind::Variable, depth + 1);
+                }
+            }
+            "closure_parameters" => {
+                let mut cursor = node.walk();
+                for param in node.named_children(&mut cursor) {
+                    if param.kind() == "parameter" {
+                        self.visit(param, owner, None, depth + 1);
+                    } else {
+                        self.push_bindings(param, owner, SymbolKind::Variable, depth + 1);
+                    }
+                }
+            }
+            "let_declaration" => {
+                let value = node.child_by_field_name("value");
+                if let Some(pattern) = node.child_by_field_name("pattern") {
+                    if value.is_some_and(|v| v.kind() == "closure_expression")
+                        && pattern.kind() == "identifier"
+                    {
+                        let id = self.push_symbol(
+                            text(pattern, self.source).to_string(),
+                            SymbolKind::Function,
+                            location(node),
+                            self.callable_owner(owner),
+                        );
+                        if let Some(closure) = value {
+                            self.visit_children(closure, id, None, depth + 1);
+                        }
+                        return;
+                    }
+                    self.push_bindings(pattern, owner, SymbolKind::Variable, depth + 1);
+                }
+                if let Some(value) = value {
+                    self.visit(value, owner, None, depth + 1);
+                }
+                if let Some(alt) = node.child_by_field_name("alternative") {
+                    self.visit(alt, owner, None, depth + 1);
+                }
+            }
+            "struct_item" | "union_item" => {
+                let name = node
+                    .child_by_field_name("name")
+                    .map(|n| text(n, self.source).to_string())
+                    .unwrap_or_default();
+                let id = self.push_symbol(name.clone(), SymbolKind::Struct, location(node), None);
+                if let Some(body) = node.child_by_field_name("body") {
+                    self.visit(body, id, Some(&name), depth + 1);
+                }
             }
             "enum_item" => {
-                self.push_named(node, SymbolKind::Enum, None);
+                let name = node
+                    .child_by_field_name("name")
+                    .map(|n| text(n, self.source).to_string())
+                    .unwrap_or_default();
+                let id = self.push_symbol(name.clone(), SymbolKind::Enum, location(node), None);
+                if let Some(body) = node.child_by_field_name("body") {
+                    self.visit(body, id, Some(&name), depth + 1);
+                }
+            }
+            "field_declaration" => {
+                let id = self.push_named(node, SymbolKind::Field, impl_type.map(str::to_string));
+                if let Some(ty) = node.child_by_field_name("type") {
+                    self.visit_type_references(ty, id, depth + 1);
+                }
+            }
+            "ordered_field_declaration_list" => {
+                let mut cursor = node.walk();
+                let mut index = 0;
+                for field in node.named_children(&mut cursor) {
+                    if matches!(
+                        field.kind(),
+                        "attribute_item" | "visibility_modifier" | "line_comment" | "block_comment"
+                    ) {
+                        continue;
+                    }
+                    let id = self.push_symbol(
+                        index.to_string(),
+                        SymbolKind::Field,
+                        location(field),
+                        impl_type.map(str::to_string),
+                    );
+                    self.visit_type_references(field, id, depth + 1);
+                    index += 1;
+                }
+            }
+            "enum_variant" => {
+                let name = node
+                    .child_by_field_name("name")
+                    .map(|n| text(n, self.source).to_string())
+                    .unwrap_or_default();
+                let id = self.push_symbol(
+                    name.clone(),
+                    SymbolKind::Constant,
+                    location(node),
+                    impl_type.map(str::to_string),
+                );
+                if let Some(body) = node.child_by_field_name("body") {
+                    self.visit(body, id, Some(&name), depth + 1);
+                }
             }
             // Associated types/consts of an `impl`/`trait` hang off the type,
             // like its methods do.
@@ -308,7 +454,12 @@ impl<'a> Walker<'a> {
                 self.push_named(node, SymbolKind::TypeAlias, impl_type.map(str::to_string));
             }
             "const_item" | "static_item" => {
-                let id = self.push_named(node, SymbolKind::Constant, impl_type.map(str::to_string));
+                let kind = if node.kind() == "static_item" {
+                    SymbolKind::Variable
+                } else {
+                    SymbolKind::Constant
+                };
+                let id = self.push_named(node, kind, impl_type.map(str::to_string));
                 if let Some(value) = node.child_by_field_name("value") {
                     self.visit(value, id, impl_type, depth + 1);
                 }
@@ -319,6 +470,29 @@ impl<'a> Walker<'a> {
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
                 let id = self.push_symbol(name.clone(), SymbolKind::Trait, location(node), None);
+                if let Some(bounds) = node.child_by_field_name("bounds") {
+                    let mut cursor = bounds.walk();
+                    for bound in bounds.named_children(&mut cursor) {
+                        let base = if bound.kind() == "generic_type" {
+                            bound.child_by_field_name("type").unwrap_or(bound)
+                        } else {
+                            bound
+                        };
+                        let base = if base.kind() == "scoped_type_identifier" {
+                            base.child_by_field_name("name").unwrap_or(base)
+                        } else {
+                            base
+                        };
+                        if base.kind() == "type_identifier" {
+                            self.push_relation(
+                                id,
+                                RelationKind::Extends,
+                                text(base, self.source).to_string(),
+                                location(base),
+                            );
+                        }
+                    }
+                }
                 if let Some(body) = node.child_by_field_name("body") {
                     self.visit_children(body, id, Some(&name), depth + 1);
                 }
@@ -543,6 +717,116 @@ impl<'a> Walker<'a> {
             let fragment_line = line + before.matches('\n').count() as u32;
             self.literals
                 .push(&unescape(fragment, is_raw), fragment_line);
+        }
+    }
+
+    fn callable_owner(&self, owner: SymbolId) -> Option<String> {
+        self.symbols
+            .get(owner as usize)
+            .filter(|s| matches!(s.kind, SymbolKind::Function | SymbolKind::Method))
+            .map(|s| s.name.clone())
+    }
+
+    fn push_bindings(&mut self, node: Node, owner: SymbolId, kind: SymbolKind, depth: u32) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return;
+        }
+        match node.kind() {
+            "identifier" | "shorthand_field_identifier" => {
+                self.push_symbol(
+                    text(node, self.source).to_string(),
+                    kind,
+                    location(node),
+                    self.callable_owner(owner),
+                );
+            }
+            "scoped_identifier" | "type_identifier" => {}
+            _ => {
+                let mut cursor = node.walk();
+                let constructor = node.child_by_field_name("type");
+                for child in node.named_children(&mut cursor) {
+                    if constructor.is_some_and(|n| n.id() == child.id()) {
+                        continue;
+                    }
+                    self.push_bindings(child, owner, kind, depth + 1);
+                }
+            }
+        }
+    }
+
+    fn visit_attribute_references(&mut self, node: Node, owner: SymbolId) {
+        let Some(attribute) = node.named_child(0) else {
+            return;
+        };
+        let Some(name) = attribute.named_child(0) else {
+            return;
+        };
+        let terminal = name.child_by_field_name("name").unwrap_or(name);
+        let attribute_name = text(terminal, self.source);
+        if attribute_name != "derive" {
+            if !matches!(
+                attribute_name,
+                "allow"
+                    | "warn"
+                    | "deny"
+                    | "forbid"
+                    | "cfg"
+                    | "cfg_attr"
+                    | "doc"
+                    | "test"
+                    | "inline"
+                    | "repr"
+                    | "must_use"
+                    | "deprecated"
+                    | "cold"
+                    | "export_name"
+                    | "link"
+                    | "no_mangle"
+                    | "path"
+                    | "macro_export"
+            ) {
+                self.push_relation(
+                    owner,
+                    RelationKind::References,
+                    attribute_name.to_string(),
+                    location(terminal),
+                );
+            }
+            return;
+        }
+        if let Some(args) = attribute.child_by_field_name("arguments") {
+            let mut cursor = args.walk();
+            for child in args.named_children(&mut cursor) {
+                if child.kind() == "identifier"
+                    && child.next_sibling().is_none_or(|n| n.kind() != "::")
+                {
+                    self.push_relation(
+                        owner,
+                        RelationKind::References,
+                        text(child, self.source).to_string(),
+                        location(child),
+                    );
+                }
+            }
+        }
+    }
+
+    fn visit_type_references(&mut self, node: Node, owner: SymbolId, depth: u32) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return;
+        }
+        if node.kind() == "type_identifier" {
+            self.push_relation(
+                owner,
+                RelationKind::References,
+                text(node, self.source).to_string(),
+                location(node),
+            );
+        } else {
+            let mut cursor = node.walk();
+            for child in node.named_children(&mut cursor) {
+                self.visit_type_references(child, owner, depth + 1);
+            }
         }
     }
 

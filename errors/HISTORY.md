@@ -1,5 +1,7 @@
 # Error history
 
+2026-11-05: `get_indexing_status` on `4eacbcb` with local changes again reported the 16 expected malformed fixtures (ERR-003) and four existing unexpected parse failures (ERR-002, ERR-023, ERR-024). `scripts/unix/parse-probe.sh` reproduced the four unexpected `syntax error` diagnostics; statuses remain unchanged. Index timestamp: `1793870569`.
+
 ## 2026-11-04 — Language crate duplicate review
 
 On `b186d5f`, `get_indexing_status` returned timestamp `1793785852`, 1,208 files, 46,919 symbols and the same 20 known parse diagnostics recorded on 2026-11-03 (16 expected ERR-003 fixtures, ERR-002, ERR-023 and two ERR-024 generated CSS files). `find_duplicate_code(normalization: consistent)` was queried separately for all 17 `mct-lang-*` crates; every response retained `coverage_complete: false` and `index_errors: 20`. Candidate groups appeared in C++, CSS, HTML, JS/TS, Lua, Markdown, Python, Rust, XAML and XML. Most were paired or repeated regression tests; the Lua `open_indexed` setup was the clear shared helper and has been consolidated in `tests/common/mod.rs`. No parse error was newly observed.
@@ -261,3 +263,9 @@ Auditing PHP support on `feat/php-indexing-improvements` (base `59231f0`), with 
 
 - ERR-031 (resolved on the branch, issue #273): `find_dead_code`, the CSV report and the dashboard now mark a conventionally discovered Laravel listener as a possible entry point instead of leaving it indistinguishable from unreferenced code. The earlier "known limitation" line above is superseded; the candidate itself is unchanged.
 - Schema version is now 14 (migration 13 for #272, 14 for #273); `assets.rs` pin updated.
+## 2026-11-04 — ERR-014: get_tool_schema caller argument mistake
+
+`get_tool_schema` was first invoked with `tool: "get_file_tree"`; exact diagnostic: ``failed to deserialize parameters: missing field `name` ``. Retried with `name: "get_file_tree"`: succeeded. Caller argument error, no server defect. `get_indexing_status` then succeeded on `feat/lua-indexing-improvements`, HEAD `bb5eb03`: 1,202 files, 46,887 symbols, timestamp `1793828332`, and 20 parse diagnostics (16 malformed fixtures plus the existing ERR-002, ERR-023 and ERR-024 ordinary/generated CSS failures). No new parser failure observed.
+## 2026-11-04 — ERR-014: find_symbol caller argument mistake
+
+`find_symbol` was first invoked with `symbol: "top_level"`; exact diagnostic: ``invalid args for `find_symbol`: missing field `name` ``. `get_tool_schema(name: "find_symbol")` confirmed the required field. Retried with `name: "top_level"`: succeeded. Caller argument error, no server defect.
