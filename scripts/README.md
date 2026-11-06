@@ -30,6 +30,7 @@ script names and flags wherever both exist:
 | `review-compat.sh [commit]` | Live compatibility tests of review decisions: this checkout's `mct-cli web` and the one at `commit` (default `e68aec9`) save decisions in one temporary project, alternately and concurrently (`crates/mct-cli/tests/review_compat.rs`, ignored by default). Builds the older binary once from a `git archive` under `target/review-compat/`. macOS and Linux only. |
 | `reinstall.sh` | `cargo install` of `mct-mcp-server` and `mct-cli` from this checkout, rebuilds `.mct-index/index.sqlite3` if its schema is newer than the checkout's, then runs `mcp-smoke.sh`. `--reindex` to always rebuild, `--semantic` for `--features semantic`, `--server-only`. Run it after switching branches or merging a server change, then `/mcp`. |
 | `mcp-smoke.sh` | Starts the server over stdio, sends `initialize` + `tools/list`, reports the tool count or the real startup error behind Claude Code's `CONNECTION_CLOSED`. `--dev` for a fresh `target/debug` build, `--expect <tool>` to assert a tool is listed, `--list`. |
+| `web.sh` | Serves the local dashboard (`mct-cli web`) and opens it in the default browser (`open` on macOS, `xdg-open` on Linux). `--dev` runs this checkout via `cargo run`, `--port N`, `--no-obsidian`, `--no-open`, `--root DIR`. Ctrl-C stops it. |
 | `new-tool-check.sh <tool>` | The wiring checklist for a new MCP tool (`#[tool]` method, `tools.ttc`, `KNOWN_TOOL_NAMES`, `TOOL_CATEGORIES`, `batch` dispatch, tests, eval suite, README, CLAUDE.md, protocol spec) with what's still missing, then the catalog tests. `--no-tests` to skip them. |
 | `new-language-check.sh <suffix>` | The same for a new `crates/mct-lang-<suffix>` (CONTRIBUTING.md's checklist): `mct-core`/grammar dependencies, `LanguageParser` impl, workspace member and dependency, both `Cargo.toml`s and `build_registry`s, `tests/parse.rs` with a `ParseError::Syntax` case, fuzz harness and its CI matrix entry, README and `internal/checklist.md`. Then the crate's tests and mct-cli's registry tests. `--readme-name 'C++'` when README spells it differently, `--no-tests`. |
 | `token-report.sh` | Every token measurement in one screen: MCP tool vs grep+read per language (`token_benchmark`), JSON/TOON/text per response shape (`format_benchmark`), each composite tool vs separate calls (any `mct-mcp-server` test printing `% fewer`), and `mct-eval`'s catalog/response totals. `--markdown <file>` for a PR body, `--no-eval`. |
@@ -93,7 +94,7 @@ success, 1 on a failed check, 2 on a usage error.
 
 `check.ps1`, `reinstall.ps1`, `mcp-smoke.ps1`, `new-tool-check.ps1`,
 `new-language-check.ps1`, `token-report.ps1`, `corpus-report.ps1`,
-`parse-probe.ps1` and `install-hooks.ps1` — one
+`parse-probe.ps1`, `web.ps1` and `install-hooks.ps1` — one
 per script above, same flags, output lines, logs and exit codes. `branches-status`, `preview-branches`, `publish-branch`, `reindex-delay-smoke`, `release`, `review-compat` and `sync-skills` are unix-only for now. The
 differences are Windows ones, listed in `windows/README.md`.
 
