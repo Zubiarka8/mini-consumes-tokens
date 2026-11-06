@@ -70,7 +70,7 @@ async fn levels_trade_detail_for_tokens_and_keep_provenance() {
         async move {
             search(
                 server,
-                json!({ "query": "order", "format": "text", "detail": detail, "limit": 12 }),
+                json!({ "query": "place_order", "format": "text", "detail": detail, "limit": 100 }),
             )
             .await
         }
@@ -233,12 +233,12 @@ async fn a_complete_overview_with_no_budget_costs_exactly_the_default() {
     for format in ["text", "toon"] {
         let plain = search(
             &server,
-            json!({ "query": "order", "format": format, "cache": false, "limit": 12 }),
+            json!({ "query": "order", "format": format, "cache": false, "limit": 100 }),
         )
         .await;
         let overview = search(
             &server,
-            json!({ "query": "order", "format": format, "limit": 12, "detail": "overview" }),
+            json!({ "query": "order", "format": format, "limit": 100, "detail": "overview" }),
         )
         .await;
         if format == "text" {
@@ -270,11 +270,11 @@ async fn a_cut_page_says_partial_and_how_to_continue_a_whole_one_says_complete()
     )
     .await;
     assert!(cut.contains("Budget: partial"), "{cut}");
-    assert!(cut.contains(" of 12 seen"), "{cut}");
+    assert!(cut.contains(" of 22 seen"), "{cut}");
     assert!(cut.contains("next: offset="), "{cut}");
     // The header counts the matches, as the default page does, not the rows
     // that fit.
-    assert!(cut.starts_with("12 match(es) for `order`"), "{cut}");
+    assert!(cut.starts_with("22 match(es) for `order`"), "{cut}");
 }
 
 #[tokio::test]
