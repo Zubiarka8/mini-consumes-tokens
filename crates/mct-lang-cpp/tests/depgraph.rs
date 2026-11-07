@@ -17,18 +17,7 @@ fn open_indexed() -> Index {
 /// Resolution and first candidate of the `imports` relation named `to` in
 /// `from_file`.
 fn import_hit(index: &Index, to: &str, from_file: &str) -> Vec<(Resolution, Option<String>)> {
-    index
-        .find_references(to)
-        .unwrap()
-        .into_iter()
-        .filter(|h| h.kind == "imports" && h.relative_path == from_file && h.to_name == to)
-        .map(|h| {
-            (
-                h.resolution,
-                h.candidates.first().map(|c| c.relative_path.clone()),
-            )
-        })
-        .collect()
+    mct_corpus::import_hits_from(index, from_file, to)
 }
 
 #[test]
