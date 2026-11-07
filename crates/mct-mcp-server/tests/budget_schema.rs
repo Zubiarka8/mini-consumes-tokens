@@ -11,6 +11,10 @@ use mct_index::{ExcludeSet, Index};
 use mct_mcp_server::server::MctServer;
 use serde_json::{json, Value};
 
+#[path = "common/try_call.rs"]
+mod try_call;
+use try_call::try_call as call;
+
 const TOOLS: [&str; 5] = [
     "build_context_pack",
     "search_symbols_like",
@@ -28,22 +32,6 @@ async fn server() -> MctServer {
     let mut index = Index::open_in_memory(&fixture(), ExcludeSet::default()).unwrap();
     index.reindex(&registry, false).unwrap();
     MctServer::new(index, registry)
-}
-
-async fn call(server: &MctServer, tool: &str, args: Value) -> Result<String, String> {
-    match server
-        .call_read_only_tool(tool, args.as_object().cloned())
-        .await
-    {
-        Ok(r) => Ok(r
-            .content
-            .iter()
-            .filter_map(|b| b.as_text())
-            .map(|t| t.text.clone())
-            .collect::<Vec<_>>()
-            .join("\n")),
-        Err(e) => Err(e.message.to_string()),
-    }
 }
 
 #[tokio::test]

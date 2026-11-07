@@ -15,17 +15,11 @@ use mct_mcp_server::server::{
     BatchArgs, BatchQuery, FindSymbolArgs, ListSymbolsArgs, MctServer, SearchSymbolsArgs,
 };
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::CallToolResult;
 use serde_json::{json, Map, Value};
 
-fn content_of(result: &CallToolResult) -> String {
-    result
-        .content
-        .first()
-        .and_then(|block| block.as_text())
-        .map(|t| t.text.clone())
-        .unwrap_or_default()
-}
+#[path = "common/content.rs"]
+mod content;
+use content::content_of;
 
 fn server() -> MctServer {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/many-callers");

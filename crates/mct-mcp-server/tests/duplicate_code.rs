@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use mct_index::reviews::{duplicate_findings, Change, Reviews, State};
-use mct_index::{DuplicateOptions, ExcludeSet, Index};
+use mct_index::{DuplicateOptions, ExcludeSet, Index, TokenCounter};
 use mct_mcp_server::server::{FindDuplicateCodeArgs, MctServer};
 use rmcp::handler::server::wrapper::Parameters;
 
@@ -324,4 +324,386 @@ async fn the_tool_is_dispatchable_through_batch() {
         .unwrap();
     let text = result.content[0].as_text().unwrap().text.clone();
     assert!(text.contains("detected: 1"), "{text}");
+}
+
+fn scalar<'a>(text: &'a str, key: &str) -> &'a str {
+    text.lines()
+        .find_map(|line| line.strip_prefix(&format!("{key}: ")))
+        .unwrap_or_else(|| panic!("missing {key}: {text}"))
+}
+
+#[tokio::test]
+async fn evidence_subgroups_provenance_and_review_validity_reach_the_consumer() {
+    let p = Project::new(0, 0);
+    fs::write(p.0.join("mixed.rs"), "fn a(x: Data) -> String { let u = load_user(x.user_id); u.name.clone() }\nfn b(x: Data) -> String { let o = load_order(x.order_id); o.total.clone() }\nfn c(x: Data) -> String { let u = load_user(x.user_id); u.name.clone() }\n").unwrap();
+    let text = query(
+        &p.server(),
+        FindDuplicateCodeArgs {
+            min_lines: Some(1),
+            min_tokens: Some(1),
+            max_tokens: Some(16000),
+            ..args()
+        },
+    )
+    .await;
+    for expected in [
+        "generation:",
+        "snapshot:",
+        "project[",
+        "min_lines: 1",
+        "candidate_coverage_complete:",
+        "index_errors_scope: whole-index",
+        "SUSPICIOUS",
+        "callee-names-differ",
+        "subgroups[",
+        "member_index",
+        "subgroup",
+        "differences[",
+        "load_user",
+        "load_order",
+        "type_compatibility: unknown",
+        "no-saved-decision",
+        "verdicts_analysis[",
+        "verdicts_page[",
+    ] {
+        assert!(text.contains(expected), "missing {expected}: {text}");
+    }
+    assert_eq!(scalar(&text, "members_detected"), "3");
+    assert_eq!(scalar(&text, "files_detected"), "1");
+}
+
+#[tokio::test]
+async fn an_oversized_group_is_recoverable_at_the_maximum_budget() {
+    let p = Project::new(1, 700);
+    let server = p.server();
+    let first = query(
+        &server,
+        FindDuplicateCodeArgs {
+            max_tokens: Some(16000),
+            ..args()
+        },
+    )
+    .await;
+    let snapshot = scalar(&first, "snapshot").to_string();
+    let id = scalar(&first, "continuation_group").to_string();
+    assert_ne!(id, "none", "fixture must exceed the maximum budget");
+    let mut text = first;
+    let mut seen = std::collections::BTreeSet::new();
+    for _ in 0..700 {
+        assert!(mct_index::EstimatedCounter.count(&text).value <= 16000);
+        for line in text
+            .lines()
+            .filter(|line| line.contains(",g0c") && line.contains(".rs,"))
+        {
+            let member = line
+                .trim()
+                .split(',')
+                .next()
+                .unwrap()
+                .parse::<usize>()
+                .unwrap();
+            assert!(seen.insert(member), "repeated member {member}");
+        }
+        let next = scalar(&text, "next_member_offset");
+        if next == "none" {
+            break;
+        }
+        let offset = next.parse::<usize>().unwrap();
+        assert_eq!(
+            offset,
+            seen.len(),
+            "cursor must advance by the returned members"
+        );
+        text = query(
+            &server,
+            FindDuplicateCodeArgs {
+                group_id: Some(id.clone()),
+                member_offset: Some(offset),
+                expected_snapshot: Some(snapshot.clone()),
+                max_tokens: Some(16000),
+                ..args()
+            },
+        )
+        .await;
+    }
+    assert_eq!(seen, (1..=700).collect());
+    assert_eq!(scalar(&text, "next_offset"), "none");
+}
+
+#[tokio::test]
+async fn continuation_rejects_changed_review_state_filters_and_unindexed_source() {
+    let p = Project::new(1, 2);
+    let server = p.server();
+    let text = query(&server, args()).await;
+    let snapshot = scalar(&text, "snapshot").to_string();
+    for changed in [
+        FindDuplicateCodeArgs {
+            min_tokens: Some(1),
+            expected_snapshot: Some(snapshot.clone()),
+            ..args()
+        },
+        FindDuplicateCodeArgs {
+            include_reviewed: Some(true),
+            expected_snapshot: Some(snapshot.clone()),
+            ..args()
+        },
+    ] {
+        let err = server
+            .find_duplicate_code(Parameters(changed))
+            .await
+            .unwrap_err();
+        assert!(err.message.contains("snapshot changed"));
+    }
+    p.decide(0, State::Confirmed, "private");
+    let err = server
+        .find_duplicate_code(Parameters(FindDuplicateCodeArgs {
+            expected_snapshot: Some(snapshot),
+            ..args()
+        }))
+        .await
+        .unwrap_err();
+    assert!(err.message.contains("snapshot changed"));
+    let fresh = query(&server, args()).await;
+    fs::write(p.0.join("g0c0.rs"), "fn changed() {}\n").unwrap();
+    let err = server
+        .find_duplicate_code(Parameters(FindDuplicateCodeArgs {
+            expected_snapshot: Some(scalar(&fresh, "snapshot").into()),
+            ..args()
+        }))
+        .await
+        .unwrap_err();
+    assert!(err.message.contains("snapshot changed"));
+}
+
+#[tokio::test]
+async fn review_history_is_preserved_across_member_lifecycle_changes() {
+    let p = Project::new(1, 4);
+    p.decide(0, State::Dismissed, "preserve this decision");
+    let store = p.0.join(".mct-index/review-decisions.toon");
+    let saved = fs::read(&store).unwrap();
+    let original = fs::read_to_string(p.0.join("g0c0.rs")).unwrap();
+    let baseline = query(
+        &p.server(),
+        FindDuplicateCodeArgs {
+            include_reviewed: Some(true),
+            ..args()
+        },
+    )
+    .await;
+    assert!(baseline.contains("dismissed,false"));
+    for source in [
+        format!("\n\n{original}"),
+        format!("{original}\nfn unrelated() {{}}\n"),
+    ] {
+        fs::write(p.0.join("g0c0.rs"), source).unwrap();
+        let text = query(&p.server(), args()).await;
+        assert!(text.contains("needs-reevaluation"), "{text}");
+        assert!(text.contains("fingerprint-changed"), "{text}");
+    }
+    fs::write(p.0.join("g0c0.rs"), original.replace("f0_0", "renamed")).unwrap();
+    assert!(query(&p.server(), args())
+        .await
+        .contains("no-saved-decision"));
+    fs::write(p.0.join("g0c0.rs"), &original).unwrap();
+    fs::rename(p.0.join("g0c0.rs"), p.0.join("moved.rs")).unwrap();
+    assert!(query(&p.server(), args())
+        .await
+        .contains("no-saved-decision"));
+    fs::rename(p.0.join("moved.rs"), p.0.join("g0c0.rs")).unwrap();
+    fs::write(p.0.join("added.rs"), original.replace("f0_0", "added")).unwrap();
+    assert!(query(&p.server(), args())
+        .await
+        .contains("no-saved-decision"));
+    fs::remove_file(p.0.join("added.rs")).unwrap();
+    fs::remove_file(p.0.join("g0c0.rs")).unwrap();
+    assert!(query(&p.server(), args())
+        .await
+        .contains("no-saved-decision"));
+    fs::write(p.0.join("g0c0.rs"), &original).unwrap();
+    let mode = query(
+        &p.server(),
+        FindDuplicateCodeArgs {
+            normalization: Some("consistent".into()),
+            ..args()
+        },
+    )
+    .await;
+    assert!(mode.contains("needs-reevaluation"), "{mode}");
+    for c in 0..2 {
+        let file = p.0.join(format!("g0c{c}.rs"));
+        let source = fs::read_to_string(&file).unwrap();
+        fs::write(
+            file,
+            source.replace("total += 8;", "total *= 5; total += 8;"),
+        )
+        .unwrap();
+    }
+    let split = query(&p.server(), args()).await;
+    assert_eq!(scalar(&split, "detected"), "2");
+    assert_eq!(scalar(&split, "suppressed"), "0");
+    for c in 0..2 {
+        fs::write(
+            p.0.join(format!("g0c{c}.rs")),
+            original.replace("f0_0", &format!("f0_{c}")),
+        )
+        .unwrap();
+    }
+    assert!(query(&p.server(), args())
+        .await
+        .contains("status: all_suppressed"));
+    assert_eq!(
+        fs::read(store).unwrap(),
+        saved,
+        "queries must never rewrite history"
+    );
+}
+
+#[tokio::test]
+async fn member_continuation_is_advertised_and_invalid_cursors_are_rejected() {
+    let p = Project::new(1, 2);
+    let server = p.server();
+    let catalog = server.tool_catalog();
+    let tool = catalog
+        .iter()
+        .find(|tool| tool.name == "find_duplicate_code")
+        .unwrap();
+    for name in ["group_id", "member_offset", "expected_snapshot"] {
+        assert!(tool.input_schema["properties"].get(name).is_some());
+    }
+    for value in [
+        serde_json::json!({"member_offset": 1}),
+        serde_json::json!({"group_id": "invalid"}),
+        serde_json::json!({"expected_snapshot": "invalid"}),
+        // Review keys are lowercase: an uppercase spelling names no group.
+        serde_json::json!({"group_id": "A".repeat(64)}),
+        serde_json::json!({"expected_snapshot": "A".repeat(64)}),
+    ] {
+        let args: FindDuplicateCodeArgs = serde_json::from_value(value).unwrap();
+        assert!(server.find_duplicate_code(Parameters(args)).await.is_err());
+    }
+}
+
+#[tokio::test]
+async fn member_continuation_resumes_group_paging_and_every_budget_is_bounded() {
+    let p = Project::new(3, 20);
+    let server = p.server();
+    for budget in [512, 768, 1200, 1600, 4000, 16000] {
+        let text = query(
+            &server,
+            FindDuplicateCodeArgs {
+                max_tokens: Some(budget),
+                ..args()
+            },
+        )
+        .await;
+        assert!(
+            mct_index::EstimatedCounter.count(&text).value <= budget,
+            "budget {budget}: {text}"
+        );
+    }
+    let mut request = FindDuplicateCodeArgs {
+        max_tokens: Some(1600),
+        ..args()
+    };
+    let mut seen = std::collections::BTreeSet::new();
+    for _ in 0..100 {
+        let text = query(&server, request).await;
+        for line in text.lines().filter(|l| {
+            l.contains(".rs,") && l.trim().chars().next().is_some_and(|c| c.is_ascii_digit())
+        }) {
+            let path = line.trim().split(',').nth(1).unwrap().to_string();
+            assert!(seen.insert(path), "member repeated across pages: {text}");
+        }
+        let next = scalar(&text, "next_offset");
+        if next == "none" {
+            break;
+        }
+        let member = scalar(&text, "next_member_offset");
+        request = FindDuplicateCodeArgs {
+            max_tokens: Some(1600),
+            expected_snapshot: Some(scalar(&text, "snapshot").into()),
+            ..args()
+        };
+        if member == "none" {
+            request.offset = Some(next.parse().unwrap());
+        } else {
+            request.group_id = Some(scalar(&text, "continuation_group").into());
+            request.member_offset = Some(member.parse().unwrap());
+        }
+    }
+    assert_eq!(seen.len(), 60);
+}
+
+#[tokio::test]
+async fn a_restore_is_not_reported_as_a_matching_old_fingerprint() {
+    let p = Project::new(1, 2);
+    p.decide(0, State::Dismissed, "");
+    p.decide(0, State::Unreviewed, "");
+    let file = p.0.join("g0c0.rs");
+    let source = fs::read_to_string(&file).unwrap();
+    fs::write(file, format!("\n{source}")).unwrap();
+    let text = query(&p.server(), args()).await;
+    assert!(text.contains("unreviewed,true"), "{text}");
+    assert!(text.contains("restored"), "{text}");
+    assert!(!text.contains("current-fingerprint"), "{text}");
+}
+
+#[tokio::test]
+async fn coverage_diagnostics_survive_every_budget() {
+    // These fields predate the evidence view and were present at every
+    // budget; a small `max_tokens` may omit evidence, not coverage signals.
+    let p = Project::new(2, 3);
+    let server = p.server();
+    for budget in [512, 768, 1199, 1200, 4000] {
+        let text = query(
+            &server,
+            FindDuplicateCodeArgs {
+                max_tokens: Some(budget),
+                ..args()
+            },
+        )
+        .await;
+        for key in ["skipped", "index_errors", "unsupported_languages"] {
+            scalar(&text, key);
+        }
+        assert!(text.contains("skips["), "budget {budget}: {text}");
+    }
+}
+
+#[tokio::test]
+async fn a_member_continuation_always_advances_or_stops() {
+    // Paths are never clipped, so one member row can outgrow a small budget.
+    // Following the advertised cursor must not return the same window forever.
+    let p = Project::new(0, 0);
+    let deep: PathBuf = (0..4).map(|i| format!("{i}{}", "d".repeat(200))).collect();
+    fs::create_dir_all(p.0.join(&deep)).unwrap();
+    for c in 0..2 {
+        fs::write(
+            p.0.join(&deep).join(format!("c{c}.rs")),
+            format!("pub fn f{c}{BODY}"),
+        )
+        .unwrap();
+    }
+    let server = p.server();
+    let mut request = FindDuplicateCodeArgs {
+        max_tokens: Some(512),
+        ..args()
+    };
+    for _ in 0..5 {
+        let text = query(&server, request).await;
+        let member = scalar(&text, "next_member_offset");
+        if member == "none" {
+            return;
+        }
+        let member: usize = member.parse().unwrap();
+        let start = scalar(&text, "member_offset").parse::<usize>().unwrap_or(0);
+        assert!(member > start, "cursor does not advance: {text}");
+        request = FindDuplicateCodeArgs {
+            max_tokens: Some(512),
+            group_id: Some(scalar(&text, "continuation_group").into()),
+            member_offset: Some(member),
+            expected_snapshot: Some(scalar(&text, "snapshot").into()),
+            ..args()
+        };
+    }
 }

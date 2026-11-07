@@ -12,8 +12,11 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+
+#[path = "common/scratch_dir.rs"]
+mod scratch_dir;
+use scratch_dir::scratch_dir;
 
 use mct_core::{
     Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolKind, SymbolRecord,
@@ -86,15 +89,7 @@ fn registry() -> mct_core::LanguageRegistry {
 }
 
 fn tempdir() -> PathBuf {
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let dir = std::env::temp_dir().join(format!(
-        "mct-incremental-{}-{}",
-        std::process::id(),
-        COUNTER.fetch_add(1, Ordering::Relaxed)
-    ));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(&dir).unwrap();
-    dir.canonicalize().unwrap()
+    scratch_dir("mct-incremental")
 }
 
 fn write(root: &Path, rel: &str, contents: &str) -> PathBuf {

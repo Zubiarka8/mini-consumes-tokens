@@ -168,13 +168,7 @@ fn simple_identifier(value: &str) -> bool {
 }
 
 fn module_name_for(relative_path: &str) -> String {
-    relative_path
-        .rsplit('/')
-        .next()
-        .unwrap_or(relative_path)
-        .trim_end_matches(".psm1")
-        .trim_end_matches(".ps1")
-        .to_string()
+    mct_tree_sitter::module_name(relative_path, &[".psm1", ".ps1"])
 }
 
 fn text<'a>(node: Node, source: &'a str) -> &'a str {

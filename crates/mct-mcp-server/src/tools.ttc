@@ -164,11 +164,11 @@ POST review-aware candidates, counts, store health, continuation; TOON or text.
 EFFECTS read; index and TOON reviews.
 
 TOOL find_duplicate_code
-WHEN review-aware duplicate groups, compact references.
+WHEN review-aware duplicate groups with evidence.
 ERR heuristic, not proof of redundancy.
 TAGS duplicates, cleanup, review
 PRE root-relative `path`; `limit` 1..100; `max_tokens` 512..16000.
-POST groups hidden by a matching review decision are filtered before paging; counts, truncation, `next_offset`.
+POST reviews filtered before paging; evidence/omissions, generation/snapshot, `next_offset`; `group_id`/`member_offset` continue members.
 EFFECTS read; index, source, reviews.
 
 TOOL get_dependency_graph

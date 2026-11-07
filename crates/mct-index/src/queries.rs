@@ -466,31 +466,41 @@ pub fn list_symbols(
 
 /// All callable candidates in one query, independent of disk enumeration.
 /// A missing/deleted file must remain visible so analysis can report staleness.
+pub(crate) struct DuplicateCandidate {
+    pub(crate) symbol: SymbolListEntry,
+    pub(crate) column: u32,
+    pub(crate) byte_len: u32,
+}
+
 pub(crate) fn list_duplicate_candidates(
     conn: &Connection,
     path: Option<&str>,
     language: Option<&str>,
-) -> Result<Vec<SymbolListEntry>> {
+) -> Result<Vec<DuplicateCandidate>> {
     let pattern = path.map(directory_pattern);
     let mut statement = conn.prepare_cached(
-        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.end_line, s.parent, s.level
+        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.end_line, s.parent, s.level, s.column, s.byte_len
          FROM symbols s JOIN files f ON f.id = s.file_id
          WHERE s.kind IN ('function', 'method')
            AND (?1 IS NULL OR f.language = ?1)
            AND (?2 IS NULL OR f.relative_path = ?2 OR f.relative_path LIKE ?3 ESCAPE '\\')
-         ORDER BY f.relative_path, s.line, s.name",
+         ORDER BY f.relative_path, s.line, s.column, s.name, s.id",
     )?;
     let rows = statement
         .query_map(rusqlite::params![language, path, pattern], |row| {
-            Ok(SymbolListEntry {
-                name: row.get(0)?,
-                kind: row.get(1)?,
-                language: row.get(2)?,
-                relative_path: row.get(3)?,
-                line: row.get(4)?,
-                end_line: row.get(5)?,
-                parent: row.get(6)?,
-                level: row.get(7)?,
+            Ok(DuplicateCandidate {
+                symbol: SymbolListEntry {
+                    name: row.get(0)?,
+                    kind: row.get(1)?,
+                    language: row.get(2)?,
+                    relative_path: row.get(3)?,
+                    line: row.get(4)?,
+                    end_line: row.get(5)?,
+                    parent: row.get(6)?,
+                    level: row.get(7)?,
+                },
+                column: row.get(8)?,
+                byte_len: row.get(9)?,
             })
         })?
         .collect::<rusqlite::Result<_>>()?;
@@ -522,7 +532,12 @@ pub fn find_references_scoped(
     symbol: &str,
     scope: ResolvedScope<'_>,
 ) -> Result<Vec<RelationHit>> {
-    query_relations(conn, "r.to_name = ?1", symbol.to_string(), scope)
+    query_relations(
+        conn,
+        RelationDirection::References.predicate(),
+        symbol.to_string(),
+        scope,
+    )
 }
 
 pub fn find_calls_scoped(
@@ -532,7 +547,7 @@ pub fn find_calls_scoped(
 ) -> Result<Vec<RelationHit>> {
     query_relations(
         conn,
-        "caller.name = ?1 AND r.kind = 'calls'",
+        RelationDirection::Calls.predicate(),
         function.to_string(),
         scope,
     )
@@ -545,7 +560,7 @@ pub fn find_callers_scoped(
 ) -> Result<Vec<RelationHit>> {
     query_relations(
         conn,
-        "r.to_name = ?1 AND r.kind = 'calls'",
+        RelationDirection::Callers.predicate(),
         function.to_string(),
         scope,
     )
@@ -844,55 +859,21 @@ pub(crate) fn calls_from_symbol(
     )
 }
 
-/// The `limit` calls made by the function named `function` after skipping
-/// `offset` — a slice of exactly what [`find_calls_scoped`] returns.
-pub(crate) fn find_calls_page(
+/// The `limit` relations of `direction` for `name` after skipping `offset`:
+/// a slice of exactly what [`find_calls_scoped`], [`find_callers_scoped`] or
+/// [`find_references_scoped`] returns for that direction.
+pub(crate) fn relation_hits_page(
     conn: &Connection,
-    function: &str,
+    direction: RelationDirection,
+    name: &str,
     scope: ResolvedScope<'_>,
     limit: usize,
     offset: usize,
 ) -> Result<Vec<RelationHit>> {
     query_relations_page(
         conn,
-        "caller.name = ?1 AND r.kind = 'calls'",
-        function.to_string(),
-        scope,
-        Some(limit),
-        offset,
-    )
-}
-
-/// A slice of [`find_callers_scoped`], as [`find_calls_page`] is of calls.
-pub(crate) fn find_callers_page(
-    conn: &Connection,
-    function: &str,
-    scope: ResolvedScope<'_>,
-    limit: usize,
-    offset: usize,
-) -> Result<Vec<RelationHit>> {
-    query_relations_page(
-        conn,
-        "r.to_name = ?1 AND r.kind = 'calls'",
-        function.to_string(),
-        scope,
-        Some(limit),
-        offset,
-    )
-}
-
-/// A slice of [`find_references_scoped`], as [`find_calls_page`] is of calls.
-pub(crate) fn find_references_page(
-    conn: &Connection,
-    symbol: &str,
-    scope: ResolvedScope<'_>,
-    limit: usize,
-    offset: usize,
-) -> Result<Vec<RelationHit>> {
-    query_relations_page(
-        conn,
-        "r.to_name = ?1",
-        symbol.to_string(),
+        direction.predicate(),
+        name.to_string(),
         scope,
         Some(limit),
         offset,

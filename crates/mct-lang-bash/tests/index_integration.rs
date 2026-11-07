@@ -48,22 +48,13 @@ fn find_symbol_locates_function_and_top_level_variable() {
 #[test]
 fn find_calls_reports_log_from_build() {
     let index = open_indexed();
-    let calls = index.find_calls("build").unwrap();
-    let log_calls: Vec<_> = calls.iter().filter(|c| c.to_name == "log").collect();
-    assert_eq!(log_calls.len(), 1);
-    assert_eq!(log_calls[0].relative_path, "deploy.sh");
+    mct_corpus::assert_calls_once(&index, "build", "log", "deploy.sh");
 }
 
 #[test]
 fn find_callers_of_log_shows_both_call_sites() {
     let index = open_indexed();
-    let callers = index.find_callers("log").unwrap();
-    assert_eq!(
-        callers.len(),
-        2,
-        "build and deploy both call log: {callers:?}"
-    );
-    assert!(callers.iter().all(|c| c.relative_path == "deploy.sh"));
+    mct_corpus::assert_callers_in_file(&index, "log", 2, "deploy.sh");
 }
 
 #[test]

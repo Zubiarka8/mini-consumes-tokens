@@ -45,7 +45,7 @@ use mct_core::{
     LanguageParser, LanguageRegistry, ParseError, ParsedFile, RelationKind, SourceFile, SymbolKind,
     SymbolRecord, SymbolRelation,
 };
-use mct_index::{ExcludeSet, Index};
+use mct_index::{ExcludeSet, Index, Resolution};
 
 /// Parses `src` as the file `relative_path` with `parser`, for a language
 /// crate's `tests/parse.rs`. `language` only words the failure message.
@@ -84,6 +84,173 @@ pub fn open_indexed(
         report.issues
     );
     index
+}
+
+/// Proves reindexing is incremental: after a first pass over `root` that
+/// parses `files` files, an unchanged second pass parses none of them, and a
+/// forced third pass re-parses all of them without issues and without
+/// duplicating symbols. Returns the index for any crate-specific assertions.
+pub fn assert_reindex_is_incremental(
+    root: &Path,
+    registry: &LanguageRegistry,
+    files: usize,
+) -> Index {
+    let mut index = Index::open_in_memory(root, ExcludeSet::default()).unwrap();
+
+    let first = index.reindex(registry, false).unwrap();
+    assert_eq!(first.files_parsed, files);
+    let symbols_after_first = index.status().unwrap().total_symbols;
+
+    let second = index.reindex(registry, false).unwrap();
+    assert_eq!(second.files_parsed, 0, "{second:?}");
+    assert_eq!(second.files_unchanged, files);
+
+    let forced = index.reindex(registry, true).unwrap();
+    assert_eq!(forced.files_parsed, files, "{forced:?}");
+    assert!(forced.issues.is_empty(), "{:?}", forced.issues);
+
+    assert_eq!(
+        index.status().unwrap().total_symbols,
+        symbols_after_first,
+        "a forced reparse must not duplicate symbols"
+    );
+    index
+}
+
+/// Indexes the fixture project at `root` in memory with only `parser`
+/// registered, for a language crate's `tests/depgraph.rs`. Asserts that
+/// indexing reported no issues; unlike [`open_indexed`] it does not pin the
+/// number of parsed files.
+pub fn open_fixture_indexed(root: &Path, parser: Arc<dyn LanguageParser>) -> Index {
+    let mut registry = LanguageRegistry::new();
+    registry.register(parser);
+    let mut index = Index::open_in_memory(root, ExcludeSet::default()).unwrap();
+    let report = index.reindex(&registry, false).unwrap();
+    assert!(report.issues.is_empty(), "{:?}", report.issues);
+    index
+}
+
+/// The `(line, end_line)` of the file-level `Module` symbol in `parsed`, for a
+/// language crate's test that a trailing newline must not push the module one
+/// line past the end of the file. Panics if `parsed` has no `Module` symbol.
+pub fn module_span(parsed: &ParsedFile) -> (u32, Option<u32>) {
+    let module = parsed
+        .symbols
+        .iter()
+        .find(|s| s.kind == SymbolKind::Module)
+        .unwrap();
+    (module.location.line, module.location.end_line)
+}
+
+/// The resolution and first candidate file of every `imports` relation named
+/// `to` that `file` makes, for a language crate's `tests/depgraph.rs`.
+pub fn import_hits_from(index: &Index, file: &str, to: &str) -> Vec<(Resolution, Option<String>)> {
+    index
+        .find_references(to)
+        .unwrap()
+        .into_iter()
+        .filter(|h| h.kind == "imports" && h.relative_path == file && h.to_name == to)
+        .map(|h| {
+            (
+                h.resolution,
+                h.candidates.first().map(|c| c.relative_path.clone()),
+            )
+        })
+        .collect()
+}
+
+/// Asserts that `index.find_calls(caller)` reports exactly one call to
+/// `callee`, and that it is made from `file`, for a language crate's
+/// `tests/index_integration.rs`.
+pub fn assert_calls_once(index: &Index, caller: &str, callee: &str, file: &str) {
+    let calls = index.find_calls(caller).unwrap();
+    let to_callee: Vec<_> = calls.iter().filter(|c| c.to_name == callee).collect();
+    assert_eq!(to_callee.len(), 1, "calls from {caller} to {callee}");
+    assert_eq!(to_callee[0].relative_path, file);
+}
+
+/// Asserts that every `kind` reference to `name` is resolved to exactly one
+/// target, and that the corpus holds at least one such reference. For the
+/// issue-#272 tests: a file's module and a declaration in it share a name, and
+/// the reference must resolve to the declaration, not read as ambiguous.
+pub fn assert_reference_resolves_uniquely(index: &Index, name: &str, kind: &str) {
+    let hits: Vec<_> = index
+        .find_references(name)
+        .unwrap()
+        .into_iter()
+        .filter(|h| h.kind == kind)
+        .collect();
+    assert!(!hits.is_empty(), "the corpus no longer holds this relation");
+    for hit in &hits {
+        assert_eq!(hit.resolution, mct_index::Resolution::Resolved, "{hit:?}");
+        assert_eq!(hit.candidate_count, 1, "{hit:?}");
+    }
+}
+
+/// Asserts that `index.find_callers(callee)` reports exactly `count` callers,
+/// all in `file`, for a language crate's `tests/index_integration.rs`.
+pub fn assert_callers_in_file(index: &Index, callee: &str, count: usize, file: &str) {
+    let callers = index.find_callers(callee).unwrap();
+    assert_eq!(callers.len(), count, "callers of {callee}: {callers:?}");
+    assert!(
+        callers.iter().all(|c| c.relative_path == file),
+        "{callers:?}"
+    );
+}
+
+/// Like [`assert_callers_in_file`], but the callers are exactly the symbols in
+/// `from_symbols` (one caller each).
+pub fn assert_callers_named(index: &Index, callee: &str, file: &str, from_symbols: &[&str]) {
+    assert_callers_in_file(index, callee, from_symbols.len(), file);
+    let callers = index.find_callers(callee).unwrap();
+    for name in from_symbols {
+        assert!(
+            callers.iter().any(|c| c.from_symbol == *name),
+            "{name} should call {callee}: {callers:?}"
+        );
+    }
+}
+
+/// Asserts that `index.find_references(name)` reports exactly `count`
+/// references, all in `file`, for a language crate's
+/// `tests/index_integration.rs`.
+pub fn assert_references_in_file(index: &Index, name: &str, count: usize, file: &str) {
+    let refs = index.find_references(name).unwrap();
+    assert_eq!(refs.len(), count, "references to {name}: {refs:?}");
+    assert!(refs.iter().all(|r| r.relative_path == file), "{refs:?}");
+}
+
+/// Asserts that `parser` reports a syntax error (not a panic and not a
+/// success) for `contents` parsed as `relative_path`.
+pub fn assert_syntax_error_reported(
+    parser: &dyn LanguageParser,
+    relative_path: &str,
+    contents: &str,
+) {
+    let result = parser.parse(&SourceFile {
+        relative_path: relative_path.to_string(),
+        contents: contents.to_string(),
+    });
+    assert!(
+        matches!(result, Err(ParseError::Syntax { .. })),
+        "{result:?}"
+    );
+}
+
+/// Asserts that `parsed` holds an import relation to each name in `targets`.
+pub fn assert_imports(parsed: &ParsedFile, targets: &[&str]) {
+    let imports: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Imports)
+        .map(|r| r.to_name.as_str())
+        .collect();
+    for target in targets {
+        assert!(
+            imports.contains(target),
+            "missing import {target}: {imports:?}"
+        );
+    }
 }
 
 /// Defines `fn corpus() -> &'static Corpus` for `$parser` (loaded once per

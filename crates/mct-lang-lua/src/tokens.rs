@@ -13,9 +13,12 @@
 //! - **Callables:** `function_declaration` (`function f`, `local function f`,
 //!   `function M.f`, `function M:f`) and a `function_definition` bound by an
 //!   assignment (`local f = function() end`, `M.f = function() end`). A
+//!   table's function-valued fields are included, using the parser's key
+//!   spelling and field range (including bracketed string/numeric keys). A
 //!   callable is named after the symbol the parser indexes for it: the last
 //!   segment of a dotted or method name, so `M.f` and `M:f` are `f`. The
-//!   anonymous ones have no enclosing-construct labels or body shape.
+//!   table field has shared enclosing-construct labels; assigned anonymous
+//!   functions have no enclosing labels. Both have unknown body shape.
 //! - **Roles** (syntactic only): the name of a `function_declaration` is a
 //!   declaration, the `field` of a dotted access and the `method` of a method
 //!   access are members, the `name` of a call is a callee, and the names in
@@ -30,7 +33,7 @@
 use mct_core::{
     CallableSpan, LineRange, LiteralCategory, ParseError, TokenRole, TokenSource, TokenizedFile,
 };
-use mct_tree_sitter::{tokenize_tree, TokenClasses};
+use mct_tree_sitter::{tokenize_tree_with_callables, TokenClasses};
 use tree_sitter::{Node, Parser};
 
 const CLASSES: TokenClasses = TokenClasses {
@@ -103,16 +106,26 @@ impl TokenSource for LuaTokenSource {
         let tree = parser
             .parse(source, None)
             .ok_or_else(|| failure("tree-sitter produced no parse tree"))?;
-        let mut file = tokenize_tree(&tree, source, &CLASSES);
+        let mut file = tokenize_tree_with_callables(&tree, source, &CLASSES, table_function);
         if let Some(callables) = file.callables.as_mut() {
             for callable in callables.iter_mut() {
-                callable.name = last_segment(&callable.name).to_string();
+                // A table field keeps the parser's full key spelling: `["a.b"]`
+                // names `a.b`, not `b`. Only declarations are shortened.
+                if !is_table_field(tree.root_node(), &callable.bytes) {
+                    callable.name = last_segment(&callable.name).to_string();
+                }
             }
             collect_assigned_functions(tree.root_node(), source, callables);
             callables.sort_by_key(|c| (c.lines.start, c.bytes.start));
         }
         Ok(file)
     }
+}
+
+/// Whether `bytes` is exactly a table `field` node (see [`table_function`]).
+fn is_table_field(root: Node, bytes: &std::ops::Range<usize>) -> bool {
+    root.descendant_for_byte_range(bytes.start, bytes.end)
+        .is_some_and(|node| node.kind() == "field" && node.byte_range() == *bytes)
 }
 
 /// `M.f` and `M:f` name the symbol `f`.
@@ -183,4 +196,23 @@ fn push_assigned_functions(assignment: Node, source: &str, out: &mut Vec<Callabl
             body: None,
         });
     }
+}
+
+/// A table field spans its key through the anonymous function's end.
+fn table_function(node: Node<'_>, source: &str) -> Option<CallableSpan> {
+    if node.kind() != "field" || node.child_by_field_name("value")?.kind() != "function_definition"
+    {
+        return None;
+    }
+    Some(CallableSpan {
+        name: crate::table_key_name(node.child_by_field_name("name")?, source)?,
+        lines: LineRange {
+            start: node.start_position().row as u32 + 1,
+            end: node.end_position().row as u32 + 1,
+        },
+        bytes: node.byte_range(),
+        decorators: Vec::new(),
+        enclosing: Vec::new(),
+        body: None,
+    })
 }

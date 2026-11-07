@@ -93,13 +93,7 @@ impl LanguageParser for HtmlParser {
 }
 
 fn module_name_for(relative_path: &str) -> String {
-    relative_path
-        .rsplit('/')
-        .next()
-        .unwrap_or(relative_path)
-        .trim_end_matches(".html")
-        .trim_end_matches(".htm")
-        .to_string()
+    mct_tree_sitter::module_name(relative_path, &[".html", ".htm"])
 }
 
 fn text<'a>(node: Node, source: &'a str) -> &'a str {

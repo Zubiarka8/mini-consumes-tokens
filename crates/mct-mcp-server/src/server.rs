@@ -175,7 +175,7 @@ pub struct SearchSymbolsArgs {
     pub max_tokens: Option<usize>,
 }
 
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Default, serde::Deserialize, schemars::JsonSchema)]
 pub struct HybridSearchArgs {
     /// What you're looking for, as identifier words or a plain description:
     /// `parse request`, `load config from disk`, `retry with backoff`.

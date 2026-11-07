@@ -3,7 +3,7 @@
 // untrusted repo content (see crates/mct-lang-html/src/ for that policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use mct_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
+use mct_core::{RelationKind, SymbolKind};
 use mct_lang_html::HtmlParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
@@ -13,15 +13,7 @@ fn parse(src: &str) -> mct_core::ParsedFile {
 #[test]
 fn file_module_ends_on_the_last_line() {
     // A trailing newline must not push the module one line past the file.
-    let module = |src: &str| {
-        let parsed = parse(src);
-        let m = parsed
-            .symbols
-            .iter()
-            .find(|s| s.kind == SymbolKind::Module)
-            .unwrap();
-        (m.location.line, m.location.end_line)
-    };
+    let module = |src: &str| mct_corpus::module_span(&parse(src));
     let page = "<html>\n  <body id=\"home\"></body>\n</html>";
     assert_eq!(module(&format!("{page}\n")), (1, Some(3)));
     assert_eq!(module(page), (1, Some(3)));
@@ -154,13 +146,10 @@ fn an_element_spans_through_its_closing_tag() {
 
 #[test]
 fn syntax_error_is_reported_not_panicked() {
-    let result = HtmlParser.parse(&SourceFile {
-        relative_path: "broken.html".to_string(),
-        contents: "<div id=\"unterminated>\u{0}<<< not html at all &^%".to_string(),
-    });
-    assert!(
-        matches!(result, Err(mct_core::ParseError::Syntax { .. })),
-        "{result:?}"
+    mct_corpus::assert_syntax_error_reported(
+        &HtmlParser,
+        "broken.html",
+        "<div id=\"unterminated>\u{0}<<< not html at all &^%",
     );
 }
 

@@ -12,7 +12,10 @@ use tree_sitter::Node;
 
 mod tokens;
 
-pub use tokens::{tokenize_source, tokenize_tree, TokenClasses};
+pub use tokens::{
+    tokenize_source, tokenize_source_with_callables, tokenize_tree, tokenize_tree_with_callables,
+    TokenClasses,
+};
 
 /// The first `ERROR` or `MISSING` node in `node`'s subtree, in document order.
 ///
@@ -69,6 +72,17 @@ pub fn module_location(root: Node) -> Location {
         loc.end_line = Some(end.row as u32);
     }
     loc
+}
+
+/// The file-module name for `relative_path`: its last `/`-separated component
+/// with each of `suffixes` stripped from the end, in the order given. Like
+/// `trim_end_matches`, a suffix that repeats is stripped every time.
+pub fn module_name(relative_path: &str, suffixes: &[&str]) -> String {
+    let mut name = relative_path.rsplit('/').next().unwrap_or(relative_path);
+    for suffix in suffixes {
+        name = name.trim_end_matches(suffix);
+    }
+    name.to_string()
 }
 
 /// The first child of `node`, named or anonymous, whose kind is `kind`.

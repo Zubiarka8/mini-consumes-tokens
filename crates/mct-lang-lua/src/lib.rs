@@ -1057,18 +1057,7 @@ impl<'a> Walker<'a> {
 
     /// The symbol name of a table key, or `None` when it names nothing.
     fn key_name(&self, key: Node) -> Option<String> {
-        let name = match key.kind() {
-            "identifier" => text(key, self.source).to_string(),
-            "string" => text(key.child_by_field_name("content")?, self.source).to_string(),
-            _ => format!(
-                "[{}]",
-                text(key, self.source)
-                    .split_whitespace()
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            ),
-        };
-        (!name.is_empty()).then_some(name)
+        table_key_name(key, self.source)
     }
 
     fn finish(self) -> ParsedFile {
@@ -1252,4 +1241,20 @@ fn require_argument(call_node: Node, source: &str) -> Option<String> {
     first
         .child_by_field_name("content")
         .map(|n| text(n, source).to_string())
+}
+
+/// Shared spelling of indexed table keys for parsing and token boundaries.
+fn table_key_name(key: Node, source: &str) -> Option<String> {
+    let name = match key.kind() {
+        "identifier" => text(key, source).to_string(),
+        "string" => text(key.child_by_field_name("content")?, source).to_string(),
+        _ => format!(
+            "[{}]",
+            text(key, source)
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+        ),
+    };
+    (!name.is_empty()).then_some(name)
 }

@@ -22,6 +22,7 @@ mod identity;
 mod resolve;
 mod store;
 
+pub use format::valid_key as is_review_key;
 pub use identity::{dead_code_findings, duplicate_findings, FindingKeys};
 pub use resolve::{Candidate, Diagnostics, HistoryEvent, Resolution};
 pub use store::{Change, ReviewError, Reviews, SourceProblem, CANONICAL_FILE};

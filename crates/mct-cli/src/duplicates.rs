@@ -163,10 +163,12 @@ pub(crate) fn run(root: &Path, args: Args) -> anyhow::Result<()> {
     let exclude = ExcludeSet::new(&mct_index::read_ignore_file(root));
     let index = Index::open_existing_read_only(root, &db_path, exclude)
         .with_context(|| format!("cannot open the index at {}", display_path(&db_path)))?;
+    let snapshot = index.read_snapshot()?;
     let output_path = args.output.clone();
     let no_cache = args.no_cache;
     if let Some(mode) = args.reviewed {
-        let output = reviewed_report(root, &index, args.into(), mode)?;
+        let mut output = reviewed_report(root, &index, args.into(), mode)?;
+        provenance(&mut output, root, snapshot.generation());
         return write_report(root, output_path, &output);
     }
     let options = args.into();
@@ -191,7 +193,8 @@ pub(crate) fn run(root: &Path, args: Args) -> anyhow::Result<()> {
     } else {
         let report = find_duplicate_groups(&index, &build_token_sources(), options)
             .context("cannot query the index for duplicate candidates")?;
-        let rendered = render_toon(&report);
+        let mut rendered = render_toon(&report);
+        provenance(&mut rendered, root, snapshot.generation());
         if let Some(key) = key.as_deref() {
             if let Err(error) = write_cached_report(&cache_path, key, &rendered) {
                 eprintln!(
@@ -203,6 +206,22 @@ pub(crate) fn run(root: &Path, args: Args) -> anyhow::Result<()> {
         rendered
     };
     write_report(root, output_path, &output)
+}
+
+fn provenance(out: &mut String, root: &Path, generation: u64) {
+    let mut metadata = String::new();
+    field(&mut metadata, 0, "project_root", &display_path(root));
+    field(&mut metadata, 0, "version", env!("CARGO_PKG_VERSION"));
+    field(
+        &mut metadata,
+        0,
+        "build_revision",
+        option_env!("MCT_BUILD_REVISION").unwrap_or("unavailable"),
+    );
+    let _ = writeln!(metadata, "generation: {generation}");
+    // Preserve the initial notice and the report's existing terminal tables.
+    let at = out.find('\n').map_or(out.len(), |at| at + 1);
+    out.insert_str(at, &metadata);
 }
 
 fn write_report(root: &Path, output_path: Option<PathBuf>, output: &str) -> anyhow::Result<()> {
@@ -274,6 +293,12 @@ fn reviewed_report(
     report.options.offset = offset;
     report.options.limit = limit;
     let states: Vec<&str> = page.iter().map(|(_, state)| *state).collect();
+    let validity: Vec<_> = resolutions
+        .iter()
+        .filter(|resolution| mode.keeps(resolution))
+        .skip(offset)
+        .take(limit.unwrap_or(usize::MAX))
+        .collect();
     report.groups = page.into_iter().map(|(group, _)| group).collect();
 
     let mut out = render_toon(&report);
@@ -295,6 +320,32 @@ fn reviewed_report(
     let _ = writeln!(out, "review_states[{}]{{group,state}}:", states.len());
     for (position, state) in states.iter().enumerate() {
         let _ = writeln!(out, "  {},{state}", offset + position + 1);
+    }
+    field(
+        &mut out,
+        0,
+        "review_fingerprint_basis",
+        "whole-files-and-member-ranges",
+    );
+    let _ = writeln!(
+        out,
+        "review_validity[{}]{{group,fingerprint_matches,held,conflict}}:",
+        validity.len()
+    );
+    for (position, resolution) in validity.iter().enumerate() {
+        let matches = resolution
+            .winner
+            .as_ref()
+            .map_or("unknown".to_string(), |winner| {
+                winner.fingerprint_matches.to_string()
+            });
+        let _ = writeln!(
+            out,
+            "  {},{matches},{},{}",
+            offset + position + 1,
+            resolution.held,
+            resolution.conflict
+        );
     }
     Ok(out)
 }
@@ -342,9 +393,10 @@ fn cache_key(
     let payload = format!(
         "{:?}",
         (
-            "duplicates-report-cache-v2",
+            "duplicates-report-cache-v3",
             env!("CARGO_PKG_VERSION"),
             format!("{options:?}"),
+            index.published_generation()?,
             metadata.len(),
             modified,
             ignore,
@@ -658,6 +710,24 @@ pub(super) fn render_group(
         ];
         let _ = writeln!(out, "      {}", row.join(","));
     }
+    let _ = writeln!(
+        out,
+        "    member_details[{}]{{member,column,subgroup}}:",
+        group.members.len()
+    );
+    for (index, member) in group.members.iter().enumerate() {
+        let subgroup = group
+            .subgroups
+            .member_subgroups
+            .get(index)
+            .map_or("unknown".to_string(), usize::to_string);
+        let _ = writeln!(
+            out,
+            "      {},{},{subgroup}",
+            index + 1,
+            member.start_column
+        );
+    }
 }
 
 /// The group's aligned evidence: identifier pattern, differing positions per
@@ -821,6 +891,21 @@ fn render_subgroups(out: &mut String, group: &DuplicateGroup) {
             quote_if_needed(&row.values.join("; "))
         );
     }
+    let omitted: Vec<_> = subgroups
+        .subgroups
+        .iter()
+        .filter(|row| row.size > row.members.len())
+        .collect();
+    if !omitted.is_empty() {
+        let _ = writeln!(
+            out,
+            "      omitted_members[{}]{{subgroup,count}}:",
+            omitted.len()
+        );
+        for row in omitted {
+            let _ = writeln!(out, "        {},{}", row.id, row.size - row.members.len());
+        }
+    }
 }
 
 /// Scope, warning, budgets with their use, and the block count.
@@ -980,6 +1065,7 @@ mod tests {
 
     fn member(path: &str, start: u32, end: u32, name: &str, excerpt: &[&str]) -> DuplicateMember {
         DuplicateMember {
+            start_column: 1,
             path: path.to_string(),
             start_line: start,
             end_line: end,
@@ -1097,6 +1183,7 @@ mod tests {
                 ],
             },
             subgroups: GroupSubgroups {
+                member_subgroups: vec![1, 2],
                 status: SubgroupStatus::Split,
                 basis: vec![
                     SubgroupBasis::LiteralCategory,
@@ -1268,6 +1355,9 @@ groups[1]:
     members[2]{path,range,symbol,kind,language,lines,tokens,excerpt}:
       src/a.rs,10-20,load,function,rust,8,52,\"    fn load(name: &str, flag: bool) -> Result<u8, String> {\\n        let x = \\\"a,b\\\";\\n    }\"
       src/b.rs,3-13,read,function,rust,8,52,\"fn read() {\"
+    member_details[2]{member,column,subgroup}:
+      1,1,1
+      2,1,2
 skipped[0]{path,range,symbol,language,reason,detail}:
 ";
         assert!(out.ends_with(expected), "{out}");
@@ -1318,6 +1408,7 @@ skipped[4]{path,range,symbol,language,reason,detail}:
         let mut report = group_report();
         report.split_groups = 1;
         report.groups[0].subgroups = GroupSubgroups {
+            member_subgroups: vec![1, 2],
             status: SubgroupStatus::Split,
             basis: vec![SubgroupBasis::Callee],
             count: 3,

@@ -50,7 +50,9 @@ fn check(condition: bool, line: usize, reason: &'static str) -> Parsed<()> {
     }
 }
 
-pub(super) fn valid_key(key: &str) -> bool {
+/// Whether `key` is spelled like a review identity or fingerprint: 64
+/// lowercase hex characters, the only spelling the store writes.
+pub fn valid_key(key: &str) -> bool {
     key.len() == 64
         && key
             .bytes()

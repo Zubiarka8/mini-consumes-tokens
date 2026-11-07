@@ -74,13 +74,7 @@ impl LanguageParser for PythonParser {
 }
 
 fn module_name_for(relative_path: &str) -> String {
-    relative_path
-        .rsplit('/')
-        .next()
-        .unwrap_or(relative_path)
-        .trim_end_matches(".pyi")
-        .trim_end_matches(".py")
-        .to_string()
+    mct_tree_sitter::module_name(relative_path, &[".pyi", ".py"])
 }
 
 fn text<'a>(node: Node, source: &'a str) -> &'a str {
