@@ -59,6 +59,12 @@ pub struct ReindexReport {
     /// Non-fatal problems after the index itself was updated, e.g. a failed
     /// [`Index::set_post_reindex_hook`] callback. Empty on a clean run.
     pub warnings: Vec<String>,
+    /// Whether this run changed the index and published a new generation.
+    /// A run that found nothing to change (a periodic reconciliation of an
+    /// up-to-date project) commits nothing: no `index_meta` write, no
+    /// generation bump, so other processes' generation-keyed caches and the
+    /// dashboard stay valid.
+    pub published: bool,
 }
 
 /// One row of the index's file table; see [`Index::indexed_files`].
@@ -98,10 +104,16 @@ pub struct IndexStatus {
     pub languages: Vec<LanguageCoverage>,
     pub total_files: usize,
     pub total_symbols: usize,
+    /// The last run that changed the index (published a generation).
     pub last_indexed_at: Option<i64>,
-    /// Monotonic completed-run sequence. Legacy indexes without the key report 0.
+    /// The last run of this process that completed, whether or not it changed
+    /// anything. Process-local: a run that changes nothing writes nothing to
+    /// the database, so other processes do not see it.
+    pub last_verified_at: Option<i64>,
+    /// Monotonic published-change sequence. Legacy indexes without the key report 0.
     pub published_generation: u64,
-    /// Most recent full walk that completed without an unreadable path.
+    /// Most recent full walk that completed without an unreadable path: the
+    /// later of the last published one and this process's last unchanged one.
     pub last_full_reconciled_at: Option<i64>,
     /// Target languages seen in the repo with no plugin registered yet.
     pub unsupported_languages: Vec<String>,
@@ -129,6 +141,7 @@ fn reindex_inner(
     let mut report = ReindexReport::default();
     let root = index.root.clone();
     symbol_changes::begin(&index.conn)?;
+    let changes_before = index.conn.total_changes();
 
     let mut seen_paths = Vec::new();
     let mut seen_manifest_paths = Vec::new();
@@ -139,7 +152,7 @@ fn reindex_inner(
     // Pick up edits to the project's ignore files first: the walk below then
     // skips newly excluded paths (and the sweep drops their rows) and indexes
     // newly un-excluded ones, forced or not.
-    index.exclude.try_reload()?;
+    index.exclude.try_reload_discovering()?;
     // Read before the walk: a reload by another clone mid-walk leaves this
     // run's rules behind the set's, and the next check sweeps again.
     let generation = index.exclude.generation();
@@ -172,7 +185,12 @@ fn reindex_inner(
 
     report.files_removed = remove_missing_files(index, &seen_paths, &unreadable)?;
     remove_missing_manifests(index, &seen_manifest_paths, &unreadable)?;
-    touch_last_indexed_at(index, unreadable.is_empty())?;
+    // A change of rules publishes even when it moved no row: responses that
+    // read the filesystem through the rules (the file tree) are cached by
+    // generation too.
+    let rules_changed = generation != index.applied_exclusions;
+    report.published =
+        publish_if_changed(index, changes_before, rules_changed, unreadable.is_empty())?;
     index.applied_exclusions = generation;
     symbol_changes::finish(&index.conn, &mut report)?;
 
@@ -697,14 +715,15 @@ fn reindex_paths_inner(
 
     // An edited ignore file can exclude or un-exclude paths anywhere, none of
     // which were reported: only a full walk applies the new rules.
-    let rules_file_changed = unique.iter().any(|p| {
-        to_relative_slash_path(&root, p).is_some_and(|rel| ExcludeSet::is_rules_file(&rel))
-    });
+    let rules_file_changed = unique
+        .iter()
+        .any(|p| to_relative_slash_path(&root, p).is_some_and(|rel| exclude.is_rules_path(&rel)));
     if rules_file_changed && exclude.reload() {
         return reindex_inner(index, registry, false);
     }
 
     symbol_changes::begin(&index.conn)?;
+    let changes_before = index.conn.total_changes();
 
     for absolute in unique {
         // Judged as written, not canonicalized: a deleted path can't be.
@@ -800,7 +819,7 @@ fn reindex_paths_inner(
     if !created.is_empty() {
         report.files_removed += remove_renamed_away(index, &created)?;
     }
-    touch_last_indexed_at(index, false)?;
+    report.published = publish_if_changed(index, changes_before, false, false)?;
     symbol_changes::finish(&index.conn, &mut report)?;
     Ok(report)
 }
@@ -1081,6 +1100,24 @@ fn write_manifest_dependencies(
     deps: &[manifests::ManifestDependency],
 ) -> Result<()> {
     let tx = &index.conn;
+    // Manifests are re-read on every walk; rewriting identical rows would
+    // make every reconciliation look like a change (see `publish_if_changed`).
+    let stored: Vec<(String, String, Option<String>)> = tx
+        .prepare_cached(
+            "SELECT language, name, version FROM dependencies
+             WHERE manifest_path = ?1 ORDER BY id",
+        )?
+        .query_map(params![manifest_path], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    let unchanged = stored.len() == deps.len()
+        && stored.iter().zip(deps).all(|((lang, name, version), dep)| {
+            lang == language && *name == dep.name && *version == dep.version
+        });
+    if unchanged {
+        return Ok(());
+    }
     tx.execute(
         "DELETE FROM dependencies WHERE manifest_path = ?1",
         params![manifest_path],
@@ -1106,6 +1143,9 @@ fn write_rockspec(
     let summary = manifests::dedupe_by_name(analysis.projection());
     write_manifest_dependencies(index, manifest_path, language, &summary)?;
     let tx = &index.conn;
+    if rockspec_items_unchanged(tx, manifest_path, &analysis.items)? {
+        return Ok(());
+    }
     tx.execute(
         "DELETE FROM rockspec_items WHERE manifest_path = ?1",
         params![manifest_path],
@@ -1135,6 +1175,54 @@ fn write_rockspec(
         ])?;
     }
     Ok(())
+}
+
+/// Whether the stored detail rows of `manifest_path` are exactly `items`, in
+/// order, so rewriting them would change nothing.
+fn rockspec_items_unchanged(
+    conn: &rusqlite::Connection,
+    manifest_path: &str,
+    items: &[manifests::lua::Item],
+) -> Result<bool> {
+    use rusqlite::types::Value;
+    fn text(value: Option<&str>) -> Value {
+        value.map_or(Value::Null, |v| Value::Text(v.to_string()))
+    }
+    let mut stmt = conn.prepare_cached(
+        "SELECT position, kind, section, scope, platform, namespace, name,
+                version_constraint, path, native, source, state, detail
+         FROM rockspec_items WHERE manifest_path = ?1 ORDER BY position",
+    )?;
+    let stored: Vec<Vec<Value>> = stmt
+        .query_map(params![manifest_path], |row| {
+            (0..13).map(|i| row.get::<_, Value>(i)).collect()
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    if stored.len() != items.len() {
+        return Ok(false);
+    }
+    Ok(stored
+        .iter()
+        .zip(items)
+        .enumerate()
+        .all(|(position, (row, item))| {
+            let expected = [
+                Value::Integer(position as i64),
+                Value::Text(item.kind.to_string()),
+                text(item.section),
+                text(item.scope),
+                text(item.platform.as_deref()),
+                text(item.namespace.as_deref()),
+                Value::Text(item.name.clone()),
+                text(item.constraint.as_deref()),
+                text(item.path.as_deref()),
+                Value::Integer(i64::from(item.native)),
+                text(item.source),
+                Value::Text(item.state.to_string()),
+                text(item.detail.as_deref()),
+            ];
+            row.as_slice() == expected.as_slice()
+        }))
 }
 
 fn remove_missing_manifests(
@@ -1404,10 +1492,36 @@ fn record_issue(
          VALUES (?1, ?2, ?3, ?4)
          ON CONFLICT(relative_path, issue_kind) DO UPDATE SET
             detail = excluded.detail,
-            detected_at = excluded.detected_at",
+            detected_at = excluded.detected_at
+         WHERE index_issues.detail IS NOT excluded.detail",
         params![relative_path, issue_kind, detail, unix_now()],
     )?;
     Ok(())
+}
+
+/// Publishes the run as a new generation if it wrote anything since
+/// `changes_before` (a [`rusqlite::Connection::total_changes`] reading taken
+/// after [`symbol_changes::begin`]), if `force` asks for it, or if the index
+/// has never been published. Otherwise it writes nothing, so the open
+/// transaction commits empty and the WAL is untouched. Either way, records
+/// the run as this process's last verification. Returns whether it published.
+fn publish_if_changed(
+    index: &mut Index,
+    changes_before: u64,
+    force: bool,
+    full_reconciliation: bool,
+) -> Result<bool> {
+    let changed =
+        force || index.conn.total_changes() != changes_before || index.published_generation()? == 0;
+    let now = unix_now();
+    if changed {
+        touch_last_indexed_at(index, full_reconciliation)?;
+    }
+    index.last_verified_at = Some(now);
+    if full_reconciliation {
+        index.last_full_verified_at = Some(now);
+    }
+    Ok(changed)
 }
 
 fn touch_last_indexed_at(index: &mut Index, full_reconciliation: bool) -> Result<()> {
@@ -1552,8 +1666,11 @@ pub fn status(index: &Index) -> Result<IndexStatus> {
         total_files: total_files as usize,
         total_symbols: total_symbols as usize,
         last_indexed_at: last_indexed_at.and_then(|v| v.parse().ok()),
+        last_verified_at: index.last_verified_at,
         published_generation: crate::parse_published_generation(published_generation)?,
-        last_full_reconciled_at: last_full_reconciled_at.and_then(|v| v.parse().ok()),
+        last_full_reconciled_at: last_full_reconciled_at
+            .and_then(|v| v.parse().ok())
+            .max(index.last_full_verified_at),
         unsupported_languages,
         syntax_errors,
         read_failures,

@@ -29,8 +29,27 @@ fn the_hook_runs_after_reindex_and_reindex_paths() {
 
     index.reindex(&registry, false).unwrap();
     assert_eq!(calls.load(Ordering::SeqCst), 1);
+    // Nothing changed: the derived views are already current.
     index.reindex_paths(&registry, &[dir.join("a.rs")]).unwrap();
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    // A run that changes the index runs the hook again, both ways.
+    fs::write(dir.join("a.rs"), "fn a() {}\n").unwrap();
+    fs::write(
+        dir.join("Cargo.toml"),
+        "[package]\nname = \"p\"\n\n[dependencies]\nserde = \"1\"\n",
+    )
+    .unwrap();
+    index
+        .reindex_paths(&registry, &[PathBuf::from("Cargo.toml")])
+        .unwrap();
     assert_eq!(calls.load(Ordering::SeqCst), 2);
+    fs::write(
+        dir.join("Cargo.toml"),
+        "[package]\nname = \"p\"\n\n[dependencies]\nserde = \"2\"\n",
+    )
+    .unwrap();
+    index.reindex(&registry, false).unwrap();
+    assert_eq!(calls.load(Ordering::SeqCst), 3);
     fs::remove_dir_all(&dir).ok();
 }
 
