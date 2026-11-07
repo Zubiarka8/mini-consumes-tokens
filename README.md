@@ -2,7 +2,7 @@
 
 ![CI](https://img.shields.io/github/actions/workflow/status/Zubiarka8/mini-consumes-tokens/ci.yml?branch=main&label=CI)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
-![Version](https://img.shields.io/badge/version-0.3.0-informational.svg)
+![Version](https://img.shields.io/badge/version-0.3.1-informational.svg)
 
 **[Official website](https://zubiarka8.github.io/mini-consumes-tokens/)** · **[Documentation](https://zubiarka8.github.io/mini-consumes-tokens/docs)**
 
