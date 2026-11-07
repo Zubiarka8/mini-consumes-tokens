@@ -88,6 +88,9 @@ const DEFAULT_EXCLUDE_DIRS: &[&str] = &[
     ".git",
     "target",
     ".mct-index",
+    // Next.js build output and cache: generated, often hundreds of MB, and
+    // re-parsed after every `next build` otherwise.
+    ".next",
     // Agent / tooling state, not project source. `.claude/worktrees/` holds
     // Claude Code agent worktrees — full checkouts of the project itself, so
     // indexing it files every symbol two or three times over (measured in
@@ -128,6 +131,10 @@ struct Rules {
     project_root: Option<PathBuf>,
     /// How many times [`ExcludeSet::reload`] has swapped in new rules.
     generation: u64,
+    /// Directories below the root holding a `.gitignore` that
+    /// [`GITIGNORE_IMPORT_DIRECTIVE`] imports, found by the last discovering
+    /// reload; a cheap reload re-reads only these.
+    nested: Vec<String>,
 }
 
 impl ExcludeSet {
@@ -144,6 +151,7 @@ impl ExcludeSet {
             extra: extra_patterns.to_vec(),
             project_root: None,
             generation: 0,
+            nested: Vec::new(),
         })
     }
 
@@ -152,7 +160,8 @@ impl ExcludeSet {
     /// by every [`ExcludeSet::reload`] so an edit to them takes effect
     /// without restarting.
     pub fn for_project(root: &Path) -> Self {
-        let extra = read_ignore_file(root);
+        let nested = discover_nested_gitignores(root, &read_ignore_file(root));
+        let extra = read_ignore_file_with(root, &nested);
         let (set, kinds) = build_set(&extra);
         Self::from_rules(Rules {
             set,
@@ -160,6 +169,7 @@ impl ExcludeSet {
             extra,
             project_root: Some(root.to_path_buf()),
             generation: 0,
+            nested,
         })
     }
 
@@ -178,17 +188,41 @@ impl ExcludeSet {
         // read_ignore_contents logs non-missing read failures. Retain the
         // previous rules so the watcher's best-effort reload cannot expose
         // excluded content while a rule file is unreadable.
-        self.try_reload().unwrap_or(false)
+        self.try_reload_discovering().unwrap_or(false)
     }
 
-    /// Checked reload for indexing and the MCP query boundary: a read error
-    /// preserves the previous rules and rejects the operation.
+    /// Checked reload for the MCP query boundary: a read error preserves the
+    /// previous rules and rejects the operation. Re-reads the nested
+    /// `.gitignore` files the last discovering reload found, without walking
+    /// the tree for new ones.
     pub(crate) fn try_reload(&self) -> crate::Result<bool> {
+        self.reload_checked(false)
+    }
+
+    /// [`ExcludeSet::try_reload`] that also walks the tree for nested
+    /// `.gitignore` files created or removed since: for a full reindex, which
+    /// walks the tree anyway, and for a rules-file event.
+    pub(crate) fn try_reload_discovering(&self) -> crate::Result<bool> {
+        self.reload_checked(true)
+    }
+
+    fn reload_checked(&self, discover: bool) -> crate::Result<bool> {
         let Some(root) = self.read().project_root.clone() else {
             return Ok(false);
         };
-        let extra = read_ignore_file_checked(&root)?;
+        let nested = if discover {
+            discover_nested_gitignores(&root, &read_ignore_file_checked(&root, &[])?)
+        } else {
+            self.read().nested.clone()
+        };
+        let extra = read_ignore_file_checked(&root, &nested)?;
         if self.read().extra == extra {
+            if discover {
+                self.rules
+                    .write()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .nested = nested;
+            }
             return Ok(false);
         }
         let (set, kinds) = build_set(&extra);
@@ -196,6 +230,7 @@ impl ExcludeSet {
         rules.set = set;
         rules.kinds = kinds;
         rules.extra = extra;
+        rules.nested = nested;
         rules.generation = rules.generation.wrapping_add(1);
         Ok(true)
     }
@@ -216,6 +251,18 @@ impl ExcludeSet {
     /// have just changed, and reloading an unchanged set is a no-op.
     pub fn is_rules_file(relative_path: &str) -> bool {
         relative_path == IGNORE_FILE_NAME || relative_path == GITIGNORE_FILE_NAME
+    }
+
+    /// [`ExcludeSet::is_rules_file`], plus a nested `.gitignore` outside
+    /// every excluded directory, which [`GITIGNORE_IMPORT_DIRECTIVE`] may
+    /// import. One inside an excluded directory (`node_modules/x/.gitignore`)
+    /// can never matter, and package installs write many.
+    pub fn is_rules_path(&self, relative_path: &str) -> bool {
+        Self::is_rules_file(relative_path)
+            || relative_path
+                .strip_suffix(GITIGNORE_FILE_NAME)
+                .is_some_and(|dir| dir.ends_with('/'))
+                && !self.is_excluded(relative_path)
     }
 
     fn read(&self) -> std::sync::RwLockReadGuard<'_, Rules> {
@@ -348,7 +395,7 @@ fn read_ignore_contents(path: &Path) -> std::io::Result<String> {
 /// Unlike the legacy opt-in reader below, a reload must distinguish an
 /// absent rule file from a failed read. Discarding rules on a failed read
 /// would re-index paths the last valid configuration excluded.
-fn read_ignore_file_checked(root: &Path) -> crate::Result<Vec<String>> {
+fn read_ignore_file_checked(root: &Path, nested: &[String]) -> crate::Result<Vec<String>> {
     let read_optional = |name: &str| {
         let path = root.join(name);
         match read_ignore_contents(&path) {
@@ -364,12 +411,77 @@ fn read_ignore_file_checked(root: &Path) -> crate::Result<Vec<String>> {
     let mut patterns = Vec::new();
     for line in contents.lines() {
         if line.trim() == GITIGNORE_IMPORT_DIRECTIVE {
-            push_lines(&read_optional(GITIGNORE_FILE_NAME)?, &mut patterns);
+            push_lines(&read_optional(GITIGNORE_FILE_NAME)?, "", &mut patterns);
+            for dir in nested {
+                let gitignore = format!("{dir}/{GITIGNORE_FILE_NAME}");
+                push_lines(&read_optional(&gitignore)?, dir, &mut patterns);
+            }
         } else {
-            push_lines(line, &mut patterns);
+            push_lines(line, "", &mut patterns);
         }
     }
     Ok(patterns)
+}
+
+/// [`read_ignore_file`] plus the nested `.gitignore` files of `nested`, read
+/// when the import directive is present; unreadable ones are skipped.
+fn read_ignore_file_with(root: &Path, nested: &[String]) -> Vec<String> {
+    let Ok(contents) = read_ignore_contents(&root.join(IGNORE_FILE_NAME)) else {
+        return Vec::new();
+    };
+    let mut patterns = Vec::new();
+    for line in contents.lines() {
+        if line.trim() == GITIGNORE_IMPORT_DIRECTIVE {
+            if let Ok(gitignore) = read_ignore_contents(&root.join(GITIGNORE_FILE_NAME)) {
+                push_lines(&gitignore, "", &mut patterns);
+            }
+            for dir in nested {
+                let path = root.join(dir).join(GITIGNORE_FILE_NAME);
+                if let Ok(gitignore) = read_ignore_contents(&path) {
+                    push_lines(&gitignore, dir, &mut patterns);
+                }
+            }
+        } else {
+            push_lines(line, "", &mut patterns);
+        }
+    }
+    patterns
+}
+
+/// The directories below `root` (relative, `/`-separated, sorted so a parent
+/// precedes its children and a deeper file's rules win) that hold a
+/// `.gitignore`, when `.mctignore` imports `.gitignore` at all. The walk
+/// never enters a directory the built-in exclusions or `base` (the rules read
+/// so far) exclude, nor follows a symlink.
+fn discover_nested_gitignores(root: &Path, base: &[String]) -> Vec<String> {
+    let imports = read_ignore_contents(&root.join(IGNORE_FILE_NAME)).is_ok_and(|contents| {
+        contents
+            .lines()
+            .any(|line| line.trim() == GITIGNORE_IMPORT_DIRECTIVE)
+    });
+    if !imports {
+        return Vec::new();
+    }
+    let probe = ExcludeSet::new(base);
+    let relative = |path: &Path| {
+        path.strip_prefix(root).ok().and_then(|p| {
+            let parts: Option<Vec<&str>> = p.components().map(|c| c.as_os_str().to_str()).collect();
+            parts.map(|parts| parts.join("/"))
+        })
+    };
+    let mut found: Vec<String> = walkdir::WalkDir::new(root)
+        .min_depth(1)
+        .into_iter()
+        .filter_entry(|entry| {
+            entry.file_type().is_dir()
+                && relative(entry.path()).is_some_and(|rel| !probe.is_excluded(&rel))
+        })
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| entry.path().join(GITIGNORE_FILE_NAME).is_file())
+        .filter_map(|entry| relative(entry.path()))
+        .collect();
+    found.sort();
+    found
 }
 
 /// Reads `<root>/.mctignore` (see [`IGNORE_FILE_NAME`]) and turns each line
@@ -403,18 +515,20 @@ pub fn read_ignore_file(root: &Path) -> Vec<String> {
     for line in contents.lines() {
         if line.trim() == GITIGNORE_IMPORT_DIRECTIVE {
             if let Ok(gitignore) = read_ignore_contents(&root.join(GITIGNORE_FILE_NAME)) {
-                push_lines(&gitignore, &mut patterns);
+                push_lines(&gitignore, "", &mut patterns);
             }
         } else {
-            push_lines(line, &mut patterns);
+            push_lines(line, "", &mut patterns);
         }
     }
     patterns
 }
 
 /// Parses each line of `contents` (comments and blank lines skipped) into
-/// `patterns`, a `!` line's patterns prefixed with `!`.
-fn push_lines(contents: &str, patterns: &mut Vec<String>) {
+/// `patterns`, a `!` line's patterns prefixed with `!`. `dir` is the
+/// directory the file sits in (empty for the root): as in git, its patterns
+/// apply only below it.
+fn push_lines(contents: &str, dir: &str, patterns: &mut Vec<String>) {
     for line in contents.lines() {
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {
@@ -423,13 +537,13 @@ fn push_lines(contents: &str, patterns: &mut Vec<String>) {
         match line.strip_prefix('!') {
             Some(rest) if !rest.is_empty() => {
                 let start = patterns.len();
-                push_line_patterns(rest, patterns);
+                push_line_patterns(rest, dir, patterns);
                 for pattern in &mut patterns[start..] {
                     pattern.insert(0, '!');
                 }
             }
             Some(_) => {}
-            None => push_line_patterns(line, patterns),
+            None => push_line_patterns(line, dir, patterns),
         }
     }
 }
@@ -437,7 +551,7 @@ fn push_lines(contents: &str, patterns: &mut Vec<String>) {
 /// Turns one already-trimmed, non-empty, non-comment ignore-file line into
 /// its ready-to-use glob pattern(s), per the anchoring rules documented on
 /// [`read_ignore_file`], appending them to `patterns`.
-fn push_line_patterns(line: &str, patterns: &mut Vec<String>) {
+fn push_line_patterns(line: &str, dir: &str, patterns: &mut Vec<String>) {
     let (body, is_dir) = match line.strip_suffix('/') {
         Some(dir) => (dir, true),
         None => (line, false),
@@ -449,10 +563,15 @@ fn push_line_patterns(line: &str, patterns: &mut Vec<String>) {
     if body.is_empty() {
         return;
     }
-    let base = if anchored {
-        body.to_string()
+    let prefix = if dir.is_empty() {
+        String::new()
     } else {
-        format!("**/{body}")
+        format!("{dir}/")
+    };
+    let base = if anchored {
+        format!("{prefix}{body}")
+    } else {
+        format!("{prefix}**/{body}")
     };
     let inside = is_dir.then(|| format!("{base}/**"));
     patterns.push(base);
@@ -646,5 +765,92 @@ mod ignore_file_tests {
         let set = ExcludeSet::new(&["**/*.md".to_string(), "!docs/readme.md".to_string()]);
         assert!(!set.is_excluded("docs/readme.md"));
         assert!(set.is_excluded("docs/other.md"));
+    }
+
+    #[test]
+    fn next_build_output_is_excluded_by_default() {
+        let set = ExcludeSet::default();
+        assert!(set.is_excluded(".next"));
+        assert!(set.is_excluded("website/.next/static/chunks/app.js"));
+        assert!(!set.is_excluded("website/next.config.mjs"));
+    }
+
+    /// A website-like layout: the nested `.gitignore` excludes its own
+    /// generated output, anchored to its directory.
+    fn nested_project(tag: &str, directive: bool) -> std::path::PathBuf {
+        let dir = temp_dir(tag);
+        let mctignore = if directive {
+            format!("{GITIGNORE_IMPORT_DIRECTIVE}\n")
+        } else {
+            "*.tmp\n".to_string()
+        };
+        fs::write(dir.join(IGNORE_FILE_NAME), mctignore).unwrap();
+        fs::write(dir.join(".gitignore"), "/target\n").unwrap();
+        fs::create_dir_all(dir.join("website/out")).unwrap();
+        fs::create_dir_all(dir.join("website/src/out")).unwrap();
+        fs::write(
+            dir.join("website/.gitignore"),
+            "/out/\n*.tsbuildinfo\n!keep.tsbuildinfo\n",
+        )
+        .unwrap();
+        // Inside a built-in exclusion: never read.
+        fs::create_dir_all(dir.join("node_modules/pkg")).unwrap();
+        fs::write(dir.join("node_modules/pkg/.gitignore"), "*.rs\n").unwrap();
+        dir
+    }
+
+    #[test]
+    fn an_imported_nested_gitignore_applies_below_its_directory_only() {
+        let dir = nested_project("nested-imported", true);
+        let set = ExcludeSet::for_project(&dir);
+        assert!(set.is_excluded("website/out/index.html"));
+        assert!(set.is_excluded("website/out"));
+        // `/out/` is anchored to website/, as in git.
+        assert!(!set.is_excluded("website/src/out/page.ts"));
+        assert!(!set.is_excluded("out/main.rs"));
+        // An unanchored pattern matches at any depth below website/ only.
+        assert!(set.is_excluded("website/a.tsbuildinfo"));
+        assert!(set.is_excluded("website/deep/b.tsbuildinfo"));
+        assert!(!set.is_excluded("c.tsbuildinfo"));
+        // Its negation re-includes within its scope.
+        assert!(!set.is_excluded("website/keep.tsbuildinfo"));
+        // node_modules/pkg/.gitignore was never imported.
+        assert!(!set.is_excluded("src/lib.rs"));
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn without_the_directive_a_nested_gitignore_is_ignored() {
+        let dir = nested_project("nested-off", false);
+        let set = ExcludeSet::for_project(&dir);
+        assert!(!set.is_excluded("website/out/index.html"));
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_new_nested_gitignore_is_found_by_a_discovering_reload_only() {
+        let dir = nested_project("nested-new", true);
+        let set = ExcludeSet::for_project(&dir);
+        fs::create_dir_all(dir.join("docs/build")).unwrap();
+        fs::write(dir.join("docs/.gitignore"), "build/\n").unwrap();
+        assert!(!set.try_reload().unwrap());
+        assert!(!set.is_excluded("docs/build/x.html"));
+        assert!(set.try_reload_discovering().unwrap());
+        assert!(set.is_excluded("docs/build/x.html"));
+        // Known files are then re-read by the cheap reload too.
+        fs::write(dir.join("docs/.gitignore"), "").unwrap();
+        assert!(set.try_reload().unwrap());
+        assert!(!set.is_excluded("docs/build/x.html"));
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_nested_gitignore_is_a_rules_path_unless_excluded() {
+        let set = ExcludeSet::default();
+        assert!(set.is_rules_path(".gitignore"));
+        assert!(set.is_rules_path(".mctignore"));
+        assert!(set.is_rules_path("website/.gitignore"));
+        assert!(!set.is_rules_path("node_modules/pkg/.gitignore"));
+        assert!(!set.is_rules_path("website/not.gitignore"));
     }
 }
