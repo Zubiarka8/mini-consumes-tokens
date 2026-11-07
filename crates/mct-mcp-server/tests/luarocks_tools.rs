@@ -17,6 +17,9 @@ use rmcp::handler::server::wrapper::Parameters;
 #[path = "common/content.rs"]
 mod content;
 use content::content_of;
+#[path = "common/server.rs"]
+mod server_fixture;
+use server_fixture::build_server_at as server_for;
 
 const REAL_TREE: &str = include_str!(
     "../../mct-index/tests/fixtures/luarocks/real-tree/lib/luarocks/rocks-5.5/manifest"
@@ -52,13 +55,6 @@ fn write(root: &Path, path: &str, contents: &str) {
     let file = root.join(path);
     fs::create_dir_all(file.parent().unwrap()).unwrap();
     fs::write(file, contents).unwrap();
-}
-
-async fn server_for(root: &Path) -> MctServer {
-    let registry = mct_mcp_server::registry::build_registry();
-    let mut index = Index::open_in_memory(root, ExcludeSet::default()).unwrap();
-    index.reindex(&registry, false).unwrap();
-    MctServer::new(index, registry)
 }
 
 fn project() -> TempDir {
