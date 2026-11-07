@@ -8,6 +8,7 @@
 
 use std::path::Path;
 
+use crate::indexer::to_relative_slash_path;
 use crate::{ExcludeSet, IndexError, Result};
 
 /// Per-directory cap on listed entries, independent of `depth`. A directory
@@ -81,6 +82,9 @@ fn build_node(
     let mut entries: Vec<_> = std::fs::read_dir(dir)
         .map(|read| read.filter_map(|e| e.ok()).collect())
         .unwrap_or_default();
+    // The indexer's derivation, without canonicalizing each entry: this is a
+    // read-only listing, not a security boundary, so the extra syscalls
+    // `reindex`'s escape guard needs are not worth paying here.
     entries.retain(|entry| {
         to_relative_slash_path(root, &entry.path())
             .map(|relative| !exclude.is_excluded(&relative))
@@ -129,17 +133,4 @@ fn build_node(
         omitted,
         depth_exhausted: false,
     }
-}
-
-/// Same relative-path derivation `indexer.rs::to_relative_slash_path` uses:
-/// strips `root` by path components, never by canonicalizing each entry —
-/// this is a read-only listing, not a security boundary, so the extra
-/// syscalls `reindex`'s escape guard needs are not worth paying here.
-fn to_relative_slash_path(root: &Path, entry_path: &Path) -> Option<String> {
-    let rel = entry_path.strip_prefix(root).ok()?;
-    let mut parts = Vec::new();
-    for component in rel.components() {
-        parts.push(component.as_os_str().to_str()?.to_string());
-    }
-    Some(parts.join("/"))
 }
