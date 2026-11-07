@@ -49,6 +49,13 @@ fn fixture_index() -> Index {
     index
 }
 
+fn assert_matches(mode: SymbolMatchMode, term: &str, expected: &[&str]) {
+    let index = fixture_index();
+    let hits = index.find_symbol_matching(term, mode).unwrap();
+    let names: Vec<_> = hits.iter().map(|hit| hit.name.as_str()).collect();
+    assert_eq!(names, expected, "{mode:?} query {term}: {hits:?}");
+}
+
 #[test]
 fn exact_mode_is_byte_identical_to_find_symbol() {
     let index = fixture_index();
@@ -73,32 +80,22 @@ fn exact_mode_does_not_widen_to_a_partial_name() {
 
 #[test]
 fn prefix_mode_finds_every_symbol_whose_leading_token_matches() {
-    let index = fixture_index();
-    let hits = index
-        .find_symbol_matching("handle", SymbolMatchMode::Prefix)
-        .unwrap();
-    let names: Vec<&str> = hits.iter().map(|h| h.name.as_str()).collect();
     // `symbols_fts` uses FTS5's default `unicode61` tokenizer, which splits
     // on `_`: `Handler` tokenizes to a single token `handler`, which is also
     // a prefix match for "handle" — token-prefix, not literal-string-prefix,
     // is the documented semantics (see `SymbolMatchMode::Prefix`).
-    assert_eq!(
-        names,
-        vec!["handle_request", "handle_response", "Handler"],
-        "{names:?}"
+    assert_matches(
+        SymbolMatchMode::Prefix,
+        "handle",
+        &["handle_request", "handle_response", "Handler"],
     );
 }
 
 #[test]
 fn prefix_mode_matches_a_non_leading_token_that_starts_with_the_term() {
-    let index = fixture_index();
     // "body" is `parse_body`'s *second* token — prefix matching is
     // per-token, not anchored to the start of the whole name.
-    let hits = index
-        .find_symbol_matching("body", SymbolMatchMode::Prefix)
-        .unwrap();
-    assert_eq!(hits.len(), 1, "{hits:?}");
-    assert_eq!(hits[0].name, "parse_body");
+    assert_matches(SymbolMatchMode::Prefix, "body", &["parse_body"]);
 }
 
 #[test]
@@ -118,51 +115,39 @@ fn prefix_mode_does_not_match_the_term_appearing_mid_token() {
 
 #[test]
 fn prefix_mode_full_name_is_also_a_valid_prefix_of_itself() {
-    let index = fixture_index();
-    let hits = index
-        .find_symbol_matching("handle_request", SymbolMatchMode::Prefix)
-        .unwrap();
-    assert_eq!(hits.len(), 1, "{hits:?}");
-    assert_eq!(hits[0].name, "handle_request");
+    assert_matches(
+        SymbolMatchMode::Prefix,
+        "handle_request",
+        &["handle_request"],
+    );
 }
 
 #[test]
 fn prefix_mode_tolerates_fts5_special_characters_in_the_term() {
-    let index = fixture_index();
     // `"` and `*` are FTS5 query-syntax operators; the quoting in
     // `quote_fts_phrase` must neutralize them rather than erroring or
     // matching everything.
-    let hits = index
-        .find_symbol_matching("weird_100%_\"quoted", SymbolMatchMode::Prefix)
-        .unwrap();
-    assert_eq!(hits.len(), 1, "{hits:?}");
-    assert_eq!(hits[0].name, "weird_100%_\"quoted\"_name");
+    assert_matches(
+        SymbolMatchMode::Prefix,
+        "weird_100%_\"quoted",
+        &["weird_100%_\"quoted\"_name"],
+    );
 }
 
 #[test]
 fn fuzzy_mode_is_case_insensitive() {
-    let index = fixture_index();
-    let hits = index
-        .find_symbol_matching("handler", SymbolMatchMode::Fuzzy)
-        .unwrap();
-    assert_eq!(hits.len(), 1, "{hits:?}");
-    assert_eq!(hits[0].name, "Handler");
+    assert_matches(SymbolMatchMode::Fuzzy, "handler", &["Handler"]);
 }
 
 #[test]
 fn fuzzy_mode_matches_every_symbol_containing_the_shared_substring() {
-    let index = fixture_index();
-    let hits = index
-        .find_symbol_matching("handle", SymbolMatchMode::Fuzzy)
-        .unwrap();
-    let names: Vec<&str> = hits.iter().map(|h| h.name.as_str()).collect();
     // Case-insensitive substring match: "handle" is also a substring of
     // `Handler`, unlike `Prefix`'s per-token matching (see the `prefix_mode_*`
     // tests), so all three surface here.
-    assert_eq!(
-        names,
-        vec!["handle_request", "handle_response", "Handler"],
-        "{names:?}"
+    assert_matches(
+        SymbolMatchMode::Fuzzy,
+        "handle",
+        &["handle_request", "handle_response", "Handler"],
     );
 }
 

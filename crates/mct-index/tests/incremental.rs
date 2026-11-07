@@ -92,12 +92,9 @@ fn tempdir() -> PathBuf {
     scratch_dir("mct-incremental")
 }
 
-fn write(root: &Path, rel: &str, contents: &str) -> PathBuf {
-    let path = root.join(rel);
-    fs::create_dir_all(path.parent().unwrap()).unwrap();
-    fs::write(&path, contents).unwrap();
-    path
-}
+#[path = "common/write.rs"]
+mod fixture_files;
+use fixture_files::write;
 
 fn indexed(root: &Path) -> Index {
     let mut index = Index::open_in_memory(root, ExcludeSet::default()).unwrap();

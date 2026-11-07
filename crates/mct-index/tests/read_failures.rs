@@ -85,12 +85,9 @@ fn tempdir() -> PathBuf {
     scratch_dir("mct-read-failures")
 }
 
-fn write(root: &Path, rel: &str, contents: &str) -> PathBuf {
-    let path = root.join(rel);
-    fs::create_dir_all(path.parent().unwrap()).unwrap();
-    fs::write(&path, contents).unwrap();
-    path
-}
+#[path = "common/write.rs"]
+mod fixture_files;
+use fixture_files::write;
 
 fn chmod(path: &Path, mode: u32) {
     fs::set_permissions(path, fs::Permissions::from_mode(mode)).unwrap();

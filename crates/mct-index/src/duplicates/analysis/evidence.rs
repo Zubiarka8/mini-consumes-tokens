@@ -564,24 +564,27 @@ fn warnings(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
+pub(super) fn test_slots(texts: &mut Texts, tokens: &[(&str, TokenRole)]) -> Vec<Slot> {
+    tokens
+        .iter()
+        .enumerate()
+        .map(|(line, (text, role))| Slot {
+            literal: matches!(role, TokenRole::Literal(_)),
+            role: *role,
+            primitive_spelling: false,
+            text: texts.id(text),
+            line: u32::try_from(line).unwrap() + 1,
+        })
+        .collect()
+}
+
+#[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+    use super::test_slots as slots;
     use super::*;
-
-    fn slots(texts: &mut Texts, tokens: &[(&str, TokenRole)]) -> Vec<Slot> {
-        tokens
-            .iter()
-            .enumerate()
-            .map(|(line, (text, role))| Slot {
-                literal: matches!(role, TokenRole::Literal(_)),
-                role: *role,
-                primitive_spelling: false,
-                text: texts.id(text),
-                line: u32::try_from(line).unwrap() + 1,
-            })
-            .collect()
-    }
 
     fn as_refs(owned: &[(String, TokenRole)]) -> Vec<(&str, TokenRole)> {
         owned
