@@ -26,20 +26,9 @@ fn fixture(name: &str) -> std::path::PathBuf {
         .join(name)
 }
 
-fn args(query: &str) -> SearchSymbolsArgs {
-    SearchSymbolsArgs {
-        query: query.to_string(),
-        path: None,
-        language: None,
-        limit: None,
-        offset: None,
-        snippet_lines: None,
-        format: Some("text".to_string()),
-        cache: None,
-        detail: None,
-        max_tokens: None,
-    }
-}
+#[path = "common/search_args.rs"]
+mod search_args_fixture;
+use search_args_fixture::search_args as args;
 
 async fn search(server: &MctServer, args: SearchSymbolsArgs) -> String {
     content_of(&server.search_symbols(Parameters(args)).await.unwrap())

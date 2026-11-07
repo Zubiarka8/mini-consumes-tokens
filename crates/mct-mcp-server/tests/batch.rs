@@ -235,12 +235,22 @@ async fn empty_and_oversized_batches_are_rejected() {
     assert!(err.message.contains("at most 25"), "{}", err.message);
 }
 
+async fn assert_sweep_reduction(fixture_name: &str, label: &str, queries: &[(&str, Value)]) {
+    let server = build_server(&fixture(fixture_name)).await;
+    let m = measure(&server, queries).await;
+    report(label, &m);
+    assert!(
+        m.reduction() >= 20.0,
+        "{label}: only {:.1}% fewer tokens",
+        m.reduction()
+    );
+}
+
 /// Acceptance criterion from issue #20: ≥20% fewer tokens for a batch than
 /// for the same queries as separate calls. A typical "understand this
 /// function" sweep over small results, where per-call envelopes dominate.
 #[tokio::test]
 async fn batching_an_exploration_sweep_cuts_tokens_by_at_least_20_percent() {
-    let server = build_server(&fixture("compute-app")).await;
     let queries = [
         ("find_symbol", json!({ "name": "compute" })),
         ("find_callers", json!({ "function": "compute" })),
@@ -249,13 +259,7 @@ async fn batching_an_exploration_sweep_cuts_tokens_by_at_least_20_percent() {
         ("find_callers", json!({ "function": "helper" })),
         ("get_file_skeleton", json!({ "path": "src/lib.rs" })),
     ];
-    let m = measure(&server, &queries).await;
-    report("compute-app sweep", &m);
-    assert!(
-        m.reduction() >= 20.0,
-        "only {:.1}% fewer tokens",
-        m.reduction()
-    );
+    assert_sweep_reduction("compute-app", "compute-app sweep", &queries).await;
 }
 
 /// Same criterion on a polyglot fixture with larger, mixed results
@@ -263,7 +267,6 @@ async fn batching_an_exploration_sweep_cuts_tokens_by_at_least_20_percent() {
 /// smaller share of each response.
 #[tokio::test]
 async fn batching_a_mixed_polyglot_sweep_cuts_tokens_by_at_least_20_percent() {
-    let server = build_server(&fixture("omni-app")).await;
     let queries = [
         ("list_symbols", json!({ "path": "backend" })),
         ("find_symbol", json!({ "name": "NewLedger" })),
@@ -272,13 +275,7 @@ async fn batching_a_mixed_polyglot_sweep_cuts_tokens_by_at_least_20_percent() {
         ("impact_analysis", json!({ "symbol": "Ledger" })),
         ("get_file_skeleton", json!({ "path": "backend/ledger.go" })),
     ];
-    let m = measure(&server, &queries).await;
-    report("omni-app sweep", &m);
-    assert!(
-        m.reduction() >= 20.0,
-        "only {:.1}% fewer tokens",
-        m.reduction()
-    );
+    assert_sweep_reduction("omni-app", "omni-app sweep", &queries).await;
 }
 
 /// Provider prompt caching (Anthropic's, and the other major providers')
