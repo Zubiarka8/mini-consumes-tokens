@@ -11,14 +11,19 @@
 
 use mct_index::ExcludeSet;
 
+#[path = "common/exclusions.rs"]
+mod exclusions;
+use exclusions::{assert_default_excludes, assert_default_includes};
+
 #[test]
 fn dotnet_secret_patterns_are_excluded() {
-    let set = ExcludeSet::default();
-    assert!(set.is_excluded("appsettings.Development.json"));
-    assert!(set.is_excluded("appsettings.Production.json"));
-    assert!(set.is_excluded("src/appsettings.Local.json"));
-    assert!(set.is_excluded("certs/mykey.pfx"));
-    assert!(set.is_excluded("app.snk"));
+    assert_default_excludes(&[
+        "appsettings.Development.json",
+        "appsettings.Production.json",
+        "src/appsettings.Local.json",
+        "certs/mykey.pfx",
+        "app.snk",
+    ]);
 }
 
 #[test]
@@ -33,12 +38,13 @@ fn dotnet_non_secret_config_is_not_excluded() {
 
 #[test]
 fn generic_and_java_ecosystem_patterns_still_work() {
-    let set = ExcludeSet::default();
-    assert!(set.is_excluded(".env"));
-    assert!(set.is_excluded(".env.local"));
-    assert!(set.is_excluded("id_rsa.pem"));
-    assert!(set.is_excluded("gradle.properties"));
-    assert!(set.is_excluded("node_modules/left-pad/index.js"));
+    assert_default_excludes(&[
+        ".env",
+        ".env.local",
+        "id_rsa.pem",
+        "gradle.properties",
+        "node_modules/left-pad/index.js",
+    ]);
 }
 
 #[test]
@@ -55,13 +61,14 @@ fn php_composer_vendor_directory_is_excluded() {
 /// another stack, or in a Laravel app below the root, must stay indexed.
 #[test]
 fn laravel_directory_names_are_not_excluded_by_default() {
-    let set = ExcludeSet::default();
-    assert!(!set.is_excluded("storage/framework/views/5f1a0c.php"));
-    assert!(!set.is_excluded("bootstrap/cache/services.php"));
-    assert!(!set.is_excluded("src/bootstrap/cache/CacheManager.ts"));
-    assert!(!set.is_excluded("packages/ui/storage/framework/Store.java"));
-    assert!(!set.is_excluded("apps/shop/storage/framework/views/5f1a0c.php"));
-    assert!(!set.is_excluded("bootstrap/app.php"));
+    assert_default_includes(&[
+        "storage/framework/views/5f1a0c.php",
+        "bootstrap/cache/services.php",
+        "src/bootstrap/cache/CacheManager.ts",
+        "packages/ui/storage/framework/Store.java",
+        "apps/shop/storage/framework/views/5f1a0c.php",
+        "bootstrap/app.php",
+    ]);
 }
 
 fn project_with_mctignore(lines: &str) -> (tempfile::TempDir, ExcludeSet) {

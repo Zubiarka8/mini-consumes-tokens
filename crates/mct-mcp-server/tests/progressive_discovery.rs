@@ -11,7 +11,6 @@
 
 use std::path::Path;
 
-use mct_index::{ExcludeSet, Index};
 use mct_mcp_server::server::{GetToolSchemaArgs, MctServer};
 use rmcp::handler::server::wrapper::Parameters;
 
@@ -19,15 +18,15 @@ use rmcp::handler::server::wrapper::Parameters;
 mod content;
 use content::content_of;
 
+#[path = "common/indexed_server.rs"]
+mod indexed_server;
+
 fn fixture_root() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/compute-app")
 }
 
 async fn build_server() -> MctServer {
-    let registry = mct_mcp_server::registry::build_registry();
-    let mut index = Index::open_in_memory(&fixture_root(), ExcludeSet::default()).unwrap();
-    index.reindex(&registry, false).unwrap();
-    MctServer::new(index, registry)
+    indexed_server::indexed_server(&fixture_root())
 }
 
 #[tokio::test]

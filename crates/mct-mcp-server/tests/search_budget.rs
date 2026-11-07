@@ -5,20 +5,20 @@
 
 use std::path::{Path, PathBuf};
 
-use mct_index::{EstimatedCounter, ExcludeSet, Index, TokenCounter};
+use mct_index::{EstimatedCounter, TokenCounter};
 use mct_mcp_server::server::MctServer;
 use mct_mcp_server::toon::decode_table;
 use serde_json::{json, Value};
+
+#[path = "common/indexed_server.rs"]
+mod indexed_server;
 
 fn fixture() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/context-pack-app")
 }
 
 async fn server() -> MctServer {
-    let registry = mct_mcp_server::registry::build_registry();
-    let mut index = Index::open_in_memory(&fixture(), ExcludeSet::default()).unwrap();
-    index.reindex(&registry, false).unwrap();
-    MctServer::new(index, registry)
+    indexed_server::indexed_server(&fixture())
 }
 
 async fn search(server: &MctServer, args: Value) -> String {

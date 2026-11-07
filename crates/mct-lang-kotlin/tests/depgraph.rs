@@ -16,36 +16,20 @@ fn open_indexed() -> Index {
 
 /// The resolutions of every `imports` relation named `to` in `Main.kt`.
 fn import_hits(index: &Index, to: &str) -> Vec<(Resolution, Option<String>)> {
-    index
-        .find_references(to)
-        .unwrap()
-        .into_iter()
-        .filter(|h| h.kind == "imports" && h.relative_path.ends_with("app/Main.kt"))
-        .map(|h| {
-            (
-                h.resolution,
-                h.candidates.first().map(|c| c.relative_path.clone()),
-            )
-        })
-        .collect()
+    mct_corpus::import_hits_with_path_suffix(index, "app/Main.kt", to)
 }
 
 #[test]
 fn type_imports_resolve_to_the_declaring_file() {
     let index = open_indexed();
-    let money = import_hits(&index, "Money");
-    assert!(
-        money.contains(&(Resolution::Resolved, Some("com/acme/model/Money.kt".into()))),
-        "{money:?}"
-    );
-    // An aliased import still depends on the real type's file.
-    let strings = import_hits(&index, "Strings");
-    assert!(
-        strings.contains(&(
-            Resolution::Resolved,
-            Some("com/acme/util/Strings.kt".into())
-        )),
-        "{strings:?}"
+    mct_corpus::assert_import_targets(
+        &index,
+        "app/Main.kt",
+        &[
+            ("Money", "com/acme/model/Money.kt"),
+            // An aliased import still depends on the real type's file.
+            ("Strings", "com/acme/util/Strings.kt"),
+        ],
     );
 }
 
@@ -53,11 +37,5 @@ fn type_imports_resolve_to_the_declaring_file() {
 fn a_stdlib_import_never_resolves_to_a_local_namesake() {
     let index = open_indexed();
     let list = import_hits(&index, "List");
-    assert!(
-        list.iter().any(|(r, _)| *r == Resolution::External),
-        "{list:?}"
-    );
-    assert!(!list.iter().any(|(r, f)| {
-        *r == Resolution::Resolved && f.as_deref() == Some("com/acme/util/List.kt")
-    }));
+    mct_corpus::assert_external_not_local(&list, "com/acme/util/List.kt");
 }

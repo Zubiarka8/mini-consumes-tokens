@@ -6,6 +6,10 @@
 //! expression over the source, so strings, comments and nesting are always
 //! decided by the grammar.
 
+#[cfg(test)]
+#[path = "../../mct-corpus/support/token_pairs.rs"]
+mod token_pairs;
+
 use mct_core::{
     BodyShape, CallableSpan, LineRange, LiteralCategory, ParseError, Token, TokenKind, TokenRole,
     TokenizedFile,
@@ -799,12 +803,7 @@ mod tests {
         assert!(file.tokens.iter().all(|t| !t.kind.is_block_marker()));
     }
 
-    fn kinds_and_texts(file: &TokenizedFile) -> Vec<(TokenKind, &str)> {
-        file.tokens
-            .iter()
-            .map(|token| (token.kind, token.text.as_str()))
-            .collect()
-    }
+    use super::token_pairs::pairs as kinds_and_texts;
 
     #[test]
     fn classifies_keywords_identifiers_literals_and_punctuation() {

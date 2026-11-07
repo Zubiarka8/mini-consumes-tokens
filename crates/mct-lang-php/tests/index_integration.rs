@@ -79,10 +79,7 @@ fn find_calls_reports_validate_from_pay() {
 
 #[test]
 fn find_callers_of_pay_shows_main_from_run() {
-    let index = open_indexed();
-    let callers = index.find_callers("pay").unwrap();
-    assert_eq!(callers.len(), 1, "only main() calls pay(): {callers:?}");
-    assert_eq!(callers[0].relative_path, "run.php");
+    mct_corpus::assert_callers_in_file(&open_indexed(), "pay", 1, "run.php");
 }
 
 #[test]

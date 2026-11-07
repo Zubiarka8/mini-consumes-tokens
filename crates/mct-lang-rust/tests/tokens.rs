@@ -10,12 +10,7 @@ fn tokenize(source: &str) -> TokenizedFile {
     RustTokenSource.tokenize("src/lib.rs", source).unwrap()
 }
 
-fn pairs(file: &TokenizedFile) -> Vec<(TokenKind, &str)> {
-    file.tokens
-        .iter()
-        .map(|token| (token.kind, token.text.as_str()))
-        .collect()
-}
+use mct_corpus::pairs;
 
 #[test]
 fn every_indexed_callable_has_its_exact_token_boundary() {
@@ -124,15 +119,7 @@ fn every_kind_of_literal_is_a_single_token() {
 fn a_multi_line_string_is_one_token_spanning_its_lines() {
     let source = "fn f() {\n    let s = \"a\nb\nc\";\n    let n = 1;\n}\n";
     let file = tokenize(source);
-    let string = file
-        .tokens
-        .iter()
-        .find(|token| token.kind == Literal && token.text.starts_with('"'))
-        .unwrap();
-    assert_eq!((string.line, string.end_line), (2, 4));
-    assert_eq!(&source[string.start_byte..string.end_byte], string.text);
-    let one = file.tokens.iter().find(|token| token.text == "1").unwrap();
-    assert_eq!((one.line, one.end_line), (5, 5));
+    mct_corpus::assert_multiline_literal(source, &file, "\"", 4, 5);
 }
 
 #[test]
@@ -200,13 +187,7 @@ fn lifetimes_labels_macros_and_paths_are_tokenized() {
 fn token_offsets_are_in_order_and_index_the_source() {
     let source = "fn \u{e9}t\u{e9}() { let s = \"\u{1f980}\"; }\n";
     let file = tokenize(source);
-    for token in &file.tokens {
-        assert_eq!(&source[token.start_byte..token.end_byte], token.text);
-    }
-    assert!(file
-        .tokens
-        .windows(2)
-        .all(|pair| pair[0].end_byte <= pair[1].start_byte));
+    mct_corpus::assert_token_offsets(source, &file);
     assert!(file
         .tokens
         .iter()
@@ -244,11 +225,7 @@ fn pathologically_deep_nesting_does_not_overflow_the_stack() {
         "(".repeat(depth),
         ")".repeat(depth)
     );
-    let handle = std::thread::Builder::new()
-        .stack_size(512 * 1024)
-        .spawn(move || tokenize(&source).tokens.len())
-        .unwrap();
-    assert!(handle.join().unwrap() > 2 * depth);
+    mct_corpus::assert_tokenizes_on_small_stack(tokenize, source, 2 * depth);
 }
 
 #[test]
@@ -349,19 +326,7 @@ trait Shape { fn area(&self) -> f64; }
     );
 }
 
-fn body_shapes(file: &TokenizedFile) -> Vec<(String, Option<(usize, usize)>)> {
-    file.callables
-        .as_ref()
-        .unwrap()
-        .iter()
-        .map(|span| {
-            (
-                span.name.clone(),
-                span.body.map(|body| (body.statements, body.flat_calls)),
-            )
-        })
-        .collect()
-}
+use mct_corpus::body_shapes;
 
 #[test]
 fn body_shapes_count_flat_call_statements_without_reading_callee_names() {

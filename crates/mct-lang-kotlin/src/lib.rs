@@ -229,6 +229,7 @@ fn is_promoted_property(class_parameter: Node) -> bool {
         .any(|c| c.kind() == "val" || c.kind() == "var")
 }
 
+#[derive(Default)]
 struct Walker<'a> {
     source: &'a str,
     symbols: Vec<SymbolRecord>,
@@ -241,10 +242,7 @@ impl<'a> Walker<'a> {
     fn new(source: &'a str) -> Self {
         Self {
             source,
-            symbols: Vec::new(),
-            relations: Vec::new(),
-            relation_targets: Vec::new(),
-            next_id: 0,
+            ..Self::default()
         }
     }
 

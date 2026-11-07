@@ -47,16 +47,14 @@ fn find_symbol_locates_a_nested_heading() {
 
 #[test]
 fn find_symbol_reports_element_kind_and_correct_parent() {
-    let index = open_indexed();
-    let indexer = index.find_symbol("Indexer").unwrap();
-    assert_eq!(indexer.len(), 1);
-    assert_eq!(indexer[0].kind, "element");
-    assert_eq!(indexer[0].parent.as_deref(), Some("Components"));
-    // `language` is read straight off the `files.language` column via the
-    // symbols->files JOIN — the aggregate `status()` check below can't tell
-    // which individual row it came from, this can.
-    assert_eq!(indexer[0].relative_path, "architecture.md");
-    assert_eq!(indexer[0].language, "markdown");
+    mct_corpus::assert_indexed_symbol(
+        &open_indexed(),
+        "Indexer",
+        "element",
+        "Components",
+        "architecture.md",
+        "markdown",
+    );
 }
 
 #[test]
@@ -83,15 +81,19 @@ fn status_reports_full_markdown_coverage() {
     );
 }
 
-#[test]
-fn a_wikilink_in_the_fixture_resolves_as_a_references_relation() {
-    let index = open_indexed();
-    let hits = index.find_references("Parser").unwrap();
+fn assert_indexer_reference(index: &Index, target: &str) {
+    let hits = index.find_references(target).unwrap();
     assert!(
         hits.iter()
             .any(|h| h.from_symbol == "Indexer" && h.kind == "references"),
         "{hits:?}"
     );
+}
+
+#[test]
+fn a_wikilink_in_the_fixture_resolves_as_a_references_relation() {
+    let index = open_indexed();
+    assert_indexer_reference(&index, "Parser");
 }
 
 #[test]
@@ -109,12 +111,7 @@ fn a_wikilink_anchors_heading_part_is_discoverable_by_name() {
     // index its heading part as an independent relation, discoverable by
     // `find_references("Testing")` — "Testing" is a real H1 heading in this
     // fixture.
-    let hits = index.find_references("Testing").unwrap();
-    assert!(
-        hits.iter()
-            .any(|h| h.from_symbol == "Indexer" && h.kind == "references"),
-        "{hits:?}"
-    );
+    assert_indexer_reference(&index, "Testing");
 }
 
 #[test]
@@ -126,12 +123,7 @@ fn a_wikilink_to_a_nonexistent_target_is_still_discoverable_by_name() {
     // Pre-existing `mct-index` behavior, not new machinery; reconfirmed here
     // because Phase 3 introduces a new way (the heading-part split) to end up
     // with an unresolved name.
-    let hits = index.find_references("Nonexistent Page").unwrap();
-    assert!(
-        hits.iter()
-            .any(|h| h.from_symbol == "Indexer" && h.kind == "references"),
-        "{hits:?}"
-    );
+    assert_indexer_reference(&index, "Nonexistent Page");
 }
 
 // ---------------------------------------------------------------------------

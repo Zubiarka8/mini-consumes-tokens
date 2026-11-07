@@ -18,10 +18,7 @@ use mct_lang_html::HtmlParser;
 mct_corpus::standard_tests!(HtmlParser);
 
 fn parent<'a>(path: &str, id: &str) -> Option<&'a str> {
-    corpus()
-        .symbol(path, id, SymbolKind::Element)
-        .parent
-        .as_deref()
+    corpus().symbol_parent(path, id, SymbolKind::Element)
 }
 
 fn imports(path: &str, from: &str, href: &str) {
@@ -160,21 +157,7 @@ fn an_element_spans_its_descendants_relations() {
     // Each element spans through its closing tag, so a relation attributed
     // to it — a `<script src>` deep inside `<body id="…">` included — lies
     // inside its range.
-    for f in &corpus().files {
-        for r in &f.parsed.relations {
-            let owner = f.parsed.symbols.iter().find(|s| s.id == r.from).unwrap();
-            let end = owner.location.end_line.unwrap();
-            assert!(
-                (owner.location.line..=end).contains(&r.location.line),
-                "{}:{} {} outside {} {}-{end}",
-                f.path,
-                r.location.line,
-                r.to_name,
-                owner.name,
-                owner.location.line
-            );
-        }
-    }
+    mct_corpus::assert_relation_ranges(corpus());
 }
 
 #[test]

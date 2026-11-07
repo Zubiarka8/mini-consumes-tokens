@@ -192,19 +192,23 @@ fn scope_narrows_by_directory_prefix() {
     assert_eq!(hits(&scoped), vec!["src/a.fake:a", "src/b.fake:b"]);
 }
 
-#[test]
-fn scope_narrows_by_exact_file() {
+fn assert_scoped_callers(path: &str, expected: &str) {
     let (_dir, index) = scoped_index();
     let scoped = index
         .find_callers_scoped(
             "target",
             QueryScope {
-                path: Some("src/a.fake"),
+                path: Some(path),
                 language: None,
             },
         )
         .unwrap();
-    assert_eq!(hits(&scoped), vec!["src/a.fake:a"]);
+    assert_eq!(hits(&scoped), vec![expected]);
+}
+
+#[test]
+fn scope_narrows_by_exact_file() {
+    assert_scoped_callers("src/a.fake", "src/a.fake:a");
 }
 
 #[test]
@@ -475,17 +479,7 @@ fn list_symbols_falls_back_to_the_string_heuristic_for_a_deleted_path() {
 
 #[test]
 fn scope_resolves_a_dot_prefixed_directory_as_a_prefix_too() {
-    let (_dir, index) = scoped_index();
-    let scoped = index
-        .find_callers_scoped(
-            "target",
-            QueryScope {
-                path: Some(".hidden-pkg"),
-                language: None,
-            },
-        )
-        .unwrap();
-    assert_eq!(hits(&scoped), vec![".hidden-pkg/e.fake:e"]);
+    assert_scoped_callers(".hidden-pkg", ".hidden-pkg/e.fake:e");
 }
 
 #[test]

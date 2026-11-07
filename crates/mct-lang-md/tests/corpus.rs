@@ -37,21 +37,17 @@ fn lines(path: &str, name: &str) -> (u32, Option<u32>) {
 
 #[test]
 fn every_note_is_a_module_named_after_its_file() {
-    for (path, name) in [
-        ("handbook.md", "handbook"),
-        ("glossary.md", "glossary"),
-        ("architecture/overview.md", "overview"),
-        ("architecture/decisions.md", "decisions"),
-        ("operations/runbook.md", "runbook"),
-        ("api/reference.md", "reference"),
-    ] {
-        let note = corpus().symbol(path, name, SymbolKind::Module);
-        assert_eq!(
-            (note.location.line, note.parent.as_deref()),
-            (1, None),
-            "{path}"
-        );
-    }
+    mct_corpus::assert_file_modules(
+        corpus(),
+        &[
+            ("handbook.md", "handbook"),
+            ("glossary.md", "glossary"),
+            ("architecture/overview.md", "overview"),
+            ("architecture/decisions.md", "decisions"),
+            ("operations/runbook.md", "runbook"),
+            ("api/reference.md", "reference"),
+        ],
+    );
 }
 
 #[test]
