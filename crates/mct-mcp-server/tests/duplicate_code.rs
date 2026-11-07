@@ -574,6 +574,9 @@ async fn member_continuation_is_advertised_and_invalid_cursors_are_rejected() {
         serde_json::json!({"member_offset": 1}),
         serde_json::json!({"group_id": "invalid"}),
         serde_json::json!({"expected_snapshot": "invalid"}),
+        // Review keys are lowercase: an uppercase spelling names no group.
+        serde_json::json!({"group_id": "A".repeat(64)}),
+        serde_json::json!({"expected_snapshot": "A".repeat(64)}),
     ] {
         let args: FindDuplicateCodeArgs = serde_json::from_value(value).unwrap();
         assert!(server.find_duplicate_code(Parameters(args)).await.is_err());

@@ -57,11 +57,7 @@ impl FindDuplicateCodeArgs {
             .into_iter()
             .flatten()
         {
-            if token.len() != 64
-                || !token
-                    .bytes()
-                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-            {
+            if !mct_index::reviews::is_review_key(token) {
                 return Err(invalid(
                     "group_id and expected_snapshot must be 64 lowercase hex characters",
                 ));
