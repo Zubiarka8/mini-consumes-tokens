@@ -16,18 +16,17 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::fs;
-use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::mpsc::{self, Receiver};
-use std::time::Duration;
 
 use mct_index::{ExcludeSet, Index, IGNORE_FILE_NAME};
 use mct_mcp_server::server::{BatchArgs, BatchQuery, MctServer};
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::CallToolResult;
 use serde_json::{json, Value};
+
+#[path = "common/all_content.rs"]
+mod all_content;
+use all_content::content_of;
 
 /// Lower-cased, the only words that would reveal the excluded directory.
 const LEAK_MARKERS: [&str; 2] = ["sentinel", "secret_area"];
@@ -145,16 +144,6 @@ fn surfaces() -> Vec<(&'static str, Value)> {
         ("get_indexing_status", json!({"verbose_dependencies": true})),
         ("find_dead_code", json!({})),
     ]
-}
-
-fn content_of(result: &CallToolResult) -> String {
-    result
-        .content
-        .iter()
-        .filter_map(|block| block.as_text())
-        .map(|t| t.text.clone())
-        .collect::<Vec<_>>()
-        .join("\n")
 }
 
 /// A tool's text, or its error message — an error must not leak either.
@@ -287,73 +276,11 @@ async fn removing_the_rule_serves_the_path_again_without_a_reindex() {
 /// The real server binary over stdio — the `tools/call` path every MCP
 /// client takes — with the watcher disabled, so only the server's own
 /// per-call check can apply a rule written while it runs.
-struct StdioServer {
-    child: Child,
-    stdin: ChildStdin,
-    lines: Receiver<String>,
-    next_id: u64,
-}
+#[path = "common/stdio.rs"]
+mod stdio;
+use stdio::StdioServer;
 
 impl StdioServer {
-    fn start(root: &Path) -> Self {
-        let mut child = Command::new(env!("CARGO_BIN_EXE_mct-mcp-server"))
-            .arg("--root")
-            .arg(root)
-            .args(["--reindex-debounce-ms", "0"])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
-        let stdin = child.stdin.take().unwrap();
-        let stdout = child.stdout.take().unwrap();
-        let (tx, lines) = mpsc::channel();
-        std::thread::spawn(move || {
-            for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-                if tx.send(line).is_err() {
-                    break;
-                }
-            }
-        });
-        let mut server = Self {
-            child,
-            stdin,
-            lines,
-            next_id: 0,
-        };
-        server.request(
-            "initialize",
-            json!({
-                "protocolVersion": "2024-11-05",
-                "capabilities": {},
-                "clientInfo": {"name": "exclusion-privacy-test", "version": "0"}
-            }),
-        );
-        server.send(&json!({"jsonrpc": "2.0", "method": "notifications/initialized"}));
-        server
-    }
-
-    fn send(&mut self, message: &Value) {
-        writeln!(self.stdin, "{message}").unwrap();
-        self.stdin.flush().unwrap();
-    }
-
-    fn request(&mut self, method: &str, params: Value) -> Value {
-        self.next_id += 1;
-        let id = self.next_id;
-        self.send(&json!({"jsonrpc": "2.0", "id": id, "method": method, "params": params}));
-        loop {
-            let line = self
-                .lines
-                .recv_timeout(Duration::from_secs(120))
-                .expect("the server answered in time");
-            let message: Value = serde_json::from_str(&line).unwrap();
-            if message["id"] == json!(id) {
-                return message;
-            }
-        }
-    }
-
     /// A tool's text content, or its JSON-RPC error message.
     fn call(&mut self, tool: &str, args: &Value) -> String {
         let response = self.request("tools/call", json!({"name": tool, "arguments": args}));
@@ -370,18 +297,11 @@ impl StdioServer {
     }
 }
 
-impl Drop for StdioServer {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-    }
-}
-
 #[test]
 fn the_stdio_server_applies_a_rule_written_while_it_runs() {
     let dir = tempdir();
     write_fixture(&dir);
-    let mut server = StdioServer::start(&dir);
+    let mut server = StdioServer::start(&dir, &["--reindex-debounce-ms", "0"]);
     let private = json!({"name": "mct_private_sentinel_7f3a"});
     let before = server.call("find_symbol", &private);
     assert!(before.contains("secret_area/notes.py"), "{before}");

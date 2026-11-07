@@ -522,7 +522,12 @@ pub fn find_references_scoped(
     symbol: &str,
     scope: ResolvedScope<'_>,
 ) -> Result<Vec<RelationHit>> {
-    query_relations(conn, "r.to_name = ?1", symbol.to_string(), scope)
+    query_relations(
+        conn,
+        RelationDirection::References.predicate(),
+        symbol.to_string(),
+        scope,
+    )
 }
 
 pub fn find_calls_scoped(
@@ -532,7 +537,7 @@ pub fn find_calls_scoped(
 ) -> Result<Vec<RelationHit>> {
     query_relations(
         conn,
-        "caller.name = ?1 AND r.kind = 'calls'",
+        RelationDirection::Calls.predicate(),
         function.to_string(),
         scope,
     )
@@ -545,7 +550,7 @@ pub fn find_callers_scoped(
 ) -> Result<Vec<RelationHit>> {
     query_relations(
         conn,
-        "r.to_name = ?1 AND r.kind = 'calls'",
+        RelationDirection::Callers.predicate(),
         function.to_string(),
         scope,
     )
@@ -855,7 +860,7 @@ pub(crate) fn find_calls_page(
 ) -> Result<Vec<RelationHit>> {
     query_relations_page(
         conn,
-        "caller.name = ?1 AND r.kind = 'calls'",
+        RelationDirection::Calls.predicate(),
         function.to_string(),
         scope,
         Some(limit),
@@ -873,7 +878,7 @@ pub(crate) fn find_callers_page(
 ) -> Result<Vec<RelationHit>> {
     query_relations_page(
         conn,
-        "r.to_name = ?1 AND r.kind = 'calls'",
+        RelationDirection::Callers.predicate(),
         function.to_string(),
         scope,
         Some(limit),
@@ -891,7 +896,7 @@ pub(crate) fn find_references_page(
 ) -> Result<Vec<RelationHit>> {
     query_relations_page(
         conn,
-        "r.to_name = ?1",
+        RelationDirection::References.predicate(),
         symbol.to_string(),
         scope,
         Some(limit),

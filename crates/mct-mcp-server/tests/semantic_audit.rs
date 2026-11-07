@@ -180,15 +180,7 @@ fn hybrid_args(query: &str, alpha: f64) -> HybridSearchArgs {
     HybridSearchArgs {
         query: query.to_string(),
         alpha: Some(alpha),
-        path: None,
-        language: None,
-        top_k: None,
-        offset: None,
-        snippet_lines: None,
-        format: None,
-        cache: None,
-        detail: None,
-        max_tokens: None,
+        ..Default::default()
     }
 }
 

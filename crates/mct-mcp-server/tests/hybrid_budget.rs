@@ -14,24 +14,12 @@ use mct_index::{EstimatedCounter, TokenCounter};
 use mct_mcp_server::server::MctServer;
 use serde_json::{json, Value};
 
+#[path = "common/try_call.rs"]
+mod try_call;
+use try_call::try_call;
+
 fn fixture() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/context-pack-app")
-}
-
-async fn try_call(server: &MctServer, tool: &str, args: Value) -> Result<String, String> {
-    match server
-        .call_read_only_tool(tool, args.as_object().cloned())
-        .await
-    {
-        Ok(result) => Ok(result
-            .content
-            .iter()
-            .filter_map(|b| b.as_text())
-            .map(|t| t.text.clone())
-            .collect::<Vec<_>>()
-            .join("\n")),
-        Err(error) => Err(error.message.to_string()),
-    }
 }
 
 async fn hybrid(server: &MctServer, args: Value) -> String {

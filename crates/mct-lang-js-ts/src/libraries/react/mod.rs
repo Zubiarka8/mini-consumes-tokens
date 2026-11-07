@@ -1,16 +1,11 @@
 //! React-style JSX/TSX logic and component-reference coverage.
 
-use mct_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
+use mct_core::{RelationKind, SymbolKind};
 
 use crate::JsTsParser;
 
 fn parse(relative_path: &str, src: &str) -> mct_core::ParsedFile {
-    JsTsParser
-        .parse(&SourceFile {
-            relative_path: relative_path.to_string(),
-            contents: src.to_string(),
-        })
-        .expect("valid JS/TS source should parse")
+    mct_corpus::parse_source(&JsTsParser, relative_path, "JS/TS", src)
 }
 
 #[test]

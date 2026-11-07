@@ -7,12 +7,7 @@ use mct_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
 use mct_lang_cpp::CppParser;
 
 fn parse(relative_path: &str, src: &str) -> mct_core::ParsedFile {
-    CppParser
-        .parse(&SourceFile {
-            relative_path: relative_path.to_string(),
-            contents: src.to_string(),
-        })
-        .expect("valid C++ source should parse")
+    mct_corpus::parse_source(&CppParser, relative_path, "C++", src)
 }
 
 #[test]

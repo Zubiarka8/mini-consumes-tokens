@@ -54,22 +54,13 @@ fn find_symbol_locates_function_and_top_level_variable() {
 #[test]
 fn find_calls_reports_write_log_from_invoke_build() {
     let index = open_indexed();
-    let calls = index.find_calls("Invoke-Build").unwrap();
-    let log_calls: Vec<_> = calls.iter().filter(|c| c.to_name == "Write-Log").collect();
-    assert_eq!(log_calls.len(), 1);
-    assert_eq!(log_calls[0].relative_path, "Deploy.ps1");
+    mct_corpus::assert_calls_once(&index, "Invoke-Build", "Write-Log", "Deploy.ps1");
 }
 
 #[test]
 fn find_callers_of_write_log_shows_both_call_sites() {
     let index = open_indexed();
-    let callers = index.find_callers("Write-Log").unwrap();
-    assert_eq!(
-        callers.len(),
-        2,
-        "Invoke-Build and Invoke-Deploy both call Write-Log: {callers:?}"
-    );
-    assert!(callers.iter().all(|c| c.relative_path == "Deploy.ps1"));
+    mct_corpus::assert_callers_in_file(&index, "Write-Log", 2, "Deploy.ps1");
 }
 
 #[test]

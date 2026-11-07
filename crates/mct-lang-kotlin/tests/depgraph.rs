@@ -6,18 +6,12 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use mct_core::LanguageRegistry;
-use mct_index::{ExcludeSet, Index, Resolution};
+use mct_index::{Index, Resolution};
 use mct_lang_kotlin::KotlinParser;
 
 fn open_indexed() -> Index {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/depgraph");
-    let mut registry = LanguageRegistry::new();
-    registry.register(Arc::new(KotlinParser));
-    let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
-    let report = index.reindex(&registry, false).unwrap();
-    assert!(report.issues.is_empty(), "{:?}", report.issues);
-    index
+    mct_corpus::open_fixture_indexed(&root, Arc::new(KotlinParser))
 }
 
 /// The resolutions of every `imports` relation named `to` in `Main.kt`.

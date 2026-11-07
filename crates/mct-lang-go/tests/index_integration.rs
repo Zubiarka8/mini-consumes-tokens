@@ -57,22 +57,13 @@ fn find_symbol_indexes_interface_and_its_declared_methods() {
 #[test]
 fn find_calls_reports_log_from_add_item() {
     let index = open_indexed();
-    let calls = index.find_calls("AddItem").unwrap();
-    let log_calls: Vec<_> = calls.iter().filter(|c| c.to_name == "Log").collect();
-    assert_eq!(log_calls.len(), 1);
-    assert_eq!(log_calls[0].relative_path, "invoice.go");
+    mct_corpus::assert_calls_once(&index, "AddItem", "Log", "invoice.go");
 }
 
 #[test]
 fn find_callers_of_log_shows_both_invoice_methods() {
     let index = open_indexed();
-    let callers = index.find_callers("Log").unwrap();
-    assert_eq!(
-        callers.len(),
-        2,
-        "AddItem and AddItemWithTax both call Log: {callers:?}"
-    );
-    assert!(callers.iter().all(|c| c.relative_path == "invoice.go"));
+    mct_corpus::assert_callers_in_file(&index, "Log", 2, "invoice.go");
 }
 
 #[test]
