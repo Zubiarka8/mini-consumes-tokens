@@ -250,29 +250,27 @@ fn write_store(dir: &Path, format: &str, rows: usize, findings: &[FindingKeys]) 
     }
 }
 
+const STORE_FILES: [&str; 3] = [
+    "review-decisions.toon",
+    "reviews.toon",
+    "duplicate-reviews.toon",
+];
+
 /// Reads the store files without parsing them: the I/O part of `load`.
 fn read_store_bytes(dir: &Path) -> usize {
-    [
-        "review-decisions.toon",
-        "reviews.toon",
-        "duplicate-reviews.toon",
-    ]
-    .iter()
-    .filter_map(|name| std::fs::read(dir.join(".mct-index").join(name)).ok())
-    .map(|bytes| bytes.len())
-    .sum()
+    STORE_FILES
+        .iter()
+        .filter_map(|name| std::fs::read(dir.join(".mct-index").join(name)).ok())
+        .map(|bytes| bytes.len())
+        .sum()
 }
 
 fn store_bytes(dir: &Path) -> u64 {
-    [
-        "review-decisions.toon",
-        "reviews.toon",
-        "duplicate-reviews.toon",
-    ]
-    .iter()
-    .filter_map(|name| std::fs::metadata(dir.join(".mct-index").join(name)).ok())
-    .map(|metadata| metadata.len())
-    .sum()
+    STORE_FILES
+        .iter()
+        .filter_map(|name| std::fs::metadata(dir.join(".mct-index").join(name)).ok())
+        .map(|metadata| metadata.len())
+        .sum()
 }
 
 fn dead_code_keys(index: &Index) -> Vec<FindingKeys> {

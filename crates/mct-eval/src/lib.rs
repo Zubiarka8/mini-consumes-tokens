@@ -26,6 +26,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use mct_index::{ExcludeSet, Index};
+use mct_mcp_server::content::result_text;
 use mct_mcp_server::server::MctServer;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::CallToolResult;
@@ -389,26 +390,10 @@ fn is_hit_line(line: &str) -> bool {
             })
 }
 
-/// Same heuristic as `mct-mcp-server/tests/common/tokens.rs::approx_tokens`: a run of
-/// alphanumerics/`_` is one token, every other non-whitespace char is one.
-pub fn approx_tokens(s: &str) -> usize {
-    let mut tokens = 0usize;
-    let mut in_word = false;
-    for c in s.chars() {
-        if c.is_alphanumeric() || c == '_' {
-            if !in_word {
-                tokens += 1;
-                in_word = true;
-            }
-        } else {
-            in_word = false;
-            if !c.is_whitespace() {
-                tokens += 1;
-            }
-        }
-    }
-    tokens
-}
+// Shared with the MCP token-reduction tests and reports.
+#[path = "../../mct-corpus/support/approx_tokens.rs"]
+mod token_estimate;
+pub use token_estimate::approx_tokens;
 
 /// One `tools/call` round trip as it crosses the stdio transport.
 fn exchange(tool: &str, args: Option<&Map<String, Value>>, response: Value) -> String {
@@ -424,16 +409,6 @@ fn exchange(tool: &str, args: Option<&Map<String, Value>>, response: Value) -> S
         map.insert("id".into(), json!(1));
     }
     format!("{request}\n{response}\n")
-}
-
-fn result_text(result: &CallToolResult) -> String {
-    result
-        .content
-        .iter()
-        .filter_map(|block| block.as_text())
-        .map(|text| text.text.as_str())
-        .collect::<Vec<_>>()
-        .join("\n")
 }
 
 fn mean(values: impl Iterator<Item = f64>) -> f64 {

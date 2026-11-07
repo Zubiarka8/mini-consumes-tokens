@@ -14,6 +14,7 @@ use rmcp::{
 use tokio::sync::Mutex;
 
 use crate::cache::{self, CacheConfig, CacheStats, CachedResult, HitKind, QueryCache};
+use crate::content::result_text;
 use crate::duplicate_query;
 pub use crate::duplicate_query::FindDuplicateCodeArgs;
 use crate::embedder::SemanticModel;
@@ -1112,18 +1113,6 @@ fn check_postcondition(tool: &str, result: &CallToolResult) -> Result<(), McpErr
         format!("`{tool}` broke its contract: a successful call returned no text"),
         None,
     ))
-}
-
-/// Every text block of a sub-query's result, joined — today each tool
-/// returns exactly one, but a batch shouldn't silently drop a second.
-fn result_text(result: &CallToolResult) -> String {
-    result
-        .content
-        .iter()
-        .filter_map(|block| block.as_text())
-        .map(|text| text.text.as_str())
-        .collect::<Vec<_>>()
-        .join("\n")
 }
 
 /// One file/module's slice of `get_project_overview`'s digest: its surfaced

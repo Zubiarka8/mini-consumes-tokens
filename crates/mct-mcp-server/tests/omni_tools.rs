@@ -29,6 +29,8 @@ use rmcp::handler::server::wrapper::Parameters;
 #[path = "common/content.rs"]
 mod content;
 use content::content_of;
+#[path = "common/skeleton.rs"]
+mod skeleton;
 
 fn fixture_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/omni-app")
@@ -509,14 +511,7 @@ async fn get_file_skeleton_collapses_bodies_for_a_brace_language_other_than_rust
 #[tokio::test]
 async fn get_file_skeleton_falls_back_to_declaration_lines_for_a_non_brace_language() {
     let server = build_server().await;
-    let text = content_of(
-        &server
-            .get_file_skeleton(Parameters(GetFileSkeletonArgs {
-                path: "pyscripts/notify.py".to_string(),
-            }))
-            .await
-            .unwrap(),
-    );
+    let text = skeleton::skeleton_of(&server, "pyscripts/notify.py").await;
     assert!(
         text.contains("Skeleton of `pyscripts/notify.py`"),
         "got: {text}"
