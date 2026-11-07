@@ -844,6 +844,9 @@ pub struct MctServer {
     // ponytail: one set per server, i.e. per stdio session; key it by
     // session if a multi-session transport is ever added.
     attention: Option<Arc<std::sync::Mutex<Vec<String>>>>,
+    /// This process's background maintenance, woken before an index-using
+    /// tool runs when it sleeps (`--maintenance-idle`); `None` without one.
+    activity: Option<crate::maintainer::Activity>,
 }
 
 fn validate_name(raw: &str) -> Result<&str, McpError> {
@@ -1345,6 +1348,7 @@ impl MctServer {
             cache,
             tool_router,
             attention,
+            activity: None,
         }
     }
 
@@ -1621,7 +1625,33 @@ impl MctServer {
         if is_index_free(tool) && self.readiness.state() != IndexState::Ready {
             return Ok(());
         }
+        if !is_index_free(tool) {
+            self.wake_maintenance().await?;
+        }
         self.apply_exclusion_changes().await
+    }
+
+    /// Marks an index-using request and, if maintenance sleeps, waits for
+    /// its one reconciliation first, so an edit made while asleep is never
+    /// answered stale. If that refresh failed, the call fails with the
+    /// reason instead (as a failed exclusion sync does); later calls are
+    /// answered from the index as it stands.
+    async fn wake_maintenance(&self) -> Result<(), McpError> {
+        let Some(activity) = &self.activity else {
+            return Ok(());
+        };
+        activity.wake().await.map_err(|reason| {
+            McpError::internal_error(
+                format!("{reason}; the index may be stale — call `reindex` to retry"),
+                None,
+            )
+        })
+    }
+
+    /// Wakes `activity` before index-using tools; see [`Self::wake_maintenance`].
+    pub fn with_activity(mut self, activity: crate::maintainer::Activity) -> Self {
+        self.activity = Some(activity);
+        self
     }
 
     /// Applies an edit to the project's ignore files before a tool reads the
@@ -2723,7 +2753,9 @@ impl MctServer {
         Parameters(ReindexArgs { force }): Parameters<ReindexArgs>,
     ) -> Result<CallToolResult, McpError> {
         let mut index = self.index.lock().await;
-        let report = index.reindex(&self.registry, force).map_err(index_error)?;
+        let report = index
+            .reindex_requested(&self.registry, force)
+            .map_err(index_error)?;
         // A successful full reindex also recovers a failed startup.
         self.readiness.mark_ready();
         for warning in &report.warnings {

@@ -9,16 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `mct-cli web --help` no longer claims the dashboard runs without reindexing: it keeps the index up to date while it runs.
 - Dashboard: a duplicate group's file count is counted over the whole group (`fileCount` in `api/findings`), not over the six members the list previews; the review workspace counts files, not fragments.
 - Dashboard: the pending-review figures come from the server (`findings.pending`, `health.pendingReviews`) with one definition (unreviewed, in review, needs re-evaluation) instead of two different sums in the page.
 
 ### Added
+
+- One background maintainer per index: of all `mct-mcp-server` sessions and `mct-cli web` dashboards on a project, only the holder of `.mct-index/index.sqlite3.maintainer.lock` watches and reconciles; the others follow its updates and take over when it exits (ADR-028).
+- `mct-mcp-server --maintenance-idle <VALUE>` (or `MCT_MAINTENANCE_IDLE`), off by default: maintenance sleeps after that long without an index-using request, and the next one waits for a single reconciliation before it is answered (ADR-029).
 
 - Dashboard: each duplicate group in a symbol's detail has its own "Copy duplicate for AI" button.
 - Dashboard: every duplicate and unused-code row has a visible "Copy AI template" button that copies the finding's brief.
 
 ### Changed
 
+- A reindex that finds nothing to change (a periodic reconciliation, `mct-cli call` on an up-to-date index) now writes nothing to the database: the published generation stays, so other processes keep their response caches and the dashboard does not reload. `get_indexing_status` and `mct-cli status` report "Last indexed at" as the last run that changed the index, plus a process-local "Last verified unchanged at" line when a later run found nothing to change.
+- The post-reindex hook (the Obsidian vault) runs after a run that changed the index, and once per process; the explicit `reindex` tool still refreshes it every time.
+- `mct-cli web` reloads its snapshot when a change is published (or the index file is rebuilt), instead of on any change to the database or WAL file metadata.
+- `@import-gitignore` also imports nested `.gitignore` files, each applying below its own directory as in git. Nested files are discovered on every full reindex and when a `.gitignore` changes.
+- `.next/` (Next.js build output) is excluded by default. Existing indexes drop its rows on the next full reindex.
 - Dashboard: the stacked finding rows list their files in a panel shown on hover and keyboard focus, instead of a native tooltip, and no longer carry the ignore button (still in the table).
 
 ## [0.3.0] - 2026-10-30

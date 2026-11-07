@@ -109,11 +109,14 @@ enum Command {
     Obsidian,
     /// Serve the local project dashboard (code, duplicates, dead code, reviews, dependencies, notes).
     ///
-    /// Uses the existing index without reindexing. Regenerates the Obsidian
-    /// vault unless disabled. Prints a stable `http://localhost:<port>/` URL
-    /// with no key in it; keep this command running and press Ctrl-C to stop.
-    /// A reindex is picked up on the next request, no restart needed. No
-    /// browser is opened automatically.
+    /// Requires an existing index (`init` first). While it runs, it keeps
+    /// that index up to date like the MCP server does: a reindex at startup,
+    /// then saved files are reindexed automatically and the whole project is
+    /// reconciled periodically. Regenerates the Obsidian vault unless
+    /// disabled. Prints a stable `http://localhost:<port>/` URL with no key in
+    /// it; keep this command running and press Ctrl-C to stop. A published
+    /// change, from this process or any other, is picked up on the next
+    /// request, no restart needed. No browser is opened automatically.
     ///
     /// The port is remembered per project in `.mct-index/web-port` and reused
     /// while it is free (first run: 8787). If it is busy, a free port is chosen
@@ -1102,6 +1105,12 @@ fn print_status(status: mct_index::IndexStatus) {
     match status.last_indexed_at {
         Some(ts) => println!("Last indexed at unix timestamp {ts}."),
         None => println!("Never indexed yet."),
+    }
+    if let Some(ts) = status
+        .last_verified_at
+        .filter(|ts| Some(*ts) > status.last_indexed_at)
+    {
+        println!("Last verified unchanged at unix timestamp {ts}.");
     }
     if !status.languages.is_empty() {
         println!("Coverage by language:");
