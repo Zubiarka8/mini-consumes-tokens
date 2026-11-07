@@ -182,6 +182,133 @@ async fn idle_periodic_reconciliation_finds_a_change_made_before_watch_start() {
 }
 
 #[tokio::test]
+async fn idle_periodic_reconciliation_without_a_change_publishes_nothing() {
+    let dir = tempdir();
+    fs::write(dir.join("one.rs"), "pub fn one() {}\n").unwrap();
+    let registry = mct_mcp_server::registry::build_registry();
+    let mut opened = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
+    opened.reindex(&registry, false).unwrap();
+    let generation = opened.published_generation().unwrap();
+    let index = Arc::new(Mutex::new(opened));
+    let _watcher = background::spawn_watcher_with_reconciliation(
+        Arc::clone(&index),
+        registry,
+        dir.clone(),
+        ExcludeSet::default(),
+        Duration::from_millis(10),
+        Duration::from_millis(100),
+    )
+    .unwrap();
+
+    // Several reconciliation intervals pass; each one verifies and finds
+    // nothing to change.
+    assert!(
+        wait_until(|| {
+            index
+                .try_lock()
+                .is_ok_and(|guard| guard.status().is_ok_and(|s| s.last_verified_at.is_some()))
+        })
+        .await
+    );
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    assert_eq!(
+        index.lock().await.published_generation().unwrap(),
+        generation,
+        "an unchanged reconciliation must not publish a generation"
+    );
+
+    // A real change is still published, once.
+    fs::write(dir.join("two.rs"), "pub fn two() {}\n").unwrap();
+    assert!(
+        wait_until(|| {
+            index.try_lock().is_ok_and(|guard| {
+                guard
+                    .find_symbol("two")
+                    .is_ok_and(|symbols| !symbols.is_empty())
+            })
+        })
+        .await
+    );
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    assert_eq!(
+        index.lock().await.published_generation().unwrap(),
+        generation + 1
+    );
+}
+
+#[tokio::test]
+async fn a_stopped_watcher_indexes_nothing_afterwards() {
+    let dir = tempdir();
+    fs::write(dir.join("one.rs"), "pub fn one() {}\n").unwrap();
+    let registry = mct_mcp_server::registry::build_registry();
+    let mut opened = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
+    opened.reindex(&registry, false).unwrap();
+    let index = Arc::new(Mutex::new(opened));
+    let watcher = background::spawn_watcher_with_reconciliation(
+        Arc::clone(&index),
+        registry,
+        dir.clone(),
+        ExcludeSet::default(),
+        Duration::from_millis(10),
+        Duration::from_millis(100),
+    )
+    .unwrap();
+    let generation = index.lock().await.published_generation().unwrap();
+
+    // Saturate the bounded channel, then stop: it must return promptly and
+    // neither the pending events nor a final reconciliation may run.
+    for n in 0..200 {
+        fs::write(dir.join(format!("burst{n}.rs")), "pub fn burst() {}\n").unwrap();
+    }
+    let started = std::time::Instant::now();
+    tokio::task::spawn_blocking(move || watcher.stop())
+        .await
+        .unwrap();
+    assert!(started.elapsed() < Duration::from_secs(20), "stop() hung");
+    let after_stop = index.lock().await.published_generation().unwrap();
+
+    fs::write(dir.join("late.rs"), "pub fn late_after_stop() {}\n").unwrap();
+    tokio::time::sleep(Duration::from_millis(600)).await;
+    let guard = index.lock().await;
+    assert_eq!(guard.published_generation().unwrap(), after_stop);
+    assert!(guard.find_symbol("late_after_stop").unwrap().is_empty());
+    assert!(after_stop >= generation);
+}
+
+#[tokio::test]
+async fn a_watcher_dropped_without_stop_still_reconciles_once() {
+    let dir = tempdir();
+    fs::write(dir.join("one.rs"), "pub fn one() {}\n").unwrap();
+    let registry = mct_mcp_server::registry::build_registry();
+    let mut opened = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
+    opened.reindex(&registry, false).unwrap();
+    let index = Arc::new(Mutex::new(opened));
+    let watcher = background::spawn_watcher_with_reconciliation(
+        Arc::clone(&index),
+        registry,
+        dir.clone(),
+        ExcludeSet::default(),
+        Duration::from_millis(10),
+        Duration::from_secs(300),
+    )
+    .unwrap();
+    // No event can report it once the watch is gone: only the final
+    // reconciliation of an unexpected disconnection finds it.
+    fs::write(dir.join("two.rs"), "pub fn found_by_final_walk() {}\n").unwrap();
+    drop(watcher);
+    assert!(
+        wait_until(|| {
+            index.try_lock().is_ok_and(|guard| {
+                guard
+                    .find_symbol("found_by_final_walk")
+                    .is_ok_and(|symbols| !symbols.is_empty())
+            })
+        })
+        .await
+    );
+}
+
+#[tokio::test]
 async fn a_change_under_an_excluded_path_does_not_trigger_a_reindex() {
     let quiet_window =
         (watcher_latency().await * LATENCY_MULTIPLE).clamp(QUIET_FLOOR, SETTLE_MARGIN);

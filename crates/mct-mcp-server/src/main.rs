@@ -4,7 +4,7 @@ use std::time::Duration;
 use clap::Parser;
 use mct_mcp_server::readiness::{IndexState, Readiness};
 use mct_mcp_server::reindex_delay::{parse_reindex_delay_arg, ReindexDelay};
-use mct_mcp_server::{background, registry, server, session_compat, shutdown};
+use mct_mcp_server::{maintainer, registry, server, session_compat, shutdown};
 use rmcp::{transport::stdio, ServiceExt};
 
 /// mini-consumes-tokens: MCP server exposing an AST-derived symbol graph of
@@ -52,6 +52,34 @@ struct Args {
     /// each reindex.
     #[arg(long)]
     no_obsidian: bool,
+
+    /// Put background maintenance to sleep after this long without an
+    /// index-using request: the watcher and periodic reconciliation stop and
+    /// the maintainer lease is released. The next such request waits for one
+    /// reconciliation before it is answered. Written like --reindex-delay
+    /// (e.g. 10m, 90s) or 'off' (the default). Precedence: this flag, then
+    /// the MCT_MAINTENANCE_IDLE environment variable.
+    #[arg(long, value_name = "VALUE", value_parser = parse_reindex_delay_arg)]
+    maintenance_idle: Option<ReindexDelay>,
+}
+
+/// Environment fallback for `--maintenance-idle`.
+const MAINTENANCE_IDLE_ENV: &str = "MCT_MAINTENANCE_IDLE";
+
+/// The idle timeout: the flag, else a valid environment value, else off.
+fn resolve_maintenance_idle(
+    flag: Option<ReindexDelay>,
+    env_value: Option<&str>,
+) -> Option<Duration> {
+    match flag {
+        Some(ReindexDelay(idle)) => idle,
+        None => env_value.and_then(|value| {
+            mct_mcp_server::reindex_delay::parse_reindex_delay(value)
+                .inspect_err(|err| tracing::warn!(%err, "ignoring {MAINTENANCE_IDLE_ENV}"))
+                .ok()
+                .flatten()
+        }),
+    }
 }
 
 /// Default quiet time before the background watcher reindexes, in milliseconds.
@@ -122,7 +150,8 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let watch_root = index.root().to_path_buf();
-    let server = server::MctServer::new(index, language_registry);
+    let activity = maintainer::Activity::new();
+    let server = server::MctServer::new(index, language_registry).with_activity(activity.clone());
 
     // Kept alive for the process's lifetime: dropping it would stop the
     // watch. `None` means the watcher is disabled (--reindex-debounce-ms 0
@@ -158,6 +187,11 @@ async fn main() -> anyhow::Result<()> {
             exclude,
             debounce,
             reconcile_interval,
+            idle: resolve_maintenance_idle(
+                args.maintenance_idle,
+                std::env::var(MAINTENANCE_IDLE_ENV).ok().as_deref(),
+            ),
+            activity,
         },
     ));
 
@@ -184,6 +218,8 @@ struct WatcherSettings {
     exclude: mct_index::ExcludeSet,
     debounce: Option<Duration>,
     reconcile_interval: Duration,
+    idle: Option<Duration>,
+    activity: maintainer::Activity,
 }
 
 fn log_initial_reindex(report: mct_index::ReindexReport) {
@@ -239,21 +275,22 @@ async fn startup_index(
     let Some(debounce) = watcher.debounce else {
         return;
     };
-    let _watcher = match background::spawn_watcher_with_reconciliation(
+    // Only one process per index watches and reconciles (ADR-028); this one
+    // either does, or follows and takes over when the owner exits.
+    let _maintainer = maintainer::spawn(
         index,
         registry,
-        watcher.watch_root,
-        watcher.exclude,
-        debounce,
-        watcher.reconcile_interval,
-    ) {
-        Ok(watcher) => watcher,
-        Err(err) => {
-            tracing::warn!(error = %err, "failed to start auto-reindex watcher; continuing without it");
-            return;
-        }
-    };
-    // Dropping the watcher would stop it: keep it for the process's lifetime.
+        maintainer::MaintainerSettings {
+            root: watcher.watch_root,
+            exclude: watcher.exclude,
+            debounce,
+            reconciliation_interval: watcher.reconcile_interval,
+            lease_retry: maintainer::DEFAULT_LEASE_RETRY,
+            idle: watcher.idle,
+        },
+        watcher.activity,
+    );
+    // Dropping it would stop maintenance: keep it for the process's lifetime.
     std::future::pending::<()>().await;
 }
 
@@ -292,6 +329,24 @@ mod tests {
         assert_eq!(resolve_reindex_debounce_ms(None, Some("fast")), 15_000);
         assert_eq!(resolve_reindex_debounce_ms(None, Some("-1")), 15_000);
         assert_eq!(resolve_reindex_debounce_ms(None, Some("")), 15_000);
+    }
+
+    #[test]
+    fn maintenance_idle_is_off_unless_the_flag_or_a_valid_environment_value_sets_it() {
+        assert_eq!(resolve_maintenance_idle(None, None), None);
+        assert_eq!(
+            resolve_maintenance_idle(None, Some("10m")),
+            Some(Duration::from_secs(600))
+        );
+        assert_eq!(resolve_maintenance_idle(None, Some("soon")), None);
+        assert_eq!(
+            resolve_maintenance_idle(Some(ReindexDelay(None)), Some("10m")),
+            None
+        );
+        assert_eq!(
+            resolve_maintenance_idle(Some(ReindexDelay(Some(Duration::from_secs(90)))), None),
+            Some(Duration::from_secs(90))
+        );
     }
 
     #[test]
