@@ -615,45 +615,35 @@ mod ignore_file_tests {
         fs::remove_dir_all(&dir).ok();
     }
 
+    fn assert_ignore_rules(label: &str, pattern: &str, expected: &[&str]) {
+        let dir = temp_dir(label);
+        fs::write(dir.join(IGNORE_FILE_NAME), pattern).unwrap();
+        assert_eq!(read_ignore_file(&dir), expected);
+        fs::remove_dir_all(&dir).ok();
+    }
+
     #[test]
     fn a_bare_directory_name_expands_to_the_any_depth_pair() {
-        let dir = temp_dir("bare-dir");
-        fs::write(dir.join(IGNORE_FILE_NAME), "docs/\n").unwrap();
-        assert_eq!(
-            read_ignore_file(&dir),
-            vec!["**/docs".to_string(), "**/docs/**".to_string()]
-        );
-        fs::remove_dir_all(&dir).ok();
+        assert_ignore_rules("bare-dir", "docs/\n", &["**/docs", "**/docs/**"]);
     }
 
     #[test]
     fn a_nested_directory_path_is_anchored_to_the_root() {
-        let dir = temp_dir("nested-dir");
-        fs::write(dir.join(IGNORE_FILE_NAME), "tests/fixtures/\n").unwrap();
-        assert_eq!(
-            read_ignore_file(&dir),
-            vec![
-                "tests/fixtures".to_string(),
-                "tests/fixtures/**".to_string()
-            ]
+        assert_ignore_rules(
+            "nested-dir",
+            "tests/fixtures/\n",
+            &["tests/fixtures", "tests/fixtures/**"],
         );
-        fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
     fn a_bare_glob_matches_at_any_depth() {
-        let dir = temp_dir("bare-glob");
-        fs::write(dir.join(IGNORE_FILE_NAME), "*.md\n").unwrap();
-        assert_eq!(read_ignore_file(&dir), vec!["**/*.md".to_string()]);
-        fs::remove_dir_all(&dir).ok();
+        assert_ignore_rules("bare-glob", "*.md\n", &["**/*.md"]);
     }
 
     #[test]
     fn a_glob_with_a_slash_is_anchored_to_the_root() {
-        let dir = temp_dir("anchored-glob");
-        fs::write(dir.join(IGNORE_FILE_NAME), "docs/*.md\n").unwrap();
-        assert_eq!(read_ignore_file(&dir), vec!["docs/*.md".to_string()]);
-        fs::remove_dir_all(&dir).ok();
+        assert_ignore_rules("anchored-glob", "docs/*.md\n", &["docs/*.md"]);
     }
 
     #[test]

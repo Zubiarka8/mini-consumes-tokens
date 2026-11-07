@@ -498,24 +498,34 @@ mod tests {
         split_identifier(name).join(" ")
     }
 
+    fn assert_splits(cases: &[(&str, &str)]) {
+        for (input, expected) in cases {
+            assert_eq!(split(input), *expected, "{input}");
+        }
+    }
+
     #[test]
     fn splits_every_identifier_convention() {
-        assert_eq!(split("parseRequestBody"), "parse request body");
-        assert_eq!(split("ParseRequestBody"), "parse request body");
-        assert_eq!(split("parse_request_body"), "parse request body");
-        assert_eq!(split("parse-request-body"), "parse request body");
-        assert_eq!(split("PARSE_REQUEST_BODY"), "parse request body");
-        assert_eq!(split("parse request  body"), "parse request body");
+        assert_splits(&[
+            ("parseRequestBody", "parse request body"),
+            ("ParseRequestBody", "parse request body"),
+            ("parse_request_body", "parse request body"),
+            ("parse-request-body", "parse request body"),
+            ("PARSE_REQUEST_BODY", "parse request body"),
+            ("parse request  body", "parse request body"),
+        ]);
     }
 
     #[test]
     fn splits_acronyms_and_digits() {
-        assert_eq!(split("HTTPServer"), "http server");
-        assert_eq!(split("IOError"), "io error");
-        assert_eq!(split("getHTTPResponse"), "get http response");
-        assert_eq!(split("HTTP2Server"), "http2 server");
-        assert_eq!(split("base64Encode"), "base64 encode");
-        assert_eq!(split("utf8"), "utf8");
+        assert_splits(&[
+            ("HTTPServer", "http server"),
+            ("IOError", "io error"),
+            ("getHTTPResponse", "get http response"),
+            ("HTTP2Server", "http2 server"),
+            ("base64Encode", "base64 encode"),
+            ("utf8", "utf8"),
+        ]);
     }
 
     #[test]

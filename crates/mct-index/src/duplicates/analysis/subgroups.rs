@@ -223,22 +223,8 @@ mod tests {
 
     use mct_core::LiteralCategory;
 
-    use super::super::evidence::MemberContext;
+    use super::super::evidence::{test_slots as slots, MemberContext};
     use super::*;
-
-    fn slots(texts: &mut Texts, tokens: &[(&str, TokenRole)]) -> Vec<Slot> {
-        tokens
-            .iter()
-            .enumerate()
-            .map(|(line, (text, role))| Slot {
-                literal: matches!(role, TokenRole::Literal(_)),
-                role: *role,
-                primitive_spelling: false,
-                text: texts.id(text),
-                line: u32::try_from(line).unwrap() + 1,
-            })
-            .collect()
-    }
 
     /// `def <name>(<param>): <param>.<member> = <callee>(<param>)`, as slots.
     fn member(texts: &mut Texts, name: &str, param: &str, member: &str, callee: &str) -> Vec<Slot> {
