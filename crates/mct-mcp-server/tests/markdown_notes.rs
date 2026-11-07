@@ -10,11 +10,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use mct_index::{ExcludeSet, Index};
 use mct_mcp_server::server::MctServer;
 use serde_json::{json, Value};
+
+#[path = "common/server.rs"]
+mod server_fixture;
+use server_fixture::build_server_at as server_for;
 
 fn vault(files: &[(&str, &str)]) -> PathBuf {
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -48,13 +51,6 @@ async fn call(server: &MctServer, tool: &str, args: Value) -> String {
         .map(|t| t.text.clone())
         .collect::<Vec<_>>()
         .join("\n")
-}
-
-async fn server_for(dir: &Path) -> MctServer {
-    let registry = mct_mcp_server::registry::build_registry();
-    let mut index = Index::open_in_memory(dir, ExcludeSet::default()).unwrap();
-    index.reindex(&registry, false).unwrap();
-    MctServer::new(index, registry)
 }
 
 const FILES: &[(&str, &str)] = &[
