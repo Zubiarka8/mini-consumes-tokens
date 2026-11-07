@@ -39,20 +39,32 @@ struct Timings {
     dead_code_ms: u128,
 }
 
-/// What identifies one published state of the index file: a reindex changes
-/// the modification time or the length of the database or its write-ahead log.
-#[derive(Clone, Copy, PartialEq, Eq, Default)]
-struct IndexStamp([Option<(SystemTime, u64)>; 2]);
+/// What identifies one published state of the index: the database file (a
+/// rebuild replaces it) and the generation published in it. Only a reindex
+/// that changed something advances the generation, so checkpoints, metadata
+/// and runs that found nothing to change never trigger a reload.
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+struct IndexStamp {
+    file: Option<FileIdentity>,
+    generation: u64,
+}
 
-impl IndexStamp {
-    fn of(root: &Path) -> Self {
-        let database = root.join(".mct-index/index.sqlite3");
-        let wal = root.join(".mct-index/index.sqlite3-wal");
-        let read = |path: &Path| {
-            let meta = std::fs::metadata(path).ok()?;
-            Some((meta.modified().ok()?, meta.len()))
-        };
-        Self([read(&database), read(&wal)])
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct FileIdentity(u64, u64);
+
+impl FileIdentity {
+    fn of(root: &Path) -> Option<Self> {
+        let meta = std::fs::metadata(root.join(".mct-index/index.sqlite3")).ok()?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            Some(Self(meta.dev(), meta.ino()))
+        }
+        #[cfg(not(unix))]
+        {
+            let created = meta.created().ok()?.duration_since(UNIX_EPOCH).ok()?;
+            Some(Self(created.as_secs(), u64::from(created.subsec_nanos())))
+        }
     }
 }
 
@@ -100,7 +112,7 @@ impl Site {
         after_navigation: impl FnOnce(),
     ) -> anyhow::Result<Self> {
         let started = Instant::now();
-        let stamp = IndexStamp::of(root);
+        let file = FileIdentity::of(root);
         let database = root.join(".mct-index/index.sqlite3");
         anyhow::ensure!(
             database.is_file(),
@@ -120,6 +132,10 @@ impl Site {
         }
         // Navigation, candidates and review hashes must describe one generation.
         let snapshot = index.read_snapshot()?;
+        let stamp = IndexStamp {
+            file,
+            generation: snapshot.generation(),
+        };
         let mut navigation = index.navigation_snapshot()?;
         after_navigation();
         navigation.files.retain(|file| file.language != "asset");
@@ -255,10 +271,28 @@ impl Site {
     /// keeping the CSRF token so an open page can still save decisions. A
     /// failed reload keeps the previous snapshot; the next reindex retries.
     fn follow_reindex(&mut self) {
-        let stamp = IndexStamp::of(&self.root);
-        if stamp == self.stamp {
-            return;
+        // A replaced database file (a rebuild) is a change whatever the open
+        // connection still reads; it is retried on every request until it
+        // loads, since a failure there is an early open error. Otherwise one
+        // indexed read of the published generation decides, and a failed
+        // reload of a generation waits for the next one.
+        let file = FileIdentity::of(&self.root);
+        if file == self.stamp.file {
+            match self.index.published_generation() {
+                Ok(generation) if generation == self.stamp.generation => {}
+                Ok(generation) => self.reload(IndexStamp { file, generation }),
+                Err(error) => {
+                    eprintln!("warning: cannot read the index generation: {error:#}");
+                }
+            }
+        } else {
+            self.reload(self.stamp);
         }
+    }
+
+    /// Replaces the snapshot with a fresh one, or records `failed` as the
+    /// stamp already tried.
+    fn reload(&mut self, failed: IndexStamp) {
         match Site::load(&self.root, self.no_obsidian) {
             Ok(mut fresh) => {
                 fresh.csrf = std::mem::take(&mut self.csrf);
@@ -267,7 +301,7 @@ impl Site {
             }
             Err(error) => {
                 eprintln!("warning: cannot reload the reindexed snapshot: {error:#}");
-                self.stamp = stamp;
+                self.stamp = failed;
             }
         }
     }

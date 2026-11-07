@@ -124,6 +124,13 @@ pub struct NavigationSnapshot {
 /// Pins all SQLite reads made through an [`Index`] to one committed state.
 /// The first metadata read establishes the WAL snapshot; dropping this guard
 /// ends the transaction without writing.
+/// Held by the process that maintains an index in the background; see
+/// [`Index::try_acquire_maintainer`]. Dropping it hands the role over.
+#[derive(Debug)]
+pub struct MaintainerLease {
+    _guard: Option<coordination::Guard>,
+}
+
 pub struct IndexReadSnapshot<'a> {
     _transaction: rusqlite::Transaction<'a>,
     generation: u64,
@@ -160,12 +167,22 @@ pub struct Index {
     /// the set's current generation, rows of paths its rules now exclude may
     /// still be stored ([`Index::apply_exclusion_changes`]).
     applied_exclusions: u64,
-    /// Runs after every successful [`Index::reindex`] and
-    /// [`Index::reindex_paths`]; see [`Index::set_post_reindex_hook`].
+    /// Runs after a successful [`Index::reindex`] or [`Index::reindex_paths`]
+    /// that published a change; see [`Index::set_post_reindex_hook`].
     post_reindex: Option<PostReindexHook>,
     /// Hook failures from reindexes whose report never reaches the caller
     /// ([`Index::apply_exclusion_changes`]); see [`Index::take_warnings`].
     pending_warnings: Vec<String>,
+    /// Whether the post-reindex hook has succeeded on this connection. Until
+    /// it has, it runs even after a run that published nothing, so derived
+    /// views (the Obsidian vault) are written once per process.
+    post_reindex_done: bool,
+    /// Process-local completion time of the last run, changed or not;
+    /// [`IndexStatus::last_verified_at`].
+    last_verified_at: Option<i64>,
+    /// Process-local completion time of the last full walk without an
+    /// unreadable path that published nothing.
+    last_full_verified_at: Option<i64>,
 }
 
 impl Index {
@@ -197,6 +214,9 @@ impl Index {
             exclude,
             post_reindex: None,
             pending_warnings: Vec::new(),
+            post_reindex_done: false,
+            last_verified_at: None,
+            last_full_verified_at: None,
         })
     }
 
@@ -229,6 +249,9 @@ impl Index {
             exclude,
             post_reindex: None,
             pending_warnings: Vec::new(),
+            post_reindex_done: false,
+            last_verified_at: None,
+            last_full_verified_at: None,
         })
     }
 
@@ -252,6 +275,9 @@ impl Index {
             exclude,
             post_reindex: None,
             pending_warnings: Vec::new(),
+            post_reindex_done: false,
+            last_verified_at: None,
+            last_full_verified_at: None,
         })
     }
 
@@ -322,19 +348,48 @@ impl Index {
         Ok(report)
     }
 
-    /// Registers `hook` to run after every successful [`Index::reindex`] and
-    /// [`Index::reindex_paths`], replacing any earlier one. This crate knows
+    /// [`Index::reindex`] on an explicit request (the `reindex` tool): also
+    /// runs the post-reindex hook when the run changed nothing, so derived
+    /// views edited or deleted by hand are rewritten. Background runs use
+    /// [`Index::reindex`], which leaves them alone when nothing changed.
+    pub fn reindex_requested(
+        &mut self,
+        registry: &LanguageRegistry,
+        force: bool,
+    ) -> Result<ReindexReport> {
+        // Already done before this run: a no-op run then skips the hook.
+        let skipped_if_unchanged = self.post_reindex_done;
+        let mut report = self.reindex(registry, force)?;
+        if !report.published && skipped_if_unchanged {
+            self.post_reindex_done = false;
+            self.run_post_reindex_hook(&mut report);
+        }
+        Ok(report)
+    }
+
+    /// Registers `hook` to run after a successful [`Index::reindex`] or
+    /// [`Index::reindex_paths`] that published a change (and after the first
+    /// run of this connection, changed or not), replacing any earlier one.
+    /// This crate knows
     /// nothing about what the hook does (e.g. writing derived views of the
     /// index); an `Err` from it is recorded in [`ReindexReport::warnings`]
     /// and the reindex still succeeds. Per connection, not stored.
     pub fn set_post_reindex_hook(&mut self, hook: PostReindexHook) {
         self.post_reindex = Some(hook);
+        self.post_reindex_done = false;
     }
 
-    fn run_post_reindex_hook(&self, report: &mut ReindexReport) {
+    /// Runs the hook after a run that published a change, and after the
+    /// first run of this connection until the hook has succeeded once. A run
+    /// that changed nothing leaves the derived views as they are.
+    fn run_post_reindex_hook(&mut self, report: &mut ReindexReport) {
+        if !report.published && self.post_reindex_done {
+            return;
+        }
         if let Some(hook) = &self.post_reindex {
-            if let Err(err) = hook(self) {
-                report.warnings.push(err.to_string());
+            match hook(self) {
+                Ok(()) => self.post_reindex_done = true,
+                Err(err) => report.warnings.push(err.to_string()),
             }
         }
     }
@@ -404,6 +459,26 @@ impl Index {
 
     pub fn status(&self) -> Result<IndexStatus> {
         indexer::status(self)
+    }
+
+    /// Tries to become this index's background maintainer: the one process
+    /// that watches the project and reconciles it periodically, while every
+    /// other process on the same database only serves queries (and explicit
+    /// reindexes). `Ok(None)` means another live process holds the lease; it
+    /// is released when the returned lease drops or its process dies. An
+    /// in-memory index is never shared, so it always gets a lease.
+    pub fn try_acquire_maintainer(&self) -> Result<Option<MaintainerLease>> {
+        let Some(access) = &self.access else {
+            return Ok(Some(MaintainerLease { _guard: None }));
+        };
+        access
+            .try_maintainer()
+            .map(|guard| {
+                guard.map(|guard| MaintainerLease {
+                    _guard: Some(guard),
+                })
+            })
+            .map_err(|e| IndexError::Coordination(e.to_string()))
     }
 
     /// Returns the last atomically published reindex generation. Existing
