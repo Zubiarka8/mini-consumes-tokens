@@ -225,7 +225,8 @@ jobs:
             work="$(mktemp -d)"
             tar -xzf "$tarball" -C "$work"
             export NFPM_ARCH="$2" NFPM_VERSION="$version"
-            export NFPM_BIN_DIR="$work/mini-consumes-tokens-$label-linux-$1-musl"
+            rm -rf pkg
+            cp -R "$work/mini-consumes-tokens-$label-linux-$1-musl" pkg
             for format in deb rpm; do
               nfpm package --config packaging/nfpm.yaml --packager "$format" \
                 --target "dist/mini-consumes-tokens-$label-linux-$1.$format"
