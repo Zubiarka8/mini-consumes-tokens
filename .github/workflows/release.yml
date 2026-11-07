@@ -1,8 +1,9 @@
 name: Release
 
-# Pushing a `v*` tag (e.g. `v0.2.0`) builds mct-cli and mct-mcp-server for 5
-# OS/arch combos, smoke-tests the natively built ones, packages them and
-# attaches the archives to a GitHub Release at that tag. The tag must equal
+# Pushing a `v*` tag (e.g. `v0.2.0`) builds mct-cli and mct-mcp-server for 8
+# OS/arch combos, smoke-tests the natively built ones, packages them, wraps
+# the static musl builds as .deb and .rpm packages (packaging/nfpm.yaml) and
+# attaches the 12 files to a GitHub Release at that tag. The tag must equal
 # `v` + the workspace version in Cargo.toml, or the build fails before
 # anything is published.
 #
@@ -47,6 +48,18 @@ jobs:
             os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             native: false
+          # Static musl builds run on any Linux, including Alpine and distros
+          # whose glibc is older than ubuntu-latest's. Each is built natively
+          # (arm64 on the free `ubuntu-24.04-arm` runner) with musl-gcc for
+          # the bundled C code, so both are smoke-tested.
+          - name: linux-x86_64-musl
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            native: true
+          - name: linux-arm64-musl
+            os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            native: true
           # `macos-13` was retired in December 2025. `macos-26-intel` is a
           # standard GitHub-hosted Intel (x64) image; `macos-latest` is arm64
           # and must not be used for this target.
@@ -61,6 +74,12 @@ jobs:
           - name: windows-x86_64
             os: windows-latest
             target: x86_64-pc-windows-msvc
+            native: true
+          # GitHub-hosted Windows 11 on Arm image (free for public repos):
+          # a native build, so it is smoke-tested like the other natives.
+          - name: windows-arm64
+            os: windows-11-arm
+            target: aarch64-pc-windows-msvc
             native: true
     steps:
       - uses: actions/checkout@v4
@@ -95,11 +114,19 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
 
+      - name: Install musl-gcc (musl targets only)
+        if: endsWith(matrix.target, '-musl')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
       - name: Build mct-cli and mct-mcp-server
         shell: bash
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
           CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
+          CC_x86_64_unknown_linux_musl: musl-gcc
+          CC_aarch64_unknown_linux_musl: musl-gcc
         run: cargo build --release --locked --target ${{ matrix.target }} -p mct-cli -p mct-mcp-server
 
       - name: Smoke-test the binaries (native targets only)
@@ -158,9 +185,82 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
+  packages:
+    name: deb and rpm packages
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      NFPM_VERSION_PIN: "2.47.0"
+      NFPM_SHA256: "0660ca602b2d2d2ae4781a06c692b3eeb9d437ffea05b831d76e41f4a3188783"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: linux-*-musl
+          path: artifacts
+
+      - name: Install nfpm
+        run: |
+          set -euo pipefail
+          archive="nfpm_${NFPM_VERSION_PIN}_Linux_x86_64.tar.gz"
+          curl -sSfLO "https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VERSION_PIN}/$archive"
+          echo "$NFPM_SHA256  $archive" | sha256sum -c -
+          tar -xzf "$archive" nfpm
+          sudo install -m 0755 nfpm /usr/local/bin/nfpm
+
+      - name: Build and check the packages
+        run: |
+          set -euo pipefail
+          version="$(sed -nE 's/^version = "([^"]+)"/\1/p' Cargo.toml | head -n1)"
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            label="$GITHUB_REF_NAME"
+          else
+            label="v$version-dryrun-${GITHUB_SHA::7}"
+          fi
+          mkdir -p dist
+          for pair in "x86_64 amd64" "arm64 arm64"; do
+            set -- $pair
+            tarball="artifacts/linux-$1-musl/mini-consumes-tokens-$label-linux-$1-musl.tar.gz"
+            work="$(mktemp -d)"
+            tar -xzf "$tarball" -C "$work"
+            export NFPM_ARCH="$2" NFPM_VERSION="$version"
+            rm -rf pkg
+            cp -R "$work/mini-consumes-tokens-$label-linux-$1-musl" pkg
+            for format in deb rpm; do
+              nfpm package --config packaging/nfpm.yaml --packager "$format" \
+                --target "dist/mini-consumes-tokens-$label-linux-$1.$format"
+            done
+          done
+          ls -la dist
+          # Both binaries must land in /usr/bin in every package.
+          for deb in dist/*.deb; do
+            listing="$(dpkg-deb -c "$deb")"
+            for f in mct-cli mct-mcp-server; do
+              printf '%s\n' "$listing" | grep -q "\./usr/bin/$f$" || { echo "::error::$f missing from $deb"; exit 1; }
+            done
+          done
+          sudo apt-get install -y rpm > /dev/null
+          for rpm in dist/*.rpm; do
+            listing="$(rpm -qlp "$rpm")"
+            for f in mct-cli mct-mcp-server; do
+              printf '%s\n' "$listing" | grep -qx "/usr/bin/$f" || { echo "::error::$f missing from $rpm"; exit 1; }
+            done
+          done
+          # The amd64 .deb is native to the runner: install it and run it.
+          sudo dpkg -i dist/*-linux-x86_64.deb
+          mct-cli --version
+          mct-mcp-server --help > /dev/null
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages
+          path: dist/*
+          if-no-files-found: error
+
   release:
     name: create GitHub release
-    needs: build
+    needs: [build, packages]
     # Never on a manual (dry) run: only a pushed `v*` tag publishes.
     if: github.event_name == 'push' && github.ref_type == 'tag'
     runs-on: ubuntu-latest
@@ -175,10 +275,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release
-          find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec cp {} release/ \;
+          find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.deb' -o -name '*.rpm' \) -exec cp {} release/ \;
           ls -la release
           count="$(find release -type f | wc -l)"
-          [ "$count" -eq 5 ] || { echo "::error::expected 5 archives, found $count"; exit 1; }
+          [ "$count" -eq 12 ] || { echo "::error::expected 12 files, found $count"; exit 1; }
 
       - uses: softprops/action-gh-release@v2
         with:
@@ -187,6 +287,6 @@ jobs:
           body: |
             See [CHANGELOG.md at ${{ github.ref_name }}](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md) for the changes and the upgrade steps.
 
-            Prebuilt binaries below (mct-cli + mct-mcp-server) for Linux (x86_64/arm64), macOS (Intel/Apple Silicon), and Windows (x86_64). They are built without the optional `semantic` feature: `hybrid_search` returns its lexical ranking and says so; build `mct-mcp-server` from source with `--features semantic` for embedding search.
+            Prebuilt binaries below (mct-cli + mct-mcp-server) for Linux (x86_64/arm64, glibc and static musl, plus .deb and .rpm packages), macOS (Intel/Apple Silicon), and Windows (x86_64/arm64). They are built without the optional `semantic` feature: `hybrid_search` returns its lexical ranking and says so; build `mct-mcp-server` from source with `--features semantic` for embedding search.
 
             The crates are not published to crates.io (see [RELEASING.md at ${{ github.ref_name }}](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/RELEASING.md)).

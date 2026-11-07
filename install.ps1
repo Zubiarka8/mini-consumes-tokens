@@ -11,7 +11,10 @@ $ErrorActionPreference = "Stop"
 
 $Repo = "Zubiarka8/mini-consumes-tokens"
 $InstallDir = if ($env:MCT_INSTALL_DIR) { $env:MCT_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA "mct\bin" }
-$AssetName = "windows-x86_64"
+# An x64 binary also runs on Windows on Arm through emulation, but the native
+# build is faster; PROCESSOR_ARCHITEW6432 covers an x64 shell on an Arm machine.
+$arch = if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE }
+$AssetName = if ($arch -eq "ARM64") { "windows-arm64" } else { "windows-x86_64" }
 
 Write-Host "Fetching latest release info for $Repo..."
 $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest"
