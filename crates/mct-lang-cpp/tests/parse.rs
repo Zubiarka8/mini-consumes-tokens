@@ -3,7 +3,7 @@
 // untrusted repo content (see crates/mct-lang-cpp/src/ for that policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use mct_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
+use mct_core::{RelationKind, SymbolKind};
 use mct_lang_cpp::CppParser;
 
 fn parse(relative_path: &str, src: &str) -> mct_core::ParsedFile {
@@ -113,9 +113,9 @@ fn extracts_inheritance_and_distinguishes_local_from_system_includes() {
 
 #[test]
 fn syntax_error_is_reported_not_panicked() {
-    let result = CppParser.parse(&SourceFile {
-        relative_path: "broken.cpp".to_string(),
-        contents: "class Broken {\n  void go( {\n".to_string(),
-    });
-    assert!(matches!(result, Err(mct_core::ParseError::Syntax { .. })));
+    mct_corpus::assert_syntax_error_reported(
+        &CppParser,
+        "broken.cpp",
+        "class Broken {\n  void go( {\n",
+    );
 }

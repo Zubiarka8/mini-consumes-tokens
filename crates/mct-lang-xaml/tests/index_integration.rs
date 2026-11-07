@@ -14,7 +14,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use mct_core::LanguageRegistry;
-use mct_index::{ExcludeSet, Index};
+use mct_index::Index;
 use mct_lang_csharp::CSharpParser;
 use mct_lang_xaml::XamlParser;
 
@@ -30,33 +30,17 @@ fn registry() -> LanguageRegistry {
 }
 
 fn open_indexed() -> Index {
-    let root = fixture_root();
-    let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
-    let report = index.reindex(&registry(), false).unwrap();
-    assert_eq!(
-        report.files_parsed, 2,
-        "MainWindow.xaml, MainWindow.xaml.cs"
-    );
-    assert!(
-        report.issues.is_empty(),
-        "no parse issues expected: {:?}",
-        report.issues
-    );
-    index
+    mct_corpus::open_indexed_with_registry(
+        &fixture_root(),
+        &registry(),
+        2,
+        "MainWindow.xaml, MainWindow.xaml.cs",
+    )
 }
 
 #[test]
 fn status_reports_coverage_for_both_languages() {
-    let index = open_indexed();
-    let status = index.status().unwrap();
-    assert!(status
-        .languages
-        .iter()
-        .any(|l| l.language == "xaml" && l.file_count == 1));
-    assert!(status
-        .languages
-        .iter()
-        .any(|l| l.language == "csharp" && l.file_count == 1));
+    mct_corpus::assert_language_file_counts(&open_indexed(), &[("xaml", 1), ("csharp", 1)]);
 }
 
 #[test]
@@ -96,16 +80,15 @@ fn a_second_reindex_skips_unchanged_files_and_force_reparses_them() {
 #[test]
 fn find_references_resolves_the_click_handler_back_to_its_xaml_element() {
     let index = open_indexed();
-    let refs = index.find_references("SaveBtn_Click").unwrap();
-    assert_eq!(refs.len(), 1, "{refs:?}");
-    assert_eq!(refs[0].relative_path, "MainWindow.xaml");
-    assert_eq!(refs[0].from_symbol, "SaveBtn");
-    // Resolved by the code-behind evidence to the one C# method, not by name.
-    assert_eq!(refs[0].resolution, mct_index::Resolution::Resolved);
-    let target = index.symbols_by_ids(&[refs[0].target_id.unwrap()]).unwrap();
-    assert_eq!(target[0].relative_path, "MainWindow.xaml.cs");
-    assert_eq!(target[0].language, "csharp");
-    assert_eq!(target[0].kind, "method");
+    let target = mct_corpus::assert_resolved_reference(
+        &index,
+        "SaveBtn_Click",
+        "MainWindow.xaml",
+        "SaveBtn",
+    );
+    assert_eq!(target.relative_path, "MainWindow.xaml.cs");
+    assert_eq!(target.language, "csharp");
+    assert_eq!(target.kind, "method");
 }
 
 #[test]

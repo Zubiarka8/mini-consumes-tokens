@@ -38,26 +38,17 @@ fn extracts_function_and_call() {
 #[test]
 fn top_level_variable_assignment_is_indexed() {
     let parsed = parse("FOO=bar\nexport BAZ=\"qux\"\n");
-    let foo = parsed.symbols.iter().find(|s| s.name == "FOO").unwrap();
-    assert_eq!(foo.kind, SymbolKind::Variable);
-    let baz = parsed.symbols.iter().find(|s| s.name == "BAZ").unwrap();
-    assert_eq!(
-        baz.kind,
-        SymbolKind::Variable,
-        "export-wrapped assignment is still indexed"
+    mct_corpus::assert_variables(
+        &parsed,
+        &["FOO", "BAZ"],
+        "export-wrapped assignment is still indexed",
     );
 }
 
 #[test]
 fn variable_assigned_inside_a_function_is_not_indexed() {
     let parsed = parse("run() {\n  local x=1\n}\n");
-    assert!(
-        parsed
-            .symbols
-            .iter()
-            .all(|s| s.kind != SymbolKind::Variable),
-        "function-local assignment must not become a top-level Variable symbol"
-    );
+    mct_corpus::assert_no_variables(&parsed);
 }
 
 #[test]
@@ -68,11 +59,7 @@ fn source_with_literal_path_is_an_import() {
 
 #[test]
 fn syntax_error_is_reported_not_panicked() {
-    let result = BashParser.parse(&SourceFile {
-        relative_path: "broken.sh".to_string(),
-        contents: "function foo( {\n".to_string(),
-    });
-    assert!(matches!(result, Err(mct_core::ParseError::Syntax { .. })));
+    mct_corpus::assert_syntax_error_reported(&BashParser, "broken.sh", "function foo( {\n");
 }
 
 #[test]

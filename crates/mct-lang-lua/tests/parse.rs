@@ -3,7 +3,7 @@
 // untrusted repo content (see crates/mct-lang-lua/src/ for that policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use mct_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
+use mct_core::{RelationKind, SymbolKind};
 use mct_lang_lua::LuaParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
@@ -23,9 +23,7 @@ fn file_module_ends_on_the_last_line() {
         (m.location.line, m.location.end_line)
     };
     let body = "local function f()\n  return 1\nend";
-    assert_eq!(module(&format!("{body}\n")), (1, Some(3)));
-    assert_eq!(module(body), (1, Some(3)));
-    assert_eq!(module("f()\n"), (1, Some(1)));
+    mct_corpus::assert_module_spans(module, body, "f()\n");
 }
 
 #[test]
@@ -193,13 +191,7 @@ fn extracts_nested_dotted_function_declaration() {
     assert_eq!(baz.parent.as_deref(), Some("Foo.Bar"));
 }
 
-fn symbol<'a>(parsed: &'a mct_core::ParsedFile, name: &str) -> &'a mct_core::SymbolRecord {
-    parsed
-        .symbols
-        .iter()
-        .find(|s| s.name == name)
-        .unwrap_or_else(|| panic!("no symbol {name}"))
-}
+use mct_corpus::parsed_symbol as symbol;
 
 #[test]
 fn a_function_assigned_to_a_target_spans_its_body() {
@@ -264,11 +256,7 @@ fn calls_in_the_called_expression_are_extracted() {
 
 #[test]
 fn syntax_error_is_reported_not_panicked() {
-    let result = LuaParser.parse(&SourceFile {
-        relative_path: "broken.lua".to_string(),
-        contents: "function broken(\n".to_string(),
-    });
-    assert!(matches!(result, Err(mct_core::ParseError::Syntax { .. })));
+    mct_corpus::assert_syntax_error_reported(&LuaParser, "broken.lua", "function broken(\n");
 }
 
 fn parse_at(path: &str, src: &str) -> mct_core::ParsedFile {

@@ -39,14 +39,11 @@ fn names(index: &Index, query: &str) -> Vec<String> {
         .collect()
 }
 
+#[path = "common/indexed_files.rs"]
+mod indexed_files;
+
 fn indexed(files: &[(&str, &str)]) -> (std::path::PathBuf, Index) {
-    let dir = tempdir();
-    for (path, contents) in files {
-        fs::write(dir.join(path), contents).unwrap();
-    }
-    let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
-    index.reindex(&registry(), false).unwrap();
-    (dir, index)
+    indexed_files::indexed(tempdir(), &registry(), files)
 }
 
 fn fixture() -> (std::path::PathBuf, Index) {

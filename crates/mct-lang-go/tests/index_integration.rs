@@ -29,16 +29,14 @@ fn open_indexed() -> Index {
 
 #[test]
 fn find_symbol_locates_receiver_method_on_its_struct() {
-    let index = open_indexed();
-    let hits = index.find_symbol("AddItem").unwrap();
-    assert_eq!(hits.len(), 1);
-    assert_eq!(hits[0].kind, "method");
-    assert_eq!(hits[0].parent.as_deref(), Some("Invoice"));
-    assert_eq!(hits[0].relative_path, "invoice.go");
-    // `language` is read straight off the `files.language` column via the
-    // symbols->files JOIN, so this is what proves the row landed under the
-    // right language and not merely that the parser produced the symbol.
-    assert_eq!(hits[0].language, "go");
+    mct_corpus::assert_indexed_symbol(
+        &open_indexed(),
+        "AddItem",
+        "method",
+        "Invoice",
+        "invoice.go",
+        "go",
+    );
 }
 
 #[test]
@@ -68,8 +66,5 @@ fn find_callers_of_log_shows_both_invoice_methods() {
 
 #[test]
 fn find_references_finds_cross_file_call_from_runner() {
-    let index = open_indexed();
-    let refs = index.find_references("AddItem").unwrap();
-    assert_eq!(refs.len(), 1, "runner.go calls AddItem once");
-    assert_eq!(refs[0].relative_path, "runner.go");
+    mct_corpus::assert_references_in_file(&open_indexed(), "AddItem", 1, "runner.go");
 }

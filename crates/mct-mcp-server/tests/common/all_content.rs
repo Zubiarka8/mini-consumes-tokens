@@ -6,12 +6,4 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 /// All text blocks joined with `\n`; an empty string when there are none.
-pub fn content_of(result: &rmcp::model::CallToolResult) -> String {
-    result
-        .content
-        .iter()
-        .filter_map(|block| block.as_text())
-        .map(|t| t.text.clone())
-        .collect::<Vec<_>>()
-        .join("\n")
-}
+pub use mct_mcp_server::content::result_text as content_of;

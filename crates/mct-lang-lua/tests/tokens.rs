@@ -9,12 +9,7 @@ fn tokenize(source: &str) -> TokenizedFile {
     LuaTokenSource.tokenize("pkg/mod.lua", source).unwrap()
 }
 
-fn pairs(file: &TokenizedFile) -> Vec<(TokenKind, &str)> {
-    file.tokens
-        .iter()
-        .map(|token| (token.kind, token.text.as_str()))
-        .collect()
-}
+use mct_corpus::pairs;
 
 #[test]
 fn language_id_matches_the_parser() {

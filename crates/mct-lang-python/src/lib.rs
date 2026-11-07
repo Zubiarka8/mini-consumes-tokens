@@ -81,6 +81,7 @@ fn text<'a>(node: Node, source: &'a str) -> &'a str {
     node.utf8_text(source.as_bytes()).unwrap_or_default()
 }
 
+#[derive(Default)]
 struct Walker<'a> {
     source: &'a str,
     /// This file's repository-relative path, the base of relative imports.
@@ -96,10 +97,7 @@ impl<'a> Walker<'a> {
         Self {
             source,
             path,
-            symbols: Vec::new(),
-            relations: Vec::new(),
-            relation_targets: Vec::new(),
-            next_id: 0,
+            ..Self::default()
         }
     }
 
@@ -141,10 +139,9 @@ impl<'a> Walker<'a> {
         class_name: Option<&str>,
         depth: u32,
     ) {
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
+        mct_tree_sitter::for_each_child(node, |child| {
             self.visit(child, owner, class_name, depth + 1);
-        }
+        });
     }
 
     fn visit(&mut self, node: Node, owner: SymbolId, class_name: Option<&str>, depth: u32) {
