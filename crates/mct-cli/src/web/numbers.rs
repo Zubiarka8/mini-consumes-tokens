@@ -15,7 +15,7 @@ use std::fs;
 use std::io::Write;
 use std::path::Path;
 
-use mct_index::reviews::{FindingKeys, Kind};
+use mct_index::reviews::{is_review_key, FindingKeys, Kind};
 
 const FILE: &str = "finding-numbers.tsv";
 const HEADER: &str = "# mct finding numbers v1: kind<TAB>number<TAB>identity";
@@ -34,8 +34,7 @@ fn row(line: &str) -> Option<(Kind, u64, &str)> {
     let kind = Kind::parse(fields.next()?)?;
     let number = fields.next()?.parse::<u64>().ok().filter(|n| *n > 0)?;
     let identity = fields.next()?;
-    let valid = identity.len() == 64 && identity.bytes().all(|b| b.is_ascii_hexdigit());
-    (valid && fields.next().is_none()).then_some((kind, number, identity))
+    (is_review_key(identity) && fields.next().is_none()).then_some((kind, number, identity))
 }
 
 /// The stored rows, or why the file cannot be trusted (then it is never rewritten).
