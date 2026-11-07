@@ -272,12 +272,7 @@ fn syntax_error_is_reported_not_panicked() {
 }
 
 fn parse_at(path: &str, src: &str) -> mct_core::ParsedFile {
-    LuaParser
-        .parse(&SourceFile {
-            relative_path: path.to_string(),
-            contents: src.to_string(),
-        })
-        .expect("valid Lua source should parse")
+    mct_corpus::parse_source(&LuaParser, path, "Lua", src)
 }
 
 #[test]

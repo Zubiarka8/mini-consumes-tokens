@@ -12,8 +12,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use mct_core::LanguageRegistry;
-use mct_index::{ExcludeSet, Index};
+use mct_index::Index;
 use mct_lang_java::JavaParser;
 
 fn fixture_root() -> std::path::PathBuf {
@@ -21,18 +20,12 @@ fn fixture_root() -> std::path::PathBuf {
 }
 
 fn open_indexed() -> Index {
-    let root = fixture_root();
-    let mut registry = LanguageRegistry::new();
-    registry.register(Arc::new(JavaParser));
-    let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
-    let report = index.reindex(&registry, false).unwrap();
-    assert_eq!(report.files_parsed, 3);
-    assert!(
-        report.issues.is_empty(),
-        "no parse issues expected: {:?}",
-        report.issues
-    );
-    index
+    mct_corpus::open_indexed(
+        &fixture_root(),
+        Arc::new(JavaParser),
+        3,
+        "billing-app fixture files",
+    )
 }
 
 #[test]
@@ -72,7 +65,5 @@ fn find_callers_of_log_shows_add_item_as_caller() {
 #[test]
 fn find_references_finds_cross_file_calls_from_main() {
     let index = open_indexed();
-    let refs = index.find_references("addItem").unwrap();
-    assert_eq!(refs.len(), 2, "Main.java calls addItem twice");
-    assert!(refs.iter().all(|r| r.relative_path == "Main.java"));
+    mct_corpus::assert_references_in_file(&index, "addItem", 2, "Main.java");
 }

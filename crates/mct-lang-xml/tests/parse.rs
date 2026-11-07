@@ -3,7 +3,7 @@
 // untrusted repo content (see crates/mct-lang-xml/src/ for that policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use mct_core::{LanguageParser, SourceFile, SymbolKind};
+use mct_core::SymbolKind;
 use mct_lang_xml::XmlParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
@@ -81,12 +81,5 @@ fn file_module_ends_on_the_last_line() {
 
 #[test]
 fn syntax_error_is_reported_not_panicked() {
-    let result = XmlParser.parse(&SourceFile {
-        relative_path: "broken.xml".to_string(),
-        contents: "<root><unclosed>".to_string(),
-    });
-    assert!(
-        matches!(result, Err(mct_core::ParseError::Syntax { .. })),
-        "{result:?}"
-    );
+    mct_corpus::assert_syntax_error_reported(&XmlParser, "broken.xml", "<root><unclosed>");
 }

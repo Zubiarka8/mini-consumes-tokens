@@ -153,27 +153,10 @@ fn elements_stay_scoped_to_their_own_file_across_a_multi_file_project() {
 
 #[test]
 fn a_second_reindex_skips_unchanged_files_and_force_reparses_them() {
-    let root = fixture_root();
-    let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
-
-    let first = index.reindex(&registry(), false).unwrap();
-    assert_eq!(first.files_parsed, 1);
-
-    // Incremental: nothing on disk changed, so the real grammar must not be
-    // re-run at all.
-    let second = index.reindex(&registry(), false).unwrap();
-    assert_eq!(second.files_parsed, 0, "{second:?}");
-    assert_eq!(second.files_unchanged, 1);
-
-    // Forced: re-parses despite being unchanged, and must land on exactly
-    // the same symbol set rather than duplicating rows.
-    let forced = index.reindex(&registry(), true).unwrap();
-    assert_eq!(forced.files_parsed, 1, "{forced:?}");
-    assert!(forced.issues.is_empty(), "{:?}", forced.issues);
-
-    let status = index.status().unwrap();
+    let index = mct_corpus::assert_reindex_is_incremental(&fixture_root(), &registry(), 1);
     assert_eq!(
-        status.total_symbols, 6,
+        index.status().unwrap().total_symbols,
+        6,
         "a forced reparse must not duplicate symbols"
     );
     assert_eq!(index.find_symbol("health").unwrap().len(), 1);

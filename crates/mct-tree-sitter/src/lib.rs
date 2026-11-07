@@ -71,6 +71,17 @@ pub fn module_location(root: Node) -> Location {
     loc
 }
 
+/// The file-module name for `relative_path`: its last `/`-separated component
+/// with each of `suffixes` stripped from the end, in the order given. Like
+/// `trim_end_matches`, a suffix that repeats is stripped every time.
+pub fn module_name(relative_path: &str, suffixes: &[&str]) -> String {
+    let mut name = relative_path.rsplit('/').next().unwrap_or(relative_path);
+    for suffix in suffixes {
+        name = name.trim_end_matches(suffix);
+    }
+    name.to_string()
+}
+
 /// The first child of `node`, named or anonymous, whose kind is `kind`.
 pub fn find_child<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
     let mut cursor = node.walk();

@@ -3,9 +3,8 @@
 //!
 //! Each consumer includes this file with `#[path]` instead of going through
 //! `common/mod.rs`, so none of them compiles the large retrieval fixtures.
-//! Tests that need every text block (`tests/contracts.rs`,
-//! `tests/context_pack.rs`, `tests/exclusion_privacy.rs`) keep their own
-//! helpers: they join the blocks differently.
+//! Tests that need every text block (`tests/context_pack.rs` and
+//! `tests/exclusion_privacy.rs`) include `all_content.rs` instead.
 
 /// The first content block's text, or an empty string when the result has
 /// no text block.

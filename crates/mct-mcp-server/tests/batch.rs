@@ -29,19 +29,14 @@ use serde_json::{json, Value};
 mod tokens;
 use tokens::approx_tokens;
 
+#[path = "common/content.rs"]
+mod content;
+use content::content_of;
+
 fn fixture(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures")
         .join(name)
-}
-
-fn content_of(result: &CallToolResult) -> String {
-    result
-        .content
-        .first()
-        .and_then(|block| block.as_text())
-        .map(|t| t.text.clone())
-        .unwrap_or_default()
 }
 
 fn query(tool: &str, args: Value) -> BatchQuery {

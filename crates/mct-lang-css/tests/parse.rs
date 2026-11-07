@@ -3,7 +3,7 @@
 // untrusted repo content (see crates/mct-lang-css/src/ for that policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use mct_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
+use mct_core::{RelationKind, SymbolKind};
 use mct_lang_css::CssParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
@@ -199,14 +199,7 @@ fn module_pseudo_symbol_owns_the_import_relation() {
 
 #[test]
 fn syntax_error_is_reported_not_panicked() {
-    let result = CssParser.parse(&SourceFile {
-        relative_path: "broken.css".to_string(),
-        contents: ".nav {{{ color".to_string(),
-    });
-    assert!(
-        matches!(result, Err(mct_core::ParseError::Syntax { .. })),
-        "{result:?}"
-    );
+    mct_corpus::assert_syntax_error_reported(&CssParser, "broken.css", ".nav {{{ color");
 }
 
 #[test]

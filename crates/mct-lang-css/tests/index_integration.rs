@@ -107,30 +107,7 @@ fn status_reports_full_css_coverage() {
 
 #[test]
 fn a_second_reindex_skips_unchanged_files_and_force_reparses_them() {
-    let root = fixture_root();
-    let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
-
-    let first = index.reindex(&registry(), false).unwrap();
-    assert_eq!(first.files_parsed, 2);
-    let symbols_after_first = index.status().unwrap().total_symbols;
-
-    // Incremental: nothing on disk changed, so the real grammar must not be
-    // re-run at all.
-    let second = index.reindex(&registry(), false).unwrap();
-    assert_eq!(second.files_parsed, 0, "{second:?}");
-    assert_eq!(second.files_unchanged, 2);
-
-    // Forced: re-parses despite being unchanged, and must land on exactly
-    // the same symbol set rather than duplicating rows.
-    let forced = index.reindex(&registry(), true).unwrap();
-    assert_eq!(forced.files_parsed, 2, "{forced:?}");
-    assert!(forced.issues.is_empty(), "{:?}", forced.issues);
-
-    assert_eq!(
-        index.status().unwrap().total_symbols,
-        symbols_after_first,
-        "a forced reparse must not duplicate symbols"
-    );
+    let index = mct_corpus::assert_reindex_is_incremental(&fixture_root(), &registry(), 2);
     assert_eq!(index.find_symbol(".nav").unwrap().len(), 2);
     assert_eq!(index.find_references("extra.css").unwrap().len(), 1);
 }
