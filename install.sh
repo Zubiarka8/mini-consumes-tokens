@@ -9,6 +9,11 @@
 # (the variable must be set on `bash`, the process that runs this script —
 # `INSTALL_DIR=... curl ... | bash` would set it on curl only.)
 #
+# On Linux the static musl build is picked automatically on a musl system
+# (Alpine). Force it elsewhere, e.g. on a distro whose glibc is too old for
+# the default build ("GLIBC_2.xx not found"):
+#   curl -sSL .../install.sh | MCT_LIBC=musl bash
+#
 # Windows: use install.ps1 instead (irm .../install.ps1 | iex).
 set -euo pipefail
 
@@ -37,6 +42,21 @@ case "$arch" in
 esac
 
 asset_name="${platform_os}-${platform_arch}"
+if [ "$platform_os" = "linux" ]; then
+    libc="${MCT_LIBC:-}"
+    if [ -z "$libc" ]; then
+        if ls /lib/ld-musl-* >/dev/null 2>&1 || ldd --version 2>&1 | grep -qi musl; then
+            libc="musl"
+        else
+            libc="gnu"
+        fi
+    fi
+    case "$libc" in
+        musl) asset_name="${asset_name}-musl" ;;
+        gnu|glibc) ;;
+        *) die "MCT_LIBC must be musl or gnu, not: $libc" ;;
+    esac
+fi
 
 log "Fetching latest release info for $REPO..."
 release_json="$(curl -sSL "https://api.github.com/repos/$REPO/releases/latest")"
