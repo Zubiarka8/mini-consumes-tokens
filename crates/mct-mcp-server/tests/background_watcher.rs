@@ -52,17 +52,11 @@ const SETTLE_MARGIN: Duration = Duration::from_secs(20);
 /// Polls `condition` until it's true or `SETTLE_MARGIN` (from `start`)
 /// elapses — a single fixed sleep before asserting "it happened" is flaky
 /// against real OS watcher latency, so this retries instead.
-async fn wait_until(mut condition: impl FnMut() -> bool) -> bool {
-    let deadline = tokio::time::Instant::now() + SETTLE_MARGIN;
-    loop {
-        if condition() {
-            return true;
-        }
-        if tokio::time::Instant::now() >= deadline {
-            return false;
-        }
-        tokio::time::sleep(Duration::from_millis(100)).await;
-    }
+#[path = "common/wait_until.rs"]
+mod polling;
+
+async fn wait_until(condition: impl FnMut() -> bool) -> bool {
+    polling::wait_until(condition, SETTLE_MARGIN, Duration::from_millis(100)).await
 }
 
 /// A negative check ("nothing happens") cannot poll for its outcome, so it

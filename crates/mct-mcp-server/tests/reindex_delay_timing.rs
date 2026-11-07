@@ -21,9 +21,8 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex as StdMutex, OnceLock};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 
 use mct_index::{ExcludeSet, Index};
 use mct_mcp_server::background;
@@ -110,30 +109,19 @@ fn failures() -> usize {
 
 /// Canonicalized because on macOS the temp dir is a symlink and FSEvents
 /// reports resolved paths (see background_watcher.rs).
+#[path = "common/tempdir.rs"]
+mod temp_dirs;
+
 fn tempdir() -> PathBuf {
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos() as u64;
-    let id = nanos.wrapping_add(COUNTER.fetch_add(1, Ordering::Relaxed));
-    let dir = std::env::temp_dir().join(format!("mct-reindex-delay-{id}"));
-    fs::create_dir_all(&dir).unwrap();
-    dir.canonicalize().unwrap()
+    temp_dirs::tempdir("mct-reindex-delay-")
 }
 
 /// Polls `condition` every 50 ms until true or `SETTLE_MARGIN` elapses.
-async fn wait_until(mut condition: impl FnMut() -> bool) -> bool {
-    let deadline = tokio::time::Instant::now() + SETTLE_MARGIN;
-    loop {
-        if condition() {
-            return true;
-        }
-        if tokio::time::Instant::now() >= deadline {
-            return false;
-        }
-        tokio::time::sleep(Duration::from_millis(50)).await;
-    }
+#[path = "common/wait_until.rs"]
+mod polling;
+
+async fn wait_until(condition: impl FnMut() -> bool) -> bool {
+    polling::wait_until(condition, SETTLE_MARGIN, Duration::from_millis(50)).await
 }
 
 type Watcher = mct_mcp_server::background::WatcherHandle;

@@ -12,14 +12,13 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
 
-use mct_index::{Embedder, ExcludeSet, Index};
+use mct_index::Embedder;
 use mct_mcp_server::cache::{CacheConfig, CacheStats, ResponseMode};
 use mct_mcp_server::server::{HybridSearchArgs, MctServer, SearchSymbolsArgs, ServerOptions};
 use rmcp::handler::server::wrapper::Parameters;
 
-const DIM: usize = 16;
+use fake_vectors::DIM;
 
 /// Symbol texts get a hashed bag of words; queries listed in `queries` (keyed
 /// by their split, lowercased words) get exactly the vector given.
@@ -28,19 +27,9 @@ struct FakeEmbedder {
     queries: HashMap<String, Vec<f32>>,
 }
 
-fn bag_of_words(text: &str) -> Vec<f32> {
-    let mut v = vec![0.0f32; DIM];
-    for word in text
-        .split(|c: char| !c.is_alphanumeric())
-        .filter(|w| !w.is_empty())
-    {
-        let h = word.bytes().fold(0xcbf2_9ce4_8422_2325u64, |h, b| {
-            (h ^ b as u64).wrapping_mul(0x100_0000_01b3)
-        });
-        v[(h % DIM as u64) as usize] += 1.0;
-    }
-    v
-}
+#[path = "common/bag_of_words.rs"]
+mod fake_vectors;
+use fake_vectors::bag_of_words;
 
 impl Embedder for FakeEmbedder {
     fn model_id(&self) -> &str {
@@ -97,33 +86,16 @@ fn query_vectors() -> HashMap<String, Vec<f32>> {
 }
 
 /// A throwaway project the tests can edit.
+#[path = "common/cache_project.rs"]
+mod cache_project;
+
 fn project(tag: &str) -> PathBuf {
-    // Unique per call: tests run in parallel and some share a tag.
-    static NEXT: AtomicUsize = AtomicUsize::new(0);
-    let dir = std::env::temp_dir().join(format!(
-        "mct-query-cache-{tag}-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(dir.join("src")).unwrap();
-    std::fs::write(
-        dir.join("src/billing.rs"),
+    cache_project::project(
+        "mct-query-cache",
+        tag,
         "pub fn create_invoice(customer: &str) -> String {\n    format!(\"inv-{customer}\")\n}\n\n\
          pub fn cancel_invoice(id: &str) -> bool {\n    !id.is_empty()\n}\n",
     )
-    .unwrap();
-    std::fs::write(
-        dir.join("src/notify.rs"),
-        "pub fn send_notification(user: &str) -> usize {\n    user.len()\n}\n",
-    )
-    .unwrap();
-    std::fs::write(
-        dir.join("src/other.rs"),
-        "pub fn unrelated_helper() -> u32 {\n    42\n}\n",
-    )
-    .unwrap();
-    dir.canonicalize().unwrap()
 }
 
 fn options(cache: CacheConfig, model: &str) -> ServerOptions {
@@ -138,50 +110,24 @@ fn options(cache: CacheConfig, model: &str) -> ServerOptions {
     }
 }
 
-fn server_with(root: &Path, options: ServerOptions) -> MctServer {
-    let registry = mct_mcp_server::registry::build_registry();
-    let mut index = Index::open_in_memory(root, ExcludeSet::default()).unwrap();
-    index.reindex(&registry, false).unwrap();
-    MctServer::with_options(index, registry, options)
-}
+#[path = "common/cache_server.rs"]
+mod cache_server;
+use cache_server::{reindex, server_with};
 
 fn server(root: &Path) -> MctServer {
     server_with(root, options(CacheConfig::default(), "fake/m1"))
 }
 
-async fn reindex(server: &MctServer) {
-    let registry = server.registry_handle();
-    server
-        .index_handle()
-        .lock()
-        .await
-        .reindex(&registry, false)
-        .unwrap();
-}
+#[path = "common/content.rs"]
+mod result_content;
 
 fn text(result: rmcp::model::CallToolResult) -> String {
-    result
-        .content
-        .first()
-        .and_then(|block| block.as_text())
-        .map(|t| t.text.clone())
-        .unwrap_or_default()
+    result_content::content_of(&result)
 }
 
-fn search_args(query: &str) -> SearchSymbolsArgs {
-    SearchSymbolsArgs {
-        query: query.to_string(),
-        path: None,
-        language: None,
-        limit: None,
-        offset: None,
-        snippet_lines: None,
-        format: Some("text".to_string()),
-        cache: None,
-        detail: None,
-        max_tokens: None,
-    }
-}
+#[path = "common/search_args.rs"]
+mod search_args_fixture;
+use search_args_fixture::search_args;
 
 fn hybrid_args(query: &str) -> HybridSearchArgs {
     HybridSearchArgs {
