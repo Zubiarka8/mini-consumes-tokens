@@ -20,29 +20,30 @@ use unique::uuid_like;
 
 // --- pattern-level -------------------------------------------------------
 
+#[path = "common/exclusions.rs"]
+mod exclusions;
+use exclusions::{assert_default_excludes, assert_default_includes};
+
 #[test]
 fn claude_agent_worktrees_are_excluded() {
-    let set = ExcludeSet::default();
-    assert!(set.is_excluded(".claude"));
-    assert!(set.is_excluded(".claude/settings.json"));
-    assert!(set.is_excluded(".claude/worktrees"));
-    assert!(
-        set.is_excluded(".claude/worktrees/agent-a91ea5ed15bdbe91b/crates/mct-index/src/lib.rs")
-    );
-    // Nested under a subdirectory, not just at the repo root.
-    assert!(set.is_excluded("crates/mct-cli/.claude/worktrees/agent-x/main.rs"));
+    assert_default_excludes(&[
+        ".claude",
+        ".claude/settings.json",
+        ".claude/worktrees",
+        ".claude/worktrees/agent-a91ea5ed15bdbe91b/crates/mct-index/src/lib.rs",
+        "crates/mct-cli/.claude/worktrees/agent-x/main.rs",
+    ]);
 }
 
 #[test]
 fn the_stale_pre_rename_index_directory_is_excluded() {
-    let set = ExcludeSet::default();
-    assert!(set.is_excluded(".claude-index"));
-    assert!(set.is_excluded(".claude-index/index.sqlite3"));
-    // The intermediate `ccm`-era index directory is excluded too.
-    assert!(set.is_excluded(".ccm-index"));
-    assert!(set.is_excluded(".ccm-index/index.sqlite3"));
-    // The current index directory is still excluded too.
-    assert!(set.is_excluded(".mct-index/index.sqlite3"));
+    assert_default_excludes(&[
+        ".claude-index",
+        ".claude-index/index.sqlite3",
+        ".ccm-index",
+        ".ccm-index/index.sqlite3",
+        ".mct-index/index.sqlite3",
+    ]);
 }
 
 #[test]
@@ -83,13 +84,14 @@ fn the_directory_entry_itself_matches_not_only_its_contents() {
 
 #[test]
 fn names_that_merely_contain_claude_are_not_excluded() {
-    let set = ExcludeSet::default();
-    assert!(!set.is_excluded("src/claude.rs"));
-    assert!(!set.is_excluded("myclaude/mod.rs"));
-    assert!(!set.is_excluded("crates/claude-api/src/lib.rs"));
-    assert!(!set.is_excluded("claude-index/main.rs"));
-    assert!(!set.is_excluded(".claude-indexer/main.rs"));
-    assert!(!set.is_excluded("docs/.claude.md"));
+    assert_default_includes(&[
+        "src/claude.rs",
+        "myclaude/mod.rs",
+        "crates/claude-api/src/lib.rs",
+        "claude-index/main.rs",
+        ".claude-indexer/main.rs",
+        "docs/.claude.md",
+    ]);
 }
 
 // --- walk-level ----------------------------------------------------------
