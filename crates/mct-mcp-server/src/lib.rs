@@ -6,6 +6,7 @@ pub mod embedder;
 pub mod format;
 pub mod graph_render;
 pub mod intent;
+pub mod maintainer;
 pub mod pack_budget;
 pub mod readiness;
 pub mod registry;

@@ -994,6 +994,18 @@ Milliseconds of quiet time required after the last detected file write before th
 mct-mcp-server --root /path/to/your/project --reindex-debounce-ms 5000
 ```
 
+### One maintainer per project
+
+Several servers can serve one project at once (one per assistant conversation), plus `mct-cli web`. Only one of them watches the files and runs the periodic full check: the one holding `.mct-index/index.sqlite3.maintainer.lock`. The others answer from the same index and see its updates on their next call. When the maintainer exits, another server takes over within about 40 seconds and catches up once. A check that finds nothing changed writes nothing to the index. See [ADR-028](docs/01-architecture/adrs/028-one-maintainer-per-index.md).
+
+### `--maintenance-idle <VALUE>`
+
+Lets background maintenance sleep while the assistant is not using this server. After `VALUE` without a tool call that reads the index, the server stops watching and checking, and hands maintenance to another server if one is active. The process stays alive. The next such call waits for one full check (hash-skipped, under a second on a mid-sized repository) and is then answered with every change made meanwhile. `VALUE` is written like `--reindex-delay` (`10m`, `90s`) or `off`, the default. The `MCT_MAINTENANCE_IDLE` environment variable sets the same value; the flag wins. Discovery calls (`get_indexing_status`, `discover_tool_categories`, `get_tool_schema`, `select_tools`) neither count as use nor wake it. See [ADR-029](docs/01-architecture/adrs/029-idle-maintenance-sleep.md).
+
+```sh
+mct-mcp-server --root /path/to/your/project --maintenance-idle 10m
+```
+
 ### `--no-obsidian`
 
 Stops the server from regenerating the Obsidian vault in `.mct-index/obsidian/` after each reindex (see [`obsidian`](#obsidian)).

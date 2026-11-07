@@ -1608,6 +1608,46 @@ fn dashboard_snapshot_never_mixes_navigation_and_references_across_reindex() {
 }
 
 #[test]
+fn the_dashboard_reloads_only_when_a_change_is_published() {
+    let root = project();
+    let mut site = Site::load(root.path(), true).unwrap();
+    // A marker a reload would replace.
+    site.generated = 0;
+
+    // Another process opens the index and verifies it: nothing changed, so
+    // nothing is published and the snapshot stays.
+    index(root.path());
+    index(root.path());
+    site.follow_reindex();
+    assert_eq!(
+        site.generated, 0,
+        "an unchanged reindex reloaded the snapshot"
+    );
+
+    fs::write(root.path().join("src/c.rs"), "pub fn gamma() {}\n").unwrap();
+    index(root.path());
+    site.follow_reindex();
+    assert_ne!(site.generated, 0);
+    assert!(site.navigation.symbols.iter().any(|s| s.name == "gamma"));
+}
+
+// Windows refuses to delete a database file the dashboard holds open, so a
+// rebuild under a running dashboard cannot happen there.
+#[cfg(unix)]
+#[test]
+fn a_rebuilt_index_file_is_reloaded() {
+    let root = project();
+    let mut site = Site::load(root.path(), true).unwrap();
+    site.generated = 0;
+    let dir = root.path().join(".mct-index");
+    fs::remove_dir_all(&dir).unwrap();
+    fs::write(root.path().join("src/c.rs"), "pub fn rebuilt() {}\n").unwrap();
+    index(root.path());
+    site.follow_reindex();
+    assert!(site.navigation.symbols.iter().any(|s| s.name == "rebuilt"));
+}
+
+#[test]
 fn the_dashboard_url_carries_no_key_and_the_root_needs_none() {
     assert_eq!(super::dashboard_url(8787), "http://localhost:8787/");
     let root = project();

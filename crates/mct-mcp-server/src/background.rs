@@ -3,8 +3,10 @@
 //! staleness and call the `reindex` tool manually.
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::Arc;
+use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use mct_core::LanguageRegistry;
@@ -62,9 +64,8 @@ pub fn changed_paths(
             .filter(|event| !matches!(event.kind, EventKind::Access(_)))
             .flat_map(|event| event.paths.iter())
     };
-    let rules_file_touched = changes().any(|path| {
-        relative_slash_path(root, path).is_some_and(|rel| ExcludeSet::is_rules_file(&rel))
-    });
+    let rules_file_touched = changes()
+        .any(|path| relative_slash_path(root, path).is_some_and(|rel| exclude.is_rules_path(&rel)));
     if rules_file_touched && exclude.reload() {
         return Changed::Rescan;
     }
@@ -240,16 +241,15 @@ fn receive_before_deadline(
 /// and inotify reports that open back through the same watch, so without
 /// this filter every reindex would trigger another one indefinitely.
 ///
-/// Returns the [`Debouncer`] guard — the caller must keep it alive for as
-/// long as watching should continue; dropping it stops the watch and joins
-/// its background thread.
+/// Returns the [`WatcherHandle`] — the caller must keep it alive for as
+/// long as watching should continue; see its docs for the two ways to end it.
 pub fn spawn_watcher(
     index: Arc<Mutex<Index>>,
     registry: LanguageRegistry,
     root: PathBuf,
     exclude: ExcludeSet,
     debounce: Duration,
-) -> notify::Result<Debouncer<notify::RecommendedWatcher, RecommendedCache>> {
+) -> notify::Result<WatcherHandle> {
     spawn_watcher_with_reconciliation(
         index,
         registry,
@@ -258,6 +258,33 @@ pub fn spawn_watcher(
         debounce,
         DEFAULT_RECONCILIATION_INTERVAL,
     )
+}
+
+/// A running watcher and its indexing thread.
+///
+/// - [`WatcherHandle::stop`] ends it on purpose (sleep, shutdown, a lost
+///   lease): no reindex starts after it returns, an update already running is
+///   let finish rather than aborted, and no final reconciliation is
+///   scheduled. It returns once the indexing thread has exited.
+/// - Dropping it without `stop` behaves as an unexpected loss of the event
+///   stream: the thread runs one final reconciliation, then exits on its own.
+pub struct WatcherHandle {
+    debouncer: Option<Debouncer<notify::RecommendedWatcher, RecommendedCache>>,
+    stopping: Arc<AtomicBool>,
+    thread: Option<JoinHandle<()>>,
+}
+
+impl WatcherHandle {
+    pub fn stop(mut self) {
+        self.stopping.store(true, Ordering::SeqCst);
+        // Dropping the debouncer closes the event channel, which wakes the
+        // thread at once unless it is mid-update; the callback never blocks
+        // on the channel, so this cannot wait on a full one.
+        drop(self.debouncer.take());
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
 }
 
 /// Starts event-driven indexing with bounded event delivery and idle
@@ -269,13 +296,44 @@ pub fn spawn_watcher_with_reconciliation(
     exclude: ExcludeSet,
     debounce: Duration,
     reconciliation_interval: Duration,
-) -> notify::Result<Debouncer<notify::RecommendedWatcher, RecommendedCache>> {
+) -> notify::Result<WatcherHandle> {
+    spawn_watcher_with_schedule(
+        index,
+        registry,
+        root,
+        exclude,
+        debounce,
+        reconciliation_interval,
+        reconciliation_interval,
+    )
+}
+
+/// [`spawn_watcher_with_reconciliation`] whose first full reconciliation
+/// runs `first_reconciliation` after the start instead of a whole interval:
+/// it covers edits made before the watch was registered, which produce no
+/// event of their own.
+pub fn spawn_watcher_with_schedule(
+    index: Arc<Mutex<Index>>,
+    registry: LanguageRegistry,
+    root: PathBuf,
+    exclude: ExcludeSet,
+    debounce: Duration,
+    reconciliation_interval: Duration,
+    first_reconciliation: Duration,
+) -> notify::Result<WatcherHandle> {
     let reconciliation_interval = if reconciliation_interval.is_zero() {
         DEFAULT_RECONCILIATION_INTERVAL
     } else {
         reconciliation_interval
     };
     let (tx, rx) = mpsc::sync_channel(1);
+    // Set by the callback when the channel was full: the worker owes a full
+    // walk covering every event dropped meanwhile. A flag instead of a
+    // blocking send, so stopping never waits on a callback stuck on it.
+    let overflowed = Arc::new(AtomicBool::new(false));
+    let callback_overflowed = Arc::clone(&overflowed);
+    let stopping = Arc::new(AtomicBool::new(false));
+    let worker_stopping = Arc::clone(&stopping);
     let coalesce = debounce.min(MAX_COALESCE);
     // Total latency after the last change stays ~`debounce`.
     let quiet = debounce - coalesce;
@@ -294,11 +352,16 @@ pub fn spawn_watcher_with_reconciliation(
         };
         match tx.try_send(changed) {
             Ok(()) => {}
-            Err(mpsc::TrySendError::Full(_)) => {
+            Err(mpsc::TrySendError::Full(changed)) => {
                 // Backpressure is bounded to one item. Once the in-flight
                 // batch is consumed, force a full walk to cover every event
-                // coalesced while indexing was busy.
-                let _ = tx.send(Changed::Rescan);
+                // coalesced while indexing was busy. The flag is set before
+                // the retry: if the channel is still full, the queued item
+                // is not consumed yet, and the worker reads the flag right
+                // after consuming it. If the worker took it meanwhile, the
+                // retry delivers this batch to wake it.
+                callback_overflowed.store(true, Ordering::SeqCst);
+                let _ = tx.try_send(changed);
             }
             Err(mpsc::TrySendError::Disconnected(_)) => {}
         }
@@ -307,7 +370,7 @@ pub fn spawn_watcher_with_reconciliation(
     debouncer.watch(&root, RecursiveMode::Recursive)?;
     tracing::info!(backend = ?notify::RecommendedWatcher::kind(), "filesystem watcher started");
 
-    std::thread::spawn(move || {
+    let thread = std::thread::spawn(move || {
         // Only the watcher asks for it: the initial index would pay a trigger
         // run per symbol for a count nobody reads.
         if let Err(err) = index.blocking_lock().track_symbol_changes(true) {
@@ -317,7 +380,7 @@ pub fn spawn_watcher_with_reconciliation(
         let mut pending = Changed::Nothing;
         let mut deadline = Instant::now();
         let mut batch_started: Option<Instant> = None;
-        let mut reconcile_at = Instant::now() + reconciliation_interval;
+        let mut reconcile_at = Instant::now() + first_reconciliation;
         let mut watcher_disconnected = false;
         loop {
             let now = Instant::now();
@@ -329,6 +392,17 @@ pub fn spawn_watcher_with_reconciliation(
                 reconcile_at
             };
             let received = receive_before_deadline(&rx, now, wait_until);
+            if worker_stopping.load(Ordering::SeqCst) {
+                break; // stopped on purpose: no final reconciliation
+            }
+            if overflowed.swap(false, Ordering::SeqCst) {
+                let started = *batch_started.get_or_insert_with(Instant::now);
+                pending = merge_changed(
+                    std::mem::replace(&mut pending, Changed::Nothing),
+                    Changed::Rescan,
+                );
+                deadline = batch_deadline(Instant::now(), quiet, started);
+            }
             match received {
                 Ok(batch) => {
                     if batch != Changed::Nothing {
@@ -363,6 +437,9 @@ pub fn spawn_watcher_with_reconciliation(
                 continue; // don't take the index lock for nothing
             }
             let mut guard = index.blocking_lock();
+            if worker_stopping.load(Ordering::SeqCst) {
+                break; // stopped while waiting for the index
+            }
             let outcome = state.apply(&mut *guard, &registry, changed);
             if let Some(Ok((_, report))) = &outcome {
                 for warning in &report.warnings {
@@ -405,7 +482,11 @@ pub fn spawn_watcher_with_reconciliation(
         }
     });
 
-    Ok(debouncer)
+    Ok(WatcherHandle {
+        debouncer: Some(debouncer),
+        stopping,
+        thread: Some(thread),
+    })
 }
 
 #[cfg(test)]

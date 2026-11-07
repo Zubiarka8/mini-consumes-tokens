@@ -2139,6 +2139,14 @@ pub fn index_status(status: &IndexStatus, verbose_dependencies: bool) -> String 
         Some(ts) => out.push_str(&format!("Last indexed at unix timestamp {ts}.\n")),
         None => out.push_str("Never indexed yet.\n"),
     }
+    if let Some(ts) = status
+        .last_verified_at
+        .filter(|ts| Some(*ts) > status.last_indexed_at)
+    {
+        out.push_str(&format!(
+            "Last verified unchanged at unix timestamp {ts} (this process).\n"
+        ));
+    }
     if status.languages.is_empty() {
         out.push_str("No languages indexed yet.\n");
     } else {
@@ -2980,6 +2988,7 @@ mod index_status_tests {
             total_files: 2,
             total_symbols: 10,
             last_indexed_at: Some(1_700_000_000),
+            last_verified_at: None,
             published_generation: 0,
             last_full_reconciled_at: None,
             unsupported_languages: vec!["lua".to_string()],

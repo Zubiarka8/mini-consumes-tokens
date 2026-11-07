@@ -75,7 +75,7 @@ fn database_path(path: &Path) -> anyhow::Result<PathBuf> {
     Ok(result)
 }
 
-fn acquire(path: &Path, suffix: &str, shared: bool, timeout: Duration) -> anyhow::Result<Guard> {
+fn open_lock_file(path: &Path, suffix: &str) -> anyhow::Result<File> {
     let mut name = path.as_os_str().to_os_string();
     name.push(suffix);
     let lock_path = PathBuf::from(name);
@@ -105,6 +105,11 @@ fn acquire(path: &Path, suffix: &str, shared: bool, timeout: Duration) -> anyhow
             "coordination file must be private (mode 0600)"
         );
     }
+    Ok(file)
+}
+
+fn acquire(path: &Path, suffix: &str, shared: bool, timeout: Duration) -> anyhow::Result<Guard> {
+    let file = open_lock_file(path, suffix)?;
     let start = Instant::now();
     loop {
         let result = if shared {
@@ -144,6 +149,27 @@ impl DatabaseAccess {
     pub fn writer(&self, timeout: Duration) -> anyhow::Result<Guard> {
         safe_file(&self.path)?;
         acquire(&self.path, ".writer.lock", false, timeout)
+    }
+
+    /// The background maintenance lease of this database, if no other
+    /// process holds it: an exclusive OS lock on `<database>.maintainer.lock`,
+    /// separate from the writer lock, held for as long as the guard lives and
+    /// released by the OS when the holder exits or crashes. Never waits.
+    /// The file records the holder's process id, for diagnostics only.
+    pub fn try_maintainer(&self) -> anyhow::Result<Option<Guard>> {
+        safe_file(&self.path)?;
+        let mut file = open_lock_file(&self.path, ".maintainer.lock")?;
+        match file.try_lock() {
+            Ok(()) => {
+                use std::io::Write;
+                // Best effort: the lock, not the content, is the lease.
+                let _ = file.set_len(0);
+                let _ = writeln!(file, "pid {}", std::process::id());
+                Ok(Some(Guard { _file: file }))
+            }
+            Err(TryLockError::WouldBlock) => Ok(None),
+            Err(TryLockError::Error(error)) => Err(error).context("OS maintainer locking failed"),
+        }
     }
 
     /// Prerequisite for offline migration/replacement, never a cutover itself.
