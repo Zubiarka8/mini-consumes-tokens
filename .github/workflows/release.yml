@@ -1,6 +1,6 @@
 name: Release
 
-# Pushing a `v*` tag (e.g. `v0.2.0`) builds mct-cli and mct-mcp-server for 6
+# Pushing a `v*` tag (e.g. `v0.2.0`) builds mct-cli and mct-mcp-server for 8
 # OS/arch combos, smoke-tests the natively built ones, packages them and
 # attaches the archives to a GitHub Release at that tag. The tag must equal
 # `v` + the workspace version in Cargo.toml, or the build fails before
@@ -47,6 +47,18 @@ jobs:
             os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             native: false
+          # Static musl builds run on any Linux, including Alpine and distros
+          # whose glibc is older than ubuntu-latest's. Each is built natively
+          # (arm64 on the free `ubuntu-24.04-arm` runner) with musl-gcc for
+          # the bundled C code, so both are smoke-tested.
+          - name: linux-x86_64-musl
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            native: true
+          - name: linux-arm64-musl
+            os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            native: true
           # `macos-13` was retired in December 2025. `macos-26-intel` is a
           # standard GitHub-hosted Intel (x64) image; `macos-latest` is arm64
           # and must not be used for this target.
@@ -101,11 +113,19 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
 
+      - name: Install musl-gcc (musl targets only)
+        if: endsWith(matrix.target, '-musl')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
       - name: Build mct-cli and mct-mcp-server
         shell: bash
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
           CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
+          CC_x86_64_unknown_linux_musl: musl-gcc
+          CC_aarch64_unknown_linux_musl: musl-gcc
         run: cargo build --release --locked --target ${{ matrix.target }} -p mct-cli -p mct-mcp-server
 
       - name: Smoke-test the binaries (native targets only)
@@ -184,7 +204,7 @@ jobs:
           find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec cp {} release/ \;
           ls -la release
           count="$(find release -type f | wc -l)"
-          [ "$count" -eq 6 ] || { echo "::error::expected 6 archives, found $count"; exit 1; }
+          [ "$count" -eq 8 ] || { echo "::error::expected 8 archives, found $count"; exit 1; }
 
       - uses: softprops/action-gh-release@v2
         with:
@@ -193,6 +213,6 @@ jobs:
           body: |
             See [CHANGELOG.md at ${{ github.ref_name }}](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md) for the changes and the upgrade steps.
 
-            Prebuilt binaries below (mct-cli + mct-mcp-server) for Linux (x86_64/arm64), macOS (Intel/Apple Silicon), and Windows (x86_64/arm64). They are built without the optional `semantic` feature: `hybrid_search` returns its lexical ranking and says so; build `mct-mcp-server` from source with `--features semantic` for embedding search.
+            Prebuilt binaries below (mct-cli + mct-mcp-server) for Linux (x86_64/arm64, glibc and static musl), macOS (Intel/Apple Silicon), and Windows (x86_64/arm64). They are built without the optional `semantic` feature: `hybrid_search` returns its lexical ranking and says so; build `mct-mcp-server` from source with `--features semantic` for embedding search.
 
             The crates are not published to crates.io (see [RELEASING.md at ${{ github.ref_name }}](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/RELEASING.md)).
