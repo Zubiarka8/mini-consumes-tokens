@@ -3,10 +3,11 @@
 # binaries, so the packages depend on no system library and install on any
 # Debian/Ubuntu or Fedora/RHEL/openSUSE release.
 #
-# nfpm expands the environment variables below; the workflow sets them:
+# nfpm expands environment variables in `arch` and `version` only (not in
+# `contents`), so the workflow sets these and copies the files to pack into
+# `pkg/` under the working directory:
 #   NFPM_ARCH     amd64 | arm64 (nfpm maps them to x86_64/aarch64 for rpm)
 #   NFPM_VERSION  the workspace version, e.g. 0.3.1
-#   NFPM_BIN_DIR  directory holding mct-cli and mct-mcp-server
 name: mini-consumes-tokens
 arch: ${NFPM_ARCH}
 platform: linux
@@ -21,17 +22,17 @@ description: |
 homepage: https://github.com/Zubiarka8/mini-consumes-tokens
 license: Apache-2.0
 contents:
-  - src: ${NFPM_BIN_DIR}/mct-cli
+  - src: pkg/mct-cli
     dst: /usr/bin/mct-cli
     file_info:
       mode: 0755
-  - src: ${NFPM_BIN_DIR}/mct-mcp-server
+  - src: pkg/mct-mcp-server
     dst: /usr/bin/mct-mcp-server
     file_info:
       mode: 0755
-  - src: ${NFPM_BIN_DIR}/LICENSE
+  - src: pkg/LICENSE
     dst: /usr/share/doc/mini-consumes-tokens/LICENSE
-  - src: ${NFPM_BIN_DIR}/THIRD_PARTY_NOTICES.md
+  - src: pkg/THIRD_PARTY_NOTICES.md
     dst: /usr/share/doc/mini-consumes-tokens/THIRD_PARTY_NOTICES.md
-  - src: ${NFPM_BIN_DIR}/README.md
+  - src: pkg/README.md
     dst: /usr/share/doc/mini-consumes-tokens/README.md
