@@ -69,6 +69,7 @@ pub(super) fn partition(members: &[&[Slot]], texts: &Texts) -> GroupSubgroups {
         return GroupSubgroups {
             status: SubgroupStatus::Single,
             count: 1,
+            member_subgroups: vec![1; members.len()],
             ..GroupSubgroups::default()
         };
     }
@@ -100,6 +101,15 @@ pub(super) fn partition(members: &[&[Slot]], texts: &Texts) -> GroupSubgroups {
             .collect()
     };
     GroupSubgroups {
+        member_subgroups: {
+            let mut membership = vec![0; members.len()];
+            for (subgroup, class) in classes.iter().enumerate() {
+                for &member in class {
+                    membership[member] = subgroup + 1;
+                }
+            }
+            membership
+        },
         status: SubgroupStatus::Split,
         basis: items
             .iter()
@@ -402,6 +412,17 @@ mod tests {
         let result = run(&members, &texts);
         assert_eq!(result.count, classes);
         assert_eq!(result.subgroups.len(), MAX_LISTED_SUBGROUPS);
+        assert_eq!(result.member_subgroups.len(), members.len());
+        for (member, subgroup) in result.member_subgroups.iter().enumerate() {
+            assert_eq!(
+                *subgroup,
+                if member < big {
+                    1
+                } else {
+                    (member - big) / 2 + 2
+                }
+            );
+        }
         assert_eq!(result.subgroups[0].size, big);
         assert_eq!(
             result.subgroups[0].members.len(),

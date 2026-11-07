@@ -3,6 +3,9 @@
 ## Observation on 2026-11-05
 
 On checkout `4eacbcb` with local changes, `get_indexing_status` (no arguments) returned index timestamp `1793870569`, 1,246 files, 47,263 symbols and 20 parse diagnostics. Sixteen deliberately malformed fixtures remain expected (ERR-003). The remaining diagnostics match ERR-002 (`scripts/windows/review-check.ps1: line 29: syntax error`), ERR-023 (`crates/mct-cli/web-ui/src/styles.css: line 12: syntax error`) and ERR-024 (both generated CSS files: `line 1: syntax error`). `scripts/unix/parse-probe.sh` reproduced all four unexpected rejections and exited 1; those files remain absent from parsed results. Next: investigate the recorded grammar limitations and verify a refreshed index before closing them. The index snapshot can predate local changes.
+## Observation on 2026-11-06
+
+On checkout `feat/web-launcher-script` (working tree contains the duplication-refactor changes), `get_indexing_status` (no arguments) and `impact_analysis` for `content_of` and `try_call` each failed with `tool call error: tool call failed for `mini-consumes-tokens/<tool>`\n\nCaused by:\n    Transport closed`. The connected MCP graph could not verify index freshness or callers for the new test helpers. Cargo and direct diff review remain available; retry after reconnecting the project MCP server. This is an infrastructure observation; its cause is not established.
 
 ## Observation on 2026-11-04
 

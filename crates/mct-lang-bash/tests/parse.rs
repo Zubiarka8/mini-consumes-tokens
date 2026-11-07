@@ -63,14 +63,7 @@ fn variable_assigned_inside_a_function_is_not_indexed() {
 #[test]
 fn source_with_literal_path_is_an_import() {
     let parsed = parse("source ./lib.sh\n. \"$HOME/.profile\"\n");
-    let imports: Vec<_> = parsed
-        .relations
-        .iter()
-        .filter(|r| r.kind == RelationKind::Imports)
-        .map(|r| r.to_name.as_str())
-        .collect();
-    assert!(imports.contains(&"./lib.sh"));
-    assert!(imports.contains(&"$HOME/.profile"));
+    mct_corpus::assert_imports(&parsed, &["./lib.sh", "$HOME/.profile"]);
 }
 
 #[test]

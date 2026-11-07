@@ -117,24 +117,18 @@ fn status_reports_full_rust_coverage() {
 #[test]
 fn find_calls_reports_log_from_add_item() {
     let index = open_indexed();
-    let calls = index.find_calls("add_item").unwrap();
-    let log_calls: Vec<_> = calls.iter().filter(|c| c.to_name == "log").collect();
-    assert_eq!(log_calls.len(), 1);
-    assert_eq!(log_calls[0].relative_path, "invoice.rs");
+    mct_corpus::assert_calls_once(&index, "add_item", "log", "invoice.rs");
 }
 
 #[test]
 fn find_callers_of_log_shows_both_invoice_methods() {
     let index = open_indexed();
-    let callers = index.find_callers("log").unwrap();
-    assert_eq!(
-        callers.len(),
-        2,
-        "add_item and add_item_with_tax both call log: {callers:?}"
+    mct_corpus::assert_callers_named(
+        &index,
+        "log",
+        "invoice.rs",
+        &["add_item", "add_item_with_tax"],
     );
-    assert!(callers.iter().all(|c| c.relative_path == "invoice.rs"));
-    assert!(callers.iter().any(|c| c.from_symbol == "add_item"));
-    assert!(callers.iter().any(|c| c.from_symbol == "add_item_with_tax"));
 }
 
 #[test]

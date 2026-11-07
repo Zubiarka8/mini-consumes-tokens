@@ -13,15 +13,7 @@ fn parse(src: &str) -> mct_core::ParsedFile {
 #[test]
 fn file_module_ends_on_the_last_line() {
     // A trailing newline must not push the module one line past the file.
-    let module = |src: &str| {
-        let parsed = parse(src);
-        let m = parsed
-            .symbols
-            .iter()
-            .find(|s| s.kind == SymbolKind::Module)
-            .unwrap();
-        (m.location.line, m.location.end_line)
-    };
+    let module = |src: &str| mct_corpus::module_span(&parse(src));
     let body = "function Get-X {\n    Write-Output 1\n}";
     assert_eq!(module(&format!("{body}\n")), (1, Some(3)));
     assert_eq!(module(body), (1, Some(3)));
@@ -86,14 +78,7 @@ fn variable_assigned_inside_a_function_is_not_indexed() {
 #[test]
 fn dot_sourcing_and_import_module_are_imports() {
     let parsed = parse(". .\\lib.ps1\nImport-Module MyModule\n");
-    let imports: Vec<_> = parsed
-        .relations
-        .iter()
-        .filter(|r| r.kind == RelationKind::Imports)
-        .map(|r| r.to_name.as_str())
-        .collect();
-    assert!(imports.contains(&".\\lib.ps1"));
-    assert!(imports.contains(&"MyModule"));
+    mct_corpus::assert_imports(&parsed, &[".\\lib.ps1", "MyModule"]);
 }
 
 #[test]

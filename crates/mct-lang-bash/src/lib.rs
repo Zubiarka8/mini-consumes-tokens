@@ -150,13 +150,7 @@ fn quoted_alternative_parse_buffer(root: Node, source: &str) -> Option<String> {
 }
 
 fn module_name_for(relative_path: &str) -> String {
-    relative_path
-        .rsplit('/')
-        .next()
-        .unwrap_or(relative_path)
-        .trim_end_matches(".bash")
-        .trim_end_matches(".sh")
-        .to_string()
+    mct_tree_sitter::module_name(relative_path, &[".bash", ".sh"])
 }
 
 fn text<'a>(node: Node, source: &'a str) -> &'a str {

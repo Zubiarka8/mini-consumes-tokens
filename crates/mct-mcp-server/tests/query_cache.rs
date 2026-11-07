@@ -188,15 +188,8 @@ fn hybrid_args(query: &str) -> HybridSearchArgs {
         query: query.to_string(),
         // Explicit, so paraphrases share a key (auto routing may differ).
         alpha: Some(0.75),
-        path: None,
-        language: None,
-        top_k: None,
-        offset: None,
-        snippet_lines: None,
         format: Some("text".to_string()),
-        cache: None,
-        detail: None,
-        max_tokens: None,
+        ..Default::default()
     }
 }
 

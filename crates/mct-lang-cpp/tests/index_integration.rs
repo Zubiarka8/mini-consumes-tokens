@@ -94,7 +94,5 @@ fn find_callers_of_log_shows_add_item_as_caller() {
 #[test]
 fn find_references_finds_cross_file_calls_from_main() {
     let index = open_indexed();
-    let refs = index.find_references("addItem").unwrap();
-    assert_eq!(refs.len(), 2, "Main.cpp calls addItem twice");
-    assert!(refs.iter().all(|r| r.relative_path == "Main.cpp"));
+    mct_corpus::assert_references_in_file(&index, "addItem", 2, "Main.cpp");
 }

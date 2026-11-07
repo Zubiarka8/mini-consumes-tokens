@@ -3,7 +3,7 @@
 // untrusted repo content (see crates/mct-lang-xaml/src/ for that policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use mct_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
+use mct_core::{RelationKind, SymbolKind};
 use mct_lang_xaml::XamlParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
@@ -87,15 +87,7 @@ fn nested_named_elements_track_parent() {
 #[test]
 fn file_module_ends_on_the_last_line() {
     // A trailing newline must not push the module one line past the file.
-    let module = |src: &str| {
-        let parsed = parse(src);
-        let m = parsed
-            .symbols
-            .iter()
-            .find(|s| s.kind == SymbolKind::Module)
-            .unwrap();
-        (m.location.line, m.location.end_line)
-    };
+    let module = |src: &str| mct_corpus::module_span(&parse(src));
     let window = "<Window>\n  <Button x:Name=\"Ok\"/>\n</Window>";
     assert_eq!(module(&format!("{window}\n")), (1, Some(3)));
     assert_eq!(module(window), (1, Some(3)));
@@ -104,14 +96,7 @@ fn file_module_ends_on_the_last_line() {
 
 #[test]
 fn syntax_error_is_reported_not_panicked() {
-    let result = XamlParser.parse(&SourceFile {
-        relative_path: "Broken.xaml".to_string(),
-        contents: "<Window><Unclosed>".to_string(),
-    });
-    assert!(
-        matches!(result, Err(mct_core::ParseError::Syntax { .. })),
-        "{result:?}"
-    );
+    mct_corpus::assert_syntax_error_reported(&XamlParser, "Broken.xaml", "<Window><Unclosed>");
 }
 
 /// Every handler reference names the C# code-behind file as where the

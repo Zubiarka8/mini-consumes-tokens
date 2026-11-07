@@ -11,8 +11,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use mct_core::LanguageRegistry;
-use mct_index::{ExcludeSet, Index};
+use mct_index::Index;
 use mct_lang_csharp::CSharpParser;
 
 fn fixture_root() -> std::path::PathBuf {
@@ -20,18 +19,12 @@ fn fixture_root() -> std::path::PathBuf {
 }
 
 fn open_indexed() -> Index {
-    let root = fixture_root();
-    let mut registry = LanguageRegistry::new();
-    registry.register(Arc::new(CSharpParser));
-    let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
-    let report = index.reindex(&registry, false).unwrap();
-    assert_eq!(report.files_parsed, 3);
-    assert!(
-        report.issues.is_empty(),
-        "no parse issues expected: {:?}",
-        report.issues
-    );
-    index
+    mct_corpus::open_indexed(
+        &fixture_root(),
+        Arc::new(CSharpParser),
+        3,
+        "billing-app fixture files",
+    )
 }
 
 #[test]
@@ -71,7 +64,5 @@ fn find_callers_of_log_shows_add_item_as_caller() {
 #[test]
 fn find_references_finds_cross_file_calls_from_program() {
     let index = open_indexed();
-    let refs = index.find_references("AddItem").unwrap();
-    assert_eq!(refs.len(), 2, "Program.cs calls AddItem twice");
-    assert!(refs.iter().all(|r| r.relative_path == "Program.cs"));
+    mct_corpus::assert_references_in_file(&index, "AddItem", 2, "Program.cs");
 }

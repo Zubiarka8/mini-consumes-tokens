@@ -29,20 +29,14 @@ use serde_json::{json, Value};
 mod tokens;
 use tokens::approx_tokens;
 
+#[path = "common/all_content.rs"]
+mod all_content;
+use all_content::content_of;
+
 fn fixture(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures")
         .join(name)
-}
-
-fn content_of(result: &CallToolResult) -> String {
-    result
-        .content
-        .iter()
-        .filter_map(|block| block.as_text())
-        .map(|t| t.text.clone())
-        .collect::<Vec<_>>()
-        .join("\n")
 }
 
 async fn call(server: &MctServer, tool: &str, args: &Value) -> CallToolResult {
