@@ -11,7 +11,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use mct_core::LanguageRegistry;
-use mct_index::{ExcludeSet, Index};
+use mct_index::Index;
 use mct_lang_xml::XmlParser;
 
 fn fixture_root() -> std::path::PathBuf {
@@ -31,29 +31,16 @@ fn registry() -> LanguageRegistry {
 }
 
 fn open_indexed() -> Index {
-    let root = fixture_root();
-    let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
-    let report = index.reindex(&registry(), false).unwrap();
-    assert_eq!(report.files_parsed, 1, "settings.xml");
-    assert!(
-        report.issues.is_empty(),
-        "no parse issues expected: {:?}",
-        report.issues
-    );
-    index
+    mct_corpus::open_indexed(&fixture_root(), Arc::new(XmlParser), 1, "settings.xml")
 }
 
 fn open_services_indexed() -> Index {
-    let root = services_fixture_root();
-    let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
-    let report = index.reindex(&registry(), false).unwrap();
-    assert_eq!(report.files_parsed, 3, "api.xml, logging.xml, worker.xml");
-    assert!(
-        report.issues.is_empty(),
-        "no parse issues expected: {:?}",
-        report.issues
-    );
-    index
+    mct_corpus::open_indexed(
+        &services_fixture_root(),
+        Arc::new(XmlParser),
+        3,
+        "api.xml, logging.xml, worker.xml",
+    )
 }
 
 #[test]
