@@ -104,6 +104,7 @@ fn text<'a>(node: Node, source: &'a str) -> &'a str {
     node.utf8_text(source.as_bytes()).unwrap_or_default()
 }
 
+#[derive(Default)]
 struct Walker<'a> {
     source: &'a str,
     symbols: Vec<SymbolRecord>,
@@ -116,10 +117,7 @@ impl<'a> Walker<'a> {
     fn new(source: &'a str) -> Self {
         Self {
             source,
-            symbols: Vec::new(),
-            relations: Vec::new(),
-            relation_targets: Vec::new(),
-            next_id: 0,
+            ..Self::default()
         }
     }
 
@@ -161,10 +159,9 @@ impl<'a> Walker<'a> {
         package_name: Option<&str>,
         depth: u32,
     ) {
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
+        mct_tree_sitter::for_each_child(node, |child| {
             self.visit(child, owner, package_name, depth + 1);
-        }
+        });
     }
 
     fn visit(&mut self, node: Node, owner: SymbolId, package_name: Option<&str>, depth: u32) {
