@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Releases ship a native Windows on Arm archive (`windows-arm64`), and `install.ps1` picks it on an Arm machine.
 - Releases ship static musl archives for Linux (`linux-x86_64-musl`, `linux-arm64-musl`) that run on Alpine and on distros with an older glibc; `install.sh` picks them on a musl system, and `MCT_LIBC=musl` forces them.
+- Releases ship `.deb` and `.rpm` packages for Linux x86_64 and arm64 that install `mct-cli` and `mct-mcp-server` into `/usr/bin` on Debian/Ubuntu and Fedora/RHEL/openSUSE.
 
 ## [0.3.1] - 2026-11-07
 
