@@ -74,10 +74,7 @@ fn implements_relation_resolves_to_the_interface() {
 #[test]
 fn find_calls_reports_validate_from_pay() {
     let index = open_indexed();
-    let calls = index.find_calls("pay").unwrap();
-    let validate_calls: Vec<_> = calls.iter().filter(|c| c.to_name == "validate").collect();
-    assert_eq!(validate_calls.len(), 1);
-    assert_eq!(validate_calls[0].relative_path, "Invoice.php");
+    mct_corpus::assert_calls_once(&index, "pay", "validate", "Invoice.php");
 }
 
 #[test]

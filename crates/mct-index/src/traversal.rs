@@ -18,7 +18,7 @@ use std::collections::HashSet;
 
 use mct_core::MAX_QUERY_DEPTH;
 
-use crate::queries::{self, RelationHit, Resolution, ResolvedScope};
+use crate::queries::{self, RelationDirection, RelationHit, Resolution, ResolvedScope};
 use crate::{Index, Result};
 
 /// The single-hop lookup from one symbol id: at most the given number of hits
@@ -170,7 +170,16 @@ pub(crate) fn find_calls_bfs(
     let start = queries::symbol_ids_named(&index.conn, function, scope)?;
     let first = first_hop_filtered(
         budget,
-        |limit, offset| queries::find_calls_page(&index.conn, function, scope, limit, offset),
+        |limit, offset| {
+            queries::relation_hits_page(
+                &index.conn,
+                RelationDirection::Calls,
+                function,
+                scope,
+                limit,
+                offset,
+            )
+        },
         |_| Ok(true),
     )?;
     bfs(
@@ -201,7 +210,16 @@ pub(crate) fn find_callers_bfs(
     let start = scoped_start(index, function, scope)?;
     let first = first_hop_filtered(
         budget,
-        |limit, offset| queries::find_callers_page(&index.conn, function, scope, limit, offset),
+        |limit, offset| {
+            queries::relation_hits_page(
+                &index.conn,
+                RelationDirection::Callers,
+                function,
+                scope,
+                limit,
+                offset,
+            )
+        },
         |hit| reaches_start(index, hit, &start),
     )?;
     bfs(
@@ -230,7 +248,16 @@ pub(crate) fn find_references_bfs(
     let start = scoped_start(index, symbol, scope)?;
     let first = first_hop_filtered(
         budget,
-        |limit, offset| queries::find_references_page(&index.conn, symbol, scope, limit, offset),
+        |limit, offset| {
+            queries::relation_hits_page(
+                &index.conn,
+                RelationDirection::References,
+                symbol,
+                scope,
+                limit,
+                offset,
+            )
+        },
         |hit| reaches_start(index, hit, &start),
     )?;
     bfs(

@@ -6,8 +6,8 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use mct_core::{LanguageParser, LanguageRegistry, RelationKind, SourceFile, SymbolKind};
-use mct_index::{ExcludeSet, Index, Resolution};
+use mct_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
+use mct_index::{Index, Resolution};
 use mct_lang_rust::RustParser;
 
 fn parse(path: &str, src: &str) -> mct_core::ParsedFile {
@@ -21,12 +21,7 @@ fn parse(path: &str, src: &str) -> mct_core::ParsedFile {
 
 fn open_indexed() -> Index {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/depgraph");
-    let mut registry = LanguageRegistry::new();
-    registry.register(Arc::new(RustParser));
-    let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
-    let report = index.reindex(&registry, false).unwrap();
-    assert!(report.issues.is_empty(), "{:?}", report.issues);
-    index
+    mct_corpus::open_fixture_indexed(&root, Arc::new(RustParser))
 }
 
 /// What the `imports` relation named `to` from `from_file` resolved to.

@@ -161,15 +161,7 @@ fn find_calls_reports_log_from_add_item() {
 #[test]
 fn find_callers_of_log_shows_both_invoice_methods() {
     let index = open_indexed();
-    let callers = index.find_callers("log").unwrap();
-    assert_eq!(
-        callers.len(),
-        2,
-        "addItem and addItemWithTax both call log: {callers:?}"
-    );
-    assert!(callers.iter().all(|c| c.relative_path == "Invoice.kt"));
-    assert!(callers.iter().any(|c| c.from_symbol == "addItem"));
-    assert!(callers.iter().any(|c| c.from_symbol == "addItemWithTax"));
+    mct_corpus::assert_callers_named(&index, "log", "Invoice.kt", &["addItem", "addItemWithTax"]);
 }
 
 #[test]

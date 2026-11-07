@@ -422,12 +422,7 @@ fn target_of(parsed: &mct_core::ParsedFile, index: usize) -> &mct_core::Relation
 }
 
 fn parse_at(path: &str, src: &str) -> mct_core::ParsedFile {
-    MarkdownParser
-        .parse(&SourceFile {
-            relative_path: path.to_string(),
-            contents: src.to_string(),
-        })
-        .expect("valid Markdown source should parse")
+    mct_corpus::parse_source(&MarkdownParser, path, "Markdown", src)
 }
 
 #[test]

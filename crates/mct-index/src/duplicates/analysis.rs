@@ -28,12 +28,13 @@ use super::{
     SkippedCandidate, SubgroupStatus, VerdictCounts, VerdictLevel, DUPLICATE_KIND_ALLOWLIST,
     MAX_EXCERPT_LINES, MAX_EXCERPT_LINE_CHARS,
 };
+use crate::queries::DuplicateCandidate;
 use crate::{queries, Index, Result, SymbolListEntry};
 use evidence::{MemberContext, MemberInput, Texts};
 use fingerprint::Interner;
 
-/// Identity of a grouped member: path, start, end and symbol name.
-type MemberKey = (String, u32, u32, String);
+/// Identity of a grouped member: path, line range, name and byte column.
+type MemberKey = (String, u32, u32, String, u32);
 
 pub(super) fn run(
     index: &Index,
@@ -50,9 +51,10 @@ pub(super) fn run(
     let hashes: HashMap<String, String> = file_hashes.into_iter().collect();
 
     // Candidates per (file, language), so each file is read and tokenized once.
-    let mut files: BTreeMap<(&str, &str), Vec<&SymbolListEntry>> = BTreeMap::new();
+    let mut files: BTreeMap<(&str, &str), Vec<&DuplicateCandidate>> = BTreeMap::new();
     let mut unsupported: BTreeSet<&str> = BTreeSet::new();
-    for entry in &entries {
+    for candidate in &entries {
+        let entry = &candidate.symbol;
         if !DUPLICATE_KIND_ALLOWLIST.contains(&entry.kind.as_str()) {
             continue;
         }
@@ -79,7 +81,7 @@ pub(super) fn run(
         files
             .entry((&entry.relative_path, &entry.language))
             .or_default()
-            .push(entry);
+            .push(candidate);
     }
 
     let structural = options.normalization != super::Normalization::Broad;
@@ -98,7 +100,7 @@ pub(super) fn run(
             Ok(loaded) => analysis.analyze_file(&loaded, candidates),
             Err(failure) => {
                 for candidate in candidates {
-                    analysis.skip(candidate, failure.reason, failure.detail.clone());
+                    analysis.skip(&candidate.symbol, failure.reason, failure.detail.clone());
                 }
             }
         }
@@ -140,6 +142,7 @@ pub(super) fn run(
                     member.start_line,
                     member.end_line,
                     member.symbol_name.clone(),
+                    member.start_column,
                 ))
             })
             .collect();
@@ -190,6 +193,7 @@ pub(super) fn run(
                     member.start_line,
                     member.end_line,
                     member.symbol_name.clone(),
+                    member.start_column,
                 ))
             })
             .collect();
@@ -358,23 +362,30 @@ impl Analysis {
         });
     }
 
-    fn analyze_file(&mut self, loaded: &file::LoadedFile, candidates: &[&SymbolListEntry]) {
+    fn analyze_file(&mut self, loaded: &file::LoadedFile, candidates: &[&DuplicateCandidate]) {
         let lines: Vec<&str> = loaded.source.lines().collect();
         let mut touched: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+        let line_starts: Vec<usize> = std::iter::once(0)
+            .chain(loaded.source.match_indices('\n').map(|(i, _)| i + 1))
+            .collect();
         for candidate in candidates {
-            match check_range(candidate, lines.len(), &loaded.error_lines) {
+            match check_range(&candidate.symbol, lines.len(), &loaded.error_lines) {
                 Ok((start, end)) => {
-                    if let Some((bucket, member)) =
-                        self.analyze_candidate(candidate, loaded, start, end)
-                    {
+                    if let Some((bucket, member)) = self.analyze_candidate(
+                        candidate,
+                        loaded,
+                        start,
+                        end,
+                        line_starts[(start - 1) as usize],
+                    ) {
                         touched.entry(bucket).or_default().push(member);
                     }
                 }
-                Err((reason, detail)) => self.skip(candidate, reason, detail),
+                Err((reason, detail)) => self.skip(&candidate.symbol, reason, detail),
             }
         }
         if let Some(first) = candidates.first() {
-            self.collect_block_streams(loaded, &first.relative_path, &first.language);
+            self.collect_block_streams(loaded, &first.symbol.relative_path, &first.symbol.language);
         }
         // Once a bucket is a group, reuse this file's loaded source. Earlier
         // members in other files are fetched lazily after grouping.
@@ -394,11 +405,14 @@ impl Analysis {
 
     fn analyze_candidate(
         &mut self,
-        candidate: &SymbolListEntry,
+        candidate: &DuplicateCandidate,
         loaded: &file::LoadedFile,
         start: u32,
         end: u32,
+        line_start: usize,
     ) -> Option<(usize, usize)> {
+        let extent = (candidate.column, candidate.byte_len);
+        let candidate = &candidate.symbol;
         let span = if let Some(spans) = &loaded.callables {
             let first = spans.partition_point(|span| span.lines.start < start);
             let mut matching = spans[first..]
@@ -406,8 +420,13 @@ impl Analysis {
                 .take_while(|span| span.lines.start == start)
                 .filter(|span| {
                     span.name == candidate.name
+                        && extent.0 > 0
+                        && extent.1 > 0
                         && span.lines.start == start
                         && span.lines.end == end
+                        && line_start.checked_add(extent.0.saturating_sub(1) as usize)
+                            == Some(span.bytes.start)
+                        && span.bytes.len() == extent.1 as usize
                 });
             match (matching.next(), matching.next()) {
                 (Some(span), None) => Some(span),
@@ -454,6 +473,7 @@ impl Analysis {
             path: candidate.relative_path.clone(),
             start_line: start,
             end_line: end,
+            start_column: extent.0,
             symbol_name: candidate.name.clone(),
             symbol_kind: candidate.kind.clone(),
             language: candidate.language.clone(),
@@ -502,6 +522,7 @@ impl Analysis {
                             member.start_line,
                             member.end_line,
                             member.symbol_name.clone(),
+                            member.start_column,
                         ),
                         member_input,
                     );
@@ -800,12 +821,20 @@ fn excerpt(lines: &[&str], start: u32, end: u32) -> Vec<String> {
 
 fn build_group(language: String, mut members: Vec<DuplicateMember>) -> DuplicateGroup {
     members.sort_by(|a, b| {
-        (&a.path, a.start_line, a.end_line, &a.symbol_name).cmp(&(
-            &b.path,
-            b.start_line,
-            b.end_line,
-            &b.symbol_name,
-        ))
+        (
+            &a.path,
+            a.start_line,
+            a.start_column,
+            a.end_line,
+            &a.symbol_name,
+        )
+            .cmp(&(
+                &b.path,
+                b.start_line,
+                b.start_column,
+                b.end_line,
+                &b.symbol_name,
+            ))
     });
     DuplicateGroup {
         language,
@@ -830,11 +859,15 @@ fn group_weight(group: &DuplicateGroup, ranking: super::DuplicateRanking) -> usi
 }
 
 /// Tie-breaker between equally heavy groups: where the first member starts.
-fn first_member_key(group: &DuplicateGroup) -> Option<(&str, u32, u32)> {
-    group
-        .members
-        .first()
-        .map(|member| (member.path.as_str(), member.start_line, member.end_line))
+fn first_member_key(group: &DuplicateGroup) -> Option<(&str, u32, u32, u32)> {
+    group.members.first().map(|member| {
+        (
+            member.path.as_str(),
+            member.start_line,
+            member.start_column,
+            member.end_line,
+        )
+    })
 }
 
 fn sort_groups(groups: &mut [DuplicateGroup], ranking: super::DuplicateRanking) {

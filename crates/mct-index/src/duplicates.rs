@@ -481,6 +481,9 @@ pub const MAX_SUBGROUP_VALUES: usize = 3;
 /// enclosing constructs never separate. Nothing is resolved or scored.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct GroupSubgroups {
+    /// Complete partition in group-member order: 1-based subgroup ids.
+    /// Empty only when not evaluated. Summary row caps never trim this map.
+    pub member_subgroups: Vec<usize>,
     pub status: SubgroupStatus,
     /// Kinds of the separating items, in [`SubgroupBasis`] order; empty
     /// unless split.
@@ -839,6 +842,8 @@ impl WarningCode {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DuplicateMember {
+    /// 1-based byte column, distinguishing declarations sharing a line.
+    pub start_column: u32,
     /// Project-relative path, forward slashes.
     pub path: String,
     /// 1-based, inclusive.

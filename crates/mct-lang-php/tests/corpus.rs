@@ -274,16 +274,5 @@ fn index_answers_cross_file_queries() {
 /// `ambiguous among 2` although there is one target.
 #[test]
 fn a_type_reference_resolves_to_the_interface_not_to_its_file_module() {
-    let index = corpus().index();
-    let hits: Vec<_> = index
-        .find_references("Repository")
-        .unwrap()
-        .into_iter()
-        .filter(|h| h.kind == "references")
-        .collect();
-    assert!(!hits.is_empty(), "the corpus no longer holds this relation");
-    for hit in &hits {
-        assert_eq!(hit.resolution, mct_index::Resolution::Resolved, "{hit:?}");
-        assert_eq!(hit.candidate_count, 1, "{hit:?}");
-    }
+    mct_corpus::assert_reference_resolves_uniquely(&corpus().index(), "Repository", "references");
 }

@@ -81,29 +81,7 @@ fn find_symbol_locates_the_element_and_the_rule_in_their_own_languages() {
 
 #[test]
 fn a_second_reindex_skips_unchanged_files_and_force_reparses_them() {
-    let root = fixture_root();
-    let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
-
-    let first = index.reindex(&registry(), false).unwrap();
-    assert_eq!(first.files_parsed, 2);
-    let symbols_after_first = index.status().unwrap().total_symbols;
-
-    // Incremental: nothing on disk changed, so neither grammar re-runs.
-    let second = index.reindex(&registry(), false).unwrap();
-    assert_eq!(second.files_parsed, 0, "{second:?}");
-    assert_eq!(second.files_unchanged, 2);
-
-    // Forced: both files re-parse, and the cross-language relations must be
-    // rebuilt identically rather than duplicated or dropped.
-    let forced = index.reindex(&registry(), true).unwrap();
-    assert_eq!(forced.files_parsed, 2, "{forced:?}");
-    assert!(forced.issues.is_empty(), "{:?}", forced.issues);
-
-    assert_eq!(
-        index.status().unwrap().total_symbols,
-        symbols_after_first,
-        "a forced reparse must not duplicate symbols"
-    );
+    let index = mct_corpus::assert_reindex_is_incremental(&fixture_root(), &registry(), 2);
     assert_eq!(index.find_references("#header").unwrap().len(), 1);
     assert_eq!(index.find_references(".nav").unwrap().len(), 1);
 }

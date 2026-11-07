@@ -10,8 +10,11 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+
+#[path = "common/scratch_dir.rs"]
+mod scratch_dir;
+use scratch_dir::scratch_dir;
 
 use mct_core::{
     EntryPointHint, LanguageRegistry, Location, PackageRequirement, ParseError, ParsedFile,
@@ -73,15 +76,7 @@ impl mct_core::LanguageParser for FakeParser {
 }
 
 fn tempdir() -> PathBuf {
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let dir = std::env::temp_dir().join(format!(
-        "mct-entry-points-{}-{}",
-        std::process::id(),
-        COUNTER.fetch_add(1, Ordering::Relaxed)
-    ));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(&dir).unwrap();
-    dir.canonicalize().unwrap()
+    scratch_dir("mct-entry-points")
 }
 
 fn write(root: &Path, rel: &str, contents: &str) {

@@ -4,8 +4,8 @@
 //! synonym groups (`load`/`read`, `config`/`settings`, ...) onto shared
 //! dimensions, so "meaning" matches are predictable without an ML model.
 //!
-//! Uses the same toy `fn NAME`-per-line fake parser as `symbol_search.rs`,
-//! duplicated locally since Rust integration test files don't share code.
+//! Uses the shared toy `fn NAME`-per-line fake parser from
+//! `common/fake_parser.rs`.
 
 // Test code: an unwrap()/expect() here means a broken test precondition, and
 // panicking is the correct behavior — this is not production code parsing
@@ -14,66 +14,16 @@
 
 use std::fs;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
 
-use mct_core::{Location, ParseError, ParsedFile, SourceFile, SymbolKind, SymbolRecord};
 use mct_index::{Embedder, ExcludeSet, Index, QueryScope, EXACT_PHRASE_BOOST};
 
 #[path = "common/unique.rs"]
 mod unique;
 use unique::uuid_like;
 
-struct FakeParser;
-
-impl mct_core::LanguageParser for FakeParser {
-    fn language_id(&self) -> &'static str {
-        "fake"
-    }
-
-    fn file_extensions(&self) -> &'static [&'static str] {
-        &["fake"]
-    }
-
-    fn parse(&self, file: &SourceFile) -> Result<ParsedFile, ParseError> {
-        let mut parsed = ParsedFile::default();
-        for (line_no, line) in file.contents.lines().enumerate() {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-            let mut parts = line.split_whitespace();
-            if parts.next() != Some("fn") {
-                return Err(ParseError::Syntax {
-                    path: file.relative_path.clone(),
-                    line: line_no as u32 + 1,
-                    message: format!("expected `fn`, got `{line}`"),
-                });
-            }
-            let name = parts.next().unwrap_or_default().to_string();
-            let id = parsed.symbols.len() as u32;
-            parsed.symbols.push(SymbolRecord {
-                id,
-                name,
-                kind: SymbolKind::Function,
-                location: Location {
-                    line: line_no as u32 + 1,
-                    column: 1,
-                    byte_len: line.len() as u32,
-                    end_line: Some(line_no as u32 + 1),
-                },
-                parent: None,
-                level: None,
-            });
-        }
-        Ok(parsed)
-    }
-}
-
-fn registry() -> mct_core::LanguageRegistry {
-    let mut registry = mct_core::LanguageRegistry::new();
-    registry.register(Arc::new(FakeParser));
-    registry
-}
+#[path = "common/fake_parser.rs"]
+mod fake_parser;
+use fake_parser::registry;
 
 fn tempdir() -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!("mct-index-hybrid-search-test-{}", uuid_like()));

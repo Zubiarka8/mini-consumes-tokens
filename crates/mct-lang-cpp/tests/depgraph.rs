@@ -6,35 +6,18 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use mct_core::LanguageRegistry;
-use mct_index::{ExcludeSet, Index, Resolution};
+use mct_index::{Index, Resolution};
 use mct_lang_cpp::CppParser;
 
 fn open_indexed() -> Index {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/depgraph");
-    let mut registry = LanguageRegistry::new();
-    registry.register(Arc::new(CppParser));
-    let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
-    let report = index.reindex(&registry, false).unwrap();
-    assert!(report.issues.is_empty(), "{:?}", report.issues);
-    index
+    mct_corpus::open_fixture_indexed(&root, Arc::new(CppParser))
 }
 
 /// Resolution and first candidate of the `imports` relation named `to` in
 /// `from_file`.
 fn import_hit(index: &Index, to: &str, from_file: &str) -> Vec<(Resolution, Option<String>)> {
-    index
-        .find_references(to)
-        .unwrap()
-        .into_iter()
-        .filter(|h| h.kind == "imports" && h.relative_path == from_file && h.to_name == to)
-        .map(|h| {
-            (
-                h.resolution,
-                h.candidates.first().map(|c| c.relative_path.clone()),
-            )
-        })
-        .collect()
+    mct_corpus::import_hits_from(index, from_file, to)
 }
 
 #[test]

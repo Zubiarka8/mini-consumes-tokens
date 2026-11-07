@@ -130,6 +130,19 @@ pub fn tokenize_source(
     relative_path: &str,
     source: &str,
 ) -> Result<TokenizedFile, ParseError> {
+    tokenize_source_with_callables(language, classes, relative_path, source, |_, _| None)
+}
+
+/// Like [`tokenize_source`], with language-owned callable forms whose names
+/// are bindings rather than a node's `name` field. Context is attached by the
+/// same walk as ordinary callables; the adapter supplies the exact span.
+pub fn tokenize_source_with_callables(
+    language: &Language,
+    classes: &TokenClasses,
+    relative_path: &str,
+    source: &str,
+    extra: fn(Node<'_>, &str) -> Option<CallableSpan>,
+) -> Result<TokenizedFile, ParseError> {
     let failure = |message: &str| ParseError::Syntax {
         path: relative_path.to_string(),
         line: 1,
@@ -142,7 +155,7 @@ pub fn tokenize_source(
     let tree = parser
         .parse(source, None)
         .ok_or_else(|| failure("tree-sitter produced no parse tree"))?;
-    Ok(tokenize_tree(&tree, source, classes))
+    Ok(tokenize_tree_with_callables(&tree, source, classes, extra))
 }
 
 /// Extracts the tokens of `tree`, which must have been parsed from `source`.
@@ -162,6 +175,17 @@ pub fn tokenize_source(
 /// those nodes' lines (and every `MISSING` node's line) land in
 /// [`TokenizedFile::error_lines`], merged and sorted.
 pub fn tokenize_tree(tree: &Tree, source: &str, classes: &TokenClasses) -> TokenizedFile {
+    tokenize_tree_with_callables(tree, source, classes, |_, _| None)
+}
+
+/// Tree variant of [`tokenize_source_with_callables`]. Extra spans retain
+/// their adapter-supplied body shape, with shared decorators and context.
+pub fn tokenize_tree_with_callables(
+    tree: &Tree,
+    source: &str,
+    classes: &TokenClasses,
+    extra: fn(Node<'_>, &str) -> Option<CallableSpan>,
+) -> TokenizedFile {
     let mut out = TokenizedFile::default();
     if !classes.callable_kinds.is_empty() {
         out.callables = Some(Vec::new());
@@ -180,6 +204,16 @@ pub fn tokenize_tree(tree: &Tree, source: &str, classes: &TokenClasses) -> Token
     'walk: loop {
         let node = cursor.node();
         let decorators = attach_decorators(node, source, classes, ancestors.last_mut());
+        if depth <= mct_core::MAX_TRAVERSAL_DEPTH as usize {
+            if let Some(mut span) = extra(node, source) {
+                span.decorators = decorators.clone();
+                span.enclosing = ancestors
+                    .iter()
+                    .filter_map(|frame| frame.context.clone())
+                    .collect();
+                out.callables.get_or_insert_with(Vec::new).push(span);
+            }
+        }
         let place = Place {
             parent: ancestors.last().map(|frame| frame.kind),
             grandparent: ancestors.iter().rev().nth(1).map(|frame| frame.kind),

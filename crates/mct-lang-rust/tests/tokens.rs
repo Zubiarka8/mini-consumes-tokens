@@ -18,6 +18,36 @@ fn pairs(file: &TokenizedFile) -> Vec<(TokenKind, &str)> {
 }
 
 #[test]
+fn every_indexed_callable_has_its_exact_token_boundary() {
+    use mct_core::{LanguageParser, SourceFile, SymbolKind};
+    let source = "fn outer() { let first = |x: u32| { x + 1 }; fn nested() {} }\ntrait T { fn method(&self); }\nstruct S; impl S { fn method(&self) {} }\nmacro_rules! emit { ($x:expr) => { $x }; }\n";
+    let parsed = mct_lang_rust::RustParser
+        .parse(&SourceFile {
+            relative_path: "src/lib.rs".into(),
+            contents: source.into(),
+        })
+        .unwrap();
+    let file = tokenize(source);
+    let spans = file.callables.unwrap();
+    for symbol in parsed
+        .symbols
+        .iter()
+        .filter(|s| matches!(s.kind, SymbolKind::Function | SymbolKind::Method))
+    {
+        let matches: Vec<_> = spans
+            .iter()
+            .filter(|span| {
+                span.name == symbol.name
+                    && span.lines.start == symbol.location.line
+                    && Some(span.lines.end) == symbol.location.end_line
+            })
+            .collect();
+        assert_eq!(matches.len(), 1, "{symbol:?}: {spans:?}");
+        assert_eq!(matches[0].bytes.len(), symbol.location.byte_len as usize);
+    }
+}
+
+#[test]
 fn language_id_matches_the_parser() {
     use mct_core::LanguageParser;
     assert_eq!(
