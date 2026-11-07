@@ -45,7 +45,7 @@ import {
 } from "./components.js";
 import { openSource } from "./code.js";
 import { t } from "./i18n.js";
-import { duplicateBrief, deadBrief, listText, memberLabel } from "./ai.js";
+import { duplicateBrief, deadBrief, duplicateListRow, listText, memberLabel } from "./ai.js";
 
 // Everything that still needs a person: also findings whose code changed
 // after a decision, and resolved findings the detector still reports.
@@ -1016,7 +1016,7 @@ export async function render({ root, page, params: initial }) {
         );
         return;
       }
-      // Rows start with the readable number; the keys still close the text for queries.
+      // Copy readable finding numbers and paths; internal review keys stay in the application.
       const listColumns =
         cfg.type === "duplicate"
           ? [findingNumber, (r) => r.title, (r) => r.members.map(memberLabel).join(" ↔ ")]
@@ -1044,7 +1044,9 @@ export async function render({ root, page, params: initial }) {
                     total: data.total,
                     columns: listColumns,
                     rows: data.items,
-                    idKey: "key",
+                    rowText: cfg.type === "duplicate"
+                      ? (r) => duplicateListRow(r, findingNumber(r).replace("#", ""), (n) => t("dup.moreFragments", { n }))
+                      : undefined,
                   }),
                   t("ai.listCopied"),
                 ),

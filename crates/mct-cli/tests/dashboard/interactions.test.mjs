@@ -632,3 +632,17 @@ test('each duplicate row copies the AI template of its whole group and confirms 
   assert.match(env.document.querySelector('.toasts [role=status]').textContent, /Copied with context/);
   env.cleanup();
 });
+
+test('copying the duplicate list uses grouped locations and omits internal review keys', async () => {
+  const copied = [];
+  const row = { ...finding, number: 12 };
+  const env = await findings(url => url.pathname.endsWith('/findings') ? list([row]) : defaultApi(url), '');
+  env.context.navigator.clipboard.writeText = async text => copied.push(text);
+  const button = [...env.root.querySelectorAll('button')].find(button => button.textContent.includes('Copy list'));
+  assert.ok(button);
+  button.click(); await settle();
+  assert.equal(copied.length, 1);
+  assert.match(copied[0], /Duplicate 12: alpha ≈ beta\n - src\/same.cpp L1-3\n - src\/same.cpp L5-7/);
+  assert.doesNotMatch(copied[0], /keys:|duplicate-test| ↔ /);
+  env.cleanup();
+});
