@@ -12,7 +12,10 @@ use tree_sitter::Node;
 
 mod tokens;
 
-pub use tokens::{tokenize_source, tokenize_tree, TokenClasses};
+pub use tokens::{
+    tokenize_source, tokenize_source_with_callables, tokenize_tree, tokenize_tree_with_callables,
+    TokenClasses,
+};
 
 /// The first `ERROR` or `MISSING` node in `node`'s subtree, in document order.
 ///
