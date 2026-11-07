@@ -2,7 +2,7 @@
 
 ![CI](https://img.shields.io/github/actions/workflow/status/Zubiarka8/mini-consumes-tokens/ci.yml?branch=main&label=CI)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
-![Version](https://img.shields.io/badge/version-0.3.0-informational.svg)
+![Version](https://img.shields.io/badge/version-0.3.1-informational.svg)
 
 **[Official website](https://zubiarka8.github.io/mini-consumes-tokens/)** · **[Documentation](https://zubiarka8.github.io/mini-consumes-tokens/docs)**
 
@@ -177,7 +177,7 @@ This project isn't published to a package manager (like `apt`, Homebrew, `winget
 
 #### Option A: quick install script — no Rust toolchain required
 
-This downloads the latest prebuilt release for your operating system from [GitHub Releases](https://github.com/Zubiarka8/mini-consumes-tokens/releases). The latest release (v0.3.0) ships archives for Linux and macOS (x86_64 and arm64) and Windows (x86_64); the `v0.1.0` tag has none. If the latest release has no archive for your platform, the scripts stop with an error instead of installing anything — use option B. The prebuilt binaries are built without the optional `semantic` feature, so `hybrid_search_like` matches by name only (see option B to add it). Both scripts print a warning if their install folder isn't already on your PATH, along with the exact line to add.
+This downloads the latest prebuilt release for your operating system from [GitHub Releases](https://github.com/Zubiarka8/mini-consumes-tokens/releases). The latest release (v0.3.1) ships archives for Linux and macOS (x86_64 and arm64) and Windows (x86_64); the `v0.1.0` tag has none. If the latest release has no archive for your platform, the scripts stop with an error instead of installing anything — use option B. The prebuilt binaries are built without the optional `semantic` feature, so `hybrid_search_like` matches by name only (see option B to add it). Both scripts print a warning if their install folder isn't already on your PATH, along with the exact line to add.
 
 **macOS / Linux** (installs into `$HOME/.local/bin`; override with `INSTALL_DIR`):
 
@@ -223,7 +223,7 @@ cargo install --locked --path crates/mct-mcp-server
 #### Checking the installed version and updating
 
 ```sh
-mct-cli --version   # or -v: prints e.g. "mct-cli 0.3.0"
+mct-cli --version   # or -v: prints e.g. "mct-cli 0.3.1"
 mct-cli update      # or -u / --update: installs the latest release in place
 ```
 
