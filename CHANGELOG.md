@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Releases ship a native Windows on Arm archive (`windows-arm64`), and `install.ps1` picks it on an Arm machine.
+
 ## [0.3.1] - 2026-11-07
 
 ### Upgrading from 0.3.0
