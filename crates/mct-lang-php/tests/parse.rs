@@ -578,3 +578,20 @@ fn singleton_resources_route_their_own_methods() {
     .concat();
     assert_eq!(methods, expected);
 }
+
+#[test]
+fn calling_a_closure_through_its_variable_is_a_call_to_the_closure() {
+    let parsed = parse(
+        "<?php\n$format = function ($x) { return $x; };\necho $format(1);\n$param = 'strlen';\necho $param('x');\n",
+    );
+    let calls: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Calls)
+        .map(|r| r.to_name.as_str())
+        .collect();
+    assert!(calls.contains(&"format"), "{calls:?}");
+    // A variable never bound to a closure is not a call to a symbol of
+    // that name: it may hold any callable.
+    assert!(!calls.contains(&"param"), "{calls:?}");
+}
