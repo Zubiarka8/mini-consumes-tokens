@@ -1,6 +1,9 @@
 //! Keeps the index fresh while the dashboard runs: a saved file, or an edited
 //! `.mctignore`, shows up without a manual `reindex`. It is the MCP server's own
-//! watcher ([`mct_mcp_server::background`]), so both apply the same rules.
+//! watcher ([`mct_mcp_server::background`]), so both apply the same rules,
+//! and it takes part in the same one-maintainer-per-index lease
+//! ([`mct_mcp_server::maintainer`], ADR-028): while an MCP server already
+//! maintains the index, the dashboard only follows its publications.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -40,18 +43,25 @@ fn watch(root: &Path, no_obsidian: bool) -> anyhow::Result<impl Sized> {
     let watch_root = index.root().to_path_buf();
     let index = Arc::new(tokio::sync::Mutex::new(index));
     let registry = mct_languages::build_registry();
-    let watcher = mct_mcp_server::background::spawn_watcher(
+    let maintainer = mct_mcp_server::maintainer::spawn(
         index.clone(),
         registry.clone(),
-        watch_root,
-        exclude,
-        DEBOUNCE,
-    )?;
+        mct_mcp_server::maintainer::MaintainerSettings {
+            root: watch_root,
+            exclude,
+            debounce: DEBOUNCE,
+            reconciliation_interval: mct_mcp_server::background::DEFAULT_RECONCILIATION_INTERVAL,
+            lease_retry: mct_mcp_server::maintainer::DEFAULT_LEASE_RETRY,
+            // A person watches this page: never asleep.
+            idle: None,
+        },
+        mct_mcp_server::maintainer::Activity::new(),
+    );
     // Changes made while the dashboard was closed produce no event.
     std::thread::spawn(move || {
         if let Err(error) = index.blocking_lock().reindex(&registry, false) {
             eprintln!("warning: the startup reindex failed: {error:#}");
         }
     });
-    Ok(watcher)
+    Ok(maintainer)
 }

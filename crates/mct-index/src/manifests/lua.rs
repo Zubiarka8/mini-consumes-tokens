@@ -8,8 +8,8 @@ mod tree;
 mod version;
 
 pub(crate) use rockspec::{
-    analyse, Analysis, DECLARATION_SECTIONS, KIND_DEPENDENCY, KIND_FILE, KIND_MODULE, KIND_SECTION,
-    STATE_COMPLETE, STATE_INCOMPLETE, STATE_UNREADABLE,
+    analyse, Analysis, Item, DECLARATION_SECTIONS, KIND_DEPENDENCY, KIND_FILE, KIND_MODULE,
+    KIND_SECTION, STATE_COMPLETE, STATE_INCOMPLETE, STATE_UNREADABLE,
 };
 pub(crate) use tree::{parse_lockfile, parse_store_manifest, Lockfile, StoreError, StoreManifest};
 

@@ -136,10 +136,7 @@ async fn wait_until(mut condition: impl FnMut() -> bool) -> bool {
     }
 }
 
-type Watcher = notify_debouncer_full::Debouncer<
-    notify::RecommendedWatcher,
-    notify_debouncer_full::RecommendedCache,
->;
+type Watcher = mct_mcp_server::background::WatcherHandle;
 
 struct Fixture {
     dir: PathBuf,
