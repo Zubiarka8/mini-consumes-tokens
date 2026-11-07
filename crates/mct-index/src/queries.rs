@@ -859,55 +859,21 @@ pub(crate) fn calls_from_symbol(
     )
 }
 
-/// The `limit` calls made by the function named `function` after skipping
-/// `offset` — a slice of exactly what [`find_calls_scoped`] returns.
-pub(crate) fn find_calls_page(
+/// The `limit` relations of `direction` for `name` after skipping `offset`:
+/// a slice of exactly what [`find_calls_scoped`], [`find_callers_scoped`] or
+/// [`find_references_scoped`] returns for that direction.
+pub(crate) fn relation_hits_page(
     conn: &Connection,
-    function: &str,
+    direction: RelationDirection,
+    name: &str,
     scope: ResolvedScope<'_>,
     limit: usize,
     offset: usize,
 ) -> Result<Vec<RelationHit>> {
     query_relations_page(
         conn,
-        RelationDirection::Calls.predicate(),
-        function.to_string(),
-        scope,
-        Some(limit),
-        offset,
-    )
-}
-
-/// A slice of [`find_callers_scoped`], as [`find_calls_page`] is of calls.
-pub(crate) fn find_callers_page(
-    conn: &Connection,
-    function: &str,
-    scope: ResolvedScope<'_>,
-    limit: usize,
-    offset: usize,
-) -> Result<Vec<RelationHit>> {
-    query_relations_page(
-        conn,
-        RelationDirection::Callers.predicate(),
-        function.to_string(),
-        scope,
-        Some(limit),
-        offset,
-    )
-}
-
-/// A slice of [`find_references_scoped`], as [`find_calls_page`] is of calls.
-pub(crate) fn find_references_page(
-    conn: &Connection,
-    symbol: &str,
-    scope: ResolvedScope<'_>,
-    limit: usize,
-    offset: usize,
-) -> Result<Vec<RelationHit>> {
-    query_relations_page(
-        conn,
-        RelationDirection::References.predicate(),
-        symbol.to_string(),
+        direction.predicate(),
+        name.to_string(),
         scope,
         Some(limit),
         offset,
