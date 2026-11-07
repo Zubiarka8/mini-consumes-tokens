@@ -122,17 +122,21 @@ fn a_standard_markdown_link_is_not_mistaken_for_a_wikilink() {
     );
 }
 
-#[test]
-fn wikilink_in_a_paragraph_emits_a_references_relation() {
-    let parsed = parse("# A\n\nSee [[Other Note]] for details.\n");
-    let a = parsed.symbols.iter().find(|s| s.name == "A").unwrap();
-    let rel = parsed
+fn assert_paragraph_relation(source: &str, target: &str) {
+    let parsed = parse(source);
+    let heading = parsed.symbols.iter().find(|s| s.name == "A").unwrap();
+    let relation = parsed
         .relations
         .iter()
-        .find(|r| r.to_name == "Other Note")
+        .find(|r| r.to_name == target)
         .unwrap();
-    assert_eq!(rel.kind, RelationKind::References);
-    assert_eq!(rel.from, a.id);
+    assert_eq!(relation.kind, RelationKind::References);
+    assert_eq!(relation.from, heading.id);
+}
+
+#[test]
+fn wikilink_in_a_paragraph_emits_a_references_relation() {
+    assert_paragraph_relation("# A\n\nSee [[Other Note]] for details.\n", "Other Note");
 }
 
 #[test]
@@ -269,31 +273,15 @@ fn unbalanced_single_brackets_are_not_mistaken_for_a_wikilink() {
 
 #[test]
 fn wikilink_inside_the_heading_text_itself_emits_a_relation() {
-    let parsed = parse("# See [[Other Note]]\n");
-    let heading = parsed
-        .symbols
-        .iter()
-        .find(|s| s.name == "See [[Other Note]]")
-        .unwrap();
-    let rel = parsed
-        .relations
-        .iter()
-        .find(|r| r.to_name == "Other Note")
-        .unwrap();
-    assert_eq!(rel.from, heading.id);
+    assert_heading_relation("# See [[Other Note]]\n", "See [[Other Note]]", "Other Note");
 }
 
 #[test]
 fn hashtag_in_a_paragraph_emits_a_tag_prefixed_relation() {
-    let parsed = parse("# A\n\nThis note is about #productivity today.\n");
-    let a = parsed.symbols.iter().find(|s| s.name == "A").unwrap();
-    let rel = parsed
-        .relations
-        .iter()
-        .find(|r| r.to_name == "tag:productivity")
-        .unwrap();
-    assert_eq!(rel.kind, RelationKind::References);
-    assert_eq!(rel.from, a.id);
+    assert_paragraph_relation(
+        "# A\n\nThis note is about #productivity today.\n",
+        "tag:productivity",
+    );
 }
 
 #[test]
@@ -304,16 +292,24 @@ fn a_url_fragment_is_not_mistaken_for_a_tag() {
 
 #[test]
 fn hashtag_inside_the_heading_text_itself_emits_a_relation() {
-    let parsed = parse("# Ideas #brainstorm\n");
+    assert_heading_relation(
+        "# Ideas #brainstorm\n",
+        "Ideas #brainstorm",
+        "tag:brainstorm",
+    );
+}
+
+fn assert_heading_relation(source: &str, heading_name: &str, target: &str) {
+    let parsed = parse(source);
     let heading = parsed
         .symbols
         .iter()
-        .find(|s| s.name == "Ideas #brainstorm")
+        .find(|s| s.name == heading_name)
         .unwrap();
     let rel = parsed
         .relations
         .iter()
-        .find(|r| r.to_name == "tag:brainstorm")
+        .find(|r| r.to_name == target)
         .unwrap();
     assert_eq!(rel.from, heading.id);
 }
@@ -656,11 +652,7 @@ fn a_hash_comment_in_frontmatter_is_not_a_tag() {
 
 #[test]
 fn a_nul_byte_is_a_syntax_error_not_a_panic() {
-    let result = MarkdownParser.parse(&SourceFile {
-        relative_path: "broken.md".to_string(),
-        contents: "text\0\n".to_string(),
-    });
-    assert!(matches!(result, Err(mct_core::ParseError::Syntax { .. })));
+    mct_corpus::assert_syntax_error_reported(&MarkdownParser, "broken.md", "text\0\n");
 }
 
 // Memory-safety regressions in the vendored tree-sitter-md block scanner

@@ -23,7 +23,9 @@ use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
     SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
-use mct_tree_sitter::{find_named_child, first_error, location, module_location};
+use mct_tree_sitter::{
+    find_named_child, first_error, location, module_location, unquote_attribute_value as unquote,
+};
 use tree_sitter::{Node, Parser};
 
 /// Common routed/CLR event attribute names across WPF, UWP/WinUI, MAUI, and
@@ -152,20 +154,6 @@ fn text<'a>(node: Node, source: &'a str) -> &'a str {
     node.utf8_text(source.as_bytes()).unwrap_or_default()
 }
 
-/// An `AttValue` node's raw text includes its surrounding quotes (`"Foo"` or
-/// `'Foo'`) — this strips exactly one matching pair, if present.
-fn unquote(raw: &str) -> &str {
-    let bytes = raw.as_bytes();
-    if bytes.len() >= 2 {
-        let first = bytes[0];
-        let last = bytes[bytes.len() - 1];
-        if (first == b'"' || first == b'\'') && first == last {
-            return &raw[1..raw.len() - 1];
-        }
-    }
-    raw
-}
-
 /// A plain identifier: `Foo_Click`, not `{Binding SaveCommand}` or `1.0` or
 /// text containing spaces — the shape a bare code-behind method name has.
 fn looks_like_identifier(s: &str) -> bool {
@@ -177,6 +165,7 @@ fn looks_like_identifier(s: &str) -> bool {
     chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
+#[derive(Default)]
 struct Walker<'a> {
     source: &'a str,
     symbols: Vec<SymbolRecord>,
@@ -193,10 +182,7 @@ impl<'a> Walker<'a> {
         Self {
             source,
             path,
-            import_targets: Vec::new(),
-            symbols: Vec::new(),
-            relations: Vec::new(),
-            next_id: 0,
+            ..Self::default()
         }
     }
 
@@ -234,10 +220,9 @@ impl<'a> Walker<'a> {
         parent_name: Option<&str>,
         depth: u32,
     ) {
-        let mut cursor = node.walk();
-        for child in node.named_children(&mut cursor) {
+        mct_tree_sitter::for_each_named_child(node, |child| {
             self.visit(child, owner, parent_name, depth + 1);
-        }
+        });
     }
 
     fn visit(&mut self, node: Node, owner: SymbolId, parent_name: Option<&str>, depth: u32) {

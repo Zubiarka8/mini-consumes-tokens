@@ -79,77 +79,60 @@ fn decorated_function_is_still_indexed_with_decorator_recorded() {
 
 #[test]
 fn decorator_relation_is_owned_by_the_decorated_function_not_the_module() {
-    let parsed = parse("@app.route(\"/users\")\ndef list_users():\n    return []\n");
-    let func = parsed
-        .symbols
-        .iter()
-        .find(|s| s.name == "list_users")
-        .expect("decorated function should still be indexed");
-
-    let route_ref = parsed
-        .relations
-        .iter()
-        .find(|r| r.kind == RelationKind::References && r.to_name == "route")
-        .expect("decorator should produce a References relation");
-    assert_eq!(
-        route_ref.from, func.id,
-        "the decorator relation must be owned by the decorated function, not the module"
+    assert_decorator_owner(
+        "@app.route(\"/users\")\ndef list_users():\n    return []\n",
+        "list_users",
+        "route",
     );
 }
 
 #[test]
 fn decorator_relation_is_owned_by_the_decorated_class_not_the_module() {
-    let parsed = parse("@register\nclass Handler:\n    pass\n");
-    let class = parsed
+    assert_decorator_owner(
+        "@register\nclass Handler:\n    pass\n",
+        "Handler",
+        "register",
+    );
+}
+
+fn assert_decorator_owner(source: &str, owner: &str, decorator: &str) {
+    let parsed = parse(source);
+    let symbol = parsed
         .symbols
         .iter()
-        .find(|s| s.name == "Handler")
-        .expect("decorated class should still be indexed");
+        .find(|s| s.name == owner)
+        .expect("decorated symbol should still be indexed");
 
-    let register_ref = parsed
+    let decorator_ref = parsed
         .relations
         .iter()
-        .find(|r| r.kind == RelationKind::References && r.to_name == "register")
+        .find(|r| r.kind == RelationKind::References && r.to_name == decorator)
         .expect("decorator should produce a References relation");
     assert_eq!(
-        register_ref.from, class.id,
-        "the decorator relation must be owned by the decorated class, not the module"
+        decorator_ref.from, symbol.id,
+        "the decorator relation must be owned by {owner}, not the module"
     );
 }
 
 #[test]
 fn extracts_import_and_from_import() {
     let parsed = parse("import os\nfrom collections import OrderedDict, defaultdict as dd\n");
-    let imports: Vec<_> = parsed
-        .relations
-        .iter()
-        .filter(|r| r.kind == RelationKind::Imports)
-        .map(|r| r.to_name.as_str())
-        .collect();
-    assert!(imports.contains(&"os"));
-    assert!(imports.contains(&"OrderedDict"));
-    assert!(imports.contains(&"dd"));
+    mct_corpus::assert_imports(&parsed, &["os", "OrderedDict", "dd"]);
 }
 
 #[test]
 fn function_end_line_spans_the_whole_multiline_body() {
     let parsed = parse("def multiline():\n    x = 1\n    y = 2\n    return x + y\n");
-    let sym = parsed
-        .symbols
-        .iter()
-        .find(|s| s.name == "multiline")
-        .expect("multiline function should be indexed");
-    assert_eq!(sym.location.line, 1);
-    assert_eq!(sym.location.end_line, Some(4));
+    mct_corpus::assert_symbol_span(&parsed, "multiline", 1, 4);
 }
 
 #[test]
 fn syntax_error_is_reported_not_panicked() {
-    let result = PythonParser.parse(&SourceFile {
-        relative_path: "pkg/broken.py".to_string(),
-        contents: "def broken(:\n    ***invalid***\n".to_string(),
-    });
-    assert!(matches!(result, Err(mct_core::ParseError::Syntax { .. })));
+    mct_corpus::assert_syntax_error_reported(
+        &PythonParser,
+        "pkg/broken.py",
+        "def broken(:\n    ***invalid***\n",
+    );
 }
 
 #[test]

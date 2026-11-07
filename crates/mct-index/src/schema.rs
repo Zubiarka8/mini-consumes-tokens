@@ -570,31 +570,40 @@ mod tests {
         Ok(())
     }
 
+    fn assert_legacy_migration(
+        version: usize,
+        seed: &str,
+        expected_candidates: i64,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let mut conn = Connection::open_in_memory()?;
+        crate::search::register_functions(&conn)?;
+        migrations().to_version(&mut conn, version)?;
+        conn.execute_batch(seed)?;
+        migrations().to_latest(&mut conn)?;
+        let candidates: i64 =
+            conn.query_row("SELECT COUNT(*) FROM relation_candidates", [], |r| r.get(0))?;
+        assert_eq!(candidates, expected_candidates);
+        let hash: String = conn.query_row("SELECT content_hash FROM files", [], |r| r.get(0))?;
+        assert_eq!(hash, "");
+        Ok(())
+    }
+
     /// A relation written before resolution existed is never resolved by
     /// name after the migration — not even to the only same-named symbol —
     /// and its file is queued for the reparse that records real evidence.
     #[test]
     fn resolution_migration_leaves_legacy_relations_unresolved(
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let mut conn = Connection::open_in_memory()?;
-        crate::search::register_functions(&conn)?;
-        let before_resolution = 8;
-        migrations().to_version(&mut conn, before_resolution)?;
-        conn.execute_batch(
+        assert_legacy_migration(
+            8,
             "INSERT INTO files (id, relative_path, language, content_hash, last_indexed_at)
                  VALUES (1, 'src/lib.rs', 'rust', 'abc123', 0);
              INSERT INTO symbols (id, file_id, name, kind, line, column, byte_len)
                  VALUES (1, 1, 'main', 'function', 1, 1, 1), (2, 1, 'helper', 'function', 2, 1, 1);
              INSERT INTO relations (from_symbol_id, kind, to_name, line, column, byte_len)
                  VALUES (1, 'calls', 'helper', 1, 1, 1);",
-        )?;
-        migrations().to_latest(&mut conn)?;
-        let candidates: i64 =
-            conn.query_row("SELECT COUNT(*) FROM relation_candidates", [], |r| r.get(0))?;
-        assert_eq!(candidates, 0);
-        let hash: String = conn.query_row("SELECT content_hash FROM files", [], |r| r.get(0))?;
-        assert_eq!(hash, "");
-        Ok(())
+            0,
+        )
     }
 
     /// The note-graph migration keeps every existing relation's candidates
@@ -603,24 +612,15 @@ mod tests {
     #[test]
     fn note_graph_migration_invalidates_hashes_and_constrains_nothing_retroactively(
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let mut conn = Connection::open_in_memory()?;
-        crate::search::register_functions(&conn)?;
-        let before_note_graph = 9;
-        migrations().to_version(&mut conn, before_note_graph)?;
-        conn.execute_batch(
+        assert_legacy_migration(
+            9,
             "INSERT INTO files (id, relative_path, language, content_hash, last_indexed_at)
                  VALUES (1, 'a.md', 'markdown', 'abc123', 0);
              INSERT INTO symbols (id, file_id, name, kind, line, column, byte_len)
                  VALUES (1, 1, 'A', 'element', 1, 1, 1), (2, 1, 'B', 'element', 2, 1, 1);
              INSERT INTO relations (from_symbol_id, kind, to_name, line, column, byte_len, targets_parsed)
                  VALUES (1, 'references', 'B', 1, 1, 1, 1);",
-        )?;
-        migrations().to_latest(&mut conn)?;
-        let candidates: i64 =
-            conn.query_row("SELECT COUNT(*) FROM relation_candidates", [], |r| r.get(0))?;
-        assert_eq!(candidates, 1);
-        let hash: String = conn.query_row("SELECT content_hash FROM files", [], |r| r.get(0))?;
-        assert_eq!(hash, "");
-        Ok(())
+            1,
+        )
     }
 }

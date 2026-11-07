@@ -17,7 +17,9 @@ use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, SourceFile, SymbolId, SymbolKind,
     SymbolRecord, MAX_TRAVERSAL_DEPTH,
 };
-use mct_tree_sitter::{find_named_child, first_error, location, module_location};
+use mct_tree_sitter::{
+    find_named_child, first_error, location, module_location, unquote_attribute_value as unquote,
+};
 use tree_sitter::{Node, Parser};
 
 pub struct XmlParser;
@@ -80,20 +82,6 @@ fn module_name_for(relative_path: &str) -> String {
 
 fn text<'a>(node: Node, source: &'a str) -> &'a str {
     node.utf8_text(source.as_bytes()).unwrap_or_default()
-}
-
-/// An `AttValue` node's raw text includes its surrounding quotes (`"api"` or
-/// `'api'`) — this strips exactly one matching pair, if present.
-fn unquote(raw: &str) -> &str {
-    let bytes = raw.as_bytes();
-    if bytes.len() >= 2 {
-        let first = bytes[0];
-        let last = bytes[bytes.len() - 1];
-        if (first == b'"' || first == b'\'') && first == last {
-            return &raw[1..raw.len() - 1];
-        }
-    }
-    raw
 }
 
 struct Walker<'a> {

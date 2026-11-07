@@ -23,9 +23,7 @@ fn file_module_ends_on_the_last_line() {
         (m.location.line, m.location.end_line)
     };
     let class = "class A {\n  fun f() {}\n}";
-    assert_eq!(module(&format!("{class}\n")), (1, Some(3)));
-    assert_eq!(module(class), (1, Some(3)));
-    assert_eq!(module("class A\n"), (1, Some(1)));
+    mct_corpus::assert_module_spans(module, class, "class A\n");
 }
 
 #[test]
@@ -33,22 +31,7 @@ fn extracts_class_method_and_call() {
     let parsed = parse(
         "class Invoice {\n    fun total(): Int {\n        return helper()\n    }\n\n    fun helper(): Int {\n        return 42\n    }\n}\n",
     );
-    assert!(parsed
-        .symbols
-        .iter()
-        .any(|s| s.name == "Invoice" && s.kind == SymbolKind::Class));
-
-    let helper = parsed.symbols.iter().find(|s| s.name == "helper").unwrap();
-    assert_eq!(helper.kind, SymbolKind::Method);
-    assert_eq!(helper.parent.as_deref(), Some("Invoice"));
-
-    let calls: Vec<_> = parsed
-        .relations
-        .iter()
-        .filter(|r| r.kind == RelationKind::Calls)
-        .map(|r| r.to_name.as_str())
-        .collect();
-    assert!(calls.contains(&"helper"));
+    mct_corpus::assert_class_method_and_call(&parsed, "Invoice", "helper");
 }
 
 #[test]
@@ -155,20 +138,14 @@ fn extracts_imports_with_and_without_alias() {
 
 #[test]
 fn syntax_error_is_reported_not_panicked() {
-    let result = KotlinParser.parse(&SourceFile {
-        relative_path: "Broken.kt".to_string(),
-        contents: "class Broken {\n    fun go( {\n".to_string(),
-    });
-    assert!(matches!(result, Err(mct_core::ParseError::Syntax { .. })));
+    mct_corpus::assert_syntax_error_reported(
+        &KotlinParser,
+        "Broken.kt",
+        "class Broken {\n    fun go( {\n",
+    );
 }
 
-fn symbol<'a>(parsed: &'a mct_core::ParsedFile, name: &str) -> &'a mct_core::SymbolRecord {
-    parsed
-        .symbols
-        .iter()
-        .find(|s| s.name == name)
-        .unwrap_or_else(|| panic!("no symbol {name}"))
-}
+use mct_corpus::parsed_symbol as symbol;
 
 #[test]
 fn top_level_and_local_functions_are_functions() {

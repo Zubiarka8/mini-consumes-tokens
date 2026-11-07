@@ -248,28 +248,13 @@ fn extracts_generic_struct_trait_and_impl_methods() {
 #[test]
 fn extracts_use_imports() {
     let parsed = parse("use std::collections::HashMap;\nuse std::fmt::{Debug, Display};\n");
-    let imports: Vec<_> = parsed
-        .relations
-        .iter()
-        .filter(|r| r.kind == RelationKind::Imports)
-        .map(|r| r.to_name.as_str())
-        .collect();
-    assert!(imports.contains(&"HashMap"));
-    assert!(imports.contains(&"Debug"));
-    assert!(imports.contains(&"Display"));
+    mct_corpus::assert_imports(&parsed, &["HashMap", "Debug", "Display"]);
 }
 
 #[test]
 fn function_end_line_spans_the_whole_multiline_body() {
     let parsed = parse("fn multiline() -> i32 {\n    let x = 1;\n    let y = 2;\n    x + y\n}\n");
-    let sym = parsed
-        .symbols
-        .iter()
-        .find(|s| s.name == "multiline")
-        .expect("multiline function should be indexed");
-    // Line 1: `fn multiline() -> i32 {`, line 5: the closing `}`.
-    assert_eq!(sym.location.line, 1);
-    assert_eq!(sym.location.end_line, Some(5));
+    mct_corpus::assert_symbol_span(&parsed, "multiline", 1, 5);
 }
 
 #[test]

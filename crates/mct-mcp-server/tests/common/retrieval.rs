@@ -12,10 +12,10 @@
 
 #![allow(dead_code, clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Instant;
 
-use mct_index::{EstimatedCounter, ExcludeSet, Index, TokenCounter};
+use mct_index::{EstimatedCounter, TokenCounter};
 use mct_mcp_server::server::MctServer;
 use serde_json::{json, Value};
 
@@ -96,12 +96,9 @@ pub fn write_files(files: &[(&str, String)]) -> PathBuf {
     dir.canonicalize().unwrap()
 }
 
-pub async fn server_at(root: &Path) -> MctServer {
-    let registry = mct_mcp_server::registry::build_registry();
-    let mut index = Index::open_in_memory(root, ExcludeSet::default()).unwrap();
-    index.reindex(&registry, false).unwrap();
-    MctServer::new(index, registry)
-}
+#[path = "server.rs"]
+mod default_server;
+pub use default_server::build_server_at as server_at;
 
 /// 1-based line of the first line of `path` containing `marker`.
 pub fn line_of(path: &str, marker: &str) -> u32 {
@@ -479,15 +476,7 @@ pub struct Outcome {
     pub answers: Vec<String>,
 }
 
-fn text_of(result: &rmcp::model::CallToolResult) -> String {
-    result
-        .content
-        .iter()
-        .filter_map(|b| b.as_text())
-        .map(|t| t.text.clone())
-        .collect::<Vec<_>>()
-        .join("\n")
-}
+use mct_mcp_server::content::result_text as text_of;
 
 fn merge(base: &Value, extra: Value, format: &str) -> Value {
     let mut args = base.clone();

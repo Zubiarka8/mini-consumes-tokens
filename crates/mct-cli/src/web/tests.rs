@@ -1416,6 +1416,15 @@ fn post_ignore(server: &Server, body: &serde_json::Value, headers: &str) -> Stri
     server.raw(&format!("POST /api/ignore HTTP/1.1\r\nHost: 127.0.0.1:8787\r\n{headers}Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}", body.len()))
 }
 
+fn save_ignore(server: &Server, content: &str, base: &str) -> String {
+    let csrf = server.site.borrow().csrf.clone();
+    post_ignore(
+        server,
+        &serde_json::json!({ "csrf": csrf, "content": content, "base": base }),
+        "Origin: http://127.0.0.1:8787\r\n",
+    )
+}
+
 #[test]
 fn mctignore_is_read_and_saved_with_origin_csrf_conflict_and_limit_checks() {
     let root = project();
@@ -1433,13 +1442,7 @@ fn mctignore_is_read_and_saved_with_origin_csrf_conflict_and_limit_checks() {
         .unwrap()
         .contains("@import-gitignore"));
 
-    let save = |content: &str, base: &str| {
-        post_ignore(
-            &server,
-            &serde_json::json!({ "csrf": csrf, "content": content, "base": base }),
-            origin,
-        )
-    };
+    let save = |content: &str, base: &str| save_ignore(&server, content, base);
     let denied = post_ignore(
         &server,
         &serde_json::json!({ "csrf": "nope", "content": "x", "base": "" }),
@@ -1510,15 +1513,7 @@ fn a_new_mctignore_always_carries_the_import_directive_active() {
     let root = project();
     let server = Server::start(root.path(), true);
     let file = root.path().join(".mctignore");
-    let csrf = server.site.borrow().csrf.clone();
-    let origin = "Origin: http://127.0.0.1:8787\r\n";
-    let save = |content: &str, base: &str| {
-        post_ignore(
-            &server,
-            &serde_json::json!({ "csrf": csrf, "content": content, "base": base }),
-            origin,
-        )
-    };
+    let save = |content: &str, base: &str| save_ignore(&server, content, base);
 
     let created = save("docs/", "");
     assert!(created.starts_with("HTTP/1.1 200"), "{created}");

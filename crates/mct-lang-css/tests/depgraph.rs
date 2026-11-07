@@ -6,7 +6,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use mct_core::{LanguageParser, LanguageRegistry, RelationKind, SourceFile, SymbolKind};
+use mct_core::{LanguageParser, LanguageRegistry, SourceFile, SymbolKind};
 use mct_index::{ExcludeSet, Index, Resolution};
 use mct_lang_css::CssParser;
 
@@ -40,17 +40,7 @@ fn evidence_is_set_only_where_the_source_proves_it() {
             .to_string(),
         })
         .unwrap();
-    let evidence = |name: &str| {
-        let i = parsed
-            .relations
-            .iter()
-            .position(|r| r.kind == RelationKind::Imports && r.to_name == name)?;
-        parsed
-            .relation_targets
-            .iter()
-            .find(|t| t.relation == i)
-            .cloned()
-    };
+    let evidence = |name: &str| mct_corpus::optional_import_evidence(&parsed, name);
     let reset = evidence("reset").unwrap();
     assert_eq!(reset.path.as_deref(), Some("base/reset.css"));
     assert_eq!(reset.kind, Some(SymbolKind::Module));

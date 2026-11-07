@@ -10,12 +10,33 @@ use mct_core::{
 use std::ops::Range;
 use tree_sitter::Node;
 
+mod attributes;
 mod tokens;
+
+pub use attributes::unquote_attribute_value;
 
 pub use tokens::{
     tokenize_source, tokenize_source_with_callables, tokenize_tree, tokenize_tree_with_callables,
     TokenClasses,
 };
+
+/// Visit every immediate child in source order, including anonymous tokens.
+#[inline]
+pub fn for_each_child<'tree>(node: Node<'tree>, mut visit: impl FnMut(Node<'tree>)) {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        visit(child);
+    }
+}
+
+/// Visit named immediate children in source order, excluding anonymous tokens.
+#[inline]
+pub fn for_each_named_child<'tree>(node: Node<'tree>, mut visit: impl FnMut(Node<'tree>)) {
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        visit(child);
+    }
+}
 
 /// The first `ERROR` or `MISSING` node in `node`'s subtree, in document order.
 ///

@@ -1,5 +1,6 @@
 pub mod background;
 pub mod cache;
+pub mod content;
 mod dead_query;
 mod duplicate_query;
 pub mod embedder;

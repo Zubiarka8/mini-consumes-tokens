@@ -23,6 +23,8 @@ use rmcp::handler::server::wrapper::Parameters;
 #[path = "common/content.rs"]
 mod content;
 use content::content_of;
+#[path = "common/skeleton.rs"]
+mod skeleton;
 
 fn fixture_root() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/compute-app")
@@ -266,31 +268,24 @@ async fn find_symbol_prefix_match_does_not_reach_a_mid_token_substring() {
     let server = build_server().await;
     // "mpu" sits mid-token in `compute` (co-M-P-U-te) — a prefix query must
     // not find it, unlike `fuzzy` below.
-    let text = content_of(
-        &server
-            .find_symbol(Parameters(FindSymbolArgs {
-                format: Some("text".to_string()),
-                name: "mpu".to_string(),
-                match_mode: Some("prefix".to_string()),
-                path: None,
-                language: None,
-                limit: None,
-            }))
-            .await
-            .unwrap(),
-    );
+    let text = find_mid_token(&server, "prefix").await;
     assert!(text.contains("No symbol named"), "got: {text}");
 }
 
 #[tokio::test]
 async fn find_symbol_fuzzy_match_reaches_a_mid_token_substring() {
     let server = build_server().await;
+    let text = find_mid_token(&server, "fuzzy").await;
+    assert!(text.contains("compute"), "got: {text}");
+}
+
+async fn find_mid_token(server: &MctServer, mode: &str) -> String {
     let text = content_of(
         &server
             .find_symbol(Parameters(FindSymbolArgs {
                 format: Some("text".to_string()),
                 name: "mpu".to_string(),
-                match_mode: Some("fuzzy".to_string()),
+                match_mode: Some(mode.to_string()),
                 path: None,
                 language: None,
                 limit: None,
@@ -298,7 +293,7 @@ async fn find_symbol_fuzzy_match_reaches_a_mid_token_substring() {
             .await
             .unwrap(),
     );
-    assert!(text.contains("compute"), "got: {text}");
+    text
 }
 
 #[tokio::test]
@@ -623,14 +618,7 @@ async fn get_file_skeleton_collapses_rust_function_bodies() {
 #[tokio::test]
 async fn get_file_skeleton_falls_back_to_declaration_only_for_python() {
     let server = build_server().await;
-    let text = content_of(
-        &server
-            .get_file_skeleton(Parameters(GetFileSkeletonArgs {
-                path: "test_compute.py".to_string(),
-            }))
-            .await
-            .unwrap(),
-    );
+    let text = skeleton::skeleton_of(&server, "test_compute.py").await;
     assert!(text.contains("def test_compute():"), "got: {text}");
     assert!(text.contains("# ..."), "got: {text}");
     assert!(

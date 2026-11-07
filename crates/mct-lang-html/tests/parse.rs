@@ -15,9 +15,7 @@ fn file_module_ends_on_the_last_line() {
     // A trailing newline must not push the module one line past the file.
     let module = |src: &str| mct_corpus::module_span(&parse(src));
     let page = "<html>\n  <body id=\"home\"></body>\n</html>";
-    assert_eq!(module(&format!("{page}\n")), (1, Some(3)));
-    assert_eq!(module(page), (1, Some(3)));
-    assert_eq!(module("<p>hi</p>\n"), (1, Some(1)));
+    mct_corpus::assert_module_spans(module, page, "<p>hi</p>\n");
 }
 
 #[test]
@@ -67,59 +65,31 @@ fn id_ancestor_is_found_through_an_unidentified_element() {
 #[test]
 fn link_stylesheet_creates_import_relation() {
     let parsed = parse("<link rel=\"stylesheet\" href=\"theme.css\">");
-    let imports: Vec<_> = parsed
-        .relations
-        .iter()
-        .filter(|r| r.kind == RelationKind::Imports)
-        .map(|r| r.to_name.as_str())
-        .collect();
-    assert!(imports.contains(&"theme.css"), "{imports:?}");
+    mct_corpus::assert_imports(&parsed, &["theme.css"]);
 }
 
 #[test]
 fn non_stylesheet_link_is_not_an_import() {
     let parsed = parse("<link rel=\"icon\" href=\"favicon.ico\">");
-    assert!(parsed
-        .relations
-        .iter()
-        .all(|r| r.kind != RelationKind::Imports));
+    assert_no_imports(&parsed);
 }
 
 #[test]
 fn script_src_creates_import_relation() {
     let parsed = parse("<script src=\"app.js\"></script>");
-    let imports: Vec<_> = parsed
-        .relations
-        .iter()
-        .filter(|r| r.kind == RelationKind::Imports)
-        .map(|r| r.to_name.as_str())
-        .collect();
-    assert!(imports.contains(&"app.js"), "{imports:?}");
+    mct_corpus::assert_imports(&parsed, &["app.js"]);
 }
 
 #[test]
 fn inline_script_without_src_creates_no_import() {
     let parsed = parse("<script>console.log('hi');</script>");
-    assert!(parsed
-        .relations
-        .iter()
-        .all(|r| r.kind != RelationKind::Imports));
+    assert_no_imports(&parsed);
 }
 
 #[test]
 fn module_pseudo_symbol_owns_file_level_relations() {
     let parsed = parse("<script src=\"app.js\"></script>");
-    let module = parsed
-        .symbols
-        .iter()
-        .find(|s| s.kind == SymbolKind::Module)
-        .unwrap();
-    let import = parsed
-        .relations
-        .iter()
-        .find(|r| r.kind == RelationKind::Imports)
-        .unwrap();
-    assert_eq!(import.from, module.id);
+    mct_corpus::assert_module_owns_import(&parsed);
 }
 
 #[test]
@@ -187,4 +157,11 @@ fn selector_references_target_css_and_imports_carry_no_evidence() {
             (".nav", Some("css")),
         ]
     );
+}
+
+fn assert_no_imports(parsed: &mct_core::ParsedFile) {
+    assert!(parsed
+        .relations
+        .iter()
+        .all(|r| r.kind != RelationKind::Imports));
 }

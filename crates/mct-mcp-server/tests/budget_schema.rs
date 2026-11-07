@@ -7,7 +7,6 @@
 
 use std::path::{Path, PathBuf};
 
-use mct_index::{ExcludeSet, Index};
 use mct_mcp_server::server::MctServer;
 use serde_json::{json, Value};
 
@@ -23,15 +22,15 @@ const TOOLS: [&str; 5] = [
     "hybrid_search",
 ];
 
+#[path = "common/indexed_server.rs"]
+mod indexed_server;
+
 fn fixture() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/context-pack-app")
 }
 
 async fn server() -> MctServer {
-    let registry = mct_mcp_server::registry::build_registry();
-    let mut index = Index::open_in_memory(&fixture(), ExcludeSet::default()).unwrap();
-    index.reindex(&registry, false).unwrap();
-    MctServer::new(index, registry)
+    indexed_server::indexed_server(&fixture())
 }
 
 #[tokio::test]

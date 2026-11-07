@@ -9,7 +9,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::Output;
 
 /// A small Rust project in a fresh temp dir, removed on drop.
 struct Project(PathBuf);
@@ -57,12 +57,9 @@ impl Drop for Project {
     }
 }
 
-fn mct(args: &[&dyn AsRef<std::ffi::OsStr>]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_mct-cli"))
-        .args(args.iter().map(|arg| arg.as_ref()))
-        .output()
-        .unwrap()
-}
+#[path = "common/command.rs"]
+mod command;
+use command::mct;
 
 fn stdout(output: &Output) -> String {
     String::from_utf8_lossy(&output.stdout).into_owned()

@@ -77,10 +77,9 @@ impl<'a> Walker<'a> {
         type_name: Option<&str>,
         depth: u32,
     ) {
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
+        mct_tree_sitter::for_each_child(node, |child| {
             self.visit(child, owner, type_name, depth + 1);
-        }
+        });
     }
 
     /// Params + body of any function-shaped node (`function_declaration`,

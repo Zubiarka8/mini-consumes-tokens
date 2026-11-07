@@ -15,6 +15,12 @@ fn parse(src: &str) -> ParsedFile {
         .expect("valid php source should parse")
 }
 
+fn assert_invoice_member(parsed: &ParsedFile, name: &str, kind: SymbolKind) {
+    let member = mct_corpus::parsed_symbol(parsed, name);
+    assert_eq!(member.kind, kind);
+    assert_eq!(member.parent.as_deref(), Some("Invoice"));
+}
+
 #[test]
 fn extracts_class_extends_and_implements() {
     let parsed = parse(
@@ -23,45 +29,23 @@ fn extracts_class_extends_and_implements() {
     let invoice = parsed.symbols.iter().find(|s| s.name == "Invoice").unwrap();
     assert_eq!(invoice.kind, SymbolKind::Class);
 
-    let extends: Vec<_> = parsed
-        .relations
-        .iter()
-        .filter(|r| r.kind == RelationKind::Extends)
-        .map(|r| r.to_name.as_str())
-        .collect();
-    assert!(extends.contains(&"Base"));
-
-    let implements: Vec<_> = parsed
-        .relations
-        .iter()
-        .filter(|r| r.kind == RelationKind::Implements)
-        .map(|r| r.to_name.as_str())
-        .collect();
-    assert!(implements.contains(&"Payable"));
+    mct_corpus::assert_inheritance(&parsed, "Base", "Payable");
 }
 
 #[test]
 fn methods_and_fields_are_parented_to_their_class() {
     let parsed = parse("<?php\nclass Invoice {\n  public float $amount;\n  public function pay(): bool { return true; }\n}\n");
-    let pay = parsed.symbols.iter().find(|s| s.name == "pay").unwrap();
-    assert_eq!(pay.kind, SymbolKind::Method);
-    assert_eq!(pay.parent.as_deref(), Some("Invoice"));
+    assert_invoice_member(&parsed, "pay", SymbolKind::Method);
 
-    let amount = parsed.symbols.iter().find(|s| s.name == "amount").unwrap();
-    assert_eq!(amount.kind, SymbolKind::Field);
-    assert_eq!(amount.parent.as_deref(), Some("Invoice"));
+    assert_invoice_member(&parsed, "amount", SymbolKind::Field);
 }
 
 #[test]
 fn constructor_property_promotion_is_indexed_as_a_field() {
     let parsed = parse("<?php\nclass Invoice {\n  public function __construct(private readonly string $id, public int $amount = 0) {}\n}\n");
-    let id_field = parsed.symbols.iter().find(|s| s.name == "id").unwrap();
-    assert_eq!(id_field.kind, SymbolKind::Field);
-    assert_eq!(id_field.parent.as_deref(), Some("Invoice"));
+    assert_invoice_member(&parsed, "id", SymbolKind::Field);
 
-    let amount_field = parsed.symbols.iter().find(|s| s.name == "amount").unwrap();
-    assert_eq!(amount_field.kind, SymbolKind::Field);
-    assert_eq!(amount_field.parent.as_deref(), Some("Invoice"));
+    assert_invoice_member(&parsed, "amount", SymbolKind::Field);
 }
 
 #[test]
@@ -218,11 +202,7 @@ fn define_call_is_an_ordinary_call_not_a_constant_symbol() {
 
 #[test]
 fn syntax_error_is_reported_not_panicked() {
-    let result = PhpParser.parse(&SourceFile {
-        relative_path: "broken.php".to_string(),
-        contents: "<?php\nclass Foo {\n".to_string(),
-    });
-    assert!(matches!(result, Err(mct_core::ParseError::Syntax { .. })));
+    mct_corpus::assert_syntax_error_reported(&PhpParser, "broken.php", "<?php\nclass Foo {\n");
 }
 
 // Regression test for a real crash: CI's fuzz-smoke job found a native

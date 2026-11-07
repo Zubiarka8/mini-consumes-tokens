@@ -32,7 +32,7 @@ use std::time::{Duration, Instant};
 
 use mct_index::{Embedder, ExcludeSet, Index};
 use mct_mcp_server::cache::{CacheConfig, CacheStats};
-use mct_mcp_server::server::{HybridSearchArgs, MctServer, SearchSymbolsArgs, ServerOptions};
+use mct_mcp_server::server::{MctServer, ServerOptions};
 use rmcp::handler::server::wrapper::Parameters;
 
 const REPEATS: usize = 30;
@@ -121,36 +121,19 @@ fn build(root: &Path, cache: CacheConfig) -> MctServer {
     )
 }
 
-fn search_args(query: &str) -> SearchSymbolsArgs {
-    SearchSymbolsArgs {
-        query: query.to_string(),
-        path: None,
-        language: None,
-        limit: None,
-        offset: None,
-        snippet_lines: None,
-        format: None,
-        cache: None,
-        detail: None,
-        max_tokens: None,
-    }
-}
+#[path = "../tests/common/default_search_args.rs"]
+mod default_search_args;
+use default_search_args::search_args;
 
-fn hybrid_args(query: &str, alpha: f64) -> HybridSearchArgs {
-    HybridSearchArgs {
-        query: query.to_string(),
-        alpha: Some(alpha),
-        ..Default::default()
-    }
-}
+#[path = "../tests/common/hybrid_args.rs"]
+mod hybrid_args_fixture;
+use hybrid_args_fixture::hybrid_args;
+
+#[path = "../tests/common/content.rs"]
+mod result_content;
 
 fn text(result: rmcp::model::CallToolResult) -> String {
-    result
-        .content
-        .first()
-        .and_then(|b| b.as_text())
-        .map(|t| t.text.clone())
-        .unwrap_or_default()
+    result_content::content_of(&result)
 }
 
 fn tokens(text: &str) -> f64 {

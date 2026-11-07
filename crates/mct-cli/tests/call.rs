@@ -8,7 +8,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::Output;
 
 /// A small Rust project in a fresh temp dir, removed on drop.
 struct Project(PathBuf);
@@ -37,12 +37,9 @@ impl Drop for Project {
     }
 }
 
-fn mct(args: &[&dyn AsRef<std::ffi::OsStr>]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_mct-cli"))
-        .args(args.iter().map(|arg| arg.as_ref()))
-        .output()
-        .unwrap()
-}
+#[path = "common/command.rs"]
+mod command;
+use command::mct;
 
 fn stdout(output: &Output) -> String {
     String::from_utf8_lossy(&output.stdout).into_owned()
@@ -50,6 +47,17 @@ fn stdout(output: &Output) -> String {
 
 fn stderr(output: &Output) -> String {
     String::from_utf8_lossy(&output.stderr).into_owned()
+}
+
+fn assert_call_fails(tag: &str, tool: &str, expected_error: &str) {
+    let project = Project::new(tag, "alpha_one");
+    let output = mct(&[&"--root", &project.path(), &"call", &"--tool", &tool]);
+    assert!(!output.status.success());
+    assert!(
+        stderr(&output).contains(expected_error),
+        "{}",
+        stderr(&output)
+    );
 }
 
 #[test]
@@ -225,20 +233,7 @@ fn call_json_over_several_roots_is_an_array_labelled_by_root() {
 
 #[test]
 fn call_with_an_unknown_tool_fails_and_says_so() {
-    let project = Project::new("unknown", "alpha_one");
-    let output = mct(&[
-        &"--root",
-        &project.path(),
-        &"call",
-        &"--tool",
-        &"no_such_tool",
-    ]);
-    assert!(!output.status.success());
-    assert!(
-        stderr(&output).contains("no tool named `no_such_tool`"),
-        "{}",
-        stderr(&output)
-    );
+    assert_call_fails("unknown", "no_such_tool", "no tool named `no_such_tool`");
 }
 
 #[test]
@@ -276,20 +271,7 @@ fn call_with_malformed_json_arguments_fails_before_touching_the_index() {
 
 #[test]
 fn call_with_missing_required_arguments_fails() {
-    let project = Project::new("noargs", "alpha_one");
-    let output = mct(&[
-        &"--root",
-        &project.path(),
-        &"call",
-        &"--tool",
-        &"list_symbols",
-    ]);
-    assert!(!output.status.success());
-    assert!(
-        stderr(&output).contains("invalid args for `list_symbols`"),
-        "{}",
-        stderr(&output)
-    );
+    assert_call_fails("noargs", "list_symbols", "invalid args for `list_symbols`");
 }
 
 #[test]

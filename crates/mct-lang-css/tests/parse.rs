@@ -3,7 +3,7 @@
 // untrusted repo content (see crates/mct-lang-css/src/ for that policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use mct_core::{RelationKind, SymbolKind};
+use mct_core::SymbolKind;
 use mct_lang_css::CssParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
@@ -48,38 +48,36 @@ fn rule_names(parsed: &mct_core::ParsedFile) -> Vec<&str> {
 
 #[test]
 fn compound_selector_indexes_full_and_atomic_names() {
-    let parsed = parse("div.card { color: red; }");
-    let names = rule_names(&parsed);
-    assert!(names.contains(&"div.card"), "{names:?}");
-    assert!(names.contains(&"div"), "{names:?}");
-    assert!(names.contains(&".card"), "{names:?}");
+    assert_rule_names("div.card { color: red; }", &["div.card", "div", ".card"]);
 }
 
 #[test]
 fn compound_class_selector_indexes_full_and_atomic_names() {
-    let parsed = parse(".btn.btn-primary { color: red; }");
-    let names = rule_names(&parsed);
-    assert!(names.contains(&".btn.btn-primary"), "{names:?}");
-    assert!(names.contains(&".btn"), "{names:?}");
-    assert!(names.contains(&".btn-primary"), "{names:?}");
+    assert_rule_names(
+        ".btn.btn-primary { color: red; }",
+        &[".btn.btn-primary", ".btn", ".btn-primary"],
+    );
 }
 
 #[test]
 fn descendant_combinator_indexes_full_and_atomic_names() {
-    let parsed = parse(".card .title { color: red; }");
-    let names = rule_names(&parsed);
-    assert!(names.contains(&".card .title"), "{names:?}");
-    assert!(names.contains(&".card"), "{names:?}");
-    assert!(names.contains(&".title"), "{names:?}");
+    assert_rule_names(
+        ".card .title { color: red; }",
+        &[".card .title", ".card", ".title"],
+    );
 }
 
 #[test]
 fn child_combinator_indexes_full_and_atomic_names() {
-    let parsed = parse("#id > .c { color: red; }");
+    assert_rule_names("#id > .c { color: red; }", &["#id > .c", "#id", ".c"]);
+}
+
+fn assert_rule_names(source: &str, expected: &[&str]) {
+    let parsed = parse(source);
     let names = rule_names(&parsed);
-    assert!(names.contains(&"#id > .c"), "{names:?}");
-    assert!(names.contains(&"#id"), "{names:?}");
-    assert!(names.contains(&".c"), "{names:?}");
+    for name in expected {
+        assert!(names.contains(name), "{names:?}");
+    }
 }
 
 #[test]
@@ -90,10 +88,7 @@ fn bare_tag_selector_is_indexed() {
 
 #[test]
 fn pseudo_class_selector_indexes_full_and_base_names() {
-    let parsed = parse(".btn:hover { color: red; }");
-    let names = rule_names(&parsed);
-    assert!(names.contains(&".btn:hover"), "{names:?}");
-    assert!(names.contains(&".btn"), "{names:?}");
+    assert_rule_names(".btn:hover { color: red; }", &[".btn:hover", ".btn"]);
 }
 
 #[test]
@@ -110,10 +105,10 @@ fn attribute_selector_is_indexed() {
 
 #[test]
 fn tag_plus_attribute_selector_indexes_full_and_atomic_names() {
-    let parsed = parse("input[type=\"text\"] { color: red; }");
-    let names = rule_names(&parsed);
-    assert!(names.contains(&"input[type=\"text\"]"), "{names:?}");
-    assert!(names.contains(&"input"), "{names:?}");
+    assert_rule_names(
+        "input[type=\"text\"] { color: red; }",
+        &["input[type=\"text\"]", "input"],
+    );
 }
 
 #[test]
@@ -160,41 +155,19 @@ fn rules_nested_in_a_media_query_are_still_indexed() {
 #[test]
 fn at_import_with_a_plain_string_creates_an_import_relation() {
     let parsed = parse("@import \"reset.css\";");
-    let imports: Vec<_> = parsed
-        .relations
-        .iter()
-        .filter(|r| r.kind == RelationKind::Imports)
-        .map(|r| r.to_name.as_str())
-        .collect();
-    assert!(imports.contains(&"reset.css"), "{imports:?}");
+    mct_corpus::assert_imports(&parsed, &["reset.css"]);
 }
 
 #[test]
 fn at_import_with_url_function_creates_an_import_relation() {
     let parsed = parse("@import url(\"theme.css\");");
-    let imports: Vec<_> = parsed
-        .relations
-        .iter()
-        .filter(|r| r.kind == RelationKind::Imports)
-        .map(|r| r.to_name.as_str())
-        .collect();
-    assert!(imports.contains(&"theme.css"), "{imports:?}");
+    mct_corpus::assert_imports(&parsed, &["theme.css"]);
 }
 
 #[test]
 fn module_pseudo_symbol_owns_the_import_relation() {
     let parsed = parse("@import \"reset.css\";");
-    let module = parsed
-        .symbols
-        .iter()
-        .find(|s| s.kind == SymbolKind::Module)
-        .unwrap();
-    let import = parsed
-        .relations
-        .iter()
-        .find(|r| r.kind == RelationKind::Imports)
-        .unwrap();
-    assert_eq!(import.from, module.id);
+    mct_corpus::assert_module_owns_import(&parsed);
 }
 
 #[test]
@@ -325,33 +298,28 @@ fn deep_nesting_resolves_through_every_level() {
 
 #[test]
 fn parent_context_crosses_a_media_query_inside_a_rule() {
-    let parsed = parse(".a { @media (min-width: 1px) { &:hover {} .b {} } }");
-    let names = rule_names(&parsed);
-    assert!(names.contains(&".a:hover"), "{names:?}");
-    assert!(names.contains(&".a .b"), "{names:?}");
+    assert_parent_context(".a { @media (min-width: 1px) { &:hover {} .b {} } }");
 }
 
 #[test]
 fn parent_context_crosses_a_supports_block_inside_a_rule() {
-    let parsed = parse(".a { @supports (display: grid) { &:hover {} .b {} } }");
-    let names = rule_names(&parsed);
-    assert!(names.contains(&".a:hover"), "{names:?}");
-    assert!(names.contains(&".a .b"), "{names:?}");
+    assert_parent_context(".a { @supports (display: grid) { &:hover {} .b {} } }");
 }
 
 #[test]
 fn parent_context_crosses_named_and_anonymous_layers_inside_a_rule() {
-    let parsed = parse(".a { @layer base { &:hover {} } @layer { .b {} } }");
-    let names = rule_names(&parsed);
-    assert!(names.contains(&".a:hover"), "{names:?}");
-    assert!(names.contains(&".a .b"), "{names:?}");
+    assert_parent_context(".a { @layer base { &:hover {} } @layer { .b {} } }");
 }
 
 #[test]
 fn parent_context_crosses_a_container_query_inside_a_rule() {
     // tree-sitter-css 0.25 accepts a named `@container` inside a rule; a
     // parenthesized condition there is rejected by the grammar (#116).
-    let parsed = parse(".a { @container sidebar { &:hover {} .b {} } }");
+    assert_parent_context(".a { @container sidebar { &:hover {} .b {} } }");
+}
+
+fn assert_parent_context(source: &str) {
+    let parsed = parse(source);
     let names = rule_names(&parsed);
     assert!(names.contains(&".a:hover"), "{names:?}");
     assert!(names.contains(&".a .b"), "{names:?}");

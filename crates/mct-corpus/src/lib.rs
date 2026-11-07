@@ -47,6 +47,269 @@ use mct_core::{
 };
 use mct_index::{ExcludeSet, Index, Resolution};
 
+/// Check base-class and interface relations without depending on source syntax.
+pub fn assert_inheritance(parsed: &ParsedFile, base: &str, interface: &str) {
+    for (kind, name) in [
+        (RelationKind::Extends, base),
+        (RelationKind::Implements, interface),
+    ] {
+        assert!(
+            parsed
+                .relations
+                .iter()
+                .any(|r| r.kind == kind && r.to_name == name),
+            "missing {kind:?} relation to {name}"
+        );
+    }
+}
+
+/// Check a class, its method's ownership, and a call to that method.
+pub fn assert_class_method_and_call(parsed: &ParsedFile, class: &str, method: &str) {
+    // Java's file module may share the class name; retain kind disambiguation.
+    assert!(parsed
+        .symbols
+        .iter()
+        .any(|s| s.name == class && s.kind == SymbolKind::Class));
+    let symbol = parsed.symbols.iter().find(|s| s.name == method).unwrap();
+    assert_eq!(symbol.kind, SymbolKind::Method);
+    assert_eq!(symbol.parent.as_deref(), Some(class));
+    assert!(parsed
+        .relations
+        .iter()
+        .any(|r| r.kind == RelationKind::Calls && r.to_name == method));
+}
+
+/// Check the complete coverage of a single-language fixture.
+pub fn assert_single_language_coverage(
+    index: &Index,
+    language: &str,
+    files: usize,
+    symbols: usize,
+) {
+    let status = index.status().unwrap();
+    let entry = status
+        .languages
+        .iter()
+        .find(|entry| entry.language == language)
+        .unwrap();
+    assert_eq!(entry.file_count, files, "{language}");
+    assert_eq!(entry.symbol_count, symbols, "{language}");
+    assert_eq!(status.languages.len(), 1, "the fixture is single-language");
+    assert!(status.unsupported_languages.is_empty());
+    assert!(status.syntax_errors.is_empty());
+}
+
+/// Check one indexed symbol, including language from the symbols/files join.
+pub fn assert_indexed_symbol(
+    index: &Index,
+    name: &str,
+    kind: &str,
+    parent: &str,
+    path: &str,
+    language: &str,
+) {
+    let hits = index.find_symbol(name).unwrap();
+    assert_eq!(hits.len(), 1, "{name}");
+    let hit = &hits[0];
+    assert_eq!(hit.kind, kind, "{name}");
+    assert_eq!(hit.parent.as_deref(), Some(parent), "{name}");
+    assert_eq!(hit.relative_path, path, "{name}");
+    assert_eq!(hit.language, language, "{name}");
+}
+
+/// Check that every relation lies within its owning symbol's line range.
+pub fn assert_relation_ranges(corpus: &Corpus) {
+    for f in &corpus.files {
+        for r in &f.parsed.relations {
+            let owner = f.parsed.symbols.iter().find(|s| s.id == r.from).unwrap();
+            let end = owner.location.end_line.unwrap();
+            assert!(
+                (owner.location.line..=end).contains(&r.location.line),
+                "{}:{} {} outside {} {}-{end}",
+                f.path,
+                r.location.line,
+                r.to_name,
+                owner.name,
+                owner.location.line
+            );
+        }
+    }
+}
+
+/// Check that the fixture's type and free function have distinct ownership.
+pub fn assert_fixture_type_and_function(
+    index: &Index,
+    kind: &str,
+    type_file: &str,
+    function_file: &str,
+) {
+    let invoice = index.find_symbol("Invoice").unwrap();
+    assert_eq!(invoice.len(), 1);
+    assert_eq!(invoice[0].kind, kind);
+    assert_eq!(invoice[0].relative_path, type_file);
+    let log = index.find_symbol("log").unwrap();
+    assert_eq!(log.len(), 1);
+    assert_eq!(log[0].kind, "function");
+    assert_eq!(log[0].parent, None);
+    assert_eq!(log[0].relative_path, function_file);
+}
+
+/// Check the fixture's import and both calls are references to `log`.
+pub fn assert_fixture_log_references(index: &Index, path: &str) {
+    let refs = index.find_references("log").unwrap();
+    assert_eq!(refs.len(), 3, "expected one import and two calls: {refs:?}");
+    assert_eq!(refs.iter().filter(|r| r.kind == "imports").count(), 1);
+    assert_eq!(refs.iter().filter(|r| r.kind == "calls").count(), 2);
+    assert!(refs.iter().all(|r| r.relative_path == path));
+}
+
+/// Check an external import does not resolve to a local namesake.
+pub fn assert_external_not_local(hits: &[(Resolution, Option<String>)], local_path: &str) {
+    assert!(
+        hits.iter()
+            .any(|(resolution, _)| *resolution == Resolution::External),
+        "{hits:?}"
+    );
+    assert!(!hits
+        .iter()
+        .any(|(resolution, path)| *resolution == Resolution::Resolved
+            && path.as_deref() == Some(local_path)));
+}
+
+/// Check that each overload contributes a call to the same target.
+pub fn assert_overload_calls(index: &Index, caller: &str, target: &str, count: usize) {
+    let calls = index.find_calls(caller).unwrap();
+    assert_eq!(
+        calls.iter().filter(|call| call.to_name == target).count(),
+        count,
+        "calls from {caller}: {calls:?}"
+    );
+}
+
+/// Function-local assignments must not become top-level variable symbols.
+pub fn assert_no_variables(parsed: &ParsedFile) {
+    assert!(
+        parsed
+            .symbols
+            .iter()
+            .all(|symbol| symbol.kind != SymbolKind::Variable),
+        "function-local assignment must not become a top-level Variable symbol"
+    );
+}
+
+/// Check variable names produced by language-specific assignment syntax.
+pub fn assert_variables(parsed: &ParsedFile, names: &[&str], context: &str) {
+    for name in names {
+        let symbol = parsed.symbols.iter().find(|s| s.name == *name).unwrap();
+        assert_eq!(symbol.kind, SymbolKind::Variable, "{name}: {context}");
+    }
+}
+
+/// Check that each file has a top-level module named after it.
+pub fn assert_file_modules(corpus: &Corpus, files: &[(&str, &str)]) {
+    for &(path, name) in files {
+        let module = corpus.symbol(path, name, SymbolKind::Module);
+        assert_eq!(
+            (module.location.line, module.parent.as_deref()),
+            (1, None),
+            "{path}"
+        );
+    }
+}
+
+/// Import resolutions for relations originating from a path suffix.
+pub fn import_hits_with_path_suffix(
+    index: &Index,
+    suffix: &str,
+    to: &str,
+) -> Vec<(Resolution, Option<String>)> {
+    import_hits_matching(index, to, |path, _| path.ends_with(suffix))
+}
+
+fn import_hits_matching(
+    index: &Index,
+    to: &str,
+    matches: impl Fn(&str, &str) -> bool,
+) -> Vec<(Resolution, Option<String>)> {
+    index
+        .find_references(to)
+        .unwrap()
+        .into_iter()
+        .filter(|hit| hit.kind == "imports" && matches(&hit.relative_path, &hit.to_name))
+        .map(|hit| {
+            (
+                hit.resolution,
+                hit.candidates
+                    .first()
+                    .map(|candidate| candidate.relative_path.clone()),
+            )
+        })
+        .collect()
+}
+
+/// Verify the line range of a named symbol.
+pub fn assert_symbol_span(parsed: &ParsedFile, name: &str, start: u32, end: u32) {
+    let symbol = parsed
+        .symbols
+        .iter()
+        .find(|symbol| symbol.name == name)
+        .expect("symbol should be indexed");
+    assert_eq!(symbol.location.line, start);
+    assert_eq!(symbol.location.end_line, Some(end));
+}
+
+/// Verify a file module ends on its last line, with or without a trailing newline.
+pub fn assert_module_spans(
+    module: impl Fn(&str) -> (u32, Option<u32>),
+    body: &str,
+    single_line: &str,
+) {
+    assert_eq!(module(&format!("{body}\n")), (1, Some(3)));
+    assert_eq!(module(body), (1, Some(3)));
+    assert_eq!(module(single_line), (1, Some(1)));
+}
+
+/// Check that the file module owns its first import relation.
+pub fn assert_module_owns_import(parsed: &ParsedFile) {
+    let module = parsed
+        .symbols
+        .iter()
+        .find(|s| s.kind == SymbolKind::Module)
+        .unwrap();
+    let import = parsed
+        .relations
+        .iter()
+        .find(|r| r.kind == RelationKind::Imports)
+        .unwrap();
+    assert_eq!(import.from, module.id);
+}
+
+/// Verify that token byte ranges are ordered and reproduce their source text.
+pub fn assert_token_offsets(source: &str, file: &mct_core::TokenizedFile) {
+    for token in &file.tokens {
+        assert_eq!(&source[token.start_byte..token.end_byte], token.text);
+    }
+    assert!(file
+        .tokens
+        .windows(2)
+        .all(|pair| pair[0].end_byte <= pair[1].start_byte));
+}
+
+/// Ordered line ranges for matching symbols in a corpus file.
+pub fn symbol_ranges(corpus: &Corpus, path: &str, name: &str, kind: SymbolKind) -> Vec<(u32, u32)> {
+    let mut ranges: Vec<_> = corpus
+        .symbols_named(name)
+        .into_iter()
+        .filter(|(p, s)| p.ends_with(path) && s.kind == kind)
+        .map(|(_, s)| {
+            let line = s.location.line;
+            (line, s.location.end_line.unwrap_or(line))
+        })
+        .collect();
+    ranges.sort_unstable();
+    ranges
+}
+
 /// Parses `src` as the file `relative_path` with `parser`, for a language
 /// crate's `tests/parse.rs`. `language` only words the failure message.
 pub fn parse_source(
@@ -75,8 +338,18 @@ pub fn open_indexed(
 ) -> Index {
     let mut registry = LanguageRegistry::new();
     registry.register(parser);
+    open_indexed_with_registry(root, &registry, expected_files, files)
+}
+
+/// Index a fixture using all parsers in its registry and check the parse report.
+pub fn open_indexed_with_registry(
+    root: &Path,
+    registry: &LanguageRegistry,
+    expected_files: usize,
+    files: &str,
+) -> Index {
     let mut index = Index::open_in_memory(root, ExcludeSet::default()).unwrap();
-    let report = index.reindex(&registry, false).unwrap();
+    let report = index.reindex(registry, false).unwrap();
     assert_eq!(report.files_parsed, expected_files, "{files}");
     assert!(
         report.issues.is_empty(),
@@ -145,18 +418,7 @@ pub fn module_span(parsed: &ParsedFile) -> (u32, Option<u32>) {
 /// The resolution and first candidate file of every `imports` relation named
 /// `to` that `file` makes, for a language crate's `tests/depgraph.rs`.
 pub fn import_hits_from(index: &Index, file: &str, to: &str) -> Vec<(Resolution, Option<String>)> {
-    index
-        .find_references(to)
-        .unwrap()
-        .into_iter()
-        .filter(|h| h.kind == "imports" && h.relative_path == file && h.to_name == to)
-        .map(|h| {
-            (
-                h.resolution,
-                h.candidates.first().map(|c| c.relative_path.clone()),
-            )
-        })
-        .collect()
+    import_hits_matching(index, to, |path, name| path == file && name == to)
 }
 
 /// Asserts that `index.find_calls(caller)` reports exactly one call to
@@ -251,6 +513,37 @@ pub fn assert_imports(parsed: &ParsedFile, targets: &[&str]) {
             "missing import {target}: {imports:?}"
         );
     }
+}
+
+/// Returns import evidence if the named relation and its target exist.
+pub fn optional_import_evidence(
+    parsed: &ParsedFile,
+    name: &str,
+) -> Option<mct_core::RelationTarget> {
+    let index = parsed
+        .relations
+        .iter()
+        .position(|relation| relation.kind == RelationKind::Imports && relation.to_name == name)?;
+    parsed
+        .relation_targets
+        .iter()
+        .find(|target| target.relation == index)
+        .cloned()
+}
+
+/// Returns parser evidence for the named import, or none if it has no evidence.
+pub fn import_evidence(parsed: &ParsedFile, name: &str) -> Option<mct_core::RelationTarget> {
+    let (index, _) = parsed
+        .relations
+        .iter()
+        .enumerate()
+        .find(|(_, relation)| relation.kind == RelationKind::Imports && relation.to_name == name)
+        .unwrap_or_else(|| panic!("no import {name}"));
+    parsed
+        .relation_targets
+        .iter()
+        .find(|target| target.relation == index)
+        .cloned()
 }
 
 /// Defines `fn corpus() -> &'static Corpus` for `$parser` (loaded once per
@@ -635,6 +928,11 @@ impl Corpus {
             }
             many => panic!("{} {kind:?}s named `{name}` in {path}", many.len()),
         }
+    }
+
+    /// The selected symbol's parent, with the same uniqueness checks as `symbol`.
+    pub fn symbol_parent(&self, path: &str, name: &str, kind: SymbolKind) -> Option<&str> {
+        self.symbol(path, name, kind).parent.as_deref()
     }
 
     /// Every symbol in the corpus named `name`, with its file.
@@ -1380,6 +1678,149 @@ fn line_diff(expected: &str, actual: &str) -> String {
         out.push_str("(same lines, different order)\n");
     }
     out
+}
+
+/// The resolved file of the first matching import, if it is resolved.
+pub fn import_target(index: &Index, to: &str, from_file: &str) -> Option<String> {
+    let hit = index
+        .find_references(to)
+        .unwrap()
+        .into_iter()
+        .find(|h| h.kind == "imports" && h.relative_path == from_file && h.to_name == to)?;
+    (hit.resolution == Resolution::Resolved).then(|| hit.candidates[0].relative_path.clone())
+}
+
+/// The fixture's main function calls add_item once across files.
+pub fn assert_fixture_main_reference(index: &Index, file: &str) {
+    let refs = index.find_references("add_item").unwrap();
+    assert_eq!(refs.len(), 1, "{file} calls add_item once");
+    assert_eq!(refs[0].relative_path, file);
+    assert_eq!(refs[0].kind, "calls");
+    assert_eq!(refs[0].from_symbol, "main");
+}
+
+/// Find a parsed symbol by name or fail the test.
+pub fn parsed_symbol<'a>(
+    parsed: &'a mct_core::ParsedFile,
+    name: &str,
+) -> &'a mct_core::SymbolRecord {
+    parsed
+        .symbols
+        .iter()
+        .find(|s| s.name == name)
+        .unwrap_or_else(|| panic!("no symbol {name}"))
+}
+
+/// Check that each named import includes the expected resolved file.
+pub fn assert_import_targets(index: &Index, source_suffix: &str, targets: &[(&str, &str)]) {
+    for (name, file) in targets {
+        let hits = import_hits_with_path_suffix(index, source_suffix, name);
+        assert!(
+            hits.contains(&(Resolution::Resolved, Some((*file).into()))),
+            "{name}: {hits:?}"
+        );
+    }
+}
+
+/// Check a multiline literal's lines and source bytes, and the following `1` token.
+pub fn assert_multiline_literal(
+    source: &str,
+    file: &mct_core::TokenizedFile,
+    prefix: &str,
+    end_line: u32,
+    next_line: u32,
+) {
+    let literal = file
+        .tokens
+        .iter()
+        .find(|token| token.kind == mct_core::TokenKind::Literal && token.text.starts_with(prefix))
+        .unwrap();
+    assert_eq!((literal.line, literal.end_line), (2, end_line));
+    assert_eq!(&source[literal.start_byte..literal.end_byte], literal.text);
+    let one = file.tokens.iter().find(|token| token.text == "1").unwrap();
+    assert_eq!((one.line, one.end_line), (next_line, next_line));
+}
+
+/// Callable names and their statement/flat-call counts for token assertions.
+pub fn body_shapes(file: &mct_core::TokenizedFile) -> Vec<(String, Option<(usize, usize)>)> {
+    file.callables
+        .as_ref()
+        .unwrap()
+        .iter()
+        .map(|span| {
+            (
+                span.name.clone(),
+                span.body.map(|body| (body.statements, body.flat_calls)),
+            )
+        })
+        .collect()
+}
+
+/// Check the expected file count for each language in a polyglot fixture.
+pub fn assert_language_file_counts(index: &Index, counts: &[(&str, usize)]) {
+    let status = index.status().unwrap();
+    for (language, count) in counts {
+        assert!(
+            status
+                .languages
+                .iter()
+                .any(|entry| entry.language == *language && entry.file_count == *count),
+            "{language}: expected {count} file(s)"
+        );
+    }
+}
+
+/// Check the only reference's origin and resolution, and return its target.
+pub fn assert_resolved_reference(
+    index: &Index,
+    name: &str,
+    file: &str,
+    from: &str,
+) -> mct_index::SymbolHit {
+    let refs = index.find_references(name).unwrap();
+    assert_eq!(refs.len(), 1, "{refs:?}");
+    assert_eq!(refs[0].relative_path, file);
+    assert_eq!(refs[0].from_symbol, from);
+    assert_eq!(refs[0].resolution, Resolution::Resolved);
+    index
+        .symbols_by_ids(&[refs[0].target_id.unwrap()])
+        .unwrap()
+        .remove(0)
+}
+
+#[path = "../support/token_pairs.rs"]
+mod token_pairs;
+pub use token_pairs::pairs;
+
+/// Check every caller has the expected symbol name, with exact cardinality.
+pub fn assert_callers_from_symbol(index: &Index, target: &str, count: usize, from: &str) {
+    let callers = index.find_callers(target).unwrap();
+    assert_eq!(callers.len(), count);
+    assert!(callers.iter().all(|caller| caller.from_symbol == from));
+}
+
+/// Check both overloads are distinct method rows in the expected file/language.
+pub fn assert_method_overloads(index: &Index, name: &str, file: &str, language: &str) {
+    let hits = index.find_symbol(name).unwrap();
+    assert_eq!(hits.len(), 2, "both overloads must be separate symbols");
+    assert!(hits.iter().all(|hit| hit.relative_path == file));
+    assert!(hits.iter().all(|hit| hit.kind == "method"));
+    assert_ne!(hits[0].line, hits[1].line);
+    // The language comes from the indexed files row through the symbols/files join.
+    assert!(hits.iter().all(|hit| hit.language == language), "{hits:?}");
+}
+
+/// Run a deep tokenization case on a 512 KiB stack and check the minimum count.
+pub fn assert_tokenizes_on_small_stack(
+    tokenize: fn(&str) -> mct_core::TokenizedFile,
+    source: String,
+    minimum: usize,
+) {
+    let handle = std::thread::Builder::new()
+        .stack_size(512 * 1024)
+        .spawn(move || tokenize(&source).tokens.len())
+        .unwrap();
+    assert!(handle.join().unwrap() > minimum);
 }
 
 #[cfg(test)]

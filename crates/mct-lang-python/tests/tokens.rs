@@ -10,12 +10,7 @@ fn tokenize(source: &str) -> TokenizedFile {
     PythonTokenSource.tokenize("pkg/mod.py", source).unwrap()
 }
 
-fn pairs(file: &TokenizedFile) -> Vec<(TokenKind, &str)> {
-    file.tokens
-        .iter()
-        .map(|token| (token.kind, token.text.as_str()))
-        .collect()
-}
+use mct_corpus::pairs;
 
 #[test]
 fn language_id_matches_the_parser() {
@@ -164,15 +159,7 @@ fn implicit_concatenation_keeps_one_literal_per_string() {
 fn a_multi_line_string_is_one_token_spanning_its_lines() {
     let source = "def f():\n    \"\"\"doc\n    string\"\"\"\n    return 1\n";
     let file = tokenize(source);
-    let doc = file
-        .tokens
-        .iter()
-        .find(|token| token.kind == Literal && token.text.starts_with("\"\"\""))
-        .unwrap();
-    assert_eq!((doc.line, doc.end_line), (2, 3));
-    assert_eq!(&source[doc.start_byte..doc.end_byte], doc.text);
-    let one = file.tokens.iter().find(|token| token.text == "1").unwrap();
-    assert_eq!((one.line, one.end_line), (4, 4));
+    mct_corpus::assert_multiline_literal(source, &file, "\"\"\"", 3, 4);
 }
 
 #[test]
@@ -285,13 +272,7 @@ fn a_functions_markers_stay_within_its_own_lines() {
 fn token_offsets_are_in_order_and_index_the_source() {
     let source = "def \u{e9}t\u{e9}():\n    s = '\u{1f980}'\n";
     let file = tokenize(source);
-    for token in &file.tokens {
-        assert_eq!(&source[token.start_byte..token.end_byte], token.text);
-    }
-    assert!(file
-        .tokens
-        .windows(2)
-        .all(|pair| pair[0].end_byte <= pair[1].start_byte));
+    mct_corpus::assert_token_offsets(source, &file);
     assert!(file
         .tokens
         .iter()
@@ -324,11 +305,7 @@ fn garbage_and_empty_input_never_panic() {
 fn pathologically_deep_nesting_does_not_overflow_the_stack() {
     let depth = 10_000;
     let source = format!("x = {}1{}\n", "(".repeat(depth), ")".repeat(depth));
-    let handle = std::thread::Builder::new()
-        .stack_size(512 * 1024)
-        .spawn(move || tokenize(&source).tokens.len())
-        .unwrap();
-    assert!(handle.join().unwrap() > 2 * depth);
+    mct_corpus::assert_tokenizes_on_small_stack(tokenize, source, 2 * depth);
 }
 
 fn roles(file: &TokenizedFile) -> Vec<(&str, mct_core::TokenRole)> {
@@ -550,19 +527,7 @@ class Box:
     }
 }
 
-fn body_shapes(file: &TokenizedFile) -> Vec<(String, Option<(usize, usize)>)> {
-    file.callables
-        .as_ref()
-        .unwrap()
-        .iter()
-        .map(|span| {
-            (
-                span.name.clone(),
-                span.body.map(|body| (body.statements, body.flat_calls)),
-            )
-        })
-        .collect()
-}
+use mct_corpus::body_shapes;
 
 #[test]
 fn body_shapes_count_flat_call_statements_without_reading_callee_names() {

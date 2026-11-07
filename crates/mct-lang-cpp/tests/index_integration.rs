@@ -85,10 +85,7 @@ fn find_calls_reports_log_only_from_the_definitions_with_bodies() {
 
 #[test]
 fn find_callers_of_log_shows_add_item_as_caller() {
-    let index = open_indexed();
-    let callers = index.find_callers("log").unwrap();
-    assert_eq!(callers.len(), 2);
-    assert!(callers.iter().all(|c| c.from_symbol == "addItem"));
+    mct_corpus::assert_callers_from_symbol(&open_indexed(), "log", 2, "addItem");
 }
 
 #[test]
