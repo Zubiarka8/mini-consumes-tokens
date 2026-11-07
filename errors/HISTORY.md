@@ -269,3 +269,6 @@ Auditing PHP support on `feat/php-indexing-improvements` (base `59231f0`), with 
 ## 2026-11-04 — ERR-014: find_symbol caller argument mistake
 
 `find_symbol` was first invoked with `symbol: "top_level"`; exact diagnostic: ``invalid args for `find_symbol`: missing field `name` ``. `get_tool_schema(name: "find_symbol")` confirmed the required field. Retried with `name: "top_level"`: succeeded. Caller argument error, no server defect.
+## 2026-11-06 — MCT transport closed during refactor review
+
+On `feat/web-launcher-script`, `get_indexing_status` (no arguments) returned exactly `tool call error: tool call failed for `mini-consumes-tokens/get_indexing_status`\n\nCaused by:\n    Transport closed`. `impact_analysis` for `content_of` at `crates/mct-mcp-server/tests/common/all_content.rs` and `try_call` at `crates/mct-mcp-server/tests/common/try_call.rs` returned the same diagnostic with the respective tool name. No MCT caller graph or index status was available, so caller-impact verification is incomplete. Cause is unverified; retry after reconnecting the MCT server. The working tree has uncommitted changes; no revision hash recorded.

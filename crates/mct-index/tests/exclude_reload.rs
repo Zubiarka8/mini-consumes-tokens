@@ -11,76 +11,19 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
 
-use mct_core::{
-    Location, ParseError, ParsedFile, RelationKind, SourceFile, SymbolKind, SymbolRecord,
-    SymbolRelation,
-};
+#[path = "common/scratch_dir.rs"]
+mod scratch_dir;
+use scratch_dir::scratch_dir;
+
+#[path = "common/calls_fake_parser.rs"]
+mod calls_fake_parser;
+use calls_fake_parser::registry;
+
 use mct_index::{ExcludeSet, Index, IGNORE_FILE_NAME};
 
-/// Toy format: each line is `NAME` or `NAME calls OTHER`.
-struct FakeParser;
-
-impl mct_core::LanguageParser for FakeParser {
-    fn language_id(&self) -> &'static str {
-        "fake"
-    }
-
-    fn file_extensions(&self) -> &'static [&'static str] {
-        &["fake"]
-    }
-
-    fn parse(&self, file: &SourceFile) -> Result<ParsedFile, ParseError> {
-        let mut parsed = ParsedFile::default();
-        for (line_no, line) in file.contents.lines().enumerate() {
-            let mut parts = line.split_whitespace();
-            let Some(name) = parts.next() else { continue };
-            let location = Location {
-                line: line_no as u32 + 1,
-                column: 1,
-                byte_len: line.len() as u32,
-                end_line: Some(line_no as u32 + 1),
-            };
-            let id = parsed.symbols.len() as u32;
-            parsed.symbols.push(SymbolRecord {
-                id,
-                name: name.to_string(),
-                kind: SymbolKind::Function,
-                location,
-                parent: None,
-                level: None,
-            });
-            if let (Some("calls"), Some(callee)) = (parts.next(), parts.next()) {
-                parsed.relations.push(SymbolRelation {
-                    from: id,
-                    kind: RelationKind::Calls,
-                    to_name: callee.to_string(),
-                    location,
-                });
-            }
-        }
-        Ok(parsed)
-    }
-}
-
-fn registry() -> mct_core::LanguageRegistry {
-    let mut registry = mct_core::LanguageRegistry::new();
-    registry.register(Arc::new(FakeParser));
-    registry
-}
-
 fn tempdir() -> PathBuf {
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let dir = std::env::temp_dir().join(format!(
-        "mct-exclude-reload-{}-{}",
-        std::process::id(),
-        COUNTER.fetch_add(1, Ordering::Relaxed)
-    ));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(&dir).unwrap();
-    dir.canonicalize().unwrap()
+    scratch_dir("mct-exclude-reload")
 }
 
 /// A project with `hidden.fake` (whose symbol calls `helper`) and

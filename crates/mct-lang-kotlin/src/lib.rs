@@ -133,13 +133,7 @@ impl LanguageParser for KotlinParser {
 }
 
 fn module_name_for(relative_path: &str) -> String {
-    relative_path
-        .rsplit('/')
-        .next()
-        .unwrap_or(relative_path)
-        .trim_end_matches(".kts")
-        .trim_end_matches(".kt")
-        .to_string()
+    mct_tree_sitter::module_name(relative_path, &[".kts", ".kt"])
 }
 
 /// Span the original file, excluding any synthetic LF supplied to the
