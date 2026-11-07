@@ -1631,6 +1631,9 @@ fn the_dashboard_reloads_only_when_a_change_is_published() {
     assert!(site.navigation.symbols.iter().any(|s| s.name == "gamma"));
 }
 
+// Windows refuses to delete a database file the dashboard holds open, so a
+// rebuild under a running dashboard cannot happen there.
+#[cfg(unix)]
 #[test]
 fn a_rebuilt_index_file_is_reloaded() {
     let root = project();
