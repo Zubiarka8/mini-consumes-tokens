@@ -3,7 +3,7 @@
 // untrusted repo content (see crates/mct-lang-csharp/src/ for that policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use mct_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
+use mct_core::{RelationKind, SymbolKind};
 use mct_lang_csharp::CSharpParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
@@ -102,21 +102,7 @@ fn base_class_and_interfaces_are_distinguished_by_position() {
     let ishape = parsed.symbols.iter().find(|s| s.name == "IShape").unwrap();
     assert_eq!(ishape.kind, SymbolKind::Interface);
 
-    let extends: Vec<_> = parsed
-        .relations
-        .iter()
-        .filter(|r| r.kind == RelationKind::Extends)
-        .map(|r| r.to_name.as_str())
-        .collect();
-    assert!(extends.contains(&"BaseShape"));
-
-    let implements: Vec<_> = parsed
-        .relations
-        .iter()
-        .filter(|r| r.kind == RelationKind::Implements)
-        .map(|r| r.to_name.as_str())
-        .collect();
-    assert!(implements.contains(&"IShape"));
+    mct_corpus::assert_inheritance(&parsed, "BaseShape", "IShape");
 }
 
 #[test]
@@ -140,22 +126,14 @@ fn extracts_struct_and_using_directives() {
 fn method_end_line_is_its_closing_brace_not_the_class() {
     let parsed =
         parse("class Foo {\n    public int Add(int a, int b) {\n        return a + b;\n    }\n}\n");
-    let add = parsed
-        .symbols
-        .iter()
-        .find(|s| s.name == "Add")
-        .expect("Add method should be indexed");
-    // Line 2: `public int Add(...) {`, line 4: the method's own closing `}`
-    // (not line 5, the enclosing class's closing brace).
-    assert_eq!(add.location.line, 2);
-    assert_eq!(add.location.end_line, Some(4));
+    mct_corpus::assert_symbol_span(&parsed, "Add", 2, 4);
 }
 
 #[test]
 fn syntax_error_is_reported_not_panicked() {
-    let result = CSharpParser.parse(&SourceFile {
-        relative_path: "Broken.cs".to_string(),
-        contents: "public class Broken {\n  void Go( {\n".to_string(),
-    });
-    assert!(matches!(result, Err(mct_core::ParseError::Syntax { .. })));
+    mct_corpus::assert_syntax_error_reported(
+        &CSharpParser,
+        "Broken.cs",
+        "public class Broken {\n  void Go( {\n",
+    );
 }

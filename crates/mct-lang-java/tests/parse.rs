@@ -3,7 +3,7 @@
 // untrusted repo content (see crates/mct-lang-java/src/ for that policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use mct_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
+use mct_core::{RelationKind, SymbolKind};
 use mct_lang_java::JavaParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
@@ -15,9 +15,7 @@ fn file_module_ends_on_the_last_line() {
     // A trailing newline must not push the module one line past the file.
     let module = |src: &str| mct_corpus::module_span(&parse(src));
     let class = "class A {\n  void f() {}\n}";
-    assert_eq!(module(&format!("{class}\n")), (1, Some(3)));
-    assert_eq!(module(class), (1, Some(3)));
-    assert_eq!(module("class A {}\n"), (1, Some(1)));
+    mct_corpus::assert_module_spans(module, class, "class A {}\n");
 }
 
 #[test]
@@ -25,26 +23,7 @@ fn extracts_class_method_and_call() {
     let parsed = parse(
         "public class Calculator {\n    public int add(int a, int b) {\n        return helper(a, b);\n    }\n\n    private int helper(int a, int b) {\n        return a + b;\n    }\n}\n",
     );
-    // "Calculator" is ambiguous by name alone: the file-level module
-    // pseudo-symbol (named after Calculator.java) collides with the class
-    // of the same name — the idiomatic Java convention of one public type
-    // per file, named after it. Both legitimately exist; disambiguate by kind.
-    assert!(parsed
-        .symbols
-        .iter()
-        .any(|s| s.name == "Calculator" && s.kind == SymbolKind::Class));
-
-    let helper = parsed.symbols.iter().find(|s| s.name == "helper").unwrap();
-    assert_eq!(helper.kind, SymbolKind::Method);
-    assert_eq!(helper.parent.as_deref(), Some("Calculator"));
-
-    let calls: Vec<_> = parsed
-        .relations
-        .iter()
-        .filter(|r| r.kind == RelationKind::Calls)
-        .map(|r| r.to_name.as_str())
-        .collect();
-    assert!(calls.contains(&"helper"));
+    mct_corpus::assert_class_method_and_call(&parsed, "Calculator", "helper");
 }
 
 #[test]
@@ -100,21 +79,7 @@ fn extracts_interface_implements_and_extends() {
     let shape = parsed.symbols.iter().find(|s| s.name == "Shape").unwrap();
     assert_eq!(shape.kind, SymbolKind::Interface);
 
-    let extends: Vec<_> = parsed
-        .relations
-        .iter()
-        .filter(|r| r.kind == RelationKind::Extends)
-        .map(|r| r.to_name.as_str())
-        .collect();
-    assert!(extends.contains(&"BaseShape"));
-
-    let implements: Vec<_> = parsed
-        .relations
-        .iter()
-        .filter(|r| r.kind == RelationKind::Implements)
-        .map(|r| r.to_name.as_str())
-        .collect();
-    assert!(implements.contains(&"Shape"));
+    mct_corpus::assert_inheritance(&parsed, "BaseShape", "Shape");
 }
 
 fn supertypes(parsed: &mct_core::ParsedFile, kind: RelationKind) -> Vec<&str> {
@@ -208,9 +173,9 @@ fn extracts_imports_including_static() {
 
 #[test]
 fn syntax_error_is_reported_not_panicked() {
-    let result = JavaParser.parse(&SourceFile {
-        relative_path: "Broken.java".to_string(),
-        contents: "public class Broken {\n  void go( {\n".to_string(),
-    });
-    assert!(matches!(result, Err(mct_core::ParseError::Syntax { .. })));
+    mct_corpus::assert_syntax_error_reported(
+        &JavaParser,
+        "Broken.java",
+        "public class Broken {\n  void go( {\n",
+    );
 }

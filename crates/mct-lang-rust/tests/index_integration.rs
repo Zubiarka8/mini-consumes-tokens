@@ -46,18 +46,12 @@ fn find_symbol_locates_inherent_method_on_its_struct() {
 
 #[test]
 fn find_symbol_indexes_the_struct_and_the_free_function_separately() {
-    let index = open_indexed();
-
-    let invoice = index.find_symbol("Invoice").unwrap();
-    assert_eq!(invoice.len(), 1);
-    assert_eq!(invoice[0].kind, "struct");
-    assert_eq!(invoice[0].relative_path, "invoice.rs");
-
-    let log = index.find_symbol("log").unwrap();
-    assert_eq!(log.len(), 1);
-    assert_eq!(log[0].kind, "function");
-    assert_eq!(log[0].parent, None, "a free fn has no enclosing type");
-    assert_eq!(log[0].relative_path, "logger.rs");
+    mct_corpus::assert_fixture_type_and_function(
+        &open_indexed(),
+        "struct",
+        "invoice.rs",
+        "logger.rs",
+    );
 }
 
 #[test]
@@ -100,18 +94,7 @@ fn list_symbols_reports_every_definition_in_the_struct_file_as_rust() {
 
 #[test]
 fn status_reports_full_rust_coverage() {
-    let index = open_indexed();
-    let status = index.status().unwrap();
-    let rust = status
-        .languages
-        .iter()
-        .find(|l| l.language == "rust")
-        .unwrap();
-    assert_eq!(rust.file_count, 3);
-    assert_eq!(rust.symbol_count, 18);
-    assert_eq!(status.languages.len(), 1, "the fixture is single-language");
-    assert!(status.unsupported_languages.is_empty());
-    assert!(status.syntax_errors.is_empty());
+    mct_corpus::assert_single_language_coverage(&open_indexed(), "rust", 3, 18);
 }
 
 #[test]
@@ -133,26 +116,12 @@ fn find_callers_of_log_shows_both_invoice_methods() {
 
 #[test]
 fn find_references_finds_cross_file_call_from_main() {
-    let index = open_indexed();
-    let refs = index.find_references("add_item").unwrap();
-    assert_eq!(refs.len(), 1, "main.rs calls add_item once");
-    assert_eq!(refs[0].relative_path, "main.rs");
-    assert_eq!(refs[0].kind, "calls");
-    assert_eq!(refs[0].from_symbol, "main");
+    mct_corpus::assert_fixture_main_reference(&open_indexed(), "main.rs");
 }
 
 #[test]
 fn find_references_of_log_includes_the_use_import_as_well_as_the_calls() {
-    let index = open_indexed();
-    let refs = index.find_references("log").unwrap();
-    assert_eq!(
-        refs.len(),
-        3,
-        "one `use crate::logger::log` plus two calls: {refs:?}"
-    );
-    assert_eq!(refs.iter().filter(|r| r.kind == "imports").count(), 1);
-    assert_eq!(refs.iter().filter(|r| r.kind == "calls").count(), 2);
-    assert!(refs.iter().all(|r| r.relative_path == "invoice.rs"));
+    mct_corpus::assert_fixture_log_references(&open_indexed(), "invoice.rs");
 }
 
 #[test]

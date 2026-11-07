@@ -65,10 +65,7 @@ fn find_callers_of_write_log_shows_both_call_sites() {
 
 #[test]
 fn find_references_finds_cross_file_call_from_run() {
-    let index = open_indexed();
-    let refs = index.find_references("Invoke-Deploy").unwrap();
-    assert_eq!(refs.len(), 1, "Run.ps1 calls Invoke-Deploy once");
-    assert_eq!(refs[0].relative_path, "Run.ps1");
+    mct_corpus::assert_references_in_file(&open_indexed(), "Invoke-Deploy", 1, "Run.ps1");
 }
 
 #[test]

@@ -15,7 +15,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use mct_core::LanguageRegistry;
-use mct_index::{ExcludeSet, Index};
+use mct_index::Index;
 use mct_lang_css::CssParser;
 use mct_lang_html::HtmlParser;
 
@@ -31,30 +31,12 @@ fn registry() -> LanguageRegistry {
 }
 
 fn open_indexed() -> Index {
-    let root = fixture_root();
-    let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
-    let report = index.reindex(&registry(), false).unwrap();
-    assert_eq!(report.files_parsed, 2, "index.html, style.css");
-    assert!(
-        report.issues.is_empty(),
-        "no parse issues expected: {:?}",
-        report.issues
-    );
-    index
+    mct_corpus::open_indexed_with_registry(&fixture_root(), &registry(), 2, "index.html, style.css")
 }
 
 #[test]
 fn status_reports_coverage_for_both_languages() {
-    let index = open_indexed();
-    let status = index.status().unwrap();
-    assert!(status
-        .languages
-        .iter()
-        .any(|l| l.language == "html" && l.file_count == 1));
-    assert!(status
-        .languages
-        .iter()
-        .any(|l| l.language == "css" && l.file_count == 1));
+    mct_corpus::assert_language_file_counts(&open_indexed(), &[("html", 1), ("css", 1)]);
 }
 
 #[test]
@@ -89,16 +71,10 @@ fn a_second_reindex_skips_unchanged_files_and_force_reparses_them() {
 #[test]
 fn find_references_resolves_the_id_selector_back_to_its_html_element() {
     let index = open_indexed();
-    let refs = index.find_references("#header").unwrap();
-    assert_eq!(refs.len(), 1, "{refs:?}");
-    assert_eq!(refs[0].relative_path, "index.html");
-    assert_eq!(refs[0].from_symbol, "header");
-    // Resolved through the explicit CSS evidence to the one rule.
-    assert_eq!(refs[0].resolution, mct_index::Resolution::Resolved);
-    let target = index.symbols_by_ids(&[refs[0].target_id.unwrap()]).unwrap();
-    assert_eq!(target[0].relative_path, "style.css");
-    assert_eq!(target[0].language, "css");
-    assert_eq!(target[0].line, 1);
+    let target = mct_corpus::assert_resolved_reference(&index, "#header", "index.html", "header");
+    assert_eq!(target.relative_path, "style.css");
+    assert_eq!(target.language, "css");
+    assert_eq!(target.line, 1);
 }
 
 #[test]

@@ -3,7 +3,7 @@
 // untrusted repo content (see crates/mct-lang-go/src/ for that policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use mct_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
+use mct_core::{RelationKind, SymbolKind};
 use mct_lang_go::GoParser;
 
 fn parse(src: &str) -> mct_core::ParsedFile {
@@ -140,9 +140,9 @@ fn extracts_package_and_import() {
 
 #[test]
 fn syntax_error_is_reported_not_panicked() {
-    let result = GoParser.parse(&SourceFile {
-        relative_path: "broken.go".to_string(),
-        contents: "package broken\n\nfunc go( {\n".to_string(),
-    });
-    assert!(matches!(result, Err(mct_core::ParseError::Syntax { .. })));
+    mct_corpus::assert_syntax_error_reported(
+        &GoParser,
+        "broken.go",
+        "package broken\n\nfunc go( {\n",
+    );
 }
