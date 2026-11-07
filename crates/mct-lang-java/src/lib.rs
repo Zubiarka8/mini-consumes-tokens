@@ -74,6 +74,7 @@ fn text<'a>(node: Node, source: &'a str) -> &'a str {
     node.utf8_text(source.as_bytes()).unwrap_or_default()
 }
 
+#[derive(Default)]
 struct Walker<'a> {
     source: &'a str,
     symbols: Vec<SymbolRecord>,
@@ -86,10 +87,7 @@ impl<'a> Walker<'a> {
     fn new(source: &'a str) -> Self {
         Self {
             source,
-            symbols: Vec::new(),
-            relations: Vec::new(),
-            relation_targets: Vec::new(),
-            next_id: 0,
+            ..Self::default()
         }
     }
 
