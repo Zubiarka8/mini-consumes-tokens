@@ -7,11 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-07
+
+### Upgrading from 0.3.0
+
+- The index advances to schema migration 14 and reparses existing files. Update all binaries that share an index before reopening it; older binaries cannot open the migrated database. Run `mct-cli --root <project> reindex --force` after upgrading.
+- Possible framework entry points are evidence for review, not proof that a symbol is used. Review these hints before removing unused-code candidates.
+
 ### Fixed
 
 - `mct-cli web --help` no longer claims the dashboard runs without reindexing: it keeps the index up to date while it runs.
 - Dashboard: a duplicate group's file count is counted over the whole group (`fileCount` in `api/findings`), not over the six members the list previews; the review workspace counts files, not fragments.
 - Dashboard: the pending-review figures come from the server (`findings.pending`, `health.pendingReviews`) with one definition (unreviewed, in review, needs re-evaluation) instead of two different sums in the page.
+- References no longer become ambiguous solely because a file module shadows a same-named declaration in that file. Imports and genuinely ambiguous targets retain their existing behavior.
+- The Windows and Unix language checks recognize shared syntax-error assertions as well as inline assertions.
 
 ### Added
 
@@ -20,6 +29,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Dashboard: each duplicate group in a symbol's detail has its own "Copy duplicate for AI" button.
 - Dashboard: every duplicate and unused-code row has a visible "Copy AI template" button that copies the finding's brief.
+- Lua indexing covers variables, class annotations and module paths; LuaRocks dependency analysis reads rockspecs without executing them and exposes declaration details in status and dependency tools.
+- PHP and Laravel indexing covers routes, Blade templates, migrations, listeners and views, with possible framework entry-point evidence in the dead-code workspace.
+- Rust indexing includes local bindings and additional attribute and type references.
+- Cross-platform scripts launch the local web dashboard.
 
 ### Changed
 
@@ -29,6 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `@import-gitignore` also imports nested `.gitignore` files, each applying below its own directory as in git. Nested files are discovered on every full reindex and when a `.gitignore` changes.
 - `.next/` (Next.js build output) is excluded by default. Existing indexes drop its rows on the next full reindex.
 - Dashboard: the stacked finding rows list their files in a panel shown on hover and keyboard focus, instead of a native tooltip, and no longer carry the ignore button (still in the table).
+- Dashboard AI briefs distinguish evidence from assumptions, preserve intentional fixtures and language-specific behavior, and explain review states. Copied finding lists put each file and line range on its own line and omit the review-key appendix.
+- Duplicate findings recover complete member information and provenance. Shared parser, query and test helpers consolidate repeated logic while retaining language-specific assertions.
 
 ## [0.3.0] - 2026-10-30
 
