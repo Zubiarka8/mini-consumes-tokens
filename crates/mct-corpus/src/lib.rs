@@ -45,7 +45,7 @@ use mct_core::{
     LanguageParser, LanguageRegistry, ParseError, ParsedFile, RelationKind, SourceFile, SymbolKind,
     SymbolRecord, SymbolRelation,
 };
-use mct_index::{ExcludeSet, Index};
+use mct_index::{ExcludeSet, Index, Resolution};
 
 /// Parses `src` as the file `relative_path` with `parser`, for a language
 /// crate's `tests/parse.rs`. `language` only words the failure message.
@@ -140,6 +140,23 @@ pub fn module_span(parsed: &ParsedFile) -> (u32, Option<u32>) {
         .find(|s| s.kind == SymbolKind::Module)
         .unwrap();
     (module.location.line, module.location.end_line)
+}
+
+/// The resolution and first candidate file of every `imports` relation named
+/// `to` that `file` makes, for a language crate's `tests/depgraph.rs`.
+pub fn import_hits_from(index: &Index, file: &str, to: &str) -> Vec<(Resolution, Option<String>)> {
+    index
+        .find_references(to)
+        .unwrap()
+        .into_iter()
+        .filter(|h| h.kind == "imports" && h.relative_path == file && h.to_name == to)
+        .map(|h| {
+            (
+                h.resolution,
+                h.candidates.first().map(|c| c.relative_path.clone()),
+            )
+        })
+        .collect()
 }
 
 /// Asserts that `index.find_calls(caller)` reports exactly one call to

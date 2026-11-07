@@ -19,18 +19,7 @@ fn open_indexed() -> Index {
 /// Resolutions and first candidate files of the `imports` relations named
 /// `to` in `index.php`.
 fn import_hits(index: &Index, to: &str) -> Vec<(Resolution, Option<String>)> {
-    index
-        .find_references(to)
-        .unwrap()
-        .into_iter()
-        .filter(|h| h.kind == "imports" && h.relative_path == "index.php" && h.to_name == to)
-        .map(|h| {
-            (
-                h.resolution,
-                h.candidates.first().map(|c| c.relative_path.clone()),
-            )
-        })
-        .collect()
+    mct_corpus::import_hits_from(index, "index.php", to)
 }
 
 fn resolved(file: &str) -> (Resolution, Option<String>) {
