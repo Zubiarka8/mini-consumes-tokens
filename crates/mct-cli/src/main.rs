@@ -1436,17 +1436,7 @@ mod tests {
 
     #[test]
     fn ignore_init_does_not_overwrite_an_existing_file() {
-        let dir = temp_project_dir("ignore-init-existing");
-        fs::write(dir.join(mct_index::IGNORE_FILE_NAME), "*.md\n")
-            .expect("seed existing ignore file");
-
-        ignore_init(&dir, false).expect("ignore_init should succeed");
-
-        let contents =
-            fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
-        assert_eq!(contents, "*.md\n");
-
-        fs::remove_dir_all(&dir).ok();
+        assert_existing_ignore("ignore-init-existing", false, "*.md\n");
     }
 
     #[test]
@@ -1474,30 +1464,28 @@ mod tests {
 
     #[test]
     fn ignore_init_without_the_flag_never_touches_an_existing_file() {
-        let dir = temp_project_dir("ignore-init-no-flag-existing");
-        fs::write(dir.join(mct_index::IGNORE_FILE_NAME), "*.md\n")
-            .expect("seed existing ignore file");
-
-        ignore_init(&dir, false).expect("ignore_init should succeed");
-
-        let contents =
-            fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
-        assert_eq!(contents, "*.md\n");
-
-        fs::remove_dir_all(&dir).ok();
+        assert_existing_ignore("ignore-init-no-flag-existing", false, "*.md\n");
     }
 
     #[test]
     fn ignore_init_import_gitignore_flag_activates_the_directive_on_an_existing_file() {
-        let dir = temp_project_dir("ignore-init-import-gitignore-existing");
+        assert_existing_ignore(
+            "ignore-init-import-gitignore-existing",
+            true,
+            "*.md\n@import-gitignore\n",
+        );
+    }
+
+    fn assert_existing_ignore(tag: &str, import_gitignore: bool, expected: &str) {
+        let dir = temp_project_dir(tag);
         fs::write(dir.join(mct_index::IGNORE_FILE_NAME), "*.md\n")
             .expect("seed existing ignore file");
 
-        ignore_init(&dir, true).expect("ignore_init should succeed");
+        ignore_init(&dir, import_gitignore).expect("ignore_init should succeed");
 
         let contents =
             fs::read_to_string(dir.join(mct_index::IGNORE_FILE_NAME)).expect("file should exist");
-        assert_eq!(contents, "*.md\n@import-gitignore\n");
+        assert_eq!(contents, expected);
 
         fs::remove_dir_all(&dir).ok();
     }
