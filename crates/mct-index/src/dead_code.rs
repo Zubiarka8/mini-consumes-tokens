@@ -2,7 +2,7 @@
 //! `find_dead_code` tool and `mct-cli`'s `dead-code` subcommand so the two
 //! never drift apart on what counts as "unreferenced".
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::{Index, Result, SymbolListEntry};
 
@@ -95,7 +95,8 @@ pub fn looks_like_test_name(name: &str, relative_path: &str) -> bool {
 /// prefix, matching [`Index::list_symbols`]'s semantics — omit for the whole
 /// project), optionally narrowed to one `language`: symbols whose kind is in
 /// [`DEAD_CODE_KIND_ALLOWLIST`], that aren't a known entry point, don't look
-/// like a test, and have zero indexed references anywhere in the project.
+/// like a test, and have zero indexed references anywhere in the project —
+/// a function's calls to itself don't count (see [`Index::referenced_names`]).
 ///
 /// Heuristic over indexed relations, not real export/dynamic-dispatch
 /// analysis — a symbol only referenced via reflection, an FFI boundary, or a
@@ -106,19 +107,19 @@ pub fn find_dead_code_candidates(
     language: Option<&str>,
 ) -> Result<Vec<SymbolListEntry>> {
     let all_entries = index.list_symbols_all(path, language)?;
-    let reference_counts = index.reference_counts()?;
+    let referenced = index.referenced_names()?;
 
     Ok(all_entries
         .into_iter()
-        .filter(|e| is_candidate(e, &reference_counts))
+        .filter(|e| is_candidate(e, &referenced))
         .collect())
 }
 
-fn is_candidate(entry: &SymbolListEntry, reference_counts: &HashMap<String, usize>) -> bool {
+fn is_candidate(entry: &SymbolListEntry, referenced: &HashSet<String>) -> bool {
     DEAD_CODE_KIND_ALLOWLIST.contains(&entry.kind.as_str())
         && !DEAD_CODE_ENTRY_POINT_NAMES.contains(&entry.name.as_str())
         && !looks_like_test_name(&entry.name, &entry.relative_path)
-        && !reference_counts.contains_key(entry.name.as_str())
+        && !referenced.contains(entry.name.as_str())
 }
 
 /// Why a dead-code candidate might still be loaded: a framework convention
@@ -244,11 +245,11 @@ pub fn scan_dead_code(
     language: Option<&str>,
 ) -> Result<DeadCodeScan> {
     let symbols = index.list_symbols_all(path, language)?;
-    let reference_counts = index.reference_counts()?;
+    let referenced = index.referenced_names()?;
     let candidates: Vec<usize> = symbols
         .iter()
         .enumerate()
-        .filter(|(_, entry)| is_candidate(entry, &reference_counts))
+        .filter(|(_, entry)| is_candidate(entry, &referenced))
         .map(|(id, _)| id)
         .collect();
     let entry_points = entry_point_notes(index, &symbols, &candidates)?;
