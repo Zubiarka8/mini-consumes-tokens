@@ -938,6 +938,13 @@ impl Index {
         queries::reference_counts(&self.conn)
     }
 
+    /// Names referenced anywhere in the index other than by a function's
+    /// call to itself (see [`queries::referenced_names`]). A name absent from
+    /// the set is a dead-code candidate's "zero references".
+    pub fn referenced_names(&self) -> Result<std::collections::HashSet<String>> {
+        queries::referenced_names(&self.conn)
+    }
+
     /// Multi-hop [`Index::find_calls`]: walks the call graph forward up to
     /// `depth` hops (1 = identical to [`Index::find_calls`] — the full,
     /// uncapped direct-hit list, so a caller that always passes `depth: 1`
