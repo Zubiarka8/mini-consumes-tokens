@@ -62,10 +62,14 @@ git push origin vX.Y.Z
 
 The workflow refuses a tag that does not equal `v` + the workspace version.
 It builds `mct-cli` + `mct-mcp-server` for linux-x86_64, linux-arm64,
-macos-x86_64 (`macos-26-intel` runner), macos-arm64, and windows-x86_64,
+linux-x86_64-musl, linux-arm64-musl (`ubuntu-24.04-arm` runner),
+macos-x86_64 (`macos-26-intel` runner), macos-arm64, windows-x86_64 and
+windows-arm64 (`windows-11-arm` runner),
 packages each as `mini-consumes-tokens-<tag>-<platform>.tar.gz` (`.zip` on
 Windows) with `README.md`, `LICENSE`, `THIRD_PARTY_NOTICES.md` and
-`CHANGELOG.md`, and attaches all five to a new GitHub Release at that tag.
+`CHANGELOG.md`, wraps the two musl builds as `.deb` and `.rpm` packages
+(`packaging/nfpm.yaml`, named `…-linux-<arch>.deb`/`.rpm`), and attaches all
+twelve files to a new GitHub Release at that tag.
 The binaries are built without the optional `semantic` feature. They are
 built from this repository, so they include the patched Markdown parser in
 `vendor/tree-sitter-md`.

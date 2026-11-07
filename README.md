@@ -177,7 +177,7 @@ This project isn't published to a package manager (like `apt`, Homebrew, `winget
 
 #### Option A: quick install script — no Rust toolchain required
 
-This downloads the latest prebuilt release for your operating system from [GitHub Releases](https://github.com/Zubiarka8/mini-consumes-tokens/releases). The latest release (v0.3.1) ships archives for Linux and macOS (x86_64 and arm64) and Windows (x86_64); the `v0.1.0` tag has none. If the latest release has no archive for your platform, the scripts stop with an error instead of installing anything — use option B. The prebuilt binaries are built without the optional `semantic` feature, so `hybrid_search_like` matches by name only (see option B to add it). Both scripts print a warning if their install folder isn't already on your PATH, along with the exact line to add.
+This downloads the latest prebuilt release for your operating system from [GitHub Releases](https://github.com/Zubiarka8/mini-consumes-tokens/releases). The latest release (v0.3.1) ships archives for Linux and macOS (x86_64 and arm64) and Windows (x86_64 and arm64), plus static musl builds for Linux that `install.sh` picks on Alpine (force them with `MCT_LIBC=musl` when your glibc is too old) and `.deb`/`.rpm` packages; the `v0.1.0` tag has none. If the latest release has no archive for your platform, the scripts stop with an error instead of installing anything — use option B. The prebuilt binaries are built without the optional `semantic` feature, so `hybrid_search_like` matches by name only (see option B to add it). Both scripts print a warning if their install folder isn't already on your PATH, along with the exact line to add.
 
 **macOS / Linux** (installs into `$HOME/.local/bin`; override with `INSTALL_DIR`):
 
@@ -202,6 +202,16 @@ irm https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/instal
 # custom folder:
 $env:MCT_INSTALL_DIR = "C:\tools\mct"; irm https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.ps1 | iex
 ```
+
+**Debian/Ubuntu or Fedora/RHEL/openSUSE packages** (install both binaries into `/usr/bin`; they hold the static musl build, so they work on any release of those distros). Download the `.deb` or `.rpm` for your architecture from the [GitHub Releases page](https://github.com/Zubiarka8/mini-consumes-tokens/releases), then:
+
+```sh
+sudo apt install ./mini-consumes-tokens-<tag>-linux-x86_64.deb   # Debian, Ubuntu, Mint
+sudo dnf install ./mini-consumes-tokens-<tag>-linux-x86_64.rpm   # Fedora, RHEL
+sudo zypper install ./mini-consumes-tokens-<tag>-linux-x86_64.rpm   # openSUSE
+```
+
+Use `linux-arm64` instead of `linux-x86_64` on an ARM machine. The packages are not in any distro repository, so `apt upgrade` or `dnf upgrade` won't update them: install the next release's package the same way.
 
 If you'd rather not pipe a script straight into your shell, download the archive for your system by hand from the [GitHub Releases page](https://github.com/Zubiarka8/mini-consumes-tokens/releases) and extract `mct-cli`/`mct-mcp-server` into any folder on your PATH.
 

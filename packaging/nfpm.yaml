@@ -1,0 +1,38 @@
+# nfpm config for the .deb and .rpm release packages, built by the
+# `packages` job in .github/workflows/release.yml. It packs the static musl
+# binaries, so the packages depend on no system library and install on any
+# Debian/Ubuntu or Fedora/RHEL/openSUSE release.
+#
+# nfpm expands environment variables in `arch` and `version` only (not in
+# `contents`), so the workflow sets these and copies the files to pack into
+# `pkg/` under the working directory:
+#   NFPM_ARCH     amd64 | arm64 (nfpm maps them to x86_64/aarch64 for rpm)
+#   NFPM_VERSION  the workspace version, e.g. 0.3.1
+name: mini-consumes-tokens
+arch: ${NFPM_ARCH}
+platform: linux
+version: ${NFPM_VERSION}
+section: devel
+priority: optional
+maintainer: Zubiarka8 <96388544+Zubiarka8@users.noreply.github.com>
+description: |
+  A local map of your code (MCP server and CLI) that answers where something
+  is defined, what uses it and what would break if it changed, without an AI
+  assistant re-reading your files.
+homepage: https://github.com/Zubiarka8/mini-consumes-tokens
+license: Apache-2.0
+contents:
+  - src: pkg/mct-cli
+    dst: /usr/bin/mct-cli
+    file_info:
+      mode: 0755
+  - src: pkg/mct-mcp-server
+    dst: /usr/bin/mct-mcp-server
+    file_info:
+      mode: 0755
+  - src: pkg/LICENSE
+    dst: /usr/share/doc/mini-consumes-tokens/LICENSE
+  - src: pkg/THIRD_PARTY_NOTICES.md
+    dst: /usr/share/doc/mini-consumes-tokens/THIRD_PARTY_NOTICES.md
+  - src: pkg/README.md
+    dst: /usr/share/doc/mini-consumes-tokens/README.md
