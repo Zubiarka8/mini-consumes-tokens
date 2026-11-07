@@ -932,6 +932,26 @@ fn a_damaged_number_file_is_never_rewritten() {
 }
 
 #[test]
+fn an_uppercase_identity_is_not_a_review_key_and_the_file_is_kept() {
+    // Review keys are lowercase hex (`reviews::is_review_key`); an uppercase
+    // spelling names no finding, so the file is treated as damaged.
+    let root = project();
+    let path = root.path().join(".mct-index/finding-numbers.tsv");
+    let contents = format!("duplicate\t7\t{}\n", "A".repeat(64));
+    fs::write(&path, &contents).unwrap();
+    let list = Server::start(root.path(), true).json("api/findings?state=&size=100");
+    assert_eq!(
+        numbers_of(&list, "duplicate")
+            .values()
+            .copied()
+            .collect::<Vec<_>>(),
+        [1],
+        "numbers still work for this run"
+    );
+    assert_eq!(fs::read_to_string(&path).unwrap(), contents);
+}
+
+#[test]
 fn obsidian_notes_are_served_read_only_with_verified_links() {
     let root = project();
     {
