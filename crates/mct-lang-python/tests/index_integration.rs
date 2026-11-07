@@ -31,32 +31,24 @@ fn open_indexed() -> Index {
 
 #[test]
 fn find_symbol_locates_method_on_its_class() {
-    let index = open_indexed();
-    let hits = index.find_symbol("add_item").unwrap();
-    assert_eq!(hits.len(), 1);
-    assert_eq!(hits[0].kind, "method");
-    assert_eq!(hits[0].parent.as_deref(), Some("Invoice"));
-    assert_eq!(hits[0].relative_path, "invoice.py");
-    assert_eq!(hits[0].language, "python");
+    mct_corpus::assert_indexed_symbol(
+        &open_indexed(),
+        "add_item",
+        "method",
+        "Invoice",
+        "invoice.py",
+        "python",
+    );
 }
 
 #[test]
 fn find_symbol_indexes_the_class_and_the_free_function_separately() {
-    let index = open_indexed();
-
-    let invoice = index.find_symbol("Invoice").unwrap();
-    assert_eq!(invoice.len(), 1);
-    assert_eq!(invoice[0].kind, "class");
-    assert_eq!(invoice[0].relative_path, "invoice.py");
-
-    let log = index.find_symbol("log").unwrap();
-    assert_eq!(log.len(), 1);
-    assert_eq!(log[0].kind, "function");
-    assert_eq!(
-        log[0].parent, None,
-        "a module-level def has no enclosing class"
+    mct_corpus::assert_fixture_type_and_function(
+        &open_indexed(),
+        "class",
+        "invoice.py",
+        "logger.py",
     );
-    assert_eq!(log[0].relative_path, "logger.py");
 }
 
 #[test]
@@ -94,18 +86,7 @@ fn list_symbols_reports_every_definition_in_the_class_file_as_python() {
 
 #[test]
 fn status_reports_full_python_coverage() {
-    let index = open_indexed();
-    let status = index.status().unwrap();
-    let python = status
-        .languages
-        .iter()
-        .find(|l| l.language == "python")
-        .unwrap();
-    assert_eq!(python.file_count, 3);
-    assert_eq!(python.symbol_count, 9);
-    assert_eq!(status.languages.len(), 1, "the fixture is single-language");
-    assert!(status.unsupported_languages.is_empty());
-    assert!(status.syntax_errors.is_empty());
+    mct_corpus::assert_single_language_coverage(&open_indexed(), "python", 3, 9);
 }
 
 #[test]
@@ -127,24 +108,10 @@ fn find_callers_of_log_shows_both_invoice_methods() {
 
 #[test]
 fn find_references_finds_cross_file_call_from_main() {
-    let index = open_indexed();
-    let refs = index.find_references("add_item").unwrap();
-    assert_eq!(refs.len(), 1, "main.py calls add_item once");
-    assert_eq!(refs[0].relative_path, "main.py");
-    assert_eq!(refs[0].kind, "calls");
-    assert_eq!(refs[0].from_symbol, "main");
+    mct_corpus::assert_fixture_main_reference(&open_indexed(), "main.py");
 }
 
 #[test]
 fn find_references_of_log_includes_the_from_import_as_well_as_the_calls() {
-    let index = open_indexed();
-    let refs = index.find_references("log").unwrap();
-    assert_eq!(
-        refs.len(),
-        3,
-        "one `from logger import log` plus two calls: {refs:?}"
-    );
-    assert_eq!(refs.iter().filter(|r| r.kind == "imports").count(), 1);
-    assert_eq!(refs.iter().filter(|r| r.kind == "calls").count(), 2);
-    assert!(refs.iter().all(|r| r.relative_path == "invoice.py"));
+    mct_corpus::assert_fixture_log_references(&open_indexed(), "invoice.py");
 }

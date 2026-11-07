@@ -15,9 +15,7 @@ fn file_module_ends_on_the_last_line() {
     // A trailing newline must not push the module one line past the file.
     let module = |src: &str| mct_corpus::module_span(&parse(src));
     let body = "function Get-X {\n    Write-Output 1\n}";
-    assert_eq!(module(&format!("{body}\n")), (1, Some(3)));
-    assert_eq!(module(body), (1, Some(3)));
-    assert_eq!(module("Get-X\n"), (1, Some(1)));
+    mct_corpus::assert_module_spans(module, body, "Get-X\n");
 }
 
 #[test]
@@ -53,26 +51,17 @@ fn extracts_function_and_call() {
 #[test]
 fn top_level_variable_assignment_is_indexed_with_scope_stripped() {
     let parsed = parse("$Version = \"1.0.0\"\n$script:Retries = 3\n");
-    let version = parsed.symbols.iter().find(|s| s.name == "Version").unwrap();
-    assert_eq!(version.kind, SymbolKind::Variable);
-    let retries = parsed.symbols.iter().find(|s| s.name == "Retries").unwrap();
-    assert_eq!(
-        retries.kind,
-        SymbolKind::Variable,
-        "script: scope prefix must be stripped from the recorded name"
+    mct_corpus::assert_variables(
+        &parsed,
+        &["Version", "Retries"],
+        "script: scope prefix must be stripped from the recorded name",
     );
 }
 
 #[test]
 fn variable_assigned_inside_a_function_is_not_indexed() {
     let parsed = parse("function Run {\n  $x = 1\n}\n");
-    assert!(
-        parsed
-            .symbols
-            .iter()
-            .all(|s| s.kind != SymbolKind::Variable),
-        "function-local assignment must not become a top-level Variable symbol"
-    );
+    mct_corpus::assert_no_variables(&parsed);
 }
 
 #[test]
@@ -83,11 +72,7 @@ fn dot_sourcing_and_import_module_are_imports() {
 
 #[test]
 fn syntax_error_is_reported_not_panicked() {
-    let result = PowerShellParser.parse(&SourceFile {
-        relative_path: "broken.ps1".to_string(),
-        contents: "function Foo( {\n".to_string(),
-    });
-    assert!(matches!(result, Err(mct_core::ParseError::Syntax { .. })));
+    mct_corpus::assert_syntax_error_reported(&PowerShellParser, "broken.ps1", "function Foo( {\n");
 }
 
 #[test]

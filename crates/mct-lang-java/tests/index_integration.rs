@@ -30,36 +30,17 @@ fn open_indexed() -> Index {
 
 #[test]
 fn find_symbol_distinguishes_both_overloads_of_add_item() {
-    let index = open_indexed();
-    let hits = index.find_symbol("addItem").unwrap();
-    assert_eq!(hits.len(), 2, "both overloads must be separate symbols");
-    assert!(hits.iter().all(|h| h.relative_path == "Invoice.java"));
-    assert!(hits.iter().all(|h| h.kind == "method"));
-    assert_ne!(hits[0].line, hits[1].line);
-    // `language` is read straight off the `files.language` column via the
-    // symbols->files JOIN, so this is what proves the row landed under the
-    // right language and not merely that the parser produced the symbol.
-    assert!(hits.iter().all(|h| h.language == "java"), "{hits:?}");
+    mct_corpus::assert_method_overloads(&open_indexed(), "addItem", "Invoice.java", "java");
 }
 
 #[test]
 fn find_calls_reports_log_from_both_overloads() {
-    let index = open_indexed();
-    let calls = index.find_calls("addItem").unwrap();
-    let log_calls: Vec<_> = calls.iter().filter(|c| c.to_name == "log").collect();
-    assert_eq!(
-        log_calls.len(),
-        2,
-        "each overload calls Logger.log once: {calls:?}"
-    );
+    mct_corpus::assert_overload_calls(&open_indexed(), "addItem", "log", 2);
 }
 
 #[test]
 fn find_callers_of_log_shows_add_item_as_caller() {
-    let index = open_indexed();
-    let callers = index.find_callers("log").unwrap();
-    assert_eq!(callers.len(), 2);
-    assert!(callers.iter().all(|c| c.from_symbol == "addItem"));
+    mct_corpus::assert_callers_from_symbol(&open_indexed(), "log", 2, "addItem");
 }
 
 #[test]

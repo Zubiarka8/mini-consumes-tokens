@@ -6,17 +6,12 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use mct_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
-use mct_index::{Index, Resolution};
+use mct_core::SymbolKind;
+use mct_index::Index;
 use mct_lang_js_ts::JsTsParser;
 
 fn parse(path: &str, src: &str) -> mct_core::ParsedFile {
-    JsTsParser
-        .parse(&SourceFile {
-            relative_path: path.to_string(),
-            contents: src.to_string(),
-        })
-        .unwrap()
+    mct_corpus::parse_source(&JsTsParser, path, "JS/TS", src)
 }
 
 fn open_indexed() -> Index {
@@ -24,15 +19,7 @@ fn open_indexed() -> Index {
     mct_corpus::open_fixture_indexed(&root, Arc::new(JsTsParser))
 }
 
-/// The file an `imports` relation named `to` from `from_file` resolves to.
-fn import_target(index: &Index, to: &str, from_file: &str) -> Option<String> {
-    let hit = index
-        .find_references(to)
-        .unwrap()
-        .into_iter()
-        .find(|h| h.kind == "imports" && h.relative_path == from_file && h.to_name == to)?;
-    (hit.resolution == Resolution::Resolved).then(|| hit.candidates[0].relative_path.clone())
-}
+use mct_corpus::import_target;
 
 #[test]
 fn relative_imports_resolve_to_the_target_files_module() {
@@ -65,19 +52,7 @@ fn evidence_is_set_only_where_the_source_proves_it() {
         "src/app.ts",
         "import a from \"./a\";\nimport b from \"./b.ts\";\nimport c from \"react\";\nimport d from \"node:fs\";\nimport e from \"./data.json\";\n",
     );
-    let evidence = |name: &str| {
-        let (index, _) = parsed
-            .relations
-            .iter()
-            .enumerate()
-            .find(|(_, r)| r.kind == RelationKind::Imports && r.to_name == name)
-            .unwrap_or_else(|| panic!("no import {name}"));
-        parsed
-            .relation_targets
-            .iter()
-            .find(|t| t.relation == index)
-            .cloned()
-    };
+    let evidence = |name: &str| mct_corpus::import_evidence(&parsed, name);
     // Extensionless: only the stem and the directory are proven.
     let a = evidence("a").unwrap();
     assert_eq!(

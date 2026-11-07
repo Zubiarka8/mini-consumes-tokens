@@ -18,10 +18,7 @@ use mct_lang_xaml::XamlParser;
 mct_corpus::standard_tests!(XamlParser);
 
 fn parent<'a>(path: &str, name: &str) -> Option<&'a str> {
-    corpus()
-        .symbol(path, name, SymbolKind::Element)
-        .parent
-        .as_deref()
+    corpus().symbol_parent(path, name, SymbolKind::Element)
 }
 
 fn handler(path: &str, from: &str, to: &str) {
@@ -30,17 +27,17 @@ fn handler(path: &str, from: &str, to: &str) {
 
 #[test]
 fn every_file_is_a_module_named_after_the_file() {
-    for (path, name) in [
-        ("App.xaml", "App"),
-        ("Themes/Controls.xaml", "Controls"),
-        ("Views/MainWindow.xaml", "MainWindow"),
-        ("Views/OrdersView.xaml", "OrdersView"),
-        ("Views/InventoryView.xaml", "InventoryView"),
-        ("Views/OrderEditorDialog.xaml", "OrderEditorDialog"),
-    ] {
-        let m = corpus().symbol(path, name, SymbolKind::Module);
-        assert_eq!((m.location.line, m.parent.as_deref()), (1, None), "{path}");
-    }
+    mct_corpus::assert_file_modules(
+        corpus(),
+        &[
+            ("App.xaml", "App"),
+            ("Themes/Controls.xaml", "Controls"),
+            ("Views/MainWindow.xaml", "MainWindow"),
+            ("Views/OrdersView.xaml", "OrdersView"),
+            ("Views/InventoryView.xaml", "InventoryView"),
+            ("Views/OrderEditorDialog.xaml", "OrderEditorDialog"),
+        ],
+    );
 }
 
 #[test]
@@ -196,21 +193,7 @@ fn a_named_element_spans_its_descendants_handlers() {
     // A handler on an unnamed descendant is attributed to the nearest named
     // ancestor; that element spans through its end tag, so the handler lies
     // inside it.
-    for f in &corpus().files {
-        for r in &f.parsed.relations {
-            let owner = f.parsed.symbols.iter().find(|s| s.id == r.from).unwrap();
-            let end = owner.location.end_line.unwrap();
-            assert!(
-                (owner.location.line..=end).contains(&r.location.line),
-                "{}:{} {} outside {} {}-{end}",
-                f.path,
-                r.location.line,
-                r.to_name,
-                owner.name,
-                owner.location.line
-            );
-        }
-    }
+    mct_corpus::assert_relation_ranges(corpus());
 }
 
 #[test]
