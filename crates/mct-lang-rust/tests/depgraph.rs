@@ -6,17 +6,12 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use mct_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
+use mct_core::{RelationKind, SymbolKind};
 use mct_index::{Index, Resolution};
 use mct_lang_rust::RustParser;
 
 fn parse(path: &str, src: &str) -> mct_core::ParsedFile {
-    RustParser
-        .parse(&SourceFile {
-            relative_path: path.to_string(),
-            contents: src.to_string(),
-        })
-        .unwrap()
+    mct_corpus::parse_source(&RustParser, path, "Rust", src)
 }
 
 fn open_indexed() -> Index {
@@ -76,19 +71,7 @@ fn mod_declaration_carries_module_evidence() {
         "src/lib.rs",
         "mod util;\nmod inline { fn f() {} }\nuse a::b::C;\n",
     );
-    let target = |name: &str| {
-        let (i, _) = parsed
-            .relations
-            .iter()
-            .enumerate()
-            .find(|(_, r)| r.kind == RelationKind::Imports && r.to_name == name)
-            .unwrap_or_else(|| panic!("no import {name}"));
-        parsed
-            .relation_targets
-            .iter()
-            .find(|t| t.relation == i)
-            .cloned()
-    };
+    let target = |name: &str| mct_corpus::import_evidence(&parsed, name);
     let util = target("util").unwrap();
     assert_eq!(util.module.as_deref(), Some("util"));
     assert_eq!(util.kind, Some(SymbolKind::Module));

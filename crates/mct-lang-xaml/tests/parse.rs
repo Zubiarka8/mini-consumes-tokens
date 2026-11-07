@@ -89,9 +89,7 @@ fn file_module_ends_on_the_last_line() {
     // A trailing newline must not push the module one line past the file.
     let module = |src: &str| mct_corpus::module_span(&parse(src));
     let window = "<Window>\n  <Button x:Name=\"Ok\"/>\n</Window>";
-    assert_eq!(module(&format!("{window}\n")), (1, Some(3)));
-    assert_eq!(module(window), (1, Some(3)));
-    assert_eq!(module("<Window/>\n"), (1, Some(1)));
+    mct_corpus::assert_module_spans(module, window, "<Window/>\n");
 }
 
 #[test]

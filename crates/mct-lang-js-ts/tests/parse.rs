@@ -3,7 +3,7 @@
 // untrusted repo content (see crates/mct-lang-js-ts/src/ for that policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use mct_core::{LanguageParser, RelationKind, SourceFile, SymbolKind};
+use mct_core::{RelationKind, SymbolKind};
 use mct_lang_js_ts::JsTsParser;
 
 fn parse(relative_path: &str, src: &str) -> mct_core::ParsedFile {
@@ -197,9 +197,5 @@ fn function_end_line_spans_the_whole_multiline_body() {
 
 #[test]
 fn syntax_error_is_reported_not_panicked() {
-    let result = JsTsParser.parse(&SourceFile {
-        relative_path: "Broken.ts".to_string(),
-        contents: "function broken( {\n".to_string(),
-    });
-    assert!(matches!(result, Err(mct_core::ParseError::Syntax { .. })));
+    mct_corpus::assert_syntax_error_reported(&JsTsParser, "Broken.ts", "function broken( {\n");
 }

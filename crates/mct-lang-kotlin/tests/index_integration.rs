@@ -33,13 +33,14 @@ fn open_indexed() -> Index {
 
 #[test]
 fn find_symbol_locates_method_on_its_class() {
-    let index = open_indexed();
-    let hits = index.find_symbol("addItem").unwrap();
-    assert_eq!(hits.len(), 1);
-    assert_eq!(hits[0].kind, "method");
-    assert_eq!(hits[0].parent.as_deref(), Some("Invoice"));
-    assert_eq!(hits[0].relative_path, "Invoice.kt");
-    assert_eq!(hits[0].language, "kotlin");
+    mct_corpus::assert_indexed_symbol(
+        &open_indexed(),
+        "addItem",
+        "method",
+        "Invoice",
+        "Invoice.kt",
+        "kotlin",
+    );
 }
 
 #[test]
@@ -131,18 +132,7 @@ fn list_symbols_reports_every_definition_in_the_invoice_file_as_kotlin() {
 
 #[test]
 fn status_reports_full_kotlin_coverage() {
-    let index = open_indexed();
-    let status = index.status().unwrap();
-    let kotlin = status
-        .languages
-        .iter()
-        .find(|l| l.language == "kotlin")
-        .unwrap();
-    assert_eq!(kotlin.file_count, 3);
-    assert_eq!(kotlin.symbol_count, 17);
-    assert_eq!(status.languages.len(), 1, "the fixture is single-language");
-    assert!(status.unsupported_languages.is_empty());
-    assert!(status.syntax_errors.is_empty());
+    mct_corpus::assert_single_language_coverage(&open_indexed(), "kotlin", 3, 17);
 }
 
 #[test]

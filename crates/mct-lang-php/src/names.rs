@@ -199,15 +199,24 @@ mod tests {
         })
     }
 
+    fn assert_resolutions(cases: &[(&str, &str, &str)]) {
+        let scope = scope();
+        for (input, namespace, name) in cases {
+            assert_eq!(
+                scope.resolve_class(input),
+                resolved(namespace, name),
+                "{input}"
+            );
+        }
+    }
+
     #[test]
     fn an_unqualified_name_belongs_to_the_current_namespace_unless_imported() {
-        let scope = scope();
-        assert_eq!(
-            scope.resolve_class("Request"),
-            resolved("App\\Http", "Request")
-        );
-        assert_eq!(scope.resolve_class("User"), resolved("App\\Models", "User"));
-        assert_eq!(scope.resolve_class("user"), resolved("App\\Models", "User"));
+        assert_resolutions(&[
+            ("Request", r"App\Http", "Request"),
+            ("User", r"App\Models", "User"),
+            ("user", r"App\Models", "User"),
+        ]);
     }
 
     #[test]
@@ -233,13 +242,11 @@ mod tests {
 
     #[test]
     fn fully_qualified_and_namespace_relative_names_ignore_the_imports() {
-        let scope = scope();
-        assert_eq!(scope.resolve_class("\\User"), resolved("", "User"));
-        assert_eq!(scope.resolve_class("\\App\\User"), resolved("App", "User"));
-        assert_eq!(
-            scope.resolve_class("namespace\\Thing"),
-            resolved("App\\Http", "Thing")
-        );
+        assert_resolutions(&[
+            (r"\User", "", "User"),
+            (r"\App\User", "App", "User"),
+            (r"namespace\Thing", r"App\Http", "Thing"),
+        ]);
     }
 
     #[test]

@@ -16,39 +16,20 @@ fn open_indexed() -> Index {
 
 /// The resolutions of every `imports` relation named `to` in `Main.java`.
 fn import_hits(index: &Index, to: &str) -> Vec<(Resolution, Option<String>)> {
-    index
-        .find_references(to)
-        .unwrap()
-        .into_iter()
-        .filter(|h| h.kind == "imports" && h.relative_path.ends_with("app/Main.java"))
-        .map(|h| {
-            (
-                h.resolution,
-                h.candidates.first().map(|c| c.relative_path.clone()),
-            )
-        })
-        .collect()
+    mct_corpus::import_hits_with_path_suffix(index, "app/Main.java", to)
 }
 
 #[test]
 fn type_imports_resolve_to_the_declaring_file() {
     let index = open_indexed();
-    let money = import_hits(&index, "Money");
-    assert!(
-        money.contains(&(
-            Resolution::Resolved,
-            Some("com/acme/model/Money.java".into())
-        )),
-        "{money:?}"
-    );
-    // A static import names the class holding the member.
-    let strings = import_hits(&index, "Strings");
-    assert!(
-        strings.contains(&(
-            Resolution::Resolved,
-            Some("com/acme/util/Strings.java".into())
-        )),
-        "{strings:?}"
+    mct_corpus::assert_import_targets(
+        &index,
+        "app/Main.java",
+        &[
+            ("Money", "com/acme/model/Money.java"),
+            // A static import names the class holding the member.
+            ("Strings", "com/acme/util/Strings.java"),
+        ],
     );
 }
 
@@ -57,13 +38,7 @@ fn a_jdk_import_never_resolves_to_a_local_namesake() {
     let index = open_indexed();
     // `com/acme/util/List.java` exists, but `java.util.List` is the JDK's.
     let list = import_hits(&index, "List");
-    assert!(
-        list.iter().any(|(r, _)| *r == Resolution::External),
-        "{list:?}"
-    );
-    assert!(!list.iter().any(|(r, f)| {
-        *r == Resolution::Resolved && f.as_deref() == Some("com/acme/util/List.java")
-    }));
+    mct_corpus::assert_external_not_local(&list, "com/acme/util/List.java");
 }
 
 #[test]
