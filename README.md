@@ -177,7 +177,7 @@ This project isn't published to a package manager (like `apt`, Homebrew, `winget
 
 #### Option A: quick install script — no Rust toolchain required
 
-This downloads the latest prebuilt release for your operating system from [GitHub Releases](https://github.com/Zubiarka8/mini-consumes-tokens/releases). The latest release (v0.3.1) ships archives for Linux and macOS (x86_64 and arm64) and Windows (x86_64); the `v0.1.0` tag has none. If the latest release has no archive for your platform, the scripts stop with an error instead of installing anything — use option B. The prebuilt binaries are built without the optional `semantic` feature, so `hybrid_search_like` matches by name only (see option B to add it). Both scripts print a warning if their install folder isn't already on your PATH, along with the exact line to add.
+This downloads the latest prebuilt release for your operating system from [GitHub Releases](https://github.com/Zubiarka8/mini-consumes-tokens/releases). The latest release (v0.3.1) ships archives for Linux and macOS (x86_64 and arm64) and Windows (x86_64 and arm64); the `v0.1.0` tag has none. If the latest release has no archive for your platform, the scripts stop with an error instead of installing anything — use option B. The prebuilt binaries are built without the optional `semantic` feature, so `hybrid_search_like` matches by name only (see option B to add it). Both scripts print a warning if their install folder isn't already on your PATH, along with the exact line to add.
 
 **macOS / Linux** (installs into `$HOME/.local/bin`; override with `INSTALL_DIR`):
 

@@ -1,6 +1,6 @@
 name: Release
 
-# Pushing a `v*` tag (e.g. `v0.2.0`) builds mct-cli and mct-mcp-server for 5
+# Pushing a `v*` tag (e.g. `v0.2.0`) builds mct-cli and mct-mcp-server for 6
 # OS/arch combos, smoke-tests the natively built ones, packages them and
 # attaches the archives to a GitHub Release at that tag. The tag must equal
 # `v` + the workspace version in Cargo.toml, or the build fails before
@@ -61,6 +61,12 @@ jobs:
           - name: windows-x86_64
             os: windows-latest
             target: x86_64-pc-windows-msvc
+            native: true
+          # GitHub-hosted Windows 11 on Arm image (free for public repos):
+          # a native build, so it is smoke-tested like the other natives.
+          - name: windows-arm64
+            os: windows-11-arm
+            target: aarch64-pc-windows-msvc
             native: true
     steps:
       - uses: actions/checkout@v4
@@ -178,7 +184,7 @@ jobs:
           find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec cp {} release/ \;
           ls -la release
           count="$(find release -type f | wc -l)"
-          [ "$count" -eq 5 ] || { echo "::error::expected 5 archives, found $count"; exit 1; }
+          [ "$count" -eq 6 ] || { echo "::error::expected 6 archives, found $count"; exit 1; }
 
       - uses: softprops/action-gh-release@v2
         with:
@@ -187,6 +193,6 @@ jobs:
           body: |
             See [CHANGELOG.md at ${{ github.ref_name }}](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md) for the changes and the upgrade steps.
 
-            Prebuilt binaries below (mct-cli + mct-mcp-server) for Linux (x86_64/arm64), macOS (Intel/Apple Silicon), and Windows (x86_64). They are built without the optional `semantic` feature: `hybrid_search` returns its lexical ranking and says so; build `mct-mcp-server` from source with `--features semantic` for embedding search.
+            Prebuilt binaries below (mct-cli + mct-mcp-server) for Linux (x86_64/arm64), macOS (Intel/Apple Silicon), and Windows (x86_64/arm64). They are built without the optional `semantic` feature: `hybrid_search` returns its lexical ranking and says so; build `mct-mcp-server` from source with `--features semantic` for embedding search.
 
             The crates are not published to crates.io (see [RELEASING.md at ${{ github.ref_name }}](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/RELEASING.md)).
