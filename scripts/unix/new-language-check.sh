@@ -65,7 +65,8 @@ check required "workspace dependency"                    Cargo.toml "^$crate *="
 check required "mct-languages/Cargo.toml dependency"     crates/mct-languages/Cargo.toml "^$crate"
 check required "mct-languages build_registry registration" crates/mct-languages/src/lib.rs "$ident::"
 check required "tests/parse.rs"                          "$dir/tests/parse.rs" '#\[test\]'
-check required "syntax-error test (ParseError::Syntax)"  "$dir/tests/parse.rs" 'ParseError::Syntax'
+# Syntax errors may be asserted inline or through the shared corpus helper.
+check required "syntax-error assertion (inline/shared)" "$dir/tests/parse.rs" 'ParseError::Syntax|assert_syntax_error_reported'
 check required "fuzz harness (fuzz/Cargo.toml [workspace])" "$dir/fuzz/Cargo.toml" '^\[workspace\]'
 check required "fuzz target (fuzz/fuzz_targets/*.rs)"    "$dir/fuzz/fuzz_targets" 'fuzz_target!'
 # A harness CI never runs is the gap CONTRIBUTING.md warns about.
