@@ -103,6 +103,47 @@ fn lua_is_a_supported_language() {
 }
 
 #[test]
+fn table_functions_are_analyzed_as_methods_including_literal_keys() {
+    let body = "function(items)\n local sum = 0\n for _, item in ipairs(items) do\n sum = sum + item.price * 2\n end\n return sum\nend";
+    let project = Project::new(&[(
+        "a.lua",
+        &format!("local handlers = {{ first = {body}, [\"second\"] = {body}, [3] = {body} }}"),
+    )]);
+    let report = project.report();
+    assert!(report.skipped.is_empty(), "{:?}", report.skipped);
+    assert_eq!(report.groups.len(), 1);
+    // Bracketed string/number keys normalize together; the bare identifier
+    // key has different punctuation and is a separate candidate.
+    assert_eq!(report.candidates_analyzed, 3);
+    assert_eq!(report.groups[0].members.len(), 2);
+    assert!(report.groups[0]
+        .members
+        .iter()
+        .all(|m| m.symbol_kind == "method"));
+}
+
+#[test]
+fn table_function_keys_containing_dots_or_colons_keep_their_full_name() {
+    // The parser names a `["a.b"]` field `a.b`; only `M.f`/`M:f` declarations
+    // are shortened to their last segment.
+    let body = "function(items)\n local sum = 0\n for _, item in ipairs(items) do\n sum = sum + item.price * 2\n end\n return sum\nend";
+    let project = Project::new(&[(
+        "a.lua",
+        &format!("local handlers = {{ [\"a.b\"] = {body}, [\"c:d\"] = {body} }}"),
+    )]);
+    let report = project.report();
+    assert!(report.skipped.is_empty(), "{:?}", report.skipped);
+    assert_eq!(report.candidates_analyzed, 2);
+    assert_eq!(report.groups.len(), 1);
+    let names: Vec<_> = report.groups[0]
+        .members
+        .iter()
+        .map(|m| m.symbol_name.as_str())
+        .collect();
+    assert_eq!(names, ["a.b", "c:d"]);
+}
+
+#[test]
 fn duplicates_across_files_group_despite_names_literals_and_comments() {
     let project = Project::new(&[
         ("billing/cart.lua", &total("cart_total", "2")),

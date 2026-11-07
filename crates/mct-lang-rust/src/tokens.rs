@@ -39,6 +39,9 @@
 //!   expressions are labeled, an attributed module as `#[cfg(test)] mod`.
 //!   Only kinds are labeled: impl targets, trait names and conditions are not.
 //!   Inner attributes (`#![..]`) are not collected.
+//! - **Boundaries:** ordinary functions, signatures, macro definitions and
+//!   identifier-bound `let` closures match the parser's complete node ranges.
+//!   Closure body shape is unknown; matching tokens never proves safe extraction.
 //! - **Body shape:** the named children of a function's `body` block, its tail
 //!   expression included and attributes and comments excluded. One is a flat
 //!   call when it is a `call_expression` or `macro_invocation`, bare or in an
@@ -49,11 +52,18 @@
 //!   nested call. `let`, `return` and `f()?` are not flat calls. Callee names
 //!   are never consulted. A function signature has no body and no shape.
 
-use mct_core::{LiteralCategory, ParseError, TokenRole, TokenSource, TokenizedFile};
-use mct_tree_sitter::{tokenize_source, TokenClasses};
+use mct_core::{
+    CallableSpan, LineRange, LiteralCategory, ParseError, TokenRole, TokenSource, TokenizedFile,
+};
+use mct_tree_sitter::{tokenize_source_with_callables, TokenClasses};
+use tree_sitter::Node;
 
 const CLASSES: TokenClasses = TokenClasses {
-    callable_kinds: &["function_item", "function_signature_item"],
+    callable_kinds: &[
+        "function_item",
+        "function_signature_item",
+        "macro_definition",
+    ],
     expanded_literal_kinds: &[],
     trivia_kinds: &[
         "line_comment",
@@ -176,11 +186,37 @@ impl TokenSource for RustTokenSource {
     }
 
     fn tokenize(&self, relative_path: &str, source: &str) -> Result<TokenizedFile, ParseError> {
-        tokenize_source(
+        tokenize_source_with_callables(
             &tree_sitter_rust::LANGUAGE.into(),
             &CLASSES,
             relative_path,
             source,
+            bound_closure,
         )
     }
+}
+
+/// Match the parser's `let name = closure` symbol, including its semicolon.
+/// Other binding patterns are variables, not indexed callable candidates.
+fn bound_closure(node: Node<'_>, source: &str) -> Option<CallableSpan> {
+    if node.kind() != "let_declaration" {
+        return None;
+    }
+    let pattern = node.child_by_field_name("pattern")?;
+    let value = node.child_by_field_name("value")?;
+    if pattern.kind() != "identifier" || value.kind() != "closure_expression" {
+        return None;
+    }
+    Some(CallableSpan {
+        name: source.get(pattern.byte_range())?.to_string(),
+        lines: LineRange {
+            start: node.start_position().row as u32 + 1,
+            end: node.end_position().row as u32 + 1,
+        },
+        bytes: node.byte_range(),
+        decorators: Vec::new(),
+        enclosing: Vec::new(),
+        // Closure expression bodies are not ordinary function body shapes.
+        body: None,
+    })
 }
