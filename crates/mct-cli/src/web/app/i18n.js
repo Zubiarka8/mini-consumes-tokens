@@ -11,8 +11,8 @@ const es = {
   "dup.selectFile": "Seleccionar {path}",
   "dup.lineRange": "Líneas {from}–{to}",
   "dup.groupDecision":
-    "La decisión se guarda para el duplicado completo: se aplica a sus {n} archivos, no a cada uno por separado.",
-  "dup.meta": "{files} archivos · {lines} líneas · {tokens} tokens",
+    "La decisión se guarda para el duplicado completo: se aplica a sus {n} ubicaciones, no a cada uno por separado.",
+  "dup.meta": "{locations} · {files} · {lines} líneas · {tokens} tokens",
   "dup.fileListLabel": "Archivos del duplicado",
   // espacio de revisión (review.js)
   "rw.comparison": "Comparación",
@@ -60,8 +60,12 @@ const es = {
   // shell, overview and shared panels
   "app.name": "mini-consumes-tokens",
   "col.affectedFiles": "Archivos afectados",
+  "dup.fileCount": "{n} archivo",
   "dup.filesCount": "{n} archivos",
-  "dup.moreFragments": "… y {n} fragmentos más (abre el hallazgo para verlos todos)",
+  "dup.locationCount": "{n} ubicación",
+  "dup.locationsCount": "{n} ubicaciones",
+  "dup.moreFragment": "… y {n} ubicación más (abre el hallazgo para verlas todas)",
+  "dup.moreFragments": "… y {n} ubicaciones más (abre el hallazgo para verlas todas)",
   "nav.espacio": "Archivos",
   "nav.more": "Más herramientas",
   "tabs.close": "Cerrar {name}",
@@ -398,8 +402,8 @@ const es = {
   "dup.priority.normal": "Normal",
   "dup.priority.demoted": "Rebajada",
   "dup.scope.same-file": "Mismo archivo",
-  "dup.scope.cross-file": "Entre archivos",
-  "dup.scope.cross-module": "Entre módulos",
+  "dup.scope.cross-file": "Varios archivos",
+  "dup.scope.cross-module": "Varias carpetas",
   "dup.unsupported":
     "No disponibles: similitud en %, confianza, prioridad editable, revisor asignado y fecha de detección; el análisis no los calcula.",
   "dup.reason.identical-tokens": "Los tokens son idénticos.",
@@ -835,7 +839,7 @@ const es = {
   "review.ignored": "Ignorado",
   "review.ignoreNow": "Ignorar",
   "review.changeState": "Cambiar el estado de {title} (ahora: {state})",
-  "review.groupScope": "Afecta a los {n} archivos del grupo",
+  "review.groupScope": "Afecta a las {n} ubicaciones del grupo",
   "ignore.title": "Exclusiones de indexado (.mctignore)",
   "ignore.intro":
     "Patrones extra que se quedan fuera del índice, además de las exclusiones integradas (secretos, node_modules, target, .git…). Nunca pueden ampliarse más allá de ellas.",

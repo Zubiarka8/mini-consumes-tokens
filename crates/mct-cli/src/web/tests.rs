@@ -1774,3 +1774,9 @@ fn mutations_are_refused_for_foreign_hosts_origins_and_missing_csrf() {
     let response = server.raw(&format!("POST /api/ignore HTTP/1.1\r\nHost: evil.example:8787\r\nOrigin: http://evil.example:8787\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{ignore}", ignore.len()));
     assert!(response.starts_with("HTTP/1.1 421"), "{response}");
 }
+
+#[path = "tests/duplicate_groups.rs"]
+mod duplicate_groups;
+
+#[path = "tests/group_invariants.rs"]
+mod group_invariants;

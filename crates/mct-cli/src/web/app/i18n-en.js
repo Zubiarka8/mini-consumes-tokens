@@ -8,8 +8,8 @@ export const en = {
   "dup.selectFile": "Select {path}",
   "dup.lineRange": "Lines {from}–{to}",
   "dup.groupDecision":
-    "The decision is saved for the whole duplicate: it applies to its {n} files, not to each one separately.",
-  "dup.meta": "{files} files · {lines} lines · {tokens} tokens",
+    "The decision is saved for the whole duplicate: it applies to its {n} locations, not to each one separately.",
+  "dup.meta": "{locations} · {files} · {lines} lines · {tokens} tokens",
   "dup.fileListLabel": "Files of the duplicate",
   // review workspace (review.js)
   "rw.comparison": "Comparison",
@@ -57,8 +57,12 @@ export const en = {
   // shell, overview and shared panels
   "app.name": "mini-consumes-tokens",
   "col.affectedFiles": "Affected files",
+  "dup.fileCount": "{n} file",
   "dup.filesCount": "{n} files",
-  "dup.moreFragments": "… and {n} more fragments (open the finding to see them all)",
+  "dup.locationCount": "{n} location",
+  "dup.locationsCount": "{n} locations",
+  "dup.moreFragment": "… and {n} more location (open the finding to see them all)",
+  "dup.moreFragments": "… and {n} more locations (open the finding to see them all)",
   "nav.espacio": "Files",
   "nav.more": "More tools",
   "tabs.close": "Close {name}",
@@ -393,8 +397,8 @@ export const en = {
   "dup.priority.normal": "Normal",
   "dup.priority.demoted": "Lowered",
   "dup.scope.same-file": "Same file",
-  "dup.scope.cross-file": "Across files",
-  "dup.scope.cross-module": "Across modules",
+  "dup.scope.cross-file": "Several files",
+  "dup.scope.cross-module": "Several folders",
   "dup.unsupported":
     "Not available: similarity %, confidence, editable priority, assigned reviewer and detection date; the analysis does not compute them.",
   "dup.reason.identical-tokens": "The tokens are identical.",
@@ -824,7 +828,7 @@ export const en = {
   "review.ignored": "Ignored",
   "review.ignoreNow": "Ignore",
   "review.changeState": "Change the state of {title} (now: {state})",
-  "review.groupScope": "Applies to all {n} files in the group",
+  "review.groupScope": "Applies to all {n} locations in the group",
   "ignore.title": "Indexing exclusions (.mctignore)",
   "ignore.intro":
     "Extra patterns kept out of the index, on top of the built-in exclusions (secrets, node_modules, target, .git…). They can never widen past those.",

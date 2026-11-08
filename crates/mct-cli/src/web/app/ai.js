@@ -157,17 +157,17 @@ const DEAD_CHANGE = "the exact lines to remove in each file";
 
 export function duplicateBrief(item) {
   const ev = item.evidence;
-  const files = new Set(item.members.map((m) => m.path)).size;
+  const files = item.fileCount;
   return brief({
     task: "decide whether this duplicate-code group should be merged",
     context: [
-      `A local code index (mct) grouped ${item.members.length} functions or methods whose bodies match after normalising names and literals.`,
+      `A local code index (mct) grouped ${item.memberCount} functions or methods whose bodies match after normalising names and literals.`,
       "A person reviews each group and records a decision; this text is the evidence for that decision.",
     ],
     information: [
       `- Finding: duplicate${item.number ? ` #${item.number}` : ""} — ${item.title} (key ${item.key})`,
       reviewLine(item),
-      `- Language: ${item.language} · ${item.members.length} copies in ${plural(files, "file")} · ${item.lines} lines and ${item.tokens} tokens per copy`,
+      `- Language: ${item.language} · ${item.memberCount} copies in ${plural(files, "file")} · ${item.lines} lines and ${item.tokens} tokens per copy`,
       `- Detector's verdict: ${item.verdict}`,
       item.priority &&
         `- Priority: ${item.priority}${item.priorityReason ? ` — ${item.priorityReason}` : ""}`,
@@ -286,7 +286,7 @@ export function symbolBrief(s, data, kind, only) {
 // Findings can supply a grouped row; technical ids are included only when requested.
 export function listText({ title, total, columns, rows, idKey, rowText }) {
   const head = `${title} — ${rows.length} of ${total} rows (this page)`;
-  const body = rows.map((r) => rowText ? rowText(r) : columns.map((c) => c(r)).join(" | "));
+  const body = rows.map((r) => (rowText ? rowText(r) : columns.map((c) => c(r)).join(" | ")));
   const ids = idKey ? `\n\n${idKey}s: ${rows.map((r) => r[idKey]).join(",")}` : "";
   return `${head}\n${body.join(rowText ? "\n\n" : "\n")}${ids}`;
 }
