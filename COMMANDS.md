@@ -489,16 +489,21 @@ Wiki links resolve as in Obsidian: by name or path, ignoring case, `.md`,
 `|alias`, `#heading` and `^block`, preferring a note in the linking note's
 folder, then the shortest path. Links and headings inside code are ignored.
 
-Pages are a fixed startup snapshot held in memory; browser reload does not rerun
-analysis. After changes, run `reindex` and restart `web`. The only HTTP mutation is a protected duplicate-review preference action. There
+Pages come from a snapshot held in memory; browser reload does not rerun
+analysis. Saved files are reindexed automatically, and the next snapshot is
+built in the background: requests keep being answered from the current one
+until it is ready, then see the new one. The only HTTP mutation is a protected duplicate-review preference action. There
 is no reindex/refresh, source edit, arbitrary file serving or external resource. The server
 binds only IPv4 loopback, checks Host and Origin,
 rejects cross-site requests and applies a restrictive content policy. Requests
 use a 16 KiB header limit, a 4 KiB review-form limit and a 2-second read
-deadline, one request per connection. Another process on the same machine can reach the port
+deadline, one request per connection. Up to 64 connections are read at once, so
+an idle or slow client does not delay others; requests are answered one at a time.
+Another process on the same machine can reach the port
 (there is no URL key); see the security notes above.
 Only this process's rendered views are available, never the SQLite file or vault
-contents as a directory listing. See [ADR-014](docs/01-architecture/adrs/014-local-project-web.md).
+contents as a directory listing. See [ADR-014](docs/01-architecture/adrs/014-local-project-web.md)
+and [ADR-030](docs/01-architecture/adrs/030-dashboard-connections-and-background-reload.md).
 
 #### Dismiss duplicate findings / false positives
 
