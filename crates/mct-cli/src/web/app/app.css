@@ -1530,6 +1530,17 @@ table.t {
   opacity: 0.4;
   cursor: not-allowed;
 }
+.pager .pager-clear {
+  min-width: 0;
+  height: auto;
+  padding: 0;
+  border: 0;
+  color: var(--primary);
+  font: inherit;
+}
+.pager .pager-clear:hover {
+  text-decoration: underline;
+}
 .toolbar {
   display: flex;
   gap: 10px;

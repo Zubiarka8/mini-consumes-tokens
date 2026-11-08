@@ -248,6 +248,7 @@ const es = {
   "pager.prev": "Página anterior",
   "pager.next": "Página siguiente",
   "pager.showing": "Mostrando {first}–{last} de {total}",
+  "pager.overall": "{total} en total",
   "state.unreviewed": "Sin revisar",
   "state.inReview": "En revisión",
   "state.confirmed": "Confirmado",

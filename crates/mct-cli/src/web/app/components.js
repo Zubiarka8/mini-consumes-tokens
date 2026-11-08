@@ -529,7 +529,8 @@ export function dataTable({ columns, rows, rowKey, selected, onSelect, sort, ord
   );
 }
 
-export function pager({ page, size, total, onPage }) {
+/** `overall` (the count without filters) and `onClear` add "N in total · Clear filters" when filters hide rows. */
+export function pager({ page, size, total, onPage, overall = total, onClear = null }) {
   const pages = Math.max(1, Math.ceil(total / size));
   if (total === 0) return null;
   const first = page * size + 1;
@@ -555,7 +556,17 @@ export function pager({ page, size, total, onPage }) {
   return h(
     "nav",
     { class: "pager", "aria-label": t("pager.label") },
-    h("span", {}, t("pager.showing", { first: fmt(first), last: fmt(last), total: fmt(total) })),
+    h(
+      "span",
+      {},
+      t("pager.showing", { first: fmt(first), last: fmt(last), total: fmt(total) }),
+      overall > total && onClear
+        ? [
+            ` · ${t("pager.overall", { total: fmt(overall) })} · `,
+            h("button", { class: "pager-clear", onclick: onClear }, t("filters.clearAll")),
+          ]
+        : null,
+    ),
     h(
       "div",
       { class: "pages" },
