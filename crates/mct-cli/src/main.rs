@@ -114,7 +114,9 @@ enum Command {
     /// then saved files are reindexed automatically and the whole project is
     /// reconciled periodically. Regenerates the Obsidian vault unless
     /// disabled. Prints a stable `http://localhost:<port>/` URL with no key in
-    /// it; keep this command running and press Ctrl-C to stop. A published
+    /// it; keep this command running and press Ctrl-C to stop. It also stops
+    /// by itself after `--idle-timeout` minutes without a request; an open
+    /// dashboard tab, even in the background, keeps it alive. A published
     /// change, from this process or any other, is picked up on the next
     /// request, no restart needed. No browser is opened automatically.
     ///
@@ -133,6 +135,9 @@ enum Command {
         /// Do not regenerate the Obsidian vault; the dashboard still works.
         #[arg(long)]
         no_obsidian: bool,
+        /// Stop after this many minutes without a request (0 = never).
+        #[arg(long, value_name = "MINUTES", default_value_t = 30)]
+        idle_timeout: u64,
     },
     /// Call one MCP tool once and print its result.
     ///
@@ -368,8 +373,15 @@ fn main() -> anyhow::Result<()> {
     if let Command::Duplicates { options } = cli.command {
         return duplicates::run(&root, options);
     }
-    if let Command::Web { port, no_obsidian } = cli.command {
-        return web::run(&root, port, no_obsidian);
+    if let Command::Web {
+        port,
+        no_obsidian,
+        idle_timeout,
+    } = cli.command
+    {
+        let idle = (idle_timeout > 0)
+            .then(|| std::time::Duration::from_secs(idle_timeout.saturating_mul(60)));
+        return web::run(&root, port, no_obsidian, idle);
     }
 
     let db_path = root.join(".mct-index").join("index.sqlite3");

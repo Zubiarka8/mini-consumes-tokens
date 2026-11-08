@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 use mct_core::LanguageRegistry;
 use mct_index::{ExcludeSet, Index, ReindexReport};
 use notify::{EventKind, RecursiveMode, Watcher};
-use notify_debouncer_full::{new_debouncer, Debouncer, RecommendedCache};
+use notify_debouncer_full::{new_debouncer_opt, Debouncer, NoCache};
 use tokio::sync::Mutex;
 
 /// `path`'s location relative to `root`, using forward slashes so it can be
@@ -269,7 +269,7 @@ pub fn spawn_watcher(
 /// - Dropping it without `stop` behaves as an unexpected loss of the event
 ///   stream: the thread runs one final reconciliation, then exits on its own.
 pub struct WatcherHandle {
-    debouncer: Option<Debouncer<notify::RecommendedWatcher, RecommendedCache>>,
+    debouncer: Option<Debouncer<notify::RecommendedWatcher, NoCache>>,
     stopping: Arc<AtomicBool>,
     thread: Option<JoinHandle<()>>,
 }
@@ -366,7 +366,18 @@ pub fn spawn_watcher_with_schedule(
             Err(mpsc::TrySendError::Disconnected(_)) => {}
         }
     };
-    let mut debouncer = new_debouncer(coalesce, None, handler)?;
+    // No file-id cache: on macOS and Windows the recommended one walks the
+    // whole root at start (build output included, which `exclude` skips
+    // anyway) and scans every cached path on each removal, which pinned a
+    // core during a build. It only pairs a rename's two halves; both paths
+    // still arrive as separate events, which is all `changed_paths` reads.
+    let mut debouncer = new_debouncer_opt::<_, notify::RecommendedWatcher, NoCache>(
+        coalesce,
+        None,
+        handler,
+        NoCache,
+        notify::Config::default(),
+    )?;
     debouncer.watch(&root, RecursiveMode::Recursive)?;
     tracing::info!(backend = ?notify::RecommendedWatcher::kind(), "filesystem watcher started");
 
