@@ -205,3 +205,19 @@ ERR-014 recurrence, 2026-11-07 (RESOLVED caller error, `main`, HEAD `3bb6bdb`): 
 ERR-026 / ERR-032 resolution, 2026-11-07 (`fix/dead-code-value-and-type-refs`, unmerged): `mct-lang-rust` now records `references` for types in parameters, return types, fields, `let`/`const`/`static` annotations, type aliases, generic arguments, casts and struct literals, and for the capitalized qualifier of a `Type::item` path; an item's own type parameters and `Self` are skipped. A `let` closure used later as a value in the same function is a `references`. `mct-lang-js-ts` records `references` for an identifier read as a value when it names a function of the same file, unless a parameter, pattern or non-function local of an enclosing function hides it, or it is the function's own name. Verified: `scripts/unix/check.sh` passed (2144 tests, CI clippy, mct-eval without regressions); after `mct-cli reindex --force` built from the branch, `mct-cli dead-code` lists 113 candidates (206 before) and none of the 25 reviewed `crates/mct-cli/src/web/` false positives. Corpus snapshots were re-blessed (Rust relations 1109 to 1677, JS/TS 697 to 709) after reviewing the added rows. Re-verify after merge. The `review-dist/` bundle was excluded through the local, git-ignored `.mctignore`, so that part does not travel with the branch.
 
 Second dead-code review, 2026-11-07 (`fix/dead-code-value-and-type-refs`): of 20 more candidates, 18 were false positives with four further causes, fixed on the branch. TS types used only in annotations, return types, alias values and generic arguments (`Payload`, `ReviewPanelProps`, `Tone`, ...) are now `references`. `export default defineConfig({ plugins: [p()] })` walks the call and its arguments. Rust path calls inside macro arguments (`vec![format::semantic_hits(..)]`, ERR-025) are `references` with their module evidence; a macro named through a path (`mct_corpus::standard_tests!`) and a same-file macro inside another macro's arguments are `calls`; a same-file unit struct used as a value (`&Broken`) is a `references`. ERR-025 resolved on the branch for path calls; bare calls to functions imported from another file inside a macro remain unrecorded. Of the other two, `format::find_dead_code_toon` is unused (OPT-M01, true positive) and the Vite `transform` hook is invoked by the framework only (recorded as a `false-positive` review). Verified: `scripts/unix/check.sh` passed (2150 tests); after a forced reindex with the branch build, dead-code candidates fell from 113 to 90.
+
+
+## 2026-11-08 — duplicate precision verification
+
+On `feat/duplicate-detection-precision`, based on main `589d1cc`, explicit-root
+`mct-cli --root . call --tool get_indexing_status` reported 1,079 files,
+42,857 symbols and index timestamp `1794146099`. The 18 parse diagnostics
+remain: ERR-003 (16 intentionally malformed fixtures), ERR-002
+(`scripts/windows/review-check.ps1: line 29: syntax error`) and ERR-023
+(`crates/mct-cli/web-ui/src/styles.css: line 12: syntax error`). These remain
+separate from duplicate-quality scoring; a complete candidate report does not
+mean complete index coverage. No parser-error status is closed by this change.
+
+`scripts/unix/parse-probe.sh scripts/windows/review-check.ps1 crates/mct-cli/web-ui/src/styles.css`
+reproduced both diagnostics and exited 1 (`Error: 2 of 2 file(s) failed to parse`).
+ERR-002 and ERR-023 remain open; investigate their grammar support separately.
