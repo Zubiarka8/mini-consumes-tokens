@@ -114,6 +114,14 @@ function applyStatus() {
     );
 }
 
+/** The project logo, from index.html's favicon so the image is embedded once; the old bolt mark when absent. */
+function brandLogo() {
+  const src = document.querySelector("link[rel='icon']")?.getAttribute("href");
+  return src
+    ? h("img", { class: "logo logo-image", src, alt: "", width: 24, height: 24 })
+    : h("span", { class: "logo" }, icon("bolt", 15));
+}
+
 function setTheme(choice) {
   store.set("theme", choice);
   applyTheme(choice);
@@ -353,7 +361,7 @@ function buildShell() {
         h(
           "a",
           { class: "brand", href: hrefTo("panel"), "aria-label": t("app.name"), title: t("app.name") },
-          h("span", { class: "logo" }, icon("bolt", 15)),
+          brandLogo(),
           h("span", { class: "brand-name" }, t("app.name")),
         ),
       ),
