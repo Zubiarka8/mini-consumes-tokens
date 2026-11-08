@@ -188,7 +188,7 @@ Method: for every Rust candidate (120 of 337: `struct`, `enum`, `type_alias`, `f
 | OPT-D07 | per-language test helpers (`parse`, `open_indexed`, `syntax_error_*`) | `[I]` possibly deliberate per-crate isolation | Pending | B2: check CONTRIBUTING |
 | OPT-D08 | `queries.rs` `find_symbol_scoped` vs `find_symbol_fts` | `[MCP]` listed, not compared | Pending | B2 |
 | OPT-D09 | other test helper pairs found by `exact` (`build_server_at`, `server_with`, `bag_of_words`, `reindex`, `text`, `request`, `server`) in `mct-mcp-server/tests` | `[MCP]` exact-text candidates, not compared | Pending | B2/B9 |
-| OPT-M01 | `crates/mct-mcp-server/src/format.rs` `find_dead_code_toon` (`pub`) | `[MCP]` 0 refs; `[GREP-auth]` no occurrence in `crates/**/*.rs`; external consumers, features, other directories `[NV]` | Inconclusive | B3 |
+| OPT-M01 | `crates/mct-mcp-server/src/format.rs` `find_dead_code_toon` (`pub`) | `[MCP]` 0 refs; `[GREP-auth]` no occurrence in `crates/**/*.rs`; external consumers, features, other directories `[NV]` | Removed 2026-11-07 at the user's request (`fix/dead-code-value-and-type-refs`); public Rust API change of `mct-mcp-server` | B3 |
 | OPT-M02 | five `format.rs` functions and ten Rust types | `[GREP-auth]` used (ERR-025, ERR-026) | Keep | — |
 | OPT-M03 | `review-dist/review.js` (~90), `benchmarks/token-twins-labels` (77), Next.js conventions in `website/` (22) | `[I]` generated, fixtures, framework entry points | Keep | B3: confirm |
 | OPT-M04 | web UI JS closures, `web-ui` TS interfaces | `[I]` callbacks and type-only use | Inconclusive | B3 |
