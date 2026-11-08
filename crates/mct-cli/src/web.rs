@@ -84,7 +84,6 @@ struct PendingReload {
 struct Site {
     index: Index,
     root: PathBuf,
-    no_obsidian: bool,
     stamp: IndexStamp,
     navigation: NavigationSnapshot,
     symbols: BTreeMap<String, Vec<usize>>,
@@ -258,7 +257,6 @@ impl Site {
         Ok(Self {
             index,
             root: canonical_root,
-            no_obsidian,
             stamp,
             navigation,
             symbols,
@@ -320,7 +318,10 @@ impl Site {
     /// stamp already tried.
     #[cfg(test)]
     fn reload(&mut self, failed: IndexStamp) {
-        match Site::load_snapshot(&self.root, self.no_obsidian, Some(&self.vault), || {}) {
+        // The process that published the new generation also published the
+        // vault from its post-reindex hook; doing it again here doubled the
+        // work and competed for the writer lock.
+        match Site::load_snapshot(&self.root, true, Some(&self.vault), || {}) {
             Ok(fresh) => self.adopt(fresh),
             Err(error) => self.reload_failed(&error, failed),
         }
@@ -357,12 +358,13 @@ impl Site {
         }
         if let Some(failed) = self.stale() {
             let (send, result) = std::sync::mpsc::channel();
-            let (root, no_obsidian) = (self.root.clone(), self.no_obsidian);
+            // As in `reload`: the reindexer already published the vault.
+            let root = self.root.clone();
             let previous = std::sync::Arc::clone(&self.vault);
             let loading = std::thread::Builder::new()
                 .name("snapshot-reload".into())
                 .spawn(move || {
-                    let fresh = Site::load_snapshot(&root, no_obsidian, Some(&previous), || {});
+                    let fresh = Site::load_snapshot(&root, true, Some(&previous), || {});
                     let _ = send.send(fresh.map(Box::new));
                 });
             match loading {

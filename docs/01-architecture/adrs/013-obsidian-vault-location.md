@@ -5,6 +5,9 @@
 Accepted. (Requested as ADR-010 in the task brief; 010-012 were already taken
 by the duplicate-report ADRs, so this is the next free number.)
 
+Publication (the staged tree, the two renames and the writer lock) is
+superseded by [ADR-031](031-vault-publication-by-note.md).
+
 ## Context
 
 Users want to browse the indexed code as linked notes in Obsidian. The vault
