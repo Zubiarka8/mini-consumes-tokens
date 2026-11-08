@@ -102,14 +102,16 @@ struct Site {
 
 impl Site {
     fn load(root: &Path, no_obsidian: bool) -> anyhow::Result<Self> {
-        Self::load_snapshot(root, no_obsidian, || {})
+        Self::load_snapshot(root, no_obsidian, None, || {})
     }
 
     // The callback lets integration tests publish between the navigation query
     // and the remaining queries, without timing-dependent threads or sleeps.
+    // `previous_vault` lets the vault scan reuse notes whose file is unchanged.
     fn load_snapshot(
         root: &Path,
         no_obsidian: bool,
+        previous_vault: Option<&obsidian::Vault>,
         after_navigation: impl FnOnce(),
     ) -> anyhow::Result<Self> {
         let started = Instant::now();
@@ -212,7 +214,7 @@ impl Site {
         let references = index.reference_counts()?;
         drop(snapshot);
         let vault_dir = mct_obsidian::vault_dir(root);
-        let vault = obsidian::scan(&vault_dir);
+        let vault = obsidian::scan(&vault_dir, previous_vault);
         let mut symbol_groups: HashMap<usize, Vec<usize>> = HashMap::new();
         for (id, group) in duplicates.groups.iter().enumerate() {
             for member in &group.members {
@@ -294,7 +296,7 @@ impl Site {
     /// Replaces the snapshot with a fresh one, or records `failed` as the
     /// stamp already tried.
     fn reload(&mut self, failed: IndexStamp) {
-        match Site::load(&self.root, self.no_obsidian) {
+        match Site::load_snapshot(&self.root, self.no_obsidian, Some(&self.vault), || {}) {
             Ok(mut fresh) => {
                 fresh.csrf = std::mem::take(&mut self.csrf);
                 fresh.latency = std::mem::take(&mut self.latency);
