@@ -1,8 +1,9 @@
 //! The dashboard front end, embedded in the binary and served from the same
 //! origin so the page can keep a strict `script-src 'self'` policy. The shell
-//! and its pages are plain ES modules with no build step; the open finding's
-//! review workspace is a React bundle that `crates/mct-cli/web-ui` compiles
-//! into `review-dist/`, committed so that building the binary needs no Node.
+//! and its pages are plain ES modules with no build step. Two bundles are
+//! compiled by `crates/mct-cli/web-ui` and committed so that building the
+//! binary needs no Node: the open finding's React review workspace
+//! (`review-dist/`) the notes Markdown renderer (`notes-dist/`) and the WebGL graph for large vaults (`graph-dist/`).
 
 use super::response::Response;
 
@@ -30,7 +31,9 @@ pub(super) fn serve(path: &str) -> Option<Response> {
         "js/ai.js" => (JS, app!("ai.js")),
         "js/code.js" => (JS, app!("code.js")),
         "js/graph.js" => (JS, app!("graph.js")),
+        "js/prefs.js" => (JS, app!("prefs.js")),
         "js/markdown.js" => (JS, app!("markdown.js")),
+        "js/graph-loader.js" => (JS, app!("graph-loader.js")),
         "js/palette.js" => (JS, app!("palette.js")),
         "js/ignore-card.js" => (JS, app!("ignore-card.js")),
         "js/page-dashboard.js" => (JS, app!("page-dashboard.js")),
@@ -45,6 +48,9 @@ pub(super) fn serve(path: &str) -> Option<Response> {
         // Loaded only when a finding is opened (page-findings.js).
         "js/review.js" => (JS, include_str!("review-dist/review.js")),
         "review.css" => (CSS, include_str!("review-dist/review.css")),
+        // Loaded the first time a note is opened (markdown.js).
+        "js/notes.js" => (JS, include_str!("notes-dist/notes.js")),
+        "js/graph-gl.js" => (JS, include_str!("graph-dist/graph.js")),
         _ => return None,
     };
     Some(Response::ok(kind, body.to_string()))

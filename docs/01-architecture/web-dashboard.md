@@ -10,8 +10,13 @@ and a strict CSP. Its localhost URL does not contain a private key.
 - A professional, local-first dashboard over the existing index: Dashboard,
   indexed code, duplicates (with side-by-side compare), dead code, search,
   dependencies, reviews, statistics, Obsidian notes, unified workspace, settings.
-- Spanish (Spain) UI with all strings in one table (`app/i18n.js`) so other
-  locales can be added without touching components.
+- UI in English and Spanish (Spain) with all strings in one table (`app/i18n.js`) so other
+  locales can be added without touching components. The language and the theme
+  (dark, light or system) are remembered. Defaults: theme `system`; English,
+  unless the browser's language settings list Spanish first. Each project has
+  its own port and `localStorage` is per origin, so both choices are also
+  mirrored in one cookie (`app/prefs.js`, cookies ignore the port) that a new
+  project's dashboard reads when it has nothing saved.
 - Never invent data. Anything the index does not record is marked unavailable
   through `meta.capabilities` (history, semantic search, call graph, reindex,
   tokens, similarity, confidence, severity, reviewers are all `false`).
@@ -53,7 +58,13 @@ and a strict CSP. Its localhost URL does not contain a private key.
 - `web/app/*` is an ES-module front end embedded with `include_str!`: hash
   routing (`#/page?query`, filters live in the URL), a DOM builder that never
   uses `innerHTML`, inline SVG charts, a bounded force-directed graph, an LCS
-  line diff and a safe Markdown renderer.
+  line diff. Three bundles are built by `crates/mct-cli/web-ui` and committed:
+  the review workspace (`review-dist/`), the notes Markdown renderer
+  (`notes-dist/notes.js`: Obsidian syntax, highlighted code, wikilink previews,
+  built from DOM nodes only, [ADR-033](adrs/033-notes-markdown-renderer-bundle.md))
+  and the WebGL notes graph for large vaults (`graph-dist/graph.js`: all notes
+  at once, communities coloured, display and force sliders; small graphs keep
+  the SVG one).
 
 ## Duplicate row contract
 

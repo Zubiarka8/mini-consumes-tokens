@@ -276,6 +276,7 @@ pub(super) fn graph(site: &Site, params: &Params) -> Value {
                 .map(move |to| json!([from, to]))
         })
         .collect();
-    json!({ "nodes": nodes, "edges": edges, "total": site.vault.notes.len(),
-            "truncated": site.vault.notes.len() > max_nodes, "edgeKinds": ["markdown-link"] })
+    let total = site.vault.notes.iter().filter(eligible).count();
+    json!({ "nodes": nodes, "edges": edges, "total": total,
+            "truncated": total > max_nodes, "edgeKinds": ["markdown-link"] })
 }
