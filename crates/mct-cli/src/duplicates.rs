@@ -393,7 +393,7 @@ fn cache_key(
     let payload = format!(
         "{:?}",
         (
-            "duplicates-report-cache-v3",
+            "duplicates-report-cache-v4",
             env!("CARGO_PKG_VERSION"),
             format!("{options:?}"),
             index.published_generation()?,
