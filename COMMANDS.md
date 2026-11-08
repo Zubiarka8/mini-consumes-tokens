@@ -392,12 +392,15 @@ of generated paths before retrying. Manual `obsidian` returns a nonzero exit on
 failure; automatic generation reports a warning and preserves the successful
 SQLite reindex. `--no-obsidian` leaves an existing atlas untouched.
 
-Publication stages the complete tree in a unique sibling directory and uses
-two renames with rollback; it is not crash-atomic and does not promise power-loss
-durability. After a process crash, check for a retained `.mct-obsidian-*` sibling
-and recover its `previous` vault if needed. Remove `obsidian.lock` only after
-confirming no generator is active, then regenerate. Evals, corpus and library
-consumers do not register the hook. See [ADR-013](docs/01-architecture/adrs/013-obsidian-vault-location.md).
+Publication rewrites only changed notes, each through a temporary file renamed
+over it, then the manifest last, so readers never find a note missing. It does
+not promise power-loss durability. A stopped generator leaves nothing to clean
+up: the OS releases its lock (`obsidian.writer.lock`) and the next run finishes
+the interrupted publication. A second generator waits for the first, up to two
+minutes. An `obsidian.lock` left by an older version blocks publication; delete
+it only after confirming no generator is running. Evals, corpus and library
+consumers do not register the hook. See [ADR-013](docs/01-architecture/adrs/013-obsidian-vault-location.md)
+and [ADR-031](docs/01-architecture/adrs/031-vault-publication-by-note.md).
 
 ### `web` / `web --port <port> --no-obsidian --idle-timeout <minutes>`
 
