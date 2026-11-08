@@ -52,6 +52,8 @@ export const duplicate = (fields: Partial<DuplicateFinding> = {}): DuplicateFind
   scope: "cross-file",
   lines: 3,
   tokens: 12,
+  fileCount: 3,
+  memberCount: 3,
   members: [
     { path: "src/a.rs", start: 1, end: 3, name: "alpha", kind: "function", excerpt: [], code: ["fn alpha() {", "  1", "}"] },
     { path: "src/b.rs", start: 10, end: 12, name: "beta", kind: "function", excerpt: [], code: ["fn beta() {", "  2", "}"] },

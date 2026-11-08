@@ -247,8 +247,6 @@ export function DuplicateWorkspace(props: WorkspaceProps & { item: DuplicateFind
   const visible = item.members.map((_, index) => index).filter((index) => !hidden.includes(index));
   const names = item.members.map((member) => basename(member.path));
   const ambiguous = (name: string) => names.filter((other) => other === name).length > 1;
-  // Files, not fragments: two copies in one file are one file.
-  const fileCount = item.fileCount ?? new Set(item.members.map((member) => member.path)).size;
 
   const select = (index: number) => {
     setHidden(hidden.filter((other) => other !== index));
@@ -407,7 +405,11 @@ export function DuplicateWorkspace(props: WorkspaceProps & { item: DuplicateFind
       layoutId="review-duplicate"
       summary={
         <>
-          <span>{t("dup.meta", { files: fileCount, lines: item.lines, tokens: item.tokens })}</span>
+          <span>{t("dup.meta", {
+            locations: t(item.memberCount === 1 ? "dup.locationCount" : "dup.locationsCount", { n: item.memberCount }),
+            files: t(item.fileCount === 1 ? "dup.fileCount" : "dup.filesCount", { n: item.fileCount }),
+            lines: item.lines, tokens: item.tokens,
+          })}</span>
           <Badge tone={item.verdict === "real" ? "success" : "warning"}>{t(`dup.verdict.${item.verdict}`)}</Badge>
         </>
       }

@@ -159,3 +159,15 @@ combination yields it.
   `--limit` and the consistent policy.
 - Real-code evaluation and cost:
   [token twins evaluation](../../../benchmarks/token-twins.md#explainable-verdicts).
+
+
+## Dashboard presentation clarification (2026-11-08)
+
+The dashboard counts locations separately from distinct files and explicitly
+marks member/title previews; see [the dashboard contract](../web-dashboard.md#duplicate-row-contract).
+This does not alter verdict rules or imply behavioral equivalence. In the
+repository reproduction, `find_calls` / `find_callers` and the BFS wrapper group
+already have `SUSPICIOUS` verdicts because their aligned names and other evidence
+differ. Keeping these candidates is intentional; same-file placement alone is
+not evidence that a candidate should be removed or demoted. The existing
+call-only demotion policy is unchanged.
