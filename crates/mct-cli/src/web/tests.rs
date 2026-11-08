@@ -1703,6 +1703,24 @@ fn the_dashboard_reloads_only_when_a_change_is_published() {
     assert!(site.navigation.symbols.iter().any(|s| s.name == "gamma"));
 }
 
+#[test]
+fn a_snapshot_reload_leaves_the_vault_to_the_reindexer() {
+    let root = project();
+    // Canonical: the vault refuses to write through a symlinked ancestor.
+    let path = root.path().canonicalize().unwrap();
+    let mut site = Site::load(&path, false).unwrap();
+    let vault = mct_obsidian::vault_dir(&path);
+    assert!(vault.join(mct_obsidian::MANIFEST_FILE).is_file());
+    // The process that reindexes publishes the vault from its own hook;
+    // publishing again from the reload doubled the work and raced it.
+    fs::remove_dir_all(&vault).unwrap();
+    fs::write(path.join("src/c.rs"), "pub fn gamma() {}\n").unwrap();
+    index(&path);
+    site.follow_reindex();
+    assert!(site.navigation.symbols.iter().any(|s| s.name == "gamma"));
+    assert!(!vault.exists(), "the reload published the vault again");
+}
+
 // Windows refuses to delete a database file the dashboard holds open, so a
 // rebuild under a running dashboard cannot happen there.
 #[cfg(unix)]
