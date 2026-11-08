@@ -1888,6 +1888,10 @@ fn a_decision_saved_during_a_background_reload_is_not_lost() {
     assert!(site.navigation.symbols.iter().any(|s| s.name == "gamma"));
 }
 
+// Windows refuses to delete a database file the dashboard holds open, so a
+// rebuild under a running dashboard cannot happen there (as for
+// `a_rebuilt_index_file_is_reloaded`).
+#[cfg(unix)]
 #[test]
 fn a_failed_background_reload_keeps_the_current_snapshot() {
     let root = project();
