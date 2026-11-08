@@ -1911,3 +1911,22 @@ fn a_failed_background_reload_keeps_the_current_snapshot() {
     settle(&mut site, &mut pending, 0);
     assert!(site.navigation.symbols.iter().any(|s| s.name == "rebuilt"));
 }
+
+#[test]
+fn a_connection_slot_is_released_even_when_its_thread_panics() {
+    let open = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let slot = super::OpenSlot::claim(&open, 1).expect("a free slot");
+    assert!(
+        super::OpenSlot::claim(&open, 1).is_none(),
+        "the limit is enforced"
+    );
+    let worker = std::thread::spawn(move || {
+        let _slot = slot;
+        panic!("the connection thread failed");
+    });
+    assert!(worker.join().is_err());
+    assert!(
+        super::OpenSlot::claim(&open, 1).is_some(),
+        "the slot came back"
+    );
+}

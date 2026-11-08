@@ -351,14 +351,25 @@ impl Site {
         if let Some(failed) = self.stale() {
             let (send, result) = std::sync::mpsc::channel();
             let (root, no_obsidian) = (self.root.clone(), self.no_obsidian);
-            std::thread::spawn(move || {
-                let _ = send.send(Site::load(&root, no_obsidian).map(Box::new));
-            });
-            *pending = Some(PendingReload {
-                failed,
-                writes,
-                result,
-            });
+            let loading = std::thread::Builder::new()
+                .name("snapshot-reload".into())
+                .spawn(move || {
+                    let _ = send.send(Site::load(&root, no_obsidian).map(Box::new));
+                });
+            match loading {
+                Ok(_) => {
+                    *pending = Some(PendingReload {
+                        failed,
+                        writes,
+                        result,
+                    });
+                }
+                Err(error) => {
+                    let error =
+                        anyhow::Error::from(error).context("cannot start the loading thread");
+                    self.reload_failed(&error, failed);
+                }
+            }
         }
     }
 
@@ -572,7 +583,7 @@ pub(super) fn run(
             std::process::exit(0);
         });
     }
-    serve(listener, port, site, &activity);
+    serve(listener, port, site, &activity)?;
     Ok(())
 }
 
@@ -591,17 +602,24 @@ struct Job {
 /// is slow to send or to read (a preconnect, a stalled tab) delays nobody but
 /// itself. Complete requests are answered one at a time by this thread, the
 /// only owner of `site`: snapshot reloads and review decisions stay serial.
-fn serve(listener: std::net::TcpListener, port: u16, mut site: Site, activity: &idle::Activity) {
+fn serve(
+    listener: std::net::TcpListener,
+    port: u16,
+    mut site: Site,
+    activity: &idle::Activity,
+) -> std::io::Result<()> {
     let (jobs, queue) = std::sync::mpsc::channel::<Job>();
     let open = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
-    std::thread::spawn(move || {
-        for connection in listener.incoming() {
-            match connection {
-                Ok(stream) => accept(stream, port, &jobs, &open),
-                Err(error) => eprintln!("warning: local web connection failed: {error}"),
+    std::thread::Builder::new()
+        .name("web-accept".into())
+        .spawn(move || {
+            for connection in listener.incoming() {
+                match connection {
+                    Ok(stream) => accept(stream, port, &jobs, &open),
+                    Err(error) => eprintln!("warning: local web connection failed: {error}"),
+                }
             }
-        }
-    });
+        })?;
     let mut pending = None;
     let mut writes = 0;
     for job in queue {
@@ -613,6 +631,29 @@ fn serve(listener: std::net::TcpListener, port: u16, mut site: Site, activity: &
         // The connection may have gone; its thread then writes nothing.
         let _ = job.reply.send(job.request.answer(&mut site));
     }
+    Ok(())
+}
+
+/// One of the `MAX_OPEN_CONNECTIONS` slots, given back when dropped, so a
+/// connection thread that panics still frees its slot.
+struct OpenSlot(std::sync::Arc<std::sync::atomic::AtomicUsize>);
+
+impl OpenSlot {
+    /// A slot of `open`, or `None` when `limit` are already taken.
+    fn claim(open: &std::sync::Arc<std::sync::atomic::AtomicUsize>, limit: usize) -> Option<Self> {
+        use std::sync::atomic::Ordering;
+        if open.fetch_add(1, Ordering::SeqCst) >= limit {
+            open.fetch_sub(1, Ordering::SeqCst);
+            return None;
+        }
+        Some(Self(open.clone()))
+    }
+}
+
+impl Drop for OpenSlot {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+    }
 }
 
 /// Hands one accepted connection to a thread of its own, or refuses it when
@@ -623,22 +664,24 @@ fn accept(
     jobs: &std::sync::mpsc::Sender<Job>,
     open: &std::sync::Arc<std::sync::atomic::AtomicUsize>,
 ) {
-    use std::sync::atomic::Ordering;
-    if open.fetch_add(1, Ordering::SeqCst) >= MAX_OPEN_CONNECTIONS {
-        open.fetch_sub(1, Ordering::SeqCst);
+    let Some(slot) = OpenSlot::claim(open, MAX_OPEN_CONNECTIONS) else {
         // Best effort, never blocking the accept loop for long.
         let _ = stream.set_write_timeout(Some(std::time::Duration::from_millis(100)));
         let _ = http::write_response(&mut stream, &response::Response::error(503), false);
         return;
-    }
+    };
     let jobs = jobs.clone();
-    let open = open.clone();
-    std::thread::spawn(move || {
+    let spawned = std::thread::Builder::new().spawn(move || {
+        let _slot = slot;
         if let Err(error) = answer_connection(&mut stream, port, &jobs) {
             eprintln!("warning: local web request failed: {error}");
         }
-        open.fetch_sub(1, Ordering::SeqCst);
     });
+    // Without a thread the connection and its slot are dropped: the client
+    // sees the connection close.
+    if let Err(error) = spawned {
+        eprintln!("warning: cannot start a local web connection thread: {error}");
+    }
 }
 
 /// Reads one request, has the site thread answer it, and writes the answer.
