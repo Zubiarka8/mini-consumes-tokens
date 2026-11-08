@@ -175,8 +175,9 @@ pub(super) fn dead_row(site: &Site, index: usize) -> Value {
     row["kind"] = json!(symbol.kind);
     row["parent"] = json!(symbol.parent);
     row["refs"] = json!(0);
-    // Zone, visibility and confidence come from `dead_assessment`; the heuristic has no severity.
-    row["zone"] = json!(candidate.assessment.zone);
+    // The area comes from the project's own folders; visibility and confidence
+    // from `dead_assessment`. The heuristic has no severity.
+    row["area"] = json!(candidate.area);
     row["visibility"] = json!(candidate.assessment.visibility);
     row["confidence"] = json!(candidate.assessment.confidence);
     row["severity"] = Value::Null;
@@ -221,7 +222,7 @@ const FILTER_FIELDS: [&str; 8] = [
     "verdict",
     "scope",
     "confidence",
-    "zone",
+    "area",
 ];
 
 pub(super) fn list(site: &Site, params: &Params) -> Value {
