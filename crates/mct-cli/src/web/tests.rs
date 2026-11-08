@@ -222,7 +222,9 @@ fn dashboard_serves_static_app_and_a_read_only_json_api() {
     assert!(finding["analysis"].as_str().unwrap().contains("alpha"));
     let dead = server.json("api/findings?type=dead-code&q=beta");
     assert!(["high", "medium", "low"].contains(&dead["items"][0]["confidence"].as_str().unwrap()));
-    assert_eq!(dead["items"][0]["zone"], "source");
+    // A fixture whose files all sit in one place has one area, so the filter has nothing to offer.
+    assert!(dead["items"][0]["area"].is_string());
+    assert_eq!(dead["facets"]["area"].as_array().unwrap().len(), 1);
     assert!(dead["items"][0]["severity"].is_null());
     let dead_detail = server.json(&format!(
         "api/finding?key={}",
@@ -1841,4 +1843,170 @@ fn mutations_are_refused_for_foreign_hosts_origins_and_missing_csrf() {
     let ignore = serde_json::json!({ "csrf": csrf, "content": "x", "base": "" }).to_string();
     let response = server.raw(&format!("POST /api/ignore HTTP/1.1\r\nHost: evil.example:8787\r\nOrigin: http://evil.example:8787\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{ignore}", ignore.len()));
     assert!(response.starts_with("HTTP/1.1 421"), "{response}");
+}
+
+#[path = "tests/duplicate_groups.rs"]
+mod duplicate_groups;
+
+#[path = "tests/group_invariants.rs"]
+mod group_invariants;
+
+/// Starts the real accept loop on an ephemeral port in a background thread.
+fn serve_in_background(root: &Path) -> u16 {
+    let site = Site::load(&root.canonicalize().unwrap(), true).unwrap();
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    std::thread::spawn(move || super::serve(listener, port, site, &super::idle::Activity::new()));
+    port
+}
+
+fn socket_get(port: u16, path: &str) -> String {
+    let mut stream = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
+    write!(
+        stream,
+        "GET {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n\r\n"
+    )
+    .unwrap();
+    let mut response = String::new();
+    stream.read_to_string(&mut response).unwrap();
+    response
+}
+
+#[test]
+fn an_idle_connection_does_not_delay_other_requests() {
+    let root = project();
+    let port = serve_in_background(root.path());
+    // A client that connects and never sends (a browser preconnect, a stalled
+    // tab) must not hold the server until its request timeout.
+    let _idle = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
+    std::thread::sleep(Duration::from_millis(100));
+    let started = std::time::Instant::now();
+    let response = socket_get(port, "/api/meta");
+    let elapsed = started.elapsed();
+    assert!(response.starts_with("HTTP/1.1 200"), "{response}");
+    assert!(
+        elapsed < Duration::from_secs(1),
+        "a request behind an idle connection took {elapsed:?}"
+    );
+}
+
+/// Calls `follow_reindex_in_background` until no reload is pending.
+fn settle(site: &mut Site, pending: &mut Option<super::PendingReload>, writes: u64) {
+    let deadline = std::time::Instant::now() + Duration::from_secs(60);
+    loop {
+        site.follow_reindex_in_background(pending, writes);
+        if pending.is_none() {
+            return;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the reload never finished"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+#[test]
+fn a_background_reload_keeps_answering_from_the_current_snapshot() {
+    let root = project();
+    let mut site = Site::load(root.path(), true).unwrap();
+    site.generated = 0;
+    fs::write(root.path().join("src/c.rs"), "pub fn gamma() {}\n").unwrap();
+    index(root.path());
+
+    let mut pending = None;
+    site.follow_reindex_in_background(&mut pending, 0);
+    // The call returns at once: the rebuild runs elsewhere and the current
+    // snapshot keeps answering until it is ready.
+    assert!(
+        pending.is_some(),
+        "no reload was started for a published change"
+    );
+    assert_eq!(site.generated, 0, "the snapshot was replaced synchronously");
+    assert!(!site.navigation.symbols.iter().any(|s| s.name == "gamma"));
+
+    let csrf = site.csrf.clone();
+    settle(&mut site, &mut pending, 0);
+    assert_ne!(site.generated, 0);
+    assert!(site.navigation.symbols.iter().any(|s| s.name == "gamma"));
+    assert_eq!(
+        site.csrf, csrf,
+        "an open page must still be able to save decisions"
+    );
+
+    // Nothing new was published: no further reload starts.
+    site.follow_reindex_in_background(&mut pending, 0);
+    assert!(pending.is_none());
+}
+
+#[test]
+fn a_decision_saved_during_a_background_reload_is_not_lost() {
+    let root = project();
+    let mut site = Site::load(root.path(), true).unwrap();
+    fs::write(root.path().join("src/c.rs"), "pub fn gamma() {}\n").unwrap();
+    index(root.path());
+    let mut pending = None;
+    site.follow_reindex_in_background(&mut pending, 0);
+    let started = pending.as_ref().map(|reload| reload.writes);
+    assert_eq!(started, Some(0));
+    // A decision saved after the rebuild began may be missing from it: the
+    // finished rebuild is discarded and another one starts.
+    let deadline = std::time::Instant::now() + Duration::from_secs(60);
+    while pending.as_ref().is_some_and(|reload| reload.writes == 0) {
+        site.follow_reindex_in_background(&mut pending, 1);
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the stale rebuild was never discarded"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    settle(&mut site, &mut pending, 1);
+    assert!(site.navigation.symbols.iter().any(|s| s.name == "gamma"));
+}
+
+// Windows refuses to delete a database file the dashboard holds open, so a
+// rebuild under a running dashboard cannot happen there (as for
+// `a_rebuilt_index_file_is_reloaded`).
+#[cfg(unix)]
+#[test]
+fn a_failed_background_reload_keeps_the_current_snapshot() {
+    let root = project();
+    let mut site = Site::load(root.path(), true).unwrap();
+    let symbols = site.navigation.symbols.len();
+    // A rebuild in progress: the index directory is gone and loading fails.
+    fs::remove_dir_all(root.path().join(".mct-index")).unwrap();
+    let mut pending = None;
+    settle(&mut site, &mut pending, 0);
+    assert_eq!(site.navigation.symbols.len(), symbols);
+    let server = Server {
+        site: std::cell::RefCell::new(site),
+        address: "127.0.0.1:8787",
+        prefix: "/",
+    };
+    assert!(server.get("api/meta").starts_with("HTTP/1.1 200"));
+    // A replaced file is retried on the next call, as by `follow_reindex`.
+    fs::write(root.path().join("src/c.rs"), "pub fn rebuilt() {}\n").unwrap();
+    index(root.path());
+    let mut site = server.site.into_inner();
+    settle(&mut site, &mut pending, 0);
+    assert!(site.navigation.symbols.iter().any(|s| s.name == "rebuilt"));
+}
+
+#[test]
+fn a_connection_slot_is_released_even_when_its_thread_panics() {
+    let open = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let slot = super::OpenSlot::claim(&open, 1).expect("a free slot");
+    assert!(
+        super::OpenSlot::claim(&open, 1).is_none(),
+        "the limit is enforced"
+    );
+    let worker = std::thread::spawn(move || {
+        let _slot = slot;
+        panic!("the connection thread failed");
+    });
+    assert!(worker.join().is_err());
+    assert!(
+        super::OpenSlot::claim(&open, 1).is_some(),
+        "the slot came back"
+    );
 }
