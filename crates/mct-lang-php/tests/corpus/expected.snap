@@ -1,4 +1,4 @@
-# language=php files=6 symbols=418 relations=1040 name_matched_across_files=488
+# language=php files=6 symbols=418 relations=1042 name_matched_across_files=488
 
 == library/Domain.php (492 lines)
 S 1-492 module Domain
@@ -361,6 +361,7 @@ R 148:20 calls TableFormatter::format -> str_repeat
 R 148:36 calls TableFormatter::format -> array_sum
 R 148:71 calls TableFormatter::format -> count (name-matched: library/Repository.php)
 R 149:27 calls TableFormatter::format -> rows
+R 152:28 calls TableFormatter::format -> pad
 R 152:40 calls TableFormatter::format -> cell
 R 154:24 calls TableFormatter::format -> rtrim
 R 154:30 calls TableFormatter::format -> implode
@@ -1469,3 +1470,4 @@ R 353:59 calls main -> microtime
 R 358:54 calls format -> extension (name-matched: library/Reports.php)
 R 358:32 calls format -> formatter_for (name-matched: library/Reports.php)
 R 360:27 calls console -> realpath
+R 361:10 calls console -> main

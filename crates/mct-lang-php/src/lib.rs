@@ -483,6 +483,18 @@ impl<'a> Walker<'a> {
         })
     }
 
+    /// The variable in `$cb()` when this file already bound `$cb` to a
+    /// closure (which the `assignment_expression` arm indexes as a
+    /// top-level `function` named `cb`). Any other `$var()` may hold an
+    /// arbitrary callable, so it names no symbol.
+    fn bound_closure_name(&self, function: Node<'a>) -> Option<&'a str> {
+        let var = variable_text(function, self.source)?;
+        self.symbols
+            .iter()
+            .any(|s| s.name == var && s.kind == SymbolKind::Function && s.parent.is_none())
+            .then_some(var)
+    }
+
     /// `owner` is the innermost enclosing function/method/module (calls,
     /// imports, and trait-use relations attach to it); `type_name` is the
     /// innermost enclosing class/interface/trait/enum name, used as
@@ -738,6 +750,16 @@ impl<'a> Walker<'a> {
                             text(seg, self.source).to_string(),
                             location(seg),
                             target,
+                        );
+                    } else if let Some(var) = self.bound_closure_name(function) {
+                        // `$cb()` after `$cb = function () {}`: a call to the
+                        // closure symbol the assignment created.
+                        self.push_targeted(
+                            owner,
+                            RelationKind::Calls,
+                            var.to_string(),
+                            location(function),
+                            None,
                         );
                     }
                     self.visit(function, owner, type_name, depth + 1);
