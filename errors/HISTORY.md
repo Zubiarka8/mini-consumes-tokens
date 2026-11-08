@@ -286,6 +286,12 @@ On `fix/dead-code-value-and-type-refs` (from `3bb6bdb`), the Rust and JS/TS pars
 On `fix/dead-code-value-and-type-refs`: TS type references, `export default` call arguments, Rust path calls and macros inside macro arguments, path-qualified macros and unit-struct values are now recorded. `scripts/unix/check.sh` passed (2150 tests, CI clippy clean, mct-eval accuracy 1.000). Dead-code candidates after a forced reindex: 90 (113 before this pass, 206 at the start). Re-verify after merge.
 
 
+## 2026-11-08 — duplicate-count investigation
+
+On main base `589d1cc`, explicit-root `mct-cli call --tool get_indexing_status` (via batch) reported 1,077 files, 42,804 symbols, timestamp `1794141966`, and 18 parse diagnostics: ERR-003 (16 expected malformed fixtures), ERR-002 (`scripts/windows/review-check.ps1: line 29: syntax error`) and ERR-023 (`crates/mct-cli/web-ui/src/styles.css: line 12: syntax error`). Existing classifications remain unchanged; this is an observation, not a parser fix verification.
+
+ERR-013 caller-path observation: `get_file_skeleton(path: "crates/mct-index/src/duplicates/file.rs")` returned `` `crates/mct-index/src/duplicates/file.rs` was not found under the indexed project root ``. `get_file_tree` located `crates/mct-index/src/duplicates/analysis/file.rs`; the corrected skeleton query succeeded. No server fix required; ERR-013 remains RESOLVED.
+
 ## 2026-11-08 — duplicate precision verification
 
 On `feat/duplicate-detection-precision`, based on main `589d1cc`, explicit-root

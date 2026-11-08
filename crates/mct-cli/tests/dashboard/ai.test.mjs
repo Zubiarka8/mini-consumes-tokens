@@ -36,7 +36,7 @@ test('a dead-code brief lists the candidate, the files importing it and its code
   const { deadBrief } = await ai();
   const text = deadBrief({
     key: 'dead-test', number: 2, type: 'dead-code', title: 'unused_helper', kind: 'function', language: 'rust',
-    state: 'unreviewed', visibility: 'private', zone: 'source', confidence: 'medium',
+    state: 'unreviewed', visibility: 'private', area: 'src', confidence: 'medium',
     detail: { symbol: { path: 'src/lib.rs', line: 10, endLine: 14, language: 'rust' }, imports: ['src/a.rs'],
       importedBy: ['src/main.rs'], notes: [], code: { lines: ['fn unused_helper() {', '', '', '}'] } },
   });
@@ -80,7 +80,7 @@ test('both finding kinds and symbol previews require evidence and explicit autho
   const { duplicateBrief, deadBrief, symbolBrief } = await ai();
   const s = { id: 1, name: 'alpha', path: 'src/a.rs', line: 1, endLine: 3, kind: 'function', language: 'rust', refs: 0 };
   const dead = { key: 'dead-test', title: 'alpha', kind: 'function', state: 'unreviewed',
-    visibility: 'public', zone: 'source', confidence: 'low', detail: { symbol: s } };
+    visibility: 'public', area: 'src', confidence: 'low', detail: { symbol: s } };
   const prompts = [duplicateBrief(finding), deadBrief(dead),
     symbolBrief(s, { duplicates: [finding] }, 'duplicate'), symbolBrief(s, { dead }, 'dead')];
   for (const text of prompts) {
