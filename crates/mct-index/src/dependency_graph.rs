@@ -44,39 +44,61 @@ impl Index {
     /// Multiple symbol-level import relations between the same pair of files
     /// collapse to one edge; ambiguous and external imports are omitted.
     pub fn direct_file_imports(&self) -> Result<Vec<DependencyEdge>> {
+        self.direct_file_imports_with_cost().map(|(edges, _)| edges)
+    }
+
+    /// [`Self::direct_file_imports`] and the SQLite virtual-machine steps the
+    /// query took: a deterministic work measure for regression tests.
+    fn direct_file_imports_with_cost(&self) -> Result<(Vec<DependencyEdge>, i32)> {
+        // A relation is an edge when all its candidates lie in one file. The
+        // `LIMIT 2` stops at the second distinct file, so a name declared in
+        // many files (`mod tests;`, `__init__`) costs a few candidates instead
+        // of all of them; grouping every candidate made this quadratic.
         let mut stmt = self.conn.prepare_cached(
-            "SELECT source.relative_path, MIN(target.relative_path)
+            "SELECT source.relative_path,
+                    (SELECT target.relative_path
+                       FROM relation_candidates c
+                       JOIN symbols target_symbol ON target_symbol.id = c.symbol_id
+                       JOIN files target ON target.id = target_symbol.file_id
+                      WHERE c.relation_id = r.id
+                      LIMIT 1)
                FROM relations r
                JOIN symbols caller ON caller.id = r.from_symbol_id
                JOIN files source ON source.id = caller.file_id
-               JOIN relation_candidates c ON c.relation_id = r.id
-               JOIN symbols target_symbol ON target_symbol.id = c.symbol_id
-               JOIN files target ON target.id = target_symbol.file_id
               WHERE r.kind = 'imports'
                 AND r.external = 0
                 AND r.member = 0
-              GROUP BY r.id, source.relative_path
-             HAVING COUNT(DISTINCT target.id) = 1
-              ORDER BY source.relative_path, MIN(target.relative_path)",
+                AND (SELECT COUNT(*)
+                       FROM (SELECT DISTINCT target_symbol.file_id
+                               FROM relation_candidates c
+                               JOIN symbols target_symbol ON target_symbol.id = c.symbol_id
+                              WHERE c.relation_id = r.id
+                              LIMIT 2)) = 1",
         )?;
-        let rows = stmt.query_map([], |row| {
-            Ok(DependencyEdge {
-                from: row.get(0)?,
-                to: row.get(1)?,
-                depth: 1,
-            })
-        })?;
+        // A cached statement keeps its counters between runs.
+        stmt.reset_status(rusqlite::StatementStatus::VmStep);
         let mut unique = BTreeSet::new();
-        for edge in rows {
-            let edge = edge?;
-            if edge.from != edge.to {
-                unique.insert((edge.from, edge.to));
+        {
+            let rows = stmt.query_map([], |row| {
+                Ok(DependencyEdge {
+                    from: row.get(0)?,
+                    to: row.get(1)?,
+                    depth: 1,
+                })
+            })?;
+            for edge in rows {
+                let edge = edge?;
+                if edge.from != edge.to {
+                    unique.insert((edge.from, edge.to));
+                }
             }
         }
-        Ok(unique
+        let steps = stmt.get_status(rusqlite::StatementStatus::VmStep);
+        let edges = unique
             .into_iter()
             .map(|(from, to)| DependencyEdge { from, to, depth: 1 })
-            .collect())
+            .collect();
+        Ok((edges, steps))
     }
 
     /// Direct and transitive dependencies of the module at `module` (a file
@@ -254,5 +276,76 @@ impl Index {
             })?
             .collect::<rusqlite::Result<_>>()?;
         Ok(rows)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    // Test code: a panic here means a broken test precondition.
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use rusqlite::params;
+
+    use super::DependencyEdge;
+    use crate::{ExcludeSet, Index};
+
+    /// `dirs` directories `dK/`, each with `mod.x` importing `shared` (defined
+    /// in every directory's `shared.x`, so ambiguous) and `own_K` (defined
+    /// only in its own `own.x`, so one resolved edge per directory).
+    fn fan_out(dirs: usize) -> Index {
+        let index = Index::open_in_memory(&std::env::temp_dir(), ExcludeSet::default()).unwrap();
+        let conn = &index.conn;
+        let add_symbol = |path: &str, name: &str| -> i64 {
+            conn.execute(
+                "INSERT INTO files (relative_path, language, content_hash, last_indexed_at)
+                 VALUES (?1, 'alpha', '', 0)",
+                params![path],
+            )
+            .unwrap();
+            let file = conn.last_insert_rowid();
+            conn.execute(
+                "INSERT INTO symbols (file_id, name, kind, line, column, byte_len)
+                 VALUES (?1, ?2, 'function', 1, 1, 1)",
+                params![file, name],
+            )
+            .unwrap();
+            conn.last_insert_rowid()
+        };
+        for k in 0..dirs {
+            add_symbol(&format!("d{k}/shared.x"), "shared");
+            add_symbol(&format!("d{k}/own.x"), &format!("own_{k}"));
+            let importer = add_symbol(&format!("d{k}/mod.x"), "importer");
+            for target in ["shared".to_string(), format!("own_{k}")] {
+                conn.execute(
+                    "INSERT INTO relations (from_symbol_id, kind, to_name, line, column, byte_len, targets_parsed)
+                     VALUES (?1, 'imports', ?2, 1, 1, 1, 1)",
+                    params![importer, target],
+                )
+                .unwrap();
+            }
+        }
+        index
+    }
+
+    #[test]
+    fn ambiguous_imports_do_not_make_file_imports_quadratic() {
+        let dirs = 200;
+        let (edges, steps) = fan_out(dirs).direct_file_imports_with_cost().unwrap();
+        let mut expected: Vec<DependencyEdge> = (0..dirs)
+            .map(|k| DependencyEdge {
+                from: format!("d{k}/mod.x"),
+                to: format!("d{k}/own.x"),
+                depth: 1,
+            })
+            .collect();
+        expected.sort_by(|a, b| (&a.from, &a.to).cmp(&(&b.from, &b.to)));
+        assert_eq!(edges, expected);
+        // Evaluating every candidate of the ambiguous `shared` took 2,430,454
+        // steps here; stopping at the second file takes about 266,000. The
+        // bound leaves room for SQLite upgrades and fails on the quadratic plan.
+        assert!(
+            steps <= 600_000,
+            "direct_file_imports took {steps} SQLite VM steps for {dirs} directories"
+        );
     }
 }
