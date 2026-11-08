@@ -204,8 +204,8 @@ impl Site {
         let (dead, dead_findings) = dead_candidates(root, &index, &navigation, &file_hashes)?;
         let dead_code_ms = dead_started.elapsed().as_millis();
         findings.extend(dead_findings);
-        let numbers = numbers::Numbers::load(root, &findings);
         let reviews = reviews::Reviews::load(root, findings);
+        let numbers = numbers::Numbers::load(root, reviews.findings(), &reviews.reviewed_keys());
         if let Some(reason) = reviews.read_only_reason() {
             eprintln!("warning: review decisions are read-only until this is fixed: {reason}");
         }
@@ -354,7 +354,14 @@ impl Site {
             .reviews
             .update(&key, state, note.trim(), revision, now_unix_millis())
         {
-            Ok(()) => response::Response::json(&api::review_json(self, &key)),
+            Ok(()) => {
+                let reviewed = self
+                    .reviews
+                    .resolution(&key)
+                    .is_some_and(|resolution| resolution.state() != State::Unreviewed);
+                self.numbers.set_reviewed(&key, reviewed);
+                response::Response::json(&api::review_json(self, &key))
+            }
             Err(ReviewError::Conflict) => {
                 let mut current = api::review_json(self, &key);
                 current["error"] = "This finding or its review changed meanwhile. \

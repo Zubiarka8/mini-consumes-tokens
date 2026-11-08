@@ -5,7 +5,7 @@
 //! adapter keeps that resolution for the snapshot's findings, keyed by their
 //! identity, and refreshes it after every save attempt.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use mct_index::reviews::{
@@ -43,6 +43,22 @@ impl Reviews {
     fn refresh(&mut self) {
         self.resolutions = self.store.resolve(&self.findings);
         self.histories = self.store.histories(&self.findings);
+    }
+
+    /// Every finding of the snapshot, in order.
+    pub fn findings(&self) -> &[FindingKeys] {
+        &self.findings
+    }
+
+    /// The identities of the findings that have a review decision (any state
+    /// but `Unreviewed`).
+    pub fn reviewed_keys(&self) -> HashSet<&str> {
+        self.findings
+            .iter()
+            .zip(&self.resolutions)
+            .filter(|(_, resolution)| resolution.state() != State::Unreviewed)
+            .map(|(finding, _)| finding.identity.as_str())
+            .collect()
     }
 
     pub fn contains(&self, key: &str) -> bool {
