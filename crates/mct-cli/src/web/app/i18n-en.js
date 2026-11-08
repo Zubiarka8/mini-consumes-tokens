@@ -244,6 +244,7 @@ export const en = {
   "pager.prev": "Previous page",
   "pager.next": "Next page",
   "pager.showing": "Showing {first}–{last} of {total}",
+  "pager.overall": "{total} in total",
   "state.unreviewed": "Unreviewed",
   "state.inReview": "In review",
   "state.confirmed": "Confirmed",
