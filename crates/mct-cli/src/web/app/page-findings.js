@@ -21,6 +21,7 @@ import {
   store,
   dateTime,
   basename,
+  symbolLabel,
   FINDING_PARAMS,
 } from "./core.js";
 import {
@@ -149,14 +150,33 @@ const copyBriefButton = (row, cls) => {
     h("span", { class: "btn-label" }, t("ai.copyTemplate")),
   );
 };
-/** Files a duplicate group spans: the server counts the whole group, `members` is only a preview. */
-const filesOf = (r) => r.fileCount ?? new Set(r.members.map((m) => m.path)).size;
+/** Both counts describe the whole group; the member array can be a preview. */
+const locationsLabel = (r) =>
+  `${t(r.memberCount === 1 ? "dup.locationCount" : "dup.locationsCount", { n: r.memberCount })} · ${t(r.fileCount === 1 ? "dup.fileCount" : "dup.filesCount", { n: r.fileCount })}`;
 /** Every fragment the row carries, one per line, and how many the preview leaves out. */
 const fragmentLines = (r) => {
-  const hidden = (r.memberCount || 0) - r.members.length;
-  return [...r.members.map(memberLabel), ...(hidden > 0 ? [t("dup.moreFragments", { n: hidden })] : [])];
+  const hidden = r.membersOmitted ?? r.memberCount - r.members.length;
+  return [
+    ...r.members.map(memberLabel),
+    ...(hidden > 0 ? [t(hidden === 1 ? "dup.moreFragment" : "dup.moreFragments", { n: hidden })] : []),
+  ];
 };
 const fragmentsTitle = (r) => fragmentLines(r).join("\n");
+/** Repeated names share a label; counts and the locations panel still describe every member. */
+const groupNames = (r) => {
+  const names = [...new Set(r.members.map((member) => member.name))];
+  const omitted = r.membersOmitted ?? Math.max(0, r.memberCount - r.members.length);
+  return h(
+    "span",
+    { class: "stack-title group-names" },
+    names.flatMap((name, index) => [
+      index > 0 && h("span", { class: "group-separator", "aria-hidden": "true" }, " · "),
+      h("span", { class: "group-name", title: name }, symbolLabel(name)),
+    ]),
+    omitted > 0 && h("span", { class: "group-more" }, ` (+${omitted})`),
+  );
+};
+
 /** Where a stacked row's finding lives, in a panel that hover and keyboard focus both reveal (a native title does neither well). */
 const filesPanel = (r) =>
   h(
@@ -784,13 +804,7 @@ export async function render({ root, page, params: initial }) {
           key: "title",
           label: t("col.symbols"),
           sortable: true,
-          render: (r) =>
-            h(
-              "span",
-              { class: "name" },
-              h("span", { class: "ellipsis" }, r.title),
-              r.memberCount > 2 && badge(`+${r.memberCount - 2}`),
-            ),
+          render: (r) => groupNames(r),
         },
         {
           key: "path",
@@ -800,7 +814,7 @@ export async function render({ root, page, params: initial }) {
             h(
               "span",
               { title: fragmentsTitle(r) },
-              h("span", {}, t("dup.filesCount", { n: filesOf(r) })),
+              h("span", {}, locationsLabel(r)),
               h("span", { class: "path" }, r.members[0] ? r.members[0].path : ""),
             ),
           cls: "hide-sm",
@@ -829,7 +843,7 @@ export async function render({ root, page, params: initial }) {
           key: "title",
           label: t("col.symbol"),
           sortable: true,
-          render: (r) => h("span", { class: "name" }, h("span", { class: "ellipsis" }, r.title)),
+          render: (r) => h("span", { title: r.title }, symbolLabel(r.title)),
         },
         { key: "kind", label: t("code.col.kind"), sortable: true, render: (r) => r.kind, cls: "hide-sm" },
         {
@@ -861,7 +875,8 @@ export async function render({ root, page, params: initial }) {
         key: "title",
         label: t("col.finding"),
         sortable: true,
-        render: (r) => h("span", { class: "name" }, h("span", { class: "ellipsis" }, r.title)),
+        render: (r) =>
+          r.type === "duplicate" ? groupNames(r) : h("span", { title: r.title }, symbolLabel(r.title)),
       },
       {
         key: "type",
@@ -966,15 +981,35 @@ export async function render({ root, page, params: initial }) {
               class: "stack-open",
               "aria-describedby": `files-${r.key}`,
               onclick: () => open(r),
+              onkeydown: (event) => {
+                if (event.key === "Escape") {
+                  event.currentTarget.parentElement
+                    .querySelector(".files-pop")
+                    .setAttribute("data-dismissed", "");
+                }
+              },
+              onfocus: (event) =>
+                event.currentTarget.parentElement
+                  .querySelector(".files-pop")
+                  .removeAttribute("data-dismissed"),
+              onmouseenter: (event) =>
+                event.currentTarget.parentElement
+                  .querySelector(".files-pop")
+                  .removeAttribute("data-dismissed"),
             },
             h("span", { class: "stack-no" }, r.number ? `#${r.number}` : "—"),
-            h("span", { class: "stack-title" }, r.title),
+            r.type === "duplicate"
+              ? groupNames(r)
+              : h("span", { class: "stack-title", title: r.title }, symbolLabel(r.title)),
             h(
               "span",
               { class: "stack-where" },
               // A candidate names its file, whose full path is in the block's tooltip.
               r.type === "duplicate"
-                ? t("dup.filesCount", { n: filesOf(r) })
+                ? [
+                    h("span", { class: "stack-counts" }, locationsLabel(r)),
+                    h("span", { class: "stack-scope" }, t(`dup.scope.${r.scope}`)),
+                  ]
                 : `${basename(r.path)}:${r.line}`,
             ),
           ),
@@ -1045,9 +1080,13 @@ export async function render({ root, page, params: initial }) {
                     total: data.total,
                     columns: listColumns,
                     rows: data.items,
-                    rowText: cfg.type === "duplicate"
-                      ? (r) => duplicateListRow(r, findingNumber(r).replace("#", ""), (n) => t("dup.moreFragments", { n }))
-                      : undefined,
+                    rowText:
+                      cfg.type === "duplicate"
+                        ? (r) =>
+                            duplicateListRow(r, findingNumber(r).replace("#", ""), (n) =>
+                              t(n === 1 ? "dup.moreFragment" : "dup.moreFragments", { n }),
+                            )
+                        : undefined,
                   }),
                   t("ai.listCopied"),
                 ),
