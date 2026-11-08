@@ -5,6 +5,7 @@ mod assets;
 mod autoreindex;
 mod dead_assessment;
 mod http;
+mod idle;
 mod ignore_file;
 mod numbers;
 mod obsidian;
@@ -460,7 +461,13 @@ fn dashboard_url(port: u16) -> String {
     format!("http://localhost:{port}/")
 }
 
-pub(super) fn run(root: &Path, port: Option<u16>, no_obsidian: bool) -> anyhow::Result<()> {
+/// `idle_timeout`: stop after this long without a request (`None`: never).
+pub(super) fn run(
+    root: &Path,
+    port: Option<u16>,
+    no_obsidian: bool,
+    idle_timeout: Option<std::time::Duration>,
+) -> anyhow::Result<()> {
     anyhow::ensure!(
         root.join(".mct-index/index.sqlite3").is_file(),
         "no index found; run `mct-cli init` first"
@@ -477,7 +484,21 @@ pub(super) fn run(root: &Path, port: Option<u16>, no_obsidian: bool) -> anyhow::
         site.generated
     );
     std::io::stdout().flush()?;
+    let activity = idle::Activity::new();
+    if let Some(timeout) = idle_timeout {
+        idle::watch(activity.clone(), timeout, move || {
+            println!(
+                "No request for {} min: stopping the dashboard.",
+                timeout.as_secs() / 60
+            );
+            let _ = std::io::stdout().flush();
+            // The lease and file locks are released by the OS, and SQLite rolls
+            // back a reindex cut short, as after Ctrl-C.
+            std::process::exit(0);
+        });
+    }
     for connection in listener.incoming() {
+        let _serving = activity.serving();
         match connection {
             Ok(mut stream) => {
                 // One bounded request per connection; only review preferences are mutable.
