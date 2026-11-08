@@ -5,6 +5,7 @@ use mct_core::{
     SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::location;
+use std::collections::HashSet;
 use tree_sitter::Node;
 
 mod exports;
@@ -25,6 +26,17 @@ pub(super) struct Walker<'a> {
     /// This file's repository-relative path, the base of relative imports.
     path: &'a str,
     next_id: SymbolId,
+    /// Identifiers read as values (`onclick: toggle`, `.map(card)`,
+    /// `return wrapped`), as `(owner, name, location)`. [`Walker::finish`]
+    /// keeps those naming a function of this file as `References`.
+    value_uses: Vec<(SymbolId, String, Location)>,
+    /// Locals bound by the enclosing functions (parameters, `let`/`const`
+    /// values that are not functions, patterns): a value use of one of these
+    /// names reads the local, never the same-named function.
+    bound: HashSet<String>,
+    /// TS type parameters declared by the enclosing declarations: a type
+    /// named like one of them is that parameter, not a type to record.
+    generics: HashSet<String>,
 }
 
 impl<'a> Walker<'a> {
@@ -36,6 +48,9 @@ impl<'a> Walker<'a> {
             relation_targets: Vec::new(),
             path,
             next_id: 0,
+            value_uses: Vec::new(),
+            bound: HashSet::new(),
+            generics: HashSet::new(),
         }
     }
 
@@ -89,16 +104,28 @@ impl<'a> Walker<'a> {
     /// `visit` (not `visit_children`) to still catch a bare top-level call.
     /// The enclosing class stops here: a function nested in a method body
     /// belongs to the method, not to the class.
+    ///
+    /// The function's locals join the enclosing functions' for its subtree:
+    /// a JS closure sees the locals around it.
     fn visit_function_like_body(&mut self, function_node: Node, owner: SymbolId, depth: u32) {
+        let mut locals = self.bound.clone();
+        for field in ["parameters", "parameter", "body"] {
+            if let Some(part) = function_node.child_by_field_name(field) {
+                collect_bindings(part, self.source, &mut locals, depth + 1);
+            }
+        }
+        let outer = std::mem::replace(&mut self.bound, locals);
         if let Some(params) = function_node.child_by_field_name("parameters") {
             self.visit_children(params, owner, None, depth + 1);
         }
         if let Some(param) = function_node.child_by_field_name("parameter") {
             self.visit_children(param, owner, None, depth + 1);
         }
+        self.visit_part(function_node, "return_type", owner, depth);
         if let Some(body) = function_node.child_by_field_name("body") {
             self.visit(body, owner, None, depth + 1);
         }
+        self.bound = outer;
     }
 
     /// `depth` bounds native stack usage against adversarially deep/nested
@@ -109,6 +136,37 @@ impl<'a> Walker<'a> {
         if depth >= MAX_TRAVERSAL_DEPTH {
             return;
         }
+        // A declaration's type parameters (`<T extends Base>`) are in scope
+        // for its whole subtree, and only there.
+        let outer_generics = self.enter_generics(node);
+        self.visit_node(node, owner, type_name, depth);
+        if let Some(outer) = outer_generics {
+            self.generics = outer;
+        }
+    }
+
+    /// Adds the type parameters `node` declares to `generics` and returns the
+    /// previous set to restore, or `None` when it declares none.
+    fn enter_generics(&mut self, node: Node) -> Option<HashSet<String>> {
+        let params = node.child_by_field_name("type_parameters")?;
+        let outer = self.generics.clone();
+        mct_tree_sitter::for_each_child(params, |param| {
+            if let Some(name) = param.child_by_field_name("name") {
+                self.generics.insert(text(name, self.source).to_string());
+            }
+        });
+        Some(outer)
+    }
+
+    /// Visits the `field` child of `node` (a type annotation, type
+    /// arguments, an alias's value), when present.
+    fn visit_part(&mut self, node: Node, field: &str, owner: SymbolId, depth: u32) {
+        if let Some(part) = node.child_by_field_name(field) {
+            self.visit(part, owner, None, depth + 1);
+        }
+    }
+
+    fn visit_node(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>, depth: u32) {
         match node.kind() {
             "function_declaration" | "generator_function_declaration" => {
                 let name = node
@@ -175,12 +233,13 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                self.push_symbol(
+                let id = self.push_symbol(
                     name,
                     SymbolKind::TypeAlias,
                     location(node),
                     type_name.map(str::to_string),
                 );
+                self.visit_part(node, "value", id, depth);
             }
             "enum_declaration" => {
                 let name = node
@@ -231,6 +290,7 @@ impl<'a> Walker<'a> {
                     .or_else(|| node.child_by_field_name("name"));
                 let Some(name_node) = name_node else { return };
                 let name = text(name_node, self.source).to_string();
+                self.visit_part(node, "type", owner, depth);
                 match node.child_by_field_name("value") {
                     Some(value)
                         if matches!(value.kind(), "arrow_function" | "function_expression") =>
@@ -260,6 +320,7 @@ impl<'a> Walker<'a> {
             // e.g. `const { add } = require(...)`) just gets recursed into
             // normally, so a `require(...)` call on the right is still found.
             "variable_declarator" => {
+                self.visit_part(node, "type", owner, depth);
                 let Some(value) = node.child_by_field_name("value") else {
                     return;
                 };
@@ -344,8 +405,12 @@ impl<'a> Walker<'a> {
                         }
                         _ => {}
                     }
-                    self.visit(function, owner, type_name, depth + 1);
+                    // A bare callee is already the `Calls` above, not a value.
+                    if function.kind() != "identifier" {
+                        self.visit(function, owner, type_name, depth + 1);
+                    }
                 }
+                self.visit_part(node, "type_arguments", owner, depth);
                 if let Some(arguments) = node.child_by_field_name("arguments") {
                     self.visit_children(arguments, owner, type_name, depth + 1);
                 }
@@ -360,8 +425,11 @@ impl<'a> Walker<'a> {
                             location(name_node),
                         );
                     }
-                    self.visit(constructor, owner, type_name, depth + 1);
+                    if constructor.kind() != "identifier" {
+                        self.visit(constructor, owner, type_name, depth + 1);
+                    }
                 }
+                self.visit_part(node, "type_arguments", owner, depth);
                 if let Some(arguments) = node.child_by_field_name("arguments") {
                     self.visit_children(arguments, owner, type_name, depth + 1);
                 }
@@ -404,8 +472,39 @@ impl<'a> Walker<'a> {
                     }
                 }
                 // Attribute expressions still contain ordinary calls and
-                // nested JSX; the closing tag produces no second reference.
-                self.visit_children(node, owner, type_name, depth + 1);
+                // nested JSX; neither the tag name nor the closing tag
+                // produces a second reference.
+                let name = node.child_by_field_name("name").map(|n| n.id());
+                mct_tree_sitter::for_each_child(node, |child| {
+                    if Some(child.id()) != name {
+                        self.visit(child, owner, type_name, depth + 1);
+                    }
+                });
+            }
+            // An identifier reaching here is read as a value: callees,
+            // declared names and import/export names are handled by their
+            // own arms. Bindings (parameters, patterns, `catch (e)`) are not.
+            "identifier" | "shorthand_property_identifier" => {
+                let name = text(node, self.source);
+                if !is_binding(node) && !self.bound.contains(name) {
+                    self.value_uses
+                        .push((owner, name.to_string(), location(node)));
+                }
+            }
+            "jsx_closing_element" => {}
+            // A TS type named in an annotation, generic argument, alias or
+            // `as` cast (`props: ReviewPanelProps`, `useState<Problem>`) is a
+            // use of that type. Declared names are read by their own arms.
+            "type_identifier" => {
+                let name = text(node, self.source);
+                if !self.generics.contains(name) {
+                    self.push_relation(
+                        owner,
+                        RelationKind::References,
+                        name.to_string(),
+                        location(node),
+                    );
+                }
             }
             "export_statement" => self.visit_export_statement(node, owner, type_name, depth),
             "assignment_expression" => {
@@ -467,7 +566,25 @@ impl<'a> Walker<'a> {
         }
     }
 
-    pub(super) fn finish(self) -> ParsedFile {
+    /// Keeps the value uses that name a function declared in this file,
+    /// except a function's use of its own name (`setTimeout(tick)` inside
+    /// `tick`), which does not make it reachable.
+    pub(super) fn finish(mut self) -> ParsedFile {
+        let functions: HashSet<String> = self
+            .symbols
+            .iter()
+            .filter(|s| s.kind == SymbolKind::Function)
+            .map(|s| s.name.clone())
+            .collect();
+        for (owner, name, loc) in std::mem::take(&mut self.value_uses) {
+            let own_name = self
+                .symbols
+                .get(owner as usize)
+                .is_some_and(|s| s.name == name);
+            if functions.contains(&name) && !own_name {
+                self.push_relation(owner, RelationKind::References, name, loc);
+            }
+        }
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
@@ -475,6 +592,70 @@ impl<'a> Walker<'a> {
             ..Default::default()
         }
     }
+}
+
+/// True when `node` (an identifier) declares a local instead of reading a
+/// value: a parameter, a destructuring target, a `catch` parameter, a
+/// declarator's name or a `for … in/of` variable.
+fn is_binding(node: Node) -> bool {
+    let Some(parent) = node.parent() else {
+        return false;
+    };
+    let is_field = |field: &str| {
+        parent
+            .child_by_field_name(field)
+            .is_some_and(|n| n.id() == node.id())
+    };
+    match parent.kind() {
+        "formal_parameters" | "array_pattern" | "object_pattern" | "rest_pattern" => true,
+        "required_parameter" | "optional_parameter" => is_field("pattern"),
+        "assignment_pattern" => is_field("left"),
+        "pair_pattern" => is_field("value"),
+        "arrow_function" => is_field("parameter"),
+        "catch_clause" => is_field("parameter"),
+        "variable_declarator" => is_field("name"),
+        "for_in_statement" => is_field("left"),
+        _ => false,
+    }
+}
+
+/// Adds the locals `node` binds to `out`, without entering nested functions
+/// or classes (their locals are their own). A declarator whose value is a
+/// function (`const away = () => {}`) declares a `Function` symbol, not a
+/// local that hides one.
+fn collect_bindings(node: Node, source: &str, out: &mut HashSet<String>, depth: u32) {
+    if depth >= MAX_TRAVERSAL_DEPTH {
+        return;
+    }
+    match node.kind() {
+        "identifier" if is_binding(node) && !declares_function(node) => {
+            out.insert(text(node, source).to_string());
+        }
+        "shorthand_property_identifier_pattern" => {
+            out.insert(text(node, source).to_string());
+        }
+        "arrow_function"
+        | "function_expression"
+        | "function_declaration"
+        | "generator_function"
+        | "generator_function_declaration"
+        | "method_definition"
+        | "class_declaration"
+        | "class" => {}
+        _ => mct_tree_sitter::for_each_child(node, |child| {
+            collect_bindings(child, source, out, depth + 1);
+        }),
+    }
+}
+
+/// True for the name of `const name = () => {}` / `= function () {}`.
+fn declares_function(name: Node) -> bool {
+    name.parent().is_some_and(|parent| {
+        parent.kind() == "variable_declarator"
+            && parent
+                .child_by_field_name("value")
+                .is_some_and(|v| matches!(v.kind(), "arrow_function" | "function_expression"))
+    })
 }
 
 /// Innermost identifier-like name of a (possibly dotted/generic/called)

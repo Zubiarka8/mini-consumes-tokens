@@ -1,4 +1,4 @@
-# language=rust files=6 symbols=649 relations=1109 name_matched_across_files=306
+# language=rust files=6 symbols=649 relations=1685 name_matched_across_files=549
 
 == errors.rs (397 lines)
 S 1-397 module errors
@@ -111,7 +111,10 @@ R 6:38 imports errors -> Ordering
 R 7:16 imports errors -> Mutex
 R 9:20 imports errors -> LocationId (name-matched: model.rs)
 R 9:32 imports errors -> ProductId (name-matched: model.rs)
+R 12:55 references Result -> Result
+R 15:21 references ERROR_COUNT -> AtomicUsize
 R 15:48 calls ERROR_COUNT -> new
+R 15:35 references ERROR_COUNT -> AtomicUsize
 R 21:16 references Validation::0 -> String
 R 23:20 references UnknownProduct::0 -> ProductId (name-matched: model.rs)
 R 25:21 references UnknownLocation::0 -> LocationId (name-matched: model.rs)
@@ -121,25 +124,55 @@ R 18:10 references InventoryError -> Debug
 R 18:17 references InventoryError -> Clone
 R 18:24 references InventoryError -> PartialEq
 R 42:29 references InventoryError::code -> Validation
+R 42:13 references InventoryError::code -> InventoryError
 R 43:29 references InventoryError::code -> UnknownProduct
+R 43:13 references InventoryError::code -> InventoryError
 R 44:29 references InventoryError::code -> UnknownLocation
+R 44:13 references InventoryError::code -> InventoryError
+R 45:29 references InventoryError::code -> InsufficientStock
+R 45:13 references InventoryError::code -> InventoryError
+R 46:29 references InventoryError::code -> Storage
+R 46:13 references InventoryError::code -> InventoryError
+R 47:29 references InventoryError::code -> Conflict
+R 47:13 references InventoryError::code -> InventoryError
+R 59:63 references InventoryError::storage -> Display
+R 60:25 references InventoryError::storage -> Storage
+R 60:9 references InventoryError::storage -> InventoryError
 R 62:28 calls InventoryError::storage -> to_string
 R 68:21 calls InventoryError::report -> fetch_add
 R 68:44 references InventoryError::report -> Relaxed
+R 68:34 references InventoryError::report -> Ordering
 R 69:9 calls InventoryError::report -> audit
 R 69:25 references InventoryError::report -> Error
+R 69:15 references InventoryError::report -> Severity
 R 69:38 calls InventoryError::report -> to_string
 R 74:1 implements errors -> fmt::Display
+R 75:32 references InventoryError::fmt -> Formatter
+R 75:55 references InventoryError::fmt -> Result
 R 77:29 references InventoryError::fmt -> Validation
+R 77:13 references InventoryError::fmt -> InventoryError
 R 78:29 references InventoryError::fmt -> UnknownProduct
+R 78:13 references InventoryError::fmt -> InventoryError
 R 79:29 references InventoryError::fmt -> UnknownLocation
+R 79:13 references InventoryError::fmt -> InventoryError
+R 80:29 references InventoryError::fmt -> InsufficientStock
+R 80:13 references InventoryError::fmt -> InventoryError
+R 89:29 references InventoryError::fmt -> Storage
+R 89:13 references InventoryError::fmt -> InventoryError
+R 92:29 references InventoryError::fmt -> Conflict
+R 92:13 references InventoryError::fmt -> InventoryError
 R 100:1 implements errors -> Error
 R 102:1 implements errors -> From<std::io::Error>
+R 103:27 references InventoryError::from -> Error
 R 104:25 calls InventoryError::from -> storage
+R 104:9 references InventoryError::from -> InventoryError
 R 108:1 implements errors -> From<std::num::ParseIntError>
+R 109:28 references InventoryError::from -> ParseIntError
 R 110:25 calls InventoryError::from -> Validation
+R 110:9 references InventoryError::from -> InventoryError
 R 116:17 calls error_count -> load (name-matched: service.rs)
 R 116:32 references error_count -> Relaxed
+R 116:22 references error_count -> Ordering
 R 120:10 references Severity -> Debug
 R 120:17 references Severity -> Clone
 R 120:24 references Severity -> Copy
@@ -148,9 +181,13 @@ R 120:41 references Severity -> Eq
 R 120:45 references Severity -> PartialOrd
 R 120:57 references Severity -> Ord
 R 131:23 references Severity::tag -> Debug
+R 131:13 references Severity::tag -> Severity
 R 132:23 references Severity::tag -> Info
+R 132:13 references Severity::tag -> Severity
 R 133:23 references Severity::tag -> Warning
+R 133:13 references Severity::tag -> Severity
 R 134:23 references Severity::tag -> Error
+R 134:13 references Severity::tag -> Severity
 R 142:19 references AuditEntry::severity -> Severity
 R 143:18 references AuditEntry::message -> String
 R 140:10 references AuditEntry -> Debug
@@ -162,40 +199,61 @@ R 151:19 references AuditLog::min_severity -> Option
 R 151:26 references AuditLog::min_severity -> Severity
 R 148:10 references AuditLog -> Debug
 R 148:17 references AuditLog -> Default
+R 156:9 references AuditLog::new -> AuditLog
 R 157:29 calls AuditLog::new -> new
+R 157:22 references AuditLog::new -> Mutex
 R 157:38 calls AuditLog::new -> new
+R 157:33 references AuditLog::new -> Vec
+R 162:32 references AuditLog::with_threshold -> Severity
+R 163:9 references AuditLog::with_threshold -> AuditLog
 R 164:29 calls AuditLog::with_threshold -> new
+R 164:22 references AuditLog::with_threshold -> Mutex
 R 164:38 calls AuditLog::with_threshold -> new
+R 164:33 references AuditLog::with_threshold -> Vec
 R 165:27 calls AuditLog::with_threshold -> Some
+R 169:34 references AuditLog::push -> Severity
 R 175:46 calls AuditLog::push -> lock
 R 177:39 calls AuditLog::push -> into_inner
 R 179:32 calls AuditLog::push -> len
 R 180:17 calls AuditLog::push -> push
+R 180:22 references AuditLog::push -> AuditEntry
 R 182:30 calls AuditLog::push -> to_owned
 R 188:46 calls AuditLog::len -> unwrap_or
 R 188:29 calls AuditLog::len -> map (name-matched: model.rs)
 R 188:22 calls AuditLog::len -> lock
 R 188:39 calls AuditLog::len -> len
 R 192:14 calls AuditLog::is_empty -> len
+R 196:38 references AuditLog::filtered -> Severity
+R 196:51 references AuditLog::filtered -> Vec
+R 196:55 references AuditLog::filtered -> AuditEntry
 R 197:42 calls AuditLog::filtered -> lock
 R 199:39 calls AuditLog::filtered -> into_inner
 R 205:14 calls AuditLog::filtered -> collect
 R 204:14 calls AuditLog::filtered -> cloned
 R 203:14 calls AuditLog::filtered -> filter
 R 202:14 calls AuditLog::filtered -> iter (name-matched: main.rs)
+R 208:28 references AuditLog::drain -> Vec
+R 208:32 references AuditLog::drain -> AuditEntry
 R 209:46 calls AuditLog::drain -> lock
 R 211:39 calls AuditLog::drain -> into_inner
 R 213:19 calls AuditLog::drain -> take
+R 218:19 references AUDIT -> AuditLog
 R 218:40 calls AUDIT -> new
+R 218:30 references AUDIT -> AuditLog
+R 221:24 references audit -> Severity
 R 222:11 calls audit -> push
+R 226:29 references format_entry -> AuditEntry
+R 226:44 references format_entry -> String
 R 227:43 references format_entry -> tag
 R 248:1 calls errors -> bounded
 R 249:1 calls errors -> bounded
+R 253:54 references with_retry -> Result
 R 259:15 calls with_retry -> op
 R 260:29 calls with_retry -> Ok
 R 261:25 calls with_retry -> is_retryable
 R 262:17 calls with_retry -> audit
 R 262:33 references with_retry -> Warning
+R 262:23 references with_retry -> Severity
 R 263:24 calls with_retry -> Some
 R 265:30 calls with_retry -> Err
 R 265:36 calls with_retry -> report
@@ -203,19 +261,25 @@ R 268:5 calls with_retry -> Err
 R 270:10 calls with_retry -> report
 R 269:10 calls with_retry -> unwrap_or_else
 R 269:44 calls with_retry -> storage
+R 269:28 references with_retry -> InventoryError
 R 277:5 references tests -> codes_are_stable
+R 280:29 references codes_are_stable -> Validation
 R 280:44 references codes_are_stable -> into
 R 280:52 references codes_are_stable -> code
 R 288:14 references codes_are_stable -> code
 R 293:5 references tests -> retry_gives_up_on_non_retryable
+R 296:21 references retry_gives_up_on_non_retryable -> Result
 R 296:34 calls retry_gives_up_on_non_retryable -> with_retry
 R 298:13 calls retry_gives_up_on_non_retryable -> Err
 R 298:33 calls retry_gives_up_on_non_retryable -> Validation
+R 298:17 references retry_gives_up_on_non_retryable -> InventoryError
 R 298:51 calls retry_gives_up_on_non_retryable -> into
 R 300:24 references retry_gives_up_on_non_retryable -> is_err
 R 304:5 references tests -> retry_succeeds_after_conflict
 R 306:22 calls retry_succeeds_after_conflict -> with_retry
 R 308:17 calls retry_succeeds_after_conflict -> Err
+R 308:37 references retry_succeeds_after_conflict -> Conflict
+R 308:21 references retry_succeeds_after_conflict -> InventoryError
 R 313:17 calls retry_succeeds_after_conflict -> Ok
 R 319:5 references tests -> bounded_helpers_reject_out_of_range
 R 321:35 references bounded_helpers_reject_out_of_range -> is_err
@@ -223,27 +287,37 @@ R 322:35 references bounded_helpers_reject_out_of_range -> is_ok
 R 323:37 references bounded_helpers_reject_out_of_range -> is_err
 R 326:5 references tests -> audit_log_respects_threshold
 R 328:29 calls audit_log_respects_threshold -> with_threshold
+R 328:19 references audit_log_respects_threshold -> AuditLog
 R 328:54 references audit_log_respects_threshold -> Warning
+R 328:44 references audit_log_respects_threshold -> Severity
 R 329:13 calls audit_log_respects_threshold -> push
 R 329:28 references audit_log_respects_threshold -> Info
+R 329:18 references audit_log_respects_threshold -> Severity
 R 330:13 calls audit_log_respects_threshold -> push
 R 330:28 references audit_log_respects_threshold -> Error
+R 330:18 references audit_log_respects_threshold -> Severity
 R 331:24 references audit_log_respects_threshold -> len
 R 332:27 calls audit_log_respects_threshold -> drain
 R 333:20 references audit_log_respects_threshold -> format_entry
 R 334:21 references audit_log_respects_threshold -> is_empty
 R 337:5 references tests -> display_mentions_numbers
+R 339:33 references display_mentions_numbers -> InsufficientStock
+R 339:17 references display_mentions_numbers -> InventoryError
 R 340:22 calls display_mentions_numbers -> ProductId (name-matched: model.rs)
 R 344:22 calls display_mentions_numbers -> to_string
 R 345:22 references display_mentions_numbers -> contains
 R 346:22 references display_mentions_numbers -> contains
 R 349:5 references tests -> io_errors_become_storage_errors
 R 351:34 calls io_errors_become_storage_errors -> new
+R 351:27 references io_errors_become_storage_errors -> Error
 R 351:58 references io_errors_become_storage_errors -> Other
+R 351:47 references io_errors_become_storage_errors -> ErrorKind
+R 352:16 references io_errors_become_storage_errors -> InventoryError
 R 352:36 calls io_errors_become_storage_errors -> into
 R 353:19 references io_errors_become_storage_errors -> is_retryable
 R 354:22 references io_errors_become_storage_errors -> code
 R 357:5 references tests -> parse_errors_become_validation_errors
+R 359:16 references parse_errors_become_validation_errors -> InventoryError
 R 359:65 calls parse_errors_become_validation_errors -> into
 R 359:52 calls parse_errors_become_validation_errors -> unwrap_err
 R 359:37 calls parse_errors_become_validation_errors -> parse
@@ -252,30 +326,44 @@ R 363:5 references tests -> error_count_increases_on_report
 R 365:22 calls error_count_increases_on_report -> error_count
 R 366:62 calls error_count_increases_on_report -> report
 R 366:33 calls error_count_increases_on_report -> UnknownProduct
+R 366:17 references error_count_increases_on_report -> InventoryError
 R 366:48 calls error_count_increases_on_report -> ProductId (name-matched: model.rs)
 R 367:17 references error_count_increases_on_report -> error_count
 R 370:5 references tests -> severity_tags
+R 372:19 references severity_tags -> Vec
+R 372:23 references severity_tags -> _
 R 380:10 calls severity_tags -> collect
 R 379:10 calls severity_tags -> map (name-matched: model.rs)
 R 378:10 calls severity_tags -> iter (name-matched: main.rs)
 R 373:23 references severity_tags -> Debug
+R 373:13 references severity_tags -> Severity
 R 374:23 references severity_tags -> Info
+R 374:13 references severity_tags -> Severity
 R 375:23 references severity_tags -> Warning
+R 375:13 references severity_tags -> Severity
 R 376:23 references severity_tags -> Error
+R 376:13 references severity_tags -> Severity
 R 379:20 calls severity_tags -> tag
 R 384:5 references tests -> filtered_keeps_order
 R 386:29 calls filtered_keeps_order -> new
+R 386:19 references filtered_keeps_order -> AuditLog
 R 387:13 calls filtered_keeps_order -> push
 R 387:28 references filtered_keeps_order -> Error
+R 387:18 references filtered_keeps_order -> Severity
 R 388:13 calls filtered_keeps_order -> push
 R 388:28 references filtered_keeps_order -> Debug
+R 388:18 references filtered_keeps_order -> Severity
 R 389:13 calls filtered_keeps_order -> push
 R 389:28 references filtered_keeps_order -> Warning
+R 389:18 references filtered_keeps_order -> Severity
+R 390:19 references filtered_keeps_order -> Vec
+R 390:23 references filtered_keeps_order -> _
 R 394:14 calls filtered_keeps_order -> collect
 R 393:14 calls filtered_keeps_order -> map (name-matched: model.rs)
 R 392:14 calls filtered_keeps_order -> into_iter
 R 391:14 calls filtered_keeps_order -> filtered
 R 391:33 references filtered_keeps_order -> Warning
+R 391:23 references filtered_keeps_order -> Severity
 
 == main.rs (310 lines)
 S 1-310 module main
@@ -401,46 +489,77 @@ R 31:17 references Command -> PartialEq
 R 49:15 references Options::snapshot -> String
 R 47:10 references Options -> Debug (name-matched: errors.rs)
 R 54:1 implements main -> Default
+R 56:9 references Options::default -> Options
 R 57:40 calls Options::default -> to_string
+R 65:24 references split_options -> Vec
+R 65:28 references split_options -> String
+R 65:40 references split_options -> Result (name-matched: errors.rs)
+R 65:48 references split_options -> Options
+R 65:57 references split_options -> Vec
+R 65:61 references split_options -> String
 R 66:32 calls split_options -> default
+R 66:23 references split_options -> Options
 R 67:31 calls split_options -> new (name-matched: errors.rs)
+R 67:26 references split_options -> Vec
 R 68:25 calls split_options -> into_iter
 R 69:32 calls split_options -> next (name-matched: service.rs)
 R 70:19 calls split_options -> as_str
 R 74:48 calls split_options -> ok_or_else
 R 74:41 calls split_options -> next (name-matched: service.rs)
 R 75:37 calls split_options -> Validation (name-matched: errors.rs)
+R 75:21 references split_options -> InventoryError (name-matched: errors.rs)
 R 75:74 calls split_options -> into
 R 78:26 calls split_options -> starts_with
 R 79:24 calls split_options -> Err
 R 79:44 calls split_options -> Validation (name-matched: errors.rs)
+R 79:28 references split_options -> InventoryError (name-matched: errors.rs)
 R 81:29 calls split_options -> push (name-matched: errors.rs)
 R 84:5 calls split_options -> Ok
+R 87:21 references parse_unit -> Option
+R 87:29 references parse_unit -> String
+R 87:41 references parse_unit -> Result (name-matched: errors.rs)
+R 87:48 references parse_unit -> Unit (name-matched: model.rs)
 R 88:16 calls parse_unit -> map (name-matched: model.rs)
 R 88:28 references parse_unit -> as_str
+R 88:20 references parse_unit -> String
 R 89:30 calls parse_unit -> Ok
 R 89:39 references parse_unit -> Piece (name-matched: model.rs)
+R 89:33 references parse_unit -> Unit (name-matched: model.rs)
 R 90:23 calls parse_unit -> Ok
 R 90:32 references parse_unit -> Kilogram (name-matched: model.rs)
+R 90:26 references parse_unit -> Unit (name-matched: model.rs)
 R 91:22 calls parse_unit -> Ok
 R 91:31 references parse_unit -> Litre (name-matched: model.rs)
+R 91:25 references parse_unit -> Unit (name-matched: model.rs)
 R 92:36 calls parse_unit -> strip_prefix
 R 93:24 calls parse_unit -> Ok
 R 93:33 calls parse_unit -> Box (name-matched: model.rs)
+R 93:27 references parse_unit -> Unit (name-matched: model.rs)
 R 93:39 calls parse_unit -> parse
 R 94:21 calls parse_unit -> Err
 R 94:41 calls parse_unit -> Validation (name-matched: errors.rs)
+R 94:25 references parse_unit -> InventoryError (name-matched: errors.rs)
+R 100:26 references parse_command -> String
+R 100:38 references parse_command -> Result (name-matched: errors.rs)
+R 100:45 references parse_command -> Command
+R 101:29 references parse_command::arg -> Result (name-matched: errors.rs)
+R 101:37 references parse_command::arg -> String
 R 103:14 calls parse_command::arg -> ok_or_else
 R 102:14 calls parse_command::arg -> get (name-matched: storage.rs)
 R 103:44 calls parse_command::arg -> Validation (name-matched: errors.rs)
+R 103:28 references parse_command::arg -> InventoryError (name-matched: errors.rs)
+R 105:32 references parse_command::number -> Result (name-matched: errors.rs)
 R 105:46 calls parse_command::number -> Ok
 R 105:57 calls parse_command::number -> parse
 R 105:49 calls parse_command::number -> arg
 R 106:27 calls parse_command -> first
 R 107:16 calls parse_command -> Ok
 R 107:28 references parse_command -> Help
+R 107:19 references parse_command -> Command
 R 109:5 calls parse_command -> Ok
 R 109:19 calls parse_command -> as_str
+R 110:27 references parse_command -> Add
+R 110:18 references parse_command -> Command
 R 111:17 calls parse_command -> number
 R 112:27 calls parse_command -> clone
 R 112:19 calls parse_command -> arg
@@ -453,12 +572,20 @@ R 117:59 calls parse_command -> map_err
 R 117:38 calls parse_command -> try_from
 R 117:47 calls parse_command -> number
 R 118:33 calls parse_command -> Validation (name-matched: errors.rs)
+R 118:17 references parse_command -> InventoryError (name-matched: errors.rs)
 R 118:68 calls parse_command -> into
 R 121:18 calls parse_command -> map_err
 R 120:33 calls parse_command -> try_from
 R 120:42 calls parse_command -> number
 R 121:46 calls parse_command -> Validation (name-matched: errors.rs)
+R 121:30 references parse_command -> InventoryError (name-matched: errors.rs)
 R 121:78 calls parse_command -> into
+R 123:26 references parse_command -> Receive
+R 123:17 references parse_command -> Command
+R 129:26 references parse_command -> Ship
+R 129:17 references parse_command -> Command
+R 136:28 references parse_command -> Move
+R 136:19 references parse_command -> Command
 R 137:22 calls parse_command -> ProductId (name-matched: model.rs)
 R 137:32 calls parse_command -> number
 R 138:19 calls parse_command -> LocationId (name-matched: model.rs)
@@ -467,64 +594,111 @@ R 139:17 calls parse_command -> LocationId (name-matched: model.rs)
 R 139:28 calls parse_command -> number
 R 140:23 calls parse_command -> number
 R 142:30 references parse_command -> Report
+R 142:21 references parse_command -> Command
 R 143:46 references parse_command -> Help
+R 143:37 references parse_command -> Command
 R 145:20 calls parse_command -> Err
 R 145:40 calls parse_command -> Validation (name-matched: errors.rs)
+R 145:24 references parse_command -> InventoryError (name-matched: errors.rs)
+R 155:28 references default_categories -> Category (name-matched: model.rs)
 R 162:10 calls default_categories -> with_child (name-matched: model.rs)
 R 157:10 calls default_categories -> with_child (name-matched: model.rs)
 R 156:15 calls default_categories -> leaf (name-matched: model.rs)
+R 156:5 references default_categories -> Category (name-matched: model.rs)
 R 160:18 calls default_categories -> with_child (name-matched: model.rs)
 R 159:18 calls default_categories -> with_child (name-matched: model.rs)
 R 158:23 calls default_categories -> leaf (name-matched: model.rs)
+R 158:13 references default_categories -> Category (name-matched: model.rs)
 R 159:39 calls default_categories -> leaf (name-matched: model.rs)
+R 159:29 references default_categories -> Category (name-matched: model.rs)
 R 160:39 calls default_categories -> leaf (name-matched: model.rs)
+R 160:29 references default_categories -> Category (name-matched: model.rs)
 R 162:45 calls default_categories -> with_child (name-matched: model.rs)
 R 162:31 calls default_categories -> leaf (name-matched: model.rs)
+R 162:21 references default_categories -> Category (name-matched: model.rs)
 R 162:66 calls default_categories -> leaf (name-matched: model.rs)
+R 162:56 references default_categories -> Category (name-matched: model.rs)
+R 167:21 references execute -> Command
+R 167:40 references execute -> Options
+R 167:52 references execute -> Result (name-matched: errors.rs)
+R 167:59 references execute -> String
 R 168:30 calls execute -> new (name-matched: errors.rs)
+R 168:16 references execute -> SnapshotFile (name-matched: storage.rs)
 R 169:40 calls execute -> exists
 R 169:33 calls execute -> path (name-matched: storage.rs)
 R 170:20 calls execute -> load (name-matched: service.rs)
+R 170:9 references execute -> Warehouse (name-matched: service.rs)
 R 172:20 calls execute -> new (name-matched: errors.rs)
+R 172:9 references execute -> Warehouse (name-matched: service.rs)
 R 174:24 calls execute -> new (name-matched: errors.rs)
+R 174:19 references execute -> Arc
 R 174:45 calls execute -> default
+R 174:28 references execute -> MovementCounter (name-matched: service.rs)
 R 175:15 calls execute -> subscribe (name-matched: service.rs)
 R 175:33 calls execute -> clone
 R 178:18 references execute -> Help
+R 178:9 references execute -> Command
 R 178:33 calls execute -> Ok
 R 178:44 calls execute -> to_string
 R 178:36 calls execute -> usage
+R 179:18 references execute -> Add
+R 179:9 references execute -> Command
 R 180:33 calls execute -> add_product (name-matched: service.rs)
 R 181:43 references execute -> product
+R 183:18 references execute -> Receive
+R 183:9 references execute -> Command
 R 188:23 calls execute -> receive (name-matched: service.rs)
+R 191:18 references execute -> Ship
+R 191:9 references execute -> Command
 R 196:23 calls execute -> ship (name-matched: service.rs)
+R 199:18 references execute -> Move
+R 199:9 references execute -> Command
 R 205:23 calls execute -> transfer (name-matched: service.rs)
 R 209:25 references execute -> count (name-matched: model.rs)
 R 212:18 references execute -> Report
+R 212:9 references execute -> Command
 R 213:30 calls execute -> default_categories
+R 214:25 references execute -> StockSection (name-matched: report.rs)
+R 218:29 references execute -> MovementSection (name-matched: report.rs)
 R 219:35 calls execute -> ledger (name-matched: report.rs)
+R 221:24 references execute -> CategorySection (name-matched: report.rs)
+R 222:33 references execute -> Section (name-matched: report.rs)
 R 223:20 calls execute -> full_report (name-matched: report.rs)
 R 228:9 calls execute -> audit (name-matched: errors.rs)
 R 228:25 references execute -> Info (name-matched: errors.rs)
+R 228:15 references execute -> Severity (name-matched: errors.rs)
 R 230:19 calls execute -> save (name-matched: service.rs)
 R 232:37 calls execute -> reorder_suggestions (name-matched: service.rs)
 R 233:9 calls execute -> audit (name-matched: errors.rs)
 R 234:23 references execute -> Warning (name-matched: errors.rs)
+R 234:13 references execute -> Severity (name-matched: errors.rs)
 R 238:5 calls execute -> Ok
+R 241:14 references run -> Vec
+R 241:18 references run -> String
+R 241:30 references run -> Result (name-matched: errors.rs)
+R 241:37 references run -> String
 R 242:33 calls run -> split_options
 R 244:9 calls run -> audit (name-matched: errors.rs)
 R 244:25 references run -> Debug (name-matched: errors.rs)
+R 244:15 references run -> Severity (name-matched: errors.rs)
 R 246:19 calls run -> parse_command
 R 247:5 calls run -> execute
+R 250:14 references main -> ExitCode
+R 251:15 references main -> Vec
+R 251:19 references main -> String
 R 251:49 calls main -> collect
 R 251:41 calls main -> skip
 R 251:34 calls main -> args
 R 252:11 calls main -> run
 R 255:23 references main -> SUCCESS
+R 255:13 references main -> ExitCode
 R 258:48 references main -> code (name-matched: errors.rs)
 R 259:29 references main -> usage
 R 260:16 calls main -> error_count (name-matched: errors.rs)
 R 263:23 calls main -> from
+R 263:13 references main -> ExitCode
+R 272:31 references args -> Vec
+R 272:35 references args -> String
 R 273:44 calls args -> collect
 R 273:21 calls args -> map (name-matched: model.rs)
 R 273:14 calls args -> iter
@@ -534,6 +708,7 @@ R 278:73 calls parses_add_with_box_unit -> unwrap
 R 278:19 calls parses_add_with_box_unit -> parse_command
 R 278:34 calls parses_add_with_box_unit -> args
 R 283:31 references parses_add_with_box_unit -> into
+R 284:29 references parses_add_with_box_unit -> Box (name-matched: model.rs)
 R 289:5 references tests -> empty_command_line_is_help
 R 291:20 references empty_command_line_is_help -> parse_command
 R 291:39 references empty_command_line_is_help -> unwrap
@@ -719,19 +894,31 @@ R 32:17 references Unit -> Clone
 R 32:24 references Unit -> Copy
 R 32:30 references Unit -> PartialEq
 R 32:41 references Unit -> Eq
+R 43:46 references Unit::to_pieces -> Option
 R 45:19 references Unit::to_pieces -> Piece
+R 45:13 references Unit::to_pieces -> Unit
 R 45:28 calls Unit::to_pieces -> Some
 R 46:19 references Unit::to_pieces -> Box
+R 46:13 references Unit::to_pieces -> Unit
 R 46:38 calls Unit::to_pieces -> checked_mul
 R 46:55 calls Unit::to_pieces -> from
 R 47:19 references Unit::to_pieces -> Kilogram
+R 47:13 references Unit::to_pieces -> Unit
 R 47:36 references Unit::to_pieces -> Litre
+R 47:30 references Unit::to_pieces -> Unit
 R 53:19 references Unit::symbol -> Piece
+R 53:13 references Unit::symbol -> Unit
 R 54:19 references Unit::symbol -> Kilogram
+R 54:13 references Unit::symbol -> Unit
 R 55:19 references Unit::symbol -> Litre
+R 55:13 references Unit::symbol -> Unit
 R 56:19 references Unit::symbol -> Box
+R 56:13 references Unit::symbol -> Unit
 R 61:1 implements model -> Display
+R 62:27 references Unit::fmt -> Formatter
+R 62:50 references Unit::fmt -> Result (name-matched: errors.rs)
 R 64:19 references Unit::fmt -> Box
+R 64:13 references Unit::fmt -> Unit
 R 65:24 calls Unit::fmt -> write_str
 R 65:40 calls Unit::fmt -> symbol
 R 73:15 references Category::name -> String
@@ -739,9 +926,14 @@ R 74:19 references Category::children -> Vec
 R 74:23 references Category::children -> Category
 R 71:10 references Category -> Debug (name-matched: errors.rs)
 R 71:17 references Category -> Clone
+R 79:9 references Category::leaf -> Category
 R 80:24 calls Category::leaf -> to_owned
 R 81:28 calls Category::leaf -> new
+R 81:23 references Category::leaf -> Vec
+R 85:40 references Category::with_child -> Category
 R 86:23 calls Category::with_child -> push (name-matched: errors.rs)
+R 91:39 references Category::find -> Option
+R 91:47 references Category::find -> Category
 R 93:20 calls Category::find -> Some
 R 95:30 calls Category::find -> find_map
 R 95:23 calls Category::find -> iter (name-matched: main.rs)
@@ -750,6 +942,7 @@ R 100:55 calls Category::count -> sum
 R 100:34 calls Category::count -> map
 R 100:27 calls Category::count -> iter (name-matched: main.rs)
 R 100:48 references Category::count -> count
+R 100:38 references Category::count -> Category
 R 107:13 references Product::id -> ProductId
 R 108:14 references Product::sku -> String
 R 109:15 references Product::name -> String
@@ -761,13 +954,21 @@ R 113:30 references Product::attributes -> String
 R 113:38 references Product::attributes -> String
 R 105:10 references Product -> Debug (name-matched: errors.rs)
 R 105:17 references Product -> Clone
+R 118:20 references Product::new -> ProductId
+R 118:49 references Product::new -> Unit
+R 118:58 references Product::new -> Result (name-matched: errors.rs)
 R 119:25 calls Product::new -> trim
 R 120:9 calls Product::new -> validate_name
 R 121:9 calls Product::new -> Ok
+R 121:12 references Product::new -> Product
 R 123:18 calls Product::new -> make_sku
 R 124:24 calls Product::new -> to_string
 R 127:24 calls Product::new -> new
+R 127:19 references Product::new -> Vec
 R 128:35 calls Product::new -> new
+R 128:25 references Product::new -> BTreeMap
+R 132:41 references Product::with_tag -> Into
+R 132:46 references Product::with_tag -> String
 R 133:19 calls Product::with_tag -> push (name-matched: errors.rs)
 R 133:28 calls Product::with_tag -> into
 R 138:25 calls Product::set_attribute -> insert
@@ -780,29 +981,38 @@ R 151:1 implements model -> PartialEq
 R 157:1 implements model -> Eq
 R 159:1 implements model -> Hash
 R 161:17 calls Product::hash -> hash
+R 166:37 references validate_name -> Result (name-matched: errors.rs)
 R 167:13 calls validate_name -> is_empty (name-matched: errors.rs)
 R 168:16 calls validate_name -> Err
 R 168:36 calls validate_name -> Validation (name-matched: errors.rs)
+R 168:20 references validate_name -> InventoryError (name-matched: errors.rs)
 R 168:71 calls validate_name -> into
 R 170:21 calls validate_name -> count
 R 170:13 calls validate_name -> chars (name-matched: storage.rs)
 R 171:16 calls validate_name -> Err
 R 171:36 calls validate_name -> Validation (name-matched: errors.rs)
+R 171:20 references validate_name -> InventoryError (name-matched: errors.rs)
 R 175:21 calls validate_name -> any
 R 175:13 calls validate_name -> chars (name-matched: storage.rs)
 R 175:31 references validate_name -> is_control
 R 176:16 calls validate_name -> Err
 R 176:36 calls validate_name -> Validation (name-matched: errors.rs)
+R 176:20 references validate_name -> InventoryError (name-matched: errors.rs)
 R 177:56 calls validate_name -> into
 R 180:5 calls validate_name -> Ok
+R 184:21 references make_sku -> ProductId
+R 184:35 references make_sku -> String
 R 191:18 references StockLevel::product -> ProductId
 R 192:19 references StockLevel::location -> LocationId
 R 189:10 references StockLevel -> Debug (name-matched: errors.rs)
 R 189:17 references StockLevel -> Clone
 R 189:24 references StockLevel -> PartialEq
 R 199:22 calls StockLevel::available -> saturating_sub
+R 202:49 references StockLevel::reserve -> Result (name-matched: errors.rs)
 R 203:28 calls StockLevel::reserve -> available
 R 204:20 calls StockLevel::reserve -> Err
+R 204:40 references StockLevel::reserve -> InsufficientStock (name-matched: errors.rs)
+R 204:24 references StockLevel::reserve -> InventoryError (name-matched: errors.rs)
 R 207:33 calls StockLevel::reserve -> available
 R 211:9 calls StockLevel::reserve -> Ok
 R 215:39 calls StockLevel::release -> saturating_sub
@@ -819,39 +1029,87 @@ R 242:17 references Adjust::reason -> String
 R 220:10 references Movement -> Debug (name-matched: errors.rs)
 R 220:17 references Movement -> Clone
 R 220:24 references Movement -> PartialEq
+R 247:30 references Movement::product -> ProductId
+R 249:23 references Movement::product -> Receive
+R 249:13 references Movement::product -> Movement
+R 250:25 references Movement::product -> Ship
+R 250:15 references Movement::product -> Movement
+R 251:25 references Movement::product -> Transfer
+R 251:15 references Movement::product -> Movement
+R 252:25 references Movement::product -> Adjust
+R 252:15 references Movement::product -> Movement
+R 257:38 references Movement::delta_at -> LocationId
+R 259:23 references Movement::delta_at -> Receive
+R 259:13 references Movement::delta_at -> Movement
 R 259:78 calls Movement::delta_at -> from
+R 260:23 references Movement::delta_at -> Ship
+R 260:13 references Movement::delta_at -> Movement
 R 260:80 calls Movement::delta_at -> from
+R 261:23 references Movement::delta_at -> Transfer
+R 261:13 references Movement::delta_at -> Movement
 R 264:30 calls Movement::delta_at -> from
+R 273:23 references Movement::delta_at -> Adjust
+R 273:13 references Movement::delta_at -> Movement
+R 278:31 references Movement::describe -> String
+R 280:23 references Movement::describe -> Receive
+R 280:13 references Movement::describe -> Movement
+R 281:23 references Movement::describe -> Ship
+R 281:13 references Movement::describe -> Movement
+R 282:23 references Movement::describe -> Transfer
+R 282:13 references Movement::describe -> Movement
+R 283:23 references Movement::describe -> Adjust
+R 283:13 references Movement::describe -> Movement
+R 292:27 references Identified::id -> Id
+R 295:24 references Identified::label -> String
 R 299:30 references Identified::label -> id
 R 303:1 implements model -> Identified
+R 304:15 references Product::Id -> ProductId
+R 306:21 references Product::id -> ProductId
+R 310:24 references Product::label -> String
 R 315:1 implements model -> Identified
-R 326:16 references Versioned::value -> T
+R 316:16 references StockLevel::Id -> ProductId
+R 316:27 references StockLevel::Id -> LocationId
+R 318:27 references StockLevel::id -> Id
 R 324:10 references Versioned -> Debug (name-matched: errors.rs)
 R 324:17 references Versioned -> Clone
+R 332:9 references Versioned<T>::new -> Versioned
 R 339:9 calls Versioned<T>::update -> f
+R 343:51 references Versioned<T>::map -> Versioned
+R 344:9 references Versioned<T>::map -> Versioned
 R 345:20 calls Versioned<T>::map -> f
+R 352:24 references StockRecord -> Versioned
+R 352:34 references StockRecord -> StockLevel
+R 355:20 references Catalog -> BTreeMap
+R 355:29 references Catalog -> ProductId
+R 355:40 references Catalog -> Product
 R 360:14 references Size -> Debug (name-matched: errors.rs)
 R 360:21 references Size -> Clone
 R 360:28 references Size -> Copy
 R 360:34 references Size -> PartialEq
 R 360:45 references Size -> Eq
+R 368:25 references Size::ZERO -> Size
+R 368:32 references Size::ZERO -> Size
 R 375:18 calls Size::volume -> from
 R 375:42 calls Size::volume -> from
 R 375:67 calls Size::volume -> from
+R 378:39 references Size::fits_in -> Size
 R 381:18 calls Size::fits_in -> sort_unstable
 R 382:20 calls Size::fits_in -> sort_unstable
 R 383:44 calls Size::fits_in -> all (name-matched: storage.rs)
 R 383:25 calls Size::fits_in -> zip
 R 383:18 calls Size::fits_in -> iter (name-matched: main.rs)
 R 383:36 calls Size::fits_in -> iter (name-matched: main.rs)
+R 388:34 references stacked_volume -> Size
 R 389:14 calls stacked_volume -> volume
 R 389:30 calls stacked_volume -> from
 R 397:5 references tests -> sku_is_zero_padded
 R 399:20 references sku_is_zero_padded -> make_sku
 R 402:5 references tests -> unicode_names_are_accepted
 R 404:26 calls unicode_names_are_accepted -> new
+R 404:17 references unicode_names_are_accepted -> Product
 R 404:30 calls unicode_names_are_accepted -> ProductId
 R 404:75 references unicode_names_are_accepted -> Kilogram
+R 404:69 references unicode_names_are_accepted -> Unit
 R 405:19 references unicode_names_are_accepted -> is_ok
 
 == report.rs (341 lines)
@@ -997,10 +1255,14 @@ R 23:17 references Column::header -> String
 R 24:16 references Column::align -> Align
 R 21:10 references Column -> Debug (name-matched: errors.rs)
 R 21:17 references Column -> Clone
+R 29:9 references Column::left -> Column
 R 30:28 calls Column::left -> to_string
 R 31:27 references Column::left -> Left
+R 31:20 references Column::left -> Align
+R 36:9 references Column::right -> Column
 R 37:28 calls Column::right -> to_string
 R 38:27 references Column::right -> Right
+R 38:20 references Column::right -> Align
 R 46:14 references Table::columns -> Vec
 R 46:18 references Table::columns -> Column
 R 47:11 references Table::rows -> Vec
@@ -1009,15 +1271,24 @@ R 47:19 references Table::rows -> String
 R 44:10 references Table -> Debug (name-matched: errors.rs)
 R 44:17 references Table -> Clone
 R 44:24 references Table -> Default
+R 51:25 references Table::new -> Vec
+R 51:29 references Table::new -> Column
+R 52:9 references Table::new -> Table
 R 54:24 calls Table::new -> new
+R 54:19 references Table::new -> Vec
+R 63:22 references Table::row -> Vec
+R 63:26 references Table::row -> String
 R 63:70 calls Table::row -> collect
 R 63:54 calls Table::row -> map
 R 63:42 calls Table::row -> into_iter
 R 63:64 references Table::row -> into
+R 63:58 references Table::row -> Into
 R 64:13 calls Table::row -> resize
 R 64:33 calls Table::row -> len
 R 64:48 calls Table::row -> new
+R 64:40 references Table::row -> String
 R 65:19 calls Table::row -> push (name-matched: errors.rs)
+R 69:25 references Table::widths -> Vec
 R 81:14 calls Table::widths -> collect
 R 73:14 calls Table::widths -> map
 R 72:14 calls Table::widths -> enumerate
@@ -1030,19 +1301,27 @@ R 75:22 calls Table::widths -> iter (name-matched: main.rs)
 R 76:30 calls Table::widths -> display_width
 R 77:39 calls Table::widths -> once
 R 77:44 calls Table::widths -> display_width
+R 85:29 references Table::render -> String
 R 86:27 calls Table::render -> widths
 R 87:31 calls Table::render -> new
+R 87:23 references Table::render -> String
+R 88:21 references Table::render -> Vec
+R 88:25 references Table::render -> String
 R 93:14 calls Table::render -> collect
 R 92:14 calls Table::render -> map
 R 91:14 calls Table::render -> zip
 R 90:14 calls Table::render -> iter (name-matched: main.rs)
 R 92:27 calls Table::render -> pad
 R 94:44 references Table::render -> join
+R 95:19 references Table::render -> Vec
+R 95:23 references Table::render -> String
 R 95:71 calls Table::render -> collect
 R 95:47 calls Table::render -> map
 R 95:40 calls Table::render -> iter (name-matched: main.rs)
 R 95:59 calls Table::render -> repeat
 R 96:42 references Table::render -> join
+R 98:24 references Table::render -> Vec
+R 98:28 references Table::render -> String
 R 102:18 calls Table::render -> collect
 R 101:18 calls Table::render -> map
 R 100:18 calls Table::render -> zip
@@ -1053,22 +1332,36 @@ R 101:41 calls Table::render -> pad
 R 103:47 references Table::render -> join
 R 111:18 calls display_width -> count
 R 111:10 calls display_width -> chars (name-matched: storage.rs)
+R 115:45 references pad -> Align
+R 115:55 references pad -> String
 R 116:15 calls pad -> display_width
 R 118:21 calls pad -> to_string
 R 122:16 references pad -> Left
+R 122:9 references pad -> Align
 R 122:48 references pad -> repeat
 R 123:16 references pad -> Right
+R 123:9 references pad -> Align
 R 123:49 references pad -> repeat
 R 124:16 references pad -> Center
+R 124:9 references pad -> Align
 R 126:39 references pad -> repeat
 R 126:57 references pad -> repeat
+R 132:44 references truncate -> Cow
 R 133:8 calls truncate -> display_width
 R 134:14 calls truncate -> Borrowed
+R 134:9 references truncate -> Cow
+R 136:19 references truncate -> String
 R 136:69 calls truncate -> collect
 R 136:41 calls truncate -> take
 R 136:33 calls truncate -> chars (name-matched: storage.rs)
 R 136:50 calls truncate -> saturating_sub
 R 137:14 calls truncate -> Owned
+R 137:9 references truncate -> Cow
+R 143:24 references Section::title -> Cow
+R 144:23 references Section::body -> Result (name-matched: errors.rs)
+R 144:30 references Section::body -> String
+R 146:25 references Section::render -> Result (name-matched: errors.rs)
+R 146:32 references Section::render -> String
 R 147:26 calls Section::render -> title
 R 148:29 calls Section::render -> repeat
 R 148:36 calls Section::render -> display_width
@@ -1076,9 +1369,18 @@ R 149:9 calls Section::render -> Ok
 R 149:53 references Section::render -> body
 R 155:24 references StockSection::warehouse -> Warehouse (name-matched: service.rs)
 R 159:1 implements report -> Section
+R 160:24 references StockSection<'_>::title -> Cow
 R 161:14 calls StockSection<'_>::title -> Borrowed
+R 161:9 references StockSection<'_>::title -> Cow
+R 164:23 references StockSection<'_>::body -> Result (name-matched: errors.rs)
+R 164:30 references StockSection<'_>::body -> String
 R 165:38 calls StockSection<'_>::body -> catalog
 R 166:32 calls StockSection<'_>::body -> new
+R 166:25 references StockSection<'_>::body -> Table
+R 167:21 references StockSection<'_>::body -> left
+R 168:21 references StockSection<'_>::body -> left
+R 169:21 references StockSection<'_>::body -> right
+R 170:21 references StockSection<'_>::body -> right
 R 172:32 calls StockSection<'_>::body -> values (name-matched: storage.rs)
 R 173:25 calls StockSection<'_>::body -> total_for
 R 174:19 calls StockSection<'_>::body -> row
@@ -1089,50 +1391,92 @@ R 177:23 calls StockSection<'_>::body -> to_string
 R 178:30 calls StockSection<'_>::body -> to_string
 R 181:9 calls StockSection<'_>::body -> Ok
 R 181:18 calls StockSection<'_>::body -> render
+R 185:26 references total_for -> Warehouse (name-matched: service.rs)
+R 185:47 references total_for -> Product (name-matched: model.rs)
+R 185:59 references total_for -> Result (name-matched: errors.rs)
 R 186:24 calls total_for -> stock_by_location
 R 187:5 calls total_for -> Ok
 R 187:60 calls total_for -> sum
 R 187:30 calls total_for -> map
 R 187:21 calls total_for -> values (name-matched: storage.rs)
 R 187:43 calls total_for -> from (name-matched: errors.rs)
+R 191:17 references stock_by_location -> Warehouse (name-matched: service.rs)
+R 192:14 references stock_by_location -> ProductId (name-matched: model.rs)
+R 193:6 references stock_by_location -> Result (name-matched: errors.rs)
+R 193:13 references stock_by_location -> BTreeMap
+R 193:27 references stock_by_location -> StockLevel (name-matched: model.rs)
 R 194:18 calls stock_by_location -> replay_levels
 R 194:42 calls stock_by_location -> ledger
 R 195:5 calls stock_by_location -> Ok
 R 195:54 calls stock_by_location -> collect
 R 195:27 calls stock_by_location -> map
 R 195:15 calls stock_by_location -> into_iter
+R 199:28 references replay_levels -> Movement (name-matched: model.rs)
+R 199:48 references replay_levels -> ProductId (name-matched: model.rs)
+R 199:62 references replay_levels -> Vec
+R 199:66 references replay_levels -> StockLevel (name-matched: model.rs)
 R 200:23 imports replay_levels -> LocationId (name-matched: model.rs)
+R 202:23 references replay_levels::bump -> BTreeMap
+R 202:32 references replay_levels::bump -> LocationId (name-matched: model.rs)
+R 202:54 references replay_levels::bump -> LocationId (name-matched: model.rs)
 R 203:24 calls replay_levels::bump -> or_insert
 R 203:14 calls replay_levels::bump -> entry (name-matched: errors.rs)
 R 206:32 calls replay_levels -> new
+R 206:22 references replay_levels -> BTreeMap
 R 207:28 calls replay_levels -> filter
 R 207:21 calls replay_levels -> iter (name-matched: main.rs)
 R 207:41 calls replay_levels -> product
+R 209:23 references replay_levels -> Receive (name-matched: main.rs)
+R 209:13 references replay_levels -> Movement (name-matched: model.rs)
 R 209:45 calls replay_levels -> bump
 R 209:70 calls replay_levels -> delta_at (name-matched: model.rs)
+R 210:23 references replay_levels -> Ship (name-matched: main.rs)
+R 210:13 references replay_levels -> Movement (name-matched: model.rs)
 R 210:44 calls replay_levels -> bump
 R 210:71 calls replay_levels -> delta_at (name-matched: model.rs)
+R 211:23 references replay_levels -> Transfer (name-matched: model.rs)
+R 211:13 references replay_levels -> Movement (name-matched: model.rs)
 R 212:17 calls replay_levels -> bump
 R 212:44 calls replay_levels -> delta_at (name-matched: model.rs)
 R 213:17 calls replay_levels -> bump
 R 213:42 calls replay_levels -> delta_at (name-matched: model.rs)
+R 215:23 references replay_levels -> Adjust (name-matched: model.rs)
+R 215:13 references replay_levels -> Movement (name-matched: model.rs)
 R 215:44 calls replay_levels -> bump
 R 215:69 calls replay_levels -> delta_at (name-matched: model.rs)
 R 226:10 calls replay_levels -> collect
 R 220:10 calls replay_levels -> map
 R 219:10 calls replay_levels -> into_iter
+R 220:36 references replay_levels -> StockLevel (name-matched: model.rs)
 R 223:52 calls replay_levels -> unwrap_or
 R 223:27 calls replay_levels -> try_from
 R 223:44 calls replay_levels -> max
 R 223:67 references replay_levels -> MAX
 R 231:22 references MovementSection::ledger -> Movement (name-matched: model.rs)
 R 234:1 implements report -> Section
+R 235:24 references MovementSection<'_>::title -> Cow
 R 236:14 calls MovementSection<'_>::title -> Owned
+R 236:9 references MovementSection<'_>::title -> Cow
 R 236:58 references MovementSection<'_>::title -> len
+R 239:23 references MovementSection<'_>::body -> Result (name-matched: errors.rs)
+R 239:30 references MovementSection<'_>::body -> String
+R 240:26 references MovementSection<'_>::body -> BTreeMap
 R 240:60 calls MovementSection<'_>::body -> new
+R 240:50 references MovementSection<'_>::body -> BTreeMap
+R 243:27 references MovementSection<'_>::body -> Receive (name-matched: main.rs)
+R 243:17 references MovementSection<'_>::body -> Movement (name-matched: model.rs)
+R 244:27 references MovementSection<'_>::body -> Ship (name-matched: main.rs)
+R 244:17 references MovementSection<'_>::body -> Movement (name-matched: model.rs)
+R 245:27 references MovementSection<'_>::body -> Transfer (name-matched: model.rs)
+R 245:17 references MovementSection<'_>::body -> Movement (name-matched: model.rs)
+R 246:27 references MovementSection<'_>::body -> Adjust (name-matched: model.rs)
+R 246:17 references MovementSection<'_>::body -> Movement (name-matched: model.rs)
 R 248:34 calls MovementSection<'_>::body -> or_default
 R 248:22 calls MovementSection<'_>::body -> entry (name-matched: errors.rs)
 R 250:32 calls MovementSection<'_>::body -> new
+R 250:25 references MovementSection<'_>::body -> Table
+R 250:49 references MovementSection<'_>::body -> left
+R 250:71 references MovementSection<'_>::body -> right
 R 252:19 calls MovementSection<'_>::body -> row
 R 252:29 calls MovementSection<'_>::body -> to_string
 R 252:48 calls MovementSection<'_>::body -> to_string
@@ -1140,17 +1484,28 @@ R 254:9 calls MovementSection<'_>::body -> Ok
 R 254:18 calls MovementSection<'_>::body -> render
 R 260:19 references CategorySection::root -> Category (name-matched: model.rs)
 R 263:1 implements report -> Section
+R 264:24 references CategorySection<'_>::title -> Cow
 R 265:14 calls CategorySection<'_>::title -> Borrowed
+R 265:9 references CategorySection<'_>::title -> Cow
+R 268:23 references CategorySection<'_>::body -> Result (name-matched: errors.rs)
+R 268:30 references CategorySection<'_>::body -> String
+R 269:24 references body::walk -> Category (name-matched: model.rs)
+R 269:58 references body::walk -> String
 R 270:50 references body::walk -> repeat
 R 272:17 calls body::walk -> walk
 R 275:31 calls CategorySection<'_>::body -> new
+R 275:23 references CategorySection<'_>::body -> String
 R 276:9 calls CategorySection<'_>::body -> walk
 R 277:60 references CategorySection<'_>::body -> count
 R 278:9 calls CategorySection<'_>::body -> Ok
 R 285:1 implements report -> Section
+R 286:24 references AuditSection::title -> Cow
 R 287:20 calls AuditSection::title -> into
+R 290:23 references AuditSection::body -> Result (name-matched: errors.rs)
+R 290:30 references AuditSection::body -> String
 R 291:29 calls AuditSection::body -> filtered (name-matched: errors.rs)
 R 291:48 references AuditSection::body -> Warning (name-matched: errors.rs)
+R 291:38 references AuditSection::body -> Severity (name-matched: errors.rs)
 R 292:20 calls AuditSection::body -> is_empty (name-matched: errors.rs)
 R 293:20 calls AuditSection::body -> Ok
 R 293:32 calls AuditSection::body -> to_string
@@ -1159,16 +1514,24 @@ R 295:65 calls AuditSection::body -> join
 R 295:45 calls AuditSection::body -> collect
 R 295:27 calls AuditSection::body -> map
 R 295:20 calls AuditSection::body -> iter (name-matched: main.rs)
+R 300:37 references full_report -> Section
+R 300:50 references full_report -> Result (name-matched: errors.rs)
+R 300:57 references full_report -> String
 R 301:26 calls full_report -> with_capacity
+R 301:21 references full_report -> Vec
 R 301:49 calls full_report -> len
 R 303:15 calls full_report -> push (name-matched: errors.rs)
 R 303:28 calls full_report -> render
 R 305:14 calls full_report -> is_empty (name-matched: errors.rs)
 R 306:16 calls full_report -> Err
 R 306:36 calls full_report -> Validation (name-matched: errors.rs)
+R 306:20 references full_report -> InventoryError (name-matched: errors.rs)
 R 306:62 calls full_report -> into
 R 308:5 calls full_report -> Ok
 R 308:14 calls full_report -> join
+R 312:28 references shelf_usage -> Size (name-matched: model.rs)
+R 312:41 references shelf_usage -> Size (name-matched: model.rs)
+R 312:62 references shelf_usage -> String
 R 313:42 calls shelf_usage -> stacked_volume (name-matched: model.rs)
 R 314:35 calls shelf_usage -> max
 R 314:26 calls shelf_usage -> volume (name-matched: model.rs)
@@ -1318,8 +1681,17 @@ R 13:52 imports service -> SnapshotFile (name-matched: storage.rs)
 R 13:66 imports service -> StockTable (name-matched: storage.rs)
 R 19:29 extends MovementListener -> Send
 R 19:36 extends MovementListener -> Sync
+R 20:38 references MovementListener::on_movement -> Movement (name-matched: model.rs)
+R 28:29 references BoxFuture -> Pin
+R 28:33 references BoxFuture -> Box (name-matched: model.rs)
+R 28:41 references BoxFuture -> Future
+R 28:48 references BoxFuture -> Output
+R 28:62 references BoxFuture -> Send
 R 31:25 extends MovementSink -> Send
 R 31:32 extends MovementSink -> Sync
+R 32:44 references MovementSink::publish -> Movement (name-matched: model.rs)
+R 32:57 references MovementSink::publish -> BoxFuture
+R 32:71 references MovementSink::publish -> Result (name-matched: errors.rs)
 R 37:15 references Warehouse::products -> MemoryRepository (name-matched: storage.rs)
 R 37:32 references Warehouse::products -> Product (name-matched: model.rs)
 R 38:12 references Warehouse::stock -> StockTable (name-matched: storage.rs)
@@ -1330,41 +1702,75 @@ R 40:20 references Warehouse::listeners -> Arc
 R 40:28 references Warehouse::listeners -> MovementListener
 R 43:1 implements service -> Default
 R 45:15 calls Warehouse::default -> new
+R 51:9 references Warehouse::new -> Warehouse
 R 52:41 calls Warehouse::new -> new
+R 52:23 references Warehouse::new -> MemoryRepository (name-matched: storage.rs)
 R 53:32 calls Warehouse::new -> new
+R 53:20 references Warehouse::new -> StockTable (name-matched: storage.rs)
 R 54:26 calls Warehouse::new -> new
+R 54:21 references Warehouse::new -> Vec
 R 55:29 calls Warehouse::new -> new
+R 55:24 references Warehouse::new -> Vec
+R 59:43 references Warehouse::subscribe -> Arc
+R 59:51 references Warehouse::subscribe -> MovementListener
 R 60:9 calls Warehouse::subscribe -> audit (name-matched: errors.rs)
 R 61:23 references Warehouse::subscribe -> Debug (name-matched: errors.rs)
+R 61:13 references Warehouse::subscribe -> Severity (name-matched: errors.rs)
 R 62:57 references Warehouse::subscribe -> name
 R 64:24 calls Warehouse::subscribe -> push (name-matched: errors.rs)
+R 68:62 references Warehouse::add_product -> Unit (name-matched: model.rs)
+R 68:71 references Warehouse::add_product -> Result (name-matched: errors.rs)
+R 68:78 references Warehouse::add_product -> ProductId (name-matched: model.rs)
 R 69:32 calls Warehouse::add_product -> new
+R 69:23 references Warehouse::add_product -> Product (name-matched: model.rs)
 R 69:36 calls Warehouse::add_product -> ProductId (name-matched: model.rs)
 R 70:27 calls Warehouse::add_product -> id
 R 71:23 calls Warehouse::add_product -> put (name-matched: storage.rs)
 R 72:9 calls Warehouse::add_product -> Ok
+R 75:31 references Warehouse::product -> ProductId (name-matched: model.rs)
+R 75:45 references Warehouse::product -> Result (name-matched: errors.rs)
+R 75:52 references Warehouse::product -> Product (name-matched: model.rs)
 R 76:23 calls Warehouse::product -> require (name-matched: storage.rs)
+R 79:30 references Warehouse::catalog -> Result (name-matched: errors.rs)
+R 79:37 references Warehouse::catalog -> Catalog (name-matched: model.rs)
 R 80:9 calls Warehouse::catalog -> Ok
 R 85:14 calls Warehouse::catalog -> collect
 R 84:14 calls Warehouse::catalog -> map (name-matched: model.rs)
 R 83:14 calls Warehouse::catalog -> into_iter
 R 82:14 calls Warehouse::catalog -> all (name-matched: storage.rs)
+R 89:40 references Warehouse::receive -> ProductId (name-matched: model.rs)
+R 89:55 references Warehouse::receive -> LocationId (name-matched: model.rs)
+R 89:85 references Warehouse::receive -> Result (name-matched: errors.rs)
 R 90:9 calls Warehouse::receive -> check_quantity
 R 91:14 calls Warehouse::receive -> product
 R 92:14 calls Warehouse::receive -> update_level
 R 94:13 calls Warehouse::receive -> Ok
 R 96:14 calls Warehouse::receive -> record
+R 96:31 references Warehouse::receive -> Receive (name-matched: main.rs)
+R 96:21 references Warehouse::receive -> Movement (name-matched: model.rs)
 R 101:9 calls Warehouse::receive -> Ok
+R 105:37 references Warehouse::ship -> ProductId (name-matched: model.rs)
+R 105:54 references Warehouse::ship -> LocationId (name-matched: model.rs)
+R 105:84 references Warehouse::ship -> Result (name-matched: errors.rs)
 R 106:9 calls Warehouse::ship -> check_quantity
 R 107:14 calls Warehouse::ship -> update_level
 R 108:22 calls Warehouse::ship -> available (name-matched: errors.rs)
 R 109:24 calls Warehouse::ship -> Err
+R 109:44 references Warehouse::ship -> InsufficientStock (name-matched: errors.rs)
+R 109:28 references Warehouse::ship -> InventoryError (name-matched: errors.rs)
 R 112:38 calls Warehouse::ship -> available (name-matched: errors.rs)
 R 116:13 calls Warehouse::ship -> Ok
 R 118:14 calls Warehouse::ship -> record
+R 118:31 references Warehouse::ship -> Ship (name-matched: main.rs)
+R 118:21 references Warehouse::ship -> Movement (name-matched: model.rs)
 R 123:9 calls Warehouse::ship -> Ok
+R 129:18 references Warehouse::transfer -> ProductId (name-matched: model.rs)
+R 130:15 references Warehouse::transfer -> LocationId (name-matched: model.rs)
+R 131:13 references Warehouse::transfer -> LocationId (name-matched: model.rs)
+R 133:10 references Warehouse::transfer -> Result (name-matched: errors.rs)
 R 135:20 calls Warehouse::transfer -> Err
 R 135:40 calls Warehouse::transfer -> Validation (name-matched: errors.rs)
+R 135:24 references Warehouse::transfer -> InventoryError (name-matched: errors.rs)
 R 136:64 calls Warehouse::transfer -> into
 R 139:14 calls Warehouse::transfer -> ship
 R 140:30 calls Warehouse::transfer -> receive
@@ -1374,21 +1780,36 @@ R 146:20 calls Warehouse::transfer -> Err
 R 149:21 calls Warehouse::transfer -> truncate (name-matched: report.rs)
 R 149:42 calls Warehouse::transfer -> len (name-matched: errors.rs)
 R 150:14 calls Warehouse::transfer -> record
+R 150:31 references Warehouse::transfer -> Transfer (name-matched: model.rs)
+R 150:21 references Warehouse::transfer -> Movement (name-matched: model.rs)
 R 156:9 calls Warehouse::transfer -> Ok
+R 159:40 references Warehouse::reserve -> ProductId (name-matched: model.rs)
+R 159:55 references Warehouse::reserve -> LocationId (name-matched: model.rs)
+R 159:85 references Warehouse::reserve -> Result (name-matched: errors.rs)
 R 160:14 calls Warehouse::reserve -> update_level
 R 160:54 calls Warehouse::reserve -> reserve
+R 163:40 references Warehouse::update_level -> ProductId (name-matched: model.rs)
+R 163:61 references Warehouse::update_level -> LocationId (name-matched: model.rs)
+R 163:87 references Warehouse::update_level -> Result (name-matched: errors.rs)
 R 167:9 calls Warehouse::update_level -> with_retry (name-matched: errors.rs)
 R 171:18 calls Warehouse::update_level -> map (name-matched: model.rs)
 R 170:18 calls Warehouse::update_level -> level
 R 174:18 calls Warehouse::update_level -> map (name-matched: model.rs)
 R 173:18 calls Warehouse::update_level -> modify (name-matched: storage.rs)
 R 173:61 calls Warehouse::update_level -> change
+R 178:36 references Warehouse::record -> Movement (name-matched: model.rs)
 R 180:22 calls Warehouse::record -> on_movement
 R 182:9 calls Warehouse::record -> audit (name-matched: errors.rs)
 R 182:25 references Warehouse::record -> Info (name-matched: errors.rs)
+R 182:15 references Warehouse::record -> Severity (name-matched: errors.rs)
 R 182:41 calls Warehouse::record -> describe (name-matched: model.rs)
 R 183:21 calls Warehouse::record -> push (name-matched: errors.rs)
+R 186:31 references Warehouse::ledger -> Movement (name-matched: model.rs)
+R 192:42 references Warehouse::reorder_suggestions -> Result (name-matched: errors.rs)
+R 192:49 references Warehouse::reorder_suggestions -> Vec
+R 192:54 references Warehouse::reorder_suggestions -> ProductId (name-matched: model.rs)
 R 193:28 calls Warehouse::reorder_suggestions -> new
+R 193:23 references Warehouse::reorder_suggestions -> Vec
 R 194:38 calls Warehouse::reorder_suggestions -> all (name-matched: storage.rs)
 R 195:36 calls Warehouse::reorder_suggestions -> total_on_hand (name-matched: storage.rs)
 R 196:46 calls Warehouse::reorder_suggestions -> unwrap_or
@@ -1399,13 +1820,33 @@ R 198:21 calls Warehouse::reorder_suggestions -> push (name-matched: errors.rs)
 R 198:73 calls Warehouse::reorder_suggestions -> min (name-matched: errors.rs)
 R 201:13 calls Warehouse::reorder_suggestions -> sort
 R 202:9 calls Warehouse::reorder_suggestions -> Ok
+R 207:35 references Warehouse::audit_ledger -> Result (name-matched: errors.rs)
+R 207:42 references Warehouse::audit_ledger -> Vec
+R 207:47 references Warehouse::audit_ledger -> ProductId (name-matched: model.rs)
+R 207:58 references Warehouse::audit_ledger -> LocationId (name-matched: model.rs)
+R 208:27 references Warehouse::audit_ledger -> HashMap
+R 208:36 references Warehouse::audit_ledger -> ProductId (name-matched: model.rs)
+R 208:47 references Warehouse::audit_ledger -> LocationId (name-matched: model.rs)
 R 208:76 calls Warehouse::audit_ledger -> new
+R 208:67 references Warehouse::audit_ledger -> HashMap
+R 209:33 references audit_ledger::locations_of -> Movement (name-matched: model.rs)
+R 209:46 references audit_ledger::locations_of -> Vec
+R 209:50 references audit_ledger::locations_of -> LocationId (name-matched: model.rs)
+R 211:27 references audit_ledger::locations_of -> Receive (name-matched: main.rs)
+R 211:17 references audit_ledger::locations_of -> Movement (name-matched: model.rs)
+R 212:27 references audit_ledger::locations_of -> Ship (name-matched: main.rs)
+R 212:17 references audit_ledger::locations_of -> Movement (name-matched: model.rs)
+R 213:27 references audit_ledger::locations_of -> Transfer (name-matched: model.rs)
+R 213:17 references audit_ledger::locations_of -> Movement (name-matched: model.rs)
+R 214:27 references audit_ledger::locations_of -> Adjust (name-matched: model.rs)
+R 214:17 references audit_ledger::locations_of -> Movement (name-matched: model.rs)
 R 218:24 calls Warehouse::audit_ledger -> locations_of
 R 219:53 calls Warehouse::audit_ledger -> or_default
 R 219:27 calls Warehouse::audit_ledger -> entry (name-matched: errors.rs)
 R 219:36 calls Warehouse::audit_ledger -> product
 R 219:71 calls Warehouse::audit_ledger -> delta_at (name-matched: model.rs)
 R 222:35 calls Warehouse::audit_ledger -> new
+R 222:30 references Warehouse::audit_ledger -> Vec
 R 223:33 calls Warehouse::audit_ledger -> snapshot (name-matched: main.rs)
 R 227:18 calls Warehouse::audit_ledger -> unwrap_or
 R 226:18 calls Warehouse::audit_ledger -> copied
@@ -1413,11 +1854,16 @@ R 225:18 calls Warehouse::audit_ledger -> get (name-matched: storage.rs)
 R 228:29 calls Warehouse::audit_ledger -> from
 R 229:28 calls Warehouse::audit_ledger -> push (name-matched: errors.rs)
 R 232:9 calls Warehouse::audit_ledger -> Ok
+R 235:31 references Warehouse::save -> SnapshotFile (name-matched: storage.rs)
+R 235:48 references Warehouse::save -> Result (name-matched: errors.rs)
 R 236:38 calls Warehouse::save -> all (name-matched: storage.rs)
 R 237:14 calls Warehouse::save -> save
 R 237:42 calls Warehouse::save -> snapshot (name-matched: main.rs)
+R 240:24 references Warehouse::load -> SnapshotFile (name-matched: storage.rs)
+R 240:41 references Warehouse::load -> Result (name-matched: errors.rs)
 R 241:38 calls Warehouse::load -> load
 R 242:40 calls Warehouse::load -> new
+R 242:29 references Warehouse::load -> Warehouse
 R 243:28 calls Warehouse::load -> extend (name-matched: storage.rs)
 R 247:18 calls Warehouse::load -> modify (name-matched: storage.rs)
 R 248:34 calls Warehouse::load -> clone
@@ -1427,6 +1873,7 @@ R 259:24 references MovementCounter::counts -> Mutex
 R 259:30 references MovementCounter::counts -> HashMap
 R 259:38 references MovementCounter::counts -> ProductId (name-matched: model.rs)
 R 257:10 references MovementCounter -> Default
+R 263:34 references MovementCounter::count -> ProductId (name-matched: model.rs)
 R 267:14 calls MovementCounter::count -> unwrap_or
 R 266:14 calls MovementCounter::count -> map (name-matched: model.rs)
 R 265:14 calls MovementCounter::count -> lock
@@ -1434,30 +1881,50 @@ R 266:47 calls MovementCounter::count -> unwrap_or
 R 266:38 calls MovementCounter::count -> copied
 R 266:24 calls MovementCounter::count -> get (name-matched: storage.rs)
 R 271:1 implements service -> MovementListener
+R 272:38 references MovementCounter::on_movement -> Movement (name-matched: model.rs)
 R 273:45 calls MovementCounter::on_movement -> lock
 R 274:47 calls MovementCounter::on_movement -> or_insert
 R 274:21 calls MovementCounter::on_movement -> entry (name-matched: errors.rs)
 R 274:36 calls MovementCounter::on_movement -> product
-R 285:11 references Outbox::sink -> S
 R 286:14 references Outbox::pending -> VecDeque
 R 286:23 references Outbox::pending -> Movement (name-matched: model.rs)
+R 292:9 references Outbox<S>::new -> Outbox
 R 294:32 calls Outbox<S>::new -> new
+R 294:22 references Outbox<S>::new -> VecDeque
 R 295:36 calls Outbox<S>::new -> max (name-matched: report.rs)
+R 299:41 references Outbox<S>::enqueue -> Movement (name-matched: model.rs)
 R 300:22 calls Outbox<S>::enqueue -> push_back
+R 304:43 references Outbox<S>::flush_once -> Result (name-matched: errors.rs)
 R 307:43 calls Outbox<S>::flush_once -> front
 R 310:23 calls Outbox<S>::flush_once -> publish
 R 311:26 calls Outbox<S>::flush_once -> pop_front
 R 314:9 calls Outbox<S>::flush_once -> Ok
+R 318:42 references Outbox<S>::flush_all -> Result (name-matched: errors.rs)
 R 321:26 calls Outbox<S>::flush_all -> flush_once
 R 323:24 calls Outbox<S>::flush_all -> Ok
+R 331:33 references replay -> Vec
+R 331:37 references replay -> Product (name-matched: model.rs)
+R 331:64 references replay -> Result (name-matched: errors.rs)
+R 331:71 references replay -> Vec
+R 331:75 references replay -> StockLevel (name-matched: model.rs)
 R 335:36 calls replay -> new
+R 335:25 references replay -> Warehouse
 R 336:24 calls replay -> extend (name-matched: storage.rs)
+R 339:23 references replay -> Receive (name-matched: main.rs)
+R 339:13 references replay -> Movement (name-matched: model.rs)
 R 343:28 calls replay -> receive
+R 344:23 references replay -> Ship (name-matched: main.rs)
+R 344:13 references replay -> Movement (name-matched: model.rs)
 R 348:28 calls replay -> ship
+R 349:23 references replay -> Transfer (name-matched: model.rs)
+R 349:13 references replay -> Movement (name-matched: model.rs)
 R 354:28 calls replay -> transfer
+R 355:23 references replay -> Adjust (name-matched: model.rs)
+R 355:13 references replay -> Movement (name-matched: model.rs)
 R 355:40 calls replay -> Ok
 R 358:13 calls replay -> audit (name-matched: errors.rs)
 R 358:29 references replay -> Warning (name-matched: errors.rs)
+R 358:19 references replay -> Severity (name-matched: errors.rs)
 R 361:21 calls replay -> snapshot (name-matched: main.rs)
 
 == storage.rs (362 lines)
@@ -1585,32 +2052,57 @@ R 12:59 imports storage -> StockLevel (name-matched: model.rs)
 R 12:71 imports storage -> StockRecord (name-matched: model.rs)
 R 12:84 imports storage -> Unit (name-matched: model.rs)
 R 13:5 imports storage -> Versioned (name-matched: model.rs)
+R 18:26 references Repository::get -> Id (name-matched: model.rs)
+R 18:33 references Repository::get -> Result (name-matched: errors.rs)
+R 18:40 references Repository::get -> Option
+R 19:36 references Repository::put -> Result (name-matched: errors.rs)
+R 20:33 references Repository::remove -> Id (name-matched: model.rs)
+R 20:40 references Repository::remove -> Result (name-matched: errors.rs)
+R 20:47 references Repository::remove -> Option
+R 21:22 references Repository::all -> Result (name-matched: errors.rs)
+R 21:29 references Repository::all -> Vec
+R 24:30 references Repository::require -> Id (name-matched: model.rs)
+R 24:37 references Repository::require -> Result (name-matched: errors.rs)
 R 29:14 calls Repository::require -> ok_or_else
 R 28:14 calls Repository::require -> get
 R 29:44 calls Repository::require -> UnknownProduct (name-matched: errors.rs)
+R 29:28 references Repository::require -> InventoryError (name-matched: errors.rs)
 R 29:62 calls Repository::require -> into
+R 32:24 references Repository::count -> Result (name-matched: errors.rs)
 R 33:9 calls Repository::count -> Ok
 R 33:24 calls Repository::count -> len (name-matched: errors.rs)
 R 33:17 calls Repository::count -> all
 R 37:1 implements storage -> From<ProductId>
+R 38:17 references u64::from -> ProductId (name-matched: model.rs)
 R 46:12 references MemoryRepository::items -> HashMap
 R 46:23 references MemoryRepository::items -> Id (name-matched: model.rs)
-R 46:27 references MemoryRepository::items -> T
 R 44:10 references MemoryRepository -> Debug (name-matched: errors.rs)
 R 50:1 implements storage -> Default
+R 52:9 references MemoryRepository<T>::default -> MemoryRepository
 R 53:29 calls MemoryRepository<T>::default -> new
+R 53:20 references MemoryRepository<T>::default -> HashMap
 R 61:15 calls MemoryRepository<T>::new -> default
+R 69:47 references MemoryRepository<T>::extend -> Result (name-matched: errors.rs)
 R 75:18 calls MemoryRepository<T>::extend -> put
 R 78:9 calls MemoryRepository<T>::extend -> Ok
 R 82:1 implements storage -> Repository<T>
+R 83:26 references MemoryRepository<T>::get -> Id (name-matched: model.rs)
+R 83:33 references MemoryRepository<T>::get -> Result (name-matched: errors.rs)
+R 83:40 references MemoryRepository<T>::get -> Option
 R 84:9 calls MemoryRepository<T>::get -> Ok
 R 84:32 calls MemoryRepository<T>::get -> cloned
 R 84:23 calls MemoryRepository<T>::get -> get
+R 87:36 references MemoryRepository<T>::put -> Result (name-matched: errors.rs)
 R 89:20 calls MemoryRepository<T>::put -> insert
 R 89:33 calls MemoryRepository<T>::put -> id
 R 90:9 calls MemoryRepository<T>::put -> Ok
+R 93:33 references MemoryRepository<T>::remove -> Id (name-matched: model.rs)
+R 93:40 references MemoryRepository<T>::remove -> Result (name-matched: errors.rs)
+R 93:47 references MemoryRepository<T>::remove -> Option
 R 95:9 calls MemoryRepository<T>::remove -> Ok
 R 95:23 calls MemoryRepository<T>::remove -> remove
+R 98:22 references MemoryRepository<T>::all -> Result (name-matched: errors.rs)
+R 98:29 references MemoryRepository<T>::all -> Vec
 R 99:9 calls MemoryRepository<T>::all -> Ok
 R 99:41 calls MemoryRepository<T>::all -> collect
 R 99:32 calls MemoryRepository<T>::all -> cloned
@@ -1625,26 +2117,59 @@ R 104:10 references StockTable -> Debug (name-matched: errors.rs)
 R 104:17 references StockTable -> Default
 R 104:26 references StockTable -> Clone
 R 111:15 calls StockTable::new -> default
+R 116:10 references StockTable::read_rows -> Result (name-matched: errors.rs)
+R 116:28 references StockTable::read_rows -> RwLockReadGuard
+R 116:48 references StockTable::read_rows -> HashMap
+R 116:57 references StockTable::read_rows -> ProductId (name-matched: model.rs)
+R 116:68 references StockTable::read_rows -> LocationId (name-matched: model.rs)
+R 116:81 references StockTable::read_rows -> StockRecord (name-matched: model.rs)
 R 119:14 calls StockTable::read_rows -> map_err
 R 118:14 calls StockTable::read_rows -> read
 R 119:42 calls StockTable::read_rows -> storage
+R 119:26 references StockTable::read_rows -> InventoryError (name-matched: errors.rs)
+R 124:10 references StockTable::write_rows -> Result (name-matched: errors.rs)
+R 124:28 references StockTable::write_rows -> RwLockWriteGuard
+R 124:49 references StockTable::write_rows -> HashMap
+R 124:58 references StockTable::write_rows -> ProductId (name-matched: model.rs)
+R 124:69 references StockTable::write_rows -> LocationId (name-matched: model.rs)
+R 124:82 references StockTable::write_rows -> StockRecord (name-matched: model.rs)
 R 128:14 calls StockTable::write_rows -> map_err
 R 127:14 calls StockTable::write_rows -> write
 R 128:42 calls StockTable::write_rows -> storage
+R 128:26 references StockTable::write_rows -> InventoryError (name-matched: errors.rs)
+R 131:34 references StockTable::level -> ProductId (name-matched: model.rs)
+R 131:55 references StockTable::level -> LocationId (name-matched: model.rs)
+R 131:70 references StockTable::level -> Result (name-matched: errors.rs)
+R 131:77 references StockTable::level -> Option
+R 131:84 references StockTable::level -> StockRecord (name-matched: model.rs)
 R 132:9 calls StockTable::level -> Ok
 R 132:56 calls StockTable::level -> cloned
 R 132:30 calls StockTable::level -> get
 R 132:17 calls StockTable::level -> read_rows
+R 139:18 references StockTable::modify -> ProductId (name-matched: model.rs)
+R 140:19 references StockTable::modify -> LocationId (name-matched: model.rs)
+R 141:27 references StockTable::modify -> Option
+R 143:10 references StockTable::modify -> Result (name-matched: errors.rs)
 R 147:29 calls StockTable::modify -> write_rows
 R 148:54 calls StockTable::modify -> or_insert_with
 R 148:27 calls StockTable::modify -> entry (name-matched: errors.rs)
 R 149:24 calls StockTable::modify -> new
+R 149:13 references StockTable::modify -> Versioned (name-matched: model.rs)
+R 149:28 references StockTable::modify -> StockLevel (name-matched: model.rs)
 R 158:24 calls StockTable::modify -> Err
+R 158:44 references StockTable::modify -> Conflict (name-matched: errors.rs)
+R 158:28 references StockTable::modify -> InventoryError (name-matched: errors.rs)
 R 164:27 calls StockTable::modify -> Ok
 R 165:16 calls StockTable::modify -> update (name-matched: model.rs)
 R 165:41 calls StockTable::modify -> change
 R 166:17 calls StockTable::modify -> map (name-matched: model.rs)
+R 170:40 references StockTable::for_product -> ProductId (name-matched: model.rs)
+R 170:54 references StockTable::for_product -> Result (name-matched: errors.rs)
+R 170:61 references StockTable::for_product -> Vec
+R 170:65 references StockTable::for_product -> StockLevel (name-matched: model.rs)
 R 171:25 calls StockTable::for_product -> read_rows
+R 172:25 references StockTable::for_product -> Vec
+R 172:29 references StockTable::for_product -> StockLevel (name-matched: model.rs)
 R 176:14 calls StockTable::for_product -> collect
 R 175:14 calls StockTable::for_product -> map (name-matched: model.rs)
 R 174:14 calls StockTable::for_product -> filter
@@ -1652,13 +2177,20 @@ R 173:14 calls StockTable::for_product -> values
 R 175:30 calls StockTable::for_product -> clone
 R 177:16 calls StockTable::for_product -> sort_by_key
 R 178:9 calls StockTable::for_product -> Ok
+R 181:42 references StockTable::total_on_hand -> ProductId (name-matched: model.rs)
+R 181:56 references StockTable::total_on_hand -> Result (name-matched: errors.rs)
 R 182:9 calls StockTable::total_on_hand -> Ok
 R 186:14 calls StockTable::total_on_hand -> sum
 R 185:14 calls StockTable::total_on_hand -> map (name-matched: model.rs)
 R 184:14 calls StockTable::total_on_hand -> iter (name-matched: main.rs)
 R 183:14 calls StockTable::total_on_hand -> for_product
 R 185:27 calls StockTable::total_on_hand -> from
+R 189:31 references StockTable::snapshot -> Result (name-matched: errors.rs)
+R 189:38 references StockTable::snapshot -> Vec
+R 189:42 references StockTable::snapshot -> StockLevel (name-matched: model.rs)
 R 190:25 calls StockTable::snapshot -> read_rows
+R 191:22 references StockTable::snapshot -> Vec
+R 191:26 references StockTable::snapshot -> _
 R 191:70 calls StockTable::snapshot -> collect
 R 191:45 calls StockTable::snapshot -> map (name-matched: model.rs)
 R 191:36 calls StockTable::snapshot -> values
@@ -1666,32 +2198,53 @@ R 191:61 calls StockTable::snapshot -> clone
 R 192:13 calls StockTable::snapshot -> sort_by_key
 R 193:9 calls StockTable::snapshot -> Ok
 R 199:11 references SnapshotFile::path -> PathBuf
+R 203:27 references SnapshotFile::new -> AsRef
+R 203:33 references SnapshotFile::new -> Path
+R 204:9 references SnapshotFile::new -> SnapshotFile
 R 205:33 calls SnapshotFile::new -> to_path_buf
 R 205:24 calls SnapshotFile::new -> as_ref
+R 209:28 references SnapshotFile::path -> Path
+R 214:36 references SnapshotFile::save -> Product (name-matched: model.rs)
+R 214:55 references SnapshotFile::save -> StockLevel (name-matched: model.rs)
+R 214:71 references SnapshotFile::save -> Result (name-matched: errors.rs)
 R 215:30 calls SnapshotFile::save -> create
+R 215:24 references SnapshotFile::save -> File
 R 221:17 references SnapshotFile::save -> encode_unit
 R 222:17 references SnapshotFile::save -> escape
 R 232:9 calls SnapshotFile::save -> audit (name-matched: errors.rs)
 R 233:23 references SnapshotFile::save -> Info (name-matched: errors.rs)
+R 233:13 references SnapshotFile::save -> Severity (name-matched: errors.rs)
 R 234:56 references SnapshotFile::save -> display
 R 236:9 calls SnapshotFile::save -> Ok
+R 241:27 references SnapshotFile::load -> Result (name-matched: errors.rs)
+R 241:35 references SnapshotFile::load -> Vec
+R 241:39 references SnapshotFile::load -> Product (name-matched: model.rs)
+R 241:49 references SnapshotFile::load -> Vec
+R 241:53 references SnapshotFile::load -> StockLevel (name-matched: model.rs)
 R 242:33 calls SnapshotFile::load -> new
+R 242:22 references SnapshotFile::load -> BufReader
 R 242:43 calls SnapshotFile::load -> open
+R 242:37 references SnapshotFile::load -> File
 R 243:33 calls SnapshotFile::load -> new
+R 243:28 references SnapshotFile::load -> Vec
 R 244:30 calls SnapshotFile::load -> new
+R 244:25 references SnapshotFile::load -> Vec
 R 245:45 calls SnapshotFile::load -> enumerate
 R 245:37 calls SnapshotFile::load -> lines
+R 247:25 references SnapshotFile::load -> Vec
 R 247:54 calls SnapshotFile::load -> collect
 R 247:42 calls SnapshotFile::load -> split
 R 248:26 calls SnapshotFile::load -> as_slice
 R 250:30 calls SnapshotFile::load -> ProductId (name-matched: model.rs)
 R 250:43 calls SnapshotFile::load -> parse
 R 251:48 calls SnapshotFile::load -> new
+R 251:39 references SnapshotFile::load -> Product (name-matched: model.rs)
 R 251:57 calls SnapshotFile::load -> unescape
 R 251:73 calls SnapshotFile::load -> decode_unit
 R 252:35 calls SnapshotFile::load -> make_sku (name-matched: model.rs)
 R 253:30 calls SnapshotFile::load -> push (name-matched: errors.rs)
 R 255:70 calls SnapshotFile::load -> push (name-matched: errors.rs)
+R 255:75 references SnapshotFile::load -> StockLevel (name-matched: model.rs)
 R 256:30 calls SnapshotFile::load -> ProductId (name-matched: model.rs)
 R 256:48 calls SnapshotFile::load -> parse
 R 257:31 calls SnapshotFile::load -> LocationId (name-matched: model.rs)
@@ -1700,24 +2253,38 @@ R 258:38 calls SnapshotFile::load -> parse
 R 259:40 calls SnapshotFile::load -> parse
 R 262:26 calls SnapshotFile::load -> audit (name-matched: errors.rs)
 R 263:31 references SnapshotFile::load -> Warning (name-matched: errors.rs)
+R 263:21 references SnapshotFile::load -> Severity (name-matched: errors.rs)
 R 264:73 references SnapshotFile::load -> first
 R 268:9 calls SnapshotFile::load -> Ok
+R 272:22 references encode_unit -> Unit (name-matched: model.rs)
+R 272:31 references encode_unit -> String
 R 274:15 references encode_unit -> Box (name-matched: model.rs)
+R 274:9 references encode_unit -> Unit (name-matched: model.rs)
 R 275:33 calls encode_unit -> to_string
 R 275:24 calls encode_unit -> symbol (name-matched: model.rs)
+R 279:31 references decode_unit -> Result (name-matched: errors.rs)
+R 279:38 references decode_unit -> Unit (name-matched: model.rs)
 R 280:5 calls decode_unit -> Ok
 R 281:23 references decode_unit -> Piece (name-matched: model.rs)
+R 281:17 references decode_unit -> Unit (name-matched: model.rs)
 R 282:23 references decode_unit -> Kilogram (name-matched: model.rs)
+R 282:17 references decode_unit -> Unit (name-matched: model.rs)
 R 283:22 references decode_unit -> Litre (name-matched: model.rs)
+R 283:16 references decode_unit -> Unit (name-matched: model.rs)
 R 284:25 calls decode_unit -> strip_prefix
 R 285:30 calls decode_unit -> Box (name-matched: model.rs)
+R 285:24 references decode_unit -> Unit (name-matched: model.rs)
 R 285:36 calls decode_unit -> parse
 R 287:24 calls decode_unit -> Err
 R 287:44 calls decode_unit -> Validation (name-matched: errors.rs)
+R 287:28 references decode_unit -> InventoryError (name-matched: errors.rs)
+R 293:26 references escape -> String
 R 296:10 calls escape -> replace
 R 295:10 calls escape -> replace
 R 294:10 calls escape -> replace
+R 299:28 references unescape -> String
 R 300:27 calls unescape -> with_capacity
+R 300:19 references unescape -> String
 R 300:46 calls unescape -> len (name-matched: errors.rs)
 R 301:26 calls unescape -> chars
 R 302:31 calls unescape -> next (name-matched: service.rs)
@@ -1727,12 +2294,16 @@ R 308:30 calls unescape -> push (name-matched: errors.rs)
 R 309:30 calls unescape -> push (name-matched: errors.rs)
 R 310:32 calls unescape -> push (name-matched: errors.rs)
 R 311:25 calls unescape -> push (name-matched: errors.rs)
+R 321:28 references product -> Product (name-matched: model.rs)
 R 322:73 calls product -> unwrap
 R 322:18 calls product -> new
+R 322:9 references product -> Product (name-matched: model.rs)
 R 322:22 calls product -> ProductId (name-matched: model.rs)
 R 322:66 references product -> Piece (name-matched: model.rs)
+R 322:60 references product -> Unit (name-matched: model.rs)
 R 325:5 references tests -> memory_repository_round_trip
 R 327:42 calls memory_repository_round_trip -> new
+R 327:24 references memory_repository_round_trip -> MemoryRepository
 R 328:47 calls memory_repository_round_trip -> unwrap
 R 328:14 calls memory_repository_round_trip -> extend
 R 328:22 calls memory_repository_round_trip -> product
@@ -1746,6 +2317,7 @@ R 331:44 references memory_repository_round_trip -> is_err
 R 332:25 references memory_repository_round_trip -> writes
 R 335:5 references tests -> stale_version_is_a_conflict
 R 337:33 calls stale_version_is_a_conflict -> new
+R 337:21 references stale_version_is_a_conflict -> StockTable
 R 343:14 calls stale_version_is_a_conflict -> unwrap
 R 339:14 calls stale_version_is_a_conflict -> modify
 R 339:21 calls stale_version_is_a_conflict -> ProductId (name-matched: model.rs)
@@ -1763,9 +2335,13 @@ R 353:20 references escape_round_trips -> unescape
 R 353:30 references escape_round_trips -> escape
 R 356:5 references tests -> units_round_trip
 R 358:28 references units_round_trip -> Piece (name-matched: model.rs)
+R 358:22 references units_round_trip -> Unit (name-matched: model.rs)
 R 358:41 references units_round_trip -> Kilogram (name-matched: model.rs)
+R 358:35 references units_round_trip -> Unit (name-matched: model.rs)
 R 358:57 references units_round_trip -> Litre (name-matched: model.rs)
+R 358:51 references units_round_trip -> Unit (name-matched: model.rs)
 R 358:70 calls units_round_trip -> Box (name-matched: model.rs)
+R 358:64 references units_round_trip -> Unit (name-matched: model.rs)
 R 359:24 references units_round_trip -> decode_unit
 R 359:37 references units_round_trip -> encode_unit
 R 359:56 references units_round_trip -> unwrap

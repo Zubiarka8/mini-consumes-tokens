@@ -334,6 +334,15 @@ fn references(parsed: &mct_core::ParsedFile) -> Vec<&str> {
         .collect()
 }
 
+/// [`references`] without type references: the tests below are about
+/// functions used as values, and every type they mention is capitalized.
+fn value_references(parsed: &mct_core::ParsedFile) -> Vec<&str> {
+    references(parsed)
+        .into_iter()
+        .filter(|name| !name.starts_with(|c: char| c.is_ascii_uppercase()))
+        .collect()
+}
+
 #[test]
 fn a_same_file_function_used_as_a_value_is_a_reference() {
     let parsed = parse(
@@ -360,7 +369,7 @@ fn a_same_file_function_inside_a_macro_token_tree_is_a_reference_not_a_call() {
         }
         "#,
     );
-    assert_eq!(references(&parsed), vec!["symbol_kind_str"]);
+    assert_eq!(value_references(&parsed), vec!["symbol_kind_str"]);
     assert!(!parsed
         .relations
         .iter()
@@ -403,7 +412,7 @@ fn a_path_in_value_position_is_a_reference_qualified_by_its_module() {
         }
         "#,
     );
-    assert_eq!(references(&parsed), vec!["RustParser"]);
+    assert_eq!(references(&parsed), vec!["R", "Arc", "RustParser"]);
     let hit = parsed
         .relations
         .iter()
@@ -431,12 +440,16 @@ fn locals_fields_paths_labels_and_foreign_names_are_not_references() {
         fn by_field(s: &S) -> u32 { s.helper }
         fn by_label() { 'helper: loop { break 'helper; } }
         fn foreign() { let _f = not_in_this_file; println!("{}", also_not(1)); }
-        fn in_macro(s: &S) { println!("{} {}", s.helper.0, other::helper()); }
+        fn in_macro(s: &S) { println!("{}", s.helper.0); }
         #[cfg(helper)]
         fn attributed() {}
         "#,
     );
-    assert!(references(&parsed).is_empty(), "{:?}", references(&parsed));
+    assert!(
+        value_references(&parsed).is_empty(),
+        "{:?}",
+        value_references(&parsed)
+    );
 }
 
 #[test]
@@ -469,7 +482,7 @@ fn a_turbofish_method_call_still_walks_its_receiver_chain() {
     for name in ["sum", "map", "iter"] {
         assert!(calls.contains(&name), "{name} missing from {calls:?}");
     }
-    assert_eq!(references(&parsed), vec!["g"]);
+    assert_eq!(value_references(&parsed), vec!["g"]);
 }
 
 #[test]
@@ -533,7 +546,11 @@ fn a_struct_pattern_shorthand_binding_shadows_a_same_named_function() {
         fn by_closure(v: Vec<Config>) -> Vec<u32> { v.into_iter().map(|Config { root, .. }| root).collect() }
         "#,
     );
-    assert!(references(&parsed).is_empty(), "{:?}", references(&parsed));
+    assert!(
+        value_references(&parsed).is_empty(),
+        "{:?}",
+        value_references(&parsed)
+    );
 }
 
 /// `(to_name, evidence)` of every call, in source order; the evidence's
@@ -684,4 +701,174 @@ fn deeply_nested_use_lists_do_not_overflow_a_small_stack() {
         .unwrap()
         .join()
         .unwrap();
+}
+
+/// Names of the `References` relations `from` (a symbol name) records.
+fn references_from<'a>(parsed: &'a mct_core::ParsedFile, from: &str) -> Vec<&'a str> {
+    let ids: Vec<_> = parsed
+        .symbols
+        .iter()
+        .filter(|s| s.name == from)
+        .map(|s| s.id)
+        .collect();
+    parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::References && ids.contains(&r.from))
+        .map(|r| r.to_name.as_str())
+        .collect()
+}
+
+#[test]
+fn types_used_only_in_type_positions_are_referenced() {
+    let parsed = parse(
+        r#"
+        enum Dimension { Kind }
+        struct Request { post: bool }
+        struct Assessor;
+        enum Unavailable { Missing }
+        type Alias = Holder;
+        const LIMIT: Limit = 0;
+        fn validate(skip: Option<Dimension>) -> Result<Request, Unavailable> {
+            let _kind: Kind = Dimension::Kind;
+            let _assessor = Assessor::new();
+            if skip.is_none() { return Err(Unavailable::Missing); }
+            Ok(Request { post: true })
+        }
+    "#,
+    );
+    let refs = references_from(&parsed, "validate");
+    for name in [
+        "Option",
+        "Dimension",
+        "Result",
+        "Request",
+        "Unavailable",
+        "Kind",
+        "Assessor",
+    ] {
+        assert!(
+            refs.contains(&name),
+            "{name} not referenced by validate: {refs:?}"
+        );
+    }
+    assert!(references_from(&parsed, "Alias").contains(&"Holder"));
+    assert!(references_from(&parsed, "LIMIT").contains(&"Limit"));
+}
+
+#[test]
+fn type_parameters_self_and_module_segments_are_not_type_references() {
+    let parsed = parse(
+        r#"
+        struct Wrapper<T> { inner: T }
+        impl<U: Clone> Wrapper<U> {
+            fn make(value: U) -> Self { Self { inner: value } }
+        }
+        fn pick<F: Fn()>(f: F) -> std::io::Result<()> { f(); Ok(()) }
+    "#,
+    );
+    let all: Vec<&str> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::References)
+        .map(|r| r.to_name.as_str())
+        .collect();
+    for name in ["T", "U", "F", "Self", "std", "io"] {
+        assert!(
+            !all.contains(&name),
+            "{name} recorded as a reference: {all:?}"
+        );
+    }
+    assert!(references_from(&parsed, "pick").contains(&"Result"));
+}
+
+#[test]
+fn a_let_closure_used_as_a_value_is_referenced() {
+    let parsed = parse(
+        r#"
+        fn list(items: Vec<u8>) -> usize {
+            let eligible = |item: &&u8| **item > 0;
+            items.iter().filter(eligible).count()
+        }
+        fn other(eligible: u8) -> u8 { eligible }
+    "#,
+    );
+    assert!(references_from(&parsed, "list").contains(&"eligible"));
+    // A parameter of another function with the same name is that local.
+    assert!(!references_from(&parsed, "other").contains(&"eligible"));
+}
+
+#[test]
+fn path_calls_and_macros_inside_a_macro_token_tree_are_recorded() {
+    // The shapes of `format::semantic_hits(..)` inside `vec![..]` and
+    // `shadowed_module_predicate!()` inside another macro's arguments.
+    let parsed = parse(
+        r#"
+        macro_rules! predicate { () => { "x" } }
+        fn render(hits: &[u8]) -> Vec<String> {
+            let _sql = concat!("a", predicate!(), "b");
+            vec![format::semantic_hits(hits), Error::Validation(1).code()]
+        }
+    "#,
+    );
+    let hit = parsed
+        .relations
+        .iter()
+        .enumerate()
+        .find(|(_, r)| r.kind == RelationKind::References && r.to_name == "semantic_hits");
+    let (index, _) = hit.unwrap_or_else(|| panic!("no reference: {:?}", parsed.relations));
+    let target = parsed.relation_targets.iter().find(|t| t.relation == index);
+    assert_eq!(target.and_then(|t| t.module.as_deref()), Some("format"));
+    assert!(
+        references(&parsed).contains(&"Validation"),
+        "{:?}",
+        references(&parsed)
+    );
+    assert!(parsed
+        .relations
+        .iter()
+        .any(|r| r.kind == RelationKind::Calls && r.to_name == "predicate"));
+}
+
+#[test]
+fn a_path_call_inside_a_macro_keeps_its_module_evidence() {
+    // `other::helper()` inside `println!` must never name this file's
+    // `helper`: it gets the `module` evidence a call outside a macro gets.
+    let parsed = parse("fn helper() {}\nfn f() { println!(\"{}\", other::helper()); }\n");
+    let module: Vec<_> = parsed
+        .relations
+        .iter()
+        .enumerate()
+        .filter(|(_, r)| r.kind == RelationKind::References)
+        .map(|(i, r)| {
+            let t = parsed.relation_targets.iter().find(|t| t.relation == i);
+            (r.to_name.as_str(), t.and_then(|t| t.module.as_deref()))
+        })
+        .collect();
+    assert_eq!(module, vec![("helper", Some("other"))]);
+}
+
+#[test]
+fn a_macro_named_through_a_path_is_a_call_with_module_evidence() {
+    let parsed = parse("fn t() {}\nmct_corpus::standard_tests!(Parser);\n");
+    let hit = parsed
+        .relations
+        .iter()
+        .enumerate()
+        .find(|(_, r)| r.kind == RelationKind::Calls && r.to_name == "standard_tests");
+    let (index, _) = hit.unwrap_or_else(|| panic!("no call: {:?}", parsed.relations));
+    let target = parsed.relation_targets.iter().find(|t| t.relation == index);
+    assert_eq!(target.and_then(|t| t.module.as_deref()), Some("mct_corpus"));
+}
+
+#[test]
+fn a_unit_struct_used_as_a_value_is_referenced() {
+    let parsed = parse(
+        r#"
+        struct Broken;
+        struct Named { x: u8 }
+        fn use_it() { let _v = build(&Broken); }
+    "#,
+    );
+    assert!(references_from(&parsed, "use_it").contains(&"Broken"));
 }
