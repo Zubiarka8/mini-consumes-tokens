@@ -1,6 +1,7 @@
 //! Local read-only views over public index APIs. No directory is served.
 
 mod api;
+mod areas;
 mod assets;
 mod autoreindex;
 mod dead_assessment;
@@ -28,6 +29,8 @@ struct DeadCandidate {
     symbol: usize,
     key: String,
     assessment: dead_assessment::Assessment,
+    /// The group of the project this candidate is listed under (see `areas`).
+    area: String,
     /// What the index knows of a framework possibly loading it (never a
     /// claim that it does); empty for almost every candidate.
     possible_entry_points: Vec<String>,
@@ -529,8 +532,18 @@ fn dead_candidates(
                 &located.kind,
                 located.line,
             ),
+            area: String::new(),
         });
         findings.push(keys);
+    }
+    // The areas depend on where all the candidates are, so they are set last.
+    let paths: Vec<&str> = dead
+        .iter()
+        .map(|candidate| navigation.symbols[candidate.symbol].relative_path.as_str())
+        .collect();
+    let areas = areas::assign(&paths);
+    for (candidate, area) in dead.iter_mut().zip(areas) {
+        candidate.area = area;
     }
     Ok((dead, findings))
 }

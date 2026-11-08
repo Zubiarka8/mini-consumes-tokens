@@ -65,7 +65,10 @@ export interface DuplicateFinding extends Review {
   tokens: number;
   members: Member[];
   /** Files the whole group spans, counted by the server. */
-  fileCount?: number;
+  fileCount: number;
+  /** Locations in the complete group, including any omitted preview members. */
+  memberCount: number;
+  membersOmitted?: number;
   reasons?: string[];
   method?: { normalization?: string };
   analysis?: string;
