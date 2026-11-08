@@ -238,6 +238,10 @@ textarea {
   color: var(--on-primary);
   flex: none;
 }
+.logo-image {
+  background: none;
+  object-fit: contain;
+}
 .nav {
   display: flex;
   flex-direction: column;
