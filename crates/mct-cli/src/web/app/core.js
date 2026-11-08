@@ -272,6 +272,47 @@ export const shortDate = (unix) =>
   new Date(unix * 1000).toLocaleDateString(LOCALE, { day: "numeric", month: "short" });
 export const basename = (path) => path.split("/").pop();
 
+const SYMBOL_ACRONYMS = new Set([
+  "api",
+  "ast",
+  "bfs",
+  "cli",
+  "css",
+  "dfs",
+  "html",
+  "http",
+  "https",
+  "id",
+  "ids",
+  "js",
+  "json",
+  "mcp",
+  "mct",
+  "sql",
+  "ts",
+  "ui",
+  "uri",
+  "url",
+  "xml",
+]);
+
+/** Display words only; exact identifiers remain in API data, paths and AI templates. */
+export function symbolLabel(name) {
+  const words = name
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .trim()
+    .split(/\s+/);
+  return words
+    .map((word, index) => {
+      const lower = word.toLowerCase();
+      if (SYMBOL_ACRONYMS.has(lower)) return word.toUpperCase();
+      return index === 0 ? lower.charAt(0).toUpperCase() + lower.slice(1) : lower;
+    })
+    .join(" ");
+}
+
 /** Splits `text` around case-insensitive `query` matches and wraps them in <mark>. */
 export function highlight(text, query) {
   const source = String(text ?? "");
