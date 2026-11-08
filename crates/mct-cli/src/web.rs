@@ -97,7 +97,9 @@ struct Site {
     dead: Vec<DeadCandidate>,
     references: HashMap<String, usize>,
     reviews: reviews::Reviews,
-    vault: obsidian::Vault,
+    /// Shared with the thread that builds the next snapshot, which reuses its
+    /// unchanged notes.
+    vault: std::sync::Arc<obsidian::Vault>,
     vault_dir: PathBuf,
     /// Duplicate group ids per symbol id, and the dead-code candidate index per symbol id.
     symbol_groups: HashMap<usize, Vec<usize>>,
@@ -113,14 +115,16 @@ struct Site {
 
 impl Site {
     fn load(root: &Path, no_obsidian: bool) -> anyhow::Result<Self> {
-        Self::load_snapshot(root, no_obsidian, || {})
+        Self::load_snapshot(root, no_obsidian, None, || {})
     }
 
     // The callback lets integration tests publish between the navigation query
     // and the remaining queries, without timing-dependent threads or sleeps.
+    // `previous_vault` lets the vault scan reuse notes whose file is unchanged.
     fn load_snapshot(
         root: &Path,
         no_obsidian: bool,
+        previous_vault: Option<&obsidian::Vault>,
         after_navigation: impl FnOnce(),
     ) -> anyhow::Result<Self> {
         let started = Instant::now();
@@ -223,7 +227,7 @@ impl Site {
         let references = index.reference_counts()?;
         drop(snapshot);
         let vault_dir = mct_obsidian::vault_dir(root);
-        let vault = obsidian::scan(&vault_dir);
+        let vault = obsidian::scan(&vault_dir, previous_vault);
         let mut symbol_groups: HashMap<usize, Vec<usize>> = HashMap::new();
         for (id, group) in duplicates.groups.iter().enumerate() {
             for member in &group.members {
@@ -265,7 +269,7 @@ impl Site {
             dead,
             references,
             reviews,
-            vault,
+            vault: std::sync::Arc::new(vault),
             vault_dir,
             symbol_groups,
             dead_by_symbol,
@@ -317,7 +321,7 @@ impl Site {
         // The process that published the new generation also published the
         // vault from its post-reindex hook; doing it again here doubled the
         // work and competed for the writer lock.
-        match Site::load(&self.root, true) {
+        match Site::load_snapshot(&self.root, true, Some(&self.vault), || {}) {
             Ok(fresh) => self.adopt(fresh),
             Err(error) => self.reload_failed(&error, failed),
         }
@@ -356,10 +360,12 @@ impl Site {
             let (send, result) = std::sync::mpsc::channel();
             // As in `reload`: the reindexer already published the vault.
             let root = self.root.clone();
+            let previous = std::sync::Arc::clone(&self.vault);
             let loading = std::thread::Builder::new()
                 .name("snapshot-reload".into())
                 .spawn(move || {
-                    let _ = send.send(Site::load(&root, true).map(Box::new));
+                    let fresh = Site::load_snapshot(&root, true, Some(&previous), || {});
+                    let _ = send.send(fresh.map(Box::new));
                 });
             match loading {
                 Ok(_) => {

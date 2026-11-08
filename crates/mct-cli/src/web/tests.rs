@@ -1755,7 +1755,7 @@ fn gitignore_is_read_and_saved_like_mctignore_and_never_mixed_up_with_it() {
 #[test]
 fn dashboard_snapshot_never_mixes_navigation_and_references_across_reindex() {
     let root = project();
-    let mut site = Site::load_snapshot(root.path(), true, || {
+    let mut site = Site::load_snapshot(root.path(), true, None, || {
         fs::write(
             root.path().join("src/caller.rs"),
             "pub fn caller() { alpha(1); }\n",
