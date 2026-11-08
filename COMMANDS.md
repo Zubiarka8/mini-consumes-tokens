@@ -399,7 +399,7 @@ and recover its `previous` vault if needed. Remove `obsidian.lock` only after
 confirming no generator is active, then regenerate. Evals, corpus and library
 consumers do not register the hook. See [ADR-013](docs/01-architecture/adrs/013-obsidian-vault-location.md).
 
-### `web` / `web --port <port> --no-obsidian`
+### `web` / `web --port <port> --no-obsidian --idle-timeout <minutes>`
 
 Serve the local project dashboard (code atlas, duplicate and dead-code review, search, dependencies, notes):
 
@@ -407,11 +407,19 @@ Serve the local project dashboard (code atlas, duplicate and dead-code review, s
 mct-cli --root . web
 mct-cli --root . web --port 8787
 mct-cli --root . web --no-obsidian
+mct-cli --root . web --idle-timeout 0   # never stop by itself
 ```
 
 The command prints a stable `http://localhost:<port>/` URL with no key in it, so
 it can be bookmarked. Keep the command running; Ctrl-C stops it. No browser opens
 automatically.
+
+**Idle timeout.** The dashboard stops by itself after `--idle-timeout` minutes
+without a request (default 30; `0` turns it off), so a forgotten server does not
+keep its port, file watcher and maintainer lease. An open tab keeps it alive: the
+page polls every 5 s while visible and about once a minute while hidden. Closing
+every tab lets it stop; the OS releases the lease and locks, and SQLite rolls back
+a reindex cut short, as after Ctrl-C.
 
 **Port.** The project root is the current directory unless `--root` is given. The
 port is remembered per project root in `<root>/.mct-index/web-port` (a plain

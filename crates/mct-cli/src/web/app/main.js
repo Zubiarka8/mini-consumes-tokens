@@ -452,8 +452,19 @@ const STATUS_EVERY_MS = 5_000;
 let reloadPending = false;
 // Drawing the page again would discard text being typed (.mctignore, a review note, a search).
 const typing = () => document.activeElement?.matches?.("textarea, input:not([type=radio], [type=checkbox])");
+// A hidden tab still tells the server it is open (`web --idle-timeout`), at
+// most once a minute; browsers throttle hidden timers to about that anyway.
+const KEEPALIVE_MS = 60_000;
+let lastContact = 0;
 async function followStatus() {
-  if (!booted || document.hidden) return;
+  if (!booted) return;
+  if (document.hidden) {
+    if (Date.now() - lastContact < KEEPALIVE_MS) return;
+    lastContact = Date.now();
+    api("meta").catch(() => {});
+    return;
+  }
+  lastContact = Date.now();
   try {
     const before = ctx.meta?.generated;
     ctx.meta = await api("meta");
