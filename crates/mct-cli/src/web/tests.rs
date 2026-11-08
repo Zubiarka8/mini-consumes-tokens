@@ -1777,6 +1777,12 @@ fn mutations_are_refused_for_foreign_hosts_origins_and_missing_csrf() {
     assert!(response.starts_with("HTTP/1.1 421"), "{response}");
 }
 
+#[path = "tests/duplicate_groups.rs"]
+mod duplicate_groups;
+
+#[path = "tests/group_invariants.rs"]
+mod group_invariants;
+
 #[test]
 fn notes_graph_edges_are_pairs_of_node_positions() {
     let root = project();
