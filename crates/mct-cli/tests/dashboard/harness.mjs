@@ -87,7 +87,7 @@ export const finding = {
     { name: 'alpha', path: 'src/same.cpp', start: 1, end: 3, excerpt: ['int alpha() {', ' return 1;', '}'] },
     { name: 'beta', path: 'src/same.cpp', start: 5, end: 7, excerpt: ['int beta() {', ' return 1;', '}'] },
     { name: 'gamma', path: 'other.cpp', start: 9, end: 11, excerpt: ['int gamma() {', ' return 1;', '}'] },
-  ], memberCount: 3,
+  ], memberCount: 3, fileCount: 2,
 };
 export const symbol = { id: 1, name: 'alpha', path: 'same.cpp', line: 1, endLine: 3, kind: 'function', language: 'cpp', refs: 0, duplicateGroups: 0 };
 export const symbolDetail = { symbol, references: [], related: [], duplicates: [], dead: null, notes: [] };

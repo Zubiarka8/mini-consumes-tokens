@@ -50,21 +50,29 @@ describe("duplicate workspace", () => {
     show();
     const bar = screen.getByRole("contentinfo", { name: "rw.statusBar" });
     expect(within(bar).getByRole("heading", { level: 2 })).toBeInTheDocument();
-    expect(bar).toHaveTextContent("dup.meta(files=3,lines=3,tokens=12)");
+    expect(bar).toHaveTextContent("dup.locationsCount(n=3)");
+    expect(bar).toHaveTextContent("dup.filesCount(n=3)");
     expect(bar).toHaveTextContent("rw.matchLegend");
     expect(bar).toHaveTextContent("rw.diffLegend");
   });
 
   test("the bottom bar counts files, not fragments: two copies in one file are one file", () => {
-    const item = duplicate();
+    const item = duplicate({ fileCount: 2 });
     item.members[1] = { ...item.members[1], path: item.members[0].path };
     show(item);
-    expect(screen.getByRole("contentinfo", { name: "rw.statusBar" })).toHaveTextContent("dup.meta(files=2,");
+    expect(screen.getByRole("contentinfo", { name: "rw.statusBar" })).toHaveTextContent("dup.filesCount(n=2)");
   });
 
   test("the bottom bar uses the file count of the whole group when the server sends it", () => {
     show(duplicate({ fileCount: 13 }));
-    expect(screen.getByRole("contentinfo", { name: "rw.statusBar" })).toHaveTextContent("dup.meta(files=13,");
+    expect(screen.getByRole("contentinfo", { name: "rw.statusBar" })).toHaveTextContent("dup.filesCount(n=13)");
+  });
+
+  test("one file containing several locations has a singular file label", () => {
+    show(duplicate({ fileCount: 1 }));
+    const bar = screen.getByRole("contentinfo", { name: "rw.statusBar" });
+    expect(bar).toHaveTextContent("dup.fileCount(n=1)");
+    expect(bar).toHaveTextContent("dup.locationsCount(n=3)");
   });
 
   test("choosing a file in the list or a column header asks the page to select it", async () => {
