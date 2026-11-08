@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use rusqlite::Connection;
 
@@ -677,6 +677,25 @@ pub fn reference_counts(conn: &Connection) -> Result<HashMap<String, usize>> {
         counts.insert(name, count);
     }
     Ok(counts)
+}
+
+/// Every name with at least one reference that is not a function calling
+/// itself — what `find_dead_code` needs to tell "used" from "unused". A
+/// `calls` relation whose target name equals its caller's own name is
+/// recursion and does not count, unless another symbol shares that name:
+/// relations resolve by name, so `fn parse() { inner::parse() }` may be
+/// delegation and is kept. Every other relation kind counts as before (a
+/// Rust `#[test]` attribute is a `references` relation to its own function).
+pub fn referenced_names(conn: &Connection) -> Result<HashSet<String>> {
+    let mut stmt = conn.prepare_cached(
+        "SELECT DISTINCT r.to_name FROM relations r
+         JOIN symbols caller ON caller.id = r.from_symbol_id
+         WHERE r.kind <> 'calls'
+            OR r.to_name <> caller.name
+            OR (SELECT COUNT(*) FROM symbols s WHERE s.name = r.to_name) > 1",
+    )?;
+    let names = stmt.query_map([], |row| row.get::<_, String>(0))?;
+    Ok(names.collect::<rusqlite::Result<_>>()?)
 }
 
 /// `predicate` is a static SQL fragment chosen by the caller (never built from
