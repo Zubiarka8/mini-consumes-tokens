@@ -222,7 +222,9 @@ fn dashboard_serves_static_app_and_a_read_only_json_api() {
     assert!(finding["analysis"].as_str().unwrap().contains("alpha"));
     let dead = server.json("api/findings?type=dead-code&q=beta");
     assert!(["high", "medium", "low"].contains(&dead["items"][0]["confidence"].as_str().unwrap()));
-    assert_eq!(dead["items"][0]["zone"], "source");
+    // A fixture whose files all sit in one place has one area, so the filter has nothing to offer.
+    assert!(dead["items"][0]["area"].is_string());
+    assert_eq!(dead["facets"]["area"].as_array().unwrap().len(), 1);
     assert!(dead["items"][0]["severity"].is_null());
     let dead_detail = server.json(&format!(
         "api/finding?key={}",
