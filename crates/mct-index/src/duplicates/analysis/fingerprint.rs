@@ -198,7 +198,7 @@ pub(super) fn fingerprint(
     // Last line already counted; tokens come in start order, so the covered
     // lines are the union of their spans, counted once each.
     let mut covered_to = 0u32;
-    for (token, keep) in selected.into_iter().zip(keep) {
+    for (position, (token, keep)) in selected.iter().zip(keep).enumerate() {
         if !keep {
             continue;
         }
@@ -224,6 +224,13 @@ pub(super) fn fingerprint(
                 literal: token.kind == TokenKind::Literal,
                 role: token.role,
                 primitive_spelling: token.primitive_spelling,
+                qualified: position
+                    .checked_sub(1)
+                    .and_then(|i| selected.get(i))
+                    .is_some_and(|before| matches!(before.text.as_str(), "::" | "."))
+                    || selected
+                        .get(position + 1)
+                        .is_some_and(|after| after.text == "::"),
                 text: interner.texts.id(&token.text),
                 line: token.line,
             });
