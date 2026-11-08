@@ -177,7 +177,7 @@ pub(super) fn search(site: &Site, params: &Params) -> Value {
         groups.insert(name.into(), group(total, items, limit));
     }
     if wants("obsidian") {
-        let search_bodies = site.vault.notes.len() <= 500;
+        let query_lower = query.to_lowercase();
         let items: Vec<Value> = site
             .vault
             .notes
@@ -186,15 +186,10 @@ pub(super) fn search(site: &Site, params: &Params) -> Value {
                 let in_meta = contains_ci(&note.title, query)
                     || contains_ci(&note.path, query)
                     || note.tags.iter().any(|tag| contains_ci(tag, query));
-                let body_hit = (!in_meta && search_bodies)
-                    .then(|| crate::web::obsidian::read_text(&site.vault_dir.join(&note.path)))
+                let body_hit = (!in_meta)
+                    .then(|| note.body_line(&query_lower))
                     .flatten()
-                    .and_then(|text| {
-                        let (_, body) = crate::web::obsidian::split_frontmatter(&text);
-                        body.lines()
-                            .find(|line| contains_ci(line, query))
-                            .map(|line| line.trim().to_string())
-                    });
+                    .map(str::to_string);
                 (in_meta || body_hit.is_some()).then(|| {
                     json!({ "type": "note", "title": note.title, "path": note.path,
                     "snippet": body_hit.unwrap_or_else(|| note.path.clone()), "tags": note.tags })
