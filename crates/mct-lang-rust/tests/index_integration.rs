@@ -125,14 +125,28 @@ fn find_references_of_log_includes_the_use_import_as_well_as_the_calls() {
 }
 
 #[test]
-fn find_references_of_the_struct_records_the_use_import_from_main() {
+fn find_references_of_the_struct_records_the_use_import_and_its_type_uses() {
     let index = open_indexed();
     let refs = index.find_references("Invoice").unwrap();
+    let found: Vec<_> = refs
+        .iter()
+        .map(|r| {
+            (
+                r.kind.as_str(),
+                r.relative_path.as_str(),
+                r.from_symbol.as_str(),
+            )
+        })
+        .collect();
+    // `use invoice::Invoice;`, the `Invoice { .. }` literal in `new` and the
+    // `Invoice::new()` path in `main`.
     assert_eq!(
-        refs.len(),
-        1,
-        "`use invoice::Invoice;` in main.rs: {refs:?}"
+        found,
+        vec![
+            ("references", "invoice.rs", "new"),
+            ("imports", "main.rs", "main"),
+            ("references", "main.rs", "main"),
+        ],
+        "{refs:?}"
     );
-    assert_eq!(refs[0].kind, "imports");
-    assert_eq!(refs[0].relative_path, "main.rs");
 }

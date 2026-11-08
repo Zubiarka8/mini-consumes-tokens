@@ -1,4 +1,4 @@
-# language=javascript_typescript files=7 symbols=274 relations=697 name_matched_across_files=138
+# language=javascript_typescript files=7 symbols=274 relations=999 name_matched_across_files=191
 
 == scripts/seed.cjs (302 lines)
 S 1-302 module seed
@@ -153,7 +153,15 @@ R 3:55 imports client -> OrderEvent (name-matched: src/order.ts)
 R 3:67 imports client -> asOrderId (name-matched: src/order.ts)
 R 4:1 imports client -> order
 R 4:15 imports client -> OrderId (name-matched: src/order.ts)
+R 18:12 references client -> Record
 R 21:31 extends ApiError -> Error
+R 23:23 references ApiError::constructor -> Problem
+R 46:16 references client -> Promise
+R 59:34 references PlaceOrderResponse -> OrderJson (name-matched: src/order.ts)
+R 60:42 references PlaceOrderResponse -> OrderJson (name-matched: src/order.ts)
+R 61:36 references PlaceOrderResponse -> Problem
+R 71:44 references sleep -> AbortSignal
+R 71:58 references sleep -> Promise
 R 72:14 calls sleep -> Promise
 R 73:19 calls sleep -> setTimeout
 R 74:13 calls sleep -> addEventListener
@@ -163,9 +171,12 @@ R 92:60 calls RateLimiter::constructor -> now
 R 95:18 calls RateLimiter::constructor -> now
 R 99:20 calls RateLimiter::#refill -> now
 R 100:25 calls RateLimiter::#refill -> min
+R 104:17 references RateLimiter::take -> Promise
 R 105:10 calls RateLimiter::take -> #refill
 R 107:13 calls RateLimiter::take -> sleep
 R 108:12 calls RateLimiter::take -> #refill
+R 115:41 references withTimeout -> Promise
+R 115:84 references withTimeout -> Promise
 R 116:18 calls withTimeout -> race
 R 118:9 calls withTimeout -> Promise
 R 118:39 calls withTimeout -> setTimeout
@@ -174,7 +185,18 @@ R 118:67 calls withTimeout -> Error
 R 124:22 calls backoff -> floor
 R 124:33 calls backoff -> random
 R 127:41 implements WarehouseClient -> ExchangeRates (name-matched: src/money.ts)
+R 128:22 references client -> Required
+R 128:31 references client -> Omit
+R 128:36 references client -> ClientOptions
+R 128:67 references client -> Pick
+R 128:72 references client -> ClientOptions
+R 129:11 references client -> Partial
+R 129:19 references client -> Record
+R 129:26 references client -> Currency (name-matched: src/money.ts)
+R 131:24 references WarehouseClient::constructor -> ClientOptions
 R 132:47 calls WarehouseClient::constructor -> bind
+R 139:76 references WarehouseClient::#request -> AbortSignal
+R 139:90 references WarehouseClient::#request -> Promise
 R 140:30 calls WarehouseClient::#request -> randomUUID
 R 141:19 calls WarehouseClient::#request -> onRequest
 R 143:44 calls WarehouseClient::#request -> fetch
@@ -183,41 +205,83 @@ R 152:53 calls WarehouseClient::#request -> stringify
 R 155:78 calls WarehouseClient::#request -> json
 R 157:46 calls WarehouseClient::#request -> catch
 R 157:39 calls WarehouseClient::#request -> json
+R 157:142 references WarehouseClient::#request -> Problem
 R 158:25 calls WarehouseClient::#request -> ApiError
 R 162:26 calls WarehouseClient::#request -> Number
 R 162:50 calls WarehouseClient::#request -> get
 R 163:13 calls WarehouseClient::#request -> sleep
 R 163:56 calls WarehouseClient::#request -> backoff
+R 167:33 references WarehouseClient::get -> AbortSignal
+R 167:47 references WarehouseClient::get -> Promise
 R 168:17 calls WarehouseClient::get -> #request
+R 171:41 references WarehouseClient::post -> Promise
 R 172:17 calls WarehouseClient::post -> #request
+R 179:29 references WarehouseClient::placeOrder -> PlaceOrderRequest
+R 179:49 references WarehouseClient::placeOrder -> Promise
+R 179:57 references WarehouseClient::placeOrder -> PlaceOrderResponse
+R 181:37 references WarehouseClient::placeOrder -> OrderJson (name-matched: src/order.ts)
+R 191:32 references WarehouseClient::order -> Promise
+R 191:40 references WarehouseClient::order -> Order (name-matched: src/order.ts)
 R 192:18 calls WarehouseClient::order -> fromJSON (name-matched: src/money.ts)
+R 192:42 references WarehouseClient::order -> OrderJson (name-matched: src/order.ts)
 R 192:64 calls WarehouseClient::order -> encodeURIComponent
+R 195:49 references WarehouseClient::cancel -> Promise
 R 196:16 calls WarehouseClient::cancel -> post
 R 196:32 calls WarehouseClient::cancel -> encodeURIComponent
+R 199:67 references WarehouseClient::approve -> Promise
+R 199:75 references WarehouseClient::approve -> OrderJson (name-matched: src/order.ts)
 R 200:17 calls WarehouseClient::approve -> post
+R 200:22 references WarehouseClient::approve -> OrderJson (name-matched: src/order.ts)
 R 200:44 calls WarehouseClient::approve -> encodeURIComponent
+R 204:30 references WarehouseClient::orders -> AsyncGenerator
+R 204:45 references WarehouseClient::orders -> Order (name-matched: src/order.ts)
 R 207:25 calls WarehouseClient::orders -> URLSearchParams
 R 207:50 calls WarehouseClient::orders -> String
+R 208:35 references WarehouseClient::orders -> Page
+R 208:40 references WarehouseClient::orders -> OrderJson (name-matched: src/order.ts)
 R 210:21 calls WarehouseClient::orders -> fromJSON (name-matched: src/money.ts)
+R 217:19 references WarehouseClient::events -> OrderId (name-matched: src/order.ts)
 R 218:24 calls WarehouseClient::events -> EventSource
 R 220:26 calls WarehouseClient::events -> parse (name-matched: src/money.ts)
+R 220:49 references WarehouseClient::events -> OrderEvent (name-matched: src/order.ts)
 R 221:7 calls WarehouseClient::events -> onEvent (name-matched: src/order.ts)
 R 221:15 calls WarehouseClient::events -> describeEvent
 R 223:25 calls WarehouseClient::events -> close (name-matched: src/ui/PickBoard.jsx)
+R 230:35 references WarehouseClient::stock -> Promise
+R 230:43 references WarehouseClient::stock -> Map
+R 230:55 references WarehouseClient::stock -> StockJson
 R 231:67 calls WarehouseClient::stock -> join
 R 231:24 calls WarehouseClient::stock -> map
 R 231:42 calls WarehouseClient::stock -> encodeURIComponent
+R 232:33 references WarehouseClient::stock -> StockJson
 R 233:16 calls WarehouseClient::stock -> Map
 R 233:25 calls WarehouseClient::stock -> map
+R 236:29 references WarehouseClient::price -> Promise
+R 236:37 references WarehouseClient::price -> Money (name-matched: src/money.ts)
+R 237:42 references WarehouseClient::price -> MoneyJson (name-matched: src/money.ts)
 R 237:68 calls WarehouseClient::price -> encodeURIComponent
 R 238:18 calls WarehouseClient::price -> fromJSON (name-matched: src/money.ts)
+R 241:25 references WarehouseClient::refreshRates -> Promise
+R 242:34 references WarehouseClient::refreshRates -> Record
+R 246:14 references WarehouseClient::rate -> Currency (name-matched: src/money.ts)
+R 246:28 references WarehouseClient::rate -> Currency (name-matched: src/money.ts)
 R 250:17 calls WarehouseClient::rate -> Error
+R 262:11 references waitUntilShipped -> WarehouseClient
+R 264:68 references waitUntilShipped -> AbortSignal
+R 265:4 references waitUntilShipped -> Promise
+R 265:12 references waitUntilShipped -> Order (name-matched: src/order.ts)
 R 267:32 calls waitUntilShipped -> order
 R 268:46 calls waitUntilShipped -> includes
 R 271:11 calls waitUntilShipped -> sleep
+R 276:40 references snapshot -> WarehouseClient
+R 276:58 references snapshot -> Promise
+R 276:66 references snapshot -> Map
+R 276:78 references snapshot -> Order (name-matched: src/order.ts)
 R 277:19 calls snapshot -> Map
+R 277:31 references snapshot -> Order (name-matched: src/order.ts)
 R 278:36 calls snapshot -> orders
 R 279:9 calls snapshot -> set
+R 285:45 references validatePlaceOrder -> PlaceOrderRequest
 R 287:27 calls validatePlaceOrder -> trim
 R 287:42 calls validatePlaceOrder -> push
 R 288:42 calls validatePlaceOrder -> push
@@ -225,6 +289,7 @@ R 289:17 calls validatePlaceOrder -> forEach
 R 290:23 calls validatePlaceOrder -> test
 R 290:46 calls validatePlaceOrder -> push
 R 291:36 calls validatePlaceOrder -> push
+R 296:63 references createClient -> WarehouseClient
 R 297:14 calls createClient -> WarehouseClient
 R 300:10 references client -> asOrderId (name-matched: src/order.ts)
 
@@ -282,16 +347,26 @@ R 2:1 imports inventory -> client (name-matched: src/api/client.ts)
 R 2:10 imports inventory -> WarehouseClient (name-matched: src/api/client.ts)
 R 2:27 imports inventory -> ApiError (name-matched: src/api/client.ts)
 R 2:37 imports inventory -> sleep (name-matched: src/api/client.ts)
+R 16:46 references parseLocation -> Location
 R 17:52 calls parseLocation -> exec
 R 19:15 calls parseLocation -> Error
 R 22:25 calls parseLocation -> Number
 R 22:47 calls parseLocation -> Number
+R 25:56 references formatLocation -> Location
 R 26:35 calls formatLocation -> padStart
 R 26:21 calls formatLocation -> String
+R 29:37 references compareLocations -> Location
+R 29:50 references compareLocations -> Location
 R 30:10 calls compareLocations -> localeCompare
+R 33:41 references pickingRoute -> Location
+R 33:54 references pickingRoute -> Location
 R 34:25 calls pickingRoute -> sort
 R 35:28 calls pickingRoute -> localeCompare
+R 43:13 references inventory -> Location
+R 48:34 references available -> StockLevel
 R 50:38 extends OutOfStockError -> Error
+R 69:24 references inventory -> Promise
+R 69:32 references inventory -> StockLevel
 R 77:33 calls Observable::subscribe -> get
 R 79:17 calls Observable::subscribe -> Set
 R 80:25 calls Observable::subscribe -> set
@@ -301,7 +376,11 @@ R 87:33 calls Observable::notify -> forEach
 R 87:23 calls Observable::notify -> get
 R 87:55 calls Observable::notify -> callback
 R 93:33 extends StockCache -> Observable
+R 99:30 references StockCache::constructor -> StockSource
+R 106:21 references StockCache::get -> StockLevel
 R 107:25 calls StockCache::get -> get
+R 110:30 references StockCache::levels -> Promise
+R 110:38 references StockCache::levels -> StockLevel
 R 111:37 calls StockCache::levels -> get
 R 112:40 calls StockCache::levels -> now
 R 113:27 calls StockCache::levels -> get
@@ -311,38 +390,68 @@ R 117:29 calls StockCache::levels -> levels
 R 117:70 calls StockCache::levels -> delete
 R 118:22 calls StockCache::levels -> set
 R 121:10 calls StockCache::levels -> #store
+R 125:33 references StockCache::available -> Promise
 R 126:31 calls StockCache::available -> levels
 R 127:19 calls StockCache::available -> reduce
 R 127:52 calls StockCache::available -> available
+R 131:31 references StockCache::check -> Line (name-matched: src/order.ts)
+R 131:40 references StockCache::check -> Promise
+R 131:48 references StockCache::check -> OutOfStockError
 R 132:35 calls StockCache::check -> all
 R 133:13 calls StockCache::check -> map
 R 134:33 calls StockCache::check -> available
 R 135:43 calls StockCache::check -> OutOfStockError
 R 138:20 calls StockCache::check -> filter
+R 138:37 references StockCache::check -> OutOfStockError
 R 143:22 calls StockCache::invalidate -> clear
 R 146:20 calls StockCache::invalidate -> delete
+R 149:31 references StockCache::#store -> StockLevel
 R 150:18 calls StockCache::#store -> set
 R 151:20 calls StockCache::#store -> set
 R 151:34 calls StockCache::#store -> now
 R 152:10 calls StockCache::#store -> notify
+R 157:41 references httpStockSource -> WarehouseClient (name-matched: src/api/client.ts)
+R 157:59 references httpStockSource -> StockSource
 R 161:19 calls levels -> encodeURIComponent
 R 163:19 calls levels -> map
 R 163:50 calls levels -> parseLocation
+R 174:13 references inventory -> Location
+R 180:35 references difference -> CycleCount
+R 182:38 references describeCount -> CycleCount
 R 183:16 calls describeCount -> difference
 R 184:36 calls describeCount -> formatLocation
+R 191:44 references partitionForReview -> CycleCount
+R 191:75 references partitionForReview -> CycleCount
+R 191:89 references partitionForReview -> CycleCount
+R 192:17 references partitionForReview -> CycleCount
+R 193:15 references partitionForReview -> CycleCount
 R 195:25 calls partitionForReview -> difference
 R 196:78 calls partitionForReview -> push
 R 196:11 calls partitionForReview -> abs
 R 196:15 calls partitionForReview -> difference
+R 202:42 references postCounts -> WarehouseClient (name-matched: src/api/client.ts)
+R 202:66 references postCounts -> StockCache
+R 202:86 references postCounts -> CycleCount
+R 202:101 references postCounts -> Promise
 R 207:22 calls postCounts -> post (name-matched: src/api/client.ts)
 R 207:37 calls postCounts -> encodeURIComponent
 R 208:21 calls postCounts -> formatLocation
 R 213:15 calls postCounts -> invalidate
 R 217:15 calls postCounts -> sleep (name-matched: src/api/client.ts)
+R 230:12 references inventory -> OrderId (name-matched: src/order.ts)
+R 232:13 references inventory -> Location
+R 234:14 references inventory -> Date
+R 237:44 references expiringSoon -> Reservation
 R 237:87 calls expiringSoon -> Date
+R 237:96 references expiringSoon -> Reservation
 R 238:23 calls expiringSoon -> filter
 R 238:49 calls expiringSoon -> getTime
 R 238:65 calls expiringSoon -> getTime
+R 248:13 references inventory -> Location
+R 258:22 references inventory -> OutOfStockError
+R 260:40 references PickListBuilder::constructor -> Map
+R 260:52 references PickListBuilder::constructor -> StockLevel
+R 262:14 references PickListBuilder::add -> Order (name-matched: src/order.ts)
 R 264:27 calls PickListBuilder::add -> #bestLocation
 R 266:27 calls PickListBuilder::add -> max (name-matched: src/money.ts)
 R 266:71 calls PickListBuilder::add -> map
@@ -352,23 +461,34 @@ R 267:32 calls PickListBuilder::add -> OutOfStockError
 R 271:33 calls PickListBuilder::add -> get
 R 272:13 calls PickListBuilder::add -> push
 R 273:19 calls PickListBuilder::add -> set
+R 278:49 references PickListBuilder::#bestLocation -> StockLevel
 R 281:8 calls PickListBuilder::#bestLocation -> sort
 R 280:8 calls PickListBuilder::#bestLocation -> filter
 R 279:25 calls PickListBuilder::#bestLocation -> get
 R 280:26 calls PickListBuilder::#bestLocation -> available
 R 281:23 calls PickListBuilder::#bestLocation -> available
 R 281:38 calls PickListBuilder::#bestLocation -> available
+R 284:22 references PickListBuilder::build -> Map
+R 284:34 references PickListBuilder::build -> PickTask
+R 284:56 references PickListBuilder::build -> OutOfStockError
 R 285:24 calls PickListBuilder::build -> Map
+R 285:36 references PickListBuilder::build -> PickTask
 R 287:21 calls PickListBuilder::build -> pickingRoute
 R 287:40 calls PickListBuilder::build -> map
 R 288:14 calls PickListBuilder::build -> set
 R 288:30 calls PickListBuilder::build -> flatMap
 R 288:53 calls PickListBuilder::build -> filter
 R 288:67 calls PickListBuilder::build -> compareLocations
+R 295:35 references splitLines -> Order (name-matched: src/order.ts)
+R 295:50 references splitLines -> Map
+R 295:62 references splitLines -> StockLevel
+R 295:78 references splitLines -> Line (name-matched: src/order.ts)
 R 296:22 calls splitLines -> filter
 R 297:23 calls splitLines -> max (name-matched: src/money.ts)
 R 297:62 calls splitLines -> map
 R 297:41 calls splitLines -> get
+R 266:75 references PickListBuilder::add -> available
+R 297:66 references splitLines -> available
 
 == src/money.ts (333 lines)
 S 1-333 module money
@@ -430,27 +550,49 @@ S 317-319 function auditLine
 S 322-333 module Legacy
 S 323-325 function fromCents
 S 327-332 function toCents
+R 15:21 references money -> Readonly
+R 15:30 references money -> Record
+R 15:37 references money -> Currency
+R 22:53 references MoneyJson -> Currency
 R 32:44 extends CurrencyMismatchError -> Error
+R 33:22 references money -> Currency
+R 34:20 references money -> Currency
+R 36:25 references CurrencyMismatchError::constructor -> Currency
+R 36:43 references CurrencyMismatchError::constructor -> Currency
 R 45:39 extends MoneyFormatError -> Error
 R 52:24 calls money -> Map
+R 52:41 references money -> NumberFormat
+R 54:49 references formatterFor -> Currency
+R 54:65 references formatterFor -> NumberFormat
 R 56:30 calls formatterFor -> get (name-matched: src/api/client.ts)
 R 58:26 calls formatterFor -> NumberFormat
 R 59:16 calls formatterFor -> set
 R 66:22 calls roundHalfEven -> floor
+R 73:44 references round -> RoundingMode
 R 76:14 calls round -> roundHalfEven
 R 78:19 calls round -> round
 R 80:19 calls round -> trunc
 R 84:31 implements Money -> Comparable
+R 86:22 references money -> Currency
+R 88:48 references Money::constructor -> Currency
 R 89:17 calls Money::constructor -> isSafeInteger
 R 90:17 calls Money::constructor -> RangeError
+R 100:43 references Money::ofMinor -> Currency
+R 100:54 references Money::ofMinor -> Money
 R 101:16 calls Money::ofMinor -> Money
+R 104:48 references Money::of -> Currency
+R 104:64 references Money::of -> RoundingMode
+R 104:93 references Money::of -> Money
 R 105:48 calls Money::of -> Number
 R 106:16 calls Money::of -> isNaN
 R 107:17 calls Money::of -> MoneyFormatError
 R 107:34 calls Money::of -> String
 R 109:16 calls Money::of -> Money
 R 109:22 calls Money::of -> round
+R 112:25 references Money::zero -> Currency
+R 112:36 references Money::zero -> Money
 R 113:18 calls Money::zero -> ofMinor
+R 117:31 references Money::parse -> Money
 R 118:31 calls Money::parse -> split
 R 118:24 calls Money::parse -> trim
 R 120:17 calls Money::parse -> MoneyFormatError
@@ -458,20 +600,32 @@ R 123:41 calls Money::parse -> test
 R 124:10 calls Money::parse -> isCurrency
 R 125:17 calls Money::parse -> MoneyFormatError
 R 127:18 calls Money::parse -> of
+R 130:25 references Money::fromJSON -> MoneyJson
+R 130:37 references Money::fromJSON -> Money
 R 131:18 calls Money::fromJSON -> of
+R 158:15 references Money::plus -> Money
+R 158:23 references Money::plus -> Money
 R 159:10 calls Money::plus -> #requireSameCurrency
 R 160:16 calls Money::plus -> Money
+R 163:16 references Money::minus -> Money
+R 163:24 references Money::minus -> Money
 R 164:10 calls Money::minus -> #requireSameCurrency
 R 165:16 calls Money::minus -> Money
+R 168:31 references Money::times -> RoundingMode
+R 168:60 references Money::times -> Money
 R 169:16 calls Money::times -> Money
 R 169:22 calls Money::times -> round
+R 172:13 references Money::negate -> Money
 R 173:16 calls Money::negate -> Money
+R 176:26 references Money::percent -> Money
 R 177:17 calls Money::percent -> times
+R 181:25 references Money::split -> Money
 R 182:31 calls Money::split -> isInteger
 R 183:17 calls Money::split -> RangeError
 R 185:24 calls Money::split -> trunc
 R 187:18 calls Money::split -> from
 R 188:13 calls Money::split -> ofMinor
+R 193:35 references Money::allocate -> Money
 R 194:27 calls Money::allocate -> reduce
 R 195:31 calls Money::allocate -> some
 R 196:17 calls Money::allocate -> RangeError
@@ -480,42 +634,77 @@ R 198:44 calls Money::allocate -> trunc
 R 199:41 calls Money::allocate -> reduce
 R 204:19 calls Money::allocate -> map
 R 204:40 calls Money::allocate -> ofMinor
+R 207:31 references Money::#requireSameCurrency -> Money
 R 209:17 calls Money::#requireSameCurrency -> CurrencyMismatchError
+R 217:20 references Money::compareTo -> Money
 R 218:10 calls Money::compareTo -> #requireSameCurrency
 R 219:17 calls Money::compareTo -> sign
+R 222:17 references Money::equals -> Money
+R 226:14 references Money::max -> Money
+R 226:22 references Money::max -> Money
 R 227:17 calls Money::max -> compareTo
 R 231:48 calls Money::format -> format
 R 231:12 calls Money::format -> formatterFor
+R 234:13 references Money::toJSON -> MoneyJson
 R 235:34 calls Money::toJSON -> toFixed
 R 239:27 calls Money::toString -> toFixed
+R 247:51 references isCurrency -> Currency
 R 248:48 calls isCurrency -> includes
 R 248:18 calls isCurrency -> values
+R 252:39 references sum -> Money
+R 252:58 references sum -> Currency
+R 252:69 references sum -> Money
 R 253:11 calls sum -> reduce
 R 253:34 calls sum -> plus
 R 253:49 calls sum -> zero
+R 255:41 references maxOf -> Money
+R 255:51 references maxOf -> Money
 R 256:11 calls maxOf -> reduce
+R 256:18 references maxOf -> Money
 R 256:81 calls maxOf -> max
+R 258:26 references vat -> Money
+R 258:55 references vat -> Money
 R 259:14 calls vat -> percent
+R 262:28 references gross -> Money
+R 262:57 references gross -> Money
 R 263:14 calls gross -> plus
 R 263:19 calls gross -> vat
+R 267:47 references distributeDiscount -> Money
+R 267:66 references distributeDiscount -> Money
+R 267:74 references distributeDiscount -> Money
 R 269:19 calls distributeDiscount -> allocate
 R 269:41 calls distributeDiscount -> map
+R 275:19 references MoneyRange::constructor -> Money
+R 276:19 references MoneyRange::constructor -> Money
 R 278:13 calls MoneyRange::constructor -> compareTo
 R 279:17 calls MoneyRange::constructor -> RangeError
+R 283:19 references MoneyRange::contains -> Money
 R 284:18 calls MoneyRange::contains -> compareTo
 R 284:52 calls MoneyRange::contains -> compareTo
+R 287:16 references MoneyRange::width -> Money
 R 288:21 calls MoneyRange::width -> minus
+R 291:31 references MoneyRange::parse -> MoneyRange
 R 292:41 calls MoneyRange::parse -> map
 R 292:29 calls MoneyRange::parse -> split
 R 292:61 calls MoneyRange::parse -> parse
 R 293:16 calls MoneyRange::parse -> MoneyRange
+R 299:14 references money -> Currency
+R 299:28 references money -> Currency
+R 302:29 references money -> ExchangeRates
 R 305:17 calls rate -> Error
+R 311:33 references convert -> Money
+R 311:44 references convert -> Currency
+R 311:61 references convert -> ExchangeRates
+R 311:77 references convert -> Money
 R 313:16 calls convert -> of
 R 313:41 calls convert -> rate
+R 317:54 references auditLine -> Money
 R 318:61 calls auditLine -> join
 R 318:31 calls auditLine -> map
 R 318:44 calls auditLine -> format
+R 323:45 references fromCents -> Money
 R 324:18 calls fromCents -> ofMinor
+R 327:34 references toCents -> Money
 R 329:17 calls toCents -> CurrencyMismatchError
 
 == src/order.ts (311 lines)
@@ -582,15 +771,53 @@ R 2:1 imports order -> money (name-matched: src/money.ts)
 R 2:15 imports order -> MoneyJson (name-matched: src/money.ts)
 R 3:1 imports order -> clock
 R 3:8 imports order -> clock
+R 13:43 references asOrderId -> OrderId
+R 13:63 references asOrderId -> OrderId
+R 25:13 references order -> Record
+R 25:20 references order -> State
+R 25:36 references order -> State
+R 35:33 references canMoveTo -> State
+R 35:44 references canMoveTo -> State
 R 36:21 calls canMoveTo -> includes
+R 39:35 references isTerminal -> State
+R 47:23 references order -> Money (name-matched: src/money.ts)
+R 54:14 references order -> MoneyJson (name-matched: src/money.ts)
+R 57:32 references subtotal -> Line
+R 57:39 references subtotal -> Money (name-matched: src/money.ts)
 R 57:63 calls subtotal -> times (name-matched: src/money.ts)
+R 64:21 references order -> OrderId
+R 65:16 references order -> Date
 R 68:33 extends Placed -> EventBase
+R 71:28 references order -> Line
 R 74:35 extends Reserved -> EventBase
 R 79:31 extends Paid -> EventBase
+R 82:20 references order -> Money (name-matched: src/money.ts)
 R 85:34 extends Shipped -> EventBase
 R 91:36 extends Cancelled -> EventBase
+R 96:26 references OrderEvent -> Placed
+R 96:35 references OrderEvent -> Reserved
+R 96:46 references OrderEvent -> Paid
+R 96:53 references OrderEvent -> Shipped
+R 96:63 references OrderEvent -> Cancelled
+R 98:57 references EventOfType -> Extract
+R 98:65 references EventOfType -> OrderEvent
+R 100:62 references isEvent -> OrderEvent
+R 100:93 references isEvent -> EventOfType
+R 104:33 references describe -> OrderEvent
 R 111:35 calls describe -> toString (name-matched: src/money.ts)
 R 123:45 extends IllegalTransitionError -> Error
+R 125:20 references IllegalTransitionError::constructor -> State
+R 126:18 references IllegalTransitionError::constructor -> State
+R 136:25 references Listener -> OrderEvent
+R 139:11 references order -> State
+R 140:20 references order -> Line
+R 141:22 references order -> OrderEvent
+R 142:15 references order -> Listener
+R 146:18 references Order::constructor -> OrderId
+R 149:24 references Order::constructor -> Currency (name-matched: src/money.ts)
+R 152:62 references Order::place -> Currency (name-matched: src/money.ts)
+R 152:79 references Order::place -> Line
+R 152:88 references Order::place -> Order
 R 154:17 calls Order::place -> Error
 R 156:23 calls Order::place -> Order
 R 156:29 calls Order::place -> asOrderId
@@ -599,53 +826,86 @@ R 157:11 calls Order::place -> forEach
 R 157:35 calls Order::place -> #addLine
 R 158:11 calls Order::place -> #record
 R 158:66 calls Order::place -> now
+R 162:25 references Order::fromJSON -> OrderJson
+R 162:37 references Order::fromJSON -> Order
 R 163:23 calls Order::fromJSON -> Order
 R 163:29 calls Order::fromJSON -> asOrderId
 R 164:16 calls Order::fromJSON -> forEach
 R 165:13 calls Order::fromJSON -> #addLine
 R 165:93 calls Order::fromJSON -> fromJSON
+R 171:16 references Order::state -> State
+R 175:25 references Order::lines -> Line
+R 179:16 references Order::total -> Money (name-matched: src/money.ts)
 R 180:12 calls Order::total -> sum (name-matched: src/money.ts)
 R 180:28 calls Order::total -> map
+R 183:22 references Order::isLarge -> Money (name-matched: src/money.ts)
 R 184:23 calls Order::isLarge -> compareTo (name-matched: src/money.ts)
+R 191:38 references Order::reserve -> Reserved
 R 192:10 calls Order::reserve -> #moveTo
 R 193:17 calls Order::reserve -> #record
 R 193:73 calls Order::reserve -> now
+R 196:34 references Order::pay -> Money (name-matched: src/money.ts)
+R 196:42 references Order::pay -> Paid
 R 197:17 calls Order::pay -> equals (name-matched: src/money.ts)
 R 198:17 calls Order::pay -> Error
 R 200:10 calls Order::pay -> #moveTo
 R 201:17 calls Order::pay -> #record
 R 201:69 calls Order::pay -> now
+R 204:50 references Order::ship -> Shipped
 R 205:10 calls Order::ship -> #moveTo
 R 207:17 calls Order::ship -> #record
 R 207:72 calls Order::ship -> now
+R 210:27 references Order::cancel -> Cancelled
 R 211:10 calls Order::cancel -> #moveTo
 R 212:17 calls Order::cancel -> #record
 R 212:74 calls Order::cancel -> now
+R 215:21 references Order::onEvent -> Listener
 R 216:21 calls Order::onEvent -> push
 R 218:41 calls Order::onEvent -> filter
+R 222:18 references Order::drainEvents -> OrderEvent
 R 223:26 calls Order::drainEvents -> splice
+R 226:19 references Order::#moveTo -> State
 R 227:10 calls Order::#moveTo -> canMoveTo
 R 228:17 calls Order::#moveTo -> IllegalTransitionError
 R 234:19 calls Order::#record -> push
 R 235:21 calls Order::#record -> forEach
 R 235:43 calls Order::#record -> listener
+R 239:18 references Order::#addLine -> Line
 R 241:17 calls Order::#addLine -> CurrencyMismatchError (name-matched: src/money.ts)
 R 243:17 calls Order::#addLine -> push
+R 246:13 references Order::toJSON -> OrderJson
 R 253:26 calls Order::toJSON -> map
 R 253:69 calls Order::toJSON -> toJSON
+R 262:13 references order -> Currency (name-matched: src/money.ts)
+R 263:10 references order -> State
+R 264:10 references order -> LineJson
+R 271:38 references countByState -> Iterable
+R 271:47 references countByState -> Order
+R 271:56 references countByState -> Map
+R 271:60 references countByState -> State
 R 272:22 calls countByState -> Map
+R 272:26 references countByState -> State
 R 274:12 calls countByState -> set
 R 274:37 calls countByState -> get (name-matched: src/api/client.ts)
+R 279:42 references largest -> Order
+R 279:63 references largest -> Order
 R 280:65 calls largest -> slice
 R 280:22 calls largest -> sort
 R 280:45 calls largest -> compareTo (name-matched: src/money.ts)
+R 284:48 references stalePayments -> Order
+R 284:71 references stalePayments -> Order
+R 284:81 references stalePayments -> Date
+R 284:107 references stalePayments -> Order
 R 285:27 calls stalePayments -> getTime
 R 285:21 calls stalePayments -> now
+R 286:33 references waitedMinutes -> Order
 R 287:35 calls waitedMinutes -> getTime
 R 287:19 calls waitedMinutes -> placedAt
 R 289:17 calls stalePayments -> filter
 R 289:61 calls stalePayments -> waitedMinutes
+R 293:63 references pages -> Generator
 R 295:17 calls pages -> slice
+R 300:36 references packingSlip -> Order
 R 301:26 calls rule -> repeat
 R 302:53 calls row -> padEnd
 R 303:16 calls packingSlip -> rule
@@ -661,6 +921,7 @@ R 307:20 calls packingSlip -> row
 R 307:45 calls packingSlip -> format (name-matched: src/money.ts)
 R 308:14 calls packingSlip -> join
 R 311:16 references order -> Order
+R 180:32 references Order::total -> subtotal
 
 == src/ui/OrderTable.tsx (308 lines)
 S 1-308 module OrderTable
@@ -710,16 +971,32 @@ R 6:22 imports OrderTable -> httpStockSource (name-matched: src/inventory.ts)
 R 6:39 imports OrderTable -> describeCount (name-matched: src/inventory.ts)
 R 6:54 imports OrderTable -> pickingRoute (name-matched: src/inventory.ts)
 R 6:68 imports OrderTable -> parseLocation (name-matched: src/inventory.ts)
+R 17:10 references OrderTable -> State (name-matched: src/order.ts)
+R 23:31 references Action -> Order (name-matched: src/order.ts)
+R 27:26 references Action -> SortKey
+R 30:11 references OrderTable -> Order (name-matched: src/order.ts)
+R 33:13 references OrderTable -> Set
+R 34:12 references OrderTable -> SortKey
+R 38:21 references OrderTable -> TableState
 R 41:17 calls OrderTable -> Set
+R 46:32 references reducer -> TableState
+R 46:52 references reducer -> Action
+R 46:61 references reducer -> TableState
 R 53:28 calls reducer -> Set
 R 54:20 calls reducer -> has
 R 55:18 calls reducer -> delete
 R 57:18 calls reducer -> add (name-matched: src/inventory.ts)
 R 62:40 calls reducer -> Set
 R 72:27 calls OrderTable -> of (name-matched: src/money.ts)
+R 74:25 references compareBy -> SortKey
+R 74:39 references compareBy -> Order (name-matched: src/order.ts)
+R 74:49 references compareBy -> Order (name-matched: src/order.ts)
 R 77:33 calls compareBy -> localeCompare
 R 79:32 calls compareBy -> compareTo (name-matched: src/money.ts)
 R 81:32 calls compareBy -> localeCompare
+R 85:38 references applyFilters -> Order (name-matched: src/order.ts)
+R 85:56 references applyFilters -> Filters
+R 85:66 references applyFilters -> Order (name-matched: src/order.ts)
 R 86:38 calls applyFilters -> toLowerCase
 R 86:31 calls applyFilters -> trim
 R 87:17 calls applyFilters -> filter
@@ -728,8 +1005,10 @@ R 91:41 calls applyFilters -> includes
 R 91:27 calls applyFilters -> toLowerCase
 R 91:87 calls applyFilters -> includes
 R 91:73 calls applyFilters -> toLowerCase
+R 99:35 references useOrders -> WarehouseClient (name-matched: src/api/client.ts)
 R 100:29 calls useOrders -> useReducer
 R 102:18 calls useOrders -> useCallback
+R 104:21 references useOrders -> Order (name-matched: src/order.ts)
 R 105:40 calls useOrders -> orders (name-matched: src/api/client.ts)
 R 106:16 calls useOrders -> push
 R 108:7 calls useOrders -> dispatch
@@ -737,6 +1016,7 @@ R 110:7 calls useOrders -> dispatch
 R 110:77 calls useOrders -> String
 R 114:3 calls useOrders -> useEffect
 R 115:10 calls useOrders -> reload
+R 121:33 references useStock -> StockCache (name-matched: src/inventory.ts)
 R 122:27 calls useStock -> useState
 R 123:3 calls useStock -> useEffect
 R 125:26 calls useStock -> then
@@ -751,13 +1031,21 @@ R 141:3 calls useDebounced -> useEffect
 R 142:19 calls useDebounced -> setTimeout
 R 142:36 calls useDebounced -> setDebounced
 R 143:18 calls useDebounced -> clearTimeout
+R 152:48 references StatusPill -> State (name-matched: src/order.ts)
 R 153:40 calls StatusPill -> toLowerCase
+R 156:46 references StockBadge -> StockCache (name-matched: src/inventory.ts)
 R 157:16 calls StockBadge -> useStock
+R 162:62 references Toolbar -> Filters
+R 162:85 references Toolbar -> Filters
+R 162:114 references Toolbar -> ReactNode
 R 165:54 calls Toolbar -> onChange (name-matched: src/ui/PickBoard.jsx)
+R 165:102 references Toolbar -> Filters
 R 167:31 calls Toolbar -> map
 R 167:17 calls Toolbar -> values
 R 177:26 calls Toolbar -> onChange (name-matched: src/ui/PickBoard.jsx)
 R 180:77 calls Toolbar -> onChange (name-matched: src/ui/PickBoard.jsx)
+R 189:58 references OrderDetail -> WarehouseClient (name-matched: src/api/client.ts)
+R 189:82 references OrderDetail -> Order (name-matched: src/order.ts)
 R 190:33 calls OrderDetail -> useState
 R 192:3 calls OrderDetail -> useEffect
 R 193:5 calls OrderDetail -> setHistory
@@ -768,10 +1056,14 @@ R 204:22 calls OrderDetail -> map
 R 206:63 calls OrderDetail -> format (name-matched: src/money.ts)
 R 210:48 calls OrderDetail -> format (name-matched: src/money.ts)
 R 211:40 calls OrderDetail -> map
+R 216:57 references OrderTable -> WarehouseClient (name-matched: src/api/client.ts)
+R 216:81 references OrderTable -> StockCache (name-matched: src/inventory.ts)
 R 217:39 calls OrderTable -> useOrders
 R 218:33 calls OrderTable -> useState
+R 218:42 references OrderTable -> Filters
 R 219:17 calls OrderTable -> useDebounced
 R 220:19 calls OrderTable -> useRef
+R 220:26 references OrderTable -> HTMLPreElement
 R 222:19 calls OrderTable -> useMemo
 R 223:22 calls OrderTable -> applyFilters
 R 224:29 calls OrderTable -> sort
@@ -787,6 +1079,7 @@ R 230:52 calls OrderTable -> has
 R 236:20 calls cancelSelected -> cancel (name-matched: src/api/client.ts)
 R 238:5 calls cancelSelected -> dispatch
 R 239:11 calls cancelSelected -> reload
+R 242:28 references showSlip -> Order (name-matched: src/order.ts)
 R 244:37 calls showSlip -> packingSlip (name-matched: src/order.ts)
 R 253:8 references OrderTable -> Toolbar
 R 255:54 calls OrderTable -> join
@@ -813,6 +1106,8 @@ R 308:20 references OrderTable -> describeCount (name-matched: src/inventory.ts)
 R 308:35 references OrderTable -> pickingRoute (name-matched: src/inventory.ts)
 R 308:49 references OrderTable -> parseLocation (name-matched: src/inventory.ts)
 R 308:64 references OrderTable -> validatePlaceOrder (name-matched: src/api/client.ts)
+R 100:40 references useOrders -> reducer
+R 292:28 references OrderTable -> cancelSelected
 
 == src/ui/PickBoard.jsx (339 lines)
 S 1-339 module PickBoard
@@ -984,3 +1279,10 @@ R 331:22 calls finish -> openSession
 R 335:6 references PickBoard -> ScanErrorBoundary
 R 335:52 calls PickBoard -> error
 R 336:19 references PickBoard -> Board
+R 175:42 references start -> onKeyDown
+R 178:45 references stop -> onKeyDown
+R 194:44 references useIdleLogout -> reset
+R 195:40 references useIdleLogout -> reset
+R 198:49 references useIdleLogout -> reset
+R 199:45 references useIdleLogout -> reset
+R 336:67 references PickBoard -> finish
