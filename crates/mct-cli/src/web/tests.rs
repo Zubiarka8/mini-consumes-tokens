@@ -1029,6 +1029,74 @@ fn an_uppercase_identity_is_not_a_review_key_and_the_file_is_kept() {
 }
 
 #[test]
+fn note_filters_and_sorts_keep_their_results_and_order() {
+    let root = project();
+    let server = Server::start(root.path(), false);
+    let items = |query: &str| {
+        server.json(&format!("api/notes?size=500&{query}"))["items"]
+            .as_array()
+            .unwrap()
+            .clone()
+    };
+    // Both source files only hold unreferenced functions.
+    let mut dead: Vec<String> = items("rel=dead-code")
+        .iter()
+        .map(|note| note["codePath"].as_str().unwrap().to_string())
+        .collect();
+    dead.sort();
+    assert_eq!(dead, ["src/a.rs", "src/b.rs"]);
+    assert!(items("rel=with-code").len() >= 2);
+    let all = items("");
+    assert!(all.len() >= 3);
+    let path = |note: &serde_json::Value| note["path"].as_str().unwrap().to_string();
+    // Every sort orders by its key, ties by path; `desc` reverses it all.
+    for (sort, key) in [
+        ("backlinks", "backlinks"),
+        ("symbols", "symbolCount"),
+        ("modified", "modified"),
+    ] {
+        let sorted = items(&format!("sort={sort}"));
+        let keys: Vec<(u64, String)> = sorted
+            .iter()
+            .map(|note| (note[key].as_u64().unwrap_or(0), path(note)))
+            .collect();
+        assert!(
+            keys.windows(2).all(|pair| pair[0] <= pair[1]),
+            "{sort}: {keys:?}"
+        );
+        let mut reversed = items(&format!("sort={sort}&order=desc"));
+        reversed.reverse();
+        assert_eq!(reversed, sorted, "{sort}");
+    }
+    let titles: Vec<(String, String)> = all
+        .iter()
+        .map(|note| (note["title"].as_str().unwrap().to_lowercase(), path(note)))
+        .collect();
+    assert!(
+        titles.windows(2).all(|pair| pair[0] <= pair[1]),
+        "{titles:?}"
+    );
+}
+
+#[test]
+fn unreadable_vault_files_are_counted_by_reason() {
+    let root = project();
+    let vault = root.path().join(".mct-index/obsidian");
+    fs::create_dir_all(&vault).unwrap();
+    fs::write(vault.join("ok.md"), "# Ok").unwrap();
+    fs::write(vault.join("bin.md"), [0xff, 0xfe]).unwrap();
+    fs::write(vault.join("upper.MD"), "# Upper").unwrap();
+    let server = Server::start(root.path(), true);
+    let notes = server.json("api/notes");
+    assert_eq!(notes["all"], 1);
+    assert_eq!(notes["truncated"], false);
+    assert_eq!(
+        notes["skipped"],
+        serde_json::json!({ "extension": 1, "notUtf8": 1 })
+    );
+}
+
+#[test]
 fn obsidian_notes_are_served_read_only_with_verified_links() {
     let root = project();
     {
