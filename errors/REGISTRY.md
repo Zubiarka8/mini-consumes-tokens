@@ -207,6 +207,12 @@ ERR-026 / ERR-032 resolution, 2026-11-07 (`fix/dead-code-value-and-type-refs`, u
 Second dead-code review, 2026-11-07 (`fix/dead-code-value-and-type-refs`): of 20 more candidates, 18 were false positives with four further causes, fixed on the branch. TS types used only in annotations, return types, alias values and generic arguments (`Payload`, `ReviewPanelProps`, `Tone`, ...) are now `references`. `export default defineConfig({ plugins: [p()] })` walks the call and its arguments. Rust path calls inside macro arguments (`vec![format::semantic_hits(..)]`, ERR-025) are `references` with their module evidence; a macro named through a path (`mct_corpus::standard_tests!`) and a same-file macro inside another macro's arguments are `calls`; a same-file unit struct used as a value (`&Broken`) is a `references`. ERR-025 resolved on the branch for path calls; bare calls to functions imported from another file inside a macro remain unrecorded. Of the other two, `format::find_dead_code_toon` is unused (OPT-M01, true positive) and the Vite `transform` hook is invoked by the framework only (recorded as a `false-positive` review). Verified: `scripts/unix/check.sh` passed (2150 tests); after a forced reindex with the branch build, dead-code candidates fell from 113 to 90.
 
 
+## 2026-11-08 — duplicate-count investigation
+
+On main base `589d1cc`, explicit-root `mct-cli call --tool get_indexing_status` (via batch) reported 1,077 files, 42,804 symbols, timestamp `1794141966`, and 18 parse diagnostics: ERR-003 (16 expected malformed fixtures), ERR-002 (`scripts/windows/review-check.ps1: line 29: syntax error`) and ERR-023 (`crates/mct-cli/web-ui/src/styles.css: line 12: syntax error`). Existing classifications remain unchanged; this is an observation, not a parser fix verification.
+
+ERR-013 caller-path observation: `get_file_skeleton(path: "crates/mct-index/src/duplicates/file.rs")` returned `` `crates/mct-index/src/duplicates/file.rs` was not found under the indexed project root ``. `get_file_tree` located `crates/mct-index/src/duplicates/analysis/file.rs`; the corrected skeleton query succeeded. No server fix required; ERR-013 remains RESOLVED.
+
 ## 2026-11-08 — duplicate precision verification
 
 On `feat/duplicate-detection-precision`, based on main `589d1cc`, explicit-root
