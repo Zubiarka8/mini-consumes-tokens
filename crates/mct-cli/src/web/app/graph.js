@@ -1,15 +1,104 @@
 // Force-directed graph on SVG: zoom, pan, drag, focus, fit. Layout is bounded and progressive.
+// Repulsion is exact for small graphs and Barnes–Hut (quadtree) above EXACT_LIMIT nodes.
 import { h } from "./core.js";
 import { icon } from "./components.js";
 import { t } from "./i18n.js";
 
 const svg = (tag, attrs, ...kids) => h(`svg:${tag}`, attrs, ...kids);
 const BASE_TICKS = 220;
+// Up to this many nodes every pair is compared, so small graphs lay out exactly as before.
+export const EXACT_LIMIT = 600;
+// Above this many nodes the layout is not animated.
+const STILL_LIMIT = 1500;
+// Barnes–Hut opening angle: a cell is one body when its size is below THETA times its distance.
+const THETA2 = 0.9 * 0.9;
+// Nearly coincident nodes share one leaf instead of splitting the tree without end.
+const MAX_DEPTH = 24;
 
-/**
- * nodes: [{id,label,color,radius,...}], edges: [{from,to,color?}].
- * Returns {el, select(id), fit(), destroy()}. `onSelect(node)` fires on click/Enter.
- */
+/** Quadtree of `nodes` with each cell's node count `m` and centre of mass (`cx`, `cy`). */
+export function quadtree(nodes) {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const node of nodes) {
+    minX = Math.min(minX, node.x);
+    minY = Math.min(minY, node.y);
+    maxX = Math.max(maxX, node.x);
+    maxY = Math.max(maxY, node.y);
+  }
+  const cell = (x, y, s) => ({ x, y, s, m: 0, cx: 0, cy: 0, kids: null, body: null });
+  const root = cell(minX, minY, Math.max(maxX - minX, maxY - minY) || 1);
+  const place = (parent, node, depth) => {
+    const half = parent.s / 2;
+    const right = node.x >= parent.x + half;
+    const down = node.y >= parent.y + half;
+    const k = (right ? 1 : 0) + (down ? 2 : 0);
+    parent.kids[k] ??= cell(parent.x + (right ? half : 0), parent.y + (down ? half : 0), half);
+    insert(parent.kids[k], node, depth + 1);
+  };
+  const insert = (target, node, depth) => {
+    target.cx = (target.cx * target.m + node.x) / (target.m + 1);
+    target.cy = (target.cy * target.m + node.y) / (target.m + 1);
+    target.m += 1;
+    if (target.kids) return place(target, node, depth);
+    if (!target.body || depth >= MAX_DEPTH) {
+      (target.body ??= []).push(node);
+      return;
+    }
+    const resident = target.body;
+    target.body = null;
+    target.kids = [null, null, null, null];
+    for (const other of resident) place(target, other, depth);
+    place(target, node, depth);
+  };
+  for (const node of nodes) insert(root, node, 0);
+  return root;
+}
+
+/** Adds to `node.vx/vy` the repulsion of every other node under `root`, distant groups approximated. */
+export function repel(node, root) {
+  const { x, y } = node;
+  let vx = 0;
+  let vy = 0;
+  const stack = [root];
+  while (stack.length) {
+    const cell = stack.pop();
+    if (cell.kids) {
+      const dx = x - cell.cx;
+      const dy = y - cell.cy;
+      const d2 = dx * dx + dy * dy;
+      // A cell holding the node is never one body: the node would repel itself.
+      const inside = x >= cell.x && x <= cell.x + cell.s && y >= cell.y && y <= cell.y + cell.s;
+      if (!inside && cell.s * cell.s < THETA2 * d2) {
+        const d = Math.sqrt(d2);
+        const force = (9000 * cell.m) / d2;
+        vx += (dx / d) * force;
+        vy += (dy / d) * force;
+      } else {
+        const kids = cell.kids;
+        for (let k = 0; k < 4; k += 1) if (kids[k]) stack.push(kids[k]);
+      }
+      continue;
+    }
+    const body = cell.body;
+    for (let i = 0; i < body.length; i += 1) {
+      const other = body[i];
+      if (other === node) continue;
+      const dx = x - other.x;
+      const dy = y - other.y;
+      // The same law as the exact pass, coincident nodes included.
+      const d2 = dx * dx + dy * dy || 0.01;
+      const d = Math.sqrt(d2);
+      const force = 9000 / d2;
+      vx += (dx / d) * force;
+      vy += (dy / d) * force;
+    }
+  }
+  node.vx += vx;
+  node.vy += vy;
+}
+
 export function graphView({ nodes, edges, onSelect, directed = true, label }) {
   const narrow = window.innerWidth < 700;
   const width = narrow ? 400 : 900;
@@ -31,7 +120,7 @@ export function graphView({ nodes, edges, onSelect, directed = true, label }) {
     .map((edge) => ({ ...edge, s: byId.get(edge.from), t: byId.get(edge.to) }))
     .filter((edge) => edge.s && edge.t);
   const list = [...byId.values()];
-  // Repulsion is O(n²) per tick, so big graphs get fewer ticks to stay responsive.
+  // Large graphs keep the tick count they had with O(n²) repulsion: the layout looks the same, only sooner.
   const MAX_TICKS =
     list.length <= 600 ? BASE_TICKS : Math.max(30, Math.round(BASE_TICKS * (600 / list.length) ** 2));
   const PAIR_BUDGET = 1_000_000;
@@ -45,6 +134,9 @@ export function graphView({ nodes, edges, onSelect, directed = true, label }) {
   let pairI = 0;
   let pairJ = 1;
   let tickStarted = false;
+  const approximate = list.length > EXACT_LIMIT;
+  let tree = null;
+  let nodeI = 0;
   const visibleLabels =
     list.length <= 60
       ? new Set(list.map((node) => node.id))
@@ -216,7 +308,45 @@ export function graphView({ nodes, edges, onSelect, directed = true, label }) {
     }
     pairI = 0;
     pairJ = 1;
+    nodeI = 0;
+    tree = approximate ? quadtree(list) : null;
     tickStarted = true;
+  }
+  // Exact repulsion, every pair once; resumable. True when the tick's pairs are done.
+  function repelPairs(deadline, budget) {
+    while (pairI < list.length - 1 && budget.pairs < PAIR_BUDGET && performance.now() < deadline) {
+      const quantumEnd = Math.min(PAIR_BUDGET, budget.pairs + PAIR_QUANTUM);
+      while (pairI < list.length - 1 && budget.pairs < quantumEnd) {
+        const a = list[pairI];
+        const b = list[pairJ];
+        let dx = a.x - b.x;
+        let dy = a.y - b.y;
+        const d2 = dx * dx + dy * dy || 0.01;
+        const force = 9000 / d2;
+        const d = Math.sqrt(d2);
+        dx /= d;
+        dy /= d;
+        a.vx += dx * force;
+        a.vy += dy * force;
+        b.vx -= dx * force;
+        b.vy -= dy * force;
+        budget.pairs += 1;
+        pairJ += 1;
+        if (pairJ >= list.length) {
+          pairI += 1;
+          pairJ = pairI + 1;
+        }
+      }
+    }
+    return pairI >= list.length - 1;
+  }
+  // Barnes–Hut repulsion against this tick's tree; resumable. True when every node is done.
+  function repelTree(deadline) {
+    while (nodeI < list.length && performance.now() < deadline) {
+      const end = Math.min(list.length, nodeI + 64);
+      for (; nodeI < end; nodeI += 1) repel(list[nodeI], tree);
+    }
+    return nodeI >= list.length;
   }
   function applyTickForces() {
     const cool = 1 - ticks / MAX_TICKS;
@@ -270,49 +400,27 @@ export function graphView({ nodes, edges, onSelect, directed = true, label }) {
     }
   }
   function run() {
-    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // Reduced motion, and graphs too large to repaint smoothly (one SVG repaint of 5,000 nodes
+    // takes about 100 ms), show the starting positions, then only the finished layout.
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches || list.length > STILL_LIMIT;
+    if (still) paint();
     const frame = () => {
       const deadline = performance.now() + FRAME_BUDGET_MS;
-      // Reduced motion lays the graph out at once; very large graphs advance one tick per frame.
-      let tickLimit = list.length > 1500 ? 1 : 4;
-      if (reduce) tickLimit = MAX_TICKS;
+      const tickLimit = still ? MAX_TICKS : 4;
       let completed = 0;
-      let pairs = 0;
+      const budget = { pairs: 0 };
       while (ticks < MAX_TICKS && completed < tickLimit && performance.now() < deadline) {
         if (!tickStarted) beginTick();
-        while (pairI < list.length - 1 && pairs < PAIR_BUDGET && performance.now() < deadline) {
-          const quantumEnd = Math.min(PAIR_BUDGET, pairs + PAIR_QUANTUM);
-          while (pairI < list.length - 1 && pairs < quantumEnd) {
-            const a = list[pairI];
-            const b = list[pairJ];
-            let dx = a.x - b.x;
-            let dy = a.y - b.y;
-            const d2 = dx * dx + dy * dy || 0.01;
-            const force = 9000 / d2;
-            const d = Math.sqrt(d2);
-            dx /= d;
-            dy /= d;
-            a.vx += dx * force;
-            a.vy += dy * force;
-            b.vx -= dx * force;
-            b.vy -= dy * force;
-            pairs += 1;
-            pairJ += 1;
-            if (pairJ >= list.length) {
-              pairI += 1;
-              pairJ = pairI + 1;
-            }
-          }
-        }
-        if (pairI >= list.length - 1) {
-          applyTickForces();
-          ticks += 1;
-          completed += 1;
-          tickStarted = false;
-        } else break;
+        const done = approximate ? repelTree(deadline) : repelPairs(deadline, budget);
+        if (!done) break;
+        applyTickForces();
+        ticks += 1;
+        completed += 1;
+        tickStarted = false;
       }
       if (ticks >= MAX_TICKS) separateBoxes();
-      paint();
+      // Positions change only when a tick completes; a still layout waits for the last one.
+      if (completed && (!still || ticks >= MAX_TICKS)) paint();
       if (ticks < MAX_TICKS) raf = requestAnimationFrame(frame);
       else fit();
     };
