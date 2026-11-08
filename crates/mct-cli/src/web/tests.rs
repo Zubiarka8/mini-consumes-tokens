@@ -1099,6 +1099,39 @@ fn unreadable_vault_files_are_counted_by_reason() {
 }
 
 #[test]
+fn note_bodies_are_searched_from_the_snapshot_at_any_vault_size() {
+    let root = project();
+    let vault = root.path().join(".mct-index/obsidian");
+    fs::create_dir_all(&vault).unwrap();
+    // Above the old 500-note limit, where bodies were no longer searched.
+    for i in 0..501 {
+        fs::write(vault.join(format!("n{i:03}.md")), "# Plain\nnothing here\n").unwrap();
+    }
+    fs::write(
+        vault.join("n250.md"),
+        "---\ntags: [x]\n---\n# Hidden\nfirst line\n  The Needle5649 lives here.  \n",
+    )
+    .unwrap();
+    fs::write(vault.join("tree.md"), "# Bosque\nUn ÁRBOL grande.\n").unwrap();
+    let server = Server::start(root.path(), true);
+    // Bodies are kept in the snapshot: a search reads no file.
+    fs::remove_file(vault.join("n250.md")).unwrap();
+    let hits =
+        |query: &str| server.json(&format!("api/search?q={query}"))["groups"]["obsidian"].clone();
+    let needle = hits("needle5649");
+    assert_eq!(needle["total"], 1, "{needle}");
+    assert_eq!(needle["items"][0]["path"], "n250.md");
+    assert_eq!(needle["items"][0]["snippet"], "The Needle5649 lives here.");
+    let tree = hits("%C3%A1rbol");
+    assert_eq!(tree["total"], 1, "{tree}");
+    assert_eq!(tree["items"][0]["snippet"], "Un ÁRBOL grande.");
+    // A match never spans lines, as before.
+    assert_eq!(hits("first%20line%0A%20%20The")["total"], 0);
+    // Front matter is not body text.
+    assert_eq!(hits("tags%3A%20%5Bx%5D")["total"], 0);
+}
+
+#[test]
 fn obsidian_notes_are_served_read_only_with_verified_links() {
     let root = project();
     {
@@ -1771,6 +1804,24 @@ fn the_dashboard_reloads_only_when_a_change_is_published() {
     site.follow_reindex();
     assert_ne!(site.generated, 0);
     assert!(site.navigation.symbols.iter().any(|s| s.name == "gamma"));
+}
+
+#[test]
+fn a_snapshot_reload_leaves_the_vault_to_the_reindexer() {
+    let root = project();
+    // Canonical: the vault refuses to write through a symlinked ancestor.
+    let path = root.path().canonicalize().unwrap();
+    let mut site = Site::load(&path, false).unwrap();
+    let vault = mct_obsidian::vault_dir(&path);
+    assert!(vault.join(mct_obsidian::MANIFEST_FILE).is_file());
+    // The process that reindexes publishes the vault from its own hook;
+    // publishing again from the reload doubled the work and raced it.
+    fs::remove_dir_all(&vault).unwrap();
+    fs::write(path.join("src/c.rs"), "pub fn gamma() {}\n").unwrap();
+    index(&path);
+    site.follow_reindex();
+    assert!(site.navigation.symbols.iter().any(|s| s.name == "gamma"));
+    assert!(!vault.exists(), "the reload published the vault again");
 }
 
 // Windows refuses to delete a database file the dashboard holds open, so a

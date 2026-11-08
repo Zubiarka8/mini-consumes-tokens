@@ -53,6 +53,9 @@ pub enum VaultError {
 
     #[error("note path `{0}` would leave the vault")]
     UnsafePath(String),
+
+    #[error("cannot take the vault writer lock {path}: {reason}")]
+    Locked { path: String, reason: String },
 }
 
 pub type Result<T> = std::result::Result<T, VaultError>;
@@ -266,16 +269,18 @@ fn add_map_pages(
 }
 
 /// Brings the vault at `out` in line with `index`: rewrites only the notes
-/// that changed, drops the ones whose file left the index, and swaps the
-/// staged result in with rollback on failure. The portable two-rename swap
-/// is not crash-atomic. Call [`vault_dir`] for the conventional `out`.
+/// that changed, each replaced by a rename so readers never miss a note, drops
+/// the ones whose file left the index, and writes the manifest last. Waits
+/// for another publication to the same vault, up to a bound. Call
+/// [`vault_dir`] for the conventional `out`.
 pub fn write_vault(index: &Index, out: &Path) -> Result<VaultReport> {
     manifest::publish(out, &build_notes(index)?)
 }
 
 /// Held by the post-reindex hook while it publishes the vault. A process that
-/// is about to exit takes it first, so it never stops in the middle of a
-/// publication and leaves the writer lock (`<vault>.lock`) behind.
+/// is about to exit takes it first, so it does not stop in the middle of a
+/// publication. Stopping there is still safe: the OS releases the writer lock
+/// and the next publication finishes the interrupted one.
 pub type PublishGuard = std::sync::Arc<std::sync::Mutex<()>>;
 
 /// Registers the hook that regenerates the project's vault after every
