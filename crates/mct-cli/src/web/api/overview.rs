@@ -127,13 +127,7 @@ fn finding_label(site: &Site, key: &str) -> Value {
         .position(|candidate| candidate == key)
     {
         let group = &site.duplicates.groups[id];
-        let title = group
-            .members
-            .iter()
-            .take(2)
-            .map(|m| m.symbol_name.as_str())
-            .collect::<Vec<_>>()
-            .join(" ≈ ");
+        let title = super::findings::duplicate_title(group);
         return json!({ "key": key, "type": "duplicate", "title": title, "path": group.members[0].path });
     }
     site.dead

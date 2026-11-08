@@ -2537,7 +2537,7 @@ dialog .dlg footer {
 }
 .stack-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(170px, auto) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: var(--space-2);
   padding-right: var(--space-2);
@@ -2555,7 +2555,7 @@ dialog .dlg footer {
 .files-pop {
   display: none;
   position: absolute;
-  top: calc(100% + 4px);
+  top: 100%;
   left: calc(56px + var(--space-3));
   z-index: 20;
   max-width: min(640px, calc(100% - 2 * var(--space-3)));
@@ -2566,10 +2566,10 @@ dialog .dlg footer {
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   font-size: 0.85rem;
-  pointer-events: none;
 }
-.stack-open:hover ~ .files-pop,
-.stack-open:focus-visible ~ .files-pop {
+.stack-open:hover ~ .files-pop:not([data-dismissed]),
+.stack-open:focus-visible ~ .files-pop:not([data-dismissed]),
+.files-pop:hover:not([data-dismissed]) {
   display: grid;
   gap: 2px;
 }
@@ -2583,7 +2583,7 @@ dialog .dlg footer {
 }
 .stack-open {
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) minmax(0, 240px);
+  grid-template-columns: 40px minmax(0, 1fr);
   align-items: center;
   gap: var(--space-3);
   min-height: 48px;
@@ -2601,6 +2601,7 @@ dialog .dlg footer {
   outline-offset: -2px;
 }
 .stack-no {
+  grid-row: span 2;
   display: grid;
   place-items: center;
   height: 34px;
@@ -2611,10 +2612,28 @@ dialog .dlg footer {
   font-variant-numeric: tabular-nums;
 }
 .stack-title {
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.group-names {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1);
+  min-width: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.group-name {
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  max-width: 100%;
+}
+.group-separator,
+.group-more {
+  color: var(--text-3);
 }
 .stack-where,
 .stack-state {
@@ -2623,10 +2642,36 @@ dialog .dlg footer {
   min-width: 0;
 }
 .stack-where {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  border-left: 0;
+  padding-left: 0;
+  font-size: 0.8rem;
+  gap: var(--space-1);
   color: var(--text-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.stack-counts {
+  white-space: normal;
+}
+.stack-scope::before {
+  content: "·";
+  margin-right: var(--space-1);
+}
+.stack-bar .pick {
+  min-width: 0;
+  max-width: 100%;
+}
+.stack-bar .pick select {
+  min-width: 0;
+}
+.stack-scope {
+  font-size: 0.8rem;
+  white-space: normal;
 }
 /* The review state: an icon and a word, coloured by tone. */
 .pill {
