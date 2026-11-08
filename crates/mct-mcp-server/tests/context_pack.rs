@@ -116,6 +116,11 @@ async fn packs_definition_doc_comment_and_every_related_symbol_once() {
         text.contains("| pub fn apply_discount(cents: u64, coupon: Option<&str>) -> u64 {"),
         "{text}"
     );
+    // A type in the signature is a referenced symbol too.
+    assert!(
+        text.contains("references Order  src/orders.rs:L17-L21 struct"),
+        "{text}"
+    );
     // A caller that is also a test is one row with both roles.
     assert!(
         text.contains("caller,test test_place_order_stores_the_discounted_total"),
@@ -134,7 +139,7 @@ async fn packs_definition_doc_comment_and_every_related_symbol_once() {
     // Names the index can't resolve are summarised, not listed as rows.
     assert!(
         text.contains(
-            "Unresolved (no indexed definition, no external evidence): Ok, as_deref, len"
+            "Unresolved (no indexed definition, no external evidence): Ok, Result, as_deref, len"
         ),
         "{text}"
     );
@@ -224,7 +229,7 @@ async fn toon_renders_the_related_symbols_as_one_table() {
     )
     .await;
     assert!(
-        text.contains("related[7]{name,roles,hop,path,lines,kind,signature}:"),
+        text.contains("related[12]{name,roles,hop,path,lines,kind,signature}:"),
         "{text}"
     );
     assert!(
@@ -372,9 +377,14 @@ async fn homonyms_are_never_presented_as_resolved_callees() {
         .skip(1)
         .take_while(|l| l.starts_with("  "))
         .collect();
+    // `b: B` and `A::run()` use the types `B` and `A`.
     assert_eq!(
         related,
-        vec!["  callee run  src/lib.rs:L3 method  | pub fn run() {}"],
+        vec![
+            "  callee run  src/lib.rs:L3 method  | pub fn run() {}",
+            "  references B  src/lib.rs:L5 struct  | pub struct B;",
+            "  references A  src/lib.rs:L1 struct  | pub struct A;",
+        ],
         "{text}"
     );
     for foreign in ["Errors.cs", "Repository.php", "service.cpp"] {
@@ -389,7 +399,7 @@ async fn homonyms_are_never_presented_as_resolved_callees() {
     );
     assert!(
         text.contains(
-            "Unresolved (no indexed definition, no external evidence): Ok, get, iter, map"
+            "Unresolved (no indexed definition, no external evidence): Ok, Result, Vec, get, iter, map"
         ),
         "{text}"
     );

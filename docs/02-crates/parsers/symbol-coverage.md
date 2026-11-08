@@ -271,6 +271,12 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `f()`, `a::f()`, `x.m()`, `f::<T>()` | `call_expression`, `scoped_identifier`, `field_expression`, `generic_function` | `calls` |
 | `impl Tr for T` | `impl_item` | `implements Tr`, owned by the file module |
 | a same-file free function used as a value, or inside a macro | `identifier`, `token_tree` | `references` |
+| a `let` closure used as a value later in the same function (`.filter(eligible)`) | `identifier` | `references` |
+| a type in a parameter, return type, field, `let`/`const`/`static` annotation, type alias, generic argument, cast or struct literal | `type_identifier`, `scoped_type_identifier` | `references`; the item's own type parameters and `Self` are skipped |
+| the type a path goes through (`Dimension::Kind`, `Assessor::new()`) | `scoped_identifier` | `references` to the capitalized qualifier, besides the last segment |
+| a same-file unit struct used as a value (`&Broken`) | `identifier` | `references` |
+| `m::f(..)` and `x.f(..)` inside a macro's arguments (`vec![format::hits(..)]`) | `token_tree` | `references`; a `m::` path keeps its module/qualifier evidence |
+| a macro invoked through a path (`mct_corpus::standard_tests!`), or a same-file macro invoked inside another macro's arguments | `macro_invocation`, `token_tree` | `calls` |
 | harness attributes such as `#[test]` / `#[tokio::test]` | `attribute_item` | a self-`references` relation to the following function; other attributes keep literals only |
 | string literals | `string_literal`, `raw_string_literal` | literals for exact-text search |
 
@@ -283,7 +289,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Closures, local `let` bindings, parameters | Not implemented | not indexed in any language |
 | Supertraits (`trait B: A`), `#[derive]` | Not implemented | no relation is emitted for trait bounds or derive lists |
 | `implements` owned by the file module | Bug | the type that implements the trait is not the owner |
-| Calls to imported functions inside macro arguments | By design | [the traversal comment](../../../crates/mct-lang-rust/src/lib.rs#L255) limits macro identifiers to same-file free functions, to avoid mistaking fields and paths for calls |
+| Bare calls to imported functions inside macro arguments (`helper(x)` where `helper` comes from another file) | By design | [the traversal comment](../../../crates/mct-lang-rust/src/lib.rs#L255) limits macro identifiers to same-file free functions, to avoid mistaking fields and paths for calls |
 | Visibility, generics, signatures | Model limit | see [What the index can hold](#what-the-index-can-hold) |
 
 ### Python
@@ -331,7 +337,10 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | ES `import`, CommonJS `require` | `import_statement`, `named_imports`, `namespace_import`, `call_expression` | `imports` |
 | `export`, `module.exports.x = …` | `export_statement`, `assignment_expression` | `references`; a function value becomes `function` |
 | `f()`, `new X()` | `call_expression`, `new_expression`, `member_expression` | `calls` |
+| a same-file function used as a value (`onclick: toggle`, `.map(card)`, `return wrapped`, `{ toggle }`) | `identifier`, `shorthand_property_identifier` | `references`; a parameter, pattern or non-function `let`/`const` of the same name in an enclosing function hides it, and a function's use of its own name is skipped |
 | JSX `<Button />` | `jsx_opening_element`, `jsx_self_closing_element` | `references` (DOM tags excluded) |
+| a TS type in an annotation, return type, alias value, generic argument or cast (`props: Props`, `useState<Problem>()`) | `type_identifier` | `references`; the enclosing declarations' type parameters are skipped (their constraints are not walked) |
+| `export default f({ … })` | `export_statement` value | the call and its arguments are walked like any expression |
 | object literal methods | `method_definition` under `object` | `function` |
 
 #### Why the gaps exist

@@ -1540,46 +1540,6 @@ pub fn find_dead_code(path: &str, hits: &[SymbolListEntry], offset: usize, limit
     )
 }
 
-/// TOON rendering of [`find_dead_code`]. Carries the same caveat text as the
-/// header (not a table column — it's one caveat for the whole result, not
-/// per-row data).
-pub fn find_dead_code_toon(
-    path: &str,
-    hits: &[SymbolListEntry],
-    offset: usize,
-    limit: usize,
-) -> String {
-    if hits.is_empty() {
-        return format!("No dead-code candidates found under `{path}`.");
-    }
-    let total = hits.len();
-    let shown = paginate(hits, offset, limit);
-    let rows: Vec<Vec<String>> = shown
-        .iter()
-        .map(|hit| {
-            vec![
-                hit.kind.clone(),
-                hit.name.clone(),
-                hit.relative_path.clone(),
-                hit.line.to_string(),
-                hit.end_line.map(|e| e.to_string()).unwrap_or_default(),
-            ]
-        })
-        .collect();
-    format!(
-        "{total} dead-code candidate(s) under `{path}`{}:\n\
-         (heuristic: zero indexed references found for this name anywhere in the project — \
-         does not account for dynamic dispatch, reflection, or a genuinely public API with no \
-         in-repo caller yet; verify before deleting)\n\n{}",
-        truncation_note(total, offset, shown.len()),
-        encode_table(
-            "candidates",
-            &["kind", "name", "path", "line", "end_line"],
-            &rows
-        )
-    )
-}
-
 /// Most external (unresolved) imports `get_dependency_graph` lists.
 pub const DEPENDENCY_GRAPH_EXTERNAL_CAP: usize = 30;
 

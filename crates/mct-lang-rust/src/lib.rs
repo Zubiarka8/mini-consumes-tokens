@@ -68,7 +68,7 @@ impl LanguageParser for RustParser {
             module_location.end_line = Some(end.row as u32);
         }
         let module_id = walker.push_symbol(module_name, SymbolKind::Module, module_location, None);
-        collect_free_fn_names(root, &file.contents, &mut walker.free_fns, 0);
+        collect_value_items(root, &file.contents, &mut walker.free_fns, 0);
         walker.visit_children(root, module_id, None, 0);
         Ok(walker.finish())
     }
@@ -95,15 +95,24 @@ struct Walker<'a> {
     relations: Vec<SymbolRelation>,
     literals: LiteralCollector,
     next_id: SymbolId,
-    /// Names of the free (non-`impl`/`trait`) functions declared anywhere in
-    /// this file — the only names a bare identifier is resolved against when
-    /// it's used as a value rather than called (see the `identifier` arm).
+    /// Names of the free (non-`impl`/`trait`) functions and unit structs
+    /// declared anywhere in this file — the only names a bare identifier is
+    /// resolved against when it's used as a value rather than called (see
+    /// the `identifier` arm).
     free_fns: HashSet<String>,
     macros: HashSet<String>,
     /// Names bound as locals (parameters, `let`/`for`/`match`/closure
     /// patterns) in the function currently being walked: a bare identifier
     /// with one of these names is the local, never the same-named function.
     bound: HashSet<String>,
+    /// Names of the closures bound by `let name = |..| ..` in the function
+    /// currently being walked. They are also in `bound`, but a bare
+    /// identifier naming one is a use of that closure, recorded like a free
+    /// function's value use.
+    local_fns: HashSet<String>,
+    /// Type parameters declared by the items enclosing the current node: a
+    /// type named like one of them is that parameter, not a type to record.
+    generics: HashSet<String>,
     /// Evidence for some of `relations`, by index (see `RelationTarget`).
     relation_targets: Vec<RelationTarget>,
     /// Base name of the `impl`/`trait` type whose method body is being
@@ -123,6 +132,8 @@ impl<'a> Walker<'a> {
             free_fns: HashSet::new(),
             macros: HashSet::new(),
             bound: HashSet::new(),
+            local_fns: HashSet::new(),
+            generics: HashSet::new(),
             relation_targets: Vec::new(),
             self_type: None,
         }
@@ -233,6 +244,30 @@ impl<'a> Walker<'a> {
         if depth >= MAX_TRAVERSAL_DEPTH {
             return;
         }
+        // An item's type parameters (`<T: Display>`) are in scope for its
+        // whole subtree, nested items included, and only there.
+        let outer_generics = self.enter_generics(node);
+        self.visit_node(node, owner, impl_type, depth);
+        if let Some(outer) = outer_generics {
+            self.generics = outer;
+        }
+    }
+
+    /// Adds the type parameters `item` declares to `generics` and returns
+    /// the previous set to restore, or `None` when it declares none.
+    fn enter_generics(&mut self, item: Node) -> Option<HashSet<String>> {
+        let params = item.child_by_field_name("type_parameters")?;
+        let outer = self.generics.clone();
+        let mut cursor = params.walk();
+        for param in params.named_children(&mut cursor) {
+            if let Some(name) = param.child_by_field_name("name") {
+                self.generics.insert(text(name, self.source).to_string());
+            }
+        }
+        Some(outer)
+    }
+
+    fn visit_node(&mut self, node: Node, owner: SymbolId, impl_type: Option<&str>, depth: u32) {
         match node.kind() {
             "function_item" | "function_signature_item" => {
                 let name = node
@@ -254,6 +289,7 @@ impl<'a> Walker<'a> {
                 let mut locals = HashSet::new();
                 collect_bound_names(node, self.source, &mut locals, 0);
                 let outer = std::mem::replace(&mut self.bound, locals);
+                let outer_fns = std::mem::take(&mut self.local_fns);
                 let outer_self = std::mem::replace(&mut self.self_type, impl_type.map(type_base));
                 // A function body is not an impl/trait body: an `fn` or
                 // `const` nested inside a method belongs to the method, not
@@ -261,10 +297,14 @@ impl<'a> Walker<'a> {
                 if let Some(params) = node.child_by_field_name("parameters") {
                     self.visit_children(params, id, None, depth + 1);
                 }
+                if let Some(return_type) = node.child_by_field_name("return_type") {
+                    self.visit(return_type, id, None, depth + 1);
+                }
                 if let Some(body) = node.child_by_field_name("body") {
                     self.visit_children(body, id, None, depth + 1);
                 }
                 self.bound = outer;
+                self.local_fns = outer_fns;
                 self.self_type = outer_self;
             }
             // A bare identifier reaching here is in value position — a call's
@@ -274,11 +314,30 @@ impl<'a> Walker<'a> {
             // shadows: `let f = helper;`, `.map(helper)`, or `helper(x)` inside
             // a macro's token tree (`params![helper(x)]`), which tree-sitter
             // leaves unparsed and so can't be told apart from a value use —
-            // hence `References`, never `Calls`. Any other identifier (a
-            // local, a field, a name from another file) is left alone.
+            // hence `References`, never `Calls`. A closure bound by `let` in
+            // the current function (`.filter(eligible)`) is recorded the same
+            // way. Any other identifier (a local, a field, a name from
+            // another file) is left alone.
             "identifier" => {
                 let name = text(node, self.source);
-                if self.free_fns.contains(name) && !self.bound.contains(name) {
+                if self.local_fns.contains(name)
+                    || (self.free_fns.contains(name) && !self.bound.contains(name))
+                {
+                    self.push_relation(
+                        owner,
+                        RelationKind::References,
+                        name.to_string(),
+                        location(node),
+                    );
+                }
+            }
+            // A type named in a signature, generic argument, annotation,
+            // cast or struct literal (`-> Result<Request, u16>`,
+            // `Request { .. }`) is a use of that type. Item names are never
+            // visited as one: each declaring arm reads its name directly.
+            "type_identifier" => {
+                let name = text(node, self.source);
+                if name != "Self" && !self.generics.contains(name) {
                     self.push_relation(
                         owner,
                         RelationKind::References,
@@ -294,42 +353,69 @@ impl<'a> Walker<'a> {
             // A macro's arguments are a flat token stream: an identifier right
             // after `.` or `::` (`s.product`, `other::helper`) is a field,
             // method or path segment, never this file's free function.
+            //
+            // Inside one, `x.f(..)` and `m::f(..)` are calls the grammar
+            // leaves unparsed, kept as `References` (a `m::f` path with the
+            // evidence its qualifier gives), and `name!(..)` invokes a macro
+            // of this file.
             "token_tree" => {
                 let mut cursor = node.walk();
                 for child in node.children(&mut cursor) {
-                    let after_accessor = child.kind() == "identifier"
-                        && child
-                            .prev_sibling()
-                            .is_some_and(|p| matches!(p.kind(), "." | "::"));
-                    if after_accessor
-                        && child.prev_sibling().is_some_and(|p| p.kind() == ".")
-                        && child.next_named_sibling().is_some_and(|n| {
-                            n.kind() == "token_tree" && text(n, self.source).starts_with('(')
-                        })
-                    {
-                        self.push_relation(
+                    let accessor = child
+                        .prev_sibling()
+                        .filter(|p| child.kind() == "identifier" && matches!(p.kind(), "." | "::"));
+                    let called = child.next_named_sibling().is_some_and(|n| {
+                        n.kind() == "token_tree" && text(n, self.source).starts_with('(')
+                    });
+                    if let (Some(accessor), true) = (accessor, called) {
+                        let relation = self.push_relation(
                             owner,
                             RelationKind::References,
                             text(child, self.source).to_string(),
                             location(child),
                         );
+                        if accessor.kind() == "::" {
+                            let target = self.token_path_evidence(accessor);
+                            self.qualify(relation, target);
+                        }
                     }
-                    if !after_accessor {
+                    let name = text(child, self.source);
+                    if accessor.is_none()
+                        && child.kind() == "identifier"
+                        && child.next_sibling().is_some_and(|n| n.kind() == "!")
+                        && self.macros.contains(name)
+                    {
+                        self.push_relation(
+                            owner,
+                            RelationKind::Calls,
+                            name.to_string(),
+                            location(child),
+                        );
+                    }
+                    if accessor.is_none() {
                         self.visit(child, owner, impl_type, depth + 1);
                     }
                 }
             }
-            // The macro's own name (`vec`, `params`) is not a value use.
+            // The macro's own name (`vec`, `params`) is not a value use. A
+            // call is recorded for a macro of this file, and for one named
+            // through a path (`mct_corpus::standard_tests!`), with the
+            // evidence that path gives.
             "macro_invocation" => {
                 if let Some(mac) = node.child_by_field_name("macro") {
                     if let Some((name, name_node)) = call_target(mac, self.source) {
-                        if self.macros.contains(&name) {
-                            self.push_relation(
+                        let qualified = mac.kind() == "scoped_identifier";
+                        if qualified || self.macros.contains(&name) {
+                            let target = self.call_evidence(mac, &name);
+                            let relation = self.push_relation(
                                 owner,
                                 RelationKind::Calls,
                                 name,
                                 location(name_node),
                             );
+                            if qualified {
+                                self.qualify(relation, target);
+                            }
                         }
                     }
                 }
@@ -350,6 +436,9 @@ impl<'a> Walker<'a> {
                 if let Some(pattern) = node.child_by_field_name("pattern") {
                     self.push_bindings(pattern, owner, SymbolKind::Variable, depth + 1);
                 }
+                if let Some(ty) = node.child_by_field_name("type") {
+                    self.visit(ty, owner, None, depth + 1);
+                }
             }
             "closure_parameters" => {
                 let mut cursor = node.walk();
@@ -367,8 +456,9 @@ impl<'a> Walker<'a> {
                     if value.is_some_and(|v| v.kind() == "closure_expression")
                         && pattern.kind() == "identifier"
                     {
+                        let name = text(pattern, self.source).to_string();
                         let id = self.push_symbol(
-                            text(pattern, self.source).to_string(),
+                            name.clone(),
                             SymbolKind::Function,
                             location(node),
                             self.callable_owner(owner),
@@ -376,9 +466,15 @@ impl<'a> Walker<'a> {
                         if let Some(closure) = value {
                             self.visit_children(closure, id, None, depth + 1);
                         }
+                        // Registered after its body: a closure can't name
+                        // itself, so only later statements can use it.
+                        self.local_fns.insert(name);
                         return;
                     }
                     self.push_bindings(pattern, owner, SymbolKind::Variable, depth + 1);
+                }
+                if let Some(ty) = node.child_by_field_name("type") {
+                    self.visit(ty, owner, None, depth + 1);
                 }
                 if let Some(value) = value {
                     self.visit(value, owner, None, depth + 1);
@@ -410,7 +506,7 @@ impl<'a> Walker<'a> {
             "field_declaration" => {
                 let id = self.push_named(node, SymbolKind::Field, impl_type.map(str::to_string));
                 if let Some(ty) = node.child_by_field_name("type") {
-                    self.visit_type_references(ty, id, depth + 1);
+                    self.visit(ty, id, None, depth + 1);
                 }
             }
             "ordered_field_declaration_list" => {
@@ -429,7 +525,7 @@ impl<'a> Walker<'a> {
                         location(field),
                         impl_type.map(str::to_string),
                     );
-                    self.visit_type_references(field, id, depth + 1);
+                    self.visit(field, id, None, depth + 1);
                     index += 1;
                 }
             }
@@ -451,7 +547,11 @@ impl<'a> Walker<'a> {
             // Associated types/consts of an `impl`/`trait` hang off the type,
             // like its methods do.
             "type_item" | "associated_type" => {
-                self.push_named(node, SymbolKind::TypeAlias, impl_type.map(str::to_string));
+                let id =
+                    self.push_named(node, SymbolKind::TypeAlias, impl_type.map(str::to_string));
+                if let Some(ty) = node.child_by_field_name("type") {
+                    self.visit(ty, id, None, depth + 1);
+                }
             }
             "const_item" | "static_item" => {
                 let kind = if node.kind() == "static_item" {
@@ -460,6 +560,9 @@ impl<'a> Walker<'a> {
                     SymbolKind::Constant
                 };
                 let id = self.push_named(node, kind, impl_type.map(str::to_string));
+                if let Some(ty) = node.child_by_field_name("type") {
+                    self.visit(ty, id, None, depth + 1);
+                }
                 if let Some(value) = node.child_by_field_name("value") {
                     self.visit(value, id, impl_type, depth + 1);
                 }
@@ -580,8 +683,12 @@ impl<'a> Walker<'a> {
                     } else {
                         function
                     };
-                    if !matches!(callee.kind(), "identifier" | "scoped_identifier") {
-                        self.visit(callee, owner, impl_type, depth + 1);
+                    match callee.kind() {
+                        "identifier" => {}
+                        "scoped_identifier" => {
+                            self.visit_path_qualifier(callee, owner, impl_type, depth + 1)
+                        }
+                        _ => self.visit(callee, owner, impl_type, depth + 1),
                     }
                 }
                 if let Some(arguments) = node.child_by_field_name("arguments") {
@@ -592,9 +699,11 @@ impl<'a> Walker<'a> {
             // other::helper;`) references its last segment with the same
             // evidence a call through that path gets, so `other::helper`
             // must live under `other` and never resolves to this file's
-            // `helper`. Type paths and labels/lifetimes (`'helper:`) are no
-            // value use of anything.
-            "scoped_identifier" => {
+            // `helper`. A type path (`m::Request`) references its type the same
+            // way. Either path also uses the type it goes through
+            // (`Dimension` in `Dimension::Kind`). Labels/lifetimes
+            // (`'helper:`) are no use of anything.
+            "scoped_identifier" | "scoped_type_identifier" => {
                 if let Some(name_node) = node.child_by_field_name("name") {
                     let name = text(name_node, self.source).to_string();
                     let target = self.call_evidence(node, &name);
@@ -606,8 +715,9 @@ impl<'a> Walker<'a> {
                     );
                     self.qualify(relation, target);
                 }
+                self.visit_path_qualifier(node, owner, impl_type, depth + 1);
             }
-            "scoped_type_identifier" | "label" | "lifetime" => {}
+            "label" | "lifetime" => {}
             "string_literal" | "raw_string_literal" => self.push_literal(node),
             _ => self.visit_children(node, owner, impl_type, depth + 1),
         }
@@ -633,41 +743,10 @@ impl<'a> Walker<'a> {
                     ..Default::default()
                 }
             }
-            "scoped_identifier" => {
-                let Some(path) = function.child_by_field_name("path") else {
-                    return RelationTarget::default();
-                };
-                let path = text(path, self.source);
-                if is_std_path(path) {
-                    return RelationTarget {
-                        external: true,
-                        ..Default::default()
-                    };
-                }
-                let mut segments = path_segments(path);
-                let qualifier = match segments.last().map(String::as_str) {
-                    Some("Self") => {
-                        segments.pop();
-                        self.self_type.clone()
-                    }
-                    Some(last) if last.starts_with(|c: char| c.is_ascii_uppercase()) => {
-                        segments.pop()
-                    }
-                    _ => None,
-                };
-                // What's left is the module path: `self::f` stays in this
-                // file, `rand::f`/`crate::m::f` must live under `rand`/`m`;
-                // a bare `crate::`/`super::` proves nothing.
-                let (path, module) = match segments.last().map(String::as_str) {
-                    Some("self") => (Some(self.path.to_string()), None),
-                    Some("crate" | "super") | None => (None, None),
-                    Some(_) => (None, segments.pop()),
-                };
-                RelationTarget {
-                    qualifier,
-                    path,
-                    module,
-                    ..Default::default()
+            "scoped_identifier" | "scoped_type_identifier" => {
+                match function.child_by_field_name("path") {
+                    Some(path) => self.path_target(text(path, self.source)),
+                    None => RelationTarget::default(),
                 }
             }
             "field_expression" => {
@@ -683,6 +762,62 @@ impl<'a> Walker<'a> {
             }
             _ => RelationTarget::default(),
         }
+    }
+
+    /// What the path before an item's last segment (`a::b` in `a::b::f`)
+    /// proves about that item.
+    fn path_target(&self, path: &str) -> RelationTarget {
+        if is_std_path(path) {
+            return RelationTarget {
+                external: true,
+                ..Default::default()
+            };
+        }
+        let mut segments = path_segments(path);
+        let qualifier = match segments.last().map(String::as_str) {
+            Some("Self") => {
+                segments.pop();
+                self.self_type.clone()
+            }
+            Some(last) if last.starts_with(|c: char| c.is_ascii_uppercase()) => segments.pop(),
+            _ => None,
+        };
+        // What's left is the module path: `self::f` stays in this
+        // file, `rand::f`/`crate::m::f` must live under `rand`/`m`;
+        // a bare `crate::`/`super::` proves nothing.
+        let (path, module) = match segments.last().map(String::as_str) {
+            Some("self") => (Some(self.path.to_string()), None),
+            Some("crate" | "super") | None => (None, None),
+            Some(_) => (None, segments.pop()),
+        };
+        RelationTarget {
+            qualifier,
+            path,
+            module,
+            ..Default::default()
+        }
+    }
+
+    /// [`Self::path_target`] for a path inside a macro's flat token stream,
+    /// read backwards from the `::` before the item (`format :: f (..)`).
+    fn token_path_evidence(&self, accessor: Node) -> RelationTarget {
+        let mut segments = Vec::new();
+        let mut separator = Some(accessor);
+        while let Some(sep) = separator.filter(|s| s.kind() == "::") {
+            let Some(segment) = sep
+                .prev_sibling()
+                .filter(|n| matches!(n.kind(), "identifier" | "self" | "crate" | "super"))
+            else {
+                break;
+            };
+            segments.push(text(segment, self.source));
+            separator = segment.prev_sibling();
+        }
+        if segments.is_empty() {
+            return RelationTarget::default();
+        }
+        segments.reverse();
+        self.path_target(&segments.join("::"))
     }
 
     /// Records the string literals under `node` and nothing else.
@@ -811,22 +946,44 @@ impl<'a> Walker<'a> {
         }
     }
 
-    fn visit_type_references(&mut self, node: Node, owner: SymbolId, depth: u32) {
-        if depth >= MAX_TRAVERSAL_DEPTH {
+    /// Records the type a `Type::item` path goes through (`Dimension` in
+    /// `Dimension::Kind`, `Assessor` in `Assessor::new()`, `Type` in
+    /// `m::Type::f`). Only a capitalized segment is taken for a type: a
+    /// lowercase one is a module, and `Self` is the enclosing type itself.
+    fn visit_path_qualifier(
+        &mut self,
+        scoped: Node,
+        owner: SymbolId,
+        impl_type: Option<&str>,
+        depth: u32,
+    ) {
+        let Some(path) = scoped.child_by_field_name("path") else {
+            return;
+        };
+        let last = match path.kind() {
+            "scoped_identifier" => path.child_by_field_name("name"),
+            "generic_type" => path.child_by_field_name("type"),
+            _ => Some(path),
+        };
+        let names_type = last.is_some_and(|last| {
+            let name = text(last, self.source);
+            name != "Self"
+                && !self.generics.contains(name)
+                && name.starts_with(|c: char| c.is_ascii_uppercase())
+        });
+        if !names_type {
             return;
         }
-        if node.kind() == "type_identifier" {
-            self.push_relation(
-                owner,
-                RelationKind::References,
-                text(node, self.source).to_string(),
-                location(node),
-            );
-        } else {
-            let mut cursor = node.walk();
-            for child in node.named_children(&mut cursor) {
-                self.visit_type_references(child, owner, depth + 1);
+        match path.kind() {
+            "identifier" | "type_identifier" => {
+                self.push_relation(
+                    owner,
+                    RelationKind::References,
+                    text(path, self.source).to_string(),
+                    location(path),
+                );
             }
+            _ => self.visit(path, owner, impl_type, depth + 1),
         }
     }
 
@@ -914,7 +1071,9 @@ fn call_target<'a>(node: Node<'a>, source: &str) -> Option<(String, Node<'a>)> {
 /// Names of every `fn` item under `node` that isn't an `impl`/`trait`
 /// member — those are methods, reached as `Type::f`/`x.f()`, never by a bare
 /// name.
-fn collect_free_fn_names(node: Node, source: &str, out: &mut HashSet<String>, depth: u32) {
+/// Names of the items a bare identifier can use as a value: free functions
+/// and unit structs (`struct Broken;`, used as `&Broken`).
+fn collect_value_items(node: Node, source: &str, out: &mut HashSet<String>, depth: u32) {
     if depth >= MAX_TRAVERSAL_DEPTH {
         return;
     }
@@ -925,11 +1084,16 @@ fn collect_free_fn_names(node: Node, source: &str, out: &mut HashSet<String>, de
                 out.insert(text(name, source).to_string());
             }
         }
+        "struct_item" if node.child_by_field_name("body").is_none() => {
+            if let Some(name) = node.child_by_field_name("name") {
+                out.insert(text(name, source).to_string());
+            }
+        }
         _ => {}
     }
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        collect_free_fn_names(child, source, out, depth + 1);
+        collect_value_items(child, source, out, depth + 1);
     }
 }
 
