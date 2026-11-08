@@ -646,3 +646,38 @@ test('copying the duplicate list uses grouped locations and omits internal revie
   assert.doesNotMatch(copied[0], /keys:|duplicate-test| ↔ /);
   env.cleanup();
 });
+
+async function filteredDeadPage(query, typeCount) {
+  const fetch = async (url) => {
+    const route = url.pathname.split('/').at(-1);
+    if (route === 'findings')
+      return { items: [deadFinding], total: 1, all: 1, size: 25, page: 0, facets: { type: [['dead-code', typeCount]] } };
+    return defaultApi(url);
+  };
+  const env = harness({ hash: `#/codigo-muerto?${query}`, fetch });
+  const { render } = await env.load('page-findings.js');
+  env.cleanup = await render({ root: env.root, page: 'codigo-muerto', params: new URLSearchParams(query) });
+  await settle(); await settle();
+  return env;
+}
+
+test('a filtered dead-code list says how many candidates exist without filters and clears them', async () => {
+  const env = await filteredDeadPage('zone=website', 302);
+  const pager = env.root.querySelector('.pager');
+  assert.match(pager.textContent, /Showing 1–1 of 1/);
+  assert.match(pager.textContent, /302 in total/);
+  const clear = pager.querySelector('button.pager-clear');
+  assert.ok(clear, 'the pager offers to clear the filters');
+  clear.click(); await settle();
+  assert.match(env.context.location.hash, /zone=all/);
+  assert.match(env.context.location.hash, /state=all/);
+  env.cleanup();
+});
+
+test('an unfiltered list has no total hint', async () => {
+  const env = await filteredDeadPage('zone=all&state=all', 1);
+  const pager = env.root.querySelector('.pager');
+  assert.doesNotMatch(pager.textContent, /in total/);
+  assert.equal(pager.querySelector('button.pager-clear'), null);
+  env.cleanup();
+});

@@ -1075,6 +1075,9 @@ export async function render({ root, page, params: initial }) {
           size: data.size,
           total: data.total,
           onPage: (page) => patchQuery({ page }),
+          // The type facet is counted before the state/zone/... filters: the sidebar's number.
+          overall: (data.facets?.type || []).reduce((sum, [, count]) => sum + count, 0),
+          onClear: clearAll,
         }),
       );
     } catch (error) {
