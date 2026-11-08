@@ -27,6 +27,8 @@ and a strict CSP. Its localhost URL does not contain a private key.
   `files`, `symbols`, `symbol`, `source`, `findings`, `finding`, `search`,
   `dependencies`, `notes`, `note`, `notes-graph`. Lists page with a bounded
   `limit`; source ranges are bounded and validated against the indexed file.
+  `notes-graph` sends each edge as `[from, to]` positions in its `nodes`
+  array ([ADR-032](adrs/032-notes-graph-edges-as-positions.md)).
 - `POST api/review` saves review decisions (JSON, CSRF nonce, same-origin, and
   the `revision` the page showed: a decision changed meanwhile by another
   process returns 409 with the current review). `web/reviews.rs` is a thin
