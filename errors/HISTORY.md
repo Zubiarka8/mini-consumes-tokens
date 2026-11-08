@@ -292,6 +292,21 @@ On main base `589d1cc`, explicit-root `mct-cli call --tool get_indexing_status` 
 
 ERR-013 caller-path observation: `get_file_skeleton(path: "crates/mct-index/src/duplicates/file.rs")` returned `` `crates/mct-index/src/duplicates/file.rs` was not found under the indexed project root ``. `get_file_tree` located `crates/mct-index/src/duplicates/analysis/file.rs`; the corrected skeleton query succeeded. No server fix required; ERR-013 remains RESOLVED.
 
+## 2026-11-08 — duplicate precision verification
+
+On `feat/duplicate-detection-precision`, based on main `589d1cc`, explicit-root
+`mct-cli --root . call --tool get_indexing_status` reported 1,079 files,
+42,857 symbols and index timestamp `1794146099`. The 18 parse diagnostics
+remain: ERR-003 (16 intentionally malformed fixtures), ERR-002
+(`scripts/windows/review-check.ps1: line 29: syntax error`) and ERR-023
+(`crates/mct-cli/web-ui/src/styles.css: line 12: syntax error`). These remain
+separate from duplicate-quality scoring; a complete candidate report does not
+mean complete index coverage. No parser-error status is closed by this change.
+
+`scripts/unix/parse-probe.sh scripts/windows/review-check.ps1 crates/mct-cli/web-ui/src/styles.css`
+reproduced both diagnostics and exited 1 (`Error: 2 of 2 file(s) failed to parse`).
+ERR-002 and ERR-023 remain open; investigate their grammar support separately.
+
 ERR-002 / ERR-023 / ERR-003 observation, 2026-11-08: `get_indexing_status` (no arguments) on the connected index reported timestamp 1794147431, 857 files and 40,901 symbols, including 16 expected malformed fixtures, `crates/mct-cli/web-ui/src/styles.css: line 12: syntax error`, and `scripts/windows/review-check.ps1: line 29: syntax error`. The connected index belongs to another checkout and its freshness relative to `perf/vault-and-web-server` at 589d1cc is unverified. `scripts/unix/parse-probe.sh crates/mct-cli/web-ui/src/styles.css scripts/windows/review-check.ps1` in that worktree exited 1: `FAIL .../styles.css:12: syntax error` at `@source "./";` and `FAIL .../review-check.ps1:29: syntax error` at `Remove-Item Env:MCT_CHECK_LOG_DIR, Env:MCT_CHECK_SUMMARY -ErrorAction SilentlyContinue`; `Error: 2 of 2 file(s) failed to parse`. The two files have incomplete indexed coverage. Existing classifications remain unchanged; investigate ERR-023 and verify a refreshed index before closing.
 
 ERR-014 recurrence, 2026-11-08 (RESOLVED caller error, `perf/vault-and-web-server`, HEAD `589d1cc`): local `mct-cli call --tool build_context_pack` was first called with `name: "publish_with"` instead of `symbol`, and `--tool find_callers` with `name: "write_vault"` instead of `function`; exact diagnostics: ``invalid args for `build_context_pack`: missing field `symbol` `` and ``invalid args for `find_callers`: missing field `function` ``. Both lookups succeeded when retried with the documented fields. No server change.
