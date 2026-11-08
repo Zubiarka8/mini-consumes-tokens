@@ -64,6 +64,8 @@ Ordered in [ADR-025](../01-architecture/adrs/025-prioritized-improvement-candida
 - [ ] **32. Public, reproducible benchmark** against other tools on a public repository. Publish the losing cases too.
 - [ ] **33. Relations across roots and monorepos** for `--roots`. Each root is independent today.
 - [ ] **34. JSX and TSX components as symbols:** used components, props and events (issue #51).
+- [ ] **35. `mct-cli clean`:** show the size of `.mct-index/` and reclaim it. Dry run by default; `--yes` runs `VACUUM` and truncates the WAL; `--obsidian` also deletes the vault; `--all` deletes `.mct-index/` (rebuilt on next use). Never deletes `review-decisions.toon` or `finding-numbers.tsv` unless `--include-reviews` is passed. Takes the maintainer lock first and stops if a server or `web` holds it. Never touches anything outside `.mct-index/`. Expose the same function as an MCP tool `clean_index` (adds a tool; issue first) and as a "Storage" panel with a "Compact index" button in `mct-cli web`. Expected gain is tens of MB per project: the index is bounded by project size, not by usage.
+- [ ] **36. `scripts/unix/clean-merged-worktrees.sh`:** run `cargo clean` in every worktree whose branch is already merged into `main`, skipping worktrees with running processes. Development-only; the gigabytes on a contributor machine come from per-worktree `target/` folders (10–22 GB each), not from mct.
 
 ## Open project decisions
 - HTML template-engine handling (Django/Jinja2 embedded in `.html`) — undecided, see `internal/checklist.md`.
