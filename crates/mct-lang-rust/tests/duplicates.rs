@@ -77,3 +77,109 @@ fn same_named_methods_on_one_line_keep_separate_byte_boundaries() {
         "one-to-one"
     );
 }
+
+#[test]
+fn external_path_names_matching_parameters_are_not_local_renamings() {
+    let source = "fn first(input: i64) -> i64 {\n if input < 0 {\n return 0;\n }\n helpers::input(input)\n}\nfn second(data: i64) -> i64 {\n if data < 0 {\n return 0;\n }\n helpers::data(data)\n}\n";
+    let result = report(
+        &[("a.rs", source.into())],
+        DuplicateOptions {
+            min_tokens: 1,
+            ..Default::default()
+        },
+    );
+    assert_eq!(result.groups.len(), 1);
+    let group = &result.groups[0];
+    assert_eq!(group.verdict.level, mct_index::VerdictLevel::Suspicious);
+    assert_eq!(group.evidence.undeclared_name_positions, 1);
+}
+
+#[test]
+fn renamed_tuple_parameters_do_not_make_identical_rules_suspicious() {
+    let result = report(
+        &[(
+            "a.rs",
+            include_str!("../../../benchmarks/token-twins-labels/rust/tuple_parameters.rs").into(),
+        )],
+        DuplicateOptions::default(),
+    );
+    assert_eq!(result.groups.len(), 1);
+    assert_eq!(
+        result.groups[0].verdict.level,
+        mct_index::VerdictLevel::Real
+    );
+    assert_eq!(result.groups[0].evidence.undeclared_name_positions, 0);
+}
+
+#[test]
+fn namespace_qualifiers_and_selected_items_cannot_borrow_parameter_binding_roles() {
+    for (left, right) in [
+        ("helpers::input(input)", "helpers::data(data)"),
+        ("input::convert(input)", "data::convert(data)"),
+    ] {
+        let a = format!("fn first(input: i64) -> i64 {{ if input < 0 {{ return 0; }} {left} }}");
+        let b = format!("fn second(data: i64) -> i64 {{ if data < 0 {{ return 0; }} {right} }}");
+        for normalization in [
+            mct_index::Normalization::Broad,
+            mct_index::Normalization::Consistent,
+        ] {
+            let result = report(
+                &[("a.rs", a.clone()), ("b.rs", b.clone())],
+                DuplicateOptions {
+                    min_lines: 1,
+                    min_tokens: 1,
+                    normalization,
+                    ..Default::default()
+                },
+            );
+            assert_eq!(result.groups.len(), 1);
+            assert_eq!(
+                result.groups[0].verdict.level,
+                mct_index::VerdictLevel::Suspicious,
+                "{left}"
+            );
+        }
+    }
+}
+
+#[test]
+fn file_creation_order_and_reindexing_do_not_change_nested_reports_or_overlap_members() {
+    let inner = "fn inner(value: i64) -> i64 {\n if value < 0 {\n return 0;\n }\n if value > 100 {\n return 100;\n }\n value + 1\n}";
+    let source = format!("fn outer(value: i64) -> i64 {{\n{inner}\ninner(value)\n}}\n");
+    for normalization in [
+        mct_index::Normalization::Broad,
+        mct_index::Normalization::Consistent,
+        mct_index::Normalization::Exact,
+    ] {
+        let options = DuplicateOptions {
+            partial_blocks: Some(mct_index::PartialBlockBudget::default()),
+            min_tokens: 1,
+            normalization,
+            ..Default::default()
+        };
+        let files = [("a.rs", source.clone()), ("b.rs", source.clone())];
+        let forward = report(&files, options.clone());
+        let backward = report(&[files[1].clone(), files[0].clone()], options.clone());
+        assert_eq!(forward, backward, "{normalization:?}");
+        assert_eq!(forward, report(&files, options), "{normalization:?}");
+        assert!(forward.groups.len() >= 2);
+        let mut seen = std::collections::BTreeSet::new();
+        for group in &forward.groups {
+            for (i, member) in group.members.iter().enumerate() {
+                assert!(seen.insert((
+                    &member.path,
+                    member.start_line,
+                    member.end_line,
+                    member.start_column
+                )));
+                for other in &group.members[i + 1..] {
+                    assert!(
+                        member.path != other.path
+                            || member.end_line < other.start_line
+                            || other.end_line < member.start_line
+                    );
+                }
+            }
+        }
+    }
+}

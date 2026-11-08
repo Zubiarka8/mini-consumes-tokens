@@ -21,6 +21,7 @@ import {
   store,
   dateTime,
   basename,
+  symbolLabel,
   FINDING_PARAMS,
 } from "./core.js";
 import {
@@ -76,13 +77,27 @@ const BUILTIN_PRESETS = [
   { id: "b-pending", name: "preset.pending", query: "state=unreviewed,in-review" },
 ];
 const UNSUPPORTED_NOTE = { duplicate: "dup.unsupported", "dead-code": "dead.unsupported" };
+// An area is a folder of the user's own project; "." stands for the project root.
+// The folders every area starts with are left out of its label (an Android app keeps all of
+// them under `app/src/main/java/...`); the full path is the tooltip.
+let sharedFolders = 0;
+const setAreas = (areas) => {
+  const paths = areas.filter((a) => a !== ".").map((a) => a.split("/"));
+  sharedFolders = 0;
+  if (paths.length < 2 || paths.length !== areas.length) return;
+  const limit = Math.min(...paths.map((p) => p.length)) - 1;
+  while (sharedFolders < limit && paths.every((p) => p[sharedFolders] === paths[0][sharedFolders]))
+    sharedFolders += 1;
+};
+const areaLabel = (area) =>
+  area === "." ? t("area.root") : area.split("/").slice(sharedFolders).join("/") || area;
 const CHIP_LABEL = {
+  area: areaLabel,
   verdict: (verdict) => t(`dup.verdict.${verdict}`),
   scope: (scope) => t(`dup.scope.${scope}`),
   confidence: (confidence) => t(`dead.confidence.${confidence}`),
 };
 const SCOPES = ["same-file", "cross-file", "cross-module"];
-const ZONES = ["source", "tests", "benchmarks", "examples", "website"];
 // The bar's orders, as [sort, order]; the first is the default.
 const SORTS = {
   duplicate: [
@@ -135,14 +150,33 @@ const copyBriefButton = (row, cls) => {
     h("span", { class: "btn-label" }, t("ai.copyTemplate")),
   );
 };
-/** Files a duplicate group spans: the server counts the whole group, `members` is only a preview. */
-const filesOf = (r) => r.fileCount ?? new Set(r.members.map((m) => m.path)).size;
+/** Both counts describe the whole group; the member array can be a preview. */
+const locationsLabel = (r) =>
+  `${t(r.memberCount === 1 ? "dup.locationCount" : "dup.locationsCount", { n: r.memberCount })} · ${t(r.fileCount === 1 ? "dup.fileCount" : "dup.filesCount", { n: r.fileCount })}`;
 /** Every fragment the row carries, one per line, and how many the preview leaves out. */
 const fragmentLines = (r) => {
-  const hidden = (r.memberCount || 0) - r.members.length;
-  return [...r.members.map(memberLabel), ...(hidden > 0 ? [t("dup.moreFragments", { n: hidden })] : [])];
+  const hidden = r.membersOmitted ?? r.memberCount - r.members.length;
+  return [
+    ...r.members.map(memberLabel),
+    ...(hidden > 0 ? [t(hidden === 1 ? "dup.moreFragment" : "dup.moreFragments", { n: hidden })] : []),
+  ];
 };
 const fragmentsTitle = (r) => fragmentLines(r).join("\n");
+/** Repeated names share a label; counts and the locations panel still describe every member. */
+const groupNames = (r) => {
+  const names = [...new Set(r.members.map((member) => member.name))];
+  const omitted = r.membersOmitted ?? Math.max(0, r.memberCount - r.members.length);
+  return h(
+    "span",
+    { class: "stack-title group-names" },
+    names.flatMap((name, index) => [
+      index > 0 && h("span", { class: "group-separator", "aria-hidden": "true" }, " · "),
+      h("span", { class: "group-name", title: name }, symbolLabel(name)),
+    ]),
+    omitted > 0 && h("span", { class: "group-more" }, ` (+${omitted})`),
+  );
+};
+
 /** Where a stacked row's finding lives, in a panel that hover and keyboard focus both reveal (a native title does neither well). */
 const filesPanel = (r) =>
   h(
@@ -369,22 +403,19 @@ export async function render({ root, page, params: initial }) {
   };
   const q = () => parseHash().params;
   // Filters shown as chips; on Duplicados the scope is the bar's "Archivos" instead.
-  const panelKeys = ["language", "kind", "verdict", "scope", "confidence"].filter(
-    (key) => !(cfg.stacked && key === "scope"),
+  const panelKeys = ["language", "kind", "verdict", "scope", "confidence", "area"].filter(
+    (key) =>
+      !(cfg.stacked && key === "scope") && !(key === "area" && cfg.type !== "dead-code"),
   );
+
+  // The folders the candidates are in, from the server, most candidates first.
+  const areaValues = () => (facets.area || []).map(([value]) => value);
 
   const effectiveStates = (params) => {
     const raw = params.get("state");
     if (raw === "all") return [];
     if (raw) return raw.split(",").filter(Boolean);
     return cfg.defaultStates || [];
-  };
-  // Dead code starts on the source zone only: tests, benchmarks, examples and the website are reached by tooling, not by name.
-  const effectiveZones = (params) => {
-    if (cfg.type !== "dead-code") return [];
-    const raw = params.get("zone");
-    if (raw === "all") return [];
-    return raw ? raw.split(",").filter(Boolean) : ["source"];
   };
   const queryFor = (params) => ({
     type: cfg.type || params.get("type") || "",
@@ -393,7 +424,7 @@ export async function render({ root, page, params: initial }) {
     kind: listParam(params, "kind"),
     verdict: listParam(params, "verdict"),
     scope: listParam(params, "scope"),
-    zone: effectiveZones(params),
+    area: listParam(params, "area"),
     confidence: listParam(params, "confidence"),
     q: params.get("q") || "",
     dir: params.get("dir") || "",
@@ -410,7 +441,7 @@ export async function render({ root, page, params: initial }) {
       kind: null,
       verdict: null,
       scope: null,
-      zone: cfg.type === "dead-code" ? "all" : null,
+      area: null,
       confidence: null,
       q: null,
       dir: null,
@@ -559,17 +590,18 @@ export async function render({ root, page, params: initial }) {
         selected: listParam(params, "confidence"),
         onChange: (v) => patchQuery({ confidence: v }),
       },
-      cfg.type === "dead-code" && {
-        id: "zone",
-        label: t("filters.zone"),
-        options: ZONES.map((v) => ({
-          value: v,
-          label: t(`dead.zone.${v}`),
-          count: (facets.zone || []).find(([x]) => x === v)?.[1] || 0,
-        })),
-        selected: effectiveZones(params),
-        onChange: (v) => patchQuery({ zone: v.length ? v : "all" }),
-      },
+      cfg.type === "dead-code" &&
+        areaValues().length > 1 && {
+          id: "area",
+          label: t("filters.area"),
+          options: areaValues().map((v) => ({
+            value: v,
+            label: areaLabel(v),
+            count: (facets.area || []).find(([x]) => x === v)?.[1] || 0,
+          })),
+          selected: listParam(params, "area"),
+          onChange: (v) => patchQuery({ area: v }),
+        },
       {
         id: "language",
         label: t("filters.language"),
@@ -650,7 +682,7 @@ export async function render({ root, page, params: initial }) {
     );
   }
 
-  // The state, the zone and the search a chip names; on a stacked page the bar shows them instead.
+  // The state and the search a chip names; on a stacked page the bar shows them instead.
   function barChips(params, chips) {
     const states = effectiveStates(params);
     if (cfg.defaultStates && params.get("state") !== "all" && !params.get("state"))
@@ -667,20 +699,6 @@ export async function render({ root, page, params: initial }) {
         chips.push({
           label: stateLabel(s),
           remove: () => patchQuery({ state: states.filter((x) => x !== s).join(",") || "all" }),
-        });
-    if (cfg.type === "dead-code" && !params.get("zone"))
-      chips.push({ label: t("filters.zoneOnly"), remove: () => patchQuery({ zone: "all" }) });
-    else if (cfg.type === "dead-code" && params.get("zone") !== "all")
-      for (const v of effectiveZones(params))
-        chips.push({
-          label: t(`dead.zone.${v}`),
-          remove: () =>
-            patchQuery({
-              zone:
-                effectiveZones(params)
-                  .filter((x) => x !== v)
-                  .join(",") || "all",
-            }),
         });
     if (params.get("q")) chips.push({ label: `“${params.get("q")}”`, remove: () => patchQuery({ q: null }) });
   }
@@ -786,13 +804,7 @@ export async function render({ root, page, params: initial }) {
           key: "title",
           label: t("col.symbols"),
           sortable: true,
-          render: (r) =>
-            h(
-              "span",
-              { class: "name" },
-              h("span", { class: "ellipsis" }, r.title),
-              r.memberCount > 2 && badge(`+${r.memberCount - 2}`),
-            ),
+          render: (r) => groupNames(r),
         },
         {
           key: "path",
@@ -802,7 +814,7 @@ export async function render({ root, page, params: initial }) {
             h(
               "span",
               { title: fragmentsTitle(r) },
-              h("span", {}, t("dup.filesCount", { n: filesOf(r) })),
+              h("span", {}, locationsLabel(r)),
               h("span", { class: "path" }, r.members[0] ? r.members[0].path : ""),
             ),
           cls: "hide-sm",
@@ -831,7 +843,7 @@ export async function render({ root, page, params: initial }) {
           key: "title",
           label: t("col.symbol"),
           sortable: true,
-          render: (r) => h("span", { class: "name" }, h("span", { class: "ellipsis" }, r.title)),
+          render: (r) => h("span", { title: r.title }, symbolLabel(r.title)),
         },
         { key: "kind", label: t("code.col.kind"), sortable: true, render: (r) => r.kind, cls: "hide-sm" },
         {
@@ -841,10 +853,10 @@ export async function render({ root, page, params: initial }) {
           render: (r) => h("span", { class: "path", title: r.path }, `${r.path}:${r.line}`),
         },
         {
-          key: "zone",
-          label: t("col.zone"),
+          key: "area",
+          label: t("col.area"),
           sortable: true,
-          render: (r) => h("span", { class: "nowrap" }, t(`dead.zone.${r.zone}`)),
+          render: (r) => h("span", { class: "nowrap", title: r.area === "." ? "" : r.area }, areaLabel(r.area)),
           cls: "hide-sm",
         },
         {
@@ -863,7 +875,8 @@ export async function render({ root, page, params: initial }) {
         key: "title",
         label: t("col.finding"),
         sortable: true,
-        render: (r) => h("span", { class: "name" }, h("span", { class: "ellipsis" }, r.title)),
+        render: (r) =>
+          r.type === "duplicate" ? groupNames(r) : h("span", { title: r.title }, symbolLabel(r.title)),
       },
       {
         key: "type",
@@ -912,18 +925,20 @@ export async function render({ root, page, params: initial }) {
       state,
     );
 
-    // "Archivos": how far a duplicate reaches, or which part of the project a candidate is in.
+    // "Archivos": how far a duplicate reaches, or which folder of the project a candidate is in.
     const [key, values, fallback, chosen] =
       cfg.type === "duplicate"
         ? ["scope", SCOPES, "all", listParam(params, "scope")]
-        : ["zone", ZONES, "source", effectiveZones(params)];
+        : ["area", areaValues(), "all", listParam(params, "area")];
+    // One folder (or none) is nothing to choose from.
+    filesSelect.hidden = cfg.type !== "duplicate" && values.length < 2 && !chosen.length;
     const files = valueOf(params.get(key), chosen, fallback);
     filesSelect.set(
       [
         { value: "all", label: t("list.all") },
         ...values.map((v) => ({
           value: v,
-          label: counted(t(cfg.type === "duplicate" ? `dup.scope.${v}` : `dead.zone.${v}`), count(key, v)),
+          label: counted(cfg.type === "duplicate" ? t(`dup.scope.${v}`) : areaLabel(v), count(key, v)),
         })),
         files === "several" && several(chosen.length),
       ].filter(Boolean),
@@ -966,15 +981,35 @@ export async function render({ root, page, params: initial }) {
               class: "stack-open",
               "aria-describedby": `files-${r.key}`,
               onclick: () => open(r),
+              onkeydown: (event) => {
+                if (event.key === "Escape") {
+                  event.currentTarget.parentElement
+                    .querySelector(".files-pop")
+                    .setAttribute("data-dismissed", "");
+                }
+              },
+              onfocus: (event) =>
+                event.currentTarget.parentElement
+                  .querySelector(".files-pop")
+                  .removeAttribute("data-dismissed"),
+              onmouseenter: (event) =>
+                event.currentTarget.parentElement
+                  .querySelector(".files-pop")
+                  .removeAttribute("data-dismissed"),
             },
             h("span", { class: "stack-no" }, r.number ? `#${r.number}` : "—"),
-            h("span", { class: "stack-title" }, r.title),
+            r.type === "duplicate"
+              ? groupNames(r)
+              : h("span", { class: "stack-title", title: r.title }, symbolLabel(r.title)),
             h(
               "span",
               { class: "stack-where" },
               // A candidate names its file, whose full path is in the block's tooltip.
               r.type === "duplicate"
-                ? t("dup.filesCount", { n: filesOf(r) })
+                ? [
+                    h("span", { class: "stack-counts" }, locationsLabel(r)),
+                    h("span", { class: "stack-scope" }, t(`dup.scope.${r.scope}`)),
+                  ]
                 : `${basename(r.path)}:${r.line}`,
             ),
           ),
@@ -1001,6 +1036,7 @@ export async function render({ root, page, params: initial }) {
     try {
       const data = await api("findings", query, "findings");
       facets = data.facets;
+      setAreas((facets.area || []).map(([value]) => value));
       drawTabs(params);
       drawFilters(params);
       if (cfg.stacked) drawBar(params);
@@ -1044,9 +1080,13 @@ export async function render({ root, page, params: initial }) {
                     total: data.total,
                     columns: listColumns,
                     rows: data.items,
-                    rowText: cfg.type === "duplicate"
-                      ? (r) => duplicateListRow(r, findingNumber(r).replace("#", ""), (n) => t("dup.moreFragments", { n }))
-                      : undefined,
+                    rowText:
+                      cfg.type === "duplicate"
+                        ? (r) =>
+                            duplicateListRow(r, findingNumber(r).replace("#", ""), (n) =>
+                              t(n === 1 ? "dup.moreFragment" : "dup.moreFragments", { n }),
+                            )
+                        : undefined,
                   }),
                   t("ai.listCopied"),
                 ),
@@ -1075,7 +1115,7 @@ export async function render({ root, page, params: initial }) {
           size: data.size,
           total: data.total,
           onPage: (page) => patchQuery({ page }),
-          // The type facet is counted before the state/zone/... filters: the sidebar's number.
+          // The type facet is counted before the state/area/... filters: the sidebar's number.
           overall: (data.facets?.type || []).reduce((sum, [, count]) => sum + count, 0),
           onClear: clearAll,
         }),
@@ -1262,7 +1302,7 @@ export async function render({ root, page, params: initial }) {
   const filesSelect = pick(t("list.files"), (value) =>
     cfg.type === "duplicate"
       ? patchQuery({ scope: value === "all" ? null : value })
-      : patchQuery({ zone: value === "source" ? null : value }),
+      : patchQuery({ area: value === "all" ? null : value }),
   );
   const sortSelect = pick(t("list.sort"), (value) => {
     const [sort, order] = value.split(":");
