@@ -272,3 +272,15 @@ Auditing PHP support on `feat/php-indexing-improvements` (base `59231f0`), with 
 ## 2026-11-06 — MCT transport closed during refactor review
 
 On `feat/web-launcher-script`, `get_indexing_status` (no arguments) returned exactly `tool call error: tool call failed for `mini-consumes-tokens/get_indexing_status`\n\nCaused by:\n    Transport closed`. `impact_analysis` for `content_of` at `crates/mct-mcp-server/tests/common/all_content.rs` and `try_call` at `crates/mct-mcp-server/tests/common/try_call.rs` returned the same diagnostic with the respective tool name. No MCT caller graph or index status was available, so caller-impact verification is incomplete. Cause is unverified; retry after reconnecting the MCT server. The working tree has uncommitted changes; no revision hash recorded.
+
+## 2026-11-07 — Dead-code review of the web dashboard sources
+
+On clean `main`, HEAD `3bb6bdb`, index timestamp `1794088599` (1,056 files, 44,220 symbols). The 25 first-page dead-code candidates under `crates/mct-cli/src/web/` were all false positives and were recorded as `false-positive` review decisions through the dashboard's `api/review`. Opened ERR-032 (functions used only as values: 19 candidates). Appended an ERR-026 recurrence (4 Rust types used only in type positions, including `Type::Variant` and `Type::new(..)` paths). Noted the minified `review-dist/review.js` bundle as an index-scope source of candidates. ERR-014 recurred as caller mistakes (`find_references` given `name`, `find_calls` given `symbol`); retries with `symbol`/`function` succeeded.
+
+## 2026-11-07 — ERR-026 and ERR-032 fixed on a branch
+
+On `fix/dead-code-value-and-type-refs` (from `3bb6bdb`), the Rust and JS/TS parsers record type uses and functions used as values as `references`. `scripts/unix/check.sh` passed: 2144 tests, 0 failed, CI clippy clean, mct-eval accuracy 1.000. After a forced reindex with the branch build, dead-code candidates fell from 206 to 113, and none of the 25 reviewed web false positives remains. Status RESOLVED on the unmerged branch only; re-verify after merge.
+
+## 2026-11-07 — Second dead-code review; ERR-025 fixed on the branch
+
+On `fix/dead-code-value-and-type-refs`: TS type references, `export default` call arguments, Rust path calls and macros inside macro arguments, path-qualified macros and unit-struct values are now recorded. `scripts/unix/check.sh` passed (2150 tests, CI clippy clean, mct-eval accuracy 1.000). Dead-code candidates after a forced reindex: 90 (113 before this pass, 206 at the start). Re-verify after merge.

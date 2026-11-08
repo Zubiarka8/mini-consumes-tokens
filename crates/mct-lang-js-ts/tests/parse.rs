@@ -199,3 +199,127 @@ fn function_end_line_spans_the_whole_multiline_body() {
 fn syntax_error_is_reported_not_panicked() {
     mct_corpus::assert_syntax_error_reported(&JsTsParser, "Broken.ts", "function broken( {\n");
 }
+
+/// `(from symbol name, to_name)` of every `References` relation.
+fn value_references(parsed: &mct_core::ParsedFile) -> Vec<(String, String)> {
+    parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::References)
+        .map(|r| {
+            let from = parsed.symbols.iter().find(|s| s.id == r.from).unwrap();
+            (from.name.clone(), r.to_name.clone())
+        })
+        .collect()
+}
+
+#[test]
+fn a_same_file_function_used_as_a_value_is_a_reference() {
+    for path in ["main.js", "main.ts"] {
+        let parsed = parse(
+            path,
+            r#"function cycleTheme() {}
+function notificationsMenu() {}
+function followStatus() {}
+function debounce(fn) {
+  const wrapped = () => fn();
+  return wrapped;
+}
+function build() {
+  const toggleSidebar = () => {};
+  const away = (event) => {};
+  document.addEventListener("click", away, true);
+  setInterval(followStatus, 1000);
+  return { run: cycleTheme, onclick: notificationsMenu, toggleSidebar, other: toggleSidebar };
+}
+"#,
+        );
+        let refs = value_references(&parsed);
+        for (from, to) in [
+            ("debounce", "wrapped"),
+            ("build", "away"),
+            ("build", "followStatus"),
+            ("build", "cycleTheme"),
+            ("build", "notificationsMenu"),
+            ("build", "toggleSidebar"),
+        ] {
+            assert!(
+                refs.contains(&(from.to_string(), to.to_string())),
+                "{path}: {from} -> {to} missing from {refs:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn locals_callees_and_own_names_are_not_value_references() {
+    let parsed = parse(
+        "main.js",
+        r#"function levels() {}
+function available() {}
+function tick() { setTimeout(tick, 10); }
+function run(available) {
+  const levels = load();
+  levels();
+  try { work(); } catch (levels) { return levels; }
+  return available + levels.length;
+}
+function destructure({ levels }, [available]) { return levels + available; }
+"#,
+    );
+    let refs = value_references(&parsed);
+    assert!(refs.is_empty(), "{refs:?}");
+}
+
+#[test]
+fn ts_types_named_in_annotations_are_references_except_type_parameters() {
+    let parsed = parse(
+        "ReviewPanel.tsx",
+        r#"interface Payload { note: string }
+interface Problem { retry?: Payload }
+export interface ReviewPanelProps { item: string }
+export type Tone = NonNullable<Variant>;
+export function ReviewPanel(props: ReviewPanelProps): Result {
+  const [problem] = useState<Problem | null>(null);
+  const other: Shape = make();
+  return problem;
+}
+function wrap<T>(value: T): T { return value; }
+"#,
+    );
+    let refs = value_references(&parsed);
+    for (from, to) in [
+        ("ReviewPanel", "ReviewPanelProps"),
+        ("ReviewPanel", "Result"),
+        ("ReviewPanel", "Problem"),
+        ("ReviewPanel", "Shape"),
+        ("Tone", "NonNullable"),
+        ("Tone", "Variant"),
+    ] {
+        assert!(
+            refs.contains(&(from.to_string(), to.to_string())),
+            "{from} -> {to} missing from {refs:?}"
+        );
+    }
+    assert!(refs.iter().any(|(_, to)| to == "Payload"), "{refs:?}");
+    assert!(!refs.iter().any(|(_, to)| to == "T"), "{refs:?}");
+}
+
+#[test]
+fn an_exported_default_call_walks_its_arguments() {
+    let parsed = parse(
+        "vite.config.ts",
+        r#"const sonnerWithoutInjectedStyle = () => ({ name: "x" });
+export default defineConfig({ plugins: [react(), sonnerWithoutInjectedStyle()] });
+"#,
+    );
+    let calls: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Calls)
+        .map(|r| r.to_name.as_str())
+        .collect();
+    for name in ["defineConfig", "react", "sonnerWithoutInjectedStyle"] {
+        assert!(calls.contains(&name), "{name} missing from {calls:?}");
+    }
+}

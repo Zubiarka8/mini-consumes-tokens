@@ -29,7 +29,11 @@ impl Walker<'_> {
             self.visit(declaration, owner, type_name, depth + 1);
         }
         if let Some(value) = node.child_by_field_name("value") {
-            if let Some(name_node) = rightmost_name(value) {
+            // `export default defineConfig({ plugins: [p()] })`: a call is
+            // walked like any expression, so its arguments still count.
+            if value.kind() == "call_expression" {
+                self.visit(value, owner, type_name, depth + 1);
+            } else if let Some(name_node) = rightmost_name(value) {
                 self.push_relation(
                     owner,
                     RelationKind::References,
