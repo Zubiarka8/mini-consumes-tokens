@@ -1029,6 +1029,39 @@ fn an_uppercase_identity_is_not_a_review_key_and_the_file_is_kept() {
 }
 
 #[test]
+fn note_bodies_are_searched_from_the_snapshot_at_any_vault_size() {
+    let root = project();
+    let vault = root.path().join(".mct-index/obsidian");
+    fs::create_dir_all(&vault).unwrap();
+    // Above the old 500-note limit, where bodies were no longer searched.
+    for i in 0..501 {
+        fs::write(vault.join(format!("n{i:03}.md")), "# Plain\nnothing here\n").unwrap();
+    }
+    fs::write(
+        vault.join("n250.md"),
+        "---\ntags: [x]\n---\n# Hidden\nfirst line\n  The Needle5649 lives here.  \n",
+    )
+    .unwrap();
+    fs::write(vault.join("tree.md"), "# Bosque\nUn ÁRBOL grande.\n").unwrap();
+    let server = Server::start(root.path(), true);
+    // Bodies are kept in the snapshot: a search reads no file.
+    fs::remove_file(vault.join("n250.md")).unwrap();
+    let hits =
+        |query: &str| server.json(&format!("api/search?q={query}"))["groups"]["obsidian"].clone();
+    let needle = hits("needle5649");
+    assert_eq!(needle["total"], 1, "{needle}");
+    assert_eq!(needle["items"][0]["path"], "n250.md");
+    assert_eq!(needle["items"][0]["snippet"], "The Needle5649 lives here.");
+    let tree = hits("%C3%A1rbol");
+    assert_eq!(tree["total"], 1, "{tree}");
+    assert_eq!(tree["items"][0]["snippet"], "Un ÁRBOL grande.");
+    // A match never spans lines, as before.
+    assert_eq!(hits("first%20line%0A%20%20The")["total"], 0);
+    // Front matter is not body text.
+    assert_eq!(hits("tags%3A%20%5Bx%5D")["total"], 0);
+}
+
+#[test]
 fn obsidian_notes_are_served_read_only_with_verified_links() {
     let root = project();
     {
