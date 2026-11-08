@@ -369,7 +369,7 @@ test('recent activity links carry the finding identity and include findings outs
 // A dead-code candidate opens in the same workspace; its context lines come from the URL.
 const deadFinding = {
   key: 'dead-test', type: 'dead-code', title: 'unused_helper', kind: 'function', language: 'rust', state: 'unreviewed', revision: 'none',
-  confidence: 'high', zone: 'source', visibility: 'private', path: 'src/lib.rs', line: 10, history: [],
+  confidence: 'high', area: 'src', visibility: 'private', path: 'src/lib.rs', line: 10, history: [],
   detail: { symbol: { path: 'src/lib.rs', line: 10, endLine: 12, language: 'rust' }, code: null, imports: [], importedBy: [], notes: [] },
 };
 function deadApi(requests) {
@@ -647,11 +647,11 @@ test('copying the duplicate list uses grouped locations and omits internal revie
   env.cleanup();
 });
 
-async function filteredDeadPage(query, typeCount) {
+async function filteredDeadPage(query, typeCount, area = []) {
   const fetch = async (url) => {
     const route = url.pathname.split('/').at(-1);
     if (route === 'findings')
-      return { items: [deadFinding], total: 1, all: 1, size: 25, page: 0, facets: { type: [['dead-code', typeCount]] } };
+      return { items: [deadFinding], total: 1, all: 1, size: 25, page: 0, facets: { type: [['dead-code', typeCount]], area } };
     return defaultApi(url);
   };
   const env = harness({ hash: `#/codigo-muerto?${query}`, fetch });
@@ -662,22 +662,50 @@ async function filteredDeadPage(query, typeCount) {
 }
 
 test('a filtered dead-code list says how many candidates exist without filters and clears them', async () => {
-  const env = await filteredDeadPage('zone=website', 302);
+  const env = await filteredDeadPage('area=website', 302, [['website', 1]]);
   const pager = env.root.querySelector('.pager');
   assert.match(pager.textContent, /Showing 1–1 of 1/);
   assert.match(pager.textContent, /302 in total/);
   const clear = pager.querySelector('button.pager-clear');
   assert.ok(clear, 'the pager offers to clear the filters');
   clear.click(); await settle();
-  assert.match(env.context.location.hash, /zone=all/);
+  assert.doesNotMatch(env.context.location.hash, /area=/);
   assert.match(env.context.location.hash, /state=all/);
   env.cleanup();
 });
 
 test('an unfiltered list has no total hint', async () => {
-  const env = await filteredDeadPage('zone=all&state=all', 1);
+  const env = await filteredDeadPage('state=all', 1);
   const pager = env.root.querySelector('.pager');
   assert.doesNotMatch(pager.textContent, /in total/);
   assert.equal(pager.querySelector('button.pager-clear'), null);
+  env.cleanup();
+});
+
+test('the folder filter lists the project\'s own folders, most candidates first', async () => {
+  const env = await filteredDeadPage('state=all', 3, [['website', 2], ['app', 1]]);
+  const selects = [...env.root.querySelectorAll('label.pick select')];
+  const folders = selects.find(select => [...select.options].some(option => option.value === 'website'));
+  assert.ok(folders, 'a select offers the folders');
+  assert.deepEqual([...folders.options].map(option => option.value), ['all', 'website', 'app']);
+  assert.equal(folders.closest('label').hidden, false);
+  env.cleanup();
+});
+
+test('a project with a single folder gets no folder filter', async () => {
+  const env = await filteredDeadPage('state=all', 1, [['.', 1]]);
+  const hidden = [...env.root.querySelectorAll('label.pick')].filter(label => label.hidden);
+  assert.equal(hidden.length, 1, 'only the folder select is hidden');
+  env.cleanup();
+});
+
+test('the folders every area shares are left out of the labels and kept in the tooltip', async () => {
+  const base = 'app/src/main/java/com/acme';
+  const env = await filteredDeadPage('state=all', 3, [[`${base}/ui`, 2], [`${base}/data`, 1]]);
+  const folders = [...env.root.querySelectorAll('label.pick select')]
+    .find(select => [...select.options].some(option => option.value === `${base}/ui`));
+  assert.ok(folders);
+  assert.match(folders.options[1].textContent, /^ui \(2\)/);
+  assert.match(folders.options[2].textContent, /^data \(1\)/);
   env.cleanup();
 });

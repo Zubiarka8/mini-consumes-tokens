@@ -206,7 +206,7 @@ export function deadBrief(item) {
       `- Finding: dead code${item.number ? ` #${item.number}` : ""} — ${item.title} (key ${item.key})`,
       reviewLine(item),
       `- Symbol: ${item.title} · ${item.kind} · ${s.language || item.language}`,
-      `- Visibility: ${item.visibility} · zone: ${item.zone} · confidence: ${item.confidence}`,
+      `- Visibility: ${item.visibility} · area: ${item.area === "." ? "project root" : item.area} · confidence: ${item.confidence}`,
       "- Known references: 0",
       `- Its file imports ${plural(item.detail.imports?.length || 0, "file")} and is imported by ${plural(importedBy.length, "file")}`,
     ],
