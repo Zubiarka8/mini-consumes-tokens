@@ -72,7 +72,6 @@ impl FileIdentity {
 struct Site {
     index: Index,
     root: PathBuf,
-    no_obsidian: bool,
     stamp: IndexStamp,
     navigation: NavigationSnapshot,
     symbols: BTreeMap<String, Vec<usize>>,
@@ -242,7 +241,6 @@ impl Site {
         Ok(Self {
             index,
             root: canonical_root,
-            no_obsidian,
             stamp,
             navigation,
             symbols,
@@ -294,7 +292,10 @@ impl Site {
     /// Replaces the snapshot with a fresh one, or records `failed` as the
     /// stamp already tried.
     fn reload(&mut self, failed: IndexStamp) {
-        match Site::load(&self.root, self.no_obsidian) {
+        // The process that published the new generation also published the
+        // vault from its post-reindex hook; doing it again here doubled the
+        // work and competed for the writer lock.
+        match Site::load(&self.root, true) {
             Ok(mut fresh) => {
                 fresh.csrf = std::mem::take(&mut self.csrf);
                 fresh.latency = std::mem::take(&mut self.latency);
