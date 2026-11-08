@@ -2,7 +2,7 @@
 //! the real parse -> SQLite -> query pipeline: functions used only as a
 //! value, only inside a macro, or only by the test harness are not reported,
 //! while a genuinely unreferenced one — including one whose name is reused
-//! as a local or a field elsewhere — still is.
+//! as a local or a field elsewhere, or one called only by itself — still is.
 
 // Test code: an unwrap()/expect() here means a broken test precondition, and
 // panicking is the correct behavior — this is not production code parsing
@@ -70,4 +70,24 @@ fn unreferenced_functions_are_still_candidates() {
             "{expected} missing from {names:?}"
         );
     }
+}
+
+#[test]
+fn a_function_called_only_by_itself_is_a_candidate() {
+    let names = candidates();
+    assert!(names.contains(&"countdown".to_string()), "{names:?}");
+}
+
+#[test]
+fn a_recursive_function_with_another_caller_is_not_a_candidate() {
+    let names = candidates();
+    assert!(!names.contains(&"depth".to_string()), "{names:?}");
+}
+
+#[test]
+fn a_call_to_a_same_named_symbol_is_still_a_reference() {
+    // `delegate` calls `inner::delegate`: two symbols share the name, so the
+    // call cannot be told apart from recursion by name and is kept.
+    let names = candidates();
+    assert!(!names.contains(&"delegate".to_string()), "{names:?}");
 }
