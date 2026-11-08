@@ -14,7 +14,6 @@ import {
   copy,
   hrefTo,
   forget,
-  basename,
   toast,
 } from "./core.js";
 import {
@@ -34,8 +33,9 @@ import {
   drawerButton,
   selectBox,
 } from "./components.js";
-import { renderMarkdown } from "./markdown.js";
+import { markdownRenderer } from "./markdown.js";
 import { graphView } from "./graph.js";
+import { glGraph } from "./graph-loader.js";
 import { t } from "./i18n.js";
 
 const VIEWS = ["notas", "grafo", "etiquetas", "backlinks", "codigo"];
@@ -68,15 +68,43 @@ function resolveRelative(from, target) {
   return parts.join("/");
 }
 
+// Above this many notes the graph is drawn with WebGL: an SVG of that size is unreadable and slow.
+const GL_MIN_NODES = 250;
+
+// First readable paragraph of a note body as plain text, for the wikilink hover preview.
+function excerptOf(body) {
+  const paragraph = body
+    .replace(/%%[\s\S]*?%%/g, "")
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .find((block) => block && !/^(#{1,6}\s|```|~~~|\||>|-{3,}$)/.test(block));
+  const plain = (paragraph ?? "")
+    .replace(/!?\[\[([^\]|]*\|)?([^\]]*)\]\]/g, "$2")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/[*_`~=]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return plain.length > 220 ? `${plain.slice(0, 217)}…` : plain;
+}
+
+// Obsidian resolves `[[Name]]` and `[[folder/Name]]` against note paths without
+// regard to case or the .md suffix.
+function wikiMatches(path, target) {
+  const note = path.replace(/\.md$/i, "").toLowerCase();
+  const wanted = target.replace(/\.md$/i, "").toLowerCase();
+  return note === wanted || note.endsWith(`/${wanted}`);
+}
+
 export async function render({ root, params: initial }) {
   const listHost = h("div", {});
   const viewer = h("div", { class: "inspector-col sticky" });
   const filtersHost = h("div", {});
-  const chipsHost = h("div", {});
+  const chipsHost = h("div", { class: "notes-only" });
   const center = h("div", {});
   const drawer = { current: null };
   let facets = { folder: [], tag: [] };
   let selected = initial.get("note") || null;
+  const previews = new Map();
   let lastQuery = "";
   let listGeneration = 0;
   let graphGeneration = 0;
@@ -360,6 +388,11 @@ export async function render({ root, params: initial }) {
         h(
           "div",
           { class: "toolbar" },
+          h(
+            "button",
+            { class: "btn sm", onclick: () => patchQuery({ view: null, page: null }) },
+            t("obs.backToNotes"),
+          ),
           search,
           dl,
           h(
@@ -409,31 +442,53 @@ export async function render({ root, params: initial }) {
         );
         return;
       }
-      graph = graphView({
-        label: t("obs.graphLabel"),
-        directed: false,
-        nodes: data.nodes.map((n) => ({
-          ...n,
-          color: noteColor(n, selected),
-          radius: 6 + Math.min(10, n.degree),
-          title: `${n.label} · ${n.folder}`,
-        })),
-        // The API sends each edge as [from, to] positions in `nodes`.
-        edges: data.edges.map(([from, to]) => ({ from: data.nodes[from].id, to: data.nodes[to].id })),
-        onSelect: (node) => patchQuery({ note: node.id }),
-      });
+      const nodes = data.nodes.map((n) => ({
+        ...n,
+        color: noteColor(n, selected),
+        // Dots shrink as the graph grows so a large SVG graph stays a map, not a solid blob.
+        radius: data.nodes.length > 400 ? 3 + Math.min(3, n.degree / 20) : 6 + Math.min(10, n.degree),
+        title: `${n.label} · ${n.folder}`,
+      }));
+      // The API sends each edge as [from, to] positions in `nodes`.
+      const edges = data.edges.map(([from, to]) => ({ from: data.nodes[from].id, to: data.nodes[to].id }));
+      const onSelect = (node) => patchQuery({ note: node.id });
+      // Large vaults are drawn by WebGL; the SVG graph stays for small ones and as the fallback.
+      const createGl = nodes.length > GL_MIN_NODES ? await glGraph() : null;
+      if (generation !== graphGeneration || view(q()) !== "grafo") return;
+      graph = createGl
+        ? createGl({
+            nodes,
+            edges,
+            onSelect,
+            labels: {
+              aria: t("obs.graphLabel"),
+              zoomIn: t("graph.zoomIn"),
+              zoomOut: t("graph.zoomOut"),
+              fit: t("graph.fit"),
+              display: t("graph.display"),
+              forces: t("graph.forces"),
+              nodeSize: t("graph.nodeSize"),
+              linkThickness: t("graph.linkThickness"),
+              textThreshold: t("graph.textThreshold"),
+              center: t("graph.center"),
+              repel: t("graph.repel"),
+            },
+          })
+        : graphView({ label: t("obs.graphLabel"), directed: false, nodes, edges, onSelect });
       listHost.append(
         graph.el,
         h("p", { class: "muted small mt-2" }, t("obs.graphNote")),
-        h(
-          "div",
-          { class: "legend mt-2" },
-          [
-            ["var(--primary)", t("obs.legend.note")],
-            ["var(--accent)", t("obs.legend.code")],
-            ["var(--text-3)", t("obs.legend.orphan")],
-          ].map(([c, l]) => h("span", {}, h("i", { style: { background: c } }), l)),
-        ),
+        // The WebGL graph colours notes by community, so the SVG legend would be wrong there.
+        !createGl &&
+          h(
+            "div",
+            { class: "legend mt-2" },
+            [
+              ["var(--primary)", t("obs.legend.note")],
+              ["var(--accent)", t("obs.legend.code")],
+              ["var(--text-3)", t("obs.legend.orphan")],
+            ].map(([c, l]) => h("span", {}, h("i", { style: { background: c } }), l)),
+          ),
       );
     } catch (error) {
       if (!isAbort(error) && generation === graphGeneration)
@@ -457,14 +512,30 @@ export async function render({ root, params: initial }) {
     }
     clear(viewer).append(h("div", { class: "card inspector" }, loading()));
     try {
-      const n = await api("note", { path }, "note");
+      const [n, render] = await Promise.all([api("note", { path }, "note"), markdownRenderer()]);
       if (selected !== path) return;
       const open = (target, wiki) => {
         const hit = wiki
-          ? n.linksTo.find((l) => basename(l.path).replace(/\.md$/, "") === target)
+          ? n.linksTo.find((l) => wikiMatches(l.path, target))
           : n.linksTo.find((l) => l.path === resolveRelative(n.path, target));
         if (hit) patchQuery({ note: hit.path });
         else toast(t("obs.unresolved", { name: target }), "info");
+      };
+      // Hover preview of a wikilink: the linked note's title and first paragraph. Only notes this
+      // note links to are known, so anything else gets no preview. A failed or aborted request is
+      // not cached, so hovering again retries it.
+      const preview = async (name) => {
+        const hit = n.linksTo.find((l) => wikiMatches(l.path, name));
+        if (!hit) return null;
+        if (!previews.has(hit.path)) {
+          const request = api("note", { path: hit.path }, "preview").then((other) => ({
+            title: other.title || hit.title || hit.path,
+            excerpt: excerptOf(other.body) || hit.path,
+          }));
+          previews.set(hit.path, request);
+          request.catch(() => previews.delete(hit.path));
+        }
+        return previews.get(hit.path);
       };
       const mdLink = `[${n.title}](${n.path.split("/").map(encodeURIComponent).join("/")})`;
       clear(viewer).append(
@@ -539,7 +610,7 @@ export async function render({ root, params: initial }) {
           h(
             "div",
             { class: "section" },
-            renderMarkdown(n.body, { onNote: open, onTag: (tag) => patchQuery({ view: null, tag }) }),
+            render(n.body, { onNote: open, onTag: (tag) => patchQuery({ view: null, tag }), preview }),
           ),
           h(
             "div",
@@ -664,7 +735,7 @@ export async function render({ root, params: initial }) {
       {},
       h(
         "div",
-        { class: "toolbar" },
+        { class: "toolbar notes-only" },
         search,
         drawerButton(() => drawer.current),
       ),
@@ -674,6 +745,13 @@ export async function render({ root, params: initial }) {
     viewer,
   );
   drawer.current = layout.querySelector("aside");
+  // The graph gets the whole width; the note a node opens floats over its right side.
+  const syncLayout = () => {
+    const wide = view(q()) === "grafo";
+    root.classList.toggle("graph-only", wide);
+    layout.classList.toggle("graph-wide", wide);
+    layout.classList.toggle("note-open", wide && Boolean(selected));
+  };
   root.append(
     pageHead(t("obs.title"), t("obs.subtitle"), [badge(t("obs.readOnly"), "primary", "lock")]),
     layout,
@@ -683,6 +761,7 @@ export async function render({ root, params: initial }) {
   drawChips(initial);
   await drawList(initial);
   await showNote(selected);
+  syncLayout();
   const off = onQuery((params) => {
     search.sync(params.get("q") || "");
     const sel = params.get("note");
@@ -690,6 +769,7 @@ export async function render({ root, params: initial }) {
       showNote(sel);
       if (graph && sel) graph.select(sel);
     }
+    syncLayout();
     root
       .querySelectorAll(".note-card")
       .forEach((el) => el.setAttribute("aria-selected", String(el.dataset.path === sel)));
@@ -703,6 +783,7 @@ export async function render({ root, params: initial }) {
     listGeneration += 1;
     graphGeneration += 1;
     off();
+    root.classList.remove("graph-only");
     graph?.destroy();
     cancelApi("notes");
     cancelApi("ngraph");

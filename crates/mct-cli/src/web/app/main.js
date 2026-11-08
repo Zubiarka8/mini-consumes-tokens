@@ -37,7 +37,7 @@ const THEMES = [
   ["light", "theme.light", "sun"],
   ["system", "theme.system", "gear"],
 ];
-const DEFAULT_THEME = "light";
+const DEFAULT_THEME = "system";
 
 const app = document.getElementById("app");
 const ctx = { meta: null, summary: null, refresh: () => boot(true) };

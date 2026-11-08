@@ -3,17 +3,30 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && vite build --config vite.notes.config.ts && vite build --config vite.graph.config.ts",
+    "build:graph": "tsc --noEmit && vite build --config vite.graph.config.ts",
+    "build:review": "tsc --noEmit && vite build",
+    "build:notes": "tsc --noEmit && vite build --config vite.notes.config.ts",
     "test": "vitest run"
   },
   "dependencies": {
+    "@floating-ui/dom": "1.8.0",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
+    "graphology": "0.26.0",
+    "graphology-communities-louvain": "2.0.2",
+    "graphology-layout-forceatlas2": "0.10.1",
+    "graphology-types": "0.24.8",
+    "highlight.js": "11.12.0",
+    "lowlight": "3.3.0",
     "lucide-react": "1.64.0",
+    "marked": "18.1.3",
+    "marked-footnote": "1.4.0",
     "motion": "14.7.1",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "react-resizable-panels": "4.15.1",
+    "sigma": "3.0.2",
     "sonner": "2.0.8"
   },
   "devDependencies": {

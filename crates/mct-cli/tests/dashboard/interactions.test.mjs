@@ -346,6 +346,31 @@ test('obsolete Obsidian note requests cannot replace the newly selected detail',
   cleanup();
 });
 
+test('an opened note renders Obsidian syntax, hides comments and opens the note a wikilink names', async () => {
+  const body = 'See [[Other]] and #todo\n\n> [!warning] Careful\n> mind the gap\n\n- [x] done\n  - nested\n\n```rust\nfn main() {}\n```\n\nvisible %%secret%% text\n\n<script>alert(1)</script>';
+  const env = harness({ hash: '#/obsidian', fetch: url => {
+    if (url.pathname.endsWith('/notes')) return { items: [], total: 0, all: 0, page: 0, size: 40, facets: { folder: [], tag: [] } };
+    if (url.pathname.endsWith('/note')) return { title: 'Rich', path: 'rich.md', linksTo: [{ path: 'other.md', title: 'Other' }], backlinkList: [], tags: [], frontmatter: [], body, codePath: null, symbols: [], duplicateKeys: [], deadCodeKeys: [] };
+    return defaultApi(url);
+  } });
+  const { render } = await env.load('page-notes.js');
+  const cleanup = await render({ root: env.root, params: new URLSearchParams() });
+  const core = await env.load('core.js');
+  core.patchQuery({ note: 'rich.md' }); await settle();
+  const note = env.root.querySelector('.note-body');
+  assert.ok(note, 'the note body is rendered by the notes bundle');
+  assert.equal(note.querySelector('.callout[data-callout="warning"] .callout-title').textContent, 'Careful');
+  assert.ok(note.querySelector('li input[type="checkbox"][checked]'), 'a done task is a checked box');
+  assert.ok(note.querySelector('li li'), 'a nested list stays nested');
+  assert.equal(note.querySelector('pre code .hljs-keyword').textContent, 'fn');
+  assert.doesNotMatch(note.textContent, /secret/);
+  assert.equal(note.querySelector('script'), null);
+  assert.match(note.textContent, /<script>alert\(1\)<\/script>/);
+  note.querySelector('a.wikilink').click(); await settle();
+  assert.match(env.location.hash, /note=other\.md/);
+  cleanup();
+});
+
 test('number formatting follows the selected locale including statistics decimals', async () => {
   for (const [lang, expected] of [['en', '1,234.5'], ['es', '1234,5']]) {
     const env = harness({ lang }); const { fmt } = await env.load('core.js'); assert.equal(fmt(1234.5, { maximumFractionDigits: 1 }), expected);
