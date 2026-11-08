@@ -398,3 +398,64 @@ trait T { fn sample(x: char) -> f64; }
         .filter(|token| token.primitive_spelling)
         .all(|token| token.role == mct_core::TokenRole::Type));
 }
+
+#[test]
+fn tuple_parameter_bindings_are_parameters_but_local_patterns_are_unknown() {
+    use mct_core::TokenRole;
+    let file = tokenize(
+        "fn sum((left, right): (i64, i64)) -> i64 { let (x, y) = pair; left + right + x + y }",
+    );
+    for name in ["left", "right"] {
+        let declaration = file.tokens.iter().find(|token| token.text == name).unwrap();
+        assert_eq!(declaration.role, TokenRole::Parameter, "{name}");
+    }
+    for name in ["x", "y", "pair"] {
+        assert!(
+            file.tokens
+                .iter()
+                .filter(|token| token.text == name)
+                .all(|token| token.role == TokenRole::Unclassified),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn tuple_role_wrapping_is_limited_to_direct_callable_parameters() {
+    use mct_core::TokenRole;
+    for source in [
+        "fn f((left, right): (i64, i64)) {}",
+        "fn f() { let f = |(left, right)| left + right; }",
+    ] {
+        let file = tokenize(source);
+        for name in ["left", "right"] {
+            assert_eq!(
+                file.tokens
+                    .iter()
+                    .find(|token| token.text == name)
+                    .unwrap()
+                    .role,
+                TokenRole::Parameter
+            );
+        }
+    }
+    for source in [
+        "fn f() { let (left, right) = pair; }",
+        "fn f() { for (left, right) in pairs {} }",
+        "fn f() { match pair { (left, right) => left + right } }",
+        "fn f(((left, right), tail): ((i64, i64), i64)) {}",
+    ] {
+        let file = tokenize(source);
+        for name in ["left", "right"] {
+            assert_eq!(
+                file.tokens
+                    .iter()
+                    .find(|token| token.text == name)
+                    .unwrap()
+                    .role,
+                TokenRole::Unclassified,
+                "{source}"
+            );
+        }
+    }
+}
