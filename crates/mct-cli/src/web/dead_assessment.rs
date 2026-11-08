@@ -1,18 +1,21 @@
-//! Where a dead-code candidate lives and how likely it is to be really unused.
+//! How likely a dead-code candidate is to be really unused.
 //!
 //! The index only knows that nothing references the symbol by name. This adds
-//! the cheap evidence that changes what that means: tests, benchmarks, examples
-//! and the website are reached by tooling rather than by name, a public item
-//! may be called from outside the repository, and some names are entry points
-//! or trait methods. It ranks candidates; it never proves them dead.
+//! the cheap evidence that changes what that means: tests, benchmarks and
+//! examples are reached by tooling rather than by name, a public item may be
+//! called from outside the repository, and some names are entry points or
+//! trait methods. It ranks candidates; it never proves them dead.
+//!
+//! Which folder of the project a candidate is in is not decided here: the
+//! groups the list is filtered by come from the project's own folders (see
+//! `areas`).
 
 use std::collections::HashMap;
 use std::path::Path;
 
-/// Zone, visibility and confidence of one candidate, as served by the API.
+/// Visibility and confidence of one candidate, as served by the API.
 #[derive(Clone, Copy)]
 pub(super) struct Assessment {
-    pub zone: &'static str,
     pub visibility: &'static str,
     pub confidence: &'static str,
 }
@@ -57,33 +60,24 @@ const ENTRY_NAMES: [&str; 25] = [
     "index",
 ];
 
-pub(super) fn zone(path: &str) -> &'static str {
+/// Whether the file is a test, a benchmark or an example by the conventions
+/// most ecosystems share. Such code is run by a tool, not called by name, so
+/// "no references" says little about it.
+pub(super) fn reached_by_tooling(path: &str) -> bool {
     let lower = path.to_lowercase();
     let mut parts: Vec<&str> = lower.split('/').collect();
     let file = parts.pop().unwrap_or("");
     let stem = file.rsplit_once('.').map_or(file, |(stem, _)| stem);
-    if parts.iter().any(|part| TEST_DIRS.contains(part))
-        || stem.ends_with("_test")
+    parts.iter().any(|part| {
+        TEST_DIRS.contains(part)
+            || matches!(
+                *part,
+                "benchmarks" | "benchmark" | "bench" | "benches" | "examples" | "example"
+            )
+    }) || stem.ends_with("_test")
         || stem.ends_with(".test")
         || stem.ends_with(".spec")
         || stem.starts_with("test_")
-    {
-        "tests"
-    } else if parts
-        .iter()
-        .any(|part| matches!(*part, "benchmarks" | "benchmark" | "bench" | "benches"))
-    {
-        "benchmarks"
-    } else if parts
-        .iter()
-        .any(|part| matches!(*part, "examples" | "example"))
-    {
-        "examples"
-    } else if parts.contains(&"website") {
-        "website"
-    } else {
-        "source"
-    }
 }
 
 /// First line of the definition itself, skipping attributes, decorators and comments.
@@ -188,12 +182,12 @@ impl<'a> Assessor<'a> {
         let lines: Vec<&str> = text.map(|text| text.lines().collect()).unwrap_or_default();
         let definition = definition_line(&lines, line);
         let visibility = visibility(language, name, definition.as_deref());
-        let zone = zone(path);
+        let tooling = reached_by_tooling(path);
         // A function named again elsewhere in its own file is most likely passed
         // around as a value (`run: handler`), which the index does not count as a reference.
         let used_as_value = matches!(kind, "function" | "method")
             && text.is_some_and(|text| mentions(text, name) > 1);
-        let confidence = if zone != "source" || entry_like(name) || used_as_value {
+        let confidence = if tooling || entry_like(name) || used_as_value {
             "low"
         } else if matches!(visibility, "public" | "unknown") || kind != "function" {
             "medium"
@@ -201,7 +195,6 @@ impl<'a> Assessor<'a> {
             "high"
         };
         Assessment {
-            zone,
             visibility,
             confidence,
         }
@@ -213,19 +206,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn zones_follow_the_path() {
+    fn tests_benchmarks_and_examples_are_reached_by_tooling() {
         for (path, expected) in [
-            ("crates/mct-index/src/lib.rs", "source"),
+            ("crates/mct-index/src/lib.rs", false),
+            ("website/components/landing/hero.tsx", false),
+            ("app/server.ts", false),
             (
                 "crates/mct-lang-js-ts/tests/corpus/project/src/order.ts",
-                "tests",
+                true,
             ),
-            ("crates/x/src/foo_test.rs", "tests"),
-            ("benchmarks/token-twins-labels/python/a.py", "benchmarks"),
-            ("crates/mct-mcp-server/examples/demo.rs", "examples"),
-            ("website/components/landing/hero.tsx", "website"),
+            ("crates/x/src/foo_test.rs", true),
+            ("benchmarks/token-twins-labels/python/a.py", true),
+            ("crates/mct-mcp-server/examples/demo.rs", true),
         ] {
-            assert_eq!(zone(path), expected, "{path}");
+            assert_eq!(reached_by_tooling(path), expected, "{path}");
         }
     }
 
