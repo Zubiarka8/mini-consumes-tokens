@@ -30,7 +30,8 @@
 //!   and `shorthand_field_identifier` are members; the bare `function` of a
 //!   call and the `macro` of an invocation are callees; a `parameter` pattern
 //!   and a closure parameter are parameters; a function name is a
-//!   declaration. Path segments (`a::b`), `mut` patterns and locals stay
+//!   declaration. Direct tuple patterns in signatures/closure parameters are
+//!   parameters too. Nested patterns, path segments (`a::b`) and locals stay
 //!   unclassified. Format strings inside macros are ordinary string literals:
 //!   their `{name}` placeholders are not analyzed.
 //! - **Callable context:** outer `attribute_item`s (`#[test]`, `#[cfg(..)]`)
@@ -135,12 +136,14 @@ const CLASSES: TokenClasses = TokenClasses {
     parent_roles: &[
         ("function_item", "name", TokenRole::Declaration),
         ("function_signature_item", "name", TokenRole::Declaration),
-        ("parameter", "pattern", TokenRole::Parameter),
+        // Type positions are classified before parent roles; an empty field
+        // also recognizes identifiers through a direct tuple-pattern wrapper.
+        ("parameter", "", TokenRole::Parameter),
         ("closure_parameters", "", TokenRole::Parameter),
         ("call_expression", "function", TokenRole::Callee),
         ("macro_invocation", "macro", TokenRole::Callee),
     ],
-    role_wrappers: &[],
+    role_wrappers: &["tuple_pattern"],
     decorator_kinds: &["attribute_item"],
     context_kinds: &[
         ("mod_item", "mod"),

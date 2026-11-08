@@ -284,3 +284,19 @@ On `fix/dead-code-value-and-type-refs` (from `3bb6bdb`), the Rust and JS/TS pars
 ## 2026-11-07 — Second dead-code review; ERR-025 fixed on the branch
 
 On `fix/dead-code-value-and-type-refs`: TS type references, `export default` call arguments, Rust path calls and macros inside macro arguments, path-qualified macros and unit-struct values are now recorded. `scripts/unix/check.sh` passed (2150 tests, CI clippy clean, mct-eval accuracy 1.000). Dead-code candidates after a forced reindex: 90 (113 before this pass, 206 at the start). Re-verify after merge.
+
+
+## 2026-11-08 — duplicate precision verification
+
+On `feat/duplicate-detection-precision`, based on main `589d1cc`, explicit-root
+`mct-cli --root . call --tool get_indexing_status` reported 1,079 files,
+42,857 symbols and index timestamp `1794146099`. The 18 parse diagnostics
+remain: ERR-003 (16 intentionally malformed fixtures), ERR-002
+(`scripts/windows/review-check.ps1: line 29: syntax error`) and ERR-023
+(`crates/mct-cli/web-ui/src/styles.css: line 12: syntax error`). These remain
+separate from duplicate-quality scoring; a complete candidate report does not
+mean complete index coverage. No parser-error status is closed by this change.
+
+`scripts/unix/parse-probe.sh scripts/windows/review-check.ps1 crates/mct-cli/web-ui/src/styles.css`
+reproduced both diagnostics and exited 1 (`Error: 2 of 2 file(s) failed to parse`).
+ERR-002 and ERR-023 remain open; investigate their grammar support separately.

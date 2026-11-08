@@ -166,10 +166,11 @@ fn separating_items(members: &[&[Slot]]) -> Vec<Item> {
         };
         // A name every member binds itself (a called parameter, a recursive
         // call) is renaming, not a different target.
-        if column
-            .iter()
-            .zip(&bound)
-            .all(|(slot, names)| names.contains(&slot.text))
+        if basis == SubgroupBasis::Callee
+            && column
+                .iter()
+                .zip(&bound)
+                .all(|(slot, names)| !slot.qualified && names.contains(&slot.text))
         {
             continue;
         }
@@ -530,5 +531,24 @@ mod tests {
             ],
         );
         assert_eq!(run(&[a, b], &texts).status, SubgroupStatus::Single);
+    }
+    #[test]
+    fn member_names_matching_parameters_still_separate_families() {
+        let mut texts = Texts::default();
+        let mut members = vec![
+            member(&mut texts, "first", "read", "read", "apply"),
+            member(&mut texts, "second", "write", "write", "apply"),
+        ];
+        for slots in &mut members {
+            for slot in slots
+                .iter_mut()
+                .filter(|slot| slot.role == TokenRole::Member)
+            {
+                slot.qualified = true;
+            }
+        }
+        let result = run(&members, &texts);
+        assert_eq!(result.status, SubgroupStatus::Split);
+        assert_eq!(result.count, 2);
     }
 }
