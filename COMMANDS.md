@@ -485,6 +485,13 @@ leaves that folder untouched while keeping the web atlas available. The web
 atlas always comes from SQLite, so edited personal notes and `.obsidian/`
 configuration are never served. Code excerpts appear only in review and the source preview. No graph expansion or source-context budget change.
 
+The notes view reads up to 20,000 `.md` notes of the vault (`truncated` when
+more exist) and reports, under `skipped`, files it did not read: larger than
+256 KiB, not UTF-8, unreadable, or with another case of the `.md` extension.
+Wiki links resolve as in Obsidian: by name or path, ignoring case, `.md`,
+`|alias`, `#heading` and `^block`, preferring a note in the linking note's
+folder, then the shortest path. Links and headings inside code are ignored.
+
 Pages come from a snapshot held in memory; browser reload does not rerun
 analysis. Saved files are reindexed automatically, and the next snapshot is
 built in the background: requests keep being answered from the current one
