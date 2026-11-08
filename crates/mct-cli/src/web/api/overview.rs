@@ -99,7 +99,7 @@ pub(super) fn meta(site: &Site) -> Value {
             "syntaxIssues": status.as_ref().map(|s| issue_rows(site, &s.syntax_errors)),
             "readIssues": status.as_ref().map(|s| issue_rows(site, &s.read_failures)),
         },
-        "vault": { "notes": site.vault.notes.len(), "truncated": site.vault.truncated },
+        "vault": { "notes": site.vault.notes.len(), "truncated": site.vault.truncated, "skipped": site.vault.skipped },
         // What the backend can really do. `false`/`null` entries are shown as
         // unavailable by the UI instead of being faked.
         "capabilities": {

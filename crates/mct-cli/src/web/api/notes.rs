@@ -26,20 +26,27 @@ fn backlink_count(site: &Site, note: &Note) -> usize {
 
 /// The indexed file a note was generated for, if it still exists in the index.
 fn code_file<'a>(site: &Site, note: &'a Note) -> Option<&'a str> {
+    // `navigation.files` is sorted by path when the snapshot loads.
     note.code_path().filter(|path| {
         site.symbols.contains_key(*path)
             || site
                 .navigation
                 .files
-                .iter()
-                .any(|f| f.relative_path == *path)
+                .binary_search_by(|f| f.relative_path.as_str().cmp(path))
+                .is_ok()
     })
 }
 
-fn has_dead(site: &Site, path: &str) -> bool {
+/// Files with at least one dead-code candidate.
+fn dead_files(site: &Site) -> BTreeSet<&str> {
     site.dead
         .iter()
-        .any(|candidate| site.navigation.symbols[candidate.symbol].relative_path == path)
+        .map(|candidate| {
+            site.navigation.symbols[candidate.symbol]
+                .relative_path
+                .as_str()
+        })
+        .collect()
 }
 
 fn note_row(site: &Site, note: &Note) -> Value {
@@ -74,6 +81,12 @@ pub(super) fn list(site: &Site, params: &Params) -> Value {
         "folder": facet(base.iter().map(|note| folder(note))),
         "tag": facet(base.iter().flat_map(|note| note.tags.iter().map(String::as_str))),
     });
+    // Built once per request, and only when the filter asks for it.
+    let dead = if relations.contains(&"dead-code") {
+        dead_files(site)
+    } else {
+        BTreeSet::new()
+    };
     let mut notes: Vec<&Note> = base
         .into_iter()
         .filter(|note| {
@@ -88,21 +101,21 @@ pub(super) fn list(site: &Site, params: &Params) -> Value {
                     "duplicates" => {
                         code_file(site, note).is_some_and(|path| site.groups.contains_key(path))
                     }
-                    "dead-code" => code_file(site, note).is_some_and(|path| has_dead(site, path)),
+                    "dead-code" => code_file(site, note).is_some_and(|path| dead.contains(path)),
                     _ => true,
                 })
         })
         .collect();
     let sort = text(params, "sort");
-    notes.sort_by(|a, b| {
-        match sort {
-            "modified" => a.modified.cmp(&b.modified),
-            "backlinks" => backlink_count(site, a).cmp(&backlink_count(site, b)),
-            "symbols" => a.symbol_count().cmp(&b.symbol_count()),
-            _ => a.title.to_lowercase().cmp(&b.title.to_lowercase()),
+    // Keys are computed once per note, not once per comparison; ties by path.
+    match sort {
+        "modified" => notes.sort_by_key(|note| (note.modified, note.path.as_str())),
+        "backlinks" => {
+            notes.sort_by_cached_key(|note| (backlink_count(site, note), note.path.as_str()));
         }
-        .then(a.path.cmp(&b.path))
-    });
+        "symbols" => notes.sort_by_cached_key(|note| (note.symbol_count(), note.path.as_str())),
+        _ => notes.sort_by_cached_key(|note| (note.title.to_lowercase(), note.path.as_str())),
+    }
     if text(params, "order") == "desc" {
         notes.reverse();
     }
@@ -114,7 +127,7 @@ pub(super) fn list(site: &Site, params: &Params) -> Value {
         .map(|note| note_row(site, note))
         .collect();
     json!({ "total": notes.len(), "page": page, "size": size, "items": items, "facets": facets,
-            "all": site.vault.notes.len(), "truncated": site.vault.truncated })
+            "all": site.vault.notes.len(), "truncated": site.vault.truncated, "skipped": site.vault.skipped })
 }
 
 pub(super) fn detail(site: &Site, params: &Params) -> Result<Value, (u16, &'static str)> {
