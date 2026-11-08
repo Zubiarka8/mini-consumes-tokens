@@ -23,9 +23,41 @@ pub(super) struct Note {
     pub links: Vec<String>,
     pub modified: u64,
     pub bytes: u64,
+    /// Text after the front matter, kept so searches read no file.
+    body: Box<str>,
 }
 
 impl Note {
+    /// The first body line containing `query_lower` (already lower-cased),
+    /// trimmed: the line that `contains_ci` would match.
+    pub fn body_line(&self, query_lower: &str) -> Option<&str> {
+        if query_lower.is_empty() || query_lower.contains(['\n', '\r']) {
+            return None;
+        }
+        if query_lower.is_ascii() && self.body.is_ascii() {
+            // The common case, without allocating: for ASCII text, lower-casing
+            // and ASCII case folding agree.
+            let at = find_ascii_ci(self.body.as_bytes(), query_lower.as_bytes())?;
+            let line = self.body.as_bytes()[..at]
+                .iter()
+                .filter(|&&b| b == b'\n')
+                .count();
+            return self.body.lines().nth(line).map(str::trim);
+        }
+        self.body
+            .lines()
+            .find(|line| {
+                if query_lower.is_ascii() && line.is_ascii() {
+                    find_ascii_ci(line.as_bytes(), query_lower.as_bytes()).is_some()
+                } else {
+                    // Some non-ASCII letters lower-case to ASCII (the Kelvin
+                    // sign to `k`): only full lower-casing is exact here.
+                    line.to_lowercase().contains(query_lower)
+                }
+            })
+            .map(str::trim)
+    }
+
     /// Source file the note was generated for, from the `path` front-matter key.
     pub fn code_path(&self) -> Option<&str> {
         self.frontmatter
@@ -47,6 +79,26 @@ pub(super) struct Vault {
     /// note path -> notes that link to it.
     pub backlinks: BTreeMap<String, Vec<String>>,
     pub truncated: bool,
+}
+
+/// Offset of the first ASCII case-insensitive occurrence of `needle_lower`
+/// (lower-case ASCII) in `haystack`.
+fn find_ascii_ci(haystack: &[u8], needle_lower: &[u8]) -> Option<usize> {
+    let (&first, rest) = needle_lower.split_first()?;
+    let upper = first.to_ascii_uppercase();
+    let last_start = haystack.len().checked_sub(needle_lower.len())?;
+    let mut from = 0;
+    while from <= last_start {
+        let at = from
+            + haystack[from..=last_start]
+                .iter()
+                .position(|&b| b == first || b == upper)?;
+        if haystack[at + 1..at + needle_lower.len()].eq_ignore_ascii_case(rest) {
+            return Some(at);
+        }
+        from = at + 1;
+    }
+    None
 }
 
 fn collect(dir: &Path, depth: usize, out: &mut Vec<PathBuf>) {
@@ -262,6 +314,7 @@ pub(super) fn scan(vault: &Path) -> Vault {
                 links: Vec::new(),
                 modified,
                 bytes: text.len() as u64,
+                body: body.into(),
             },
             markdown,
             wiki,
@@ -306,6 +359,59 @@ pub(super) fn scan(vault: &Path) -> Vault {
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
     use super::*;
+
+    #[test]
+    fn body_search_matches_lower_casing_each_line() {
+        let bodies = [
+            "plain ascii\nThe Needle here\n",
+            "Un ÁRBOL grande.\nárbol\n",
+            "\u{212A}elvin sign\nkelvin\n",
+            "\u{130}stanbul\nİSTANBUL\n",
+            "ΟΔΟΣ\nend\r\nCRLF Line\r\n",
+            "needle at end needle",
+            "",
+        ];
+        let queries = [
+            "needle",
+            "the n",
+            "árbol",
+            "rbol",
+            "kelvin",
+            "k",
+            "i",
+            "i\u{307}",
+            "οδος",
+            "οδοσ",
+            "crlf line",
+            "end",
+            "e",
+            "x",
+            "needle at end needle",
+        ];
+        for body in bodies {
+            let note = Note {
+                path: String::new(),
+                title: String::new(),
+                tags: Vec::new(),
+                frontmatter: Vec::new(),
+                links: Vec::new(),
+                modified: 0,
+                bytes: 0,
+                body: body.into(),
+            };
+            for query in queries {
+                let expected = body
+                    .lines()
+                    .find(|line| crate::web::api::contains_ci(line, query))
+                    .map(str::trim);
+                assert_eq!(
+                    note.body_line(&query.to_lowercase()),
+                    expected,
+                    "{body:?} {query:?}"
+                );
+            }
+        }
+    }
 
     #[test]
     fn links_resolve_inside_the_vault_only() {
