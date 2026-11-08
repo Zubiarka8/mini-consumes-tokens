@@ -237,20 +237,30 @@ pub(super) fn graph(site: &Site, params: &Params) -> Value {
             .map(|n| n.path.as_str())
             .collect()
     };
-    let nodes: Vec<Value> = selected
+    let shown: Vec<&Note> = selected
         .iter()
-        .filter_map(|path| by_path.get(path))
+        .filter_map(|path| by_path.get(path).copied())
+        .collect();
+    let nodes: Vec<Value> = shown
+        .iter()
         .map(|note| json!({ "id": note.path, "label": note.title, "folder": folder(note), "tags": note.tags,
                             "degree": degree(note), "orphan": degree(note) == 0, "hasCode": code_file(site, note).is_some() }))
         .collect();
-    let edges: Vec<Value> = selected
+    // Each edge is `[from, to]`, positions in `nodes`: note paths are long and
+    // would otherwise be repeated in every edge (most of the payload).
+    let position: BTreeMap<&str, usize> = shown
         .iter()
-        .filter_map(|path| by_path.get(path))
-        .flat_map(|note| {
+        .enumerate()
+        .map(|(at, note)| (note.path.as_str(), at))
+        .collect();
+    let edges: Vec<Value> = shown
+        .iter()
+        .enumerate()
+        .flat_map(|(from, note)| {
             note.links
                 .iter()
-                .filter(|t| selected.contains(t.as_str()))
-                .map(move |t| json!({ "from": note.path, "to": t }))
+                .filter_map(|target| position.get(target.as_str()))
+                .map(move |to| json!([from, to]))
         })
         .collect();
     json!({ "nodes": nodes, "edges": edges, "total": site.vault.notes.len(),

@@ -765,3 +765,14 @@ test('repeated member names have one readable label while every location stays a
   assert.equal(env.root.querySelector('.stack-counts').textContent, '3 locations · 2 files');
   env.cleanup();
 });
+
+test('the Obsidian graph draws edges sent as positions in the node list', async () => {
+  const nodes = ['a.md', 'b.md', 'c.md'].map(id => ({ id, label: id, folder: '', tags: [], degree: 1, orphan: false, hasCode: false }));
+  const fetch = (url) => url.pathname.endsWith('/notes-graph') ? { nodes, edges: [[0, 1], [1, 2]], total: 3 } : defaultApi(url);
+  const env = harness({ hash: '#/obsidian?view=grafo', fetch });
+  const { render } = await env.load('page-notes.js');
+  const cleanup = await render({ root: env.root, params: new URLSearchParams('view=grafo') });
+  await settle(); await settle();
+  assert.equal(env.root.querySelectorAll('svg line').length, 2);
+  cleanup();
+});

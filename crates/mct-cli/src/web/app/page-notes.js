@@ -418,7 +418,8 @@ export async function render({ root, params: initial }) {
           radius: 6 + Math.min(10, n.degree),
           title: `${n.label} · ${n.folder}`,
         })),
-        edges: data.edges,
+        // The API sends each edge as [from, to] positions in `nodes`.
+        edges: data.edges.map(([from, to]) => ({ from: data.nodes[from].id, to: data.nodes[to].id })),
         onSelect: (node) => patchQuery({ note: node.id }),
       });
       listHost.append(

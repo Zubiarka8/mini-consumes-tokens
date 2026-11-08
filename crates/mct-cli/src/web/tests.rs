@@ -1993,3 +1993,37 @@ fn a_connection_slot_is_released_even_when_its_thread_panics() {
         "the slot came back"
     );
 }
+
+#[test]
+fn notes_graph_edges_are_pairs_of_node_positions() {
+    let root = project();
+    let vault = root.path().join(".mct-index/obsidian");
+    fs::create_dir_all(&vault).unwrap();
+    fs::write(vault.join("a.md"), "# A\n[b](b.md) and [c](c.md)").unwrap();
+    fs::write(vault.join("b.md"), "# B\n[c](c.md)").unwrap();
+    fs::write(vault.join("c.md"), "# C").unwrap();
+    let server = Server::start(root.path(), true);
+    let graph = server.json("api/notes-graph");
+    let ids: Vec<&str> = graph["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|node| node["id"].as_str().unwrap())
+        .collect();
+    let mut edges: Vec<(&str, &str)> = graph["edges"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|edge| {
+            let pair = edge.as_array().expect("an edge is [from, to]");
+            assert_eq!(pair.len(), 2, "{edge}");
+            let at = |end: &serde_json::Value| ids[end.as_u64().unwrap() as usize];
+            (at(&pair[0]), at(&pair[1]))
+        })
+        .collect();
+    edges.sort_unstable();
+    assert_eq!(
+        edges,
+        [("a.md", "b.md"), ("a.md", "c.md"), ("b.md", "c.md")]
+    );
+}
