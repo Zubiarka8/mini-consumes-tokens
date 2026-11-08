@@ -55,6 +55,46 @@ and a strict CSP. Its localhost URL does not contain a private key.
   uses `innerHTML`, inline SVG charts, a bounded force-directed graph, an LCS
   line diff and a safe Markdown renderer.
 
+## Duplicate row contract
+
+`GET /api/findings?type=duplicate` pages **groups**, using `page` and `size`
+(the maximum size is 200). A row retains its stable review `key` and readable
+`number`; `rank`/`group` are positions in the current snapshot, not persistent
+identities. Filtering matches every member before group pagination.
+
+- `memberCount` counts all function/method locations, including several in one
+  file. `fileCount` counts distinct repository-relative paths across the entire
+  group. Clients use these server counts, never the preview's unique paths.
+- `members` is an ordered preview of at most six `{path, start, end, name, kind}`
+  entries. Ranges are 1-based and inclusive. Additive `membersOmitted` is the
+  number not included in this response. Older clients can still derive it from
+  `memberCount - members.length`.
+- `title` is a display summary of the first six member identifiers, followed by
+  `(+N)` when further locations exist. It is never a review identity. This fixes
+  the previous silent two-name cutoff; explicit title sorting can consequently
+  produce a different order. Recent activity shares the same title formatter.
+- The list renders identifier words in English (`find_calls_bfs_scoped` →
+  `Find calls BFS scoped`), independent of the selected UI language. Repeated
+  identifiers share a label, while counts and the locations panel retain every
+  occurrence. Original identifiers remain in tooltips, API data, source links
+  and AI templates. This is presentation, not symbol renaming.
+- `scope` retains its existing values: `same-file` means one distinct path;
+  `cross-file` means several paths below the same first path component;
+  `cross-module` means different first components. These are directory scopes,
+  not Rust/JS module analysis. Root-level files share the empty directory
+  component (correcting their previous classification as different modules).
+  The UI labels are Same file, Several files and Several folders (localized).
+- `GET /api/finding?key=...` returns **all members** with `membersOmitted: 0`.
+  Its title remains a bounded summary. The copy-for-AI action fetches this detail
+  before formatting; copying a list explicitly identifies preview omissions.
+  Detail bodies retain the existing 1,500-distinct-line budget and per-read
+  400-line cap. Metadata and repeated bodies still scale with group size: the
+  detail endpoint has no total byte cap or member pagination. This existing
+  limit is not solved by the bounded list preview.
+
+No published MCP signature, detector normalization, membership, ranking,
+review fingerprint or report-cache version changes in this correction.
+
 ## Acceptance criteria
 
 1. Every page works with keyboard only; focus is visible; dialogs trap focus.
