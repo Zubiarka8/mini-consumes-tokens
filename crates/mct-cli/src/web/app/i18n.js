@@ -1,6 +1,7 @@
 // Spanish (Spain) strings. Every user-visible text goes through t(key, vars); a locale is another
 // dictionary with the same keys (English is in i18n-en.js). A key missing from a locale falls back to Spanish.
 import { en } from "./i18n-en.js";
+import { sharedPref } from "./prefs.js";
 
 const es = {
   // finding numbers, comparison columns and the review panel
@@ -268,6 +269,13 @@ const es = {
   "graph.zoomIn": "Acercar",
   "graph.zoomOut": "Alejar",
   "graph.fit": "Ajustar a la vista",
+  "graph.display": "Visualización",
+  "graph.forces": "Fuerzas",
+  "graph.nodeSize": "Tamaño del nodo",
+  "graph.linkThickness": "Grosor del enlace",
+  "graph.textThreshold": "Umbral de texto",
+  "graph.center": "Fuerza central",
+  "graph.repel": "Fuerza de repulsión",
   "code.label": "Código",
   "compare.code": "Código",
   "source.range": "Líneas {from}–{to}",
@@ -757,6 +765,7 @@ const es = {
   "obs.noGraph": "No hay notas para el grafo",
   "obs.noGraphText": "Cambia los filtros de carpeta o etiqueta.",
   "obs.graphLabel": "Grafo de notas",
+  "obs.backToNotes": "Volver a las notas",
   "obs.graphNote": "Las aristas son enlaces Markdown verificados entre notas del vault.",
   "obs.legend.note": "Nota",
   "obs.legend.code": "Nota con código enlazado",
@@ -941,12 +950,25 @@ export const LANGUAGES = [
 ];
 const KEY = "mct-lang";
 
-let current = "es";
+/** English unless the browser's own language settings put Spanish first among the supported ones. */
+function browserLanguage() {
+  const wanted = navigator.languages?.length ? navigator.languages : [navigator.language];
+  for (const tag of wanted) {
+    const base = String(tag ?? "")
+      .toLowerCase()
+      .split("-")[0];
+    if (base in dictionaries) return base;
+  }
+  return "en";
+}
+
+// A saved choice wins (this origin, then the one shared across projects); otherwise the browser decides.
+let current = "en";
 try {
-  const saved = localStorage.getItem(KEY);
-  if (saved in dictionaries) current = saved;
+  const saved = localStorage.getItem(KEY) ?? sharedPref.get("lang");
+  current = saved in dictionaries ? saved : browserLanguage();
 } catch {
-  /* storage blocked: stay on Spanish */
+  current = browserLanguage();
 }
 document.documentElement.lang = current;
 
@@ -954,6 +976,7 @@ export const getLang = () => current;
 /** Saves the language and reloads, so every label, date and number is built again in it. */
 export function setLang(lang) {
   if (!(lang in dictionaries) || lang === current) return;
+  sharedPref.set("lang", lang);
   try {
     localStorage.setItem(KEY, lang);
   } catch {

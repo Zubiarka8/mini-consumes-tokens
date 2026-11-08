@@ -28,7 +28,7 @@ const CAPABILITIES = [
 ];
 
 export function render({ root, meta }) {
-  const theme = store.get("theme", "dark");
+  const theme = store.get("theme", "system");
   const caps = h(
     "tbody",
     {},
