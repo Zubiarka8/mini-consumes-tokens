@@ -36,6 +36,8 @@ pub(super) struct Slot {
     pub(super) literal: bool,
     pub(super) role: TokenRole,
     pub(super) primitive_spelling: bool,
+    /// Adjacent namespace/access punctuation prevents treating this as a parameter use.
+    pub(super) qualified: bool,
     /// Index into the analysis' [`Texts`].
     pub(super) text: u32,
     pub(super) line: u32,
@@ -113,7 +115,7 @@ pub(super) fn evaluate(members: &[&[Slot]], texts: &Texts) -> GroupEvidence {
             && column
                 .iter()
                 .zip(&declared)
-                .any(|(slot, declared)| !declared.contains(&slot.text))
+                .any(|(slot, declared)| slot.qualified || !declared.contains(&slot.text))
         {
             undeclared_name_positions += 1;
         }
@@ -573,6 +575,7 @@ pub(super) fn test_slots(texts: &mut Texts, tokens: &[(&str, TokenRole)]) -> Vec
             literal: matches!(role, TokenRole::Literal(_)),
             role: *role,
             primitive_spelling: false,
+            qualified: false,
             text: texts.id(text),
             line: u32::try_from(line).unwrap() + 1,
         })

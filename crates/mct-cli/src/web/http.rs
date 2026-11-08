@@ -13,7 +13,7 @@ const MAX_HEADERS: usize = 16 * 1024;
 const MAX_BODY: usize = 4096;
 /// A `.mctignore` of `MAX_IGNORE_BYTES`, even if every byte is JSON-escaped.
 const MAX_IGNORE_BODY: usize = 6 * ignore_file::MAX_IGNORE_BYTES + 1024;
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
+pub(super) const REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
 
 pub(super) trait Connection: Read + Write {
     fn read_timeout(&self, timeout: Duration) -> std::io::Result<()>;
@@ -29,6 +29,10 @@ impl Connection for TcpStream {
     }
 }
 
+/// Reads, answers and writes one request on the calling thread (tests drive
+/// the wire format through it; the server uses [`read_request`] and
+/// [`write_response`] around a site thread).
+#[cfg(test)]
 pub(super) fn serve_connection(
     stream: &mut impl Connection,
     port: u16,
@@ -36,7 +40,21 @@ pub(super) fn serve_connection(
 ) -> std::io::Result<()> {
     stream.write_timeout(REQUEST_TIMEOUT)?;
     site.follow_reindex();
-    let (response, head) = receive(stream, port, site)?;
+    let (incoming, head) = read_request(stream, port)?;
+    let response = match incoming {
+        Ok(request) => request.answer(site),
+        Err(response) => response,
+    };
+    write_response(stream, &response, head)
+}
+
+/// Writes `response` with the dashboard's fixed security headers; `head`
+/// omits the body.
+pub(super) fn write_response(
+    stream: &mut impl Connection,
+    response: &Response,
+    head: bool,
+) -> std::io::Result<()> {
     let reason = match response.status {
         200 => "OK",
         400 => "Bad Request",
@@ -49,6 +67,7 @@ pub(super) fn serve_connection(
         421 => "Misdirected Request",
         431 => "Request Header Fields Too Large",
         500 => "Internal Server Error",
+        503 => "Service Unavailable",
         _ => "Error",
     };
     write!(stream, "HTTP/1.1 {} {reason}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\nCache-Control: no-store\r\nReferrer-Policy: no-referrer\r\nX-Content-Type-Options: nosniff\r\nX-Frame-Options: DENY\r\nCross-Origin-Resource-Policy: same-origin\r\nContent-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; font-src 'self'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'\r\nAllow: GET, HEAD, POST\r\n", response.status, response.content_type, response.body.len())?;
@@ -59,6 +78,33 @@ pub(super) fn serve_connection(
     stream.flush()
 }
 
+/// A request read in full and validated: answering it needs the site, not
+/// the connection.
+pub(super) struct Complete {
+    target: String,
+    post: bool,
+    body: Vec<u8>,
+}
+
+impl Complete {
+    /// A decision or `.mctignore` edit, which may change saved state.
+    pub(super) fn is_post(&self) -> bool {
+        self.post
+    }
+
+    pub(super) fn answer(&self, site: &mut Site) -> Response {
+        if self.post {
+            match std::str::from_utf8(&self.body) {
+                Ok(body) if self.target == "api/ignore" => site.ignore(body),
+                Ok(body) => site.review(body),
+                Err(_) => Response::error(400),
+            }
+        } else {
+            route(site, &self.target)
+        }
+    }
+}
+
 struct Request {
     target: String,
     post: bool,
@@ -66,11 +112,12 @@ struct Request {
     length: usize,
 }
 
-fn receive(
+/// Reads one request within `REQUEST_TIMEOUT`: the complete request, or the
+/// error response to send instead; the flag says the method was HEAD.
+pub(super) fn read_request(
     stream: &mut impl Connection,
     port: u16,
-    site: &mut Site,
-) -> std::io::Result<(Response, bool)> {
+) -> std::io::Result<(Result<Complete, Response>, bool)> {
     let deadline = Instant::now() + REQUEST_TIMEOUT;
     let mut bytes = Vec::new();
     let mut parsed: Option<(Request, usize)> = None;
@@ -78,12 +125,12 @@ fn receive(
         let head = bytes.starts_with(b"HEAD ");
         let remaining = deadline.saturating_duration_since(Instant::now());
         if remaining.is_zero() {
-            return Ok((Response::error(408), head));
+            return Ok((Err(Response::error(408)), head));
         }
         stream.read_timeout(remaining)?;
         let mut buffer = [0; 1024];
         match stream.read(&mut buffer) {
-            Ok(0) => return Ok((Response::error(400), head)),
+            Ok(0) => return Ok((Err(Response::error(400)), head)),
             Ok(count) => bytes.extend_from_slice(&buffer[..count]),
             Err(error)
                 if matches!(
@@ -91,7 +138,7 @@ fn receive(
                     std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock
                 ) =>
             {
-                return Ok((Response::error(408), head))
+                return Ok((Err(Response::error(408)), head))
             }
             Err(error) => return Err(error),
         }
@@ -103,37 +150,33 @@ fn receive(
                 .map(|end| end + 4)
             {
                 if end > MAX_HEADERS {
-                    return Ok((Response::error(431), head));
+                    return Ok((Err(Response::error(431)), head));
                 }
                 let headers = match std::str::from_utf8(&bytes[..end]) {
                     Ok(value) => value,
-                    Err(_) => return Ok((Response::error(400), head)),
+                    Err(_) => return Ok((Err(Response::error(400)), head)),
                 };
                 let request = match validate(headers, port) {
                     Ok(request) => request,
-                    Err(status) => return Ok((Response::error(status), head)),
+                    Err(status) => return Ok((Err(Response::error(status)), head)),
                 };
                 parsed = Some((request, end));
             } else if bytes.len() > MAX_HEADERS {
-                return Ok((Response::error(431), head));
+                return Ok((Err(Response::error(431)), head));
             }
         }
         if let Some((request, end)) = &parsed {
             let expected = end + request.length;
             if bytes.len() > expected {
-                return Ok((Response::error(400), request.head));
+                return Ok((Err(Response::error(400)), request.head));
             }
             if bytes.len() == expected {
-                let response = if request.post {
-                    match std::str::from_utf8(&bytes[*end..]) {
-                        Ok(body) if request.target == "api/ignore" => site.ignore(body),
-                        Ok(body) => site.review(body),
-                        Err(_) => Response::error(400),
-                    }
-                } else {
-                    route(site, &request.target)
+                let complete = Complete {
+                    target: request.target.clone(),
+                    post: request.post,
+                    body: bytes[*end..].to_vec(),
                 };
-                return Ok((response, request.head));
+                return Ok((Ok(complete), request.head));
             }
         }
     }

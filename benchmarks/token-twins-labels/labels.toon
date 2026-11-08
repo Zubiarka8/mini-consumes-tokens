@@ -1,7 +1,7 @@
 schema: token-twins-labels/1
 corpus: benchmarks/token-twins-labels
 labeled: 2026-10-15
-labeling: "human judgment from reading the source, recorded before any verdict, subgroup or partial-block implementation was scored; see benchmarks/token-twins.md#labeled-corpus-for-verdicts-subgroups-and-partial-blocks"
+labeling: "Original 31 cases: historical human judgment from source before scoring (see benchmarks/token-twins.md). The two rs-*-parameters regression cases were added on 2026-11-08 from the documented syntactic-role contract; they are not new human annotations of repository groups."
 reference_normalization: broad
 analysis_flags[4]: --min-lines,5,--min-tokens,30
 partial_block_minimum: "assumed equal to the analysis thresholds; every expected block spans at least 7 lines and 60 source tokens, every below-minimum negative at most 3 shared lines"
@@ -14,7 +14,7 @@ partitions[3]{value,meaning}:
   single,"the whole labeled group is one family; a subgroup report must not split it"
   split,"members carry a family letter; the expected partition groups members by family"
   unscored,"no partition claim (pairs whose members are neither one family nor clearly two)"
-cases[31]{id,category,language,verdict,partition,rationale}:
+cases[33]{id,category,language,verdict,partition,rationale}:
   py-real-rows,renaming,python,REAL,single,"consistent renaming of locals and parameters; same keys, members, callees and literals"
   py-real-methods,renaming,python,REAL,single,"same total-with-tax rule in two classes; only locals differ and both read self.lines"
   py-single-chunks,renaming,python,REAL,single,"three consistent renamings of one batching generator"
@@ -46,7 +46,9 @@ cases[31]{id,category,language,verdict,partition,rationale}:
   py-amb-tests,tests,python,ambiguous,unscored,"tests differing only in input data; parametrizing is reasonable, keeping two readable scenarios is too"
   py-calls-fields,call-only,python,ambiguous,unscored,"same logger, different events and fields; a field-table helper is possible but of debatable value"
   rs-ctx-test-oracle,context,rust,ambiguous,unscored,"a test module re-implements the production escaper; it may be an independent oracle or a copy that should call production code"
-members[69]{case,family,path,function,start_line,end_line,broad,consistent,exact}:
+  rs-tuple-parameters,renaming,rust,REAL,single,"direct tuple parameters are bindings; the pair differs only in one-to-one parameter renaming"
+  rs-qualified-parameters,callees,rust,SUSPICIOUS,unscored,"namespace calls reach different items even when their names match parameters; their effects are unresolved"
+members[73]{case,family,path,function,start_line,end_line,broad,consistent,exact}:
   py-real-rows,A,python/renaming.py,normalize_customer_rows,9,17,true,true,false
   py-real-rows,A,python/renaming.py,normalize_vendor_rows,20,28,true,true,false
   py-real-methods,A,python/renaming.py,total_with_tax,36,41,true,true,false
@@ -116,6 +118,10 @@ members[69]{case,family,path,function,start_line,end_line,broad,consistent,exact
   py-calls-fields,-,python/logging_calls.py,log_order_shipped,35,41,true,true,false
   rs-ctx-test-oracle,-,rust/attributes.rs,escape_field,47,57,true,true,false
   rs-ctx-test-oracle,-,rust/attributes.rs,expected_escape,62,72,true,true,false
+  rs-tuple-parameters,A,rust/tuple_parameters.rs,scaled_pair,2,10,true,true,false
+  rs-tuple-parameters,A,rust/tuple_parameters.rs,scaled_coordinates,12,20,true,true,false
+  rs-qualified-parameters,A,rust/qualified_parameters.rs,fetch_first,2,10,true,true,false
+  rs-qualified-parameters,A,rust/qualified_parameters.rs,fetch_second,12,20,true,true,false
 partial_blocks[3]{id,language,rationale}:
   pb-py-validate,python,"the payload validation block (type check, required fields, email check) repeats in create and update; the code around it differs"
   pb-py-csv,python,"the CSV reading block repeats in three importers across two files; validation before it and use after it differ"

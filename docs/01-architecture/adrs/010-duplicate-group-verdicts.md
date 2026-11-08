@@ -159,3 +159,43 @@ combination yields it.
   `--limit` and the consistent policy.
 - Real-code evaluation and cost:
   [token twins evaluation](../../../benchmarks/token-twins.md#explainable-verdicts).
+
+
+## Dashboard presentation clarification (2026-11-08)
+
+The dashboard counts locations separately from distinct files and explicitly
+marks member/title previews; see [the dashboard contract](../web-dashboard.md#duplicate-row-contract).
+This does not alter verdict rules or imply behavioral equivalence. In the
+repository reproduction, `find_calls` / `find_callers` and the BFS wrapper group
+already have `SUSPICIOUS` verdicts because their aligned names and other evidence
+differ. Keeping these candidates is intentional; same-file placement alone is
+not evidence that a candidate should be removed or demoted. The existing
+call-only demotion policy is unchanged.
+
+## Precision corrections (2026-11-08)
+
+A parameter spelling is not binding evidence for a namespace-selected item.
+Aligned names beside `::` (on either side), or after `.`, cannot use the
+parameter-name exemption. For example, `helpers::input(input)` versus
+`helpers::data(data)` remains `SUSPICIOUS` even when the arguments are called
+`input` and `data`. The existing `undeclared-names-differ` reason explains it.
+This is lexical access evidence, not import or scope resolution.
+
+The Rust token source now recognizes identifiers in a **direct tuple pattern**
+inside a callable parameter list. Those names have the existing `parameter`
+role, so consistent renaming can be `REAL` when no other rule fires. Nested
+patterns, local `let`/`for`/`match` bindings and external names remain unknown.
+This deliberately does not remove the conservative renamed-local rule.
+
+Subgroup binding exemptions apply only to unqualified callees (called
+parameters or recursive calls), never to differing members or types; see
+ADR-011. No normalization, thresholds, group membership, ranking, review-key
+format, report fields or MCP schema changes. The CLI report cache namespace
+advances from v3 to v4 so older evidence is not reused for unchanged sources.
+
+The expanded labeled corpus freezes two additional cases before evaluating
+these corrections: direct tuple parameters (`REAL`) and colliding qualified
+names (`SUSPICIOUS`). Evaluation must report the original 31-case corpus
+separately from the expanded 33-case corpus; adding cases is not itself an
+accuracy improvement. Defaults remain 6 lines / 40 tokens, whereas the labeled
+evaluation uses its existing 5-line / 30-token flags.

@@ -1,6 +1,7 @@
 //! Local read-only views over public index APIs. No directory is served.
 
 mod api;
+mod areas;
 mod assets;
 mod autoreindex;
 mod dead_assessment;
@@ -28,6 +29,8 @@ struct DeadCandidate {
     symbol: usize,
     key: String,
     assessment: dead_assessment::Assessment,
+    /// The group of the project this candidate is listed under (see `areas`).
+    area: String,
     /// What the index knows of a framework possibly loading it (never a
     /// claim that it does); empty for almost every candidate.
     possible_entry_points: Vec<String>,
@@ -67,6 +70,15 @@ impl FileIdentity {
             Some(Self(created.as_secs(), u64::from(created.subsec_nanos())))
         }
     }
+}
+
+/// A snapshot being built on another thread while the current one answers.
+struct PendingReload {
+    /// The stamp to record if building fails, as by `Site::reload`.
+    failed: IndexStamp,
+    /// Decisions saved when building started.
+    writes: u64,
+    result: std::sync::mpsc::Receiver<anyhow::Result<Box<Site>>>,
 }
 
 struct Site {
@@ -269,43 +281,114 @@ impl Site {
     /// Reloads the snapshot when the index was republished since it was read,
     /// keeping the CSRF token so an open page can still save decisions. A
     /// failed reload keeps the previous snapshot; the next reindex retries.
+    #[cfg(test)]
     fn follow_reindex(&mut self) {
+        if let Some(failed) = self.stale() {
+            self.reload(failed);
+        }
+    }
+
+    /// Whether the index was republished since this snapshot was read, and if
+    /// so the stamp to record when loading the new state fails.
+    fn stale(&self) -> Option<IndexStamp> {
         // A replaced database file (a rebuild) is a change whatever the open
         // connection still reads; it is retried on every request until it
         // loads, since a failure there is an early open error. Otherwise one
         // indexed read of the published generation decides, and a failed
         // reload of a generation waits for the next one.
         let file = FileIdentity::of(&self.root);
-        if file == self.stamp.file {
-            match self.index.published_generation() {
-                Ok(generation) if generation == self.stamp.generation => {}
-                Ok(generation) => self.reload(IndexStamp { file, generation }),
-                Err(error) => {
-                    eprintln!("warning: cannot read the index generation: {error:#}");
-                }
+        if file != self.stamp.file {
+            return Some(self.stamp);
+        }
+        match self.index.published_generation() {
+            Ok(generation) if generation == self.stamp.generation => None,
+            Ok(generation) => Some(IndexStamp { file, generation }),
+            Err(error) => {
+                eprintln!("warning: cannot read the index generation: {error:#}");
+                None
             }
-        } else {
-            self.reload(self.stamp);
         }
     }
 
     /// Replaces the snapshot with a fresh one, or records `failed` as the
     /// stamp already tried.
+    #[cfg(test)]
     fn reload(&mut self, failed: IndexStamp) {
         // The process that published the new generation also published the
         // vault from its post-reindex hook; doing it again here doubled the
         // work and competed for the writer lock.
         match Site::load(&self.root, true) {
-            Ok(mut fresh) => {
-                fresh.csrf = std::mem::take(&mut self.csrf);
-                fresh.latency = std::mem::take(&mut self.latency);
-                *self = fresh;
-            }
-            Err(error) => {
-                eprintln!("warning: cannot reload the reindexed snapshot: {error:#}");
-                self.stamp = failed;
+            Ok(fresh) => self.adopt(fresh),
+            Err(error) => self.reload_failed(&error, failed),
+        }
+    }
+
+    /// Like `follow_reindex`, without waiting: the new snapshot is built on
+    /// another thread and swapped in by a later call once it is ready; until
+    /// then this one keeps answering. `writes` counts the decisions saved so
+    /// far: a snapshot started before the latest one may lack it, so it is
+    /// discarded and built again.
+    fn follow_reindex_in_background(&mut self, pending: &mut Option<PendingReload>, writes: u64) {
+        if let Some(reload) = pending.take() {
+            match reload.result.try_recv() {
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    *pending = Some(reload);
+                    return;
+                }
+                Ok(Ok(fresh)) if reload.writes == writes => {
+                    self.adopt(*fresh);
+                    return;
+                }
+                // Built before a decision was saved: build it again below.
+                Ok(Ok(_)) => {}
+                Ok(Err(error)) => {
+                    self.reload_failed(&error, reload.failed);
+                    return;
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    let error = anyhow::anyhow!("the loading thread stopped");
+                    self.reload_failed(&error, reload.failed);
+                    return;
+                }
             }
         }
+        if let Some(failed) = self.stale() {
+            let (send, result) = std::sync::mpsc::channel();
+            // As in `reload`: the reindexer already published the vault.
+            let root = self.root.clone();
+            let loading = std::thread::Builder::new()
+                .name("snapshot-reload".into())
+                .spawn(move || {
+                    let _ = send.send(Site::load(&root, true).map(Box::new));
+                });
+            match loading {
+                Ok(_) => {
+                    *pending = Some(PendingReload {
+                        failed,
+                        writes,
+                        result,
+                    });
+                }
+                Err(error) => {
+                    let error =
+                        anyhow::Error::from(error).context("cannot start the loading thread");
+                    self.reload_failed(&error, failed);
+                }
+            }
+        }
+    }
+
+    /// Takes `fresh` as the snapshot, keeping the CSRF token and the latency
+    /// samples of the open session.
+    fn adopt(&mut self, mut fresh: Site) {
+        fresh.csrf = std::mem::take(&mut self.csrf);
+        fresh.latency = std::mem::take(&mut self.latency);
+        *self = fresh;
+    }
+
+    fn reload_failed(&mut self, error: &anyhow::Error, failed: IndexStamp) {
+        eprintln!("warning: cannot reload the reindexed snapshot: {error:#}");
+        self.stamp = failed;
     }
 
     /// Applies one review decision sent as a JSON body (`csrf`, `key`,
@@ -451,8 +534,18 @@ fn dead_candidates(
                 &located.kind,
                 located.line,
             ),
+            area: String::new(),
         });
         findings.push(keys);
+    }
+    // The areas depend on where all the candidates are, so they are set last.
+    let paths: Vec<&str> = dead
+        .iter()
+        .map(|candidate| navigation.symbols[candidate.symbol].relative_path.as_str())
+        .collect();
+    let areas = areas::assign(&paths);
+    for (candidate, area) in dead.iter_mut().zip(areas) {
+        candidate.area = area;
     }
     Ok((dead, findings))
 }
@@ -483,7 +576,7 @@ pub(super) fn run(
     // Bind first: a conflicting port must not regenerate anything.
     let listener = port::bind(root, port, port::PREFERRED_PORT)?;
     let port = listener.local_addr()?.port();
-    let mut site = Site::load(root, no_obsidian)?;
+    let site = Site::load(root, no_obsidian)?;
     println!("Local project web: {}", dashboard_url(port));
     // Kept for the server's lifetime: dropping it would stop the watch.
     let _autoreindex = autoreindex::start(root, no_obsidian);
@@ -505,17 +598,127 @@ pub(super) fn run(
             std::process::exit(0);
         });
     }
-    for connection in listener.incoming() {
-        let _serving = activity.serving();
-        match connection {
-            Ok(mut stream) => {
-                // One bounded request per connection; only review preferences are mutable.
-                if let Err(error) = http::serve_connection(&mut stream, port, &mut site) {
-                    eprintln!("warning: local web request failed: {error}");
+    serve(listener, port, site, &activity)?;
+    Ok(())
+}
+
+/// Connections read at the same time; more are refused with 503.
+const MAX_OPEN_CONNECTIONS: usize = 64;
+
+/// One complete request, waiting for the thread that owns the site.
+struct Job {
+    request: http::Complete,
+    reply: std::sync::mpsc::Sender<response::Response>,
+}
+
+/// Serves `site` on `listener` for as long as the listener accepts.
+///
+/// Each connection is read and answered on its own thread, so a client that
+/// is slow to send or to read (a preconnect, a stalled tab) delays nobody but
+/// itself. Complete requests are answered one at a time by this thread, the
+/// only owner of `site`: snapshot reloads and review decisions stay serial.
+fn serve(
+    listener: std::net::TcpListener,
+    port: u16,
+    mut site: Site,
+    activity: &idle::Activity,
+) -> std::io::Result<()> {
+    let (jobs, queue) = std::sync::mpsc::channel::<Job>();
+    let open = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    std::thread::Builder::new()
+        .name("web-accept".into())
+        .spawn(move || {
+            for connection in listener.incoming() {
+                match connection {
+                    Ok(stream) => accept(stream, port, &jobs, &open),
+                    Err(error) => eprintln!("warning: local web connection failed: {error}"),
                 }
             }
-            Err(error) => eprintln!("warning: local web connection failed: {error}"),
-        }
+        })?;
+    let mut pending = None;
+    let mut writes = 0;
+    for job in queue {
+        let _serving = activity.serving();
+        // A request never waits for a reload; the next one after it is ready
+        // sees the new snapshot.
+        site.follow_reindex_in_background(&mut pending, writes);
+        writes += u64::from(job.request.is_post());
+        // The connection may have gone; its thread then writes nothing.
+        let _ = job.reply.send(job.request.answer(&mut site));
     }
     Ok(())
+}
+
+/// One of the `MAX_OPEN_CONNECTIONS` slots, given back when dropped, so a
+/// connection thread that panics still frees its slot.
+struct OpenSlot(std::sync::Arc<std::sync::atomic::AtomicUsize>);
+
+impl OpenSlot {
+    /// A slot of `open`, or `None` when `limit` are already taken.
+    fn claim(open: &std::sync::Arc<std::sync::atomic::AtomicUsize>, limit: usize) -> Option<Self> {
+        use std::sync::atomic::Ordering;
+        if open.fetch_add(1, Ordering::SeqCst) >= limit {
+            open.fetch_sub(1, Ordering::SeqCst);
+            return None;
+        }
+        Some(Self(open.clone()))
+    }
+}
+
+impl Drop for OpenSlot {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+/// Hands one accepted connection to a thread of its own, or refuses it when
+/// `MAX_OPEN_CONNECTIONS` are already open.
+fn accept(
+    mut stream: std::net::TcpStream,
+    port: u16,
+    jobs: &std::sync::mpsc::Sender<Job>,
+    open: &std::sync::Arc<std::sync::atomic::AtomicUsize>,
+) {
+    let Some(slot) = OpenSlot::claim(open, MAX_OPEN_CONNECTIONS) else {
+        // Best effort, never blocking the accept loop for long.
+        let _ = stream.set_write_timeout(Some(std::time::Duration::from_millis(100)));
+        let _ = http::write_response(&mut stream, &response::Response::error(503), false);
+        return;
+    };
+    let jobs = jobs.clone();
+    let spawned = std::thread::Builder::new().spawn(move || {
+        let _slot = slot;
+        if let Err(error) = answer_connection(&mut stream, port, &jobs) {
+            eprintln!("warning: local web request failed: {error}");
+        }
+    });
+    // Without a thread the connection and its slot are dropped: the client
+    // sees the connection close.
+    if let Err(error) = spawned {
+        eprintln!("warning: cannot start a local web connection thread: {error}");
+    }
+}
+
+/// Reads one request, has the site thread answer it, and writes the answer.
+fn answer_connection(
+    stream: &mut std::net::TcpStream,
+    port: u16,
+    jobs: &std::sync::mpsc::Sender<Job>,
+) -> std::io::Result<()> {
+    http::Connection::write_timeout(stream, http::REQUEST_TIMEOUT)?;
+    let (incoming, head) = http::read_request(stream, port)?;
+    let response = match incoming {
+        Ok(request) => {
+            let (reply, answer) = std::sync::mpsc::channel();
+            if jobs.send(Job { request, reply }).is_err() {
+                return Ok(());
+            }
+            match answer.recv() {
+                Ok(response) => response,
+                Err(_) => return Ok(()),
+            }
+        }
+        Err(response) => response,
+    };
+    http::write_response(stream, &response, head)
 }

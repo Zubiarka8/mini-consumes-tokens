@@ -135,3 +135,13 @@ in `broad` and `consistent`, a data-flow split by identifier pattern under
 `broad` only, two renaming-only `single` groups and
 `split_groups` independent of the page. Evaluation:
 [token twins evaluation](../../../benchmarks/token-twins.md#evidence-subgroups-2026-10-15).
+
+
+## Parameter-name collisions (2026-11-08)
+
+The exemption for a member's own bound names is limited to **unqualified
+callees**. A differing selected member or type still separates families even
+when its spelling also occurs in that member's parameter list. Namespace or
+access punctuation also prevents a callee from using the exemption. This
+corrects under-partitioning without changing duplicate-group membership or
+review identity; subgroup bases and output fields are unchanged.

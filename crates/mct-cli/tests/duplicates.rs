@@ -1804,3 +1804,17 @@ fn a_held_decision_is_reported_as_needs_reevaluation_and_never_hidden() {
     assert!(hidden.contains("  1,needs-reevaluation\n"), "{hidden}");
     assert!(!hidden.contains("dismissed"), "{hidden}");
 }
+
+#[test]
+fn selected_members_matching_parameters_split_python_and_lua_families() {
+    for (tag, path, source) in [
+        ("python-parameter-member", "src/example.py", "def first(read):\n    if read is None:\n        return 0\n    return obj.read(read)\n\ndef second(write):\n    if write is None:\n        return 0\n    return obj.write(write)\n"),
+        ("lua-parameter-member", "src/example.lua", "function first(read)\n if read == nil then\n return 0\n end\n return obj.read(read)\nend\nfunction second(write)\n if write == nil then\n return 0\n end\n return obj.write(write)\nend\n"),
+    ] {
+        let project = Project::indexed(tag, &[(path, source)]);
+        let text = duplicates(&project, &["--no-cache", "--min-lines", "1", "--min-tokens", "1"]);
+        assert!(text.contains("total_groups: 1\n"), "{tag}: {text}");
+        assert!(text.contains("level: SUSPICIOUS"), "{tag}: {text}");
+        assert!(text.contains("split_groups: 1\n"), "{tag}: {text}");
+    }
+}

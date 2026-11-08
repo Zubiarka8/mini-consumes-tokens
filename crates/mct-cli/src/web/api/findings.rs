@@ -84,19 +84,44 @@ pub(in crate::web) fn review_sources_current(site: &Site, key: &str) -> bool {
 }
 
 fn top_directory(path: &str) -> &str {
-    path.split('/').next().unwrap_or(path)
+    path.split_once('/').map_or("", |(directory, _)| directory)
+}
+
+/// Bounded display summary shared by finding rows and recent activity, never an identity.
+pub(super) fn duplicate_title(group: &mct_index::DuplicateGroup) -> String {
+    let mut title = group
+        .members
+        .iter()
+        .take(MEMBER_PREVIEW)
+        .map(|m| m.symbol_name.as_str())
+        .collect::<Vec<_>>()
+        .join(" ≈ ");
+    let omitted = group.members.len().saturating_sub(MEMBER_PREVIEW);
+    if omitted > 0 {
+        title.push_str(&format!(" (+{omitted})"));
+    }
+    title
 }
 
 pub(super) fn duplicate_row(site: &Site, id: usize) -> Value {
     let group = &site.duplicates.groups[id];
     let key = &site.review_keys[id];
-    let paths: std::collections::BTreeSet<&str> =
-        group.members.iter().map(|m| m.path.as_str()).collect();
-    let modules: std::collections::BTreeSet<&str> =
-        paths.iter().map(|p| top_directory(p)).collect();
-    let scope = if paths.len() == 1 {
+    let first = &group.members[0];
+    // DuplicateGroup guarantees path order, so adjacent changes count files
+    // without allocating a set on every list/detail request.
+    let file_count = 1 + group
+        .members
+        .windows(2)
+        .filter(|pair| pair[0].path != pair[1].path)
+        .count();
+    let directory = top_directory(&first.path);
+    let scope = if file_count == 1 {
         "same-file"
-    } else if modules.len() == 1 {
+    } else if group
+        .members
+        .iter()
+        .all(|member| top_directory(&member.path) == directory)
+    {
         "cross-file"
     } else {
         "cross-module"
@@ -107,18 +132,12 @@ pub(super) fn duplicate_row(site: &Site, id: usize) -> Value {
         .take(MEMBER_PREVIEW)
         .map(|m| json!({ "path": m.path, "start": m.start_line, "end": m.end_line, "name": m.symbol_name, "kind": m.symbol_kind }))
         .collect();
-    let first = &group.members[0];
     let mut row = review_fields(site, key);
     row["type"] = json!("duplicate");
     row["rank"] = json!(id);
     row["group"] = json!(id);
-    row["title"] = json!(group
-        .members
-        .iter()
-        .take(2)
-        .map(|m| m.symbol_name.as_str())
-        .collect::<Vec<_>>()
-        .join(" ≈ "));
+    let omitted = group.members.len().saturating_sub(MEMBER_PREVIEW);
+    row["title"] = json!(duplicate_title(group));
     row["language"] = json!(group.language);
     row["path"] = json!(first.path);
     row["line"] = json!(first.start_line);
@@ -134,8 +153,9 @@ pub(super) fn duplicate_row(site: &Site, id: usize) -> Value {
     row["priority"] = json!(group.priority.level.as_str());
     row["scope"] = json!(scope);
     row["memberCount"] = json!(group.members.len());
+    row["membersOmitted"] = json!(omitted);
     // Over the whole group: `members` below is only a preview, so a count taken from it is wrong.
-    row["fileCount"] = json!(paths.len());
+    row["fileCount"] = json!(file_count);
     row["members"] = Value::Array(members);
     row
 }
@@ -155,8 +175,9 @@ pub(super) fn dead_row(site: &Site, index: usize) -> Value {
     row["kind"] = json!(symbol.kind);
     row["parent"] = json!(symbol.parent);
     row["refs"] = json!(0);
-    // Zone, visibility and confidence come from `dead_assessment`; the heuristic has no severity.
-    row["zone"] = json!(candidate.assessment.zone);
+    // The area comes from the project's own folders; visibility and confidence
+    // from `dead_assessment`. The heuristic has no severity.
+    row["area"] = json!(candidate.area);
     row["visibility"] = json!(candidate.assessment.visibility);
     row["confidence"] = json!(candidate.assessment.confidence);
     row["severity"] = Value::Null;
@@ -201,7 +222,7 @@ const FILTER_FIELDS: [&str; 8] = [
     "verdict",
     "scope",
     "confidence",
-    "zone",
+    "area",
 ];
 
 pub(super) fn list(site: &Site, params: &Params) -> Value {
@@ -315,6 +336,7 @@ pub(super) fn detail(site: &Site, params: &Params) -> Result<Value, (u16, &'stat
                         "code": body.as_ref().map(|(lines, _)| lines), "codeTruncated": body.as_ref().is_some_and(|(_, cut)| *cut) })
             })
             .collect();
+        row["membersOmitted"] = json!(0);
         row["reasons"] = group
             .verdict
             .reasons
