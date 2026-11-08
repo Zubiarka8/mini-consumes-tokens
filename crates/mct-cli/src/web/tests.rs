@@ -911,6 +911,83 @@ fn finding_numbers_are_readable_stable_and_never_reused() {
     assert_eq!(row["note"], "kept");
 }
 
+/// Path and number of each current dead-code finding.
+fn dead_numbers_by_path(list: &serde_json::Value) -> BTreeMap<String, (String, u64)> {
+    list["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|item| item["type"] == "dead-code")
+        .map(|item| {
+            (
+                item["path"].as_str().unwrap().to_string(),
+                (
+                    item["key"].as_str().unwrap().to_string(),
+                    item["number"].as_u64().unwrap(),
+                ),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn new_exclusion_rules_renumber_from_one_but_reviewed_findings_keep_their_number() {
+    let root = tempfile::tempdir().unwrap();
+    fs::create_dir(root.path().join("src")).unwrap();
+    for name in ["one", "two", "three", "four"] {
+        fs::write(
+            root.path().join(format!("src/{name}.rs")),
+            format!("pub fn {name}() {{}}\n"),
+        )
+        .unwrap();
+    }
+    index(root.path());
+    let before = dead_numbers_by_path(
+        &Server::start(root.path(), true).json("api/findings?state=&size=100"),
+    );
+    let mut numbers: Vec<u64> = before.values().map(|(_, number)| *number).collect();
+    numbers.sort_unstable();
+    assert_eq!(numbers, [1, 2, 3, 4]);
+
+    // Review the finding numbered 4, then ignore the files of #1 and #2.
+    let by_number = |n: u64| {
+        before
+            .iter()
+            .find(|(_, (_, number))| *number == n)
+            .map(|(path, (key, _))| (path.clone(), key.clone()))
+            .unwrap()
+    };
+    let (_, reviewed) = by_number(4);
+    let (_, unreviewed) = by_number(3);
+    let server = Server::start(root.path(), true);
+    assert!(server
+        .decide(&reviewed, Some("false-positive"), "kept")
+        .starts_with("HTTP/1.1 200"));
+    drop(server);
+    let ignored = [by_number(1).0, by_number(2).0];
+    fs::write(root.path().join(".mctignore"), ignored.join("\n") + "\n").unwrap();
+    for path in &ignored {
+        fs::remove_file(root.path().join(path)).unwrap();
+    }
+    index(root.path());
+
+    let after = Server::start(root.path(), true);
+    let list = after.json("api/findings?state=&size=100");
+    let numbers: BTreeMap<String, u64> = dead_numbers_by_path(&list).into_values().collect();
+    assert_eq!(numbers.len(), 2);
+    assert_eq!(numbers[&reviewed], 4, "a reviewed finding keeps its number");
+    assert_eq!(numbers[&unreviewed], 1, "the others count from 1 again");
+    let row = after.json(&format!("api/finding?key={reviewed}"));
+    assert_eq!(row["state"], "false-positive");
+
+    // Restarting with the same rules renumbers nothing.
+    let again = dead_numbers_by_path(
+        &Server::start(root.path(), true).json("api/findings?state=&size=100"),
+    );
+    let again: BTreeMap<String, u64> = again.into_values().collect();
+    assert_eq!(again, numbers);
+}
+
 #[test]
 fn a_damaged_number_file_is_never_rewritten() {
     let root = project();
