@@ -1,8 +1,10 @@
-//! Manifest ownership and staged publication with rename rollback.
+//! Manifest ownership and note-by-note publication under an OS writer lock.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
+use std::io::Write as _;
 use std::path::{Component, Path, PathBuf};
+use std::time::{Duration, Instant};
 
 use crate::{Result, VaultError, VaultReport};
 
@@ -148,24 +150,132 @@ fn check_ancestors(path: &Path) -> Result<()> {
     Ok(())
 }
 
-struct WriterLock(PathBuf);
-impl Drop for WriterLock {
-    fn drop(&mut self) {
-        let _ = fs::remove_file(&self.0);
+/// How long a publication waits for another one to finish before failing.
+pub const LOCK_WAIT: Duration = Duration::from_secs(120);
+
+/// Contents of the legacy `<vault>.lock` file while this version publishes.
+/// Older versions leave it empty, so a stale file with this text was left by
+/// a writer of this version that stopped; it held the OS lock, which the OS
+/// has released, so the file can be replaced.
+const LEGACY_MARKER: &str = "mct-obsidian: guarded by <vault>.writer.lock\n";
+
+/// Prefix of the temporary files written beside each note before the rename.
+const TEMP_PREFIX: &str = ".mct-obsidian-";
+const TEMP_SUFFIX: &str = ".tmp";
+
+/// The writer lock: an OS lock on `<vault>.writer.lock`, released by the OS
+/// when the process exits however it exits, plus the legacy `<vault>.lock`
+/// file that older versions create exclusively, so they keep failing closed
+/// while this version publishes.
+struct WriterLock {
+    _file: fs::File,
+    legacy: PathBuf,
+}
+
+impl WriterLock {
+    fn acquire(out: &Path, wait: Duration) -> Result<Self> {
+        let path = sibling(out, ".writer.lock")?;
+        check_ancestors(&path)?;
+        let file = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(&path)
+            .map_err(|e| io_error(&path, e))?;
+        let deadline = Instant::now() + wait;
+        loop {
+            match file.try_lock() {
+                Ok(()) => break,
+                Err(fs::TryLockError::WouldBlock) if Instant::now() < deadline => {
+                    std::thread::sleep(Duration::from_millis(20));
+                }
+                Err(fs::TryLockError::WouldBlock) => {
+                    return Err(VaultError::Locked {
+                        path: path.display().to_string(),
+                        reason: format!(
+                            "another publication still held it after {} s",
+                            wait.as_secs_f32()
+                        ),
+                    })
+                }
+                Err(fs::TryLockError::Error(e)) => return Err(io_error(&path, e)),
+            }
+        }
+        let legacy = sibling(out, ".lock")?;
+        check_ancestors(&legacy)?;
+        match create_with_marker(&legacy) {
+            Ok(()) => (),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                // Left by a stopped writer of this version: the OS lock it
+                // held is ours now, so the file is ours too.
+                let text = fs::read_to_string(&legacy).map_err(|e| io_error(&legacy, e))?;
+                if text != LEGACY_MARKER {
+                    return Err(VaultError::Locked {
+                        path: legacy.display().to_string(),
+                        reason: "an older mct version is publishing, or stopped while \
+                                 publishing; delete the file if no mct process is running"
+                            .into(),
+                    });
+                }
+            }
+            Err(e) => return Err(io_error(&legacy, e)),
+        }
+        Ok(Self {
+            _file: file,
+            legacy,
+        })
     }
 }
 
-/// Stage a complete vault beside the destination. Only manifest-owned files
-/// may disappear; every other regular file is preserved. All validation and
-/// copying happen before either rename. Concurrent writers fail closed.
+/// Creates `path` already holding [`LEGACY_MARKER`], so a writer stopped at
+/// any point leaves either no file or the marker, never an empty file that
+/// would look like an older version's. Fails with `AlreadyExists` if `path`
+/// exists. Where hard links are unsupported, falls back to create-then-write.
+fn create_with_marker(path: &Path) -> std::io::Result<()> {
+    let dir = path
+        .parent()
+        .ok_or_else(|| std::io::Error::other("lock path has no parent"))?;
+    let mut staged = tempfile::Builder::new()
+        .prefix(TEMP_PREFIX)
+        .suffix(TEMP_SUFFIX)
+        .tempfile_in(dir)?;
+    staged.write_all(LEGACY_MARKER.as_bytes())?;
+    match fs::hard_link(staged.path(), path) {
+        Err(e) if e.kind() != std::io::ErrorKind::AlreadyExists => {
+            let mut file = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(path)?;
+            file.write_all(LEGACY_MARKER.as_bytes())
+        }
+        linked => linked,
+    }
+}
+
+impl Drop for WriterLock {
+    fn drop(&mut self) {
+        // The OS lock is released when `_file` closes, after this.
+        let _ = fs::remove_file(&self.legacy);
+    }
+}
+
+/// Brings the vault at `out` in line with `notes`. Only manifest-owned files
+/// are written or removed; every other file is left alone. Each changed note
+/// is written beside its destination and renamed over it, so a reader sees
+/// every note either old or new, never missing. The manifest is written
+/// last: after an interruption it still describes the previous notes, and
+/// the next publication accepts a note that already holds its new text.
+/// Concurrent writers, in this process or another, wait for each other.
 pub fn publish(out: &Path, notes: &BTreeMap<String, String>) -> Result<VaultReport> {
-    publish_with(out, notes, &|from, to| fs::rename(from, to))
+    publish_with(out, notes, &|from, to| fs::rename(from, to), LOCK_WAIT)
 }
 
 fn publish_with(
     out: &Path,
     notes: &BTreeMap<String, String>,
     rename: &dyn Fn(&Path, &Path) -> std::io::Result<()>,
+    wait: Duration,
 ) -> Result<VaultReport> {
     check_ancestors(out)?;
     if out.exists() && !is_real_dir(out) {
@@ -176,14 +286,7 @@ fn publish_with(
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
     fs::create_dir_all(parent).map_err(|e| io_error(parent, e))?;
-    let lock_path = sibling(out, ".lock")?;
-    let lock_file = fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&lock_path)
-        .map_err(|e| io_error(&lock_path, e))?;
-    let _lock = WriterLock(lock_path);
-    drop(lock_file);
+    let _lock = WriterLock::acquire(out, wait)?;
 
     let manifest_path = out.join(MANIFEST_FILE);
     check_ancestors(&manifest_path)?;
@@ -197,101 +300,115 @@ fn publish_with(
         .iter()
         .map(|(p, t)| (p.clone(), hash_note(t)))
         .collect();
+    // Notes whose file already holds the text to publish.
+    let mut current = BTreeSet::new();
     // Check actual contents as well as the manifest; local edits must not be
     // silently overwritten, including when an indexed file has been removed.
+    // A file that already holds its new text was written by an interrupted
+    // publication, not edited.
     for (path, expected) in &old.notes {
         let file = safe_join(out, path).ok_or_else(|| VaultError::UnsafePath(path.clone()))?;
         check_ancestors(&file)?;
         match fs::read_to_string(&file) {
-            Ok(text) if hash_note(&text) != *expected => {
-                return Err(VaultError::Conflict(path.clone()))
+            Ok(text) => {
+                let found = hash_note(&text);
+                if hashes.get(path) == Some(&found) {
+                    current.insert(path.as_str());
+                } else if found != *expected {
+                    return Err(VaultError::Conflict(path.clone()));
+                }
             }
-            Ok(_) => (),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
             Err(e) => return Err(io_error(&file, e)),
         }
     }
-    for path in notes.keys() {
+    for (path, hash) in &hashes {
+        if old.notes.contains_key(path) {
+            continue;
+        }
         let file = safe_join(out, path).ok_or_else(|| VaultError::UnsafePath(path.clone()))?;
         check_ancestors(&file)?;
-        if file.exists() && !old.notes.contains_key(path) {
-            return Err(VaultError::Conflict(path.clone()));
+        if file.exists() {
+            let ours = is_real_file(&file)
+                && fs::read_to_string(&file).is_ok_and(|text| hash_note(&text) == *hash);
+            if !ours {
+                return Err(VaultError::Conflict(path.clone()));
+            }
+            current.insert(path.as_str());
         }
     }
-    let reusable = |path: &str| {
-        old.notes.get(path) == hashes.get(path)
-            && safe_join(out, path).is_some_and(|file| is_real_file(&file))
-    };
-    let removed = old
+    // Validate the whole existing tree even on no-op runs, and drop
+    // temporary files left by an interrupted publication.
+    validate_tree(out)?;
+    let removed: Vec<&String> = old
         .notes
         .keys()
         .filter(|p| !hashes.contains_key(*p))
-        .count();
-    let changed = notes.keys().filter(|p| !reusable(p)).count();
-    // Validate the whole existing tree even on no-op runs.
-    validate_tree(out)?;
-    if changed == 0 && removed == 0 && manifest_path.is_file() {
+        .collect();
+    let changed: Vec<(&String, &String)> = notes
+        .iter()
+        .filter(|(p, _)| !current.contains(p.as_str()))
+        .collect();
+    if changed.is_empty() && removed.is_empty() && old.notes == hashes && manifest_path.is_file() {
         return Ok(VaultReport {
             notes_written: 0,
             notes_unchanged: notes.len(),
             notes_removed: 0,
         });
     }
-    let stage = tempfile::Builder::new()
-        .prefix(".mct-obsidian-")
-        .tempdir_in(parent)
-        .map_err(|e| io_error(parent, e))?;
-    let next = stage.path().join("next");
-    fs::create_dir(&next).map_err(|e| io_error(&next, e))?;
-    if out.exists() {
-        copy_unmanaged(out, out, &next, &old)?;
+    fs::create_dir_all(out).map_err(|e| io_error(out, e))?;
+    for (path, text) in &changed {
+        let dest = safe_join(out, path).ok_or_else(|| VaultError::UnsafePath((*path).clone()))?;
+        replace_file(&dest, text, rename)?;
     }
-    for (path, text) in notes {
-        let dest = safe_join(&next, path).ok_or_else(|| VaultError::UnsafePath(path.clone()))?;
-        if dest.exists() {
-            return Err(VaultError::Conflict(path.clone()));
-        }
-        if let Some(parent) = dest.parent() {
-            fs::create_dir_all(parent).map_err(|e| io_error(parent, e))?;
-        }
-        if reusable(path) {
-            // Copy rather than hard-link: an editor of the old tree must not
-            // mutate the staged note while publication is in progress.
-            let source = out.join(path);
-            fs::copy(&source, &dest).map_err(|e| io_error(&dest, e))?;
-            let modified = fs::metadata(&source)
-                .and_then(|m| m.modified())
-                .map_err(|e| io_error(&source, e))?;
-            fs::File::options()
-                .write(true)
-                .open(&dest)
-                .and_then(|f| f.set_modified(modified))
-                .map_err(|e| io_error(&dest, e))?;
-        } else {
-            fs::write(&dest, text).map_err(|e| io_error(&dest, e))?;
+    for path in &removed {
+        let file = safe_join(out, path).ok_or_else(|| VaultError::UnsafePath((*path).clone()))?;
+        match fs::remove_file(&file) {
+            Ok(()) => (),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
+            Err(e) => return Err(io_error(&file, e)),
         }
     }
-    let file = next.join(MANIFEST_FILE);
-    fs::write(&file, Manifest { notes: hashes }.render()).map_err(|e| io_error(&file, e))?;
-    let previous = stage.path().join("previous");
-    let had_old = out.exists();
-    if had_old {
-        rename(out, &previous).map_err(|e| io_error(out, e))?;
+    let report = VaultReport {
+        notes_written: changed.len(),
+        notes_unchanged: notes.len() - changed.len(),
+        notes_removed: removed.len(),
+    };
+    replace_file(&manifest_path, &Manifest { notes: hashes }.render(), rename)?;
+    Ok(report)
+}
+
+/// Writes `text` beside `dest` and renames it over `dest`.
+fn replace_file(
+    dest: &Path,
+    text: &str,
+    rename: &dyn Fn(&Path, &Path) -> std::io::Result<()>,
+) -> Result<()> {
+    let dir = dest
+        .parent()
+        .ok_or_else(|| VaultError::UnsafePath(dest.display().to_string()))?;
+    fs::create_dir_all(dir).map_err(|e| io_error(dir, e))?;
+    check_ancestors(dest)?;
+    if dest.exists() && !is_real_file(dest) {
+        return Err(VaultError::Conflict(dest.display().to_string()));
     }
-    if let Err(err) = rename(&next, out) {
-        if had_old {
-            if let Err(rollback) = rename(&previous, out) {
-                let recovery = stage.keep();
-                return Err(io_error(&recovery, std::io::Error::other(format!("publication failed: {err}; rollback failed: {rollback}; previous vault retained here"))));
-            }
-        }
-        return Err(io_error(out, err));
-    }
-    Ok(VaultReport {
-        notes_written: changed,
-        notes_unchanged: notes.len() - changed,
-        notes_removed: removed,
-    })
+    let mut temp = tempfile::Builder::new()
+        .prefix(TEMP_PREFIX)
+        .suffix(TEMP_SUFFIX)
+        .tempfile_in(dir)
+        .map_err(|e| io_error(dir, e))?;
+    temp.write_all(text.as_bytes())
+        .map_err(|e| io_error(temp.path(), e))?;
+    let temp = temp.into_temp_path();
+    rename(&temp, dest).map_err(|e| io_error(dest, e))?;
+    // Renamed away: nothing left for the guard to delete.
+    let _ = temp.keep();
+    Ok(())
+}
+
+fn is_leftover_temp(name: &std::ffi::OsStr) -> bool {
+    name.to_str()
+        .is_some_and(|name| name.starts_with(TEMP_PREFIX) && name.ends_with(TEMP_SUFFIX))
 }
 
 fn validate_tree(dir: &Path) -> Result<()> {
@@ -309,44 +426,8 @@ fn validate_tree(dir: &Path) -> Result<()> {
             validate_tree(&path)?;
         } else if !kind.is_file() {
             return Err(VaultError::Conflict(path.display().to_string()));
-        }
-    }
-    Ok(())
-}
-
-fn manifest_key(relative: &Path) -> Option<String> {
-    relative
-        .iter()
-        .map(|part| part.to_str())
-        .collect::<Option<Vec<_>>>()
-        .map(|parts| parts.join("/"))
-}
-
-fn copy_unmanaged(base: &Path, dir: &Path, next: &Path, old: &Manifest) -> Result<()> {
-    for entry in fs::read_dir(dir).map_err(|e| io_error(dir, e))? {
-        let entry = entry.map_err(|e| io_error(dir, e))?;
-        let path = entry.path();
-        let relative = path
-            .strip_prefix(base)
-            .map_err(|_| VaultError::UnsafePath(path.display().to_string()))?;
-        // Compare actual path components. On Unix a literal backslash is
-        // part of a user filename, not a separator; lossy conversion could
-        // otherwise mistake an unmanaged file for a generated note.
-        let key = manifest_key(relative);
-        if key.as_deref() == Some(MANIFEST_FILE)
-            || key.as_ref().is_some_and(|key| old.notes.contains_key(key))
-        {
-            continue;
-        }
-        let dest = next.join(relative);
-        let kind = entry.file_type().map_err(|e| io_error(&path, e))?;
-        if kind.is_dir() {
-            fs::create_dir_all(&dest).map_err(|e| io_error(&dest, e))?;
-            copy_unmanaged(base, &path, next, old)?;
-        } else if kind.is_file() {
-            fs::copy(&path, &dest).map_err(|e| io_error(&dest, e))?;
-        } else {
-            return Err(VaultError::Symlink(path.display().to_string()));
+        } else if is_leftover_temp(&entry.file_name()) {
+            fs::remove_file(&path).map_err(|e| io_error(&path, e))?;
         }
     }
     Ok(())
@@ -384,27 +465,36 @@ mod tests {
     }
 
     #[test]
-    fn failed_publication_rolls_back_the_complete_old_tree() {
+    fn a_failed_publication_keeps_the_old_manifest_and_the_next_one_recovers() {
         let dir = tempfile::tempdir().unwrap();
         let out = dir.path().canonicalize().unwrap().join("vault");
-        publish(&out, &BTreeMap::from([("index.md".into(), "old".into())])).unwrap();
+        publish(&out, &notes(&[("a.md", "a"), ("index.md", "old")])).unwrap();
         fs::create_dir(out.join(".obsidian")).unwrap();
         fs::write(out.join(".obsidian/settings.json"), "settings").unwrap();
         fs::write(out.join("personal.md"), "personal").unwrap();
         let manifest = fs::read(out.join(MANIFEST_FILE)).unwrap();
+        let next = notes(&[("a.md", "a2"), ("index.md", "new")]);
         let result = publish_with(
             &out,
-            &BTreeMap::from([("index.md".into(), "new".into())]),
+            &next,
             &|from, to| {
-                if from.file_name().is_some_and(|name| name == "next") {
+                if to.ends_with("index.md") {
                     Err(std::io::Error::other("injected rename failure"))
                 } else {
                     fs::rename(from, to)
                 }
             },
+            LOCK_WAIT,
         );
         assert!(result.is_err());
+        // Each note is old or new; the manifest still describes the old notes.
+        assert_eq!(fs::read_to_string(out.join("a.md")).unwrap(), "a2");
         assert_eq!(fs::read_to_string(out.join("index.md")).unwrap(), "old");
+        assert_eq!(fs::read(out.join(MANIFEST_FILE)).unwrap(), manifest);
+        let report = publish(&out, &next).unwrap();
+        assert_eq!(report.notes_written, 1);
+        assert_eq!(fs::read_to_string(out.join("index.md")).unwrap(), "new");
+        assert_eq!(Manifest::load(&out).unwrap().notes.len(), 2);
         assert_eq!(
             fs::read_to_string(out.join("personal.md")).unwrap(),
             "personal"
@@ -413,36 +503,105 @@ mod tests {
             fs::read_to_string(out.join(".obsidian/settings.json")).unwrap(),
             "settings"
         );
-        assert_eq!(fs::read(out.join(MANIFEST_FILE)).unwrap(), manifest);
-        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
+        let mut names: Vec<_> = fs::read_dir(&out)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .collect();
+        names.sort();
+        assert_eq!(
+            names,
+            [
+                MANIFEST_FILE,
+                ".obsidian",
+                "a.md",
+                "index.md",
+                "personal.md"
+            ]
+        );
+        assert!(!sibling(&out, ".lock").unwrap().exists());
     }
 
     #[test]
-    fn rollback_failure_retains_the_previous_vault_at_the_reported_path() {
+    fn a_leftover_temporary_note_is_removed_by_the_next_publication() {
         let dir = tempfile::tempdir().unwrap();
         let out = dir.path().canonicalize().unwrap().join("vault");
-        publish(&out, &BTreeMap::from([("index.md".into(), "old".into())])).unwrap();
+        publish(&out, &notes(&[("files/a.md", "a")])).unwrap();
+        let leftover = out.join(format!("files/{TEMP_PREFIX}x1{TEMP_SUFFIX}"));
+        fs::write(&leftover, "half").unwrap();
+        publish(&out, &notes(&[("files/a.md", "a")])).unwrap();
+        assert!(!leftover.exists());
+    }
+
+    #[test]
+    fn concurrent_publishers_wait_for_each_other() {
+        let dir = tempfile::tempdir().unwrap();
+        let out = dir.path().canonicalize().unwrap().join("vault");
+        publish(&out, &notes(&[("index.md", "0")])).unwrap();
+        let (inside, entered) = std::sync::mpsc::channel();
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let first = {
+            let out = out.clone();
+            std::thread::spawn(move || {
+                publish_with(
+                    &out,
+                    &notes(&[("index.md", "1")]),
+                    &|from, to| {
+                        let _ = inside.send(());
+                        let _ = released.recv();
+                        fs::rename(from, to)
+                    },
+                    LOCK_WAIT,
+                )
+            })
+        };
+        entered.recv().unwrap();
+        let second = {
+            let out = out.clone();
+            std::thread::spawn(move || publish(&out, &notes(&[("index.md", "2")])))
+        };
+        std::thread::sleep(Duration::from_millis(100));
+        assert!(!second.is_finished(), "the second writer must wait");
+        // Dropping the sender releases every later rename too.
+        drop(release);
+        first.join().unwrap().unwrap();
+        second.join().unwrap().unwrap();
+        assert_eq!(fs::read_to_string(out.join("index.md")).unwrap(), "2");
+    }
+
+    #[test]
+    fn a_writer_that_cannot_get_the_lock_in_time_fails_with_a_clear_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let out = dir.path().canonicalize().unwrap().join("vault");
+        let held = WriterLock::acquire(&out, LOCK_WAIT).unwrap();
         let result = publish_with(
             &out,
-            &BTreeMap::from([("index.md".into(), "new".into())]),
-            &|from, to| {
-                if from == out {
-                    fs::rename(from, to)
-                } else {
-                    Err(std::io::Error::other("injected rename failure"))
-                }
-            },
+            &notes(&[("index.md", "x")]),
+            &|from, to| fs::rename(from, to),
+            Duration::from_millis(50),
         );
-        let VaultError::Io { path, source } = result.unwrap_err() else {
-            panic!("expected recovery diagnostic")
-        };
-        assert!(source.to_string().contains("rollback failed"));
-        let retained = Path::new(&path);
-        assert_eq!(
-            fs::read_to_string(retained.join("previous/index.md")).unwrap(),
-            "old"
+        assert!(
+            matches!(&result, Err(VaultError::Locked { reason, .. }) if reason.contains("another publication")),
+            "{result:?}"
         );
-        assert!(!sibling(&out, ".lock").unwrap().exists());
+        drop(held);
+        publish(&out, &notes(&[("index.md", "x")])).unwrap();
+    }
+
+    #[test]
+    fn a_legacy_lock_left_by_this_version_is_replaced_but_a_foreign_one_is_not() {
+        let dir = tempfile::tempdir().unwrap();
+        let out = dir.path().canonicalize().unwrap().join("vault");
+        let legacy = sibling(&out, ".lock").unwrap();
+        fs::write(&legacy, LEGACY_MARKER).unwrap();
+        publish(&out, &notes(&[("index.md", "x")])).unwrap();
+        assert!(!legacy.exists());
+        fs::write(&legacy, "").unwrap();
+        let result = publish(&out, &notes(&[("index.md", "y")]));
+        assert!(
+            matches!(&result, Err(VaultError::Locked { reason, .. }) if reason.contains("older mct version")),
+            "{result:?}"
+        );
+        assert!(legacy.exists());
     }
 
     #[test]
@@ -501,14 +660,6 @@ mod tests {
         );
     }
 
-    #[cfg(unix)]
-    #[test]
-    fn non_utf8_names_cannot_be_mistaken_for_manifest_owned_paths() {
-        use std::os::unix::ffi::OsStringExt;
-        let name = PathBuf::from(std::ffi::OsString::from_vec(vec![b'u', 0xff]));
-        assert_eq!(manifest_key(&name), None);
-    }
-
     // The macOS test host refuses invalid UTF-8 filenames outside the sandbox
     // too. Exercise real preservation on Linux and path identity on Unix.
     #[cfg(target_os = "linux")]
@@ -522,6 +673,126 @@ mod tests {
         fs::write(out.join(&name), "user").unwrap();
         publish(&out, &BTreeMap::from([("index.md".into(), "new".into())])).unwrap();
         assert_eq!(fs::read_to_string(out.join(name)).unwrap(), "user");
+    }
+
+    fn notes(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
+        pairs
+            .iter()
+            .map(|(path, text)| (path.to_string(), text.to_string()))
+            .collect()
+    }
+
+    #[test]
+    fn a_reader_never_sees_a_note_missing_during_publication() {
+        let dir = tempfile::tempdir().unwrap();
+        let out = dir.path().canonicalize().unwrap().join("vault");
+        let paths = ["index.md", "files/a.md", "files/b.md"];
+        publish(
+            &out,
+            &notes(&[(paths[0], "0"), (paths[1], "a"), (paths[2], "b")]),
+        )
+        .unwrap();
+        let missing = std::cell::RefCell::new(Vec::new());
+        let check = || {
+            for path in paths {
+                if !out.join(path).is_file() {
+                    missing.borrow_mut().push(path);
+                }
+            }
+        };
+        publish_with(
+            &out,
+            &notes(&[(paths[0], "1"), (paths[1], "a2"), (paths[2], "b")]),
+            &|from, to| {
+                check();
+                fs::rename(from, to)?;
+                check();
+                Ok(())
+            },
+            LOCK_WAIT,
+        )
+        .unwrap();
+        assert_eq!(missing.into_inner(), Vec::<&str>::new());
+        assert_eq!(fs::read_to_string(out.join("files/a.md")).unwrap(), "a2");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn one_changed_note_leaves_the_other_files_untouched() {
+        use std::os::unix::fs::MetadataExt;
+        let dir = tempfile::tempdir().unwrap();
+        let out = dir.path().canonicalize().unwrap().join("vault");
+        publish(&out, &notes(&[("a.md", "a"), ("b.md", "b"), ("c.md", "c")])).unwrap();
+        fs::write(out.join("user.md"), "user").unwrap();
+        let inode = |path: &str| fs::metadata(out.join(path)).unwrap().ino();
+        let before = [inode("b.md"), inode("c.md"), inode("user.md")];
+        let report = publish(
+            &out,
+            &notes(&[("a.md", "a2"), ("b.md", "b"), ("c.md", "c")]),
+        )
+        .unwrap();
+        assert_eq!(report.notes_written, 1);
+        assert_eq!([inode("b.md"), inode("c.md"), inode("user.md")], before);
+        assert_eq!(fs::read_to_string(out.join("a.md")).unwrap(), "a2");
+    }
+
+    /// Run by [`a_stopped_writer_does_not_block_the_next_one`] in a child
+    /// process: publish and stop forever while holding the writer lock.
+    #[test]
+    #[ignore = "child process of a_stopped_writer_does_not_block_the_next_one"]
+    fn hold_the_writer_lock_child() {
+        let Some(out) = std::env::var_os("MCT_VAULT_LOCK_CHILD") else {
+            return;
+        };
+        let out = PathBuf::from(out);
+        let ready = sibling(&out, ".holding").unwrap();
+        let _ = publish_with(
+            &out,
+            &notes(&[("index.md", "child")]),
+            &|_, _| {
+                fs::write(&ready, "")?;
+                loop {
+                    std::thread::sleep(Duration::from_secs(60));
+                }
+            },
+            LOCK_WAIT,
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_stopped_writer_does_not_block_the_next_one() {
+        for signal in ["-KILL", "-INT"] {
+            let dir = tempfile::tempdir().unwrap();
+            let out = dir.path().canonicalize().unwrap().join("vault");
+            publish(&out, &notes(&[("index.md", "old")])).unwrap();
+            let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", "manifest::tests::hold_the_writer_lock_child"])
+                .args(["--ignored", "--test-threads=1"])
+                .env("MCT_VAULT_LOCK_CHILD", &out)
+                .stdout(std::process::Stdio::null())
+                .spawn()
+                .unwrap();
+            let ready = sibling(&out, ".holding").unwrap();
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+            while !ready.exists() {
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "child never held the lock"
+                );
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            let status = std::process::Command::new("kill")
+                .args([signal, &child.id().to_string()])
+                .status()
+                .unwrap();
+            assert!(status.success());
+            child.wait().unwrap();
+            fs::remove_file(&ready).unwrap();
+            let result = publish(&out, &notes(&[("index.md", "new")]));
+            assert!(result.is_ok(), "after {signal}: {result:?}");
+            assert_eq!(fs::read_to_string(out.join("index.md")).unwrap(), "new");
+        }
     }
 
     #[cfg(unix)]
