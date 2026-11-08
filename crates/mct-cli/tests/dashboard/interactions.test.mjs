@@ -46,8 +46,8 @@ test('a stacked list shows each finding as a block and filters from its bar', as
   const env = await findings((url) => (url.pathname.endsWith('/findings') ? list([numbered], facets) : defaultApi(url)), '');
   const block = env.root.querySelector('.stack-row');
   assert.equal(block.querySelector('.stack-no').textContent, '#4');
-  assert.equal(block.querySelector('.stack-title').textContent, 'alpha ≈ beta');
-  assert.equal(block.querySelector('.stack-where').textContent, '2 files');
+  assert.equal(block.querySelector('.stack-title').textContent, 'Alpha · Beta · Gamma');
+  assert.equal(block.querySelector('.stack-counts').textContent, '3 locations · 2 files');
   assert.match(block.querySelector('.pill').textContent, /Unreviewed/);
   const [state, files, sort] = [...env.root.querySelectorAll('.stack-bar select')];
   assert.equal(state.value, 'pending');
@@ -197,7 +197,7 @@ test('the state in the list opens the other decisions and saves the pick for the
   button.dispatchEvent(env.event('click'));
   const menu = env.document.querySelector('.state-menu');
   assert.equal(button.getAttribute('aria-expanded'), 'true');
-  assert.match(menu.querySelector('.state-menu-note').textContent, /all 3 files in the group/);
+  assert.match(menu.querySelector('.state-menu-note').textContent, /all 3 locations in the group/);
   const items = [...menu.querySelectorAll('[role=menuitem]')];
   assert.equal(items.length, 5, 'every decision but the current one; an unreviewed finding has nothing to reopen');
   assert.equal(env.document.activeElement, items[0]);
@@ -369,7 +369,7 @@ test('recent activity links carry the finding identity and include findings outs
 // A dead-code candidate opens in the same workspace; its context lines come from the URL.
 const deadFinding = {
   key: 'dead-test', type: 'dead-code', title: 'unused_helper', kind: 'function', language: 'rust', state: 'unreviewed', revision: 'none',
-  confidence: 'high', zone: 'source', visibility: 'private', path: 'src/lib.rs', line: 10, history: [],
+  confidence: 'high', area: 'src', visibility: 'private', path: 'src/lib.rs', line: 10, history: [],
   detail: { symbol: { path: 'src/lib.rs', line: 10, endLine: 12, language: 'rust' }, code: null, imports: [], importedBy: [], notes: [] },
 };
 function deadApi(requests) {
@@ -416,7 +416,7 @@ test('the dead-code list row opens the workspace instead of a dialog', async () 
   const env = await deadPage('');
   assert.equal(env.mounts.length, 0);
   const block = env.root.querySelector('.stack-row .stack-open');
-  assert.match(block.textContent, /unused_helper/);
+  assert.match(block.textContent, /Unused helper/);
   block.dispatchEvent(env.event('click'));
   await settle(); await settle();
   assert.equal(urlParams(env).get('key'), 'dead-test');
@@ -545,7 +545,7 @@ test('a duplicate row counts the files of the whole group, not of the members th
   assert.doesNotMatch(env.root.textContent, /\b2 files/);
   const pop = env.root.querySelector('.stack-row .files-pop');
   assert.ok(pop, 'the row lists its fragments in its own panel');
-  assert.match(pop.textContent, /and 10 more fragments/, 'the panel says how many fragments the preview leaves out');
+  assert.match(pop.textContent, /and 10 more locations/, 'the panel says how many fragments the preview leaves out');
   env.cleanup();
 });
 
@@ -647,11 +647,11 @@ test('copying the duplicate list uses grouped locations and omits internal revie
   env.cleanup();
 });
 
-async function filteredDeadPage(query, typeCount) {
+async function filteredDeadPage(query, typeCount, area = []) {
   const fetch = async (url) => {
     const route = url.pathname.split('/').at(-1);
     if (route === 'findings')
-      return { items: [deadFinding], total: 1, all: 1, size: 25, page: 0, facets: { type: [['dead-code', typeCount]] } };
+      return { items: [deadFinding], total: 1, all: 1, size: 25, page: 0, facets: { type: [['dead-code', typeCount]], area } };
     return defaultApi(url);
   };
   const env = harness({ hash: `#/codigo-muerto?${query}`, fetch });
@@ -662,22 +662,106 @@ async function filteredDeadPage(query, typeCount) {
 }
 
 test('a filtered dead-code list says how many candidates exist without filters and clears them', async () => {
-  const env = await filteredDeadPage('zone=website', 302);
+  const env = await filteredDeadPage('area=website', 302, [['website', 1]]);
   const pager = env.root.querySelector('.pager');
   assert.match(pager.textContent, /Showing 1–1 of 1/);
   assert.match(pager.textContent, /302 in total/);
   const clear = pager.querySelector('button.pager-clear');
   assert.ok(clear, 'the pager offers to clear the filters');
   clear.click(); await settle();
-  assert.match(env.context.location.hash, /zone=all/);
+  assert.doesNotMatch(env.context.location.hash, /area=/);
   assert.match(env.context.location.hash, /state=all/);
   env.cleanup();
 });
 
 test('an unfiltered list has no total hint', async () => {
-  const env = await filteredDeadPage('zone=all&state=all', 1);
+  const env = await filteredDeadPage('state=all', 1);
   const pager = env.root.querySelector('.pager');
   assert.doesNotMatch(pager.textContent, /in total/);
   assert.equal(pager.querySelector('button.pager-clear'), null);
+  env.cleanup();
+});
+
+test('the folder filter lists the project\'s own folders, most candidates first', async () => {
+  const env = await filteredDeadPage('state=all', 3, [['website', 2], ['app', 1]]);
+  const selects = [...env.root.querySelectorAll('label.pick select')];
+  const folders = selects.find(select => [...select.options].some(option => option.value === 'website'));
+  assert.ok(folders, 'a select offers the folders');
+  assert.deepEqual([...folders.options].map(option => option.value), ['all', 'website', 'app']);
+  assert.equal(folders.closest('label').hidden, false);
+  env.cleanup();
+});
+
+test('a project with a single folder gets no folder filter', async () => {
+  const env = await filteredDeadPage('state=all', 1, [['.', 1]]);
+  const hidden = [...env.root.querySelectorAll('label.pick')].filter(label => label.hidden);
+  assert.equal(hidden.length, 1, 'only the folder select is hidden');
+  env.cleanup();
+});
+
+test('the folders every area shares are left out of the labels and kept in the tooltip', async () => {
+  const base = 'app/src/main/java/com/acme';
+  const env = await filteredDeadPage('state=all', 3, [[`${base}/ui`, 2], [`${base}/data`, 1]]);
+  const folders = [...env.root.querySelectorAll('label.pick select')]
+    .find(select => [...select.options].some(option => option.value === `${base}/ui`));
+  assert.ok(folders);
+  assert.match(folders.options[1].textContent, /^ui \(2\)/);
+  assert.match(folders.options[2].textContent, /^data \(1\)/);
+  env.cleanup();
+});
+
+for (const [lang, expected, scope] of [
+  ['en', '2 locations · 1 file', 'Same file'],
+  ['es', '2 ubicaciones · 1 archivo', 'Mismo archivo'],
+]) test(`duplicate locations, singular files and scope are explicit in ${lang}`, async () => {
+  const row = { ...finding, memberCount: 2, fileCount: 1, scope: 'same-file', members: finding.members.slice(0, 2) };
+  const env = harness({ lang, fetch: url => url.pathname.endsWith('/findings') ? list([row]) : defaultApi(url) });
+  const { render } = await env.load('page-findings.js');
+  const cleanup = await render({ root: env.root, page: 'duplicados', params: new URLSearchParams() });
+  await settle();
+  assert.equal(env.root.querySelector('.stack-counts').textContent, expected);
+  assert.equal(env.root.querySelector('.stack-scope').textContent, scope);
+  const open = env.root.querySelector('.stack-open');
+  open.focus();
+  assert.equal(env.document.activeElement, open);
+  assert.equal(open.getAttribute('aria-describedby'), env.root.querySelector('.files-pop').id);
+  open.dispatchEvent(env.event('keydown', { key: 'Escape' }));
+  assert.equal(env.root.querySelector('.files-pop').hasAttribute('data-dismissed'), true);
+  open.dispatchEvent(env.event('focus'));
+  assert.equal(env.root.querySelector('.files-pop').hasAttribute('data-dismissed'), false);
+  cleanup();
+});
+
+test('copying a preview retrieves all members and uses the authoritative group counts', async () => {
+  const members = Array.from({ length: 9 }, (_, i) => ({ ...finding.members[0], name: `copy_${i}`, path: 'same.rs', start: i * 5 + 1, end: i * 5 + 3 }));
+  const full = { ...finding, memberCount: 9, fileCount: 1, members, membersOmitted: 0 };
+  const row = { ...full, members: members.slice(0, 6), membersOmitted: 3 };
+  const requests = [], copied = [];
+  const env = await findings(url => { requests.push(url.pathname); return url.pathname.endsWith('/findings') ? list([row]) : full; }, '');
+  env.context.navigator.clipboard.writeText = async text => copied.push(text);
+  env.root.querySelector('.copy-brief').click();
+  await settle(); await settle();
+  assert.ok(requests.some(path => path.endsWith('/finding')));
+  assert.equal(copied.length, 1);
+  assert.match(copied[0], /9 copies in 1 file/);
+  for (const member of members) assert.ok(copied[0].includes(member.name), member.name);
+  env.cleanup();
+});
+
+test('symbol labels separate identifier words in English and preserve acronyms and source names', async () => {
+  const env = harness();
+  const { symbolLabel } = await env.load('core.js');
+  for (const [raw, label] of [['find_calls', 'Find calls'], ['find_calls_bfs_scoped', 'Find calls BFS scoped'], ['getHTTPResponse', 'Get HTTP response'], ['relative_imports_resolve_to_the_target_files_module', 'Relative imports resolve to the target files module'], ['as_str', 'As str']]) {
+    assert.equal(symbolLabel(raw), label);
+  }
+});
+
+test('repeated member names have one readable label while every location stays available', async () => {
+  const row = { ...finding, title: 'visit_children ≈ visit_children ≈ visit_children', members: finding.members.map(m => ({ ...m, name: 'visit_children' })) };
+  const env = await findings(url => url.pathname.endsWith('/findings') ? list([row]) : defaultApi(url), '');
+  assert.equal(env.root.querySelector('.stack-title').textContent, 'Visit children');
+  assert.equal(env.root.querySelector('.group-name').title, 'visit_children');
+  assert.equal(env.root.querySelectorAll('.files-pop-line').length, 3);
+  assert.equal(env.root.querySelector('.stack-counts').textContent, '3 locations · 2 files');
   env.cleanup();
 });
