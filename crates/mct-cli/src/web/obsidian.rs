@@ -14,6 +14,7 @@ const MAX_NOTES: usize = 20_000;
 const MAX_NOTE_BYTES: u64 = 256 * 1024;
 const MAX_DEPTH: usize = 16;
 
+#[derive(Clone)]
 pub(super) struct Note {
     /// Vault-relative path with forward slashes.
     pub path: String,
@@ -26,6 +27,41 @@ pub(super) struct Note {
     pub bytes: u64,
     /// Text after the front matter, kept so searches read no file.
     body: Box<str>,
+    /// File size and modification time when read: a rescan reuses the note
+    /// while they are unchanged.
+    stamp: Option<Stamp>,
+    /// Link targets as written, resolved again on every scan since the
+    /// notes they point to may have changed.
+    markdown: Vec<String>,
+    wiki: Vec<String>,
+}
+
+/// What a rescan compares to decide whether a note file changed.
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct Stamp {
+    modified: std::time::SystemTime,
+    len: u64,
+}
+
+/// A file whose modification time is this close to a scan may have been
+/// written again within the timestamp's resolution: it is always reread.
+const RACY: std::time::Duration = std::time::Duration::from_secs(2);
+
+impl Stamp {
+    fn of(file: &Path) -> Option<Self> {
+        let metadata = fs::symlink_metadata(file).ok()?;
+        Some(Self {
+            modified: metadata.modified().ok()?,
+            len: metadata.len(),
+        })
+    }
+
+    /// True when the file had last changed well before `scan` started.
+    fn settled_before(&self, scan: std::time::SystemTime) -> bool {
+        self.modified
+            .checked_add(RACY)
+            .is_some_and(|settled| settled < scan)
+    }
 }
 
 impl Note {
@@ -83,6 +119,8 @@ pub(super) struct Vault {
     /// Files that look like notes but were not read, by reason
     /// (`tooLarge`, `notUtf8`, `unreadable`, `extension`).
     pub skipped: BTreeMap<&'static str, usize>,
+    /// When this scan started.
+    scanned_at: std::time::SystemTime,
 }
 
 /// Offset of the first ASCII case-insensitive occurrence of `needle_lower`
@@ -148,8 +186,16 @@ pub(super) fn read_text(path: &Path) -> Option<String> {
     read_note(path).ok()
 }
 
+#[cfg(test)]
+thread_local! {
+    /// Note files read by this thread, so tests can prove a rescan skipped them.
+    static READS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// A note's text, or why it cannot be shown.
 fn read_note(path: &Path) -> Result<String, &'static str> {
+    #[cfg(test)]
+    READS.with(|reads| reads.set(reads.get() + 1));
     let metadata = fs::symlink_metadata(path).map_err(|_| "unreadable")?;
     if !metadata.is_file() {
         return Err("unreadable");
@@ -495,14 +541,30 @@ fn title_of(frontmatter: &[(String, String)], body: &str, path: &str) -> String 
         .unwrap_or_else(|| path.rsplit('/').next().unwrap_or(path).to_string())
 }
 
-pub(super) fn scan(vault: &Path) -> Vault {
-    scan_with_limit(vault, MAX_NOTES)
+pub(super) fn scan(vault: &Path, previous: Option<&Vault>) -> Vault {
+    scan_with_limit(vault, MAX_NOTES, previous)
 }
 
 /// [`scan`] keeping at most `limit` readable notes; `truncated` when a
-/// further readable note exists.
-fn scan_with_limit(vault: &Path, limit: usize) -> Vault {
-    let mut parsed = Vec::new();
+/// further readable note exists. Notes of `previous` whose file has the
+/// same size and modification time, and had settled before that scan, are
+/// reused without reading the file.
+fn scan_with_limit(vault: &Path, limit: usize, previous: Option<&Vault>) -> Vault {
+    let scanned_at = std::time::SystemTime::now();
+    let reusable: std::collections::HashMap<&str, &Note> = previous
+        .map(|previous| {
+            previous
+                .notes
+                .iter()
+                .filter(|note| {
+                    note.stamp
+                        .is_some_and(|stamp| stamp.settled_before(previous.scanned_at))
+                })
+                .map(|note| (note.path.as_str(), note))
+                .collect()
+        })
+        .unwrap_or_default();
+    let mut parsed: Vec<Note> = Vec::new();
     let mut skipped: BTreeMap<&'static str, usize> = BTreeMap::new();
     let mut truncated = false;
     let _ = walk(vault, 0, &mut |file, name| {
@@ -516,28 +578,38 @@ fn scan_with_limit(vault: &Path, limit: usize) -> Vault {
         let Some(path) = relative(file, vault) else {
             return ControlFlow::Continue(());
         };
-        match read_note(file) {
+        let stamp = Stamp::of(file);
+        let unchanged = reusable
+            .get(path.as_str())
+            .filter(|note| stamp.is_some() && note.stamp == stamp);
+        let note = match unchanged {
+            Some(note) => Ok((*note).clone()),
+            None => read_note(file).map(|text| parse_note(path, &text, stamp)),
+        };
+        match note {
             Err(reason) => *skipped.entry(reason).or_default() += 1,
             Ok(_) if parsed.len() == limit => {
                 truncated = true;
                 return ControlFlow::Break(());
             }
-            Ok(text) => parsed.push(parse_note(file, path, &text)),
+            Ok(note) => parsed.push(note),
         }
         ControlFlow::Continue(())
     });
-    let known: BTreeSet<String> = parsed.iter().map(|(note, ..)| note.path.clone()).collect();
+    let known: BTreeSet<String> = parsed.iter().map(|note| note.path.clone()).collect();
     let wiki_index = WikiIndex::new(known.iter());
     let mut backlinks: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut notes = Vec::new();
-    for (mut note, markdown, wiki) in parsed {
-        let mut links: BTreeSet<String> = markdown
+    for mut note in parsed {
+        let mut links: BTreeSet<String> = note
+            .markdown
             .iter()
             .filter_map(|target| resolve(&note.path, target))
             .filter(|target| known.contains(target))
             .collect();
         links.extend(
-            wiki.iter()
+            note.wiki
+                .iter()
                 .filter_map(|name| wiki_index.resolve(&note.path, name)),
         );
         links.remove(&note.path);
@@ -555,15 +627,14 @@ fn scan_with_limit(vault: &Path, limit: usize) -> Vault {
         backlinks,
         truncated,
         skipped,
+        scanned_at,
     }
 }
 
-/// A note with its Markdown and wiki link targets, not yet resolved.
-fn parse_note(file: &Path, path: String, text: &str) -> (Note, Vec<String>, Vec<String>) {
-    let modified = fs::metadata(file)
-        .and_then(|m| m.modified())
-        .ok()
-        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+/// A note read from `text`, its links not yet resolved.
+fn parse_note(path: String, text: &str, stamp: Option<Stamp>) -> Note {
+    let modified = stamp
+        .and_then(|stamp| stamp.modified.duration_since(std::time::UNIX_EPOCH).ok())
         .map_or(0, |d| d.as_secs());
     let (frontmatter, body) = split_frontmatter(text);
     let mut tags: BTreeSet<String> = frontmatter
@@ -580,7 +651,7 @@ fn parse_note(file: &Path, path: String, text: &str) -> (Note, Vec<String>, Vec<
         .collect();
     tags.extend(body_tags(body));
     let (markdown, wiki) = raw_links(body);
-    let note = Note {
+    Note {
         title: title_of(&frontmatter, body, &path),
         path,
         tags: tags.into_iter().collect(),
@@ -589,8 +660,10 @@ fn parse_note(file: &Path, path: String, text: &str) -> (Note, Vec<String>, Vec<
         modified,
         bytes: text.len() as u64,
         body: body.into(),
-    };
-    (note, markdown, wiki)
+        stamp,
+        markdown,
+        wiki,
+    }
 }
 
 #[cfg(test)]
@@ -627,7 +700,7 @@ mod tests {
             ("c/From.md", b"[[Note]]"),
             ("deep/er/Note.md", b"# Deep"),
         ]);
-        let vault = scan(dir.path());
+        let vault = scan(dir.path(), None);
         assert_eq!(links_of(&vault, "b/From.md"), ["b/Note.md"]);
         // Elsewhere: the shortest path, then the first in order.
         assert_eq!(links_of(&vault, "c/From.md"), ["a/Note.md"]);
@@ -646,7 +719,7 @@ mod tests {
             ("s6.md", b"[[Target Note^block]]"),
             ("other/s7.md", b"[[target note.MD]]"),
         ]);
-        let vault = scan(dir.path());
+        let vault = scan(dir.path(), None);
         for source in ["s1.md", "s2.md", "s3.md", "s4.md", "s5.md", "s6.md"] {
             assert_eq!(links_of(&vault, source), ["dir/Target Note.md"], "{source}");
         }
@@ -673,7 +746,7 @@ mod tests {
             ),
         ]);
         assert_eq!(
-            links_of(&scan(dir.path()), "from.md"),
+            links_of(&scan(dir.path(), None), "from.md"),
             ["Target With Space.md"]
         );
     }
@@ -695,7 +768,7 @@ mod tests {
         let unterminated = "---\ntitle: A\n----\nbody";
         assert_eq!(split_frontmatter(unterminated), (Vec::new(), unterminated));
         let dir = vault_of(&[("n.md", b"---\ntags:\n- one\n- two\n---\ntext")]);
-        assert_eq!(scan(dir.path()).notes[0].tags, ["one", "two"]);
+        assert_eq!(scan(dir.path(), None).notes[0].tags, ["one", "two"]);
     }
 
     #[test]
@@ -717,7 +790,7 @@ mod tests {
             ("bin.md", &[0xff, 0xfe]),
             ("upper.MD", b"u"),
         ]);
-        let exact = scan_with_limit(dir.path(), 3);
+        let exact = scan_with_limit(dir.path(), 3, None);
         assert_eq!(exact.notes.len(), 3);
         assert!(!exact.truncated);
         assert_eq!(
@@ -725,9 +798,101 @@ mod tests {
             BTreeMap::from([("extension", 1), ("notUtf8", 1), ("tooLarge", 1)])
         );
         fs::write(dir.path().join("d.md"), "d").unwrap();
-        let over = scan_with_limit(dir.path(), 3);
+        let over = scan_with_limit(dir.path(), 3, None);
         assert_eq!(over.notes.len(), 3);
         assert!(over.truncated);
+    }
+
+    /// Everything a scan exposes, to compare two scans.
+    fn summary(vault: &Vault) -> String {
+        let notes: Vec<_> = vault
+            .notes
+            .iter()
+            .map(|n| {
+                (
+                    &n.path,
+                    &n.title,
+                    &n.tags,
+                    &n.frontmatter,
+                    &n.links,
+                    n.bytes,
+                    n.modified,
+                )
+            })
+            .collect();
+        format!(
+            "{notes:?} {:?} {} {:?}",
+            vault.backlinks, vault.truncated, vault.skipped
+        )
+    }
+
+    fn reads() -> usize {
+        READS.with(std::cell::Cell::get)
+    }
+
+    /// Sets a file's modification time `seconds` in the past.
+    fn age(path: &Path, seconds: u64) {
+        let past = std::time::SystemTime::now() - std::time::Duration::from_secs(seconds);
+        fs::File::options()
+            .write(true)
+            .open(path)
+            .unwrap()
+            .set_modified(past)
+            .unwrap();
+    }
+
+    #[test]
+    fn a_rescan_reads_only_changed_notes_and_equals_a_full_scan() {
+        let dir = vault_of(&[
+            ("a/Note.md", b"---\ntags: [x]\n---\n# A\n[[b]] [c](../c.md)"),
+            ("b.md", b"# B\n[[Note]]"),
+            ("c.md", b"# C"),
+            ("gone.md", b"# Gone\n[[c]]"),
+            ("old name.md", b"# Old name"),
+        ]);
+        for path in ["a/Note.md", "b.md", "c.md", "gone.md", "old name.md"] {
+            age(&dir.path().join(path), 60);
+        }
+        let first = scan(dir.path(), None);
+        let before = reads();
+        let same = scan(dir.path(), Some(&first));
+        assert_eq!(reads() - before, 0, "an unchanged vault was read again");
+        assert_eq!(summary(&same), summary(&first));
+
+        // An edit, a deletion, a rename and a new note that changes how
+        // `[[Note]]` in an unchanged note resolves.
+        fs::write(dir.path().join("c.md"), "# C edited\n[[b]]").unwrap();
+        fs::remove_file(dir.path().join("gone.md")).unwrap();
+        fs::rename(
+            dir.path().join("old name.md"),
+            dir.path().join("new name.md"),
+        )
+        .unwrap();
+        fs::write(dir.path().join("Note.md"), "# Root note").unwrap();
+        let before = reads();
+        let rescan = scan(dir.path(), Some(&same));
+        // c.md, new name.md and Note.md: renamed files are read again.
+        assert_eq!(reads() - before, 3);
+        assert_eq!(summary(&rescan), summary(&scan(dir.path(), None)));
+        assert_eq!(links_of(&rescan, "b.md"), ["Note.md"]);
+    }
+
+    #[test]
+    fn a_file_rewritten_with_the_same_size_and_time_is_reread_while_it_may_be_racy() {
+        let dir = vault_of(&[("n.md", b"# One")]);
+        let file = dir.path().join("n.md");
+        let first = scan(dir.path(), None);
+        let modified = fs::metadata(&file).unwrap().modified().unwrap();
+        // Same size, same modification time: only the content differs.
+        fs::write(&file, "# Two").unwrap();
+        fs::File::options()
+            .write(true)
+            .open(&file)
+            .unwrap()
+            .set_modified(modified)
+            .unwrap();
+        let rescan = scan(dir.path(), Some(&first));
+        assert_eq!(rescan.notes[0].title, "Two");
     }
 
     #[test]
@@ -768,6 +933,9 @@ mod tests {
                 modified: 0,
                 bytes: 0,
                 body: body.into(),
+                stamp: None,
+                markdown: Vec::new(),
+                wiki: Vec::new(),
             };
             for query in queries {
                 let expected = body
