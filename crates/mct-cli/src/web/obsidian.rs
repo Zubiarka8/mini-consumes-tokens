@@ -403,18 +403,16 @@ impl WikiIndex {
     }
 }
 
-/// `#tag` tokens in a note body, outside code fences.
+/// `#tag` tokens in a note body, outside code: fenced blocks and inline
+/// code spans, as for links.
 pub(super) fn body_tags(body: &str) -> BTreeSet<String> {
     let mut tags = BTreeSet::new();
-    let mut fenced = false;
-    for line in body.lines() {
-        if line.trim_start().starts_with("```") {
-            fenced = !fenced;
-        }
+    for line in prose_lines(body) {
         let heading = line.trim_start();
-        if fenced || heading.starts_with('#') && heading.trim_start_matches('#').starts_with(' ') {
+        if heading.starts_with('#') && heading.trim_start_matches('#').starts_with(' ') {
             continue;
         }
+        let line = without_code_spans(line);
         for word in line.split_whitespace() {
             if let Some(tag) = word.strip_prefix('#') {
                 let tag = tag.trim_end_matches(|c: char| ",.;:)".contains(c));
@@ -688,6 +686,15 @@ mod tests {
         assert_eq!(resolve("a.md", "../../etc/passwd"), None);
         assert_eq!(resolve("a.md", "https://example.com/x.md"), None);
         assert_eq!(resolve("a.md", "/abs.md"), None);
+    }
+
+    #[test]
+    fn body_tags_skip_code_the_way_links_do() {
+        let body = "#kept\n~~~\n#tilde\n~~~\n````\n```\n#nested\n````\nsee `#inline` and #after\n";
+        assert_eq!(
+            body_tags(body),
+            BTreeSet::from(["after".to_string(), "kept".to_string()])
+        );
     }
 
     #[test]
