@@ -124,13 +124,16 @@ fn long_bodies_keep_exact_line_ranges() {
 #[test]
 fn trait_impls_are_recorded_as_implements() {
     let c = corpus();
+    // The trait's own name, as it is declared: `Repository<T>` implements
+    // `Repository`, `fmt::Display` names `Display` and `From<io::Error>`
+    // names `From` — the spelling a definition can match.
     for (path, to) in [
         ("service.rs", "MovementListener"),
         ("report.rs", "Section"),
-        ("storage.rs", "Repository<T>"),
+        ("storage.rs", "Repository"),
         ("model.rs", "Identified"),
-        ("errors.rs", "fmt::Display"),
-        ("errors.rs", "From<std::io::Error>"),
+        ("errors.rs", "Display"),
+        ("errors.rs", "From"),
     ] {
         assert!(
             c.relations()
