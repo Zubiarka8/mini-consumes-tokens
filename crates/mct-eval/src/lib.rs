@@ -14,10 +14,28 @@
 //!   (the JSON-RPC request + response as it crosses the transport, with the
 //!   same approximate tokenizer as `mct-mcp-server/tests/batch.rs`).
 //!
+//! A case may also carry resolution **labels** ([`resolution`]): relation
+//! sites whose real target was verified by compiling or running the fixture.
+//! Those cases count correct, wrong, ambiguous and unresolved answers, and a
+//! growing wrong count is a regression even when the score holds
+//! (`suite-resolution.json`). The report judges each kind of answer against
+//! its own count: resolved precision is correct edges over edges resolved
+//! to a target, external precision is correct `external` answers over all
+//! `external` answers, and ambiguous, unresolved and missing answers only
+//! lower the coverage.
+//!
+//! A fixture full of names built to clash would leak into this
+//! repository's own index, so such a fixture is checked in as one `.txt`
+//! [`bundle`], which no parser reads, and unpacked into a temporary
+//! directory for the run.
+//!
 //! [`compare`] checks a run against `baseline.json`. Accuracy, MRR, success
 //! and tokens are deterministic on a fixture, so they are gated tightly;
 //! latency depends on the machine and build profile, so it is gated only by
 //! an absolute per-call budget and otherwise reported for trend.
+
+pub mod bundle;
+pub mod resolution;
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -52,6 +70,7 @@ pub const SUITES: &[&str] = &[
     "suite.json",
     "suite-portfolio-3d.json",
     "suite-duplicates.json",
+    "suite-resolution.json",
 ];
 
 /// The baseline of the suite at `suite`: `suite<rest>` →
@@ -73,12 +92,18 @@ pub fn baseline_path_for(suite: &Path) -> PathBuf {
 #[derive(Debug, Deserialize)]
 pub struct Suite {
     pub name: String,
-    /// Fixture root, relative to the suite file's directory.
+    /// Fixture, relative to the suite file's directory: a project directory
+    /// indexed in place, or a [`bundle`] file unpacked into a temporary
+    /// directory, outside the repository, so its sources are never indexed
+    /// with this repository's own.
     pub fixture: String,
     pub cases: Vec<Case>,
-    /// Set by [`Suite::load`]: `fixture` resolved against the suite file.
+    /// Set by [`Suite::load`]: the directory the eval indexes.
     #[serde(skip)]
     pub fixture_root: PathBuf,
+    /// The unpacked bundle, removed when the suite is dropped.
+    #[serde(skip)]
+    unpacked: Option<tempfile::TempDir>,
 }
 
 /// One tool call and what a correct answer must (and must not) contain.
@@ -98,6 +123,11 @@ pub struct Case {
     /// Score the rank of `expect[0]` among the output's hit lines.
     #[serde(default)]
     pub ranked: bool,
+    /// Relations whose resolution is checked against a verified truth
+    /// ([`resolution`]). A case with labels is scored by the share of them
+    /// resolved correctly.
+    #[serde(default)]
+    pub labels: Vec<resolution::Label>,
 }
 
 impl Suite {
@@ -107,7 +137,21 @@ impl Suite {
         let mut suite: Suite =
             serde_json::from_str(&source).with_context(|| format!("parsing {}", path.display()))?;
         let dir = path.parent().unwrap_or_else(|| Path::new("."));
-        suite.fixture_root = dir.join(&suite.fixture);
+        let fixture = dir.join(&suite.fixture);
+        if fixture.is_file() {
+            let text = std::fs::read_to_string(&fixture)
+                .with_context(|| format!("reading {}", fixture.display()))?;
+            let unpacked = tempfile::Builder::new()
+                .prefix("mct-eval-")
+                .tempdir()
+                .context("creating a directory for the fixture")?;
+            bundle::unpack(&text, unpacked.path())
+                .with_context(|| format!("unpacking {}", fixture.display()))?;
+            suite.fixture_root = unpacked.path().to_path_buf();
+            suite.unpacked = Some(unpacked);
+        } else {
+            suite.fixture_root = fixture;
+        }
         Ok(suite)
     }
 }
@@ -136,6 +180,18 @@ pub struct CaseResult {
     /// be diagnosed from the CI artifact alone.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub output: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub labels: Vec<resolution::LabelResult>,
+}
+
+impl CaseResult {
+    /// Labels resolved to the wrong place (see [`resolution::Verdict::Wrong`]).
+    pub fn wrong(&self) -> usize {
+        self.labels
+            .iter()
+            .filter(|l| l.verdict == resolution::Verdict::Wrong)
+            .count()
+    }
 }
 
 /// Aggregates over every case of a run.
@@ -311,6 +367,16 @@ fn score_case(
     };
 
     let (score, missing, unexpected) = accuracy(&text, &case.expect, &case.absent);
+    let labels = resolution::judge(&text, &case.labels);
+    let score = if labels.is_empty() || !unexpected.is_empty() {
+        score
+    } else {
+        let correct = labels
+            .iter()
+            .filter(|l| l.verdict == resolution::Verdict::Correct)
+            .count();
+        score * correct as f64 / labels.len() as f64
+    };
     let score = if success { score } else { 0.0 };
     let reciprocal_rank = case.ranked.then(|| {
         case.expect
@@ -337,6 +403,7 @@ fn score_case(
         p50_ms: percentile(timings, 0.50),
         p95_ms: percentile(timings, 0.95),
         output,
+        labels,
     }
 }
 
@@ -446,6 +513,9 @@ pub struct CaseBaseline {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reciprocal_rank: Option<f64>,
     pub tokens: usize,
+    /// Wrong resolutions among the case's labels, for labelled cases.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wrong: Option<usize>,
 }
 
 impl Baseline {
@@ -461,6 +531,7 @@ impl Baseline {
                         score: c.score,
                         reciprocal_rank: c.reciprocal_rank,
                         tokens: c.tokens,
+                        wrong: (!c.labels.is_empty()).then(|| c.wrong()),
                     };
                     (c.name.clone(), case)
                 })
@@ -570,6 +641,16 @@ pub fn compare(report: &Report, baseline: &Baseline, thresholds: &Thresholds) ->
                 before.score, case.score
             ));
         }
+        if let Some(then) = before.wrong {
+            let now = case.wrong();
+            if now > then {
+                cmp.regressions
+                    .push(format!("{name}: wrong resolutions {then} → {now}"));
+            } else if now < then {
+                cmp.improvements
+                    .push(format!("{name}: wrong resolutions {then} → {now}"));
+            }
+        }
         if let (Some(now), Some(then)) = (case.reciprocal_rank, before.reciprocal_rank) {
             if now + SCORE_EPSILON < then {
                 cmp.regressions
@@ -649,6 +730,8 @@ pub fn render_markdown(report: &Report, comparison: Option<&Comparison>) -> Stri
         }
     }
 
+    out.push_str(&render_resolution(report));
+
     let mut categories: BTreeMap<&str, Vec<&CaseResult>> = BTreeMap::new();
     for case in &report.cases {
         categories
@@ -693,6 +776,142 @@ pub fn render_markdown(report: &Report, comparison: Option<&Comparison>) -> Stri
     out
 }
 
+/// The labelled-resolution section of the report: per case, how many labels
+/// were right, wrong or undecided; over all of them, what the tool answered
+/// and how often a resolved edge was the right one; and every label not
+/// answered correctly, with the defect it reproduces. Empty when no case has
+/// labels.
+pub fn render_resolution(report: &Report) -> String {
+    use resolution::Verdict;
+    let labelled: Vec<&CaseResult> = report
+        .cases
+        .iter()
+        .filter(|c| !c.labels.is_empty())
+        .collect();
+    if labelled.is_empty() {
+        return String::new();
+    }
+    let mut out = String::new();
+    let _ = writeln!(out, "\n## Labelled resolution\n");
+    let _ = writeln!(
+        out,
+        "| Case | Labels | Correct | Wrong | Ambiguous | Unresolved | Missing |\n|---|---|---|---|---|---|---|"
+    );
+    let count = |labels: &[&resolution::LabelResult], v: Verdict| {
+        labels.iter().filter(|l| l.verdict == v).count()
+    };
+    let all: Vec<&resolution::LabelResult> = labelled.iter().flat_map(|c| &c.labels).collect();
+    for case in &labelled {
+        let labels: Vec<_> = case.labels.iter().collect();
+        let _ = writeln!(
+            out,
+            "| {} | {} | {} | {} | {} | {} | {} |",
+            case.name,
+            labels.len(),
+            count(&labels, Verdict::Correct),
+            count(&labels, Verdict::Wrong),
+            count(&labels, Verdict::Ambiguous),
+            count(&labels, Verdict::Unresolved),
+            count(&labels, Verdict::Missing),
+        );
+    }
+    let _ = writeln!(
+        out,
+        "| **All** | {} | {} | {} | {} | {} | {} |",
+        all.len(),
+        count(&all, Verdict::Correct),
+        count(&all, Verdict::Wrong),
+        count(&all, Verdict::Ambiguous),
+        count(&all, Verdict::Unresolved),
+        count(&all, Verdict::Missing),
+    );
+
+    // What the tool answered, whatever the truth. Each kind of answer is
+    // judged against its own count: a wrong edge lowers the resolved
+    // precision, and a missing one only the coverage.
+    let answered = |what: &[&str]| -> Vec<&&resolution::LabelResult> {
+        all.iter()
+            .filter(|l| what.contains(&l.observed.as_str()))
+            .collect()
+    };
+    let resolved: Vec<_> = all
+        .iter()
+        .filter(|l| {
+            !matches!(
+                l.observed.as_str(),
+                "ambiguous" | "unresolved" | "external" | "missing" | "duplicate"
+            )
+        })
+        .collect();
+    let external = answered(&["external"]);
+    let judged = |labels: &[&&resolution::LabelResult]| {
+        let right = labels
+            .iter()
+            .filter(|l| l.verdict == Verdict::Correct)
+            .count();
+        let precision = if labels.is_empty() {
+            "—".to_string()
+        } else {
+            format!("{:.2}", right as f64 / labels.len() as f64)
+        };
+        format!("{} | {right} | {precision}", labels.len())
+    };
+    let _ = writeln!(
+        out,
+        "\n### What the tool answered\n\n\
+         | Answer | Labels | Correct | Precision |\n|---|---|---|---|\n\
+         | Resolved to a target | {} |\n| External | {} |",
+        judged(&resolved),
+        judged(&external),
+    );
+    for (row, what) in [
+        ("Ambiguous", &["ambiguous"][..]),
+        ("Unresolved", &["unresolved"]),
+        ("Missing", &["missing", "duplicate"]),
+    ] {
+        let _ = writeln!(out, "| {row} | {} | — | — |", answered(what).len());
+    }
+    let decided = resolved.len() + external.len();
+    let _ = writeln!(
+        out,
+        "\nPrecision = correct answers / answers of that kind: a resolved \
+         edge is correct when it points at the truth's `path:line`, and \
+         `external` when the truth is outside the fixture. Ambiguous, \
+         unresolved and missing answers are in neither denominator; they \
+         lower the coverage instead.\n\n\
+         Coverage: {decided} of {} labels answered with a target or `external` ({:.2}).",
+        all.len(),
+        decided as f64 / all.len().max(1) as f64
+    );
+
+    let open: Vec<String> = labelled
+        .iter()
+        .flat_map(|case| {
+            case.labels
+                .iter()
+                .filter(|l| l.verdict != Verdict::Correct)
+                .map(|l| {
+                    format!(
+                        "- {} — {}: {} {} → {} (truth: {})",
+                        l.defect.as_deref().unwrap_or("—"),
+                        case.name,
+                        l.at,
+                        l.relation,
+                        l.observed,
+                        l.truth
+                    )
+                })
+        })
+        .collect();
+    if !open.is_empty() {
+        let _ = writeln!(out, "\nNot answered correctly:\n");
+        for line in open {
+            let _ = writeln!(out, "{line}");
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -718,6 +937,7 @@ mod tests {
             p50_ms: 1.0,
             p95_ms: 1.0,
             output: String::new(),
+            labels: Vec::new(),
         }
     }
 
@@ -807,6 +1027,135 @@ mod tests {
             );
         }
         assert!(cmp.notes.iter().any(|n| n.starts_with("slow")));
+    }
+
+    fn labelled(at: &str, relation: &str, truth: &str) -> resolution::Label {
+        resolution::Label {
+            at: at.into(),
+            relation: relation.into(),
+            truth: truth.into(),
+            defect: None,
+        }
+    }
+
+    #[test]
+    fn a_labelled_case_scores_its_correct_labels_and_counts_wrong_ones() {
+        let case = Case {
+            name: "prelude".into(),
+            category: "resolution".into(),
+            tool: "find_references".into(),
+            args: None,
+            expect: Vec::new(),
+            absent: Vec::new(),
+            ranked: false,
+            labels: vec![
+                labelled("a.rs:1", "calls Ok", "external"),
+                labelled("a.rs:2", "calls Ok", "external"),
+                labelled("a.rs:3", "calls Ok", "b.rs:1"),
+                labelled("a.rs:4", "calls Ok", "external"),
+            ],
+        };
+        let text = "\
+a.rs:1:1 [rust] f --calls--> Ok (external)
+a.rs:2:1 [rust] f --calls--> Ok -> b.rs:1 in Outcome
+a.rs:3:1 [rust] f --calls--> Ok (ambiguous among 2: b.rs:1, c.rs:1)
+";
+        let result =
+            rmcp::model::CallToolResult::success(vec![rmcp::model::ContentBlock::text(text)]);
+        let scored = score_case(&case, &Ok(result), &[]);
+        assert_eq!(scored.score, 0.25);
+        let count = |v| scored.labels.iter().filter(|l| l.verdict == v).count();
+        assert_eq!(count(resolution::Verdict::Correct), 1);
+        assert_eq!(count(resolution::Verdict::Wrong), 1);
+        assert_eq!(count(resolution::Verdict::Ambiguous), 1);
+        assert_eq!(count(resolution::Verdict::Missing), 1);
+        assert_eq!(scored.wrong(), 1);
+    }
+
+    #[test]
+    fn more_wrong_edges_are_a_regression_even_at_the_same_score() {
+        let mut before = case("labels", 0.5, None, 50);
+        before.labels = vec![label_result(resolution::Verdict::Wrong)];
+        let baseline = Baseline::from_report(&report(vec![before]));
+        assert_eq!(baseline.cases["labels"].wrong, Some(1));
+        let mut after = case("labels", 0.5, None, 50);
+        after.labels = vec![
+            label_result(resolution::Verdict::Wrong),
+            label_result(resolution::Verdict::Wrong),
+        ];
+        let cmp = compare(&report(vec![after]), &baseline, &Thresholds::default());
+        assert!(
+            cmp.regressions.iter().any(|r| r.contains("wrong")),
+            "{:?}",
+            cmp.regressions
+        );
+        let mut fixed = case("labels", 0.5, None, 50);
+        fixed.labels = vec![label_result(resolution::Verdict::Correct)];
+        let cmp = compare(&report(vec![fixed]), &baseline, &Thresholds::default());
+        assert!(cmp.regressions.is_empty(), "{:?}", cmp.regressions);
+        assert!(cmp.improvements.iter().any(|r| r.contains("wrong")));
+    }
+
+    #[test]
+    fn the_report_counts_labels_by_verdict_and_by_answer() {
+        let mut a = case("rust prelude", 0.5, None, 50);
+        let mut wrong = label_result(resolution::Verdict::Wrong);
+        wrong.observed = "src/kinds.rs:5".into();
+        wrong.defect = Some("D1".into());
+        let mut external = label_result(resolution::Verdict::Correct);
+        external.observed = "external".into();
+        a.labels = vec![wrong, external];
+        let text = render_resolution(&report(vec![a]));
+        assert!(
+            text.contains("| rust prelude | 2 | 1 | 1 | 0 | 0 | 0 |"),
+            "{text}"
+        );
+        // What the tool answered, each kind of answer with its own
+        // denominator: one resolved edge (wrong), one external (right).
+        for row in [
+            "\n| Answer | Labels | Correct | Precision |\n",
+            "| Resolved to a target | 1 | 0 | 0.00 |",
+            "| External | 1 | 1 | 1.00 |",
+            "| Ambiguous | 0 | — | — |",
+            "| Unresolved | 0 | — | — |",
+            "| Missing | 0 | — | — |",
+            "Coverage: 2 of 2 labels answered with a target or `external` (1.00).",
+        ] {
+            assert!(text.contains(row), "no `{row}` in:\n{text}");
+        }
+        // No resolved answer is no precision, not a perfect one.
+        let mut b = case("python", 0.0, None, 10);
+        let mut ambiguous = label_result(resolution::Verdict::Ambiguous);
+        ambiguous.observed = "ambiguous".into();
+        b.labels = vec![ambiguous];
+        let undecided = render_resolution(&report(vec![b]));
+        assert!(
+            undecided.contains("| Resolved to a target | 0 | 0 | — |"),
+            "{undecided}"
+        );
+        assert!(
+            undecided.contains("| Ambiguous | 1 | — | — |"),
+            "{undecided}"
+        );
+        assert!(
+            text.contains(
+                "- D1 — rust prelude: a.rs:1 calls Ok → src/kinds.rs:5 (truth: external)"
+            ),
+            "{text}"
+        );
+        // A run with no labelled case adds nothing.
+        assert!(render_resolution(&report(vec![case("x", 1.0, None, 1)])).is_empty());
+    }
+
+    fn label_result(verdict: resolution::Verdict) -> resolution::LabelResult {
+        resolution::LabelResult {
+            at: "a.rs:1".into(),
+            relation: "calls Ok".into(),
+            truth: "external".into(),
+            observed: "x".into(),
+            verdict,
+            defect: None,
+        }
     }
 
     #[test]
