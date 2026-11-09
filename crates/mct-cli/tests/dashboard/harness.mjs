@@ -7,6 +7,9 @@ import { fileURLToPath } from 'node:url';
 export const appPath = resolve(dirname(fileURLToPath(import.meta.url)), '../../src/web/app');
 // review.js is the built React workspace (web-ui); the page's contract with it runs against a stub.
 const reviewStub = resolve(dirname(fileURLToPath(import.meta.url)), 'review-stub.mjs');
+// notes.js is the committed notes renderer bundle (web-ui/src/notes). Unlike review.js it runs for real
+// here, so the page is tested against the exact file the binary serves.
+const notesBundle = resolve(dirname(fileURLToPath(import.meta.url)), '../../src/web/notes-dist/notes.js');
 export const settle = () => new Promise(resolve => setTimeout(resolve, 10));
 
 /** DOM contract tests, not a layout engine or native accessibility implementation. */
@@ -61,7 +64,8 @@ export function harness({ hash = '#/duplicados', compact = false, reduced = fals
   const modules = new Map();
   function moduleAt(path) {
     const sourcePath = path.endsWith('/graph.js') && process.env.MCT_GRAPH_SOURCE ? process.env.MCT_GRAPH_SOURCE
-      : path === resolve(appPath, 'review.js') ? reviewStub : path;
+      : path === resolve(appPath, 'review.js') ? reviewStub
+      : path === resolve(appPath, 'notes.js') ? notesBundle : path;
     if (!modules.has(path)) modules.set(path, new SourceTextModule(readFileSync(sourcePath, 'utf8'),
       { context, identifier: path, importModuleDynamically: (specifier, importer) => ready(resolve(dirname(importer.identifier), specifier)) }));
     return modules.get(path);

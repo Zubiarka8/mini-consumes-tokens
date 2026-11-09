@@ -143,7 +143,7 @@ export function graphView({ nodes, edges, onSelect, directed = true, label }) {
       : new Set(
           [...list]
             .sort((a, b) => b.r - a.r || String(a.id).localeCompare(String(b.id)))
-            .slice(0, 25)
+            .slice(0, list.length > 100 ? 12 : 25)
             .map((node) => node.id),
         );
 
