@@ -18,7 +18,11 @@ probe or test has confirmed it yet.
 
 ## Code languages
 
+Each feature has an ID: two letters for the group and two digits for the item (`FN01` is the first item of Functions and methods). IDs are stable, so other documents can cite them. Do not renumber when you add a feature; take the next free number.
+
 ### Functions and methods
+
+Callable code: free functions, nested and anonymous ones, and methods with their owner. Other tools build on these rows, so a gap here shows up in their answers.
 
 | ID | Feature | Done when |
 |---|---|---|
@@ -34,6 +38,8 @@ probe or test has confirmed it yet.
 | FN10 | Overloads kept apart | Each overload is its own row with the same name and parent. |
 
 ### Types and object-oriented programming
+
+Named types and what they contain: classes, structs, interfaces, traits, enums, records and namespaces. These rows give methods and fields a parent, which `find_symbol`, `list_symbols` and the file skeleton rely on.
 
 | ID | Feature | Done when |
 |---|---|---|
@@ -56,6 +62,8 @@ probe or test has confirmed it yet.
 
 ### Fields, constants and variables
 
+Data declared in code, from instance fields to parameters and macros.
+
 | ID | Feature | Done when |
 |---|---|---|
 | DA01 | Field / instance attribute | Instance or class field indexed as `field`. |
@@ -67,6 +75,8 @@ probe or test has confirmed it yet.
 | DA07 | Macro / preprocessor define | `#define` or `macro_rules!` indexed as a symbol. |
 
 ### Relations
+
+Links between symbols: calls, imports, inheritance and decorators. Callers, references, impact analysis and the dependency graph are all built from these rows, so a missing relation means a silent gap in their answers.
 
 | ID | Feature | Done when |
 |---|---|---|
@@ -82,6 +92,8 @@ probe or test has confirmed it yet.
 
 ### Search and lookup
 
+What the search and query tools return for a language, checked end to end through the MCP tools. A mark here depends on the symbols and relations above being in place.
+
 | ID | Feature | Done when |
 |---|---|---|
 | SE01 | Find a definition | `find_symbol`, `list_symbols` and `search_symbols` return the symbol. |
@@ -92,12 +104,16 @@ probe or test has confirmed it yet.
 
 ### Code quality
 
+The review reports. Dead code and repeated code are heuristics: a hit is a candidate to check, not proof.
+
 | ID | Feature | Done when |
 |---|---|---|
 | QU01 | Dead code | `find_dead_code` reports unused symbols of the kinds it checks, without false positives. |
 | QU02 | Repeated code | `mct-cli duplicates` covers the language (it has a token source). |
 
 ### Structure
+
+How the project fits together: the import graph, the outline of a file and the dependencies a manifest declares.
 
 | ID | Feature | Done when |
 |---|---|---|

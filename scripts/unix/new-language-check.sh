@@ -8,7 +8,7 @@
 #   scripts/unix/new-language-check.sh js-ts --readme-name JavaScript
 #   scripts/unix/new-language-check.sh go --no-tests
 #
-# --readme-name is the language as README.md's "Supported languages" line
+# --readme-name is the language as the parser checklists spell it
 # spells it (default: the crate suffix, matched case-insensitively).
 #
 # Exit status: 1 if a required place (code, CI, fuzz harness) is missing or a
@@ -73,7 +73,7 @@ check required "fuzz target (fuzz/fuzz_targets/*.rs)"    "$dir/fuzz/fuzz_targets
 check required "ci.yml fuzz-smoke matrix entry"          .github/workflows/ci.yml "^ *- $crate\$"
 # Escaped: names like `C++` or `C#` are not valid/literal regexes as-is.
 readme_re="$(printf '%s' "$readme_name" | sed 's/[][\.*^$+?(){}|/]/\\&/g')"
-check warn     "README.md supported languages"           README.md "Supported languages:.*$readme_re" -i
+check warn     "parser checklist by-language row"        docs/02-crates/parsers/checklists/by-language.md "$readme_re" -i
 check warn     "internal/checklist.md coverage row"      internal/checklist.md "\`$crate\`"
 
 status=$missing
