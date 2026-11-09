@@ -212,7 +212,7 @@ const en = {
   webLabel: "LOCAL WEB DASHBOARD",
   webTitle: "Your whole project,\nin the browser.",
   webText:
-    "Run mct-cli web. A dashboard opens from your own computer, listening on 127.0.0.1 only. It has dark and light themes and stops by itself after 30 minutes idle. The interface is in Spanish.",
+    "Run mct-cli web. A dashboard opens from your own computer, listening on 127.0.0.1 only. It stops by itself after 30 minutes idle.",
   webCmdLabel: "Open the dashboard",
   web1Title: "Health at a glance",
   web1Text:
@@ -320,7 +320,7 @@ const en = {
     "Yes. Every scan writes linked notes to .mct-index/obsidian/. Open that folder as a vault in Obsidian: one map per folder and one note per file, listing its imports and symbols. Your code is not copied into the notes, and your own notes in the vault survive regeneration. Skip it with --no-obsidian.",
   faq12: "Is there a visual dashboard?",
   answer12:
-    "Yes. mct-cli web serves a dashboard on localhost with search, a dependency graph, a notes reader and review of duplicate and unused code. It stops by itself after 30 minutes without use. The interface is in Spanish.",
+    "Yes. mct-cli web serves a dashboard on localhost with search, a dependency graph, a notes reader and review of duplicate and unused code. It stops by itself after 30 minutes without use.",
   footer: "Better context. Fewer wasted tokens.",
   license: "Apache 2.0 license",
   top: "Back to top",

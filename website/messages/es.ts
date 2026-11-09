@@ -216,7 +216,7 @@ const es: Record<keyof typeof en, string> = {
   webLabel: "PANEL WEB LOCAL",
   webTitle: "Todo tu proyecto,\nen el navegador.",
   webText:
-    "Ejecuta mct-cli web. Se abre un panel desde tu propio equipo que solo escucha en 127.0.0.1. Tiene temas claro y oscuro y se detiene solo tras 30 minutos sin uso. La interfaz está en español.",
+    "Ejecuta mct-cli web. Se abre un panel desde tu propio equipo que solo escucha en 127.0.0.1. Se detiene solo tras 30 minutos sin uso.",
   webCmdLabel: "Abre el panel",
   web1Title: "La salud, de un vistazo",
   web1Text:
@@ -324,7 +324,7 @@ const es: Record<keyof typeof en, string> = {
     "Sí. Cada análisis escribe notas enlazadas en .mct-index/obsidian/. Abre esa carpeta como bóveda en Obsidian: un mapa por carpeta y una nota por archivo, con sus importaciones y símbolos. Tu código no se copia en las notas y tus propias notas de la bóveda sobreviven a la regeneración. Omítelo con --no-obsidian.",
   faq12: "¿Hay un panel visual?",
   answer12:
-    "Sí. mct-cli web sirve un panel en localhost con búsqueda, grafo de dependencias, lector de notas y revisión de código duplicado y sin uso. Se detiene solo tras 30 minutos sin uso. La interfaz está en español.",
+    "Sí. mct-cli web sirve un panel en localhost con búsqueda, grafo de dependencias, lector de notas y revisión de código duplicado y sin uso. Se detiene solo tras 30 minutos sin uso.",
   footer: "Mejor contexto. Menos tokens desperdiciados.",
   license: "Licencia Apache 2.0",
   top: "Volver al inicio",
