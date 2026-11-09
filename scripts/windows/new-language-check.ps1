@@ -7,7 +7,7 @@
 #   scripts\windows\new-language-check.ps1 js-ts --readme-name JavaScript
 #   scripts\windows\new-language-check.ps1 go --no-tests
 #
-# --readme-name is the language as README.md's "Supported languages" line
+# --readme-name is the language as the parser checklists spell it
 # spells it (default: the crate suffix, matched case-insensitively).
 #
 # Exit status: 1 if a required place (code, CI, fuzz harness) is missing or a
@@ -88,7 +88,7 @@ Test-Place required 'fuzz target (fuzz/fuzz_targets/*.rs)'    "$dir/fuzz/fuzz_ta
 # A harness CI never runs is the gap CONTRIBUTING.md warns about.
 Test-Place required 'ci.yml fuzz-smoke matrix entry'          '.github/workflows/ci.yml' ('^ *- ' + $c + '$')
 # Escaped: names like `C++` or `C#` are not valid/literal regexes as-is.
-Test-Place warn     'README.md supported languages'           'README.md' ('Supported languages:.*' + [regex]::Escape($readmeName)) -IgnoreCase
+Test-Place warn     'parser checklist by-language row'        'docs/02-crates/parsers/checklists/by-language.md' ([regex]::Escape($readmeName)) -IgnoreCase
 Test-Place warn     'internal/checklist.md coverage row'      'internal/checklist.md' ('`' + $c + '`')
 
 $status = $script:missing

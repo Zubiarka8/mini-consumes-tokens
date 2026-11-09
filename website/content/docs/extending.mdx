@@ -352,7 +352,7 @@ Until this step, no binary knows the parser exists. The CLI, the MCP server and 
 | `crates/mct-languages/src/lib.rs` → `build_registry` | one line: `registry.register(Arc::new(mct_lang_<name>::<Name>Parser));` |
 | `crates/mct-languages/src/lib.rs` → tests | add an `("<ext>", "<name>")` pair to `a_representative_extension_resolves_for_each_language` |
 | `.github/workflows/ci.yml` → `fuzz-smoke` | add `- mct-lang-<name>` to `matrix.crate` |
-| `README.md`, `internal/checklist.md` | add the language to the coverage table |
+| `internal/checklist.md` | add the language to the coverage table |
 
 `cargo test -p mct-languages` fails if a `mct-lang-*` crate in the workspace is not a dependency of `mct-languages`, or if an extension resolves to no parser.
 

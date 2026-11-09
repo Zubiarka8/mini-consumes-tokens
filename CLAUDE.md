@@ -1,1 +1,1 @@
-At the start of each new session, read and follow [rules.md](rules.md) in full. During that session, use its [table of contents](rules.md#table-of-contents) to revisit only the section relevant to the current task. Re-read a section if the rules change or you are unsure. Do not duplicate rules here.
+Read [rules.md](rules.md) at the start of each session. It is short on purpose. Open the files in [docs/07-agents/](docs/07-agents/) only when a task needs them (MCP tools reference, troubleshooting). Do not copy rules into this file.
