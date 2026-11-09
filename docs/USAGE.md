@@ -1,6 +1,6 @@
 # Usage guide
 
-How to use mini-consumes-tokens day to day, once it is installed. The short version is in the [README](../README.md#common-commands). Every flag and MCP tool parameter is in [COMMANDS.md](../COMMANDS.md).
+How to use mini-consumes-tokens day to day, once it is installed. The short version is in the [README](../README.md). Every flag and MCP tool parameter is in [COMMANDS.md](../COMMANDS.md).
 
 ## The first five minutes
 
