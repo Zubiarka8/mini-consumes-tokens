@@ -348,8 +348,9 @@ export function createGraph({
             ...sized,
             size: sized.size * 1.5 + 1.5,
             zIndex: 2,
-            highlighted: true,
-            forceLabel: graph.degree(f) <= 40,
+            // No `highlighted` here: Sigma would draw a label box for every neighbour and a hub
+            // would bury the graph under overlapping boxes. Only the focused node gets one.
+            forceLabel: graph.degree(f) <= 8,
           };
         const [nr, ng, nb] = tone(data.color);
         return {
