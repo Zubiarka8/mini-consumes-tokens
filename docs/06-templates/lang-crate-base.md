@@ -1,11 +1,13 @@
 # Base template: new `mct-lang-*` crate
 
+> **Before you start:** see what the index already covers in the [parser checklists](../02-crates/parsers/checklists/) ([by language](../02-crates/parsers/checklists/by-language.md), [by feature](../02-crates/parsers/checklists/by-feature.md)).
+
 Every language crate starts from this base, so all of them offer the same
 guarantees: a parser, a syntax-error test, a corpus, a fuzz harness and
 registry wiring. Copy the layout below, then replace `<name>`/`<Name>`.
-This is a prototype: it captures what the existing crates share (checked
-against `go`, `bash`, `cpp`, `csharp`, `css`), not an exhaustive spec. The authoritative
-checklist stays in [CONTRIBUTING.md](../../CONTRIBUTING.md#adding-a-new-language).
+It captures what the existing crates share (checked against `go`, `rust`,
+`php`, `kotlin` and `md`), not an exhaustive spec. The authoritative checklist
+stays in [CONTRIBUTING.md](../../CONTRIBUTING.md#adding-a-new-language).
 
 ## Layout
 
@@ -13,12 +15,14 @@ checklist stays in [CONTRIBUTING.md](../../CONTRIBUTING.md#adding-a-new-language
 crates/mct-lang-<name>/
   Cargo.toml                 deps: mct-core, mct-tree-sitter, tree-sitter, tree-sitter-<name>
   src/lib.rs                 <Name>Parser: impl LanguageParser
+  src/libraries/             optional: framework and package support (see below)
   tests/parse.rs             extraction, idiomatic syntax, syntax error
   tests/corpus.rs            mct-corpus harness (snapshot in tests/corpus/expected.snap)
   tests/corpus/malformed/    one broken file
   tests/corpus/project/      realistic multi-file project
   tests/index_integration.rs end-to-end through mct-index (optional for tiny grammars)
-  tests/fixtures/            small sample repo
+  tests/depgraph.rs          import resolution for get_dependency_graph (ADR-006)
+  tests/fixtures/            small sample repos (for example billing-app/, depgraph/)
   fuzz/Cargo.toml            standalone workspace ([workspace] empty table)
   fuzz/.gitignore
   fuzz/fuzz_targets/parse_<name>.rs
@@ -130,7 +134,11 @@ symbol in that same `ParsedFile`; its location is the relation site, and
 for top-level relations so they are not dropped. Keep symbol IDs stable within
 one parse result, not across files or indexing runs.
 
-`ParsedFile` also has optional `relation_targets` for evidence that makes a
+`ParsedFile` also has optional `symbol_aliases` (alternate lookup names for a
+local symbol, used by Markdown frontmatter aliases) and `entry_points` (symbols
+a framework may load by convention, shown as evidence in dead-code results).
+Leave both empty unless the language needs them. It also has optional
+`relation_targets` for evidence that makes a
 target more precise (qualifier, module, path, language, kind, external).
 Populate a field only when the syntax proves it; never guess resolution. Leave
 the vector empty when the relation is unqualified. `literals` is for filtered
@@ -208,6 +216,12 @@ evidence only where the language supports them. Add explicit edge cases for
 anonymous declarations, Unicode identifiers, empty files, comments/strings
 that resemble code, and malformed or deeply nested input where relevant.
 
+Framework and package support does not go in `src/lib.rs`. It lives in
+`src/libraries/<name>/` and follows the
+[library module template](library-module-template.md) and the
+[library support map](../01-architecture/library-support.md). Add it after the
+base parser works.
+
 ### Test layers to include
 
 1. **Parser unit tests** (`tests/parse.rs`): small examples pin exact AST to
@@ -215,7 +229,8 @@ that resemble code, and malformed or deeply nested input where relevant.
    relation/location correctness, syntax errors, and any known grammar edge
    cases. Test behavior, not private helper implementation.
 2. **Corpus tests** (`tests/corpus.rs`): use
-   `mct_corpus::standard_tests!(<Name>Parser)` and add focused assertions for
+   `mct_corpus::standard_tests!(<Name>Parser)` (a grammar that accepts any input, as
+   Markdown does, uses `malformed_may_parse = "<reason>"`) and add focused assertions for
    realistic multi-file application code, cross-file imports/calls, definition
    ranges, malformed fixtures, and documented limitations. Keep fixtures
    application-owned, representative, and within the size rules in
@@ -226,10 +241,15 @@ that resemble code, and malformed or deeply nested input where relevant.
    behavior that cannot be covered by the shared registry test; follow a
    neighboring crate's fixture pattern rather than marking it optional by
    default.
-4. **Registry tests**: ensure a representative extension resolves to this
+4. **Dependency graph tests** (`tests/depgraph.rs`): pin how an import in this
+   language resolves to a file or module, using a small `tests/fixtures/depgraph/`
+   project and `mct_index::Index`. Copy the pattern from `mct-lang-go` or
+   `mct-lang-rust`. Unresolved imports must stay unresolved: an edge exists only
+   for a resolved import (see ADR-006).
+5. **Registry tests**: ensure a representative extension resolves to this
    parser through `mct-languages`, and that the language id is distinct
    from the others. The checker runs the shared registry crate's tests.
-5. **Fuzzing**: the fuzz target must call the public parser on arbitrary valid
+6. **Fuzzing**: the fuzz target must call the public parser on arbitrary valid
    UTF-8 and safely ignore parse errors. CI must run the harness.
 
 For syntax errors, assert the returned `ParseError::Syntax` path and line when
@@ -284,8 +304,10 @@ treats items 1–4 as required; item 5 is a warning:
    limitations, special ownership rules, or security-sensitive behavior.
    Add the language's inventory entries to
    [symbol coverage](../02-crates/parsers/symbol-coverage.md), and one status per feature in
-   [by-language checklist](../02-crates/parsers/checklists/by-language.md), from a probe
-   of each construct, not from what the walker is meant to do.
+   both the [by-language](../02-crates/parsers/checklists/by-language.md) and
+   [by-feature](../02-crates/parsers/checklists/by-feature.md) checklists, from a probe
+   of each construct, not from what the walker is meant to do. Then run
+   `python3 scripts/check-parser-checklists.py`, which checks that the two views agree.
 7. Any required file-extension/configuration lists elsewhere in the repo,
    such as ignore defaults or language-specific scripts; search for the
    extension and crate suffix before finishing. Avoid changing unrelated
@@ -308,6 +330,40 @@ of corpus assertions, or whether documentation claims match behavior. Review
 those manually using the mapping table and test layers above. Also run the
 workspace's normal quality gate when practical; a focused checker run is not a
 substitute for CI.
+
+## Done checklist
+
+A new language crate is ready for review when every box is true. The first
+four are checked by tools, the rest need a person.
+
+**Tools pass**
+
+- [ ] `scripts/unix/new-language-check.sh <name>` (or `scripts\windows\new-language-check.ps1 <name>`) prints no `MISS` and no `FAIL`.
+- [ ] `scripts/unix/check.sh` (or `scripts\windows\check.ps1`) passes: `cargo fmt`, tests, clippy and the `mct-eval` suite. Use `-p mct-lang-<name>` for a quick run while you work, then the full run before the pull request.
+- [ ] `python3 scripts/check-parser-checklists.py` passes.
+- [ ] Every `mct-lang-<name>/fuzz` target builds, and the crate is in the `fuzz-smoke` matrix of `.github/workflows/ci.yml`.
+
+**Code**
+
+- [ ] No `todo!`, `unwrap`, `expect` or `panic!` on a path that handles file content. Any `expect` that remains has a `SAFETY` comment and does not depend on repository text.
+- [ ] Every recursive walk stops at `MAX_TRAVERSAL_DEPTH`.
+- [ ] Every `SymbolRelation.from` points to a symbol emitted in the same `ParsedFile`, and top-level relations are owned by a file or module symbol.
+- [ ] `relation_targets` carry only evidence the syntax proves.
+- [ ] The crate uses only the shared `SymbolKind` and `RelationKind` values. A new variant needs its own issue first.
+
+**Tests**
+
+- [ ] `tests/parse.rs` asserts names, kinds, parents, relation owners, target names and lines, not only that parsing succeeds.
+- [ ] The syntax-error test uses an input confirmed with `mct-cli probe`, and asserts `ParseError::Syntax`.
+- [ ] `tests/corpus.rs` has a realistic multi-file project within the size rules in `CONTRIBUTING.md`, plus a malformed file. Fixtures are written for this repository, with no pasted framework code.
+- [ ] `tests/depgraph.rs` pins import resolution, and an unresolved import creates no edge.
+- [ ] `tests/index_integration.rs` covers extension dispatch and the parse, SQLite and query round trip.
+- [ ] The registry test in `mct-languages` resolves a representative extension to this parser.
+
+**Docs**
+
+- [ ] `README.md` language list, `internal/checklist.md`, `docs/00-system/00-index.md`, `symbol-coverage.md`, and both parser checklists are updated, each mark from a probe.
+- [ ] Known limits are written down where the parser lives, and the pull request description says what is not covered.
 
 ## Known gaps in the existing crates
 

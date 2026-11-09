@@ -17,6 +17,8 @@ Marks:
 
 ## Functions and methods
 
+Callable code: free functions, nested and anonymous ones, and methods with their owner. Other tools build on these rows, so a gap here shows up in their answers.
+
 ### FN01 Top-level function
 
 - [x] Rust: `function`
@@ -258,6 +260,8 @@ Done 2 · Partial 2 · Not done 1 · Not verified 0 · Not applicable 12
 Done 4 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 12
 
 ## Types and object-oriented programming
+
+Named types and what they contain: classes, structs, interfaces, traits, enums, records and namespaces. These rows give methods and fields a parent, which `find_symbol`, `list_symbols` and the file skeleton rely on.
 
 ### TY01 Class
 
@@ -645,6 +649,8 @@ Done 9 · Partial 3 · Not done 0 · Not verified 0 · Not applicable 5
 
 ## Fields, constants and variables
 
+Data declared in code, from instance fields to parameters and macros.
+
 ### DA01 Field / instance attribute
 
 - [ ] Rust: `Widget.inner` and `Widget.value` are omitted from the field-symbol query
@@ -814,6 +820,8 @@ Done 0 · Partial 0 · Not done 11 · Not verified 0 · Not applicable 6
 Done 0 · Partial 0 · Not done 2 · Not verified 0 · Not applicable 15
 
 ## Relations
+
+Links between symbols: calls, imports, inheritance and decorators. Callers, references, impact analysis and the dependency graph are all built from these rows, so a missing relation means a silent gap in their answers.
 
 ### RE01 Calls
 
@@ -1033,6 +1041,8 @@ Done 0 · Partial 0 · Not done 1 · Not verified 0 · Not applicable 16
 
 ## Search and lookup
 
+What the search and query tools return for a language, checked end to end through the MCP tools. A mark here depends on the symbols and relations above being in place.
+
 ### SE01 Find a definition
 
 - [x] Rust: `find_symbol("top_level")` returns a `function`
@@ -1155,6 +1165,8 @@ Done 1 · Partial 0 · Not done 11 · Not verified 0 · Not applicable 5
 
 ## Code quality
 
+The review reports. Dead code and repeated code are heuristics: a hit is a candidate to check, not proof.
+
 ### QU01 Dead code
 
 - [~] Rust: unused functions/types are reported, but `Inner` is a false positive because `Widget.inner` is not indexed; macros are omitted
@@ -1204,6 +1216,8 @@ Done 6 · Partial 6 · Not done 0 · Not verified 0 · Not applicable 5
 Done 3 · Partial 0 · Not done 9 · Not verified 0 · Not applicable 5
 
 ## Structure
+
+How the project fits together: the import graph, the outline of a file and the dependencies a manifest declares.
 
 ### ST01 Import graph
 
