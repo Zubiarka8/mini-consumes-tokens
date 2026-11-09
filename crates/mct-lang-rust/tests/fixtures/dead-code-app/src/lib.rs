@@ -27,6 +27,15 @@ pub fn shadow_user(shadowed: u32) -> u32 {
 
 pub fn orphan() {}
 
+pub struct Meters(pub u32);
+
+impl std::ops::Add for Meters {
+    type Output = Meters;
+    fn add(self, other: Meters) -> Meters {
+        Meters(self.0 + other.0)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

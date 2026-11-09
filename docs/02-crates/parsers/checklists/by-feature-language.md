@@ -51,7 +51,7 @@ Marks:
 | ---: | ---: | ---: | ---: | ---: |
 | 3 | 6 | 0 | 0 | 8 |
 
-- [x] Rust: indexed as a function with its enclosing callable as parent
+- [x] Rust: nested function is indexed with the enclosing function as `parent`
 - [~] Python: file skeleton shows `nested` indented, but the parser test confirms `parent` is `None`
 - [~] JS/TS: nested function is indexed, but parser test confirms `parent` is `None`
 - — Java: no nested named functions
@@ -76,9 +76,9 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 3 | 2 | 6 | 0 | 6 |
+| 4 | 1 | 6 | 0 | 6 |
 
-- [~] Rust: simple `let name = |...|` closures are indexed as functions; other assignment forms are not
+- [x] Rust: `let name = |..| ..` closure is a `function` owned by the enclosing function; closures not bound by a plain `let` are not indexed
 - [ ] Python: `find_symbol("assigned_lambda")` returns no symbol
 - [x] JS/TS: `const p_arrow = …` → `function`
 - [ ] Java: lambda `r` has no symbol
@@ -380,9 +380,9 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 2 | 0 | 0 | 15 |
+| 1 | 1 | 0 | 0 | 15 |
 
-- [~] Rust: named unions are indexed as `struct` because the common model has no union kind
+- [x] Rust: `union RawValue` is indexed as a `struct` with its fields
 - — Python: Python has no union
 - — JS/TS: JS/TS has no union
 - — Java: Java has no union
@@ -518,7 +518,7 @@ Marks:
 | ---: | ---: | ---: | ---: | ---: |
 | 6 | 0 | 3 | 0 | 8 |
 
-- [x] Rust: variants are indexed as constants owned by the enum
+- [x] Rust: variants `Red` and `Green` are `constant` symbols owned by `Color`
 - [ ] Python: `find_symbol("RED")` returns no symbol
 - [ ] JS/TS: `find_symbol("Red")` returns no symbol
 - [x] Java: enum constants as `field`
@@ -741,7 +741,7 @@ Marks:
 | ---: | ---: | ---: | ---: | ---: |
 | 7 | 0 | 4 | 0 | 6 |
 
-- [x] Rust: named fields and tuple positions are indexed as fields
+- [x] Rust: `Widget.inner` and `Widget.value` are `field` symbols; tuple fields are named `0`, `1`
 - [ ] Python: `self.value` is omitted from the field-symbol query
 - [x] JS/TS: `#p_priv` and `static` fields
 - [x] Java: `field`
@@ -823,7 +823,7 @@ Marks:
 | ---: | ---: | ---: | ---: | ---: |
 | 4 | 1 | 5 | 0 | 7 |
 
-- [x] Rust: `static` declarations are indexed as variables
+- [x] Rust: `static` and `static mut` are `variable`; `const` stays `constant`
 - [ ] Python: `P_MOD` has no symbol
 - [ ] JS/TS: `let p_var` has no symbol
 - — Java: Java has no global / module-level variable
@@ -848,9 +848,9 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 1 | 1 | 10 | 0 | 5 |
+| 2 | 0 | 10 | 0 | 5 |
 
-- [~] Rust: `let` bindings, including destructuring, are indexed; other binding forms are not covered
+- [x] Rust: `local_value` is a `variable` owned by its function, like the bindings of `for`, `if let`, `while let` and `match` arms
 - [ ] Python: `find_symbol("local_value")` returns no symbol
 - [ ] JS/TS: `find_symbol("local_value")` returns no symbol
 - [ ] Java: lambda local not indexed
@@ -877,7 +877,7 @@ Marks:
 | ---: | ---: | ---: | ---: | ---: |
 | 1 | 0 | 10 | 0 | 6 |
 
-- [x] Rust: function and closure parameters are indexed as variables
+- [x] Rust: `input` is a `variable` owned by its function
 - [ ] Python: `find_symbol("argument")` returns no symbol
 - [ ] JS/TS: `find_symbol("inner")` returns no symbol
 - [ ] Java: parameter not indexed
@@ -902,9 +902,9 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 1 | 1 | 0 | 15 |
+| 1 | 0 | 1 | 0 | 15 |
 
-- [~] Rust: `macro_rules!` definitions are indexed as functions; macro expansion and other forms are not covered
+- [x] Rust: `macro_rules! audit_macro` is a `function`; there is no macro kind
 - — Python: Python has no macro / preprocessor define
 - — JS/TS: JS/TS has no macro / preprocessor define
 - — Java: Java has no macro / preprocessor define
@@ -1096,9 +1096,9 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 3 | 2 | 2 | 0 | 10 |
+| 4 | 1 | 2 | 0 | 10 |
 
-- [~] Rust: simple, qualified and generic supertrait names produce `extends`; qualification is not preserved
+- [x] Rust: `ChildTrait: ParentTrait` produces an `extends` relation
 - — Python: Python has no interface extends interface / supertrait
 - [x] JS/TS: `P_Iface` extends `P_Ext`
 - [ ] Java: `interface P_Iface extends P_Ext2` gives no relation
@@ -1123,9 +1123,9 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 2 | 1 | 4 | 0 | 10 |
+| 3 | 0 | 4 | 0 | 10 |
 
-- [~] Rust: derive and custom attribute names produce references; conditional attributes are not expanded
+- [x] Rust: `#[derive(Clone)]` produces a `references` relation to `Clone`; compiler attributes such as `#[cfg]` are ignored
 - [x] Python: `@abc.abstractmethod` and `@login_required` → `references`
 - [ ] JS/TS: `@Component` gives no reference
 - [ ] Java: `@Override` gives no reference
@@ -1207,9 +1207,9 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 11 | 1 | 0 | 0 | 5 |
+| 12 | 0 | 0 | 0 | 5 |
 
-- [~] Rust: local macro invocations produce calls; method-shaped tokens in macro arguments produce references, not calls
+- [x] Rust: `audit_macro!` and an imported function called inside a macro (`println!("{}", helper(x))`) are `calls`
 - [x] Python: `find_calls`, `find_callers`
 - [x] JS/TS: `find_callers p_top`
 - [x] Java: `find_calls`
@@ -1317,9 +1317,9 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 6 | 6 | 0 | 0 | 5 |
+| 7 | 5 | 0 | 0 | 5 |
 
-- [~] Rust: field type references and local macro calls are recorded; the analysis remains heuristic and macro expansion is not performed
+- [x] Rust: unused functions and types are reported; `Inner`, macros and associated types of trait impls are not false positives
 - [x] Python: unused function and class reported
 - [x] JS/TS: unused function and class reported
 - [~] Java: only types: `P_UnusedK` reported, `p_unused` method skipped

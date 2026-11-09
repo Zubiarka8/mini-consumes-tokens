@@ -91,3 +91,9 @@ fn a_call_to_a_same_named_symbol_is_still_a_reference() {
     let names = candidates();
     assert!(!names.contains(&"delegate".to_string()), "{names:?}");
 }
+
+#[test]
+fn an_associated_type_of_a_trait_impl_is_not_a_candidate() {
+    let names = candidates();
+    assert!(!names.contains(&"Output".to_string()), "{names:?}");
+}
