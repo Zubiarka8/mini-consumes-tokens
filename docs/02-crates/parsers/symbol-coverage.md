@@ -312,6 +312,8 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `type X = …` (PEP 695) | `type_alias_statement` | `type_alias` |
 | `import a.b`, `from .x import y as z` | `import_statement`, `import_from_statement`, `aliased_import`, `relative_import` | `imports` for the module and each name |
 | `f()`, `obj.m()` | `call`, `attribute` | `calls` |
+| a bare builtin (`open()`, `len()`, `class E(Exception)`, `@property`) | `call`, `identifier` | marked `external` only when nothing in the file binds the name — no `def`, `class`, import, parameter, assignment, loop, `with`/`except`/walrus/`match` target, `global` or `type` of it — and the file has no `from m import *`, `globals()`, `exec`, `vars()` or `sys.modules`. The list is CPython 3.14's `builtins` without `site`'s names |
+| a bare call to a `def`/`class` of the same file (`count()` → `def count`) | `call`, `identifier` | `calls`, kept to this file when only a `def`/`class` outside a class body binds the name |
 
 #### Why the gaps exist
 
@@ -323,6 +325,8 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Nested functions have no parent | Not implemented | the parent is set only for class members |
 | Getter and setter as two rows | Not implemented | both are emitted as methods; the shared `field` kind could model a combined property, as in C# |
 | Exact-text search in strings | Not implemented | the parser does not fill `literals` |
+| A builtin is not `external` anywhere in a file that binds its name once, even in another function | By design | bindings are read file-wide, not per scope: it loses some `external` answers but never claims a wrong one |
+| Two nested `def`s of one name in the same file are `ambiguous` | Model limit | the call is kept to the file, but `RelationTarget` can't name the enclosing function (`suite-resolution.json`, `report.py` `fmt`) |
 
 ### JS/TS
 
@@ -348,6 +352,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | a TS type in an annotation, return type, alias value, generic argument or cast (`props: Props`, `useState<Problem>()`) | `type_identifier` | `references`; the enclosing declarations' type parameters are skipped (their constraints are not walked) |
 | `export default f({ … })` | `export_statement` value | the call and its arguments are walked like any expression |
 | object literal methods | `method_definition` under `object` | `function` |
+| an ECMAScript global (`Math.max()`, `JSON.parse()`, `parseInt()`, `new Map()`) | `call_expression`, `new_expression` | marked `external` only when nothing in the file binds the name — no declaration, import, parameter, pattern or assignment of it — and the file has no direct `eval` or `with`. Host globals (`window`, `document`, `process`, `console`) are not on the list |
 
 #### Why the gaps exist
 
@@ -360,6 +365,8 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Decorators, `super()` calls | Not implemented | no arm for `decorator`; `super` is not a call target |
 | Overload signatures | Not implemented | only the implementation is a `method_definition` |
 | Repeated code, exact-text search | Not implemented | no token source and no literals for JS/TS |
+| A global is not `external` anywhere in a file that binds its name once, even in another function | By design | bindings are read file-wide, not per scope: it loses some `external` answers but never claims a wrong one |
+| `console.log()`, `document.querySelector()` and other host calls are not `external` | By design | the language does not guarantee host globals, and a project may define them |
 
 ### Java
 
@@ -792,6 +799,7 @@ percentages and denominators; these checklists provide the scored evidence.
 **Relations**
 
 - [x] Calls
+- [x] Builtins: an unbound `open()`/`len()`/`Exception` is `external`
 - [x] Constructor call (`new X()` / `X()`): `calls X`
 - [x] Super / base constructor call: `super().__init__()` → `calls super` and `calls __init__`
 - [x] Imports: module and each imported name
@@ -856,6 +864,7 @@ percentages and denominators; these checklists provide the scored evidence.
 **Relations**
 
 - [x] Calls
+- [x] Standard globals: an unbound `Math.max()`/`JSON.parse()`/`parseInt()`/`new Map()` is `external`
 - [x] Constructor call (`new X()` / `X()`): `calls X`
 - [ ] Super / base constructor call: `super()` gives no relation
 - [x] Imports
