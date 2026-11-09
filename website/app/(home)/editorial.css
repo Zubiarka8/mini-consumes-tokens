@@ -218,7 +218,12 @@
   position: absolute;
   inset: 0 0 auto 0;
   height: 1px;
-  background: linear-gradient(90deg, var(--lime), var(--rule-strong) 28%, var(--rule));
+  background: linear-gradient(
+    90deg,
+    var(--lime),
+    var(--rule-strong) 28%,
+    var(--rule)
+  );
   transform-origin: 0 50%;
   transition: transform 1.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -458,4 +463,61 @@
 
 .v-editorial .showcase-copy .body-copy {
   white-space: pre-line;
+}
+
+/* ---------- Small screens ---------- */
+.v-editorial {
+  overflow-x: clip;
+}
+.landing.v-editorial .hero::before {
+  inset: -10% 0 -10% 40%;
+}
+@media (max-width: 640px) {
+  .landing.v-editorial .header-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .landing.v-editorial .theme-control select,
+  .landing.v-editorial .locale-control select {
+    min-height: 36px;
+    padding: 0 8px;
+    font-size: 12px;
+    max-width: 92px;
+  }
+  .landing.v-editorial .header-docs {
+    min-height: 38px;
+    padding: 3px 3px 3px 12px;
+    gap: 8px;
+    font-size: 13px;
+  }
+  .landing.v-editorial .atlas-button,
+  .landing.v-editorial .hero-actions .text-link {
+    min-height: 48px;
+    font-size: 14px;
+  }
+  .landing.v-editorial .hero {
+    min-height: 0;
+  }
+  .landing.v-editorial .section {
+    padding-block: 84px;
+  }
+}
+@media (max-width: 900px) {
+  .landing.v-editorial .hero::before {
+    inset: 20% -20% 0 -20%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .v-editorial h2[data-reveal="wipe"] {
+    clip-path: none;
+    transition: none;
+  }
+  .v-editorial main > section.section[data-reveal]:not(.in)::before {
+    transform: none;
+  }
+  .v-editorial .feature-grid {
+    background-size: 100% 1px;
+  }
 }
