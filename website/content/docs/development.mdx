@@ -28,6 +28,8 @@ Changing the `LanguageParser` trait, the SQLite schema or an already-published M
 
 Each language is one crate. The step-by-step guide is [Adding a language](/docs/extending); the checklist for the pull request (registration, tests, fuzz harness, docs) is the "Adding a new language" section of [`CONTRIBUTING.md`](https://github.com/Zubiarka8/mini-consumes-tokens/blob/main/CONTRIBUTING.md). `scripts/unix/new-language-check.sh <name>` lists whatever is still missing.
 
+Before you open the pull request, update the parser checklists too. They record, with a mark per cell, what each parser extracts today. See [What is implemented](/docs/checklists).
+
 ## Adding a library
 
 There are two different things called "library support":
@@ -38,3 +40,11 @@ There are two different things called "library support":
 ## Adding an MCP tool
 
 Each tool needs a description block in `tools.ttc` and wiring in several places. `scripts/unix/new-tool-check.sh <tool>` lists every place that still misses it. The format is explained in the "Adding a new MCP tool" section of [`CONTRIBUTING.md`](https://github.com/Zubiarka8/mini-consumes-tokens/blob/main/CONTRIBUTING.md).
+
+## Working with an AI assistant
+
+`rules.md` at the repository root is the single source of rules for AI assistants. It holds the architecture limits, the commands and the rule to explore this repository through its own MCP tools instead of grepping `crates/`.
+
+Point your tool at it and do not copy rules into the tool's own file. `AGENTS.md` and `CLAUDE.md` are one-line pointers to `rules.md`. For Cursor, Copilot or any other tool, make its rules file say to read `rules.md` at the start of each session. Put personal notes that do not belong to the project in `LOCAL_INSTRUCTIONS.md`.
+
+Data that agents, scripts or reports produce or read uses TOON, not JSON, unless an outside format such as `.mcp.json` requires JSON. The MCP tools take `format: toon`.
