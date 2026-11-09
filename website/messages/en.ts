@@ -221,7 +221,7 @@ const en = {
     "Keyword search over code, symbols, files, duplicates, dependencies and Obsidian notes. Filters live in the URL, so every view can be bookmarked.",
   obsLabel: "OBSIDIAN CODE ATLAS",
   obsTitle: "Browse your code map\nin Obsidian.",
-  obsText: "Every scan also writes a vault of linked notes: one map per folder, one note per file with its imports and symbols. Open the folder in Obsidian and follow your project link by link. Optional and local; skip it with --no-obsidian.",
+  obsText: "Every scan also writes a vault of linked notes: one map per folder, one note per file with its imports and symbols. Open the folder in Obsidian and follow your project link by link. No Obsidian? The local web dashboard (mct-cli web) reads the same notes in a built-in notes reader. Optional and local; skip it with --no-obsidian.",
   obsCmdLabel: "Rebuild the vault by hand",
   obs1Title: "Linked notes, no code copied",
   obs1Text:
