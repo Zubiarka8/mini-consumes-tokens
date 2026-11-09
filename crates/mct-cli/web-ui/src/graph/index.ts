@@ -99,6 +99,19 @@ function rgb(
   return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : [128, 128, 128];
 }
 
+// Settled positions per graph, kept while the page lives: opening the tab again reuses the layout
+// instead of running ForceAtlas2 once more. The key changes whenever a node or a link does.
+const settled = new Map<string, Map<string, [number, number]>>();
+function signature(
+  ids: string[],
+  edges: { from: string; to: string }[],
+): string {
+  let h = 5381;
+  for (const part of [...ids, "|", ...edges.flatMap((e) => [e.from, e.to])])
+    for (let i = 0; i < part.length; i++) h = ((h * 33) ^ part.charCodeAt(i)) >>> 0;
+  return `${ids.length}:${edges.length}:${h}`;
+}
+
 export function createGraph({
   nodes,
   edges,
@@ -130,6 +143,14 @@ export function createGraph({
     )
       graph.addEdge(edge.from, edge.to);
   }
+  const key = signature(
+    nodes.map((n) => n.id),
+    edges,
+  );
+  const remembered = settled.get(key);
+  if (remembered)
+    for (const [id, [x, y]] of remembered)
+      if (graph.hasNode(id)) graph.mergeNodeAttributes(id, { x, y });
   if (graph.size > 0) {
     // Largest communities get the first palette colours; the long tail shares the last, grey one.
     const community = louvain(graph);
@@ -393,7 +414,8 @@ export function createGraph({
     });
     if (!laidOut) {
       laidOut = true;
-      layout(0);
+      if (remembered) fit();
+      else layout(0);
     } else fit();
   };
   // ForceAtlas2 in short slices, so the page stays responsive and the graph settles in view.
@@ -423,7 +445,12 @@ export function createGraph({
     sigma.refresh();
     if (round + 1 < LAYOUT_ROUNDS)
       timer = window.setTimeout(() => layout(round + 1), 0);
-    else void sigma.getCamera().animatedReset({ duration: 300 });
+    else {
+      void sigma.getCamera().animatedReset({ duration: 300 });
+      const positions = new Map<string, [number, number]>();
+      graph.forEachNode((id, a) => positions.set(id, [a.x, a.y]));
+      settled.set(key, positions);
+    }
   }
   function choose(id: string) {
     const node = byId.get(id);
