@@ -9,8 +9,10 @@ use std::collections::HashSet;
 use tree_sitter::Node;
 
 mod exports;
+mod globals;
 mod imports;
 
+use globals::FileGlobals;
 use imports::{require_argument, string_value};
 
 fn text<'a>(node: Node, source: &'a str) -> &'a str {
@@ -37,6 +39,8 @@ pub(super) struct Walker<'a> {
     /// TS type parameters declared by the enclosing declarations: a type
     /// named like one of them is that parameter, not a type to record.
     generics: HashSet<String>,
+    /// The ECMAScript globals this file never binds.
+    globals: FileGlobals,
 }
 
 impl<'a> Walker<'a> {
@@ -51,6 +55,25 @@ impl<'a> Walker<'a> {
             value_uses: Vec::new(),
             bound: HashSet::new(),
             generics: HashSet::new(),
+            globals: FileGlobals::default(),
+        }
+    }
+
+    /// Reads what the whole file binds, before the walk starts, so a call
+    /// to a global it never binds can be proven external.
+    pub(super) fn scan_globals(&mut self, root: Node) {
+        self.globals = FileGlobals::collect(root, self.source);
+    }
+
+    /// Marks the relation about to be pushed external when `name` (written
+    /// bare, or as the object of `name.f(…)`) is an unbound global.
+    fn mark_global(&mut self, name: Node) {
+        if name.kind() == "identifier" && self.globals.is_global(text(name, self.source)) {
+            self.relation_targets.push(RelationTarget {
+                relation: self.relations.len(),
+                external: true,
+                ..Default::default()
+            });
         }
     }
 
@@ -380,6 +403,7 @@ impl<'a> Walker<'a> {
                                     }
                                 }
                             } else {
+                                self.mark_global(function);
                                 self.push_relation(
                                     owner,
                                     RelationKind::Calls,
@@ -395,6 +419,9 @@ impl<'a> Walker<'a> {
                                 // and inner call_expression both start at `a`,
                                 // which would make two same-named chained
                                 // calls collide into one indistinguishable row.
+                                if let Some(object) = function.child_by_field_name("object") {
+                                    self.mark_global(object);
+                                }
                                 self.push_relation(
                                     owner,
                                     RelationKind::Calls,
@@ -418,6 +445,7 @@ impl<'a> Walker<'a> {
             "new_expression" => {
                 if let Some(constructor) = node.child_by_field_name("constructor") {
                     if let Some(name_node) = rightmost_name(constructor) {
+                        self.mark_global(constructor);
                         self.push_relation(
                             owner,
                             RelationKind::Calls,

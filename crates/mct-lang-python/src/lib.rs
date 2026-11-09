@@ -12,7 +12,10 @@ use tree_sitter::{Node, Parser};
 
 #[cfg(test)]
 mod libraries;
+mod scope;
 mod tokens;
+
+use scope::ModuleScope;
 
 pub use tokens::PythonTokenSource;
 
@@ -59,6 +62,7 @@ impl LanguageParser for PythonParser {
 
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents, &file.relative_path);
+        walker.scope = ModuleScope::collect(root, &file.contents);
         let mut module_location = location(root);
         // The root node of a file ending in a newline ends at column 0 of
         // the (empty) line after the last one; the file's last line is the
@@ -90,6 +94,8 @@ struct Walker<'a> {
     relations: Vec<SymbolRelation>,
     relation_targets: Vec<RelationTarget>,
     next_id: SymbolId,
+    /// What this module binds, for bare-name evidence.
+    scope: ModuleScope,
 }
 
 impl<'a> Walker<'a> {
@@ -160,6 +166,7 @@ impl<'a> Walker<'a> {
                     if decorator.kind() == "decorator" {
                         if let Some(expr) = decorator.named_child(0) {
                             if let Some(name) = expr_name(expr, self.source) {
+                                self.push_bare_evidence(expr);
                                 self.push_relation(
                                     target_id.unwrap_or(owner),
                                     RelationKind::References,
@@ -221,6 +228,7 @@ impl<'a> Walker<'a> {
             "call" => {
                 if let Some(function) = node.child_by_field_name("function") {
                     if let Some((name, name_node)) = expr_name_node(function, self.source) {
+                        self.push_bare_evidence(function);
                         self.push_relation(owner, RelationKind::Calls, name, location(name_node));
                     }
                     self.visit(function, owner, class_name, depth + 1);
@@ -284,6 +292,7 @@ impl<'a> Walker<'a> {
                     let mut cursor = superclasses.walk();
                     for base in superclasses.named_children(&mut cursor) {
                         if let Some(base_name) = expr_name(base, self.source) {
+                            self.push_bare_evidence(base);
                             self.push_relation(
                                 id,
                                 RelationKind::Extends,
@@ -303,6 +312,34 @@ impl<'a> Walker<'a> {
                 None
             }
         }
+    }
+
+    /// Evidence for the relation about to be pushed, when its target is
+    /// written as a bare name (`len(x)`, `class A(Exception)`, `@property`):
+    /// a builtin nothing in this module binds is external, and a name only
+    /// a `def`/`class` of this module binds stays in this file.
+    fn push_bare_evidence(&mut self, expr: Node) {
+        if expr.kind() != "identifier" {
+            return;
+        }
+        let name = text(expr, self.source);
+        let target = if self.scope.is_builtin(name) {
+            RelationTarget {
+                external: true,
+                ..Default::default()
+            }
+        } else if self.scope.is_local_function(name) {
+            RelationTarget {
+                path: Some(self.path.to_string()),
+                ..Default::default()
+            }
+        } else {
+            return;
+        };
+        self.relation_targets.push(RelationTarget {
+            relation: self.relations.len(),
+            ..target
+        });
     }
 
     fn finish(self) -> ParsedFile {
