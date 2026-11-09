@@ -9,7 +9,7 @@ use mct_core::{
     MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::{first_error, location};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use tree_sitter::{Node, Parser};
 
 mod tokens;
@@ -70,6 +70,7 @@ impl LanguageParser for RustParser {
         let module_id = walker.push_symbol(module_name, SymbolKind::Module, module_location, None);
         collect_value_items(root, &file.contents, &mut walker.free_fns, 0);
         collect_imported_names(root, &file.contents, &mut walker.imported, 0);
+        walker.scope = collect_scope(root, &file.contents);
         walker.visit_children(root, module_id, None, 0);
         Ok(walker.finish())
     }
@@ -106,6 +107,9 @@ struct Walker<'a> {
     /// macro's flat token stream is a call of one of them, since the grammar
     /// leaves it unparsed.
     imported: HashSet<String>,
+    /// What this file declares and imports, for telling a prelude or `std`
+    /// name apart from a same-named item (see [`Walker::std_name`]).
+    scope: FileScope,
     /// Names bound as locals (parameters, `let`/`for`/`match`/closure
     /// patterns) in the function currently being walked: a bare identifier
     /// with one of these names is the local, never the same-named function.
@@ -137,6 +141,7 @@ impl<'a> Walker<'a> {
             free_fns: HashSet::new(),
             macros: HashSet::new(),
             imported: HashSet::new(),
+            scope: FileScope::default(),
             bound: HashSet::new(),
             local_fns: HashSet::new(),
             generics: HashSet::new(),
@@ -344,12 +349,13 @@ impl<'a> Walker<'a> {
             "type_identifier" => {
                 let name = text(node, self.source);
                 if name != "Self" && !self.generics.contains(name) {
-                    self.push_relation(
+                    let relation = self.push_relation(
                         owner,
                         RelationKind::References,
                         name.to_string(),
                         location(node),
                     );
+                    self.qualify(relation, self.std_target(name, node.start_byte()));
                 }
             }
             // Attribute arguments (`#[cfg(test)]`, `#[serde(default)]`) are
@@ -615,23 +621,15 @@ impl<'a> Walker<'a> {
                 if let Some(bounds) = node.child_by_field_name("bounds") {
                     let mut cursor = bounds.walk();
                     for bound in bounds.named_children(&mut cursor) {
-                        let base = if bound.kind() == "generic_type" {
-                            bound.child_by_field_name("type").unwrap_or(bound)
-                        } else {
-                            bound
-                        };
-                        let base = if base.kind() == "scoped_type_identifier" {
-                            base.child_by_field_name("name").unwrap_or(base)
-                        } else {
-                            base
-                        };
-                        if base.kind() == "type_identifier" {
-                            self.push_relation(
+                        if let Some((trait_name, target)) = self.trait_reference(bound) {
+                            let base = trait_name_node(bound).unwrap_or(bound);
+                            let relation = self.push_relation(
                                 id,
                                 RelationKind::Extends,
-                                text(base, self.source).to_string(),
+                                trait_name,
                                 location(base),
                             );
+                            self.qualify(relation, target);
                         }
                     }
                 }
@@ -645,8 +643,26 @@ impl<'a> Walker<'a> {
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
                 if let Some(trait_node) = node.child_by_field_name("trait") {
-                    let trait_name = text(trait_node, self.source).to_string();
-                    self.push_relation(owner, RelationKind::Implements, trait_name, location(node));
+                    match self.trait_reference(trait_node) {
+                        Some((trait_name, target)) => {
+                            let relation = self.push_relation(
+                                owner,
+                                RelationKind::Implements,
+                                trait_name,
+                                location(node),
+                            );
+                            self.qualify(relation, target);
+                        }
+                        None => {
+                            let trait_name = text(trait_node, self.source).to_string();
+                            self.push_relation(
+                                owner,
+                                RelationKind::Implements,
+                                trait_name,
+                                location(node),
+                            );
+                        }
+                    }
                 }
                 if let Some(body) = node.child_by_field_name("body") {
                     // An associated type of `impl Trait for T` is required by
@@ -796,6 +812,10 @@ impl<'a> Walker<'a> {
             function
         };
         match function.kind() {
+            "identifier" if self.std_name(name, function.start_byte()) => RelationTarget {
+                external: true,
+                ..Default::default()
+            },
             "identifier" if self.free_fns.contains(name) && !self.bound.contains(name) => {
                 RelationTarget {
                     path: Some(self.path.to_string()),
@@ -804,7 +824,7 @@ impl<'a> Walker<'a> {
             }
             "scoped_identifier" | "scoped_type_identifier" => {
                 match function.child_by_field_name("path") {
-                    Some(path) => self.path_target(text(path, self.source)),
+                    Some(path) => self.path_target(text(path, self.source), path.start_byte()),
                     None => RelationTarget::default(),
                 }
             }
@@ -825,7 +845,7 @@ impl<'a> Walker<'a> {
 
     /// What the path before an item's last segment (`a::b` in `a::b::f`)
     /// proves about that item.
-    fn path_target(&self, path: &str) -> RelationTarget {
+    fn path_target(&self, path: &str, at: usize) -> RelationTarget {
         if is_std_path(path) {
             return RelationTarget {
                 external: true,
@@ -833,6 +853,17 @@ impl<'a> Walker<'a> {
             };
         }
         let mut segments = path_segments(path);
+        // `Vec::new`, `fmt::Formatter` after `use std::fmt`: the path starts
+        // at a prelude or `std` name nothing in this file redefines.
+        if segments
+            .first()
+            .is_some_and(|first| self.std_name(first, at))
+        {
+            return RelationTarget {
+                external: true,
+                ..Default::default()
+            };
+        }
         let qualifier = match segments.last().map(String::as_str) {
             Some("Self") => {
                 segments.pop();
@@ -876,7 +907,66 @@ impl<'a> Walker<'a> {
             return RelationTarget::default();
         }
         segments.reverse();
-        self.path_target(&segments.join("::"))
+        self.path_target(&segments.join("::"), accessor.start_byte())
+    }
+
+    /// Whether `name`, written bare in this file, can only be the standard
+    /// library's: imported from `std`/`core`/`alloc` and from nowhere else,
+    /// or one of the prelude's names with nothing in the file that could
+    /// shadow it — no item, `use` or local of that name, and no glob import
+    /// that could bring one in where it is used (`at`, a byte offset). The
+    /// name alone is never enough.
+    fn std_name(&self, name: &str, at: usize) -> bool {
+        // A pattern names a variant with a capital (`Some(x)`), which the
+        // bound-name scan also collects; only a lowercase local shadows.
+        let local = name.starts_with(|c: char| c.is_ascii_lowercase())
+            && (self.bound.contains(name) || self.local_fns.contains(name));
+        if local || self.scope.declared.contains(name) {
+            return false;
+        }
+        let imported_here = self
+            .scope
+            .other_imports
+            .get(name)
+            .is_some_and(|reaches| reaches.iter().any(|reach| reach.contains(&at)));
+        if self.scope.std_imports.contains(name) {
+            return !imported_here;
+        }
+        PRELUDE.contains(&name)
+            && !imported_here
+            && !self
+                .scope
+                .opaque_globs
+                .iter()
+                .any(|scope| scope.contains(&at))
+    }
+
+    /// [`Self::std_name`] as relation evidence.
+    fn std_target(&self, name: &str, at: usize) -> RelationTarget {
+        RelationTarget {
+            external: self.std_name(name, at),
+            ..Default::default()
+        }
+    }
+
+    /// The trait an `impl Trait for T` or a supertrait bound names — its last
+    /// path segment without generic arguments (`From` for `From<u32>`,
+    /// `Display` for `fmt::Display`) — and what the syntax proves about it:
+    /// a trait, reached through that path or, bare, possibly the prelude's.
+    fn trait_reference(&self, node: Node) -> Option<(String, RelationTarget)> {
+        let base = trait_base(node);
+        let name_node = trait_name_node(node)?;
+        let name = text(name_node, self.source).to_string();
+        let mut target = match base.child_by_field_name("path") {
+            Some(path) if base.kind() == "scoped_type_identifier" => {
+                self.path_target(text(path, self.source), path.start_byte())
+            }
+            _ => self.std_target(&name, name_node.start_byte()),
+        };
+        if !target.external {
+            target.kind = Some(SymbolKind::Trait);
+        }
+        Some((name, target))
     }
 
     /// Records the string literals under `node` and nothing else.
@@ -998,12 +1088,14 @@ impl<'a> Walker<'a> {
                 if child.kind() == "identifier"
                     && child.next_sibling().is_none_or(|n| n.kind() != "::")
                 {
-                    self.push_relation(
+                    let name = text(child, self.source);
+                    let relation = self.push_relation(
                         owner,
                         RelationKind::References,
-                        text(child, self.source).to_string(),
+                        name.to_string(),
                         location(child),
                     );
+                    self.qualify(relation, self.std_target(name, child.start_byte()));
                 }
             }
         }
@@ -1039,12 +1131,14 @@ impl<'a> Walker<'a> {
         }
         match path.kind() {
             "identifier" | "type_identifier" => {
-                self.push_relation(
+                let name = text(path, self.source);
+                let relation = self.push_relation(
                     owner,
                     RelationKind::References,
-                    text(path, self.source).to_string(),
+                    name.to_string(),
                     location(path),
                 );
+                self.qualify(relation, self.std_target(name, path.start_byte()));
             }
             _ => self.visit(path, owner, impl_type, depth + 1),
         }
@@ -1080,6 +1174,228 @@ fn is_std_path(path: &str) -> bool {
         .unwrap_or_default()
         .trim();
     matches!(root, "std" | "core" | "alloc")
+}
+
+/// The names the Rust 2021 standard prelude puts in scope of every module
+/// (types, variants, traits, the `drop` function and the `Debug`/`Hash`
+/// derives), which an unshadowed bare name in a file can only mean.
+const PRELUDE: &[&str] = &[
+    "AsMut",
+    "AsRef",
+    "Box",
+    "Clone",
+    "Copy",
+    "Debug",
+    "Default",
+    "DoubleEndedIterator",
+    "Drop",
+    "Eq",
+    "Err",
+    "ExactSizeIterator",
+    "Extend",
+    "Fn",
+    "FnMut",
+    "FnOnce",
+    "From",
+    "FromIterator",
+    "Hash",
+    "Into",
+    "IntoIterator",
+    "Iterator",
+    "None",
+    "Ok",
+    "Option",
+    "Ord",
+    "PartialEq",
+    "PartialOrd",
+    "Result",
+    "Send",
+    "Sized",
+    "Some",
+    "String",
+    "Sync",
+    "ToOwned",
+    "ToString",
+    "TryFrom",
+    "TryInto",
+    "Unpin",
+    "Vec",
+    "drop",
+];
+
+/// What one file declares and imports, collected before it is walked.
+#[derive(Default)]
+struct FileScope {
+    /// Every item name declared anywhere in the file (functions, types,
+    /// variants, traits, constants, macros, modules), whatever its scope:
+    /// any of them may shadow a prelude name somewhere in the file.
+    /// Associated items are left out: no bare name can reach them.
+    declared: HashSet<String>,
+    /// Names a `use` of a `std`/`core`/`alloc` path brings in.
+    std_imports: HashSet<String>,
+    /// Names any other `use` brings in, each with the byte ranges of the
+    /// blocks, modules or file its imports are written in: like a glob, an
+    /// import reaches only its own block.
+    other_imports: HashMap<String, Vec<std::ops::Range<usize>>>,
+    /// Byte ranges of the blocks, modules or file where a glob import
+    /// (`use m::*`) could bring in names this file can't see: the glob
+    /// reaches only the block it is written in. A `use super::*` in a module
+    /// declared inline at the top of the file only re-exposes this file's own
+    /// items and imports, and a glob over an enum declared here only its
+    /// variants, so neither is opaque.
+    opaque_globs: Vec<std::ops::Range<usize>>,
+}
+
+/// A glob import: the path before its `*`, how many inline `mod`s it is
+/// nested in, and the byte range of the block it is written in.
+struct Glob {
+    path: String,
+    mod_depth: u32,
+    reach: std::ops::Range<usize>,
+}
+
+fn collect_scope(root: Node, source: &str) -> FileScope {
+    let mut scope = FileScope::default();
+    let mut enums = HashSet::new();
+    let mut globs = Vec::new();
+    collect_scope_at(root, source, &mut scope, &mut enums, &mut globs, 0, 0);
+    scope.opaque_globs = globs
+        .into_iter()
+        .filter(|glob| {
+            let segments = path_segments(&glob.path);
+            let local_enum = match segments.as_slice() {
+                [name] => enums.contains(name),
+                [first, name] => first == "self" && enums.contains(name),
+                _ => false,
+            };
+            let parent_file = segments.as_slice() == ["super"] && glob.mod_depth == 1;
+            !(local_enum || parent_file)
+        })
+        .map(|glob| glob.reach)
+        .collect();
+    scope
+}
+
+fn collect_scope_at(
+    node: Node,
+    source: &str,
+    scope: &mut FileScope,
+    enums: &mut HashSet<String>,
+    globs: &mut Vec<Glob>,
+    mod_depth: u32,
+    depth: u32,
+) {
+    if depth >= MAX_TRAVERSAL_DEPTH {
+        return;
+    }
+    match node.kind() {
+        "use_declaration" => {
+            if let Some(argument) = node.child_by_field_name("argument") {
+                let mut names = Vec::new();
+                collect_use_names(argument, source, &mut names);
+                let reach = node.parent().map_or(0..source.len(), |block| {
+                    block.start_byte()..block.end_byte()
+                });
+                let names = names.into_iter().map(|used| used.name);
+                if is_std_path(text(argument, source)) {
+                    scope.std_imports.extend(names);
+                } else {
+                    for name in names {
+                        scope
+                            .other_imports
+                            .entry(name)
+                            .or_default()
+                            .push(reach.clone());
+                    }
+                }
+                let mut found = Vec::new();
+                collect_globs(argument, source, false, &mut found, depth + 1);
+                globs.extend(found.into_iter().map(|path| Glob {
+                    path,
+                    mod_depth,
+                    reach: reach.clone(),
+                }));
+            }
+            return;
+        }
+        "function_item"
+        | "function_signature_item"
+        | "struct_item"
+        | "union_item"
+        | "enum_item"
+        | "enum_variant"
+        | "trait_item"
+        | "type_item"
+        | "associated_type"
+        | "const_item"
+        | "static_item"
+        | "macro_definition"
+        | "mod_item" => {
+            // An associated item (`impl`/`trait` member) is only ever
+            // reached through its type, never as a bare name.
+            let associated = node
+                .parent()
+                .and_then(|list| list.parent())
+                .is_some_and(|owner| matches!(owner.kind(), "impl_item" | "trait_item"));
+            if let Some(name) = node.child_by_field_name("name").filter(|_| !associated) {
+                let name = text(name, source).to_string();
+                if node.kind() == "enum_item" {
+                    enums.insert(name.clone());
+                }
+                scope.declared.insert(name);
+            }
+        }
+        _ => {}
+    }
+    let inner_depth = mod_depth + u32::from(node.kind() == "mod_item");
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        collect_scope_at(child, source, scope, enums, globs, inner_depth, depth + 1);
+    }
+}
+
+/// Every `*` import under a `use` argument, with the path before it. One
+/// inside a `{…}` list sits under a prefix this doesn't track, so it is
+/// recorded with an empty path, which never counts as a local one.
+fn collect_globs(node: Node, source: &str, in_list: bool, out: &mut Vec<String>, depth: u32) {
+    if depth >= MAX_TRAVERSAL_DEPTH {
+        return;
+    }
+    if node.kind() == "use_wildcard" {
+        let path = if in_list {
+            String::new()
+        } else {
+            node.named_child(0)
+                .map(|p| text(p, source).to_string())
+                .unwrap_or_default()
+        };
+        out.push(path);
+        return;
+    }
+    let in_list = in_list || node.kind() == "use_list";
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        collect_globs(child, source, in_list, out, depth + 1);
+    }
+}
+
+/// A trait reference without its generic arguments (`From` in `From<u32>`).
+fn trait_base(node: Node) -> Node {
+    if node.kind() == "generic_type" {
+        node.child_by_field_name("type").unwrap_or(node)
+    } else {
+        node
+    }
+}
+
+/// The node naming a trait reference's last segment, if it names one.
+fn trait_name_node(node: Node) -> Option<Node> {
+    let base = trait_base(node);
+    match base.kind() {
+        "type_identifier" => Some(base),
+        "scoped_type_identifier" => base.child_by_field_name("name"),
+        _ => None,
+    }
 }
 
 /// The segments of a type or path, without generic arguments:
