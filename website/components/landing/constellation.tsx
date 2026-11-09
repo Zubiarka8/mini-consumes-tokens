@@ -65,9 +65,7 @@ export function Constellation() {
           ctx.stroke();
         }
         const lit = da < 170 ? 1 - da / 170 : 0;
-        ctx.fillStyle = lit
-          ? `rgba(${hot},${0.4 + lit * 0.6})`
-          : dim;
+        ctx.fillStyle = lit ? `rgba(${hot},${0.4 + lit * 0.6})` : dim;
         ctx.beginPath();
         ctx.arc(a.x, a.y, a.r + lit * 2.2, 0, 6.283);
         ctx.fill();
