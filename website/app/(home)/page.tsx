@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { LandingLocale } from "@/components/landing/locale";
 import { Landing } from "@/components/landing/landing";
 import "./landing.css";
+import "./editorial.css";
+import "@fontsource/instrument-serif/latin-400.css";
+import "@fontsource/instrument-serif/latin-400-italic.css";
 
 const title = "mini-consumes-tokens: Code Map MCP Server for AI Assistants";
 const description =
@@ -45,7 +48,9 @@ export default function HomePage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <Landing />
+      <div className="dark">
+        <Landing />
+      </div>
     </LandingLocale>
   );
 }
