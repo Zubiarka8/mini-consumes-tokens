@@ -40,7 +40,8 @@ const en = {
   eyebrow: "MCP SERVER · A CODE MAP FOR YOUR AI ASSISTANT",
   headline: "Your AI reads less.",
   headlineAccent: "Your tokens go further.",
-  intro: "A free MCP server that maps your code on your own machine. Claude Code, Cursor, Codex and other assistants ask the map and get the exact function, not the whole file.",
+  intro:
+    "A free MCP server that maps your code on your own machine. Claude Code, Cursor, Codex and other assistants ask the map and get the exact function, not the whole file.",
   readDocs: "Install it free",
   heroNote: "Open source · Free · Runs on your computer",
   visibleLayers: "Visible layers",
@@ -174,7 +175,8 @@ const en = {
   mapNote: "One question in. Only the relevant code out.",
   problemLabel: "THE PROBLEM",
   problemTitle: "Your assistant pays tokens for every file it opens.",
-  problemText: "Whole files bury the answer in text. Repeated searches lose the thread of a change. A map says what is defined where, who uses it and what it needs, so one precise question replaces a pile of files.",
+  problemText:
+    "Whole files bury the answer in text. Repeated searches lose the thread of a change. A map says what is defined where, who uses it and what it needs, so one precise question replaces a pile of files.",
   before: "Without a map",
   beforeText: "Open files. Search names. Guess the links.",
   after: "With a map",
@@ -195,17 +197,22 @@ const en = {
   capabilitiesLabel: "WHAT YOU CAN DO",
   capabilitiesTitle: "Follow the code.\nSee the impact.",
   discoverTitle: "Get your bearings fast",
-  discoverText: "Project overview, file tree, file outline. Find functions and types by name before you open any code.",
+  discoverText:
+    "Project overview, file tree, file outline. Find functions and types by name before you open any code.",
   changeTitle: "See what a change touches",
-  changeText: "Follow who uses what across the map. Check the affected code and tests before you edit.",
+  changeText:
+    "Follow who uses what across the map. Check the affected code and tests before you edit.",
   contextTitle: "Give your assistant just enough",
-  contextText: "One request returns a function or type with its definition, dependencies and related code.",
+  contextText:
+    "One request returns a function or type with its definition, dependencies and related code.",
   extras:
     "Also available: finding code that seems unused or duplicated (rough guesses), a dependency graph between files, and optional local search by meaning, which needs a special build and a small language model on your computer.",
-  audience: "Built for developers who use MCP coding assistants on projects in several languages. The command-line tool also works alone.",
+  audience:
+    "Built for developers who use MCP coding assistants on projects in several languages. The command-line tool also works alone.",
   webLabel: "LOCAL WEB DASHBOARD",
   webTitle: "Your whole project,\nin the browser.",
-  webText: "Run mct-cli web. A dashboard opens from your own computer, listening on 127.0.0.1 only. It has dark and light themes and stops by itself after 30 minutes idle. The interface is in Spanish.",
+  webText:
+    "Run mct-cli web. A dashboard opens from your own computer, listening on 127.0.0.1 only. It has dark and light themes and stops by itself after 30 minutes idle. The interface is in Spanish.",
   webCmdLabel: "Open the dashboard",
   web1Title: "Health at a glance",
   web1Text:
@@ -221,7 +228,8 @@ const en = {
     "Keyword search over code, symbols, files, duplicates, dependencies and Obsidian notes. Filters live in the URL, so every view can be bookmarked.",
   obsLabel: "OBSIDIAN CODE ATLAS",
   obsTitle: "Browse your code map\nin Obsidian.",
-  obsText: "Every scan also writes a vault of linked notes: one map per folder, one note per file with its imports and symbols. Open the folder in Obsidian and follow your project link by link. No Obsidian? The local web dashboard (mct-cli web) reads the same notes in a built-in notes reader.\n\nOptional and local; skip it with --no-obsidian.",
+  obsText:
+    "Every scan also writes a vault of linked notes: one map per folder, one note per file with its imports and symbols. Open the folder in Obsidian and follow your project link by link. No Obsidian? The local web dashboard (mct-cli web) reads the same notes in a built-in notes reader.\n\nOptional and local; skip it with --no-obsidian.",
   obsCmdLabel: "Rebuild the vault by hand",
   obs1Title: "Linked notes, no code copied",
   obs1Text:
@@ -239,7 +247,8 @@ const en = {
   mockNote: "Illustrative example. Names and numbers are made up.",
   startLabel: "YOUR FIRST MAP",
   startTitle: "Three commands to your first map.",
-  startText: "Install the command-line tool and the server from the docs. Then run these inside the project you want mapped.",
+  startText:
+    "Install the command-line tool and the server from the docs. Then run these inside the project you want mapped.",
   initLabel: "Build the map of your project",
   registerLabel: "Connect your AI assistant",
   statusLabel: "Check the map is healthy",
@@ -250,7 +259,8 @@ const en = {
     "Restart or reconnect your assistant after connecting it. Some assistants, like Codex, use their own settings format; follow their guide.",
   promptingLabel: "PROMPTING FOR AI",
   promptingTitle: "Let your assistant do the setup.",
-  promptingText: "Paste a prompt into your assistant. It adds the tool, indexes your code, then uses the map instead of reading every file.",
+  promptingText:
+    "Paste a prompt into your assistant. It adds the tool, indexes your code, then uses the map instead of reading every file.",
   promptLabel1: "Add it to this project and index it",
   prompt1:
     "Add the mini-consumes-tokens MCP server (https://github.com/Zubiarka8/mini-consumes-tokens) to this project. First read the install guide at https://zubiarka8.github.io/mini-consumes-tokens/docs/installation/ and follow it to install the CLI. Then run `mct-cli --root . init` to build the index, `mct-cli --root . mcp-register`, and confirm with `mct-cli --root . status`. Do not guess the steps; use only the guide. Tell me when the index is ready.",
@@ -288,7 +298,8 @@ const en = {
   answer4:
     "While the server is connected, it notices changed files and updates the map once you stop editing, and the Obsidian notes follow. You can also ask for a rescan or check health from the command line.",
   faq5: "How is this different from a normal text search?",
-  answer5: "A text search returns matching lines. The map returns where things are defined and how they connect: what uses a function, what it needs and where it is mentioned. Your assistant reads less and understands more.",
+  answer5:
+    "A text search returns matching lines. The map returns where things are defined and how they connect: what uses a function, what it needs and where it is mentioned. Your assistant reads less and understands more.",
   faq6: "Which languages are supported?",
   answer6:
     "Each language has its own reader, built on tree-sitter (a popular code-parsing library). The documentation lists the supported languages, and adding one is a self-contained change.",
@@ -302,7 +313,8 @@ const en = {
   answer9:
     "Yes, with the optional build that adds search by meaning. It combines name matching with a small language model that runs on your computer, so you can ask what code does. Without that build, search uses names only.",
   faq10: "Is it free to use?",
-  answer10: "Yes. It is open source under the Apache 2.0 license. Read, run and extend the code on GitHub.",
+  answer10:
+    "Yes. It is open source under the Apache 2.0 license. Read, run and extend the code on GitHub.",
   faq11: "Can I browse the map in Obsidian?",
   answer11:
     "Yes. Every scan writes linked notes to .mct-index/obsidian/. Open that folder as a vault in Obsidian: one map per folder and one note per file, listing its imports and symbols. Your code is not copied into the notes, and your own notes in the vault survive regeneration. Skip it with --no-obsidian.",
