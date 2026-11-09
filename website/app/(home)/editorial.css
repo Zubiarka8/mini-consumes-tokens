@@ -455,3 +455,7 @@
     var(--win-shadow),
     0 0 90px -30px rgba(214, 242, 139, 0.25);
 }
+
+.v-editorial .showcase-copy .body-copy {
+  white-space: pre-line;
+}
