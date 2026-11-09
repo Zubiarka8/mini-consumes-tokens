@@ -1,5 +1,6 @@
 // 10 · Configuración: theme, local server facts, backend capability matrix, local data
-import { h, store, applyTheme, toast, confirmDialog, dateTime } from "./core.js";
+import { h, store, applyTheme, toast, confirmDialog, dateTime, saveIdle } from "./core.js";
+import { power, MINUTES, MAX_MINUTES } from "./power.js";
 import { icon, pageHead, badge, note } from "./components.js";
 import { ignoreCard } from "./ignore-card.js";
 import { t, getLang, setLang, LANGUAGES } from "./i18n.js";
@@ -26,6 +27,59 @@ const CAPABILITIES = [
   ["severity", (c) => c.severity],
   ["reviewers", (c) => c.reviewers],
 ];
+
+const label = (minutes) =>
+  minutes === 0
+    ? t("power.never")
+    : minutes % 60 === 0 && minutes >= 60
+      ? t("power.hours", { n: minutes / 60 })
+      : t("power.minutes", { n: minutes });
+
+/** A list of ready-made times plus "Never" and a custom number of minutes. */
+function durationPicker({ id, name, onChange }) {
+  const current = () => power.get(name);
+  const custom = () => ![0, ...MINUTES].includes(current());
+  const select = h(
+    "select",
+    { class: "select", id },
+    [0, ...MINUTES].map((m) => h("option", { value: String(m) }, label(m))),
+    h("option", { value: "custom" }, t("power.custom")),
+  );
+  const input = h("input", {
+    class: "input narrow",
+    type: "number",
+    min: "1",
+    max: String(MAX_MINUTES),
+    step: "1",
+    "aria-label": t("power.customLabel"),
+  });
+  const show = () => {
+    select.value = custom() ? "custom" : String(current());
+    input.value = String(current() || 30);
+    input.hidden = select.value !== "custom";
+  };
+  const apply = (minutes) => {
+    power.set(name, minutes);
+    show();
+    onChange(minutes);
+  };
+  select.addEventListener("change", () => {
+    if (select.value === "custom") {
+      input.hidden = false;
+      input.focus();
+    } else apply(Number(select.value));
+  });
+  input.addEventListener("change", () => {
+    const minutes = Math.round(Number(input.value));
+    if (minutes >= 1 && minutes <= MAX_MINUTES) apply(minutes);
+    else {
+      toast(t("power.customInvalid", { max: MAX_MINUTES }), "error");
+      show();
+    }
+  });
+  show();
+  return h("div", { class: "row" }, select, input, h("span", { class: "muted small" }, t("power.minutesUnit")));
+}
 
 export function render({ root, meta }) {
   const theme = store.get("theme", "system");
@@ -109,6 +163,38 @@ export function render({ root, meta }) {
           h("dd", {}, t("settings.vaultNotes", { n: meta.vault.notes })),
         ),
         note(t("settings.readOnly"), "", "lock"),
+      ),
+    ),
+    h(
+      "section",
+      { class: "card mt-4" },
+      h("h2", {}, t("power.title")),
+      h("p", { class: "muted mb-3" }, t("power.note")),
+      h(
+        "div",
+        { class: "stack" },
+        h(
+          "div",
+          { class: "field" },
+          h("label", { for: "power-stop" }, t("power.stop")),
+          durationPicker({
+            id: "power-stop",
+            name: "stop",
+            onChange: (minutes) =>
+              saveIdle(minutes).then(
+                () => toast(t("power.stopSaved"), "ok"),
+                () => toast(t("power.stopFailed"), "error"),
+              ),
+          }),
+          h("p", { class: "muted small" }, t("power.stopHelp")),
+        ),
+        h(
+          "div",
+          { class: "field" },
+          h("label", { for: "power-pause" }, t("power.pause")),
+          durationPicker({ id: "power-pause", name: "pause", onChange: () => toast(t("power.pauseSaved"), "ok") }),
+          h("p", { class: "muted small" }, t("power.pauseHelp")),
+        ),
       ),
     ),
     h(

@@ -115,8 +115,9 @@ enum Command {
     /// reconciled periodically. Regenerates the Obsidian vault unless
     /// disabled. Prints a stable `http://localhost:<port>/` URL with no key in
     /// it; keep this command running and press Ctrl-C to stop. It also stops
-    /// by itself after `--idle-timeout` minutes without a request; an open
-    /// dashboard tab, even in the background, keeps it alive. A published
+    /// by itself after `--idle-timeout` minutes without use (keys, clicks or
+    /// scrolling in the dashboard, or any request other than its automatic
+    /// checks); the dashboard's Settings page changes that time while it runs. A published
     /// change, from this process or any other, is picked up on the next
     /// request, no restart needed. No browser is opened automatically.
     ///
@@ -135,7 +136,7 @@ enum Command {
         /// Do not regenerate the Obsidian vault; the dashboard still works.
         #[arg(long)]
         no_obsidian: bool,
-        /// Stop after this many minutes without a request (0 = never).
+        /// Stop after this many minutes without use (0 = never). Settings can change it.
         #[arg(long, value_name = "MINUTES", default_value_t = 30)]
         idle_timeout: u64,
     },

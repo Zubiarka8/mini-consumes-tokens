@@ -3563,3 +3563,9 @@ pre.md-code {
 .break-all {
   word-break: break-all !important;
 }
+
+/* Settings: a number of minutes next to a list of ready-made times. */
+.input.narrow {
+  width: 6.5rem;
+  flex: none;
+}

@@ -13,11 +13,13 @@ import {
   dateTime,
   toast,
   fmt,
+  saveIdle,
 } from "./core.js";
 import { icon, loading, errorBox } from "./components.js";
 import { createGlobalSearch, pageCommands } from "./palette.js";
 import { openIssues } from "./issues.js";
 import { t, getLang, setLang, LANGUAGES } from "./i18n.js";
+import { power, livePaused, trackUse } from "./power.js";
 
 const PAGE_MODULES = {
   panel: () => import("./page-dashboard.js"),
@@ -425,6 +427,8 @@ async function boot(refresh = false) {
     if (!booted) {
       buildShell();
       booted = true;
+      // The saved limit applies to this server too (a new project starts with the default).
+      saveIdle(power.get("stop")).catch(() => {});
     }
     applyStatus();
     renderNav();
@@ -460,22 +464,14 @@ const STATUS_EVERY_MS = 15_000;
 let reloadPending = false;
 // Drawing the page again would discard text being typed (.mctignore, a review note, a search).
 const typing = () => document.activeElement?.matches?.("textarea, input:not([type=radio], [type=checkbox])");
-// A hidden tab still tells the server it is open (`web --idle-timeout`), at
-// most once a minute; browsers throttle hidden timers to about that anyway.
-const KEEPALIVE_MS = 60_000;
-let lastContact = 0;
-async function followStatus() {
-  if (!booted) return;
-  if (document.hidden) {
-    if (Date.now() - lastContact < KEEPALIVE_MS) return;
-    lastContact = Date.now();
-    api("meta").catch(() => {});
-    return;
-  }
-  lastContact = Date.now();
+// Live updates stop while the tab is hidden or nobody has touched the page for the `pause` time
+// (Settings), and the check itself is passive: it never keeps the server alive. Only a person's
+// input, at most once a minute, counts as use (see `idle.rs`).
+async function followStatus(use = false) {
+  if (!booted || document.hidden || (!use && livePaused())) return;
   try {
     const before = ctx.meta?.generated;
-    ctx.meta = await api("meta");
+    ctx.meta = await api("meta", use ? {} : { passive: 1 });
     setCsrf(ctx.meta.csrf);
     notices = computeNotices(ctx.meta, ctx.summary);
     applyStatus();
@@ -488,5 +484,6 @@ async function followStatus() {
     // The header keeps what it showed; the next check tries again.
   }
 }
-setInterval(followStatus, STATUS_EVERY_MS);
-document.addEventListener("visibilitychange", followStatus);
+setInterval(() => followStatus(), STATUS_EVERY_MS);
+document.addEventListener("visibilitychange", () => followStatus(true));
+trackUse(() => followStatus(true));
