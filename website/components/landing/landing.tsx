@@ -15,10 +15,27 @@ import { useSyncExternalStore } from "react";
 import { basePath } from "@/lib/shared";
 import { localeKey } from "./locale";
 import { ContextDemo } from "./context-demo";
-import { Atlas } from "./atlas";
 import { CopyCommand, setupCommands } from "./copy-command";
-const repository = "https://github.com/Zubiarka8/mini-consumes-tokens";
+import { ObsidianShowcase, WebShowcase } from "./showcase";
+import { RevealOnScroll } from "./reveal";
+import { Constellation } from "./constellation";
 const subscribe = () => () => {};
+const repository = "https://github.com/Zubiarka8/mini-consumes-tokens";
+// Each FAQ answer points at the docs section that explains it in depth.
+const faqDocs = [
+  "/docs/schema/#overview",
+  "/docs/clients/",
+  "/docs/limitations/",
+  "/docs/managing/#usually-you-do-nothing",
+  "/docs/tools/#which-tool-for-which-question",
+  "/docs/architecture/#language-crates",
+  "/docs/installation/",
+  "/docs/exclusion/#your-own-rules-mctignore",
+  "/docs/tools/#hybrid_search_like",
+  null,
+  "/docs/cli/#commands-at-a-glance",
+  "/docs/cli/#commands-at-a-glance",
+];
 function DocsLink({
   children,
   className = "atlas-button",
@@ -35,13 +52,13 @@ function DocsLink({
 }
 export function Landing() {
   const { t, i18n } = useTranslation();
+  const reduced = useReducedMotion();
   const { theme, setTheme } = useTheme();
   const mounted = useSyncExternalStore(
     subscribe,
     () => true,
     () => false,
   );
-  const reduced = useReducedMotion();
   function changeLanguage(language: string) {
     void i18n.changeLanguage(language);
     try {
@@ -52,10 +69,7 @@ export function Landing() {
   }
   return (
     <MotionConfig reducedMotion="user">
-      <div className="landing" id="top">
-        <a className="skip-link" href="#main">
-          {t("skip")}
-        </a>
+      <div className="landing v-editorial" id="top">
         <header className="landing-header shell">
           <Link href="/" className="brand" aria-label="mini-consumes-tokens">
             <img
@@ -67,8 +81,12 @@ export function Landing() {
             <span>mini-consumes-tokens</span>
           </Link>
           <nav aria-label={t("nav")}>
-            <a href="#how">{t("how")}</a>
+            <a href="#problem">{t("navWhy")}</a>
             <a href="#capabilities">{t("capabilities")}</a>
+            <a href="#web">{t("navWeb")}</a>
+            <a href="#obsidian">{t("navObsidian")}</a>
+            <a href="#start">{t("navStart")}</a>
+            <a href="#faq">{t("navFaq")}</a>
           </nav>
           <div className="header-actions">
             <label className="theme-control">
@@ -101,7 +119,9 @@ export function Landing() {
             <DocsLink className="header-docs">{t("docs")}</DocsLink>
           </div>
         </header>
+        <RevealOnScroll />
         <main id="main" tabIndex={-1}>
+          <Constellation />
           <section className="hero shell" aria-labelledby="hero-title">
             <div className="hero-copy">
               <p className="eyebrow">
@@ -145,6 +165,7 @@ export function Landing() {
             </div>
           </div>
           <section
+            id="problem"
             className="problem shell section"
             aria-labelledby="problem-title"
           >
@@ -175,20 +196,6 @@ export function Landing() {
                 </div>
               </motion.div>
               <p className="caption">{t("comparisonNote")}</p>
-            </div>
-          </section>
-          <section
-            id="how"
-            className="mechanism section"
-            aria-labelledby="how-title"
-          >
-            <div className="shell">
-              <p className="eyebrow">{t("howLabel")}</p>
-              <h2 id="how-title">{t("howTitle")}</h2>
-              {/* The atlas story tells the three steps of the mechanism. */}
-              <div className="mechanism-atlas">
-                <Atlas />
-              </div>
             </div>
           </section>
           <section
@@ -229,7 +236,10 @@ export function Landing() {
               <p className="caption">{t("extras")}</p>
             </div>
           </section>
+          <WebShowcase />
+          <ObsidianShowcase />
           <section
+            id="start"
             className="getting-started section"
             aria-labelledby="start-title"
           >
@@ -283,10 +293,10 @@ export function Landing() {
             <div className="docs-art" aria-hidden="true">
               <Image
                 className="docs-art-image"
-                src={`${basePath}/img/docs-field-guide.png`}
+                src={`${basePath}/img/docs-field-guide.webp`}
                 alt=""
-                width={1370}
-                height={956}
+                width={1448}
+                height={1086}
                 unoptimized
               />
             </div>
@@ -302,19 +312,32 @@ export function Landing() {
               </div>
             </div>
           </section>
-          <section className="faq shell section" aria-labelledby="faq-title">
+          <section
+            id="faq"
+            className="faq shell section"
+            aria-labelledby="faq-title"
+          >
             <div>
               <p className="eyebrow">{t("faqLabel")}</p>
               <h2 id="faq-title">{t("faqTitle")}</h2>
             </div>
             <div>
-              {Array.from({ length: 10 }, (_, i) => i + 1).map((i) => (
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((i) => (
                 <details key={i} name="faq">
                   <summary>
                     {t(`faq${i}`)}
                     <span aria-hidden="true" />
                   </summary>
                   <p>{t(`answer${i}`)}</p>
+                  {faqDocs[i - 1] && (
+                    <Link
+                      href={faqDocs[i - 1] as string}
+                      className="faq-more text-link"
+                    >
+                      {t("faqMore")}
+                      <ArrowRight size={14} aria-hidden="true" />
+                    </Link>
+                  )}
                 </details>
               ))}
             </div>

@@ -29,8 +29,10 @@ export function LandingLocale({ children }: { children: ReactNode }) {
     try {
       const saved = localStorage.getItem(localeKey);
       if (saved === "en" || saved === "es") void i18n.changeLanguage(saved);
+      else if (navigator.language?.toLowerCase().startsWith("es"))
+        void i18n.changeLanguage("es");
     } catch {
-      /* The English default also works when storage is unavailable. */
+      /* English stays the default and works when storage is unavailable. */
     }
     update(i18n.language);
     return () => {
