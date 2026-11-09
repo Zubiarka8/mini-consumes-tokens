@@ -4,8 +4,8 @@
   "cases": {
     "java: an inherited call is not a same-named field": {
       "score": 0.0,
-      "tokens": 214,
-      "wrong": 1
+      "tokens": 202,
+      "wrong": 0
     },
     "lua: a host global is not another file's local": {
       "score": 0.0,
