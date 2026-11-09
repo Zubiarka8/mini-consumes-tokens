@@ -1780,7 +1780,49 @@ table.t {
 .graph .gnode.dim {
   opacity: 0.15;
 }
+.graph-gl {
+  min-height: 480px;
+}
+.graph-gl .graph-stage {
+  position: absolute;
+  inset: 0;
+}
+.graph-panel {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  z-index: 2;
+  width: 210px;
+  max-height: calc(100% - 20px);
+  overflow: auto;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 12.5px;
+}
+.graph-group summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 4px 0;
+}
+.graph-slider {
+  display: grid;
+  gap: 2px;
+  padding: 4px 0 6px;
+  color: var(--text-2);
+}
+.graph-slider input {
+  width: 100%;
+  accent-color: var(--primary);
+}
+@media (max-width: 700px) {
+  .graph-panel {
+    width: 170px;
+  }
+}
 .graph .tools {
+  z-index: 2;
   position: absolute;
   right: 10px;
   top: 10px;
@@ -2046,6 +2088,42 @@ dialog .dlg footer {
 }
 
 /* ---------- responsive ---------- */
+/* Graph view: the graph takes the full width, a note floats over its right side. */
+.workbench.inspect.graph-wide {
+  position: relative;
+  grid-template-columns: minmax(0, 1fr);
+}
+/* Graph only: no navigation, filters, note search or page heading, so the graph gets the room. */
+.graph-only .page-head,
+.workbench.graph-wide > .filters-col,
+.graph-wide .notes-only {
+  display: none;
+}
+.graph-only .graph-gl {
+  height: max(560px, calc(100vh - 190px));
+}
+.workbench.graph-wide > .inspector-col {
+  display: none;
+}
+.workbench.graph-wide.note-open > .inspector-col {
+  display: block;
+  position: absolute;
+  right: 0;
+  top: 0;
+  z-index: 20;
+  width: min(440px, 46%);
+  max-height: 100%;
+  overflow: auto;
+  box-shadow: var(--shadow-md, 0 8px 24px rgb(0 0 0 / 0.25));
+}
+.graph-gl {
+  height: max(560px, calc(100vh - 340px));
+}
+@media (max-width: 1024px) {
+  .workbench.graph-wide.note-open > .inspector-col {
+    width: 100%;
+  }
+}
 @media (max-width: 1280px) {
   .workbench.inspect {
     grid-template-columns: minmax(200px, 240px) minmax(0, 1fr);
@@ -3122,6 +3200,287 @@ pre.md-code {
   overflow-x: auto;
 }
 
+/* rendered notes: notes.js (web-ui/src/notes) builds this markup; every colour is a theme variable */
+.note-body > :first-child {
+  margin-top: 0;
+}
+.note-body h4,
+.note-body h5,
+.note-body h6 {
+  margin: 14px 0 6px;
+}
+.note-body p {
+  margin: 0 0 10px;
+}
+.note-body li {
+  margin: 2px 0;
+}
+.note-body li > ul,
+.note-body li > ol {
+  margin: 2px 0;
+}
+.note-body .task-item {
+  list-style: none;
+}
+.note-body .task-item > input {
+  margin: 0 6px 0 -18px;
+  vertical-align: -1px;
+}
+.note-body mark {
+  background: color-mix(in srgb, var(--warning) 28%, transparent);
+  color: inherit;
+  padding: 0 2px;
+  border-radius: 3px;
+}
+.note-body del {
+  color: var(--text-2);
+}
+.note-body a.wikilink {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.note-body a.wikilink:hover {
+  border-bottom-color: var(--accent);
+}
+.note-body a.note-embed {
+  display: inline-block;
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--elevated);
+  color: var(--text);
+  text-decoration: none;
+}
+.note-body a.note-embed:hover {
+  border-color: var(--primary);
+}
+.note-body .note-self-link {
+  color: var(--text-2);
+}
+.note-body .note-image-missing,
+.note-body .note-embed-missing {
+  color: var(--text-2);
+  font-style: italic;
+  border-bottom: 1px dashed var(--border);
+}
+.note-body img.note-image {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+}
+.note-body code.math {
+  font-style: italic;
+}
+.note-body th {
+  background: var(--elevated);
+  text-align: left;
+}
+.note-body .align-left {
+  text-align: left;
+}
+.note-body .align-center {
+  text-align: center;
+}
+.note-body .align-right {
+  text-align: right;
+}
+.note-body pre.note-code {
+  position: relative;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--code-bg);
+  overflow: auto;
+}
+.note-body pre.note-code.has-label {
+  padding-top: 26px;
+}
+.note-body .note-code-label {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  pointer-events: none;
+}
+.note-body .footnotes {
+  margin-top: 20px;
+  font-size: 0.9em;
+  color: var(--text-2);
+}
+.note-body .footnotes hr {
+  margin: 0 0 8px;
+}
+.note-body .footnote-ref a,
+.note-body .footnote-back {
+  text-decoration: none;
+}
+.note-body .footnote-back {
+  margin-left: 4px;
+}
+
+/* wikilink hover preview: a tooltip appended to <body> and placed by Floating UI */
+.note-preview {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 90;
+  display: grid;
+  gap: 2px;
+  width: max-content;
+  max-width: min(360px, calc(100vw - 16px));
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--elevated);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  pointer-events: none;
+}
+.note-preview span {
+  color: var(--text-2);
+}
+
+/* callouts: > [!type] Title (a - or + after the type makes it foldable) */
+.note-body .callout {
+  --callout: var(--primary);
+  margin: 12px 0;
+  border: 1px solid color-mix(in srgb, var(--callout) 35%, var(--border));
+  border-left: 4px solid var(--callout);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--callout) 8%, var(--surface));
+}
+.note-body .callout-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-weight: 600;
+  color: var(--callout);
+}
+.note-body summary.callout-title {
+  cursor: pointer;
+  list-style: none;
+}
+.note-body summary.callout-title::-webkit-details-marker {
+  display: none;
+}
+.note-body summary.callout-title::before {
+  content: "▸";
+  display: inline-block;
+}
+.note-body details.callout[open] > summary.callout-title::before {
+  transform: rotate(90deg);
+}
+.note-body summary.callout-title:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.note-body .callout-body {
+  padding: 0 12px 8px;
+}
+.note-body .callout-body > :first-child {
+  margin-top: 0;
+}
+.note-body .callout-body > :last-child {
+  margin-bottom: 0;
+}
+.note-body
+  .callout:is(
+    [data-callout="note"],
+    [data-callout="info"],
+    [data-callout="todo"],
+    [data-callout="abstract"],
+    [data-callout="summary"],
+    [data-callout="tldr"]
+  ) {
+  --callout: var(--info);
+}
+.note-body
+  .callout:is(
+    [data-callout="tip"],
+    [data-callout="hint"],
+    [data-callout="important"],
+    [data-callout="example"]
+  ) {
+  --callout: var(--accent);
+}
+.note-body .callout:is([data-callout="success"], [data-callout="check"], [data-callout="done"]) {
+  --callout: var(--success);
+}
+.note-body
+  .callout:is(
+    [data-callout="question"],
+    [data-callout="help"],
+    [data-callout="faq"],
+    [data-callout="warning"],
+    [data-callout="caution"],
+    [data-callout="attention"]
+  ) {
+  --callout: var(--warning);
+}
+.note-body
+  .callout:is(
+    [data-callout="failure"],
+    [data-callout="fail"],
+    [data-callout="missing"],
+    [data-callout="danger"],
+    [data-callout="error"],
+    [data-callout="bug"]
+  ) {
+  --callout: var(--danger);
+}
+.note-body .callout:is([data-callout="quote"], [data-callout="cite"]) {
+  --callout: var(--text-2);
+}
+
+/* highlight.js classes (from lowlight) mapped to the same token colours as the code viewer's .tk-* */
+.note-body .hljs-keyword,
+.note-body .hljs-selector-tag,
+.note-body .hljs-literal,
+.note-body .hljs-deletion {
+  color: var(--tok-keyword);
+}
+.note-body .hljs-string,
+.note-body .hljs-regexp,
+.note-body .hljs-addition {
+  color: var(--tok-string);
+}
+.note-body .hljs-number,
+.note-body .hljs-symbol,
+.note-body .hljs-bullet {
+  color: var(--tok-number);
+}
+.note-body .hljs-comment,
+.note-body .hljs-quote,
+.note-body .hljs-doctag {
+  color: var(--tok-comment);
+  font-style: italic;
+}
+.note-body .hljs-type,
+.note-body .hljs-built_in,
+.note-body .hljs-attr,
+.note-body .hljs-attribute,
+.note-body .hljs-name,
+.note-body .hljs-title.class_ {
+  color: var(--tok-type);
+}
+.note-body .hljs-title,
+.note-body .hljs-title.function_,
+.note-body .hljs-section {
+  color: var(--tok-fn);
+}
+.note-body .hljs-emphasis {
+  font-style: italic;
+}
+.note-body .hljs-strong {
+  font-weight: 700;
+}
+
 /* ---------- utilities ----------
    Single-purpose classes for spacing and alignment set from JS, in place of inline styles.
    They use !important so they win over component rules, as the inline styles they replace did.
@@ -3203,4 +3562,59 @@ pre.md-code {
 }
 .break-all {
   word-break: break-all !important;
+}
+
+/* Settings: a number of minutes next to a list of ready-made times. */
+.input.narrow {
+  width: 6.5rem;
+  flex: none;
+}
+
+/* Settings: one setting per block, its list on one line. */
+.setting-title {
+  display: block;
+  margin: 0 0 2px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.setting > p {
+  margin: 0 0 8px;
+}
+.setting .select {
+  width: auto;
+  min-width: 9rem;
+}
+.stack-sm {
+  display: grid;
+  gap: 6px;
+}
+.card.fold > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.card.fold > summary::-webkit-details-marker {
+  display: none;
+}
+.card.fold > summary h2 {
+  display: inline;
+  margin: 0;
+}
+.card.fold > summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 1.2em;
+  color: var(--text-2);
+}
+.card.fold[open] > summary::before {
+  content: "▾";
+}
+.card.fold[open] > summary {
+  margin-bottom: 12px;
+}
+.card.fold > summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.grid.top {
+  align-items: start;
 }

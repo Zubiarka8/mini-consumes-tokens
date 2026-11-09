@@ -18,6 +18,8 @@ import { icon, loading, errorBox } from "./components.js";
 import { createGlobalSearch, pageCommands } from "./palette.js";
 import { openIssues } from "./issues.js";
 import { t, getLang, setLang, LANGUAGES } from "./i18n.js";
+import { livePaused, trackUse } from "./power.js";
+import { syncSettings } from "./server-settings.js";
 
 const PAGE_MODULES = {
   panel: () => import("./page-dashboard.js"),
@@ -37,7 +39,7 @@ const THEMES = [
   ["light", "theme.light", "sun"],
   ["system", "theme.system", "gear"],
 ];
-const DEFAULT_THEME = "light";
+const DEFAULT_THEME = "system";
 
 const app = document.getElementById("app");
 const ctx = { meta: null, summary: null, refresh: () => boot(true) };
@@ -425,6 +427,8 @@ async function boot(refresh = false) {
     if (!booted) {
       buildShell();
       booted = true;
+      // The browser's choices and the project's settings file agree from here on.
+      syncSettings();
     }
     applyStatus();
     renderNav();
@@ -456,26 +460,18 @@ addEventListener("hashchange", () => {
 // A reindex (the dashboard's own watcher, the MCP server or the CLI) lands while the page is open:
 // the status follows it every few seconds and whenever the tab comes back into view, and the page
 // is drawn again with the new index, so nothing has to be reloaded by hand.
-const STATUS_EVERY_MS = 5_000;
+const STATUS_EVERY_MS = 15_000;
 let reloadPending = false;
 // Drawing the page again would discard text being typed (.mctignore, a review note, a search).
 const typing = () => document.activeElement?.matches?.("textarea, input:not([type=radio], [type=checkbox])");
-// A hidden tab still tells the server it is open (`web --idle-timeout`), at
-// most once a minute; browsers throttle hidden timers to about that anyway.
-const KEEPALIVE_MS = 60_000;
-let lastContact = 0;
-async function followStatus() {
-  if (!booted) return;
-  if (document.hidden) {
-    if (Date.now() - lastContact < KEEPALIVE_MS) return;
-    lastContact = Date.now();
-    api("meta").catch(() => {});
-    return;
-  }
-  lastContact = Date.now();
+// Live updates stop while the tab is hidden or nobody has touched the page for the `pause` time
+// (Settings), and the check itself is passive: it never keeps the server alive. Only a person's
+// input, at most once a minute, counts as use (see `idle.rs`).
+async function followStatus(use = false) {
+  if (!booted || document.hidden || (!use && livePaused())) return;
   try {
     const before = ctx.meta?.generated;
-    ctx.meta = await api("meta");
+    ctx.meta = await api("meta", use ? {} : { passive: 1 });
     setCsrf(ctx.meta.csrf);
     notices = computeNotices(ctx.meta, ctx.summary);
     applyStatus();
@@ -488,5 +484,6 @@ async function followStatus() {
     // The header keeps what it showed; the next check tries again.
   }
 }
-setInterval(followStatus, STATUS_EVERY_MS);
-document.addEventListener("visibilitychange", followStatus);
+setInterval(() => followStatus(), STATUS_EVERY_MS);
+document.addEventListener("visibilitychange", () => followStatus(true));
+trackUse(() => followStatus(true));

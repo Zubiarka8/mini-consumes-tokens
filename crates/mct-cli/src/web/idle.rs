@@ -2,6 +2,11 @@
 //! does not keep a port, a watcher and the maintainer lease for days. An open
 //! tab keeps it alive: the page asks for `api/meta` every few seconds while
 //! visible and about once a minute while hidden.
+//!
+//! The limit can be changed while the server runs (`POST api/settings`, from the
+//! settings page). A passive request (`api/meta?passive=1`) does not count as
+//! use: the page sends it for live updates, and only a person's input or a
+//! normal request keeps the server alive.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -15,21 +20,55 @@ pub(super) struct Activity {
     started: Instant,
     last_ms: AtomicU64,
     busy: AtomicBool,
+    /// Seconds without use before the server stops; 0 means never.
+    timeout_secs: AtomicU64,
 }
 
+/// Longest limit the settings page may set: one day.
+pub(super) const MAX_MINUTES: u64 = 24 * 60;
+
 impl Activity {
+    #[cfg(test)]
     pub(super) fn new() -> Arc<Self> {
+        Self::with_timeout(None)
+    }
+
+    pub(super) fn with_timeout(timeout: Option<Duration>) -> Arc<Self> {
         Arc::new(Self {
             started: Instant::now(),
             last_ms: AtomicU64::new(0),
             busy: AtomicBool::new(false),
+            timeout_secs: AtomicU64::new(timeout.map_or(0, |t| t.as_secs())),
         })
     }
 
     /// Marks a request as being served until the guard is dropped.
     pub(super) fn serving(&self) -> Serving<'_> {
         self.busy.store(true, Ordering::SeqCst);
-        Serving(self)
+        Serving(Some(self))
+    }
+
+    /// A request that is not use: it neither blocks nor restarts the clock.
+    pub(super) fn passive(&self) -> Serving<'_> {
+        Serving(None)
+    }
+
+    fn timeout(&self) -> Option<Duration> {
+        match self.timeout_secs.load(Ordering::SeqCst) {
+            0 => None,
+            secs => Some(Duration::from_secs(secs)),
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn minutes(&self) -> u64 {
+        self.timeout_secs.load(Ordering::SeqCst) / 60
+    }
+
+    /// Sets the limit in minutes (0: never stop).
+    pub(super) fn set_minutes(&self, minutes: u64) {
+        self.timeout_secs
+            .store(minutes.min(MAX_MINUTES) * 60, Ordering::SeqCst);
     }
 
     fn idle_for(&self) -> Option<Duration> {
@@ -42,13 +81,14 @@ impl Activity {
 }
 
 /// Ends a request on drop, a panic included.
-pub(super) struct Serving<'a>(&'a Activity);
+pub(super) struct Serving<'a>(Option<&'a Activity>);
 
 impl Drop for Serving<'_> {
     fn drop(&mut self) {
-        let now = u64::try_from(self.0.started.elapsed().as_millis()).unwrap_or(u64::MAX);
-        self.0.last_ms.store(now, Ordering::SeqCst);
-        self.0.busy.store(false, Ordering::SeqCst);
+        let Some(activity) = self.0 else { return };
+        let now = u64::try_from(activity.started.elapsed().as_millis()).unwrap_or(u64::MAX);
+        activity.last_ms.store(now, Ordering::SeqCst);
+        activity.busy.store(false, Ordering::SeqCst);
     }
 }
 
@@ -59,23 +99,20 @@ fn next_check(idle: Duration, timeout: Duration) -> Option<Duration> {
     Some(left.min(MAX_CHECK_INTERVAL))
 }
 
-/// Calls `on_idle` from a background thread once no request was served for
-/// `timeout`. The thread is detached: `on_idle` is expected to end the
-/// process.
-pub(super) fn watch(
-    activity: Arc<Activity>,
-    timeout: Duration,
-    on_idle: impl FnOnce() + Send + 'static,
-) {
+/// Calls `on_idle` from a background thread once no request counted as use
+/// for the current limit (re-read each round, so the settings page can change
+/// it). The thread is detached: `on_idle` is expected to end the process.
+pub(super) fn watch(activity: Arc<Activity>, on_idle: impl FnOnce() + Send + 'static) {
     let spawned = std::thread::Builder::new()
         .name("mct-web-idle".into())
         .spawn(move || loop {
-            let wait = match activity.idle_for() {
-                None => MAX_CHECK_INTERVAL.min(timeout),
-                Some(idle) => match next_check(idle, timeout) {
+            let wait = match (activity.timeout(), activity.idle_for()) {
+                (Some(timeout), Some(idle)) => match next_check(idle, timeout) {
                     Some(wait) => wait,
                     None => return on_idle(),
                 },
+                (Some(timeout), None) => MAX_CHECK_INTERVAL.min(timeout),
+                (None, _) => MAX_CHECK_INTERVAL,
             };
             std::thread::sleep(wait);
         });
@@ -112,5 +149,19 @@ mod tests {
         assert!(activity
             .idle_for()
             .is_some_and(|idle| idle < Duration::from_secs(5)));
+    }
+
+    #[test]
+    fn a_passive_request_is_not_use_and_the_limit_changes_while_running() {
+        let activity = Activity::with_timeout(Some(Duration::from_secs(600)));
+        drop(activity.passive());
+        assert!(activity
+            .idle_for()
+            .is_some_and(|idle| idle < Duration::from_secs(5)));
+        assert_eq!(activity.minutes(), 10);
+        activity.set_minutes(30);
+        assert_eq!(activity.timeout(), Some(Duration::from_secs(1800)));
+        activity.set_minutes(0);
+        assert_eq!(activity.timeout(), None);
     }
 }

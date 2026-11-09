@@ -13,6 +13,7 @@ mod obsidian;
 mod port;
 mod response;
 mod reviews;
+mod settings;
 #[cfg(test)]
 mod tests;
 
@@ -568,12 +569,13 @@ fn dashboard_url(port: u16) -> String {
     format!("http://localhost:{port}/")
 }
 
-/// `idle_timeout`: stop after this long without a request (`None`: never).
+/// `idle_minutes`: stop after this many minutes without use (0: never). Without it, the saved
+/// setting applies, then 30.
 pub(super) fn run(
     root: &Path,
     port: Option<u16>,
     no_obsidian: bool,
-    idle_timeout: Option<std::time::Duration>,
+    idle_minutes: Option<u64>,
 ) -> anyhow::Result<()> {
     anyhow::ensure!(
         root.join(".mct-index/index.sqlite3").is_file(),
@@ -591,19 +593,20 @@ pub(super) fn run(
         site.generated
     );
     std::io::stdout().flush()?;
-    let activity = idle::Activity::new();
-    if let Some(timeout) = idle_timeout {
-        idle::watch(activity.clone(), timeout, move || {
-            println!(
-                "No request for {} min: stopping the dashboard.",
-                timeout.as_secs() / 60
-            );
-            let _ = std::io::stdout().flush();
-            // The lease and file locks are released by the OS, and SQLite rolls
-            // back a reindex cut short, as after Ctrl-C.
-            std::process::exit(0);
-        });
-    }
+    // Always watching: the settings page can turn the limit on or change it later.
+    let minutes = idle_minutes
+        .or_else(|| settings::saved_stop_minutes(root))
+        .unwrap_or(30);
+    let activity = idle::Activity::with_timeout(
+        (minutes > 0).then(|| std::time::Duration::from_secs(minutes.saturating_mul(60))),
+    );
+    idle::watch(activity.clone(), || {
+        println!("No use of the dashboard for the set time: stopping it.");
+        let _ = std::io::stdout().flush();
+        // The lease and file locks are released by the OS, and SQLite rolls
+        // back a reindex cut short, as after Ctrl-C.
+        std::process::exit(0);
+    });
     serve(listener, port, site, &activity)?;
     Ok(())
 }
@@ -644,13 +647,17 @@ fn serve(
     let mut pending = None;
     let mut writes = 0;
     for job in queue {
-        let _serving = activity.serving();
+        let _serving = if job.request.is_passive() {
+            activity.passive()
+        } else {
+            activity.serving()
+        };
         // A request never waits for a reload; the next one after it is ready
         // sees the new snapshot.
         site.follow_reindex_in_background(&mut pending, writes);
         writes += u64::from(job.request.is_post());
         // The connection may have gone; its thread then writes nothing.
-        let _ = job.reply.send(job.request.answer(&mut site));
+        let _ = job.reply.send(job.request.answer(&mut site, activity));
     }
     Ok(())
 }

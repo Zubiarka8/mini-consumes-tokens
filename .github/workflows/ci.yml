@@ -28,6 +28,55 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all --check
 
+  # The dashboard embeds two bundles built from crates/mct-cli/web-ui and
+  # committed (review-dist/, notes-dist/, graph-dist/), so the Rust build needs no Node.
+  # A bundle that is not rebuilt after a source change would ship stale code:
+  # rebuild both from the lockfile and fail if the committed files differ.
+  web-bundles:
+    name: web bundles are fresh + web tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            crates/mct-cli/web-ui/package-lock.json
+            crates/mct-cli/tests/dashboard/package-lock.json
+
+      - name: Install web-ui dependencies
+        working-directory: crates/mct-cli/web-ui
+        run: npm ci
+
+      - name: web-ui tests (review workspace and notes renderer)
+        working-directory: crates/mct-cli/web-ui
+        run: npm test
+
+      - name: Rebuild the bundles
+        working-directory: crates/mct-cli/web-ui
+        run: npm run build
+
+      - name: Committed bundles match their source
+        run: |
+          if ! git diff --exit-code -- crates/mct-cli/src/web/review-dist crates/mct-cli/src/web/notes-dist crates/mct-cli/src/web/graph-dist; then
+            echo "::error::Committed bundles are stale. Run 'npm run build' in crates/mct-cli/web-ui and commit review-dist/, notes-dist/ and graph-dist/."
+            exit 1
+          fi
+          if [ -n "$(git status --porcelain -- crates/mct-cli/src/web/notes-dist crates/mct-cli/src/web/graph-dist)" ]; then
+            echo "::error::notes-dist/ or graph-dist/ has files that are not committed."
+            exit 1
+          fi
+
+      - name: Install dashboard test dependencies
+        working-directory: crates/mct-cli/tests/dashboard
+        run: npm ci
+
+      - name: Dashboard tests (the page against the committed bundles)
+        working-directory: crates/mct-cli/tests/dashboard
+        run: npm test
+
   build-test:
     name: build + test + clippy (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
