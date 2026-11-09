@@ -51,7 +51,7 @@ test("symbol selection, clipboard failure, FAQ and keyboard", async ({
   ).toContainText("Copy unavailable");
   await page
     .locator("summary")
-    .filter({ hasText: "Where does the index live?" })
+    .filter({ hasText: "Where is the map stored?" })
     .click();
   await expect(page.locator("details").first()).toHaveAttribute("open", "");
   await page.goto("about:blank");
