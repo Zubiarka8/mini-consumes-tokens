@@ -3,10 +3,12 @@ pages:
   - "---Get started---"
   - index
   - installation
+  - usage
   - clients
   - uninstalling
   - "---Reference---"
   - cli
+  - dashboard
   - tools
   - managing
   - exclusion
@@ -17,6 +19,7 @@ pages:
   - indexing
   - schema
   - security
+  - checklists
   - limitations
   - development
   - extending
