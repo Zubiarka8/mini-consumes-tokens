@@ -33,8 +33,9 @@ checked by running the code, never read off the index:
 - **Lua:** run with a stub host global `speed`. `hud.draw()` returns the
   host's value, never `physics.lua`'s local.
 
-The fixture is excluded from this repository's own index by `.mctignore`, so
-its deliberately clashing names never become candidates outside the eval.
+The fixture is checked in as one `.txt` bundle, which no parser indexes, and
+unpacked into a temporary directory per eval run, so its clashing names never
+become candidates outside the eval.
 ==> java/src/shop/Ledger.java <==
 package shop;
 
