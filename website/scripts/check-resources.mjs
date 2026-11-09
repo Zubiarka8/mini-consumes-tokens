@@ -24,11 +24,11 @@ await i18n.init({
   fallbackLng: "en",
   initAsync: false,
 });
-assert.equal(i18n.t("headline"), "Less searching.");
+assert.equal(i18n.t("headline"), "Your AI reads less.");
 await i18n.changeLanguage("es");
-assert.equal(i18n.t("headline"), "Menos búsquedas.");
+assert.equal(i18n.t("headline"), "Tu IA lee menos.");
 await i18n.changeLanguage("invalid");
-assert.equal(i18n.t("headline"), "Less searching.");
+assert.equal(i18n.t("headline"), "Your AI reads less.");
 console.log(
   `PASS: ${Object.keys(en).length} matching, nonempty translation keys; real i18next switching and fallback`,
 );

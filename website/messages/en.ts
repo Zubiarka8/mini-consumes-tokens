@@ -22,7 +22,6 @@ const en = {
   coordinate: "CODE → MAP → ANSWER",
   localFirst: "ON YOUR COMPUTER. CONNECTED. PRECISE.",
   fieldGuide: "FIELD GUIDE",
-  skip: "Skip to content",
   nav: "Main navigation",
   language: "Language",
   theme: "Color theme",
@@ -30,15 +29,20 @@ const en = {
   themeLight: "Light",
   themeDark: "Dark",
   how: "How it works",
+  navWhy: "Why",
+  navStart: "Get started",
+  navFaq: "FAQ",
+  navWeb: "Web",
+  navObsidian: "Obsidian",
   capabilities: "Capabilities",
   docs: "Documentation",
   github: "View on GitHub",
-  eyebrow: "A MAP OF YOUR CODE FOR YOUR AI ASSISTANT",
-  headline: "Less searching.",
-  headlineAccent: "More understanding.",
+  eyebrow: "MCP SERVER · A CODE MAP FOR YOUR AI ASSISTANT",
+  headline: "Your AI reads less.",
+  headlineAccent: "Your tokens go further.",
   intro:
-    "AI coding assistants often read whole files just to find one thing. mini-consumes-tokens builds a searchable map of your project on your own computer, so your assistant can ask for only the parts it needs.",
-  readDocs: "Explore the documentation",
+    "A free, open-source MCP server that maps your project on your own computer. Claude Code, Cursor, Codex and other assistants ask for the exact code they need, not whole files.",
+  readDocs: "Install it free",
   heroNote: "Open source · Free · Runs on your computer",
   visibleLayers: "Visible layers",
   sourcePreview: "Chosen source code",
@@ -169,11 +173,10 @@ const en = {
     "The lib.rs side of the same requests: who asks for each one, or what it passes on to the scanner.",
   spatialHint: "Drag to rotate · Scroll to zoom · Choose a piece of code",
   mapNote: "One question. Its relevant neighborhood.",
-  problemLabel: "01 / THE PROBLEM",
-  problemTitle:
-    "Your project is connected. Your assistant's context should be, too.",
+  problemLabel: "THE PROBLEM",
+  problemTitle: "Every file your assistant opens costs tokens, needed or not.",
   problemText:
-    "Reading whole files gives an assistant a lot of text, but not always how the parts relate. Repeated searches make it harder to follow a change through the whole project.",
+    "Reading whole files gives an assistant a lot of text and little structure. Repeated searches make it hard to follow a change through the project. A map shows what is defined where, what uses it and what it depends on, so one precise question replaces a pile of files.",
   before: "A pile of files",
   beforeText: "Open files. Search names. Piece together relationships.",
   after: "A map of the code",
@@ -181,7 +184,7 @@ const en = {
     "Find a function. Follow its connections. Ask for a focused summary.",
   comparisonNote:
     "A conceptual comparison, not a measurement of savings. Results depend on the project and the question.",
-  howLabel: "02 / THE MECHANISM",
+  howLabel: "THE MECHANISM",
   howTitle: "From source to understanding.",
   step1Title: "Scan locally.",
   step1Text:
@@ -192,23 +195,59 @@ const en = {
   step3Title: "Bring the right context.",
   step3Text:
     "A focused summary gathers one piece of code and the parts connected to it. When you edit files, the map updates itself shortly after.",
-  capabilitiesLabel: "03 / WHAT YOU CAN DO",
+  capabilitiesLabel: "WHAT YOU CAN DO",
   capabilitiesTitle: "Follow the code.\nUnderstand the change.",
   discoverTitle: "Find your bearings",
   discoverText:
     "Get a project overview, a file tree or a file's outline. Find functions and types by name before opening their code.",
-  changeTitle: "Trace a change",
+  changeTitle: "See what a change affects",
   changeText:
-    "Follow what uses what across the map. Check which parts and tests a change could affect.",
-  contextTitle: "Give your assistant a focused summary",
+    "Follow what uses what across the map. Check which parts and tests a change could affect before you edit anything.",
+  contextTitle: "Hand your assistant exactly what it needs",
   contextText:
     "Get a summary around one function or type, with its definition, dependencies and related code, in a single request.",
   extras:
-    "Also available: finding code that seems unused (a rough guess) and optional local search by meaning, which needs a special build and a small language model on your computer.",
+    "Also available: finding code that seems unused or duplicated (rough guesses), a dependency graph between files, and optional local search by meaning, which needs a special build and a small language model on your computer.",
   audience:
     "For developers who use AI coding assistants that support MCP, in projects written in several languages. The command-line tool also works on its own.",
-  startLabel: "04 / YOUR FIRST MAP",
-  startTitle: "Start with your own project.",
+  webLabel: "LOCAL WEB DASHBOARD",
+  webTitle: "See your whole project\nin the browser.",
+  webText:
+    "mct-cli web serves a dashboard from your own computer and prints its localhost address. It listens on 127.0.0.1 only, has dark and light themes and stops by itself after 30 minutes without use. The interface is in Spanish.",
+  webCmdLabel: "Open the dashboard",
+  web1Title: "Health at a glance",
+  web1Text:
+    "Counts, language bars, project health and recent activity. Metrics the index does not record are shown as unavailable, never invented.",
+  web2Title: "Browse code and dependencies",
+  web2Text:
+    "Files and symbols with filters, a source preview and the imports of each file. The dependency graph comes as a tree or a table.",
+  web3Title: "Review duplicate and unused code",
+  web3Text:
+    "Compare duplicates side by side with an aligned diff. Mark a finding as a false positive or not relevant, add a note and restore it later. Decisions stay on your computer.",
+  web4Title: "Search and bookmark any view",
+  web4Text:
+    "Keyword search over code, symbols, files, duplicates, dependencies and Obsidian notes. Filters live in the URL, so every view can be bookmarked.",
+  obsLabel: "OBSIDIAN CODE ATLAS",
+  obsTitle: "Browse your code map\nin Obsidian.",
+  obsText:
+    "Every scan also writes a vault of linked notes: one map per folder and one note per file, with its imports and symbols. Open the folder in Obsidian and follow your project link by link. It is optional and local; skip it with --no-obsidian.",
+  obsCmdLabel: "Rebuild the vault by hand",
+  obs1Title: "Linked notes, no code copied",
+  obs1Text:
+    "Each file note lists its imports and symbols with line ranges. Source text stays out of the vault, so it stays small and your code is not duplicated.",
+  obs2Title: "Built for big projects",
+  obs2Text:
+    "A file note shows at most 100 symbols and 50 imports, with a count of what was left out. Folder maps page after 100 entries.",
+  obs3Title: "Always up to date",
+  obs3Text:
+    "init and reindex refresh the vault, and so does the server's background refresh. Only changed notes are rewritten.",
+  obs4Title: "Safe for your own notes",
+  obs4Text:
+    "Your notes and the .obsidian folder survive every regeneration. It never overwrites a generated note you edited, and it follows the same .mctignore rules as the map.",
+  mockTry: "Try it: click around.",
+  mockNote: "Illustrative example. Names and numbers are made up.",
+  startLabel: "YOUR FIRST MAP",
+  startTitle: "Build your first map in three commands.",
   startText:
     "Install the command-line tool and the server first, following the documentation. Then run these commands inside the project you want to scan.",
   initLabel: "Build the map of your project",
@@ -219,8 +258,8 @@ const en = {
   copyError: "Copy unavailable. Select the command and copy it manually.",
   reconnect:
     "Restart or reconnect your assistant after connecting it. Some assistants, like Codex, use their own settings format; follow their guide.",
-  promptingLabel: "05 / PROMPTING FOR AI",
-  promptingTitle: "Ask your assistant to do it for you.",
+  promptingLabel: "PROMPTING FOR AI",
+  promptingTitle: "Let your assistant set it up for you.",
   promptingText:
     "Paste one of these prompts into your AI assistant. It will add the tool to your project, index the code and then use the map instead of reading every file.",
   promptLabel1: "Add it to this project and index it",
@@ -245,19 +284,20 @@ const en = {
   guide2: "Query & explore",
   guide3: "Understand & extend",
   faqLabel: "A FEW GOOD QUESTIONS",
-  faqTitle: "Before you start.",
+  faqTitle: "Questions before you install.",
+  faqMore: "Read more in the docs",
   faq1: "Where is the map stored?",
   answer1:
-    "In your project, in a small local database (SQLite). Everything is scanned on your computer. Your AI assistant may send tool answers to its provider, depending on that assistant's settings.",
+    "In your project, in a small local database (SQLite) inside the .mct-index folder. Everything is scanned on your computer. Your AI assistant may send tool answers to its provider, depending on that assistant's settings.",
   faq2: "Does every assistant work with it?",
   answer2:
-    "The assistant needs MCP support to use the tools. You can also use the command-line tool on its own to scan, check health and find code that seems unused.",
+    "The assistant needs MCP support to use the tools. The command-line tool also works on its own: scan, check health, find unused or duplicate code, open the local dashboard and write the Obsidian notes.",
   faq3: "Does the map show everything my code does?",
   answer3:
     "No. It only understands the supported languages. Things decided only while the program runs may be missed, and “unused” code is a guess, not a certainty. The docs explain these limits.",
   faq4: "What happens when I edit a file?",
   answer4:
-    "While the server is connected, it notices changed files and updates the map once you stop editing. You can also ask for a rescan or check health from the command line.",
+    "While the server is connected, it notices changed files and updates the map once you stop editing, and the Obsidian notes follow. You can also ask for a rescan or check health from the command line.",
   faq5: "How is this different from a normal text search?",
   answer5:
     "A text search returns the lines that match. The map returns where things are defined and how they connect: what uses a function, what it depends on and where it is mentioned, so your assistant reads less and understands more.",
@@ -269,14 +309,20 @@ const en = {
     "Yes. The same CLI and MCP server run on all three, and the project’s tests and checks run on each of them.",
   faq8: "Can I exclude files or folders?",
   answer8:
-    "Yes. Add paths to a .mctignore file to keep them out of the map. Build and dependency folders such as target and node_modules are already skipped.",
+    "Yes. Add paths to a .mctignore file to keep them out of the map. The same file keeps them out of the Obsidian notes. Build and dependency folders such as target and node_modules are already skipped.",
   faq9: "Can it search by meaning, not just by name?",
   answer9:
     "Yes, with the optional build that adds search by meaning. It combines name matching with a small language model that runs on your computer, so you can ask what code does. Without that build, search uses names only.",
   faq10: "Is it free to use?",
   answer10:
     "Yes. It is open source under the Apache 2.0 license, and you can read, run and extend the code on GitHub.",
-  footer: "Precise context starts with a better map.",
+  faq11: "Can I browse the map in Obsidian?",
+  answer11:
+    "Yes. Every scan writes linked notes to .mct-index/obsidian/. Open that folder as a vault in Obsidian: one map per folder and one note per file, listing its imports and symbols. Your code is not copied into the notes, and your own notes in the vault survive regeneration. Skip it with --no-obsidian.",
+  faq12: "Is there a visual dashboard?",
+  answer12:
+    "Yes. mct-cli web serves a dashboard on localhost with search, a dependency graph, a notes reader and review of duplicate and unused code. It stops by itself after 30 minutes without use. The interface is in Spanish.",
+  footer: "Better context. Fewer wasted tokens.",
   license: "Apache 2.0 license",
   top: "Back to top",
   principle1: "Your code",
