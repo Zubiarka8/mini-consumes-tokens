@@ -121,7 +121,7 @@ for (const width of [320, 375, 768, 1024, 1440])
       });
     }
   });
-test("Spanish browser starts in English and invalid storage is ignored", async ({
+test("Spanish browser starts in Spanish, others in English, invalid storage is ignored", async ({
   browser,
 }) => {
   const context = await browser.newContext({ locale: "es-ES" });
@@ -130,9 +130,14 @@ test("Spanish browser starts in English and invalid storage is ignored", async (
     localStorage.setItem("mct-home-language", "invalid"),
   );
   await page.goto(home);
-  await expect(page.locator("h1")).toContainText("Your AI reads less.");
-  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.locator("h1")).toContainText("Tu IA lee menos.");
+  await expect(page.locator("html")).toHaveAttribute("lang", "es");
   await context.close();
+  const other = await browser.newContext({ locale: "fr-FR" });
+  const french = await other.newPage();
+  await french.goto(home);
+  await expect(french.locator("h1")).toContainText("Your AI reads less.");
+  await other.close();
 });
 test("copy success uses the command and translated feedback", async ({
   page,
