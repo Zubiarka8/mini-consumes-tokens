@@ -41,7 +41,7 @@ for (const page of [
 ])
   assert.ok(existsSync(join(root, page)), page);
 const home = readFileSync(join(root, "index.html"), "utf8");
-assert.match(home, /Less searching\./);
+assert.match(home, /Your AI reads less\./);
 assert.match(home, new RegExp(`href="${prefix}/docs/"`));
 assert.equal((home.match(/<h1[ >]/g) ?? []).length, 1);
 console.log(
