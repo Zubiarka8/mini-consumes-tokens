@@ -15,7 +15,7 @@ use super::idle::{Activity, MAX_MINUTES};
 use super::response::Response;
 
 const FILE: &str = "web-settings.json";
-/// Longest file read: the real one holds four short values.
+/// Longest file read: the real one holds five short values.
 const MAX_BYTES: u64 = 4096;
 
 fn path(root: &Path) -> PathBuf {
@@ -26,8 +26,9 @@ fn valid(key: &str, value: &Value) -> bool {
     match key {
         "theme" => matches!(value.as_str(), Some("dark" | "light" | "system")),
         "lang" => matches!(value.as_str(), Some("es" | "en")),
-        // Minutes without use before the server closes / before the page pauses its live checks.
-        "stop" | "pause" => value.as_u64().is_some_and(|minutes| minutes <= MAX_MINUTES),
+        // Minutes without use before the server closes / before the page pauses its live checks /
+        // before each MCP server process exits (read by `mct-mcp-server`, 0: never).
+        "stop" | "pause" | "mcp" => value.as_u64().is_some_and(|minutes| minutes <= MAX_MINUTES),
         _ => false,
     }
 }
@@ -81,7 +82,7 @@ fn write_atomically(root: &Path, fields: &Map<String, Value>) -> std::io::Result
     result
 }
 
-/// Applies `{"csrf": …, "theme"?, "lang"?, "stop"?, "pause"?}`: the given fields replace the
+/// Applies `{"csrf": …, "theme"?, "lang"?, "stop"?, "pause"?, "mcp"?}`: the given fields replace the
 /// saved ones, and a new `stop` also applies to the running server.
 pub(super) fn save(root: &Path, body: &str, csrf: &str, activity: &Activity) -> Response {
     let Ok(Value::Object(mut fields)) = serde_json::from_str::<Value>(body) else {
@@ -134,7 +135,7 @@ mod tests {
         assert_eq!(activity.minutes(), 10);
         save(
             root.path(),
-            r#"{"csrf":"k","lang":"es","pause":0}"#,
+            r#"{"csrf":"k","lang":"es","pause":0,"mcp":30}"#,
             "k",
             &activity,
         );
@@ -143,6 +144,7 @@ mod tests {
         assert_eq!(all["lang"], "es");
         assert_eq!(all["stop"], 10);
         assert_eq!(all["pause"], 0);
+        assert_eq!(all["mcp"], 30);
         assert_eq!(saved_stop_minutes(root.path()), Some(10));
     }
 
@@ -154,6 +156,7 @@ mod tests {
             (r#"{"csrf":"x","stop":5}"#, 403),
             (r#"{"csrf":"k","stop":1441}"#, 400),
             (r#"{"csrf":"k","stop":-1}"#, 400),
+            (r#"{"csrf":"k","mcp":1441}"#, 400),
             (r#"{"csrf":"k","theme":"pink"}"#, 400),
             (r#"{"csrf":"k","lang":"fr"}"#, 400),
             (r#"{"csrf":"k","other":1}"#, 400),

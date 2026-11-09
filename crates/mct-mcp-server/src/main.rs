@@ -61,21 +61,33 @@ struct Args {
     /// the MCT_MAINTENANCE_IDLE environment variable.
     #[arg(long, value_name = "VALUE", value_parser = parse_reindex_delay_arg)]
     maintenance_idle: Option<ReindexDelay>,
+
+    /// Exit the whole process after this long without an index-using request.
+    /// The MCP client does not restart a server that has exited, so the next
+    /// tool call fails until the client reconnects. Written like
+    /// --reindex-delay (e.g. 30m) or 'off' (the default). Precedence: this
+    /// flag, then the MCT_EXIT_IDLE environment variable.
+    #[arg(long, value_name = "VALUE", value_parser = parse_reindex_delay_arg)]
+    exit_idle: Option<ReindexDelay>,
 }
 
 /// Environment fallback for `--maintenance-idle`.
 const MAINTENANCE_IDLE_ENV: &str = "MCT_MAINTENANCE_IDLE";
 
-/// The idle timeout: the flag, else a valid environment value, else off.
-fn resolve_maintenance_idle(
+/// Environment fallback for `--exit-idle`.
+const EXIT_IDLE_ENV: &str = "MCT_EXIT_IDLE";
+
+/// An idle timeout: the flag, else a valid value of `env_name`, else off.
+fn resolve_idle(
     flag: Option<ReindexDelay>,
     env_value: Option<&str>,
+    env_name: &str,
 ) -> Option<Duration> {
     match flag {
         Some(ReindexDelay(idle)) => idle,
         None => env_value.and_then(|value| {
             mct_mcp_server::reindex_delay::parse_reindex_delay(value)
-                .inspect_err(|err| tracing::warn!(%err, "ignoring {MAINTENANCE_IDLE_ENV}"))
+                .inspect_err(|err| tracing::warn!(%err, "ignoring {env_name}"))
                 .ok()
                 .flatten()
         }),
@@ -150,6 +162,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let watch_root = index.root().to_path_buf();
+    let server_root = watch_root.clone();
     let activity = maintainer::Activity::new();
     let server = server::MctServer::new(index, language_registry).with_activity(activity.clone());
 
@@ -187,12 +200,26 @@ async fn main() -> anyhow::Result<()> {
             exclude,
             debounce,
             reconcile_interval,
-            idle: resolve_maintenance_idle(
+            idle: resolve_idle(
                 args.maintenance_idle,
                 std::env::var(MAINTENANCE_IDLE_ENV).ok().as_deref(),
+                MAINTENANCE_IDLE_ENV,
             ),
-            activity,
+            activity: activity.clone(),
         },
+    ));
+    // The flag or environment wins; without them the dashboard's saved
+    // setting is read while the server runs (see `exit_idle`).
+    tokio::spawn(mct_mcp_server::exit_idle::exit_when_idle(
+        server_root,
+        resolve_idle(
+            args.exit_idle,
+            std::env::var(EXIT_IDLE_ENV).ok().as_deref(),
+            EXIT_IDLE_ENV,
+        ),
+        activity,
+        readiness.clone(),
+        publish_guard.clone(),
     ));
 
     let service = session_compat::SessionCompat::new(server)
@@ -332,19 +359,19 @@ mod tests {
     }
 
     #[test]
-    fn maintenance_idle_is_off_unless_the_flag_or_a_valid_environment_value_sets_it() {
-        assert_eq!(resolve_maintenance_idle(None, None), None);
+    fn idle_timeouts_are_off_unless_the_flag_or_a_valid_environment_value_sets_it() {
+        assert_eq!(resolve_idle(None, None, "X"), None);
         assert_eq!(
-            resolve_maintenance_idle(None, Some("10m")),
+            resolve_idle(None, Some("10m"), "X"),
             Some(Duration::from_secs(600))
         );
-        assert_eq!(resolve_maintenance_idle(None, Some("soon")), None);
+        assert_eq!(resolve_idle(None, Some("soon"), "X"), None);
         assert_eq!(
-            resolve_maintenance_idle(Some(ReindexDelay(None)), Some("10m")),
+            resolve_idle(Some(ReindexDelay(None)), Some("10m"), "X"),
             None
         );
         assert_eq!(
-            resolve_maintenance_idle(Some(ReindexDelay(Some(Duration::from_secs(90)))), None),
+            resolve_idle(Some(ReindexDelay(Some(Duration::from_secs(90)))), None, "X"),
             Some(Duration::from_secs(90))
         );
     }

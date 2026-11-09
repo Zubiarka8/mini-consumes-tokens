@@ -23,7 +23,7 @@ export async function syncSettings() {
     store.set("theme", file.theme);
     applyTheme(file.theme);
   }
-  for (const name of ["stop", "pause"]) {
+  for (const name of ["stop", "pause", "mcp"]) {
     const own = power.saved(name);
     if (own !== null) {
       if (file[name] !== own) push[name] = own;

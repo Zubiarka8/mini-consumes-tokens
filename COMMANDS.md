@@ -1029,6 +1029,14 @@ Lets background maintenance sleep while the assistant is not using this server. 
 mct-mcp-server --root /path/to/your/project --maintenance-idle 10m
 ```
 
+### `--exit-idle <VALUE>`
+
+Makes the whole process exit after `VALUE` without a tool call that reads the index. `VALUE` is written like `--reindex-delay` (`30m`, `90s`) or `off`, the default. The `MCT_EXIT_IDLE` environment variable sets the same value; the flag wins. Without either, the server uses the "Close MCP servers after no use" setting from the dashboard (Settings, Background use), saved as `mcp` minutes in `.mct-index/web-settings.json` and read again every minute, so a change applies to running servers without a restart. Startup indexing counts as use, and a vault publication in progress finishes before the exit. An MCP client does not restart a server that has exited, so the next tool call fails until the client reconnects or restarts. Use it to stop long-lived clients from keeping idle servers around.
+
+```sh
+mct-mcp-server --root /path/to/your/project --exit-idle 30m
+```
+
 ### `--no-obsidian`
 
 Stops the server from regenerating the Obsidian vault in `.mct-index/obsidian/` after each reindex (see [`obsidian`](#obsidian)).

@@ -5,7 +5,7 @@ import { sharedPref } from "./prefs.js";
 
 export const MINUTES = [5, 10, 15, 20, 25, 30, 60, 120, 180];
 export const MAX_MINUTES = 24 * 60;
-const DEFAULTS = { stop: 30, pause: 5 };
+const DEFAULTS = { stop: 30, pause: 5, mcp: 0 };
 const USE_PING_MS = 60_000;
 
 const valid = (value) => Number.isInteger(value) && value >= 0 && value <= MAX_MINUTES;
@@ -23,7 +23,8 @@ export const power = {
     return valid(value) ? value : null;
   },
   /** `stop`: minutes without use before the server closes. `pause`: minutes without input before
-   *  this page stops checking for a new index. */
+   *  this page stops checking for a new index. `mcp`: minutes without a request before each MCP
+   *  server process exits (read from the settings file by `mct-mcp-server`). */
   get(name) {
     return this.saved(name) ?? DEFAULTS[name];
   },
