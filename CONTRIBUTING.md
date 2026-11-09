@@ -89,7 +89,7 @@ This is the extension point most contributions will touch, so it gets its own ch
    - At least one test covering the language's distinctive idiomatic syntax (generics for C#/Java, templates for C++, decorators for Python — whatever the equivalent is for your language).
    - A syntax-error case asserting `ParseError::Syntax`, not a panic.
 5a. **Add a `cargo-fuzz` harness** (`crates/mct-lang-<name>/fuzz/`) — copy the structure of an existing one (e.g. `mct-lang-lua/fuzz/`): a standalone-workspace `Cargo.toml` (`[workspace]` empty table, so it stays out of the root workspace's members/lockfile) and one `fuzz_targets/parse_<name>.rs` calling `<Name>Parser::parse` on arbitrary bytes. Remember the CI matrix entry from step 4.
-6. **Update docs:** the language table in `README.md`, the "Language coverage" section in `internal/checklist.md`, and the [parser checklists](docs/02-crates/parsers/checklists/by-language.md).
+6. **Update docs:** the "Language coverage" section in `internal/checklist.md`, and the [parser checklists](docs/02-crates/parsers/checklists/by-language.md).
 
    `scripts/unix/new-language-check.sh <name>` (macOS/Linux) or `scripts\windows\new-language-check.ps1 <name>` checks steps 1–6 and lists whatever is still missing.
 7. **Run the workspace test suite** (`cargo test --workspace`) and fix any regressions before opening a PR — or `scripts/unix/check.sh`, which runs the tests, the CI clippy invocation and the `mct-eval` gate and prints only a summary (see `scripts/README.md`).
@@ -104,7 +104,7 @@ support: tests alone do not add extraction behavior.
 
 For dependency-manifest modules, JS/TS import/export modules, the boundary between package detection and framework parsing, and where framework tests go (`crates/mct-lang-<language>/src/libraries/<name>/`), see the [library support implementation map](docs/01-architecture/library-support.md). Update the table below in the same PR as any framework behavior change.
 
-The language table in `README.md` says which *languages* have a `LanguageParser`. It does not say how well the index captures the *frameworks/libraries* built on top of those languages — a `.tsx` file parses fine, but that doesn't mean every structural relationship a framework introduces is modeled. Tracked in [#51](https://github.com/Zubiarka8/mini-consumes-tokens/issues/51):
+The [parser checklists](docs/02-crates/parsers/checklists/by-language.md) say which *languages* have a `LanguageParser`. It does not say how well the index captures the *frameworks/libraries* built on top of those languages — a `.tsx` file parses fine, but that doesn't mean every structural relationship a framework introduces is modeled. Tracked in [#51](https://github.com/Zubiarka8/mini-consumes-tokens/issues/51):
 
 | Library/framework | Status | Gap |
 |---|---|---|

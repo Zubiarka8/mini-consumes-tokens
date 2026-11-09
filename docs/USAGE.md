@@ -42,7 +42,7 @@ What is in it:
 - A notes reader for an Obsidian vault. Notes render with callouts, wikilinks, embeds, tags, footnotes and highlighted code. Large vaults are drawn as one graph, coloured by community, with sliders for display and forces.
 - Settings for theme (light, dark or system), language (English or Spanish) and background use.
 
-The dashboard stays up while you use it. By default it closes itself after 30 minutes without use, and the page stops checking for a new index after 5 minutes without input. Change both under **Settings**, or pass `--idle-timeout <minutes>` for one run (`0` means never). Your choices are saved in the browser, shared between projects and written to `.mct-index/web-settings.json`. Details are in [the command reference](../COMMANDS.md#web--web---port-port---no-obsidian) and [the dashboard design notes](01-architecture/web-dashboard.md).
+The dashboard stays up while you use it. By default it closes itself after 30 minutes without use, and the page stops checking for a new index after 5 minutes without input. Change both under **Settings**, or pass `--idle-timeout <minutes>` for one run (`0` means never). Your choices are saved in the browser, shared between projects and written to `.mct-index/web-settings.json`. Details are in [the command reference](../COMMANDS.md#web--web---port-port---no-obsidian---idle-timeout-minutes) and [the dashboard design notes](01-architecture/web-dashboard.md).
 
 ## Obsidian
 

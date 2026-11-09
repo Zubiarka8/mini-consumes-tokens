@@ -284,7 +284,7 @@ That test ran a release build on an Apple M4 with an in-memory index and a warm 
 
 **What if I delete the index?** Nothing is lost. It is rebuilt from your source on the next `init` or `reindex`, or when your assistant connects.
 
-**Does it work on a project with several languages?** Yes. One index covers all 17 supported languages, including files that reference each other across languages.
+**Does it work on a project with several languages?** Yes. One index covers every supported language, including files that reference each other across languages.
 
 ## Troubleshooting
 

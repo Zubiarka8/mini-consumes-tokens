@@ -362,7 +362,7 @@ four are checked by tools, the rest need a person.
 
 **Docs**
 
-- [ ] `README.md` language list, `internal/checklist.md`, `docs/00-system/00-index.md`, `symbol-coverage.md`, and both parser checklists are updated, each mark from a probe.
+- [ ] `internal/checklist.md`, `docs/00-system/00-index.md`, `symbol-coverage.md`, and both parser checklists are updated, each mark from a probe.
 - [ ] Known limits are written down where the parser lives, and the pull request description says what is not covered.
 
 ## Known gaps in the existing crates

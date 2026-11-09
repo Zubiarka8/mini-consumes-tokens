@@ -12,6 +12,7 @@ Read it at the start of a session. Open the longer references in [`docs/07-agent
 - [Dogfooding: exploring this repository's source](#dogfooding-exploring-this-repositorys-source)
 - [Commands](#commands)
 - [Architecture](#architecture)
+- [Data formats: TOON, not JSON](#data-formats-toon-not-json)
 - [Reference documents](#reference-documents)
 
 ## Project coordination
@@ -205,6 +206,12 @@ Changing the `LanguageParser` trait, the SQLite schema or a published MCP tool s
 No `unwrap()` or `panic!` on any path that processes repo content. Use `.unwrap_or_default()` or an early return, because parsers run over arbitrary, possibly hostile source. Each crate has one job: `mct-core` does not know SQLite, and a `mct-lang-*` crate knows neither SQLite nor MCP.
 
 Commit format: `type(scope): short description` (`feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`), with breaking changes marked explicitly.
+
+## Data formats: TOON, not JSON
+
+Do not use JSON for data that this project's agents, scripts or reports produce or read. Use TOON (Token-Oriented Object Notation) or another compact format. The MCP tools take `format: toon` for this. Do not add new JSON output to project scripts.
+
+JSON is fine where an outside protocol, tool or file format requires it, such as MCP JSON-RPC messages, `claude -p --output-format json`, `.mcp.json`, `skills-lock.json` and `package.json`.
 
 ## Reference documents
 
