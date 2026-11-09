@@ -35,6 +35,10 @@ export function Constellation() {
       }));
     };
     const draw = () => {
+      const dark = document.documentElement.classList.contains("dark");
+      const hot = dark ? "214,242,139" : "59,107,34";
+      const cold = dark ? "150,180,160" : "60,90,70";
+      const dim = dark ? "rgba(170,200,180,0.5)" : "rgba(40,70,50,0.4)";
       ctx.clearRect(0, 0, w, h);
       for (const n of nodes) {
         if (!still) {
@@ -53,7 +57,7 @@ export function Constellation() {
           if (d > 130) continue;
           const near = Math.min(da, Math.hypot(b.x - mouse.x, b.y - mouse.y));
           const glow = near < 170 ? 1 - near / 170 : 0;
-          ctx.strokeStyle = `rgba(${glow ? "214,242,139" : "150,180,160"},${(1 - d / 130) * (0.16 + glow * 0.7)})`;
+          ctx.strokeStyle = `rgba(${glow ? hot : cold},${(1 - d / 130) * (0.16 + glow * 0.7)})`;
           ctx.lineWidth = 0.6 + glow;
           ctx.beginPath();
           ctx.moveTo(a.x, a.y);
@@ -62,8 +66,8 @@ export function Constellation() {
         }
         const lit = da < 170 ? 1 - da / 170 : 0;
         ctx.fillStyle = lit
-          ? `rgba(214,242,139,${0.4 + lit * 0.6})`
-          : "rgba(170,200,180,0.5)";
+          ? `rgba(${hot},${0.4 + lit * 0.6})`
+          : dim;
         ctx.beginPath();
         ctx.arc(a.x, a.y, a.r + lit * 2.2, 0, 6.283);
         ctx.fill();

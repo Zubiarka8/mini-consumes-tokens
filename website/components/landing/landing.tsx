@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import { MotionConfig, motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
+import { useTheme } from "fumadocs-ui/provider/base";
+import { useSyncExternalStore } from "react";
 import { basePath } from "@/lib/shared";
 import { localeKey } from "./locale";
 import { ContextDemo } from "./context-demo";
@@ -17,6 +19,7 @@ import { CopyCommand, setupCommands } from "./copy-command";
 import { ObsidianShowcase, WebShowcase } from "./showcase";
 import { RevealOnScroll } from "./reveal";
 import { Constellation } from "./constellation";
+const subscribe = () => () => {};
 const repository = "https://github.com/Zubiarka8/mini-consumes-tokens";
 // Each FAQ answer points at the docs section that explains it in depth.
 const faqDocs = [
@@ -50,6 +53,12 @@ function DocsLink({
 export function Landing() {
   const { t, i18n } = useTranslation();
   const reduced = useReducedMotion();
+  const { theme, setTheme } = useTheme();
+  const mounted = useSyncExternalStore(
+    subscribe,
+    () => true,
+    () => false,
+  );
   function changeLanguage(language: string) {
     void i18n.changeLanguage(language);
     try {
@@ -80,6 +89,18 @@ export function Landing() {
             <a href="#faq">{t("navFaq")}</a>
           </nav>
           <div className="header-actions">
+            <label className="theme-control">
+              <span className="sr-only">{t("theme")}</span>
+              <select
+                aria-label={t("theme")}
+                value={mounted ? theme : "system"}
+                onChange={(event) => setTheme(event.target.value)}
+              >
+                <option value="system">{t("themeSystem")}</option>
+                <option value="light">{t("themeLight")}</option>
+                <option value="dark">{t("themeDark")}</option>
+              </select>
+            </label>
             <label className="locale-control">
               <span className="sr-only">{t("language")}</span>
               <select
