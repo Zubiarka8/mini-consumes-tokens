@@ -35,13 +35,18 @@ const label = (minutes) =>
       ? t("power.hours", { n: minutes / 60 })
       : t("power.minutes", { n: minutes });
 
-/** Ready-made times as a segmented choice, plus "Custom" with a number of minutes. A sentence under
- *  it says what the current choice does, so nobody has to guess what "30" means. */
-function durationPicker({ name, labelledBy, onChange, summary }) {
+/** A list of ready-made times plus "Custom" (a number of minutes), on one line. A sentence under it
+ *  says what the current choice does. */
+function durationPicker({ name, id, summary, onChange }) {
   const presets = [0, ...MINUTES];
   const current = () => power.get(name);
   const isCustom = () => !presets.includes(current());
-  const group = h("div", { class: "choice-group", role: "radiogroup", "aria-labelledby": labelledBy });
+  const select = h(
+    "select",
+    { class: "select", id },
+    presets.map((m) => h("option", { value: String(m) }, label(m))),
+    h("option", { value: "custom" }, t("power.custom")),
+  );
   const input = h("input", {
     class: "input narrow",
     type: "number",
@@ -51,34 +56,14 @@ function durationPicker({ name, labelledBy, onChange, summary }) {
     inputmode: "numeric",
     "aria-label": t("power.customLabel"),
   });
-  const custom = h("div", { class: "row" }, input, h("span", { class: "muted small" }, t("power.minutesUnit")));
+  const unit = h("span", { class: "muted small" }, t("power.minutesUnit"));
   const note = h("p", { class: "muted small", "aria-live": "polite" });
-  const choice = (value, text) =>
-    h("button", {
-      type: "button",
-      class: "choice",
-      role: "radio",
-      "data-value": value,
-      onclick: () => {
-        if (value === "custom") {
-          custom.hidden = false;
-          input.focus();
-          paint("custom");
-        } else apply(Number(value));
-      },
-    }, text);
-  const buttons = [...presets.map((m) => choice(String(m), label(m))), choice("custom", t("power.custom"))];
-  group.append(...buttons);
   function paint(forced) {
     const active = forced || (isCustom() ? "custom" : String(current()));
-    for (const button of buttons) {
-      const on = button.dataset.value === active;
-      button.setAttribute("aria-checked", String(on));
-      // One tab stop for the group; arrows move inside it.
-      button.tabIndex = on ? 0 : -1;
-    }
-    custom.hidden = active !== "custom";
-    if (active === "custom" && isCustom()) input.value = String(current());
+    select.value = active;
+    const custom = active === "custom";
+    input.hidden = unit.hidden = !custom;
+    if (custom && isCustom()) input.value = String(current());
     note.textContent = summary(current());
   }
   function apply(minutes) {
@@ -86,14 +71,11 @@ function durationPicker({ name, labelledBy, onChange, summary }) {
     paint();
     onChange(minutes);
   }
-  group.addEventListener("keydown", (event) => {
-    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
-    if (!step) return;
-    event.preventDefault();
-    const at = buttons.findIndex((b) => b === document.activeElement);
-    const next = buttons[(at + step + buttons.length) % buttons.length];
-    next.focus();
-    next.click();
+  select.addEventListener("change", () => {
+    if (select.value === "custom") {
+      paint("custom");
+      input.focus();
+    } else apply(Number(select.value));
   });
   input.addEventListener("change", () => {
     const minutes = Math.round(Number(input.value));
@@ -104,7 +86,7 @@ function durationPicker({ name, labelledBy, onChange, summary }) {
     }
   });
   paint();
-  return h("div", { class: "stack-sm" }, group, custom, note);
+  return h("div", { class: "stack-sm" }, h("div", { class: "row" }, select, input, unit), note);
 }
 
 export function render({ root, meta }) {
@@ -176,11 +158,11 @@ export function render({ root, meta }) {
       h(
         "div",
         { class: "setting" },
-        h("h3", { id: "power-stop" }, t("power.stop")),
+        h("label", { class: "setting-title", for: "power-stop" }, t("power.stop")),
         h("p", { class: "muted small" }, t("power.stopHelp")),
         durationPicker({
           name: "stop",
-          labelledBy: "power-stop",
+          id: "power-stop",
           summary: stopSummary,
           onChange: (minutes) =>
             saveIdle(minutes).then(
@@ -192,11 +174,11 @@ export function render({ root, meta }) {
       h(
         "div",
         { class: "setting" },
-        h("h3", { id: "power-pause" }, t("power.pause")),
+        h("label", { class: "setting-title", for: "power-pause" }, t("power.pause")),
         h("p", { class: "muted small" }, t("power.pauseHelp")),
         durationPicker({
           name: "pause",
-          labelledBy: "power-pause",
+          id: "power-pause",
           summary: pauseSummary,
           onChange: () => toast(t("power.pauseSaved"), "ok"),
         }),
@@ -302,8 +284,7 @@ export function render({ root, meta }) {
   // What a person changes comes first; what only describes the server comes after.
   root.append(
     pageHead(t("settings.title"), t("settings.subtitle")),
-    h("div", { class: "grid two top" }, appearance, background),
-    h("div", { class: "grid two top mt-4" }, server, localData),
+    h("div", { class: "grid two top" }, h("div", { class: "stack" }, appearance, localData), h("div", { class: "stack" }, background, server)),
     h("div", { class: "mt-4" }, ignoreCard()),
     capabilities,
     shortcuts,
