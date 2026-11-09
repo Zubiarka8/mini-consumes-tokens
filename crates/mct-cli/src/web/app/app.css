@@ -3569,3 +3569,81 @@ pre.md-code {
   width: 6.5rem;
   flex: none;
 }
+
+/* Settings: a segmented choice of ready-made times, and folded reference cards. */
+.setting h3 {
+  margin: 0 0 2px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.setting > p {
+  margin: 0 0 8px;
+}
+.stack-sm {
+  display: grid;
+  gap: 8px;
+}
+.choice-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.choice {
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.choice:hover {
+  background: var(--hover);
+}
+.choice[aria-checked="true"] {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  color: var(--text);
+  font-weight: 600;
+}
+.choice:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.card.fold > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.card.fold > summary::-webkit-details-marker {
+  display: none;
+}
+.card.fold > summary h2 {
+  display: inline;
+  margin: 0;
+}
+.card.fold > summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 1.2em;
+  color: var(--text-2);
+}
+.card.fold[open] > summary::before {
+  content: "▾";
+}
+.card.fold[open] > summary {
+  margin-bottom: 12px;
+}
+.card.fold > summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .choice {
+    transition: background 0.12s, border-color 0.12s;
+  }
+}
+.grid.top {
+  align-items: start;
+}
