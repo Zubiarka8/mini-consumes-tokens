@@ -993,6 +993,15 @@ try {
 document.documentElement.lang = current;
 
 export const getLang = () => current;
+/** True once the person (or a saved setting) chose a language, rather than the browser's default. */
+export function hasSavedLang() {
+  try {
+    const saved = localStorage.getItem(KEY) ?? sharedPref.get("lang");
+    return saved in dictionaries;
+  } catch {
+    return false;
+  }
+}
 /** Saves the language and reloads, so every label, date and number is built again in it. */
 export function setLang(lang) {
   if (!(lang in dictionaries) || lang === current) return;

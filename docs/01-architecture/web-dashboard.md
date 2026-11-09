@@ -20,11 +20,16 @@ and a strict CSP. Its localhost URL does not contain a private key.
 - Background use is set in Settings and shared between projects like the theme
   (`app/power.js`): the time without use after which the server closes itself
   (default 30 minutes; 5 to 180 minutes, a custom value up to 24 hours, or never;
-  `POST api/idle`, which also applies it to the running server) and the time without
+  `POST api/settings`, which also applies it to the running server) and the time without
   input after which the page stops its live-update checks (default 5 minutes). Only
   a person's input (at most one request a minute) or a normal request counts as use:
   the page's own check, `api/meta?passive=1`, does not, and nothing is requested
   while the tab is hidden or paused.
+- Preferences (theme, language and the two times) are also saved in
+  `.mct-index/web-settings.json` (`web/settings.rs`, `app/server-settings.js`), so they survive
+  cleared site data, another browser and a restarted server, which reads the saved close time
+  unless `--idle-timeout` is given. A choice the browser has made wins and is written to the
+  file; one it never made is taken from the file. Only known fields with valid values are kept.
 - Never invent data. Anything the index does not record is marked unavailable
   through `meta.capabilities` (history, semantic search, call graph, reindex,
   tokens, similarity, confidence, severity, reviewers are all `false`).

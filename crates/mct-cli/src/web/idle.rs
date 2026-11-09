@@ -3,14 +3,11 @@
 //! tab keeps it alive: the page asks for `api/meta` every few seconds while
 //! visible and about once a minute while hidden.
 //!
-//! The limit can be changed while the server runs (`POST api/idle`, from the
+//! The limit can be changed while the server runs (`POST api/settings`, from the
 //! settings page). A passive request (`api/meta?passive=1`) does not count as
 //! use: the page sends it for live updates, and only a person's input or a
 //! normal request keeps the server alive.
 
-use serde_json::{json, Value};
-
-use super::response::Response;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -28,7 +25,7 @@ pub(super) struct Activity {
 }
 
 /// Longest limit the settings page may set: one day.
-const MAX_MINUTES: u64 = 24 * 60;
+pub(super) const MAX_MINUTES: u64 = 24 * 60;
 
 impl Activity {
     #[cfg(test)]
@@ -63,35 +60,15 @@ impl Activity {
         }
     }
 
-    fn minutes(&self) -> u64 {
+    #[cfg(test)]
+    pub(super) fn minutes(&self) -> u64 {
         self.timeout_secs.load(Ordering::SeqCst) / 60
     }
 
-    /// The current limit, for the settings page.
-    pub(super) fn state(&self) -> Response {
-        Response::json(&json!({ "minutes": self.minutes() }))
-    }
-
-    /// Applies `{"csrf": …, "minutes": 0..=1440}` (0: never stop).
-    pub(super) fn set(&self, body: &str, csrf: &str) -> Response {
-        let Ok(Value::Object(fields)) = serde_json::from_str::<Value>(body) else {
-            return Response::failure(400, "invalid JSON body");
-        };
-        if fields.get("csrf").and_then(Value::as_str) != Some(csrf) {
-            return Response::error(403);
-        }
-        if fields.keys().any(|key| key != "csrf" && key != "minutes") {
-            return Response::failure(400, "unknown field");
-        }
-        let Some(minutes) = fields
-            .get("minutes")
-            .and_then(Value::as_u64)
-            .filter(|minutes| *minutes <= MAX_MINUTES)
-        else {
-            return Response::failure(400, "minutes must be a whole number from 0 to 1440");
-        };
-        self.timeout_secs.store(minutes * 60, Ordering::SeqCst);
-        self.state()
+    /// Sets the limit in minutes (0: never stop).
+    pub(super) fn set_minutes(&self, minutes: u64) {
+        self.timeout_secs
+            .store(minutes.min(MAX_MINUTES) * 60, Ordering::SeqCst);
     }
 
     fn idle_for(&self) -> Option<Duration> {
@@ -182,33 +159,9 @@ mod tests {
             .idle_for()
             .is_some_and(|idle| idle < Duration::from_secs(5)));
         assert_eq!(activity.minutes(), 10);
-        assert_eq!(
-            activity.set(r#"{"csrf":"k","minutes":30}"#, "k").status,
-            200
-        );
+        activity.set_minutes(30);
         assert_eq!(activity.timeout(), Some(Duration::from_secs(1800)));
-        assert_eq!(activity.set(r#"{"csrf":"k","minutes":0}"#, "k").status, 200);
-        assert_eq!(activity.timeout(), None);
-    }
-
-    #[test]
-    fn the_limit_is_only_changed_with_the_token_and_a_sane_value() {
-        let activity = Activity::new();
-        assert_eq!(activity.set(r#"{"csrf":"x","minutes":5}"#, "k").status, 403);
-        assert_eq!(
-            activity.set(r#"{"csrf":"k","minutes":1441}"#, "k").status,
-            400
-        );
-        assert_eq!(
-            activity.set(r#"{"csrf":"k","minutes":-1}"#, "k").status,
-            400
-        );
-        assert_eq!(
-            activity
-                .set(r#"{"csrf":"k","minutes":5,"x":1}"#, "k")
-                .status,
-            400
-        );
+        activity.set_minutes(0);
         assert_eq!(activity.timeout(), None);
     }
 }

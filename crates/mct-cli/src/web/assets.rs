@@ -33,6 +33,7 @@ pub(super) fn serve(path: &str) -> Option<Response> {
         "js/graph.js" => (JS, app!("graph.js")),
         "js/prefs.js" => (JS, app!("prefs.js")),
         "js/power.js" => (JS, app!("power.js")),
+        "js/server-settings.js" => (JS, app!("server-settings.js")),
         "js/markdown.js" => (JS, app!("markdown.js")),
         "js/graph-loader.js" => (JS, app!("graph-loader.js")),
         "js/palette.js" => (JS, app!("palette.js")),
