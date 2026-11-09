@@ -4,6 +4,7 @@ pub mod content;
 mod dead_query;
 mod duplicate_query;
 pub mod embedder;
+pub mod exit_idle;
 pub mod format;
 pub mod graph_render;
 pub mod intent;

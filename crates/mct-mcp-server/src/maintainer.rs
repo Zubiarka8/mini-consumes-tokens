@@ -180,6 +180,11 @@ impl Activity {
             .unwrap_or_else(|err| Err(err.to_string()))
     }
 
+    /// Time since the last index-using request, or since start-up if none came.
+    pub fn idle_for(&self) -> Duration {
+        self.state().last_use.elapsed()
+    }
+
     /// When the idle timeout falls due, counted from the last request.
     fn idle_deadline(&self, idle: Duration) -> Instant {
         self.state().last_use + idle
@@ -457,5 +462,14 @@ mod tests {
         let activity = Activity::new();
         assert!(!activity.is_asleep());
         assert_eq!(activity.wake_blocking(), Ok(()));
+    }
+
+    #[test]
+    fn idle_time_restarts_with_each_index_using_request() {
+        let activity = Activity::new();
+        std::thread::sleep(Duration::from_millis(30));
+        assert!(activity.idle_for() >= Duration::from_millis(30));
+        assert_eq!(activity.wake_blocking(), Ok(()));
+        assert!(activity.idle_for() < Duration::from_millis(30));
     }
 }
