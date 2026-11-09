@@ -152,7 +152,7 @@ export async function saveIgnore(content, base, file = "mctignore") {
 }
 
 /** Saves preferences in the project's `.mct-index/web-settings.json` (any of `theme`, `lang`, `stop`,
- *  `pause`); a new `stop` (minutes, 0: never) also applies to the running server. */
+ *  `pause`, `mcp`); a new `stop` (minutes, 0: never) also applies to the running server. */
 export async function saveSettings(patch) {
   const response = await fetch("api/settings", {
     method: "POST",
