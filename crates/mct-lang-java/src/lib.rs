@@ -250,6 +250,13 @@ impl<'a> Walker<'a> {
             }
             "method_invocation" => {
                 if let Some(name_node) = node.child_by_field_name("name") {
+                    // Java can't invoke a field or a variable (a lambda is
+                    // called as `f.apply()`), so the target is a method.
+                    self.relation_targets.push(RelationTarget {
+                        relation: self.relations.len(),
+                        kind: Some(SymbolKind::Method),
+                        ..Default::default()
+                    });
                     // location(name_node), not location(node): a chained call
                     // (`a.f(x).f(y)`) has its outer and inner method_invocation
                     // both start at `a`, which would make two same-named

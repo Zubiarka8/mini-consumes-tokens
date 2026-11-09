@@ -382,6 +382,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `extends`, `implements` | superclass / interfaces of `class_declaration` | `extends`, `implements` |
 | `import a.b.C`, `import static`, `.*` | `import_declaration`, `scoped_identifier`, `asterisk` | `imports` (each emitted twice) |
 | `m()`, `obj.m()`, `new X()` | `method_invocation`, `object_creation_expression` | `calls` |
+| the target of `m()`, `obj.m()` | `method_invocation` | only a `method` can be its target: Java cannot invoke a field, so a same-named field is never a candidate |
 
 #### Why the gaps exist
 
@@ -924,7 +925,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 **Relations**
 
-- [x] Calls
+- [x] Calls: a method invocation only resolves to a `method`, never to a same-named field
 - [x] Constructor call (`new X()` / `X()`): `calls X`
 - [ ] Super / base constructor call: `super()` and `this()` give no relation
 - [x] Imports: repeated target names can carry distinct file/type resolution evidence; repetition alone is not a parser defect
