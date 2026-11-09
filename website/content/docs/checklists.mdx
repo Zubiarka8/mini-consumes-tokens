@@ -1,0 +1,20 @@
+---
+title: What is implemented
+description: Where to see how far indexing goes for each language, feature and library.
+---
+
+The index does not capture everything equally. The parser checklists record, with a mark per cell, what each language parser extracts today. They live in the repository, next to the code, and are checked by `scripts/check-parser-checklists.py`.
+
+| You want to know | Open |
+| --- | --- |
+| What one language supports | [By language](https://github.com/Zubiarka8/mini-consumes-tokens/blob/main/docs/02-crates/parsers/checklists/by-language.md) |
+| Which languages support one feature | [By feature](https://github.com/Zubiarka8/mini-consumes-tokens/blob/main/docs/02-crates/parsers/checklists/by-feature.md) |
+| What is covered for the libraries and frameworks of a language | [By library](https://github.com/Zubiarka8/mini-consumes-tokens/blob/main/docs/02-crates/parsers/checklists/by-library.md) |
+| The same, per feature | [By feature and library](https://github.com/Zubiarka8/mini-consumes-tokens/blob/main/docs/02-crates/parsers/checklists/by-feature-library.md) |
+| What each feature means | [Feature definitions](https://github.com/Zubiarka8/mini-consumes-tokens/blob/main/docs/02-crates/parsers/features.md) |
+| Which symbol kinds each language produces | [Symbol coverage](https://github.com/Zubiarka8/mini-consumes-tokens/blob/main/docs/02-crates/parsers/symbol-coverage.md) |
+| Known gaps | [Language gaps](https://github.com/Zubiarka8/mini-consumes-tokens/blob/main/docs/02-crates/parsers/language-gaps.md) |
+
+A cell is `[x]` done, `[~]` partial, `[ ]` not done or `[?]` not verified. `[?]` means the feature was not exercised in the last check, not that it is missing. Features a language does not have are listed as not applicable and left out of its counts.
+
+For the limits that apply to every language, see [Known limitations](/docs/limitations). To add a language or a library, see [Development](/docs/development).
