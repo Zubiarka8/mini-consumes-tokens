@@ -69,6 +69,7 @@ impl LanguageParser for RustParser {
         }
         let module_id = walker.push_symbol(module_name, SymbolKind::Module, module_location, None);
         collect_value_items(root, &file.contents, &mut walker.free_fns, 0);
+        collect_imported_names(root, &file.contents, &mut walker.imported, 0);
         walker.visit_children(root, module_id, None, 0);
         Ok(walker.finish())
     }
@@ -101,6 +102,10 @@ struct Walker<'a> {
     /// the `identifier` arm).
     free_fns: HashSet<String>,
     macros: HashSet<String>,
+    /// Names this file brings in with `use`: a bare `name(..)` inside a
+    /// macro's flat token stream is a call of one of them, since the grammar
+    /// leaves it unparsed.
+    imported: HashSet<String>,
     /// Names bound as locals (parameters, `let`/`for`/`match`/closure
     /// patterns) in the function currently being walked: a bare identifier
     /// with one of these names is the local, never the same-named function.
@@ -131,6 +136,7 @@ impl<'a> Walker<'a> {
             next_id: 0,
             free_fns: HashSet::new(),
             macros: HashSet::new(),
+            imported: HashSet::new(),
             bound: HashSet::new(),
             local_fns: HashSet::new(),
             generics: HashSet::new(),
@@ -392,6 +398,19 @@ impl<'a> Walker<'a> {
                             location(child),
                         );
                     }
+                    if accessor.is_none()
+                        && called
+                        && child.kind() == "identifier"
+                        && self.imported.contains(name)
+                        && !self.bound.contains(name)
+                    {
+                        self.push_relation(
+                            owner,
+                            RelationKind::Calls,
+                            name.to_string(),
+                            location(child),
+                        );
+                    }
                     if accessor.is_none() {
                         self.visit(child, owner, impl_type, depth + 1);
                     }
@@ -449,6 +468,26 @@ impl<'a> Walker<'a> {
                         self.push_bindings(param, owner, SymbolKind::Variable, depth + 1);
                     }
                 }
+            }
+            // `for pat in iter`, `if let pat = value` / `while let` and a
+            // `match` arm bind their pattern's names for the block they guard,
+            // like a `let` does. A guard (`pat if cond`) only reads them.
+            "for_expression" | "let_condition" | "match_arm" => {
+                if let Some(pattern) = node.child_by_field_name("pattern") {
+                    if pattern.kind() == "match_pattern" {
+                        let guard = pattern.child_by_field_name("condition");
+                        let mut cursor = pattern.walk();
+                        for part in pattern.named_children(&mut cursor) {
+                            if guard.is_none_or(|g| g.id() != part.id()) {
+                                self.push_bindings(part, owner, SymbolKind::Variable, depth + 1);
+                            }
+                        }
+                    } else {
+                        self.push_bindings(pattern, owner, SymbolKind::Variable, depth + 1);
+                    }
+                }
+                // The pattern is still walked: its paths and types are uses.
+                self.visit_children(node, owner, impl_type, depth + 1);
             }
             "let_declaration" => {
                 let value = node.child_by_field_name("value");
@@ -610,6 +649,26 @@ impl<'a> Walker<'a> {
                     self.push_relation(owner, RelationKind::Implements, trait_name, location(node));
                 }
                 if let Some(body) = node.child_by_field_name("body") {
+                    // An associated type of `impl Trait for T` is required by
+                    // the trait and only ever named through it, so it is
+                    // recorded as used (like a harness-invoked function)
+                    // instead of surfacing as dead code.
+                    if node.child_by_field_name("trait").is_some() {
+                        let mut cursor = body.walk();
+                        for item in body.named_children(&mut cursor) {
+                            if item.kind() != "type_item" {
+                                continue;
+                            }
+                            if let Some(name) = item.child_by_field_name("name") {
+                                self.push_relation(
+                                    owner,
+                                    RelationKind::References,
+                                    text(name, self.source).to_string(),
+                                    location(name),
+                                );
+                            }
+                        }
+                    }
                     self.visit_children(body, owner, Some(&type_name), depth + 1);
                 }
             }
@@ -867,7 +926,11 @@ impl<'a> Walker<'a> {
             return;
         }
         match node.kind() {
-            "identifier" | "shorthand_field_identifier" => {
+            // An initial capital names a constant or enum variant in a
+            // pattern (`LIMIT =>`, `None`), never a binding.
+            "identifier" | "shorthand_field_identifier"
+                if !text(node, self.source).starts_with(|c: char| c.is_ascii_uppercase()) =>
+            {
                 self.push_symbol(
                     text(node, self.source).to_string(),
                     kind,
@@ -1094,6 +1157,25 @@ fn collect_value_items(node: Node, source: &str, out: &mut HashSet<String>, dept
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         collect_value_items(child, source, out, depth + 1);
+    }
+}
+
+/// Names brought in by every `use` declaration under `node`.
+fn collect_imported_names(node: Node, source: &str, out: &mut HashSet<String>, depth: u32) {
+    if depth >= MAX_TRAVERSAL_DEPTH {
+        return;
+    }
+    if node.kind() == "use_declaration" {
+        if let Some(argument) = node.child_by_field_name("argument") {
+            let mut names = Vec::new();
+            collect_use_names(argument, source, &mut names);
+            out.extend(names.into_iter().map(|used| used.name));
+        }
+        return;
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        collect_imported_names(child, source, out, depth + 1);
     }
 }
 

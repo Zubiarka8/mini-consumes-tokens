@@ -261,15 +261,19 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `fn f()` at top level or in `mod` | `function_item` | `function`, no parent |
 | `fn` inside `impl T` / `impl Tr for T` | `function_item` | `method`, parent `T` (generic arguments kept) |
 | `fn` inside `trait`, with or without body | `function_item`, `function_signature_item` | `method`, parent the trait |
-| `struct`, unit struct | `struct_item` | `struct` |
-| `enum` | `enum_item` | `enum` |
+| `struct`, unit struct, `union` | `struct_item`, `union_item` | `struct`; fields as `field` (tuple fields `0`, `1`) |
+| `enum` | `enum_item` | `enum`; variants as `constant` owned by the enum |
+| `macro_rules!` | `macro_definition` | `function` |
+| `let` and parameter bindings | `let_declaration`, `parameter` | `variable` owned by the function; `let name = |..| ..` is a `function` |
 | `trait` | `trait_item` | `trait` |
 | `type X = …`, associated `type` | `type_item`, `associated_type` | `type_alias`, parent the impl type |
-| `const`, `static` | `const_item`, `static_item` | `constant` |
+| `const`, `static` | `const_item`, `static_item` | `constant`, `variable` |
 | `mod m { … }`, `mod m;` | `mod_item` | `module` |
 | `use a::{b, c as d}` | `use_declaration`, `use_list`, `scoped_use_list`, `use_as_clause` | `imports` per name |
 | `f()`, `a::f()`, `x.m()`, `f::<T>()` | `call_expression`, `scoped_identifier`, `field_expression`, `generic_function` | `calls` |
-| `impl Tr for T` | `impl_item` | `implements Tr`, owned by the file module |
+| `impl Tr for T` | `impl_item` | `implements Tr`, owned by the file module; its associated types count as used |
+| `trait B: A` | `trait_item` | `extends A` |
+| `#[derive(Clone)]`, other non-compiler attributes | `attribute_item` | `references` to the item or derive named |
 | a same-file free function used as a value, or inside a macro | `identifier`, `token_tree` | `references` |
 | a `let` closure used as a value later in the same function (`.filter(eligible)`) | `identifier` | `references` |
 | a type in a parameter, return type, field, `let`/`const`/`static` annotation, type alias, generic argument, cast or struct literal | `type_identifier`, `scoped_type_identifier` | `references`; the item's own type parameters and `Self` are skipped |
@@ -277,19 +281,16 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | a same-file unit struct used as a value (`&Broken`) | `identifier` | `references` |
 | `m::f(..)` and `x.f(..)` inside a macro's arguments (`vec![format::hits(..)]`) | `token_tree` | `references`; a `m::` path keeps its module/qualifier evidence |
 | a macro invoked through a path (`mct_corpus::standard_tests!`), or a same-file macro invoked inside another macro's arguments | `macro_invocation`, `token_tree` | `calls` |
-| harness attributes such as `#[test]` / `#[tokio::test]` | `attribute_item` | a self-`references` relation to the following function; other attributes keep literals only |
+| harness attributes such as `#[test]` / `#[tokio::test]` | `attribute_item` | a self-`references` relation to the following function |
+| a bare call to an imported function inside a macro's arguments (`println!("{}", helper(x))`) | `token_tree` | `calls` |
 | string literals | `string_literal`, `raw_string_literal` | literals for exact-text search |
 
 #### Why the gaps exist
 
 | Gap | Cause | Detail |
 |---|---|---|
-| Struct fields, enum variants | Not implemented | the walker has no arm for `field_declaration` or `enum_variant` |
-| `union`, `macro_rules!` | Not implemented | no arm for `union_item` or `macro_definition` |
-| Closures, local `let` bindings, parameters | Not implemented | not indexed in any language |
-| Supertraits (`trait B: A`), `#[derive]` | Not implemented | no relation is emitted for trait bounds or derive lists |
 | `implements` owned by the file module | Bug | the type that implements the trait is not the owner |
-| Bare calls to imported functions inside macro arguments (`helper(x)` where `helper` comes from another file) | By design | [the traversal comment](../../../crates/mct-lang-rust/src/lib.rs#L255) limits macro identifiers to same-file free functions, to avoid mistaking fields and paths for calls |
+| A call to a function of another file inside a macro that is not imported or is reached through a field or path (`x.f()`) | By design | the traversal comment limits macro identifiers to imported names and same-file free functions; other forms are `references`, to avoid mistaking fields and paths for calls |
 | Visibility, generics, signatures | Model limit | see [What the index can hold](#what-the-index-can-hold) |
 
 ### Python
@@ -696,8 +697,8 @@ percentages and denominators; these checklists provide the scored evidence.
 **Functions and methods**
 
 - [x] Top-level function: `function`
-- [~] Nested function (named, inside a function): indexed as `function` with no parent
-- [ ] Lambda / closure assigned to a name: `let f = |x| …` has no symbol; the call `f()` is a `calls` relation
+- [x] Nested function (named, inside a function): `function` owned by the enclosing function
+- [x] Lambda / closure assigned to a name: `let f = |x| …` is a `function` owned by the enclosing function; other assignment forms are not indexed
 - [x] Method: `method`, parent is the impl type (generic arguments kept: `Circle<T>`)
 - [x] Destructor / finalizer: `Drop::drop` as a `method`
 - [x] Operator overload: `impl Add` → `add` method
@@ -706,42 +707,42 @@ percentages and denominators; these checklists provide the scored evidence.
 **Types and object-oriented programming**
 
 - [x] Struct: `struct`, unit structs too
-- [ ] Union: `union` has no symbol
+- [x] Union: `union` is a `struct`, with its fields
 - [x] Interface members: trait methods as `method`, default bodies too
 - [x] Trait / mixin: `trait`
 - [x] Enum: `enum`
-- [ ] Enum members: variants have no symbol
+- [x] Enum members: variants are `constant` symbols owned by the enum
 - [x] Type alias: `type_alias`; associated types too, parented to the impl type
 - [x] Module / namespace / package: file `module` plus `mod` blocks
 
 **Fields, constants and variables**
 
-- [ ] Field / instance attribute: struct fields have no symbol
-- [x] Constant (module or global): `const` and `static` → `constant`
-- [~] Global / module-level variable: `static` → `constant`; no mutable globals otherwise
-- [ ] Local variable
-- [ ] Parameter
-- [ ] Macro: `macro_rules!` has no symbol
+- [x] Field / instance attribute: struct fields are `field` symbols; tuple fields are `0`, `1`
+- [x] Constant (module or global): `const` → `constant`
+- [x] Global / module-level variable: `static` and `static mut` → `variable`
+- [x] Local variable: `variable` owned by its function (`let`, `for`, `if let`, `while let`, `match` arms)
+- [x] Parameter: `variable` owned by its function (`let`, `for`, `if let`, `while let`, `match` arms)
+- [x] Macro: `macro_rules!` is a `function`
 
 **Relations**
 
 - [x] Calls
 - [x] Imports
 - [~] Implements interface / trait: `impl Trait for T` → `implements`, but owned by the file module, not by `T`
-- [ ] Interface extends interface / supertrait: `trait B: A` gives no relation
-- [ ] Decorator / annotation / attribute: `#[derive]` gives no relation
+- [x] Interface extends interface / supertrait: `trait B: A` → `extends`
+- [x] Decorator / annotation / attribute: `#[derive(Clone)]` → `references` to `Clone`
 
 **Features: Search and lookup**
 
 - [x] Find a definition: `find_symbol`, `list_symbols`, `search_symbols`
-- [~] Who calls / what is called: `find_callers`, `find_calls`: a call inside a macro (`println!("{}", f(x))`, `vec![f()]`) is missed when `f` is imported; a same-file `f` becomes `references`, not `calls`
+- [x] Who calls / what is called: `find_callers`, `find_calls`, including macro invocations and imported functions called inside a macro; a same-file `f` inside a macro is a `references`
 - [~] Every use: `find_references`: imported/qualified macro calls can have no use relation; same-file free functions get `references`
 - [~] Blast radius and context: `impact_analysis`, `build_context_pack`: same gap as callers (macros)
 - [x] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals collected and listed as `path:line`
 
 **Features: Code quality**
 
-- [~] Dead code: `find_dead_code`, `mct-cli dead-code`: functions and types; `println!("{}", util::helper_fn())` without `use util::helper_fn` can be a false positive. With that import the helper is kept, since imports count as uses
+- [x] Dead code: `find_dead_code`, `mct-cli dead-code`: functions and types; fields, macros and associated types of trait impls are not false positives
 - [x] Repeated code: `mct-cli duplicates`: functions and methods
 
 **Features: Structure**
