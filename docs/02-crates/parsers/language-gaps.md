@@ -11,7 +11,7 @@ On 2026-10-30, the combined `cargo test` run for all 17 language crates and
 
 | Language | Indexing in use | Libraries and dependency manifests | Principal known limit / evidence |
 |---|---|---|---|
-| Rust | Registered; symbols and relations | `Cargo.toml` declarations | Fields, local variables and some import forms are not covered; target-specific Cargo dependency tables are skipped. |
+| Rust | Registered; symbols and relations | `Cargo.toml` declarations | Some import forms are not covered; target-specific Cargo dependency tables are skipped. |
 | Python | Registered; symbols and relations | `requirements.txt`; Django and Flask source fixtures | Other Python manifests are not detected; framework fixtures test the generic parser. |
 | JavaScript / TypeScript | Registered; symbols, imports, exports and JSX references | `package.json` four dependency sections; React source fixtures | Generic JSX references are not framework-specific render resolution; some imports are unresolved. |
 | Java | Registered; symbols and relations | No Maven or Gradle manifest reader | Some constructor calls and method references are not emitted. |
@@ -150,7 +150,7 @@ In sections 1 and 2, ✅ indicates that the parser emits the kind or relation, n
 
 | Language | Function | Method | Class | Struct | Interface | Enum | Trait | TypeAlias | Module | Field | Constant | Variable | Element / Rule |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Rust | ✅ | ✅ | — | ✅ | — | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | — |
+| Rust | ✅ | ✅ | — | ✅ | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Python | ✅ | ✅ | ✅ | — | ❌ | ❌ | — | ✅ | ✅ | ❌ | ❌ | ❌ | — |
 | JavaScript / TypeScript | ✅ | ✅ | ✅ | — | ✅ | ✅ | — | ✅ | ✅ | ✅ | ❌ | ❌ | — |
 | Java | — | ✅ | ✅ | — | ✅ | ✅ | — | — | ✅ | ✅ | ❌ | ❌ | — |
@@ -172,7 +172,7 @@ In sections 1 and 2, ✅ indicates that the parser emits the kind or relation, n
 
 | Language | Calls | Imports | Extends | Implements | References |
 |---|---|---|---|---|---|
-| Rust | ✅ | ✅ | — | ✅ (trait impls) | ✅ |
+| Rust | ✅ | ✅ | ✅ (supertraits) | ✅ (trait impls) | ✅ |
 | Python | ✅ | ✅ | ✅ | — | ✅ (decorators) |
 | JavaScript / TypeScript | ✅ | ✅ | ✅ | ✅ | ✅ (exports, JSX components) |
 | Java | ✅ | ✅ | ✅ | ✅ | ❌ |
@@ -225,9 +225,8 @@ Only Rust, Python and Lua have a token source, so `mct-cli duplicates` reports e
 ## 5. Pending work per language
 
 ### Rust
-- No `Field` symbols for struct or enum fields.
-- A method call inside a macro's arguments (for example `assert_eq!(a.f(), b)`) leaves no relation, because tree-sitter returns the arguments as a flat token tree. No issue filed yet.
-- No `Variable` symbols (`let` bindings are not indexed).
+- A method call inside a macro's arguments (for example `assert_eq!(a.f(), b)`) is a `references` relation, not a `calls`, because tree-sitter returns the arguments as a flat token tree. A bare call to an imported function there (`println!("{}", helper(x))`) is a `calls`.
+- There is no `Union`, `Macro` or `Closure` kind: a `union` is a `struct`, `macro_rules!` and `let name = |..| ..` are `function` symbols. Closures that are not bound by a plain `let` are not indexed.
 - Import resolution does not match `mod name;` to `name/mod.rs`, ignores `#[path]`, and leaves aliased `use` items without the original path qualification.
 - No framework module under `src/libraries/`.
 - Token benchmarks are not done yet, as `ROADMAP.md` notes.

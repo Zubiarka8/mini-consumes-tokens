@@ -1,4 +1,4 @@
-# language=rust files=6 symbols=649 relations=1685 name_matched_across_files=549
+# language=rust files=6 symbols=771 relations=1690 name_matched_across_files=551
 
 == errors.rs (397 lines)
 S 1-397 module errors
@@ -29,6 +29,16 @@ S 59-59 variable storage::detail
 S 67-71 method InventoryError::report
 S 75-97 method InventoryError::fmt
 S 75-75 variable fmt::f
+S 77-77 variable fmt::msg
+S 78-78 variable fmt::id
+S 79-79 variable fmt::id
+S 81-81 variable fmt::product
+S 82-82 variable fmt::requested
+S 83-83 variable fmt::available
+S 89-89 variable fmt::operation
+S 89-89 variable fmt::detail
+S 92-92 variable fmt::expected
+S 92-92 variable fmt::found
 S 103-105 method InventoryError::from
 S 103-103 variable from::err
 S 109-111 method InventoryError::from
@@ -53,7 +63,10 @@ S 162-162 variable with_threshold::min
 S 169-185 method AuditLog::push
 S 169-169 variable push::severity
 S 169-169 variable push::message
+S 170-170 variable push::min
 S 175-175 variable push::entries
+S 176-176 variable push::guard
+S 177-177 variable push::poisoned
 S 179-179 variable push::sequence
 S 187-189 method AuditLog::len
 S 188-188 variable len::e
@@ -61,9 +74,13 @@ S 191-193 method AuditLog::is_empty
 S 196-206 method AuditLog::filtered
 S 196-196 variable filtered::severity
 S 197-197 variable filtered::entries
+S 198-198 variable filtered::guard
+S 199-199 variable filtered::poisoned
 S 203-203 variable filtered::e
 S 208-214 method AuditLog::drain
 S 209-209 variable drain::entries
+S 210-210 variable drain::guard
+S 211-211 variable drain::poisoned
 S 218-218 variable AUDIT
 S 221-223 function audit
 S 221-221 variable audit::severity
@@ -75,6 +92,10 @@ S 253-271 function with_retry
 S 253-253 variable with_retry::attempts
 S 253-253 variable with_retry::op
 S 257-257 variable with_retry::last
+S 258-258 variable with_retry::attempt
+S 260-260 variable with_retry::v
+S 261-261 variable with_retry::e
+S 265-265 variable with_retry::e
 S 274-397 module tests
 S 278-291 function codes_are_stable
 S 294-302 function retry_gives_up_on_non_retryable
@@ -403,8 +424,12 @@ S 65-65 variable split_options::args
 S 66-66 variable split_options::options
 S 67-67 variable split_options::positional
 S 68-68 variable split_options::iter
+S 69-69 variable split_options::arg
+S 78-78 variable split_options::flag
 S 87-97 function parse_unit
 S 87-87 variable parse_unit::text
+S 92-92 variable parse_unit::other
+S 93-93 variable parse_unit::n
 S 100-148 function parse_command
 S 100-100 variable parse_command::args
 S 101-104 function parse_command::arg
@@ -415,6 +440,7 @@ S 106-106 variable parse_command::verb
 S 116-116 variable parse_command::product
 S 117-117 variable parse_command::at
 S 120-120 variable parse_command::quantity
+S 144-144 variable parse_command::other
 S 150-152 function usage
 S 155-163 function default_categories
 S 167-239 function execute
@@ -424,12 +450,27 @@ S 168-168 variable execute::file
 S 169-169 variable execute::warehouse
 S 174-174 variable execute::counter
 S 177-177 variable execute::output
+S 179-179 variable execute::id
+S 179-179 variable execute::name
+S 179-179 variable execute::unit
 S 180-180 variable execute::pid
+S 184-184 variable execute::product
+S 185-185 variable execute::at
+S 186-186 variable execute::quantity
+S 192-192 variable execute::product
+S 193-193 variable execute::at
+S 194-194 variable execute::quantity
+S 200-200 variable execute::product
+S 201-201 variable execute::from
+S 202-202 variable execute::to
+S 203-203 variable execute::quantity
 S 213-213 variable execute::categories
 S 214-214 variable execute::stock
 S 218-218 variable execute::movements
 S 221-221 variable execute::tree
 S 222-222 variable execute::sections
+S 232-232 variable execute::product
+S 232-232 variable execute::qty
 S 241-248 function run
 S 241-241 variable run::args
 S 242-242 variable run::options
@@ -437,6 +478,8 @@ S 242-242 variable run::positional
 S 246-246 variable run::command
 S 250-266 function main
 S 251-251 variable main::args
+S 253-253 variable main::text
+S 257-257 variable main::err
 S 269-310 module tests
 S 272-274 function args
 S 272-272 variable args::list
@@ -695,6 +738,7 @@ R 255:13 references main -> ExitCode
 R 258:48 references main -> code (name-matched: errors.rs)
 R 259:29 references main -> usage
 R 260:16 calls main -> error_count (name-matched: errors.rs)
+R 261:51 calls main -> error_count (name-matched: errors.rs)
 R 263:23 calls main -> from
 R 263:13 references main -> ExitCode
 R 272:31 references args -> Vec
@@ -743,9 +787,12 @@ S 38-38 constant Unit::Box
 S 38-38 field Box::0
 S 43-49 method Unit::to_pieces
 S 43-43 variable to_pieces::quantity
+S 46-46 variable to_pieces::n
 S 51-58 method Unit::symbol
 S 62-67 method Unit::fmt
 S 62-62 variable fmt::f
+S 64-64 variable fmt::n
+S 65-65 variable fmt::other
 S 72-75 struct Category
 S 73-73 field Category::name
 S 74-74 field Category::children
@@ -818,10 +865,28 @@ S 240-240 field Adjust::at
 S 241-241 field Adjust::delta
 S 242-242 field Adjust::reason
 S 247-254 method Movement::product
+S 249-249 variable product::product
+S 250-250 variable product::product
+S 251-251 variable product::product
+S 252-252 variable product::product
 S 257-276 method Movement::delta_at
 S 257-257 variable delta_at::location
+S 259-259 variable delta_at::to
+S 259-259 variable delta_at::quantity
+S 260-260 variable delta_at::from
+S 260-260 variable delta_at::quantity
+S 262-262 variable delta_at::from
+S 262-262 variable delta_at::to
+S 262-262 variable delta_at::quantity
 S 264-264 variable delta_at::q
+S 273-273 variable delta_at::at
+S 273-273 variable delta_at::delta
 S 278-285 method Movement::describe
+S 280-280 variable describe::quantity
+S 281-281 variable describe::quantity
+S 282-282 variable describe::quantity
+S 283-283 variable describe::delta
+S 283-283 variable describe::reason
 S 289-301 trait Identified
 S 290-290 type_alias Identified::Id
 S 292-292 method Identified::id
@@ -1063,10 +1128,12 @@ R 292:27 references Identified::id -> Id
 R 295:24 references Identified::label -> String
 R 299:30 references Identified::label -> id
 R 303:1 implements model -> Identified
+R 304:10 references model -> Id
 R 304:15 references Product::Id -> ProductId
 R 306:21 references Product::id -> ProductId
 R 310:24 references Product::label -> String
 R 315:1 implements model -> Identified
+R 316:10 references model -> Id
 R 316:16 references StockLevel::Id -> ProductId
 R 316:27 references StockLevel::Id -> LocationId
 R 318:27 references StockLevel::id -> Id
@@ -1145,6 +1212,7 @@ S 92-92 variable render::c
 S 92-92 variable render::w
 S 95-95 variable render::rule
 S 95-95 variable render::w
+S 97-97 variable render::row
 S 98-98 variable render::cells
 S 101-101 variable render::cell
 S 101-101 variable render::col
@@ -1175,6 +1243,7 @@ S 160-162 method StockSection<'_>::title
 S 164-182 method StockSection<'_>::body
 S 165-165 variable body::catalog
 S 166-166 variable body::table
+S 172-172 variable body::product
 S 173-173 variable body::total
 S 185-188 function total_for
 S 185-185 variable total_for::warehouse
@@ -1195,6 +1264,12 @@ S 202-202 variable bump::at
 S 202-202 variable bump::by
 S 206-206 variable replay_levels::totals
 S 207-207 variable replay_levels::m
+S 207-207 variable replay_levels::m
+S 209-209 variable replay_levels::to
+S 210-210 variable replay_levels::from
+S 211-211 variable replay_levels::from
+S 211-211 variable replay_levels::to
+S 215-215 variable replay_levels::at
 S 220-220 variable replay_levels::location
 S 220-220 variable replay_levels::on_hand
 S 230-232 struct MovementSection
@@ -1202,8 +1277,11 @@ S 231-231 field MovementSection::ledger
 S 235-237 method MovementSection<'_>::title
 S 239-255 method MovementSection<'_>::body
 S 240-240 variable body::by_kind
+S 241-241 variable body::m
 S 242-242 variable body::kind
 S 250-250 variable body::table
+S 251-251 variable body::kind
+S 251-251 variable body::count
 S 259-261 struct CategorySection
 S 260-260 field CategorySection::root
 S 264-266 method CategorySection<'_>::title
@@ -1212,6 +1290,7 @@ S 269-274 function body::walk
 S 269-269 variable walk::node
 S 269-269 variable walk::depth
 S 269-269 variable walk::out
+S 271-271 variable walk::child
 S 275-275 variable body::out
 S 283-283 struct AuditSection
 S 286-288 method AuditSection::title
@@ -1220,6 +1299,7 @@ S 291-291 variable body::entries
 S 300-309 function full_report
 S 300-300 variable full_report::sections
 S 301-301 variable full_report::parts
+S 302-302 variable full_report::section
 S 312-324 function shelf_usage
 S 312-312 variable shelf_usage::shelf
 S 312-312 variable shelf_usage::item
@@ -1399,7 +1479,7 @@ R 187:5 calls total_for -> Ok
 R 187:60 calls total_for -> sum
 R 187:30 calls total_for -> map
 R 187:21 calls total_for -> values (name-matched: storage.rs)
-R 187:43 calls total_for -> from (name-matched: errors.rs)
+R 187:43 calls total_for -> from
 R 191:17 references stock_by_location -> Warehouse (name-matched: service.rs)
 R 192:14 references stock_by_location -> ProductId (name-matched: model.rs)
 R 193:6 references stock_by_location -> Result (name-matched: errors.rs)
@@ -1593,6 +1673,7 @@ S 129-129 variable transfer::product
 S 130-130 variable transfer::from
 S 131-131 variable transfer::to
 S 132-132 variable transfer::quantity
+S 140-140 variable transfer::e
 S 142-142 variable transfer::level
 S 159-161 method Warehouse::reserve
 S 159-159 variable reserve::product
@@ -1608,16 +1689,26 @@ S 171-171 variable update_level::r
 S 173-173 variable update_level::level
 S 178-184 method Warehouse::record
 S 178-178 variable record::movement
+S 179-179 variable record::listener
 S 186-188 method Warehouse::ledger
 S 192-203 method Warehouse::reorder_suggestions
 S 193-193 variable reorder_suggestions::out
+S 194-194 variable reorder_suggestions::product
 S 195-195 variable reorder_suggestions::total
 S 196-196 variable reorder_suggestions::total
 S 207-233 method Warehouse::audit_ledger
 S 208-208 variable audit_ledger::expected
 S 209-216 function audit_ledger::locations_of
 S 209-209 variable locations_of::m
+S 211-211 variable locations_of::to
+S 212-212 variable locations_of::from
+S 213-213 variable locations_of::from
+S 213-213 variable locations_of::to
+S 214-214 variable locations_of::at
+S 217-217 variable audit_ledger::m
+S 218-218 variable audit_ledger::loc
 S 222-222 variable audit_ledger::mismatches
+S 223-223 variable audit_ledger::level
 S 224-224 variable audit_ledger::want
 S 235-238 method Warehouse::save
 S 235-235 variable save::file
@@ -1627,6 +1718,7 @@ S 240-240 variable load::file
 S 241-241 variable load::products
 S 241-241 variable load::stock
 S 242-242 variable load::warehouse
+S 244-244 variable load::level
 S 247-247 variable load::row
 S 258-260 struct MovementCounter
 S 259-259 field MovementCounter::counts
@@ -1635,6 +1727,7 @@ S 263-263 variable count::product
 S 266-266 variable count::c
 S 272-276 method MovementCounter::on_movement
 S 272-272 variable on_movement::movement
+S 273-273 variable on_movement::counts
 S 278-280 method MovementCounter::name
 S 284-288 struct Outbox
 S 285-285 field Outbox::sink
@@ -1655,7 +1748,19 @@ S 331-362 function replay
 S 331-331 variable replay::catalog
 S 331-331 variable replay::movements
 S 335-335 variable replay::warehouse
+S 337-337 variable replay::movement
 S 338-338 variable replay::applied
+S 340-340 variable replay::product
+S 341-341 variable replay::to
+S 342-342 variable replay::quantity
+S 345-345 variable replay::product
+S 346-346 variable replay::from
+S 347-347 variable replay::quantity
+S 350-350 variable replay::product
+S 351-351 variable replay::from
+S 352-352 variable replay::to
+S 353-353 variable replay::quantity
+S 357-357 variable replay::e
 R 4:24 imports service -> HashMap
 R 4:33 imports service -> VecDeque
 R 5:18 imports service -> Future
@@ -1951,6 +2056,7 @@ S 64-66 method MemoryRepository<T>::writes
 S 69-79 method MemoryRepository<T>::extend
 S 69-69 variable extend::values
 S 73-73 variable extend::n
+S 74-74 variable extend::v
 S 83-85 method MemoryRepository<T>::get
 S 83-83 variable get::id
 S 87-91 method MemoryRepository<T>::put
@@ -1973,6 +2079,7 @@ S 141-141 variable modify::expected_version
 S 142-142 variable modify::change
 S 147-147 variable modify::rows
 S 148-148 variable modify::record
+S 156-156 variable modify::expected
 S 164-164 variable modify::outcome
 S 165-165 variable modify::level
 S 170-179 method StockTable::for_product
@@ -1999,24 +2106,41 @@ S 214-237 method SnapshotFile::save
 S 214-214 variable save::products
 S 214-214 variable save::stock
 S 215-215 variable save::file
+S 216-216 variable save::p
+S 225-225 variable save::s
 S 241-269 method SnapshotFile::load
 S 242-242 variable load::reader
 S 243-243 variable load::products
 S 244-244 variable load::stock
+S 245-245 variable load::index
+S 245-245 variable load::line
 S 246-246 variable load::line
 S 247-247 variable load::fields
+S 249-249 variable load::id
+S 249-249 variable load::unit
+S 249-249 variable load::name
 S 250-250 variable load::id
 S 251-251 variable load::product
+S 255-255 variable load::product
+S 255-255 variable load::location
+S 255-255 variable load::on_hand
+S 255-255 variable load::reserved
+S 262-262 variable load::other
 S 272-277 function encode_unit
 S 272-272 variable encode_unit::unit
+S 274-274 variable encode_unit::n
+S 275-275 variable encode_unit::other
 S 279-291 function decode_unit
 S 279-279 variable decode_unit::text
+S 285-285 variable decode_unit::n
 S 293-297 function escape
 S 293-293 variable escape::text
 S 299-315 function unescape
 S 299-299 variable unescape::text
 S 300-300 variable unescape::out
 S 301-301 variable unescape::chars
+S 302-302 variable unescape::c
+S 310-310 variable unescape::other
 S 318-362 module tests
 S 321-323 function product
 S 321-321 variable product::id
@@ -2030,6 +2154,7 @@ S 344-344 variable stale_version_is_a_conflict::err
 S 351-354 function escape_round_trips
 S 352-352 variable escape_round_trips::raw
 S 357-361 function units_round_trip
+S 358-358 variable units_round_trip::unit
 R 4:23 imports storage -> HashMap
 R 5:14 imports storage -> File
 R 6:15 imports storage -> BufRead
@@ -2311,8 +2436,10 @@ R 328:34 calls memory_repository_round_trip -> product
 R 329:25 references memory_repository_round_trip -> count
 R 329:33 references memory_repository_round_trip -> unwrap
 R 330:22 references memory_repository_round_trip -> require
+R 330:30 calls memory_repository_round_trip -> ProductId (name-matched: model.rs)
 R 330:44 references memory_repository_round_trip -> is_ok
 R 331:22 references memory_repository_round_trip -> require
+R 331:30 calls memory_repository_round_trip -> ProductId (name-matched: model.rs)
 R 331:44 references memory_repository_round_trip -> is_err
 R 332:25 references memory_repository_round_trip -> writes
 R 335:5 references tests -> stale_version_is_a_conflict
