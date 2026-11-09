@@ -1,5 +1,69 @@
 # Contributing
 
+Thanks for helping. This page covers how to get the project running and how a change reaches `main`. The extension points, such as adding a language, come after it.
+
+## Getting started
+
+You need Git and the Rust toolchain from [rustup](https://rustup.rs) (built and tested with Rust 1.96.0). On Windows, also install the "Desktop development with C++" workload from Visual Studio Build Tools.
+
+```sh
+git clone https://github.com/Zubiarka8/mini-consumes-tokens.git
+cd mini-consumes-tokens
+cargo build --workspace
+```
+
+Run the programs from the clone without installing them:
+
+```sh
+cargo run -p mct-cli -- --root . init
+cargo run -p mct-cli -- --root . status
+cargo run -p mct-cli -- --root . web
+```
+
+## Before you open a pull request
+
+Run the same checks CI runs. One command prints a short summary and keeps the full logs in `target/script-logs/`:
+
+```sh
+scripts/unix/check.sh            # macOS and Linux
+scripts\windows\check.ps1       # Windows PowerShell
+```
+
+It runs the formatting check, the tests, Clippy with unwrap, expect and panic denied, and the `mct-eval` quality gate. To check one crate, add `-p <crate>`.
+
+The dashboard front end has its own tests. See [`crates/mct-cli/web-ui/README.md`](crates/mct-cli/web-ui/README.md) for the bundles and how to rebuild them.
+
+## Working on a change
+
+1. Start a branch in its own worktree, cut from `origin/main`: `scripts/unix/branch-worktree.sh <type>/<short-name>`. Types in use are `feat`, `fix`, `perf`, `docs`, `refactor`, `test`, `ci` and `chore`.
+2. Keep the change small enough to review. A bug fix gets a test that fails without the fix.
+3. Write commit messages in English, as `type(scope): what changed`.
+4. Open the pull request with `scripts/unix/publish-branch.sh <branch>`. `scripts/unix/pr-body.sh` drafts a description whose verification section comes from your last `check.sh` run.
+5. When the branch is merged, remove its worktree.
+
+Repository content (code, comments, docs, commit messages, issues and pull requests) is written in English. The full working rules are in [`rules.md`](rules.md). Security reports go through [SECURITY.md](SECURITY.md), not a public issue.
+
+## Working with an AI assistant
+
+Any editor or assistant works, and none is required. The project rules for agents live in one file, [rules.md](rules.md). It covers the English-only rule, how to explore this repository's source with its own MCP tools, the build and check commands, and the architecture rules. Longer references are in [docs/07-agents/](docs/07-agents/) and an agent opens them only when it needs them.
+
+- `AGENTS.md` and `CLAUDE.md` in the repository root are one-line pointers to `rules.md`. Codex reads `AGENTS.md` and Claude Code reads `CLAUDE.md`. Check your tool's documentation for the instruction file it loads, since some tools also read `AGENTS.md`.
+- If your tool reads another file (for example `.cursorrules`, `.github/copilot-instructions.md` or `GEMINI.md`), keep that file to a pointer too, along the lines of "Read `rules.md` at the start of each session". Do not copy rules into it. Copies drift, and `rules.md` stays the single source of truth.
+- Change a rule in `rules.md`, never in a pointer file. Keep `rules.md` short: it is read at the start of every session, so put long reference material in `docs/07-agents/` and link to it.
+- For instructions that apply only to your checkout, use a `LOCAL_INSTRUCTIONS.md`. It is optional, it never blocks a contribution, and it cannot override `rules.md`.
+- Do not put personal model choices, subscription limits or private agent state in shared files.
+
+## What is already implemented
+
+Before you pick a parser or framework task, check what the index already covers. The parser checklists in `docs/02-crates/parsers/` show it per language and per feature, with `[x]` done, `[~]` partial, `[ ]` not done and `[?]` not verified. Each one lists the checks it was built from.
+
+- [By language](docs/02-crates/parsers/checklists/by-language.md): one checklist for each of the 17 languages, with a summary table of counts.
+- [By feature](docs/02-crates/parsers/checklists/by-feature.md): each feature across all languages.
+- [By library](docs/02-crates/parsers/checklists/by-library.md): framework and package support, and [by feature and library](docs/02-crates/parsers/checklists/by-feature-library.md).
+- [Symbol coverage](docs/02-crates/parsers/symbol-coverage.md), [language gaps](docs/02-crates/parsers/language-gaps.md) and the [feature definitions](docs/02-crates/parsers/features.md).
+
+A `[ ]` or `[~]` entry is a good place to start. If your change moves a mark, update the checklist in the same pull request.
+
 ## Adding a new language
 
 Use this path when the repository needs to parse a new programming or markup
@@ -25,7 +89,7 @@ This is the extension point most contributions will touch, so it gets its own ch
    - At least one test covering the language's distinctive idiomatic syntax (generics for C#/Java, templates for C++, decorators for Python — whatever the equivalent is for your language).
    - A syntax-error case asserting `ParseError::Syntax`, not a panic.
 5a. **Add a `cargo-fuzz` harness** (`crates/mct-lang-<name>/fuzz/`) — copy the structure of an existing one (e.g. `mct-lang-lua/fuzz/`): a standalone-workspace `Cargo.toml` (`[workspace]` empty table, so it stays out of the root workspace's members/lockfile) and one `fuzz_targets/parse_<name>.rs` calling `<Name>Parser::parse` on arbitrary bytes. Remember the CI matrix entry from step 4.
-6. **Update docs:** the language table in `README.md` and the "Language coverage" section in `internal/checklist.md`.
+6. **Update docs:** the "Language coverage" section in `internal/checklist.md`, and the [parser checklists](docs/02-crates/parsers/checklists/by-language.md).
 
    `scripts/unix/new-language-check.sh <name>` (macOS/Linux) or `scripts\windows\new-language-check.ps1 <name>` checks steps 1–6 and lists whatever is still missing.
 7. **Run the workspace test suite** (`cargo test --workspace`) and fix any regressions before opening a PR — or `scripts/unix/check.sh`, which runs the tests, the CI clippy invocation and the `mct-eval` gate and prints only a summary (see `scripts/README.md`).
@@ -40,7 +104,7 @@ support: tests alone do not add extraction behavior.
 
 For dependency-manifest modules, JS/TS import/export modules, the boundary between package detection and framework parsing, and where framework tests go (`crates/mct-lang-<language>/src/libraries/<name>/`), see the [library support implementation map](docs/01-architecture/library-support.md). Update the table below in the same PR as any framework behavior change.
 
-The language table in `README.md` says which *languages* have a `LanguageParser`. It does not say how well the index captures the *frameworks/libraries* built on top of those languages — a `.tsx` file parses fine, but that doesn't mean every structural relationship a framework introduces is modeled. Tracked in [#51](https://github.com/Zubiarka8/mini-consumes-tokens/issues/51):
+The [parser checklists](docs/02-crates/parsers/checklists/by-language.md) say which *languages* have a `LanguageParser`. It does not say how well the index captures the *frameworks/libraries* built on top of those languages — a `.tsx` file parses fine, but that doesn't mean every structural relationship a framework introduces is modeled. Tracked in [#51](https://github.com/Zubiarka8/mini-consumes-tokens/issues/51):
 
 | Library/framework | Status | Gap |
 |---|---|---|

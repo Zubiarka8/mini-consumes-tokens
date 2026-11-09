@@ -963,7 +963,7 @@ Examples:
 
 ## 2. `mct-mcp-server` — the program your AI assistant actually talks to
 
-You don't normally run this by hand; your assistant or editor starts it once connected (see [README.md § Connecting it to your AI assistant or editor](README.md#43-connecting-it-to-your-ai-assistant-or-editor)).
+You don't normally run this by hand; your assistant or editor starts it once connected (see [Connect your agent or editor](docs/INSTALL.md#connect-your-agent-or-editor)).
 
 ### `mct-mcp-server --root <path>`
 

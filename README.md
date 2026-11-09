@@ -1,223 +1,34 @@
-# mini-consumes-tokens (mct)
+# mini-consumes-tokens
+
+<img src="website/public/img/logo.png" alt="mini-consumes-tokens logo" width="120" align="right">
+
+A local MCP server that indexes your code into a symbol graph. Your AI coding agent looks things up there instead of reading whole files, so "where is this defined?", "what calls it?" and "what breaks if I change it?" cost far fewer tokens.
 
 ![CI](https://img.shields.io/github/actions/workflow/status/Zubiarka8/mini-consumes-tokens/ci.yml?branch=main&label=CI)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 ![Version](https://img.shields.io/badge/version-0.3.1-informational.svg)
 
-**[Official website](https://zubiarka8.github.io/mini-consumes-tokens/)** · **[Documentation](https://zubiarka8.github.io/mini-consumes-tokens/docs)**
+[Quick start](#how-to-install) · [Why install it](#why-install-it) · [FAQ](#faq) · [Documentation](#documentation) · [Commands](COMMANDS.md) · [Changelog](CHANGELOG.md) · [Website](https://zubiarka8.github.io/mini-consumes-tokens/)
 
-**A local map of your code that answers "where is this defined", "what uses it", and "what would break if I change it" — without an AI assistant having to re-read your files over and over.**
+## How to install
 
----
+Works on Windows, macOS and Linux. Git and a Rust toolchain ([rustup](https://rustup.rs)) are needed only to build from source. On Windows that also means the "Desktop development with C++" workload from Visual Studio Build Tools.
 
-## 1. What is this and why does it exist?
+### 1. Install the programs
 
-When an AI coding assistant helps you with a project, it usually has to *open and read* files, or *search through* your whole codebase, just to answer simple questions like "where is this function defined?" or "what else calls this?". That works, but it's slow and it uses up a large chunk of the assistant's available "attention" (technically: tokens) — attention that could otherwise go toward actually solving your problem.
-
-`mini-consumes-tokens` fixes that by doing the reading once, in advance. It scans your project and builds a small local map — an index — of everything meaningful in your code: functions, classes, and how they call and reference each other. That map lives entirely on your own computer, in a single plain file (no cloud service, no external database, nothing leaves your machine).
-
-Once that map exists, your AI assistant can ask it precise questions instead of hunting through files by hand. In our own measurements, this cut the amount of text an assistant needed to read by roughly **70–98%**, depending on the language and the question — for example, finding where something is defined in a Go project used about **97.8% less text** than reading the matching files directly.
-
-A few things that make this different from a typical single-purpose plugin:
-
-- **It understands 17 programming and markup languages at once**, including projects that mix several languages together.
-- **It isn't tied to one editor or assistant.** It speaks a common protocol called **MCP** (Model Context Protocol) — think of it as a shared language that lets an AI assistant ask a tool for information directly, the same way different apps on your phone can all talk to the same calendar. Any MCP-capable assistant can connect to it.
-- **It also works as a plain command-line tool**, for anyone who just wants to check the health of the index or rebuild it by hand, with no AI assistant involved at all.
-- **23 MCP tools (2 of them deprecated aliases), grouped by purpose** (`select_tools` only with `MCT_TOOL_ATTENTION=1`) (discovery, lookup, relations, maintenance, meta) — from a single symbol lookup, a ranked search by partial name or an optional search by meaning, to a one-shot "what would this change affect" blast-radius report, a one-call context pack for the symbol you're about to work on, a module-level dependency graph (who imports whom, cycles, Mermaid/DOT export), plus a project-wide overview and a plain directory tree for getting oriented before you know which file you need.
-- **Progressive tool discovery**: an MCP client can ask for a cheap one-line-per-tool catalog first (`discover_tool_categories`) and fetch a tool's full input schema only when it actually needs it (`get_tool_schema`), instead of always loading every schema up front.
-- **Tool Attention (opt-in, `MCT_TOOL_ATTENTION=1`)**: `tools/list` starts with `select_tools` alone (~98% fewer catalog tokens). The client calls it with the user's request; the server narrows `tools/list` to the tools that request needs and sends `tools/list_changed`. An unclear request keeps the full list, and every tool stays callable by name. Figures in [`benchmarks/intent-selection.md`](benchmarks/intent-selection.md#tool-attention-issue-11).
-- **Multi-hop relation queries**: `find_references`, `find_calls`, `find_callers`, and `impact_analysis` can walk multiple hops through the call/reference graph in one call (`depth`) and page through large result sets (`offset`), instead of chaining single-hop calls by hand.
-- **Batched queries**: `batch` runs up to 25 read-only queries (any tool except `reindex`) in one call, each answered under its own `[n] tool` header, dropping the per-call overhead — about 37–42% fewer tokens than the same queries sent one by one on the test fixtures. The tool catalog is also kept byte-identical across server starts, so the client's provider prompt caching can reuse it.
-- **Context packs**: `build_context_pack` returns everything needed to work on one symbol in a single call — its definition with doc comment and (capped) source, then every caller, callee, dependency and related test listed once with its one-line signature — instead of chaining four lookups and reading every file they point at. About 85% fewer tokens than that manual route on the test fixture.
-- **Estimated token budget and progressive detail**: `build_context_pack`, `search_symbols_like` and `hybrid_search_like` take optional `detail` (`overview`, `summary`, `detailed`) and `max_tokens`. `max_tokens` is an *estimated* budget over the whole response, counted with a dependency-free heuristic; it is not a model limit and the real count will differ (see [`benchmarks/context-budget.md`](benchmarks/context-budget.md)). Over budget, the least relevant rows lose detail first and are dropped last, and the response says so. Pick the level by what the task needs: `overview` to find *where* something is (identity, `path:line`, relations), `summary` to also see signatures, `detailed` (today's output) when you need source. If you already know you need the source, ask once with `detail=detailed` and a `max_tokens` instead of `overview` followed by `detailed`: the two calls cost more together than one. A footer says whether the answer is `complete` or `partial`, what was lowered or dropped, how to continue (`next: offset=N`) and what the levels above would cost (`next: detailed~N`). Omitting both arguments leaves every response exactly as before. Savings depend on the task and the repository; the benchmark reports measured cases, including the ones where this costs more.
-- **Compact `toon` output format (default)**: tools with a `format` argument (`list_symbols`, `find_symbol`, `search_symbols_like`, `hybrid_search_like`, `find_references`, `find_calls`, `find_callers`, `impact_analysis`, `find_dead_code`, `build_context_pack`, `get_dependency_graph`, and the two deprecated search aliases) answer with a token-lean TOON table unless the call passes `"format":"text"` for the previous labelled text.
-
-**Supported languages:** Rust, Python, Java, C#, Kotlin, JavaScript/TypeScript, C++, Go, Lua, HTML, CSS, XML, XAML, Bash, PowerShell, PHP, and Markdown (headings plus [[WikiLink]]/#tag relations).
-
-For declared dependencies, framework coverage and where each responsibility is implemented, see [Library and framework support](docs/01-architecture/library-support.md).
-
-### See it in action
-
-Without an index, asking "where is `InvoiceService` defined, and what would break if I changed its `calculate_total` method?" usually sends an assistant off to open and read a pile of files just to find out. With the index connected, it asks two precise questions instead — *where is this defined* and *what depends on it* — gets back a short, exact answer, and moves straight on to actually helping you, instead of spending its attention re-discovering your codebase from scratch.
-
-### Table of contents
-
-1. [What is this and why does it exist?](#1-what-is-this-and-why-does-it-exist)
-2. [Quick start](#2-quick-start-copy-paste)
-3. [Prompt for your AI assistant](#3-prompt-for-your-ai-assistant-copy-paste)
-4. [Installation and setup](#4-installation-and-setup)
-5. [Uninstalling completely](#5-uninstalling-completely)
-6. [Quick usage guide](#6-quick-usage-guide)
-7. [Common commands](#7-common-commands)
-8. [FAQ](#8-faq)
-9. [Troubleshooting common problems](#9-troubleshooting-common-problems)
-
----
-
-## 2. Quick start (copy-paste)
-
-The fastest path from zero to a connected AI assistant: five steps, one project, no configuration decisions to make up front. Each step below links to the section with the full details, in case something doesn't go as expected.
-
-> **Note on paths:** steps 1–2 happen inside a clone of *this* project (`mini-consumes-tokens`), to build/install the two programs. Step 3 onward happens inside *your own* project — the one you actually want indexed. Don't run `mct-cli` from inside the `mini-consumes-tokens` checkout by mistake.
-
-**1. Clone this project** (skip this if you're only installing the prebuilt binaries instead — see § 4.2, option A, no Rust toolchain needed):
+The scripts download the latest release for your system and install `mct-cli` and `mct-mcp-server`. No Rust toolchain needed.
 
 ```sh
-git clone https://github.com/Zubiarka8/mini-consumes-tokens.git
-cd mini-consumes-tokens
-```
-
-**2. Build and install the two programs** this project ships — `mct-cli` (the command-line tool) and `mct-mcp-server` (what your AI assistant talks to):
-
-```sh
-cargo install --locked --path crates/mct-cli
-cargo install --locked --path crates/mct-mcp-server
-```
-
-**3. Move into the project you actually want indexed and build its index** — this creates a `.mct-index/` folder there, safe to delete/rebuild anytime:
-
-```sh
-cd /path/to/your/project
-mct-cli --root . init
-```
-
-**4. Register the MCP server for this project** — writes/merges a `.mcp.json`, works out of the box for Claude Code, Cursor, and most MCP clients (see § 4.3 if your tool needs a different config file/format):
-
-```sh
-mct-cli --root . mcp-register --name mini-consumes-tokens
-```
-
-**5. Verify everything worked** — prints how many files/symbols got indexed:
-
-```sh
-mct-cli --root . status
-```
-
-**Optional — query the index straight from the terminal, no assistant needed.** `mct-cli call` runs one MCP tool once and prints the result (it brings the index up to date first, like the server does at startup):
-
-```sh
-mct-cli --root . call --tool get_indexing_status
-mct-cli --root . call --tool list_symbols --args '{"path":"src/main.rs"}'
-mct-cli --root . call --tool find_symbol --args-file query.json    # arguments from a file
-echo '{"symbol":"main"}' | mct-cli --root . call --tool build_context_pack --args -   # or stdin
-mct-cli --root . call --tool get_indexing_status --json            # raw MCP result as JSON
-```
-
-`--tool` is any tool name the server lists (`mct-cli call --help` has them); `--args` is one JSON object (default `{}`); `--timeout <seconds>` gives up on a root that takes too long. It exits non-zero, with a message on stderr, for an unknown tool, invalid JSON, a missing root or a tool error.
-
-**Several projects or worktrees at once** (for example, comparing two branches): `init` and `call` take `--roots a,b` or a repeated `--root a --root b`. Each root is handled independently and its output is labelled `== <root> ==`; a failure on one root is reported, the others still run, and the exit status is non-zero.
-
-```sh
-mct-cli --roots ../main-checkout,../my-branch init            # index both; unchanged roots are not re-parsed (add --force to re-parse)
-mct-cli --roots ../main-checkout,../my-branch call --tool find_symbol --args '{"name":"main"}'
-```
-
-**Last step:** restart or reconnect your AI assistant (tool-specific steps in § 4.3 — some need a manual restart to pick up the new MCP connection), then just ask it something like *"where is `InvoiceService` defined?"*. If it keeps grepping/reading whole files instead of using the index, paste the [prompt in § 3](#3-prompt-for-your-ai-assistant-copy-paste) into its instructions.
-
-Hit an error along the way? Jump straight to [§ 9 Troubleshooting](#9-troubleshooting-common-problems).
-
----
-
-## 3. Prompt for your AI assistant (copy-paste)
-
-This block is plain text, not a specific tool's syntax — paste the same one into whichever instruction file your assistant reads: `CLAUDE.md` (Claude Code), `.cursorrules`/`.cursor/rules/*.mdc` (Cursor), `AGENTS.md` (Codex and other agents that support it), or straight into a chat. It does three things: makes sure the MCP server is actually installed and connected before relying on it, keeps the index itself up to date, and makes the assistant prefer the indexed tools over grepping/reading whole files.
-
-```
-This project uses mini-consumes-tokens (mct) — an MCP server that indexes
-the codebase into a symbol graph, so I can look things up instead of
-grepping/reading whole files.
-
-Before relying on it in a session:
-- If the `mini-consumes-tokens` MCP tools aren't available, check whether
-  `mct-cli`/`mct-mcp-server` are installed (`mct-cli --help`). If not,
-  install them (see the project's README § 4.2) and register the server
-  with `mct-cli --root . mcp-register --name mini-consumes-tokens`, then
-  ask me to restart/reconnect so the connection loads.
-- If the tools are available, run `get_indexing_status` (or
-  `mct-cli --root . status`) once per session. If it reports the index is
-  stale, missing, or unhealthy, rebuild it with `reindex` (or
-  `mct-cli --root . reindex --force`) before trusting its answers.
-
-Once it's connected and healthy, prefer it over grep/reading whole files:
-- "Where is X defined?" -> find_symbol
-- "Something like `parse request`, exact name unknown?" -> search_symbols_like (`search_symbols` still works for one version as a deprecated alias)
-- "Code that does X, no idea what it's called?" -> hybrid_search_like (`hybrid_search` likewise)
-- "Only the meaning, with a similarity score per hit?" -> semantic_search
-- "Who calls X?" -> find_callers
-- "What does X call?" -> find_calls
-- "Every reference to X" -> find_references
-- "What would break if I changed/removed X?" -> impact_analysis
-- "Which files/modules does this module depend on, and is there an import cycle?" -> get_dependency_graph
-- About to work on X, want its code + callers/callees/tests in one go -> build_context_pack
-- Exploring a file/folder before knowing a name -> list_symbols,
-  get_file_skeleton, get_project_overview, get_file_tree
-- Candidate unused code -> find_dead_code (shared TOON reviews; `include_reviewed` shows hidden candidates)
-- Duplicate code, skipping groups a person already rejected -> find_duplicate_code
-- Several of the above at once, queries already known -> batch
-
-Still read/edit files normally for everything else (writing code, checking
-comment wording, anything the index doesn't cover).
-```
-
----
-
-## 4. Installation and setup
-
-### 4.1 Minimum requirements
-
-- **A computer running Windows, macOS, or Linux** — it works identically on all three.
-- **Git**, to download the project (only needed for the build-from-source option).
-- **The Rust toolchain** via [rustup](https://rustup.rs) — built and tested with Rust 1.96.0; rustup fetches everything needed automatically. Only needed for the build-from-source option.
-- **Windows only:** the "Desktop development with C++" workload from Visual Studio Build Tools, to compile Rust code on Windows. No other Windows-specific setup is required.
-- **An AI coding assistant or editor that supports MCP**, if your goal is to connect it to your assistant. Not required if you only want the command-line tool.
-
-### 4.2 Installing
-
-This project isn't published to a package manager (like `apt`, Homebrew, `winget`, or crates.io) yet, so there are two ways to install it: a one-line script that downloads a ready-to-run copy, or building it yourself from source. Either one leaves you with the same two programs, `mct-cli` and `mct-mcp-server`.
-
-#### Option A: quick install script — no Rust toolchain required
-
-This downloads the latest prebuilt release for your operating system from [GitHub Releases](https://github.com/Zubiarka8/mini-consumes-tokens/releases). The latest release (v0.3.1) ships archives for Linux and macOS (x86_64 and arm64) and Windows (x86_64 and arm64), plus static musl builds for Linux that `install.sh` picks on Alpine (force them with `MCT_LIBC=musl` when your glibc is too old) and `.deb`/`.rpm` packages; the `v0.1.0` tag has none. If the latest release has no archive for your platform, the scripts stop with an error instead of installing anything — use option B. The prebuilt binaries are built without the optional `semantic` feature, so `hybrid_search_like` matches by name only (see option B to add it). Both scripts print a warning if their install folder isn't already on your PATH, along with the exact line to add.
-
-**macOS / Linux** (installs into `$HOME/.local/bin`; override with `INSTALL_DIR`):
-
-```sh
+# macOS and Linux (installs into ~/.local/bin; set INSTALL_DIR on bash to change it)
 curl -sSL https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.sh | bash
 ```
 
-```sh
-# custom folder:
-curl -sSL https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.sh | INSTALL_DIR=/usr/local/bin bash
-```
-
-The variable goes on `bash`, the process that runs the installer. Writing `INSTALL_DIR=… curl … | bash` sets it on `curl` only, and the installer silently falls back to `$HOME/.local/bin`.
-
-**Windows, PowerShell** (installs into `%LOCALAPPDATA%\mct\bin`; override with `MCT_INSTALL_DIR`):
-
 ```powershell
+# Windows PowerShell (installs into %LOCALAPPDATA%\mct\bin)
 irm https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.ps1 | iex
 ```
 
-```powershell
-# custom folder:
-$env:MCT_INSTALL_DIR = "C:\tools\mct"; irm https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.ps1 | iex
-```
-
-**Debian/Ubuntu or Fedora/RHEL/openSUSE packages** (install both binaries into `/usr/bin`; they hold the static musl build, so they work on any release of those distros). Download the `.deb` or `.rpm` for your architecture from the [GitHub Releases page](https://github.com/Zubiarka8/mini-consumes-tokens/releases), then:
-
-```sh
-sudo apt install ./mini-consumes-tokens-<tag>-linux-x86_64.deb   # Debian, Ubuntu, Mint
-sudo dnf install ./mini-consumes-tokens-<tag>-linux-x86_64.rpm   # Fedora, RHEL
-sudo zypper install ./mini-consumes-tokens-<tag>-linux-x86_64.rpm   # openSUSE
-```
-
-Use `linux-arm64` instead of `linux-x86_64` on an ARM machine. The packages are not in any distro repository, so `apt upgrade` or `dnf upgrade` won't update them: install the next release's package the same way.
-
-If you'd rather not pipe a script straight into your shell, download the archive for your system by hand from the [GitHub Releases page](https://github.com/Zubiarka8/mini-consumes-tokens/releases) and extract `mct-cli`/`mct-mcp-server` into any folder on your PATH.
-
-#### Option B: build from source
-
-Requires the prerequisites above (Rust via rustup, plus the MSVC C++ build tools on Windows). Same commands on every operating system:
+To build from source instead, clone the repository and install from the clone:
 
 ```sh
 git clone https://github.com/Zubiarka8/mini-consumes-tokens.git
@@ -226,325 +37,83 @@ cargo install --locked --path crates/mct-cli
 cargo install --locked --path crates/mct-mcp-server
 ```
 
-`--locked` builds with the exact dependency versions this repository was tested with. Install from the clone, not with `cargo install mct-cli` from crates.io: the crates are not published there, because the build depends on a patched Markdown parser kept in this repository (see [RELEASING.md](RELEASING.md)).
+Debian, Ubuntu, Fedora and openSUSE packages, updates and other options are in [docs/INSTALL.md](docs/INSTALL.md).
 
-**Upgrading from 0.1.0** (`ccm-cli`/`ccm-mcp-server`, `.claude-index/`): see the upgrade steps in [CHANGELOG.md](CHANGELOG.md#upgrading-from-010) — new binary names, the `.mcp.json` `command`, a rebuilt `.mct-index/`, and the Windows installer's `MCT_INSTALL_DIR`.
+### 2. Index your project
 
-#### Checking the installed version and updating
-
-```sh
-mct-cli --version   # or -v: prints e.g. "mct-cli 0.3.1"
-mct-cli update      # or -u / --update: installs the latest release in place
-```
-
-`update` runs the option A installer for your system with the folder `mct-cli` is in as the install folder, so `mct-cli` and `mct-mcp-server` are both replaced where they already are; run `mct-cli --version` afterwards to confirm. It needs network access (and `curl` + `bash` on macOS/Linux). The release binaries are built without the `semantic` feature, so if you built from source with `--features semantic`, update with the option B commands instead (pull the clone, then the same `cargo install`). On Windows, close your MCP client first: Windows cannot replace a running `mct-mcp-server.exe`. After updating, restart the MCP client (or `/mcp` in Claude Code) so it starts the new server.
-
-**Optional — search by meaning (`hybrid_search_like`):** install the server with `cargo install --locked --path crates/mct-mcp-server --features semantic` instead. The build downloads a prebuilt ONNX Runtime library, so it needs network access and a platform ONNX Runtime ships binaries for. That adds a small local embedding model (`bge-small-en-v1.5`, ~130 MB, downloaded once on the first `hybrid_search_like` call into `.mct-index/models`, or `$FASTEMBED_CACHE_DIR` if set; `MCT_EMBEDDING_MODEL=all-MiniLM-L6-v2` picks a smaller, faster one) so your assistant can find code from a description (*"load the settings from disk"*) even when no word of it is in the function's name. Without the feature, `hybrid_search_like` still works, but only matches by name, and says so. Each symbol is embedded together with its signature, doc comment and the functions it calls. Tuning: `alpha` 0 = match by name only, 1 = match by meaning only, fused with Reciprocal Rank Fusion. Leave it out and it is picked from the query's shape: 0.1 for an identifier (`parse_request`, `HttpServer`, `Index::open`), 0.75 for a plain description, 0.5 otherwise. Wrap the query in double quotes (`"parse request"`) for an exact phrase: name matching only, those words in that order, the literal name first. An exact phrase also finds it inside string literals such as error and log messages (`"database connection failed"` → `src/db.rs:3 in function connect "database connection failed"`), ignoring case and accents. Literals are indexed for Rust string literals and for Markdown paragraphs and pipe-table rows only (at least eight characters and two words, first 256 characters of each, up to 500 per file; suspected secrets are skipped). Exact-phrase search needs no `semantic` build.
-
-**Meaning only, with scores (`semantic_search`):** the same model and stored vectors as `hybrid_search`, with no name matching at all: the `top_k` (default 10, max 100) symbols closest to the query by cosine similarity, each with its signature and score; `path`/`language` narrow it. It needs the `semantic` build (without it, it says so and points to `search_symbols`/`hybrid_search`). Vectors are refreshed incrementally — only symbols added or changed since the last reindex are embedded on the next call. To re-embed everything (after changing `MCT_EMBEDDING_MODEL`, or if the vectors look stale), run `mct-mcp-server --root . --rebuild-embeddings`: it reindexes, drops every stored vector, re-embeds all symbols and exits.
-
-Real output on the generated ~10K-symbol project of the ignored `real_model_finds_validate_token_among_10k_symbols` test in `crates/mct-mcp-server/tests/semantic_search.rs` (first three hits of ten; `validate_token` was 8th, and the best of the 400 generated `*_token` distractors, `validate_admin_token`, 37th):
-
-```text
-semantic_search { "query": "validate user authentication", "top_k": 10 }
-
-semantic: 10425/10425 symbols embedded (fastembed/bge-small-en-v1.5)
-10 match(es) for `validate user authentication`, most similar first:
-src/auth.rs:L17-L19 [rust] function authenticate_user  similarity 0.748
-    pub fn authenticate_user(name: &str, password: &str) -> bool
-src/search.rs:L1-L3 [rust] function validate_search_user  similarity 0.738
-    pub fn validate_search_user(input: &str) -> usize
-src/profile.rs:L1-L3 [rust] function validate_profile_user  similarity 0.737
-    pub fn validate_profile_user(input: &str) -> usize
-```
-
-Measured by that test (release build, Apple M4, in-memory index, warm model, 30 runs, median / p95, range over five runs): query embedding 7–20 / 9–90 ms, similarity scan of 10,425 vectors plus signatures 11–25 / 14–42 ms, whole warm tool call 24–49 / 39–83 ms. Not included: loading the model (~5 s, first call only) and embedding every symbol the first time (105–218 s for 10K symbols; later calls embed only what changed).
-
-**Repository input limits:** indexing, source tools, and CLI probes read regular files up to 16 MiB by default. Set `MCT_MAX_FILE_BYTES` to a positive byte count to change that limit. Oversized source files and manifests are reported as read failures; any last-good indexed data is retained and marked as possibly stale. Ignore-file read/compile failures are reported on stderr, and built-in exclusions remain active when custom glob patterns cannot compile.
-
-**Relation pagination:** direct queries report an exact total while fetching only the requested rows. Multihop queries fetch one extra relation to detect continuation; when more results exist, they report a lower bound and say that the total has not been computed. `impact_analysis` filters and deduplicates affected tests by symbol identity before applying their independent pagination window.
-
-**Query cache (`search_symbols_like`, `hybrid_search_like`):** on by default. A repeated query — or, for `hybrid_search_like`, one that means the same (embedding similarity ≥ 0.95, with a clear margin over the next-closest cached query) — reuses its earlier ranking after checking that every symbol in it still exists unchanged and that nothing else in the index changed the ranking. Results are always rendered from the current index and files, never from stored code. When the response is identical to one already sent in this session, the reply is a single `cache: …` line (~90% fewer tokens); pass `cache: false` on the call to get the full text. `MCT_CACHE=off` disables it (behaviour exactly as before), `MCT_SEMANTIC_CACHE=off` keeps only the exact match; threshold, margin, reply mode and size are configurable too — see [`docs/03-performance/query-cache.md`](docs/03-performance/query-cache.md) for validation, invalidation, benchmarks and limitations.
-
-**Working on the repo itself and don't want to install anything?** Skip `cargo install` and run straight from the checkout with `cargo run -p <crate> --`. Every `mct-cli ...` example in this README becomes:
+Run this inside the project you want indexed, not inside the clone.
 
 ```sh
-cargo run -p mct-cli -- --root . init
-cargo run -p mct-cli -- --root . status
-cargo run -p mct-cli -- --root . ignore-init --import-gitignore
+cd /path/to/your/project
+mct-cli --root . init      # builds .mct-index/ in your project
+mct-cli --root . status    # how many files and symbols were indexed
 ```
 
-(and `mct-mcp-server` the same way: `cargo run -p mct-mcp-server -- --root <project>`). This also matches what `mct-cli --help`/`mct-cli <command> --help` show when built this way.
-
-#### Verifying either option worked
-
-```sh
-mct-cli --help
-mct-mcp-server --help
-```
-
-If both print usage text, the install worked. If you get "command not found" instead, see [Troubleshooting](#9-troubleshooting-common-problems).
-
-### 4.3 Connecting it to your AI assistant or editor
-
-All of these launch the same program (`mct-mcp-server`) — only the configuration file and its format differ per tool. A shortcut that works for most of them: run this from inside your project folder to write (or safely merge into) a `.mcp.json` with the right settings, leaving any other tool already configured there untouched.
+### 3. Connect your agent
 
 ```sh
 mct-cli --root . mcp-register --name mini-consumes-tokens
 ```
 
-To make the server update the index only after a quiet period without file changes (for example 30 seconds), add `--reindex-delay 30s` to `mcp-register` (or to the server's `args`); `off` disables automatic updates. Details and examples: [COMMANDS.md](COMMANDS.md#--reindex-delay-value).
+This writes or merges a `.mcp.json`, which most MCP clients read. Restart your agent and ask where a function is defined. Per-client steps and an instructions block for your agent's rules are in [Connect your agent or editor](docs/INSTALL.md#connect-your-agent-or-editor).
 
-**Claude Code** has built-in, first-class support. From your project folder:
+To try a tool without an agent, run `mct-cli --root . call --tool get_indexing_status`. To open the dashboard, run `mct-cli --root . web`.
 
-```sh
-claude mcp add mini-consumes-tokens --scope project -- mct-mcp-server --root "<absolute-path-to-your-project>"
-```
+## Why install it
 
-`--scope` controls who can see the connection: `local` (just you, on this machine), `project` (everyone on the team, via a config file you can commit), or `user` (all of your projects, everywhere).
+- Your agent spends fewer tokens. On our test fixtures, a context pack used about 85% fewer tokens than chaining the lookups by hand, and `batch` used 37 to 42% fewer than separate calls. Results depend on the task and the repository. The measured cases, including the ones where it costs more, are in [`benchmarks/`](benchmarks/).
+- It gets short answers instead of files: a symbol, its references, callers and callees, or a ready-made context pack for the code you are about to change.
+- One server works with any assistant or editor that supports MCP. It also runs as a plain command line tool.
+- One index covers many languages, and projects that mix several of them are fine. What is supported for each language and library is in the [checklists](docs/02-crates/parsers/checklists/by-language.md).
+- Your code stays on your machine. The index is one SQLite file in `.mct-index/`, with no cloud service and no telemetry. Delete it any time and it is rebuilt from your source.
+- The index stays current. While a server or the dashboard runs, saved files are reindexed in the background and only the changed files are parsed again.
+- The same index feeds a local dashboard with a code atlas, duplicate-code and dead-code review, a dependency graph with cycle detection and an Obsidian notes graph. See the [usage guide](docs/USAGE.md#the-local-dashboard).
 
-> **Gotcha:** if Claude Code was already open when you added the server, it won't notice — new connections load only at startup, and `claude mcp list` will show "⏸ Pending approval". Close Claude Code (`exit`) and reopen it (`claude`) to finish connecting.
+## FAQ
 
-**Cursor** reads the same kind of file `mcp-register` produces. Run the command above inside your project, then restart Cursor. To add it by hand instead, open Cursor's MCP settings and point them at the `.mcp.json` in your project folder.
+### Which AI coding agents work with it?
 
-**Codex (OpenAI's Codex CLI)** uses TOML instead of JSON. Put the entry in `~/.codex/config.toml` (every project) or in `.codex/config.toml` inside a trusted project (that project only):
+Any agent or editor that supports MCP. Only the place where the client keeps its MCP settings differs. The steps for the common ones are in [docs/INSTALL.md](docs/INSTALL.md#connect-your-agent-or-editor).
 
-```toml
-[mcp_servers.mini-consumes-tokens]
-command = "mct-mcp-server"
-args = ["--root", "<absolute-path-to-your-project>"]
-```
+### Does my code leave my computer?
 
-A ready-made, secret-free copy is in [`.codex/config.example.toml`](.codex/config.example.toml); copy it to `.codex/config.toml` and fill in the path. `codex mcp add mini-consumes-tokens -- mct-mcp-server --root <path>` writes the same entry.
+No. The index is built and read locally. The optional `semantic` build downloads an embedding model once, then runs it locally.
 
-> **Two different files:** `mct-cli mcp-register` writes **JSON** to `.mcp.json` (Claude Code, Cursor, …). It does **not** create Codex's `.codex/config.toml`; the two are configured separately.
->
-> **Never put a credential in either file.** This server needs none. If another MCP server in the same file needs a token (GitHub, for example), pass it through your shell environment or your client's credential mechanism, not as a literal in the file. `.gitignore` ignores `.codex/config.toml` and `.mcp.json` so a broad `git add` can't commit them, but that doesn't help if the file is copied elsewhere. If a token was ever written in plain text, treat it as exposed: revoke it in the provider's account settings (for GitHub: Settings → Developer settings → Personal access tokens), create a new one, and inject it externally. Removing it from the file does not revoke it.
+### Can I use it without an AI agent?
 
-**GitHub Copilot (VS Code)** uses `.vscode/mcp.json` (one project) or your VS Code user settings (every project), with a top-level `"servers"` key instead of `"mcpServers"`:
+Yes. `mct-cli` handles status checks, dead-code and duplicate reports, and the dashboard on its own.
 
-```json
-{
-  "servers": {
-    "mini-consumes-tokens": {
-      "type": "stdio",
-      "command": "mct-mcp-server",
-      "args": ["--root", "${workspaceFolder}"]
-    }
-  }
-}
-```
+### What if I delete the index?
 
-**Any other MCP-compatible tool** — JetBrains AI Assistant, Gemini, Grok Build, Open Code, Open Claw, and the rest — needs the same two details: a program to run (`mct-mcp-server`) and the project folder to point it at (`--root <path>`). Run `mct-cli --root . mcp-register --name <a-name-you-choose>` once to generate a ready-made block, then paste the relevant part wherever that tool keeps its MCP settings. Exact steps for Gemini, Grok Build, Open Code and Open Claw could not be verified for this documentation pass — follow that tool's own MCP documentation for where the block goes.
+`init`, `reindex` or the next server start rebuilds it. Nothing is lost.
 
----
+### Something does not work.
 
-## 5. Uninstalling completely
+See [Troubleshooting](docs/INSTALL.md#troubleshooting).
 
-**Step 1 — disconnect it from every tool you connected it to**, using that tool's own removal method:
+## Documentation
 
-- **Claude Code:**
+| Document | What it covers |
+| --- | --- |
+| [Installation](docs/INSTALL.md) | Install options, connecting each client, semantic search, updating, uninstalling, troubleshooting |
+| [Usage guide](docs/USAGE.md) | The first five minutes, ignore rules, the dashboard, Obsidian, the dependency graph |
+| [Command reference](COMMANDS.md) | Every command, flag and MCP tool parameter |
+| [Architecture](ARCHITECTURE.md) | How the crates fit together |
+| [Library and framework support](docs/01-architecture/library-support.md) | What is indexed for each framework |
+| [Checklist by language](docs/02-crates/parsers/checklists/by-language.md) | One checklist for each language, with done, partial and missing marks |
+| [Checklist by feature](docs/02-crates/parsers/checklists/by-feature.md) | Each feature (functions, types, relations, search) across all languages |
+| [Checklist by library](docs/02-crates/parsers/checklists/by-library.md) | Framework and package support, one checklist per library |
+| [Checklist by feature and library](docs/02-crates/parsers/checklists/by-feature-library.md) | The feature and library grid in one place |
+| [Feature definitions](docs/02-crates/parsers/features.md) | What "done" means for each feature ID |
+| [Symbol coverage](docs/02-crates/parsers/symbol-coverage.md) | The symbols and relations each language produces |
+| [Language gaps](docs/02-crates/parsers/language-gaps.md) | Known gaps per language |
+| [Dashboard guide](docs/01-architecture/web-dashboard.md) | Design notes for `mct-cli web` |
+| [Benchmarks](benchmarks/) | Token measurements and how they were taken |
+| [Roadmap](ROADMAP.md) | What is planned |
+| [Changelog](CHANGELOG.md) | What changed in each release, with upgrade steps |
+| [Contributing](CONTRIBUTING.md) | Clone, build, test, open a pull request, add a language |
+| [Project rules for agents](rules.md) | The single rules file that `AGENTS.md` and `CLAUDE.md` point to |
+| [Security](SECURITY.md) | How to report a vulnerability privately |
+| [Third-party notices](THIRD_PARTY_NOTICES.md) | Licenses of bundled components |
 
-  ```sh
-  claude mcp remove mini-consumes-tokens --scope project
-  ```
-
-  (match the `--scope` you used when adding it)
-
-- **Any other tool:** remove the `mini-consumes-tokens` entry from that tool's MCP configuration file (`.mcp.json`, `.vscode/mcp.json`, `~/.codex/config.toml`, or wherever it keeps one — see § 4.3), by hand or through its settings screen.
-
-**Step 2 — remove the binaries:**
-
-```sh
-# If you installed with the quick install script, delete the two binaries from the
-# install folder ($HOME/.local/bin, %LOCALAPPDATA%\mct\bin, or your INSTALL_DIR/MCT_INSTALL_DIR):
-rm "$HOME/.local/bin/mct-cli" "$HOME/.local/bin/mct-mcp-server"    # macOS / Linux
-```
-
-```powershell
-# Windows:
-Remove-Item "$env:LOCALAPPDATA\mct\bin\mct-cli.exe","$env:LOCALAPPDATA\mct\bin\mct-mcp-server.exe"
-```
-
-```sh
-# If you built from source instead:
-cargo uninstall mct-cli
-cargo uninstall mct-mcp-server
-```
-
-**Step 3 — delete each project's local index** (safe to do any time — it's fully derived from source and gets rebuilt on the next `init`/`reindex`):
-
-```sh
-rm -rf .mct-index                        # macOS / Linux
-```
-
-```powershell
-Remove-Item -Recurse -Force .mct-index   # Windows PowerShell
-```
-
-**Step 4 — clean up config files (optional):** if you committed a `.mcp.json` (created by `mcp-register`) or added a `.mctignore`/a `.mct-index/` entry in `.gitignore`, remove or edit those files too — none of them are required for the uninstall to be complete, they're just leftover configuration.
-
----
-
-## 6. Quick usage guide
-
-```sh
-cd path/to/your/project     # 1. move into the project you want indexed
-mct-cli --root . init       # 2. build the index (once — connecting an assistant also triggers it)
-mct-cli --root . status     # 3. check it worked: files and symbols indexed, last run, any read failures
-```
-
-1. **Connect your AI assistant or editor** — see § 4.3 for your specific tool.
-2. **Just ask.** Things like *"where is* `InvoiceService` *defined?"* or *"what would break if I change* `calculate_total`*?"* — your assistant uses the index automatically instead of reading every file. Paste the [prompt in § 3](#3-prompt-for-your-ai-assistant-copy-paste) if it doesn't yet.
-3. **Refresh if needed:** `mct-cli --root . reindex --force`. Not usually necessary (while your assistant is connected, the index also refreshes itself in the background as changes settle on disk (15 seconds after the last change by default; see the Reindexing docs page) — re-parsing only the files that changed, a few milliseconds per file), but it's there if your assistant seems to be missing something after a large batch of changes.
-4. **Keep noise out (optional):** `mct-cli --root . ignore-init` writes a starter `.mctignore` — edit it to exclude things like `docs/` or `*.md` from the index, then `reindex --force` (a connected assistant's server applies the edit before its next tool call, so a newly excluded file is never served from the old index). Pass `--import-gitignore` (works on a fresh file or an existing one) to exclude everything your project's own `.gitignore` files already exclude — the root one and, as in git, each nested one (for example `website/.gitignore`) for the paths below its directory. Next.js output (`.next/`) is always excluded. For generated environments/output, `mct-cli --root . ignore-init --generated` adds editable rules for `venv`, caches, `bin`, `obj`, `build` and `dist` at any depth; it is opt-in because `bin` can hold real source. Existing rules and later overrides are preserved. Reindex and restart the web after changing exclusions. And `mct-cli --root . gitignore-init` keeps the generated database itself out of git.
-
-**Browse locally in your browser:** run `mct-cli --root . web` and open the printed localhost URL. A dependency-free dashboard (Spanish UI, dark/light) with a side-by-side duplicate compare view, dead-code and review workflows, search, a dependency graph and a notes reader links the code atlas (directories, files, symbols and imports) with duplicate-code review. Every duplicate member links to its atlas file, and every file links back to its groups. Unwanted groups can be moved to **Discarded** as false positives or not relevant, then restored. Decisions persist locally; changed member files are reviewed again. Raw analysis remains available. The command uses the existing index, also regenerates the Obsidian vault unless given `--no-obsidian`, and opens no browser automatically. Reindex and restart it to refresh; Ctrl-C stops it. See [`web`](COMMANDS.md#web--web---port-port---no-obsidian).
-
-**Browse in Obsidian (optional):** every `init`/`reindex` (and the server's background refresh) also writes a compact code atlas to `.mct-index/obsidian/`. Its root `index.md` links to directory maps, which link to one metadata note per indexed source file. File notes show imports and symbols with source line ranges; source text is not copied, so code context remains available through MCP without duplicating repository content into the vault. Choose "Open folder as vault" on it. The atlas is regenerable and ignored by git with the rest of `.mct-index/`; pass `--no-obsidian` to `init`/`reindex`/`mct-mcp-server` to skip it, or run `mct-cli --root . obsidian` to rebuild it by hand. File notes are capped at 100 symbols and 50 imports with omitted counts, and directory maps paginate at 100 entries. Personal notes and `.obsidian/` survive regeneration; generated notes are owned through `.manifest.toon`. See the [format and recovery details](COMMANDS.md#obsidian).
-
-Obsidian uses the same project-root `.mctignore` as SQLite indexing, including
-`.gitignore` rules when explicitly imported. There is no separate vault ignore
-file. After editing exclusions, run `mct-cli --root . reindex` to synchronize
-the database, notes and links. Manual `obsidian` filters the existing index;
-it does not index newly included files.
-
-**What your assistant can now do**, once connected:
-
-- Find everything defined in a file or folder, when you don't know the exact name yet
-- Find exactly where a specific function or class is defined
-- Find code from a description of what it does (optional `semantic` build)
-- Find every place something is used, anywhere in the project — optionally several hops out
-- Find what a function depends on, and who depends on it
-- Get a one-shot answer to "what would this change affect"
-- See which files a module imports (and which import it), spot import cycles, and export the graph as Mermaid or DOT
-- See a file's overall shape without reading the whole thing
-- Get oriented in an unfamiliar file, directory, or the whole project in one call
-- Browse the plain directory/file layout before picking a file
-- Spot candidate dead code (heuristic: zero indexed references)
-- Check whether the index itself is healthy and up to date
-
-### Module dependency graph (`get_dependency_graph`)
-
-`impact_analysis` answers "which *symbols* break if I change this?". `get_dependency_graph` answers the module-level question: "which *files* does this file or directory import, who imports it, and is there an import cycle?". It complements `impact_analysis`; it does not replace it.
-
-| Argument | Meaning |
-|---|---|
-| `module` (required) | Repo-relative file or directory, e.g. `src/orders.rs` or `frontend/` |
-| `depth` | Import hops to follow from `module`, default 2, clamped to the project's maximum query depth |
-| `limit` | Standard row cap; the output says `truncated: true` when it cut anything |
-| `format` | `toon` (default) or `text` |
-| `export` | Optional: `mermaid` or `dot` adds a rendered graph to the answer |
-
-Rules worth knowing: the unit is the **file** (a directory root expands to the files under it); an edge `A -> B` ("A imports B") exists only for a **resolved** import, so a guess never becomes an edge; imports that resolve to nothing in the index (third-party, std, unknown) are listed separately under `external`; cycles are listed one per line, or `circular: none`. Design: [ADR-006](docs/01-architecture/adrs/006-dependency-graph-tool.md).
-
-Example call (Rust or TypeScript project):
-
-```json
-{"module": "frontend/apiClient.ts", "depth": 2}
-```
-
-Illustrative TOON answer (the exact column set follows the tool's schema):
-
-```text
-root: frontend/apiClient.ts (depth 2)
-nodes[2]{path,hop}:
-  frontend/apiClient.ts,0
-  frontend/format.ts,1
-edges[1]{from,to}:
-  frontend/apiClient.ts,frontend/format.ts
-circular: none
-external[0]:
-truncated: false
-```
-
-A cycle (`a.ts` imports `b.ts`, `b.ts` imports `a.ts`) is reported once per strongly connected component:
-
-```text
-circular[1]: src/a.ts -> src/b.ts -> src/a.ts
-```
-
-With `"export": "mermaid"` the answer also carries a ready-to-paste diagram (`"export": "dot"` gives Graphviz DOT):
-
-```text
-graph LR
-  n0["frontend/apiClient.ts"] --> n1["frontend/format.ts"]
-```
-
----
-## 7. Common commands
-
-The handful of commands you'll actually type by hand. For the full technical reference — every flag, every MCP tool parameter, and the raw `--help` output — see **[COMMANDS.md](COMMANDS.md)**.
-
-| I want to...                                    | Run this                                   |
-| ------------------------------------------------ | ------------------------------------------ |
-| Build the index for the first time                | `mct-cli --root . init`                    |
-| Check whether the index is healthy and up to date | `mct-cli --root . status`                  |
-| Force a full re-index after a lot of changes       | `mct-cli --root . reindex --force`         |
-| Connect an AI assistant/editor to this project     | `mct-cli --root . mcp-register`            |
-| Keep the generated index files out of git          | `mct-cli --root . gitignore-init`          |
-| Exclude extra files/folders from indexing          | `mct-cli --root . ignore-init`             |
-| Find candidate unused code                         | `mct-cli --root . dead-code`               |
-| Browse the code as linked notes in Obsidian        | open `.mct-index/obsidian/` as a vault (`mct-cli --root . obsidian` rebuilds it) |
-| Browse linked atlas and duplicate review locally | `mct-cli --root . web` |
-| Find candidate duplicated functions (Rust, Python) | `mct-cli --root . duplicates`              |
-| See which version is installed                     | `mct-cli --version` (or `-v`)              |
-| Update to the latest release                       | `mct-cli update` (or `-u` / `--update`)    |
-
-Everything above accepts `--help` for its full description and examples (e.g. `mct-cli reindex --help`), and every command works the same way on Windows, macOS, and Linux.
-
-Your AI assistant doesn't use this table at all — once connected, it calls the indexed tools directly (see § 3 for the prompt that nudges it to do so, and [COMMANDS.md](COMMANDS.md) for what each tool actually does).
-
----
-
-## 8. FAQ
-
-**Does my code ever leave my computer?**
-No. The index is a single local file (`.mct-index/index.sqlite3`) built and read entirely on your machine — no cloud service, no external server, no telemetry. The optional `semantic` build downloads its embedding model once from Hugging Face, then runs it locally; your code is never sent anywhere.
-
-**Will this slow down my AI assistant or my machine?**
-No noticeably — the index builds once, then updates incrementally (only re-reading files that changed) instead of re-scanning your whole project every time.
-
-**Do I have to use an AI assistant to get value from this?**
-No — `mct-cli status`/`reindex`/`dead-code` work standalone from the command line with no assistant involved (§ 7).
-
-**What if my assistant doesn't support MCP?**
-Then this project can't connect to it directly — MCP (§ 1) is what lets an assistant call these tools. You can still use `mct-cli` by hand.
-
-**What happens if I delete the index by accident?**
-Nothing is lost — it's entirely derived from your source code and gets rebuilt the next time you run `init`/`reindex`, or the next time your assistant connects.
-
-**Does it work on a project that mixes several languages?**
-Yes — the same index covers all 17 supported languages (§ 1) in one project, including files that reference each other across languages.
----
-
-## 9. Troubleshooting common problems
-
-**"**`mct-cli`**"/"**`mct-mcp-server`**: command not found" after installing**
-Cargo installs programs into a folder (usually `~/.cargo/bin`, or `%USERPROFILE%\.cargo\bin` on Windows) that isn't always on your PATH. Add that folder to your PATH (the rustup installer offers to do this — rerun it, or add the folder manually), open a new terminal, and try again.
-
-**Windows build fails with a** `link.exe` **or** `cl.exe` **error**
-The Microsoft C++ build tools from § 4.1 aren't installed. Install the "Desktop development with C++" workload via Visual Studio Build Tools, then rerun the `cargo install` commands.
-
-**Claude Code shows "⏸ Pending approval" and the assistant can't see the tools**
-The server was added while Claude Code was running. Type `exit`, relaunch with `claude`, and check with `claude mcp list`.
-
-**The assistant gives wrong, confused, or empty answers about your code**
-Almost always a path problem — check that the `--root` used when connecting matches your actual project folder, not a subfolder or a different project. Re-register if it doesn't.
-
-**Answers seem out of date after a lot of recent changes**
-Run `mct-cli --root . reindex --force` for a full refresh, or `mct-cli --root . status` to see when it last indexed and whether anything failed.
-
-**Nothing happens at all / the assistant says it can't reach the tool**
-Most MCP connections talk over "stdio" — a program's normal input and output — not a network address. Check that your configuration entry uses `"type": "stdio"` with a local `command`, not a URL or port. Running `mct-cli --root . mcp-register` again regenerates a known-good entry.
-
----
-
-## License
-
-The original code and documentation in this project are licensed under the [Apache License 2.0](LICENSE). Third-party components retain their own licenses; see [Third-Party Notices](THIRD_PARTY_NOTICES.md).
-
-For the complete command/flag/tool-parameter reference, see [COMMANDS.md](COMMANDS.md). For the internal design, see [ARCHITECTURE.md](ARCHITECTURE.md). For contributing, including how to add a new language, see [CONTRIBUTING.md](CONTRIBUTING.md).
-
-MCP source snippets and skeletons require bytes matching the indexed revision;
-reindex after edits to retrieve source with current line ranges.
+mini-consumes-tokens is released under the [Apache License 2.0](LICENSE). A star on [GitHub](https://github.com/Zubiarka8/mini-consumes-tokens) helps other people find it.

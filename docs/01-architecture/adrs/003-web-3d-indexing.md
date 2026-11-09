@@ -8,7 +8,7 @@ Accepted (2026-10-10). Issue: [#165](https://github.com/Zubiarka8/mini-consumes-
 - `SymbolKind` has 14 values and `RelationKind` has 5. Both are stored as TEXT (`symbol_kind_str`/`relation_kind_str`) and read back as plain strings. `kind_heading` falls back to `"<kind>s"`, and the `kind` param of `list_symbols` is a free string (`find_symbol` and `search_symbols` have none). A new kind needs no SQL migration, but MCP clients can see it.
 - Precedents already in the code: `manifests.rs` matches file names in `mct-index` and parses `package.json`/`Cargo.toml` with serde/toml, outside `LanguageParser`. HTML `class` → CSS `Rule` sets `RelationTarget.language`. Every source read is capped by `read_repository_file` (16 MiB, `MCT_MAX_FILE_BYTES`). `index_file` stores only canonical paths inside the root.
 - Lang crates depend on sibling lang crates only as dev-dependencies, for integration tests (`mct-lang-html` → `mct-lang-css`, `mct-lang-xaml` → `mct-lang-csharp`).
-- The schema has 10 migrations. A newer migration count stops an older binary at startup (`CONNECTION_CLOSED`, see [rules.md](../../../rules.md#dogfooding-how-to-explore-this-repositorys-source-code)).
+- The schema has 10 migrations. A newer migration count stops an older binary at startup (`CONNECTION_CLOSED`, see [rules.md](../../../rules.md#dogfooding-exploring-this-repositorys-source)).
 
 ## Decision
 

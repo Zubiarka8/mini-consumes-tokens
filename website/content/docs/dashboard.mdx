@@ -1,0 +1,26 @@
+---
+title: The local dashboard
+description: Browse the index, review duplicates and dead code, read notes as a graph.
+---
+
+```bash
+mct-cli --root . web
+```
+
+Open the localhost address it prints. No browser opens by itself, and Ctrl-C stops the server. The dashboard reads the existing index, regenerates the Obsidian vault unless you pass `--no-obsidian`, and follows reindexes while it runs. It binds to `127.0.0.1` only.
+
+## What is in it
+
+- A code atlas of directories, files, symbols and imports.
+- Duplicate-code review with a side-by-side compare view. Unwanted groups can be moved to Discarded as false positives or not relevant, then restored. Decisions are saved locally, and a group whose files changed is reviewed again.
+- Dead-code review, search and a dependency graph.
+- A notes reader for an Obsidian vault. Notes render with callouts, wikilinks, embeds, tags, footnotes and highlighted code. Large vaults are drawn as one graph, coloured by community.
+- Settings for theme (light, dark or system), language (English or Spanish) and background use.
+
+## How long it stays up
+
+By default the dashboard closes itself after 30 minutes without use, and the page stops checking for a new index after 5 minutes without input. Change both under Settings, or pass `--idle-timeout <minutes>` for one run (`0` means never).
+
+Your choices are saved in the browser, shared between projects, and also written to `.mct-index/web-settings.json`, so they survive cleared site data and a restart.
+
+After changing exclusions, reindex and restart the dashboard. The `web` command is described in the [CLI reference](/docs/cli).
