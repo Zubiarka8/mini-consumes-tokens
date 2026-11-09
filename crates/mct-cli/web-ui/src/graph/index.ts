@@ -397,8 +397,21 @@ export function createGraph({
     } else fit();
   };
   // ForceAtlas2 in short slices, so the page stays responsive and the graph settles in view.
+  // A hidden tab does no layout work: the next slice waits until the tab is shown again.
+  let wake: (() => void) | null = null;
   function layout(round: number) {
     if (stopped || !sigma) return;
+    if (doc.hidden) {
+      if (wake) doc.removeEventListener("visibilitychange", wake);
+      wake = () => {
+        if (doc.hidden) return;
+        doc.removeEventListener("visibilitychange", wake!);
+        wake = null;
+        layout(round);
+      };
+      doc.addEventListener("visibilitychange", wake);
+      return;
+    }
     const settings = {
       ...forceAtlas2.inferSettings(graph),
       barnesHutOptimize: graph.order > 300,
@@ -464,6 +477,7 @@ export function createGraph({
     clearSelection,
     destroy: () => {
       stopped = true;
+      if (wake) doc.removeEventListener("visibilitychange", wake);
       window.clearTimeout(timer);
       window.clearTimeout(relayout);
       watcher.disconnect();
