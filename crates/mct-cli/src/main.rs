@@ -136,9 +136,10 @@ enum Command {
         /// Do not regenerate the Obsidian vault; the dashboard still works.
         #[arg(long)]
         no_obsidian: bool,
-        /// Stop after this many minutes without use (0 = never). Settings can change it.
-        #[arg(long, value_name = "MINUTES", default_value_t = 30)]
-        idle_timeout: u64,
+        /// Stop after this many minutes without use (0 = never). Without it, the time saved from
+        /// the dashboard's Settings (`.mct-index/web-settings.json`) applies, then 30.
+        #[arg(long, value_name = "MINUTES")]
+        idle_timeout: Option<u64>,
     },
     /// Call one MCP tool once and print its result.
     ///
@@ -380,9 +381,7 @@ fn main() -> anyhow::Result<()> {
         idle_timeout,
     } = cli.command
     {
-        let idle = (idle_timeout > 0)
-            .then(|| std::time::Duration::from_secs(idle_timeout.saturating_mul(60)));
-        return web::run(&root, port, no_obsidian, idle);
+        return web::run(&root, port, no_obsidian, idle_timeout);
     }
 
     let db_path = root.join(".mct-index").join("index.sqlite3");

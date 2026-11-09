@@ -11,9 +11,8 @@ const USE_PING_MS = 60_000;
 const valid = (value) => Number.isInteger(value) && value >= 0 && value <= MAX_MINUTES;
 
 export const power = {
-  /** `stop`: minutes without use before the server closes. `pause`: minutes without input before
-   *  this page stops checking for a new index. */
-  get(name) {
+  /** What was saved by hand, or null when the person never chose. */
+  saved(name) {
     let raw = null;
     try {
       raw = localStorage.getItem(`mct:power-${name}`);
@@ -21,7 +20,12 @@ export const power = {
       /* fall through to the shared copy */
     }
     const value = Number(raw ?? sharedPref.get(`power-${name}`) ?? NaN);
-    return valid(value) ? value : DEFAULTS[name];
+    return valid(value) ? value : null;
+  },
+  /** `stop`: minutes without use before the server closes. `pause`: minutes without input before
+   *  this page stops checking for a new index. */
+  get(name) {
+    return this.saved(name) ?? DEFAULTS[name];
   },
   set(name, minutes) {
     if (!valid(minutes)) return;

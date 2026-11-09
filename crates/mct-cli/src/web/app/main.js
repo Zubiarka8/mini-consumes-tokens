@@ -13,13 +13,13 @@ import {
   dateTime,
   toast,
   fmt,
-  saveIdle,
 } from "./core.js";
 import { icon, loading, errorBox } from "./components.js";
 import { createGlobalSearch, pageCommands } from "./palette.js";
 import { openIssues } from "./issues.js";
 import { t, getLang, setLang, LANGUAGES } from "./i18n.js";
-import { power, livePaused, trackUse } from "./power.js";
+import { livePaused, trackUse } from "./power.js";
+import { syncSettings } from "./server-settings.js";
 
 const PAGE_MODULES = {
   panel: () => import("./page-dashboard.js"),
@@ -427,8 +427,8 @@ async function boot(refresh = false) {
     if (!booted) {
       buildShell();
       booted = true;
-      // The saved limit applies to this server too (a new project starts with the default).
-      saveIdle(power.get("stop")).catch(() => {});
+      // The browser's choices and the project's settings file agree from here on.
+      syncSettings();
     }
     applyStatus();
     renderNav();

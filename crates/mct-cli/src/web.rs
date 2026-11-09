@@ -13,6 +13,7 @@ mod obsidian;
 mod port;
 mod response;
 mod reviews;
+mod settings;
 #[cfg(test)]
 mod tests;
 
@@ -568,12 +569,13 @@ fn dashboard_url(port: u16) -> String {
     format!("http://localhost:{port}/")
 }
 
-/// `idle_timeout`: stop after this long without a request (`None`: never).
+/// `idle_minutes`: stop after this many minutes without use (0: never). Without it, the saved
+/// setting applies, then 30.
 pub(super) fn run(
     root: &Path,
     port: Option<u16>,
     no_obsidian: bool,
-    idle_timeout: Option<std::time::Duration>,
+    idle_minutes: Option<u64>,
 ) -> anyhow::Result<()> {
     anyhow::ensure!(
         root.join(".mct-index/index.sqlite3").is_file(),
@@ -592,7 +594,12 @@ pub(super) fn run(
     );
     std::io::stdout().flush()?;
     // Always watching: the settings page can turn the limit on or change it later.
-    let activity = idle::Activity::with_timeout(idle_timeout);
+    let minutes = idle_minutes
+        .or_else(|| settings::saved_stop_minutes(root))
+        .unwrap_or(30);
+    let activity = idle::Activity::with_timeout(
+        (minutes > 0).then(|| std::time::Duration::from_secs(minutes.saturating_mul(60))),
+    );
     idle::watch(activity.clone(), || {
         println!("No use of the dashboard for the set time: stopping it.");
         let _ = std::io::stdout().flush();

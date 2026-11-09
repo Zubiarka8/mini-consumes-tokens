@@ -1,6 +1,7 @@
 // 10 · Configuración: theme, local server facts, backend capability matrix, local data
-import { h, store, applyTheme, toast, confirmDialog, dateTime, saveIdle } from "./core.js";
+import { h, store, applyTheme, toast, confirmDialog, dateTime, saveSettings } from "./core.js";
 import { power, MINUTES, MAX_MINUTES } from "./power.js";
+import { persist } from "./server-settings.js";
 import { icon, pageHead, badge, note } from "./components.js";
 import { ignoreCard } from "./ignore-card.js";
 import { t, getLang, setLang, LANGUAGES } from "./i18n.js";
@@ -127,6 +128,7 @@ export function render({ root, meta }) {
             onchange: () => {
               store.set("theme", id);
               applyTheme(id);
+              persist({ theme: id });
             },
           }),
           t(label),
@@ -139,7 +141,15 @@ export function render({ root, meta }) {
       t("settings.language"),
       h(
         "select",
-        { class: "select", onchange: (event) => setLang(event.target.value) },
+        {
+          class: "select",
+          // The file first: the page reloads as soon as the language changes.
+          onchange: async (event) => {
+            const lang = event.target.value;
+            await persist({ lang });
+            setLang(lang);
+          },
+        },
         LANGUAGES.map(([id, label]) => h("option", { value: id, selected: id === getLang() }, label)),
       ),
     ),
@@ -165,7 +175,7 @@ export function render({ root, meta }) {
           id: "power-stop",
           summary: stopSummary,
           onChange: (minutes) =>
-            saveIdle(minutes).then(
+            saveSettings({ stop: minutes }).then(
               () => toast(t("power.stopSaved"), "ok"),
               () => toast(t("power.stopFailed"), "error"),
             ),
@@ -180,7 +190,10 @@ export function render({ root, meta }) {
           name: "pause",
           id: "power-pause",
           summary: pauseSummary,
-          onChange: () => toast(t("power.pauseSaved"), "ok"),
+          onChange: (minutes) => {
+            persist({ pause: minutes });
+            toast(t("power.pauseSaved"), "ok");
+          },
         }),
       ),
     ),

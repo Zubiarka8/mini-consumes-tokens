@@ -89,7 +89,7 @@ pub(super) struct Complete {
 impl Complete {
     /// A decision or `.mctignore` edit, which may change saved state.
     pub(super) fn is_post(&self) -> bool {
-        self.post && self.target != "api/idle"
+        self.post && self.target != "api/settings"
     }
 
     /// The page's live-update check: it does not count as use of the dashboard.
@@ -100,13 +100,15 @@ impl Complete {
     pub(super) fn answer(&self, site: &mut Site, activity: &super::idle::Activity) -> Response {
         if self.post {
             match std::str::from_utf8(&self.body) {
-                Ok(body) if self.target == "api/idle" => activity.set(body, &site.csrf),
+                Ok(body) if self.target == "api/settings" => {
+                    super::settings::save(&site.root, body, &site.csrf, activity)
+                }
                 Ok(body) if self.target == "api/ignore" => site.ignore(body),
                 Ok(body) => site.review(body),
                 Err(_) => Response::error(400),
             }
-        } else if self.target == "api/idle" {
-            activity.state()
+        } else if self.target == "api/settings" {
+            super::settings::state(&site.root)
         } else {
             route(site, &self.target)
         }
@@ -245,7 +247,7 @@ fn validate(headers: &str, port: u16) -> Result<Request, u16> {
     let target = target.strip_prefix('/').ok_or(404_u16)?;
     let post = method == "POST";
     let length = if post {
-        if !matches!(target, "api/review" | "api/ignore" | "api/idle") {
+        if !matches!(target, "api/review" | "api/ignore" | "api/settings") {
             return Err(405);
         }
         if fields.get("origin").copied() != Some(format!("http://{host}").as_str()) {
