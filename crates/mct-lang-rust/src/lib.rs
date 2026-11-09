@@ -928,7 +928,12 @@ impl<'a> Walker<'a> {
             .scope
             .other_imports
             .get(name)
-            .is_some_and(|reaches| reaches.iter().any(|reach| reach.contains(&at)));
+            .is_some_and(|reaches| reaches.iter().any(|reach| reach.contains(&at)))
+            || self
+                .scope
+                .variant_globs
+                .iter()
+                .any(|(reach, variants)| reach.contains(&at) && variants.contains(name));
         if self.scope.std_imports.contains(name) {
             return !imported_here;
         }
@@ -1227,9 +1232,11 @@ const PRELUDE: &[&str] = &[
 #[derive(Default)]
 struct FileScope {
     /// Every item name declared anywhere in the file (functions, types,
-    /// variants, traits, constants, macros, modules), whatever its scope:
-    /// any of them may shadow a prelude name somewhere in the file.
-    /// Associated items are left out: no bare name can reach them.
+    /// traits, constants, macros, modules), whatever its scope: any of them
+    /// may shadow a prelude name somewhere in the file. Associated items are
+    /// left out — no bare name can reach them — and so are enum variants,
+    /// unless a glob over their enum brings them in (`Level::Debug` doesn't
+    /// shadow the `Debug` derive).
     declared: HashSet<String>,
     /// Names a `use` of a `std`/`core`/`alloc` path brings in.
     std_imports: HashSet<String>,
@@ -1244,6 +1251,9 @@ struct FileScope {
     /// items and imports, and a glob over an enum declared here only its
     /// variants, so neither is opaque.
     opaque_globs: Vec<std::ops::Range<usize>>,
+    /// A glob over an enum declared in this file (`use Level::*`): the
+    /// block it reaches and the variant names it brings in there.
+    variant_globs: Vec<(std::ops::Range<usize>, HashSet<String>)>,
 }
 
 /// A glob import: the path before its `*`, how many inline `mod`s it is
@@ -1256,23 +1266,28 @@ struct Glob {
 
 fn collect_scope(root: Node, source: &str) -> FileScope {
     let mut scope = FileScope::default();
-    let mut enums = HashSet::new();
+    let mut enums = HashMap::new();
     let mut globs = Vec::new();
     collect_scope_at(root, source, &mut scope, &mut enums, &mut globs, 0, 0);
-    scope.opaque_globs = globs
-        .into_iter()
-        .filter(|glob| {
-            let segments = path_segments(&glob.path);
-            let local_enum = match segments.as_slice() {
-                [name] => enums.contains(name),
-                [first, name] => first == "self" && enums.contains(name),
-                _ => false,
-            };
-            let parent_file = segments.as_slice() == ["super"] && glob.mod_depth == 1;
-            !(local_enum || parent_file)
-        })
-        .map(|glob| glob.reach)
-        .collect();
+    let mut opaque = Vec::new();
+    for glob in globs {
+        let segments = path_segments(&glob.path);
+        let local_enum = match segments.as_slice() {
+            [name] => enums.get(name),
+            [first, name] if first == "self" => enums.get(name),
+            _ => None,
+        };
+        if let Some(variants) = local_enum {
+            // Its variants are now bare names in the glob's block, which may
+            // shadow the prelude there.
+            scope
+                .variant_globs
+                .push((glob.reach, variants.iter().cloned().collect()));
+        } else if !(segments.as_slice() == ["super"] && glob.mod_depth == 1) {
+            opaque.push(glob.reach);
+        }
+    }
+    scope.opaque_globs = opaque;
     scope
 }
 
@@ -1280,7 +1295,7 @@ fn collect_scope_at(
     node: Node,
     source: &str,
     scope: &mut FileScope,
-    enums: &mut HashSet<String>,
+    enums: &mut HashMap<String, Vec<String>>,
     globs: &mut Vec<Glob>,
     mod_depth: u32,
     depth: u32,
@@ -1339,10 +1354,21 @@ fn collect_scope_at(
                 .is_some_and(|owner| matches!(owner.kind(), "impl_item" | "trait_item"));
             if let Some(name) = node.child_by_field_name("name").filter(|_| !associated) {
                 let name = text(name, source).to_string();
-                if node.kind() == "enum_item" {
-                    enums.insert(name.clone());
+                match node.kind() {
+                    "enum_item" => {
+                        enums.entry(name.clone()).or_default();
+                        scope.declared.insert(name);
+                    }
+                    // A variant is reached through its enum's path.
+                    "enum_variant" => {
+                        if let Some(owner) = enum_name(node, source) {
+                            enums.entry(owner).or_default().push(name);
+                        }
+                    }
+                    _ => {
+                        scope.declared.insert(name);
+                    }
                 }
-                scope.declared.insert(name);
             }
         }
         _ => {}
@@ -1352,6 +1378,15 @@ fn collect_scope_at(
     for child in node.children(&mut cursor) {
         collect_scope_at(child, source, scope, enums, globs, inner_depth, depth + 1);
     }
+}
+
+/// The name of the enum an `enum_variant` belongs to.
+fn enum_name(variant: Node, source: &str) -> Option<String> {
+    let item = variant.parent()?.parent()?;
+    (item.kind() == "enum_item")
+        .then(|| item.child_by_field_name("name"))
+        .flatten()
+        .map(|name| text(name, source).to_string())
 }
 
 /// Every `*` import under a `use` argument, with the path before it. One
