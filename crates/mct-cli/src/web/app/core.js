@@ -151,6 +151,18 @@ export async function saveIgnore(content, base, file = "mctignore") {
   return body;
 }
 
+/** Tells the server how long it may stay up without use (minutes, 0: never). */
+export async function saveIdle(minutes) {
+  const response = await fetch("api/idle", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ csrf, minutes }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new ApiError(response.status, body.error || response.statusText, body);
+  return body;
+}
+
 // ---------- routing: #/page?query ----------
 // The first group is the main navigation; `more` pages follow it under a divider.
 export const PAGES = [
