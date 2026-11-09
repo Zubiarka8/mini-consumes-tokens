@@ -111,6 +111,28 @@ pub fn outside() -> Result<u8, u8> {
 }
 ";
 
+const VARIANTS: &str = "\
+#[derive(Debug, Default)]
+pub enum Level {
+    Debug,
+    #[default]
+    Default,
+}
+
+pub enum Reply {
+    Err(u8),
+}
+
+pub fn local() -> Reply {
+    use Reply::*;
+    Err(1)
+}
+
+pub fn prelude() -> Result<u8, u8> {
+    Err(2)
+}
+";
+
 const LOCAL: &str = "\
 pub struct Some(pub u8);
 
@@ -174,6 +196,7 @@ fn indexed() -> (Index, PathBuf) {
         ("glob.rs", GLOB),
         ("scoped_glob.rs", SCOPED_GLOB),
         ("scoped_import.rs", SCOPED_IMPORT),
+        ("variants.rs", VARIANTS),
         ("local.rs", LOCAL),
         ("shadow.rs", SHADOW),
         ("std_import.rs", STD_IMPORT),
@@ -297,6 +320,24 @@ fn an_import_in_a_function_shadows_the_prelude_only_there() {
     );
     let outside = hit(&index, "src/scoped_import.rs", "calls", "Ok", 7);
     assert_eq!(outside.resolution, Resolution::External);
+    std::fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn a_variant_is_not_in_scope_bare_in_the_file_declaring_it() {
+    let (index, root) = indexed();
+    let file = "src/variants.rs";
+    // `Level::Debug` is reached as a path only, so the derive on line 1 is
+    // the prelude's `Debug`, not the variant three lines below it.
+    for to in ["Debug", "Default"] {
+        let derive = hit(&index, file, "references", to, 1);
+        assert_eq!(derive.resolution, Resolution::External, "{to}");
+    }
+    // `use Reply::*` brings `Reply::Err` in, but only inside `local`.
+    let variant = hit(&index, file, "calls", "Err", 14);
+    assert_ne!(variant.resolution, Resolution::External);
+    let prelude = hit(&index, file, "calls", "Err", 18);
+    assert_eq!(prelude.resolution, Resolution::External);
     std::fs::remove_dir_all(root).ok();
 }
 
