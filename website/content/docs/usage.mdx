@@ -1,0 +1,46 @@
+---
+title: Usage guide
+description: What to do after installing, day to day.
+---
+
+Everything here assumes the two programs are installed. Every flag is in the [CLI reference](/docs/cli) and every tool parameter in the [tools reference](/docs/tools).
+
+## The first five minutes
+
+```bash
+cd path/to/your/project     # the project you want indexed
+mct-cli --root . init       # build the index; connecting an assistant also triggers it
+mct-cli --root . status     # files and symbols indexed, last run, any read failures
+```
+
+1. Connect your agent or editor. The steps for each tool are in [AI clients](/docs/clients).
+2. Ask it things, such as "Where is `InvoiceService` defined?" or "What would break if I change `calculate_total`?" Your assistant uses the index instead of reading every file.
+3. Refresh only if you need to. While an assistant is connected, the index updates itself in the background once changes settle on disk, 15 seconds after the last change by default. Only changed files are parsed again. After a large batch of changes, run `mct-cli --root . reindex --force`.
+
+## Keep files out of the index
+
+`mct-cli --root . ignore-init` writes a starter `.mctignore`. Edit it to exclude things like `docs/` or `*.md`, then run `reindex --force`. A connected server applies the edit before its next tool call, so an excluded file is never served from the old index.
+
+- `--import-gitignore` excludes what your own `.gitignore` files already exclude, nested ones included.
+- `--generated` adds editable rules for `venv`, caches, `bin`, `obj`, `build` and `dist` at any depth. It is opt-in because `bin` can hold real source.
+- Next.js output (`.next/`) is always excluded.
+- `mct-cli --root . gitignore-init` keeps the generated database out of git.
+
+The full rule syntax is in [File exclusion rules](/docs/exclusion).
+
+## Obsidian
+
+`init` and `reindex`, and the server's background refresh, also write a compact code atlas to `.mct-index/obsidian/`. Open that folder as a vault in Obsidian. File notes list imports and symbols with line ranges, and source text is not copied. Pass `--no-obsidian` to skip it, or run `mct-cli --root . obsidian` to rebuild it by hand. Your own notes and `.obsidian/` survive regeneration.
+
+## What your assistant can do
+
+- Find where a function or class is defined, or everything defined in a file or folder.
+- Find code from a description of what it does (needs the optional `semantic` build).
+- Find every place something is used, and what a function depends on.
+- Answer "what would this change affect?" in one call.
+- Show which files a module imports, spot import cycles and export the graph as Mermaid or DOT.
+- Show a file's shape without reading all of it.
+- Spot candidate dead code (a heuristic: zero indexed references).
+- Check that the index is healthy and up to date.
+
+For the dashboard, see [The local dashboard](/docs/dashboard).
