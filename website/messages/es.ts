@@ -224,7 +224,7 @@ const es: Record<keyof typeof en, string> = {
     "Búsqueda por palabras en código, símbolos, archivos, duplicados, dependencias y notas de Obsidian. Los filtros viven en la URL, así que cualquier vista se puede guardar en marcadores.",
   obsLabel: "ATLAS DE CÓDIGO EN OBSIDIAN",
   obsTitle: "Explora tu mapa de código\nen Obsidian.",
-  obsText: "Cada análisis escribe también una bóveda de notas enlazadas: un mapa por carpeta y una nota por archivo con sus importaciones y símbolos. Abre la carpeta en Obsidian y recorre tu proyecto enlace a enlace. ¿Sin Obsidian? El panel web local (mct-cli web) lee las mismas notas con un lector integrado. Es opcional y local; omítela con --no-obsidian.",
+  obsText: "Cada análisis escribe también una bóveda de notas enlazadas: un mapa por carpeta y una nota por archivo con sus importaciones y símbolos. Abre la carpeta en Obsidian y recorre tu proyecto enlace a enlace. ¿Sin Obsidian? El panel web local (mct-cli web) lee las mismas notas con un lector integrado.\n\nEs opcional y local; omítela con --no-obsidian.",
   obsCmdLabel: "Reconstruye la bóveda a mano",
   obs1Title: "Notas enlazadas, sin copiar código",
   obs1Text:
