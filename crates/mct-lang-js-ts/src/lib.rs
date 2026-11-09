@@ -96,6 +96,7 @@ impl LanguageParser for JsTsParser {
 
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents, &file.relative_path);
+        walker.scan_globals(root);
         let module_id =
             walker.push_symbol(module_name, SymbolKind::Module, module_location(root), None);
         walker.visit_children(root, module_id, None, 0);
