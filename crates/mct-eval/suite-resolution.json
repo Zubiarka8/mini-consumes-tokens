@@ -1,0 +1,411 @@
+{
+  "name": "resolution-app",
+  "fixture": "tests/fixtures/resolution-app.txt",
+  "cases": [
+    {
+      "name": "rust: prelude names vs same-named variants and locals",
+      "category": "resolution",
+      "tool": "batch",
+      "args": {
+        "queries": [
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "Debug",
+              "path": "rust/src",
+              "limit": 200
+            }
+          },
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "Default",
+              "path": "rust/src",
+              "limit": 200
+            }
+          },
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "String",
+              "path": "rust/src",
+              "limit": 200
+            }
+          },
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "Ok",
+              "path": "rust/src/prelude_use.rs",
+              "limit": 200
+            }
+          },
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "Err",
+              "path": "rust/src/prelude_use.rs",
+              "limit": 200
+            }
+          },
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "Some",
+              "path": "rust/src/shadow.rs",
+              "limit": 200
+            }
+          },
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "drop",
+              "path": "rust/src/shadow.rs",
+              "limit": 200
+            }
+          }
+        ]
+      },
+      "labels": [
+        {
+          "at": "rust/src/kinds.rs:3",
+          "relation": "references Debug",
+          "truth": "external",
+          "defect": "D1"
+        },
+        {
+          "at": "rust/src/kinds.rs:9",
+          "relation": "references Debug",
+          "truth": "external",
+          "defect": "D1"
+        },
+        {
+          "at": "rust/src/kinds.rs:9",
+          "relation": "references Default",
+          "truth": "external",
+          "defect": "D1"
+        },
+        {
+          "at": "rust/src/prelude_use.rs:3",
+          "relation": "references Debug",
+          "truth": "external",
+          "defect": "D1"
+        },
+        {
+          "at": "rust/src/prelude_use.rs:3",
+          "relation": "references Default",
+          "truth": "external",
+          "defect": "D1"
+        },
+        {
+          "at": "rust/src/prelude_use.rs:5",
+          "relation": "references String",
+          "truth": "external",
+          "defect": "D1"
+        },
+        {
+          "at": "rust/src/prelude_use.rs:11:18",
+          "relation": "calls Ok",
+          "truth": "external",
+          "defect": "D1"
+        },
+        {
+          "at": "rust/src/prelude_use.rs:12:19",
+          "relation": "calls Err",
+          "truth": "external",
+          "defect": "D1"
+        },
+        {
+          "at": "rust/src/prelude_use.rs:17",
+          "relation": "references Debug",
+          "truth": "rust/src/kinds.rs:11"
+        },
+        {
+          "at": "rust/src/shadow.rs:4",
+          "relation": "calls Some",
+          "truth": "rust/src/shadow.rs:1"
+        },
+        {
+          "at": "rust/src/shadow.rs:9",
+          "relation": "calls drop",
+          "truth": "rust/src/shadow.rs:8"
+        }
+      ]
+    },
+    {
+      "name": "rust: explicit and glob imports",
+      "category": "resolution",
+      "tool": "batch",
+      "args": {
+        "queries": [
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "Ok",
+              "path": "rust/src/imports.rs",
+              "limit": 200
+            }
+          },
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "Err",
+              "path": "rust/src/glob.rs",
+              "limit": 200
+            }
+          }
+        ]
+      },
+      "labels": [
+        {
+          "at": "rust/src/imports.rs:4",
+          "relation": "calls Ok",
+          "truth": "rust/src/kinds.rs:5"
+        },
+        {
+          "at": "rust/src/glob.rs:4",
+          "relation": "calls Err",
+          "truth": "rust/src/kinds.rs:6"
+        }
+      ]
+    },
+    {
+      "name": "rust: same name in different modules",
+      "category": "resolution",
+      "tool": "batch",
+      "args": {
+        "queries": [
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "load",
+              "path": "rust/src/modules.rs",
+              "limit": 200
+            }
+          }
+        ]
+      },
+      "labels": [
+        {
+          "at": "rust/src/modules.rs:14:11",
+          "relation": "calls load",
+          "truth": "rust/src/modules.rs:2"
+        },
+        {
+          "at": "rust/src/modules.rs:14:29",
+          "relation": "calls load",
+          "truth": "rust/src/modules.rs:8"
+        }
+      ]
+    },
+    {
+      "name": "rust: a function and a method with the same name",
+      "category": "resolution",
+      "tool": "batch",
+      "args": {
+        "queries": [
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "len",
+              "path": "rust/src/same_name.rs",
+              "limit": 200
+            }
+          }
+        ]
+      },
+      "labels": [
+        {
+          "at": "rust/src/same_name.rs:17:12",
+          "relation": "calls len",
+          "truth": "rust/src/same_name.rs:7",
+          "defect": "D5"
+        },
+        {
+          "at": "rust/src/same_name.rs:17:19",
+          "relation": "calls len",
+          "truth": "rust/src/same_name.rs:12",
+          "defect": "D3"
+        },
+        {
+          "at": "rust/src/same_name.rs:8",
+          "relation": "calls len",
+          "truth": "external",
+          "defect": "D9"
+        },
+        {
+          "at": "rust/src/same_name.rs:13",
+          "relation": "calls len",
+          "truth": "external",
+          "defect": "D9"
+        }
+      ]
+    },
+    {
+      "name": "python: builtins, imports, fixtures and nested scopes",
+      "category": "resolution",
+      "tool": "batch",
+      "args": {
+        "queries": [
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "open",
+              "path": "py/app",
+              "limit": 200
+            }
+          },
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "parse",
+              "path": "py/app/report.py",
+              "limit": 200
+            }
+          },
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "len",
+              "path": "py/app",
+              "limit": 200
+            }
+          },
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "fmt",
+              "path": "py/app/report.py",
+              "limit": 200
+            }
+          }
+        ]
+      },
+      "labels": [
+        {
+          "at": "py/app/report.py:5",
+          "relation": "calls open",
+          "truth": "external",
+          "defect": "D2"
+        },
+        {
+          "at": "py/app/report.py:6",
+          "relation": "calls parse",
+          "truth": "py/app/util.py:1",
+          "defect": "D6"
+        },
+        {
+          "at": "py/app/report.py:7",
+          "relation": "calls len",
+          "truth": "external",
+          "defect": "D2"
+        },
+        {
+          "at": "py/app/report.py:14",
+          "relation": "calls fmt",
+          "truth": "py/app/report.py:11"
+        },
+        {
+          "at": "py/app/report.py:21",
+          "relation": "calls fmt",
+          "truth": "py/app/report.py:18"
+        }
+      ]
+    },
+    {
+      "name": "typescript: builtins, imports, fixtures and same-named methods",
+      "category": "resolution",
+      "tool": "batch",
+      "args": {
+        "queries": [
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "max",
+              "path": "ts/src",
+              "limit": 200
+            }
+          },
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "format",
+              "path": "ts/src/app.ts",
+              "limit": 200
+            }
+          }
+        ]
+      },
+      "labels": [
+        {
+          "at": "ts/src/app.ts:5",
+          "relation": "calls max",
+          "truth": "external",
+          "defect": "D2"
+        },
+        {
+          "at": "ts/src/app.ts:6:10",
+          "relation": "calls format",
+          "truth": "ts/src/fmt.ts:1",
+          "defect": "D6"
+        },
+        {
+          "at": "ts/src/app.ts:6:28",
+          "relation": "calls format",
+          "truth": "ts/src/invoice.ts:8",
+          "defect": "D5"
+        }
+      ]
+    },
+    {
+      "name": "java: an inherited call is not a same-named field",
+      "category": "resolution",
+      "tool": "batch",
+      "args": {
+        "queries": [
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "total",
+              "path": "java/src",
+              "limit": 200
+            }
+          }
+        ]
+      },
+      "labels": [
+        {
+          "at": "java/src/shop/Report.java:7",
+          "relation": "calls total",
+          "truth": "external",
+          "defect": "D3"
+        }
+      ]
+    },
+    {
+      "name": "lua: a host global is not another file's local",
+      "category": "resolution",
+      "tool": "batch",
+      "args": {
+        "queries": [
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "speed",
+              "path": "lua",
+              "limit": 200
+            }
+          }
+        ]
+      },
+      "labels": [
+        {
+          "at": "lua/hud.lua:4",
+          "relation": "calls speed",
+          "truth": "external",
+          "defect": "D4"
+        }
+      ]
+    }
+  ]
+}
