@@ -37,8 +37,8 @@ export function Constellation() {
     const draw = () => {
       const dark = document.documentElement.classList.contains("dark");
       const hot = dark ? "214,242,139" : "59,107,34";
-      const cold = dark ? "150,180,160" : "60,90,70";
-      const dim = dark ? "rgba(170,200,180,0.5)" : "rgba(40,70,50,0.4)";
+      const cold = dark ? "150,180,160" : "45,85,55";
+      const dim = dark ? "rgba(170,200,180,0.5)" : "rgba(35,75,45,0.6)";
       ctx.clearRect(0, 0, w, h);
       for (const n of nodes) {
         if (!still) {
@@ -57,7 +57,7 @@ export function Constellation() {
           if (d > 130) continue;
           const near = Math.min(da, Math.hypot(b.x - mouse.x, b.y - mouse.y));
           const glow = near < 170 ? 1 - near / 170 : 0;
-          ctx.strokeStyle = `rgba(${glow ? hot : cold},${(1 - d / 130) * (0.16 + glow * 0.7)})`;
+          ctx.strokeStyle = `rgba(${glow ? hot : cold},${(1 - d / 130) * ((dark ? 0.16 : 0.3) + glow * 0.7)})`;
           ctx.lineWidth = 0.6 + glow;
           ctx.beginPath();
           ctx.moveTo(a.x, a.y);
