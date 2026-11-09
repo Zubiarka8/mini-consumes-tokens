@@ -45,7 +45,7 @@ Done 9 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 7
 
 ### FN02 Nested function
 
-- [~] Rust: nested function is indexed, but parser test confirms `parent` is `None`
+- [x] Rust: nested function is indexed with the enclosing function as `parent`
 - [~] Python: file skeleton shows `nested` indented, but the parser test confirms `parent` is `None`
 - [~] JS/TS: nested function is indexed, but parser test confirms `parent` is `None`
 - — Java: no nested named functions
@@ -65,11 +65,11 @@ Done 9 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 7
 
 *Done when:* Named function inside another function, indexed as `function` with the outer function as parent.
 
-Done 2 · Partial 7 · Not done 0 · Not verified 0 · Not applicable 8
+Done 3 · Partial 6 · Not done 0 · Not verified 0 · Not applicable 8
 
 ### FN03 Lambda or closure assigned to a name
 
-- [ ] Rust: assigned closure is not returned as a symbol by `list_symbols`
+- [x] Rust: `let name = |..| ..` closure is a `function` owned by the enclosing function; closures not bound by a plain `let` are not indexed
 - [ ] Python: `find_symbol("assigned_lambda")` returns no symbol
 - [x] JS/TS: `const p_arrow = …` → `function`
 - [ ] Java: lambda `r` has no symbol
@@ -89,7 +89,7 @@ Done 2 · Partial 7 · Not done 0 · Not verified 0 · Not applicable 8
 
 *Done when:* `f = <lambda>` or `f := func…` gives a symbol, not only a `calls` relation.
 
-Done 3 · Partial 1 · Not done 7 · Not verified 0 · Not applicable 6
+Done 4 · Partial 1 · Not done 6 · Not verified 0 · Not applicable 6
 
 ### FN04 Method
 
@@ -337,7 +337,7 @@ Done 4 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 13
 
 ### TY04 Union
 
-- [ ] Rust: `union RawValue` is omitted from the index (probed 2026-11-04)
+- [x] Rust: `union RawValue` is indexed as a `struct` with its fields
 - — Python: Python has no union
 - — JS/TS: JS/TS has no union
 - — Java: Java has no union
@@ -357,7 +357,7 @@ Done 4 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 13
 
 *Done when:* Union indexed as its own kind or as `struct`, with its members.
 
-Done 0 · Partial 1 · Not done 1 · Not verified 0 · Not applicable 15
+Done 1 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 15
 
 ### TY05 Interface / protocol
 
@@ -457,7 +457,7 @@ Done 6 · Partial 2 · Not done 1 · Not verified 0 · Not applicable 8
 
 ### TY09 Enum members
 
-- [ ] Rust: variant `P_V` has no symbol
+- [x] Rust: variants `Red` and `Green` are `constant` symbols owned by `Color`
 - [ ] Python: `find_symbol("RED")` returns no symbol
 - [ ] JS/TS: `find_symbol("Red")` returns no symbol
 - [x] Java: enum constants as `field`
@@ -477,7 +477,7 @@ Done 6 · Partial 2 · Not done 1 · Not verified 0 · Not applicable 8
 
 *Done when:* Enum values indexed as `field` or `constant`.
 
-Done 5 · Partial 0 · Not done 4 · Not verified 0 · Not applicable 8
+Done 6 · Partial 0 · Not done 3 · Not verified 0 · Not applicable 8
 
 ### TY10 Record / data class
 
@@ -653,7 +653,7 @@ Data declared in code, from instance fields to parameters and macros.
 
 ### DA01 Field / instance attribute
 
-- [ ] Rust: `Widget.inner` and `Widget.value` are omitted from the field-symbol query
+- [x] Rust: `Widget.inner` and `Widget.value` are `field` symbols; tuple fields are named `0`, `1`
 - [ ] Python: `self.value` is omitted from the field-symbol query
 - [x] JS/TS: `#p_priv` and `static` fields
 - [x] Java: `field`
@@ -673,7 +673,7 @@ Data declared in code, from instance fields to parameters and macros.
 
 *Done when:* Instance or class field indexed as `field`.
 
-Done 6 · Partial 0 · Not done 5 · Not verified 0 · Not applicable 6
+Done 7 · Partial 0 · Not done 4 · Not verified 0 · Not applicable 6
 
 ### DA02 Constructor-promoted field
 
@@ -725,7 +725,7 @@ Done 2 · Partial 4 · Not done 4 · Not verified 0 · Not applicable 7
 
 ### DA04 Global / module-level variable
 
-- [ ] Rust: immutable and mutable `static` declarations are indexed as `constant`, not `variable`
+- [x] Rust: `static` and `static mut` are `variable`; `const` stays `constant`
 - [ ] Python: `P_MOD` has no symbol
 - [ ] JS/TS: `let p_var` has no symbol
 - — Java: Java has no global / module-level variable
@@ -745,11 +745,11 @@ Done 2 · Partial 4 · Not done 4 · Not verified 0 · Not applicable 7
 
 *Done when:* Module-level or global variable indexed as `variable`.
 
-Done 3 · Partial 1 · Not done 6 · Not verified 0 · Not applicable 7
+Done 4 · Partial 1 · Not done 5 · Not verified 0 · Not applicable 7
 
 ### DA05 Local variable
 
-- [ ] Rust: `find_symbol("local_value")` returns no symbol
+- [x] Rust: `local_value` is a `variable` owned by its function, like the bindings of `for`, `if let`, `while let` and `match` arms
 - [ ] Python: `find_symbol("local_value")` returns no symbol
 - [ ] JS/TS: `find_symbol("local_value")` returns no symbol
 - [ ] Java: lambda local not indexed
@@ -769,11 +769,11 @@ Done 3 · Partial 1 · Not done 6 · Not verified 0 · Not applicable 7
 
 *Done when:* Variable inside a function indexed as a symbol.
 
-Done 1 · Partial 0 · Not done 11 · Not verified 0 · Not applicable 5
+Done 2 · Partial 0 · Not done 10 · Not verified 0 · Not applicable 5
 
 ### DA06 Parameter
 
-- [ ] Rust: `find_symbol("input")` returns no symbol
+- [x] Rust: `input` is a `variable` owned by its function
 - [ ] Python: `find_symbol("argument")` returns no symbol
 - [ ] JS/TS: `find_symbol("inner")` returns no symbol
 - [ ] Java: parameter not indexed
@@ -793,11 +793,11 @@ Done 1 · Partial 0 · Not done 11 · Not verified 0 · Not applicable 5
 
 *Done when:* Function parameter indexed as a symbol.
 
-Done 0 · Partial 0 · Not done 11 · Not verified 0 · Not applicable 6
+Done 1 · Partial 0 · Not done 10 · Not verified 0 · Not applicable 6
 
 ### DA07 Macro / preprocessor define
 
-- [ ] Rust: `find_symbol("audit_macro")` returns no symbol
+- [x] Rust: `macro_rules! audit_macro` is a `function`; there is no macro kind
 - — Python: Python has no macro / preprocessor define
 - — JS/TS: JS/TS has no macro / preprocessor define
 - — Java: Java has no macro / preprocessor define
@@ -817,7 +817,7 @@ Done 0 · Partial 0 · Not done 11 · Not verified 0 · Not applicable 6
 
 *Done when:* `#define` or `macro_rules!` indexed as a symbol.
 
-Done 0 · Partial 0 · Not done 2 · Not verified 0 · Not applicable 15
+Done 1 · Partial 0 · Not done 1 · Not verified 0 · Not applicable 15
 
 ## Relations
 
@@ -969,7 +969,7 @@ Done 5 · Partial 1 · Not done 1 · Not verified 0 · Not applicable 10
 
 ### RE07 Interface extends interface / supertrait
 
-- [ ] Rust: `ChildTrait: ParentTrait` produces no `extends` reference
+- [x] Rust: `ChildTrait: ParentTrait` produces an `extends` relation
 - — Python: Python has no interface extends interface / supertrait
 - [x] JS/TS: `P_Iface` extends `P_Ext`
 - [ ] Java: `interface P_Iface extends P_Ext2` gives no relation
@@ -989,11 +989,11 @@ Done 5 · Partial 1 · Not done 1 · Not verified 0 · Not applicable 10
 
 *Done when:* Interface inheritance gives `extends`.
 
-Done 3 · Partial 1 · Not done 3 · Not verified 0 · Not applicable 10
+Done 4 · Partial 1 · Not done 2 · Not verified 0 · Not applicable 10
 
 ### RE08 Decorator / annotation / attribute
 
-- [ ] Rust: `#[derive(Clone)]` produces no `Clone` reference
+- [x] Rust: `#[derive(Clone)]` produces a `references` relation to `Clone`; compiler attributes such as `#[cfg]` are ignored
 - [x] Python: `@abc.abstractmethod` and `@login_required` → `references`
 - [ ] JS/TS: `@Component` gives no reference
 - [ ] Java: `@Override` gives no reference
@@ -1013,7 +1013,7 @@ Done 3 · Partial 1 · Not done 3 · Not verified 0 · Not applicable 10
 
 *Done when:* Decorator or attribute gives a `references` relation.
 
-Done 2 · Partial 0 · Not done 5 · Not verified 0 · Not applicable 10
+Done 3 · Partial 0 · Not done 4 · Not verified 0 · Not applicable 10
 
 ### RE09 Struct / type embedding
 
@@ -1069,7 +1069,7 @@ Done 12 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 5
 
 ### SE02 Callers and callees
 
-- [~] Rust: direct calls work; a call through `audit_macro!` has no relation
+- [x] Rust: `audit_macro!` and an imported function called inside a macro (`println!("{}", helper(x))`) are `calls`
 - [x] Python: `find_calls`, `find_callers`
 - [x] JS/TS: `find_callers p_top`
 - [x] Java: `find_calls`
@@ -1089,7 +1089,7 @@ Done 12 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 5
 
 *Done when:* `find_callers` and `find_calls` return the relation, including inside macros.
 
-Done 11 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 5
+Done 12 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 5
 
 ### SE03 Every use
 
@@ -1169,7 +1169,7 @@ The review reports. Dead code and repeated code are heuristics: a hit is a candi
 
 ### QU01 Dead code
 
-- [~] Rust: unused functions/types are reported, but `Inner` is a false positive because `Widget.inner` is not indexed; macros are omitted
+- [x] Rust: unused functions and types are reported; `Inner`, macros and associated types of trait impls are not false positives
 - [x] Python: unused function and class reported
 - [x] JS/TS: unused function and class reported
 - [~] Java: only types: `P_UnusedK` reported, `p_unused` method skipped
@@ -1189,7 +1189,7 @@ The review reports. Dead code and repeated code are heuristics: a hit is a candi
 
 *Done when:* `find_dead_code` reports unused symbols of the kinds it checks, without false positives.
 
-Done 6 · Partial 6 · Not done 0 · Not verified 0 · Not applicable 5
+Done 7 · Partial 5 · Not done 0 · Not verified 0 · Not applicable 5
 
 ### QU02 Repeated code
 

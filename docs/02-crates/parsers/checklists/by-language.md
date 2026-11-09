@@ -2,7 +2,7 @@
 
 > **Verification status:** checked on 2026-11-04 with `mct-cli` (debug build, commit `bb5eb03`) against
 > probe fixtures. `[?]` means the feature was not exercised in that check; it does not mean the feature is
-> missing. The earlier record is the 2026-10-19 probe at commit `71ec6d0`.
+> missing. The Rust section was re-probed on 2026-11-09 against the current parser. The earlier record is the 2026-10-19 probe at commit `71ec6d0`.
 
 Secondary view. One checklist per language, all 17 languages. Definitions are in [features.md](../features.md).
 Same data as [by-feature.md](by-feature.md).
@@ -20,7 +20,7 @@ Every feature the language does not have is named under *Not applicable*, with t
 
 | Language | Done | Partial | Not done | Not verified | Not applicable |
 |---|--:|--:|--:|--:|--:|
-| Rust | 23 | 3 | 10 | 0 | 17 |
+| Rust | 36 | 0 | 0 | 0 | 17 |
 | Python | 25 | 5 | 8 | 0 | 14 |
 | JS/TS | 26 | 5 | 12 | 0 | 9 |
 | Java | 22 | 6 | 9 | 0 | 15 |
@@ -42,13 +42,13 @@ Markup languages use the MK features and their own constructs, at the end.
 
 ## Rust (`rust`)
 
-Done 23 · Partial 3 · Not done 10 · Not verified 0 · Not applicable 17
+Done 36 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 17
 
 **Functions and methods**
 
 - [x] FN01 Top-level function: `function`
-- [~] FN02 Nested function: nested function is indexed, but parser test confirms `parent` is `None`
-- [ ] FN03 Lambda or closure assigned to a name: assigned closure is absent from `list_symbols`
+- [x] FN02 Nested function: nested function is indexed with the enclosing function as `parent`
+- [x] FN03 Lambda or closure assigned to a name: `let name = |..| ..` closure is a `function` owned by the enclosing function; closures not bound by a plain `let` are not indexed
 - [x] FN04 Method: parent is the impl type
 - [x] FN06 Destructor / finalizer: `drop` is a `method` owned by `Widget`
 - [x] FN07 Operator overload: `add` is a `method` owned by `Widget`
@@ -56,38 +56,38 @@ Done 23 · Partial 3 · Not done 10 · Not verified 0 · Not applicable 17
 **Types and object-oriented programming**
 
 - [x] TY03 Struct: `struct`
-- [ ] TY04 Union: `union RawValue` is omitted from the index (probed 2026-11-04)
+- [x] TY04 Union: `union RawValue` is indexed as a `struct` with its fields
 - [x] TY06 Interface members: trait method as `method`
 - [x] TY07 Trait / mixin: `trait`
 - [x] TY08 Enum: `enum`
-- [ ] TY09 Enum members: `find_symbol("Red")` returns no symbol
+- [x] TY09 Enum members: variants `Red` and `Green` are `constant` symbols owned by `Color`
 - [x] TY15 Type alias: `type` alias
 - [x] TY16 Module / namespace / package: file module plus `mod` blocks
 **Fields, constants and variables**
 
-- [ ] DA01 Field / instance attribute: `Widget.inner` and `Widget.value` are omitted from the field-symbol query
+- [x] DA01 Field / instance attribute: `Widget.inner` and `Widget.value` are `field` symbols; tuple fields are named `0`, `1`
 - [x] DA03 Constant (module or global): `const` → `constant`
-- [ ] DA04 Global / module-level variable: immutable and mutable `static` declarations are indexed as `constant`, not `variable`
-- [ ] DA05 Local variable: `find_symbol("local_value")` returns no symbol
-- [ ] DA06 Parameter: `find_symbol("input")` returns no symbol
-- [ ] DA07 Macro / preprocessor define: `find_symbol("audit_macro")` returns no symbol
+- [x] DA04 Global / module-level variable: `static` and `static mut` are `variable`; `const` stays `constant`
+- [x] DA05 Local variable: `local_value` is a `variable` owned by its function, like the bindings of `for`, `if let`, `while let` and `match` arms
+- [x] DA06 Parameter: `input` is a `variable` owned by its function
+- [x] DA07 Macro / preprocessor define: `macro_rules! audit_macro` is a `function`; there is no macro kind
 **Relations**
 
 - [x] RE01 Calls: `find_calls(top_level)` returns the call to `nested`
 - [x] RE04 Imports: `find_references("Add")` returns its `use` import
 - [x] RE06 Implements interface / trait: `Widget` implements `ParentTrait` and `ChildTrait`
-- [ ] RE07 Interface extends interface / supertrait: `ChildTrait: ParentTrait` produces no `extends` reference
-- [ ] RE08 Decorator / annotation / attribute: `#[derive(Clone)]` produces no `Clone` reference
+- [x] RE07 Interface extends interface / supertrait: `ChildTrait: ParentTrait` produces an `extends` relation
+- [x] RE08 Decorator / annotation / attribute: `#[derive(Clone)]` produces a `references` relation to `Clone`; compiler attributes such as `#[cfg]` are ignored
 **Search and lookup**
 
 - [x] SE01 Find a definition: `find_symbol("top_level")` returns a `function`
-- [~] SE02 Callers and callees: direct calls work; a call through `audit_macro!` has no relation
+- [x] SE02 Callers and callees: `audit_macro!` and an imported function called inside a macro (`println!("{}", helper(x))`) are `calls`
 - [x] SE03 Every use: references through `use`
 - [x] SE04 Blast radius and context: `impact_analysis` and `build_context_pack` return callers, references and a likely test
 - [x] SE05 Exact text in strings: exact phrase query finds the `SEARCH_TEXT` literal
 **Code quality**
 
-- [~] QU01 Dead code: unused functions/types are reported, but `Inner` is a false positive because `Widget.inner` is not indexed; macros are omitted
+- [x] QU01 Dead code: unused functions and types are reported; `Inner`, macros and associated types of trait impls are not false positives
 - [x] QU02 Repeated code: one REAL group
 **Structure**
 

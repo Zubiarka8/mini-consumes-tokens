@@ -872,3 +872,97 @@ fn a_unit_struct_used_as_a_value_is_referenced() {
     );
     assert!(references_from(&parsed, "use_it").contains(&"Broken"));
 }
+
+#[test]
+fn an_imported_function_called_inside_a_macro_is_a_call() {
+    let parsed = parse(
+        r#"
+        use other::helper;
+        use other::Wrapper as W;
+        fn run(local: i32) {
+            println!("{}", helper(local));
+            println!("{}", unrelated(local));
+            println!("{}", x.helper(local));
+            println!("{}", m::helper(local));
+        }
+    "#,
+    );
+    let run = parsed
+        .symbols
+        .iter()
+        .find(|s| s.name == "run")
+        .expect("run");
+    let calls: Vec<(&str, u32)> = parsed
+        .relations
+        .iter()
+        .filter(|r| r.from == run.id && r.kind == RelationKind::Calls)
+        .map(|r| (r.to_name.as_str(), r.location.line))
+        .collect();
+    // Only the bare, imported `helper(..)` is a call: `unrelated` is not
+    // imported, and `x.helper` / `m::helper` are an accessor and a path.
+    assert_eq!(calls, vec![("helper", 5)], "{:?}", parsed.relations);
+}
+
+#[test]
+fn a_local_shadowing_an_import_is_not_a_macro_call() {
+    let parsed = parse(
+        r#"
+        use other::helper;
+        fn run() {
+            let helper = |x: i32| x;
+            println!("{}", helper(1));
+        }
+    "#,
+    );
+    assert!(
+        !parsed
+            .relations
+            .iter()
+            .any(|r| r.kind == RelationKind::Calls
+                && r.to_name == "helper"
+                && r.location.line == 5),
+        "{:?}",
+        parsed.relations
+    );
+}
+
+#[test]
+fn loop_conditional_and_match_bindings_are_variables_of_their_function() {
+    let parsed = parse(
+        r#"
+        enum Color { Red, Blue }
+        const LIMIT: i32 = 3;
+        fn run(items: Vec<i32>, c: Color) {
+            for item in items.iter() {}
+            for (i, v) in items.iter().enumerate() {}
+            while let Some(top) = items.first() {}
+            if let Some(found) = items.get(0) {}
+            match items.len() {
+                n if n > 1 => {}
+                other @ 0 => {}
+                LIMIT => {}
+                _ => {}
+            }
+            match c { Color::Red => {} Blue => {} }
+        }
+    "#,
+    );
+    let variables: Vec<(&str, Option<&str>)> = parsed
+        .symbols
+        .iter()
+        .filter(|s| s.kind == SymbolKind::Variable)
+        .map(|s| (s.name.as_str(), s.parent.as_deref()))
+        .collect();
+    for name in ["item", "i", "v", "top", "found", "n", "other"] {
+        assert_eq!(
+            variables.iter().filter(|(n, _)| *n == name).count(),
+            1,
+            "{name}: {variables:?}"
+        );
+        assert!(variables.contains(&(name, Some("run"))), "{name}");
+    }
+    // A pattern constructor, a constant and a unit variant bind nothing.
+    for name in ["Some", "LIMIT", "Blue", "Red"] {
+        assert!(!variables.iter().any(|(n, _)| *n == name), "{name}");
+    }
+}
