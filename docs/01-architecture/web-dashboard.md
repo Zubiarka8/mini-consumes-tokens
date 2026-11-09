@@ -10,8 +10,26 @@ and a strict CSP. Its localhost URL does not contain a private key.
 - A professional, local-first dashboard over the existing index: Dashboard,
   indexed code, duplicates (with side-by-side compare), dead code, search,
   dependencies, reviews, statistics, Obsidian notes, unified workspace, settings.
-- Spanish (Spain) UI with all strings in one table (`app/i18n.js`) so other
-  locales can be added without touching components.
+- UI in English and Spanish (Spain) with all strings in one table (`app/i18n.js`) so other
+  locales can be added without touching components. The language and the theme
+  (dark, light or system) are remembered. Defaults: theme `system`; English,
+  unless the browser's language settings list Spanish first. Each project has
+  its own port and `localStorage` is per origin, so both choices are also
+  mirrored in one cookie (`app/prefs.js`, cookies ignore the port) that a new
+  project's dashboard reads when it has nothing saved.
+- Background use is set in Settings and shared between projects like the theme
+  (`app/power.js`): the time without use after which the server closes itself
+  (default 30 minutes; 5 to 180 minutes, a custom value up to 24 hours, or never;
+  `POST api/settings`, which also applies it to the running server) and the time without
+  input after which the page stops its live-update checks (default 5 minutes). Only
+  a person's input (at most one request a minute) or a normal request counts as use:
+  the page's own check, `api/meta?passive=1`, does not, and nothing is requested
+  while the tab is hidden or paused.
+- Preferences (theme, language and the two times) are also saved in
+  `.mct-index/web-settings.json` (`web/settings.rs`, `app/server-settings.js`), so they survive
+  cleared site data, another browser and a restarted server, which reads the saved close time
+  unless `--idle-timeout` is given. A choice the browser has made wins and is written to the
+  file; one it never made is taken from the file. Only known fields with valid values are kept.
 - Never invent data. Anything the index does not record is marked unavailable
   through `meta.capabilities` (history, semantic search, call graph, reindex,
   tokens, similarity, confidence, severity, reviewers are all `false`).
@@ -53,7 +71,13 @@ and a strict CSP. Its localhost URL does not contain a private key.
 - `web/app/*` is an ES-module front end embedded with `include_str!`: hash
   routing (`#/page?query`, filters live in the URL), a DOM builder that never
   uses `innerHTML`, inline SVG charts, a bounded force-directed graph, an LCS
-  line diff and a safe Markdown renderer.
+  line diff. Three bundles are built by `crates/mct-cli/web-ui` and committed:
+  the review workspace (`review-dist/`), the notes Markdown renderer
+  (`notes-dist/notes.js`: Obsidian syntax, highlighted code, wikilink previews,
+  built from DOM nodes only, [ADR-033](adrs/033-notes-markdown-renderer-bundle.md))
+  and the WebGL notes graph for large vaults (`graph-dist/graph.js`: all notes
+  at once, communities coloured, display and force sliders; small graphs keep
+  the SVG one).
 
 ## Duplicate row contract
 

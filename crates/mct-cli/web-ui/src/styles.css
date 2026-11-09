@@ -10,6 +10,11 @@
 @import "sonner/dist/styles.css";
 
 @source "./";
+/* The notes renderer (src/notes) is not React and has its own bundle; its strings are not utilities. */
+@source not "./notes";
+@source not "./graph";
+/* Prose in the README is not markup either. */
+@source not "../README.md";
 
 @theme inline {
   --color-bg: var(--bg);

@@ -1,5 +1,6 @@
 // Shared runtime: DOM builder, API client, routing state, formatting, dialogs, toasts.
 import { t, getLang } from "./i18n.js";
+import { sharedPref } from "./prefs.js";
 
 // Element.append behaves like h(): arrays are flattened and null/undefined/false are skipped,
 // so conditional children can be passed everywhere without printing "null" or "[object …]".
@@ -45,16 +46,20 @@ export const clear = (el) => {
 };
 
 // ---------- storage (best effort: private windows may block it) ----------
+// Keys that also follow the user to other projects (other ports): see prefs.js.
+const SHARED = new Set(["theme"]);
 export const store = {
   get(key, fallback = null) {
     try {
       const raw = localStorage.getItem(`mct:${key}`);
-      return raw === null ? fallback : JSON.parse(raw);
+      if (raw !== null) return JSON.parse(raw);
     } catch {
-      return fallback;
+      /* fall through to the shared copy */
     }
+    return (SHARED.has(key) && sharedPref.get(key)) || fallback;
   },
   set(key, value) {
+    if (SHARED.has(key)) sharedPref.set(key, value);
     try {
       localStorage.setItem(`mct:${key}`, JSON.stringify(value));
     } catch {
@@ -140,6 +145,19 @@ export async function saveIgnore(content, base, file = "mctignore") {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ csrf, content, base, file }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new ApiError(response.status, body.error || response.statusText, body);
+  return body;
+}
+
+/** Saves preferences in the project's `.mct-index/web-settings.json` (any of `theme`, `lang`, `stop`,
+ *  `pause`); a new `stop` (minutes, 0: never) also applies to the running server. */
+export async function saveSettings(patch) {
+  const response = await fetch("api/settings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ csrf, ...patch }),
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new ApiError(response.status, body.error || response.statusText, body);

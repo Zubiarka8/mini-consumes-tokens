@@ -1,6 +1,7 @@
 // Spanish (Spain) strings. Every user-visible text goes through t(key, vars); a locale is another
 // dictionary with the same keys (English is in i18n-en.js). A key missing from a locale falls back to Spanish.
 import { en } from "./i18n-en.js";
+import { sharedPref } from "./prefs.js";
 
 const es = {
   // finding numbers, comparison columns and the review panel
@@ -268,6 +269,13 @@ const es = {
   "graph.zoomIn": "Acercar",
   "graph.zoomOut": "Alejar",
   "graph.fit": "Ajustar a la vista",
+  "graph.display": "Visualización",
+  "graph.forces": "Fuerzas",
+  "graph.nodeSize": "Tamaño del nodo",
+  "graph.linkThickness": "Grosor del enlace",
+  "graph.textThreshold": "Umbral de texto",
+  "graph.center": "Fuerza central",
+  "graph.repel": "Fuerza de repulsión",
   "code.label": "Código",
   "compare.code": "Código",
   "source.range": "Líneas {from}–{to}",
@@ -757,6 +765,7 @@ const es = {
   "obs.noGraph": "No hay notas para el grafo",
   "obs.noGraphText": "Cambia los filtros de carpeta o etiqueta.",
   "obs.graphLabel": "Grafo de notas",
+  "obs.backToNotes": "Volver a las notas",
   "obs.graphNote": "Las aristas son enlaces Markdown verificados entre notas del vault.",
   "obs.legend.note": "Nota",
   "obs.legend.code": "Nota con código enlazado",
@@ -811,6 +820,26 @@ const es = {
   "settings.appearance": "Apariencia",
   "settings.language": "Idioma",
   "settings.languageNote": "El idioma se guarda en este navegador.",
+  "power.title": "Uso en segundo plano",
+  "power.note": "Lo que puede consumir el panel mientras está abierto y cuándo se cierra solo. Se guarda en este navegador y vale para tus otros proyectos.",
+  "power.stop": "Cerrar el servidor si no se usa",
+  "power.stopHelp": "Cuenta solo tu uso: teclas, clics, desplazamiento y cambios de página. Las comprobaciones automáticas de la página no lo mantienen vivo. Vuelve a lanzarlo con mct-cli web.",
+  "power.pause": "Pausar las actualizaciones en vivo sin actividad",
+  "power.pauseHelp": "En pausa la página no hace ninguna petición. Vuelve a comprobar en cuanto la toques.",
+  "power.stopAfter": "El servidor se cierra tras {time} sin uso.",
+  "power.stopNever": "El servidor no se cierra solo.",
+  "power.pauseAfter": "Esta página deja de buscar un índice nuevo tras {time} sin actividad.",
+  "power.pauseNever": "Esta página sigue buscando un índice nuevo mientras esté visible.",
+  "power.never": "Nunca",
+  "power.minutes": "{n} min",
+  "power.hours": "{n} h",
+  "power.custom": "Personalizado",
+  "power.customLabel": "Número de minutos personalizado",
+  "power.minutesUnit": "minutos",
+  "power.customInvalid": "Escribe un número entero de minutos de 1 a {max}.",
+  "power.stopSaved": "El servidor se cerrará pasado ese tiempo sin uso.",
+  "power.stopFailed": "No se pudo avisar al servidor. ¿Sigue en marcha?",
+  "power.pauseSaved": "Guardado.",
   "settings.server": "Servidor local",
   "settings.snapshot": "Instantánea",
   "settings.lastIndexed": "Última indexación",
@@ -941,19 +970,42 @@ export const LANGUAGES = [
 ];
 const KEY = "mct-lang";
 
-let current = "es";
+/** English unless the browser's own language settings put Spanish first among the supported ones. */
+function browserLanguage() {
+  const wanted = navigator.languages?.length ? navigator.languages : [navigator.language];
+  for (const tag of wanted) {
+    const base = String(tag ?? "")
+      .toLowerCase()
+      .split("-")[0];
+    if (base in dictionaries) return base;
+  }
+  return "en";
+}
+
+// A saved choice wins (this origin, then the one shared across projects); otherwise the browser decides.
+let current = "en";
 try {
-  const saved = localStorage.getItem(KEY);
-  if (saved in dictionaries) current = saved;
+  const saved = localStorage.getItem(KEY) ?? sharedPref.get("lang");
+  current = saved in dictionaries ? saved : browserLanguage();
 } catch {
-  /* storage blocked: stay on Spanish */
+  current = browserLanguage();
 }
 document.documentElement.lang = current;
 
 export const getLang = () => current;
+/** True once the person (or a saved setting) chose a language, rather than the browser's default. */
+export function hasSavedLang() {
+  try {
+    const saved = localStorage.getItem(KEY) ?? sharedPref.get("lang");
+    return saved in dictionaries;
+  } catch {
+    return false;
+  }
+}
 /** Saves the language and reloads, so every label, date and number is built again in it. */
 export function setLang(lang) {
   if (!(lang in dictionaries) || lang === current) return;
+  sharedPref.set("lang", lang);
   try {
     localStorage.setItem(KEY, lang);
   } catch {

@@ -42,7 +42,7 @@ pub(super) fn serve_connection(
     site.follow_reindex();
     let (incoming, head) = read_request(stream, port)?;
     let response = match incoming {
-        Ok(request) => request.answer(site),
+        Ok(request) => request.answer(site, &super::idle::Activity::new()),
         Err(response) => response,
     };
     write_response(stream, &response, head)
@@ -89,16 +89,26 @@ pub(super) struct Complete {
 impl Complete {
     /// A decision or `.mctignore` edit, which may change saved state.
     pub(super) fn is_post(&self) -> bool {
-        self.post
+        self.post && self.target != "api/settings"
     }
 
-    pub(super) fn answer(&self, site: &mut Site) -> Response {
+    /// The page's live-update check: it does not count as use of the dashboard.
+    pub(super) fn is_passive(&self) -> bool {
+        !self.post && self.target == "api/meta?passive=1"
+    }
+
+    pub(super) fn answer(&self, site: &mut Site, activity: &super::idle::Activity) -> Response {
         if self.post {
             match std::str::from_utf8(&self.body) {
+                Ok(body) if self.target == "api/settings" => {
+                    super::settings::save(&site.root, body, &site.csrf, activity)
+                }
                 Ok(body) if self.target == "api/ignore" => site.ignore(body),
                 Ok(body) => site.review(body),
                 Err(_) => Response::error(400),
             }
+        } else if self.target == "api/settings" {
+            super::settings::state(&site.root)
         } else {
             route(site, &self.target)
         }
@@ -237,7 +247,7 @@ fn validate(headers: &str, port: u16) -> Result<Request, u16> {
     let target = target.strip_prefix('/').ok_or(404_u16)?;
     let post = method == "POST";
     let length = if post {
-        if !matches!(target, "api/review" | "api/ignore") {
+        if !matches!(target, "api/review" | "api/ignore" | "api/settings") {
             return Err(405);
         }
         if fields.get("origin").copied() != Some(format!("http://{host}").as_str()) {
