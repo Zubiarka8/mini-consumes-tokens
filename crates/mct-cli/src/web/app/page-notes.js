@@ -15,6 +15,7 @@ import {
   hrefTo,
   forget,
   toast,
+  debounce,
 } from "./core.js";
 import {
   icon,
@@ -377,8 +378,27 @@ export async function render({ root, params: initial }) {
         { id: "ngraph-nodes" },
         data.nodes.map((n) => h("option", { value: n.label })),
       );
+      // Typing finds the best match without Enter: an exact name first, then the first name that
+      // starts with, then contains, the text. Enter or picking from the list also opens the note.
+      const findNode = (text) => {
+        const needle = text.trim().toLowerCase();
+        if (!needle) return null;
+        const label = (n) => String(n.label).toLowerCase();
+        return (
+          data.nodes.find((n) => label(n) === needle) ||
+          data.nodes.find((n) => label(n).startsWith(needle)) ||
+          data.nodes.find((n) => label(n).includes(needle)) ||
+          null
+        );
+      };
+      const typed = debounce(() => {
+        const hit = findNode(search.value);
+        if (hit) graph.select(hit.id);
+        else graph.clearSelection?.();
+      }, 150);
+      search.addEventListener("input", typed);
       search.addEventListener("change", () => {
-        const hit = data.nodes.find((n) => n.label === search.value);
+        const hit = findNode(search.value);
         if (hit) {
           graph.select(hit.id);
           patchQuery({ note: hit.id });
