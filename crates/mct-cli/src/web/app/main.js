@@ -456,7 +456,7 @@ addEventListener("hashchange", () => {
 // A reindex (the dashboard's own watcher, the MCP server or the CLI) lands while the page is open:
 // the status follows it every few seconds and whenever the tab comes back into view, and the page
 // is drawn again with the new index, so nothing has to be reloaded by hand.
-const STATUS_EVERY_MS = 5_000;
+const STATUS_EVERY_MS = 15_000;
 let reloadPending = false;
 // Drawing the page again would discard text being typed (.mctignore, a review note, a search).
 const typing = () => document.activeElement?.matches?.("textarea, input:not([type=radio], [type=checkbox])");
