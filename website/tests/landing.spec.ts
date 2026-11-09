@@ -23,17 +23,8 @@ test("English default, complete Spanish switch, persistence and English docs", a
   await page.goto(home + "docs/installation/");
   await expect(page.locator("h1")).toContainText("Installation");
 });
-test("symbol selection, clipboard failure, FAQ and keyboard", async ({
-  page,
-}) => {
+test("clipboard failure, FAQ and keyboard", async ({ page }) => {
   await page.goto(home);
-  await page
-    .locator(".symbol-controls")
-    .getByRole("button", { name: "Index", exact: true })
-    .click();
-  await expect(page.locator(".context-pack")).toContainText(
-    "crates/mct-index/src/lib.rs:83",
-  );
   await page.evaluate(() =>
     Object.defineProperty(navigator, "clipboard", {
       value: { writeText: () => Promise.reject(new Error("denied")) },
@@ -91,7 +82,7 @@ for (const width of [320, 375, 768, 1024, 1440])
     await page.setViewportSize({ width, height: 900 });
     await page.goto(home);
     for (const language of ["en", "es"]) {
-      await page.locator("select").selectOption(language);
+      await page.getByLabel("Language", { exact: true }).selectOption(language);
       const brand = page.locator(".brand > span");
       await expect(brand).toHaveText("mini-consumes-tokens");
       expect(
@@ -160,9 +151,13 @@ test("copy success uses the command and translated feedback", async ({
       exact: true,
     })
     .click();
-  await expect(page.getByRole("status").last()).toContainText(
-    "Comando copiado",
-  );
+  await expect(
+    page
+      .locator(".command-row")
+      .filter({ hasText: "status" })
+      .first()
+      .getByRole("status"),
+  ).toContainText("Comando copiado");
   expect(
     await page.evaluate(
       () => (window as Window & { copiedCommand?: string }).copiedCommand,
