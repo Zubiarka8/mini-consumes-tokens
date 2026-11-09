@@ -157,6 +157,7 @@ export function render({ root, meta }) {
   );
   const stopSummary = (m) => (m === 0 ? t("power.stopNever") : t("power.stopAfter", { time: label(m) }));
   const pauseSummary = (m) => (m === 0 ? t("power.pauseNever") : t("power.pauseAfter", { time: label(m) }));
+  const mcpSummary = (m) => (m === 0 ? t("power.mcpNever") : t("power.mcpAfter", { time: label(m) }));
   const background = h(
     "section",
     { class: "card" },
@@ -193,6 +194,21 @@ export function render({ root, meta }) {
           onChange: (minutes) => {
             persist({ pause: minutes });
             toast(t("power.pauseSaved"), "ok");
+          },
+        }),
+      ),
+      h(
+        "div",
+        { class: "setting" },
+        h("label", { class: "setting-title", for: "power-mcp" }, t("power.mcp")),
+        h("p", { class: "muted small" }, t("power.mcpHelp")),
+        durationPicker({
+          name: "mcp",
+          id: "power-mcp",
+          summary: mcpSummary,
+          onChange: (minutes) => {
+            persist({ mcp: minutes });
+            toast(t("power.mcpSaved"), "ok");
           },
         }),
       ),

@@ -17,6 +17,7 @@ This release is mostly about the dashboard and about large Obsidian vaults. Note
 
 ### Added
 
+- `mct-mcp-server --exit-idle <VALUE>` (or `MCT_EXIT_IDLE`) makes the process exit after that long without a request that uses the index. It is off by default, because an MCP client does not restart a server that has exited. Dashboard Settings, under Background use, has the same choice ("Close MCP servers after no use"); running servers pick it up within a minute.
 - Dashboard: Obsidian notes render with their own syntax: callouts, wikilinks with aliases and sections, embeds, tags, footnotes, task lists, tables and highlighted code. Raw HTML in a note is shown as text, never run.
 - Dashboard: the notes graph draws every note at once, even in vaults of thousands of notes. Notes are coloured by community, hubs are labelled, and display and force sliders let you tune the layout.
 - Dashboard: selecting a note lights up the notes it connects to and fades the rest. A graph-only view gives it the full width, with the note opening beside it. The graph search finds a note as you type.
