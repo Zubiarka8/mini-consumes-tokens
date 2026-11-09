@@ -237,7 +237,9 @@
   color: var(--ivory);
   border: 1px solid #354538;
   position: relative;
-  box-shadow: 0 28px 56px -16px rgba(20, 62, 72, 0.32), 0 3px 8px rgba(20, 62, 72, 0.1);
+  box-shadow:
+    0 28px 56px -16px rgba(20, 62, 72, 0.32),
+    0 3px 8px rgba(20, 62, 72, 0.1);
   min-width: 0;
 }
 .atlas-top {
@@ -807,7 +809,9 @@
     max-width: 580px;
     width: 100%;
     margin-inline: auto;
-    box-shadow: 0 28px 56px -16px rgba(20, 62, 72, 0.32), 0 3px 8px rgba(20, 62, 72, 0.1);
+    box-shadow:
+      0 28px 56px -16px rgba(20, 62, 72, 0.32),
+      0 3px 8px rgba(20, 62, 72, 0.1);
   }
   .atlas-stages {
     font-size: 9px;
@@ -992,7 +996,9 @@
   background: #363a37;
 }
 .dark .context-demo {
-  box-shadow: 0 28px 56px -16px rgba(0, 0, 0, 0.6), 0 3px 8px rgba(0, 0, 0, 0.3);
+  box-shadow:
+    0 28px 56px -16px rgba(0, 0, 0, 0.6),
+    0 3px 8px rgba(0, 0, 0, 0.3);
 }
 @media (prefers-reduced-motion: reduce) {
   .landing * {
@@ -1023,7 +1029,9 @@
   border-radius: 12px;
   background: #143e48;
   color: #f7faf8;
-  box-shadow: 0 28px 56px -16px rgba(20, 62, 72, 0.32), 0 3px 8px rgba(20, 62, 72, 0.1);
+  box-shadow:
+    0 28px 56px -16px rgba(20, 62, 72, 0.32),
+    0 3px 8px rgba(20, 62, 72, 0.1);
 }
 .demo-intro {
   padding: 24px;
@@ -1903,7 +1911,9 @@
   color: #f7faf8;
   border: 1px solid #b7d0d4;
   border-radius: 6px;
-  box-shadow: 0 28px 56px -16px rgba(20, 62, 72, 0.32), 0 3px 8px rgba(20, 62, 72, 0.1);
+  box-shadow:
+    0 28px 56px -16px rgba(20, 62, 72, 0.32),
+    0 3px 8px rgba(20, 62, 72, 0.1);
 }
 .demo-combo-item {
   padding: 10px 12px;
@@ -1968,7 +1978,9 @@
   border-radius: 12px;
   background: #143e48;
   color: #f7faf8;
-  box-shadow: 0 28px 56px -16px rgba(20, 62, 72, 0.32), 0 3px 8px rgba(20, 62, 72, 0.1);
+  box-shadow:
+    0 28px 56px -16px rgba(20, 62, 72, 0.32),
+    0 3px 8px rgba(20, 62, 72, 0.1);
 }
 .mock-bar {
   display: flex;
@@ -2188,7 +2200,9 @@
   color: #c1cfc2;
 }
 .dark .mock-window {
-  box-shadow: 0 28px 56px -16px rgba(0, 0, 0, 0.6), 0 3px 8px rgba(0, 0, 0, 0.3);
+  box-shadow:
+    0 28px 56px -16px rgba(0, 0, 0, 0.6),
+    0 3px 8px rgba(0, 0, 0, 0.3);
 }
 .dark .feature-grid article {
   background: rgba(255, 255, 255, 0.04);
@@ -2429,7 +2443,10 @@
   border-radius: 6px;
   background: #0f323b;
   color: #f7faf8;
-  font: 12px "SFMono-Regular", Consolas, monospace;
+  font:
+    12px "SFMono-Regular",
+    Consolas,
+    monospace;
 }
 .mock-window textarea {
   resize: vertical;
@@ -2510,7 +2527,10 @@
 }
 .mock-graph text {
   fill: #bcd3c8;
-  font: 9px "SFMono-Regular", Consolas, monospace;
+  font:
+    9px "SFMono-Regular",
+    Consolas,
+    monospace;
 }
 .mock figcaption strong {
   color: inherit;
