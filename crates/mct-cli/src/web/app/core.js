@@ -151,12 +151,13 @@ export async function saveIgnore(content, base, file = "mctignore") {
   return body;
 }
 
-/** Tells the server how long it may stay up without use (minutes, 0: never). */
-export async function saveIdle(minutes) {
-  const response = await fetch("api/idle", {
+/** Saves preferences in the project's `.mct-index/web-settings.json` (any of `theme`, `lang`, `stop`,
+ *  `pause`); a new `stop` (minutes, 0: never) also applies to the running server. */
+export async function saveSettings(patch) {
+  const response = await fetch("api/settings", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ csrf, minutes }),
+    body: JSON.stringify({ csrf, ...patch }),
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new ApiError(response.status, body.error || response.statusText, body);
