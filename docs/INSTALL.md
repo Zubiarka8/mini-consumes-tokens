@@ -1,6 +1,6 @@
 # Installation and setup
 
-How to install mini-consumes-tokens, connect it to an AI coding agent or editor, remove it and fix common problems. The short version is in the [README](../README.md#quick-start).
+How to install mini-consumes-tokens, connect it to an AI coding agent or editor, remove it and fix common problems. The short version is in the [README](../README.md#how-to-install).
 
 ## Requirements
 
