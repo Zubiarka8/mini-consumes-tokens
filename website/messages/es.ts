@@ -41,7 +41,8 @@ const es: Record<keyof typeof en, string> = {
   eyebrow: "SERVIDOR MCP · UN MAPA DE CÓDIGO PARA TU ASISTENTE",
   headline: "Tu IA lee menos.",
   headlineAccent: "Tus tokens rinden más.",
-  intro: "Un servidor MCP gratuito que mapea tu código en tu propio equipo. Claude Code, Cursor, Codex y otros asistentes consultan el mapa y reciben la función exacta, no el archivo entero.",
+  intro:
+    "Un servidor MCP gratuito que mapea tu código en tu propio equipo. Claude Code, Cursor, Codex y otros asistentes consultan el mapa y reciben la función exacta, no el archivo entero.",
   readDocs: "Instálalo gratis",
   heroNote: "Código abierto · Gratis · Funciona en tu equipo",
   visibleLayers: "Capas visibles",
@@ -177,11 +178,13 @@ const es: Record<keyof typeof en, string> = {
   mapNote: "Entra una pregunta. Sale solo el código relevante.",
   problemLabel: "EL PROBLEMA",
   problemTitle: "Tu asistente paga tokens por cada archivo que abre.",
-  problemText: "Los archivos enteros entierran la respuesta en texto. Las búsquedas repetidas pierden el hilo de un cambio. Un mapa dice qué se define dónde, quién lo usa y qué necesita, y una sola pregunta precisa sustituye a un montón de archivos.",
+  problemText:
+    "Los archivos enteros entierran la respuesta en texto. Las búsquedas repetidas pierden el hilo de un cambio. Un mapa dice qué se define dónde, quién lo usa y qué necesita, y una sola pregunta precisa sustituye a un montón de archivos.",
   before: "Sin mapa",
   beforeText: "Abrir archivos. Buscar nombres. Adivinar los enlaces.",
   after: "Con mapa",
-  afterText: "Encontrar la función. Seguir sus enlaces. Recibir un resumen preciso.",
+  afterText:
+    "Encontrar la función. Seguir sus enlaces. Recibir un resumen preciso.",
   comparisonNote:
     "Comparación conceptual, no una medición del ahorro. Los resultados dependen del proyecto y de la pregunta.",
   howLabel: "EL MECANISMO",
@@ -198,17 +201,22 @@ const es: Record<keyof typeof en, string> = {
   capabilitiesLabel: "QUÉ PUEDES HACER",
   capabilitiesTitle: "Sigue el código.\nMide el impacto.",
   discoverTitle: "Oriéntate rápido",
-  discoverText: "Visión general, árbol de archivos, esquema de un archivo. Encuentra funciones y tipos por su nombre antes de abrir ningún código.",
+  discoverText:
+    "Visión general, árbol de archivos, esquema de un archivo. Encuentra funciones y tipos por su nombre antes de abrir ningún código.",
   changeTitle: "Mira qué toca un cambio",
-  changeText: "Sigue quién usa qué a lo largo del mapa. Comprueba el código y las pruebas afectados antes de editar.",
+  changeText:
+    "Sigue quién usa qué a lo largo del mapa. Comprueba el código y las pruebas afectados antes de editar.",
   contextTitle: "Dale a tu asistente lo justo",
-  contextText: "Una petición devuelve una función o un tipo con su definición, sus dependencias y el código relacionado.",
+  contextText:
+    "Una petición devuelve una función o un tipo con su definición, sus dependencias y el código relacionado.",
   extras:
     "También disponible: encontrar código que parece sin uso o duplicado (estimaciones), un grafo de dependencias entre archivos y la búsqueda local por significado, opcional, que necesita una compilación especial y un pequeño modelo de lenguaje en tu equipo.",
-  audience: "Para desarrolladores que usan asistentes de código con MCP en proyectos de varios lenguajes. La herramienta de línea de comandos también funciona sola.",
+  audience:
+    "Para desarrolladores que usan asistentes de código con MCP en proyectos de varios lenguajes. La herramienta de línea de comandos también funciona sola.",
   webLabel: "PANEL WEB LOCAL",
   webTitle: "Todo tu proyecto,\nen el navegador.",
-  webText: "Ejecuta mct-cli web. Se abre un panel desde tu propio equipo que solo escucha en 127.0.0.1. Tiene temas claro y oscuro y se detiene solo tras 30 minutos sin uso. La interfaz está en español.",
+  webText:
+    "Ejecuta mct-cli web. Se abre un panel desde tu propio equipo que solo escucha en 127.0.0.1. Tiene temas claro y oscuro y se detiene solo tras 30 minutos sin uso. La interfaz está en español.",
   webCmdLabel: "Abre el panel",
   web1Title: "La salud, de un vistazo",
   web1Text:
@@ -224,7 +232,8 @@ const es: Record<keyof typeof en, string> = {
     "Búsqueda por palabras en código, símbolos, archivos, duplicados, dependencias y notas de Obsidian. Los filtros viven en la URL, así que cualquier vista se puede guardar en marcadores.",
   obsLabel: "ATLAS DE CÓDIGO EN OBSIDIAN",
   obsTitle: "Explora tu mapa de código\nen Obsidian.",
-  obsText: "Cada análisis escribe también una bóveda de notas enlazadas: un mapa por carpeta y una nota por archivo con sus importaciones y símbolos. Abre la carpeta en Obsidian y recorre tu proyecto enlace a enlace. ¿Sin Obsidian? El panel web local (mct-cli web) lee las mismas notas con un lector integrado.\n\nEs opcional y local; omítela con --no-obsidian.",
+  obsText:
+    "Cada análisis escribe también una bóveda de notas enlazadas: un mapa por carpeta y una nota por archivo con sus importaciones y símbolos. Abre la carpeta en Obsidian y recorre tu proyecto enlace a enlace. ¿Sin Obsidian? El panel web local (mct-cli web) lee las mismas notas con un lector integrado.\n\nEs opcional y local; omítela con --no-obsidian.",
   obsCmdLabel: "Reconstruye la bóveda a mano",
   obs1Title: "Notas enlazadas, sin copiar código",
   obs1Text:
@@ -242,7 +251,8 @@ const es: Record<keyof typeof en, string> = {
   mockNote: "Ejemplo ilustrativo. Nombres y cifras inventados.",
   startLabel: "TU PRIMER MAPA",
   startTitle: "Tres comandos hasta tu primer mapa.",
-  startText: "Instala la herramienta de línea de comandos y el servidor desde la documentación. Después ejecuta esto dentro del proyecto que quieras mapear.",
+  startText:
+    "Instala la herramienta de línea de comandos y el servidor desde la documentación. Después ejecuta esto dentro del proyecto que quieras mapear.",
   initLabel: "Crea el mapa de tu proyecto",
   registerLabel: "Conecta tu asistente de IA",
   statusLabel: "Comprueba que el mapa está sano",
@@ -253,7 +263,8 @@ const es: Record<keyof typeof en, string> = {
     "Reinicia o reconecta el asistente tras conectarlo. Algunos asistentes, como Codex, usan su propio formato de configuración; sigue su guía.",
   promptingLabel: "PROMPTING PARA IA",
   promptingTitle: "Que tu asistente haga la instalación.",
-  promptingText: "Pega un prompt en tu asistente. Añade la herramienta, indexa tu código y después usa el mapa en lugar de leer cada archivo.",
+  promptingText:
+    "Pega un prompt en tu asistente. Añade la herramienta, indexa tu código y después usa el mapa en lugar de leer cada archivo.",
   promptLabel1: "Añádelo a este proyecto e indéxalo",
   prompt1:
     "Añade el servidor MCP mini-consumes-tokens (https://github.com/Zubiarka8/mini-consumes-tokens) a este proyecto. Primero lee la guía de instalación en https://zubiarka8.github.io/mini-consumes-tokens/docs/installation/ y síguela para instalar la CLI. Después ejecuta `mct-cli --root . init` para crear el índice, `mct-cli --root . mcp-register`, y comprueba con `mct-cli --root . status`. No adivines los pasos; usa solo la guía. Avísame cuando el índice esté listo.",
@@ -291,7 +302,8 @@ const es: Record<keyof typeof en, string> = {
   answer4:
     "Mientras el servidor está conectado, detecta los archivos modificados y actualiza el mapa cuando dejas de editar, y las notas de Obsidian lo siguen. También puedes pedir un nuevo análisis o comprobar la salud desde la línea de comandos.",
   faq5: "¿En qué se diferencia de una búsqueda de texto normal?",
-  answer5: "Una búsqueda de texto devuelve las líneas que coinciden. El mapa devuelve dónde se define cada cosa y cómo se conecta: qué usa una función, qué necesita y dónde se menciona. Tu asistente lee menos y entiende más.",
+  answer5:
+    "Una búsqueda de texto devuelve las líneas que coinciden. El mapa devuelve dónde se define cada cosa y cómo se conecta: qué usa una función, qué necesita y dónde se menciona. Tu asistente lee menos y entiende más.",
   faq6: "¿Qué lenguajes admite?",
   answer6:
     "Cada lenguaje tiene su propio lector, basado en tree-sitter (una conocida biblioteca para analizar código). La documentación enumera los lenguajes compatibles y añadir uno nuevo es un cambio autocontenido.",
@@ -305,7 +317,8 @@ const es: Record<keyof typeof en, string> = {
   answer9:
     "Sí, con la compilación opcional que añade la búsqueda por significado. Combina la coincidencia de nombres con un pequeño modelo de lenguaje que se ejecuta en tu equipo, así que puedes preguntar qué hace el código. Sin esa compilación, la búsqueda usa solo nombres.",
   faq10: "¿Es gratis?",
-  answer10: "Sí. Es de código abierto con licencia Apache 2.0. Lee, ejecuta y amplía el código en GitHub.",
+  answer10:
+    "Sí. Es de código abierto con licencia Apache 2.0. Lee, ejecuta y amplía el código en GitHub.",
   faq11: "¿Puedo explorar el mapa en Obsidian?",
   answer11:
     "Sí. Cada análisis escribe notas enlazadas en .mct-index/obsidian/. Abre esa carpeta como bóveda en Obsidian: un mapa por carpeta y una nota por archivo, con sus importaciones y símbolos. Tu código no se copia en las notas y tus propias notas de la bóveda sobreviven a la regeneración. Omítelo con --no-obsidian.",
