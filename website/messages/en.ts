@@ -23,6 +23,8 @@ const en = {
   localFirst: "ON YOUR COMPUTER. CONNECTED. PRECISE.",
   fieldGuide: "FIELD GUIDE",
   nav: "Main navigation",
+  navOpen: "Open menu",
+  navClose: "Close menu",
   language: "Language",
   theme: "Color theme",
   themeSystem: "System",
