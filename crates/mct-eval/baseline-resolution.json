@@ -9,8 +9,8 @@
     },
     "lua: a host global is not another file's local": {
       "score": 0.0,
-      "tokens": 204,
-      "wrong": 1
+      "tokens": 196,
+      "wrong": 0
     },
     "python: builtins, imports, fixtures and nested scopes": {
       "score": 0.6,
