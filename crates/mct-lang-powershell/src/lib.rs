@@ -34,10 +34,12 @@
 
 use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
-    SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
+    SymbolDetail, SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::{find_child, first_error, location, module_location};
 use tree_sitter::{Node, Parser};
+
+mod details;
 
 pub struct PowerShellParser;
 
@@ -211,6 +213,7 @@ struct Walker<'a> {
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
     relation_targets: Vec<RelationTarget>,
+    details: Vec<SymbolDetail>,
     /// This file's repository-relative path, the base of relative sources.
     path: &'a str,
     next_id: SymbolId,
@@ -293,6 +296,8 @@ impl<'a> Walker<'a> {
                     location(node),
                     Some(scope_name.to_string()),
                 );
+                self.details
+                    .push(details::function_detail(node, id, self.source));
                 // The whole block: a plain statement list or a
                 // `begin`/`process`/`end` named block list, plus `param()`.
                 if let Some(block) = find_child(node, "script_block") {
@@ -301,17 +306,19 @@ impl<'a> Walker<'a> {
             }
             "assignment_expression" => {
                 if owner == module_id {
-                    if let Some(var_node) = find_child(node, "left_assignment_expression")
-                        .and_then(|lhs| find_descendant(lhs, "variable"))
+                    if let Some((lhs, var_node)) = find_child(node, "left_assignment_expression")
+                        .and_then(|lhs| Some((lhs, find_descendant(lhs, "variable")?)))
                     {
                         let name = clean_variable_name(text(var_node, self.source));
                         if !name.is_empty() {
-                            self.push_symbol(
+                            let id = self.push_symbol(
                                 name,
                                 SymbolKind::Variable,
                                 location(var_node),
                                 Some(scope_name.to_string()),
                             );
+                            self.details
+                                .push(details::variable_detail(lhs, id, self.source));
                         }
                     }
                 }
@@ -371,6 +378,7 @@ impl<'a> Walker<'a> {
             symbols: self.symbols,
             relations: self.relations,
             relation_targets: self.relation_targets,
+            symbol_details: self.details,
             ..Default::default()
         }
     }
