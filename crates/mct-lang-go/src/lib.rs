@@ -17,6 +17,8 @@ use mct_core::{
 use mct_tree_sitter::{find_child, first_error, location};
 use tree_sitter::{Node, Parser};
 
+mod receivers;
+
 pub struct GoParser;
 
 impl LanguageParser for GoParser {
@@ -69,6 +71,8 @@ impl LanguageParser for GoParser {
 
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
+        walker.globals = receivers::globals(root, &file.contents);
+        walker.structs = receivers::structs(root, &file.contents);
         let file_loc = file_location(root);
         let file_module_id = walker.push_symbol(module_name, SymbolKind::Module, file_loc, None);
         if let Some(ref pkg) = package_name {
@@ -111,6 +115,12 @@ struct Walker<'a> {
     relations: Vec<SymbolRelation>,
     relation_targets: Vec<RelationTarget>,
     next_id: SymbolId,
+    /// Declared types of the enclosing function's locals (see `receivers`).
+    locals: receivers::Types,
+    /// Declared types of the file's package-level `var`s.
+    globals: receivers::Types,
+    /// The structs and methods this file declares.
+    structs: receivers::Structs,
 }
 
 impl<'a> Walker<'a> {
@@ -180,12 +190,7 @@ impl<'a> Walker<'a> {
                     location(node),
                     package_name.map(str::to_string),
                 );
-                if let Some(params) = node.child_by_field_name("parameters") {
-                    self.visit_children(params, id, package_name, depth + 1);
-                }
-                if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, id, package_name, depth + 1);
-                }
+                self.visit_function(node, id, package_name, depth);
             }
             "method_declaration" => {
                 let name = node
@@ -195,12 +200,7 @@ impl<'a> Walker<'a> {
                 let receiver_type = receiver_type_name(node, self.source);
                 let parent = receiver_type.or_else(|| package_name.map(str::to_string));
                 let id = self.push_symbol(name, SymbolKind::Method, location(node), parent);
-                if let Some(params) = node.child_by_field_name("parameters") {
-                    self.visit_children(params, id, package_name, depth + 1);
-                }
-                if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, id, package_name, depth + 1);
-                }
+                self.visit_function(node, id, package_name, depth);
             }
             "type_spec" => {
                 let name = node
@@ -283,6 +283,7 @@ impl<'a> Walker<'a> {
             "call_expression" => {
                 if let Some(function) = node.child_by_field_name("function") {
                     if let Some(name_node) = callee_identifier(function) {
+                        self.push_receiver(function, text(name_node, self.source));
                         // location(name_node), not location(node): a chained
                         // call (`a.F(x).F(y)`) has its outer and inner
                         // call_expression both start at `a`, which would make
@@ -324,6 +325,94 @@ impl<'a> Walker<'a> {
             }
             _ => self.visit_children(node, owner, package_name, depth + 1),
         }
+    }
+
+    /// A function's or method's parameters and body, with its receiver's,
+    /// parameters' and locals' declared types known while the body is walked.
+    fn visit_function(&mut self, node: Node, id: SymbolId, package_name: Option<&str>, depth: u32) {
+        let mut locals = receivers::Types::new();
+        receivers::locals(node, self.source, &mut locals, depth + 1);
+        let outer_locals = std::mem::replace(&mut self.locals, locals);
+        if let Some(params) = node.child_by_field_name("parameters") {
+            self.visit_children(params, id, package_name, depth + 1);
+        }
+        if let Some(body) = node.child_by_field_name("body") {
+            self.visit_children(body, id, package_name, depth + 1);
+        }
+        self.locals = outer_locals;
+    }
+
+    fn declared(&self, name: &str) -> Option<&receivers::Ty> {
+        self.locals.get(name).or_else(|| self.globals.get(name))
+    }
+
+    /// The receiver evidence of `x.M()`, from what the syntax proves about
+    /// `x`'s type: a named type is the qualifier; a declared type without a
+    /// name (`interface{ … }`, a slice) makes a member call. Without proof
+    /// (`x := f()`, a `range` variable, a call result, a field of a struct
+    /// declared elsewhere, an imported package) nothing is recorded, as
+    /// before. A struct this file declares with an embedded field and
+    /// without `M` may have `M` promoted from that field, so its type is no
+    /// qualifier there: a member call.
+    fn push_receiver(&mut self, function: Node, method: &str) {
+        use receivers::Ty;
+        if function.kind() != "selector_expression" {
+            return;
+        }
+        let Some(operand) = function.child_by_field_name("operand") else {
+            return;
+        };
+        let ty = match operand.kind() {
+            "identifier" => self.declared(text(operand, self.source)).cloned(),
+            // `s.repo.M()`: the field's type, when this file declares the
+            // struct `s` is.
+            "selector_expression" => {
+                let base = operand
+                    .child_by_field_name("operand")
+                    .filter(|b| b.kind() == "identifier");
+                let field = operand.child_by_field_name("field");
+                match (
+                    base.and_then(|b| self.declared(text(b, self.source))),
+                    field,
+                ) {
+                    (Some(Ty::Named(t)), Some(f)) => self
+                        .structs
+                        .fields
+                        .get(t)
+                        .and_then(|fields| fields.get(text(f, self.source)))
+                        .cloned(),
+                    _ => None,
+                }
+            }
+            // `x.(T).M()`.
+            "type_assertion_expression" => operand
+                .child_by_field_name("type")
+                .map(|t| receivers::named_type(t, self.source).map_or(Ty::Unnamed, Ty::Named)),
+            _ => receivers::constructed(operand, self.source).map(Ty::Named),
+        };
+        let (qualifier, member) = match ty {
+            Some(Ty::Named(t)) => {
+                let promoted = self.structs.embedding.contains(&t)
+                    && !self
+                        .structs
+                        .methods
+                        .get(&t)
+                        .is_some_and(|m| m.contains(method));
+                if promoted {
+                    (None, true)
+                } else {
+                    (Some(t), false)
+                }
+            }
+            Some(Ty::Unnamed) => (None, true),
+            Some(Ty::Unknown) | None => return,
+        };
+        self.relation_targets.push(RelationTarget {
+            relation: self.relations.len(),
+            qualifier,
+            member,
+            ..Default::default()
+        });
     }
 
     fn finish(self) -> ParsedFile {
