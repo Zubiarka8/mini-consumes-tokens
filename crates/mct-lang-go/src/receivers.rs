@@ -165,7 +165,8 @@ pub(crate) fn locals(node: Node, source: &str, out: &mut Types, depth: u32) {
         // `for k, v := range xs`: the element type is not proven.
         "range_clause" => {
             if let Some(left) = node.child_by_field_name("left") {
-                for name in named_children(left) {
+                let mut cursor = left.walk();
+                for name in left.named_children(&mut cursor) {
                     if name.kind() == "identifier" {
                         record(out, text(name, source), Ty::Unknown);
                     }
@@ -173,7 +174,8 @@ pub(crate) fn locals(node: Node, source: &str, out: &mut Types, depth: u32) {
             }
         }
         _ => {
-            for child in named_children(node) {
+            let mut cursor = node.walk();
+            for child in node.named_children(&mut cursor) {
                 locals(child, source, out, depth + 1);
             }
         }
@@ -183,9 +185,11 @@ pub(crate) fn locals(node: Node, source: &str, out: &mut Types, depth: u32) {
 /// The package-level `var x T` declarations of a file.
 pub(crate) fn globals(root: Node, source: &str) -> Types {
     let mut out = Types::new();
-    for declaration in named_children(root) {
+    let mut cursor = root.walk();
+    for declaration in root.named_children(&mut cursor) {
         if declaration.kind() == "var_declaration" {
-            for spec in named_children(declaration) {
+            let mut specs = declaration.walk();
+            for spec in declaration.named_children(&mut specs) {
                 if spec.kind() == "var_spec" {
                     locals(spec, source, &mut out, 1);
                 }
@@ -235,7 +239,7 @@ pub(crate) fn structs(root: Node, source: &str) -> Structs {
                 // Embedded: `Base` or `*Base` is the field `Base`.
                 out.embedding.insert(text(name, source).to_string());
                 if let Ty::Named(embedded) = &field_type {
-                    record(&mut fields, &embedded.clone(), field_type.clone());
+                    record(&mut fields, embedded, field_type.clone());
                 }
             }
             for n in field_names {
@@ -244,13 +248,14 @@ pub(crate) fn structs(root: Node, source: &str) -> Structs {
         }
         out.fields.insert(text(name, source).to_string(), fields);
     }
-    for declaration in named_children(root) {
+    let mut cursor = root.walk();
+    for declaration in root.named_children(&mut cursor) {
         if declaration.kind() != "method_declaration" {
             continue;
         }
         let receiver = declaration
             .child_by_field_name("receiver")
-            .and_then(|r| named_children(r).into_iter().next())
+            .and_then(|r| r.named_child(0))
             .and_then(|p| p.child_by_field_name("type"))
             .and_then(|t| named_type(t, source));
         if let (Some(receiver), Some(method)) = (receiver, declaration.child_by_field_name("name"))
@@ -276,7 +281,8 @@ fn collect_kind<'t>(node: Node<'t>, kind: &str, out: &mut Vec<Node<'t>>, depth: 
     if depth >= MAX_TRAVERSAL_DEPTH {
         return;
     }
-    for child in named_children(node) {
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
         if child.kind() == kind {
             out.push(child);
         } else {
