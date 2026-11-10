@@ -11,6 +11,9 @@ use mct_core::{
 use mct_tree_sitter::{first_error, location, module_location};
 use tree_sitter::{Node, Parser};
 
+mod receivers;
+use receivers::Bindings;
+
 pub struct JavaParser;
 
 impl LanguageParser for JavaParser {
@@ -81,6 +84,12 @@ struct Walker<'a> {
     relations: Vec<SymbolRelation>,
     relation_targets: Vec<RelationTarget>,
     next_id: SymbolId,
+    /// Declared types of the enclosing method's names (see `receivers`).
+    locals: Bindings,
+    /// Declared types of each enclosing type's fields, innermost last.
+    fields: Vec<Bindings>,
+    /// Type variables in scope, which never qualify a call.
+    generics: Vec<String>,
 }
 
 impl<'a> Walker<'a> {
@@ -116,6 +125,132 @@ impl<'a> Walker<'a> {
         loc: Location,
     ) {
         mct_tree_sitter::push_relation(&mut self.relations, from, kind, to_name, loc);
+    }
+
+    /// Each component of `record R(T a, U b)` declares an implicit accessor
+    /// method `a()` (JLS §8.10.3), indexed as a `method` of `R` at the
+    /// component. A component whose accessor the body declares explicitly
+    /// (a method of that name with no parameters) is skipped, since that
+    /// declaration is indexed on its own.
+    fn push_record_accessors(&mut self, record: Node, record_name: &str) {
+        let Some(params) = record.child_by_field_name("parameters") else {
+            return;
+        };
+        let mut explicit = Vec::new();
+        if let Some(body) = record.child_by_field_name("body") {
+            let mut cursor = body.walk();
+            for member in body.named_children(&mut cursor) {
+                let takes_none = member
+                    .child_by_field_name("parameters")
+                    .is_some_and(|p| p.named_child_count() == 0);
+                if member.kind() == "method_declaration" && takes_none {
+                    if let Some(n) = member.child_by_field_name("name") {
+                        explicit.push(text(n, self.source));
+                    }
+                }
+            }
+        }
+        let mut cursor = params.walk();
+        for param in params.named_children(&mut cursor) {
+            if param.kind() != "formal_parameter" {
+                continue;
+            }
+            let Some(name_node) = param.child_by_field_name("name") else {
+                continue;
+            };
+            let name = text(name_node, self.source);
+            if !explicit.contains(&name) {
+                self.push_symbol(
+                    name.to_string(),
+                    SymbolKind::Method,
+                    location(param),
+                    Some(record_name.to_string()),
+                );
+            }
+        }
+    }
+
+    fn scan_locals(&self, node: Node) -> Bindings {
+        let mut map = Bindings::new();
+        receivers::locals(node, self.source, &self.generics, &mut map, 0);
+        map
+    }
+
+    /// The declared type of a name the current method can see: its locals
+    /// shadow the innermost type's fields. `None` when not provable.
+    fn declared_type(&self, name: &str) -> Option<Option<String>> {
+        self.locals
+            .get(name)
+            .or_else(|| self.fields.last().and_then(|f| f.get(name)))
+            .cloned()
+    }
+
+    /// `a.b.C` read as a type name: only identifiers, the last capitalized,
+    /// and the first not a variable the current method can see.
+    fn names_a_type(&self, chain: Node) -> bool {
+        let Some(last) = chain.child_by_field_name("field") else {
+            return false;
+        };
+        if last.kind() != "identifier" || !text(last, self.source).starts_with(char::is_uppercase) {
+            return false;
+        }
+        let mut head = chain;
+        while head.kind() == "field_access" {
+            match head.child_by_field_name("object") {
+                Some(object) => head = object,
+                None => return false,
+            }
+        }
+        head.kind() == "identifier" && self.declared_type(text(head, self.source)).is_none()
+    }
+
+    /// `(qualifier, member)` for a call on `object`: its declared type, a
+    /// type name for a static call (`Money.of()`), or a member call whose
+    /// receiver type is not proven. `this.m()` and `super.m()` are left as
+    /// bare calls, since the method may be inherited.
+    fn receiver(&self, object: Node) -> (Option<String>, bool) {
+        let typed = |ty: Option<String>| {
+            let member = ty.is_none();
+            (ty, member)
+        };
+        match object.kind() {
+            "this" | "super" => (None, false),
+            "identifier" => {
+                let name = text(object, self.source);
+                match self.declared_type(name) {
+                    Some(ty) => typed(ty),
+                    // Not a variable in scope: by Java's naming convention
+                    // a capitalized name is a type. A misread inherited
+                    // constant qualifies by a type that declares nothing,
+                    // so the call stays unresolved, never wrong.
+                    None if name.starts_with(char::is_uppercase) => (Some(name.to_string()), false),
+                    None => (None, true),
+                }
+            }
+            "field_access" => {
+                let on_this = object
+                    .child_by_field_name("object")
+                    .is_some_and(|o| o.kind() == "this");
+                let field = object.child_by_field_name("field");
+                match (on_this, field) {
+                    (true, Some(field)) => typed(
+                        self.fields
+                            .last()
+                            .and_then(|f| f.get(text(field, self.source)))
+                            .cloned()
+                            .flatten(),
+                    ),
+                    // `Outer.Inner.m()` or `pkg.Outer.Inner.m()`: a chain of
+                    // names whose first one is no variable in scope, ending
+                    // in a capitalized name, is a nested type.
+                    (false, Some(field)) if self.names_a_type(object) => {
+                        (Some(text(field, self.source).to_string()), false)
+                    }
+                    _ => (None, true),
+                }
+            }
+            _ => (None, true),
+        }
     }
 
     /// `owner` is the innermost enclosing method/module (calls/imports
@@ -180,9 +315,21 @@ impl<'a> Walker<'a> {
                         );
                     }
                 }
+                if node.kind() == "record_declaration" {
+                    self.push_record_accessors(node, &name);
+                }
+                let generics_len = self.generics.len();
+                self.generics
+                    .extend(receivers::type_parameters(node, self.source));
+                self.fields
+                    .push(receivers::fields(node, self.source, &self.generics));
+                let outer_locals = std::mem::take(&mut self.locals);
                 if let Some(body) = node.child_by_field_name("body") {
                     self.visit_children(body, owner, Some(&name), depth + 1);
                 }
+                self.locals = outer_locals;
+                self.fields.pop();
+                self.generics.truncate(generics_len);
             }
             "enum_constant" => {
                 let name = node
@@ -213,12 +360,19 @@ impl<'a> Walker<'a> {
                     location(node),
                     type_name.map(str::to_string),
                 );
+                let generics_len = self.generics.len();
+                self.generics
+                    .extend(receivers::type_parameters(node, self.source));
+                let scanned = self.scan_locals(node);
+                let outer_locals = std::mem::replace(&mut self.locals, scanned);
                 if let Some(params) = node.child_by_field_name("parameters") {
                     self.visit_children(params, id, type_name, depth + 1);
                 }
                 if let Some(body) = node.child_by_field_name("body") {
                     self.visit_children(body, id, type_name, depth + 1);
                 }
+                self.locals = outer_locals;
+                self.generics.truncate(generics_len);
             }
             "field_declaration" => {
                 let mut cursor = node.walk();
@@ -250,6 +404,18 @@ impl<'a> Walker<'a> {
             }
             "method_invocation" => {
                 if let Some(name_node) = node.child_by_field_name("name") {
+                    // Java can't invoke a field or a variable (a lambda is
+                    // called as `f.apply()`), so the target is a method.
+                    let (qualifier, member) = node
+                        .child_by_field_name("object")
+                        .map_or((None, false), |object| self.receiver(object));
+                    self.relation_targets.push(RelationTarget {
+                        relation: self.relations.len(),
+                        kind: Some(SymbolKind::Method),
+                        qualifier,
+                        member,
+                        ..Default::default()
+                    });
                     // location(name_node), not location(node): a chained call
                     // (`a.f(x).f(y)`) has its outer and inner method_invocation
                     // both start at `a`, which would make two same-named
@@ -283,6 +449,16 @@ impl<'a> Walker<'a> {
                     );
                 }
                 self.visit_children(node, owner, type_name, depth + 1);
+            }
+            // An initializer block has its own locals, like a method body.
+            "static_initializer" | "block"
+                if node.kind() == "static_initializer"
+                    || node.parent().is_some_and(|p| p.kind() == "class_body") =>
+            {
+                let scanned = self.scan_locals(node);
+                let outer_locals = std::mem::replace(&mut self.locals, scanned);
+                self.visit_children(node, owner, type_name, depth + 1);
+                self.locals = outer_locals;
             }
             _ => self.visit_children(node, owner, type_name, depth + 1),
         }
