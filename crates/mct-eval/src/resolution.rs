@@ -94,7 +94,8 @@ pub fn observe(text: &str, label: &Label) -> Observed {
     }
     if let Some(target) = tail.strip_prefix(" -> ") {
         let target = target.split(" in ").next().unwrap_or(target);
-        let target = target.split(" [depth").next().unwrap_or(target).trim();
+        let target = target.split(" [depth").next().unwrap_or(target);
+        let target = target.split(" (by name)").next().unwrap_or(target).trim();
         let path = label.at.split(':').next().unwrap_or_default();
         return Observed::Resolved(match target.strip_prefix('L') {
             Some(line) if line.chars().all(|c| c.is_ascii_digit()) => format!("{path}:{line}"),
@@ -164,7 +165,7 @@ mod tests {
     const OUTPUT: &str = "\
 5 reference(s):
 rust/src/imports.rs:4:5 [rust] accept --calls--> Ok -> rust/src/kinds.rs:5 in Outcome
-rust/src/shadow.rs:4:5 [rust] wrap --calls--> Some -> L1
+rust/src/shadow.rs:4:5 [rust] wrap --calls--> Some -> L1 (by name)
 rust/src/prelude_use.rs:11:15 [rust] parse --calls--> Ok (external)
 rust/src/same_name.rs:17:6 [rust] sizes --calls--> len (ambiguous among 2: L7 in Stack, L12)
 rust/src/glob.rs:4:5 [rust] reject --calls--> Err (unresolved)
@@ -190,7 +191,8 @@ rust/src/prelude_use.rs:11:15 [rust] parse --calls--> Okay (external)
                 "calls Ok",
                 Observed::Resolved("rust/src/kinds.rs:5".into()),
             ),
-            // A same-file target is printed as `Lline`.
+            // A same-file target is printed as `Lline`; a target left by
+            // a unique name alone is marked `(by name)` after it.
             (
                 "rust/src/shadow.rs:4",
                 "calls Some",

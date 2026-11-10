@@ -74,6 +74,42 @@ impl Resolution {
     }
 }
 
+/// Why a [`RelationHit`] has its [`Resolution`] (issue #320). Additive:
+/// `resolution` keeps its values, this says how much to trust them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ResolutionEvidence {
+    /// Resolved, and the parser named the target's file, type or module
+    /// (`RelationTarget` `path`, `qualifier`, `module` or `target_module`).
+    Declared,
+    /// Resolved only because one same-named definition survived the
+    /// evidence the parser gave: an inference, not a proof.
+    Name,
+    /// Ambiguous: reached through a receiver whose type the parser can't
+    /// prove, so even a single candidate is not picked.
+    Receiver,
+    /// Ambiguous among several definitions.
+    Candidates,
+    /// External: the parser has syntactic proof the target lies outside the
+    /// repository.
+    Syntax,
+    /// Unresolved: no candidate.
+    #[default]
+    None,
+}
+
+impl ResolutionEvidence {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Declared => "declared",
+            Self::Name => "name",
+            Self::Receiver => "receiver",
+            Self::Candidates => "candidates",
+            Self::Syntax => "syntax",
+            Self::None => "none",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct RelationHit {
     pub kind: String,
@@ -95,6 +131,8 @@ pub struct RelationHit {
     /// Exact row id of `from_symbol` — the relation's source is always known.
     pub from_symbol_id: i64,
     pub resolution: Resolution,
+    /// Why the hit has `resolution`.
+    pub evidence: ResolutionEvidence,
     /// The one definition `to_name` denotes here; `Some` only when
     /// `resolution` is [`Resolution::Resolved`].
     pub target_id: Option<i64>,
@@ -519,7 +557,9 @@ const RELATION_SELECT: &str =
             r.id, r.from_symbol_id, r.external,
             (SELECT COUNT(*) FROM relation_candidates c WHERE c.relation_id = r.id),
             (SELECT MIN(c.symbol_id) FROM relation_candidates c WHERE c.relation_id = r.id),
-            r.member
+            r.member,
+            (r.qualifier IS NOT NULL OR r.target_path IS NOT NULL
+             OR r.module IS NOT NULL OR r.target_module IS NOT NULL)
          FROM relations r
          JOIN symbols caller ON caller.id = r.from_symbol_id
          JOIN files f ON f.id = caller.file_id
@@ -808,11 +848,21 @@ fn query_relation_rows(
             let count: i64 = row.get(10)?;
             let only: Option<i64> = row.get(11)?;
             let member: bool = row.get(12)?;
-            let (resolution, target_id) = match (external, count) {
-                (true, _) => (Resolution::External, None),
-                (false, 0) => (Resolution::Unresolved, None),
-                (false, 1) if !member => (Resolution::Resolved, only),
-                (false, _) => (Resolution::Ambiguous, None),
+            let declared: bool = row.get(13)?;
+            let (resolution, target_id, evidence) = match (external, count) {
+                (true, _) => (Resolution::External, None, ResolutionEvidence::Syntax),
+                (false, 0) => (Resolution::Unresolved, None, ResolutionEvidence::None),
+                (false, 1) if !member => (
+                    Resolution::Resolved,
+                    only,
+                    if declared {
+                        ResolutionEvidence::Declared
+                    } else {
+                        ResolutionEvidence::Name
+                    },
+                ),
+                (false, _) if member => (Resolution::Ambiguous, None, ResolutionEvidence::Receiver),
+                (false, _) => (Resolution::Ambiguous, None, ResolutionEvidence::Candidates),
             };
             Ok(RelationHit {
                 kind: row.get(0)?,
@@ -826,6 +876,7 @@ fn query_relation_rows(
                 relation_id: row.get(7)?,
                 from_symbol_id: row.get(8)?,
                 resolution,
+                evidence,
                 target_id,
                 candidate_count: count.max(0) as usize,
                 candidates: Vec::new(),
