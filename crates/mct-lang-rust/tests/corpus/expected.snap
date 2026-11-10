@@ -167,7 +167,7 @@ R 69:9 calls InventoryError::report -> audit
 R 69:25 references InventoryError::report -> Error
 R 69:15 references InventoryError::report -> Severity
 R 69:38 calls InventoryError::report -> to_string
-R 74:1 implements errors -> fmt::Display
+R 74:1 implements errors -> Display
 R 75:32 references InventoryError::fmt -> Formatter
 R 75:55 references InventoryError::fmt -> Result
 R 77:29 references InventoryError::fmt -> Validation
@@ -183,11 +183,11 @@ R 89:13 references InventoryError::fmt -> InventoryError
 R 92:29 references InventoryError::fmt -> Conflict
 R 92:13 references InventoryError::fmt -> InventoryError
 R 100:1 implements errors -> Error
-R 102:1 implements errors -> From<std::io::Error>
+R 102:1 implements errors -> From
 R 103:27 references InventoryError::from -> Error
 R 104:25 calls InventoryError::from -> storage
 R 104:9 references InventoryError::from -> InventoryError
-R 108:1 implements errors -> From<std::num::ParseIntError>
+R 108:1 implements errors -> From
 R 109:28 references InventoryError::from -> ParseIntError
 R 110:25 calls InventoryError::from -> Validation
 R 110:9 references InventoryError::from -> InventoryError
@@ -2197,7 +2197,7 @@ R 32:24 references Repository::count -> Result (name-matched: errors.rs)
 R 33:9 calls Repository::count -> Ok
 R 33:24 calls Repository::count -> len (name-matched: errors.rs)
 R 33:17 calls Repository::count -> all
-R 37:1 implements storage -> From<ProductId>
+R 37:1 implements storage -> From
 R 38:17 references u64::from -> ProductId (name-matched: model.rs)
 R 46:12 references MemoryRepository::items -> HashMap
 R 46:23 references MemoryRepository::items -> Id (name-matched: model.rs)
@@ -2210,7 +2210,7 @@ R 61:15 calls MemoryRepository<T>::new -> default
 R 69:47 references MemoryRepository<T>::extend -> Result (name-matched: errors.rs)
 R 75:18 calls MemoryRepository<T>::extend -> put
 R 78:9 calls MemoryRepository<T>::extend -> Ok
-R 82:1 implements storage -> Repository<T>
+R 82:1 implements storage -> Repository
 R 83:26 references MemoryRepository<T>::get -> Id (name-matched: model.rs)
 R 83:33 references MemoryRepository<T>::get -> Result (name-matched: errors.rs)
 R 83:40 references MemoryRepository<T>::get -> Option
