@@ -375,6 +375,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Source | Grammar node | Indexed as |
 |---|---|---|
 | `class`, `record` | `class_declaration`, `record_declaration` | `class` |
+| record components (`record P(T a)`) | `formal_parameter` of `record_declaration` | `method` `a`, the implicit accessor, unless the body declares `a()` |
 | `interface`, `@interface` | `interface_declaration`, `annotation_type_declaration` | `interface` |
 | `enum` and its constants | `enum_declaration`, `enum_constant` | `enum`; constants as `field` |
 | methods and constructors | `method_declaration`, `constructor_declaration` | `method`, one row per overload |
@@ -389,7 +390,6 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Gap | Cause | Detail |
 |---|---|---|
 | `interface B extends A` | Not implemented | `extends_interfaces` is not read, while class `extends`/`implements` are |
-| Record components | Not implemented | no arm for the record's parameter list |
 | Anonymous class in a field initializer | Not implemented | the initializer is not traversed, so its members are skipped |
 | Anonymous-class methods inside a method | Bug | generic traversal assigns them to the enclosing class instead of an anonymous owner |
 | Annotations as relations, lambdas, `super()`/`this()` | Not implemented | no arm for `annotation`, `lambda_expression` or `explicit_constructor_invocation` |
@@ -911,7 +911,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Interface members: `method`, default and static methods too
 - [x] Enum: `enum`
 - [x] Enum members: `field`
-- [~] Record / data class: `record` is a `class`; its components have no symbol
+- [x] Record / data class: `record` is a `class`; each component is its implicit accessor `method`
 - [x] Nested / inner class: static and inner
 - [~] Anonymous class: inside a method, its methods attach to the enclosing class; in a field initializer they have no symbol
 - [~] Module / namespace / package: file `module`; `package` has no symbol

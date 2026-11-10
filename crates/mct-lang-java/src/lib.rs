@@ -118,6 +118,49 @@ impl<'a> Walker<'a> {
         mct_tree_sitter::push_relation(&mut self.relations, from, kind, to_name, loc);
     }
 
+    /// Each component of `record R(T a, U b)` declares an implicit accessor
+    /// method `a()` (JLS §8.10.3), indexed as a `method` of `R` at the
+    /// component. A component whose accessor the body declares explicitly
+    /// (a method of that name with no parameters) is skipped, since that
+    /// declaration is indexed on its own.
+    fn push_record_accessors(&mut self, record: Node, record_name: &str) {
+        let Some(params) = record.child_by_field_name("parameters") else {
+            return;
+        };
+        let mut explicit = Vec::new();
+        if let Some(body) = record.child_by_field_name("body") {
+            let mut cursor = body.walk();
+            for member in body.named_children(&mut cursor) {
+                let takes_none = member
+                    .child_by_field_name("parameters")
+                    .is_some_and(|p| p.named_child_count() == 0);
+                if member.kind() == "method_declaration" && takes_none {
+                    if let Some(n) = member.child_by_field_name("name") {
+                        explicit.push(text(n, self.source));
+                    }
+                }
+            }
+        }
+        let mut cursor = params.walk();
+        for param in params.named_children(&mut cursor) {
+            if param.kind() != "formal_parameter" {
+                continue;
+            }
+            let Some(name_node) = param.child_by_field_name("name") else {
+                continue;
+            };
+            let name = text(name_node, self.source);
+            if !explicit.contains(&name) {
+                self.push_symbol(
+                    name.to_string(),
+                    SymbolKind::Method,
+                    location(param),
+                    Some(record_name.to_string()),
+                );
+            }
+        }
+    }
+
     /// `owner` is the innermost enclosing method/module (calls/imports
     /// attach to it); `type_name` is the innermost enclosing
     /// class/interface/enum name, used as the `parent` of members declared
@@ -179,6 +222,9 @@ impl<'a> Walker<'a> {
                             location(type_id),
                         );
                     }
+                }
+                if node.kind() == "record_declaration" {
+                    self.push_record_accessors(node, &name);
                 }
                 if let Some(body) = node.child_by_field_name("body") {
                     self.visit_children(body, owner, Some(&name), depth + 1);
