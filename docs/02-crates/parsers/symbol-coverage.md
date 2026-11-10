@@ -137,14 +137,16 @@ Without such details (every language but those above), the index has no:
 - parameter names and types, return types, or full signatures;
 - generic type parameters and their constraints.
 
-In every language it has no override relation (which method overrides
-which) and no variable or field types.
+An `overrides` relation (which method overrides which, D8) exists for Rust
+`impl Trait for T` methods and Java `@Override` methods only. No language
+records variable or field types.
 
 Because of this, where details are missing:
 
 - a `private` method and a `public` method look the same;
 - an abstract class is a plain `class`;
-- `override` is not linked to the method it overrides;
+- `override` is not linked to the method it overrides (except Rust and
+  Java, above);
 - overloads are separate rows with the same name and parent, with no
   signature to tell them apart.
 
