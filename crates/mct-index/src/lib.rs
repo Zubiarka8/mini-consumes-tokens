@@ -64,8 +64,8 @@ pub use indexer::{
     ReindexReport, UnsupportedFile, UnsupportedKind,
 };
 pub use queries::{
-    CandidateRef, QueryScope, RelationDirection, RelationHit, RelationPage, Resolution, SymbolHit,
-    SymbolListEntry, SymbolMatchMode, SHOWN_CANDIDATES,
+    CandidateRef, QueryScope, RelationDirection, RelationHit, RelationPage, Resolution,
+    ResolutionEvidence, SymbolHit, SymbolListEntry, SymbolMatchMode, SHOWN_CANDIDATES,
 };
 pub use read_limits::{read_repository_file, DEFAULT_MAX_FILE_BYTES, MAX_FILE_BYTES_ENV};
 pub use search::{exact_phrase, search_words, split_identifier, LiteralHit, MAX_LITERAL_HITS};

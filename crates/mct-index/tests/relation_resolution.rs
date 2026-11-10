@@ -448,3 +448,53 @@ fn module_and_receiver_evidence_never_resolve_to_an_unrelated_unique_name() {
         vec!["src/repo.a:1 Some(\"Repo\")"]
     );
 }
+
+/// Each hit says why it has its resolution (issue #320): a resolution the
+/// parser's evidence pins (`declared`) is told apart from one left by a
+/// unique name alone (`name`), and an ambiguity through an unproven
+/// receiver from one among several definitions.
+#[test]
+fn every_hit_carries_the_evidence_for_its_resolution() {
+    use mct_index::ResolutionEvidence;
+    let (_dir, index) = index_of(&[(
+        "a.a",
+        "def run in A\n\
+         def run in B\n\
+         def solo\n\
+         def only in C\n\
+         def pinned calls run q=A\n\
+         def by_name calls solo\n\
+         def several calls run\n\
+         def receiver calls only member\n\
+         def outside calls printf ext\n\
+         def nothing calls missing\n",
+    )]);
+    let evidence = |from: &str| {
+        let hit = call_of(&index, from);
+        (hit.resolution, hit.evidence)
+    };
+    assert_eq!(
+        evidence("pinned"),
+        (Resolution::Resolved, ResolutionEvidence::Declared)
+    );
+    assert_eq!(
+        evidence("by_name"),
+        (Resolution::Resolved, ResolutionEvidence::Name)
+    );
+    assert_eq!(
+        evidence("several"),
+        (Resolution::Ambiguous, ResolutionEvidence::Candidates)
+    );
+    assert_eq!(
+        evidence("receiver"),
+        (Resolution::Ambiguous, ResolutionEvidence::Receiver)
+    );
+    assert_eq!(
+        evidence("outside"),
+        (Resolution::External, ResolutionEvidence::Syntax)
+    );
+    assert_eq!(
+        evidence("nothing"),
+        (Resolution::Unresolved, ResolutionEvidence::None)
+    );
+}
