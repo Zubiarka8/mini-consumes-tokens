@@ -1586,10 +1586,6 @@ fn collect_identifiers(node: Node, source: &str, out: &mut HashSet<String>, dept
     }
 }
 
-/// `#[test]`, `#[bench]`, `#[tokio::test]`/`#[async_std::test]` (any path
-/// ending in `test`), `#[rstest]`, `#[test_case(..)]`: attributes that hand
-/// the function to a test/bench harness. `#[cfg(test)]` is not one — it only
-/// gates compilation, and a helper under it can still be genuinely unused.
 /// A built-in attribute of the Rust reference not already skipped above. A
 /// bare one can't be an imported attribute macro of the same name (that is
 /// an ambiguity error, E0659), so it never names a repo item.
@@ -1632,6 +1628,10 @@ fn is_bare_builtin_attribute(name: &str) -> bool {
     )
 }
 
+/// `#[test]`, `#[bench]`, `#[tokio::test]`/`#[async_std::test]` (any path
+/// ending in `test`), `#[rstest]`, `#[test_case(..)]`: attributes that hand
+/// the function to a test/bench harness. `#[cfg(test)]` is not one — it only
+/// gates compilation, and a helper under it can still be genuinely unused.
 fn is_harness_attribute(attribute_item: Node, source: &str) -> bool {
     let mut cursor = attribute_item.walk();
     let Some(attribute) = attribute_item
