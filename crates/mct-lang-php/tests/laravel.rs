@@ -342,4 +342,12 @@ fn anonymous_migrations_expose_up_and_down() {
     );
     assert_eq!(up[0].kind, "method");
     assert!(!index.find_symbol("down").unwrap().is_empty());
+    let details = index
+        .symbol_details(&up[0].relative_path, up[0].line, "up")
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        details.signature.as_deref(),
+        Some("public function up(): void")
+    );
 }
