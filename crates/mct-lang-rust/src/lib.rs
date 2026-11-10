@@ -386,10 +386,22 @@ impl<'a> Walker<'a> {
                             text(child, self.source).to_string(),
                             location(child),
                         );
-                        if accessor.kind() == "::" {
-                            let target = self.token_path_evidence(accessor);
-                            self.qualify(relation, target);
-                        }
+                        let target = if accessor.kind() == "::" {
+                            self.token_path_evidence(accessor)
+                        } else {
+                            // `x.f(..)`: the receiver evidence a method call
+                            // outside a macro gets (see `call_evidence`).
+                            let on_self = accessor
+                                .prev_sibling()
+                                .is_some_and(|r| text(r, self.source) == "self");
+                            let qualifier = on_self.then(|| self.self_type.clone()).flatten();
+                            RelationTarget {
+                                member: qualifier.is_none(),
+                                qualifier,
+                                ..Default::default()
+                            }
+                        };
+                        self.qualify(relation, target);
                     }
                     let name = text(child, self.source);
                     if accessor.is_none()
