@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use rusqlite::Connection;
+use rusqlite::{params, Connection, OptionalExtension};
 
 use crate::Result;
 
@@ -1112,4 +1112,96 @@ pub fn relation_candidates(conn: &Connection, relation_id: i64) -> Result<Vec<Sy
         .query_map([relation_id], symbol_hit)?
         .collect::<rusqlite::Result<_>>()?;
     Ok(rows)
+}
+
+/// One symbol's stored declaration details (ADR-034). `None` columns are
+/// unknown; see `mct_core::SymbolDetail` for what each field means.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeclarationDetails {
+    pub signature: Option<String>,
+    pub return_type: Option<String>,
+    /// `syntax` or `doc`, for `return_type`.
+    pub return_source: Option<String>,
+    pub visibility: Option<String>,
+    /// Sorted; empty when none is known.
+    pub modifiers: Vec<String>,
+    pub generics: Option<String>,
+    pub parameters_known: bool,
+    /// In declaration order; empty unless `parameters_known`.
+    pub parameters: Vec<DeclaredParameter>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeclaredParameter {
+    pub name: Option<String>,
+    pub type_text: Option<String>,
+    /// `syntax` or `doc`, for `type_text`.
+    pub type_source: Option<String>,
+    pub default_text: Option<String>,
+    /// `positional`, `receiver`, `variadic`, `keyword_only` or `keyword_variadic`.
+    pub kind: String,
+}
+
+/// The stored details of the symbol named `name` declared at
+/// `relative_path:line`, or `None` when its parser recorded none.
+pub fn symbol_details(
+    conn: &Connection,
+    relative_path: &str,
+    line: u32,
+    name: &str,
+) -> Result<Option<DeclarationDetails>> {
+    let row = conn
+        .prepare_cached(
+            "SELECT d.symbol_id, d.signature, d.return_type, d.return_source, d.visibility,
+                    d.modifiers, d.generics, d.parameters_known
+             FROM symbol_details d
+             JOIN symbols s ON s.id = d.symbol_id
+             JOIN files f ON f.id = s.file_id
+             WHERE f.relative_path = ?1 AND s.line = ?2 AND s.name = ?3
+             ORDER BY s.id LIMIT 1",
+        )?
+        .query_row(params![relative_path, line, name], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                DeclarationDetails {
+                    signature: row.get(1)?,
+                    return_type: row.get(2)?,
+                    return_source: row.get(3)?,
+                    visibility: row.get(4)?,
+                    modifiers: row
+                        .get::<_, Option<String>>(5)?
+                        .map(|m| m.split(' ').map(str::to_string).collect())
+                        .unwrap_or_default(),
+                    generics: row.get(6)?,
+                    parameters_known: row.get(7)?,
+                    parameters: Vec::new(),
+                },
+            ))
+        })
+        .optional()?;
+    let Some((symbol_id, mut details)) = row else {
+        return Ok(None);
+    };
+    let mut stmt = conn.prepare_cached(
+        "SELECT name, type_text, type_source, default_text, kind
+         FROM symbol_parameters WHERE symbol_id = ?1 ORDER BY position",
+    )?;
+    details.parameters = stmt
+        .query_map([symbol_id], |row| {
+            Ok(DeclaredParameter {
+                name: row.get(0)?,
+                type_text: row.get(1)?,
+                type_source: row.get(2)?,
+                default_text: row.get(3)?,
+                kind: row.get(4)?,
+            })
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(Some(details))
+}
+
+/// How many symbols have stored declaration details.
+pub fn symbol_detail_count(conn: &Connection) -> Result<usize> {
+    let n: i64 = conn.query_row("SELECT COUNT(*) FROM symbol_details", [], |r| r.get(0))?;
+    Ok(usize::try_from(n).unwrap_or(0))
 }

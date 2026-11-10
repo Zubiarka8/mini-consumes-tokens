@@ -64,8 +64,9 @@ pub use indexer::{
     ReindexReport, UnsupportedFile, UnsupportedKind,
 };
 pub use queries::{
-    CandidateRef, QueryScope, ReferencedSymbols, RelationDirection, RelationHit, RelationPage,
-    Resolution, ResolutionEvidence, SymbolHit, SymbolListEntry, SymbolMatchMode, SHOWN_CANDIDATES,
+    CandidateRef, DeclarationDetails, DeclaredParameter, QueryScope, ReferencedSymbols,
+    RelationDirection, RelationHit, RelationPage, Resolution, ResolutionEvidence, SymbolHit,
+    SymbolListEntry, SymbolMatchMode, SHOWN_CANDIDATES,
 };
 pub use read_limits::{read_repository_file, DEFAULT_MAX_FILE_BYTES, MAX_FILE_BYTES_ENV};
 pub use search::{exact_phrase, search_words, split_identifier, LiteralHit, MAX_LITERAL_HITS};
@@ -936,6 +937,22 @@ impl Index {
     /// references of any kind anywhere in the index.
     pub fn reference_counts(&self) -> Result<std::collections::HashMap<String, usize>> {
         queries::reference_counts(&self.conn)
+    }
+
+    /// The stored declaration details (ADR-034) of the symbol named `name`
+    /// declared at `relative_path:line`; `None` when its parser recorded none.
+    pub fn symbol_details(
+        &self,
+        relative_path: &str,
+        line: u32,
+        name: &str,
+    ) -> Result<Option<queries::DeclarationDetails>> {
+        queries::symbol_details(&self.conn, relative_path, line, name)
+    }
+
+    /// How many symbols have stored declaration details.
+    pub fn symbol_detail_count(&self) -> Result<usize> {
+        queries::symbol_detail_count(&self.conn)
     }
 
     /// Symbols of `kinds` referenced anywhere in the index other than by a
