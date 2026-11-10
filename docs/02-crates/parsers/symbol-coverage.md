@@ -312,6 +312,8 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `type X = …` (PEP 695) | `type_alias_statement` | `type_alias` |
 | `import a.b`, `from .x import y as z` | `import_statement`, `import_from_statement`, `aliased_import`, `relative_import` | `imports` for the module and each name |
 | `f()`, `obj.m()` | `call`, `attribute` | `calls` |
+| a bare builtin (`open()`, `len()`, `class E(Exception)`, `@property`) | `call`, `identifier` | marked `external` only when nothing in the file binds the name — no `def`, `class`, import, parameter, assignment, loop, `with`/`except`/walrus/`match` target, `global` or `type` of it — and the file has no `from m import *`, `globals()`, `exec`, `vars()` or `sys.modules`. The list is CPython 3.14's `builtins` without `site`'s names |
+| a bare call to a `def`/`class` of the same file (`count()` → `def count`) | `call`, `identifier` | `calls`, kept to this file when only a `def`/`class` outside a class body binds the name |
 
 #### Why the gaps exist
 
@@ -323,6 +325,8 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Nested functions have no parent | Not implemented | the parent is set only for class members |
 | Getter and setter as two rows | Not implemented | both are emitted as methods; the shared `field` kind could model a combined property, as in C# |
 | Exact-text search in strings | Not implemented | the parser does not fill `literals` |
+| A builtin is not `external` anywhere in a file that binds its name once, even in another function | By design | bindings are read file-wide, not per scope: it loses some `external` answers but never claims a wrong one |
+| Two nested `def`s of one name in the same file are `ambiguous` | Model limit | the call is kept to the file, but `RelationTarget` can't name the enclosing function (`suite-resolution.json`, `report.py` `fmt`) |
 
 ### JS/TS
 
@@ -348,6 +352,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | a TS type in an annotation, return type, alias value, generic argument or cast (`props: Props`, `useState<Problem>()`) | `type_identifier` | `references`; the enclosing declarations' type parameters are skipped (their constraints are not walked) |
 | `export default f({ … })` | `export_statement` value | the call and its arguments are walked like any expression |
 | object literal methods | `method_definition` under `object` | `function` |
+| an ECMAScript global (`Math.max()`, `JSON.parse()`, `parseInt()`, `new Map()`) | `call_expression`, `new_expression` | marked `external` only when nothing in the file binds the name — no declaration, import, parameter, pattern or assignment of it — and the file has no direct `eval` or `with`. Host globals (`window`, `document`, `process`, `console`) are not on the list |
 
 #### Why the gaps exist
 
@@ -360,6 +365,8 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Decorators, `super()` calls | Not implemented | no arm for `decorator`; `super` is not a call target |
 | Overload signatures | Not implemented | only the implementation is a `method_definition` |
 | Repeated code, exact-text search | Not implemented | no token source and no literals for JS/TS |
+| A global is not `external` anywhere in a file that binds its name once, even in another function | By design | bindings are read file-wide, not per scope: it loses some `external` answers but never claims a wrong one |
+| `console.log()`, `document.querySelector()` and other host calls are not `external` | By design | the language does not guarantee host globals, and a project may define them |
 
 ### Java
 
@@ -368,6 +375,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Source | Grammar node | Indexed as |
 |---|---|---|
 | `class`, `record` | `class_declaration`, `record_declaration` | `class` |
+| record components (`record P(T a)`) | `formal_parameter` of `record_declaration` | `method` `a`, the implicit accessor, unless the body declares `a()` |
 | `interface`, `@interface` | `interface_declaration`, `annotation_type_declaration` | `interface` |
 | `enum` and its constants | `enum_declaration`, `enum_constant` | `enum`; constants as `field` |
 | methods and constructors | `method_declaration`, `constructor_declaration` | `method`, one row per overload |
@@ -375,13 +383,14 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `extends`, `implements` | superclass / interfaces of `class_declaration` | `extends`, `implements` |
 | `import a.b.C`, `import static`, `.*` | `import_declaration`, `scoped_identifier`, `asterisk` | `imports` (each emitted twice) |
 | `m()`, `obj.m()`, `new X()` | `method_invocation`, `object_creation_expression` | `calls` |
+| the target of `m()`, `obj.m()` | `method_invocation` | only a `method` can be its target: Java cannot invoke a field, so a same-named field is never a candidate |
+| the receiver of `x.m()`, `T.m()` | `method_invocation` `object` | qualified by `x`'s declared type (parameter, local, field, `for`, resource, `catch`, pattern; `this.f`), or by `T` for a capitalized name that is no variable in scope (`Outer.Inner` too). Any other receiver — a call result, `var`, an untyped lambda parameter, a type variable — is a member call: ambiguous even with one candidate. A method inherited from a supertype is not found through the qualifier, so such a call is unresolved |
 
 #### Why the gaps exist
 
 | Gap | Cause | Detail |
 |---|---|---|
 | `interface B extends A` | Not implemented | `extends_interfaces` is not read, while class `extends`/`implements` are |
-| Record components | Not implemented | no arm for the record's parameter list |
 | Anonymous class in a field initializer | Not implemented | the initializer is not traversed, so its members are skipped |
 | Anonymous-class methods inside a method | Bug | generic traversal assigns them to the enclosing class instead of an anonymous owner |
 | Annotations as relations, lambdas, `super()`/`this()` | Not implemented | no arm for `annotation`, `lambda_expression` or `explicit_constructor_invocation` |
@@ -792,6 +801,7 @@ percentages and denominators; these checklists provide the scored evidence.
 **Relations**
 
 - [x] Calls
+- [x] Builtins: an unbound `open()`/`len()`/`Exception` is `external`
 - [x] Constructor call (`new X()` / `X()`): `calls X`
 - [x] Super / base constructor call: `super().__init__()` → `calls super` and `calls __init__`
 - [x] Imports: module and each imported name
@@ -856,6 +866,7 @@ percentages and denominators; these checklists provide the scored evidence.
 **Relations**
 
 - [x] Calls
+- [x] Standard globals: an unbound `Math.max()`/`JSON.parse()`/`parseInt()`/`new Map()` is `external`
 - [x] Constructor call (`new X()` / `X()`): `calls X`
 - [ ] Super / base constructor call: `super()` gives no relation
 - [x] Imports
@@ -901,7 +912,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Interface members: `method`, default and static methods too
 - [x] Enum: `enum`
 - [x] Enum members: `field`
-- [~] Record / data class: `record` is a `class`; its components have no symbol
+- [x] Record / data class: `record` is a `class`; each component is its implicit accessor `method`
 - [x] Nested / inner class: static and inner
 - [~] Anonymous class: inside a method, its methods attach to the enclosing class; in a field initializer they have no symbol
 - [~] Module / namespace / package: file `module`; `package` has no symbol
@@ -915,7 +926,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 **Relations**
 
-- [x] Calls
+- [x] Calls: a method invocation only resolves to a `method`, never to a same-named field
 - [x] Constructor call (`new X()` / `X()`): `calls X`
 - [ ] Super / base constructor call: `super()` and `this()` give no relation
 - [x] Imports: repeated target names can carry distinct file/type resolution evidence; repetition alone is not a parser defect
