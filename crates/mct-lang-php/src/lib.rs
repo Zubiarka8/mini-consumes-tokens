@@ -93,7 +93,8 @@
 
 use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
-    SymbolAlias, SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
+    SymbolAlias, SymbolDetail, SymbolId, SymbolKind, SymbolRecord, SymbolRelation,
+    MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::{find_child, first_error, location, module_location};
 use tree_sitter::{Node, Parser};
@@ -101,6 +102,7 @@ use tree_sitter::{Node, Parser};
 use libraries::laravel;
 use names::{namespace_alias, ImportKind, ResolvedName, Scope};
 
+mod details;
 mod libraries;
 mod names;
 
@@ -203,6 +205,7 @@ struct Walker<'a> {
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
     relation_targets: Vec<RelationTarget>,
+    details: Vec<SymbolDetail>,
     /// This file's repository-relative path, the base of relative includes.
     path: &'a str,
     next_id: SymbolId,
@@ -246,6 +249,7 @@ impl<'a> Walker<'a> {
             symbols: Vec::new(),
             relations: Vec::new(),
             relation_targets: Vec::new(),
+            details: Vec::new(),
             next_id: 0,
             module_id: 0,
             scope: Scope::default(),
@@ -549,6 +553,8 @@ impl<'a> Walker<'a> {
                     location(node),
                     type_name.map(str::to_string),
                 );
+                self.details
+                    .push(details::type_detail(node, id, self.source));
                 self.declare_type(&name);
                 if kind == SymbolKind::Class {
                     self.entry_points
@@ -583,6 +589,8 @@ impl<'a> Walker<'a> {
                     location(node),
                     type_name.map(str::to_string),
                 );
+                self.details
+                    .push(details::type_detail(node, id, self.source));
                 self.declare_type(&name);
                 self.visit_attributes(node, id, depth);
                 self.visit_type_clauses(node, id);
@@ -639,6 +647,8 @@ impl<'a> Walker<'a> {
                     None
                 };
                 let id = self.push_symbol(name, kind, location(node), parent);
+                self.details
+                    .push(details::function_detail(node, id, self.source));
                 self.visit_attributes(node, id, depth);
                 for field in ["parameters", "return_type", "body"] {
                     if let Some(part) = node.child_by_field_name(field) {
@@ -658,12 +668,14 @@ impl<'a> Walker<'a> {
             "property_promotion_parameter" => {
                 if let Some(name_node) = node.child_by_field_name("name") {
                     if let Some(var) = variable_text(name_node, self.source) {
-                        self.push_symbol(
+                        let id = self.push_symbol(
                             var.to_string(),
                             SymbolKind::Field,
                             location(node),
                             type_name.map(str::to_string),
                         );
+                        self.details
+                            .push(details::promoted_detail(node, id, self.source));
                     }
                 }
                 self.visit_attributes(node, owner, depth);
@@ -687,12 +699,18 @@ impl<'a> Walker<'a> {
                     }
                     if let Some(name_node) = child.child_by_field_name("name") {
                         if let Some(var) = variable_text(name_node, self.source) {
-                            self.push_symbol(
+                            let id = self.push_symbol(
                                 var.to_string(),
                                 SymbolKind::Field,
                                 location(child),
                                 type_name.map(str::to_string),
                             );
+                            self.details.push(details::property_detail(
+                                node,
+                                child,
+                                id,
+                                self.source,
+                            ));
                         }
                     }
                     for initializer in named_children(child).into_iter().skip(1) {
@@ -1133,6 +1151,7 @@ impl<'a> Walker<'a> {
             relation_targets: self.relation_targets,
             symbol_aliases: aliases,
             entry_points: self.entry_points,
+            symbol_details: self.details,
             ..Default::default()
         }
     }
