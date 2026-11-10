@@ -284,6 +284,8 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | harness attributes such as `#[test]` / `#[tokio::test]` | `attribute_item` | a self-`references` relation to the following function |
 | a bare call to an imported function inside a macro's arguments (`println!("{}", helper(x))`) | `token_tree` | `calls` |
 | string literals | `string_literal`, `raw_string_literal` | literals for exact-text search |
+| a prelude name (`Ok`, `Some`, `String`, `Box`, `Debug`, `Default`…) or a name imported from `std`/`core`/`alloc` | any of the above | marked `external` only when the file declares no item of that name, no non-`std` `use` of it reaches the site, no lowercase local shadows it, and no glob that could bring it in reaches the site. An enum variant is not a bare name (`Level::Debug` doesn't shadow the `Debug` derive) unless a glob over its enum reaches the site. A glob over an enum declared in the file and a `use super::*` in a top-level inline `mod` are otherwise transparent |
+| the trait of `impl Tr<..> for T` / `impl m::Tr for T` / a supertrait bound | `impl_item`, `trait_bounds` | `implements`/`extends` the trait's last segment without generic arguments (`From`, `Display`), with `kind = trait` unless external |
 
 #### Why the gaps exist
 
@@ -292,6 +294,9 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `implements` owned by the file module | Bug | the type that implements the trait is not the owner |
 | A call to a function of another file inside a macro that is not imported or is reached through a field or path (`x.f()`) | By design | the traversal comment limits macro identifiers to imported names and same-file free functions; other forms are `references`, to avoid mistaking fields and paths for calls |
 | Visibility, generics, signatures | Model limit | see [What the index can hold](#what-the-index-can-hold) |
+| A bare prelude name under a glob whose source is another file (`use super::*` in a file module, `use other::*`) is not marked `external`, and resolves to a same-named item elsewhere when there is only one | By design (parser) + model limit (index) | the parser can't see what the glob brings in, so it proves nothing; the index then reports a unique name match as `resolved`. On this repository: 14 `String` references in `mct-index/src/reviews/tests.rs` and `mct-cli/src/web/tests/group_invariants.rs` resolve to `LiteralCategory::String`. Fixing it needs "resolved by name" to be told apart from "resolved by evidence" in the index |
+| `m::f()` where `m` is an inline `mod` of the same file is `unresolved` | Model limit | a function in an inline `mod` is indexed with no parent, so the `module = m` evidence finds no candidate (a missed edge, never a wrong one; `suite-resolution.json`, `rust: same name in different modules`) |
+| The prelude list is the 2021 edition's | By design | `TryFrom`, `TryInto` and `FromIterator` are not in the 2015/2018 prelude; a crate on those editions that defines one of them is still read correctly, because a declared or imported name is never external |
 
 ### Python
 

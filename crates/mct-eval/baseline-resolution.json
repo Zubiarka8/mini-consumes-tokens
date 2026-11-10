@@ -1,0 +1,46 @@
+{
+  "suite": "resolution-app",
+  "catalog_tokens": 12167,
+  "cases": {
+    "java: an inherited call is not a same-named field": {
+      "score": 0.0,
+      "tokens": 214,
+      "wrong": 1
+    },
+    "lua: a host global is not another file's local": {
+      "score": 0.0,
+      "tokens": 204,
+      "wrong": 1
+    },
+    "python: builtins, imports, fixtures and nested scopes": {
+      "score": 0.0,
+      "tokens": 587,
+      "wrong": 2
+    },
+    "rust: a function and a method with the same name": {
+      "score": 0.0,
+      "tokens": 308,
+      "wrong": 0
+    },
+    "rust: explicit and glob imports": {
+      "score": 1.0,
+      "tokens": 345,
+      "wrong": 0
+    },
+    "rust: prelude names vs same-named variants and locals": {
+      "score": 1.0,
+      "tokens": 896,
+      "wrong": 0
+    },
+    "rust: same name in different modules": {
+      "score": 0.0,
+      "tokens": 230,
+      "wrong": 0
+    },
+    "typescript: builtins, imports, fixtures and same-named methods": {
+      "score": 0.0,
+      "tokens": 421,
+      "wrong": 1
+    }
+  }
+}

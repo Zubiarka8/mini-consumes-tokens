@@ -137,10 +137,14 @@ async fn packs_definition_doc_comment_and_every_related_symbol_once() {
     );
     assert!(!text.contains(" module  |"), "{text}");
     // Names the index can't resolve are summarised, not listed as rows.
+    // `Ok`/`Result` are the prelude's: nothing in the file declares or
+    // imports them, so the parser proves them external.
     assert!(
-        text.contains(
-            "Unresolved (no indexed definition, no external evidence): Ok, Result, as_deref, len"
-        ),
+        text.contains("External (std/third-party, proven by the parser): Ok, Result\n"),
+        "{text}"
+    );
+    assert!(
+        text.contains("Unresolved (no indexed definition, no external evidence): as_deref, len"),
         "{text}"
     );
 
@@ -397,10 +401,14 @@ async fn homonyms_are_never_presented_as_resolved_callees() {
         ),
         "{text}"
     );
+    // The prelude's `Ok`/`Result`/`Vec` are external — never the C#
+    // `Result.Ok` above — and the methods on `v` stay unresolved.
     assert!(
-        text.contains(
-            "Unresolved (no indexed definition, no external evidence): Ok, Result, Vec, get, iter, map"
-        ),
+        text.contains("External (std/third-party, proven by the parser): Ok, Result, Vec\n"),
+        "{text}"
+    );
+    assert!(
+        text.contains("Unresolved (no indexed definition, no external evidence): get, iter, map"),
         "{text}"
     );
 }
