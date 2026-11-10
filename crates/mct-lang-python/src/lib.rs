@@ -319,6 +319,10 @@ impl<'a> Walker<'a> {
     /// a builtin nothing in this module binds is external, and a name only
     /// a `def`/`class` of this module binds stays in this file.
     fn push_bare_evidence(&mut self, expr: Node) {
+        if expr.kind() == "attribute" {
+            self.push_module_attribute_evidence(expr);
+            return;
+        }
         if expr.kind() != "identifier" {
             return;
         }
@@ -333,12 +337,57 @@ impl<'a> Walker<'a> {
                 path: Some(self.path.to_string()),
                 ..Default::default()
             }
+        } else if let Some(module) = self.scope.imported_from(name) {
+            RelationTarget {
+                module: Some(module.to_string()),
+                ..Default::default()
+            }
         } else {
             return;
         };
         self.relation_targets.push(RelationTarget {
             relation: self.relations.len(),
             ..target
+        });
+    }
+
+    /// `m.f()` where `m` names a module only through an import (`import
+    /// a.b as m`, or `import a` then `a.b.f()`): `f` is defined in the last
+    /// module of that path.
+    fn push_module_attribute_evidence(&mut self, attribute: Node) {
+        let Some(object) = attribute.child_by_field_name("object") else {
+            return;
+        };
+        let mut segments = Vec::new();
+        let mut head = object;
+        while head.kind() == "attribute" {
+            let Some(name) = head.child_by_field_name("attribute") else {
+                return;
+            };
+            segments.push(text(name, self.source));
+            match head.child_by_field_name("object") {
+                Some(inner) => head = inner,
+                None => return,
+            }
+        }
+        if head.kind() != "identifier" {
+            return;
+        }
+        let Some(path) = self.scope.module_alias(text(head, self.source)) else {
+            return;
+        };
+        let module = segments
+            .first()
+            .copied()
+            .or_else(|| path.rsplit('.').next())
+            .unwrap_or_default();
+        if module.is_empty() {
+            return;
+        }
+        self.relation_targets.push(RelationTarget {
+            relation: self.relations.len(),
+            module: Some(module.to_string()),
+            ..Default::default()
         });
     }
 
