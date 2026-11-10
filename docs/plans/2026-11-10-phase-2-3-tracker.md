@@ -105,7 +105,7 @@ From `rules.md` and the two messages:
         indexed revision. Measured on 48 symbols in 12 languages: full packs
         173,215 → 173,027 approximate tokens, `summary` 13,190 → 12,849; 6 of
         48 packs grow, the ones whose header spans several lines.
-        Branch `feat/context-pack-signatures`.
+        #346.
   - [ ] `find_symbol`
   - [ ] `find_calls`, `find_callers`, `find_references`, `impact_analysis`:
         decide per tool whether a signature is worth its tokens (ADR-016).
