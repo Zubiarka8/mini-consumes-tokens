@@ -343,8 +343,9 @@ fn an_index_from_before_assets_gains_them_on_a_normal_reindex() {
     // ADR-003 D7: no web/3D phase adds a migration. Bump only with a new
     // ADR or an approved issue: 11 is ADR-005's `symbol_aliases` migration (issue #135), 12 is
     // `rockspec_items` (issue #267), 13 is ADR-026's module-shadowing view
-    // change (issue #272) and 14 is ADR-027's `symbol_entry_points` (issue #273).
-    assert_eq!(before, 14);
+    // change (issue #272), 14 is ADR-027's `symbol_entry_points` (issue #273)
+    // and 15 is ADR-035's function-local variable scope (issue #320).
+    assert_eq!(before, 15);
     drop(conn);
 
     let mut index = Index::open(&dir, &db, ExcludeSet::default()).unwrap();
