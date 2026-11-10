@@ -11,6 +11,7 @@
 //! (`tree_sitter::Node::to_sexp`), not from grammar docs — Lua's grammar is
 //! less standardized across tree-sitter-lua forks than Rust's or Python's.
 
+mod details;
 mod libraries;
 mod tokens;
 
@@ -18,7 +19,7 @@ pub use tokens::LuaTokenSource;
 
 use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
-    SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
+    SymbolDetail, SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::{first_error, location, module_location};
 use std::collections::{HashMap, HashSet};
@@ -124,6 +125,7 @@ struct Walker<'a> {
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
     relation_targets: Vec<RelationTarget>,
+    details: Vec<SymbolDetail>,
     next_id: SymbolId,
     /// Function bodies (named or anonymous) the walk is currently inside.
     function_depth: u32,
@@ -144,6 +146,7 @@ impl<'a> Walker<'a> {
             symbols: Vec::new(),
             relations: Vec::new(),
             relation_targets: Vec::new(),
+            details: Vec::new(),
             next_id: 0,
             function_depth: 0,
             self_table: None,
@@ -278,6 +281,14 @@ impl<'a> Walker<'a> {
                         }
                     }
                     let id = self.push_symbol(name, kind, location(node), parent);
+                    self.details.push(details::function_detail(
+                        node,
+                        node.start_byte(),
+                        node,
+                        name_node.kind() == "method_index_expression",
+                        id,
+                        self.source,
+                    ));
                     self.visit_function_body(node, id, depth);
                 }
             }
@@ -522,6 +533,26 @@ impl<'a> Walker<'a> {
                             SymbolKind::Function
                         };
                         let id = self.push_symbol(name, kind, span(*var, *value), parent);
+                        // `local f = function`: the annotations precede the
+                        // whole `local` statement, and the header starts
+                        // there unless the assignment has several targets.
+                        let statement = node
+                            .parent()
+                            .filter(|p| p.kind() == "variable_declaration")
+                            .unwrap_or(node);
+                        let start = if vars.len() == 1 {
+                            statement.start_byte()
+                        } else {
+                            var.start_byte()
+                        };
+                        self.details.push(details::function_detail(
+                            statement,
+                            start,
+                            *value,
+                            false,
+                            id,
+                            self.source,
+                        ));
                         self.visit_function_body(*value, id, depth);
                         continue;
                     }
@@ -1071,6 +1102,14 @@ impl<'a> Walker<'a> {
                         location(field),
                         Some(table_name.clone()),
                     );
+                    self.details.push(details::function_detail(
+                        field,
+                        field.start_byte(),
+                        value,
+                        false,
+                        id,
+                        self.source,
+                    ));
                     self.visit_function_body(value, id, depth);
                 }
                 (Some(table_name), Some(name), Some(value)) if is_literal_value(value) => {
@@ -1097,6 +1136,7 @@ impl<'a> Walker<'a> {
             symbols: self.symbols,
             relations: self.relations,
             relation_targets: self.relation_targets,
+            symbol_details: self.details,
             ..Default::default()
         }
     }
