@@ -1,4 +1,4 @@
-# language=rust files=6 symbols=771 relations=1690 name_matched_across_files=551
+# language=rust files=6 symbols=771 relations=1717 name_matched_across_files=551
 
 == errors.rs (397 lines)
 S 1-397 module errors
@@ -182,15 +182,18 @@ R 89:29 references InventoryError::fmt -> Storage
 R 89:13 references InventoryError::fmt -> InventoryError
 R 92:29 references InventoryError::fmt -> Conflict
 R 92:13 references InventoryError::fmt -> InventoryError
+R 75:8 overrides InventoryError::fmt -> fmt
 R 100:1 implements errors -> Error
 R 102:1 implements errors -> From
 R 103:27 references InventoryError::from -> Error
 R 104:25 calls InventoryError::from -> storage
 R 104:9 references InventoryError::from -> InventoryError
+R 103:8 overrides InventoryError::from -> from
 R 108:1 implements errors -> From
 R 109:28 references InventoryError::from -> ParseIntError
 R 110:25 calls InventoryError::from -> Validation
 R 110:9 references InventoryError::from -> InventoryError
+R 109:8 overrides InventoryError::from -> from
 R 116:17 calls error_count -> load (name-matched: service.rs)
 R 116:32 references error_count -> Relaxed
 R 116:22 references error_count -> Ordering
@@ -534,6 +537,7 @@ R 47:10 references Options -> Debug (name-matched: errors.rs)
 R 54:1 implements main -> Default
 R 56:9 references Options::default -> Options
 R 57:40 calls Options::default -> to_string
+R 55:8 overrides Options::default -> default
 R 65:24 references split_options -> Vec
 R 65:28 references split_options -> String
 R 65:40 references split_options -> Result (name-matched: errors.rs)
@@ -986,6 +990,7 @@ R 64:19 references Unit::fmt -> Box
 R 64:13 references Unit::fmt -> Unit
 R 65:24 calls Unit::fmt -> write_str
 R 65:40 calls Unit::fmt -> symbol
+R 62:8 overrides Unit::fmt -> fmt
 R 73:15 references Category::name -> String
 R 74:19 references Category::children -> Vec
 R 74:23 references Category::children -> Category
@@ -1043,9 +1048,11 @@ R 142:26 calls Product::has_tag -> any
 R 142:19 calls Product::has_tag -> iter (name-matched: main.rs)
 R 142:36 calls Product::has_tag -> eq_ignore_ascii_case
 R 151:1 implements model -> PartialEq
+R 152:8 overrides Product::eq -> eq
 R 157:1 implements model -> Eq
 R 159:1 implements model -> Hash
 R 161:17 calls Product::hash -> hash
+R 160:8 overrides Product::hash -> hash
 R 166:37 references validate_name -> Result (name-matched: errors.rs)
 R 167:13 calls validate_name -> is_empty (name-matched: errors.rs)
 R 168:16 calls validate_name -> Err
@@ -1132,11 +1139,14 @@ R 304:10 references model -> Id
 R 304:15 references Product::Id -> ProductId
 R 306:21 references Product::id -> ProductId
 R 310:24 references Product::label -> String
+R 306:8 overrides Product::id -> id
+R 310:8 overrides Product::label -> label
 R 315:1 implements model -> Identified
 R 316:10 references model -> Id
 R 316:16 references StockLevel::Id -> ProductId
 R 316:27 references StockLevel::Id -> LocationId
 R 318:27 references StockLevel::id -> Id
+R 318:8 overrides StockLevel::id -> id
 R 324:10 references Versioned -> Debug (name-matched: errors.rs)
 R 324:17 references Versioned -> Clone
 R 332:9 references Versioned<T>::new -> Versioned
@@ -1471,6 +1481,8 @@ R 177:23 calls StockSection<'_>::body -> to_string
 R 178:30 calls StockSection<'_>::body -> to_string
 R 181:9 calls StockSection<'_>::body -> Ok
 R 181:18 calls StockSection<'_>::body -> render
+R 160:8 overrides StockSection<'_>::title -> title
+R 164:8 overrides StockSection<'_>::body -> body
 R 185:26 references total_for -> Warehouse (name-matched: service.rs)
 R 185:47 references total_for -> Product (name-matched: model.rs)
 R 185:59 references total_for -> Result (name-matched: errors.rs)
@@ -1562,6 +1574,8 @@ R 252:29 calls MovementSection<'_>::body -> to_string
 R 252:48 calls MovementSection<'_>::body -> to_string
 R 254:9 calls MovementSection<'_>::body -> Ok
 R 254:18 calls MovementSection<'_>::body -> render
+R 235:8 overrides MovementSection<'_>::title -> title
+R 239:8 overrides MovementSection<'_>::body -> body
 R 260:19 references CategorySection::root -> Category (name-matched: model.rs)
 R 263:1 implements report -> Section
 R 264:24 references CategorySection<'_>::title -> Cow
@@ -1578,6 +1592,8 @@ R 275:23 references CategorySection<'_>::body -> String
 R 276:9 calls CategorySection<'_>::body -> walk
 R 277:60 references CategorySection<'_>::body -> count
 R 278:9 calls CategorySection<'_>::body -> Ok
+R 264:8 overrides CategorySection<'_>::title -> title
+R 268:8 overrides CategorySection<'_>::body -> body
 R 285:1 implements report -> Section
 R 286:24 references AuditSection::title -> Cow
 R 287:20 calls AuditSection::title -> into
@@ -1594,6 +1610,8 @@ R 295:65 calls AuditSection::body -> join
 R 295:45 calls AuditSection::body -> collect
 R 295:27 calls AuditSection::body -> map
 R 295:20 calls AuditSection::body -> iter (name-matched: main.rs)
+R 286:8 overrides AuditSection::title -> title
+R 290:8 overrides AuditSection::body -> body
 R 300:37 references full_report -> Section
 R 300:50 references full_report -> Result (name-matched: errors.rs)
 R 300:57 references full_report -> String
@@ -1807,6 +1825,7 @@ R 40:20 references Warehouse::listeners -> Arc
 R 40:28 references Warehouse::listeners -> MovementListener
 R 43:1 implements service -> Default
 R 45:15 calls Warehouse::default -> new
+R 44:8 overrides Warehouse::default -> default
 R 51:9 references Warehouse::new -> Warehouse
 R 52:41 calls Warehouse::new -> new
 R 52:23 references Warehouse::new -> MemoryRepository (name-matched: storage.rs)
@@ -1991,6 +2010,8 @@ R 273:45 calls MovementCounter::on_movement -> lock
 R 274:47 calls MovementCounter::on_movement -> or_insert
 R 274:21 calls MovementCounter::on_movement -> entry (name-matched: errors.rs)
 R 274:36 calls MovementCounter::on_movement -> product
+R 272:8 overrides MovementCounter::on_movement -> on_movement
+R 278:8 overrides MovementCounter::name -> name
 R 286:14 references Outbox::pending -> VecDeque
 R 286:23 references Outbox::pending -> Movement (name-matched: model.rs)
 R 292:9 references Outbox<S>::new -> Outbox
@@ -2199,6 +2220,7 @@ R 33:24 calls Repository::count -> len (name-matched: errors.rs)
 R 33:17 calls Repository::count -> all
 R 37:1 implements storage -> From
 R 38:17 references u64::from -> ProductId (name-matched: model.rs)
+R 38:8 overrides u64::from -> from
 R 46:12 references MemoryRepository::items -> HashMap
 R 46:23 references MemoryRepository::items -> Id (name-matched: model.rs)
 R 44:10 references MemoryRepository -> Debug (name-matched: errors.rs)
@@ -2206,6 +2228,7 @@ R 50:1 implements storage -> Default
 R 52:9 references MemoryRepository<T>::default -> MemoryRepository
 R 53:29 calls MemoryRepository<T>::default -> new
 R 53:20 references MemoryRepository<T>::default -> HashMap
+R 51:8 overrides MemoryRepository<T>::default -> default
 R 61:15 calls MemoryRepository<T>::new -> default
 R 69:47 references MemoryRepository<T>::extend -> Result (name-matched: errors.rs)
 R 75:18 calls MemoryRepository<T>::extend -> put
@@ -2232,6 +2255,10 @@ R 99:9 calls MemoryRepository<T>::all -> Ok
 R 99:41 calls MemoryRepository<T>::all -> collect
 R 99:32 calls MemoryRepository<T>::all -> cloned
 R 99:23 calls MemoryRepository<T>::all -> values
+R 83:8 overrides MemoryRepository<T>::get -> get
+R 87:8 overrides MemoryRepository<T>::put -> put
+R 93:8 overrides MemoryRepository<T>::remove -> remove
+R 98:8 overrides MemoryRepository<T>::all -> all
 R 106:11 references StockTable::rows -> Arc
 R 106:15 references StockTable::rows -> RwLock
 R 106:22 references StockTable::rows -> HashMap
