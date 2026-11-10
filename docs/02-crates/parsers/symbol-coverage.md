@@ -384,6 +384,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `import a.b.C`, `import static`, `.*` | `import_declaration`, `scoped_identifier`, `asterisk` | `imports` (each emitted twice) |
 | `m()`, `obj.m()`, `new X()` | `method_invocation`, `object_creation_expression` | `calls` |
 | the target of `m()`, `obj.m()` | `method_invocation` | only a `method` can be its target: Java cannot invoke a field, so a same-named field is never a candidate |
+| the receiver of `x.m()`, `T.m()` | `method_invocation` `object` | qualified by `x`'s declared type (parameter, local, field, `for`, resource, `catch`, pattern; `this.f`), or by `T` for a capitalized name that is no variable in scope (`Outer.Inner` too). Any other receiver — a call result, `var`, an untyped lambda parameter, a type variable — is a member call: ambiguous even with one candidate. A method inherited from a supertype is not found through the qualifier, so such a call is unresolved |
 
 #### Why the gaps exist
 
