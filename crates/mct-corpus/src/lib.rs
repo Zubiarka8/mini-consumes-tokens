@@ -1613,6 +1613,7 @@ pub fn relation_str(kind: RelationKind) -> &'static str {
         RelationKind::Extends => "extends",
         RelationKind::Implements => "implements",
         RelationKind::References => "references",
+        RelationKind::Overrides => "overrides",
     }
 }
 

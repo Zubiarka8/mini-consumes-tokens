@@ -1034,7 +1034,7 @@ fn impact_analysis_impl(
     let mut out = format!("Impact analysis for `{symbol}`:\n");
     out.push_str(&format!("  {} direct caller(s)\n", count(0, callers.len())));
     out.push_str(&format!(
-        "  {} reference(s) total (calls/imports/extends/implements/plain)\n",
+        "  {} reference(s) total (calls/imports/extends/implements/overrides/plain)\n",
         count(1, references.len())
     ));
     out.push_str(&format!(
@@ -1176,7 +1176,7 @@ fn impact_analysis_toon_impl(
     let mut out = format!("Impact analysis for `{symbol}`:\n");
     out.push_str(&format!("  {} direct caller(s)\n", count(0, callers.len())));
     out.push_str(&format!(
-        "  {} reference(s) total (calls/imports/extends/implements/plain)\n",
+        "  {} reference(s) total (calls/imports/extends/implements/overrides/plain)\n",
         count(1, references.len())
     ));
     out.push_str(&format!(
