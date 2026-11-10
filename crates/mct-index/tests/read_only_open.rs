@@ -97,3 +97,33 @@ fn the_write_path_refuses_a_schema_newer_than_the_binary_and_changes_nothing() {
         .unwrap();
     assert_eq!(tables, 1, "the LuaRocks table was dropped or recreated");
 }
+
+/// An index one migration behind the binary (issue #320: migration 15 changes
+/// the `relation_candidates` view) is refused by the read-only path, which
+/// never applies the pending migration nor rewrites the file.
+#[test]
+fn read_only_open_refuses_an_index_with_a_pending_migration() {
+    let root = tempfile::tempdir().unwrap();
+    let database = root.path().join("index.db");
+    let latest: i64 = {
+        drop(Index::open(root.path(), &database, ExcludeSet::new(&[])).unwrap());
+        let connection = rusqlite::Connection::open(&database).unwrap();
+        connection
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap()
+    };
+    {
+        // This is a synthetic test database, never the user's index.
+        let connection = rusqlite::Connection::open(&database).unwrap();
+        connection
+            .pragma_update(None, "user_version", latest - 1)
+            .unwrap();
+    }
+    let before = std::fs::read(&database).unwrap();
+    let result = Index::open_existing_read_only(root.path(), &database, ExcludeSet::new(&[]));
+    assert!(matches!(
+        result,
+        Err(IndexError::IncompatibleReadOnlySchema)
+    ));
+    assert_eq!(std::fs::read(&database).unwrap(), before);
+}
