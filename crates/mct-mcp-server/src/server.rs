@@ -2617,6 +2617,17 @@ impl MctServer {
         let omitted_definitions = definitions
             .len()
             .saturating_sub(CONTEXT_PACK_MAX_DEFINITIONS);
+        // A signature is the header the parser stored (ADR-034), whole even
+        // when written over several lines; without one, the first source
+        // line. Both are capped the same, so the pack's budget is unchanged.
+        // Either only while the file still holds the indexed revision: a
+        // stored header is that revision's source text too.
+        let related_ids: Vec<i64> = related.drafts.iter().filter_map(|d| d.symbol_id).collect();
+        let stored = index
+            .stored_signatures(&[definition_ids.as_slice(), &related_ids].concat())
+            .map_err(index_error)?;
+        let stored_signature = |id: i64| stored.get(&id).map(|s| format::capped_signature(s));
+
         let mut packed_definitions = Vec::new();
         for hit in definitions.into_iter().take(CONTEXT_PACK_MAX_DEFINITIONS) {
             // An asset is binary or glTF JSON: no source lines to show.
@@ -2625,9 +2636,9 @@ impl MctServer {
             } else {
                 source_of(&hit.relative_path)
             };
-            let signature = source
-                .as_deref()
-                .and_then(|source| format::signature_line(source, hit.line));
+            let signature = source.as_deref().and_then(|source| {
+                stored_signature(hit.id).or_else(|| format::signature_line(source, hit.line))
+            });
             let (snippet, hidden_lines) = match source {
                 Some(source) => {
                     let start = format::leading_comment_start(&source, hit.line);
@@ -2654,9 +2665,8 @@ impl MctServer {
             });
         }
 
-        let ids: Vec<i64> = related.drafts.iter().filter_map(|d| d.symbol_id).collect();
         let by_id: std::collections::HashMap<i64, mct_index::SymbolHit> = index
-            .symbols_by_ids(&ids)
+            .symbols_by_ids(&related_ids)
             .map_err(index_error)?
             .into_iter()
             .map(|hit| (hit.id, hit))
@@ -2705,8 +2715,10 @@ impl MctServer {
                 file_level.insert(definition.relative_path);
                 continue;
             }
-            let signature = source_of(&definition.relative_path)
-                .and_then(|source| format::signature_line(&source, definition.line));
+            let signature = source_of(&definition.relative_path).and_then(|source| {
+                stored_signature(definition.id)
+                    .or_else(|| format::signature_line(&source, definition.line))
+            });
             packed_related.push(PackedRelated {
                 name: draft.name,
                 roles: draft.roles,
