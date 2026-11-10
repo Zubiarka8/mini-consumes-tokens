@@ -279,7 +279,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | a type in a parameter, return type, field, `let`/`const`/`static` annotation, type alias, generic argument, cast or struct literal | `type_identifier`, `scoped_type_identifier` | `references`; the item's own type parameters and `Self` are skipped |
 | the type a path goes through (`Dimension::Kind`, `Assessor::new()`) | `scoped_identifier` | `references` to the capitalized qualifier, besides the last segment |
 | a same-file unit struct used as a value (`&Broken`) | `identifier` | `references` |
-| `m::f(..)` and `x.f(..)` inside a macro's arguments (`vec![format::hits(..)]`) | `token_tree` | `references`; a `m::` path keeps its module/qualifier evidence |
+| `m::f(..)` and `x.f(..)` inside a macro's arguments (`vec![format::hits(..)]`) | `token_tree` | `references`; a `m::` path keeps its module/qualifier evidence, and `x.f(..)` the receiver evidence of a method call outside a macro: `self.f(..)` is qualified by the impl type, any other receiver is a member call (never resolved by a unique name) |
 | a macro invoked through a path (`mct_corpus::standard_tests!`), or a same-file macro invoked inside another macro's arguments | `macro_invocation`, `token_tree` | `calls` |
 | harness attributes such as `#[test]` / `#[tokio::test]` | `attribute_item` | a self-`references` relation to the following function |
 | a bare call to an imported function inside a macro's arguments (`println!("{}", helper(x))`) | `token_tree` | `calls` |

@@ -399,6 +399,45 @@ fn a_method_call_inside_a_macro_token_tree_leaves_a_relation() {
 }
 
 #[test]
+fn a_method_call_inside_a_macro_carries_the_receiver_evidence_of_one_outside() {
+    // `out.contains(..)` in `assert!` is a method call on a receiver whose
+    // type the parser can't prove, exactly like the same call outside a
+    // macro: a member call, so a lone same-named method never resolves it
+    // by name. `self.total()` is qualified by the impl type, as outside.
+    let parsed = parse(
+        r#"
+        struct S;
+        impl S {
+            fn total(&self) -> u32 { 1 }
+            fn check(&self, out: &str) {
+                assert!(out.contains("x"));
+                assert_eq!(self.total(), 1);
+            }
+        }
+        "#,
+    );
+    let target = |name: &str| {
+        let index = parsed
+            .relations
+            .iter()
+            .position(|r| r.to_name == name)
+            .unwrap_or_else(|| panic!("no `{name}`: {:?}", parsed.relations));
+        parsed
+            .relation_targets
+            .iter()
+            .find(|t| t.relation == index)
+            .cloned()
+            .unwrap_or_default()
+    };
+    let contains = target("contains");
+    assert!(contains.member, "{contains:?}");
+    assert_eq!(contains.qualifier, None);
+    let total = target("total");
+    assert!(!total.member, "{total:?}");
+    assert_eq!(total.qualifier.as_deref(), Some("S"));
+}
+
+#[test]
 fn a_path_in_value_position_is_a_reference_qualified_by_its_module() {
     // The shape of `mct_languages::build_registry` (errors/REGISTRY.md
     // ERR-010). A value use gets the same `module` evidence as a call through
