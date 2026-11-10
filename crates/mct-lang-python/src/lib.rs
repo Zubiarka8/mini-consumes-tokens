@@ -10,6 +10,7 @@ use mct_core::{
 use mct_tree_sitter::{first_error, location};
 use tree_sitter::{Node, Parser};
 
+mod details;
 #[cfg(test)]
 mod libraries;
 mod scope;
@@ -96,6 +97,8 @@ struct Walker<'a> {
     next_id: SymbolId,
     /// What this module binds, for bare-name evidence.
     scope: ModuleScope,
+    /// Declaration details of the symbols recorded so far (ADR-034).
+    details: Vec<mct_core::SymbolDetail>,
 }
 
 impl<'a> Walker<'a> {
@@ -196,12 +199,14 @@ impl<'a> Walker<'a> {
                     .and_then(|left| first_identifier(left, depth))
                 {
                     let name = text(name, self.source).to_string();
-                    self.push_symbol(
+                    let id = self.push_symbol(
                         name,
                         SymbolKind::TypeAlias,
                         location(node),
                         class_name.map(str::to_string),
                     );
+                    self.details
+                        .push(details::type_detail(node, id, self.source));
                 }
             }
             "import_statement" => {
@@ -267,6 +272,12 @@ impl<'a> Walker<'a> {
                 };
                 let id =
                     self.push_symbol(name, kind, location(node), class_name.map(str::to_string));
+                self.details.push(details::function_detail(
+                    node,
+                    class_name.is_some(),
+                    id,
+                    self.source,
+                ));
                 if let Some(params) = node.child_by_field_name("parameters") {
                     self.visit_children(params, id, None, depth + 1);
                 }
@@ -288,6 +299,8 @@ impl<'a> Walker<'a> {
                     location(node),
                     class_name.map(str::to_string),
                 );
+                self.details
+                    .push(details::type_detail(node, id, self.source));
                 if let Some(superclasses) = node.child_by_field_name("superclasses") {
                     let mut cursor = superclasses.walk();
                     for base in superclasses.named_children(&mut cursor) {
@@ -396,6 +409,7 @@ impl<'a> Walker<'a> {
             symbols: self.symbols,
             relations: self.relations,
             relation_targets: self.relation_targets,
+            symbol_details: self.details,
             ..Default::default()
         }
     }
