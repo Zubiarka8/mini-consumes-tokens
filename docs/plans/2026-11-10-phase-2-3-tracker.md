@@ -64,8 +64,14 @@ From `rules.md` and the two messages:
       no longer keeps a symbol alive in dead code: #331.
   - [!] #330 (overview ranking and dashboard counts) needs a migration and an
         ADR. Waiting for the maintainer.
-- [ ] **D8, `Overrides`.** Authorized. Build it from inheritance,
+- [~] **D8, `Overrides`** (issue #349). Built from inheritance,
       implementation and type evidence only, never from a shared name.
+  - [x] Core `RelationKind::Overrides` and Rust (`impl Trait for T`): 258
+        relations on this repository, 186 resolved (each to a same-named
+        method of the named trait), 62 external (std traits), 10
+        unresolved (third-party traits), 0 ambiguous. Dead code unchanged.
+  - [ ] Java `@Override`, Kotlin/C# `override`, C++ `override`, TS
+        `override`, Python `@override`.
 - [ ] **D9, external and stdlib symbols.** Rust prelude (#318) and Python/JS
       builtins (#319) are done. Host and stdlib globals for the other
       languages are not.
