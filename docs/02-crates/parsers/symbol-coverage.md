@@ -507,6 +507,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `type A = B`, `type A int` | `type_alias`, `type_spec` | `type_alias` |
 | `import "x"`, grouped imports | `import_declaration`, `import_spec_list`, `import_spec` | `imports` (path and stem) |
 | `f()`, `pkg.F()`, `x.M()`, `F[T]()` | `call_expression`, `selector_expression`, `type_instantiation_expression` | `calls` |
+| the receiver of `x.M()` | `call_expression` + `selector_expression` `operand` | qualified by `x`'s declared named type: the method receiver, a parameter, `var x T`, `x := T{…}`, `x := &T{…}`, `x := new(T)`, a package-level `var` (`*T`, `Stack[T]` and `pkg.T` name `T`, `Stack` and `T`), `T{…}.M()`, `x.(T).M()`, or a field of a struct this file declares (`s.repo.M()`). A declared type without a name (`interface{ … }`, a slice, a variadic parameter) makes a member call: ambiguous even with one candidate. So does a struct this file declares with an embedded field and without a method `M` in this file, since `M` may be promoted. Where the syntax does not state the type (`x := f()`, a `range` variable, a multi-value assignment, a call result, an index expression, a field of a struct declared in another file, an imported package) the call is left as before, to name resolution, and a unique name is reported as `name` evidence. A promoted method on a struct declared in another file is not found through the qualifier, so such a call is unresolved |
 
 #### Why the gaps exist
 
