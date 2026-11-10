@@ -2,11 +2,12 @@
 
 use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
-    SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
+    SymbolDetail, SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::{find_child, first_error, location};
 use tree_sitter::{Node, Parser};
 
+mod details;
 mod receivers;
 
 pub struct CSharpParser;
@@ -90,6 +91,7 @@ struct Walker<'a> {
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
     relation_targets: Vec<RelationTarget>,
+    details: Vec<SymbolDetail>,
     next_id: SymbolId,
     /// Declared types of the enclosing member's locals (see `receivers`).
     locals: receivers::Types,
@@ -105,6 +107,7 @@ impl<'a> Walker<'a> {
             symbols: Vec::new(),
             relations: Vec::new(),
             relation_targets: Vec::new(),
+            details: Vec::new(),
             next_id: 0,
             locals: receivers::Types::new(),
             classes: Vec::new(),
@@ -198,6 +201,8 @@ impl<'a> Walker<'a> {
             "delegate_declaration" => {
                 let name = self.field_text(node, "name");
                 let id = self.push_symbol(name, SymbolKind::TypeAlias, location(node), parent);
+                self.details
+                    .push(details::method_detail(node, id, self.source));
                 self.visit_attributes(node, id, type_name, depth);
             }
             "method_declaration"
@@ -221,6 +226,8 @@ impl<'a> Walker<'a> {
                     _ => self.field_text(node, "name"),
                 };
                 let id = self.push_symbol(name, SymbolKind::Method, location(node), parent);
+                self.details
+                    .push(details::method_detail(node, id, self.source));
                 self.visit_callable(node, id, type_name, depth);
             }
             // A local function (in a method body or among top-level
@@ -229,6 +236,8 @@ impl<'a> Walker<'a> {
             "local_function_statement" => {
                 let name = self.field_text(node, "name");
                 let id = self.push_symbol(name, SymbolKind::Function, location(node), None);
+                self.details
+                    .push(details::method_detail(node, id, self.source));
                 self.visit_callable(node, id, None, depth);
             }
             // A property (`Name { get; set; }`) is ONE symbol, not two —
@@ -245,6 +254,8 @@ impl<'a> Walker<'a> {
                     self.field_text(node, "name")
                 };
                 let id = self.push_symbol(name, SymbolKind::Field, location(node), parent);
+                self.details
+                    .push(details::member_detail(node, id, self.source));
                 self.visit_attributes(node, id, type_name, depth);
                 if let Some(params) = node.child_by_field_name("parameters") {
                     self.visit_children(params, id, type_name, depth + 1);
@@ -280,6 +291,8 @@ impl<'a> Walker<'a> {
                             location(declarator),
                             parent.clone(),
                         );
+                        self.details
+                            .push(details::field_detail(node, declarator, id, self.source));
                         self.visit_attributes(node, id, type_name, depth);
                         let mut cursor = declarator.walk();
                         for child in declarator.named_children(&mut cursor) {
@@ -382,6 +395,8 @@ impl<'a> Walker<'a> {
             location(node),
             type_name.map(str::to_string),
         );
+        self.details
+            .push(details::type_detail(node, id, self.source));
         self.visit_attributes(node, id, type_name, depth);
         if kind != SymbolKind::Enum {
             if let Some(base_list) = find_child(node, "base_list") {
@@ -582,6 +597,7 @@ impl<'a> Walker<'a> {
             symbols: self.symbols,
             relations: self.relations,
             relation_targets: self.relation_targets,
+            symbol_details: self.details,
             ..Default::default()
         }
     }
