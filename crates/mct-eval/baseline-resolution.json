@@ -13,8 +13,8 @@
       "wrong": 1
     },
     "python: builtins, imports, fixtures and nested scopes": {
-      "score": 0.4,
-      "tokens": 559,
+      "score": 0.6,
+      "tokens": 545,
       "wrong": 0
     },
     "rust: a function and a method with the same name": {
@@ -38,8 +38,8 @@
       "wrong": 0
     },
     "typescript: builtins, imports, fixtures and same-named methods": {
-      "score": 0.3333333333333333,
-      "tokens": 409,
+      "score": 0.6666666666666666,
+      "tokens": 393,
       "wrong": 0
     }
   }
