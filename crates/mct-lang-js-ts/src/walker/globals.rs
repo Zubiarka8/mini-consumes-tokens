@@ -6,7 +6,7 @@
 //! `JSON` in one function makes `JSON` unprovable everywhere in the file.
 //! That loses some external answers but never claims a wrong one.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use mct_core::MAX_TRAVERSAL_DEPTH;
 use tree_sitter::Node;
@@ -98,6 +98,22 @@ pub(super) struct FileGlobals {
     /// A direct `eval(…)` or a `with` statement: any name may be bound by
     /// something the syntax doesn't show.
     opaque: bool,
+    /// What each name an `import` binds stands for; `None` when imports
+    /// bind it to different things or its module names no file.
+    imports: HashMap<String, Option<Import>>,
+    /// Names bound by anything other than an `import`.
+    rebound: HashSet<String>,
+}
+
+/// What an `import` binds a local name to, with the module's name: `fmt`
+/// for `"./fmt.ts"`, `legacy` for `"./legacy/index.js"`, `left-pad` for a
+/// package.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum Import {
+    /// `import { f } from "m"`, `import f from "m"`: a definition of `m`.
+    Named(String),
+    /// `import * as m from "m"`: the module itself.
+    Namespace(String),
 }
 
 impl FileGlobals {
@@ -113,6 +129,72 @@ impl FileGlobals {
         !self.opaque && !self.bound.contains(name) && GLOBALS.binary_search(&name).is_ok()
     }
 
+    /// The import a name is bound by, when nothing else binds it.
+    pub(super) fn import_of(&self, name: &str) -> Option<&Import> {
+        if self.opaque || self.rebound.contains(name) {
+            return None;
+        }
+        self.imports.get(name)?.as_ref()
+    }
+
+    fn bind(&mut self, name: &str) {
+        self.bound.insert(name.to_string());
+        self.rebound.insert(name.to_string());
+    }
+
+    fn bind_import(&mut self, name: &str, import: Option<Import>) {
+        self.bound.insert(name.to_string());
+        match self.imports.get_mut(name) {
+            Some(existing) if *existing != import => *existing = None,
+            Some(_) => {}
+            None => {
+                self.imports.insert(name.to_string(), import);
+            }
+        }
+    }
+
+    /// `import a, { b as c }, * as d from "m"`: each local name and what it
+    /// stands for. A TS `import x = require(…)` is a plain binding.
+    fn import(&mut self, node: Node, source: &str) {
+        let module = node
+            .child_by_field_name("source")
+            .and_then(|s| module_name(text(s, source)));
+        let mut cursor = node.walk();
+        let clause = node
+            .named_children(&mut cursor)
+            .find(|c| c.kind() == "import_clause");
+        let Some(clause) = clause else {
+            return;
+        };
+        let mut cursor = clause.walk();
+        for part in clause.named_children(&mut cursor) {
+            match part.kind() {
+                "identifier" => {
+                    self.bind_import(text(part, source), module.clone().map(Import::Named));
+                }
+                "namespace_import" => {
+                    if let Some(name) = part.named_child(0) {
+                        let import = module.clone().map(Import::Namespace);
+                        self.bind_import(text(name, source), import);
+                    }
+                }
+                "named_imports" => {
+                    let mut specs = part.walk();
+                    for spec in part.named_children(&mut specs) {
+                        let local = spec
+                            .child_by_field_name("alias")
+                            .or_else(|| spec.child_by_field_name("name"));
+                        if let Some(local) = local.filter(|l| l.kind() == "identifier") {
+                            let import = module.clone().map(Import::Named);
+                            self.bind_import(text(local, source), import);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
     fn visit(&mut self, node: Node, source: &str, depth: u32) {
         if depth >= MAX_TRAVERSAL_DEPTH {
             // Too deep to see every binding: prove nothing.
@@ -121,7 +203,7 @@ impl FileGlobals {
         }
         match node.kind() {
             "identifier" | "shorthand_property_identifier_pattern" if is_binding(node) => {
-                self.bound.insert(text(node, source).to_string());
+                self.bind(text(node, source));
             }
             "with_statement" => self.opaque = true,
             "call_expression"
@@ -137,10 +219,21 @@ impl FileGlobals {
                     .child_by_field_name("left")
                     .filter(|l| l.kind() == "identifier")
                 {
-                    self.bound.insert(text(left, source).to_string());
+                    self.bind(text(left, source));
                 }
             }
-            "import_statement" | "import_alias" => {
+            "import_statement" => {
+                if node
+                    .named_children(&mut node.walk())
+                    .any(|c| c.kind() == "import_require_clause")
+                {
+                    self.names(node, source, depth + 1);
+                } else {
+                    self.import(node, source);
+                }
+                return;
+            }
+            "import_alias" => {
                 self.names(node, source, depth + 1);
                 return;
             }
@@ -165,9 +258,7 @@ impl FileGlobals {
             return;
         }
         match node.kind() {
-            "identifier" | "type_identifier" => {
-                self.bound.insert(text(node, source).to_string());
-            }
+            "identifier" | "type_identifier" => self.bind(text(node, source)),
             "string" => {}
             _ => {
                 let mut cursor = node.walk();
@@ -179,9 +270,49 @@ impl FileGlobals {
     }
 }
 
+/// The module a specifier names, as a path component a definition can be
+/// declared under: its last segment without extension, or the directory
+/// for an `index` file. `-` is written `_`, as the index compares a
+/// candidate's path with `-` read as `_`. `None` for `.`/`..` and an empty
+/// specifier.
+fn module_name(specifier: &str) -> Option<String> {
+    let path = specifier.trim_matches(|c| c == '"' || c == '\'' || c == '`');
+    let mut segments = path.rsplit('/').filter(|s| !s.is_empty());
+    let mut last = segments.next()?;
+    let stem = |s: &str| {
+        const EXTENSIONS: &[&str] = &[
+            ".d.ts", ".tsx", ".ts", ".mts", ".cts", ".jsx", ".js", ".mjs", ".cjs",
+        ];
+        EXTENSIONS
+            .iter()
+            .find_map(|e| s.strip_suffix(e))
+            .unwrap_or(s)
+            .to_string()
+    };
+    if stem(last) == "index" {
+        last = segments.next()?;
+    }
+    let name = stem(last);
+    (!name.is_empty() && name != "." && name != "..").then(|| name.replace('-', "_"))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::GLOBALS;
+    use super::{module_name, GLOBALS};
+
+    #[test]
+    fn a_specifier_names_its_file_or_directory() {
+        assert_eq!(module_name("\"./fmt.ts\"").as_deref(), Some("fmt"));
+        assert_eq!(module_name("\"./fmt\"").as_deref(), Some("fmt"));
+        assert_eq!(
+            module_name("'./legacy/index.js'").as_deref(),
+            Some("legacy")
+        );
+        assert_eq!(module_name("\"left-pad\"").as_deref(), Some("left_pad"));
+        assert_eq!(module_name("\"@scope/pkg\"").as_deref(), Some("pkg"));
+        assert_eq!(module_name("\"..\""), None);
+        assert_eq!(module_name("\"./index\""), None);
+    }
 
     #[test]
     fn the_globals_list_is_sorted_for_binary_search() {

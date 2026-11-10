@@ -6,7 +6,7 @@
 //! `len` in one function makes `len` unprovable everywhere in the file. That
 //! loses some external answers but never claims a wrong one.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use mct_core::MAX_TRAVERSAL_DEPTH;
 use tree_sitter::Node;
@@ -174,6 +174,21 @@ pub(crate) struct ModuleScope {
     /// A `from m import *`, `globals()`, `exec` or `vars()`, or a write
     /// through `sys.modules`: any name may be bound by something unseen.
     opaque: bool,
+    /// What each name an import binds stands for; `None` when imports bind
+    /// it to different things or the module is not named (`from . import`).
+    imports: HashMap<String, Option<Import>>,
+    /// Names bound by anything other than an import.
+    rebound: HashSet<String>,
+}
+
+/// What an import binds a local name to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Import {
+    /// `from a.b import f [as g]`: a name defined in module `b`.
+    From(String),
+    /// `import a.b as m` (`a.b`) or `import a.b` (`a`): a module, whose
+    /// dotted path the name stands for.
+    Module(String),
 }
 
 impl ModuleScope {
@@ -196,9 +211,50 @@ impl ModuleScope {
         !self.opaque && self.functions.contains(name) && !self.other.contains(name)
     }
 
+    /// The module a bare `name` was imported from (`util` for `from
+    /// app.util import parse`), when an import is its only binding.
+    pub(crate) fn imported_from(&self, name: &str) -> Option<&str> {
+        match self.import_of(name)? {
+            Import::From(module) => Some(module),
+            Import::Module(_) => None,
+        }
+    }
+
+    /// The module path a name stands for (`app.legacy` for `import
+    /// app.legacy as lg`, `app` for `import app.util`), when an import is
+    /// its only binding.
+    pub(crate) fn module_alias(&self, name: &str) -> Option<&str> {
+        match self.import_of(name)? {
+            Import::Module(path) => Some(path),
+            Import::From(_) => None,
+        }
+    }
+
+    fn import_of(&self, name: &str) -> Option<&Import> {
+        if self.opaque || self.functions.contains(name) || self.rebound.contains(name) {
+            return None;
+        }
+        self.imports.get(name)?.as_ref()
+    }
+
     fn bind(&mut self, name: &str) {
         if !name.is_empty() {
             self.other.insert(name.to_string());
+            self.rebound.insert(name.to_string());
+        }
+    }
+
+    fn bind_import(&mut self, name: &str, import: Option<Import>) {
+        if name.is_empty() {
+            return;
+        }
+        self.other.insert(name.to_string());
+        match self.imports.get_mut(name) {
+            Some(existing) if *existing != import => *existing = None,
+            Some(_) => {}
+            None => {
+                self.imports.insert(name.to_string(), import);
+            }
         }
     }
 
@@ -214,6 +270,7 @@ impl ModuleScope {
                 if let Some(name) = node.child_by_field_name("name") {
                     let name = text(name, source).to_string();
                     if in_class {
+                        self.rebound.insert(name.clone());
                         self.other.insert(name);
                     } else {
                         self.functions.insert(name);
@@ -331,8 +388,12 @@ impl ModuleScope {
     /// `import a.b` binds `a`, `import a.b as x` binds `x`, `from m import
     /// f [as g]` binds `f` (`g`), and `from m import *` binds anything.
     fn import(&mut self, node: Node, source: &str) {
-        let module = node.child_by_field_name("module_name").map(|n| n.id());
+        let module_node = node.child_by_field_name("module_name");
+        let module = module_node.map(|n| n.id());
         let from = node.kind() == "import_from_statement";
+        // `from a.b import f` and `from .b import f`: module `b`. A bare
+        // `from . import f` names no module, so it proves nothing.
+        let from_module = module_node.and_then(|m| last_module_segment(m, source));
         let mut cursor = node.walk();
         for child in node.named_children(&mut cursor) {
             if Some(child.id()) == module {
@@ -342,7 +403,14 @@ impl ModuleScope {
                 "wildcard_import" => self.opaque = true,
                 "aliased_import" => {
                     if let Some(alias) = child.child_by_field_name("alias") {
-                        self.bind(text(alias, source));
+                        let import = if from {
+                            from_module.clone().map(Import::From)
+                        } else {
+                            child
+                                .child_by_field_name("name")
+                                .map(|n| Import::Module(text(n, source).to_string()))
+                        };
+                        self.bind_import(text(alias, source), import);
                     }
                 }
                 "dotted_name" => {
@@ -352,13 +420,39 @@ impl ModuleScope {
                         child.named_child(0)
                     };
                     if let Some(segment) = segment {
-                        self.bind(text(segment, source));
+                        let name = text(segment, source);
+                        let import = if from {
+                            // `from m import a.b` is not valid Python; only
+                            // a single name is a definition of `m`.
+                            (child.named_child_count() == 1)
+                                .then(|| from_module.clone().map(Import::From))
+                                .flatten()
+                        } else {
+                            Some(Import::Module(name.to_string()))
+                        };
+                        self.bind_import(name, import);
                     }
                 }
                 _ => {}
             }
         }
     }
+}
+
+/// The last segment of an import's module (`b` in `a.b`, `.b` or `..a.b`),
+/// `None` for a bare relative prefix (`.`, `..`).
+fn last_module_segment(module: Node, source: &str) -> Option<String> {
+    let dotted = if module.kind() == "dotted_name" {
+        Some(module)
+    } else {
+        let mut cursor = module.walk();
+        let found = module
+            .named_children(&mut cursor)
+            .find(|c| c.kind() == "dotted_name");
+        found
+    }?;
+    let last = dotted.named_child(dotted.named_child_count().checked_sub(1)?)?;
+    Some(text(last, source).to_string())
 }
 
 #[cfg(test)]

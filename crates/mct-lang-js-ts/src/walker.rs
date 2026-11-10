@@ -67,14 +67,34 @@ impl<'a> Walker<'a> {
 
     /// Marks the relation about to be pushed external when `name` (written
     /// bare, or as the object of `name.f(…)`) is an unbound global.
-    fn mark_global(&mut self, name: Node) {
-        if name.kind() == "identifier" && self.globals.is_global(text(name, self.source)) {
-            self.relation_targets.push(RelationTarget {
-                relation: self.relations.len(),
+    /// Evidence for a call named by `name` (bare `f()`) or reached through
+    /// `name` (`name.f()`): an ECMAScript global is external, and an
+    /// imported name is defined in its module.
+    fn mark_global(&mut self, name: Node, member: bool) {
+        if name.kind() != "identifier" {
+            return;
+        }
+        let name = text(name, self.source);
+        let target = if self.globals.is_global(name) {
+            RelationTarget {
                 external: true,
                 ..Default::default()
-            });
-        }
+            }
+        } else {
+            let module = match self.globals.import_of(name) {
+                Some(globals::Import::Named(m)) if !member => m,
+                Some(globals::Import::Namespace(m)) if member => m,
+                _ => return,
+            };
+            RelationTarget {
+                module: Some(module.clone()),
+                ..Default::default()
+            }
+        };
+        self.relation_targets.push(RelationTarget {
+            relation: self.relations.len(),
+            ..target
+        });
     }
 
     pub(super) fn push_symbol(
@@ -403,7 +423,7 @@ impl<'a> Walker<'a> {
                                     }
                                 }
                             } else {
-                                self.mark_global(function);
+                                self.mark_global(function, false);
                                 self.push_relation(
                                     owner,
                                     RelationKind::Calls,
@@ -420,7 +440,7 @@ impl<'a> Walker<'a> {
                                 // which would make two same-named chained
                                 // calls collide into one indistinguishable row.
                                 if let Some(object) = function.child_by_field_name("object") {
-                                    self.mark_global(object);
+                                    self.mark_global(object, true);
                                 }
                                 self.push_relation(
                                     owner,
@@ -445,7 +465,7 @@ impl<'a> Walker<'a> {
             "new_expression" => {
                 if let Some(constructor) = node.child_by_field_name("constructor") {
                     if let Some(name_node) = rightmost_name(constructor) {
-                        self.mark_global(constructor);
+                        self.mark_global(constructor, false);
                         self.push_relation(
                             owner,
                             RelationKind::Calls,
