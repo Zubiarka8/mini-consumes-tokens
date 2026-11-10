@@ -2,9 +2,9 @@
 //! `find_dead_code` tool and `mct-cli`'s `dead-code` subcommand so the two
 //! never drift apart on what counts as "unreferenced".
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
-use crate::{Index, Result, SymbolListEntry};
+use crate::{Index, ReferencedSymbols, Result, SymbolListEntry};
 
 /// Symbol kinds a dead-code scan considers as candidates. Deliberately
 /// narrower than a full symbol listing: `method` is excluded because
@@ -96,7 +96,8 @@ pub fn looks_like_test_name(name: &str, relative_path: &str) -> bool {
 /// project), optionally narrowed to one `language`: symbols whose kind is in
 /// [`DEAD_CODE_KIND_ALLOWLIST`], that aren't a known entry point, don't look
 /// like a test, and have zero indexed references anywhere in the project —
-/// a function's calls to itself don't count (see [`Index::referenced_names`]).
+/// a function's calls to itself don't count, and a relation resolved to one
+/// symbol counts for that symbol only (see [`Index::referenced_symbols`]).
 ///
 /// Heuristic over indexed relations, not real export/dynamic-dispatch
 /// analysis — a symbol only referenced via reflection, an FFI boundary, or a
@@ -107,7 +108,7 @@ pub fn find_dead_code_candidates(
     language: Option<&str>,
 ) -> Result<Vec<SymbolListEntry>> {
     let all_entries = index.list_symbols_all(path, language)?;
-    let referenced = index.referenced_names()?;
+    let referenced = index.referenced_symbols(DEAD_CODE_KIND_ALLOWLIST)?;
 
     Ok(all_entries
         .into_iter()
@@ -115,11 +116,11 @@ pub fn find_dead_code_candidates(
         .collect())
 }
 
-fn is_candidate(entry: &SymbolListEntry, referenced: &HashSet<String>) -> bool {
+fn is_candidate(entry: &SymbolListEntry, referenced: &ReferencedSymbols) -> bool {
     DEAD_CODE_KIND_ALLOWLIST.contains(&entry.kind.as_str())
         && !DEAD_CODE_ENTRY_POINT_NAMES.contains(&entry.name.as_str())
         && !looks_like_test_name(&entry.name, &entry.relative_path)
-        && !referenced.contains(entry.name.as_str())
+        && !referenced.contains(&entry.relative_path, entry.line, &entry.name)
 }
 
 /// Why a dead-code candidate might still be loaded: a framework convention
@@ -245,7 +246,7 @@ pub fn scan_dead_code(
     language: Option<&str>,
 ) -> Result<DeadCodeScan> {
     let symbols = index.list_symbols_all(path, language)?;
-    let referenced = index.referenced_names()?;
+    let referenced = index.referenced_symbols(DEAD_CODE_KIND_ALLOWLIST)?;
     let candidates: Vec<usize> = symbols
         .iter()
         .enumerate()
