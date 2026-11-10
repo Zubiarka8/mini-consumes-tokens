@@ -288,6 +288,11 @@ fn main() {
             ..Default::default()
         })
         .collect();
-    let small_text = format::symbol_hits("handle_node_kind_000", &small_hits, 200);
+    let small_text = format::symbol_hits(
+        "handle_node_kind_000",
+        &small_hits,
+        200,
+        &Default::default(),
+    );
     report_vs_existing_text("find_symbol", &small_toon, &small_text);
 }
