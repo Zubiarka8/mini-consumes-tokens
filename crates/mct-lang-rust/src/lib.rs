@@ -12,6 +12,7 @@ use mct_tree_sitter::{first_error, location};
 use std::collections::{HashMap, HashSet};
 use tree_sitter::{Node, Parser};
 
+mod details;
 mod tokens;
 
 pub use tokens::RustTokenSource;
@@ -127,6 +128,8 @@ struct Walker<'a> {
     /// Base name of the `impl`/`trait` type whose method body is being
     /// walked — what `self.f()` and `Self::f()` are qualified by.
     self_type: Option<String>,
+    /// Declaration details of the items recorded so far (ADR-034).
+    details: Vec<mct_core::SymbolDetail>,
 }
 
 impl<'a> Walker<'a> {
@@ -147,7 +150,14 @@ impl<'a> Walker<'a> {
             generics: HashSet::new(),
             relation_targets: Vec::new(),
             self_type: None,
+            details: Vec::new(),
         }
+    }
+
+    /// Records what `item`'s own syntax says about symbol `id`.
+    fn record_detail(&mut self, item: Node, id: SymbolId) {
+        self.details
+            .push(details::item_detail(item, id, self.source));
     }
 
     fn push_symbol(
@@ -294,6 +304,7 @@ impl<'a> Walker<'a> {
                     .map(str::to_string)
                     .or_else(|| self.callable_owner(owner));
                 let id = self.push_symbol(name, kind, location(node), parent);
+                self.record_detail(node, id);
                 // Locals are per function: a nested `fn` starts from an empty
                 // scope (it can't see its parent's locals) and the parent's
                 // scope is restored once it's done.
@@ -546,6 +557,7 @@ impl<'a> Walker<'a> {
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
                 let id = self.push_symbol(name.clone(), SymbolKind::Struct, location(node), None);
+                self.record_detail(node, id);
                 if let Some(body) = node.child_by_field_name("body") {
                     self.visit(body, id, Some(&name), depth + 1);
                 }
@@ -556,6 +568,7 @@ impl<'a> Walker<'a> {
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
                 let id = self.push_symbol(name.clone(), SymbolKind::Enum, location(node), None);
+                self.record_detail(node, id);
                 if let Some(body) = node.child_by_field_name("body") {
                     self.visit(body, id, Some(&name), depth + 1);
                 }
@@ -606,6 +619,7 @@ impl<'a> Walker<'a> {
             "type_item" | "associated_type" => {
                 let id =
                     self.push_named(node, SymbolKind::TypeAlias, impl_type.map(str::to_string));
+                self.record_detail(node, id);
                 if let Some(ty) = node.child_by_field_name("type") {
                     self.visit(ty, id, None, depth + 1);
                 }
@@ -617,6 +631,7 @@ impl<'a> Walker<'a> {
                     SymbolKind::Constant
                 };
                 let id = self.push_named(node, kind, impl_type.map(str::to_string));
+                self.record_detail(node, id);
                 if let Some(ty) = node.child_by_field_name("type") {
                     self.visit(ty, id, None, depth + 1);
                 }
@@ -630,6 +645,7 @@ impl<'a> Walker<'a> {
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
                 let id = self.push_symbol(name.clone(), SymbolKind::Trait, location(node), None);
+                self.record_detail(node, id);
                 if let Some(bounds) = node.child_by_field_name("bounds") {
                     let mut cursor = bounds.walk();
                     for bound in bounds.named_children(&mut cursor) {
@@ -1176,6 +1192,7 @@ impl<'a> Walker<'a> {
             relations: self.relations,
             literals: self.literals.finish(),
             relation_targets: self.relation_targets,
+            symbol_details: self.details,
             ..Default::default()
         }
     }
