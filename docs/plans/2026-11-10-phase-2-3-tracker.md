@@ -99,16 +99,22 @@ From `rules.md` and the two messages:
   | PowerShell | #345 | |
   | CSS, HTML, Markdown, XML, XAML | — | Out of scope: they have no declarations with signatures. |
 
-- [~] **2.4 MCP uses the metadata.**
+- [x] **2.4 MCP uses the metadata.**
   - [x] `build_context_pack`: uses the stored signature, with the same
         120-character cap as before and only while the file still holds the
         indexed revision. Measured on 48 symbols in 12 languages: full packs
         173,215 → 173,027 approximate tokens, `summary` 13,190 → 12,849; 6 of
         48 packs grow, the ones whose header spans several lines.
         #346.
-  - [ ] `find_symbol`
-  - [ ] `find_calls`, `find_callers`, `find_references`, `impact_analysis`:
-        decide per tool whether a signature is worth its tokens (ADR-016).
+  - [x] `find_symbol`: a `signature` column (TOON) and ` | header` (text),
+        same cap and stale-file rule (issue #347). Measured on 72 names in
+        18 languages: TOON 16,336 → 18,061 approximate tokens (+10.6%, about
+        24 per call), text 14,575 → 15,694 (+7.7%); median CLI call latency
+        within noise.
+  - [x] `find_calls`, `find_callers`, `find_references`, `impact_analysis`:
+        decided not to add signatures. Their rows are relation sites, not
+        definitions, often hundreds per call, and `build_context_pack`
+        already gives every related symbol's signature once.
 - [~] **2.5 Benchmarks.** SQLite size and coverage measured for each parser
       PR (in each PR body). Init time is within noise on this machine and is
       not claimed. Query latency, peak memory and response tokens before and
