@@ -1,0 +1,240 @@
+The resolution suite's fixture project (suite-resolution.json).
+mct-eval unpacks it into a temporary directory and indexes that copy, so
+none of these files is ever indexed as part of this repository: no parser
+reads a .txt file. Each `==> path <==` line starts a file; see
+crates/mct-eval/src/bundle.rs for the format.
+
+==> README.md <==
+# resolution-app
+
+Fixture for `crates/mct-eval/suite-resolution.json`: same-named symbols that
+must not be linked, in Rust, Python, TypeScript, Java and Lua. Each suite
+label names one relation site and what it really refers to. The truth was
+checked by running the code, never read off the index:
+
+- **Rust:** `rustc --edition 2021 --crate-type lib rust/src/lib.rs`, plus a
+  checker crate asserting values only the claimed item can produce.
+  - `imports::accept() == Outcome::Ok(1)` and `glob::reject() ==
+    Outcome::Err(2)`.
+  - `shadow::wrap` returns the local `Some`, and `release(1) == 2` (the local
+    closure, not `std::mem::drop`).
+  - `modules::both() == 3` (disk 1 + network 2).
+  - `same_name::sizes(&Stack::default(), &[1, 2, 3]) == (0, 3)`: the method,
+    then the free function.
+  - `prelude_use::parse` type-checks only with `std`'s `Ok`/`Err`.
+- **Python:** `report.parse is util.parse`. `report` has no `open`/`len` of
+  its own, so they are `builtins`. `render`/`render_short` each use their own
+  nested `fmt`.
+- **TypeScript:** run with Node's type stripping. `show(new Invoice(5), 1, 2)
+  == "2.00#5"`: `Math.max`, `fmt.format` and `Invoice#format`.
+- **Java:** compiled against a stub `vendor.Base` with `protected int
+  total()`, which is not in the fixture. `new Report().print()` returns the
+  stub's value, never `Ledger.total`.
+- **Lua:** run with a stub host global `speed`. `hud.draw()` returns the
+  host's value, never `physics.lua`'s local.
+
+The fixture is checked in as one `.txt` bundle, which no parser indexes, and
+unpacked into a temporary directory per eval run, so its clashing names never
+become candidates outside the eval.
+==> java/src/shop/Ledger.java <==
+package shop;
+
+public class Ledger {
+    private int total;
+
+    public int add(int amount) {
+        total += amount;
+        return total;
+    }
+}
+==> java/src/shop/Report.java <==
+package shop;
+
+import vendor.Base;
+
+public class Report extends Base {
+    public int print() {
+        return total();
+    }
+}
+==> lua/hud.lua <==
+local M = {}
+
+function M.draw()
+  return speed()
+end
+
+return M
+==> lua/physics.lua <==
+local function step(dt)
+  local speed = 10 * dt
+  return speed
+end
+
+return { step = step }
+==> py/app/__init__.py <==
+==> py/app/legacy.py <==
+def parse(text):
+    return text.split(";")
+==> py/app/report.py <==
+from app.util import parse
+
+
+def summarize(path):
+    with open(path) as handle:
+        rows = parse(handle.read())
+    return len(rows)
+
+
+def render(rows):
+    def fmt(row):
+        return row.upper()
+
+    return [fmt(r) for r in rows]
+
+
+def render_short(rows):
+    def fmt(row):
+        return row[:3]
+
+    return [fmt(r) for r in rows]
+==> py/app/util.py <==
+def parse(text):
+    return text.split(",")
+==> py/tests/fixtures/bank/loan.py <==
+class Loan:
+    def open(self):
+        return True
+
+    def len(self):
+        return 0
+==> rust/src/glob.rs <==
+use crate::kinds::Outcome::*;
+
+pub fn reject() -> crate::kinds::Outcome {
+    Err(2)
+}
+==> rust/src/imports.rs <==
+use crate::kinds::Outcome::{self, Ok};
+
+pub fn accept() -> Outcome {
+    Ok(1)
+}
+==> rust/src/kinds.rs <==
+//! Enums whose variants share names with the prelude.
+
+#[derive(Debug, PartialEq)]
+pub enum Outcome {
+    Ok(u8),
+    Err(u8),
+}
+
+#[derive(Debug, Default, PartialEq)]
+pub enum Level {
+    Debug,
+    #[default]
+    Default,
+}
+==> rust/src/lib.rs <==
+pub mod glob;
+pub mod imports;
+pub mod kinds;
+pub mod modules;
+pub mod prelude_use;
+pub mod same_name;
+pub mod shadow;
+==> rust/src/modules.rs <==
+pub mod disk {
+    pub fn load() -> u8 {
+        1
+    }
+}
+
+pub mod network {
+    pub fn load() -> u8 {
+        2
+    }
+}
+
+pub fn both() -> u8 {
+    disk::load() + network::load()
+}
+==> rust/src/prelude_use.rs <==
+use crate::kinds::Level;
+
+#[derive(Debug, Default, Clone)]
+pub struct Settings {
+    pub name: String,
+    pub level: Option<u8>,
+}
+
+pub fn parse(raw: &str) -> Result<u8, String> {
+    match raw.parse::<u8>() {
+        Ok(v) => Ok(v),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+pub fn verbose() -> Level {
+    Level::Debug
+}
+==> rust/src/same_name.rs <==
+#[derive(Default)]
+pub struct Stack {
+    items: Vec<u8>,
+}
+
+impl Stack {
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+}
+
+pub fn len(values: &[u8]) -> usize {
+    values.len()
+}
+
+pub fn sizes(stack: &Stack, values: &[u8]) -> (usize, usize) {
+    (stack.len(), len(values))
+}
+==> rust/src/shadow.rs <==
+pub struct Some(pub u8);
+
+pub fn wrap(v: u8) -> Some {
+    Some(v)
+}
+
+pub fn release(v: u8) -> u8 {
+    let drop = |x: u8| x + 1;
+    drop(v)
+}
+==> ts/src/app.ts <==
+import { format } from "./fmt";
+import { Invoice } from "./invoice";
+
+export function show(inv: Invoice, a: number, b: number): string {
+  const top = Math.max(a, b);
+  return format(top) + inv.format();
+}
+==> ts/src/fmt.ts <==
+export function format(value: number): string {
+  return value.toFixed(2);
+}
+==> ts/src/invoice.ts <==
+export class Invoice {
+  total: number;
+
+  constructor(total: number) {
+    this.total = total;
+  }
+
+  format(): string {
+    return `#${this.total}`;
+  }
+}
+==> ts/tests/fixtures/money.ts <==
+export class Money {
+  max(other: Money): Money {
+    return other;
+  }
+}
