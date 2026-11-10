@@ -784,7 +784,7 @@ pub fn referenced_symbols(conn: &Connection, kinds: &[&str]) -> Result<Reference
                         OR (SELECT COUNT(*) FROM (SELECT 1 FROM relation_candidates c
                                                   WHERE c.relation_id = r.id LIMIT 2)) <> 1))
          )
-         SELECT DISTINCT r.to_name, NULL, NULL, NULL
+         SELECT r.to_name, NULL, NULL, NULL
          FROM relations r
          JOIN symbols caller ON caller.id = r.from_symbol_id
          WHERE r.external = 0
