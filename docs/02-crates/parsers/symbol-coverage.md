@@ -562,6 +562,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `local M = {}` | `assignment_statement` + `table_constructor` | `module` |
 | `require("x")` | `function_call` | `imports` |
 | `f()`, `M.f()`, `o:m()` | `function_call` | `calls` |
+| `self:m()` in `function T:x()`, `o:m()` | `function_call` + `method_index_expression` | `calls` qualified by `T`; any other receiver is a member call (type unknown) |
 
 #### Why the gaps exist
 
