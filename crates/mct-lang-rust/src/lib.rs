@@ -1089,7 +1089,8 @@ impl<'a> Walker<'a> {
                     | "no_mangle"
                     | "path"
                     | "macro_export"
-            ) {
+            ) && !(name.kind() == "identifier" && is_bare_builtin_attribute(attribute_name))
+            {
                 self.push_relation(
                     owner,
                     RelationKind::References,
@@ -1589,6 +1590,48 @@ fn collect_identifiers(node: Node, source: &str, out: &mut HashSet<String>, dept
 /// ending in `test`), `#[rstest]`, `#[test_case(..)]`: attributes that hand
 /// the function to a test/bench harness. `#[cfg(test)]` is not one — it only
 /// gates compilation, and a helper under it can still be genuinely unused.
+/// A built-in attribute of the Rust reference not already skipped above. A
+/// bare one can't be an imported attribute macro of the same name (that is
+/// an ambiguity error, E0659), so it never names a repo item.
+fn is_bare_builtin_attribute(name: &str) -> bool {
+    matches!(
+        name,
+        "ignore"
+            | "should_panic"
+            | "expect"
+            | "non_exhaustive"
+            | "track_caller"
+            | "automatically_derived"
+            | "macro_use"
+            | "proc_macro"
+            | "proc_macro_derive"
+            | "proc_macro_attribute"
+            | "link_name"
+            | "link_section"
+            | "link_ordinal"
+            | "no_link"
+            | "used"
+            | "target_feature"
+            | "instruction_set"
+            | "global_allocator"
+            | "panic_handler"
+            | "windows_subsystem"
+            | "no_std"
+            | "no_main"
+            | "no_builtins"
+            | "no_implicit_prelude"
+            | "recursion_limit"
+            | "type_length_limit"
+            | "crate_name"
+            | "crate_type"
+            | "feature"
+            | "debugger_visualizer"
+            | "collapse_debuginfo"
+            | "naked"
+            | "unsafe"
+    )
+}
+
 fn is_harness_attribute(attribute_item: Node, source: &str) -> bool {
     let mut cursor = attribute_item.walk();
     let Some(attribute) = attribute_item

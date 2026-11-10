@@ -1005,3 +1005,26 @@ fn loop_conditional_and_match_bindings_are_variables_of_their_function() {
         assert!(!variables.iter().any(|(n, _)| *n == name), "{name}");
     }
 }
+
+#[test]
+fn a_bare_builtin_attribute_is_not_a_reference() {
+    // `#[ignore = ".."]` and `#[should_panic]` are the compiler's: a bare
+    // built-in attribute name can't be an imported attribute macro (that is
+    // an ambiguity error, E0659), so it never names a repo item such as a
+    // method `Site::ignore`. A custom attribute still is one.
+    let parsed = parse(
+        r#"
+        #[test]
+        #[ignore = "slow"]
+        #[should_panic(expected = "boom")]
+        #[track_caller]
+        #[my_attr]
+        fn t() {}
+        "#,
+    );
+    let names = references(&parsed);
+    for builtin in ["ignore", "should_panic", "track_caller"] {
+        assert!(!names.contains(&builtin), "{builtin}: {names:?}");
+    }
+    assert!(names.contains(&"my_attr"), "{names:?}");
+}
