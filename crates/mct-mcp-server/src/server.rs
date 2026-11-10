@@ -1016,6 +1016,31 @@ fn query_scope<'a>(path: Option<&'a str>, language: Option<&'a str>) -> mct_inde
 /// outside the project root — the same traversal guard `Index`'s own
 /// reindex walk uses — so a path like `../../etc/passwd` is refused rather
 /// than read.
+/// The stored declaration header (ADR-034) of each of `hits`, capped like a
+/// context pack's, keyed by symbol id. A header is its indexed revision's
+/// source text, so a file that no longer holds that revision shows none.
+fn shown_signatures(
+    index: &Index,
+    hits: &[mct_index::SymbolHit],
+) -> Result<std::collections::HashMap<i64, String>, McpError> {
+    let ids: Vec<i64> = hits.iter().map(|hit| hit.id).collect();
+    let stored = index.stored_signatures(&ids).map_err(index_error)?;
+    let mut verified: std::collections::HashMap<&str, bool> = std::collections::HashMap::new();
+    let mut signatures = std::collections::HashMap::new();
+    for hit in hits {
+        let Some(header) = stored.get(&hit.id) else {
+            continue;
+        };
+        let current = *verified
+            .entry(hit.relative_path.as_str())
+            .or_insert_with(|| read_source_file(index, &hit.relative_path).is_ok());
+        if current {
+            signatures.insert(hit.id, format::capped_signature(header));
+        }
+    }
+    Ok(signatures)
+}
+
 fn read_source_file(index: &Index, relative_path: &str) -> Result<String, McpError> {
     let candidate = index.root().join(relative_path);
     let canonical = candidate.canonicalize().map_err(|_| {
@@ -1814,9 +1839,10 @@ impl MctServer {
             .find_symbol_matching_scoped(name, mode, scope)
             .map_err(index_error)?;
         let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
+        let signatures = shown_signatures(&index, &hits[..hits.len().min(limit)])?;
         let text = match output_format {
-            OutputFormat::Text => format::symbol_hits(name, &hits, limit),
-            OutputFormat::Toon => format::symbol_hits_toon(name, &hits, limit),
+            OutputFormat::Text => format::symbol_hits(name, &hits, limit, &signatures),
+            OutputFormat::Toon => format::symbol_hits_toon(name, &hits, limit, &signatures),
         };
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }

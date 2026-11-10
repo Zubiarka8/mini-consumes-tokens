@@ -125,7 +125,14 @@ fn level_suffix(level: Option<u32>) -> String {
     level.map(|l| format!(" H{l}")).unwrap_or_default()
 }
 
-pub fn symbol_hits(name: &str, hits: &[SymbolHit], limit: usize) -> String {
+/// `signatures` holds each shown hit's declaration header (ADR-034), keyed
+/// by [`SymbolHit::id`], already capped; a hit without one shows none.
+pub fn symbol_hits(
+    name: &str,
+    hits: &[SymbolHit],
+    limit: usize,
+    signatures: &std::collections::HashMap<i64, String>,
+) -> String {
     if hits.is_empty() {
         return format!("No symbol named `{name}` found in the index.");
     }
@@ -138,8 +145,12 @@ pub fn symbol_hits(name: &str, hits: &[SymbolHit], limit: usize) -> String {
             .as_deref()
             .map(|p| format!(" (in {p})"))
             .unwrap_or_default();
+        let signature = signatures
+            .get(&hit.id)
+            .map(|s| format!(" | {s}"))
+            .unwrap_or_default();
         body.push(&format!(
-            "{}:{}:{} [{}] {} {}{}{}\n",
+            "{}:{}:{} [{}] {} {}{}{}{}\n",
             hit.relative_path,
             hit.line,
             hit.column,
@@ -147,7 +158,8 @@ pub fn symbol_hits(name: &str, hits: &[SymbolHit], limit: usize) -> String {
             hit.kind,
             hit.name,
             level_suffix(hit.level),
-            parent
+            parent,
+            signature
         ));
     }
     format!(
@@ -160,7 +172,12 @@ pub fn symbol_hits(name: &str, hits: &[SymbolHit], limit: usize) -> String {
 /// TOON rendering of [`symbol_hits`]: same `limit` semantics (row-count
 /// pagination only — see the module doc on why the byte budget isn't
 /// re-applied here), one row per definition instead of one labelled line.
-pub fn symbol_hits_toon(name: &str, hits: &[SymbolHit], limit: usize) -> String {
+pub fn symbol_hits_toon(
+    name: &str,
+    hits: &[SymbolHit],
+    limit: usize,
+    signatures: &std::collections::HashMap<i64, String>,
+) -> String {
     if hits.is_empty() {
         return format!("No symbol named `{name}` found in the index.");
     }
@@ -178,6 +195,7 @@ pub fn symbol_hits_toon(name: &str, hits: &[SymbolHit], limit: usize) -> String 
                 hit.name.clone(),
                 hit.parent.clone().unwrap_or_default(),
                 hit.level.map(|l| l.to_string()).unwrap_or_default(),
+                signatures.get(&hit.id).cloned().unwrap_or_default(),
             ]
         })
         .collect();
@@ -186,7 +204,17 @@ pub fn symbol_hits_toon(name: &str, hits: &[SymbolHit], limit: usize) -> String 
         truncation_note(total, 0, shown.len()),
         encode_table(
             "symbols",
-            &["path", "line", "column", "language", "kind", "name", "parent", "level"],
+            &[
+                "path",
+                "line",
+                "column",
+                "language",
+                "kind",
+                "name",
+                "parent",
+                "level",
+                "signature",
+            ],
             &rows,
         )
     )
@@ -2620,7 +2648,7 @@ mod budget_tests {
             level: None,
             ..Default::default()
         }];
-        let out = symbol_hits("compute", &hits, 50);
+        let out = symbol_hits("compute", &hits, 50, &Default::default());
         assert_eq!(
             out,
             "1 definition(s) of `compute`:\nsrc/lib.rs:10:1 [rust] function compute\n"
